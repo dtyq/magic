@@ -85,8 +85,15 @@ class TaskStatusValidator
             return '运行中的任务不能回到等待状态';
         }
 
-        if ($currentStatus === TaskStatus::RUNNING && ! self::isFinalStatus($newStatus) && $newStatus !== TaskStatus::Suspended) {
-            return '运行中的任务只能转换到终态或挂起态';
+        if ($currentStatus === TaskStatus::RUNNING && ! self::isFinalStatus($newStatus) && $newStatus !== TaskStatus::Suspended && $newStatus !== TaskStatus::WAITING_FOR_USER) {
+            return '运行中的任务只能转换到终态、挂起态或等待用户处理态';
+        }
+
+        if ($currentStatus === TaskStatus::WAITING_FOR_USER
+            && $newStatus !== TaskStatus::RUNNING
+            && $newStatus !== TaskStatus::Suspended
+            && ! self::isFinalStatus($newStatus)) {
+            return '等待用户处理的任务只能转换到运行中、挂起态或终态';
         }
 
         if (self::isFinalStatus($currentStatus) && $newStatus === TaskStatus::RUNNING) {
@@ -179,9 +186,18 @@ class TaskStatusValidator
             return true;
         }
 
-        // 规则2：活跃态只能转换到终态或挂起态
-        if (self::isActiveStatus($currentStatus)) {
-            return $newStatus === TaskStatus::Suspended || self::isFinalStatus($newStatus);
+        // 规则2：RUNNING 只能转换到终态、挂起态或等待用户处理态
+        if ($currentStatus === TaskStatus::RUNNING) {
+            return $newStatus === TaskStatus::Suspended
+                || $newStatus === TaskStatus::WAITING_FOR_USER
+                || self::isFinalStatus($newStatus);
+        }
+
+        // 规则2.5：等待用户处理态可以转换到 RUNNING、挂起态或终态
+        if ($currentStatus === TaskStatus::WAITING_FOR_USER) {
+            return $newStatus === TaskStatus::RUNNING
+                || $newStatus === TaskStatus::Suspended
+                || self::isFinalStatus($newStatus);
         }
 
         // 规则3：挂起态只能转换到 WAITING 或终态

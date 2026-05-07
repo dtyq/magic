@@ -15,7 +15,8 @@ class DataCleaningValidator:
     """数据清洗脚本验证器
     
     职责：
-    1. 验证 data_cleaning.py 中的 FILE_DATA_SOURCES 与 magic.project.js 中的 sources 字段是否一致
+    1. 验证 data_cleaning.py 中的必需语句；若存在 FILE_DATA_SOURCES，则校验 magic.project.js 中
+       dataSources 条目格式（name 与 url 指向的文件名一致）；dataSources 可为空（未跑清洗或未同步前）
     2. 扫描 cleaned_data 目录中的数据文件
     """
     
@@ -29,7 +30,7 @@ class DataCleaningValidator:
            - PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
            - OUTPUT_DIR = os.path.join(PROJECT_ROOT, "cleaned_data")
            - os.makedirs(OUTPUT_DIR, exist_ok=True)
-        4. FILE_DATA_SOURCES中的数据源必须在magic.project.js的sources中存在
+        4. 若 magic.project.js 中 dataSources 非空，则每项须含 name、url，且 name 与 url 指向的文件主名一致
         
         Args:
             project_dir: 项目目录路径
@@ -77,7 +78,7 @@ class DataCleaningValidator:
             raise ValueError(f"Failed to validate data cleaning script: {str(e)}")
     
     def _validate_sources(self, data_cleaning_path: str, magic_project_path: str) -> Dict[str, Any]:
-        """验证 data_cleaning.py 中的 FILE_DATA_SOURCES 与 magic.project.js 中的 sources 字段是否一致
+        """验证 data_cleaning.py 与 magic.project.js 中的 dataSources 配置（不再使用已废弃的 sources 字段）
         
         使用 Python AST (抽象语法树) 进行精准解析，避免正则表达式的局限性。
         
@@ -91,15 +92,13 @@ class DataCleaningValidator:
                 - errors: List[str], 错误信息列表
                 - warnings: List[str], 警告信息列表
                 - file_data_sources: Dict[str, str], 从 data_cleaning.py 提取的 FILE_DATA_SOURCES
-                - magic_sources: List[Dict], 从 magic.project.js 提取的 sources (包含 name, url, type)
+                - magic_sources: List[Dict], 从 magic.project.js 提取的 dataSources（仅 name、url）
         
         验证规则:
             1. FILE_DATA_SOURCES 格式检查: 必须使用 os.path.join(PROJECT_ROOT, "..", ...) 格式
-            2. sources 字段存在性检查: magic.project.js 必须包含 sources 数组
-            3. sources[].type 检查: 每个 source 必须有 type 字段且值为 "file"
-            4. sources[].name 检查: 应该是文件名(如 "data.csv")，而非 FILE_DATA_SOURCES 的 key
-            5. 路径一致性检查: FILE_DATA_SOURCES 中的路径必须在 sources 的 url 中存在
-            6. 必需语句检查: 检查 PROJECT_ROOT, OUTPUT_DIR, os.makedirs 语句是否存在
+            2. magic.project.js 须包含 dataSources 数组（可为空）
+            3. dataSources 每项须含 name、url；name 须等于 url 路径中文件名的主名（与 scan_cleaned_data 约定一致）
+            4. 必需语句检查: 检查 PROJECT_ROOT, OUTPUT_DIR, os.makedirs 语句是否存在
         """
         result = {
             "valid": True,
@@ -160,66 +159,35 @@ class DataCleaningValidator:
             result["file_data_sources"] = py_info["file_data_sources"]
             logger.info(f"Extracted {len(result['file_data_sources'])} data sources from data_cleaning.py using AST")
             
-            # 5. 提取 magic.project.js 信息
-            js_info = self._extract_magic_project_sources(magic_project_path)
+            # 5. 提取 magic.project.js 中 dataSources
+            js_info = self._extract_magic_project_data_sources(magic_project_path)
             
             if not js_info["success"]:
                 result["valid"] = False
                 result["errors"].append(
                     f"{js_info['error']}\n"
-                    f"Solution: Create magic.project.js with sources array"
+                    f"Solution: Ensure magic.project.js defines window.magicProjectConfig with a dataSources array"
                 )
                 return result
             
-            # 6. 验证 sources 配置
-            for source in js_info["sources"]:
-                source_item = {
-                    "name": source['name'],
-                    "url": source['url']
-                }
-                
-                if source['type']:
-                    source_item['type'] = source['type']
-                    if source['type'] != 'file':
-                        result["valid"] = False
-                        result["errors"].append(
-                            f"Source type error: sources['{source['name']}'].type must be 'file'\n"
-                            f"Solution: Change type to 'file'"
-                        )
-                else:
-                    result["valid"] = False
-                    result["errors"].append(
-                        f"Missing type field: sources['{source['name']}'] must have 'type' field\n"
-                        f"Solution: Add {{\"type\": \"file\"}}"
-                    )
-                
+            # 6. 校验 dataSources 条目（与 update_data_source_config / scan_cleaned_data 约定一致）
+            for source in js_info["data_sources"]:
+                source_item = {"name": source["name"], "url": source["url"]}
                 result["magic_sources"].append(source_item)
             
-            logger.info(f"Extracted {len(result['magic_sources'])} data sources from magic.project.js")
+            logger.info(f"Extracted {len(result['magic_sources'])} dataSources entries from magic.project.js")
             
-            # 7. 验证路径一致性
-            magic_source_paths = {source["url"].lstrip("../") for source in result["magic_sources"]}
-            
-            for key, filename in result["file_data_sources"].items():
-                if filename not in magic_source_paths:
-                    result["valid"] = False
-                    available_sources = ", ".join([f"'{s}'" for s in magic_source_paths]) if magic_source_paths else "none"
-                    result["errors"].append(
-                        f"Data source mismatch: FILE_DATA_SOURCES['{key}'] references '{filename}' not in magic.project.js\n"
-                        f"Solution: Add {{\"name\": \"{filename}\", \"url\": \"../{filename}\"}}"
-                    )
-            
-            # 8. 检查 sources 中的 name 是否是实际的文件名
             for source in result["magic_sources"]:
                 source_name = source["name"]
-                source_url = source["url"].lstrip("../")
-                url_filename = source_url.split("/")[-1] if "/" in source_url else source_url
-                
-                if source_name != url_filename:
+                source_url = source["url"].replace("\\", "/")
+                url_basename = os.path.basename(source_url)
+                url_stem = os.path.splitext(url_basename)[0]
+                if source_name != url_stem:
                     result["valid"] = False
                     result["errors"].append(
-                        f"Source name error: sources['{source_name}'].name should be the actual filename '{url_filename}', not a descriptive name\n"
-                        f"Solution: Change name from '{source_name}' to '{url_filename}'"
+                        f"dataSources name mismatch: entry name '{source_name}' must match file stem "
+                        f"of url (expected '{url_stem}' from '{url_basename}')\n"
+                        f"Solution: Set name to the filename without extension, e.g. match ./cleaned_data/{url_basename}"
                     )
             
             return result
@@ -300,8 +268,8 @@ class DataCleaningValidator:
             result["error"] = f"Exception: {str(e)}"
             return result
     
-    def _extract_magic_project_sources(self, magic_project_path: str) -> Dict[str, Any]:
-        """从 magic.project.js 中提取 sources 信息（使用正则 + JSON）
+    def _extract_magic_project_data_sources(self, magic_project_path: str) -> Dict[str, Any]:
+        """从 magic.project.js 中提取 dataSources（使用正则 + JSON）
         
         Args:
             magic_project_path: magic.project.js 文件路径
@@ -310,12 +278,12 @@ class DataCleaningValidator:
             Dict[str, Any]: 提取结果，包含:
                 - success: bool, 是否成功
                 - error: Optional[str], 错误信息
-                - sources: List[Dict], sources 数组
+                - data_sources: List[Dict], dataSources 数组，元素含 name、url
         """
         result = {
             "success": True,
             "error": None,
-            "sources": []
+            "data_sources": []
         }
         
         try:
@@ -346,22 +314,30 @@ class DataCleaningValidator:
             
             try:
                 config = json.loads(json_str)
-                sources = config.get('sources', [])
-                
-                if not isinstance(sources, list):
+                if "dataSources" not in config:
                     result["success"] = False
-                    result["error"] = "sources field is not an array"
+                    result["error"] = "dataSources field is missing in magic.project.js"
+                    return result
+
+                data_sources = config.get("dataSources", [])
+                
+                if not isinstance(data_sources, list):
+                    result["success"] = False
+                    result["error"] = "dataSources field is not an array"
                     return result
                 
-                # 5. 提取 sources 信息
-                for source in sources:
-                    if isinstance(source, dict) and 'name' in source and 'url' in source:
-                        source_item = {
-                            "name": source['name'],
-                            "url": source['url'],
-                            "type": source.get('type')
-                        }
-                        result["sources"].append(source_item)
+                for item in data_sources:
+                    if not isinstance(item, dict):
+                        result["success"] = False
+                        result["error"] = "Each dataSources entry must be an object"
+                        return result
+                    if "name" not in item or "url" not in item:
+                        result["success"] = False
+                        result["error"] = "Each dataSources entry must include name and url"
+                        return result
+                    result["data_sources"].append(
+                        {"name": item["name"], "url": item["url"]}
+                    )
                 
                 return result
                 

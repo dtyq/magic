@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\Agent\Assembler;
 
-use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\BuiltinSkill;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\BuiltinSkill;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\BuiltinSkillDTO;
 
 class BuiltinSkillAssembler

@@ -449,7 +449,6 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         SkillDataIsolation $dataIsolation,
         array $codes,
         ?string $keyword,
-        string $languageCode,
         Page $page
     ): array {
         if ($codes === []) {

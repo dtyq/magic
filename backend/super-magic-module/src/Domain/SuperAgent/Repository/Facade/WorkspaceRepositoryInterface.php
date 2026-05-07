@@ -129,4 +129,14 @@ interface WorkspaceRepositoryInterface
      * @return bool 工作区存在且未被删除返回true，否则返回false
      */
     public function existsAndNotDeleted(int $id): bool;
+
+    /**
+     * 根据用户、组织和工作区类型查找工作区.
+     *
+     * @param string $userId 用户ID
+     * @param string $organizationCode 组织编码
+     * @param string $workspaceType 工作区类型（WorkspaceType 枚举值）
+     * @return null|WorkspaceEntity 工作区实体，不存在则返回 null
+     */
+    public function getWorkspaceByUserAndType(string $userId, string $organizationCode, string $workspaceType): ?WorkspaceEntity;
 }

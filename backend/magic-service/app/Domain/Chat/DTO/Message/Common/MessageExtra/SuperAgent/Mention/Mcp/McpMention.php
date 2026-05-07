@@ -20,7 +20,8 @@ final class McpMention extends AbstractMention
             return '';
         }
 
-        return $data->getName() ?? '';
+        $name = $data->getName() ?? '';
+        return sprintf('[@mcp:%s]', $name);
     }
 
     public function getMentionJsonStruct(): array

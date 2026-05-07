@@ -30,6 +30,8 @@ class UserMessageDTO
         private readonly ?string $rawContent = null,
         private array $mcpConfig = [],
         private string $modelId = '',
+        private string $imageModelId = '',
+        private ?array $aiAbilities = null,
         private string $language = '',
         private readonly string $queueId = '',
         private readonly string $messageId = '',
@@ -108,6 +110,16 @@ class UserMessageDTO
     public function getModelId(): string
     {
         return $this->modelId;
+    }
+
+    public function getImageModelId(): string
+    {
+        return $this->imageModelId;
+    }
+
+    public function getAiAbilities(): ?array
+    {
+        return $this->aiAbilities;
     }
 
     public function getLanguage(): string
@@ -189,6 +201,8 @@ class UserMessageDTO
             rawContent: $data['raw_content'] ?? $data['rawContent'] ?? null,
             mcpConfig: $data['mcp_config'] ?? $data['mcpConfig'] ?? [],
             modelId: $data['model_id'] ?? $data['modelId'] ?? '',
+            imageModelId: $data['image_model_id'] ?? $data['imageModelId'] ?? '',
+            aiAbilities: isset($data['ai_abilities']) && is_array($data['ai_abilities']) ? $data['ai_abilities'] : (isset($data['aiAbilities']) && is_array($data['aiAbilities']) ? $data['aiAbilities'] : null),
             language: $data['language'] ?? 'zh_CN',
             queueId: $data['queue_id'] ?? $data['queueId'] ?? '',
             messageId: $data['message_id'] ?? $data['messageId'] ?? '',
@@ -220,6 +234,8 @@ class UserMessageDTO
             'raw_content' => $this->rawContent,
             'mcp_config' => $this->mcpConfig,
             'model_id' => $this->modelId,
+            'image_model_id' => $this->imageModelId,
+            'ai_abilities' => $this->aiAbilities,
             'language' => $this->language,
             'queue_id' => $this->queueId,
             'message_id' => $this->messageId,

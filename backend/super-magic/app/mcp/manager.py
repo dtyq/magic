@@ -349,18 +349,25 @@ def _is_config_changed(existing_config: MCPServerConfig, new_config: Dict[str, A
     Returns:
         bool: 配置是否发生变化
     """
+    # 通过构建 MCPServerConfig 来规范化新配置，确保 Pydantic validator（如 [] -> {} 转换）
+    # 与现有配置保持一致，避免因原始格式差异导致误判
+    try:
+        new_server_config = MCPServerConfig(**new_config)
+    except Exception:
+        # 若无法构建配置对象，保守认为配置已变更
+        return True
+
     # 比对关键字段
     key_fields = ['type', 'command', 'args', 'env', 'url', 'server_options']
 
     for field in key_fields:
         existing_value = getattr(existing_config, field, None)
-        new_value = new_config.get(field)
+        new_value = getattr(new_server_config, field, None)
 
         # 统一处理 None 和空值
         if existing_value is None and new_value is None:
             continue
 
-        # 转换为可比较的格式（处理字典、列表等）
         if existing_value != new_value:
             logger.debug(f"配置字段 '{field}' 发生变化: {existing_value} -> {new_value}")
             return True

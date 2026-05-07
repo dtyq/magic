@@ -1,6 +1,10 @@
 import { memo, useMemo, useRef, useState } from "react"
 import { useAppearance } from "@/context/AppearanceProvider"
-import { CheckboxOptions, TreeNode } from "@/components/UserSelector/types"
+import {
+	CheckboxOptions,
+	type RenderListItemRight,
+	TreeNode,
+} from "@/components/UserSelector/types"
 import SearchContainer from "@/components/SearchContainer"
 import CommonListPanel from "@/components/CommonListPanel"
 import { debounce } from "lodash-es"
@@ -31,6 +35,8 @@ export interface SelectedPopupProps {
 	className?: string
 	/** 关闭时是否销毁内容 */
 	destroyOnClose?: boolean
+	/** 自定义渲染列表项右侧内容 */
+	renderItemRight?: RenderListItemRight
 }
 
 const SelectedPopup = ({
@@ -44,6 +50,7 @@ const SelectedPopup = ({
 	onClose,
 	position,
 	destroyOnClose,
+	renderItemRight,
 	onOk,
 }: SelectedPopupProps) => {
 	const { getLocale } = useAppearance()
@@ -103,6 +110,7 @@ const SelectedPopup = ({
 					loading={loading}
 					placeholder={locale.searchDepartmentOrMember}
 					onSearchChange={onSearchChange}
+					renderItemRight={renderItemRight}
 					isMobile
 				>
 					<CommonListPanel<TreeNode>
@@ -110,6 +118,7 @@ const SelectedPopup = ({
 						loading={loading}
 						checkboxOptions={checkboxOptions}
 						isMobile
+						renderItemRight={renderItemRight}
 					/>
 				</SearchContainer>
 			</div>

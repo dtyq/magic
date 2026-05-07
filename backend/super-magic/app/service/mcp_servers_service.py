@@ -80,7 +80,7 @@ class MCPServersService:
 
             # 从 agent 的聊天历史中获取上次的会话配置
             last_session_config = agent.chat_history.get_last_session_config()
-            last_mcp_servers = last_session_config.get("mcp_servers")
+            last_mcp_servers = last_session_config.mcp_servers
 
             # 如果服务器信息未变化，跳过追加
             if last_mcp_servers is not None:

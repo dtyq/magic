@@ -139,4 +139,25 @@ class Environment:
             config_value = config.get("sandbox.app_env", "prod").lower()
             return config_value in ("dev", "development")
         except (ImportError, AttributeError):
-            return False 
+            return False
+
+    @staticmethod
+    def is_mainland() -> bool:
+        """是否为中国大陆部署。
+
+        与 APP_ENV（部署阶段：local/dev/prod）正交，独立标记沙盒部署区域。
+        默认 False，即海外部署；中国大陆集群设置 MAINLAND=true 切换为大陆部署。
+
+        优先级：环境变量 MAINLAND > 配置 sandbox.mainland > 默认 False。
+
+        Returns:
+            bool: True 表示中国大陆部署，False 表示海外部署。
+        """
+        if Environment.get_env("MAINLAND") is not None:
+            return Environment.get_bool_env("MAINLAND", False)
+
+        try:
+            from agentlang.config.config import config
+            return bool(config.get("sandbox.mainland", False))
+        except (ImportError, AttributeError):
+            return False

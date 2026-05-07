@@ -271,7 +271,8 @@ class TopicDomainService
         int $source = CreationSource::USER_CREATED->value,
         string $sourceId = '',
         bool $isHidden = false,
-        ?int $hiddenType = null
+        ?int $hiddenType = null,
+        ?array $dynamicParams = null
     ): TopicEntity {
         // Get current user info
         $userId = $dataIsolation->getCurrentUserId();
@@ -306,6 +307,9 @@ class TopicDomainService
         }
         $topicEntity->setIsHidden($isHidden);
         $topicEntity->setHiddenType($hiddenType);
+        if ($dynamicParams !== null) {
+            $topicEntity->setDynamicParams($dynamicParams);
+        }
         return $this->topicRepository->createTopic($topicEntity);
     }
 

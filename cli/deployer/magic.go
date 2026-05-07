@@ -151,12 +151,11 @@ func (s *MagicStage) Prep(ctx context.Context) error {
 		return err
 	}
 	internalEndpoint := minioConn.url
-	externalEndpoint := fmt.Sprintf("http://localhost:%d", s.d.opts.kind.MinIOHostPort)
 
 	s.fileDriver = fileDriverConfig{
 		Driver: "minio",
 		Minio: minioDriverConfig{
-			Endpoint:         externalEndpoint,
+			Endpoint:         s.d.opts.minioURL,
 			InternalEndpoint: internalEndpoint,
 			Region:           "cn-north-1",
 			StsEndpoint:      internalEndpoint,

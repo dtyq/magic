@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 use App\Application\Chat\Service\MagicAgentEventAppService;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
+use App\Domain\Chat\DTO\Message\ChatMessage\UserToolCallMessage;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
 use App\Domain\Chat\Entity\ValueObject\ConversationType;
@@ -181,7 +182,11 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
                 extra: $superAgentExtra,
             );
 
-            if ($chatInstructs == ChatInstruction::Interrupted) {
+            $userToolCallMessage = $this->resolveUserToolCallMessage($messageStruct, $dynamicParams);
+
+            if ($userToolCallMessage !== null) {
+                $this->handleUserMessageAppService->handleUserToolCallMessage($dataIsolation, $userMessageDTO, $userToolCallMessage);
+            } elseif ($chatInstructs == ChatInstruction::Interrupted) {
                 $this->handleUserMessageAppService->handleInternalMessage($dataIsolation, $userMessageDTO);
             } else {
                 $this->handleUserMessageAppService->handleChatMessage($dataIsolation, $userMessageDTO);
@@ -210,6 +215,47 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             ]);
             return; // Acknowledge message even on error to avoid message accumulation
         }
+    }
+
+    /**
+     * 将消息结构统一解析为 UserToolCallMessage，兼容旧版 dynamic_params.tool_reply 格式。
+     *
+     * 旧格式（通过 dynamic_params 传递）：
+     * {
+     *   "tool_reply": {
+     *     "name": "ask_user",
+     *     "detail": {
+     *       "task_id": "...",
+     *       "question_id": "call_xxx",
+     *       "response_status": "answered",
+     *       "answer": "..."
+     *     }
+     *   }
+     * }
+     *
+     * 新格式：消息类型直接为 UserToolCallMessage，无需转换。
+     */
+    private function resolveUserToolCallMessage(MagicMessageStruct $messageStruct, ?array $dynamicParams): ?UserToolCallMessage
+    {
+        if ($messageStruct instanceof UserToolCallMessage) {
+            return $messageStruct;
+        }
+
+        $toolReply = $dynamicParams['tool_reply'] ?? null;
+        if (! is_array($toolReply) || empty($toolReply['name'])) {
+            return null;
+        }
+
+        $oldDetail = is_array($toolReply['detail'] ?? null) ? $toolReply['detail'] : [];
+
+        // question_id 对应新格式的 tool_call_id；task_id 沙盒不再需要，均从旧 detail 中剔除
+        $toolCallId = (string) ($oldDetail['question_id'] ?? '');
+        $detail = array_diff_key($oldDetail, array_flip(['question_id', 'task_id']));
+
+        return (new UserToolCallMessage())
+            ->setName((string) $toolReply['name'])
+            ->setToolCallId($toolCallId)
+            ->setDetail($detail);
     }
 
     private function getRawContent(UserCallAgentEvent $userCallAgentEvent): string

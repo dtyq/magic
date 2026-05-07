@@ -158,33 +158,11 @@ class AgentService(Base):
                 logger.info("不支持获取工作空间，跳过下载")
                 return
 
-            # Download and parse remote manifest
-            # remote_manifest = await self._download_remote_manifest(agent_context, storage_service)
-            # if not remote_manifest:
-            #     logger.info("远程清单不存在或无法解析，跳过下载")
-            #     return
-
-            # Load local manifest for comparison
-            # local_manifest = self._load_local_manifest()
-
-            # Determine what needs to be updated
-            # workspace_needs_update = self._check_workspace_update_needed(remote_manifest, local_manifest)
-
-            # Download and extract workspace if needed
-            # if workspace_needs_update:
-            #     await self._download_and_extract_workspace_archive(remote_manifest, storage_service)
-            # else:
-            #     logger.info("工作区是最新版本，无需下载")
-
             # Always try to download chat history, as it's independent of the manifest
             await self._download_and_extract_chat_history_archive(storage_service, agent_context)
 
             # Always try to download checkpoints, as it's independent of the manifest
             await self._download_and_extract_checkpoints_archive(storage_service, agent_context)
-
-            # Update local manifest with remote version if the workspace was updated
-            # if workspace_needs_update:
-            #     self._save_local_manifest(remote_manifest)
 
             logger.info("聊天历史和checkpoints处理完成")
 
@@ -316,102 +294,6 @@ class AgentService(Base):
         logger.info(f"工作区是最新版本: {local_workspace.version}")
         return False
 
-    async def _download_and_extract_workspace_archive(self, manifest: ProjectArchiveInfo, storage_service) -> None:
-        """
-        Download and extract workspace archive
-
-        Args:
-            manifest: Manifest containing workspace archive info
-            storage_service: Storage service instance
-        """
-        workspace_archive = manifest.get_workspace_archive()
-        if not workspace_archive:
-            logger.error("清单中没有工作区归档信息")
-            return
-
-        try:
-            # Download workspace archive
-            logger.info(f"下载工作区归档: {workspace_archive.file_key}")
-
-            file_stream = await storage_service.download(key=workspace_archive.file_key, options=None)
-
-            if not file_stream:
-                logger.error(f"下载工作区归档失败: 返回的文件流为空")
-                return
-
-            # Save to temporary file
-            temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
-            temp_zip_path = temp_zip.name
-            temp_zip.close()
-
-            file_content = file_stream.read()
-
-            with open(temp_zip_path, "wb") as f:
-                f.write(file_content)
-
-            # Verify file size and zip validity
-            actual_size = os.path.getsize(temp_zip_path)
-            logger.info(f"工作区归档下载完成: {temp_zip_path} ({actual_size} 字节)")
-
-            if actual_size != workspace_archive.file_size:
-                logger.warning(f"文件大小不匹配! 预期: {workspace_archive.file_size}, 实际: {actual_size}")
-
-            # Verify it's a valid zip file and check structure
-            try:
-                with zipfile.ZipFile(temp_zip_path, "r") as zip_test:
-                    zip_files = zip_test.namelist()
-                    if not zip_files:
-                        logger.warning("工作区压缩包是空的!")
-                        return
-                    logger.info(f"工作区压缩包包含 {len(zip_files)} 个文件")
-
-            except zipfile.BadZipFile as e:
-                logger.error(f"下载的文件不是有效的ZIP格式: {e}")
-                return
-
-            # Ensure workspace directory exists (without clearing)
-            workspace_dir = PathManager.get_workspace_dir()
-            workspace_dir.mkdir(exist_ok=True, parents=True)
-            logger.info(f"工作区目录已准备就绪: {workspace_dir}")
-
-            # Extract archive
-            logger.info(f"解压工作区归档到: {workspace_dir}")
-            logger.info("开始解压工作区归档，不清空现有文件，允许覆盖")
-            with zipfile.ZipFile(temp_zip_path, "r") as zip_ref:
-                # Check if the zip contains .workspace directory or direct files
-                zip_files = zip_ref.namelist()
-                has_workspace_dir = any(name.startswith(".workspace/") for name in zip_files)
-
-                if has_workspace_dir:
-                    # If zip contains .workspace directory, extract to parent and it will recreate .workspace
-                    zip_ref.extractall(workspace_dir.parent)
-                else:
-                    # If zip contains direct files, extract directly to workspace_dir
-                    zip_ref.extractall(workspace_dir)
-
-            # Verify extraction result
-            if workspace_dir.exists():
-                extracted_files = list(workspace_dir.rglob("*"))
-                logger.info(f"工作区解压完成，包含 {len(extracted_files)} 个文件/目录")
-                logger.info("解压操作可能覆盖了现有文件，这是预期行为")
-            else:
-                logger.error("解压后.workspace目录不存在!")
-
-        except Exception as e:
-            logger.error(f"下载和解压工作区归档时出错: {e}")
-            import traceback
-
-            logger.error(f"异常堆栈: {traceback.format_exc()}")
-            raise
-        finally:
-            # Clean up temporary file
-            if "temp_zip_path" in locals() and os.path.exists(temp_zip_path):
-                try:
-                    os.unlink(temp_zip_path)
-                    logger.debug(f"已删除临时工作区文件: {temp_zip_path}")
-                except Exception as e:
-                    logger.warning(f"删除临时工作区文件失败: {e}")
-
     async def _download_and_extract_chat_history_archive(self, storage_service, agent_context: AgentContext) -> None:
         """
         Download and extract chat history archive
@@ -465,25 +347,22 @@ class AgentService(Base):
                 )
                 return
 
-            # Download archive to a temporary file
-            file_stream = await storage_service.download(key=chat_history_object_key, options=None)
-
-            if not file_stream:
-                logger.error(f"下载聊天历史归档失败: 返回的文件流为空")
-                return
-
-            # Save to temporary file
+            # Stream archive directly to a temporary file to avoid loading
+            # the whole object into memory.
             temp_file = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
             temp_file_path = temp_file.name
             temp_file.close()
 
-            file_content = file_stream.read()
-
-            with open(temp_file_path, "wb") as f:
-                f.write(file_content)
-
-                file_size = os.path.getsize(temp_file_path)
-                logger.info(f"聊天历史归档下载完成: {temp_file_path} ({file_size} 字节)")
+            written_bytes = await storage_service.download_file_by_stream(
+                key=chat_history_object_key,
+                dest_path=temp_file_path,
+            )
+            file_size = os.path.getsize(temp_file_path)
+            logger.info(
+                f"聊天历史归档下载完成: {temp_file_path} "
+                f"({file_size} 字节 / {file_size / (1024 * 1024):.2f} MiB, "
+                f"流式写入 {written_bytes} 字节)"
+            )
 
             # Extract archive
             chat_history_dir = PathManager.get_chat_history_dir()
@@ -546,31 +425,46 @@ class AgentService(Base):
                 )
                 return
 
-            # Download archive to a temporary file
-            file_stream = await storage_service.download(key=checkpoints_object_key, options=None)
-
-            if not file_stream:
-                logger.error(f"下载checkpoints归档失败: 返回的文件流为空")
-                return
-
-            # Save to temporary file
+            # Stream archive directly to a temporary file to avoid loading
+            # a multi-GB object into memory (otherwise the agent container
+            # easily hits its 2Gi memory limit and gets OOMKilled).
             temp_file = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
             temp_file_path = temp_file.name
             temp_file.close()
 
-            file_content = file_stream.read()
-
-            with open(temp_file_path, "wb") as f:
-                f.write(file_content)
-
+            written_bytes = await storage_service.download_file_by_stream(
+                key=checkpoints_object_key,
+                dest_path=temp_file_path,
+            )
             file_size = os.path.getsize(temp_file_path)
-            logger.info(f"checkpoints归档下载完成: {temp_file_path} ({file_size} 字节)")
+            logger.info(
+                f"checkpoints归档下载完成: {temp_file_path} "
+                f"({file_size} 字节 / {file_size / (1024 * 1024):.2f} MiB, "
+                f"流式写入 {written_bytes} 字节)"
+            )
 
             # Extract archive
             checkpoints_dir = PathManager.get_checkpoints_dir()
             with zipfile.ZipFile(temp_file_path, "r") as zip_ref:
-                num_files = len(zip_ref.namelist())
-                logger.info(f"checkpoints压缩包包含 {num_files} 个文件")
+                infos = zip_ref.infolist()
+                num_files = len(infos)
+                total_uncompressed = sum(info.file_size for info in infos)
+                total_compressed = sum(info.compress_size for info in infos)
+                logger.info(
+                    f"checkpoints压缩包统计: 文件数={num_files}, "
+                    f"压缩前={total_uncompressed} 字节 "
+                    f"({total_uncompressed / (1024 * 1024):.2f} MiB), "
+                    f"压缩后={total_compressed} 字节 "
+                    f"({total_compressed / (1024 * 1024):.2f} MiB)"
+                )
+                # Dump every entry so we can spot the heavy hitter when an
+                # archive is unexpectedly large.
+                for info in infos:
+                    logger.info(
+                        f"checkpoints文件: {info.filename} "
+                        f"压缩前={info.file_size} 字节, 压缩后={info.compress_size} 字节"
+                    )
+
                 # Ensure checkpoints directory exists (without clearing)
                 os.makedirs(checkpoints_dir, exist_ok=True)
                 logger.info(f"checkpoints目录已准备就绪: {checkpoints_dir}")

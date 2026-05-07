@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use Hyperf\Contract\TranslatorInterface;
 
 readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
 {
@@ -109,6 +110,28 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
                 'supports_sample_count' => true,
                 'sample_count_range' => [self::MIN_SAMPLE_COUNT, self::MAX_SAMPLE_COUNT],
             ],
+            'input_modes' => array_filter([
+                'standard' => [
+                    'description' => $this->translateInputMode('standard'),
+                    'supported_fields' => [],
+                ],
+                'image_reference' => $supportsReferenceImages ? [
+                    'description' => $this->translateInputMode('image_reference.multiple', [
+                        'max_count' => self::MAX_REFERENCE_IMAGES,
+                    ]),
+                    'supported_fields' => ['reference_images'],
+                    'reference_images' => [
+                        'max_count' => self::MAX_REFERENCE_IMAGES,
+                        'reference_types' => [self::REFERENCE_TYPE_ASSET],
+                        'style_supported' => false,
+                    ],
+                ] : null,
+                'keyframe_guided' => [
+                    'description' => $this->translateInputMode('keyframe_guided.start_end'),
+                    'supported_fields' => ['frames'],
+                    'frame_roles' => ['start', 'end'],
+                ],
+            ], static fn (mixed $modeConfig): bool => $modeConfig !== null),
             'constraints' => $supportsReferenceImages
                 ? ['reference_images_requires_duration_seconds' => self::DEFAULT_DURATION_SECONDS]
                 : [],
@@ -120,7 +143,6 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
         $request = $operation->getRawRequest();
         $generation = is_array($request['generation'] ?? null) ? $request['generation'] : [];
         $inputs = is_array($request['inputs'] ?? null) ? $request['inputs'] : [];
-        $videoInput = is_array($inputs['video'] ?? null) ? $inputs['video'] : [];
         $referenceImages = is_array($inputs['reference_images'] ?? null) ? $inputs['reference_images'] : [];
         $frames = is_array($inputs['frames'] ?? null) ? $inputs['frames'] : [];
         $supportsReferenceImages = $this->supportsReferenceImages($operation->getModel());
@@ -290,8 +312,8 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
         if (! empty($request['task'] ?? null)) {
             $ignoredParams[] = 'task';
         }
-        if ($videoInput !== []) {
-            $ignoredParams[] = 'inputs.video';
+        if (! empty($inputs['reference_videos'] ?? null)) {
+            $ignoredParams[] = 'inputs.reference_videos';
         }
 
         $this->markAcceptedAndIgnored($operation, $acceptedParams, $ignoredParams);
@@ -400,13 +422,14 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
             && $matchedResolution !== ''
             && $generation['resolution'] !== $matchedResolution
         ) {
-            return false;
+            // Veo 官方接口以 aspectRatio + resolution 为准
+            unset($parameters['resolution']);
         }
 
-        if (! array_key_exists('aspectRatio', $parameters) && $matchedAspectRatio !== '') {
+        if ($matchedAspectRatio !== '') {
             $parameters['aspectRatio'] = $matchedAspectRatio;
         }
-        if (! array_key_exists('resolution', $parameters) && $matchedResolution !== '') {
+        if ($matchedResolution !== '') {
             $parameters['resolution'] = $matchedResolution;
         }
         $acceptedParams[] = 'generation.size';
@@ -498,5 +521,13 @@ readonly class CloudswayVeoVideoAdapter extends AbstractCloudswayVideoAdapter
     {
         $seed = (int) $value;
         return $seed >= self::MIN_SEED && $seed <= self::MAX_SEED;
+    }
+
+    /**
+     * Veo 的 mode 文案继续在 adapter 原位生成，便于和当前模型能力配置一起维护。
+     */
+    private function translateInputMode(string $key, array $replace = []): string
+    {
+        return di(TranslatorInterface::class)->trans('video.input_modes.' . $key, $replace);
     }
 }

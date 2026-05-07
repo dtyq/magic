@@ -284,15 +284,16 @@ class InitClientMessageUtil:
             return None
 
     @classmethod
-    def save_init_client_message(cls, init_message) -> None:
+    async def save_init_client_message(cls, init_message) -> None:
         """
         保存 InitClientMessage 到文件
 
         Args:
             init_message: InitClientMessage 对象
         """
-        with open(cls._config_path, "w", encoding="utf-8") as f:
-            json.dump(init_message.model_dump(), f, indent=2, ensure_ascii=False)
+        from app.utils.async_file_utils import async_mkdir, async_write_json
+        await async_mkdir(cls._config_path.parent, parents=True, exist_ok=True)
+        await async_write_json(cls._config_path, init_message.model_dump(), indent=2, ensure_ascii=False)
         logger.info(f"已保存 init_client_message 到文件: {cls._config_path}")
 
     @classmethod
@@ -331,21 +332,23 @@ class InitClientMessageUtil:
     @classmethod
     def get_agent_type(cls) -> Optional[str]:
         """
-        从 init_client_message 获取 agent.type。
+        从 agent_config.json 获取 agent.type（由 chat 消息持久化写入）。
 
         Returns:
             Optional[str]: agent.type 值，未配置时返回 None
         """
         try:
-            config_data = cls.get_full_config()
-            agent_config = config_data.get("agent")
-            if not isinstance(agent_config, dict):
-                return None
-            agent_type = agent_config.get("type")
-            if isinstance(agent_type, str) and agent_type.strip():
-                return agent_type.strip()
+            from app.path_manager import PathManager
+            agent_config_file = PathManager.get_agent_config_file()
+            if agent_config_file.exists():
+                with open(agent_config_file, "r", encoding="utf-8") as f:
+                    agent_config = json.load(f)
+                if isinstance(agent_config, dict):
+                    agent_type = agent_config.get("type")
+                    if isinstance(agent_type, str) and agent_type.strip():
+                        return agent_type.strip()
         except Exception as e:
-            logger.debug(f"获取 agent.type 失败: {e}")
+            logger.debug(f"从 agent_config.json 获取 agent.type 失败: {e}")
         return None
 
     @classmethod

@@ -125,7 +125,7 @@ def _zip_directory(source_dir: Path, output_path: str, arcdir: str = "") -> None
 # ---------------------------------------------------------------------------
 
 def extract_agent_metadata(workspace_dir: Path) -> Dict[str, Any]:
-    """Extract custom_agent metadata from IDENTITY.md, TOOLS.md, and SKILLS.md.
+    """Extract agent_creator metadata from IDENTITY.md, TOOLS.md, and SKILLS.md.
 
     Files that do not exist are silently skipped.
 
@@ -174,7 +174,7 @@ def extract_agent_metadata(workspace_dir: Path) -> Dict[str, Any]:
 
 
 def extract_skill_metadata(workspace_dir: Path) -> Dict[str, Any]:
-    """Extract custom_skill metadata from SKILL.md.
+    """Extract skill_creator metadata from SKILL.md.
 
     The file is silently skipped if it does not exist.
 
@@ -280,7 +280,7 @@ async def export_workspace(
     """Package the workspace, upload it, and return the file key with extracted metadata.
 
     Args:
-        export_type: "custom_agent" or "custom_skill".
+        export_type: "agent_creator" or "skill_creator".
         code: agent/skill identifier used in the archive filename (e.g. "SMA_XXXXXX").
         upload_config: upload_config block from the API request body.
         source_path: relative path within the workspace root to export.
@@ -297,6 +297,11 @@ async def export_workspace(
                     or invalid/unsafe source_path.
     """
     workspace_root = PathManager.get_workspace_dir()
+
+    normalized_export_type = {
+        "custom_agent": "agent_creator",
+        "custom_skill": "skill_creator",
+    }.get(export_type, export_type)
 
     if source_path:
         candidate = (workspace_root / source_path).resolve()
@@ -325,16 +330,16 @@ async def export_workspace(
     )
     if dir_prefix and not dir_prefix.endswith("/"):
         dir_prefix += "/"
-    file_key = f"{dir_prefix}{export_type}/{code}_{timestamp}.zip"
+    file_key = f"{dir_prefix}{normalized_export_type}/{code}_{timestamp}.zip"
 
     # Extract metadata (skips missing files gracefully)
-    if export_type == "custom_agent":
+    if normalized_export_type == "agent_creator":
         metadata = extract_agent_metadata(workspace_dir)
-    elif export_type == "custom_skill":
+    elif normalized_export_type == "skill_creator":
         metadata = extract_skill_metadata(workspace_dir)
     else:
         raise ValueError(
-            f"Unknown export type: {export_type!r}. Expected 'custom_agent' or 'custom_skill'."
+            f"Unknown export type: {export_type!r}. Expected 'agent_creator' or 'skill_creator'."
         )
 
     # Package and upload.

@@ -19,12 +19,20 @@ class ImageModel
 
     protected ProviderCode $providerCode;
 
-    public function __construct(array $config, string $modelVersion, string $providerModelId, ProviderCode $providerCode)
-    {
+    protected ?string $modelId = null;
+
+    public function __construct(
+        array $config,
+        string $modelVersion,
+        string $providerModelId,
+        ProviderCode $providerCode,
+        string $modelId
+    ) {
         $this->config = $config;
         $this->modelVersion = $modelVersion;
         $this->providerModelId = $providerModelId;
         $this->providerCode = $providerCode;
+        $this->modelId = $modelId;
     }
 
     public function getConfig(): array
@@ -66,5 +74,15 @@ class ImageModel
     {
         $this->providerCode = $providerCode;
         return $this;
+    }
+
+    public function getModelId(): ?string
+    {
+        return $this->modelId;
+    }
+
+    public function setModelId(?string $modelId): void
+    {
+        $this->modelId = $modelId;
     }
 }

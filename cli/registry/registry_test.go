@@ -198,3 +198,10 @@ func TestShouldRecreateForConfigMount(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestRun_IncludesStderrOnFailure(t *testing.T) {
+	err := run(context.Background(), "sh", "-c", "echo registry failed >&2; exit 125")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exit status 125")
+	assert.Contains(t, err.Error(), "registry failed")
+}

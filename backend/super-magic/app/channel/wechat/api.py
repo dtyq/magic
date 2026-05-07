@@ -47,9 +47,47 @@ VOICE_ENCODE_TYPE_MP3 = 7
 class WechatAPIError(RuntimeError):
     """官方 ilink API 返回错误或不可解析响应。"""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        label: str = "",
+        ret: int | None = None,
+        errcode: int | None = None,
+        errmsg: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.label = label
+        self.ret = ret
+        self.errcode = errcode
+        self.errmsg = errmsg
+
 
 def _ensure_trailing_slash(url: str) -> str:
     return url if url.endswith("/") else f"{url}/"
+
+
+def _build_api_error(label: str, data: dict[str, Any]) -> WechatAPIError:
+    ret = _coerce_int(data.get("ret"))
+    errcode = _coerce_int(data.get("errcode"))
+    raw_errmsg = data.get("errmsg")
+    errmsg = str(raw_errmsg) if raw_errmsg is not None else None
+    return WechatAPIError(
+        f"{label}: server error ret={ret} errcode={errcode} errmsg={errmsg!r}",
+        label=label,
+        ret=ret,
+        errcode=errcode,
+        errmsg=errmsg,
+    )
+
+
+def _coerce_int(value: object) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def build_base_info() -> dict[str, str]:
@@ -110,7 +148,7 @@ async def _api_fetch(
             raw_text = await resp.text()
             logger.debug(f"[WechatAPI] {label} status={resp.status} raw={raw_text[:300]}")
             if resp.status >= 400:
-                raise WechatAPIError(f"{label} {resp.status}: {raw_text}")
+                raise WechatAPIError(f"{label} {resp.status}: {raw_text}", label=label)
             return raw_text
     except TimeoutError:
         raise
@@ -232,9 +270,7 @@ async def get_upload_url(
     )
     resp_data: dict[str, Any] = json.loads(raw) if raw else {}
     if is_api_error_response(resp_data):
-        raise WechatAPIError(
-            f"getUploadUrl: server error ret={resp_data.get('ret')} errmsg={resp_data.get('errmsg')!r}"
-        )
+        raise _build_api_error("getUploadUrl", resp_data)
     return resp_data
 
 
@@ -378,7 +414,7 @@ async def send_message(
 ) -> None:
     """发送单条文本消息；缺少 context_token 时直接拒绝。"""
     if not context_token:
-        raise WechatAPIError("send_message: context_token is required")
+        raise WechatAPIError("send_message: context_token is required", label="sendMessage")
 
     body = json.dumps(
         {
@@ -403,7 +439,7 @@ async def send_message(
     if raw:
         resp_data = json.loads(raw) if raw else {}
         if is_api_error_response(resp_data):
-            raise WechatAPIError(f"sendMessage: server error ret={resp_data.get('ret')} errmsg={resp_data.get('errmsg')!r}")
+            raise _build_api_error("sendMessage", resp_data)
 
 
 async def send_message_items(
@@ -417,7 +453,7 @@ async def send_message_items(
     timeout_ms: int = DEFAULT_API_TIMEOUT_MS,
 ) -> None:
     if not context_token:
-        raise WechatAPIError("send_message_items: context_token is required")
+        raise WechatAPIError("send_message_items: context_token is required", label="sendMessage(items)")
 
     body = json.dumps(
         {
@@ -442,7 +478,7 @@ async def send_message_items(
     if raw:
         resp_data = json.loads(raw) if raw else {}
         if is_api_error_response(resp_data):
-            raise WechatAPIError(f"sendMessage(items): server error ret={resp_data.get('ret')} errmsg={resp_data.get('errmsg')!r}")
+            raise _build_api_error("sendMessage(items)", resp_data)
 
 
 async def get_config(

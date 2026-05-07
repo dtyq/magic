@@ -52,4 +52,34 @@ class AdminProviderAppServiceTest extends TestCase
         $this->assertSame('Cloudsway', $matchedProvider->getProviderCode()?->value);
         $this->assertSame((string) self::TEST_PROVIDER_CONFIG_ID, (string) $matchedProvider->getId());
     }
+
+    public function testGetOrganizationProvidersModelsByCategoryReturnsSharedVolcengineArkFixture(): void
+    {
+        $fixture = $this->createOfficialVideoProviderFixture(
+            'https://admin-volcengine.example.com',
+            'admin-key',
+            providerCode: 'VolcengineArk',
+            endpointKey: 'seedance-v2',
+            models: [
+                $this->officialVideoModelSeed('doubao-seedance-2-0-260128'),
+                $this->officialVideoModelSeed('doubao-seedance-2-0-fast-260128'),
+            ],
+        );
+
+        $service = di(AdminProviderAppService::class);
+        $providers = $service->getOrganizationProvidersModelsByCategory(self::TEST_OFFICIAL_ORGANIZATION_CODE, Category::VGM);
+
+        $matchedProvider = null;
+        foreach ($providers as $provider) {
+            if ((string) $provider->getId() === (string) $fixture['config_id']) {
+                $matchedProvider = $provider;
+                break;
+            }
+        }
+
+        $this->assertNotNull($matchedProvider);
+        $this->assertSame(Category::VGM, $matchedProvider->getCategory());
+        $this->assertSame('VolcengineArk', $matchedProvider->getProviderCode()?->value);
+        $this->assertSame((string) $fixture['config_id'], (string) $matchedProvider->getId());
+    }
 }

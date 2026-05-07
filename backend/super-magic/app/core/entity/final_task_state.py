@@ -119,6 +119,9 @@ def render_final_task_state_message(final_task_state: FinalTaskState | None) -> 
     if final_task_state.custom_message:
         return final_task_state.custom_message
 
+    if final_task_state.vendor_message:
+        return final_task_state.vendor_message
+
     return i18n.translate(
         final_task_state.code.i18n_key,
         category=_COMMON_MESSAGES_CATEGORY,

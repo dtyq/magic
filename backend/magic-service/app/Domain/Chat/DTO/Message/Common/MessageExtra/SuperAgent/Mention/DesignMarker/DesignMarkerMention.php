@@ -9,15 +9,37 @@ namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Des
 
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\AbstractMention;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\NormalizePathTrait;
 
 /**
  * 设计标记提及.
  */
 final class DesignMarkerMention extends AbstractMention
 {
+    use NormalizePathTrait;
+
     public function getMentionTextStruct(): string
     {
-        return '';
+        $data = $this->getAttrs()?->getData();
+        if (! $data instanceof DesignMarkerData) {
+            return '';
+        }
+        $label = $data->getLabel() ?? '';
+        $image = $this->normalizePath($data->getImage() ?? '');
+        $bbox = $data->getBbox();
+
+        $bboxStr = '';
+        if (is_array($bbox) && isset($bbox['x'], $bbox['y'], $bbox['width'], $bbox['height'])) {
+            $bboxStr = sprintf(
+                ' bbox:x=%.2f,y=%.2f,w=%.2f,h=%.2f',
+                $bbox['x'],
+                $bbox['y'],
+                $bbox['width'],
+                $bbox['height'],
+            );
+        }
+
+        return sprintf('[@design_marker:%s image:%s%s]', $label, $image, $bboxStr);
     }
 
     public function getMentionJsonStruct(): array

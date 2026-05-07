@@ -54,6 +54,7 @@ enum ProviderTemplateId: string
     case AWSBedrockVlm = '19';
     case GoogleVlm = '20';
     case VolcengineArkVlm = '21';
+    case VolcengineArkVgm = '30';
     case Gemini = '22';
     case BaiduLlm = '23';
     case SCNetLlm = '24';
@@ -61,6 +62,7 @@ enum ProviderTemplateId: string
     case BigModelLlm = '26';
     case MiniMaxLlm = '27';
     case SiliconFlowLlm = '28';
+    case AnthropicLlm = '29';
 
     /**
      * 根据ProviderCode和Category获取对应的模板ID.
@@ -90,6 +92,7 @@ enum ProviderTemplateId: string
             [ProviderCode::AWSBedrock, Category::VLM] => self::AWSBedrockVlm,
             [ProviderCode::Google, Category::VLM] => self::GoogleVlm,
             [ProviderCode::VolcengineArk, Category::VLM] => self::VolcengineArkVlm,
+            [ProviderCode::VolcengineArk, Category::VGM] => self::VolcengineArkVgm,
             [ProviderCode::Gemini, Category::LLM] => self::Gemini,
             [ProviderCode::Baidu, Category::LLM] => self::BaiduLlm,
             [ProviderCode::SCNet, Category::LLM] => self::SCNetLlm,
@@ -97,6 +100,7 @@ enum ProviderTemplateId: string
             [ProviderCode::BigModel, Category::LLM] => self::BigModelLlm,
             [ProviderCode::MiniMax, Category::LLM] => self::MiniMaxLlm,
             [ProviderCode::SiliconFlow, Category::LLM] => self::SiliconFlowLlm,
+            [ProviderCode::Anthropic, Category::LLM] => self::AnthropicLlm,
             default => null,
         };
     }
@@ -131,6 +135,7 @@ enum ProviderTemplateId: string
             self::AWSBedrockVlm => ['providerCode' => ProviderCode::AWSBedrock, 'category' => Category::VLM],
             self::GoogleVlm => ['providerCode' => ProviderCode::Google, 'category' => Category::VLM],
             self::VolcengineArkVlm => ['providerCode' => ProviderCode::VolcengineArk, 'category' => Category::VLM],
+            self::VolcengineArkVgm => ['providerCode' => ProviderCode::VolcengineArk, 'category' => Category::VGM],
             self::Gemini => ['providerCode' => ProviderCode::Gemini, 'category' => Category::LLM],
             self::BaiduLlm => ['providerCode' => ProviderCode::Baidu, 'category' => Category::LLM],
             self::SCNetLlm => ['providerCode' => ProviderCode::SCNet, 'category' => Category::LLM],
@@ -138,6 +143,7 @@ enum ProviderTemplateId: string
             self::BigModelLlm => ['providerCode' => ProviderCode::BigModel, 'category' => Category::LLM],
             self::MiniMaxLlm => ['providerCode' => ProviderCode::MiniMax, 'category' => Category::LLM],
             self::SiliconFlowLlm => ['providerCode' => ProviderCode::SiliconFlow, 'category' => Category::LLM],
+            self::AnthropicLlm => ['providerCode' => ProviderCode::Anthropic, 'category' => Category::LLM],
         };
     }
 
@@ -167,6 +173,7 @@ enum ProviderTemplateId: string
             ProviderCode::Google => 'Google',
             ProviderCode::VolcengineArk => '火山引擎-方舟',
             ProviderCode::Gemini => 'Google Gemini',
+            ProviderCode::Anthropic => 'Anthropic',
             default => '未知服务商',
         };
 

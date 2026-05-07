@@ -4,6 +4,7 @@ tools:
   - web_search
   - read_webpages_as_markdown
   - visual_understanding
+  - video_understanding
   - list_dir
   - grep_search
   - read_files
@@ -14,6 +15,8 @@ tools:
   - multi_edit_file_range
   - delete_files
   - shell_exec
+  - shell_await
+  - ask_user
 skills:
   preload:
     - name: canvas-designer
@@ -21,6 +24,7 @@ skills:
     - name: skill-vetter
     - name: find-skill
     - name: using-mcp
+    - name: user-info
   workspace_skills: "*"
 ---
 

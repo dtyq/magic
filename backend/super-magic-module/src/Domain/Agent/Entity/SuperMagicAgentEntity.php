@@ -349,31 +349,36 @@ class SuperMagicAgentEntity extends AbstractEntity
     public function getTools(): array
     {
         $result = [];
+        $originalTools = [];
+        foreach ($this->tools as $tool) {
+            if ($tool->getType()->isBuiltIn() && ! BuiltinTool::isValidTool($tool->getCode())) {
+                continue;
+            }
+            $originalTools[$tool->getCode()] = $tool;
+        }
 
         // 获取必填工具列表，按照 getRequiredTools 的顺序
-        $requiredTools = BuiltinTool::getRequiredTools();
+        $requiredTools = BuiltinTool::getDefaultToolsForAgentType($this->type);
 
         // 1. 先添加必填工具（按照 getRequiredTools 的顺序）
         foreach ($requiredTools as $requiredTool) {
-            $tool = new SuperMagicAgentTool();
-            $tool->setCode($requiredTool->value);
-            $tool->setName($requiredTool->getToolName());
-            $tool->setDescription($requiredTool->getToolDescription());
-            $tool->setIcon($requiredTool->getToolIcon());
-            $tool->setType(SuperMagicAgentToolType::BuiltIn);
-            $tool->setSchema(null);
+            $tool = $originalTools[$requiredTool->value] ?? null;
+            if ($tool === null) {
+                $tool = new SuperMagicAgentTool();
+                $tool->setCode($requiredTool->value);
+                $tool->setName($requiredTool->getToolName());
+                $tool->setDescription($requiredTool->getToolDescription());
+                $tool->setIcon($requiredTool->getToolIcon());
+                $tool->setType(SuperMagicAgentToolType::BuiltIn);
+                $tool->setSchema(null);
+            }
 
             $result[$tool->getCode()] = $tool;
+            unset($originalTools[$tool->getCode()]);
         }
 
         // 2. 再添加原始工具列表中的其他工具（跳过已存在的必填工具）
-        foreach ($this->tools as $tool) {
-            if ($tool->getType()->isBuiltIn()) {
-                // 但是不在目前已有的内置列表中，则跳过
-                if (! BuiltinTool::isValidTool($tool->getCode())) {
-                    continue;
-                }
-            }
+        foreach ($originalTools as $tool) {
             if (! isset($result[$tool->getCode()])) {
                 $result[$tool->getCode()] = $tool;
             }
@@ -646,6 +651,39 @@ class SuperMagicAgentEntity extends AbstractEntity
         return $this->description;
     }
 
+    /**
+     * Get localized role string.
+     * roleI18n format: {"zh_CN": ["角色1", "角色2"], "en_US": ["Role1", "Role2"]}.
+     * Falls back to default language, then to getPromptString().
+     */
+    public function getI18nRole(string $language): string
+    {
+        if (! empty($this->roleI18n[$language])) {
+            return $this->formatRoleArray($this->roleI18n[$language]);
+        }
+
+        if (! empty($this->roleI18n[LanguageEnum::DEFAULT->value])) {
+            return $this->formatRoleArray($this->roleI18n[LanguageEnum::DEFAULT->value]);
+        }
+
+        return $this->getPromptString();
+    }
+
+    public function hydrateI18nForPublish(): void
+    {
+        $resolvedName = $this->resolvePublishTextFallback($this->name, $this->nameI18n);
+        if ($resolvedName !== '') {
+            $this->name = $resolvedName;
+            $this->nameI18n = $this->fillPublishI18nValues($this->nameI18n, $resolvedName);
+        }
+
+        $resolvedDescription = $this->resolvePublishTextFallback($this->description, $this->descriptionI18n);
+        if ($resolvedDescription !== '') {
+            $this->description = $resolvedDescription;
+            $this->descriptionI18n = $this->fillPublishI18nValues($this->descriptionI18n, $resolvedDescription);
+        }
+    }
+
     public function getSourceType(): AgentSourceType
     {
         return $this->sourceType;
@@ -752,5 +790,55 @@ class SuperMagicAgentEntity extends AbstractEntity
     public function setLatestPublishedAt(?string $latestPublishedAt): void
     {
         $this->latestPublishedAt = $latestPublishedAt;
+    }
+
+    private function formatRoleArray(mixed $roles): string
+    {
+        if (is_array($roles)) {
+            return implode(', ', array_filter($roles, static fn ($item) => is_string($item) && $item !== ''));
+        }
+
+        return is_string($roles) ? $roles : '';
+    }
+
+    /**
+     * 发布前优先使用主字段文本，主字段为空时再从多语言内容里取首个非空值作为兜底。
+     */
+    private function resolvePublishTextFallback(string $text, ?array $i18n): string
+    {
+        $text = trim($text);
+        if ($text !== '') {
+            return $text;
+        }
+
+        $i18n = is_array($i18n) ? $i18n : [];
+        foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
+            $value = trim((string) ($i18n[$languageCode] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * 使用兜底文案补齐空缺的多语言字段，避免发布后的 i18n 结构存在空值。
+     */
+    private function fillPublishI18nValues(?array $i18n, string $fallback): array
+    {
+        $i18n = is_array($i18n) ? $i18n : [];
+        $fallback = trim($fallback);
+        if ($fallback === '') {
+            return $i18n;
+        }
+
+        foreach (LanguageEnum::getAllLanguageCodes() as $languageCode) {
+            if (trim((string) ($i18n[$languageCode] ?? '')) === '') {
+                $i18n[$languageCode] = $fallback;
+            }
+        }
+
+        return $i18n;
     }
 }

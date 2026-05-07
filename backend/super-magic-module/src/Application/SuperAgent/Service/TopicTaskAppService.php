@@ -37,6 +37,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentEventEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AskUserStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MessageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
@@ -64,11 +65,13 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateTaskRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeliverMessageResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\TopicTaskMessageDTO;
 use Hyperf\Amqp\Producer;
+use Hyperf\Codec\Json;
 use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Odin\Message\Role;
 use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 use Throwable;
 
 class TopicTaskAppService extends AbstractAppService
@@ -286,7 +289,13 @@ class TopicTaskAppService extends AbstractAppService
                     parentCorrelationId: $messageDTO->getPayload()->getParentCorrelationId() ?? null,
                     contentType: $messageDTO->getPayload()->getContentType() ?? null,
                     usage: ! empty($usage) ? $usage : null,
+                    rawContent: $messageEntity->getRawContent(),
                 );
+            }
+
+            // 3.5 ask_user Human-in-the-Loop（见 tryEarlyDeliverResponseForAskUserToolCall）
+            if (($earlyDeliverResponse = $this->tryEarlyDeliverResponseForAskUserToolCall($messageDTO, $dataIsolation, $taskEntity, $messageId)) !== null) {
+                return $earlyDeliverResponse;
             }
 
             // 4. 更新话题状态
@@ -379,6 +388,72 @@ class TopicTaskAppService extends AbstractAppService
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * 处理用户工具调用的答复（Human-in-the-Loop 回调入口）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文（来自 WebSocket 认证用户）
+     * @param string $chatTopicId 会话 topic ID，用于定位当前任务
+     * @param string $name 工具名称（如 ask_user）
+     * @param string $toolCallId 工具调用ID（tool_call_id），对应沙盒下发的调用标识
+     * @param array $detail 工具特定的回复数据，结构由各工具自行约定，直接透传给沙盒
+     */
+    public function handleUserToolCallReply(
+        DataIsolation $dataIsolation,
+        string $chatTopicId,
+        string $name,
+        string $toolCallId,
+        array $detail
+    ): void {
+        $topicEntity = $this->topicDomainService->getTopicByChatTopicId($dataIsolation, $chatTopicId);
+        $taskId = (string) $topicEntity->getCurrentTaskId();
+        $task = $this->taskDomainService->getTaskById((int) $taskId);
+        if (! $task) {
+            $this->logger->error('HandleUserToolCallReplyTaskNotFound', ['task_id' => $taskId]);
+            throw new RuntimeException('Task not found: ' . $taskId);
+        }
+
+        // 透传给沙盒（沙盒取消定时器 → 加工答复 → 注入历史 → 推送 AFTER_TOOL_CALL → 重启 Agent）
+        $this->agentDomainService->sendUserToolCallFeedback(
+            $dataIsolation,
+            $task->getSandboxId(),
+            $name,
+            $toolCallId,
+            $detail
+        );
+
+        // 更新任务状态为运行中
+        $this->updateTaskStatus(
+            dataIsolation: $dataIsolation,
+            task: $task,
+            status: TaskStatus::RUNNING,
+        );
+
+        $this->logger->info('HandleUserToolCallReplyCompleted', [
+            'task_id' => $taskId,
+            'name' => $name,
+            'tool_call_id' => $toolCallId,
+        ]);
+    }
+
+    public function handleUserToolCallCancelled(
+        DataIsolation $dataIsolation,
+        TaskEntity $task,
+        string $errMsg = ''
+    ): void {
+        $this->updateTaskStatus(
+            dataIsolation: $dataIsolation,
+            task: $task,
+            status: TaskStatus::Suspended,
+            errMsg: $errMsg,
+        );
+
+        $this->logger->info('HandleUserToolCallCancelledCompleted', [
+            'task_id' => (string) $task->getId(),
+            'topic_id' => $task->getTopicId(),
+            'status' => TaskStatus::Suspended->value,
+        ]);
     }
 
     public function updateTaskStatusFromSandbox(TopicEntity $topicEntity): TaskStatus
@@ -691,6 +766,56 @@ class TopicTaskAppService extends AbstractAppService
     }
 
     /**
+     * ask_user Human-in-the-Loop：在消息已存储/推送后，补充任务状态并在必要时提前结束 deliver 流程。
+     *
+     * 消息存储和推送由步骤 2、3 完成；此处只补充本路径泛型步骤 4 未覆盖的状态（终态仍走步骤 4）。
+     * 路由信息（task_id）由前端回答时直接携带，无需 Redis 路由键。
+     * ask_user 超时收口沿用 AFTER_TOOL_CALL 消息，不再走额外同步 API。
+     *
+     * @return null|array<string, mixed> 已处理并应跳过后续终态逻辑时返回响应体，否则 null
+     */
+    private function tryEarlyDeliverResponseForAskUserToolCall(
+        TopicTaskMessageDTO $messageDTO,
+        DataIsolation $dataIsolation,
+        TaskEntity $taskEntity,
+        string $messageId,
+    ): ?array {
+        $payload = $messageDTO->getPayload();
+        if ($payload->getType() !== MessageType::ToolCall->value) {
+            return null;
+        }
+
+        $tool = $payload->getTool();
+        if (! is_array($tool) || (($tool['name'] ?? '') !== 'ask_user')) {
+            return null;
+        }
+
+        if ($payload->getEvent() === AgentEventEnum::BEFORE_TOOL_CALL->value) {
+            $this->updateTaskStatus(
+                dataIsolation: $dataIsolation,
+                task: $taskEntity,
+                status: TaskStatus::WAITING_FOR_USER,
+            );
+
+            return DeliverMessageResponseDTO::fromResult(true, $messageId)->toArray();
+        }
+
+        if ($payload->getEvent() === AgentEventEnum::AFTER_TOOL_CALL->value
+            && (($tool['detail']['data']['status'] ?? '') === AskUserStatus::Timeout->value)
+        ) {
+            $this->updateTaskStatus(
+                dataIsolation: $dataIsolation,
+                task: $taskEntity,
+                status: TaskStatus::RUNNING,
+            );
+
+            return DeliverMessageResponseDTO::fromResult(true, $messageId)->toArray();
+        }
+
+        return null;
+    }
+
+    /**
      * Shared task creation flow for both first-party and third-party user messages.
      *
      * @return array{task_id: string, message_id: string, im_seq_id: ?string, deduplicated: bool}
@@ -836,6 +961,7 @@ class TopicTaskAppService extends AbstractAppService
         $taskMessageEntity->setCorrelationId($payload->getCorrelationId());
         $taskMessageEntity->setParentCorrelationId($payload->getParentCorrelationId());
         $taskMessageEntity->setContentType($payload->getContentType());
+        $taskMessageEntity->setRawContent($payload->getRawContent());
 
         // Validate message type
         if (! MessageType::isValid($messageType)) {
@@ -853,6 +979,12 @@ class TopicTaskAppService extends AbstractAppService
     {
         // 根据类型处理
         $tool = $taskMessageEntity->getTool();
+        if (empty($tool) && ! empty($taskMessageEntity->getRawContent())) {
+            if ($rawContent = json_decode($taskMessageEntity->getRawContent(), true)) {
+                $tool = $rawContent['super_magic_message']['tool'] ?? [];
+                $taskMessageEntity->setTool($tool);
+            }
+        }
         $detailType = $tool['detail']['type'] ?? '';
         switch ($detailType) {
             case 'image':

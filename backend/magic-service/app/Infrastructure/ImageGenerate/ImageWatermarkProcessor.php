@@ -11,6 +11,7 @@ use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ImageGenerate\Contract\FontProviderInterface;
 use App\Domain\ImageGenerate\Contract\ImageEnhancementProcessorInterface;
+use App\Domain\ImageGenerate\ValueObject\ImplicitWatermark;
 use App\Domain\ImageGenerate\ValueObject\WatermarkConfig;
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -91,8 +92,9 @@ class ImageWatermarkProcessor
             ]);
         }
 
-        // 根据实际输出格式生成正确的base64前缀
-        $outputPrefix = $this->generateBase64Prefix($imageData);
+        // 根据处理后的真实图片二进制重新检测格式，避免 PNG 被错误包装成 image/jpeg。
+        $outputFormat = $this->detectImageFormat($imageData);
+        $outputPrefix = $this->generateBase64Prefix($outputFormat);
         return $this->processBase64Images($outputPrefix . base64_encode($imageData), $imageGenerateRequest);
     }
 
@@ -111,6 +113,34 @@ class ImageWatermarkProcessor
     }
 
     /**
+     * 对本地文件执行可见水印和隐式水印处理，处理结果直接回写原文件。
+     */
+    public function processLocalFile(
+        string $localFilePath,
+        ?WatermarkConfig $watermarkConfig,
+        ?ImplicitWatermark $implicitWatermark,
+    ): void {
+        $imageData = file_get_contents($localFilePath);
+        if ($imageData === false) {
+            ExceptionBuilder::throw(ImageGenerateErrorCode::IMAGE_DOWNLOAD_FAILED);
+        }
+
+        $detectedFormat = $this->detectImageFormat($imageData);
+        $this->applyWatermarks(
+            $imageData,
+            $watermarkConfig,
+            $implicitWatermark,
+            $detectedFormat,
+            'LocalFile格式',
+            ['local_file_path' => $localFilePath],
+        );
+
+        if (file_put_contents($localFilePath, $imageData) === false) {
+            ExceptionBuilder::throw(ImageGenerateErrorCode::IMAGE_DOWNLOAD_FAILED);
+        }
+    }
+
+    /**
      * 为图片添加水印（通过引用直接修改原始数据）.
      * @param string $imageData 图片二进制数据，会被直接修改
      * @param ImageGenerateRequest $imageGenerateRequest 图片生成请求
@@ -118,33 +148,7 @@ class ImageWatermarkProcessor
      */
     protected function addWaterMarkHandler(string &$imageData, ImageGenerateRequest $imageGenerateRequest, ?string $format = null): void
     {
-        // 检测图片格式，优先使用传入的格式
-        $detectedFormat = $format ?? $this->detectImageFormat($imageData);
-
-        $image = imagecreatefromstring($imageData);
-        if ($image === false) {
-            ExceptionBuilder::throw(ImageGenerateErrorCode::INVALID_IMAGE_DATA);
-        }
-        $watermarkConfig = $imageGenerateRequest->getWatermarkConfig();
-        // 添加视觉水印
-        $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
-
-        // 使用检测到的格式进行无损输出
-        ob_start();
-        $this->outputImage($watermarkedImage, $detectedFormat);
-        $watermarkedData = ob_get_contents();
-        ob_end_clean();
-
-        // 清理内存
-        imagedestroy($image);
-        imagedestroy($watermarkedImage);
-
-        // 检查输出缓冲区数据
-        if ($watermarkedData === false) {
-            ExceptionBuilder::throw(ImageGenerateErrorCode::WATERMARK_OUTPUT_FAILED);
-        }
-
-        $imageData = $watermarkedData;
+        $this->applyVisibleWatermark($imageData, $imageGenerateRequest->getWatermarkConfig(), $format);
     }
 
     /**
@@ -158,7 +162,15 @@ class ImageWatermarkProcessor
 
         // 创建新图片资源以避免修改原图
         $watermarkedImage = imagecreatetruecolor($width, $height);
+
+        // 先用全透明画布初始化，避免透明区域在拷贝时落成黑底
+        imagealphablending($watermarkedImage, false);
+        imagesavealpha($watermarkedImage, true);
+        $transparent = imagecolorallocatealpha($watermarkedImage, 0, 0, 0, 127);
+        imagefill($watermarkedImage, 0, 0, $transparent);
+
         imagecopy($watermarkedImage, $image, 0, 0, 0, 0, $width, $height);
+        imagealphablending($watermarkedImage, true);
 
         // 添加文字水印
         $this->addTextWatermark($watermarkedImage, $config, $width, $height);
@@ -474,5 +486,57 @@ class ImageWatermarkProcessor
             $processedImage = $base64Image;
         }
         return $processedImage;
+    }
+
+    private function applyWatermarks(
+        string &$imageData,
+        ?WatermarkConfig $watermarkConfig,
+        ?ImplicitWatermark $implicitWatermark,
+        ?string $format = null,
+        string $scene = '',
+        array $logContext = [],
+    ): void {
+        if ($watermarkConfig !== null) {
+            $this->applyVisibleWatermark($imageData, $watermarkConfig, $format);
+        }
+
+        if ($implicitWatermark !== null) {
+            $this->imageEnhancementProcessor->enhanceImageData($imageData, $implicitWatermark);
+            $this->logger->info('【AIGC】隐式水印处理完成(' . $scene . ')', $logContext);
+        }
+    }
+
+    private function applyVisibleWatermark(
+        string &$imageData,
+        ?WatermarkConfig $watermarkConfig,
+        ?string $format = null,
+    ): void {
+        if ($watermarkConfig === null) {
+            return;
+        }
+
+        // 检测图片格式，优先使用传入的格式
+        $detectedFormat = $format ?? $this->detectImageFormat($imageData);
+
+        $image = imagecreatefromstring($imageData);
+        if ($image === false) {
+            ExceptionBuilder::throw(ImageGenerateErrorCode::INVALID_IMAGE_DATA);
+        }
+
+        $watermarkedImage = $this->addWatermarkToImageResource($image, $watermarkConfig);
+
+        ob_start();
+        $this->outputImage($watermarkedImage, $detectedFormat);
+        $watermarkedData = ob_get_contents();
+        ob_end_clean();
+
+        imagedestroy($image);
+        imagedestroy($watermarkedImage);
+
+        if ($watermarkedData === false) {
+            ExceptionBuilder::throw(ImageGenerateErrorCode::WATERMARK_OUTPUT_FAILED);
+        }
+
+        $imageData = $watermarkedData;
     }
 }

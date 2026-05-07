@@ -8,10 +8,13 @@ import asyncio
 import os
 import json
 import uuid
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
+
+from app.core.context.pending_reply_state import PendingReplyState
 
 if TYPE_CHECKING:
     from app.core.horizon.agent_horizon import AgentHorizon
+    from app.core.entity.factory.task_message_factory_protocol import TaskMessageFactoryProtocol
 from datetime import datetime, timedelta
 
 from agentlang.context.base_agent_context import BaseAgentContext
@@ -30,6 +33,7 @@ from app.core.context.run_interruption import RunCancelState, RunCleanupRegistry
 from app.core.entity.final_task_state import FinalTaskState
 from loguru import logger
 from app.infrastructure.storage.types import PlatformType
+from agentlang.llms.token_usage.models import TokenUsageCollection
 from agentlang.llms.token_usage.report import TokenUsageReport
 
 # 获取日志记录器
@@ -156,6 +160,7 @@ class AgentContext(BaseAgentContext):
         self._run_cancel_state: RunCancelState = RunCancelState()
         self._run_cleanup_registry: RunCleanupRegistry = RunCleanupRegistry()
         self._run_cancellation_handle: RunCancellationHandle = RunCancellationHandle()
+        self._stop_run_task: Optional[asyncio.Task] = None
 
         # AgentHorizon 懒初始化，per-agent 上下文工程基础设施
         self._horizon: Optional["AgentHorizon"] = None
@@ -254,6 +259,8 @@ class AgentContext(BaseAgentContext):
         from app.core.stream import Stream
         import asyncio
 
+        from app.core.context.pending_reply_state import PendingReplyState
+
         # 初始化并注册共享字段
         self.shared_context.register_fields({
             "streams": ({}, Dict[str, Stream]),
@@ -264,7 +271,8 @@ class AgentContext(BaseAgentContext):
             "sandbox_id": ("", str),
             "project_archive_info": (None, Optional[ProjectArchiveInfo]),
             "organization_code": (None, Optional[str]),
-            "final_token_usage_report": (None, Optional[TokenUsageReport]),
+            "token_usage_report_manager": (None, Optional[TokenUsageReport]),
+            "final_token_usage_report": (None, Optional[TokenUsageCollection]),
             "final_response": (None, Optional[str]),
             "final_task_state": (None, Optional[FinalTaskState]),
             "finish_task_files": (None, Optional[List[str]]),
@@ -273,6 +281,8 @@ class AgentContext(BaseAgentContext):
             # 中断控制
             "interruption_requested": (False, bool),  # 终止信号
             "interruption_reason": (None, Optional[str]),
+            # 上一轮中断产生的运行时事实，下一轮合成 interrupted tool result 时带入模型上下文
+            "interruption_notices": ([], List[str]),
             "cancel_blocker_count": (0, int),  # 阻止cancel的操作计数，默认0
             # 思考状态管理
             "is_thinking_flag": (False, bool),  # 是否真正在思考（由流式内容决定）
@@ -283,8 +293,14 @@ class AgentContext(BaseAgentContext):
             "excluded_skills": ([], List[str]),  # 当前 agent 排除的 system skill 名称列表
             # 额外流式推送目标（各渠道的 StreamingInterface，处理消息期间注册，完成后清除）
             "streaming_sinks": ([], List),
+            # Human in the Loop：前端工具调用等待用户完成时的暂停标记
+            "user_tool_call_pending_id": (None, Optional[str]),
             # Agent Master 管理
             "agent_code": (None, Optional[str]),  # 当前自定义 Agent 的 agent_code
+            # 消息版本协商（v1 / v2），由 set_chat_client_message 提取 dynamic_config.message_version 写入
+            "message_version": ("v2", str),
+            # v2 批量 tool_calls 暂存状态
+            "pending_reply_state": (None, Optional[PendingReplyState]),
         })
 
         # 标记初始化完成
@@ -526,12 +542,21 @@ class AgentContext(BaseAgentContext):
         return None
 
     def set_chat_client_message(self, chat_client_message: ChatClientMessage) -> None:
-        """设置聊天客户端消息
+        """设置聊天客户端消息，并从 dynamic_config 中提取 message_version。
+
+        仅当 dynamic_config 中明确提供了 message_version 时才更新，
+        否则保持 shared_context 中已有的值（如从 session.json 回落设置的值）。
 
         Args:
             chat_client_message: 聊天客户端消息
         """
         self.shared_context.update_field("chat_client_message", chat_client_message)
+
+        dynamic_config = getattr(chat_client_message, "dynamic_config", None) or {}
+        version = dynamic_config.get("message_version") if isinstance(dynamic_config, dict) else None
+        if version:
+            self.shared_context.update_field("message_version", version)
+            logger.debug(f"消息版本已设置为: {version}")
 
     def get_chat_client_message(self) -> Optional[ChatClientMessage]:
         """获取聊天客户端消息
@@ -644,12 +669,33 @@ class AgentContext(BaseAgentContext):
         """更新agent活动时间"""
         self.shared_context.update_activity_time()
 
+    # ─── Human in the Loop：前端工具调用暂停标记 ─────────────────────────────
+
+    def set_user_tool_call_pending(self, tool_call_id: str) -> None:
+        """设置前端工具调用等待状态（Agent 已暂停，等待用户在前端完成 tool_call_id 对应的操作）"""
+        self.shared_context.update_field("user_tool_call_pending_id", tool_call_id)
+
+    def clear_user_tool_call_pending(self) -> None:
+        """清除前端工具调用等待状态"""
+        self.shared_context.update_field("user_tool_call_pending_id", None)
+
+    def has_user_tool_call_pending(self) -> bool:
+        """返回当前是否存在尚未完成的前端工具调用"""
+        return self.shared_context.get_field("user_tool_call_pending_id") is not None
+
+    def get_user_tool_call_pending_id(self) -> Optional[str]:
+        """返回当前待完成的前端工具调用 ID，无则返回 None"""
+        return self.shared_context.get_field("user_tool_call_pending_id")
+
     def is_idle_timeout(self) -> bool:
         """检查agent是否超时闲置
 
         Returns:
             bool: 如果超时则返回True，否则返回False
         """
+        # 等待前端工具调用完成期间，不触发空闲超时
+        if self.has_user_tool_call_pending():
+            return False
         return self.shared_context.is_idle_timeout()
 
     def add_attachment(self, attachment: Attachment) -> None:
@@ -859,17 +905,30 @@ class AgentContext(BaseAgentContext):
         """
         return self.__str__()
 
-    def set_token_usage_report(self, report: TokenUsageReport) -> None:
+    def set_token_usage_report_manager(self, report: TokenUsageReport) -> None:
+        """设置当前 Agent 会话专属的 token 使用报告管理器。"""
+        self.shared_context.update_field("token_usage_report_manager", report)
+        logger.debug("已更新 token 使用报告管理器")
+
+    def get_token_usage_report_manager(self) -> Optional[TokenUsageReport]:
+        """获取当前 Agent 会话专属的 token 使用报告管理器。"""
+        if not self.shared_context.has_field("token_usage_report_manager"):
+            return None
+        return self.shared_context.get_field("token_usage_report_manager")
+
+    def set_token_usage_report(self, report: TokenUsageCollection) -> None:
         """设置 token 使用报告
 
         Args:
-            report: token 使用报告实例
+            report: token 使用报告汇总
         """
         self.shared_context.update_field("final_token_usage_report", report)
         logger.debug("已更新 token 使用报告")
 
-    def get_token_usage_report(self) -> Optional[TokenUsageReport]:
+    def get_token_usage_report(self) -> Optional[TokenUsageCollection]:
         """获取最终的 Token 使用报告"""
+        if not self.shared_context.has_field("final_token_usage_report"):
+            return None
         return self.shared_context.get_field("final_token_usage_report")
 
     def set_final_response(self, response: Optional[str]) -> None:
@@ -974,7 +1033,7 @@ class AgentContext(BaseAgentContext):
 
     # ====== 中断控制相关方法 ======
 
-    def set_interruption_request(self, requested: bool, reason: str = "用户主动中断") -> None:
+    def set_interruption_request(self, requested: bool, reason: str = "User interrupted the task.") -> None:
         """设置/恢复终止信号
 
         Args:
@@ -1017,6 +1076,22 @@ class AgentContext(BaseAgentContext):
             asyncio.Event: 中断事件对象，可用于 await event.wait()
         """
         return self._interruption_event
+
+    def append_interruption_notice(self, notice: str) -> None:
+        """记录本轮中断产生的运行时事实，供下一轮合成 ToolResult 时注入模型上下文。"""
+        text = notice.strip() if isinstance(notice, str) else ""
+        if not text:
+            return
+        notices = list(self.shared_context.get_field("interruption_notices") or [])
+        if text not in notices:
+            notices.append(text)
+        self.shared_context.update_field("interruption_notices", notices)
+
+    def drain_interruption_notices(self) -> list[str]:
+        """取出并清空中断事实，避免同一事实重复进入后续上下文。"""
+        notices = list(self.shared_context.get_field("interruption_notices") or [])
+        self.shared_context.update_field("interruption_notices", [])
+        return notices
 
     def increment_cancel_blocker(self) -> None:
         """增加阻止cancel的操作计数"""
@@ -1092,9 +1167,21 @@ class AgentContext(BaseAgentContext):
         4. 执行 worker cancel
         5. 标记完成
         """
+        if self._stop_run_task and not self._stop_run_task.done():
+            logger.debug(f"[AgentContext] stop_run already in progress, waiting (reason={reason})")
+            await asyncio.shield(self._stop_run_task)
+            return
+
+        self._stop_run_task = asyncio.create_task(self._stop_run_impl(reason))
+        try:
+            await asyncio.shield(self._stop_run_task)
+        finally:
+            if self._stop_run_task.done():
+                self._stop_run_task = None
+
+    async def _stop_run_impl(self, reason: str) -> None:
+        """执行当前 run 的实际停止流程；stop_run() 负责单飞等待。"""
         if self._run_cancel_state.cleanup_started and not self._run_cancel_state.cleanup_finished:
-            # 正在执行中，忽略重复请求
-            logger.debug(f"[AgentContext] stop_run already in progress, skip (reason={reason})")
             return
 
         if self._run_cancel_state.cleanup_started and self._run_cancel_state.cleanup_finished:
@@ -1190,3 +1277,85 @@ class AgentContext(BaseAgentContext):
     def get_streaming_sinks(self) -> list:
         """返回当前所有额外流式推送目标列表。"""
         return self.shared_context.get_field("streaming_sinks") or []
+
+    # ====== 消息版本协商 ======
+
+    def get_message_version(self) -> str:
+        """获取当前会话的消息版本号，默认 'v1'。"""
+        return self.shared_context.get_field("message_version") or "v2"
+
+    def set_message_version(self, version: str) -> None:
+        """显式设置消息结构版本，在 chat 消息到达后、init 事件触发前提前写入。
+
+        Args:
+            version: 消息版本字符串，如 "v1"、"v2"
+        """
+        if version:
+            self.shared_context.update_field("message_version", version)
+
+    async def load_last_message_version(self) -> Optional[str]:
+        """从 session.json 读取上次保存的 message_version。
+
+        在 chat 消息未携带 message_version 时作为回落来源。
+        读取 current 块（存储最近一次完成请求的配置）。
+
+        Returns:
+            Optional[str]: 上次保存的 message_version，文件不存在或无记录时返回 None
+        """
+        from pathlib import Path
+        from app.utils.async_file_utils import async_try_read_json
+        chat_history_dir = self.get_chat_history_dir()
+        agent_name = self.agent_name
+        agent_id = self._agent_id or "main"
+        session_file = Path(chat_history_dir) / f"{agent_name}<{agent_id}>.session.json"
+        doc = await async_try_read_json(session_file)
+        if doc is None:
+            return None
+        current = doc.get("current", {})
+        if isinstance(current, dict):
+            return current.get("message_version") or None
+        return None
+
+    def get_message_factory(self) -> "Type[TaskMessageFactoryProtocol]":
+        """根据 message_version 从注册表获取对应的消息工厂类。"""
+        from app.core.entity.factory.factory_registry import get_factory_by_version
+        return get_factory_by_version(self.get_message_version())
+
+    def get_tool_label(self, tool_name: str) -> str:
+        """根据工具名称查 i18n 标签，查无结果时返回空字符串。"""
+        from app.i18n import i18n
+        label = i18n.translate(tool_name, category="tool.actions")
+        # i18n.translate 查无结果时回退返回 tool_name 本身，此时视为无标签
+        return label if label != tool_name else ""
+
+    # ====== v2 批量 tool_calls 暂存状态 ======
+
+    def get_pending_reply_state(self) -> Optional["PendingReplyState"]:
+        """获取 v2 批量 tool_calls 暂存状态，不存在时返回 None。"""
+        from app.core.context.pending_reply_state import PendingReplyState
+        return self.shared_context.get_field("pending_reply_state")
+
+    def set_pending_reply_state(self, state: Optional["PendingReplyState"]) -> None:
+        """设置 v2 批量 tool_calls 暂存状态，传 None 可清除。"""
+        self.shared_context.update_field("pending_reply_state", state)
+
+    def refresh_streaming_message_id(self) -> str:
+        """为下一次 v2 流式回复预生成 Snowflake message_id，写入 pending_reply_state。
+
+        - 若 pending_reply_state 已存在，仅刷新 message_id，保留其余字段
+        - 若不存在，创建新的 PendingReplyState 并设置 message_id
+        - 返回生成的 message_id，供调用方按需使用
+
+        Returns:
+            str: 预生成的 message_id
+        """
+        from agentlang.utils.snowflake import Snowflake
+        from app.core.context.pending_reply_state import PendingReplyState
+
+        message_id = str(Snowflake.create_default().get_id())
+        existing = self.get_pending_reply_state()
+        if existing is not None:
+            existing.message_id = message_id
+        else:
+            self.set_pending_reply_state(PendingReplyState(message_id=message_id))
+        return message_id

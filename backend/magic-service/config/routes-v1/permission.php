@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Middleware\Auth\SandboxUserAuthMiddleware;
+use App\Interfaces\Permission\Facade\FunctionPermissionApi;
 use App\Interfaces\Permission\Facade\OperationPermissionApi;
 use App\Interfaces\Permission\Facade\PermissionApi;
 use App\Interfaces\Permission\Facade\ResourceVisibilityApi;
@@ -22,6 +23,10 @@ Router::addGroup('/api/v1', static function () {
 
     Router::addGroup('/permissions', static function () {
         Router::get('/me', [PermissionApi::class, 'getUserPermissions']);
+    });
+
+    Router::addGroup('/function-permissions', static function () {
+        Router::get('/me', [FunctionPermissionApi::class, 'me']);
     });
 
     Router::addGroup('/resource-visibility', static function () {

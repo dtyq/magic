@@ -158,7 +158,7 @@ class LarkChannel(BaseChannel):
         )
         self._ws_thread.start()
         keepalive_registry = KeepaliveRegistry.get_instance()
-        keepalive_registry.restore_message_time(self.key, self._last_message_at_ms)
+        keepalive_registry.restore_activity_time(self.key, self._last_message_at_ms)
         # 飞书 SDK 没有暴露可靠的“连接完成”事件。
         # 这里只恢复历史消息时间，不把“线程已启动”误当成“连接已成功”，避免白拿一次续期。
         logger.info(f"[LarkChannel] 连接中，app_id={app_id}")
@@ -236,7 +236,7 @@ class LarkChannel(BaseChannel):
 
         current_message_at_ms = now_ms()
         self._last_message_at_ms = current_message_at_ms
-        KeepaliveRegistry.get_instance().notify_message(self.key, current_message_at_ms)
+        KeepaliveRegistry.get_instance().notify_activity(self.key, current_message_at_ms)
         sender = getattr(event_data, "sender", None)
         sender_id_obj = getattr(sender, "sender_id", None) if sender else None
         user_id = getattr(sender_id_obj, "open_id", None) or "lark_user"

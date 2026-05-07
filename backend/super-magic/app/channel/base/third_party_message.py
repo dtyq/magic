@@ -42,27 +42,48 @@ def _normalize_text(value: Any) -> Optional[str]:
     return normalized or None
 
 
-def _normalize_bool(value: Any) -> Optional[bool]:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int):
-        return bool(value)
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"true", "1", "yes", "on"}:
-            return True
-        if normalized in {"false", "0", "no", "off"}:
-            return False
-    return None
 
+async def _resolve_agent_name(agent_context: Any) -> str:
+    """获取真实 agent name。
 
-async def _load_last_chat_message() -> ChatClientMessage | None:
+    agent 尚未创建时 agent_context.agent_name 为默认值 "magic"，
+    此时从 last_dispatch_message.json 的 dynamic_config.agent_code 补全。
+    """
+    agent_name = getattr(agent_context, "agent_name", "magic")
+    if agent_name != "magic":
+        return agent_name
     try:
-        message_dict = await async_read_json(PathManager.get_chat_client_message_file())
-        return ChatClientMessage(**message_dict)
+        last_dispatch_file = PathManager.get_chat_history_dir() / "last_dispatch_message.json"
+        last = await async_read_json(last_dispatch_file)
+        agent_code = (last.get("dynamic_config") or {}).get("agent_code") if isinstance(last, dict) else None
+        if agent_code and isinstance(agent_code, str) and agent_code.strip():
+            return agent_code.strip()
+    except Exception:
+        pass
+    return agent_name
+
+
+async def _load_runtime_config_from_session(agent_context: Any) -> dict[str, Any]:
+    """从持久化 session.json 读取上次会话的运行配置。
+
+    session.json 保存在 .chat_history/ 目录下，项目重启后仍然存在。
+    优先使用 current 块，null 字段回落到 last 块。
+    """
+    try:
+        agent_name = await _resolve_agent_name(agent_context)
+        agent_id = agent_context.get_agent_id() if hasattr(agent_context, "get_agent_id") else None
+        session_file = PathManager.get_chat_session_file(agent_name, agent_id or "main")
+        doc = await async_read_json(session_file)
+        if not isinstance(doc, dict):
+            return {}
+        current: dict[str, Any] = doc.get("current") or {}
+        last: dict[str, Any] = doc.get("last") or {}
+        # current 中 null 的字段回落到 last
+        merged = {**last, **{k: v for k, v in current.items() if v is not None}}
+        return merged
     except Exception as e:
-        logger.debug(f"[ThirdPartyMessage] 读取上一条 chat_client_message 失败: {e}")
-        return None
+        logger.debug(f"[ThirdPartyMessage] 读取 session.json 失败: {e}")
+        return {}
 
 
 def _build_rich_text_document(text: str) -> str:
@@ -88,20 +109,6 @@ def _build_rich_text_document(text: str) -> str:
         )
 
     return json.dumps({"type": "doc", "content": paragraphs}, ensure_ascii=False)
-
-
-def _get_last_chat_runtime_config(last_chat_message: ChatClientMessage | None) -> tuple[str | None, bool, str | None]:
-    if last_chat_message is None:
-        return None, True, None
-
-    dynamic_config = last_chat_message.dynamic_config if isinstance(last_chat_message.dynamic_config, dict) else {}
-    image_model_config = dynamic_config.get("image_model") if isinstance(dynamic_config.get("image_model"), dict) else {}
-
-    model_id = _normalize_text(last_chat_message.model_id) or _normalize_text(dynamic_config.get("model_id"))
-    enable_web_search = _normalize_bool(dynamic_config.get("enable_web_search"))
-    image_model_id = _normalize_text(image_model_config.get("model_id"))
-
-    return model_id, True if enable_web_search is None else enable_web_search, image_model_id
 
 
 class ThirdPartyMessagePayloadBuilder:
@@ -149,9 +156,14 @@ class ThirdPartyMessagePayloadBuilder:
             logger.warning(f"[ThirdPartyMessage] {channel} 空消息跳过持久化事件")
             return None
 
+        session_config = await _load_runtime_config_from_session(agent_context)
+        model_id = _normalize_text(session_config.get("model_id"))
+        image_model_id = _normalize_text(session_config.get("image_model_id")) or "doubao-seedream-5.0-lite"
+        enable_web_search = True
+
         topic_pattern = _normalize_text(getattr(getattr(init_client_message, "agent", None), "type", None))
-        last_chat_message = await _load_last_chat_message()
-        model_id, enable_web_search, image_model_id = _get_last_chat_runtime_config(last_chat_message)
+        if not topic_pattern:
+            topic_pattern = _normalize_text(session_config.get("agent_mode"))
 
         missing_fields = [
             field_name

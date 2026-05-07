@@ -217,6 +217,38 @@ class AbstractStorage(ABC):
         raise NotImplementedError("子类必须实现此方法")
 
     @abstractmethod
+    async def download_file_by_stream(
+        self,
+        key: str,
+        dest_path: str,
+        options: Optional[Options] = None,
+        chunk_size: int = 4 * 1024 * 1024,
+    ) -> int:
+        """
+        异步以流式方式从存储平台下载文件并写入本地路径，避免将整个对象加载进内存。
+
+        实现要求：
+        - 下载链路必须使用分块读取（建议每块 ``chunk_size`` 字节）并直接写入 ``dest_path``，
+          不允许在内存中拼出完整文件后再落盘。
+        - 写入完成后返回总字节数，调用方据此校验大小。
+
+        Args:
+            key: 文件名/路径
+            dest_path: 本地目标文件绝对路径
+            options: 可选配置（如进度回调、HTTP头等）
+            chunk_size: 每次读取的字节数，默认 4MiB
+
+        Returns:
+            int: 写入到 ``dest_path`` 的字节总数
+
+        Raises:
+            InitException: 如果初始化参数缺失
+            DownloadException: 如果下载失败（凭证过期或网络问题）
+            ValueError: 如果凭证类型错误或未设置元数据
+        """
+        raise NotImplementedError("子类必须实现此方法")
+
+    @abstractmethod
     async def exists(
         self,
         key: str,

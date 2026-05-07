@@ -168,8 +168,15 @@ abstract class AbstractGoogleGeminiClient implements GoogleGeminiInterface
                     }
                 }
 
+                if ($response->getStatusCode() === 404) {
+                    throw new Exception(__('image_generate.google_gemini_model_or_endpoint_not_found'));
+                }
+
                 $result = Json::decode($response->getBody()->getContents());
                 if ($statusCode === 200) {
+                    $this->logger->info('Google Gemini API usage', [
+                        'usageMetadata' => $result['usageMetadata'],
+                    ]);
                     return $result;
                 }
 

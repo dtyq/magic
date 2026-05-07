@@ -71,6 +71,15 @@ readonly class SuperMagicAgentDomainService
     }
 
     /**
+     * @param array<string> $codes
+     * @return array<string, SuperMagicAgentEntity>
+     */
+    public function findByCodes(SuperMagicAgentDataIsolation $dataIsolation, array $codes): array
+    {
+        return $this->superMagicAgentRepository->findByCodes($dataIsolation, $codes);
+    }
+
+    /**
      * @return array{total: int, list: array<SuperMagicAgentEntity>}
      */
     public function queries(SuperMagicAgentDataIsolation $dataIsolation, SuperMagicAgentQuery $query, Page $page): array
@@ -688,7 +697,7 @@ readonly class SuperMagicAgentDomainService
         );
 
         // Call sandbox workspace export API via proxy request
-        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig, $sourcePath);
+        $request = new ExportWorkspaceRequest(ProjectMode::AGENT_CREATOR->value, $code, $uploadConfig, $sourcePath);
         $response = $this->workspaceExporter->export($sandboxId, $request);
 
         if (! $response->isSuccess()) {

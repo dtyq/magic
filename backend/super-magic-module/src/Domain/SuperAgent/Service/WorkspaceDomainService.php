@@ -49,6 +49,29 @@ class WorkspaceDomainService
     }
 
     /**
+     * Get or create a system-managed workspace by type.
+     * Each user has at most one workspace of each internal type per organization.
+     * Only internal (non-public) workspace types are allowed.
+     */
+    public function getOrCreateWorkspaceByType(DataIsolation $dataIsolation, WorkspaceType $type): WorkspaceEntity
+    {
+        $userId = $dataIsolation->getCurrentUserId();
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+
+        $existing = $this->workspaceRepository->getWorkspaceByUserAndType(
+            $userId,
+            $organizationCode,
+            $type->value
+        );
+
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        return $this->createWorkspace($dataIsolation, '', '', $type->value);
+    }
+
+    /**
      * Create workspace only (without topic creation).
      *
      * @param DataIsolation $dataIsolation Data isolation object

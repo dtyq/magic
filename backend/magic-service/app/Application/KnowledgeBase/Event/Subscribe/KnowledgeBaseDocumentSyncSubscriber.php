@@ -7,10 +7,13 @@ declare(strict_types=1);
 
 namespace App\Application\KnowledgeBase\Event\Subscribe;
 
-use App\Application\KnowledgeBase\Service\KnowledgeBaseVectorAppService;
+use App\Application\KnowledgeBase\DTO\BusinessParamsDTO;
+use App\Application\KnowledgeBase\DTO\DataIsolationDTO;
+use App\Application\KnowledgeBase\DTO\DocumentRequestDTO;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeType;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseDocumentSavedEvent;
+use App\Domain\KnowledgeBase\Port\DocumentGateway;
 use App\Domain\KnowledgeBase\Service\KnowledgeBaseDocumentDomainService;
 use App\Infrastructure\Core\Traits\HasLogger;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
@@ -26,8 +29,9 @@ readonly class KnowledgeBaseDocumentSyncSubscriber implements ListenerInterface
 {
     use HasLogger;
 
-    public function __construct()
-    {
+    public function __construct(
+        private DocumentGateway $documentAppClient
+    ) {
     }
 
     public function listen(): array
@@ -54,14 +58,21 @@ readonly class KnowledgeBaseDocumentSyncSubscriber implements ListenerInterface
         }
         /** @var KnowledgeBaseDocumentDomainService $knowledgeBaseDocumentDomainService */
         $knowledgeBaseDocumentDomainService = di(KnowledgeBaseDocumentDomainService::class);
-        /** @var KnowledgeBaseVectorAppService $knowledgeBaseVectorAppService */
-        $knowledgeBaseVectorAppService = di(KnowledgeBaseVectorAppService::class);
-
         try {
-            // 检查集合是否存在
-            $knowledgeBaseVectorAppService->checkCollectionExists($knowledge);
-            // 同步文档
-            $knowledgeBaseVectorAppService->syncDocument($dataIsolation, $knowledge, $documentEntity);
+            $this->documentAppClient->sync(DocumentRequestDTO::forSync(
+                $documentEntity->getCode(),
+                $knowledge->getCode(),
+                'create',
+                new DataIsolationDTO(
+                    organizationCode: (string) $dataIsolation->getCurrentOrganizationCode(),
+                    userId: (string) $dataIsolation->getCurrentUserId(),
+                ),
+                new BusinessParamsDTO(
+                    organizationCode: (string) $dataIsolation->getCurrentOrganizationCode(),
+                    userId: (string) $dataIsolation->getCurrentUserId(),
+                    businessId: $knowledge->getCode(),
+                )
+            ));
         } catch (Throwable $throwable) {
             $this->logger->error($throwable->getMessage() . PHP_EOL . $throwable->getTraceAsString());
             $documentEntity->setSyncStatus(KnowledgeSyncStatus::SyncFailed->value);

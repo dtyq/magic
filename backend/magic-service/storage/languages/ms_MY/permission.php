@@ -9,8 +9,10 @@ return [
         'admin' => 'Backend pentadbiran',
         'admin_ai' => 'Pengurusan AI',
         'admin_safe' => 'Keselamatan & Kebenaran',
+        'safe_function_permission' => 'Kebenaran Fungsi',
         'safe_admin' => 'Pentadbir organisasi',
         'safe_sub_admin' => 'Sub pentadbir',
+        'safe_operation_log' => 'Log pentadbir',
         'ai_model' => 'Model besar',
         'ai_image' => 'Lukisan pintar',
         'admin_ai_model' => 'Model besar',
@@ -28,6 +30,8 @@ return [
         'workspace_ai' => 'Pengurusan AI',
         'workspace_ai_model' => 'Model besar',
         'workspace_ai_image' => 'Lukisan pintar',
+        'workspace_ai_model_audit_log' => 'Log audit model',
+        'platform_ai_model_audit_log' => 'Log audit model',
         'platform_setting' => 'Tetapan sistem',
         'platform_setting_maintenance' => 'Pengurusan penyelenggaraan',
         'platform_organization' => 'Pengurusan organisasi',
@@ -46,6 +50,43 @@ return [
     'organization_code_exists' => 'Kod organisasi sudah wujud',
     'organization_name_exists' => 'Nama organisasi sudah wujud',
     'organization_not_exists' => 'Organisasi tidak wujud',
+    'function_permission' => [
+        'modules' => [
+            'skill' => 'Kemahiran',
+            'agent' => 'Ejen',
+            'magic_claw' => 'Magic Claw',
+        ],
+        'functions' => [
+            'skill_create' => [
+                'name' => 'Cipta Kemahiran',
+                'description' => 'Pintu masuk untuk mencipta kemahiran kosong dan penerbitan peribadi.',
+            ],
+            'skill_publish_team' => [
+                'name' => 'Terbitkan Kemahiran ke Pasukan',
+                'description' => 'Pintu masuk untuk menerbitkan kemahiran kepada pasukan.',
+            ],
+            'agent_create' => [
+                'name' => 'Cipta Ejen',
+                'description' => 'Pintu masuk untuk mencipta pembantu atau ejen dan penerbitan peribadi.',
+            ],
+            'agent_publish_team' => [
+                'name' => 'Terbitkan Ejen ke Pasukan',
+                'description' => 'Pintu masuk untuk menerbitkan ejen kepada pasukan.',
+            ],
+            'magic_claw_create' => [
+                'name' => 'Cipta Magic Claw',
+                'description' => 'Pintu masuk untuk mencipta Magic Claw.',
+            ],
+        ],
+        'binding_scope_label' => [
+            'all_users_available' => 'Tersedia untuk semua',
+            'organization_all' => 'Seluruh organisasi',
+            'specific_users_and_departments' => 'Pengguna dan jabatan tertentu',
+            'specific_users' => 'Pengguna tertentu',
+            'specific_departments' => 'Jabatan tertentu',
+            'not_configured' => 'Belum dikonfigurasi',
+        ],
+    ],
     'operation' => [
         'query' => 'Pertanyaan',
         'edit' => 'Edit',

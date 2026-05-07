@@ -100,12 +100,16 @@ class ExternalSSEServiceConfig extends AbstractServiceConfig
             ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.empty', ['label' => 'mcp.fields.url']);
         }
 
-        if (! is_url($this->url)) {
-            ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.url']);
-        }
+        // 包含模板变量（如 ${url}）时跳过 URL 格式校验和 SSRF 检查，实际使用时再校验
+        $hasTemplateVars = (bool) preg_match('/\$\{[^}]+\}/', $this->url);
+        if (! $hasTemplateVars) {
+            if (! is_url($this->url)) {
+                ExceptionBuilder::throw(MCPErrorCode::ValidateFailed, 'common.invalid', ['label' => 'mcp.fields.url']);
+            }
 
-        // Validate URL for SSRF protection
-        SSRFUtil::getSafeUrl($this->url, replaceIp: false, allowRedirect: true);
+            // Validate URL for SSRF protection
+            SSRFUtil::getSafeUrl($this->url, replaceIp: false, allowRedirect: true);
+        }
 
         // Validate each header using its own validation method
         foreach ($this->headers as $header) {
@@ -207,8 +211,9 @@ class ExternalSSEServiceConfig extends AbstractServiceConfig
         }
 
         $urlParts = parse_url($url);
-        if (! $urlParts) {
-            return $url;
+        // parse_url 失败或没有 scheme 时（如整个 URL 是模板变量 ${url}），直接做字符串替换
+        if (! is_array($urlParts) || ! isset($urlParts['scheme'])) {
+            return $this->replaceFields($url, $fieldValues);
         }
 
         $newUrl = $urlParts['scheme'] . '://' . ($urlParts['host'] ?? '');

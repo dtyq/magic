@@ -11,11 +11,11 @@ use App\Infrastructure\Core\AbstractValueObject;
 
 class FragmentConfig extends AbstractValueObject
 {
-    protected FragmentMode $mode;
+    protected FragmentMode $mode = FragmentMode::AUTO;
 
     protected ?NormalFragmentConfig $normal = null;
 
-    protected ?ParentChildFragmentConfig $parentChild = null;
+    protected ?HierarchyFragmentConfig $hierarchy = null;
 
     public function getMode(): FragmentMode
     {
@@ -39,28 +39,64 @@ class FragmentConfig extends AbstractValueObject
         return $this;
     }
 
-    public function getParentChild(): ?ParentChildFragmentConfig
+    public function getHierarchy(): ?HierarchyFragmentConfig
     {
-        return $this->parentChild;
+        return $this->hierarchy;
     }
 
-    public function setParentChild(?ParentChildFragmentConfig $parentChild): self
+    public function setHierarchy(?HierarchyFragmentConfig $hierarchy): self
     {
-        $this->parentChild = $parentChild;
+        $this->hierarchy = $hierarchy;
         return $this;
     }
 
     public static function fromArray(array $data): self
     {
         $config = new self();
-        $config->setMode(FragmentMode::from($data['mode']));
 
-        if ($config->getMode() === FragmentMode::NORMAL && isset($data['normal'])) {
-            $config->setNormal(NormalFragmentConfig::fromArray($data['normal']));
-        } elseif ($config->getMode() === FragmentMode::PARENT_CHILD && isset($data['parent_child'])) {
-            $config->setParentChild(ParentChildFragmentConfig::fromArray($data['parent_child']));
-        }
+        $modeValue = $data['mode'] ?? FragmentMode::AUTO->value;
+        $mode = FragmentMode::tryFrom($modeValue) ?? FragmentMode::AUTO;
+        $config->setMode($mode);
+
+        match ($config->getMode()) {
+            FragmentMode::CUSTOM => self::hydrateNormalConfig($config, $data),
+            FragmentMode::AUTO => self::hydrateAutoConfig($config, $data),
+            FragmentMode::HIERARCHY => self::hydrateHierarchyConfig($config, $data),
+        };
 
         return $config;
+    }
+
+    private static function hydrateNormalConfig(self $config, array $data): void
+    {
+        if (isset($data['normal'])) {
+            $config->setNormal(NormalFragmentConfig::fromArray($data['normal']));
+            return;
+        }
+        if (isset($data['chunk_size']) || isset($data['chunk_overlap']) || isset($data['chunk_overlap_unit']) || isset($data['separator'])) {
+            $normal = new NormalFragmentConfig();
+            $segment = new SegmentRule();
+            $segment->setChunkSize($data['chunk_size'] ?? 0);
+            $segment->setChunkOverlap($data['chunk_overlap'] ?? 0);
+            $segment->setChunkOverlapUnit($data['chunk_overlap_unit'] ?? 'absolute');
+            $segment->setSeparator($data['separator'] ?? '');
+            $normal->setSegmentRule($segment);
+            $normal->setTextPreprocessRule([]);
+            $config->setNormal($normal);
+        }
+    }
+
+    private static function hydrateAutoConfig(self $config, array $data): void
+    {
+        if (isset($data['normal'])) {
+            $config->setNormal(NormalFragmentConfig::fromArray($data['normal']));
+        }
+    }
+
+    private static function hydrateHierarchyConfig(self $config, array $data): void
+    {
+        if (isset($data['hierarchy'])) {
+            $config->setHierarchy(HierarchyFragmentConfig::fromArray($data['hierarchy']));
+        }
     }
 }

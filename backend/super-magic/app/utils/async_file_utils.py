@@ -225,6 +225,48 @@ async def async_unlink(path: Union[str, Path]) -> None:
         raise
 
 
+async def async_mkstemp(
+    suffix: Optional[str] = None,
+    prefix: Optional[str] = None,
+    dir: Optional[Union[str, Path]] = None,
+) -> tuple[int, str]:
+    """
+    异步创建临时文件，是 tempfile.mkstemp 的异步封装。
+
+    Args:
+        suffix: 文件名后缀，例如 '.jpg'
+        prefix: 文件名前缀
+        dir: 临时文件所在目录，默认使用系统临时目录
+
+    Returns:
+        (fd, path): fd 是已打开的文件描述符，path 是临时文件的绝对路径。
+        调用方负责关闭 fd（可使用 async_close_fd）并在使用完毕后删除文件。
+    """
+    import tempfile
+
+    kwargs = {}
+    if suffix is not None:
+        kwargs["suffix"] = suffix
+    if prefix is not None:
+        kwargs["prefix"] = prefix
+    if dir is not None:
+        kwargs["dir"] = str(dir)
+
+    fd, path = await asyncio.to_thread(tempfile.mkstemp, **kwargs)
+    logger.debug(f"创建临时文件: {path}")
+    return fd, path
+
+
+async def async_close_fd(fd: int) -> None:
+    """
+    异步关闭文件描述符，是 os.close 的异步封装。
+
+    Args:
+        fd: 要关闭的文件描述符，通常由 async_mkstemp 返回
+    """
+    await asyncio.to_thread(os.close, fd)
+
+
 async def async_rename(src: Union[str, Path], dst: Union[str, Path]) -> None:
     """
     异步重命名/移动文件或目录
@@ -764,6 +806,28 @@ async def async_try_read_text(file_path: Union[str, Path], encoding: str = 'utf-
         return None
     except Exception as e:
         logger.error(f"读取文件 {path_obj} 失败: {e}")
+        return None
+
+
+async def async_try_read_json(file_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
+    """安全读取 JSON 文件（不抛异常）。
+
+    文件不存在时静默返回 None；JSON 解析失败或其他 IO 错误才打 ERROR 日志。
+    适合读取"可能不存在"的可选配置/状态文件。
+
+    Returns:
+        Optional[Dict[str, Any]]: 解析后的 JSON 数据，文件不存在时返回 None
+    """
+    path_obj = Path(file_path)
+    try:
+        async with aiofiles.open(path_obj, 'r', encoding='utf-8') as f:
+            content = await f.read()
+        return await asyncio.to_thread(json.loads, content)
+    except FileNotFoundError:
+        logger.debug(f"JSON 文件不存在（忽略）: {path_obj}")
+        return None
+    except Exception as e:
+        logger.error(f"读取 JSON 文件失败 {path_obj}: {e}")
         return None
 
 

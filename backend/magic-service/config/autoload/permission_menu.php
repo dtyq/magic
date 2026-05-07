@@ -33,6 +33,14 @@ return [
             ],
             'tag' => '平台模型',
         ],
+        'platform.ai.model_audit_log' => [
+            'path' => [
+                ['key' => 'platform_management', 'label' => '平台管理'],
+                ['key' => 'platform_model', 'label' => '平台模型'],
+                ['key' => 'model_audit_log', 'label' => '模型调用审计'],
+            ],
+            'tag' => '平台模型',
+        ],
         'platform.ai.mode_management' => [
             'path' => [
                 ['key' => 'platform_management', 'label' => '平台管理'],
@@ -121,6 +129,22 @@ return [
             ],
             'tag' => '安全与权限',
         ],
+        'admin.safe.function_permission' => [
+            'path' => [
+                ['key' => 'enterprise_feature', 'label' => '企业功能'],
+                ['key' => 'security_and_permission', 'label' => '安全与权限'],
+                ['key' => 'function_permission', 'label' => '功能权限'],
+            ],
+            'tag' => '安全与权限',
+        ],
+        'admin.ai.model_access_role' => [
+            'path' => [
+                ['key' => 'ai_management', 'label' => 'AI管理'],
+                ['key' => 'custom_model', 'label' => '自定义大模型'],
+                ['key' => 'model_access_role', 'label' => '模型访问权限'],
+            ],
+            'tag' => '自定义大模型',
+        ],
         'workspace.ai.model_management' => [
             'path' => [
                 ['key' => 'ai_management', 'label' => 'AI 管理'],
@@ -136,6 +160,66 @@ return [
                 ['key' => 'image_model', 'label' => '生图大模型'],
             ],
             'tag' => '自定义大模型',
+        ],
+        'workspace.ai.model_audit_log' => [
+            'path' => [
+                ['key' => 'ai_management', 'label' => 'AI 管理'],
+                ['key' => 'custom_model', 'label' => '自定义大模型'],
+                ['key' => 'model_audit_log', 'label' => '模型调用审计'],
+            ],
+            'tag' => '自定义大模型',
+        ],
+    ],
+
+    /*
+     * 菜单别名映射（仅影响权限树展示，不影响 permission_tag 与接口鉴权）。
+     *
+     * 用途：
+     * - 当前产品存在“多个菜单入口复用同一组权限资源”的场景
+     * - 例如视频大模型、Skill 审核/市场、员工审核/市场
+     * - 主路径仍由 resource_menu_mapping 决定，这里只追加别名菜单节点
+     */
+    'resource_menu_alias_mapping' => [
+        'platform.ai.model_management' => [
+            [
+                'path' => [
+                    ['key' => 'platform_management', 'label' => '平台管理'],
+                    ['key' => 'platform_model', 'label' => '平台模型'],
+                    ['key' => 'video_model', 'label' => '视频大模型'],
+                ],
+            ],
+        ],
+        'platform.ai.skill_management' => [
+            [
+                'path' => [
+                    ['key' => 'platform_management', 'label' => '平台管理'],
+                    ['key' => 'agent_enhancement', 'label' => '智能体增强'],
+                    ['key' => 'skill_review', 'label' => 'Skill 审核'],
+                ],
+            ],
+            [
+                'path' => [
+                    ['key' => 'platform_management', 'label' => '平台管理'],
+                    ['key' => 'agent_enhancement', 'label' => '智能体增强'],
+                    ['key' => 'skill_market', 'label' => 'Skill 市场'],
+                ],
+            ],
+        ],
+        'platform.ai.agent_management' => [
+            [
+                'path' => [
+                    ['key' => 'platform_management', 'label' => '平台管理'],
+                    ['key' => 'agent_enhancement', 'label' => '智能体增强'],
+                    ['key' => 'employee_review', 'label' => '员工审核'],
+                ],
+            ],
+            [
+                'path' => [
+                    ['key' => 'platform_management', 'label' => '平台管理'],
+                    ['key' => 'agent_enhancement', 'label' => '智能体增强'],
+                    ['key' => 'employee_market', 'label' => '员工市场'],
+                ],
+            ],
         ],
     ],
 ];

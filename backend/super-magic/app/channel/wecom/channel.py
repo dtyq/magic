@@ -87,7 +87,7 @@ class WeComChannel(BaseChannel):
         def _on_authenticated() -> None:
             logger.info("[WeComChannel] 认证成功")
             keepalive_registry = KeepaliveRegistry.get_instance()
-            keepalive_registry.restore_message_time(self.key, self._last_message_at_ms)
+            keepalive_registry.restore_activity_time(self.key, self._last_message_at_ms)
             keepalive_registry.notify_connected_once(self.key)
 
         self._ws_client.on("authenticated", _on_authenticated)
@@ -125,7 +125,7 @@ class WeComChannel(BaseChannel):
 
         current_message_at_ms = now_ms()
         self._last_message_at_ms = current_message_at_ms
-        KeepaliveRegistry.get_instance().notify_message(self.key, current_message_at_ms)
+        KeepaliveRegistry.get_instance().notify_activity(self.key, current_message_at_ms)
         # 缓存 frame，供 cron 主动推送复用，并持久化供重启后使用
         self._last_frame = frame
         try:

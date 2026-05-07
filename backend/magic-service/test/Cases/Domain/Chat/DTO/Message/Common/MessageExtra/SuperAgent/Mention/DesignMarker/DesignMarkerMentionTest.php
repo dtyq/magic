@@ -102,7 +102,7 @@ class DesignMarkerMentionTest extends TestCase
         ]);
 
         $textStruct = $mention->getMentionTextStruct();
-        $this->assertEquals('', $textStruct);
+        $this->assertEquals('[@design_marker:棕色耳尖 image:/新建画布/images/d1e68175-b629-4515-8ca3-c87803cebe67.jpg bbox:x=0.64,y=0.07,w=0.13,h=0.21]', $textStruct);
     }
 
     public function testGetMentionJsonStruct(): void

@@ -1,0 +1,15 @@
+domain:
+  structureSegmentsWhitelist:
+    - entity
+    - metadata
+    - model
+    - retrieval
+    - service
+    - repository
+  sharedKernelSubdomainsWhitelist:
+    - shared
+
+application:
+  commonSubappsWhitelist:
+    - helper
+    - shared

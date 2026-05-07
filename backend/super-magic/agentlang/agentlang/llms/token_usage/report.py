@@ -32,7 +32,20 @@ class TokenUsageReport:
     """
 
     # 保存全局的报告实例，按sandbox_id索引
-    _instances = {}
+    _instances: Dict[str, 'TokenUsageReport'] = {}
+
+    @staticmethod
+    def _create_default_pricing() -> ModelPricing:
+        try:
+            # 尝试从配置中加载模型价格
+            models_config = config.get("models", {})
+            pricing = ModelPricing(models_config=models_config)
+            logger.info("已从配置加载模型价格信息")
+            return pricing
+        except Exception as e:
+            # 配置获取失败时，使用默认价格
+            logger.warning(f"无法从配置加载模型价格，使用默认价格: {e}")
+            return ModelPricing()
 
     @classmethod
     def get_instance(cls, sandbox_id: str = "default", token_tracker: Optional[Any] = None,
@@ -52,15 +65,7 @@ class TokenUsageReport:
         if sandbox_id not in cls._instances:
             # 没有提供pricing时创建默认实例
             if pricing is None:
-                try:
-                    # 尝试从配置中加载模型价格
-                    models_config = config.get("models", {})
-                    pricing = ModelPricing(models_config=models_config)
-                    logger.info("已从配置加载模型价格信息")
-                except Exception as e:
-                    # 配置获取失败时，使用默认价格
-                    logger.warning(f"无法从配置加载模型价格，使用默认价格: {e}")
-                    pricing = ModelPricing()
+                pricing = cls._create_default_pricing()
 
             # 创建实例
             cls._instances[sandbox_id] = cls(token_tracker, pricing, sandbox_id, report_dir)
@@ -70,6 +75,16 @@ class TokenUsageReport:
                 token_tracker.set_report_manager(cls._instances[sandbox_id])
 
         return cls._instances[sandbox_id]
+
+    @classmethod
+    def for_session(cls, *, file_prefix: str, token_tracker: Optional[Any],
+                    pricing: Optional[ModelPricing] = None, sandbox_id: str = "default",
+                    report_dir: Optional[str] = None) -> 'TokenUsageReport':
+        """创建当前 Agent 会话专属的报告实例，不注册为全局 singleton。"""
+        active_pricing = pricing if pricing is not None else cls._create_default_pricing()
+        report = cls(token_tracker, active_pricing, sandbox_id, report_dir)
+        report.set_file_prefix(file_prefix)
+        return report
 
     def __init__(self, token_tracker: 'TokenUsageTracker', pricing: ModelPricing,
                 sandbox_id: str = "default", report_dir: Optional[str] = None):
@@ -100,14 +115,26 @@ class TokenUsageReport:
         # 确保报告目录存在
         os.makedirs(self.report_dir, exist_ok=True)
 
+        # 文件名前缀，可通过 set_file_prefix() 更新为 agent_name<agent_id> 格式
+        self._file_prefix: Optional[str] = None
+
+    def set_file_prefix(self, prefix: str) -> None:
+        """设置报告文件名前缀，使其与聊天历史文件命名保持一致。
+
+        Args:
+            prefix: 文件名前缀，通常为 {agent_name}<{agent_id}>
+        """
+        self._file_prefix = prefix
+        logger.debug(f"Token usage 报告文件前缀已更新为: {prefix}")
+
     def get_report_file_path(self) -> str:
         """获取报告文件的路径
 
         Returns:
             str: 报告文件的完整路径
         """
-        # 使用沙箱ID创建唯一的文件名
-        file_name = f"{self.sandbox_id}_token_usage.json"
+        prefix = self._file_prefix if self._file_prefix else self.sandbox_id
+        file_name = f"{prefix}.token_usage.json"
         return os.path.join(self.report_dir, file_name)
 
     def _serialize_report(self, report: CostReport) -> Dict[str, Any]:
@@ -127,6 +154,8 @@ class TokenUsageReport:
                 "input_tokens": model.usage.input_tokens,
                 "output_tokens": model.usage.output_tokens,
             }
+            if model.resolved_model_id:
+                model_data["resolved_model_id"] = model.resolved_model_id
 
             # 添加缓存相关数据（按顺序）
             if model.usage.input_tokens_details:
@@ -191,7 +220,8 @@ class TokenUsageReport:
                 model_name=model_name,
                 usage=usage,
                 cost=model_data.get("cost", 0.0),
-                currency=model_data.get("currency", report.currency_code)
+                currency=model_data.get("currency", report.currency_code),
+                resolved_model_id=model_data.get("resolved_model_id") or None
             )
 
             report.models.append(model_usage)
@@ -243,7 +273,7 @@ class TokenUsageReport:
             logger.error(f"保存token使用报告到文件失败: {e!s}")
             return False
 
-    def update_and_save_usage(self, model_id: str, token_usage: TokenUsage) -> None:
+    def update_and_save_usage(self, model_id: str, token_usage: TokenUsage, resolved_model_id: Optional[str] = None) -> None:
         """更新并保存当前token使用情况到JSON文件
 
         Args:
@@ -310,7 +340,8 @@ class TokenUsageReport:
                 model_name=model_id,
                 usage=token_usage,
                 cost=cost,
-                currency=report.currency_code
+                currency=report.currency_code,
+                resolved_model_id=resolved_model_id or None
             )
             report.models.append(model_usage)
 
@@ -336,7 +367,11 @@ class TokenUsageReport:
 
         # 添加每个模型的使用情况
         for model in report.models:
-            formatted += f"模型: {model.model_name}\n"
+            if model.resolved_model_id and model.resolved_model_id != model.model_name:
+                model_label = f"{model.resolved_model_id}|{model.model_name}"
+            else:
+                model_label = model.model_name
+            formatted += f"模型: {model_label}\n"
             formatted += f"  输入tokens: {model.usage.input_tokens:,}\n"
             formatted += f"  输出tokens: {model.usage.output_tokens:,}\n"
 

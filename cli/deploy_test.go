@@ -155,6 +155,38 @@ func TestResolveDeployWebBaseURL(t *testing.T) {
 	})
 }
 
+func TestResolveDeployMinIOURL(t *testing.T) {
+	const minIOPort = 39000
+
+	t.Run("cli flag has highest priority", func(t *testing.T) {
+		t.Setenv(envNameCLIMinIOURL, "http://env.example:9000")
+
+		got := resolveDeployMinIOURL("http://cli.example:9001", "http://203.0.113.22:38080", minIOPort)
+		assert.Equal(t, "http://cli.example:9001", got)
+	})
+
+	t.Run("env is used when cli flag is empty", func(t *testing.T) {
+		t.Setenv(envNameCLIMinIOURL, "http://env.example:9000")
+
+		got := resolveDeployMinIOURL("", "http://ignored:38080", minIOPort)
+		assert.Equal(t, "http://env.example:9000", got)
+	})
+
+	t.Run("derives host and scheme from web URL when cli and env are empty", func(t *testing.T) {
+		t.Setenv(envNameCLIMinIOURL, "")
+
+		got := resolveDeployMinIOURL("", "http://203.0.113.22:38080", minIOPort)
+		assert.Equal(t, "http://203.0.113.22:39000", got)
+	})
+
+	t.Run("falls back to localhost when web URL is also empty", func(t *testing.T) {
+		t.Setenv(envNameCLIMinIOURL, "")
+
+		got := resolveDeployMinIOURL("", "", minIOPort)
+		assert.Equal(t, "http://localhost:39000", got)
+	})
+}
+
 func requireNoError(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {

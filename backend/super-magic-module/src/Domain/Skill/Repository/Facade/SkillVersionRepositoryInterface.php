@@ -153,7 +153,6 @@ interface SkillVersionRepositoryInterface
         SkillDataIsolation $dataIsolation,
         array $codes,
         ?string $keyword,
-        string $languageCode,
         Page $page
     ): array;
 

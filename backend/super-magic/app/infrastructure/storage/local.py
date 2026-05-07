@@ -536,6 +536,70 @@ class LocalStorage(AbstractStorage, BaseFileProcessor):
                 raise DownloadException(DownloadExceptionCode.NETWORK_ERROR, str(e))
             raise
 
+    @with_refreshed_credentials
+    async def download_file_by_stream(
+        self,
+        key: str,
+        dest_path: str,
+        options: Optional[Options] = None,
+        chunk_size: int = 4 * 1024 * 1024,
+    ) -> int:
+        """
+        以流式方式从本地存储下载文件并写入本地路径。
+
+        通过 ``aiohttp`` 的 ``content.iter_chunked`` 按需读取响应体，避免一次性把整个
+        响应体读进内存。
+
+        Args:
+            key: 文件名/路径
+            dest_path: 本地目标文件绝对路径
+            options: 可选配置
+            chunk_size: 每次读取的字节数，默认 4MiB
+
+        Returns:
+            int: 写入到 ``dest_path`` 的字节总数
+
+        Raises:
+            DownloadException: 如果下载失败
+            ValueError: 如果凭证类型不正确或未设置元数据
+        """
+        options = options or {}
+        credentials: LocalCredentials = self.credentials
+
+        download_url = self._build_download_url(credentials, key)
+        headers = options.get('headers', {})
+
+        try:
+            loop = asyncio.get_event_loop()
+            async with self._create_client_session() as session:
+                async with session.get(
+                    download_url,
+                    headers=headers,
+                    timeout=self.DEFAULT_TIMEOUT
+                ) as response:
+                    await self._handle_download_response(response, key)
+
+                    # File writes go through executor to avoid blocking the loop.
+                    file_obj = await loop.run_in_executor(None, lambda: open(dest_path, "wb"))
+                    written = 0
+                    try:
+                        async for chunk in response.content.iter_chunked(chunk_size):
+                            if not chunk:
+                                continue
+                            await loop.run_in_executor(None, file_obj.write, chunk)
+                            written += len(chunk)
+                    finally:
+                        await loop.run_in_executor(None, file_obj.close)
+                    return written
+        except aiohttp.ClientError as e:
+            logger.error(f"下载时发生网络错误: {e}")
+            raise DownloadException(DownloadExceptionCode.NETWORK_ERROR, str(e))
+        except Exception as e:
+            if not isinstance(e, DownloadException):
+                logger.error(f"下载时发生意外错误: {e}")
+                raise DownloadException(DownloadExceptionCode.NETWORK_ERROR, str(e))
+            raise
+
     def _build_download_url(self, credentials: LocalCredentials, key: str) -> str:
         """
         构建下载URL

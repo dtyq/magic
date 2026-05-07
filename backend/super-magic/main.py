@@ -219,7 +219,7 @@ def storage_uploader_watch_command(
 def generate_tools_command():
     """生成工具定义文件到 config/tool_definitions.json"""
     try:
-        success = generate_tool_definitions()
+        success = asyncio.run(generate_tool_definitions())
         if success:
             logger.info("工具定义文件生成完成")
         else:
@@ -234,7 +234,7 @@ def generate_tools_command():
 def validate_tools_command():
     """验证工具定义文件 config/tool_definitions.json"""
     try:
-        valid = validate_tool_definitions()
+        valid = asyncio.run(validate_tool_definitions())
         if valid:
             logger.info("工具定义文件验证通过")
         else:
@@ -249,7 +249,7 @@ def validate_tools_command():
 def stats_tools_command():
     """显示工具定义统计信息 config/tool_definitions.json"""
     try:
-        show_tool_definitions_stats()
+        asyncio.run(show_tool_definitions_stats())
     except Exception as e:
         logger.error(f"显示工具统计信息时发生错误: {e}")
         logger.error(f"堆栈信息: {traceback.format_exc()}")

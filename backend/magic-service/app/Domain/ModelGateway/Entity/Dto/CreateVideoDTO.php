@@ -19,6 +19,8 @@ class CreateVideoDTO extends AbstractRequestDTO
 
     protected string $task = '';
 
+    protected string $inputMode = '';
+
     protected string $prompt = '';
 
     protected array $inputs = [];
@@ -76,6 +78,16 @@ class CreateVideoDTO extends AbstractRequestDTO
     public function getTask(): string
     {
         return $this->task;
+    }
+
+    public function setInputMode(mixed $inputMode): void
+    {
+        $this->inputMode = is_string($inputMode) ? trim($inputMode) : '';
+    }
+
+    public function getInputMode(): string
+    {
+        return $this->inputMode;
     }
 
     public function setInputs(mixed $inputs): void
@@ -198,6 +210,7 @@ class CreateVideoDTO extends AbstractRequestDTO
             'model_id' => $this->setModelId(...),
             'prompt' => $this->setPrompt(...),
             'task' => $this->setTask(...),
+            'input_mode' => $this->setInputMode(...),
             'inputs' => $this->setInputs(...),
             'generation' => $this->setGeneration(...),
             'callbacks' => $this->setCallbacks(...),
