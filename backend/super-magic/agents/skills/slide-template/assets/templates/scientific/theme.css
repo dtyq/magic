@@ -71,10 +71,8 @@ html, body {
 
 .slide-container {
   width: 1920px; height: 1080px;
-  padding: 72px 96px;
   box-sizing: border-box;
   position: relative;
-  display: flex; flex-direction: column;
   background: var(--bg-primary);
 }
 

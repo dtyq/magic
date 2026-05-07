@@ -64,7 +64,6 @@ html, body {
 .slide-container {
  width: 1920px; height: 1080px;
  position: relative; overflow: hidden;
- display: flex; flex-direction: column;
  box-sizing: border-box;
 }
 

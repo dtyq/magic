@@ -59,8 +59,6 @@ body {
   height: 1080px;
   position: relative;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 .slide-container.light {
   background: var(--paper);

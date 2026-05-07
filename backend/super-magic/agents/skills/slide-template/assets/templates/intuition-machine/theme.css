@@ -76,10 +76,8 @@ html, body {
 
 .slide-container {
  width: 1920px; height: 1080px;
- padding: 66px 90px;
  box-sizing: border-box;
  position: relative;
- display: flex; flex-direction: column;
  background-color: var(--bg-primary);
  background-image:
   radial-gradient(ellipse at 15% 20%, rgba(139,115,85,0.07) 0%, transparent 55%),

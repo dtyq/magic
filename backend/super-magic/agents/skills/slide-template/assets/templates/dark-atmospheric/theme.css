@@ -121,10 +121,8 @@ html, body {
 /* ── 3. Canvas container (multiple variants)─────────────────────────────────── */
 .slide-container {
   width: 1920px; height: 1080px;
-  padding: 72px 96px;
   box-sizing: border-box;
   position: relative;
-  display: flex; flex-direction: column;
   background-color: var(--bg-primary);
   background-image:
     radial-gradient(ellipse at 15% 55%, rgba(157,111,255,0.10) 0%, transparent 55%),
@@ -135,7 +133,6 @@ html, body {
 
 /* Cinematic letterbox variant */
 .slide-container.cinematic {
-  padding: 110px 96px;
   background-image:
     linear-gradient(to bottom, rgba(0,0,0,0.72) 0%, transparent 18%, transparent 82%, rgba(0,0,0,0.72) 100%),
     radial-gradient(ellipse at 50% 50%, rgba(157,111,255,0.14) 0%, transparent 65%);

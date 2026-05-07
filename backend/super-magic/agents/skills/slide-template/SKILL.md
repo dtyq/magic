@@ -99,6 +99,13 @@ shell_exec(command="cp <skill_dir>/assets/templates/<dir>/theme.css <project>/th
 
 Use when the user describes a style in text, provides screenshots, or gives an existing PPT project. Read `<skill_dir>/references/custom-template-workflow.md` and follow it before generating custom template files.
 
+## Style Specificity & Template Scope
+
+- `theme.css` must only contain template-specific styles: color variables, background decorations, typography, template components, and visual helpers. It must NOT contain structural layout properties (padding, flex, grid) on framework-level selectors like `.slide-container`.
+- `.slide-container` in `theme.css` should only set: dimensions (`width`/`height`), `position`, `overflow`, `box-sizing`, and template-specific backgrounds/colors. Layout properties (`padding`, `margin`, `display: flex`, `flex-direction`) must be defined in each slide page's own `<style>` block.
+- Page-level `<style>` in each slide HTML has higher specificity than `theme.css` by nature of source order (page styles load after `theme.css`). If needed, use more specific selectors (e.g., `.slide-container.my-page`) to ensure page styles override template defaults.
+- When writing slide pages, always define layout (padding, flex, grid) directly in the page `<style>` rather than relying on `theme.css`, to avoid cross-page style conflicts.
+
 ## Output
 
 - Built-in/custom workflow output:a complete slide project generated through `creating-slides`.
