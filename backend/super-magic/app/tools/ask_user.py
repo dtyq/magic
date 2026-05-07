@@ -29,6 +29,10 @@ class AskUserParams(BaseToolParams):
         description="""<!--zh: 用 XML 格式描述要问用户的问题。支持 type: confirm / input / select / multi_select。每个问题用 <question> 标签包裹。-->
 Questions in XML format. Wrap each question in a <question> tag with a `type` attribute (confirm / input / select / multi_select). For select/multi_select, add <option> children. Optional attributes: default, placeholder, min, max.""",
     )
+    timeout: int = Field(
+        description="""<!--zh: 等待用户回答的超时秒数（10~600）。根据问题复杂程度自行判断：简单确认填 10~30，需要用户思考或输入内容填 60~180，涉及复杂决策或需要用户查阅资料填 180~600。-->
+How many seconds to wait for the user's answer (10–600). Choose based on the complexity of the question: 10–30 for simple confirmations, 60–180 when the user needs to think or type content, 180–600 for complex decisions or when the user may need to look something up.""",
+    )
 
 
 @tool()
@@ -154,6 +158,12 @@ Use the `default` attribute to set a fallback when the user times out or skips.
         raw_xml = tool_context.arguments.get("questions", "")
         tool_context.arguments["parsed_questions"] = parse_questions_xml(raw_xml)
         tool_context.arguments["status"] = "pending"
+
+        # 用大模型指定的超时覆盖基类写入的默认值，限制在 [10, 600] 秒内
+        raw_timeout = tool_context.arguments.get("timeout")
+        if raw_timeout is not None:
+            clamped = max(10, min(600, int(raw_timeout)))
+            tool_context.arguments["expires_at"] = int(time.time()) + clamped
 
     def build_tool_data(self, tool_context: ToolContext) -> dict:
         """提取需要持久化的结构化数据。
