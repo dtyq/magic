@@ -34,7 +34,6 @@ from .chunk_processor import ChunkProcessor
 
 logger = get_logger(__name__)
 
-DEFAULT_TIMEOUT = int(config.get("llm.api_timeout", 1800))
 CHUNK_TIMEOUT = int(config.get("llm.chunk_timeout", 10))
 
 
@@ -188,9 +187,6 @@ class StreamResponseHandler(StreamResponseHandlerBase):
         collected_chunks: List[ChatCompletionChunk] = []
         finish_reason: Optional[str] = None
         usage: Optional[CompletionUsage] = None
-
-        # 流处理整体超时兜底（保留宽松上限，防止极端情况下进程永久挂起）
-        stream_timeout = DEFAULT_TIMEOUT + 60
 
         # 首包 deadline：http_request_start_time + 首包窗口；响应头返回后，首个 chunk 只使用剩余预算
         first_chunk_timeout = processor_config.stream_first_chunk_timeout_seconds
@@ -591,32 +587,17 @@ class StreamResponseHandler(StreamResponseHandlerBase):
                         StreamingLogger.log_parallel_task_exception(request_id, e)
                         raise
 
-            await asyncio.wait_for(process_stream(), timeout=stream_timeout)
+            await process_stream()
 
         # ===== 异常处理分层（Layer 1：诊断与分类） =====
         #
         # 本层是异常的"产生和首次分类"层，职责：
         # 1. 结构性异常（STREAMING_PASSTHROUGH_EXCEPTIONS）：直接穿透，不记日志（已在产生处记录）
-        # 2. safeguard 超时（asyncio.TimeoutError）：重新包装并保留 from 链
-        # 3. 其他异常：按类型 isinstance 分类为 ConnectionError / TimeoutError，字符串匹配仅做兜底
+        # 2. 其他异常：按类型 isinstance 分类为 ConnectionError / TimeoutError，字符串匹配仅做兜底
         #
         # 所有二次包装必须使用 `from stream_error` 保留原始异常链。
         except STREAMING_PASSTHROUGH_EXCEPTIONS:
             raise
-        except asyncio.TimeoutError as timeout_err:
-            StreamingLogger.log_stream_timeout(request_id, state, stream_timeout, correlation_id)
-            # 已收到 chunk 时转为 StreamChunkTimeoutError，让 Layer 3 能检测到
-            # chunk_count 并触发非流式降级；否则保持 asyncio.TimeoutError 走首包重试
-            if state.received_chunk_count > 0:
-                raise StreamChunkTimeoutError(
-                    chunk_count=state.received_chunk_count,
-                    chunk_timeout_seconds=stream_timeout,
-                    total_elapsed_seconds=stream_timeout,
-                ) from timeout_err
-            raise asyncio.TimeoutError(
-                f"Stream total timeout (safeguard): exceeded {stream_timeout}s limit. "
-                f"No chunks received."
-            ) from timeout_err
 
         except Exception as stream_error:
             StreamingLogger.log_stream_error(request_id, state, stream_error, correlation_id)
