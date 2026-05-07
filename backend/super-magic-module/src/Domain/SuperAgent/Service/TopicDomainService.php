@@ -1244,7 +1244,7 @@ class TopicDomainService
             'topic_name' => $topic->getTopicName(),
             'project_id' => (string) $topic->getProjectId(),
             'workspace_id' => $topic->getWorkspaceId() !== null ? (string) $topic->getWorkspaceId() : '',
-            'status' => $this->normalizeTopicStatus($topic->getCurrentTaskStatus()?->value),
+            'status' => $topic->getCurrentTaskStatus()?->value ?? null,
             'topic_mode' => $topic->getTopicMode(),
             'updated_at' => $topic->getUpdatedAt() ?? '',
             'is_pinned' => $topic->isPinned(),
@@ -1260,7 +1260,7 @@ class TopicDomainService
     {
         return [
             'id' => (string) $topic->getId(),
-            'status' => $this->normalizeTopicStatus($topic->getCurrentTaskStatus()?->value),
+            'status' => $topic->getCurrentTaskStatus()?->value ?? null,
             'has_unread' => $hasUnread,
         ];
     }
@@ -1276,16 +1276,6 @@ class TopicDomainService
         }
 
         return $items;
-    }
-
-    private function normalizeTopicStatus(?string $status): string
-    {
-        return match ($status) {
-            TaskStatus::RUNNING->value => TaskStatus::RUNNING->value,
-            TaskStatus::WAITING->value => TaskStatus::WAITING->value,
-            TaskStatus::WAITING_FOR_USER->value => TaskStatus::WAITING_FOR_USER->value,
-            default => TaskStatus::FINISHED->value,
-        };
     }
 
     private function getOwnedTopicOrFail(DataIsolation $dataIsolation, int $topicId): TopicEntity
