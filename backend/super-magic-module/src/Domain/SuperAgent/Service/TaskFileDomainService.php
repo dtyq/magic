@@ -429,6 +429,57 @@ class TaskFileDomainService
         return false;
     }
 
+    /**
+     * Filter out entities whose fileName matches given directory names and all their descendants.
+     *
+     * @param TaskFileEntity[] $entities
+     * @param string[] $directoryNames directory names to match (e.g. ['.magic'])
+     * @return TaskFileEntity[]
+     */
+    public function filterOutDescendantsByDirectoryNames(array $entities, array $directoryNames): array
+    {
+        if (empty($entities) || empty($directoryNames)) {
+            return $entities;
+        }
+
+        // Find target directory IDs
+        $targetDirIds = [];
+        foreach ($entities as $entity) {
+            if ($entity->getIsDirectory() && in_array($entity->getFileName(), $directoryNames, true)) {
+                $targetDirIds[] = $entity->getFileId();
+            }
+        }
+
+        if (empty($targetDirIds)) {
+            return $entities;
+        }
+
+        // Build parent_id -> child_ids map
+        $parentToChildren = [];
+        foreach ($entities as $entity) {
+            $parentId = $entity->getParentId() ?? 0;
+            $parentToChildren[$parentId][] = $entity->getFileId();
+        }
+
+        // BFS to collect all descendant IDs
+        $excludeIds = [];
+        $queue = $targetDirIds;
+        while (! empty($queue)) {
+            $currentId = array_shift($queue);
+            $excludeIds[$currentId] = true;
+            if (isset($parentToChildren[$currentId])) {
+                foreach ($parentToChildren[$currentId] as $childId) {
+                    if (! isset($excludeIds[$childId])) {
+                        $queue[] = $childId;
+                    }
+                }
+            }
+        }
+
+        // Filter out
+        return array_values(array_filter($entities, fn (TaskFileEntity $e) => ! isset($excludeIds[$e->getFileId()])));
+    }
+
     public function insertOrUpdate(TaskFileEntity $entity): TaskFileEntity
     {
         return $this->taskFileRepository->insertOrUpdate($entity);

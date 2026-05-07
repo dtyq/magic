@@ -2054,6 +2054,9 @@ class ResourceShareAppService extends AbstractShareAppService
                     // Merge directory itself and all children (with parent paths for correct tree structure)
                     $allEntities = $this->taskFileDomainService->getFilesWithParentsByIds(array_merge([$fileId], $childFileIds), $projectId);
 
+                    // 过滤系统目录（如 .magic 及其子文件）
+                    $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
+
                     // Convert all entities to DTO list once to avoid duplicate relative_file_path calculation
                     // Both list and tree share the same pre-computed array elements, ensuring consistency
                     $allList = $this->convertEntitiesToDtoList($allEntities, $organizationCode);
@@ -2084,6 +2087,17 @@ class ResourceShareAppService extends AbstractShareAppService
             // 如果 getFilesWithParentsByIds 返回空，直接使用原始实体
             if (empty($folderEntities)) {
                 $folderEntities = [$fileEntity];
+            }
+
+            // 过滤系统目录（如 .magic 及其子文件）
+            $folderEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($folderEntities, ['.magic']);
+
+            if (empty($folderEntities)) {
+                return [
+                    'list' => [],
+                    'tree' => [],
+                    'total' => 0,
+                ];
             }
 
             // 转换为TaskFileItemDTO格式
@@ -2132,6 +2146,16 @@ class ResourceShareAppService extends AbstractShareAppService
         }
 
         // 普通文件的情况：只返回文件本身
+        // 过滤系统目录（如 .magic 及其子文件）
+        $entities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames([$fileEntity], ['.magic']);
+        if (empty($entities)) {
+            return [
+                'list' => [],
+                'tree' => [],
+                'total' => 0,
+            ];
+        }
+
         // 转换为TaskFileItemDTO格式
         $list = $this->convertEntitiesToDtoList([$fileEntity], $organizationCode);
 
@@ -2180,6 +2204,17 @@ class ResourceShareAppService extends AbstractShareAppService
         // 如果未开启项目分享（share_project=false），基于文件集中的file_ids返回文件
         // 调用统一方法获取所有相关文件实体
         [$allEntities, $originalFileIds] = $this->getAllFileEntitiesFromFileCollection($collectionId);
+
+        if (empty($allEntities)) {
+            return [
+                'list' => [],
+                'tree' => [],
+                'total' => 0,
+            ];
+        }
+
+        // 过滤系统目录（如 .magic 及其子文件）
+        $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
 
         if (empty($allEntities)) {
             return [
@@ -2384,6 +2419,9 @@ class ResourceShareAppService extends AbstractShareAppService
         $allEntities = ! empty($fileIds)
             ? $this->taskFileDomainService->getFilesWithParentsByIds($fileIds, $projectId)
             : [];
+
+        // 过滤系统目录（如 .magic 及其子文件）
+        $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
 
         // 转换为DTO列表（会自动过滤根目录）
         $allList = $this->convertEntitiesToDtoList($allEntities, $organizationCode, $workDir);
