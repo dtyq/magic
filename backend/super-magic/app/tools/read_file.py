@@ -23,6 +23,7 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.markitdown_plugins.csv_plugin import CSVConverter
 from app.tools.markitdown_plugins.docx_plugin import DocxConverter
 from app.tools.markitdown_plugins.excel_plugin import ExcelConverter
+from app.tools.utils.display_content_utils import truncate_content_for_display
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.file_constants import CONVERSION_RECOMMENDED_TYPES
 from app.utils.file_utils import is_binary_file
@@ -1194,14 +1195,14 @@ Suggestions:
             result.extra_info["raw_content"]
         )
 
+        # 对展示内容做预处理：替换 base64 数据、超长截断（不影响 LLM 已处理的内容）
+        # HTML 截断后结构残缺，display_type 会被降级为 TEXT
+        content_for_display, display_type = truncate_content_for_display(content_for_display, display_type)
+
         return ToolDetail(
             type=display_type,
             data=FileContent(
-                # Show the original requested filename to the user
-                # 向用户显示原始请求的文件名
                 file_name=original_file_name,
-                # Content is preferably without line numbers for better display
-                # 内容优先使用不带行号的版本以获得更好的显示效果
                 content=content_for_display
             )
         )
