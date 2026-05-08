@@ -414,6 +414,13 @@ Reference the following template to create slide pages. Each page is an independ
 - 用户明确说不用模板 / 默认风格 / 按原有 HTML 规范即可（等同选择「不使用模板」）。
 - 用户给出了可执行自定义模板生成的具体视觉规范（可辨的配色与背景、版式结构、装饰元素、字体层级或材质等，而非仅一句话风格标签）；走自定义模板流程，不强制 ask_user 选内置。
 
+⭐️ 用户指明模板时的必要步骤（无论是否跳过 ask_user，只要最终确定使用某个内置模板，均须执行）：
+1. 调用 read_skills(slide-template) 加载 slide-template 技能，获取可用模板列表及各模板路径
+2. 在技能返回的模板列表中定位用户所指定的模板目录（通过名称、别名或目录名匹配），若无法唯一确认则向用户询问
+3. 读取该模板目录下的 visual-spec.md，完整理解模板的配色体系、字体层级、版式规范与装饰元素清单
+4. 记录 theme.css 路径，待项目初始化后（create_slide_project 执行完成后）立即将其复制到 PPT 项目根目录
+5. 后续所有幻灯片页面的设计均须严格遵循 visual-spec.md 与 theme.css 的规范，不得使用与模板冲突的配色或样式
+
 其他：
 - ask_user 每个选项须含：模板名、一句描述、目录 dir；须含「不使用模板，按默认风格创建」。
 - 仅编辑、修复、重构已有幻灯片且无新建项目诉求时，不触发本工作流。
@@ -428,6 +435,13 @@ When you may skip ask_user:
 - The user explicitly names a built-in template directory, a name or alias that maps cleanly from the skill table, or otherwise uniquely identifies one built-in template.
 - The user explicitly waives a template (no template, default HTML style only, follow core_specifications only).
 - The user gives actionable custom-template visual spec (identifiable palette and background, layout structure, decorative elements, font hierarchy or materials, not only one-line style tags); follow custom template workflow; built-in ask_user is not mandatory.
+
+⭐️ Required steps when user specifies a template (execute whenever a built-in template is confirmed, regardless of whether ask_user was skipped):
+1. Call read_skills(slide-template) to load the slide-template skill and retrieve the available template list with their paths.
+2. Locate the template directory the user specified (match by name, alias, or directory name) from the returned list. If the match is ambiguous, ask the user to clarify.
+3. Read the visual-spec.md under that template directory to fully understand its color system, typography scale, layout rules, and decorative element inventory.
+4. Record the theme.css path. Immediately after project initialization (once create_slide_project completes), copy theme.css to the PPT project root directory.
+5. All subsequent slide pages must strictly conform to the visual-spec.md and theme.css specifications. Do not use colors or styles that conflict with the template.
 
 Other rules:
 - Each ask_user option must include template name, short description, and directory name. Include "Create without a template (default style)".
@@ -452,12 +466,20 @@ Other rules:
 - 修复：思考与回顾高度控制技巧、图片使用技巧等，并修复页面中的问题
 如：重构[@file_path:filename]
 若用户未指定页面，则对其发出询问，待用户确认后再进行操作
+
+用户还可能使用以下话术来指定 PPT 模板：
+- 「使用 PPT 模板：xxx」/ 「用模板 xxx」/ 「模板选 xxx」等类似表达，其中 xxx 为模板名称、别名或目录名
+- 识别到此类表达后，直接进入 template_selection_workflow 的「用户指明模板时的必要步骤」，跳过 ask_user，按 xxx 定位并加载对应模板
 -->
 Users have terminology to describe actions for specified pages:
 - Refactor: Think and review content in content_design_principles, redesign and recombine page with completely different layout design
 - Fix: Think and review height control techniques, image usage techniques, etc., and fix issues in page
 Example: Refactor[@file_path:filename]
 If user doesn't specify page, ask for clarification, proceed after user confirmation
+
+Users may also use the following expressions to specify a PPT template:
+- "Use PPT template: xxx" / "Use template xxx" / "Template: xxx" or similar phrasing, where xxx is a template name, alias, or directory name
+- When such expressions are detected, go directly to the "Required steps when user specifies a template" in template_selection_workflow, skip ask_user, and locate and load the corresponding template by xxx
 </user_slang>
 
 <flexible_project_management>
