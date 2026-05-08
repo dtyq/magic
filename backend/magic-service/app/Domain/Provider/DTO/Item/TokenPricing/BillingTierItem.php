@@ -104,12 +104,13 @@ class BillingTierItem extends AbstractTokenPricingValueObject
             return $rules[0]->getPrice();
         }
 
+        if ($followValue === null) {
+            return null;
+        }
+
         if ($this->getBillingObject()->isTokenFamily()) {
             // followValue为token数量，价格单位为百万token，所以需要除以1000000
             $followValue = $followValue / 1000;
-        }
-        if ($followValue === null) {
-            return null;
         }
         // 不可能出现rules为空的情况，因为resolveBillingTierUnitPrices这里已经判断了，如果rules为空，直接就跳过了
         foreach ($rules as $pricingRule) {
