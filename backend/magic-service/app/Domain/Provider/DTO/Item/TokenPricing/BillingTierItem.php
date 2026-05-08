@@ -104,7 +104,7 @@ class BillingTierItem extends AbstractTokenPricingValueObject
             return $rules[0]->getPrice();
         }
 
-        if ($this->isTokenObject()) {
+        if ($this->getBillingObject()->isTokenFamily()) {
             // followValue为token数量，价格单位为百万token，所以需要除以1000000
             $followValue = $followValue / 1000;
         }
@@ -213,10 +213,5 @@ class BillingTierItem extends AbstractTokenPricingValueObject
 
             $previousMax = $max;
         }
-    }
-
-    private function isTokenObject(): bool
-    {
-        return $this->billingObject->isTokenFamilyObject();
     }
 }

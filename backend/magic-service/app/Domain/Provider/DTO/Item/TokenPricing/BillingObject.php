@@ -365,7 +365,7 @@ final class BillingObject
         return 0;
     }
 
-    private function isTokenFamily(): bool
+    public function isTokenFamily(): bool
     {
         return in_array($this->value, [
             self::INPUT_TOKEN,
