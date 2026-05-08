@@ -154,7 +154,9 @@ class FunctionPermissionPolicyEntity extends AbstractEntity
     {
         if ($bindingScope === []) {
             $bindingScope = [
-                'type' => BindingScopeType::OrganizationAll->value,
+                'type' => BindingScopeType::Specific->value,
+                'user_ids' => [],
+                'department_ids' => [],
             ];
         }
 
@@ -175,10 +177,6 @@ class FunctionPermissionPolicyEntity extends AbstractEntity
             return [
                 'type' => $scopeTypeEnum->value,
             ];
-        }
-
-        if ($userIds === [] && $departmentIds === []) {
-            ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'binding_scope.user_ids or binding_scope.department_ids is required');
         }
 
         return [
