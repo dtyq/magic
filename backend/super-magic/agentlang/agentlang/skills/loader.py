@@ -78,6 +78,7 @@ class SkillLoader:
             tags=metadata_dict.get("tags", []),
             enabled=metadata_dict.get("enabled", True),
             allowed_tools=allowed_tools,
+            region=metadata_dict.get("region", ""),
             skill_dir=skill_file.parent,
             skill_file=skill_file,
             content=markdown_content,
