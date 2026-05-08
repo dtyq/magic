@@ -22,6 +22,7 @@ class KeepaliveRegistry:
         self._task: Optional[asyncio.Task] = None
         self._last_activity_at_ms_by_source: dict[str, int] = {}
         self._connected_once_sources: set[str] = set()
+        self._enabled: bool = True
 
     @classmethod
     def get_instance(cls) -> "KeepaliveRegistry":
@@ -29,8 +30,21 @@ class KeepaliveRegistry:
             cls._instance = KeepaliveRegistry()
         return cls._instance
 
+    def set_enabled(self, enabled: bool) -> None:
+        """启用或禁用保活机制。禁用后所有公开方法变为 no-op，正在运行的保活循环会被取消。"""
+        self._enabled = enabled
+        if not enabled:
+            if self._task and not self._task.done():
+                self._task.cancel()
+                self._task = None
+            self._last_activity_at_ms_by_source.clear()
+            self._connected_once_sources.clear()
+            logger.info("[KeepaliveRegistry] 保活机制已禁用")
+
     def notify_connected_once(self, source: str) -> None:
         """连接建立后只允许同一来源续期一次，避免长连无限续命。"""
+        if not self._enabled:
+            return
         normalized_source = source.strip()
         if not normalized_source:
             return
@@ -42,6 +56,8 @@ class KeepaliveRegistry:
 
     def notify_activity(self, source: str, occurred_at_ms: int | None = None) -> None:
         """记录一次有意义的活跃信号（用户消息、定时任务完成等），并确保 72h 保活循环运行。"""
+        if not self._enabled:
+            return
         normalized_source = source.strip()
         if not normalized_source:
             return
@@ -53,6 +69,8 @@ class KeepaliveRegistry:
 
     def restore_activity_time(self, source: str, last_activity_at_ms: int) -> None:
         """按来源恢复历史活跃时间，避免重启后必须等下一次活动才恢复保活。"""
+        if not self._enabled:
+            return
         normalized_source = source.strip()
         if not normalized_source or last_activity_at_ms <= 0:
             return
@@ -68,6 +86,8 @@ class KeepaliveRegistry:
 
     def keepalive_once(self, source: str) -> None:
         """立刻续期一次，但不改变消息保活窗口。"""
+        if not self._enabled:
+            return
         from app.service.agent_dispatcher import AgentDispatcher
 
         ctx = AgentDispatcher.get_instance().agent_context

@@ -754,6 +754,43 @@ input[type="checkbox"] {
     background: #006fe6;
 }
 
+/* 懒加载：加载更多历史消息占位符 */
+.load-more-messages {
+    align-self: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: fit-content;
+    padding: 8px 18px;
+    margin: 4px auto 8px;
+    border: 1px solid rgba(60, 60, 67, 0.12);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.78);
+    color: var(--wechat-text-gray, #8e8e93);
+    font-size: 12px;
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: background 0.15s, color 0.15s;
+}
+
+.load-more-messages:hover {
+    background: rgba(0, 122, 255, 0.08);
+    color: var(--wechat-primary, #007aff);
+    border-color: rgba(0, 122, 255, 0.2);
+}
+
+.load-more-messages .load-more-icon {
+    font-size: 10px;
+}
+
+.load-more-messages .load-more-count {
+    opacity: 0.7;
+}
+
 .assistant-activity {
     align-self: flex-start;
     display: inline-flex;

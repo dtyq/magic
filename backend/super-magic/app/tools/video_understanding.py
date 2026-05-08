@@ -269,17 +269,20 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
             f"{video_list_str}\n\n"
             f"Estimated processing time: {est_minutes_low}-{est_minutes_high} minutes. "
             f"This operation consumes significant time and tokens.\n\n"
-            f"Action required: Use ask_user to confirm with the user whether to proceed. "
-            f"If confirmed, call video_understanding again with confirmed=true."
+            f"You MUST call ask_user (not reply with text) to confirm with the user "
+            f"whether to proceed, explaining the video duration and estimated cost. "
+            f"Meanwhile, continue working on any other pending tasks — do not stall. "
+            f"After user confirms, call video_understanding again with confirmed=true."
         )
-        return ToolResult(content=content)
+        return ToolResult(content=content, extra_info={"pending_confirmation": True})
 
     def get_prompt_hint(self) -> str:
         return """\
 <!--zh
 长视频预警机制：
 - 当视频时长超过 3 分钟时，工具会返回确认提示而非直接分析
-- 收到确认提示后，必须用 ask_user 向用户说明视频时长和预计耗时，询问是否继续
+- 收到确认提示后，必须用 ask_user（而非直接回复文本）向用户说明视频时长和预计耗时，询问是否继续
+- 确认等待不阻塞其他任务：在等待用户回复的同时，继续推进其他待办工作，不要因此停滞
 - 用户确认后，设置 confirmed=true 重新调用本工具
 - 如果你事先就知道视频较长（如用户提到时长、或从视频标题推断），应主动在调用前用 ask_user 确认
 
@@ -293,7 +296,8 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
 -->
 Long video safeguard:
 - When video duration exceeds 3 minutes, this tool returns a confirmation prompt instead of analyzing
-- Upon receiving the prompt, you MUST use ask_user to inform the user about video duration and estimated time, asking whether to proceed
+- Upon receiving the prompt, you MUST use ask_user (not reply with text) to inform the user about video duration and estimated time, asking whether to proceed
+- Do not stall on confirmation: continue working on other pending tasks while waiting for the user's answer
 - After user confirms, call this tool again with confirmed=true
 - If you already know the video is long (e.g. user mentioned duration or inferable from title), proactively confirm with ask_user before calling this tool
 
@@ -383,6 +387,13 @@ Video size limit safeguard:
                     "video_understanding.error", category="tool.messages",
                     error=result.content,
                 ),
+            }
+
+        # 长视频等待用户确认态：不能展示"已理解视频"
+        if result.extra_info and result.extra_info.get("pending_confirmation"):
+            return {
+                "action": i18n.translate("video_understanding", category="tool.actions"),
+                "remark": i18n.translate("video_understanding.awaiting_confirmation", category="tool.messages"),
             }
 
         videos = arguments.get("videos", []) if arguments else []
