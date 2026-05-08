@@ -15,6 +15,11 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('magic_super_agent_task_files', function (Blueprint $table) {
+            $table->integer('latest_version')
+                ->default(0)
+                ->after('latest_modified_task_id')
+                ->comment('Latest version number of the file');
+
             $table->unsignedInteger('metadata_version')
                 ->default(1)
                 ->after('latest_version')
@@ -27,8 +32,5 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::table('magic_super_agent_task_files', function (Blueprint $table) {
-            $table->dropColumn('metadata_version');
-        });
     }
 };
