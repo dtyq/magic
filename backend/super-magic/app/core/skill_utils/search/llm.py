@@ -116,9 +116,17 @@ def _build_system_content(system_candidates: list[SkillCandidate]) -> str:
     return "\n".join(lines)
 
 
-def _build_user_content(user_candidates: list[SkillCandidate], keywords: list[str]) -> str:
-    """构建 user 消息：搜索关键词 + 非系统来源候选（随请求变化）"""
-    lines = [f"搜索关键词：{json.dumps(keywords, ensure_ascii=False)}"]
+def _build_user_content(
+    user_candidates: list[SkillCandidate],
+    keywords: list[str],
+    *,
+    query: str | None = None,
+) -> str:
+    """构建 user 消息：用户需求 + 搜索关键词 + 非系统来源候选（随请求变化）"""
+    lines = []
+    if query:
+        lines.append(f"用户需求：{query.strip()}")
+    lines.append(f"搜索关键词：{json.dumps(keywords, ensure_ascii=False)}")
     if user_candidates:
         lines.append("\n## 其他候选技能\n")
         for i, c in enumerate(user_candidates, 1):
@@ -212,13 +220,14 @@ class LLMSearchDriver(SearchDriver):
         keywords: list[str],
         *,
         providers: list[str] | None = None,
+        query: str | None = None,
     ) -> SearchResult:
         # 全量列出场景直接走 fallback（无关键词，LLM 筛选无意义）
         if not keywords:
             return await self._get_fallback().search(keywords, providers=providers)
 
         try:
-            return await self._llm_search(keywords, providers=providers)
+            return await self._llm_search(keywords, providers=providers, query=query)
         except Exception as e:
             logger.warning(f"[llm_driver] LLM 搜索失败，回退到关键词驱动: {e}")
             return await self._get_fallback().search(keywords, providers=providers)
@@ -228,6 +237,7 @@ class LLMSearchDriver(SearchDriver):
         keywords: list[str],
         *,
         providers: list[str] | None = None,
+        query: str | None = None,
     ) -> SearchResult:
         from app.core.skill_utils.providers.registry import get_registry
 
@@ -277,7 +287,7 @@ class LLMSearchDriver(SearchDriver):
             ])
 
         # LLM 对候选打分，返回 [{provider, id, keyword, score}] 扁平列表
-        score_entries = await self._call_llm(all_candidates, keywords)
+        score_entries = await self._call_llm(all_candidates, keywords, query=query)
 
         # 构建双层索引：优先 (provider, id)，备用 id（文本降级时 provider 可能为空）
         full_map: dict[tuple[str, str], SkillCandidate] = {
@@ -322,6 +332,8 @@ class LLMSearchDriver(SearchDriver):
         self,
         candidates: list[SkillCandidate],
         keywords: list[str],
+        *,
+        query: str | None = None,
     ) -> list[dict]:
         from agentlang.llms.factory import LLMFactory
         from agentlang.llms.processors.processor_config import ProcessorConfig
@@ -334,7 +346,7 @@ class LLMSearchDriver(SearchDriver):
         model_id = self._get_model_id()
         messages = [
             {"role": "system", "content": _build_system_content(system_candidates)},
-            {"role": "user", "content": _build_user_content(user_candidates, keywords)},
+            {"role": "user", "content": _build_user_content(user_candidates, keywords, query=query)},
         ]
 
         from app.tools.media_utils import DISABLE_THINKING_BODY

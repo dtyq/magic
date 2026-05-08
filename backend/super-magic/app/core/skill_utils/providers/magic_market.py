@@ -44,6 +44,7 @@ class MagicMarketProvider(SkillProvider):
                 )
                 for item in items
                 if item.code
+                and getattr(item, "publisher_type", None) != "OFFICIAL_BUILTIN"
             ]
         except Exception as e:
             logger.warning(f"[magic_market] search 失败: {e}")

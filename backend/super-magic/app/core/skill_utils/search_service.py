@@ -52,9 +52,11 @@ class SearchAggregator:
         keywords: list[str],
         *,
         providers: list[str] | None = None,
+        query: str | None = None,
     ) -> SearchResult:
         """对多个关键词同时发起检索，委托给当前 SearchDriver 执行。
 
         providers: 限定来源（provider id 字符串列表），None 表示不过滤。
+        query: 用户完整需求描述，传给 LLM 驱动辅助打分，关键词驱动忽略。
         """
-        return await self._driver.search(keywords, providers=providers)
+        return await self._driver.search(keywords, providers=providers, query=query)

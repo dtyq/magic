@@ -43,6 +43,16 @@ class FindSkillsParams(BaseToolParams):
         ),
         max_length=10,
     )
+    query: Optional[str] = Field(
+        None,
+        description=(
+            "<!--zh: 用户的完整需求描述（可选）。填写后会辅助打分，使结果更贴合实际意图。"
+            "例如：\"我需要查询中国城市的实时天气和未来三天预报\"-->\n"
+            "Full user requirement description (optional). When provided, it assists scoring "
+            "alongside keywords to improve result accuracy. "
+            "E.g. \"I need to query real-time weather and 3-day forecast for Chinese cities\"."
+        ),
+    )
     providers: Optional[List[str]] = Field(
         None,
         description=(
@@ -79,6 +89,8 @@ class FindSkillsParams(BaseToolParams):
                 v = json.loads(v)
             except json.JSONDecodeError:
                 raise ValueError(f"providers 格式无效，应为数组，收到字符串: {v!r}")
+        if not v:
+            return None
         invalid = [p for p in v if p not in _VALID_PROVIDERS]
         if invalid:
             raise ValueError(
@@ -141,6 +153,7 @@ class FindSkillsTool(BaseTool[FindSkillsParams]):
         result: SearchResult = await aggregator.search_many(
             params.keywords,
             providers=params.providers,
+            query=params.query,
         )
         content = _format_result(result)
 

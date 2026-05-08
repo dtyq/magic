@@ -84,6 +84,7 @@ class KeywordSearchDriver(SearchDriver):
         keywords: list[str],
         *,
         providers: list[str] | None = None,
+        query: str | None = None,  # 关键词驱动不使用 query，仅保持接口一致
     ) -> SearchResult:
         from app.core.skill_utils.providers.registry import get_registry
 

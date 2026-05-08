@@ -27,12 +27,14 @@ class SearchDriver(ABC):
         keywords: list[str],
         *,
         providers: list[str] | None = None,
+        query: str | None = None,
     ) -> SearchResult:
         """执行搜索并返回结构化结果。
 
         Args:
             keywords: 搜索关键词列表，空列表表示列全量（仅对支持全量的来源有效）。
             providers: 限定来源（provider id 字符串列表），None 表示不过滤。
+            query: 用户完整需求描述，供 LLM 驱动辅助打分，关键词驱动可忽略。
 
         Returns:
             SearchResult，按关键词分组的候选结果。
