@@ -94,6 +94,30 @@ class UserToolCallService:
     def pop_pending(self, tool_call_id: str) -> Optional[PendingToolCall]:
         return self._pending.pop(tool_call_id, None)
 
+    def clear_pending_for_context(self, agent_context: AgentContext) -> int:
+        """取消并清空指定 AgentContext 关联的 user_tool_call 等待态。"""
+        matched_ids = [
+            tool_call_id
+            for tool_call_id, pending in self._pending.items()
+            if pending.agent_context is agent_context
+        ]
+        for tool_call_id in matched_ids:
+            pending = self._pending.pop(tool_call_id, None)
+            if not pending:
+                continue
+            pending.timeout_task.cancel()
+            pending.agent_context.clear_user_tool_call_pending()
+        return len(matched_ids)
+
+    def clear_all_pending(self) -> int:
+        """取消并清空所有内存中的 user_tool_call 等待态，仅供本地 debug 全量 reset 使用。"""
+        pending_items = list(self._pending.values())
+        self._pending.clear()
+        for pending in pending_items:
+            pending.timeout_task.cancel()
+            pending.agent_context.clear_user_tool_call_pending()
+        return len(pending_items)
+
     # ─── 注册 pending ─────────────────────────────────────────────────────────
 
     async def create_and_register_pending(

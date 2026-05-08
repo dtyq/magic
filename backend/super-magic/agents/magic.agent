@@ -37,6 +37,8 @@ skills:
     - name: using-cron
     - name: subagents
     - name: user-info
+    - name: lark-cli
+    - name: dingtalk-cli
   workspace_skills: "*"
 ---
 

@@ -189,21 +189,19 @@ class ImageGenerateFactory
         $request = new AzureOpenAIImageRequest((string) $width, (string) $height, $data['user_prompt'] ?? $data['prompt'] ?? '', '');
         $request->setSize($width . 'x' . $height);
 
-        if (isset($data['quality'])) {
-            $request->setQuality($data['quality']);
+        $imageGenerationConfig = $data['image_generation_config'] ?? [];
+        if (is_array($imageGenerationConfig) && isset($imageGenerationConfig['quality'])) {
+            $request->setQuality((string) $imageGenerationConfig['quality']);
         }
+
         if (isset($data['generate_num'])) {
             $request->setN((int) $data['generate_num']);
         } elseif (isset($data['n'])) {
             $request->setN((int) $data['n']);
         }
 
-        if (isset($data['reference_images'])) {
-            $referenceImages = is_array($data['reference_images']) ? $data['reference_images'] : [$data['reference_images']];
-            $maxLimit = $imageConfig['max_reference_images'] ?? 14;
-            if (count($referenceImages) > $maxLimit) {
-                ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, __('image_generate.too_many_reference_images_limit', ['limit' => $maxLimit]));
-            }
+        $referenceImages = self::resolveReferenceImages($data, $imageConfig);
+        if ($referenceImages !== null) {
             $request->setReferenceImages($referenceImages);
         }
 
@@ -232,19 +230,12 @@ class ImageGenerateFactory
         $request->setPromptExtend(true);
         $request->setWatermark(false);
 
-        if (isset($data['organization_code'])) {
-            $request->setOrganizationCode($data['organization_code']);
-        }
-
         // 获取图片配置
         $imageConfig = SizeManager::matchConfig($modelVersion, $modelId);
 
-        if (isset($data['reference_images'])) {
-            $maxLimit = $imageConfig['max_reference_images'] ?? 3;
-            if (is_array($data['reference_images']) && count($data['reference_images']) > $maxLimit) {
-                ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, __('image_generate.too_many_reference_images_limit', ['limit' => $maxLimit]));
-            }
-            $request->setReferImages($data['reference_images']);
+        $referenceImages = self::resolveReferenceImages($data, $imageConfig, 3);
+        if ($referenceImages !== null) {
+            $request->setReferImages($referenceImages);
         }
 
         return $request;
@@ -285,12 +276,9 @@ class ImageGenerateFactory
         }
 
         // 引用图片
-        if (isset($data['reference_images'])) {
-            $maxLimit = $imageConfig['max_reference_images'] ?? 14;
-            if (is_array($data['reference_images']) && count($data['reference_images']) > $maxLimit) {
-                ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, __('image_generate.too_many_reference_images_limit', ['limit' => $maxLimit]));
-            }
-            $request->setReferImages($data['reference_images']);
+        $referenceImages = self::resolveReferenceImages($data, $imageConfig);
+        if ($referenceImages !== null) {
+            $request->setReferImages($referenceImages);
         }
 
         return $request;
@@ -314,20 +302,13 @@ class ImageGenerateFactory
             $request->setGenerateNum($data['generate_num']);
         }
 
-        if (isset($data['reference_images'])) {
-            $maxLimit = $imageConfig['max_reference_images'] ?? 14;
-            if (is_array($data['reference_images']) && count($data['reference_images']) > $maxLimit) {
-                ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, __('image_generate.too_many_reference_images_limit', ['limit' => $maxLimit]));
-            }
-            $request->setReferImages($data['reference_images']);
+        $referenceImages = self::resolveReferenceImages($data, $imageConfig);
+        if ($referenceImages !== null) {
+            $request->setReferImages($referenceImages);
         }
 
         if (isset($data['model'])) {
             $request->setModel($data['model']);
-        }
-
-        if (isset($data['organization_code'])) {
-            $request->setOrganizationCode($data['organization_code']);
         }
 
         if (isset($data['response_format'])) {
@@ -339,9 +320,9 @@ class ImageGenerateFactory
             $request->setSequentialImageGeneration($data['sequential_image_generation']);
         }
 
-        // 处理组图功能选项参数
-        if (isset($data['sequential_image_generation_options']) && is_array($data['sequential_image_generation_options'])) {
-            $request->setSequentialImageGenerationOptions($data['sequential_image_generation_options']);
+        // 处理图片生成附加配置；当前火山组图选项仍复用这一映射。
+        if (isset($data['image_generation_config']) && is_array($data['image_generation_config'])) {
+            $request->setSequentialImageGenerationOptions($data['image_generation_config']);
         }
 
         // 处理输出图片格式：根据模型配置校验并解析
@@ -381,15 +362,30 @@ class ImageGenerateFactory
         }
 
         // 处理参考图片（用于图片编辑）
-        if (isset($data['reference_images'])) {
-            if (is_array($data['reference_images'])) {
-                $request->setReferenceImages($data['reference_images']);
-            } else {
-                // 单个图片的情况，转换为数组
-                $request->setReferenceImages([$data['reference_images']]);
-            }
+        $referenceImages = self::resolveReferenceImages($data, null, PHP_INT_MAX);
+        if ($referenceImages !== null) {
+            $request->setReferenceImages($referenceImages);
         }
 
         return $request;
+    }
+
+    private static function resolveReferenceImages(array $data, ?array $imageConfig, int $defaultMaxLimit = 14): ?array
+    {
+        if (! isset($data['reference_images'])) {
+            return null;
+        }
+
+        $referenceImages = is_array($data['reference_images']) ? $data['reference_images'] : [$data['reference_images']];
+        self::assertReferenceImagesLimit($referenceImages, $imageConfig, $defaultMaxLimit);
+        return $referenceImages;
+    }
+
+    private static function assertReferenceImagesLimit(array $referenceImages, ?array $imageConfig, int $defaultMaxLimit): void
+    {
+        $maxLimit = $imageConfig['max_reference_images'] ?? $defaultMaxLimit;
+        if (count($referenceImages) > $maxLimit) {
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, __('image_generate.too_many_reference_images_limit', ['limit' => $maxLimit]));
+        }
     }
 }

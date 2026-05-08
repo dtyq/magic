@@ -161,6 +161,42 @@ class ImageGenerateFactoryTest extends BaseTest
         $this->assertEquals('1024x1536', $request->getSize());
     }
 
+    public function testAzureGptImage2UsesQualityFromImageGenerationConfig(): void
+    {
+        $data = $this->getCommonData();
+        $data['size'] = '1024x1024';
+        $data['image_generation_config'] = [
+            'quality' => 'high',
+        ];
+
+        $request = ImageGenerateFactory::createRequestType(
+            ImageGenerateModelType::AzureOpenAIImageGenerate,
+            'gpt-image-2',
+            'gpt-image-2',
+            $data
+        );
+
+        $this->assertInstanceOf(AzureOpenAIImageRequest::class, $request);
+        $this->assertSame('high', $request->getQuality());
+    }
+
+    public function testAzureGptImage2DefaultsQualityToAuto(): void
+    {
+        $data = $this->getCommonData();
+        $data['size'] = '1024x1024';
+
+        $request = ImageGenerateFactory::createRequestType(
+            ImageGenerateModelType::AzureOpenAIImageGenerate,
+            'gpt-image-2',
+            'gpt-image-2',
+            $data
+        );
+
+        $this->assertInstanceOf(AzureOpenAIImageRequest::class, $request);
+        $this->assertNull($request->getQuality());
+        $this->assertArrayNotHasKey('quality', $request->toArray());
+    }
+
     public function testAzureGptImage2RejectsSizesThatAreNotDivisibleBy16(): void
     {
         $this->expectException(BusinessException::class);

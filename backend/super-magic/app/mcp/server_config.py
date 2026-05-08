@@ -35,6 +35,7 @@ class MCPServerConfig(BaseModel):
 
     name: str = Field(..., description="MCP 服务器名称")
     type: MCPServerType = Field(..., description="连接类型")
+    description: Optional[str] = Field(None, description="MCP 服务器描述")
 
     # HTTP 连接配置
     url: Optional[str] = Field(None, description="HTTP/SSE 服务器 URL")

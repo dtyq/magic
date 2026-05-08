@@ -137,17 +137,22 @@ class ModeGroupModelDTO extends AbstractDTO
         $this->tags = $tags;
     }
 
+    public function getImageSizeConfig(): ?ImageSizeConfig
+    {
+        return $this->imageSizeConfig;
+    }
+
+    public function setImageSizeConfig(?ImageSizeConfig $imageSizeConfig): void
+    {
+        $this->imageSizeConfig = $imageSizeConfig;
+    }
+
     /**
      * 设置图像尺寸配置（兼容数组格式）.
      */
     public function setImageSizeConfigFromArray(?array $config): void
     {
-        if (empty($config)) {
-            $this->imageSizeConfig = null;
-            return;
-        }
-
-        $this->imageSizeConfig = new ImageSizeConfig($config);
+        $this->imageSizeConfig = ImageSizeConfig::fromConfig($config);
     }
 
     public function getVideoGenerationConfig(): ?VideoGenerationConfig

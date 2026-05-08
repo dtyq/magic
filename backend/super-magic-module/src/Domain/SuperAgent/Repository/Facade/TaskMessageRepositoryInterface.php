@@ -184,4 +184,12 @@ interface TaskMessageRepositoryInterface
      * @return bool True if messages exist, false otherwise
      */
     public function hasMessagesByTopicId(int $topicId): bool;
+
+    /**
+     * Soft-delete all messages belonging to the given topic.
+     *
+     * @param int $topicId Topic ID
+     * @return int Number of rows updated
+     */
+    public function deleteMessageByTopicId(int $topicId): int;
 }

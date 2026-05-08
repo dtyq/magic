@@ -74,17 +74,17 @@ class GoEngineStartHandle
     public function diagnostics(): GoEngineProcessDiagnostics
     {
         $status = $this->readStatus();
-        $pid = $status?->pid ?? $this->pid;
+        $pid = $status !== null ? ($status->pid ?? $this->pid) : $this->pid;
 
         return new GoEngineProcessDiagnostics(
             pidType: $this->pidType(),
             pid: $pid,
             childPids: $this->readChildPids($pid),
-            running: $status?->running ?? false,
-            exitCode: $this->cachedExitCode ?? $status?->exitCode ?? -1,
-            signaled: $this->cachedSignaled ?? $status?->signaled ?? false,
+            running: $status !== null ? $status->running : false,
+            exitCode: $this->cachedExitCode ?? ($status !== null ? $status->exitCode : -1),
+            signaled: $this->cachedSignaled ?? ($status !== null ? $status->signaled : false),
             termSignal: $this->cachedTermSignal ?? $status?->termSignal,
-            stopped: $this->cachedStopped ?? $status?->stopped ?? false,
+            stopped: $this->cachedStopped ?? ($status !== null ? $status->stopped : false),
             stopSignal: $this->cachedStopSignal ?? $status?->stopSignal,
             startedAt: $this->startedAt,
             uptimeSeconds: $this->uptimeSeconds(),
@@ -106,12 +106,14 @@ class GoEngineStartHandle
 
     public function isRunning(): bool
     {
-        return $this->readStatus()?->running ?? false;
+        $status = $this->readStatus();
+        return $status !== null ? $status->running : false;
     }
 
     public function exitCode(): int
     {
-        return $this->cachedExitCode ?? $this->readStatus()?->exitCode ?? -1;
+        $status = $this->readStatus();
+        return $this->cachedExitCode ?? ($status !== null ? $status->exitCode : -1);
     }
 
     public function terminate(int $graceSeconds): void
@@ -142,7 +144,7 @@ class GoEngineStartHandle
         }
 
         $status = $this->readStatus();
-        if ($status?->running ?? false) {
+        if ($status !== null && $status->running) {
             return;
         }
 

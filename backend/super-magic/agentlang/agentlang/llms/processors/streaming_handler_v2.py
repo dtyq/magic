@@ -37,10 +37,8 @@ from .chunk_processor import ChunkProcessor
 
 logger = get_logger(__name__)
 
-# 后续 chunk 超时兜底（与 v1 保持一致）
 from agentlang.config.config import config as _agent_config
 
-DEFAULT_TIMEOUT = int(_agent_config.get("llm.api_timeout", 1800))
 CHUNK_TIMEOUT = int(_agent_config.get("llm.chunk_timeout", 10))
 
 
@@ -254,7 +252,6 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
         # 从 agent_context 获取工具标签查询函数（agentlang 层通过接口调用，不直接依赖 app.i18n）
         label_resolver = getattr(agent_context, "get_tool_label", None) if agent_context else None
 
-        stream_timeout = DEFAULT_TIMEOUT + 60
         first_chunk_timeout = processor_config.stream_first_chunk_timeout_seconds
         first_chunk_deadline = (
             (http_request_start_time or stream_start_time) + first_chunk_timeout
@@ -442,22 +439,10 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                         StreamingLogger.log_parallel_task_exception(request_id, e)
                         raise
 
-            await asyncio.wait_for(process_stream(), timeout=stream_timeout)
+            await process_stream()
 
         except STREAMING_PASSTHROUGH_EXCEPTIONS:
             raise
-        except asyncio.TimeoutError as timeout_err:
-            StreamingLogger.log_stream_timeout(request_id, state, stream_timeout, correlation_id)
-            if state.received_chunk_count > 0:
-                raise StreamChunkTimeoutError(
-                    chunk_count=state.received_chunk_count,
-                    chunk_timeout_seconds=stream_timeout,
-                    total_elapsed_seconds=stream_timeout,
-                ) from timeout_err
-            raise asyncio.TimeoutError(
-                f"Stream total timeout (safeguard): exceeded {stream_timeout}s limit. "
-                f"No chunks received."
-            ) from timeout_err
         except Exception as stream_error:
             StreamingLogger.log_stream_error(request_id, state, stream_error, correlation_id)
             import httpx

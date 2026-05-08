@@ -453,6 +453,17 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             ->exists();
     }
 
+    /**
+     * Soft-delete all messages belonging to the given topic.
+     */
+    public function deleteMessageByTopicId(int $topicId): int
+    {
+        return $this->model::query()
+            ->where('topic_id', $topicId)
+            ->whereNull('deleted_at')
+            ->update(['deleted_at' => date('Y-m-d H:i:s')]);
+    }
+
     private function findFollowUpBoundaryQuestion(int $topicId, int $roundLimit): ?TaskMessageEntity
     {
         $offset = max(0, $roundLimit - 1);

@@ -75,7 +75,7 @@ class KeepaliveRegistry:
             logger.debug(f"[KeepaliveRegistry] 跳过一次性续期，agent_context 未初始化: source={source}")
             return
         ctx.update_activity_time()
-        logger.info(f"[KeepaliveRegistry] 已执行一次性续期: source={source}")
+        logger.debug(f"[KeepaliveRegistry] 已执行一次性续期: source={source}")
 
     def reset_source(self, source: str) -> None:
         """清理某个来源留下的连接标记和消息时间。"""

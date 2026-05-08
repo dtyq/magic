@@ -142,7 +142,6 @@ const CommonListPanel = <T extends TreeNode>({
 					"hover:bg-accent transition-colors",
 					!isMobile && "px-2",
 					isMobile && "pl-2",
-					isChecked && "bg-accent",
 				)}
 			>
 				{isMobile ? (

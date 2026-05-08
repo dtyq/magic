@@ -18,7 +18,7 @@ use Psr\Log\LoggerInterface;
 
 class AzureOpenAIAPI
 {
-    private const REQUEST_TIMEOUT = 600;
+    private const REQUEST_TIMEOUT = 1200;
 
     protected LoggerInterface $logger;
 
@@ -76,7 +76,7 @@ class AzureOpenAIAPI
     /**
      * Image edit API call with OSS URL support - supports multiple images.
      */
-    public function editImage(string $model, array $imageUrls, ?string $maskUrl, string $prompt, string $size = '1024x1024', int $n = 1): array
+    public function editImage(string $model, array $imageUrls, ?string $maskUrl, string $prompt, string $size = '1024x1024', int $n = 1, ?string $quality = null): array
     {
         $url = $this->buildUrl($model, 'images/edits');
 
@@ -110,6 +110,9 @@ class AzureOpenAIAPI
             $multipartData[] = ['name' => 'prompt', 'contents' => $prompt];
             $multipartData[] = ['name' => 'size', 'contents' => $size];
             $multipartData[] = ['name' => 'n', 'contents' => (string) $n];
+            if ($quality !== null) {
+                $multipartData[] = ['name' => 'quality', 'contents' => $quality];
+            }
 
             $this->logger->info('Azure OpenAI API 请求', [
                 'url' => $url,
@@ -119,6 +122,7 @@ class AzureOpenAIAPI
                     'prompt' => $prompt,
                     'size' => $size,
                     'n' => $n,
+                    'quality' => $quality,
                 ],
             ]);
 

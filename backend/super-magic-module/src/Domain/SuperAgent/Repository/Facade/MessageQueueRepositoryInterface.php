@@ -110,4 +110,13 @@ interface MessageQueueRepositoryInterface
      * @return bool True if any messages were updated, false otherwise
      */
     public function delayTopicMessages(int $topicId, int $delayMinutes): bool;
+
+    /**
+     * Get the IN_PROGRESS message for a specific topic (idempotency check).
+     * 获取指定话题下处于 IN_PROGRESS 状态的消息，用于幂等性检查.
+     *
+     * @param int $topicId Topic ID
+     * @return null|MessageQueueEntity IN_PROGRESS message or null
+     */
+    public function getInProgressMessageByTopic(int $topicId): ?MessageQueueEntity;
 }

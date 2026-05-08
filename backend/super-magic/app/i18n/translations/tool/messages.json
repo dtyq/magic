@@ -1582,5 +1582,17 @@
     "channel.status.auto_connect_disabled": {
         "zh_CN": "已禁用",
         "en_US": "disabled"
+    },
+    "search_knowledge.searching": {
+        "zh_CN": "正在检索：{{query}}",
+        "en_US": "Searching: {{query}}"
+    },
+    "search_knowledge.completed": {
+        "zh_CN": "已检索：{{query}}",
+        "en_US": "Searched: {{query}}"
+    },
+    "search_knowledge.error": {
+        "zh_CN": "检索失败：{{query}}",
+        "en_US": "Search failed: {{query}}"
     }
 }

@@ -11,7 +11,7 @@ class AzureOpenAIImageRequest extends ImageGenerateRequest
 {
     private array $referenceImages = [];
 
-    private string $quality = 'auto';
+    private ?string $quality = null;
 
     private int $n = 1;
 
@@ -35,12 +35,12 @@ class AzureOpenAIImageRequest extends ImageGenerateRequest
         return $this->size;
     }
 
-    public function setQuality(string $quality): void
+    public function setQuality(?string $quality): void
     {
         $this->quality = $quality;
     }
 
-    public function getQuality(): string
+    public function getQuality(): ?string
     {
         return $this->quality;
     }
@@ -57,12 +57,17 @@ class AzureOpenAIImageRequest extends ImageGenerateRequest
 
     public function toArray(): array
     {
-        return [
+        $data = [
             'prompt' => $this->getPrompt(),
             'size' => $this->size,
-            'quality' => $this->quality,
             'n' => $this->n,
             'reference_images' => $this->referenceImages,
         ];
+
+        if ($this->quality !== null) {
+            $data['quality'] = $this->quality;
+        }
+
+        return $data;
     }
 }

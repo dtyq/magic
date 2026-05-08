@@ -10,6 +10,7 @@ from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
 from app.infrastructure.sdk.magic_service.parameter.search_knowledge_parameter import (
     SearchKnowledgeParameter,
 )
+from app.i18n import i18n
 from app.tools.core import BaseTool, BaseToolParams, tool
 
 logger = get_logger(__name__)
@@ -107,10 +108,11 @@ Negative examples:
         tool_context: ToolContext,
         arguments: dict | None = None,
     ) -> dict:
+        query = (arguments or {}).get("query", "")
         return {
             "tool_name": tool_name,
-            "action": "知识检索",
-            "remark": "",
+            "action": i18n.translate("search_knowledge", category="tool.actions"),
+            "remark": i18n.translate("search_knowledge.searching", category="tool.messages", query=query),
         }
 
     async def get_after_tool_call_friendly_action_and_remark(
@@ -121,27 +123,29 @@ Negative examples:
         execution_time: float,
         arguments: dict | None = None,
     ) -> dict:
+        result.use_custom_remark = True
+        query = (arguments or {}).get("query", "")
         if not result.ok:
             return {
                 "tool_name": tool_name,
-                "action": "知识检索",
-                "remark": "",
+                "action": i18n.translate("search_knowledge", category="tool.actions"),
+                "remark": i18n.translate("search_knowledge.error", category="tool.messages", query=query),
             }
         return {
             "tool_name": tool_name,
-            "action": "知识检索",
-            "remark": "",
+            "action": i18n.translate("search_knowledge", category="tool.actions"),
+            "remark": i18n.translate("search_knowledge.completed", category="tool.messages", query=query),
         }
 
     async def execute(self, tool_context: ToolContext, params: SearchKnowledgeParams) -> ToolResult:
         agent_context = tool_context.get_extension_typed("agent_context", AgentContext)
         agent_code = (agent_context.get_agent_code() or "").strip()
         if agent_code == "":
-            return ToolResult.error("当前上下文未注入 agent_code，无法执行知识检索")
+            return ToolResult.error("Knowledge search is not supported in the current mode.")
 
         query = params.query.strip()
         if query == "":
-            return ToolResult.error("query 不能为空")
+            return ToolResult.error("The query cannot be empty.")
 
         try:
             magic_service = get_magic_service_sdk()
@@ -150,5 +154,5 @@ Negative examples:
             )
             return ToolResult(content=result.to_string())
         except Exception as exc:
-            logger.error(f"知识检索失败: {exc}")
-            return ToolResult.error(f"知识检索失败: {exc}")
+            logger.error(f"Knowledge search failed: {exc}")
+            return ToolResult.error(f"Knowledge search failed: {exc}")

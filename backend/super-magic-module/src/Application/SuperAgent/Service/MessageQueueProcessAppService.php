@@ -158,7 +158,38 @@ class MessageQueueProcessAppService extends AbstractAppService
                 return;
             }
 
-            // 2. Get earliest pending message
+            // 2. Guard: check topic status before sending any queued message.
+            // After the RunTaskCallbackEvent fires and before we acquire the lock, the agent may have
+            // already started processing a previously-sent queue message (status flipped to an active
+            // state).  Sending another message in that window would cause concurrent execution.
+            $currentStatus = $topicEntity->getCurrentTaskStatus();
+            if ($currentStatus !== null && $currentStatus->isActive()) {
+                $this->logger->info('Topic is in active state, skip message queue processing to avoid concurrent execution', [
+                    'topic_id' => $topicId,
+                    'current_status' => $currentStatus->value,
+                ]);
+                return;
+            }
+
+            $this->logger->info('Topic status allows message queue processing, proceeding', [
+                'topic_id' => $topicId,
+                'current_status' => $currentStatus !== null ? $currentStatus->value : 'unknown',
+            ]);
+
+            // 3. Check for in-progress messages (idempotency guard).
+            // If a previous run already marked a message as IN_PROGRESS but has not yet finished
+            // (e.g. process crash), do not send another message until it's resolved.
+            $inProgressMessage = $this->messageQueueDomainService->getInProgressMessageByTopic($topicId);
+            if ($inProgressMessage) {
+                $this->logger->warning('Found IN_PROGRESS message, skip sending to avoid duplicate delivery', [
+                    'topic_id' => $topicId,
+                    'in_progress_message_id' => $inProgressMessage->getId(),
+                    'in_progress_execute_time' => $inProgressMessage->getExecuteTime(),
+                ]);
+                return;
+            }
+
+            // 4. Get earliest pending message
             $message = $this->messageQueueDomainService->getEarliestMessageByTopic($topicId);
             if (! $message) {
                 $this->logger->debug('No pending messages for topic', ['topic_id' => $topicId]);
@@ -168,15 +199,18 @@ class MessageQueueProcessAppService extends AbstractAppService
             $this->logger->info('Processing message queue for topic', [
                 'topic_id' => $topicId,
                 'message_id' => $message->getId(),
+                'message_type' => $message->getMessageType(),
+                'except_execute_time' => $message->getExceptExecuteTime(),
             ]);
 
-            // 3. Send queued message to agent with status tracking
+            // 5. Send queued message to agent with status tracking
             $sendResult = $this->sendQueuedMessageToAgent($message, $topicEntity);
 
             $this->logger->info('Message queue processed successfully', [
                 'message_id' => $message->getId(),
                 'topic_id' => $topicId,
                 'success' => $sendResult['success'],
+                'error_message' => $sendResult['error_message'] ?? null,
             ]);
         } catch (Throwable $e) {
             $this->logger->error('Failed to process topic messages', [

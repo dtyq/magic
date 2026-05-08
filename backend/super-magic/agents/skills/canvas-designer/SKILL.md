@@ -33,6 +33,8 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 
 **Canvas selection:** Default to reusing the same canvas project. Only create a new one when the user explicitly says "create new canvas" or "new project". If no project path is specified, find or reuse an existing project first.
 
+**Mentioned project (`[@design_canvas_project:path]`):** When the user message contains a `[@design_canvas_project:path]` mention, the `path` after the colon is the exact `project_path` to use in all canvas tool calls. Use it verbatim — do not truncate, shorten, or rename. Do not call `create_canvas` to make a new project; proceed directly with the mentioned path. The path is workspace-relative and may span multiple levels (e.g. `folder-a/folder-b/my-project`).
+
 ---
 
 ## Multimedia Principles
@@ -64,7 +66,7 @@ Design projects are uniquely identified by `project_path`. All canvas tools requ
 
 | Parameter | Required | Description |
 |---|---|---|
-| `project_path` | Yes | Project relative path. Name the folder in the user's language — e.g. use a Chinese folder name for Chinese users, an English name for English users |
+| `project_path` | Yes | Full workspace-relative path for the project. May be a single folder (`brand-design`) or a nested path (`folder-a/folder-b/my-project`). When `[@design_canvas_project:path]` is mentioned, use that exact `path` verbatim. Otherwise, name the folder in the user's language. |
 
 Returns: `{ project_path, project_name }`
 
@@ -298,7 +300,7 @@ Write the prompt in the same language the user is using. If the user speaks Chin
 
 The `name` field follows the same rule: use the user's language for the canvas element label. If the user is Chinese, the name must be in Chinese — do not default to English slugs regardless of what the examples show. Beyond language, the name must describe the **specific content** of that image — who or what is actually in it — not a generic category, a task slot number, or a theme-level label. When generating multiple images in one call, each task has a distinct subject or variation; the name should capture what makes that task unique, not just its position in the batch.
 
-The `project_path` in `create_canvas` follows the same rule: name the project folder in the user's language. For example, if the user speaks Chinese, use a Chinese folder name; if English, use an English name. Do not use English folder names for Chinese users.
+The `project_path` in `create_canvas` follows the same rule for newly created projects: name the folder in the user's language. When an existing project is mentioned via `[@design_canvas_project:path]`, use the exact path from the mention — do not change the language or shorten it.
 
 ### Handling user-provided prompts
 
