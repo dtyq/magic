@@ -55,6 +55,12 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
             error_msg = "skill_names 列表不能为空"
             return ToolResult(ok=False, content=error_msg)
 
+        # 获取当前 agent 的 excluded_skills，确保被禁用的 skill 无法通过任何方式加载
+        excluded_skills: set = set()
+        agent_context = tool_context.get_extension("agent_context")
+        if agent_context and hasattr(agent_context, "get_excluded_skills"):
+            excluded_skills = set(agent_context.get_excluded_skills())
+
         try:
             # 批量读取所有 skills
             results = []
@@ -63,6 +69,13 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
             failed_skills = []
 
             for skill_name in params.skill_names:
+                # 被禁用的 skill 直接拒绝，不尝试查找或读取
+                if skill_name in excluded_skills:
+                    results.append({"skill_name": skill_name, "success": False, "error": f"Skill '{skill_name}' is disabled for the current agent and cannot be loaded."})
+                    failure_count += 1
+                    failed_skills.append(skill_name)
+                    logger.info(f"拒绝读取被禁用的 skill: {skill_name}")
+                    continue
                 try:
                     skill = await find_skill(skill_name)
 
