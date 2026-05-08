@@ -21,11 +21,14 @@ enum BillingType: string
     case TextTokens = 'TextTokens'; // 文本模型 token 计费
     case ImageCount = 'ImageCount'; // 图片按张计费
     case ImageTokens = 'ImageTokens'; // 图片 token 计费
+    case ImageTokensWithThought = 'ImageTokensWithThought'; // 图片 token 计费：含思考过程
     case VideoResolutionDuration = 'VideoResolutionDuration'; // 视频按时长计费：分辨率
     case VideoResolutionAudioDuration = 'VideoResolutionAudioDuration'; // 视频按时长计费：分辨率 + 音频
     case VideoResolutionReferenceVideoDuration = 'VideoResolutionReferenceVideoDuration'; // 视频按时长计费：分辨率 + 参考视频
     case VideoResolutionTokens = 'VideoResolutionTokens'; // 视频 token 计费：分辨率
     case VideoResolutionReferenceVideoTokens = 'VideoResolutionReferenceVideoTokens'; // 视频 token 计费：分辨率 + 参考视频
+    case KelingVideoResolutionMediaConditionDurationPricing = 'KelingVideoResolutionMediaConditionDurationPricing'; // 可灵视频按分辨率、音频与参考视频时长计费
+    case VolcengineArkVideoResolutionReferenceVideoTokenMatrix = 'VolcengineArkVideoResolutionReferenceVideoTokenMatrix'; // 火山视频按分辨率与参考视频 token 矩阵计费
 
     public function isTokens(): bool
     {
@@ -84,7 +87,16 @@ enum BillingType: string
             ];
         }
 
-        if ($this === self::ImageTokens || ($this === self::Tokens && ($usage->tokenUsage instanceof TokenUsageDto || $usage->promptTokens > 0 || $usage->thoughtTokens > 0))) {
+        if ($this === self::ImageTokens) {
+            return array_filter([
+                BillingObject::tryFrom(BillingObject::IMAGE_INPUT_TOKEN),
+                BillingObject::tryFrom(BillingObject::IMAGE_INPUT_TOKEN_COST),
+                BillingObject::tryFrom(BillingObject::IMAGE_OUTPUT_TOKEN),
+                BillingObject::tryFrom(BillingObject::IMAGE_OUTPUT_TOKEN_COST),
+            ]);
+        }
+
+        if ($this === self::ImageTokensWithThought || ($this === self::Tokens && ($usage->tokenUsage instanceof TokenUsageDto || $usage->promptTokens > 0 || $usage->thoughtTokens > 0))) {
             return array_filter([
                 BillingObject::tryFrom(BillingObject::IMAGE_INPUT_TOKEN),
                 BillingObject::tryFrom(BillingObject::IMAGE_INPUT_TOKEN_COST),
@@ -103,21 +115,57 @@ enum BillingType: string
      */
     private function resolveVideoBillingObjects(VideoUsageDto $usage): array
     {
+        $resolution = $usage->quality !== '' ? $usage->quality : 'default';
+
+        if ($this === self::VolcengineArkVideoResolutionReferenceVideoTokenMatrix) {
+            if ($usage->referenceVideoCount > 0) {
+                return [
+                    BillingObject::videoReferenceVideoToken($resolution),
+                    BillingObject::videoReferenceVideoTokenCost($resolution),
+                ];
+            }
+
+            return [
+                BillingObject::videoToken($resolution),
+                BillingObject::videoTokenCost($resolution),
+            ];
+        }
+
         if ($this === self::VideoResolutionTokens) {
             return [
-                BillingObject::videoToken($usage->quality),
-                BillingObject::videoTokenCost($usage->quality),
+                BillingObject::videoToken($resolution),
+                BillingObject::videoTokenCost($resolution),
             ];
         }
 
         if ($this === self::VideoResolutionReferenceVideoTokens) {
             return [
-                BillingObject::videoReferenceVideoToken($usage->quality),
-                BillingObject::videoReferenceVideoTokenCost($usage->quality),
+                BillingObject::videoReferenceVideoToken($resolution),
+                BillingObject::videoReferenceVideoTokenCost($resolution),
             ];
         }
 
-        $resolution = $usage->quality !== '' ? $usage->quality : 'default';
+        if ($this === self::KelingVideoResolutionMediaConditionDurationPricing) {
+            if ($usage->referenceVideoCount > 0) {
+                return [
+                    BillingObject::videoReferenceVideoDuration($resolution),
+                    BillingObject::videoReferenceVideoDurationCost($resolution),
+                ];
+            }
+
+            if ($usage->referenceAudioCount > 0) {
+                return [
+                    BillingObject::videoAudioDuration($resolution),
+                    BillingObject::videoAudioDurationCost($resolution),
+                ];
+            }
+
+            return [
+                BillingObject::videoDuration($resolution),
+                BillingObject::videoDurationCost($resolution),
+            ];
+        }
+
         if ($this === self::VideoResolutionReferenceVideoDuration) {
             return [
                 BillingObject::videoReferenceVideoDuration($resolution),
