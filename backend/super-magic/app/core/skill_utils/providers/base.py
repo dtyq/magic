@@ -15,6 +15,7 @@ from typing import Any
 class SkillProviderId(str, Enum):
     """Provider 来源枚举——与 install_skills 工具的 provider 参数一一对应"""
 
+    SYSTEM       = "system"        # 内置系统 skill（agents/skills/ 目录）
     MY_LIBRARY   = "my_library"    # 平台「我的技能库」（SDK）
     MAGIC_MARKET = "market"        # Magic 自有技能市场（SDK）
     SKILLHUB     = "skillhub"      # 外部社区 SkillHub（CLI 子进程）

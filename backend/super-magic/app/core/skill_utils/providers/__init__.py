@@ -9,6 +9,7 @@ from app.core.skill_utils.providers.base import (
     FetchedSkill,
     SkillProvider,
 )
+from app.core.skill_utils.providers.system_skills import SystemSkillsProvider
 from app.core.skill_utils.providers.my_library import MyLibraryProvider
 from app.core.skill_utils.providers.magic_market import MagicMarketProvider
 from app.core.skill_utils.providers.github import GitHubProvider
@@ -21,6 +22,7 @@ __all__ = [
     "SkillCandidate",
     "FetchedSkill",
     "SkillProvider",
+    "SystemSkillsProvider",
     "MyLibraryProvider",
     "MagicMarketProvider",
     "GitHubProvider",

@@ -27,6 +27,7 @@ class ProviderRegistry:
         self._init_providers()
 
     def _init_providers(self) -> None:
+        from app.core.skill_utils.providers.system_skills import SystemSkillsProvider
         from app.core.skill_utils.providers.my_library import MyLibraryProvider
         from app.core.skill_utils.providers.magic_market import MagicMarketProvider
         from app.core.skill_utils.providers.github import GitHubProvider
@@ -35,6 +36,7 @@ class ProviderRegistry:
         from app.core.skill_utils.providers.npx import NpxProvider
 
         for provider in [
+            SystemSkillsProvider(),
             MyLibraryProvider(),
             MagicMarketProvider(),
             GitHubProvider(),
@@ -57,6 +59,7 @@ class ProviderRegistry:
     def enabled_providers(self) -> list[SkillProvider]:
         """返回所有 enabled 的 provider（按优先级排序）"""
         order = [
+            SkillProviderId.SYSTEM,
             SkillProviderId.MY_LIBRARY,
             SkillProviderId.MAGIC_MARKET,
             SkillProviderId.CLAWHUB,

@@ -153,11 +153,22 @@ class CliProvider(SkillProvider):
         for item in raw[:limit]:
             if not isinstance(item, dict):
                 continue
+            skill_id = item.get("slug", item.get("name", item.get("id", "")))
+            raw_name = item.get("name", item.get("slug", ""))
+            description = item.get("description", "")
+
+            # 部分 skill 无 display name，CLI 将 description 文本直接作为 name 字段输出
+            # 表现为 name 以 "description:" 开头，或 name 与 description 完全相同
+            # 此时降级用 slug/id 作为 name，保持展示简洁
+            name = raw_name
+            if not name or name.lower().startswith("description:") or name == description:
+                name = skill_id
+
             candidate = SkillCandidate(
                 provider=self.id,
-                id=item.get("slug", item.get("name", item.get("id", ""))),
-                name=item.get("name", item.get("slug", "")),
-                description=item.get("description", ""),
+                id=skill_id,
+                name=name,
+                description=description,
                 version=item.get("version"),
                 extra=item,
             )

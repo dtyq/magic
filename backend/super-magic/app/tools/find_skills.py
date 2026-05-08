@@ -22,7 +22,8 @@ logger = get_logger(__name__)
 
 
 # npx / github 不支持搜索，不作为 find_skills 的有效来源
-_VALID_PROVIDERS = {"my_library", "market", "skillhub", "clawhub"}
+# system 为内置系统 skill（agents/skills/ 目录），优先级最高
+_VALID_PROVIDERS = {"system", "my_library", "market", "skillhub", "clawhub"}
 
 
 class FindSkillsParams(BaseToolParams):
@@ -33,9 +34,11 @@ class FindSkillsParams(BaseToolParams):
         description=(
             "<!--zh: 搜索关键词或意图描述（数组），每个关键词独立检索后归并去重。"
             "若要列出我的技能库全部内容，传空数组 [] 并设置 providers=[\"my_library\"]。"
+            "若要列出全部系统内置 skill，传空数组 [] 并设置 providers=[\"system\"]。"
             "例如：[\"天气\", \"日历同步\"]-->\n"
             "Search keywords or intent descriptions (array); each keyword is queried independently then merged. "
             "To list all skills in my_library, pass [] and set providers=[\"my_library\"]. "
+            "To list all built-in system skills, pass [] and set providers=[\"system\"]. "
             "E.g. [\"weather\", \"calendar sync\"]."
         ),
         max_length=10,
@@ -43,12 +46,14 @@ class FindSkillsParams(BaseToolParams):
     providers: Optional[List[str]] = Field(
         None,
         description=(
-            "<!--zh: 限定搜索来源（可选）。可选值：my_library | market | skillhub | clawhub。"
-            "不传则同时搜索所有来源。keywords 为空时此字段必须且只能为 [\"my_library\"]。"
+            "<!--zh: 限定搜索来源（可选）。可选值：system | my_library | market | skillhub | clawhub。"
+            "system 为内置系统 skill（优先级最高），不传则同时搜索所有来源。"
+            "keywords 为空时此字段必须且只能为 [\"my_library\"] 或 [\"system\"]。"
             "例如：[\"market\", \"skillhub\"]-->\n"
             "Restrict search to specific providers (optional). "
-            "Options: my_library | market | skillhub | clawhub. "
-            "Omit to search all sources. When keywords is [], this must be [\"my_library\"]. "
+            "Options: system | my_library | market | skillhub | clawhub. "
+            "system = built-in system skills (highest priority). "
+            "Omit to search all sources. When keywords is [], this must be [\"my_library\"] or [\"system\"]. "
             "E.g. [\"market\", \"skillhub\"]."
         ),
     )
@@ -84,9 +89,10 @@ class FindSkillsParams(BaseToolParams):
     @model_validator(mode="after")
     def _validate_empty_keywords(self) -> "FindSkillsParams":
         if not self.keywords:
-            if self.providers != ["my_library"]:
+            _list_all_providers = {"my_library", "system"}
+            if not self.providers or not all(p in _list_all_providers for p in self.providers):
                 raise ValueError(
-                    "keywords 为空时，providers 必须且只能为 [\"my_library\"]"
+                    "keywords 为空时，providers 必须且只能为 [\"my_library\"] 或 [\"system\"]"
                 )
         return self
 
@@ -94,18 +100,23 @@ class FindSkillsParams(BaseToolParams):
 @tool()
 class FindSkillsTool(BaseTool[FindSkillsParams]):
     """<!--zh
-    按关键词检索可用 skill，来源包括：我的技能库、Magic 市场、SkillHub、ClawHub。
-    支持多关键词批量检索，结果按关键词分组，附带推荐项和安装指引。
-    找到候选后：有 ≥2 个候选时先用 ask_user(multi_select) 让用户选择，再调用 install_skills 安装；
-    只有 1 个强匹配时，可直接向用户确认后安装。
+    按关键词检索可用 skill，来源包括：系统内置（最高优先级）、我的技能库、Magic 市场、SkillHub、ClawHub。
+    支持多关键词批量检索，结果按关键词分组，附带推荐项和使用指引。
+    找到候选后：
+    - provider=system（builtin=true）：直接调用 read_skills 加载，无需安装；
+    - 其他来源：有 ≥2 个候选时先用 ask_user(multi_select) 让用户选择，再调用 install_skills 安装；
+      只有 1 个强匹配时，可直接向用户确认后安装。
     若用户想查看自己技能库的全部内容，使用 keywords=[] + providers=["my_library"]。
+    若用户想查看系统内置 skill 的全部内容，使用 keywords=[] + providers=["system"]。
     -->
     Search for available skills by keywords across enabled sources
-    (my_library, market, skillhub, clawhub).
-    Supports multiple keywords; results are grouped by keyword with recommendations and install hints.
-    When ≥2 candidates exist, call ask_user(multi_select) for user selection before install_skills.
+    (system built-ins with highest priority, my_library, market, skillhub, clawhub).
+    Supports multiple keywords; results are grouped by keyword with recommendations and usage hints.
+    For builtin=true candidates (provider=system): load directly with read_skills, no install needed.
+    For other candidates: when ≥2 exist, call ask_user(multi_select) before install_skills.
     For a single strong match, confirm with the user then install directly.
     To list all skills in my_library, use keywords=[] with providers=["my_library"].
+    To list all system built-in skills, use keywords=[] with providers=["system"].
     """
 
     async def get_before_tool_call_friendly_action_and_remark(
@@ -137,11 +148,12 @@ class FindSkillsTool(BaseTool[FindSkillsParams]):
         return ToolResult(
             ok=True,
             content=content,
-            # 把 pydantic 已验证的值存入 extra_info，供 remark/detail 直接使用
             extra_info={
                 "total_candidates": total,
                 "keywords": params.keywords,
                 "providers": params.providers,
+                # 供 get_tool_detail 展示用的 Markdown，与给模型的 XML 分离
+                "md_content": _format_result_md(result),
             },
         )
 
@@ -174,15 +186,17 @@ class FindSkillsTool(BaseTool[FindSkillsParams]):
         result: ToolResult,
         arguments: Dict[str, Any] = None,
     ) -> Optional[ToolDetail]:
-        if not result.content:
+        extra = result.extra_info or {}
+        md_content = extra.get("md_content")
+        if not md_content:
             return None
-        kws = (result.extra_info or {}).get("keywords", [])
+        kws = extra.get("keywords", [])
         file_name = f"find_skills_{'_'.join(kws) or 'all'}.md"
         return ToolDetail(
             type=DisplayType.MD,
             data=FileContent(
                 file_name=file_name,
-                content=f"```xml\n{result.content}\n```",
+                content=md_content,
             ),
         )
 
@@ -202,9 +216,10 @@ def _format_result(result: SearchResult) -> str:
             version_attr = f' version="{_esc(c.version)}"' if c.version else ""
             score_attr = f' score="{c.score:.2f}"'
             desc_attr = f' description="{_esc(c.description)}"' if c.description else ""
+            builtin_attr = ' builtin="true"' if c.provider.value == "system" else ""
             lines.append(
                 f'    <candidate provider="{c.provider.value}" id="{_esc(c.id)}" '
-                f'name="{_esc(c.name)}"{version_attr}{score_attr}{desc_attr} />'
+                f'name="{_esc(c.name)}"{version_attr}{score_attr}{desc_attr}{builtin_attr} />'
             )
             has_any = True
 
@@ -214,31 +229,37 @@ def _format_result(result: SearchResult) -> str:
 
         lines.append("  </keyword>")
 
-    # 推荐项（取所有候选中分最高的）
-    all_candidates = result.all_candidates
-    if all_candidates:
-        top = all_candidates[0]
-        rec = (
-            f'For best match, recommend {top.provider.value}:{top.id} ("{top.name}"). '
-            "Review all candidates before installing."
-        )
-        lines.append(f"  <recommendation>{rec}</recommendation>")
+    # 全量列出时不输出 recommendation / next_step（结果无排序意义，无需引导安装）
+    is_list_all = all(not kr.keyword for kr in result.keyword_results)
 
-    # next_step 指引
-    if has_any:
-        lines.append(
-            "  <next_step>"
-            "If multiple candidates exist, use ask_user(multi_select) to let the user choose, "
-            "then call install_skills(items=[{provider:..., id:..., mode:\"install\"}]). "
-            "If only one strong match exists, you may call install_skills directly after confirming with the user."
-            "</next_step>"
-        )
-    else:
-        lines.append(
-            "  <next_step>"
-            "No candidates found. Try different keywords or a more specific description."
-            "</next_step>"
-        )
+    if not is_list_all:
+        # 推荐项（取所有候选中分最高的）
+        all_candidates = result.all_candidates
+        if all_candidates:
+            top = all_candidates[0]
+            rec = (
+                f'For best match, recommend {top.provider.value}:{top.id} ("{top.name}"). '
+                "Review all candidates before installing."
+            )
+            lines.append(f"  <recommendation>{rec}</recommendation>")
+
+        # next_step 指引
+        if has_any:
+            lines.append(
+                "  <next_step>"
+                "For builtin=true candidates (provider=system): they are pre-installed; "
+                "load them directly with read_skills(skill_names=[\"<id>\"]). No install needed. "
+                "For other candidates: if multiple exist, use ask_user(multi_select) to let the user choose, "
+                "then call install_skills(items=[{provider:..., id:..., mode:\"install\"}]). "
+                "If only one strong match exists, you may call install_skills directly after confirming with the user."
+                "</next_step>"
+            )
+        else:
+            lines.append(
+                "  <next_step>"
+                "No candidates found. Try different keywords or a more specific description."
+                "</next_step>"
+            )
 
     lines.append("</find_skills_result>")
     return "\n".join(lines)
@@ -248,3 +269,83 @@ def _esc(s: str | None) -> str:
     if not s:
         return ""
     return s.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+# ── Markdown 展示格式（供 get_tool_detail 渲染，与给模型的 XML 完全独立） ────────
+
+_PROVIDER_LABEL: dict[str, str] = {
+    "system":     "内置",
+    "my_library": "我的技能库",
+    "market":     "Magic 市场",
+    "skillhub":   "SkillHub",
+    "clawhub":    "ClawHub",
+    "npx":        "NPX",
+    "github":     "GitHub",
+}
+
+_DESC_MAX_LEN = 80
+
+
+def _truncate(s: str, max_len: int = _DESC_MAX_LEN) -> str:
+    s = s.strip().replace("\n", " ").replace("\r", "")
+    return s if len(s) <= max_len else s[:max_len] + "..."
+
+
+def _format_result_md(result: SearchResult) -> str:
+    lines: list[str] = []
+
+    total = sum(len(kr.candidates) for kr in result.keyword_results)
+    kws = [kr.keyword for kr in result.keyword_results if kr.keyword]
+
+    # 标题行
+    if kws:
+        kw_str = "、".join(f"`{kw}`" for kw in kws)
+        lines.append(f"**搜索关键词**：{kw_str}　共找到 **{total}** 个候选\n")
+    else:
+        lines.append(f"全量列出　共 **{total}** 个 Skill\n")
+
+    has_any = False
+    for kr in result.keyword_results:
+        if not kr.candidates and not kr.provider_errors:
+            continue
+
+        kw_label = f"`{kr.keyword}`" if kr.keyword else "全部"
+        lines.append(f"---\n\n### {kw_label}（{len(kr.candidates)} 个结果）\n")
+
+        if kr.candidates:
+            lines.append("| 名称 | 来源 | 描述 |")
+            lines.append("|------|------|------|")
+            for c in kr.candidates:
+                label = _PROVIDER_LABEL.get(c.provider.value, c.provider.value)
+                # 内置 skill 在名称后加标记
+                name_cell = f"**{c.name}** `内置`" if c.provider.value == "system" else f"**{c.name}**"
+                # 版本号拼入来源列
+                version_note = f" · {c.version}" if c.version else ""
+                source_cell = f"{label}{version_note}"
+                desc_cell = _truncate(c.description) if c.description else "-"
+                lines.append(f"| {name_cell} | {source_cell} | {desc_cell} |")
+            lines.append("")
+            has_any = True
+
+        for pid, err in (kr.provider_errors or {}).items():
+            label = _PROVIDER_LABEL.get(pid, pid)
+            lines.append(f"> **{label}** 搜索失败：{err}\n")
+
+    # 全量列出时不输出推荐（无排序意义）
+    is_list_all = not kws
+    if not is_list_all:
+        all_c = result.all_candidates
+        if all_c:
+            top = all_c[0]
+            label = _PROVIDER_LABEL.get(top.provider.value, top.provider.value)
+            action = "读取" if top.provider.value == "system" else "安装"
+            lines.append(f"---\n\n**最佳推荐**：`{top.id}`（{label} · {top.name}）\n")
+            if top.provider.value == "system":
+                lines.append(f"> 内置 Skill，可直接使用 `read_skills(skill_names=[\"{top.id}\"])` 加载，无需安装。")
+            else:
+                lines.append(f"> 可通过 `install_skills` {action}后使用。")
+
+    if not has_any:
+        lines.append("\n---\n\n> 未找到匹配的 Skill，请尝试不同的关键词。")
+
+    return "\n".join(lines)
