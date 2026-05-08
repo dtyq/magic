@@ -140,17 +140,48 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
                                 'reference_images' => ['min' => 0, 'max' => 6],
                                 'reference_videos' => ['min' => 0, 'max' => 1],
                             ],
+                            'generation_constraints' => [
+                                'resolutions' => ['720p', '1080p'],
+                            ],
                         ],
                     ],
                 )->toArray(),
-                VideoInputMode::VideoEdit->value => VideoInputModeDefinition::videoEdit(
-                    description: $this->translateInputMode(VideoInputMode::VideoEdit->value),
-                    maxCount: 1,
-                )->toArray(),
-                VideoInputMode::KeyframeGuided->value => VideoInputModeDefinition::keyframeGuided(
-                    description: $this->translateInputMode('keyframe_guided.start_end'),
-                    frameRoles: ['start', 'end'],
-                )->toArray(),
+                VideoInputMode::VideoEdit->value => array_merge(
+                    VideoInputModeDefinition::videoEdit(
+                        description: $this->translateInputMode(VideoInputMode::VideoEdit->value),
+                        maxCount: 7,
+                        supportedFields: ['reference_images', 'reference_videos'],
+                        variants: [
+                            [
+                                'code' => 'image_and_video',
+                                'description' => $this->translateInputMode('video_edit_mode.image_and_video'),
+                                'limits' => [
+                                    'reference_images' => ['min' => 0, 'max' => 6],
+                                    'reference_videos' => ['min' => 1, 'max' => 1],
+                                ],
+                            ],
+                        ],
+                    )->toArray(),
+                    [
+                        'generation_constraints' => [
+                            'resolutions' => ['720p', '1080p'],
+                            'aspect_ratios' => [],
+                            'sizes' => [],
+                        ],
+                    ],
+                ),
+                VideoInputMode::KeyframeGuided->value => array_merge(
+                    VideoInputModeDefinition::keyframeGuided(
+                        description: $this->translateInputMode('keyframe_guided.start_end'),
+                        frameRoles: ['start', 'end'],
+                    )->toArray(),
+                    [
+                        'generation_constraints' => [
+                            'aspect_ratios' => [],
+                            'sizes' => [],
+                        ],
+                    ],
+                ),
             ],
         ]);
     }

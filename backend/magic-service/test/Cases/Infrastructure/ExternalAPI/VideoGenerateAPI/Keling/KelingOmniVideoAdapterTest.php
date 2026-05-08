@@ -16,6 +16,7 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactor
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingVideoClient;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Guzzle\ClientFactory;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -28,9 +29,51 @@ class KelingOmniVideoAdapterTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        if (! ApplicationContext::hasContainer()) {
-            ApplicationContext::setContainer($this->createMock(ContainerInterface::class));
-        }
+        ApplicationContext::setContainer(new readonly class implements ContainerInterface {
+            public function get(string $id): mixed
+            {
+                if ($id === TranslatorInterface::class) {
+                    return new class implements TranslatorInterface {
+                        public function trans(string $key, array $replace = [], ?string $locale = null): string
+                        {
+                            return match ($key) {
+                                'video.input_modes.standard' => '普通文生视频模式，不依赖任何参考素材。',
+                                'video.input_modes.omni_reference' => str_replace(':max_count', (string) ($replace['max_count'] ?? ''), '上传 1~:max_count 张参考图片生成视频，参考视频最多 1 个。示例：综合 @图片 1 的主体与 @视频 1 的动态，生成一段氛围感短片。'),
+                                'video.input_modes.omni_reference_mode.images_only' => '仅上传参考图片，最多支持 7 张。',
+                                'video.input_modes.omni_reference_mode.image_and_video' => '同时上传参考图片和 1 个参考视频时，参考图片最多支持 6 张。',
+                                'video.input_modes.video_edit' => '上传 1 个参考视频，结合文字指令对原视频进行编辑或改写。',
+                                'video.input_modes.video_edit_mode.images_only' => '仅上传 1 个参考视频进行编辑。',
+                                'video.input_modes.video_edit_mode.image_and_video' => '上传 1 个参考视频和最多 6 张参考图片进行编辑。',
+                                'video.input_modes.keyframe_guided.start_end' => '用首帧定格起点，尾帧定格终点，搭配文字描述，让 AI 补全从起点到终点的动态故事。',
+                                default => $key,
+                            };
+                        }
+
+                        public function transChoice(string $key, $number, array $replace = [], ?string $locale = null): string
+                        {
+                            return $this->trans($key, $replace, $locale);
+                        }
+
+                        public function getLocale(): string
+                        {
+                            return 'zh_CN';
+                        }
+
+                        public function setLocale(string $locale)
+                        {
+                            return $this;
+                        }
+                    };
+                }
+
+                return null;
+            }
+
+            public function has(string $id): bool
+            {
+                return $id === TranslatorInterface::class;
+            }
+        });
     }
 
     public function testResolveGenerationConfigExposesOmniDefaults(): void
@@ -45,11 +88,13 @@ class KelingOmniVideoAdapterTest extends TestCase
         $this->assertSame(5, $data['generation']['default_duration_seconds']);
         $this->assertSame('720p', $data['generation']['default_resolution']);
         $this->assertSame(
-            ['standard', 'image_reference', 'omni_reference', VideoInputMode::VideoEdit->value, 'keyframe_guided'],
+            ['standard', 'omni_reference', VideoInputMode::VideoEdit->value, 'keyframe_guided'],
             array_keys($data['input_modes'])
         );
         $this->assertSame('generate', $data['input_modes']['omni_reference']['task']);
         $this->assertSame('edit', $data['input_modes'][VideoInputMode::VideoEdit->value]['task']);
+        $this->assertSame(7, $data['input_modes'][VideoInputMode::VideoEdit->value]['max_count']);
+        $this->assertArrayHasKey('variants', $data['input_modes'][VideoInputMode::VideoEdit->value]);
     }
 
     public function testResolveGenerationConfigSupportsOmniAliasModelId(): void
@@ -70,12 +115,12 @@ class KelingOmniVideoAdapterTest extends TestCase
         $this->assertNotNull($adapter->resolveGenerationConfig('kling-v3-omni', 'keling-3.0-video'));
     }
 
-    public function testSupportsModelAcceptsKnownKelingModelIdAsFallback(): void
+    public function testSupportsModelRejectsKnownKelingModelIdWithoutOmniVersion(): void
     {
         $adapter = $this->createAdapter();
 
-        $this->assertTrue($adapter->supportsModel('kling-v4-omni', 'keling-video'));
-        $this->assertNotNull($adapter->resolveGenerationConfig('kling-v4-omni', 'keling-video'));
+        $this->assertFalse($adapter->supportsModel('kling-v4-omni', 'keling-video'));
+        $this->assertNull($adapter->resolveGenerationConfig('kling-v4-omni', 'keling-video'));
     }
 
     public function testBuildProviderPayloadMapsOmniInputsAndExtensions(): void

@@ -33,9 +33,11 @@ class KelingOmniGenerationCapabilityProviderTest extends TestCase
                             return match ($key) {
                                 'video.input_modes.standard' => '普通文生视频模式，不依赖任何参考素材。',
                                 'video.input_modes.omni_reference' => str_replace(':max_count', (string) ($replace['max_count'] ?? ''), '上传 1~:max_count 张参考图片生成视频，参考视频最多 1 个。示例：综合 @图片 1 的主体与 @视频 1 的动态，生成一段氛围感短片。'),
-                                'video.input_modes.omni_reference.images_only' => '仅上传参考图片，最多支持 7 张。',
-                                'video.input_modes.omni_reference.image_and_video' => '同时上传参考图片和 1 个参考视频时，参考图片最多支持 6 张。',
+                                'video.input_modes.omni_reference_mode.images_only' => '仅上传参考图片，最多支持 7 张。',
+                                'video.input_modes.omni_reference_mode.image_and_video' => '同时上传参考图片和 1 个参考视频时，参考图片最多支持 6 张。',
                                 'video.input_modes.video_edit' => '上传 1 个参考视频，结合文字指令对原视频进行编辑或改写。',
+                                'video.input_modes.video_edit_mode.images_only' => '仅上传 1 个参考视频进行编辑。',
+                                'video.input_modes.video_edit_mode.image_and_video' => '上传 1 个参考视频和最多 6 张参考图片进行编辑。',
                                 'video.input_modes.keyframe_guided.start_end' => '用首帧定格起点，尾帧定格终点，搭配文字描述，让 AI 补全从起点到终点的动态故事。',
                                 default => $key,
                             };
@@ -103,7 +105,7 @@ class KelingOmniGenerationCapabilityProviderTest extends TestCase
                 'code' => 'images_only',
                 'description' => '仅上传参考图片，最多支持 7 张。',
                 'limits' => [
-                    'reference_images' => ['min' => 1, 'max' => 7],
+                    'reference_images' => ['min' => 0, 'max' => 7],
                     'reference_videos' => ['max' => 0],
                 ],
             ],
@@ -111,13 +113,47 @@ class KelingOmniGenerationCapabilityProviderTest extends TestCase
                 'code' => 'image_and_video',
                 'description' => '同时上传参考图片和 1 个参考视频时，参考图片最多支持 6 张。',
                 'limits' => [
-                    'reference_images' => ['min' => 1, 'max' => 6],
-                    'reference_videos' => ['min' => 1, 'max' => 1],
+                    'reference_images' => ['min' => 0, 'max' => 6],
+                    'reference_videos' => ['min' => 0, 'max' => 1],
+                ],
+                'generation_constraints' => [
+                    'resolutions' => ['720p', '1080p'],
                 ],
             ],
         ], $data['input_modes']['omni_reference']['variants']);
+        $this->assertArrayNotHasKey('generation_constraints', $data['input_modes']['standard']);
+        $this->assertArrayNotHasKey('generation_constraints', $data['input_modes']['omni_reference']['variants'][0]);
         $this->assertSame('上传 1 个参考视频，结合文字指令对原视频进行编辑或改写。', $data['input_modes'][VideoInputMode::VideoEdit->value]['description']);
+        $this->assertSame(['reference_images', 'reference_videos'], $data['input_modes'][VideoInputMode::VideoEdit->value]['supported_fields']);
+        $this->assertSame(7, $data['input_modes'][VideoInputMode::VideoEdit->value]['max_count']);
+        $this->assertSame([
+            [
+                'code' => 'images_only',
+                'description' => '仅上传 1 个参考视频进行编辑。',
+                'limits' => [
+                    'reference_images' => ['max' => 0],
+                    'reference_videos' => ['min' => 1, 'max' => 1],
+                ],
+            ],
+            [
+                'code' => 'image_and_video',
+                'description' => '上传 1 个参考视频和最多 6 张参考图片进行编辑。',
+                'limits' => [
+                    'reference_images' => ['min' => 0, 'max' => 6],
+                    'reference_videos' => ['min' => 1, 'max' => 1],
+                ],
+            ],
+        ], $data['input_modes'][VideoInputMode::VideoEdit->value]['variants']);
+        $this->assertSame([
+            'resolutions' => ['720p', '1080p'],
+            'aspect_ratios' => [],
+            'sizes' => [],
+        ], $data['input_modes'][VideoInputMode::VideoEdit->value]['generation_constraints']);
         $this->assertSame('用首帧定格起点，尾帧定格终点，搭配文字描述，让 AI 补全从起点到终点的动态故事。', $data['input_modes']['keyframe_guided']['description']);
+        $this->assertSame([
+            'aspect_ratios' => [],
+            'sizes' => [],
+        ], $data['input_modes']['keyframe_guided']['generation_constraints']);
         $this->assertSame('generate', $data['input_modes']['omni_reference']['task']);
         $this->assertSame('edit', $data['input_modes'][VideoInputMode::VideoEdit->value]['task']);
     }
@@ -127,8 +163,8 @@ class KelingOmniGenerationCapabilityProviderTest extends TestCase
         $provider = new KelingOmniGenerationCapabilityProvider();
 
         $this->assertTrue($provider->supportsModel('kling-v3-omni', 'kling-v3-omni'));
-        $this->assertTrue($provider->supportsModel('kling-v3-omni', 'keling-3.0-video'));
-        $this->assertTrue($provider->supportsModel('kling-v4-omni', 'keling-video'));
+        $this->assertTrue($provider->supportsModel('', 'kling-v3-omni'));
+        $this->assertFalse($provider->supportsModel('kling-v4-omni', 'keling-video'));
     }
 
     public function testResolveGenerationModeAndDurationUseCapabilityDefaults(): void

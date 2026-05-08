@@ -21,6 +21,10 @@ return [
             'multiple' => 'Image reference mode: upload 1 to :max_count reference images and a text prompt so AI can blend style, subject, and scene details into a video that closely matches the source images. Example: reference the style of @image 1 and the scene of @image 2 to generate a smooth dynamic video.',
         ],
         'video_edit' => 'Upload 1 reference video and use text instructions to edit or transform the original video.',
+        'video_edit_mode' => [
+            'images_only' => 'Upload 1 reference video only for editing.',
+            'image_and_video' => 'Upload 1 reference video and up to 6 reference images for editing.',
+        ],
     ],
     'errors' => [
         'generic' => 'Video generation failed. Please check your input and try again later.',

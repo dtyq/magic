@@ -72,6 +72,38 @@ class VideoInputModeDefinitionTest extends TestCase
         $this->assertSame(VideoTaskType::Edit->value, $definition['task']);
     }
 
+    public function testVideoEditDefinitionCanIncludeVariantsAndSupportedFields(): void
+    {
+        $definition = VideoInputModeDefinition::videoEdit(
+            description: VideoInputMode::VideoEdit->value,
+            maxCount: 7,
+            supportedFields: ['reference_images', 'reference_videos'],
+            variants: [
+                [
+                    'code' => 'image_and_video',
+                    'description' => 'base video and images',
+                    'limits' => [
+                        'reference_images' => ['min' => 0, 'max' => 6],
+                        'reference_videos' => ['min' => 1, 'max' => 1],
+                    ],
+                ],
+            ],
+        )->toArray();
+
+        $this->assertSame(['reference_images', 'reference_videos'], $definition['supported_fields']);
+        $this->assertSame(7, $definition['max_count']);
+        $this->assertSame([
+            [
+                'code' => 'image_and_video',
+                'description' => 'base video and images',
+                'limits' => [
+                    'reference_images' => ['min' => 0, 'max' => 6],
+                    'reference_videos' => ['min' => 1, 'max' => 1],
+                ],
+            ],
+        ], $definition['variants']);
+    }
+
     public function testKeyframeGuidedDefinitionIncludesFrameRoles(): void
     {
         $definition = VideoInputModeDefinition::keyframeGuided(
