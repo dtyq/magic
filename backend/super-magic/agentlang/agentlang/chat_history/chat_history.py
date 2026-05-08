@@ -24,6 +24,7 @@ from agentlang.chat_history.chat_history_models import (
     AssistantMessage, ToolMessage, ChatMessage,
     FunctionCall, ToolCall
 )
+from agentlang.chat_history.session_config import SessionConfig
 from agentlang.logger import get_logger
 
 # 导入事件相关模块
@@ -298,6 +299,8 @@ class ChatHistory:
             "video_generation_config": None,
             "mcp_servers": None,
             "message_version": None,
+            "agent_mode": None,
+            "agent_code": None,
         }
 
     def _load_session_document(self) -> Dict[str, Any]:
@@ -330,33 +333,35 @@ class ChatHistory:
         with open(config_file, 'w', encoding='utf-8') as f:
             json.dump(document, f, ensure_ascii=False, indent=2)
 
-    def get_last_session_config(self) -> Dict[str, Any]:
+    def get_last_session_config(self) -> SessionConfig:
         """
         获取上次保存的会话配置（last）。
 
         Returns:
-            Dict[str, Any]: 包含 model_id、image/video model 配置和 mcp_servers 的字典
+            SessionConfig: 上次会话的结构化配置
         """
         try:
             last_config = self._load_session_document().get("last", {})
-            return {
-                "model_id": last_config.get("model_id"),
-                "image_model_id": last_config.get("image_model_id"),
-                "image_model_sizes": last_config.get("image_model_sizes"),
-                "video_model_id": last_config.get("video_model_id"),
-                "video_generation_config": last_config.get("video_generation_config"),
-                "mcp_servers": last_config.get("mcp_servers")
-            }
+            if isinstance(last_config, dict):
+                return SessionConfig.from_dict(last_config)
         except Exception as e:
             logger.debug(f"读取会话配置失败: {e}")
-        return {
-            "model_id": None,
-            "image_model_id": None,
-            "image_model_sizes": None,
-            "video_model_id": None,
-            "video_generation_config": None,
-            "mcp_servers": None,
-        }
+        return SessionConfig()
+
+    def get_current_session_config(self) -> SessionConfig:
+        """
+        获取当前保存的会话配置（current），即最近一次写入的值。
+
+        Returns:
+            SessionConfig: 当前会话的结构化配置
+        """
+        try:
+            current_config = self._load_session_document().get("current", {})
+            if isinstance(current_config, dict):
+                return SessionConfig.from_dict(current_config)
+        except Exception as e:
+            logger.debug(f"读取当前会话配置失败: {e}")
+        return SessionConfig()
 
     def get_last_message_version(self) -> Optional[str]:
         """
@@ -382,6 +387,8 @@ class ChatHistory:
         video_generation_config: Optional[Dict[str, Any]] = None,
         mcp_servers: Optional[Dict[str, List[str]]] = None,
         message_version: Optional[str] = None,
+        agent_mode: Optional[str] = None,
+        agent_code: Optional[str] = None,
     ) -> None:
         """
         保存当前会话配置。
@@ -399,6 +406,8 @@ class ChatHistory:
             video_generation_config: 当前视频生成模型 featured 配置
             mcp_servers: 当前可用的 MCP 服务器及其工具列表
             message_version: 当前消息版本号，如 "v1"、"v2"
+            agent_mode: Agent 运行模式，用于第三方 IM 消息持久化时映射为 topic_pattern
+            agent_code: 自定义 Agent 编码（custom_agent/magiclaw 场景）
         """
         try:
             current_config = {
@@ -409,6 +418,8 @@ class ChatHistory:
                 "video_generation_config": video_generation_config,
                 "mcp_servers": mcp_servers,
                 "message_version": message_version,
+                "agent_mode": agent_mode,
+                "agent_code": agent_code,
             }
             existing_config = self._load_session_document()
             last_config = existing_config.get("current", {})
@@ -418,7 +429,7 @@ class ChatHistory:
             logger.debug(
                 f"会话配置已保存: current model_id={model_id}, image_model_id={image_model_id}, "
                 f"video_model_id={video_model_id}, mcp_servers={len(mcp_servers) if mcp_servers else 0} servers, "
-                f"message_version={message_version}"
+                f"message_version={message_version}, agent_mode={agent_mode}, agent_code={agent_code}"
             )
         except Exception as e:
             logger.warning(f"保存会话配置失败: {e}")

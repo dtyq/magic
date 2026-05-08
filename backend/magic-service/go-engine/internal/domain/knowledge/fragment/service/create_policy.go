@@ -5,7 +5,9 @@ import (
 	"encoding/hex"
 	"strings"
 
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	"magic/internal/domain/knowledge/shared"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
 
 // CreateFragmentDocumentStrategy 描述创建片段时文档解析策略。
@@ -25,14 +27,14 @@ const (
 type CreateFragmentDocumentPlan struct {
 	Strategy          CreateFragmentDocumentStrategy
 	DocumentCode      string
-	ManualFallbackDoc *KnowledgeBaseDocument
+	ManualFallbackDoc *fragmodel.KnowledgeBaseDocument
 	ThirdPlatformType string
 	ThirdFileID       string
 }
 
 // CreateFragmentDocumentPlanInput 描述创建片段时的文档解析输入。
 type CreateFragmentDocumentPlanInput struct {
-	KnowledgeBase    any
+	KnowledgeBase    *sharedsnapshot.KnowledgeBaseRuntimeSnapshot
 	KnowledgeCode    string
 	DocumentCode     string
 	Metadata         map[string]any
@@ -44,7 +46,7 @@ type CreateFragmentDocumentPlanInput struct {
 type LegacyThirdPlatformDocumentSpec struct {
 	Name              string
 	DocType           int
-	DocumentFile      *File
+	DocumentFile      *fragmodel.DocumentFile
 	ThirdPlatformType string
 	ThirdFileID       string
 	UserID            string
@@ -96,11 +98,11 @@ func ResolveLegacyThirdPlatformType(metadata map[string]any) string {
 
 // BuildLegacyThirdPlatformDocument 根据 provider 结果构造历史兼容文档。
 func BuildLegacyThirdPlatformDocument(
-	kb any,
+	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 	spec LegacyThirdPlatformDocumentSpec,
-) *KnowledgeBaseDocument {
-	kbSnapshot := snapshotKnowledgeBase(kb)
-	doc := NewDocument(
+) *fragmodel.KnowledgeBaseDocument {
+	kbSnapshot := fragmodel.SnapshotKnowledgeBase(kb)
+	doc := fragmodel.NewDocument(
 		kbSnapshot.Code,
 		strings.TrimSpace(spec.Name),
 		BuildLegacyThirdPlatformDocumentCode(kbSnapshot.Code, spec.ThirdPlatformType, spec.ThirdFileID),
@@ -109,7 +111,7 @@ func BuildLegacyThirdPlatformDocument(
 		strings.TrimSpace(spec.OrganizationCode),
 	)
 	doc.SyncStatus = shared.SyncStatusSynced
-	doc.EmbeddingModel = resolveKnowledgeBaseEmbeddingModel(kb)
+	doc.EmbeddingModel = fragmodel.ResolveKnowledgeBaseEmbeddingModel(kb)
 	doc.ThirdPlatformType = strings.TrimSpace(spec.ThirdPlatformType)
 	doc.ThirdFileID = strings.TrimSpace(spec.ThirdFileID)
 	if spec.DocumentFile != nil {

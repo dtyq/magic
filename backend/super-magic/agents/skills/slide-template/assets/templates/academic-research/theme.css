@@ -1,0 +1,442 @@
+/* ============================================================
+   Academic Research — Theme Styles v2
+   Use cases: thesis defenses, academic reports, research sharing, conference talks, research outcome showcases
+   Design concept: rigorous and clear · moderate information density · structured layouts · authoritative and professional
+
+   Usage: <link rel="stylesheet" href="theme.css"/>
+/* ============================================================ */
+
+:root {
+  /* ----------------------------------------------------------
+     Background Colors
+     ---------------------------------------------------------- */
+  --bg-primary: #ffffff; /* Primary background: pure white */
+  --bg-secondary: #f0f4f9; /* Secondary background: light blue gray for quotes, code blocks, and zebra rows */
+  --bg-accent: #e8f4fd; /* Accent background: very light blue for highlighted sections */
+  --bg-teal-soft: #e6faf8; /* Soft teal background */
+  --bg-dark: #0f2444; /* Deep navy: cover and section pages */
+  --bg-dark-2: #1a3560; /* Secondary dark-blue background */
+
+  /* ----------------------------------------------------------
+     Text Colors
+     ---------------------------------------------------------- */
+  --text-primary: #0f1e33; /* Primary text: dark blue black */
+  --text-secondary: #3d5470; /* Secondary text: blue gray */
+  --text-muted: #6b82a0; /* Muted text: medium blue gray */
+  --text-on-dark: #ffffff;
+  --text-on-dark-2: #9bb5d0; /* Secondary text on dark backgrounds */
+
+  /* ----------------------------------------------------------
+     Brand Colors
+     ---------------------------------------------------------- */
+  --navy: #0f2444; /* Deep navy: covers, titles, and key emphasis */
+  --blue: #1a6dc0; /* Primary blue: emphasis, links, and main chart color */
+  --blue-mid: #3b8fe8; /* Mid blue: secondary emphasis */
+  --teal: #1a8a7a; /* Teal: supporting emphasis and methodology */
+  --teal-mid: #2bb5a2; /* Mid teal */
+
+  /* ----------------------------------------------------------
+     Supporting Status Colors for Data Annotations
+     ---------------------------------------------------------- */
+  --highlight-yellow: #f9e84a; /* Yellow highlight for key annotations */
+  --highlight-bg: #fffce0; /* Yellow highlight background */
+  --positive: #1a7a4a; /* Positive result: green */
+  --positive-bg: #e6f7ee;
+  --negative: #b02020; /* Negative result: red */
+  --negative-bg: #fdecea;
+  --neutral: #6b6b00; /* Neutral: olive */
+
+  /* ----------------------------------------------------------
+     Borders
+     ---------------------------------------------------------- */
+  --border-light: #d0dae8; /* Common border: light blue gray */
+  --border-medium: #a8b8cc; /* Medium border */
+  --border-teal: #7ecfc8; /* Teal border for quote blocks */
+  --border-blue: #90bce8; /* Blue border */
+
+  /* ----------------------------------------------------------
+     Chart Palette
+     ---------------------------------------------------------- */
+  --chart-1: #1a6dc0;
+  --chart-2: #1a8a7a;
+  --chart-3: #e05c1a;
+  --chart-4: #8b3dc8;
+  --chart-5: #c8a020;
+  --chart-6: #3baa5a;
+}
+
+/* ============================================================
+   Typography Scale (1920×1080 Canvas)
+
+   Main title      : 60–72px  weight:800  color:--navy  letter-spacing:-0.02em
+   Section title   : 44–52px  weight:700  color:--blue  with section number, such as "Chapter 1" or "1.2"
+   Content title   : 36–44px  weight:600  color:--text-primary
+   Subtitle        : 26–32px  weight:500  color:--text-secondary
+   Body text       : 22–26px  weight:400  color:--text-secondary  line-height:1.8
+   Data highlight  : 52–68px  weight:800  color:--blue or --teal
+   Caption/source  : 16–20px  weight:400  color:--text-muted  font-style:italic
+   Quote/note      : 20–22px  weight:400  color:--text-secondary  font-style:italic
+
+   Font stack: 'Noto Serif SC', 'Noto Sans SC', -apple-system, 'PingFang SC', 'Microsoft YaHei', serif
+   Note: use Noto Serif SC for titles to strengthen the academic feel, and Noto Sans SC for body text
+   ============================================================ */
+
+/* ============================================================
+   Corner Radius Rules (academically rigorous, restrained rounding)
+   Cards/sections  : border-radius: 6px
+   Quote blocks    : border-radius: 0 6px 6px 0, square left and rounded right
+   Chart containers: border-radius: 6px
+   Badges/tags     : border-radius: 4px
+   Do not use      : border-radius > 8px
+   ============================================================ */
+
+/* ============================================================
+   Base Slide Styles
+
+   1920×1080 academic canvas; Sans for body, tokens --bg-primary / --text-primary.
+   Implemented below: html, body, .slide, .slide-body (48px 72px default inset).
+   ============================================================ */
+
+html,
+body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  margin: 0;
+  font-family:
+    "Noto Sans SC",
+    -apple-system,
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.slide {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Typical content inset for 1920×1080 slides */
+.slide-body {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 48px 72px 72px;
+}
+
+/* ============================================================
+   Decorative Element Rules
+
+   A–G: cover navy band, bottom institution bar, faint hero numerals, teal quote rail,
+   blue conclusion rail, yellow annotation span, section numeral watermark — layout-driven;
+   use variables (--bg-dark, --blue, --teal, --highlight-*) in markup. No duplicate utility CSS here.
+   ============================================================ */
+
+/* ============================================================
+   Dedicated Component Library
+   ============================================================ */
+
+/* -- Data Result Card -- */
+.result-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  padding: 24px 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+.result-value {
+  font-size: 60px;
+  font-weight: 800;
+  color: var(--blue);
+  line-height: 1;
+}
+.result-label {
+  font-size: 18px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+.result-card.teal .result-value {
+  color: var(--teal);
+}
+.result-card.positive {
+  border-left: 4px solid var(--positive);
+}
+.result-card.negative {
+  border-left: 4px solid var(--negative);
+}
+
+/* -- Research Method Flow Node -- */
+.method-node {
+  background: var(--bg-primary);
+  border: 2px solid var(--blue);
+  border-radius: 6px;
+  padding: 18px 24px;
+  text-align: center;
+  position: relative;
+}
+.method-node-num {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--blue);
+  color: #fff;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Arrow between nodes */
+.method-arrow {
+  width: 40px;
+  height: 2px;
+  background: var(--border-medium);
+  position: relative;
+  align-self: center;
+}
+.method-arrow::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  top: -4px;
+  border: 5px solid transparent;
+  border-left-color: var(--border-medium);
+}
+
+/* -- Data Table (Academic Style) -- */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 20px;
+}
+.data-table caption {
+  font-size: 18px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-style: italic;
+  text-align: left;
+}
+.data-table thead tr {
+  background: var(--bg-dark);
+}
+.data-table thead th {
+  padding: 12px 18px;
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.data-table tbody tr:nth-child(even) {
+  background: var(--bg-secondary);
+}
+.data-table tbody td {
+  padding: 12px 18px;
+  border: 1px solid var(--border-light);
+  text-align: center;
+}
+.data-table tbody td.highlight {
+  background: var(--highlight-bg);
+  font-weight: 700;
+  color: var(--navy);
+}
+.data-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid var(--border-medium);
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* -- Citation Card -- */
+.citation-card {
+  background: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 18px 22px;
+  border-left: 4px solid var(--teal);
+  font-size: 19px;
+}
+.citation-num {
+  color: var(--teal);
+  font-weight: 700;
+}
+.citation-text {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.citation-meta {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 17px;
+  margin-top: 4px;
+}
+
+/* -- Experiment Comparison Table -- */
+.exp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 20px;
+}
+.exp-table th {
+  background: var(--bg-dark-2);
+  color: #fff;
+  padding: 12px 16px;
+}
+.exp-table td {
+  padding: 12px 16px;
+  border: 1px solid var(--border-light);
+  text-align: center;
+}
+.exp-table .best {
+  color: var(--positive);
+  font-weight: 800;
+}
+.exp-table .ours {
+  background: var(--bg-accent);
+}
+
+/* -- Status Badges -- */
+.badge {
+  display: inline-block;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+.badge-blue {
+  background: var(--bg-accent);
+  color: var(--blue);
+  border: 1px solid var(--border-blue);
+}
+.badge-teal {
+  background: var(--bg-teal-soft);
+  color: var(--teal);
+  border: 1px solid var(--border-teal);
+}
+.badge-pos {
+  background: var(--positive-bg);
+  color: var(--positive);
+}
+.badge-neg {
+  background: var(--negative-bg);
+  color: var(--negative);
+}
+
+/* -- Figure Caption -- */
+.fig-caption {
+  font-size: 18px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  margin-top: 10px;
+  border-top: 1px solid var(--border-light);
+  padding-top: 8px;
+}
+
+/* -- Top Title Area -- */
+.page-header {
+  height: 96px;
+  padding: 0 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--border-light);
+}
+.page-title {
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--navy);
+}
+.page-chapter {
+  font-size: 20px;
+  color: var(--text-muted);
+}
+
+/* -- Bottom Information Bar -- */
+.footer-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  padding: 0 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 2px solid var(--border-light);
+  background: var(--bg-secondary);
+}
+.footer-institution {
+  font-size: 18px;
+  color: var(--text-muted);
+}
+.footer-page {
+  font-size: 18px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+/* ============================================================
+   Layout Rules (1920×1080)
+
+   Standard three zones:
+     Top title area          96px   padding: 0 80px
+     Main content area       920px  padding: 32px 80px
+     Bottom information bar   64px
+
+   Common grids:
+     Left image, right text : flex; left 55%, right 45%
+     Three result columns   : grid; 1fr 1fr 1fr; gap:28px
+     Horizontal flow        : flex; align-items:center; gap:0, alternating nodes and arrows
+     2×2 experiment table   : grid; 1fr 1fr / auto auto
+   ============================================================ */
+
+/* ============================================================
+   Dedicated Layout Page Types (8)
+
+   1. Cover Page
+      - Top (15%): deep navy banner with university/institution logo and conference name in white
+      - Main body (70%): white area with centered large title (navy, 68px), subtitle, and author information
+      - Bottom (15%): light blue-gray information bar for supervisor, date, and discipline, with a 3px blue top rule
+
+   2. Research Background Page
+      - Left (55%): key point list with blue numbered circles and a quote block
+      - Right (45%): research status chart (ECharts) or schematic
+
+   3. Methodology Flow Page
+      - Top: section title
+      - Main body: horizontal flowchart (method-node + method-arrow, 4-6 nodes)
+      - Below: detailed description for each node in small cards matching node colors
+
+   4. Experiment Data Results Page
+      - Top: 3-4 result-card components in a row for key metrics
+      - Below: ECharts chart on the left (60%) and experiment comparison table on the right (40%)
+      - Bottom: figure caption (fig-caption)
+
+   5. Comparison Analysis Page
+      - Top: title plus comparison description
+      - Main body: exp-table comparing the proposed method against SOTA, with best values in green
+      - Bottom: conclusion quote block
+
+   6. Literature Review Page
+      - Top: title
+      - Main body: two-column citation-card list with 4-6 references
+      - Right side: vertical research-context timeline
+
+   7. Section Page
+      - Full-screen deep navy (bg-dark)
+      - 4px blue rule at the top
+      - Left: section number (light blue, 120px) and section name (white, 60px)
+      - Right: translucent oversized number as background decoration
+
+   8. Conclusion and Outlook Page
+      - Left (50%): key findings list with blue numbering and a conclusion quote block
+      - Right (50%): future outlook card with teal border and acknowledgments
+   ============================================================ */

@@ -3,6 +3,7 @@ package sourcebinding
 import (
 	"strings"
 
+	sourcebindingentity "magic/internal/domain/knowledge/sourcebinding/entity"
 	thirdfilemappingpkg "magic/internal/pkg/thirdfilemapping"
 )
 
@@ -11,16 +12,16 @@ func PlanLegacyTeamshareBindings(
 	organizationCode string,
 	knowledgeBaseCode string,
 	userID string,
-	existing []Binding,
+	existing []sourcebindingentity.Binding,
 	groups []thirdfilemappingpkg.RepairGroup,
-) []Binding {
-	planned := make([]Binding, 0)
-	working := make([]Binding, 0, len(existing))
+) []sourcebindingentity.Binding {
+	planned := make([]sourcebindingentity.Binding, 0)
+	working := make([]sourcebindingentity.Binding, 0, len(existing))
 	for _, binding := range existing {
-		if strings.TrimSpace(binding.Provider) != ProviderTeamshare {
+		if strings.TrimSpace(binding.Provider) != sourcebindingentity.ProviderTeamshare {
 			continue
 		}
-		working = append(working, NormalizeBinding(binding))
+		working = append(working, sourcebindingentity.NormalizeBinding(binding))
 	}
 
 	for _, group := range groups {
@@ -51,30 +52,30 @@ func BuildLegacyTeamshareBinding(
 	knowledgeBaseCode string,
 	userID string,
 	group thirdfilemappingpkg.RepairGroup,
-) Binding {
-	rootType := RootTypeFile
+) sourcebindingentity.Binding {
+	rootType := sourcebindingentity.RootTypeFile
 	rootRef := strings.TrimSpace(group.ThirdFileID)
 	if knowledgeBaseID := strings.TrimSpace(group.KnowledgeBaseID); knowledgeBaseID != "" {
-		rootType = RootTypeKnowledgeBase
+		rootType = sourcebindingentity.RootTypeKnowledgeBase
 		rootRef = knowledgeBaseID
 	} else if groupRef := strings.TrimSpace(group.GroupRef); groupRef != "" {
-		rootType = RootTypeFolder
+		rootType = sourcebindingentity.RootTypeFolder
 		rootRef = groupRef
 	}
 
-	binding := NormalizeBinding(Binding{
+	binding := sourcebindingentity.NormalizeBinding(sourcebindingentity.Binding{
 		OrganizationCode:  strings.TrimSpace(organizationCode),
 		KnowledgeBaseCode: strings.TrimSpace(knowledgeBaseCode),
-		Provider:          ProviderTeamshare,
+		Provider:          sourcebindingentity.ProviderTeamshare,
 		RootType:          rootType,
 		RootRef:           rootRef,
-		SyncMode:          SyncModeManual,
+		SyncMode:          sourcebindingentity.SyncModeManual,
 		Enabled:           true,
 		CreatedUID:        strings.TrimSpace(userID),
 		UpdatedUID:        strings.TrimSpace(userID),
 	})
 
-	if rootType == RootTypeKnowledgeBase {
+	if rootType == sourcebindingentity.RootTypeKnowledgeBase {
 		binding.SyncConfig = map[string]any{
 			"root_context": map[string]any{
 				"knowledge_base_id": rootRef,
@@ -85,7 +86,7 @@ func BuildLegacyTeamshareBinding(
 	return binding
 }
 
-func hasBindingRoot(bindings []Binding, candidate Binding) bool {
+func hasBindingRoot(bindings []sourcebindingentity.Binding, candidate sourcebindingentity.Binding) bool {
 	for _, binding := range bindings {
 		if strings.TrimSpace(binding.Provider) != strings.TrimSpace(candidate.Provider) {
 			continue
@@ -101,9 +102,9 @@ func hasBindingRoot(bindings []Binding, candidate Binding) bool {
 	return false
 }
 
-func legacyTeamshareBindingCoversGroup(bindings []Binding, group thirdfilemappingpkg.RepairGroup) bool {
+func legacyTeamshareBindingCoversGroup(bindings []sourcebindingentity.Binding, group thirdfilemappingpkg.RepairGroup) bool {
 	for _, binding := range bindings {
-		if strings.TrimSpace(binding.Provider) != ProviderTeamshare {
+		if strings.TrimSpace(binding.Provider) != sourcebindingentity.ProviderTeamshare {
 			continue
 		}
 		if legacyTeamshareBindingMatchesGroup(binding, group) {
@@ -113,7 +114,7 @@ func legacyTeamshareBindingCoversGroup(bindings []Binding, group thirdfilemappin
 	return false
 }
 
-func legacyTeamshareBindingMatchesGroup(binding Binding, group thirdfilemappingpkg.RepairGroup) bool {
+func legacyTeamshareBindingMatchesGroup(binding sourcebindingentity.Binding, group thirdfilemappingpkg.RepairGroup) bool {
 	rootType := strings.TrimSpace(binding.RootType)
 	rootRef := strings.TrimSpace(binding.RootRef)
 	if rootRef == "" {
@@ -121,15 +122,15 @@ func legacyTeamshareBindingMatchesGroup(binding Binding, group thirdfilemappingp
 	}
 
 	switch rootType {
-	case RootTypeKnowledgeBase:
+	case sourcebindingentity.RootTypeKnowledgeBase:
 		if rootRef != strings.TrimSpace(group.KnowledgeBaseID) {
 			return false
 		}
-	case RootTypeFolder:
+	case sourcebindingentity.RootTypeFolder:
 		if rootRef != strings.TrimSpace(group.GroupRef) {
 			return false
 		}
-	case RootTypeFile:
+	case sourcebindingentity.RootTypeFile:
 		if rootRef != strings.TrimSpace(group.ThirdFileID) {
 			return false
 		}
@@ -142,11 +143,11 @@ func legacyTeamshareBindingMatchesGroup(binding Binding, group thirdfilemappingp
 	}
 	for _, target := range binding.Targets {
 		switch strings.TrimSpace(target.TargetType) {
-		case TargetTypeFile:
+		case sourcebindingentity.TargetTypeFile:
 			if strings.TrimSpace(target.TargetRef) == strings.TrimSpace(group.ThirdFileID) {
 				return true
 			}
-		case TargetTypeGroup:
+		case sourcebindingentity.TargetTypeGroup:
 			if strings.TrimSpace(target.TargetRef) != "" && strings.TrimSpace(target.TargetRef) == strings.TrimSpace(group.GroupRef) {
 				return true
 			}

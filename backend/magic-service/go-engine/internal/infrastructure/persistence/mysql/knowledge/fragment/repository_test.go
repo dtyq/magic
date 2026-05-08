@@ -22,6 +22,7 @@ import (
 func TestToFragmentFromListBackfillSectionFields(t *testing.T) {
 	t.Parallel()
 	metadata, err := json.Marshal(map[string]any{
+		"document_name": "录音功能优化讨论.md",
 		"section_path":  "录音功能优化讨论会议纪要 > 基本信息",
 		"section_title": "基本信息",
 		"section_level": 2,
@@ -31,7 +32,7 @@ func TestToFragmentFromListBackfillSectionFields(t *testing.T) {
 		t.Fatalf("marshal metadata: %v", err)
 	}
 
-	row := mysqlsqlc.ListFragmentsRow{
+	row := mysqlsqlc.MagicFlowKnowledgeFragment{
 		ID:                1,
 		KnowledgeCode:     "kb",
 		DocumentCode:      "doc",
@@ -55,6 +56,9 @@ func TestToFragmentFromListBackfillSectionFields(t *testing.T) {
 	}
 	if fragment.SectionPath != "录音功能优化讨论会议纪要 > 基本信息" {
 		t.Fatalf("unexpected section path: %s", fragment.SectionPath)
+	}
+	if fragment.DocumentName != "录音功能优化讨论.md" {
+		t.Fatalf("unexpected document name: %s", fragment.DocumentName)
 	}
 	if fragment.SectionTitle != "基本信息" {
 		t.Fatalf("unexpected section title: %s", fragment.SectionTitle)
@@ -127,28 +131,26 @@ func TestFragmentRepositoryUpdateSyncStatusBatchUsesSingleUpdate(t *testing.T) {
 	first := &fragmodel.KnowledgeBaseFragment{ID: 101, SyncStatus: sharedentity.SyncStatusSynced, UpdatedAt: now}
 	second := &fragmodel.KnowledgeBaseFragment{ID: 102, SyncStatus: sharedentity.SyncStatusSynced, UpdatedAt: now}
 
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE magic_flow_knowledge_fragment AS target
-JOIN (SELECT ? AS id,
-       ? AS sync_status,
-       ? AS sync_times,
-       ? AS sync_status_message,
-       ? AS updated_at
-UNION ALL SELECT ? AS id,
-       ? AS sync_status,
-       ? AS sync_times,
-       ? AS sync_status_message,
-       ? AS updated_at
-) AS source ON target.id = source.id
-SET target.sync_status = source.sync_status,
-    target.sync_times = source.sync_times,
-    target.sync_status_message = source.sync_status_message,
-    target.updated_at = source.updated_at
-WHERE target.deleted_at IS NULL`)).
-		WithArgs(
-			int64(101), int32(shared.SyncStatusSynced), int32(0), "", now,
-			int64(102), int32(shared.SyncStatusSynced), int32(0), "", now,
-		).
-		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE magic_flow_knowledge_fragment
+SET sync_status = ?,
+    sync_times = ?,
+    sync_status_message = ?,
+    updated_at = ?
+WHERE id = ?
+  AND deleted_at IS NULL`)).
+		WithArgs(int32(shared.SyncStatusSynced), int32(0), "", now, int64(101)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE magic_flow_knowledge_fragment
+SET sync_status = ?,
+    sync_times = ?,
+    sync_status_message = ?,
+    updated_at = ?
+WHERE id = ?
+  AND deleted_at IS NULL`)).
+		WithArgs(int32(shared.SyncStatusSynced), int32(0), "", now, int64(102)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
 	if err := repo.UpdateSyncStatusBatch(context.Background(), []*fragmodel.KnowledgeBaseFragment{first, second}); err != nil {
 		t.Fatalf("UpdateSyncStatusBatch: %v", err)
@@ -182,43 +184,36 @@ func TestFragmentRepositoryUpdateBatchUsesSingleBulkUpdate(t *testing.T) {
 	second.PointID = "point-2"
 	second.SyncStatus = sharedentity.SyncStatusPending
 
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE magic_flow_knowledge_fragment AS target
-JOIN (SELECT ? AS id,
-       ? AS content,
-       ? AS metadata,
-       ? AS point_id,
-       ? AS word_count,
-       ? AS sync_status,
-       ? AS sync_times,
-       ? AS sync_status_message,
-       ? AS updated_uid,
-       ? AS updated_at
-UNION ALL SELECT ? AS id,
-       ? AS content,
-       ? AS metadata,
-       ? AS point_id,
-       ? AS word_count,
-       ? AS sync_status,
-       ? AS sync_times,
-       ? AS sync_status_message,
-       ? AS updated_uid,
-       ? AS updated_at
-) AS source ON target.id = source.id
-SET target.content = source.content,
-    target.metadata = source.metadata,
-    target.point_id = source.point_id,
-    target.word_count = source.word_count,
-    target.sync_status = source.sync_status,
-    target.sync_times = source.sync_times,
-    target.sync_status_message = source.sync_status_message,
-    target.updated_uid = source.updated_uid,
-    target.updated_at = source.updated_at
-WHERE target.deleted_at IS NULL`)).
-		WithArgs(
-			int64(11), "first", sqlmock.AnyArg(), "point-1", mustUint64Repo(t, first.WordCount), int32(shared.SyncStatusPending), int32(0), "", "u1", sqlmock.AnyArg(),
-			int64(12), "second", sqlmock.AnyArg(), "point-2", mustUint64Repo(t, second.WordCount), int32(shared.SyncStatusPending), int32(0), "", "u2", sqlmock.AnyArg(),
-		).
-		WillReturnResult(sqlmock.NewResult(0, 2))
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE magic_flow_knowledge_fragment
+SET content = ?,
+    metadata = ?,
+    point_id = ?,
+    word_count = ?,
+    sync_status = ?,
+    sync_times = ?,
+    sync_status_message = ?,
+    updated_uid = ?,
+    updated_at = ?
+WHERE id = ?
+  AND deleted_at IS NULL`)).
+		WithArgs("first", sqlmock.AnyArg(), "point-1", mustUint64Repo(t, first.WordCount), int32(shared.SyncStatusPending), int32(0), "", "u1", sqlmock.AnyArg(), int64(11)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE magic_flow_knowledge_fragment
+SET content = ?,
+    metadata = ?,
+    point_id = ?,
+    word_count = ?,
+    sync_status = ?,
+    sync_times = ?,
+    sync_status_message = ?,
+    updated_uid = ?,
+    updated_at = ?
+WHERE id = ?
+  AND deleted_at IS NULL`)).
+		WithArgs("second", sqlmock.AnyArg(), "point-2", mustUint64Repo(t, second.WordCount), int32(shared.SyncStatusPending), int32(0), "", "u2", sqlmock.AnyArg(), int64(12)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 
 	if err := repo.UpdateBatch(context.Background(), []*fragmodel.KnowledgeBaseFragment{first, second}); err != nil {
 		t.Fatalf("UpdateBatch: %v", err)

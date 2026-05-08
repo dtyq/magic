@@ -12,12 +12,17 @@ import (
 	docdto "magic/internal/application/knowledge/document/dto"
 	confighelper "magic/internal/application/knowledge/helper/config"
 	docfilehelper "magic/internal/application/knowledge/helper/docfile"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	docrepo "magic/internal/domain/knowledge/document/repository"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
 	sharedentity "magic/internal/domain/knowledge/shared/entity"
+	"magic/internal/domain/knowledge/shared/parseddocument"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/knowledgeroute"
@@ -32,25 +37,28 @@ var (
 	errThirdPlatformResolveBoom     = errors.New("third platform resolve boom")
 	errThirdPlatformGatewayDown     = errors.New("third platform gateway down")
 	errParseDocumentFailed          = errors.New("parse document failed")
+	errEnsureCollectionFailed       = errors.New("ensure collection failed")
 )
 
 const routeModel = "route-model"
 
 type internalDocumentDomainServiceStub struct {
-	showResult            *documentdomain.KnowledgeBaseDocument
-	showByCodeAndKBResult *documentdomain.KnowledgeBaseDocument
+	showResult            *docentity.KnowledgeBaseDocument
+	showByCodeAndKBResult *docentity.KnowledgeBaseDocument
 	updateCalls           int
 	updateErr             error
-	lastUpdatedDoc        *documentdomain.KnowledgeBaseDocument
+	lastUpdatedDoc        *docentity.KnowledgeBaseDocument
 	increaseVersionRows   int64
 	increaseVersionErr    error
+	deleteCalls           int
+	deletedID             int64
 }
 
-func (s *internalDocumentDomainServiceStub) Save(context.Context, *documentdomain.KnowledgeBaseDocument) error {
+func (s *internalDocumentDomainServiceStub) Save(context.Context, *docentity.KnowledgeBaseDocument) error {
 	return nil
 }
 
-func (s *internalDocumentDomainServiceStub) Update(context.Context, *documentdomain.KnowledgeBaseDocument) error {
+func (s *internalDocumentDomainServiceStub) Update(context.Context, *docentity.KnowledgeBaseDocument) error {
 	s.updateCalls++
 	if s.showResult != nil {
 		s.lastUpdatedDoc = s.showResult
@@ -61,25 +69,25 @@ func (s *internalDocumentDomainServiceStub) Update(context.Context, *documentdom
 	return s.updateErr
 }
 
-func (s *internalDocumentDomainServiceStub) Show(context.Context, string) (*documentdomain.KnowledgeBaseDocument, error) {
+func (s *internalDocumentDomainServiceStub) Show(context.Context, string) (*docentity.KnowledgeBaseDocument, error) {
 	if s.showResult != nil {
 		return s.showResult, nil
 	}
 	return nil, errInternalDocumentStubNotFound
 }
 
-func (s *internalDocumentDomainServiceStub) ShowByCodeAndKnowledgeBase(context.Context, string, string) (*documentdomain.KnowledgeBaseDocument, error) {
+func (s *internalDocumentDomainServiceStub) ShowByCodeAndKnowledgeBase(context.Context, string, string) (*docentity.KnowledgeBaseDocument, error) {
 	if s.showByCodeAndKBResult != nil {
 		return s.showByCodeAndKBResult, nil
 	}
 	return nil, errInternalDocumentStubNotFound
 }
 
-func (s *internalDocumentDomainServiceStub) FindByKnowledgeBaseAndThirdFile(context.Context, string, string, string) (*documentdomain.KnowledgeBaseDocument, error) {
+func (s *internalDocumentDomainServiceStub) FindByKnowledgeBaseAndThirdFile(context.Context, string, string, string) (*docentity.KnowledgeBaseDocument, error) {
 	return nil, errInternalDocumentStubNotFound
 }
 
-func (s *internalDocumentDomainServiceStub) FindByKnowledgeBaseAndProjectFile(context.Context, string, int64) (*documentdomain.KnowledgeBaseDocument, error) {
+func (s *internalDocumentDomainServiceStub) FindByKnowledgeBaseAndProjectFile(context.Context, string, int64) (*docentity.KnowledgeBaseDocument, error) {
 	return nil, errInternalDocumentStubNotFound
 }
 
@@ -87,23 +95,43 @@ func (s *internalDocumentDomainServiceStub) ResolveThirdFileDocumentPlan(context
 	return documentdomain.ThirdFileDocumentPlan{}, errInternalDocumentStubNotFound
 }
 
-func (s *internalDocumentDomainServiceStub) ListByThirdFileInOrg(context.Context, string, string, string) ([]*documentdomain.KnowledgeBaseDocument, error) {
+func (s *internalDocumentDomainServiceStub) ResolveRealtimeThirdFileDocumentPlan(context.Context, documentdomain.ThirdFileDocumentPlanInput) (documentdomain.ThirdFileDocumentPlan, error) {
+	return documentdomain.ThirdFileDocumentPlan{}, errInternalDocumentStubNotFound
+}
+
+func (s *internalDocumentDomainServiceStub) ListByThirdFileInOrg(context.Context, string, string, string) ([]*docentity.KnowledgeBaseDocument, error) {
 	return nil, nil
 }
 
-func (s *internalDocumentDomainServiceStub) ListByProjectFileInOrg(context.Context, string, int64) ([]*documentdomain.KnowledgeBaseDocument, error) {
+func (s *internalDocumentDomainServiceStub) ListRealtimeByThirdFileInOrg(context.Context, string, string, string) ([]*docentity.KnowledgeBaseDocument, error) {
 	return nil, nil
 }
 
-func (s *internalDocumentDomainServiceStub) ListByKnowledgeBaseAndProject(context.Context, string, int64) ([]*documentdomain.KnowledgeBaseDocument, error) {
+func (s *internalDocumentDomainServiceStub) HasRealtimeThirdFileDocumentInOrg(context.Context, string, string, string) (bool, error) {
+	return false, nil
+}
+
+func (s *internalDocumentDomainServiceStub) ListByProjectFileInOrg(context.Context, string, int64) ([]*docentity.KnowledgeBaseDocument, error) {
 	return nil, nil
 }
 
-func (s *internalDocumentDomainServiceStub) List(context.Context, *documentdomain.Query) ([]*documentdomain.KnowledgeBaseDocument, int64, error) {
+func (s *internalDocumentDomainServiceStub) ListRealtimeByProjectFileInOrg(context.Context, string, int64) ([]*docentity.KnowledgeBaseDocument, error) {
+	return nil, nil
+}
+
+func (s *internalDocumentDomainServiceStub) HasRealtimeProjectFileDocumentInOrg(context.Context, string, int64) (bool, error) {
+	return false, nil
+}
+
+func (s *internalDocumentDomainServiceStub) ListByKnowledgeBaseAndProject(context.Context, string, int64) ([]*docentity.KnowledgeBaseDocument, error) {
+	return nil, nil
+}
+
+func (s *internalDocumentDomainServiceStub) List(context.Context, *docrepo.DocumentQuery) ([]*docentity.KnowledgeBaseDocument, int64, error) {
 	return nil, 0, nil
 }
 
-func (s *internalDocumentDomainServiceStub) ListByKnowledgeBase(context.Context, string, int, int) ([]*documentdomain.KnowledgeBaseDocument, int64, error) {
+func (s *internalDocumentDomainServiceStub) ListByKnowledgeBase(context.Context, string, int, int) ([]*docentity.KnowledgeBaseDocument, int64, error) {
 	return nil, 0, nil
 }
 
@@ -111,48 +139,103 @@ func (s *internalDocumentDomainServiceStub) CountByKnowledgeBaseCodes(context.Co
 	return nil, errInternalDocumentStubNotFound
 }
 
-func (s *internalDocumentDomainServiceStub) Delete(context.Context, int64) error {
+func (s *internalDocumentDomainServiceStub) Delete(_ context.Context, id int64) error {
+	s.deleteCalls++
+	s.deletedID = id
 	return nil
 }
 
-func (s *internalDocumentDomainServiceStub) UpdateSyncStatus(context.Context, *documentdomain.KnowledgeBaseDocument) error {
+func (s *internalDocumentDomainServiceStub) UpdateSyncStatus(context.Context, *docentity.KnowledgeBaseDocument) error {
 	return nil
 }
 
-func (s *internalDocumentDomainServiceStub) MarkSyncing(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument) error {
+func (s *internalDocumentDomainServiceStub) MarkSyncing(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	doc.MarkSyncing()
 	return s.Update(ctx, doc)
 }
 
-func (s *internalDocumentDomainServiceStub) MarkSynced(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument, wordCount int) error {
+func (s *internalDocumentDomainServiceStub) MarkSynced(ctx context.Context, doc *docentity.KnowledgeBaseDocument, wordCount int) error {
 	doc.MarkSynced(wordCount)
 	return s.Update(ctx, doc)
 }
 
-func (s *internalDocumentDomainServiceStub) MarkSyncedWithContent(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument, content string) error {
+func (s *internalDocumentDomainServiceStub) MarkSyncedWithContent(ctx context.Context, doc *docentity.KnowledgeBaseDocument, content string) error {
 	return s.MarkSynced(ctx, doc, len([]rune(content)))
 }
 
-func (s *internalDocumentDomainServiceStub) MarkSyncFailed(ctx context.Context, doc *documentdomain.KnowledgeBaseDocument, message string) error {
+func (s *internalDocumentDomainServiceStub) MarkSyncFailed(ctx context.Context, doc *docentity.KnowledgeBaseDocument, message string) error {
 	doc.MarkSyncFailed(message)
 	return s.Update(ctx, doc)
 }
 
 func (s *internalDocumentDomainServiceStub) MarkSyncFailedWithError(
 	ctx context.Context,
-	doc *documentdomain.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	reason string,
 	err error,
 ) error {
 	return s.MarkSyncFailed(ctx, doc, documentdomain.BuildSyncFailureMessage(reason, err))
 }
 
-func (s *internalDocumentDomainServiceStub) IncreaseVersion(context.Context, *documentdomain.KnowledgeBaseDocument) (int64, error) {
+func (s *internalDocumentDomainServiceStub) IncreaseVersion(context.Context, *docentity.KnowledgeBaseDocument) (int64, error) {
 	return s.increaseVersionRows, s.increaseVersionErr
 }
 
+func TestDocumentAppServiceFailSyncDeferredMark(t *testing.T) {
+	t.Parallel()
+
+	doc := &docentity.KnowledgeBaseDocument{SyncStatus: shared.SyncStatusSyncing}
+	domain := &internalDocumentDomainServiceStub{}
+	svc := &DocumentAppService{
+		domainService: domain,
+		logger:        logging.New(),
+	}
+
+	err := svc.failSync(
+		WithDeferredSyncFailureMark(context.Background()),
+		doc,
+		documentdomain.SyncFailureParsing,
+		errParseDocumentFailed,
+	)
+	if err == nil {
+		t.Fatal("expected sync stage error")
+	}
+	var stageErr *documentdomain.SyncStageError
+	if !errors.As(err, &stageErr) || stageErr == nil {
+		t.Fatalf("expected sync stage error, got %v", err)
+	}
+	if domain.updateCalls != 0 {
+		t.Fatalf("expected deferred failure not to update document, got %d updates", domain.updateCalls)
+	}
+	if doc.SyncStatus != shared.SyncStatusSyncing {
+		t.Fatalf("expected document to remain syncing, got %v", doc.SyncStatus)
+	}
+}
+
+func TestDocumentAppServiceFailSyncDirectMarksFailed(t *testing.T) {
+	t.Parallel()
+
+	doc := &docentity.KnowledgeBaseDocument{SyncStatus: shared.SyncStatusSyncing}
+	domain := &internalDocumentDomainServiceStub{}
+	svc := &DocumentAppService{
+		domainService: domain,
+		logger:        logging.New(),
+	}
+
+	err := svc.failSync(context.Background(), doc, documentdomain.SyncFailureParsing, errParseDocumentFailed)
+	if err == nil {
+		t.Fatal("expected sync stage error")
+	}
+	if domain.updateCalls != 1 {
+		t.Fatalf("expected direct failure to update document once, got %d", domain.updateCalls)
+	}
+	if doc.SyncStatus != shared.SyncStatusSyncFailed {
+		t.Fatalf("expected document marked failed, got %v", doc.SyncStatus)
+	}
+}
+
 type internalParseServiceStub struct {
-	parseDocumentResult           *documentdomain.ParsedDocument
+	parseDocumentResult           *parseddocument.ParsedDocument
 	parseDocumentErr              error
 	resolveFileType               string
 	resolveFileTypeErr            error
@@ -171,14 +254,14 @@ func (s *internalParseServiceStub) Parse(context.Context, string, string) (strin
 	return "", nil
 }
 
-func (s *internalParseServiceStub) ParseDocument(context.Context, string, string) (*documentdomain.ParsedDocument, error) {
+func (s *internalParseServiceStub) ParseDocument(context.Context, string, string) (*parseddocument.ParsedDocument, error) {
 	if s.parseDocumentErr != nil {
 		return nil, s.parseDocumentErr
 	}
 	if s.parseDocumentResult != nil {
 		return s.parseDocumentResult, nil
 	}
-	return documentdomain.NewPlainTextParsedDocument("txt", "default"), nil
+	return parseddocument.NewPlainTextParsedDocument("txt", "default"), nil
 }
 
 func (s *internalParseServiceStub) ParseDocumentWithOptions(
@@ -186,7 +269,7 @@ func (s *internalParseServiceStub) ParseDocumentWithOptions(
 	rawURL string,
 	ext string,
 	options documentdomain.ParseOptions,
-) (*documentdomain.ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	s.lastParseOptions = options
 	s.parseDocumentWithOptionsCalls++
 	return s.ParseDocument(ctx, rawURL, ext)
@@ -198,7 +281,7 @@ func (s *internalParseServiceStub) ParseDocumentReaderWithOptions(
 	file io.Reader,
 	fileType string,
 	options documentdomain.ParseOptions,
-) (*documentdomain.ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	s.lastParseOptions = options
 	s.parseDocumentReaderCalls++
 	if s.parseDocumentErr != nil {
@@ -212,7 +295,7 @@ func (s *internalParseServiceStub) ParseDocumentReaderWithOptions(
 	if s.parseDocumentResult != nil {
 		return s.parseDocumentResult, nil
 	}
-	return documentdomain.NewPlainTextParsedDocument(fileType, s.lastReaderContent), nil
+	return parseddocument.NewPlainTextParsedDocument(fileType, s.lastReaderContent), nil
 }
 
 func (s *internalParseServiceStub) ResolveFileType(_ context.Context, target string) (string, error) {
@@ -224,14 +307,15 @@ func (s *internalParseServiceStub) ResolveFileType(_ context.Context, target str
 }
 
 type internalThirdPlatformDocumentPortStub struct {
-	content     string
-	rawContent  string
-	sourceKind  string
-	downloadURL string
-	docType     int
-	file        map[string]any
-	err         error
-	lastInput   map[string]any
+	content      string
+	rawContent   string
+	sourceKind   string
+	downloadURL  string
+	downloadURLs []string
+	docType      int
+	file         map[string]any
+	err          error
+	lastInput    map[string]any
 }
 
 func (s *internalThirdPlatformDocumentPortStub) Resolve(_ context.Context, input thirdplatform.DocumentResolveInput) (*thirdplatform.DocumentResolveResult, error) {
@@ -263,6 +347,7 @@ func (s *internalThirdPlatformDocumentPortStub) Resolve(_ context.Context, input
 		SourceKind:   sourceKind,
 		RawContent:   rawContent,
 		DownloadURL:  s.downloadURL,
+		DownloadURLs: append([]string(nil), s.downloadURLs...),
 		Content:      s.content,
 		DocType:      s.docType,
 		DocumentFile: s.file,
@@ -290,7 +375,7 @@ type internalFragmentDocumentServiceStub struct {
 	lastKnowledgeCode           string
 	lastDocumentCode            string
 	lastListQuery               *fragmodel.Query
-	lastSyncKnowledgeBase       *knowledgebase.KnowledgeBase
+	lastSyncKnowledgeBase       *sharedsnapshot.KnowledgeBaseRuntimeSnapshot
 	lastPointID                 string
 	lastListedPointIDs          []string
 	listResult                  []*fragmodel.KnowledgeBaseFragment
@@ -298,11 +383,15 @@ type internalFragmentDocumentServiceStub struct {
 	listErr                     error
 	listByDocumentResult        []*fragmodel.KnowledgeBaseFragment
 	existingPointIDs            map[string]struct{}
+	callOrder                   *[]string
 }
 
 func (s *internalFragmentDocumentServiceStub) SaveBatch(_ context.Context, fragments []*fragmodel.KnowledgeBaseFragment) error {
 	s.saveBatchCalls++
 	s.lastSaveBatchSize = len(fragments)
+	if s.callOrder != nil {
+		*s.callOrder = append(*s.callOrder, "save_batch")
+	}
 	return nil
 }
 
@@ -314,6 +403,9 @@ func (s *internalFragmentDocumentServiceStub) Update(context.Context, *fragmodel
 func (s *internalFragmentDocumentServiceStub) UpdateBatch(_ context.Context, fragments []*fragmodel.KnowledgeBaseFragment) error {
 	s.updateBatchCalls++
 	s.lastUpdateBatchSize = len(fragments)
+	if s.callOrder != nil {
+		*s.callOrder = append(*s.callOrder, "update_batch")
+	}
 	return nil
 }
 
@@ -340,10 +432,36 @@ func (s *internalFragmentDocumentServiceStub) ListByDocument(
 	return s.listByDocumentResult[offset:end], int64(len(s.listByDocumentResult)), nil
 }
 
+func (s *internalFragmentDocumentServiceStub) ListByDocumentAfterID(
+	_ context.Context,
+	knowledgeCode,
+	documentCode string,
+	afterID int64,
+	limit int,
+) ([]*fragmodel.KnowledgeBaseFragment, error) {
+	s.listByDocumentCalls++
+	s.lastKnowledgeCode = knowledgeCode
+	s.lastDocumentCode = documentCode
+	result := make([]*fragmodel.KnowledgeBaseFragment, 0, limit)
+	for _, fragment := range s.listByDocumentResult {
+		if fragment == nil || fragment.ID <= afterID {
+			continue
+		}
+		result = append(result, fragment)
+		if len(result) >= limit {
+			break
+		}
+	}
+	return result, nil
+}
+
 func (s *internalFragmentDocumentServiceStub) ListExistingPointIDs(_ context.Context, collectionName string, pointIDs []string) (map[string]struct{}, error) {
 	s.listExistingPointIDsCalls++
 	s.lastCollectionName = collectionName
 	s.lastListedPointIDs = append([]string(nil), pointIDs...)
+	if s.callOrder != nil {
+		*s.callOrder = append(*s.callOrder, "list_existing_point_ids")
+	}
 	result := make(map[string]struct{}, len(s.existingPointIDs))
 	for pointID := range s.existingPointIDs {
 		result[pointID] = struct{}{}
@@ -353,14 +471,15 @@ func (s *internalFragmentDocumentServiceStub) ListExistingPointIDs(_ context.Con
 
 func (s *internalFragmentDocumentServiceStub) SyncFragmentBatch(
 	_ context.Context,
-	kb any,
+	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 	fragments []*fragmodel.KnowledgeBaseFragment,
 	_ *ctxmeta.BusinessParams,
 ) error {
 	s.syncFragmentBatchCalls++
 	s.lastSyncBatchSize = len(fragments)
-	if typedKB, ok := kb.(*knowledgebase.KnowledgeBase); ok {
-		s.lastSyncKnowledgeBase = typedKB
+	s.lastSyncKnowledgeBase = kb
+	if s.callOrder != nil {
+		*s.callOrder = append(*s.callOrder, "sync_fragment_batch")
 	}
 	return nil
 }
@@ -420,31 +539,48 @@ func (s *internalFragmentDocumentServiceStub) DestroyBatch(_ context.Context, fr
 }
 
 type internalKnowledgeBaseReaderStub struct {
-	showByCodeAndOrgResult  *knowledgebase.KnowledgeBase
-	listResult              []*knowledgebase.KnowledgeBase
-	listTotal               int64
-	listErr                 error
-	lastListQuery           *knowledgebase.Query
-	effectiveModel          string
-	effectiveCollection     string
-	effectiveTermCollection string
-	effectiveSparseBackend  string
+	showByCodeAndOrgResult      *kbentity.KnowledgeBase
+	listResult                  []*kbentity.KnowledgeBase
+	listTotal                   int64
+	listErr                     error
+	lastListQuery               *kbrepository.Query
+	effectiveModel              string
+	effectiveCollection         string
+	effectiveTermCollection     string
+	effectiveSparseBackend      string
+	ensureCollectionExistsErr   error
+	ensureCollectionExistsCalls int
+	lastEnsuredKnowledgeBase    *kbentity.KnowledgeBase
+	lastUpdatedProgress         *kbentity.KnowledgeBase
+	updateProgressErr           error
+	callOrder                   *[]string
 }
 
-func (s *internalKnowledgeBaseReaderStub) ShowByCodeAndOrg(context.Context, string, string) (*knowledgebase.KnowledgeBase, error) {
+func (s *internalKnowledgeBaseReaderStub) ShowByCodeAndOrg(context.Context, string, string) (*kbentity.KnowledgeBase, error) {
 	return s.showByCodeAndOrgResult, nil
 }
 
-func (s *internalKnowledgeBaseReaderStub) Show(context.Context, string) (*knowledgebase.KnowledgeBase, error) {
+func (s *internalKnowledgeBaseReaderStub) Show(context.Context, string) (*kbentity.KnowledgeBase, error) {
 	return s.showByCodeAndOrgResult, nil
 }
 
-func (s *internalKnowledgeBaseReaderStub) List(_ context.Context, query *knowledgebase.Query) ([]*knowledgebase.KnowledgeBase, int64, error) {
+func (s *internalKnowledgeBaseReaderStub) List(_ context.Context, query *kbrepository.Query) ([]*kbentity.KnowledgeBase, int64, error) {
 	s.lastListQuery = query
+	if s.listResult == nil && s.listErr == nil && query != nil && len(query.Codes) > 0 {
+		results := make([]*kbentity.KnowledgeBase, 0, len(query.Codes))
+		for _, code := range query.Codes {
+			results = append(results, &kbentity.KnowledgeBase{
+				Code:    strings.TrimSpace(code),
+				Enabled: true,
+				Model:   "text-embedding-3-small",
+			})
+		}
+		return results, int64(len(results)), nil
+	}
 	return s.listResult, s.listTotal, s.listErr
 }
 
-func (s *internalKnowledgeBaseReaderStub) ResolveRuntimeRoute(_ context.Context, kb *knowledgebase.KnowledgeBase) sharedroute.ResolvedRoute {
+func (s *internalKnowledgeBaseReaderStub) ResolveRuntimeRoute(_ context.Context, kb *kbentity.KnowledgeBase) sharedroute.ResolvedRoute {
 	collectionName := ""
 	if kb != nil {
 		collectionName = kb.CollectionName()
@@ -464,6 +600,20 @@ func (s *internalKnowledgeBaseReaderStub) ResolveRuntimeRoute(_ context.Context,
 		Model:                  s.effectiveModel,
 		SparseBackend:          s.effectiveSparseBackend,
 	}
+}
+
+func (s *internalKnowledgeBaseReaderStub) EnsureCollectionExists(_ context.Context, kb *kbentity.KnowledgeBase) error {
+	s.ensureCollectionExistsCalls++
+	s.lastEnsuredKnowledgeBase = kb
+	if s.callOrder != nil {
+		*s.callOrder = append(*s.callOrder, "ensure_collection_exists")
+	}
+	return s.ensureCollectionExistsErr
+}
+
+func (s *internalKnowledgeBaseReaderStub) UpdateProgress(_ context.Context, kb *kbentity.KnowledgeBase) error {
+	s.lastUpdatedProgress = kb
+	return s.updateProgressErr
 }
 
 func TestDocumentFileDTOUnmarshalJSONCompat(t *testing.T) {
@@ -516,13 +666,13 @@ func TestDocumentFileExtensionHelpers(t *testing.T) {
 	if got := documentdomain.InferDocumentFileExtensionLight(nil); got != "" {
 		t.Fatalf("expected empty ext, got %q", got)
 	}
-	if got := documentdomain.InferDocumentFileExtensionLight(&documentdomain.File{Name: "report.PDF"}); got != "pdf" {
+	if got := documentdomain.InferDocumentFileExtensionLight(&docentity.File{Name: "report.PDF"}); got != "pdf" {
 		t.Fatalf("expected pdf from name, got %q", got)
 	}
-	if got := documentdomain.InferDocumentFileExtensionLight(&documentdomain.File{URL: "https://example.com/a.docx"}); got != "docx" {
+	if got := documentdomain.InferDocumentFileExtensionLight(&docentity.File{URL: "https://example.com/a.docx"}); got != "docx" {
 		t.Fatalf("expected docx from url, got %q", got)
 	}
-	if got := documentdomain.InferDocumentFileExtensionLight(&documentdomain.File{FileKey: "ORG1/path/to/readme.md"}); got != "md" {
+	if got := documentdomain.InferDocumentFileExtensionLight(&docentity.File{FileKey: "ORG1/path/to/readme.md"}); got != "md" {
 		t.Fatalf("expected md from file key, got %q", got)
 	}
 
@@ -533,30 +683,30 @@ func TestDocumentFileExtensionHelpers(t *testing.T) {
 	if _, err := svc.resolveDocumentFileExtension(context.Background(), nil); !errors.Is(err, errDocumentFileNil) {
 		t.Fatalf("expected nil file error, got %v", err)
 	}
-	if _, err := svc.resolveDocumentFileExtension(context.Background(), &documentdomain.File{}); !errors.Is(err, errDocumentFileURLEmpty) {
+	if _, err := svc.resolveDocumentFileExtension(context.Background(), &docentity.File{}); !errors.Is(err, errDocumentFileURLEmpty) {
 		t.Fatalf("expected empty url error, got %v", err)
 	}
 
 	noParseSvc := &DocumentAppService{}
-	if _, err := noParseSvc.resolveDocumentFileExtension(context.Background(), &documentdomain.File{URL: "https://example.com/a"}); !errors.Is(err, errDocumentParseNil) {
+	if _, err := noParseSvc.resolveDocumentFileExtension(context.Background(), &docentity.File{URL: "https://example.com/a"}); !errors.Is(err, errDocumentParseNil) {
 		t.Fatalf("expected nil parse error, got %v", err)
 	}
 
 	resolveErrSvc := &DocumentAppService{
 		parseService: &internalParseServiceStub{resolveFileTypeErr: errResolveTypeFailed},
 	}
-	if _, err := resolveErrSvc.resolveDocumentFileExtension(context.Background(), &documentdomain.File{URL: "https://example.com/a"}); !errors.Is(err, errResolveTypeFailed) {
+	if _, err := resolveErrSvc.resolveDocumentFileExtension(context.Background(), &docentity.File{URL: "https://example.com/a"}); !errors.Is(err, errResolveTypeFailed) {
 		t.Fatalf("expected wrapped resolve error, got %v", err)
 	}
 
-	docFromName := &documentdomain.KnowledgeBaseDocument{DocumentFile: &documentdomain.File{Name: "manual.md"}}
+	docFromName := &docentity.KnowledgeBaseDocument{DocumentFile: &docentity.File{Name: "manual.md"}}
 	svc.ensureDocumentFileExtensionForPersist(context.Background(), docFromName)
 	if docFromName.DocumentFile.Extension != "md" {
 		t.Fatalf("expected ext inferred from name, got %#v", docFromName.DocumentFile)
 	}
 
-	docFromResolver := &documentdomain.KnowledgeBaseDocument{
-		DocumentFile: &documentdomain.File{URL: "https://example.com/no-ext"},
+	docFromResolver := &docentity.KnowledgeBaseDocument{
+		DocumentFile: &docentity.File{URL: "https://example.com/no-ext"},
 	}
 	svc.ensureDocumentFileExtensionForSync(context.Background(), docFromResolver)
 	if docFromResolver.DocumentFile.Extension != "pptx" {
@@ -570,8 +720,8 @@ func TestDocumentFileExtensionHelpers(t *testing.T) {
 		parseService: &internalParseServiceStub{resolveFileTypeErr: errResolveTypeFailed},
 		logger:       logging.New(),
 	}
-	projectDoc := &documentdomain.KnowledgeBaseDocument{
-		DocumentFile: &documentdomain.File{
+	projectDoc := &docentity.KnowledgeBaseDocument{
+		DocumentFile: &docentity.File{
 			Type:    "project_file",
 			Name:    "录音文本时间区间提取方案",
 			FileKey: "ORG1/project/录音文本时间区间提取方案.md",
@@ -589,9 +739,9 @@ func TestDocumentFileExtensionHelpers(t *testing.T) {
 func TestEntityToDTOBackfillsDocumentFileKeyFromStorageURL(t *testing.T) {
 	t.Parallel()
 
-	dto := EntityToDTO(&documentdomain.KnowledgeBaseDocument{
+	dto := EntityToDTO(&docentity.KnowledgeBaseDocument{
 		Code: "DOC-STORAGE-KEY",
-		DocumentFile: &documentdomain.File{
+		DocumentFile: &docentity.File{
 			Type: "external",
 			Name: "录音文本时间区间提取方案.md",
 			URL:  "DT001/organization/demo/录音文本时间区间提取方案.md",
@@ -608,9 +758,9 @@ func TestEntityToDTOBackfillsDocumentFileKeyFromStorageURL(t *testing.T) {
 func TestEntityToDTOKeepsExternalURLOutOfDocumentFileKey(t *testing.T) {
 	t.Parallel()
 
-	dto := EntityToDTO(&documentdomain.KnowledgeBaseDocument{
+	dto := EntityToDTO(&docentity.KnowledgeBaseDocument{
 		Code: "DOC-REMOTE-URL",
-		DocumentFile: &documentdomain.File{
+		DocumentFile: &docentity.File{
 			Type: "external",
 			Name: "spec.md",
 			URL:  "https://example.com/spec.md",
@@ -631,7 +781,7 @@ func TestDocumentAppServiceParseDocumentContentThirdPlatformSuccess(t *testing.T
 	domainStub := &internalDocumentDomainServiceStub{}
 	portStub := &internalThirdPlatformDocumentPortStub{
 		content: "line1\r\n\r\n\r\nline2",
-		docType: int(documentdomain.DocTypeFile),
+		docType: int(docentity.DocumentInputKindFile),
 		file: map[string]any{
 			"url":         "https://example.com/resolved.md",
 			"extension":   "md",
@@ -645,7 +795,7 @@ func TestDocumentAppServiceParseDocumentContentThirdPlatformSuccess(t *testing.T
 		thirdPlatformDocumentPort: portStub,
 		logger:                    logging.New(),
 	}
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC1",
 		Name:              "Doc",
 		OrganizationCode:  "ORG1",
@@ -653,7 +803,7 @@ func TestDocumentAppServiceParseDocumentContentThirdPlatformSuccess(t *testing.T
 		ThirdPlatformType: "lark",
 		ThirdFileID:       "third-2",
 		UpdatedUID:        "U1",
-		DocumentFile:      &documentdomain.File{Type: docFileTypeThirdParty},
+		DocumentFile:      &docentity.File{Type: docFileTypeThirdParty},
 	}
 
 	parsed, content, err := svc.parseDocumentContent(ctx, doc, &ctxmeta.BusinessParams{UserID: "U2"}, nil)
@@ -669,7 +819,7 @@ func TestDocumentAppServiceParseDocumentContentThirdPlatformSuccess(t *testing.T
 	if portStub.lastInput == nil || portStub.lastInput["user_id"] != "U2" {
 		t.Fatalf("expected business params user id, got %#v", portStub.lastInput)
 	}
-	if doc.DocType != int(documentdomain.DocTypeFile) || doc.DocumentFile.URL != "https://example.com/resolved.md" {
+	if doc.DocType != int(docentity.DocumentInputKindFile) || doc.DocumentFile.URL != "https://example.com/resolved.md" {
 		t.Fatalf("unexpected doc after resolve: %#v", doc)
 	}
 }
@@ -679,16 +829,16 @@ func TestDocumentAppServiceParseDocumentContentFallbackToURL(t *testing.T) {
 
 	svc := &DocumentAppService{
 		domainService:             &internalDocumentDomainServiceStub{},
-		parseService:              &internalParseServiceStub{parseDocumentResult: documentdomain.NewPlainTextParsedDocument("txt", "alpha\r\n\r\n\r\nbeta")},
+		parseService:              &internalParseServiceStub{parseDocumentResult: parseddocument.NewPlainTextParsedDocument("txt", "alpha\r\n\r\n\r\nbeta")},
 		thirdPlatformDocumentPort: &internalThirdPlatformDocumentPortStub{err: errThirdPlatformResolveBoom},
 		logger:                    logging.New(),
 	}
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC2",
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
 		ThirdFileID:       "third-3",
-		DocumentFile:      &documentdomain.File{Type: docFileTypeThirdParty, URL: "https://example.com/doc.txt", Extension: "txt"},
+		DocumentFile:      &docentity.File{Type: docFileTypeThirdParty, URL: "https://example.com/doc.txt", Extension: "txt"},
 	}
 
 	parsed, content, err := svc.parseDocumentContent(context.Background(), doc, nil, nil)
@@ -704,14 +854,14 @@ func TestDocumentAppServiceParseDocumentContentPassesParseOptionsFromMetadata(t 
 	t.Parallel()
 
 	parseSvc := &internalParseServiceStub{
-		parseDocumentResult: documentdomain.NewPlainTextParsedDocument("md", "alpha"),
+		parseDocumentResult: parseddocument.NewPlainTextParsedDocument("md", "alpha"),
 	}
 	svc := &DocumentAppService{
 		domainService: &internalDocumentDomainServiceStub{},
 		parseService:  parseSvc,
 		logger:        logging.New(),
 	}
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code: "DOC-OPTIONS",
 		DocMetadata: map[string]any{
 			documentdomain.ParseStrategyConfigKey: map[string]any{
@@ -721,7 +871,7 @@ func TestDocumentAppServiceParseDocumentContentPassesParseOptionsFromMetadata(t 
 				"image_ocr":        true,
 			},
 		},
-		DocumentFile: &documentdomain.File{URL: "https://example.com/doc.md", Extension: "md"},
+		DocumentFile: &docentity.File{URL: "https://example.com/doc.md", Extension: "md"},
 	}
 
 	_, _, err := svc.parseDocumentContent(context.Background(), doc, nil, nil)
@@ -743,8 +893,8 @@ func TestDocumentAppServiceParseDocumentContentUsesBusinessFileNameForTabularDoc
 	t.Parallel()
 
 	parseSvc := &internalParseServiceStub{
-		parseDocumentResult: &documentdomain.ParsedDocument{
-			SourceType: documentdomain.ParsedDocumentSourceTabular,
+		parseDocumentResult: &parseddocument.ParsedDocument{
+			SourceType: parseddocument.SourceTabular,
 			PlainText: strings.Join([]string{
 				"文件名: 1775908129904-0s6pzx-rag_.xlsx",
 				"工作表: 截图数据",
@@ -752,9 +902,9 @@ func TestDocumentAppServiceParseDocumentContentUsesBusinessFileNameForTabularDoc
 				"行号: 2",
 				"门店编码：V90901",
 			}, "\n"),
-			Blocks: []documentdomain.ParsedBlock{
+			Blocks: []parseddocument.ParsedBlock{
 				{
-					Type: documentdomain.ParsedBlockTypeTableRow,
+					Type: parseddocument.BlockTypeTableRow,
 					Content: strings.Join([]string{
 						"文件名: 1775908129904-0s6pzx-rag_.xlsx",
 						"工作表: 截图数据",
@@ -763,12 +913,12 @@ func TestDocumentAppServiceParseDocumentContentUsesBusinessFileNameForTabularDoc
 						"门店编码：V90901",
 					}, "\n"),
 					Metadata: map[string]any{
-						documentdomain.ParsedMetaFileName:     "1775908129904-0s6pzx-rag_.xlsx",
-						documentdomain.ParsedMetaSourceFormat: "xlsx",
-						documentdomain.ParsedMetaSheetName:    "截图数据",
-						documentdomain.ParsedMetaTableTitle:   "截图数据 表1",
-						documentdomain.ParsedMetaRowIndex:     2,
-						documentdomain.ParsedMetaFields: []map[string]any{
+						parseddocument.MetaFileName:     "1775908129904-0s6pzx-rag_.xlsx",
+						parseddocument.MetaSourceFormat: "xlsx",
+						parseddocument.MetaSheetName:    "截图数据",
+						parseddocument.MetaTableTitle:   "截图数据 表1",
+						parseddocument.MetaRowIndex:     2,
+						parseddocument.MetaFields: []map[string]any{
 							{
 								"header":      "门店编码",
 								"header_path": "门店编码",
@@ -779,8 +929,8 @@ func TestDocumentAppServiceParseDocumentContentUsesBusinessFileNameForTabularDoc
 				},
 			},
 			DocumentMeta: map[string]any{
-				documentdomain.ParsedMetaSourceFormat: "xlsx",
-				documentdomain.ParsedMetaFileName:     "1775908129904-0s6pzx-rag_.xlsx",
+				parseddocument.MetaSourceFormat: "xlsx",
+				parseddocument.MetaFileName:     "1775908129904-0s6pzx-rag_.xlsx",
 			},
 		},
 	}
@@ -789,9 +939,9 @@ func TestDocumentAppServiceParseDocumentContentUsesBusinessFileNameForTabularDoc
 		parseService:  parseSvc,
 		logger:        logging.New(),
 	}
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code: "DOC-TABULAR-NAME",
-		DocumentFile: &documentdomain.File{
+		DocumentFile: &docentity.File{
 			Name:      "rag 门店数据验证.xlsx",
 			URL:       "https://example.com/1775908129904-0s6pzx-rag_.xlsx",
 			Extension: "xlsx",
@@ -802,7 +952,7 @@ func TestDocumentAppServiceParseDocumentContentUsesBusinessFileNameForTabularDoc
 	if err != nil {
 		t.Fatalf("parse tabular content: %v", err)
 	}
-	if got := parsed.DocumentMeta[documentdomain.ParsedMetaFileName]; got != "rag 门店数据验证.xlsx" {
+	if got := parsed.DocumentMeta[parseddocument.MetaFileName]; got != "rag 门店数据验证.xlsx" {
 		t.Fatalf("expected parsed document meta file_name updated, got %#v", parsed.DocumentMeta)
 	}
 	if !strings.Contains(content, "文件名: rag 门店数据验证.xlsx") {
@@ -823,12 +973,12 @@ func TestDocumentAppServiceParseDocumentContentFailurePaths(t *testing.T) {
 			thirdPlatformDocumentPort: &internalThirdPlatformDocumentPortStub{err: errThirdPlatformGatewayDown},
 			logger:                    logging.New(),
 		}
-		doc := &documentdomain.KnowledgeBaseDocument{
+		doc := &docentity.KnowledgeBaseDocument{
 			Code:              "DOC3",
 			OrganizationCode:  "ORG1",
 			KnowledgeBaseCode: "KB1",
 			ThirdFileID:       "third-4",
-			DocumentFile:      &documentdomain.File{Type: docFileTypeThirdParty},
+			DocumentFile:      &docentity.File{Type: docFileTypeThirdParty},
 		}
 
 		_, _, err := svc.parseDocumentContent(context.Background(), doc, nil, nil)
@@ -851,9 +1001,9 @@ func TestDocumentAppServiceParseDocumentContentFailurePaths(t *testing.T) {
 			parseService: &internalParseServiceStub{parseDocumentErr: errParseDocumentFailed},
 			logger:       logging.New(),
 		}
-		doc := &documentdomain.KnowledgeBaseDocument{
+		doc := &docentity.KnowledgeBaseDocument{
 			Code:         "DOC4",
-			DocumentFile: &documentdomain.File{URL: "https://example.com/doc.txt", Extension: "txt"},
+			DocumentFile: &docentity.File{URL: "https://example.com/doc.txt", Extension: "txt"},
 		}
 
 		_, _, err := svc.parseDocumentContent(context.Background(), doc, nil, nil)
@@ -870,14 +1020,45 @@ func TestDocumentAppServiceParseDocumentContentFailurePaths(t *testing.T) {
 	})
 }
 
+func TestDocumentAppServiceParseDocumentContentFailsUnsupportedFileTypePrecheck(t *testing.T) {
+	t.Parallel()
+
+	parseSvc := &internalParseServiceStub{}
+	svc := &DocumentAppService{
+		parseService: parseSvc,
+		logger:       logging.New(),
+	}
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:         "DOC-UNSUPPORTED",
+		DocumentFile: &docentity.File{URL: "https://example.com/demo.js", Extension: "js"},
+	}
+
+	_, _, err := svc.parseDocumentContent(context.Background(), doc, nil, nil)
+	if err == nil {
+		t.Fatal("expected parse error")
+	}
+	var stageErr *documentdomain.SyncStageError
+	if !errors.As(err, &stageErr) || stageErr == nil || stageErr.Reason != documentdomain.SyncFailureParsing {
+		t.Fatalf("expected parsing stage error, got %v", err)
+	}
+	if !errors.Is(err, documentdomain.ErrUnsupportedKnowledgeBaseFileType) {
+		t.Fatalf("expected unsupported file type error, got %v", err)
+	}
+	if parseSvc.parseDocumentWithOptionsCalls != 0 || parseSvc.parseDocumentReaderCalls != 0 {
+		t.Fatalf("expected unsupported file precheck to stop before parse service, got %#v", parseSvc)
+	}
+}
+
 func TestDocumentAppServiceInputToEntityAndDTOWithContext(t *testing.T) {
 	t.Parallel()
 
-	kb := &knowledgebase.KnowledgeBase{
+	sourceType := int(kbentity.SourceTypeProject)
+	kb := &kbentity.KnowledgeBase{
 		Code:       "KB1",
 		VectorDB:   "qdrant",
 		Model:      "kb-model",
 		CreatedUID: "U1",
+		SourceType: &sourceType,
 		EmbeddingConfig: &shared.EmbeddingConfig{
 			ModelID: "kb-model",
 		},
@@ -895,7 +1076,7 @@ func TestDocumentAppServiceInputToEntityAndDTOWithContext(t *testing.T) {
 		KnowledgeBaseCode: "KB1",
 		Name:              "Doc",
 		Description:       "Desc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		DocumentFile:      &docfilehelper.DocumentFileDTO{Name: "doc.md", URL: "https://example.com/doc.md"},
 	}
 
@@ -920,6 +1101,9 @@ func TestDocumentAppServiceInputToEntityAndDTOWithContext(t *testing.T) {
 	if dto == nil || dto.EmbeddingModel != routeModel || dto.EmbeddingConfig == nil || dto.EmbeddingConfig.ModelID != routeModel {
 		t.Fatalf("unexpected dto: %#v", dto)
 	}
+	if dto.SourceType == nil || *dto.SourceType != sourceType {
+		t.Fatalf("expected knowledge base source type in dto, got %#v", dto)
+	}
 }
 
 func TestDocumentAppServiceTokenizerFlows(t *testing.T) {
@@ -939,10 +1123,16 @@ func TestDocumentAppServiceTokenizerFlows(t *testing.T) {
 		t.Parallel()
 		assertDocumentAppServiceBuildFragmentsAutoHierarchyUsesDocumentSplitter(t, tokenizerSvc)
 	})
+	runBuildFragmentsKnowledgeBaseTypeSubtests(t, tokenizerSvc)
 
 	t.Run("SyncCreateFlow", func(t *testing.T) {
 		t.Parallel()
 		assertDocumentAppServiceSyncCreateFlow(t, tokenizerSvc)
+	})
+
+	t.Run("SyncStopsWhenEnsureCollectionExistsFails", func(t *testing.T) {
+		t.Parallel()
+		assertDocumentAppServiceSyncStopsWhenEnsureCollectionExistsFails(t, tokenizerSvc)
 	})
 
 	t.Run("SyncDoesNotSkipDuplicatedResyncDuringRebuildOverride", func(t *testing.T) {
@@ -979,15 +1169,58 @@ func TestDocumentAppServiceTokenizerFlows(t *testing.T) {
 		t.Parallel()
 		assertDocumentAppServiceSyncUsesSourceOverrideWithoutThirdPlatformResolve(t, tokenizerSvc)
 	})
+
+	t.Run("SyncUsesStructuredSourceOverrideForTabularSplit", func(t *testing.T) {
+		t.Parallel()
+		assertDocumentAppServiceSyncUsesStructuredSourceOverrideForTabularSplit(t, tokenizerSvc)
+	})
+}
+
+func runBuildFragmentsKnowledgeBaseTypeSubtests(t *testing.T, tokenizerSvc *tokenizer.Service) {
+	t.Helper()
+
+	tests := []struct {
+		name                   string
+		knowledgeBaseType      kbentity.Type
+		wantEffectiveSplitMode string
+	}{
+		{
+			name:                   "BuildFragmentsFlowVectorForcesAutoMode",
+			knowledgeBaseType:      kbentity.KnowledgeBaseTypeFlowVector,
+			wantEffectiveSplitMode: "normal",
+		},
+		{
+			name:                   "BuildFragmentsEmptyKnowledgeBaseTypeForcesAutoMode",
+			knowledgeBaseType:      "",
+			wantEffectiveSplitMode: "normal",
+		},
+		{
+			name:                   "BuildFragmentsDigitalEmployeeKeepsHierarchyMode",
+			knowledgeBaseType:      kbentity.KnowledgeBaseTypeDigitalEmployee,
+			wantEffectiveSplitMode: "normal_fallback",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assertDocumentAppServiceBuildFragmentsKnowledgeBaseTypeControlsMode(
+				t,
+				tokenizerSvc,
+				tt.knowledgeBaseType,
+				tt.wantEffectiveSplitMode,
+			)
+		})
+	}
 }
 
 func TestEntityToDTOMapsTopLevelStrategyConfigFromMetadata(t *testing.T) {
 	t.Parallel()
 
-	dto := EntityToDTO(&documentdomain.KnowledgeBaseDocument{
+	dto := EntityToDTO(&docentity.KnowledgeBaseDocument{
 		Code:              "DOC-STRATEGY",
 		KnowledgeBaseCode: "KB1",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		DocMetadata: map[string]any{
 			documentdomain.ParseStrategyConfigKey: map[string]any{
 				"parsing_type":     documentdomain.ParsingTypePrecise,
@@ -1016,7 +1249,7 @@ func TestCreateDocumentInputToManagedUsesTopLevelStrategyConfig(t *testing.T) {
 		UserID:            "U1",
 		KnowledgeBaseCode: "KB1",
 		Name:              "Doc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		DocMetadata: map[string]any{
 			"source": "knowledge-demo",
 			documentdomain.ParseStrategyConfigKey: map[string]any{
@@ -1055,7 +1288,7 @@ func TestCreateDocumentInputToManagedUsesTopLevelStrategyConfig(t *testing.T) {
 func assertDocumentAppServiceBuildFragmentsAndCleanup(t *testing.T, tokenizerSvc *tokenizer.Service) {
 	t.Helper()
 
-	kb := &knowledgebase.KnowledgeBase{
+	kb := &kbentity.KnowledgeBase{
 		Code: "KB1",
 		FragmentConfig: &shared.FragmentConfig{
 			Mode: shared.FragmentModeNormal,
@@ -1070,18 +1303,18 @@ func assertDocumentAppServiceBuildFragmentsAndCleanup(t *testing.T, tokenizerSvc
 	}
 	fragments, err := svc.buildFragments(
 		context.Background(),
-		&documentdomain.KnowledgeBaseDocument{
+		&docentity.KnowledgeBaseDocument{
 			Code:              "DOC1",
 			Name:              "Doc",
-			DocType:           int(documentdomain.DocTypeFile),
+			DocType:           int(docentity.DocumentInputKindFile),
 			DocMetadata:       map[string]any{"topic": "rag"},
 			KnowledgeBaseCode: "KB1",
 			OrganizationCode:  "ORG1",
 			UpdatedUID:        "U1",
-			DocumentFile:      &documentdomain.File{Extension: "md"},
+			DocumentFile:      &docentity.File{Extension: "md"},
 		},
 		kb,
-		documentdomain.NewPlainTextParsedDocument("md", "第一段内容\n\n第二段内容"),
+		parseddocument.NewPlainTextParsedDocument("md", "第一段内容\n\n第二段内容"),
 		routeModel,
 	)
 	if err != nil {
@@ -1096,7 +1329,7 @@ func assertDocumentAppServiceBuildFragmentsAndCleanup(t *testing.T, tokenizerSvc
 		fragmentService: fragmentStub,
 		logger:          logging.New(),
 	}
-	cleanupDoc := &documentdomain.KnowledgeBaseDocument{
+	cleanupDoc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC1",
 		KnowledgeBaseCode: "KB1",
 		OrganizationCode:  "ORG1",
@@ -1110,7 +1343,7 @@ func assertDocumentAppServiceBuildFragmentsAndCleanup(t *testing.T, tokenizerSvc
 func assertDocumentAppServiceBuildFragmentsAutoHierarchyUsesDocumentSplitter(t *testing.T, tokenizerSvc *tokenizer.Service) {
 	t.Helper()
 
-	kb := &knowledgebase.KnowledgeBase{
+	kb := &kbentity.KnowledgeBase{
 		Code: "KB-AUTO",
 		FragmentConfig: &shared.FragmentConfig{
 			Mode: shared.FragmentModeAuto,
@@ -1119,15 +1352,15 @@ func assertDocumentAppServiceBuildFragmentsAutoHierarchyUsesDocumentSplitter(t *
 			},
 		},
 	}
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC-AUTO",
 		Name:              "hierarchy.md",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		DocMetadata:       map[string]any{"topic": "hierarchy"},
 		KnowledgeBaseCode: "KB-AUTO",
 		OrganizationCode:  "ORG1",
 		UpdatedUID:        "U1",
-		DocumentFile:      &documentdomain.File{Name: "hierarchy.md", Extension: "md"},
+		DocumentFile:      &docentity.File{Name: "hierarchy.md", Extension: "md"},
 	}
 	svc := &DocumentAppService{
 		tokenizer: tokenizerSvc,
@@ -1138,7 +1371,7 @@ func assertDocumentAppServiceBuildFragmentsAutoHierarchyUsesDocumentSplitter(t *
 		context.Background(),
 		doc,
 		kb,
-		documentdomain.NewPlainTextParsedDocument("md", "# 一级标题\n一级内容\n## 二级标题\n二级内容\n### 三级标题\n三级内容\n#### 四级标题\n四级内容\n##### 五级标题\n五级内容"),
+		parseddocument.NewPlainTextParsedDocument("md", "# 一级标题\n一级内容\n## 二级标题\n二级内容\n### 三级标题\n三级内容\n#### 四级标题\n四级内容\n##### 五级标题\n五级内容"),
 		routeModel,
 	)
 	if err != nil {
@@ -1148,6 +1381,63 @@ func assertDocumentAppServiceBuildFragmentsAutoHierarchyUsesDocumentSplitter(t *
 		t.Fatal("expected hierarchy fragments")
 	}
 	assertAutoHierarchyFragments(t, fragments)
+}
+
+func assertDocumentAppServiceBuildFragmentsKnowledgeBaseTypeControlsMode(
+	t *testing.T,
+	tokenizerSvc *tokenizer.Service,
+	knowledgeBaseType kbentity.Type,
+	wantEffectiveSplitMode string,
+) {
+	t.Helper()
+
+	kb := &kbentity.KnowledgeBase{
+		Code:              "KB-TYPE",
+		KnowledgeBaseType: knowledgeBaseType,
+		FragmentConfig: &shared.FragmentConfig{
+			Mode: shared.FragmentModeHierarchy,
+			Hierarchy: &shared.HierarchyFragmentConfig{
+				MaxLevel: 5,
+			},
+		},
+	}
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              "DOC-TYPE",
+		Name:              "plain.txt",
+		DocType:           int(docentity.DocumentInputKindFile),
+		DocMetadata:       map[string]any{"topic": "plain"},
+		KnowledgeBaseCode: "KB-TYPE",
+		OrganizationCode:  "ORG1",
+		UpdatedUID:        "U1",
+		DocumentFile:      &docentity.File{Name: "plain.txt", Extension: "txt"},
+		FragmentConfig: &shared.FragmentConfig{
+			Mode: shared.FragmentModeHierarchy,
+			Hierarchy: &shared.HierarchyFragmentConfig{
+				MaxLevel: 5,
+			},
+		},
+	}
+	svc := &DocumentAppService{
+		tokenizer: tokenizerSvc,
+		logger:    logging.New(),
+	}
+
+	fragments, err := svc.buildFragments(
+		context.Background(),
+		doc,
+		kb,
+		parseddocument.NewPlainTextParsedDocument("txt", strings.Repeat("第一段内容。", 120)),
+		routeModel,
+	)
+	if err != nil {
+		t.Fatalf("build fragments: %v", err)
+	}
+	if len(fragments) == 0 {
+		t.Fatal("expected fragments")
+	}
+	if got := fragments[0].Metadata["effective_split_mode"]; got != wantEffectiveSplitMode {
+		t.Fatalf("unexpected effective split mode %v, want %q", got, wantEffectiveSplitMode)
+	}
 }
 
 func assertAutoHierarchyFragments(t *testing.T, fragments []*fragmodel.KnowledgeBaseFragment) {
@@ -1201,22 +1491,28 @@ func assertAutoHierarchyFragments(t *testing.T, fragments []*fragmodel.Knowledge
 func assertDocumentAppServiceSyncCreateFlow(t *testing.T, tokenizerSvc *tokenizer.Service) {
 	t.Helper()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC1",
 		Name:              "Doc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "https://example.com/doc.md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "https://example.com/doc.md"},
 	}
 	domainStub := &internalDocumentDomainServiceStub{showByCodeAndKBResult: doc}
-	fragmentStub := &internalFragmentDocumentServiceStub{}
-	kb := &knowledgebase.KnowledgeBase{Code: "KB1", Model: routeModel}
+	callOrder := make([]string, 0, 4)
+	fragmentStub := &internalFragmentDocumentServiceStub{callOrder: &callOrder}
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
+	kbStub := &internalKnowledgeBaseReaderStub{
+		showByCodeAndOrgResult: kb,
+		effectiveModel:         routeModel,
+		callOrder:              &callOrder,
+	}
 	svc := &DocumentAppService{
 		domainService:   domainStub,
-		kbService:       &internalKnowledgeBaseReaderStub{showByCodeAndOrgResult: kb, effectiveModel: routeModel},
+		kbService:       kbStub,
 		fragmentService: fragmentStub,
-		parseService:    &internalParseServiceStub{parseDocumentResult: documentdomain.NewPlainTextParsedDocument("md", "第一段\n\n第二段")},
+		parseService:    &internalParseServiceStub{parseDocumentResult: parseddocument.NewPlainTextParsedDocument("md", "第一段\n\n第二段")},
 		tokenizer:       tokenizerSvc,
 		logger:          logging.New(),
 	}
@@ -1238,31 +1534,89 @@ func assertDocumentAppServiceSyncCreateFlow(t *testing.T, tokenizerSvc *tokenize
 	if fragmentStub.deletePointsByDocumentCalls != 1 || fragmentStub.deleteByDocumentCalls != 1 {
 		t.Fatalf("expected cleanup by document for create mode, got %#v", fragmentStub)
 	}
-	if got := doc.DocMetadata[documentdomain.ParsedMetaSourceFormat]; got != "md" {
+	if kbStub.ensureCollectionExistsCalls != 1 ||
+		kbStub.lastEnsuredKnowledgeBase == nil ||
+		kbStub.lastEnsuredKnowledgeBase.Code != kb.Code ||
+		kbStub.lastEnsuredKnowledgeBase.ResolvedRoute == nil ||
+		kbStub.lastEnsuredKnowledgeBase.ResolvedRoute.Model != routeModel {
+		t.Fatalf("expected create mode to ensure runtime collection once, got %#v", kbStub)
+	}
+	if got := strings.Join(callOrder, ","); !strings.HasPrefix(got, "ensure_collection_exists,") || !strings.Contains(got, "save_batch") || !strings.Contains(got, "sync_fragment_batch") {
+		t.Fatalf("expected ensure before fragment save+sync, got %q", got)
+	}
+	if got := doc.DocMetadata[parseddocument.MetaSourceFormat]; got != "md" {
 		t.Fatalf("expected parsed source format metadata merged, got %#v", doc.DocMetadata)
+	}
+}
+
+func assertDocumentAppServiceSyncStopsWhenEnsureCollectionExistsFails(t *testing.T, tokenizerSvc *tokenizer.Service) {
+	t.Helper()
+
+	doc := &docentity.KnowledgeBaseDocument{
+		Code:              "DOC1A",
+		Name:              "Doc",
+		DocType:           int(docentity.DocumentInputKindFile),
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: "KB1",
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "https://example.com/doc.md"},
+	}
+	domainStub := &internalDocumentDomainServiceStub{showByCodeAndKBResult: doc}
+	fragmentStub := &internalFragmentDocumentServiceStub{}
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
+	kbStub := &internalKnowledgeBaseReaderStub{
+		showByCodeAndOrgResult:    kb,
+		effectiveModel:            routeModel,
+		ensureCollectionExistsErr: errEnsureCollectionFailed,
+	}
+	svc := &DocumentAppService{
+		domainService:   domainStub,
+		kbService:       kbStub,
+		fragmentService: fragmentStub,
+		parseService:    &internalParseServiceStub{parseDocumentResult: parseddocument.NewPlainTextParsedDocument("md", "alpha")},
+		tokenizer:       tokenizerSvc,
+		logger:          logging.New(),
+	}
+
+	err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: "KB1",
+		Code:              "DOC1A",
+		Mode:              syncModeCreate,
+	})
+	if err == nil || !strings.Contains(err.Error(), "ensure runtime collection exists") {
+		t.Fatalf("expected ensure collection failure, got %v", err)
+	}
+	if kbStub.ensureCollectionExistsCalls != 1 {
+		t.Fatalf("expected ensure collection to be called once, got %#v", kbStub)
+	}
+	if fragmentStub.saveBatchCalls != 0 || fragmentStub.syncFragmentBatchCalls != 0 || fragmentStub.listExistingPointIDsCalls != 0 {
+		t.Fatalf("expected ensure failure to stop fragment flow, got %#v", fragmentStub)
+	}
+	if doc.SyncStatus != shared.SyncStatusSyncFailed || !strings.Contains(doc.SyncStatusMessage, "ensure runtime collection exists") {
+		t.Fatalf("expected document marked sync failed by ensure error, got %#v", doc)
 	}
 }
 
 func TestDocumentAppServiceSyncDoesNotSkipResyncWhenDocumentStatusIsSyncing(t *testing.T) {
 	t.Parallel()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC2",
 		Name:              "doc.md",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		SyncStatus:        shared.SyncStatusSyncing,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
-		DocumentFile: &documentdomain.File{
+		DocumentFile: &docentity.File{
 			Name:      "doc.md",
 			URL:       "https://example.com/doc.md",
 			Extension: "md",
 		},
 	}
-	parsed := documentdomain.NewPlainTextParsedDocument("md", "# title\n\nbody")
+	parsed := parseddocument.NewPlainTextParsedDocument("md", "# title\n\nbody")
 	domainStub := &internalDocumentDomainServiceStub{showByCodeAndKBResult: doc}
 	fragmentStub := &internalFragmentDocumentServiceStub{}
-	kb := &knowledgebase.KnowledgeBase{Code: "KB1", Model: routeModel}
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
 	svc := &DocumentAppService{
 		domainService:   domainStub,
 		kbService:       &internalKnowledgeBaseReaderStub{showByCodeAndOrgResult: kb, effectiveModel: routeModel},
@@ -1293,27 +1647,27 @@ func TestDocumentAppServiceSyncMergesParsedDocumentMetaIntoDocMetadata(t *testin
 
 	tokenizerSvc := tokenizer.NewService()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC-META",
 		Name:              "Doc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
 		DocMetadata: map[string]any{
 			"source":      "knowledge-demo",
 			"source_type": "local_upload",
 		},
-		DocumentFile: &documentdomain.File{Name: "doc.docx", URL: "https://example.com/doc.docx", Extension: "docx"},
+		DocumentFile: &docentity.File{Name: "doc.docx", URL: "https://example.com/doc.docx", Extension: "docx"},
 	}
-	parsed := documentdomain.NewPlainTextParsedDocument("docx", "alpha\n\n图片OCR：beta")
-	parsed.DocumentMeta[documentdomain.ParsedMetaEmbeddedImageCount] = 2
-	parsed.DocumentMeta[documentdomain.ParsedMetaEmbeddedImageOCRSuccessCount] = 2
-	parsed.DocumentMeta[documentdomain.ParsedMetaEmbeddedImageOCRFailedCount] = 0
-	parsed.DocumentMeta[documentdomain.ParsedMetaEmbeddedImageOCRSkippedCount] = 0
+	parsed := parseddocument.NewPlainTextParsedDocument("docx", "alpha\n\n图片OCR：beta")
+	parsed.DocumentMeta[parseddocument.MetaEmbeddedImageCount] = 2
+	parsed.DocumentMeta[parseddocument.MetaEmbeddedImageOCRSuccessCount] = 2
+	parsed.DocumentMeta[parseddocument.MetaEmbeddedImageOCRFailedCount] = 0
+	parsed.DocumentMeta[parseddocument.MetaEmbeddedImageOCRSkippedCount] = 0
 
 	domainStub := &internalDocumentDomainServiceStub{showByCodeAndKBResult: doc}
 	fragmentStub := &internalFragmentDocumentServiceStub{}
-	kb := &knowledgebase.KnowledgeBase{Code: "KB1", Model: routeModel}
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
 	svc := &DocumentAppService{
 		domainService:   domainStub,
 		kbService:       &internalKnowledgeBaseReaderStub{showByCodeAndOrgResult: kb, effectiveModel: routeModel},
@@ -1335,10 +1689,10 @@ func TestDocumentAppServiceSyncMergesParsedDocumentMetaIntoDocMetadata(t *testin
 	if got := doc.DocMetadata["source"]; got != "knowledge-demo" {
 		t.Fatalf("expected business metadata preserved, got %#v", doc.DocMetadata)
 	}
-	if got := doc.DocMetadata[documentdomain.ParsedMetaEmbeddedImageCount]; got != 2 {
+	if got := doc.DocMetadata[parseddocument.MetaEmbeddedImageCount]; got != 2 {
 		t.Fatalf("expected embedded image count merged, got %#v", doc.DocMetadata)
 	}
-	if got := doc.DocMetadata[documentdomain.ParsedMetaEmbeddedImageOCRSuccessCount]; got != 2 {
+	if got := doc.DocMetadata[parseddocument.MetaEmbeddedImageOCRSuccessCount]; got != 2 {
 		t.Fatalf("expected embedded image ocr success merged, got %#v", doc.DocMetadata)
 	}
 }
@@ -1346,16 +1700,16 @@ func TestDocumentAppServiceSyncMergesParsedDocumentMetaIntoDocMetadata(t *testin
 func assertDocumentAppServiceSyncDoesNotSkipDuplicatedResyncDuringRebuildOverride(t *testing.T, tokenizerSvc *tokenizer.Service) {
 	t.Helper()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC2B",
 		Name:              "Doc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		SyncStatus:        shared.SyncStatusSyncing,
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "https://example.com/doc.md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "https://example.com/doc.md"},
 	}
-	kb := &knowledgebase.KnowledgeBase{Code: "KB1", Model: routeModel}
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
 	domainStub := &internalDocumentDomainServiceStub{showByCodeAndKBResult: doc}
 	fragmentStub := &internalFragmentDocumentServiceStub{}
 	svc := &DocumentAppService{
@@ -1363,7 +1717,7 @@ func assertDocumentAppServiceSyncDoesNotSkipDuplicatedResyncDuringRebuildOverrid
 		kbService:       &internalKnowledgeBaseReaderStub{showByCodeAndOrgResult: kb, effectiveModel: routeModel},
 		fragmentService: fragmentStub,
 		parseService: &internalParseServiceStub{
-			parseDocumentResult: documentdomain.NewPlainTextParsedDocument("md", "alpha"),
+			parseDocumentResult: parseddocument.NewPlainTextParsedDocument("md", "alpha"),
 		},
 		tokenizer: tokenizerSvc,
 		logger:    logging.New(),
@@ -1392,13 +1746,13 @@ func assertDocumentAppServiceSyncDoesNotSkipDuplicatedResyncDuringRebuildOverrid
 func assertDocumentAppServiceSyncResyncUsesIncrementalPlan(t *testing.T, tokenizerSvc *tokenizer.Service) {
 	t.Helper()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC3",
 		Name:              "Doc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "https://example.com/doc.md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "https://example.com/doc.md"},
 	}
 	domainStub := &internalDocumentDomainServiceStub{
 		showByCodeAndKBResult: doc,
@@ -1417,12 +1771,12 @@ func assertDocumentAppServiceSyncResyncUsesIncrementalPlan(t *testing.T, tokeniz
 			},
 		},
 	}
-	kb := &knowledgebase.KnowledgeBase{Code: "KB1", Model: routeModel}
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
 	svc := &DocumentAppService{
 		domainService:   domainStub,
 		kbService:       &internalKnowledgeBaseReaderStub{showByCodeAndOrgResult: kb, effectiveModel: routeModel},
 		fragmentService: fragmentStub,
-		parseService:    &internalParseServiceStub{parseDocumentResult: documentdomain.NewPlainTextParsedDocument("md", "alpha")},
+		parseService:    &internalParseServiceStub{parseDocumentResult: parseddocument.NewPlainTextParsedDocument("md", "alpha")},
 		tokenizer:       tokenizerSvc,
 		logger:          logging.New(),
 	}
@@ -1455,17 +1809,17 @@ func assertDocumentAppServiceSyncResyncUsesIncrementalPlan(t *testing.T, tokeniz
 func assertDocumentAppServiceSyncResyncWithRebuildOverrideForceBackfillsUnchangedFragments(t *testing.T, tokenizerSvc *tokenizer.Service) {
 	t.Helper()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC4",
 		Name:              "Doc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "https://example.com/doc.md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "https://example.com/doc.md"},
 	}
-	kb := &knowledgebase.KnowledgeBase{Code: "KB1", Model: routeModel}
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
 	parseSvc := &internalParseServiceStub{
-		parseDocumentResult: documentdomain.NewPlainTextParsedDocument("md", "alpha"),
+		parseDocumentResult: parseddocument.NewPlainTextParsedDocument("md", "alpha"),
 	}
 	fragmentStub := &internalFragmentDocumentServiceStub{}
 	svc := &DocumentAppService{
@@ -1525,22 +1879,28 @@ func assertDocumentAppServiceSyncResyncWithRebuildOverrideForceBackfillsUnchange
 func assertDocumentAppServiceSyncResyncForceBackfillsUnchangedFragmentsWhenPointMissing(t *testing.T, tokenizerSvc *tokenizer.Service) {
 	t.Helper()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC4A",
 		Name:              "Doc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "https://example.com/doc.md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "https://example.com/doc.md"},
 	}
-	kb := &knowledgebase.KnowledgeBase{Code: "KB1", Model: routeModel}
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
 	parseSvc := &internalParseServiceStub{
-		parseDocumentResult: documentdomain.NewPlainTextParsedDocument("md", "alpha"),
+		parseDocumentResult: parseddocument.NewPlainTextParsedDocument("md", "alpha"),
 	}
-	fragmentStub := &internalFragmentDocumentServiceStub{}
+	callOrder := make([]string, 0, 6)
+	fragmentStub := &internalFragmentDocumentServiceStub{callOrder: &callOrder}
+	kbStub := &internalKnowledgeBaseReaderStub{
+		showByCodeAndOrgResult: kb,
+		effectiveModel:         routeModel,
+		callOrder:              &callOrder,
+	}
 	svc := &DocumentAppService{
 		domainService:   &internalDocumentDomainServiceStub{showByCodeAndKBResult: doc},
-		kbService:       &internalKnowledgeBaseReaderStub{showByCodeAndOrgResult: kb, effectiveModel: routeModel},
+		kbService:       kbStub,
 		fragmentService: fragmentStub,
 		parseService:    parseSvc,
 		tokenizer:       tokenizerSvc,
@@ -1586,22 +1946,32 @@ func assertDocumentAppServiceSyncResyncForceBackfillsUnchangedFragmentsWhenPoint
 	if fragmentStub.listExistingPointIDsCalls != 1 {
 		t.Fatalf("expected resync to query existing point ids, got %#v", fragmentStub)
 	}
+	if kbStub.ensureCollectionExistsCalls != 1 ||
+		kbStub.lastEnsuredKnowledgeBase == nil ||
+		kbStub.lastEnsuredKnowledgeBase.Code != kb.Code ||
+		kbStub.lastEnsuredKnowledgeBase.ResolvedRoute == nil ||
+		kbStub.lastEnsuredKnowledgeBase.ResolvedRoute.Model != routeModel {
+		t.Fatalf("expected resync to ensure runtime collection once, got %#v", kbStub)
+	}
+	if got := strings.Join(callOrder, ","); got != "ensure_collection_exists,list_existing_point_ids,update_batch,save_batch,sync_fragment_batch" {
+		t.Fatalf("expected ensure before missing-point backfill resync flow, got %q", got)
+	}
 }
 
 func assertDocumentAppServiceSyncResyncWithRebuildOverrideSkipsUnchangedFragmentsWhenPointAlreadyExists(t *testing.T, tokenizerSvc *tokenizer.Service) {
 	t.Helper()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC5",
 		Name:              "Doc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "https://example.com/doc.md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "https://example.com/doc.md"},
 	}
-	kb := &knowledgebase.KnowledgeBase{Code: "KB1", Model: routeModel}
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
 	parseSvc := &internalParseServiceStub{
-		parseDocumentResult: documentdomain.NewPlainTextParsedDocument("md", "alpha"),
+		parseDocumentResult: parseddocument.NewPlainTextParsedDocument("md", "alpha"),
 	}
 	fragmentStub := &internalFragmentDocumentServiceStub{}
 	svc := &DocumentAppService{
@@ -1666,15 +2036,15 @@ func assertDocumentAppServiceSyncUsesRuntimeKnowledgeBaseCopyForResolvedRoute(t 
 		shadowTermCollection = "magic_knowledge_shadow_terms"
 	)
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC-RUNTIME-KB",
 		Name:              "Doc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
-		DocumentFile:      &documentdomain.File{Name: "doc.md", URL: "https://example.com/doc.md"},
+		DocumentFile:      &docentity.File{Name: "doc.md", URL: "https://example.com/doc.md"},
 	}
-	kb := &knowledgebase.KnowledgeBase{
+	kb := &kbentity.KnowledgeBase{
 		Code:  "KB1",
 		Model: activeModel,
 		EmbeddingConfig: &shared.EmbeddingConfig{
@@ -1692,7 +2062,7 @@ func assertDocumentAppServiceSyncUsesRuntimeKnowledgeBaseCopyForResolvedRoute(t 
 			effectiveSparseBackend:  shared.SparseBackendQdrantBM25ZHV1,
 		},
 		fragmentService: fragmentStub,
-		parseService:    &internalParseServiceStub{parseDocumentResult: documentdomain.NewPlainTextParsedDocument("md", "alpha")},
+		parseService:    &internalParseServiceStub{parseDocumentResult: parseddocument.NewPlainTextParsedDocument("md", "alpha")},
 		tokenizer:       tokenizerSvc,
 		logger:          logging.New(),
 	}
@@ -1737,17 +2107,17 @@ func assertDocumentAppServiceSyncUsesRuntimeKnowledgeBaseCopyForResolvedRoute(t 
 func assertDocumentAppServiceSyncUsesSourceOverrideWithoutThirdPlatformResolve(t *testing.T, tokenizerSvc *tokenizer.Service) {
 	t.Helper()
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		Code:              "DOC-SOURCE-OVERRIDE",
 		Name:              "Doc",
-		DocType:           int(documentdomain.DocTypeFile),
+		DocType:           int(docentity.DocumentInputKindFile),
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: "KB1",
 		ThirdPlatformType: "teamshare",
 		ThirdFileID:       "FILE-1",
-		DocumentFile:      &documentdomain.File{Type: docFileTypeThirdParty, ThirdID: "FILE-1", SourceType: "teamshare"},
+		DocumentFile:      &docentity.File{Type: docFileTypeThirdParty, ThirdID: "FILE-1", SourceType: "teamshare"},
 	}
-	kb := &knowledgebase.KnowledgeBase{Code: "KB1", Model: routeModel}
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
 	fragmentStub := &internalFragmentDocumentServiceStub{}
 	portStub := &internalThirdPlatformDocumentPortStub{err: errThirdPlatformResolveBoom}
 	svc := &DocumentAppService{
@@ -1766,7 +2136,7 @@ func assertDocumentAppServiceSyncUsesSourceOverrideWithoutThirdPlatformResolve(t
 		Mode:              syncModeResync,
 		SourceOverride: &documentdomain.SourceOverride{
 			Content: "override content",
-			DocType: int(documentdomain.DocTypeText),
+			DocType: int(docentity.DocumentInputKindText),
 			DocumentFile: map[string]any{
 				"type":          docFileTypeThirdParty,
 				"name":          "doc.md",
@@ -1785,7 +2155,102 @@ func assertDocumentAppServiceSyncUsesSourceOverrideWithoutThirdPlatformResolve(t
 	if fragmentStub.syncFragmentBatchCalls != 1 {
 		t.Fatalf("expected source override to continue sync flow, got %#v", fragmentStub)
 	}
-	if doc.DocType != int(documentdomain.DocTypeText) || doc.DocumentFile == nil || doc.DocumentFile.Extension != "md" {
+	if doc.DocType != int(docentity.DocumentInputKindText) || doc.DocumentFile == nil || doc.DocumentFile.Extension != "md" {
 		t.Fatalf("expected document metadata to be updated by source override, got %#v", doc)
+	}
+}
+
+func assertDocumentAppServiceSyncUsesStructuredSourceOverrideForTabularSplit(t *testing.T, tokenizerSvc *tokenizer.Service) {
+	t.Helper()
+
+	doc := newStructuredSourceOverrideTestDocument()
+	kb := &kbentity.KnowledgeBase{Code: "KB1", Model: routeModel}
+	fragmentStub := &internalFragmentDocumentServiceStub{}
+	portStub := &internalThirdPlatformDocumentPortStub{err: errThirdPlatformResolveBoom}
+	svc := &DocumentAppService{
+		domainService:             &internalDocumentDomainServiceStub{showByCodeAndKBResult: doc},
+		kbService:                 &internalKnowledgeBaseReaderStub{showByCodeAndOrgResult: kb, effectiveModel: routeModel},
+		fragmentService:           fragmentStub,
+		thirdPlatformDocumentPort: portStub,
+		tokenizer:                 tokenizerSvc,
+		logger:                    logging.New(),
+	}
+
+	err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: "KB1",
+		Code:              "DOC-TABULAR-OVERRIDE",
+		Mode:              syncModeResync,
+		SourceOverride:    newStructuredTabularSourceOverrideForTest(),
+	})
+	if err != nil {
+		t.Fatalf("sync with structured source override: %v", err)
+	}
+	if portStub.lastInput != nil {
+		t.Fatalf("expected structured source override to skip third-platform resolve, got %#v", portStub.lastInput)
+	}
+	if fragmentStub.syncFragmentBatchCalls != 1 {
+		t.Fatalf("expected structured source override to continue sync flow, got %#v", fragmentStub)
+	}
+	if fragmentStub.lastSyncBatchSize != 2 {
+		t.Fatalf("expected tabular structured split to produce 2 fragments, got %#v", fragmentStub)
+	}
+}
+
+func newStructuredSourceOverrideTestDocument() *docentity.KnowledgeBaseDocument {
+	return &docentity.KnowledgeBaseDocument{
+		Code:              "DOC-TABULAR-OVERRIDE",
+		Name:              "Doc",
+		DocType:           int(docentity.DocumentInputKindFile),
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: "KB1",
+		ThirdPlatformType: "teamshare",
+		ThirdFileID:       "FILE-1",
+		DocumentFile:      &docentity.File{Type: docFileTypeThirdParty, ThirdID: "FILE-1", SourceType: "teamshare"},
+	}
+}
+
+func newStructuredTabularSourceOverrideForTest() *documentdomain.SourceOverride {
+	return &documentdomain.SourceOverride{
+		Content: "plain fallback should not be used",
+		DocType: int(docentity.DocumentInputKindFile),
+		DocumentFile: map[string]any{
+			"type":          docFileTypeThirdParty,
+			"name":          "rag.xlsx",
+			"extension":     "xlsx",
+			"third_file_id": "FILE-1",
+			"source_type":   "teamshare",
+		},
+		ParsedDocument: &parseddocument.ParsedDocument{
+			SourceType: parseddocument.SourceTabular,
+			Blocks: []parseddocument.ParsedBlock{
+				{
+					Type:    parseddocument.BlockTypeTableRow,
+					Content: "row-1",
+					Metadata: map[string]any{
+						parseddocument.MetaSheetName:  "sheet-1",
+						parseddocument.MetaTableTitle: "table-1",
+						parseddocument.MetaRowIndex:   2,
+						parseddocument.MetaFields: []map[string]any{
+							{"header": "门店编码", "value": "V90901"},
+							{"header": "门店名称", "value": "博乐友好时尚购物中心KKV店"},
+						},
+					},
+				},
+				{
+					Type:    parseddocument.BlockTypeTableRow,
+					Content: "row-2",
+					Metadata: map[string]any{
+						parseddocument.MetaSheetName:  "sheet-1",
+						parseddocument.MetaTableTitle: "table-1",
+						parseddocument.MetaRowIndex:   3,
+						parseddocument.MetaFields: []map[string]any{
+							{"header": "门店编码", "value": "T909001"},
+							{"header": "门店名称", "value": "博乐友好时尚购物中心TC店"},
+						},
+					},
+				},
+			},
+		},
 	}
 }

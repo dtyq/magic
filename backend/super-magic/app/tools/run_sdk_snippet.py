@@ -25,7 +25,11 @@ from pydantic import Field
 from typing import Any, Dict
 
 from agentlang.context.tool_context import ToolContext
-from agentlang.tools.tool_result import ToolResult
+from agentlang.tools.tool_result import (
+    ToolResult,
+    TOOL_RESULT_SYSTEM_DISPATCHED,
+    TOOL_RESULT_SYSTEM_EARLY_AFTER,
+)
 from agentlang.logger import get_logger
 from app.core.context.agent_context import AgentContext
 from app.i18n import i18n
@@ -367,7 +371,7 @@ You can also chain multiple tool results: fetch IDs from one tool, pass to anoth
                     tool_context,
                     tool_context.tool_name,
                     tool_context.arguments,
-                    ToolResult(content=_EARLY_AFTER_FAKE_CONTENT),
+                    ToolResult(content=_EARLY_AFTER_FAKE_CONTENT, system=TOOL_RESULT_SYSTEM_EARLY_AFTER),
                     0.0,
                 )
                 early_after_sent = True
@@ -385,7 +389,7 @@ You can also chain multiple tool results: fetch IDs from one tool, pass to anoth
                 registry.cancel_by_execution(agent_ctx.context_id, sdk_execution_id)
 
             # early_after_sent=True 时外层 after_tool_call 应被屏蔽（已提前发出）
-            system = "SDK_SNIPPET_DISPATCHED" if early_after_sent else None
+            system = TOOL_RESULT_SYSTEM_DISPATCHED if early_after_sent else None
             if terminal_result.ok:
                 return ToolResult(content=terminal_result.content, system=system)
             else:
@@ -397,7 +401,7 @@ You can also chain multiple tool results: fetch IDs from one tool, pass to anoth
 
         except Exception as e:
             logger.exception(f"执行 SDK 代码片段时出错: {e}")
-            system = "SDK_SNIPPET_DISPATCHED" if early_after_sent else None
+            system = TOOL_RESULT_SYSTEM_DISPATCHED if early_after_sent else None
             return ToolResult.error(f"执行 SDK 代码片段时出错: {e}", system=system)
 
     async def get_after_tool_call_friendly_action_and_remark(

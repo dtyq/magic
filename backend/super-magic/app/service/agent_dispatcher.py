@@ -261,22 +261,24 @@ class AgentDispatcher(Base):
 
         Args:
             agent_mode: Agent模式，可以是AgentMode枚举或者自定义Agent的字符串ID
-            agent_code: (optional) crew agent code, used when agent_mode == "custom_agent"
+            agent_code: (optional) crew agent code, used when agent_mode == "agent_creator"
 
         Returns:
             Agent: 选择的Agent实例
         """
-        # 如果是字符串，仅支持 custom_agent + agent_code 或内置 AgentMode
+        # 如果是字符串，仅支持 agent_creator + agent_code 或内置 AgentMode
         if isinstance(agent_mode, str):
-            normalized_mode = agent_mode.strip()
+            normalized_mode = {
+                "custom_agent": "agent_creator",
+            }.get(agent_mode.strip(), agent_mode.strip())
 
-            # 0. custom_agent + agent_code => compiled crew agent
-            if normalized_mode == "custom_agent":
+            # 0. agent_creator + agent_code => compiled crew agent
+            if normalized_mode == "agent_creator":
                 if agent_code and agent_code.strip():
                     agent_type = agent_code.strip()
                     logger.info(f"使用编译后的 crew agent: {agent_type}.agent")
                 else:
-                    logger.warning("custom_agent 未提供 agent_code，回退到默认模式")
+                    logger.warning("agent_creator 未提供 agent_code，回退到默认模式")
                     agent_type = AgentMode.GENERAL.get_agent_type()
 
             # 0b. magiclaw + agent_code => compiled claw agent (from agents/claws/<claw_code>/)
@@ -447,9 +449,13 @@ class AgentDispatcher(Base):
     async def _prepare_agent(self, agent_mode: str, agent_code: Optional[str]) -> None:
         """Compile + set AgentProfile for modes that need it (crew / magiclaw)."""
         try:
-            if agent_mode == "custom_agent" and agent_code:
+            normalized_mode = {
+                "custom_agent": "agent_creator",
+            }.get(agent_mode, agent_mode)
+
+            if normalized_mode == "agent_creator" and agent_code:
                 await self._prepare_crew_agent(agent_code)
-            elif agent_mode == "magiclaw" and agent_code:
+            elif normalized_mode == "magiclaw" and agent_code:
                 await self._prepare_claw_agent(agent_code)
         except Exception as e:
             logger.error(f"Agent preparation failed (mode={agent_mode}, code={agent_code}): {e}")
@@ -478,14 +484,18 @@ class AgentDispatcher(Base):
         last = await self.get_last_dispatch_message() or {}
         if not last:
             return
+        # model_id：当前未携带时从 last 取，确保第三方 IM 消息延续上次选择的模型
+        if not message.model_id and last.get("model_id"):
+            message.model_id = last["model_id"]
         # agent_mode：当前未显式携带（None）时从 last 取
         if message.agent_mode is None and last.get("agent_mode"):
             message.agent_mode = last["agent_mode"]
-        # agent_code：当前未携带时从 last 取
-        current_agent_code = (message.dynamic_config or {}).get("agent_code")
-        last_agent_code = (last.get("dynamic_config") or {}).get("agent_code")
-        if not current_agent_code and last_agent_code:
-            message.dynamic_config = {**(message.dynamic_config or {}), "agent_code": last_agent_code}
+        # dynamic_config：以 last 为基础，当前消息显式携带的字段优先，
+        # 其余字段（image_model / video_model / message_version 等）从 last 补全
+        last_dc = last.get("dynamic_config") or {}
+        current_dc = message.dynamic_config or {}
+        if last_dc:
+            message.dynamic_config = {**last_dc, **current_dc}
         # agent：当前未携带时从 last 取（沙箱复用场景下 continuation 消息可能不带 agent）
         if message.agent is None and last.get("agent"):
             try:
@@ -501,6 +511,12 @@ class AgentDispatcher(Base):
         # 合并策略：以上次快照为基础，新值非 None 才覆盖，防止空值抹掉已存的有效配置
         existing = await self.get_last_dispatch_message() or {}
         merged = {**existing, **{k: v for k, v in new_data.items() if v is not None}}
+        # dynamic_config 做深合并：第三方 IM 消息只携带 agent_code 等部分字段，
+        # 避免整个 key 覆盖导致 image_model / video_model 等配置丢失
+        existing_dc = existing.get("dynamic_config") or {}
+        new_dc = new_data.get("dynamic_config") or {}
+        if existing_dc or new_dc:
+            merged["dynamic_config"] = {**existing_dc, **new_dc}
         try:
             await async_write_json(self._last_dispatch_message_file(), merged, indent=2, ensure_ascii=False)
         except Exception as e:
@@ -613,6 +629,19 @@ class AgentDispatcher(Base):
         if message.agent_mode is None:
             message.agent_mode = AgentMode.GENERAL
 
+        # 如果 agent_context 还没有 dynamic_model_id（前端消息已在 messages.py 里 set），
+        # 且消息携带了 model_id（可能来自前端或 fill 补全），则在此设置，确保第三方 IM 消息也能使用正确模型
+        if message.model_id and not self.agent_context.has_dynamic_model_id():
+            self.agent_context.set_dynamic_model_id(message.model_id)
+            logger.info(f"[AgentDispatcher] 从消息 model_id 设置动态模型: {message.model_id}")
+        # image_model_id：从 dynamic_config.image_model.model_id 读取并 set 进 context
+        image_model_config = (message.dynamic_config or {}).get("image_model")
+        if image_model_config and isinstance(image_model_config, dict):
+            image_model_id = image_model_config.get("model_id")
+            if image_model_id:
+                self.agent_context.set_dynamic_image_model_id(image_model_id)
+                logger.info(f"[AgentDispatcher] 从消息 dynamic_config 设置图片模型: {image_model_id}")
+
         self.agent_context.set_chat_client_message(message)
 
         # Extract agent_code for crew agent dispatching
@@ -672,6 +701,10 @@ class AgentDispatcher(Base):
             agent: Agent实例
         """
         try:
+            # 非前端 chat 消息（第三方 IM 渠道等）不更新 session 配置，避免覆盖已有的模型/版本等设置
+            if not message.update_session:
+                return
+
             current_model_id = message.model_id or agent.llm_id
             current_image_model_id = None
             current_image_model_sizes = None
@@ -701,6 +734,23 @@ class AgentDispatcher(Base):
                         tools = manager.get_server_tools(server_name)
                         current_mcp_servers[server_name] = tools
 
+            current_agent_mode = None
+            msg_agent_mode = message.agent_mode
+            if msg_agent_mode is not None:
+                if isinstance(msg_agent_mode, AgentMode):
+                    current_agent_mode = msg_agent_mode.get_agent_type()
+                else:
+                    try:
+                        current_agent_mode = AgentMode(msg_agent_mode).get_agent_type()
+                    except (ValueError, KeyError):
+                        pass
+
+            current_agent_code = None
+            if message.dynamic_config:
+                agent_code_val = message.dynamic_config.get("agent_code")
+                if agent_code_val and isinstance(agent_code_val, str) and agent_code_val.strip():
+                    current_agent_code = agent_code_val.strip()
+
             agent.chat_history.save_session_config(
                 current_model_id,
                 current_image_model_id,
@@ -709,6 +759,8 @@ class AgentDispatcher(Base):
                 current_video_generation_config,
                 current_mcp_servers,
                 message_version=agent_context.get_message_version() if agent_context else None,
+                agent_mode=current_agent_mode,
+                agent_code=current_agent_code,
             )
         except Exception as e:
             logger.debug(f"保存会话配置时出错: {e}")

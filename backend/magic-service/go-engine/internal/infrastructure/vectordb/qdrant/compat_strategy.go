@@ -101,9 +101,10 @@ func selectSparseBackendByCapability(snapshot capabilitySnapshot, requested stri
 		return selection
 	}
 
-	queryAllowed := snapshot.QuerySupported && snapshot.SelectedSparseAPI == qdrantSparseAPIQuery
+	queryAllowed := supportsQueryPoints(snapshot)
+	nativeBM25Allowed := queryAllowed && supportsQdrantNativeBM25(snapshot.Version)
 	defaultBackend := shared.SparseBackendClientBM25QdrantIDFV1
-	if queryAllowed {
+	if nativeBM25Allowed {
 		defaultBackend = shared.SparseBackendQdrantBM25ZHV1
 	}
 
@@ -117,15 +118,23 @@ func selectSparseBackendByCapability(snapshot capabilitySnapshot, requested stri
 		selection.Reason = shared.SparseBackendSelectionReasonCapabilityDefault
 		return selection
 	}
-	if queryAllowed {
+	if nativeBM25Allowed {
 		selection.Effective = shared.SparseBackendQdrantBM25ZHV1
 		selection.Reason = shared.SparseBackendSelectionReasonExplicitRequested
 		return selection
 	}
 
 	selection.Effective = shared.SparseBackendClientBM25QdrantIDFV1
-	selection.Reason = shared.SparseBackendSelectionReasonQueryPointsUnsupported
+	if !queryAllowed {
+		selection.Reason = shared.SparseBackendSelectionReasonQueryPointsUnsupported
+		return selection
+	}
+	selection.Reason = shared.SparseBackendSelectionReasonNativeBM25Unsupported
 	return selection
+}
+
+func supportsQueryPoints(snapshot capabilitySnapshot) bool {
+	return snapshot.QuerySupported && snapshot.SelectedSparseAPI == qdrantSparseAPIQuery
 }
 
 func modernHybridWriteTransport(
@@ -206,25 +215,71 @@ func legacyPre112SparseSearchPlan(_ capabilitySnapshot, mode string) sparseSearc
 }
 
 func isPreModernQdrantVersion(version string) bool {
-	major, minor, ok := parseQdrantMajorMinor(version)
+	major, minor, _, ok := parseQdrantVersion(version)
 	if !ok {
 		return false
 	}
 	return major < 1 || (major == 1 && minor < 12)
 }
 
-func parseQdrantMajorMinor(version string) (int, int, bool) {
-	parts := strings.Split(strings.TrimSpace(version), ".")
-	if len(parts) < 2 {
-		return 0, 0, false
+func supportsQdrantNativeBM25(version string) bool {
+	requiredMajor, requiredMinor, requiredPatch, ok := parseQdrantVersion(qdrantNativeBM25MinVersion)
+	if !ok {
+		return false
+	}
+	major, minor, patch, ok := parseQdrantVersion(version)
+	if !ok {
+		return false
+	}
+	switch {
+	case major > requiredMajor:
+		return true
+	case major < requiredMajor:
+		return false
+	case minor > requiredMinor:
+		return true
+	case minor < requiredMinor:
+		return false
+	default:
+		return patch >= requiredPatch
+	}
+}
+
+func parseQdrantVersion(version string) (int, int, int, bool) {
+	normalized := strings.TrimSpace(version)
+	start := -1
+	for i, r := range normalized {
+		if r >= '0' && r <= '9' {
+			start = i
+			break
+		}
+	}
+	if start < 0 {
+		return 0, 0, 0, false
+	}
+	parts := strings.Split(normalized[start:], ".")
+	if len(parts) < 3 {
+		return 0, 0, 0, false
 	}
 	major, err := strconv.Atoi(parts[0])
 	if err != nil {
-		return 0, 0, false
+		return 0, 0, 0, false
 	}
 	minor, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return 0, 0, false
+		return 0, 0, 0, false
 	}
-	return major, minor, true
+	patchPart := parts[2]
+	end := 0
+	for end < len(patchPart) && patchPart[end] >= '0' && patchPart[end] <= '9' {
+		end++
+	}
+	if end == 0 {
+		return 0, 0, 0, false
+	}
+	patch, err := strconv.Atoi(patchPart[:end])
+	if err != nil {
+		return 0, 0, 0, false
+	}
+	return major, minor, patch, true
 }

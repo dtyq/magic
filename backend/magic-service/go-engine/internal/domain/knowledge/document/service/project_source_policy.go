@@ -10,7 +10,6 @@ import (
 
 const (
 	projectFileResolveSource = "project_file_resolve"
-	projectFileStatusDeleted = "deleted"
 )
 
 // ProjectResolvedSourcePlan 描述项目文件解析结果对应的稳定源快照计划。
@@ -25,11 +24,7 @@ func BuildProjectResolvedSourcePlan(
 	resolved *projectfile.ResolveResult,
 	now time.Time,
 ) ProjectResolvedSourcePlan {
-	if resolved == nil {
-		return ProjectResolvedSourcePlan{}
-	}
-	status := strings.ToLower(strings.TrimSpace(resolved.Status))
-	if status == projectFileStatusDeleted || resolved.IsDirectory {
+	if !ShouldMaterializeProjectResolvedFile(resolved) {
 		return ProjectResolvedSourcePlan{}
 	}
 

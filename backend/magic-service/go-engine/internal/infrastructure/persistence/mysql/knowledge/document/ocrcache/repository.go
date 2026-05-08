@@ -10,7 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	docrepo "magic/internal/domain/knowledge/document/repository"
 	"magic/internal/infrastructure/logging"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
 	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
@@ -46,7 +47,7 @@ func NewRepository(client *mysqlclient.SQLCClient, logger *logging.SugaredLogger
 func (repo *Repository) FindURLCache(
 	ctx context.Context,
 	textHash, model string,
-) (*documentdomain.OCRResultCache, error) {
+) (*docentity.OCRResultCache, error) {
 	return repo.find(ctx, textHash, model)
 }
 
@@ -54,17 +55,17 @@ func (repo *Repository) FindURLCache(
 func (repo *Repository) FindBytesCache(
 	ctx context.Context,
 	textHash, model string,
-) (*documentdomain.OCRResultCache, error) {
+) (*docentity.OCRResultCache, error) {
 	return repo.find(ctx, textHash, model)
 }
 
 // UpsertURLCache 写入或覆盖 URL OCR 缓存。
-func (repo *Repository) UpsertURLCache(ctx context.Context, cache *documentdomain.OCRResultCache) error {
+func (repo *Repository) UpsertURLCache(ctx context.Context, cache *docentity.OCRResultCache) error {
 	return repo.upsert(ctx, cache)
 }
 
 // UpsertBytesCache 写入或覆盖字节流 OCR 缓存。
-func (repo *Repository) UpsertBytesCache(ctx context.Context, cache *documentdomain.OCRResultCache) error {
+func (repo *Repository) UpsertBytesCache(ctx context.Context, cache *docentity.OCRResultCache) error {
 	return repo.upsert(ctx, cache)
 }
 
@@ -82,7 +83,7 @@ func (repo *Repository) Touch(ctx context.Context, id int64) error {
 func (repo *Repository) find(
 	ctx context.Context,
 	textHash, model string,
-) (*documentdomain.OCRResultCache, error) {
+) (*docentity.OCRResultCache, error) {
 	if repo == nil || repo.client == nil {
 		return nil, errRepositoryUnavailable
 	}
@@ -93,7 +94,7 @@ func (repo *Repository) find(
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, documentdomain.ErrOCRCacheNotFound
+			return nil, docrepo.ErrOCRCacheNotFound
 		}
 		return nil, fmt.Errorf("find ocr cache: %w", err)
 	}
@@ -104,7 +105,7 @@ func (repo *Repository) find(
 	return cache, nil
 }
 
-func (repo *Repository) upsert(ctx context.Context, cache *documentdomain.OCRResultCache) error {
+func (repo *Repository) upsert(ctx context.Context, cache *docentity.OCRResultCache) error {
 	if repo == nil || repo.client == nil || cache == nil {
 		return nil
 	}
@@ -142,12 +143,12 @@ func (repo *Repository) upsert(ctx context.Context, cache *documentdomain.OCRRes
 	return nil
 }
 
-func sqlcCacheToEntity(sqlcCache mysqlsqlc.EmbeddingCache) (*documentdomain.OCRResultCache, error) {
+func sqlcCacheToEntity(sqlcCache mysqlsqlc.EmbeddingCache) (*docentity.OCRResultCache, error) {
 	var payload cachePayload
 	if err := json.Unmarshal(sqlcCache.Embedding, &payload); err != nil {
 		return nil, fmt.Errorf("unmarshal ocr cache payload: %w", err)
 	}
-	return &documentdomain.OCRResultCache{
+	return &docentity.OCRResultCache{
 		ID:             sqlcCache.ID,
 		TextHash:       sqlcCache.TextHash,
 		EmbeddingModel: sqlcCache.EmbeddingModel,

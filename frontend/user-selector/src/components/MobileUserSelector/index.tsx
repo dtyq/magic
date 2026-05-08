@@ -58,6 +58,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 		onOk,
 		onSearchChange,
 		selectedPopupProps,
+		renderItemRight,
 		visible,
 		className: _className,
 		...props
@@ -207,6 +208,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 		disableUser,
 		checkboxOptions: organizationCheckboxOptions,
 		pathOptions,
+		renderItemRight,
 		onItemClick,
 	})
 
@@ -308,6 +310,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 						disableUser={disableUser}
 						isMobile
 						showSearch={segment !== SegmentType.ShareToGroup}
+						renderItemRight={renderItemRight}
 					>
 						{renderContent()}
 					</SearchContainer>
@@ -353,6 +356,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 				onClose={() => setPopupVisible(false)}
 				onOk={() => setPopupVisible(false)}
 				checkboxOptions={organizationCheckboxOptions}
+				renderItemRight={renderItemRight}
 				{...selectedPopupProps}
 			/>
 		</>

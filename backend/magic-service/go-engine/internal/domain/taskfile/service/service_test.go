@@ -3,6 +3,7 @@ package taskfile_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	taskfiledomain "magic/internal/domain/taskfile/service"
@@ -19,9 +20,10 @@ type readerStub struct {
 	lastListProjectID         int64
 	lastListParentID          int64
 	lastBatchProjectID        int64
-	lastBatchParentIDs        []int64
+	lastBatchParentID         int64
 	listChildrenByParentCalls int
 	listChildrenBatchCalls    int
+	repeatFullChildBatches    bool
 	err                       error
 }
 
@@ -54,23 +56,47 @@ func (s *readerStub) ListVisibleChildrenByParent(
 	return s.childrenByParent[parentID], nil
 }
 
-func (s *readerStub) ListVisibleChildrenByParents(
+func (s *readerStub) ListVisibleChildrenByParentAfter(
 	_ context.Context,
 	projectID int64,
-	parentIDs []int64,
-	_ int,
+	parentID int64,
+	_ int64,
+	lastFileID int64,
+	limit int,
 ) ([]*projectfile.Meta, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	s.lastBatchProjectID = projectID
-	s.lastBatchParentIDs = append([]int64(nil), parentIDs...)
+	s.lastBatchParentID = parentID
 	s.listChildrenBatchCalls++
-	result := make([]*projectfile.Meta, 0)
-	for _, parentID := range parentIDs {
-		result = append(result, s.childrenByParentBatch[parentID]...)
+	items := s.childrenByParentBatch[parentID]
+	if len(items) == 0 {
+		return nil, nil
 	}
-	return result, nil
+	if s.repeatFullChildBatches {
+		if limit <= 0 || limit > len(items) {
+			limit = len(items)
+		}
+		return append([]*projectfile.Meta(nil), items[:limit]...), nil
+	}
+	start := 0
+	if lastFileID > 0 {
+		for idx, item := range items {
+			if item != nil && item.ProjectFileID == lastFileID {
+				start = idx + 1
+				break
+			}
+		}
+	}
+	if start >= len(items) {
+		return nil, nil
+	}
+	end := start + limit
+	if limit <= 0 || end > len(items) {
+		end = len(items)
+	}
+	return append([]*projectfile.Meta(nil), items[start:end]...), nil
 }
 
 func TestDomainServiceListVisibleTreeNodesByProject(t *testing.T) {
@@ -181,6 +207,75 @@ func TestDomainServiceListVisibleLeafFileIDsByFolderSkipsDirectories(t *testing.
 	}
 	if reader.listChildrenBatchCalls != 2 {
 		t.Fatalf("expected 2 batch child queries, got %d", reader.listChildrenBatchCalls)
+	}
+}
+
+func TestDomainServiceListVisibleLeafFileIDsByFolderPaginatesLargeSiblingSet(t *testing.T) {
+	t.Parallel()
+
+	children := make([]*projectfile.Meta, 0, 1001)
+	for idx := range 1001 {
+		children = append(children, &projectfile.Meta{
+			ProjectID:     200,
+			ProjectFileID: int64(idx + 1),
+			ParentID:      10,
+			Sort:          int64(idx + 1),
+		})
+	}
+	reader := &readerStub{
+		metasByID: map[int64]*projectfile.Meta{
+			10: {ProjectID: 200, ProjectFileID: 10, IsDirectory: true},
+		},
+		childrenByParentBatch: map[int64][]*projectfile.Meta{
+			10: children,
+		},
+	}
+
+	svc := taskfiledomain.NewDomainService(reader)
+	fileIDs, err := svc.ListVisibleLeafFileIDsByFolder(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("ListVisibleLeafFileIDsByFolder returned error: %v", err)
+	}
+	if len(fileIDs) != 1001 {
+		t.Fatalf("expected 1001 visible file ids, got %d", len(fileIDs))
+	}
+	if reader.listChildrenBatchCalls != 2 {
+		t.Fatalf("expected paginated child queries, got %d", reader.listChildrenBatchCalls)
+	}
+}
+
+func TestDomainServiceListVisibleLeafFileIDsByFolderRejectsStalledCursor(t *testing.T) {
+	t.Parallel()
+
+	children := make([]*projectfile.Meta, 0, 1000)
+	for idx := range 1000 {
+		children = append(children, &projectfile.Meta{
+			ProjectID:     200,
+			ProjectFileID: int64(idx + 1),
+			ParentID:      10,
+			Sort:          int64(idx + 1),
+		})
+	}
+	reader := &readerStub{
+		metasByID: map[int64]*projectfile.Meta{
+			10: {ProjectID: 200, ProjectFileID: 10, IsDirectory: true},
+		},
+		childrenByParentBatch: map[int64][]*projectfile.Meta{
+			10: children,
+		},
+		repeatFullChildBatches: true,
+	}
+
+	svc := taskfiledomain.NewDomainService(reader)
+	_, err := svc.ListVisibleLeafFileIDsByFolder(context.Background(), 10)
+	if err == nil {
+		t.Fatal("expected stalled cursor error")
+	}
+	if !strings.Contains(err.Error(), "cursor did not advance") || !strings.Contains(err.Error(), "parent_id=10") {
+		t.Fatalf("expected cursor context in error, got %v", err)
+	}
+	if reader.listChildrenBatchCalls != 2 {
+		t.Fatalf("expected exactly 2 batch child queries before failing, got %d", reader.listChildrenBatchCalls)
 	}
 }
 

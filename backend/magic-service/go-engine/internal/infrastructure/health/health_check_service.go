@@ -3,6 +3,7 @@ package health
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -81,15 +82,23 @@ func (s *CheckService) HealthCheckDetailed(ctx context.Context) []CheckResult {
 	return results
 }
 
-// Close 关闭所有资源（当前无操作，仅保持接口兼容）
+// Close 关闭所有注册资源，并聚合返回关闭错误。
 func (s *CheckService) Close(ctx context.Context) error {
+	var errs []error
 	for _, closer := range s.closers {
 		if closer == nil {
 			continue
 		}
 		if err := closer.Close(ctx); err != nil {
-			return fmt.Errorf("close infra resource: %w", err)
+			errs = append(errs, fmt.Errorf("close infra resource: %w", err))
 		}
 	}
-	return nil
+	return joinErrors(errs)
+}
+
+func joinErrors(errs []error) error {
+	if len(errs) == 0 {
+		return nil
+	}
+	return errors.Join(errs...)
 }

@@ -3,6 +3,7 @@ package document
 import (
 	"strings"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/domain/knowledge/shared"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
@@ -12,20 +13,31 @@ func BuildDocumentForCreate(
 	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 	effectiveModel string,
 	input *CreateManagedDocumentInput,
-) *KnowledgeBaseDocument {
+) *docentity.KnowledgeBaseDocument {
 	if input == nil {
 		return nil
 	}
 	kb = sharedsnapshot.NormalizeKnowledgeBaseSnapshotConfigs(kb)
 
-	doc := NewDocument(
+	inputKind := docentity.DocumentInputKindText
+	switch input.DocType {
+	case int(docentity.DocumentInputKindFile):
+		inputKind = docentity.DocumentInputKindFile
+	case int(docentity.DocumentInputKindURL):
+		inputKind = docentity.DocumentInputKindURL
+	}
+
+	doc := newDocument(
 		input.KnowledgeBaseCode,
 		input.Name,
-		"",
-		DocType(input.DocType),
+		input.Code,
+		inputKind,
 		input.UserID,
 		input.OrganizationCode,
 	)
+	// CreateManagedDocumentInput.DocType 承载的是主表精确 doc_type；
+	// NewDocument 只用 DocumentInputKind 初始化默认值，随后回写调用方传入的真实 doc_type。
+	doc.DocType = input.DocType
 	doc.Description = input.Description
 	doc.DocMetadata = input.DocMetadata
 	doc.SourceBindingID = input.SourceBindingID
@@ -61,7 +73,7 @@ func BuildDocumentForCreate(
 	return doc
 }
 
-func cloneFile(file *File) *File {
+func cloneFile(file *docentity.File) *docentity.File {
 	if file == nil {
 		return nil
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/pkg/projectfile"
 )
 
@@ -39,7 +40,7 @@ type ProjectFileChangeSourceResolver interface {
 
 // ProjectFileChangeOperator 定义 project-file lifecycle 的执行端口。
 type ProjectFileChangeOperator interface {
-	DestroyDocument(ctx context.Context, doc *KnowledgeBaseDocument) error
+	DestroyDocument(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error
 	CreateManagedDocument(ctx context.Context, input ProjectFileChangeCreateDocumentInput) (string, error)
 	ScheduleSync(ctx context.Context, input *SyncDocumentInput)
 }
@@ -49,7 +50,7 @@ type ProjectFileChangeLifecycleInput struct {
 	ProjectFileID                    int64
 	Meta                             *projectfile.Meta
 	Bindings                         []ProjectFileBindingRef
-	Documents                        []*KnowledgeBaseDocument
+	Documents                        []*docentity.KnowledgeBaseDocument
 	UseSourceOverrideByKnowledgeBase map[string]bool
 }
 
@@ -116,7 +117,7 @@ func (s *ProjectFileChangeLifecycleService) validateInput(input ProjectFileChang
 
 func (s *ProjectFileChangeLifecycleService) destroyDocuments(
 	ctx context.Context,
-	docs []*KnowledgeBaseDocument,
+	docs []*docentity.KnowledgeBaseDocument,
 ) error {
 	for _, doc := range docs {
 		if doc == nil {
@@ -193,7 +194,7 @@ func buildProjectFileCreateSyncRequest(
 		Code:              documentCode,
 		Mode:              SyncModeCreate,
 		Async:             true,
-		BusinessParams:    buildSyncBusinessParams(target.OrganizationCode, target.UserID, target.KnowledgeBaseCode),
+		BusinessParams:    buildSyncBusinessParams(target.OrganizationCode, target.UserID, target.KnowledgeBaseCode, "", ""),
 		SourceOverride:    CloneProjectSourceOverride(override),
 	}
 }

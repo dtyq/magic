@@ -178,6 +178,11 @@ class SizeManager
         return ($width / $gcd) . ':' . ($height / $gcd);
     }
 
+    public static function isDivisibleBy16(int $width, int $height): bool
+    {
+        return $width % 16 === 0 && $height % 16 === 0;
+    }
+
     /**
      * 根据模型版本、名称和 model_id 匹配配置.
      * @param string $modelVersion 模型版本

@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/domain/knowledge/shared"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
+	"magic/internal/pkg/projectfile"
 )
 
 const (
@@ -47,17 +49,17 @@ func BuildStableThirdFileRepairDocumentCode(knowledgeCode, thirdFileID string) s
 	return repairDocumentCodePrefix + encoded
 }
 
-// InferRepairDocumentType 推断修复链路文档类型。
-func InferRepairDocumentType(name string) DocType {
-	if inferRepairExtension(name) != "" {
-		return DocTypeFile
+// InferRepairDocType 推断修复链路文档的精确 doc_type。
+func InferRepairDocType(name string) docentity.DocType {
+	if extension := inferRepairExtension(name); extension != "" {
+		return docentity.DocType(projectfile.ResolveDocType(extension))
 	}
-	return DocTypeText
+	return docentity.DocTypeText
 }
 
 // EnsureThirdFileRepairDocumentFields 对齐修复链路的文档字段。
 func EnsureThirdFileRepairDocumentFields(
-	doc *KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 	platformType string,
 	group ThirdFileRepairGroup,
@@ -116,7 +118,7 @@ func EnsureThirdFileRepairDocumentFields(
 		changed = true
 	}
 	if doc.DocType <= 0 {
-		doc.DocType = int(InferRepairDocumentType(documentName))
+		doc.DocType = int(InferRepairDocType(documentName))
 		changed = true
 	}
 	return changed
@@ -127,21 +129,22 @@ func BuildThirdFileRepairDocument(
 	kb *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 	platformType string,
 	group ThirdFileRepairGroup,
-) *KnowledgeBaseDocument {
+) *docentity.KnowledgeBaseDocument {
 	kb = sharedsnapshot.NormalizeKnowledgeBaseSnapshotConfigs(kb)
 	if kb == nil {
 		return nil
 	}
 	documentName := ResolveThirdFileRepairDocumentName(group)
 	createdUID := firstNonEmptyString(group.CreatedUID, kb.UpdatedUID, kb.CreatedUID)
-	doc := NewDocument(
+	doc := newDocument(
 		strings.TrimSpace(kb.Code),
 		documentName,
 		firstNonEmptyString(strings.TrimSpace(group.DocumentCode), BuildStableThirdFileRepairDocumentCode(kb.Code, group.ThirdFileID)),
-		InferRepairDocumentType(documentName),
+		docentity.DocumentInputKindText,
 		createdUID,
 		strings.TrimSpace(kb.OrganizationCode),
 	)
+	doc.DocType = int(InferRepairDocType(documentName))
 	doc.UpdatedUID = firstNonEmptyString(group.UpdatedUID, createdUID)
 	doc.SyncStatus = shared.SyncStatusSynced
 	doc.EmbeddingModel = kb.Model
@@ -154,7 +157,7 @@ func BuildThirdFileRepairDocument(
 	return doc
 }
 
-func ensureThirdPlatformRepairFields(doc *KnowledgeBaseDocument, platformType, thirdFileID, documentName string) bool {
+func ensureThirdPlatformRepairFields(doc *docentity.KnowledgeBaseDocument, platformType, thirdFileID, documentName string) bool {
 	if doc == nil {
 		return false
 	}
@@ -170,7 +173,7 @@ func ensureThirdPlatformRepairFields(doc *KnowledgeBaseDocument, platformType, t
 		changed = true
 	}
 	if doc.DocumentFile == nil {
-		doc.DocumentFile = &File{}
+		doc.DocumentFile = &docentity.File{}
 	}
 	if doc.DocumentFile.Type != "third_platform" {
 		doc.DocumentFile.Type = "third_platform"

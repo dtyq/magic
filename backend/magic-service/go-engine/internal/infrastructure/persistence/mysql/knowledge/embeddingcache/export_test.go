@@ -3,7 +3,6 @@ package embeddingcache
 import (
 	"context"
 	"database/sql"
-	"time"
 
 	"magic/internal/domain/knowledge/embedding"
 	"magic/internal/infrastructure/logging"
@@ -38,18 +37,6 @@ func BuildEmbeddingCacheInsertArgsForTest(cache *embedding.Cache) ([]any, error)
 
 func BuildEmbeddingCacheInsertBatchSQLForTest(rowCount int) string {
 	return buildEmbeddingCacheInsertBatchSQL(rowCount)
-}
-
-func BuildFindExpiredCacheIDsQueryForTest(
-	criteria *embedding.CacheCleanupCriteria,
-	now time.Time,
-	offset, limit int,
-) (string, []any, bool, error) {
-	return buildFindExpiredCacheIDsQuery(criteria, now, offset, limit)
-}
-
-func BuildOrderByForTest(query *embedding.CacheQuery) string {
-	return buildOrderBy(query)
 }
 
 func IsDuplicateEntryErrorForTest(err error) bool {

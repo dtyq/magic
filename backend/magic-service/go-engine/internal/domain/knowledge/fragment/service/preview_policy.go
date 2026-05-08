@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	"magic/internal/domain/knowledge/shared"
 	"magic/internal/pkg/filetype"
 )
@@ -24,7 +25,7 @@ const (
 // PreviewPlan 描述预览链路的领域策略结果。
 type PreviewPlan struct {
 	RequestKey       string
-	DocumentFile     *File
+	DocumentFile     *fragmodel.DocumentFile
 	RequestedMode    shared.FragmentMode
 	FragmentConfig   *shared.FragmentConfig
 	SegmentConfig    PreviewSegmentConfig
@@ -34,7 +35,7 @@ type PreviewPlan struct {
 
 // ResolvePreviewPlan 解析预览所需的领域策略。
 func ResolvePreviewPlan(
-	documentFile *File,
+	documentFile *fragmodel.DocumentFile,
 	fragmentConfig *shared.FragmentConfig,
 	hasThirdPlatformResolver bool,
 ) PreviewPlan {
@@ -57,14 +58,14 @@ func ResolvePreviewPlan(
 }
 
 // NormalizePreviewDocumentFile 规整预览链路的文件输入。
-func NormalizePreviewDocumentFile(file *File) *File {
+func NormalizePreviewDocumentFile(file *fragmodel.DocumentFile) *fragmodel.DocumentFile {
 	if file == nil {
-		return &File{}
+		return &fragmodel.DocumentFile{}
 	}
-	normalized := &File{
+	normalized := &fragmodel.DocumentFile{
 		Type:       normalizePreviewDocumentFileType(file.Type),
 		Name:       strings.TrimSpace(file.Name),
-		URL:        firstNonEmptyString(strings.TrimSpace(file.URL), strings.TrimSpace(file.Name)),
+		URL:        strings.TrimSpace(file.URL),
 		Size:       file.Size,
 		Extension:  filetype.NormalizeExtension(strings.TrimSpace(file.Extension)),
 		ThirdID:    strings.TrimSpace(file.ThirdID),
@@ -78,13 +79,13 @@ func NormalizePreviewDocumentFile(file *File) *File {
 		}
 	}
 	if normalized.Extension == "" {
-		normalized.Extension = InferDocumentFileExtensionLight(normalized)
+		normalized.Extension = fragmodel.InferDocumentFileExtensionLight(normalized)
 	}
 	return normalized
 }
 
 // IsThirdPlatformPreviewDocument 判断是否为第三方预览文件。
-func IsThirdPlatformPreviewDocument(file *File) bool {
+func IsThirdPlatformPreviewDocument(file *fragmodel.DocumentFile) bool {
 	if file == nil {
 		return false
 	}
@@ -98,7 +99,7 @@ func IsThirdPlatformPreviewDocument(file *File) bool {
 }
 
 // BuildPreviewDocumentFilePayload 构造预览第三方解析请求载荷。
-func BuildPreviewDocumentFilePayload(file *File) map[string]any {
+func BuildPreviewDocumentFilePayload(file *fragmodel.DocumentFile) map[string]any {
 	if file == nil {
 		return map[string]any{}
 	}
@@ -116,7 +117,7 @@ func BuildPreviewDocumentFilePayload(file *File) map[string]any {
 }
 
 // ApplyResolvedPreviewDocumentFile 回填第三方预览解析结果。
-func ApplyResolvedPreviewDocumentFile(file *File, result map[string]any) {
+func ApplyResolvedPreviewDocumentFile(file *fragmodel.DocumentFile, result map[string]any) {
 	if file == nil || len(result) == 0 {
 		return
 	}
@@ -143,7 +144,7 @@ func ApplyResolvedPreviewDocumentFile(file *File, result map[string]any) {
 		file.SourceType,
 	)
 	if file.Extension == "" {
-		file.Extension = InferDocumentFileExtensionLight(file)
+		file.Extension = fragmodel.InferDocumentFileExtensionLight(file)
 	}
 }
 
@@ -179,7 +180,7 @@ func BuildPreviewSegmentConfig(cfg *shared.FragmentConfig) PreviewSegmentConfig 
 
 // BuildPreviewRequestKey 构造预览请求去重键。
 func BuildPreviewRequestKey(
-	documentFile *File,
+	documentFile *fragmodel.DocumentFile,
 	requestedMode shared.FragmentMode,
 	fragmentConfig *shared.FragmentConfig,
 	segmentConfig PreviewSegmentConfig,
@@ -314,11 +315,18 @@ func normalizePreviewRequestedMode(mode shared.FragmentMode) shared.FragmentMode
 }
 
 func normalizePreviewDocumentFileType(v string) string {
-	normalized := normalizeDocumentFileType(v)
+	normalized := strings.TrimSpace(strings.ToLower(v))
 	if normalized != "" {
-		return normalized
+		switch normalized {
+		case "1":
+			return previewDocumentFileTypeExternal
+		case "2", "third-platform", "thirdplatform":
+			return previewDocumentFileTypeThirdPlatform
+		default:
+			return normalized
+		}
 	}
-	if strings.TrimSpace(strings.ToLower(v)) == "3" {
+	if normalized == "3" {
 		return previewDocumentFileTypeExternal
 	}
 	return normalized

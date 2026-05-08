@@ -18,7 +18,7 @@ use function Hyperf\Translation\__;
 
 abstract class AbstractGoogleGeminiClient implements GoogleGeminiInterface
 {
-    protected const REQUEST_TIMEOUT = 300;
+    protected const REQUEST_TIMEOUT = 1200;
 
     protected array $config;
 

@@ -8,6 +8,7 @@ import (
 
 	rebuilddto "magic/internal/application/knowledge/rebuild/dto"
 	domainrebuild "magic/internal/domain/knowledge/rebuild"
+	"magic/internal/pkg/runguard"
 )
 
 func (r *Runner) resyncAllDocuments(
@@ -61,6 +62,7 @@ func (r *Runner) processResyncBatch(
 	var workerWG sync.WaitGroup
 	for range opts.Concurrency {
 		workerWG.Go(func() {
+			defer runguard.Recover(ctx, rebuildPanicOptions(r.logger, "knowledge.rebuild.resync_worker", "run_id", runID))
 			for task := range taskCh {
 				r.executeResyncTask(ctx, runID, task, opts.Retry, state)
 			}

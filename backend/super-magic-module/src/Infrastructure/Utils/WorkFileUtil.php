@@ -109,8 +109,8 @@ class WorkFileUtil
             return false;
         }
 
-        // Check for filenames starting or ending with spaces or dots (problematic on Windows)
-        if (preg_match('/^[\s.]+|[\s.]+$/', $fileName)) {
+        // Check for filenames starting or ending with spaces
+        if (preg_match('/^\s+|\s+$/', $fileName)) {
             return false;
         }
 

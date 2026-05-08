@@ -1,9 +1,11 @@
 package document
 
+import docentity "magic/internal/domain/knowledge/document/entity"
+
 // AttachedDocumentInput 描述知识库创建时附带文档输入。
 type AttachedDocumentInput struct {
 	Name              string
-	DocumentFile      *File
+	DocumentFile      *docentity.File
 	ThirdPlatformType string
 	ThirdFileID       string
 }

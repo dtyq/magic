@@ -66,12 +66,26 @@ type packageInfo struct {
 	layer      layerType
 	domain     string
 	afterLayer []string
+	role       domainPackageRole
 	// 用于 repository 服务/仓储检测
 	isInRepository bool
 	serviceName    string
 	// 用于 application/domain 服务检测
 	isInService bool
 }
+
+type domainPackageRole string
+
+const (
+	domainRoleUnknown    domainPackageRole = ""
+	domainRoleEntity     domainPackageRole = "entity"
+	domainRoleModel      domainPackageRole = "model"
+	domainRoleRepository domainPackageRole = "repository"
+	domainRoleService    domainPackageRole = "service"
+	domainRoleShared     domainPackageRole = "shared"
+	domainRoleMetadata   domainPackageRole = "metadata"
+	domainRoleRetrieval  domainPackageRole = "retrieval"
+)
 
 type layerdepsConfigFile struct {
 	Domain      layerdepsDomainConfig      `yaml:"domain"`
@@ -963,9 +977,9 @@ func checkApplicationLayerRules(to packageInfo, importPath string) (string, bool
 		), true
 	}
 
-	if isDomainRepositoryPath(to) {
+	if isDomainRepositoryImplementationPath(to) {
 		return fmt.Sprintf(
-			"application layer must not import domain repository package (%s). hint: depend on domain interfaces exposed by the owning subdomain, not repository detail packages",
+			"application layer must not import domain repository implementation package (%s). hint: depend on the owning subdomain repository contract package only",
 			importPath,
 		), true
 	}
@@ -973,16 +987,11 @@ func checkApplicationLayerRules(to packageInfo, importPath string) (string, bool
 	return "", false
 }
 
-func isDomainRepositoryPath(p packageInfo) bool {
-	if p.layer != layerDomain {
+func isDomainRepositoryImplementationPath(p packageInfo) bool {
+	if !p.isRepositoryPackage() {
 		return false
 	}
-	for idx := 1; idx < len(p.afterLayer); idx++ {
-		if p.afterLayer[idx] == pathSegmentRepo {
-			return true
-		}
-	}
-	return false
+	return !p.isRepositoryRootPackage()
 }
 
 func checkInterfacesLayerRules(to packageInfo, importPath string) (string, bool) {
@@ -1021,6 +1030,12 @@ func checkInfrastructureLayerRules(to packageInfo, importPath string) (string, b
 		return fmt.Sprintf(
 			"infrastructure layer must not depend on %s layer (%s). hint: infrastructure should implement domain contracts and be wired from internal/di",
 			string(to.layer), importPath,
+		), true
+	}
+	if to.layer == layerDomain && to.role == domainRoleService {
+		return fmt.Sprintf(
+			"infrastructure layer must not depend on domain service package (%s). hint: depend on stable domain entity/model/repository/shared contracts instead of business workflow packages",
+			importPath,
 		), true
 	}
 	return "", false
@@ -1098,6 +1113,7 @@ func (s *analyzerState) packageInfoFromPath(path string, isFile bool) (packageIn
 		info.layer = layerDomain
 		info.domain = domain
 
+		detectDomainRole(&info)
 		// 可靠地检测 repository 服务/仓储。
 		// 接受 "repository" 之后的目录或文件形式：
 		//  - internal/domain/{domain}/repository/{service}/...（示例）
@@ -1118,6 +1134,41 @@ func (s *analyzerState) packageInfoFromPath(path string, isFile bool) (packageIn
 	}
 
 	return info, true
+}
+
+func detectDomainRole(info *packageInfo) {
+	if info == nil || info.layer != layerDomain {
+		return
+	}
+	for idx := 1; idx < len(info.afterLayer); idx++ {
+		role := normalizeDomainRole(info.afterLayer[idx])
+		if role == domainRoleUnknown {
+			continue
+		}
+		info.role = role
+		return
+	}
+}
+
+func normalizeDomainRole(segment string) domainPackageRole {
+	switch strings.TrimSpace(segment) {
+	case string(domainRoleEntity):
+		return domainRoleEntity
+	case string(domainRoleModel):
+		return domainRoleModel
+	case string(domainRoleRepository):
+		return domainRoleRepository
+	case string(domainRoleService):
+		return domainRoleService
+	case string(domainRoleShared):
+		return domainRoleShared
+	case string(domainRoleMetadata):
+		return domainRoleMetadata
+	case string(domainRoleRetrieval):
+		return domainRoleRetrieval
+	default:
+		return domainRoleUnknown
+	}
 }
 
 func resolveDomainName(config layerdepsRuleConfig, afterLayer []string, isFile bool) string {
@@ -1270,14 +1321,24 @@ func stripServiceSuffixes(name string) string {
 }
 
 func (p packageInfo) isRepositoryPackage() bool {
-	const minSegmentsForRepoCheck = 2 // 至少需要 domain + repository 索引
+	return p.repositorySegmentIndex() >= 0
+}
+
+func (p packageInfo) isRepositoryRootPackage() bool {
+	repoIdx := p.repositorySegmentIndex()
+	return repoIdx >= 0 && repoIdx == len(p.afterLayer)-1
+}
+
+func (p packageInfo) repositorySegmentIndex() int {
 	if p.layer != layerDomain {
-		return false
+		return -1
 	}
-	if len(p.afterLayer) < minSegmentsForRepoCheck {
-		return false
+	for idx := 1; idx < len(p.afterLayer); idx++ {
+		if p.afterLayer[idx] == pathSegmentRepo {
+			return idx
+		}
 	}
-	return p.afterLayer[1] == pathSegmentRepo
+	return -1
 }
 
 // ---------- 忽略规则辅助 ----------

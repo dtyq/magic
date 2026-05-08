@@ -1,0 +1,512 @@
+/* ============================================================
+   Business Minimal — Theme Styles v2
+   Use cases: corporate reports, quarterly summaries, strategy reports, business proposals, investor roadshows
+   Design concept: minimalist and professional · breathing whitespace · data-driven · McKinsey-style rigor
+
+   Usage: <link rel="stylesheet" href="theme.css"/>
+   ============================================================ */
+
+:root {
+  /* ----------------------------------------------------------
+     Background Colors
+     ---------------------------------------------------------- */
+  --bg-primary: #ffffff; /* Primary background: pure white */
+  --bg-secondary: #f7f8fa; /* Secondary background: very light gray for cards and zebra rows */
+  --bg-tertiary: #eef0f4; /* Tertiary background: separator sections */
+  --bg-dark: #141820; /* Dark background: cover and section pages */
+  --bg-dark-soft: #1e2532; /* Secondary dark background: dark cards */
+
+  /* ----------------------------------------------------------
+     Text Colors
+     ---------------------------------------------------------- */
+  --text-primary: #141820; /* Primary text: near-black, high contrast */
+  --text-secondary: #52586a; /* Secondary text: blue gray */
+  --text-muted: #9299aa; /* Muted text: light blue gray */
+  --text-on-dark: #ffffff; /* Text on dark backgrounds: pure white */
+  --text-on-dark-2: #a8b4c8; /* Secondary text on dark backgrounds */
+
+  /* ----------------------------------------------------------
+     Brand Colors
+     ---------------------------------------------------------- */
+  --brand-blue: #1a56db; /* Core emphasis: professional blue */
+  --brand-blue-mid: #3b7fef; /* Mid blue: charts and secondary emphasis */
+  --brand-blue-light: #ebf2ff; /* Light blue background: highlighted sections */
+  --brand-blue-border: #c3d9ff; /* Blue border */
+
+  /* ----------------------------------------------------------
+     Status Colors (for data comparisons only)
+     ---------------------------------------------------------- */
+  --status-up: #0d7a4e; /* Growth/positive: restrained green */
+  --status-up-bg: #e6f7f0;
+  --status-down: #c0392b; /* Decline/negative: restrained red */
+  --status-down-bg: #fdecea;
+  --status-flat: #92600a; /* Flat/caution: amber */
+  --status-flat-bg: #fef3e2;
+
+  /* ----------------------------------------------------------
+     Borders and Dividers
+     ---------------------------------------------------------- */
+  --border-light: #e8ecf2; /* Common border: very light gray */
+  --border-medium: #c8cdd8; /* Medium border: dividers */
+  --border-dark: #8a919e; /* Dark border: emphasis */
+
+  /* ----------------------------------------------------------
+     Chart Palette (for ECharts)
+     ---------------------------------------------------------- */
+  --chart-1: #1a56db;
+  --chart-2: #3b7fef;
+  --chart-3: #6fa3f5;
+  --chart-4: #0d7a4e;
+  --chart-5: #c0392b;
+}
+
+/* ============================================================
+   Typography Scale (1920×1080 Canvas)
+
+   Main title     : 64–76px  weight:800  color:--text-primary  letter-spacing:-0.02em
+   Content title  : 40–52px  weight:700  color:--brand-blue or --text-primary
+   Subtitle       : 28–36px  weight:500  color:--text-secondary
+   Body text      : 22–26px  weight:400  color:--text-primary  line-height:1.75
+   Data highlight : 56–72px  weight:800  color:--brand-blue
+   Support label  : 16–20px  weight:400  color:--text-muted
+   Table text     : 20–22px  weight:400
+
+   Font stack: 'Noto Sans SC', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif
+   ============================================================ */
+
+/* ============================================================
+   Corner Radius Rules (business style: square and restrained)
+   Cards/sections  : border-radius: 4px, firm and rigorous
+   Buttons/badges   : border-radius: 4px
+   Tables           : border-radius: 0
+   Chart containers : border-radius: 4px
+   Do not use       : border-radius > 8px, to avoid softening the business tone
+   ============================================================ */
+
+/* ============================================================
+   Shadow Rules (very light, never competing with content)
+   Standard card : box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)
+   Emphasis card : box-shadow: 0 4px 12px rgba(0,0,0,0.08)
+   Dark card     : box-shadow: 0 8px 24px rgba(0,0,0,0.3)
+   Do not use    : colored shadows or heavy shadows
+   ============================================================ */
+
+/* ============================================================
+   Base Slide Styles
+
+   Canvas: 1920×1080, overflow hidden, Noto Sans stack, --bg-primary / --text-primary.
+   Implemented below: html, body, .slide, .slide-body (36px 80px; extra bottom for 64px .footer-bar).
+   ============================================================ */
+
+html,
+body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  margin: 0;
+  font-family:
+    "Noto Sans SC",
+    -apple-system,
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.slide {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Reserve 64px for .footer-bar; main spec: padding 36px 80px */
+.slide-body {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 36px 80px 100px;
+}
+
+/* ============================================================
+   Decorative Element Rules
+
+   Intent → classes (full rules in CSS below):
+   A  Cover top bar → .cover-top-bar
+   B  Title left accent → .title-accent-rule
+   C  Pull quote panel → .quote-block
+   D  Section watermark numeral → .section-watermark-num
+   E  Dark page top gradient rule → .dark-page-top-accent
+   F  Data hairline divider → .rule-divider-light
+   ============================================================ */
+
+.cover-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: var(--brand-blue);
+}
+
+.title-accent-rule {
+  display: inline-block;
+  width: 5px;
+  height: 1em;
+  background: var(--brand-blue);
+  margin-right: 16px;
+  vertical-align: middle;
+}
+
+.section-watermark-num {
+  font-size: 280px;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.04);
+  position: absolute;
+  right: 40px;
+  bottom: -20px;
+  letter-spacing: -0.05em;
+  pointer-events: none;
+}
+
+.dark-page-top-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--brand-blue), var(--brand-blue-mid));
+}
+
+.rule-divider-light {
+  border-top: 1px solid var(--border-light);
+  margin: 20px 0;
+}
+
+/* ============================================================
+   Dedicated Component Library
+
+   All rules are in CSS below. Groups:
+   KPI (.kpi-card, .kpi-value, .kpi-label, .kpi-delta-*),
+   matrix (.matrix-cell, .matrix-cell-title, .matrix-cell-body, .matrix-cell.highlight),
+   SWOT (.swot-s through .swot-t), badges (.badge, .badge-*), table (.data-table),
+   waterfall (.waterfall-bar-*), progress (.progress-track, .progress-fill*), quote (.quote-block),
+   header (.page-header, .page-title, .page-section), footer (.footer-bar, .footer-company, .footer-page).
+   ============================================================ */
+
+.kpi-card {
+  background: var(--bg-secondary);
+  border-top: 3px solid var(--brand-blue);
+  border-radius: 4px;
+  padding: 28px 32px;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.kpi-value {
+  font-size: 64px;
+  font-weight: 800;
+  color: var(--brand-blue);
+  line-height: 1;
+}
+
+.kpi-label {
+  font-size: 18px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.kpi-delta-up {
+  color: var(--status-up);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.kpi-delta-down {
+  color: var(--status-down);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.matrix-cell {
+  border: 1px solid var(--border-light);
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.matrix-cell-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.matrix-cell-body {
+  font-size: 19px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.matrix-cell.highlight {
+  background: var(--brand-blue-light);
+  border-color: var(--brand-blue-border);
+}
+
+.swot-s,
+.swot-w,
+.swot-o,
+.swot-t {
+  border-radius: 4px;
+  padding: 24px 28px;
+}
+
+.swot-s {
+  background: #e6f7f0;
+  border-top: 3px solid var(--status-up);
+}
+
+.swot-w {
+  background: #fdecea;
+  border-top: 3px solid var(--status-down);
+}
+
+.swot-o {
+  background: var(--brand-blue-light);
+  border-top: 3px solid var(--brand-blue);
+}
+
+.swot-t {
+  background: var(--status-flat-bg);
+  border-top: 3px solid var(--status-flat);
+}
+
+.badge {
+  display: inline-block;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+.badge-up {
+  background: var(--status-up-bg);
+  color: var(--status-up);
+}
+
+.badge-down {
+  background: var(--status-down-bg);
+  color: var(--status-down);
+}
+
+.badge-flat {
+  background: var(--status-flat-bg);
+  color: var(--status-flat);
+}
+
+.badge-blue {
+  background: var(--brand-blue-light);
+  color: var(--brand-blue);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 20px;
+}
+
+.data-table thead tr {
+  background: var(--bg-dark);
+}
+
+.data-table thead th {
+  padding: 14px 20px;
+  color: #fff;
+  font-weight: 700;
+  text-align: left;
+}
+
+.data-table tbody tr:nth-child(even) {
+  background: var(--bg-secondary);
+}
+
+.data-table tbody td {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.data-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid var(--border-medium);
+}
+
+.waterfall-bar-pos {
+  background: var(--status-up);
+  border-radius: 2px;
+}
+
+.waterfall-bar-neg {
+  background: var(--status-down);
+  border-radius: 2px;
+}
+
+.waterfall-bar-tot {
+  background: var(--brand-blue);
+  border-radius: 2px;
+}
+
+.progress-track {
+  height: 8px;
+  background: var(--border-light);
+  border-radius: 4px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--brand-blue);
+  border-radius: 4px;
+}
+
+.progress-fill-up {
+  background: var(--status-up);
+}
+
+.progress-fill-down {
+  background: var(--status-down);
+}
+
+.quote-block {
+  border-left: 5px solid var(--brand-blue);
+  background: var(--brand-blue-light);
+  padding: 18px 24px;
+  border-radius: 0 4px 4px 0;
+  font-style: italic;
+  color: var(--text-secondary);
+  font-size: 22px;
+}
+
+.page-header {
+  height: 100px;
+  padding: 0 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.page-title {
+  font-size: 44px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.page-section {
+  font-size: 20px;
+  color: var(--text-muted);
+}
+
+.footer-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  padding: 0 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  box-sizing: border-box;
+}
+
+.footer-company {
+  font-size: 18px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.footer-page {
+  font-size: 18px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+/* ============================================================
+   Layout Rules (1920×1080)
+
+   Zones: top title band ≈100px (0 80px padding), main content, bottom bar 64px.
+   Content padding 36px 80px is applied via .slide-body; footer uses .footer-bar.
+   Grid utilities in CSS: .layout-col-centered, .grid-cols-3, .grid-cols-4, .grid-2x2.
+   ============================================================ */
+
+.grid-cols-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 36px;
+}
+
+.grid-cols-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 28px;
+}
+
+.grid-2x2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 24px;
+}
+
+.layout-col-centered {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ============================================================
+   Dedicated Layout Page Types (8)
+
+   1. Cover Page
+      - Top: 8px brand-blue bar
+      - Left (55%): large title, subtitle, tags, divider, speaker/date
+      - Right (45%): dark background block (bg-dark) with oversized white text decoration or company logo area
+      - Bottom: ultra-thin divider plus confidentiality level/version number
+
+   2. Agenda Page
+      - Left (35%): dark background (bg-dark), brand-blue top bar, oversized white "AGENDA" text
+      - Right (65%): numbered agenda list, each item with number (large brand-blue text), section name, dotted line, and page number
+      - Current section highlight: brand-blue left rule plus light blue background
+
+   3. KPI Dashboard Page
+      - Top: four KPI cards in a row with thin blue top rules
+      - Below: bar chart on the left (55%) and data table on the right (45%)
+
+   4. McKinsey Matrix Page
+      - Title area plus 3×3 or 2×2 matrix cells
+      - Axis labels, such as X-axis for impact and Y-axis for feasibility
+      - Highlight key quadrants with a light blue background
+
+   5. SWOT Quadrants Page
+      - 2×2 cells distinguished by four colors: green, red, blue, and orange
+      - Each cell: title with full S/W/O/T name plus key point list
+
+   6. Financial Waterfall Page
+      - Top: title plus time-range badge
+      - Main body: ECharts waterfall chart with positive growth in green, negative decline in red, and total in blue
+      - Right side: key data summary cards
+
+   7. Section Page
+      - Full-screen dark background (bg-dark) plus 4px blue top rule
+      - Left: section number (brand blue, 120px) plus section name (white, 64px)
+      - Right: translucent oversized number as background decoration
+      - Bottom: progress indicator (current/total sections)
+
+   8. Ending Page
+      - Top: brand-blue horizontal bar
+      - Center: thank-you text plus contact card with a blue left rule
+      - Bottom: company information plus small disclaimer text
+   ============================================================ */

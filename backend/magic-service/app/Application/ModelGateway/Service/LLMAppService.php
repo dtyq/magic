@@ -53,10 +53,10 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateFactory;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateModelType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageGenerateType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModel;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModelConfig;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\MiracleVision\MiracleVisionModel;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\MiracleVisionModelRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
 use App\Infrastructure\ExternalAPI\ImageSearch\DTO\ImageSearchResponseDTO;
 use App\Infrastructure\ExternalAPI\ImageSearch\Factory\ImageSearchEngineAdapterFactory;
 use App\Infrastructure\ExternalAPI\MagicAIApi\MagicAILocalModel;
@@ -205,15 +205,12 @@ class LLMAppService extends AbstractLLMAppService
                      * 3. 使用 model_id 进行模糊匹配（如豆包4.0/4.5）
                      */
                     $entryAttributes = $entry->getAttributes();
-                    $imageModelConfig = SizeManager::matchConfig(
+                    $imageModelConfig = ImageModelConfig::fromModel(
                         $entryAttributes->getName(),
                         $entryAttributes->getKey()
                     );
                     if ($imageModelConfig !== null) {
-                        $info['image_size_config'] = [
-                            'sizes' => $imageModelConfig['sizes'] ?? [],
-                            'max_reference_images' => $imageModelConfig['max_reference_images'] ?? 0,
-                        ];
+                        $info['image_size_config'] = $imageModelConfig->toArray();
                     }
                 } else {
                     /** @var AbstractModel $odinImpl */
@@ -1081,7 +1078,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setUserPrompt($textGenerateImageDTO->getPrompt());
         $imageGenerateParamsVO->setGenerateNum($textGenerateImageDTO->getN());
         $imageGenerateParamsVO->setSequentialImageGeneration($textGenerateImageDTO->getSequentialImageGeneration());
-        $imageGenerateParamsVO->setSequentialImageGenerationOptions($textGenerateImageDTO->getSequentialImageGenerationOptions());
+        $imageGenerateParamsVO->setImageGenerationConfig($textGenerateImageDTO->getImageGenerationConfig());
 
         $size = $textGenerateImageDTO->getSize();
         [$width, $height] = explode('x', $size);
@@ -1770,7 +1767,7 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setUserPrompt($proxyModelRequest->getPrompt());
         $imageGenerateParamsVO->setGenerateNum($proxyModelRequest->getN());
         $imageGenerateParamsVO->setSequentialImageGeneration($proxyModelRequest->getSequentialImageGeneration());
-        $imageGenerateParamsVO->setSequentialImageGenerationOptions($proxyModelRequest->getSequentialImageGenerationOptions());
+        $imageGenerateParamsVO->setImageGenerationConfig($proxyModelRequest->getImageGenerationConfig());
         $imageGenerateParamsVO->setReferenceImages($proxyModelRequest->getImages());
         $imageGenerateParamsVO->setOutputFormat($proxyModelRequest->getOutputFormat());
 
@@ -1814,19 +1811,24 @@ class LLMAppService extends AbstractLLMAppService
             // 记录日志
             $this->recordImageGenerateMessageLog($modelVersion, $creator, $organizationCode);
 
-            // 计算计费数量
-            $n = $proxyModelRequest->getN();
-            // 除了 mj和 图生图 是 1 次之外，其他都按张数算
-            if (in_array($modelVersion, ImageGenerateModelType::getMidjourneyModes())) {
-                $n = 1;
+            // 获取图片生成次数
+            $imageCount = $generateImageOpenAIFormat->getUsage()?->getGeneratedImages();
+            // 图片生成次数为空时，尝试获取图片数量
+            if (is_null($imageCount) && $generateImageOpenAIFormat->getData()) {
+                $imageCount = count($generateImageOpenAIFormat->getData());
             }
+            // 图片生成次数为空时，尝试获取错误信息
+            if (is_null($imageCount) && ! empty($generateImageOpenAIFormat->getProviderErrorMessage())) {
+                throw new BusinessException($generateImageOpenAIFormat->getProviderErrorMessage(), $generateImageOpenAIFormat->getProviderErrorCode());
+            }
+            $imageCount ??= 0;
 
             // 统一触发事件
             $this->dispatchImageGeneratedEvent(
                 $creator,
                 $organizationCode,
                 $proxyModelRequest,
-                $n,
+                $imageCount,
                 $imageModel->getProviderModelId(),
                 $callTime,
                 $startTime,
@@ -1840,6 +1842,23 @@ class LLMAppService extends AbstractLLMAppService
             $generateImageOpenAIFormat->setProviderErrorCode($e->getCode());
             $generateImageOpenAIFormat->setProvider('magic');
             $this->logger->warning('text generate image error:' . $e->getMessage());
+
+            // 记录错误事件
+            $this->dispatchImageGeneratedEvent(
+                $creator,
+                $organizationCode,
+                $proxyModelRequest,
+                0,
+                $imageModel->getProviderModelId(),
+                $callTime,
+                $startTime,
+                $modelGatewayDataIsolation->getAccessToken(),
+                [
+                    'chain' => 'textGenerateImageV2',
+                    'status' => self::AUDIT_STATUS_FAIL,
+                    'failure_reason' => $errorMessage,
+                ]
+            );
         }
 
         return $generateImageOpenAIFormat;

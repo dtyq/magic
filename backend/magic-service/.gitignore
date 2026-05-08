@@ -31,3 +31,5 @@ storage/files/test001
 /CLAUDE.md
 .cursor/
 docs/
+!go-engine/docs/
+!go-engine/docs/**

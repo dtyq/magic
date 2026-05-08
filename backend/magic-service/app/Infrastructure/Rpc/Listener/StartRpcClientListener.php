@@ -8,8 +8,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Rpc\Listener;
 
 use App\Infrastructure\Core\Traits\HasLogger;
-use App\Infrastructure\Rpc\JsonRpc\RpcClientManager;
-use Hyperf\Contract\ConfigInterface;
+use App\Infrastructure\Rpc\Lifecycle\GoEngineBootstrapService;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\OnWorkerStop;
 use Hyperf\Server\Event\MainCoroutineServerStart;
@@ -18,8 +17,7 @@ use Throwable;
 /**
  * RPC 客户端生命周期监听器.
  *
- * 在 PHP 启动阶段尽量拉起 Go Engine，并启动 PHP 侧 RPC 客户端。
- * Go 未就绪时保持降级运行，不中断 PHP 主进程。
+ * 仅负责接收框架事件并委托基础设施启动服务处理 Go Engine 生命周期。
  */
 class StartRpcClientListener implements ListenerInterface
 {
@@ -27,11 +25,8 @@ class StartRpcClientListener implements ListenerInterface
 
     private static bool $started = false;
 
-    private static ?RpcClientManager $manager = null;
-
     public function __construct(
-        private readonly RpcClientManager $rpcClientManager,
-        private readonly ConfigInterface $config,
+        private readonly GoEngineBootstrapService $bootstrapService,
     ) {
     }
 
@@ -64,152 +59,12 @@ class StartRpcClientListener implements ListenerInterface
         self::$started = true;
 
         try {
-            $this->ensureGoEngineStarted();
-            $this->rpcClientManager->start();
-            self::$manager = $this->rpcClientManager;
+            $this->bootstrapService->boot();
         } catch (Throwable $e) {
-            $this->logger->error('Failed to start RPC client manager', [
+            $this->logger->error('goEngineException Failed to bootstrap Go engine RPC', [
                 'error' => $e->getMessage(),
             ]);
         }
-    }
-
-    private function ensureGoEngineStarted(): void
-    {
-        $ipcConfig = (array) $this->config->get('ipc', []);
-        $autoStart = (bool) ($ipcConfig['engine_auto_start'] ?? true);
-        if (! $autoStart) {
-            $this->logger->info('Go engine auto start disabled');
-            return;
-        }
-
-        $socketPath = (string) ($ipcConfig['socket_path'] ?? '');
-        if ($socketPath !== '' && $this->canConnectSocket($socketPath)) {
-            return;
-        }
-
-        $workDir = (string) ($ipcConfig['engine_workdir'] ?? '');
-        $command = (string) ($ipcConfig['engine_start_command'] ?? '');
-        $waitTimeoutSeconds = max(0, (int) ($ipcConfig['engine_start_wait_timeout_seconds'] ?? 20));
-        $waitIntervalMs = max(10, (int) ($ipcConfig['engine_start_wait_interval_ms'] ?? 200));
-        if ($workDir === '' || $command === '') {
-            $this->logger->warning('Go engine start command not configured', [
-                'workdir' => $workDir,
-                'command' => $command,
-            ]);
-            return;
-        }
-
-        $shellCommand = sprintf('cd %s && %s', escapeshellarg($workDir), $command);
-        $process = proc_open(
-            ['/bin/sh', '-c', $shellCommand],
-            [
-                0 => ['pipe', 'r'],
-                1 => ['file', 'php://stdout', 'w'],
-                2 => ['file', 'php://stderr', 'w'],
-            ],
-            $pipes
-        );
-
-        if (! is_resource($process)) {
-            $this->logger->error('Failed to start Go engine', [
-                'command' => $command,
-                'workdir' => $workDir,
-                'socket_path' => $this->getRelativePath($socketPath),
-            ]);
-            return;
-        }
-
-        foreach ($pipes as $pipe) {
-            if (is_resource($pipe)) {
-                fclose($pipe);
-            }
-        }
-
-        $this->logger->info('Go engine start command invoked', [
-            'command' => $command,
-            'workdir' => $workDir,
-            'socket_path' => $this->getRelativePath($socketPath),
-            'wait_timeout_seconds' => $waitTimeoutSeconds,
-            'wait_interval_ms' => $waitIntervalMs,
-        ]);
-
-        if ($socketPath === '') {
-            return;
-        }
-
-        if ($this->waitForSocketReady($socketPath, $waitTimeoutSeconds, $waitIntervalMs, $process)) {
-            $this->logger->info('Go engine socket is ready', [
-                'socket_path' => $this->getRelativePath($socketPath),
-                'wait_timeout_seconds' => $waitTimeoutSeconds,
-            ]);
-            return;
-        }
-
-        $this->logger->error('Go engine socket not ready within timeout, continue in degraded mode', [
-            'socket_path' => $this->getRelativePath($socketPath),
-            'wait_timeout_seconds' => $waitTimeoutSeconds,
-            'wait_interval_ms' => $waitIntervalMs,
-            'command' => $command,
-            'workdir' => $workDir,
-        ]);
-    }
-
-    private function canConnectSocket(string $socketPath, float $timeout = 0.2): bool
-    {
-        $address = 'unix://' . $socketPath;
-        $errno = 0;
-        $errstr = '';
-        $connection = @stream_socket_client($address, $errno, $errstr, $timeout);
-        if ($connection === false) {
-            return false;
-        }
-
-        fclose($connection);
-        return true;
-    }
-
-    /**
-     * 等待 socket 就绪，同时监测启动进程是否已提前退出。
-     * 若进程已退出（如 binary 不存在），立即中止等待而不是阻塞到超时。
-     *
-     * @param null|resource $process proc_open 返回的进程资源
-     */
-    private function waitForSocketReady(string $socketPath, int $timeoutSeconds, int $intervalMs, mixed $process = null): bool
-    {
-        if ($timeoutSeconds <= 0) {
-            return $this->canConnectSocket($socketPath);
-        }
-
-        $deadline = microtime(true) + $timeoutSeconds;
-        while (microtime(true) < $deadline) {
-            if ($this->canConnectSocket($socketPath)) {
-                return true;
-            }
-            // 进程已退出说明启动失败（如 binary 不存在），无需继续等待
-            if ($process !== null && is_resource($process)) {
-                $status = proc_get_status($process);
-                if (! $status['running']) {
-                    $this->logger->info('Go engine process exited early, stopping wait', [
-                        'socket_path' => $this->getRelativePath($socketPath),
-                        'exit_code' => $status['exitcode'] ?? -1,
-                    ]);
-                    return false;
-                }
-            }
-            usleep($intervalMs * 1000);
-        }
-
-        return $this->canConnectSocket($socketPath);
-    }
-
-    private function getRelativePath(string $path): string
-    {
-        if (defined('BASE_PATH') && str_starts_with($path, BASE_PATH)) {
-            return ltrim(str_replace(BASE_PATH, '', $path), DIRECTORY_SEPARATOR);
-        }
-
-        return $path;
     }
 
     private function handleStop(OnWorkerStop $event): void
@@ -218,10 +73,7 @@ class StartRpcClientListener implements ListenerInterface
             return;
         }
 
-        if (self::$manager !== null) {
-            self::$manager->stop();
-            self::$manager = null;
-            self::$started = false;
-        }
+        $this->bootstrapService->shutdown();
+        self::$started = false;
     }
 }

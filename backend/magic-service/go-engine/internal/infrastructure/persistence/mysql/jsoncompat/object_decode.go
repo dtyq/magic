@@ -3,57 +3,44 @@ package jsoncompat
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+
+	pkgjsoncompat "magic/internal/pkg/jsoncompat"
 )
 
-const jsonNullLiteral = "null"
+const jsonObjectLiteral = "{}"
 
 // DecodeObjectMap 将 JSON 解析为 map 对象。
-// 对于 null、空白、非对象 JSON（数组/标量），返回空 map 且不报错；非法 JSON 报错。
+// 对于 null、空白、{}、[]、""、"null"、"{}"、"[]" 等空形态 JSON，返回空 map 且不报错。
+// 其他非对象 JSON 或非法 JSON 报错。
 func DecodeObjectMap(raw []byte, fieldName string) (map[string]any, error) {
 	result := make(map[string]any)
-
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 || string(trimmed) == jsonNullLiteral {
-		return result, nil
-	}
-
-	var decoded any
-	if err := json.Unmarshal(trimmed, &decoded); err != nil {
+	if err := pkgjsoncompat.UnmarshalObjectOrEmpty(raw, result, &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal %s: %w", fieldName, err)
 	}
-
-	objectValue, ok := decoded.(map[string]any)
-	if !ok {
-		return result, nil
-	}
-
-	return objectValue, nil
+	return result, nil
 }
 
 // DecodeObjectPtr 将 JSON 解析为对象指针。
-// 对于 null、空白、非对象 JSON（数组/标量），返回 nil 且不报错；非法 JSON 报错。
+// 对于原始对象 JSON（包括 {}），返回对象指针。
+// 对于 null、空白、[]、""、"null"、"{}"、"[]" 等空形态 JSON，返回 nil 且不报错。
+// 其他非对象 JSON 或非法 JSON 报错。
 func DecodeObjectPtr[T any](raw []byte, fieldName string) (*T, error) {
-	var empty *T
-
 	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 || string(trimmed) == jsonNullLiteral {
+	if string(trimmed) == jsonObjectLiteral {
+		var value T
+		if err := pkgjsoncompat.UnmarshalObjectOrEmpty(trimmed, value, &value); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal %s: %w", fieldName, err)
+		}
+		return &value, nil
+	}
+	if pkgjsoncompat.IsEmptyObjectLikeJSON(trimmed) {
+		var empty *T
 		return empty, nil
 	}
-
-	var decoded any
-	if err := json.Unmarshal(trimmed, &decoded); err != nil {
+	var value T
+	if err := pkgjsoncompat.UnmarshalObjectOrEmpty(trimmed, value, &value); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal %s: %w", fieldName, err)
 	}
-
-	if _, ok := decoded.(map[string]any); !ok {
-		return empty, nil
-	}
-
-	value := new(T)
-	if err := json.Unmarshal(trimmed, value); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal %s: %w", fieldName, err)
-	}
-	return value, nil
+	return &value, nil
 }

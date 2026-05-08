@@ -32,6 +32,7 @@ return [
     'invalid_aspect_ratio' => 'The difference in size ratio of Tucson diagram is too large, and can only be 3 times different',
     'image_url_is_empty' => 'Image url is empty',
     'unsupported_image_size' => 'Unsupported image size :size, supported sizes are: :supported_sizes',
+    'azure_image_size_must_be_divisible_by_16' => 'Azure image size :size is invalid. Width and height must both be divisible by 16.',
     'unsupported_image_size_range' => 'Image size :size is out of supported range, width and height must be between :min_size-:max_size pixels',
 
     // Azure OpenAI related error messages
@@ -82,6 +83,18 @@ return [
     'remove_background_provider_not_configured' => 'Background removal provider is not configured or enabled',
     'remove_background_only_image_allowed' => 'Only image files are allowed',
     'remove_background_image_too_large' => 'Image size cannot exceed 20MB',
+    'image_model_settings' => [
+        'quality' => [
+            'label' => 'Quality',
+            'description' => 'Controls the generated image quality level',
+            'options' => [
+                'auto' => 'Auto',
+                'high' => 'High',
+                'medium' => 'Medium',
+                'low' => 'Low',
+            ],
+        ],
+    ],
     # watermark
     'image_watermark' => 'website/static/img/watermark_en.png',
 ];

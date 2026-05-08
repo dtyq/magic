@@ -7,6 +7,8 @@ import (
 
 	autoloadcfg "magic/internal/config/autoload"
 	"magic/internal/constants"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
 	"magic/internal/domain/knowledge/shared"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
@@ -19,6 +21,7 @@ const (
 	routeResolverEffectiveModel = "text-embedding-3-large"
 	customCollectionName        = "knowledge_custom"
 	sharedCollectionName        = "shared_collection"
+	aliasTargetCollectionName   = "magic_knowledge_20260317"
 )
 
 var (
@@ -40,7 +43,7 @@ func TestKnowledgeBaseDomainServiceSaveCreatesCollectionWhenMissing(t *testing.T
 		TargetCollection: customCollectionName,
 		TargetModel:      "text-embedding-3-large",
 	})
-	kb := &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode, Name: "知识库"}
+	kb := &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode, Name: "知识库"}
 
 	if err := svc.Save(ctx, kb); err != nil {
 		t.Fatalf("Save returned error: %v", err)
@@ -53,6 +56,9 @@ func TestKnowledgeBaseDomainServiceSaveCreatesCollectionWhenMissing(t *testing.T
 	}
 	if vectorRepo.createdCollection != customCollectionName || vectorRepo.createdVectorSize != 3072 {
 		t.Fatalf("unexpected created collection: %#v", vectorRepo)
+	}
+	if vectorRepo.lastPayloadCollection != customCollectionName || len(vectorRepo.lastPayloadSpecs) == 0 {
+		t.Fatalf("expected payload indexes on created collection, got %#v", vectorRepo)
 	}
 	if len(repo.upsertedMeta) != 1 {
 		t.Fatalf("expected one collection meta upsert, got %d", len(repo.upsertedMeta))
@@ -79,7 +85,7 @@ func TestKnowledgeBaseDomainServiceSaveUsesSelectorDefaultSparseBackend(t *testi
 	resolver := &stubEmbeddingDimensionResolver{dimension: 3072}
 	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, resolver, routeResolverEffectiveModel, "", testKnowledgeBaseDomainLogger())
 
-	if err := svc.Save(context.Background(), &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode}); err != nil {
+	if err := svc.Save(context.Background(), &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode}); err != nil {
 		t.Fatalf("Save returned error: %v", err)
 	}
 	if len(repo.upsertedMeta) != 1 {
@@ -104,7 +110,7 @@ func TestKnowledgeBaseDomainServiceSaveRejectsVectorSizeMismatch(t *testing.T) {
 	ctx := knowledgeroute.WithRebuildOverride(context.Background(), &knowledgeroute.RebuildOverride{
 		TargetModel: "text-embedding-3-large",
 	})
-	err := svc.Save(ctx, &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode})
+	err := svc.Save(ctx, &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -119,9 +125,9 @@ func TestKnowledgeBaseDomainServiceSaveUsesAliasTargetWhenPhysicalCollectionMiss
 	repo := &stubKnowledgeBaseRepository{}
 	vectorRepo := &stubVectorDBManagementRepository{
 		aliasExists: true,
-		aliasTarget: "magic_knowledge_20260317",
+		aliasTarget: aliasTargetCollectionName,
 		collectionInfo: &shared.VectorCollectionInfo{
-			Name:       "magic_knowledge_20260317",
+			Name:       aliasTargetCollectionName,
 			VectorSize: 3072,
 		},
 	}
@@ -131,7 +137,7 @@ func TestKnowledgeBaseDomainServiceSaveUsesAliasTargetWhenPhysicalCollectionMiss
 	ctx := knowledgeroute.WithRebuildOverride(context.Background(), &knowledgeroute.RebuildOverride{
 		TargetModel: "text-embedding-3-large",
 	})
-	kb := &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode, Name: "知识库"}
+	kb := &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode, Name: "知识库"}
 
 	if err := svc.Save(ctx, kb); err != nil {
 		t.Fatalf("Save returned error: %v", err)
@@ -142,13 +148,16 @@ func TestKnowledgeBaseDomainServiceSaveUsesAliasTargetWhenPhysicalCollectionMiss
 	if vectorRepo.lastAliasName != constants.KnowledgeBaseCollectionName {
 		t.Fatalf("expected alias lookup for %q, got %q", constants.KnowledgeBaseCollectionName, vectorRepo.lastAliasName)
 	}
-	if vectorRepo.lastCollectionInfoName != "magic_knowledge_20260317" {
+	if vectorRepo.lastCollectionInfoName != aliasTargetCollectionName {
 		t.Fatalf("expected collection info to use alias target, got %q", vectorRepo.lastCollectionInfoName)
+	}
+	if vectorRepo.lastPayloadCollection != aliasTargetCollectionName || len(vectorRepo.lastPayloadSpecs) == 0 {
+		t.Fatalf("expected payload indexes on alias target collection, got %#v", vectorRepo)
 	}
 	if len(repo.upsertedMeta) != 1 {
 		t.Fatalf("expected one collection meta upsert, got %d", len(repo.upsertedMeta))
 	}
-	if got := repo.upsertedMeta[0]; got.CollectionName != constants.KnowledgeBaseCollectionName || got.PhysicalCollectionName != "magic_knowledge_20260317" {
+	if got := repo.upsertedMeta[0]; got.CollectionName != constants.KnowledgeBaseCollectionName || got.PhysicalCollectionName != aliasTargetCollectionName {
 		t.Fatalf("unexpected alias-backed collection meta: %+v", got)
 	}
 }
@@ -159,9 +168,9 @@ func TestKnowledgeBaseDomainServiceSaveRejectsAliasTargetVectorSizeMismatch(t *t
 	repo := &stubKnowledgeBaseRepository{}
 	vectorRepo := &stubVectorDBManagementRepository{
 		aliasExists: true,
-		aliasTarget: "magic_knowledge_20260317",
+		aliasTarget: aliasTargetCollectionName,
 		collectionInfo: &shared.VectorCollectionInfo{
-			Name:       "magic_knowledge_20260317",
+			Name:       aliasTargetCollectionName,
 			VectorSize: 1536,
 		},
 	}
@@ -171,7 +180,7 @@ func TestKnowledgeBaseDomainServiceSaveRejectsAliasTargetVectorSizeMismatch(t *t
 	ctx := knowledgeroute.WithRebuildOverride(context.Background(), &knowledgeroute.RebuildOverride{
 		TargetModel: "text-embedding-3-large",
 	})
-	err := svc.Save(ctx, &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode})
+	err := svc.Save(ctx, &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -184,7 +193,7 @@ func TestKnowledgeBaseDomainServiceSaveUsesPreResolvedRouteWithoutReadingMeta(t 
 	t.Parallel()
 
 	repo := &stubKnowledgeBaseRepository{
-		meta: knowledgebasedomain.CollectionMeta{
+		meta: sharedroute.CollectionMeta{
 			CollectionName: "shared_collection",
 			Model:          routeResolverEffectiveModel,
 			Exists:         true,
@@ -193,7 +202,7 @@ func TestKnowledgeBaseDomainServiceSaveUsesPreResolvedRouteWithoutReadingMeta(t 
 	vectorRepo := &stubVectorDBManagementRepository{collectionExists: false}
 	resolver := &stubEmbeddingDimensionResolver{dimension: 3072}
 	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, resolver, "", "", testKnowledgeBaseDomainLogger())
-	kb := &knowledgebasedomain.KnowledgeBase{
+	kb := &kbentity.KnowledgeBase{
 		Code:  testKnowledgeBaseCode,
 		Name:  "知识库",
 		Model: routeResolverEffectiveModel,
@@ -224,9 +233,9 @@ func TestKnowledgeBaseDomainServiceSaveSkipsCollectionMetaUpsertWhenMetaAlreadyE
 	t.Parallel()
 
 	repo := &stubKnowledgeBaseRepository{
-		meta: knowledgebasedomain.CollectionMeta{
+		meta: sharedroute.CollectionMeta{
 			CollectionName:         constants.KnowledgeBaseCollectionName,
-			PhysicalCollectionName: "magic_knowledge_20260317",
+			PhysicalCollectionName: aliasTargetCollectionName,
 			Model:                  routeResolverEffectiveModel,
 			VectorDimension:        3072,
 			Exists:                 true,
@@ -234,9 +243,9 @@ func TestKnowledgeBaseDomainServiceSaveSkipsCollectionMetaUpsertWhenMetaAlreadyE
 	}
 	vectorRepo := &stubVectorDBManagementRepository{
 		aliasExists: true,
-		aliasTarget: "magic_knowledge_20260317",
+		aliasTarget: aliasTargetCollectionName,
 		collectionInfo: &shared.VectorCollectionInfo{
-			Name:       "magic_knowledge_20260317",
+			Name:       aliasTargetCollectionName,
 			VectorSize: 3072,
 		},
 	}
@@ -246,7 +255,7 @@ func TestKnowledgeBaseDomainServiceSaveSkipsCollectionMetaUpsertWhenMetaAlreadyE
 	ctx := knowledgeroute.WithRebuildOverride(context.Background(), &knowledgeroute.RebuildOverride{
 		TargetModel: routeResolverEffectiveModel,
 	})
-	if err := svc.Save(ctx, &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode, Name: "知识库"}); err != nil {
+	if err := svc.Save(ctx, &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode, Name: "知识库"}); err != nil {
 		t.Fatalf("Save returned error: %v", err)
 	}
 	if len(repo.upsertedMeta) != 0 {
@@ -261,7 +270,7 @@ func TestKnowledgeBaseDomainServiceSaveUsesCurrentActiveCollectionMetaDimension(
 	t.Parallel()
 
 	repo := &stubKnowledgeBaseRepository{
-		meta: knowledgebasedomain.CollectionMeta{
+		meta: sharedroute.CollectionMeta{
 			CollectionName:         constants.KnowledgeBaseCollectionName,
 			PhysicalCollectionName: constants.KnowledgeBaseCollectionName + "_active",
 			Model:                  "doubao-embedding-vision",
@@ -287,7 +296,7 @@ func TestKnowledgeBaseDomainServiceSaveUsesCurrentActiveCollectionMetaDimension(
 		testKnowledgeBaseDomainLogger(),
 	)
 
-	kb := &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode, Name: "知识库"}
+	kb := &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode, Name: "知识库"}
 	if err := svc.Save(context.Background(), kb); err != nil {
 		t.Fatalf("Save returned error: %v", err)
 	}
@@ -308,7 +317,7 @@ func TestKnowledgeBaseDomainServiceDestroyDeletesVectorPointsThenRepositoryRow(t
 	repo := &stubKnowledgeBaseRepository{}
 	vectorRepo := &stubVectorDBManagementRepository{}
 	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, nil, "", "", testKnowledgeBaseDomainLogger())
-	kb := &knowledgebasedomain.KnowledgeBase{ID: 7, Code: testKnowledgeBaseCode, OrganizationCode: "ORG-1"}
+	kb := &kbentity.KnowledgeBase{ID: 7, Code: testKnowledgeBaseCode, OrganizationCode: "ORG-1"}
 
 	if err := svc.Destroy(context.Background(), kb); err != nil {
 		t.Fatalf("Destroy returned error: %v", err)
@@ -337,7 +346,7 @@ func TestKnowledgeBaseDomainServiceDestroyStopsWhenVectorDeleteFails(t *testing.
 	vectorRepo := &stubVectorDBManagementRepository{deleteByFilterErr: errVectorDeleteUnavailable}
 	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, nil, "", "", testKnowledgeBaseDomainLogger())
 
-	err := svc.Destroy(context.Background(), &knowledgebasedomain.KnowledgeBase{ID: 8, Code: "KB-2"})
+	err := svc.Destroy(context.Background(), &kbentity.KnowledgeBase{ID: 8, Code: "KB-2"})
 	if err == nil || !errors.Is(err, errVectorDeleteUnavailable) {
 		t.Fatalf("expected vector delete error, got %v", err)
 	}
@@ -353,7 +362,7 @@ func TestKnowledgeBaseDomainServiceDestroyStopsWhenRepositoryDeleteFails(t *test
 	vectorRepo := &stubVectorDBManagementRepository{}
 	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, nil, "", "", testKnowledgeBaseDomainLogger())
 
-	err := svc.Destroy(context.Background(), &knowledgebasedomain.KnowledgeBase{ID: 10, Code: "KB-10"})
+	err := svc.Destroy(context.Background(), &kbentity.KnowledgeBase{ID: 10, Code: "KB-10"})
 	if err == nil || !errors.Is(err, repo.deleteErr) {
 		t.Fatalf("expected repository delete error, got %v", err)
 	}
@@ -365,11 +374,11 @@ func TestKnowledgeBaseDomainServiceDestroyStopsWhenRepositoryDeleteFails(t *test
 func TestKnowledgeBaseDomainServiceShowListAndUpdateWrapRepository(t *testing.T) {
 	t.Parallel()
 
-	kb := &knowledgebasedomain.KnowledgeBase{ID: 9, Code: "KB-9", OrganizationCode: "ORG-9"}
+	kb := &kbentity.KnowledgeBase{ID: 9, Code: "KB-9", OrganizationCode: "ORG-9"}
 	repo := &stubKnowledgeBaseRepository{
 		findByCodeResp:       kb,
 		findByCodeAndOrgResp: kb,
-		listResp:             []*knowledgebasedomain.KnowledgeBase{kb},
+		listResp:             []*kbentity.KnowledgeBase{kb},
 		listTotal:            1,
 	}
 	svc := knowledgebasedomain.NewDomainService(repo, &stubVectorDBManagementRepository{}, nil, "", "", testKnowledgeBaseDomainLogger())
@@ -380,7 +389,7 @@ func TestKnowledgeBaseDomainServiceShowListAndUpdateWrapRepository(t *testing.T)
 	if _, err := svc.ShowByCodeAndOrg(context.Background(), "KB-9", "ORG-9"); err != nil {
 		t.Fatalf("ShowByCodeAndOrg returned error: %v", err)
 	}
-	if _, total, err := svc.List(context.Background(), &knowledgebasedomain.Query{OrganizationCode: "ORG-9"}); err != nil || total != 1 {
+	if _, total, err := svc.List(context.Background(), &kbrepository.Query{OrganizationCode: "ORG-9"}); err != nil || total != 1 {
 		t.Fatalf("List returned total=%d err=%v", total, err)
 	}
 	if err := svc.Update(context.Background(), kb); err != nil {
@@ -399,13 +408,13 @@ func TestKnowledgeBaseDomainServiceEnsureCollectionExistsAndStatusUpdates(t *tes
 	ctx := knowledgeroute.WithRebuildOverride(context.Background(), &knowledgeroute.RebuildOverride{
 		TargetModel: "text-embedding-3-small",
 	})
-	if err := svc.EnsureCollectionExists(ctx, &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode}); err != nil {
+	if err := svc.EnsureCollectionExists(ctx, &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode}); err != nil {
 		t.Fatalf("EnsureCollectionExists returned error: %v", err)
 	}
-	if err := svc.UpdateSyncStatus(context.Background(), &knowledgebasedomain.KnowledgeBase{ID: 11, SyncStatus: shared.SyncStatusSyncing, SyncStatusMessage: "running"}); err != nil {
+	if err := svc.UpdateSyncStatus(context.Background(), &kbentity.KnowledgeBase{ID: 11, SyncStatus: shared.SyncStatusSyncing, SyncStatusMessage: "running"}); err != nil {
 		t.Fatalf("UpdateSyncStatus returned error: %v", err)
 	}
-	if err := svc.UpdateProgress(context.Background(), &knowledgebasedomain.KnowledgeBase{ID: 11, ExpectedNum: 10, CompletedNum: 6}); err != nil {
+	if err := svc.UpdateProgress(context.Background(), &kbentity.KnowledgeBase{ID: 11, ExpectedNum: 10, CompletedNum: 6}); err != nil {
 		t.Fatalf("UpdateProgress returned error: %v", err)
 	}
 	if repo.updatedSyncStatusID != 11 || repo.updatedProgressID != 11 {
@@ -417,7 +426,7 @@ func TestKnowledgeBaseDomainServiceResolveRuntimeRouteUsesMeta(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubKnowledgeBaseRepository{
-		meta: knowledgebasedomain.CollectionMeta{
+		meta: sharedroute.CollectionMeta{
 			CollectionName:  "shared_collection",
 			Model:           "text-embedding-3-large",
 			VectorDimension: 3072,
@@ -426,7 +435,7 @@ func TestKnowledgeBaseDomainServiceResolveRuntimeRouteUsesMeta(t *testing.T) {
 	}
 	svc := knowledgebasedomain.NewDomainService(repo, &stubVectorDBManagementRepository{}, nil, "", "", testKnowledgeBaseDomainLogger())
 
-	route := svc.ResolveRuntimeRoute(context.Background(), &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode})
+	route := svc.ResolveRuntimeRoute(context.Background(), &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode})
 	if route.LogicalCollectionName != "shared_collection" || route.VectorCollectionName != "shared_collection" || route.Model != "text-embedding-3-large" {
 		t.Fatalf("unexpected route: %+v", route)
 	}
@@ -436,7 +445,7 @@ func TestKnowledgeBaseDomainServiceResolveRuntimeRouteDowngradesUnsupportedSpars
 	t.Parallel()
 
 	repo := &stubKnowledgeBaseRepository{
-		meta: knowledgebasedomain.CollectionMeta{
+		meta: sharedroute.CollectionMeta{
 			CollectionName:  sharedCollectionName,
 			Model:           routeResolverEffectiveModel,
 			VectorDimension: 3072,
@@ -457,7 +466,7 @@ func TestKnowledgeBaseDomainServiceResolveRuntimeRouteDowngradesUnsupportedSpars
 	}
 	svc := knowledgebasedomain.NewDomainService(repo, vectorRepo, nil, "", "", testKnowledgeBaseDomainLogger())
 
-	route := svc.ResolveRuntimeRoute(context.Background(), &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode})
+	route := svc.ResolveRuntimeRoute(context.Background(), &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode})
 	if route.SparseBackend != shared.SparseBackendClientBM25QdrantIDFV1 {
 		t.Fatalf("expected sparse backend %q, got %+v", shared.SparseBackendClientBM25QdrantIDFV1, route)
 	}
@@ -475,7 +484,7 @@ func TestKnowledgeBaseDomainServiceResolveRuntimeRouteFallsBackToDefaultModel(t 
 		testKnowledgeBaseDomainLogger(),
 	)
 
-	route := svc.ResolveRuntimeRoute(context.Background(), &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode})
+	route := svc.ResolveRuntimeRoute(context.Background(), &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode})
 	if route.VectorCollectionName != constants.KnowledgeBaseCollectionName {
 		t.Fatalf("expected default collection %q, got %+v", constants.KnowledgeBaseCollectionName, route)
 	}
@@ -490,12 +499,12 @@ func TestKnowledgeBaseDomainServiceResolveVectorDimensionErrors(t *testing.T) {
 	repo := &stubKnowledgeBaseRepository{}
 	svcWithoutResolver := knowledgebasedomain.NewDomainService(repo, &stubVectorDBManagementRepository{}, nil, "", "", testKnowledgeBaseDomainLogger())
 	ctx := knowledgeroute.WithRebuildOverride(context.Background(), &knowledgeroute.RebuildOverride{TargetModel: "text-embedding-3-large"})
-	if err := svcWithoutResolver.EnsureCollectionExists(ctx, &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode}); !errors.Is(err, knowledgebasedomain.ErrResolverNotConfigured) {
+	if err := svcWithoutResolver.EnsureCollectionExists(ctx, &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode}); !errors.Is(err, knowledgebasedomain.ErrResolverNotConfigured) {
 		t.Fatalf("expected ErrResolverNotConfigured, got %v", err)
 	}
 
 	svcInvalidDim := knowledgebasedomain.NewDomainService(repo, &stubVectorDBManagementRepository{}, &stubEmbeddingDimensionResolver{dimension: 0}, "", "", testKnowledgeBaseDomainLogger())
-	err := svcInvalidDim.EnsureCollectionExists(ctx, &knowledgebasedomain.KnowledgeBase{Code: testKnowledgeBaseCode})
+	err := svcInvalidDim.EnsureCollectionExists(ctx, &kbentity.KnowledgeBase{Code: testKnowledgeBaseCode})
 	if err == nil || !errors.Is(err, knowledgebasedomain.ErrInvalidEmbeddingDimension) {
 		t.Fatalf("expected ErrInvalidEmbeddingDimension, got %v", err)
 	}
@@ -511,14 +520,14 @@ func TestKnowledgeBaseDomainServiceResolveRuntimeRouteFallsBackToDefaultCollecti
 }
 
 type stubKnowledgeBaseRepository struct {
-	savedKB   *knowledgebasedomain.KnowledgeBase
-	updatedKB *knowledgebasedomain.KnowledgeBase
+	savedKB   *kbentity.KnowledgeBase
+	updatedKB *kbentity.KnowledgeBase
 
-	findByCodeResp       *knowledgebasedomain.KnowledgeBase
+	findByCodeResp       *kbentity.KnowledgeBase
 	findByCodeErr        error
-	findByCodeAndOrgResp *knowledgebasedomain.KnowledgeBase
+	findByCodeAndOrgResp *kbentity.KnowledgeBase
 	findByCodeAndOrgErr  error
-	listResp             []*knowledgebasedomain.KnowledgeBase
+	listResp             []*kbentity.KnowledgeBase
 	listTotal            int64
 	listErr              error
 
@@ -526,41 +535,41 @@ type stubKnowledgeBaseRepository struct {
 	deleteErr              error
 	updatedSyncStatusID    int64
 	updatedProgressID      int64
-	meta                   knowledgebasedomain.CollectionMeta
+	meta                   sharedroute.CollectionMeta
 	metaErr                error
 	getCollectionMetaCalls int
-	upsertedMeta           []knowledgebasedomain.CollectionMeta
+	upsertedMeta           []sharedroute.CollectionMeta
 }
 
-func (s *stubKnowledgeBaseRepository) Save(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) error {
+func (s *stubKnowledgeBaseRepository) Save(_ context.Context, kb *kbentity.KnowledgeBase) error {
 	s.savedKB = kb
 	return nil
 }
 
-func (s *stubKnowledgeBaseRepository) Update(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) error {
+func (s *stubKnowledgeBaseRepository) Update(_ context.Context, kb *kbentity.KnowledgeBase) error {
 	s.updatedKB = kb
 	return nil
 }
 
-func (s *stubKnowledgeBaseRepository) FindByID(context.Context, int64) (*knowledgebasedomain.KnowledgeBase, error) {
+func (s *stubKnowledgeBaseRepository) FindByID(context.Context, int64) (*kbentity.KnowledgeBase, error) {
 	return nil, errStubNotImplemented
 }
 
-func (s *stubKnowledgeBaseRepository) FindByCode(_ context.Context, _ string) (*knowledgebasedomain.KnowledgeBase, error) {
+func (s *stubKnowledgeBaseRepository) FindByCode(_ context.Context, _ string) (*kbentity.KnowledgeBase, error) {
 	if s.findByCodeErr != nil {
 		return nil, s.findByCodeErr
 	}
 	return s.findByCodeResp, nil
 }
 
-func (s *stubKnowledgeBaseRepository) FindByCodeAndOrg(_ context.Context, _, _ string) (*knowledgebasedomain.KnowledgeBase, error) {
+func (s *stubKnowledgeBaseRepository) FindByCodeAndOrg(_ context.Context, _, _ string) (*kbentity.KnowledgeBase, error) {
 	if s.findByCodeAndOrgErr != nil {
 		return nil, s.findByCodeAndOrgErr
 	}
 	return s.findByCodeAndOrgResp, nil
 }
 
-func (s *stubKnowledgeBaseRepository) List(_ context.Context, _ *knowledgebasedomain.Query) ([]*knowledgebasedomain.KnowledgeBase, int64, error) {
+func (s *stubKnowledgeBaseRepository) List(_ context.Context, _ *kbrepository.Query) ([]*kbentity.KnowledgeBase, int64, error) {
 	return s.listResp, s.listTotal, s.listErr
 }
 
@@ -579,12 +588,12 @@ func (s *stubKnowledgeBaseRepository) UpdateProgress(_ context.Context, id int64
 	return nil
 }
 
-func (s *stubKnowledgeBaseRepository) GetCollectionMeta(context.Context) (knowledgebasedomain.CollectionMeta, error) {
+func (s *stubKnowledgeBaseRepository) GetCollectionMeta(context.Context) (sharedroute.CollectionMeta, error) {
 	s.getCollectionMetaCalls++
 	return s.meta, s.metaErr
 }
 
-func (s *stubKnowledgeBaseRepository) UpsertCollectionMeta(_ context.Context, meta knowledgebasedomain.CollectionMeta) error {
+func (s *stubKnowledgeBaseRepository) UpsertCollectionMeta(_ context.Context, meta sharedroute.CollectionMeta) error {
 	s.upsertedMeta = append(s.upsertedMeta, meta)
 	return nil
 }
@@ -601,6 +610,8 @@ type stubVectorDBManagementRepository struct {
 	createdVectorSize      int64
 	lastAliasName          string
 	lastCollectionInfoName string
+	lastPayloadCollection  string
+	lastPayloadSpecs       []shared.PayloadIndexSpec
 
 	deletedCollection string
 	deletedFilter     *shared.VectorFilter
@@ -620,6 +631,12 @@ func (s *stubVectorDBManagementRepository) CollectionExists(context.Context, str
 func (s *stubVectorDBManagementRepository) GetCollectionInfo(_ context.Context, name string) (*shared.VectorCollectionInfo, error) {
 	s.lastCollectionInfoName = name
 	return s.collectionInfo, nil
+}
+
+func (s *stubVectorDBManagementRepository) EnsurePayloadIndexes(_ context.Context, name string, specs []shared.PayloadIndexSpec) error {
+	s.lastPayloadCollection = name
+	s.lastPayloadSpecs = append([]shared.PayloadIndexSpec(nil), specs...)
+	return nil
 }
 
 func (s *stubVectorDBManagementRepository) GetAliasTarget(_ context.Context, alias string) (string, bool, error) {

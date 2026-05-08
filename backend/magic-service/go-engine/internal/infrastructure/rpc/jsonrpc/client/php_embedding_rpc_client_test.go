@@ -55,6 +55,7 @@ func TestPHPEmbeddingRPCClient_GetBatchEmbeddings_ShouldRefreshAndRetryOnAuthErr
 		if !ok {
 			t.Fatalf("unexpected compute result type %T", out)
 		}
+		assertHelloInput(t, params)
 		callCount++
 		if callCount == 1 {
 			if got := params["access_token"]; got != oldToken {
@@ -66,13 +67,8 @@ func TestPHPEmbeddingRPCClient_GetBatchEmbeddings_ShouldRefreshAndRetryOnAuthErr
 		if got := params["access_token"]; got != newToken {
 			t.Fatalf("retry should use refreshed token, got %v", got)
 		}
-		*result = client.RPCResultForTest[client.EmbeddingResultForTest]{
-			Code:    0,
-			Message: "success",
-			Data: client.EmbeddingResultForTest{
-				Data: []client.EmbeddingDataForTest{{Index: 0, Embedding: []float64{0.1, 0.2}}},
-			},
-		}
+		*result = client.RPCResultForTest[client.EmbeddingResultForTest]{Code: 0, Message: "success"}
+		setEmbeddingComputeSuccess(t, result, []float64{0.1, 0.2})
 		return nil
 	})
 
@@ -106,6 +102,7 @@ func TestPHPEmbeddingRPCClient_GetBatchEmbeddings_ShouldNotRetryWhenErrorCodeIsN
 		if !ok {
 			t.Fatalf("unexpected compute result type %T", out)
 		}
+		assertHelloInput(t, params)
 		callCount++
 		*result = client.RPCResultForTest[client.EmbeddingResultForTest]{Code: 500, Message: "internal", ErrorCode: 4999}
 		return nil

@@ -24,8 +24,11 @@ func TestDecodeObjectMap(t *testing.T) {
 		{name: "empty_object", input: `{}`, wantLen: 0},
 		{name: "array", input: `[]`, wantLen: 0},
 		{name: "string", input: `""`, wantLen: 0},
-		{name: "number", input: `123`, wantLen: 0},
-		{name: "bool", input: `true`, wantLen: 0},
+		{name: "quoted_null", input: `"null"`, wantLen: 0},
+		{name: "quoted_object", input: `"{}"`, wantLen: 0},
+		{name: "quoted_array", input: `"[]"`, wantLen: 0},
+		{name: "number", input: `123`, wantError: true},
+		{name: "bool", input: `true`, wantError: true},
 		{name: "invalid", input: `{"a":`, wantError: true},
 	}
 
@@ -73,8 +76,11 @@ func TestDecodeObjectPtr(t *testing.T) {
 		{name: "empty_object", input: `{}`, wantName: ""},
 		{name: "array", input: `[]`, wantNil: true},
 		{name: "string", input: `""`, wantNil: true},
-		{name: "number", input: `123`, wantNil: true},
-		{name: "bool", input: `true`, wantNil: true},
+		{name: "quoted_null", input: `"null"`, wantNil: true},
+		{name: "quoted_object", input: `"{}"`, wantNil: true},
+		{name: "quoted_array", input: `"[]"`, wantNil: true},
+		{name: "number", input: `123`, wantError: true},
+		{name: "bool", input: `true`, wantError: true},
 		{name: "invalid", input: `{"name":`, wantError: true},
 	}
 

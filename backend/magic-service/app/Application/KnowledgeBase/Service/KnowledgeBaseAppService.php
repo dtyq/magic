@@ -12,9 +12,6 @@ use App\Application\KnowledgeBase\DTO\KnowledgeBaseRequestDTO;
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseQuery;
-use App\Domain\KnowledgeBase\Entity\ValueObject\SearchType;
-use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
-use App\Domain\Permission\Entity\ValueObject\OperationPermission\OperationAction;
 use App\Infrastructure\Core\ValueObject\Page;
 use Qbhy\HyperfAuth\Authenticatable;
 
@@ -29,20 +26,15 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
         $knowledgeBaseCode = $code ?? (string) ($payload['code'] ?? '');
         if ($knowledgeBaseCode !== '') {
-            $operation = $this->knowledgeBaseStrategy->getKnowledgeOperation($dataIsolation, $knowledgeBaseCode);
-            $operation->validate(OperationAction::Edit->value, $knowledgeBaseCode);
             $payload['code'] = $knowledgeBaseCode;
         }
 
         $dataIsolationDTO = $context->dataIsolation();
-        $payload = $context->withOrganization($payload);
 
         if ($knowledgeBaseCode === '') {
-            $payload = $context->withCreatedUid($payload);
             return $this->knowledgeBaseAppClient->create(KnowledgeBaseRequestDTO::forCreate($payload, $dataIsolationDTO));
         }
 
-        $payload = $context->withUpdatedUid($payload);
         return $this->knowledgeBaseAppClient->update(
             KnowledgeBaseRequestDTO::forUpdate($knowledgeBaseCode, $payload, $dataIsolationDTO)
         );
@@ -52,7 +44,6 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Edit->value, $code);
 
         $payload['code'] = $code;
         $payload = $context->withOrganization($payload);
@@ -73,13 +64,9 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
             return null;
         }
 
-        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $resources = $this->knowledgeBaseStrategy->getKnowledgeBaseOperations($dataIsolation);
-
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($this->createKnowledgeBaseDataIsolation($authorization));
         $result = $this->knowledgeBaseAppClient->list(KnowledgeBaseRequestDTO::forList([
             'type' => $type,
-            'codes' => array_keys($resources),
             'business_ids' => [$businessId],
             'offset' => 0,
             'limit' => 1,
@@ -96,10 +83,6 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-
-        $resources = $this->knowledgeBaseStrategy->getKnowledgeBaseOperations($dataIsolation);
-
-        $query->setCodes(array_keys($resources));
         $result = $this->knowledgeBaseAppClient->list(KnowledgeBaseRequestDTO::forList([
             'name' => $query->getName(),
             'type' => $query->getType(),
@@ -125,39 +108,35 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
             $userIds[] = $item->getModifier();
             $iconFileLink = $iconFileLinks[$item->getIcon()] ?? null;
             $item->setIcon($iconFileLink?->getUrl() ?? '');
-            $item->setUserOperation(($resources[$item->getCode()] ?? Operation::None)->value);
             $item->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($item));
         }
         $result['users'] = $this->magicUserDomainService->getByUserIds($this->createContactDataIsolationByBase($dataIsolation), $userIds);
         return $result;
     }
 
-    public function queriesRaw(Authenticatable $authorization, array $query, Page $page): array
+    public function queriesRaw(Authenticatable $authorization, array $query, ?Page $page = null): array
     {
-        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $resources = $this->knowledgeBaseStrategy->getKnowledgeBaseOperations($dataIsolation);
-        $rpcQuery = [
-            'codes' => array_keys($resources),
-            'enabled' => $this->resolveKnowledgeEnabled($query),
-            'page' => $page->getPage(),
-            'page_size' => $page->getPageNum(),
-            'offset' => $page->getSliceStart(),
-            'limit' => $page->getPageNum(),
-        ];
-        if (array_key_exists('name', $query)) {
-            $rpcQuery['name'] = $query['name'];
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($this->createKnowledgeBaseDataIsolation($authorization));
+        $rpcQuery = [];
+        foreach (['name', 'type', 'enabled', 'search_type', 'page', 'page_size', 'offset', 'limit'] as $field) {
+            if (array_key_exists($field, $query)) {
+                $rpcQuery[$field] = $query[$field];
+            }
         }
-        if (array_key_exists('type', $query)) {
-            $rpcQuery['type'] = $query['type'];
+        if ($page !== null) {
+            if (! array_key_exists('page', $rpcQuery) && ! array_key_exists('offset', $rpcQuery)) {
+                $rpcQuery['page'] = $page->getPage();
+            }
+            if (! array_key_exists('page_size', $rpcQuery) && ! array_key_exists('limit', $rpcQuery)) {
+                $rpcQuery['page_size'] = $page->getPageNum();
+            }
         }
         if (array_key_exists('business_ids', $query)) {
-            $rpcQuery['business_ids'] = (array) $query['business_ids'];
+            $rpcQuery['business_ids'] = $query['business_ids'];
         }
         if (array_key_exists('agent_codes', $query)) {
             $rpcQuery['agent_codes'] = array_values(array_map('strval', (array) $query['agent_codes']));
         }
-
         return $this->knowledgeBaseAppClient->list(KnowledgeBaseRequestDTO::forList($rpcQuery, $context->dataIsolation()));
     }
 
@@ -165,30 +144,17 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-
-        return $this->knowledgeBaseAppClient->nodes(KnowledgeBaseRequestDTO::forNodes(
-            [
-                'source_type' => (string) ($query['source_type'] ?? ''),
-                'provider' => (string) ($query['provider'] ?? ''),
-                'parent_type' => (string) ($query['parent_type'] ?? ''),
-                'parent_ref' => (string) ($query['parent_ref'] ?? ''),
-                'page' => (int) ($query['page'] ?? 1),
-                'page_size' => (int) ($query['page_size'] ?? 20),
-            ],
-            $context->dataIsolation()
-        ));
+        return $this->knowledgeBaseAppClient->nodes(KnowledgeBaseRequestDTO::forNodes($query, $context->dataIsolation()));
     }
 
-    public function show(Authenticatable $authorization, string $code, array $query = []): KnowledgeBaseEntity
+    public function show(Authenticatable $authorization, string $code): KnowledgeBaseEntity
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $operation = $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Read->value, $code);
         $knowledge = new KnowledgeBaseEntity($this->knowledgeBaseAppClient->show(KnowledgeBaseRequestDTO::forShow(
             $code,
             $context->dataIsolation(),
         )));
-        $knowledge->setUserOperation($operation->value);
         $knowledge->setSourceType($this->knowledgeBaseStrategy->getOrCreateDefaultSourceType($knowledge));
         $iconFileLink = $this->fileDomainService->getLink($dataIsolation->getCurrentOrganizationCode(), $knowledge->getIcon());
         $knowledge->setIcon($iconFileLink?->getUrl() ?? '');
@@ -197,9 +163,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
 
     public function showRaw(Authenticatable $authorization, string $code): array
     {
-        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Read->value, $code);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($this->createKnowledgeBaseDataIsolation($authorization));
         return $this->knowledgeBaseAppClient->show(KnowledgeBaseRequestDTO::forShow(
             $code,
             $context->dataIsolation(),
@@ -208,9 +172,7 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
 
     public function destroy(Authenticatable $authorization, string $code): void
     {
-        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Delete->value, $code);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($this->createKnowledgeBaseDataIsolation($authorization));
         $this->knowledgeBaseAppClient->destroy(KnowledgeBaseRequestDTO::forDestroy(
             $code,
             $context->dataIsolation(),
@@ -221,68 +183,55 @@ class KnowledgeBaseAppService extends AbstractKnowledgeAppService
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        return $this->knowledgeBaseAppClient->rebuild(KnowledgeBaseRequestDTO::forRebuild(
-            [
-                'scope' => (string) ($payload['scope'] ?? 'all'),
-                'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
-                'knowledge_organization_code' => (string) ($payload['knowledge_organization_code'] ?? ''),
-                'knowledge_base_code' => (string) ($payload['knowledge_base_code'] ?? ''),
-                'document_code' => (string) ($payload['document_code'] ?? ''),
-                'mode' => (string) ($payload['mode'] ?? 'auto'),
-                'target_model' => (string) ($payload['target_model'] ?? ''),
-                'target_dimension' => isset($payload['target_dimension']) ? (int) $payload['target_dimension'] : 0,
-                'concurrency' => isset($payload['concurrency']) ? (int) $payload['concurrency'] : 0,
-                'batch_size' => isset($payload['batch_size']) ? (int) $payload['batch_size'] : 0,
-                'retry' => isset($payload['retry']) ? (int) $payload['retry'] : 0,
-            ],
-            $context->dataIsolation()
-        ));
+        $rpcPayload = ['organization_code' => $dataIsolation->getCurrentOrganizationCode()];
+        foreach ([
+            'scope',
+            'knowledge_organization_code',
+            'knowledge_base_code',
+            'document_code',
+            'mode',
+            'target_model',
+            'target_dimension',
+            'concurrency',
+            'batch_size',
+            'retry',
+        ] as $field) {
+            if (array_key_exists($field, $payload)) {
+                $rpcPayload[$field] = $payload[$field];
+            }
+        }
+        return $this->knowledgeBaseAppClient->rebuild(
+            KnowledgeBaseRequestDTO::forRebuild($rpcPayload, $context->dataIsolation())
+        );
     }
 
     public function repairSourceBindings(Authenticatable $authorization, array $payload = []): array
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        return $this->knowledgeBaseAppClient->repairSourceBindings(KnowledgeBaseRequestDTO::forRepairSourceBindings(
-            [
-                'organization_codes' => array_values(array_map('strval', (array) ($payload['organization_codes'] ?? []))),
-                'third_platform_type' => (string) ($payload['third_platform_type'] ?? 'teamshare'),
-                'batch_size' => isset($payload['batch_size']) ? (int) $payload['batch_size'] : 0,
-            ],
-            $context->dataIsolation()
-        ));
+        $rpcPayload = [];
+        foreach (['organization_codes', 'third_platform_type', 'batch_size'] as $field) {
+            if (array_key_exists($field, $payload)) {
+                $rpcPayload[$field] = $payload[$field];
+            }
+        }
+        return $this->knowledgeBaseAppClient->repairSourceBindings(
+            KnowledgeBaseRequestDTO::forRepairSourceBindings($rpcPayload, $context->dataIsolation())
+        );
     }
 
     public function rebuildCleanup(Authenticatable $authorization, array $payload = []): array
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-
-        return $this->knowledgeBaseAppClient->rebuildCleanup(KnowledgeBaseRequestDTO::forRebuildCleanup(
-            [
-                'apply' => (bool) ($payload['apply'] ?? false),
-                'force_delete_non_empty' => (bool) ($payload['force_delete_non_empty'] ?? false),
-            ],
-            $context->dataIsolation()
-        ));
-    }
-
-    private function resolveKnowledgeEnabled(array $query): ?bool
-    {
-        if (array_key_exists('enabled', $query)) {
-            return $query['enabled'] === null || $query['enabled'] === ''
-                ? null
-                : (bool) $query['enabled'];
+        $rpcPayload = [];
+        foreach (['apply', 'force_delete_non_empty'] as $field) {
+            if (array_key_exists($field, $payload)) {
+                $rpcPayload[$field] = $payload[$field];
+            }
         }
-
-        if (! array_key_exists('search_type', $query) || $query['search_type'] === null || $query['search_type'] === '') {
-            return null;
-        }
-
-        return match (SearchType::from((int) $query['search_type'])) {
-            SearchType::ALL => null,
-            SearchType::ENABLED => true,
-            SearchType::DISABLED => false,
-        };
+        return $this->knowledgeBaseAppClient->rebuildCleanup(
+            KnowledgeBaseRequestDTO::forRebuildCleanup($rpcPayload, $context->dataIsolation())
+        );
     }
 }

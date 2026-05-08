@@ -14,6 +14,6 @@ func NewFragmentRepositoryWithDBForTest(db *sql.DB, logger *logging.SugaredLogge
 	return NewFragmentRepository(client, logger)
 }
 
-func ToFragmentFromListForTest(row mysqlsqlc.ListFragmentsRow) (*fragmodel.KnowledgeBaseFragment, error) {
-	return toFragmentFromList(row)
+func ToFragmentFromListForTest(row mysqlsqlc.MagicFlowKnowledgeFragment) (*fragmodel.KnowledgeBaseFragment, error) {
+	return toFragmentFromListByKnowledge(row)
 }

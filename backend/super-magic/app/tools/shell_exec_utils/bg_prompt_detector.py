@@ -24,6 +24,8 @@ _FIXED_SUBSTRINGS: list[str] = [
     "████████",
     # 终端 QR 码渲染：U+2584 LOWER HALF BLOCK 连续填充（wecom-cli 等使用）
     "▄▄▄▄▄▄▄▄",
+    # lark-cli auth login：输出授权链接后进入等待，提示用户在浏览器完成授权
+    "等待用户授权",
     # dws auth login --device：等待用户在浏览器完成授权（Step 2 提示 + 每轮 polling 行均含此串）
     "Waiting for user authorization",
     # wecom-cli init：展示二维码后输出的最终等待行

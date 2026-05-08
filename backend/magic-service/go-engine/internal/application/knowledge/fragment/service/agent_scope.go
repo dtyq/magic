@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
 )
 
 func (s *FragmentAppService) ensureKnowledgeBaseMatchesAgentScope(
 	_ context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 ) error {
 	if kb == nil {
 		return shared.ErrKnowledgeBaseNotFound
@@ -24,7 +25,7 @@ func (s *FragmentAppService) loadScopedKnowledgeBase(
 	ctx context.Context,
 	organizationCode string,
 	knowledgeCode string,
-) (*knowledgebasedomain.KnowledgeBase, error) {
+) (*kbentity.KnowledgeBase, error) {
 	kb, err := s.findKnowledgeBaseByRuntimeCode(ctx, organizationCode, knowledgeCode)
 	if err != nil {
 		return nil, err
@@ -39,7 +40,7 @@ func (s *FragmentAppService) findKnowledgeBaseByRuntimeCode(
 	ctx context.Context,
 	organizationCode string,
 	knowledgeCode string,
-) (*knowledgebasedomain.KnowledgeBase, error) {
+) (*kbentity.KnowledgeBase, error) {
 	kb, err := s.kbService.ShowByCodeAndOrg(ctx, knowledgeCode, organizationCode)
 	if err == nil {
 		return kb, nil
@@ -62,13 +63,13 @@ func (s *FragmentAppService) loadScopedKnowledgeBases(
 	ctx context.Context,
 	organizationCode string,
 	knowledgeCodes []string,
-) ([]*knowledgebasedomain.KnowledgeBase, error) {
+) ([]*kbentity.KnowledgeBase, error) {
 	normalizedCodes := uniqueRuntimeKnowledgeCodes(knowledgeCodes)
 	if len(normalizedCodes) == 0 {
 		return nil, shared.ErrKnowledgeBaseNotFound
 	}
 
-	items, _, err := s.kbService.List(ctx, &knowledgebasedomain.Query{
+	items, _, err := s.kbService.List(ctx, &kbrepository.Query{
 		OrganizationCode: organizationCode,
 		Codes:            append([]string(nil), normalizedCodes...),
 		Offset:           0,
@@ -78,8 +79,8 @@ func (s *FragmentAppService) loadScopedKnowledgeBases(
 		return nil, fmt.Errorf("list knowledge bases by code and org: %w", err)
 	}
 
-	ordered := make([]*knowledgebasedomain.KnowledgeBase, 0, len(normalizedCodes))
-	codeToKnowledgeBase := make(map[string]*knowledgebasedomain.KnowledgeBase, len(items))
+	ordered := make([]*kbentity.KnowledgeBase, 0, len(normalizedCodes))
+	codeToKnowledgeBase := make(map[string]*kbentity.KnowledgeBase, len(items))
 	for _, item := range items {
 		if item == nil {
 			continue
@@ -121,9 +122,9 @@ func (s *FragmentAppService) resolveTeamshareKnowledgeBasesByRuntimeCodes(
 	ctx context.Context,
 	organizationCode string,
 	knowledgeCodes []string,
-) (map[string]*knowledgebasedomain.KnowledgeBase, error) {
+) (map[string]*kbentity.KnowledgeBase, error) {
 	if s == nil || s.teamshareTempCodeMapper == nil || len(knowledgeCodes) == 0 {
-		return map[string]*knowledgebasedomain.KnowledgeBase{}, nil
+		return map[string]*kbentity.KnowledgeBase{}, nil
 	}
 
 	reverseBusinessIDs, err := s.teamshareTempCodeMapper.LookupBusinessIDs(ctx, knowledgeCodes)
@@ -131,7 +132,7 @@ func (s *FragmentAppService) resolveTeamshareKnowledgeBasesByRuntimeCodes(
 		return nil, fmt.Errorf("lookup teamshare temp code reverse mapping: %w", err)
 	}
 	if len(reverseBusinessIDs) == 0 {
-		return map[string]*knowledgebasedomain.KnowledgeBase{}, nil
+		return map[string]*kbentity.KnowledgeBase{}, nil
 	}
 
 	businessIDs := make([]string, 0, len(reverseBusinessIDs))
@@ -148,10 +149,10 @@ func (s *FragmentAppService) resolveTeamshareKnowledgeBasesByRuntimeCodes(
 		businessIDs = append(businessIDs, businessID)
 	}
 	if len(businessIDs) == 0 {
-		return map[string]*knowledgebasedomain.KnowledgeBase{}, nil
+		return map[string]*kbentity.KnowledgeBase{}, nil
 	}
 
-	items, _, err := s.kbService.List(ctx, &knowledgebasedomain.Query{
+	items, _, err := s.kbService.List(ctx, &kbrepository.Query{
 		OrganizationCode: organizationCode,
 		BusinessIDs:      append([]string(nil), businessIDs...),
 		Offset:           0,
@@ -161,7 +162,7 @@ func (s *FragmentAppService) resolveTeamshareKnowledgeBasesByRuntimeCodes(
 		return nil, fmt.Errorf("list knowledge bases by business id: %w", err)
 	}
 
-	businessIDToKnowledgeBase := make(map[string]*knowledgebasedomain.KnowledgeBase, len(items))
+	businessIDToKnowledgeBase := make(map[string]*kbentity.KnowledgeBase, len(items))
 	for _, item := range items {
 		if item == nil {
 			continue
@@ -173,7 +174,7 @@ func (s *FragmentAppService) resolveTeamshareKnowledgeBasesByRuntimeCodes(
 		businessIDToKnowledgeBase[businessID] = item
 	}
 
-	resolved := make(map[string]*knowledgebasedomain.KnowledgeBase, len(knowledgeCodes))
+	resolved := make(map[string]*kbentity.KnowledgeBase, len(knowledgeCodes))
 	for _, knowledgeCode := range knowledgeCodes {
 		trimmedCode := strings.TrimSpace(knowledgeCode)
 		if trimmedCode == "" {
@@ -194,8 +195,8 @@ func (s *FragmentAppService) loadScopedKnowledgeBasesIndividually(
 	ctx context.Context,
 	organizationCode string,
 	knowledgeCodes []string,
-) ([]*knowledgebasedomain.KnowledgeBase, error) {
-	ordered := make([]*knowledgebasedomain.KnowledgeBase, 0, len(knowledgeCodes))
+) ([]*kbentity.KnowledgeBase, error) {
+	ordered := make([]*kbentity.KnowledgeBase, 0, len(knowledgeCodes))
 	for _, code := range knowledgeCodes {
 		kb, err := s.loadScopedKnowledgeBase(ctx, organizationCode, code)
 		if err != nil {
@@ -204,19 +205,4 @@ func (s *FragmentAppService) loadScopedKnowledgeBasesIndividually(
 		ordered = append(ordered, kb)
 	}
 	return ordered, nil
-}
-
-func (s *FragmentAppService) isKnowledgeBaseAccessibleInAgentScope(
-	ctx context.Context,
-	organizationCode string,
-	knowledgeCode string,
-) (bool, error) {
-	_, err := s.loadScopedKnowledgeBase(ctx, organizationCode, knowledgeCode)
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, shared.ErrKnowledgeBaseNotFound) {
-		return false, nil
-	}
-	return false, err
 }

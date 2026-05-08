@@ -51,6 +51,8 @@ class ImageGenerationEntity extends AbstractEntity
      */
     protected ?array $referenceImageOptions = null;
 
+    protected ?array $imageGenerationConfig = null;
+
     protected ImageGenerationType $type;
 
     protected ImageGenerationStatus $status;
@@ -244,6 +246,16 @@ class ImageGenerationEntity extends AbstractEntity
     public function setReferenceImageOptions(?array $referenceImageOptions): void
     {
         $this->referenceImageOptions = $referenceImageOptions;
+    }
+
+    public function getImageGenerationConfig(): ?array
+    {
+        return $this->imageGenerationConfig;
+    }
+
+    public function setImageGenerationConfig(?array $imageGenerationConfig): void
+    {
+        $this->imageGenerationConfig = $imageGenerationConfig;
     }
 
     public function getType(): ImageGenerationType

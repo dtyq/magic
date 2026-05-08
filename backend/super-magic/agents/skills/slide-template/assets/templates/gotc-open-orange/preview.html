@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<title>Open Source Triangle Orange · Template Preview v2.0</title>
+<link rel="stylesheet" href="theme.css"/>
+<style>
+/* ---- Preview page styles (does not affect theme.css )---- */
+* { box-sizing: border-box; }
+body {
+  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  background: #F0EDE8;
+  margin: 0; padding: 40px;
+  width: 1100px;
+  overflow-x: hidden;
+}
+.preview-header { margin-bottom: 36px; }
+.preview-title { font-size: 36px; font-weight: 800; color: #1a1a1a; margin: 0 0 6px; }
+.preview-title span { color: #FF9933; }
+.preview-subtitle { font-size: 14px; color: #5a6c7d; }
+.preview-version {
+  display: inline-flex; align-items: center;
+  padding: 3px 12px; border-radius: 100px;
+  background: rgba(255,153,51,0.12); border: 1px solid rgba(255,153,51,0.35);
+  color: #E67700; font-size: 12px; font-weight: 600; margin-left: 12px;
+}
+.section { margin-bottom: 36px; }
+.section-label {
+  font-size: 11px; font-weight: 700; color: #FF9933;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  border-left: 3px solid #FFB84D; padding-left: 10px; margin-bottom: 18px;
+}
+
+/* ---- Swatches ---- */
+.swatches { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.swatch-item { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.swatch { width: 56px; height: 56px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.08); }
+.swatch-hex  { font-size: 11px; color: #5a6c7d; font-family: monospace; }
+.swatch-name { font-size: 11px; color: #8fa3b8; }
+.swatch-sep  { width: 1px; background: #ddd; margin: 0 6px; align-self: stretch; }
+
+/* ---- Layout preview grid ---- */
+.slides-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.slide-wrap  { min-width: 0; overflow: hidden; }
+.slide-label {
+  font-size: 11px; color: #8fa3b8; margin-bottom: 7px;
+  text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
+}
+.slide {
+  width: 100%; aspect-ratio: 16/9;
+  position: relative; overflow: hidden;
+  border-radius: 6px; border: 1px solid #e0dbd4;
+  background: #fff; box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+}
+
+/* ---- Component showcase ---- */
+.comp-grid { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.comp-group { display: flex; flex-direction: column; gap: 8px; }
+.comp-label { font-size: 11px; color: #8fa3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ---- Gradient swatch row ---- */
+.gradient-strip {
+  height: 40px; border-radius: 8px; width: 240px;
+  border: 1px solid rgba(0,0,0,0.06);
+}
+
+/* ---- Divider ---- */
+.preview-sep { border: none; border-top: 1px solid #e0dbd4; margin: 8px 0 28px; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     Header
+     ============================================================ -->
+<div class="preview-header">
+  <div class="preview-title">
+    GOTC 开源橙 · <span>Open Orange</span>
+    <span class="preview-version">v2.0</span>
+  </div>
+  <div class="preview-subtitle">
+    Best for于 开源技术峰会 · 开发者社区 · 开源项目分享 · 技术演进展示 · 代码演示
+  </div>
+</div>
+
+<!-- ============================================================
+     1. Color System
+     ============================================================ -->
+<div class="section">
+  <div class="section-label">Color System</div>
+  <div class="swatches">
+    <!-- Background colors -->
+    <div class="swatch-item"><span class="swatch" style="background:#ffffff;"></span><span class="swatch-hex">#FFFFFF</span><span class="swatch-name">Primary background</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#f7f7f7;"></span><span class="swatch-hex">#F7F7F7</span><span class="swatch-name">Secondary background</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#fffaf5;"></span><span class="swatch-hex">#FFFAF5</span><span class="swatch-name">Card background</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#1a1a1a;"></span><span class="swatch-hex">#1A1A1A</span><span class="swatch-name">Dark background</span></div>
+    <div class="swatch-sep"></div>
+    <!-- Brand colors -->
+    <div class="swatch-item"><span class="swatch" style="background:#FF9933;"></span><span class="swatch-hex">#FF9933</span><span class="swatch-name">Primary brand orange</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#E67700;"></span><span class="swatch-hex">#E67700</span><span class="swatch-name">Deep brand orange</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#FFB84D;"></span><span class="swatch-hex">#FFB84D</span><span class="swatch-name">Light accent orange</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#FDDBA0;"></span><span class="swatch-hex">#FDDBA0</span><span class="swatch-name">Pale orange</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#CC5500;"></span><span class="swatch-hex">#CC5500</span><span class="swatch-name">Deep orange</span></div>
+    <div class="swatch-sep"></div>
+    <!-- Text colors -->
+    <div class="swatch-item"><span class="swatch" style="background:#1a1a1a;"></span><span class="swatch-hex">#1A1A1A</span><span class="swatch-name">Primary text</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#2c3e50;"></span><span class="swatch-hex">#2C3E50</span><span class="swatch-name">Secondary text</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#5a6c7d;"></span><span class="swatch-hex">#5A6C7D</span><span class="swatch-name">Muted text</span></div>
+    <div class="swatch-item"><span class="swatch" style="background:#8fa3b8;"></span><span class="swatch-hex">#8FA3B8</span><span class="swatch-name">Caption text</span></div>
+  </div>
+  <div style="display:flex;gap:12px;margin-top:12px;flex-wrap:wrap;">
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <div class="gradient-strip" style="background:linear-gradient(135deg,#FF9933,#E67700);"></div>
+      <div style="font-size:11px;color:#8fa3b8;">Main gradient</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <div class="gradient-strip" style="background:linear-gradient(135deg,#FFB84D,#FF9933);"></div>
+      <div style="font-size:11px;color:#8fa3b8;">Warm gradient</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px;">
+      <div class="gradient-strip" style="background:linear-gradient(135deg,#1a1a1a,#2c1a00);"></div>
+      <div style="font-size:11px;color:#8fa3b8;">Cover dark gradient</div>
+    </div>
+  </div>
+</div>
+
+<hr class="preview-sep"/>
+
+<!-- ============================================================
+     2. 8 种专属布局页缩略图
+     ============================================================ -->
+<div class="section">
+  <div class="section-label">8 种专属布局页</div>
+  <div class="slides-grid">
+
+    <!-- ① Cover page Cover (dark )-->
+    <div class="slide-wrap">
+      <div class="slide-label">① Cover page Cover</div>
+      <div class="slide" style="background:linear-gradient(135deg,#1a1a1a 0%,#2c1a00 100%);">
+        <!-- Left side三角条 -->
+        <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:linear-gradient(#FF9933,#E67700);z-index:10;"></div>
+        <div style="position:absolute;top:8px;left:0;width:0;height:0;border-top:18px solid #FF9933;border-right:11px solid transparent;z-index:11;"></div>
+        <!-- 右上光晕 -->
+        <div style="position:absolute;top:-60px;right:-60px;width:200px;height:200px;background:radial-gradient(circle,rgba(255,153,51,0.12) 0%,transparent 70%);border-radius:50%;filter:blur(20px);"></div>
+        <!-- 内容 -->
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;padding:10px 16px 10px 20px;">
+          <!-- 事件标签 -->
+          <div style="display:inline-flex;align-items:center;padding:2px 8px;background:rgba(255,153,51,0.2);border:1px solid rgba(255,153,51,0.5);border-radius:100px;font-size:4.5px;color:#FFB84D;font-weight:600;letter-spacing:1px;width:fit-content;margin-bottom:6px;">GOTC 2025</div>
+          <!-- 主标题 -->
+          <div style="font-size:11px;font-weight:900;color:#fff;line-height:1.25;margin-bottom:4px;">AI Native 开源生态<br/>的崛起之路</div>
+          <!-- 副标题 -->
+          <div style="font-size:5.5px;color:rgba(255,255,255,0.55);margin-bottom:8px;">从工具到生产力的范式转变</div>
+          <!-- 演讲者 -->
+          <div style="display:flex;align-items:center;gap:5px;">
+            <div style="width:14px;height:14px;border-radius:50%;background:#FF9933;border:1.5px solid rgba(255,255,255,0.3);"></div>
+            <div>
+              <div style="font-size:5px;font-weight:700;color:rgba(255,255,255,0.9);">演讲者姓名</div>
+              <div style="font-size:4px;color:rgba(255,255,255,0.45);">品牌名称 · 创始人</div>
+            </div>
+          </div>
+        </div>
+        <!-- 右上 Logo 占位 -->
+        <div style="position:absolute;top:6px;right:8px;width:32px;height:10px;background:rgba(255,255,255,0.12);border-radius:2px;z-index:10;"></div>
+      </div>
+    </div>
+
+    <!-- ② Speaker intro page -->
+    <div class="slide-wrap">
+      <div class="slide-label">② 演讲者介绍 Speaker</div>
+      <div class="slide" style="background:linear-gradient(135deg,#fff 0%,#f7f7f7 100%);">
+        <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(#FF9933,#E67700);z-index:10;"></div>
+        <div style="position:absolute;top:0;left:0;width:0;height:0;border-top:14px solid #FF9933;border-right:8px solid transparent;z-index:11;"></div>
+        <!-- Header栏 -->
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:#fffaf5;border-bottom:1px solid rgba(255,153,51,0.2);display:flex;align-items:center;padding:0 10px 0 14px;">
+          <div style="font-size:7px;font-weight:700;color:#1a1a1a;">演讲者介绍</div>
+        </div>
+        <!-- 主体：左右布局 -->
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;display:flex;gap:8px;padding:8px 12px;">
+          <!-- Left side: 头像+信息 -->
+          <div style="flex:0 0 42%;display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:4px;">
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#FF9933,#E67700);border:2px solid #fff;box-shadow:0 0 0 3px rgba(255,153,51,0.2);"></div>
+            <div style="font-size:7px;font-weight:700;color:#1a1a1a;">张三</div>
+            <div style="font-size:5px;color:#5a6c7d;">品牌名称 · 创始人</div>
+            <div style="height:1.5px;width:30px;background:linear-gradient(90deg,#FF9933,#FFB84D);border-radius:1px;margin:2px 0;"></div>
+            <!-- 社交标签 -->
+            <div style="display:inline-flex;align-items:center;padding:1.5px 6px;background:rgba(255,153,51,0.1);border:1px solid rgba(255,153,51,0.3);border-radius:100px;font-size:4px;color:#E67700;">GitHub @zhangsan</div>
+          </div>
+          <!-- Right side: highlight list -->
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px;justify-content:center;">
+            <div style="font-size:5.5px;font-weight:700;color:#2c3e50;margin-bottom:2px;">核心经历</div>
+            <div style="display:flex;gap:3px;align-items:flex-start;">
+              <div style="width:10px;height:10px;background:#FF9933;color:#fff;font-size:4.5px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">1</div>
+              <div style="font-size:5px;color:#5a6c7d;line-height:1.4;">开源项目核心贡献者, 10K+ Stars</div>
+            </div>
+            <div style="display:flex;gap:3px;align-items:flex-start;">
+              <div style="width:10px;height:10px;background:#FF9933;color:#fff;font-size:4.5px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">2</div>
+              <div style="font-size:5px;color:#5a6c7d;line-height:1.4;">AI Agent 领域探索者</div>
+            </div>
+            <div style="display:flex;gap:3px;align-items:flex-start;">
+              <div style="width:10px;height:10px;background:rgba(255,153,51,0.12);border:1px solid rgba(255,153,51,0.35);color:#E67700;font-size:4.5px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">3</div>
+              <div style="font-size:5px;color:#5a6c7d;line-height:1.4;">多次 GOTC 峰会演讲嘉宾</div>
+            </div>
+            <!-- QR code -->
+            <div style="margin-top:4px;display:flex;align-items:center;gap:4px;">
+              <div style="width:22px;height:22px;background:#fffaf5;border:1px solid rgba(255,153,51,0.2);border-radius:2px;display:flex;align-items:center;justify-content:center;">
+                <div style="font-size:4px;color:#8fa3b8;">QR</div>
+              </div>
+              <div style="font-size:4px;color:#8fa3b8;">扫码关注</div>
+            </div>
+          </div>
+        </div>
+        <!-- Bottom info bar -->
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#fffaf5;border-top:1px solid rgba(255,153,51,0.15);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:4.5px;color:#8fa3b8;">品牌名称 · GOTC 2025</span>
+          <span style="font-size:4.5px;color:#8fa3b8;">2 / 35</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ Two-column key points page -->
+    <div class="slide-wrap">
+      <div class="slide-label">③ 双栏要点 Two-Column</div>
+      <div class="slide" style="background:linear-gradient(135deg,#fff 0%,#f7f7f7 100%);">
+        <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(#FF9933,#E67700);z-index:10;"></div>
+        <div style="position:absolute;top:0;left:0;width:0;height:0;border-top:14px solid #FF9933;border-right:8px solid transparent;z-index:11;"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:#fffaf5;border-bottom:1px solid rgba(255,153,51,0.2);display:flex;align-items:center;padding:0 10px 0 14px;">
+          <div style="font-size:7px;font-weight:700;color:#1a1a1a;">三个核心挑战</div>
+        </div>
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:7px 12px;">
+          <!-- 左栏 -->
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div style="font-size:6px;font-weight:700;color:#1a1a1a;border-bottom:1.5px solid #FF9933;padding-bottom:2px;margin-bottom:2px;">如何降低成本</div>
+            <div style="display:flex;gap:3px;align-items:flex-start;"><div style="width:9px;height:9px;background:#FF9933;color:#fff;font-size:4px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:1.5px;flex-shrink:0;">1</div><div style="font-size:5px;color:#5a6c7d;">主动缓存策略</div></div>
+            <div style="display:flex;gap:3px;align-items:flex-start;"><div style="width:9px;height:9px;background:#FF9933;color:#fff;font-size:4px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:1.5px;flex-shrink:0;">2</div><div style="font-size:5px;color:#5a6c7d;">增量上下文压缩</div></div>
+            <div style="display:flex;gap:3px;align-items:flex-start;"><div style="width:9px;height:9px;background:rgba(255,153,51,0.12);border:1px solid rgba(255,153,51,0.3);color:#E67700;font-size:4px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:1.5px;flex-shrink:0;">3</div><div style="font-size:5px;color:#5a6c7d;">按需加载模型</div></div>
+          </div>
+          <!-- 右栏 -->
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div style="font-size:6px;font-weight:700;color:#1a1a1a;border-bottom:1.5px solid #FF9933;padding-bottom:2px;margin-bottom:2px;">如何提升可靠性</div>
+            <div style="display:flex;gap:3px;align-items:flex-start;"><div style="width:9px;height:9px;background:#FF9933;color:#fff;font-size:4px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:1.5px;flex-shrink:0;">1</div><div style="font-size:5px;color:#5a6c7d;">人在回路设计</div></div>
+            <div style="display:flex;gap:3px;align-items:flex-start;"><div style="width:9px;height:9px;background:#FF9933;color:#fff;font-size:4px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:1.5px;flex-shrink:0;">2</div><div style="font-size:5px;color:#5a6c7d;">级联衰减控制</div></div>
+            <div style="display:flex;gap:3px;align-items:flex-start;"><div style="width:9px;height:9px;background:rgba(255,153,51,0.12);border:1px solid rgba(255,153,51,0.3);color:#E67700;font-size:4px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:1.5px;flex-shrink:0;">3</div><div style="font-size:5px;color:#5a6c7d;">多模型路由</div></div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#fffaf5;border-top:1px solid rgba(255,153,51,0.15);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:4.5px;color:#8fa3b8;">品牌名称 · GOTC 2025</span><span style="font-size:4.5px;color:#8fa3b8;">8 / 35</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ Three-step page -->
+    <div class="slide-wrap">
+      <div class="slide-label">④ 三栏步骤 Three-Steps</div>
+      <div class="slide" style="background:#fff;">
+        <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(#FF9933,#E67700);z-index:10;"></div>
+        <div style="position:absolute;top:0;left:0;width:0;height:0;border-top:14px solid #FF9933;border-right:8px solid transparent;z-index:11;"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:#fffaf5;border-bottom:1px solid rgba(255,153,51,0.2);display:flex;align-items:center;padding:0 10px 0 14px;">
+          <div style="font-size:7px;font-weight:700;color:#1a1a1a;">three steps for open-source contribution</div>
+        </div>
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;display:flex;gap:4px;padding:12px 12px 8px;align-items:stretch;">
+          <!-- 步骤1 -->
+          <div style="flex:1;background:#fffaf5;border:1.5px solid rgba(255,153,51,0.3);border-radius:3px;padding:8px 6px;position:relative;">
+            <div style="position:absolute;top:-6px;left:8px;width:12px;height:12px;background:linear-gradient(135deg,#FF9933,#E67700);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:5px;font-weight:900;color:#fff;box-shadow:0 2px 4px rgba(255,153,51,0.4);">1</div>
+            <div style="margin-top:6px;"><div style="font-size:6px;font-weight:700;color:#1a1a1a;margin-bottom:3px;">Fork 仓库</div>
+            <div style="font-size:4.5px;color:#5a6c7d;line-height:1.5;">复刻项目到自己的账号，本地克隆开发</div>
+            <div style="margin-top:4px;display:inline-flex;align-items:center;padding:1px 5px;background:rgba(255,153,51,0.1);border:1px solid rgba(255,153,51,0.25);border-radius:100px;font-size:4px;color:#E67700;">GitHub</div></div>
+          </div>
+          <!-- 箭头 -->
+          <div style="display:flex;align-items:center;color:#FF9933;font-size:8px;font-weight:900;flex-shrink:0;">→</div>
+          <!-- 步骤2 -->
+          <div style="flex:1;background:linear-gradient(135deg,#FF9933,#E67700);border-radius:3px;padding:8px 6px;position:relative;box-shadow:0 3px 10px rgba(255,153,51,0.35);">
+            <div style="position:absolute;top:-6px;left:8px;width:12px;height:12px;background:#fff;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:5px;font-weight:900;color:#FF9933;box-shadow:0 2px 4px rgba(0,0,0,0.1);">2</div>
+            <div style="margin-top:6px;"><div style="font-size:6px;font-weight:700;color:#fff;margin-bottom:3px;">Commit 代码</div>
+            <div style="font-size:4.5px;color:rgba(255,255,255,0.85);line-height:1.5;">提交功能改进，编写测试和文档</div>
+            <div style="margin-top:4px;display:inline-flex;align-items:center;padding:1px 5px;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:100px;font-size:4px;color:#fff;">核心步骤</div></div>
+          </div>
+          <!-- 箭头 -->
+          <div style="display:flex;align-items:center;color:#FF9933;font-size:8px;font-weight:900;flex-shrink:0;">→</div>
+          <!-- 步骤3 -->
+          <div style="flex:1;background:#fffaf5;border:1.5px solid rgba(255,153,51,0.3);border-radius:3px;padding:8px 6px;position:relative;">
+            <div style="position:absolute;top:-6px;left:8px;width:12px;height:12px;background:linear-gradient(135deg,#FF9933,#E67700);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:5px;font-weight:900;color:#fff;box-shadow:0 2px 4px rgba(255,153,51,0.4);">3</div>
+            <div style="margin-top:6px;"><div style="font-size:6px;font-weight:700;color:#1a1a1a;margin-bottom:3px;">Pull Request</div>
+            <div style="font-size:4.5px;color:#5a6c7d;line-height:1.5;">发起合并请求，等待 Review 合入</div>
+            <div style="margin-top:4px;display:inline-flex;align-items:center;padding:1px 5px;background:rgba(255,153,51,0.1);border:1px solid rgba(255,153,51,0.25);border-radius:100px;font-size:4px;color:#E67700;">贡献社区</div></div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#fffaf5;border-top:1px solid rgba(255,153,51,0.15);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:4.5px;color:#8fa3b8;">品牌名称 · GOTC 2025</span><span style="font-size:4.5px;color:#8fa3b8;">12 / 35</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑤ Timeline page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑤ 时间线 Timeline</div>
+      <div class="slide" style="background:linear-gradient(135deg,#fff 0%,#f7f7f7 100%);">
+        <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(#FF9933,#E67700);z-index:10;"></div>
+        <div style="position:absolute;top:0;left:0;width:0;height:0;border-top:14px solid #FF9933;border-right:8px solid transparent;z-index:11;"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:#fffaf5;border-bottom:1px solid rgba(255,153,51,0.2);display:flex;align-items:center;padding:0 10px 0 14px;">
+          <div style="font-size:7px;font-weight:700;color:#1a1a1a;">AI 开源发展史</div>
+        </div>
+        <!-- 时间轴线 -->
+        <div style="position:absolute;top:42%;left:12px;right:12px;height:2.5px;background:linear-gradient(90deg,#FF9933,#FFB84D);z-index:2;"></div>
+        <!-- 时间node -->
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;display:flex;padding:0 12px;">
+          <!-- 2020 -->
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:8px;position:relative;">
+            <div style="font-size:5px;color:#5a6c7d;text-align:center;margin-bottom:2px;">GPT-3 开放</div>
+            <div style="font-size:5.5px;font-weight:700;color:#8fa3b8;margin-bottom:10px;">2020</div>
+            <div style="width:9px;height:9px;background:#FFB84D;border-radius:50%;border:2px solid white;box-shadow:0 0 0 2px #FFB84D;position:absolute;top:50%;transform:translateY(-50%);"></div>
+          </div>
+          <!-- 2022 -->
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:8px;position:relative;">
+            <div style="font-size:5px;color:#5a6c7d;text-align:center;margin-bottom:2px;">ChatGPT 发布</div>
+            <div style="font-size:5.5px;font-weight:700;color:#8fa3b8;margin-bottom:10px;">2022</div>
+            <div style="width:9px;height:9px;background:#FF9933;border-radius:50%;border:2px solid white;box-shadow:0 0 0 2px #FF9933;position:absolute;top:50%;transform:translateY(-50%);"></div>
+          </div>
+          <!-- 2023 -->
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;padding-top:10px;position:relative;">
+            <div style="width:11px;height:11px;background:linear-gradient(135deg,#FF9933,#E67700);border-radius:50%;border:2px solid white;box-shadow:0 0 0 3px rgba(255,153,51,0.3);position:absolute;top:50%;transform:translateY(-50%);"></div>
+            <div style="font-size:5.5px;font-weight:700;color:#FF9933;margin-top:14px;">2023</div>
+            <div style="font-size:5px;color:#5a6c7d;text-align:center;margin-top:2px;">Workflow 爆发</div>
+          </div>
+          <!-- 2024 -->
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;padding-top:10px;position:relative;">
+            <div style="width:9px;height:9px;background:#FF9933;border-radius:50%;border:2px solid white;box-shadow:0 0 0 2px #FF9933;position:absolute;top:50%;transform:translateY(-50%);"></div>
+            <div style="font-size:5.5px;font-weight:700;color:#FF9933;margin-top:14px;">2024</div>
+            <div style="font-size:5px;color:#5a6c7d;text-align:center;margin-top:2px;">RAG 成熟</div>
+          </div>
+          <!-- 2025 -->
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;padding-top:10px;position:relative;">
+            <div style="width:11px;height:11px;background:linear-gradient(135deg,#E67700,#CC5500);border-radius:50%;border:2px solid white;box-shadow:0 0 0 3px rgba(230,119,0,0.3);position:absolute;top:50%;transform:translateY(-50%);"></div>
+            <div style="font-size:5.5px;font-weight:900;color:#E67700;margin-top:14px;">2025</div>
+            <div style="font-size:5px;color:#5a6c7d;text-align:center;margin-top:2px;font-weight:700;">Agentic AI</div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#fffaf5;border-top:1px solid rgba(255,153,51,0.15);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:4.5px;color:#8fa3b8;">品牌名称 · GOTC 2025</span><span style="font-size:4.5px;color:#8fa3b8;">6 / 35</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑥ Big-number KPI page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑥ 大数据 KPI</div>
+      <div class="slide" style="background:#fff;">
+        <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(#FF9933,#E67700);z-index:10;"></div>
+        <div style="position:absolute;top:0;left:0;width:0;height:0;border-top:14px solid #FF9933;border-right:8px solid transparent;z-index:11;"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:#fffaf5;border-bottom:1px solid rgba(255,153,51,0.2);display:flex;align-items:center;gap:6px;padding:0 10px 0 14px;">
+          <div style="font-size:7px;font-weight:700;color:#1a1a1a;">开源生态数字</div>
+          <div style="display:inline-flex;align-items:center;padding:1.5px 6px;background:#FF9933;border-radius:100px;font-size:4px;color:#fff;font-weight:600;">2025 数据</div>
+        </div>
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;padding:8px 12px;">
+          <div style="background:#fffaf5;border:1px solid rgba(255,153,51,0.2);border-radius:3px;padding:6px;text-align:center;border-top:3px solid #FF9933;">
+            <div style="font-size:4.5px;color:#5a6c7d;margin-bottom:2px;">GitHub 用户</div>
+            <div style="font-size:17px;font-weight:900;color:#FF9933;line-height:1;">100M+</div>
+            <div style="font-size:4px;color:#8fa3b8;margin-top:1px;">全球开发者</div>
+            <div style="display:inline-flex;align-items:center;gap:1px;font-size:4px;color:#16a34a;margin-top:2px;">↑ +32%</div>
+          </div>
+          <div style="background:#fffaf5;border:1px solid rgba(255,153,51,0.2);border-radius:3px;padding:6px;text-align:center;border-top:3px solid #FFB84D;">
+            <div style="font-size:4.5px;color:#5a6c7d;margin-bottom:2px;">开源仓库</div>
+            <div style="font-size:17px;font-weight:900;color:#FF9933;line-height:1;">420M+</div>
+            <div style="font-size:4px;color:#8fa3b8;margin-top:1px;">公开项目</div>
+            <div style="display:inline-flex;align-items:center;gap:1px;font-size:4px;color:#16a34a;margin-top:2px;">↑ +28%</div>
+          </div>
+          <div style="background:#fffaf5;border:1px solid rgba(255,153,51,0.2);border-radius:3px;padding:6px;text-align:center;border-top:3px solid #E67700;">
+            <div style="font-size:4.5px;color:#5a6c7d;margin-bottom:2px;">AI 开源项目</div>
+            <div style="font-size:17px;font-weight:900;color:#FF9933;line-height:1;">50K+</div>
+            <div style="font-size:4px;color:#8fa3b8;margin-top:1px;">2025 新增</div>
+            <div style="display:inline-flex;align-items:center;gap:1px;font-size:4px;color:#16a34a;margin-top:2px;">↑ +3x</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#FF9933,#E67700);border-radius:3px;padding:6px;text-align:center;box-shadow:0 3px 10px rgba(255,153,51,0.35);">
+            <div style="font-size:4.5px;color:rgba(255,255,255,0.8);margin-bottom:2px;">AI 加速倍数</div>
+            <div style="font-size:17px;font-weight:900;color:#fff;line-height:1;">10x</div>
+            <div style="font-size:4px;color:rgba(255,255,255,0.7);margin-top:1px;">开发效率提升</div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#fffaf5;border-top:1px solid rgba(255,153,51,0.15);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:4.5px;color:#8fa3b8;">品牌名称 · GOTC 2025</span><span style="font-size:4.5px;color:#8fa3b8;">10 / 35</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑦ Code demo page (新增 )-->
+    <div class="slide-wrap">
+      <div class="slide-label">⑦ 代码展示 Code-Demo</div>
+      <div class="slide" style="background:#fff;">
+        <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(#FF9933,#E67700);z-index:10;"></div>
+        <div style="position:absolute;top:0;left:0;width:0;height:0;border-top:14px solid #FF9933;border-right:8px solid transparent;z-index:11;"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:13%;background:#fffaf5;border-bottom:1px solid rgba(255,153,51,0.2);display:flex;align-items:center;padding:0 10px 0 14px;">
+          <div style="font-size:7px;font-weight:700;color:#1a1a1a;">三行代码启动 Agent</div>
+        </div>
+        <div style="position:absolute;top:13%;bottom:10%;left:0;right:0;display:flex;gap:6px;padding:7px 12px;">
+          <!-- Left side: 代码块 -->
+          <div style="flex:0 0 58%;background:#1e1e2e;border-radius:4px;overflow:hidden;border:1px solid rgba(255,153,51,0.2);">
+            <!-- 代码块标题栏 -->
+            <div style="background:#2a2a3e;padding:4px 8px;display:flex;align-items:center;gap:3px;border-bottom:1px solid rgba(255,153,51,0.15);">
+              <div style="width:5px;height:5px;border-radius:50%;background:#ff5f57;"></div>
+              <div style="width:5px;height:5px;border-radius:50%;background:#febc2e;"></div>
+              <div style="width:5px;height:5px;border-radius:50%;background:#28c840;"></div>
+              <div style="font-size:4px;color:rgba(255,255,255,0.4);margin-left:4px;font-family:monospace;">agent.py</div>
+            </div>
+            <!-- 代码内容 -->
+            <div style="padding:8px 10px;font-family:monospace;font-size:5px;line-height:1.8;color:#cdd6f4;">
+              <div><span style="color:#6c7086;"># 安装超级麦吉 SDK</span></div>
+              <div><span style="color:#cba6f7;">from</span> <span style="color:#89b4fa;">supermagic</span> <span style="color:#cba6f7;">import</span> Agent</div>
+              <div>&nbsp;</div>
+              <div><span style="color:#6c7086;"># 初始化 Agent</span></div>
+              <div>agent = <span style="color:#89b4fa;">Agent</span>(<span style="color:#a6e3a1;">"open-source"</span>)</div>
+              <div>&nbsp;</div>
+              <div><span style="color:#6c7086;"># 执行任务</span></div>
+              <div>result = agent.<span style="color:#89b4fa;">run</span>(</div>
+              <div>&nbsp;&nbsp;<span style="color:#a6e3a1;">"分析这个仓库的贡献者"</span></div>
+              <div>)</div>
+              <div><span style="color:#89b4fa;">print</span>(result)</div>
+            </div>
+          </div>
+          <!-- Right side: 说明卡片 -->
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px;justify-content:center;">
+            <div style="background:#fffaf5;border-left:3px solid #FF9933;border-radius:0 3px 3px 0;padding:5px 7px;">
+              <div style="font-size:5.5px;font-weight:700;color:#1a1a1a;margin-bottom:1.5px;">一行初始化</div>
+              <div style="font-size:4.5px;color:#5a6c7d;">无需配置环境，开箱即用</div>
+            </div>
+            <div style="background:#fffaf5;border-left:3px solid #FF9933;border-radius:0 3px 3px 0;padding:5px 7px;">
+              <div style="font-size:5.5px;font-weight:700;color:#1a1a1a;margin-bottom:1.5px;">自然语言指令</div>
+              <div style="font-size:4.5px;color:#5a6c7d;">直接描述任务, 无需学 API</div>
+            </div>
+            <div style="background:linear-gradient(135deg,rgba(255,153,51,0.08),rgba(255,184,77,0.05));border:1px solid rgba(255,153,51,0.25);border-radius:3px;padding:5px 7px;">
+              <div style="font-size:5.5px;font-weight:700;color:#FF9933;margin-bottom:1.5px;">完全开源</div>
+              <div style="font-size:4.5px;color:#5a6c7d;">MIT License · 欢迎贡献</div>
+            </div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#fffaf5;border-top:1px solid rgba(255,153,51,0.15);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:4.5px;color:#8fa3b8;">品牌名称 · GOTC 2025</span><span style="font-size:4.5px;color:#8fa3b8;">20 / 35</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑧ Closing page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑧ closing Closing</div>
+      <div class="slide" style="background:linear-gradient(135deg,#fff 0%,#fff8f0 100%);">
+        <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(#FF9933,#E67700);z-index:10;"></div>
+        <!-- 中央光晕 -->
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:200px;height:200px;background:radial-gradient(circle,rgba(255,153,51,0.06) 0%,transparent 70%);border-radius:50%;filter:blur(20px);"></div>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px;gap:5px;">
+          <!-- 主标题 (GradientsText ) -->
+          <div style="font-size:18px;font-weight:900;background:linear-gradient(135deg,#FF9933,#E67700);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;">谢谢聆听</div>
+          <div style="font-size:5.5px;color:#5a6c7d;margin-bottom:3px;">品牌名称 · 让每个人都有 AI 超能力</div>
+          <!-- 标签组 -->
+          <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;margin-bottom:4px;">
+            <span style="display:inline-flex;align-items:center;padding:1.5px 6px;background:rgba(255,153,51,0.1);border:1px solid rgba(255,153,51,0.3);border-radius:100px;font-size:4px;color:#E67700;">#开源</span>
+            <span style="display:inline-flex;align-items:center;padding:1.5px 6px;background:rgba(255,153,51,0.1);border:1px solid rgba(255,153,51,0.3);border-radius:100px;font-size:4px;color:#E67700;">#AI Native</span>
+            <span style="display:inline-flex;align-items:center;padding:1.5px 6px;background:rgba(255,153,51,0.1);border:1px solid rgba(255,153,51,0.3);border-radius:100px;font-size:4px;color:#E67700;">#GOTC 2025</span>
+          </div>
+          <!-- QR code -->
+          <div style="width:28px;height:28px;background:#fffaf5;border:1px solid rgba(255,153,51,0.3);border-radius:3px;display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:4px;color:#8fa3b8;">QR</span>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#fffaf5;border-top:1px solid rgba(255,153,51,0.15);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:4.5px;color:#8fa3b8;">品牌名称 · GOTC 2025</span><span style="font-size:4.5px;color:#8fa3b8;">35 / 35</span>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /slides-grid -->
+</div><!-- /section -->
+
+<hr class="preview-sep"/>
+
+<!-- ============================================================
+     3. Core Component Showcase
+     ============================================================ -->
+<div class="section">
+  <div class="section-label">Core Component Showcase</div>
+  <div class="comp-grid">
+
+    <!-- KPI card -->
+    <div class="comp-group">
+      <div class="comp-label">KPI card</div>
+      <div style="background:#fffaf5;border:1px solid rgba(255,153,51,0.2);border-radius:10px;padding:16px 22px;min-width:130px;border-top:4px solid #FF9933;box-shadow:0 4px 20px rgba(255,153,51,0.08);">
+        <div style="font-size:11px;color:#5a6c7d;margin-bottom:4px;">开源贡献者</div>
+        <div style="font-size:36px;font-weight:900;color:#FF9933;line-height:1;letter-spacing:-1px;">100M+</div>
+        <div style="font-size:11px;color:#8fa3b8;margin-top:3px;">全球开发者</div>
+        <div style="display:inline-flex;align-items:center;gap:2px;font-size:11px;color:#16a34a;font-weight:600;margin-top:4px;">↑ +32% YoY</div>
+      </div>
+    </div>
+
+    <!-- 卡片变体 -->
+    <div class="comp-group">
+      <div class="comp-label">卡片变体</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="background:white;border:2px solid #FF9933;border-radius:8px;padding:10px 16px;min-width:140px;">
+          <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">bordered card</div>
+          <div style="font-size:11px;color:#5a6c7d;">3px 橙色Borders, 强调重要步骤</div>
+        </div>
+        <div style="background:#fffaf5;border:1px solid rgba(255,153,51,0.2);border-left:5px solid #FF9933;border-radius:0 8px 8px 0;padding:10px 16px;min-width:140px;">
+          <div style="font-size:12px;font-weight:700;color:#1a1a1a;margin-bottom:4px;">左Borders卡片</div>
+          <div style="font-size:11px;color:#5a6c7d;">适合要点说明区域</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 徽章组 -->
+    <div class="comp-group">
+      <div class="comp-label">徽章 / 编号</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:40px;height:40px;background:#FF9933;color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:6px;box-shadow:0 4px 12px rgba(255,153,51,0.4);">1</div>
+          <div style="width:40px;height:40px;background:linear-gradient(135deg,#FF9933,#E67700);color:#fff;font-size:20px;font-weight:900;display:flex;align-items:center;justify-content:center;border-radius:8px;box-shadow:0 4px 12px rgba(255,153,51,0.4);">2</div>
+          <div style="width:40px;height:40px;background:#FF9933;color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:50%;">3</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="width:40px;height:40px;background:rgba(255,153,51,0.12);border:1.5px solid rgba(255,153,51,0.35);color:#FF9933;font-size:18px;display:flex;align-items:center;justify-content:center;border-radius:6px;">⚡</div>
+          <div style="width:40px;height:40px;background:rgba(255,153,51,0.12);border:1.5px solid rgba(255,153,51,0.35);color:#FF9933;font-size:18px;display:flex;align-items:center;justify-content:center;border-radius:50%;">🔥</div>
+          <div style="width:40px;height:40px;background:rgba(255,153,51,0.12);border:1.5px solid rgba(255,153,51,0.35);color:#FF9933;font-size:18px;display:flex;align-items:center;justify-content:center;border-radius:8px;">✦</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 标签组 -->
+    <div class="comp-group">
+      <div class="comp-label">标签 / 胶囊</div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <span style="display:inline-flex;align-items:center;padding:5px 14px;border-radius:100px;background:rgba(255,153,51,0.12);border:1px solid rgba(255,153,51,0.35);color:#E67700;font-size:12px;font-weight:600;">开源生态</span>
+        <span style="display:inline-flex;align-items:center;padding:5px 14px;border-radius:100px;background:#FF9933;color:#fff;font-size:12px;font-weight:600;">实心标签</span>
+        <span style="display:inline-flex;align-items:center;padding:4px 13px;border-radius:100px;background:transparent;border:2px solid #FF9933;color:#FF9933;font-size:12px;font-weight:600;">outline标签</span>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">
+          <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:100px;background:rgba(34,197,94,0.1);border:1px solid #16a34a;font-size:11px;color:#16a34a;font-weight:600;"><span style="width:6px;height:6px;border-radius:50%;background:#16a34a;"></span>运行中</span>
+          <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:100px;background:rgba(255,153,51,0.1);border:1px solid rgba(255,153,51,0.4);font-size:11px;color:#E67700;font-weight:600;"><span style="width:6px;height:6px;border-radius:50%;background:#FF9933;"></span>进行中</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 时间线node -->
+    <div class="comp-group">
+      <div class="comp-label">时间线node</div>
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:200px;position:relative;padding-left:30px;">
+        <div style="position:absolute;left:10px;top:0;bottom:0;width:3px;background:linear-gradient(180deg,#FF9933,#FFB84D);border-radius:2px;"></div>
+        <div style="display:flex;align-items:flex-start;gap:12px;position:relative;">
+          <div style="position:absolute;left:-24px;top:2px;width:16px;height:16px;background:#FF9933;border-radius:50%;border:3px solid white;box-shadow:0 0 0 3px rgba(255,153,51,0.2);"></div>
+          <div><div style="font-size:13px;font-weight:700;color:#1a1a1a;">2025 · Agentic AI</div><div style="font-size:11px;color:#5a6c7d;">全员进入 Agent 时代</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:12px;position:relative;">
+          <div style="position:absolute;left:-24px;top:2px;width:16px;height:16px;background:#FFB84D;border-radius:50%;border:3px solid white;box-shadow:0 0 0 3px rgba(255,184,77,0.2);"></div>
+          <div><div style="font-size:13px;font-weight:700;color:#5a6c7d;">2024 · RAG 成熟</div><div style="font-size:11px;color:#8fa3b8;">检索增强生成普及</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="comp-group">
+      <div class="comp-label">Progress bar</div>
+      <div style="display:flex;flex-direction:column;gap:10px;min-width:180px;">
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#5a6c7d;margin-bottom:4px;"><span>开源贡献度</span><span style="color:#FF9933;font-weight:700;">85%</span></div>
+          <div style="height:8px;background:rgba(255,153,51,0.1);border-radius:4px;overflow:hidden;"><div style="width:85%;height:100%;background:linear-gradient(90deg,#FF9933,#E67700);border-radius:4px;"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#5a6c7d;margin-bottom:4px;"><span>社区活跃度</span><span style="color:#FFB84D;font-weight:700;">62%</span></div>
+          <div style="height:8px;background:rgba(255,153,51,0.1);border-radius:4px;overflow:hidden;"><div style="width:62%;height:100%;background:linear-gradient(90deg,#FFB84D,#FF9933);border-radius:4px;"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#5a6c7d;margin-bottom:4px;"><span>代码覆盖率</span><span style="color:#E67700;font-weight:700;">93%</span></div>
+          <div style="height:12px;background:rgba(255,153,51,0.1);border-radius:6px;overflow:hidden;"><div style="width:93%;height:100%;background:linear-gradient(90deg,#FF9933,#E67700);border-radius:6px;"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step progress indicator -->
+    <div class="comp-group">
+      <div class="comp-label">步骤指示器</div>
+      <div style="display:flex;align-items:center;gap:0;min-width:200px;">
+        <div style="width:32px;height:32px;border-radius:50%;background:#E67700;border:3px solid #E67700;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0;">✓</div>
+        <div style="flex:1;height:3px;background:linear-gradient(90deg,#FF9933,#FFB84D);"></div>
+        <div style="width:32px;height:32px;border-radius:50%;background:#FF9933;border:3px solid #FF9933;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;box-shadow:0 0 0 4px rgba(255,153,51,0.2);flex-shrink:0;">2</div>
+        <div style="flex:1;height:3px;background:#e8e8e8;"></div>
+        <div style="width:32px;height:32px;border-radius:50%;background:#f7f7f7;border:3px solid #e8e8e8;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#8fa3b8;flex-shrink:0;">3</div>
+      </div>
+    </div>
+
+    <!-- 代码块 (小Size展示 )-->
+    <div class="comp-group">
+      <div class="comp-label">代码块</div>
+      <div style="background:#1e1e2e;border-radius:8px;overflow:hidden;border:1px solid rgba(255,153,51,0.2);min-width:200px;">
+        <div style="background:#2a2a3e;padding:8px 14px;display:flex;align-items:center;gap:5px;border-bottom:1px solid rgba(255,153,51,0.15);">
+          <span style="width:9px;height:9px;border-radius:50%;background:#ff5f57;"></span>
+          <span style="width:9px;height:9px;border-radius:50%;background:#febc2e;"></span>
+          <span style="width:9px;height:9px;border-radius:50%;background:#28c840;"></span>
+          <span style="font-size:10px;color:rgba(255,255,255,0.4);margin-left:6px;font-family:monospace;">agent.py</span>
+        </div>
+        <div style="padding:12px 16px;font-family:monospace;font-size:11px;line-height:1.8;color:#cdd6f4;">
+          <span style="color:#cba6f7;">from</span> supermagic <span style="color:#cba6f7;">import</span> Agent<br>
+          <span style="color:#6c7086;"># 一行初始化</span><br>
+          agent = <span style="color:#89b4fa;">Agent</span>(<span style="color:#a6e3a1;">"open-source"</span>)
+        </div>
+      </div>
+    </div>
+
+    <!-- Quote block -->
+    <div class="comp-group">
+      <div class="comp-label">Quote block</div>
+      <div style="position:relative;padding:16px 20px 16px 24px;background:#fffaf5;border-left:6px solid #FF9933;border-radius:0 8px 8px 0;min-width:220px;max-width:280px;">
+        <div style="position:absolute;top:-8px;left:16px;font-size:60px;font-weight:900;color:rgba(255,153,51,0.1);line-height:1;font-family:Georgia,serif;">"</div>
+        <div style="font-size:13px;color:#2c3e50;line-height:1.6;font-style:italic;position:relative;z-index:1;">开源不仅是软件，更是一种协作精神。</div>
+        <div style="font-size:12px;color:#FF9933;font-weight:700;margin-top:8px;position:relative;z-index:1;">— Linus Torvalds</div>
+      </div>
+    </div>
+
+    <!-- 终端组件 -->
+    <div class="comp-group">
+      <div class="comp-label">终端命令行</div>
+      <div style="background:#0d1117;border-radius:8px;overflow:hidden;border:1px solid rgba(255,153,51,0.25);min-width:220px;">
+        <div style="background:#161b22;padding:8px 14px;display:flex;align-items:center;gap:5px;border-bottom:1px solid rgba(255,255,255,0.05);">
+          <span style="width:9px;height:9px;border-radius:50%;background:#ff5f57;"></span>
+          <span style="width:9px;height:9px;border-radius:50%;background:#febc2e;"></span>
+          <span style="width:9px;height:9px;border-radius:50%;background:#28c840;"></span>
+          <span style="font-size:10px;color:rgba(255,255,255,0.35);margin-left:6px;font-family:monospace;">bash</span>
+        </div>
+        <div style="padding:12px 16px;font-family:monospace;font-size:11px;line-height:1.9;color:#e6edf3;">
+          <div><span style="color:#FFB84D;">$ </span><span style="color:#79c0ff;">git clone</span> https://github.com/example/repo</div>
+          <div style="color:rgba(230,237,243,0.5);">Cloning into 'repo'...</div>
+          <div style="color:#3fb950;">✓ Done in 1.2s</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /comp-grid -->
+</div><!-- /section -->
+
+<hr class="preview-sep"/>
+
+<!-- ============================================================
+     4. Decorative Elements展示
+     ============================================================ -->
+<div class="section">
+  <div class="section-label">Decorative Elements</div>
+  <div class="comp-grid">
+
+    <!-- 三角装饰条 -->
+    <div class="comp-group">
+      <div class="comp-label">三角装饰条</div>
+      <div style="position:relative;width:80px;height:100px;background:#f7f7f7;border-radius:6px;overflow:hidden;border:1px solid #e8e8e8;">
+        <div style="position:absolute;top:0;left:0;width:8px;height:100%;background:linear-gradient(#FF9933,#E67700);"></div>
+        <div style="position:absolute;top:12px;left:0;width:0;height:0;border-top:30px solid #FF9933;border-right:18px solid transparent;"></div>
+        <div style="position:absolute;left:16px;top:14px;font-size:10px;color:#5a6c7d;font-weight:600;">普通页</div>
+      </div>
+    </div>
+
+    <!-- Background网格 -->
+    <div class="comp-group">
+      <div class="comp-label">Background网格纹理</div>
+      <div style="width:120px;height:80px;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #e8e8e8;background-image:linear-gradient(rgba(255,153,51,0.08) 1px,transparent 1px),linear-gradient(90deg,rgba(255,153,51,0.08) 1px,transparent 1px);background-size:16px 16px;"></div>
+    </div>
+
+    <!-- GradientsDivider变体 -->
+    <div class="comp-group">
+      <div class="comp-label">Divider变体</div>
+      <div style="display:flex;flex-direction:column;gap:12px;min-width:160px;">
+        <div>
+          <div style="height:4px;width:60px;background:#FF9933;border-radius:2px;"></div>
+          <div style="font-size:10px;color:#8fa3b8;margin-top:3px;">短实线</div>
+        </div>
+        <div>
+          <div style="height:4px;width:80px;background:linear-gradient(90deg,#FF9933,#FFB84D);border-radius:2px;"></div>
+          <div style="font-size:10px;color:#8fa3b8;margin-top:3px;">Gradients线</div>
+        </div>
+        <div>
+          <div style="height:2px;width:100%;background:rgba(255,153,51,0.2);"></div>
+          <div style="font-size:10px;color:#8fa3b8;margin-top:3px;">全wide细线</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 章节大数字 -->
+    <div class="comp-group">
+      <div class="comp-label">Large section-number background</div>
+      <div style="position:relative;width:140px;height:80px;background:linear-gradient(135deg,#fff,#f7f7f7);border-radius:6px;overflow:hidden;border:1px solid #e8e8e8;">
+        <div style="position:absolute;right:8px;bottom:-10px;font-size:72px;font-weight:900;color:rgba(255,153,51,0.08);line-height:1;user-select:none;">02</div>
+        <div style="position:absolute;left:16px;top:20px;font-size:14px;font-weight:700;color:#1a1a1a;">章节标题</div>
+        <div style="position:absolute;left:16px;top:40px;font-size:10px;color:#5a6c7d;">副标题Text</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<hr class="preview-sep"/>
+
+<!-- ============================================================
+     5. 排版规范
+     ============================================================ -->
+<div class="section">
+  <div class="section-label">Typography Hierarchy</div>
+  <div style="background:white;border-radius:10px;padding:20px 28px;border:1px solid #e8e8e8;">
+    <div style="font-size:32px;font-weight:900;color:#1a1a1a;line-height:1.1;margin-bottom:6px;">英雄标题 96px / 900</div>
+    <div style="font-size:22px;font-weight:700;color:#1a1a1a;letter-spacing:1px;margin-bottom:6px;">page title 64px / 700 · letter-spacing 2px</div>
+    <div style="font-size:17px;font-weight:700;color:#2c3e50;margin-bottom:5px;">副标题 48px / 700</div>
+    <div style="font-size:13px;font-weight:700;color:#2c3e50;margin-bottom:4px;">section heading 36px / 700</div>
+    <div style="font-size:10px;color:#5a6c7d;line-height:1.6;margin-bottom:3px;">Body text 28px / 400 · line-height 1.6 · Muted text色</div>
+    <div style="font-size:8px;color:#5a6c7d;margin-bottom:3px;">small text 22px / 400</div>
+    <div style="font-size:7px;color:#8fa3b8;">caption/source 18px / 400 · Caption text色</div>
+    <div style="margin-top:8px;font-size:36px;font-weight:900;color:#FF9933;line-height:1;">KPI 数字 80px / 900</div>
+    <div style="margin-top:4px;font-family:monospace;font-size:10px;color:#cdd6f4;background:#1e1e2e;padding:6px 10px;border-radius:4px;display:inline-block;">Code font JetBrains Mono 22px</div>
+  </div>
+</div>
+
+</body>
+</html>

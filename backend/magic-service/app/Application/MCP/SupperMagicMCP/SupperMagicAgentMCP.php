@@ -159,6 +159,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                     $mcpServerConfig->setToken($token);
                 }
                 $config = $mcpServerConfig->toArray();
+                $config['description'] = $mcpServer->getDescription();
                 $config['server_options'] = $serverOptions[$mcpServer->getCode()] ?? [];
             } catch (Throwable $throwable) {
                 $this->logger->notice('CreateChatMessageRequestMcpConfigNotice', [
@@ -175,6 +176,7 @@ readonly class SupperMagicAgentMCP implements SupperMagicAgentMCPInterface
                 ]);
                 $config = [
                     'name' => $mcpServer->getName(),
+                    'description' => $mcpServer->getDescription(),
                     'error_message' => $throwable->getMessage(),
                 ];
             }

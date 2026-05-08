@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	document "magic/internal/domain/knowledge/document/service"
+	document "magic/internal/domain/knowledge/document/metadata"
 )
 
 // ErrOCRRequirements 表示 OCR 解析依赖未满足时的错误。
@@ -32,7 +32,7 @@ func (p *OCRParser) Parse(ctx context.Context, fileURL string, file io.Reader, f
 func (p *OCRParser) ParseWithOptions(
 	ctx context.Context,
 	fileURL string,
-	_ io.Reader,
+	file io.Reader,
 	fileType string,
 	options document.ParseOptions,
 ) (string, error) {
@@ -41,6 +41,13 @@ func (p *OCRParser) ParseWithOptions(
 	}
 	if p.ocrClient == nil || strings.TrimSpace(fileURL) == "" {
 		return "", ErrOCRRequirements
+	}
+	if sourceOCR, ok := p.ocrClient.(document.OCRSourceClient); ok {
+		content, err := sourceOCR.OCRSource(ctx, fileURL, file, fileType)
+		if err != nil {
+			return "", fmt.Errorf("ocr failed: %w", err)
+		}
+		return content, nil
 	}
 	content, err := p.ocrClient.OCR(ctx, fileURL, fileType)
 	if err != nil {

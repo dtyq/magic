@@ -14,7 +14,6 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
-use App\Interfaces\KnowledgeBase\DTO\Request\SourceBindingNodesRequestDTO;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -44,26 +43,16 @@ class KnowledgeBaseApi extends AbstractKnowledgeBaseApi
     {
         /** @var MagicUserAuthorization $authorization */
         $authorization = $this->getAuthorization();
-        $page = $this->createPage();
         $query = $this->request->all();
         $query['agent_codes'] = $this->getAgentCodesFromBody();
 
-        return $this->knowledgeBaseAppService->queriesRaw($authorization, $query, $page);
+        return $this->knowledgeBaseAppService->queriesRaw($authorization, $query);
     }
 
     public function sourceBindingNodes(): array
     {
         $authorization = $this->getAuthorization();
-        $dto = SourceBindingNodesRequestDTO::fromRequest($this->request);
-
-        return $this->knowledgeBaseAppService->nodes($authorization, [
-            'source_type' => $dto->getSourceType(),
-            'provider' => $dto->getProvider(),
-            'parent_type' => $dto->getParentType(),
-            'parent_ref' => $dto->getParentRef(),
-            'page' => $dto->getPage(),
-            'page_size' => $dto->getPageSize(),
-        ]);
+        return $this->knowledgeBaseAppService->nodes($authorization, $this->request->all());
     }
 
     public function show(string $code)

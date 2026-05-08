@@ -3,10 +3,11 @@ package docparser_test
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
-	document "magic/internal/domain/knowledge/document/service"
+	document "magic/internal/domain/knowledge/document/metadata"
 	parser "magic/internal/infrastructure/parser"
 )
 
@@ -14,6 +15,7 @@ type fakeOCR struct {
 	out          string
 	err          error
 	lastFileType string
+	sourceCalled bool
 }
 
 func (f *fakeOCR) OCR(ctx context.Context, fileURL, fileType string) (string, error) {
@@ -22,6 +24,12 @@ func (f *fakeOCR) OCR(ctx context.Context, fileURL, fileType string) (string, er
 }
 
 func (f *fakeOCR) OCRBytes(ctx context.Context, data []byte, fileType string) (string, error) {
+	f.lastFileType = fileType
+	return f.out, f.err
+}
+
+func (f *fakeOCR) OCRSource(ctx context.Context, fileURL string, file io.Reader, fileType string) (string, error) {
+	f.sourceCalled = true
 	f.lastFileType = fileType
 	return f.out, f.err
 }
@@ -46,6 +54,9 @@ func TestOCRParserParseWithOCR(t *testing.T) {
 	}
 	if ocr.lastFileType != "png" {
 		t.Fatalf("expected file type to be forwarded, got %q", ocr.lastFileType)
+	}
+	if !ocr.sourceCalled {
+		t.Fatal("expected OCRSource to be preferred when available")
 	}
 }
 

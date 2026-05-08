@@ -697,7 +697,7 @@ readonly class SuperMagicAgentDomainService
         );
 
         // Call sandbox workspace export API via proxy request
-        $request = new ExportWorkspaceRequest(ProjectMode::CUSTOM_AGENT->value, $code, $uploadConfig, $sourcePath);
+        $request = new ExportWorkspaceRequest(ProjectMode::AGENT_CREATOR->value, $code, $uploadConfig, $sourcePath);
         $response = $this->workspaceExporter->export($sandboxId, $request);
 
         if (! $response->isSuccess()) {

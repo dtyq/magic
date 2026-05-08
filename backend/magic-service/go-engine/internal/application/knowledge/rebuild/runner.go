@@ -18,8 +18,8 @@ import (
 
 const (
 	defaultMode              = rebuilddto.ModeAuto
-	defaultConcurrency       = 8
-	defaultMaxConcurrency    = defaultConcurrency
+	defaultConcurrency       = 2
+	defaultMaxConcurrency    = 8
 	defaultBatchSize         = 200
 	defaultRetry             = 1
 	defaultHeartbeatInterval = 15 * time.Second
@@ -48,6 +48,7 @@ var (
 	errBlueGreenTargetEmpty              = domainrebuild.ErrBlueGreenTargetEmpty
 	errTriggerRunnerNil                  = errors.New("knowledge rebuild runner is nil")
 	errTriggerRunStateReaderNil          = errors.New("knowledge rebuild run state reader is nil")
+	errPayloadIndexEnsurerNil            = errors.New("knowledge rebuild payload index ensurer is nil")
 )
 
 const (
@@ -61,8 +62,8 @@ const (
 type ModelStore interface {
 	ResetSyncStatus(ctx context.Context, scope domainrebuild.Scope) (domainrebuild.MigrationStats, error)
 	UpdateModel(ctx context.Context, scope domainrebuild.Scope, model string) (domainrebuild.MigrationStats, error)
-	GetCollectionMeta(ctx context.Context) (domainrebuild.CollectionMeta, error)
-	UpsertCollectionMeta(ctx context.Context, meta domainrebuild.CollectionMeta) error
+	GetCollectionMeta(ctx context.Context) (sharedroute.CollectionMeta, error)
+	UpsertCollectionMeta(ctx context.Context, meta sharedroute.CollectionMeta) error
 	ListDocumentsBatch(ctx context.Context, scope domainrebuild.Scope, afterID int64, batchSize int) ([]domainrebuild.DocumentTask, error)
 }
 
@@ -97,6 +98,10 @@ type CollectionManager interface {
 	ListCollections(ctx context.Context) ([]string, error)
 	DeleteCollection(ctx context.Context, name string) error
 	DeletePointsByFilter(ctx context.Context, collectionName string) error
+}
+
+type payloadIndexEnsurer interface {
+	EnsurePayloadIndexes(ctx context.Context, name string, specs []shared.PayloadIndexSpec) error
 }
 
 // EmbeddingDimensionResolver 定义 embedding 维度解析能力。
@@ -179,6 +184,7 @@ type Runner struct {
 	store                 ModelStore
 	coordinator           StateCoordinator
 	collections           CollectionManager
+	payloadIndexes        payloadIndexEnsurer
 	resyncer              DocumentResyncer
 	dimensionResolver     EmbeddingDimensionResolver
 	collectionMeta        *sharedroute.CollectionMetaManager
@@ -201,6 +207,7 @@ func NewRunner(
 ) *Runner {
 	targetSparseBackend := fragmodel.NormalizeSparseBackend(cfg.TargetSparseBackend)
 	sparseBackendSelector, _ := collections.(shared.SparseBackendSelector)
+	payloadIndexes, _ := collections.(payloadIndexEnsurer)
 	maxConcurrency := cfg.MaxConcurrency
 	if maxConcurrency <= 0 {
 		maxConcurrency = defaultMaxConcurrency
@@ -209,6 +216,7 @@ func NewRunner(
 		store:                 store,
 		coordinator:           coordinator,
 		collections:           collections,
+		payloadIndexes:        payloadIndexes,
 		resyncer:              resyncer,
 		dimensionResolver:     dimensionResolver,
 		collectionMeta:        sharedroute.NewCollectionMetaManager(store, store),

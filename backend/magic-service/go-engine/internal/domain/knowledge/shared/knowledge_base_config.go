@@ -6,6 +6,8 @@ const (
 	defaultRetrieveConfigTopK           = 10
 	defaultRetrieveConfigScoreThreshold = 0.5
 	defaultRetrieveConfigRerankingMode  = "weighted_score"
+	defaultRetrieveConfigVectorWeight   = 0.75
+	defaultRetrieveConfigKeywordWeight  = 0.25
 	defaultGraphRelationWeight          = 0.5
 	defaultGraphMaxDepth                = 2
 	defaultGraphTimeout                 = 5.0
@@ -54,12 +56,12 @@ func DefaultRetrieveConfig() *RetrieveConfig {
 		RerankingEnable:       false,
 		Weights: &RetrieveWeights{
 			VectorSetting: &VectorWeightSetting{
-				VectorWeight:          1.0,
+				VectorWeight:          defaultRetrieveConfigVectorWeight,
 				EmbeddingModelName:    "",
 				EmbeddingProviderName: "",
 			},
 			KeywordSetting: &KeywordWeightSetting{
-				KeywordWeight: 0.0,
+				KeywordWeight: defaultRetrieveConfigKeywordWeight,
 			},
 			GraphSetting: &GraphWeightSetting{
 				RelationWeight:    defaultGraphRelationWeight,

@@ -108,6 +108,8 @@ class DesignGenerationTaskFactory
             'duration_seconds' => null,
             'resolution' => '',
             'fps' => null,
+            'file_dir_id' => null,
+            'archive_skipped_reason' => '',
             'last_operation_output' => [],
             'last_output_updated_at' => null,
         ]);

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/pkg/projectfile"
 )
 
@@ -126,7 +127,7 @@ func BuildProjectDocumentFilePayload(meta *projectfile.Meta) map[string]any {
 }
 
 // BuildProjectDocumentFileFromResolved 根据解析结果或源覆盖构造文档文件。
-func BuildProjectDocumentFileFromResolved(resolved *projectfile.ResolveResult, override *SourceOverride) *File {
+func BuildProjectDocumentFileFromResolved(resolved *projectfile.ResolveResult, override *SourceOverride) *docentity.File {
 	filePayload := map[string]any{}
 	switch {
 	case override != nil && len(override.DocumentFile) > 0:

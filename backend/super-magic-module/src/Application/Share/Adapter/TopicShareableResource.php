@@ -11,7 +11,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use Dtyq\SuperMagic\Application\Share\DTO\ShareableResourceDTO;
 use Dtyq\SuperMagic\Application\Share\Factory\Facade\ResourceFactoryInterface;
-use Dtyq\SuperMagic\Application\SuperAgent\Service\WorkspaceAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\TopicAppService;
 use Dtyq\SuperMagic\Domain\Share\Entity\ResourceShareEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
@@ -24,7 +24,7 @@ class TopicShareableResource implements ResourceFactoryInterface
     protected LoggerInterface $logger;
 
     public function __construct(
-        private readonly WorkspaceAppService $workspaceAppService,
+        private readonly TopicAppService $topicAppService,
         private readonly TopicDomainService $topicDomainService,
         private readonly ProjectDomainService $projectDomainService,
         private readonly ProjectMemberDomainService $projectMemberDomainService,
@@ -199,7 +199,13 @@ class TopicShareableResource implements ResourceFactoryInterface
 
     public function getResourceContent(string $resourceId, string $userId, string $organizationCode, int $page, int $pageSize): array
     {
-        $result = $this->workspaceAppService->getMessagesByTopicId((int) $resourceId, $page, $pageSize);
+        // Verify the topic still exists and has not been soft-deleted
+        $topicEntity = $this->topicDomainService->getTopicById((int) $resourceId);
+        if (! $topicEntity) {
+            return [];
+        }
+
+        $result = $this->topicAppService->getMessagesByTopicId((int) $resourceId, $page, $pageSize);
         if (empty($result)) {
             return [];
         }
@@ -208,7 +214,7 @@ class TopicShareableResource implements ResourceFactoryInterface
 
     public function getResourceName(string $resourceId): string
     {
-        return $this->workspaceAppService->getTopicDetail((int) $resourceId);
+        return $this->topicAppService->getTopicDetail((int) $resourceId);
     }
 
     public function getResourceExtendList(array $list): array

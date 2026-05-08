@@ -8,47 +8,59 @@ package mysqlsqlc
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"strings"
 	"time"
 )
 
-const countDocuments = `-- name: CountDocuments :one
+const countDocumentsByKnowledgeBase = `-- name: CountDocumentsByKnowledgeBase :one
 SELECT COUNT(*)
-FROM knowledge_base_documents d
-WHERE d.deleted_at IS NULL
-  AND (? IS NULL OR d.organization_code = ?)
-  AND (? IS NULL OR d.knowledge_base_code = ?)
-  AND (? IS NULL OR d.name LIKE ?)
-  AND (? IS NULL OR d.doc_type = ?)
-  AND (? IS NULL OR d.enabled = ?)
-  AND (? IS NULL OR d.sync_status = ?)
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND knowledge_base_code = ?
+  AND name LIKE ?
+  AND doc_type IN (/*SLICE:doc_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
 `
 
-type CountDocumentsParams struct {
-	OrganizationCode  sql.NullString `json:"organization_code"`
-	KnowledgeBaseCode sql.NullString `json:"knowledge_base_code"`
-	NameLike          sql.NullString `json:"name_like"`
-	DocType           sql.NullInt32  `json:"doc_type"`
-	Enabled           sql.NullBool   `json:"enabled"`
-	SyncStatus        sql.NullInt32  `json:"sync_status"`
+type CountDocumentsByKnowledgeBaseParams struct {
+	KnowledgeBaseCode string   `json:"knowledge_base_code"`
+	NameLike          string   `json:"name_like"`
+	DocTypeValues     []uint32 `json:"doc_type_values"`
+	EnabledValues     []int8   `json:"enabled_values"`
+	SyncStatusValues  []int32  `json:"sync_status_values"`
 }
 
-func (q *Queries) CountDocuments(ctx context.Context, arg CountDocumentsParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countDocuments,
-		arg.OrganizationCode,
-		arg.OrganizationCode,
-		arg.KnowledgeBaseCode,
-		arg.KnowledgeBaseCode,
-		arg.NameLike,
-		arg.NameLike,
-		arg.DocType,
-		arg.DocType,
-		arg.Enabled,
-		arg.Enabled,
-		arg.SyncStatus,
-		arg.SyncStatus,
-	)
+func (q *Queries) CountDocumentsByKnowledgeBase(ctx context.Context, arg CountDocumentsByKnowledgeBaseParams) (int64, error) {
+	query := countDocumentsByKnowledgeBase
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeBaseCode)
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.DocTypeValues) > 0 {
+		for _, v := range arg.DocTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", strings.Repeat(",?", len(arg.DocTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -107,6 +119,117 @@ func (q *Queries) CountDocumentsByKnowledgeBaseCodes(ctx context.Context, arg Co
 	return items, nil
 }
 
+const countDocumentsByOrganization = `-- name: CountDocumentsByOrganization :one
+SELECT COUNT(*)
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND name LIKE ?
+  AND doc_type IN (/*SLICE:doc_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+`
+
+type CountDocumentsByOrganizationParams struct {
+	OrganizationCode string   `json:"organization_code"`
+	NameLike         string   `json:"name_like"`
+	DocTypeValues    []uint32 `json:"doc_type_values"`
+	EnabledValues    []int8   `json:"enabled_values"`
+	SyncStatusValues []int32  `json:"sync_status_values"`
+}
+
+func (q *Queries) CountDocumentsByOrganization(ctx context.Context, arg CountDocumentsByOrganizationParams) (int64, error) {
+	query := countDocumentsByOrganization
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.DocTypeValues) > 0 {
+		for _, v := range arg.DocTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", strings.Repeat(",?", len(arg.DocTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countDocumentsByOrganizationAndKnowledgeBase = `-- name: CountDocumentsByOrganizationAndKnowledgeBase :one
+SELECT COUNT(*)
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code = ?
+  AND name LIKE ?
+  AND doc_type IN (/*SLICE:doc_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+`
+
+type CountDocumentsByOrganizationAndKnowledgeBaseParams struct {
+	OrganizationCode  string   `json:"organization_code"`
+	KnowledgeBaseCode string   `json:"knowledge_base_code"`
+	NameLike          string   `json:"name_like"`
+	DocTypeValues     []uint32 `json:"doc_type_values"`
+	EnabledValues     []int8   `json:"enabled_values"`
+	SyncStatusValues  []int32  `json:"sync_status_values"`
+}
+
+func (q *Queries) CountDocumentsByOrganizationAndKnowledgeBase(ctx context.Context, arg CountDocumentsByOrganizationAndKnowledgeBaseParams) (int64, error) {
+	query := countDocumentsByOrganizationAndKnowledgeBase
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.KnowledgeBaseCode)
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.DocTypeValues) > 0 {
+		for _, v := range arg.DocTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", strings.Repeat(",?", len(arg.DocTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteDocumentByID = `-- name: DeleteDocumentByID :execrows
 DELETE FROM knowledge_base_documents
 WHERE id = ?
@@ -133,11 +256,38 @@ func (q *Queries) DeleteDocumentsByKnowledgeBase(ctx context.Context, knowledgeB
 	return result.RowsAffected()
 }
 
+const deleteDocumentsByKnowledgeBaseAndCodes = `-- name: DeleteDocumentsByKnowledgeBaseAndCodes :execrows
+DELETE FROM knowledge_base_documents
+WHERE knowledge_base_code = ?
+  AND code IN (/*SLICE:codes*/?)
+`
+
+type DeleteDocumentsByKnowledgeBaseAndCodesParams struct {
+	KnowledgeBaseCode string   `json:"knowledge_base_code"`
+	Codes             []string `json:"codes"`
+}
+
+func (q *Queries) DeleteDocumentsByKnowledgeBaseAndCodes(ctx context.Context, arg DeleteDocumentsByKnowledgeBaseAndCodesParams) (int64, error) {
+	query := deleteDocumentsByKnowledgeBaseAndCodes
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeBaseCode)
+	if len(arg.Codes) > 0 {
+		for _, v := range arg.Codes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:codes*/?", strings.Repeat(",?", len(arg.Codes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:codes*/?", "NULL", 1)
+	}
+	result, err := q.db.ExecContext(ctx, query, queryParams...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const findDocumentByCode = `-- name: FindDocumentByCode :one
-SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code,
-       enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db,
-       retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, third_platform_type, third_file_id,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
 FROM knowledge_base_documents
 WHERE code = ?
   AND deleted_at IS NULL
@@ -145,42 +295,9 @@ ORDER BY id DESC
 LIMIT 1
 `
 
-type FindDocumentByCodeRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) FindDocumentByCode(ctx context.Context, code string) (FindDocumentByCodeRow, error) {
+func (q *Queries) FindDocumentByCode(ctx context.Context, code string) (KnowledgeBaseDocument, error) {
 	row := q.db.QueryRowContext(ctx, findDocumentByCode, code)
-	var i FindDocumentByCodeRow
+	var i KnowledgeBaseDocument
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationCode,
@@ -191,6 +308,7 @@ func (q *Queries) FindDocumentByCode(ctx context.Context, code string) (FindDocu
 		&i.Name,
 		&i.Description,
 		&i.Code,
+		&i.Version,
 		&i.Enabled,
 		&i.DocType,
 		&i.DocMetadata,
@@ -205,22 +323,19 @@ func (q *Queries) FindDocumentByCode(ctx context.Context, code string) (FindDocu
 		&i.EmbeddingConfig,
 		&i.VectorDbConfig,
 		&i.WordCount,
-		&i.ThirdPlatformType,
-		&i.ThirdFileID,
 		&i.CreatedUid,
 		&i.UpdatedUid,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.ThirdPlatformType,
+		&i.ThirdFileID,
 	)
 	return i, err
 }
 
 const findDocumentByCodeAndKnowledgeBase = `-- name: FindDocumentByCodeAndKnowledgeBase :one
-SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code,
-       enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db,
-       retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, third_platform_type, third_file_id,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
 FROM knowledge_base_documents
 WHERE code = ?
   AND knowledge_base_code = ?
@@ -234,42 +349,9 @@ type FindDocumentByCodeAndKnowledgeBaseParams struct {
 	KnowledgeBaseCode string `json:"knowledge_base_code"`
 }
 
-type FindDocumentByCodeAndKnowledgeBaseRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) FindDocumentByCodeAndKnowledgeBase(ctx context.Context, arg FindDocumentByCodeAndKnowledgeBaseParams) (FindDocumentByCodeAndKnowledgeBaseRow, error) {
+func (q *Queries) FindDocumentByCodeAndKnowledgeBase(ctx context.Context, arg FindDocumentByCodeAndKnowledgeBaseParams) (KnowledgeBaseDocument, error) {
 	row := q.db.QueryRowContext(ctx, findDocumentByCodeAndKnowledgeBase, arg.Code, arg.KnowledgeBaseCode)
-	var i FindDocumentByCodeAndKnowledgeBaseRow
+	var i KnowledgeBaseDocument
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationCode,
@@ -280,6 +362,7 @@ func (q *Queries) FindDocumentByCodeAndKnowledgeBase(ctx context.Context, arg Fi
 		&i.Name,
 		&i.Description,
 		&i.Code,
+		&i.Version,
 		&i.Enabled,
 		&i.DocType,
 		&i.DocMetadata,
@@ -294,257 +377,27 @@ func (q *Queries) FindDocumentByCodeAndKnowledgeBase(ctx context.Context, arg Fi
 		&i.EmbeddingConfig,
 		&i.VectorDbConfig,
 		&i.WordCount,
-		&i.ThirdPlatformType,
-		&i.ThirdFileID,
 		&i.CreatedUid,
 		&i.UpdatedUid,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-	)
-	return i, err
-}
-
-const findDocumentByCodeAndKnowledgeBaseCompat = `-- name: FindDocumentByCodeAndKnowledgeBaseCompat :one
-SELECT d.id, d.organization_code, d.knowledge_base_code, d.source_binding_id, d.source_item_id, d.auto_added, d.name, d.description, d.code,
-       d.enabled, d.doc_type, COALESCE(d.doc_metadata, CAST('null' AS JSON)) AS doc_metadata, COALESCE(d.document_file, CAST('null' AS JSON)) AS document_file,
-       d.sync_status, d.sync_times, d.sync_status_message, d.embedding_model, d.vector_db,
-       COALESCE(d.retrieve_config, CAST('null' AS JSON)) AS retrieve_config, COALESCE(d.fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(d.embedding_config, CAST('null' AS JSON)) AS embedding_config, COALESCE(d.vector_db_config, CAST('null' AS JSON)) AS vector_db_config,
-       d.word_count, d.third_platform_type, d.third_file_id, d.created_uid, d.updated_uid, d.created_at, d.updated_at, d.deleted_at,
-       COALESCE(b.provider, '') AS source_provider, COALESCE(b.root_ref, '') AS binding_root_ref, COALESCE(si.item_ref, '') AS source_item_ref
-FROM knowledge_base_documents d
-LEFT JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-LEFT JOIN knowledge_source_items si ON si.id = d.source_item_id
-WHERE d.code = ?
-  AND d.knowledge_base_code = ?
-  AND d.deleted_at IS NULL
-ORDER BY d.id DESC
-LIMIT 1
-`
-
-type FindDocumentByCodeAndKnowledgeBaseCompatParams struct {
-	Code              string `json:"code"`
-	KnowledgeBaseCode string `json:"knowledge_base_code"`
-}
-
-type FindDocumentByCodeAndKnowledgeBaseCompatRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-	SourceProvider    string          `json:"source_provider"`
-	BindingRootRef    string          `json:"binding_root_ref"`
-	SourceItemRef     string          `json:"source_item_ref"`
-}
-
-func (q *Queries) FindDocumentByCodeAndKnowledgeBaseCompat(ctx context.Context, arg FindDocumentByCodeAndKnowledgeBaseCompatParams) (FindDocumentByCodeAndKnowledgeBaseCompatRow, error) {
-	row := q.db.QueryRowContext(ctx, findDocumentByCodeAndKnowledgeBaseCompat, arg.Code, arg.KnowledgeBaseCode)
-	var i FindDocumentByCodeAndKnowledgeBaseCompatRow
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationCode,
-		&i.KnowledgeBaseCode,
-		&i.SourceBindingID,
-		&i.SourceItemID,
-		&i.AutoAdded,
-		&i.Name,
-		&i.Description,
-		&i.Code,
-		&i.Enabled,
-		&i.DocType,
-		&i.DocMetadata,
-		&i.DocumentFile,
-		&i.SyncStatus,
-		&i.SyncTimes,
-		&i.SyncStatusMessage,
-		&i.EmbeddingModel,
-		&i.VectorDb,
-		&i.RetrieveConfig,
-		&i.FragmentConfig,
-		&i.EmbeddingConfig,
-		&i.VectorDbConfig,
-		&i.WordCount,
 		&i.ThirdPlatformType,
 		&i.ThirdFileID,
-		&i.CreatedUid,
-		&i.UpdatedUid,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.SourceProvider,
-		&i.BindingRootRef,
-		&i.SourceItemRef,
-	)
-	return i, err
-}
-
-const findDocumentByCodeCompat = `-- name: FindDocumentByCodeCompat :one
-SELECT d.id, d.organization_code, d.knowledge_base_code, d.source_binding_id, d.source_item_id, d.auto_added, d.name, d.description, d.code,
-       d.enabled, d.doc_type, COALESCE(d.doc_metadata, CAST('null' AS JSON)) AS doc_metadata, COALESCE(d.document_file, CAST('null' AS JSON)) AS document_file,
-       d.sync_status, d.sync_times, d.sync_status_message, d.embedding_model, d.vector_db,
-       COALESCE(d.retrieve_config, CAST('null' AS JSON)) AS retrieve_config, COALESCE(d.fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(d.embedding_config, CAST('null' AS JSON)) AS embedding_config, COALESCE(d.vector_db_config, CAST('null' AS JSON)) AS vector_db_config,
-       d.word_count, d.third_platform_type, d.third_file_id, d.created_uid, d.updated_uid, d.created_at, d.updated_at, d.deleted_at,
-       COALESCE(b.provider, '') AS source_provider, COALESCE(b.root_ref, '') AS binding_root_ref, COALESCE(si.item_ref, '') AS source_item_ref
-FROM knowledge_base_documents d
-LEFT JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-LEFT JOIN knowledge_source_items si ON si.id = d.source_item_id
-WHERE d.code = ?
-  AND d.deleted_at IS NULL
-ORDER BY d.id DESC
-LIMIT 1
-`
-
-type FindDocumentByCodeCompatRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-	SourceProvider    string          `json:"source_provider"`
-	BindingRootRef    string          `json:"binding_root_ref"`
-	SourceItemRef     string          `json:"source_item_ref"`
-}
-
-func (q *Queries) FindDocumentByCodeCompat(ctx context.Context, code string) (FindDocumentByCodeCompatRow, error) {
-	row := q.db.QueryRowContext(ctx, findDocumentByCodeCompat, code)
-	var i FindDocumentByCodeCompatRow
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationCode,
-		&i.KnowledgeBaseCode,
-		&i.SourceBindingID,
-		&i.SourceItemID,
-		&i.AutoAdded,
-		&i.Name,
-		&i.Description,
-		&i.Code,
-		&i.Enabled,
-		&i.DocType,
-		&i.DocMetadata,
-		&i.DocumentFile,
-		&i.SyncStatus,
-		&i.SyncTimes,
-		&i.SyncStatusMessage,
-		&i.EmbeddingModel,
-		&i.VectorDb,
-		&i.RetrieveConfig,
-		&i.FragmentConfig,
-		&i.EmbeddingConfig,
-		&i.VectorDbConfig,
-		&i.WordCount,
-		&i.ThirdPlatformType,
-		&i.ThirdFileID,
-		&i.CreatedUid,
-		&i.UpdatedUid,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.SourceProvider,
-		&i.BindingRootRef,
-		&i.SourceItemRef,
 	)
 	return i, err
 }
 
 const findDocumentByID = `-- name: FindDocumentByID :one
-SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code,
-       enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db,
-       retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, third_platform_type, third_file_id,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
 FROM knowledge_base_documents
 WHERE id = ?
   AND deleted_at IS NULL
 `
 
-type FindDocumentByIDRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) FindDocumentByID(ctx context.Context, id int64) (FindDocumentByIDRow, error) {
+func (q *Queries) FindDocumentByID(ctx context.Context, id int64) (KnowledgeBaseDocument, error) {
 	row := q.db.QueryRowContext(ctx, findDocumentByID, id)
-	var i FindDocumentByIDRow
+	var i KnowledgeBaseDocument
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationCode,
@@ -555,6 +408,7 @@ func (q *Queries) FindDocumentByID(ctx context.Context, id int64) (FindDocumentB
 		&i.Name,
 		&i.Description,
 		&i.Code,
+		&i.Version,
 		&i.Enabled,
 		&i.DocType,
 		&i.DocMetadata,
@@ -569,72 +423,37 @@ func (q *Queries) FindDocumentByID(ctx context.Context, id int64) (FindDocumentB
 		&i.EmbeddingConfig,
 		&i.VectorDbConfig,
 		&i.WordCount,
-		&i.ThirdPlatformType,
-		&i.ThirdFileID,
 		&i.CreatedUid,
 		&i.UpdatedUid,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.ThirdPlatformType,
+		&i.ThirdFileID,
 	)
 	return i, err
 }
 
-const findDocumentByIDCompat = `-- name: FindDocumentByIDCompat :one
-SELECT d.id, d.organization_code, d.knowledge_base_code, d.source_binding_id, d.source_item_id, d.auto_added, d.name, d.description, d.code,
-       d.enabled, d.doc_type, COALESCE(d.doc_metadata, CAST('null' AS JSON)) AS doc_metadata, COALESCE(d.document_file, CAST('null' AS JSON)) AS document_file,
-       d.sync_status, d.sync_times, d.sync_status_message, d.embedding_model, d.vector_db,
-       COALESCE(d.retrieve_config, CAST('null' AS JSON)) AS retrieve_config, COALESCE(d.fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(d.embedding_config, CAST('null' AS JSON)) AS embedding_config, COALESCE(d.vector_db_config, CAST('null' AS JSON)) AS vector_db_config,
-       d.word_count, d.third_platform_type, d.third_file_id, d.created_uid, d.updated_uid, d.created_at, d.updated_at, d.deleted_at,
-       COALESCE(b.provider, '') AS source_provider, COALESCE(b.root_ref, '') AS binding_root_ref, COALESCE(si.item_ref, '') AS source_item_ref
-FROM knowledge_base_documents d
-LEFT JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-LEFT JOIN knowledge_source_items si ON si.id = d.source_item_id
-WHERE d.id = ?
-  AND d.deleted_at IS NULL
+const findDocumentByKnowledgeBaseAndThirdFile = `-- name: FindDocumentByKnowledgeBaseAndThirdFile :one
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE knowledge_base_code = ?
+  AND third_platform_type = ?
+  AND third_file_id = ?
+  AND deleted_at IS NULL
+ORDER BY id DESC
 LIMIT 1
 `
 
-type FindDocumentByIDCompatRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-	SourceProvider    string          `json:"source_provider"`
-	BindingRootRef    string          `json:"binding_root_ref"`
-	SourceItemRef     string          `json:"source_item_ref"`
+type FindDocumentByKnowledgeBaseAndThirdFileParams struct {
+	KnowledgeBaseCode string         `json:"knowledge_base_code"`
+	ThirdPlatformType sql.NullString `json:"third_platform_type"`
+	ThirdFileID       sql.NullString `json:"third_file_id"`
 }
 
-func (q *Queries) FindDocumentByIDCompat(ctx context.Context, id int64) (FindDocumentByIDCompatRow, error) {
-	row := q.db.QueryRowContext(ctx, findDocumentByIDCompat, id)
-	var i FindDocumentByIDCompatRow
+func (q *Queries) FindDocumentByKnowledgeBaseAndThirdFile(ctx context.Context, arg FindDocumentByKnowledgeBaseAndThirdFileParams) (KnowledgeBaseDocument, error) {
+	row := q.db.QueryRowContext(ctx, findDocumentByKnowledgeBaseAndThirdFile, arg.KnowledgeBaseCode, arg.ThirdPlatformType, arg.ThirdFileID)
+	var i KnowledgeBaseDocument
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationCode,
@@ -645,6 +464,7 @@ func (q *Queries) FindDocumentByIDCompat(ctx context.Context, id int64) (FindDoc
 		&i.Name,
 		&i.Description,
 		&i.Code,
+		&i.Version,
 		&i.Enabled,
 		&i.DocType,
 		&i.DocMetadata,
@@ -659,218 +479,19 @@ func (q *Queries) FindDocumentByIDCompat(ctx context.Context, id int64) (FindDoc
 		&i.EmbeddingConfig,
 		&i.VectorDbConfig,
 		&i.WordCount,
-		&i.ThirdPlatformType,
-		&i.ThirdFileID,
 		&i.CreatedUid,
 		&i.UpdatedUid,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.SourceProvider,
-		&i.BindingRootRef,
-		&i.SourceItemRef,
-	)
-	return i, err
-}
-
-const findDocumentByKnowledgeBaseAndProjectFile = `-- name: FindDocumentByKnowledgeBaseAndProjectFile :one
-SELECT d.id, d.organization_code, d.knowledge_base_code, d.source_binding_id, d.source_item_id, d.auto_added, d.name, d.description, d.code,
-       d.enabled, d.doc_type, d.doc_metadata, d.document_file, d.sync_status, d.sync_times, d.sync_status_message, d.embedding_model, d.vector_db,
-       d.retrieve_config, d.fragment_config, d.embedding_config, d.vector_db_config, d.word_count, d.third_platform_type, d.third_file_id,
-       d.created_uid, d.updated_uid, d.created_at, d.updated_at, d.deleted_at
-FROM knowledge_base_documents d
-INNER JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-INNER JOIN knowledge_source_items si ON si.id = d.source_item_id
-WHERE d.knowledge_base_code = ?
-  AND b.provider = 'project'
-  AND si.item_ref = ?
-  AND d.deleted_at IS NULL
-ORDER BY d.id DESC
-LIMIT 1
-`
-
-type FindDocumentByKnowledgeBaseAndProjectFileParams struct {
-	KnowledgeBaseCode string `json:"knowledge_base_code"`
-	ItemRef           string `json:"item_ref"`
-}
-
-type FindDocumentByKnowledgeBaseAndProjectFileRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) FindDocumentByKnowledgeBaseAndProjectFile(ctx context.Context, arg FindDocumentByKnowledgeBaseAndProjectFileParams) (FindDocumentByKnowledgeBaseAndProjectFileRow, error) {
-	row := q.db.QueryRowContext(ctx, findDocumentByKnowledgeBaseAndProjectFile, arg.KnowledgeBaseCode, arg.ItemRef)
-	var i FindDocumentByKnowledgeBaseAndProjectFileRow
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationCode,
-		&i.KnowledgeBaseCode,
-		&i.SourceBindingID,
-		&i.SourceItemID,
-		&i.AutoAdded,
-		&i.Name,
-		&i.Description,
-		&i.Code,
-		&i.Enabled,
-		&i.DocType,
-		&i.DocMetadata,
-		&i.DocumentFile,
-		&i.SyncStatus,
-		&i.SyncTimes,
-		&i.SyncStatusMessage,
-		&i.EmbeddingModel,
-		&i.VectorDb,
-		&i.RetrieveConfig,
-		&i.FragmentConfig,
-		&i.EmbeddingConfig,
-		&i.VectorDbConfig,
-		&i.WordCount,
 		&i.ThirdPlatformType,
 		&i.ThirdFileID,
-		&i.CreatedUid,
-		&i.UpdatedUid,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return i, err
-}
-
-const findDocumentByKnowledgeBaseAndProjectFileCompat = `-- name: FindDocumentByKnowledgeBaseAndProjectFileCompat :one
-SELECT d.id, d.organization_code, d.knowledge_base_code, d.source_binding_id, d.source_item_id, d.auto_added, d.name, d.description, d.code,
-       d.enabled, d.doc_type, COALESCE(d.doc_metadata, CAST('null' AS JSON)) AS doc_metadata, COALESCE(d.document_file, CAST('null' AS JSON)) AS document_file,
-       d.sync_status, d.sync_times, d.sync_status_message, d.embedding_model, d.vector_db,
-       COALESCE(d.retrieve_config, CAST('null' AS JSON)) AS retrieve_config, COALESCE(d.fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(d.embedding_config, CAST('null' AS JSON)) AS embedding_config, COALESCE(d.vector_db_config, CAST('null' AS JSON)) AS vector_db_config,
-       d.word_count, d.third_platform_type, d.third_file_id, d.created_uid, d.updated_uid, d.created_at, d.updated_at, d.deleted_at,
-       COALESCE(b.provider, '') AS source_provider, COALESCE(b.root_ref, '') AS binding_root_ref, COALESCE(si.item_ref, '') AS source_item_ref
-FROM knowledge_base_documents d
-INNER JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-INNER JOIN knowledge_source_items si ON si.id = d.source_item_id
-WHERE d.knowledge_base_code = ?
-  AND b.provider = 'project'
-  AND si.item_ref = ?
-  AND d.deleted_at IS NULL
-ORDER BY d.id DESC
-LIMIT 1
-`
-
-type FindDocumentByKnowledgeBaseAndProjectFileCompatParams struct {
-	KnowledgeBaseCode string `json:"knowledge_base_code"`
-	ItemRef           string `json:"item_ref"`
-}
-
-type FindDocumentByKnowledgeBaseAndProjectFileCompatRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-	SourceProvider    string          `json:"source_provider"`
-	BindingRootRef    string          `json:"binding_root_ref"`
-	SourceItemRef     string          `json:"source_item_ref"`
-}
-
-func (q *Queries) FindDocumentByKnowledgeBaseAndProjectFileCompat(ctx context.Context, arg FindDocumentByKnowledgeBaseAndProjectFileCompatParams) (FindDocumentByKnowledgeBaseAndProjectFileCompatRow, error) {
-	row := q.db.QueryRowContext(ctx, findDocumentByKnowledgeBaseAndProjectFileCompat, arg.KnowledgeBaseCode, arg.ItemRef)
-	var i FindDocumentByKnowledgeBaseAndProjectFileCompatRow
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationCode,
-		&i.KnowledgeBaseCode,
-		&i.SourceBindingID,
-		&i.SourceItemID,
-		&i.AutoAdded,
-		&i.Name,
-		&i.Description,
-		&i.Code,
-		&i.Enabled,
-		&i.DocType,
-		&i.DocMetadata,
-		&i.DocumentFile,
-		&i.SyncStatus,
-		&i.SyncTimes,
-		&i.SyncStatusMessage,
-		&i.EmbeddingModel,
-		&i.VectorDb,
-		&i.RetrieveConfig,
-		&i.FragmentConfig,
-		&i.EmbeddingConfig,
-		&i.VectorDbConfig,
-		&i.WordCount,
-		&i.ThirdPlatformType,
-		&i.ThirdFileID,
-		&i.CreatedUid,
-		&i.UpdatedUid,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.SourceProvider,
-		&i.BindingRootRef,
-		&i.SourceItemRef,
 	)
 	return i, err
 }
 
 const findDocumentByThirdFile = `-- name: FindDocumentByThirdFile :one
-SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code,
-       enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db,
-       retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, third_platform_type, third_file_id,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
 FROM knowledge_base_documents
 WHERE third_platform_type = ?
   AND third_file_id = ?
@@ -884,42 +505,9 @@ type FindDocumentByThirdFileParams struct {
 	ThirdFileID       sql.NullString `json:"third_file_id"`
 }
 
-type FindDocumentByThirdFileRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) FindDocumentByThirdFile(ctx context.Context, arg FindDocumentByThirdFileParams) (FindDocumentByThirdFileRow, error) {
+func (q *Queries) FindDocumentByThirdFile(ctx context.Context, arg FindDocumentByThirdFileParams) (KnowledgeBaseDocument, error) {
 	row := q.db.QueryRowContext(ctx, findDocumentByThirdFile, arg.ThirdPlatformType, arg.ThirdFileID)
-	var i FindDocumentByThirdFileRow
+	var i KnowledgeBaseDocument
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationCode,
@@ -930,6 +518,7 @@ func (q *Queries) FindDocumentByThirdFile(ctx context.Context, arg FindDocumentB
 		&i.Name,
 		&i.Description,
 		&i.Code,
+		&i.Version,
 		&i.Enabled,
 		&i.DocType,
 		&i.DocMetadata,
@@ -944,178 +533,34 @@ func (q *Queries) FindDocumentByThirdFile(ctx context.Context, arg FindDocumentB
 		&i.EmbeddingConfig,
 		&i.VectorDbConfig,
 		&i.WordCount,
-		&i.ThirdPlatformType,
-		&i.ThirdFileID,
 		&i.CreatedUid,
 		&i.UpdatedUid,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-	)
-	return i, err
-}
-
-const findDocumentByThirdFileCompat = `-- name: FindDocumentByThirdFileCompat :one
-SELECT d.id, d.organization_code, d.knowledge_base_code, d.source_binding_id, d.source_item_id, d.auto_added, d.name, d.description, d.code,
-       d.enabled, d.doc_type, COALESCE(d.doc_metadata, CAST('null' AS JSON)) AS doc_metadata, COALESCE(d.document_file, CAST('null' AS JSON)) AS document_file,
-       d.sync_status, d.sync_times, d.sync_status_message, d.embedding_model, d.vector_db,
-       COALESCE(d.retrieve_config, CAST('null' AS JSON)) AS retrieve_config, COALESCE(d.fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(d.embedding_config, CAST('null' AS JSON)) AS embedding_config, COALESCE(d.vector_db_config, CAST('null' AS JSON)) AS vector_db_config,
-       d.word_count, d.third_platform_type, d.third_file_id, d.created_uid, d.updated_uid, d.created_at, d.updated_at, d.deleted_at,
-       COALESCE(b.provider, '') AS source_provider, COALESCE(b.root_ref, '') AS binding_root_ref, COALESCE(si.item_ref, '') AS source_item_ref
-FROM knowledge_base_documents d
-LEFT JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-LEFT JOIN knowledge_source_items si ON si.id = d.source_item_id
-WHERE d.third_platform_type = ?
-  AND d.third_file_id = ?
-  AND d.deleted_at IS NULL
-ORDER BY d.id DESC
-LIMIT 1
-`
-
-type FindDocumentByThirdFileCompatParams struct {
-	ThirdPlatformType sql.NullString `json:"third_platform_type"`
-	ThirdFileID       sql.NullString `json:"third_file_id"`
-}
-
-type FindDocumentByThirdFileCompatRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-	SourceProvider    string          `json:"source_provider"`
-	BindingRootRef    string          `json:"binding_root_ref"`
-	SourceItemRef     string          `json:"source_item_ref"`
-}
-
-func (q *Queries) FindDocumentByThirdFileCompat(ctx context.Context, arg FindDocumentByThirdFileCompatParams) (FindDocumentByThirdFileCompatRow, error) {
-	row := q.db.QueryRowContext(ctx, findDocumentByThirdFileCompat, arg.ThirdPlatformType, arg.ThirdFileID)
-	var i FindDocumentByThirdFileCompatRow
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationCode,
-		&i.KnowledgeBaseCode,
-		&i.SourceBindingID,
-		&i.SourceItemID,
-		&i.AutoAdded,
-		&i.Name,
-		&i.Description,
-		&i.Code,
-		&i.Enabled,
-		&i.DocType,
-		&i.DocMetadata,
-		&i.DocumentFile,
-		&i.SyncStatus,
-		&i.SyncTimes,
-		&i.SyncStatusMessage,
-		&i.EmbeddingModel,
-		&i.VectorDb,
-		&i.RetrieveConfig,
-		&i.FragmentConfig,
-		&i.EmbeddingConfig,
-		&i.VectorDbConfig,
-		&i.WordCount,
 		&i.ThirdPlatformType,
 		&i.ThirdFileID,
-		&i.CreatedUid,
-		&i.UpdatedUid,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.SourceProvider,
-		&i.BindingRootRef,
-		&i.SourceItemRef,
 	)
 	return i, err
 }
 
-const findDocumentIncludingDeletedCompat = `-- name: FindDocumentIncludingDeletedCompat :one
-SELECT d.id, d.organization_code, d.knowledge_base_code, d.source_binding_id, d.source_item_id, d.auto_added, d.name, d.description, d.code,
-       d.enabled, d.doc_type, COALESCE(d.doc_metadata, CAST('null' AS JSON)) AS doc_metadata, COALESCE(d.document_file, CAST('null' AS JSON)) AS document_file,
-       d.sync_status, d.sync_times, d.sync_status_message, d.embedding_model, d.vector_db,
-       COALESCE(d.retrieve_config, CAST('null' AS JSON)) AS retrieve_config, COALESCE(d.fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(d.embedding_config, CAST('null' AS JSON)) AS embedding_config, COALESCE(d.vector_db_config, CAST('null' AS JSON)) AS vector_db_config,
-       d.word_count, d.third_platform_type, d.third_file_id, d.created_uid, d.updated_uid, d.created_at, d.updated_at, d.deleted_at,
-       COALESCE(b.provider, '') AS source_provider, COALESCE(b.root_ref, '') AS binding_root_ref, COALESCE(si.item_ref, '') AS source_item_ref
-FROM knowledge_base_documents d
-LEFT JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-LEFT JOIN knowledge_source_items si ON si.id = d.source_item_id
-WHERE d.knowledge_base_code = ?
-  AND d.code = ?
-ORDER BY d.id DESC
+const findDocumentIncludingDeleted = `-- name: FindDocumentIncludingDeleted :one
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE knowledge_base_code = ?
+  AND code = ?
+ORDER BY id DESC
 LIMIT 1
 `
 
-type FindDocumentIncludingDeletedCompatParams struct {
+type FindDocumentIncludingDeletedParams struct {
 	KnowledgeBaseCode string `json:"knowledge_base_code"`
 	Code              string `json:"code"`
 }
 
-type FindDocumentIncludingDeletedCompatRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-	SourceProvider    string          `json:"source_provider"`
-	BindingRootRef    string          `json:"binding_root_ref"`
-	SourceItemRef     string          `json:"source_item_ref"`
-}
-
-func (q *Queries) FindDocumentIncludingDeletedCompat(ctx context.Context, arg FindDocumentIncludingDeletedCompatParams) (FindDocumentIncludingDeletedCompatRow, error) {
-	row := q.db.QueryRowContext(ctx, findDocumentIncludingDeletedCompat, arg.KnowledgeBaseCode, arg.Code)
-	var i FindDocumentIncludingDeletedCompatRow
+func (q *Queries) FindDocumentIncludingDeleted(ctx context.Context, arg FindDocumentIncludingDeletedParams) (KnowledgeBaseDocument, error) {
+	row := q.db.QueryRowContext(ctx, findDocumentIncludingDeleted, arg.KnowledgeBaseCode, arg.Code)
+	var i KnowledgeBaseDocument
 	err := row.Scan(
 		&i.ID,
 		&i.OrganizationCode,
@@ -1126,6 +571,7 @@ func (q *Queries) FindDocumentIncludingDeletedCompat(ctx context.Context, arg Fi
 		&i.Name,
 		&i.Description,
 		&i.Code,
+		&i.Version,
 		&i.Enabled,
 		&i.DocType,
 		&i.DocMetadata,
@@ -1140,16 +586,169 @@ func (q *Queries) FindDocumentIncludingDeletedCompat(ctx context.Context, arg Fi
 		&i.EmbeddingConfig,
 		&i.VectorDbConfig,
 		&i.WordCount,
-		&i.ThirdPlatformType,
-		&i.ThirdFileID,
 		&i.CreatedUid,
 		&i.UpdatedUid,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-		&i.SourceProvider,
-		&i.BindingRootRef,
-		&i.SourceItemRef,
+		&i.ThirdPlatformType,
+		&i.ThirdFileID,
+	)
+	return i, err
+}
+
+const findDocumentOrganizationByKnowledgeBase = `-- name: FindDocumentOrganizationByKnowledgeBase :one
+SELECT organization_code
+FROM knowledge_base_documents
+WHERE knowledge_base_code = ?
+  AND deleted_at IS NULL
+ORDER BY id DESC
+LIMIT 1
+`
+
+func (q *Queries) FindDocumentOrganizationByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) (string, error) {
+	row := q.db.QueryRowContext(ctx, findDocumentOrganizationByKnowledgeBase, knowledgeBaseCode)
+	var organization_code string
+	err := row.Scan(&organization_code)
+	return organization_code, err
+}
+
+const findLatestDocumentByKnowledgeBaseAndSourceBindingAndSourceItems = `-- name: FindLatestDocumentByKnowledgeBaseAndSourceBindingAndSourceItems :one
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND knowledge_base_code = ?
+  AND source_binding_id IN (/*SLICE:source_binding_ids*/?)
+  AND source_item_id IN (/*SLICE:source_item_ids*/?)
+ORDER BY id DESC
+LIMIT 1
+`
+
+type FindLatestDocumentByKnowledgeBaseAndSourceBindingAndSourceItemsParams struct {
+	KnowledgeBaseCode string  `json:"knowledge_base_code"`
+	SourceBindingIds  []int64 `json:"source_binding_ids"`
+	SourceItemIds     []int64 `json:"source_item_ids"`
+}
+
+func (q *Queries) FindLatestDocumentByKnowledgeBaseAndSourceBindingAndSourceItems(ctx context.Context, arg FindLatestDocumentByKnowledgeBaseAndSourceBindingAndSourceItemsParams) (KnowledgeBaseDocument, error) {
+	query := findLatestDocumentByKnowledgeBaseAndSourceBindingAndSourceItems
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeBaseCode)
+	if len(arg.SourceBindingIds) > 0 {
+		for _, v := range arg.SourceBindingIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:source_binding_ids*/?", strings.Repeat(",?", len(arg.SourceBindingIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:source_binding_ids*/?", "NULL", 1)
+	}
+	if len(arg.SourceItemIds) > 0 {
+		for _, v := range arg.SourceItemIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:source_item_ids*/?", strings.Repeat(",?", len(arg.SourceItemIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:source_item_ids*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
+	var i KnowledgeBaseDocument
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationCode,
+		&i.KnowledgeBaseCode,
+		&i.SourceBindingID,
+		&i.SourceItemID,
+		&i.AutoAdded,
+		&i.Name,
+		&i.Description,
+		&i.Code,
+		&i.Version,
+		&i.Enabled,
+		&i.DocType,
+		&i.DocMetadata,
+		&i.DocumentFile,
+		&i.SyncStatus,
+		&i.SyncTimes,
+		&i.SyncStatusMessage,
+		&i.EmbeddingModel,
+		&i.VectorDb,
+		&i.RetrieveConfig,
+		&i.FragmentConfig,
+		&i.EmbeddingConfig,
+		&i.VectorDbConfig,
+		&i.WordCount,
+		&i.CreatedUid,
+		&i.UpdatedUid,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ThirdPlatformType,
+		&i.ThirdFileID,
+	)
+	return i, err
+}
+
+const findLatestDocumentByKnowledgeBaseAndSourceItemIDs = `-- name: FindLatestDocumentByKnowledgeBaseAndSourceItemIDs :one
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND knowledge_base_code = ?
+  AND source_item_id IN (/*SLICE:source_item_ids*/?)
+ORDER BY id DESC
+LIMIT 1
+`
+
+type FindLatestDocumentByKnowledgeBaseAndSourceItemIDsParams struct {
+	KnowledgeBaseCode string  `json:"knowledge_base_code"`
+	SourceItemIds     []int64 `json:"source_item_ids"`
+}
+
+func (q *Queries) FindLatestDocumentByKnowledgeBaseAndSourceItemIDs(ctx context.Context, arg FindLatestDocumentByKnowledgeBaseAndSourceItemIDsParams) (KnowledgeBaseDocument, error) {
+	query := findLatestDocumentByKnowledgeBaseAndSourceItemIDs
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeBaseCode)
+	if len(arg.SourceItemIds) > 0 {
+		for _, v := range arg.SourceItemIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:source_item_ids*/?", strings.Repeat(",?", len(arg.SourceItemIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:source_item_ids*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
+	var i KnowledgeBaseDocument
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationCode,
+		&i.KnowledgeBaseCode,
+		&i.SourceBindingID,
+		&i.SourceItemID,
+		&i.AutoAdded,
+		&i.Name,
+		&i.Description,
+		&i.Code,
+		&i.Version,
+		&i.Enabled,
+		&i.DocType,
+		&i.DocMetadata,
+		&i.DocumentFile,
+		&i.SyncStatus,
+		&i.SyncTimes,
+		&i.SyncStatusMessage,
+		&i.EmbeddingModel,
+		&i.VectorDb,
+		&i.RetrieveConfig,
+		&i.FragmentConfig,
+		&i.EmbeddingConfig,
+		&i.VectorDbConfig,
+		&i.WordCount,
+		&i.CreatedUid,
+		&i.UpdatedUid,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.ThirdPlatformType,
+		&i.ThirdFileID,
 	)
 	return i, err
 }
@@ -1167,34 +766,34 @@ INSERT INTO knowledge_base_documents (
 `
 
 type InsertDocumentParams struct {
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
+	OrganizationCode  string         `json:"organization_code"`
+	KnowledgeBaseCode string         `json:"knowledge_base_code"`
+	SourceBindingID   int64          `json:"source_binding_id"`
+	SourceItemID      int64          `json:"source_item_id"`
+	AutoAdded         bool           `json:"auto_added"`
+	Name              string         `json:"name"`
+	Description       string         `json:"description"`
+	Code              string         `json:"code"`
+	Enabled           bool           `json:"enabled"`
+	DocType           uint32         `json:"doc_type"`
+	DocMetadata       []byte         `json:"doc_metadata"`
+	DocumentFile      []byte         `json:"document_file"`
+	SyncStatus        int32          `json:"sync_status"`
+	SyncTimes         int32          `json:"sync_times"`
+	SyncStatusMessage string         `json:"sync_status_message"`
+	EmbeddingModel    string         `json:"embedding_model"`
+	VectorDb          string         `json:"vector_db"`
+	RetrieveConfig    []byte         `json:"retrieve_config"`
+	FragmentConfig    []byte         `json:"fragment_config"`
+	EmbeddingConfig   []byte         `json:"embedding_config"`
+	VectorDbConfig    []byte         `json:"vector_db_config"`
+	WordCount         uint64         `json:"word_count"`
+	CreatedUid        string         `json:"created_uid"`
+	UpdatedUid        string         `json:"updated_uid"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	ThirdPlatformType sql.NullString `json:"third_platform_type"`
+	ThirdFileID       sql.NullString `json:"third_file_id"`
 }
 
 func (q *Queries) InsertDocument(ctx context.Context, arg InsertDocumentParams) (sql.Result, error) {
@@ -1230,91 +829,120 @@ func (q *Queries) InsertDocument(ctx context.Context, arg InsertDocumentParams) 
 	)
 }
 
-const listDocuments = `-- name: ListDocuments :many
-SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code,
-       enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db,
-       retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, third_platform_type, third_file_id,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+const listDocumentFilesByKnowledgeBaseCodes = `-- name: ListDocumentFilesByKnowledgeBaseCodes :many
+SELECT knowledge_base_code, document_file
 FROM knowledge_base_documents
 WHERE deleted_at IS NULL
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR knowledge_base_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR doc_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND organization_code = ?
+  AND knowledge_base_code IN (/*SLICE:knowledge_base_codes*/?)
+`
+
+type ListDocumentFilesByKnowledgeBaseCodesParams struct {
+	OrganizationCode   string   `json:"organization_code"`
+	KnowledgeBaseCodes []string `json:"knowledge_base_codes"`
+}
+
+type ListDocumentFilesByKnowledgeBaseCodesRow struct {
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	DocumentFile      []byte `json:"document_file"`
+}
+
+func (q *Queries) ListDocumentFilesByKnowledgeBaseCodes(ctx context.Context, arg ListDocumentFilesByKnowledgeBaseCodesParams) ([]ListDocumentFilesByKnowledgeBaseCodesRow, error) {
+	query := listDocumentFilesByKnowledgeBaseCodes
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	if len(arg.KnowledgeBaseCodes) > 0 {
+		for _, v := range arg.KnowledgeBaseCodes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_codes*/?", strings.Repeat(",?", len(arg.KnowledgeBaseCodes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_codes*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentFilesByKnowledgeBaseCodesRow{}
+	for rows.Next() {
+		var i ListDocumentFilesByKnowledgeBaseCodesRow
+		if err := rows.Scan(&i.KnowledgeBaseCode, &i.DocumentFile); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentsByKnowledgeBase = `-- name: ListDocumentsByKnowledgeBase :many
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND knowledge_base_code = ?
+  AND name LIKE ?
+  AND doc_type IN (/*SLICE:doc_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
 ORDER BY id DESC
 LIMIT ? OFFSET ?
 `
 
-type ListDocumentsParams struct {
-	OrganizationCode  sql.NullString `json:"organization_code"`
-	KnowledgeBaseCode sql.NullString `json:"knowledge_base_code"`
-	NameLike          sql.NullString `json:"name_like"`
-	DocType           sql.NullInt32  `json:"doc_type"`
-	Enabled           sql.NullBool   `json:"enabled"`
-	SyncStatus        sql.NullInt32  `json:"sync_status"`
-	Limit             int32          `json:"limit"`
-	Offset            int32          `json:"offset"`
+type ListDocumentsByKnowledgeBaseParams struct {
+	KnowledgeBaseCode string   `json:"knowledge_base_code"`
+	NameLike          string   `json:"name_like"`
+	DocTypeValues     []uint32 `json:"doc_type_values"`
+	EnabledValues     []int8   `json:"enabled_values"`
+	SyncStatusValues  []int32  `json:"sync_status_values"`
+	Limit             int32    `json:"limit"`
+	Offset            int32    `json:"offset"`
 }
 
-type ListDocumentsRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]ListDocumentsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listDocuments,
-		arg.OrganizationCode,
-		arg.OrganizationCode,
-		arg.KnowledgeBaseCode,
-		arg.KnowledgeBaseCode,
-		arg.NameLike,
-		arg.NameLike,
-		arg.DocType,
-		arg.DocType,
-		arg.Enabled,
-		arg.Enabled,
-		arg.SyncStatus,
-		arg.SyncStatus,
-		arg.Limit,
-		arg.Offset,
-	)
+func (q *Queries) ListDocumentsByKnowledgeBase(ctx context.Context, arg ListDocumentsByKnowledgeBaseParams) ([]KnowledgeBaseDocument, error) {
+	query := listDocumentsByKnowledgeBase
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeBaseCode)
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.DocTypeValues) > 0 {
+		for _, v := range arg.DocTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", strings.Repeat(",?", len(arg.DocTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListDocumentsRow{}
+	items := []KnowledgeBaseDocument{}
 	for rows.Next() {
-		var i ListDocumentsRow
+		var i KnowledgeBaseDocument
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationCode,
@@ -1325,6 +953,7 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 			&i.Name,
 			&i.Description,
 			&i.Code,
+			&i.Version,
 			&i.Enabled,
 			&i.DocType,
 			&i.DocMetadata,
@@ -1339,13 +968,13 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 			&i.EmbeddingConfig,
 			&i.VectorDbConfig,
 			&i.WordCount,
-			&i.ThirdPlatformType,
-			&i.ThirdFileID,
 			&i.CreatedUid,
 			&i.UpdatedUid,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.ThirdPlatformType,
+			&i.ThirdFileID,
 		); err != nil {
 			return nil, err
 		}
@@ -1360,67 +989,40 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 	return items, nil
 }
 
-const listDocumentsByKnowledgeBaseAndProject = `-- name: ListDocumentsByKnowledgeBaseAndProject :many
-SELECT d.id, d.organization_code, d.knowledge_base_code, d.source_binding_id, d.source_item_id, d.auto_added, d.name, d.description, d.code,
-       d.enabled, d.doc_type, d.doc_metadata, d.document_file, d.sync_status, d.sync_times, d.sync_status_message, d.embedding_model, d.vector_db,
-       d.retrieve_config, d.fragment_config, d.embedding_config, d.vector_db_config, d.word_count, d.third_platform_type, d.third_file_id,
-       d.created_uid, d.updated_uid, d.created_at, d.updated_at, d.deleted_at
-FROM knowledge_base_documents d
-INNER JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-WHERE d.knowledge_base_code = ?
-  AND b.provider = 'project'
-  AND b.root_ref = ?
-  AND d.deleted_at IS NULL
-ORDER BY d.id DESC
+const listDocumentsByKnowledgeBaseAndSourceBindingIDs = `-- name: ListDocumentsByKnowledgeBaseAndSourceBindingIDs :many
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND knowledge_base_code = ?
+  AND source_binding_id IN (/*SLICE:source_binding_ids*/?)
+ORDER BY id DESC
 `
 
-type ListDocumentsByKnowledgeBaseAndProjectParams struct {
-	KnowledgeBaseCode string `json:"knowledge_base_code"`
-	RootRef           string `json:"root_ref"`
+type ListDocumentsByKnowledgeBaseAndSourceBindingIDsParams struct {
+	KnowledgeBaseCode string  `json:"knowledge_base_code"`
+	SourceBindingIds  []int64 `json:"source_binding_ids"`
 }
 
-type ListDocumentsByKnowledgeBaseAndProjectRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) ListDocumentsByKnowledgeBaseAndProject(ctx context.Context, arg ListDocumentsByKnowledgeBaseAndProjectParams) ([]ListDocumentsByKnowledgeBaseAndProjectRow, error) {
-	rows, err := q.db.QueryContext(ctx, listDocumentsByKnowledgeBaseAndProject, arg.KnowledgeBaseCode, arg.RootRef)
+func (q *Queries) ListDocumentsByKnowledgeBaseAndSourceBindingIDs(ctx context.Context, arg ListDocumentsByKnowledgeBaseAndSourceBindingIDsParams) ([]KnowledgeBaseDocument, error) {
+	query := listDocumentsByKnowledgeBaseAndSourceBindingIDs
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.KnowledgeBaseCode)
+	if len(arg.SourceBindingIds) > 0 {
+		for _, v := range arg.SourceBindingIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:source_binding_ids*/?", strings.Repeat(",?", len(arg.SourceBindingIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:source_binding_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListDocumentsByKnowledgeBaseAndProjectRow{}
+	items := []KnowledgeBaseDocument{}
 	for rows.Next() {
-		var i ListDocumentsByKnowledgeBaseAndProjectRow
+		var i KnowledgeBaseDocument
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationCode,
@@ -1431,6 +1033,7 @@ func (q *Queries) ListDocumentsByKnowledgeBaseAndProject(ctx context.Context, ar
 			&i.Name,
 			&i.Description,
 			&i.Code,
+			&i.Version,
 			&i.Enabled,
 			&i.DocType,
 			&i.DocMetadata,
@@ -1445,13 +1048,13 @@ func (q *Queries) ListDocumentsByKnowledgeBaseAndProject(ctx context.Context, ar
 			&i.EmbeddingConfig,
 			&i.VectorDbConfig,
 			&i.WordCount,
-			&i.ThirdPlatformType,
-			&i.ThirdFileID,
 			&i.CreatedUid,
 			&i.UpdatedUid,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.ThirdPlatformType,
+			&i.ThirdFileID,
 		); err != nil {
 			return nil, err
 		}
@@ -1466,74 +1069,68 @@ func (q *Queries) ListDocumentsByKnowledgeBaseAndProject(ctx context.Context, ar
 	return items, nil
 }
 
-const listDocumentsByKnowledgeBaseAndProjectCompat = `-- name: ListDocumentsByKnowledgeBaseAndProjectCompat :many
-SELECT d.id, d.organization_code, d.knowledge_base_code, d.source_binding_id, d.source_item_id, d.auto_added, d.name, d.description, d.code,
-       d.enabled, d.doc_type, COALESCE(d.doc_metadata, CAST('null' AS JSON)) AS doc_metadata, COALESCE(d.document_file, CAST('null' AS JSON)) AS document_file,
-       d.sync_status, d.sync_times, d.sync_status_message, d.embedding_model, d.vector_db,
-       COALESCE(d.retrieve_config, CAST('null' AS JSON)) AS retrieve_config, COALESCE(d.fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(d.embedding_config, CAST('null' AS JSON)) AS embedding_config, COALESCE(d.vector_db_config, CAST('null' AS JSON)) AS vector_db_config,
-       d.word_count, d.third_platform_type, d.third_file_id, d.created_uid, d.updated_uid, d.created_at, d.updated_at, d.deleted_at,
-       COALESCE(b.provider, '') AS source_provider, COALESCE(b.root_ref, '') AS binding_root_ref, COALESCE(si.item_ref, '') AS source_item_ref
-FROM knowledge_base_documents d
-INNER JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-LEFT JOIN knowledge_source_items si ON si.id = d.source_item_id
-WHERE d.knowledge_base_code = ?
-  AND b.provider = 'project'
-  AND b.root_ref = ?
-  AND d.deleted_at IS NULL
-ORDER BY d.id DESC
+const listDocumentsByOrganization = `-- name: ListDocumentsByOrganization :many
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND name LIKE ?
+  AND doc_type IN (/*SLICE:doc_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+ORDER BY id DESC
+LIMIT ? OFFSET ?
 `
 
-type ListDocumentsByKnowledgeBaseAndProjectCompatParams struct {
-	KnowledgeBaseCode string `json:"knowledge_base_code"`
-	RootRef           string `json:"root_ref"`
+type ListDocumentsByOrganizationParams struct {
+	OrganizationCode string   `json:"organization_code"`
+	NameLike         string   `json:"name_like"`
+	DocTypeValues    []uint32 `json:"doc_type_values"`
+	EnabledValues    []int8   `json:"enabled_values"`
+	SyncStatusValues []int32  `json:"sync_status_values"`
+	Limit            int32    `json:"limit"`
+	Offset           int32    `json:"offset"`
 }
 
-type ListDocumentsByKnowledgeBaseAndProjectCompatRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-	SourceProvider    string          `json:"source_provider"`
-	BindingRootRef    string          `json:"binding_root_ref"`
-	SourceItemRef     string          `json:"source_item_ref"`
-}
-
-func (q *Queries) ListDocumentsByKnowledgeBaseAndProjectCompat(ctx context.Context, arg ListDocumentsByKnowledgeBaseAndProjectCompatParams) ([]ListDocumentsByKnowledgeBaseAndProjectCompatRow, error) {
-	rows, err := q.db.QueryContext(ctx, listDocumentsByKnowledgeBaseAndProjectCompat, arg.KnowledgeBaseCode, arg.RootRef)
+func (q *Queries) ListDocumentsByOrganization(ctx context.Context, arg ListDocumentsByOrganizationParams) ([]KnowledgeBaseDocument, error) {
+	query := listDocumentsByOrganization
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.DocTypeValues) > 0 {
+		for _, v := range arg.DocTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", strings.Repeat(",?", len(arg.DocTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListDocumentsByKnowledgeBaseAndProjectCompatRow{}
+	items := []KnowledgeBaseDocument{}
 	for rows.Next() {
-		var i ListDocumentsByKnowledgeBaseAndProjectCompatRow
+		var i KnowledgeBaseDocument
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationCode,
@@ -1544,6 +1141,7 @@ func (q *Queries) ListDocumentsByKnowledgeBaseAndProjectCompat(ctx context.Conte
 			&i.Name,
 			&i.Description,
 			&i.Code,
+			&i.Version,
 			&i.Enabled,
 			&i.DocType,
 			&i.DocMetadata,
@@ -1558,16 +1156,13 @@ func (q *Queries) ListDocumentsByKnowledgeBaseAndProjectCompat(ctx context.Conte
 			&i.EmbeddingConfig,
 			&i.VectorDbConfig,
 			&i.WordCount,
-			&i.ThirdPlatformType,
-			&i.ThirdFileID,
 			&i.CreatedUid,
 			&i.UpdatedUid,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
-			&i.SourceProvider,
-			&i.BindingRootRef,
-			&i.SourceItemRef,
+			&i.ThirdPlatformType,
+			&i.ThirdFileID,
 		); err != nil {
 			return nil, err
 		}
@@ -1582,74 +1177,71 @@ func (q *Queries) ListDocumentsByKnowledgeBaseAndProjectCompat(ctx context.Conte
 	return items, nil
 }
 
-const listDocumentsByProjectFileInOrgCompat = `-- name: ListDocumentsByProjectFileInOrgCompat :many
-SELECT d.id, d.organization_code, d.knowledge_base_code, d.source_binding_id, d.source_item_id, d.auto_added, d.name, d.description, d.code,
-       d.enabled, d.doc_type, COALESCE(d.doc_metadata, CAST('null' AS JSON)) AS doc_metadata, COALESCE(d.document_file, CAST('null' AS JSON)) AS document_file,
-       d.sync_status, d.sync_times, d.sync_status_message, d.embedding_model, d.vector_db,
-       COALESCE(d.retrieve_config, CAST('null' AS JSON)) AS retrieve_config, COALESCE(d.fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(d.embedding_config, CAST('null' AS JSON)) AS embedding_config, COALESCE(d.vector_db_config, CAST('null' AS JSON)) AS vector_db_config,
-       d.word_count, d.third_platform_type, d.third_file_id, d.created_uid, d.updated_uid, d.created_at, d.updated_at, d.deleted_at,
-       COALESCE(b.provider, '') AS source_provider, COALESCE(b.root_ref, '') AS binding_root_ref, COALESCE(si.item_ref, '') AS source_item_ref
-FROM knowledge_base_documents d
-INNER JOIN knowledge_source_bindings b ON b.id = d.source_binding_id
-INNER JOIN knowledge_source_items si ON si.id = d.source_item_id
-WHERE d.organization_code = ?
-  AND b.provider = 'project'
-  AND si.item_ref = ?
-  AND d.deleted_at IS NULL
-ORDER BY d.id DESC
+const listDocumentsByOrganizationAndKnowledgeBase = `-- name: ListDocumentsByOrganizationAndKnowledgeBase :many
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code = ?
+  AND name LIKE ?
+  AND doc_type IN (/*SLICE:doc_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+ORDER BY id DESC
+LIMIT ? OFFSET ?
 `
 
-type ListDocumentsByProjectFileInOrgCompatParams struct {
-	OrganizationCode string `json:"organization_code"`
-	ItemRef          string `json:"item_ref"`
+type ListDocumentsByOrganizationAndKnowledgeBaseParams struct {
+	OrganizationCode  string   `json:"organization_code"`
+	KnowledgeBaseCode string   `json:"knowledge_base_code"`
+	NameLike          string   `json:"name_like"`
+	DocTypeValues     []uint32 `json:"doc_type_values"`
+	EnabledValues     []int8   `json:"enabled_values"`
+	SyncStatusValues  []int32  `json:"sync_status_values"`
+	Limit             int32    `json:"limit"`
+	Offset            int32    `json:"offset"`
 }
 
-type ListDocumentsByProjectFileInOrgCompatRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-	SourceProvider    string          `json:"source_provider"`
-	BindingRootRef    string          `json:"binding_root_ref"`
-	SourceItemRef     string          `json:"source_item_ref"`
-}
-
-func (q *Queries) ListDocumentsByProjectFileInOrgCompat(ctx context.Context, arg ListDocumentsByProjectFileInOrgCompatParams) ([]ListDocumentsByProjectFileInOrgCompatRow, error) {
-	rows, err := q.db.QueryContext(ctx, listDocumentsByProjectFileInOrgCompat, arg.OrganizationCode, arg.ItemRef)
+func (q *Queries) ListDocumentsByOrganizationAndKnowledgeBase(ctx context.Context, arg ListDocumentsByOrganizationAndKnowledgeBaseParams) ([]KnowledgeBaseDocument, error) {
+	query := listDocumentsByOrganizationAndKnowledgeBase
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.KnowledgeBaseCode)
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.DocTypeValues) > 0 {
+		for _, v := range arg.DocTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", strings.Repeat(",?", len(arg.DocTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:doc_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListDocumentsByProjectFileInOrgCompatRow{}
+	items := []KnowledgeBaseDocument{}
 	for rows.Next() {
-		var i ListDocumentsByProjectFileInOrgCompatRow
+		var i KnowledgeBaseDocument
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationCode,
@@ -1660,6 +1252,7 @@ func (q *Queries) ListDocumentsByProjectFileInOrgCompat(ctx context.Context, arg
 			&i.Name,
 			&i.Description,
 			&i.Code,
+			&i.Version,
 			&i.Enabled,
 			&i.DocType,
 			&i.DocMetadata,
@@ -1674,16 +1267,253 @@ func (q *Queries) ListDocumentsByProjectFileInOrgCompat(ctx context.Context, arg
 			&i.EmbeddingConfig,
 			&i.VectorDbConfig,
 			&i.WordCount,
-			&i.ThirdPlatformType,
-			&i.ThirdFileID,
 			&i.CreatedUid,
 			&i.UpdatedUid,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
-			&i.SourceProvider,
-			&i.BindingRootRef,
-			&i.SourceItemRef,
+			&i.ThirdPlatformType,
+			&i.ThirdFileID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentsByOrganizationAndSourceBindingAndSourceItems = `-- name: ListDocumentsByOrganizationAndSourceBindingAndSourceItems :many
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND source_binding_id IN (/*SLICE:source_binding_ids*/?)
+  AND source_item_id IN (/*SLICE:source_item_ids*/?)
+ORDER BY id DESC
+`
+
+type ListDocumentsByOrganizationAndSourceBindingAndSourceItemsParams struct {
+	OrganizationCode string  `json:"organization_code"`
+	SourceBindingIds []int64 `json:"source_binding_ids"`
+	SourceItemIds    []int64 `json:"source_item_ids"`
+}
+
+func (q *Queries) ListDocumentsByOrganizationAndSourceBindingAndSourceItems(ctx context.Context, arg ListDocumentsByOrganizationAndSourceBindingAndSourceItemsParams) ([]KnowledgeBaseDocument, error) {
+	query := listDocumentsByOrganizationAndSourceBindingAndSourceItems
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	if len(arg.SourceBindingIds) > 0 {
+		for _, v := range arg.SourceBindingIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:source_binding_ids*/?", strings.Repeat(",?", len(arg.SourceBindingIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:source_binding_ids*/?", "NULL", 1)
+	}
+	if len(arg.SourceItemIds) > 0 {
+		for _, v := range arg.SourceItemIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:source_item_ids*/?", strings.Repeat(",?", len(arg.SourceItemIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:source_item_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeBaseDocument{}
+	for rows.Next() {
+		var i KnowledgeBaseDocument
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.SourceBindingID,
+			&i.SourceItemID,
+			&i.AutoAdded,
+			&i.Name,
+			&i.Description,
+			&i.Code,
+			&i.Version,
+			&i.Enabled,
+			&i.DocType,
+			&i.DocMetadata,
+			&i.DocumentFile,
+			&i.SyncStatus,
+			&i.SyncTimes,
+			&i.SyncStatusMessage,
+			&i.EmbeddingModel,
+			&i.VectorDb,
+			&i.RetrieveConfig,
+			&i.FragmentConfig,
+			&i.EmbeddingConfig,
+			&i.VectorDbConfig,
+			&i.WordCount,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ThirdPlatformType,
+			&i.ThirdFileID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentsByOrganizationAndSourceItemIDs = `-- name: ListDocumentsByOrganizationAndSourceItemIDs :many
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND source_item_id IN (/*SLICE:source_item_ids*/?)
+ORDER BY id DESC
+`
+
+type ListDocumentsByOrganizationAndSourceItemIDsParams struct {
+	OrganizationCode string  `json:"organization_code"`
+	SourceItemIds    []int64 `json:"source_item_ids"`
+}
+
+func (q *Queries) ListDocumentsByOrganizationAndSourceItemIDs(ctx context.Context, arg ListDocumentsByOrganizationAndSourceItemIDsParams) ([]KnowledgeBaseDocument, error) {
+	query := listDocumentsByOrganizationAndSourceItemIDs
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	if len(arg.SourceItemIds) > 0 {
+		for _, v := range arg.SourceItemIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:source_item_ids*/?", strings.Repeat(",?", len(arg.SourceItemIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:source_item_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeBaseDocument{}
+	for rows.Next() {
+		var i KnowledgeBaseDocument
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.SourceBindingID,
+			&i.SourceItemID,
+			&i.AutoAdded,
+			&i.Name,
+			&i.Description,
+			&i.Code,
+			&i.Version,
+			&i.Enabled,
+			&i.DocType,
+			&i.DocMetadata,
+			&i.DocumentFile,
+			&i.SyncStatus,
+			&i.SyncTimes,
+			&i.SyncStatusMessage,
+			&i.EmbeddingModel,
+			&i.VectorDb,
+			&i.RetrieveConfig,
+			&i.FragmentConfig,
+			&i.EmbeddingConfig,
+			&i.VectorDbConfig,
+			&i.WordCount,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ThirdPlatformType,
+			&i.ThirdFileID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentsByOrganizationAndThirdFile = `-- name: ListDocumentsByOrganizationAndThirdFile :many
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
+FROM knowledge_base_documents
+WHERE organization_code = ?
+  AND third_platform_type = ?
+  AND third_file_id = ?
+  AND deleted_at IS NULL
+`
+
+type ListDocumentsByOrganizationAndThirdFileParams struct {
+	OrganizationCode  string         `json:"organization_code"`
+	ThirdPlatformType sql.NullString `json:"third_platform_type"`
+	ThirdFileID       sql.NullString `json:"third_file_id"`
+}
+
+func (q *Queries) ListDocumentsByOrganizationAndThirdFile(ctx context.Context, arg ListDocumentsByOrganizationAndThirdFileParams) ([]KnowledgeBaseDocument, error) {
+	rows, err := q.db.QueryContext(ctx, listDocumentsByOrganizationAndThirdFile, arg.OrganizationCode, arg.ThirdPlatformType, arg.ThirdFileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeBaseDocument{}
+	for rows.Next() {
+		var i KnowledgeBaseDocument
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.SourceBindingID,
+			&i.SourceItemID,
+			&i.AutoAdded,
+			&i.Name,
+			&i.Description,
+			&i.Code,
+			&i.Version,
+			&i.Enabled,
+			&i.DocType,
+			&i.DocMetadata,
+			&i.DocumentFile,
+			&i.SyncStatus,
+			&i.SyncTimes,
+			&i.SyncStatusMessage,
+			&i.EmbeddingModel,
+			&i.VectorDb,
+			&i.RetrieveConfig,
+			&i.FragmentConfig,
+			&i.EmbeddingConfig,
+			&i.VectorDbConfig,
+			&i.WordCount,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.ThirdPlatformType,
+			&i.ThirdFileID,
 		); err != nil {
 			return nil, err
 		}
@@ -1699,58 +1529,22 @@ func (q *Queries) ListDocumentsByProjectFileInOrgCompat(ctx context.Context, arg
 }
 
 const listDocumentsBySourceFileID = `-- name: ListDocumentsBySourceFileID :many
-SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code,
-       enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db,
-       retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, third_platform_type, third_file_id,
-       created_uid, updated_uid, created_at, updated_at, deleted_at
+SELECT id, organization_code, knowledge_base_code, source_binding_id, source_item_id, auto_added, name, description, code, version, enabled, doc_type, doc_metadata, document_file, sync_status, sync_times, sync_status_message, embedding_model, vector_db, retrieve_config, fragment_config, embedding_config, vector_db_config, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at, third_platform_type, third_file_id
 FROM knowledge_base_documents
 WHERE source_item_id = ?
   AND deleted_at IS NULL
 ORDER BY id DESC
 `
 
-type ListDocumentsBySourceFileIDRow struct {
-	ID                int64           `json:"id"`
-	OrganizationCode  string          `json:"organization_code"`
-	KnowledgeBaseCode string          `json:"knowledge_base_code"`
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Code              string          `json:"code"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	DeletedAt         sql.NullTime    `json:"deleted_at"`
-}
-
-func (q *Queries) ListDocumentsBySourceFileID(ctx context.Context, sourceItemID int64) ([]ListDocumentsBySourceFileIDRow, error) {
+func (q *Queries) ListDocumentsBySourceFileID(ctx context.Context, sourceItemID int64) ([]KnowledgeBaseDocument, error) {
 	rows, err := q.db.QueryContext(ctx, listDocumentsBySourceFileID, sourceItemID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListDocumentsBySourceFileIDRow{}
+	items := []KnowledgeBaseDocument{}
 	for rows.Next() {
-		var i ListDocumentsBySourceFileIDRow
+		var i KnowledgeBaseDocument
 		if err := rows.Scan(
 			&i.ID,
 			&i.OrganizationCode,
@@ -1761,6 +1555,7 @@ func (q *Queries) ListDocumentsBySourceFileID(ctx context.Context, sourceItemID 
 			&i.Name,
 			&i.Description,
 			&i.Code,
+			&i.Version,
 			&i.Enabled,
 			&i.DocType,
 			&i.DocMetadata,
@@ -1775,13 +1570,13 @@ func (q *Queries) ListDocumentsBySourceFileID(ctx context.Context, sourceItemID 
 			&i.EmbeddingConfig,
 			&i.VectorDbConfig,
 			&i.WordCount,
-			&i.ThirdPlatformType,
-			&i.ThirdFileID,
 			&i.CreatedUid,
 			&i.UpdatedUid,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.ThirdPlatformType,
+			&i.ThirdFileID,
 		); err != nil {
 			return nil, err
 		}
@@ -1794,6 +1589,331 @@ func (q *Queries) ListDocumentsBySourceFileID(ctx context.Context, sourceItemID 
 		return nil, err
 	}
 	return items, nil
+}
+
+const listRebuildDocumentsBatchAll = `-- name: ListRebuildDocumentsBatchAll :many
+SELECT id, organization_code, knowledge_base_code, code, created_uid, updated_uid
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND id > ?
+  AND knowledge_base_code <> ''
+  AND code <> ''
+  AND knowledge_base_code <> '__qdrant_collection_meta__'
+ORDER BY id ASC
+LIMIT ?
+`
+
+type ListRebuildDocumentsBatchAllParams struct {
+	AfterID int64 `json:"after_id"`
+	Limit   int32 `json:"limit"`
+}
+
+type ListRebuildDocumentsBatchAllRow struct {
+	ID                int64  `json:"id"`
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Code              string `json:"code"`
+	CreatedUid        string `json:"created_uid"`
+	UpdatedUid        string `json:"updated_uid"`
+}
+
+func (q *Queries) ListRebuildDocumentsBatchAll(ctx context.Context, arg ListRebuildDocumentsBatchAllParams) ([]ListRebuildDocumentsBatchAllRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRebuildDocumentsBatchAll, arg.AfterID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRebuildDocumentsBatchAllRow{}
+	for rows.Next() {
+		var i ListRebuildDocumentsBatchAllRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.Code,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRebuildDocumentsBatchByDocument = `-- name: ListRebuildDocumentsBatchByDocument :many
+SELECT id, organization_code, knowledge_base_code, code, created_uid, updated_uid
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND id > ?
+  AND organization_code = ?
+  AND knowledge_base_code = ?
+  AND code = ?
+ORDER BY id ASC
+LIMIT ?
+`
+
+type ListRebuildDocumentsBatchByDocumentParams struct {
+	AfterID           int64  `json:"after_id"`
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Code              string `json:"code"`
+	Limit             int32  `json:"limit"`
+}
+
+type ListRebuildDocumentsBatchByDocumentRow struct {
+	ID                int64  `json:"id"`
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Code              string `json:"code"`
+	CreatedUid        string `json:"created_uid"`
+	UpdatedUid        string `json:"updated_uid"`
+}
+
+func (q *Queries) ListRebuildDocumentsBatchByDocument(ctx context.Context, arg ListRebuildDocumentsBatchByDocumentParams) ([]ListRebuildDocumentsBatchByDocumentRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRebuildDocumentsBatchByDocument,
+		arg.AfterID,
+		arg.OrganizationCode,
+		arg.KnowledgeBaseCode,
+		arg.Code,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRebuildDocumentsBatchByDocumentRow{}
+	for rows.Next() {
+		var i ListRebuildDocumentsBatchByDocumentRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.Code,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRebuildDocumentsBatchByKnowledgeBase = `-- name: ListRebuildDocumentsBatchByKnowledgeBase :many
+SELECT id, organization_code, knowledge_base_code, code, created_uid, updated_uid
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND id > ?
+  AND organization_code = ?
+  AND knowledge_base_code = ?
+  AND code <> ''
+ORDER BY id ASC
+LIMIT ?
+`
+
+type ListRebuildDocumentsBatchByKnowledgeBaseParams struct {
+	AfterID           int64  `json:"after_id"`
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Limit             int32  `json:"limit"`
+}
+
+type ListRebuildDocumentsBatchByKnowledgeBaseRow struct {
+	ID                int64  `json:"id"`
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Code              string `json:"code"`
+	CreatedUid        string `json:"created_uid"`
+	UpdatedUid        string `json:"updated_uid"`
+}
+
+func (q *Queries) ListRebuildDocumentsBatchByKnowledgeBase(ctx context.Context, arg ListRebuildDocumentsBatchByKnowledgeBaseParams) ([]ListRebuildDocumentsBatchByKnowledgeBaseRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRebuildDocumentsBatchByKnowledgeBase,
+		arg.AfterID,
+		arg.OrganizationCode,
+		arg.KnowledgeBaseCode,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRebuildDocumentsBatchByKnowledgeBaseRow{}
+	for rows.Next() {
+		var i ListRebuildDocumentsBatchByKnowledgeBaseRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.Code,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRebuildDocumentsBatchByOrganization = `-- name: ListRebuildDocumentsBatchByOrganization :many
+SELECT id, organization_code, knowledge_base_code, code, created_uid, updated_uid
+FROM knowledge_base_documents
+WHERE deleted_at IS NULL
+  AND id > ?
+  AND organization_code = ?
+  AND knowledge_base_code <> ''
+  AND code <> ''
+  AND knowledge_base_code <> '__qdrant_collection_meta__'
+ORDER BY id ASC
+LIMIT ?
+`
+
+type ListRebuildDocumentsBatchByOrganizationParams struct {
+	AfterID          int64  `json:"after_id"`
+	OrganizationCode string `json:"organization_code"`
+	Limit            int32  `json:"limit"`
+}
+
+type ListRebuildDocumentsBatchByOrganizationRow struct {
+	ID                int64  `json:"id"`
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Code              string `json:"code"`
+	CreatedUid        string `json:"created_uid"`
+	UpdatedUid        string `json:"updated_uid"`
+}
+
+func (q *Queries) ListRebuildDocumentsBatchByOrganization(ctx context.Context, arg ListRebuildDocumentsBatchByOrganizationParams) ([]ListRebuildDocumentsBatchByOrganizationRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRebuildDocumentsBatchByOrganization, arg.AfterID, arg.OrganizationCode, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRebuildDocumentsBatchByOrganizationRow{}
+	for rows.Next() {
+		var i ListRebuildDocumentsBatchByOrganizationRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.Code,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const resetDocumentSyncStatusAll = `-- name: ResetDocumentSyncStatusAll :execrows
+UPDATE knowledge_base_documents
+SET sync_status = 0,
+    sync_status_message = '',
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND knowledge_base_code <> '__qdrant_collection_meta__'
+`
+
+func (q *Queries) ResetDocumentSyncStatusAll(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resetDocumentSyncStatusAll)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const resetDocumentSyncStatusByDocument = `-- name: ResetDocumentSyncStatusByDocument :execrows
+UPDATE knowledge_base_documents
+SET sync_status = 0,
+    sync_status_message = '',
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code = ?
+  AND code = ?
+`
+
+type ResetDocumentSyncStatusByDocumentParams struct {
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Code              string `json:"code"`
+}
+
+func (q *Queries) ResetDocumentSyncStatusByDocument(ctx context.Context, arg ResetDocumentSyncStatusByDocumentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resetDocumentSyncStatusByDocument, arg.OrganizationCode, arg.KnowledgeBaseCode, arg.Code)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const resetDocumentSyncStatusByKnowledgeBase = `-- name: ResetDocumentSyncStatusByKnowledgeBase :execrows
+UPDATE knowledge_base_documents
+SET sync_status = 0,
+    sync_status_message = '',
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code = ?
+`
+
+type ResetDocumentSyncStatusByKnowledgeBaseParams struct {
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+}
+
+func (q *Queries) ResetDocumentSyncStatusByKnowledgeBase(ctx context.Context, arg ResetDocumentSyncStatusByKnowledgeBaseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resetDocumentSyncStatusByKnowledgeBase, arg.OrganizationCode, arg.KnowledgeBaseCode)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const resetDocumentSyncStatusByOrganization = `-- name: ResetDocumentSyncStatusByOrganization :execrows
+UPDATE knowledge_base_documents
+SET sync_status = 0,
+    sync_status_message = '',
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code <> '__qdrant_collection_meta__'
+`
+
+func (q *Queries) ResetDocumentSyncStatusByOrganization(ctx context.Context, organizationCode string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resetDocumentSyncStatusByOrganization, organizationCode)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateDocument = `-- name: UpdateDocument :execrows
@@ -1826,30 +1946,30 @@ WHERE id = ?
 `
 
 type UpdateDocumentParams struct {
-	SourceBindingID   int64           `json:"source_binding_id"`
-	SourceItemID      int64           `json:"source_item_id"`
-	AutoAdded         bool            `json:"auto_added"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Enabled           bool            `json:"enabled"`
-	DocType           uint32          `json:"doc_type"`
-	DocMetadata       json.RawMessage `json:"doc_metadata"`
-	DocumentFile      json.RawMessage `json:"document_file"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncTimes         int32           `json:"sync_times"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	EmbeddingModel    string          `json:"embedding_model"`
-	VectorDb          string          `json:"vector_db"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	VectorDbConfig    json.RawMessage `json:"vector_db_config"`
-	WordCount         uint64          `json:"word_count"`
-	ThirdPlatformType sql.NullString  `json:"third_platform_type"`
-	ThirdFileID       sql.NullString  `json:"third_file_id"`
-	UpdatedUid        string          `json:"updated_uid"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	ID                int64           `json:"id"`
+	SourceBindingID   int64          `json:"source_binding_id"`
+	SourceItemID      int64          `json:"source_item_id"`
+	AutoAdded         bool           `json:"auto_added"`
+	Name              string         `json:"name"`
+	Description       string         `json:"description"`
+	Enabled           bool           `json:"enabled"`
+	DocType           uint32         `json:"doc_type"`
+	DocMetadata       []byte         `json:"doc_metadata"`
+	DocumentFile      []byte         `json:"document_file"`
+	SyncStatus        int32          `json:"sync_status"`
+	SyncTimes         int32          `json:"sync_times"`
+	SyncStatusMessage string         `json:"sync_status_message"`
+	EmbeddingModel    string         `json:"embedding_model"`
+	VectorDb          string         `json:"vector_db"`
+	RetrieveConfig    []byte         `json:"retrieve_config"`
+	FragmentConfig    []byte         `json:"fragment_config"`
+	EmbeddingConfig   []byte         `json:"embedding_config"`
+	VectorDbConfig    []byte         `json:"vector_db_config"`
+	WordCount         uint64         `json:"word_count"`
+	ThirdPlatformType sql.NullString `json:"third_platform_type"`
+	ThirdFileID       sql.NullString `json:"third_file_id"`
+	UpdatedUid        string         `json:"updated_uid"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+	ID                int64          `json:"id"`
 }
 
 func (q *Queries) UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (int64, error) {
@@ -1879,6 +1999,111 @@ func (q *Queries) UpdateDocument(ctx context.Context, arg UpdateDocumentParams) 
 		arg.UpdatedAt,
 		arg.ID,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateDocumentModelAll = `-- name: UpdateDocumentModelAll :execrows
+UPDATE knowledge_base_documents
+SET embedding_model = ?,
+    embedding_config = JSON_SET(COALESCE(embedding_config, JSON_OBJECT()), '$.model_id', ?),
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND knowledge_base_code <> '__qdrant_collection_meta__'
+`
+
+type UpdateDocumentModelAllParams struct {
+	Model string `json:"model"`
+}
+
+func (q *Queries) UpdateDocumentModelAll(ctx context.Context, arg UpdateDocumentModelAllParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateDocumentModelAll, arg.Model, arg.Model)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateDocumentModelByDocument = `-- name: UpdateDocumentModelByDocument :execrows
+UPDATE knowledge_base_documents
+SET embedding_model = ?,
+    embedding_config = JSON_SET(COALESCE(embedding_config, JSON_OBJECT()), '$.model_id', ?),
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code = ?
+  AND code = ?
+`
+
+type UpdateDocumentModelByDocumentParams struct {
+	Model             string `json:"model"`
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+	Code              string `json:"code"`
+}
+
+func (q *Queries) UpdateDocumentModelByDocument(ctx context.Context, arg UpdateDocumentModelByDocumentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateDocumentModelByDocument,
+		arg.Model,
+		arg.Model,
+		arg.OrganizationCode,
+		arg.KnowledgeBaseCode,
+		arg.Code,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateDocumentModelByKnowledgeBase = `-- name: UpdateDocumentModelByKnowledgeBase :execrows
+UPDATE knowledge_base_documents
+SET embedding_model = ?,
+    embedding_config = JSON_SET(COALESCE(embedding_config, JSON_OBJECT()), '$.model_id', ?),
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code = ?
+`
+
+type UpdateDocumentModelByKnowledgeBaseParams struct {
+	Model             string `json:"model"`
+	OrganizationCode  string `json:"organization_code"`
+	KnowledgeBaseCode string `json:"knowledge_base_code"`
+}
+
+func (q *Queries) UpdateDocumentModelByKnowledgeBase(ctx context.Context, arg UpdateDocumentModelByKnowledgeBaseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateDocumentModelByKnowledgeBase,
+		arg.Model,
+		arg.Model,
+		arg.OrganizationCode,
+		arg.KnowledgeBaseCode,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateDocumentModelByOrganization = `-- name: UpdateDocumentModelByOrganization :execrows
+UPDATE knowledge_base_documents
+SET embedding_model = ?,
+    embedding_config = JSON_SET(COALESCE(embedding_config, JSON_OBJECT()), '$.model_id', ?),
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND organization_code = ?
+  AND knowledge_base_code <> '__qdrant_collection_meta__'
+`
+
+type UpdateDocumentModelByOrganizationParams struct {
+	Model            string `json:"model"`
+	OrganizationCode string `json:"organization_code"`
+}
+
+func (q *Queries) UpdateDocumentModelByOrganization(ctx context.Context, arg UpdateDocumentModelByOrganizationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateDocumentModelByOrganization, arg.Model, arg.Model, arg.OrganizationCode)
 	if err != nil {
 		return 0, err
 	}

@@ -160,15 +160,7 @@ class ProviderModelItemDTO extends AbstractDTO
 
     public function setImageSizeConfig(?array $imageSizeConfig): self
     {
-        if (empty($imageSizeConfig)) {
-            $this->imageSizeConfig = null;
-            return $this;
-        }
-
-        $this->imageSizeConfig = [
-            'sizes' => $imageSizeConfig['sizes'] ?? [],
-            'max_reference_images' => $imageSizeConfig['max_reference_images'] ?? 0,
-        ];
+        $this->imageSizeConfig = empty($imageSizeConfig) ? null : $imageSizeConfig;
         return $this;
     }
 }

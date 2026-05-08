@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/pkg/filetype"
 )
 
@@ -50,11 +51,11 @@ func NormalizeDocumentFileType(v any) string {
 }
 
 // FileFromPayload 将 document_file payload 转为领域文件。
-func FileFromPayload(payload map[string]any) (*File, bool) {
+func FileFromPayload(payload map[string]any) (*docentity.File, bool) {
 	if len(payload) == 0 {
 		return nil, false
 	}
-	file := &File{
+	file := &docentity.File{
 		Type:            NormalizeDocumentFileType(payload["type"]),
 		Name:            strings.TrimSpace(stringValue(payload["name"])),
 		URL:             strings.TrimSpace(stringValue(payload["url"])),
@@ -63,6 +64,7 @@ func FileFromPayload(payload map[string]any) (*File, bool) {
 		Extension:       filetype.NormalizeExtension(firstNonEmptyString(stringValue(payload["extension"]), stringValue(payload["third_file_extension_name"]))),
 		ThirdID:         firstNonEmptyString(strings.TrimSpace(stringValue(payload["third_id"])), strings.TrimSpace(stringValue(payload["third_file_id"]))),
 		SourceType:      firstNonEmptyString(strings.TrimSpace(stringValue(payload["source_type"])), strings.TrimSpace(stringValue(payload["platform_type"]))),
+		ThirdFileType:   firstNonEmptyString(strings.TrimSpace(stringValue(payload["third_file_type"])), strings.TrimSpace(stringValue(payload["teamshare_file_type"])), strings.TrimSpace(stringValue(payload["file_type"]))),
 		KnowledgeBaseID: strings.TrimSpace(stringValue(payload["knowledge_base_id"])),
 	}
 	if file.Type == "" {
@@ -84,7 +86,7 @@ func CloneDocumentFilePayload(payload map[string]any) map[string]any {
 }
 
 // InferDocumentFileExtensionLight 轻量推断文档扩展名。
-func InferDocumentFileExtensionLight(file *File) string {
+func InferDocumentFileExtensionLight(file *docentity.File) string {
 	if file == nil {
 		return ""
 	}

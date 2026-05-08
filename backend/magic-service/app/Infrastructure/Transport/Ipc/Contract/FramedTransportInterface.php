@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Transport\Ipc\Contract;
 
+use App\Infrastructure\Transport\Ipc\Uds\DecodedFrameResult;
+
 interface FramedTransportInterface
 {
     public function connect(): void;
@@ -15,7 +17,7 @@ interface FramedTransportInterface
 
     public function isConnected(): bool;
 
-    public function readFrame(): string;
+    public function readFrame(): DecodedFrameResult;
 
     public function writeFrame(string $payload): void;
 

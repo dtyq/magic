@@ -151,7 +151,6 @@ CREATE TABLE IF NOT EXISTS magic_flow_knowledge_fragment (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     knowledge_code VARCHAR(255) NOT NULL DEFAULT '',
     document_code VARCHAR(255) NOT NULL DEFAULT '',
-    document_name VARCHAR(255) NOT NULL DEFAULT '',
     parent_fragment_id BIGINT UNSIGNED NULL,
     version INT UNSIGNED NOT NULL DEFAULT 1,
     content TEXT NOT NULL,
@@ -169,9 +168,7 @@ CREATE TABLE IF NOT EXISTS magic_flow_knowledge_fragment (
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME NULL,
     KEY magic_flow_knowledge_fragment_knowledge_code_updated_at_index (knowledge_code, updated_at),
-    KEY idx_sync (sync_status, sync_times),
-    KEY knowledge_base_fragments_parent_fragment_id_index (parent_fragment_id),
-    KEY idx_knowledge_document_version (knowledge_code, document_code, version),
+    KEY idx_knowledge_document_deleted_id (knowledge_code, document_code, deleted_at, id),
     KEY idx_knowledge_code_business_id (knowledge_code, business_id),
     KEY idx_fragment_point_id_id (point_id, id)
 );

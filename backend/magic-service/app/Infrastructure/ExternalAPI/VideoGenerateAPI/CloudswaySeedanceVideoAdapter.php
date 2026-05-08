@@ -27,6 +27,21 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
 
     private const array SUPPORTED_RESOLUTIONS = ['480p', '720p', '1080p'];
 
+    /**
+     * @var list<array{label: string, value: string, width: int, height: int, resolution: string}>
+     */
+    private const array SUPPORTED_SIZES = [
+        ['label' => '16:9', 'value' => '864x496', 'width' => 864, 'height' => 496, 'resolution' => '480p'],
+        ['label' => '9:16', 'value' => '496x864', 'width' => 496, 'height' => 864, 'resolution' => '480p'],
+        ['label' => '1:1', 'value' => '640x640', 'width' => 640, 'height' => 640, 'resolution' => '480p'],
+        ['label' => '16:9', 'value' => '1280x720', 'width' => 1280, 'height' => 720, 'resolution' => '720p'],
+        ['label' => '9:16', 'value' => '720x1280', 'width' => 720, 'height' => 1280, 'resolution' => '720p'],
+        ['label' => '1:1', 'value' => '960x960', 'width' => 960, 'height' => 960, 'resolution' => '720p'],
+        ['label' => '16:9', 'value' => '1920x1080', 'width' => 1920, 'height' => 1080, 'resolution' => '1080p'],
+        ['label' => '9:16', 'value' => '1080x1920', 'width' => 1080, 'height' => 1920, 'resolution' => '1080p'],
+        ['label' => '1:1', 'value' => '1440x1440', 'width' => 1440, 'height' => 1440, 'resolution' => '1080p'],
+    ];
+
     private const string PROVIDER_MODEL_NAME = 'doubao-seedance-1-5-pro-251215';
 
     private const string LEGACY_MODEL_VERSION = 'doubao-seedance-1-5-pro-251215';
@@ -62,6 +77,7 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
                 'durations' => [5, 10],
                 'default_duration_seconds' => 5,
                 'resolutions' => ['480p', '720p', '1080p'],
+                'sizes' => self::SUPPORTED_SIZES,
                 'default_resolution' => '720p',
                 'supports_seed' => false,
                 'supports_watermark' => true,
@@ -77,6 +93,15 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
                 'standard' => [
                     'description' => $this->translateInputMode('standard'),
                     'supported_fields' => [],
+                ],
+                'image_reference' => [
+                    'description' => $this->translateInputMode('image_reference.single'),
+                    'supported_fields' => ['reference_images'],
+                    'reference_images' => [
+                        'max_count' => 1,
+                        'reference_types' => ['asset'],
+                        'style_supported' => false,
+                    ],
                 ],
                 'keyframe_guided' => [
                     'description' => $this->translateInputMode('keyframe_guided.start_only'),

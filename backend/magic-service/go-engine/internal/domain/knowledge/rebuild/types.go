@@ -1,11 +1,7 @@
 // Package rebuild 定义知识库重建领域共享类型。
 package rebuild
 
-import (
-	"strings"
-
-	sharedroute "magic/internal/domain/knowledge/shared/route"
-)
+import "strings"
 
 // RunMode 表示知识库重建模式。
 type RunMode string
@@ -114,9 +110,6 @@ type DocumentTask struct {
 	TargetSparseBackend  string `json:"target_sparse_backend,omitempty"`
 }
 
-// CollectionMeta 描述知识库重建相关的集合元数据。
-type CollectionMeta = sharedroute.CollectionMeta
-
 // VectorCollectionInfo 描述向量集合状态。
 type VectorCollectionInfo struct {
 	Name                string
@@ -124,4 +117,5 @@ type VectorCollectionInfo struct {
 	Points              int64
 	HasNamedDenseVector bool
 	HasSparseVector     bool
+	PayloadSchemaKeys   []string
 }

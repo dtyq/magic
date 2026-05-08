@@ -517,7 +517,7 @@ func (c *Coordinator) DequeueFailures(ctx context.Context, runID string, batchSi
 		var event rebuild.VectorRebuildFailureEvent
 		if unmarshalErr := json.Unmarshal([]byte(value), &event); unmarshalErr != nil {
 			if c.logger != nil {
-				c.logger.WarnContext(ctx, "Skip invalid rebuild failure payload", "payload", value, "error", unmarshalErr)
+				c.logger.KnowledgeWarnContext(ctx, "Skip invalid rebuild failure payload", "payload", value, "error", unmarshalErr)
 			}
 			continue
 		}

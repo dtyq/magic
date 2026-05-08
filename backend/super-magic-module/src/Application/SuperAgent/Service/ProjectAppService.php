@@ -302,8 +302,10 @@ class ProjectAppService extends AbstractAppService
         // Create data isolation object
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+        $projectId = (int) $requestDTO->getId();
+
         // 获取项目信息
-        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getId(), $dataIsolation->getCurrentUserId());
+        $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
 
         if (! is_null($requestDTO->getProjectName())) {
             $projectEntity->setProjectName($requestDTO->getProjectName());
@@ -324,6 +326,38 @@ class ProjectAppService extends AbstractAppService
         }
         if (! is_null($requestDTO->getDefaultJoinPermission())) {
             $projectEntity->setDefaultJoinPermission(MemberRole::validatePermissionLevel($requestDTO->getDefaultJoinPermission()));
+        }
+
+        // Handle project mode change
+        if (! is_null($requestDTO->getProjectMode())) {
+            $newMode = $requestDTO->getProjectMode();
+            if (ProjectMode::tryFrom($newMode) === null) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, "Invalid project_mode: {$newMode}");
+            }
+            $projectEntity->setProjectMode($newMode);
+        }
+
+        // Handle workspace change / detach (cascades workspace_id to topics and tasks)
+        if ($requestDTO->hasTargetWorkspaceId()) {
+            $targetWorkspaceId = $requestDTO->getTargetWorkspaceId();
+
+            if (! $requestDTO->isDetachingWorkspace() && ! is_null($targetWorkspaceId)) {
+                // Moving to a specific workspace: validate access
+                $targetWorkspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($targetWorkspaceId);
+                if (empty($targetWorkspaceEntity)) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
+                }
+                if ($targetWorkspaceEntity->getUserId() !== $userAuthorization->getId()) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, 'workspace.access_denied');
+                }
+            }
+
+            // Cascade workspace_id to topics and tasks via domain service
+            $projectEntity = $this->projectDomainService->moveProject(
+                $projectId,
+                $targetWorkspaceId,
+                $userAuthorization->getId()
+            );
         }
 
         $this->projectDomainService->saveProjectEntity($projectEntity);

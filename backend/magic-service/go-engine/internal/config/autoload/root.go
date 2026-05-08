@@ -3,21 +3,22 @@ package autoload
 
 // Config 是应用的根配置。
 type Config struct {
-	Server                ServerConfig                `json:"server"`
-	Qdrant                QdrantConfig                `json:"qdrant"`
-	Rebuild               RebuildConfig               `json:"rebuild"`
-	MySQL                 MySQLConfig                 `json:"mysql"`
-	Redis                 RedisConfig                 `json:"redis"`
-	Logging               LoggingConfig               `json:"logging"`
-	Events                EventsConfig                `json:"events"`
-	Security              SecurityConfig              `json:"security"`
-	IPC                   IPCConfig                   `json:"ipc"`
-	RabbitMQ              RabbitMQConfig              `json:"rabbitmq"`
-	Embedding             EmbeddingConfig             `json:"embedding"`
-	EmbeddingCacheCleanup EmbeddingCacheCleanupConfig `json:"embedding_cache_cleanup"`
-	MagicModelGateway     MagicModelGatewayConfig     `json:"magic_model_gateway"`
-	OCR                   OCRConfig                   `json:"ocr"`
-	Storage               StorageConfig               `json:"storage"`
+	Server                 ServerConfig                 `json:"server"`
+	Qdrant                 QdrantConfig                 `json:"qdrant"`
+	Rebuild                RebuildConfig                `json:"rebuild"`
+	MySQL                  MySQLConfig                  `json:"mysql"`
+	Redis                  RedisConfig                  `json:"redis"`
+	Logging                LoggingConfig                `json:"logging"`
+	Events                 EventsConfig                 `json:"events"`
+	Security               SecurityConfig               `json:"security"`
+	IPC                    IPCConfig                    `json:"ipc"`
+	RabbitMQ               RabbitMQConfig               `json:"rabbitmq"`
+	Embedding              EmbeddingConfig              `json:"embedding"`
+	EmbeddingCacheCleanup  EmbeddingCacheCleanupConfig  `json:"embedding_cache_cleanup"`
+	MagicModelGateway      MagicModelGatewayConfig      `json:"magic_model_gateway"`
+	OCR                    OCRConfig                    `json:"ocr"`
+	Storage                StorageConfig                `json:"storage"`
+	DocumentResourceLimits DocumentResourceLimitsConfig `mapstructure:"documentResourceLimits" json:"document_resource_limits"`
 }
 
 // LoggingConfig 提供应用日志设置。

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notion SaaS Dashboard — Template Preview</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="theme.css" />
+  <style>
+    html,
+    body {
+      width: auto;
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
+
+    body {
+      background:
+        radial-gradient(circle at 20% 0%, rgba(35, 131, 226, 0.08), transparent 26%),
+        linear-gradient(180deg, #F6F5F1 0%, #E8E8E6 100%);
+      padding: 40px;
+      font-family: var(--font-sans);
+    }
+
+    .preview-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1F1F1F;
+      margin-bottom: 8px;
+    }
+
+    .preview-desc {
+      font-size: 15px;
+      color: #6B6B6B;
+      margin-bottom: 40px;
+    }
+
+    .section-label-outer {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748B;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin: 40px 0 16px;
+    }
+
+    .swatches {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .swatch {
+      width: 80px;
+    }
+
+    .swatch-color {
+      height: 52px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+      margin-bottom: 6px;
+    }
+
+    .swatch-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6B6B6B;
+    }
+
+    .swatch-hex {
+      font-size: 11px;
+      color: #9B9B9B;
+      font-family: monospace;
+    }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="preview-title">📋 Notion — SaaS Dashboard Template</div>
+  <div class="preview-desc">Light gray base #F7F7F5 · white cards · thin borders · blue accent #2383E2 | Best for SaaS
+    product demos, feature introductions, dashboards, and B2B proposals</div>
+
+  <!-- Color swatches -->
+  <div class="section-label-outer">Color Swatches</div>
+  <div class="swatches">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F7F7F5;"></div>
+      <div class="swatch-name">Light Gray Base</div>
+      <div class="swatch-hex">#F7F7F5</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#FFFFFF;border:1px solid #E5E5E5;"></div>
+      <div class="swatch-name">Card White</div>
+      <div class="swatch-hex">#FFFFFF</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#2383E2;"></div>
+      <div class="swatch-name">Notion Blue</div>
+      <div class="swatch-hex">#2383E2</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#191919;"></div>
+      <div class="swatch-name">Deep Black</div>
+      <div class="swatch-hex">#191919</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#0F7B6C;"></div>
+      <div class="swatch-name">Success Green</div>
+      <div class="swatch-hex">#0F7B6C</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#E03E3E;"></div>
+      <div class="swatch-name">Warning Red</div>
+      <div class="swatch-hex">#E03E3E</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#DFAB01;"></div>
+      <div class="swatch-name">Attention Yellow</div>
+      <div class="swatch-hex">#DFAB01</div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#6940A5;"></div>
+      <div class="swatch-name">Purple</div>
+      <div class="swatch-hex">#6940A5</div>
+    </div>
+  </div>
+
+  <!-- 8 layout thumbnails -->
+  <div class="section-label-outer">Dedicated Layout Types (8)</div>
+  <div class="layout-grid">
+
+    <!-- 1. Cover slide -->
+    <div class="layout-thumb premium-dark">
+      <div class="mini-nav">
+        <span class="mini-logo">Super Magic</span>
+        <span>Product</span>
+        <span>Customers</span>
+        <span style="flex:1;"></span>
+        <span class="mini-pill blue">Start free</span>
+      </div>
+      <div style="position:absolute;left:14px;top:42px;width:46%;z-index:2;">
+        <div class="mini-pill" style="width:fit-content;margin-bottom:7px;">AI WORKSPACE</div>
+        <div class="mini-hero-title">One command<br />center for<br />AI teams</div>
+        <div class="mini-subtitle">Docs, projects, knowledge base and AI agents in one premium workspace.</div>
+      </div>
+      <div style="position:absolute;right:12px;top:42px;bottom:18px;width:44%;z-index:2;">
+        <div class="mini-card" style="height:100%;padding:9px;">
+          <div
+            style="height:10px;background:#F7F7F5;border-radius:999px;margin-bottom:8px;display:flex;align-items:center;gap:3px;padding:0 5px;">
+            <span style="width:4px;height:4px;border-radius:50%;background:#D0D0D0;"></span>
+            <span style="width:42%;height:3px;border-radius:99px;background:#E5E5E5;"></span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px;">
+            <div class="mini-card blue" style="padding:7px;box-shadow:none;">
+              <div class="mini-value">96%</div>
+              <div style="font-size:4px;opacity:.75;margin-top:2px;">success rate</div>
+            </div>
+            <div class="mini-card" style="padding:7px;box-shadow:none;background:#F7F7F5;">
+              <div class="mini-value">12.4k</div>
+              <div style="font-size:4px;color:#9B9B9B;margin-top:2px;">runs today</div>
+            </div>
+          </div>
+          <div class="mini-line"><span style="width:72%;"></span></div>
+          <div class="mini-table-row"><span>Research</span><span>Ready</span><span style="color:#0F7B6C;">done</span>
+          </div>
+          <div class="mini-table-row"><span>Code</span><span>Active</span><span style="color:#2383E2;">live</span></div>
+        </div>
+      </div>
+      <div class="slide-label" style="color:#9B9B9B;background:rgba(25,25,25,0.85);">1. Premium Cover</div>
+    </div>
+
+    <!-- 2. Feature overview slide -->
+    <div class="layout-thumb premium-light">
+      <div class="mini-nav">
+        <span class="mini-logo">Feature suite</span>
+        <span style="flex:1;"></span>
+        <span class="mini-pill blue">6 modules</span>
+      </div>
+      <div style="position:absolute;left:12px;top:34px;width:34%;z-index:2;">
+        <div class="mini-label">PRODUCT LAYERS</div>
+        <div style="font-size:17px;font-weight:800;letter-spacing:-.05em;line-height:1;margin-top:5px;color:#191919;">
+          Built for<br />serious teams</div>
+        <div class="mini-subtitle">Replace dense icon grids with a narrative product matrix.</div>
+      </div>
+      <div
+        style="position:absolute;right:10px;top:30px;bottom:17px;width:58%;z-index:2;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1.2fr .8fr;gap:7px;">
+        <div class="mini-card blue" style="grid-row:span 2;padding:10px;">
+          <div style="font-size:5px;opacity:.72;letter-spacing:.1em;">CORE</div>
+          <div style="font-size:13px;font-weight:800;line-height:1.05;margin-top:18px;">AI workspace<br />orchestration
+          </div>
+          <div style="height:1px;background:rgba(255,255,255,.25);margin:10px 0;"></div>
+          <div style="font-size:4.5px;opacity:.78;line-height:1.45;">Documents, tasks, agents and context stay
+            connected.</div>
+        </div>
+        <div class="mini-card" style="padding:9px;">
+          <div class="mini-label">Knowledge</div>
+          <div class="mini-value" style="margin-top:16px;">100+</div>
+        </div>
+        <div class="mini-card" style="padding:9px;background:#191919;color:#fff;">
+          <div style="font-size:4.2px;color:#9B9B9B;letter-spacing:.08em;">SECURITY</div>
+          <div style="font-size:11px;font-weight:800;margin-top:12px;">Sandboxed</div>
+        </div>
+      </div>
+      <div class="slide-label">2. Feature Matrix</div>
+    </div>
+
+    <!-- 3. Data dashboard slide -->
+    <div class="layout-thumb premium-light">
+      <div class="mini-nav">
+        <span class="mini-logo">Growth dashboard</span>
+        <span style="flex:1;"></span>
+        <span class="mini-pill">May 2026</span>
+      </div>
+      <div
+        style="position:absolute;left:10px;right:10px;top:30px;z-index:2;display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;">
+        <div class="mini-card" style="padding:8px;">
+          <div class="mini-label">Revenue</div>
+          <div class="mini-value" style="margin-top:5px;">¥128k</div>
+          <div style="font-size:4px;color:#0F7B6C;margin-top:3px;">+28%</div>
+        </div>
+        <div class="mini-card dark" style="padding:8px;">
+          <div style="font-size:4.2px;color:#9B9B9B;letter-spacing:.08em;">Activation</div>
+          <div class="mini-value" style="margin-top:5px;">94%</div>
+          <div style="font-size:4px;color:#A8D4F5;margin-top:3px;">high intent</div>
+        </div>
+        <div class="mini-card" style="padding:8px;">
+          <div class="mini-label">Churn</div>
+          <div class="mini-value" style="margin-top:5px;color:#E03E3E;">4.2%</div>
+          <div style="font-size:4px;color:#0F7B6C;margin-top:3px;">-0.8%</div>
+        </div>
+      </div>
+      <div
+        style="position:absolute;left:10px;right:10px;bottom:18px;top:78px;z-index:2;display:grid;grid-template-columns:1.45fr .8fr;gap:8px;">
+        <div class="mini-card" style="padding:10px;">
+          <div class="mini-label">Usage trend</div>
+          <div class="mini-chart" style="margin-top:8px;">
+            <span style="height:32%;"></span><span style="height:46%;"></span><span style="height:42%;"></span><span
+              style="height:68%;"></span><span style="height:82%;"></span><span style="height:74%;"></span>
+          </div>
+        </div>
+        <div class="mini-card" style="padding:10px;">
+          <div class="mini-label">Top flows</div>
+          <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px;">
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:4.5px;color:#6B6B6B;">
+                <span>Docs</span><span>68%</span>
+              </div>
+              <div class="mini-line"><span style="width:68%;"></span></div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:4.5px;color:#6B6B6B;">
+                <span>Boards</span><span>45%</span>
+              </div>
+              <div class="mini-line"><span style="width:45%;background:#0F7B6C;"></span></div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:4.5px;color:#6B6B6B;">
+                <span>Agents</span><span>38%</span>
+              </div>
+              <div class="mini-line"><span style="width:38%;background:#6940A5;"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">3. Executive Dashboard</div>
+    </div>
+
+    <!-- 4. Product comparison slide -->
+    <div class="layout-thumb premium-light">
+      <div class="mini-nav">
+        <span class="mini-logo">Plans</span>
+        <span style="flex:1;"></span>
+        <span class="mini-pill">Best fit</span>
+      </div>
+      <div style="position:absolute;left:12px;top:36px;width:28%;z-index:2;">
+        <div class="mini-label">PRICING</div>
+        <div style="font-size:16px;font-weight:800;letter-spacing:-.05em;line-height:1;margin-top:5px;">Scale
+          by<br />team stage</div>
+      </div>
+      <div
+        style="position:absolute;right:10px;top:30px;bottom:18px;width:62%;z-index:2;display:grid;grid-template-columns:.8fr 1.05fr .8fr;gap:6px;align-items:center;">
+        <div class="mini-card" style="padding:9px;height:80%;">
+          <div class="mini-label">Free</div>
+          <div class="mini-value" style="margin-top:7px;">¥0</div>
+          <div class="mini-line" style="margin-top:12px;"><span style="width:36%;background:#D0D0D0;"></span></div>
+        </div>
+        <div class="mini-card blue" style="padding:10px;height:100%;box-shadow:0 16px 40px rgba(35,131,226,.24);">
+          <div style="font-size:4.2px;opacity:.75;letter-spacing:.08em;">RECOMMENDED</div>
+          <div style="font-size:18px;font-weight:800;letter-spacing:-.04em;margin-top:8px;">Pro</div>
+          <div style="font-size:5px;opacity:.75;margin-top:3px;">Unlimited members</div>
+          <div style="height:1px;background:rgba(255,255,255,.25);margin:10px 0;"></div>
+          <div style="font-size:4.5px;line-height:1.7;">✓ AI workflows<br />✓ Advanced analytics<br />✓ Priority review
+          </div>
+        </div>
+        <div class="mini-card" style="padding:9px;height:80%;">
+          <div class="mini-label">Enterprise</div>
+          <div style="font-size:9px;font-weight:800;margin-top:8px;">Custom</div>
+          <div class="mini-line" style="margin-top:13px;"><span style="width:74%;background:#191919;"></span></div>
+        </div>
+      </div>
+      <div class="slide-label">4. Pricing Comparison</div>
+    </div>
+
+    <!-- 5. Workflow slide -->
+    <div class="layout-thumb premium-light">
+      <div class="mini-nav">
+        <span class="mini-logo">Workflow</span>
+        <span style="flex:1;"></span>
+        <span class="mini-pill blue">4 steps</span>
+      </div>
+      <div style="position:absolute;left:12px;right:12px;top:36px;z-index:2;">
+        <div style="font-size:17px;font-weight:800;letter-spacing:-.05em;color:#191919;">From brief to delivery</div>
+        <div style="font-size:5px;color:#777;margin-top:4px;">A cleaner process map with larger rhythm and fewer micro
+          cards.</div>
+      </div>
+      <div
+        style="position:absolute;left:10px;right:10px;bottom:18px;z-index:2;display:grid;grid-template-columns:repeat(4,1fr);gap:7px;">
+        <div class="mini-step">
+          <div class="mini-pill blue" style="width:fit-content;">01</div>
+          <div style="font-size:6px;font-weight:800;margin-top:8px;">Capture</div>
+          <div class="mini-line" style="margin-top:8px;"><span style="width:100%;"></span></div>
+        </div>
+        <div class="mini-step">
+          <div class="mini-pill blue" style="width:fit-content;">02</div>
+          <div style="font-size:6px;font-weight:800;margin-top:8px;">Plan</div>
+          <div class="mini-line" style="margin-top:8px;"><span style="width:72%;"></span></div>
+        </div>
+        <div class="mini-step">
+          <div class="mini-pill" style="width:fit-content;">03</div>
+          <div style="font-size:6px;font-weight:800;margin-top:8px;color:#777;">Execute</div>
+          <div class="mini-line" style="margin-top:8px;"><span style="width:34%;background:#D0D0D0;"></span></div>
+        </div>
+        <div class="mini-step">
+          <div class="mini-pill" style="width:fit-content;">04</div>
+          <div style="font-size:6px;font-weight:800;margin-top:8px;color:#777;">Review</div>
+          <div class="mini-line" style="margin-top:8px;"><span style="width:12%;background:#D0D0D0;"></span></div>
+        </div>
+      </div>
+      <div class="slide-label">5. Workflow</div>
+    </div>
+
+    <!-- 6. Project status slide -->
+    <div class="layout-thumb premium-light">
+      <div class="mini-nav">
+        <span class="mini-logo">Status room</span>
+        <span style="flex:1;"></span>
+        <span class="mini-pill">Live</span>
+      </div>
+      <div style="position:absolute;left:12px;top:34px;width:31%;z-index:2;">
+        <div class="mini-label">OPERATIONS</div>
+        <div style="font-size:16px;font-weight:800;letter-spacing:-.05em;line-height:1;margin-top:5px;">Work
+          that<br />needs attention</div>
+      </div>
+      <div class="mini-card"
+        style="position:absolute;right:10px;top:30px;bottom:18px;width:61%;z-index:2;padding:10px;">
+        <div class="mini-table-row" style="font-weight:700;color:#9B9B9B;text-transform:uppercase;">
+          <span>Project</span><span>Owner</span><span>Status</span>
+        </div>
+        <div class="mini-table-row"><span style="color:#1F1F1F;font-weight:700;">User
+            center</span><span>Zhang</span><span style="color:#0F7B6C;">Done</span></div>
+        <div class="mini-table-row"><span style="color:#1F1F1F;font-weight:700;">Payments</span><span>Li</span><span
+            style="color:#2383E2;">Active</span></div>
+        <div class="mini-table-row"><span style="color:#1F1F1F;font-weight:700;">Analytics</span><span>Wang</span><span
+            style="color:#E03E3E;">Blocked</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">
+          <div class="mini-card blue" style="padding:7px;box-shadow:none;">
+            <div class="mini-value">65%</div>
+            <div style="font-size:4px;opacity:.75;">in progress</div>
+          </div>
+          <div class="mini-card" style="padding:7px;box-shadow:none;background:#F7F7F5;">
+            <div class="mini-value">4</div>
+            <div style="font-size:4px;color:#777;">risks</div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">6. Status Board</div>
+    </div>
+
+    <!-- 7. Section slide -->
+    <div class="layout-thumb premium-dark">
+      <div class="mini-nav">
+        <span class="mini-logo">Super Magic</span>
+        <span style="flex:1;"></span>
+        <span class="mini-pill">Chapter 02</span>
+      </div>
+      <div
+        style="position:absolute;right:10px;bottom:-10px;font-size:88px;font-weight:800;line-height:1;color:rgba(255,255,255,.035);letter-spacing:-.08em;">
+        02</div>
+      <div style="position:absolute;left:16px;right:16px;top:52px;z-index:2;">
+        <div class="mini-label" style="color:#7B7B7B;">SECTION</div>
+        <div style="font-size:21px;font-weight:800;line-height:.98;letter-spacing:-.06em;color:#fff;margin-top:6px;">
+          Data intelligence<br />for growth teams</div>
+        <div style="display:flex;gap:5px;margin-top:12px;">
+          <span class="mini-pill blue">DAU</span>
+          <span class="mini-pill">Retention</span>
+          <span class="mini-pill">LTV</span>
+        </div>
+      </div>
+      <div class="slide-label" style="color:#9B9B9B;background:rgba(25,25,25,0.85);">7. Section</div>
+    </div>
+
+    <!-- 8. Closing CTA slide -->
+    <div class="layout-thumb premium-dark">
+      <div
+        style="position:absolute;left:50%;top:47%;transform:translate(-50%,-50%);text-align:center;width:76%;z-index:2;">
+        <div class="mini-pill blue" style="margin:0 auto 9px;width:fit-content;">READY TO LAUNCH</div>
+        <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.06em;line-height:.98;">Build your<br />AI
+          workspace</div>
+        <div style="font-size:5.5px;color:rgba(255,255,255,.56);line-height:1.55;margin-top:8px;">Start free, invite
+          your team, and connect your first agent workflow.</div>
+        <div style="display:flex;justify-content:center;gap:6px;margin-top:12px;">
+          <span class="mini-pill blue">Start free</span>
+          <span class="mini-pill">Book demo</span>
+        </div>
+      </div>
+      <div class="slide-label" style="color:#9B9B9B;background:rgba(25,25,25,0.85);">8. Closing / CTA</div>
+    </div>
+
+  </div>
+
+  <!-- Core component gallery -->
+  <div class="section-label-outer">Core Component Gallery</div>
+  <div class="component-showcase">
+    <div class="component-showcase-grid">
+
+      <!-- Left column -->
+      <div class="flex-col gap-4">
+        <div>
+          <div class="component-hero-title">一站式团队<br />协作平台</div>
+          <div class="component-hero-desc">整合文档、项目、知识库与 AI，帮助团队提升效率 3
+            倍，让每个人专注于真正重要的工作。</div>
+        </div>
+
+        <div class="grid-4 component-kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-value">2,847</div>
+            <div class="kpi-label">月活用户</div>
+            <div class="kpi-delta up">↑ 12.4%</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value">94%</div>
+            <div class="kpi-label">用户满意度</div>
+            <div class="kpi-delta up">↑ 3%</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value">¥128k</div>
+            <div class="kpi-label">月收入 MRR</div>
+            <div class="kpi-delta up">↑ 28%</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-value text-red">4.2%</div>
+            <div class="kpi-label">用户流失率</div>
+            <div class="kpi-delta down">↓ 0.8%</div>
+          </div>
+        </div>
+
+        <div class="notion-card flat">
+          <div class="component-label">功能使用进度</div>
+          <div class="flex-col gap-3">
+            <div class="progress-item">
+              <div class="progress-head"><strong>文档管理</strong><span>68%</span></div>
+              <div class="progress-wrap">
+                <div class="progress-bar" style="width:68%;"></div>
+              </div>
+            </div>
+            <div class="progress-item">
+              <div class="progress-head"><strong>项目看板</strong><span>45%</span></div>
+              <div class="progress-wrap">
+                <div class="progress-bar green" style="width:45%;"></div>
+              </div>
+            </div>
+            <div class="progress-item">
+              <div class="progress-head"><strong>AI 助手</strong><span>38%</span></div>
+              <div class="progress-wrap">
+                <div class="progress-bar purple" style="width:38%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column -->
+      <div class="flex-col gap-4">
+        <div class="notion-card">
+          <div class="component-label loose">项目状态</div>
+          <table class="notion-table">
+            <thead>
+              <tr>
+                <th>项目</th>
+                <th>负责人</th>
+                <th>状态</th>
+                <th>截止</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-primary">用户中心重构</td>
+                <td>张三</td>
+                <td><span class="status-tag status-green">已完成</span></td>
+                <td>04/15</td>
+              </tr>
+              <tr>
+                <td class="td-primary">支付模块升级</td>
+                <td>李四</td>
+                <td><span class="status-tag status-blue">进行中</span></td>
+                <td>04/30</td>
+              </tr>
+              <tr>
+                <td class="td-primary">数据分析看板</td>
+                <td>王五</td>
+                <td><span class="status-tag status-red">阻塞</span></td>
+                <td>05/10</td>
+              </tr>
+              <tr>
+                <td class="td-primary">AI 推荐系统</td>
+                <td>赵六</td>
+                <td><span class="status-tag status-yellow">待评审</span></td>
+                <td>05/20</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="notion-card">
+          <div class="component-label loose">项目详情</div>
+          <div class="property-row"><span class="prop-key">负责人</span><span class="prop-value">李四</span></div>
+          <div class="property-row"><span class="prop-key">优先级</span><span class="prop-value"><span
+                class="status-tag status-red">高</span></span></div>
+          <div class="property-row"><span class="prop-key">截止日期</span><span class="prop-value">2026年4月30日</span></div>
+          <div class="property-row"><span class="prop-key">标签</span><span class="prop-value"><span class="tag">后端</span>
+              <span class="tag">支付</span></span></div>
+          <div class="property-row"><span class="prop-key">完成度</span><span class="prop-value full">
+              <div class="progress-wrap mt-2">
+                <div class="progress-bar" style="width:65%;"></div>
+              </div>
+            </span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="showcase-header spaced">
+      <div>
+        <div class="showcase-eyebrow">Advanced SaaS Components</div>
+        <div class="showcase-title">更丰富的 AI 工作台组件</div>
+      </div>
+      <div class="showcase-subtitle">
+        用于产品发布、AI Agent 控制台、团队运营和融资路演页面。组件强调更强的层次、状态感和产品叙事。
+      </div>
+    </div>
+
+    <div class="showcase-grid">
+      <div class="showcase-stack">
+        <div class="premium-panel dark">
+          <div class="panel-kicker">Command Palette</div>
+          <div class="panel-title">一个高级 SaaS 模板需要“可操作”的界面感</div>
+          <div class="panel-desc">适合展示 AI 指令、快捷操作、工作流启动器和企业级控制台入口。</div>
+          <div class="command-palette">
+            <div class="command-input"><span>⌘</span><span>Ask Super Magic to prepare a launch plan...</span></div>
+            <div class="command-row active"><span>01</span><span>Generate investor update</span><span
+                class="command-key">⌘↵</span></div>
+            <div class="command-row"><span>02</span><span>Summarize customer feedback</span><span
+                class="command-key">A</span></div>
+            <div class="command-row"><span>03</span><span>Route task to Code Agent</span><span
+                class="command-key">R</span></div>
+          </div>
+        </div>
+
+        <div class="premium-panel">
+          <div class="panel-kicker">Agent Status</div>
+          <div class="panel-title">多 Agent 状态列表</div>
+          <div class="panel-desc">比普通表格更适合 AI 平台，能直接表达角色、队列、状态和任务进展。</div>
+          <div class="agent-list">
+            <div class="agent-row">
+              <div class="agent-avatar">R</div>
+              <div>
+                <div class="agent-name">Research Agent</div>
+                <div class="agent-meta">Market scan · 12 sources</div>
+              </div>
+              <div class="agent-state">Done</div>
+            </div>
+            <div class="agent-row">
+              <div class="agent-avatar purple">C</div>
+              <div>
+                <div class="agent-name">Code Agent</div>
+                <div class="agent-meta">Template refactor · running</div>
+              </div>
+              <div class="agent-state live">Live</div>
+            </div>
+            <div class="agent-row">
+              <div class="agent-avatar yellow">Q</div>
+              <div>
+                <div class="agent-name">Review Agent</div>
+                <div class="agent-meta">Waiting for diff</div>
+              </div>
+              <div class="agent-state queued">Queued</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-stack">
+        <div class="insight-card">
+          <div>
+            <div class="insight-value">10x</div>
+            <div class="insight-label">团队执行杠杆提升，适合封面、融资页和价值证明页。</div>
+          </div>
+          <span class="status-tag status-blue">Proof point</span>
+        </div>
+
+        <div class="premium-panel">
+          <div class="panel-kicker">Integration Tiles</div>
+          <div class="panel-title">集成生态卡片</div>
+          <div class="integration-grid">
+            <div class="integration-tile">
+              <div class="integration-icon">G</div>
+              <div class="integration-name">GitHub</div>
+            </div>
+            <div class="integration-tile">
+              <div class="integration-icon green">S</div>
+              <div class="integration-name">Slack</div>
+            </div>
+            <div class="integration-tile">
+              <div class="integration-icon purple">F</div>
+              <div class="integration-name">Figma</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="premium-panel">
+          <div class="panel-kicker">Activity Feed</div>
+          <div class="panel-title">运营动态流</div>
+          <div class="activity-feed">
+            <div class="activity-item">
+              <div class="activity-dot"></div>
+              <div>
+                <div class="activity-title">Launch brief approved</div>
+                <div class="activity-desc">PM Agent moved the campaign to execution.</div>
+              </div>
+              <div class="activity-time">2m</div>
+            </div>
+            <div class="activity-item">
+              <div class="activity-dot green"></div>
+              <div>
+                <div class="activity-title">Customer insights ready</div>
+                <div class="activity-desc">Research Agent extracted 18 buying signals.</div>
+              </div>
+              <div class="activity-time">8m</div>
+            </div>
+            <div class="activity-item">
+              <div class="activity-dot yellow"></div>
+              <div>
+                <div class="activity-title">Human review required</div>
+                <div class="activity-desc">Pricing copy needs final approval.</div>
+              </div>
+              <div class="activity-time">14m</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="metric-strip spaced">
+      <div class="metric-tile"><strong>24/7</strong><span>always-on execution</span></div>
+      <div class="metric-tile"><strong>80%</strong><span>ops cost reduction</span></div>
+      <div class="metric-tile"><strong>42k</strong><span>tasks automated</span></div>
+      <div class="metric-tile"><strong>99.9%</strong><span>secure sandbox SLA</span></div>
+    </div>
+  </div>
+
+</body>
+
+</html>

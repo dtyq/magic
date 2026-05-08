@@ -3,25 +3,25 @@ package fragapp
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strings"
+	"time"
 
 	fragdto "magic/internal/application/knowledge/fragment/dto"
 	"magic/internal/constants"
 	documentdomain "magic/internal/domain/knowledge/document/service"
+	fragmetadata "magic/internal/domain/knowledge/fragment/metadata"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
-	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
+	"magic/internal/pkg/logkey"
 )
 
 const (
 	runtimeSimilarityDefaultTopK             = 10
 	runtimeSimilarityCandidateScoreThreshold = 0.1
 	runtimeDestroyBatchSize                  = 1000
-	similarityBackfillDocumentLimit          = 4096
 )
 
 type runtimeSliceValueKind int
@@ -40,18 +40,22 @@ func (s *FragmentAppService) RuntimeCreate(
 	if input == nil {
 		return nil, shared.ErrFragmentDocumentCodeRequired
 	}
+	if err := s.authorizeKnowledgeBaseAction(ctx, input.OrganizationCode, input.UserID, input.KnowledgeCode, "edit"); err != nil {
+		return nil, err
+	}
 
 	kb, err := s.loadScopedKnowledgeBase(ctx, input.OrganizationCode, input.KnowledgeCode)
 	if err != nil {
 		return nil, err
 	}
 	s.applyResolvedRouteToKnowledgeBase(ctx, kb)
+	kbSnapshot := knowledgeBaseSnapshotFromDomain(kb)
 
 	fragment, err := s.runtimeCreateFragment(ctx, kb, input)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.fragmentService.SyncFragment(ctx, kb, fragment, input.BusinessParams); err != nil {
+	if err := s.fragmentService.SyncFragment(ctx, kbSnapshot, fragment, input.BusinessParams); err != nil {
 		return nil, fmt.Errorf("sync runtime fragment: %w", err)
 	}
 	return s.entityToDTO(fragment), nil
@@ -65,7 +69,6 @@ func (s *FragmentAppService) RuntimeSimilarity(
 	if input == nil {
 		return nil, shared.ErrKnowledgeBaseNotFound
 	}
-
 	knowledgeCodes := uniqueRuntimeKnowledgeCodes(input.KnowledgeCodes)
 	if len(knowledgeCodes) == 0 {
 		return nil, shared.ErrKnowledgeBaseNotFound
@@ -104,6 +107,9 @@ func (s *FragmentAppService) RuntimeDestroyByBusinessID(
 	if input == nil {
 		return shared.ErrFragmentNotFound
 	}
+	if err := s.authorizeKnowledgeBaseAction(ctx, input.OrganizationCode, "", input.KnowledgeCode, "delete"); err != nil {
+		return err
+	}
 
 	kb, err := s.loadScopedKnowledgeBase(ctx, input.OrganizationCode, input.KnowledgeCode)
 	if err != nil {
@@ -130,6 +136,9 @@ func (s *FragmentAppService) RuntimeDestroyByMetadataFilter(
 ) error {
 	if input == nil {
 		return shared.ErrFragmentMetadataFilterRequired
+	}
+	if err := s.authorizeKnowledgeBaseAction(ctx, input.OrganizationCode, "", input.KnowledgeCode, "delete"); err != nil {
+		return err
 	}
 
 	metadataFilter := buildRuntimeMetadataFilter(input.MetadataFilter)
@@ -167,7 +176,7 @@ func (s *FragmentAppService) RuntimeDestroyByMetadataFilter(
 
 func (s *FragmentAppService) runtimeCreateFragment(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	input *fragdto.RuntimeCreateFragmentInput,
 ) (*fragmodel.KnowledgeBaseFragment, error) {
 	resolvedKnowledgeCode := strings.TrimSpace(input.KnowledgeCode)
@@ -190,7 +199,7 @@ func (s *FragmentAppService) runtimeCreateFragment(
 	}
 
 	if strings.TrimSpace(input.DocumentCode) != "" || fragdomain.ResolveLegacyThirdPlatformFileID(input.Metadata) != "" {
-		lifecycle, err := s.buildManualWriteLifecycle(ctx, kb, createInput)
+		lifecycle, err := s.buildManualWriteLifecycle(ctx, knowledgeBaseSnapshotFromDomain(kb), createInput)
 		if err != nil {
 			return nil, err
 		}
@@ -212,7 +221,10 @@ func (s *FragmentAppService) runtimeCreateFragment(
 		return lifecycle.Fragment, nil
 	}
 
-	doc, _, err := s.documentService.EnsureDefaultDocument(ctx, knowledgeBaseSnapshotFromEntity(kb))
+	if err := s.healKnowledgeBaseUIDsBeforeDefaultDocument(ctx, kb); err != nil {
+		return nil, err
+	}
+	doc, _, err := s.documentService.EnsureDefaultDocument(ctx, knowledgeBaseSnapshotFromDomain(kb))
 	if err != nil {
 		return nil, fmt.Errorf("ensure default document: %w", err)
 	}
@@ -233,7 +245,7 @@ func (s *FragmentAppService) runtimeCreateFragment(
 
 func (s *FragmentAppService) runtimeSimilarityByKnowledgeBase(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	input *fragdto.RuntimeSimilarityInput,
 	topK int,
 	scoreThreshold float64,
@@ -247,7 +259,7 @@ func (s *FragmentAppService) runtimeSimilarityByKnowledgeBase(
 		HardFilter: metadataFilter,
 		Debug:      input.Debug,
 	}
-	results, err := s.fragmentService.Similarity(ctx, kb, fragretrieval.SimilarityRequest{
+	results, err := s.fragmentService.Similarity(ctx, knowledgeBaseSnapshotFromDomain(kb), fragretrieval.SimilarityRequest{
 		Query:                   input.Query,
 		EmbeddingQuery:          resolveRuntimeEmbeddingQuery(input),
 		TopK:                    topK,
@@ -259,14 +271,16 @@ func (s *FragmentAppService) runtimeSimilarityByKnowledgeBase(
 	if err != nil {
 		return nil, fmt.Errorf("failed to search runtime similarity: %w", err)
 	}
-	return s.similarityResultsToDTOs(ctx, kb, results)
+	return s.similarityResultsToDTOs(ctx, kb, results, input.Debug)
 }
 
 func (s *FragmentAppService) similarityResultsToDTOs(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	results []*fragmodel.SimilarityResult,
+	debug bool,
 ) ([]*fragdto.SimilarityResultDTO, error) {
+	assemblyStartedAt := time.Now()
 	dtos := make([]*fragdto.SimilarityResultDTO, len(results))
 	for i, result := range results {
 		documentName := result.DocumentName
@@ -284,7 +298,7 @@ func (s *FragmentAppService) similarityResultsToDTOs(
 			Content:           displayContent,
 			Score:             result.Score,
 			WordCount:         wordCount,
-			Metadata:          result.Metadata,
+			Metadata:          fragmetadata.CloneMetadata(result.Metadata),
 			KnowledgeBaseCode: result.KnowledgeCode,
 			KnowledgeCode:     result.KnowledgeCode,
 			DocumentCode:      result.DocumentCode,
@@ -293,9 +307,30 @@ func (s *FragmentAppService) similarityResultsToDTOs(
 			DocType:           documentType,
 			BusinessID:        result.BusinessID,
 		}
+		withSimilarityKnowledgeBaseContext(dtos[i], kb)
 	}
-	if err := s.backfillSimilarityFragmentFields(ctx, kb, dtos); err != nil {
+	if err := s.backfillSimilarityFragmentFields(ctx, dtos); err != nil {
 		return nil, err
+	}
+	for _, dto := range dtos {
+		if dto == nil {
+			continue
+		}
+		if dto.Metadata == nil {
+			dto.Metadata = map[string]any{}
+		}
+		if dto.WordCount > 0 {
+			dto.Metadata["word_count"] = dto.WordCount
+		}
+		dto.Metadata = sanitizeSimilarityResponseMetadata(dto.Metadata, debug)
+	}
+	if s != nil && s.logger != nil {
+		s.logger.DebugContext(
+			ctx,
+			"Knowledge similarity dto assembly completed",
+			logkey.DurationMS, logkey.DurationToMS(time.Since(assemblyStartedAt)),
+			"result_count", len(dtos),
+		)
 	}
 	return dtos, nil
 }
@@ -331,46 +366,41 @@ func (s *FragmentAppService) listFragmentsByBusinessID(
 
 func (s *FragmentAppService) backfillSimilarityFragmentFields(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
 	results []*fragdto.SimilarityResultDTO,
 ) error {
+	syncSimilarityResultMetadata(results)
+
 	targets := collectSimilarityBackfillTargets(results)
 	if len(targets) == 0 {
 		return nil
 	}
 
-	if err := s.backfillSimilarityFragmentFieldsByDocuments(ctx, targets); err != nil && s.logger != nil {
-		s.logger.WarnContext(ctx, "Backfill similarity fragments by documents failed", "error", err)
-	}
-	if err := s.backfillSimilarityFragmentFieldsByPointIDs(ctx, targets); err != nil {
+	fragmentMap, err := s.findSimilarityBackfillFragmentsByPointIDs(ctx, targets)
+	if err != nil {
 		return err
 	}
+
+	for _, target := range targets {
+		if target == nil {
+			continue
+		}
+		fragment := fragmentMap[target.pointID]
+		if fragment == nil {
+			continue
+		}
+		s.applySimilarityBackfillFragment(target, fragment)
+	}
 	s.syncSimilarityBackfillMetadata(targets)
-	s.repairSimilarityPayloadFields(ctx, kb, targets)
 	return nil
 }
 
 type similarityBackfillTarget struct {
-	result                *fragdto.SimilarityResultDTO
-	pointID               string
-	needResultID          bool
-	needResultBusinessID  bool
-	needPayloadFragmentID bool
-	needPayloadBusinessID bool
-}
-
-func (target *similarityBackfillTarget) needsResultBackfill() bool {
-	if target == nil {
-		return false
-	}
-	return target.needResultID || target.needResultBusinessID
-}
-
-func (target *similarityBackfillTarget) needsPayloadRepair() bool {
-	if target == nil {
-		return false
-	}
-	return target.needPayloadFragmentID || target.needPayloadBusinessID
+	result                   *fragdto.SimilarityResultDTO
+	pointID                  string
+	missingResultID          bool
+	missingResultBusinessID  bool
+	missingPayloadFragmentID bool
+	missingPayloadBusinessID bool
 }
 
 func collectSimilarityBackfillTargets(results []*fragdto.SimilarityResultDTO) []*similarityBackfillTarget {
@@ -384,14 +414,14 @@ func collectSimilarityBackfillTargets(results []*fragdto.SimilarityResultDTO) []
 			continue
 		}
 		target := &similarityBackfillTarget{
-			result:                result,
-			pointID:               pointID,
-			needResultID:          result.ID == 0,
-			needResultBusinessID:  strings.TrimSpace(result.BusinessID) == "",
-			needPayloadFragmentID: similarityFragmentID(result.Metadata) == 0,
-			needPayloadBusinessID: similarityBusinessID(result.Metadata) == "",
+			result:                   result,
+			pointID:                  pointID,
+			missingResultID:          result.ID == 0,
+			missingResultBusinessID:  strings.TrimSpace(result.BusinessID) == "",
+			missingPayloadFragmentID: similarityFragmentID(result.Metadata) == 0,
+			missingPayloadBusinessID: similarityBusinessID(result.Metadata) == "",
 		}
-		if !target.needsResultBackfill() && !target.needsPayloadRepair() {
+		if !target.needsBackfill() {
 			continue
 		}
 		targets = append(targets, target)
@@ -399,98 +429,72 @@ func collectSimilarityBackfillTargets(results []*fragdto.SimilarityResultDTO) []
 	return targets
 }
 
-func (s *FragmentAppService) backfillSimilarityFragmentFieldsByDocuments(
-	ctx context.Context,
-	targets []*similarityBackfillTarget,
-) error {
-	documentKeys := make([]fragmodel.DocumentKey, 0, len(targets))
-	for _, target := range targets {
-		if target == nil || !target.needsResultBackfill() || target.result == nil {
-			continue
-		}
-		documentKey := fragmodel.DocumentKey{
-			KnowledgeCode: strings.TrimSpace(target.result.KnowledgeCode),
-			DocumentCode:  strings.TrimSpace(target.result.DocumentCode),
-		}
-		if documentKey.KnowledgeCode == "" || documentKey.DocumentCode == "" {
-			continue
-		}
-		documentKeys = append(documentKeys, documentKey)
+func (target *similarityBackfillTarget) needsBackfill() bool {
+	if target == nil {
+		return false
 	}
-	documentKeys = uniqueDocumentKeys(documentKeys)
-	if len(documentKeys) == 0 {
-		return nil
-	}
-
-	grouped, err := s.fragmentService.ListContextByDocuments(ctx, documentKeys, similarityBackfillDocumentLimit)
-	if err != nil {
-		return fmt.Errorf("list similarity context fragments by documents: %w", err)
-	}
-
-	fragmentByPointID := make(map[string]*fragmodel.KnowledgeBaseFragment, len(grouped))
-	for _, fragments := range grouped {
-		for _, fragment := range fragments {
-			if fragment == nil {
-				continue
-			}
-			pointID := strings.TrimSpace(fragment.PointID)
-			if pointID == "" {
-				continue
-			}
-			if _, exists := fragmentByPointID[pointID]; exists {
-				continue
-			}
-			fragmentByPointID[pointID] = fragment
-		}
-	}
-
-	for _, target := range targets {
-		if target == nil || !target.needsResultBackfill() {
-			continue
-		}
-		s.applySimilarityBackfillFragment(target, fragmentByPointID[target.pointID])
-	}
-	return nil
+	return target.missingResultID ||
+		target.missingResultBusinessID ||
+		target.missingPayloadFragmentID ||
+		target.missingPayloadBusinessID
 }
 
-func (s *FragmentAppService) backfillSimilarityFragmentFieldsByPointIDs(
+func syncSimilarityResultMetadata(results []*fragdto.SimilarityResultDTO) {
+	for _, result := range results {
+		syncSimilarityResultMetadataItem(result)
+	}
+}
+
+func syncSimilarityResultMetadataItem(result *fragdto.SimilarityResultDTO) {
+	if result == nil {
+		return
+	}
+	if result.Metadata == nil {
+		result.Metadata = map[string]any{}
+	}
+	if result.ID > 0 {
+		result.Metadata["fragment_id"] = result.ID
+	}
+	if businessID := strings.TrimSpace(result.BusinessID); businessID != "" {
+		result.Metadata["business_id"] = businessID
+	}
+}
+
+func (s *FragmentAppService) findSimilarityBackfillFragmentsByPointIDs(
 	ctx context.Context,
 	targets []*similarityBackfillTarget,
-) error {
+) (map[string]*fragmodel.KnowledgeBaseFragment, error) {
 	pointIDs := make([]string, 0, len(targets))
 	for _, target := range targets {
-		if target == nil || !target.needsResultBackfill() || target.pointID == "" {
+		if target == nil || target.pointID == "" {
 			continue
 		}
 		pointIDs = append(pointIDs, target.pointID)
 	}
 	pointIDs = uniqueStrings(pointIDs)
 	if len(pointIDs) == 0 {
-		return nil
+		return map[string]*fragmodel.KnowledgeBaseFragment{}, nil
 	}
 
 	fragments, err := s.fragmentService.FindByPointIDs(ctx, pointIDs)
 	if err != nil {
-		return fmt.Errorf("find similarity fragments by point ids: %w", err)
+		return nil, fmt.Errorf("find similarity fragments by point ids: %w", err)
 	}
 	fragmentMap := make(map[string]*fragmodel.KnowledgeBaseFragment, len(fragments))
 	for _, fragment := range fragments {
-		if fragment == nil || strings.TrimSpace(fragment.PointID) == "" {
+		if fragment == nil {
 			continue
 		}
-		if _, exists := fragmentMap[fragment.PointID]; exists {
+		pointID := strings.TrimSpace(fragment.PointID)
+		if pointID == "" {
 			continue
 		}
-		fragmentMap[fragment.PointID] = fragment
+		if _, exists := fragmentMap[pointID]; exists {
+			continue
+		}
+		fragmentMap[pointID] = fragment
 	}
-
-	for _, target := range targets {
-		if target == nil || !target.needsResultBackfill() {
-			continue
-		}
-		s.applySimilarityBackfillFragment(target, fragmentMap[target.pointID])
-	}
-	return nil
+	return fragmentMap, nil
 }
 
 func (s *FragmentAppService) applySimilarityBackfillFragment(
@@ -500,105 +504,25 @@ func (s *FragmentAppService) applySimilarityBackfillFragment(
 	if target == nil || target.result == nil || fragment == nil {
 		return
 	}
-	if target.needResultID && target.result.ID == 0 && fragment.ID > 0 {
+	if target.missingResultID && target.result.ID == 0 && fragment.ID > 0 {
 		target.result.ID = fragment.ID
 	}
-	if target.needResultBusinessID && strings.TrimSpace(target.result.BusinessID) == "" {
+	if target.missingResultBusinessID && strings.TrimSpace(target.result.BusinessID) == "" {
 		target.result.BusinessID = strings.TrimSpace(fragment.BusinessID)
 	}
-	target.needResultID = target.result.ID == 0
-	target.needResultBusinessID = strings.TrimSpace(target.result.BusinessID) == ""
+	target.missingResultID = target.result.ID == 0
+	target.missingResultBusinessID = strings.TrimSpace(target.result.BusinessID) == ""
 }
 
 func (s *FragmentAppService) syncSimilarityBackfillMetadata(targets []*similarityBackfillTarget) {
 	for _, target := range targets {
-		if target == nil || target.result == nil {
-			continue
-		}
-		if target.result.Metadata == nil {
-			target.result.Metadata = map[string]any{}
-		}
-		if target.result.ID > 0 {
-			target.result.Metadata["fragment_id"] = target.result.ID
-		}
-		if businessID := strings.TrimSpace(target.result.BusinessID); businessID != "" {
-			target.result.Metadata["business_id"] = businessID
-		}
+		syncSimilarityResultMetadataItem(target.result)
 	}
-}
-
-func (s *FragmentAppService) repairSimilarityPayloadFields(
-	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
-	targets []*similarityBackfillTarget,
-) {
-	if kb == nil || s == nil || s.kbService == nil {
-		return
-	}
-	collectionName := strings.TrimSpace(s.kbService.ResolveRuntimeRoute(ctx, kb).VectorCollectionName)
-	if collectionName == "" {
-		return
-	}
-
-	updates := buildSimilarityPayloadRepairUpdates(targets)
-	if len(updates) == 0 {
-		return
-	}
-
-	if err := s.fragmentService.SetPayloadByPointIDs(ctx, collectionName, updates); err != nil && s.logger != nil {
-		s.logger.WarnContext(
-			ctx,
-			"Repair similarity payload fields failed",
-			"knowledge_code", kb.Code,
-			"collection_name", collectionName,
-			"point_count", len(updates),
-			"error", err,
-		)
-	}
-}
-
-func buildSimilarityPayloadRepairUpdates(targets []*similarityBackfillTarget) map[string]map[string]any {
-	updates := make(map[string]map[string]any, len(targets))
-	for _, target := range targets {
-		pointID, payload, ok := buildSimilarityPayloadRepairUpdate(target)
-		if !ok {
-			continue
-		}
-		updates[pointID] = payload
-	}
-	return updates
-}
-
-func buildSimilarityPayloadRepairUpdate(target *similarityBackfillTarget) (string, map[string]any, bool) {
-	if target == nil || !target.needsPayloadRepair() || target.result == nil || target.pointID == "" {
-		return "", nil, false
-	}
-
-	fragmentID := target.result.ID
-	businessID := strings.TrimSpace(target.result.BusinessID)
-	if target.needPayloadFragmentID && fragmentID == 0 {
-		return "", nil, false
-	}
-	if target.needPayloadBusinessID && businessID == "" {
-		return "", nil, false
-	}
-
-	payload := make(map[string]any, 2)
-	if target.needPayloadFragmentID && fragmentID > 0 {
-		payload["fragment_id"] = fragmentID
-	}
-	if target.needPayloadBusinessID && businessID != "" {
-		payload["business_id"] = businessID
-	}
-	if len(payload) == 0 {
-		return "", nil, false
-	}
-	return target.pointID, payload, true
 }
 
 func resolveRuntimeSimilarityConfig(
 	input *fragdto.RuntimeSimilarityInput,
-	firstKB *knowledgebasedomain.KnowledgeBase,
+	firstKB *kbentity.KnowledgeBase,
 ) (int, float64) {
 	topK := input.TopK
 	if topK <= 0 {
@@ -633,7 +557,7 @@ func resolveRuntimeEmbeddingQuery(input *fragdto.RuntimeSimilarityInput) string 
 	return strings.TrimSpace(input.Query)
 }
 
-func buildRuntimeKnowledgeBaseFilter(kb *knowledgebasedomain.KnowledgeBase) *fragmodel.VectorFilter {
+func buildRuntimeKnowledgeBaseFilter(kb *kbentity.KnowledgeBase) *fragmodel.VectorFilter {
 	if kb == nil {
 		return nil
 	}
@@ -708,18 +632,38 @@ func runtimeScalarMatch(value any) (fragmodel.Match, bool) {
 }
 
 func runtimeSliceValues(value any) ([]any, bool) {
-	rawValue := reflect.ValueOf(value)
-	if !rawValue.IsValid() {
+	switch values := value.(type) {
+	case []any:
+		return append([]any(nil), values...), true
+	case []string:
+		return scalarSliceToAny(values), true
+	case []float64:
+		return scalarSliceToAny(values), true
+	case []float32:
+		return scalarSliceToAny(values), true
+	case []int:
+		return scalarSliceToAny(values), true
+	case []int8:
+		return scalarSliceToAny(values), true
+	case []int16:
+		return scalarSliceToAny(values), true
+	case []int32:
+		return scalarSliceToAny(values), true
+	case []int64:
+		return scalarSliceToAny(values), true
+	case []uint:
+		return scalarSliceToAny(values), true
+	case []uint8:
+		return scalarSliceToAny(values), true
+	case []uint16:
+		return scalarSliceToAny(values), true
+	case []uint32:
+		return scalarSliceToAny(values), true
+	case []uint64:
+		return scalarSliceToAny(values), true
+	default:
 		return nil, false
 	}
-	if rawValue.Kind() != reflect.Slice && rawValue.Kind() != reflect.Array {
-		return nil, false
-	}
-	items := make([]any, 0, rawValue.Len())
-	for i := range rawValue.Len() {
-		items = append(items, rawValue.Index(i).Interface())
-	}
-	return items, true
 }
 
 func runtimeSliceMatch(values []any) (fragmodel.Match, bool) {
@@ -774,20 +718,42 @@ func classifyRuntimeSliceValue(value any) (runtimeSliceValueKind, string, float6
 }
 
 func runtimeNumericValue(value any) (float64, bool) {
-	rawValue := reflect.ValueOf(value)
-	if !rawValue.IsValid() {
-		return 0, false
-	}
-	switch rawValue.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return float64(rawValue.Int()), true
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return float64(rawValue.Uint()), true
-	case reflect.Float32, reflect.Float64:
-		return rawValue.Float(), true
+	switch typed := value.(type) {
+	case int:
+		return float64(typed), true
+	case int8:
+		return float64(typed), true
+	case int16:
+		return float64(typed), true
+	case int32:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case uint:
+		return float64(typed), true
+	case uint8:
+		return float64(typed), true
+	case uint16:
+		return float64(typed), true
+	case uint32:
+		return float64(typed), true
+	case uint64:
+		return float64(typed), true
+	case float32:
+		return float64(typed), true
+	case float64:
+		return typed, true
 	default:
 		return 0, false
 	}
+}
+
+func scalarSliceToAny[T any](values []T) []any {
+	items := make([]any, len(values))
+	for i := range values {
+		items[i] = values[i]
+	}
+	return items
 }
 
 func mergeRuntimeVectorFilters(filters ...*fragmodel.VectorFilter) *fragmodel.VectorFilter {
@@ -862,45 +828,6 @@ func similarityBusinessID(metadata map[string]any) string {
 	}
 	value, _ := metadata["business_id"].(string)
 	return strings.TrimSpace(value)
-}
-
-func uniqueDocumentKeys(documentKeys []fragmodel.DocumentKey) []fragmodel.DocumentKey {
-	seen := make(map[fragmodel.DocumentKey]struct{}, len(documentKeys))
-	result := make([]fragmodel.DocumentKey, 0, len(documentKeys))
-	for _, documentKey := range documentKeys {
-		normalizedKey := fragmodel.DocumentKey{
-			KnowledgeCode: strings.TrimSpace(documentKey.KnowledgeCode),
-			DocumentCode:  strings.TrimSpace(documentKey.DocumentCode),
-		}
-		if normalizedKey.KnowledgeCode == "" || normalizedKey.DocumentCode == "" {
-			continue
-		}
-		if _, ok := seen[normalizedKey]; ok {
-			continue
-		}
-		seen[normalizedKey] = struct{}{}
-		result = append(result, normalizedKey)
-	}
-	return result
-}
-
-func knowledgeBaseSnapshotFromEntity(kb *knowledgebasedomain.KnowledgeBase) *sharedsnapshot.KnowledgeBaseRuntimeSnapshot {
-	if kb == nil {
-		return nil
-	}
-	return sharedsnapshot.NormalizeKnowledgeBaseSnapshotConfigs(&sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
-		Code:             kb.Code,
-		Name:             kb.Name,
-		OrganizationCode: kb.OrganizationCode,
-		Model:            kb.Model,
-		VectorDB:         kb.VectorDB,
-		CreatedUID:       kb.CreatedUID,
-		UpdatedUID:       kb.UpdatedUID,
-		RetrieveConfig:   kb.RetrieveConfig,
-		FragmentConfig:   kb.FragmentConfig,
-		EmbeddingConfig:  kb.EmbeddingConfig,
-		ResolvedRoute:    kb.ResolvedRoute,
-	})
 }
 
 func uniqueRuntimeKnowledgeCodes(codes []string) []string {

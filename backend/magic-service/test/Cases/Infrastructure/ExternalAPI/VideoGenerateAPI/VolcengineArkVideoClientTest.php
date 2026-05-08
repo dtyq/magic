@@ -145,13 +145,13 @@ class VolcengineArkVideoClientTest extends TestCase
             $clientFactory,
             $loggerFactory,
             $this->createTranslator([
-                'video.errors.volcengine.InputVideoSensitiveContentDetected.PrivacyInformation' => '输入视频或图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。',
+                'video.errors.InputVideoSensitiveContentDetected.PrivacyInformation' => '输入视频可能包含真人或人脸，请更换无真人、无肖像的素材后再试。',
                 'video.errors.generic' => '视频生成失败，请检查输入内容或稍后重试。',
             ]),
         );
 
         $this->expectException(ProviderVideoException::class);
-        $this->expectExceptionMessage('输入视频或图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。');
+        $this->expectExceptionMessage('输入视频可能包含真人或人脸，请更换无真人、无肖像的素材后再试。');
 
         $client->post(
             'https://ark.cn-beijing.volces.com/api/v3',
@@ -192,7 +192,7 @@ class VolcengineArkVideoClientTest extends TestCase
             $clientFactory,
             $loggerFactory,
             $this->createTranslator([
-                'video.errors.volcengine.InvalidParameter.InvalidResolution' => '当前分辨率不受支持，请改为 480p 或 720p 后重试。',
+                'video.errors.InvalidParameter.InvalidResolution' => '当前分辨率不受支持，请改为 480p 或 720p 后重试。',
                 'video.errors.generic' => '视频生成失败，请检查输入内容或稍后重试。',
             ]),
         );

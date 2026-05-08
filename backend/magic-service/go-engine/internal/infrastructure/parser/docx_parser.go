@@ -21,7 +21,7 @@ import (
 	_ "golang.org/x/image/bmp"  // Register BMP decoder for gooxml embedded image extraction.
 	_ "golang.org/x/image/webp" // Register WebP decoder so unsupported OCR formats can still be skipped safely.
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 // DocxParser Word 解析器
@@ -147,6 +147,9 @@ func (p *DocxParser) ParseDocumentWithOptions(
 	lines := p.extractDocxLines(ctx, doc, imageAssetByRelID, ocrHelper, options.TableExtraction)
 	parsed := documentdomain.NewPlainTextParsedDocument(fileType, strings.Join(lines, "\n\n"))
 	ocrHelper.apply(parsed)
+	if err := failIfEmptyDueToOCROverload(parsed, ocrHelper); err != nil {
+		return nil, err
+	}
 	return parsed, nil
 }
 

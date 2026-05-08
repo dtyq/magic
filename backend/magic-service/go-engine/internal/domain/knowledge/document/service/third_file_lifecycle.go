@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/domain/knowledge/shared"
 )
 
@@ -118,7 +119,7 @@ func (s *ThirdFileRevectorizeLifecycleService) validateInput(
 func (s *ThirdFileRevectorizeLifecycleService) buildRequests(
 	async bool,
 	task *ThirdFileRevectorizeInput,
-	docs []*KnowledgeBaseDocument,
+	docs []*docentity.KnowledgeBaseDocument,
 	seed *ThirdFileRevectorizeSeed,
 	snapshot *ResolvedSourceSnapshot,
 ) []*SyncDocumentInput {

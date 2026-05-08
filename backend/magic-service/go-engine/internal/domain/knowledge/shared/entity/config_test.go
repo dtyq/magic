@@ -3,6 +3,8 @@ package entity_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	"magic/internal/domain/knowledge/shared/entity"
@@ -84,5 +86,42 @@ func TestVectorDBConfigJSON(t *testing.T) {
 	err = receiver.UnmarshalJSON([]byte(`{}`))
 	if !errors.Is(err, entity.ErrNilReceiver) {
 		t.Fatalf("expected ErrNilReceiver, got %v", err)
+	}
+}
+
+func TestOCRConfigSerializationDoesNotExposeCredentials(t *testing.T) {
+	t.Parallel()
+
+	cfg := entity.OCRConfig{
+		Identity:  "ocr-access-secret",
+		Signature: "ocr-secret-secret",
+		Region:    "cn-north-1",
+		Endpoint:  "visual.example.com",
+	}
+	payload, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshal ocr config: %v", err)
+	}
+	debugPayload := fmt.Sprintf("%+v %#v %s", cfg, cfg, cfg.LogValue())
+
+	assertOCRPayloadHasNoCredential(t, string(payload))
+	assertOCRPayloadHasNoCredential(t, debugPayload)
+	if !strings.Contains(string(payload), "visual.example.com") {
+		t.Fatalf("expected non-sensitive endpoint to be serialized, got %s", payload)
+	}
+}
+
+func assertOCRPayloadHasNoCredential(t *testing.T, payload string) {
+	t.Helper()
+
+	for _, forbidden := range []string{
+		"ocr-access-secret",
+		"ocr-secret-secret",
+		"identity",
+		"signature",
+	} {
+		if strings.Contains(payload, forbidden) {
+			t.Fatalf("expected payload not to contain %q, got %s", forbidden, payload)
+		}
 	}
 }

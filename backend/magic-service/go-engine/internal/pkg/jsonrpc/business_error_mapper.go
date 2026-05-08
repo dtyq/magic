@@ -12,8 +12,9 @@ import (
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	embeddingdomain "magic/internal/domain/knowledge/embedding"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
+	"magic/internal/pkg/thirdplatform"
 )
 
 // MapBusinessError 将应用/领域错误统一映射为对外业务错误码。
@@ -74,11 +75,13 @@ func executionErrorMessage(err error) string {
 
 func isPermissionError(err error) bool {
 	return errors.Is(err, documentapp.ErrDocumentOrgMismatch) ||
+		errors.Is(err, documentapp.ErrDocumentPermissionDenied) ||
 		errors.Is(err, fragmentapp.ErrFragmentPermissionDenied) ||
 		errors.Is(err, knowledgebaseapp.ErrKnowledgeBasePermissionDenied) ||
 		errors.Is(err, knowledgebaseapp.ErrOfficialOrganizationMemberRequired) ||
 		errors.Is(err, rebuildapp.ErrOfficialOrganizationMemberRequired) ||
-		errors.Is(err, knowledgebaseapp.ErrSuperMagicAgentNotManageable)
+		errors.Is(err, knowledgebaseapp.ErrSuperMagicAgentNotManageable) ||
+		errors.Is(err, thirdplatform.ErrPermissionDenied)
 }
 
 func isConflictError(err error) bool {
@@ -147,6 +150,7 @@ func validationErrorList() []error {
 		shared.ErrFragmentWriteDisabled,
 		documentdomain.ErrNoParserFound,
 		documentdomain.ErrDocumentSourceEmpty,
+		documentdomain.ErrManagedDocumentSingleDeleteNotAllowed,
 		embeddingdomain.ErrContentEmpty,
 		knowledgebaseapp.ErrEmbeddingModelRequired,
 		knowledgebaseapp.ErrEmbeddingModelNotAllowed,
@@ -164,12 +168,13 @@ func validationErrorList() []error {
 		knowledgebaseapp.ErrUnsupportedRepairThirdPlatform,
 		knowledgebaseapp.ErrRepairSourceBindingsOrganizationRequired,
 		knowledgebaseapp.ErrInvalidAgentCode,
-		knowledgebasedomain.ErrInvalidSourceType,
-		knowledgebasedomain.ErrInvalidKnowledgeBaseType,
-		knowledgebasedomain.ErrExplicitFlowSourceTypeRequired,
-		knowledgebasedomain.ErrDigitalEmployeeSourceTypeRequired,
-		knowledgebasedomain.ErrAmbiguousFlowSourceType,
-		knowledgebasedomain.ErrManualDocumentCreateNotAllowed,
+		thirdplatform.ErrIdentityMissing,
+		kbentity.ErrInvalidSourceType,
+		kbentity.ErrInvalidKnowledgeBaseType,
+		kbentity.ErrExplicitFlowSourceTypeRequired,
+		kbentity.ErrDigitalEmployeeSourceTypeRequired,
+		kbentity.ErrAmbiguousFlowSourceType,
+		kbentity.ErrManualDocumentCreateNotAllowed,
 	}
 }
 

@@ -10,9 +10,11 @@ import (
 	"time"
 
 	texthelper "magic/internal/application/knowledge/helper/text"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	"magic/internal/domain/knowledge/shared"
 	"magic/internal/infrastructure/logging"
+	"magic/internal/pkg/projectfile"
 	"magic/internal/pkg/thirdplatform"
 )
 
@@ -39,7 +41,7 @@ type BuildInitialDocumentInput struct {
 type InitialDocumentSpec struct {
 	Name         string
 	DocType      int
-	DocumentFile *documentdomain.File
+	DocumentFile *docentity.File
 }
 
 // ResolveLatestContentInput 描述按第三方文件拉取最新内容所需输入。
@@ -48,7 +50,7 @@ type ResolveLatestContentInput struct {
 	UserID            string
 	KnowledgeBaseCode string
 	ThirdFileID       string
-	Document          *documentdomain.KnowledgeBaseDocument
+	Document          *docentity.KnowledgeBaseDocument
 }
 
 // LatestContentResult 描述第三方文档的最新内容。
@@ -130,9 +132,11 @@ func (p *TeamshareProvider) BuildInitialDocument(ctx context.Context, input Buil
 
 	documentName := resolveDocumentName(input.Metadata, thirdFileID)
 	file := buildDocumentFile(documentName, thirdFileID)
+	// 首次建映射时如果还没拿到远端 resolve 结果，先按文件名推导一个主表精确 doc_type；
+	// 后续 resolved.DocType 仍可能覆盖成 enterprise 扩展值 1001/1002。
 	spec := &InitialDocumentSpec{
 		Name:         documentName,
-		DocType:      inferDocType(documentName),
+		DocType:      inferInitialDocType(documentName),
 		DocumentFile: file,
 	}
 
@@ -140,7 +144,7 @@ func (p *TeamshareProvider) BuildInitialDocument(ctx context.Context, input Buil
 		return spec, nil
 	}
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		OrganizationCode:  input.OrganizationCode,
 		KnowledgeBaseCode: input.KnowledgeBaseCode,
 		Name:              documentName,
@@ -159,7 +163,7 @@ func (p *TeamshareProvider) BuildInitialDocument(ctx context.Context, input Buil
 	})
 	if err != nil {
 		if p.logger != nil {
-			p.logger.WarnContext(
+			p.logger.KnowledgeWarnContext(
 				ctx,
 				"Resolve teamshare document for initial mapping failed",
 				"knowledge_base_code", input.KnowledgeBaseCode,
@@ -187,7 +191,7 @@ func (p *TeamshareProvider) ResolveLatestContent(ctx context.Context, input Reso
 
 	document := input.Document
 	if document == nil {
-		document = &documentdomain.KnowledgeBaseDocument{
+		document = &docentity.KnowledgeBaseDocument{
 			OrganizationCode:  input.OrganizationCode,
 			KnowledgeBaseCode: input.KnowledgeBaseCode,
 			ThirdPlatformType: teamsharePlatformType,
@@ -246,19 +250,19 @@ func parseMarkdownLinkTitle(raw string) string {
 	return strings.TrimSpace(trimmed[1:end])
 }
 
-func inferDocType(name string) int {
-	if inferExtension(name) != "" {
-		return int(documentdomain.DocTypeFile)
+func inferInitialDocType(name string) int {
+	if extension := inferExtension(name); extension != "" {
+		return projectfile.ResolveDocType(extension)
 	}
-	return int(documentdomain.DocTypeText)
+	return int(docentity.DocTypeText)
 }
 
 func inferExtension(name string) string {
 	return strings.TrimSpace(strings.ToLower(strings.TrimPrefix(filepath.Ext(strings.TrimSpace(name)), ".")))
 }
 
-func buildDocumentFile(name, thirdFileID string) *documentdomain.File {
-	file := &documentdomain.File{
+func buildDocumentFile(name, thirdFileID string) *docentity.File {
+	file := &docentity.File{
 		Type:       thirdPlatformDocumentType,
 		Name:       name,
 		ThirdID:    thirdFileID,
@@ -270,7 +274,7 @@ func buildDocumentFile(name, thirdFileID string) *documentdomain.File {
 	return file
 }
 
-func cloneDocumentFile(file *documentdomain.File) *documentdomain.File {
+func cloneDocumentFile(file *docentity.File) *docentity.File {
 	if file == nil {
 		return nil
 	}

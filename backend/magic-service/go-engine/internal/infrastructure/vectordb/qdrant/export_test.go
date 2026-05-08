@@ -195,3 +195,7 @@ func CurrentSparseSearchPlanForTest(client *Client, mode string) SparseSearchPla
 		ImmediateUnsupported: plan.ImmediateUnsupported,
 	}
 }
+
+func BuildTimingLogMessageForTest(duration time.Duration, operation string, keysAndValues ...any) string {
+	return buildQdrantLogMessage(duration, operation, keysAndValues...)
+}

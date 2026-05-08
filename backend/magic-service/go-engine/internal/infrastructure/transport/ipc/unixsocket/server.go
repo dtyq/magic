@@ -4,6 +4,7 @@ package unixsocket
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -17,6 +18,8 @@ import (
 )
 
 const defaultEngineSocketPath = "/tmp/magic_engine.sock"
+
+var errUnixSocketServerNil = errors.New("unix socket server is nil")
 
 // Server 用于 UDS IPC 的封装。
 type Server struct {
@@ -115,6 +118,22 @@ func (s *Server) GetRPCClientCount() int {
 	return s.rpcServer.GetClientCount()
 }
 
+// HasCapableClient 判断是否已有完成握手并声明指定能力的 IPC 客户端。
+func (s *Server) HasCapableClient(methods ...string) bool {
+	return s != nil && s.rpcServer != nil && s.rpcServer.HasCapableClient(methods...)
+}
+
+// WaitCapableClient 等待完成握手并声明指定能力的 IPC 客户端。
+func (s *Server) WaitCapableClient(ctx context.Context, methods ...string) error {
+	if s == nil || s.rpcServer == nil {
+		return errUnixSocketServerNil
+	}
+	if err := s.rpcServer.WaitCapableClient(ctx, methods...); err != nil {
+		return fmt.Errorf("wait capable IPC client: %w", err)
+	}
+	return nil
+}
+
 // Start 启动服务
 func (s *Server) Start() error {
 	const dirPerm = 0o750
@@ -125,6 +144,9 @@ func (s *Server) Start() error {
 	if _, err := os.Stat(s.path); err == nil {
 		if err := os.Remove(s.path); err != nil {
 			return fmt.Errorf("remove old socket failed: %w", err)
+		}
+		if s.logger != nil {
+			s.logger.DebugContext(context.Background(), "Removed old Go engine IPC socket", "socket_path", s.path)
 		}
 	}
 
@@ -137,6 +159,12 @@ func (s *Server) Start() error {
 	if err := s.rpcServer.Serve(listener, s.path); err != nil {
 		_ = listener.Close()
 		return fmt.Errorf("rpc runtime serve failed: %w", err)
+	}
+	if s.logger != nil {
+		s.logger.InfoContext(context.Background(), "Go engine IPC socket listening",
+			"socket_path", s.path,
+			"pid", os.Getpid(),
+		)
 	}
 	return nil
 }

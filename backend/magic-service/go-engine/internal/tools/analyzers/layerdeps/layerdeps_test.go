@@ -117,13 +117,13 @@ func Test_packageInfoFromPath_KnowledgeSubdomain(t *testing.T) {
 	t.Parallel()
 
 	p, ok := packageInfoFromPath("/root/internal/domain/knowledge/document/service/project_file_support.go")
-	if !ok || p.layer != layerDomain || p.domain != "knowledge/document" {
-		t.Fatalf("unexpected: ok=%v layer=%v domain=%v", ok, p.layer, p.domain)
+	if !ok || p.layer != layerDomain || p.domain != "knowledge/document" || p.role != "service" {
+		t.Fatalf("unexpected: ok=%v layer=%v domain=%v role=%v", ok, p.layer, p.domain, p.role)
 	}
 
 	p2, ok2 := packageInfoFromPath("/root/internal/domain/knowledge/shared/route/types.go")
-	if !ok2 || p2.layer != layerDomain || p2.domain != "knowledge/shared" {
-		t.Fatalf("unexpected shared kernel domain: ok=%v layer=%v domain=%v", ok2, p2.layer, p2.domain)
+	if !ok2 || p2.layer != layerDomain || p2.domain != "knowledge/shared" || p2.role != "shared" {
+		t.Fatalf("unexpected shared kernel domain: ok=%v layer=%v domain=%v role=%v", ok2, p2.layer, p2.domain, p2.role)
 	}
 }
 
@@ -148,6 +148,10 @@ func Test_readRuleConfigFromFile_CamelCase(t *testing.T) {
 	configPath := filepath.Join(dir, "whitelist.yaml")
 	content := `domain:
   structureSegmentsWhitelist:
+    - entity
+    - model
+    - metadata
+    - retrieval
     - service
     - repository
   sharedKernelSubdomainsWhitelist:
@@ -166,7 +170,7 @@ application:
 		t.Fatalf("read config: %v", err)
 	}
 
-	if !slices.Equal(config.DomainStructureSegments, []string{"repository", "service"}) {
+	if !slices.Equal(config.DomainStructureSegments, []string{"entity", "metadata", "model", "repository", "retrieval", "service"}) {
 		t.Fatalf("unexpected structure segments: %+v", config.DomainStructureSegments)
 	}
 	if !slices.Equal(config.DomainSharedKernelSubdomains, []string{"shared"}) {
@@ -345,6 +349,17 @@ import _ "github.com/acme/proj/internal/domain/user/repository/auth"`
 	}
 }
 
+func Test_run_NoViolation_AppToDomainRepositoryRoot(t *testing.T) {
+	t.Parallel()
+
+	code := `package a
+import _ "github.com/acme/proj/internal/domain/user/repository"`
+	diags := runWith(t, "/root/internal/application/foo.go", code)
+	if diags != 0 {
+		t.Fatalf("expected no diagnostics for app->domain repository root, got %d", diags)
+	}
+}
+
 func Test_run_Violation_KnowledgeApplicationSiblingImport(t *testing.T) {
 	t.Parallel()
 
@@ -438,6 +453,33 @@ import (
 	diags := runWith(t, "/root/internal/interfaces/http/handler.go", code)
 	if diags < 2 {
 		t.Fatalf("expected >=2 diagnostics for interfaces layer imports, got %d", diags)
+	}
+}
+
+func Test_run_Violation_InfraToDomainService(t *testing.T) {
+	t.Parallel()
+
+	code := `package a
+import _ "github.com/acme/proj/internal/domain/knowledge/document/service"`
+	diags := runWith(t, "/root/internal/infrastructure/persistence/mysql/knowledge/document/repository.go", code)
+	if diags == 0 {
+		t.Fatalf("expected diagnostics for infra->domain/service")
+	}
+}
+
+func Test_run_NoViolation_InfraToDomainStableContracts(t *testing.T) {
+	t.Parallel()
+
+	code := `package a
+import (
+	_ "github.com/acme/proj/internal/domain/knowledge/document/entity"
+	_ "github.com/acme/proj/internal/domain/knowledge/document/repository"
+	_ "github.com/acme/proj/internal/domain/knowledge/fragment/model"
+	_ "github.com/acme/proj/internal/domain/knowledge/shared"
+)`
+	diags := runWith(t, "/root/internal/infrastructure/persistence/mysql/knowledge/document/repository.go", code)
+	if diags != 0 {
+		t.Fatalf("expected no diagnostics for infra->domain stable contracts, got %d", diags)
 	}
 }
 
@@ -723,8 +765,8 @@ func Test_checkDependency_AppToDomainRepo(t *testing.T) {
 	from := packageInfo{layer: layerApplication}
 	to := packageInfo{layer: layerDomain, afterLayer: []string{"user", "repository"}}
 	msg, violated := checkDependency(from, to, "magic/internal/domain/user/repository")
-	if !violated || !contains(msg, "must not import domain repository package") || !contains(msg, "owning subdomain") {
-		t.Fatalf("expected app->domain repo violation: %q", msg)
+	if violated {
+		t.Fatalf("expected app->domain repository root to be allowed: %q", msg)
 	}
 }
 
@@ -737,7 +779,7 @@ func Test_checkDependency_AppToNestedDomainRepo(t *testing.T) {
 		afterLayer: []string{"user", "x", "repository", "pay"},
 	}
 	msg, violated := checkDependency(from, to, "magic/internal/domain/user/x/repository/pay")
-	if !violated || !contains(msg, "must not import domain repository package") {
+	if !violated || !contains(msg, "must not import domain repository implementation package") {
 		t.Fatalf("expected app->nested domain repo violation: %q", msg)
 	}
 }

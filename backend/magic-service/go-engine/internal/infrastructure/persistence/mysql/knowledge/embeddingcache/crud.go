@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	mysqlerr "github.com/go-sql-driver/mysql"
 
@@ -46,51 +45,6 @@ func sqlcCacheToEntity(cache mysqlsqlc.EmbeddingCache) (*embedding.Cache, error)
 	return result, nil
 }
 
-// scanCacheRow 扫描动态查询的行到实体（用于 squirrel 查询）
-func scanCacheRow(scanner interface {
-	Scan(dest ...any) error
-},
-) (*embedding.Cache, error) {
-	var (
-		id              int64
-		textHash        string
-		textPreview     string
-		textLength      int
-		embeddingJSON   string
-		embeddingModel  string
-		vectorDimension int
-		accessCount     int
-		lastAccessedAt  time.Time
-		createdAt       time.Time
-		updatedAt       time.Time
-	)
-
-	err := scanner.Scan(&id, &textHash, &textPreview, &textLength, &embeddingJSON,
-		&embeddingModel, &vectorDimension, &accessCount, &lastAccessedAt, &createdAt, &updatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to scan cache row: %w", err)
-	}
-
-	cache := &embedding.Cache{
-		ID:              id,
-		TextHash:        textHash,
-		TextPreview:     textPreview,
-		TextLength:      textLength,
-		EmbeddingModel:  embeddingModel,
-		VectorDimension: vectorDimension,
-		AccessCount:     accessCount,
-		LastAccessedAt:  lastAccessedAt,
-		CreatedAt:       createdAt,
-		UpdatedAt:       updatedAt,
-	}
-
-	if err := cache.SetEmbeddingFromJSON(embeddingJSON); err != nil {
-		return nil, fmt.Errorf("failed to parse embedding JSON: %w", err)
-	}
-
-	return cache, nil
-}
-
 // FindByHash 根据文本哈希和模型查找缓存
 func (repo *Repository) FindByHash(ctx context.Context, textHash, model string) (*embedding.Cache, error) {
 	sqlcCache, err := repo.client.Q().FindCacheByHash(ctx, mysqlsqlc.FindCacheByHashParams{
@@ -109,7 +63,7 @@ func (repo *Repository) FindByHash(ctx context.Context, textHash, model string) 
 		return nil, err
 	}
 
-	repo.enqueueAccessUpdate(ctx, cache.ID)
+	repo.updateAccessSynchronously(ctx, cache.ID)
 
 	return cache, nil
 }
@@ -147,9 +101,14 @@ func (repo *Repository) FindByHashes(ctx context.Context, textHashes []string, m
 		result[cache.TextHash] = cache
 	}
 
+	ids := make([]int64, 0, len(result))
 	for _, cache := range result {
-		repo.enqueueAccessUpdate(ctx, cache.ID)
+		if cache.ID <= 0 {
+			continue
+		}
+		ids = append(ids, cache.ID)
 	}
+	repo.updateAccessBatchSynchronously(ctx, ids)
 
 	return result, nil
 }
@@ -179,6 +138,10 @@ func (repo *Repository) Save(ctx context.Context, cache *embedding.Cache) error 
 
 // SaveBatch 批量保存新的缓存记录
 func (repo *Repository) SaveBatch(ctx context.Context, caches []*embedding.Cache) error {
+	return repo.saveBatchNow(ctx, caches)
+}
+
+func (repo *Repository) saveBatchNow(ctx context.Context, caches []*embedding.Cache) error {
 	if len(caches) == 0 {
 		return nil
 	}
@@ -234,6 +197,10 @@ func (repo *Repository) GetOrCreate(ctx context.Context, text string, vector []f
 
 // SaveIfAbsent 以 INSERT IGNORE 的方式幂等写入缓存。
 func (repo *Repository) SaveIfAbsent(ctx context.Context, text string, vector []float64, model string) error {
+	return repo.saveIfAbsentNow(ctx, text, vector, model)
+}
+
+func (repo *Repository) saveIfAbsentNow(ctx context.Context, text string, vector []float64, model string) error {
 	cache := embedding.NewEmbeddingCache(text, vector, model)
 	if err := cache.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -258,15 +225,39 @@ func (repo *Repository) UpdateAccess(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (repo *Repository) enqueueAccessUpdate(ctx context.Context, id int64) {
-	if repo == nil || repo.accessUpdater == nil || id <= 0 {
+func (repo *Repository) updateAccessBatch(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := repo.client.Q().UpdateAccessByIDs(ctx, ids); err != nil {
+		return fmt.Errorf("failed to update access statistics in batch: %w", err)
+	}
+	return nil
+}
+
+func (repo *Repository) updateAccessSynchronously(ctx context.Context, id int64) {
+	if repo == nil || id <= 0 {
 		return
 	}
-	if repo.accessUpdater.Enqueue(ctx, id) {
+	err := repo.UpdateAccess(ctx, id)
+	if err == nil {
 		return
 	}
 	if repo.logger != nil {
-		repo.logger.WarnContext(ctx, "embedding cache access update queue full or closed; drop async access update", logkey.ID, id)
+		repo.logger.KnowledgeWarnContext(ctx, "failed to update embedding cache access synchronously", logkey.ID, id, logkey.Error, err)
+	}
+}
+
+func (repo *Repository) updateAccessBatchSynchronously(ctx context.Context, ids []int64) {
+	if repo == nil || len(ids) == 0 {
+		return
+	}
+	err := repo.updateAccessBatch(ctx, ids)
+	if err == nil {
+		return
+	}
+	if repo.logger != nil {
+		repo.logger.KnowledgeWarnContext(ctx, "failed to update embedding cache access synchronously in batch", "batch_size", len(ids), logkey.Error, err)
 	}
 }
 
@@ -423,6 +414,9 @@ func getOrCreateCache(
 	existingCache, err = findByHash(ctx, cache.TextHash, model)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read cache after duplicate insert: %w", err)
+	}
+	if existingCache == nil {
+		return nil, ErrCacheNotFound
 	}
 	return existingCache, nil
 }

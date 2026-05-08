@@ -7,9 +7,10 @@ import (
 	"errors"
 	"fmt"
 
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebindingentity "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingrepository "magic/internal/domain/knowledge/sourcebinding/repository"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
 	mysqlknowledgebase "magic/internal/infrastructure/persistence/mysql/knowledge/knowledgebase"
 	mysqlknowledgebasebinding "magic/internal/infrastructure/persistence/mysql/knowledge/knowledgebasebinding"
@@ -49,34 +50,34 @@ func NewKnowledgeBaseWriteCoordinator(
 // Create 在单事务中创建知识库及其数据库侧附属关系。
 func (c *KnowledgeBaseWriteCoordinator) Create(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
-	sourceBindings []sourcebindingdomain.Binding,
+	kb *kbentity.KnowledgeBase,
+	sourceBindings []sourcebindingentity.Binding,
 	agentIDs []string,
-) ([]sourcebindingdomain.Binding, error) {
+) ([]sourcebindingentity.Binding, error) {
 	return c.runCreate(ctx, kb, sourceBindings, agentIDs)
 }
 
 // Update 在单事务中更新知识库及其数据库侧附属关系。
 func (c *KnowledgeBaseWriteCoordinator) Update(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	replaceSourceBindings bool,
-	sourceBindings []sourcebindingdomain.Binding,
+	sourceBindings []sourcebindingentity.Binding,
 	replaceAgentBindings bool,
 	agentIDs []string,
-) ([]sourcebindingdomain.Binding, error) {
+) ([]sourcebindingentity.Binding, error) {
 	return c.runUpdate(ctx, kb, replaceSourceBindings, sourceBindings, replaceAgentBindings, agentIDs)
 }
 
 type knowledgeBaseMutation struct {
 	replaceSource       bool
-	sourceBindings      []sourcebindingdomain.Binding
+	sourceBindings      []sourcebindingentity.Binding
 	replaceAgentBinding bool
 	agentIDs            []string
 }
 
 func createKnowledgeBaseMutation(
-	sourceBindings []sourcebindingdomain.Binding,
+	sourceBindings []sourcebindingentity.Binding,
 	agentIDs []string,
 ) knowledgeBaseMutation {
 	return knowledgeBaseMutation{
@@ -89,7 +90,7 @@ func createKnowledgeBaseMutation(
 
 func updateKnowledgeBaseMutation(
 	replaceSourceBindings bool,
-	sourceBindings []sourcebindingdomain.Binding,
+	sourceBindings []sourcebindingentity.Binding,
 	replaceAgentBindings bool,
 	agentIDs []string,
 ) knowledgeBaseMutation {
@@ -103,21 +104,21 @@ func updateKnowledgeBaseMutation(
 
 func (c *KnowledgeBaseWriteCoordinator) runCreate(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
-	sourceBindings []sourcebindingdomain.Binding,
+	kb *kbentity.KnowledgeBase,
+	sourceBindings []sourcebindingentity.Binding,
 	agentIDs []string,
-) ([]sourcebindingdomain.Binding, error) {
+) ([]sourcebindingentity.Binding, error) {
 	return c.run(ctx, kb, createKnowledgeBaseMutation(sourceBindings, agentIDs), c.knowledgeBaseRepo.SaveWithTx)
 }
 
 func (c *KnowledgeBaseWriteCoordinator) runUpdate(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	replaceSourceBindings bool,
-	sourceBindings []sourcebindingdomain.Binding,
+	sourceBindings []sourcebindingentity.Binding,
 	replaceAgentBindings bool,
 	agentIDs []string,
-) ([]sourcebindingdomain.Binding, error) {
+) ([]sourcebindingentity.Binding, error) {
 	return c.run(
 		ctx,
 		kb,
@@ -126,19 +127,80 @@ func (c *KnowledgeBaseWriteCoordinator) runUpdate(
 	)
 }
 
-func (c *KnowledgeBaseWriteCoordinator) run(
+// UpdateWithAppliedSourceBindings 在单事务中更新知识库主表、agent 绑定与来源 binding 增量变更。
+func (c *KnowledgeBaseWriteCoordinator) UpdateWithAppliedSourceBindings(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
-	mutation knowledgeBaseMutation,
-	saveKB func(context.Context, *sql.Tx, *knowledgebasedomain.KnowledgeBase) error,
-) ([]sourcebindingdomain.Binding, error) {
+	kb *kbentity.KnowledgeBase,
+	sourceBindingInput sourcebindingrepository.ApplyKnowledgeBaseBindingsInput,
+	replaceAgentBindings bool,
+	agentIDs []string,
+) ([]sourcebindingentity.Binding, error) {
 	if c == nil || c.client == nil || c.knowledgeBaseRepo == nil {
 		return nil, errNilKnowledgeBaseWriteCoordinator
 	}
 	if kb == nil {
 		return nil, shared.ErrKnowledgeBaseNotFound
 	}
-	knowledgebasedomain.NormalizeKnowledgeBaseConfigs(kb)
+	if c.sourceBindingRepo == nil {
+		return nil, errKnowledgeBaseWriteSourceBindingRepoRequired
+	}
+	kbentity.NormalizeKnowledgeBaseConfigs(kb)
+
+	tx, err := c.client.DB().BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin knowledge base write tx: %w", err)
+	}
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if err := c.knowledgeBaseRepo.UpdateWithTx(ctx, tx, kb); err != nil {
+		return nil, fmt.Errorf("persist knowledge base: %w", err)
+	}
+	savedBindings, err := c.sourceBindingRepo.ApplyKnowledgeBaseBindingsWithTx(ctx, tx, sourceBindingInput)
+	if err != nil {
+		return nil, fmt.Errorf("apply source bindings: %w", err)
+	}
+	if replaceAgentBindings {
+		if c.knowledgeBindingRepo == nil {
+			return nil, errKnowledgeBaseWriteBindingRepoRequired
+		}
+		if _, err := c.knowledgeBindingRepo.ReplaceBindingsWithTx(
+			ctx,
+			tx,
+			mysqlknowledgebasebinding.ReplaceBindingsTxInput{
+				KnowledgeBaseCode: kb.Code,
+				BindType:          kbentity.BindingTypeSuperMagicAgent,
+				OrganizationCode:  kb.OrganizationCode,
+				UserID:            kb.UpdatedUID,
+				BindIDs:           agentIDs,
+			},
+		); err != nil {
+			return nil, fmt.Errorf("replace knowledge base agent bindings: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit knowledge base write tx: %w", err)
+	}
+	tx = nil
+	return savedBindings, nil
+}
+
+func (c *KnowledgeBaseWriteCoordinator) run(
+	ctx context.Context,
+	kb *kbentity.KnowledgeBase,
+	mutation knowledgeBaseMutation,
+	saveKB func(context.Context, *sql.Tx, *kbentity.KnowledgeBase) error,
+) ([]sourcebindingentity.Binding, error) {
+	if c == nil || c.client == nil || c.knowledgeBaseRepo == nil {
+		return nil, errNilKnowledgeBaseWriteCoordinator
+	}
+	if kb == nil {
+		return nil, shared.ErrKnowledgeBaseNotFound
+	}
+	kbentity.NormalizeKnowledgeBaseConfigs(kb)
 	if saveKB == nil {
 		return nil, errNilKnowledgeBaseWriteCoordinator
 	}
@@ -157,7 +219,7 @@ func (c *KnowledgeBaseWriteCoordinator) run(
 		return nil, fmt.Errorf("persist knowledge base: %w", err)
 	}
 
-	savedBindings := []sourcebindingdomain.Binding(nil)
+	savedBindings := []sourcebindingentity.Binding(nil)
 	if mutation.replaceSource {
 		if c.sourceBindingRepo == nil {
 			return nil, errKnowledgeBaseWriteSourceBindingRepoRequired
@@ -177,7 +239,7 @@ func (c *KnowledgeBaseWriteCoordinator) run(
 			tx,
 			mysqlknowledgebasebinding.ReplaceBindingsTxInput{
 				KnowledgeBaseCode: kb.Code,
-				BindType:          knowledgebasedomain.BindingTypeSuperMagicAgent,
+				BindType:          kbentity.BindingTypeSuperMagicAgent,
 				OrganizationCode:  kb.OrganizationCode,
 				UserID:            kb.UpdatedUID,
 				BindIDs:           mutation.agentIDs,

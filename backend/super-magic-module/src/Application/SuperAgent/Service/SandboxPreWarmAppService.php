@@ -29,7 +29,7 @@ use Throwable;
  * 负责处理沙箱预热逻辑，包括话题内和话题外两种场景.
  * 复用 AgentAppService::ensureSandboxInitialized 方法进行沙箱创建和初始化.
  */
-class SandboxPreWarmAppService
+class SandboxPreWarmAppService extends AbstractAppService
 {
     private LoggerInterface $logger;
 
@@ -272,9 +272,10 @@ class SandboxPreWarmAppService
 
         $userAuthorization = $requestContext->getUserAuthorization();
         $userId = $userAuthorization->getId();
+        $organizationCode = $userAuthorization->getOrganizationCode();
 
         // 验证项目存在且当前用户有访问权限（不存在或无权限时 getProject 内部会抛异常）
-        $projectEntity = $this->projectDomainService->getProject($projectId, $userId);
+        $projectEntity = $this->getAccessibleProjectWithEditor($projectId, $userId, $organizationCode);
 
         // 获取或创建该项目下的预热隐藏话题（每个项目最多1个，由 ensureHiddenTopic 内部控制）
         try {

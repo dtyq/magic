@@ -298,6 +298,11 @@ class TopicTaskAppService extends AbstractAppService
                 return $earlyDeliverResponse;
             }
 
+            // 3.6 super_magic_message + after_main_agent_run + waiting_for_user 状态适配
+            if (($earlyDeliverResponse = $this->tryHandleWaitingForUserOnMainAgentRun($messageDTO, $dataIsolation, $taskEntity, $messageId)) !== null) {
+                return $earlyDeliverResponse;
+            }
+
             // 4. 更新话题状态
             if ($taskStatus->isFinal() && TaskStatus::tryFrom($status)) {
                 $this->updateTopicTokenUsedOnTaskFinal($messageDTO, $topicId);
@@ -813,6 +818,43 @@ class TopicTaskAppService extends AbstractAppService
         }
 
         return null;
+    }
+
+    /**
+     * 适配 super_magic_message + after_main_agent_run + waiting_for_user 格式的状态更新。
+     *
+     * 沙盒在 ask_user 工具调用前通过此格式下发通知，此时需要将任务状态更新为 waiting_for_user。
+     * 因 waiting_for_user 不是终态，步骤 4 的 updateTaskStatus 不会被触发，需在此处单独处理。
+     *
+     * @return null|array<string, mixed> 已处理时返回响应体，否则返回 null
+     */
+    private function tryHandleWaitingForUserOnMainAgentRun(
+        TopicTaskMessageDTO $messageDTO,
+        DataIsolation $dataIsolation,
+        TaskEntity $taskEntity,
+        string $messageId,
+    ): ?array {
+        $payload = $messageDTO->getPayload();
+
+        if ($payload->getType() !== MessageType::SuperMagicMessage->value) {
+            return null;
+        }
+
+        if ($payload->getEvent() !== AgentEventEnum::AFTER_MAIN_AGENT_RUN->value) {
+            return null;
+        }
+
+        if ($payload->getStatus() !== TaskStatus::WAITING_FOR_USER->value) {
+            return null;
+        }
+
+        $this->updateTaskStatus(
+            dataIsolation: $dataIsolation,
+            task: $taskEntity,
+            status: TaskStatus::WAITING_FOR_USER,
+        );
+
+        return DeliverMessageResponseDTO::fromResult(true, $messageId)->toArray();
     }
 
     /**

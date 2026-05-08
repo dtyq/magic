@@ -6,12 +6,13 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
 	mysqlsqlc "magic/internal/infrastructure/persistence/mysql/sqlc"
 )
 
-func ResolveKnowledgeBaseListFilterModeForTest(query *knowledgebase.Query) string {
+func ResolveKnowledgeBaseListFilterModeForTest(query *kbrepository.Query) string {
 	return string(resolveKnowledgeBaseListFilterMode(query))
 }
 
@@ -44,11 +45,11 @@ type KnowledgeBaseRawForTest struct {
 	UpdatedAt         time.Time
 }
 
-func BuildInsertKnowledgeBaseParamsForTest(knowledgeBase *knowledgebase.KnowledgeBase) (mysqlsqlc.InsertKnowledgeBaseParams, error) {
+func BuildInsertKnowledgeBaseParamsForTest(knowledgeBase *kbentity.KnowledgeBase) (mysqlsqlc.InsertKnowledgeBaseParams, error) {
 	return buildInsertKnowledgeBaseParams(knowledgeBase)
 }
 
-func FillKnowledgeBaseCommonForTest(raw KnowledgeBaseRawForTest) (*knowledgebase.KnowledgeBase, error) {
+func FillKnowledgeBaseCommonForTest(raw KnowledgeBaseRawForTest) (*kbentity.KnowledgeBase, error) {
 	return fillKnowledgeBaseCommon(knowledgeBaseRaw{
 		id:                raw.ID,
 		code:              raw.Code,
@@ -93,23 +94,25 @@ func NewBaseRepositoryWithDBAndRedisForTest(db *sql.DB, redisClient *redis.Clien
 
 func BuildKnowledgeBasesParamsForTest(
 	repo *BaseRepository,
-	query *knowledgebase.Query,
+	query *kbrepository.Query,
 ) (mysqlsqlc.CountKnowledgeBasesParams, mysqlsqlc.ListKnowledgeBasesParams, error) {
 	return repo.buildKnowledgeBasesParams(query)
 }
 
 func BuildCountByBusinessIDsParamsForTest(
 	params mysqlsqlc.CountKnowledgeBasesParams,
+	organizationCode string,
 	businessIDs []string,
 ) mysqlsqlc.CountKnowledgeBasesByBusinessIDsParams {
-	return buildCountByBusinessIDsParams(params, businessIDs)
+	return buildCountByBusinessIDsParams(params, organizationCode, businessIDs)
 }
 
 func BuildListByBusinessIDsParamsForTest(
 	params mysqlsqlc.ListKnowledgeBasesParams,
+	organizationCode string,
 	businessIDs []string,
 ) mysqlsqlc.ListKnowledgeBasesByBusinessIDsParams {
-	return buildListByBusinessIDsParams(params, businessIDs)
+	return buildListByBusinessIDsParams(params, organizationCode, businessIDs)
 }
 
 func BuildCountByCodesParamsForTest(
@@ -126,30 +129,30 @@ func BuildListByCodesParamsForTest(
 	return buildListByCodesParams(params, codes)
 }
 
-func ToKnowledgeBaseFromFindByIDForTest(row mysqlsqlc.FindKnowledgeBaseByIDRow) (*knowledgebase.KnowledgeBase, error) {
+func ToKnowledgeBaseFromFindByIDForTest(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
 	return toKnowledgeBaseFromFindByID(row)
 }
 
-func ToKnowledgeBaseFromFindByCodeForTest(row mysqlsqlc.FindKnowledgeBaseByCodeRow) (*knowledgebase.KnowledgeBase, error) {
+func ToKnowledgeBaseFromFindByCodeForTest(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
 	return toKnowledgeBaseFromFindByCode(row)
 }
 
-func ToKnowledgeBaseFromFindByCodeAndOrgForTest(row mysqlsqlc.FindKnowledgeBaseByCodeAndOrgRow) (*knowledgebase.KnowledgeBase, error) {
+func ToKnowledgeBaseFromFindByCodeAndOrgForTest(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
 	return toKnowledgeBaseFromFindByCodeAndOrg(row)
 }
 
-func ToKnowledgeBaseFromListForKnowledgeBaseTest(row mysqlsqlc.ListKnowledgeBasesRow) (*knowledgebase.KnowledgeBase, error) {
+func ToKnowledgeBaseFromListForKnowledgeBaseTest(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
 	return toKnowledgeBaseFromList(row)
 }
 
-func ToKnowledgeBaseFromListByCodesForTest(row mysqlsqlc.ListKnowledgeBasesByCodesRow) (*knowledgebase.KnowledgeBase, error) {
+func ToKnowledgeBaseFromListByCodesForTest(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
 	return toKnowledgeBaseFromListByCodes(row)
 }
 
-func ToKnowledgeBaseFromListByBusinessIDsForTest(row mysqlsqlc.ListKnowledgeBasesByBusinessIDsRow) (*knowledgebase.KnowledgeBase, error) {
+func ToKnowledgeBaseFromListByBusinessIDsForTest(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
 	return toKnowledgeBaseFromListByBusinessIDs(row)
 }
 
-func ToKnowledgeBaseFromListByCodesAndBusinessIDsForTest(row mysqlsqlc.ListKnowledgeBasesByCodesAndBusinessIDsRow) (*knowledgebase.KnowledgeBase, error) {
+func ToKnowledgeBaseFromListByCodesAndBusinessIDsForTest(row mysqlsqlc.MagicFlowKnowledge) (*kbentity.KnowledgeBase, error) {
 	return toKnowledgeBaseFromListByCodesAndBusinessIDs(row)
 }

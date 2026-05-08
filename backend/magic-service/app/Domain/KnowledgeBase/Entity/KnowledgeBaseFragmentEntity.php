@@ -196,9 +196,9 @@ class KnowledgeBaseFragmentEntity extends AbstractKnowledgeBaseEntity
         return $this->id;
     }
 
-    public function setId(?int $id): self
+    public function setId(null|int|string $id): self
     {
-        $this->id = $id;
+        $this->id = is_null($id) ? null : (int) $id;
         return $this;
     }
 

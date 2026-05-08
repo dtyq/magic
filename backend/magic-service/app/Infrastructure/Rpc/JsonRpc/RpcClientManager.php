@@ -36,8 +36,6 @@ class RpcClientManager
 
     private string $socketPath;
 
-    private int $connectRetries;
-
     private int $connectBackoffMs;
 
     private int $connectMaxBackoffMs;
@@ -53,6 +51,8 @@ class RpcClientManager
     private ClientConfig $clientConfig;
 
     private bool $running = false;
+
+    private bool $silentInitialConnect = false;
 
     private float $startedAt = 0.0;
 
@@ -77,7 +77,6 @@ class RpcClientManager
 
         $this->enabled = (bool) ($config['rpc_client_enabled'] ?? false);
         $this->socketPath = (string) ($config['socket_path'] ?? BASE_PATH . '/runtime/magic_engine.sock');
-        $this->connectRetries = (int) ($config['rpc_connect_retries'] ?? 5);
         $this->connectBackoffMs = (int) ($config['rpc_connect_backoff_ms'] ?? 200);
         $this->connectMaxBackoffMs = (int) ($config['rpc_connect_max_backoff_ms'] ?? 30000);
         if ($this->connectMaxBackoffMs < $this->connectBackoffMs) {
@@ -102,23 +101,25 @@ class RpcClientManager
     /**
      * 启动客户端连接.
      */
-    public function start(): void
+    public function start(bool $silentInitialConnect = false): void
     {
         if (! $this->enabled) {
             $this->logger->info('JSON-RPC client is disabled');
             return;
         }
 
+        if ($this->running) {
+            return;
+        }
+
         $this->initClient();
         $this->running = true;
+        $this->silentInitialConnect = $silentInitialConnect;
         if ($this->startedAt <= 0) {
             $this->startedAt = microtime(true);
         }
 
-        // 启动连接并在协程中保持长连接重试
-        go(function () {
-            $this->keepAliveLoop();
-        });
+        $this->startKeepAliveLoop();
     }
 
     /**
@@ -127,6 +128,7 @@ class RpcClientManager
     public function stop(): void
     {
         $this->running = false;
+        $this->silentInitialConnect = false;
         if ($this->client !== null) {
             $this->client->close();
             $this->client = null;
@@ -150,29 +152,81 @@ class RpcClientManager
     }
 
     /**
+     * 同步探测 Go Engine 是否已完成真实 RPC 握手。
+     *
+     * 成功时复用这条连接，供后续 start() 直接接管；
+     * 失败时仅更新健康状态，不抛出异常。
+     */
+    public function probeConnection(): bool
+    {
+        if (! $this->enabled) {
+            return false;
+        }
+
+        $this->initClient();
+
+        if ($this->client === null) {
+            return false;
+        }
+
+        if ($this->client->isConnected()) {
+            return true;
+        }
+
+        try {
+            if (! $this->client->connect(true)) {
+                $this->markConnectFailure();
+                return false;
+            }
+        } catch (Throwable) {
+            $this->markConnectFailure();
+            return false;
+        }
+
+        $this->markConnected();
+        return true;
+    }
+
+    public function waitUntilConnected(int $timeoutSeconds, int $intervalMs): bool
+    {
+        if ($timeoutSeconds <= 0) {
+            return $this->isConnected();
+        }
+
+        $sleepMicros = max(10, $intervalMs) * 1000;
+        $deadline = microtime(true) + $timeoutSeconds;
+        while (microtime(true) < $deadline) {
+            if ($this->isConnected()) {
+                return true;
+            }
+            usleep($sleepMicros);
+        }
+
+        return $this->isConnected();
+    }
+
+    /**
      * 获取连接健康快照（只读，不触发连接）.
      */
-    public function getHealthSnapshot(): array
+    public function healthSnapshot(): RpcClientHealthSnapshot
     {
-        return [
-            'enabled' => $this->enabled,
-            'running' => $this->running,
-            'socket_path' => $this->socketPath,
-            'is_connected' => $this->isConnected(),
-            'started_at' => $this->formatTimestamp($this->startedAt),
-            'started_at_unix' => $this->toUnixTimestamp($this->startedAt),
-            'has_ever_connected' => $this->hasEverConnected,
-            'last_connected_at' => $this->formatTimestamp($this->lastConnectedAt),
-            'last_connected_at_unix' => $this->toUnixTimestamp($this->lastConnectedAt),
-            'last_failure_at' => $this->formatTimestamp($this->lastFailureAt),
-            'last_failure_at_unix' => $this->toUnixTimestamp($this->lastFailureAt),
-            'consecutive_failures' => $this->consecutiveFailures,
-            'last_error' => $this->client?->getLastError(),
-        ];
+        return new RpcClientHealthSnapshot(
+            enabled: $this->enabled,
+            running: $this->running,
+            socketPath: $this->socketPath,
+            isConnected: $this->isConnected(),
+            startedAt: $this->startedAt,
+            hasEverConnected: $this->hasEverConnected,
+            lastConnectedAt: $this->lastConnectedAt,
+            lastFailureAt: $this->lastFailureAt,
+            consecutiveFailures: $this->consecutiveFailures,
+            lastError: RpcClientLastError::fromNullableArray($this->client?->getLastError()),
+        );
     }
 
     /**
      * 调用 Go Engine 的方法.
+     * @throws Throwable
      */
     public function call(string $method, mixed $params = null, float $timeout = 30.0): mixed
     {
@@ -183,54 +237,7 @@ class RpcClientManager
         return $this->client->call($method, $params, $timeout);
     }
 
-    /**
-     * 调用 Go Engine 的方法（带重试与重连）.
-     */
-    public function callWithRetry(string $method, mixed $params = null, float $timeout = 30.0): mixed
-    {
-        $this->ensureConnected();
-
-        try {
-            if ($this->client === null) {
-                throw new RuntimeException('RPC client not initialized');
-            }
-            return $this->client->call($method, $params, $timeout);
-        } catch (Throwable $e) {
-            $this->logger->warning('RPC call failed, retrying after reconnect', [
-                'method' => $method,
-                'error' => $e->getMessage(),
-            ]);
-
-            $this->client?->close();
-
-            $this->connectWithRetry(true);
-
-            if ($this->client === null) {
-                throw new RuntimeException('RPC client not initialized');
-            }
-            return $this->client->call($method, $params, $timeout);
-        }
-    }
-
-    /**
-     * 确保已建立连接.
-     */
-    public function ensureConnected(): void
-    {
-        if (! $this->enabled) {
-            throw new RuntimeException('RPC client is disabled');
-        }
-
-        $this->initClient();
-
-        if ($this->client !== null && $this->client->isConnected()) {
-            return;
-        }
-
-        $this->connectWithRetry(true);
-    }
-
-    private function registerHandlers(): void
+    protected function registerHandlers(): void
     {
         try {
             if ($this->client === null) {
@@ -238,8 +245,22 @@ class RpcClientManager
             }
             (new RpcServiceRegistry())->register($this->client, $this->container);
         } catch (Throwable $e) {
-            $this->logger->error('Failed to register handlers', ['error' => $e->getMessage()]);
+            $this->logger->error('goEngineException Failed to register handlers', ['error' => $e->getMessage()]);
         }
+    }
+
+    protected function createClient(): JsonRpcRuntimeClient
+    {
+        $transport = new UdsFramedTransport($this->socketPath, $this->clientConfig);
+        return new JsonRpcRuntimeClient($transport, $this->dataFormatter, $this->clientConfig);
+    }
+
+    protected function startKeepAliveLoop(): void
+    {
+        // 启动连接并在协程中保持长连接重试
+        go(function () {
+            $this->keepAliveLoop();
+        });
     }
 
     private function initClient(): void
@@ -248,41 +269,8 @@ class RpcClientManager
             return;
         }
 
-        $transport = new UdsFramedTransport($this->socketPath, $this->clientConfig);
-        $this->client = new JsonRpcRuntimeClient($transport, $this->dataFormatter, $this->clientConfig);
+        $this->client = $this->createClient();
         $this->registerHandlers();
-    }
-
-    private function connectWithRetry(bool $throwOnFailure): void
-    {
-        $maxRetries = max(1, $this->connectRetries);
-        $retryDelay = $this->initialRetryDelaySeconds();
-
-        // 同步连接阶段：指数退避 + 抖动（jitter），避免多个实例同时重试造成雪崩。
-        // 规则由以下配置决定：rpc_connect_retries / rpc_connect_backoff_ms /
-        // rpc_connect_max_backoff_ms / rpc_retry_jitter_min / rpc_retry_jitter_max。
-        for ($i = 0; $i < $maxRetries; ++$i) {
-            if ($this->client === null) {
-                return;
-            }
-
-            if ($this->client->connect()) {
-                $this->markConnected();
-                return;
-            }
-            $this->markConnectFailure();
-
-            $this->logRetryFailure($i + 1, $maxRetries);
-
-            usleep((int) ($this->delayWithJitterSeconds($retryDelay) * 1_000_000));
-            $retryDelay = $this->nextRetryDelaySeconds($retryDelay);
-        }
-
-        if ($throwOnFailure) {
-            throw new RuntimeException('Failed to connect after max retries');
-        }
-
-        $this->logger->error('Failed to connect after max retries');
     }
 
     private function keepAliveLoop(): void
@@ -300,7 +288,7 @@ class RpcClientManager
                 continue;
             }
 
-            $silent = ! $isFirstConnect;
+            $silent = $isFirstConnect ? $this->silentInitialConnect : true;
             try {
                 if ($this->client->connect($silent)) {
                     $this->markConnected();
@@ -314,7 +302,9 @@ class RpcClientManager
 
             $isFirstConnect = false; // 无论由于失败还是异常，除了第一次之外后续均保持静默
 
-            Coroutine::sleep($this->delayWithJitterSeconds($retryDelay));
+            $sleepSeconds = $this->delayWithJitterSeconds($retryDelay);
+            $this->logConnectFailureIfNeeded($sleepSeconds, $this->shouldSuppressConnectFailureWarning());
+            Coroutine::sleep($sleepSeconds);
             $retryDelay = $this->nextRetryDelaySeconds($retryDelay);
         }
     }
@@ -334,31 +324,14 @@ class RpcClientManager
         ++$this->consecutiveFailures;
     }
 
-    private function formatTimestamp(float $value): ?string
+    private function logConnectFailureIfNeeded(float $nextRetryDelaySeconds, bool $suppressWarning): void
     {
-        if ($value <= 0) {
-            return null;
+        if ($suppressWarning) {
+            ++$this->suppressedRetryLogs;
+            return;
         }
-        return date(DATE_ATOM, (int) $value);
-    }
 
-    private function toUnixTimestamp(float $value): ?int
-    {
-        if ($value <= 0) {
-            return null;
-        }
-        return (int) $value;
-    }
-
-    private function logRetryFailure(int $attempt, int $maxRetries): void
-    {
         if ($this->retryLogIntervalSeconds <= 0) {
-            $this->logger->warning('Failed to connect, retrying...', [
-                'attempt' => $attempt,
-                'max' => $maxRetries,
-                'suppressed_logs' => $this->suppressedRetryLogs,
-            ]);
-            $this->suppressedRetryLogs = 0;
             return;
         }
 
@@ -368,13 +341,21 @@ class RpcClientManager
             return;
         }
 
-        $this->logger->warning('Failed to connect, retrying...', [
-            'attempt' => $attempt,
-            'max' => $maxRetries,
-            'suppressed_logs' => $this->suppressedRetryLogs,
+        $this->logger->warning('goEngineException RPC client connect failed, keepalive will retry', [
+            'socket_path' => $this->socketPath,
+            'consecutive_failures' => $this->consecutiveFailures,
+            'suppressed_retry_logs' => $this->suppressedRetryLogs,
+            'next_retry_delay_seconds' => $nextRetryDelaySeconds,
+            'last_error' => $this->client?->getLastError(),
         ]);
+
         $this->lastRetryLogAt = $now;
         $this->suppressedRetryLogs = 0;
+    }
+
+    private function shouldSuppressConnectFailureWarning(): bool
+    {
+        return $this->silentInitialConnect && ! $this->hasEverConnected;
     }
 
     private function initialRetryDelaySeconds(): float

@@ -1,33 +1,11 @@
 -- name: FindTaskFileMetaByID :one
-SELECT organization_code,
-       project_id,
-       file_id,
-       COALESCE(file_key, '') AS file_key,
-       file_name,
-       COALESCE(file_extension, '') AS file_extension,
-       COALESCE(file_size, 0) AS file_size,
-       COALESCE(is_directory, FALSE) AS is_directory,
-       COALESCE(is_hidden, FALSE) AS is_hidden,
-       updated_at,
-       deleted_at,
-       COALESCE(parent_id, 0) AS parent_id
+SELECT *
 FROM magic_super_agent_task_files
 WHERE file_id = ?
 LIMIT 1;
 
 -- name: FindTaskFileRootDirectoryByProjectID :one
-SELECT organization_code,
-       project_id,
-       file_id,
-       COALESCE(file_key, '') AS file_key,
-       file_name,
-       COALESCE(file_extension, '') AS file_extension,
-       COALESCE(file_size, 0) AS file_size,
-       COALESCE(is_directory, FALSE) AS is_directory,
-       COALESCE(is_hidden, FALSE) AS is_hidden,
-       updated_at,
-       deleted_at,
-       COALESCE(parent_id, 0) AS parent_id
+SELECT *
 FROM magic_super_agent_task_files
 WHERE project_id = ?
   AND parent_id IS NULL
@@ -37,54 +15,37 @@ ORDER BY file_id DESC
 LIMIT 1;
 
 -- name: ListVisibleTaskFileChildrenByParent :many
-SELECT organization_code,
-       project_id,
-       file_id,
-       COALESCE(file_key, '') AS file_key,
-       file_name,
-       COALESCE(file_extension, '') AS file_extension,
-       COALESCE(file_size, 0) AS file_size,
-       COALESCE(is_directory, FALSE) AS is_directory,
-       COALESCE(is_hidden, FALSE) AS is_hidden,
-       updated_at,
-       deleted_at,
-       COALESCE(parent_id, 0) AS parent_id
+SELECT *
 FROM magic_super_agent_task_files
 WHERE project_id = ?
   AND parent_id = ?
   AND is_hidden = FALSE
   AND deleted_at IS NULL
+ORDER BY sort ASC, file_id ASC
 LIMIT ?;
 
--- name: ListVisibleTaskFileChildrenByParents :many
-SELECT organization_code,
-       project_id,
-       file_id,
-       COALESCE(file_key, '') AS file_key,
-       file_name,
-       COALESCE(file_extension, '') AS file_extension,
-       COALESCE(file_size, 0) AS file_size,
-       COALESCE(is_directory, FALSE) AS is_directory,
-       COALESCE(is_hidden, FALSE) AS is_hidden,
-       updated_at,
-       deleted_at,
-       COALESCE(parent_id, 0) AS parent_id
+-- name: ListVisibleTaskFileChildrenByParentAfter :many
+SELECT *
 FROM magic_super_agent_task_files
 WHERE project_id = ?
-  AND parent_id IN (sqlc.slice(parent_ids))
+  AND parent_id = ?
   AND is_hidden = FALSE
   AND deleted_at IS NULL
+  AND (
+    sort > ?
+    OR (sort = ? AND file_id > ?)
+  )
+ORDER BY sort ASC, file_id ASC
 LIMIT ?;
 
--- name: FindProjectFileMetaByID :one
-SELECT organization_code,
-       project_id,
-       file_id,
-       COALESCE(file_key, '') AS file_key,
-       file_name,
-       COALESCE(file_extension, '') AS file_extension,
-       COALESCE(file_size, 0) AS file_size,
-       updated_at
-FROM magic_super_agent_project_files
+-- name: FindTaskFileParentLinkByID :one
+SELECT file_id, project_id, parent_id, is_directory, deleted_at
+FROM magic_super_agent_task_files
 WHERE file_id = ?
 LIMIT 1;
+
+-- name: ListTaskFileParentLinksByProjectID :many
+SELECT file_id, parent_id, is_directory
+FROM magic_super_agent_task_files
+WHERE project_id = ?
+  AND deleted_at IS NULL;

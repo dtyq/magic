@@ -5,13 +5,13 @@ import (
 	"time"
 
 	"magic/internal/domain/knowledge/document/entity"
-	sharedentity "magic/internal/domain/knowledge/shared/entity"
+	"magic/internal/domain/knowledge/shared"
 )
 
 func TestNewDocumentUsesProvidedCode(t *testing.T) {
 	t.Parallel()
 
-	doc := entity.NewDocument("kb-1", "doc-1", "doc-code", entity.DocTypeFile, "u1", "org-1")
+	doc := entity.NewDocument("kb-1", "doc-1", "doc-code", entity.DocumentInputKindFile, "u1", "org-1")
 
 	if doc.Code != "doc-code" {
 		t.Fatalf("expected provided code, got %q", doc.Code)
@@ -22,7 +22,7 @@ func TestNewDocumentUsesProvidedCode(t *testing.T) {
 	if !doc.Enabled {
 		t.Fatal("expected document enabled by default")
 	}
-	if doc.SyncStatus != sharedentity.SyncStatusPending {
+	if doc.SyncStatus != shared.SyncStatusPending {
 		t.Fatalf("expected pending sync status, got %v", doc.SyncStatus)
 	}
 	if doc.DocMetadata == nil {
@@ -45,12 +45,12 @@ func TestNewDocumentUsesProvidedCode(t *testing.T) {
 func TestNewDocumentGeneratesCodeWhenEmpty(t *testing.T) {
 	t.Parallel()
 
-	doc := entity.NewDocument("kb-1", "doc-1", "", entity.DocTypeText, "u1", "org-1")
+	doc := entity.NewDocument("kb-1", "doc-1", "", entity.DocumentInputKindText, "u1", "org-1")
 
 	if doc.Code == "" {
 		t.Fatal("expected generated code")
 	}
-	if doc.DocType != int(entity.DocTypeText) {
-		t.Fatalf("expected doc type %d, got %d", entity.DocTypeText, doc.DocType)
+	if doc.DocType != int(entity.DocumentInputKindText) {
+		t.Fatalf("expected doc type %d, got %d", entity.DocumentInputKindText, doc.DocType)
 	}
 }

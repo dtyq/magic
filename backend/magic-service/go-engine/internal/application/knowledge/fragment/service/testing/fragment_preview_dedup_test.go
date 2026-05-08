@@ -16,8 +16,11 @@ import (
 	appservice "magic/internal/application/knowledge/fragment/service"
 	confighelper "magic/internal/application/knowledge/helper/config"
 	docfilehelper "magic/internal/application/knowledge/helper/docfile"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
+	"magic/internal/domain/knowledge/shared"
+	"magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/thirdplatform"
 	"magic/internal/pkg/tokenizer"
@@ -31,6 +34,10 @@ var (
 type previewTestFetcher struct {
 	fetchFn   func(context.Context, string) (io.ReadCloser, error)
 	getLinkFn func(context.Context, string, string, time.Duration) (string, error)
+}
+
+type previewProjectFileAccessorStub struct {
+	getLinkFn func(context.Context, int64, time.Duration) (string, error)
 }
 
 func (f *previewTestFetcher) Fetch(ctx context.Context, path string) (io.ReadCloser, error) {
@@ -48,13 +55,27 @@ func (f *previewTestFetcher) Stat(context.Context, string) error {
 	return nil
 }
 
+func (s *previewProjectFileAccessorStub) GetLink(ctx context.Context, projectFileID int64, expire time.Duration) (string, error) {
+	if s == nil || s.getLinkFn == nil {
+		return "", nil
+	}
+	return s.getLinkFn(ctx, projectFileID, expire)
+}
+
 type previewTestParser struct {
 	mu                  sync.Mutex
 	lastOptions         *documentdomain.ParseOptions
-	parseDocumentResult *documentdomain.ParsedDocument
+	parseDocumentResult *parseddocument.ParsedDocument
 }
 
 type previewSplitterStub struct{}
+
+type previewCaptureSplitter struct {
+	mu        sync.Mutex
+	lastInput documentsplitter.ParsedDocumentChunkInput
+}
+
+type previewMetadataSplitter struct{}
 
 func (p *previewTestParser) Parse(ctx context.Context, fileURL string, file io.Reader, fileType string) (string, error) {
 	data, err := io.ReadAll(file)
@@ -64,7 +85,7 @@ func (p *previewTestParser) Parse(ctx context.Context, fileURL string, file io.R
 	return string(data), nil
 }
 
-func (p *previewTestParser) ParseDocument(ctx context.Context, fileURL string, file io.Reader, fileType string) (*documentdomain.ParsedDocument, error) {
+func (p *previewTestParser) ParseDocument(ctx context.Context, fileURL string, file io.Reader, fileType string) (*parseddocument.ParsedDocument, error) {
 	if p.parseDocumentResult != nil {
 		return p.parseDocumentResult, nil
 	}
@@ -72,7 +93,7 @@ func (p *previewTestParser) ParseDocument(ctx context.Context, fileURL string, f
 	if err != nil {
 		return nil, fmt.Errorf("read preview parser input: %w", err)
 	}
-	return documentdomain.NewPlainTextParsedDocument(
+	return parseddocument.NewPlainTextParsedDocument(
 		fileType,
 		documentdomain.NormalizeDocumentContentForFileType(fileType, string(data)),
 	), nil
@@ -84,7 +105,7 @@ func (p *previewTestParser) ParseDocumentWithOptions(
 	file io.Reader,
 	fileType string,
 	options documentdomain.ParseOptions,
-) (*documentdomain.ParsedDocument, error) {
+) (*parseddocument.ParsedDocument, error) {
 	cloned := options
 	p.mu.Lock()
 	p.lastOptions = &cloned
@@ -125,6 +146,33 @@ func (previewSplitterStub) SplitParsedDocumentToChunks(ctx context.Context, inpu
 	return chunks, "test_split_v1", nil
 }
 
+func (s *previewCaptureSplitter) SplitParsedDocumentToChunks(ctx context.Context, input documentsplitter.ParsedDocumentChunkInput) ([]documentsplitter.TokenChunk, string, error) {
+	s.mu.Lock()
+	s.lastInput = clonePreviewChunkInput(input)
+	s.mu.Unlock()
+	return []documentsplitter.TokenChunk{{Content: "第一段", TokenCount: 3}}, "test_split_capture", nil
+}
+
+func (previewMetadataSplitter) SplitParsedDocumentToChunks(context.Context, documentsplitter.ParsedDocumentChunkInput) ([]documentsplitter.TokenChunk, string, error) {
+	return []documentsplitter.TokenChunk{
+		{
+			Content:      "第一段",
+			TokenCount:   3,
+			SectionTitle: "预览标题",
+			Metadata: map[string]any{
+				"tag": "preview",
+				"ext": map[string]any{"hidden": "value"},
+			},
+		},
+	}, "test_split_metadata", nil
+}
+
+func (s *previewCaptureSplitter) snapshotLastInput() documentsplitter.ParsedDocumentChunkInput {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return clonePreviewChunkInput(s.lastInput)
+}
+
 func newPreviewAppService(fetcher *previewTestFetcher) *appservice.FragmentAppService {
 	parseSvc := documentdomain.NewParseServiceWithParsers(fetcher, logging.New(), &previewTestParser{})
 	return appservice.NewFragmentAppService(nil, nil, nil, appservice.AppDeps{
@@ -158,12 +206,25 @@ func previewInput(chunkSize int) *fragdto.PreviewFragmentInput {
 	}
 }
 
+func previewInputWithStrategyConfig(chunkSize int) *fragdto.PreviewFragmentInput {
+	input := previewInput(chunkSize)
+	input.StrategyConfig = &confighelper.StrategyConfigDTO{}
+	return input
+}
+
+func clonePreviewChunkInput(input documentsplitter.ParsedDocumentChunkInput) documentsplitter.ParsedDocumentChunkInput {
+	cloned := input
+	cloned.FragmentConfig = shared.CloneFragmentConfig(input.FragmentConfig)
+	cloned.SegmentConfig.TextPreprocessRule = append([]int(nil), input.SegmentConfig.TextPreprocessRule...)
+	return cloned
+}
+
 func TestBuildPreviewRequestKeyForTest_NormalizesEquivalentDefaults(t *testing.T) {
 	t.Parallel()
 
-	withDefaults := previewInput(0)
+	withDefaults := previewInputWithStrategyConfig(0)
 	withDefaults.FragmentConfig.Normal.SegmentRule.ChunkOverlap = 80
-	withNilRule := previewInput(1000)
+	withNilRule := previewInputWithStrategyConfig(1000)
 	withNilRule.FragmentConfig.Normal.SegmentRule = nil
 
 	keyWithDefaults := appservice.BuildPreviewRequestKeyForTest(withDefaults)
@@ -267,6 +328,47 @@ func TestFragmentAppServicePreviewV2ReturnsHierarchyDocumentNodes(t *testing.T) 
 			t.Fatalf("expected default hierarchy level <=3, got %#v", item.Metadata)
 		}
 	}
+}
+
+func TestFragmentAppServicePreviewSanitizesMetadata(t *testing.T) {
+	t.Parallel()
+
+	parseSvc := documentdomain.NewParseServiceWithParsers(
+		&previewTestFetcher{
+			fetchFn: func(context.Context, string) (io.ReadCloser, error) {
+				return io.NopCloser(strings.NewReader("# 标题\n\n正文")), nil
+			},
+		},
+		logging.New(),
+		&previewTestParser{},
+	)
+	svc := appservice.NewFragmentAppService(nil, nil, nil, appservice.AppDeps{
+		ParseService:          parseSvc,
+		PreviewSplitter:       previewMetadataSplitter{},
+		Tokenizer:             tokenizer.NewService(),
+		DefaultEmbeddingModel: "text-embedding-3-small",
+	}, logging.New())
+
+	fragments, err := svc.Preview(context.Background(), previewInput(500))
+	if err != nil {
+		t.Fatalf("preview failed: %v", err)
+	}
+	if len(fragments) != 1 {
+		t.Fatalf("unexpected preview fragments: %#v", fragments)
+	}
+	assertFragmentMetadataSanitized(t, fragments[0].Metadata)
+	if fragments[0].Metadata["tag"] != "preview" {
+		t.Fatalf("expected preview metadata to preserve semantic fields, got %#v", fragments[0].Metadata)
+	}
+
+	page, err := svc.PreviewV2(context.Background(), previewInput(500))
+	if err != nil {
+		t.Fatalf("previewV2 failed: %v", err)
+	}
+	if len(page.List) != 1 {
+		t.Fatalf("unexpected previewV2 fragments: %#v", page)
+	}
+	assertFragmentMetadataSanitized(t, page.List[0].Metadata)
 }
 
 func TestFragmentAppServicePreviewV2AutoModeHandlesEscapedMarkdownContent(t *testing.T) {
@@ -386,7 +488,7 @@ func TestFragmentAppServicePreviewV2UsesBusinessFileNameForTabularChunks(t *test
 	if got := page.List[0].Content; strings.Contains(got, "1775908129904-0s6pzx-rag_.xlsx") {
 		t.Fatalf("expected random object key file name removed, got %q", got)
 	}
-	if got := page.List[0].Metadata[documentdomain.ParsedMetaFileName]; got != "rag 门店数据验证.xlsx" {
+	if got := page.List[0].Metadata[parseddocument.MetaFileName]; got != "rag 门店数据验证.xlsx" {
 		t.Fatalf("expected preview metadata file_name updated, got %#v", page.List[0].Metadata)
 	}
 }
@@ -406,7 +508,7 @@ func TestFragmentAppServicePreview_ThirdPlatformRawContentUsesGoParser(t *testin
 		result: &thirdplatform.DocumentResolveResult{
 			SourceKind: thirdplatform.DocumentSourceKindRawContent,
 			RawContent: "第一段\n\n第二段",
-			DocType:    int(documentdomain.DocTypeText),
+			DocType:    int(docentity.DocumentInputKindText),
 			DocumentFile: map[string]any{
 				"type":          "third_platform",
 				"name":          "resolved.md",
@@ -450,7 +552,7 @@ func TestFragmentAppServicePreview_ThirdPlatformRawContentUsesGoParser(t *testin
 	}
 }
 
-func newPreviewTabularParsedDocument(fileName string) *documentdomain.ParsedDocument {
+func newPreviewTabularParsedDocument(fileName string) *parseddocument.ParsedDocument {
 	content := strings.Join([]string{
 		"文件名: " + fileName,
 		"工作表: 截图数据",
@@ -458,20 +560,20 @@ func newPreviewTabularParsedDocument(fileName string) *documentdomain.ParsedDocu
 		"行号: 2",
 		"门店编码：V90901",
 	}, "\n")
-	return &documentdomain.ParsedDocument{
-		SourceType: documentdomain.ParsedDocumentSourceTabular,
+	return &parseddocument.ParsedDocument{
+		SourceType: parseddocument.SourceTabular,
 		PlainText:  content,
-		Blocks: []documentdomain.ParsedBlock{
+		Blocks: []parseddocument.ParsedBlock{
 			{
-				Type:    documentdomain.ParsedBlockTypeTableRow,
+				Type:    parseddocument.BlockTypeTableRow,
 				Content: content,
 				Metadata: map[string]any{
-					documentdomain.ParsedMetaFileName:     fileName,
-					documentdomain.ParsedMetaSourceFormat: "xlsx",
-					documentdomain.ParsedMetaSheetName:    "截图数据",
-					documentdomain.ParsedMetaTableTitle:   "截图数据 表1",
-					documentdomain.ParsedMetaRowIndex:     2,
-					documentdomain.ParsedMetaFields: []map[string]any{
+					parseddocument.MetaFileName:     fileName,
+					parseddocument.MetaSourceFormat: "xlsx",
+					parseddocument.MetaSheetName:    "截图数据",
+					parseddocument.MetaTableTitle:   "截图数据 表1",
+					parseddocument.MetaRowIndex:     2,
+					parseddocument.MetaFields: []map[string]any{
 						{
 							"header":      "门店编码",
 							"header_path": "门店编码",
@@ -482,8 +584,8 @@ func newPreviewTabularParsedDocument(fileName string) *documentdomain.ParsedDocu
 			},
 		},
 		DocumentMeta: map[string]any{
-			documentdomain.ParsedMetaSourceFormat: "xlsx",
-			documentdomain.ParsedMetaFileName:     fileName,
+			parseddocument.MetaSourceFormat: "xlsx",
+			parseddocument.MetaFileName:     fileName,
 		},
 	}
 }
@@ -501,7 +603,10 @@ func TestFragmentAppServicePreview_DifferentChunkConfigsDoNotShareResults(t *tes
 
 		var wg sync.WaitGroup
 		errs := make([]error, 2)
-		inputs := []*fragdto.PreviewFragmentInput{previewInput(500), previewInput(600)}
+		inputs := []*fragdto.PreviewFragmentInput{
+			previewInputWithStrategyConfig(500),
+			previewInputWithStrategyConfig(600),
+		}
 		wg.Add(len(inputs))
 		for i, input := range inputs {
 			go func(idx int, in *fragdto.PreviewFragmentInput) {
@@ -561,6 +666,166 @@ func TestFragmentAppServicePreview_UsesTopLevelStrategyConfig(t *testing.T) {
 	}
 }
 
+func TestFragmentAppServicePreview_DocumentCodeProjectFileUsesProjectFileAccessor(t *testing.T) {
+	t.Parallel()
+
+	var fetchedPath string
+	var projectFileID int64
+	parseSvc := documentdomain.NewParseServiceWithParsers(&previewTestFetcher{
+		fetchFn: func(_ context.Context, path string) (io.ReadCloser, error) {
+			fetchedPath = path
+			return io.NopCloser(strings.NewReader("第一段\n\n第二段")), nil
+		},
+		getLinkFn: func(context.Context, string, string, time.Duration) (string, error) {
+			return "", errPreviewTestUnexpectedGetLink
+		},
+	}, logging.New(), &previewTestParser{})
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		DocumentService: &fragmentAppDocumentReaderStub{
+			showResult: &docentity.KnowledgeBaseDocument{
+				Code:             "DOC-PROJECT-1",
+				OrganizationCode: "ORG1",
+				ProjectFileID:    42,
+				DocumentFile: &docentity.File{
+					Type:       "project_file",
+					Name:       "门店数据.xml",
+					Extension:  "xml",
+					SourceType: "project",
+				},
+			},
+		},
+		ParseService: parseSvc,
+		ProjectFileContentPort: &previewProjectFileAccessorStub{
+			getLinkFn: func(_ context.Context, gotProjectFileID int64, _ time.Duration) (string, error) {
+				projectFileID = gotProjectFileID
+				return "https://example.com/project-file.xml?sign=1", nil
+			},
+		},
+		PreviewSplitter:       previewSplitterStub{},
+		DefaultEmbeddingModel: "text-embedding-3-small",
+		Logger:                logging.New(),
+	})
+
+	page, err := svc.PreviewV2(context.Background(), &fragdto.PreviewFragmentInput{
+		OrganizationCode: "ORG1",
+		DocumentCode:     "DOC-PROJECT-1",
+		FragmentConfig:   previewInput(500).FragmentConfig,
+	})
+	if err != nil {
+		t.Fatalf("preview v2: %v", err)
+	}
+	if page == nil || len(page.List) == 0 {
+		t.Fatalf("expected preview page, got %#v", page)
+	}
+	if projectFileID != 42 {
+		t.Fatalf("expected project accessor called with project_file_id=42, got %d", projectFileID)
+	}
+	if fetchedPath != "https://example.com/project-file.xml?sign=1" {
+		t.Fatalf("expected fetch to use signed project file link, got %q", fetchedPath)
+	}
+}
+
+func TestFragmentAppServicePreview_DocumentCodeFallsBackToPersistedExternalDocumentFile(t *testing.T) {
+	t.Parallel()
+
+	var fetchedPath string
+	parseSvc := documentdomain.NewParseServiceWithParsers(&previewTestFetcher{
+		fetchFn: func(_ context.Context, path string) (io.ReadCloser, error) {
+			fetchedPath = path
+			return io.NopCloser(strings.NewReader("第一段\n\n第二段")), nil
+		},
+	}, logging.New(), &previewTestParser{})
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		DocumentService: &fragmentAppDocumentReaderStub{
+			showResult: &docentity.KnowledgeBaseDocument{
+				Code:             "DOC-EXT-1",
+				OrganizationCode: "ORG1",
+				DocumentFile: &docentity.File{
+					Type:      "external",
+					Name:      "demo.md",
+					FileKey:   "DT001/persisted/demo.md",
+					URL:       "",
+					Extension: "md",
+				},
+			},
+		},
+		ParseService:          parseSvc,
+		PreviewSplitter:       previewSplitterStub{},
+		DefaultEmbeddingModel: "text-embedding-3-small",
+		Logger:                logging.New(),
+	})
+
+	page, err := svc.PreviewV2(context.Background(), &fragdto.PreviewFragmentInput{
+		OrganizationCode: "ORG1",
+		DocumentCode:     "DOC-EXT-1",
+		DocumentFile: &docfilehelper.DocumentFileDTO{
+			Name: "demo.md",
+			Type: "external",
+		},
+		FragmentConfig: previewInput(500).FragmentConfig,
+	})
+	if err != nil {
+		t.Fatalf("preview v2: %v", err)
+	}
+	if page == nil || len(page.List) == 0 {
+		t.Fatalf("expected preview page, got %#v", page)
+	}
+	if fetchedPath != "DT001/persisted/demo.md" {
+		t.Fatalf("expected fallback to persisted document_file, got %q", fetchedPath)
+	}
+}
+
+func TestFragmentAppServicePreview_ProjectFileWithoutDocumentCodeStillFails(t *testing.T) {
+	t.Parallel()
+
+	svc := newPreviewAppService(&previewTestFetcher{
+		fetchFn: func(context.Context, string) (io.ReadCloser, error) {
+			return nil, errPreviewTestFetchFailed
+		},
+	})
+
+	_, err := svc.PreviewV2(context.Background(), &fragdto.PreviewFragmentInput{
+		DocumentFile: &docfilehelper.DocumentFileDTO{
+			Type:             "project_file",
+			Name:             "门店数据.xml",
+			ProjectFileID:    42,
+			RelativeFilePath: "workspace/门店数据.xml",
+			SourceType:       "project",
+			Extension:        "xml",
+		},
+		FragmentConfig: previewInput(500).FragmentConfig,
+	})
+	if err == nil {
+		t.Fatal("expected project preview without document_code to fail")
+	}
+}
+
+func TestFragmentAppServicePreview_NameOnlyExternalFileIsInvalid(t *testing.T) {
+	t.Parallel()
+
+	var fetchCalled atomic.Bool
+	svc := newPreviewAppService(&previewTestFetcher{
+		fetchFn: func(context.Context, string) (io.ReadCloser, error) {
+			fetchCalled.Store(true)
+			return nil, errPreviewTestFetchFailed
+		},
+	})
+
+	_, err := svc.PreviewV2(context.Background(), &fragdto.PreviewFragmentInput{
+		DocumentFile: &docfilehelper.DocumentFileDTO{
+			Type: "external",
+			Name: "服务商、供应商、承包商资质审查标准",
+		},
+		FragmentConfig: previewInput(500).FragmentConfig,
+	})
+	if !errors.Is(err, shared.ErrDocumentFileEmpty) {
+		t.Fatalf("expected ErrDocumentFileEmpty, got %v", err)
+	}
+	if fetchCalled.Load() {
+		t.Fatal("expected name-only preview to fail before fetching")
+	}
+}
+
 func TestFragmentAppServicePreview_ChunkCountChangesWithChunkConfig(t *testing.T) {
 	t.Parallel()
 
@@ -571,9 +836,9 @@ func TestFragmentAppServicePreview_ChunkCountChangesWithChunkConfig(t *testing.T
 		},
 	}, documentsplitter.NewPreviewSplitter())
 
-	smallChunks := previewInput(120)
+	smallChunks := previewInputWithStrategyConfig(120)
 	smallChunks.FragmentConfig.Normal.SegmentRule.ChunkOverlap = 0
-	largeChunks := previewInput(400)
+	largeChunks := previewInputWithStrategyConfig(400)
 	largeChunks.FragmentConfig.Normal.SegmentRule.ChunkOverlap = 0
 
 	smallPage, err := svc.PreviewV2(context.Background(), smallChunks)
@@ -589,6 +854,89 @@ func TestFragmentAppServicePreview_ChunkCountChangesWithChunkConfig(t *testing.T
 	}
 	if len(smallPage.List) <= len(largePage.List) {
 		t.Fatalf("expected smaller chunk_size to produce more chunks, small=%d large=%d", len(smallPage.List), len(largePage.List))
+	}
+}
+
+func TestFragmentAppServicePreview_WithoutStrategyConfigForcesAutoMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		configure func(*fragdto.PreviewFragmentInput)
+	}{
+		{
+			name: "custom",
+			configure: func(input *fragdto.PreviewFragmentInput) {
+				input.FragmentConfig.Mode = 1
+				input.FragmentConfig.Normal.SegmentRule.ChunkSize = 120
+				input.FragmentConfig.Normal.SegmentRule.ChunkOverlap = 0
+			},
+		},
+		{
+			name: "hierarchy",
+			configure: func(input *fragdto.PreviewFragmentInput) {
+				input.FragmentConfig.Mode = 3
+				input.FragmentConfig.Hierarchy = &confighelper.HierarchyFragmentConfigDTO{MaxLevel: 5}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			splitter := &previewCaptureSplitter{}
+			svc := newPreviewAppServiceWithSplitter(&previewTestFetcher{
+				fetchFn: func(context.Context, string) (io.ReadCloser, error) {
+					return io.NopCloser(strings.NewReader("第一段\n\n第二段")), nil
+				},
+			}, splitter)
+
+			input := previewInput(500)
+			tt.configure(input)
+
+			if _, err := svc.PreviewV2(context.Background(), input); err != nil {
+				t.Fatalf("preview v2: %v", err)
+			}
+
+			got := splitter.snapshotLastInput()
+			if got.RequestedMode != shared.FragmentModeAuto {
+				t.Fatalf("expected auto requested mode, got %v", got.RequestedMode)
+			}
+			if got.FragmentConfig == nil || got.FragmentConfig.Mode != shared.FragmentModeAuto {
+				t.Fatalf("expected auto fragment config, got %#v", got.FragmentConfig)
+			}
+			if got.SegmentConfig.ChunkSize != 1000 || got.SegmentConfig.ChunkOverlap != 80 || got.SegmentConfig.Separator != "\n\n" {
+				t.Fatalf("expected default auto segment config, got %#v", got.SegmentConfig)
+			}
+		})
+	}
+}
+
+func TestFragmentAppServicePreview_EmptyStrategyConfigKeepsRequestedFragmentMode(t *testing.T) {
+	t.Parallel()
+
+	splitter := &previewCaptureSplitter{}
+	svc := newPreviewAppServiceWithSplitter(&previewTestFetcher{
+		fetchFn: func(context.Context, string) (io.ReadCloser, error) {
+			return io.NopCloser(strings.NewReader("第一段\n\n第二段")), nil
+		},
+	}, splitter)
+
+	input := previewInputWithStrategyConfig(500)
+	input.FragmentConfig.Mode = 3
+	input.FragmentConfig.Hierarchy = &confighelper.HierarchyFragmentConfigDTO{MaxLevel: 4}
+
+	if _, err := svc.PreviewV2(context.Background(), input); err != nil {
+		t.Fatalf("preview v2: %v", err)
+	}
+
+	got := splitter.snapshotLastInput()
+	if got.RequestedMode != shared.FragmentModeHierarchy {
+		t.Fatalf("expected hierarchy requested mode, got %v", got.RequestedMode)
+	}
+	if got.FragmentConfig == nil || got.FragmentConfig.Mode != shared.FragmentModeHierarchy {
+		t.Fatalf("expected hierarchy fragment config, got %#v", got.FragmentConfig)
 	}
 }
 

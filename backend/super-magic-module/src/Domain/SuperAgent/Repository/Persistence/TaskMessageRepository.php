@@ -446,6 +446,24 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             ->update(['im_seq_id' => $imSeqId]);
     }
 
+    public function hasMessagesByTopicId(int $topicId): bool
+    {
+        return $this->model::query()
+            ->where('topic_id', $topicId)
+            ->exists();
+    }
+
+    /**
+     * Soft-delete all messages belonging to the given topic.
+     */
+    public function deleteMessageByTopicId(int $topicId): int
+    {
+        return $this->model::query()
+            ->where('topic_id', $topicId)
+            ->whereNull('deleted_at')
+            ->update(['deleted_at' => date('Y-m-d H:i:s')]);
+    }
+
     private function findFollowUpBoundaryQuestion(int $topicId, int $roundLimit): ?TaskMessageEntity
     {
         $offset = max(0, $roundLimit - 1);

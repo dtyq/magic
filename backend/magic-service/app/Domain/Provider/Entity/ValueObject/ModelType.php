@@ -9,9 +9,18 @@ namespace App\Domain\Provider\Entity\ValueObject;
 
 enum ModelType: int
 {
+    /**
+     * @deprecated
+     */
     case TEXT_TO_IMAGE = 0; // 文生图
+
     case IMAGE_TO_IMAGE = 1; // 图生图
+
+    /**
+     * @deprecated
+     */
     case IMAGE_ENHANCE = 2; // 图片增强
+
     case LLM = 3; // 大模型
     case EMBEDDING = 4; // 嵌入
     case TEXT_TO_VIDEO = 5; // 文生视频

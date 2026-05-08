@@ -17,15 +17,129 @@ use App\Domain\Provider\Repository\Facade\ProviderConfigRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelConfigVersionRepositoryInterface;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\Domain\Provider\Service\ProviderModelDomainService;
+use App\Infrastructure\Core\DataIsolation\BaseOrganizationInfoManager;
+use App\Infrastructure\Core\DataIsolation\BaseSubscriptionManager;
+use App\Infrastructure\Core\DataIsolation\BaseThirdPlatformDataIsolationManager;
+use App\Infrastructure\Core\DataIsolation\OrganizationInfoManagerInterface;
+use App\Infrastructure\Core\DataIsolation\SubscriptionManagerInterface;
+use App\Infrastructure\Core\DataIsolation\ThirdPlatformDataIsolationManagerInterface;
 use App\Interfaces\Provider\DTO\SaveProviderModelDTO;
+use Hyperf\Codec\Packer\PhpSerializerPacker;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\ConfigInterface;
+use Hyperf\Snowflake\IdGeneratorInterface;
+use Hyperf\Snowflake\Meta;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
+use RuntimeException;
 
 /**
  * @internal
  */
 class ProviderModelDomainServiceTest extends TestCase
 {
+    public static function setUpBeforeClass(): void
+    {
+        ApplicationContext::setContainer(new class implements ContainerInterface {
+            public function make(string $id, array $parameters = []): mixed
+            {
+                return $this->get($id);
+            }
+
+            public function get(string $id): mixed
+            {
+                return match ($id) {
+                    ConfigInterface::class => new class implements ConfigInterface {
+                        public function get(string $key, mixed $default = null): mixed
+                        {
+                            return match ($key) {
+                                'app_env' => 'test',
+                                'service_provider.office_organization' => null,
+                                default => $default,
+                            };
+                        }
+
+                        public function has(string $keys): bool
+                        {
+                            return in_array($keys, ['app_env', 'service_provider.office_organization'], true);
+                        }
+
+                        public function set(string $key, mixed $value): void
+                        {
+                        }
+                    },
+                    PhpSerializerPacker::class => new PhpSerializerPacker(),
+                    IdGeneratorInterface::class => new class implements IdGeneratorInterface {
+                        public function generate(?Meta $meta = null): int
+                        {
+                            return 1001;
+                        }
+
+                        public function degenerate(int $id): Meta
+                        {
+                            return new Meta();
+                        }
+                    },
+                    ThirdPlatformDataIsolationManagerInterface::class => new BaseThirdPlatformDataIsolationManager(),
+                    SubscriptionManagerInterface::class => new BaseSubscriptionManager(),
+                    OrganizationInfoManagerInterface::class => new BaseOrganizationInfoManager(),
+                    default => throw new RuntimeException('Unsupported service: ' . $id),
+                };
+            }
+
+            public function has(string $id): bool
+            {
+                return in_array($id, [
+                    ConfigInterface::class,
+                    PhpSerializerPacker::class,
+                    IdGeneratorInterface::class,
+                    ThirdPlatformDataIsolationManagerInterface::class,
+                    SubscriptionManagerInterface::class,
+                    OrganizationInfoManagerInterface::class,
+                ], true);
+            }
+        });
+    }
+
+    public function testSaveModelDefaultsVlmCategoryToImageToImageWhenModelTypeMissing(): void
+    {
+        $repository = $this->createMock(ProviderModelRepositoryInterface::class);
+        $repository->expects($this->once())
+            ->method('saveModel')
+            ->with(
+                $this->isInstanceOf(ProviderDataIsolation::class),
+                $this->callback(function (SaveProviderModelDTO $dto): bool {
+                    $this->assertSame(Category::VLM, $dto->getCategory());
+                    $this->assertSame(ModelType::IMAGE_TO_IMAGE, $dto->getModelType());
+
+                    return true;
+                })
+            )
+            ->willReturnCallback(static function (ProviderDataIsolation $dataIsolation, SaveProviderModelDTO $dto): ProviderModelEntity {
+                return new ProviderModelEntity([
+                    ...$dto->toArray(),
+                    'id' => 1001,
+                    'status' => Status::Enabled->value,
+                    'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
+                ]);
+            });
+
+        $service = $this->createService($repository);
+        $dto = new SaveProviderModelDTO([
+            'service_provider_config_id' => 0,
+            'category' => Category::VLM->value,
+            'model_version' => 'seedream-v1',
+            'model_id' => 'seedream-v1',
+            'name' => 'Seedream',
+        ]);
+
+        $saved = $service->saveModel($this->dataIsolation(), $dto);
+
+        $this->assertSame(Category::VLM, $saved->getCategory());
+        $this->assertSame(ModelType::IMAGE_TO_IMAGE, $saved->getModelType());
+    }
+
     #[DataProvider('dynamicCategoryModelTypeProvider')]
     public function testSyncAggregateModelCreatesDynamicModelWithModelTypeMatchedToCategory(
         string $category,

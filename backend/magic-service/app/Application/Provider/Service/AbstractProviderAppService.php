@@ -10,7 +10,7 @@ namespace App\Application\Provider\Service;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModelConfig;
 use App\Interfaces\Agent\Assembler\FileAssembler;
 
 /**
@@ -87,14 +87,6 @@ abstract class AbstractProviderAppService
             return null;
         }
 
-        $imageModelConfig = SizeManager::matchConfig($model->getModelVersion(), $model->getModelId());
-        if ($imageModelConfig === null) {
-            return null;
-        }
-
-        return [
-            'sizes' => $imageModelConfig['sizes'] ?? [],
-            'max_reference_images' => $imageModelConfig['max_reference_images'] ?? 0,
-        ];
+        return ImageModelConfig::fromModel($model->getModelVersion(), $model->getModelId())?->toArray();
     }
 }

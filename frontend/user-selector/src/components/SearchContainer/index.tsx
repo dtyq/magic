@@ -2,7 +2,13 @@ import type { ChangeEvent, PropsWithChildren, Ref } from "react"
 import { forwardRef, memo, useImperativeHandle, useState } from "react"
 import { IconSearch, IconX } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
-import { BaseProps, TreeNode, CheckboxOptions, Pagination } from "../UserSelector/types"
+import {
+	BaseProps,
+	TreeNode,
+	CheckboxOptions,
+	Pagination,
+	type RenderListItemRight,
+} from "../UserSelector/types"
 import CommonListPanel from "../CommonListPanel"
 import { useAppearance } from "@/context/AppearanceProvider"
 import { Input } from "@/components/ui/input"
@@ -26,6 +32,8 @@ export interface SearchContainerProps extends PropsWithChildren, BaseProps {
 	disableUser?: boolean
 	/** 是否显示搜索框 */
 	showSearch?: boolean
+	/** 自定义渲染列表项右侧内容 */
+	renderItemRight?: RenderListItemRight
 	/* 搜索框事件 */
 	onSearchChange?: (value: string) => void
 }
@@ -48,6 +56,7 @@ function SearchContainer(
 		isMobile = false,
 		disableUser = false,
 		showSearch = true,
+		renderItemRight,
 		onSearchChange,
 	}: SearchContainerProps,
 	ref: Ref<SearchContainerRef>,
@@ -120,6 +129,7 @@ function SearchContainer(
 						maxCount={maxCount}
 						isMobile={isMobile}
 						disableUser={disableUser}
+						renderItemRight={renderItemRight}
 					/>
 				) : (
 					children

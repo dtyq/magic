@@ -3,14 +3,16 @@ package fragdomain
 import (
 	"context"
 	"time"
+
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
 )
 
 type batchSyncTracer struct {
 	service *FragmentDomainService
-	kb      KnowledgeBaseRuntimeSnapshot
+	kb      fragmodel.KnowledgeBaseRuntimeSnapshot
 }
 
-func newBatchSyncTracer(service *FragmentDomainService, kb KnowledgeBaseRuntimeSnapshot) *batchSyncTracer {
+func newBatchSyncTracer(service *FragmentDomainService, kb fragmodel.KnowledgeBaseRuntimeSnapshot) *batchSyncTracer {
 	return &batchSyncTracer{
 		service: service,
 		kb:      kb,

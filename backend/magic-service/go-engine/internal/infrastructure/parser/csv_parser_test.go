@@ -2,10 +2,11 @@ package docparser_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
-	"magic/internal/domain/knowledge/document/service"
+	document "magic/internal/domain/knowledge/document/metadata"
 	parser "magic/internal/infrastructure/parser"
 )
 
@@ -25,6 +26,34 @@ func TestCSVParser_Parse(t *testing.T) {
 	}
 	if !strings.Contains(out, "- a: c") || !strings.Contains(out, "- b: d") {
 		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
+func TestCSVParser_ParseDocumentRejectsTooManyRows(t *testing.T) {
+	t.Parallel()
+
+	p := parser.NewCSVParserWithLimits(document.ResourceLimits{
+		MaxTabularRows:  2,
+		MaxTabularCells: 100,
+	})
+	input := "a,b\n1,2\n3,4\n"
+	_, err := p.ParseDocument(context.Background(), "large.csv", strings.NewReader(input), "csv")
+	if !errors.Is(err, document.ErrDocumentResourceLimitExceeded) {
+		t.Fatalf("expected resource limit error, got %v", err)
+	}
+}
+
+func TestCSVParser_ParseDocumentRejectsTooManyCells(t *testing.T) {
+	t.Parallel()
+
+	p := parser.NewCSVParserWithLimits(document.ResourceLimits{
+		MaxTabularRows:  100,
+		MaxTabularCells: 3,
+	})
+	input := "a,b\n1,2\n"
+	_, err := p.ParseDocument(context.Background(), "large.csv", strings.NewReader(input), "csv")
+	if !errors.Is(err, document.ErrDocumentResourceLimitExceeded) {
+		t.Fatalf("expected resource limit error, got %v", err)
 	}
 }
 

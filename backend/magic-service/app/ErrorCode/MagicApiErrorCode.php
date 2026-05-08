@@ -90,4 +90,8 @@ enum MagicApiErrorCode: int
     // token被禁用
     #[ErrorMessage(message: 'api.token.disabled')]
     case TOKEN_DISABLED = 4019;
+
+    // 大模型网络异常
+    #[ErrorMessage(message: 'api.model.response_fail')]
+    case MODEL_NETWORK_ERROR = 4020;
 }

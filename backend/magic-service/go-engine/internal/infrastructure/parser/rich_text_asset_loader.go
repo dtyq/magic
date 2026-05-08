@@ -11,7 +11,7 @@ import (
 	"path"
 	"strings"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 var (

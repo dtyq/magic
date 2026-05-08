@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/filetype"
 )
 
@@ -33,12 +35,14 @@ type ContentPlan struct {
 
 // ThirdPlatformResolveRequest 描述第三方文档读取所需的稳定请求。
 type ThirdPlatformResolveRequest struct {
-	OrganizationCode  string
-	UserID            string
-	KnowledgeBaseCode string
-	ThirdPlatformType string
-	ThirdFileID       string
-	DocumentFile      map[string]any
+	OrganizationCode              string
+	UserID                        string
+	ThirdPlatformUserID           string
+	ThirdPlatformOrganizationCode string
+	KnowledgeBaseCode             string
+	ThirdPlatformType             string
+	ThirdFileID                   string
+	DocumentFile                  map[string]any
 }
 
 // NormalizeSourceOverride 规整同步时注入的源覆盖内容。
@@ -47,7 +51,16 @@ func NormalizeSourceOverride(override *SourceOverride, now time.Time) *SourceOve
 		return nil
 	}
 	normalized := *override
-	normalized.Content = NormalizeDocumentContentForFileType(resolveSourceOverrideFileType(&normalized), normalized.Content)
+	normalized.ParsedDocument = parseddocument.CloneParsedDocument(override.ParsedDocument)
+	if normalized.ParsedDocument != nil {
+		if result, err := BuildSyncContentFromParsedDocument(normalized.ParsedDocument); err == nil {
+			normalized.Content = result.Content
+		} else {
+			normalized.Content = NormalizeDocumentContentForFileType(resolveSourceOverrideFileType(&normalized), normalized.Content)
+		}
+	} else {
+		normalized.Content = NormalizeDocumentContentForFileType(resolveSourceOverrideFileType(&normalized), normalized.Content)
+	}
 	if normalized.Content != "" && normalized.ContentHash == "" {
 		normalized.ContentHash = hashSourceContent(normalized.Content)
 	}
@@ -76,7 +89,7 @@ func DecodeLikelyEscapedMultilineDocumentContent(fileType, content string) strin
 }
 
 // ResolveDocumentSourceFileType 解析文档来源对应的标准文件类型。
-func ResolveDocumentSourceFileType(doc *KnowledgeBaseDocument) string {
+func ResolveDocumentSourceFileType(doc *docentity.KnowledgeBaseDocument) string {
 	if doc == nil || doc.DocumentFile == nil {
 		return ""
 	}
@@ -84,13 +97,13 @@ func ResolveDocumentSourceFileType(doc *KnowledgeBaseDocument) string {
 }
 
 // HasDocumentFileURL 判断文档是否具备可解析的 URL 源。
-func HasDocumentFileURL(doc *KnowledgeBaseDocument) bool {
+func HasDocumentFileURL(doc *docentity.KnowledgeBaseDocument) bool {
 	return doc != nil && doc.DocumentFile != nil && strings.TrimSpace(doc.DocumentFile.URL) != ""
 }
 
 // ResolveDocumentContentPlan 计算文档内容解析链路。
 func ResolveDocumentContentPlan(
-	doc *KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	override *SourceOverride,
 	hasThirdPlatformResolver bool,
 ) ContentPlan {
@@ -107,14 +120,14 @@ func ResolveDocumentContentPlan(
 }
 
 // BuildParsedDocumentFromContent 基于正文内容构造标准解析结果。
-func BuildParsedDocumentFromContent(doc *KnowledgeBaseDocument, content string) (*ParsedDocument, string) {
+func BuildParsedDocumentFromContent(doc *docentity.KnowledgeBaseDocument, content string) (*parseddocument.ParsedDocument, string) {
 	fileType := ResolveDocumentSourceFileType(doc)
 	normalized := NormalizeDocumentContentForFileType(fileType, content)
-	return NewPlainTextParsedDocument(fileType, normalized), normalized
+	return parseddocument.NewPlainTextParsedDocument(fileType, normalized), normalized
 }
 
 // ShouldResolveThirdPlatformDocument 判断文档是否应走第三方解析链路。
-func ShouldResolveThirdPlatformDocument(doc *KnowledgeBaseDocument) bool {
+func ShouldResolveThirdPlatformDocument(doc *docentity.KnowledgeBaseDocument) bool {
 	if doc == nil {
 		return false
 	}
@@ -131,7 +144,7 @@ func ShouldResolveThirdPlatformDocument(doc *KnowledgeBaseDocument) bool {
 }
 
 // BuildDocumentFilePayload 构造第三方解析使用的 document_file 载荷。
-func BuildDocumentFilePayload(doc *KnowledgeBaseDocument) map[string]any {
+func BuildDocumentFilePayload(doc *docentity.KnowledgeBaseDocument) map[string]any {
 	payload := map[string]any{
 		"type": docFileTypeThirdParty,
 	}
@@ -169,36 +182,45 @@ func BuildDocumentFilePayload(doc *KnowledgeBaseDocument) map[string]any {
 }
 
 // ResolveThirdPlatformUserID 解析第三方读取链路应使用的用户 ID。
-func ResolveThirdPlatformUserID(doc *KnowledgeBaseDocument, userID string) string {
+func ResolveThirdPlatformUserID(doc *docentity.KnowledgeBaseDocument, userID string) string {
 	if strings.TrimSpace(userID) != "" {
 		return strings.TrimSpace(userID)
 	}
 	if doc == nil {
 		return ""
 	}
-	return strings.TrimSpace(doc.UpdatedUID)
+	return ResolveMappedDocumentUserID(doc)
 }
 
 // BuildThirdPlatformResolveRequest 构造第三方文档读取请求。
-func BuildThirdPlatformResolveRequest(doc *KnowledgeBaseDocument, userID string) ThirdPlatformResolveRequest {
+func BuildThirdPlatformResolveRequest(
+	doc *docentity.KnowledgeBaseDocument,
+	userID string,
+	thirdPlatformUserID string,
+	thirdPlatformOrganizationCode string,
+) ThirdPlatformResolveRequest {
 	return ThirdPlatformResolveRequest{
-		OrganizationCode:  strings.TrimSpace(doc.OrganizationCode),
-		UserID:            ResolveThirdPlatformUserID(doc, userID),
-		KnowledgeBaseCode: strings.TrimSpace(doc.KnowledgeBaseCode),
-		ThirdPlatformType: strings.TrimSpace(doc.ThirdPlatformType),
-		ThirdFileID:       strings.TrimSpace(doc.ThirdFileID),
-		DocumentFile:      BuildDocumentFilePayload(doc),
+		OrganizationCode:              strings.TrimSpace(doc.OrganizationCode),
+		UserID:                        ResolveThirdPlatformUserID(doc, userID),
+		ThirdPlatformUserID:           strings.TrimSpace(thirdPlatformUserID),
+		ThirdPlatformOrganizationCode: strings.TrimSpace(thirdPlatformOrganizationCode),
+		KnowledgeBaseCode:             strings.TrimSpace(doc.KnowledgeBaseCode),
+		ThirdPlatformType:             strings.TrimSpace(doc.ThirdPlatformType),
+		ThirdFileID:                   strings.TrimSpace(doc.ThirdFileID),
+		DocumentFile:                  BuildDocumentFilePayload(doc),
 	}
 }
 
 // ApplyResolvedDocumentResult 将外部解析结果回填到文档实体。
-func ApplyResolvedDocumentResult(doc *KnowledgeBaseDocument, docType int, file map[string]any) {
+func ApplyResolvedDocumentResult(doc *docentity.KnowledgeBaseDocument, docType int, file map[string]any) {
 	if doc == nil {
 		return
 	}
 	if doc.DocumentFile == nil {
-		doc.DocumentFile = &File{}
+		doc.DocumentFile = &docentity.File{}
 	}
+	// 外部解析返回的是主表精确 doc_type，可能包含企业扩展值 1001/1002；
+	// 这里只负责回填文档自身类型，不能据此反推 knowledge_base_type 或 source_type。
 	if docType > 0 {
 		doc.DocType = docType
 	}
@@ -230,6 +252,13 @@ func ApplyResolvedDocumentResult(doc *KnowledgeBaseDocument, docType int, file m
 	if value := strings.TrimSpace(stringValue(file["knowledge_base_id"])); value != "" {
 		doc.DocumentFile.KnowledgeBaseID = value
 	}
+	if value := firstNonEmptyString(
+		strings.TrimSpace(stringValue(file["third_file_type"])),
+		strings.TrimSpace(stringValue(file["teamshare_file_type"])),
+		strings.TrimSpace(stringValue(file["file_type"])),
+	); value != "" {
+		doc.DocumentFile.ThirdFileType = value
+	}
 
 	thirdID := firstNonEmptyString(
 		strings.TrimSpace(stringValue(file["third_id"])),
@@ -251,35 +280,35 @@ func ApplyResolvedDocumentResult(doc *KnowledgeBaseDocument, docType int, file m
 }
 
 // ApplySourceOverride 将源覆盖内容回填到文档并返回是否发生变化。
-func (d *KnowledgeBaseDocument) ApplySourceOverride(override *SourceOverride) bool {
-	if d == nil || override == nil {
+func ApplySourceOverride(doc *docentity.KnowledgeBaseDocument, override *SourceOverride) bool {
+	if doc == nil || override == nil {
 		return false
 	}
 
-	beforeType := d.DocType
-	beforePlatform := d.ThirdPlatformType
-	beforeFileID := d.ThirdFileID
-	beforeFile := cloneDocumentFile(d.DocumentFile)
+	beforeType := doc.DocType
+	beforePlatform := doc.ThirdPlatformType
+	beforeFileID := doc.ThirdFileID
+	beforeFile := cloneDocumentFile(doc.DocumentFile)
 
 	if override.DocType > 0 {
-		d.DocType = override.DocType
+		doc.DocType = override.DocType
 	}
 	if len(override.DocumentFile) > 0 {
-		ApplyResolvedDocumentResult(d, override.DocType, override.DocumentFile)
+		ApplyResolvedDocumentResult(doc, override.DocType, override.DocumentFile)
 	}
-	if d.DocumentFile == nil {
-		d.DocumentFile = &File{}
+	if doc.DocumentFile == nil {
+		doc.DocumentFile = &docentity.File{}
 	}
 
-	return beforeType != d.DocType ||
-		beforePlatform != d.ThirdPlatformType ||
-		beforeFileID != d.ThirdFileID ||
-		!sameDocumentFile(beforeFile, d.DocumentFile)
+	return beforeType != doc.DocType ||
+		beforePlatform != doc.ThirdPlatformType ||
+		beforeFileID != doc.ThirdFileID ||
+		!sameDocumentFile(beforeFile, doc.DocumentFile)
 }
 
 // ResolveSourcePreflightPolicy 计算同步前是否需要源校验。
 func ResolveSourcePreflightPolicy(
-	doc *KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	override *SourceOverride,
 	hasThirdPlatformResolver bool,
 ) SourcePreflightDecision {
@@ -294,7 +323,7 @@ func ResolveSourcePreflightPolicy(
 
 // ResolveThirdPlatformRedirect 计算 resync 是否应重定向到第三方文件重向量化链路。
 func ResolveThirdPlatformRedirect(
-	doc *KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	mode string,
 	hasSourceOverride bool,
 	organizationCode string,
@@ -313,8 +342,8 @@ func ResolveThirdPlatformRedirect(
 		return ThirdPlatformRedirectDecision{IncompleteBinding: true}
 	}
 
-	if strings.TrimSpace(userID) == "" {
-		userID = strings.TrimSpace(doc.UpdatedUID)
+	if mappedUserID := ResolveMappedDocumentUserID(doc); mappedUserID != "" {
+		userID = mappedUserID
 	}
 	if strings.TrimSpace(organizationCode) == "" {
 		organizationCode = strings.TrimSpace(doc.OrganizationCode)
@@ -332,7 +361,7 @@ func ResolveThirdPlatformRedirect(
 }
 
 // ResolveDocumentFileExtension 根据已有字段、轻量推断和远端识别结果计算最终扩展名。
-func ResolveDocumentFileExtension(file *File, detected string) string {
+func ResolveDocumentFileExtension(file *docentity.File, detected string) string {
 	if file == nil {
 		return ""
 	}
@@ -416,7 +445,7 @@ func resolveSourceOverrideFileType(override *SourceOverride) string {
 	return ResolveDocumentFileExtension(file, "")
 }
 
-func inferDocumentFileExtension(file *File) string {
+func inferDocumentFileExtension(file *docentity.File) string {
 	if file == nil {
 		return ""
 	}
@@ -466,7 +495,7 @@ func toInt64(value any) int64 {
 	}
 }
 
-func cloneDocumentFile(file *File) *File {
+func cloneDocumentFile(file *docentity.File) *docentity.File {
 	if file == nil {
 		return nil
 	}
@@ -474,7 +503,7 @@ func cloneDocumentFile(file *File) *File {
 	return &cloned
 }
 
-func sameDocumentFile(left, right *File) bool {
+func sameDocumentFile(left, right *docentity.File) bool {
 	switch {
 	case left == nil && right == nil:
 		return true

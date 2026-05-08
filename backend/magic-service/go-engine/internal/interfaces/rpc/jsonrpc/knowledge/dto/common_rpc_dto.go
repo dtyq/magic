@@ -2,6 +2,8 @@
 package dto
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -11,6 +13,7 @@ import (
 
 	confighelper "magic/internal/application/knowledge/helper/config"
 	"magic/internal/constants"
+	pkgjsoncompat "magic/internal/pkg/jsoncompat"
 	jsonrpc "magic/internal/pkg/jsonrpc"
 )
 
@@ -42,14 +45,39 @@ type PageParams struct {
 	Limit  int `json:"limit" validate:"min=1"`
 }
 
+// UnmarshalJSON 兼容分页数值字段传字符串。
+func (p *PageParams) UnmarshalJSON(data []byte) error {
+	raw, err := unmarshalRequestObject(data, "page")
+	if err != nil {
+		return err
+	}
+
+	offset, err := decodeRequestIntValue(raw, "offset")
+	if err != nil {
+		return err
+	}
+	limit, err := decodeRequestIntValue(raw, "limit")
+	if err != nil {
+		return err
+	}
+
+	*p = PageParams{
+		Offset: offset,
+		Limit:  limit,
+	}
+	return nil
+}
+
 // 数据隔离参数
 
 // DataIsolation 数据隔离参数
 type DataIsolation struct {
 	OrganizationCode string `json:"organization_code"`
 	// OrganizationID 兼容旧入参字段，优先级低于 OrganizationCode。
-	OrganizationID string `json:"organization_id,omitempty"`
-	UserID         string `json:"user_id"`
+	OrganizationID                string `json:"organization_id,omitempty"`
+	UserID                        string `json:"user_id"`
+	ThirdPlatformUserID           string `json:"third_platform_user_id,omitempty"`
+	ThirdPlatformOrganizationCode string `json:"third_platform_organization_code,omitempty"`
 }
 
 // ResolveOrganizationCode 返回规范化组织编码。
@@ -63,7 +91,310 @@ func (di DataIsolation) ResolveOrganizationCode() string {
 const (
 	maxRetrieveTopK   = 10
 	maxHierarchyLevel = 6
+	defaultPageNumber = 1
 )
+
+var errEmptyCompatInteger = errors.New("empty compat integer")
+
+func unmarshalRequestObject(data []byte, fieldName string) (map[string]json.RawMessage, error) {
+	raw := map[string]json.RawMessage{}
+	if err := pkgjsoncompat.UnmarshalObjectOrEmpty(data, map[string]json.RawMessage{}, &raw); err != nil {
+		return nil, fmt.Errorf("unmarshal %s: %w", fieldName, err)
+	}
+	return raw, nil
+}
+
+func decodeRequestString(raw map[string]json.RawMessage, fieldName string) (string, bool, error) {
+	field, ok := raw[fieldName]
+	if !ok {
+		return "", false, nil
+	}
+	trimmed := strings.TrimSpace(string(field))
+	if trimmed == "" || trimmed == rawJSONNullLiteral {
+		return "", true, nil
+	}
+
+	var value string
+	if err := json.Unmarshal(field, &value); err != nil {
+		return "", false, fmt.Errorf("unmarshal %s: %w", fieldName, err)
+	}
+	return value, true, nil
+}
+
+func decodeRequestStringValue(raw map[string]json.RawMessage, fieldName string) (string, error) {
+	value, _, err := decodeRequestString(raw, fieldName)
+	return value, err
+}
+
+func decodeRequestIDString(raw map[string]json.RawMessage, fieldName string) (string, bool, error) {
+	field, ok := raw[fieldName]
+	if !ok {
+		return "", false, nil
+	}
+	value, provided, err := pkgjsoncompat.DecodeOptionalIDString(field, fieldName)
+	if err != nil {
+		return "", false, fmt.Errorf("decode %s: %w", fieldName, err)
+	}
+	return value, provided, nil
+}
+
+func decodeRequestIDStringValue(raw map[string]json.RawMessage, fieldName string) (string, error) {
+	value, _, err := decodeRequestIDString(raw, fieldName)
+	return value, err
+}
+
+func decodeRequestInt(raw map[string]json.RawMessage, fieldName string) (*int, bool, error) {
+	field, ok := raw[fieldName]
+	if !ok {
+		return nil, false, nil
+	}
+	value, provided, err := pkgjsoncompat.DecodeOptionalInt(field, fieldName)
+	if err != nil {
+		return nil, false, fmt.Errorf("decode %s: %w", fieldName, err)
+	}
+	return value, provided, nil
+}
+
+func decodeRequestIntValue(raw map[string]json.RawMessage, fieldName string) (int, error) {
+	value, _, err := decodeRequestInt(raw, fieldName)
+	if err != nil {
+		return 0, err
+	}
+	if value == nil {
+		return 0, nil
+	}
+	return *value, nil
+}
+
+func decodeRequestInt64(raw map[string]json.RawMessage, fieldName string) (*int64, bool, error) {
+	field, ok := raw[fieldName]
+	if !ok {
+		return nil, false, nil
+	}
+	value, provided, err := pkgjsoncompat.DecodeOptionalInt64(field, fieldName)
+	if err != nil {
+		return nil, false, fmt.Errorf("decode %s: %w", fieldName, err)
+	}
+	return value, provided, nil
+}
+
+func decodeRequestInt64Value(raw map[string]json.RawMessage, fieldName string) (int64, error) {
+	value, _, err := decodeRequestInt64(raw, fieldName)
+	if err != nil {
+		return 0, err
+	}
+	if value == nil {
+		return 0, nil
+	}
+	return *value, nil
+}
+
+func decodeRequestIDInt64(raw map[string]json.RawMessage, fieldName string) (*int64, bool, error) {
+	field, ok := raw[fieldName]
+	if !ok {
+		return nil, false, nil
+	}
+	value, provided, err := pkgjsoncompat.DecodeOptionalIDInt64(field, fieldName)
+	if err != nil {
+		return nil, false, fmt.Errorf("decode %s: %w", fieldName, err)
+	}
+	return value, provided, nil
+}
+
+func decodeRequestIDInt64Value(raw map[string]json.RawMessage, fieldName string) (int64, error) {
+	value, _, err := decodeRequestIDInt64(raw, fieldName)
+	if err != nil {
+		return 0, err
+	}
+	if value == nil {
+		return 0, nil
+	}
+	return *value, nil
+}
+
+func decodeRequestFloat64(raw map[string]json.RawMessage, fieldName string) (float64, bool, error) {
+	field, ok := raw[fieldName]
+	if !ok {
+		return 0, false, nil
+	}
+	value, _, err := pkgjsoncompat.DecodeOptionalFloat64(field, fieldName)
+	if err != nil {
+		return 0, false, fmt.Errorf("decode %s: %w", fieldName, err)
+	}
+	if value == nil {
+		return 0, false, nil
+	}
+	return *value, true, nil
+}
+
+func decodeRequestFloat64Value(raw map[string]json.RawMessage, fieldName string) (float64, error) {
+	value, ok, err := decodeRequestFloat64(raw, fieldName)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, nil
+	}
+	return value, nil
+}
+
+func decodeRequestBoolPHPTruth(raw map[string]json.RawMessage, fieldName string) (*bool, bool, error) {
+	field, ok := raw[fieldName]
+	if !ok {
+		return nil, false, nil
+	}
+	value, provided, err := pkgjsoncompat.DecodeOptionalBoolPHPTruth(field, fieldName)
+	if err != nil {
+		return nil, false, fmt.Errorf("decode %s: %w", fieldName, err)
+	}
+	return value, provided, nil
+}
+
+func decodeRequestStringSlice(raw map[string]json.RawMessage, fieldName string) ([]string, error) {
+	field, ok := raw[fieldName]
+	if !ok {
+		return nil, nil
+	}
+	if pkgjsoncompat.IsEmptyObjectLikeJSON(field) {
+		return []string{}, nil
+	}
+
+	var values []string
+	if err := json.Unmarshal(field, &values); err != nil {
+		return nil, fmt.Errorf("unmarshal %s: %w", fieldName, err)
+	}
+	return values, nil
+}
+
+func decodeRequestIntSlice(raw map[string]json.RawMessage, fieldName string) ([]int, error) {
+	field, ok := raw[fieldName]
+	if !ok {
+		return nil, nil
+	}
+	return decodeCompatIntegerSlice(
+		field,
+		fieldName,
+		func(item json.RawMessage, itemField string) (int, error) {
+			value, _, err := pkgjsoncompat.DecodeOptionalInt(item, itemField)
+			if err != nil {
+				return 0, fmt.Errorf("decode %s: %w", itemField, err)
+			}
+			if value == nil {
+				return 0, fmt.Errorf("decode %s: %w", itemField, errEmptyCompatInteger)
+			}
+			return *value, nil
+		},
+	)
+}
+
+func decodeRequestIDInt64Slice(raw map[string]json.RawMessage, fieldName string) ([]int64, error) {
+	field, ok := raw[fieldName]
+	if !ok {
+		return nil, nil
+	}
+	return decodeCompatIntegerSlice(
+		field,
+		fieldName,
+		func(item json.RawMessage, itemField string) (int64, error) {
+			value, _, err := pkgjsoncompat.DecodeOptionalIDInt64(item, itemField)
+			if err != nil {
+				return 0, fmt.Errorf("decode %s: %w", itemField, err)
+			}
+			if value == nil {
+				return 0, fmt.Errorf("decode %s: %w", itemField, errEmptyCompatInteger)
+			}
+			return *value, nil
+		},
+	)
+}
+
+func decodeCompatIntegerSlice[T int | int64](
+	field json.RawMessage,
+	fieldName string,
+	decodeItem func(item json.RawMessage, itemField string) (T, error),
+) ([]T, error) {
+	trimmed := bytes.TrimSpace(field)
+	switch {
+	case len(trimmed) == 0, bytes.Equal(trimmed, []byte("null")):
+		return []T{}, nil
+	case bytes.Equal(trimmed, []byte("[]")):
+		return []T{}, nil
+	case trimmed[0] == '"':
+		var rawString string
+		if err := json.Unmarshal(trimmed, &rawString); err != nil {
+			return nil, fmt.Errorf("unmarshal %s: %w", fieldName, err)
+		}
+		switch strings.TrimSpace(rawString) {
+		case "", "null", "[]":
+			return []T{}, nil
+		}
+	}
+
+	var items []json.RawMessage
+	if err := json.Unmarshal(trimmed, &items); err != nil {
+		return nil, fmt.Errorf("unmarshal %s: %w", fieldName, err)
+	}
+
+	values := make([]T, 0, len(items))
+	for idx, item := range items {
+		itemField := fmt.Sprintf("%s[%d]", fieldName, idx)
+		value, err := decodeItem(item, itemField)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, value)
+	}
+	return values, nil
+}
+
+func decodeRequestPageWindow(
+	raw map[string]json.RawMessage,
+	defaultLimit int,
+) (int, int, error) {
+	offset := 0
+	limit := defaultLimit
+
+	explicitOffset, offsetProvided, err := decodeRequestInt(raw, "offset")
+	if err != nil {
+		return 0, 0, err
+	}
+	explicitLimit, limitProvided, err := decodeRequestInt(raw, "limit")
+	if err != nil {
+		return 0, 0, err
+	}
+	if offsetProvided || limitProvided {
+		if explicitOffset != nil {
+			offset = *explicitOffset
+		}
+		if explicitLimit != nil {
+			limit = *explicitLimit
+		}
+		return offset, limit, nil
+	}
+
+	page := defaultPageNumber
+	pageValue, pageProvided, err := decodeRequestInt(raw, "page")
+	if err != nil {
+		return 0, 0, err
+	}
+	if pageProvided && pageValue != nil {
+		page = *pageValue
+	}
+	pageSizeValue, pageSizeProvided, err := decodeRequestInt(raw, "page_size")
+	if err != nil {
+		return 0, 0, err
+	}
+	if pageSizeProvided && pageSizeValue != nil {
+		limit = *pageSizeValue
+	}
+	offset = (page - 1) * limit
+	return offset, limit, nil
+}
+
+func isJSONObjectPayload(data json.RawMessage) bool {
+	trimmed := strings.TrimSpace(string(data))
+	return len(trimmed) > 0 && trimmed[0] == '{'
+}
 
 func newRPCRequestValidator() *validator.Validate {
 	v := validator.New(validator.WithRequiredStructEnabled())
@@ -230,10 +561,10 @@ func validateStrategyConfig(cfg *confighelper.StrategyConfigDTO) error {
 		return nil
 	}
 	switch cfg.ParsingType {
-	case 0, 1:
+	case 0, 1, 2:
 		return nil
 	default:
-		return invalidParams("strategy_config.parsing_type must be one of 0, 1")
+		return invalidParams("strategy_config.parsing_type must be one of 0, 1, 2")
 	}
 }
 

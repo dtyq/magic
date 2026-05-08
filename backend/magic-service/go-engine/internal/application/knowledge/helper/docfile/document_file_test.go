@@ -65,7 +65,9 @@ func TestDocumentFileDTOUnmarshalJSONKeepsProjectFileTransportSemantics(t *testi
 		"name": "demo.md",
 		"url": "https://example.com/project/demo.md?sign=1",
 		"source_type": "project",
-		"extension": "md"
+		"extension": "md",
+		"project_file_id": 42,
+		"relative_file_path": "docs/demo.md"
 	}`)
 
 	var dto docfilehelper.DocumentFileDTO
@@ -77,6 +79,69 @@ func TestDocumentFileDTOUnmarshalJSONKeepsProjectFileTransportSemantics(t *testi
 	}
 	if dto.URL != "https://example.com/project/demo.md?sign=1" || dto.SourceType != "project" || dto.Extension != "md" {
 		t.Fatalf("unexpected project preview document file fields: %#v", dto)
+	}
+	if dto.ProjectFileID != 42 || dto.RelativeFilePath != "docs/demo.md" {
+		t.Fatalf("unexpected project transport compat fields: %#v", dto)
+	}
+}
+
+func TestDocumentFileDTOUnmarshalJSONAcceptsStringNumericTransportFields(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"type": "project_file",
+		"name": "demo.md",
+		"size": "12",
+		"project_file_id": "42"
+	}`)
+
+	var dto docfilehelper.DocumentFileDTO
+	if err := json.Unmarshal(raw, &dto); err != nil {
+		t.Fatalf("unmarshal string numeric document file failed: %v", err)
+	}
+	if dto.Size != 12 || dto.ProjectFileID != 42 {
+		t.Fatalf("expected string numerics preserved, got %#v", dto)
+	}
+}
+
+func TestDocumentFileDTOUnmarshalJSONPreservesLargeNumericIDFields(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"type": "project_file",
+		"name": "demo.md",
+		"project_file_id": 904787325064802305,
+		"third_file_id": 904787325064802306,
+		"knowledge_base_id": 904787325064802307
+	}`)
+
+	var dto docfilehelper.DocumentFileDTO
+	if err := json.Unmarshal(raw, &dto); err != nil {
+		t.Fatalf("unmarshal large numeric id document file failed: %v", err)
+	}
+	if dto.ProjectFileID != 904787325064802305 {
+		t.Fatalf("expected project_file_id preserved, got %#v", dto.ProjectFileID)
+	}
+	if dto.ThirdID != "904787325064802306" {
+		t.Fatalf("expected third id preserved, got %#v", dto.ThirdID)
+	}
+	if dto.KnowledgeBaseID != "904787325064802307" {
+		t.Fatalf("expected knowledge_base_id preserved, got %#v", dto.KnowledgeBaseID)
+	}
+}
+
+func TestDocumentFileDTOUnmarshalJSONRejectsInvalidNumericTransportFields(t *testing.T) {
+	t.Parallel()
+
+	raw := []byte(`{
+		"type": "project_file",
+		"name": "demo.md",
+		"project_file_id": "bad-id"
+	}`)
+
+	var dto docfilehelper.DocumentFileDTO
+	if err := json.Unmarshal(raw, &dto); err == nil {
+		t.Fatal("expected invalid project_file_id to fail")
 	}
 }
 

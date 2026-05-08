@@ -504,7 +504,7 @@ class SuperMagicAgentApi extends AbstractApi
             $projectRequestDTO->setInitTemplateFiles(false);
 
             // 创建项目
-            $projectResult = $this->projectAppService->createAgentProject($requestContext, $projectRequestDTO, ProjectMode::CUSTOM_AGENT);
+            $projectResult = $this->projectAppService->createAgentProject($requestContext, $projectRequestDTO, ProjectMode::AGENT_CREATOR);
 
             $projectId = (int) ($projectResult['project']['id'] ?? 0);
             if ($projectId <= 0) {

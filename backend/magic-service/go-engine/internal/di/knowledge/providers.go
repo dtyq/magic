@@ -4,7 +4,9 @@ package knowledge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -13,15 +15,22 @@ import (
 	embeddingapp "magic/internal/application/knowledge/embedding/service"
 	fragmentapp "magic/internal/application/knowledge/fragment/service"
 	knowledgebaseapp "magic/internal/application/knowledge/knowledgebase/service"
+	revectorizeapp "magic/internal/application/knowledge/revectorize/service"
+	revectorizeshared "magic/internal/application/knowledge/shared/revectorize"
 	thirdplatformprovider "magic/internal/application/knowledge/shared/thirdplatformprovider"
 	autoloadcfg "magic/internal/config/autoload"
+	"magic/internal/constants"
+	userdomain "magic/internal/domain/contact/user"
+	kbaccess "magic/internal/domain/knowledge/access/service"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
 	embeddingdomain "magic/internal/domain/knowledge/embedding"
 	fragmentdomain "magic/internal/domain/knowledge/fragment/service"
 	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	supermagicprojectdomain "magic/internal/domain/supermagicproject/service"
 	taskfiledomain "magic/internal/domain/taskfile/service"
 	"magic/internal/infrastructure/knowledge/documentsync"
+	sourcecallbackcache "magic/internal/infrastructure/knowledge/sourcecallbackcache"
 	"magic/internal/infrastructure/logging"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
 	mysqlknowledgebasebinding "magic/internal/infrastructure/persistence/mysql/knowledge/knowledgebasebinding"
@@ -29,10 +38,16 @@ import (
 	mysqlsupermagicagentrepo "magic/internal/infrastructure/persistence/mysql/knowledge/supermagicagent"
 	mysqltransaction "magic/internal/infrastructure/persistence/mysql/knowledge/transaction"
 	mysqlprojectfilemeta "magic/internal/infrastructure/persistence/mysql/projectfilemeta"
+	mysqlsupermagicprojectrepo "magic/internal/infrastructure/persistence/mysql/supermagicproject"
+	"magic/internal/infrastructure/readiness"
 	ipcclient "magic/internal/infrastructure/rpc/jsonrpc/client"
+	"magic/internal/infrastructure/transport/ipc/unixsocket"
 	lockpkg "magic/internal/pkg/lock"
+	"magic/internal/pkg/memoryguard"
 	"magic/internal/pkg/tokenizer"
 )
+
+const defaultDocumentResyncTaskTimeout = 30 * time.Minute
 
 // ProvideEmbeddingCacheCleanupService 提供缓存清理服务
 // 使用默认配置自动启动定时清理任务
@@ -77,8 +92,15 @@ type BaseDeps struct {
 	DestroyCoordinator       *mysqltransaction.KnowledgeBaseDestroyCoordinator
 	WriteCoordinator         *mysqltransaction.KnowledgeBaseWriteCoordinator
 	SuperMagicAgentRepo      *mysqlsupermagicagentrepo.Repository
-	TaskFileService          *taskfiledomain.DomainService
+	DomainDeps               BaseDomainDeps
 	PortDeps                 BasePortDeps
+}
+
+// BaseDomainDeps 表示知识库应用依赖的领域服务集合。
+type BaseDomainDeps struct {
+	SuperMagicProjectService *supermagicprojectdomain.DomainService
+	TaskFileService          *taskfiledomain.DomainService
+	UserService              *userdomain.DomainService
 }
 
 // BaseDocumentFlowDeps 聚合知识库文档 flow app 的运行时依赖。
@@ -91,7 +113,6 @@ type BaseDocumentFlowDeps struct {
 
 // BasePortDeps 表示知识库应用服务依赖的外部只读端口。
 type BasePortDeps struct {
-	PermissionPort              *ipcclient.PHPOperationPermissionRPCClient
 	KnowledgeBasePermissionPort *ipcclient.PHPKnowledgeBasePermissionRPCClient
 	SuperMagicAgentPort         *ipcclient.PHPSuperMagicAgentRPCClient
 	ProjectFilePort             *ipcclient.PHPProjectFileRPCClient
@@ -134,14 +155,12 @@ func ProvideKnowledgeBaseCoordinatorDeps(
 
 // ProvideKnowledgeBasePortDeps 提供知识库应用服务依赖的外部端口。
 func ProvideKnowledgeBasePortDeps(
-	permissionPort *ipcclient.PHPOperationPermissionRPCClient,
 	knowledgeBasePermissionPort *ipcclient.PHPKnowledgeBasePermissionRPCClient,
 	superMagicAgentPort *ipcclient.PHPSuperMagicAgentRPCClient,
 	projectFilePort *ipcclient.PHPProjectFileRPCClient,
 	thirdPlatformPort *ipcclient.PHPThirdPlatformDocumentRPCClient,
 ) BasePortDeps {
 	return BasePortDeps{
-		PermissionPort:              permissionPort,
 		KnowledgeBasePermissionPort: knowledgeBasePermissionPort,
 		SuperMagicAgentPort:         superMagicAgentPort,
 		ProjectFilePort:             projectFilePort,
@@ -149,10 +168,23 @@ func ProvideKnowledgeBasePortDeps(
 	}
 }
 
+// ProvideKnowledgeBaseDomainDeps 提供知识库应用依赖的领域服务集合。
+func ProvideKnowledgeBaseDomainDeps(
+	superMagicProjectService *supermagicprojectdomain.DomainService,
+	taskFileService *taskfiledomain.DomainService,
+	userService *userdomain.DomainService,
+) BaseDomainDeps {
+	return BaseDomainDeps{
+		SuperMagicProjectService: superMagicProjectService,
+		TaskFileService:          taskFileService,
+		UserService:              userService,
+	}
+}
+
 // ProvideKnowledgeBaseAppDeps 提供知识库应用服务补充依赖。
 func ProvideKnowledgeBaseAppDeps(
 	sourceBindingRepo *mysqlsourcebindingrepo.Repository,
-	taskFileService *taskfiledomain.DomainService,
+	domainDeps BaseDomainDeps,
 	portDeps BasePortDeps,
 	coordinatorDeps BaseCoordinatorDeps,
 	bindingDeps BaseBindingDeps,
@@ -163,9 +195,16 @@ func ProvideKnowledgeBaseAppDeps(
 		DestroyCoordinator:       coordinatorDeps.DestroyCoordinator,
 		WriteCoordinator:         coordinatorDeps.WriteCoordinator,
 		SuperMagicAgentRepo:      bindingDeps.SuperMagicAgentRepo,
-		TaskFileService:          taskFileService,
+		DomainDeps:               domainDeps,
 		PortDeps:                 portDeps,
 	}
+}
+
+// ProvideSuperMagicProjectDomainService 提供 super magic project 领域服务。
+func ProvideSuperMagicProjectDomainService(
+	repo *mysqlsupermagicprojectrepo.Repository,
+) *supermagicprojectdomain.DomainService {
+	return supermagicprojectdomain.NewDomainService(repo)
 }
 
 // ProvideKnowledgeBaseDocumentFlowDeps 提供知识库文档协作 flow app 依赖。
@@ -188,6 +227,7 @@ func ProvideKnowledgeBaseAppService(
 	domainSvc *knowledgebasedomain.DomainService,
 	documentFlowDeps BaseDocumentFlowDeps,
 	deps BaseDeps,
+	redisClient *redis.Client,
 	logger *logging.SugaredLogger,
 	defaultModel autoloadcfg.EmbeddingDefaultModel,
 ) *knowledgebaseapp.KnowledgeBaseAppService {
@@ -210,15 +250,78 @@ func ProvideKnowledgeBaseAppService(
 	appSvc.SetKnowledgeBaseBindingRepository(deps.KnowledgeBaseBindingRepo)
 	appSvc.SetDestroyCoordinator(deps.DestroyCoordinator)
 	appSvc.SetWriteCoordinator(deps.WriteCoordinator)
-	appSvc.SetOwnerGrantPort(deps.PortDeps.PermissionPort)
 	appSvc.SetKnowledgeBasePermissionReader(deps.PortDeps.KnowledgeBasePermissionPort)
+	appSvc.SetKnowledgeBasePermissionWriter(newKnowledgeBasePermissionWriter(deps.PortDeps.KnowledgeBasePermissionPort))
 	appSvc.SetOfficialOrganizationMemberChecker(deps.PortDeps.KnowledgeBasePermissionPort)
 	appSvc.SetProjectFileResolver(deps.PortDeps.ProjectFilePort)
-	appSvc.SetTaskFileService(deps.TaskFileService)
+	appSvc.SetTaskFileService(deps.DomainDeps.TaskFileService)
+	appSvc.SetUserService(deps.DomainDeps.UserService)
 	appSvc.SetThirdPlatformExpander(deps.PortDeps.ThirdPlatformPort)
+	appSvc.SetSourceBindingTreeRootCache(knowledgebaseapp.NewRedisSourceBindingTreeRootCache(redisClient))
 	appSvc.SetSuperMagicAgentReader(deps.SuperMagicAgentRepo)
 	appSvc.SetSuperMagicAgentAccessChecker(deps.PortDeps.SuperMagicAgentPort)
+	appSvc.SetSuperMagicProjectReader(deps.DomainDeps.SuperMagicProjectService)
 	return appSvc
+}
+
+type knowledgeBasePermissionWriter struct {
+	port *ipcclient.PHPKnowledgeBasePermissionRPCClient
+}
+
+func newKnowledgeBasePermissionWriter(port *ipcclient.PHPKnowledgeBasePermissionRPCClient) kbaccess.LocalPermissionWriter {
+	if port == nil {
+		return nil
+	}
+	return &knowledgeBasePermissionWriter{port: port}
+}
+
+func (w *knowledgeBasePermissionWriter) Initialize(
+	ctx context.Context,
+	actor kbaccess.Actor,
+	input kbaccess.InitializeInput,
+) error {
+	if w == nil || w.port == nil {
+		return nil
+	}
+	if err := w.port.Initialize(ctx, actor.OrganizationCode, actor.UserID, map[string]any{
+		"knowledge_base_code": input.KnowledgeBaseCode,
+		"owner_user_id":       input.OwnerUserID,
+		"knowledge_type":      input.KnowledgeType,
+		"business_id":         input.BusinessID,
+		"admin_user_ids":      append([]string(nil), input.AdminUserIDs...),
+	}); err != nil {
+		return fmt.Errorf("initialize knowledge base permission via php rpc: %w", err)
+	}
+	return nil
+}
+
+func (w *knowledgeBasePermissionWriter) GrantOwner(
+	ctx context.Context,
+	actor kbaccess.Actor,
+	knowledgeBaseCode string,
+	ownerUserID string,
+) error {
+	if w == nil || w.port == nil {
+		return nil
+	}
+	if err := w.port.GrantOwner(ctx, actor.OrganizationCode, actor.UserID, knowledgeBaseCode, ownerUserID); err != nil {
+		return fmt.Errorf("grant knowledge base owner via php rpc: %w", err)
+	}
+	return nil
+}
+
+func (w *knowledgeBasePermissionWriter) Cleanup(
+	ctx context.Context,
+	actor kbaccess.Actor,
+	knowledgeBaseCode string,
+) error {
+	if w == nil || w.port == nil {
+		return nil
+	}
+	if err := w.port.Cleanup(ctx, actor.OrganizationCode, actor.UserID, knowledgeBaseCode); err != nil {
+		return fmt.Errorf("cleanup knowledge base permission via php rpc: %w", err)
+	}
+	return nil
 }
 
 // ProvideFragmentAppDeps 提供片段应用服务所需的窄协作依赖。
@@ -228,16 +331,21 @@ func ProvideFragmentAppDeps(
 	thirdPlatformProviders *thirdplatformprovider.Registry,
 	bindingDeps BaseBindingDeps,
 	runtimeDeps FragmentAppRuntimeDeps,
+	userService *userdomain.DomainService,
 ) fragmentapp.AppDeps {
 	return fragmentapp.AppDeps{
 		ParseService:              parseService,
+		ProjectFileContentPort:    portDeps.ProjectFilePort,
 		ThirdPlatformDocumentPort: portDeps.ThirdPlatformPort,
 		ThirdPlatformProviders:    thirdPlatformProviders,
 		KnowledgeBaseBindingRepo:  bindingDeps.KnowledgeBaseBindingRepo,
+		PermissionReader:          portDeps.KnowledgeBasePermissionPort,
+		ThirdPlatformAccess:       portDeps.ThirdPlatformPort,
 		SuperMagicAgentAccess:     portDeps.SuperMagicAgentPort,
 		ManualFragmentCoordinator: runtimeDeps.ManualFragmentCoordinator,
 		PreviewSplitter:           documentsplitter.NewPreviewSplitter(),
 		Tokenizer:                 runtimeDeps.TokenizerService,
+		UserService:               userService,
 		DefaultEmbeddingModel:     string(runtimeDeps.DefaultEmbeddingModel),
 	}
 }
@@ -294,40 +402,128 @@ func ProvideEmbeddingAppService(
 
 // DocumentAppRuntimeDeps 定义文档应用服务运行时依赖。
 type DocumentAppRuntimeDeps struct {
-	RedisClient      *redis.Client
 	Config           *autoloadcfg.Config
 	FileLinkProvider *ipcclient.PHPFileRPCClient
+	SyncRuntime      *documentsync.Runtime
+	ProgressStore    *revectorizeshared.RedisProgressStore
+	RedisClient      *redis.Client
 }
 
 // ProvideDocumentAppRuntimeDeps 提供文档应用服务运行时依赖。
 func ProvideDocumentAppRuntimeDeps(
-	redisClient *redis.Client,
 	cfg *autoloadcfg.Config,
 	fileLinkProvider *ipcclient.PHPFileRPCClient,
+	syncRuntime *documentsync.Runtime,
+	progressStore *revectorizeshared.RedisProgressStore,
+	redisClient *redis.Client,
 ) DocumentAppRuntimeDeps {
 	return DocumentAppRuntimeDeps{
-		RedisClient:      redisClient,
 		Config:           cfg,
 		FileLinkProvider: fileLinkProvider,
+		SyncRuntime:      syncRuntime,
+		ProgressStore:    progressStore,
+		RedisClient:      redisClient,
 	}
+}
+
+// ProvideDocumentSyncRuntime 提供文档重同步运行时。
+func ProvideDocumentSyncRuntime(
+	rabbitMQBroker *documentsync.RabbitMQBroker,
+	cfg *autoloadcfg.Config,
+	logger *logging.SugaredLogger,
+	ipcServer *unixsocket.Server,
+	redisClient *redis.Client,
+) *documentsync.Runtime {
+	runtime := documentsync.NewRuntime(logger.Named("knowledge.documentsync.runtime"))
+
+	if cfg == nil || !cfg.RabbitMQ.Enabled || !cfg.RabbitMQ.DocumentResync.Enabled || rabbitMQBroker == nil {
+		return runtime
+	}
+
+	mqDefaults := documentsync.DefaultRabbitMQSchedulerConfig()
+	mqScheduler := documentsync.NewRabbitMQScheduler(
+		runtime,
+		documentsync.RabbitMQSchedulerDeps{
+			Logger:          logger.Named("knowledge.documentsync.rabbitmq"),
+			Broker:          rabbitMQBroker,
+			TerminalHandler: runtime,
+			RetryStore:      documentsync.NewRedisRetryStore(redisClient),
+			AdmissionGate: documentsync.NewMemoryAdmissionGate(
+				memoryguard.NewGuard(memoryguard.Config{
+					SoftLimitBytes: documentSyncResourceLimitsFromConfig(cfg).SyncMemorySoftLimitBytes,
+				}),
+				logger.Named("knowledge.documentsync.admission"),
+				documentsync.MemoryAdmissionGateConfig{},
+			),
+			NonRetryableError: documentdomain.IsNonRetryableDocumentSyncError,
+			ReadinessGate: readiness.NewIPCCapabilityGate(
+				ipcServer,
+				"php-ipc:knowledge-permission",
+				constants.MethodKnowledgeBasePermissionListOperations,
+			),
+		},
+		newDocumentResyncRabbitMQSchedulerConfig(cfg, mqDefaults),
+		durationOrDefault(cfg.RabbitMQ.DocumentResync.TaskTimeoutSeconds, defaultDocumentResyncTaskTimeout),
+	)
+	runtime.UseScheduler(mqScheduler)
+	runtime.UseBackgroundService(mqScheduler)
+	return runtime
+}
+
+func newDocumentResyncRabbitMQSchedulerConfig(
+	cfg *autoloadcfg.Config,
+	defaults documentsync.RabbitMQSchedulerConfig,
+) documentsync.RabbitMQSchedulerConfig {
+	return documentsync.RabbitMQSchedulerConfig{
+		QueueName:           strings.TrimSpace(cfg.RabbitMQ.Queues.DocumentResync),
+		ConsumerPrefetch:    cfg.RabbitMQ.DocumentResync.ConsumerPrefetch,
+		ConsumerConcurrency: cfg.RabbitMQ.DocumentResync.ConsumerConcurrency,
+		MQPublishTimeout: millisDurationOrDefault(
+			cfg.RabbitMQ.DocumentResync.MQPublishTimeoutMillis,
+			defaults.MQPublishTimeout,
+		),
+		MaxRequeueAttempts: intOrDefault(
+			cfg.RabbitMQ.DocumentResync.MaxRequeueAttempts,
+			defaults.MaxRequeueAttempts,
+		),
+	}
+}
+
+func documentSyncResourceLimitsFromConfig(cfg *autoloadcfg.Config) documentdomain.ResourceLimits {
+	if cfg == nil {
+		return documentdomain.DefaultResourceLimits()
+	}
+	limits := cfg.DocumentResourceLimits
+	return documentdomain.NormalizeResourceLimits(documentdomain.ResourceLimits{
+		MaxSourceBytes:           limits.MaxSourceBytes,
+		MaxTabularRows:           limits.MaxTabularRows,
+		MaxTabularCells:          limits.MaxTabularCells,
+		MaxPlainTextChars:        limits.MaxPlainTextChars,
+		MaxParsedBlocks:          limits.MaxParsedBlocks,
+		MaxFragmentsPerDocument:  limits.MaxFragmentsPerDocument,
+		SyncMemorySoftLimitBytes: limits.SyncMemorySoftLimitBytes,
+	})
 }
 
 // ProvideDocumentAppDeps 提供文档应用服务所需的窄协作依赖。
 func ProvideDocumentAppDeps(
 	parseService *documentdomain.ParseService,
-	thirdPlatformDocumentPort *ipcclient.PHPThirdPlatformDocumentRPCClient,
-	projectFilePort *ipcclient.PHPProjectFileRPCClient,
+	portDeps BasePortDeps,
 	thirdPlatformProviders *thirdplatformprovider.Registry,
 	tokenizerService *tokenizer.Service,
+	userService *userdomain.DomainService,
 	client *mysqlclient.SQLCClient,
 ) documentapp.AppDeps {
 	deps := documentapp.AppDeps{
 		ParseService:              parseService,
-		ThirdPlatformDocumentPort: thirdPlatformDocumentPort,
-		ProjectFilePort:           projectFilePort,
-		ProjectFileContentPort:    projectFilePort,
+		ThirdPlatformDocumentPort: portDeps.ThirdPlatformPort,
+		ProjectFilePort:           portDeps.ProjectFilePort,
+		ProjectFileContentPort:    portDeps.ProjectFilePort,
 		ThirdPlatformProviders:    thirdPlatformProviders,
+		PermissionReader:          portDeps.KnowledgeBasePermissionPort,
+		ThirdPlatformAccess:       portDeps.ThirdPlatformPort,
 		Tokenizer:                 tokenizerService,
+		UserService:               userService,
 	}
 	if client != nil {
 		deps.SourceBindingRepo = mysqlsourcebindingrepo.NewRepository(client)
@@ -364,36 +560,25 @@ func ProvideDocumentAppService(
 		logger,
 	)
 	appSvc.SetOriginalFileLinkProvider(runtimeDeps.FileLinkProvider)
-	appSvc.SetSyncScheduler(buildDocumentSyncScheduler(appSvc, logger, runtimeDeps))
-	appSvc.SetThirdFileRevectorizeScheduler(buildThirdFileRevectorizeScheduler(appSvc, logger, runtimeDeps))
+	appSvc.SetKnowledgeRevectorizeProgressStore(runtimeDeps.ProgressStore)
+	sourceCallbackCache := buildSourceCallbackRedisCache(runtimeDeps)
+	appSvc.SetSourceBindingCandidateCache(sourceCallbackCache)
+	appSvc.SetSourceCallbackSingleflight(sourceCallbackCache)
+	registerDocumentSyncRuntimeHandlers(appSvc, runtimeDeps)
+	appSvc.SetSyncScheduler(buildDocumentSyncScheduler(runtimeDeps))
 	return appSvc
 }
 
-func buildDocumentSyncScheduler(
-	runner documentSyncRunner,
-	logger *logging.SugaredLogger,
-	runtimeDeps DocumentAppRuntimeDeps,
-) documentSyncSchedulerAdapter {
-	infraRunner := documentsync.RunnerFunc(func(ctx context.Context, task *documentsync.Task) error {
-		if runner == nil || task == nil {
-			return nil
-		}
-		input, err := decodeSyncTask(task)
-		if err != nil {
-			return err
-		}
-		return runner.Sync(ctx, input)
-	})
-
-	return documentSyncSchedulerAdapter{scheduler: buildKnowledgeScheduler(infraRunner, logger, runtimeDeps)}
+func buildSourceCallbackRedisCache(runtimeDeps DocumentAppRuntimeDeps) *sourcecallbackcache.RedisCache {
+	if runtimeDeps.RedisClient == nil {
+		return nil
+	}
+	return sourcecallbackcache.NewRedisCache(runtimeDeps.RedisClient)
 }
 
-type documentSyncRunner interface {
-	Sync(ctx context.Context, input *documentdomain.SyncDocumentInput) error
-}
-
-type thirdFileRevectorizeRunner interface {
-	RunThirdFileRevectorize(ctx context.Context, input *documentdomain.ThirdFileRevectorizeInput) error
+func buildDocumentSyncScheduler(runtimeDeps DocumentAppRuntimeDeps) documentSyncSchedulerAdapter {
+	// document_sync 是唯一进入 MQ 的任务类型。
+	return documentSyncSchedulerAdapter{scheduler: buildKnowledgeScheduler(runtimeDeps)}
 }
 
 type documentSyncSchedulerAdapter struct {
@@ -405,16 +590,20 @@ func (a documentSyncSchedulerAdapter) Schedule(ctx context.Context, input *docum
 		return
 	}
 
-	payload, err := json.Marshal(input)
+	cloned := *input
+	cloned.Async = true
+
+	payload, err := json.Marshal(&cloned)
 	if err != nil {
 		return
 	}
 
 	a.scheduler.Schedule(ctx, &documentsync.Task{
-		KnowledgeBaseCode: input.KnowledgeBaseCode,
-		Code:              input.Code,
-		Mode:              input.Mode,
-		Async:             input.Async,
+		Kind:              documentsync.TaskKindDocumentSync,
+		KnowledgeBaseCode: cloned.KnowledgeBaseCode,
+		Code:              cloned.Code,
+		Mode:              cloned.Mode,
+		Async:             true,
 		Payload:           payload,
 	})
 }
@@ -439,25 +628,6 @@ func decodeSyncTask(task *documentsync.Task) (*documentdomain.SyncDocumentInput,
 	return &input, nil
 }
 
-func buildThirdFileRevectorizeScheduler(
-	runner thirdFileRevectorizeRunner,
-	logger *logging.SugaredLogger,
-	runtimeDeps DocumentAppRuntimeDeps,
-) thirdFileRevectorizeSchedulerAdapter {
-	infraRunner := documentsync.RunnerFunc(func(ctx context.Context, task *documentsync.Task) error {
-		if runner == nil || task == nil {
-			return nil
-		}
-		input, err := decodeThirdFileRevectorizeTask(task)
-		if err != nil {
-			return err
-		}
-		return runner.RunThirdFileRevectorize(ctx, input)
-	})
-
-	return thirdFileRevectorizeSchedulerAdapter{scheduler: buildKnowledgeScheduler(infraRunner, logger, runtimeDeps)}
-}
-
 func durationOrDefault(value int, fallback time.Duration) time.Duration {
 	if value <= 0 {
 		return fallback
@@ -472,79 +642,135 @@ func durationOrDefault(value int, fallback time.Duration) time.Duration {
 	}
 }
 
-func buildKnowledgeScheduler(
-	runner documentsync.Runner,
-	logger *logging.SugaredLogger,
-	runtimeDeps DocumentAppRuntimeDeps,
-) documentsync.Scheduler {
-	if runtimeDeps.RedisClient == nil || runtimeDeps.Config == nil {
-		return documentsync.NewAsyncScheduler(runner, logger, 0)
+func millisDurationOrDefault(value int, fallback time.Duration) time.Duration {
+	if value <= 0 {
+		return fallback
+	}
+	return time.Duration(value) * time.Millisecond
+}
+
+func intOrDefault(value, fallback int) int {
+	if value <= 0 {
+		return fallback
+	}
+	return value
+}
+
+func buildKnowledgeScheduler(runtimeDeps DocumentAppRuntimeDeps) documentsync.Scheduler {
+	return runtimeDeps.SyncRuntime
+}
+
+func registerDocumentSyncRuntimeHandlers(appSvc *documentapp.DocumentAppService, runtimeDeps DocumentAppRuntimeDeps) {
+	if appSvc == nil || runtimeDeps.SyncRuntime == nil {
+		return
 	}
 
-	defaults := documentsync.DefaultRedisSchedulerConfig()
-	return documentsync.NewRedisScheduler(
-		runner,
-		logger,
-		runtimeDeps.RedisClient,
-		lockpkg.NewRedisLockManager(runtimeDeps.RedisClient, &lockpkg.RedisConfig{
-			LockPrefix:         runtimeDeps.Config.Redis.LockPrefix,
-			LockTTLSeconds:     runtimeDeps.Config.Redis.LockTTLSeconds,
-			SpinIntervalMillis: runtimeDeps.Config.Redis.SpinIntervalMillis,
-			SpinMaxRetries:     runtimeDeps.Config.Redis.SpinMaxRetries,
+	// 运行时里只有 document_sync 真正执行单文档同步。
+	runtimeDeps.SyncRuntime.RegisterRunner(documentsync.TaskKindDocumentSync, documentsync.RunnerFunc(func(ctx context.Context, task *documentsync.Task) error {
+		return runDocumentSyncTask(ctx, appSvc, task)
+	}))
+	runtimeDeps.SyncRuntime.RegisterTerminalHandler(
+		documentsync.TaskKindDocumentSync,
+		documentsync.TerminalHandlerFunc(func(ctx context.Context, task *documentsync.Task, cause error) error {
+			return terminateDocumentSyncTask(ctx, appSvc, task, cause)
 		}),
-		documentsync.RedisSchedulerConfig{
-			DebounceWindow:    durationOrDefault(runtimeDeps.Config.Redis.DocumentResyncDebounceMillis, defaults.DebounceWindow),
-			LockTTL:           durationOrDefault(runtimeDeps.Config.Redis.DocumentResyncLockTTLSeconds, defaults.LockTTL),
-			HeartbeatInterval: durationOrDefault(runtimeDeps.Config.Redis.DocumentResyncHeartbeatMillis, defaults.HeartbeatInterval),
-			StateTTL:          durationOrDefault(runtimeDeps.Config.Redis.DocumentResyncStateTTLSeconds, defaults.StateTTL),
-			RedisOpTimeout:    durationOrDefault(runtimeDeps.Config.Redis.DocumentResyncRedisTimeoutMillis, defaults.RedisOpTimeout),
-			WatchRetryTimes:   defaults.WatchRetryTimes,
-		},
-		0,
 	)
 }
 
-type thirdFileRevectorizeSchedulerAdapter struct {
-	scheduler documentsync.Scheduler
-}
-
-func (a thirdFileRevectorizeSchedulerAdapter) Schedule(ctx context.Context, input *documentdomain.ThirdFileRevectorizeInput) {
-	if a.scheduler == nil || input == nil {
-		return
-	}
-
-	payload, err := json.Marshal(input)
-	if err != nil {
-		return
-	}
-
-	key := fmt.Sprintf(
-		"%s:%s:%s",
-		input.OrganizationCode,
-		input.ThirdPlatformType,
-		input.ThirdFileID,
-	)
-	a.scheduler.Schedule(ctx, &documentsync.Task{
-		KnowledgeBaseCode: input.OrganizationCode,
-		Code:              input.ThirdPlatformType + ":" + input.ThirdFileID,
-		Mode:              documentdomain.SyncModeResync,
-		Async:             true,
-		Key:               key,
-		Payload:           payload,
-	})
-}
-
-func decodeThirdFileRevectorizeTask(task *documentsync.Task) (*documentdomain.ThirdFileRevectorizeInput, error) {
+func runDocumentSyncTask(
+	ctx context.Context,
+	appSvc *documentapp.DocumentAppService,
+	task *documentsync.Task,
+) error {
 	if task == nil {
-		return &documentdomain.ThirdFileRevectorizeInput{}, nil
-	}
-	if len(task.Payload) == 0 {
-		return &documentdomain.ThirdFileRevectorizeInput{}, nil
+		return nil
 	}
 
-	var input documentdomain.ThirdFileRevectorizeInput
-	if err := json.Unmarshal(task.Payload, &input); err != nil {
-		return nil, fmt.Errorf("unmarshal third-file revectorize task: %w", err)
+	input, err := decodeSyncTask(task)
+	if err != nil {
+		if isDocumentSyncTaskDecodeError(err) {
+			return nil
+		}
+		return err
 	}
-	return &input, nil
+
+	syncErr := appSvc.Sync(documentapp.WithDeferredSyncFailureMark(ctx), input)
+	if strings.TrimSpace(input.RevectorizeSessionID) == "" {
+		return normalizeDocumentSyncRuntimeError(syncErr, "run document sync task")
+	}
+
+	if err := normalizeDocumentSyncRuntimeError(syncErr, "run revectorize-scoped document sync task"); err != nil {
+		return err
+	}
+
+	// session-scoped document_sync 只在“真正进入终态”后才推进知识库进度。
+	// 执行失败统一交给 MQ requeue；只有成功消费后才推进知识库进度。
+	if err := appSvc.FinalizeKnowledgeRevectorizeTask(ctx, input); err != nil {
+		return fmt.Errorf("finalize revectorize-scoped document sync task: %w", err)
+	}
+	return nil
+}
+
+func terminateDocumentSyncTask(
+	ctx context.Context,
+	appSvc *documentapp.DocumentAppService,
+	task *documentsync.Task,
+	cause error,
+) error {
+	if task == nil || appSvc == nil {
+		return nil
+	}
+	input, err := decodeSyncTask(task)
+	if err != nil {
+		if isDocumentSyncTaskDecodeError(err) {
+			return nil
+		}
+		return err
+	}
+	if err := appSvc.FinalizeTerminalDocumentSyncTask(ctx, input, cause); err != nil {
+		return fmt.Errorf("finalize terminal document sync task: %w", err)
+	}
+	return nil
+}
+
+func normalizeDocumentSyncRuntimeError(syncErr error, message string) error {
+	if syncErr == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", message, syncErr)
+}
+
+func isDocumentSyncTaskDecodeError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var (
+		syntaxErr        *json.SyntaxError
+		unmarshalTypeErr *json.UnmarshalTypeError
+	)
+
+	switch {
+	case errors.As(err, &syntaxErr):
+		return true
+	case errors.As(err, &unmarshalTypeErr):
+		return true
+	default:
+		return false
+	}
+}
+
+// ProvideKnowledgeRevectorizeProgressStore 提供知识库重向量化 session 进度存储。
+func ProvideKnowledgeRevectorizeProgressStore(redisClient *redis.Client) *revectorizeshared.RedisProgressStore {
+	return revectorizeshared.NewRedisProgressStore(redisClient)
+}
+
+// ProvideKnowledgeRevectorizeAppService 提供知识库级批量重向量化应用服务。
+func ProvideKnowledgeRevectorizeAppService(
+	knowledgeBaseApp *knowledgebaseapp.KnowledgeBaseAppService,
+	documentApp *documentapp.DocumentAppService,
+	progressStore *revectorizeshared.RedisProgressStore,
+	logger *logging.SugaredLogger,
+) *revectorizeapp.KnowledgeRevectorizeAppService {
+	return revectorizeapp.NewKnowledgeRevectorizeAppService(knowledgeBaseApp, documentApp, progressStore, logger)
 }

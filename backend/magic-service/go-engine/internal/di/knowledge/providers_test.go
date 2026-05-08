@@ -66,6 +66,7 @@ func TestProvideServices(t *testing.T) {
 			&documentdomain.ParseService{},
 		),
 		knowledge.BaseDeps{},
+		nil,
 		logger,
 		autoloadcfg.EmbeddingDefaultModel("model-kb"),
 	)
@@ -87,6 +88,7 @@ func TestProvideServices(t *testing.T) {
 				nil,
 				autoloadcfg.EmbeddingDefaultModel("model-frag"),
 			),
+			nil,
 		),
 		nil,
 		logger,
@@ -106,9 +108,9 @@ func TestProvideServices(t *testing.T) {
 		&fragmentdomain.FragmentDomainService{},
 		knowledge.ProvideDocumentAppDeps(
 			&documentdomain.ParseService{},
-			(*ipcclient.PHPThirdPlatformDocumentRPCClient)(nil),
-			(*ipcclient.PHPProjectFileRPCClient)(nil),
+			knowledge.BasePortDeps{},
 			knowledge.ProvideThirdPlatformProviderRegistry((*ipcclient.PHPThirdPlatformDocumentRPCClient)(nil), logger),
+			nil,
 			nil,
 			nil,
 		),

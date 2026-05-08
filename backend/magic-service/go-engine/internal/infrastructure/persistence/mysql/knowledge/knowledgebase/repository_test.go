@@ -3,14 +3,14 @@ package knowledgebaserepo_test
 import (
 	"testing"
 
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	knowledgebaserepo "magic/internal/infrastructure/persistence/mysql/knowledge/knowledgebase"
 )
 
 func TestResolveKnowledgeBaseListFilterModeForTest(t *testing.T) {
 	t.Parallel()
 
-	mode := knowledgebaserepo.ResolveKnowledgeBaseListFilterModeForTest(&knowledgebase.Query{
+	mode := knowledgebaserepo.ResolveKnowledgeBaseListFilterModeForTest(&kbrepository.Query{
 		Codes:       []string{"KB1"},
 		BusinessIDs: []string{"BIZ1"},
 	})
@@ -18,14 +18,14 @@ func TestResolveKnowledgeBaseListFilterModeForTest(t *testing.T) {
 		t.Fatalf("expected combined filter mode, got %q", mode)
 	}
 
-	mode = knowledgebaserepo.ResolveKnowledgeBaseListFilterModeForTest(&knowledgebase.Query{
+	mode = knowledgebaserepo.ResolveKnowledgeBaseListFilterModeForTest(&kbrepository.Query{
 		Codes: []string{"KB1"},
 	})
 	if mode != "codes" {
 		t.Fatalf("expected codes filter mode, got %q", mode)
 	}
 
-	mode = knowledgebaserepo.ResolveKnowledgeBaseListFilterModeForTest(&knowledgebase.Query{
+	mode = knowledgebaserepo.ResolveKnowledgeBaseListFilterModeForTest(&kbrepository.Query{
 		BusinessIDs: []string{"BIZ1"},
 	})
 	if mode != "business_ids" {

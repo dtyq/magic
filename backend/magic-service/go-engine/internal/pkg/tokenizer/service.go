@@ -15,8 +15,10 @@ const (
 	// DefaultEncoding 是不支持模型时的默认编码。
 	DefaultEncoding = "cl100k_base"
 
-	emptyModelCacheKey = "__empty_model__"
-	defaultCacheSize   = 8
+	emptyModelCacheKey                 = "__empty_model__"
+	defaultCacheSize                   = 8
+	doubaoEmbeddingVisionModel         = "doubao-embedding-vision"
+	doubaoEmbeddingVisionVersionPrefix = doubaoEmbeddingVisionModel + "-"
 
 	o200kBaseURL  = "https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken"
 	cl100kBaseURL = "https://openaipublic.blob.core.windows.net/encodings/cl100k_base.tiktoken"
@@ -360,6 +362,9 @@ func encodingForModel(model string) (string, bool) {
 	if model == "" {
 		return "", false
 	}
+	if encoding, ok := localEncodingForModel(model); ok {
+		return encoding, true
+	}
 	if encoding, ok := tiktoken.MODEL_TO_ENCODING[model]; ok {
 		return encoding, true
 	}
@@ -367,6 +372,13 @@ func encodingForModel(model string) (string, bool) {
 		if strings.HasPrefix(model, prefix) {
 			return encoding, true
 		}
+	}
+	return "", false
+}
+
+func localEncodingForModel(model string) (string, bool) {
+	if model == doubaoEmbeddingVisionModel || strings.HasPrefix(model, doubaoEmbeddingVisionVersionPrefix) {
+		return tiktoken.MODEL_O200K_BASE, true
 	}
 	return "", false
 }

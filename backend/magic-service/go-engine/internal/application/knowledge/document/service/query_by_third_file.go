@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	docdto "magic/internal/application/knowledge/document/dto"
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/domain/knowledge/shared"
 )
 
@@ -49,7 +49,7 @@ func (s *DocumentAppService) GetByThirdFileID(
 		return nil, fmt.Errorf("failed to list documents by third file: %w", err)
 	}
 
-	filteredDocs := make([]*documentdomain.KnowledgeBaseDocument, 0, len(docs))
+	filteredDocs := make([]*docentity.KnowledgeBaseDocument, 0, len(docs))
 	for _, doc := range docs {
 		if err := s.validateDocumentOrg(doc, organizationCode); err != nil {
 			continue

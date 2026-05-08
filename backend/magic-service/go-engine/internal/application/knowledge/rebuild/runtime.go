@@ -13,6 +13,7 @@ import (
 
 	rebuilddto "magic/internal/application/knowledge/rebuild/dto"
 	domainrebuild "magic/internal/domain/knowledge/rebuild"
+	"magic/internal/pkg/runguard"
 )
 
 func (r *Runner) saveJob(ctx context.Context, runID, status, phase, errMsg string, extra map[string]any) error {
@@ -63,6 +64,10 @@ func (r *Runner) startRunHeartbeat(ctx context.Context, runID, lockOwner string,
 	var stopOnce sync.Once
 	ticker := time.NewTicker(interval)
 	go func() {
+		defer runguard.Recover(ctx, rebuildPanicOptions(r.logger, "knowledge.rebuild.heartbeat",
+			"run_id", runID,
+			"lock_owner", lockOwner,
+		))
 		defer ticker.Stop()
 		for {
 			select {
@@ -105,7 +110,7 @@ func (r *Runner) logHeartbeatWarn(ctx context.Context, msg, runID string, err er
 	if err != nil {
 		fields = append(fields, "error", err)
 	}
-	r.logger.WarnContext(ctx, msg, fields...)
+	r.logger.KnowledgeWarnContext(ctx, msg, fields...)
 }
 
 func (r *Runner) logResyncFailure(
@@ -118,7 +123,7 @@ func (r *Runner) logResyncFailure(
 	if r.logger == nil {
 		return
 	}
-	r.logger.ErrorContext(
+	r.logger.KnowledgeErrorContext(
 		ctx,
 		"Knowledge rebuild document resync failed",
 		"run_id", runID,

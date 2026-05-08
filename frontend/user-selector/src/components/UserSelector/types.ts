@@ -226,6 +226,8 @@ export interface CommonSelectorProps {
 	renderRightBottom?: (nodes: TreeNode[]) => ReactNode
 	/** 自定义渲染特定分段类型的右侧内容 */
 	renderRightBySegment?: (nodes: TreeNode[], segmentType?: SegmentType) => ReactNode
+	/** 自定义渲染用户/部门等列表项右侧内容 */
+	renderItemRight?: RenderListItemRight
 	/** 确定按钮点击事件 */
 	onOk?: (selectedValues: TreeNode[]) => void
 }
@@ -269,6 +271,19 @@ export type CheckboxOptions<T> = {
 	/** 选中节点变化 */
 	onChange?: (checked: T[]) => void
 }
+
+/** 列表项右侧扩展渲染上下文 */
+export interface ListItemRightRenderOptions {
+	/** 当前项是否已选中 */
+	isChecked: boolean
+	/** 当前项是否禁用 */
+	disabled: boolean
+	/** 当前项是否可继续进入下级 */
+	canNext: boolean
+}
+
+/** 自定义渲染列表项右侧内容 */
+export type RenderListItemRight = (node: TreeNode, options: ListItemRightRenderOptions) => ReactNode
 
 export interface UserSelectorRef {
 	clearSearchValue: () => void
