@@ -27,6 +27,12 @@ The list of skill names to read, e.g., ["canvas-design", "audio-chat"]""",
         min_length=1,
     )
 
+    check_updates: bool = Field(
+        default=True,
+        description="""<!--zh: 是否检查 skill 版本更新，默认为 true。若用户已明确表示不更新或忽略更新提醒，后续调用时应传 false 以跳过版本检查。-->
+Whether to check for skill version updates. Defaults to true. If the user has explicitly declined or ignored the update reminder, pass false in subsequent calls to skip the version check.""",
+    )
+
 
 @tool()
 class ReadSkills(BaseTool[ReadSkillsParams]):
@@ -119,21 +125,23 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
                     failed_skills.append(skill_name)
 
             # 并发检查版本更新，有更新时推送 horizon 通知
-            skill_update_targets: List[Tuple[str, Path]] = [
-                (r["skill_name"], r["skill_dir_path"])
-                for r in results
-                if r["success"] and r.get("skill_dir_path") is not None
-            ]
-            if skill_update_targets:
-                try:
-                    await asyncio.wait_for(
-                        self._check_skill_updates(tool_context, skill_update_targets),
-                        timeout=10.0,
-                    )
-                except asyncio.TimeoutError:
-                    logger.debug("版本更新检查整体超时，跳过")
-                except Exception as e:
-                    logger.debug(f"版本更新检查异常: {e}")
+            # 若调用方明确传入 check_updates=False（用户已忽略或拒绝更新），则跳过检查
+            if params.check_updates:
+                skill_update_targets: List[Tuple[str, Path]] = [
+                    (r["skill_name"], r["skill_dir_path"])
+                    for r in results
+                    if r["success"] and r.get("skill_dir_path") is not None
+                ]
+                if skill_update_targets:
+                    try:
+                        await asyncio.wait_for(
+                            self._check_skill_updates(tool_context, skill_update_targets),
+                            timeout=10.0,
+                        )
+                    except asyncio.TimeoutError:
+                        logger.debug("版本更新检查整体超时，跳过")
+                    except Exception as e:
+                        logger.debug(f"版本更新检查异常: {e}")
 
             # 构建最终输出
             output_parts = []
@@ -308,7 +316,8 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
             lines = [
                 f"New versions are available for the following skills: {skill_list}.",
                 "You may use the ask_user tool to check with the user whether they would like to update. "
-                "If confirmed, call install_skills to perform the update.",
+                "If confirmed, call install_skills to perform the update. "
+                "If the user declines or ignores the update, pass check_updates=false in all subsequent read_skills calls to suppress further update checks.",
             ]
 
             self.get_horizon(tool_context).push_notification(
