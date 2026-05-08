@@ -1264,8 +1264,8 @@
         "en_US": "Operation completed successfully"
     },
     "tool.call_failed_remark": {
-        "zh_CN": "工具调用失败",
-        "en_US": "Tool call failed"
+        "zh_CN": "遇到问题，正在尝试其他方式",
+        "en_US": "Encountered an issue, trying another approach"
     },
     "tool.error": {
         "zh_CN": "操作失败: {{error}}",
