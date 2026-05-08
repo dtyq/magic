@@ -51,8 +51,7 @@ class SkillHandler(BaseMentionHandler):
         if _has_source(raw_source, _SOURCE_MINE) and code:
             return (
                 "The referenced skill comes from your personal skill library. "
-                "Call skill_list first to check installation status (installed field). "
-                "For uninstalled skills, load and follow the find-skill skill to install them. "
+                "Use find_skills tool to search for it, then install_skills to install. "
                 "After installation, use read_skills to load. "
                 "Use the skill's package_name field as the name when calling, e.g. read_skills(skill_names=[package_name])."
             )

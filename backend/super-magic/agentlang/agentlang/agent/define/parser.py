@@ -12,8 +12,6 @@
     skills:
       system_skills:
         - name: skill-creator
-        - name: find-skill
-          preload: true
       crew_skills: "*"
       workspace_skills: "*"
     ---

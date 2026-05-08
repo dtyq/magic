@@ -8,12 +8,12 @@ description: |
   Trigger signals: 'modify prompt', 'change identity', 'add tool', 'remove tool', 'optimize workflow',
   'adjust personality', 'initialize employee', '修改提示词', '改身份', '加工具', '去掉工具',
   '优化能力', '调性格', '初始化员工', '创建员工'.
-  Do NOT use for: skill creation (use skill-creator), skill listing (use find-skill).
+  Do NOT use for: skill creation (use skill-creator), skill searching (use find_skills tool).
 description-cn: |
   管理和优化自定义员工的定义文件（IDENTITY.md, AGENTS.md, SOUL.md, TOOLS.md）。
   也负责首次员工初始化（当 .workspace/ 下没有 IDENTITY.md 时）。
   当用户要编辑员工身份、修改工作流指令、调整性格、添加/移除工具、优化提示词或从零初始化员工时使用。
-  不用于：技能创建（用 skill-creator）、技能查找（用 find-skill）。
+  不用于：技能创建（用 skill-creator）、技能检索（直接使用 find_skills 工具）。
 ---
 
 <!--zh

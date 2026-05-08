@@ -7,7 +7,7 @@ Usage:
     python scripts/copy_skill_to_workspace.py <skill-name> [--dest-name NAME] [--overwrite]
 
 Examples:
-    python scripts/copy_skill_to_workspace.py find-skill
+    python scripts/copy_skill_to_workspace.py skill-creator
     python scripts/copy_skill_to_workspace.py skill-creator --dest-name my-skill-creator --overwrite
 """
 

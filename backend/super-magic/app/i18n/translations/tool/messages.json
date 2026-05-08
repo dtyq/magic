@@ -1351,13 +1351,45 @@
         "zh_CN": "路径有误，将尝试解决...",
         "en_US": "Path error, attempting to resolve..."
     },
-    "skill_list.success": {
-        "zh_CN": "已列出可用技能",
-        "en_US": "Skills listed"
+    "find_skills.searching": {
+        "zh_CN": "正在检索「{{keywords}}」",
+        "en_US": "Searching for \"{{keywords}}\""
     },
-    "skill_list.error": {
-        "zh_CN": "列出技能失败",
-        "en_US": "Failed to list skills"
+    "find_skills.searched": {
+        "zh_CN": "已检索「{{keywords}}」，共找到 {{total}} 个候选",
+        "en_US": "Searched \"{{keywords}}\", found {{total}} candidates"
+    },
+    "find_skills.searched_with_providers": {
+        "zh_CN": "已检索「{{keywords}}」（来源：{{providers}}），共找到 {{total}} 个候选",
+        "en_US": "Searched \"{{keywords}}\" (sources: {{providers}}), found {{total}} candidates"
+    },
+    "find_skills.keywords_all": {
+        "zh_CN": "全部",
+        "en_US": "all"
+    },
+    "install_skills.installing": {
+        "zh_CN": "正在安装：{{ids}}",
+        "en_US": "Installing: {{ids}}"
+    },
+    "install_skills.success": {
+        "zh_CN": "成功安装 {{count}} 个 skill",
+        "en_US": "Installed {{count}} skill(s) successfully"
+    },
+    "install_skills.upgraded": {
+        "zh_CN": "成功升级 {{count}} 个 skill",
+        "en_US": "Upgraded {{count}} skill(s) successfully"
+    },
+    "install_skills.mixed_success": {
+        "zh_CN": "安装 {{installed}} 个、升级 {{upgraded}} 个 skill",
+        "en_US": "Installed {{installed}} and upgraded {{upgraded}} skill(s)"
+    },
+    "install_skills.failed": {
+        "zh_CN": "安装失败（共 {{count}} 个）",
+        "en_US": "Installation failed ({{count}} item(s))"
+    },
+    "install_skills.partial": {
+        "zh_CN": "安装完成：{{ok}} 成功，{{failed}} 失败",
+        "en_US": "Installation complete: {{ok}} succeeded, {{failed}} failed"
     },
     "upgrade_sandbox.success": {
         "zh_CN": "沙箱升级请求已提交",

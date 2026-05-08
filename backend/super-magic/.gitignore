@@ -98,6 +98,7 @@ cache/
 .tmp/
 docs
 .runtime/
+.clawhub
 
 # agent 的临时文件
 agents/SMA-*
