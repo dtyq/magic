@@ -87,14 +87,21 @@ final readonly class VideoInputModeDefinition
 
     public static function videoEdit(
         string $description,
-        int $maxCount = 1,
+        array $supportedFields,
+        int $maxCount,
+        array $variants = [],
         string $task = VideoTaskType::Edit->value,
     ): self {
+        $extra = ['max_count' => $maxCount];
+        if ($variants !== []) {
+            $extra['variants'] = array_values($variants);
+        }
+
         return new self(
             description: $description,
-            supportedFields: ['reference_videos'],
+            supportedFields: array_values($supportedFields),
             task: $task,
-            extra: ['max_count' => $maxCount],
+            extra: $extra,
         );
     }
 
