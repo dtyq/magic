@@ -8,9 +8,7 @@ from __future__ import annotations
 import asyncio
 import os
 import random
-import shutil
 import string
-import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,11 +16,10 @@ from typing import Literal
 
 from agentlang.logger import get_logger
 from app.core.skill_utils.constants import dynamic_skill_install_lock, get_skillhub_install_dir
-from app.path_manager import PathManager
 from app.utils.async_file_utils import async_copytree, async_mkdir, async_rmtree
 from app.core.skill_utils.manifest import SkillManifest, invalidate_cache, write_manifest, read_manifest
-from app.core.skill_utils.providers.base import SkillCandidate, SkillProviderId
-from app.core.skill_utils.version import version_eq, version_gt
+from app.core.skill_utils.providers.base import SkillProviderId
+from app.core.skill_utils.version import version_eq
 
 logger = get_logger(__name__)
 
@@ -237,13 +234,16 @@ class InstallService:
         await async_mkdir(target_dir, parents=True, exist_ok=True)
 
         # 原子替换：先 staging，再 rename 旧目录为 .bak，再 rename staging 到正式名
-        # staging 放在 .runtime/.staging/ 下，不污染工作区目录
-        staging_dir = PathManager.get_runtime_dir() / f".staging/{skill_name}-{_rand_suffix()}"
-        await async_mkdir(staging_dir.parent, parents=True, exist_ok=True)
+        # staging 放在 target_dir 下（与安装目标同一文件系统），避免跨设备 rename 失败
+        staging_dir = target_dir / f".staging-{skill_name}-{_rand_suffix()}"
 
         try:
             await async_copytree(local_path, staging_dir)
         except Exception as e:
+            try:
+                await async_rmtree(staging_dir)
+            except Exception:
+                pass
             return InstallResult(
                 ok=False, name=skill_name, provider=provider_id_str, skill_id=skill_id, mode=mode,
                 message=f"复制到 staging 失败: {e}", status="failed",
@@ -262,6 +262,10 @@ class InstallService:
             # 回滚
             if bak_dir and bak_dir.exists():
                 bak_dir.rename(install_dir)
+            try:
+                await async_rmtree(staging_dir)
+            except Exception:
+                pass
             return InstallResult(
                 ok=False, name=skill_name, provider=provider_id_str, skill_id=skill_id, mode=mode,
                 message=f"目录替换失败: {e}", status="failed",
