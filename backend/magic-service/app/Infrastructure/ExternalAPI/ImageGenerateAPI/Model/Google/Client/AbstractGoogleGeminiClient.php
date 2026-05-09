@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Google\Client;
 
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use Exception;
 use Hyperf\Codec\Json;
@@ -18,6 +19,8 @@ use function Hyperf\Translation\__;
 
 abstract class AbstractGoogleGeminiClient implements GoogleGeminiInterface
 {
+    use ImagePayloadLogSanitizerTrait;
+
     protected const REQUEST_TIMEOUT = 1200;
 
     protected array $config;
@@ -144,7 +147,7 @@ abstract class AbstractGoogleGeminiClient implements GoogleGeminiInterface
             $this->logger->info('Google Gemini API 请求', [
                 'url' => $url,
                 'client_class' => static::class,
-                'payload' => $payload,
+                'payload' => $this->sanitizePayloadForLog($payload),
                 'attempt' => $attempts,
             ]);
 

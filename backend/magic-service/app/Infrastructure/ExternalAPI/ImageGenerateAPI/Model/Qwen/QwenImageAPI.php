@@ -9,6 +9,7 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen;
 
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use Exception;
 use GuzzleHttp\Exception\GuzzleException;
@@ -18,6 +19,8 @@ use Psr\Log\LoggerInterface;
 
 class QwenImageAPI
 {
+    use ImagePayloadLogSanitizerTrait;
+
     private const REQUEST_TIMEOUT = 120;
 
     protected LoggerInterface $logger;
@@ -60,7 +63,7 @@ class QwenImageAPI
 
         $this->logger->info('Qwen Image API 请求', [
             'base_url' => $this->base_url,
-            'payload' => $payload,
+            'payload' => $this->sanitizePayloadForLog($payload),
         ]);
 
         try {
@@ -77,7 +80,7 @@ class QwenImageAPI
             $responseBody = $response->getBody()->getContents();
 
             $this->logger->info('Qwen Image API 响应', [
-                'payload' => $responseBody,
+                'payload' => $this->sanitizeResponseBodyForLog($responseBody),
             ]);
 
             return Json::decode($responseBody, true);
@@ -91,5 +94,20 @@ class QwenImageAPI
     public function setApiKey(string $apiKey): void
     {
         $this->apiKey = $apiKey;
+    }
+
+    /**
+     * Parse and mask Qwen response bodies before logging them.
+     */
+    private function sanitizeResponseBodyForLog(string $responseBody): array
+    {
+        $payload = json_decode($responseBody, true);
+        if (json_last_error() !== JSON_ERROR_NONE || ! is_array($payload)) {
+            return [
+                'response_length' => strlen($responseBody),
+            ];
+        }
+
+        return $this->sanitizePayloadForLog($payload);
     }
 }

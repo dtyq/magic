@@ -210,14 +210,49 @@ class GoogleGeminiModel extends AbstractImageGenerate
 
         $sortedImageList = [];
         foreach ($referImageUrls as $referImageUrl) {
-            $sortedImageList[] = [
-                'type' => 'fileData',
-                'fileUri' => $referImageUrl,
-                'mimeType' => $this->detectMimeTypeFromUrl($referImageUrl),
-            ];
+            $sortedImageList[] = $this->formatReferenceImage($referImageUrl);
         }
         // 调用API进行多图编辑
         return $this->api->generateContent($instructions, $sortedImageList, $config);
+    }
+
+    /**
+     * Convert a reference image into the request shape expected by Gemini.
+     */
+    private function formatReferenceImage(string $image): array
+    {
+        $base64Image = $this->parseBase64Image($image);
+        if ($base64Image !== null) {
+            return [
+                'type' => 'base64',
+                'mimeType' => $base64Image['mime_type'],
+                'data' => $base64Image['data'],
+            ];
+        }
+
+        return [
+            'type' => 'fileData',
+            'fileUri' => $image,
+            'mimeType' => $this->detectMimeTypeFromUrl($image),
+        ];
+    }
+
+    /**
+     * Parse a base64 data URI image; return null when the input is a normal URL.
+     */
+    private function parseBase64Image(string $image): ?array
+    {
+        if (! preg_match('/^data:(image\/(?:png|jpeg|jpg|gif|webp));base64,(.+)$/s', $image, $matches)) {
+            return null;
+        }
+
+        $mimeType = $matches[1] === 'image/jpg' ? 'image/jpeg' : $matches[1];
+        $data = trim($matches[2]);
+
+        return [
+            'mime_type' => $mimeType,
+            'data' => $data,
+        ];
     }
 
     private function detectMimeTypeFromUrl(string $url): string

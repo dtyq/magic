@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\VolcengineArk;
 
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use Exception;
 use Hyperf\Codec\Json;
@@ -15,6 +16,8 @@ use Psr\Log\LoggerInterface;
 
 class VolcengineArkAPI
 {
+    use ImagePayloadLogSanitizerTrait;
+
     protected const REQUEST_TIMEOUT = 300;
 
     protected const API_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/v3/images/generations';
@@ -66,7 +69,7 @@ class VolcengineArkAPI
         ];
 
         $this->logger->info('VolcengineArk API 请求', [
-            'payload' => $payload,
+            'payload' => $this->sanitizePayloadForLog($payload),
         ]);
 
         $client = GuzzleClientFactory::createProxyClient(

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\OpenRouter;
 
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use GuzzleHttp\Exception\RequestException;
 use Hyperf\Logger\LoggerFactory;
@@ -16,6 +17,8 @@ use Throwable;
 
 class OpenRouterAPI
 {
+    use ImagePayloadLogSanitizerTrait;
+
     private const REQUEST_TIMEOUT = 300;
 
     protected LoggerInterface $logger;
@@ -55,7 +58,7 @@ class OpenRouterAPI
     {
         $this->logger->info('OpenRouter API 请求', [
             'url' => $this->baseUrl,
-            'payload' => $data,
+            'payload' => $this->sanitizePayloadForLog($data),
         ]);
 
         try {
