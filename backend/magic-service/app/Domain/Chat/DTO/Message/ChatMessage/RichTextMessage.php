@@ -82,8 +82,41 @@ class RichTextMessage extends AbstractAttachmentMessage implements TextContentIn
         return $fileIds;
     }
 
+    /**
+     * 从 Tiptap JSON 内容中递归提取所有 mention 节点（type === 'mention'）。
+     * 返回的节点格式与 MentionAssembler::fromArray 所期望的 Tiptap 形结构一致。
+     */
+    public function extractMentionNodes(): array
+    {
+        $decoded = json_decode($this->getContent(), true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+        return $this->collectMentionNodes($decoded);
+    }
+
     protected function setMessageType(): void
     {
         $this->chatMessageType = ChatMessageType::RichText;
+    }
+
+    /**
+     * 递归收集 mention 节点。
+     */
+    private function collectMentionNodes(array $data, int $depth = 0): array
+    {
+        if ($depth > 512) {
+            return [];
+        }
+        $nodes = [];
+        if (($data['type'] ?? '') === 'mention') {
+            $nodes[] = $data;
+        }
+        foreach ($data['content'] ?? [] as $child) {
+            if (is_array($child)) {
+                $nodes = array_merge($nodes, $this->collectMentionNodes($child, $depth + 1));
+            }
+        }
+        return $nodes;
     }
 }

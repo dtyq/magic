@@ -97,6 +97,23 @@ class SuperAgentExtra extends AbstractDTO
         return $jsonStruct;
     }
 
+    /**
+     * 当 mentions 为空时，从 Tiptap mention 节点数组中提取并填充。
+     * 节点格式需与 MentionAssembler::fromArray 期望的 Tiptap 形一致：
+     * {type: 'mention', attrs: {type: '...', data: {...}}}
+     * 若 mentions 已有值则不覆盖，保证向后兼容。
+     */
+    public function fillMentionsFromTiptapNodesIfEmpty(array $tiptapMentionNodes): void
+    {
+        if (! empty($this->mentions)) {
+            return;
+        }
+        if (empty($tiptapMentionNodes)) {
+            return;
+        }
+        $this->setMentions($tiptapMentionNodes);
+    }
+
     public function getMentions(): ?array
     {
         return $this->mentions ?? null;
