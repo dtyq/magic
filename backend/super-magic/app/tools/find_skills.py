@@ -89,9 +89,12 @@ class FindSkillsParams(BaseToolParams):
             if not v.strip():
                 return None
             try:
-                v = json.loads(v)
+                parsed = json.loads(v)
+                # JSON 解析成功但结果是字符串（如 `"system"`），当作单个 provider 处理
+                v = [parsed] if isinstance(parsed, str) else parsed
             except json.JSONDecodeError:
-                raise ValueError(f"providers 格式无效，应为数组，收到字符串: {v!r}")
+                # 裸字符串（如 `system`），当作单个 provider 处理
+                v = [v.strip()]
         if not v:
             return None
         invalid = [p for p in v if p not in _VALID_PROVIDERS]
@@ -333,7 +336,6 @@ def _format_result_md(result: SearchResult) -> str:
             lines.append("|------|------|------|")
             for c in kr.candidates:
                 label = _PROVIDER_LABEL.get(c.provider.value, c.provider.value)
-                # 内置 skill 在名称后加标记
                 name_cell = f"**{c.name}** `内置`" if c.provider.value == "system" else f"**{c.name}**"
                 # 版本号拼入来源列
                 version_note = f" · {c.version}" if c.version else ""
