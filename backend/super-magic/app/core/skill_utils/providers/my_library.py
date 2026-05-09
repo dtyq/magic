@@ -42,7 +42,10 @@ class MyLibraryProvider(SkillProvider):
                     name=item.package_name or item.name or item.code,
                     description=item.description or "",
                     version=getattr(item, "version", None),
-                    extra={"file_url": getattr(item, "file_url", None)},
+                    extra={
+                        "file_url": getattr(item, "file_url", None),
+                        "package_name": item.package_name or None,
+                    },
                 )
                 for item in items
                 if item.code and getattr(item, "source_type", None) != "SYSTEM"
@@ -62,7 +65,8 @@ class MyLibraryProvider(SkillProvider):
         # 如果 ref 是 SkillCandidate 且 extra 中已有 file_url，直接下载
         if isinstance(ref, SkillCandidate) and ref.extra.get("file_url"):
             file_url = ref.extra["file_url"]
-            install_name = ref.name or skill_code
+            # package_name 存在 extra["package_name"] 中，优先使用；其次用 ref.name
+            install_name = ref.extra.get("package_name") or ref.name or skill_code
             item_version = ref.version or version
         else:
             file_url, install_name, item_version = await self._resolve_download_url(skill_code)
@@ -134,6 +138,7 @@ class MyLibraryProvider(SkillProvider):
                 local_path=dest,
                 version=version or "unknown",
                 source_url=file_url.split("?")[0],  # 去掉签名参数
+                install_name=install_name,
             )
         except Exception as e:
             if not isinstance(e, RuntimeError):

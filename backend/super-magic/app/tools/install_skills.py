@@ -269,6 +269,19 @@ def _format_batch_result(batch_result) -> str:
             attrs += f' path="{r.path}"'
         msg = r.message.replace('"', "&quot;")
         lines.append(f'  <item {attrs} message="{msg}" />')
+
+    # 对成功安装/升级的 skill，给出加载指引
+    ready_names = [
+        r.name for r in batch_result.items
+        if r.ok and r.name and r.status in ("installed", "upgraded")
+    ]
+    if ready_names:
+        names_repr = ", ".join(f'"{n}"' for n in ready_names)
+        lines.append(
+            f'  <next_step>Skill(s) are ready. '
+            f'Call read_skills with skill_names=[{names_repr}] to load and use them.</next_step>'
+        )
+
     lines.append("</install_batch>")
     return "\n".join(lines)
 

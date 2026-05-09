@@ -226,8 +226,8 @@ class InstallService:
                 message=f"安全校验失败: {e}", status="failed",
             )
 
-        # 从 SKILL.md 读取真实 name
-        skill_name = _read_skill_name(local_path) or local_path.name
+        # 优先使用 provider 传入的 install_name（如 package_name），其次读 SKILL.md，最后用目录名
+        skill_name = fetched.install_name or _read_skill_name(local_path) or local_path.name
         install_dir = target_dir / skill_name
 
         # 确保安装目标父目录存在（os.replace 要求目标父目录存在）
@@ -239,6 +239,8 @@ class InstallService:
 
         try:
             await async_copytree(local_path, staging_dir)
+            # 若 SKILL.md 里的 name 与目标目录名不一致，同步修正
+            await _fix_skill_name_in_md(staging_dir, skill_name)
         except Exception as e:
             try:
                 await async_rmtree(staging_dir)
@@ -354,6 +356,49 @@ def _read_skill_name(skill_dir: Path) -> str | None:
     except Exception:
         pass
     return None
+
+
+async def _fix_skill_name_in_md(skill_dir: Path, expected_name: str) -> None:
+    """若 SKILL.md frontmatter 中的 name 字段与 expected_name 不一致，则原地修正。"""
+    import aiofiles
+
+    skill_md = skill_dir / "SKILL.md"
+    if not await asyncio.to_thread(skill_md.exists):
+        return
+    try:
+        async with aiofiles.open(skill_md, encoding="utf-8") as f:
+            content = await f.read()
+
+        if not content.startswith("---"):
+            return
+
+        end = content.find("\n---", 3)
+        if end <= 0:
+            return
+
+        frontmatter = content[3:end]
+        new_lines = []
+        changed = False
+        for line in frontmatter.splitlines():
+            if line.startswith("name:"):
+                current = line.split(":", 1)[1].strip().strip("\"'")
+                if current != expected_name:
+                    new_lines.append(f"name: {expected_name}")
+                    changed = True
+                else:
+                    new_lines.append(line)
+            else:
+                new_lines.append(line)
+
+        if not changed:
+            return
+
+        new_content = "---" + "\n".join(new_lines) + content[end:]
+        async with aiofiles.open(skill_md, "w", encoding="utf-8") as f:
+            await f.write(new_content)
+        logger.info(f"已将 SKILL.md name 字段修正为: {expected_name}（路径: {skill_md}）")
+    except Exception as e:
+        logger.warning(f"修正 SKILL.md name 字段失败（不影响安装）: {e}")
 
 
 async def _cleanup_temp_parent(local_path: Path) -> None:

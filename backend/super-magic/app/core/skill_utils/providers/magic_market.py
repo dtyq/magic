@@ -40,7 +40,10 @@ class MagicMarketProvider(SkillProvider):
                     name=item.package_name or item.name or item.code,
                     description=item.description or "",
                     version=getattr(item, "version", None),
-                    extra={"file_url": getattr(item, "file_url", None)},
+                    extra={
+                        "file_url": getattr(item, "file_url", None),
+                        "package_name": item.package_name or None,
+                    },
                 )
                 for item in items
                 if item.code
@@ -60,7 +63,7 @@ class MagicMarketProvider(SkillProvider):
 
         if isinstance(ref, SkillCandidate) and ref.extra.get("file_url"):
             file_url = ref.extra["file_url"]
-            install_name = ref.name or skill_code
+            install_name = ref.extra.get("package_name") or ref.name or skill_code
             item_version = ref.version or version
         else:
             file_url, install_name, item_version = await self._resolve_download_url(skill_code)
@@ -130,6 +133,7 @@ class MagicMarketProvider(SkillProvider):
                 local_path=dest,
                 version=version or "unknown",
                 source_url=file_url.split("?")[0],
+                install_name=install_name,
             )
         except Exception as e:
             if not isinstance(e, RuntimeError):

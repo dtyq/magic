@@ -41,9 +41,10 @@ class SkillCandidate:
 class FetchedSkill:
     """provider.fetch() 返回值——已下载/拉取到本地临时目录的 skill"""
 
-    local_path: Path    # 解压/拉取后的临时目录（含 SKILL.md）
-    version: str        # 实际版本号（SemVer 或 commit sha 前 12 位）
-    source_url: str     # 用于写入 manifest，仅记录非签名 URL
+    local_path: Path            # 解压/拉取后的临时目录（含 SKILL.md）
+    version: str                # 实际版本号（SemVer 或 commit sha 前 12 位）
+    source_url: str             # 用于写入 manifest，仅记录非签名 URL
+    install_name: str | None = None  # 期望的安装目录名（由 provider 填充，优先级高于 SKILL.md name 字段）
     extra: dict = field(default_factory=dict)
 
 
