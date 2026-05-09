@@ -340,7 +340,7 @@ class VideoQueueDomainServiceTest extends TestCase
         $requestDTO = new CreateVideoDTO([
             'model_id' => 'kling-v3-omni',
             'task' => 'generate',
-            'prompt' => '@图片1 跟随 @video1 的动态节奏',
+            'prompt' => '[图片1] 跟随 [video1] 的动态节奏',
             'inputs' => [
                 'reference_images' => [
                     ['uri' => 'https://localhost/ref.png'],
@@ -399,7 +399,7 @@ class VideoQueueDomainServiceTest extends TestCase
         $requestDTO = new CreateVideoDTO([
             'model_id' => 'doubao-seedance-2-0-260128',
             'task' => 'generate',
-            'prompt' => '@图片1 跟随 @视频1 并配合 @audio1 的节奏',
+            'prompt' => '@图片1 跟随 [视频1] 并配合 [audio1] 的节奏',
             'inputs' => [
                 'reference_images' => [
                     ['uri' => 'https://localhost/ref.png'],
