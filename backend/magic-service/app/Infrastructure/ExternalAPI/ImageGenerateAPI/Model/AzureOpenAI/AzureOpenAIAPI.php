@@ -9,10 +9,12 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI;
 
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImageBase64DataUriParser;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use GuzzleHttp\Exception\RequestException;
 use Hyperf\Logger\LoggerFactory;
+use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Log\LoggerInterface;
@@ -156,11 +158,16 @@ class AzureOpenAIAPI
      */
     private function createImageMultipartPart(string $name, string $image, int $index, string $filenamePrefix = 'image'): array
     {
-        $base64Image = $this->parseBase64Image($image);
+        try {
+            $base64Image = ImageBase64DataUriParser::parseDecoded($image);
+        } catch (InvalidArgumentException) {
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Invalid base64 image data');
+        }
+
         if ($base64Image !== null) {
             return [
                 'name' => $name,
-                'contents' => $base64Image['data'],
+                'contents' => $base64Image['binary_data'],
                 'filename' => $filenamePrefix . $index . '.' . $base64Image['extension'],
                 'headers' => [
                     'Content-Type' => $base64Image['mime_type'],
@@ -174,42 +181,6 @@ class AzureOpenAIAPI
             'contents' => $imageStreamBody->getContents(),
             'filename' => "{$filenamePrefix}{$index}.png",
         ];
-    }
-
-    /**
-     * Parse a base64 data URI image; return null when the input is a normal URL.
-     */
-    private function parseBase64Image(string $image): ?array
-    {
-        if (! preg_match('/^data:(image\/(?:png|jpeg|jpg|gif|webp));base64,(.+)$/s', $image, $matches)) {
-            return null;
-        }
-
-        $data = base64_decode(trim($matches[2]), true);
-        if ($data === false) {
-            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Invalid base64 image data');
-        }
-
-        $mimeType = $matches[1] === 'image/jpg' ? 'image/jpeg' : $matches[1];
-
-        return [
-            'mime_type' => $mimeType,
-            'extension' => $this->getImageExtension($mimeType),
-            'data' => $data,
-        ];
-    }
-
-    /**
-     * Resolve the file extension used in multipart upload from image MIME type.
-     */
-    private function getImageExtension(string $mimeType): string
-    {
-        return match ($mimeType) {
-            'image/png' => 'png',
-            'image/gif' => 'gif',
-            'image/webp' => 'webp',
-            default => 'jpg',
-        };
     }
 
     /**

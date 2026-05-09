@@ -17,6 +17,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\OpenRouter\OpenRouterA
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\Qwen\QwenImageAPI;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\VolcengineArk\VolcengineArkAPI;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\AzureOpenAIImageRequest;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImageBase64DataUriParser;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
@@ -135,11 +136,12 @@ final class ImageBase64PassthroughTest extends TestCase
 
     public function testAzureOpenAIDoesNotTreatUrlAsBase64Image(): void
     {
-        $reflection = new ReflectionClass(AzureOpenAIAPI::class);
-        $api = $reflection->newInstanceWithoutConstructor();
-        $method = new ReflectionMethod(AzureOpenAIAPI::class, 'parseBase64Image');
+        $this->assertNull(ImageBase64DataUriParser::parse('https://example.com/input.jpg'));
+    }
 
-        $this->assertNull($method->invoke($api, 'https://example.com/input.jpg'));
+    public function testImageBase64DataUriParserRejectsInvalidBase64(): void
+    {
+        $this->assertFalse(ImageBase64DataUriParser::isValid('data:image/jpeg;base64,invalid-base64'));
     }
 
     public function testAzureOpenAIModelAllowsBase64ReferenceImage(): void

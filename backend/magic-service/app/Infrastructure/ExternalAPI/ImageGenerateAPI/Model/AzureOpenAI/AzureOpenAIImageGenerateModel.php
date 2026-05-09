@@ -17,6 +17,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImageBase64DataUriParser;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use Exception;
 use Hyperf\Retry\Annotation\Retry;
@@ -264,11 +265,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
             return true;
         }
 
-        if (! preg_match('/^data:image\/(?:png|jpeg|jpg|gif|webp);base64,(.+)$/s', $image, $matches)) {
-            return false;
-        }
-
-        return base64_decode(trim($matches[1]), true) !== false;
+        return ImageBase64DataUriParser::isValid($image);
     }
 
     /**

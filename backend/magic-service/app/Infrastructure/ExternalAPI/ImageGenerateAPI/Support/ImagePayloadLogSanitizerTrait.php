@@ -52,13 +52,14 @@ trait ImagePayloadLogSanitizerTrait
      */
     private function summarizeBase64DataUri(string $value): ?array
     {
-        if (! preg_match('/^data:(image\/(?:png|jpeg|jpg|gif|webp));base64,(.+)$/s', $value, $matches)) {
+        $base64Image = ImageBase64DataUriParser::parse($value);
+        if ($base64Image === null) {
             return null;
         }
 
         return $this->summarizeRawBase64ImageForLog(
-            trim($matches[2]),
-            $this->normalizeImageMimeType($matches[1])
+            $base64Image['base64_data'],
+            $base64Image['mime_type']
         );
     }
 
@@ -71,7 +72,7 @@ trait ImagePayloadLogSanitizerTrait
         if ($data === false) {
             return [
                 'type' => 'base64_image',
-                'mime_type' => $this->normalizeImageMimeType($mimeType),
+                'mime_type' => ImageBase64DataUriParser::normalizeMimeType($mimeType),
                 'bytes' => null,
                 'sha256' => null,
             ];
@@ -79,17 +80,9 @@ trait ImagePayloadLogSanitizerTrait
 
         return [
             'type' => 'base64_image',
-            'mime_type' => $this->normalizeImageMimeType($mimeType),
+            'mime_type' => ImageBase64DataUriParser::normalizeMimeType($mimeType),
             'bytes' => strlen($data),
             'sha256' => hash('sha256', $data),
         ];
-    }
-
-    /**
-     * Normalize image MIME type aliases used by upstream payloads.
-     */
-    private function normalizeImageMimeType(string $mimeType): string
-    {
-        return $mimeType === 'image/jpg' ? 'image/jpeg' : $mimeType;
     }
 }

@@ -16,6 +16,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImageBase64DataUriParser;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
 use Hyperf\Coroutine\Parallel;
@@ -221,12 +222,12 @@ class GoogleGeminiModel extends AbstractImageGenerate
      */
     private function formatReferenceImage(string $image): array
     {
-        $base64Image = $this->parseBase64Image($image);
+        $base64Image = ImageBase64DataUriParser::parseDecoded($image);
         if ($base64Image !== null) {
             return [
                 'type' => 'base64',
                 'mimeType' => $base64Image['mime_type'],
-                'data' => $base64Image['data'],
+                'data' => $base64Image['base64_data'],
             ];
         }
 
@@ -234,24 +235,6 @@ class GoogleGeminiModel extends AbstractImageGenerate
             'type' => 'fileData',
             'fileUri' => $image,
             'mimeType' => $this->detectMimeTypeFromUrl($image),
-        ];
-    }
-
-    /**
-     * Parse a base64 data URI image; return null when the input is a normal URL.
-     */
-    private function parseBase64Image(string $image): ?array
-    {
-        if (! preg_match('/^data:(image\/(?:png|jpeg|jpg|gif|webp));base64,(.+)$/s', $image, $matches)) {
-            return null;
-        }
-
-        $mimeType = $matches[1] === 'image/jpg' ? 'image/jpeg' : $matches[1];
-        $data = trim($matches[2]);
-
-        return [
-            'mime_type' => $mimeType,
-            'data' => $data,
         ];
     }
 
