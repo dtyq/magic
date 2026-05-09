@@ -203,6 +203,9 @@ class TopicRepository implements TopicRepositoryInterface
         $topicEntity->setId(IdGenerator::getSnowId());
         $topicEntity->setCreatedAt($date);
         $topicEntity->setUpdatedAt($date);
+        if ($topicEntity->getLastReadAt() === null) {
+            $topicEntity->setLastReadAt($date);
+        }
 
         $entityArray = $topicEntity->toArray();
 
@@ -239,6 +242,39 @@ class TopicRepository implements TopicRepositoryInterface
         return $this->model::query()
             ->where($condition)
             ->update($data) > 0;
+    }
+
+    public function updatePinStatus(int $topicId, string $updatedUid, bool $isPinned): bool
+    {
+        $now = date('Y-m-d H:i:s');
+
+        return $this->model::query()
+            ->where('id', $topicId)
+            ->update([
+                'is_pinned' => $isPinned ? 1 : 0,
+                'pinned_at' => $isPinned ? $now : null,
+                'updated_uid' => $updatedUid,
+                'updated_at' => $now,
+            ]) > 0;
+    }
+
+    public function updateArchiveStatus(int $topicId, string $updatedUid, bool $isArchived): bool
+    {
+        $now = date('Y-m-d H:i:s');
+        $attributes = [
+            'is_archived' => $isArchived ? 1 : 0,
+            'updated_uid' => $updatedUid,
+            'updated_at' => $now,
+        ];
+
+        if ($isArchived) {
+            $attributes['is_pinned'] = 0;
+            $attributes['pinned_at'] = null;
+        }
+
+        return $this->model::query()
+            ->where('id', $topicId)
+            ->update($attributes) > 0;
     }
 
     public function deleteTopic(int $id): bool
@@ -430,6 +466,55 @@ class TopicRepository implements TopicRepositoryInterface
         return $result;
     }
 
+    public function getSidebarTopicsByProjectId(
+        int $projectId,
+        string $userId,
+        string $keyword = '',
+        int $page = 1,
+        int $pageSize = 20,
+        int $maxTotal = 999
+    ): array {
+        $query = $this->model::query()
+            ->where('project_id', $projectId)
+            ->where('user_id', $userId)
+            ->where('is_hidden', false)
+            ->whereNull('deleted_at');
+
+        if ($keyword !== '') {
+            $query->where('topic_name', 'like', '%' . $keyword . '%');
+        }
+
+        $realTotal = (clone $query)->count();
+        $total = min($realTotal, $maxTotal);
+        $offset = max(0, ($page - 1) * $pageSize);
+
+        if ($offset >= $total) {
+            return [
+                'list' => [],
+                'total' => $total,
+            ];
+        }
+
+        $limit = min($pageSize, $total - $offset);
+        $models = $query
+            ->orderBy('updated_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->skip($offset)
+            ->take($limit)
+            ->get();
+
+        $result = [];
+        foreach ($models as $model) {
+            $data = $this->convertModelToEntityData($model->toArray());
+            $result[] = new TopicEntity($data);
+        }
+
+        return [
+            'list' => $result,
+            'total' => $total,
+        ];
+    }
+
     /**
      * 统计项目下的话题数量.
      */
@@ -531,6 +616,36 @@ class TopicRepository implements TopicRepositoryInterface
         return $query
             ->distinct()
             ->pluck('project_id')
+            ->toArray();
+    }
+
+    public function getRunningWorkspaceIdsByUser(string $userId): array
+    {
+        return $this->model::query()
+            ->where('user_id', $userId)
+            ->where('current_task_status', TaskStatus::RUNNING->value)
+            ->whereNull('deleted_at')
+            ->whereNotNull('workspace_id')
+            ->distinct()
+            ->pluck('workspace_id')
+            ->filter(fn ($workspaceId) => ! empty($workspaceId))
+            ->map(fn ($workspaceId) => (string) $workspaceId)
+            ->values()
+            ->toArray();
+    }
+
+    public function getRunningProjectIdsByUser(string $userId): array
+    {
+        return $this->model::query()
+            ->where('user_id', $userId)
+            ->where('current_task_status', TaskStatus::RUNNING->value)
+            ->whereNull('deleted_at')
+            ->whereNotNull('project_id')
+            ->distinct()
+            ->pluck('project_id')
+            ->filter(fn ($projectId) => ! empty($projectId))
+            ->map(fn ($projectId) => (string) $projectId)
+            ->values()
             ->toArray();
     }
 

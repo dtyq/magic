@@ -143,6 +143,31 @@ class TopicEntity extends AbstractEntity
     protected ?string $updatedAt = null;
 
     /**
+     * @var bool 是否置顶
+     */
+    protected bool $isPinned = false;
+
+    /**
+     * @var null|string 置顶时间，NULL 表示未置顶
+     */
+    protected ?string $pinnedAt = null;
+
+    /**
+     * @var bool 是否归档
+     */
+    protected bool $isArchived = false;
+
+    /**
+     * @var null|string 最后阅读时间
+     */
+    protected ?string $lastReadAt = null;
+
+    /**
+     * @var null|string 最后已读消息ID
+     */
+    protected ?string $lastReadMessageId = null;
+
+    /**
      * @var null|string 删除时间
      */
     protected ?string $deletedAt = null;
@@ -215,6 +240,11 @@ class TopicEntity extends AbstractEntity
             'current_task_status' => $this->currentTaskStatus?->value,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
+            'is_pinned' => $this->isPinned,
+            'pinned_at' => $this->pinnedAt,
+            'is_archived' => $this->isArchived,
+            'last_read_at' => $this->lastReadAt,
+            'last_read_message_id' => $this->lastReadMessageId,
             'deleted_at' => $this->deletedAt,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
@@ -493,6 +523,97 @@ class TopicEntity extends AbstractEntity
     public function setUpdatedAt(?string $updatedAt): self
     {
         $this->updatedAt = $updatedAt;
+        return $this;
+    }
+
+    public function isPinned(): bool
+    {
+        return $this->isPinned;
+    }
+
+    public function setIsPinned(null|bool|int $isPinned): self
+    {
+        $this->isPinned = (bool) $isPinned;
+        if (! $this->isPinned) {
+            $this->pinnedAt = null;
+        }
+        return $this;
+    }
+
+    public function getPinnedAt(): ?string
+    {
+        return $this->pinnedAt;
+    }
+
+    public function setPinnedAt(?string $pinnedAt): self
+    {
+        $this->pinnedAt = $pinnedAt;
+        if ($pinnedAt !== null) {
+            $this->isPinned = true;
+        }
+        return $this;
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->isArchived;
+    }
+
+    public function setIsArchived(null|bool|int $isArchived): self
+    {
+        $this->isArchived = (bool) $isArchived;
+        return $this;
+    }
+
+    public function getLastReadAt(): ?string
+    {
+        return $this->lastReadAt;
+    }
+
+    public function setLastReadAt(?string $lastReadAt): self
+    {
+        $this->lastReadAt = $lastReadAt;
+        return $this;
+    }
+
+    public function getLastReadMessageId(): ?string
+    {
+        return $this->lastReadMessageId;
+    }
+
+    public function setLastReadMessageId(null|int|string $lastReadMessageId): self
+    {
+        if ($lastReadMessageId === null || $lastReadMessageId === '') {
+            $this->lastReadMessageId = null;
+        } else {
+            $this->lastReadMessageId = (string) $lastReadMessageId;
+        }
+        return $this;
+    }
+
+    public function pin(?string $pinnedAt = null): self
+    {
+        $this->isPinned = true;
+        $this->pinnedAt = $pinnedAt ?? date('Y-m-d H:i:s');
+        return $this;
+    }
+
+    public function unpin(): self
+    {
+        $this->isPinned = false;
+        $this->pinnedAt = null;
+        return $this;
+    }
+
+    public function archive(): self
+    {
+        $this->isArchived = true;
+        return $this->unpin();
+    }
+
+    public function unarchive(): self
+    {
+        $this->isArchived = false;
         return $this;
     }
 

@@ -27,6 +27,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\Query\TopicQuery;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
@@ -52,6 +53,7 @@ class TopicDomainService
         protected MagicChatTopicRepositoryInterface $magicChatTopicRepository,
         protected TaskMessageRepositoryInterface $taskMessageRepository,
         protected CloudFileRepositoryInterface $cloudFileRepository,
+        protected ProjectRepositoryInterface $projectRepository,
         LoggerFactory $loggerFactory,
     ) {
         $this->logger = $loggerFactory->get('topic');
@@ -402,6 +404,169 @@ class TopicDomainService
             'id', // 按创建时间排序
             'desc' // 降序
         );
+    }
+
+    public function getProjectSidebarTopics(
+        int $projectId,
+        string $userId,
+        string $keyword = '',
+        int $page = 1,
+        int $pageSize = 20
+    ): array {
+        $result = $this->topicRepository->getSidebarTopicsByProjectId($projectId, $userId, $keyword, $page, $pageSize);
+        $hasUnreadMap = $this->taskMessageRepository->getHasUnreadMapByTopics($result['list']);
+
+        $list = [];
+        foreach ($result['list'] as $topic) {
+            $list[] = $this->toSidebarTopicArray($topic, $hasUnreadMap[$topic->getId()] ?? false);
+        }
+
+        return [
+            'total' => $result['total'],
+            'list' => $list,
+        ];
+    }
+
+    public function getTopicStatuses(array $topicIds, string $userId): array
+    {
+        if (empty($topicIds)) {
+            return [];
+        }
+
+        $topics = $this->topicRepository->getTopicsByIds($topicIds);
+        $topicMap = [];
+        foreach ($topics as $topic) {
+            if ($topic->getUserId() === $userId) {
+                $topicMap[$topic->getId()] = $topic;
+            }
+        }
+
+        $hasUnreadMap = $this->taskMessageRepository->getHasUnreadMapByTopics(array_values($topicMap));
+        $list = [];
+        foreach ($topicIds as $topicId) {
+            if (! isset($topicMap[$topicId])) {
+                continue;
+            }
+            $list[] = $this->toTopicStatusArray($topicMap[$topicId], $hasUnreadMap[$topicId] ?? false);
+        }
+
+        return $list;
+    }
+
+    public function getResourceStatus(array $workspaceIds, array $projectIds, string $userId): array
+    {
+        return [
+            'workspaces' => $this->buildResourceStatusItems(
+                $workspaceIds,
+                $this->calculateWorkspaceStatusBatch($workspaceIds, $userId)
+            ),
+            'projects' => $this->buildResourceStatusItems(
+                $projectIds,
+                $this->calculateProjectStatusBatch($projectIds, $userId)
+            ),
+        ];
+    }
+
+    public function updateReadProgress(
+        DataIsolation $dataIsolation,
+        int $topicId,
+        ?string $lastReadAt,
+        ?int $lastReadMessageId
+    ): array {
+        if ($lastReadAt === null && $lastReadMessageId === null) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'last_read_at or last_read_message_id is required');
+        }
+
+        $topicEntity = $this->topicRepository->getTopicById($topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+        }
+
+        $updateData = [];
+        $currentLastReadAt = $topicEntity->getLastReadAt();
+        if (
+            $lastReadAt !== null
+            && ($currentLastReadAt === null || strtotime($lastReadAt) >= strtotime($currentLastReadAt))
+        ) {
+            $updateData['last_read_at'] = $lastReadAt;
+            $topicEntity->setLastReadAt($lastReadAt);
+        }
+
+        $currentLastReadMessageId = $topicEntity->getLastReadMessageId();
+        if (
+            $lastReadMessageId !== null
+            && ($currentLastReadMessageId === null || $lastReadMessageId >= $currentLastReadMessageId)
+        ) {
+            $updateData['last_read_message_id'] = $lastReadMessageId;
+            $topicEntity->setLastReadMessageId($lastReadMessageId);
+        }
+
+        if (! empty($updateData)) {
+            $this->topicRepository->updateTopicByCondition(
+                [
+                    'id' => $topicId,
+                    'user_id' => $dataIsolation->getCurrentUserId(),
+                ],
+                $updateData
+            );
+        }
+
+        $hasUnreadMap = $this->taskMessageRepository->getHasUnreadMapByTopics([$topicEntity]);
+
+        return [
+            'topic_id' => (string) $topicEntity->getId(),
+            'last_read_at' => $topicEntity->getLastReadAt(),
+            'last_read_message_id' => $topicEntity->getLastReadMessageId() !== null ? (string) $topicEntity->getLastReadMessageId() : null,
+            'has_unread' => $hasUnreadMap[$topicId] ?? false,
+        ];
+    }
+
+    public function pinTopic(DataIsolation $dataIsolation, int $topicId): array
+    {
+        $topicEntity = $this->getOwnedTopicOrFail($dataIsolation, $topicId);
+        if ($topicEntity->isArchived()) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalOperation, 'topic.archived');
+        }
+
+        if (! $topicEntity->isPinned() && ! $this->topicRepository->updatePinStatus($topicId, $dataIsolation->getCurrentUserId(), true)) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.update_failed');
+        }
+
+        return $this->reloadSidebarTopic($topicId);
+    }
+
+    public function unpinTopic(DataIsolation $dataIsolation, int $topicId): array
+    {
+        $topicEntity = $this->getOwnedTopicOrFail($dataIsolation, $topicId);
+        if ($topicEntity->isPinned() && ! $this->topicRepository->updatePinStatus($topicId, $dataIsolation->getCurrentUserId(), false)) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.update_failed');
+        }
+
+        return $this->reloadSidebarTopic($topicId);
+    }
+
+    public function archiveTopic(DataIsolation $dataIsolation, int $topicId): array
+    {
+        $topicEntity = $this->getOwnedTopicOrFail($dataIsolation, $topicId);
+        if (! $topicEntity->isArchived() && ! $this->topicRepository->updateArchiveStatus($topicId, $dataIsolation->getCurrentUserId(), true)) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.update_failed');
+        }
+
+        return $this->reloadSidebarTopic($topicId);
+    }
+
+    public function unarchiveTopic(DataIsolation $dataIsolation, int $topicId): array
+    {
+        $topicEntity = $this->getOwnedTopicOrFail($dataIsolation, $topicId);
+        if ($topicEntity->isArchived() && ! $this->topicRepository->updateArchiveStatus($topicId, $dataIsolation->getCurrentUserId(), false)) {
+            ExceptionBuilder::throw(GenericErrorCode::SystemError, 'topic.update_failed');
+        }
+
+        return $this->reloadSidebarTopic($topicId);
     }
 
     /**
@@ -1081,6 +1246,73 @@ class TopicDomainService
     public function detachWorkspaceFromTopics(DataIsolation $dataIsolation, int $workspaceId): bool
     {
         return $this->topicRepository->detachWorkspace($workspaceId, $dataIsolation->getCurrentUserId());
+    }
+
+    private function toSidebarTopicArray(TopicEntity $topic, bool $hasUnread): array
+    {
+        return [
+            'id' => (string) $topic->getId(),
+            'topic_name' => $topic->getTopicName(),
+            'project_id' => (string) $topic->getProjectId(),
+            'workspace_id' => $topic->getWorkspaceId() !== null ? (string) $topic->getWorkspaceId() : '',
+            'status' => $topic->getCurrentTaskStatus()?->value ?? null,
+            'topic_mode' => $topic->getTopicMode(),
+            'updated_at' => $topic->getUpdatedAt() ?? '',
+            'is_pinned' => $topic->isPinned(),
+            'pinned_at' => $topic->getPinnedAt(),
+            'is_archived' => $topic->isArchived(),
+            'last_read_at' => $topic->getLastReadAt(),
+            'last_read_message_id' => $topic->getLastReadMessageId() !== null ? (string) $topic->getLastReadMessageId() : null,
+            'has_unread' => $hasUnread,
+        ];
+    }
+
+    private function toTopicStatusArray(TopicEntity $topic, bool $hasUnread): array
+    {
+        return [
+            'id' => (string) $topic->getId(),
+            'status' => $topic->getCurrentTaskStatus()?->value ?? null,
+            'has_unread' => $hasUnread,
+        ];
+    }
+
+    private function buildResourceStatusItems(array $resourceIds, array $statusMap): array
+    {
+        $items = [];
+        foreach ($resourceIds as $resourceId) {
+            $items[] = [
+                'id' => (string) $resourceId,
+                'status' => (string) ($statusMap[$resourceId] ?? TaskStatus::WAITING->value),
+            ];
+        }
+
+        return $items;
+    }
+
+    private function getOwnedTopicOrFail(DataIsolation $dataIsolation, int $topicId): TopicEntity
+    {
+        $topicEntity = $this->topicRepository->getTopicById($topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        if ($topicEntity->getUserId() !== $dataIsolation->getCurrentUserId()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_ACCESS_DENIED, 'topic.topic_access_denied');
+        }
+
+        return $topicEntity;
+    }
+
+    private function reloadSidebarTopic(int $topicId): array
+    {
+        $topicEntity = $this->topicRepository->getTopicById($topicId);
+        if (! $topicEntity) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::TOPIC_NOT_FOUND, 'topic.topic_not_found');
+        }
+
+        $hasUnreadMap = $this->taskMessageRepository->getHasUnreadMapByTopics([$topicEntity]);
+
+        return $this->toSidebarTopicArray($topicEntity, $hasUnreadMap[$topicId] ?? false);
     }
 
     private function copyTopicEntity(

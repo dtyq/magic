@@ -51,16 +51,23 @@ use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskStatusValidator;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchTopicStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetResourceStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateTopicReadProgressRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeleteTopicResultDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageItemDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ResourceStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SaveTopicResultDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SidebarTopicItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TerminateTaskResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicReadProgressResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicStatusItemDTO;
 use Exception;
 use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
@@ -124,6 +131,86 @@ class TopicAppService extends AbstractAppService
         }
 
         return TopicItemDTO::fromEntity($topicEntity);
+    }
+
+    public function getTopicStatuses(RequestContext $requestContext, BatchTopicStatusRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $result = $this->topicDomainService->getTopicStatuses($requestDTO->getTopicIds(), $userAuthorization->getId());
+
+        return [
+            'topics' => array_map(
+                static fn (array $item) => TopicStatusItemDTO::fromArray($item)->toArray(),
+                $result
+            ),
+        ];
+    }
+
+    public function getResourceStatus(RequestContext $requestContext, GetResourceStatusRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $result = $this->topicDomainService->getResourceStatus(
+            $requestDTO->getWorkspaceIds(),
+            $requestDTO->getProjectIds(),
+            $userAuthorization->getId()
+        );
+
+        return ResourceStatusResponseDTO::fromArray($result)->toArray();
+    }
+
+    public function updateReadProgress(RequestContext $requestContext, UpdateTopicReadProgressRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $result = $this->topicDomainService->updateReadProgress(
+            $dataIsolation,
+            $requestDTO->getTopicId(),
+            $requestDTO->getLastReadAt(),
+            $requestDTO->getLastReadMessageId()
+        );
+
+        return TopicReadProgressResponseDTO::fromArray($result)->toArray();
+    }
+
+    public function pinTopic(RequestContext $requestContext, int $topicId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        return $this->buildSidebarTopicResponse(
+            $this->topicDomainService->pinTopic($dataIsolation, $topicId)
+        );
+    }
+
+    public function unpinTopic(RequestContext $requestContext, int $topicId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        return $this->buildSidebarTopicResponse(
+            $this->topicDomainService->unpinTopic($dataIsolation, $topicId)
+        );
+    }
+
+    public function archiveTopic(RequestContext $requestContext, int $topicId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        return $this->buildSidebarTopicResponse(
+            $this->topicDomainService->archiveTopic($dataIsolation, $topicId)
+        );
+    }
+
+    public function unarchiveTopic(RequestContext $requestContext, int $topicId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        return $this->buildSidebarTopicResponse(
+            $this->topicDomainService->unarchiveTopic($dataIsolation, $topicId)
+        );
     }
 
     public function getTopicById(int $id): TopicItemDTO
@@ -1347,5 +1434,12 @@ class TopicAppService extends AbstractAppService
     {
         $params = $requestDTO->getDynamicParams();
         return empty($params) ? null : $params;
+    }
+
+    private function buildSidebarTopicResponse(array $topic): array
+    {
+        return [
+            'topic' => SidebarTopicItemDTO::fromArray($topic)->toArray(),
+        ];
     }
 }
