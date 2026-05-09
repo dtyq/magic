@@ -164,6 +164,7 @@ readonly class KelingOmniGenerationCapabilityProvider implements KelingGeneratio
                     )->toArray(),
                     [
                         'generation_constraints' => [
+                            'durations' => [],
                             'resolutions' => ['720p', '1080p'],
                             'aspect_ratios' => [],
                             'sizes' => [],
