@@ -1410,10 +1410,16 @@ readonly class VideoQueueDomainService
         $patterns = [
             '/@图片(\d+)/u' => '{{image_$1}}',
             '/@image(\d+)/iu' => '{{image_$1}}',
+            '/\[图片(\d+)]/u' => '{{image_$1}}',
+            '/\[image(\d+)]/iu' => '{{image_$1}}',
             '/@视频(\d+)/u' => '{{video_$1}}',
             '/@video(\d+)/iu' => '{{video_$1}}',
+            '/\[视频(\d+)]/u' => '{{video_$1}}',
+            '/\[video(\d+)]/iu' => '{{video_$1}}',
             '/@音频(\d+)/u' => '{{audio_$1}}',
             '/@audio(\d+)/iu' => '{{audio_$1}}',
+            '/\[音频(\d+)]/u' => '{{audio_$1}}',
+            '/\[audio(\d+)]/iu' => '{{audio_$1}}',
         ];
 
         $normalized = $prompt;
