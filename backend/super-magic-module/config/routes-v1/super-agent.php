@@ -70,6 +70,8 @@ Router::addGroup(
             Router::put('/{id}/pin', [ProjectApi::class, 'pin']);
             // 获取项目下的话题列表
             Router::get('/{id}/topics', [ProjectApi::class, 'getTopics']);
+            // 获取项目侧栏话题列表
+            Router::get('/{id}/sidebar-topics', [ProjectApi::class, 'getSidebarTopics']);
             // 检查是否需要更新项目文件列表
             Router::get('/{id}/last-file-updated-time', [ProjectApi::class, 'checkFileListUpdate']);
             // 获取附件列表
@@ -160,8 +162,20 @@ Router::addGroup(
 
         // 话题相关
         Router::addGroup('/topics', static function () {
+            // 批量轮询话题状态
+            Router::post('/status', [TopicApi::class, 'getStatus']);
             // 获取话题详情
             Router::get('/{id}', [TopicApi::class, 'getTopic']);
+            // 更新话题已读进度
+            Router::post('/{id}/read-progress', [TopicApi::class, 'updateReadProgress']);
+            // 置顶话题
+            Router::post('/{id}/pin', [TopicApi::class, 'pinTopic']);
+            // 取消置顶话题
+            Router::post('/{id}/unpin', [TopicApi::class, 'unpinTopic']);
+            // 归档话题
+            Router::post('/{id}/archive', [TopicApi::class, 'archiveTopic']);
+            // 取消归档话题
+            Router::post('/{id}/unarchive', [TopicApi::class, 'unarchiveTopic']);
             // 通过话题ID获取消息列表
             Router::post('/{id}/messages', [TopicApi::class, 'getMessagesByTopicId']);
             // 创建话题
@@ -211,6 +225,11 @@ Router::addGroup(
             Router::get('/{id}/status', [TaskApi::class, 'getTaskStatus']);
             // 获取任务下的附件列表
             Router::get('/{id}/attachments', [TaskApi::class, 'getTaskAttachments']);
+        });
+
+        Router::addGroup('/me', static function () {
+            // 获取当前用户运行中的资源状态
+            Router::post('/resource-status', [TopicApi::class, 'getResourceStatus']);
         });
 
         // 消息队列管理
