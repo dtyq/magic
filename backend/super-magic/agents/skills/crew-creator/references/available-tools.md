@@ -258,7 +258,7 @@ tools:
 | `thinking` | Extended thinking for complex problems |
 | `summarize` | Summarize long content |
 | `deep_write` | Deep writing with multi-pass refinement |
-| `skill_list` | List all available skills |
+| `find_skills` | Search for skills by keyword across all sources |
 | `read_skills` | Read a skill's SKILL.md content |
 | `run_sdk_snippet` | Execute a Python code snippet with sdk.tool / sdk.mcp access; intermediate results stay in the execution environment and do not flow through model context |
 

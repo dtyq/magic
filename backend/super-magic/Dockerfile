@@ -96,6 +96,13 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-${TARGETARCH},target=/roo
     pnpm --registry="${NPM_REGISTRY}" \
         --cache=/root/.npm \
         install -g typescript@5 && \
+    # install clawhub cli and add-skills cli
+    npm --registry="${NPM_REGISTRY}" \
+        --cache=/root/.npm \
+        install -g clawhub && \
+    npm --registry="${NPM_REGISTRY}" \
+        --cache=/root/.npm \
+        install -g add-skills && \
     echo "========== nvm 版本信息 ==========" && \
     nvm -v && \
     echo "========== Node.js 版本信息 ==========" && \

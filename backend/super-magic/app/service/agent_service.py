@@ -594,7 +594,7 @@ class AgentService(Base):
         # 处理mentions信息（顶部引用区）- 添加到用户prompt中
         mentions = getattr(chat_client_message, "mentions", [])
         if mentions:
-            mentions_context = await self._build_mentions_context(mentions)
+            mentions_context = await self._build_mentions_context(mentions, agent_context)
             query = f"{mentions_context}\n\n---\n\n{query}"
             logger.info(f"已将{len(mentions)}个mentions添加到用户prompt中")
 
@@ -672,16 +672,17 @@ class AgentService(Base):
 
         return agent_context
 
-    async def _build_mentions_context(self, mentions: List[Dict[str, Any]]) -> str:
+    async def _build_mentions_context(self, mentions: List[Dict[str, Any]], agent_context=None) -> str:
         """构建mentions的系统上下文信息（异步）
 
         Args:
             mentions: mentions字段中的信息列表
+            agent_context: 可选的 AgentContext 实例，传给 handler 以支持 horizon 通知注入
 
         Returns:
             str: 格式化的mentions上下文信息
         """
-        return await self._mention_builder.build(mentions)
+        return await self._mention_builder.build(mentions, agent_context)
 
     def get_agent_file(self, agent_type: str) -> str:
         """

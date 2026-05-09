@@ -6,7 +6,6 @@ tools:
 skills:
   system_skills:
     - name: skill-vetter
-    - name: find-skill
   workspace_skills: "*"
 ---
 

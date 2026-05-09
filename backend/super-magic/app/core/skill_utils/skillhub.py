@@ -1,6 +1,12 @@
 """Skillhub：从互联网检索并安装 skill 到 workspace（install-github、remove 等）。
 
 本地目录遍历与元数据发现见 skill_directory_scan 模块。
+
+⚠️ 以下公开函数（skillhub_remove / skillhub_install_github /
+   skillhub_install_platform_me / skillhub_install_platform_market）已标记为
+   DEPRECATED，仅保留作向后兼容，不再主动维护。
+   新代码请使用 app.core.skill_utils.installer.InstallService 或
+   app.tools.install_skills.InstallSkillsTool。
 """
 import asyncio
 from pathlib import Path

@@ -25,7 +25,6 @@ tools:
   - ask_user
 skills:
   system_skills:
-    - name: find-skill
     - name: using-mcp
     - name: using-llm
     - name: env-manager

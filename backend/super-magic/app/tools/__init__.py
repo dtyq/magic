@@ -106,9 +106,10 @@ from app.tools.design.tools import (
 from app.tools.get_user_info import GetUserInfo
 
 # Skill 管理工具
+from app.tools.find_skills import FindSkillsTool
+from app.tools.install_skills import InstallSkillsTool
 from app.tools.read_skills import ReadSkills
 from app.tools.run_sdk_snippet import RunSdkSnippet
-from app.tools.skill_list import SkillList
 from app.tools.search_knowledge import SearchKnowledge
 
 # Import design package modules to ensure they are available in encrypted environment
@@ -163,13 +164,14 @@ __all__ = [
     "GenerateVideo",
     "QueryVideoGeneration",
     "GetIMChannelStatus",
+    "FindSkillsTool",
     "GetUserInfo",
+    "InstallSkillsTool",
     "ListDir",
     "Purify",
     "RunPythonSnippet",
     "ReadSkills",
     "RunSdkSnippet",
-    "SkillList",
     "SearchKnowledge",
     "ReadFile",
     "ReadFiles",

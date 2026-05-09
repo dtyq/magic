@@ -29,6 +29,9 @@ class AIAbility(str, Enum):
     ANALYSIS_AUDIO = "analysis_audio"
     VIDEO_UNDERSTANDING = "video_understanding"
 
+    # v1.3 implementations
+    SKILL_RERANK = "skill_rerank"
+
 
 # Default configurations for each AI ability
 # These serve as application-level fallback values
@@ -104,6 +107,13 @@ AI_ABILITY_DEFAULTS: Dict[str, Dict[str, Any]] = {
     AIAbility.VIDEO_UNDERSTANDING: {
         "model_id": "qwen3.5-flash",
         "timeout": 600,
+        "enabled": True,
+    },
+
+    # Skill Rerank Ability (v1.3)
+    # 用于 find_skills 工具的 LLM 重排驱动，使用轻量快速模型降低延迟
+    AIAbility.SKILL_RERANK: {
+        "model_id": "qwen3.5-flash",
         "enabled": True,
     },
 }
