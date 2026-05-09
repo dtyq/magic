@@ -77,6 +77,7 @@ use App\Interfaces\ModelGateway\Assembler\EndpointAssembler;
 use DateTime;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use Dtyq\CloudFile\Kernel\Utils\EasyFileTools;
 use Exception;
 use Hyperf\Codec\Json;
 use Hyperf\Context\ApplicationContext;
@@ -1768,7 +1769,8 @@ class LLMAppService extends AbstractLLMAppService
         $imageGenerateParamsVO->setGenerateNum($proxyModelRequest->getN());
         $imageGenerateParamsVO->setSequentialImageGeneration($proxyModelRequest->getSequentialImageGeneration());
         $imageGenerateParamsVO->setImageGenerationConfig($proxyModelRequest->getImageGenerationConfig());
-        $imageGenerateParamsVO->setReferenceImages($proxyModelRequest->getImages());
+        $referenceImages = $this->normalizeReferenceImages($proxyModelRequest->getImages(), $organizationCode);
+        $imageGenerateParamsVO->setReferenceImages($referenceImages);
         $imageGenerateParamsVO->setOutputFormat($proxyModelRequest->getOutputFormat());
 
         // 直接透传原始 size 参数，让各服务商根据自己的需求处理
@@ -2352,6 +2354,49 @@ class LLMAppService extends AbstractLLMAppService
         }
 
         return $processedImages;
+    }
+
+    private function normalizeReferenceImages(array $images, string $organizationCode): array
+    {
+        $normalizedImages = [];
+
+        foreach ($images as $image) {
+            if (! is_string($image) || $image === '') {
+                continue;
+            }
+
+            $normalizedImages[] = EasyFileTools::isBase64Image($image)
+                ? $this->uploadBase64ReferenceImage($image, $organizationCode)
+                : $image;
+        }
+
+        return $normalizedImages;
+    }
+
+    private function uploadBase64ReferenceImage(string $base64Image, string $organizationCode): string
+    {
+        try {
+            $uploadFile = new UploadFile($base64Image, 'open', '');
+            $this->fileDomainService->uploadByCredential($organizationCode, $uploadFile, StorageBucketType::Public);
+
+            $fileLink = $this->fileDomainService->getLink($organizationCode, $uploadFile->getKey(), StorageBucketType::Public);
+            if ($fileLink === null) {
+                ExceptionBuilder::throw(
+                    ImageGenerateErrorCode::GENERAL_ERROR,
+                    'image_generate.file_upload_failed',
+                    ['error' => 'result_url_missing']
+                );
+            }
+
+            return $fileLink->getUrl();
+        } catch (Exception $exception) {
+            ExceptionBuilder::throw(
+                ImageGenerateErrorCode::GENERAL_ERROR,
+                'image_generate.file_upload_failed',
+                ['error' => $exception->getMessage()],
+                throwable: $exception
+            );
+        }
     }
 
     /**
