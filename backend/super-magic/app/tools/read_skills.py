@@ -73,6 +73,12 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
                 try:
                     skill = await find_skill(skill_name)
 
+                    # s3 挂载有延迟，首次找不到时等待 2s 后重试一次
+                    if not skill:
+                        logger.warning(f"Skill 未找到，2s 后重试: {skill_name}")
+                        await asyncio.sleep(2)
+                        skill = await find_skill(skill_name)
+
                     if not skill:
                         error_msg = f"未找到名为 '{skill_name}' 的 skill"
                         results.append({"skill_name": skill_name, "success": False, "error": error_msg})

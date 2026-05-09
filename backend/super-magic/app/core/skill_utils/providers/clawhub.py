@@ -123,7 +123,7 @@ class ClawHubProvider(CliProvider):
                 "--no-input",
                 "--workdir", str(tmp_root),
                 "--dir", str(tmp_root),
-                "install", skill_id,
+                "install", "--force", skill_id,
             ]
             if version:
                 cmd += ["--version", version]

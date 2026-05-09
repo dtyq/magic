@@ -31,7 +31,9 @@ _LOCAL_PROVIDERS = {"system", "my_library"}
 # 外部来源：关键词搜索
 _EXTERNAL_PROVIDERS = {"market", "skillhub", "clawhub"}
 
-_PER_KEYWORD_TOP_K = 5
+_PER_KEYWORD_TOP_K = 10
+# 每个 provider 在每个关键词结果中保底保留的最少候选数，防止低分 provider 被高分 provider 全部挤出
+_MIN_PER_PROVIDER = 1
 
 _SYSTEM_PROMPT = """\
 你是一个技能搜索助手。根据用户的搜索关键词，对候选技能的相关性打分，并调用 score_skills 工具返回结果。
@@ -310,16 +312,37 @@ class LLMSearchDriver(SearchDriver):
         keyword_results = []
         for kw in keywords:
             scored_map = kw_scored.get(kw, {})
-            # 按分数降序，取 Top K
+            # 按分数降序排列所有候选
             sorted_keys = sorted(scored_map.items(), key=lambda x: x[1], reverse=True)
-            candidates = []
-            for (provider_val, skill_id), score in sorted_keys[:_PER_KEYWORD_TOP_K]:
+
+            # 先将打分结果映射为 SkillCandidate（含 LLM 分数），过滤掉找不到原始信息的条目
+            all_scored: list = []
+            for (provider_val, skill_id), score in sorted_keys:
                 original = full_map.get((provider_val, skill_id)) or id_only_map.get(skill_id)
                 if original is None:
                     continue
-                # 用 LLM 打分覆盖 score，其余字段保留原始值
-                c = replace(original, score=score)
-                candidates.append(c)
+                all_scored.append(replace(original, score=score))
+
+            # 第一阶段：每个 provider 保底取最高分的 _MIN_PER_PROVIDER 个
+            provider_count: dict[str, int] = {}
+            quota: list = []
+            overflow: list = []
+            for c in all_scored:
+                pv = c.provider.value
+                if provider_count.get(pv, 0) < _MIN_PER_PROVIDER:
+                    quota.append(c)
+                    provider_count[pv] = provider_count.get(pv, 0) + 1
+                else:
+                    overflow.append(c)
+
+            # 第二阶段：剩余名额按全局分数降序补充
+            remaining_slots = _PER_KEYWORD_TOP_K - len(quota)
+            candidates = quota + overflow[:remaining_slots] if remaining_slots > 0 else quota
+
+            # 最终按分数重新排序（配额候选可能低于补充候选）
+            candidates.sort(key=lambda c: c.score, reverse=True)
+            candidates = candidates[:_PER_KEYWORD_TOP_K]
+
             keyword_results.append(KeywordResult(
                 keyword=kw,
                 candidates=candidates,

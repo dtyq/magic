@@ -14,7 +14,7 @@ from app.core.skill_utils.search.base import SearchDriver
 
 logger = get_logger(__name__)
 
-_PER_KEYWORD_TOP_K = 5
+_PER_KEYWORD_TOP_K = 10
 _GLOBAL_TOP_K = 20
 
 # 来源优先级权重；SYSTEM 最高，确保内置 skill 优先展示
