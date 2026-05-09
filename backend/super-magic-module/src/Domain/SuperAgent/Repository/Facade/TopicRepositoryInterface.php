@@ -157,9 +157,9 @@ interface TopicRepositoryInterface
      */
     public function countTopicsByProjectId(int $projectId): int;
 
-    public function getRunningWorkspaceIds(array $workspaceIds, ?string $userId = null): array;
+    public function getWorkspaceIdsByTopicStatus(array $workspaceIds, array $taskStatuses, ?string $userId = null): array;
 
-    public function getRunningProjectIds(array $projectIds, ?string $userId = null): array;
+    public function getProjectIdsByTopicStatus(array $projectIds, array $taskStatuses, ?string $userId = null): array;
 
     public function getRunningWorkspaceIdsByUser(string $userId): array;
 

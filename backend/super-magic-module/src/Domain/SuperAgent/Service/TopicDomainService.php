@@ -583,7 +583,11 @@ class TopicDomainService
         }
 
         // 从仓储层获取有运行中话题的工作区ID列表
-        $runningWorkspaceIds = $this->topicRepository->getRunningWorkspaceIds($workspaceIds, $userId);
+        $runningWorkspaceIds = $this->topicRepository->getWorkspaceIdsByTopicStatus(
+            $workspaceIds,
+            [TaskStatus::RUNNING, TaskStatus::WAITING_FOR_USER],
+            $userId
+        );
 
         // 计算每个工作区的状态
         $result = [];
@@ -610,7 +614,11 @@ class TopicDomainService
         }
 
         // 从仓储层获取有运行中话题的项目ID列表
-        $runningProjectIds = $this->topicRepository->getRunningProjectIds($projectIds, $userId);
+        $runningProjectIds = $this->topicRepository->getProjectIdsByTopicStatus(
+            $projectIds,
+            [TaskStatus::RUNNING, TaskStatus::WAITING_FOR_USER],
+            $userId
+        );
 
         // 计算每个项目的状态
         $result = [];
