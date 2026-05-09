@@ -408,7 +408,7 @@ class VideoModelConfigService:
 
         lines = [
             "  <video",
-            f'    model="{video_model_id}"',
+            f'    model="{VideoModelConfigService._xml_attr(video_model_id)}"',
         ]
         if changed:
             lines.append('    changed="true"')
