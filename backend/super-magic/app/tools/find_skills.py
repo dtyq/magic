@@ -84,22 +84,16 @@ class FindSkillsParams(BaseToolParams):
         if v is None:
             return v
         # 兼容模型将数组错误序列化为 JSON 字符串的情况，如 "[\"my_library\"]"
-        # 或直接传单个 provider 名称字符串，如 "clawhub"
         if isinstance(v, str):
             # 空字符串视为未传参数
             if not v.strip():
                 return None
             try:
                 parsed = json.loads(v)
-                if isinstance(parsed, list):
-                    v = parsed
-                elif isinstance(parsed, str):
-                    # json.loads 解析出了一个纯字符串，视为单个 provider
-                    v = [parsed]
-                else:
-                    raise ValueError(f"providers 格式无效，应为数组，收到: {v!r}")
+                # JSON 解析成功但结果是字符串（如 `"system"`），当作单个 provider 处理
+                v = [parsed] if isinstance(parsed, str) else parsed
             except json.JSONDecodeError:
-                # 不是合法 JSON，尝试视为单个 provider 名称
+                # 裸字符串（如 `system`），当作单个 provider 处理
                 v = [v.strip()]
         if not v:
             return None
@@ -342,7 +336,6 @@ def _format_result_md(result: SearchResult) -> str:
             lines.append("|------|------|------|")
             for c in kr.candidates:
                 label = _PROVIDER_LABEL.get(c.provider.value, c.provider.value)
-                # 内置 skill 在名称后加标记
                 name_cell = f"**{c.name}** `内置`" if c.provider.value == "system" else f"**{c.name}**"
                 # 版本号拼入来源列
                 version_note = f" · {c.version}" if c.version else ""

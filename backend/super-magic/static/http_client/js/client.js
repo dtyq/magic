@@ -371,6 +371,8 @@ const modeToggle = document.getElementById('modeToggle');
 const agentModeSelect = document.getElementById('agentModeSelect');
 const agentCodeInput = document.getElementById('agentCodeInput');
 const agentCodeGroup = document.getElementById('agentCodeGroup');
+const customAgentCodeInput = document.getElementById('customAgentCodeInput');
+const customAgentCodeGroup = document.getElementById('customAgentCodeGroup');
 const modelIdInput = document.getElementById('modelIdInput');
 const modelIdSelect = document.getElementById('modelIdSelect');
 const imageModelSelect = document.getElementById('imageModelSelect');
@@ -711,7 +713,8 @@ const AgentMode = {
     DESIGN: "design",
     TEST: "test",
     SKILL: "skill",
-    AGENT_MASTER: "agent-master"
+    AGENT_MASTER: "agent-master",
+    CUSTOM_AGENT: "custom_agent"
 };
 
 // 根据操作系统显示快捷键提示
@@ -1800,6 +1803,7 @@ function toggleImMode() {
         imUserIdGroup.style.display = '';
         agentModeGroup.style.display = 'none';
         if (agentCodeGroup) agentCodeGroup.style.display = 'none';
+        if (customAgentCodeGroup) customAgentCodeGroup.style.display = 'none';
         modelIdGroup.style.display = 'none';
         languageGroup.style.display = 'none';
         if (imageModelGroup) imageModelGroup.style.display = 'none';
@@ -1923,6 +1927,26 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
         if (agentCode) {
             message.dynamic_config = Object.assign({}, message.dynamic_config, { agent_code: agentCode });
         }
+    }
+
+    // custom_agent 模式：强制 task_mode=chat、model_id=auto，并注入完整 dynamic_config
+    if (currentAgentMode === 'custom_agent') {
+        message.task_mode = 'chat';
+        message.model_id = 'auto';
+        const customAgentCode = customAgentCodeInput ? customAgentCodeInput.value.trim() : '';
+        message.dynamic_config = Object.assign({}, message.dynamic_config, {
+            models: {
+                auto: {
+                    api_key: '${MAGIC_API_KEY}',
+                    api_base_url: '${MAGIC_API_BASE_URL}',
+                    name: 'auto'
+                }
+            },
+            video_model: {
+                model_id: 'doubao-seedance-2-0-fast-260128'
+            },
+            ...(customAgentCode ? { agent_code: customAgentCode } : {})
+        });
     }
 
     // 注入消息版本到 dynamic_config（为空时不传该字段）
@@ -2570,6 +2594,9 @@ function changeAgentMode() {
     if (agentCodeGroup) {
         agentCodeGroup.style.display = selectedMode === 'magiclaw' ? '' : 'none';
     }
+    if (customAgentCodeGroup) {
+        customAgentCodeGroup.style.display = selectedMode === 'custom_agent' ? '' : 'none';
+    }
 
     const modeNames = {
         'magic': 'Magic模式',
@@ -2577,7 +2604,8 @@ function changeAgentMode() {
         'ppt': 'PPT模式',
         'data_analysis': '数据分析模式',
         'summary': '总结模式',
-        'magiclaw': 'MagicLaw模式'
+        'magiclaw': 'MagicLaw模式',
+        'custom_agent': '自定义Agent模式'
     };
 
     showSystemMessage(`切换到 ${modeNames[selectedMode] || selectedMode}`);
