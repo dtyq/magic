@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8"/>
+  <title>Energetic Classroom Orange · Template Preview</title>
+  <link rel="stylesheet" href="theme.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet"/>
+  <style>
+    html, body { width: auto; height: auto; overflow: auto; background: #f1f5f9; font-family: 'Noto Sans SC', sans-serif; }
+    .page { max-width: 1440px; margin: 0 auto; padding: 48px 40px 80px; }
+    h1 { font-size: 36px; font-weight: 900; color: #1e293b; margin-bottom: 6px; }
+    h1 span { color: #f97316; }
+    .subtitle { font-size: 18px; color: #64748b; margin-bottom: 48px; }
+    .section-title { font-size: 22px; font-weight: 700; color: #1e293b; margin: 48px 0 20px; border-left: 4px solid #f97316; padding-left: 14px; }
+
+    /* Color swatches */
+    .swatches { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 48px; }
+    .swatch { border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); width: 148px; }
+    .swatch-color { height: 72px; }
+    .swatch-info { background: #fff; padding: 10px 12px; }
+    .swatch-name { font-size: 13px; font-weight: 600; color: #1e293b; }
+    .swatch-hex  { font-size: 12px; color: #64748b; font-family: monospace; }
+
+    /* Layout thumbnails */
+    .layouts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-bottom: 48px; }
+    .layout-thumb { background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .thumb-inner { aspect-ratio: 16/9; position: relative; overflow: hidden; }
+    .slide-label { padding: 12px 14px; font-size: 13px; font-weight: 600; color: #475569; background: #fff; border-top: 1px solid #f1f5f9; }
+
+    /* Components showcase */
+    .components { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 48px; align-items: flex-start; }
+
+    /* ── Thumbnail: T1 Cover page ── */
+    .t1 { display: flex; width: 100%; height: 100%; }
+    .t1-left { width: 47%; background: linear-gradient(135deg,#f97316 0%,#0f172a 100%); position: relative; display: flex; align-items: flex-end; padding: 14px; }
+    .t1-quote { font-size: 7px; color: rgba(255,255,255,0.9); border-left: 2px solid #f97316; padding-left: 5px; line-height: 1.6; }
+    .t1-right { flex: 1; background: #0f172a; display: flex; flex-direction: column; justify-content: center; padding: 14px 16px; gap: 5px; }
+    .t1-tag { background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.4); color: #fb923c; font-size: 6px; padding: 2px 7px; border-radius: 20px; width: fit-content; margin-bottom: 2px; }
+    .t1-title { font-size: 12px; font-weight: 900; color: #fff; line-height: 1.2; }
+    .t1-title span { color: #f97316; }
+    .t1-bar { width: 14px; height: 2px; background: #f97316; border-radius: 1px; margin: 3px 0 5px; }
+    .t1-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 6px; }
+    .t1-meta-item { display: flex; align-items: center; gap: 3px; }
+    .t1-meta-icon { width: 10px; height: 10px; background: rgba(249,115,22,0.15); border-radius: 2px; color: #f97316; font-size: 5px; display:flex;align-items:center;justify-content:center; flex-shrink:0; }
+    .t1-meta-text { font-size: 6px; color: #94a3b8; }
+    .t1-badges { display: flex; gap: 3px; flex-wrap: wrap; }
+    .t1-badge { background: rgba(249,115,22,0.1); border: 1px solid rgba(249,115,22,0.25); color: #fb923c; font-size: 5px; padding: 2px 5px; border-radius: 3px; }
+
+    /* ── Thumbnail: T2 Two-column content page ── */
+    .t2 { background: #f8fafc; display: flex; flex-direction: column; padding: 10px 14px; width: 100%; height: 100%; }
+    .t2-label { font-size: 5.5px; color: #f97316; font-weight: 600; letter-spacing: 0.08em; }
+    .t2-title { font-size: 12px; font-weight: 900; color: #1e293b; margin: 2px 0 1px; }
+    .t2-title span { color: #f97316; }
+    .t2-bar { width: 13px; height: 2px; background: #f97316; border-radius: 1px; margin-bottom: 7px; }
+    .t2-body { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .t2-card { background: #fff; border-radius: 5px; padding: 7px 9px; border-left: 3px solid #f97316; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+    .t2-card-icon { font-size: 10px; color: #f97316; margin-bottom: 3px; }
+    .t2-card-title { font-size: 7px; font-weight: 700; color: #1e293b; margin-bottom: 3px; }
+    .t2-card-text { font-size: 5.5px; color: #64748b; line-height: 1.5; }
+    .t2-highlight { margin-top: 4px; background: #fff7ed; border-radius: 3px; padding: 3px 5px; font-size: 6px; font-weight: 700; color: #ea580c; }
+    .t2-dark { background: #1e293b; border-radius: 4px; padding: 5px 8px; font-size: 5.5px; color: #cbd5e1; line-height: 1.5; margin-top: 5px; }
+    .t2-list { display: flex; flex-direction: column; gap: 4px; }
+    .t2-item { background: #fff; border-radius: 3px; padding: 4px 7px; display: flex; align-items: center; gap: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+    .t2-num { width: 12px; height: 12px; background: #f97316; border-radius: 2px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 5px; font-weight: 700; flex-shrink: 0; }
+    .t2-item-text { font-size: 6px; color: #1e293b; font-weight: 600; }
+    .t2-item-desc { font-size: 5px; color: #64748b; }
+
+    /* ── Thumbnail: T3 Activity overview page ── */
+    .t3 { background: #f8fafc; display: flex; flex-direction: column; padding: 8px 10px; width: 100%; height: 100%; }
+    .t3-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 6px; }
+    .t3-title { font-size: 12px; font-weight: 900; color: #1e293b; }
+    .t3-title span { color: #f97316; }
+    .t3-stats { display: flex; gap: 5px; }
+    .t3-stat { background: #fff; border-radius: 4px; padding: 3px 6px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .t3-stat-num { font-size: 9px; font-weight: 900; color: #f97316; }
+    .t3-stat-label { font-size: 4.5px; color: #64748b; }
+    .t3-grid { flex: 1; display: grid; grid-template-columns: repeat(6,1fr); gap: 5px; }
+    .t3-card { background: #fff; border-radius: 4px; padding: 5px 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
+    .t3-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: #f97316; }
+    .t3-week { font-size: 4px; color: #f97316; font-weight: 600; }
+    .t3-num { font-size: 4.5px; color: #94a3b8; font-weight: 700; }
+    .t3-icon { font-size: 9px; color: #f97316; }
+    .t3-name { font-size: 5.5px; font-weight: 700; color: #1e293b; line-height: 1.2; }
+    .t3-theme { font-size: 4px; color: #64748b; line-height: 1.4; flex: 1; }
+    .t3-tag { background: #fff7ed; color: #ea580c; font-size: 4px; padding: 1px 3px; border-radius: 2px; width: fit-content; }
+
+    /* ── Thumbnail: T4 Activity detail A (top title + two columns, no image ) ── */
+    .t4 { background: #f8fafc; display: flex; flex-direction: column; padding: 8px 10px; width: 100%; height: 100%; }
+    .t4-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 6px; }
+    .t4-title { font-size: 11px; font-weight: 900; color: #1e293b; }
+    .t4-title span { color: #f97316; }
+    .t4-bar { width: 12px; height: 2px; background: #f97316; border-radius: 1px; margin: 2px 0 4px; }
+    .t4-chips { display: flex; gap: 3px; }
+    .t4-chip { background: #fff; border-radius: 2px; padding: 2px 5px; font-size: 4.5px; color: #475569; box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+    .t4-body { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .t4-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin-bottom: 4px; }
+    .t4-role { background: #fff; border-radius: 3px; padding: 4px 5px; border-left: 2px solid #f97316; }
+    .t4-role-name { font-size: 5.5px; font-weight: 700; color: #1e293b; }
+    .t4-role-desc { font-size: 4.5px; color: #64748b; margin-top: 1px; }
+    .t4-img { height: 28px; border-radius: 4px; background: linear-gradient(135deg,#e2e8f0,#cbd5e1); overflow: hidden; }
+    .t4-right { display: flex; flex-direction: column; gap: 4px; }
+    .t4-goal { background: #1e293b; border-radius: 3px; padding: 5px 7px; font-size: 5px; color: #e2e8f0; line-height: 1.5; }
+    .t4-steps { display: flex; flex-direction: column; gap: 3px; }
+    .t4-step { background: #fff; border-radius: 3px; padding: 3px 6px; display: flex; gap: 4px; align-items: flex-start; }
+    .t4-dot { width: 9px; height: 9px; border-radius: 50%; background: #f97316; color: #fff; font-size: 4px; font-weight: 700; display:flex;align-items:center;justify-content:center; flex-shrink:0; }
+    .t4-step-title { font-size: 5px; font-weight: 700; color: #1e293b; }
+    .t4-step-desc { font-size: 4.5px; color: #64748b; }
+    .t4-debrief { background: #fff7ed; border-radius: 3px; padding: 4px 6px; border-left: 2px solid #f97316; font-size: 4.5px; color: #7c3aed; font-style: italic; }
+
+    /* ── Thumbnail: T5 Activity detail B (left image, right content ) ── */
+    .t5 { display: flex; width: 100%; height: 100%; }
+    .t5-left { width: 38%; background: linear-gradient(to right, #1e293b, #475569); position: relative; display: flex; align-items: flex-start; padding: 8px; }
+    .t5-badge { background: #f97316; color: #fff; font-size: 5.5px; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
+    .t5-right { flex: 1; background: #f8fafc; display: flex; flex-direction: column; padding: 8px 10px; gap: 4px; }
+    .t5-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 3px; }
+    .t5-title { font-size: 11px; font-weight: 900; color: #1e293b; line-height: 1.2; }
+    .t5-title span { color: #f97316; }
+    .t5-bar { width: 11px; height: 2px; background: #f97316; border-radius: 1px; margin: 2px 0 4px; }
+    .t5-meta { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+    .t5-chip { background: #fff; border-radius: 2px; padding: 2px 5px; font-size: 4.5px; color: #475569; }
+    .t5-goal { background: #1e293b; border-radius: 3px; padding: 5px 7px; font-size: 5px; color: #e2e8f0; line-height: 1.5; margin-bottom: 3px; }
+    .t5-steps-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; margin-bottom: 4px; }
+    .t5-step { background: #fff; border-radius: 3px; padding: 4px 5px; border-top: 2px solid #f97316; }
+    .t5-step-time { font-size: 4px; color: #f97316; font-weight: 600; }
+    .t5-step-text { font-size: 4.5px; color: #334155; line-height: 1.4; }
+    .t5-debrief { background: #fff7ed; border-radius: 3px; padding: 4px 6px; border-left: 2px solid #f97316; font-size: 4.5px; color: #7c3aed; font-style: italic; }
+
+    /* ── Thumbnail: T6 Role-play / table page ── */
+    .t6 { display: flex; width: 100%; height: 100%; }
+    .t6-left { width: 36%; background: linear-gradient(135deg, #334155, #1e293b); position: relative; display: flex; align-items: flex-start; padding: 8px; }
+    .t6-badge { background: #f97316; color: #fff; font-size: 5.5px; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
+    .t6-right { flex: 1; background: #f8fafc; display: flex; flex-direction: column; padding: 8px 10px; gap: 3px; overflow: hidden; }
+    .t6-top { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 3px; }
+    .t6-title { font-size: 10px; font-weight: 900; color: #1e293b; }
+    .t6-title span { color: #f97316; }
+    .t6-scene { background: #1e293b; border-radius: 3px; padding: 4px 7px; font-size: 4.5px; color: #cbd5e1; line-height: 1.5; margin-bottom: 3px; }
+    .t6-table { width: 100%; border-collapse: separate; border-spacing: 0 2px; margin-bottom: 4px; }
+    .t6-table th { font-size: 4px; color: #64748b; padding: 0 4px 2px; text-align: left; }
+    .t6-table td { font-size: 4.5px; color: #334155; padding: 3px 4px; background: #fff; }
+    .t6-table td:first-child { border-radius: 2px 0 0 2px; font-weight: 700; color: #f97316; }
+    .t6-table td:last-child { border-radius: 0 2px 2px 0; color: #64748b; font-style: italic; }
+    .t6-flow { display: flex; gap: 3px; margin-bottom: 3px; }
+    .t6-step { flex: 1; background: #fff; border-radius: 2px; padding: 3px 4px; border-top: 2px solid #f97316; }
+    .t6-step-num { font-size: 4px; color: #f97316; font-weight: 700; }
+    .t6-step-title { font-size: 4.5px; font-weight: 700; color: #1e293b; }
+    .t6-debrief { background: #fff7ed; border-radius: 2px; padding: 3px 5px; border-left: 2px solid #f97316; font-size: 4px; color: #7c3aed; font-style: italic; }
+
+    /* ── Thumbnail: T7 Framework page ── */
+    .t7 { background: #f8fafc; display: flex; flex-direction: column; padding: 8px 10px; width: 100%; height: 100%; }
+    .t7-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 5px; }
+    .t7-title { font-size: 11px; font-weight: 900; color: #1e293b; }
+    .t7-title span { color: #f97316; }
+    .t7-bar { width: 12px; height: 2px; background: #f97316; border-radius: 1px; margin: 2px 0 4px; }
+    .t7-body { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; min-height: 0; }
+    .t7-left { display: flex; flex-direction: column; gap: 3px; }
+    .t7-goal { background: #1e293b; border-radius: 3px; padding: 4px 7px; font-size: 4.5px; color: #e2e8f0; line-height: 1.5; }
+    .t7-sbi { display: flex; gap: 3px; }
+    .t7-sbi-card { flex: 1; border-radius: 3px; padding: 4px 3px; text-align: center; }
+    .t7-sbi-card.s { background: #fff7ed; border: 1px solid #fed7aa; }
+    .t7-sbi-card.b { background: #fef3c7; border: 1px solid #fde68a; }
+    .t7-sbi-card.i { background: #ecfdf5; border: 1px solid #a7f3d0; }
+    .t7-sbi-letter { font-size: 10px; font-weight: 900; }
+    .t7-sbi-card.s .t7-sbi-letter { color: #ea580c; }
+    .t7-sbi-card.b .t7-sbi-letter { color: #d97706; }
+    .t7-sbi-card.i .t7-sbi-letter { color: #059669; }
+    .t7-sbi-word { font-size: 4px; font-weight: 700; color: #1e293b; }
+    .t7-examples { display: flex; flex-direction: column; gap: 2px; }
+    .t7-ex { border-radius: 2px; padding: 3px 5px; font-size: 4px; line-height: 1.4; }
+    .t7-ex.pos { background: #f0fdf4; border-left: 2px solid #22c55e; color: #166534; }
+    .t7-ex.imp { background: #fef2f2; border-left: 2px solid #ef4444; color: #dc2626; }
+    .t7-right { display: flex; flex-direction: column; gap: 3px; }
+    .t7-steps { display: flex; flex-direction: column; gap: 2px; }
+    .t7-step { background: #fff; border-radius: 2px; padding: 3px 5px; display: flex; gap: 3px; }
+    .t7-dot { width: 9px; height: 9px; border-radius: 50%; background: #f97316; color: #fff; font-size: 4px; font-weight: 700; display:flex;align-items:center;justify-content:center; flex-shrink:0; }
+    .t7-img { height: 25px; border-radius: 3px; background: linear-gradient(135deg,#e2e8f0,#cbd5e1); }
+    .t7-debrief { background: #fff7ed; border-radius: 2px; padding: 3px 5px; border-left: 2px solid #f97316; font-size: 4px; color: #7c3aed; font-style: italic; }
+
+    /* ── Thumbnail: T8 Closing page ── */
+    .t8 { background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; position: relative; overflow: hidden; }
+    .t8-glow1 { position: absolute; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(249,115,22,0.15), transparent 70%); top: -30px; right: -20px; }
+    .t8-glow2 { position: absolute; width: 90px; height: 90px; border-radius: 50%; background: radial-gradient(circle, rgba(249,115,22,0.1), transparent 70%); bottom: -20px; left: -15px; }
+    .t8-inner { display: flex; flex-direction: column; align-items: center; gap: 0; width: 85%; z-index: 1; }
+    .t8-tag { background: rgba(249,115,22,0.15); border: 1px solid rgba(249,115,22,0.35); color: #fb923c; font-size: 5px; padding: 2px 8px; border-radius: 20px; margin-bottom: 6px; }
+    .t8-title { font-size: 11px; font-weight: 900; color: #fff; text-align: center; line-height: 1.3; margin-bottom: 3px; }
+    .t8-title span { color: #f97316; }
+    .t8-sub { font-size: 5px; color: #94a3b8; text-align: center; margin-bottom: 8px; }
+    .t8-pills { display: flex; gap: 3px; justify-content: center; margin-bottom: 6px; flex-wrap: wrap; }
+    .t8-pill { display: flex; align-items: center; gap: 3px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 3px; padding: 3px 5px; }
+    .t8-pill-icon { font-size: 6px; color: #f97316; }
+    .t8-pill-text { font-size: 4.5px; color: #e2e8f0; font-weight: 700; }
+    .t8-principles { display: flex; gap: 4px; justify-content: center; margin-bottom: 6px; }
+    .t8-pcard { background: rgba(255,255,255,0.04); border: 1px solid rgba(249,115,22,0.2); border-radius: 3px; padding: 4px 5px; text-align: center; width: 50px; }
+    .t8-pcard-icon { font-size: 7px; color: #f97316; margin-bottom: 2px; }
+    .t8-pcard-text { font-size: 4px; color: #cbd5e1; line-height: 1.4; }
+    .t8-bottom { display: flex; align-items: center; gap: 5px; padding: 4px 10px; background: rgba(249,115,22,0.08); border: 1px solid rgba(249,115,22,0.2); border-radius: 20px; }
+    .t8-bottom-item { font-size: 4px; color: #64748b; display: flex; align-items: center; gap: 2px; }
+    .t8-bottom-item i { color: #f97316; }
+    .t8-divider { width: 1px; height: 8px; background: rgba(249,115,22,0.3); }
+  </style>
+</head>
+<body>
+<div class="page">
+  <h1>活力课堂<span>橙</span> · edu-activity-orange</h1>
+  <div class="subtitle">教育互动手册 · 课堂活动设计 · 团队培训 · 工作坊材料</div>
+
+  <!-- ── 配色Swatches ── -->
+  <div class="section-title">Color Spec</div>
+  <div class="swatches">
+    <div class="swatch"><div class="swatch-color" style="background:#f97316;"></div><div class="swatch-info"><div class="swatch-name">Primary orange</div><div class="swatch-hex">#f97316</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#fb923c;"></div><div class="swatch-info"><div class="swatch-name">Light orange</div><div class="swatch-hex">#fb923c</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#ea580c;"></div><div class="swatch-info"><div class="swatch-name">Deep orange</div><div class="swatch-hex">#ea580c</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#fff7ed;border:1px solid #e2e8f0;"></div><div class="swatch-info"><div class="swatch-name">Soft orange background</div><div class="swatch-hex">#fff7ed</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#0f172a;"></div><div class="swatch-info"><div class="swatch-name">深蓝黑 (cover )</div><div class="swatch-hex">#0f172a</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#1e293b;"></div><div class="swatch-info"><div class="swatch-name">Dark card</div><div class="swatch-hex">#1e293b</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#f8fafc;border:1px solid #e2e8f0;"></div><div class="swatch-info"><div class="swatch-name">Content page background</div><div class="swatch-hex">#f8fafc</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#ffffff;border:1px solid #e2e8f0;"></div><div class="swatch-info"><div class="swatch-name">White card background</div><div class="swatch-hex">#ffffff</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#1e293b;"></div><div class="swatch-info"><div class="swatch-name">Primary text</div><div class="swatch-hex">#1e293b</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#475569;"></div><div class="swatch-info"><div class="swatch-name">Body text</div><div class="swatch-hex">#475569</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#64748b;"></div><div class="swatch-info"><div class="swatch-name">Muted text</div><div class="swatch-hex">#64748b</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#94a3b8;"></div><div class="swatch-info"><div class="swatch-name">Faintest text</div><div class="swatch-hex">#94a3b8</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#7c3aed;"></div><div class="swatch-info"><div class="swatch-name">Debrief quote purple</div><div class="swatch-hex">#7c3aed</div></div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#22c55e;"></div><div class="swatch-info"><div class="swatch-name">Theory box green</div><div class="swatch-hex">#22c55e</div></div></div>
+  </div>
+
+  <!-- ── 8种布局缩略图 ── -->
+  <div class="section-title">8种Dedicated Layout Types</div>
+  <div class="layouts">
+
+    <!-- T1: Cover page -->
+    <div class="layout-thumb">
+      <div class="thumb-inner">
+        <div class="t1">
+          <div class="t1-left">
+            <div class="t1-quote">体验先于理论<br/>让学生在活动中<br/>产生真实感受</div>
+          </div>
+          <div class="t1-right">
+            <div class="t1-tag"><i class="fa-solid fa-graduation-cap"></i> 通识教育中心</div>
+            <div class="t1-title">团队管理课<br/><span>小组活动</span>设计手册</div>
+            <div class="t1-bar"></div>
+            <div class="t1-meta">
+              <div class="t1-meta-item"><div class="t1-meta-icon"><i class="fa-solid fa-layer-group"></i></div><div class="t1-meta-text">6个核心活动</div></div>
+              <div class="t1-meta-item"><div class="t1-meta-icon"><i class="fa-solid fa-users"></i></div><div class="t1-meta-text">授课教师及助教</div></div>
+              <div class="t1-meta-item"><div class="t1-meta-icon"><i class="fa-solid fa-calendar-days"></i></div><div class="t1-meta-text">第1—15周</div></div>
+              <div class="t1-meta-item"><div class="t1-meta-icon"><i class="fa-solid fa-clock"></i></div><div class="t1-meta-text">约170分钟</div></div>
+            </div>
+            <div class="t1-badges">
+              <span class="t1-badge">破冰</span><span class="t1-badge">沟通</span><span class="t1-badge">决策</span><span class="t1-badge">反馈</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 1 · Cover page (左图右文深色分栏 )</div>
+    </div>
+
+    <!-- T2: Two-column content page -->
+    <div class="layout-thumb">
+      <div class="thumb-inner">
+        <div class="t2">
+          <div class="t2-label">HANDBOOK GUIDE</div>
+          <div class="t2-title">使用<span>说明</span></div>
+          <div class="t2-bar"></div>
+          <div class="t2-body">
+            <div>
+              <div class="t2-card">
+                <div class="t2-card-icon"><i class="fa-solid fa-lightbulb"></i></div>
+                <div class="t2-card-title">核心设计原则</div>
+                <div class="t2-card-text">本手册收录团队管理课全学期6个核心互动活动的完整设计方案。</div>
+                <div class="t2-highlight"><i class="fa-solid fa-quote-left"></i> 体验先于理论</div>
+              </div>
+              <div class="t2-dark">先让学生在活动中产生<strong style="color:#fb923c;">真实感受</strong>, 再引入理论框架加以解释。</div>
+            </div>
+            <div class="t2-list">
+              <div style="font-size:6.5px;font-weight:700;color:#1e293b;margin-bottom:3px;">每个活动包含四个部分</div>
+              <div class="t2-item"><div class="t2-num">01</div><div><div class="t2-item-text">目标</div><div class="t2-item-desc">明确学习目标与核心收获</div></div></div>
+              <div class="t2-item"><div class="t2-num">02</div><div><div class="t2-item-text">准备</div><div class="t2-item-desc">材料 / 分组方式 / 时间安排</div></div></div>
+              <div class="t2-item"><div class="t2-num">03</div><div><div class="t2-item-text">流程</div><div class="t2-item-desc">分步骤详细操作说明</div></div></div>
+              <div class="t2-item"><div class="t2-num">04</div><div><div class="t2-item-text">复盘引导</div><div class="t2-item-desc">连接理论框架的讨论问题</div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 2 · Two-column content page (说明/规则类 )</div>
+    </div>
+
+    <!-- T3: Activity overview page -->
+    <div class="layout-thumb">
+      <div class="thumb-inner">
+        <div class="t3">
+          <div class="t3-header">
+            <div>
+              <div style="font-size:5px;color:#f97316;font-weight:600;letter-spacing:0.08em;">ACTIVITY OVERVIEW</div>
+              <div class="t3-title">活动<span>overview</span></div>
+            </div>
+            <div class="t3-stats">
+              <div class="t3-stat"><div class="t3-stat-num">6</div><div class="t3-stat-label">核心活动</div></div>
+              <div class="t3-stat"><div class="t3-stat-num">15</div><div class="t3-stat-label">覆盖周次</div></div>
+              <div class="t3-stat"><div class="t3-stat-num">~170</div><div class="t3-stat-label">分钟时长</div></div>
+            </div>
+          </div>
+          <div class="t3-grid">
+            <div class="t3-card"><div class="t3-week">第1周</div><div class="t3-num">活动一</div><div class="t3-icon"><i class="fa-solid fa-handshake"></i></div><div class="t3-name">破冰<br/>共同点</div><div class="t3-theme">打破陌生感，建立团队连接</div><div class="t3-tag">20分钟</div></div>
+            <div class="t3-card"><div class="t3-week">第3周</div><div class="t3-num">活动二</div><div class="t3-icon"><i class="fa-solid fa-eye-slash"></i></div><div class="t3-name">盲人<br/>建塔</div><div class="t3-theme">信息不对称下的协作困境</div><div class="t3-tag">35分钟</div></div>
+            <div class="t3-card"><div class="t3-week">第5周</div><div class="t3-num">活动三</div><div class="t3-icon"><i class="fa-solid fa-island-tropical"></i></div><div class="t3-name">荒岛<br/>求生</div><div class="t3-theme">群体决策与决策偏误</div><div class="t3-tag">40分钟</div></div>
+            <div class="t3-card"><div class="t3-week">第8周</div><div class="t3-num">活动四</div><div class="t3-icon"><i class="fa-solid fa-masks-theater"></i></div><div class="t3-name">项目<br/>危机</div><div class="t3-theme">冲突场景中的沟通技巧</div><div class="t3-tag">45分钟</div></div>
+            <div class="t3-card"><div class="t3-week">第11周</div><div class="t3-num">活动五</div><div class="t3-icon"><i class="fa-solid fa-comment-dots"></i></div><div class="t3-name">SBI<br/>反馈卡</div><div class="t3-theme">结构化反馈方法练习</div><div class="t3-tag">30分钟</div></div>
+            <div class="t3-card"><div class="t3-week">第14周</div><div class="t3-num">活动六</div><div class="t3-icon"><i class="fa-solid fa-rocket"></i></div><div class="t3-name">一周<br/>创业</div><div class="t3-theme">综合运用全学期所学</div><div class="t3-tag">4学时</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 3 · Activity overview page (6列网格卡片 )</div>
+    </div>
+
+    <!-- T4: Activity detail A (top title + two columns, no image ) -->
+    <div class="layout-thumb">
+      <div class="thumb-inner">
+        <div class="t4">
+          <div class="t4-header">
+            <div>
+              <div style="font-size:5px;color:#f97316;font-weight:600;">COMMUNICATION &amp; TRUST · 第3周</div>
+              <div class="t4-title">活动二: <span>盲人建塔</span></div>
+              <div class="t4-bar"></div>
+            </div>
+            <div class="t4-chips">
+              <div class="t4-chip"><i class="fa-solid fa-clock" style="color:#f97316;"></i> 35分钟</div>
+              <div class="t4-chip"><i class="fa-solid fa-users" style="color:#f97316;"></i> 5人小组</div>
+            </div>
+          </div>
+          <div class="t4-body">
+            <div>
+              <div style="font-size:6px;font-weight:700;color:#1e293b;margin-bottom:3px;">role assignment</div>
+              <div class="t4-roles">
+                <div class="t4-role"><div class="t4-role-name">建筑师</div><div class="t4-role-desc">看图纸，语言指挥</div></div>
+                <div class="t4-role"><div class="t4-role-name">工人</div><div class="t4-role-desc">戴眼罩，按指令操作</div></div>
+                <div class="t4-role" style="grid-column:1/-1;"><div class="t4-role-name">观察员</div><div class="t4-role-desc">全程观察，记录沟通问题</div></div>
+              </div>
+              <div class="t4-img"></div>
+            </div>
+            <div class="t4-right">
+              <div class="t4-goal">体验<strong style="color:#fb923c;">信息不对称</strong>下的团队协作困境</div>
+              <div style="font-size:6px;font-weight:700;color:#1e293b;">活动流程</div>
+              <div class="t4-steps">
+                <div class="t4-step"><div class="t4-dot">1</div><div><div class="t4-step-title">第一轮·10分钟</div><div class="t4-step-desc">工人不得提问</div></div></div>
+                <div class="t4-step"><div class="t4-dot">2</div><div><div class="t4-step-title">反思·5分钟</div><div class="t4-step-desc">观察员反馈</div></div></div>
+                <div class="t4-step"><div class="t4-dot">3</div><div><div class="t4-step-title">第二轮·10分钟</div><div class="t4-step-desc">允许工人提问</div></div></div>
+                <div class="t4-step"><div class="t4-dot">4</div><div><div class="t4-step-title">对比讨论·10分钟</div><div class="t4-step-desc">分析两轮差异</div></div></div>
+              </div>
+              <div class="t4-debrief">「什么样的指令是有效的？」</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 4 · Activity detail A (双栏无图 )</div>
+    </div>
+
+    <!-- T5: Activity detail B (left image, right content ) -->
+    <div class="layout-thumb">
+      <div class="thumb-inner">
+        <div class="t5">
+          <div class="t5-left">
+            <div class="t5-badge">活动一</div>
+          </div>
+          <div class="t5-right">
+            <div class="t5-top">
+              <div>
+                <div style="font-size:5px;color:#f97316;font-weight:600;">ICEBREAKER · 第1周</div>
+                <div class="t5-title">破冰: <span>最意外的</span>共同点</div>
+                <div class="t5-bar"></div>
+              </div>
+              <div class="t5-meta">
+                <div class="t5-chip"><i class="fa-solid fa-clock" style="color:#f97316;"></i> 20分钟</div>
+                <div class="t5-chip"><i class="fa-solid fa-users" style="color:#f97316;"></i> 5-6人</div>
+              </div>
+            </div>
+            <div class="t5-goal">打破陌生感，建立初步团队连接；引入<strong style="color:#fb923c;">多样性是团队资产</strong></div>
+            <div style="font-size:5.5px;font-weight:700;color:#1e293b;margin-bottom:3px;">活动流程</div>
+            <div class="t5-steps-grid">
+              <div class="t5-step"><div class="t5-step-time">第一步·5分钟</div><div class="t5-step-text">每人写3件事: 2件真实, 1件虚假</div></div>
+              <div class="t5-step"><div class="t5-step-time">第二步·8分钟</div><div class="t5-step-text">小组内依次分享，猜哪件是假的</div></div>
+              <div class="t5-step"><div class="t5-step-time">第三步·7分钟</div><div class="t5-step-text">讨论：最意外的共同点是什么？</div></div>
+            </div>
+            <div class="t5-debrief">「我们花了多少时间真正了解一个人？」</div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 5 · Activity detail B (left image, right content )</div>
+    </div>
+
+    <!-- T6: Role-play / table page -->
+    <div class="layout-thumb">
+      <div class="thumb-inner">
+        <div class="t6">
+          <div class="t6-left">
+            <div class="t6-badge">活动四</div>
+          </div>
+          <div class="t6-right">
+            <div class="t6-top">
+              <div>
+                <div style="font-size:5px;color:#f97316;font-weight:600;">CONFLICT MANAGEMENT · 第8周</div>
+                <div class="t6-title">角色扮演: <span>项目危机</span></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end;">
+                <div class="t4-chip"><i class="fa-solid fa-clock" style="color:#f97316;"></i> 45分钟</div>
+              </div>
+            </div>
+            <div class="t6-scene">距产品上线还有<strong style="color:#fb923c;">72小时</strong>, 发现严重bug需<strong style="color:#fb923c;">48小时</strong>修复。</div>
+            <div style="font-size:5.5px;font-weight:700;color:#1e293b;margin-bottom:2px;">Role card</div>
+            <table class="t6-table">
+              <thead><tr><th>角色</th><th>立场</th><th>hidden pressure</th></tr></thead>
+              <tbody>
+                <tr><td>产品经理</td><td style="font-size:4px;color:#334155;">坚持按时上线</td><td>上级施压</td></tr>
+                <tr><td>技术负责人</td><td style="font-size:4px;color:#334155;">坚持修复再上线</td><td>担心背锅</td></tr>
+                <tr><td>测试负责人</td><td style="font-size:4px;color:#334155;">坚持全量测试</td><td>上次出事故</td></tr>
+                <tr><td>CEO</td><td style="font-size:4px;color:#334155;">需要做最终决定</td><td>投资人在等</td></tr>
+              </tbody>
+            </table>
+            <div class="t6-flow">
+              <div class="t6-step"><div class="t6-step-num">① 5分钟</div><div class="t6-step-title">进入角色</div></div>
+              <div class="t6-step"><div class="t6-step-num">② 15分钟</div><div class="t6-step-title">自由讨论</div></div>
+              <div class="t6-step"><div class="t6-step-num">③ 5分钟</div><div class="t6-step-title">观察员反馈</div></div>
+              <div class="t6-step"><div class="t6-step-num">④ 15分钟</div><div class="t6-step-title">NVC重新对话</div></div>
+            </div>
+            <div class="t6-debrief">「两轮对话中，哪个时刻让你感到「被听见」？」</div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 6 · Role-play/table page</div>
+    </div>
+
+    <!-- T7: Framework page -->
+    <div class="layout-thumb">
+      <div class="thumb-inner">
+        <div class="t7">
+          <div class="t7-header">
+            <div>
+              <div style="font-size:5px;color:#f97316;font-weight:600;">FEEDBACK SKILLS · 第11周</div>
+              <div class="t7-title">活动五: <span>SBI 反馈卡</span></div>
+              <div class="t7-bar"></div>
+            </div>
+            <div class="t4-chips">
+              <div class="t4-chip">30分钟</div>
+              <div class="t4-chip">全班</div>
+            </div>
+          </div>
+          <div class="t7-body">
+            <div class="t7-left">
+              <div class="t7-goal">练习<strong style="color:#fb923c;">结构化反馈方法</strong>, 克服心理障碍</div>
+              <div style="font-size:5.5px;font-weight:700;color:#1e293b;">SBI 反馈框架</div>
+              <div class="t7-sbi">
+                <div class="t7-sbi-card s"><div class="t7-sbi-letter">S</div><div class="t7-sbi-word">情境</div></div>
+                <div class="t7-sbi-card b"><div class="t7-sbi-letter">B</div><div class="t7-sbi-word">行为</div></div>
+                <div class="t7-sbi-card i"><div class="t7-sbi-letter">I</div><div class="t7-sbi-word">影响</div></div>
+              </div>
+              <div style="font-size:5.5px;font-weight:700;color:#1e293b;margin-top:3px;">示例</div>
+              <div class="t7-examples">
+                <div class="t7-ex pos">✅ 正面：上周三演示中 (S ), 你先复述对方顾虑 (B ), 氛围明显放松 (I ). </div>
+                <div class="t7-ex imp">🔧 改进：今天讨论中 (S ), 你连续打断小李 (B ), 小李之后不再发言 (I ). </div>
+              </div>
+            </div>
+            <div class="t7-right">
+              <div style="font-size:5.5px;font-weight:700;color:#1e293b;">活动流程</div>
+              <div class="t7-steps">
+                <div class="t7-step"><div class="t7-dot">1</div><div><div style="font-size:5px;font-weight:700;color:#1e293b;">个人准备·8分钟</div><div style="font-size:4px;color:#64748b;">写正面+改进反馈卡</div></div></div>
+                <div class="t7-step"><div class="t7-dot">2</div><div><div style="font-size:5px;font-weight:700;color:#1e293b;">交换阅读·5分钟</div><div style="font-size:4px;color:#64748b;">安静阅读反馈卡</div></div></div>
+                <div class="t7-step"><div class="t7-dot">3</div><div><div style="font-size:5px;font-weight:700;color:#1e293b;">小组分享·15分钟</div><div style="font-size:4px;color:#64748b;">讨论感受与反应</div></div></div>
+                <div class="t7-step"><div class="t7-dot">4</div><div><div style="font-size:5px;font-weight:700;color:#1e293b;">复盘·2分钟</div><div style="font-size:4px;color:#64748b;">第一反应是什么？</div></div></div>
+              </div>
+              <div class="t7-img"></div>
+              <div class="t7-debrief">「接受反馈时，你的第一反应是什么？」</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 7 · Framework page (SBI/方法论 )</div>
+    </div>
+
+    <!-- T8: Closing page -->
+    <div class="layout-thumb">
+      <div class="thumb-inner">
+        <div class="t8">
+          <div class="t8-glow1"></div>
+          <div class="t8-glow2"></div>
+          <div class="t8-inner">
+            <div class="t8-tag"><i class="fa-solid fa-graduation-cap"></i> 团队管理课 · 小组活动设计手册</div>
+            <div class="t8-title">让每一次课堂活动<br/>都成为<span>真实成长</span>的起点</div>
+            <div class="t8-sub">体验先于理论 · 感受先于框架 · 反思先于结论</div>
+            <div class="t8-pills">
+              <div class="t8-pill"><div class="t8-pill-icon"><i class="fa-solid fa-handshake"></i></div><div class="t8-pill-text">破冰</div></div>
+              <div class="t8-pill"><div class="t8-pill-icon"><i class="fa-solid fa-eye-slash"></i></div><div class="t8-pill-text">盲人建塔</div></div>
+              <div class="t8-pill"><div class="t8-pill-icon"><i class="fa-solid fa-island-tropical"></i></div><div class="t8-pill-text">荒岛求生</div></div>
+              <div class="t8-pill"><div class="t8-pill-icon"><i class="fa-solid fa-masks-theater"></i></div><div class="t8-pill-text">项目危机</div></div>
+              <div class="t8-pill"><div class="t8-pill-icon"><i class="fa-solid fa-comment-dots"></i></div><div class="t8-pill-text">SBI反馈</div></div>
+              <div class="t8-pill"><div class="t8-pill-icon"><i class="fa-solid fa-rocket"></i></div><div class="t8-pill-text">一周创业</div></div>
+            </div>
+            <div class="t8-principles">
+              <div class="t8-pcard"><div class="t8-pcard-icon"><i class="fa-solid fa-heart"></i></div><div class="t8-pcard-text">先产生<strong style="color:#f97316;">真实感受</strong>再引入理论</div></div>
+              <div class="t8-pcard"><div class="t8-pcard-icon"><i class="fa-solid fa-arrows-rotate"></i></div><div class="t8-pcard-text">灵活调整<strong style="color:#f97316;">时长与分组</strong></div></div>
+              <div class="t8-pcard"><div class="t8-pcard-icon"><i class="fa-solid fa-comments"></i></div><div class="t8-pcard-text">复盘是<strong style="color:#f97316;">关键环节</strong></div></div>
+              <div class="t8-pcard"><div class="t8-pcard-icon"><i class="fa-solid fa-seedling"></i></div><div class="t8-pcard-text"><strong style="color:#f97316;">螺旋式</strong>能力成长</div></div>
+            </div>
+            <div class="t8-bottom">
+              <div class="t8-bottom-item"><i class="fa-solid fa-building-columns"></i>通识教育中心</div>
+              <div class="t8-divider"></div>
+              <div class="t8-bottom-item"><i class="fa-solid fa-book"></i>团队管理课</div>
+              <div class="t8-divider"></div>
+              <div class="t8-bottom-item"><i class="fa-solid fa-calendar"></i>v1 · 2026</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">Type 8 · Closing page (深色居中panoramic recap )</div>
+    </div>
+
+  </div>
+
+  <!-- ── Core Component Showcase ── -->
+  <div class="section-title">Core Component Showcase</div>
+  <div class="components">
+
+    <!-- badge Radius标签 -->
+    <div class="badge"><i class="fa-solid fa-graduation-cap"></i>通识教育中心 · 实践智慧</div>
+
+    <!-- chip Metadata chip -->
+    <div class="chip"><i class="fa-solid fa-clock"></i>20 分钟</div>
+    <div class="chip"><i class="fa-solid fa-users"></i>5-6 人小组</div>
+    <div class="chip"><i class="fa-solid fa-sticky-note"></i>便利贴 (每人3张 )</div>
+
+    <!-- act-tag 活动时长标签 -->
+    <div class="act-tag"><i class="fa-solid fa-clock"></i>35 分钟</div>
+
+    <!-- num-badge 方形编号 -->
+    <div class="num-badge">01</div>
+    <div class="num-badge-md">2</div>
+    <div class="num-badge-sm">3</div>
+
+    <!-- num-circle Circular number -->
+    <div class="num-circle">1</div>
+    <div class="num-circle-sm">2</div>
+
+    <!-- icon-box Icon container -->
+    <div class="icon-box"><i class="fa-solid fa-layer-group"></i></div>
+
+    <!-- stat-box stat box -->
+    <div class="stat-box">
+      <div class="stat-num">6</div>
+      <div class="stat-label">核心活动</div>
+    </div>
+
+  </div>
+
+  <!-- Card components -->
+  <div class="section-title">Card components</div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-bottom:48px;">
+
+    <div class="card">
+      <div style="font-size:40px;color:#f97316;margin-bottom:12px;"><i class="fa-solid fa-lightbulb"></i></div>
+      <div style="font-size:24px;font-weight:700;color:#1e293b;margin-bottom:8px;">核心设计原则</div>
+      <div style="font-size:20px;color:#475569;line-height:1.7;">本手册收录团队管理课全学期6个核心互动活动的完整设计方案。</div>
+      <div class="principle-highlight"><i class="fa-solid fa-quote-left"></i>体验先于理论</div>
+    </div>
+
+    <div class="card-dark">
+      <i class="fa-solid fa-bullseye" style="color:#f97316;font-size:26px;flex-shrink:0;margin-top:2px;"></i>
+      <div style="font-size:22px;color:#e2e8f0;line-height:1.65;">体验<strong style="color:#fb923c;">信息不对称</strong>下的团队协作困境，感受<strong style="color:#fb923c;">清晰沟通</strong>的价值</div>
+    </div>
+
+    <div class="debrief-box">
+      <i class="fa-solid fa-comments" style="color:#f97316;font-size:22px;flex-shrink:0;margin-top:2px;"></i>
+      <div class="debrief-text">「什么样的指令是有效的？为什么「允许提问」会改变结果？」</div>
+    </div>
+
+    <div class="theory-box">
+      <i class="fa-solid fa-book-open" style="color:#22c55e;font-size:22px;flex-shrink:0;margin-top:2px;"></i>
+      <div class="theory-text">活动结束后引入: <strong>群体思维 (Groupthink )</strong> 与 <strong>建设性冲突</strong> 概念</div>
+    </div>
+
+    <div class="req-item">
+      <i class="fa-solid fa-file-contract" style="color:#f97316;font-size:20px;flex-shrink:0;margin-top:2px;"></i>
+      <div class="req-text"><strong>团队协议</strong>: 明确分工 / 决策方式 / 冲突处理规则</div>
+    </div>
+
+    <div class="card-soft">
+      <i class="fa-solid fa-triangle-exclamation" style="color:#f97316;margin-right:8px;"></i>
+      <strong style="color:#ea580c;">全员同意才算达成共识，不可强行表决</strong>
+    </div>
+
+  </div>
+
+  <!-- 流程步骤 -->
+  <div class="section-title">流程Step components</div>
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:600px;margin-bottom:48px;">
+    <div class="flow-step">
+      <div class="num-circle">1</div>
+      <div>
+        <div class="flow-step-title">第一轮 · 10分钟</div>
+        <div class="flow-step-desc">按规则进行：建筑师指挥，工人戴眼罩操作, <strong>工人不得提问</strong></div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="num-circle">2</div>
+      <div>
+        <div class="flow-step-title">反思 · 5分钟</div>
+        <div class="flow-step-desc">观察员反馈，全组讨论遇到的问题与障碍</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="num-circle">3</div>
+      <div>
+        <div class="flow-step-title">第二轮 · 10分钟</div>
+        <div class="flow-step-desc"><strong>允许工人提问</strong>, 重新尝试搭建</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress bar/评分 -->
+  <div class="section-title">Progress bar与评分组件</div>
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:700px;margin-bottom:48px;">
+    <div class="score-row">
+      <div class="score-label"><i class="fa-solid fa-file-alt" style="color:#f97316;margin-right:8px;"></i>方案质量</div>
+      <div class="score-bar-wrap" style="width:300px;"><div class="score-bar" style="width:90%;"></div></div>
+      <div class="score-pct">30%</div>
+    </div>
+    <div class="score-row">
+      <div class="score-label"><i class="fa-solid fa-people-group" style="color:#f97316;margin-right:8px;"></i>团队协作过程</div>
+      <div class="score-bar-wrap" style="width:300px;"><div class="score-bar" style="width:90%;"></div></div>
+      <div class="score-pct">30%</div>
+    </div>
+    <div class="score-row">
+      <div class="score-label"><i class="fa-solid fa-microphone" style="color:#f97316;margin-right:8px;"></i>路演表现</div>
+      <div class="score-bar-wrap" style="width:300px;"><div class="score-bar" style="width:75%;"></div></div>
+      <div class="score-pct">25%</div>
+    </div>
+  </div>
+
+  <!-- SBI framework card -->
+  <div class="section-title">SBI framework card</div>
+  <div class="sbi-cards" style="max-width:600px;margin-bottom:48px;">
+    <div class="sbi-card s">
+      <div class="sbi-letter">S</div>
+      <div class="sbi-word">Situation · 情境</div>
+      <div class="sbi-desc">描述具体的时间 / 地点 / 情况</div>
+    </div>
+    <div class="sbi-card b">
+      <div class="sbi-letter">B</div>
+      <div class="sbi-word">Behavior · 行为</div>
+      <div class="sbi-desc">描述对方的具体行为 (非性格判断 )</div>
+    </div>
+    <div class="sbi-card i">
+      <div class="sbi-letter">I</div>
+      <div class="sbi-word">Impact · 影响</div>
+      <div class="sbi-desc">描述这个行为对你或团队的具体影响</div>
+    </div>
+  </div>
+
+  <!-- Bottom info bar -->
+  <div class="section-title">Bottom info bar</div>
+  <div class="bottom-bar" style="margin-bottom:48px;">
+    <div class="bottom-item"><i class="fa-solid fa-building-columns"></i>通识教育中心 · 实践智慧 · 协作领导力</div>
+    <div class="bottom-divider"></div>
+    <div class="bottom-item"><i class="fa-solid fa-book"></i>团队管理课</div>
+    <div class="bottom-divider"></div>
+    <div class="bottom-item"><i class="fa-solid fa-calendar"></i>v1 · 2026-04-14</div>
+    <div class="bottom-divider"></div>
+    <div class="bottom-item"><i class="fa-solid fa-lock"></i>仅供课堂教学使用</div>
+  </div>
+
+</div>
+</body>
+</html>

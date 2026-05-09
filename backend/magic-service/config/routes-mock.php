@@ -5,6 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Interfaces\Mock\OpenAIApi;
+use App\Interfaces\Mock\PaymentApi;
 use App\Interfaces\Mock\SandboxApi;
 use Hyperf\HttpServer\Router\Router;
 
@@ -29,4 +30,9 @@ Router::addServer('mock-http-service', static function () {
 
     // 沙箱 Agent API (通过 proxy 路径)
     Router::addRoute(['POST'], '/api/v1/sandboxes/{sandboxId}/proxy/api/v1/messages/chat', [SandboxApi::class, 'initAgent']);
+
+    Router::addRoute(['POST'], '/v3/pay/transactions/native', [PaymentApi::class, 'wechatNative']);
+    Router::addRoute(['POST'], '/v3/pay/transactions/app', [PaymentApi::class, 'wechatApp']);
+    Router::addRoute(['GET'], '/v3/pay/transactions/out-trade-no/{outTradeNo}', [PaymentApi::class, 'wechatQuery']);
+    Router::addRoute(['POST'], '/mock/payment-proxy/notify', [PaymentApi::class, 'proxyNotify']);
 });

@@ -79,6 +79,29 @@ let chatScrollSaveFrame = null;
 const systemMessageRegistry = new Map();
 let showRawEvents = localStorage.getItem(RAW_EVENTS_TOGGLE_KEY) === 'true';
 
+// 消息列表懒加载：恢复/重渲染时只渲染最近一批，滚动到顶部时按需加载历史消息
+// 批次大小按可见消息（非 event 条目）计数，event 条目不计入但随区间一并渲染
+const LAZY_RENDER_BATCH_SIZE = 50;
+let lazyPrependTarget = null;
+const lazyRenderState = {
+    renderedFromIndex: 0,
+    loadMoreEl: null,
+    observer: null,
+    isLoadingMore: false,
+};
+
+// 从 beforeIndex 往前找，跳过 event 条目，数够 batchSize 条可见消息后返回起始下标
+function findLazyStartIndex(entries, beforeIndex, batchSize) {
+    let count = 0;
+    for (let i = beforeIndex - 1; i >= 0; i--) {
+        if (entries[i].type !== 'event') {
+            count++;
+            if (count >= batchSize) return i;
+        }
+    }
+    return 0;
+}
+
 function getSystemMessageKey(text) {
     if (text.startsWith('已切换到高级模式')) return 'mode-toggle';
     if (text.startsWith('已切换到普通模式')) return 'mode-toggle';
@@ -252,9 +275,18 @@ async function restoreChatLog() {
         chatLog = [];
         return;
     }
+    // 懒加载：只渲染最后一批消息，历史消息滚动到顶部时按需加载
+    const total = chatLog.length;
+    const startIndex = findLazyStartIndex(chatLog, total, LAZY_RENDER_BATCH_SIZE);
+    resetLazyRenderState();
+    lazyRenderState.renderedFromIndex = startIndex;
+
     isRestoring = true;
-    for (const entry of chatLog) {
-        renderLogEntry(entry);
+    if (startIndex > 0) {
+        insertLoadMorePlaceholder(startIndex);
+    }
+    for (let i = startIndex; i < total; i++) {
+        renderLogEntry(chatLog[i]);
     }
     isRestoring = false;
     saveChatLog();
@@ -1183,6 +1215,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showConfirmDialog('确定要清除所有对话消息吗？', async () => {
                 clearChatLog();
                 clearToolDetailPreviewTab();
+                resetLazyRenderState();
                 messageList.innerHTML = '';
                 resetConnectionStatusLog();
                 const historyCleared = await clearRemoteChatHistory();
@@ -2231,7 +2264,12 @@ function appendMessageNode(node, options = {}) {
     if (!eventTraceLog || node !== eventTraceLog.wrapper) {
         closeActiveEventTraceLog();
     }
-    messageList.appendChild(node);
+    // 懒加载预渲染旧消息时，追加到临时 fragment 而非主 DOM
+    if (lazyPrependTarget) {
+        lazyPrependTarget.appendChild(node);
+    } else {
+        messageList.appendChild(node);
+    }
     keepAssistantActivityLast(node);
     syncScrollAfterMessageChange(shouldStickToBottom, { showLatestButton: options.showLatestButton !== false });
 }
@@ -2244,6 +2282,114 @@ function syncScrollAfterMessageChange(shouldStickToBottom, options = {}) {
         showScrollToLatestButton();
     }
 }
+
+// ─── 消息列表懒加载 ──────────────────────────────────────────────────────────
+
+function resetLazyRenderState() {
+    if (lazyRenderState.observer) {
+        lazyRenderState.observer.disconnect();
+        lazyRenderState.observer = null;
+    }
+    if (lazyRenderState.loadMoreEl && lazyRenderState.loadMoreEl.parentNode) {
+        lazyRenderState.loadMoreEl.remove();
+    }
+    lazyRenderState.renderedFromIndex = 0;
+    lazyRenderState.loadMoreEl = null;
+    lazyRenderState.isLoadingMore = false;
+}
+
+function insertLoadMorePlaceholder(unrenderedCount) {
+    if (lazyRenderState.loadMoreEl) lazyRenderState.loadMoreEl.remove();
+    const el = document.createElement('div');
+    el.className = 'load-more-messages';
+    el.innerHTML = `<span class="load-more-icon">▲</span> 加载更多历史消息 <span class="load-more-count">(${unrenderedCount} 条)</span>`;
+    el.addEventListener('click', () => loadMoreMessages());
+    messageList.prepend(el);
+    lazyRenderState.loadMoreEl = el;
+    setupLoadMoreObserver();
+}
+
+function setupLoadMoreObserver() {
+    if (lazyRenderState.observer) lazyRenderState.observer.disconnect();
+    if (!lazyRenderState.loadMoreEl) return;
+    lazyRenderState.observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) loadMoreMessages();
+    }, { root: messagesContainer, rootMargin: '400px 0px 0px 0px' });
+    lazyRenderState.observer.observe(lazyRenderState.loadMoreEl);
+}
+
+function loadMoreMessages() {
+    if (lazyRenderState.isLoadingMore || lazyRenderState.renderedFromIndex <= 0) return;
+    lazyRenderState.isLoadingMore = true;
+
+    const endIndex = lazyRenderState.renderedFromIndex;
+    const startIndex = findLazyStartIndex(chatLog, endIndex, LAZY_RENDER_BATCH_SIZE);
+
+    // 暂存并清空注册表，隔离旧消息渲染，避免覆盖已渲染新消息的状态
+    const savedStreams = new Map(streamMessageRegistry);
+    const savedTools = new Map(toolCallRegistry);
+    const savedSystems = new Map(systemMessageRegistry);
+    const savedEventTrace = eventTraceLog;
+    const savedEventTraceSeen = eventTraceObjectSeen;
+    streamMessageRegistry.clear();
+    toolCallRegistry.clear();
+    systemMessageRegistry.clear();
+    eventTraceLog = null;
+    eventTraceObjectSeen = new WeakSet();
+
+    // 记录当前滚动高度
+    const prevScrollHeight = messagesContainer.scrollHeight;
+
+    // 移除旧的加载占位符（必须在捕获 firstChild 之前，否则锚点失效）
+    if (lazyRenderState.loadMoreEl) {
+        lazyRenderState.loadMoreEl.remove();
+        lazyRenderState.loadMoreEl = null;
+    }
+    if (lazyRenderState.observer) {
+        lazyRenderState.observer.disconnect();
+        lazyRenderState.observer = null;
+    }
+
+    // 占位符移除后再取插入锚点
+    const firstChild = messageList.firstChild;
+
+    // 渲染到临时 fragment
+    isRestoring = true;
+    lazyPrependTarget = document.createDocumentFragment();
+    for (let i = startIndex; i < endIndex; i++) {
+        renderLogEntry(chatLog[i]);
+    }
+    const fragment = lazyPrependTarget;
+    lazyPrependTarget = null;
+    isRestoring = false;
+
+    // 恢复原始注册表
+    streamMessageRegistry.clear();
+    toolCallRegistry.clear();
+    systemMessageRegistry.clear();
+    eventTraceLog = savedEventTrace;
+    eventTraceObjectSeen = savedEventTraceSeen;
+    for (const [k, v] of savedStreams) streamMessageRegistry.set(k, v);
+    for (const [k, v] of savedTools) toolCallRegistry.set(k, v);
+    for (const [k, v] of savedSystems) systemMessageRegistry.set(k, v);
+
+    // 插入旧消息到 messageList 头部
+    messageList.insertBefore(fragment, firstChild);
+    lazyRenderState.renderedFromIndex = startIndex;
+
+    // 如果还有更多历史消息，插入新的加载占位符
+    if (startIndex > 0) {
+        insertLoadMorePlaceholder(startIndex);
+    }
+
+    // 保持滚动位置不跳动：补偿新增高度
+    const heightDiff = messagesContainer.scrollHeight - prevScrollHeight;
+    messagesContainer.scrollTop += heightDiff;
+
+    lazyRenderState.isLoadingMore = false;
+}
+
+// ─── 滚动相关 ─────────────────────────────────────────────────────────────────
 
 // 滚动到底部
 function scrollToBottom(options = {}) {
@@ -2371,11 +2517,20 @@ function rerenderChatLog() {
         if (state.timer) clearTimeout(state.timer);
     });
     rawStreamRegistry.clear();
+    resetLazyRenderState();
     if (messageList) messageList.innerHTML = '';
 
+    // 懒加载：只渲染最后一批
+    const total = chatLog.length;
+    const startIndex = findLazyStartIndex(chatLog, total, LAZY_RENDER_BATCH_SIZE);
+    lazyRenderState.renderedFromIndex = startIndex;
+
     isRestoring = true;
-    for (const entry of chatLog) {
-        renderLogEntry(entry);
+    if (startIndex > 0) {
+        insertLoadMorePlaceholder(startIndex);
+    }
+    for (let i = startIndex; i < total; i++) {
+        renderLogEntry(chatLog[i]);
     }
     isRestoring = false;
 
@@ -3648,12 +3803,19 @@ function renderMarkdown(text) {
     } catch (e) {
         div.textContent = text;
     }
+    // 所有链接在新窗口打开
+    div.querySelectorAll('a[href]').forEach(a => {
+        a.setAttribute('target', '_blank');
+        a.setAttribute('rel', 'noopener');
+    });
     return div;
 }
 
 function renderMarkdownContent(text) {
     if (typeof marked !== 'undefined') {
-        return marked.parse(text || '', { breaks: true });
+        // 所有链接在新窗口打开，避免覆盖当前调试客户端页面
+        const html = marked.parse(text || '', { breaks: true });
+        return html.replace(/<a\s+href="/g, '<a target="_blank" rel="noopener" href="');
     }
     return escapeHtml(text || '');
 }
@@ -4492,7 +4654,11 @@ function showEventLog(data, _noLog = false) {
 }
 
 function ensureEventTraceLog() {
-    if (eventTraceLog && messageList.contains(eventTraceLog.wrapper)) return eventTraceLog;
+    if (eventTraceLog) {
+        const inDom = messageList.contains(eventTraceLog.wrapper);
+        const inFragment = lazyPrependTarget && lazyPrependTarget.contains(eventTraceLog.wrapper);
+        if (inDom || inFragment) return eventTraceLog;
+    }
 
     const wrapper = document.createElement('div');
     wrapper.className = 'event-trace-box';

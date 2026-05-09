@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <title>Rotating Halo Blue — Template Preview</title>
+  <link rel="stylesheet" href="theme.css" />
+  <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: linear-gradient(135deg, #fef9f3 0%, #ffffff 100%);
+      --bg-card: #f8faff;
+      --color-primary: #2F80ED;
+      --color-secondary: #1E40AF;
+      --color-accent: #60A5FA;
+      --text-primary: #1a1a1a;
+      --text-secondary: #333333;
+      --text-muted: #5a6c7d;
+      --border-color: rgba(47, 128, 237, 0.2);
+      --border-subtle: #e5eaf0;
+    }
+
+    body {
+      font-family: 'Inter', 'Noto Sans SC', 'Segoe UI', sans-serif;
+      background: #E8ECF0;
+      margin: 0;
+      padding: 40px;
+      color: var(--text-primary);
+    }
+
+    html,
+    body {
+      width: auto;
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
+
+    .preview-header {
+      margin-bottom: 40px;
+    }
+
+    .preview-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1a1a1a;
+      margin: 0 0 8px;
+    }
+
+    .preview-title span {
+      color: #2F80ED;
+    }
+
+    .preview-subtitle {
+      font-size: 15px;
+      color: #5a6c7d;
+    }
+
+    .section {
+      margin-bottom: 40px;
+    }
+
+    .section-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #5a6c7d;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-left: 0;
+      padding-left: 0;
+      margin: 40px 0 16px;
+    }
+
+    .swatches {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .swatch-item {
+      width: 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+    }
+
+    .swatch {
+      width: 80px;
+      height: 52px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      margin-bottom: 6px;
+    }
+
+    .swatch-hex {
+      order: 3;
+      font-size: 11px;
+      color: #8fa3b8;
+      font-family: monospace;
+    }
+
+    .swatch-name {
+      order: 2;
+      font-size: 11px;
+      font-weight: 600;
+      color: #5a6c7d;
+    }
+
+    .slides-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .slide-label {
+      position: absolute;
+      bottom: 8px;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: #5a6c7d;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 3px 0;
+    }
+
+    .slide-wrap {
+      min-width: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .slide {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16/9;
+      position: relative;
+      overflow: hidden;
+      border-radius: 6px;
+      border: 1.5px solid #e5eaf0;
+      background: #ffffff;
+      box-sizing: border-box;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    .components {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+      background: #ffffff;
+      background-image:
+        linear-gradient(#e5eaf0 1px, transparent 1px),
+        linear-gradient(90deg, #e5eaf0 1px, transparent 1px);
+      background-size: 40px 40px;
+      padding: 40px;
+      border-radius: 8px;
+      border: 1px solid #e5eaf0;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="preview-header">
+    <div class="preview-title">AICon Tech Blue · <span>Tech Blue</span></div>
+    <div class="preview-subtitle">For AI technology conferences · technical sharing · product launches · engineering
+      practices · architecture reviews</div>
+  </div>
+
+  <!-- Color System -->
+  <div class="section">
+    <div class="section-label">Color System</div>
+    <div class="swatches">
+      <div class="swatch-item"><span class="swatch" style="background:#ffffff;"></span><span
+          class="swatch-hex">#FFFFFF</span><span class="swatch-name">Primary BG</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#fef9f3;"></span><span
+          class="swatch-hex">#FEF9F3</span><span class="swatch-name">Warm White BG</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#f8faff;"></span><span
+          class="swatch-hex">#F8FAFF</span><span class="swatch-name">Card BG</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#0f172a;"></span><span
+          class="swatch-hex">#0F172A</span><span class="swatch-name">Dark BG</span></div>
+      <div style="width:1px;background:#e5eaf0;margin:0 4px;"></div>
+      <div class="swatch-item"><span class="swatch" style="background:#2F80ED;"></span><span
+          class="swatch-hex">#2F80ED</span><span class="swatch-name">Primary Brand Blue</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#1E40AF;"></span><span
+          class="swatch-hex">#1E40AF</span><span class="swatch-name">Dark Brand Blue</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#60A5FA;"></span><span
+          class="swatch-hex">#60A5FA</span><span class="swatch-name">Light Accent Blue</span></div>
+      <div style="width:1px;background:#e5eaf0;margin:0 4px;"></div>
+      <div class="swatch-item"><span class="swatch" style="background:#1a1a1a;"></span><span
+          class="swatch-hex">#1A1A1A</span><span class="swatch-name">Primary Text</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#333333;"></span><span
+          class="swatch-hex">#333333</span><span class="swatch-name">Secondary Text</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#5a6c7d;"></span><span
+          class="swatch-hex">#5A6C7D</span><span class="swatch-name">Muted Text</span></div>
+    </div>
+  </div>
+
+  <!-- Layout Page Preview -->
+  <div class="section">
+    <div class="section-label">8 Dedicated Layout Pages</div>
+    <div class="slides-grid">
+
+      <!-- 1. Cover Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">① Cover Page</div>
+        <div class="slide" style="background:#1a1a2e;">
+          <div style="position:absolute;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 100%);"></div>
+          <div
+            style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:12px;">
+            <div style="font-size:7px;color:rgba(96,165,250,0.7);letter-spacing:2px;margin-bottom:4px;">CONF 2025</div>
+            <div style="font-size:13px;font-weight:900;color:#fff;text-align:center;line-height:1.3;margin-bottom:3px;">
+              单日十亿 Token<br>企业AI落地之道</div>
+            <div style="font-size:5.5px;color:rgba(255,255,255,0.5);">演讲者姓名 · 品牌名称</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Speaker Introduction Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">② Speaker Introduction</div>
+        <div class="slide" style="background:linear-gradient(135deg,#ffffff 0%,#efefef 100%);">
+          <div
+            style="position:absolute;top:0;left:0;right:0;height:12%;background:#f8faff;border-bottom:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;">
+            <div style="width:3px;height:10px;background:#2F80ED;margin-right:5px;border-radius:0 2px 2px 0;"></div>
+            <div style="font-size:7.5px;font-weight:700;color:#333;">演讲者介绍</div>
+          </div>
+          <div style="position:absolute;top:12%;bottom:10%;left:0;right:0;display:flex;gap:6px;padding:8px 10px;">
+            <div style="flex:45%;display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <div
+                style="width:36px;height:36px;border-radius:50%;background:#2F80ED;border:2px solid #fff;box-shadow:0 2px 8px rgba(47,128,237,0.3);">
+              </div>
+              <div style="font-size:7px;font-weight:700;color:#1a1a1a;">演讲者姓名</div>
+              <div style="font-size:5.5px;color:#5a6c7d;">品牌名称 创始人</div>
+            </div>
+            <div style="flex:55%;display:flex;flex-direction:column;gap:3px;">
+              <div style="display:flex;gap:3px;align-items:center;">
+                <div
+                  style="width:10px;height:10px;background:rgba(47,128,237,0.12);border:1px solid rgba(47,128,237,0.3);border-radius:2px;flex-shrink:0;">
+                </div>
+                <div style="font-size:5.5px;color:#5a6c7d;">AI产品专家</div>
+              </div>
+              <div style="display:flex;gap:3px;align-items:center;">
+                <div
+                  style="width:10px;height:10px;background:rgba(47,128,237,0.12);border:1px solid rgba(47,128,237,0.3);border-radius:2px;flex-shrink:0;">
+                </div>
+                <div style="font-size:5.5px;color:#5a6c7d;">开源项目贡献者</div>
+              </div>
+              <div style="display:flex;gap:3px;align-items:center;">
+                <div
+                  style="width:10px;height:10px;background:rgba(47,128,237,0.12);border:1px solid rgba(47,128,237,0.3);border-radius:2px;flex-shrink:0;">
+                </div>
+                <div style="font-size:5.5px;color:#5a6c7d;">企业AI落地实践者</div>
+              </div>
+            </div>
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#f8faff;border-top:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+            <span style="font-size:5.5px;color:#8fa3b8;">品牌名称 · 2025</span>
+            <span style="font-size:5.5px;color:#8fa3b8;">2 / 40</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Two-Column Key Points Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">③ Two-Column Key Points</div>
+        <div class="slide" style="background:linear-gradient(135deg,#fef9f3 0%,#ffffff 100%);">
+          <div
+            style="position:absolute;top:0;left:0;right:0;height:12%;background:#f8faff;border-bottom:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;">
+            <div style="width:3px;height:10px;background:#2F80ED;margin-right:5px;border-radius:0 2px 2px 0;"></div>
+            <div style="font-size:7.5px;font-weight:700;color:#333;">三个核心问题</div>
+          </div>
+          <div
+            style="position:absolute;top:12%;bottom:10%;left:0;right:0;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 10px;">
+            <div style="display:flex;flex-direction:column;gap:3px;">
+              <div
+                style="font-size:6.5px;font-weight:700;color:#333;border-bottom:2px solid #2F80ED;padding-bottom:3px;margin-bottom:3px;">
+                如何降低成本</div>
+              <div style="display:flex;gap:3px;">
+                <div
+                  style="width:10px;height:10px;background:#2F80ED;color:#fff;font-size:5px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">
+                  1</div>
+                <div style="font-size:5.5px;color:#5a6c7d;line-height:1.4;">Prompt Caching 主动缓存</div>
+              </div>
+              <div style="display:flex;gap:3px;">
+                <div
+                  style="width:10px;height:10px;background:#2F80ED;color:#fff;font-size:5px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">
+                  2</div>
+                <div style="font-size:5.5px;color:#5a6c7d;line-height:1.4;">增量上下文工程</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px;">
+              <div
+                style="font-size:6.5px;font-weight:700;color:#333;border-bottom:2px solid #2F80ED;padding-bottom:3px;margin-bottom:3px;">
+                如何提升可靠性</div>
+              <div style="display:flex;gap:3px;">
+                <div
+                  style="width:10px;height:10px;background:#2F80ED;color:#fff;font-size:5px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">
+                  1</div>
+                <div style="font-size:5.5px;color:#5a6c7d;line-height:1.4;">人在回路设计</div>
+              </div>
+              <div style="display:flex;gap:3px;">
+                <div
+                  style="width:10px;height:10px;background:#2F80ED;color:#fff;font-size:5px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">
+                  2</div>
+                <div style="font-size:5.5px;color:#5a6c7d;line-height:1.4;">概率级联衰减控制</div>
+              </div>
+            </div>
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#f8faff;border-top:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+            <span style="font-size:5.5px;color:#8fa3b8;">品牌名称 · CONF 2025</span>
+            <span style="font-size:5.5px;color:#8fa3b8;">8 / 40</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Three-Column Comparison Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">④ Three-Column Comparison</div>
+        <div class="slide" style="background:#ffffff;">
+          <div
+            style="position:absolute;top:0;left:0;right:0;height:12%;background:#f8faff;border-bottom:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;">
+            <div style="width:3px;height:10px;background:#2F80ED;margin-right:5px;border-radius:0 2px 2px 0;"></div>
+            <div style="font-size:7.5px;font-weight:700;color:#333;">AI 时代三阶段</div>
+          </div>
+          <div
+            style="position:absolute;top:12%;bottom:10%;left:0;right:0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;padding:8px 10px;">
+            <div style="background:#f8faff;border:1px solid rgba(47,128,237,0.2);border-radius:3px;padding:6px;">
+              <div style="font-size:6px;font-weight:700;color:#2F80ED;margin-bottom:2px;">聊天时代</div>
+              <div style="font-size:5px;color:#5a6c7d;">岸上观望<br>个人使用</div>
+            </div>
+            <div style="background:#f0f7ff;border:1px solid rgba(47,128,237,0.4);border-radius:3px;padding:6px;">
+              <div style="font-size:6px;font-weight:700;color:#1E40AF;margin-bottom:2px;">Workflow 时代</div>
+              <div style="font-size:5px;color:#5a6c7d;">少数人下水<br>流程自动化</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#2F80ED,#1E40AF);border-radius:3px;padding:6px;">
+              <div style="font-size:6px;font-weight:700;color:#fff;margin-bottom:2px;">Agentic 时代</div>
+              <div style="font-size:5px;color:rgba(255,255,255,0.8);">全员下水<br>无限并行</div>
+            </div>
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#f8faff;border-top:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+            <span style="font-size:5.5px;color:#8fa3b8;">品牌名称 · CONF 2025</span>
+            <span style="font-size:5.5px;color:#8fa3b8;">5 / 40</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. KPI Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑤ Big Data KPI</div>
+        <div class="slide" style="background:linear-gradient(135deg,#fef9f3 0%,#ffffff 100%);">
+          <div
+            style="position:absolute;top:0;left:0;right:0;height:12%;background:#f8faff;border-bottom:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;">
+            <div style="width:3px;height:10px;background:#2F80ED;margin-right:5px;border-radius:0 2px 2px 0;"></div>
+            <div style="font-size:7.5px;font-weight:700;color:#333;">单日十亿 Token 有多贵</div>
+          </div>
+          <div
+            style="position:absolute;top:12%;bottom:10%;left:0;right:0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;padding:8px 10px;">
+            <div
+              style="background:#f8faff;border:1px solid rgba(47,128,237,0.2);border-radius:3px;padding:6px;text-align:center;border-top:3px solid #2F80ED;">
+              <div style="font-size:18px;font-weight:900;color:#2F80ED;line-height:1;">10亿</div>
+              <div style="font-size:5px;color:#5a6c7d;margin-top:2px;">日均 Token 消耗</div>
+            </div>
+            <div
+              style="background:#f8faff;border:1px solid rgba(47,128,237,0.2);border-radius:3px;padding:6px;text-align:center;border-top:3px solid #60A5FA;">
+              <div style="font-size:18px;font-weight:900;color:#2F80ED;line-height:1;">$300</div>
+              <div style="font-size:5px;color:#5a6c7d;margin-top:2px;">优化后日成本</div>
+            </div>
+            <div
+              style="background:#f8faff;border:1px solid rgba(47,128,237,0.2);border-radius:3px;padding:6px;text-align:center;border-top:3px solid #1E40AF;">
+              <div style="font-size:18px;font-weight:900;color:#2F80ED;line-height:1;">10x</div>
+              <div style="font-size:5px;color:#5a6c7d;margin-top:2px;">成本降低倍数</div>
+            </div>
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#f8faff;border-top:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+            <span style="font-size:5.5px;color:#8fa3b8;">品牌名称 · CONF 2025</span>
+            <span style="font-size:5.5px;color:#8fa3b8;">12 / 40</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. Image-Text Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑥ Image-Text Layout</div>
+        <div class="slide" style="background:#ffffff;">
+          <div
+            style="position:absolute;top:0;left:0;right:0;height:12%;background:#f8faff;border-bottom:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;">
+            <div style="width:3px;height:10px;background:#2F80ED;margin-right:5px;border-radius:0 2px 2px 0;"></div>
+            <div style="font-size:7.5px;font-weight:700;color:#333;">元素级 AI 编辑</div>
+          </div>
+          <div style="position:absolute;top:12%;bottom:10%;left:0;right:0;display:flex;gap:6px;padding:8px 10px;">
+            <div style="flex:45%;display:flex;flex-direction:column;gap:3px;justify-content:center;">
+              <div style="font-size:6.5px;font-weight:700;color:#1a1a1a;margin-bottom:2px;">指哪改哪</div>
+              <div style="font-size:5.5px;color:#5a6c7d;line-height:1.5;">· 无需描述位置<br>· 实时预览修改<br>· 支持多元素联动</div>
+            </div>
+            <div
+              style="flex:55%;background:#f8faff;border-radius:4px;border:1px solid #e5eaf0;display:flex;align-items:center;justify-content:center;">
+              <span style="font-size:6px;color:#8fa3b8;">产品截图</span>
+            </div>
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#f8faff;border-top:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+            <span style="font-size:5.5px;color:#8fa3b8;">品牌名称 · CONF 2025</span>
+            <span style="font-size:5.5px;color:#8fa3b8;">25 / 40</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7. Code/Architecture Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑦ Code Architecture</div>
+        <div class="slide" style="background:#ffffff;">
+          <div
+            style="position:absolute;top:0;left:0;right:0;height:12%;background:#f8faff;border-bottom:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;">
+            <div style="width:3px;height:10px;background:#2F80ED;margin-right:5px;border-radius:0 2px 2px 0;"></div>
+            <div style="font-size:7.5px;font-weight:700;color:#333;">沙盒架构实现</div>
+          </div>
+          <div style="position:absolute;top:12%;bottom:10%;left:0;right:0;display:flex;gap:6px;padding:8px 10px;">
+            <div
+              style="flex:55%;background:#0f172a;border-radius:4px;border:1px solid rgba(47,128,237,0.3);padding:6px;font-family:monospace;">
+              <div style="font-size:5px;color:#60A5FA;">// 沙盒容器初始化</div>
+              <div style="font-size:5px;color:#e2e8f0;">const sandbox = <span style="color:#86efac;">new</span>
+                Sandbox({</div>
+              <div style="font-size:5px;color:#e2e8f0;padding-left:8px;">image: <span
+                  style="color:#fbbf24;">'node:18'</span>,</div>
+              <div style="font-size:5px;color:#e2e8f0;padding-left:8px;">timeout: <span
+                  style="color:#f87171;">30000</span></div>
+              <div style="font-size:5px;color:#e2e8f0;">});</div>
+            </div>
+            <div style="flex:45%;display:flex;flex-direction:column;gap:3px;justify-content:center;">
+              <div style="display:flex;gap:3px;">
+                <div
+                  style="width:10px;height:10px;background:#2F80ED;color:#fff;font-size:5px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">
+                  1</div>
+                <div style="font-size:5.5px;color:#5a6c7d;">隔离执行环境</div>
+              </div>
+              <div style="display:flex;gap:3px;">
+                <div
+                  style="width:10px;height:10px;background:#2F80ED;color:#fff;font-size:5px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:2px;flex-shrink:0;">
+                  2</div>
+                <div style="font-size:5.5px;color:#5a6c7d;">毫秒级冷启动</div>
+              </div>
+            </div>
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#f8faff;border-top:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+            <span style="font-size:5.5px;color:#8fa3b8;">品牌名称 · CONF 2025</span>
+            <span style="font-size:5.5px;color:#8fa3b8;">30 / 40</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. Closing Page -->
+      <div class="slide-wrap">
+        <div class="slide-label">⑧ Closing</div>
+        <div class="slide" style="background:linear-gradient(135deg,#fef9f3 0%,#ffffff 100%);">
+          <div
+            style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px;">
+            <div style="font-size:16px;font-weight:900;color:#2F80ED;margin-bottom:4px;">谢谢聆听</div>
+            <div style="font-size:6px;color:#5a6c7d;margin-bottom:8px;">品牌名称 · 让每个人都有 AI 超能力</div>
+            <div
+              style="width:32px;height:32px;background:#f8faff;border:1px solid #e5eaf0;border-radius:3px;display:flex;align-items:center;justify-content:center;">
+              <span style="font-size:5px;color:#8fa3b8;">QR</span>
+            </div>
+          </div>
+          <div
+            style="position:absolute;bottom:0;left:0;right:0;height:10%;background:#f8faff;border-top:1px solid #e5eaf0;display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+            <span style="font-size:5.5px;color:#8fa3b8;">品牌名称 · CONF 2025</span>
+            <span style="font-size:5.5px;color:#8fa3b8;">40 / 40</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Core Component Showcase -->
+  <div class="section">
+    <div class="section-label">Core Components</div>
+    <div class="components">
+      <!-- KPI card -->
+      <div
+        style="background:#f8faff;border:1px solid rgba(47,128,237,0.2);border-radius:12px;padding:20px 28px;min-width:140px;border-top:4px solid #2F80ED;box-shadow:0 4px 24px rgba(47,128,237,0.1);">
+        <div style="font-size:11px;color:#5a6c7d;margin-bottom:6px;">日均 Token</div>
+        <div style="font-size:40px;font-weight:900;color:#2F80ED;line-height:1;">10亿</div>
+        <div style="font-size:12px;color:#8fa3b8;margin-top:4px;">企业 AI 入场券</div>
+      </div>
+      <!-- Number badge -->
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div
+            style="width:40px;height:40px;background:#2F80ED;color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;border-radius:6px;">
+            1</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#333;">主动缓存</div>
+            <div style="font-size:12px;color:#5a6c7d;">Prompt Caching</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;">
+          <div
+            style="width:40px;height:40px;background:rgba(47,128,237,0.12);border:1px solid rgba(47,128,237,0.3);color:#2F80ED;font-size:18px;display:flex;align-items:center;justify-content:center;border-radius:6px;">
+            ⚡</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#333;">图标徽章</div>
+            <div style="font-size:12px;color:#5a6c7d;">Icon Badge</div>
+          </div>
+        </div>
+      </div>
+      <!-- Tags -->
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <span
+          style="display:inline-block;font-size:13px;font-weight:600;padding:5px 16px;border-radius:100px;background:rgba(47,128,237,0.12);border:1px solid rgba(47,128,237,0.3);color:#2F80ED;">AI
+          Native</span>
+        <span
+          style="display:inline-block;font-size:13px;font-weight:600;padding:5px 16px;border-radius:100px;background:rgba(47,128,237,0.12);border:1px solid rgba(47,128,237,0.3);color:#2F80ED;">Agentic
+          AI</span>
+        <span
+          style="display:inline-block;font-size:13px;font-weight:600;padding:5px 16px;border-radius:100px;background:rgba(47,128,237,0.12);border:1px solid rgba(47,128,237,0.3);color:#2F80ED;">Vibe
+          Coding</span>
+      </div>
+      <!-- Code block -->
+      <div
+        style="background:#0f172a;color:#e2e8f0;border-radius:12px;padding:20px 24px;font-family:monospace;font-size:13px;line-height:1.7;border:1px solid rgba(47,128,237,0.3);min-width:240px;">
+        <span style="color:#60A5FA;">const</span> cache = <span style="color:#86efac;">new</span> PromptCache({<br>
+        &nbsp;&nbsp;ttl: <span style="color:#fbbf24;">3600</span>,<br>
+        &nbsp;&nbsp;strategy: <span style="color:#fbbf24;">'prefix'</span><br>
+        });
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Extended Component Showcase ── -->
+  <div class="section">
+    <div class="section-label">Extended Components</div>
+    <div style="display:flex;flex-direction:column;gap:32px;">
+
+      <!-- Slide chrome demo -->
+      <div>
+        <div
+          style="font-size:11px;font-weight:700;color:#5a6c7d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">
+          Slide Chrome · slide-chrome / slide-foot</div>
+        <div style="border:1px solid #e5eaf0;border-radius:8px;overflow:hidden;">
+          <div class="slide-chrome">
+            <span class="slide-chrome-section">Architecture Review</span>
+            <span class="slide-chrome-brand">品牌名称</span>
+            <span class="slide-chrome-page">08 / 40</span>
+          </div>
+          <div
+            style="height:48px;background:#f8faff;display:flex;align-items:center;justify-content:center;font-size:13px;color:#8fa3b8;">
+            …slide content…</div>
+          <div class="slide-foot">
+            <span class="slide-foot-left">CONF 2025 · 品牌名称</span>
+            <span class="slide-foot-right">hello@brand.com</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div>
+        <div
+          style="font-size:11px;font-weight:700;color:#5a6c7d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">
+          Horizontal Timeline · tech-timeline</div>
+        <div class="tech-timeline">
+          <div class="tech-tl-item">
+            <div class="tech-tl-dot active"></div>
+            <div class="tech-tl-year">2022</div>
+            <div class="tech-tl-title">起步阶段</div>
+            <div class="tech-tl-body">内部 MVP 上线，验证核心假设</div>
+          </div>
+          <div class="tech-tl-item">
+            <div class="tech-tl-dot active"></div>
+            <div class="tech-tl-year">2023</div>
+            <div class="tech-tl-title">规模增长</div>
+            <div class="tech-tl-body">用户突破 10 万，引入 Agent 架构</div>
+          </div>
+          <div class="tech-tl-item">
+            <div class="tech-tl-dot current"></div>
+            <div class="tech-tl-year">2024</div>
+            <div class="tech-tl-title">技术突破</div>
+            <div class="tech-tl-body">单日 Token 消耗突破十亿</div>
+          </div>
+          <div class="tech-tl-item">
+            <div class="tech-tl-dot"></div>
+            <div class="tech-tl-year">2025</div>
+            <div class="tech-tl-title">全球扩展</div>
+            <div class="tech-tl-body">进入海外市场，服务更多企业</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress bars -->
+      <div>
+        <div
+          style="font-size:11px;font-weight:700;color:#5a6c7d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">
+          Progress Bars · tech-progress</div>
+        <div style="display:flex;flex-direction:column;gap:12px;max-width:600px;">
+          <div class="tech-progress-item">
+            <span class="tech-progress-label">成本优化</span>
+            <div class="tech-progress-track">
+              <div class="tech-progress-fill" style="width:90%;"></div>
+            </div>
+            <span class="tech-progress-val">90%</span>
+          </div>
+          <div class="tech-progress-item">
+            <span class="tech-progress-label">响应速度</span>
+            <div class="tech-progress-track">
+              <div class="tech-progress-fill" style="width:75%;"></div>
+            </div>
+            <span class="tech-progress-val">75%</span>
+          </div>
+          <div class="tech-progress-item">
+            <span class="tech-progress-label">可靠性指标</span>
+            <div class="tech-progress-track">
+              <div class="tech-progress-fill accent" style="width:95%;"></div>
+            </div>
+            <span class="tech-progress-val">95%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Callout -->
+      <div>
+        <div
+          style="font-size:11px;font-weight:700;color:#5a6c7d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">
+          Callout · tech-callout</div>
+        <div class="tech-callout">
+          Prompt Caching 可以将重复上下文的 Token 成本降低 <strong>85%</strong>，是企业 AI 降本最直接、最有效的路径。
+          <div class="tech-callout-src">— 品牌名称 工程实践总结</div>
+        </div>
+      </div>
+
+      <!-- Data table -->
+      <div>
+        <div
+          style="font-size:11px;font-weight:700;color:#5a6c7d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">
+          Data Table · tech-table</div>
+        <table class="tech-table">
+          <thead>
+            <tr>
+              <th>优化策略</th>
+              <th>成本降低</th>
+              <th>实现难度</th>
+              <th>推荐优先级</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="primary">Prompt Caching</td>
+              <td class="accent">↓ 85%</td>
+              <td>低</td>
+              <td>★★★★★</td>
+            </tr>
+            <tr>
+              <td class="primary">增量上下文</td>
+              <td class="accent">↓ 60%</td>
+              <td>中</td>
+              <td>★★★★</td>
+            </tr>
+            <tr>
+              <td>模型路由</td>
+              <td>↓ 40%</td>
+              <td>中</td>
+              <td>★★★</td>
+            </tr>
+            <tr>
+              <td>批量处理</td>
+              <td>↓ 30%</td>
+              <td>低</td>
+              <td>★★★</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Compare block -->
+      <div>
+        <div
+          style="font-size:11px;font-weight:700;color:#5a6c7d;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">
+          Comparison Block · tech-compare</div>
+        <div class="tech-compare">
+          <div class="tech-compare-col">
+            <div class="tech-compare-label">传统方案</div>
+            <ul class="tech-compare-list">
+              <li>每次调用全量上下文传输</li>
+              <li>无缓存复用机制</li>
+              <li>Token 成本随对话增长线性膨胀</li>
+            </ul>
+          </div>
+          <div class="tech-compare-divider"></div>
+          <div class="tech-compare-col">
+            <div class="tech-compare-label primary">Agentic 方案</div>
+            <ul class="tech-compare-list">
+              <li>Prompt Caching 主动复用前缀</li>
+              <li>增量上下文工程降低冗余</li>
+              <li>成本随规模增长趋于平稳</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+
+</html>

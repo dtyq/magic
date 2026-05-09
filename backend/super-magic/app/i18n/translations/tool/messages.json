@@ -595,6 +595,10 @@
         "zh_CN": "视频理解失败: {{error}}",
         "en_US": "Video understanding failed: {{error}}"
     },
+    "video_understanding.awaiting_confirmation": {
+        "zh_CN": "等待用户确认",
+        "en_US": "Awaiting user confirmation"
+    },
     "video_understanding.result_file": {
         "zh_CN": "视频理解结果.md",
         "en_US": "video_understanding_result.md"
@@ -1260,8 +1264,8 @@
         "en_US": "Operation completed successfully"
     },
     "tool.call_failed_remark": {
-        "zh_CN": "工具调用失败",
-        "en_US": "Tool call failed"
+        "zh_CN": "遇到问题，正在尝试其他方式",
+        "en_US": "Encountered an issue, trying another approach"
     },
     "tool.error": {
         "zh_CN": "操作失败: {{error}}",

@@ -1,0 +1,1055 @@
+/* ============================================================
+   Fantasy-Animation Theme — fantasy hand-drawn animation style
+   Ghibli/Disney narrative aesthetics + soft painterly texture + magical decorative language
+   Canvas: 1920 × 1080
+   ============================================================ */
+
+/* ── 1. CSS Variables ─────────────────────────────────────────── */
+:root {
+  /* Background */
+  --bg-primary:    #E8F4FC;   /* Soft sky blue */
+  --bg-warm:       #FFF8E7;   /* warm cream */
+  --bg-card:       #FFFFFF;
+  --bg-card-warm:  #FFFDF5;
+  --bg-panel:      rgba(135,169,107,0.08);
+  --bg-forest:     rgba(45,90,61,0.06);
+  --bg-dark:       #2D5A3D;   /* Deep forest greencover */
+  --bg-deep:       #1A3326;   /* extra-deep green */
+  --bg-magic:      rgba(244,208,63,0.10);
+
+  /* Brand colors */
+  --forest-green:  #2D5A3D;   /* Deep forest green */
+  --warm-brown:    #5D4E37;   /* Warm brown */
+  --sky-blue:      #7EC8E3;   /* Sky blue */
+  --sage-green:    #87A96B;   /* Sage green */
+  --gold:          #F4D03F;   /* Gold */
+  --rose-pink:     #E8A0BF;   /* Rose pink */
+  --coral:         #F08080;   /* coral red */
+  --lavender:      #C5B4E3;   /* Light lavender */
+  --amber:         #D4A017;   /* deep amber */
+
+  /* Text */
+  --text-primary:   #2D1A0E;
+  --text-body:      #3D2B1A;
+  --text-secondary: #5D4E37;
+  --text-muted:     #8B7355;
+  --text-on-dark:   #FFF8E7;
+  --text-forest:    #2D5A3D;
+  --text-sky:       #2A7FA8;
+
+  /* Borders */
+  --border-soft:    1px solid rgba(93,78,55,0.15);
+  --border-mid:     1px solid rgba(93,78,55,0.28);
+  --border-forest:  1px solid rgba(45,90,61,0.35);
+  --border-warm:    1px solid rgba(244,208,63,0.4);
+  --border-sketch:  2px solid rgba(93,78,55,0.5);
+  --border-gold:    1px solid rgba(244,208,63,0.6);
+
+  /* Shadow */
+  --shadow-sm:   0 2px 12px rgba(45,26,14,0.08);
+  --shadow-md:   0 6px 24px rgba(45,26,14,0.10);
+  --shadow-lg:   0 12px 48px rgba(45,26,14,0.12);
+  --shadow-warm: 0 6px 24px rgba(244,208,63,0.2);
+  --shadow-sky:  0 6px 24px rgba(126,200,227,0.2);
+  --shadow-magic:0 0 36px rgba(244,208,63,0.35);
+
+  /* Font sizes (1920×1080 large canvas ) */
+  --font-hero:  144px;
+  --font-h1:    108px;
+  --font-h2:    78px;
+  --font-h3:    54px;
+  --font-body:  36px;
+  --font-small: 27px;
+  --font-kpi:   132px;
+  --font-tag:   24px;
+
+  /* Font Family */
+  --font-fantasy: 'Cinzel', 'Lora', serif;
+  --font-serif:   'Lora', 'Noto Serif SC', serif;
+  --font-body-f:  'Noto Serif SC', 'Noto Sans SC', serif;
+
+  /* Radius */
+  --radius-sm:   12px;
+  --radius-md:   24px;
+  --radius-lg:   42px;
+  --radius-full: 14998px;
+}
+
+/* ── 2. Base reset ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 1920px; height: 1080px;
+  font-family: var(--font-body-f);
+  background: var(--bg-primary);
+  color: var(--text-body);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.slide-container {
+  width: 1920px; height: 1080px;
+  box-sizing: border-box;
+  position: relative;
+  background-color: var(--bg-primary);
+  background-image:
+    radial-gradient(ellipse at 10% 15%, rgba(126,200,227,0.25) 0%, transparent 50%),
+    radial-gradient(ellipse at 90% 85%, rgba(135,169,107,0.15) 0%, transparent 45%),
+    radial-gradient(ellipse at 50% 50%, rgba(244,208,63,0.06) 0%, transparent 70%);
+}
+
+.slide-container.warm {
+  background-color: var(--bg-warm);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, rgba(244,208,63,0.20) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(232,160,191,0.15) 0%, transparent 45%);
+}
+
+.slide-container.forest {
+  background-color: #EEF5E8;
+  background-image:
+    radial-gradient(ellipse at 15% 30%, rgba(45,90,61,0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 70%, rgba(135,169,107,0.15) 0%, transparent 45%);
+}
+
+.slide-container.dark {
+  background-color: var(--bg-dark);
+  background-image:
+    radial-gradient(ellipse at 20% 20%, rgba(244,208,63,0.12) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(126,200,227,0.08) 0%, transparent 45%);
+}
+
+.slide-container.lavender-mist {
+  background-color: #F0ECF8;
+  background-image:
+    radial-gradient(ellipse at 25% 25%, rgba(197,180,227,0.3) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 75%, rgba(232,160,191,0.15) 0%, transparent 45%);
+}
+
+.slide-content {
+  position: relative; z-index: 1;
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+}
+
+/* ── 3. Title components ─────────────────────────────────────────── */
+.fa-hero {
+  font-family: var(--font-fantasy);
+  font-size: var(--font-hero);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+}
+
+.fa-h1 {
+  font-family: var(--font-fantasy);
+  font-size: var(--font-h1);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.fa-h2 {
+  font-family: var(--font-serif);
+  font-size: var(--font-h2);
+  font-weight: 600;
+  color: var(--forest-green);
+  line-height: 1.3;
+}
+
+.fa-h3 {
+  font-family: var(--font-serif);
+  font-size: var(--font-h3);
+  font-weight: 600;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Title with magic underline */
+.fa-h2-magic {
+  font-family: var(--font-serif);
+  font-size: var(--font-h2);
+  font-weight: 600;
+  color: var(--forest-green);
+  line-height: 1.3;
+  padding-bottom: 18px;
+  border-bottom: 4px solid var(--gold);
+  display: inline-block;
+}
+
+/* Section subtitle */
+.fa-section-label {
+  font-family: var(--font-fantasy);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--forest-green);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.fa-section-label::before,
+.fa-section-label::after {
+  content: '✦';
+  color: var(--gold);
+  font-size: 18px;
+}
+
+/* Dark background title */
+.fa-h1-light {
+  font-family: var(--font-fantasy);
+  font-size: var(--font-h1);
+  font-weight: 700;
+  color: var(--text-on-dark);
+  line-height: 1.2;
+}
+.fa-h2-light {
+  font-family: var(--font-serif);
+  font-size: var(--font-h2);
+  font-weight: 600;
+  color: rgba(255,248,231,0.85);
+  line-height: 1.3;
+}
+
+/* ── 4. Storybook card components ─────────────────────────────────────── */
+.storybook-card {
+  padding: 42px 48px;
+  background: var(--bg-card);
+  border: var(--border-mid);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+/* Top color accent bar */
+.storybook-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 8px;
+  background: linear-gradient(90deg, var(--sky-blue), var(--sage-green));
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.storybook-card.warm::before   { background: linear-gradient(90deg, var(--gold), var(--rose-pink)); }
+.storybook-card.forest::before { background: linear-gradient(90deg, var(--forest-green), var(--sage-green)); }
+.storybook-card.rose::before   { background: linear-gradient(90deg, var(--rose-pink), var(--lavender)); }
+.storybook-card.sky::before    { background: linear-gradient(90deg, var(--sky-blue), var(--lavender)); }
+.storybook-card.coral::before  { background: linear-gradient(90deg, var(--coral), var(--rose-pink)); }
+
+.storybook-card-title {
+  font-family: var(--font-serif);
+  font-size: 33px;
+  font-weight: 700;
+  color: var(--forest-green);
+  margin-bottom: 18px;
+}
+.storybook-card-body {
+  font-size: 27px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+
+/* Circular icon card */
+.fa-icon-card {
+  padding: 42px 36px;
+  background: var(--bg-card);
+  border: var(--border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+.fa-icon-wrap {
+  width: 108px; height: 108px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 24px;
+  font-size: 48px;
+}
+.fa-icon-wrap.sky    { background: rgba(126,200,227,0.2); }
+.fa-icon-wrap.sage   { background: rgba(135,169,107,0.2); }
+.fa-icon-wrap.gold   { background: rgba(244,208,63,0.2); }
+.fa-icon-wrap.rose   { background: rgba(232,160,191,0.2); }
+.fa-icon-wrap.forest { background: rgba(45,90,61,0.12); }
+.fa-icon-wrap.lavender { background: rgba(197,180,227,0.2); }
+.fa-icon-wrap.coral  { background: rgba(240,128,128,0.2); }
+
+.fa-icon-title {
+  font-family: var(--font-serif);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+.fa-icon-desc {
+  font-size: 24px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* ── 5. Magic decoration components ─────────────────────────────────────── */
+/* Star decoration */
+.magic-stars {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.magic-star {
+  color: var(--gold);
+  font-size: 27px;
+  opacity: 0.8;
+}
+.magic-star.sm { font-size: 18px; opacity: 0.5; }
+.magic-star.lg { font-size: 42px; }
+
+/* Scattered stars (absolutely positioned for background decoration ) */
+.scatter-stars {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+}
+.scatter-stars span {
+  position: absolute;
+  color: var(--gold);
+  opacity: 0.45;
+  font-size: 21px;
+}
+
+/* Glow effect */
+.magic-glow {
+  position: relative;
+  display: inline-block;
+}
+.magic-glow::after {
+  content: '';
+  position: absolute;
+  inset: -15px;
+  background: radial-gradient(ellipse, rgba(244,208,63,0.25) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Text glow */
+.text-glow {
+  text-shadow: 0 0 24px rgba(244,208,63,0.55), 0 0 48px rgba(244,208,63,0.25);
+  color: var(--gold);
+}
+
+/* Corner flower decoration */
+.corner-flower {
+  position: absolute;
+  font-size: 60px;
+  opacity: 0.20;
+  pointer-events: none;
+  user-select: none;
+}
+.corner-flower.tl { top: 30px;  left: 42px; }
+.corner-flower.tr { top: 30px;  right: 42px; transform: scaleX(-1); }
+.corner-flower.bl { bottom: 30px; left: 42px; transform: scaleY(-1); }
+.corner-flower.br { bottom: 30px; right: 42px; transform: scale(-1); }
+
+/* Watercolor wash blob */
+.wc-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  opacity: 0.35;
+}
+.wc-blob.sky    { background: var(--sky-blue); }
+.wc-blob.sage   { background: var(--sage-green); }
+.wc-blob.gold   { background: var(--gold); }
+.wc-blob.rose   { background: var(--rose-pink); }
+.wc-blob.lavender { background: var(--lavender); }
+.wc-blob.tl { top: -120px; left: -120px; width: 420px; height: 420px; }
+.wc-blob.tr { top: -120px; right: -120px; width: 420px; height: 420px; }
+.wc-blob.bl { bottom: -120px; left: -120px; width: 420px; height: 420px; }
+.wc-blob.br { bottom: -120px; right: -120px; width: 420px; height: 420px; }
+.wc-blob.center { top: 50%; left: 50%; transform: translate(-50%,-50%); width: 630px; height: 630px; opacity: 0.15; }
+
+/* Magic particles (small dots ) */
+.magic-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.magic-particle {
+  position: absolute;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--gold);
+  opacity: 0.4;
+}
+
+/* Fantasy border decoration */
+.fa-border-deco {
+  position: relative;
+  padding: 42px 48px;
+}
+.fa-border-deco::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(244,208,63,0.3);
+  border-radius: var(--radius-md);
+  pointer-events: none;
+}
+.fa-border-deco::after {
+  content: '✦';
+  position: absolute;
+  top: -15px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-primary);
+  padding: 0 15px;
+  color: var(--gold);
+  font-size: 24px;
+}
+
+/* Speech bubble */
+.speech-bubble {
+  position: relative;
+  padding: 27px 36px;
+  background: var(--bg-card);
+  border: var(--border-mid);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-serif);
+  font-size: 27px;
+  color: var(--text-body);
+  font-style: italic;
+  line-height: 1.7;
+}
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -18px; left: 48px;
+  width: 0; height: 0;
+  border-left: 18px solid transparent;
+  border-right: 18px solid transparent;
+  border-top: 18px solid rgba(93,78,55,0.28);
+}
+.speech-bubble::before {
+  content: '';
+  position: absolute;
+  bottom: -15px; left: 50px;
+  width: 0; height: 0;
+  border-left: 16px solid transparent;
+  border-right: 16px solid transparent;
+  border-top: 16px solid white;
+  z-index: 1;
+}
+
+/* ── 6. Tag components ─────────────────────────────────────────── */
+.fa-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 27px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-serif);
+  font-size: var(--font-tag);
+  font-weight: 600;
+  background: rgba(126,200,227,0.15);
+  color: var(--text-sky);
+  border: 1px solid rgba(126,200,227,0.4);
+}
+.fa-tag.sage    { background: rgba(135,169,107,0.15); color: var(--forest-green); border-color: rgba(135,169,107,0.4); }
+.fa-tag.gold    { background: rgba(244,208,63,0.15);  color: var(--warm-brown);   border-color: rgba(244,208,63,0.5); }
+.fa-tag.rose    { background: rgba(232,160,191,0.15); color: #A0527A;             border-color: rgba(232,160,191,0.4); }
+.fa-tag.lavender{ background: rgba(197,180,227,0.15); color: #6B4F8A;             border-color: rgba(197,180,227,0.4); }
+.fa-tag.forest  { background: rgba(45,90,61,0.1);    color: var(--forest-green); border-color: rgba(45,90,61,0.3); }
+.fa-tag.coral   { background: rgba(240,128,128,0.12); color: #C05050;             border-color: rgba(240,128,128,0.4); }
+
+.fa-tag::before { content: '✦'; font-size: 14px; opacity: 0.7; }
+
+/* ── 7. KPI data components ─────────────────────────────────────── */
+.fa-kpi {
+  text-align: center;
+  padding: 42px 36px;
+  background: var(--bg-card);
+  border: var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.fa-kpi-number {
+  font-family: var(--font-fantasy);
+  font-size: var(--font-kpi);
+  font-weight: 700;
+  color: var(--forest-green);
+  line-height: 1;
+  display: block;
+}
+.fa-kpi-number.sky    { color: var(--sky-blue); }
+.fa-kpi-number.gold   { color: #C9A227; }
+.fa-kpi-number.rose   { color: #C0607A; }
+.fa-kpi-number.brown  { color: var(--warm-brown); }
+.fa-kpi-number.lavender { color: #7B5FA8; }
+
+.fa-kpi-label {
+  font-size: 24px;
+  color: var(--text-muted);
+  margin-top: 15px;
+  display: block;
+  font-family: var(--font-serif);
+  letter-spacing: 0.06em;
+}
+
+.fa-kpi-deco {
+  font-size: 30px;
+  margin-top: 12px;
+  display: block;
+  opacity: 0.6;
+}
+
+/* Data row */
+.fa-data-row { display: flex; flex-direction: column; gap: 18px; }
+.fa-data-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 21px 27px;
+  background: var(--bg-card-warm);
+  border: var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+.fa-data-label {
+  font-size: 27px;
+  color: var(--text-secondary);
+  font-family: var(--font-serif);
+}
+.fa-data-value {
+  font-family: var(--font-fantasy);
+  font-size: 39px;
+  font-weight: 700;
+  color: var(--forest-green);
+}
+
+/* ── 8. Step components ─────────────────────────────────────────── */
+.fa-steps { display: flex; flex-direction: column; gap: 30px; }
+.fa-step  { display: flex; align-items: flex-start; gap: 27px; }
+
+.fa-step-num {
+  width: 78px; height: 78px;
+  border-radius: 50%;
+  background: rgba(126,200,227,0.2);
+  border: 2px solid var(--sky-blue);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-fantasy);
+  font-size: 30px; font-weight: 700;
+  color: var(--text-sky);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sky);
+}
+.fa-step-num.sage   { background: rgba(135,169,107,0.2); border-color: var(--sage-green);  color: var(--forest-green); box-shadow: 0 6px 18px rgba(135,169,107,0.2); }
+.fa-step-num.gold   { background: rgba(244,208,63,0.2);  border-color: var(--gold);        color: #8B6914;             box-shadow: var(--shadow-warm); }
+.fa-step-num.rose   { background: rgba(232,160,191,0.2); border-color: var(--rose-pink);   color: #A0527A;             box-shadow: 0 6px 18px rgba(232,160,191,0.2); }
+.fa-step-num.forest { background: rgba(45,90,61,0.1);   border-color: var(--forest-green); color: var(--forest-green); }
+.fa-step-num.lavender { background: rgba(197,180,227,0.2); border-color: var(--lavender); color: #6B4F8A; }
+
+.fa-step-content { flex: 1; }
+.fa-step-title {
+  font-family: var(--font-serif);
+  font-size: 33px; font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 9px;
+}
+.fa-step-desc {
+  font-size: 27px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* Horizontal steps */
+.fa-steps-h {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+}
+.fa-step-h {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  position: relative;
+}
+.fa-step-h:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 39px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--sky-blue), var(--sage-green));
+  opacity: 0.4;
+}
+.fa-step-h-num {
+  width: 78px; height: 78px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--sky-blue);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-fantasy);
+  font-size: 30px; font-weight: 700;
+  color: var(--text-sky);
+  margin-bottom: 18px;
+  position: relative; z-index: 1;
+  box-shadow: var(--shadow-sky);
+}
+.fa-step-h-title {
+  font-family: var(--font-serif);
+  font-size: 27px; font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 9px;
+}
+.fa-step-h-desc {
+  font-size: 22px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  padding: 0 12px;
+}
+
+/* ── 9. List components ─────────────────────────────────────────── */
+.fa-list { list-style: none; display: flex; flex-direction: column; gap: 21px; }
+.fa-list li {
+  display: flex; align-items: flex-start; gap: 18px;
+  font-size: var(--font-body); color: var(--text-body); line-height: 1.7;
+}
+.fa-list li::before {
+  content: '✦';
+  color: var(--gold);
+  font-size: 21px;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+.fa-list.leaf li::before   { content: '🌿'; font-size: 24px; margin-top: 2px; }
+.fa-list.star li::before   { content: '⭐'; font-size: 22px; margin-top: 2px; }
+.fa-list.arrow li::before  { content: '→'; color: var(--forest-green); font-size: 30px; margin-top: 0; }
+.fa-list.moon li::before   { content: '🌙'; font-size: 24px; margin-top: 2px; }
+.fa-list.flower li::before { content: '🌸'; font-size: 24px; margin-top: 2px; }
+
+/* ── 10. Progress bar components ─────────────────────────────────────── */
+.fa-progress { margin-bottom: 27px; }
+.fa-progress-label {
+  display: flex; justify-content: space-between;
+  font-size: 24px; color: var(--text-secondary);
+  margin-bottom: 12px;
+  font-family: var(--font-serif);
+}
+.fa-progress-track {
+  height: 15px;
+  background: rgba(93,78,55,0.08);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+}
+.fa-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--sage-green), var(--sky-blue));
+}
+.fa-progress-fill.warm   { background: linear-gradient(90deg, var(--gold), var(--rose-pink)); }
+.fa-progress-fill.forest { background: linear-gradient(90deg, var(--forest-green), var(--sage-green)); }
+.fa-progress-fill.rose   { background: linear-gradient(90deg, var(--rose-pink), var(--lavender)); }
+.fa-progress-fill.sky    { background: linear-gradient(90deg, var(--sky-blue), var(--lavender)); }
+
+/* ── 11. Quote box ─────────────────────────────────────────── */
+.fa-quote {
+  padding: 42px 48px;
+  background: var(--bg-card-warm);
+  border-left: 8px solid var(--gold);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  box-shadow: var(--shadow-warm);
+  position: relative;
+}
+.fa-quote::before {
+  content: '"';
+  position: absolute;
+  top: -12px; left: 27px;
+  font-family: var(--font-fantasy);
+  font-size: 108px;
+  color: var(--gold);
+  opacity: 0.25;
+  line-height: 1;
+}
+.fa-quote.sky    { border-left-color: var(--sky-blue);    box-shadow: var(--shadow-sky); }
+.fa-quote.forest { border-left-color: var(--forest-green); }
+.fa-quote.rose   { border-left-color: var(--rose-pink); }
+
+.fa-quote-text {
+  font-family: var(--font-serif);
+  font-size: 36px; font-weight: 500;
+  color: var(--text-body);
+  line-height: 1.7;
+  font-style: italic;
+}
+.fa-quote-source {
+  font-size: 24px;
+  color: var(--text-muted);
+  margin-top: 18px;
+  font-family: var(--font-serif);
+}
+
+/* Large centered quote */
+.fa-quote-center {
+  text-align: center;
+  padding: 72px 96px;
+  position: relative;
+}
+.fa-quote-center .fa-quote-text {
+  font-size: 54px;
+  line-height: 1.6;
+}
+.fa-quote-center::before {
+  content: '"';
+  font-family: var(--font-fantasy);
+  font-size: 180px;
+  color: var(--gold);
+  opacity: 0.15;
+  position: absolute;
+  top: 0; left: 48px;
+  line-height: 1;
+}
+
+/* ── 12. Divider ─────────────────────────────────────────── */
+.fa-divider {
+  width: 100%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--sage-green), transparent);
+  margin: 30px 0;
+  opacity: 0.5;
+}
+.fa-divider.gold {
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  opacity: 0.6;
+}
+.fa-divider-ornate {
+  display: flex; align-items: center; gap: 24px;
+  margin: 30px 0;
+}
+.fa-divider-ornate::before,
+.fa-divider-ornate::after {
+  content: '';
+  flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(93,78,55,0.3));
+}
+.fa-divider-ornate::after {
+  background: linear-gradient(90deg, rgba(93,78,55,0.3), transparent);
+}
+.fa-divider-ornate-icon { color: var(--gold); font-size: 24px; opacity: 0.7; }
+
+/* ── 13. Cover components ─────────────────────────────────────────── */
+.fa-cover-eyebrow {
+  font-family: var(--font-fantasy);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--forest-green);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  margin-bottom: 36px;
+  display: flex;
+  align-items: center;
+  gap: 21px;
+}
+.fa-cover-eyebrow::before,
+.fa-cover-eyebrow::after { content: '✦'; color: var(--gold); font-size: 18px; }
+
+.fa-cover-title {
+  font-family: var(--font-fantasy);
+  font-size: 144px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+}
+
+.fa-cover-subtitle {
+  font-family: var(--font-serif);
+  font-size: 42px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-top: 30px;
+  line-height: 1.7;
+  font-style: italic;
+}
+
+.fa-cover-meta {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  color: var(--text-muted);
+  margin-top: 54px;
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+.fa-cover-meta-dot { color: var(--gold); font-size: 15px; }
+
+/* Character illustration slot */
+.fa-character-slot {
+  position: absolute;
+  right: 120px;
+  bottom: 0;
+  width: 690px;
+  height: 1080px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+.fa-character-slot img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: bottom;
+}
+
+/* Image container */
+.fa-img-frame {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  border: var(--border-soft);
+}
+.fa-img-frame img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Circular image */
+.fa-img-circle {
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  border: 4px solid rgba(135,169,107,0.4);
+}
+.fa-img-circle img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── 14. Section page components ─────────────────────────────────────── */
+.fa-section-num-bg {
+  font-family: var(--font-fantasy);
+  font-size: 390px;
+  font-weight: 700;
+  color: rgba(45,90,61,0.07);
+  line-height: 1;
+  position: absolute;
+  top: 60px; right: 108px;
+  user-select: none;
+}
+
+.fa-section-box {
+  padding: 72px 78px;
+  background: var(--bg-card);
+  border: var(--border-mid);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  max-width: 1230px;
+  position: relative;
+  overflow: hidden;
+}
+.fa-section-box::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 9px;
+  background: linear-gradient(90deg, var(--sky-blue), var(--sage-green), var(--gold));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.fa-section-box-label {
+  font-family: var(--font-fantasy);
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--forest-green);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  margin-bottom: 27px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.fa-section-box-label::before { content: '✦'; color: var(--gold); font-size: 18px; }
+
+.fa-section-box-title {
+  font-family: var(--font-fantasy);
+  font-size: 96px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.fa-section-box-desc {
+  font-size: 33px;
+  color: var(--text-secondary);
+  margin-top: 24px;
+  line-height: 1.8;
+  font-family: var(--font-serif);
+  font-style: italic;
+}
+
+/* ── 15. Magic map marker ─────────────────────────────────────── */
+.map-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+.map-node-icon {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid rgba(135,169,107,0.4);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 42px;
+  box-shadow: var(--shadow-md);
+  position: relative;
+}
+.map-node-icon::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  border: 1px dashed rgba(135,169,107,0.3);
+}
+.map-node-label {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+}
+.map-connector {
+  flex: 1;
+  height: 2px;
+  background: linear-gradient(90deg, var(--sky-blue), var(--sage-green));
+  opacity: 0.5;
+  margin-top: -63px;
+  position: relative;
+}
+.map-connector::after {
+  content: '→';
+  position: absolute;
+  right: -12px;
+  top: -15px;
+  color: var(--sage-green);
+  font-size: 24px;
+  opacity: 0.6;
+}
+
+/* ── 16. Attribute card (for characters ) ─────────────────────────────── */
+.attr-card {
+  padding: 24px 30px;
+  background: var(--bg-card);
+  border: var(--border-soft);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+.attr-card-icon { font-size: 36px; margin-bottom: 12px; display: block; }
+.attr-card-name {
+  font-family: var(--font-serif);
+  font-size: 21px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.attr-card-value {
+  font-family: var(--font-fantasy);
+  font-size: 42px;
+  font-weight: 700;
+  color: var(--forest-green);
+}
+
+/* ── 17. Info icon row ─────────────────────────────────────── */
+.fa-info-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 30px;
+  background: var(--bg-card-warm);
+  border: var(--border-soft);
+  border-radius: var(--radius-sm);
+}
+.fa-info-icon {
+  width: 66px; height: 66px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px;
+  flex-shrink: 0;
+  background: rgba(126,200,227,0.2);
+}
+.fa-info-text {
+  font-size: 27px;
+  color: var(--text-body);
+  line-height: 1.6;
+  font-family: var(--font-serif);
+}
+.fa-info-text strong {
+  color: var(--forest-green);
+  font-weight: 700;
+}
+
+/* ── 18. Comparison two-column ─────────────────────────────────────────── */
+.fa-compare {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+.fa-compare-col {
+  flex: 1;
+  padding: 48px 54px;
+}
+.fa-compare-col.left  { background: var(--bg-card); }
+.fa-compare-col.right { background: var(--bg-warm); }
+.fa-compare-divider {
+  width: 6px;
+  background: linear-gradient(180deg, var(--sky-blue), var(--sage-green), var(--gold));
+  opacity: 0.5;
+}
+.fa-compare-title {
+  font-family: var(--font-serif);
+  font-size: 33px; font-weight: 700;
+  color: var(--forest-green);
+  margin-bottom: 30px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid rgba(244,208,63,0.3);
+}
+
+/* ── 19. Layout helper classes ─────────────────────────────────────── */
+.layout-two-col   { display: flex; gap: 84px; flex: 1; align-items: stretch; }
+.layout-three-col { display: flex; gap: 60px; flex: 1; align-items: stretch; }
+.layout-four-col  { display: flex; gap: 42px; flex: 1; align-items: stretch; }
+.col-left   { flex: 0.42; display: flex; flex-direction: column; }
+.col-right  { flex: 0.58; display: flex; flex-direction: column; }
+.col-third  { flex: 1;    display: flex; flex-direction: column; }
+.header-section { display: flex; flex-direction: column; margin-bottom: 48px; }
+
+.flex-center  { display: flex; align-items: center; justify-content: center; }
+.flex-col     { display: flex; flex-direction: column; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.flex-start   { display: flex; align-items: flex-start; }
+
+.gap-8  { gap: 12px;  } .gap-12 { gap: 18px; } .gap-16 { gap: 24px; }
+.gap-20 { gap: 30px; } .gap-24 { gap: 36px; } .gap-32 { gap: 48px; }
+.gap-40 { gap: 60px; } .gap-48 { gap: 72px; }
+
+.grid-2   { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+.grid-3   { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 30px; }
+.grid-4   { display: grid; grid-template-columns: repeat(4,1fr); gap: 24px; }
+.grid-2x2 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 36px; }
+
+.text-center { text-align: center; }
+.mt-auto     { margin-top: auto; }
+.w-full      { width: 100%; }
+.h-full      { height: 100%; }
+.italic      { font-style: italic; }
+.font-fantasy { font-family: var(--font-fantasy); }
+.font-serif   { font-family: var(--font-serif); }

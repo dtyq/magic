@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Macaron Doodle — Template Preview</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=ZCOOL+KuaiLe&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="theme.css" />
+    <style>
+        html,
+        body {
+            width: auto;
+            height: auto;
+            min-height: 100%;
+            overflow: visible;
+        }
+
+        body {
+            background: #E8ECF0;
+            padding: 40px;
+            font-family: var(--font-body);
+        }
+
+        .preview-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2D2D2D;
+            margin-bottom: 8px;
+            font-family: var(--font-title);
+        }
+
+        .preview-desc {
+            font-size: 15px;
+            color: #6B6B6B;
+            margin-bottom: 40px;
+        }
+
+        .section-label-outer {
+            font-size: 13px;
+            font-weight: 600;
+            color: #64748B;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin: 40px 0 16px;
+        }
+
+        .swatches {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 32px;
+        }
+
+        .swatch {
+            width: 80px;
+        }
+
+        .swatch-color {
+            height: 52px;
+            border-radius: 8px;
+            border: 2px solid #2D2D2D;
+            margin-bottom: 6px;
+            box-shadow: 2px 2px 0 rgba(45, 45, 45, 0.12);
+        }
+
+        .swatch-name {
+            font-size: 11px;
+            font-weight: 600;
+            color: #4A4A4A;
+            font-family: var(--font-title);
+        }
+
+        .swatch-hex {
+            font-size: 11px;
+            color: #6B6B6B;
+            font-family: monospace;
+        }
+
+        .layout-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .layout-thumb {
+            aspect-ratio: 16/9;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid #2D2D2D;
+            box-shadow: 3px 3px 0 rgba(45, 45, 45, 0.15);
+            position: relative;
+            background: #F5F0E8;
+        }
+
+        .slide-label {
+            position: absolute;
+            bottom: 8px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 9px;
+            font-weight: 700;
+            color: #2D2D2D;
+            background: rgba(245, 240, 232, 0.9);
+            padding: 4px 0;
+            font-family: var(--font-title);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="preview-title">🎨 Macaron Hand-Drawn — Education Template</div>
+    <div class="preview-desc">Warm cream base #F5F0E8 · macaron color blocks · hand-drawn lines · doodle decorations |
+        Use cases: knowledge explainers, process walkthroughs, course content, social media sharing</div>
+
+    <!-- Swatches -->
+    <div class="section-label-outer">Color Palette</div>
+    <div class="swatches">
+        <div class="swatch">
+            <div class="swatch-color" style="background:#F5F0E8;"></div>
+            <div class="swatch-name">Warm Cream</div>
+            <div class="swatch-hex">#F5F0E8</div>
+        </div>
+        <div class="swatch">
+            <div class="swatch-color" style="background:#A8D8EA;"></div>
+            <div class="swatch-name">Sky Blue</div>
+            <div class="swatch-hex">#A8D8EA</div>
+        </div>
+        <div class="swatch">
+            <div class="swatch-color" style="background:#B5E5CF;"></div>
+            <div class="swatch-name">Mint Green</div>
+            <div class="swatch-hex">#B5E5CF</div>
+        </div>
+        <div class="swatch">
+            <div class="swatch-color" style="background:#D5C6E0;"></div>
+            <div class="swatch-name">Lavender</div>
+            <div class="swatch-hex">#D5C6E0</div>
+        </div>
+        <div class="swatch">
+            <div class="swatch-color" style="background:#FFD5C2;"></div>
+            <div class="swatch-name">Peach</div>
+            <div class="swatch-hex">#FFD5C2</div>
+        </div>
+        <div class="swatch">
+            <div class="swatch-color" style="background:#FFF0A0;"></div>
+            <div class="swatch-name">Lemon Yellow</div>
+            <div class="swatch-hex">#FFF0A0</div>
+        </div>
+        <div class="swatch">
+            <div class="swatch-color" style="background:#E8655A;"></div>
+            <div class="swatch-name">Coral Red</div>
+            <div class="swatch-hex">#E8655A</div>
+        </div>
+        <div class="swatch">
+            <div class="swatch-color" style="background:#2D2D2D;"></div>
+            <div class="swatch-name">Ink Black</div>
+            <div class="swatch-hex">#2D2D2D</div>
+        </div>
+    </div>
+
+    <!-- 8 layout thumbnails -->
+    <div class="section-label-outer">Dedicated Layout Page Types (8)</div>
+    <div class="layout-grid">
+
+        <!-- 1. Cover page -->
+        <div class="layout-thumb">
+            <div style="position:absolute;top:8px;right:8px;font-size:16px;opacity:0.3;">⭐</div>
+            <div style="position:absolute;bottom:28px;left:8px;font-size:12px;opacity:0.2;">✦</div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-55%);text-align:center;width:85%;">
+                <div
+                    style="font-family:'ZCOOL KuaiLe',sans-serif;font-size:16px;font-weight:700;color:#2D2D2D;line-height:1.2;margin-bottom:6px;">
+                    学习的五个<br />黄金法则</div>
+                <div style="font-size:6px;color:#6B6B6B;margin-bottom:8px;">掌握这些方法，效率提升3倍</div>
+                <div
+                    style="display:inline-block;background:#FFF0A0;border:1.5px solid #2D2D2D;border-radius:12px;padding:2px 10px;font-size:6px;font-weight:700;color:#2D2D2D;transform:rotate(-1.5deg);box-shadow:1px 1px 0 rgba(45,45,45,0.15);">
+                    ⭐ 知识分享</div>
+            </div>
+            <div style="position:absolute;bottom:0;left:0;right:0;">
+                <div
+                    style="background:#2D2D2D;color:#F5F0E8;text-align:center;padding:5px;font-size:6px;font-weight:700;font-family:'ZCOOL KuaiLe',sans-serif;border-radius:0 0 10px 10px;">
+                    💡 知识改变命运，学习成就未来</div>
+            </div>
+            <div class="slide-label">1. Cover</div>
+        </div>
+
+        <!-- 2. Concept explainer page -->
+        <div class="layout-thumb">
+            <div style="position:absolute;top:8px;left:10px;right:10px;">
+                <div style="font-family:'ZCOOL KuaiLe',sans-serif;font-size:9px;font-weight:700;color:#2D2D2D;">什么是
+                    <span style="background:#FFF0A0;padding:0 3px;border-radius:2px;">成长型思维</span>？</div>
+            </div>
+            <div
+                style="position:absolute;top:26px;left:8px;right:8px;bottom:12px;display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+                <div
+                    style="background:#D6EEF8;border:2px solid #2D2D2D;border-radius:10px;padding:5px;box-shadow:2px 2px 0 rgba(45,45,45,0.12);">
+                    <div
+                        style="font-size:6px;font-weight:700;color:#2D2D2D;margin-bottom:3px;font-family:'ZCOOL KuaiLe',sans-serif;">
+                        📘 定义</div>
+                    <div style="font-size:5.5px;color:#4A4A4A;line-height:1.6;">相信能力可以通过努力和学习不断提升的信念体系</div>
+                </div>
+                <div
+                    style="background:#D8F3E8;border:2px solid #2D2D2D;border-radius:10px;padding:5px;box-shadow:2px 2px 0 rgba(45,45,45,0.12);">
+                    <div
+                        style="font-size:6px;font-weight:700;color:#2D2D2D;margin-bottom:3px;font-family:'ZCOOL KuaiLe',sans-serif;">
+                        🌱 特征</div>
+                    <div style="font-size:5.5px;color:#4A4A4A;line-height:1.6;">拥抱挑战 · 坚持不懈 · 从失败学习</div>
+                </div>
+                <div
+                    style="background:#EAE0F5;border:2px solid #2D2D2D;border-radius:10px;padding:5px;box-shadow:2px 2px 0 rgba(45,45,45,0.12);">
+                    <div
+                        style="font-size:6px;font-weight:700;color:#2D2D2D;margin-bottom:3px;font-family:'ZCOOL KuaiLe',sans-serif;">
+                        💡 好处</div>
+                    <div style="font-size:5.5px;color:#4A4A4A;line-height:1.6;">提升韧性，增强自信，实现持续成长</div>
+                </div>
+                <div
+                    style="background:#FFE8DC;border:2px solid #2D2D2D;border-radius:10px;padding:5px;box-shadow:2px 2px 0 rgba(45,45,45,0.12);">
+                    <div
+                        style="font-size:6px;font-weight:700;color:#2D2D2D;margin-bottom:3px;font-family:'ZCOOL KuaiLe',sans-serif;">
+                        🎯 培养</div>
+                    <div style="font-size:5.5px;color:#4A4A4A;line-height:1.6;">反思习惯 · 接受反馈 · 庆祝进步</div>
+                </div>
+            </div>
+            <div class="slide-label">2. Concept</div>
+        </div>
+
+        <!-- 3. Process steps page -->
+        <div class="layout-thumb">
+            <div
+                style="position:absolute;top:8px;left:10px;font-family:'ZCOOL KuaiLe',sans-serif;font-size:9px;font-weight:700;color:#2D2D2D;">
+                学习的四个阶段</div>
+            <div
+                style="position:absolute;top:26px;left:8px;right:8px;bottom:20px;display:flex;flex-direction:column;gap:4px;">
+                <div style="display:flex;align-items:center;gap:5px;">
+                    <div
+                        style="width:16px;height:16px;border-radius:50%;background:#2D2D2D;color:#F5F0E8;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        1</div>
+                    <div
+                        style="flex:1;background:#D6EEF8;border:1.5px solid #2D2D2D;border-radius:8px;padding:3px 6px;box-shadow:1px 1px 0 rgba(45,45,45,0.1);">
+                        <div style="font-size:6px;font-weight:700;color:#2D2D2D;font-family:'ZCOOL KuaiLe',sans-serif;">
+                            输入阶段 📖</div>
+                        <div style="font-size:5px;color:#4A4A4A;">大量阅读，广泛涉猎</div>
+                    </div>
+                </div>
+                <div style="text-align:center;font-size:10px;color:#2D2D2D;margin:-1px 0;">↓</div>
+                <div style="display:flex;align-items:center;gap:5px;">
+                    <div
+                        style="width:16px;height:16px;border-radius:50%;background:#2D2D2D;color:#F5F0E8;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        2</div>
+                    <div
+                        style="flex:1;background:#D8F3E8;border:1.5px solid #2D2D2D;border-radius:8px;padding:3px 6px;box-shadow:1px 1px 0 rgba(45,45,45,0.1);">
+                        <div style="font-size:6px;font-weight:700;color:#2D2D2D;font-family:'ZCOOL KuaiLe',sans-serif;">
+                            理解阶段 🤔</div>
+                        <div style="font-size:5px;color:#4A4A4A;">深度思考，建立联系</div>
+                    </div>
+                </div>
+                <div style="text-align:center;font-size:10px;color:#2D2D2D;margin:-1px 0;">↓</div>
+                <div style="display:flex;align-items:center;gap:5px;">
+                    <div
+                        style="width:16px;height:16px;border-radius:50%;background:#2D2D2D;color:#F5F0E8;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        3</div>
+                    <div
+                        style="flex:1;background:#EAE0F5;border:1.5px solid #2D2D2D;border-radius:8px;padding:3px 6px;box-shadow:1px 1px 0 rgba(45,45,45,0.1);">
+                        <div style="font-size:6px;font-weight:700;color:#2D2D2D;font-family:'ZCOOL KuaiLe',sans-serif;">
+                            输出阶段 ✍️</div>
+                        <div style="font-size:5px;color:#4A4A4A;">写作总结，教会他人</div>
+                    </div>
+                </div>
+                <div style="text-align:center;font-size:10px;color:#2D2D2D;margin:-1px 0;">↓</div>
+                <div style="display:flex;align-items:center;gap:5px;">
+                    <div
+                        style="width:16px;height:16px;border-radius:50%;background:#E8655A;color:#fff;font-size:7px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        4</div>
+                    <div
+                        style="flex:1;background:#FFE8DC;border:1.5px solid #2D2D2D;border-radius:8px;padding:3px 6px;box-shadow:1px 1px 0 rgba(45,45,45,0.1);">
+                        <div style="font-size:6px;font-weight:700;color:#2D2D2D;font-family:'ZCOOL KuaiLe',sans-serif;">
+                            应用阶段 🚀</div>
+                        <div style="font-size:5px;color:#4A4A4A;">实践验证，迭代优化</div>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-label">3. Process</div>
+        </div>
+
+        <!-- 4. Comparison page -->
+        <div class="layout-thumb">
+            <div
+                style="position:absolute;top:8px;left:10px;font-family:'ZCOOL KuaiLe',sans-serif;font-size:9px;font-weight:700;color:#2D2D2D;">
+                固定思维 VS 成长思维</div>
+            <div
+                style="position:absolute;top:26px;left:8px;right:8px;bottom:20px;display:grid;grid-template-columns:1fr auto 1fr;gap:4px;align-items:center;">
+                <div
+                    style="background:#FFE8DC;border:2px solid #2D2D2D;border-radius:10px;padding:5px;box-shadow:2px 2px 0 rgba(45,45,45,0.12);height:100%;display:flex;flex-direction:column;gap:3px;">
+                    <div
+                        style="font-size:6px;font-weight:700;color:#2D2D2D;font-family:'ZCOOL KuaiLe',sans-serif;text-align:center;">
+                        😰 固定思维</div>
+                    <div style="font-size:5px;color:#4A4A4A;line-height:1.6;">✗ 避免挑战<br />✗ 放弃努力<br />✗ 忽视批评</div>
+                </div>
+                <div
+                    style="font-family:'ZCOOL KuaiLe',sans-serif;font-size:12px;font-weight:700;color:#E8655A;text-align:center;transform:rotate(-5deg);">
+                    VS</div>
+                <div
+                    style="background:#D8F3E8;border:2px solid #2D2D2D;border-radius:10px;padding:5px;box-shadow:2px 2px 0 rgba(45,45,45,0.12);height:100%;display:flex;flex-direction:column;gap:3px;">
+                    <div
+                        style="font-size:6px;font-weight:700;color:#2D2D2D;font-family:'ZCOOL KuaiLe',sans-serif;text-align:center;">
+                        😊 成长思维</div>
+                    <div style="font-size:5px;color:#4A4A4A;line-height:1.6;">✓ 拥抱挑战<br />✓ 坚持努力<br />✓ 接受批评</div>
+                </div>
+            </div>
+            <div class="slide-label">4. Comparison</div>
+        </div>
+
+        <!-- 5. Data story page -->
+        <div class="layout-thumb">
+            <div
+                style="position:absolute;top:8px;left:10px;font-family:'ZCOOL KuaiLe',sans-serif;font-size:9px;font-weight:700;color:#2D2D2D;">
+                数据说话</div>
+            <div
+                style="position:absolute;top:26px;left:8px;right:8px;bottom:20px;display:flex;gap:5px;align-items:center;">
+                <div style="flex:1;text-align:center;">
+                    <div
+                        style="background:#FFF0A0;border:2px solid #2D2D2D;border-radius:10px;padding:8px;box-shadow:2px 2px 0 rgba(45,45,45,0.12);">
+                        <div
+                            style="font-size:22px;font-weight:900;color:#E8655A;line-height:1;font-family:'ZCOOL KuaiLe',sans-serif;">
+                            87%</div>
+                        <div style="font-size:5px;color:#6B6B6B;margin-top:2px;">学习效率提升</div>
+                    </div>
+                </div>
+                <div style="flex:1;text-align:center;">
+                    <div
+                        style="background:#D6EEF8;border:2px solid #2D2D2D;border-radius:10px;padding:8px;box-shadow:2px 2px 0 rgba(45,45,45,0.12);">
+                        <div
+                            style="font-size:22px;font-weight:900;color:#2D2D2D;line-height:1;font-family:'ZCOOL KuaiLe',sans-serif;">
+                            3x</div>
+                        <div style="font-size:5px;color:#6B6B6B;margin-top:2px;">记忆留存率</div>
+                    </div>
+                </div>
+                <div style="flex:1;text-align:center;">
+                    <div
+                        style="background:#D8F3E8;border:2px solid #2D2D2D;border-radius:10px;padding:8px;box-shadow:2px 2px 0 rgba(45,45,45,0.12);">
+                        <div
+                            style="font-size:22px;font-weight:900;color:#2D2D2D;line-height:1;font-family:'ZCOOL KuaiLe',sans-serif;">
+                            21天</div>
+                        <div style="font-size:5px;color:#6B6B6B;margin-top:2px;">习惯养成周期</div>
+                    </div>
+                </div>
+            </div>
+            <div class="slide-label">5. Data</div>
+        </div>
+
+        <!-- 6. Knowledge map page -->
+        <div class="layout-thumb">
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:90%;height:85%;">
+                <div
+                    style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:30px;height:30px;border-radius:50%;background:#2D2D2D;color:#F5F0E8;display:flex;align-items:center;justify-content:center;font-size:5.5px;font-weight:700;font-family:'ZCOOL KuaiLe',sans-serif;text-align:center;line-height:1.2;z-index:2;">
+                    学习<br />方法</div>
+                <div
+                    style="position:absolute;top:5%;left:5%;background:#D6EEF8;border:1.5px solid #2D2D2D;border-radius:8px;padding:3px 6px;font-size:5.5px;font-weight:700;color:#2D2D2D;box-shadow:1px 1px 0 rgba(45,45,45,0.1);">
+                    📖 主动阅读</div>
+                <div
+                    style="position:absolute;top:5%;right:5%;background:#D8F3E8;border:1.5px solid #2D2D2D;border-radius:8px;padding:3px 6px;font-size:5.5px;font-weight:700;color:#2D2D2D;box-shadow:1px 1px 0 rgba(45,45,45,0.1);">
+                    ✍️ 输出写作</div>
+                <div
+                    style="position:absolute;bottom:5%;left:5%;background:#EAE0F5;border:1.5px solid #2D2D2D;border-radius:8px;padding:3px 6px;font-size:5.5px;font-weight:700;color:#2D2D2D;box-shadow:1px 1px 0 rgba(45,45,45,0.1);">
+                    🎯 刻意练习</div>
+                <div
+                    style="position:absolute;bottom:5%;right:5%;background:#FFE8DC;border:1.5px solid #2D2D2D;border-radius:8px;padding:3px 6px;font-size:5.5px;font-weight:700;color:#2D2D2D;box-shadow:1px 1px 0 rgba(45,45,45,0.1);">
+                    🔄 间隔复习</div>
+            </div>
+            <div class="slide-label">6. Mind Map</div>
+        </div>
+
+        <!-- 7. Section page -->
+        <div class="layout-thumb" style="background:#2D2D2D;">
+            <div style="position:absolute;top:10px;right:10px;font-size:18px;opacity:0.15;color:#F5F0E8;">⭐</div>
+            <div style="position:absolute;bottom:28px;left:10px;font-size:14px;opacity:0.1;color:#F5F0E8;">✦</div>
+            <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-60%);text-align:center;">
+                <div
+                    style="font-size:30px;font-weight:900;color:rgba(245,240,232,0.1);font-family:'ZCOOL KuaiLe',sans-serif;line-height:1;">
+                    02</div>
+                <div
+                    style="font-family:'ZCOOL KuaiLe',sans-serif;font-size:13px;font-weight:700;color:#F5F0E8;line-height:1.3;margin-top:2px;">
+                    学习的核心方法</div>
+            </div>
+            <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:4px;">
+                <div
+                    style="background:#FFF0A0;border:1.5px solid #F5F0E8;border-radius:10px;padding:2px 7px;font-size:5.5px;font-weight:700;color:#2D2D2D;transform:rotate(-1deg);">
+                    主动学习</div>
+                <div
+                    style="background:#D6EEF8;border:1.5px solid #F5F0E8;border-radius:10px;padding:2px 7px;font-size:5.5px;font-weight:700;color:#2D2D2D;transform:rotate(1.5deg);">
+                    间隔复习</div>
+            </div>
+            <div class="slide-label" style="color:#9B9B9B;background:rgba(45,45,45,0.85);">7. Section</div>
+        </div>
+
+        <!-- 8. Closing summary page -->
+        <div class="layout-thumb">
+            <div
+                style="position:absolute;top:8px;left:10px;right:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;">
+                <div
+                    style="background:#D6EEF8;border:1.5px solid #2D2D2D;border-radius:8px;padding:4px;box-shadow:1px 1px 0 rgba(45,45,45,0.1);text-align:center;">
+                    <div style="font-size:10px;">📖</div>
+                    <div style="font-size:5.5px;font-weight:700;color:#2D2D2D;font-family:'ZCOOL KuaiLe',sans-serif;">
+                        主动阅读</div>
+                </div>
+                <div
+                    style="background:#D8F3E8;border:1.5px solid #2D2D2D;border-radius:8px;padding:4px;box-shadow:1px 1px 0 rgba(45,45,45,0.1);text-align:center;">
+                    <div style="font-size:10px;">🎯</div>
+                    <div style="font-size:5.5px;font-weight:700;color:#2D2D2D;font-family:'ZCOOL KuaiLe',sans-serif;">
+                        刻意练习</div>
+                </div>
+                <div
+                    style="background:#EAE0F5;border:1.5px solid #2D2D2D;border-radius:8px;padding:4px;box-shadow:1px 1px 0 rgba(45,45,45,0.1);text-align:center;">
+                    <div style="font-size:10px;">🔄</div>
+                    <div style="font-size:5.5px;font-weight:700;color:#2D2D2D;font-family:'ZCOOL KuaiLe',sans-serif;">
+                        间隔复习</div>
+                </div>
+            </div>
+            <div style="position:absolute;bottom:12px;left:8px;right:8px;">
+                <div
+                    style="background:#2D2D2D;color:#F5F0E8;text-align:center;padding:6px;font-size:7px;font-weight:700;font-family:'ZCOOL KuaiLe',sans-serif;border-radius:10px;">
+                    💡 学习不是终点，而是持续进化的旅程！</div>
+            </div>
+            <div class="slide-label">8. Closing/Summary</div>
+        </div>
+
+    </div>
+
+    <!-- Core component showcase -->
+    <div class="section-label-outer">Core Component Showcase</div>
+    <div
+        style="background:#F5F0E8;padding:40px;border-radius:16px;border:2.5px solid #2D2D2D;box-shadow:4px 4px 0 rgba(45,45,45,0.12);">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;">
+
+            <!-- Left column -->
+            <div class="flex-col gap-5">
+                <div>
+                    <div
+                        style="font-family:var(--font-title);font-size:42px;font-weight:700;color:#2D2D2D;line-height:1.15;">
+                        学习的五个<br /><span class="hl-yellow">黄金法则</span></div>
+                    <div style="font-size:17px;color:#6B6B6B;margin-top:12px;line-height:1.8;">
+                        掌握这些经过科学验证的学习方法，你的效率将<span class="hl-coral">提升3倍</span>以上。</div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                    <div class="macaron-card blue">
+                        <div class="macaron-title">📘 主动回忆</div>
+                        <div class="macaron-body">不要被动重读，而是主动测试自己是否记住了内容。</div>
+                    </div>
+                    <div class="macaron-card mint">
+                        <div class="macaron-title">🌱 间隔复习</div>
+                        <div class="macaron-body">利用遗忘曲线，在最佳时机复习，事半功倍。</div>
+                    </div>
+                    <div class="macaron-card lavender">
+                        <div class="macaron-title">💡 费曼技巧</div>
+                        <div class="macaron-body">用简单语言解释复杂概念，检验自己是否真懂了。</div>
+                    </div>
+                    <div class="macaron-card peach">
+                        <div class="macaron-title">🎯 刻意练习</div>
+                        <div class="macaron-body">专注于弱点，在舒适区边缘持续挑战自己。</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right column -->
+            <div class="flex-col gap-5">
+                <div style="display:flex;gap:16px;align-items:center;">
+                    <div style="text-align:center;flex:1;">
+                        <div
+                            style="background:#FFF0A0;border:2.5px solid #2D2D2D;border-radius:14px;padding:16px;box-shadow:3px 3px 0 rgba(45,45,45,0.12);">
+                            <div class="big-num">87%</div>
+                            <div class="big-num-label">使用主动回忆的学生成绩提升</div>
+                        </div>
+                    </div>
+                    <div style="text-align:center;flex:1;">
+                        <div
+                            style="background:#D6EEF8;border:2.5px solid #2D2D2D;border-radius:14px;padding:16px;box-shadow:3px 3px 0 rgba(45,45,45,0.12);">
+                            <div class="big-num" style="font-size:52px;">3x</div>
+                            <div class="big-num-label">间隔复习的记忆留存率</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                    <div class="step-row">
+                        <div class="num-badge">01</div>
+                        <div class="step-content">
+                            <div class="step-title">📖 输入阶段</div>
+                            <div class="step-desc">大量阅读，广泛涉猎, 建立知识储备.</div>
+                        </div>
+                    </div>
+                    <div class="step-row">
+                        <div class="num-badge coral">02</div>
+                        <div class="step-content">
+                            <div class="step-title">🤔 理解阶段</div>
+                            <div class="step-desc">深度思考，建立知识间的联系与体系。</div>
+                        </div>
+                    </div>
+                    <div class="step-row">
+                        <div class="num-badge outline">03</div>
+                        <div class="step-content">
+                            <div class="step-title">✍️ 输出阶段</div>
+                            <div class="step-desc">写作总结，教会他人, 巩固理解深度.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="quote-bar">💡 学习不是终点，而是持续进化的旅程！</div>
+
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <span class="doodle-tag">⭐ Highlight</span>
+                    <span class="doodle-tag blue">📘 认知</span>
+                    <span class="doodle-tag mint">🌱 成长</span>
+                    <span class="doodle-tag peach">🎯 行动</span>
+                    <span class="doodle-tag coral">🔥 核心</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</body>
+
+</html>

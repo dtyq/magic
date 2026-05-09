@@ -47,6 +47,14 @@ final class FunctionPermissionCatalog
                 'description_key' => 'permission.function_permission.functions.agent_publish_team.description',
                 'default_binding_scope' => ['type' => 'organization_all'],
             ],
+            'magic_claw.access' => [
+                'function_code' => 'magic_claw.access',
+                'module_code' => 'magic_claw',
+                'function_name_key' => 'permission.function_permission.functions.magic_claw_access.name',
+                'module_name_key' => 'permission.function_permission.modules.magic_claw',
+                'description_key' => 'permission.function_permission.functions.magic_claw_access.description',
+                'default_binding_scope' => ['type' => 'organization_all'],
+            ],
             'magic_claw.create' => [
                 'function_code' => 'magic_claw.create',
                 'module_code' => 'magic_claw',
