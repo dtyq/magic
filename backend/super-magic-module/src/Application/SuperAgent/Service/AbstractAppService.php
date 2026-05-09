@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Kernel\AbstractKernelAppService;
+use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\SuperAgentExtra;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
@@ -101,7 +102,7 @@ class AbstractAppService extends AbstractKernelAppService
     /**
      * @return null|array<string, mixed>
      */
-    protected function resolveVideoModelConfig(?array $videoModel): ?array
+    protected function resolveVideoModelConfig(?array $videoModel, ?DataIsolation $dataIsolation = null): ?array
     {
         if ($videoModel === null) {
             return null;
@@ -117,7 +118,7 @@ class AbstractAppService extends AbstractKernelAppService
             return $videoModel;
         }
 
-        $videoGenerationConfig = $this->findVideoGenerationConfig($modelId);
+        $videoGenerationConfig = $this->findVideoGenerationConfig($modelId, $dataIsolation);
         if ($videoGenerationConfig === null) {
             $videoModel['model_id'] = $modelId;
             return $videoModel;
@@ -133,13 +134,13 @@ class AbstractAppService extends AbstractKernelAppService
      * @param null|array<string, mixed> $extraData
      * @return null|array<string, mixed>
      */
-    protected function appendVideoModelExtraData(?array $extraData, ?SuperAgentExtra $extra): ?array
+    protected function appendVideoModelExtraData(?array $extraData, ?SuperAgentExtra $extra, ?DataIsolation $dataIsolation = null): ?array
     {
         if ($extra === null) {
             return $extraData;
         }
 
-        $videoModel = $this->resolveVideoModelConfig($extra->getVideoModel());
+        $videoModel = $this->resolveVideoModelConfig($extra->getVideoModel(), $dataIsolation);
         if ($videoModel === null) {
             return $extraData;
         }
@@ -161,7 +162,7 @@ class AbstractAppService extends AbstractKernelAppService
             return $taskContext;
         }
 
-        $videoModel = $this->resolveVideoModelConfig($extra->getVideoModel());
+        $videoModel = $this->resolveVideoModelConfig($extra->getVideoModel(), $taskContext->getDataIsolation());
         if ($videoModel === null) {
             return $taskContext;
         }
@@ -252,8 +253,13 @@ class AbstractAppService extends AbstractKernelAppService
     /**
      * @return null|array<string, mixed>
      */
-    private function findVideoGenerationConfig(string $modelId): ?array
+    private function findVideoGenerationConfig(string $modelId, ?DataIsolation $dataIsolation = null): ?array
     {
+        $organizationConfig = $this->findOrganizationVideoGenerationConfig($modelId, $dataIsolation);
+        if ($organizationConfig !== null) {
+            return $organizationConfig;
+        }
+
         try {
             $candidates = $this->buildVideoGenerationConfigCandidates($modelId);
             if ($candidates === []) {
@@ -266,6 +272,42 @@ class AbstractAppService extends AbstractKernelAppService
         } catch (Throwable $throwable) {
             di(LoggerFactory::class)->get(static::class)->warning('Failed to resolve video generation config, fallback to model_id only', [
                 'model_id' => $modelId,
+                'error' => $throwable->getMessage(),
+                'exception' => $throwable::class,
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * @return null|array<string, mixed>
+     */
+    private function findOrganizationVideoGenerationConfig(string $modelId, ?DataIsolation $dataIsolation): ?array
+    {
+        if ($dataIsolation === null || $dataIsolation->getCurrentOrganizationCode() === '') {
+            return null;
+        }
+
+        try {
+            $modelGatewayMapper = di(ModelGatewayMapper::class);
+            $modelEntry = $modelGatewayMapper->getOrganizationVideoModel($dataIsolation, $modelId);
+            $videoModel = $modelEntry?->getVideoModel();
+            if ($modelEntry === null || $videoModel === null) {
+                return null;
+            }
+
+            $videoGenerationConfigDomainService = di(VideoGenerationConfigDomainService::class);
+            $videoGenerationConfig = $videoGenerationConfigDomainService->resolve(
+                $videoModel->getModelVersion(),
+                $modelEntry->getAttributes()->getKey(),
+                $videoModel->getProviderCode(),
+            );
+
+            return $videoGenerationConfig?->toArray();
+        } catch (Throwable $throwable) {
+            di(LoggerFactory::class)->get(static::class)->warning('Failed to resolve organization video generation config, fallback to featured config', [
+                'model_id' => $modelId,
+                'organization_code' => $dataIsolation->getCurrentOrganizationCode(),
                 'error' => $throwable->getMessage(),
                 'exception' => $throwable::class,
             ]);

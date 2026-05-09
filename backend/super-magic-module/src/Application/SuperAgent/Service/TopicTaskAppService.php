@@ -1394,7 +1394,7 @@ class TopicTaskAppService extends AbstractAppService
             if ($model !== null && isset($model['model_id'])) {
                 $extraData['model_id'] = $model['model_id'];
             }
-            $extraData = $this->appendVideoModelExtraData($extraData, $superAgentExtra);
+            $extraData = $this->appendVideoModelExtraData($extraData, $superAgentExtra, $dataIsolation);
 
             // Only keep extraData if it has values
             if (empty($extraData)) {
