@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """视频模型配置服务：提取 dynamic_config 中的视频模型配置并同步到 AgentHorizon。"""
 
+from html import escape
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from app.utils.video_logger import get_video_logger
@@ -13,6 +14,13 @@ logger = get_video_logger(__name__)
 
 class VideoModelConfigService:
     """视频模型配置服务类"""
+
+    _INPUT_FIELD_MAP = {
+        "reference_images": "reference_image_paths",
+        "reference_videos": "reference_video_paths",
+        "reference_audios": "reference_audio_paths",
+        "frames": "frame_start_path,frame_end_path",
+    }
 
     @staticmethod
     def _extract_supported_sizes(video_generation_config: Dict[str, Any]) -> list[dict[str, Any]]:
@@ -44,6 +52,11 @@ class VideoModelConfigService:
             if isinstance(value, str) and str(value).strip()
         ]
         return "|".join(normalized)
+
+    @staticmethod
+    def _xml_attr(value: str) -> str:
+        """转义 XML 属性值，避免配置中的特殊字符破坏注入结构。"""
+        return escape(value, quote=True)
 
     @staticmethod
     def _build_supported_sizes_attr(video_generation_config: Dict[str, Any]) -> str:
@@ -230,6 +243,164 @@ class VideoModelConfigService:
         return ",".join(parts)
 
     @staticmethod
+    def _normalize_input_field(field_name: str) -> str:
+        """把平台能力字段转换为工具参数字段名，降低 LLM 二次翻译出错概率。"""
+        return VideoModelConfigService._INPUT_FIELD_MAP.get(field_name, field_name)
+
+    @staticmethod
+    def _normalize_input_fields(fields: Any) -> list[str]:
+        """从 input mode 的 supported_fields 生成工具侧字段列表。"""
+        normalized: list[str] = ["prompt"]
+        if not isinstance(fields, list) or not fields:
+            return normalized
+
+        for field in fields:
+            if not isinstance(field, str) or not field.strip():
+                continue
+            mapped = VideoModelConfigService._normalize_input_field(field.strip())
+            for part in mapped.split(","):
+                if part and part not in normalized:
+                    normalized.append(part)
+        return normalized
+
+    @staticmethod
+    def _format_limit(limit: Any) -> str:
+        """把单个素材限制压缩成 XML 属性值。"""
+        if not isinstance(limit, dict):
+            return ""
+
+        min_count = limit.get("min")
+        max_count = limit.get("max")
+
+        has_min = isinstance(min_count, int)
+        has_max = isinstance(max_count, int)
+        if has_min and has_max:
+            if min_count == max_count:
+                return str(min_count)
+            return f"{min_count}-{max_count}"
+        if has_min:
+            return f"{min_count}+"
+        if has_max:
+            if max_count == 0:
+                return "0"
+            return f"0-{max_count}"
+        return ""
+
+    @staticmethod
+    def _format_unsupported_attrs(unsupported: Any) -> dict[str, str]:
+        """把模式级不支持项转换成更自然的 XML 属性。"""
+        if not unsupported:
+            return {}
+
+        # 兼容旧版配置可能以 list 形式直接给出不支持项名称
+        if isinstance(unsupported, list):
+            return {
+                f"no_{item}": "true"
+                for item in unsupported
+                if isinstance(item, str) and item.strip()
+            }
+
+        if not isinstance(unsupported, dict):
+            return {}
+
+        attrs: dict[str, str] = {}
+        if unsupported.get("sizes") is True:
+            attrs["no_size"] = "true"
+        if unsupported.get("aspect_ratios") is True:
+            attrs["no_aspect_ratio"] = "true"
+
+        resolutions = unsupported.get("resolutions")
+        if isinstance(resolutions, list):
+            values = [
+                str(value).strip()
+                for value in resolutions
+                if isinstance(value, str) and str(value).strip()
+            ]
+            if values:
+                attrs["avoid_resolution"] = "|".join(values)
+
+        return attrs
+
+    @staticmethod
+    def _format_xml_attrs(attrs: dict[str, Any]) -> str:
+        """按插入顺序格式化 XML 属性，跳过空值。"""
+        parts: list[str] = []
+        for key, value in attrs.items():
+            normalized = str(value).strip() if value is not None else ""
+            if normalized == "":
+                continue
+            parts.append(f'{key}="{VideoModelConfigService._xml_attr(normalized)}"')
+        return " ".join(parts)
+
+    @staticmethod
+    def _build_mode_rule_line(rule: Any, indent: str = "      ") -> str:
+        """把一个 mode rule/variant 转换成一行 XML 子节点。"""
+        if not isinstance(rule, dict):
+            return ""
+
+        code = rule.get("code")
+        if not isinstance(code, str) or not code.strip():
+            return ""
+
+        attrs: dict[str, str] = {"name": code.strip()}
+        limits = rule.get("limits")
+        if isinstance(limits, dict):
+            for field_name, limit in limits.items():
+                if not isinstance(field_name, str):
+                    continue
+                field = VideoModelConfigService._normalize_input_field(field_name)
+                value = VideoModelConfigService._format_limit(limit)
+                if value:
+                    attrs[field] = value
+
+        attrs.update(VideoModelConfigService._format_unsupported_attrs(rule.get("unsupported")))
+        return f"{indent}<rule {VideoModelConfigService._format_xml_attrs(attrs)}/>"
+
+    @staticmethod
+    def _build_input_mode_lines(video_generation_config: Dict[str, Any]) -> list[str]:
+        """构建 mode/rule 子节点，让 LLM 以 XML 结构读取输入模式与限制。"""
+        input_modes = video_generation_config.get("input_modes")
+        if not isinstance(input_modes, dict):
+            return []
+
+        lines: list[str] = []
+        for mode, mode_config in input_modes.items():
+            if not isinstance(mode, str) or not mode.strip() or not isinstance(mode_config, dict):
+                continue
+
+            attrs: dict[str, Any] = {"name": mode.strip()}
+            task = mode_config.get("task")
+            if isinstance(task, str) and task.strip():
+                attrs["task"] = task.strip()
+
+            fields = VideoModelConfigService._normalize_input_fields(mode_config.get("supported_fields"))
+            attrs["fields"] = ",".join(fields)
+
+            max_count = mode_config.get("max_count")
+            if isinstance(max_count, int):
+                attrs["max_count"] = max_count
+
+            rules = mode_config.get("rules")
+            if not isinstance(rules, list):
+                rules = mode_config.get("variants")
+            rule_lines = [
+                VideoModelConfigService._build_mode_rule_line(rule)
+                for rule in rules
+            ] if isinstance(rules, list) else []
+            rule_lines = [line for line in rule_lines if line]
+
+            mode_open = f"    <mode {VideoModelConfigService._format_xml_attrs(attrs)}"
+            if not rule_lines:
+                lines.append(mode_open + "/>")
+                continue
+
+            lines.append(mode_open + ">")
+            lines.extend(rule_lines)
+            lines.append("    </mode>")
+
+        return lines
+
+    @staticmethod
     def build_video_model_info(video_model_id: str, video_generation_config: Dict[str, Any], changed: bool = False) -> str:
         """构建紧凑视频模型信息，供 horizon 注入。"""
         if not video_model_id or not video_generation_config:
@@ -244,43 +415,28 @@ class VideoModelConfigService:
 
         # 这里按"模型决策真正会用到的字段"逐项输出，缺失字段故意不补默认，
         # 这样规则层才能把"未声明 = 不支持"稳定传达给 LLM。
-        input_attr = VideoModelConfigService._join_string_list(video_generation_config.get("supported_inputs"))
-        if input_attr:
-            lines.append(f'    input="{input_attr}"')
+        def _attr(name: str, value: str) -> None:
+            if value:
+                lines.append(f'    {name}="{VideoModelConfigService._xml_attr(value)}"')
 
-        size_attr = VideoModelConfigService._build_supported_sizes_attr(video_generation_config)
-        if size_attr:
-            lines.append(f'    size="{size_attr}"')
+        _attr("input", VideoModelConfigService._join_string_list(video_generation_config.get("supported_inputs")))
+        _attr("size", VideoModelConfigService._build_supported_sizes_attr(video_generation_config))
+        _attr("default_size", VideoModelConfigService._pick_default_size(video_generation_config))
+        _attr("default_duration", VideoModelConfigService._get_default_duration(video_generation_config))
+        _attr("duration", VideoModelConfigService._build_duration_attr(video_generation_config))
+        _attr("option", VideoModelConfigService._build_option_attr(video_generation_config))
+        _attr("ref", VideoModelConfigService._build_reference_attr(video_generation_config))
+        _attr("support", VideoModelConfigService._build_support_attr(video_generation_config))
+        _attr("unsupported", VideoModelConfigService._build_unsupported_attr(video_generation_config))
 
-        default_size = VideoModelConfigService._pick_default_size(video_generation_config)
-        if default_size:
-            lines.append(f'    default_size="{default_size}"')
+        mode_lines = VideoModelConfigService._build_input_mode_lines(video_generation_config)
+        if not mode_lines:
+            lines.append("  />")
+            return "\n".join(lines)
 
-        default_duration = VideoModelConfigService._get_default_duration(video_generation_config)
-        if default_duration:
-            lines.append(f'    default_duration="{default_duration}"')
-
-        duration_attr = VideoModelConfigService._build_duration_attr(video_generation_config)
-        if duration_attr:
-            lines.append(f'    duration="{duration_attr}"')
-
-        option_attr = VideoModelConfigService._build_option_attr(video_generation_config)
-        if option_attr:
-            lines.append(f'    option="{option_attr}"')
-
-        reference_attr = VideoModelConfigService._build_reference_attr(video_generation_config)
-        if reference_attr:
-            lines.append(f'    ref="{reference_attr}"')
-
-        support_attr = VideoModelConfigService._build_support_attr(video_generation_config)
-        if support_attr:
-            lines.append(f'    support="{support_attr}"')
-
-        unsupported_attr = VideoModelConfigService._build_unsupported_attr(video_generation_config)
-        if unsupported_attr:
-            lines.append(f'    unsupported="{unsupported_attr}"')
-
-        lines.append("  />")
+        lines.append("  >")
+        lines.extend(mode_lines)
+        lines.append("  </video>")
         return "\n".join(lines)
 
     @staticmethod
@@ -298,6 +454,7 @@ class VideoModelConfigService:
             lines.extend([
                 "Prefer video `size`.",
                 "If video size or resolution is missing, use `default_size`.",
+                "Use video modes to choose reference fields and avoid unsupported combinations.",
                 "Canvas width/height are layout size, not real video size.",
             ])
         lines.append("</media_model_rules>")
