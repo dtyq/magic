@@ -258,6 +258,22 @@ class InstallService:
                 await async_rmtree(bak_dir)
             install_dir.rename(bak_dir)
 
+        # 在 staging 阶段预写 manifest，避免 os.replace 后在网络文件系统上立即写文件触发 I/O 错误
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        manifest = SkillManifest(
+            name=skill_name,
+            provider=provider_id_str,
+            source_id=skill_id,
+            version=actual_version or target_version or "unknown",
+            installed_at=now,
+            source_url=fetched.source_url,
+            installed_by="install_skills",
+        )
+        try:
+            write_manifest(staging_dir, manifest)
+        except Exception as e:
+            logger.warning(f"写 manifest 到 staging 失败（不影响安装）: {e}")
+
         try:
             os.replace(staging_dir, install_dir)
         except Exception as e:
@@ -273,22 +289,8 @@ class InstallService:
                 message=f"目录替换失败: {e}", status="failed",
             )
 
-        # 写 manifest
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        manifest = SkillManifest(
-            name=skill_name,
-            provider=provider_id_str,
-            source_id=skill_id,
-            version=actual_version or target_version or "unknown",
-            installed_at=now,
-            source_url=fetched.source_url,
-            installed_by="install_skills",
-        )
-        try:
-            invalidate_cache(install_dir)
-            write_manifest(install_dir, manifest)
-        except Exception as e:
-            logger.warning(f"写 manifest 失败（不影响安装）: {e}")
+        # os.replace 后失效缓存，让后续读取从新目录加载
+        invalidate_cache(install_dir)
 
         # 清理 bak 和临时目录
         if bak_dir.exists():

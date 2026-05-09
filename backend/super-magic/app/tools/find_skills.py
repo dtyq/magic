@@ -84,14 +84,23 @@ class FindSkillsParams(BaseToolParams):
         if v is None:
             return v
         # 兼容模型将数组错误序列化为 JSON 字符串的情况，如 "[\"my_library\"]"
+        # 或直接传单个 provider 名称字符串，如 "clawhub"
         if isinstance(v, str):
             # 空字符串视为未传参数
             if not v.strip():
                 return None
             try:
-                v = json.loads(v)
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    v = parsed
+                elif isinstance(parsed, str):
+                    # json.loads 解析出了一个纯字符串，视为单个 provider
+                    v = [parsed]
+                else:
+                    raise ValueError(f"providers 格式无效，应为数组，收到: {v!r}")
             except json.JSONDecodeError:
-                raise ValueError(f"providers 格式无效，应为数组，收到字符串: {v!r}")
+                # 不是合法 JSON，尝试视为单个 provider 名称
+                v = [v.strip()]
         if not v:
             return None
         invalid = [p for p in v if p not in _VALID_PROVIDERS]
