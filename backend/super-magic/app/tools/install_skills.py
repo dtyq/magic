@@ -181,6 +181,8 @@ class InstallSkillsTool(BaseTool[InstallSkillsParams]):
                 "failed_count": batch_result.failed_count,
                 "installed_count": installed_count,
                 "upgraded_count": upgraded_count,
+                # 供 get_tool_detail 展示用的 Markdown，与给模型的 XML 分离
+                "md_content": _format_batch_result_md(batch_result),
             },
         )
 
@@ -190,9 +192,10 @@ class InstallSkillsTool(BaseTool[InstallSkillsParams]):
         result: ToolResult,
         arguments: Dict[str, Any] = None,
     ) -> Optional[ToolDetail]:
-        if not result.content:
-            return None
         extra = result.extra_info or {}
+        md_content = extra.get("md_content")
+        if not md_content:
+            return None
         ok = extra.get("ok_count", 0)
         failed = extra.get("failed_count", 0)
         file_name = f"install_skills_ok{ok}_failed{failed}.md"
@@ -200,7 +203,7 @@ class InstallSkillsTool(BaseTool[InstallSkillsParams]):
             type=DisplayType.MD,
             data=FileContent(
                 file_name=file_name,
-                content=f"```xml\n{result.content}\n```",
+                content=md_content,
             ),
         )
 
@@ -267,4 +270,64 @@ def _format_batch_result(batch_result) -> str:
         msg = r.message.replace('"', "&quot;")
         lines.append(f'  <item {attrs} message="{msg}" />')
     lines.append("</install_batch>")
+    return "\n".join(lines)
+
+
+# ── Markdown 展示格式（供 get_tool_detail 渲染，与给模型的 XML 完全独立） ────────
+
+_PROVIDER_LABEL: dict[str, str] = {
+    "my_library": "我的技能库",
+    "market":     "Magic 市场",
+    "skillhub":   "SkillHub",
+    "clawhub":    "ClawHub",
+    "npx":        "NPX",
+    "github":     "GitHub",
+}
+
+_STATUS_LABEL: dict[str, str] = {
+    "installed":            "已安装",
+    "upgraded":             "已升级",
+    "already_installed":    "已是最新",
+    "failed":               "失败",
+    "provider_unavailable": "来源不可用",
+}
+
+_MSG_MAX_LEN = 60
+
+
+def _truncate_msg(s: str, max_len: int = _MSG_MAX_LEN) -> str:
+    s = s.strip().replace("\n", " ").replace("\r", "")
+    return s if len(s) <= max_len else s[:max_len] + "..."
+
+
+def _format_batch_result_md(batch_result) -> str:
+    ok = batch_result.ok_count
+    failed = batch_result.failed_count
+    total = ok + failed
+
+    lines: list[str] = []
+
+    # 标题摘要
+    summary_parts = [f"共 **{total}** 条"]
+    if ok:
+        summary_parts.append(f"成功 **{ok}**")
+    if failed:
+        summary_parts.append(f"失败 **{failed}**")
+    lines.append("**安装结果**：" + "，".join(summary_parts) + "\n")
+
+    # 明细表格
+    lines.append("| 名称 | 来源 | 操作 | 状态 | 版本 | 说明 |")
+    lines.append("|------|------|------|------|------|------|")
+
+    for r in batch_result.items:
+        name_cell = f"**{r.name}**" if r.name else f"`{r.skill_id}`"
+        provider_cell = _PROVIDER_LABEL.get(r.provider, r.provider)
+        mode_cell = "升级" if r.mode == "upgrade" else "安装"
+        status_label = _STATUS_LABEL.get(r.status, r.status)
+        # 失败类状态加粗提示
+        status_cell = f"**{status_label}**" if not r.ok else status_label
+        version_cell = r.version if r.version else "-"
+        msg_cell = _truncate_msg(r.message) if r.message else "-"
+        lines.append(f"| {name_cell} | {provider_cell} | {mode_cell} | {status_cell} | {version_cell} | {msg_cell} |")
+
     return "\n".join(lines)

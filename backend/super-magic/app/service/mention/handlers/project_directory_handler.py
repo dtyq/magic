@@ -1,7 +1,10 @@
 """Project directory mention handler"""
-from typing import Dict, List, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from app.service.mention.base import BaseMentionHandler, logger
+
+if TYPE_CHECKING:
+    from app.core.context.agent_context import AgentContext
 from app.service.mention.utils.canvas_project_detector import detect_project_type
 
 
@@ -14,7 +17,7 @@ class ProjectDirectoryHandler(BaseMentionHandler):
     def get_type(self) -> str:
         return "project_directory"
 
-    async def get_tip(self, mention: Dict[str, Any]) -> str:
+    async def get_tip(self, mention: Dict[str, Any], agent_context: Optional["AgentContext"] = None) -> str:
         directory_path = self.normalize_path(mention.get("directory_path", ""))
         project_type = await detect_project_type(directory_path)
 
@@ -30,7 +33,7 @@ class ProjectDirectoryHandler(BaseMentionHandler):
             )
         return "Read and understand the referenced file or directory before proceeding"
 
-    async def handle(self, mention: Dict[str, Any], index: int) -> List[str]:
+    async def handle(self, mention: Dict[str, Any], index: int, agent_context: Optional["AgentContext"] = None) -> List[str]:
         directory_path = self.normalize_path(mention.get("directory_path", ""))
         project_type = await detect_project_type(directory_path)
 

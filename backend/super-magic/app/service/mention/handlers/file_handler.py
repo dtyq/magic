@@ -1,8 +1,11 @@
 """File mention handler"""
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from app.service.mention.base import BaseMentionHandler, logger
+
+if TYPE_CHECKING:
+    from app.core.context.agent_context import AgentContext
 from app.service.mention.utils.canvas_project_detector import find_parent_canvas_project
 
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg", ".avif"}
@@ -40,14 +43,14 @@ class FileHandler(BaseMentionHandler):
     def get_type(self) -> str:
         return "file"
 
-    async def get_tip(self, mention: Dict[str, Any]) -> str:
+    async def get_tip(self, mention: Dict[str, Any], agent_context: Optional["AgentContext"] = None) -> str:
         file_path = self.normalize_path(mention.get("file_path", ""))
         _, project_type = await find_parent_canvas_project(file_path)
         if project_type and project_type in _PROJECT_TYPE_TIPS:
             return _PROJECT_TYPE_TIPS[project_type]
         return "Read and understand the referenced file or directory before proceeding"
 
-    async def handle(self, mention: Dict[str, Any], index: int) -> List[str]:
+    async def handle(self, mention: Dict[str, Any], index: int, agent_context: Optional["AgentContext"] = None) -> List[str]:
         file_path = self.normalize_path(mention.get("file_path", ""))
         file_url = mention.get("file_url", "")
 
