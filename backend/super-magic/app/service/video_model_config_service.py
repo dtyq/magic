@@ -15,6 +15,8 @@ logger = get_video_logger(__name__)
 class VideoModelConfigService:
     """视频模型配置服务类"""
 
+    _GENERATION_CONSTRAINT_KEYS = ("durations", "resolutions", "aspect_ratios", "sizes")
+
     _INPUT_FIELD_MAP = {
         "reference_images": "reference_image_paths",
         "reference_videos": "reference_video_paths",
@@ -322,6 +324,122 @@ class VideoModelConfigService:
         return attrs
 
     @staticmethod
+    def _format_constraint_list(values: Any) -> str:
+        """把 generation_constraints 的枚举列表压缩成 `a|b|c`。"""
+        if not isinstance(values, list):
+            return ""
+        normalized: list[str] = []
+        for value in values:
+            if not isinstance(value, (str, int, float)):
+                continue
+            formatted = str(value).strip()
+            if formatted and formatted not in normalized:
+                normalized.append(formatted)
+        return "|".join(normalized)
+
+    @staticmethod
+    def _format_generation_constraint_attrs(constraints: Any) -> dict[str, str]:
+        """把模式/规则级 generation_constraints 转换成 XML 属性。
+
+        非空数组表示该模式下允许的取值；空数组表示该字段在该模式下不支持设置。
+        """
+        if not isinstance(constraints, dict):
+            return {}
+
+        attrs: dict[str, str] = {}
+        mapping = {
+            "durations": ("duration", "no_duration"),
+            "resolutions": ("resolution", "no_resolution"),
+            "aspect_ratios": ("aspect_ratio", "no_aspect_ratio"),
+            "sizes": ("size", "no_size"),
+        }
+        for config_key, (attr_key, disabled_key) in mapping.items():
+            if config_key not in constraints:
+                continue
+            values = constraints.get(config_key)
+            if isinstance(values, list) and values == []:
+                attrs[disabled_key] = "true"
+                continue
+
+            formatted = VideoModelConfigService._format_constraint_list(values)
+            if formatted:
+                attrs[attr_key] = formatted
+
+        return attrs
+
+    @staticmethod
+    def _extract_generation_constraints(config: Any) -> dict[str, list[Any]]:
+        """安全取出 generation_constraints；字段类型错误时按未声明处理。"""
+        if not isinstance(config, dict):
+            return {}
+
+        constraints = config.get("generation_constraints")
+        if not isinstance(constraints, dict):
+            return {}
+
+        return {
+            key: values
+            for key, values in constraints.items()
+            if key in VideoModelConfigService._GENERATION_CONSTRAINT_KEYS and isinstance(values, list)
+        }
+
+    @staticmethod
+    def _build_global_generation_constraints(video_generation_config: Dict[str, Any]) -> dict[str, list[Any]]:
+        """把顶层 generation 配置转换成可继承的通用约束。"""
+        generation = VideoModelConfigService._get_generation_config(video_generation_config)
+        constraints: dict[str, list[Any]] = {}
+
+        durations = generation.get("durations")
+        if isinstance(durations, list):
+            constraints["durations"] = durations
+
+        resolutions = generation.get("resolutions")
+        if isinstance(resolutions, list):
+            constraints["resolutions"] = resolutions
+
+        aspect_ratios = generation.get("aspect_ratios")
+        if isinstance(aspect_ratios, list):
+            constraints["aspect_ratios"] = aspect_ratios
+
+        sizes = generation.get("sizes")
+        if isinstance(sizes, list):
+            constraints["sizes"] = [
+                size.get("value")
+                for size in sizes
+                if isinstance(size, dict) and isinstance(size.get("value"), str)
+            ]
+
+            if "resolutions" not in constraints:
+                constraints["resolutions"] = [
+                    size.get("resolution")
+                    for size in sizes
+                    if isinstance(size, dict) and isinstance(size.get("resolution"), str)
+                ]
+
+            if "aspect_ratios" not in constraints:
+                constraints["aspect_ratios"] = [
+                    size.get("label")
+                    for size in sizes
+                    if isinstance(size, dict) and isinstance(size.get("label"), str)
+                ]
+
+        return constraints
+
+    @staticmethod
+    def _merge_generation_constraints(*candidates: dict[str, list[Any]]) -> dict[str, list[Any]]:
+        """按传入优先级合并约束，空数组也视为有效声明。"""
+        merged: dict[str, list[Any]] = {}
+        for key in VideoModelConfigService._GENERATION_CONSTRAINT_KEYS:
+            for candidate in candidates:
+                if not isinstance(candidate, dict):
+                    continue
+                values = candidate.get(key)
+                if isinstance(values, list):
+                    merged[key] = values
+                    break
+        return merged
+
+    @staticmethod
     def _format_xml_attrs(attrs: dict[str, Any]) -> str:
         """按插入顺序格式化 XML 属性，跳过空值。"""
         parts: list[str] = []
@@ -333,7 +451,7 @@ class VideoModelConfigService:
         return " ".join(parts)
 
     @staticmethod
-    def _build_mode_rule_line(rule: Any, indent: str = "      ") -> str:
+    def _build_mode_rule_line(rule: Any, inherited_constraints: dict[str, list[Any]], indent: str = "      ") -> str:
         """把一个 mode rule/variant 转换成一行 XML 子节点。"""
         if not isinstance(rule, dict):
             return ""
@@ -354,6 +472,11 @@ class VideoModelConfigService:
                     attrs[field] = value
 
         attrs.update(VideoModelConfigService._format_unsupported_attrs(rule.get("unsupported")))
+        rule_constraints = VideoModelConfigService._merge_generation_constraints(
+            VideoModelConfigService._extract_generation_constraints(rule),
+            inherited_constraints,
+        )
+        attrs.update(VideoModelConfigService._format_generation_constraint_attrs(rule_constraints))
         return f"{indent}<rule {VideoModelConfigService._format_xml_attrs(attrs)}/>"
 
     @staticmethod
@@ -363,6 +486,7 @@ class VideoModelConfigService:
         if not isinstance(input_modes, dict):
             return []
 
+        global_constraints = VideoModelConfigService._build_global_generation_constraints(video_generation_config)
         lines: list[str] = []
         for mode, mode_config in input_modes.items():
             if not isinstance(mode, str) or not mode.strip() or not isinstance(mode_config, dict):
@@ -380,11 +504,17 @@ class VideoModelConfigService:
             if isinstance(max_count, int):
                 attrs["max_count"] = max_count
 
+            mode_constraints = VideoModelConfigService._merge_generation_constraints(
+                VideoModelConfigService._extract_generation_constraints(mode_config),
+                global_constraints,
+            )
+            attrs.update(VideoModelConfigService._format_generation_constraint_attrs(mode_constraints))
+
             rules = mode_config.get("rules")
             if not isinstance(rules, list):
                 rules = mode_config.get("variants")
             rule_lines = [
-                VideoModelConfigService._build_mode_rule_line(rule)
+                VideoModelConfigService._build_mode_rule_line(rule, mode_constraints)
                 for rule in rules
             ] if isinstance(rules, list) else []
             rule_lines = [line for line in rule_lines if line]
@@ -403,8 +533,10 @@ class VideoModelConfigService:
     @staticmethod
     def build_video_model_info(video_model_id: str, video_generation_config: Dict[str, Any], changed: bool = False) -> str:
         """构建紧凑视频模型信息，供 horizon 注入。"""
-        if not video_model_id or not video_generation_config:
+        if not video_model_id:
             return ""
+        if not isinstance(video_generation_config, dict):
+            video_generation_config = {}
 
         lines = [
             "  <video",
@@ -440,7 +572,7 @@ class VideoModelConfigService:
         return "\n".join(lines)
 
     @staticmethod
-    def build_media_model_rules(has_video: bool) -> str:
+    def build_media_model_rules(has_video: bool, has_video_config: bool = True) -> str:
         """构建简短规则块，避免在上下文里重复长说明文。"""
         # 规则块只保留决策约束，不再重复 provider 配置正文，
         # 否则节省下来的 token 很快又会被说明文吃掉。
@@ -451,12 +583,15 @@ class VideoModelConfigService:
             "Missing field means unsupported.",
         ]
         if has_video:
-            lines.extend([
-                "Prefer video `size`.",
-                "If video size or resolution is missing, use `default_size`.",
-                "Use video modes to choose reference fields and avoid unsupported combinations.",
-                "Canvas width/height are layout size, not real video size.",
-            ])
+            if has_video_config:
+                lines.extend([
+                    "Prefer video `size`.",
+                    "If video size or resolution is missing, use `default_size`.",
+                    "Use video modes to choose reference fields and avoid unsupported combinations.",
+                    "Canvas width/height are layout size, not real video size.",
+                ])
+            else:
+                lines.append("Video model is selected, but capability config is unavailable; use tool schema and defaults.")
         lines.append("</media_model_rules>")
         return "\n".join(lines)
 
@@ -470,8 +605,9 @@ class VideoModelConfigService:
             if not isinstance(video_model, dict):
                 return
             model_id = video_model.get("model_id") or ""
-            config = video_model.get("video_generation_config")
-            if model_id and isinstance(config, dict) and config:
+            raw_config = video_model.get("video_generation_config")
+            config = raw_config if isinstance(raw_config, dict) else {}
+            if model_id:
                 await horizon.update_video_model(model_id, config)
         except Exception as e:
             logger.warning(f"[VideoModelConfigService] sync_to_horizon 失败: {e}")

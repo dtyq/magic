@@ -223,6 +223,7 @@ const agentCodeGroup = document.getElementById('agentCodeGroup');
 const modelIdInput = document.getElementById('modelIdInput');
 const modelIdSelect = document.getElementById('modelIdSelect');
 const imageModelSelect = document.getElementById('imageModelSelect');
+const videoModelSelect = document.getElementById('videoModelSelect');
 const advancedModeToggle = document.getElementById('advancedModeToggle');
 const rawJsonInput = document.getElementById('rawJsonInput');
 const languageSelect = document.getElementById('languageSelect');
@@ -1129,8 +1130,10 @@ document.addEventListener('DOMContentLoaded', () => {
 function clearModelList() {
     localStorage.removeItem('availableModels');
     localStorage.removeItem('availableImageModels');
+    localStorage.removeItem('availableVideoModels');
     localStorage.removeItem('selectedModelId');
     localStorage.removeItem('selectedImageModelId');
+    localStorage.removeItem('selectedVideoModelId');
 
     if (modelIdSelect) {
         modelIdSelect.innerHTML = '<option value="">选择文本模型（留空默认）</option>';
@@ -1144,8 +1147,14 @@ function clearModelList() {
         imageModelSelect.innerHTML = '<option value="">不指定图片模型</option>';
         refreshCustomSelect(imageModelSelect);
     }
+    if (videoModelSelect) {
+        videoModelSelect.innerHTML = '<option value="">不指定视频模型</option>';
+        refreshCustomSelect(videoModelSelect);
+    }
     const imageModelGroup = document.getElementById('imageModelGroup');
     if (imageModelGroup) imageModelGroup.style.display = 'none';
+    const videoModelGroup = document.getElementById('videoModelGroup');
+    if (videoModelGroup) videoModelGroup.style.display = 'none';
     refreshCustomSelect(modelIdSelect);
 
     showSystemMessage('模型列表已清理');
@@ -1169,12 +1178,14 @@ async function refreshModelList() {
         const allModels = json.data && json.data.models ? json.data.models : [];
         const textModels = allModels.filter(m => m.object === 'model');
         const imageModels = allModels.filter(m => m.object === 'image');
+        const videoModels = allModels.filter(m => m.object === 'video');
 
         localStorage.setItem('availableModels', JSON.stringify(textModels));
         localStorage.setItem('availableImageModels', JSON.stringify(imageModels));
+        localStorage.setItem('availableVideoModels', JSON.stringify(videoModels));
 
-        populateModelSelects(textModels, imageModels);
-        showSystemMessage(`模型列表已刷新：${textModels.length} 个文本模型，${imageModels.length} 个图片模型`);
+        populateModelSelects(textModels, imageModels, videoModels);
+        showSystemMessage(`模型列表已刷新：${textModels.length} 个文本模型，${imageModels.length} 个图片模型，${videoModels.length} 个视频模型`);
     } catch (e) {
         showSystemMessage(`刷新模型列表异常: ${e.message}`);
     } finally {
@@ -1189,13 +1200,14 @@ async function refreshModelList() {
 function restoreModelSelects() {
     const textModels = JSON.parse(localStorage.getItem('availableModels') || '[]');
     const imageModels = JSON.parse(localStorage.getItem('availableImageModels') || '[]');
-    if (textModels.length > 0 || imageModels.length > 0) {
-        populateModelSelects(textModels, imageModels);
+    const videoModels = JSON.parse(localStorage.getItem('availableVideoModels') || '[]');
+    if (textModels.length > 0 || imageModels.length > 0 || videoModels.length > 0) {
+        populateModelSelects(textModels, imageModels, videoModels);
     }
 }
 
-// 填充文本模型和图片模型下拉框
-function populateModelSelects(textModels, imageModels) {
+// 填充文本、图片和视频模型下拉框
+function populateModelSelects(textModels, imageModels, videoModels) {
     // 文本模型：仅展示同时满足 chat、multi_modal、function_call 均为 true 的模型
     // 动态模型（id !== resolved_model_id）排在后面
     const filteredTextModels = textModels
@@ -1271,10 +1283,38 @@ function populateModelSelects(textModels, imageModels) {
         refreshCustomSelect(imageModelSelect);
     }
 
-    // 图片模型组：非 IM 模式下显示
+    // 视频模型
+    if (videoModelSelect) {
+        const prevVideoValue = videoModelSelect.value;
+        videoModelSelect.innerHTML = '<option value="">不指定视频模型</option>';
+        videoModels.forEach(m => {
+            const attrs = m.info && m.info.attributes;
+            const label = attrs && attrs.label ? attrs.label : m.id;
+            const resolvedId = attrs && attrs.resolved_model_id ? attrs.resolved_model_id : m.id;
+            const idDisplay = resolvedId !== m.id ? `${resolvedId}|${m.id}` : m.id;
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = `${label} (${idDisplay})`;
+            videoModelSelect.appendChild(opt);
+        });
+        const savedVideoModel = localStorage.getItem('selectedVideoModelId');
+        if (savedVideoModel) videoModelSelect.value = savedVideoModel;
+        else if (prevVideoValue) videoModelSelect.value = prevVideoValue;
+
+        videoModelSelect.onchange = () => {
+            localStorage.setItem('selectedVideoModelId', videoModelSelect.value);
+        };
+        refreshCustomSelect(videoModelSelect);
+    }
+
+    // 图片/视频模型组：非 IM 模式下显示
     const imageModelGroup = document.getElementById('imageModelGroup');
     if (imageModelGroup && !isImMode) {
         imageModelGroup.style.display = imageModels.length > 0 ? '' : 'none';
+    }
+    const videoModelGroup = document.getElementById('videoModelGroup');
+    if (videoModelGroup && !isImMode) {
+        videoModelGroup.style.display = videoModels.length > 0 ? '' : 'none';
     }
 }
 
@@ -1568,6 +1608,8 @@ function toggleImMode() {
         modelIdGroup.style.display = 'none';
         languageGroup.style.display = 'none';
         if (imageModelGroup) imageModelGroup.style.display = 'none';
+        const videoModelGroup = document.getElementById('videoModelGroup');
+        if (videoModelGroup) videoModelGroup.style.display = 'none';
         // IM 模式与高级模式互斥
         if (isAdvancedMode) {
             advancedModeToggle.checked = false;
@@ -1581,9 +1623,15 @@ function toggleImMode() {
         languageGroup.style.display = '';
         // agentCodeGroup 的显示由 agent mode 决定，重新同步一次
         changeAgentMode();
-        // 若模型列表已加载则恢复图片模型选择器
-        if (imageModelGroup && localStorage.getItem('availableImageModels')) {
+        // 若模型列表已加载则恢复图片/视频模型选择器
+        const cachedImageModels = JSON.parse(localStorage.getItem('availableImageModels') || '[]');
+        if (imageModelGroup && cachedImageModels.length > 0) {
             imageModelGroup.style.display = '';
+        }
+        const videoModelGroup = document.getElementById('videoModelGroup');
+        const cachedVideoModels = JSON.parse(localStorage.getItem('availableVideoModels') || '[]');
+        if (videoModelGroup && cachedVideoModels.length > 0) {
+            videoModelGroup.style.display = '';
         }
     }
 }
@@ -1679,6 +1727,23 @@ function createChatMessage(prompt, contextType = ContextType.NORMAL, remark = nu
             : [];
         message.dynamic_config = Object.assign({}, message.dynamic_config, {
             image_model: { model_id: selectedImageModelId, sizes },
+        });
+    }
+
+    // 若选中了视频模型，注入 dynamic_config.video_model
+    const selectedVideoModelId = videoModelSelect ? videoModelSelect.value.trim() : '';
+    if (selectedVideoModelId) {
+        const videoModels = JSON.parse(localStorage.getItem('availableVideoModels') || '[]');
+        const videoModelInfo = videoModels.find(m => m.id === selectedVideoModelId);
+        const videoGenerationConfig = videoModelInfo && videoModelInfo.info
+            ? (videoModelInfo.info.video_generation_config || null)
+            : null;
+        const videoModelConfig = { model_id: selectedVideoModelId };
+        if (videoGenerationConfig && typeof videoGenerationConfig === 'object') {
+            videoModelConfig.video_generation_config = videoGenerationConfig;
+        }
+        message.dynamic_config = Object.assign({}, message.dynamic_config, {
+            video_model: videoModelConfig,
         });
     }
 

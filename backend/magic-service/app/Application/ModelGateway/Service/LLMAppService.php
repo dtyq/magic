@@ -34,6 +34,7 @@ use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelListType;
 use App\Domain\ModelGateway\Event\ImageGeneratedEvent;
 use App\Domain\ModelGateway\Event\ImageGenerateFailedEvent;
+use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\Provider\Entity\ValueObject\AiAbilityCode;
 use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Entity\ValueObject\Status;
@@ -188,6 +189,19 @@ class LLMAppService extends AbstractLLMAppService
                         'attributes' => $attributes,
                         'options' => [],
                     ];
+                    $videoModel = $entry->getVideoModel();
+                    if ($videoModel !== null) {
+                        $videoGenerationConfig = ApplicationContext::getContainer()
+                            ->get(VideoGenerationConfigDomainService::class)
+                            ->resolve(
+                                $videoModel->getModelVersion(),
+                                $entry->getAttributes()->getKey(),
+                                $videoModel->getProviderCode()
+                            );
+                        if ($videoGenerationConfig !== null) {
+                            $info['video_generation_config'] = $videoGenerationConfig->toArray();
+                        }
+                    }
                 } elseif ($isImageModel) {
                     $info = [
                         'attributes' => $attributes,
