@@ -9,14 +9,17 @@ namespace Dtyq\SuperMagic\Application\MagicFS\Service;
 
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\AbstractAppService;
 use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\ErrorCode\MagicFSErrorCode;
+use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeBuilder;
 use Dtyq\SuperMagic\Interfaces\MagicFS\DTO\Request\CreateFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\MagicFS\DTO\Request\GetFileTreeRequestDTO;
@@ -32,7 +35,7 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
-class MagicFSFileAppService
+class MagicFSFileAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
@@ -48,8 +51,11 @@ class MagicFSFileAppService
     /**
      * 列出目录内容.
      */
-    public function listFiles(ListFilesRequestDTO $requestDTO): ListFilesResponseDTO
+    public function listFiles(MagicUserAuthorization $authorization, ListFilesRequestDTO $requestDTO): ListFilesResponseDTO
     {
+        // 校验当前用户对父目录所属项目至少具备 VIEWER 角色
+        $this->resolveAndAuthorizeParentProject($requestDTO->parent_id, $authorization, MemberRole::VIEWER);
+
         // Only return workspace-type files to avoid exposing snapshot/other internal files
         $fileEntities = $this->magicFSFileDomainService->listFilesByParentId(
             $requestDTO->parent_id,
@@ -69,10 +75,9 @@ class MagicFSFileAppService
     /**
      * 获取文件信息.
      */
-    public function getFileInfo(string $fileId): FileInfoResponseDTO
+    public function getFileInfo(MagicUserAuthorization $authorization, string $fileId): FileInfoResponseDTO
     {
-        // 调用领域服务获取文件实体
-        $fileEntity = $this->magicFSFileDomainService->getFileById($fileId);
+        $fileEntity = $this->assertFileAccessible($fileId, $authorization, MemberRole::VIEWER);
 
         // 转换为 DTO
         $responseDTO = new FileInfoResponseDTO();
@@ -84,10 +89,9 @@ class MagicFSFileAppService
     /**
      * 获取单个文件元数据版本号.
      */
-    public function getFileVersion(string $fileId): FileVersionResponseDTO
+    public function getFileVersion(MagicUserAuthorization $authorization, string $fileId): FileVersionResponseDTO
     {
-        // 调用领域服务获取文件实体
-        $fileEntity = $this->magicFSFileDomainService->getFileById($fileId);
+        $fileEntity = $this->assertFileAccessible($fileId, $authorization, MemberRole::VIEWER);
 
         // 转换为 DTO，返回元数据版本号
         $responseDTO = new FileVersionResponseDTO();
@@ -99,8 +103,11 @@ class MagicFSFileAppService
     /**
      * 批量获取文件元数据版本号.
      */
-    public function getFileVersions(GetFileVersionsRequestDTO $requestDTO): FileVersionsResponseDTO
+    public function getFileVersions(MagicUserAuthorization $authorization, GetFileVersionsRequestDTO $requestDTO): FileVersionsResponseDTO
     {
+        // 逐文件校验涉及到的项目，按 project_id 缓存以避免重复鉴权
+        $this->assertFilesAccessible($requestDTO->file_ids, $authorization, MemberRole::VIEWER);
+
         // 调用领域服务获取元数据版本号
         $versions = $this->magicFSFileDomainService->getFileVersionsByIds($requestDTO->file_ids);
 
@@ -114,8 +121,11 @@ class MagicFSFileAppService
     /**
      * 创建文件或目录.
      */
-    public function createFile(CreateFileRequestDTO $requestDTO): FileInfoResponseDTO
+    public function createFile(MagicUserAuthorization $authorization, CreateFileRequestDTO $requestDTO): FileInfoResponseDTO
     {
+        // 校验当前用户对父目录所属项目至少具备 EDITOR 角色
+        $this->resolveAndAuthorizeParentProject($requestDTO->parent_id, $authorization, MemberRole::EDITOR);
+
         // 获取 per-request 上下文（user/trace/authorization/...）
         $messageMetadata = $requestDTO->getMessageMetadataValueObject();
 
@@ -160,8 +170,10 @@ class MagicFSFileAppService
     /**
      * 更新文件元数据.
      */
-    public function updateFile(string $fileId, UpdateFileRequestDTO $requestDTO): FileInfoResponseDTO
+    public function updateFile(MagicUserAuthorization $authorization, string $fileId, UpdateFileRequestDTO $requestDTO): FileInfoResponseDTO
     {
+        $this->assertFileAccessible($fileId, $authorization, MemberRole::EDITOR);
+
         // 转换为 updates 数组
         $updates = $requestDTO->toUpdates();
 
@@ -206,10 +218,10 @@ class MagicFSFileAppService
     /**
      * 删除文件或目录.
      */
-    public function deleteFile(string $fileId): void
+    public function deleteFile(MagicUserAuthorization $authorization, string $fileId): void
     {
-        // Fetch entity before deletion so we can build the event payload
-        $fileEntity = $this->magicFSFileDomainService->getFileById($fileId);
+        // 删除属于写操作，要求 EDITOR 角色；同时复用查到的实体用于后续事件
+        $fileEntity = $this->assertFileAccessible($fileId, $authorization, MemberRole::EDITOR);
 
         $this->magicFSFileDomainService->deleteFile($fileId);
 
@@ -236,8 +248,10 @@ class MagicFSFileAppService
     /**
      * 获取文件树.
      */
-    public function getFileTree(string $fileId, GetFileTreeRequestDTO $requestDTO): FileInfoResponseDTO
+    public function getFileTree(MagicUserAuthorization $authorization, string $fileId, GetFileTreeRequestDTO $requestDTO): FileInfoResponseDTO
     {
+        $this->assertFileAccessible($fileId, $authorization, MemberRole::VIEWER);
+
         // 1. 调用领域服务获取文件树数据
         $treeData = $this->magicFSFileDomainService->getFileTree($fileId, $requestDTO->depth);
 
@@ -328,5 +342,74 @@ class MagicFSFileAppService
         }
 
         return $count;
+    }
+
+    /**
+     * 校验当前用户对指定 file 所属项目的角色权限，并返回 file 实体（若不存在则按 file_not_found 抛错）。
+     */
+    protected function assertFileAccessible(string $fileId, MagicUserAuthorization $authorization, MemberRole $requiredRole): TaskFileEntity
+    {
+        $fileEntity = $this->magicFSFileDomainService->getFileById($fileId);
+        $this->assertProjectAccessible($fileEntity->getProjectId(), $authorization, $requiredRole);
+        return $fileEntity;
+    }
+
+    /**
+     * 批量校验：按 project_id 去重后逐项目校验，避免重复 ProjectMember 查询。
+     *
+     * @param array<int|string> $fileIds
+     */
+    protected function assertFilesAccessible(array $fileIds, MagicUserAuthorization $authorization, MemberRole $requiredRole): void
+    {
+        if (empty($fileIds)) {
+            return;
+        }
+
+        $checkedProjects = [];
+        foreach (array_unique($fileIds) as $fileId) {
+            $fileEntity = $this->magicFSFileDomainService->getFileById((string) $fileId);
+            $projectId = $fileEntity->getProjectId();
+            if (isset($checkedProjects[$projectId])) {
+                continue;
+            }
+            $this->assertProjectAccessible($projectId, $authorization, $requiredRole);
+            $checkedProjects[$projectId] = true;
+        }
+    }
+
+    /**
+     * 校验 parent 所属项目的角色权限，并返回 project_id；不允许根目录场景（parent_id 为空）。
+     *
+     * 根目录目前没有项目锚点（domain 层 getParentFileInfo 在该场景返回 project_id=0、user_id 空），
+     * 没有上下文可以做权限校验，必须由调用方显式提供 parent_id。
+     */
+    protected function resolveAndAuthorizeParentProject(string $parentId, MagicUserAuthorization $authorization, MemberRole $requiredRole): int
+    {
+        if ($parentId === '' || $parentId === '0') {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
+        $parentEntity = $this->magicFSFileDomainService->getFileById($parentId);
+        $this->assertProjectAccessible($parentEntity->getProjectId(), $authorization, $requiredRole);
+        return $parentEntity->getProjectId();
+    }
+
+    /**
+     * 调用项目级访问校验（owner / 协作成员且角色满足 required role）。
+     *
+     * project_id 非法（<=0）一律拒绝，避免 magicfs 端漏传/默认值导致跨项目越权。
+     */
+    protected function assertProjectAccessible(int $projectId, MagicUserAuthorization $authorization, MemberRole $requiredRole): void
+    {
+        if ($projectId <= 0) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
+
+        $this->getAccessibleProject(
+            $projectId,
+            $authorization->getId(),
+            $authorization->getOrganizationCode(),
+            $requiredRole
+        );
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 /**
  * Copyright (c) The Magic , Distributed under the software license
  */
+use App\Interfaces\Middleware\Auth\SandboxUserAuthMiddleware;
 use Dtyq\SuperMagic\Interfaces\MagicFS\Facade\MagicFSApi;
 use Hyperf\HttpServer\Router\Router;
 
@@ -11,7 +12,6 @@ use Hyperf\HttpServer\Router\Router;
  * MagicFS 文件系统 API 路由
  *
  * 这些 API 用于支持 AGFS magicfs 插件挂载 Magic 项目文件系统
- * 注意：当前未配置鉴权中间件，仅用于测试
  */
 Router::addGroup(
     '/api/v1/open-api/magicfs',
@@ -41,5 +41,6 @@ Router::addGroup(
             // 获取单个文件版本号
             Router::get('/{id}/version', [MagicFSApi::class, 'getFileVersion']);
         });
-    }
+    },
+    ['middleware' => [SandboxUserAuthMiddleware::class]]
 );

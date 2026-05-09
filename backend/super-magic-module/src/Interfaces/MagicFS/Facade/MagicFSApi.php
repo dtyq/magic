@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Interfaces\MagicFS\Facade;
 
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\MagicFS\Service\MagicFSFileAppService;
 use Dtyq\SuperMagic\Interfaces\MagicFS\DTO\Request\CreateFileRequestDTO;
@@ -33,13 +34,11 @@ class MagicFSApi extends AbstractApi
      */
     public function listFiles(): array
     {
-        // 解析请求
+        $authorization = $this->getCurrentUser();
         $requestDTO = ListFilesRequestDTO::fromRequest($this->request);
 
-        // 调用应用服务
-        $responseDTO = $this->magicFSFileAppService->listFiles($requestDTO);
+        $responseDTO = $this->magicFSFileAppService->listFiles($authorization, $requestDTO);
 
-        // 返回结果
         return $responseDTO->toArray();
     }
 
@@ -49,10 +48,10 @@ class MagicFSApi extends AbstractApi
      */
     public function getFileInfo(string $id): array
     {
-        // 调用应用服务
-        $responseDTO = $this->magicFSFileAppService->getFileInfo($id);
+        $authorization = $this->getCurrentUser();
 
-        // 返回结果
+        $responseDTO = $this->magicFSFileAppService->getFileInfo($authorization, $id);
+
         return $responseDTO->toArray();
     }
 
@@ -62,10 +61,10 @@ class MagicFSApi extends AbstractApi
      */
     public function getFileVersion(string $id): array
     {
-        // 调用应用服务
-        $responseDTO = $this->magicFSFileAppService->getFileVersion($id);
+        $authorization = $this->getCurrentUser();
 
-        // 返回结果
+        $responseDTO = $this->magicFSFileAppService->getFileVersion($authorization, $id);
+
         return $responseDTO->toArray();
     }
 
@@ -75,13 +74,11 @@ class MagicFSApi extends AbstractApi
      */
     public function getFileVersions(): array
     {
-        // 解析请求
+        $authorization = $this->getCurrentUser();
         $requestDTO = GetFileVersionsRequestDTO::fromRequest($this->request);
 
-        // 调用应用服务
-        $responseDTO = $this->magicFSFileAppService->getFileVersions($requestDTO);
+        $responseDTO = $this->magicFSFileAppService->getFileVersions($authorization, $requestDTO);
 
-        // 返回结果
         return $responseDTO->toArray();
     }
 
@@ -91,13 +88,11 @@ class MagicFSApi extends AbstractApi
      */
     public function createFile(): array
     {
-        // 解析请求
+        $authorization = $this->getCurrentUser();
         $requestDTO = CreateFileRequestDTO::fromRequest($this->request);
 
-        // 调用应用服务
-        $responseDTO = $this->magicFSFileAppService->createFile($requestDTO);
+        $responseDTO = $this->magicFSFileAppService->createFile($authorization, $requestDTO);
 
-        // 返回结果
         return $responseDTO->toArray();
     }
 
@@ -107,13 +102,11 @@ class MagicFSApi extends AbstractApi
      */
     public function updateFile(string $id): array
     {
-        // 解析请求
+        $authorization = $this->getCurrentUser();
         $requestDTO = UpdateFileRequestDTO::fromRequest($this->request);
 
-        // 调用应用服务
-        $responseDTO = $this->magicFSFileAppService->updateFile($id, $requestDTO);
+        $responseDTO = $this->magicFSFileAppService->updateFile($authorization, $id, $requestDTO);
 
-        // 返回结果
         return $responseDTO->toArray();
     }
 
@@ -123,10 +116,10 @@ class MagicFSApi extends AbstractApi
      */
     public function deleteFile(string $id): array
     {
-        // 调用应用服务
-        $this->magicFSFileAppService->deleteFile($id);
+        $authorization = $this->getCurrentUser();
 
-        // 返回空结果（只返回 code 和 message，data 为空）
+        $this->magicFSFileAppService->deleteFile($authorization, $id);
+
         return [];
     }
 
@@ -136,13 +129,23 @@ class MagicFSApi extends AbstractApi
      */
     public function getFileTree(string $id): array
     {
-        // 解析请求
+        $authorization = $this->getCurrentUser();
         $requestDTO = GetFileTreeRequestDTO::fromRequest($this->request);
 
-        // 调用应用服务
-        $responseDTO = $this->magicFSFileAppService->getFileTree($id, $requestDTO);
+        $responseDTO = $this->magicFSFileAppService->getFileTree($authorization, $id, $requestDTO);
 
-        // 返回结果
         return $responseDTO->toArray();
+    }
+
+    /**
+     * 从协程上下文取出当前请求用户。
+     *
+     * SandboxUserAuthMiddleware 在「无 user 上下文」分支会放行而不注入用户，
+     * 这里收口为强制要求：拿不到 user 抛 ACCOUNT_ERROR，避免下游接口在无身份场景下越权。
+     */
+    private function getCurrentUser(): MagicUserAuthorization
+    {
+        /* @var MagicUserAuthorization $authorization */
+        return $this->getAuthorization();
     }
 }
