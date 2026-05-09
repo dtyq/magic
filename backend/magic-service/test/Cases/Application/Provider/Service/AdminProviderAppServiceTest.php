@@ -9,6 +9,7 @@ namespace HyperfTest\Cases\Application\Provider\Service;
 
 use App\Application\Provider\Service\AdminProviderAppService;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use HyperfTest\Support\UsesOfficialVideoProviderFixtures;
 use PHPUnit\Framework\TestCase;
 
@@ -51,5 +52,17 @@ class AdminProviderAppServiceTest extends TestCase
         $this->assertSame(Category::VGM, $matchedProvider->getCategory());
         $this->assertSame('Cloudsway', $matchedProvider->getProviderCode()?->value);
         $this->assertSame((string) self::TEST_PROVIDER_CONFIG_ID, (string) $matchedProvider->getId());
+    }
+
+    public function testGetModelDetailReturnsProviderCode(): void
+    {
+        $service = di(AdminProviderAppService::class);
+        $authorization = (new MagicUserAuthorization())
+            ->setOrganizationCode(self::TEST_OFFICIAL_ORGANIZATION_CODE)
+            ->setId('provider-model-detail-test-user');
+
+        $modelDetail = $service->getModelDetail($authorization, (string) self::TEST_FAST_MODEL_PRIMARY_ID);
+
+        $this->assertSame('Cloudsway', $modelDetail->toArray()['provider_code'] ?? null);
     }
 }
