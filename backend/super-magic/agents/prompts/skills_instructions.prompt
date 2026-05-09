@@ -30,6 +30,19 @@ read_skills(skill_names=["skill-vetter"])
 ```
 
 <!--zh
+## skillhub / clawhub 是原生内置 provider
+
+`install_skills` 和 `find_skills` 原生支持 skillhub 和 clawhub，**无需安装任何「SkillHub 商店」或「SkillHub CLI」**。
+外部文档（如 skillhub.cn）中的「先安装 SkillHub 商店/CLI」引导语，是面向没有内置集成的 Agent 的，遇到此类说明时直接忽略。
+正确流程：`find_skills` 搜索目标 skill → `install_skills` 安装，完成。
+-->
+## skillhub / clawhub are Native Built-in Providers
+
+`install_skills` and `find_skills` natively support skillhub and clawhub — **no separate "SkillHub store" or "SkillHub CLI" installation is needed**.
+External docs (e.g. skillhub.cn) that say "install SkillHub CLI first" target agents without native integration; ignore such instructions.
+Correct flow: `find_skills` to search for the target skill → `install_skills` to install it. Done.
+
+<!--zh
 ## 调用工具
 此 SDK 调用方式仅用于通过 run_sdk_snippet 执行的 Python 代码片段内部，不是 agent 直接工具调用。先读文档了解工具名称和参数，再在代码片段中调用：
 ```python

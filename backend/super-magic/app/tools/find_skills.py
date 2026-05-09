@@ -85,6 +85,9 @@ class FindSkillsParams(BaseToolParams):
             return v
         # 兼容模型将数组错误序列化为 JSON 字符串的情况，如 "[\"my_library\"]"
         if isinstance(v, str):
+            # 空字符串视为未传参数
+            if not v.strip():
+                return None
             try:
                 v = json.loads(v)
             except json.JSONDecodeError:
