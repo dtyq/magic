@@ -110,23 +110,3 @@ result = tool.call('generate_canvas_videos', {
 })
 print(result)
 ```
-
-## Multi-Reference Example
-```python
-from sdk.tool import tool
-
-result = tool.call('generate_canvas_videos', {
-    "project_path": "my-design",
-    "model_id": "model-from-media-model-info",
-    "tasks": [{
-        "name": "three_color_box_cats",
-        "prompt": "White long-haired kitten [image1] peeks out of the black box, black short-haired kitten [image2] jumps out of the white box, orange tabby kitten [image3] climbs out of the yellow box. Clean white studio background, soft light, fixed camera, natural motion, commercial ad style.",
-        "width": 1280,
-        "height": 720,
-        "size": "1280x720",
-        "duration_seconds": 4,
-        "reference_image_paths": ["images/white-cat.png", "images/black-cat.png", "images/orange-cat.png"]
-    }]
-})
-print(result)
-```

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional
@@ -94,8 +95,8 @@ class VideoTaskSpec(BaseModel):
 
     prompt: str = Field(
         ...,
-        description="""<!--zh: 视频生成提示词。建议包含主体、动作、镜头语言、光线、风格和内容要求。素材路径不要写在这里，要放到 reference_image_paths / reference_video_paths / frame_start_path 等参数中。使用参考素材时，必须在 prompt 内按数组顺序引用：[image1] 表示第 1 张参考图，[video1] 表示第 1 个参考视频，[audio1] 表示第 1 个参考音频。-->
-Video generation prompt. Include subject, action, camera language, lighting, style, and content requirements. Do not put asset paths here; use reference_image_paths / reference_video_paths / frame_start_path instead. When using reference assets, cite them in the prompt by list order: [image1] for the first reference image, [video1] for the first reference video, and [audio1] for the first reference audio."""
+        description="""<!--zh: 视频生成提示词。素材路径不要写在这里；有参考素材时，在 prompt 中按数组顺序写 [image1] / [video1] / [audio1]。-->
+Video generation prompt. Do not put asset paths here. When using reference assets, cite them by list order with [image1] / [video1] / [audio1]."""
     )
     name: str = Field(
         ...,
@@ -134,18 +135,18 @@ Video task type, default generate. Use edit with video_edit mode. Do not use gen
     )
     reference_image_paths: List[str] = Field(
         default_factory=list,
-        description="""<!--zh: 参考图路径或 URL 列表。字段名必须是 reference_image_paths。不要使用 images、image、reference_images。用户上传多张图片作为参考时，都放在这个数组中，并在 prompt 中用 [image1]、[image2] 按数组顺序引用。-->
-Reference image path or URL list. The parameter name must be reference_image_paths. Do not use images, image, or reference_images. Put all user-uploaded reference images in this array and cite them in the prompt as [image1], [image2], etc. by list order."""
+        description="""<!--zh: 参考图路径或 URL 列表。字段名必须是 reference_image_paths。prompt 中按顺序用 [image1]、[image2] 引用。-->
+Reference image path or URL list. Must be reference_image_paths. Cite by list order in prompt as [image1], [image2], etc."""
     )
     reference_video_paths: List[str] = Field(
         default_factory=list,
-        description="""<!--zh: 参考视频路径或 URL 列表。字段名必须是 reference_video_paths。不要使用 videos、video、reference_videos。使用参考视频时，在 prompt 中用 [video1]、[video2] 按数组顺序引用。-->
-Reference video path or URL list. The parameter name must be reference_video_paths. Do not use videos, video, or reference_videos. Cite reference videos in the prompt as [video1], [video2], etc. by list order."""
+        description="""<!--zh: 参考视频路径或 URL 列表。字段名必须是 reference_video_paths。prompt 中按顺序用 [video1]、[video2] 引用。-->
+Reference video path or URL list. Must be reference_video_paths. Cite by list order in prompt as [video1], [video2], etc."""
     )
     reference_audio_paths: List[str] = Field(
         default_factory=list,
-        description="""<!--zh: 参考音频路径或 URL 列表。字段名必须是 reference_audio_paths。不要使用 audios、audio、reference_audios。使用参考音频时，在 prompt 中用 [audio1]、[audio2] 按数组顺序引用。-->
-Reference audio path or URL list. The parameter name must be reference_audio_paths. Do not use audios, audio, or reference_audios. Cite reference audios in the prompt as [audio1], [audio2], etc. by list order."""
+        description="""<!--zh: 参考音频路径或 URL 列表。字段名必须是 reference_audio_paths。prompt 中按顺序用 [audio1]、[audio2] 引用。-->
+Reference audio path or URL list. Must be reference_audio_paths. Cite by list order in prompt as [audio1], [audio2], etc."""
     )
     frame_start_path: str = Field(
         "",
@@ -238,6 +239,32 @@ Optional. When provided, the tool reuses an existing canvas element (e.g. a fail
     def normalize_task(cls, value: Any) -> str:
         return normalize_video_task_value(value)
 
+    @model_validator(mode="after")
+    def validate_reference_tokens(self) -> "VideoTaskSpec":
+        missing_tokens = []
+        missing_tokens.extend(self._missing_reference_tokens("image", len(self.reference_image_paths)))
+        missing_tokens.extend(self._missing_reference_tokens("video", len(self.reference_video_paths)))
+        missing_tokens.extend(self._missing_reference_tokens("audio", len(self.reference_audio_paths)))
+        if missing_tokens:
+            raise ValueError(
+                "使用参考素材时，prompt 必须按数组顺序写入素材引用标记："
+                f"{', '.join(missing_tokens)}。"
+                "例如：白色长毛小猫 [image1] 从黑色箱子里探头钻出，"
+                "黑色短毛小猫 [image2] 从白色箱子里跳出来。"
+            )
+        return self
+
+    def _missing_reference_tokens(self, token_type: str, reference_count: int) -> List[str]:
+        if reference_count <= 0:
+            return []
+
+        missing_tokens = []
+        for index in range(1, reference_count + 1):
+            token = f"[{token_type}{index}]"
+            if re.search(re.escape(token), self.prompt, flags=re.IGNORECASE) is None:
+                missing_tokens.append(token)
+        return missing_tokens
+
 
 class GenerateCanvasVideosParams(BaseToolParams):
     """generate_canvas_videos 工具参数"""
@@ -268,7 +295,9 @@ Video generation task list. Each task produces one video. Maximum 4 tasks per ca
                 "常见改名：duration -> duration_seconds；images/image/reference_images -> reference_image_paths；"
                 "videos/video/reference_videos -> reference_video_paths；start_frame -> frame_start_path；"
                 "end_frame -> frame_end_path。"
-                "正确示例：tasks=[{'prompt':'参考三张猫咪图，生成 4 秒 720p 视频', 'name':'三色箱子猫咪跳出', "
+                "正确示例：tasks=[{'prompt':'白色长毛小猫 [image1] 从黑色箱子里探头钻出，"
+                "黑色短毛小猫 [image2] 从白色箱子里跳出来，橘色虎斑小猫 [image3] 从黄色箱子里爬出。', "
+                "'name':'三色箱子猫咪跳出', "
                 "'width':1280, 'height':720, 'duration_seconds':4, 'resolution':'720p', "
                 "'reference_image_paths':['images/cat1.png','images/cat2.png','images/cat3.png']}]."
             )

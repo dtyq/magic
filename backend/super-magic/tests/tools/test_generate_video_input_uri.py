@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from app.tools.design.tools.generate_canvas_videos import VideoTaskSpec
 from app.tools.generate_video import GenerateVideo, GenerateVideoParams
@@ -83,3 +84,38 @@ def test_video_task_spec_normalizes_input_mode_aliases_from_llm():
 
     assert task.input_mode == "video_edit"
     assert task.task == "edit"
+
+
+def test_video_task_spec_requires_reference_image_tokens():
+    with pytest.raises(ValidationError, match=r"\[image1\].*\[image2\]"):
+        VideoTaskSpec(
+            prompt="两只猫依次从箱子里跳出来",
+            name="箱子跳猫",
+            width=1280,
+            height=720,
+            reference_image_paths=["images/white-cat.jpg", "images/black-cat.jpg"],
+        )
+
+
+def test_video_task_spec_allows_reference_image_tokens():
+    task = VideoTaskSpec(
+        prompt="白色小猫 [image1] 从黑色箱子探头，黑色小猫 [image2] 从白色箱子跳出",
+        name="箱子跳猫",
+        width=1280,
+        height=720,
+        reference_image_paths=["images/white-cat.jpg", "images/black-cat.jpg"],
+    )
+
+    assert task.reference_image_paths == ["images/white-cat.jpg", "images/black-cat.jpg"]
+
+
+def test_video_task_spec_requires_video_and_audio_tokens():
+    with pytest.raises(ValidationError, match=r"\[video1\].*\[audio1\]"):
+        VideoTaskSpec(
+            prompt="参考视频节奏和音频氛围生成广告片",
+            name="广告片",
+            width=1280,
+            height=720,
+            reference_video_paths=["videos/ref.mp4"],
+            reference_audio_paths=["audios/ref.mp3"],
+        )
