@@ -247,10 +247,10 @@ Optional. When provided, the tool reuses an existing canvas element (e.g. a fail
         missing_tokens.extend(self._missing_reference_tokens("audio", len(self.reference_audio_paths)))
         if missing_tokens:
             raise ValueError(
-                "使用参考素材时，prompt 必须按数组顺序写入素材引用标记："
-                f"{', '.join(missing_tokens)}。"
-                "例如：白色长毛小猫 [image1] 从黑色箱子里探头钻出，"
-                "黑色短毛小猫 [image2] 从白色箱子里跳出来。"
+                "When using reference assets, the prompt must include reference tokens by list order: "
+                f"{', '.join(missing_tokens)}. "
+                "Example: White long-haired kitten [image1] peeks out of the black box, "
+                "black short-haired kitten [image2] jumps out of the white box."
             )
         return self
 
