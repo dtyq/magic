@@ -605,6 +605,88 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertArrayNotHasKey('aspect_ratio', $operation->getRawRequest()['generation']);
     }
 
+    public function testCreateOperationInfersAspectRatioAndResolutionFromSupportedSize(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make the shot',
+            'generation' => [
+                'size' => '1280x720',
+                'duration_seconds' => 4,
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'LCnVzCkkMnVulyrz',
+            'provider-model-veo-fast',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            $this->createConfigForModel($requestDTO->getModel(), ProviderCode::Cloudsway),
+        );
+
+        $generation = $operation->getRawRequest()['generation'];
+        $this->assertSame('1280x720', $generation['size']);
+        $this->assertSame('16:9', $generation['aspect_ratio']);
+        $this->assertSame('720p', $generation['resolution']);
+        $this->assertSame(4, $generation['duration_seconds']);
+    }
+
+    public function testCreateOperationRejectsUnsupportedGenerationSizeWithSupportedList(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make the shot',
+            'generation' => [
+                'size' => '1024x1024',
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('generation.size 1024x1024 is not supported. Supported sizes: 1280x720(16:9,720p)');
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'LCnVzCkkMnVulyrz',
+            'provider-model-veo-fast',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            $this->createConfigForModel($requestDTO->getModel(), ProviderCode::Cloudsway),
+        );
+    }
+
+    public function testCreateOperationRejectsGenerationSizeMetadataConflict(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make the shot',
+            'generation' => [
+                'size' => '1280x720',
+                'aspect_ratio' => '9:16',
+                'resolution' => '720p',
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('generation.aspect_ratio must be 16:9 when generation.size is 1280x720');
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'LCnVzCkkMnVulyrz',
+            'provider-model-veo-fast',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            $this->createConfigForModel($requestDTO->getModel(), ProviderCode::Cloudsway),
+        );
+    }
+
     public function testCreateOperationInfersKelingResolutionFrom1080DimensionsWhenResolutionMissing(): void
     {
         $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));

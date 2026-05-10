@@ -487,6 +487,7 @@ readonly class VideoQueueDomainService
             $providerCode,
             (string) ($requestData['model_id'] ?? ''),
         );
+        $generation = $this->applyGenerationSizeMetadata($generation, $videoGenerationConfig);
         $generation = $this->applyGenerationDefaults($generation, $videoGenerationConfig);
         $generation = $this->applyGenerationConstraints($generation, $referenceImages, $videoGenerationConfig);
         $generation = $this->applyGenerationSupportRules($generation, $videoGenerationConfig);
@@ -1428,5 +1429,105 @@ readonly class VideoQueueDomainService
         }
 
         return $normalized;
+    }
+
+    private function applyGenerationSizeMetadata(array $generation, VideoGenerationConfig $videoGenerationConfig): array
+    {
+        $size = $this->normalizeGenerationSize($generation['size'] ?? null);
+        if ($size === null) {
+            return $generation;
+        }
+
+        $config = $videoGenerationConfig->toArray();
+        $configGeneration = is_array($config['generation'] ?? null) ? $config['generation'] : [];
+        $matchedSize = $this->findSupportedGenerationSize($size, $configGeneration);
+        if ($matchedSize === null) {
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::ValidateFailed,
+                sprintf(
+                    'generation.size %s is not supported. Supported sizes: %s',
+                    $size,
+                    $this->formatSupportedGenerationSizes($configGeneration)
+                )
+            );
+        }
+
+        $aspectRatio = $this->normalizeAspectRatioAlias($matchedSize['label'] ?? null);
+        $resolution = $this->normalizeResolution($matchedSize['resolution'] ?? null);
+        if ($aspectRatio === null || $resolution === null) {
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::ValidateFailed,
+                sprintf(
+                    'generation.size %s cannot infer aspect_ratio and resolution. Supported sizes: %s',
+                    $size,
+                    $this->formatSupportedGenerationSizes($configGeneration)
+                )
+            );
+        }
+
+        $requestedAspectRatio = $this->normalizeAspectRatioAlias($generation['aspect_ratio'] ?? null);
+        if (array_key_exists('aspect_ratio', $generation) && $requestedAspectRatio !== $aspectRatio) {
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::ValidateFailed,
+                sprintf('generation.aspect_ratio must be %s when generation.size is %s', $aspectRatio, $size)
+            );
+        }
+
+        $requestedResolution = $this->normalizeResolution($generation['resolution'] ?? null);
+        if (array_key_exists('resolution', $generation) && $requestedResolution !== $resolution) {
+            ExceptionBuilder::throw(
+                MagicApiErrorCode::ValidateFailed,
+                sprintf('generation.resolution must be %s when generation.size is %s', $resolution, $size)
+            );
+        }
+
+        $generation['size'] = $size;
+        $generation['aspect_ratio'] = $aspectRatio;
+        $generation['resolution'] = $resolution;
+        return $generation;
+    }
+
+    /**
+     * @param array<string, mixed> $configGeneration
+     * @return null|array<string, mixed>
+     */
+    private function findSupportedGenerationSize(string $size, array $configGeneration): ?array
+    {
+        foreach ($configGeneration['sizes'] ?? [] as $supportedSize) {
+            if (! is_array($supportedSize)) {
+                continue;
+            }
+
+            if ($this->normalizeGenerationSize($supportedSize['value'] ?? null) === $size) {
+                return $supportedSize;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $configGeneration
+     */
+    private function formatSupportedGenerationSizes(array $configGeneration): string
+    {
+        $formatted = [];
+        foreach ($configGeneration['sizes'] ?? [] as $supportedSize) {
+            if (! is_array($supportedSize)) {
+                continue;
+            }
+
+            $size = $this->normalizeGenerationSize($supportedSize['value'] ?? null);
+            if ($size === null) {
+                continue;
+            }
+
+            $aspectRatio = $this->normalizeAspectRatioAlias($supportedSize['label'] ?? null);
+            $resolution = $this->normalizeResolution($supportedSize['resolution'] ?? null);
+            $detail = array_filter([$aspectRatio, $resolution], static fn (?string $value): bool => $value !== null);
+            $formatted[] = $detail === [] ? $size : sprintf('%s(%s)', $size, implode(',', $detail));
+        }
+
+        return $formatted === [] ? 'none' : implode(', ', $formatted);
     }
 }

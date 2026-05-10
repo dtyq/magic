@@ -142,6 +142,48 @@ def test_build_video_model_info_handles_invalid_generation_constraint_types():
     assert '<rule name="images_only" reference_image_paths="0-1" duration="5" no_resolution="true" aspect_ratio="16:9" size="1280x720"/>' in info
 
 
+def test_build_video_model_info_does_not_expose_generate_audio_as_tool_param():
+    video_generation_config = {
+        "generation": {
+            "supports_generate_audio": True,
+            "supports_negative_prompt": True,
+            "sizes": [
+                {"label": "16:9", "value": "1280x720", "resolution": "720p"},
+            ],
+        },
+    }
+
+    info = VideoModelConfigService.build_video_model_info(
+        "kling-v3-omni",
+        video_generation_config,
+    )
+
+    assert "generate_audio" not in info
+    assert "support=" not in info
+
+
+def test_build_video_model_info_does_not_expose_option_as_tool_param():
+    video_generation_config = {
+        "generation": {
+            "supports_sample_count": True,
+            "sample_count_range": [1, 4],
+            "supports_seed": True,
+            "seed_range": [0, 100],
+            "sizes": [
+                {"label": "16:9", "value": "1280x720", "resolution": "720p"},
+            ],
+        },
+    }
+
+    info = VideoModelConfigService.build_video_model_info(
+        "kling-v3-omni",
+        video_generation_config,
+    )
+
+    assert "option=" not in info
+    assert "sample_count" not in info
+
+
 @pytest.mark.asyncio
 async def test_sync_to_horizon_updates_real_horizon_video_model_context(tmp_path):
     video_generation_config = {

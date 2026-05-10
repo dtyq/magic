@@ -145,67 +145,6 @@ class VideoModelConfigService:
         return durations_attr.split("|")[0] if durations_attr else ""
 
     @staticmethod
-    def _build_option_attr(video_generation_config: Dict[str, Any]) -> str:
-        """构建 `option` 属性值：仅收纳有枚举或范围的可选参数，格式为 `key{val1|val2}`，条目间用 `;` 分隔。
-        示例：`compression_quality{optimized|lossless};sample_count{1-4}`
-
-        `option` 只收纳"可选参数及其枚举/范围"，
-        让 `support` / `unsupported` 只表达布尔能力，避免语义混在一起。
-        """
-        generation = VideoModelConfigService._get_generation_config(video_generation_config)
-        options: list[str] = []
-
-        compression_quality_options = VideoModelConfigService._join_string_list(
-            generation.get("compression_quality_options")
-        )
-        if generation.get("supports_compression_quality") and compression_quality_options:
-            options.append(f"compression_quality{{{compression_quality_options}}}")
-
-        person_generation_options = VideoModelConfigService._join_string_list(
-            generation.get("person_generation_options")
-        )
-        if generation.get("supports_person_generation") and person_generation_options:
-            options.append(f"person_generation{{{person_generation_options}}}")
-
-        resize_mode_options = VideoModelConfigService._join_string_list(
-            generation.get("resize_mode_options")
-        )
-        if generation.get("supports_resize_mode") and resize_mode_options:
-            options.append(f"resize_mode{{{resize_mode_options}}}")
-
-        sample_count_range = generation.get("sample_count_range")
-        if (
-            generation.get("supports_sample_count")
-            and isinstance(sample_count_range, list)
-            and len(sample_count_range) == 2
-        ):
-            options.append(f"sample_count{{{sample_count_range[0]}-{sample_count_range[1]}}}")
-
-        seed_range = generation.get("seed_range")
-        if generation.get("supports_seed") and isinstance(seed_range, list) and len(seed_range) == 2:
-            options.append(f"seed{{{seed_range[0]}-{seed_range[1]}}}")
-
-        return ";".join(options)
-
-    @staticmethod
-    def _build_support_attr(video_generation_config: Dict[str, Any]) -> str:
-        """构建 `support` 属性值：列出所有 `supports_xxx=true` 的布尔能力名，用 `|` 分隔。
-        示例：`enhance_prompt|generate_audio|negative_prompt`
-        """
-        generation = VideoModelConfigService._get_generation_config(video_generation_config)
-        support_map = [
-            ("supports_enhance_prompt", "enhance_prompt"),
-            ("supports_generate_audio", "generate_audio"),
-            ("supports_negative_prompt", "negative_prompt"),
-            ("supports_person_generation", "person_generation"),
-            ("supports_resize_mode", "resize_mode"),
-            ("supports_sample_count", "sample_count"),
-            ("supports_seed", "seed"),
-        ]
-        supported = [name for field, name in support_map if generation.get(field) is True]
-        return "|".join(supported)
-
-    @staticmethod
     def _build_unsupported_attr(video_generation_config: Dict[str, Any]) -> str:
         """构建 `unsupported` 属性值：列出所有 `supports_xxx=false` 的明确不支持项，用 `|` 分隔。
         只有明确设为 false 的才收入，避免把"未声明"误判为不支持。
@@ -556,9 +495,7 @@ class VideoModelConfigService:
         _attr("default_size", VideoModelConfigService._pick_default_size(video_generation_config))
         _attr("default_duration", VideoModelConfigService._get_default_duration(video_generation_config))
         _attr("duration", VideoModelConfigService._build_duration_attr(video_generation_config))
-        _attr("option", VideoModelConfigService._build_option_attr(video_generation_config))
         _attr("ref", VideoModelConfigService._build_reference_attr(video_generation_config))
-        _attr("support", VideoModelConfigService._build_support_attr(video_generation_config))
         _attr("unsupported", VideoModelConfigService._build_unsupported_attr(video_generation_config))
 
         mode_lines = VideoModelConfigService._build_input_mode_lines(video_generation_config)
