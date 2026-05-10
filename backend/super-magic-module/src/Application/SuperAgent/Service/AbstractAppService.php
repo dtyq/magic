@@ -12,6 +12,7 @@ use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\SuperAgentExtra;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfigCandidate;
 use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\Provider\Entity\ProviderConfigEntity;
@@ -290,7 +291,10 @@ class AbstractAppService extends AbstractKernelAppService
 
         try {
             $modelGatewayMapper = di(ModelGatewayMapper::class);
-            $modelEntry = $modelGatewayMapper->getOrganizationVideoModel($dataIsolation, $modelId);
+            $modelEntry = $modelGatewayMapper->getOrganizationVideoModel(
+                $this->createModelGatewayDataIsolationFromContactDataIsolation($dataIsolation),
+                $modelId
+            );
             $videoModel = $modelEntry?->getVideoModel();
             if ($modelEntry === null || $videoModel === null) {
                 return null;
@@ -313,6 +317,15 @@ class AbstractAppService extends AbstractKernelAppService
             ]);
             return null;
         }
+    }
+
+    private function createModelGatewayDataIsolationFromContactDataIsolation(DataIsolation $dataIsolation): ModelGatewayDataIsolation
+    {
+        return new ModelGatewayDataIsolation(
+            $dataIsolation->getCurrentOrganizationCode(),
+            (string) $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentMagicId()
+        );
     }
 
     /**
