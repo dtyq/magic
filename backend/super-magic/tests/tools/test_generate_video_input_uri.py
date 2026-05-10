@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.tools.design.tools.generate_canvas_videos import VideoTaskSpec
+from app.tools.design.tools.generate_canvas_videos import GenerateCanvasVideosParams, VideoTaskSpec
 from app.tools.generate_video import GenerateVideo, GenerateVideoParams
 
 
@@ -119,3 +119,23 @@ def test_video_task_spec_requires_video_and_audio_tokens():
             reference_video_paths=["videos/ref.mp4"],
             reference_audio_paths=["audios/ref.mp3"],
         )
+
+
+def test_generate_canvas_videos_params_guides_missing_canvas_dimensions():
+    with pytest.raises(ValidationError) as exc:
+        GenerateCanvasVideosParams(
+            project_path="demo-project",
+            tasks=[
+                {
+                    "prompt": "生成一个 16:9 的 720p 广告短片",
+                    "name": "广告短片",
+                    "size": "1280x720",
+                }
+            ],
+        )
+
+    message = str(exc.value)
+    assert "requires width and height" in message
+    assert "tasks.0.width" in message
+    assert "tasks.0.height" in message
+    assert "current video model's supported size/default_size" in message
