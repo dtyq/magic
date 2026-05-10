@@ -220,7 +220,7 @@ abstract class AbstractOpenApi
         ];
         foreach ($mapping as $headerKey => $paramKey) {
             $value = $headers[$headerKey] ?? '';
-            if ($value !== '') {
+            if ($value !== '' && ($businessParams[$paramKey] ?? '') === '') {
                 $businessParams[$paramKey] = $value;
             }
         }
