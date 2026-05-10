@@ -588,6 +588,7 @@ class VideoModelConfigService:
                     "Prefer video `size`.",
                     "If video size or resolution is missing, use `default_size`.",
                     "Use video modes to choose reference fields and avoid unsupported combinations.",
+                    "When using reference paths, cite assets in prompt by list order: [image1], [video1], [audio1].",
                     "Canvas width/height are layout size, not real video size.",
                 ])
             else:

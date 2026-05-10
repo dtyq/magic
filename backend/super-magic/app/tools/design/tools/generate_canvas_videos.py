@@ -94,8 +94,8 @@ class VideoTaskSpec(BaseModel):
 
     prompt: str = Field(
         ...,
-        description="""<!--zh: 视频生成提示词。建议包含主体、动作、镜头语言、光线、风格和内容要求。素材路径不要写在这里，要放到 reference_image_paths / reference_video_paths / frame_start_path 等参数中。-->
-Video generation prompt. Include subject, action, camera language, lighting, style, and content requirements. Do not put asset paths here; use reference_image_paths / reference_video_paths / frame_start_path instead."""
+        description="""<!--zh: 视频生成提示词。建议包含主体、动作、镜头语言、光线、风格和内容要求。素材路径不要写在这里，要放到 reference_image_paths / reference_video_paths / frame_start_path 等参数中。使用参考素材时，必须在 prompt 内按数组顺序引用：[image1] 表示第 1 张参考图，[video1] 表示第 1 个参考视频，[audio1] 表示第 1 个参考音频。-->
+Video generation prompt. Include subject, action, camera language, lighting, style, and content requirements. Do not put asset paths here; use reference_image_paths / reference_video_paths / frame_start_path instead. When using reference assets, cite them in the prompt by list order: [image1] for the first reference image, [video1] for the first reference video, and [audio1] for the first reference audio."""
     )
     name: str = Field(
         ...,
@@ -134,18 +134,18 @@ Video task type, default generate. Use edit with video_edit mode. Do not use gen
     )
     reference_image_paths: List[str] = Field(
         default_factory=list,
-        description="""<!--zh: 参考图路径或 URL 列表。字段名必须是 reference_image_paths。不要使用 images、image、reference_images。用户上传多张图片作为参考时，都放在这个数组中。-->
-Reference image path or URL list. The parameter name must be reference_image_paths. Do not use images, image, or reference_images. Put all user-uploaded reference images in this array."""
+        description="""<!--zh: 参考图路径或 URL 列表。字段名必须是 reference_image_paths。不要使用 images、image、reference_images。用户上传多张图片作为参考时，都放在这个数组中，并在 prompt 中用 [image1]、[image2] 按数组顺序引用。-->
+Reference image path or URL list. The parameter name must be reference_image_paths. Do not use images, image, or reference_images. Put all user-uploaded reference images in this array and cite them in the prompt as [image1], [image2], etc. by list order."""
     )
     reference_video_paths: List[str] = Field(
         default_factory=list,
-        description="""<!--zh: 参考视频路径或 URL 列表。字段名必须是 reference_video_paths。不要使用 videos、video、reference_videos。-->
-Reference video path or URL list. The parameter name must be reference_video_paths. Do not use videos, video, or reference_videos."""
+        description="""<!--zh: 参考视频路径或 URL 列表。字段名必须是 reference_video_paths。不要使用 videos、video、reference_videos。使用参考视频时，在 prompt 中用 [video1]、[video2] 按数组顺序引用。-->
+Reference video path or URL list. The parameter name must be reference_video_paths. Do not use videos, video, or reference_videos. Cite reference videos in the prompt as [video1], [video2], etc. by list order."""
     )
     reference_audio_paths: List[str] = Field(
         default_factory=list,
-        description="""<!--zh: 参考音频路径或 URL 列表。字段名必须是 reference_audio_paths。不要使用 audios、audio、reference_audios。-->
-Reference audio path or URL list. The parameter name must be reference_audio_paths. Do not use audios, audio, or reference_audios."""
+        description="""<!--zh: 参考音频路径或 URL 列表。字段名必须是 reference_audio_paths。不要使用 audios、audio、reference_audios。使用参考音频时，在 prompt 中用 [audio1]、[audio2] 按数组顺序引用。-->
+Reference audio path or URL list. The parameter name must be reference_audio_paths. Do not use audios, audio, or reference_audios. Cite reference audios in the prompt as [audio1], [audio2], etc. by list order."""
     )
     frame_start_path: str = Field(
         "",
@@ -249,8 +249,8 @@ Relative path to the design project (folder containing magic.project.js)"""
     )
     tasks: List[VideoTaskSpec] = Field(
         ...,
-        description="""<!--zh: 视频生成任务列表，每个 task 生成一个视频，最多 4 个。每个 task 必须包含 prompt / name / width / height，其他字段必须使用本 schema 中的精确字段名。常见正确字段：duration_seconds（不是 duration）、reference_image_paths（不是 images/image）、reference_video_paths（不是 videos/video）、frame_start_path（不是 start_frame）、frame_end_path（不是 end_frame）。示例：tasks=[{"prompt":"参考三张猫咪图，生成 4 秒 720p 视频","name":"三色箱子猫咪跳出","width":1280,"height":720,"duration_seconds":4,"resolution":"720p","reference_image_paths":["images/cat1.png","images/cat2.png","images/cat3.png"]}]-->
-Video generation task list. Each task produces one video. Maximum 4 tasks per call. Each task must include prompt, name, width, and height. Optional fields must use the exact schema names: duration_seconds (not duration), reference_image_paths (not images/image), reference_video_paths (not videos/video), frame_start_path (not start_frame), frame_end_path (not end_frame). Example: tasks=[{"prompt":"Use three cat images as references and create a 4-second 720p video","name":"three_color_box_cats","width":1280,"height":720,"duration_seconds":4,"resolution":"720p","reference_image_paths":["images/cat1.png","images/cat2.png","images/cat3.png"]}]"""
+        description="""<!--zh: 视频生成任务列表，每个 task 生成一个视频，最多 4 个。每个 task 必须包含 prompt / name / width / height，其他字段必须使用本 schema 中的精确字段名。常见正确字段：duration_seconds（不是 duration）、reference_image_paths（不是 images/image）、reference_video_paths（不是 videos/video）、frame_start_path（不是 start_frame）、frame_end_path（不是 end_frame）。使用参考素材时，prompt 必须用 [image1] / [video1] / [audio1] 按数组顺序绑定素材。示例：tasks=[{"prompt":"白色长毛小猫 [image1] 从黑色箱子里探头钻出，黑色短毛小猫 [image2] 从白色箱子里跳出来，橘色虎斑小猫 [image3] 从黄色箱子里爬出。","name":"三色箱子猫咪跳出","width":1280,"height":720,"duration_seconds":4,"resolution":"720p","reference_image_paths":["images/cat1.png","images/cat2.png","images/cat3.png"]}]-->
+Video generation task list. Each task produces one video. Maximum 4 tasks per call. Each task must include prompt, name, width, and height. Optional fields must use the exact schema names: duration_seconds (not duration), reference_image_paths (not images/image), reference_video_paths (not videos/video), frame_start_path (not start_frame), frame_end_path (not end_frame). When using reference assets, the prompt must bind them by list order with [image1] / [video1] / [audio1]. Example: tasks=[{"prompt":"White long-haired kitten [image1] peeks out of the black box, black short-haired kitten [image2] jumps out of the white box, orange tabby kitten [image3] climbs out of the yellow box.","name":"three_color_box_cats","width":1280,"height":720,"duration_seconds":4,"resolution":"720p","reference_image_paths":["images/cat1.png","images/cat2.png","images/cat3.png"]}]"""
     )
     model_id: str = Field("", description="<!--zh: 可选视频模型 ID，所有任务共用-->Optional video model ID, shared across all tasks")
     override: bool = Field(False, description="<!--zh: 是否覆盖已有文件-->Whether to override existing files")

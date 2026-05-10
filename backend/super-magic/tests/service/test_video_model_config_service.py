@@ -176,6 +176,7 @@ async def test_sync_to_horizon_updates_real_horizon_video_model_context(tmp_path
     assert 'size="1280x720@16:9@720p"' in context
     assert '<mode name="standard" task="generate" fields="prompt" duration="5" resolution="720p" aspect_ratio="16:9" size="1280x720"/>' in context
     assert "Use video modes to choose reference fields and avoid unsupported combinations." in context
+    assert "When using reference paths, cite assets in prompt by list order: [image1], [video1], [audio1]." in context
 
 
 @pytest.mark.asyncio
