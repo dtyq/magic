@@ -172,6 +172,13 @@ readonly class VideoQueueDomainService
     public function getOperation(string $operationId, string $organizationCode, string $userId): VideoQueueOperationEntity
     {
         $operation = $this->videoQueueOperationRepository->getOperation($operationId);
+        $this->logger->info('get operation', [
+            'operationId' => $operationId,
+            'organizationCode' => $organizationCode,
+            'userId' => $userId,
+            'operation_organizationCode' => $operation?->getOrganizationCode(),
+            'operation_userId' => $operation?->getUserId(),
+        ]);
         if (! $operation || $operation->getOrganizationCode() !== $organizationCode || $operation->getUserId() !== $userId) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'video task not found');
         }
