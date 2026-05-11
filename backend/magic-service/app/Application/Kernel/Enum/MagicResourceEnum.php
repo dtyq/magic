@@ -43,6 +43,8 @@ enum MagicResourceEnum: string
     case WORKSPACE_AI_MODEL = 'workspace.ai.model_management'; # 工作区-AI管理-模型管理
     case WORKSPACE_AI_IMAGE = 'workspace.ai.image_generation'; # 工作区-AI管理-智能绘图管理
     case WORKSPACE_AI_MODEL_AUDIT_LOG = 'workspace.ai.model_audit_log'; # 工作区-AI管理-模型调用审计
+    case PLATFORM_AI_MODEL_AUDIT_STATISTICS = 'platform.ai.model_audit_statistics'; # 平台管理-AI管理-模型调用统计
+    case WORKSPACE_AI_MODEL_AUDIT_STATISTICS = 'workspace.ai.model_audit_statistics'; # 工作区-AI管理-模型调用统计
     case ADMIN_AI_MODE = 'platform.ai.mode_management'; # AI管理-模式管理管理
     case ADMIN_AI_ABILITY = 'platform.ai.ability'; # AI管理-能力管理
     case ADMIN_AI_MODEL_ACCESS_ROLE = 'admin.ai.model_access_role'; # AI管理-自定义大模型-模型访问权限
@@ -74,6 +76,8 @@ enum MagicResourceEnum: string
             self::WORKSPACE_AI_IMAGE => 'permission.resource.workspace_ai_image',
             self::PLATFORM_AI_MODEL_AUDIT_LOG => 'permission.resource.platform_ai_model_audit_log',
             self::WORKSPACE_AI_MODEL_AUDIT_LOG => 'permission.resource.workspace_ai_model_audit_log',
+            self::PLATFORM_AI_MODEL_AUDIT_STATISTICS => 'permission.resource.platform_ai_model_audit_statistics',
+            self::WORKSPACE_AI_MODEL_AUDIT_STATISTICS => 'permission.resource.workspace_ai_model_audit_statistics',
             self::ADMIN_AI_MODE => 'permission.resource.ai_mode',
             self::ADMIN_AI_ABILITY => 'permission.resource.ai_ability',
             self::ADMIN_AI_MODEL_ACCESS_ROLE => 'permission.resource.admin_ai_model_access_role',
@@ -118,10 +122,12 @@ enum MagicResourceEnum: string
             self::PLATFORM_AI_MODEL,
             self::PLATFORM_AI_IMAGE,
             self::PLATFORM_AI_MODEL_AUDIT_LOG,
+            self::PLATFORM_AI_MODEL_AUDIT_STATISTICS,
             self::ADMIN_AI_MODE => self::PLATFORM_AI,
             self::WORKSPACE_AI_MODEL,
             self::WORKSPACE_AI_IMAGE,
-            self::WORKSPACE_AI_MODEL_AUDIT_LOG => self::WORKSPACE_AI,
+            self::WORKSPACE_AI_MODEL_AUDIT_LOG,
+            self::WORKSPACE_AI_MODEL_AUDIT_STATISTICS => self::WORKSPACE_AI,
             self::ADMIN_AI_ABILITY,
             self::ADMIN_AI_MODEL_ACCESS_ROLE => self::ADMIN_AI,
             self::SAFE_ADMIN,

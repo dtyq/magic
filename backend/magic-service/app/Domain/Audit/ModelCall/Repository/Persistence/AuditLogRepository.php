@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Domain\Audit\ModelCall\Repository\Persistence;
 
 use App\Domain\Audit\ModelCall\Entity\AuditLogEntity;
+use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditStatus;
 use App\Domain\Audit\ModelCall\Entity\ValueObject\AuditType;
 use App\Domain\Audit\ModelCall\Repository\Facade\AuditLogRepositoryInterface;
 use App\Domain\Audit\ModelCall\Repository\Persistence\Model\AuditLogModel;
@@ -134,6 +135,24 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         return $this->queryByCursor($builder, $pageSize, $cursorId, $direction);
     }
 
+    public function statistics(
+        array $filters,
+        string $currentOrganizationCode,
+        bool $isOfficialOrganization
+    ): array {
+        $organizationCode = $this->resolveOrganizationCodeFilter(
+            $filters,
+            $currentOrganizationCode,
+            $isOfficialOrganization
+        );
+
+        return [
+            'summary' => $this->fetchSummary($filters, $organizationCode),
+            'trend' => $this->fetchTrend($filters, $organizationCode),
+            'breakdown' => $this->fetchBreakdown($filters, $organizationCode),
+        ];
+    }
+
     /**
      * 组装写库属性：排除 points；无值不写 event_id（兼容历史 INSERT）.
      *
@@ -255,5 +274,117 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         }
 
         return $list;
+    }
+
+    private function applyStatisticsFilters(
+        $builder,
+        array $filters,
+        ?string $organizationCode
+    ): void {
+        if ($organizationCode !== null) {
+            $builder->where('organization_code', $organizationCode);
+        }
+
+        $builder->where('operation_time', '>=', (int) $filters['start_operation_time']);
+        $builder->where('operation_time', '<=', (int) $filters['end_operation_time']);
+
+        $builder->whereNotIn('type', [AuditType::SEARCH->value, AuditType::WEB_SCRAPE->value]);
+
+        if (! empty($filters['service_provider_config_id'])) {
+            $builder->where('service_provider_config_id', (int) $filters['service_provider_config_id']);
+        }
+        if (! empty($filters['product_code'])) {
+            $builder->where('product_code', (string) $filters['product_code']);
+        }
+        if (! empty($filters['access_scope'])) {
+            $builder->where('access_scope', (string) $filters['access_scope']);
+        }
+    }
+
+    private function fetchSummary(array $filters, ?string $organizationCode): array
+    {
+        $builder = AuditLogModel::query();
+        $this->applyStatisticsFilters($builder, $filters, $organizationCode);
+
+        $row = $builder->selectRaw(
+            'COUNT(*) as total,
+             SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as error_count,
+             SUM(JSON_EXTRACT(usage, "$.prompt_tokens")) as input_tokens,
+             SUM(JSON_EXTRACT(usage, "$.completion_tokens")) as output_tokens,
+             SUM(COALESCE(JSON_EXTRACT(usage, "$.total_tokens"),
+                 JSON_EXTRACT(usage, "$.prompt_tokens") + JSON_EXTRACT(usage, "$.completion_tokens"), 0)) as total_tokens',
+            [AuditStatus::FAIL->value]
+        )->first();
+
+        return [
+            'total' => (int) ($row->total ?? 0),
+            'error' => (int) ($row->error_count ?? 0),
+            'input_tokens' => (int) ($row->input_tokens ?? 0),
+            'output_tokens' => (int) ($row->output_tokens ?? 0),
+            'total_tokens' => (int) ($row->total_tokens ?? 0),
+        ];
+    }
+
+    private function fetchTrend(array $filters, ?string $organizationCode): array
+    {
+        $startMs = (int) $filters['start_operation_time'];
+        $endMs = (int) $filters['end_operation_time'];
+        $deltaMs = $endMs - $startMs;
+
+        $builder = AuditLogModel::query();
+        $this->applyStatisticsFilters($builder, $filters, $organizationCode);
+
+        if ($deltaMs <= 86400000) {
+            $rows = $builder->selectRaw(
+                'FLOOR(operation_time / 3600000) * 3600000 as bucket_ms,
+                 COUNT(*) as requests,
+                 SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as errors',
+                [AuditStatus::FAIL->value]
+            )
+                ->groupBy('bucket_ms')
+                ->orderBy('bucket_ms')
+                ->get()
+                ->toArray();
+        } else {
+            $rows = $builder->selectRaw(
+                "DATE_FORMAT(FROM_UNIXTIME(operation_time / 1000), '%Y-%m-%d') as bucket_day,
+                 COUNT(*) as requests,
+                 SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as errors",
+                [AuditStatus::FAIL->value]
+            )
+                ->groupBy('bucket_day')
+                ->orderBy('bucket_day')
+                ->get()
+                ->toArray();
+        }
+
+        return [
+            'bucket_type' => $deltaMs <= 86400000 ? 'hour' : 'day',
+            'rows' => array_map(fn ($r) => (array) $r, $rows),
+            'start_ms' => $startMs,
+            'end_ms' => $endMs,
+        ];
+    }
+
+    private function fetchBreakdown(array $filters, ?string $organizationCode): array
+    {
+        $builder = AuditLogModel::query();
+        $this->applyStatisticsFilters($builder, $filters, $organizationCode);
+
+        $rows = $builder->selectRaw(
+            'CAST(service_provider_config_id AS CHAR) as service_provider_config_id,
+             product_code,
+             COUNT(*) as total_requests,
+             SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as error_requests',
+            [AuditStatus::FAIL->value]
+        )
+            ->groupBy('service_provider_config_id', 'product_code')
+            ->orderByDesc('total_requests')
+            ->orderBy('service_provider_config_id')
+            ->orderBy('product_code')
+            ->get()
+            ->toArray();
+
+        return array_map(fn ($r) => (array) $r, $rows);
     }
 }

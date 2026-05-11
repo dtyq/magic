@@ -32,6 +32,8 @@ return [
         'workspace_ai_image' => 'Lukisan pintar',
         'workspace_ai_model_audit_log' => 'Log audit model',
         'platform_ai_model_audit_log' => 'Log audit model',
+        'platform_ai_model_audit_statistics' => 'Statistik audit model',
+        'workspace_ai_model_audit_statistics' => 'Statistik audit model',
         'platform_setting' => 'Tetapan sistem',
         'platform_setting_maintenance' => 'Pengurusan penyelenggaraan',
         'platform_organization' => 'Pengurusan organisasi',

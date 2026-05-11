@@ -32,6 +32,8 @@ return [
         'workspace_ai_image' => 'AI Image',
         'workspace_ai_model_audit_log' => 'Model Audit Log',
         'platform_ai_model_audit_log' => 'Model Audit Log',
+        'platform_ai_model_audit_statistics' => 'Model Audit Statistics',
+        'workspace_ai_model_audit_statistics' => 'Model Audit Statistics',
         'platform_setting' => 'System Settings',
         'platform_setting_platform_info' => 'Platform Info',
         'platform_setting_maintenance' => 'Maintenance',
