@@ -40,6 +40,7 @@ enum ProviderCode: string
     case AWSBedrock = 'AWSBedrock';
     case Google = 'Google-Image';
     case VolcengineArk = 'VolcengineArk';
+    case Keling = 'Keling';
     case Gemini = 'Gemini';
     case DashScope = 'DashScope';
     case OpenRouter = 'OpenRouter';

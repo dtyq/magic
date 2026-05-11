@@ -14,11 +14,14 @@ use App\Application\Provider\DTO\SuperMagicModelDTO;
 use App\Application\Provider\Service\AdminOriginModelAppService;
 use App\Application\Provider\Service\AdminProviderAppService;
 use app\Application\Provider\Service\ProviderAppService;
+use App\Application\Provider\Service\ProviderModelPricingTemplateAppService;
 use App\Domain\Provider\DTO\ProviderConfigModelsDTO;
 use App\Domain\Provider\DTO\ProviderModelDetailDTO;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\Domain\Provider\Entity\ValueObject\Query\ProviderModelQuery;
 use App\Domain\Provider\Support\BillingTierFlatPriceCompatibility;
+use App\ErrorCode\GenericErrorCode;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
@@ -44,6 +47,9 @@ class ServiceProviderApi extends AbstractApi
 
     #[Inject]
     protected ProviderAppService $providerAppService;
+
+    #[Inject]
+    protected ProviderModelPricingTemplateAppService $providerModelPricingTemplateAppService;
 
     #[Inject]
     protected LLMTestAppService $llmTestAppService;
@@ -231,6 +237,22 @@ class ServiceProviderApi extends AbstractApi
 
         // 直接获取所有LLM类型的非官方服务商
         return $this->adminProviderAppService->queriesServiceProviderTemplates($category, $authenticatable->getOrganizationCode());
+    }
+
+    #[CheckPermission([MagicResourceEnum::PLATFORM_AI_MODEL, MagicResourceEnum::PLATFORM_AI_IMAGE], MagicOperationEnum::QUERY)]
+    public function queriesProviderModelPricingTemplates(RequestInterface $request): array
+    {
+        $category = Category::tryFrom((string) $request->input('category'));
+        if ($category === null) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'common.invalid', ['label' => 'category']);
+        }
+
+        $providerCode = ProviderCode::tryFrom((string) $request->input('provider_code'));
+        if ($providerCode === null) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'common.invalid', ['label' => 'provider_code']);
+        }
+
+        return $this->providerModelPricingTemplateAppService->queries($category, $providerCode);
     }
 
     /**
