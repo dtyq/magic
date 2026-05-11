@@ -88,18 +88,18 @@ class OpenProjectApi extends AbstractApi
 
     /**
      * Get project attachments.
-     * Supports access-token mode and optional logged-in user mode.
      */
     public function getProjectAttachments(RequestContext $requestContext): array
     {
+        $userAuthorization = RequestCoContext::getUserAuthorization();
+        if (empty($userAuthorization)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_authorization_not_found');
+        }
+
         $requestDTO = GetProjectAttachmentsRequestDTO::fromRequest($this->request);
         $requestDTO->setPageSize(10000);
 
-        if (! empty($requestDTO->getToken())) {
-            return $this->projectAppService->getProjectAttachmentsByAccessToken($requestDTO);
-        }
-
-        $requestContext->setUserAuthorization($this->checkAndGetAuthorization());
+        $requestContext->setUserAuthorization($userAuthorization);
 
         return $this->projectAppService->getProjectAttachments($requestContext, $requestDTO);
     }
