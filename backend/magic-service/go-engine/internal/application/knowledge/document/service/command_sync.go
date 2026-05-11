@@ -61,6 +61,8 @@ func (s *DocumentAppService) executeSync(ctx context.Context, input *document.Sy
 		return err
 	}
 	trace.withDocument(doc)
+	stopMemoryProbe := trace.startLargeMemoryProbe(ctx)
+	defer stopMemoryProbe()
 	if err := s.validateDocumentOrg(doc, input.OrganizationCode); err != nil {
 		return err
 	}

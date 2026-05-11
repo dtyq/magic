@@ -334,6 +334,11 @@ type documentSyncTracer struct {
 	mode    string
 }
 
+const (
+	documentSyncMemoryProbeStage    = "document_sync_memory_probe"
+	documentSyncMemoryProbeInterval = 200 * time.Millisecond
+)
+
 func newDocumentSyncTracer(service *DocumentAppService, mode string) *documentSyncTracer {
 	return &documentSyncTracer{
 		service: service,
@@ -346,6 +351,27 @@ func (t *documentSyncTracer) withDocument(doc *docentity.KnowledgeBaseDocument) 
 		return
 	}
 	t.doc = doc
+}
+
+func (t *documentSyncTracer) startLargeMemoryProbe(ctx context.Context) context.CancelFunc {
+	if t == nil || t.service == nil || t.service.logger == nil {
+		return func() {}
+	}
+	probeCtx, cancel := context.WithCancel(ctx)
+	go func() {
+		t.logLargeMemoryIfNeeded(probeCtx, documentSyncStageMemorySample(probeCtx, documentSyncMemoryProbeStage))
+		ticker := time.NewTicker(documentSyncMemoryProbeInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-probeCtx.Done():
+				return
+			case <-ticker.C:
+				t.logLargeMemoryIfNeeded(probeCtx, documentSyncStageMemorySample(probeCtx, documentSyncMemoryProbeStage))
+			}
+		}
+	}()
+	return cancel
 }
 
 func (t *documentSyncTracer) log(ctx context.Context, stage string, startedAt time.Time, err error, fields ...any) {
