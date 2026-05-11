@@ -826,10 +826,10 @@ Key rules:
                     return chat_msg.message_id
         return ""
 
-    async def _dispatch_file_event(self, tool_context: ToolContext, file_path: str, event_type: EventType) -> None:
+    async def _dispatch_file_event(self, tool_context: ToolContext, filepath: str, event_type: EventType, is_screenshot: bool = False, source: int = 5) -> None:
         """分发文件创建/更新事件"""
         # 使用父类的通用方法，传递 source=5 (AI generated)
-        await super()._dispatch_file_event(tool_context, file_path, event_type, is_screenshot=False, source=5)
+        await super()._dispatch_file_event(tool_context, filepath, event_type, is_screenshot=False, source=5)
 
     async def _send_file_notification(self, file_path: str, file_existed: bool, file_size: Optional[int] = None) -> None:
         """图片下载后发送文件变更通知"""
