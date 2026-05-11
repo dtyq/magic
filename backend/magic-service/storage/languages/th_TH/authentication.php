@@ -6,6 +6,9 @@ declare(strict_types=1);
  */
 return [
     'personal_access_token_already_exists' => 'โทเค็นการเข้าถึงส่วนบุคคลมีอยู่แล้ว โปรดใช้การรีเซ็ตเพื่อสร้างใหม่',
+    'model_gateway_unauthorized' => 'การยืนยันตัวตนของ model gateway ล้มเหลว',
+    'model_gateway_refresh_token_invalid' => 'Refresh token ของ model gateway ไม่ถูกต้องหรือหมดอายุแล้ว',
+    'model_gateway_refresh_token_mismatch' => 'Refresh token ของ model gateway ไม่ตรงกับข้อมูล metadata',
     'fields' => [
         'organization_code' => 'รหัสองค์กร',
         'rel_code' => 'รหัสความสัมพันธ์',
