@@ -145,6 +145,20 @@ return [
             ],
             'tag' => '自定义大模型',
         ],
+        'admin.ai.agent_management' => [
+            'path' => [
+                ['key' => 'ai_management', 'label' => 'AI 管理'],
+                ['key' => 'agent', 'label' => '员工发布审核'],
+            ],
+            'tag' => '员工发布审核',
+        ],
+        'admin.ai.skill_management' => [
+            'path' => [
+                ['key' => 'ai_management', 'label' => 'AI 管理'],
+                ['key' => 'skill', 'label' => '技能发布审核'],
+            ],
+            'tag' => '技能发布审核',
+        ],
         'workspace.ai.model_management' => [
             'path' => [
                 ['key' => 'ai_management', 'label' => 'AI 管理'],

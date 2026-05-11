@@ -7,10 +7,17 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use Dtyq\SuperMagic\Application\Agent\Assembler\AdminSuperMagicAgentAssembler;
+use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentMarketDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
@@ -21,8 +28,10 @@ use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateAgentMarketRequestAdminDT
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\GetEmployeeDetailResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentMarketsResponseAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentVersionsResponseAdminDTO;
+use Hyperf\DbConnection\Db;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
+use Throwable;
 
 /**
  * 后台管理 Agent 应用服务.
@@ -53,7 +62,7 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             $dataIsolation,
             $requestDTO->getReviewStatus(),
             $requestDTO->getPublishStatus(),
-            $requestDTO->getPublishTargetType(),
+            PublishTargetType::filterValues($requestDTO->getPublishTargetType()),
             $requestDTO->getVersion(),
             $requestDTO->getOrganizationCode(),
             $requestDTO->getNameI18n(),
@@ -97,6 +106,83 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             $result['list'],
             $page,
             $result['total']
+        );
+    }
+
+    /**
+     * 查询当前组织内待审核/已审核的数字员工版本。
+     * 仅包含发布到组织或指定成员范围的版本，不包含市场发布版本。
+     */
+    public function queryOrganizationVersions(
+        Authenticatable $authorization,
+        QueryAgentVersionsRequestAdminDTO $requestDTO
+    ): QueryAgentVersionsResponseAdminDTO {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $publishTargetTypes = PublishTargetType::resolveOrganizationReviewFilterValues($requestDTO->getPublishTargetType());
+
+        if ($publishTargetTypes === []) {
+            return $this->adminSuperMagicAgentAssembler->createQueryVersionsResponseDTO([], $page, 0);
+        }
+
+        $result = $this->superMagicAgentVersionDomainService->queryVersions(
+            $dataIsolation,
+            $requestDTO->getReviewStatus(),
+            $requestDTO->getPublishStatus(),
+            $publishTargetTypes,
+            $requestDTO->getVersion(),
+            $dataIsolation->getCurrentOrganizationCode(),
+            $requestDTO->getNameI18n(),
+            $requestDTO->getStartTime(),
+            $requestDTO->getEndTime(),
+            $requestDTO->getOrderBy(),
+            $page
+        );
+
+        return $this->adminSuperMagicAgentAssembler->createQueryVersionsResponseDTO(
+            $result['list'],
+            $page,
+            $result['total']
+        );
+    }
+
+    /**
+     * 组织后台审核通过数字员工版本，并按发布目标同步组织内可见范围。
+     */
+    public function approveOrganizationVersion(Authenticatable $authorization, int $id): void
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+        $modifier = $dataIsolation->getCurrentUserId();
+
+        Db::beginTransaction();
+        try {
+            $versionEntity = $this->superMagicAgentVersionDomainService->reviewOrganizationAgentVersion(
+                $dataIsolation,
+                $id,
+                ReviewStatus::APPROVED,
+                $modifier
+            );
+            $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $versionEntity->getCode());
+            $this->syncOrganizationAgentScope($dataIsolation, $agentEntity, $versionEntity);
+            Db::commit();
+        } catch (Throwable $throwable) {
+            Db::rollBack();
+            throw $throwable;
+        }
+    }
+
+    /**
+     * 组织后台审核拒绝数字员工版本，不改变当前生效版本和可见范围。
+     */
+    public function rejectOrganizationVersion(Authenticatable $authorization, int $id): void
+    {
+        $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
+
+        $this->superMagicAgentVersionDomainService->reviewOrganizationAgentVersion(
+            $dataIsolation,
+            $id,
+            ReviewStatus::REJECTED,
+            $dataIsolation->getCurrentUserId()
         );
     }
 
@@ -200,6 +286,53 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             projectId: $agent->getProjectId(),
             createdAt: $agent->getCreatedAt(),
             updatedAt: $agent->getUpdatedAt()
+        );
+    }
+
+    /**
+     * 将审核通过的组织内发布范围同步到资源可见性表。
+     */
+    private function syncOrganizationAgentScope(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        SuperMagicAgentEntity $agentEntity,
+        AgentVersionEntity $versionEntity
+    ): void {
+        $this->superMagicAgentDomainService->offlineMarketPublishings($dataIsolation, $agentEntity->getCode());
+
+        if ($versionEntity->getPublishTargetType() === PublishTargetType::ORGANIZATION) {
+            $this->saveAgentVisibility($dataIsolation, $agentEntity->getCode(), VisibilityType::ALL);
+            return;
+        }
+
+        $publishTargetValue = $versionEntity->getPublishTargetValue();
+        $userIds = array_values(array_unique(array_merge(
+            [$agentEntity->getCreator()],
+            $publishTargetValue?->getUserIds() ?? []
+        )));
+
+        $this->saveAgentVisibility(
+            $dataIsolation,
+            $agentEntity->getCode(),
+            VisibilityType::SPECIFIC,
+            $userIds,
+            $publishTargetValue?->getDepartmentIds() ?? []
+        );
+    }
+
+    private function saveAgentVisibility(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        string $code,
+        VisibilityType $visibilityType,
+        array $userIds = [],
+        array $departmentIds = []
+    ): void {
+        $this->resourceVisibilityDomainService->saveVisibilityByPrincipals(
+            $this->createPermissionDataIsolation($dataIsolation),
+            ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
+            $code,
+            $visibilityType,
+            $userIds,
+            $departmentIds
         );
     }
 }

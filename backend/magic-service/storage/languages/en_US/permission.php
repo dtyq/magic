@@ -18,6 +18,8 @@ return [
         'admin_ai_model' => 'AI Model',
         'admin_ai_image' => 'AI Image',
         'ai_ability' => 'Ability Management',
+        'admin_ai_agent' => 'Agent',
+        'admin_ai_skill' => 'Skill',
         'ai_mode' => 'AI Mode',
         'ai_agent' => 'Agent Management',
         'ai_skill' => 'Skill Management',

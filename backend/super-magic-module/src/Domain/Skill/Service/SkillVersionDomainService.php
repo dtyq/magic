@@ -266,7 +266,7 @@ class SkillVersionDomainService
         $versionEntity->setProjectId($skillEntity->getProjectId());
         $versionEntity->setPublisherUserId($dataIsolation->getCurrentUserId());
 
-        if ($publishTargetType !== PublishTargetType::MARKET) {
+        if ($publishTargetType === PublishTargetType::PRIVATE) {
             $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
             $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
             $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
@@ -333,7 +333,7 @@ class SkillVersionDomainService
         SkillDataIsolation $dataIsolation,
         ?string $reviewStatus,
         ?string $publishStatus,
-        ?string $publishTargetType,
+        ?array $publishTargetTypes,
         ?string $sourceType,
         ?string $version,
         ?string $packageName,
@@ -348,7 +348,7 @@ class SkillVersionDomainService
             $dataIsolation,
             $reviewStatus,
             $publishStatus,
-            $publishTargetType,
+            $publishTargetTypes,
             $sourceType,
             $version,
             $packageName,
@@ -389,6 +389,45 @@ class SkillVersionDomainService
         }
     }
 
+    public function reviewOrganizationSkillVersion(
+        SkillDataIsolation $dataIsolation,
+        int $id,
+        ReviewStatus $reviewStatus
+    ): SkillVersionEntity {
+        $skillVersion = $this->skillVersionRepository->findById($dataIsolation, $id);
+        if (! $skillVersion) {
+            ExceptionBuilder::throw(SkillErrorCode::SKILL_VERSION_NOT_FOUND, 'skill.skill_version_not_found');
+        }
+
+        if (! $skillVersion->getPublishTargetType()->requiresOrganizationReview()) {
+            ExceptionBuilder::throw(SkillErrorCode::CANNOT_REVIEW_VERSION, 'skill.cannot_review_version');
+        }
+
+        if (! $skillVersion->getPublishStatus()->isUnpublished()
+            || ! $skillVersion->getReviewStatus()?->isUnderReview()) {
+            ExceptionBuilder::throw(SkillErrorCode::CANNOT_REVIEW_VERSION, 'skill.cannot_review_version');
+        }
+
+        if ($reviewStatus === ReviewStatus::APPROVED) {
+            $this->skillVersionRepository->clearCurrentVersion($dataIsolation, $skillVersion->getCode());
+            $skillVersion->setReviewStatus(ReviewStatus::APPROVED);
+            $skillVersion->setPublishStatus(PublishStatus::PUBLISHED);
+            $skillVersion->setPublishedAt(date('Y-m-d H:i:s'));
+            $skillVersion->setIsCurrentVersion(true);
+            $skillVersion = $this->saveSkillVersion($dataIsolation, $skillVersion);
+
+            $skillEntity = $this->getSkillByCodeOrFail($dataIsolation, $skillVersion->getCode());
+            $skillEntity->setLatestPublishedAt($skillVersion->getPublishedAt());
+            $this->skillRepository->save($dataIsolation, $skillEntity);
+
+            return $skillVersion;
+        }
+
+        $skillVersion->setReviewStatus(ReviewStatus::REJECTED);
+        $skillVersion->setPublishStatus(PublishStatus::UNPUBLISHED);
+        return $this->saveSkillVersion($dataIsolation, $skillVersion);
+    }
+
     public function reviewSkillVersion(
         SkillDataIsolation $dataIsolation,
         int $id,
@@ -402,6 +441,10 @@ class SkillVersionDomainService
 
         if (! $skillVersion->getPublishStatus()->isUnpublished()
             || ! $skillVersion->getReviewStatus()?->isUnderReview()) {
+            ExceptionBuilder::throw(SkillErrorCode::CANNOT_REVIEW_VERSION, 'skill.cannot_review_version');
+        }
+
+        if ($skillVersion->getPublishTargetType() !== PublishTargetType::MARKET) {
             ExceptionBuilder::throw(SkillErrorCode::CANNOT_REVIEW_VERSION, 'skill.cannot_review_version');
         }
 

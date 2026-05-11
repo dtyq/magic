@@ -165,7 +165,7 @@ interface SkillVersionRepositoryInterface
         SkillDataIsolation $dataIsolation,
         ?string $reviewStatus,
         ?string $publishStatus,
-        ?string $publishTargetType,
+        ?array $publishTargetTypes,
         ?string $sourceType,
         ?string $version,
         ?string $packageName,

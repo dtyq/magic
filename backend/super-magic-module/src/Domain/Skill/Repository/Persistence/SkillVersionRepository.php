@@ -486,7 +486,7 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         SkillDataIsolation $dataIsolation,
         ?string $reviewStatus,
         ?string $publishStatus,
-        ?string $publishTargetType,
+        ?array $publishTargetTypes,
         ?string $sourceType,
         ?string $version,
         ?string $packageName,
@@ -513,8 +513,8 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             $builder->where('publish_status', $publishStatus);
         }
 
-        if ($publishTargetType !== null && $publishTargetType !== '') {
-            $builder->where('publish_target_type', $publishTargetType);
+        if (! empty($publishTargetTypes)) {
+            $builder->whereIn('publish_target_type', $publishTargetTypes);
         }
 
         if ($sourceType !== null && $sourceType !== '') {

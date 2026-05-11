@@ -60,6 +60,8 @@ class MagicPermissionEnumTest extends HttpTestCase
         $this->assertContains('workspace.ai.model_management.edit', $permissionKeys);
         $this->assertContains('workspace.ai.image_generation.query', $permissionKeys);
         $this->assertContains('workspace.ai.image_generation.edit', $permissionKeys);
+        $this->assertContains('admin.ai.agent_management.query', $permissionKeys);
+        $this->assertContains('admin.ai.skill_management.edit', $permissionKeys);
     }
 
     public function testIsValidPermission(): void
@@ -69,6 +71,8 @@ class MagicPermissionEnumTest extends HttpTestCase
         $this->assertTrue($this->permission->isValidPermission(MagicPermission::PLATFORM_PERMISSIONS));
         $this->assertTrue($this->permission->isValidPermission('workspace.ai.model_management.query'));
         $this->assertTrue($this->permission->isValidPermission('workspace.ai.image_generation.edit'));
+        $this->assertTrue($this->permission->isValidPermission('admin.ai.agent_management.query'));
+        $this->assertTrue($this->permission->isValidPermission('admin.ai.skill_management.edit'));
         $this->assertTrue($this->permission->isValidPermission('admin.ai.model_access_role.query'));
         $this->assertTrue($this->permission->isValidPermission('admin.ai.model_access_role.edit'));
         $this->assertFalse($this->permission->isValidPermission('admin.ai.model_management.query'));
@@ -91,6 +95,8 @@ class MagicPermissionEnumTest extends HttpTestCase
 
         $this->assertTrue($this->containsPermissionKey($tree, 'workspace.ai.model_management.query'));
         $this->assertTrue($this->containsPermissionKey($tree, 'workspace.ai.image_generation.edit'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'admin.ai.agent_management.query'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'admin.ai.skill_management.edit'));
         $this->assertTrue($this->containsPermissionKey($tree, 'admin.ai.model_access_role.query'));
         $this->assertFalse($this->containsPermissionKey($tree, 'platform.ai.model_management.query'));
     }

@@ -18,6 +18,8 @@ return [
         'admin_ai_model' => 'Model besar',
         'admin_ai_image' => 'Lukisan pintar',
         'ai_ability' => 'Pengurusan keupayaan',
+        'admin_ai_agent' => 'Ejen',
+        'admin_ai_skill' => 'Kemahiran',
         'ai_mode' => 'Mod',
         'ai_agent' => 'Pengurusan ejen',
         'ai_skill' => 'Pengurusan kemahiran',

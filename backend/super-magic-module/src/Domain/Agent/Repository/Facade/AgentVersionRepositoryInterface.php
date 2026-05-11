@@ -139,7 +139,7 @@ interface AgentVersionRepositoryInterface
         SuperMagicAgentDataIsolation $dataIsolation,
         ?string $reviewStatus,
         ?string $publishStatus,
-        ?string $publishTargetType,
+        ?array $publishTargetTypes,
         ?string $version,
         ?string $organizationCode,
         ?string $nameI18n,

@@ -378,7 +378,7 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         SuperMagicAgentDataIsolation $dataIsolation,
         ?string $reviewStatus,
         ?string $publishStatus,
-        ?string $publishTargetType,
+        ?array $publishTargetTypes,
         ?string $version,
         ?string $organizationCode,
         ?string $nameI18n,
@@ -398,8 +398,8 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             $builder->where('publish_status', $publishStatus);
         }
 
-        if ($publishTargetType !== null && $publishTargetType !== '') {
-            $builder->where('publish_target_type', $publishTargetType);
+        if (! empty($publishTargetTypes)) {
+            $builder->whereIn('publish_target_type', $publishTargetTypes);
         }
 
         if ($version !== null && $version !== '') {

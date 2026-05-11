@@ -1158,6 +1158,19 @@ class UserSkillApiTest extends AbstractApiTest
 
         $organizationResponse = $this->publishSkillVersion($skillCode, '1.0.1', 'ORGANIZATION');
         $this->assertEquals(1000, $organizationResponse['code']);
+        $this->assertSame('UNPUBLISHED', $organizationResponse['data']['publish_status']);
+        $this->assertSame('UNDER_REVIEW', $organizationResponse['data']['review_status']);
+        $organizationVisibility = $this->getSkillVisibilityRows($organizationCode, $skillCode);
+        $this->assertCount(1, $organizationVisibility);
+        $this->assertSame('1', (string) $organizationVisibility[0]['principal_type']);
+        $this->assertSame($creatorId, $organizationVisibility[0]['principal_id']);
+
+        $organizationApproveResponse = $this->put(
+            '/api/v1/organization/admin/skills/versions/' . $organizationResponse['data']['version_id'] . '/approve',
+            [],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $organizationApproveResponse['code'], $organizationApproveResponse['message'] ?? '');
         $organizationVisibility = $this->getSkillVisibilityRows($organizationCode, $skillCode);
         $this->assertCount(1, $organizationVisibility);
         $this->assertSame('3', (string) $organizationVisibility[0]['principal_type']);
@@ -1174,6 +1187,19 @@ class UserSkillApiTest extends AbstractApiTest
             ]
         );
         $this->assertEquals(1000, $memberResponse['code']);
+        $this->assertSame('UNPUBLISHED', $memberResponse['data']['publish_status']);
+        $this->assertSame('UNDER_REVIEW', $memberResponse['data']['review_status']);
+        $memberVisibilityBeforeApprove = $this->getSkillVisibilityRows($organizationCode, $skillCode);
+        $this->assertCount(1, $memberVisibilityBeforeApprove);
+        $this->assertSame('3', (string) $memberVisibilityBeforeApprove[0]['principal_type']);
+        $this->assertSame($organizationCode, $memberVisibilityBeforeApprove[0]['principal_id']);
+
+        $memberApproveResponse = $this->put(
+            '/api/v1/organization/admin/skills/versions/' . $memberResponse['data']['version_id'] . '/approve',
+            [],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $memberApproveResponse['code'], $memberApproveResponse['message'] ?? '');
         $memberVisibility = $this->getSkillVisibilityRows($organizationCode, $skillCode);
         $memberVisibilityUserIds = array_column($memberVisibility, 'principal_id');
         sort($memberVisibilityUserIds);
@@ -2535,6 +2561,7 @@ MD;
             ],
             'publish_target_type' => $publishTargetType,
             'publish_target_value' => $publishTargetValue,
+            'export_file_from_project' => false,
         ];
 
         return $this->post(

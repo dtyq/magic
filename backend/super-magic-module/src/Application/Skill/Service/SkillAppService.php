@@ -16,10 +16,7 @@ use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
-use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
-use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityDepartment;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
-use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityUser;
 use App\Domain\Permission\Service\OperationPermissionDomainService;
 use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
@@ -1137,6 +1134,51 @@ class SkillAppService extends AbstractSkillAppService
     }
 
     /**
+     * 获取用户可访问的技能代码。
+     * @return array<string>
+     */
+    protected function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        $skillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+            $this->createPermissionDataIsolation($dataIsolation),
+            $dataIsolation->getCurrentUserId(),
+            ResourceVisibilityResourceType::SKILL,
+        );
+
+        return $this->mergeBuiltinSkillCodes($skillCodes);
+    }
+
+    /**
+     * 获取市场已安装的技能代码。
+     * @return array<string>
+     */
+    protected function getMarketInstalledSkillCodes(SkillDataIsolation $dataIsolation): array
+    {
+        $marketInstalledCodes = $this->skillDomainService->findCurrentUserSkillCodesBySourceType(
+            $dataIsolation,
+            SkillSourceType::MARKET
+        );
+
+        return $this->mergeBuiltinSkillCodes($marketInstalledCodes);
+    }
+
+    /**
+     * 合并系统技能代码。
+     * @param array<string> $skillCodes
+     * @param null|array<string> $resourceCode
+     * @return array<string>
+     */
+    protected function mergeBuiltinSkillCodes(array $skillCodes, ?array $resourceCode = null): array
+    {
+        $builtinSkillCodes = BuiltinSkill::values();
+        if ($resourceCode !== null) {
+            $builtinSkillCodes = array_values(array_intersect($builtinSkillCodes, $resourceCode));
+        }
+
+        return array_values(array_unique(array_merge($skillCodes, $builtinSkillCodes)));
+    }
+
+    /**
      * 批量加载版本列表关联的用户与部门信息.
      *
      * 一次遍历版本列表，收集所有需要查询的 publisherUserId、MEMBER 类型的 userIds 和 departmentIds，
@@ -1859,31 +1901,13 @@ class SkillAppService extends AbstractSkillAppService
         array $userIds = [],
         array $departmentIds = []
     ): void {
-        $userIds = array_values(array_unique($userIds));
-        $departmentIds = array_values(array_unique($departmentIds));
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        $visibilityConfig = new VisibilityConfig();
-        $visibilityConfig->setVisibilityType($visibilityType);
-
-        if ($visibilityType === VisibilityType::SPECIFIC) {
-            foreach ($userIds as $userId) {
-                $visibilityUser = new VisibilityUser();
-                $visibilityUser->setId($userId);
-                $visibilityConfig->addUser($visibilityUser);
-            }
-
-            foreach ($departmentIds as $departmentId) {
-                $visibilityDepartment = new VisibilityDepartment();
-                $visibilityDepartment->setId($departmentId);
-                $visibilityConfig->addDepartment($visibilityDepartment);
-            }
-        }
-
-        $this->resourceVisibilityDomainService->saveVisibilityConfig(
-            $permissionDataIsolation,
+        $this->resourceVisibilityDomainService->saveVisibilityByPrincipals(
+            $this->createPermissionDataIsolation($dataIsolation),
             ResourceVisibilityResourceType::SKILL,
             $code,
-            $visibilityConfig
+            $visibilityType,
+            $userIds,
+            $departmentIds
         );
     }
 
@@ -1946,7 +1970,9 @@ class SkillAppService extends AbstractSkillAppService
         }
 
         $versionEntity = $this->skillVersionDomainService->publishSkill($dataIsolation, $skillEntity, $versionEntity);
-        $this->syncPublishedSkillScope($dataIsolation, $skillEntity, $versionEntity);
+        if ($versionEntity->getPublishStatus()->isPublished()) {
+            $this->syncPublishedSkillScope($dataIsolation, $skillEntity, $versionEntity);
+        }
 
         return $versionEntity;
     }

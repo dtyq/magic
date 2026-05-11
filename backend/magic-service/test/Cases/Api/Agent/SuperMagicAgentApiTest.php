@@ -7,12 +7,20 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\Agent;
 
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType;
 use App\Domain\Permission\Repository\Persistence\Model\MagicOperationPermissionModel;
 use App\Domain\Permission\Repository\Persistence\Model\ResourceVisibilityModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Dtyq\SuperMagic\Application\Agent\Service\AbstractSuperMagicAppService;
+use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentMarketRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentPlaybookRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentSkillRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentCategoryModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentMarketModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentPlaybookModel;
@@ -20,10 +28,21 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentSkillModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentVersionModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\SuperMagicAgentModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\UserAgentModel;
+use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
+use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillModel;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillVersionModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectModel;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\ExportWorkspaceRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Response\ExportWorkspaceResponse;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
+use Hyperf\Context\ApplicationContext;
 use HyperfTest\Cases\Api\SuperAgent\AbstractApiTest;
+use Mockery;
+use ReflectionProperty;
 
 /**
  * @internal
@@ -33,6 +52,8 @@ class SuperMagicAgentApiTest extends AbstractApiTest
 {
     private const BASE_URI = '/api/v2/super-magic/agents';
 
+    private ?SuperMagicAgentDomainService $originalSuperMagicAgentDomainService = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -40,6 +61,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
 
     protected function tearDown(): void
     {
+        $this->restoreSuperMagicAgentDomainService();
         parent::tearDown();
     }
 
@@ -2044,8 +2066,10 @@ class SuperMagicAgentApiTest extends AbstractApiTest
     {
         $this->switchUserTest1();
 
-        $agentCode = $this->createTestAgent();
+        $agentCode = $this->createTestAgentRecord();
         SuperMagicAgentModel::query()->where('code', $agentCode)->update(['file_key' => 'agents/publish-scope.zip']);
+        $this->ensureAgentIdentityFileExists($agentCode);
+        $this->mockAgentWorkspaceExport();
 
         $headers = $this->getCommonHeaders();
         $organizationCode = $headers['organization-code'];
@@ -2070,9 +2094,16 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $headers
         );
         $this->assertEquals(1000, $memberResponse['code'], $memberResponse['message'] ?? '');
-        $this->assertEquals('PUBLISHED', $memberResponse['data']['publish_status']);
-        $this->assertEquals('APPROVED', $memberResponse['data']['review_status']);
+        $this->assertEquals('UNPUBLISHED', $memberResponse['data']['publish_status']);
+        $this->assertEquals('UNDER_REVIEW', $memberResponse['data']['review_status']);
         $this->assertEquals('MEMBER', $memberResponse['data']['publish_target_type']);
+
+        $memberApproveResponse = $this->put(
+            '/api/v1/organization/admin/super-magic/agents/versions/' . $memberResponse['data']['version_id'] . '/approve',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $memberApproveResponse['code'], $memberApproveResponse['message'] ?? '');
 
         $memberVisibilityUserIds = ResourceVisibilityModel::query()
             ->where('organization_code', $organizationCode)
@@ -2166,7 +2197,40 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $headers
         );
         $this->assertEquals(1000, $organizationResponse['code'], $organizationResponse['message'] ?? '');
+        $this->assertEquals('UNPUBLISHED', $organizationResponse['data']['publish_status']);
+        $this->assertEquals('UNDER_REVIEW', $organizationResponse['data']['review_status']);
         $this->assertEquals('ORGANIZATION', $organizationResponse['data']['publish_target_type']);
+
+        $organizationVisibility = ResourceVisibilityModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('resource_type', ResourceType::SUPER_MAGIC_AGENT->value)
+            ->where('resource_code', $agentCode)
+            ->get(['principal_type', 'principal_id'])
+            ->map(fn (ResourceVisibilityModel $model) => [
+                'principal_type' => $model->principal_type,
+                'principal_id' => $model->principal_id,
+            ])
+            ->all();
+        $organizationVisibilityUserIds = array_values(array_column(
+            array_filter($organizationVisibility, static fn (array $row): bool => (string) $row['principal_type'] === (string) PrincipalType::USER->value),
+            'principal_id'
+        ));
+        sort($organizationVisibilityUserIds);
+        $this->assertSame($expectedMemberVisibilityUserIds, $organizationVisibilityUserIds);
+
+        $organizationVisibilityDepartmentIds = array_values(array_column(
+            array_filter($organizationVisibility, static fn (array $row): bool => (string) $row['principal_type'] === (string) PrincipalType::DEPARTMENT->value),
+            'principal_id'
+        ));
+        sort($organizationVisibilityDepartmentIds);
+        $this->assertSame([$targetDepartmentId], $organizationVisibilityDepartmentIds);
+
+        $organizationApproveResponse = $this->put(
+            '/api/v1/organization/admin/super-magic/agents/versions/' . $organizationResponse['data']['version_id'] . '/approve',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $organizationApproveResponse['code'], $organizationApproveResponse['message'] ?? '');
 
         $organizationVisibility = ResourceVisibilityModel::query()
             ->where('organization_code', $organizationCode)
@@ -2894,6 +2958,306 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertNotNull($agentCode, 'agent_code 不应为空');
 
         return $agentCode;
+    }
+
+    private function ensureAgentIdentityFileExists(string $agentCode): void
+    {
+        $headers = $this->getCommonHeaders();
+        $agent = SuperMagicAgentModel::query()
+            ->where('code', $agentCode)
+            ->where('organization_code', $headers['organization-code'])
+            ->first();
+
+        $this->assertNotNull($agent, '应该存在员工记录');
+        $projectId = (int) $agent->project_id;
+        $this->assertGreaterThan(0, $projectId, '员工应绑定项目');
+
+        $root = TaskFileModel::query()
+            ->where('project_id', $projectId)
+            ->whereNull('parent_id')
+            ->where('is_directory', 1)
+            ->first();
+
+        if ($root === null) {
+            $rootFileId = IdGenerator::getSnowId();
+            TaskFileModel::query()->create($this->makeAgentTaskFileRow(
+                $projectId,
+                null,
+                '/',
+                true,
+                'agent-project-' . $projectId . '/',
+                '',
+                $rootFileId
+            ));
+        } else {
+            $rootFileId = (int) $root->file_id;
+        }
+
+        $magicDir = TaskFileModel::query()
+            ->where('project_id', $projectId)
+            ->where('parent_id', $rootFileId)
+            ->where('file_name', '.magic')
+            ->where('is_directory', 1)
+            ->first();
+
+        if ($magicDir === null) {
+            $magicDirFileId = IdGenerator::getSnowId();
+            TaskFileModel::query()->create($this->makeAgentTaskFileRow(
+                $projectId,
+                $rootFileId,
+                '.magic',
+                true,
+                'agent-project-' . $projectId . '/.magic/',
+                '',
+                $magicDirFileId
+            ));
+        } else {
+            $magicDirFileId = (int) $magicDir->file_id;
+        }
+
+        $identityFile = TaskFileModel::query()
+            ->where('project_id', $projectId)
+            ->where('parent_id', $magicDirFileId)
+            ->where('file_name', 'IDENTITY.md')
+            ->where('is_directory', 0)
+            ->first();
+
+        if ($identityFile !== null) {
+            return;
+        }
+
+        TaskFileModel::query()->create($this->makeAgentTaskFileRow(
+            $projectId,
+            $magicDirFileId,
+            'IDENTITY.md',
+            false,
+            'agent-project-' . $projectId . '/.magic/IDENTITY.md',
+            'md',
+            IdGenerator::getSnowId()
+        ));
+    }
+
+    private function mockAgentWorkspaceExport(): void
+    {
+        $container = ApplicationContext::getContainer();
+        $this->originalSuperMagicAgentDomainService ??= $container->get(SuperMagicAgentDomainService::class);
+
+        $sandboxGateway = Mockery::mock(SandboxGatewayInterface::class);
+        $sandboxGateway->shouldReceive('setUserContext')->andReturnSelf();
+        $sandboxGateway->shouldReceive('ensureSandboxAvailable')->andReturnUsing(
+            static fn (string $sandboxId): string => $sandboxId
+        );
+
+        $cloudFileRepository = Mockery::mock(CloudFileRepositoryInterface::class);
+        $cloudFileRepository->shouldReceive('getStsTemporaryCredential')->andReturn([
+            'access_key_id' => 'test-access-key',
+            'secret_access_key' => 'test-secret-key',
+            'session_token' => 'test-session-token',
+            'bucket' => 'test-bucket',
+            'dir' => '/agent_export',
+        ]);
+
+        $workspaceExporter = Mockery::mock(WorkspaceExporterInterface::class);
+        $workspaceExporter->shouldReceive('export')->andReturnUsing(
+            static fn (string $sandboxId, ExportWorkspaceRequest $request): ExportWorkspaceResponse => new ExportWorkspaceResponse(
+                true,
+                1000,
+                'OK',
+                'agents/test-export-' . $request->getCode() . '.zip',
+                [
+                    'sandbox_id' => $sandboxId,
+                    'source_path' => $request->getSourcePath(),
+                ]
+            )
+        );
+
+        $domainService = new SuperMagicAgentDomainService(
+            $container->get(SuperMagicAgentRepositoryInterface::class),
+            $container->get(AgentSkillRepositoryInterface::class),
+            $container->get(AgentPlaybookRepositoryInterface::class),
+            $container->get(AgentMarketRepositoryInterface::class),
+            $container->get(AgentVersionRepositoryInterface::class),
+            $container->get(UserAgentDomainService::class),
+            $cloudFileRepository,
+            $sandboxGateway,
+            $workspaceExporter,
+            $container->get(AgentMarketRepositoryInterface::class),
+        );
+
+        $container->set(SuperMagicAgentDomainService::class, $domainService);
+        $this->replaceAgentAppServiceDomainService($domainService);
+    }
+
+    private function restoreSuperMagicAgentDomainService(): void
+    {
+        if ($this->originalSuperMagicAgentDomainService === null) {
+            return;
+        }
+
+        ApplicationContext::getContainer()->set(
+            SuperMagicAgentDomainService::class,
+            $this->originalSuperMagicAgentDomainService
+        );
+        $this->replaceAgentAppServiceDomainService($this->originalSuperMagicAgentDomainService);
+        $this->originalSuperMagicAgentDomainService = null;
+    }
+
+    private function replaceAgentAppServiceDomainService(SuperMagicAgentDomainService $domainService): void
+    {
+        $appService = ApplicationContext::getContainer()->get(SuperMagicAgentAppService::class);
+        $property = new ReflectionProperty(AbstractSuperMagicAppService::class, 'superMagicAgentDomainService');
+        $property->setAccessible(true);
+        $property->setValue($appService, $domainService);
+    }
+
+    private function createTestAgentRecord(): string
+    {
+        $headers = $this->getCommonHeaders();
+        $organizationCode = $headers['organization-code'];
+        $userId = $headers['user-id'];
+        $now = date('Y-m-d H:i:s');
+        $agentCode = 'SMA-' . IdGenerator::getUniqueId32();
+        $projectId = IdGenerator::getSnowId();
+
+        ProjectModel::query()->create([
+            'id' => $projectId,
+            'user_id' => $userId,
+            'user_organization_code' => $organizationCode,
+            'workspace_id' => 0,
+            'project_name' => 'Test Agent',
+            'project_description' => '',
+            'work_dir' => '/project_' . $projectId . '/workspace',
+            'project_status' => 1,
+            'current_topic_id' => 0,
+            'current_topic_status' => '',
+            'is_collaboration_enabled' => 1,
+            'default_join_permission' => 'editor',
+            'project_mode' => 'agent_creator',
+            'source' => 1,
+            'is_hidden' => 1,
+            'hidden_type' => 2,
+            'created_uid' => $userId,
+            'updated_uid' => $userId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        SuperMagicAgentModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'organization_code' => $organizationCode,
+            'code' => $agentCode,
+            'name' => 'Test Agent',
+            'description' => 'This is a test agent',
+            'icon' => [
+                'type' => 'IconAccessibleFilled',
+                'url' => '',
+                'color' => '#4F46E5',
+            ],
+            'icon_type' => 1,
+            'tools' => [],
+            'prompt' => [],
+            'type' => 2,
+            'enabled' => 1,
+            'creator' => $userId,
+            'modifier' => $userId,
+            'name_i18n' => [
+                'zh_CN' => '测试员工',
+                'en_US' => 'Test Agent',
+            ],
+            'role_i18n' => [
+                'zh_CN' => ['市场分析师'],
+                'en_US' => ['Marketing Analyst'],
+            ],
+            'description_i18n' => [
+                'zh_CN' => '这是一个测试员工',
+                'en_US' => 'This is a test agent',
+            ],
+            'source_type' => 'LOCAL_CREATE',
+            'source_id' => null,
+            'version_id' => null,
+            'version_code' => null,
+            'pinned_at' => null,
+            'project_id' => $projectId,
+            'file_key' => 'agents/publish-scope.zip',
+            'latest_published_at' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        UserAgentModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'organization_code' => $organizationCode,
+            'user_id' => $userId,
+            'agent_code' => $agentCode,
+            'source_type' => 'LOCAL_CREATE',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        MagicOperationPermissionModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'organization_code' => $organizationCode,
+            'resource_type' => 6,
+            'resource_id' => $agentCode,
+            'target_type' => 1,
+            'target_id' => $userId,
+            'operation' => 1,
+            'created_uid' => $userId,
+            'updated_uid' => $userId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        ResourceVisibilityModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'organization_code' => $organizationCode,
+            'principal_type' => PrincipalType::USER->value,
+            'principal_id' => $userId,
+            'resource_type' => ResourceType::SUPER_MAGIC_AGENT->value,
+            'resource_code' => $agentCode,
+            'creator' => $userId,
+            'modifier' => $userId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return $agentCode;
+    }
+
+    private function makeAgentTaskFileRow(
+        int $projectId,
+        ?int $parentId,
+        string $fileName,
+        bool $isDirectory,
+        string $fileKey,
+        string $fileExtension = '',
+        ?int $fileId = null
+    ): array {
+        $headers = $this->getCommonHeaders();
+        $now = date('Y-m-d H:i:s');
+
+        return [
+            'file_id' => $fileId ?? IdGenerator::getSnowId(),
+            'user_id' => $headers['user-id'],
+            'organization_code' => $headers['organization-code'],
+            'project_id' => $projectId,
+            'topic_id' => 0,
+            'task_id' => 0,
+            'file_type' => $isDirectory ? 'directory' : 'file',
+            'file_name' => $fileName,
+            'file_extension' => $fileExtension,
+            'file_key' => $fileKey,
+            'file_size' => 0,
+            'external_url' => '',
+            'storage_type' => 'workspace',
+            'is_hidden' => $fileName === '.magic' ? 1 : 0,
+            'is_directory' => $isDirectory ? 1 : 0,
+            'sort' => 0,
+            'parent_id' => $parentId,
+            'source' => 3,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
     }
 
     /**
