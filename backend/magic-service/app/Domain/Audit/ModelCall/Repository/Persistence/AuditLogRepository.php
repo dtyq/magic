@@ -13,8 +13,8 @@ use App\Domain\Audit\ModelCall\Repository\Facade\AuditLogRepositoryInterface;
 use App\Domain\Audit\ModelCall\Repository\Persistence\Model\AuditLogModel;
 use App\Domain\ModelGateway\Repository\Persistence\AbstractRepository;
 use App\Infrastructure\Core\AbstractEntity;
-use App\Infrastructure\Core\ValueObject\Page;
 use Hyperf\Database\Exception\QueryException;
+use Hyperf\Database\Model\Builder;
 
 class AuditLogRepository extends AbstractRepository implements AuditLogRepositoryInterface
 {
@@ -74,10 +74,12 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
     }
 
     public function queries(
-        Page $page,
+        int $pageSize,
         array $filters = [],
         string $currentOrganizationCode = '',
-        bool $isOfficialOrganization = false
+        bool $isOfficialOrganization = false,
+        ?string $cursorId = null,
+        string $direction = 'next'
     ): array {
         $builder = AuditLogModel::query();
         $organizationCode = $this->resolveOrganizationCodeFilter(
@@ -93,7 +95,6 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         if (! empty($filters['type'])) {
             $builder->where('type', (string) $filters['type']);
         } else {
-            // 列表默认不向量化噪音：未显式筛选 type 时排除 EMBEDDING；传 type=EMBEDDING 时仅上面分支精确查询
             $builder->where('type', '!=', AuditType::EMBEDDING->value);
         }
         if (! empty($filters['status'])) {
@@ -130,15 +131,7 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             $builder->where('operation_time', '<=', (int) $filters['end_operation_time']);
         }
 
-        $builder->orderByDesc('id');
-        $result = $this->getByPage($builder, $page);
-        $rawList = $result['list'] ?? [];
-        $list = is_array($rawList) ? $rawList : (method_exists($rawList, 'toArray') ? $rawList->toArray() : []);
-
-        return [
-            'total' => (int) $result['total'],
-            'list' => $this->formatList($list),
-        ];
+        return $this->queryByCursor($builder, $pageSize, $cursorId, $direction);
     }
 
     /**
@@ -156,6 +149,58 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         }
 
         return $attributes;
+    }
+
+    /**
+     * 游标分页：基于主键 id 的范围查询，避免 COUNT + OFFSET 的性能问题.
+     *
+     * @return array{list: array, next_cursor_id: ?string, prev_cursor_id: ?string, has_more: bool}
+     */
+    private function queryByCursor(
+        Builder $builder,
+        int $pageSize,
+        ?string $cursorId,
+        string $direction
+    ): array {
+        $isPrev = $direction === 'prev';
+
+        if ($cursorId !== null && $cursorId !== '') {
+            $builder->where('id', $isPrev ? '>' : '<', $cursorId);
+        }
+
+        $builder->orderBy('id', $isPrev ? 'asc' : 'desc')
+            ->limit($pageSize + 1);
+
+        $rawList = $builder->get();
+        $list = method_exists($rawList, 'toArray') ? $rawList->toArray() : (array) $rawList;
+
+        $hasMore = count($list) > $pageSize;
+        if ($hasMore) {
+            array_pop($list);
+        }
+
+        // prev 方向是 ASC 取的，结果需要反转回 DESC 顺序
+        if ($isPrev) {
+            $list = array_reverse($list);
+        }
+
+        $list = $this->formatList($list);
+
+        $nextCursorId = null;
+        $prevCursorId = null;
+        if ($list !== []) {
+            $lastItem = end($list);
+            $firstItem = reset($list);
+            $nextCursorId = $lastItem['id'] ?? null;
+            $prevCursorId = $firstItem['id'] ?? null;
+        }
+
+        return [
+            'list' => $list,
+            'next_cursor_id' => $nextCursorId,
+            'prev_cursor_id' => $prevCursorId,
+            'has_more' => $hasMore,
+        ];
     }
 
     /**
