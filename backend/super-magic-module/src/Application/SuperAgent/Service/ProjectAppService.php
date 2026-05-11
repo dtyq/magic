@@ -7,8 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Application\Contact\UserSetting\UserSettingKey;
+use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\ErrorCode\GenericErrorCode;
@@ -77,6 +80,7 @@ use Dtyq\SuperMagic\Interfaces\Share\DTO\Request\CreateShareRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateSpecialProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsV2RequestDTO;
@@ -135,6 +139,7 @@ class ProjectAppService extends AbstractAppService
         private readonly AudioProjectDomainService $audioProjectDomainService,
         private readonly RecycleBinDomainService $recycleBinDomainService,
         private readonly FileTreeBuilder $fileTreeBuilder,
+        private readonly MagicUserSettingDomainService $magicUserSettingDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -293,6 +298,103 @@ class ProjectAppService extends AbstractAppService
         } catch (Throwable $e) {
             Db::rollBack();
             $this->logger->error('Create Project Failed, err: ' . $e->getMessage(), ['request' => $requestDTO->toArray()]);
+            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, 'project.create_project_failed');
+        }
+    }
+
+    /**
+     * 创建或获取特殊项目.
+     * 根据前端传入的 key 判断项目是否已存在，不存在则在 default 工作区下创建.
+     * 项目 ID 通过 MagicUserSettingDomainService 存储映射关系.
+     *
+     * @return array 返回格式：['key' => string, 'project' => array, 'is_existing' => bool]
+     */
+    public function createOrGetSpecialProject(
+        RequestContext $requestContext,
+        CreateSpecialProjectRequestDTO $requestDTO
+    ): array {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $specialKey = $requestDTO->getKey();
+        if (empty($specialKey)) {
+            ExceptionBuilder::throw(GenericErrorCode::IllegalParameter, 'project.special_key_required');
+        }
+
+        $settingKey = UserSettingKey::genSuperMagicSpecialProject($specialKey);
+
+        // 1. 查询 UserSetting 是否已有 project_id
+        $setting = $this->magicUserSettingDomainService->get($dataIsolation, $settingKey);
+
+        if ($setting) {
+            $projectId = (int) ($setting->getValue()['project_id'] ?? 0);
+            if ($projectId > 0) {
+                // 校验项目是否真实存在
+                $projectEntity = $this->projectRepository->findById($projectId);
+                if ($projectEntity && $projectEntity->getUserId() === $dataIsolation->getCurrentUserId()) {
+                    $this->logger->info(sprintf('特殊项目已存在, key=%s, projectId=%d', $specialKey, $projectId));
+                    return [
+                        'key' => $specialKey,
+                        'project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(),
+                        'is_existing' => true,
+                    ];
+                }
+            }
+        }
+
+        // 2. 获取或创建 default 工作区
+        $workspaceEntity = $this->workspaceDomainService->getOrCreateWorkspaceByType(
+            $dataIsolation,
+            WorkspaceType::Default
+        );
+
+        // 3. 创建项目
+        Db::beginTransaction();
+        try {
+            $projectEntity = $this->projectDomainService->createProject(
+                $workspaceEntity->getId(),
+                $requestDTO->getProjectName(),
+                $dataIsolation->getCurrentUserId(),
+                $dataIsolation->getCurrentOrganizationCode(),
+                '',
+                '',
+                $requestDTO->getProjectMode() ?: null
+            );
+            $this->logger->info(sprintf('创建特殊项目, key=%s, projectId=%s', $specialKey, $projectEntity->getId()));
+
+            // 4. 初始化项目
+            $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
+            $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams);
+
+            // 5. 创建项目根目录
+            $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                projectId: $projectEntity->getId(),
+                workDir: $projectEntity->getWorkDir(),
+                userId: $dataIsolation->getCurrentUserId(),
+                organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+            );
+
+            // 6. 保存 key → project_id 映射到 UserSetting
+            $settingEntity = new MagicUserSettingEntity();
+            $settingEntity->setKey($settingKey);
+            $settingEntity->setValue(['project_id' => $projectEntity->getId()]);
+            $this->magicUserSettingDomainService->save($dataIsolation, $settingEntity);
+
+            Db::commit();
+
+            // 触发项目创建事件
+            $projectCreatedEvent = new ProjectCreatedEvent($projectEntity, $userAuthorization);
+            $this->eventDispatcher->dispatch($projectCreatedEvent);
+
+            return [
+                'key' => $specialKey,
+                'project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(),
+                'is_existing' => false,
+            ];
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error('Create Special Project Failed, err: ' . $e->getMessage(), ['key' => $specialKey]);
             ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, 'project.create_project_failed');
         }
     }
