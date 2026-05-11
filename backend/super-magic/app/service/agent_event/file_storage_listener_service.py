@@ -270,6 +270,12 @@ class FileStorageListenerService:
         Args:
             agent_context: Agent context object
         """
+        # 通过环境变量控制是否执行归档，本地开发可设置为 false 跳过
+        enable_archive = os.getenv("ENABLE_PROJECT_ARCHIVE", "true").lower() == "true"
+        if not enable_archive:
+            logger.info("ENABLE_PROJECT_ARCHIVE=false，跳过项目归档上传")
+            return
+
         try:
             # Get directory paths
             chat_history_dir = PathManager.get_chat_history_dir()
