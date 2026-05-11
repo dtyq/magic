@@ -72,7 +72,7 @@ class AdminOperationLogApi extends AbstractPermissionApi
     }
 
     /**
-     * 模型调用审计列表（展示接口）.
+     * 模型调用审计列表（游标分页，展示接口）.
      * 需 workspace 或 platform 模型调用审计查询权限（择一）.
      */
     #[CheckPermission(
@@ -99,6 +99,13 @@ class AdminOperationLogApi extends AbstractPermissionApi
         $organizationCode = trim((string) $this->request->input('organization_code', ''));
         $startDate = (string) $this->request->input('start_date', '');
         $endDate = (string) $this->request->input('end_date', '');
+
+        $cursorId = $this->request->input('cursor_id');
+        $cursorId = is_string($cursorId) && $cursorId !== '' ? $cursorId : null;
+        $direction = (string) $this->request->input('direction', 'next');
+        if (! in_array($direction, ['next', 'prev'], true)) {
+            $direction = 'next';
+        }
 
         if ($type !== '') {
             $filters['type'] = $type;
@@ -142,18 +149,18 @@ class AdminOperationLogApi extends AbstractPermissionApi
             $filters['end_operation_time'] = $endDateMs;
         }
 
-        // 前端未传任何时间时，默认最近 30 天（含今天），避免大表全表扫描
         if ($startDateMs === null && $endDateMs === null) {
             $filters['start_operation_time'] = $this->defaultStartOperationTimeMs();
             $filters['end_operation_time'] = $this->defaultEndOperationTimeMs();
         }
 
         return $this->modelAuditService->listForAdmin(
-            (int) $this->request->input('page', 1),
-            (int) $this->request->input('page_size', 10),
+            (int) $this->request->input('page_size', 20),
             $filters,
             $currentOrganizationCode,
-            $isOfficialOrganization
+            $isOfficialOrganization,
+            $cursorId,
+            $direction
         );
     }
 

@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace App\Domain\Audit\ModelCall\Repository\Facade;
 
 use App\Domain\Audit\ModelCall\Entity\AuditLogEntity;
-use App\Infrastructure\Core\ValueObject\Page;
 
 interface AuditLogRepositoryInterface
 {
@@ -28,17 +27,21 @@ interface AuditLogRepositoryInterface
     public function recordPointsByEventId(string $eventId, int $points): void;
 
     /**
-     * 查询审计日志列表.
+     * 游标分页查询审计日志列表.
      * filters['type'] 未传或为空时，默认排除 type=EMBEDDING；传入 type（含 EMBEDDING）则按该值精确筛选.
      * @param array<string, mixed> $filters
      * @param string $currentOrganizationCode 当前登录组织编码
      * @param bool $isOfficialOrganization 是否官方组织
-     * @return array{total: int, list: array<int, array<string, mixed>>}
+     * @param ?string $cursorId 游标记录 ID（上一页最后/第一条记录的主键 id）
+     * @param string $direction 翻页方向：next（下一页）/ prev（上一页）
+     * @return array{list: array, next_cursor_id: ?string, prev_cursor_id: ?string, has_more: bool}
      */
     public function queries(
-        Page $page,
+        int $pageSize,
         array $filters = [],
         string $currentOrganizationCode = '',
-        bool $isOfficialOrganization = false
+        bool $isOfficialOrganization = false,
+        ?string $cursorId = null,
+        string $direction = 'next'
     ): array;
 }

@@ -9,7 +9,6 @@ namespace App\Application\Audit\ModelCall\Service;
 
 use App\Domain\Audit\ModelCall\Service\ModelCallAuditDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
-use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\StringMaskUtil;
 use App\Interfaces\Chat\DTO\UserDetailDTO;
 use Hyperf\Logger\LoggerFactory;
@@ -29,32 +28,37 @@ class AuditService
     }
 
     /**
-     * 管理端查询模型调用审计列表（行内为表字段 + 反查得到的 user_info）.
+     * 管理端查询模型调用审计列表（游标分页，行内为表字段 + 反查得到的 user_info）.
      *
      * @param array<string, mixed> $filters
-     * @return array{total: int, page: int, page_size: int, list: array<int, array<string, mixed>>}
+     * @return array{list: array, page_size: int, next_cursor_id: ?string, prev_cursor_id: ?string, has_more: bool}
      */
     public function listForAdmin(
-        int $page,
         int $pageSize,
         array $filters = [],
         string $currentOrganizationCode = '',
-        bool $isOfficialOrganization = false
+        bool $isOfficialOrganization = false,
+        ?string $cursorId = null,
+        string $direction = 'next'
     ): array {
-        $pageVO = new Page($page, $pageSize);
+        $pageSize = ($pageSize <= 0 || $pageSize > 100) ? 20 : $pageSize;
+
         $result = $this->modelCallAuditDomainService->queries(
-            $pageVO,
+            $pageSize,
             $filters,
             $currentOrganizationCode,
-            $isOfficialOrganization
+            $isOfficialOrganization,
+            $cursorId,
+            $direction
         );
         $list = is_array($result['list'] ?? null) ? $result['list'] : [];
 
         return [
-            'total' => (int) ($result['total'] ?? 0),
-            'page' => $pageVO->getPage(),
-            'page_size' => $pageVO->getPageNum(),
             'list' => $this->enrichUserInfoForAdminList($list),
+            'page_size' => $pageSize,
+            'next_cursor_id' => $result['next_cursor_id'] ?? null,
+            'prev_cursor_id' => $result['prev_cursor_id'] ?? null,
+            'has_more' => (bool) ($result['has_more'] ?? false),
         ];
     }
 
