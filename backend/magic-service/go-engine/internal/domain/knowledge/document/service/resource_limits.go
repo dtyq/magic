@@ -16,8 +16,8 @@ const (
 	defaultMaxTabularCells          int64 = 2_000_000
 	defaultMaxPlainTextChars        int64 = 20_000_000
 	defaultMaxParsedBlocks          int64 = 250_000
-	defaultMaxFragmentsPerDocument  int64 = 10_000
-	defaultSyncMemorySoftLimitBytes int64 = 6 * 1024 * 1024 * 1024
+	defaultMaxFragmentsPerDocument  int64 = 2_000
+	defaultSyncMemorySoftLimitBytes int64 = 0
 )
 
 const (
@@ -121,9 +121,6 @@ func NormalizeResourceLimits(limits ResourceLimits) ResourceLimits {
 	}
 	if limits.MaxFragmentsPerDocument <= 0 {
 		limits.MaxFragmentsPerDocument = defaults.MaxFragmentsPerDocument
-	}
-	if limits.SyncMemorySoftLimitBytes <= 0 {
-		limits.SyncMemorySoftLimitBytes = defaults.SyncMemorySoftLimitBytes
 	}
 	return limits
 }

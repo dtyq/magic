@@ -53,6 +53,7 @@ type RabbitMQBrokerConfig struct {
 // RabbitMQTaskMessage 表示新版自包含文档同步任务消息。
 type RabbitMQTaskMessage struct {
 	Kind              string           `json:"kind"`
+	OrganizationCode  string           `json:"organization_code,omitempty"`
 	KnowledgeBaseCode string           `json:"knowledge_base_code"`
 	DocumentCode      string           `json:"document_code"`
 	Mode              string           `json:"mode"`
@@ -70,6 +71,7 @@ func newRabbitMQTaskMessage(task *Task) (RabbitMQTaskMessage, bool) {
 	async := task.Async
 	return RabbitMQTaskMessage{
 		Kind:              strings.TrimSpace(task.Kind),
+		OrganizationCode:  strings.TrimSpace(task.OrganizationCode),
 		KnowledgeBaseCode: strings.TrimSpace(task.KnowledgeBaseCode),
 		DocumentCode:      strings.TrimSpace(task.Code),
 		Mode:              strings.TrimSpace(task.Mode),

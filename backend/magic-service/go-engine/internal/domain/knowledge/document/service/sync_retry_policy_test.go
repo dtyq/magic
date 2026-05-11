@@ -114,8 +114,8 @@ func TestIsNonRetryableDocumentSyncErrorPermanentResourceLimits(t *testing.T) {
 			name: "too many fragments",
 			err: newTestResourceLimitError(
 				documentdomain.ResourceLimitMaxFragmentsPerDocument,
-				10_000,
-				10_001,
+				2_000,
+				2_001,
 				"build_fragments",
 			),
 			want: true,

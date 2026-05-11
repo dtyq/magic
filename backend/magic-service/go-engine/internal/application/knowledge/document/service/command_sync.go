@@ -91,6 +91,9 @@ func (s *DocumentAppService) executeSyncDocument(
 	trace *documentSyncTracer,
 	doc *docentity.KnowledgeBaseDocument,
 ) error {
+	if err := s.waitDocumentSyncMemoryAdmission(ctx, doc); err != nil {
+		return err
+	}
 	runtimeKB, err := s.loadRuntimeKnowledgeBaseForSync(ctx, doc)
 	if err != nil {
 		return err

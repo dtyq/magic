@@ -8,7 +8,7 @@ import (
 	document "magic/internal/domain/knowledge/document/service"
 )
 
-const documentResourceBaseLogFieldCount = 8
+const documentResourceBaseLogFieldCount = 10
 
 func (s *DocumentAppService) logResourceLimitFailure(
 	ctx context.Context,
@@ -25,6 +25,7 @@ func (s *DocumentAppService) logResourceLimitFailure(
 			ctx,
 			"document resource limit exceeded",
 			appendDocumentResourceLogFields(doc,
+				"memory_guard_keyword", documentMemoryGuardLogKeyword,
 				"limit_name", resourceErr.LimitName,
 				"limit_value", resourceErr.LimitValue,
 				"observed_value", resourceErr.ObservedValue,
@@ -39,6 +40,7 @@ func (s *DocumentAppService) logResourceLimitFailure(
 func appendDocumentResourceLogFields(doc *docentity.KnowledgeBaseDocument, fields ...any) []any {
 	output := make([]any, 0, len(fields)+documentResourceBaseLogFieldCount)
 	output = append(output,
+		"organization_code", documentOrganizationCodeForLog(doc),
 		"document_code", documentCodeForLog(doc),
 		"knowledge_base_code", knowledgeBaseCodeForLog(doc),
 		"file_name", documentFileNameForLog(doc),
@@ -46,6 +48,13 @@ func appendDocumentResourceLogFields(doc *docentity.KnowledgeBaseDocument, field
 	)
 	output = append(output, fields...)
 	return output
+}
+
+func documentOrganizationCodeForLog(doc *docentity.KnowledgeBaseDocument) string {
+	if doc == nil {
+		return ""
+	}
+	return doc.OrganizationCode
 }
 
 func documentCodeForLog(doc *docentity.KnowledgeBaseDocument) string {

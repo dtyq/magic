@@ -3,6 +3,7 @@ package docapp
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	document "magic/internal/domain/knowledge/document/service"
 	"magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/ctxmeta"
+	"magic/internal/pkg/memoryguard"
 	"magic/internal/pkg/thirdplatform"
 )
 
@@ -362,6 +364,8 @@ func (t *documentSyncTracer) log(ctx context.Context, stage string, startedAt ti
 			"document_code", t.doc.Code,
 			"knowledge_base_code", t.doc.KnowledgeBaseCode,
 			"organization_code", t.doc.OrganizationCode,
+			"file_name", documentFileNameForLog(t.doc),
+			"file_type", documentFileTypeForLog(t.doc),
 		)
 	}
 	if err != nil {
@@ -369,6 +373,29 @@ func (t *documentSyncTracer) log(ctx context.Context, stage string, startedAt ti
 	} else {
 		attrs = append(attrs, "status", "ok")
 	}
+	attrs = append(attrs, documentSyncStageMemoryFields(ctx, stage)...)
 	attrs = append(attrs, fields...)
 	t.service.logger.DebugContext(ctx, "Document sync stage completed", attrs...)
+}
+
+func documentSyncStageMemoryFields(ctx context.Context, stage string) []any {
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+	snapshot, _ := memoryguard.NewGuard(memoryguard.Config{
+		CgroupPressureRatio: documentMemoryGuardCgroupRatio,
+	}).Check(ctx, stage)
+	return []any{
+		"memory_guard_keyword", documentMemoryGuardLogKeyword,
+		"heap_alloc_bytes", stats.Alloc,
+		"heap_sys_bytes", stats.HeapSys,
+		"heap_idle_bytes", stats.HeapIdle,
+		"heap_released_bytes", stats.HeapReleased,
+		"current_bytes", snapshot.CurrentBytes,
+		"limit_bytes", snapshot.LimitBytes,
+		"usage_ratio", snapshot.UsageRatio,
+		"soft_limit_bytes", snapshot.SoftLimitBytes,
+		"limit_name", snapshot.LimitName,
+		"limit_value", snapshot.LimitValue,
+		"observed_value", snapshot.ObservedValue,
+	}
 }

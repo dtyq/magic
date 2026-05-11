@@ -81,3 +81,44 @@ func TestMemoryAdmissionGateReturnsContextErrorWhilePaused(t *testing.T) {
 		t.Fatalf("expected context canceled, got %v", err)
 	}
 }
+
+func TestDocumentSyncMemoryPressureUsesFiftyPercentCgroupLimit(t *testing.T) {
+	t.Parallel()
+
+	const tenGiB = int64(10 * 1024 * 1024 * 1024)
+	guard := memoryguard.NewGuardWithReader(
+		memoryguard.Config{CgroupPressureRatio: documentsync.DocumentSyncCgroupPressureRatio},
+		&memoryAdmissionCheckerStub{
+			readings: []memoryAdmissionReading{{current: 7 * 1024 * 1024 * 1024, limit: tenGiB}},
+		},
+	)
+
+	snapshot, err := guard.Check(context.Background(), "document_sync_admission")
+	if !errors.Is(err, memoryguard.ErrMemoryPressure) {
+		t.Fatalf("expected memory pressure, got %v", err)
+	}
+	if snapshot.LimitValue != int64(float64(tenGiB)*documentsync.DocumentSyncCgroupPressureRatio) {
+		t.Fatalf("expected 50%% cgroup limit, got %d", snapshot.LimitValue)
+	}
+}
+
+func TestDocumentSyncMemoryPressureAllowsExplicitSoftLimitOverride(t *testing.T) {
+	t.Parallel()
+
+	const tenGiB = int64(10 * 1024 * 1024 * 1024)
+	const eightGiB = int64(8 * 1024 * 1024 * 1024)
+	guard := memoryguard.NewGuardWithReader(
+		memoryguard.Config{
+			SoftLimitBytes:             eightGiB,
+			CgroupPressureRatio:        documentsync.DocumentSyncCgroupPressureRatio,
+			DisableCgroupPressureRatio: true,
+		},
+		&memoryAdmissionCheckerStub{
+			readings: []memoryAdmissionReading{{current: 7 * 1024 * 1024 * 1024, limit: tenGiB}},
+		},
+	)
+
+	if _, err := guard.Check(context.Background(), "document_sync_admission"); err != nil {
+		t.Fatalf("expected explicit 8GiB soft limit to override 50%% cgroup pressure, got %v", err)
+	}
+}

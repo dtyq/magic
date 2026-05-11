@@ -466,6 +466,7 @@ func decodeRabbitMQTaskDelivery(body []byte) (*Task, string) {
 
 	task := &Task{
 		Kind:              strings.TrimSpace(message.Kind),
+		OrganizationCode:  strings.TrimSpace(message.OrganizationCode),
 		KnowledgeBaseCode: strings.TrimSpace(message.KnowledgeBaseCode),
 		Code:              strings.TrimSpace(message.DocumentCode),
 		Mode:              strings.TrimSpace(message.Mode),

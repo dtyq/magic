@@ -2,6 +2,7 @@ package splitter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -34,6 +35,8 @@ var (
 	hierarchySetextH1Regex        = regexp.MustCompile(`^\s*=+\s*$`)
 	hierarchySetextH2Regex        = regexp.MustCompile(`^\s*-+\s*$`)
 )
+
+var errHierarchyTokenWindowNoProgress = errors.New("hierarchy token window made no progress")
 
 type splitModeResolution struct {
 	RequestedMode      shared.FragmentMode
@@ -82,6 +85,7 @@ type autoSplitPipelineInput struct {
 	Model               string
 	TokenizerService    *tokenizer.Service
 	Logger              *logging.SugaredLogger
+	MaxChunks           int
 }
 
 type hierarchyPipelineInput struct {
@@ -91,6 +95,7 @@ type hierarchyPipelineInput struct {
 	Model            string
 	TokenizerService *tokenizer.Service
 	Logger           *logging.SugaredLogger
+	MaxChunks        int
 }
 
 func splitContentWithEffectiveModePipeline(
@@ -99,6 +104,7 @@ func splitContentWithEffectiveModePipeline(
 ) ([]tokenChunk, splitModeResolution, error) {
 	requestedMode := normalizeRequestedMode(input.RequestedMode)
 	content := stripMarkdownMagicCompressibleContentTags(input.Content, input.SourceFileType)
+	input.NormalSegmentConfig.MaxChunks = input.MaxChunks
 	resolution := splitModeResolution{
 		RequestedMode: requestedMode,
 		EffectiveMode: shared.FragmentModeCustom,
@@ -118,6 +124,7 @@ func splitContentWithEffectiveModePipeline(
 				Model:            input.Model,
 				TokenizerService: input.TokenizerService,
 				Logger:           input.Logger,
+				MaxChunks:        input.MaxChunks,
 			})
 			if err != nil {
 				return nil, resolution, err
@@ -165,55 +172,83 @@ func splitContentByHierarchyPipeline(input hierarchyPipelineInput) ([]tokenChunk
 	nodes, preface := buildHierarchyNodes(input.Content, input.Headings, input.Config.MaxLevel)
 	chunks := make([]tokenChunk, 0, max(1, len(nodes)))
 
-	if strings.TrimSpace(preface) != "" {
-		prefaceNodeID := hashText("hierarchy:preface")
-		prefaceChunks, err := splitHierarchyOwnedSegmentToChunks(
-			nil,
-			hierarchyOwnedSegment{Content: preface},
-			input.Config.TextPreprocessRule,
-			input.Model,
-			input.TokenizerService,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("split hierarchy preface: %w", err)
-		}
-		for index, chunk := range prefaceChunks {
-			chunk.SectionChunkIndex = index
-			chunk.SectionLevel = 0
-			chunk.TreeNodeID = prefaceNodeID
-			chunk.EffectiveSplitMode = splitModeHierarchyAuto
-			chunks = append(chunks, chunk)
-		}
+	if err := appendHierarchyPrefaceChunks(&chunks, input, preface); err != nil {
+		return nil, err
 	}
 
 	for _, node := range nodes {
-		sectionChunkIndex := 0
-		for _, segment := range node.Segments {
-			segmentChunks, err := splitHierarchyOwnedSegmentToChunks(
-				node,
-				segment,
-				input.Config.TextPreprocessRule,
-				input.Model,
-				input.TokenizerService,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("split hierarchy node: %w", err)
-			}
-			for _, chunk := range segmentChunks {
-				chunk.SectionPath = node.Path
-				chunk.SectionLevel = node.EffectiveLevel
-				chunk.SectionTitle = node.Heading.Title
-				chunk.TreeNodeID = node.NodeID
-				chunk.ParentNodeID = node.ParentNodeID
-				chunk.SectionChunkIndex = sectionChunkIndex
-				chunk.EffectiveSplitMode = splitModeHierarchyAuto
-				chunks = append(chunks, chunk)
-				sectionChunkIndex++
-			}
+		if err := appendHierarchyNodeChunks(&chunks, input, node); err != nil {
+			return nil, err
 		}
 	}
 
 	return chunks, nil
+}
+
+func appendHierarchyPrefaceChunks(chunks *[]tokenChunk, input hierarchyPipelineInput, preface string) error {
+	if strings.TrimSpace(preface) == "" {
+		return nil
+	}
+	if err := ensureChunkLimitHasRoom(input.MaxChunks, len(*chunks)); err != nil {
+		return err
+	}
+	prefaceChunks, err := splitHierarchyOwnedSegmentToChunks(
+		nil,
+		hierarchyOwnedSegment{Content: preface},
+		input.Config.TextPreprocessRule,
+		input.Model,
+		input.TokenizerService,
+		remainingChunkLimit(input.MaxChunks, len(*chunks)),
+	)
+	if err != nil {
+		return fmt.Errorf("split hierarchy preface: %w", err)
+	}
+
+	prefaceNodeID := hashText("hierarchy:preface")
+	for index, chunk := range prefaceChunks {
+		chunk.SectionChunkIndex = index
+		chunk.SectionLevel = 0
+		chunk.TreeNodeID = prefaceNodeID
+		chunk.EffectiveSplitMode = splitModeHierarchyAuto
+		if err := appendTokenChunkWithLimit(chunks, chunk, input.MaxChunks); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func appendHierarchyNodeChunks(chunks *[]tokenChunk, input hierarchyPipelineInput, node *hierarchyNode) error {
+	sectionChunkIndex := 0
+	for _, segment := range node.Segments {
+		if err := ensureChunkLimitHasRoom(input.MaxChunks, len(*chunks)); err != nil {
+			return err
+		}
+		segmentChunks, err := splitHierarchyOwnedSegmentToChunks(
+			node,
+			segment,
+			input.Config.TextPreprocessRule,
+			input.Model,
+			input.TokenizerService,
+			remainingChunkLimit(input.MaxChunks, len(*chunks)),
+		)
+		if err != nil {
+			return fmt.Errorf("split hierarchy node: %w", err)
+		}
+		for _, chunk := range segmentChunks {
+			chunk.SectionPath = node.Path
+			chunk.SectionLevel = node.EffectiveLevel
+			chunk.SectionTitle = node.Heading.Title
+			chunk.TreeNodeID = node.NodeID
+			chunk.ParentNodeID = node.ParentNodeID
+			chunk.SectionChunkIndex = sectionChunkIndex
+			chunk.EffectiveSplitMode = splitModeHierarchyAuto
+			if err := appendTokenChunkWithLimit(chunks, chunk, input.MaxChunks); err != nil {
+				return err
+			}
+			sectionChunkIndex++
+		}
+	}
+	return nil
 }
 
 func buildHierarchyChunkContent(content string, textPreprocessRule []int) string {
@@ -242,6 +277,7 @@ func splitHierarchyOwnedSegmentToChunks(
 	textPreprocessRule []int,
 	model string,
 	tokenizerService *tokenizer.Service,
+	maxChunks int,
 ) ([]tokenChunk, error) {
 	headingLine, body := splitHierarchyHeadingAndBody(segment.Content)
 	if strings.TrimSpace(body) == "" && segment.HasChildren {
@@ -271,7 +307,7 @@ func splitHierarchyOwnedSegmentToChunks(
 		return nil, fmt.Errorf("resolve hierarchy overflow tokenizer encoder: %w", err)
 	}
 	if prefix == "" {
-		return splitHierarchyPlainOverflowContent(content, encoder), nil
+		return splitHierarchyPlainOverflowContent(content, encoder, maxChunks)
 	}
 
 	prefixWithSeparator := prefix
@@ -280,7 +316,7 @@ func splitHierarchyOwnedSegmentToChunks(
 	}
 	prefixTokenCount := encoder.CountTokens(prefixWithSeparator)
 	if prefixTokenCount <= 0 || prefixTokenCount >= hierarchyChunkMaxTokens {
-		return splitHierarchyPlainOverflowContent(content, encoder), nil
+		return splitHierarchyPlainOverflowContent(content, encoder, maxChunks)
 	}
 
 	bodyTokens := encoder.Encode(bodyContent)
@@ -297,7 +333,7 @@ func splitHierarchyOwnedSegmentToChunks(
 		maxEnd := min(len(bodyTokens), start+windowSize)
 		bodyWindow, end := decodeHierarchyValidUTF8TokenWindow(encoder, bodyTokens, start, maxEnd)
 		if end <= start {
-			break
+			return nil, fmt.Errorf("%w: hierarchy_body token_offset=%d", errHierarchyTokenWindowNoProgress, start)
 		}
 		bodyChunk := strings.TrimLeft(bodyWindow, "\n")
 		chunkContent := joinHierarchyChunkPrefixAndBody(prefix, bodyChunk)
@@ -305,13 +341,26 @@ func splitHierarchyOwnedSegmentToChunks(
 			start = end
 			continue
 		}
-		results = append(results, tokenChunk{
+		if err := appendTokenChunkWithLimit(&results, tokenChunk{
 			Content:    chunkContent,
 			TokenCount: encoder.CountTokens(chunkContent),
-		})
+		}, maxChunks); err != nil {
+			return nil, err
+		}
 		start = end
 	}
 	return results, nil
+}
+
+func remainingChunkLimit(maxChunks, current int) int {
+	if maxChunks <= 0 {
+		return 0
+	}
+	remaining := maxChunks - current
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
 }
 
 func buildHierarchyOwnedSegmentPrefix(node *hierarchyNode, headingLine string) string {
@@ -395,30 +444,32 @@ func joinHierarchyChunkPrefixAndBody(prefix, body string) string {
 	}
 }
 
-func splitHierarchyPlainOverflowContent(content string, encoder *tokenizer.Encoder) []tokenChunk {
+func splitHierarchyPlainOverflowContent(content string, encoder *tokenizer.Encoder, maxChunks int) ([]tokenChunk, error) {
 	tokens := encoder.Encode(content)
 	if len(tokens) == 0 {
-		return nil
+		return nil, nil
 	}
 	results := make([]tokenChunk, 0, max(1, len(tokens)/hierarchyChunkMaxTokens+1))
 	for start := 0; start < len(tokens); {
 		maxEnd := min(len(tokens), start+hierarchyChunkMaxTokens)
 		window, end := decodeHierarchyValidUTF8TokenWindow(encoder, tokens, start, maxEnd)
 		if end <= start {
-			break
+			return nil, fmt.Errorf("%w: hierarchy_overflow token_offset=%d", errHierarchyTokenWindowNoProgress, start)
 		}
 		chunkContent := strings.TrimSpace(window)
 		if chunkContent == "" {
 			start = end
 			continue
 		}
-		results = append(results, tokenChunk{
+		if err := appendTokenChunkWithLimit(&results, tokenChunk{
 			Content:    chunkContent,
 			TokenCount: encoder.CountTokens(chunkContent),
-		})
+		}, maxChunks); err != nil {
+			return nil, err
+		}
 		start = end
 	}
-	return results
+	return results, nil
 }
 
 func decodeHierarchyValidUTF8TokenWindow(

@@ -1,6 +1,7 @@
 package splitter
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -27,7 +28,30 @@ type TokenTextSplitter struct {
 	ChunkOverlap int
 	Separator    string
 	Model        string
+	MaxChunks    int
 	tokenizer    *tokenizer.Service
+}
+
+// ErrChunkLimitExceeded 表示分片数量超过调用方配置的上限。
+var ErrChunkLimitExceeded = errors.New("chunk limit exceeded")
+
+var errTokenWindowNoProgress = errors.New("token window made no progress")
+
+// ChunkLimitError 携带分片数量超限上下文。
+type ChunkLimitError struct {
+	Limit    int
+	Observed int
+}
+
+func (e *ChunkLimitError) Error() string {
+	if e == nil {
+		return ErrChunkLimitExceeded.Error()
+	}
+	return fmt.Sprintf("%s: observed=%d limit=%d", ErrChunkLimitExceeded, e.Observed, e.Limit)
+}
+
+func (e *ChunkLimitError) Unwrap() error {
+	return ErrChunkLimitExceeded
 }
 
 // NewTokenTextSplitter 创建 token 分割器。
@@ -76,56 +100,105 @@ func (s *TokenTextSplitter) SplitText(text string) (*TokenSplitResult, error) {
 		return result, nil
 	}
 
-	chunkOverlap := normalizeChunkOverlap(s.ChunkOverlap, s.ChunkSize)
-	currentTokens := make([]int, 0, s.ChunkSize)
-
-	emitTokens := func(tokens []int) {
-		if len(tokens) == 0 {
-			return
-		}
-		chunkText, tokenCount := decodeChunkText(encoder, tokens)
-		if strings.TrimSpace(chunkText) == "" {
-			return
-		}
-		result.Chunks = append(result.Chunks, TokenChunk{
-			Text:       chunkText,
-			TokenCount: tokenCount,
-		})
+	state := tokenTextSplitState{
+		splitter:      s,
+		result:        result,
+		encoder:       encoder,
+		chunkOverlap:  normalizeChunkOverlap(s.ChunkOverlap, s.ChunkSize),
+		currentTokens: make([]int, 0, s.ChunkSize),
 	}
-
 	for _, segment := range segments {
-		segmentTokens := encoder.Encode(segment)
-		if len(segmentTokens) == 0 {
-			continue
+		if err := state.consumeSegment(segment); err != nil {
+			return nil, err
 		}
-
-		if len(segmentTokens) > s.ChunkSize {
-			emitTokens(currentTokens)
-			currentTokens = currentTokens[:0]
-			var lastChunkTokens []int
-			result.Chunks, lastChunkTokens = appendLongTokenChunks(result.Chunks, segmentTokens, s.ChunkSize, chunkOverlap, encoder)
-			currentTokens = seedTokenOverlap(currentTokens[:0], lastChunkTokens, chunkOverlap, encoder)
-			continue
-		}
-
-		if len(currentTokens)+len(segmentTokens) > s.ChunkSize && len(currentTokens) > 0 {
-			previous := slices.Clone(currentTokens)
-			emitTokens(previous)
-			currentTokens = seedTokenOverlap(currentTokens[:0], previous, chunkOverlap, encoder)
-		}
-		if len(currentTokens)+len(segmentTokens) > s.ChunkSize && len(currentTokens) > 0 {
-			merged := append(slices.Clone(currentTokens), segmentTokens...)
-			var lastChunkTokens []int
-			result.Chunks, lastChunkTokens = appendLongTokenChunks(result.Chunks, merged, s.ChunkSize, chunkOverlap, encoder)
-			currentTokens = seedTokenOverlap(currentTokens[:0], lastChunkTokens, chunkOverlap, encoder)
-			continue
-		}
-
-		currentTokens = append(currentTokens, segmentTokens...)
 	}
 
-	emitTokens(currentTokens)
+	if err := state.emitCurrentTokens(); err != nil {
+		return nil, err
+	}
 	return result, nil
+}
+
+type tokenTextSplitState struct {
+	splitter      *TokenTextSplitter
+	result        *TokenSplitResult
+	encoder       *tokenizer.Encoder
+	currentTokens []int
+	chunkOverlap  int
+}
+
+func (s *tokenTextSplitState) consumeSegment(segment string) error {
+	segmentTokens := s.encoder.Encode(segment)
+	if len(segmentTokens) == 0 {
+		return nil
+	}
+
+	if len(segmentTokens) > s.splitter.ChunkSize {
+		return s.consumeLongTokens(segmentTokens)
+	}
+
+	if len(s.currentTokens)+len(segmentTokens) > s.splitter.ChunkSize && len(s.currentTokens) > 0 {
+		previous := slices.Clone(s.currentTokens)
+		if err := s.emitTokens(previous); err != nil {
+			return err
+		}
+		s.currentTokens = seedTokenOverlap(s.currentTokens[:0], previous, s.chunkOverlap, s.encoder)
+	}
+	if len(s.currentTokens)+len(segmentTokens) > s.splitter.ChunkSize && len(s.currentTokens) > 0 {
+		return s.consumeMergedTokens(segmentTokens)
+	}
+
+	s.currentTokens = append(s.currentTokens, segmentTokens...)
+	return nil
+}
+
+func (s *tokenTextSplitState) consumeLongTokens(tokens []int) error {
+	if err := s.emitCurrentTokens(); err != nil {
+		return err
+	}
+	s.currentTokens = s.currentTokens[:0]
+	return s.appendLongTokens(tokens)
+}
+
+func (s *tokenTextSplitState) consumeMergedTokens(tokens []int) error {
+	merged := append(slices.Clone(s.currentTokens), tokens...)
+	return s.appendLongTokens(merged)
+}
+
+func (s *tokenTextSplitState) appendLongTokens(tokens []int) error {
+	var lastChunkTokens []int
+	var err error
+	s.result.Chunks, lastChunkTokens, err = appendLongTokenChunks(
+		s.result.Chunks,
+		tokens,
+		s.splitter.ChunkSize,
+		s.chunkOverlap,
+		s.encoder,
+		s.splitter.MaxChunks,
+	)
+	if err != nil {
+		return err
+	}
+	s.currentTokens = seedTokenOverlap(s.currentTokens[:0], lastChunkTokens, s.chunkOverlap, s.encoder)
+	return nil
+}
+
+func (s *tokenTextSplitState) emitCurrentTokens() error {
+	return s.emitTokens(s.currentTokens)
+}
+
+func (s *tokenTextSplitState) emitTokens(tokens []int) error {
+	if len(tokens) == 0 {
+		return nil
+	}
+	chunkText, tokenCount := decodeChunkText(s.encoder, tokens)
+	if strings.TrimSpace(chunkText) == "" {
+		return nil
+	}
+	return appendTokenChunkWithLimit(&s.result.Chunks, TokenChunk{
+		Text:       chunkText,
+		TokenCount: tokenCount,
+	}, s.splitter.MaxChunks)
 }
 
 func appendLongTokenChunks(
@@ -133,10 +206,11 @@ func appendLongTokenChunks(
 	tokens []int,
 	chunkSize, chunkOverlap int,
 	encoder *tokenizer.Encoder,
-) ([]TokenChunk, []int) {
+	maxChunks int,
+) ([]TokenChunk, []int, error) {
 	var lastChunkTokens []int
 	if len(tokens) == 0 {
-		return chunks, nil
+		return chunks, nil, nil
 	}
 	if chunkSize <= 0 {
 		chunkSize = len(tokens)
@@ -152,13 +226,15 @@ func appendLongTokenChunks(
 		maxEnd := min(len(tokens), start+chunkSize)
 		text, end := decodeLargestValidUTF8TokenWindow(encoder, tokens, start, maxEnd)
 		if end <= start {
-			break
+			return chunks, lastChunkTokens, fmt.Errorf("%w: token_offset=%d", errTokenWindowNoProgress, start)
 		}
 		if strings.TrimSpace(text) != "" {
-			chunks = append(chunks, TokenChunk{
+			if err := appendTokenChunkWithLimit(&chunks, TokenChunk{
 				Text:       text,
 				TokenCount: encoder.CountTokens(text),
-			})
+			}, maxChunks); err != nil {
+				return chunks, lastChunkTokens, err
+			}
 			lastChunkTokens = slices.Clone(tokens[start:end])
 		}
 		if end == len(tokens) {
@@ -171,7 +247,18 @@ func appendLongTokenChunks(
 		}
 		start = nextStart
 	}
-	return chunks, lastChunkTokens
+	return chunks, lastChunkTokens, nil
+}
+
+func appendTokenChunkWithLimit(chunks *[]TokenChunk, chunk TokenChunk, maxChunks int) error {
+	if maxChunks > 0 && len(*chunks)+1 > maxChunks {
+		return &ChunkLimitError{
+			Limit:    maxChunks,
+			Observed: len(*chunks) + 1,
+		}
+	}
+	*chunks = append(*chunks, chunk)
+	return nil
 }
 
 func seedTokenOverlap(dst, lastChunkTokens []int, overlap int, encoder *tokenizer.Encoder) []int {

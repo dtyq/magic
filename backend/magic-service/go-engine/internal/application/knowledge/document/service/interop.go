@@ -139,6 +139,12 @@ func (s *DocumentAppService) SplitParsedDocumentToChunks(
 	ctx context.Context,
 	input documentsplitter.ParsedDocumentChunkInput,
 ) ([]documentsplitter.TokenChunk, string, error) {
+	if input.MaxChunks <= 0 {
+		input.MaxChunks = int(s.ResourceLimits().MaxFragmentsPerDocument)
+	}
+	if input.SegmentConfig.MaxChunks <= 0 {
+		input.SegmentConfig.MaxChunks = input.MaxChunks
+	}
 	chunks, splitVersion, err := documentsplitter.SplitParsedDocumentToChunks(ctx, input)
 	if err != nil {
 		return nil, "", fmt.Errorf("split parsed document to chunks: %w", err)
