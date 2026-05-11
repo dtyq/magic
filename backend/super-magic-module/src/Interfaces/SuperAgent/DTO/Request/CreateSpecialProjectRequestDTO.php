@@ -42,7 +42,7 @@ class CreateSpecialProjectRequestDTO extends AbstractRequestDTO
 
     public function getProjectName(): string
     {
-        return $this->projectName;
+        return $this->projectName ?: $this->key;
     }
 
     public function getProjectMode(): string

@@ -19,6 +19,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use DirectoryIterator;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
@@ -140,6 +141,7 @@ class ProjectAppService extends AbstractAppService
         private readonly RecycleBinDomainService $recycleBinDomainService,
         private readonly FileTreeBuilder $fileTreeBuilder,
         private readonly MagicUserSettingDomainService $magicUserSettingDomainService,
+        private readonly LockerInterface $locker,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -323,7 +325,7 @@ class ProjectAppService extends AbstractAppService
 
         $settingKey = UserSettingKey::genSuperMagicSpecialProject($specialKey);
 
-        // 1. 查询 UserSetting 是否已有 project_id
+        // 1. 快速路径：无锁查询 UserSetting 是否已有 project_id
         $setting = $this->magicUserSettingDomainService->get($dataIsolation, $settingKey);
 
         if ($setting) {
@@ -342,60 +344,89 @@ class ProjectAppService extends AbstractAppService
             }
         }
 
-        // 2. 获取或创建 default 工作区
-        $workspaceEntity = $this->workspaceDomainService->getOrCreateWorkspaceByType(
-            $dataIsolation,
-            WorkspaceType::Default
-        );
+        // 2. 获取分布式锁，防止并发为同一 key 创建多个项目
+        $lockName = sprintf('special_project:create:%s:%s', $dataIsolation->getCurrentUserId(), $specialKey);
+        $lockOwner = uniqid('special_project_', true);
 
-        // 3. 创建项目
-        Db::beginTransaction();
+        if (! $this->locker->mutexLock($lockName, $lockOwner, 10)) {
+            ExceptionBuilder::throw(GenericErrorCode::TooManyRequests, 'project.create_project_too_frequent');
+        }
+
         try {
-            $projectEntity = $this->projectDomainService->createProject(
-                $workspaceEntity->getId(),
-                $requestDTO->getProjectName(),
-                $dataIsolation->getCurrentUserId(),
-                $dataIsolation->getCurrentOrganizationCode(),
-                '',
-                '',
-                $requestDTO->getProjectMode() ?: null
+            // 3. Double-check：获取锁后再次检查，防止并发请求重复创建
+            $setting = $this->magicUserSettingDomainService->get($dataIsolation, $settingKey);
+            if ($setting) {
+                $projectId = (int) ($setting->getValue()['project_id'] ?? 0);
+                if ($projectId > 0) {
+                    $projectEntity = $this->projectRepository->findById($projectId);
+                    if ($projectEntity && $projectEntity->getUserId() === $dataIsolation->getCurrentUserId()) {
+                        $this->logger->info(sprintf('特殊项目已存在(并发检查), key=%s, projectId=%d', $specialKey, $projectId));
+                        return [
+                            'key' => $specialKey,
+                            'project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(),
+                            'is_existing' => true,
+                        ];
+                    }
+                }
+            }
+
+            // 4. 获取或创建 default 工作区
+            $workspaceEntity = $this->workspaceDomainService->getOrCreateWorkspaceByType(
+                $dataIsolation,
+                WorkspaceType::Default
             );
-            $this->logger->info(sprintf('创建特殊项目, key=%s, projectId=%s', $specialKey, $projectEntity->getId()));
 
-            // 4. 初始化项目
-            $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
-            $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams);
+            // 5. 创建项目
+            Db::beginTransaction();
+            try {
+                $projectEntity = $this->projectDomainService->createProject(
+                    $workspaceEntity->getId(),
+                    $requestDTO->getProjectName(),
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    '',
+                    '',
+                    $requestDTO->getProjectMode() ?: null
+                );
+                $this->logger->info(sprintf('创建特殊项目, key=%s, projectId=%s', $specialKey, $projectEntity->getId()));
 
-            // 5. 创建项目根目录
-            $this->taskFileDomainService->findOrCreateProjectRootDirectory(
-                projectId: $projectEntity->getId(),
-                workDir: $projectEntity->getWorkDir(),
-                userId: $dataIsolation->getCurrentUserId(),
-                organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
-            );
+                // 6. 初始化项目
+                $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
+                $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams);
 
-            // 6. 保存 key → project_id 映射到 UserSetting
-            $settingEntity = new MagicUserSettingEntity();
-            $settingEntity->setKey($settingKey);
-            $settingEntity->setValue(['project_id' => $projectEntity->getId()]);
-            $this->magicUserSettingDomainService->save($dataIsolation, $settingEntity);
+                // 7. 创建项目根目录
+                $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    projectId: $projectEntity->getId(),
+                    workDir: $projectEntity->getWorkDir(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+                );
 
-            Db::commit();
+                // 8. 保存 key → project_id 映射到 UserSetting
+                $settingEntity = new MagicUserSettingEntity();
+                $settingEntity->setKey($settingKey);
+                $settingEntity->setValue(['project_id' => $projectEntity->getId()]);
+                $this->magicUserSettingDomainService->save($dataIsolation, $settingEntity);
 
-            // 触发项目创建事件
-            $projectCreatedEvent = new ProjectCreatedEvent($projectEntity, $userAuthorization);
-            $this->eventDispatcher->dispatch($projectCreatedEvent);
+                Db::commit();
 
-            return [
-                'key' => $specialKey,
-                'project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(),
-                'is_existing' => false,
-            ];
-        } catch (Throwable $e) {
-            Db::rollBack();
-            $this->logger->error('Create Special Project Failed, err: ' . $e->getMessage(), ['key' => $specialKey]);
-            ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, 'project.create_project_failed');
+                // 触发项目创建事件
+                $projectCreatedEvent = new ProjectCreatedEvent($projectEntity, $userAuthorization);
+                $this->eventDispatcher->dispatch($projectCreatedEvent);
+
+                return [
+                    'key' => $specialKey,
+                    'project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(),
+                    'is_existing' => false,
+                ];
+            } catch (Throwable $e) {
+                Db::rollBack();
+                $this->logger->error('Create Special Project Failed, err: ' . $e->getMessage(), ['key' => $specialKey]);
+                ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, 'project.create_project_failed');
+            }
+        } finally {
+            $this->locker->release($lockName, $lockOwner);
         }
     }
 
