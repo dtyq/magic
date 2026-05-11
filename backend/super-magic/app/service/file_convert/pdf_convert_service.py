@@ -5,11 +5,12 @@ PDF转换服务
 """
 
 import asyncio
+import os
 import shutil
 import threading
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from loguru import logger
 
@@ -28,6 +29,12 @@ except ImportError:
 class PdfConvertService(BaseConvertService):
     """PDF转换服务类"""
 
+    SUPPORTED_SOURCE_SUFFIXES = {".html", ".htm", ".md"}
+    MARKDOWN_LAYOUT_VIEWPORT_WIDTH = 1920
+    MARKDOWN_LAYOUT_VIEWPORT_HEIGHT = 1080
+    MARKDOWN_PRINT_BOTTOM_PADDING_PX = int(MARKDOWN_LAYOUT_VIEWPORT_HEIGHT * 0.3)
+    MARKDOWN_MAX_PAGE_HEIGHT_PX = 30000
+
     def __init__(self, enable_full_page: bool = False):
         """
         初始化PDF转换服务
@@ -41,7 +48,130 @@ class PdfConvertService(BaseConvertService):
             logger.info("✅ PDF服务：已启用长截图模式，将转换完整页面内容")
 
     @staticmethod
-    def _check_batch_files_exist(batch_dir: Path) -> bool:
+    def _merge_pdf_options(default_options: Dict[str, Any], user_options: Dict[str, Any]) -> Dict[str, Any]:
+        merged_options = dict(default_options)
+        merged_options.update(user_options)
+        if isinstance(default_options.get("margin"), dict) and isinstance(user_options.get("margin"), dict):
+            merged_options["margin"] = {**default_options["margin"], **user_options["margin"]}
+        return merged_options
+
+    @staticmethod
+    def _has_explicit_page_size_options(user_options: Dict[str, Any]) -> bool:
+        return any(key in user_options for key in ("format", "width", "height", "prefer_css_page_size"))
+
+    @staticmethod
+    def _get_markdown_default_pdf_options() -> Dict[str, Any]:
+        return {
+            "format": "A4",
+            "landscape": False,
+            "scale": 1.0,
+            "print_background": True,
+            "prefer_css_page_size": True,
+            "margin": {"top": "0px", "right": "0px", "bottom": "0px", "left": "0px"},
+        }
+
+    @staticmethod
+    def _get_explicit_page_default_pdf_options() -> Dict[str, Any]:
+        return {
+            "print_background": True,
+        }
+
+    @staticmethod
+    async def _inject_common_pdf_css(page) -> None:
+        try:
+            await PdfConvertService._inject_print_css(page)
+        except Exception as css_error:
+            logger.debug(f"注入打印CSS失败: {css_error}")
+        try:
+            await PdfConvertService._inject_pdf_pagination_css(page)
+        except Exception as css_error:
+            logger.debug(f"注入PDF分页CSS失败: {css_error}")
+
+    @classmethod
+    async def _set_markdown_layout_viewport(cls, page, debug_info: str = "") -> None:
+        """
+        Markdown 导出以 Magic-web 桌面预览为基准，布局视口固定 1920×1080。
+
+        长页 PDF 只扩展最终 PDF 页面高度，不能把浏览器视口改成 3000px，
+        否则 30vh 等前端样式会按错误视口计算。
+        """
+        viewport = {
+            "width": cls.MARKDOWN_LAYOUT_VIEWPORT_WIDTH,
+            "height": cls.MARKDOWN_LAYOUT_VIEWPORT_HEIGHT,
+        }
+        try:
+            await page.set_viewport_size(viewport)
+            logger.info(
+                f"{debug_info}: Markdown布局视口固定为 "
+                f"{viewport['width']}×{viewport['height']}，对齐 Magic-web 桌面预览"
+            )
+        except Exception as viewport_error:
+            logger.warning(f"{debug_info}: Markdown布局视口设置失败，继续使用当前视口: {viewport_error}")
+
+    @classmethod
+    async def _detect_markdown_page_dimensions(cls, page) -> Dict[str, Any]:
+        """
+        在固定 1920×1080 布局视口下检测 Markdown 完整内容高度。
+        """
+        try:
+            dimensions = await page.evaluate(f"""
+                () => {{
+                    const body = document.body;
+                    const html = document.documentElement;
+                    const scrollWidth = Math.max(body.scrollWidth || 0, html.scrollWidth || 0);
+                    const scrollHeight = Math.max(body.scrollHeight || 0, html.scrollHeight || 0);
+                    const viewportWidth = window.innerWidth;
+                    const viewportHeight = window.innerHeight;
+                    return {{
+                        viewportWidth,
+                        viewportHeight,
+                        scrollWidth,
+                        scrollHeight,
+                        contentWidth: {cls.MARKDOWN_LAYOUT_VIEWPORT_WIDTH},
+                        contentHeight: Math.max(scrollHeight, {cls.MARKDOWN_LAYOUT_VIEWPORT_HEIGHT}),
+                        hasHorizontalScroll: scrollWidth > viewportWidth,
+                        hasVerticalScroll: scrollHeight > viewportHeight,
+                    }};
+                }}
+            """)
+            logger.info(
+                "Markdown PDF转换尺寸: "
+                f"{dimensions['contentWidth']}×{dimensions['contentHeight']} "
+                f"(Magic-web布局视口 {dimensions['viewportWidth']}×{dimensions['viewportHeight']})"
+            )
+            return dimensions
+        except Exception as dimension_error:
+            logger.error(f"检测Markdown内容尺寸失败: {dimension_error}")
+            return {
+                "viewportWidth": cls.MARKDOWN_LAYOUT_VIEWPORT_WIDTH,
+                "viewportHeight": cls.MARKDOWN_LAYOUT_VIEWPORT_HEIGHT,
+                "scrollWidth": cls.MARKDOWN_LAYOUT_VIEWPORT_WIDTH,
+                "scrollHeight": cls.MARKDOWN_LAYOUT_VIEWPORT_HEIGHT,
+                "contentWidth": cls.MARKDOWN_LAYOUT_VIEWPORT_WIDTH,
+                "contentHeight": cls.MARKDOWN_LAYOUT_VIEWPORT_HEIGHT,
+                "hasHorizontalScroll": False,
+                "hasVerticalScroll": False,
+            }
+
+    @classmethod
+    def _get_markdown_magic_web_pdf_options(cls, dimensions: Dict[str, Any]) -> Dict[str, Any]:
+        content_height = int(dimensions.get("contentHeight") or cls.MARKDOWN_LAYOUT_VIEWPORT_HEIGHT)
+        page_height = max(cls.MARKDOWN_LAYOUT_VIEWPORT_HEIGHT, min(content_height, cls.MARKDOWN_MAX_PAGE_HEIGHT_PX))
+        if content_height > cls.MARKDOWN_MAX_PAGE_HEIGHT_PX:
+            logger.warning(f"Markdown长页高度被限制：{content_height}px -> {page_height}px")
+
+        return {
+            "print_background": True,
+            "prefer_css_page_size": True,
+            "margin": {"top": "0px", "right": "0px", "bottom": "0px", "left": "0px"},
+            "scale": 1.0,
+            "_inject_page_size": True,
+            "_page_width": cls.MARKDOWN_LAYOUT_VIEWPORT_WIDTH,
+            "_page_height": page_height,
+        }
+
+    @staticmethod
+    def _check_batch_files_exist(batch_dir: Union[str, os.PathLike, Path]) -> bool:
         """
         检查批次目录中是否存在相关文件（PDF服务的实现）
 
@@ -52,6 +182,7 @@ class PdfConvertService(BaseConvertService):
             bool: 是否存在相关文件
         """
         try:
+            batch_dir = BaseConvertService._normalize_path(batch_dir, "batch_dir")
             # 检查PDF文件存在
             pdf_dir = batch_dir / "pdf"
             if pdf_dir.exists():
@@ -68,12 +199,13 @@ class PdfConvertService(BaseConvertService):
 
     async def _embed_aigc_metadata_with_logging(
         self,
-        pdf_path: Path,
+        pdf_path: Union[str, os.PathLike, Path],
         aigc_params: Optional[AigcMetadataParams],
         start_message: str,
         success_message: str,
         error_message: str,
     ) -> None:
+        pdf_path = self._normalize_path(pdf_path, "pdf_path")
         logger.info(start_message)
         try:
             await self.embed_pdf_metadata(str(pdf_path), aigc_params)
@@ -86,8 +218,8 @@ class PdfConvertService(BaseConvertService):
 
     async def _merge_pdf_files(
         self,
-        pdf_files: List[Path],
-        output_path: Path,
+        pdf_files: List[Union[str, os.PathLike, Path]],
+        output_path: Union[str, os.PathLike, Path],
         project_name: str = "",
         aigc_params: Optional[AigcMetadataParams] = None,
     ) -> Optional[Path]:
@@ -106,6 +238,9 @@ class PdfConvertService(BaseConvertService):
         if not pdf_files:
             logger.warning("⚠️ 没有PDF文件需要合并")
             return None
+
+        pdf_files = [self._normalize_path(pdf_file, "pdf_file") for pdf_file in pdf_files]
+        output_path = self._normalize_path(output_path, "output_path")
 
         if len(pdf_files) == 1:
             # 只有一个文件，直接移动到目标位置
@@ -187,6 +322,7 @@ class PdfConvertService(BaseConvertService):
         task_key: Optional[str] = None,
         sts_credential: Optional[Dict[str, Any]] = None,
         aigc_params: Optional[AigcMetadataParams] = None,
+        options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         将文件key列表转换为PDF
@@ -196,6 +332,7 @@ class PdfConvertService(BaseConvertService):
             task_key: 任务标识符，会在结果中原样返回
             sts_credential: STS临时凭证，用于上传
             aigc_params: AIGC元数据参数对象
+            options: PDF转换选项
 
         Returns:
             转换结果字典
@@ -221,8 +358,8 @@ class PdfConvertService(BaseConvertService):
             if not file_path_mapping:
                 raise RuntimeError("没有找到任何有效的workspace文件，请检查文件key是否正确")
 
-            # PDF转换服务直接确定自己的选项
-            options = {}  # 不使用任何默认配置，在转换时动态确定
+            # PDF转换服务按文件类型确定默认选项，再叠加外部传入的用户选项
+            options = options or {}
 
             logger.info(f"开始处理 {len(file_path_mapping)} 个文件")
 
@@ -242,6 +379,8 @@ class PdfConvertService(BaseConvertService):
             valid_files_count, file_type_counts, optimal_concurrency = self.calculate_file_statistics_and_concurrency(
                 pdf_projects, supported_extensions=[".html", ".htm", ".md"], service_type="PDF转换"
             )
+            if valid_files_count == 0:
+                raise RuntimeError("没有可转换的PDF源文件，当前仅支持 .html、.htm、.md")
 
             # 3. 执行批量转换
             # 使用全局task_manager实例（如果有task_key）
@@ -534,11 +673,12 @@ class PdfConvertService(BaseConvertService):
             logger.debug(f"注入PDF分页CSS失败: {e}")
 
     @staticmethod
-    def _get_pdf_page_count(pdf_path: Path) -> int:
+    def _get_pdf_page_count(pdf_path: Union[str, os.PathLike, Path]) -> int:
         """
         获取 PDF 页数。
         """
         try:
+            pdf_path = BaseConvertService._normalize_path(pdf_path, "pdf_path")
             with fitz.open(str(pdf_path)) as pdf_doc:
                 return pdf_doc.page_count
         except Exception as e:
@@ -679,7 +819,8 @@ class PdfConvertService(BaseConvertService):
             pdf_height_pt = css_height_px * 0.75
 
             pdf_doc = fitz.open()
-            pdf_page = pdf_doc.new_page(width=pdf_width_pt, height=pdf_height_pt)
+            new_pdf_page = getattr(pdf_doc, "new_page")
+            pdf_page = new_pdf_page(width=pdf_width_pt, height=pdf_height_pt)
             pdf_page.insert_image(pdf_page.rect, stream=screenshot_bytes)
             pdf_doc.save(
                 str(temp_pdf_path),
@@ -809,6 +950,16 @@ class PdfConvertService(BaseConvertService):
             "preferCSSPageSize": "prefer_css_page_size",
             "pageRanges": "page_ranges",
         }
+        margin_mapping = {
+            "margin_top": "top",
+            "marginTop": "top",
+            "margin_bottom": "bottom",
+            "marginBottom": "bottom",
+            "margin_left": "left",
+            "marginLeft": "left",
+            "margin_right": "right",
+            "marginRight": "right",
+        }
 
         # 内部标记（需要过滤掉）
         internal_markers = {"_inject_page_size", "_page_width", "_page_height"}
@@ -822,10 +973,21 @@ class PdfConvertService(BaseConvertService):
                 normalized_options["landscape"] = True
             # 'portrait' 是默认值，所以 landscape: False 是可选的
 
+        margin_options = {
+            playwright_key: options[input_key]
+            for input_key, playwright_key in margin_mapping.items()
+            if input_key in options and options[input_key] is not None
+        }
+        if margin_options:
+            existing_margin = options.get("margin") if isinstance(options.get("margin"), dict) else {}
+            normalized_options["margin"] = {**existing_margin, **margin_options}
+
         # 处理其余的参数
         for key, value in options.items():
-            if key == "orientation" or key in internal_markers:
-                continue  # 跳过orientation和内部标记
+            if key == "orientation" or key in internal_markers or key in margin_mapping:
+                continue  # 跳过orientation、内部标记和拆分margin参数
+            if key == "margin" and margin_options:
+                continue  # 已合并拆分margin参数，避免覆盖
 
             normalized_key = param_mapping.get(key, key)
 
@@ -872,11 +1034,35 @@ class PdfConvertService(BaseConvertService):
             (成功转换的PDF文件列表, 错误信息列表)
         """
         conversion_errors = []
+        user_pdf_options = self._normalize_pdf_options(options or {})
 
         if options:
-            logger.info("PDF转换：检测到外部options参数，当前使用服务默认配置")
+            logger.info("PDF转换：检测到外部options参数，已合并到PDF转换配置")
         if max_workers != 1:
             logger.debug(f"PDF转换：max_workers={max_workers} 已忽略，当前使用串行处理")
+
+        valid_file_mapping = {}
+        for file_key_item, local_file_path_item in file_path_mapping.items():
+            try:
+                local_file_path_item = self._normalize_path(local_file_path_item, "local_file_path_item")
+            except TypeError as path_error:
+                conversion_errors.append(f"文件 {file_key_item}: path_normalize失败 - {path_error}")
+                continue
+
+            if not local_file_path_item.exists():
+                conversion_errors.append(f"文件 {file_key_item}: 文件不存在: {local_file_path_item}")
+                continue
+
+            preflight_suffix = local_file_path_item.suffix.lower()
+            if preflight_suffix not in self.SUPPORTED_SOURCE_SUFFIXES:
+                conversion_errors.append(f"文件 {file_key_item}: 跳过非 HTML/Markdown 文件 (文件类型: {preflight_suffix})")
+                continue
+
+            valid_file_mapping[file_key_item] = local_file_path_item
+
+        if not valid_file_mapping:
+            logger.info("开始串行PDF转换，共 0 个文件")
+            return [], conversion_errors
 
         # 线程安全的进度计数器 - 从progress_offset开始计数，支持跨项目累积
         progress_lock = threading.Lock()
@@ -971,20 +1157,22 @@ class PdfConvertService(BaseConvertService):
             logger.info("PDF转换：共享浏览器和上下文创建完成，开始串行标签页处理（避免网络资源竞争）")
 
             async def process_single_file_to_pdf(
-                file_key: str, local_file_path: Path
+                file_key: str, local_file_path: Union[str, os.PathLike, Path]
             ) -> tuple[Optional[Path], Optional[str]]:
                 """处理单个文件的PDF转换 - 串行处理避免网络资源竞争"""
                 nonlocal completed_count
                 page = None
                 try:
+                    local_file_path = self._normalize_path(local_file_path, "local_file_path")
+
                     # 基础文件处理，减少详细日志
                     if not local_file_path.exists():
                         local_error_msg = f"文件不存在: {local_file_path}"
                         return None, f"文件 {file_key}: {local_error_msg}"
 
-                    file_suffix = local_file_path.suffix.lower()
-                    if file_suffix not in [".html", ".htm", ".md"]:
-                        local_error_msg = f"跳过非 HTML/Markdown 文件 (文件类型: {file_suffix})"
+                    source_suffix = local_file_path.suffix.lower()
+                    if source_suffix not in self.SUPPORTED_SOURCE_SUFFIXES:
+                        local_error_msg = f"跳过非 HTML/Markdown 文件 (文件类型: {source_suffix})"
                         return None, f"文件 {file_key}: {local_error_msg}"
 
                     page = await shared_context.new_page()
@@ -993,14 +1181,14 @@ class PdfConvertService(BaseConvertService):
 
                     pdf_options = {}
 
-                    if file_suffix in [".html", ".htm"]:
+                    if source_suffix in [".html", ".htm"]:
                         try:
                             # 🎯 使用基类的增强页面加载方法，包含智能外部资源和字体加载优化
                             debug_info = f"PDF转换-{local_file_path.name}"
                             success = await self._load_html_page_standard(page, local_file_path, debug_info)
 
                             if not success:
-                                return None, f"文件 {file_key}: 页面加载失败"
+                                return None, f"文件 {file_key}: page_load失败 - HTML页面加载失败"
 
                             # 🎯 PPT项目优化：跳过懒加载滚动，避免改变页面高度
                             if is_ppt_project:
@@ -1011,21 +1199,19 @@ class PdfConvertService(BaseConvertService):
                                 if not scroll_success:
                                     logger.warning(f"懒加载触发失败，但继续PDF转换: {local_file_path.name}")
 
+                            images_loaded, image_error = await self._wait_for_page_images_loaded(
+                                page, timeout=20000, debug_info=debug_info
+                            )
+                            if not images_loaded:
+                                return None, f"文件 {file_key}: page_load失败 - {image_error}"
+
                         except Exception as page_error:
                             error_details = [f"页面加载错误: {str(page_error)}"]
                             detailed_error = "; ".join(error_details)
-                            logger.error(f"页面加载失败 {local_file_path}: {detailed_error}")
-                            return None, f"文件 {file_key}: 页面加载失败 - {detailed_error}"
+                            logger.error(f"页面加载失败 {local_file_path}: {detailed_error}", exc_info=True)
+                            return None, f"文件 {file_key}: page_load失败 - {detailed_error}"
 
-                        # 注入打印CSS并启用打印背景色
-                        try:
-                            await self._inject_print_css(page)
-                        except Exception as css_error:
-                            logger.debug(f"注入打印CSS失败: {css_error}")
-                        try:
-                            await self._inject_pdf_pagination_css(page)
-                        except Exception as css_error:
-                            logger.debug(f"注入PDF分页CSS失败: {css_error}")
+                        await self._inject_common_pdf_css(page)
 
                         # 🎯 PPT项目优化：使用固定视口尺寸，避免底部空白区域
                         if is_ppt_project:
@@ -1055,18 +1241,78 @@ class PdfConvertService(BaseConvertService):
                                 "margin": {"top": "0px", "right": "0px", "bottom": "0px", "left": "0px"},
                                 "scale": 1.0,
                             }
-                            pdf_options = self._normalize_pdf_options(ppt_pdf_options)
+                            pdf_options = self._merge_pdf_options(
+                                self._normalize_pdf_options(ppt_pdf_options), user_pdf_options
+                            )
                         else:
-                            # 🎯 长截图模式：动态调整视口以匹配实际内容尺寸
-                            if self.enable_full_page:
+                            use_dynamic_page_size = not self._has_explicit_page_size_options(user_pdf_options)
+
+                            # 🎯 长截图模式：仅在用户未显式指定页面尺寸时动态调整视口
+                            if self.enable_full_page and use_dynamic_page_size:
                                 await self._adjust_viewport_for_full_page(page)
                                 # 懒加载触发后可能改变页面高度，需要重新调整视口
                                 await self._adjust_viewport_for_full_page(page)
 
-                            dimensions = await self._detect_content_dimensions(page, self.enable_full_page)
-                            optimal_pdf_options = self._calculate_optimal_pdf_options(dimensions)
+                            if use_dynamic_page_size:
+                                dimensions = await self._detect_content_dimensions(page, self.enable_full_page)
+                                optimal_pdf_options = self._calculate_optimal_pdf_options(dimensions)
 
-                            # 🎯 关键修复：如果需要注入页面尺寸CSS，先注入
+                                # 🎯 关键修复：如果需要注入页面尺寸CSS，先注入
+                                if optimal_pdf_options.get("_inject_page_size"):
+                                    page_width = optimal_pdf_options.get("_page_width")
+                                    page_height = optimal_pdf_options.get("_page_height")
+                                    try:
+                                        await page.add_style_tag(
+                                            content=f"""
+                                            @page {{
+                                                size: {page_width}px {page_height}px;
+                                                margin: 0;
+                                            }}
+                                        """
+                                        )
+                                        logger.info(
+                                            f"🎯 [{local_file_path.name}] 普通HTML注入@page规则: {page_width}×{page_height}px"
+                                        )
+                                    except Exception as css_error:
+                                        logger.warning(f"普通HTML CSS注入失败: {css_error}")
+
+                                pdf_options = self._merge_pdf_options(
+                                    self._normalize_pdf_options(optimal_pdf_options), user_pdf_options
+                                )
+                            else:
+                                pdf_options = self._merge_pdf_options(
+                                    self._get_explicit_page_default_pdf_options(), user_pdf_options
+                                )
+
+                    elif source_suffix == ".md":
+                        try:
+                            debug_info = f"PDF转换-Markdown-{local_file_path.name}"
+                            await self._set_markdown_layout_viewport(page, debug_info)
+                            success = await self._load_markdown_page_standard(page, local_file_path, debug_info)
+
+                            if not success:
+                                return None, f"文件 {file_key}: page_load失败 - Markdown页面加载失败"
+
+                            images_loaded, image_error = await self._wait_for_page_images_loaded(
+                                page, timeout=20000, debug_info=debug_info
+                            )
+                            if not images_loaded:
+                                return None, f"文件 {file_key}: page_load失败 - {image_error}"
+
+                        except Exception as md_error:
+                            stage = getattr(md_error, "stage", "page_load")
+                            logger.error(f"Markdown页面加载失败 {local_file_path}: {md_error}", exc_info=True)
+                            return None, f"文件 {file_key}: {stage}失败 - {md_error!s}"
+
+                        await self._inject_common_pdf_css(page)
+
+                        use_dynamic_page_size = self.enable_full_page and not self._has_explicit_page_size_options(
+                            user_pdf_options
+                        )
+                        if use_dynamic_page_size:
+                            dimensions = await self._detect_markdown_page_dimensions(page)
+                            optimal_pdf_options = self._get_markdown_magic_web_pdf_options(dimensions)
+
                             if optimal_pdf_options.get("_inject_page_size"):
                                 page_width = optimal_pdf_options.get("_page_width")
                                 page_height = optimal_pdf_options.get("_page_height")
@@ -1077,81 +1323,47 @@ class PdfConvertService(BaseConvertService):
                                             size: {page_width}px {page_height}px;
                                             margin: 0;
                                         }}
+                                        @media print {{
+                                            html,
+                                            body {{
+                                                width: {page_width}px !important;
+                                                min-height: 0 !important;
+                                                margin: 0 !important;
+                                                overflow: visible !important;
+                                            }}
+
+                                            .simple-editor-wrapper,
+                                            .simple-editor-content {{
+                                                min-height: 0 !important;
+                                                height: auto !important;
+                                                overflow: visible !important;
+                                            }}
+
+                                            .simple-editor-content .tiptap.ProseMirror.simple-editor {{
+                                                min-height: 0 !important;
+                                                height: auto !important;
+                                                overflow: visible !important;
+                                                padding-bottom: {self.MARKDOWN_PRINT_BOTTOM_PADDING_PX}px !important;
+                                            }}
+                                        }}
                                     """
                                     )
                                     logger.info(
-                                        f"🎯 [{local_file_path.name}] 普通HTML注入@page规则: {page_width}×{page_height}px"
+                                        f"🎯 [{local_file_path.name}] Markdown注入长页面@page规则: {page_width}×{page_height}px"
                                     )
                                 except Exception as css_error:
-                                    logger.warning(f"普通HTML CSS注入失败: {css_error}")
+                                    logger.warning(f"Markdown长页面CSS注入失败: {css_error}")
 
-                            pdf_options = self._normalize_pdf_options(optimal_pdf_options)
-
-                    elif file_suffix == ".md":
-                        # 🎯 修复：为 Markdown 创建临时 HTML 文件，以正确处理相对路径图片
-                        temp_html_path = None
-                        try:
-                            # 1. 转换 Markdown 为 HTML
-                            html_with_style = await self._process_markdown_content(local_file_path)
-
-                            # 2. 在 Markdown 文件同一目录创建临时 HTML 文件
-                            # 这样相对路径的图片就能正确解析
-                            import os
-                            import tempfile
-
-                            temp_fd, temp_html_path = tempfile.mkstemp(
-                                suffix=".html",
-                                prefix=f".tmp_{local_file_path.stem}_",
-                                dir=local_file_path.parent,
-                                text=True,
+                            pdf_options = self._merge_pdf_options(
+                                self._normalize_pdf_options(optimal_pdf_options), user_pdf_options
                             )
-
-                            # 写入 HTML 内容
-                            with os.fdopen(temp_fd, "w", encoding="utf-8") as f:
-                                f.write(html_with_style)
-
-                            temp_html_path = Path(temp_html_path)
-                            logger.debug(f"Markdown临时HTML文件: {temp_html_path}")
-
-                            # 3. 使用标准 HTML 加载流程（支持相对路径）
-                            debug_info = f"PDF转换-Markdown-{local_file_path.name}"
-                            success = await self._load_html_page_standard(page, temp_html_path, debug_info)
-
-                            if not success:
-                                return None, f"文件 {file_key}: Markdown页面加载失败"
-
-                        except Exception as md_error:
-                            return None, f"文件 {file_key}: Markdown处理失败 - {str(md_error)}"
-                        finally:
-                            # 4. 清理临时 HTML 文件
-                            if temp_html_path and temp_html_path.exists():
-                                try:
-                                    temp_html_path.unlink()
-                                    logger.debug(f"已清理Markdown临时文件: {temp_html_path}")
-                                except Exception as cleanup_error:
-                                    logger.warning(f"清理Markdown临时文件失败: {cleanup_error}")
-
-                        # 注入打印CSS
-                        try:
-                            await self._inject_print_css(page)
-                        except Exception as css_error:
-                            logger.debug(f"注入打印CSS失败: {css_error}")
-                        try:
-                            await self._inject_pdf_pagination_css(page)
-                        except Exception as css_error:
-                            logger.debug(f"注入PDF分页CSS失败: {css_error}")
-
-                        # Markdown文件使用标准A4配置，无边距
-                        markdown_pdf_options = {
-                            "format": "A4",
-                            "landscape": False,
-                            "scale": 1.0,
-                            "print_background": True,
-                            "prefer_css_page_size": True,
-                            "margin": {"top": "0px", "right": "0px", "bottom": "0px", "left": "0px"},
-                        }
-                        pdf_options = self._normalize_pdf_options(markdown_pdf_options)
-                        logger.info("Markdown文件：使用A4配置")
+                            logger.info("Markdown文件：启用Magic-web桌面预览长页配置")
+                        else:
+                            pdf_options = self._merge_pdf_options(
+                                self._normalize_pdf_options(self._get_markdown_default_pdf_options()),
+                                user_pdf_options,
+                            )
+                            logger.info("Markdown文件：使用A4分页配置")
 
                     # 生成带时间戳的PDF文件名 - 与压缩包命名保持一致
                     project_name = self.get_project_directory_from_file_key(file_key)
@@ -1165,11 +1377,12 @@ class PdfConvertService(BaseConvertService):
                     try:
                         await page.pdf(path=str(generated_pdf_path), **pdf_options)
                         if not generated_pdf_path.exists() or generated_pdf_path.stat().st_size == 0:
-                            return None, f"文件 {file_key}: PDF文件生成失败或文件为空"
+                            return None, f"文件 {file_key}: pdf_generate失败 - PDF文件生成失败或文件为空"
                     except Exception as pdf_error:
-                        return None, f"文件 {file_key}: PDF生成失败 - {str(pdf_error)}"
+                        logger.error(f"PDF生成失败 {local_file_path}: {pdf_error}", exc_info=True)
+                        return None, f"文件 {file_key}: pdf_generate失败 - {str(pdf_error)}"
 
-                    if self.enable_full_page and file_suffix in [".html", ".htm"]:
+                    if self.enable_full_page and source_suffix in [".html", ".htm"]:
                         generated_page_count = self._get_pdf_page_count(generated_pdf_path)
                         if generated_page_count > 1:
                             logger.info(
@@ -1184,11 +1397,11 @@ class PdfConvertService(BaseConvertService):
                                     f"⚠️ [{local_file_path.name}] 整页截图单页PDF回退失败，保留原始多页PDF输出"
                                 )
 
-                    # 嵌入AIGC签名元数据到PDF文件（必须成功，否则整个转换失败）
+                    # 嵌入AIGC签名元数据到PDF文件
                     await self._embed_aigc_metadata_with_logging(
                         generated_pdf_path,
                         aigc_params,
-                        start_message=f"📝 开始嵌入AIGC元数据: {generated_pdf_path}",
+                        start_message=f"📝 开始嵌入AIGC元数据到PDF: {generated_pdf_path}",
                         success_message=f"PDF转换：成功嵌入签名元数据到PDF文件 {generated_pdf_path}",
                         error_message=f"❌ PDF嵌入AIGC元数据失败: {generated_pdf_path}",
                     )
@@ -1218,13 +1431,7 @@ class PdfConvertService(BaseConvertService):
                     if page:
                         await page.close()
 
-            valid_file_mapping = {}
             results = []
-
-            # 🎯 串行处理：逐个处理文件，避免网络资源竞争
-            for i, (file_key_item, local_file_path_item) in enumerate(file_path_mapping.items()):
-                if local_file_path_item.exists() and local_file_path_item.suffix.lower() in [".html", ".htm", ".md"]:
-                    valid_file_mapping[file_key_item] = local_file_path_item
 
             logger.info(f"开始串行PDF转换，共 {len(valid_file_mapping)} 个文件")
             # self._log_memory_usage("串行转换开始", task_key, 0, valid_files_count)  # 注释掉内存监控日志

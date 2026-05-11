@@ -5,19 +5,19 @@ AIGC元数据处理工具类
 """
 
 import json
-from datetime import datetime
-from typing import Dict, Optional, Any
+import os
 from pathlib import Path
+from typing import Optional, Union
 
-from PIL import Image, PngImagePlugin, ExifTags
-from PIL.ExifTags import TAGS
+import fitz  # PyMuPDF
 from loguru import logger
+from PIL import Image, PngImagePlugin
 from pptx import Presentation
 
 from app.core.entity.aigc_metadata import AigcMetadataParams
+
 from .signature_utils import SignatureUtil
 
-import fitz  # PyMuPDF
 
 class AigcMetadataUtil:
     """AIGC元数据处理工具类"""
@@ -27,7 +27,9 @@ class AigcMetadataUtil:
     SOURCE = "super-magic"
 
     @staticmethod
-    async def create_signed_metadata(file_path: str, aigc_params: Optional[AigcMetadataParams] = None) -> str:
+    async def create_signed_metadata(
+        file_path: Union[str, os.PathLike, Path], aigc_params: Optional[AigcMetadataParams] = None
+    ) -> str:
         """
         创建包含签名的AIGC元数据JSON字符串
 
@@ -41,11 +43,12 @@ class AigcMetadataUtil:
         Raises:
             MagicGatewayException: 如果签名过程中发生错误
         """
-        metadata_dict = await SignatureUtil.create_signed_metadata(file_path, aigc_params)
+        file_path = Path(file_path)
+        metadata_dict = await SignatureUtil.create_signed_metadata(str(file_path), aigc_params)
         return json.dumps(metadata_dict, ensure_ascii=False)
 
     @staticmethod
-    def embed_image_metadata(image_path: str, metadata_json: str) -> bool:
+    def embed_image_metadata(image_path: Union[str, os.PathLike, Path], metadata_json: str) -> bool:
         """
         在图片中嵌入元数据（支持PNG和JPEG格式）
 
@@ -123,7 +126,9 @@ class AigcMetadataUtil:
             return False
 
     @staticmethod
-    async def embed_pptx_metadata(pptx_path: str, aigc_params: Optional[AigcMetadataParams] = None) -> None:
+    async def embed_pptx_metadata(
+        pptx_path: Union[str, os.PathLike, Path], aigc_params: Optional[AigcMetadataParams] = None
+    ) -> None:
         """
         在PPTX文件中嵌入AIGC签名元数据
 
@@ -158,7 +163,9 @@ class AigcMetadataUtil:
         logger.info(f"成功嵌入PPTX元数据到文件: {pptx_path}")
 
     @staticmethod
-    async def embed_pdf_metadata(pdf_path: str, aigc_params: Optional[AigcMetadataParams] = None) -> None:
+    async def embed_pdf_metadata(
+        pdf_path: Union[str, os.PathLike, Path], aigc_params: Optional[AigcMetadataParams] = None
+    ) -> None:
         """
         在PDF文件中嵌入AIGC签名元数据
 
@@ -191,8 +198,9 @@ class AigcMetadataUtil:
         # 使用subject字段存储AIGC元数据，因为它通常有足够的空间且不会与其他应用冲突
         metadata["subject"] = f"Aigc: {metadata_json}"
 
-        # 设置更新后的元数据
-        doc.set_metadata(metadata)
+        # 设置更新后的元数据。PyMuPDF 的部分方法由扩展动态暴露，IDE 可能无法静态识别。
+        set_pdf_metadata = getattr(doc, "set_metadata")
+        set_pdf_metadata(metadata)
 
         # 保存PDF文件 - 创建临时文件然后替换原文件
         temp_path = str(pdf_path) + ".tmp"
