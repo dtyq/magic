@@ -1,29 +1,37 @@
 import pytest
 from pydantic import ValidationError
 
+from app.service.file_service import WorkspaceFileURLError
 from app.tools.design.tools.generate_canvas_videos import GenerateCanvasVideosParams, VideoTaskSpec
 from app.tools.generate_video import GenerateVideo, GenerateVideoParams
 
 
 @pytest.mark.asyncio
-async def test_resolve_input_uri_prefers_file_to_url_for_local_path(monkeypatch, tmp_path):
+async def test_resolve_input_uri_uses_workspace_file_service_url_for_local_path(monkeypatch, tmp_path):
+    image_path = tmp_path / "images" / "ref.jpg"
+    image_path.parent.mkdir(parents=True)
+    image_path.write_bytes(b"fake-image")
+
     tool = GenerateVideo(base_dir=str(tmp_path))
     calls = []
 
-    def fake_file_to_url(path: str) -> str:
-        calls.append(path)
-        return "https://cdn.example.com/ref.jpg"
+    async def fake_get_workspace_file_url(self, file_path, expires_in=3600, options=None):
+        calls.append((file_path, expires_in, options))
+        return "https://cdn.example.com/workspace/ref.jpg"
 
-    monkeypatch.setattr("app.tools.generate_video.file_to_url", fake_file_to_url)
+    monkeypatch.setattr(
+        "app.tools.generate_video.FileService.get_workspace_file_url",
+        fake_get_workspace_file_url,
+    )
 
     result = await tool._resolve_input_uri("images/ref.jpg")
 
-    assert result == "https://cdn.example.com/ref.jpg"
-    assert calls == ["images/ref.jpg"]
+    assert result == "https://cdn.example.com/workspace/ref.jpg"
+    assert calls == [(image_path.resolve(), 7200, None)]
 
 
 @pytest.mark.asyncio
-async def test_resolve_input_uri_falls_back_to_base64_when_file_to_url_fails(
+async def test_resolve_input_uri_raises_when_workspace_file_service_fails(
     monkeypatch,
     tmp_path,
 ):
@@ -32,22 +40,20 @@ async def test_resolve_input_uri_falls_back_to_base64_when_file_to_url_fails(
     image_path.write_bytes(b"fake-image")
 
     tool = GenerateVideo(base_dir=str(tmp_path))
-    base64_calls = []
+    calls = []
 
-    def fake_file_to_url(path: str) -> str:
-        raise RuntimeError("download url service unavailable")
+    async def fake_get_workspace_file_url(self, file_path, expires_in=3600, options=None):
+        calls.append((file_path, expires_in, options))
+        raise WorkspaceFileURLError("missing magicfs xattr")
 
-    async def fake_local_file_to_base64(path: str) -> str:
-        base64_calls.append(path)
-        return "data:image/jpeg;base64,ZmFrZS1pbWFnZQ=="
+    monkeypatch.setattr(
+        "app.tools.generate_video.FileService.get_workspace_file_url",
+        fake_get_workspace_file_url,
+    )
 
-    monkeypatch.setattr("app.tools.generate_video.file_to_url", fake_file_to_url)
-    monkeypatch.setattr("app.tools.generate_video.local_file_to_base64", fake_local_file_to_base64)
-
-    result = await tool._resolve_input_uri("images/ref.jpg")
-
-    assert result == "data:image/jpeg;base64,ZmFrZS1pbWFnZQ=="
-    assert base64_calls == [str(image_path.resolve())]
+    with pytest.raises(ValueError, match="无法将本地文件转换为可访问 URL"):
+        await tool._resolve_input_uri("images/ref.jpg")
+    assert calls == [(image_path.resolve(), 7200, None)]
 
 
 @pytest.mark.asyncio

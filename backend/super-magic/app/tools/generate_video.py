@@ -44,7 +44,6 @@ from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.async_file_utils import async_exists, async_mkdir
 from app.utils.video_logger import get_video_logger
-from sdk.llm import file_to_url
 
 logger = get_video_logger(__name__)
 
@@ -1092,11 +1091,6 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
     async def _resolve_input_uri(self, media_path: str) -> str:
         if media_path.startswith(("http://", "https://")):
             return media_path
-
-        try:
-            return await asyncio.to_thread(file_to_url, media_path)
-        except Exception:
-            pass
 
         resolved_path = await self._resolve_workspace_file(media_path)
         try:
