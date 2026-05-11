@@ -5,6 +5,7 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Interfaces\Middleware\Auth\ApiKeyMiddleware;
+use App\Interfaces\Middleware\Auth\OptionalSandboxUserAuthMiddleware;
 use App\Interfaces\Middleware\Auth\SandboxUserAuthMiddleware;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SkillSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
@@ -12,6 +13,7 @@ use Dtyq\SuperMagic\Interfaces\Share\Facade\ShareApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\FileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\SandboxApi as InternalSandboxApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\TaskApi as InternalTaskApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenFileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenMessageScheduleApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
@@ -160,10 +162,22 @@ Router::addGroup(
             Router::get('/list', [OpenWorkspaceApi::class, 'getWorkspaceList']);
         });
 
+        Router::addGroup('/file', static function () {
+            // 获取项目文件上传 STS Token
+            Router::get('/project-upload-token', [OpenFileApi::class, 'getProjectUploadToken']);
+            // 保存项目附件关系
+            Router::post('/project/save', [OpenFileApi::class, 'saveProjectFile']);
+        });
+
         // 项目相关
         Router::addGroup('/project', static function () {
             // 创建项目
             Router::post('', [OpenProjectApi::class, 'createProject']);
+        });
+
+        Router::addGroup('/projects', static function () {
+            // 获取项目列表
+            Router::get('/queries', [OpenProjectApi::class, 'index']);
         });
 
         // 消息定时任务
@@ -188,4 +202,15 @@ Router::addGroup(
             Router::get('/{id}', [OpenProjectApi::class, 'show']);
         });
     },
+);
+
+Router::addGroup(
+    '/api/v1/open-api/super-magic',
+    static function () {
+        Router::addGroup('/projects', static function () {
+            // 获取项目附件列表（支持 token 或可选登录态）
+            Router::post('/{id}/attachments', [OpenProjectApi::class, 'getProjectAttachments']);
+        });
+    },
+    ['middleware' => [OptionalSandboxUserAuthMiddleware::class]]
 );

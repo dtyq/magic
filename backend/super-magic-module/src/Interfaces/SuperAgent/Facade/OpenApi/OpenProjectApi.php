@@ -14,6 +14,8 @@ use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -64,5 +66,41 @@ class OpenProjectApi extends AbstractApi
 
         // 4. Call application service (reuse existing business logic)
         return $this->projectAppService->createProject($requestContext, $requestDTO);
+    }
+
+    /**
+     * Get project list.
+     * Returns projects for the authenticated user with pagination and filters.
+     */
+    public function index(RequestContext $requestContext): array
+    {
+        $userAuthorization = RequestCoContext::getUserAuthorization();
+        if (empty($userAuthorization)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_authorization_not_found');
+        }
+
+        $requestContext->setUserAuthorization($userAuthorization);
+
+        $requestDTO = GetProjectListRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->getProjectList($requestContext, $requestDTO);
+    }
+
+    /**
+     * Get project attachments.
+     * Supports access-token mode and optional logged-in user mode.
+     */
+    public function getProjectAttachments(RequestContext $requestContext): array
+    {
+        $requestDTO = GetProjectAttachmentsRequestDTO::fromRequest($this->request);
+        $requestDTO->setPageSize(10000);
+
+        if (! empty($requestDTO->getToken())) {
+            return $this->projectAppService->getProjectAttachmentsByAccessToken($requestDTO);
+        }
+
+        $requestContext->setUserAuthorization($this->checkAndGetAuthorization());
+
+        return $this->projectAppService->getProjectAttachments($requestContext, $requestDTO);
     }
 }
