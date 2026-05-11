@@ -15,7 +15,7 @@ import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from agentlang.logger import get_logger
 from app.path_manager import PathManager
@@ -54,17 +54,30 @@ _archive_lock: asyncio.Lock = asyncio.Lock()
 
 # ── 任务文件扫描 ──────────────────────────────────────────────────────────────
 
-async def scan_jobs(known_mtimes: Dict[str, float]) -> List[CronJob]:
+async def scan_jobs(
+    known_mtimes: Dict[str, float],
+    known_invalid_mtimes: Optional[Dict[str, float]] = None,
+) -> Tuple[List[CronJob], Dict[str, float]]:
     """
-    扫描 cron 目录，返回所有有效任务列表。
-    known_mtimes: {job_id: mtime}，用于增量检测变更文件。
-    不存在目录时返回空列表。
+    扫描 cron 目录，返回所有有效任务列表及本次解析失败文件的 mtime 映射。
+
+    known_mtimes: {job_id: mtime}，有效任务的 mtime 缓存，用于增量检测变更文件。
+    known_invalid_mtimes: {job_id: mtime}，无效文件的 mtime 缓存；mtime 未变时跳过重解析，
+        避免因文件内容未修复而在每次 tick 中重复打印告警。
+
+    返回 (valid_jobs, new_invalid_mtimes)：
+        valid_jobs: 本次扫描解析成功的 CronJob 列表
+        new_invalid_mtimes: 本次仍无效的文件 mtime 映射（含跳过的和新发现的）
     """
+    if known_invalid_mtimes is None:
+        known_invalid_mtimes = {}
+
     cron_dir = PathManager.get_cron_dir()
     if not await async_exists(cron_dir):
-        return []
+        return [], {}
 
     jobs: List[CronJob] = []
+    new_invalid_mtimes: Dict[str, float] = {}
     entries = await async_scandir(cron_dir)
     for entry in entries:
         if entry.is_dir() or not entry.name.endswith(".md") or entry.name.startswith("."):
@@ -76,11 +89,18 @@ async def scan_jobs(known_mtimes: Dict[str, float]) -> List[CronJob]:
         except OSError:
             continue
 
+        # mtime 未变的已知无效文件：直接跳过，不重复告警
+        if known_invalid_mtimes.get(job_id) == mtime:
+            new_invalid_mtimes[job_id] = mtime
+            continue
+
         job = await _parse_job_file(Path(entry.path), job_id, mtime)
         if job is not None:
             jobs.append(job)
+        else:
+            new_invalid_mtimes[job_id] = mtime
 
-    return jobs
+    return jobs, new_invalid_mtimes
 
 
 async def _parse_job_file(path: Path, job_id: str, mtime: float) -> Optional[CronJob]:
@@ -112,6 +132,15 @@ async def _parse_job_file(path: Path, job_id: str, mtime: float) -> Optional[Cro
             every_ms=schedule_cfg.get("every_ms"),
             end_at=schedule_cfg.get("end_at"),
         )
+
+        # 最小调度粒度为 1 分钟，every_ms < 60000 视为无效配置
+        if kind == ScheduleKind.EVERY:
+            every_ms = schedule.every_ms
+            if not every_ms or every_ms < 60_000:
+                logger.warning(
+                    f"cron: every_ms={every_ms} in {path} is below minimum (60000ms / 1min), ignoring job"
+                )
+                return None
 
         payload_kind_str = payload_cfg.get("kind", PayloadKind.AGENT_TURN)
         try:
