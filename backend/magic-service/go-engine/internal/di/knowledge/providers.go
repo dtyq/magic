@@ -478,9 +478,15 @@ func newDocumentResyncRabbitMQSchedulerConfig(
 	defaults documentsync.RabbitMQSchedulerConfig,
 ) documentsync.RabbitMQSchedulerConfig {
 	return documentsync.RabbitMQSchedulerConfig{
-		QueueName:           strings.TrimSpace(cfg.RabbitMQ.Queues.DocumentResync),
-		ConsumerPrefetch:    cfg.RabbitMQ.DocumentResync.ConsumerPrefetch,
-		ConsumerConcurrency: cfg.RabbitMQ.DocumentResync.ConsumerConcurrency,
+		QueueName: strings.TrimSpace(cfg.RabbitMQ.Queues.DocumentResync),
+		ConsumerPrefetch: intOrDefault(
+			cfg.RabbitMQ.DocumentResync.ConsumerPrefetch,
+			defaults.ConsumerPrefetch,
+		),
+		ConsumerConcurrency: intOrDefault(
+			cfg.RabbitMQ.DocumentResync.ConsumerConcurrency,
+			defaults.ConsumerConcurrency,
+		),
 		MQPublishTimeout: millisDurationOrDefault(
 			cfg.RabbitMQ.DocumentResync.MQPublishTimeoutMillis,
 			defaults.MQPublishTimeout,
@@ -504,6 +510,7 @@ func documentSyncResourceLimitsFromConfig(cfg *autoloadcfg.Config) documentdomai
 		MaxPlainTextChars:        limits.MaxPlainTextChars,
 		MaxParsedBlocks:          limits.MaxParsedBlocks,
 		MaxFragmentsPerDocument:  limits.MaxFragmentsPerDocument,
+		SyncFragmentBatchSize:    limits.SyncFragmentBatchSize,
 		SyncMemorySoftLimitBytes: limits.SyncMemorySoftLimitBytes,
 	})
 }

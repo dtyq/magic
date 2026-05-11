@@ -206,6 +206,28 @@ func TestNew_RedisDBEnvOverride_IntParsing(t *testing.T) {
 	}
 }
 
+func TestNew_DocumentResyncConsumerConcurrencyDefaultAndEnvOverride(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := []byte("rabbitmq:\n  documentResync:\n    consumerConcurrency: ${DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY:=2}\n")
+	if err := os.WriteFile(cfgPath, content, 0o600); err != nil {
+		t.Fatalf("write temp config: %v", err)
+	}
+
+	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY", "")
+	cfg := config.New()
+	if cfg.RabbitMQ.DocumentResync.ConsumerConcurrency != 2 {
+		t.Fatalf("expected default document resync concurrency 2, got %d", cfg.RabbitMQ.DocumentResync.ConsumerConcurrency)
+	}
+
+	t.Setenv("DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY", "4")
+	cfg = config.New()
+	if cfg.RabbitMQ.DocumentResync.ConsumerConcurrency != 4 {
+		t.Fatalf("expected env document resync concurrency 4, got %d", cfg.RabbitMQ.DocumentResync.ConsumerConcurrency)
+	}
+}
+
 func TestNew_ServerEnabled_DefaultFalseWhenMissing(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")

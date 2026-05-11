@@ -8,5 +8,6 @@ type DocumentResourceLimitsConfig struct {
 	MaxPlainTextChars        int64 `json:"max_plain_text_chars"`
 	MaxParsedBlocks          int64 `json:"max_parsed_blocks"`
 	MaxFragmentsPerDocument  int64 `json:"max_fragments_per_document"`
+	SyncFragmentBatchSize    int   `mapstructure:"syncFragmentBatchSize" json:"sync_fragment_batch_size"`
 	SyncMemorySoftLimitBytes int64 `json:"sync_memory_soft_limit_bytes"`
 }

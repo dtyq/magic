@@ -37,3 +37,17 @@ func (t *batchSyncTracer) log(ctx context.Context, stage string, startedAt time.
 	attrs = append(attrs, fields...)
 	t.service.logger.DebugContext(ctx, "Fragment batch sync stage completed", attrs...)
 }
+
+func (t *batchSyncTracer) logStart(ctx context.Context, stage string, fields ...any) {
+	if t == nil || t.service == nil || t.service.logger == nil {
+		return
+	}
+
+	attrs := make([]any, 0, len(fields))
+	attrs = append(attrs, "stage", stage, "status", "started")
+	if t.kb.Code != "" {
+		attrs = append(attrs, "knowledge_base_code", t.kb.Code)
+	}
+	attrs = append(attrs, fields...)
+	t.service.logger.DebugContext(ctx, "Fragment batch sync stage started", attrs...)
+}

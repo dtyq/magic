@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
 	"magic/internal/infrastructure/logging"
+	"magic/internal/pkg/memoryguard"
 	thirdfilemappingpkg "magic/internal/pkg/thirdfilemapping"
 )
 
@@ -21,6 +23,10 @@ type FragmentDomainService struct {
 	defaultEmbeddingModel string
 	logger                *logging.SugaredLogger
 	retrievalSvc          *fragretrieval.Service
+	syncFragmentBatchSize int
+	syncMemorySoftLimit   int64
+	memoryReader          memoryguard.Reader
+	memoryPollInterval    time.Duration
 }
 
 // FragmentDomainInfra 聚合片段领域服务依赖的基础设施组件。
@@ -31,6 +37,10 @@ type FragmentDomainInfra struct {
 	DefaultEmbeddingModel string
 	Logger                *logging.SugaredLogger
 	SegmenterProvider     *fragretrieval.SegmenterProvider
+	SyncFragmentBatchSize int
+	SyncMemorySoftLimit   int64
+	MemoryReader          memoryguard.Reader
+	MemoryPollInterval    time.Duration
 }
 
 type fragmentCountStatsRepository interface {
@@ -80,6 +90,10 @@ func NewFragmentDomainService(
 		vectorDataRepo:        infra.VectorDataRepo,
 		defaultEmbeddingModel: infra.DefaultEmbeddingModel,
 		logger:                infra.Logger,
+		syncFragmentBatchSize: normalizeSyncFragmentBatchSize(infra.SyncFragmentBatchSize),
+		syncMemorySoftLimit:   infra.SyncMemorySoftLimit,
+		memoryReader:          infra.MemoryReader,
+		memoryPollInterval:    normalizeFragmentBatchMemoryPollInterval(infra.MemoryPollInterval),
 	}
 	service.retrievalSvc = fragretrieval.NewService(service.repo, service.embeddingSvc, fragretrieval.Infra{
 		VectorDataRepo:        service.vectorDataRepo,

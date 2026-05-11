@@ -17,6 +17,7 @@ const (
 	defaultMaxPlainTextChars        int64 = 20_000_000
 	defaultMaxParsedBlocks          int64 = 250_000
 	defaultMaxFragmentsPerDocument  int64 = 2_000
+	defaultSyncFragmentBatchSize          = 64
 	defaultSyncMemorySoftLimitBytes int64 = 0
 )
 
@@ -55,6 +56,7 @@ type ResourceLimits struct {
 	MaxPlainTextChars        int64
 	MaxParsedBlocks          int64
 	MaxFragmentsPerDocument  int64
+	SyncFragmentBatchSize    int
 	SyncMemorySoftLimitBytes int64
 }
 
@@ -97,6 +99,7 @@ func DefaultResourceLimits() ResourceLimits {
 		MaxPlainTextChars:        defaultMaxPlainTextChars,
 		MaxParsedBlocks:          defaultMaxParsedBlocks,
 		MaxFragmentsPerDocument:  defaultMaxFragmentsPerDocument,
+		SyncFragmentBatchSize:    defaultSyncFragmentBatchSize,
 		SyncMemorySoftLimitBytes: defaultSyncMemorySoftLimitBytes,
 	}
 }
@@ -121,6 +124,9 @@ func NormalizeResourceLimits(limits ResourceLimits) ResourceLimits {
 	}
 	if limits.MaxFragmentsPerDocument <= 0 {
 		limits.MaxFragmentsPerDocument = defaults.MaxFragmentsPerDocument
+	}
+	if limits.SyncFragmentBatchSize <= 0 {
+		limits.SyncFragmentBatchSize = defaults.SyncFragmentBatchSize
 	}
 	return limits
 }

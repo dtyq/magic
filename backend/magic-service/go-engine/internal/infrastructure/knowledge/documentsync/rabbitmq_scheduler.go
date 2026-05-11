@@ -22,6 +22,7 @@ const (
 	defaultRabbitMQConsumerReconnectDelay = time.Second
 	rabbitMQSerialConsumerPrefetch        = 1
 	defaultRabbitMQPrefetch               = 1
+	defaultRabbitMQConsumerConcurrency    = 2
 	defaultMQPublishTimeout               = 5 * time.Second
 	defaultRabbitMQMaxRequeueAttempts     = 20
 )
@@ -63,7 +64,7 @@ type RabbitMQSchedulerDeps struct {
 func DefaultRabbitMQSchedulerConfig() RabbitMQSchedulerConfig {
 	return RabbitMQSchedulerConfig{
 		ConsumerPrefetch:    defaultRabbitMQPrefetch,
-		ConsumerConcurrency: 1,
+		ConsumerConcurrency: defaultRabbitMQConsumerConcurrency,
 		MQPublishTimeout:    defaultMQPublishTimeout,
 		MaxRequeueAttempts:  defaultRabbitMQMaxRequeueAttempts,
 	}

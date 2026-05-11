@@ -721,6 +721,7 @@ func documentResourceLimitsFromConfig(cfg *autoloadcfg.Config) documentdomain.Re
 		MaxPlainTextChars:        limits.MaxPlainTextChars,
 		MaxParsedBlocks:          limits.MaxParsedBlocks,
 		MaxFragmentsPerDocument:  limits.MaxFragmentsPerDocument,
+		SyncFragmentBatchSize:    limits.SyncFragmentBatchSize,
 		SyncMemorySoftLimitBytes: limits.SyncMemorySoftLimitBytes,
 	})
 }

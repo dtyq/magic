@@ -14,6 +14,9 @@ func TestDefaultResourceLimitsMaxFragmentsPerDocument(t *testing.T) {
 	if limits.MaxFragmentsPerDocument != 2_000 {
 		t.Fatalf("expected default max fragments 2000, got %d", limits.MaxFragmentsPerDocument)
 	}
+	if limits.SyncFragmentBatchSize != 64 {
+		t.Fatalf("expected default sync fragment batch size 64, got %d", limits.SyncFragmentBatchSize)
+	}
 	if err := documentdomain.CheckFragmentCount(2_000, limits); err != nil {
 		t.Fatalf("expected 2000 fragments to pass, got %v", err)
 	}
