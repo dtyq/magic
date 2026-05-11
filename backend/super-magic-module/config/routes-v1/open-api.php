@@ -5,7 +5,6 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Interfaces\Middleware\Auth\ApiKeyMiddleware;
-use App\Interfaces\Middleware\Auth\OptionalSandboxUserAuthMiddleware;
 use App\Interfaces\Middleware\Auth\SandboxUserAuthMiddleware;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SkillSandboxApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Sandbox\SuperMagicAgentSandboxApi;
@@ -178,6 +177,10 @@ Router::addGroup(
         Router::addGroup('/projects', static function () {
             // 获取项目列表
             Router::get('/queries', [OpenProjectApi::class, 'index']);
+            // 获取项目基本信息
+            Router::get('/{id}', [OpenProjectApi::class, 'show']);
+            // 获取项目附件列表
+            Router::post('/{id}/attachments', [OpenProjectApi::class, 'getProjectAttachments']);
         });
 
         // 消息定时任务
@@ -190,27 +193,4 @@ Router::addGroup(
         });
     },
     ['middleware' => [ApiKeyMiddleware::class]]
-);
-
-// 无登录态校验
-Router::addGroup(
-    '/api/v1/open-api/super-magic',
-    static function () {
-        // 项目相关 - 公开接口
-        Router::addGroup('/projects', static function () {
-            // 获取项目基本信息（项目名称等）- 无需登录
-            Router::get('/{id}', [OpenProjectApi::class, 'show']);
-        });
-    },
-);
-
-Router::addGroup(
-    '/api/v1/open-api/super-magic',
-    static function () {
-        Router::addGroup('/projects', static function () {
-            // 获取项目附件列表（支持 token 或可选登录态）
-            Router::post('/{id}/attachments', [OpenProjectApi::class, 'getProjectAttachments']);
-        });
-    },
-    ['middleware' => [OptionalSandboxUserAuthMiddleware::class]]
 );
