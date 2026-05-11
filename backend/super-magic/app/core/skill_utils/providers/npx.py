@@ -52,7 +52,7 @@ class NpxProvider(CliProvider):
 
     # ── search：不支持，直接返回空 ─────────────────────────────────────────────
 
-    async def search(self, keyword: str, limit: int = 10) -> list[SkillCandidate]:
+    async def search(self, keyword: str, limit: int | None = 10) -> list[SkillCandidate]:
         logger.debug(f"[npx] search 不支持，跳过关键词: {keyword!r}")
         return []
 

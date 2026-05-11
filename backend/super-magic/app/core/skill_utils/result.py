@@ -25,7 +25,10 @@ class SearchResult:
 
     @property
     def all_candidates(self) -> list[SkillCandidate]:
-        """返回所有 keyword 候选的去重并集（按 score 降序）"""
+        """返回所有 keyword 候选的去重并集（按 score 降序）
+
+        全量列出模式（keywords 为空）时不截断；有关键词搜索时取 top_k。
+        """
         seen: set[tuple] = set()
         merged: list[SkillCandidate] = []
         for kr in self.keyword_results:
@@ -35,4 +38,6 @@ class SearchResult:
                     seen.add(key)
                     merged.append(c)
         merged.sort(key=lambda x: x.score, reverse=True)
-        return merged[:_GLOBAL_TOP_K]
+        # 全量模式（keyword 为空字符串）不截断
+        is_list_all = all(not kr.keyword for kr in self.keyword_results)
+        return merged if is_list_all else merged[:_GLOBAL_TOP_K]

@@ -99,7 +99,8 @@ class KeywordSearchDriver(SearchDriver):
             ])
 
         effective_keywords = keywords if keywords else [""]
-        per_kw_limit = _GLOBAL_TOP_K if not keywords else _PER_KEYWORD_TOP_K
+        # 全量列出模式（keywords 为空）不限制数量
+        per_kw_limit = None if not keywords else _PER_KEYWORD_TOP_K
 
         tasks, task_meta = [], []
         for kw in effective_keywords:
@@ -127,7 +128,7 @@ class KeywordSearchDriver(SearchDriver):
             candidates.sort(key=lambda x: x.score, reverse=True)
             keyword_results.append(KeywordResult(
                 keyword=kw,
-                candidates=candidates[:per_kw_limit],
+                candidates=candidates[:per_kw_limit] if per_kw_limit else candidates,
                 provider_errors=kw_to_errors[kw],
             ))
 

@@ -59,8 +59,8 @@ class SkillProvider(ABC):
     enabled: bool = True
 
     @abstractmethod
-    async def search(self, keyword: str, limit: int = 10) -> list[SkillCandidate]:
-        """按关键词检索，返回候选列表；不支持搜索的 provider 返回 []。"""
+    async def search(self, keyword: str, limit: int | None = 10) -> list[SkillCandidate]:
+        """按关键词检索，返回候选列表；limit=None 表示不限制数量；不支持搜索的 provider 返回 []。"""
 
     @abstractmethod
     async def fetch(

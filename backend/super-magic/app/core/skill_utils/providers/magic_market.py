@@ -20,7 +20,7 @@ class MagicMarketProvider(SkillProvider):
 
     id = SkillProviderId.MAGIC_MARKET
 
-    async def search(self, keyword: str, limit: int = 10) -> list[SkillCandidate]:
+    async def search(self, keyword: str, limit: int | None = 10) -> list[SkillCandidate]:
         try:
             from app.infrastructure.sdk.magic_service.factory import create_magic_service_sdk_with_defaults
             from app.infrastructure.sdk.magic_service.parameter.query_skills_parameter import (
@@ -30,7 +30,7 @@ class MagicMarketProvider(SkillProvider):
             sdk = create_magic_service_sdk_with_defaults()
             result = await asyncio.to_thread(
                 sdk.skill.query_skill_market,
-                QuerySkillsParameter(keyword=keyword, page=1, page_size=limit),
+                QuerySkillsParameter(keyword=keyword, page=1, page_size=limit or 200),
             )
             items = result.get_items()
             return [

@@ -114,7 +114,7 @@ class CliProvider(SkillProvider):
 
     # ── 抽象方法实现 ──────────────────────────────────────────────────────────
 
-    async def search(self, keyword: str, limit: int = 10) -> list[SkillCandidate]:
+    async def search(self, keyword: str, limit: int | None = 10) -> list[SkillCandidate]:
         self._ensure_enabled()
         try:
             raw = await self._run_json(*self.search_subcmd, keyword)
@@ -145,12 +145,12 @@ class CliProvider(SkillProvider):
 
     # ── 子类可覆盖的解析钩子 ──────────────────────────────────────────────────
 
-    def _parse_search(self, raw: Any, limit: int) -> list[SkillCandidate]:
+    def _parse_search(self, raw: Any, limit: int | None) -> list[SkillCandidate]:
         """将 CLI JSON 输出解析为 SkillCandidate 列表，子类按需覆盖"""
         items: list[SkillCandidate] = []
         if not isinstance(raw, list):
             raw = raw.get("items", raw.get("results", []))
-        for item in raw[:limit]:
+        for item in (raw if limit is None else raw[:limit]):
             if not isinstance(item, dict):
                 continue
             skill_id = item.get("slug", item.get("name", item.get("id", "")))
