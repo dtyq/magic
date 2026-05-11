@@ -494,7 +494,8 @@ class TaskFileDomainService
     }
 
     /**
-     * Update the source field of a task file.
+     * Update only the source field of a task file.
+     * Only `source` and `updated_at` are written; all other fields are left untouched.
      *
      * @param int $fileId File ID
      * @param TaskFileSource $source New source value
@@ -508,9 +509,14 @@ class TaskFileDomainService
             ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND);
         }
 
+        $this->taskFileRepository->updateFileByCondition(
+            ['file_id' => $fileId],
+            ['source' => $source->value, 'updated_at' => date('Y-m-d H:i:s')]
+        );
+
         $fileEntity->setSource($source);
 
-        return $this->updateById($fileEntity);
+        return $fileEntity;
     }
 
     /**
