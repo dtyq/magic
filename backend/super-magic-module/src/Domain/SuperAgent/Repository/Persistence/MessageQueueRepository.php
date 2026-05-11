@@ -218,16 +218,33 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
 
     /**
      * Get topic IDs that have pending messages for compensation.
+     * Excludes topics that already have an IN_PROGRESS message to prevent duplicate delivery.
      */
     public function getCompensationTopics(int $limit, array $organizationCodes = []): array
     {
-        // High-performance query: Get distinct topic IDs with pending messages that are ready to execute
+        // Sub-query: topic IDs that already have an IN_PROGRESS message (being processed right now).
+        // Excluding them at the DB level avoids unnecessary lock-contention and idempotency checks
+        // in the service layer.
+        $inProgressTopicIds = $this->model::query()
+            ->select('topic_id')
+            ->distinct()
+            ->where('status', MessageQueueStatus::IN_PROGRESS->value)
+            ->whereNull('deleted_at')
+            ->pluck('topic_id')
+            ->toArray();
+
+        // Main query: PENDING messages whose expected execution time has arrived.
         $query = $this->model::query()
             ->select('topic_id')
             ->distinct()
             ->where('status', MessageQueueStatus::PENDING->value)
             ->where('except_execute_time', '<=', date('Y-m-d H:i:s'))
             ->whereNull('deleted_at');
+
+        // Exclude topics already being processed
+        if (! empty($inProgressTopicIds)) {
+            $query->whereNotIn('topic_id', $inProgressTopicIds);
+        }
 
         // Apply organization code filter if provided
         if (! empty($organizationCodes)) {
@@ -280,6 +297,21 @@ class MessageQueueRepository implements MessageQueueRepositoryInterface
                 'except_execute_time' => Db::raw("DATE_ADD(except_execute_time, INTERVAL {$delayMinutes} MINUTE)"),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]) > 0;
+    }
+
+    /**
+     * Get the IN_PROGRESS message for a specific topic (idempotency check).
+     */
+    public function getInProgressMessageByTopic(int $topicId): ?MessageQueueEntity
+    {
+        $model = $this->model::query()
+            ->where('topic_id', $topicId)
+            ->where('status', MessageQueueStatus::IN_PROGRESS->value)
+            ->whereNull('deleted_at')
+            ->orderBy('id', 'asc')
+            ->first();
+
+        return $model ? $this->convertToEntity($model) : null;
     }
 
     /**

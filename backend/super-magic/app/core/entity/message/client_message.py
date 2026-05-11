@@ -294,7 +294,7 @@ Custom agent config. type identifies the agent variant; profile carries identity
 
     @validator("message_subscription_config")
     def validate_message_subscription_config(cls, v):
-        if Environment.is_dev():
+        if Environment.is_local():
             return v
         if v is None:
             raise ValueError("消息订阅配置 'message_subscription_config' 不能为空")

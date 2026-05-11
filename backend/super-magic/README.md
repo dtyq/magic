@@ -115,4 +115,3 @@ python test_super_magic.py
 - `app/tools/zhihu_tool.py`：知乎工具实现
 - `tests/test_zhihu_tool.py`：知乎工具测试脚本
 - `test_super_magic.py`：测试脚本
-

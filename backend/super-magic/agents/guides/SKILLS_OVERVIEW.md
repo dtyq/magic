@@ -58,7 +58,6 @@ skills:
 ```yaml
 skills:
   system_skills:      # 内置 Skill，位于 agents/skills/
-    - name: find-skill
     - name: using-mcp
   crew_skills: "*"    # 当前 Agent 私有 Skill（"*" 表示全部扫描）
   workspace_skills: "*" # 用户安装/创建的 Skill
@@ -77,13 +76,13 @@ skills:
 | `workspace_skills` | 工作区 skills 目录 | 用户安装/创建，或从外部安装后落地的位置 |
 | `preload` | 任意来源均可 | 启动时注入，不进列表 |
 
-**外部安装**：Agent 可通过 `find-skill` 从外部获取并安装 Skill，安装完成后统一落在 workspace_skills 目录。来源有三条：
+**外部安装**：Agent 通过 `find_skills` 检索、`install_skills` 安装外部 Skill，安装完成后统一落在 workspace_skills 目录。来源有三条：
 
 | 外部来源 | 获取方式 |
 |---------|---------|
-| 平台技能市场 | `skillhub install-platform-me <code>` 或 `install-platform-market <code>` |
-| skillhub 社区 | `skillhub install <slug>`（先 `skillhub search <keyword>` 检索） |
-| GitHub | `skillhub install-github <repo-url>` 或仓库内子目录 |
+| 平台技能市场 | `find_skills` 检索后，`install_skills(provider="magic_market", ...)` |
+| my_library | `find_skills` 检索后，`install_skills(provider="my_library", ...)` |
+| GitHub | `install_skills(provider="github", id="<repo-url>")` |
 
 安装后通过 `read_skills` 加载使用，安装前建议先用 `skill-vetter` 进行安全审查。
 

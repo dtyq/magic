@@ -1,5 +1,5 @@
 """Mention context builder"""
-from typing import Dict, List, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from app.service.mention.base import BaseMentionHandler
 from app.service.mention.handlers import (
     FileHandler,
@@ -9,6 +9,9 @@ from app.service.mention.handlers import (
     ProjectDirectoryHandler,
     SkillHandler,
 )
+
+if TYPE_CHECKING:
+    from app.core.context.agent_context import AgentContext
 
 
 class MentionContextBuilder:
@@ -36,11 +39,12 @@ class MentionContextBuilder:
         self._handlers['project_directory'] = ProjectDirectoryHandler()
         self._handlers['skill'] = SkillHandler()
 
-    async def build(self, mentions: List[Dict[str, Any]]) -> str:
+    async def build(self, mentions: List[Dict[str, Any]], agent_context: Optional["AgentContext"] = None) -> str:
         """构建mentions的系统上下文信息（异步）
 
         Args:
             mentions: mentions字段中的信息列表
+            agent_context: 可选的 AgentContext 实例，传给 handler 以支持 horizon 通知注入
 
         Returns:
             str: 格式化的mentions上下文信息
@@ -64,13 +68,13 @@ class MentionContextBuilder:
             # 使用对应的handler处理mention（异步）
             handler = self._handlers.get(mention_type)
             if handler:
-                # 收集 tip 文本
-                tip_text = await handler.get_tip(mention)
+                # 收集 tip 文本，将 agent_context 传给 handler 以支持 horizon push_notification
+                tip_text = await handler.get_tip(mention, agent_context)
                 if tip_text:  # 只添加非空的 tip
                     tip_texts.append(tip_text)
 
                 # 处理 mention 内容
-                lines = await handler.handle(mention, i)
+                lines = await handler.handle(mention, i, agent_context)
                 context_lines.extend(lines)
             else:
                 # 未知类型的mention

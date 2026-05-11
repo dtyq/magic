@@ -9,16 +9,21 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI;
 
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImageBase64DataUriParser;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use GuzzleHttp\Exception\RequestException;
 use Hyperf\Logger\LoggerFactory;
+use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Log\LoggerInterface;
 
 class AzureOpenAIAPI
 {
-    private const REQUEST_TIMEOUT = 600;
+    use ImagePayloadLogSanitizerTrait;
+
+    private const REQUEST_TIMEOUT = 1200;
 
     protected LoggerInterface $logger;
 
@@ -49,7 +54,7 @@ class AzureOpenAIAPI
 
         $this->logger->info('Azure OpenAI API 请求', [
             'url' => $url,
-            'payload' => $data,
+            'payload' => $this->sanitizePayloadForLog($data),
         ]);
 
         try {
@@ -76,7 +81,7 @@ class AzureOpenAIAPI
     /**
      * Image edit API call with OSS URL support - supports multiple images.
      */
-    public function editImage(string $model, array $imageUrls, ?string $maskUrl, string $prompt, string $size = '1024x1024', int $n = 1): array
+    public function editImage(string $model, array $imageUrls, ?string $maskUrl, string $prompt, string $size = '1024x1024', int $n = 1, ?string $quality = null): array
     {
         $url = $this->buildUrl($model, 'images/edits');
 
@@ -90,36 +95,30 @@ class AzureOpenAIAPI
 
             $imageKey = count($imageUrls) > 1 ? 'image[]' : 'image';
             foreach ($imageUrls as $index => $imageUrl) {
-                $imageStreamBody = $this->downloadToStream($imageUrl);
-                $multipartData[] = [
-                    'name' => $imageKey,
-                    'contents' => $imageStreamBody->getContents(),
-                    'filename' => "image{$index}.png",
-                ];
+                $multipartData[] = $this->createImageMultipartPart($imageKey, $imageUrl, $index);
             }
 
             if ($maskUrl !== null) {
-                $maskStreamBody = $this->downloadToStream($maskUrl);
-                $multipartData[] = [
-                    'name' => 'mask',
-                    'contents' => $maskStreamBody->getContents(),
-                    'filename' => 'mask.png',
-                ];
+                $multipartData[] = $this->createImageMultipartPart('mask', $maskUrl, 0, 'mask');
             }
 
             $multipartData[] = ['name' => 'prompt', 'contents' => $prompt];
             $multipartData[] = ['name' => 'size', 'contents' => $size];
             $multipartData[] = ['name' => 'n', 'contents' => (string) $n];
+            if ($quality !== null) {
+                $multipartData[] = ['name' => 'quality', 'contents' => $quality];
+            }
 
             $this->logger->info('Azure OpenAI API 请求', [
                 'url' => $url,
-                'payload' => [
+                'payload' => $this->sanitizePayloadForLog([
                     'imageUrls' => $imageUrls,
                     'maskUrl' => $maskUrl,
                     'prompt' => $prompt,
                     'size' => $size,
                     'n' => $n,
-                ],
+                    'quality' => $quality,
+                ]),
             ]);
 
             $response = $client->post($url, [
@@ -152,6 +151,36 @@ class AzureOpenAIAPI
         } catch (RequestException $e) {
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Failed to download image from URL: ' . $url);
         }
+    }
+
+    /**
+     * Build one multipart image part for Azure OpenAI image edit.
+     */
+    private function createImageMultipartPart(string $name, string $image, int $index, string $filenamePrefix = 'image'): array
+    {
+        try {
+            $base64Image = ImageBase64DataUriParser::parseDecoded($image);
+        } catch (InvalidArgumentException) {
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Invalid base64 image data');
+        }
+
+        if ($base64Image !== null) {
+            return [
+                'name' => $name,
+                'contents' => $base64Image['binary_data'],
+                'filename' => $filenamePrefix . $index . '.' . $base64Image['extension'],
+                'headers' => [
+                    'Content-Type' => $base64Image['mime_type'],
+                ],
+            ];
+        }
+
+        $imageStreamBody = $this->downloadToStream($image);
+        return [
+            'name' => $name,
+            'contents' => $imageStreamBody->getContents(),
+            'filename' => "{$filenamePrefix}{$index}.png",
+        ];
     }
 
     /**

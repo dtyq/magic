@@ -69,4 +69,12 @@ interface TaskFileVersionRepositoryInterface
      * 根据文件ID和版本号获取特定版本.
      */
     public function getByFileIdAndVersion(int $fileId, int $version): ?TaskFileVersionEntity;
+
+    /**
+     * 批量获取多个文件的最新版本号.
+     *
+     * @param array $fileIds 文件ID列表
+     * @return array<int, int> [file_id => latest_version]
+     */
+    public function batchGetLatestVersionNumbers(array $fileIds): array;
 }

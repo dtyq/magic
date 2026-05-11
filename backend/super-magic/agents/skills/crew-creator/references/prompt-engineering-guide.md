@@ -172,16 +172,20 @@ In the Crew Agent file system, this means:
 ## 4. 多语言策略
 
 <!--zh
-- 系统提示词必须使用中英文双语
-- 使用 `<!--zh ... -->` 块级注释格式
-- IDENTITY.md 的 YAML header 中 `name`/`name_cn`、`role`/`role_cn`、`description`/`description_cn` 必须成对出现
-- 中文为主、英文为辅的策略适合中国用户优先场景
+- 默认以用户偏好语言（来自 `<user_preferred_language>`）生成单语言员工提示词
+- 仅在用户明确要求时才启用多语言模式
+- 多语言模式下，用户偏好语言为活跃内容（非注释），辅助语言使用 `<!--xx -->` 注释块：
+  - 中文辅助 → `<!--zh 中文内容 -->`
+  - 英文辅助 → `<!--en English content -->`
+- YAML header 基础字段（name, role, description）始终使用用户偏好语言，辅助语言加后缀：`_cn` / `_en`
 - 翻译时注意信息密度：用最少字表达最多内容，避免中式英语
 -->
-- System prompts must be bilingual (Chinese + English)
-- Use `<!--zh ... -->` block comment format
-- In IDENTITY.md YAML header, `name`/`name_cn`, `role`/`role_cn`, `description`/`description_cn` must appear in pairs
-- Chinese-primary, English-secondary strategy suits Chinese-user-first scenarios
+- Default: generate single-language employee prompts in the user's preferred language (from `<user_preferred_language>`)
+- Only enable multilingual mode when the user explicitly requests it
+- In multilingual mode, the user's preferred language is the active (non-commented) content; auxiliary languages use `<!--xx -->` comment blocks:
+  - Chinese auxiliary → `<!--zh Chinese content -->`
+  - English auxiliary → `<!--en English content -->`
+- YAML header base fields (name, role, description) always use the user's preferred language; auxiliary language fields use `_cn` / `_en` suffixes
 - When translating, maintain information density: express the most with the fewest words, avoid Chinglish
 
 ## 5. 安全约束模板

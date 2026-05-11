@@ -10,6 +10,7 @@
 """
 
 import asyncio
+from pathlib import Path
 from typing import List, Dict, Optional
 from app.service.checkpoint_service import CheckpointService
 from app.infrastructure.checkpoint.rollback_executor import RollbackExecutor
@@ -18,9 +19,8 @@ from app.service.file_version_service import FileVersionService
 from app.infrastructure.magic_service.constants import FileEditType
 from app.infrastructure.magic_service.client import MagicServiceClient
 from app.infrastructure.magic_service.config import MagicServiceConfigLoader, ConfigurationError
-from app.infrastructure.storage.base import BaseFileProcessor
-from app.utils.init_client_message_util import InitClientMessageUtil
 from app.path_manager import PathManager
+from app.utils.async_file_utils import async_exists, get_s3_key_from_xattr
 from agentlang.logger import get_logger
 from app.core.exceptions import RollbackException, ErrorCode
 
@@ -35,6 +35,48 @@ class RollbackService:
         self.rollback_executor = RollbackExecutor()
         # 添加文件版本服务
         self.file_version_service = FileVersionService()
+
+    async def _reload_main_agent_chat_history(self) -> None:
+        """将磁盘上刚被回滚覆盖的聊天历史重新加载进主 Agent 的内存。
+
+        checkpoint 回滚只能直接覆盖磁盘上的聊天历史文件；主 Agent 进程内
+        常驻的 ChatHistory 实例因 load() 幂等保护不会主动重读磁盘，这会
+        造成"内存中的历史仍是回滚前旧状态、但文件已是回滚后新状态"的
+        错位。只要此后再追加一条新消息并落盘，旧的内存状态就会覆盖回
+        滚结果（即用户看到的 revoke + commit + 新消息后，被撤回的那轮对
+        话又复活）。
+
+        仅在 commit_rollback 的成功路径上调用：
+        - start_rollback 之后必然走 commit 或 undo，中间不会触发 agent.run，
+          不需要在 start 里 reload。
+        - undo_rollback 的语义本身就是把磁盘恢复成内存当前所在的 latest
+          状态，内存与磁盘天然一致，不需要 reload。
+
+        主 Agent 尚未创建（例如回滚发生在会话首次启动前）时，agents 为
+        空，直接跳过即可；reload 过程中任何单个 Agent 失败都不应影响
+        回滚主流程成功的语义，因此这里只记日志不抛错。
+        """
+        # 局部 import 避免与 agent_dispatcher 的模块级循环依赖
+        from app.service.agent_dispatcher import AgentDispatcher
+
+        dispatcher = AgentDispatcher.get_instance()
+        agents = getattr(dispatcher, "agents", None) or {}
+        if not agents:
+            logger.debug("主 Agent 尚未创建，跳过聊天历史内存重载")
+            return
+
+        for agent_type, agent in agents.items():
+            chat_history = getattr(agent, "chat_history", None)
+            if chat_history is None:
+                continue
+            try:
+                await chat_history.reload_from_disk()
+                logger.info(f"已从磁盘重新加载聊天历史: agent_type={agent_type}")
+            except Exception as e:
+                logger.error(
+                    f"从磁盘重新加载聊天历史失败 (agent_type={agent_type}): {e}",
+                    exc_info=True,
+                )
 
     async def _get_previous_checkpoint(self, checkpoint_id: str) -> Optional[str]:
         """获取指定checkpoint的前一个checkpoint（支持虚拟checkpoint）
@@ -84,9 +126,18 @@ class RollbackService:
             # 获取当前checkpoint状态（用于版本创建）
             current_checkpoint_id = await self.checkpoint_service.metadata_manager.get_current_checkpoint()
 
-            # 执行回滚到实际目标checkpoint
-            await self.rollback_executor.start_rollback(actual_target_checkpoint_id)
+            # 通知 magicfs：回滚期间跳过 checkpoint 维护，避免它把工作区改动回灌成 latest_content
+            await self.checkpoint_service.metadata_manager.set_rollback_in_progress(True)
+            try:
+                # 执行回滚到实际目标checkpoint
+                await self.rollback_executor.start_rollback(actual_target_checkpoint_id)
+            finally:
+                await self.checkpoint_service.metadata_manager.set_rollback_in_progress(False)
             logger.info(f"开始回滚成功完成: {target_message_id}")
+
+            # 注意：这里不需要 reload 主 Agent 的内存 chat_history。
+            # start_rollback 之后产品上必然走 commit_rollback 或 undo_rollback，
+            # 中间不会触发 agent.run 把陈旧内存写回磁盘；commit 里统一 reload 即可。
 
             # 在回滚成功后创建文件版本
             try:
@@ -113,12 +164,20 @@ class RollbackService:
         try:
             logger.info("开始提交回滚操作，清理后续checkpoint")
 
-            # 执行checkpoint清理
             success = await self.rollback_executor.commit_rollback()
             if not success:
                 raise RollbackException(ErrorCode.ROLLBACK_GENERAL_ERROR, "提交回滚操作失败")
 
             logger.info("回滚提交成功完成")
+
+            # 在这里重新加载主 Agent 的内存 chat_history。
+            # start_rollback 已经把磁盘上的聊天历史覆盖为目标状态，但内存
+            # 中的 ChatHistory 因 load() 幂等保护未被刷新；若不在此处 reload，
+            # 后续新消息会以陈旧内存为基线再写回磁盘，把刚回滚掉的那轮
+            # 对话又"复活"到历史记录里。
+            # 另一条终态路径 undo_rollback 天然一致（内存=磁盘=latest），
+            # 因此只需要在 commit 这一个点 reload。
+            await self._reload_main_agent_chat_history()
 
         except RollbackException:
             raise
@@ -165,9 +224,19 @@ class RollbackService:
 
             # 4. 执行撤回回滚到最新 checkpoint
             logger.info(f"开始撤回回滚到最新checkpoint: {latest_checkpoint_id}")
-            success = await self.rollback_executor.undo_rollback(latest_checkpoint_id)
+            # 通知 magicfs：回滚期间跳过 checkpoint 维护，避免它把工作区改动回灌成 latest_content
+            await self.checkpoint_service.metadata_manager.set_rollback_in_progress(True)
+            try:
+                success = await self.rollback_executor.undo_rollback(latest_checkpoint_id)
+            finally:
+                await self.checkpoint_service.metadata_manager.set_rollback_in_progress(False)
             if not success:
                 raise RollbackException(ErrorCode.ROLLBACK_GENERAL_ERROR, "撤回回滚执行失败")
+
+            # 注意：这里不需要 reload 主 Agent 的内存 chat_history。
+            # undo_rollback 的语义就是把磁盘恢复成内存当前所在的 latest 状态，
+            # 而内存自 agent 启动以来就一直是 latest（load() 幂等未被改写），
+            # 因此 undo 完成后内存与磁盘天然一致，无需额外 reload。
 
             # 5. 在撤回回滚成功后创建文件版本
             try:
@@ -224,11 +293,11 @@ class RollbackService:
             # 将文件路径转换为file_key列表
             file_keys = []
             for file_path in file_paths:
-                file_key = self._convert_file_path_to_file_key(file_path)
+                file_key = await self._resolve_file_key_from_xattr(file_path)
                 if file_key:
                     file_keys.append(file_key)
                 else:
-                    logger.warning(f"无法转换文件路径为file_key，跳过: {file_path}")
+                    logger.warning(f"无法从 magicfs xattr 解析 file_key，跳过: {file_path}")
 
             if not file_keys:
                 logger.info("没有有效的file_key，跳过文件版本创建")
@@ -248,35 +317,45 @@ class RollbackService:
         except Exception as e:
             logger.error(f"异步创建文件版本失败: {e}")
 
-    def _convert_file_path_to_file_key(self, file_path: str) -> Optional[str]:
+    async def _resolve_file_key_from_xattr(self, file_path: str) -> Optional[str]:
         """
-        将文件路径转换为OSS存储键
+        从 magicfs xattr 解析文件对应的对象存储 file_key。
+
+        唯一合法链路: 本地文件 → xattr user.magicfs.s3_key → file_key。
+        不允许根据相对路径拼接 OSS key, 因为 magicfs 实际使用 file_id 作为
+        存储键 (例如 ".../workspace/<file_id>"), 路径拼出来的 key 在后端
+        根本不存在, 会触发 "文件未找到"。
 
         Args:
-            file_path: 本地文件绝对路径
+            file_path: checkpoint 中记录的文件路径, 可能是 workspace 下的
+                相对路径, 也可能是历史数据里的绝对路径
 
         Returns:
-            Optional[str]: OSS存储键，转换失败则返回None
+            Optional[str]: 真实的对象存储 file_key; 文件不存在或 xattr 缺失
+            时返回 None, 由调用方跳过。
         """
         try:
-            # 获取本地工作空间目录
-            local_workspace_dir = PathManager.get_workspace_dir()
+            # 归一化为本地绝对路径
+            path_obj = Path(file_path)
+            if path_obj.is_absolute():
+                local_path = path_obj
+            else:
+                local_path = PathManager.get_workspace_dir() / file_path.lstrip("/")
 
-            # 获取OSS工作空间目录
-            oss_work_dir = InitClientMessageUtil.get_work_dir()
-            if not oss_work_dir:
-                logger.warning("无法获取OSS工作目录，跳过文件版本创建")
+            if not await async_exists(local_path):
+                logger.warning(f"文件不存在，跳过 file_key 解析: {local_path}")
                 return None
 
-            # 计算相对路径
-            relative_path = file_path.replace(str(local_workspace_dir), "").lstrip("/")
+            s3_key = await get_s3_key_from_xattr(local_path)
+            if not s3_key:
+                logger.error(
+                    f"文件缺少 magicfs xattr (user.magicfs.s3_key)，跳过 file_key 解析: {local_path}"
+                )
+                return None
 
-            # 构造file_key
-            file_key = BaseFileProcessor.combine_path(oss_work_dir, relative_path)
-
-            logger.debug(f"文件路径转换成功: {file_path} -> {file_key}")
-            return file_key
+            logger.debug(f"文件路径解析成功: {file_path} -> {s3_key}")
+            return s3_key
 
         except Exception as e:
-            logger.error(f"转换文件路径到file_key失败: {file_path}, 错误: {e}")
+            logger.error(f"从 xattr 解析 file_key 失败: {file_path}, 错误: {e}")
             return None

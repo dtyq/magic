@@ -42,6 +42,8 @@ class ImageGenerationDTO extends AbstractDTO
      */
     protected ?array $referenceImageOptions = null;
 
+    protected ?array $imageGenerationConfig = null;
+
     protected ?int $type = null;
 
     protected ?string $status = null;
@@ -165,6 +167,16 @@ class ImageGenerationDTO extends AbstractDTO
     public function setReferenceImageOptions(?array $referenceImageOptions): void
     {
         $this->referenceImageOptions = $referenceImageOptions;
+    }
+
+    public function getImageGenerationConfig(): ?array
+    {
+        return $this->imageGenerationConfig;
+    }
+
+    public function setImageGenerationConfig(?array $imageGenerationConfig): void
+    {
+        $this->imageGenerationConfig = $imageGenerationConfig;
     }
 
     public function getType(): ?int

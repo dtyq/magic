@@ -26,6 +26,7 @@ class SkillMetadata:
     tags: List[str] = field(default_factory=list)          # 标签
     enabled: bool = True                # 是否启用
     allowed_tools: Optional[List[str]] = None  # 允许使用的工具列表，None 表示不限制
+    region: str = ""                    # 区域标记，如 "international" 表示仅国际版可用
 
     # 路径信息
     skill_dir: Optional[Path] = None    # Skill 目录路径

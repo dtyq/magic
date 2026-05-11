@@ -96,6 +96,25 @@ class ModeAssemblerTest extends TestCase
         $this->assertFalse($config->toArray()['generation']['supports_seed']);
     }
 
+    public function testAggregateToDtoAddsImageModelDefaultScaleAndImageSettings(): void
+    {
+        $aggregate = $this->createAggregateWithSingleImageModel('gpt-image-2');
+
+        $dto = ModeAssembler::aggregateToDTO(
+            $aggregate,
+            [],
+            [],
+            ['gpt-image-2' => $this->createProviderModel('gpt-image-2', Category::VLM, 'gpt-image-2')],
+            [],
+        );
+
+        $imageSizeConfig = $dto->toArray()['groups'][0]['image_models'][0]['image_size_config'] ?? null;
+
+        $this->assertIsArray($imageSizeConfig);
+        $this->assertSame('2K', $imageSizeConfig['default_scale'] ?? null);
+        $this->assertNotEmpty($imageSizeConfig['image_settings'] ?? []);
+    }
+
     private function createAggregate(): ModeAggregate
     {
         $mode = new ModeEntity([
@@ -172,14 +191,44 @@ class ModeAssemblerTest extends TestCase
         ]);
     }
 
-    private function createProviderModel(string $modelId, Category $category): ProviderModelEntity
+    private function createAggregateWithSingleImageModel(string $modelId): ModeAggregate
+    {
+        $mode = new ModeEntity([
+            'id' => 1,
+            'identifier' => 'design',
+            'name_i18n' => ['zh_CN' => '设计'],
+            'placeholder_i18n' => ['zh_CN' => '占位'],
+            'status' => true,
+        ]);
+        $group = new ModeGroupEntity([
+            'id' => 10,
+            'mode_id' => 1,
+            'name_i18n' => ['zh_CN' => '图片'],
+            'status' => true,
+        ]);
+
+        return new ModeAggregate($mode, [
+            new ModeGroupAggregate($group, [
+                new ModeGroupRelationEntity([
+                    'id' => 2,
+                    'mode_id' => 1,
+                    'group_id' => 10,
+                    'model_id' => $modelId,
+                    'provider_model_id' => 102,
+                    'sort' => 20,
+                ]),
+            ]),
+        ]);
+    }
+
+    private function createProviderModel(string $modelId, Category $category, ?string $modelVersion = null): ProviderModelEntity
     {
         return new ProviderModelEntity([
             'id' => random_int(1000, 9999),
             'service_provider_config_id' => 1,
             'name' => strtoupper($modelId),
             'model_id' => $modelId,
-            'model_version' => $modelId . '-version',
+            'model_version' => $modelVersion ?? ($modelId . '-version'),
             'category' => $category->value,
             'status' => 1,
             'organization_code' => 'TGosRaFhvb',

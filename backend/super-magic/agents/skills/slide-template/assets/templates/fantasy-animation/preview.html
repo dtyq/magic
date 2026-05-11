@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Ghibli Fairy Tale — Template Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lora:ital,wght@0,400;0,600;1,400&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Lora', 'Noto Serif SC', serif; background: #1A1208; color: #F5EDD8; padding: 40px; }
+h1 { font-family: 'Cinzel', serif; font-size: 30px; font-weight: 700; color: #F4D03F; letter-spacing: 0.04em; margin-bottom: 8px; text-shadow: 0 2px 12px rgba(244,208,63,0.3); }
+.meta { font-size: 14px; color: #8B7355; margin-bottom: 40px; font-style: italic; }
+.meta span { color: #87A96B; font-weight: 600; font-style: normal; }
+.section-title { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 600; color: #2D5A3D; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+.section-title::before, .section-title::after { content: '✦'; color: #F4D03F; font-size: 10px; }
+.swatches { display: flex; gap: 12px; margin-bottom: 40px; flex-wrap: wrap; }
+.swatch { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.swatch-color { width: 52px; height: 52px; border-radius: 10px; border: 1px solid rgba(93,78,55,0.2); }
+.swatch-hex { font-family: monospace; font-size: 10px; color: #8B7355; }
+.swatch-name { font-size: 10px; color: #5D4E37; text-align: center; }
+.layouts-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 48px; }
+.slide-thumb { aspect-ratio: 16/9; background: #E8F4FC; border: 1px solid rgba(93,78,55,0.15); border-radius: 10px; position: relative; overflow: hidden; cursor: pointer; transition: all 0.2s; }
+.slide-thumb:hover { transform: scale(1.02); box-shadow: 0 8px 24px rgba(45,90,61,0.15); }
+.slide-label { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(45,26,14,0.82); color: #FFF8E7; font-size: 9px; font-weight: 600; padding: 5px 8px; text-transform: uppercase; letter-spacing: 0.08em; border-top: 1px solid rgba(244,208,63,0.2); }
+.components-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.comp-box { background: #FFF8E7; border: 1px solid rgba(93,78,55,0.15); border-radius: 12px; padding: 24px; }
+.comp-title { font-family: 'Cinzel', serif; font-size: 10px; font-weight: 700; color: #2D5A3D; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 16px; border-bottom: 1px solid rgba(244,208,63,0.3); padding-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<h1>✦ Fantasy-Animation ✦</h1>
+<p class="meta">fantasy hand-drawn animation style · 吉卜力叙事美学 + soft painterly texture + 魔法装饰 · Best for场景: <span>教育内容 / 故事讲述 / 儿童演示 / 励志演讲</span></p>
+
+<p class="section-title">Color Palette</p>
+<div class="swatches">
+  <div class="swatch"><div class="swatch-color" style="background:#E8F4FC"></div><div class="swatch-hex">#E8F4FC</div><div class="swatch-name">Soft sky blue</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#2D5A3D"></div><div class="swatch-hex">#2D5A3D</div><div class="swatch-name">Deep forest green</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#F4D03F"></div><div class="swatch-hex">#F4D03F</div><div class="swatch-name">Gold</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#87A96B"></div><div class="swatch-hex">#87A96B</div><div class="swatch-name">Sage green</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#7EC8E3"></div><div class="swatch-hex">#7EC8E3</div><div class="swatch-name">Sky blue</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#E8A0BF"></div><div class="swatch-hex">#E8A0BF</div><div class="swatch-name">Rose pink</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#C5B4E3"></div><div class="swatch-hex">#C5B4E3</div><div class="swatch-name">Light lavender</div></div>
+  <div class="swatch"><div class="swatch-color" style="background:#5D4E37"></div><div class="swatch-hex">#5D4E37</div><div class="swatch-name">Warm brown</div></div>
+</div>
+
+<p class="section-title">Layout page types (8 种 )</p>
+<div class="layouts-grid">
+
+  <!-- 1. Cover Cover page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#E8F4FC;padding:7% 8%;display:flex;flex-direction:column;justify-content:center;font-family:'Cinzel',serif;position:relative;overflow:hidden;background-image:radial-gradient(ellipse at 10% 15%,rgba(126,200,227,0.3) 0%,transparent 50%),radial-gradient(ellipse at 85% 80%,rgba(135,169,107,0.2) 0%,transparent 45%);">
+      <div style="position:absolute;top:8px;left:12px;font-size:18px;opacity:0.2;color:#2D5A3D">🌿</div>
+      <div style="position:absolute;top:8px;right:12px;font-size:18px;opacity:0.2;color:#2D5A3D;transform:scaleX(-1)">🌿</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+        <span style="color:#F4D03F;font-size:8px">✦</span>
+        <div style="font-size:4px;font-weight:600;color:#2D5A3D;text-transform:uppercase;letter-spacing:0.18em">A MAGICAL STORY</div>
+        <span style="color:#F4D03F;font-size:8px">✦</span>
+      </div>
+      <div style="font-size:16px;font-weight:700;color:#2D1A0E;line-height:1.2;margin-bottom:5px">THE ENCHANTED<br>FOREST</div>
+      <div style="font-size:4px;color:#5D4E37;font-style:italic;line-height:1.6;margin-bottom:8px;font-family:'Lora',serif">一段关于自然与魔法的奇幻旅程</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:20px;height:1px;background:#8B7355"></div>
+        <div style="font-size:3.5px;color:#8B7355;letter-spacing:0.08em">2026 · CHAPTER ONE</div>
+      </div>
+    </div>
+    <div class="slide-label">Cover — Cover page</div>
+  </div>
+
+  <!-- 2. Story Story page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#FFF8E7;padding:7% 8%;display:flex;flex-direction:column;font-family:'Lora',serif;background-image:radial-gradient(ellipse at 20% 20%,rgba(244,208,63,0.2) 0%,transparent 50%);">
+      <div style="font-size:4px;font-weight:600;color:#2D5A3D;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:4px;display:flex;align-items:center;gap:4px"><span style="color:#F4D03F">✦</span>CHAPTER ONE<span style="color:#F4D03F">✦</span></div>
+      <div style="font-size:11px;font-weight:700;color:#2D1A0E;line-height:1.2;margin-bottom:6px;font-family:'Cinzel',serif">故事的开始</div>
+      <div style="flex:1;display:flex;gap:5px">
+        <div style="flex:1;padding:6px 8px;background:white;border:1px solid rgba(93,78,55,0.15);border-radius:6px;box-shadow:0 2px 8px rgba(45,26,14,0.06);position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#7EC8E3,#87A96B);border-radius:6px 6px 0 0"></div>
+          <div style="font-size:3.5px;font-weight:700;color:#2D5A3D;margin-bottom:3px;margin-top:2px">故事背景</div>
+          <div style="font-size:3px;color:#5D4E37;line-height:1.6">在遥远的森林深处，住着一位守护自然的精灵，她的使命是...</div>
+        </div>
+        <div style="flex:1;padding:6px 8px;background:white;border:1px solid rgba(93,78,55,0.15);border-radius:6px;box-shadow:0 2px 8px rgba(45,26,14,0.06);position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#F4D03F,#E8A0BF);border-radius:6px 6px 0 0"></div>
+          <div style="font-size:3.5px;font-weight:700;color:#2D5A3D;margin-bottom:3px;margin-top:2px">主要角色</div>
+          <div style="font-size:3px;color:#5D4E37;line-height:1.6">精灵艾拉，拥有与自然沟通的神奇能力，性格温柔而坚定...</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">Story — Story page</div>
+  </div>
+
+  <!-- 3. Lesson Lesson page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#EEF5E8;padding:7% 8%;display:flex;flex-direction:column;font-family:'Lora',serif;background-image:radial-gradient(ellipse at 80% 20%,rgba(135,169,107,0.2) 0%,transparent 50%);">
+      <div style="font-size:4px;font-weight:600;color:#2D5A3D;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:4px">TODAY'S LESSON</div>
+      <div style="font-size:11px;font-weight:700;color:#2D1A0E;line-height:1.2;margin-bottom:6px;font-family:'Cinzel',serif">森林的秘密</div>
+      <div style="display:flex;flex-direction:column;gap:3px;flex:1">
+        <div style="display:flex;align-items:flex-start;gap:5px">
+          <div style="width:18px;height:18px;border-radius:50%;background:rgba(126,200,227,0.3);border:1.5px solid #7EC8E3;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:6px;font-weight:700;color:#2A7FA8;flex-shrink:0">1</div>
+          <div><div style="font-size:3.5px;font-weight:700;color:#2D1A0E;margin-bottom:1px">光合作用的魔法</div><div style="font-size:3px;color:#5D4E37;line-height:1.4">植物如何将阳光转化为生命能量</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:5px">
+          <div style="width:18px;height:18px;border-radius:50%;background:rgba(135,169,107,0.3);border:1.5px solid #87A96B;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:6px;font-weight:700;color:#2D5A3D;flex-shrink:0">2</div>
+          <div><div style="font-size:3.5px;font-weight:700;color:#2D1A0E;margin-bottom:1px">生态系统的平衡</div><div style="font-size:3px;color:#5D4E37;line-height:1.4">每个生物在森林中扮演的角色</div></div>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:5px">
+          <div style="width:18px;height:18px;border-radius:50%;background:rgba(244,208,63,0.3);border:1.5px solid #F4D03F;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:6px;font-weight:700;color:#8B6914;flex-shrink:0">3</div>
+          <div><div style="font-size:3.5px;font-weight:700;color:#2D1A0E;margin-bottom:1px">保护自然的使命</div><div style="font-size:3px;color:#5D4E37;line-height:1.4">我们能为地球做些什么</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">Lesson — Lesson page</div>
+  </div>
+
+  <!-- 4. Character Character page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#E8F4FC;padding:7% 8%;display:flex;gap:5%;align-items:center;font-family:'Lora',serif;background-image:radial-gradient(ellipse at 30% 50%,rgba(126,200,227,0.25) 0%,transparent 55%);">
+      <div style="width:30%;aspect-ratio:1;border-radius:50%;background:linear-gradient(135deg,rgba(135,169,107,0.3),rgba(126,200,227,0.3));border:2px solid rgba(135,169,107,0.4);display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0">🧚</div>
+      <div style="flex:1">
+        <div style="font-size:4px;color:#8B7355;letter-spacing:0.10em;text-transform:uppercase;margin-bottom:3px">CHARACTER PROFILE</div>
+        <div style="font-size:12px;font-weight:700;color:#2D1A0E;font-family:'Cinzel',serif;margin-bottom:4px">艾拉·森林精灵</div>
+        <div style="font-size:3.5px;color:#5D4E37;line-height:1.6;margin-bottom:5px;font-style:italic">"每一片叶子都有它的故事，每一滴露水都藏着宇宙的秘密。"</div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <div style="font-size:3px;color:#2D5A3D">✦ 特殊能力：与自然对话</div>
+          <div style="font-size:3px;color:#2D5A3D">✦ 守护使命：森林生态平衡</div>
+          <div style="font-size:3px;color:#2D5A3D">✦ 弱点：离开森林会失去魔力</div>
+        </div>
+      </div>
+    </div>
+    <div class="slide-label">Character — Character page</div>
+  </div>
+
+  <!-- 5. Journey Journey map page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#FFF8E7;padding:7% 8%;display:flex;flex-direction:column;font-family:'Lora',serif;background-image:radial-gradient(ellipse at 50% 50%,rgba(244,208,63,0.12) 0%,transparent 60%);">
+      <div style="font-size:4px;font-weight:600;color:#2D5A3D;text-transform:uppercase;letter-spacing:0.12em;margin-bottom:5px;display:flex;align-items:center;gap:4px"><span style="color:#F4D03F">✦</span>THE JOURNEY MAP</div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:space-between;gap:3px">
+        <div style="text-align:center"><div style="width:20px;height:20px;border-radius:50%;background:rgba(126,200,227,0.3);border:1.5px solid #7EC8E3;display:flex;align-items:center;justify-content:center;font-size:10px;margin:0 auto 3px">🏡</div><div style="font-size:3px;color:#5D4E37">出发</div></div>
+        <div style="flex:1;height:1px;background:linear-gradient(90deg,#7EC8E3,#87A96B);opacity:0.5"></div>
+        <div style="text-align:center"><div style="width:20px;height:20px;border-radius:50%;background:rgba(135,169,107,0.3);border:1.5px solid #87A96B;display:flex;align-items:center;justify-content:center;font-size:10px;margin:0 auto 3px">🌲</div><div style="font-size:3px;color:#5D4E37">森林</div></div>
+        <div style="flex:1;height:1px;background:linear-gradient(90deg,#87A96B,#F4D03F);opacity:0.5"></div>
+        <div style="text-align:center"><div style="width:20px;height:20px;border-radius:50%;background:rgba(244,208,63,0.3);border:1.5px solid #F4D03F;display:flex;align-items:center;justify-content:center;font-size:10px;margin:0 auto 3px">⭐</div><div style="font-size:3px;color:#5D4E37">挑战</div></div>
+        <div style="flex:1;height:1px;background:linear-gradient(90deg,#F4D03F,#E8A0BF);opacity:0.5"></div>
+        <div style="text-align:center"><div style="width:20px;height:20px;border-radius:50%;background:rgba(232,160,191,0.3);border:1.5px solid #E8A0BF;display:flex;align-items:center;justify-content:center;font-size:10px;margin:0 auto 3px">🏆</div><div style="font-size:3px;color:#5D4E37">成长</div></div>
+      </div>
+    </div>
+    <div class="slide-label">Journey — Journey map page</div>
+  </div>
+
+  <!-- 6. Quote Motivational quote page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#E8F4FC;padding:7% 8%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Lora',serif;background-image:radial-gradient(ellipse at 50% 50%,rgba(197,180,227,0.2) 0%,transparent 60%);">
+      <div style="display:flex;gap:5px;margin-bottom:8px">
+        <span style="color:#F4D03F;font-size:10px">✦</span>
+        <span style="color:#F4D03F;font-size:14px">✦</span>
+        <span style="color:#F4D03F;font-size:10px">✦</span>
+      </div>
+      <div style="font-size:4px;font-weight:600;color:#2D5A3D;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:6px;font-family:'Cinzel',serif">WORDS OF WISDOM</div>
+      <div style="font-size:8px;font-weight:600;color:#2D1A0E;text-align:center;line-height:1.5;font-style:italic;max-width:80%">"勇敢不是没有恐惧，而是在恐惧中依然前行。"</div>
+      <div style="width:30px;height:1px;background:rgba(244,208,63,0.6);margin:6px auto"></div>
+      <div style="font-size:3.5px;color:#8B7355;letter-spacing:0.06em">— 森林精灵艾拉</div>
+    </div>
+    <div class="slide-label">Quote — Motivational quote page</div>
+  </div>
+
+  <!-- 7. Section Section page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#EEF5E8;padding:7% 8%;display:flex;flex-direction:column;justify-content:center;font-family:'Cinzel',serif;position:relative;background-image:radial-gradient(ellipse at 20% 50%,rgba(45,90,61,0.08) 0%,transparent 55%);">
+      <div style="position:absolute;top:5%;right:8%;font-size:50px;font-weight:700;color:rgba(45,90,61,0.07);line-height:1">02</div>
+      <div style="padding:14px 18px;background:white;border:1px solid rgba(93,78,55,0.15);border-radius:12px;box-shadow:0 4px 16px rgba(45,26,14,0.08);max-width:72%;position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#7EC8E3,#87A96B,#F4D03F);border-radius:12px 12px 0 0"></div>
+        <div style="font-size:4px;font-weight:600;color:#2D5A3D;text-transform:uppercase;letter-spacing:0.16em;margin-bottom:6px;margin-top:2px;display:flex;align-items:center;gap:4px"><span style="color:#F4D03F">✦</span>CHAPTER 02</div>
+        <div style="font-size:14px;font-weight:700;color:#2D1A0E;line-height:1.2;margin-bottom:4px">THE MAGIC<br>AWAKENS</div>
+        <div style="font-size:3.5px;color:#5D4E37;line-height:1.6;font-family:'Lora',serif;font-style:italic">魔法觉醒的时刻，命运开始转变</div>
+      </div>
+    </div>
+    <div class="slide-label">Section — Section page</div>
+  </div>
+
+  <!-- 8. Closing Back cover page -->
+  <div class="slide-thumb">
+    <div style="width:100%;height:100%;background:#E8F4FC;padding:7% 8%;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Cinzel',serif;background-image:radial-gradient(ellipse at 50% 40%,rgba(244,208,63,0.15) 0%,transparent 55%),radial-gradient(ellipse at 20% 80%,rgba(126,200,227,0.2) 0%,transparent 45%);">
+      <div style="position:absolute;top:8px;left:12px;font-size:20px;opacity:0.15;color:#2D5A3D">🌸</div>
+      <div style="position:absolute;bottom:8px;right:12px;font-size:20px;opacity:0.15;color:#2D5A3D">🌿</div>
+      <div style="display:flex;gap:5px;margin-bottom:6px">
+        <span style="color:#F4D03F;font-size:8px;opacity:0.6">✦</span>
+        <span style="color:#F4D03F;font-size:12px">✦</span>
+        <span style="color:#F4D03F;font-size:8px;opacity:0.6">✦</span>
+      </div>
+      <div style="font-size:16px;font-weight:700;color:#2D1A0E;text-align:center;line-height:1.2;margin-bottom:5px">THE END</div>
+      <div style="font-size:4px;color:#8B7355;font-style:italic;font-family:'Lora',serif;margin-bottom:8px">感谢聆听这段奇幻旅程</div>
+      <div style="width:40px;height:1px;background:rgba(244,208,63,0.5);margin-bottom:8px"></div>
+      <div style="font-size:3.5px;color:#8B7355;letter-spacing:0.08em">FANTASY-ANIMATION · 2026</div>
+    </div>
+    <div class="slide-label">Closing — Back cover page</div>
+  </div>
+
+</div>
+
+<!-- Core Component Showcase -->
+<p class="section-title">Core Component Showcase</p>
+<div class="components-grid">
+
+  <!-- 故事书卡片 + 标签 -->
+  <div class="comp-box">
+    <div class="comp-title">✦ 故事书卡片 & 标签</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="padding:14px;background:white;border:1px solid rgba(93,78,55,0.15);border-radius:10px;box-shadow:0 4px 12px rgba(45,26,14,0.08);position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#7EC8E3,#87A96B);border-radius:10px 10px 0 0"></div>
+        <div style="font-family:'Lora',serif;font-size:14px;font-weight:700;color:#2D5A3D;margin-bottom:8px;margin-top:2px">天空之城</div>
+        <div style="font-size:13px;color:#5D4E37;line-height:1.7;font-style:italic">漂浮在云端的神秘古城，藏着世界最古老的秘密...</div>
+      </div>
+      <div style="padding:14px;background:white;border:1px solid rgba(93,78,55,0.15);border-radius:10px;box-shadow:0 4px 12px rgba(45,26,14,0.08);position:relative;overflow:hidden">
+        <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#F4D03F,#E8A0BF);border-radius:10px 10px 0 0"></div>
+        <div style="font-family:'Lora',serif;font-size:14px;font-weight:700;color:#2D5A3D;margin-bottom:8px;margin-top:2px">魔法学院</div>
+        <div style="font-size:13px;color:#5D4E37;line-height:1.7;font-style:italic">每个孩子都有独特的天赋，等待被发现和培养...</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:9999px;border:1px solid rgba(126,200,227,0.4);color:#2A7FA8;font-size:12px;background:rgba(126,200,227,0.12);font-family:'Lora',serif"><span style="font-size:8px;color:#F4D03F">✦</span>天空主题</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:9999px;border:1px solid rgba(135,169,107,0.4);color:#2D5A3D;font-size:12px;background:rgba(135,169,107,0.12);font-family:'Lora',serif"><span style="font-size:8px;color:#F4D03F">✦</span>森林探险</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:9999px;border:1px solid rgba(244,208,63,0.5);color:#8B6914;font-size:12px;background:rgba(244,208,63,0.12);font-family:'Lora',serif"><span style="font-size:8px;color:#F4D03F">✦</span>魔法世界</span>
+      <span style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:9999px;border:1px solid rgba(232,160,191,0.4);color:#A0527A;font-size:12px;background:rgba(232,160,191,0.12);font-family:'Lora',serif"><span style="font-size:8px;color:#F4D03F">✦</span>玫瑰花园</span>
+    </div>
+  </div>
+
+  <!-- KPI + Progress bar -->
+  <div class="comp-box">
+    <div class="comp-title">✦ KPI 数据 & Progress bar</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+      <div style="padding:14px 10px;background:white;border:1px solid rgba(93,78,55,0.12);border-radius:10px;box-shadow:0 2px 8px rgba(45,26,14,0.06);text-align:center">
+        <div style="font-family:'Cinzel',serif;font-size:28px;font-weight:700;color:#2D5A3D;line-height:1;margin-bottom:6px">98</div>
+        <div style="font-size:10px;color:#8B7355;font-family:'Lora',serif;font-style:italic">精灵等级</div>
+      </div>
+      <div style="padding:14px 10px;background:white;border:1px solid rgba(93,78,55,0.12);border-radius:10px;box-shadow:0 2px 8px rgba(45,26,14,0.06);text-align:center">
+        <div style="font-family:'Cinzel',serif;font-size:28px;font-weight:700;color:#C9A227;line-height:1;margin-bottom:6px">✦7</div>
+        <div style="font-size:10px;color:#8B7355;font-family:'Lora',serif;font-style:italic">魔法星级</div>
+      </div>
+      <div style="padding:14px 10px;background:white;border:1px solid rgba(93,78,55,0.12);border-radius:10px;box-shadow:0 2px 8px rgba(45,26,14,0.06);text-align:center">
+        <div style="font-family:'Cinzel',serif;font-size:28px;font-weight:700;color:#2A7FA8;line-height:1;margin-bottom:6px">1K+</div>
+        <div style="font-size:10px;color:#8B7355;font-family:'Lora',serif;font-style:italic">故事数量</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#8B7355;margin-bottom:5px;font-family:'Lora',serif;font-style:italic"><span>魔法能量</span><span style="color:#2D5A3D">87%</span></div>
+        <div style="height:7px;background:rgba(93,78,55,0.08);border-radius:9999px;overflow:hidden;border:1px solid rgba(93,78,55,0.12)"><div style="height:100%;width:87%;background:linear-gradient(90deg,#87A96B,#7EC8E3);border-radius:9999px"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#8B7355;margin-bottom:5px;font-family:'Lora',serif;font-style:italic"><span>故事进度</span><span style="color:#C9A227">65%</span></div>
+        <div style="height:7px;background:rgba(93,78,55,0.08);border-radius:9999px;overflow:hidden;border:1px solid rgba(93,78,55,0.12)"><div style="height:100%;width:65%;background:linear-gradient(90deg,#F4D03F,#E8A0BF);border-radius:9999px"></div></div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#8B7355;margin-bottom:5px;font-family:'Lora',serif;font-style:italic"><span>友情值</span><span style="color:#A0527A">92%</span></div>
+        <div style="height:7px;background:rgba(93,78,55,0.08);border-radius:9999px;overflow:hidden;border:1px solid rgba(93,78,55,0.12)"><div style="height:100%;width:92%;background:linear-gradient(90deg,#E8A0BF,#C5B4E3);border-radius:9999px"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 魔法装饰 + 引用 -->
+  <div class="comp-box">
+    <div class="comp-title">✦ 魔法装饰 & Quote box</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+      <span style="color:#F4D03F;font-size:10px;opacity:0.5">✦</span>
+      <span style="color:#F4D03F;font-size:16px">✦</span>
+      <span style="color:#F4D03F;font-size:20px">✦</span>
+      <span style="color:#F4D03F;font-size:16px">✦</span>
+      <span style="color:#F4D03F;font-size:10px;opacity:0.5">✦</span>
+      <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(244,208,63,0.4),transparent)"></div>
+    </div>
+    <div style="padding:18px 20px;background:white;border-left:4px solid #F4D03F;border-radius:0 10px 10px 0;box-shadow:0 4px 14px rgba(244,208,63,0.15);position:relative;margin-bottom:12px">
+      <div style="position:absolute;top:-5px;left:12px;font-family:'Cinzel',serif;font-size:40px;color:#F4D03F;opacity:0.25;line-height:1">"</div>
+      <div style="font-family:'Lora',serif;font-size:16px;font-weight:500;color:#2D1A0E;line-height:1.7;font-style:italic">"每一个孩子心中都住着一位魔法师，只需要找到打开魔法的钥匙。"</div>
+      <div style="font-size:12px;color:#8B7355;margin-top:8px;font-family:'Lora',serif">— 奇幻学院创始人</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(93,78,55,0.2))"></div>
+      <span style="color:#F4D03F;font-size:12px">✦</span>
+      <div style="flex:1;height:1px;background:linear-gradient(90deg,rgba(93,78,55,0.2),transparent)"></div>
+    </div>
+  </div>
+
+  <!-- 步骤 + 列表 -->
+  <div class="comp-box">
+    <div class="comp-title">✦ Step components & 列表</div>
+    <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px">
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="width:36px;height:36px;border-radius:50%;background:rgba(126,200,227,0.2);border:2px solid #7EC8E3;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:14px;font-weight:700;color:#2A7FA8;flex-shrink:0;box-shadow:0 4px 12px rgba(126,200,227,0.2)">I</div>
+        <div><div style="font-family:'Lora',serif;font-size:15px;font-weight:700;color:#2D1A0E;margin-bottom:3px">踏上旅程</div><div style="font-size:13px;color:#5D4E37;line-height:1.6;font-style:italic">每一段伟大的冒险都从第一步开始</div></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="width:36px;height:36px;border-radius:50%;background:rgba(135,169,107,0.2);border:2px solid #87A96B;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:14px;font-weight:700;color:#2D5A3D;flex-shrink:0;box-shadow:0 4px 12px rgba(135,169,107,0.15)">II</div>
+        <div><div style="font-family:'Lora',serif;font-size:15px;font-weight:700;color:#2D1A0E;margin-bottom:3px">发现魔法</div><div style="font-size:13px;color:#5D4E37;line-height:1.6;font-style:italic">在旅途中发现隐藏的天赋与力量</div></div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="width:36px;height:36px;border-radius:50%;background:rgba(244,208,63,0.2);border:2px solid #F4D03F;display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:14px;font-weight:700;color:#8B6914;flex-shrink:0;box-shadow:0 4px 12px rgba(244,208,63,0.15)">III</div>
+        <div><div style="font-family:'Lora',serif;font-size:15px;font-weight:700;color:#2D1A0E;margin-bottom:3px">守护世界</div><div style="font-size:13px;color:#5D4E37;line-height:1.6;font-style:italic">用所学的力量保护你所珍视的一切</div></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;font-size:14px;color:#3D2B1A"><span style="color:#F4D03F;font-size:11px">✦</span>相信自己内心的声音</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:14px;color:#3D2B1A"><span style="color:#F4D03F;font-size:11px">✦</span>在困难中寻找成长的机会</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:14px;color:#3D2B1A"><span style="color:#F4D03F;font-size:11px">✦</span>友情是最强大的魔法</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

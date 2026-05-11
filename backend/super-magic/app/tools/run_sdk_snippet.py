@@ -81,7 +81,7 @@ class RunSdkSnippet(AbstractFileTool[RunSdkSnippetParams]):
 适用场景：需要多步工具编排、逻辑处理，或调用仅通过 Code Mode 可用的工具。
 常与 Skill 搭配：Skill 告诉你做什么，这个工具负责怎么做。
 
-示例——搜索关键词，再批量读取匹配的文件：
+示例——搜索关键词：
 
 ```python
 from sdk.tool import tool
@@ -102,6 +102,67 @@ print(result.content)
 参数和你平时直接调工具完全一样。
 result.content 是工具返回的文本结果，直接 print 即可。
 timeout 默认 120 秒，跑得久就传大一点。
+
+务必检查 result.ok 再使用数据：
+
+```python
+result = tool.call("some_tool", {"param": "value"})
+if not result.ok:
+    print(f"Failed: {result.content}")
+else:
+    # 使用 result.content 或 result.data
+```
+
+输出的本质问题是"结果给谁用"。
+你自己要继续分析，print() 最直接——结果立刻回到你的上下文，没有中间环节。
+用户需要交付物（报告、数据集、CSV），才值得写入文件。
+当数据量大到 print 会被截断时，文件的价值不是"保存"，而是变成可操作的数据源——
+基于"一切皆文件"的理念，你可以对它搜索、读取片段、按行过滤，
+比试图一次性塞进上下文有效得多。
+反过来说，不需要文件的场景去写文件，既污染用户工作空间，又多一步读取才能拿回内容。
+
+```python
+from sdk.tool import tool
+
+result = tool.call("some_tool", {"param": "value"})
+if not result.ok:
+    print(f"Failed: {result.content}")
+else:
+    print(result.content)  # 自己分析：直接 print
+    # 用户要导出时：
+    # tool.call("write_file", {"file_path": "output.md", "content": result.content})
+```
+
+脚本中执行具体操作时，优先通过 tool.call() 调已有工具。
+因为每次 tool.call() 在前端渲染为可视化的工具调用卡片，用户能直观看到脚本在做什么——
+这是 Code Mode 的核心体验优势。只有已有工具覆盖不到的能力，才用 Python 原生代码补齐。
+
+result.data["data_view"] 是结构化原始数据——提取你需要的字段，按需求重组后输出。
+不要原样 dump 整个 data_view。
+
+```python
+from sdk.tool import tool
+
+result = tool.call("some_data_tool", {"query": "..."})
+if not result.ok:
+    print(f"Failed: {result.content}")
+else:
+    data = result.data.get("data_view", {})
+    items = data.get("items", [])
+
+    lines = [f"# Results ({len(items)} items)\n"]
+    for item in items:
+        title = item.get("title", "Untitled")
+        stats = item.get("stats", {})
+        lines.append(f"## {title}")
+        lines.append(f"- Likes: {stats.get('liked_count', 'N/A')}")
+        lines.append(f"- Comments: {stats.get('comment_count', 'N/A')}\n")
+
+    print("\\n".join(lines))
+    # 用户要导出时，换成 write_file；也可导出为 CSV/JSON 等任意格式
+```
+
+也可以链式串联多个工具：从一个工具取 ID，传给另一个工具，再合并输出。
 -->
 Write a Python script to orchestrate tool calls. You can chain multiple tools, add conditionals and loops — intermediate results stay inside the script and never enter your context. Only what you print comes back.
 
@@ -129,6 +190,66 @@ print(result.content)
 Arguments are exactly the same as calling tools directly.
 result.content is the tool's text output — just print it.
 timeout defaults to 120s. Increase it for longer-running scripts.
+
+Always check result.ok before using the data:
+
+```python
+result = tool.call("some_tool", {"param": "value"})
+if not result.ok:
+    print(f"Failed: {result.content}")
+else:
+    # use result.content or result.data
+```
+
+The fundamental question for output is "who consumes this result?"
+When you need data for your own reasoning, print() is the most direct path — results land in your context immediately with zero overhead.
+When the user needs a deliverable (report, dataset, CSV), that's when writing to a file is worthwhile.
+When data is large enough that print would truncate it, the file becomes an operable data source —
+you can search it, read sections, filter lines, which is far more effective than trying to fit everything into context at once.
+Conversely, writing files when unnecessary pollutes the user's workspace and adds an extra read step to get the content back.
+
+```python
+from sdk.tool import tool
+
+result = tool.call("some_tool", {"param": "value"})
+if not result.ok:
+    print(f"Failed: {result.content}")
+else:
+    print(result.content)  # For your own analysis: print directly
+    # When user wants an export:
+    # tool.call("write_file", {"file_path": "output.md", "content": result.content})
+```
+
+Inside scripts, prefer tool.call() with existing tools for concrete operations.
+Each tool.call() renders as a visual tool-call card in the frontend — the user sees what the script is doing.
+This is a core UX advantage of Code Mode. Use plain Python only for capabilities not covered by existing tools.
+
+result.data["data_view"] contains structured raw data — extract the fields you need and reshape them.
+Do not dump data_view as-is.
+
+```python
+from sdk.tool import tool
+
+result = tool.call("some_data_tool", {"query": "..."})
+if not result.ok:
+    print(f"Failed: {result.content}")
+else:
+    data = result.data.get("data_view", {})
+    items = data.get("items", [])
+
+    lines = [f"# Results ({len(items)} items)\n"]
+    for item in items:
+        title = item.get("title", "Untitled")
+        stats = item.get("stats", {})
+        lines.append(f"## {title}")
+        lines.append(f"- Likes: {stats.get('liked_count', 'N/A')}")
+        lines.append(f"- Comments: {stats.get('comment_count', 'N/A')}\n")
+
+    print("\\n".join(lines))
+    # For user export, switch to write_file; can also export as CSV/JSON/any format
+```
+
+You can also chain multiple tool results: fetch IDs from one tool, pass to another, combine outputs.
 """
 
     @staticmethod

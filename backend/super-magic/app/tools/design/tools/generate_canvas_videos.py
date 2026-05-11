@@ -543,7 +543,7 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
         tool_context: ToolContext,
         project_path: Path,
     ) -> Dict[str, Any]:
-        workspace_path = Path(tool_context.base_dir).resolve()
+        workspace_path = Path(self.base_dir)
         relative_project_path = project_path.relative_to(workspace_path)
         resolved_output_path = str(relative_project_path / "videos")
         await async_mkdir(project_path / "videos", parents=True, exist_ok=True)
@@ -553,15 +553,15 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
         }
 
     def _to_project_relative(self, workspace_rel_path: Optional[str], relative_project_path: str) -> Optional[str]:
-        """将工作区相对路径转为项目相对路径。
+        """将工作区相对路径转为以 ./ 开头的项目相对路径。
 
         generate_video 返回的路径是工作区相对的（如 project/videos/a.mp4），
-        前端 resolveCanvasFileBlobUrl 以项目目录为根解析，需要去掉项目前缀（如 videos/a.mp4）。
+        新协议约定：项目相对路径统一以 ./ 开头，与 workspace 相对路径（无 ./ 前缀）区分。
         """
         if not workspace_rel_path:
             return workspace_rel_path
         try:
-            return str(Path(workspace_rel_path).relative_to(relative_project_path))
+            return "./" + str(Path(workspace_rel_path).relative_to(relative_project_path))
         except ValueError:
             return workspace_rel_path
 

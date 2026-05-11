@@ -19,7 +19,7 @@ use App\Domain\Mode\Entity\ModeGroupAggregate;
 use App\Domain\Mode\Entity\ModeGroupEntity;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\Provider\Entity\ProviderModelEntity;
-use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\ImageModelConfig;
 use Hyperf\Contract\TranslatorInterface;
 
 /**
@@ -118,14 +118,14 @@ class ModeAssembler
                  * 1. 新增模型时，在 image_models.php 中添加对应的 match 规则和 config 配置
                  * 2. 优先使用 model_version 精准匹配，避免误匹配
                  * 3. 使用 model_id 进行模糊匹配（如豆包4.0/4.5）
-                 */
+                */
                 if ($loadImageModelConfig) {
-                    $imageModelConfig = SizeManager::matchConfig(
+                    $imageModelConfig = ImageModelConfig::fromModel(
                         $providerModel->getModelVersion(),
                         $providerModel->getModelId()
                     );
                     if ($imageModelConfig !== null) {
-                        $modelDTO->setImageSizeConfigFromArray($imageModelConfig);
+                        $modelDTO->setImageSizeConfigFromArray($imageModelConfig->toArray());
                     }
                 }
 

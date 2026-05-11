@@ -37,7 +37,7 @@ from agentlang.llms.factory import LLMFactory
 from agentlang.llms.processors.processor_config import ProcessorConfig
 from app.streaming.message_builder import LLMStreamingMessageBuilder
 from app.streaming.config_generator import StreamingConfigGenerator
-from agentlang.llms.token_usage.models import TokenUsage
+from agentlang.llms.token_usage.models import TokenUsage, TokenUsageCollection
 from agentlang.llms.token_usage.report import TokenUsageReport
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
@@ -271,8 +271,15 @@ class Agent(BaseAgent):
             self.agent_context.get_event_dispatcher(),  # 传递事件分发器
         )
 
-        # 将 token usage 报告文件名前缀与聊天历史文件保持一致
-        TokenUsageReport.get_instance().set_file_prefix(f"{self.agent_name}<{self.id}>")
+        # Token usage 文件必须跟随当前 Agent 的聊天历史目录，不能复用全局 mutable prefix。
+        token_usage_report_manager = TokenUsageReport.for_session(
+            file_prefix=f"{self.agent_name}<{self.id}>",
+            token_tracker=LLMFactory.token_tracker,
+            pricing=LLMFactory.pricing,
+            sandbox_id=self.agent_context.get_sandbox_id() or LLMFactory.sandbox_id,
+            report_dir=str(self.agent_context.chat_history_dir),
+        )
+        self.agent_context.set_token_usage_report_manager(token_usage_report_manager)
 
         # 将 chat_history 设置到 agent_context 中，确保工具可以访问
         self.agent_context.chat_history = self.chat_history
@@ -283,6 +290,31 @@ class Agent(BaseAgent):
         AgentContextRegistry.get_instance().register(self.agent_context)
         self._context_registered = True
         logger.info(f"Agent context 已注册: {self.agent_context.get_agent_session_label()}")
+
+    def print_token_usage(self) -> None:
+        """
+        打印当前 Agent 会话的 token 使用报告。
+
+        报告管理器从 AgentContext 读取，避免并发 subagent 共用全局 report prefix。
+        """
+        try:
+            report_manager = self.agent_context.get_token_usage_report_manager()
+            formatted_report = LLMFactory.token_tracker.get_formatted_report(
+                report_manager=report_manager
+            )
+            logger.info(f"===== Token 使用报告 ({self.agent_name}) =====")
+            logger.info(formatted_report)
+        except Exception as e:
+            logger.error(f"打印Token使用报告时出错: {e!s}")
+
+    def get_token_usage_report(self) -> TokenUsageCollection:
+        """获取当前 Agent 会话的 Token 使用报告。"""
+        try:
+            report_manager = self.agent_context.get_token_usage_report_manager()
+            return LLMFactory.token_tracker.get_usage_report(report_manager=report_manager)
+        except Exception as e:
+            logger.error(f"获取token使用报告时出错: {e!s}")
+            return TokenUsageCollection.create_summary_report([])
 
     def close(self) -> None:
         """关闭 Agent 并释放当前已注册的运行时资源。"""
@@ -449,9 +481,6 @@ class Agent(BaseAgent):
             "workspace_dir": self.agent_context._workspace_dir,
             "workspace_skills_dir": str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir())),
             "project_root": str(PathManager.get_project_root()),
-            # 此处直接使用 _workspace_dir 而非 os.getcwd()：
-            # os.chdir(workspace_dir) 在 run() 中执行，晚于当前 _initialize_agent 阶段，
-            # 若用 os.getcwd() 会拿到进程启动时的目录（项目根），而非工作区目录
             "cwd": self.agent_context._workspace_dir,
             "recommended_max_output_tokens": recommended_max_output_tokens,
             "python_version": sys.version,
@@ -520,15 +549,7 @@ class Agent(BaseAgent):
         失败或开发环境降级为本地扫描。
         """
         snapshot: Optional[WorkspaceSnapshot] = None
-        if Environment.is_dev():
-            logger.info("开发环境：使用本地文件系统扫描获取目录树")
-            snapshot = await self._get_file_tree_from_local_filesystem()
-        else:
-            logger.info("生产环境：尝试使用 Magic Service 获取目录树")
-            snapshot = await self._get_file_tree_from_magic_service()
-            if snapshot is None:
-                logger.warning("Magic Service 获取目录树失败，降级使用本地文件系统扫描")
-                snapshot = await self._get_file_tree_from_local_filesystem()
+        snapshot = await self._get_file_tree_from_local_filesystem()
 
         if not snapshot.display or "目录为空，没有文件" in snapshot.display:
             return WorkspaceSnapshot(display="当前工作目录为空，没有文件", entries=[])
@@ -863,18 +884,6 @@ class Agent(BaseAgent):
             # prepare 阶段要确保能完整写入会话，再进入可取消的主循环。
             self.agent_context.increment_cancel_blocker()
             prepare_blocker_acquired = True
-
-            # 切换到工作空间目录
-            try:
-                # 使用os.chdir()替代os.chroot()，避免需要root权限
-                workspace_dir = self.agent_context._workspace_dir
-                if os.path.exists(workspace_dir):
-                    os.chdir(workspace_dir)
-                    logger.info(f"已切换工作目录到: {workspace_dir}")
-                else:
-                    logger.warning(f"工作空间目录不存在: {workspace_dir}")
-            except Exception as e:
-                logger.error(f"切换工作目录时出错: {e!s}")
 
             # 构造 chat_history
             # ChatHistory 在 run() 入口已 await load()
@@ -1389,6 +1398,13 @@ class Agent(BaseAgent):
             return
         if reason is None:
             reason = self._build_pending_tool_interruption_message(assistant_message)
+        notices = self.agent_context.drain_interruption_notices()
+        if notices:
+            reason = "\n\n".join([
+                reason,
+                "Runtime interruption details:",
+                *notices,
+            ])
         await self._synthesize_error_tool_results(missing_tcs, reason)
 
     async def _handle_continue_request(self, second_last_message: AssistantMessage) -> SessionRestoreContext:
@@ -2313,14 +2329,22 @@ Since your subsequent output will be merged with pre-interruption content and di
             # 备份当前历史，与 compact 保持一致，避免数据丢失
             await self._backup_before_compact()
 
-            # 清空内存中的对话历史
-            self.chat_history.messages.clear()
+            from app.service.agent_runtime_reset_service import (
+                AgentRuntimeResetService,
+                ResetReason,
+            )
+
+            await AgentRuntimeResetService.reset_session_context(
+                self.agent_context,
+                reason=ResetReason.NEW_SESSION,
+                stop_run=False,
+                clear_chat_history=True,
+                reset_horizon=True,
+            )
 
             # 重新写入 system prompt（始终排第一）
             await self.chat_history.append_system_message(self.system_prompt)
 
-            # horizon 重置：下次 build_context_update 会输出完整 initial_context 给新上下文
-            await self.agent_context.horizon.on_context_reset()
             await self._rehydrate_media_models_after_context_reset()
 
             logger.info("Chat history reset for new session via /new")

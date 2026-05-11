@@ -62,6 +62,8 @@ Router::addGroup(
             Router::post('/versions', [FileApi::class, 'createFileVersion']);
             // 获取文件树
             Router::post('/tree', [FileApi::class, 'getFileTree']);
+            // 扫描对象存储目录下的 .wav 文件并持久化到 task file 表
+            Router::post('/scan-wav', [FileApi::class, 'scanWavFiles']);
         });
 
         // 超级助理内部消息相关

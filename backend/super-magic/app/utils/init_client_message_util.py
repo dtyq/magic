@@ -296,6 +296,133 @@ class InitClientMessageUtil:
         await async_write_json(cls._config_path, init_message.model_dump(), indent=2, ensure_ascii=False)
         logger.info(f"已保存 init_client_message 到文件: {cls._config_path}")
 
+        cls.save_metadata(getattr(init_message, "metadata", None), source="init_client_message")
+
+    @classmethod
+    async def save_chat_client_message(cls, chat_message) -> None:
+        """
+        保存 ChatClientMessage 到文件，并同步刷新同级目录下的 metadata.json，
+        以及（条件满足时）回写 init_client_message.json 中的 metadata 字段。
+
+        与 save_init_client_message 对称，作为 chat 消息持久化的统一入口。
+
+        Args:
+            chat_message: ChatClientMessage 对象
+        """
+        from app.utils.async_file_utils import async_mkdir, async_write_json
+
+        try:
+            chat_message_file = PathManager.get_chat_client_message_file()
+            await async_mkdir(chat_message_file.parent, parents=True, exist_ok=True)
+            await async_write_json(
+                chat_message_file,
+                chat_message.model_dump(),
+                indent=2,
+                ensure_ascii=False,
+            )
+            logger.info(f"已保存 chat_client_message 到文件: {chat_message_file}")
+        except Exception as e:
+            logger.error(f"保存 chat_client_message 失败: {e}")
+            return
+
+        cls.save_metadata(getattr(chat_message, "metadata", None), source="chat_client_message")
+
+        cls._sync_chat_metadata_to_init(chat_message)
+
+    @classmethod
+    def _sync_chat_metadata_to_init(cls, chat_message) -> None:
+        """
+        将 chat_client_message 中的 metadata 覆盖到 init_client_message.json 的 metadata 字段。
+
+        仅当 chat metadata 含有 super_magic_task_id 时才更新；用于在 init_client_message.json
+        中保留最新的会话上下文，方便其他链路继续读取。
+        """
+        metadata = getattr(chat_message, "metadata", None)
+        if not metadata:
+            logger.debug("chat_client_message 中没有 metadata，跳过 init_client_message 同步")
+            return
+
+        super_magic_task_id = getattr(metadata, "super_magic_task_id", None)
+        if not super_magic_task_id:
+            logger.debug(
+                "chat_client_message 的 metadata 中没有 super_magic_task_id，跳过 init_client_message 同步"
+            )
+            return
+
+        init_message_file = PathManager.get_init_client_message_file()
+        if not init_message_file.exists():
+            logger.warning(
+                f"init_client_message 文件不存在: {init_message_file}，跳过 metadata 同步"
+            )
+            return
+
+        try:
+            with open(init_message_file, "r", encoding="utf-8") as f:
+                init_data = json.load(f)
+
+            if hasattr(metadata, "model_dump"):
+                chat_metadata = metadata.model_dump()
+            elif hasattr(metadata, "dict"):
+                chat_metadata = metadata.dict()
+            elif isinstance(metadata, dict):
+                chat_metadata = metadata
+            else:
+                logger.warning(
+                    f"无法识别的 metadata 类型: {type(metadata)}，跳过 init_client_message 同步"
+                )
+                return
+
+            init_data["metadata"] = chat_metadata
+
+            with open(init_message_file, "w", encoding="utf-8") as f:
+                json.dump(init_data, f, ensure_ascii=False, indent=2)
+
+            logger.info(
+                f"已将 chat_client_message 的 metadata 同步到 init_client_message: {init_message_file}"
+            )
+            logger.debug(f"同步的 metadata 字段: {list(chat_metadata.keys())}")
+        except Exception as e:
+            logger.error(f"同步 chat metadata 到 init_client_message 失败: {e}")
+
+    @classmethod
+    def save_metadata(cls, metadata, source: str = "client_message") -> None:
+        """
+        将客户端消息中的 metadata 字段持久化到 metadata.json
+
+        每当 init_client_message.json 或 chat_client_message.json 写入时被调用，
+        以便其他进程/工具可直接读取最新 metadata。如果 metadata 为空则写入 {}，
+        以保证文件存在并反映当前状态。
+
+        Args:
+            metadata: 来自 InitClientMessage / ChatClientMessage 的 metadata 字段，
+                可能是 pydantic 模型、dict 或 None
+            source: 触发本次保存的消息来源，仅用于日志输出
+        """
+        try:
+            metadata_file = PathManager.get_client_message_metadata_file()
+            metadata_file.parent.mkdir(parents=True, exist_ok=True)
+
+            if metadata is None:
+                metadata_dict: Dict[str, Any] = {}
+            elif isinstance(metadata, dict):
+                metadata_dict = metadata
+            elif hasattr(metadata, "model_dump"):
+                metadata_dict = metadata.model_dump()
+            elif hasattr(metadata, "dict"):
+                metadata_dict = metadata.dict()
+            else:
+                logger.warning(
+                    f"无法识别的 metadata 类型: {type(metadata)}，跳过 metadata.json 保存"
+                )
+                return
+
+            with open(metadata_file, "w", encoding="utf-8") as f:
+                json.dump(metadata_dict, f, ensure_ascii=False, indent=2)
+
+            logger.info(f"已从 {source} 保存 metadata 到: {metadata_file}")
+        except Exception as e:
+            logger.error(f"保存 metadata.json 失败 (source={source}): {e}")
+
     @classmethod
     def get_memory(cls) -> Optional[str]:
         """

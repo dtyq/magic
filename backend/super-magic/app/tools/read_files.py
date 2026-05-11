@@ -15,6 +15,7 @@ from app.core.entity.message.server_message import (DisplayType, FileContent,
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.read_file import ReadFile, ReadFileParams, TruncationInfo, _compute_max_tokens, _get_context_remaining
+from app.tools.utils.display_content_utils import truncate_content_for_display
 from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
@@ -596,11 +597,15 @@ Strongly recommended to use this tool for batch reading multiple reference files
                         # 纯文本文件根据文件扩展名确定显示类型
                         display_type = self.get_display_type_by_extension(file_path)
 
+                    # 对展示内容做预处理：替换 base64 数据、超长截断
+                    # HTML 截断后结构残缺，display_type 会被降级为 TEXT
+                    display_content, display_type = truncate_content_for_display(file_data["content"], display_type)
+
                     return ToolDetail(
                         type=display_type,
                         data=FileContent(
                             file_name=file_name,
-                            content=file_data["content"]
+                            content=display_content
                         )
                     )
 
@@ -619,8 +624,17 @@ Strongly recommended to use this tool for batch reading multiple reference files
                 display_parts.append(f"## {file_data['file_path']}\n\n")
 
                 # 根据读取方式决定是否需要转义和包围代码块
-                content = file_data["content"]
+                raw_content = file_data["content"]
                 read_method = file_data.get("read_method", "unknown")
+
+                # 确定该文件的展示类型，用于 base64 替换和超长截断
+                file_display_type = (
+                    DisplayType.MD if read_method == "markitdown"
+                    else self.get_display_type_by_extension(file_data["file_path"])
+                )
+                # 对每个文件的展示内容做预处理：替换 base64 数据、超长截断
+                # 多文件场景外层类型固定为 MD，per-file 的降级类型不影响外层，丢弃
+                content, _ = truncate_content_for_display(raw_content, file_display_type)
 
                 # markitdown 处理的文件已经有完整格式，不需要额外处理和转义
                 if read_method == "markitdown":

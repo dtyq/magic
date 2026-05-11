@@ -97,6 +97,10 @@ readonly class ProviderModelDomainService
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $providerModelDTO->setOrganizationCode($organizationCode);
+
+        if ($providerModelDTO->getModelType() === null) {
+            $providerModelDTO->setModelType($providerModelDTO->getCategory()?->defaultModelType());
+        }
         if ($providerModelDTO->getModelType() === ModelType::EMBEDDING) {
             $providerModelDTO->getConfig()?->setSupportEmbedding(true);
         }

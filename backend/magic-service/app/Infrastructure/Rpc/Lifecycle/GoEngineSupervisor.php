@@ -164,7 +164,7 @@ class GoEngineSupervisor
                 ]);
             }
 
-            $interval = max(1, $this->config?->supervisorIntervalSeconds ?? 1);
+            $interval = max(1, $this->config !== null ? $this->config->supervisorIntervalSeconds : 1);
             Coroutine::sleep((float) $interval);
         }
     }
@@ -304,10 +304,11 @@ class GoEngineSupervisor
 
         $config = $this->config;
         if ($this->handle->isRunning()) {
+            $graceSeconds = $config !== null ? $config->supervisorTerminateGraceSeconds : 5;
             $this->logger->info('Terminating managed Go engine process', [
-                'grace_seconds' => $config?->supervisorTerminateGraceSeconds ?? 5,
+                'grace_seconds' => $graceSeconds,
             ] + $this->diagnosticContext($this->handle, $config));
-            $this->handle->terminate($config?->supervisorTerminateGraceSeconds ?? 5);
+            $this->handle->terminate($graceSeconds);
         } else {
             $this->lastExitCode = $this->handle->exitCode();
             $this->logger->info('Closing exited Go engine process handle', $this->diagnosticContext($this->handle, $config));
@@ -345,7 +346,7 @@ class GoEngineSupervisor
     private function diagnosticContext(?GoEngineStartHandle $handle, ?IpcBootstrapConfig $config): array
     {
         $process = $handle?->diagnostics()->toArray();
-        $socketPath = $config?->socketPath ?? $handle?->socketPath() ?? '';
+        $socketPath = $config !== null ? $config->socketPath : ($handle?->socketPath() ?? '');
         $lastRpcHealthyAt = $this->lastRpcHealthyAt > 0 ? $this->lastRpcHealthyAt : null;
 
         return [

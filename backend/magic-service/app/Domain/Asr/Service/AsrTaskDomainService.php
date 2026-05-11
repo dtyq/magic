@@ -357,7 +357,10 @@ readonly class AsrTaskDomainService
     // ===== Private Helper Methods =====
 
     /**
-     * Sync phase state to database (direct repository call, no domain service).
+     * Sync phase state to database via partial update (direct repository call, no domain service).
+     *
+     * Uses updateByProjectId() instead of load-modify-save to avoid overwriting
+     * concurrently-written fields (e.g. audio_file_id set by updateRecordingMetadata).
      *
      * ⚠️ DDD Compliance: Directly calls repository, not AudioProjectDomainService
      */
@@ -366,26 +369,22 @@ readonly class AsrTaskDomainService
         try {
             $projectId = (int) $taskStatus->projectId;
 
-            // Direct repository call (DDD compliant)
-            $audioProject = $this->audioProjectRepository->findByProjectId($projectId);
+            // Partial update: only touch phase-related columns, never overwrite other fields
+            $affected = $this->audioProjectRepository->updateByProjectId($projectId, [
+                'current_phase' => $taskStatus->currentPhase,
+                'phase_status' => $taskStatus->phaseStatus,
+                'phase_percent' => $taskStatus->phasePercent,
+                'phase_error' => $taskStatus->phaseError,
+                'task_key' => $taskStatus->taskKey,
+            ]);
 
-            if ($audioProject === null) {
-                $this->logger->warning('Audio project not found for phase sync', [
+            if ($affected === 0) {
+                $this->logger->warning('Phase state sync affected 0 rows, audio project may not exist', [
                     'project_id' => $projectId,
                     'task_key' => $taskStatus->taskKey,
                 ]);
                 return;
             }
-
-            // Only update phase state fields
-            $audioProject->setCurrentPhase($taskStatus->currentPhase);
-            $audioProject->setPhaseStatus($taskStatus->phaseStatus);
-            $audioProject->setPhasePercent($taskStatus->phasePercent);
-            $audioProject->setPhaseError($taskStatus->phaseError);
-            $audioProject->setTaskKey($taskStatus->taskKey);
-
-            // Direct save via repository
-            $this->audioProjectRepository->save($audioProject);
 
             $this->logger->debug('Phase state synced to database', [
                 'project_id' => $projectId,
@@ -395,11 +394,14 @@ readonly class AsrTaskDomainService
                 'percent' => $taskStatus->phasePercent,
             ]);
         } catch (Throwable $e) {
-            // Log error but don't block main flow
-            $this->logger->error('Failed to sync phase state to database', [
+            // Log error but don't block main flow; Redis is source of truth for live state
+            $this->logger->error('Failed to sync phase state to database — Redis/DB may be inconsistent', [
                 'project_id' => $taskStatus->projectId,
                 'task_key' => $taskStatus->taskKey,
+                'phase' => $taskStatus->currentPhase,
+                'status' => $taskStatus->phaseStatus,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }

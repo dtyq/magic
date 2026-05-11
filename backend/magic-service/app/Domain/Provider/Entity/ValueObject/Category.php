@@ -35,4 +35,15 @@ enum Category: string
     {
         return $this->value === self::VLM->value;
     }
+
+    public function defaultModelType(): ModelType
+    {
+        return match ($this) {
+            self::VLM => ModelType::IMAGE_TO_IMAGE,
+            self::VGM,
+            self::VIDEO => ModelType::TEXT_TO_VIDEO,
+            self::EMBEDDING => ModelType::EMBEDDING,
+            default => ModelType::LLM,
+        };
+    }
 }

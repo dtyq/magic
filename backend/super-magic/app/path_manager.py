@@ -47,6 +47,7 @@ class PathManager(BasePathManager):
     _credentials_dir: ClassVar[Optional[Path]] = None
     _init_client_message_file: ClassVar[Optional[Path]] = None
     _chat_client_message_file: ClassVar[Optional[Path]] = None
+    _client_message_metadata_file: ClassVar[Optional[Path]] = None
     _agent_config_file: ClassVar[Optional[Path]] = None
 
     # 项目架构目录：project_root/.project_schemas（预创建）
@@ -129,6 +130,7 @@ class PathManager(BasePathManager):
         cls._credentials_dir = cls._project_root / cls._credentials_dir_name
         cls._init_client_message_file = cls.get_credentials_dir() / "init_client_message.json"
         cls._chat_client_message_file = cls.get_credentials_dir() / "chat_client_message.json"
+        cls._client_message_metadata_file = cls.get_credentials_dir() / "metadata.json"
         cls._agent_config_file = cls.get_credentials_dir() / "agent_config.json"
 
         cls._project_schema_absolute_dir = cls._project_root / cls._project_schema_dir_name
@@ -225,6 +227,17 @@ class PathManager(BasePathManager):
     def get_chat_client_message_file(cls) -> Path:
         cls._ensure_app_initialization()
         return cls._chat_client_message_file
+
+    @classmethod
+    def get_client_message_metadata_file(cls) -> Path:
+        """获取客户端消息 metadata 文件路径（project_root/.credentials/metadata.json）
+
+        在每次写入 init_client_message.json 或 chat_client_message.json 时，
+        从消息中提取 metadata 字段并落盘到该文件，便于其他进程或工具直接读取
+        最新的 metadata，而不必再解析整份 client_message。
+        """
+        cls._ensure_app_initialization()
+        return cls._client_message_metadata_file
 
     @classmethod
     def get_agent_config_file(cls) -> Path:

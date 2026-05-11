@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工具调试面板</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        /* ── 工具调试面板专属样式 ── */
+        .td-app {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            background-color: transparent;
+        }
+
+        /* ── 左侧边栏 ── */
+        .td-sidebar {
+            width: 300px;
+            min-width: 200px;
+            max-width: 480px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            background: rgba(246, 246, 248, 0.82);
+            border-right: 1px solid var(--wechat-border);
+            backdrop-filter: blur(22px);
+            -webkit-backdrop-filter: blur(22px);
+            overflow: hidden;
+        }
+
+        .td-sidebar-header {
+            flex-shrink: 0;
+            padding: 18px 16px 12px;
+        }
+
+        .td-sidebar-title {
+            font-size: 17px;
+            font-weight: 650;
+            letter-spacing: -0.02em;
+            color: var(--wechat-text-dark);
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        .td-server-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .td-server-row input[type="text"] {
+            flex: 1;
+            min-width: 0;
+            padding: 7px 10px;
+            font-size: 12px;
+        }
+
+        .td-server-row .btn {
+            flex-shrink: 0;
+            padding: 7px 12px;
+            font-size: 12px;
+        }
+
+        /* ── Context 选择区 ── */
+        .td-context-section {
+            flex-shrink: 0;
+            padding: 0 16px 10px;
+        }
+
+        .td-section-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--wechat-text-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 5px;
+        }
+
+        .td-context-select {
+            width: 100%;
+            padding: 7px 10px;
+            border: 1px solid var(--wechat-border);
+            border-radius: 8px;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.72);
+            color: var(--wechat-text-dark);
+            cursor: pointer;
+            margin-bottom: 6px;
+        }
+
+        .td-context-select:focus {
+            outline: none;
+            border-color: var(--wechat-green);
+            box-shadow: 0 0 0 3px var(--apple-focus-ring);
+        }
+
+        .td-context-manual {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .td-context-manual-label {
+            font-size: 11px;
+            color: var(--wechat-text-gray);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .td-context-manual input[type="text"] {
+            flex: 1;
+            min-width: 0;
+            padding: 6px 9px;
+            font-size: 12px;
+        }
+
+        /* ── 工具列表区 ── */
+        .td-tools-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            padding: 0 16px 12px;
+        }
+
+        .td-type-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+            flex-shrink: 0;
+        }
+
+        .td-type-tab {
+            flex: 1;
+            padding: 5px 0;
+            font-size: 12px;
+            font-weight: 500;
+            border: 1px solid var(--wechat-border);
+            border-radius: 7px;
+            background: rgba(118, 118, 128, 0.08);
+            color: var(--wechat-text-gray);
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+
+        .td-type-tab.active {
+            background: #007aff;
+            border-color: #007aff;
+            color: #fff;
+        }
+
+        .td-type-tab:hover:not(.active) {
+            background: rgba(118, 118, 128, 0.14);
+        }
+
+        .td-search-row {
+            position: relative;
+            flex-shrink: 0;
+            margin-bottom: 6px;
+        }
+
+        .td-search-input {
+            width: 100%;
+            padding: 7px 10px 7px 30px;
+            border: 1px solid var(--wechat-border);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.72);
+            font-size: 12px;
+            color: var(--wechat-text-dark);
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        .td-search-input:focus {
+            border-color: var(--wechat-green);
+            box-shadow: 0 0 0 3px var(--apple-focus-ring);
+        }
+
+        .td-search-icon {
+            position: absolute;
+            left: 9px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 14px;
+            height: 14px;
+            color: var(--wechat-text-gray);
+            pointer-events: none;
+        }
+
+        .td-tool-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .td-tool-item {
+            padding: 8px 10px;
+            border: 1px solid rgba(60, 60, 67, 0.08);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            flex-shrink: 0;
+        }
+
+        .td-tool-item:hover {
+            background: rgba(0, 122, 255, 0.06);
+            border-color: rgba(0, 122, 255, 0.14);
+        }
+
+        .td-tool-item.selected {
+            background: rgba(0, 122, 255, 0.1);
+            border-color: rgba(0, 122, 255, 0.22);
+        }
+
+        .td-tool-item-name {
+            font-size: 12.5px;
+            font-weight: 560;
+            color: var(--wechat-text-dark);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .td-tool-item.selected .td-tool-item-name {
+            color: #0066cc;
+        }
+
+        .td-tool-item-desc {
+            font-size: 11px;
+            color: var(--wechat-text-gray);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+
+        .td-tool-empty {
+            padding: 24px 12px;
+            font-size: 12px;
+            color: var(--wechat-text-gray);
+            text-align: center;
+        }
+
+        /* ── 拖拽条 ── */
+        .td-resizer {
+            position: relative;
+            flex-shrink: 0;
+            width: 8px;
+            cursor: col-resize;
+            background-color: transparent;
+            transition: background-color 0.2s;
+            z-index: 10;
+        }
+
+        .td-resizer:hover,
+        .td-resizer.resizing {
+            background-color: rgba(0, 122, 255, 0.06);
+        }
+
+        .td-resizer::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 6px;
+            height: 18px;
+            transform: translate(-50%, -50%);
+            background:
+                linear-gradient(to right,
+                    transparent 0, transparent 1px,
+                    rgba(60, 60, 67, 0.34) 1px, rgba(60, 60, 67, 0.34) 2px,
+                    transparent 2px, transparent 4px,
+                    rgba(60, 60, 67, 0.34) 4px, rgba(60, 60, 67, 0.34) 5px,
+                    transparent 5px);
+            border-radius: 2px;
+            opacity: 0.72;
+        }
+
+        .td-resizer:hover::after,
+        .td-resizer.resizing::after {
+            background:
+                linear-gradient(to right,
+                    transparent 0, transparent 1px,
+                    rgba(0, 122, 255, 0.62) 1px, rgba(0, 122, 255, 0.62) 2px,
+                    transparent 2px, transparent 4px,
+                    rgba(0, 122, 255, 0.62) 4px, rgba(0, 122, 255, 0.62) 5px,
+                    transparent 5px);
+            opacity: 1;
+        }
+
+        /* ── 右侧主区域 ── */
+        .td-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(251, 251, 253, 0.92), rgba(245, 245, 247, 0.98));
+        }
+
+        /* ── 工具信息头 ── */
+        .td-tool-header {
+            flex-shrink: 0;
+            padding: 18px 24px 14px;
+            border-bottom: 1px solid var(--wechat-border);
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }
+
+        .td-tool-name {
+            font-size: 16px;
+            font-weight: 650;
+            color: var(--wechat-text-dark);
+            letter-spacing: -0.02em;
+            margin-bottom: 4px;
+        }
+
+        .td-tool-desc {
+            font-size: 13px;
+            color: var(--wechat-text-gray);
+            line-height: 1.55;
+        }
+
+        .td-placeholder-hint {
+            font-size: 14px;
+            color: var(--wechat-text-gray);
+            font-style: italic;
+        }
+
+        /* ── 编辑 + 结果区域 ── */
+        .td-editor-result {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        /* ── 参数编辑区 ── */
+        .td-params-panel {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            height: 220px;
+            padding: 16px 24px 0;
+        }
+
+        .td-params-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-shrink: 0;
+        }
+
+        .td-params-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--wechat-text-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            flex: 1;
+        }
+
+        .td-schema-toggle {
+            font-size: 11.5px;
+            padding: 3px 8px;
+            height: 24px;
+            border-radius: 6px;
+        }
+
+        .td-params-editor {
+            flex: 1;
+            min-height: 80px;
+            padding: 12px 14px;
+            border: 1px solid rgba(60, 60, 67, 0.12);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.86);
+            font-family: 'Menlo', 'Consolas', ui-monospace, monospace;
+            font-size: 12.5px;
+            line-height: 1.65;
+            color: var(--wechat-text-dark);
+            resize: none;
+            outline: none;
+            transition: border-color 0.18s, box-shadow 0.18s;
+        }
+
+        .td-params-editor:focus {
+            border-color: #007aff;
+            box-shadow: 0 0 0 4px var(--apple-focus-ring);
+        }
+
+        /* ── Schema 查看器 ── */
+        .td-schema-panel {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 10px 14px;
+            border: 1px solid rgba(60, 60, 67, 0.1);
+            border-radius: 10px;
+            background: rgba(242, 242, 247, 0.64);
+            font-family: 'Menlo', 'Consolas', ui-monospace, monospace;
+            font-size: 11.5px;
+            line-height: 1.6;
+            color: #5d5d62;
+            white-space: pre-wrap;
+            word-break: break-all;
+            display: none;
+        }
+
+        /* ── 执行按钮栏 ── */
+        .td-execute-bar {
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 24px;
+        }
+
+        .td-execute-btn {
+            padding: 9px 20px;
+            font-size: 13px;
+        }
+
+        .td-execute-status {
+            font-size: 12px;
+            color: var(--wechat-text-gray);
+        }
+
+        .td-execute-status.running {
+            color: #b25b00;
+        }
+
+        .td-execute-status.success {
+            color: #248a3d;
+        }
+
+        .td-execute-status.error {
+            color: #d70015;
+        }
+
+        /* ── 结果区域 ── */
+        .td-result-panel {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            border-top: 1px solid var(--wechat-border);
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }
+
+        .td-result-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 24px 8px;
+            flex-shrink: 0;
+            cursor: row-resize;
+            user-select: none;
+        }
+
+        .td-result-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--wechat-text-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .td-result-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(118, 118, 128, 0.1);
+            color: var(--wechat-text-gray);
+        }
+
+        .td-result-badge.success {
+            background: rgba(52, 199, 89, 0.12);
+            color: #248a3d;
+        }
+
+        .td-result-badge.error {
+            background: rgba(255, 59, 48, 0.1);
+            color: #d70015;
+        }
+
+        .td-result-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .td-result-body {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 0 24px 16px;
+        }
+
+        .td-result-empty {
+            font-size: 12.5px;
+            color: var(--wechat-text-gray);
+            text-align: center;
+            padding: 18px 0;
+            font-style: italic;
+        }
+
+        .td-result-content {
+            font-family: 'Menlo', 'Consolas', ui-monospace, monospace;
+            font-size: 12px;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: var(--wechat-text-dark);
+            background: rgba(242, 242, 247, 0.6);
+            border: 1px solid rgba(60, 60, 67, 0.08);
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        .td-result-content.success {
+            background: rgba(52, 199, 89, 0.05);
+            border-color: rgba(52, 199, 89, 0.14);
+        }
+
+        .td-result-content.error {
+            background: rgba(255, 59, 48, 0.05);
+            border-color: rgba(255, 59, 48, 0.14);
+        }
+
+        /* ── 结果区拖拽条 ── */
+        .td-result-resizer {
+            height: 5px;
+            cursor: row-resize;
+            background-color: transparent;
+            transition: background-color 0.2s;
+            flex-shrink: 0;
+        }
+
+        .td-result-resizer:hover,
+        .td-result-resizer.resizing {
+            background-color: rgba(0, 122, 255, 0.28);
+        }
+
+        /* ── 工具数量角标 ── */
+        .td-tab-count {
+            font-size: 10px;
+            background: rgba(118, 118, 128, 0.15);
+            border-radius: 999px;
+            padding: 0 5px;
+            margin-left: 3px;
+        }
+
+        .td-type-tab.active .td-tab-count {
+            background: rgba(255, 255, 255, 0.28);
+        }
+
+        /* ── 返回链接 ── */
+        .td-back-link {
+            font-size: 12px;
+            color: #0066cc;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 10px;
+            padding: 3px 0;
+        }
+
+        .td-back-link:hover {
+            text-decoration: underline;
+        }
+
+        /* ── MCP 服务器标签 ── */
+        .td-tool-item-server {
+            display: inline-block;
+            font-size: 10px;
+            background: rgba(118, 118, 128, 0.1);
+            color: #6e6e73;
+            border-radius: 999px;
+            padding: 1px 6px;
+            margin-left: 4px;
+            flex-shrink: 0;
+        }
+
+        .td-tool-item-name-row {
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* ── 加载动画 ── */
+        .td-loading-dot {
+            display: inline-block;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: currentColor;
+            margin-right: 8px;
+            box-shadow: 7px 0 0 currentColor, 14px 0 0 currentColor;
+            animation: tdPulse 1.1s ease-in-out infinite;
+        }
+
+        @keyframes tdPulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="td-app">
+        <!-- 左侧边栏 -->
+        <div class="td-sidebar" id="tdSidebar">
+            <div class="td-sidebar-header">
+                <a href="index.html" class="td-back-link">← 返回调试客户端</a>
+                <div class="td-sidebar-title">工具调试面板</div>
+
+                <!-- 服务器地址 -->
+                <div class="td-server-row">
+                    <input type="text" id="serverUrl" value="http://127.0.0.1:8002" placeholder="服务器地址">
+                    <button class="btn secondary" id="refreshAllBtn">刷新</button>
+                </div>
+            </div>
+
+            <!-- Agent Context 选择 -->
+            <div class="td-context-section">
+                <div class="td-section-label" style="display:flex;align-items:center;justify-content:space-between;">
+                    <span>Agent Context</span>
+                    <span id="contextModeTag" style="font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(52,199,89,0.12);color:#248a3d;">调试模式</span>
+                </div>
+                <select class="td-context-select" id="contextSelect">
+                    <option value="">-- 不指定（调试模式）--</option>
+                </select>
+                <div class="td-context-manual">
+                    <span class="td-context-manual-label">手动输入:</span>
+                    <input type="text" id="contextIdInput" placeholder="留空=调试模式，填写=正常模式">
+                </div>
+                <div class="td-context-manual" style="margin-top:5px;">
+                    <span class="td-context-manual-label">工作区路径:</span>
+                    <input type="text" id="workspacePathInput" placeholder="留空使用服务器默认">
+                </div>
+            </div>
+
+            <!-- 工具类型 Tab -->
+            <div class="td-tools-section">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+                    <span class="td-section-label" style="margin:0;">工具列表</span>
+                    <span style="font-size:11px;color:var(--wechat-text-gray);" id="builtinCount">0</span>
+                    <span style="font-size:11px;color:var(--wechat-text-gray);">个</span>
+                </div>
+
+                <!-- 搜索框 -->
+                <div class="td-search-row">
+                    <svg class="td-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" class="td-search-input" id="toolSearch" placeholder="搜索工具名称或描述...">
+                </div>
+
+                <!-- 工具列表 -->
+                <div class="td-tool-list" id="toolList">
+                    <div class="td-tool-empty">点击右上角「刷新」加载工具列表</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 拖拽条 -->
+        <div class="td-resizer" id="tdResizer"></div>
+
+        <!-- 右侧主区域 -->
+        <div class="td-main" id="tdMain">
+            <!-- 工具信息头 -->
+            <div class="td-tool-header" id="tdToolHeader">
+                <div class="td-placeholder-hint" id="tdPlaceholder">请在左侧选择一个工具</div>
+                <div id="tdToolInfo" style="display:none">
+                    <div class="td-tool-name" id="tdToolName"></div>
+                    <div class="td-tool-desc" id="tdToolDesc"></div>
+                </div>
+            </div>
+
+            <!-- 编辑区 + 结果区 -->
+            <div class="td-editor-result" id="tdEditorResult">
+                <!-- 参数编辑区 -->
+                <div class="td-params-panel" id="tdParamsPanel">
+                    <div class="td-params-toolbar">
+                        <span class="td-params-label">参数 (JSON)</span>
+                        <button class="btn secondary td-schema-toggle" id="schemaToggleBtn" title="查看/隐藏参数 Schema">查看 Schema</button>
+                        <button class="btn secondary td-schema-toggle" id="formatBtn" title="格式化 JSON">格式化</button>
+                        <button class="btn secondary td-schema-toggle" id="fillDefaultBtn" title="根据 Schema 填入默认骨架">填入骨架</button>
+                        <button class="btn secondary td-schema-toggle" id="fillExampleBtn" title="根据字段名和描述填入示例值">填入示例</button>
+                    </div>
+                    <textarea class="td-params-editor" id="paramsEditor" placeholder='{"param_name": "value"}'></textarea>
+                    <pre class="td-schema-panel" id="schemaPanel"></pre>
+                </div>
+
+                <!-- 执行按钮栏 -->
+                <div class="td-execute-bar">
+                    <button class="btn primary td-execute-btn" id="executeBtn" disabled>执行工具</button>
+                    <span class="td-execute-status" id="executeStatus"></span>
+                </div>
+
+                <!-- 结果区拖拽条 -->
+                <div class="td-result-resizer" id="tdResultResizer"></div>
+
+                <!-- 结果区 -->
+                <div class="td-result-panel" id="tdResultPanel">
+                    <div class="td-result-header" id="tdResultHeaderBar">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span class="td-result-title">执行结果</span>
+                            <span class="td-result-badge" id="resultBadge" style="display:none"></span>
+                        </div>
+                        <div class="td-result-actions">
+                            <button class="btn secondary" style="font-size:11.5px;padding:3px 9px;height:24px;border-radius:6px;" id="copyResultBtn" title="复制结果">复制</button>
+                            <button class="btn secondary" style="font-size:11.5px;padding:3px 9px;height:24px;border-radius:6px;" id="clearResultBtn" title="清空结果">清空</button>
+                        </div>
+                    </div>
+                    <div class="td-result-body" id="tdResultBody">
+                        <div class="td-result-empty" id="resultEmpty">执行工具后结果将显示在这里</div>
+                        <pre class="td-result-content" id="resultContent" style="display:none"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/tool_debugger.js"></script>
+</body>
+
+</html>

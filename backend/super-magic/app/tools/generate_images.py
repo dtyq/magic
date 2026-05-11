@@ -18,6 +18,7 @@ from typing import Any, ClassVar, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from agentlang.context.tool_context import ToolContext
+from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from agentlang.path_manager import PathManager
 from agentlang.tools.tool_result import ToolResult
@@ -238,6 +239,10 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
         if "base_dir" not in data:
             data["base_dir"] = PathManager.get_workspace_dir()
         super().__init__(**data)
+
+    async def _dispatch_file_event(self, tool_context: ToolContext, filepath: str, event_type: EventType, is_screenshot: bool = False, source: int = AI_IMAGE_GENERATION_SOURCE) -> None:
+        """分发文件创建/更新事件，source=5 (AI图片生成)"""
+        await super()._dispatch_file_event(tool_context, filepath, event_type, is_screenshot=False, source=AI_IMAGE_GENERATION_SOURCE)
 
     async def execute_purely(
         self, tool_context: ToolContext, params: GenerateImagesParams
@@ -483,15 +488,16 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
         except Exception as e:
             logger.warning(f"清理临时文件失败: {image.temp_file_path}, 错误: {e}")
 
-        try:
-            await notify_generated_media_file(
-                file_path=str(save_path),
-                base_dir=self.base_dir,
-                file_existed=file_existed,
-                source=AI_IMAGE_GENERATION_SOURCE,
-            )
-        except Exception as e:
-            logger.warning(f"发送文件通知失败: {e}")
+        # TODO: temporarily disabled - file notification via generate_images (link 2)
+        # try:
+        #     await notify_generated_media_file(
+        #         file_path=str(save_path),
+        #         base_dir=self.base_dir,
+        #         file_existed=file_existed,
+        #         source=AI_IMAGE_GENERATION_SOURCE,
+        #     )
+        # except Exception as e:
+        #     logger.warning(f"发送文件通知失败: {e}")
 
         return str(save_path)
 

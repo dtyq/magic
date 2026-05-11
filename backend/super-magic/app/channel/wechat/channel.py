@@ -444,6 +444,7 @@ class WechatChannel(BaseChannel):
             base_url=self._credential.base_url,
             cdn_base_url=self._credential.cdn_base_url,
             stream_id=stream_id,
+            is_proactive=True,
         )
         ctx.add_stream(wechat_stream)
 

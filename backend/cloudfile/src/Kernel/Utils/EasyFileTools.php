@@ -9,8 +9,19 @@ namespace Dtyq\CloudFile\Kernel\Utils;
 
 class EasyFileTools
 {
+    // 是否验证图片格式，默认开启；关闭后 isImage 将跳过格式校验直接返回 true
+    private static bool $checkImageFormat = true;
+
+    public static function setCheckImageFormat(bool $check): void
+    {
+        self::$checkImageFormat = $check;
+    }
+
     public static function isImage(string $path): bool
     {
+        if (! self::$checkImageFormat) {
+            return true;
+        }
         $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
         return in_array($ext, ['jpeg', 'jpg', 'png', 'gif', 'bmp', 'webp', 'tiff']);
     }

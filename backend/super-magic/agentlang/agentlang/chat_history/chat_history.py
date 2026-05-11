@@ -438,13 +438,27 @@ class ChatHistory:
         """检查历史记录文件是否存在"""
         return os.path.exists(self._history_file_path)
 
+    async def reload_from_disk(self) -> None:
+        """
+        强制从磁盘重新加载聊天记录，丢弃当前内存中的消息列表。
+
+        用途：checkpoint 回滚类操作会在磁盘层面直接覆盖聊天历史文件，
+        但内存中的 ChatHistory 实例因 load() 幂等保护不会重新读盘，
+        必须显式调用本方法让内存与磁盘重新对齐，
+        否则后续追加新消息时会把陈旧的内存状态写回磁盘并覆盖回滚结果。
+        """
+        logger.info(f"强制重新加载聊天记录: {self._history_file_path}")
+        self._loaded = False
+        self.messages = []
+        await self.load()
+
     async def load(self) -> None:
         """
         从 JSON 文件异步加载聊天记录。
         会查找 'duration' 字符串字段并尝试解析为 duration_ms (float)。
         会查找 'show_in_ui' 字段，如果不存在则默认为 True。
         加载后执行全量序列修复并立即落盘（如有修复）。
-        幂等：重复调用不会重新从磁盘加载。
+        幂等：重复调用不会重新从磁盘加载。如需强制重新读盘，请改用 reload_from_disk()。
         """
         if self._loaded:
             return

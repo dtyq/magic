@@ -12,7 +12,9 @@ use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\UpsertProjectFileNodeDTO;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\AgentEventEnum;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
@@ -25,6 +27,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskCallbackEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -48,6 +51,7 @@ use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Throwable;
 
+use function event_dispatch;
 use function Hyperf\Translation\trans;
 
 /**
@@ -769,20 +773,33 @@ class HandleAgentMessageAppService extends AbstractAppService
                     ? StorageType::SNAPSHOT->value
                     : StorageType::WORKSPACE->value;
                 $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $task, $dataIsolation, $type);
-                $savedEntity = $this->taskFileDomainService->saveProjectFile(
-                    $dataIsolation,
-                    $projectEntity,
-                    $taskFileEntity,
-                    $storageType,
-                    true // isUpdated = false for new files
+                $savedEntity = $this->taskFileDomainService->upsertProjectFileNode(
+                    new UpsertProjectFileNodeDTO(
+                        projectId: $projectEntity->getId(),
+                        projectWorkDir: $projectEntity->getWorkDir(),
+                        projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+                        operatorUserId: $dataIsolation->getCurrentUserId(),
+                        operatorOrganizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                        taskFileEntity: $taskFileEntity,
+                        storageTypeOverride: $storageType
+                    )
                 );
+                // Dispatch AttachmentsProcessedEvent if a metadata file was upserted
+                if (ProjectFileConstant::isSetMetadataFile($savedEntity->getFileName())) {
+                    event_dispatch(new AttachmentsProcessedEvent(
+                        $savedEntity->getParentId(),
+                        $savedEntity->getProjectId(),
+                        $savedEntity->getTaskId()
+                    ));
+                }
             }
 
             // Update attachment information (maintain compatibility)
             $attachment['file_id'] = (string) $savedEntity->getFileId();
             $attachment['topic_id'] = $task->getTopicId();
             $attachment['updated_at'] = $savedEntity->getUpdatedAt();
-            $attachment['metadata'] = FileMetadataUtil::getMetadataObject($savedEntity->getMetadata());
+            $attachment['metadata'] = FileMetadataUtil::decodeJsonObject($savedEntity->getMetadata());
+            $attachment['display_config'] = FileMetadataUtil::decodeJsonObject($savedEntity->getDisplayConfig());
 
             $this->logger->info(sprintf(
                 'Attachment processed successfully using saveProjectFile, file_id: %s, task_id: %s, type: %s, filename: %s',

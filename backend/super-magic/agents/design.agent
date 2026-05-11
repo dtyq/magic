@@ -22,7 +22,6 @@ skills:
     - name: canvas-designer
   system_skills:
     - name: skill-vetter
-    - name: find-skill
     - name: using-mcp
     - name: user-info
   workspace_skills: "*"

@@ -84,6 +84,18 @@ return [
     'remove_background_provider_not_configured' => '去背景服务商未配置或未启用',
     'remove_background_only_image_allowed' => '仅允许上传图片文件',
     'remove_background_image_too_large' => '图片大小不能超过 20MB',
+    'image_model_settings' => [
+        'quality' => [
+            'label' => '质量',
+            'description' => '控制生成图片的质量档位',
+            'options' => [
+                'auto' => '自动',
+                'high' => '高',
+                'medium' => '中',
+                'low' => '低',
+            ],
+        ],
+    ],
     # 水印相关
     'image_watermark' => 'website/static/img/watermark_zh.png',
 ];

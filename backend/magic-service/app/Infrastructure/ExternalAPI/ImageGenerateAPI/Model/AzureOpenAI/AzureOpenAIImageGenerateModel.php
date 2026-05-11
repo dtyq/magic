@@ -17,11 +17,15 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImageBase64DataUriParser;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use Exception;
 use Hyperf\Retry\Annotation\Retry;
 
 class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
 {
+    use ImagePayloadLogSanitizerTrait;
+
     private AzureOpenAIAPI $api;
 
     private array $configItem;
@@ -58,7 +62,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
             'size' => $imageGenerateRequest->getSize(),
             'quality' => $imageGenerateRequest->getQuality(),
             'n' => $imageGenerateRequest->getN(),
-            'images' => $imageGenerateRequest->getReferenceImages(),
+            'images' => $this->sanitizePayloadForLog($imageGenerateRequest->getReferenceImages()),
             'reference_images_count' => count($imageGenerateRequest->getReferenceImages()),
         ]);
 
@@ -70,16 +74,19 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
                     null,
                     $imageGenerateRequest->getPrompt(),
                     $imageGenerateRequest->getSize(),
-                    $imageGenerateRequest->getN()
+                    $imageGenerateRequest->getN(),
+                    $imageGenerateRequest->getQuality()
                 );
             }
 
             $requestData = [
                 'prompt' => $imageGenerateRequest->getPrompt(),
                 'size' => $imageGenerateRequest->getSize(),
-                'quality' => $imageGenerateRequest->getQuality(),
                 'n' => $imageGenerateRequest->getN(),
             ];
+            if ($imageGenerateRequest->getQuality() !== null) {
+                $requestData['quality'] = $imageGenerateRequest->getQuality();
+            }
 
             $result = $this->api->generateImage($this->model, $requestData);
 
@@ -235,14 +242,30 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
         }
 
         foreach ($request->getReferenceImages() as $index => $imageUrl) {
-            if (empty($imageUrl) || ! filter_var($imageUrl, FILTER_VALIDATE_URL)) {
+            if (! $this->isValidReferenceImage($imageUrl)) {
                 $this->logger->error('Azure OpenAI图像生成：无效的参考图像URL', [
                     'index' => $index,
-                    'url' => $imageUrl,
+                    'url' => $this->sanitizePayloadForLog(['image' => $imageUrl])['image'],
                 ]);
                 ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'image_generate.invalid_image_url');
             }
         }
+    }
+
+    /**
+     * Validate reference image input as either URL or base64 image data URI.
+     */
+    private function isValidReferenceImage(string $image): bool
+    {
+        if ($image === '') {
+            return false;
+        }
+
+        if (filter_var($image, FILTER_VALIDATE_URL)) {
+            return true;
+        }
+
+        return ImageBase64DataUriParser::isValid($image);
     }
 
     /**

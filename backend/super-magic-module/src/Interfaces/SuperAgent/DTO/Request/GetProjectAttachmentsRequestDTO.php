@@ -14,6 +14,11 @@ class GetProjectAttachmentsRequestDTO
     protected string $projectId;
 
     /**
+     * Parent directory ID.
+     */
+    protected ?string $parentId = null;
+
+    /**
      * 当前页码.
      */
     protected int $page;
@@ -40,6 +45,10 @@ class GetProjectAttachmentsRequestDTO
         $this->page = (int) ($data['page'] ?? 1);
         $this->pageSize = (int) ($data['page_size'] ?? 200);
         $this->token = $data['token'] ?? null;
+        $this->parentId = $data['parent_id'] ?? null;
+        if ($this->parentId === '') {
+            $this->parentId = null;
+        }
 
         // 处理文件类型，可以接收字符串或数组
         if (isset($data['file_type'])) {
@@ -70,6 +79,11 @@ class GetProjectAttachmentsRequestDTO
         return $this->projectId;
     }
 
+    public function getParentId(): ?string
+    {
+        return $this->parentId;
+    }
+
     public function getPage(): int
     {
         return $this->page;
@@ -94,6 +108,12 @@ class GetProjectAttachmentsRequestDTO
     public function setProjectId(string $projectId): self
     {
         $this->projectId = $projectId;
+        return $this;
+    }
+
+    public function setParentId(?string $parentId): self
+    {
+        $this->parentId = $parentId;
         return $this;
     }
 

@@ -49,9 +49,6 @@ coverage.xml
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
-.chat_history/
-.workspace/
-.checkpoints/
 
 # IDE 相关
 .idea/
@@ -87,6 +84,7 @@ config/tool_definitions.json
 .checkpoints/
 .cursor/
 .refers/
+.user/
 
 # 临时文件
 tmp/
@@ -100,6 +98,7 @@ cache/
 .tmp/
 docs
 .runtime/
+.clawhub
 
 # agent 的临时文件
 agents/SMA-*
@@ -112,7 +111,6 @@ qdrant_data/
 *.bak
 *.backup
 CLAUDE.md
-agents/SMA-*
 Makefile
 .python-version
 

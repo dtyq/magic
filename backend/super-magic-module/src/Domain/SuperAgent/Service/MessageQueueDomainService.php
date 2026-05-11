@@ -331,6 +331,15 @@ class MessageQueueDomainService
     }
 
     /**
+     * Get IN_PROGRESS message for specific topic (idempotency check).
+     * 获取指定话题下处于 IN_PROGRESS 状态的消息，用于幂等性检查.
+     */
+    public function getInProgressMessageByTopic(int $topicId): ?MessageQueueEntity
+    {
+        return $this->messageQueueRepository->getInProgressMessageByTopic($topicId);
+    }
+
+    /**
      * Delay execution time for all pending messages in a topic.
      * 延迟话题下所有待处理消息的执行时间.
      */

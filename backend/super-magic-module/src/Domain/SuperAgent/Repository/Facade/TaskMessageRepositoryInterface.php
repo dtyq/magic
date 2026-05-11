@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 
 interface TaskMessageRepositoryInterface
@@ -176,4 +177,28 @@ interface TaskMessageRepositoryInterface
      * @param null|int $imSeqId IM序列ID，为空时不更新
      */
     public function updateMessageSeqId(int $id, ?int $imSeqId): void;
+
+    /**
+     * Check if a topic has any messages.
+     *
+     * @param int $topicId Topic ID
+     * @return bool True if messages exist, false otherwise
+     */
+    public function hasMessagesByTopicId(int $topicId): bool;
+
+    /**
+     * Soft-delete all messages belonging to the given topic.
+     *
+     * @param int $topicId Topic ID
+     * @return int Number of rows updated
+     */
+    public function deleteMessageByTopicId(int $topicId): int;
+
+    /**
+     * 批量获取话题未读状态映射.
+     *
+     * @param TopicEntity[] $topics
+     * @return array<int, bool>
+     */
+    public function getHasUnreadMapByTopics(array $topics): array;
 }

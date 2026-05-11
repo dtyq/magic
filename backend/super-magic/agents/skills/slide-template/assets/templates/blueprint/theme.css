@@ -1,0 +1,484 @@
+/* ============================================================
+   Blueprint Theme — Engineering blueprint style
+   Core: off-white grid background + engineering blue #2563EB + precise linework + technical typography
+   ============================================================ */
+
+/* ---------- CSS Variables ---------- */
+:root {
+  --bg-primary:    #FAF8F5;
+  --bg-secondary:  #F1F5F9;
+  --bg-card:       #FFFFFF;
+  --bg-dark:       #1E293B;
+  --bg-dark-2:     #0F172A;
+  --bg-blue-soft:  #EFF6FF;
+  --bg-amber-soft: #FFFBEB;
+
+  --blue:          #2563EB;
+  --blue-dark:     #1E3A8A;
+  --blue-light:    #BFDBFE;
+  --amber:         #F59E0B;
+  --navy:          #1E293B;
+  --teal:          #0EA5E9;
+  --green:         #10B981;
+
+  --text-primary:   #1E293B;
+  --text-secondary: #475569;
+  --text-muted:     #94A3B8;
+  --text-on-dark:   #F8FAFC;
+  --text-blue:      #2563EB;
+
+  --grid-line:     #E2E8F0;
+  --border-light:  #CBD5E1;
+  --border-blue:   #93C5FD;
+  --border-dark:   #334155;
+
+  --shadow-sm:  0 1px 4px rgba(0,0,0,0.08);
+  --shadow-md:  0 6px 18px rgba(37,99,235,0.10);
+  --shadow-lg:  0 12px 36px rgba(37,99,235,0.15);
+
+  --font-sans: 'Inter', 'Noto Sans SC', sans-serif;
+  --font-mono: 'Courier New', 'Consolas', monospace;
+}
+
+/* ---------- Base Reset ---------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  font-family: var(--font-sans);
+  font-size: 24px;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Slide Container ---------- */
+.slide-container {
+  position: relative;
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  /* Engineering grid background */
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Dark background pages use a low-opacity grid */
+.slide-container.dark {
+  background-color: var(--bg-dark-2);
+  background-image:
+    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  color: var(--text-on-dark);
+}
+
+/* ---------- Top Cover Banner ---------- */
+.cover-header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 84px;
+  background: var(--bg-dark);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 90px;
+  z-index: 10;
+}
+.cover-tag {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  letter-spacing: 0.18em;
+  color: var(--blue-light);
+  text-transform: uppercase;
+}
+.cover-date {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+}
+
+/* ---------- Bottom Cover Information Bar ---------- */
+.cover-footer {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 108px;
+  background: var(--bg-secondary);
+  border-top: 2px solid var(--border-blue);
+  display: flex;
+  align-items: center;
+  padding: 0 90px;
+  gap: 60px;
+}
+.cover-footer-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cover-footer-label {
+  font-size: 16px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.cover-footer-value {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ---------- Blue Left-Rule Title ---------- */
+.section-header {
+  font-size: 57px;
+  font-weight: 700;
+  color: var(--text-primary);
+  border-left: 8px solid var(--blue);
+  padding-left: 30px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.section-header.sm {
+  font-size: 42px;
+  border-left-width: 6px;
+}
+
+/* ---------- Technical Cards ---------- */
+.tech-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-light);
+  border-top: 4px solid var(--blue);
+  border-radius: 0 0 6px 6px;
+  padding: 33px 39px;
+  box-shadow: var(--shadow-sm);
+}
+.tech-card.accent {
+  border-top-color: var(--teal);
+}
+.tech-card.warning {
+  border-top-color: var(--amber);
+}
+.tech-card-title {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--blue);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 15px;
+}
+.tech-card-body {
+  font-size: 27px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* ---------- Node Badges ---------- */
+.node-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--blue);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 4px 15px;
+  border-radius: 4px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.node-badge.secondary {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+}
+.node-badge.success {
+  background: #D1FAE5;
+  color: #065F46;
+}
+.node-badge.warning {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+/* ---------- KPI Data Cards ---------- */
+.kpi-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-light);
+  border-radius: 6px;
+  padding: 30px 36px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.kpi-value {
+  font-size: 78px;
+  font-weight: 700;
+  color: var(--blue);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.kpi-label {
+  font-size: 21px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.kpi-delta {
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--green);
+}
+.kpi-delta.down { color: #EF4444; }
+
+/* ---------- Alert/Emphasis Boxes ---------- */
+.alert-box {
+  background: var(--bg-amber-soft);
+  border: 1.5px solid var(--amber);
+  border-left: 6px solid var(--amber);
+  border-radius: 0 6px 6px 0;
+  padding: 21px 30px;
+  font-size: 26px;
+  color: #92400E;
+  line-height: 1.6;
+}
+.info-box {
+  background: var(--bg-blue-soft);
+  border: 1.5px solid var(--border-blue);
+  border-left: 6px solid var(--blue);
+  border-radius: 0 6px 6px 0;
+  padding: 21px 30px;
+  font-size: 26px;
+  color: var(--blue-dark);
+  line-height: 1.6;
+}
+
+/* ---------- Flow Nodes ---------- */
+.flow-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+  flex: 1;
+}
+.flow-node-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+.flow-node-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+}
+.flow-node-desc {
+  font-size: 21px;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.5;
+}
+.flow-arrow {
+  color: var(--blue);
+  font-size: 36px;
+  align-self: center;
+  flex-shrink: 0;
+  margin-top: -36px;
+}
+
+/* ---------- Code Blocks ---------- */
+.code-block {
+  background: var(--bg-dark);
+  border-radius: 6px;
+  padding: 30px 36px;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  line-height: 1.7;
+  color: #CBD5E1;
+  overflow: hidden;
+}
+.code-block .kw  { color: #93C5FD; }  /* Keyword */
+.code-block .str { color: #86EFAC; }  /* String */
+.code-block .num { color: #FDE68A; }  /* Number */
+.code-block .cmt { color: #64748B; font-style: italic; }  /* Comment */
+
+/* ---------- Technical Annotation Line ---------- */
+.dimension-line {
+  position: relative;
+  border-top: 1.5px solid var(--border-blue);
+  margin: 12px 0;
+}
+.dimension-line .dl-label {
+  position: absolute;
+  top: -15px; left: 18px;
+  background: var(--bg-primary);
+  padding: 0 9px;
+  font-size: 18px;
+  color: var(--blue);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+/* ---------- Legend ---------- */
+.legend-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 24px 30px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-light);
+  border-radius: 6px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-size: 21px;
+  color: var(--text-secondary);
+}
+.legend-dot {
+  width: 18px; height: 18px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ---------- Comparison Table ---------- */
+.tech-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 24px;
+}
+.tech-table th {
+  background: var(--bg-dark);
+  color: var(--text-on-dark);
+  font-family: var(--font-mono);
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 18px 24px;
+  text-align: left;
+  font-weight: 600;
+}
+.tech-table td {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+.tech-table tr:last-child td { border-bottom: none; }
+.tech-table tr.highlight td {
+  background: var(--bg-blue-soft);
+  color: var(--blue-dark);
+  font-weight: 600;
+}
+.tech-table .best {
+  color: var(--green);
+  font-weight: 700;
+}
+
+/* ---------- Section Page Specific ---------- */
+.section-num {
+  font-size: 210px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: rgba(37,99,235,0.12);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  user-select: none;
+  position: absolute;
+  right: 90px;
+  bottom: 60px;
+}
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  letter-spacing: 0.2em;
+  color: var(--blue);
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+
+/* ---------- Progress Bar ---------- */
+.progress-bar {
+  height: 9px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--blue);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* ---------- Tags ---------- */
+.tag {
+  display: inline-block;
+  padding: 4px 15px;
+  border-radius: 4px;
+  font-size: 20px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  background: var(--bg-blue-soft);
+  color: var(--blue-dark);
+  border: 1px solid var(--border-blue);
+}
+
+/* ---------- General Layout Utilities ---------- */
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-4  { gap: 24px; }
+.gap-6  { gap: 36px; }
+.gap-8  { gap: 48px; }
+.gap-10 { gap: 60px; }
+.flex-1 { flex: 1; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.p-8  { padding: 48px; }
+.p-10 { padding: 60px; }
+.p-12 { padding: 72px; }
+.px-12 { padding-left: 72px; padding-right: 72px; }
+.pt-16 { padding-top: 96px; }
+.mt-4  { margin-top: 24px; }
+.mt-6  { margin-top: 36px; }
+.mt-8  { margin-top: 48px; }
+.mb-4  { margin-bottom: 24px; }
+.mb-6  { margin-bottom: 36px; }
+.text-sm  { font-size: 21px; }
+.text-base { font-size: 27px; }
+.text-lg  { font-size: 33px; }
+.text-xl  { font-size: 42px; }
+.text-2xl { font-size: 54px; }
+.text-3xl { font-size: 66px; }
+.text-4xl { font-size: 84px; }
+.font-mono { font-family: var(--font-mono); }
+.font-bold { font-weight: 700; }
+.text-blue { color: var(--blue); }
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+.text-white { color: #fff; }
+.bg-card { background: var(--bg-card); }
+.bg-dark { background: var(--bg-dark); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 30px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }

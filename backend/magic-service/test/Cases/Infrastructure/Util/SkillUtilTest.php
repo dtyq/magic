@@ -299,6 +299,50 @@ MD;
     }
 
     /**
+     * YAML 折叠块包含中文时不应破坏 UTF-8 字符.
+     */
+    public function testParseSkillMdFrontmatterFoldedBlockPreservesChineseUtf8(): void
+    {
+        $skillDir = $this->tempBaseDir . '/image2psd';
+        mkdir($skillDir, 0755, true);
+        $skillMdPath = $skillDir . '/SKILL.md';
+        $content = <<<'MD'
+---
+name: bggg-creator-image2psd
+description: >
+  把 Codex/AI 生图结果拆成元素图再合成 PSD。
+---
+MD;
+        file_put_contents($skillMdPath, $content);
+
+        [$name, $desc] = SkillUtil::parseSkillMd($skillMdPath);
+
+        $this->assertSame('bggg-creator-image2psd', $name);
+        $this->assertSame('把 Codex/AI 生图结果拆成元素图再合成 PSD。', $desc);
+        $this->assertTrue(mb_check_encoding($desc, 'UTF-8'));
+        $this->assertNotFalse(json_encode(['description' => $desc], JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
+     * 只读取前 N 字节时，即使末尾切断中文字符也不应返回非法 UTF-8.
+     */
+    public function testParseSkillMdTrimsPartialUtf8CharacterAtReadLimit(): void
+    {
+        $skillDir = $this->tempBaseDir . '/long-markdown-skill';
+        mkdir($skillDir, 0755, true);
+        $skillMdPath = $skillDir . '/SKILL.md';
+        $prefix = "# Long Markdown Skill\n\n";
+        $content = $prefix . str_repeat('a', 1023 - strlen($prefix)) . '图';
+        file_put_contents($skillMdPath, $content);
+
+        [$name, $desc] = SkillUtil::parseSkillMd($skillMdPath);
+
+        $this->assertSame('long-markdown-skill', $name);
+        $this->assertTrue(mb_check_encoding($desc, 'UTF-8'));
+        $this->assertNotFalse(json_encode(['description' => $desc], JSON_UNESCAPED_UNICODE));
+    }
+
+    /**
      * 无 YAML name 时从 Markdown 解析：简介 + ## 激活条件.
      */
     public function testParseSkillMdMarkdownChineseActivationSection(): void

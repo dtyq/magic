@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Neo-Brutalism Bold — Template Preview</title>
+<link rel="stylesheet" href="theme.css"/>
+<style>
+  html, body { width: auto; height: auto; overflow: auto; background: #F4F4F0; font-family: 'Noto Sans SC', sans-serif; }
+  .preview-page { max-width: 1400px; margin: 0 auto; padding: 60px 40px; }
+  h1 { font-size: 48px; font-weight: 900; color: #000; border-bottom: 8px solid #D92D20; padding-bottom: 16px; margin-bottom: 8px; }
+  .meta { font-size: 20px; color: #666; margin-bottom: 48px; }
+  h2 { font-size: 28px; font-weight: 900; background: #000; color: #fff; padding: 8px 20px; display: inline-block; margin: 48px 0 24px; }
+
+  /* Color swatches */
+  .swatches { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 48px; }
+  .swatch { width: 160px; }
+  .swatch-color { height: 80px; border: 4px solid #000; box-shadow: 6px 6px 0 #000; }
+  .swatch-name { font-size: 16px; font-weight: 700; margin-top: 8px; color: #000; }
+  .swatch-hex  { font-size: 14px; color: #666; }
+
+  /* Layout thumbnails */
+  .layout-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-bottom: 48px; }
+  .layout-thumb { aspect-ratio: 16/9; background: #fff; border: 4px solid #000; box-shadow: 8px 8px 0 #000; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+  .slide-label { position: absolute; bottom: 0; left: 0; right: 0; background: #000; color: #fff; font-size: 12px; font-weight: 700; padding: 4px 10px; }
+
+  /* Component gallery */
+  .components { display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 48px; }
+  .comp-item { display: flex; flex-direction: column; gap: 8px; }
+  .comp-label { font-size: 14px; font-weight: 700; color: #666; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" rel="stylesheet"/>
+</head>
+<body>
+<div class="preview-page">
+  <h1>Neo-Brutalism Bold</h1>
+  <p class="meta">Gray-white base · pure black hard borders · offset solid shadows · flame red + gold accents · ultra-heavy typography</p>
+
+  <!-- Color swatches -->
+  <h2>Color Swatches</h2>
+  <div class="swatches">
+    <div class="swatch"><div class="swatch-color" style="background:#F4F4F0;"></div><div class="swatch-name">Primary Background</div><div class="swatch-hex">#F4F4F0</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#FFFFFF;"></div><div class="swatch-name">Card White</div><div class="swatch-hex">#FFFFFF</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#000000;"></div><div class="swatch-name">Pure Black</div><div class="swatch-hex">#000000</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#D92D20;"></div><div class="swatch-name">Flame Red</div><div class="swatch-hex">#D92D20</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#FFD700; border-color:#000;"></div><div class="swatch-name">Gold</div><div class="swatch-hex">#FFD700</div></div>
+    <div class="swatch"><div class="swatch-color" style="background:#F0F0F0;"></div><div class="swatch-name">Secondary Gray</div><div class="swatch-hex">#F0F0F0</div></div>
+  </div>
+
+  <!-- 8 layout thumbnails -->
+  <h2>8 Dedicated Layout Types</h2>
+  <div class="layout-grid">
+
+    <!-- 1. Cover slide -->
+    <div class="layout-thumb">
+      <div style="flex:1;display:flex;padding:10px;gap:8px;">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:6px;">
+          <div style="background:#000;color:#fff;font-size:8px;font-weight:700;padding:2px 6px;display:inline-block;">会议标签</div>
+          <div style="font-size:10px;font-weight:900;color:#000;border-left:4px solid #D92D20;padding-left:6px;line-height:1.2;">超级标题<br>大字</div>
+          <div style="background:#fff;border:2px solid #000;box-shadow:3px 3px 0 #000;padding:4px 6px;font-size:7px;font-weight:700;">信息框 ▶ 品牌名称</div>
+        </div>
+        <div style="flex:1;background:#eee;border:2px solid #000;"></div>
+      </div>
+      <div class="slide-label">① Cover · cover</div>
+    </div>
+
+    <!-- 2. Section cover slide -->
+    <div class="layout-thumb" style="background:#000;">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;">
+        <div style="font-size:24px;font-weight:900;color:#D92D20;">01</div>
+        <div style="font-size:11px;font-weight:900;color:#fff;">章节名称</div>
+        <div style="background:#D92D20;color:#fff;font-size:7px;padding:2px 8px;font-weight:700;">副标题说明</div>
+      </div>
+      <div class="slide-label">② Section Cover · section-cover</div>
+    </div>
+
+    <!-- 3. Key point slide -->
+    <div class="layout-thumb">
+      <div style="flex:1;display:flex;padding:8px;gap:6px;">
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+          <div style="background:#000;color:#fff;font-size:6px;padding:2px 5px;display:inline-block;">标签</div>
+          <div style="font-size:9px;font-weight:900;">主标题</div>
+          <div style="border-left:3px solid #D92D20;padding-left:4px;font-size:6px;color:#444;">副标题</div>
+          <div style="flex:1;background:#fff;border:2px solid #000;box-shadow:2px 2px 0 #000;padding:4px;font-size:5px;color:#333;margin-top:4px;">核心论点卡片内容文字</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:4px;">
+          <div style="flex:1;background:#fff;border:2px solid #000;box-shadow:2px 2px 0 #000;padding:4px;font-size:5px;">对比框 A</div>
+          <div style="font-size:14px;text-align:center;">↓</div>
+          <div style="flex:1;background:#000;border:2px solid #000;box-shadow:2px 2px 0 #D92D20;padding:4px;font-size:5px;color:#fff;">对比框 B（黑底）</div>
+        </div>
+      </div>
+      <div class="slide-label">③ Key Point · key-point</div>
+    </div>
+
+    <!-- 4. 3x3 panorama slide -->
+    <div class="layout-thumb">
+      <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:3px;padding:8px;">
+        <div style="background:#F0F0F0;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:3px;font-size:5px;font-weight:900;">战略</div>
+        <div style="background:#fff;border:1.5px solid #D92D20;box-shadow:1.5px 1.5px 0 #D92D20;padding:3px;font-size:5px;font-weight:900;color:#D92D20;">研发</div>
+        <div style="background:#FFD700;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:3px;font-size:5px;font-weight:900;">产品</div>
+        <div style="background:#FFD700;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:3px;font-size:5px;font-weight:900;">开源</div>
+        <div style="background:#000;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:3px;font-size:5px;font-weight:900;color:#fff;">交付</div>
+        <div style="background:#fff;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:3px;font-size:5px;">商务</div>
+        <div style="background:#fff;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:3px;font-size:5px;">运营</div>
+        <div style="background:#fff;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:3px;font-size:5px;">分享</div>
+        <div style="background:#F0F0F0;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:3px;font-size:5px;">其他</div>
+      </div>
+      <div class="slide-label">④ 3x3 Panorama · grid-panorama</div>
+    </div>
+
+    <!-- 5. Image-text slide -->
+    <div class="layout-thumb">
+      <div style="flex:1;display:flex;padding:8px;gap:6px;">
+        <div style="flex:0.4;display:flex;flex-direction:column;gap:4px;">
+          <div style="background:#000;color:#fff;font-size:6px;padding:2px 5px;display:inline-block;">标签</div>
+          <div style="font-size:8px;font-weight:900;">主标题</div>
+          <div style="background:#fff;border:2px solid #000;box-shadow:2px 2px 0 #ccc;padding:4px;font-size:5px;color:#D92D20;font-weight:700;">洞察卡片</div>
+          <div style="display:flex;gap:2px;margin-top:2px;">
+            <div style="flex:1;background:#000;padding:3px;font-size:5px;color:#FFD700;font-weight:900;">99%</div>
+            <div style="flex:1;background:#000;padding:3px;font-size:5px;color:#FFD700;font-weight:900;">10x</div>
+          </div>
+        </div>
+        <div style="flex:0.6;position:relative;">
+          <div style="width:100%;height:100%;background:#eee;border:3px solid #000;box-shadow:6px 6px 0 #000;transform:rotate(1deg);"></div>
+          <div style="position:absolute;top:-4px;right:10px;background:#D92D20;color:#fff;font-size:5px;padding:2px 5px;border:1.5px solid #000;transform:rotate(2deg);">图片标签</div>
+        </div>
+      </div>
+      <div class="slide-label">⑤ Image + Text · image-text</div>
+    </div>
+
+    <!-- 6. Data dashboard slide -->
+    <div class="layout-thumb">
+      <div style="flex:1;display:flex;flex-direction:column;padding:8px;gap:4px;">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <div style="background:#000;color:#fff;font-size:6px;padding:2px 5px;">标签</div>
+          <div style="font-size:8px;font-weight:900;">数据标题</div>
+        </div>
+        <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">
+          <div style="background:#000;border:1.5px solid #000;padding:4px;"><div style="font-size:10px;font-weight:900;color:#FFD700;">87%</div><div style="font-size:5px;color:#aaa;">指标A</div></div>
+          <div style="background:#000;border:1.5px solid #000;padding:4px;"><div style="font-size:10px;font-weight:900;color:#FFD700;">10x</div><div style="font-size:5px;color:#aaa;">指标B</div></div>
+          <div style="background:#D92D20;border:1.5px solid #000;padding:4px;"><div style="font-size:10px;font-weight:900;color:#fff;">∞</div><div style="font-size:5px;color:#fcc;">指标C</div></div>
+          <div style="grid-column:span 3;background:#fff;border:1.5px solid #000;box-shadow:2px 2px 0 #000;padding:4px;font-size:5px;color:#333;">说明文字区域</div>
+        </div>
+      </div>
+      <div class="slide-label">⑥ Data Dashboard · data-dashboard</div>
+    </div>
+
+    <!-- 7. Timeline/process slide -->
+    <div class="layout-thumb">
+      <div style="flex:1;display:flex;flex-direction:column;padding:8px;gap:4px;">
+        <div style="font-size:8px;font-weight:900;border-left:3px solid #D92D20;padding-left:4px;">流程标题</div>
+        <div style="flex:1;display:flex;align-items:center;gap:0;position:relative;">
+          <div style="position:absolute;top:50%;left:0;right:0;height:2px;background:#000;transform:translateY(-50%);"></div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;z-index:1;">
+            <div style="width:14px;height:14px;background:#000;border:2px solid #000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:6px;font-weight:900;">1</div>
+            <div style="background:#fff;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:2px 4px;font-size:5px;margin-top:4px;">步骤一</div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;z-index:1;">
+            <div style="width:14px;height:14px;background:#D92D20;border:2px solid #000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:6px;font-weight:900;">2</div>
+            <div style="background:#FFD700;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:2px 4px;font-size:5px;margin-top:4px;">步骤二</div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;z-index:1;">
+            <div style="width:14px;height:14px;background:#000;border:2px solid #000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:6px;font-weight:900;">3</div>
+            <div style="background:#fff;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:2px 4px;font-size:5px;margin-top:4px;">步骤三</div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;z-index:1;">
+            <div style="width:14px;height:14px;background:#000;border:2px solid #000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:6px;font-weight:900;">4</div>
+            <div style="background:#fff;border:1.5px solid #000;box-shadow:1.5px 1.5px 0 #000;padding:2px 4px;font-size:5px;margin-top:4px;">步骤四</div>
+          </div>
+        </div>
+      </div>
+      <div class="slide-label">⑦ Timeline / Flow · timeline-flow</div>
+    </div>
+
+    <!-- 8. Closing slide -->
+    <div class="layout-thumb" style="background:#000;">
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:10px;">
+        <div style="font-size:16px;font-weight:900;color:#fff;letter-spacing:-0.5px;">谢谢聆听</div>
+        <div style="width:40px;height:3px;background:#D92D20;"></div>
+        <div style="background:#fff;border:2px solid #fff;box-shadow:3px 3px 0 #D92D20;padding:4px 8px;display:flex;gap:6px;align-items:center;">
+          <div style="width:20px;height:20px;background:#eee;"></div>
+          <div style="font-size:5px;font-weight:700;color:#000;">联系方式 / 二维码</div>
+        </div>
+      </div>
+      <div class="slide-label" style="background:#D92D20;">⑧ Closing · closing</div>
+    </div>
+
+  </div>
+
+  <!-- Core component gallery -->
+  <h2>Core Component Gallery</h2>
+  <div class="components">
+
+    <div class="comp-item">
+      <div class="comp-label">section-tag · section label</div>
+      <div class="section-tag">核心能力</div>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">subtitle-bar · red-bordered subtitle</div>
+      <div class="subtitle-bar">AI 是放大器，不是均衡器</div>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">highlight-text · yellow highlight</div>
+      <div style="font-size:24px;font-weight:700;">这是<span class="highlight-text">关键词</span>示例</div>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">neo-card · white card</div>
+      <div class="neo-card" style="max-width:240px;font-size:18px;">这是一张标准 Neo 卡片，硬边框 + 实心偏移阴影。</div>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">neo-card-dark · black card</div>
+      <div class="neo-card-dark" style="max-width:240px;font-size:18px;color:#fff;">深色卡片，金黄数字 <span style="color:#FFD700;font-weight:900;">100%</span></div>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">neo-card-yellow · yellow card</div>
+      <div class="neo-card-yellow" style="max-width:240px;font-size:18px;font-weight:700;">黄色强调卡片内容</div>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">neo-card-red · red card</div>
+      <div class="neo-card-red" style="max-width:240px;font-size:18px;">红色边框 + 红色阴影卡片</div>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">data-item · data block</div>
+      <div class="data-row">
+        <div class="data-item"><div class="data-value">87%</div><div class="data-label">AI 使用率</div></div>
+        <div class="data-item"><div class="data-value">10x</div><div class="data-label">效率提升</div></div>
+      </div>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">badge · badge</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div class="badge">01</div>
+        <div class="badge badge-red">02</div>
+      </div>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">quote-box · quote box</div>
+      <div class="quote-box" style="max-width:320px;">你的判断力决定了 AI 的上限。</div>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">neo-table · table</div>
+      <table class="neo-table" style="max-width:360px;">
+        <tr><th>能力</th><th>提升倍数</th></tr>
+        <tr><td>代码生产</td><td>10x</td></tr>
+        <tr><td>文档撰写</td><td>5x</td></tr>
+      </table>
+    </div>
+
+    <div class="comp-item">
+      <div class="comp-label">progress-bar · progress bar</div>
+      <div style="width:240px;">
+        <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:75%;"></div></div>
+        <div style="font-size:14px;margin-top:4px;font-weight:700;">AI 化进度 75%</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

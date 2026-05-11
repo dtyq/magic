@@ -23,10 +23,10 @@ tools:
   - multi_edit_file
   - multi_edit_file_range
   - delete_files
+  - ask_user
 skills:
   crew_skills: "*"
   system_skills:
-    - name: find-skill
     - name: using-mcp
     - name: using-llm
     - name: env-manager

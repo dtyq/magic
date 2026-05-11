@@ -251,13 +251,27 @@ class LLMFactory:
             # 工具参数的 JSON 修复和截断检测统一在 agent.py 做，
             # 避免 factory 层提前修复导致 agent 层丢失截断信息
 
+            report_manager: Optional[TokenUsageReport] = None
+            if agent_context:
+                get_report_manager = getattr(agent_context, "get_token_usage_report_manager", None)
+                if callable(get_report_manager):
+                    report_manager = get_report_manager()
+
+                if report_manager is None:
+                    get_report = getattr(agent_context, "get_token_usage_report", None)
+                    if callable(get_report):
+                        candidate = get_report()
+                        if isinstance(candidate, TokenUsageReport):
+                            report_manager = candidate
+
             # 统一记录 token 使用情况
             cls.token_tracker.record_llm_usage(
                 response.usage,
                 model_id,
                 user_id=agent_context.get_user_id() if agent_context else None,
                 model_name=llm_config.name,
-                resolved_model_id=llm_config.resolved_model_id or None
+                resolved_model_id=llm_config.resolved_model_id or None,
+                report_manager=report_manager
             )
 
             # 记录成功响应日志和耗时

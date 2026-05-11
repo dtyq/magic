@@ -110,6 +110,10 @@ return [
                 'name' => '数字员工发布到团队',
                 'description' => '发布助理到团队入口。',
             ],
+            'magic_claw_access' => [
+                'name' => '龙虾入口访问',
+                'description' => '访问 Magic Claw 模块入口。',
+            ],
             'magic_claw_create' => [
                 'name' => '龙虾创建',
                 'description' => '创建 Magic Claw 入口。',

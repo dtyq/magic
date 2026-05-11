@@ -16,6 +16,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageUsage;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImageBase64DataUriParser;
 use App\Infrastructure\Util\Context\CoContext;
 use Exception;
 use Hyperf\Coroutine\Parallel;
@@ -210,14 +211,31 @@ class GoogleGeminiModel extends AbstractImageGenerate
 
         $sortedImageList = [];
         foreach ($referImageUrls as $referImageUrl) {
-            $sortedImageList[] = [
-                'type' => 'fileData',
-                'fileUri' => $referImageUrl,
-                'mimeType' => $this->detectMimeTypeFromUrl($referImageUrl),
-            ];
+            $sortedImageList[] = $this->formatReferenceImage($referImageUrl);
         }
         // 调用API进行多图编辑
         return $this->api->generateContent($instructions, $sortedImageList, $config);
+    }
+
+    /**
+     * Convert a reference image into the request shape expected by Gemini.
+     */
+    private function formatReferenceImage(string $image): array
+    {
+        $base64Image = ImageBase64DataUriParser::parseDecoded($image);
+        if ($base64Image !== null) {
+            return [
+                'type' => 'base64',
+                'mimeType' => $base64Image['mime_type'],
+                'data' => $base64Image['base64_data'],
+            ];
+        }
+
+        return [
+            'type' => 'fileData',
+            'fileUri' => $image,
+            'mimeType' => $this->detectMimeTypeFromUrl($image),
+        ];
     }
 
     private function detectMimeTypeFromUrl(string $url): string

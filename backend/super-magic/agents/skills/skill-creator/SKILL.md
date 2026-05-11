@@ -74,9 +74,9 @@ if result.ok and result.data:
 ```
 
 <!--zh
-2. **基础工具**（如 `read_files`、`read_skills`、`skill_list`、`shell_exec`、`run_python_snippet` 等）：直接以工具调用形式描述，不需要包在 Python 代码块中：
+2. **基础工具**（如 `read_files`、`read_skills`、`shell_exec`、`run_python_snippet` 等）：直接以工具调用形式描述，不需要包在 Python 代码块中：
 -->
-2. **Basic tools** (e.g. `read_files`, `read_skills`, `skill_list`, `shell_exec`, `run_python_snippet`): Call them directly, no need to wrap in Python code:
+2. **Basic tools** (e.g. `read_files`, `read_skills`, `shell_exec`, `run_python_snippet`): Call them directly, no need to wrap in Python code:
 
 ```
 read_files(files=[{"file_path": "path/to/file.md"}])
@@ -233,20 +233,13 @@ Plan document contents:
 
 用户确认规划后，**先做冲突检查**，再创建 skill 目录和 SKILL.md。
 
-**冲突检查**：直接调用 `skill_list` 工具（无需 Python 封装，也不要用 shell 命令），检查返回列表中是否已有同名 skill：
+**冲突检查**：直接查看系统提示词中的 `<available_skills>` 列表，检查其中是否已有同名 skill。无需调用任何工具，也不要用 shell 命令。
 -->
 ### Phase 4: Check Conflicts and Write Files
 
 After user confirms the plan, **check for name conflicts first**, then create files.
 
-**Conflict check** — call the `skill_list` tool directly (it is always available, no Python wrapper needed):
-
-```
-tool: skill_list
-params: { "source": "all" }
-```
-
-Check the returned list for a skill with the same name. Do not run any shell command for this step.
+**Conflict check** — look at the `<available_skills>` block already in the system prompt to see if a skill with the same name already exists. No tool call or shell command is needed for this step.
 
 <!--zh
 **冲突处理规则：**

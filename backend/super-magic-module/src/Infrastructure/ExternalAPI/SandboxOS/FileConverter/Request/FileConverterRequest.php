@@ -37,7 +37,13 @@ class FileConverterRequest implements RequestInterface
 
     private string $topicId = '';
 
-    public function __construct(string $sandboxId, string $convertType, array $fileKeys, array $stsTemporaryCredential = [], array $options = [], string $taskKey = '', string $userId = '', string $organizationCode = '', string $topicId = '')
+    private string $rootFileId = '';
+
+    private string $authorization = '';
+
+    private string $outputName = '';
+
+    public function __construct(string $sandboxId, string $convertType, array $fileKeys, array $stsTemporaryCredential = [], array $options = [], string $taskKey = '', string $userId = '', string $organizationCode = '', string $topicId = '', string $rootFileId = '', string $authorization = '', string $outputName = '')
     {
         $this->sandboxId = $sandboxId;
         $this->convertType = $convertType;
@@ -47,6 +53,9 @@ class FileConverterRequest implements RequestInterface
         $this->userId = $userId;
         $this->organizationCode = $organizationCode;
         $this->topicId = $topicId;
+        $this->rootFileId = $rootFileId;
+        $this->authorization = $authorization;
+        $this->outputName = $outputName;
 
         if (isset($options['is_debug'])) {
             $this->isDebug = (bool) $options['is_debug'];
@@ -113,6 +122,21 @@ class FileConverterRequest implements RequestInterface
         return $this->topicId;
     }
 
+    public function getAuthorization(): string
+    {
+        return $this->authorization;
+    }
+
+    public function getRootFileId(): string
+    {
+        return $this->rootFileId;
+    }
+
+    public function getOutputName(): string
+    {
+        return $this->outputName;
+    }
+
     public function toArray(): array
     {
         $result = [
@@ -134,6 +158,10 @@ class FileConverterRequest implements RequestInterface
 
         if (! empty($this->topicId)) {
             $result['topic_id'] = $this->topicId;
+        }
+
+        if (! empty($this->outputName)) {
+            $result['output_name'] = $this->outputName;
         }
 
         // 只有当 options 不为空时才包含该字段

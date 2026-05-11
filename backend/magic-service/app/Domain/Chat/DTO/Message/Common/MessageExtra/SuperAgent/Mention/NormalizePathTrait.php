@@ -12,13 +12,11 @@ trait NormalizePathTrait
     private function normalizePath(string $path): string
     {
         if (str_starts_with($path, './')) {
-            return substr($path, 2);
+            $path = substr($path, 2);
+        } elseif (str_starts_with($path, '/')) {
+            $path = substr($path, 1);
         }
 
-        if (str_starts_with($path, '/')) {
-            return substr($path, 1);
-        }
-
-        return $path;
+        return rtrim($path, '/');
     }
 }

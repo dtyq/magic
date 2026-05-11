@@ -13,24 +13,45 @@ class WorkFileUtil
      * Hidden directory names that should be marked as hidden.
      * Only files/folders inside these directories (or the directories themselves) are hidden.
      */
-    private const HIDDEN_DIRECTORIES = ['.tmp', '.visual', '.asr_states', '.asr_recordings'];
+    private const HIDDEN_DIRECTORIES = ['.tmp', '.visual', '.asr_states', '.asr_recordings', '.webview-reports', '.browser_screenshots', '.webview-reports'];
 
+    /**
+     * @deprecated Use determineIsHidden() in domain service instead.
+     *             file_key is now ID-based and no longer carries path semantics.
+     */
     public static function isHiddenFile(string $fileKey): bool
     {
-        // Remove leading slash, uniform processing
-        $fileKey = ltrim($fileKey, '/');
+        return self::isHiddenByRelativePath($fileKey);
+    }
 
-        // Split path into parts
-        $pathParts = explode('/', $fileKey);
+    /**
+     * Check if any segment of a relative path matches a known hidden directory name.
+     * For example, ".tmp/1.txt" returns true because ".tmp" is a hidden directory.
+     */
+    public static function isHiddenByRelativePath(string $relativePath): bool
+    {
+        $relativePath = ltrim($relativePath, '/');
+        if ($relativePath === '') {
+            return false;
+        }
 
-        // Check if any path part matches a known hidden directory
+        $pathParts = explode('/', $relativePath);
         foreach ($pathParts as $part) {
-            if (! empty($part) && in_array($part, self::HIDDEN_DIRECTORIES, true)) {
+            if ($part !== '' && in_array($part, self::HIDDEN_DIRECTORIES, true)) {
                 return true;
             }
         }
 
         return false;
+    }
+
+    /**
+     * Check if a single filename (no path separators) is a hidden directory name.
+     * For example, ".tmp" returns true, "file.txt" returns false.
+     */
+    public static function isHiddenFileName(string $fileName): bool
+    {
+        return in_array($fileName, self::HIDDEN_DIRECTORIES, true);
     }
 
     /**
@@ -109,8 +130,8 @@ class WorkFileUtil
             return false;
         }
 
-        // Check for filenames starting or ending with spaces or dots (problematic on Windows)
-        if (preg_match('/^[\s.]+|[\s.]+$/', $fileName)) {
+        // Check for filenames starting or ending with spaces
+        if (preg_match('/^\s+|\s+$/', $fileName)) {
             return false;
         }
 

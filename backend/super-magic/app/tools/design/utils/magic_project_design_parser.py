@@ -307,6 +307,8 @@ class CanvasConfig:
     """画布配置"""
     elements: List[CanvasElement] = field(default_factory=list)
     viewport: Optional[ViewportState] = None
+    # 保留前端写入的未知 canvas 字段，写回时原样合并，避免覆盖前端扩展数据
+    _extra_canvas_data: Dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
 
 @dataclass
@@ -316,6 +318,8 @@ class MagicProjectConfig:
     type: str  # "design"
     name: str
     canvas: Optional[CanvasConfig] = None
+    # 保留前端写入的未知顶层字段，写回时原样合并，避免覆盖前端扩展数据
+    _extra_project_data: Dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
 
 @dataclass
@@ -545,32 +549,47 @@ _CANONICAL_MEDIA_DIRS = {"images", "videos"}
 
 def _normalize_media_src(src: str) -> str:
     """
-    将旧格式的 workspace 相对路径规范化为项目相对路径。
+    将各类旧格式 src 规范化为新协议格式。
 
-    旧格式：project-name/images/xxx.jpg（相对于 workspace 根目录）
-    新格式：images/xxx.jpg（相对于项目目录，即 magic.project.js 所在目录）
+    新协议约定（与前端对齐）：
+      - ./images/xx.jpg  以 ./ 开头，表示项目相对路径（相对于 magic.project.js 所在目录）
+      - aa/images/xx.jpg 无 ./ 前缀，表示 workspace 相对路径（相对于 workspace 根目录）
 
-    识别方式：从第二段开始扫描，找到第一个已知媒体目录（images/videos），
-    将其及后续部分作为项目相对路径，兼容 project_path 为多层路径的情况。
+    需兼容的旧格式 → 规范化结果：
+      - images/xxx.jpg           （旧项目相对，第一段即媒体目录） → ./images/xxx.jpg
+      - videos/xxx.mp4           （旧项目相对，第一段即媒体目录） → ./videos/xxx.mp4
+      - project/images/xxx.jpg   （旧 workspace 相对，含媒体目录段） → ./images/xxx.jpg
+      - a/b/images/xxx.jpg       （旧多层 workspace 相对）          → ./images/xxx.jpg
+      - ./images/xxx.jpg         （已是新格式）                      → 直接返回
 
     Args:
         src: 原始 src 字符串
 
     Returns:
-        规范化后的 src（项目相对路径）
+        规范化后的 src
     """
     if not src:
+        return src
+
+    # 已是新格式（以 ./ 开头），直接返回
+    if src.startswith("./"):
         return src
 
     # 去除开头的斜杠，统一处理
     normalized = src.lstrip("/")
     parts = normalized.split("/")
 
-    # 从第二段开始扫描（index=0 跳过，避免将已是项目相对路径的 images/xxx.jpg 误处理）
-    # 支持多层 project_path，如 xx/yy/images/a.jpg → images/a.jpg
+    # 第一段就是媒体目录：旧项目相对路径（如 images/xxx.jpg），直接补 ./
+    if parts[0] in _CANONICAL_MEDIA_DIRS:
+        new_src = "./" + normalized
+        logger.info(f"Normalized src from old project-relative format '{src}' to '{new_src}'")
+        return new_src
+
+    # 从第二段开始扫描：旧 workspace 相对路径（如 project/images/xxx.jpg）
+    # 找到第一个已知媒体目录，截取该段及后续，补 ./
     for i in range(1, len(parts)):
         if parts[i] in _CANONICAL_MEDIA_DIRS:
-            new_src = "/".join(parts[i:])
+            new_src = "./" + "/".join(parts[i:])
             logger.info(f"Normalized src from old workspace-relative format '{src}' to '{new_src}'")
             return new_src
 
@@ -626,15 +645,28 @@ def _parse_config_dict(data: Dict[str, Any]) -> MagicProjectConfig:
         viewport_data = canvas_data.get("viewport")
         viewport = ViewportState(**viewport_data) if viewport_data else None
 
+        # 收集 canvas 下的未知字段（排除后端已管理的字段），读写透传以保留前端扩展数据
+        _known_canvas_keys = {"elements", "viewport"}
+        extra_canvas_data = {k: v for k, v in canvas_data.items() if k not in _known_canvas_keys}
+
         # 创建画布配置
-        canvas = CanvasConfig(elements=parsed_elements, viewport=viewport)
+        canvas = CanvasConfig(
+            elements=parsed_elements,
+            viewport=viewport,
+            _extra_canvas_data=extra_canvas_data,
+        )
+
+    # 收集顶层未知字段（排除后端已管理的字段），读写透传以保留前端扩展数据
+    _known_project_keys = {"version", "type", "name", "canvas"}
+    extra_project_data = {k: v for k, v in data.items() if k not in _known_project_keys}
 
     # 创建项目配置
     return MagicProjectConfig(
         version=data.get("version", "1.0.0"),
         type=data.get("type", "design"),
         name=data.get("name", ""),
-        canvas=canvas
+        canvas=canvas,
+        _extra_project_data=extra_project_data,
     )
 
 
@@ -702,8 +734,9 @@ def _config_to_dict(config: MagicProjectConfig) -> Dict[str, Any]:
     Returns:
         配置字典
     """
-    # 使用 asdict 转换为字典，但需要正确处理嵌套对象
+    # 顶层：先铺前端扩展字段作为基底，再覆盖后端管理字段，保留前端未知数据
     result: Dict[str, Any] = {
+        **config._extra_project_data,
         "version": config.version,
         "type": config.type,
         "name": config.name,
@@ -713,13 +746,15 @@ def _config_to_dict(config: MagicProjectConfig) -> Dict[str, Any]:
     if config.canvas is None:
         result["canvas"] = None
     else:
-        result["canvas"] = {
-            "elements": []
+        # canvas 层：先铺前端扩展字段作为基底，再覆盖后端管理字段
+        canvas_dict: Dict[str, Any] = {
+            **config.canvas._extra_canvas_data,
+            "elements": [],
         }
 
         # 添加视口（如果存在）
         if config.canvas.viewport:
-            result["canvas"]["viewport"] = asdict(config.canvas.viewport)
+            canvas_dict["viewport"] = asdict(config.canvas.viewport)
 
         # 转换元素
         for element in config.canvas.elements:
@@ -728,7 +763,9 @@ def _config_to_dict(config: MagicProjectConfig) -> Dict[str, Any]:
             elem_dict = {k: v for k, v in elem_dict.items() if not k.startswith('_')}
             # 移除 None 值以保持 JSON 简洁
             elem_dict = {k: v for k, v in elem_dict.items() if v is not None}
-            result["canvas"]["elements"].append(elem_dict)
+            canvas_dict["elements"].append(elem_dict)
+
+        result["canvas"] = canvas_dict
 
     return result
 

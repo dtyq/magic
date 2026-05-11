@@ -9,12 +9,15 @@ namespace App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\Des
 
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\AbstractMention;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
+use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\NormalizePathTrait;
 
 /**
  * 设计标记提及.
  */
 final class DesignMarkerMention extends AbstractMention
 {
+    use NormalizePathTrait;
+
     public function getMentionTextStruct(): string
     {
         $data = $this->getAttrs()?->getData();
@@ -22,7 +25,7 @@ final class DesignMarkerMention extends AbstractMention
             return '';
         }
         $label = $data->getLabel() ?? '';
-        $image = $data->getImage() ?? '';
+        $image = $this->normalizePath($data->getImage() ?? '');
         $bbox = $data->getBbox();
 
         $bboxStr = '';

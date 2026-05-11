@@ -49,7 +49,8 @@ class AsrAssembler
         string $workDir,
         int $rootDirectoryId,
         AsrDirectoryRoleEnum $role,
-        ?string $taskKey = null
+        ?string $taskKey = null,
+        int $topicId = 0
     ): TaskFileEntity {
         $now = date('Y-m-d H:i:s');
 
@@ -81,7 +82,7 @@ class AsrAssembler
             'user_id' => $userId,
             'organization_code' => $organizationCode,
             'project_id' => $projectId,
-            'topic_id' => 0,
+            'topic_id' => $topicId,
             'task_id' => 0,
             'file_type' => FileType::DIRECTORY->value,
             'file_name' => $fileName,

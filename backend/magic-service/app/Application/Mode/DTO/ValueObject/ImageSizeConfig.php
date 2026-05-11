@@ -24,12 +24,43 @@ class ImageSizeConfig extends AbstractValueObject
      */
     protected int $maxReferenceImages = 0;
 
+    /**
+     * @var string 默认显示的分辨率档位
+     */
+    protected string $defaultScale = '';
+
+    /**
+     * @var array<array<string, mixed>> 模型专属图片设置定义
+     */
+    protected array $imageSettings = [];
+
     public function __construct(?array $data = null)
     {
         if ($data !== null) {
             $this->sizes = $data['sizes'] ?? [];
             $this->maxReferenceImages = $data['max_reference_images'] ?? 0;
+            $this->defaultScale = is_string($data['default_scale'] ?? null) ? $data['default_scale'] : '';
+            $this->imageSettings = is_array($data['image_settings'] ?? null) ? $data['image_settings'] : [];
         }
+    }
+
+    /**
+     * 从原始配置数组创建值对象。
+     *
+     * @param null|array<string, mixed> $config
+     */
+    public static function fromConfig(?array $config): ?self
+    {
+        if (empty($config)) {
+            return null;
+        }
+
+        return new self([
+            'sizes' => $config['sizes'] ?? [],
+            'max_reference_images' => $config['max_reference_images'] ?? 0,
+            'default_scale' => $config['default_scale'] ?? '',
+            'image_settings' => $config['image_settings'] ?? [],
+        ]);
     }
 
     public function getSizes(): array
@@ -52,6 +83,32 @@ class ImageSizeConfig extends AbstractValueObject
         $this->maxReferenceImages = $maxReferenceImages;
     }
 
+    public function getDefaultScale(): string
+    {
+        return $this->defaultScale;
+    }
+
+    public function setDefaultScale(string $defaultScale): void
+    {
+        $this->defaultScale = $defaultScale;
+    }
+
+    /**
+     * @return array<array<string, mixed>>
+     */
+    public function getImageSettings(): array
+    {
+        return $this->imageSettings;
+    }
+
+    /**
+     * @param array<array<string, mixed>> $imageSettings
+     */
+    public function setImageSettings(array $imageSettings): void
+    {
+        $this->imageSettings = $imageSettings;
+    }
+
     /**
      * 检查是否有尺寸配置.
      */
@@ -68,6 +125,8 @@ class ImageSizeConfig extends AbstractValueObject
         return [
             'sizes' => $this->sizes,
             'max_reference_images' => $this->maxReferenceImages,
+            'default_scale' => $this->defaultScale,
+            'image_settings' => $this->imageSettings,
         ];
     }
 

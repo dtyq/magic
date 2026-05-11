@@ -155,69 +155,19 @@ class MessageProcessor:
         except Exception as e:
             logger.error(f"从 chat 消息设置 Agent Profile 失败: {e}")
 
-    def _save_chat_message(self, message: ChatClientMessage):
-        """保存聊天消息到文件"""
+    async def _save_chat_message(self, message: ChatClientMessage):
+        """保存聊天消息到文件
+
+        实际写入逻辑（chat_client_message.json / metadata.json /
+        init_client_message.json metadata 同步）统一封装在
+        InitClientMessageUtil.save_chat_client_message 中，本方法仅作为路由层
+        的薄包装，承担容错语义。
+        """
+        from app.utils.init_client_message_util import InitClientMessageUtil
         try:
-            # 获取文件路径
-            chat_message_file = PathManager.get_chat_client_message_file()
-
-            # 确保目录存在
-            chat_message_file.parent.mkdir(exist_ok=True)
-
-            # 将消息转换为字典并保存
-            message_dict = message.dict()
-            with open(chat_message_file, 'w', encoding='utf-8') as f:
-                json.dump(message_dict, f, ensure_ascii=False, indent=2)
-
-            logger.info(f"已保存聊天消息到: {chat_message_file}")
-
-            # 如果 chat_client_message 包含 metadata，则更新 init_client_message 的 metadata
-            self._update_init_metadata_from_chat(message)
-
+            await InitClientMessageUtil.save_chat_client_message(message)
         except Exception as e:
             logger.error(f"保存聊天消息失败: {e}")
-
-    def _update_init_metadata_from_chat(self, message: ChatClientMessage):
-        """
-        将 chat_client_message 中的 metadata 覆盖到 init_client_message 中
-
-        只有当 chat_client_message 的 metadata 包含 super_magic_task_id 时才更新
-
-        Args:
-            message: 聊天客户端消息
-        """
-        # 检查 chat_client_message 是否包含 metadata
-        if not message.metadata:
-            logger.debug("chat_client_message 中没有 metadata，跳过更新")
-            return
-
-        # 检查 metadata 中是否包含 super_magic_task_id
-        if not message.metadata.super_magic_task_id:
-            logger.debug("chat_client_message 的 metadata 中没有 super_magic_task_id，跳过更新")
-            return
-
-        # 获取 init_client_message 文件路径
-        init_message_file = PathManager.get_init_client_message_file()
-
-        # 检查 init_client_message 文件是否存在
-        if not init_message_file.exists():
-            logger.warning(f"init_client_message 文件不存在: {init_message_file}，跳过 metadata 更新")
-            return
-
-        # 读取 init_client_message
-        with open(init_message_file, 'r', encoding='utf-8') as f:
-            init_data = json.load(f)
-
-        # 将 chat_client_message 的 metadata 覆盖到 init_client_message 中
-        chat_metadata = message.metadata.dict()
-        init_data['metadata'] = chat_metadata
-
-        # 写回 init_client_message 文件
-        with open(init_message_file, 'w', encoding='utf-8') as f:
-            json.dump(init_data, f, ensure_ascii=False, indent=2)
-
-        logger.info(f"已将 chat_client_message 的 metadata 更新到 init_client_message: {init_message_file}")
-        logger.debug(f"更新的 metadata 字段: {list(chat_metadata.keys())}")
 
     def _load_last_chat_message(self) -> Optional[ChatClientMessage]:
         """从文件加载最后一条聊天消息"""
@@ -378,7 +328,7 @@ class MessageProcessor:
 
             # 保存聊天消息
             if message.context_type in [ContextType.NORMAL, ContextType.FOLLOW_UP]:
-                self._save_chat_message(message)
+                await self._save_chat_message(message)
 
             # 检查并发送延迟的 init 事件（沙箱预启动场景）。
             # chat 消息的语言优先于 init metadata 的语言，统一在此处决策。
@@ -458,10 +408,13 @@ class MessageProcessor:
                 try:
                     async with self._interrupt_lock:
                         # 停止当前 run（不 reset：中断状态保留到下次 stop_run）
-                        await agent_context.stop_run(reason=message.remark or "用户主动中断")
+                        try:
+                            await agent_context.stop_run(reason=message.remark or "User interrupted the task.")
+                        except asyncio.CancelledError:
+                            logger.info("stop_run was cancelled while handling interrupt request; returning suspended state")
                         final_task_state = build_final_task_state(
                             FinalTaskStateCode.USER_INTERRUPTED,
-                            custom_message=message.remark or None,
+                            vendor_message=message.remark or "",
                         )
                         agent_context.set_final_task_state(final_task_state)
                         await agent_context.dispatch_event(
@@ -672,7 +625,7 @@ async def process_message(
             try:
                 chat_message = ChatClientMessage(**{**message_data, "update_session": True})
                 # 保存聊天消息
-                message_processor._save_chat_message(chat_message)
+                await message_processor._save_chat_message(chat_message)
 
                 return await message_processor.handle_chat(chat_message)
             except ValidationError as e:

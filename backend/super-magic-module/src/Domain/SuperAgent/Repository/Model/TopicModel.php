@@ -62,6 +62,11 @@ class TopicModel extends AbstractModel
         'created_uid',
         'updated_uid',
         'commit_hash',
+        'is_pinned',
+        'pinned_at',
+        'is_archived',
+        'last_read_at',
+        'last_read_message_id',
     ];
 
     /**
@@ -71,5 +76,15 @@ class TopicModel extends AbstractModel
         'created_at',
         'updated_at',
         'deleted_at',
+        'pinned_at',
+        'last_read_at',
+    ];
+
+    protected array $casts = [
+        'is_pinned' => 'boolean',
+        'is_archived' => 'boolean',
+        'last_read_message_id' => 'string',
+        'pinned_at' => 'datetime',
+        'last_read_at' => 'datetime',
     ];
 }
