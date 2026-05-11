@@ -2,8 +2,9 @@ import pytest
 from pydantic import ValidationError
 
 from app.service.file_service import WorkspaceFileURLError
-from app.tools.design.tools.generate_canvas_videos import GenerateCanvasVideosParams, VideoTaskSpec
-from app.tools.generate_video import GenerateVideo, GenerateVideoParams
+from app.core.entity.tool.tool_result import VideoToolResult
+from app.tools.design.tools.generate_canvas_videos import GenerateCanvasVideos, GenerateCanvasVideosParams, VideoTaskSpec
+from app.tools.generate_video import GenerateVideo, GenerateVideoParams, MagicServiceVideoError
 
 
 @pytest.mark.asyncio
@@ -145,3 +146,81 @@ def test_generate_canvas_videos_params_guides_missing_canvas_dimensions():
     assert "tasks.0.width" in message
     assert "tasks.0.height" in message
     assert "current video model's supported size/default_size" in message
+
+
+@pytest.mark.asyncio
+async def test_execute_purely_exposes_4018_error_as_raw_error(monkeypatch, tmp_path):
+    tool = GenerateVideo(base_dir=str(tmp_path))
+    explicit_error = "输入图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。 (code=4018)"
+
+    async def fake_build_create_payload(params, model_id, video_id, video_generation_config=None):
+        return {}, {}, None
+
+    async def fake_request_json(**kwargs):
+        raise MagicServiceVideoError(explicit_error, code=4018)
+
+    monkeypatch.setattr(tool, "_build_create_payload", fake_build_create_payload)
+    monkeypatch.setattr(tool, "_request_json", fake_request_json)
+
+    result = await tool.execute_purely(
+        None,
+        GenerateVideoParams(prompt="生成测试视频", output_path="videos"),
+    )
+
+    assert not result.ok
+    assert result.content == explicit_error
+    assert result.extra_info["error"] == explicit_error
+    assert result.extra_info["error_code"] == "4018"
+    assert result.extra_info["raw_error"] == explicit_error
+
+
+def test_magic_service_error_uses_structured_response_code():
+    response = {
+        "code": 4018,
+        "message": "输入图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。",
+    }
+
+    error = GenerateVideo._build_magic_service_error(response)
+
+    assert isinstance(error, MagicServiceVideoError)
+    assert error.code == "4018"
+    assert str(error) == "输入图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。 (code=4018)"
+    assert GenerateVideo._is_llm_visible_magic_service_error(error)
+    assert not GenerateVideo._is_llm_visible_magic_service_error(str(error))
+
+
+def test_extract_magic_service_error_message_keeps_compatibility():
+    response = {
+        "error": {
+            "code": 4018,
+            "message": "输入图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。",
+            "request_id": "req-1",
+        }
+    }
+
+    message = GenerateVideo._extract_magic_service_error_message(response)
+
+    assert message == "输入图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。 (code=4018, request_id=req-1)"
+
+
+def test_generate_canvas_videos_prefers_provider_error_for_llm_visibility():
+    explicit_error = "输入图片可能包含真人或人脸，请更换无真人、无肖像的素材后再试。 (code=4018)"
+    result = VideoToolResult(
+        ok=False,
+        content="视频生成失败: Image generation service may be unavailable",
+        videos=[],
+        extra_info={"error": explicit_error, "error_code": "4018"},
+    )
+
+    assert GenerateCanvasVideos._extract_generate_error_message(result) == explicit_error
+
+
+def test_generate_canvas_videos_keeps_non_visible_provider_error_wrapped():
+    result = VideoToolResult(
+        ok=False,
+        content="视频生成失败: Image generation service may be unavailable",
+        videos=[],
+        extra_info={"error": "内部服务错误 (code=5000)", "error_code": "5000"},
+    )
+
+    assert GenerateCanvasVideos._extract_generate_error_message(result) == result.content

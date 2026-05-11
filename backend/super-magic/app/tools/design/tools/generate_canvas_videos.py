@@ -30,6 +30,7 @@ from app.tools.generate_video import (
     DEFAULT_POLL_TIMEOUT_SECONDS,
     GenerateVideo,
     GenerateVideoParams,
+    LLM_VISIBLE_MAGIC_SERVICE_ERROR_CODES,
     normalize_video_input_mode_value,
     normalize_video_task_value,
 )
@@ -720,6 +721,10 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
         raw_error = extra_info.get("raw_error")
         if isinstance(raw_error, str) and raw_error.strip():
             return raw_error.strip()
+        error = extra_info.get("error")
+        error_code = str(extra_info.get("error_code") or "").strip()
+        if isinstance(error, str) and error.strip() and error_code in LLM_VISIBLE_MAGIC_SERVICE_ERROR_CODES:
+            return error.strip()
         return (result.content or "视频生成失败").strip()
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:

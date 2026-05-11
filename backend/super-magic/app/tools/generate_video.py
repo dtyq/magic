@@ -61,6 +61,7 @@ VIDEO_POLL_TIMEOUT_BUFFER_SECONDS = 20
 DEFAULT_VIDEO_PROGRESS_ESTIMATE_SECONDS = 600
 MAX_VIDEO_DOWNLOAD_BYTES = 500 * 1024 * 1024
 VIDEO_PROGRESS_TOOL_NAME = "video_generation_progress"
+LLM_VISIBLE_MAGIC_SERVICE_ERROR_CODES = {"4018"}
 TERMINAL_VIDEO_STATUSES = {"succeeded", "failed", "canceled"}
 LOCAL_INPUT_ERROR_PREFIXES = (
     "本地文件不存在:",
@@ -73,6 +74,15 @@ VIDEO_TASK_ALIASES = {
 VIDEO_INPUT_MODE_ALIASES = {
     "video_editing": "video_edit",
 }
+
+
+class MagicServiceVideoError(ValueError):
+    """magic-service 视频接口返回的结构化错误。"""
+
+    def __init__(self, message: str, code: Any = None):
+        super().__init__(message)
+        self.code = str(code).strip() if code not in (None, "") else ""
+
 
 def _format_tool_context_for_log(tool_context: Optional[ToolContext]) -> str:
     if tool_context is None:
@@ -471,11 +481,20 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                         "error_type": local_input_error_type,
                     },
                 )
+            extra_info = {"error": raw_error}
+            if isinstance(e, MagicServiceVideoError) and e.code:
+                extra_info["error_code"] = e.code
+            if self._is_llm_visible_magic_service_error(e):
+                extra_info["raw_error"] = raw_error
+                content = raw_error
+            else:
+                content = i18n.translate("generate_video.error", category="tool.messages", error=raw_error)
+
             return VideoToolResult(
                 ok=False,
-                content=i18n.translate("generate_video.error", category="tool.messages", error=raw_error),
+                content=content,
                 videos=[],
-                extra_info={"error": raw_error},
+                extra_info=extra_info,
             )
 
     @staticmethod
@@ -488,6 +507,10 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         if any(normalized_error.startswith(prefix) for prefix in LOCAL_INPUT_ERROR_PREFIXES):
             return "video.local_input_error"
         return ""
+
+    @staticmethod
+    def _is_llm_visible_magic_service_error(error: Any) -> bool:
+        return isinstance(error, MagicServiceVideoError) and error.code in LLM_VISIBLE_MAGIC_SERVICE_ERROR_CODES
 
     @staticmethod
     def _resolve_model(requested_model: str) -> str:
@@ -675,15 +698,15 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                     f"status={response.status} summary={json.dumps(_summarize_video_response(response_text, response_json), ensure_ascii=False)}"
                 )
                 if response.status != 200:
-                    error_message = self._extract_magic_service_error_message(response_json)
-                    if error_message:
-                        raise ValueError(error_message)
+                    error = self._build_magic_service_error(response_json)
+                    if error:
+                        raise error
                     raise ValueError(f"视频接口调用失败，状态码: {response.status}，响应: {response_text}")
                 if response_json is None:
                     raise ValueError(f"视频接口响应不是合法 JSON: {decode_error}") from decode_error
-                error_message = self._extract_magic_service_error_message(response_json)
-                if error_message:
-                    raise ValueError(error_message)
+                error = self._build_magic_service_error(response_json)
+                if error:
+                    raise error
 
                 return response_json
 
@@ -1592,17 +1615,34 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
     @staticmethod
     def _extract_magic_service_error_message(response_json: Any) -> str:
-        if not isinstance(response_json, dict):
+        error_payload = GenerateVideo._extract_magic_service_error_payload(response_json)
+        if not error_payload:
             return ""
+        return GenerateVideo._format_magic_service_error_detail(error_payload)
 
+    @staticmethod
+    def _extract_magic_service_error_payload(response_json: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(response_json, dict):
+            return None
         if "id" in response_json or "status" in response_json:
-            return ""
+            return None
 
         error_payload = response_json.get("error")
         if isinstance(error_payload, dict):
-            return GenerateVideo._format_magic_service_error_detail(error_payload)
+            return error_payload
 
-        return GenerateVideo._format_magic_service_error_detail(response_json)
+        return response_json
+
+    @staticmethod
+    def _build_magic_service_error(response_json: Any) -> Optional[MagicServiceVideoError]:
+        error_payload = GenerateVideo._extract_magic_service_error_payload(response_json)
+        if not error_payload:
+            return None
+
+        message = GenerateVideo._format_magic_service_error_detail(error_payload)
+        if not message:
+            return None
+        return MagicServiceVideoError(message, code=error_payload.get("code"))
 
     @staticmethod
     def _format_magic_service_error_detail(payload: Dict[str, Any]) -> str:
