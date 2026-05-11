@@ -85,6 +85,7 @@ func newRabbitMQTaskMessage(task *Task) (RabbitMQTaskMessage, bool) {
 // RabbitMQDelivery 适配一次 RabbitMQ 投递。
 type RabbitMQDelivery interface {
 	Body() []byte
+	Redelivered() bool
 	Ack(multiple bool) error
 	Nack(multiple, requeue bool) error
 }
@@ -757,6 +758,10 @@ type rabbitMQDelivery struct {
 
 func (d rabbitMQDelivery) Body() []byte {
 	return d.delivery.Body
+}
+
+func (d rabbitMQDelivery) Redelivered() bool {
+	return d.delivery.Redelivered
 }
 
 func (d rabbitMQDelivery) Ack(multiple bool) error {

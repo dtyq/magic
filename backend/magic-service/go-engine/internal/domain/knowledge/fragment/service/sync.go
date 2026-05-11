@@ -12,6 +12,7 @@ import (
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/memoryguard"
+	"magic/internal/pkg/memoryprobe"
 )
 
 const (
@@ -510,7 +511,7 @@ func (s *FragmentDomainService) logFragmentBatchMemoryGuardPaused(
 	fields := appendFragmentBatchMemoryGuardAdmissionFields(meta, snapshot,
 		"error", cause,
 	)
-	s.logger.KnowledgeWarnContext(ctx, fragmentBatchMemoryGuardLogKeyword+" pause fragment batch sync admission", fields...)
+	s.logger.KnowledgeWarnContext(ctx, memoryprobe.DocumentSyncKeyword+" "+fragmentBatchMemoryGuardLogKeyword+" pause fragment batch sync admission", fields...)
 }
 
 func (s *FragmentDomainService) logFragmentBatchMemoryGuardResumed(
@@ -523,7 +524,7 @@ func (s *FragmentDomainService) logFragmentBatchMemoryGuardResumed(
 	}
 	s.logger.InfoContext(
 		ctx,
-		fragmentBatchMemoryGuardLogKeyword+" fragment batch sync admission resumed",
+		memoryprobe.DocumentSyncKeyword+" "+fragmentBatchMemoryGuardLogKeyword+" fragment batch sync admission resumed",
 		appendFragmentBatchMemoryGuardAdmissionFields(meta, snapshot)...,
 	)
 }
@@ -541,7 +542,7 @@ func (s *FragmentDomainService) logFragmentBatchMemoryGuardFailOpen(
 	if cause != nil {
 		fields = append(fields, "error", cause)
 	}
-	s.logger.DebugContext(ctx, fragmentBatchMemoryGuardLogKeyword+" fragment batch sync memory cgroup unavailable, fail open", fields...)
+	s.logger.DebugContext(ctx, memoryprobe.DocumentSyncKeyword+" "+fragmentBatchMemoryGuardLogKeyword+" fragment batch sync memory cgroup unavailable, fail open", fields...)
 }
 
 func (s *FragmentDomainService) fragmentBatchLogFields(
@@ -550,12 +551,33 @@ func (s *FragmentDomainService) fragmentBatchLogFields(
 	meta fragmentBatchLogMeta,
 	fields ...any,
 ) []any {
-	snapshot, _ := memoryguard.NewGuard(memoryguard.Config{
+	config := memoryguard.Config{
 		SoftLimitBytes:             s.syncMemorySoftLimit,
 		CgroupPressureRatio:        fragmentBatchMemoryGuardCgroupRatio,
 		DisableCgroupPressureRatio: s.syncMemorySoftLimit > 0,
-	}).Check(ctx, stage)
-	return appendFragmentBatchMemoryGuardFields(meta, snapshot, fields...)
+	}
+	sample := memoryprobe.Capture(ctx, stage, config)
+	s.logFragmentBatchLargeMemoryIfNeeded(ctx, meta, sample)
+	return appendFragmentBatchMemoryGuardFieldsFromSample(meta, sample, fields...)
+}
+
+func (s *FragmentDomainService) logFragmentBatchLargeMemoryIfNeeded(
+	ctx context.Context,
+	meta fragmentBatchLogMeta,
+	sample memoryprobe.Sample,
+) {
+	peak, warn := memoryprobe.Observe(ctx, sample)
+	if !warn || s == nil || s.logger == nil {
+		return
+	}
+	fields := memoryprobe.ExceededFields(sample, peak)
+	fields = append(fields,
+		"document_code", meta.documentCode,
+		"batch_index", meta.batchIndex,
+		"batch_size", meta.batchSize,
+		"fragment_count", meta.fragmentCount,
+	)
+	s.logger.KnowledgeWarnContext(ctx, memoryprobe.DocumentSyncKeyword+" fragment batch memory exceeded threshold", fields...)
 }
 
 func appendFragmentBatchMemoryGuardAdmissionFields(
@@ -573,6 +595,7 @@ func appendFragmentBatchMemoryGuardFields(
 ) []any {
 	output := make([]any, 0, len(fields)+fragmentBatchLogFieldCount)
 	output = append(output,
+		"memory_probe_keyword", memoryprobe.DocumentSyncKeyword,
 		"memory_guard_keyword", fragmentBatchMemoryGuardLogKeyword,
 		"document_code", meta.documentCode,
 		"batch_index", meta.batchIndex,
@@ -586,6 +609,24 @@ func appendFragmentBatchMemoryGuardFields(
 		"limit_value", snapshot.LimitValue,
 		"observed_value", snapshot.ObservedValue,
 	)
+	output = append(output, fields...)
+	return output
+}
+
+func appendFragmentBatchMemoryGuardFieldsFromSample(
+	meta fragmentBatchLogMeta,
+	sample memoryprobe.Sample,
+	fields ...any,
+) []any {
+	output := make([]any, 0, len(fields)+fragmentBatchLogFieldCount)
+	output = append(output,
+		"memory_guard_keyword", fragmentBatchMemoryGuardLogKeyword,
+		"document_code", meta.documentCode,
+		"batch_index", meta.batchIndex,
+		"batch_size", meta.batchSize,
+		"fragment_count", meta.fragmentCount,
+	)
+	output = append(output, memoryprobe.SampleFields(sample)...)
 	output = append(output, fields...)
 	return output
 }

@@ -209,7 +209,7 @@ func TestNew_RedisDBEnvOverride_IntParsing(t *testing.T) {
 func TestNew_DocumentResyncConsumerConcurrencyDefaultAndEnvOverride(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
-	content := []byte("rabbitmq:\n  documentResync:\n    consumerConcurrency: ${DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY:=2}\n")
+	content := []byte("rabbitmq:\n  documentResync:\n    consumerConcurrency: ${DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY:=1}\n")
 	if err := os.WriteFile(cfgPath, content, 0o600); err != nil {
 		t.Fatalf("write temp config: %v", err)
 	}
@@ -217,8 +217,8 @@ func TestNew_DocumentResyncConsumerConcurrencyDefaultAndEnvOverride(t *testing.T
 	t.Setenv("CONFIG_FILE", cfgPath)
 	t.Setenv("DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY", "")
 	cfg := config.New()
-	if cfg.RabbitMQ.DocumentResync.ConsumerConcurrency != 2 {
-		t.Fatalf("expected default document resync concurrency 2, got %d", cfg.RabbitMQ.DocumentResync.ConsumerConcurrency)
+	if cfg.RabbitMQ.DocumentResync.ConsumerConcurrency != 1 {
+		t.Fatalf("expected default document resync concurrency 1, got %d", cfg.RabbitMQ.DocumentResync.ConsumerConcurrency)
 	}
 
 	t.Setenv("DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY", "4")

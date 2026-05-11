@@ -500,7 +500,11 @@ func (s *DocumentAppService) cleanupFragmentsByDocument(ctx context.Context, doc
 }
 
 func (s *DocumentAppService) finishSync(ctx context.Context, doc *docentity.KnowledgeBaseDocument, content string) error {
-	if err := s.domainService.MarkSynced(ctx, doc, document.CountSyncContentWordCount(content)); err != nil {
+	return s.finishSyncWithWordCount(ctx, doc, document.CountSyncContentWordCount(content))
+}
+
+func (s *DocumentAppService) finishSyncWithWordCount(ctx context.Context, doc *docentity.KnowledgeBaseDocument, wordCount int) error {
+	if err := s.domainService.MarkSynced(ctx, doc, wordCount); err != nil {
 		return fmt.Errorf("failed to mark document synced: %w", err)
 	}
 	return nil

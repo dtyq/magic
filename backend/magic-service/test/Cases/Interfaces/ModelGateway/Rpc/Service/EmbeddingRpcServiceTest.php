@@ -70,6 +70,7 @@ class EmbeddingRpcServiceTest extends TestCase
                 }
                 $businessParams = $dto->getBusinessParams();
                 return ($businessParams['organization_code'] ?? '') === 'DT001'
+                    && ($businessParams['organization_id'] ?? '') === 'DT001'
                     && ($businessParams['user_id'] ?? '') === 'usi_xxx'
                     && ($businessParams['business_id'] ?? '') === 'KNOWLEDGE-xxx';
             }))
@@ -96,6 +97,45 @@ class EmbeddingRpcServiceTest extends TestCase
         $this->assertCount(1, $result['data']['data']);
         $this->assertSame([0.1, 0.2], $result['data']['data'][0]['embedding']);
         $this->assertSame(0, $result['data']['data'][0]['index']);
+    }
+
+    public function testComputeShouldNormalizeOrganizationIdAndPreserveUserId(): void
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $llmAppService = $this->createMock(LLMAppService::class);
+
+        $llmAppService->expects($this->once())
+            ->method('embeddings')
+            ->with($this->callback(function ($dto): bool {
+                if (! $dto instanceof EmbeddingsDTO) {
+                    return false;
+                }
+                $businessParams = $dto->getBusinessParams();
+                return ($businessParams['organization_code'] ?? '') === 'DT002'
+                    && ($businessParams['organization_id'] ?? '') === 'DT002'
+                    && ($businessParams['user_id'] ?? '') === 'usi_yyy'
+                    && ($businessParams['business_id'] ?? '') === 'KNOWLEDGE-yyy';
+            }))
+            ->willReturn(new EmbeddingResponse(new PsrResponse(
+                200,
+                ['Content-Type' => 'application/json'],
+                '{"object":"list","data":[{"object":"embedding","embedding":[0.3,0.4],"index":0}],"model":"text-embedding-3-large","usage":{"prompt_tokens":1,"total_tokens":1}}'
+            )));
+
+        $service = new EmbeddingRpcService($llmAppService, $logger);
+        $result = $service->compute([
+            'model' => 'text-embedding-3-large',
+            'input' => ['hello'],
+            'access_token' => 'token_xxx',
+            'business_params' => [
+                'organization_id' => 'DT002',
+                'user_id' => 'usi_yyy',
+                'business_id' => 'KNOWLEDGE-yyy',
+            ],
+        ]);
+
+        $this->assertSame(0, $result['code']);
+        $this->assertSame('success', $result['message']);
     }
 
     public function testComputeShouldProcessArrayInputWithSingleTextCalls(): void

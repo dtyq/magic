@@ -6,6 +6,7 @@ import (
 
 	docentity "magic/internal/domain/knowledge/document/entity"
 	document "magic/internal/domain/knowledge/document/service"
+	"magic/internal/pkg/memoryprobe"
 )
 
 const documentResourceBaseLogFieldCount = 10
@@ -23,8 +24,9 @@ func (s *DocumentAppService) logResourceLimitFailure(
 	if errors.As(err, &resourceErr) && resourceErr != nil {
 		s.logger.KnowledgeWarnContext(
 			ctx,
-			"document resource limit exceeded",
+			memoryprobe.DocumentSyncKeyword+" document resource limit exceeded",
 			appendDocumentResourceLogFields(doc,
+				"memory_probe_keyword", memoryprobe.DocumentSyncKeyword,
 				"memory_guard_keyword", documentMemoryGuardLogKeyword,
 				"limit_name", resourceErr.LimitName,
 				"limit_value", resourceErr.LimitValue,

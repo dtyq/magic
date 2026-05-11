@@ -3,7 +3,6 @@ package docapp
 import (
 	"context"
 	"fmt"
-	"runtime"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/memoryguard"
+	"magic/internal/pkg/memoryprobe"
 	"magic/internal/pkg/thirdplatform"
 )
 
@@ -373,29 +373,37 @@ func (t *documentSyncTracer) log(ctx context.Context, stage string, startedAt ti
 	} else {
 		attrs = append(attrs, "status", "ok")
 	}
-	attrs = append(attrs, documentSyncStageMemoryFields(ctx, stage)...)
+	sample := documentSyncStageMemorySample(ctx, stage)
+	attrs = append(attrs, "memory_guard_keyword", documentMemoryGuardLogKeyword)
+	attrs = append(attrs, memoryprobe.SampleFields(sample)...)
 	attrs = append(attrs, fields...)
 	t.service.logger.DebugContext(ctx, "Document sync stage completed", attrs...)
+	t.logLargeMemoryIfNeeded(ctx, sample)
 }
 
-func documentSyncStageMemoryFields(ctx context.Context, stage string) []any {
-	var stats runtime.MemStats
-	runtime.ReadMemStats(&stats)
-	snapshot, _ := memoryguard.NewGuard(memoryguard.Config{
-		CgroupPressureRatio: documentMemoryGuardCgroupRatio,
-	}).Check(ctx, stage)
-	return []any{
-		"memory_guard_keyword", documentMemoryGuardLogKeyword,
-		"heap_alloc_bytes", stats.Alloc,
-		"heap_sys_bytes", stats.HeapSys,
-		"heap_idle_bytes", stats.HeapIdle,
-		"heap_released_bytes", stats.HeapReleased,
-		"current_bytes", snapshot.CurrentBytes,
-		"limit_bytes", snapshot.LimitBytes,
-		"usage_ratio", snapshot.UsageRatio,
-		"soft_limit_bytes", snapshot.SoftLimitBytes,
-		"limit_name", snapshot.LimitName,
-		"limit_value", snapshot.LimitValue,
-		"observed_value", snapshot.ObservedValue,
+func (t *documentSyncTracer) logLargeMemoryIfNeeded(ctx context.Context, sample memoryprobe.Sample) {
+	peak, warn := memoryprobe.Observe(ctx, sample)
+	if !warn || t == nil || t.service == nil || t.service.logger == nil {
+		return
 	}
+	fields := memoryprobe.ExceededFields(sample, peak)
+	if t.mode != "" {
+		fields = append(fields, "sync_mode", t.mode)
+	}
+	if t.doc != nil {
+		fields = append(fields,
+			"document_code", t.doc.Code,
+			"knowledge_base_code", t.doc.KnowledgeBaseCode,
+			"organization_code", t.doc.OrganizationCode,
+			"file_name", documentFileNameForLog(t.doc),
+			"file_type", documentFileTypeForLog(t.doc),
+		)
+	}
+	t.service.logger.KnowledgeWarnContext(ctx, memoryprobe.DocumentSyncKeyword+" document sync memory exceeded threshold", fields...)
+}
+
+func documentSyncStageMemorySample(ctx context.Context, stage string) memoryprobe.Sample {
+	return memoryprobe.Capture(ctx, stage, memoryguard.Config{
+		CgroupPressureRatio: documentMemoryGuardCgroupRatio,
+	})
 }

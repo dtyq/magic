@@ -449,6 +449,7 @@ func ProvideDocumentSyncRuntime(
 			Broker:          rabbitMQBroker,
 			TerminalHandler: runtime,
 			RetryStore:      documentsync.NewRedisRetryStore(redisClient),
+			AttemptStore:    documentsync.NewRedisDeliveryAttemptStore(redisClient),
 			AdmissionGate: documentsync.NewMemoryAdmissionGate(
 				memoryguard.NewGuard(memoryguard.Config{
 					SoftLimitBytes:             resourceLimits.SyncMemorySoftLimitBytes,
@@ -477,16 +478,18 @@ func newDocumentResyncRabbitMQSchedulerConfig(
 	cfg *autoloadcfg.Config,
 	defaults documentsync.RabbitMQSchedulerConfig,
 ) documentsync.RabbitMQSchedulerConfig {
+	consumerConcurrency := intOrDefault(
+		cfg.RabbitMQ.DocumentResync.ConsumerConcurrency,
+		defaults.ConsumerConcurrency,
+	)
+	consumerConcurrency = min(consumerConcurrency, defaults.ConsumerConcurrency)
 	return documentsync.RabbitMQSchedulerConfig{
 		QueueName: strings.TrimSpace(cfg.RabbitMQ.Queues.DocumentResync),
 		ConsumerPrefetch: intOrDefault(
 			cfg.RabbitMQ.DocumentResync.ConsumerPrefetch,
 			defaults.ConsumerPrefetch,
 		),
-		ConsumerConcurrency: intOrDefault(
-			cfg.RabbitMQ.DocumentResync.ConsumerConcurrency,
-			defaults.ConsumerConcurrency,
-		),
+		ConsumerConcurrency: consumerConcurrency,
 		MQPublishTimeout: millisDurationOrDefault(
 			cfg.RabbitMQ.DocumentResync.MQPublishTimeoutMillis,
 			defaults.MQPublishTimeout,

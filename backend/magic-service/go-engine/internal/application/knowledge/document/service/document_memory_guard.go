@@ -4,24 +4,36 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	docentity "magic/internal/domain/knowledge/document/entity"
 	"magic/internal/pkg/memoryguard"
+	"magic/internal/pkg/memoryprobe"
 )
 
 const (
-	documentMemoryGuardLogKeyword        = "knowledge_document_memory_guard"
-	documentMemoryGuardStage             = "document_sync_start"
-	documentMemoryGuardCgroupRatio       = 0.50
-	documentMemoryGuardCgroupResumeRatio = 0.45
-	documentMemoryGuardSoftResumeRatio   = 0.90
-	documentMemoryGuardPollInterval      = time.Second
+	documentMemoryGuardLogKeyword              = "knowledge_document_memory_guard"
+	documentMemoryGuardStage                   = "document_sync_start"
+	documentMemoryGuardPostBuildReleaseStage   = "post_build_fragments_memory_release"
+	documentMemoryGuardPostBuildAdmissionStage = "post_build_fragments_admission"
+	documentMemoryGuardCgroupRatio             = 0.50
+	documentMemoryGuardCgroupResumeRatio       = 0.45
+	documentMemoryGuardSoftResumeRatio         = 0.90
+	documentMemoryGuardPollInterval            = time.Second
 )
 
 func (s *DocumentAppService) waitDocumentSyncMemoryAdmission(
 	ctx context.Context,
 	doc *docentity.KnowledgeBaseDocument,
+) error {
+	return s.waitDocumentSyncMemoryAdmissionForStage(ctx, doc, documentMemoryGuardStage)
+}
+
+func (s *DocumentAppService) waitDocumentSyncMemoryAdmissionForStage(
+	ctx context.Context,
+	doc *docentity.KnowledgeBaseDocument,
+	stage string,
 ) error {
 	if s == nil {
 		return nil
@@ -33,7 +45,7 @@ func (s *DocumentAppService) waitDocumentSyncMemoryAdmission(
 		DisableCgroupPressureRatio: limits.SyncMemorySoftLimitBytes > 0,
 	})
 
-	snapshot, err := guard.Check(ctx, documentMemoryGuardStage)
+	snapshot, err := guard.Check(ctx, stage)
 	if shouldFailOpenDocumentMemoryGuard(snapshot, err) {
 		s.logDocumentMemoryGuardFailOpen(ctx, doc, snapshot, err)
 		return nil
@@ -47,7 +59,7 @@ func (s *DocumentAppService) waitDocumentSyncMemoryAdmission(
 		if err := sleepDocumentMemoryGuard(ctx); err != nil {
 			return err
 		}
-		snapshot, err = guard.Check(ctx, documentMemoryGuardStage)
+		snapshot, err = guard.Check(ctx, stage)
 		if shouldFailOpenDocumentMemoryGuard(snapshot, err) {
 			s.logDocumentMemoryGuardFailOpen(ctx, doc, snapshot, err)
 			return nil
@@ -57,6 +69,19 @@ func (s *DocumentAppService) waitDocumentSyncMemoryAdmission(
 			return nil
 		}
 	}
+}
+
+func (s *DocumentAppService) releaseDocumentSyncBuildMemory(
+	ctx context.Context,
+	trace *documentSyncTracer,
+	fragmentCount int,
+) {
+	startedAt := time.Now()
+	debug.FreeOSMemory()
+	if trace == nil {
+		return
+	}
+	trace.log(ctx, documentMemoryGuardPostBuildReleaseStage, startedAt, nil, "fragment_count", fragmentCount)
 }
 
 func shouldFailOpenDocumentMemoryGuard(snapshot memoryguard.Snapshot, err error) bool {
@@ -89,7 +114,7 @@ func (s *DocumentAppService) logDocumentMemoryGuardPaused(
 		return
 	}
 	fields := appendDocumentMemoryGuardFields(doc, snapshot, "error", cause)
-	s.logger.KnowledgeWarnContext(ctx, documentMemoryGuardLogKeyword+" pause document sync start", fields...)
+	s.logger.KnowledgeWarnContext(ctx, memoryprobe.DocumentSyncKeyword+" "+documentMemoryGuardLogKeyword+" pause document sync start", fields...)
 }
 
 func (s *DocumentAppService) logDocumentMemoryGuardResumed(
@@ -102,7 +127,7 @@ func (s *DocumentAppService) logDocumentMemoryGuardResumed(
 	}
 	s.logger.InfoContext(
 		ctx,
-		documentMemoryGuardLogKeyword+" document sync start resumed",
+		memoryprobe.DocumentSyncKeyword+" "+documentMemoryGuardLogKeyword+" document sync start resumed",
 		appendDocumentMemoryGuardFields(doc, snapshot)...,
 	)
 }
@@ -120,7 +145,7 @@ func (s *DocumentAppService) logDocumentMemoryGuardFailOpen(
 	if cause != nil {
 		fields = append(fields, "error", cause)
 	}
-	s.logger.DebugContext(ctx, documentMemoryGuardLogKeyword+" document sync memory cgroup unavailable, fail open", fields...)
+	s.logger.DebugContext(ctx, memoryprobe.DocumentSyncKeyword+" "+documentMemoryGuardLogKeyword+" document sync memory cgroup unavailable, fail open", fields...)
 }
 
 func appendDocumentMemoryGuardFields(
@@ -129,6 +154,7 @@ func appendDocumentMemoryGuardFields(
 	fields ...any,
 ) []any {
 	output := appendDocumentResourceLogFields(doc,
+		"memory_probe_keyword", memoryprobe.DocumentSyncKeyword,
 		"memory_guard_keyword", documentMemoryGuardLogKeyword,
 		"stage", snapshot.Stage,
 		"current_bytes", snapshot.CurrentBytes,
