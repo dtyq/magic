@@ -6735,7 +6735,7 @@ async function getProjectDirHandle(filePath) {
 }
 
 async function resolveCanvasFileBlobUrl(projectDirHandle, relPath) {
-    const parts = relPath.split('/').filter(Boolean);
+    const parts = relPath.split('/').filter(p => p && p !== '.');
     let dir = projectDirHandle;
     for (const p of parts.slice(0, -1)) {
         try { dir = await dir.getDirectoryHandle(p); }
