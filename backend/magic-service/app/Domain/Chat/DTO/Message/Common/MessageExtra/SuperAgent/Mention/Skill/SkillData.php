@@ -18,6 +18,8 @@ final class SkillData extends AbstractDTO implements MentionDataInterface
 
     protected string $name;
 
+    protected string $packageName = '';
+
     protected string $icon;
 
     protected string $description;
@@ -61,6 +63,16 @@ final class SkillData extends AbstractDTO implements MentionDataInterface
     public function setName(string $name): void
     {
         $this->name = $name;
+    }
+
+    public function getPackageName(): string
+    {
+        return $this->packageName;
+    }
+
+    public function setPackageName(?string $packageName): void
+    {
+        $this->packageName = $packageName ?? '';
     }
 
     public function getIcon(): ?string

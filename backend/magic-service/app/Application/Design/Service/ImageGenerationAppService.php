@@ -55,46 +55,41 @@ class ImageGenerationAppService extends DesignAppService
         $filePrefix = $this->fileDomainService->getFullPrefix($dataIsolation->getCurrentOrganizationCode());
         $workspacePrefix = PathFactory::getWorkspacePrefix($filePrefix, $project->getId());
 
-        // 兼容传入完整路径的场景：若已包含工作区前缀，剥离后转为相对路径
+        // Normalize incoming path: strip workspace prefix if client sends full path
         $fileDir = $entity->getFileDir();
         if (str_starts_with($fileDir, $workspacePrefix)) {
             $fileDir = substr($fileDir, strlen($workspacePrefix));
             $entity->setFileDir($fileDir);
         }
 
+        // Verify target directory exists via tree navigation (parent_id + name model)
         $relativeFileDir = $entity->getFileDir();
-        $fullFileDir = $entity->getFullFileDir($filePrefix);
-
-        // 检查当前目录是否存在
-        $taskFileDir = $this->taskFileDomainService->getByFileKey($fullFileDir);
+        $taskFileDir = $this->taskFileDomainService->findEntityByRelativePath($entity->getProjectId(), $relativeFileDir);
         if (! $taskFileDir || ! $taskFileDir->getIsDirectory()) {
             ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.image_generation.file_dir_not_exists', ['file_dir' => $relativeFileDir]);
         }
         $entity->setFileDirId($taskFileDir->getFileId());
 
-        // 检查引用图片是否存在，同样兼容完整路径
+        // Verify reference images exist; normalize full paths to relative first
         $referenceImages = $entity->getReferenceImages() ?? [];
         $normalizedReferenceImages = [];
         foreach ($referenceImages as $referenceImage) {
-            // 若已包含工作区前缀，剥离后转为相对路径
+            // Strip workspace prefix if client sends full path
             if (str_starts_with($referenceImage, $workspacePrefix)) {
                 $referenceImage = substr($referenceImage, strlen($workspacePrefix));
             }
             $normalizedReferenceImages[] = $referenceImage;
 
-            // design-mark 临时文件不在工作区内，跳过 DB 校验
+            // design-mark temp files are outside workspace; skip DB validation
             if (str_contains($referenceImage, 'design-mark/')) {
                 continue;
             }
 
-            $fullReferenceImage = $workspacePrefix . $referenceImage;
-
-            $taskFile = $this->taskFileDomainService->getByFileKey($fullReferenceImage);
+            $taskFile = $this->taskFileDomainService->findEntityByRelativePath($entity->getProjectId(), $referenceImage);
             if (! $taskFile || $taskFile->getIsDirectory()) {
                 ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.image_generation.reference_image_not_exists', ['file_key' => $referenceImage]);
             }
         }
-        // 将归一化后的相对路径写回实体，保证后续 subscriber 正确拼接
         if (! empty($normalizedReferenceImages)) {
             $entity->setReferenceImages($normalizedReferenceImages);
         }
@@ -178,11 +173,11 @@ class ImageGenerationAppService extends DesignAppService
 
         $fileUrl = null;
         if ($entity->getStatus() === ImageGenerationStatus::COMPLETED) {
-            // 设置 url，需要使用完整路径
-            $filePrefix = $this->fileDomainService->getFullPrefix($entity->getOrganizationCode());
-            $fullFilePath = $entity->getFullFilePath($filePrefix);
-
-            $taskFile = $this->taskFileDomainService->getByFileKey($fullFilePath);
+            // Locate generated file via tree navigation
+            $taskFile = $this->taskFileDomainService->findEntityByRelativePath(
+                $projectId,
+                $entity->getFileDir() . $entity->getFileName()
+            );
             if (! $taskFile) {
                 $entity->setStatus(ImageGenerationStatus::FAILED);
                 $entity->setErrorMessage('Generated file not found');

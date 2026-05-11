@@ -71,15 +71,22 @@ class FileManagementAppServiceTest extends TestCase
         $this->assertSame([501, 502], $dispatchedFileIds);
     }
 
-    public function testDispatchFilesBatchDeletedEventNormalizesFileIds(): void
+    public function testDispatchFilesBatchDeletedEventSeparatesFilesAndDirectories(): void
     {
+        $fileEntity = $this->createTaskFileEntity(501, '/workspace/a.md');
+        $directoryEntity = $this->createTaskFileEntity(502, '/workspace/dir', true);
+
         $dispatcher = $this->createMock(EventDispatcherInterface::class);
         $dispatcher->expects($this->once())
             ->method('dispatch')
-            ->with($this->callback(static function (object $event): bool {
+            ->with($this->callback(static function (object $event) use ($fileEntity, $directoryEntity): bool {
                 return $event instanceof FilesBatchDeletedEvent
                     && $event->getProjectId() === 900
+                    && $event->getFileEntities() === [$fileEntity]
+                    && $event->getDirectoryEntities() === [$directoryEntity]
                     && $event->getFileIds() === [501, 502]
+                    && $event->getUserId() === 'U1'
+                    && $event->getOrganizationCode() === 'ORG1'
                     && $event->getUserAuthorization()->getId() === 'U1'
                     && $event->getUserAuthorization()->getOrganizationCode() === 'ORG1';
             }))
@@ -87,7 +94,19 @@ class FileManagementAppServiceTest extends TestCase
 
         $this->createService($dispatcher)->dispatchBatchDeleted(
             900,
-            [501, '502', 0, 501, -1],
+            [$fileEntity, null, $directoryEntity],
+            $this->createAuthorization('U1', 'ORG1')
+        );
+    }
+
+    public function testDispatchFilesBatchDeletedEventSkipsWhenNoEntities(): void
+    {
+        $dispatcher = $this->createMock(EventDispatcherInterface::class);
+        $dispatcher->expects($this->never())->method('dispatch');
+
+        $this->createService($dispatcher)->dispatchBatchDeleted(
+            900,
+            [null],
             $this->createAuthorization('U1', 'ORG1')
         );
     }
@@ -112,13 +131,13 @@ class FileManagementAppServiceTest extends TestCase
             ->setOrganizationCode($organizationCode);
     }
 
-    private function createTaskFileEntity(int $fileId, string $fileKey): TaskFileEntity
+    private function createTaskFileEntity(int $fileId, string $fileKey, bool $isDirectory = false): TaskFileEntity
     {
         $entity = new TaskFileEntity();
         $entity->setFileId($fileId);
         $entity->setFileKey($fileKey);
         $entity->setFileName(basename($fileKey));
-        $entity->setIsDirectory(false);
+        $entity->setIsDirectory($isDirectory);
 
         return $entity;
     }
@@ -139,8 +158,11 @@ class TestableFileManagementAppService extends FileManagementAppService
         $this->dispatchFileUploadedEvents($fileEntities, $authorization);
     }
 
-    public function dispatchBatchDeleted(int $projectId, array $fileIds, MagicUserAuthorization $authorization): void
+    /**
+     * @param array<int, null|TaskFileEntity> $entities
+     */
+    public function dispatchBatchDeleted(int $projectId, array $entities, MagicUserAuthorization $authorization): void
     {
-        $this->dispatchFilesBatchDeletedEvent($projectId, $fileIds, $authorization);
+        $this->dispatchFilesBatchDeletedEvent($projectId, $entities, $authorization);
     }
 }

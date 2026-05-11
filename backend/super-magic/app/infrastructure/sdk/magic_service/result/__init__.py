@@ -13,6 +13,7 @@ from .import_skill_result import ImportSkillResult
 from .share_result import ShareResourceIdResult, ShareResult, CancelShareResult, FindSimilarSharesResult
 from .latest_published_skill_versions_result import LatestPublishedSkillVersionsResult, LatestPublishedSkillVersionItem
 from .ingest_third_party_message_result import IngestThirdPartyMessageResult
+from .scan_wav_result import ScanWavResult  # TEMP: scan-wav workaround, remove when MagicFS auto-refreshes
 from .search_knowledge_result import SearchKnowledgeResult
 
 __all__ = [
@@ -32,5 +33,6 @@ __all__ = [
     'LatestPublishedSkillVersionsResult',
     'LatestPublishedSkillVersionItem',
     'IngestThirdPartyMessageResult',
+    'ScanWavResult',
     'SearchKnowledgeResult',
 ]

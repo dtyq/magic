@@ -218,8 +218,7 @@ readonly class VideoInputMediaMetadataResolver
         $taskFilesByRelativePath = [];
 
         foreach ($relativePaths as $relativePath) {
-            $fullFileKey = $this->buildWorkspaceFileKey($rootFile, $relativePath);
-            $taskFile = $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $fullFileKey);
+            $taskFile = $this->taskFileDomainService->findEntityByRelativePath($projectId, $relativePath);
             if (! $taskFile || $taskFile->getIsDirectory()) {
                 ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'inputs.reference_videos file not found');
             }
@@ -312,16 +311,6 @@ readonly class VideoInputMediaMetadataResolver
             fclose($remoteStream);
             fclose($localStream);
         }
-    }
-
-    private function buildWorkspaceFileKey(TaskFileEntity $rootFile, string $relativePath): string
-    {
-        // TaskFile 公开查询接口按完整 file_key 检索，这里统一把工作区相对路径补齐到根目录之下。
-        return (string) preg_replace(
-            '#/+#',
-            '/',
-            rtrim($rootFile->getFileKey(), '/') . '/' . ltrim($relativePath, '/')
-        );
     }
 
     /**

@@ -40,9 +40,11 @@ interface SandboxGatewayInterface
      * @param string $projectId Project ID
      * @param string $sandboxId Sandbox ID
      * @param string $workDir Sandbox working directory
+     * @param string $rootFileId Root directory file ID, empty string means not provided
+     * @param string $authorization User authorization token, empty string means not provided
      * @return GatewayResult 创建结果，成功时data包含sandbox_id
      */
-    public function createSandbox(string $projectId, string $sandboxId, string $workDir): GatewayResult;
+    public function createSandbox(string $projectId, string $sandboxId, string $workDir, string $rootFileId = '', string $authorization = ''): GatewayResult;
 
     /**
      * 删除（停止）沙箱.
@@ -92,9 +94,17 @@ interface SandboxGatewayInterface
      * @param string $sandboxId Sandbox ID
      * @param string $projectId Project ID
      * @param string $workDir Working directory
+     * @param string $rootFileId Root directory file ID, empty string means not provided
+     * @param string $authorization User authorization token, empty string means not provided
      * @return string 实际使用的沙箱ID
      */
-    public function ensureSandboxAvailable(string $sandboxId, string $projectId, string $workDir): string;
+    public function ensureSandboxAvailable(
+        string $sandboxId,
+        string $projectId,
+        string $workDir,
+        string $rootFileId = '',
+        string $authorization = ''
+    ): string;
 
     public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode, string $taskId): GatewayResult;
 
@@ -105,6 +115,15 @@ interface SandboxGatewayInterface
      * @return GatewayResult 复制结果
      */
     public function copyFiles(array $files): GatewayResult;
+
+    /**
+     * 升级沙箱镜像.
+     *
+     * @param string $messageId 消息ID
+     * @param string $contextType 上下文类型，通常为"continue"
+     * @return GatewayResult 升级结果
+     */
+    public function upgradeSandbox(string $messageId, string $contextType = 'continue'): GatewayResult;
 
     /**
      * 获取沙箱网关当前部署的最新 Agent 镜像.

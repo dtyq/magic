@@ -77,7 +77,7 @@ class ToolProcessor
      * Generate output content tool based on attachments.
      * Prioritizes HTML files, then MD files, and selects files with specific keywords.
      */
-    public static function generateOutputContentTool(array $attachments): ?array
+    public static function generateOutputContentTool(?array $attachments): ?array
     {
         if (empty($attachments)) {
             return null;

@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
@@ -20,6 +21,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreateFileVersionResponse
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\GetFileVersionsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\RollbackFileToVersionResponseDTO;
 use Hyperf\Logger\LoggerFactory;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
 class FileVersionAppService extends AbstractAppService
@@ -30,6 +32,7 @@ class FileVersionAppService extends AbstractAppService
         private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly TaskFileVersionDomainService $taskFileVersionDomainService,
+        private readonly EventDispatcherInterface $eventDispatcher,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -212,6 +215,13 @@ class FileVersionAppService extends AbstractAppService
             'new_version_id' => $newVersionEntity->getId(),
             'new_version' => $newVersionEntity->getVersion(),
         ]);
+
+        // Dispatch file content saved event so clients receive a WebSocket notification
+        $this->eventDispatcher->dispatch(new FileContentSavedEvent(
+            $fileEntity,
+            $userAuthorization->getId(),
+            $userAuthorization->getOrganizationCode()
+        ));
 
         return RollbackFileToVersionResponseDTO::createEmpty();
     }

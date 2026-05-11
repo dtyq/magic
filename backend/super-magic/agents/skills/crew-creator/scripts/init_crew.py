@@ -9,19 +9,35 @@ Usage:
     python scripts/init_crew.py --config /path/to/config.json [--overwrite]
 
 Config JSON schema:
+    # Single-language mode (default) — fields in user's preferred language:
     {
-        "name":            "Research Assistant",       # required
-        "name_cn":         "研究助手",                  # required
-        "role":            "Academic Researcher",      # required
-        "role_cn":         "学术研究员",                 # required
-        "description":     "...",                      # required
-        "description_cn":  "...",                      # required
-        "role_body":       "English role definition",  # optional
-        "role_body_cn":    "中文角色定义",               # optional
-        "personality":     "English personality",      # optional → SOUL.md
-        "personality_cn":  "中文性格定义",               # optional → SOUL.md
-        "instructions":    "English workflow",         # optional → AGENTS.md
-        "instructions_cn": "中文工作流指令",             # optional → AGENTS.md
+        "name":            "研究助手",                  # required
+        "role":            "学术研究员",                 # required
+        "description":     "专业的学术研究助手",          # required
+        "role_body":       "你是一名学术研究员...",      # optional (IDENTITY.md body)
+        "personality":     "严谨、简洁...",              # optional → SOUL.md
+        "personality_en":  "Rigorous, concise...",      # optional English translation
+        "instructions":    "工作流程...",                # optional → AGENTS.md
+        "instructions_en": "Workflow...",               # optional English translation
+    }
+
+    # Multilingual mode — add _cn or _en suffixed fields for translations:
+    #   _cn → Chinese translation (goes in <!--zh --> comments)
+    #   _en → English translation (goes in <!--en --> comments)
+    # Base fields = primary language (active content).
+    {
+        "name":            "研究助手",
+        "name_en":         "Research Assistant",
+        "role":            "学术研究员",
+        "role_en":         "Academic Researcher",
+        "description":     "专业的学术研究助手",
+        "description_en":  "A professional research assistant",
+        "role_body":       "你是一名学术研究员...",
+        "role_body_en":    "You are an academic researcher...",
+        "personality":     "严谨、简洁...",
+        "personality_en":  "Rigorous, concise...",
+        "instructions":    "工作流程...",
+        "instructions_en": "Workflow..."
     }
 
 Files generated:
@@ -43,46 +59,88 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from _shared.bootstrap import get_project_root
 
 
-REQUIRED_FIELDS = ("name", "name_cn", "role", "role_cn", "description", "description_cn")
+REQUIRED_FIELDS = ("name", "role", "description")
+
+# Mapping from suffix to HTML comment tag name
+SUFFIX_TAG: dict[str, str] = {
+    "_cn": "zh",
+    "_en": "en",
+}
+
+
+def _contains_chinese(text: str) -> bool:
+    """Rough detection: does the text contain CJK characters?"""
+    return any('一' <= c <= '鿿' for c in str(text))
+
+
+def _has_translations(cfg: dict) -> bool:
+    """Check if the config has any translation (suffixed) fields."""
+    return any(k.endswith(tuple(SUFFIX_TAG)) for k in cfg)
+
+
+def _wrap_body(body: str, cfg: dict, field: str) -> str:
+    """
+    Format body text. In multilingual mode, wraps translations in <!--xx --> blocks
+    with the primary (unsuffixed) content as the active text.
+    `field` is the base field name (e.g. "role_body", "instructions", "personality").
+    """
+    if not _has_translations(cfg):
+        return f"{body}\n"
+
+    parts: list[str] = []
+    for suffix, tag in SUFFIX_TAG.items():
+        translation = cfg.get(f"{field}{suffix}")
+        if translation:
+            parts.append(f"<!--{tag}\n{translation}\n-->")
+
+    parts.append(body)
+    return "\n".join(parts) + "\n"
 
 
 def _build_identity(cfg: dict) -> str:
-    header = (
-        f"---\n"
-        f"name: {cfg['name']}\n"
-        f"name-cn: {cfg['name_cn']}\n"
-        f"role: {cfg['role']}\n"
-        f"role-cn: {cfg['role_cn']}\n"
-        f"description: {cfg['description']}\n"
-        f"description-cn: {cfg['description_cn']}\n"
-        f"---\n"
-    )
+    header_lines = [
+        "---",
+        f"name: {cfg['name']}",
+        f"role: {cfg['role']}",
+        f"description: {cfg['description']}",
+    ]
 
-    body_cn = cfg.get("role_body_cn") or f"你是一名{cfg['role_cn']}，{cfg['description_cn']}。"
-    article = "an" if cfg["role"][0:1].lower() in "aeiou" else "a"
-    body_en = cfg.get("role_body") or f"You are {article} {cfg['role']}. {cfg['description']}."
+    # Add suffixed header fields for multilingual mode
+    for suffix in SUFFIX_TAG:
+        for field in ("name", "role", "description"):
+            value = cfg.get(f"{field}{suffix}")
+            if value:
+                header_lines.append(f"{field}{suffix}: {value}")
 
-    return f"{header}\n<!--zh\n{body_cn}\n-->\n{body_en}\n"
+    header_lines.append("---")
+    header = "\n".join(header_lines) + "\n"
+
+    # Build body with language-aware default
+    body = cfg.get("role_body") or ""
+    if not body:
+        role = cfg["role"]
+        desc = cfg["description"]
+        if _contains_chinese(cfg["name"]):
+            body = f"你是{role}，{desc}。"
+        else:
+            article = "an" if role[0:1].lower() in "aeiou" else "a"
+            body = f"You are {article} {role}. {desc}."
+
+    return f"{header}\n{_wrap_body(body, cfg, 'role_body')}"
 
 
 def _build_agents(cfg: dict) -> str | None:
-    cn = cfg.get("instructions_cn")
-    en = cfg.get("instructions")
-    if not cn and not en:
+    body = cfg.get("instructions")
+    if not body:
         return None
-    cn = cn or "（待补充工作流指令）"
-    en = en or "(Workflow instructions to be added)"
-    return f"<!--zh\n{cn}\n-->\n{en}\n"
+    return _wrap_body(body, cfg, "instructions")
 
 
 def _build_soul(cfg: dict) -> str | None:
-    cn = cfg.get("personality_cn")
-    en = cfg.get("personality")
-    if not cn and not en:
+    body = cfg.get("personality")
+    if not body:
         return None
-    cn = cn or "（待补充性格定义）"
-    en = en or "(Personality to be defined)"
-    return f"<!--zh\n{cn}\n-->\n{en}\n"
+    return _wrap_body(body, cfg, "personality")
 
 
 def main() -> int:
@@ -146,11 +204,14 @@ def main() -> int:
         (ws_dir / "SOUL.md").write_text(soul_content, encoding="utf-8")
         created.append("SOUL.md")
 
+    multilingual = _has_translations(cfg)
+    mode = "multilingual" if multilingual else "single-language"
     print(json.dumps({
         "ok": True,
         "workspace": str(ws_dir),
+        "mode": mode,
         "files_created": created,
-        "message": f"Employee '{cfg['name_cn']}' ({cfg['name']}) initialized with {len(created)} file(s).",
+        "message": f"Employee '{cfg['name']}' ({cfg['role']}) initialized with {len(created)} file(s) in {mode} mode.",
     }, ensure_ascii=False))
     return 0
 

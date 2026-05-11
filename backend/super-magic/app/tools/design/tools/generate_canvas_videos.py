@@ -344,7 +344,7 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
         tool_context: ToolContext,
         project_path: Path,
     ) -> Dict[str, Any]:
-        workspace_path = Path(tool_context.base_dir).resolve()
+        workspace_path = Path(self.base_dir)
         relative_project_path = project_path.relative_to(workspace_path)
         resolved_output_path = str(relative_project_path / "videos")
         await async_mkdir(project_path / "videos", parents=True, exist_ok=True)

@@ -1040,6 +1040,7 @@ class TaskMessageFactory(TaskMessageFactoryProtocol):
             # 创建新的 Attachment 对象，只修改 file_tag
             final_attachment = Attachment(
                 file_key=att.file_key,  # 保留原始 file_key（目录会有 "/"）
+                file_id=att.file_id,
                 file_tag=AttachmentTag.FINAL,  # PROCESS → FINAL
                 file_extension=att.file_extension,
                 filepath=att.filepath,

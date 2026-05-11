@@ -109,6 +109,24 @@ Your workflow:
 
 在回复用户时，用「员工」而非「Agent」来表述。
 
+## 语言生成策略
+
+系统会在 `<system_injected_context>` 中注入 `<user_preferred_language>`，表示用户当前的偏好语言。
+生成员工定义文件时，必须遵循以下策略：
+
+**默认单语言模式**：
+- 以 `<user_preferred_language>` 指示的语言生成所有内容（IDENTITY.md, AGENTS.md, SOUL.md）
+- 不使用 `<!--zh -->` 双语注释格式
+- YAML header 只需单语言字段（name, role, description），不需要 `_cn` 后缀字段
+
+**仅在用户明确要求多语言时**（如"需要中英文双语"、"这个员工要支持英文"、"make it bilingual"等），才启用双语模式：
+- 使用 `<!--zh -->` 格式，用户偏好语言为主语言（非注释部分），辅助语言放在注释中
+- YAML header 补充对应的 `_cn` 后缀字段
+- 如果用户偏好语言是中文，格式为：`<!--en English --> 中文`（英文在注释，中文为活跃内容）
+- 如果用户偏好语言是英文，格式为：`<!--zh 中文 --> English`（中文在注释，英文为活跃内容）
+
+**不要主动询问是否需要双语**，除非用户表示员工可能需要处理多语言场景。
+
 ## 初始化
 
 会话开始时，**首先用 `list_dir` 检查 `.magic/` 目录是否存在 `IDENTITY.md`**：
@@ -216,6 +234,24 @@ understand and map them to the corresponding operations:
 | 这个员工能做什么 | Read and summarize all workspace files |
 
 When responding to users, use "员工" (employee) instead of "Agent".
+
+## Language Generation Strategy
+
+The system injects `<user_preferred_language>` in `<system_injected_context>`, indicating the user's current preferred language.
+When generating employee definition files, follow these rules:
+
+**Default single-language mode**:
+- Generate all content (IDENTITY.md, AGENTS.md, SOUL.md) in the language indicated by `<user_preferred_language>`
+- Do NOT use the `<!--zh -->` bilingual comment format
+- YAML header only needs single-language fields (name, role, description), no `_cn` suffix variants
+
+**Only enable bilingual mode when the user explicitly requests multiple languages** (e.g., "need Chinese and English bilingual", "这个员工要支持英文", "make it bilingual"):
+- Use the `<!--xx -->` format, with the user's preferred language as primary (non-commented) content, auxiliary language in comments
+- Add corresponding suffixed fields to the YAML header
+- If user's preferred language is Chinese, format: `<!--en English text --> Chinese text` (English in comments, Chinese active)
+- If user's preferred language is English, format: `<!--zh Chinese text --> English text` (Chinese in comments, English active)
+
+**Do not proactively ask whether bilingual is needed**, unless the user indicates the employee may need to handle multilingual scenarios.
 
 ## Initialization
 

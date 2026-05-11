@@ -215,8 +215,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
         $fullFileDir = (string) ($archiveDirectory['full_file_dir'] ?? PathFactory::buildFullDirPath($filePrefix, $entity->getProjectId(), $entity->getFileDir()));
         $relativeFileDir = (string) ($archiveDirectory['relative_file_dir'] ?? $entity->getFileDir());
         $fileDirExists = $taskFileDir instanceof TaskFileEntity;
-
-        if (! $fileDirExists) {
+        if (! $taskFileDir || ! $taskFileDir->getIsDirectory()) {
             $this->logger->warning('design video poll archive skipped: file dir not found, completing without file archive', [
                 'video_id' => $entity->getGenerationId(),
                 'project_id' => $entity->getProjectId(),
@@ -242,6 +241,9 @@ class DesignVideoPollConsumer extends ConsumerMessage
         $posterUrl = trim((string) ($output['poster_url'] ?? ''));
         $posterFileName = $posterUrl !== '' ? $this->domainService->buildPosterFileName($fileName, $posterUrl) : '';
 
+        // Derive upload path and file keys from directory entity's actual file_key
+        $filePrefix = $this->fileDomainService->getFullPrefix($entity->getOrganizationCode());
+        $dirFileKey = rtrim($taskFileDir->getFileKey(), '/');
         $outputPayload = [
             'relative_file_path' => $fileDirExists ? $this->buildRelativeFilePath($relativeFileDir, $fileName) : '',
             'relative_poster_path' => ($fileDirExists && $posterFileName !== '') ? $this->buildRelativeFilePath($relativeFileDir, $posterFileName) : '',
@@ -335,8 +337,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
         }
 
         if (! $this->isValidArchiveDirectory($entity, $workspacePrefix, $taskFileDir)) {
-            $fullFileDir = PathFactory::buildFullDirPath($filePrefix, $entity->getProjectId(), $entity->getFileDir());
-            $taskFileDir = $this->taskFileDomainService->getByFileKey($fullFileDir);
+            $taskFileDir = $this->taskFileDomainService->findEntityByRelativePath($entity->getProjectId(), $entity->getFileDir());
         }
 
         if (! $this->isValidArchiveDirectory($entity, $workspacePrefix, $taskFileDir)) {
@@ -466,7 +467,7 @@ class DesignVideoPollConsumer extends ConsumerMessage
         $taskFileEntity->setFileKey($fileKey);
         $taskFileEntity->setSource(TaskFileSource::AI_VIDEO_GENERATION);
         $taskFileEntity->setFileName($fileName);
-        $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->name);
+        $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
         $taskFileEntity->setFileSize($uploadFile->getSize());
         $taskFileEntity->setIsDirectory(false);
         $taskFileEntity->setParentId($parentId);

@@ -81,10 +81,21 @@ class AsrMergeService(AsrServiceBase):
         # 获取任务管理器单例
         task_manager = AsrMergeTaskManager.instance()
 
+        # TEMP: Fetch context needed for scan-wav API call once before the loop
+        # to avoid repeated reads on every iteration. Remove when MagicFS handles
+        # metadata refresh automatically.
+        _scan_wav_project_id, _scan_wav_relative_path = await self._load_scan_wav_context(task)
+
         try:
             while True:
                 # 0. 更新活跃时间，防止沙箱因超时被杀 (agent_idle_timeout default 20min)
                 self.merge_operations.update_agent_activity(f"ASR轮询: {task.task_key}")
+
+                # TEMP: Notify Magic Service backend to scan object storage so that
+                # MagicFS can expose newly uploaded shards on the local filesystem
+                # before we scan the local directory. Silently skipped on failure to
+                # avoid breaking the polling loop. Remove when MagicFS auto-refreshes.
+                await self._trigger_scan_wav(_scan_wav_project_id, _scan_wav_relative_path, task.task_key)
 
                 # 1. 扫描所有 WAV 文件
                 all_files = await asyncio.to_thread(
@@ -166,6 +177,70 @@ class AsrMergeService(AsrServiceBase):
             await AsrMergeTaskManager.instance().fail_task(task.task_key, f"监听失败: {str(e)}")
         finally:
             logger.info(f"{self.LOG_PREFIX} 🛑 task_key={task.task_key} 停止轮询目录: {task.source_dir}")
+
+    # TEMP: ---- scan-wav helpers (remove when MagicFS auto-refreshes) ----
+
+    async def _load_scan_wav_context(self, task: AsrMonitoringTask) -> tuple[str, str]:
+        """
+        Resolve project_id and relative_path needed for the scan-wav API.
+
+        project_id comes from InitClientMessage metadata.
+        relative_path is the original (workspace-relative) source_dir string stored
+        in the task result, not the resolved absolute path in AsrMonitoringTask.
+
+        # TEMP: Remove together with _trigger_scan_wav when MagicFS auto-refreshes.
+        """
+        project_id = ""
+        relative_path = ""
+        try:
+            from app.utils.init_client_message_util import InitClientMessageUtil
+            metadata = InitClientMessageUtil.get_metadata()
+            project_id = metadata.get("project_id", "")
+        except Exception as e:
+            logger.warning(f"{self.LOG_PREFIX} [scan-wav TEMP] Failed to load project_id: {e}")
+
+        try:
+            task_result = await AsrMergeTaskManager.instance().get_task(task.task_key)
+            if task_result:
+                relative_path = task_result.source_dir
+        except Exception as e:
+            logger.warning(f"{self.LOG_PREFIX} [scan-wav TEMP] Failed to load relative_path: {e}")
+
+        return project_id, relative_path
+
+    async def _trigger_scan_wav(self, project_id: str, relative_path: str, task_key: str) -> None:
+        """
+        Call the scan-wav API to push MagicFS metadata refresh before local scanning.
+
+        Errors are caught and logged at WARNING level so the polling loop is never
+        interrupted by a backend-side failure of this temporary workaround.
+
+        # TEMP: Remove when MagicFS handles metadata refresh automatically.
+        """
+        if not project_id or not relative_path:
+            logger.debug(
+                f"{self.LOG_PREFIX} [scan-wav TEMP] task_key={task_key} "
+                f"Skipping scan-wav: project_id or relative_path not available"
+            )
+            return
+        try:
+            from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
+            from app.infrastructure.sdk.magic_service.parameter.scan_wav_parameter import ScanWavParameter
+
+            sdk = get_magic_service_sdk()
+            param = ScanWavParameter(project_id=project_id, relative_path=relative_path)
+            result = await sdk.file.scan_wav_async(param)
+            logger.debug(
+                f"{self.LOG_PREFIX} [scan-wav TEMP] task_key={task_key} "
+                f"scan-wav OK: scanned={result.get_scanned()}, inserted={result.get_inserted()}"
+            )
+        except Exception as e:
+            logger.warning(
+                f"{self.LOG_PREFIX} [scan-wav TEMP] task_key={task_key} "
+                f"scan-wav call failed (non-fatal): {e}"
+            )
+
+    # TEMP: ---- end scan-wav helpers ----
 
     async def _process_new_files(
         self, task: AsrMonitoringTask, all_files: list, current_indices: set, is_first_run: bool
