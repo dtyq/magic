@@ -48,35 +48,6 @@ class PdfConvertService(BaseConvertService):
             logger.info("✅ PDF服务：已启用长截图模式，将转换完整页面内容")
 
     @staticmethod
-    def _merge_pdf_options(default_options: Dict[str, Any], user_options: Dict[str, Any]) -> Dict[str, Any]:
-        merged_options = dict(default_options)
-        merged_options.update(user_options)
-        if isinstance(default_options.get("margin"), dict) and isinstance(user_options.get("margin"), dict):
-            merged_options["margin"] = {**default_options["margin"], **user_options["margin"]}
-        return merged_options
-
-    @staticmethod
-    def _has_explicit_page_size_options(user_options: Dict[str, Any]) -> bool:
-        return any(key in user_options for key in ("format", "width", "height", "prefer_css_page_size"))
-
-    @staticmethod
-    def _get_markdown_default_pdf_options() -> Dict[str, Any]:
-        return {
-            "format": "A4",
-            "landscape": False,
-            "scale": 1.0,
-            "print_background": True,
-            "prefer_css_page_size": True,
-            "margin": {"top": "0px", "right": "0px", "bottom": "0px", "left": "0px"},
-        }
-
-    @staticmethod
-    def _get_explicit_page_default_pdf_options() -> Dict[str, Any]:
-        return {
-            "print_background": True,
-        }
-
-    @staticmethod
     async def _inject_common_pdf_css(page) -> None:
         try:
             await PdfConvertService._inject_print_css(page)
@@ -332,7 +303,7 @@ class PdfConvertService(BaseConvertService):
             task_key: 任务标识符，会在结果中原样返回
             sts_credential: STS临时凭证，用于上传
             aigc_params: AIGC元数据参数对象
-            options: PDF转换选项
+            options: 兼容旧调用参数，PDF导出不接受外部配置，始终使用super-magic内置配置
 
         Returns:
             转换结果字典
@@ -358,8 +329,9 @@ class PdfConvertService(BaseConvertService):
             if not file_path_mapping:
                 raise RuntimeError("没有找到任何有效的workspace文件，请检查文件key是否正确")
 
-            # PDF转换服务按文件类型确定默认选项，再叠加外部传入的用户选项
-            options = options or {}
+            if options:
+                logger.info("PDF转换：已忽略请求传入的options，使用super-magic内置PDF导出配置")
+            options = {}
 
             logger.info(f"开始处理 {len(file_path_mapping)} 个文件")
 
@@ -1020,7 +992,7 @@ class PdfConvertService(BaseConvertService):
         Args:
             file_path_mapping: 文件路径映射
             pdf_dir: PDF输出目录
-            options: PDF转换选项
+            options: 兼容旧调用参数，PDF导出不接受外部配置，始终使用super-magic内置配置
             task_mgr: 任务管理器
             task_key: 任务键
             valid_files_count: 有效文件数量
@@ -1034,10 +1006,8 @@ class PdfConvertService(BaseConvertService):
             (成功转换的PDF文件列表, 错误信息列表)
         """
         conversion_errors = []
-        user_pdf_options = self._normalize_pdf_options(options or {})
-
         if options:
-            logger.info("PDF转换：检测到外部options参数，已合并到PDF转换配置")
+            logger.info("PDF转换：检测到外部options参数，已忽略，使用super-magic内置PDF导出配置")
         if max_workers != 1:
             logger.debug(f"PDF转换：max_workers={max_workers} 已忽略，当前使用串行处理")
 
@@ -1241,48 +1211,37 @@ class PdfConvertService(BaseConvertService):
                                 "margin": {"top": "0px", "right": "0px", "bottom": "0px", "left": "0px"},
                                 "scale": 1.0,
                             }
-                            pdf_options = self._merge_pdf_options(
-                                self._normalize_pdf_options(ppt_pdf_options), user_pdf_options
-                            )
+                            pdf_options = self._normalize_pdf_options(ppt_pdf_options)
                         else:
-                            use_dynamic_page_size = not self._has_explicit_page_size_options(user_pdf_options)
-
-                            # 🎯 长截图模式：仅在用户未显式指定页面尺寸时动态调整视口
-                            if self.enable_full_page and use_dynamic_page_size:
+                            # 🎯 长截图模式：HTML使用super-magic内置动态页面尺寸，不接受外部PDF参数覆盖
+                            if self.enable_full_page:
                                 await self._adjust_viewport_for_full_page(page)
                                 # 懒加载触发后可能改变页面高度，需要重新调整视口
                                 await self._adjust_viewport_for_full_page(page)
 
-                            if use_dynamic_page_size:
-                                dimensions = await self._detect_content_dimensions(page, self.enable_full_page)
-                                optimal_pdf_options = self._calculate_optimal_pdf_options(dimensions)
+                            dimensions = await self._detect_content_dimensions(page, self.enable_full_page)
+                            optimal_pdf_options = self._calculate_optimal_pdf_options(dimensions)
 
-                                # 🎯 关键修复：如果需要注入页面尺寸CSS，先注入
-                                if optimal_pdf_options.get("_inject_page_size"):
-                                    page_width = optimal_pdf_options.get("_page_width")
-                                    page_height = optimal_pdf_options.get("_page_height")
-                                    try:
-                                        await page.add_style_tag(
-                                            content=f"""
-                                            @page {{
-                                                size: {page_width}px {page_height}px;
-                                                margin: 0;
-                                            }}
-                                        """
-                                        )
-                                        logger.info(
-                                            f"🎯 [{local_file_path.name}] 普通HTML注入@page规则: {page_width}×{page_height}px"
-                                        )
-                                    except Exception as css_error:
-                                        logger.warning(f"普通HTML CSS注入失败: {css_error}")
+                            # 🎯 关键修复：如果需要注入页面尺寸CSS，先注入
+                            if optimal_pdf_options.get("_inject_page_size"):
+                                page_width = optimal_pdf_options.get("_page_width")
+                                page_height = optimal_pdf_options.get("_page_height")
+                                try:
+                                    await page.add_style_tag(
+                                        content=f"""
+                                        @page {{
+                                            size: {page_width}px {page_height}px;
+                                            margin: 0;
+                                        }}
+                                    """
+                                    )
+                                    logger.info(
+                                        f"🎯 [{local_file_path.name}] 普通HTML注入@page规则: {page_width}×{page_height}px"
+                                    )
+                                except Exception as css_error:
+                                    logger.warning(f"普通HTML CSS注入失败: {css_error}")
 
-                                pdf_options = self._merge_pdf_options(
-                                    self._normalize_pdf_options(optimal_pdf_options), user_pdf_options
-                                )
-                            else:
-                                pdf_options = self._merge_pdf_options(
-                                    self._get_explicit_page_default_pdf_options(), user_pdf_options
-                                )
+                            pdf_options = self._normalize_pdf_options(optimal_pdf_options)
 
                     elif source_suffix == ".md":
                         try:
@@ -1306,64 +1265,52 @@ class PdfConvertService(BaseConvertService):
 
                         await self._inject_common_pdf_css(page)
 
-                        use_dynamic_page_size = self.enable_full_page and not self._has_explicit_page_size_options(
-                            user_pdf_options
-                        )
-                        if use_dynamic_page_size:
-                            dimensions = await self._detect_markdown_page_dimensions(page)
-                            optimal_pdf_options = self._get_markdown_magic_web_pdf_options(dimensions)
+                        dimensions = await self._detect_markdown_page_dimensions(page)
+                        optimal_pdf_options = self._get_markdown_magic_web_pdf_options(dimensions)
 
-                            if optimal_pdf_options.get("_inject_page_size"):
-                                page_width = optimal_pdf_options.get("_page_width")
-                                page_height = optimal_pdf_options.get("_page_height")
-                                try:
-                                    await page.add_style_tag(
-                                        content=f"""
-                                        @page {{
-                                            size: {page_width}px {page_height}px;
-                                            margin: 0;
+                        if optimal_pdf_options.get("_inject_page_size"):
+                            page_width = optimal_pdf_options.get("_page_width")
+                            page_height = optimal_pdf_options.get("_page_height")
+                            try:
+                                await page.add_style_tag(
+                                    content=f"""
+                                    @page {{
+                                        size: {page_width}px {page_height}px;
+                                        margin: 0;
+                                    }}
+                                    @media print {{
+                                        html,
+                                        body {{
+                                            width: {page_width}px !important;
+                                            min-height: 0 !important;
+                                            margin: 0 !important;
+                                            overflow: visible !important;
                                         }}
-                                        @media print {{
-                                            html,
-                                            body {{
-                                                width: {page_width}px !important;
-                                                min-height: 0 !important;
-                                                margin: 0 !important;
-                                                overflow: visible !important;
-                                            }}
 
-                                            .simple-editor-wrapper,
-                                            .simple-editor-content {{
-                                                min-height: 0 !important;
-                                                height: auto !important;
-                                                overflow: visible !important;
-                                            }}
-
-                                            .simple-editor-content .tiptap.ProseMirror.simple-editor {{
-                                                min-height: 0 !important;
-                                                height: auto !important;
-                                                overflow: visible !important;
-                                                padding-bottom: {self.MARKDOWN_PRINT_BOTTOM_PADDING_PX}px !important;
-                                            }}
+                                        .simple-editor-wrapper,
+                                        .simple-editor-content {{
+                                            min-height: 0 !important;
+                                            height: auto !important;
+                                            overflow: visible !important;
                                         }}
-                                    """
-                                    )
-                                    logger.info(
-                                        f"🎯 [{local_file_path.name}] Markdown注入长页面@page规则: {page_width}×{page_height}px"
-                                    )
-                                except Exception as css_error:
-                                    logger.warning(f"Markdown长页面CSS注入失败: {css_error}")
 
-                            pdf_options = self._merge_pdf_options(
-                                self._normalize_pdf_options(optimal_pdf_options), user_pdf_options
-                            )
-                            logger.info("Markdown文件：启用Magic-web桌面预览长页配置")
-                        else:
-                            pdf_options = self._merge_pdf_options(
-                                self._normalize_pdf_options(self._get_markdown_default_pdf_options()),
-                                user_pdf_options,
-                            )
-                            logger.info("Markdown文件：使用A4分页配置")
+                                        .simple-editor-content .tiptap.ProseMirror.simple-editor {{
+                                            min-height: 0 !important;
+                                            height: auto !important;
+                                            overflow: visible !important;
+                                            padding-bottom: {self.MARKDOWN_PRINT_BOTTOM_PADDING_PX}px !important;
+                                        }}
+                                    }}
+                                """
+                                )
+                                logger.info(
+                                    f"🎯 [{local_file_path.name}] Markdown注入长页面@page规则: {page_width}×{page_height}px"
+                                )
+                            except Exception as css_error:
+                                logger.warning(f"Markdown长页面CSS注入失败: {css_error}")
+
+                        pdf_options = self._normalize_pdf_options(optimal_pdf_options)
+                        logger.info("Markdown文件：启用Magic-web桌面预览长页配置")
 
                     # 生成带时间戳的PDF文件名 - 与压缩包命名保持一致
                     project_name = self.get_project_directory_from_file_key(file_key)
@@ -1496,7 +1443,7 @@ class PdfConvertService(BaseConvertService):
         Args:
             pdf_projects: PDF项目字典
             pdf_dir: PDF输出目录
-            options: PDF转换选项
+            options: 兼容旧调用参数，PDF导出不接受外部配置，始终使用super-magic内置配置
             task_mgr: 任务管理器
             task_key: 任务键
             valid_files_count: 有效文件数量
@@ -1622,7 +1569,7 @@ class PdfConvertService(BaseConvertService):
         Args:
             projects: PDF项目字典
             output_dir: 输出目录（对应batch_dir下的pdf子目录）
-            options: 转换选项
+            options: 兼容旧调用参数，PDF导出不接受外部配置，始终使用super-magic内置配置
             task_mgr: 任务管理器
             task_key: 任务键
             valid_files_count: 有效文件数量

@@ -114,7 +114,7 @@ async def test_markdown_html_uses_magic_web_tiptap_layout(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_markdown_pdf_conversion_uses_base_href_without_temp_file(tmp_path, monkeypatch):
+async def test_markdown_pdf_conversion_ignores_request_options_and_uses_base_href_without_temp_file(tmp_path, monkeypatch):
     workspace = tmp_path / ".workspace"
     article_dir = workspace / "story"
     article_dir.mkdir(parents=True)
@@ -160,9 +160,11 @@ async def test_markdown_pdf_conversion_uses_base_href_without_temp_file(tmp_path
     assert 'class="simple-editor-wrapper tiptap-editor-root"' in page.content
     assert 'src="images/pic.png"' in page.content
     assert page.wait_for_function_calls
-    assert page.pdf_options[0]["format"] == "A4"
-    assert page.pdf_options[0]["margin"]["top"] == "1cm"
+    assert "format" not in page.pdf_options[0]
+    assert page.pdf_options[0]["prefer_css_page_size"] is True
+    assert page.pdf_options[0]["margin"] == {"top": "0px", "right": "0px", "bottom": "0px", "left": "0px"}
     assert page.viewport_sizes[-1] == {"width": 1920, "height": 1080}
+    assert any("size: 1920px 1080px" in style for style in page.styles)
     assert list(article_dir.glob(".tmp_森林里的星空邮递员_*.html")) == []
 
 
