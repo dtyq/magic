@@ -185,8 +185,9 @@ class AdminOperationLogApi extends AbstractPermissionApi
         $endMs = $this->parseDateTimeToMs($endDate);
 
         if ($startMs === null && $endMs === null) {
-            $startMs = (new DateTimeImmutable('today'))->setTime(0, 0, 0)->getTimestamp() * 1000;
-            $endMs = (new DateTimeImmutable('today'))->setTime(23, 59, 59)->getTimestamp() * 1000 + 999;
+            $tz = new DateTimeZone((string) config('app.default_timezone', 'Asia/Shanghai'));
+            $startMs = (new DateTimeImmutable('today', $tz))->setTime(0, 0, 0)->getTimestamp() * 1000;
+            $endMs = (new DateTimeImmutable('today', $tz))->setTime(23, 59, 59)->getTimestamp() * 1000 + 999;
         }
 
         $filters = [

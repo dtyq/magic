@@ -12,6 +12,7 @@ use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Infrastructure\Util\StringMaskUtil;
 use App\Interfaces\Chat\DTO\UserDetailDTO;
 use DateTimeImmutable;
+use DateTimeZone;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -226,12 +227,15 @@ class AuditService
             $indexed[(int) ($r['bucket_ms'] ?? 0)] = $r;
         }
 
+        $tz = $this->statisticsDisplayTimezone();
+
         $startHourMs = (int) (floor($startMs / 3600000) * 3600000);
         $endHourMs = (int) (floor($endMs / 3600000) * 3600000);
 
         $points = [];
         for ($ms = $startHourMs; $ms <= $endHourMs; $ms += 3600000) {
-            $dt = new DateTimeImmutable('@' . intdiv($ms, 1000));
+            // @ 为 UTC 瞬时；转为 app 时区后再格式化，避免「本地日当天」在 JSON 里显示成前一日的 UTC 整点
+            $dt = (new DateTimeImmutable('@' . intdiv($ms, 1000)))->setTimezone($tz);
             $bucketLabel = $dt->format('Y-m-d H:i:s');
 
             $r = $indexed[$ms] ?? null;
@@ -256,8 +260,9 @@ class AuditService
             $indexed[(string) ($r['bucket_day'] ?? '')] = $r;
         }
 
-        $start = (new DateTimeImmutable('@' . intdiv($startMs, 1000)))->setTime(0, 0, 0);
-        $end = (new DateTimeImmutable('@' . intdiv($endMs, 1000)))->setTime(0, 0, 0);
+        $tz = $this->statisticsDisplayTimezone();
+        $start = (new DateTimeImmutable('@' . intdiv($startMs, 1000)))->setTimezone($tz)->modify('today');
+        $end = (new DateTimeImmutable('@' . intdiv($endMs, 1000)))->setTimezone($tz)->modify('today');
 
         $points = [];
         $cur = $start;
@@ -296,5 +301,10 @@ class AuditService
             ];
         }
         return $result;
+    }
+
+    private function statisticsDisplayTimezone(): DateTimeZone
+    {
+        return new DateTimeZone((string) config('app.default_timezone', 'Asia/Shanghai'));
     }
 }

@@ -146,11 +146,7 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
             $isOfficialOrganization
         );
 
-        return [
-            'summary' => $this->fetchSummary($filters, $organizationCode),
-            'trend' => $this->fetchTrend($filters, $organizationCode),
-            'breakdown' => $this->fetchBreakdown($filters, $organizationCode),
-        ];
+        return $this->fetchStatisticsInOnePass($filters, $organizationCode);
     }
 
     /**
@@ -301,90 +297,123 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
         }
     }
 
-    private function fetchSummary(array $filters, ?string $organizationCode): array
-    {
-        $builder = AuditLogModel::query();
-        $this->applyStatisticsFilters($builder, $filters, $organizationCode);
-
-        $row = $builder->selectRaw(
-            'COUNT(*) as total,
-             SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as error_count,
-             SUM(JSON_EXTRACT(usage, "$.prompt_tokens")) as input_tokens,
-             SUM(JSON_EXTRACT(usage, "$.completion_tokens")) as output_tokens,
-             SUM(COALESCE(JSON_EXTRACT(usage, "$.total_tokens"),
-                 JSON_EXTRACT(usage, "$.prompt_tokens") + JSON_EXTRACT(usage, "$.completion_tokens"), 0)) as total_tokens',
-            [AuditStatus::FAIL->value]
-        )->first();
-
-        return [
-            'total' => (int) ($row->total ?? 0),
-            'error' => (int) ($row->error_count ?? 0),
-            'input_tokens' => (int) ($row->input_tokens ?? 0),
-            'output_tokens' => (int) ($row->output_tokens ?? 0),
-            'total_tokens' => (int) ($row->total_tokens ?? 0),
-        ];
-    }
-
-    private function fetchTrend(array $filters, ?string $organizationCode): array
+    /**
+     * 一次扫表同时产出 summary / trend / breakdown 所需的全部原始数据。
+     * 分组粒度：(时间桶, service_provider_config_id, product_code)，
+     * 应用层再按维度做二次聚合，避免同一 WHERE 扫表三次。
+     *
+     * @return array{summary: array, trend: array, breakdown: array}
+     */
+    private function fetchStatisticsInOnePass(array $filters, ?string $organizationCode): array
     {
         $startMs = (int) $filters['start_operation_time'];
         $endMs = (int) $filters['end_operation_time'];
         $deltaMs = $endMs - $startMs;
+        $isHourly = $deltaMs <= 86400000;
 
         $builder = AuditLogModel::query();
         $this->applyStatisticsFilters($builder, $filters, $organizationCode);
 
-        if ($deltaMs <= 86400000) {
-            $rows = $builder->selectRaw(
-                'FLOOR(operation_time / 3600000) * 3600000 as bucket_ms,
-                 COUNT(*) as requests,
-                 SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as errors',
-                [AuditStatus::FAIL->value]
-            )
-                ->groupBy('bucket_ms')
-                ->orderBy('bucket_ms')
-                ->get()
-                ->toArray();
-        } else {
-            $rows = $builder->selectRaw(
-                "DATE_FORMAT(FROM_UNIXTIME(operation_time / 1000), '%Y-%m-%d') as bucket_day,
-                 COUNT(*) as requests,
-                 SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as errors",
-                [AuditStatus::FAIL->value]
-            )
-                ->groupBy('bucket_day')
-                ->orderBy('bucket_day')
-                ->get()
-                ->toArray();
-        }
-
-        return [
-            'bucket_type' => $deltaMs <= 86400000 ? 'hour' : 'day',
-            'rows' => array_map(fn ($r) => (array) $r, $rows),
-            'start_ms' => $startMs,
-            'end_ms' => $endMs,
-        ];
-    }
-
-    private function fetchBreakdown(array $filters, ?string $organizationCode): array
-    {
-        $builder = AuditLogModel::query();
-        $this->applyStatisticsFilters($builder, $filters, $organizationCode);
+        $bucketExpr = $isHourly
+            ? 'FLOOR(operation_time / 3600000) * 3600000'
+            : "DATE_FORMAT(FROM_UNIXTIME(operation_time / 1000), '%Y-%m-%d')";
 
         $rows = $builder->selectRaw(
-            'CAST(service_provider_config_id AS CHAR) as service_provider_config_id,
+            "{$bucketExpr} as bucket_key,
+             CAST(service_provider_config_id AS CHAR) as service_provider_config_id,
              product_code,
-             COUNT(*) as total_requests,
-             SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as error_requests',
+             COUNT(*) as cnt,
+             SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as err_cnt,
+             SUM(CAST(JSON_EXTRACT(`usage`, '$.prompt_tokens') AS UNSIGNED)) as input_tokens,
+             SUM(CAST(JSON_EXTRACT(`usage`, '$.completion_tokens') AS UNSIGNED)) as output_tokens,
+             SUM(COALESCE(
+                 CAST(JSON_EXTRACT(`usage`, '$.total_tokens') AS UNSIGNED),
+                 CAST(JSON_EXTRACT(`usage`, '$.prompt_tokens') AS UNSIGNED) + CAST(JSON_EXTRACT(`usage`, '$.completion_tokens') AS UNSIGNED),
+                 0
+             )) as total_tokens",
             [AuditStatus::FAIL->value]
         )
-            ->groupBy('service_provider_config_id', 'product_code')
-            ->orderByDesc('total_requests')
-            ->orderBy('service_provider_config_id')
-            ->orderBy('product_code')
+            ->groupBy('bucket_key', 'service_provider_config_id', 'product_code')
             ->get()
             ->toArray();
 
-        return array_map(fn ($r) => (array) $r, $rows);
+        $summaryTotal = 0;
+        $summaryError = 0;
+        $summaryInputTokens = 0;
+        $summaryOutputTokens = 0;
+        $summaryTotalTokens = 0;
+
+        $trendMap = [];
+        $breakdownMap = [];
+
+        foreach ($rows as $r) {
+            $r = (array) $r;
+            $cnt = (int) ($r['cnt'] ?? 0);
+            $errCnt = (int) ($r['err_cnt'] ?? 0);
+            $inTok = (int) ($r['input_tokens'] ?? 0);
+            $outTok = (int) ($r['output_tokens'] ?? 0);
+            $totTok = (int) ($r['total_tokens'] ?? 0);
+
+            $summaryTotal += $cnt;
+            $summaryError += $errCnt;
+            $summaryInputTokens += $inTok;
+            $summaryOutputTokens += $outTok;
+            $summaryTotalTokens += $totTok;
+
+            $bucketKey = $isHourly ? (int) $r['bucket_key'] : (string) $r['bucket_key'];
+            if (! isset($trendMap[$bucketKey])) {
+                $trendMap[$bucketKey] = ['requests' => 0, 'errors' => 0];
+            }
+            $trendMap[$bucketKey]['requests'] += $cnt;
+            $trendMap[$bucketKey]['errors'] += $errCnt;
+
+            $bKey = ($r['service_provider_config_id'] ?? '') . '||' . ($r['product_code'] ?? '');
+            if (! isset($breakdownMap[$bKey])) {
+                $breakdownMap[$bKey] = [
+                    'service_provider_config_id' => (string) ($r['service_provider_config_id'] ?? ''),
+                    'product_code' => (string) ($r['product_code'] ?? ''),
+                    'total_requests' => 0,
+                    'error_requests' => 0,
+                ];
+            }
+            $breakdownMap[$bKey]['total_requests'] += $cnt;
+            $breakdownMap[$bKey]['error_requests'] += $errCnt;
+        }
+
+        $breakdown = array_values($breakdownMap);
+        usort($breakdown, function (array $a, array $b) {
+            return $b['total_requests'] <=> $a['total_requests']
+                ?: $a['service_provider_config_id'] <=> $b['service_provider_config_id']
+                ?: $a['product_code'] <=> $b['product_code'];
+        });
+
+        if ($isHourly) {
+            $trendRows = [];
+            foreach ($trendMap as $ms => $v) {
+                $trendRows[] = ['bucket_ms' => $ms, 'requests' => $v['requests'], 'errors' => $v['errors']];
+            }
+        } else {
+            $trendRows = [];
+            foreach ($trendMap as $day => $v) {
+                $trendRows[] = ['bucket_day' => $day, 'requests' => $v['requests'], 'errors' => $v['errors']];
+            }
+        }
+
+        return [
+            'summary' => [
+                'total' => $summaryTotal,
+                'error' => $summaryError,
+                'input_tokens' => $summaryInputTokens,
+                'output_tokens' => $summaryOutputTokens,
+                'total_tokens' => $summaryTotalTokens,
+            ],
+            'trend' => [
+                'bucket_type' => $isHourly ? 'hour' : 'day',
+                'rows' => $trendRows,
+                'start_ms' => $startMs,
+                'end_ms' => $endMs,
+            ],
+            'breakdown' => $breakdown,
+        ];
     }
 }
