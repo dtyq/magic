@@ -26,16 +26,20 @@ class CheckpointListenerService:
     @staticmethod
     def register_standard_listeners(agent_context: AgentContext) -> None:
         """注册checkpoint相关的事件监听器"""
+        # 文件快照由外部文件系统（magicfs）直接在 checkpoint 目录里维护，
+        # 不再通过事件驱动的方式在 Python 层保存 initial_content / latest_content，
+        # 因此下面的文件事件监听器全部停用。
+        # 聊天历史快照仍由本服务负责备份。
         event_listeners = {
             EventType.BEFORE_MAIN_AGENT_RUN: CheckpointListenerService._handle_before_main_agent_run,
             # BEFORE事件监听器（保存initial_content）
-            EventType.BEFORE_FILE_CREATED: CheckpointListenerService._handle_before_file_created,
-            EventType.BEFORE_FILE_UPDATED: CheckpointListenerService._handle_before_file_updated,
-            EventType.BEFORE_FILE_DELETED: CheckpointListenerService._handle_before_file_deleted,
+            # EventType.BEFORE_FILE_CREATED: CheckpointListenerService._handle_before_file_created,
+            # EventType.BEFORE_FILE_UPDATED: CheckpointListenerService._handle_before_file_updated,
+            # EventType.BEFORE_FILE_DELETED: CheckpointListenerService._handle_before_file_deleted,
             # AFTER事件监听器（保存latest_content）
-            EventType.FILE_CREATED: CheckpointListenerService._handle_file_created,
-            EventType.FILE_UPDATED: CheckpointListenerService._handle_file_updated,
-            EventType.FILE_DELETED: CheckpointListenerService._handle_file_deleted,
+            # EventType.FILE_CREATED: CheckpointListenerService._handle_file_created,
+            # EventType.FILE_UPDATED: CheckpointListenerService._handle_file_updated,
+            # EventType.FILE_DELETED: CheckpointListenerService._handle_file_deleted,
             # 聊天历史变更事件监听器
             EventType.CHAT_HISTORY_CHANGED: CheckpointListenerService._handle_chat_history_changed,
         }

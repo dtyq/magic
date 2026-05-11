@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Agent\Event\Subscribe;
 
 use App\Domain\Chat\Entity\ValueObject\SocketEventType;
-use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
@@ -18,10 +17,8 @@ use Dtyq\SuperMagic\Domain\Agent\Event\AgentSkillsRemovedEvent;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
-use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -43,7 +40,6 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
         private readonly ProjectDomainService $projectDomainService,
         private readonly SkillRepositoryInterface $skillRepository,
         private readonly TaskFileDomainService $taskFileDomainService,
-        private readonly TaskFileRepositoryInterface $taskFileRepository,
         private readonly MagicUserRepository $magicUserRepository,
         private readonly LockerInterface $locker,
         private readonly SkillsMdSyncService $skillsMdSyncService,
@@ -127,12 +123,21 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
         }
 
         $projectOrgCode = $projectEntity->getUserOrganizationCode();
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectOrgCode);
-
-        $skillsDirFileKeys = $this->resolveSkillsDirectoryFileKeys($projectId, $fullPrefix, $workDir);
-
         $userId = $dataIsolation->getCurrentUserId();
-        $contactDataIsolation = DataIsolation::simpleMake($organizationCode, $userId);
+
+        // Locate the skills directory via tree navigation (parent_id + file_name).
+        // Standard structure: root -> .magic -> skills.
+        // Legacy fallback: root -> skills (old data written before the .magic layout).
+        $magicDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic');
+        $skillsDirEntity = $magicDirEntity !== null
+            ? $this->taskFileDomainService->findChildDirectoryByName($projectId, $magicDirEntity->getFileId(), 'skills')
+            : null;
+
+        if ($skillsDirEntity === null) {
+            // Legacy fallback: try skills directly under root.
+            $skillsDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, 'skills');
+        }
+
         $skillDataIsolation = SkillDataIsolation::create($organizationCode, $userId);
         $skillDataIsolation->disabled();
 
@@ -163,28 +168,47 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
 
                 $removedPackageNames[] = $packageName;
 
-                foreach ($skillsDirFileKeys as $skillsDirFileKey) {
-                    $targetPath = $skillsDirFileKey . $packageName . '/';
-
-                    $filesToDelete = $this->taskFileRepository->findFilesByDirectoryPath($projectId, $targetPath);
-                    $fileIds = array_map(fn ($entity) => $entity->getFileId(), $filesToDelete);
-                    $allDeletedFileIds = array_merge($allDeletedFileIds, $fileIds);
-
-                    $this->taskFileDomainService->deleteDirectoryFiles(
-                        $contactDataIsolation,
-                        $workDir,
-                        $projectId,
-                        $targetPath,
-                        $projectOrgCode
-                    );
-
-                    $this->logger->info('Skill files removed', [
+                if ($skillsDirEntity === null) {
+                    $this->logger->info('Skills directory not found, skipping file removal for skill', [
                         'skill_code' => $skillCode,
                         'package_name' => $packageName,
-                        'target_path' => $targetPath,
-                        'files_deleted' => count($fileIds),
                     ]);
+                    continue;
                 }
+
+                // Find the package directory as a direct child of the skills directory.
+                // Uses parent_id + file_name lookup; no path string construction needed.
+                $packageDirEntity = $this->taskFileDomainService->findChildDirectoryByName(
+                    $projectId,
+                    $skillsDirEntity->getFileId(),
+                    $packageName
+                );
+
+                if ($packageDirEntity === null) {
+                    $this->logger->info('Package directory not found, nothing to remove', [
+                        'skill_code' => $skillCode,
+                        'package_name' => $packageName,
+                    ]);
+                    continue;
+                }
+
+                // Collect all descendant file IDs for the push notification.
+                $descendants = $this->taskFileDomainService->findFilesRecursivelyByParentId(
+                    $projectId,
+                    $packageDirEntity->getFileId()
+                );
+                $descendantIds = array_map(fn ($entity) => $entity->getFileId(), $descendants);
+                $allDeletedFileIds = array_merge($allDeletedFileIds, $descendantIds, [$packageDirEntity->getFileId()]);
+
+                // Delete all descendants, then delete the package directory node itself.
+                $this->taskFileDomainService->clearProjectFile($projectId, $projectOrgCode, $packageDirEntity->getFileId());
+                $this->taskFileDomainService->deleteProjectFiles($projectOrgCode, $packageDirEntity, $workDir);
+
+                $this->logger->info('Skill files removed', [
+                    'skill_code' => $skillCode,
+                    'package_name' => $packageName,
+                    'files_deleted' => count($descendantIds) + 1,
+                ]);
             } catch (Throwable $e) {
                 $this->logger->error('Failed to remove skill files', [
                     'skill_code' => $skillCode,
@@ -288,26 +312,6 @@ class AgentSkillsRemovedEventSubscriber implements ListenerInterface
                 'error' => $e->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * Resolve skill directory file keys for deletion.
-     * Always checks both ".magic/skills" and legacy "skills" paths to handle
-     * data that may have been written to either location.
-     *
-     * @return string[]
-     */
-    private function resolveSkillsDirectoryFileKeys(int $projectId, string $fullPrefix, string $workDir): array
-    {
-        $relativePaths = ['.magic/skills', 'skills'];
-
-        $fileKeys = [];
-        foreach ($relativePaths as $relativePath) {
-            $fileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, $relativePath);
-            $fileKeys[] = ltrim($fileKey, '/') . '/';
-        }
-
-        return array_values(array_unique($fileKeys));
     }
 
     private function getMagicIdByUserId(string $userId): string

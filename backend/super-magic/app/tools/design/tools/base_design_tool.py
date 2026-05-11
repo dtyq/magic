@@ -308,7 +308,7 @@ class BaseDesignTool(AbstractFileTool[T], WorkspaceTool[T], Generic[T]):
 
         for attempt in range(max_retries):
             try:
-                workspace_path = Path(tool_context.base_dir)
+                workspace_path = Path(self.base_dir)
                 width, height = await get_image_info(src, workspace_path)
                 return float(width), float(height)
 

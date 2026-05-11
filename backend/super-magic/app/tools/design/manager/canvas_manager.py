@@ -355,9 +355,9 @@ class CanvasManager:
 
         if detail_level == "detailed":
             if isinstance(element, ImageElement) and getattr(element, "src", None):
-                lines.append(f"  Image Source: {element.src.lstrip('/')}")
+                lines.append(f"  Image Source: {element.src.removeprefix('./').lstrip('/')}")
             elif isinstance(element, VideoElement) and getattr(element, "src", None):
-                lines.append(f"  Video Source: {element.src.lstrip('/')}")
+                lines.append(f"  Video Source: {element.src.removeprefix('./').lstrip('/')}")
             elif isinstance(element, TextElement) and getattr(element, "content", None):
                 text_parts = []
                 for paragraph in element.content:

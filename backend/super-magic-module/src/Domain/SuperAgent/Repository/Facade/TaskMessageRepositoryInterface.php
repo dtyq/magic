@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade;
 
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 
 interface TaskMessageRepositoryInterface
@@ -192,4 +193,12 @@ interface TaskMessageRepositoryInterface
      * @return int Number of rows updated
      */
     public function deleteMessageByTopicId(int $topicId): int;
+
+    /**
+     * 批量获取话题未读状态映射.
+     *
+     * @param TopicEntity[] $topics
+     * @return array<int, bool>
+     */
+    public function getHasUnreadMapByTopics(array $topics): array;
 }

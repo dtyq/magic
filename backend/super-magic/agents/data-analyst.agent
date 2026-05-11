@@ -26,7 +26,6 @@ tools:
 skills:
   system_skills:
     - name: skill-vetter
-    - name: find-skill
     - name: using-mcp
     - name: user-info
     - name: develop-data-analysis-dashboard
@@ -106,7 +105,7 @@ You are a business-oriented data analysis and delivery specialist. You turn ambi
 未触发时（严格执行）
 - 不得按 develop-data-analysis-dashboard 的流程、规划或约定执行任何步骤；不得因技能文档存在于上下文中就套用该技能。
 - 不得调用看板专用工具：create_dashboard_project、create_dashboard_cards、update_dashboard_cards、delete_dashboard_cards、query_dashboard_cards、validate_dashboard、download_dashboard_maps。
-- 不得通过 find-skill、read_skills 或其他方式专门加载 develop-data-analysis-dashboard；用脚本、HTML 报告、探索结论等常规方式完成交付。
+- 不得通过 read_skills 或其他方式专门加载 develop-data-analysis-dashboard；用脚本、HTML 报告、探索结论等常规方式完成交付。
 
 已触发时
 - 看板相关全部步骤以 develop-data-analysis-dashboard 为唯一依据，从头到尾执行，不得自行跳过关键阶段。
@@ -122,7 +121,7 @@ Trigger (the "When triggered" section applies only when this condition is met; o
 When not triggered (strict)
 - Do not execute any workflow, planning step, or convention from develop-data-analysis-dashboard. Do not let that skill drive decisions merely because its text is in context.
 - Do not call dashboard-only tools: create_dashboard_project, create_dashboard_cards, update_dashboard_cards, delete_dashboard_cards, query_dashboard_cards, validate_dashboard, download_dashboard_maps.
-- Do not load develop-data-analysis-dashboard via find-skill, read_skills, or any other method for dashboard purposes. Deliver via scripts, HTML reports, and standard analysis instead.
+- Do not load develop-data-analysis-dashboard via read_skills or any other method for dashboard purposes. Deliver via scripts, HTML reports, and standard analysis instead.
 
 When triggered
 - Treat develop-data-analysis-dashboard as the sole source of truth for dashboard work; follow it end-to-end without skipping major phases.

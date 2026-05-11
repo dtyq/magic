@@ -27,10 +27,12 @@ parameters:
     - message: '#Call to an undefined static method .*::updateOrCreate\(\)#'
     - message: '#Access to an undefined property .*Model.*#'
     - message: '#Call to an undefined static method .*Model::.*#'
-    - message: '#Call to an undefined method Hyperf.*Builder::.*#'
+    - message: '#Call to an undefined method Hyperf.*Builder.*::.*#'
     - message: '#Call to an undefined method Hyperf\\SocketIOServer\\NamespaceInterface::to\(\).*#'
     - message: '#Using nullsafe method call on non-nullable.#'
-    - message: '#Expression on left side of .* is not nullable.#'
+    - message: '#(Expression|Property .* \(.*\)) on left side of .* is not nullable.#'
+    - identifier: nullCoalesce.property
+    - identifier: isset.property
     - message: '#Offset .* always exists and is not nullable.#'
     - message: '#Match arm is unreachable because previous comparison is always true.#'
     - message: '#Match arm comparison .* is always true.#'

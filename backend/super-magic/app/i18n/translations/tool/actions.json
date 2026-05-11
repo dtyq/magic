@@ -402,5 +402,13 @@
     "search_knowledge": {
         "zh_CN": "知识检索",
         "en_US": "Search knowledge"
+    },
+    "find_skills": {
+        "zh_CN": "搜索技能",
+        "en_US": "Search skills"
+    },
+    "install_skills": {
+        "zh_CN": "安装技能",
+        "en_US": "Install skills"
     }
 }

@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\File\Service\FileAppService;
 use App\Application\File\Service\FileCleanupAppService;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\CoContext;
@@ -18,6 +19,7 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ConvertStatusEnum;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
@@ -26,6 +28,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Response\
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Response\FileItemDTO;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileDownloadUrlHelper;
+use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ConvertFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileConvertStatusResponseDTO;
@@ -47,6 +50,7 @@ class FileConverterAppService extends AbstractAppService
     public function __construct(
         LoggerFactory $loggerFactory,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly AgentDomainService $agentDomainService,
         private readonly FileConverterInterface $fileConverterService,
         private readonly FileConvertStatusManager $fileConvertStatusManager,
         private readonly FileAppService $fileAppService,
@@ -237,15 +241,35 @@ class FileConverterAppService extends AbstractAppService
             // Get full workdir first
             $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectEntity->getUserOrganizationCode());
             $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
+            $rootFileId = '';
+            try {
+                $rootFileId = (string) $this->taskFileDomainService->getProjectRootFileId((int) $projectId);
+            } catch (Throwable $e) {
+                $this->logger->warning('Failed to get project root file id for file converter, fallback to empty root_file_id', [
+                    'project_id' => $projectId,
+                    'sandbox_id' => $sandboxId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            $authorization = $this->agentDomainService->getAuthorizationByUserId($userId);
 
             // Build file keys and get temporary credentials
-            $fileKeys = $this->buildFileKeys($validFiles, $fullWorkdir);
+            $fileKeys = $this->buildFileKeys($validFiles, (int) $projectId, $fullWorkdir, $taskKey);
+            if (empty($fileKeys)) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
+            }
             $stsTemporaryCredential = $this->getStsCredential($userAuthorization, $projectEntity->getWorkDir(), $projectEntity->getUserOrganizationCode());
 
-            $this->fileConvertStatusManager->setTaskProgress($taskKey, $totalFiles - 1, $totalFiles, 'Converting files');
+            $this->fileConvertStatusManager->setTaskProgress($taskKey, count($fileKeys) - 1, count($fileKeys), 'Converting files');
             // Synchronously ensure sandbox is available and execute conversion in a coroutine
             $this->sandboxGateway->setUserContext($userId, $userAuthorization->getOrganizationCode());
-            $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable($sandboxId, $projectId, $fullWorkdir);
+            $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable(
+                $sandboxId,
+                $projectId,
+                $fullWorkdir,
+                $rootFileId,
+                $authorization
+            );
 
             // 从第一个文件中获取 topic_id
             $topicId = ! empty($validFiles) && $validFiles[0]->getTopicId() > 0
@@ -262,7 +286,9 @@ class FileConverterAppService extends AbstractAppService
                 $taskKey,
                 $userId,
                 $userAuthorization->getOrganizationCode(),
-                $topicId
+                $topicId,
+                $rootFileId,
+                $authorization
             );
 
             $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();
@@ -325,6 +351,11 @@ class FileConverterAppService extends AbstractAppService
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
             ]);
+
+            // 输入前置校验错误需要直接失败返回，而不是吞掉后进入异步轮询。
+            if ($e instanceof BusinessException && $e->getCode() === SuperAgentErrorCode::BATCH_NO_VALID_FILES->value) {
+                throw $e;
+            }
         }
     }
 
@@ -790,29 +821,108 @@ class FileConverterAppService extends AbstractAppService
 
     /**
      * Builds an array of file keys.
-     * Only returns the relative path after $fullWorkdir.
+     * Parent-chain relative path is preferred; legacy file_key slicing is fallback.
      *
      * @param TaskFileEntity[] $validFiles list of valid files
+     * @param int $projectId project id
      * @param string $fullWorkdir full work directory path
+     * @param string $taskKey task key
      * @return array an array of relative file keys
      */
-    private function buildFileKeys(array $validFiles, string $fullWorkdir): array
+    private function buildFileKeys(array $validFiles, int $projectId, string $fullWorkdir, string $taskKey = ''): array
     {
         $fileKeys = [];
-        $fullWorkdir = rtrim($fullWorkdir, '/');
+        $parentChainHit = 0;
+        $legacyFallbackHit = 0;
+        $skippedCount = 0;
+        $fullWorkdir = rtrim(str_replace('\\', '/', $fullWorkdir), '/');
 
+        $convertibleFiles = [];
         foreach ($validFiles as $fileEntity) {
+            if ($fileEntity->getIsDirectory()) {
+                ++$skippedCount;
+                continue;
+            }
+            $convertibleFiles[] = $fileEntity;
+        }
+
+        $relativePathMap = [];
+        $fileMap = [];
+        if (! empty($convertibleFiles)) {
+            $fileIds = array_map(
+                static fn (TaskFileEntity $entity): int => $entity->getFileId(),
+                $convertibleFiles
+            );
+            $filesWithParents = $this->taskFileDomainService->getFilesWithParentsByIds($fileIds, $projectId);
+            $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
+            $relativePathMap = RelativeFilePathUtil::buildPathMapByParentChain($convertibleFiles, $fileMap);
+        }
+
+        foreach ($convertibleFiles as $fileEntity) {
             $fullFileKey = $fileEntity->getFileKey();
-            // Remove the $fullWorkdir prefix to get relative path
-            if (str_starts_with($fullFileKey, $fullWorkdir . '/')) {
-                $fileKeys[] = substr($fullFileKey, strlen($fullWorkdir) + 1);
-            } else {
-                // Fallback: use original key if prefix doesn't match
-                $fileKeys[] = $fullFileKey;
+            $fileId = $fileEntity->getFileId();
+
+            // Parent-chain path is only reliable when current file is present in queried parent map.
+            $pathByParent = isset($fileMap[$fileId]) ? $this->normalizeRelativePath($relativePathMap[$fileId] ?? '') : '';
+            if ($pathByParent !== '') {
+                $fileKeys[] = $pathByParent;
+                ++$parentChainHit;
+                continue;
+            }
+
+            $legacyPath = $this->buildLegacyFallbackPath($fullFileKey, $fullWorkdir);
+            if ($legacyPath !== '') {
+                $fileKeys[] = $legacyPath;
+                ++$legacyFallbackHit;
+                continue;
+            }
+
+            ++$skippedCount;
+            $this->logger->warning('Skip invalid file key for file convert', [
+                'task_key' => $taskKey,
+                'project_id' => $projectId,
+                'file_id' => $fileId,
+                'file_name' => $fileEntity->getFileName(),
+                'file_key' => $fullFileKey,
+            ]);
+        }
+
+        $this->logger->info('Built file keys for file convert', [
+            'task_key' => $taskKey,
+            'project_id' => $projectId,
+            'requested_files_count' => count($validFiles),
+            'built_file_keys_count' => count($fileKeys),
+            'parent_chain_hit' => $parentChainHit,
+            'legacy_fallback_hit' => $legacyFallbackHit,
+            'skipped_count' => $skippedCount,
+        ]);
+
+        return $fileKeys;
+    }
+
+    private function buildLegacyFallbackPath(string $fullFileKey, string $fullWorkdir): string
+    {
+        $normalizedFileKey = str_replace('\\', '/', $fullFileKey);
+
+        if ($fullWorkdir !== '' && str_starts_with($normalizedFileKey, $fullWorkdir . '/')) {
+            $relativePath = substr($normalizedFileKey, strlen($fullWorkdir) + 1);
+            $normalizedRelativePath = $this->normalizeRelativePath($relativePath);
+            if ($normalizedRelativePath !== '') {
+                return $normalizedRelativePath;
             }
         }
 
-        return $fileKeys;
+        return $this->normalizeRelativePath($normalizedFileKey);
+    }
+
+    private function normalizeRelativePath(string $path): string
+    {
+        $normalizedPath = str_replace('\\', '/', trim($path));
+        $normalizedPath = preg_replace('#/+#', '/', $normalizedPath) ?? '';
+        $normalizedPath = ltrim($normalizedPath, '/');
+        $normalizedPath = rtrim($normalizedPath, '/');
+
+        return trim($normalizedPath);
     }
 
     /**

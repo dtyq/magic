@@ -101,7 +101,7 @@ async def commit_rollback():
     try:
         logger.info("开始提交回滚操作")
 
-        rollback_service.commit_rollback()
+        await rollback_service.commit_rollback()
 
         return create_success_response(
             message="回滚提交操作执行成功",

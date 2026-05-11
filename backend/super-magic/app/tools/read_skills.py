@@ -1,9 +1,10 @@
 """Read Skills Tool - 批量读取项目 skills 的完整内容"""
 
+import asyncio
 from pathlib import Path
 
 from app.i18n import i18n
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import Field
 
@@ -24,6 +25,12 @@ class ReadSkillsParams(BaseToolParams):
         description="""<!--zh: 要读取的 skill 名称列表，例如：["canvas-design", "audio-chat"]-->
 The list of skill names to read, e.g., ["canvas-design", "audio-chat"]""",
         min_length=1,
+    )
+
+    check_updates: bool = Field(
+        default=True,
+        description="""<!--zh: 是否检查 skill 版本更新，默认为 true。若用户已明确表示不更新或忽略更新提醒，后续调用时应传 false 以跳过版本检查。-->
+Whether to check for skill version updates. Defaults to true. If the user has explicitly declined or ignored the update reminder, pass false in subsequent calls to skip the version check.""",
     )
 
 
@@ -79,6 +86,12 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
                 try:
                     skill = await find_skill(skill_name)
 
+                    # s3 挂载有延迟，首次找不到时等待 2s 后重试一次
+                    if not skill:
+                        logger.warning(f"Skill 未找到，2s 后重试: {skill_name}")
+                        await asyncio.sleep(2)
+                        skill = await find_skill(skill_name)
+
                     if not skill:
                         error_msg = f"未找到名为 '{skill_name}' 的 skill"
                         results.append({"skill_name": skill_name, "success": False, "error": error_msg})
@@ -107,7 +120,15 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
 
                     skill_content = "\n".join(skill_output_parts)
 
-                    results.append({"skill_name": skill_name, "success": True, "content": skill_content})
+                    actual_skill_dir = skill.skill_dir or (
+                        Path(skill.skill_file).parent if skill.skill_file else None
+                    )
+                    results.append({
+                        "skill_name": skill_name,
+                        "success": True,
+                        "content": skill_content,
+                        "skill_dir_path": actual_skill_dir,
+                    })
                     success_count += 1
                     logger.info(f"成功读取 skill: {skill_name}")
 
@@ -121,6 +142,25 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
                     results.append({"skill_name": skill_name, "success": False, "error": error_msg})
                     failure_count += 1
                     failed_skills.append(skill_name)
+
+            # 并发检查版本更新，有更新时推送 horizon 通知
+            # 若调用方明确传入 check_updates=False（用户已忽略或拒绝更新），则跳过检查
+            if params.check_updates:
+                skill_update_targets: List[Tuple[str, Path]] = [
+                    (r["skill_name"], r["skill_dir_path"])
+                    for r in results
+                    if r["success"] and r.get("skill_dir_path") is not None
+                ]
+                if skill_update_targets:
+                    try:
+                        await asyncio.wait_for(
+                            self._check_skill_updates(tool_context, skill_update_targets),
+                            timeout=10.0,
+                        )
+                    except asyncio.TimeoutError:
+                        logger.debug("版本更新检查整体超时，跳过")
+                    except Exception as e:
+                        logger.debug(f"版本更新检查异常: {e}")
 
             # 构建最终输出
             output_parts = []
@@ -229,3 +269,79 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
         else:
             remark = self._get_remark_content(result, arguments)
         return {"action": action, "remark": remark}
+
+    async def _check_skill_updates(
+        self,
+        tool_context: ToolContext,
+        skill_dirs: List[Tuple[str, Path]],
+    ) -> None:
+        """并发检查已读 skill 的版本更新，有更新时通过 horizon 推送通知。
+
+        每个检查独立容错，整体不超过 8 秒。任何异常只 debug log，不影响主流程。
+        """
+        from app.core.skill_utils.manifest import read_manifest
+        from app.core.skill_utils.providers.registry import get_registry
+        from app.core.skill_utils.providers.base import SkillProviderId
+
+        async def check_one(skill_name: str, skill_dir: Path) -> Optional[Tuple[str, str, str]]:
+            """检查单个 skill 版本，返回 (skill_name, current_version, latest_version) 或 None。"""
+            try:
+                manifest = await asyncio.to_thread(read_manifest, skill_dir)
+                if not manifest or not manifest.source_id or manifest.version == "unknown":
+                    return None
+
+                try:
+                    provider_id = SkillProviderId(manifest.provider)
+                except ValueError:
+                    return None
+
+                registry = get_registry()
+                try:
+                    provider = registry.get(provider_id)
+                except KeyError:
+                    return None
+
+                if not provider.enabled:
+                    return None
+
+                latest = await asyncio.wait_for(
+                    provider.resolve_latest(manifest.source_id),
+                    timeout=8.0,
+                )
+
+                if latest is None or latest == "unknown" or latest == manifest.version:
+                    return None
+
+                return skill_name, manifest.version, latest
+            except asyncio.TimeoutError:
+                logger.warning(f"检查 skill '{skill_name}' 版本超时")
+                return None
+            except Exception as e:
+                logger.warning(f"检查 skill '{skill_name}' 版本时出错: {e}")
+                return None
+
+        try:
+            tasks = [check_one(name, d) for name, d in skill_dirs]
+            check_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            updates = [r for r in check_results if isinstance(r, tuple)]
+            if not updates:
+                return
+
+            skill_list = ", ".join(
+                f"{skill_name} ({current_ver} -> {latest_ver})"
+                for skill_name, current_ver, latest_ver in updates
+            )
+            lines = [
+                f"New versions are available for the following skills: {skill_list}.",
+                "You may use the ask_user tool to check with the user whether they would like to update. "
+                "If confirmed, call install_skills to perform the update. "
+                "If the user declines or ignores the update, pass check_updates=false in all subsequent read_skills calls to suppress further update checks.",
+            ]
+
+            self.get_horizon(tool_context).push_notification(
+                "skill_update_checker",
+                "\n".join(lines),
+            )
+        except Exception as e:
+            logger.warning(f"版本更新检查失败: {e}")

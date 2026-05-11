@@ -9,15 +9,20 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI;
 
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImageBase64DataUriParser;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use GuzzleHttp\Exception\RequestException;
 use Hyperf\Logger\LoggerFactory;
+use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Log\LoggerInterface;
 
 class AzureOpenAIAPI
 {
+    use ImagePayloadLogSanitizerTrait;
+
     private const REQUEST_TIMEOUT = 1200;
 
     protected LoggerInterface $logger;
@@ -49,7 +54,7 @@ class AzureOpenAIAPI
 
         $this->logger->info('Azure OpenAI API 请求', [
             'url' => $url,
-            'payload' => $data,
+            'payload' => $this->sanitizePayloadForLog($data),
         ]);
 
         try {
@@ -90,21 +95,11 @@ class AzureOpenAIAPI
 
             $imageKey = count($imageUrls) > 1 ? 'image[]' : 'image';
             foreach ($imageUrls as $index => $imageUrl) {
-                $imageStreamBody = $this->downloadToStream($imageUrl);
-                $multipartData[] = [
-                    'name' => $imageKey,
-                    'contents' => $imageStreamBody->getContents(),
-                    'filename' => "image{$index}.png",
-                ];
+                $multipartData[] = $this->createImageMultipartPart($imageKey, $imageUrl, $index);
             }
 
             if ($maskUrl !== null) {
-                $maskStreamBody = $this->downloadToStream($maskUrl);
-                $multipartData[] = [
-                    'name' => 'mask',
-                    'contents' => $maskStreamBody->getContents(),
-                    'filename' => 'mask.png',
-                ];
+                $multipartData[] = $this->createImageMultipartPart('mask', $maskUrl, 0, 'mask');
             }
 
             $multipartData[] = ['name' => 'prompt', 'contents' => $prompt];
@@ -116,14 +111,14 @@ class AzureOpenAIAPI
 
             $this->logger->info('Azure OpenAI API 请求', [
                 'url' => $url,
-                'payload' => [
+                'payload' => $this->sanitizePayloadForLog([
                     'imageUrls' => $imageUrls,
                     'maskUrl' => $maskUrl,
                     'prompt' => $prompt,
                     'size' => $size,
                     'n' => $n,
                     'quality' => $quality,
-                ],
+                ]),
             ]);
 
             $response = $client->post($url, [
@@ -156,6 +151,36 @@ class AzureOpenAIAPI
         } catch (RequestException $e) {
             ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Failed to download image from URL: ' . $url);
         }
+    }
+
+    /**
+     * Build one multipart image part for Azure OpenAI image edit.
+     */
+    private function createImageMultipartPart(string $name, string $image, int $index, string $filenamePrefix = 'image'): array
+    {
+        try {
+            $base64Image = ImageBase64DataUriParser::parseDecoded($image);
+        } catch (InvalidArgumentException) {
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Invalid base64 image data');
+        }
+
+        if ($base64Image !== null) {
+            return [
+                'name' => $name,
+                'contents' => $base64Image['binary_data'],
+                'filename' => $filenamePrefix . $index . '.' . $base64Image['extension'],
+                'headers' => [
+                    'Content-Type' => $base64Image['mime_type'],
+                ],
+            ];
+        }
+
+        $imageStreamBody = $this->downloadToStream($image);
+        return [
+            'name' => $name,
+            'contents' => $imageStreamBody->getContents(),
+            'filename' => "{$filenamePrefix}{$index}.png",
+        ];
     }
 
     /**

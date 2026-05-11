@@ -13,6 +13,7 @@ use App\Domain\Design\Entity\ImageGenerationEntity;
 use App\Domain\File\Service\FileDomainService;
 use App\Domain\ModelGateway\Entity\Dto\ImageRemoveBackgroundRequestDTO;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 
 /**
  * 设计侧「去背景」异步任务：取工作区首张参考图，走专用去背景服务（removeBackground，PNG 透明底），并参与规则化输出文件名。
@@ -21,9 +22,10 @@ final class DesignRemoveBackgroundImageTaskHandler extends AbstractDesignImageGe
 {
     public function __construct(
         FileDomainService $fileDomainService,
+        TaskFileDomainService $taskFileDomainService,
         private readonly ImageRemoveBackgroundAppService $imageRemoveBackgroundAppService,
     ) {
-        parent::__construct($fileDomainService);
+        parent::__construct($fileDomainService, $taskFileDomainService);
     }
 
     public function handle(
@@ -37,7 +39,7 @@ final class DesignRemoveBackgroundImageTaskHandler extends AbstractDesignImageGe
         }
 
         $linkOptions = $this->buildLinkOptionsFromImageOptions($this->findImageOptions($entity->getReferenceImageOptions() ?? [], $referenceImage));
-        $imageUrl = $this->getWorkspaceSandboxImageUrl($dataIsolation, $workspacePrefix, $referenceImage, $linkOptions);
+        $imageUrl = $this->getWorkspaceSandboxImageUrl($dataIsolation, $entity->getProjectId(), $referenceImage, $linkOptions);
         if ($imageUrl === null || $imageUrl === '') {
             return null;
         }

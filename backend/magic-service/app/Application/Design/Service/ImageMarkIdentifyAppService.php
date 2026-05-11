@@ -9,7 +9,6 @@ namespace App\Application\Design\Service;
 
 use App\Application\ModelGateway\MicroAgent\MicroAgentFactory;
 use App\Domain\Design\Entity\ValueObject\ImageMarkIdentifyType;
-use App\Domain\Design\Factory\PathFactory;
 use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\DesignErrorCode;
 use App\ErrorCode\GenericErrorCode;
@@ -85,21 +84,16 @@ class ImageMarkIdentifyAppService extends DesignAppService
                 ]
             )?->getUrl();
         } else {
-            // 普通文件：构建完整文件路径并验证文件是否存在
-            $workspacePrefix = PathFactory::getWorkspacePrefix($filePrefix, $projectId);
-
-            // 处理路径拼接：确保 workspacePrefix 和 filePath 之间有且仅有一个 /
-            $needsSlash = ! str_ends_with($workspacePrefix, '/') && ! str_starts_with($filePath, '/');
-            $fullFilePath = $workspacePrefix . ($needsSlash ? '/' : '') . $filePath;
-
-            $taskFile = $this->taskFileDomainService->getByFileKey($fullFilePath);
+            // Verify workspace file exists via tree navigation (parent_id + name model)
+            $taskFile = $this->taskFileDomainService->findEntityByRelativePath($projectId, $filePath);
             if (! $taskFile || $taskFile->getIsDirectory()) {
                 ExceptionBuilder::throw(DesignErrorCode::InvalidArgument, 'design.image_mark_identify.file_not_exists', ['file_path' => $filePath]);
             }
 
+            // Use entity's actual file_key as the object storage path for link generation
             $imageUrl = $this->fileDomainService->getLink(
                 $dataIsolation->getCurrentOrganizationCode(),
-                $fullFilePath,
+                $taskFile->getFileKey(),
                 StorageBucketType::SandBox,
                 options: [
                     'image' => ImageProcessOptions::fromString('quality=90&format=webp'),

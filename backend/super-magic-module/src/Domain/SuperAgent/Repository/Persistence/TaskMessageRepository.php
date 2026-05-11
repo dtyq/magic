@@ -10,6 +10,8 @@ namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Carbon\Carbon;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskMessageEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskMessageModel;
 use Hyperf\DbConnection\Db;
@@ -39,7 +41,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
     public function batchSave(array $messages): void
     {
         $data = array_map(function (TaskMessageEntity $message) {
-            return $message->toArray();
+            return $this->withTimestamps($message->toArray());
         }, $messages);
 
         $this->model::query()->insert($data);
@@ -424,7 +426,7 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
                 $messageEntity->setId(IdGenerator::getSnowId());
             }
 
-            $insertData[] = $messageEntity->toArrayWithoutOtherField();
+            $insertData[] = $this->withTimestamps($messageEntity->toArrayWithoutOtherField());
         }
 
         // 批量插入
@@ -462,6 +464,120 @@ class TaskMessageRepository implements TaskMessageRepositoryInterface
             ->where('topic_id', $topicId)
             ->whereNull('deleted_at')
             ->update(['deleted_at' => date('Y-m-d H:i:s')]);
+    }
+
+    public function getHasUnreadMapByTopics(array $topics): array
+    {
+        if (empty($topics)) {
+            return [];
+        }
+
+        $hasUnreadMap = [];
+        $timeCursorTopics = [];
+        $messageCursorTopics = [];
+        foreach ($topics as $topic) {
+            if (! $topic instanceof TopicEntity) {
+                continue;
+            }
+
+            $topicId = $topic->getId();
+            if ($topicId <= 0) {
+                continue;
+            }
+
+            $hasUnreadMap[$topicId] = false;
+
+            $lastReadAt = $topic->getLastReadAt();
+            if ($lastReadAt !== null && $lastReadAt !== '') {
+                $timeCursorTopics[$topicId] = $lastReadAt;
+                continue;
+            }
+
+            $lastReadMessageId = $topic->getLastReadMessageId();
+            if ($lastReadMessageId !== null && $lastReadMessageId !== '') {
+                $messageCursorTopics[$topicId] = (int) $lastReadMessageId;
+            }
+        }
+
+        if (! empty($timeCursorTopics)) {
+            $this->markUnreadTopicsByCreatedAt($hasUnreadMap, $timeCursorTopics);
+        }
+
+        if (! empty($messageCursorTopics)) {
+            $this->markUnreadTopicsByMessageId($hasUnreadMap, $messageCursorTopics);
+        }
+
+        return $hasUnreadMap;
+    }
+
+    /**
+     * `insert()` 不会自动维护时间戳，这里统一补齐消息表需要的 created_at/updated_at。
+     */
+    private function withTimestamps(array $payload): array
+    {
+        $now = Carbon::now()->toDateTimeString();
+        $payload['created_at'] = $payload['created_at'] ?? $now;
+        $payload['updated_at'] = $payload['updated_at'] ?? $now;
+
+        return $payload;
+    }
+
+    /**
+     * @param array<int, bool> $hasUnreadMap
+     * @param array<int, string> $timeCursorTopics
+     */
+    private function markUnreadTopicsByCreatedAt(array &$hasUnreadMap, array $timeCursorTopics): void
+    {
+        $records = $this->newUnreadCandidateQuery(array_keys($timeCursorTopics))
+            ->select(['topic_id', 'created_at'])
+            ->where('created_at', '>', min($timeCursorTopics))
+            ->get();
+
+        foreach ($records as $record) {
+            $topicId = (int) $record->topic_id;
+            if (($hasUnreadMap[$topicId] ?? false) === true) {
+                continue;
+            }
+
+            $createdAt = $record->created_at ? (string) $record->created_at : null;
+            if ($createdAt !== null && $createdAt > $timeCursorTopics[$topicId]) {
+                $hasUnreadMap[$topicId] = true;
+            }
+        }
+    }
+
+    /**
+     * @param array<int, bool> $hasUnreadMap
+     * @param array<int, int> $messageCursorTopics
+     */
+    private function markUnreadTopicsByMessageId(array &$hasUnreadMap, array $messageCursorTopics): void
+    {
+        $records = $this->newUnreadCandidateQuery(array_keys($messageCursorTopics))
+            ->select(['id', 'topic_id'])
+            ->where('id', '>', min($messageCursorTopics))
+            ->get();
+
+        foreach ($records as $record) {
+            $topicId = (int) $record->topic_id;
+            if (($hasUnreadMap[$topicId] ?? false) === true) {
+                continue;
+            }
+
+            if ((int) $record->id > $messageCursorTopics[$topicId]) {
+                $hasUnreadMap[$topicId] = true;
+            }
+        }
+    }
+
+    private function newUnreadCandidateQuery(array $topicIds)
+    {
+        return $this->model::query()
+            ->whereIn('topic_id', $topicIds)
+            ->whereNull('deleted_at')
+            ->whereIn('status', [
+                TaskStatus::FINISHED->value,
+                TaskStatus::ERROR->value,
+            ]);
     }
 
     private function findFollowUpBoundaryQuestion(int $topicId, int $roundLimit): ?TaskMessageEntity

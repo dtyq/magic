@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\Chat\Service\MagicChatFileAppService;
 use App\Application\File\Service\FileAppService;
-use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\Mention\MentionType;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\GenericErrorCode;
@@ -23,14 +22,13 @@ use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
 use Dtyq\SuperMagic\Application\SuperAgent\Config\BatchProcessConfig;
-use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\FileType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceVersionEntity;
-use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -53,8 +51,6 @@ use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
-use function event_dispatch;
-
 /**
  * File Process Application Service
  * Responsible for cross-domain file operations, including checking file existence and updating/creating files.
@@ -74,6 +70,7 @@ class FileProcessAppService extends AbstractAppService
         private readonly LockerInterface $locker,
         private readonly TaskFileVersionDomainService $taskFileVersionDomainService,
         private readonly ProjectDomainService $projectDomainService,
+        private readonly MagicFSFileDomainService $magicFSFileDomainService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -628,49 +625,6 @@ class FileProcessAppService extends AbstractAppService
         }
     }
 
-    public function getFilesWithUrl(DataIsolation $dataIsolation, array $fileIds, $projectId): array
-    {
-        $taskFiles = $this->taskFileDomainService->findUserFilesByIds($fileIds, $dataIsolation->getCurrentUserId());
-        $files = [];
-
-        if (empty($taskFiles)) {
-            return $files;
-        }
-
-        $projectEntity = $this->getAccessibleProject($projectId, $dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-
-        foreach ($taskFiles as $taskFile) {
-            $fileLink = $this->fileAppService->getLink($dataIsolation->getCurrentOrganizationCode(), $taskFile->getFileKey(), StorageBucketType::SandBox);
-            if (empty($fileLink)) {
-                // If URL retrieval fails, skip
-                continue;
-            }
-            $files[] = [
-                'file_id' => $taskFile->getFileId(),
-                'file_extension' => $taskFile->getFileExtension(),
-                'file_key' => $taskFile->getFileKey(),
-                'file_size' => $taskFile->getFileSize(),
-                'filename' => $taskFile->getFileName(),
-                'display_filename' => $taskFile->getFileName(),
-                'file_tag' => $taskFile->getFileType(),
-                'file_url' => $fileLink->getUrl(),
-                'relative_file_path' => WorkDirectoryUtil::getRelativeFilePath($taskFile->getFileKey(), $projectEntity->getWorkDir()),
-            ];
-        }
-        return $files;
-    }
-
-    public function getFilesWithMentions(DataIsolation $dataIsolation, array $mentions): array
-    {
-        $files = [];
-        foreach ($mentions as $mention) {
-            if ($mention['type'] == MentionType::PROJECT_FILE->value) {
-                $files[] = $mention['file_metadata'];
-            }
-        }
-        return $files;
-    }
-
     /**
      * Batch save file content with concurrent processing.
      *
@@ -1036,12 +990,13 @@ class FileProcessAppService extends AbstractAppService
         $this->updateFileMetadata($taskFileEntity, $result, $authorization);
 
         // 5. 创建文件版本
-        $this->taskFileVersionDomainService->createFileVersion($projectEntity->getUserOrganizationCode(), $taskFileEntity);
+        $versionEntity = $this->taskFileVersionDomainService->createFileVersion($projectEntity->getUserOrganizationCode(), $taskFileEntity);
 
         return [
             'file_id' => $requestDTO->getFileId(),
             'size' => $result['size'],
             'updated_at' => date('Y-m-d H:i:s'),
+            'version' => $versionEntity?->getVersion(),
             'shadow_decoded' => $requestDTO->getEnableShadow(),
         ];
     }
@@ -1176,12 +1131,11 @@ class FileProcessAppService extends AbstractAppService
      */
     private function updateFileMetadata(TaskFileEntity $taskFileEntity, array $result, MagicUserAuthorization $authorization): void
     {
-        // Update file size and modification time
-        $taskFileEntity->setFileSize($result['size']);
-        $taskFileEntity->setUpdatedAt(date('Y-m-d H:i:s'));
-
-        // Save updated entity
-        $this->taskDomainService->updateTaskFile($taskFileEntity);
+        // Update file size via MagicFS to keep metadata version chain in sync.
+        $taskFileEntity = $this->magicFSFileDomainService->updateFile(
+            (string) $taskFileEntity->getFileId(),
+            ['size' => $result['size']]
+        );
 
         // Dispatch file content saved event for WebSocket notification
         $event = new FileContentSavedEvent(
@@ -1196,15 +1150,5 @@ class FileProcessAppService extends AbstractAppService
             $authorization->getId(),
             $authorization->getOrganizationCode()
         ));
-
-        if (ProjectFileConstant::isSetMetadataFile($taskFileEntity->getFileName())) {
-            event_dispatch(new AttachmentsProcessedEvent($taskFileEntity->getParentId(), $taskFileEntity->getProjectId(), $taskFileEntity->getTaskId()));
-            $this->logger->info(sprintf(
-                'Dispatched AttachmentsProcessedEvent for saveProjectFile processed attachments, parentId: %d, projectId: %d, taskId: %d',
-                $taskFileEntity->getParentId(),
-                $taskFileEntity->getProjectId(),
-                $taskFileEntity->getTaskId()
-            ));
-        }
     }
 }

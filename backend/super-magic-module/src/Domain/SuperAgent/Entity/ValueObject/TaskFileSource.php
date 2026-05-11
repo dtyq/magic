@@ -52,7 +52,7 @@ enum TaskFileSource: int
     public function isAIGenerated(): bool
     {
         return match ($this) {
-            self::AI_IMAGE_GENERATION, self::AI_VIDEO_GENERATION => true,
+            self::AGENT, self::AI_IMAGE_GENERATION, self::AI_VIDEO_GENERATION => true,
             default => false,
         };
     }

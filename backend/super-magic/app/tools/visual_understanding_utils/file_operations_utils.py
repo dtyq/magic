@@ -158,33 +158,35 @@ async def copy_file_to_visual_dir(file_path: str, original_source: Optional[str]
         return None
 
 
-async def generate_file_download_url(relative_path: str, file_service) -> Optional[str]:
-    """Generate download URL using file service
+async def generate_file_download_url(relative_path: str) -> Optional[str]:
+    """Generate download URL for a workspace file via the unified helper.
+
+    The function resolves the workspace-relative path to an absolute path and
+    delegates to ``FileService.get_workspace_file_url``, which goes through
+    the only legitimate chain: local file -> magicfs xattr
+    (`user.magicfs.s3_key`) -> presigned URL.
 
     Args:
-        relative_path: Path relative to workspace (e.g., '.visual/a.png')
-        file_service: FileService instance for URL generation
+        relative_path: Path relative to the workspace root (e.g. '.visual/a.png').
 
     Returns:
-        Optional[str]: Download URL, or None if generation failed
+        Optional[str]: Download URL, or None if generation failed.
     """
-    logger.debug(f"生成下载链接，相对于workspace的路径: {relative_path}")
+    from app.service.file_service import FileService, WorkspaceFileURLError
 
-    # Add workspace prefix for FileService
-    file_path_with_workspace = f"{relative_path}"
-    logger.debug(f"添加workspace前缀后的路径: {file_path_with_workspace}")
+    workspace_dir = get_workspace_path()
+    absolute_path = (workspace_dir / relative_path).resolve()
+    logger.debug(f"生成下载链接，绝对路径: {absolute_path} (相对路径: {relative_path})")
 
-    result = await file_service.get_file_download_url(
-        file_path=file_path_with_workspace,  # Path with workspace prefix
-        expires_in=3600  # 1 hour
-    )
-
-    download_url = result.get("download_url")
-    if download_url:
+    try:
+        download_url = await FileService().get_workspace_file_url(absolute_path)
         logger.info(f"生成下载链接成功: {relative_path} -> {download_url}")
         return download_url
-    else:
-        logger.error(f"下载链接生成失败，结果中没有download_url: {result}")
+    except FileNotFoundError as e:
+        logger.error(f"下载链接生成失败，本地文件不存在: {relative_path}, 错误: {e}")
+        return None
+    except WorkspaceFileURLError as e:
+        logger.error(f"下载链接生成失败 (xattr 缺失或后端错误): {relative_path}, 错误: {e}")
         return None
 
 

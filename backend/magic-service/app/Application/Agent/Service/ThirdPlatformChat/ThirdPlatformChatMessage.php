@@ -47,7 +47,7 @@ class ThirdPlatformChatMessage
 
     public function validate(): void
     {
-        if (empty($this->event)) {
+        if ($this->event === ThirdPlatformChatEvent::None) {
             ExceptionBuilder::throw(AgentErrorCode::VALIDATE_FAILED, 'common.empty', ['label' => 'event']);
         }
         if ($this->event === ThirdPlatformChatEvent::CheckServer) {

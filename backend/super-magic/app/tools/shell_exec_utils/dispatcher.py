@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 from app.tools.shell_exec_utils.base import CommandHandleResult, ShellCommandHandler
 from app.tools.shell_exec_utils.command_parser import extract_sub_commands
 from app.tools.shell_exec_utils.handlers.auto_background_handler import AutoBackgroundHandler
+from app.tools.shell_exec_utils.handlers.cli_skill_install_blocker import CliSkillInstallBlocker
 from app.tools.shell_exec_utils.handlers.cli_dir_init_handler import CliDirInitHandler
 from app.tools.shell_exec_utils.handlers.pkg_mirror_handler import PkgMirrorHandler
 from app.tools.shell_exec_utils.handlers.skillhub_handler import SkillhubCommandHandler
@@ -89,6 +90,7 @@ class CommandDispatcher:
 # 全局分发器实例，按优先级排列 handler，新增处理器在此追加即可
 DISPATCHER = CommandDispatcher([
     SuperMagicCommandHandler(),
+    CliSkillInstallBlocker(),   # 拦截 clawhub/npx 安装命令（priority=90）
     SkillhubCommandHandler(),
     CliDirInitHandler(),
     AutoBackgroundHandler(),

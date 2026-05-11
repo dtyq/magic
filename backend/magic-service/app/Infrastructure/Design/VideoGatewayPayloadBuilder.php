@@ -9,11 +9,11 @@ namespace App\Infrastructure\Design;
 
 use App\Domain\Design\Contract\VideoGatewayPayloadBuilderInterface;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
-use App\Domain\Design\Factory\PathFactory;
 use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 
 readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderInterface
 {
@@ -48,6 +48,7 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
 
     public function __construct(
         private FileDomainService $fileDomainService,
+        private TaskFileDomainService $taskFileDomainService,
     ) {
     }
 
@@ -74,15 +75,14 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
      */
     private function buildInputs(DesignGenerationTaskEntity $entity): array
     {
-        $filePrefix = $this->fileDomainService->getFullPrefix($entity->getOrganizationCode());
-        $workspacePrefix = PathFactory::getWorkspacePrefix($filePrefix, $entity->getProjectId());
+        $projectId = $entity->getProjectId();
         // VolcengineArk 这类支持图片直链的模型直接走 URL，避免无谓的 base64 转换。
         $supportsImageInputUrl = $this->supportsImageInputUrl($entity);
 
         $mask = [];
         if ($entity->getMask() !== null) {
-            $fullPath = $workspacePrefix . $entity->getMask();
-            $url = $this->fileDomainService->getLink($entity->getOrganizationCode(), $fullPath, StorageBucketType::SandBox)?->getUrl();
+            $fileKey = $this->resolveFileKey($projectId, $entity->getMask(), self::ERROR_REFERENCE_MEDIA_URL_MISSING);
+            $url = $this->fileDomainService->getLink($entity->getOrganizationCode(), $fileKey, StorageBucketType::SandBox)?->getUrl();
             if (! $url) {
                 ExceptionBuilder::throw(
                     DesignErrorCode::ThirdPartyServiceError,
@@ -96,17 +96,17 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         $referenceImages = [];
         foreach ($entity->getReferenceImages() as $referenceImage) {
             $relativePath = (string) ($referenceImage[self::FIELD_URI] ?? '');
-            $fullPath = $workspacePrefix . $relativePath;
+            $fileKey = $this->resolveFileKey($projectId, $relativePath, self::ERROR_REFERENCE_IMAGE_URL_MISSING);
             $item = [self::FIELD_URI => $supportsImageInputUrl
                 ? $this->buildImageUrl(
                     $entity->getOrganizationCode(),
-                    $fullPath,
+                    $fileKey,
                     $relativePath,
                     self::ERROR_REFERENCE_IMAGE_URL_MISSING,
                 )
                 : $this->buildImageDataUrl(
                     $entity->getOrganizationCode(),
-                    $fullPath,
+                    $fileKey,
                     $relativePath,
                     self::ERROR_REFERENCE_IMAGE_URL_MISSING,
                 )];
@@ -121,19 +121,19 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         foreach ($entity->getFrames() as $frame) {
             $uri = (string) ($frame[self::FIELD_URI] ?? '');
             $role = (string) ($frame[self::FIELD_ROLE] ?? '');
-            $fullPath = $workspacePrefix . $uri;
+            $fileKey = $this->resolveFileKey($projectId, $uri, self::ERROR_FRAME_URL_MISSING);
             $frames[] = [
                 self::FIELD_ROLE => $role,
                 self::FIELD_URI => $supportsImageInputUrl
                     ? $this->buildImageUrl(
                         $entity->getOrganizationCode(),
-                        $fullPath,
+                        $fileKey,
                         $uri,
                         self::ERROR_FRAME_URL_MISSING,
                     )
                     : $this->buildImageDataUrl(
                         $entity->getOrganizationCode(),
-                        $fullPath,
+                        $fileKey,
                         $uri,
                         self::ERROR_FRAME_URL_MISSING,
                     ),
@@ -147,10 +147,10 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
                 continue;
             }
 
-            $fullPath = $workspacePrefix . $uri;
+            $fileKey = $this->resolveFileKey($projectId, $uri, self::ERROR_REFERENCE_MEDIA_URL_MISSING);
             $referenceVideos[] = [self::FIELD_URI => $this->buildImageUrl(
                 $entity->getOrganizationCode(),
-                $fullPath,
+                $fileKey,
                 $uri,
                 self::ERROR_REFERENCE_MEDIA_URL_MISSING,
             )];
@@ -163,8 +163,8 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
                 continue;
             }
 
-            $fullPath = $workspacePrefix . $uri;
-            $url = $this->fileDomainService->getLink($entity->getOrganizationCode(), $fullPath, StorageBucketType::SandBox)?->getUrl();
+            $fileKey = $this->resolveFileKey($projectId, $uri, self::ERROR_REFERENCE_MEDIA_URL_MISSING);
+            $url = $this->fileDomainService->getLink($entity->getOrganizationCode(), $fileKey, StorageBucketType::SandBox)?->getUrl();
             if (! $url) {
                 ExceptionBuilder::throw(
                     DesignErrorCode::ThirdPartyServiceError,
@@ -182,6 +182,23 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
             self::INPUT_KEY_REFERENCE_AUDIOS => $referenceAudios,
             self::INPUT_KEY_FRAMES => $frames,
         ], static fn (array $value): bool => $value !== []);
+    }
+
+    /**
+     * Resolve the actual file_key from the file tree for a given relative workspace path.
+     * Uses findEntityByRelativePath instead of string concatenation, aligned with MagicFS v2 semantics.
+     */
+    private function resolveFileKey(int $projectId, string $relativePath, string $errorKey): string
+    {
+        $fileEntity = $this->taskFileDomainService->findEntityByRelativePath($projectId, $relativePath);
+        if ($fileEntity === null) {
+            ExceptionBuilder::throw(
+                DesignErrorCode::ThirdPartyServiceError,
+                $errorKey,
+                ['file_key' => $relativePath]
+            );
+        }
+        return $fileEntity->getFileKey();
     }
 
     /**

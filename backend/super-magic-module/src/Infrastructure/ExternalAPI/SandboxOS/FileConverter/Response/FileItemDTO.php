@@ -20,13 +20,16 @@ class FileItemDTO
 
     public string $ossKey;
 
+    public string $storageKey;
+
     public static function fromArray(array $data): self
     {
         $dto = new self();
         $dto->filename = $data['filename'] ?? '';
         $dto->localPath = $data['local_path'] ?? '';
         $dto->type = $data['type'] ?? '';
-        $dto->ossKey = $data['oss_key'] ?? '';
+        $dto->ossKey = $data['oss_key'] ?? ($data['storage_key'] ?? '');
+        $dto->storageKey = $data['storage_key'] ?? ($data['oss_key'] ?? '');
         return $dto;
     }
 
@@ -37,6 +40,7 @@ class FileItemDTO
             'local_path' => $this->localPath,
             'type' => $this->type,
             'oss_key' => $this->ossKey,
+            'storage_key' => $this->storageKey,
         ];
     }
 }

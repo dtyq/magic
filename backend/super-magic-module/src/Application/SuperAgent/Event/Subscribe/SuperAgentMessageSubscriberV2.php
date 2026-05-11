@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 use App\Application\Chat\Service\MagicAgentEventAppService;
 use App\Application\Chat\Service\MagicChatMessageAppService;
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
+use App\Domain\Chat\DTO\Message\ChatMessage\RichTextMessage;
 use App\Domain\Chat\DTO\Message\ChatMessage\UserToolCallMessage;
 use App\Domain\Chat\DTO\Message\MagicMessageStruct;
 use App\Domain\Chat\DTO\Message\TextContentInterface;
@@ -103,6 +104,12 @@ class SuperAgentMessageSubscriberV2 extends MagicAgentEventAppService
             // 更改附件的定义，附件是用户 @了 文件/mcp/agent 等
             /** @var MagicMessageStruct $messageStruct */
             $superAgentExtra = $messageStruct->getExtra()?->getSuperAgent();
+            // 前端不再单独传 mentions，从富文本 Tiptap 内容中补充提取
+            if ($superAgentExtra !== null && $messageStruct instanceof RichTextMessage) {
+                $superAgentExtra->fillMentionsFromTiptapNodesIfEmpty(
+                    $messageStruct->extractMentionNodes()
+                );
+            }
             $mentions = $superAgentExtra?->getMentionsJsonStruct();
             $queueId = $superAgentExtra?->getQueueId() ?? '';
             // Extract necessary information

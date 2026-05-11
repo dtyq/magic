@@ -162,7 +162,7 @@ class SearchCanvasImages(BaseGenerateCanvasElements[SearchCanvasImagesParams]):
             if error_result:
                 return error_result
 
-            workspace_path = Path(tool_context.base_dir).resolve()
+            workspace_path = Path(self.base_dir)
             logger.info(
                 f"开始搜索图片并添加到画布: topic_id={params.topic_id}, "
                 f"tasks={len(params.tasks)}, project={params.project_path}"
@@ -463,9 +463,11 @@ class SearchCanvasImages(BaseGenerateCanvasElements[SearchCanvasImagesParams]):
                             logger.warning(f"删除无效文件失败: {downloaded_path} - {e}")
                         return None
                     try:
-                        relative_path = str(downloaded_file_path.relative_to(project_path))
+                        # 项目相对路径：新协议统一加 ./ 前缀
+                        relative_path = "./" + str(downloaded_file_path.relative_to(project_path))
                     except ValueError:
                         try:
+                            # workspace 相对路径：新协议无 ./ 前缀
                             relative_path = str(downloaded_file_path.relative_to(workspace_path))
                         except ValueError:
                             relative_path = file_path

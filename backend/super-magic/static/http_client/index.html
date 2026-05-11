@@ -176,6 +176,7 @@
                                 <option value="crew-creator">crew-creator — Crew 管理</option>
                                 <option value="skill-creator">skill-creator — Skill 创作</option>
                                 <option value="magiclaw">magiclaw — Magic Claw（需传 agent_code）</option>
+                                <option value="custom_agent">custom_agent — 自定义 Agent（需传 agent_code）</option>
                             </select>
                         </div>
 
@@ -185,6 +186,12 @@
                                 <option value="openclaw">openclaw</option>
                                 <option value="magishock">magishock</option>
                             </select>
+                        </div>
+
+                        <!-- Agent Code 文本输入（仅 custom_agent 模式显示） -->
+                        <div class="model-config" id="customAgentCodeGroup" style="display:none">
+                            <input type="text" id="customAgentCodeInput" class="model-id-input"
+                                placeholder="agent_code（必填，如 SMA-xxx）">
                         </div>
 
                         <!-- Model ID 配置（IM 模式下隐藏） -->

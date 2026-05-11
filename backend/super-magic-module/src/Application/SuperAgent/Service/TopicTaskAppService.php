@@ -261,7 +261,13 @@ class TopicTaskAppService extends AbstractAppService
                 // Create new message
                 $messageEntity = $this->parseMessageContent($messageDTO);
                 $messageEntity->setTopicId($topicId);
-                $this->processMessageAttachment($dataIsolation, $taskEntity, $messageEntity);
+                // Special status handling: generate output content tool when task is finished
+                if ($messageEntity->getStatus() === TaskStatus::FINISHED->value) {
+                    $outputTool = ToolProcessor::generateOutputContentTool($messageEntity->getAttachments());
+                    if ($outputTool !== null) {
+                        $messageEntity->setTool($outputTool);
+                    }
+                }
                 $this->processToolContent($dataIsolation, $taskEntity, $messageEntity);
                 // Set usage if task is finished
                 if (! empty($usage)) {
@@ -1038,6 +1044,28 @@ class TopicTaskAppService extends AbstractAppService
                 $this->processToolContentStorage($dataIsolation, $taskEntity, $taskMessageEntity);
                 break;
         }
+
+        // 将处理后的 tool（内容已清空或已替换为 file_id）同步回 rawContent，
+        // 避免 raw_content 字段保留原始大内容导致数据库字段超长
+        $this->syncToolToRawContent($taskMessageEntity);
+    }
+
+    /**
+     * 将 taskMessageEntity 上最新的 tool 数据同步写回 rawContent 中的 super_magic_message.tool，
+     * 保证存入数据库的 raw_content 与 tool 字段保持一致。
+     */
+    private function syncToolToRawContent(TaskMessageEntity $taskMessageEntity): void
+    {
+        $rawContentStr = $taskMessageEntity->getRawContent();
+        if (empty($rawContentStr)) {
+            return;
+        }
+        $rawContentArr = json_decode($rawContentStr, true);
+        if (! is_array($rawContentArr) || ! isset($rawContentArr['super_magic_message'])) {
+            return;
+        }
+        $rawContentArr['super_magic_message']['tool'] = $taskMessageEntity->getTool() ?: null;
+        $taskMessageEntity->setRawContent(json_encode($rawContentArr, JSON_UNESCAPED_UNICODE));
     }
 
     private function processToolContentImage(TaskMessageEntity $taskMessageEntity): void
@@ -1050,20 +1078,20 @@ class TopicTaskAppService extends AbstractAppService
             return;
         }
 
-        $fileKey = '';
+        $fileId = '';
         $attachments = $tool['attachments'] ?? [];
         foreach ($attachments as $attachment) {
             if ($attachment['filename'] === $fileName) {
-                $fileKey = $attachment['file_key'];
+                $fileId = $attachment['file_id'];
                 break; // Exit loop once found
             }
         }
 
-        if (empty($fileKey)) {
+        if (empty($fileId)) {
             return;
         }
 
-        $taskFileEntity = $this->taskFileDomainService->getByFileKey($fileKey);
+        $taskFileEntity = $this->taskFileDomainService->getById((int) $fileId);
         if ($taskFileEntity === null) {
             return;
         }

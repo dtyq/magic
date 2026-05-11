@@ -20,6 +20,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetParticipatedProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetSidebarTopicsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TransferProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectPinRequestDTO;
@@ -169,6 +170,16 @@ class ProjectApi extends AbstractApi
         $pageSize = (int) $this->request->input('page_size', 10);
 
         return $this->projectAppService->getProjectTopics($requestContext, (int) $id, $page, $pageSize);
+    }
+
+    public function getSidebarTopics(RequestContext $requestContext, string $id): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = GetSidebarTopicsRequestDTO::fromRequest($this->request);
+        $requestDTO->setProjectId((int) $id);
+
+        return $this->projectAppService->getProjectSidebarTopics($requestContext, $requestDTO);
     }
 
     public function checkFileListUpdate(RequestContext $requestContext, string $id): array

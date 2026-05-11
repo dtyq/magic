@@ -85,7 +85,12 @@ class TaskFileItemDTO extends AbstractDTO
     public bool $isDirectory = false;
 
     /**
-     * 文件元数据，解析后的数组.
+     * 前端展示配置，解析后的数组.
+     */
+    public ?array $displayConfig = null;
+
+    /**
+     * 冗余字段，与 display_config 值相同.
      */
     public ?array $metadata = null;
 
@@ -106,8 +111,12 @@ class TaskFileItemDTO extends AbstractDTO
 
     /**
      * 从实体创建DTO.
+     *
+     * @param TaskFileEntity $entity 文件实体
+     * @param string $workDir 工作目录（用于计算相对路径的 fallback）
+     * @param null|string $relativeFilePath 预计算的相对文件路径（优先使用）
      */
-    public static function fromEntity(TaskFileEntity $entity, string $workDir = ''): self
+    public static function fromEntity(TaskFileEntity $entity, string $workDir = '', ?string $relativeFilePath = null): self
     {
         $dto = new self();
         $dto->fileId = (string) $entity->getFileId();
@@ -127,16 +136,19 @@ class TaskFileItemDTO extends AbstractDTO
         $dto->updatedAt = (string) $entity->getUpdatedAt();
         $dto->source = $entity->getSource();
 
-        // Handle metadata JSON decoding
-        $metadata = $entity->getMetadata();
-        if ($metadata !== null) {
-            $decodedMetadata = json_decode($metadata, true);
-            $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
+        // Handle display_config JSON decoding
+        $displayConfig = $entity->getDisplayConfig();
+        if ($displayConfig !== null) {
+            $decodedDisplayConfig = json_decode($displayConfig, true);
+            $dto->displayConfig = (json_last_error() === JSON_ERROR_NONE) ? $decodedDisplayConfig : null;
         } else {
-            $dto->metadata = null;
+            $dto->displayConfig = null;
         }
-        // relative_file_path
-        if (! empty($workDir)) {
+        $dto->metadata = $dto->displayConfig;
+        // relative_file_path: 优先使用预计算的路径，其次从 file_key 推导
+        if ($relativeFilePath !== null) {
+            $dto->relativeFilePath = $relativeFilePath;
+        } elseif (! empty($workDir)) {
             $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath(
                 $entity->getFileKey(),
                 $workDir
@@ -179,20 +191,21 @@ class TaskFileItemDTO extends AbstractDTO
                 : TaskFileSource::DEFAULT;
         }
 
-        // Handle metadata - could be string (JSON) or array
-        $metadata = $data['metadata'] ?? null;
-        if ($metadata !== null) {
-            if (is_string($metadata)) {
-                $decodedMetadata = json_decode($metadata, true);
-                $dto->metadata = (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
-            } elseif (is_array($metadata)) {
-                $dto->metadata = $metadata;
+        // Handle display_config - could be string (JSON) or array
+        $displayConfig = $data['display_config'] ?? null;
+        if ($displayConfig !== null) {
+            if (is_string($displayConfig)) {
+                $decodedDisplayConfig = json_decode($displayConfig, true);
+                $dto->displayConfig = (json_last_error() === JSON_ERROR_NONE) ? $decodedDisplayConfig : null;
+            } elseif (is_array($displayConfig)) {
+                $dto->displayConfig = $displayConfig;
             } else {
-                $dto->metadata = null;
+                $dto->displayConfig = null;
             }
         } else {
-            $dto->metadata = null;
+            $dto->displayConfig = null;
         }
+        $dto->metadata = $dto->displayConfig;
 
         return $dto;
     }
@@ -218,6 +231,7 @@ class TaskFileItemDTO extends AbstractDTO
             'topic_id' => $this->topicId,
             'updated_at' => $this->updatedAt,
             'is_directory' => $this->isDirectory,
+            'display_config' => $this->displayConfig,
             'metadata' => $this->metadata,
             'sort' => $this->sort,
             'parent_id' => $this->parentId,

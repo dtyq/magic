@@ -1019,6 +1019,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         for att in attachments:
             final_attachment = Attachment(
                 file_key=att.file_key,
+                file_id=att.file_id,
                 file_tag=AttachmentTag.FINAL,
                 file_extension=att.file_extension,
                 filepath=att.filepath,
