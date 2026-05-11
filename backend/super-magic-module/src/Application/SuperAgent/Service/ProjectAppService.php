@@ -318,7 +318,7 @@ class ProjectAppService extends AbstractAppService
 
         $specialKey = $requestDTO->getKey();
         if (empty($specialKey)) {
-            ExceptionBuilder::throw(GenericErrorCode::IllegalParameter, 'project.special_key_required');
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project.special_key_required');
         }
 
         $settingKey = UserSettingKey::genSuperMagicSpecialProject($specialKey);
