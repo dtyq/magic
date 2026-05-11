@@ -12,8 +12,8 @@ import (
 const (
 	// DocumentSyncKeyword is the stable log keyword for oversized document sync memory usage.
 	DocumentSyncKeyword = "KnowledgeDocumentSyncMemoryProbe"
-	// DocumentSyncLargeMemoryThresholdBytes is 2 GiB.
-	DocumentSyncLargeMemoryThresholdBytes uint64 = 2 * 1024 * 1024 * 1024
+	// DocumentSyncLargeMemoryThresholdBytes is 1 GiB.
+	DocumentSyncLargeMemoryThresholdBytes uint64 = 1024 * 1024 * 1024
 )
 
 type probeContextKey struct{}
