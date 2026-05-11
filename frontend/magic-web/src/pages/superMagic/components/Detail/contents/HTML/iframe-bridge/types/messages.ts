@@ -113,6 +113,7 @@ export enum EditorMessageType {
 	SET_ELEMENT_POSITION = "SET_ELEMENT_POSITION",
 	DELETE_ELEMENT = "DELETE_ELEMENT",
 	DUPLICATE_ELEMENT = "DUPLICATE_ELEMENT",
+	RUN_IMAGE_ACTION = "RUN_IMAGE_ACTION",
 
 	// ========== 批量操作（用于拖动、旋转、缩放等） ==========
 	BEGIN_BATCH_OPERATION = "BEGIN_BATCH_OPERATION",
@@ -228,6 +229,49 @@ export interface BatchStylesMultiplePayload {
 }
 
 /**
+ * 图片动作类型
+ */
+export type ImageActionType =
+	| "replace-element-image"
+	| "set-element-background-image"
+	| "remove-element-background-image"
+	| "insert-floating-image"
+
+/**
+ * 执行图片动作的 Payload
+ */
+export interface ImageActionPayload {
+	action: ImageActionType
+}
+
+/**
+ * 图片上传请求的 Payload
+ */
+export interface ImageUploadRequestPayload {
+	requestId: string
+	action: Extract<
+		ImageActionType,
+		"replace-element-image" | "set-element-background-image" | "insert-floating-image"
+	>
+	selector: string
+	suggestedPath: string
+}
+
+/**
+ * 图片上传结果的 Payload
+ */
+export interface ImageUploadResultPayload {
+	requestId: string
+	action: ImageUploadRequestPayload["action"]
+	selector: string
+	success: boolean
+	cancelled?: boolean
+	previewUrl?: string
+	relativeFilePath?: string
+	error?: string
+}
+
+/**
  * 获取内容的响应
  */
 export interface GetContentResponse {
@@ -290,6 +334,14 @@ export interface ElementSelectedPayload {
 	selector: string
 	/** 元素标签名 */
 	tagName: string
+	/** 是否为图片元素 */
+	isImageElement?: boolean
+	/** 图片原始宽度 */
+	intrinsicWidth?: number
+	/** 图片原始高度 */
+	intrinsicHeight?: number
+	/** 图片原始宽高比 */
+	intrinsicAspectRatio?: number
 	/** 计算后的样式 */
 	computedStyles: {
 		// 文字样式
@@ -462,7 +514,7 @@ export interface InitContentPayload {
 		file_name: string
 		relative_file_path: string
 		parent_id?: string
-		metadata?: any
+		display_config?: any
 	}>
 	/** 编辑器配置 */
 	editorConfig?: {

@@ -1,10 +1,14 @@
 import type { JSONContent } from "@tiptap/core"
-import type { ReactNode } from "react"
+import type { ReactNode, RefObject } from "react"
 import type { LocaleText } from "@/pages/superMagic/components/MainInputContainer/panels/types"
+import type { DataService } from "@/components/business/MentionPanel/types"
 import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
-import type { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import type { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
+import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
+import type { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
+import type { MessageEditorRef } from "@/pages/superMagic/components/MessageEditor/MessageEditor"
 import type {
 	DraftKey,
 	ModelItem,
@@ -27,6 +31,7 @@ export interface QueueMessageInput {
 	mentionItems: MentionListItem[]
 	selectedModel?: ModelItem | null
 	selectedImageModel?: ModelItem | null
+	selectedVideoModel?: ModelItem | null
 	topicMode?: TopicMode
 }
 
@@ -47,6 +52,8 @@ export interface SceneEditorContext {
 	setSelectedProject?: (project: ProjectListItem | null) => void
 	setSelectedWorkspace?: (workspace: Workspace | null) => void
 	topicMode: TopicMode
+	/** custom_agent: same as featured mode.identifier */
+	agentCode?: string
 	setTopicMode?: (mode: TopicMode) => void
 	topicExamplesMode?: TopicMode
 	size?: MessageEditorSize
@@ -55,6 +62,7 @@ export interface SceneEditorContext {
 	showLoading?: boolean
 	isTaskRunning?: boolean
 	stopEventLoading?: boolean
+	isChatPageHomepage?: boolean
 	isEmptyStatus?: boolean
 	messagesLength?: number
 	enableMessageSendByContent?: boolean
@@ -62,9 +70,20 @@ export interface SceneEditorContext {
 	layoutConfig?: MessageEditorLayoutConfig
 	attachments?: AttachmentItem[]
 	mentionPanelStore?: MentionPanelStore
+	isAllowedMention?: (attrs: TiptapMentionAttributes, dataService: DataService) => boolean
 	projectFilesStore?: ProjectFilesStore
+	topicModelStore?: ReturnType<typeof createSuperMagicTopicModelStore>
 	selectedModel?: ModelItem | null
 	onSendSuccess?: (params: {
+		currentProject: ProjectListItem | null
+		currentTopic: Topic | null
+	}) => void
+	onSendStart?: (params: {
+		content: JSONContent | undefined
+		mentionItems: MentionListItem[]
+	}) => void
+	onSendComplete?: (params: {
+		success: boolean
 		currentProject: ProjectListItem | null
 		currentTopic: Topic | null
 	}) => void
@@ -78,15 +97,23 @@ export interface SceneEditorContext {
 	queueContext?: SceneEditorQueueContext
 	showTopicExamplesPortal?: boolean
 	editorModeSwitch?: ({ disabled }: { disabled: boolean }) => ReactNode
+	modelSwitch?: ReactNode
 	topicStore?: TopicStore
 	/** 挂载后自动聚焦编辑器（移动端弹窗打开时使用） */
 	autoFocus?: boolean
 	/** 弹窗打开时从底部输入栏同步过来的语音输入内容（仅移动端使用） */
 	initialContent?: JSONContent
+	/** 初始 mentions，用于恢复撤回消息的附件/复杂 mention 状态 */
+	initialMentionItems?: MentionListItem[]
 	/** 编辑器内容变化回调（移动端用于双向同步，仅弹窗编辑器触发） */
 	onContentChange?: (content: JSONContent) => void
+	/** 透传真实编辑器 ref，供外层在特殊场景下显式恢复内容 */
+	editorRef?: RefObject<MessageEditorRef | null>
+	/** 跳过首次草稿恢复，避免覆盖外部显式恢复的内容 */
+	skipInitialDraftRestore?: boolean
 	showModeToggle?: boolean
 	allowChangeMode?: boolean
+	mobileModeSelectorVariant?: "default" | "claw"
 }
 
 export interface SceneEditorNodes {

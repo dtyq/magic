@@ -3,8 +3,10 @@ import { PencilLine, Trash2 } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { cn } from "@/lib/utils"
+import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 import { useLocaleText } from "../hooks/useLocaleText"
 import type { OptionItem } from "../types"
+import { isImageIconSource } from "../utils"
 
 interface EditableGridCardProps {
 	item: OptionItem
@@ -24,6 +26,7 @@ export function EditableGridCard({
 	const { t } = useTranslation("crew/create")
 	const lt = useLocaleText()
 	const label = lt(item.label) ?? item.value
+	const isImageIcon = isImageIconSource(item.icon_url)
 
 	return (
 		<div
@@ -85,7 +88,16 @@ export function EditableGridCard({
 			<div className="flex w-full items-center justify-center gap-1 px-1">
 				{item.icon_url && (
 					<div className="relative size-4 shrink-0 overflow-hidden">
-						<img src={item.icon_url} alt="icon" className="size-full object-contain" />
+						{isImageIcon ? (
+							<img
+								src={item.icon_url}
+								alt={label}
+								className="size-full object-contain"
+								loading="lazy"
+							/>
+						) : (
+							<LucideLazyIcon icon={item.icon_url} size={16} />
+						)}
 					</div>
 				)}
 				<p className="overflow-hidden text-ellipsis whitespace-nowrap text-center text-sm leading-5 text-foreground">

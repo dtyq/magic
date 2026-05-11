@@ -1,1 +1,1 @@
-export { AudioUnderstandingProgress } from "./AudioUnderstandingProgress"
+export { AudioUnderstandingProgress } from "../ToolProgress"

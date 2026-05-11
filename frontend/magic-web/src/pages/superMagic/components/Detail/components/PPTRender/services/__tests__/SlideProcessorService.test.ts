@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { SlideProcessorService } from "../SlideProcessorService"
-import * as htmlProcessor from "@/opensource/pages/superMagic/components/Detail/contents/HTML/htmlProcessor"
+import * as htmlProcessor from "@/pages/superMagic/components/Detail/contents/HTML/htmlProcessor"
 
 // Mock the dependencies
-vi.mock("@/opensource/pages/superMagic/components/Detail/contents/HTML/htmlProcessor")
+vi.mock("@/pages/superMagic/components/Detail/contents/HTML/htmlProcessor")
 
 describe("SlideProcessorService", () => {
 	let service: SlideProcessorService
@@ -13,7 +13,7 @@ describe("SlideProcessorService", () => {
 		attachmentList: [{ file_id: "file1", file_name: "test.html" }],
 		mainFileId: "main-file-id",
 		mainFileName: "main.html",
-		metadata: { type: "ppt" },
+		displayConfig: { type: "ppt" },
 	}
 
 	beforeEach(() => {

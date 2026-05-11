@@ -44,11 +44,23 @@ export class MicrophoneSourceStrategy implements AudioSourceStrategy {
 
 			// Get microphone stream with retry
 			const retryResult = await this.retryManager.execute(async () => {
-				// Get audio constraints from config or use defaults
-				const audioConstraints = getMicrophoneConstraints(
-					"default",
-					this.config.audioSource?.microphoneConstraints,
-				)
+				// Build device constraint:
+				// - Explicit deviceId string  → exact match (user-chosen device)
+				// - No explicit deviceId      → ideal:'default' (follows OS default)
+				const explicitDeviceId = this.config.audioSource?.microphoneConstraints?.deviceId
+				const deviceIdConstraint =
+					explicitDeviceId && typeof explicitDeviceId === "string"
+						? { exact: explicitDeviceId }
+						: { ideal: "default" }
+
+				const audioConstraints = getMicrophoneConstraints("default", {
+					...this.config.audioSource?.microphoneConstraints,
+					deviceId: deviceIdConstraint,
+				})
+
+				this.dependencies.logger.log("Requesting microphone stream", {
+					deviceId: deviceIdConstraint,
+				})
 
 				return await this.dependencies.mediaDevices.getUserMedia({
 					audio: audioConstraints,

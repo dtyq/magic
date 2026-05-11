@@ -1,12 +1,8 @@
 import { useCallback, SetStateAction, Dispatch } from "react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
-import pubsub from "@/utils/pubsub"
-import type {
-	Topic,
-	Workspace,
-	ProjectListItem,
-} from "@/pages/superMagic/pages/Workspace/types"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import type { Topic, Workspace, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import { ResourceType, ShareType } from "@/pages/superMagic/components/Share/types"
 import { handleShareFunction } from "@/pages/superMagic/utils/share"
 import routeManageService from "@/pages/superMagic/services/routeManageService"
@@ -140,7 +136,7 @@ export function useTopicActions({
 			if (newTopic) {
 				setTopics((prevTopics) => [...prevTopics, newTopic])
 				if (selectedProject?.id === projectId) {
-					pubsub.publish("super_magic_add_topic", newTopic)
+					pubsub.publish(PubSubEvents.Add_Topic, newTopic)
 				}
 			}
 

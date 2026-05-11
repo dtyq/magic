@@ -44,7 +44,6 @@ export function useProjectActions({
 
 		SuperMagicApi.editProject({
 			id: project?.id,
-			workspace_id: workspaceId,
 			project_name: project?.project_name,
 		}).then(() => {
 			magicToast.success(t("hierarchicalWorkspacePopup.renameSuccess"))
@@ -145,15 +144,15 @@ export function useProjectActions({
 			const res =
 				workspaceId === SHARE_WORKSPACE_ID
 					? await SuperMagicApi.getCollaborationProjects({
-						page: 1,
-						page_size: 99,
-						type: _collaborationTabKey || collaborationTabKey,
-					})
+							page: 1,
+							page_size: 99,
+							type: _collaborationTabKey || collaborationTabKey,
+						})
 					: await SuperMagicApi.getProjectsWithCollaboration({
-						workspace_id: workspaceId,
-						page: 1,
-						page_size: 99,
-					})
+							workspace_id: workspaceId,
+							page: 1,
+							page_size: 99,
+						})
 
 			setProjects(res?.list || [])
 		},

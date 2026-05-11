@@ -11,10 +11,13 @@ import {
 	type RecordingDataSyncData,
 	type TabStatus,
 	TabLockReleaseType,
+	LOCK_PRIORITY_BACKGROUND,
 } from "./TabCoordinator"
 import { getTabCoordinator, registerTabCoordinatorCallbacks } from "./tabCoordinatorInstance"
+import { shouldSkipRecordingSessionRestoreOnCurrentRoute } from "./recordingRestoreRouteGuard"
 import { WakeLockManager } from "./WakeLockManager"
 import { RecordingContentFileManager } from "./RecordingContentFileManager"
+import { RecordingBatchSaveReporter } from "./RecordingBatchSaveReporter"
 import type {
 	RecordingSession,
 	AudioSourceConfig,
@@ -95,6 +98,8 @@ class RecordSummaryService {
 	private statusReporter: RecordingStatusReporter
 	// 用于管理笔记和转文本文件的上传
 	private contentFileManager: RecordingContentFileManager
+	// 用于上报上传文件到 batch-save
+	private batchSaveReporter: RecordingBatchSaveReporter
 	// 用于检测语音识别超时
 	private voiceTimeoutChecker: VoiceTimeoutChecker
 	// 用于检测静音状态
@@ -147,23 +152,39 @@ class RecordSummaryService {
 		)
 		this.recordingPersistence = new RecordingPersistence(DEFAULT_RECORDING_CONFIG.persistence)
 		this.sessionManager = new RecordingSessionManager(DEFAULT_RECORDING_CONFIG.sessionRestore)
-		this.chunkUploader = new ChunkUploader(DEFAULT_RECORDING_CONFIG.upload, {
-			onProgress: this.handleUploadProgress,
-			onSuccess: this.handleUploadSuccess,
-			onError: this.handleUploadError,
-			onRetry: this.handleUploadRetry,
-			onTaskEnd: this.handleTaskEnd,
-			onNetworkOffline: this.handleNetworkOffline,
-			onNetworkOnline: this.handleNetworkOnline,
-			onMaxRetriesReached: this.handleMaxRetriesReached,
-		})
+
+		// Fire-and-forget cleanup of expired session history (30 days retention)
+		void this.sessionManager
+			.getHistoryDB()
+			.cleanupExpired()
+			.catch((error) => {
+				logger.error("清理过期会话历史失败", {
+					error: error instanceof Error ? error.message : String(error),
+				})
+			})
+		this.batchSaveReporter = new RecordingBatchSaveReporter()
+		this.chunkUploader = new ChunkUploader(
+			DEFAULT_RECORDING_CONFIG.upload,
+			this.batchSaveReporter,
+			{
+				onProgress: this.handleUploadProgress,
+				onSuccess: this.handleUploadSuccess,
+				onError: this.handleUploadError,
+				onRetry: this.handleUploadRetry,
+				onTaskEnd: this.handleTaskEnd,
+				onNetworkOffline: this.handleNetworkOffline,
+				onNetworkOnline: this.handleNetworkOnline,
+				onMaxRetriesReached: this.handleMaxRetriesReached,
+			},
+		)
 		this.recordStatusChecker = new RecordStatusChecker(this.checkRecordStatus)
 		this.wakeLockManager = new WakeLockManager(this.handleWakeLockRelease)
 		this.tabCoordinator = getTabCoordinator()
 		registerTabCoordinatorCallbacks({
 			onStatusChange: this.handleTabStatusChange,
 			onRecordingDataSync: this.handleRecordingDataSync,
-			onLockAcquired: this.handleLockAcquired,
+			// onLockAcquired 由 tabCoordinatorInstance 统一负责 intent 分发
+			// 不在此处注册，避免覆盖意图路由逻辑
 			onLockReleased: this.handleLockReleased,
 		})
 		this.statusReporter = new RecordingStatusReporter({
@@ -171,6 +192,7 @@ class RecordSummaryService {
 		})
 		this.contentFileManager = new RecordingContentFileManager(
 			this.chunkUploader.getTokenManager(),
+			this.batchSaveReporter,
 			{
 				onUploadSuccess: this.handleContentFileUploadSuccess,
 				onUploadError: this.handleContentFileUploadError,
@@ -431,7 +453,11 @@ class RecordSummaryService {
 			this.startDurationUpdateTimer()
 
 			// 开始上传任何挂起的分片
-			this.chunkUploader.uploadSession(session.id, session.topic?.id || "")
+			this.chunkUploader.uploadSession(
+				session.id,
+				session.topic?.id || "",
+				session.project?.id || "",
+			)
 
 			try {
 				// 等待转文字服务准备就绪
@@ -489,8 +515,8 @@ class RecordSummaryService {
 		} catch (error) {
 			logger.error("启动录音失败", error)
 
-			// 重置服务
-			this.reset()
+			// 重置服务（await 确保 reset 完成后再处理错误，避免并发竞态）
+			await this.reset()
 
 			this.handleMediaRecorderError(error as Error)
 		} finally {
@@ -570,6 +596,7 @@ class RecordSummaryService {
 				file_extension: fileExtension,
 			}
 			this.recordingPersistence.saveSession(currentSession)
+			this.sessionManager.flushHistoryImmediate()
 		}
 
 		// 3. Trigger file upload (throttled)
@@ -716,6 +743,10 @@ class RecordSummaryService {
 		}
 
 		return currentSession.noteLastUpdatedAt
+	}
+
+	getNoteLastSyncedContent = (): string | undefined => {
+		return this.contentFileManager.getNoteLastUploadedContent()
 	}
 
 	/**
@@ -1003,6 +1034,62 @@ class RecordSummaryService {
 	}
 
 	/**
+	 * Switch microphone device without changing the audio source type.
+	 * Uses the same auto-pause → switch → auto-resume strategy as switchAudioSource.
+	 * Updates store and persisted session so the new deviceId survives page reload.
+	 * 切换麦克风设备（不改变音频源类型，自动暂停-切换-恢复）
+	 */
+	switchMicrophoneDevice = async (deviceId: string): Promise<void> => {
+		if (!recordSummaryStore.isRecording && !recordSummaryStore.isPaused) {
+			logger.warn("Cannot switch microphone device when not recording")
+			return
+		}
+
+		try {
+			logger.log("Switching microphone device", { deviceId })
+
+			// Delegate to MediaRecorderService (handles pause/resume internally)
+			await this.mediaRecorderService.switchMicrophoneDevice(deviceId)
+
+			// Update voice-to-text service with the new media stream
+			const newMediaStream = this.mediaRecorderService.getMediaRecorderStream()
+			if (newMediaStream) {
+				await this.voiceToTextService.switchAudioSource(newMediaStream)
+			}
+
+			// Update DurationTracker AudioContext in case it was recreated
+			const newAudioContext = this.mediaRecorderService.getAudioContext()
+			if (newAudioContext) {
+				this.durationTracker.updateAudioContext(newAudioContext)
+			}
+
+			// Persist updated deviceId in session + store
+			const currentAudioSource = recordSummaryStore.getAudioSource()
+			const updatedAudioSource: AudioSourceConfig = {
+				source: currentAudioSource?.source ?? "microphone",
+				microphoneGain: currentAudioSource?.microphoneGain,
+				systemGain: currentAudioSource?.systemGain,
+				microphoneConstraints: {
+					...currentAudioSource?.microphoneConstraints,
+					deviceId,
+				},
+			}
+			const currentSession = this.sessionManager.getCurrentSession()
+			if (currentSession) {
+				currentSession.audioSource = updatedAudioSource
+				this.recordingPersistence.saveSession(currentSession)
+			}
+			recordSummaryStore.setAudioSource(updatedAudioSource)
+			recordSummaryStore.setSelectedMicrophoneDeviceId(deviceId)
+
+			logger.log("Microphone device switched successfully", { deviceId })
+		} catch (error) {
+			logger.error("Failed to switch microphone device", error)
+			throw error
+		}
+	}
+
+	/**
 	 * 恢复录音（用于页面刷新后继续录音）
 	 */
 	private resumeRecording = async (session: RecordingSession) => {
@@ -1102,7 +1189,11 @@ class RecordSummaryService {
 			this.statusReporter.startPeriodicReport(session.id)
 
 			// 恢复录音时会自动上传会话分片
-			this.chunkUploader.uploadSession(session.id, session.topic?.id || "")
+			this.chunkUploader.uploadSession(
+				session.id,
+				session.topic?.id || "",
+				session.project?.id || "",
+			)
 
 			// 恢复 presetFiles 并初始化内容文件管理器
 			await this.restoreContentFileManager(session)
@@ -1411,7 +1502,7 @@ class RecordSummaryService {
 				this.summaryMessageService.showStageMessage(SummaryStage.UploadingChunks)
 
 				// 触发上传会话分片
-				this.chunkUploader.uploadSession(sessionId, topic?.id || "")
+				this.chunkUploader.uploadSession(sessionId, topic?.id || "", project?.id || "")
 
 				await this.ensureSessionUploadComplete({ id: sessionId } as RecordingSession)
 				logger.report("所有分片上传完成")
@@ -1466,11 +1557,11 @@ class RecordSummaryService {
 		if (!taskKey || !finalProject || !finalTopic || !modelId) {
 			const error = new Error(
 				"projectId, topic_id, modelId is required, projectId: " +
-				finalProject?.id +
-				", topicId: " +
-				finalTopic?.id +
-				", modelId: " +
-				modelId,
+					finalProject?.id +
+					", topicId: " +
+					finalTopic?.id +
+					", modelId: " +
+					modelId,
 			)
 			logger.error("Missing required parameters for summary", error)
 			this.summaryMessageService.showError(
@@ -1748,6 +1839,7 @@ class RecordSummaryService {
 
 			// 6. 删除持久化的会话数据
 			this.recordingPersistence.deleteSession(session.id)
+			this.batchSaveReporter.clearSession(session.id)
 
 			// 7. 触发完成事件
 			this.emit(RECORD_SUMMARY_EVENTS.UPDATE_EMPTY_WORKSPACE_PANEL_PROJECTS, {
@@ -1847,6 +1939,8 @@ class RecordSummaryService {
 	 * 重置录音
 	 */
 	reset = async () => {
+		const currentSessionId = this.sessionManager.getCurrentSession()?.id
+
 		// 停止语音服务
 		if (this.voiceToTextService) {
 			await this.voiceToTextService.stopRecording()
@@ -1896,6 +1990,9 @@ class RecordSummaryService {
 
 		// 更新UI状态
 		recordSummaryStore.reset()
+		if (currentSessionId) {
+			this.batchSaveReporter.clearSession(currentSessionId)
+		}
 
 		logger.log("Recording reset")
 	}
@@ -2285,17 +2382,17 @@ class RecordSummaryService {
 	getStatus = async () => {
 		const voiceStatus = this.voiceToTextService
 			? {
-				isRecording: this.voiceToTextService.getIsRecording(),
-				isConnected: this.voiceToTextService.getIsConnected(),
-				status: this.voiceToTextService.getStatus(),
-				recordingId: this.voiceToTextService.getCurrentRecordingId(),
-			}
+					isRecording: this.voiceToTextService.getIsRecording(),
+					isConnected: this.voiceToTextService.getIsConnected(),
+					status: this.voiceToTextService.getStatus(),
+					recordingId: this.voiceToTextService.getCurrentRecordingId(),
+				}
 			: {
-				isRecording: false,
-				isConnected: false,
-				status: "idle" as const,
-				recordingId: null,
-			}
+					isRecording: false,
+					isConnected: false,
+					status: "idle" as const,
+					recordingId: null,
+				}
 
 		const sessionSummary = this.sessionManager.getSessionSummary()
 		const mediaRecorderStatus = this.mediaRecorderService.getStatus()
@@ -2332,6 +2429,8 @@ class RecordSummaryService {
 	 * 清理资源
 	 */
 	destroy = async () => {
+		const currentSessionId = this.sessionManager.getCurrentSession()?.id
+
 		// 停止所有录音相关操作
 		if (this.voiceToTextService) {
 			await this.voiceToTextService.stopRecording()
@@ -2368,6 +2467,9 @@ class RecordSummaryService {
 
 		// 清理内容文件管理器（上传待处理的更新）
 		await this.contentFileManager.dispose()
+		if (currentSessionId) {
+			this.batchSaveReporter.clearSession(currentSessionId)
+		}
 
 		// 清理语音超时检测器
 		this.voiceTimeoutChecker.dispose()
@@ -2458,6 +2560,11 @@ class RecordSummaryService {
 	 * Try to restore previous session
 	 */
 	tryRestorePreviousSession = async () => {
+		if (shouldSkipRecordingSessionRestoreOnCurrentRoute()) {
+			logger.log("Skip record summary restore on share route")
+			return
+		}
+
 		// Prevent concurrent restoration attempts
 		if (this.isRestoringSession) {
 			logger.log("Session restoration already in progress, skipping duplicate call")
@@ -2505,9 +2612,12 @@ class RecordSummaryService {
 
 			// 用户匹配，继续恢复会话
 			if (this.sessionManager.shouldRestoreSession(session)) {
-				// 如果会话是录音状态，先尝试获取锁
+				// 如果会话是录音状态，先尝试获取锁（后台恢复使用低优先级，可被用户操作抢占）
 				if (session.status !== "init") {
-					const hasPermission = await this.tabCoordinator.requestLock(session.id)
+					const hasPermission = await this.tabCoordinator.requestLock(
+						session.id,
+						LOCK_PRIORITY_BACKGROUND,
+					)
 					if (!hasPermission) {
 						// 恢复为非录音状态，允许用户手动请求权限
 						this.restoreAsInactiveSession(session)
@@ -2609,7 +2719,11 @@ class RecordSummaryService {
 
 		// Trigger upload for current session
 		this.chunkUploader
-			.uploadSession(currentSession.id, currentSession.topic?.id || "")
+			.uploadSession(
+				currentSession.id,
+				currentSession.topic?.id || "",
+				currentSession.project?.id || "",
+			)
 			.catch((error) => {
 				logger.error("Failed to trigger session upload", error)
 			})
@@ -2822,6 +2936,7 @@ class RecordSummaryService {
 
 			// Clear chunk upload queue for this session
 			this.chunkUploader.clearSessionChunks(sessionId)
+			this.batchSaveReporter.clearSession(sessionId)
 
 			// Cancel session
 			this.sessionManager.cancelSession()
@@ -2894,14 +3009,6 @@ class RecordSummaryService {
 	}
 
 	/**
-	 * 处理获得录音权限
-	 */
-	private handleLockAcquired = () => {
-		// 权限获得时的处理逻辑
-		this.tryRestorePreviousSession()
-	}
-
-	/**
 	 * 处理释放录音权限
 	 */
 	private handleLockReleased = (data?: {
@@ -2959,6 +3066,89 @@ class RecordSummaryService {
 
 	getMediaRecorderStream = () => {
 		return this.mediaRecorderService.getMediaRecorderStream()
+	}
+
+	/**
+	 * 用户选择「放弃录音」时调用：清除持久化数据并重置 UI，无需持有锁。
+	 */
+	discardHistoricalSession = () => {
+		logger.report("用户放弃历史录音会话")
+		this.recordingPersistence.clearAll()
+		this.sessionManager.clearSession()
+		recordSummaryStore.reset()
+	}
+
+	/**
+	 * 用户选择「总结录音」时调用：加载历史会话并直接生成总结，不恢复录音。
+	 * 将 session 数据填入 store 后复用 completeRecordingWithSummary 完整路径。
+	 */
+	finishHistoricalSession = async () => {
+		if (this.isRestoringSession) {
+			logger.log("Session restoration already in progress, skipping finishHistoricalSession")
+			return
+		}
+
+		this.isRestoringSession = true
+
+		try {
+			const hasRecoverableData = this.recordingPersistence.hasRecoverableData()
+			if (!hasRecoverableData) {
+				logger.log("finishHistoricalSession: no recoverable data")
+				return
+			}
+
+			const restorationData = await this.recordingPersistence.getRestorationData()
+			const session = restorationData.currentSession
+			if (!session) {
+				logger.log("finishHistoricalSession: no session found")
+				return
+			}
+
+			const currentUserId = userStore.user.userInfo?.user_id
+			if (session.userId && currentUserId && session.userId !== currentUserId) {
+				logger.warn("finishHistoricalSession: user mismatch, ignoring", {
+					sessionUserId: session.userId,
+					currentUserId,
+				})
+				return
+			}
+
+			if (!session.workspace || !session.model) {
+				logger.warn("finishHistoricalSession: session missing workspace or model")
+				return
+			}
+
+			logger.report("总结历史录音会话", {
+				sessionId: session.id,
+				duration: session.totalDuration,
+			})
+
+			// 将历史 session 数据静默填入 store（不显示浮窗）
+			// restoreUIState 会设置 isVisible=true，随后立即覆盖为 false
+			recordSummaryStore.restoreUIState(session)
+			recordSummaryStore.isVisible = false
+
+			// 将 session 设为当前 session，让 completeRecording 能找到 sessionId
+			this.sessionManager.restoreSession(session)
+
+			// 复用完整的 completeRecordingWithSummary 路径
+			this.completeRecordingWithSummary({
+				onSuccess: async (res) => {
+					const { onSummarizeSuccessDefaultCallback } =
+						await import("@/components/business/RecordingSummary/utils/callback")
+					onSummarizeSuccessDefaultCallback(res)
+				},
+				onError: (error) => {
+					logger.error("finishHistoricalSession summarize failed", error)
+					recordSummaryStore.reset()
+				},
+			})
+		} catch (error) {
+			logger.error("finishHistoricalSession 失败", error)
+			recordSummaryStore.reset()
+		} finally {
+			this.isRestoringSession = false
+		}
 	}
 
 	getMediaRecorderConfig = () => {
@@ -3189,6 +3379,8 @@ class RecordSummaryService {
 	 * 清理会话完成后的状态
 	 */
 	private cleanupAfterSessionComplete() {
+		const currentSessionId = this.sessionManager.getCurrentSession()?.id
+
 		// 释放唤醒锁
 		this.wakeLockManager.releaseWakeLock()
 		this.wakeLockManager.removeVisibilityChangeListener()
@@ -3219,6 +3411,9 @@ class RecordSummaryService {
 
 		// 更新UI状态
 		recordSummaryStore.completeRecording()
+		if (currentSessionId) {
+			this.batchSaveReporter.clearSession(currentSessionId)
+		}
 
 		logger.log("会话完成后的清理操作已完成")
 	}

@@ -3,6 +3,7 @@ import UploadAction from "@/components/base/UploadAction"
 import MagicSpin from "@/components/base/MagicSpin"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn-ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/shadcn-ui/radio-group"
 import {
 	Select,
@@ -13,7 +14,10 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/shadcn-ui/select"
+import { Check, ChevronDown } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useTimezoneList } from "@/providers/TimezoneProvider/hooks"
 import { PROFESSIONAL_IDENTITY_OPTIONS, DISCOVERY_CHANNEL_GROUPS } from "../constant"
 import type { useImproveInformationForm } from "../hooks/useImproveInformationForm"
 
@@ -23,12 +27,18 @@ interface ImproveInformationFormProps {
 
 function ImproveInformationForm({ form }: ImproveInformationFormProps) {
 	const { t } = useTranslation("interface")
+	const [timezoneSearchKeyword, setTimezoneSearchKeyword] = useState("")
+	const [isTimezonePopoverOpen, setIsTimezonePopoverOpen] = useState(false)
+	const timezoneSearchInputRef = useRef<HTMLInputElement>(null)
+	const selectedTimezoneOptionRef = useRef<HTMLButtonElement>(null)
 
 	const {
 		uploading,
 		imagePreviewUrl,
 		userName,
 		setUserName,
+		timezone,
+		setTimezone,
 		professionalIdentity,
 		setProfessionalIdentity,
 		discoveryChannel,
@@ -43,9 +53,57 @@ function ImproveInformationForm({ form }: ImproveInformationFormProps) {
 		handleDrop,
 		handleSubmit,
 	} = form
+	const { data: timezoneList } = useTimezoneList()
+
+	const timezoneOptions = useMemo(() => timezoneList ?? [], [timezoneList])
+	const filteredTimezoneOptions = useMemo(() => {
+		if (!timezoneSearchKeyword.trim()) return timezoneOptions
+
+		const normalizedKeyword = timezoneSearchKeyword.trim().toLowerCase()
+
+		return timezoneOptions.filter((timezoneOption) => {
+			const searchableText = [timezoneOption.label, timezoneOption.code, timezoneOption.city]
+				.filter(Boolean)
+				.join(" ")
+				.toLowerCase()
+
+			return searchableText.includes(normalizedKeyword)
+		})
+	}, [timezoneOptions, timezoneSearchKeyword])
+
+	const currentTimezoneLabel = useMemo(() => {
+		return (
+			timezoneOptions.find((timezoneOption) => timezoneOption.code === timezone)?.label ??
+			timezone
+		)
+	}, [timezone, timezoneOptions])
+
+	useEffect(() => {
+		if (!isTimezonePopoverOpen) return
+
+		const focusTimer = setTimeout(() => {
+			timezoneSearchInputRef.current?.focus()
+			selectedTimezoneOptionRef.current?.scrollIntoView({
+				block: "center",
+			})
+		}, 0)
+
+		return () => clearTimeout(focusTimer)
+	}, [isTimezonePopoverOpen])
+
+	function handleTimezonePopoverOpenChange(open: boolean) {
+		setIsTimezonePopoverOpen(open)
+		if (!open) setTimezoneSearchKeyword("")
+	}
+
+	function handleTimezoneChange(value: string) {
+		setTimezone(value)
+		setIsTimezonePopoverOpen(false)
+		setTimezoneSearchKeyword("")
+	}
 
 	return (
-		<div className="flex w-full flex-col">
+		<div className="flex w-full flex-col" data-testid="improve-information-form">
 			{/* Header */}
 			<div className="flex flex-col items-center gap-1 px-3 pb-3 pt-6">
 				<div className="whitespace-nowrap text-[30px] font-normal leading-none text-foreground">
@@ -127,7 +185,93 @@ function ImproveInformationForm({ form }: ImproveInformationFormProps) {
 							onChange={(e) => setUserName(e.target.value)}
 							className="h-9 placeholder:text-sm"
 							aria-label={t("completeInformationModal.userName")}
+							data-testid="improve-information-username-input"
 						/>
+					</div>
+
+					{/* Timezone Section */}
+					<div
+						className="flex w-full flex-col gap-2 py-2"
+						data-testid="improve-information-timezone-field"
+					>
+						<span className="text-sm font-medium text-foreground">
+							{t("completeInformationModal.timezone")}
+						</span>
+						<Popover
+							open={isTimezonePopoverOpen}
+							onOpenChange={handleTimezonePopoverOpenChange}
+						>
+							<PopoverTrigger asChild>
+								<button
+									type="button"
+									className="outline-hidden flex h-9 w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] hover:bg-accent hover:text-accent-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+									aria-label={t("completeInformationModal.timezone")}
+									data-testid="improve-information-timezone-trigger"
+								>
+									<span className="flex-1 truncate text-left text-foreground">
+										{currentTimezoneLabel ||
+											t("completeInformationModal.timezonePlaceholder")}
+									</span>
+									<ChevronDown className="size-4 shrink-0 opacity-50" />
+								</button>
+							</PopoverTrigger>
+							<PopoverContent
+								align="start"
+								sideOffset={4}
+								className="!z-[1002] w-[360px] max-w-[calc(100vw-60px)] overflow-hidden p-0"
+							>
+								<div className="border-b bg-popover p-2">
+									<Input
+										ref={timezoneSearchInputRef}
+										value={timezoneSearchKeyword}
+										onChange={(e) => setTimezoneSearchKeyword(e.target.value)}
+										placeholder={t("setting.searchPlaceholder")}
+										className="h-6 placeholder:text-xs md:h-7 md:placeholder:text-sm"
+										aria-label={t("setting.searchPlaceholder")}
+										data-testid="improve-information-timezone-search-input"
+									/>
+								</div>
+								<div className="scrollbar-y-thin max-h-52 overflow-y-auto">
+									{filteredTimezoneOptions.length ? (
+										filteredTimezoneOptions.map((timezoneOption) => {
+											const isSelected = timezoneOption.code === timezone
+
+											return (
+												<button
+													key={timezoneOption.code}
+													ref={
+														isSelected
+															? selectedTimezoneOptionRef
+															: null
+													}
+													type="button"
+													className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+													onClick={() =>
+														handleTimezoneChange(timezoneOption.code)
+													}
+													aria-selected={isSelected}
+													data-testid="improve-information-timezone-option"
+												>
+													<span className="flex-1 truncate">
+														{timezoneOption.label}
+													</span>
+													{isSelected ? (
+														<Check className="size-4 shrink-0 text-foreground" />
+													) : null}
+												</button>
+											)
+										})
+									) : (
+										<div
+											className="px-2 py-6 text-center text-sm text-muted-foreground"
+											data-testid="improve-information-timezone-empty"
+										>
+											{t("setting.notFound")}
+										</div>
+									)}
+								</div>
+							</PopoverContent>
+						</Popover>
 					</div>
 
 					{/* Professional Identity Section */}
@@ -214,6 +358,7 @@ function ImproveInformationForm({ form }: ImproveInformationFormProps) {
 					onClick={handleSubmit}
 					aria-label={t("completeInformationModal.submit")}
 					className="w-full sm:w-auto"
+					data-testid="improve-information-submit-button"
 				>
 					{isLoading ? (
 						<MagicSpin spinning size="small" />

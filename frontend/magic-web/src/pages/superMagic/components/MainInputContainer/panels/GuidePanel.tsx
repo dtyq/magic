@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite"
-import { LucideLazyIcon } from "@/utils/lucideIconLoader"
+import { ArrowRight } from "lucide-react"
 import CollapsiblePanel from "./CollapsiblePanel"
 import { useLocaleText } from "./hooks/useLocaleText"
 import { useGuideItemAction } from "./hooks/useGuideItemAction"
@@ -9,14 +9,17 @@ import { useTranslation } from "react-i18next"
 interface GuidePanelProps {
 	config: GuidePanelConfig
 	onItemClick?: (item: GuideItem) => void
+	readOnly?: boolean
 }
 
-const GuidePanel = observer(({ config, onItemClick }: GuidePanelProps) => {
+const GuidePanel = observer(({ config, onItemClick, readOnly = false }: GuidePanelProps) => {
 	const { t } = useTranslation("crew/create")
 	const lt = useLocaleText()
 	const { executeAction } = useGuideItemAction()
 
 	const handleItemClick = (item: GuideItem) => {
+		if (readOnly) return
+
 		executeAction(item)
 		onItemClick?.(item)
 	}
@@ -60,11 +63,7 @@ const GuidePanel = observer(({ config, onItemClick }: GuidePanelProps) => {
 
 						{/* Arrow Icon */}
 						<div className="flex size-6 shrink-0 items-center justify-center">
-							<LucideLazyIcon
-								icon="ArrowRight"
-								size={16}
-								className="text-muted-foreground"
-							/>
+							<ArrowRight size={16} className="text-muted-foreground" />
 						</div>
 					</div>
 				))}

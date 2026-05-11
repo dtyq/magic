@@ -1,7 +1,6 @@
 import { DEFAULT_LOCALE } from "@/constants/locale"
 import i18n from "i18next"
 import { initReactI18next } from "react-i18next"
-import LanguageDetector from "i18next-browser-languagedetector"
 import resourcesToBackend from "i18next-resources-to-backend"
 import { normalizeLocale } from "@/utils/locale"
 
@@ -79,49 +78,46 @@ async function getResource(
  * @return {Object} An object containing the initialized i18nNext instance and an `init` function to initialize the instance.
  */
 export function createI18nNext(defaultLang?: string) {
-	const instance = i18n
-		.use(initReactI18next)
-		.use(LanguageDetector)
-		.use(
-			resourcesToBackend(async (lng: string, namespace: string) => {
-				const normalizedLng = normalizeLocale(lng)
+	const instance = i18n.use(initReactI18next).use(
+		resourcesToBackend(async (lng: string, namespace: string) => {
+			const normalizedLng = normalizeLocale(lng)
 
-				// 处理 magicFlow 命名空间
-				if (namespace === "magicFlow") {
-					return import(
-						`../../../node_modules/@dtyq/magic-flow/dist/common/locales/${normalizedLng}/${namespace}.json`
-					)
+			// 处理 magicFlow 命名空间
+			if (namespace === "magicFlow") {
+				return import(
+					`../../../node_modules/@dtyq/magic-flow/dist/common/locales/${normalizedLng}/${namespace}.json`
+				)
+			}
+
+			// 处理 admin 相关命名空间
+			if (namespace.startsWith("admin/")) {
+				if (normalizedLng === "zh_CN") {
+					return getAdminResources(adminZhCNModules)[namespace]
 				}
-
-				// 处理 admin 相关命名空间
-				if (namespace.startsWith("admin/")) {
-					if (normalizedLng === "zh_CN") {
-						return getAdminResources(adminZhCNModules)[namespace]
-					}
-					if (normalizedLng === "en_US") {
-						return getAdminResources(adminEnUSModules)[namespace]
-					}
+				if (normalizedLng === "en_US") {
+					return getAdminResources(adminEnUSModules)[namespace]
 				}
+			}
 
-				// 处理嵌套路径的情况 (例如 test/demo)
-				if (namespace.includes("/")) {
-					if (normalizedLng === "zh_CN") {
-						const resource = await getResource(zhCNModules, namespace, normalizedLng)
-						if (resource) {
-							return resource
-						}
-					}
-					if (normalizedLng === "en_US") {
-						const resource = await getResource(enUSModules, namespace, normalizedLng)
-						if (resource) {
-							return resource
-						}
+			// 处理嵌套路径的情况 (例如 test/demo)
+			if (namespace.includes("/")) {
+				if (normalizedLng === "zh_CN") {
+					const resource = await getResource(zhCNModules, namespace, normalizedLng)
+					if (resource) {
+						return resource
 					}
 				}
+				if (normalizedLng === "en_US") {
+					const resource = await getResource(enUSModules, namespace, normalizedLng)
+					if (resource) {
+						return resource
+					}
+				}
+			}
 
-				return import(`./${normalizedLng}/${namespace}.json`)
-			}),
-		)
+			return import(`./${normalizedLng}/${namespace}.json`)
+		}),
+	)
 
 	return {
 		init: () => {
@@ -136,7 +132,6 @@ export function createI18nNext(defaultLang?: string) {
 					"magicFlow",
 					"component",
 					"tiptap",
-					"marketing",
 					"activation",
 					"super",
 					"crew/market",
@@ -148,7 +143,8 @@ export function createI18nNext(defaultLang?: string) {
 				// the translations
 				// (tip move them in a JSON file and import them,
 				// or even better, manage them via a UI: https://react.i18next.com/guides/multiple-translation-files#manage-your-translations-with-a-management-gui)
-				lng: defaultLang, // if you're using a language detector, do not define the lng option
+				// Language is owned by I18nStore + ConfigService (persist/URL), not localStorage.
+				lng: defaultLang,
 				fallbackLng: (code) => {
 					const normalized = normalizeLocale(code)
 					if (normalized === "en_US") return ["en_US"]

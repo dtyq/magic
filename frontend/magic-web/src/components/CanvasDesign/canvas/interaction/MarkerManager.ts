@@ -1,7 +1,14 @@
-import Konva from "konva"
-import type { Marker, MarkerArea, ToolType, FrameElement, LayerElement } from "../types"
+import type {
+	CropConfig,
+	Marker,
+	MarkerArea,
+	ToolType,
+	FrameElement,
+	LayerElement,
+	CropConfigWithoutDisplaySize,
+} from "../types"
 import { generateMarkerId } from "../utils/utils"
-import { ToolTypeEnum, MarkerTypeEnum } from "../types"
+import { MarkerTypeEnum } from "../types"
 import type { Canvas } from "../Canvas"
 import type { IdentifyImageMarkResponse } from "../../types.magic"
 import { BaseMarker } from "./markers/BaseMarker"
@@ -16,7 +23,7 @@ export class MarkerManager {
 
 	private markers: Marker[]
 	private markerInstances: Map<string, BaseMarker> = new Map()
-	private selectedMarkerId: string | null = null
+	private cropRenderOverrides: Map<string, Marker> = new Map()
 	private currentTool: ToolType | null = null
 	// 是否正在吸附（吸附期间暂停 marker 位置更新，避免抖动）
 	private isSnapping = false
@@ -131,21 +138,14 @@ export class MarkerManager {
 			})
 		})
 
-		// 监听元素选中事件，取消标记选中
-		this.canvas.eventEmitter.on("element:select", () => {
-			this.deselectMarker()
-		})
-
-		// 监听删除快捷键
-		this.canvas.eventEmitter.on("keyboard:delete", () => {
-			if (this.selectedMarkerId) {
-				this.removeMarker(this.selectedMarkerId)
-			}
-		})
-
 		// 监听元素创建事件
 		this.canvas.eventEmitter.on("element:created", () => {
 			// Markers Layer 会自动保持在正确的层级
+		})
+
+		// 仅在裁剪确认保存后同步对应 marker 的 elementCrop，避免对所有元素变更都做全量同步
+		this.canvas.eventEmitter.on("crop:confirmed", ({ data }) => {
+			this.syncMarkerElementCropsByElementId(data.elementId)
 		})
 
 		// 监听图片加载完成事件
@@ -159,7 +159,7 @@ export class MarkerManager {
 		})
 
 		// 监听 Frame 移除事件，重新渲染被释放的图片元素的 marker
-		this.canvas.eventEmitter.on("frame:removed", ({ data }) => {
+		this.canvas.eventEmitter.on("frame:removed", () => {
 			// Frame 移除时，子元素已经被释放并更新了坐标
 			// 需要重新渲染这些元素的 marker
 			// 由于 Frame 已经被删除，我们需要通过其他方式找到被释放的元素
@@ -169,32 +169,6 @@ export class MarkerManager {
 			requestAnimationFrame(() => {
 				this.rerenderAllMarkers()
 			})
-		})
-
-		// 监听stage点击事件，点击空白处取消marker选中
-		this.canvas.stage.on("click", (e) => {
-			// 只在选择工具激活时处理
-			if (this.currentTool !== ToolTypeEnum.Select) {
-				return
-			}
-
-			const clickedNode = e.target
-
-			// 检查是否点击了marker
-			let isMarkerClicked = false
-			let currentNode: Konva.Node | null = clickedNode
-			while (currentNode) {
-				if (currentNode.name() === "marker") {
-					isMarkerClicked = true
-					break
-				}
-				currentNode = currentNode.getParent()
-			}
-
-			// 如果没有点击marker，取消marker选中
-			if (!isMarkerClicked && this.selectedMarkerId) {
-				this.deselectMarker()
-			}
 		})
 	}
 
@@ -233,6 +207,7 @@ export class MarkerManager {
 				type: MarkerTypeEnum.Area,
 				id: generateMarkerId(),
 				elementId,
+				elementCrop: this.getMarkerElementCrop(elementId),
 				relativeX,
 				relativeY,
 				areaWidth,
@@ -244,6 +219,7 @@ export class MarkerManager {
 				type: MarkerTypeEnum.Mark,
 				id: generateMarkerId(),
 				elementId,
+				elementCrop: this.getMarkerElementCrop(elementId),
 				relativeX,
 				relativeY,
 			}
@@ -270,8 +246,6 @@ export class MarkerManager {
 			data: { marker },
 		})
 
-		// 默认选中新添加的标记
-		this.selectMarker(marker.id)
 		return true
 	}
 
@@ -304,30 +278,26 @@ export class MarkerManager {
 
 		// 批量添加 markers
 		validMarkers.forEach((marker) => {
+			const nextMarker = this.withCurrentElementCrop(marker)
 			if (!silent) {
 				this.canvas.eventEmitter.emit({
 					type: "marker:before-create",
-					data: { marker: { ...marker } },
+					data: { marker: { ...nextMarker } },
 				})
 			}
 
-			this.markers.push(marker)
+			this.markers.push(nextMarker)
 
 			if (!silent) {
 				this.canvas.eventEmitter.emit({
 					type: "marker:created",
-					data: { marker },
+					data: { marker: nextMarker },
 				})
 			}
 		})
 
 		// 重新渲染所有标记（更新序号）
 		this.renderAllMarkers()
-
-		// 选中最后一个添加的标记
-		if (validMarkers.length > 0) {
-			this.selectMarker(validMarkers[validMarkers.length - 1].id)
-		}
 	}
 
 	/**
@@ -343,19 +313,13 @@ export class MarkerManager {
 		if (index === -1) return
 
 		this.markers.splice(index, 1)
+		this.cropRenderOverrides.delete(markerId)
 
 		// 销毁实例
 		const instance = this.markerInstances.get(markerId)
 		if (instance) {
 			instance.destroy()
 			this.markerInstances.delete(markerId)
-		}
-
-		// 清除选中状态
-		if (this.selectedMarkerId === markerId) {
-			this.selectedMarkerId = null
-			// 触发选中状态变化事件
-			this.canvas.eventEmitter.emit({ type: "marker:select", data: { id: null } })
 		}
 
 		// 触发删除事件
@@ -399,23 +363,22 @@ export class MarkerManager {
 		if (index === -1) return
 
 		const sequence = index + 1 // 序号从1开始
+		const renderMarker = this.getRenderMarker(marker)
 
 		// 根据类型创建对应的 Marker 实例
 		let instance: BaseMarker
-		if (marker.type === MarkerTypeEnum.Mark) {
+		if (renderMarker.type === MarkerTypeEnum.Mark) {
 			instance = new PointMarker({
-				marker,
+				marker: renderMarker,
 				canvas: this.canvas,
 				sequence,
-				selectedMarkerId: this.selectedMarkerId,
 				currentTool: this.currentTool,
 			})
 		} else {
 			instance = new AreaMarker({
-				marker,
+				marker: renderMarker,
 				canvas: this.canvas,
 				sequence,
-				selectedMarkerId: this.selectedMarkerId,
 				currentTool: this.currentTool,
 			})
 		}
@@ -424,72 +387,13 @@ export class MarkerManager {
 		instance.render()
 
 		// 设置事件处理
-		instance.setupClickHandler(
-			(markerId) => this.selectMarker(markerId),
-			() => this.deselectMarker(),
-		)
+		instance.setupClickHandler((markerId) => this.removeMarker(markerId))
 		instance.setupHoverHandler()
 
 		// 保存实例
 		this.markerInstances.set(marker.id, instance)
 
 		this.canvas.markersLayer.batchDraw()
-	}
-
-	/**
-	 * 选中标记
-	 */
-	public selectMarker(markerId: string): void {
-		// 如果选中的是同一个 marker，不触发事件
-		if (this.selectedMarkerId === markerId) {
-			return
-		}
-
-		// 取消之前的选中
-		if (this.selectedMarkerId) {
-			const prevInstance = this.markerInstances.get(this.selectedMarkerId)
-			if (prevInstance) {
-				prevInstance.updateSelection(null)
-			}
-		}
-
-		// 选中新标记
-		this.selectedMarkerId = markerId
-		const instance = this.markerInstances.get(markerId)
-		if (instance) {
-			instance.updateSelection(markerId)
-		}
-
-		// 取消元素选中
-		this.canvas.selectionManager.deselectAll()
-
-		// 触发选中状态变化事件
-		this.canvas.eventEmitter.emit({ type: "marker:select", data: { id: markerId } })
-
-		this.canvas.markersLayer.batchDraw()
-	}
-
-	/**
-	 * 取消标记选中
-	 */
-	public deselectMarker(): void {
-		if (this.selectedMarkerId) {
-			const instance = this.markerInstances.get(this.selectedMarkerId)
-			if (instance) {
-				instance.updateSelection(null)
-			}
-			this.selectedMarkerId = null
-			// 触发选中状态变化事件
-			this.canvas.eventEmitter.emit({ type: "marker:select", data: { id: null } })
-			this.canvas.markersLayer.batchDraw()
-		}
-	}
-
-	/**
-	 * 获取当前选中的标记ID
-	 */
-	public getSelectedMarkerId(): string | null {
-		return this.selectedMarkerId
 	}
 
 	/**
@@ -506,13 +410,24 @@ export class MarkerManager {
 		// 比较基本字段
 		if (
 			marker1.id !== marker2.id ||
+			marker1.type !== marker2.type ||
 			marker1.elementId !== marker2.elementId ||
+			!this.isCropEqual(marker1.elementCrop, marker2.elementCrop) ||
 			marker1.relativeX !== marker2.relativeX ||
 			marker1.relativeY !== marker2.relativeY ||
 			marker1.selectedSuggestionIndex !== marker2.selectedSuggestionIndex ||
 			marker1.error !== marker2.error
 		) {
 			return false
+		}
+
+		if (marker1.type === MarkerTypeEnum.Area && marker2.type === MarkerTypeEnum.Area) {
+			if (
+				marker1.areaWidth !== marker2.areaWidth ||
+				marker1.areaHeight !== marker2.areaHeight
+			) {
+				return false
+			}
 		}
 
 		// 深度比较 result 字段
@@ -540,6 +455,319 @@ export class MarkerManager {
 			// 如果序列化失败，使用浅比较
 			return result1 === result2
 		}
+	}
+
+	/**
+	 * 获取标记元素的裁剪信息
+	 */
+	private getMarkerElementCrop(elementId: string): CropConfigWithoutDisplaySize | undefined {
+		const element = this.canvas.elementManager.getElementData(elementId)
+		if (!element || element.type !== "image") return undefined
+		return this.normalizeCrop(element.crop)
+	}
+
+	/**
+	 * 规范化裁剪信息
+	 */
+	private normalizeCrop(crop?: CropConfig): CropConfigWithoutDisplaySize | undefined {
+		if (!crop || crop.width <= 0 || crop.height <= 0) return undefined
+
+		return {
+			x: crop.x,
+			y: crop.y,
+			width: crop.width,
+			height: crop.height,
+		}
+	}
+
+	/**
+	 * 比较两个裁剪信息是否相等
+	 */
+	private isCropEqual(
+		crop1?: CropConfigWithoutDisplaySize,
+		crop2?: CropConfigWithoutDisplaySize,
+	): boolean {
+		if (crop1 === crop2) return true
+		if (!crop1 || !crop2) return false
+
+		return (
+			crop1.x === crop2.x &&
+			crop1.y === crop2.y &&
+			crop1.width === crop2.width &&
+			crop1.height === crop2.height
+		)
+	}
+
+	/**
+	 * 将标记的裁剪信息与当前元素的裁剪信息同步
+	 */
+	private withCurrentElementCrop(marker: Marker): Marker {
+		const elementCrop = this.getMarkerElementCrop(marker.elementId)
+		if (marker.type === MarkerTypeEnum.Area) {
+			return {
+				...marker,
+				elementCrop,
+			}
+		}
+
+		return {
+			...marker,
+			elementCrop,
+		}
+	}
+
+	/**
+	 * 获取当前应该用于渲染的 marker（优先使用裁剪态临时覆写）
+	 */
+	private getRenderMarker(marker: Marker): Marker {
+		return this.cropRenderOverrides.get(marker.id) ?? marker
+	}
+
+	/**
+	 * 将 marker 从当前可见裁剪区域坐标系映射到完整显示图坐标系
+	 */
+	private buildCropPreviewMarker(
+		marker: Marker,
+		originalVisibleCrop: CropConfig,
+		displaySize: { width: number; height: number },
+	): Marker | null {
+		if (displaySize.width <= 0 || displaySize.height <= 0) {
+			return null
+		}
+
+		const nextRelativeX =
+			(originalVisibleCrop.x + marker.relativeX * originalVisibleCrop.width) /
+			displaySize.width
+		const nextRelativeY =
+			(originalVisibleCrop.y + marker.relativeY * originalVisibleCrop.height) /
+			displaySize.height
+
+		if (marker.type === MarkerTypeEnum.Area) {
+			return {
+				...marker,
+				relativeX: nextRelativeX,
+				relativeY: nextRelativeY,
+				areaWidth: (marker.areaWidth * originalVisibleCrop.width) / displaySize.width,
+				areaHeight: (marker.areaHeight * originalVisibleCrop.height) / displaySize.height,
+			}
+		}
+
+		return {
+			...marker,
+			relativeX: nextRelativeX,
+			relativeY: nextRelativeY,
+		}
+	}
+
+	/**
+	 * 获取 marker 在完整显示图坐标系中的矩形
+	 */
+	private getMarkerRectInDisplaySpace(
+		marker: Marker,
+		originalVisibleCrop: CropConfig,
+	): { x: number; y: number; width: number; height: number } {
+		const x = originalVisibleCrop.x + marker.relativeX * originalVisibleCrop.width
+		const y = originalVisibleCrop.y + marker.relativeY * originalVisibleCrop.height
+
+		if (marker.type === MarkerTypeEnum.Area) {
+			return {
+				x,
+				y,
+				width: marker.areaWidth * originalVisibleCrop.width,
+				height: marker.areaHeight * originalVisibleCrop.height,
+			}
+		}
+
+		return {
+			x,
+			y,
+			width: 0,
+			height: 0,
+		}
+	}
+
+	/**
+	 * 判断点是否在裁剪框内（边界视为保留）
+	 */
+	private isPointInsideCrop(point: { x: number; y: number }, crop: CropConfig): boolean {
+		return (
+			point.x >= crop.x &&
+			point.x <= crop.x + crop.width &&
+			point.y >= crop.y &&
+			point.y <= crop.y + crop.height
+		)
+	}
+
+	/**
+	 * 计算两个矩形的交集
+	 */
+	private getCropIntersectionRect(
+		rect: { x: number; y: number; width: number; height: number },
+		crop: CropConfig,
+	): { x: number; y: number; width: number; height: number } | null {
+		const left = Math.max(rect.x, crop.x)
+		const top = Math.max(rect.y, crop.y)
+		const right = Math.min(rect.x + rect.width, crop.x + crop.width)
+		const bottom = Math.min(rect.y + rect.height, crop.y + crop.height)
+
+		if (right <= left || bottom <= top) {
+			return null
+		}
+
+		return {
+			x: left,
+			y: top,
+			width: right - left,
+			height: bottom - top,
+		}
+	}
+
+	/**
+	 * 将相对值限制在 [0, 1]，避免浮点误差导致越界
+	 */
+	private clampRelativeValue(value: number): number {
+		if (value <= 0) return 0
+		if (value >= 1) return 1
+		return value
+	}
+
+	/**
+	 * 仅重新渲染指定元素关联的 marker
+	 */
+	private rerenderMarkersForElement(elementId: string): void {
+		this.markers.forEach((marker) => {
+			if (marker.elementId !== elementId) return
+
+			const oldInstance = this.markerInstances.get(marker.id)
+			if (oldInstance) {
+				oldInstance.destroy()
+				this.markerInstances.delete(marker.id)
+			}
+
+			this.renderMarker(marker)
+		})
+
+		this.canvas.markersLayer.batchDraw()
+	}
+
+	/**
+	 * 同步指定元素关联标记的裁剪信息与当前元素的裁剪信息
+	 */
+	private syncMarkerElementCropsByElementId(elementId: string): void {
+		this.markers.forEach((marker) => {
+			if (marker.elementId !== elementId) return
+
+			const elementCrop = this.getMarkerElementCrop(marker.elementId)
+			if (this.isCropEqual(marker.elementCrop, elementCrop)) return
+
+			marker.elementCrop = elementCrop
+			this.canvas.eventEmitter.emit({
+				type: "marker:updated",
+				data: { marker },
+			})
+		})
+	}
+
+	/**
+	 * 进入裁剪模式时，仅临时更新 marker 渲染位置，不修改 marker 数据
+	 */
+	public previewMarkersForCrop(
+		elementId: string,
+		originalVisibleCrop: CropConfig,
+		displaySize: { width: number; height: number },
+	): void {
+		this.markers.forEach((marker) => {
+			if (marker.elementId !== elementId) return
+
+			const previewMarker = this.buildCropPreviewMarker(
+				marker,
+				originalVisibleCrop,
+				displaySize,
+			)
+			if (previewMarker) {
+				this.cropRenderOverrides.set(marker.id, previewMarker)
+			}
+		})
+
+		this.rerenderMarkersForElement(elementId)
+	}
+
+	/**
+	 * 退出裁剪模式时清理 marker 渲染覆写，恢复真实数据渲染
+	 */
+	public clearCropPreview(elementId: string): void {
+		let hasOverride = false
+		this.markers.forEach((marker) => {
+			if (marker.elementId !== elementId) return
+			hasOverride = this.cropRenderOverrides.delete(marker.id) || hasOverride
+		})
+
+		if (hasOverride) {
+			this.rerenderMarkersForElement(elementId)
+		}
+	}
+
+	/**
+	 * 确认裁剪后同步 marker 数据：
+	 * - 点标记：不在新裁剪框内则删除
+	 * - 区域标记：只要与新裁剪框存在交集则保留，并更新为交集矩形
+	 */
+	public applyConfirmedCropToMarkers(
+		elementId: string,
+		originalVisibleCrop: CropConfig,
+		finalVisibleCrop: CropConfig,
+		nextElementCrop?: CropConfig,
+	): void {
+		if (finalVisibleCrop.width <= 0 || finalVisibleCrop.height <= 0) {
+			return
+		}
+
+		const normalizedNextElementCrop = this.normalizeCrop(nextElementCrop)
+		const relatedMarkers = this.markers.filter((marker) => marker.elementId === elementId)
+
+		relatedMarkers.forEach((marker) => {
+			const markerRect = this.getMarkerRectInDisplaySpace(marker, originalVisibleCrop)
+
+			if (marker.type === MarkerTypeEnum.Mark) {
+				if (
+					!this.isPointInsideCrop({ x: markerRect.x, y: markerRect.y }, finalVisibleCrop)
+				) {
+					this.removeMarker(marker.id)
+					return
+				}
+
+				this.updateMarker(marker.id, {
+					relativeX: this.clampRelativeValue(
+						(markerRect.x - finalVisibleCrop.x) / finalVisibleCrop.width,
+					),
+					relativeY: this.clampRelativeValue(
+						(markerRect.y - finalVisibleCrop.y) / finalVisibleCrop.height,
+					),
+					elementCrop: normalizedNextElementCrop,
+				})
+				return
+			}
+
+			const intersectionRect = this.getCropIntersectionRect(markerRect, finalVisibleCrop)
+			if (!intersectionRect) {
+				this.removeMarker(marker.id)
+				return
+			}
+
+			this.updateMarker(marker.id, {
+				relativeX: this.clampRelativeValue(
+					(intersectionRect.x - finalVisibleCrop.x) / finalVisibleCrop.width,
+				),
+				relativeY: this.clampRelativeValue(
+					(intersectionRect.y - finalVisibleCrop.y) / finalVisibleCrop.height,
+				),
+				areaWidth: this.clampRelativeValue(intersectionRect.width / finalVisibleCrop.width),
+				areaHeight: this.clampRelativeValue(
+					intersectionRect.height / finalVisibleCrop.height,
+				),
+				elementCrop: normalizedNextElementCrop,
+			})
+		})
 	}
 
 	/**
@@ -716,6 +944,7 @@ export class MarkerManager {
 		const validMarkers = markers
 			? markers.filter((marker) => this.canvas.elementManager.hasElement(marker.elementId))
 			: []
+		this.cropRenderOverrides.clear()
 		this.markers = validMarkers
 		this.renderAllMarkers()
 	}
@@ -733,11 +962,11 @@ export class MarkerManager {
 	 */
 	public clear(): void {
 		this.markers = []
+		this.cropRenderOverrides.clear()
 		this.markerInstances.forEach((instance) => {
 			instance.destroy()
 		})
 		this.markerInstances.clear()
-		this.selectedMarkerId = null
 		this.canvas.markersLayer.batchDraw()
 	}
 
@@ -755,14 +984,11 @@ export class MarkerManager {
 		this.canvas.eventEmitter.off("element:updated")
 		this.canvas.eventEmitter.off("viewport:scale")
 		this.canvas.eventEmitter.off("document:restored")
-		this.canvas.eventEmitter.off("element:select")
-		this.canvas.eventEmitter.off("keyboard:delete")
 		this.canvas.eventEmitter.off("element:created")
+		this.canvas.eventEmitter.off("crop:confirmed")
 		this.canvas.eventEmitter.off("element:image:loaded")
 		this.canvas.eventEmitter.off("frame:created")
 		this.canvas.eventEmitter.off("frame:removed")
-		// 清理 stage 事件监听器
-		this.canvas.stage.off("click")
 		// 清理 layer 事件监听器
 		this.canvas.markersLayer.off("add")
 

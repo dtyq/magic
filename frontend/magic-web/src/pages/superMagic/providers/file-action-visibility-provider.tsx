@@ -3,8 +3,9 @@ import { createContext, useContext, useMemo, type PropsWithChildren } from "reac
 export interface FileActionVisibility {
 	hideCopyTo?: boolean
 	hideMoveTo?: boolean
-	hideShare?: boolean
-	hideAddToNewChat?: boolean
+	hideShareFile?: boolean
+	hideShareTopic?: boolean
+	hideCreateNewTopic?: boolean
 }
 
 interface FileActionVisibilityProviderProps extends PropsWithChildren {
@@ -14,19 +15,25 @@ interface FileActionVisibilityProviderProps extends PropsWithChildren {
 const defaultFileActionVisibility: Required<FileActionVisibility> = {
 	hideCopyTo: false,
 	hideMoveTo: false,
-	hideShare: false,
-	hideAddToNewChat: false,
+	hideShareFile: false,
+	hideShareTopic: false,
+	hideCreateNewTopic: false,
 }
 
 export const HIDE_COPY_MOVE_SHARE_FILE_ACTIONS: FileActionVisibility = {
-	hideCopyTo: true,
-	hideMoveTo: true,
-	hideShare: true,
+	hideCopyTo: false,
+	hideMoveTo: false,
+	hideShareFile: false,
+}
+
+export const HIDE_COPY_MOVE_SHARE_FILE_AND_TOPIC_ACTIONS: FileActionVisibility = {
+	...HIDE_COPY_MOVE_SHARE_FILE_ACTIONS,
+	hideShareTopic: true,
 }
 
 export const HIDE_CLAW_FILE_ACTIONS: FileActionVisibility = {
-	...HIDE_COPY_MOVE_SHARE_FILE_ACTIONS,
-	hideAddToNewChat: true,
+	...HIDE_COPY_MOVE_SHARE_FILE_AND_TOPIC_ACTIONS,
+	hideCreateNewTopic: true,
 }
 
 const FileActionVisibilityContext = createContext(defaultFileActionVisibility)
@@ -39,10 +46,17 @@ export function FileActionVisibilityProvider({
 		() => ({
 			hideCopyTo: value?.hideCopyTo ?? false,
 			hideMoveTo: value?.hideMoveTo ?? false,
-			hideShare: value?.hideShare ?? false,
-			hideAddToNewChat: value?.hideAddToNewChat ?? false,
+			hideShareFile: value?.hideShareFile ?? false,
+			hideShareTopic: value?.hideShareTopic ?? false,
+			hideCreateNewTopic: value?.hideCreateNewTopic ?? false,
 		}),
-		[value?.hideAddToNewChat, value?.hideCopyTo, value?.hideMoveTo, value?.hideShare],
+		[
+			value?.hideCopyTo,
+			value?.hideCreateNewTopic,
+			value?.hideMoveTo,
+			value?.hideShareFile,
+			value?.hideShareTopic,
+		],
 	)
 
 	return (

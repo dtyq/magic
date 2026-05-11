@@ -6,7 +6,7 @@ import type {
 	Topic,
 	Workspace,
 } from "../pages/Workspace/types"
-import pubsub from "@/utils/pubsub"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { WorkspacePage } from "@/pages/superMagic/layouts/MainLayout/types"
 import { useMemoizedFn } from "ahooks"
 import routeManageService from "../services/routeManageService"
@@ -304,16 +304,16 @@ export function useTopics({
 	)
 
 	useEffect(() => {
-		pubsub.subscribe("super_magic_add_topic", (newTopic: Topic) => {
+		pubsub.subscribe(PubSubEvents.Add_Topic, (newTopic) => {
 			setTopics([...topics, newTopic])
 		})
-		pubsub.subscribe("super_magic_create_create_topic", () => {
+		pubsub.subscribe(PubSubEvents.Trigger_Create_Topic, () => {
 			handleCreateTopic()
 		})
 
 		return () => {
-			pubsub.unsubscribe("super_magic_add_topic")
-			pubsub.unsubscribe("super_magic_create_create_topic")
+			pubsub.unsubscribe(PubSubEvents.Add_Topic)
+			pubsub.unsubscribe(PubSubEvents.Trigger_Create_Topic)
 		}
 	}, [handleCreateTopic, selectedTopic, topics])
 

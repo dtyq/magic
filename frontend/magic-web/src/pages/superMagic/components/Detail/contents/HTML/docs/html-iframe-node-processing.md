@@ -43,6 +43,11 @@
 - `utils/nested-iframe-content.ts`
 - `utils/fetchInterceptor.ts`
 
+### 3.2.1 相对路径判定与「简化」边界（维护备注）
+
+- 注入脚本中的 `isRelativePath` 由 [`utils/fetchInterceptor.ts`](../utils/fetchInterceptor.ts) 导出的 `injectedIsRelativePathFunctionSource` 单源拼接进 `getDynamicResourceInterceptorScript` 与 `generateFetchInterceptorScript`，避免两处正则不一起改。
+- **MutationObserver** 与 **prototype / `setAttribute` 延迟写回**（`installDeferredResourceUrlHooks`）刻意并存：前者覆盖解析器、`innerHTML` 等路径；后者缓解「先赋相对值再插入文档」的竞态。为降低漏网风险，**未采纳**「为减少重复调度而收窄 MO、仅依赖 hooks」的方案。
+
 ### 3.3 保存时（编辑模式）
 
 1. 保存链路调用 `filterInjectedTags`

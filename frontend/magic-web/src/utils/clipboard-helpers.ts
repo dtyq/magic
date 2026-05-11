@@ -124,6 +124,7 @@ export interface MagicClipboardMetadata {
 	mentions?: unknown[]
 	type?: string
 	messageId?: string
+	sourceProjectId?: string
 	[key: string]: unknown
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { AlertTriangle, Maximize, Minimize, RefreshCw, Share2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
@@ -12,6 +12,7 @@ import { VersionHistorySelector } from "../PPTRender/components/VersionHistorySe
 import type { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
 import ActionButton from "../CommonHeader/components/ActionButton"
 import { usePPTEventBus } from "../PPTRender/hooks/usePPTEventBus"
+import useFullscreenMode from "@/hooks/useFullscreenMode"
 import { useFileShare } from "../CommonHeader/hooks"
 import { FileShareModals } from "../CommonHeader/components"
 import type { AttachmentItem } from "../../../TopicFilesButton/hooks/types"
@@ -19,7 +20,10 @@ import useFileExport from "../../hooks/useFileExport"
 import { projectStore } from "@/pages/superMagic/stores/core"
 import usePPTStoreOptional from "./usePPTStoreOptional"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { pptFontResolver } from "@/pages/superMagic/services/pptFontService"
 import { exportPPTX } from "../../../../../../../packages/html2pptx/src"
+import { pptxExternalLogger, reportPptxExportError } from "@/pages/superMagic/utils/pptxLogger"
+import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
 
 interface EditToolbarProps {
 	style?: React.CSSProperties
@@ -40,7 +44,9 @@ interface EditToolbarProps {
 	/** 编辑按钮点击回调 */
 	onEdit?: () => void
 	/** 保存按钮点击回调 */
-	onSave?: () => void
+	onSave?: () => void | Promise<void>
+	/** 保存并退出按钮点击回调 */
+	onSaveAndExit?: () => void | Promise<void>
 	/** 取消按钮点击回调 */
 	onCancel?: () => void
 	/** 自定义类名 */
@@ -83,6 +89,8 @@ interface EditToolbarProps {
 		name: string
 		type: string
 		url?: string
+		projectId?: string
+		projectName?: string
 	}
 	/** 附件列表（用于分享） */
 	attachments?: AttachmentItem[]
@@ -105,6 +113,7 @@ function EditToolbar({
 	fileId,
 	onEdit,
 	onSave,
+	onSaveAndExit,
 	onCancel,
 	className,
 	hasServerUpdate = false,
@@ -135,7 +144,19 @@ function EditToolbar({
 	const { t } = useTranslation("super")
 	const { emitFullscreenToggle } = usePPTEventBus()
 	const [isFullscreen, setIsFullscreen] = useState(false)
+	const isFullscreenMode = useFullscreenMode()
 	const [isEditableExporting, setIsEditableExporting] = useState(false)
+
+	useEffect(() => {
+		function handleKeyDown(event: KeyboardEvent) {
+			if (event.key === "Escape") {
+				setIsFullscreen(false)
+			}
+		}
+
+		window.addEventListener("keydown", handleKeyDown)
+		return () => window.removeEventListener("keydown", handleKeyDown)
+	}, [isFullscreen, emitFullscreenToggle])
 
 	const selectedProject = projectStore.selectedProject
 	const resolvedProjectId = selectedProject?.id || projectId
@@ -163,7 +184,7 @@ function EditToolbar({
 
 		const { slidePaths } = input
 		const storeConfig = pptStore.getConfigForExport()
-		const defaultName = storeConfig?.metadata?.name || "slides"
+		const defaultName = storeConfig?.attachments?.[0]?.file_name || "slides"
 
 		const targetSlides = slidePaths?.length
 			? pptStore.slides.filter((slide) => slidePaths.includes(slide.path))
@@ -175,7 +196,7 @@ function EditToolbar({
 		}
 
 		const htmlSlides = targetSlides.map((slide) => slide.content ?? "")
-		const toastId = crypto.randomUUID()
+		const toastId = createRandomUuidV4()
 		let exportHandle: ReturnType<typeof exportPPTX> | null = null
 
 		function getExportToastContent(progressText: string) {
@@ -198,6 +219,9 @@ function EditToolbar({
 		exportHandle = exportPPTX(htmlSlides, {
 			fileName: defaultName,
 			skipFailedPages: true,
+			fontResolver: pptFontResolver,
+			logger: pptxExternalLogger,
+			logLevel: "warn",
 			onSlideProgress: ({ index, total }) => {
 				const progress = total > 1 ? ` (${index + 1}/${total})` : ""
 				magicToast.loading({
@@ -232,7 +256,11 @@ function EditToolbar({
 						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
 						duration: 1000,
 					})
-					console.error("Export editable PPT failed:", error)
+					reportPptxExportError(error, {
+						fileName: defaultName,
+						slideCount: htmlSlides?.length,
+						source: "EditToolbar",
+					})
 				}
 			})
 			.finally(() => {
@@ -349,6 +377,7 @@ function EditToolbar({
 							showButtonText={shouldShowButtonText}
 							onEdit={onEdit}
 							onSave={onSave}
+							onSaveAndExit={onSaveAndExit}
 							onCancel={onCancel}
 						/>
 					)}
@@ -374,24 +403,26 @@ function EditToolbar({
 
 					{/* 全屏按钮 */}
 
-					<ActionButton
-						icon={isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
-						onClick={() => {
-							emitFullscreenToggle()
-							setIsFullscreen(!isFullscreen)
-						}}
-						title={
-							isFullscreen
-								? t("fileViewer.exitFullscreen")
-								: t("fileViewer.fullscreen")
-						}
-						text={
-							isFullscreen
-								? t("fileViewer.exitFullscreen")
-								: t("fileViewer.fullscreen")
-						}
-						showText={shouldShowButtonText}
-					/>
+					{!isFullscreenMode && (
+						<ActionButton
+							icon={isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+							onClick={() => {
+								emitFullscreenToggle()
+								setIsFullscreen(!isFullscreen)
+							}}
+							title={
+								isFullscreen
+									? t("fileViewer.exitFullscreen")
+									: t("fileViewer.fullscreen")
+							}
+							text={
+								isFullscreen
+									? t("fileViewer.exitFullscreen")
+									: t("fileViewer.fullscreen")
+							}
+							showText={shouldShowButtonText}
+						/>
+					)}
 
 					{showDownload && (
 						<ExportDropdown

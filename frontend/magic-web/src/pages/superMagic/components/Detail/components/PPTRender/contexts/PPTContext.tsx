@@ -37,14 +37,14 @@ export function PPTProvider({ children, storeConfig }: PPTProviderProps) {
 			attachmentList: storeConfig.attachmentList,
 			mainFileId: storeConfig.mainFileId,
 			mainFileName: storeConfig.mainFileName,
-			metadata: storeConfig.metadata,
+			displayConfig: storeConfig.displayConfig,
 		})
 	}, [
 		storeConfig.attachments,
 		storeConfig.attachmentList,
 		storeConfig.mainFileId,
 		storeConfig.mainFileName,
-		storeConfig.metadata,
+		storeConfig.displayConfig,
 		store,
 	])
 

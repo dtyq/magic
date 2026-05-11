@@ -1,8 +1,10 @@
 import { Upload, UploadConfig as SDKUploadConfig } from "@dtyq/upload-sdk"
 import { UploadTokenManager } from "./UploadTokenManager"
+import { RecordingBatchSaveReporter } from "./RecordingBatchSaveReporter"
 import { VoiceResultUtterance } from "@/components/business/VoiceInput/services/VoiceClient/types"
 import { logger as Logger } from "@/utils/log"
 import recordSummaryStore from "@/stores/recordingSummary"
+import { getSnowflakeUploadFileName } from "./utils/getSnowflakeUploadFileName"
 
 const logger = Logger.createLogger("RecordingContentFileManager", {
 	enableConfig: { console: false },
@@ -25,6 +27,7 @@ interface ContentFileInfo {
 	fileName: string
 	fileId: string // File ID from backend preset_files
 	filePath: string // File path from backend preset_files
+	parentId: string
 	lastContent?: string // Last uploaded content
 	pendingContent?: string // Pending content to upload
 	isUploading: boolean
@@ -47,11 +50,13 @@ interface ContentFileManagerEvents {
  */
 export class RecordingContentFileManager {
 	private tokenManager: UploadTokenManager
+	private batchSaveReporter: RecordingBatchSaveReporter
 	private uploadInstance: Upload
 	private events: ContentFileManagerEvents
 
 	private sessionId: string | null = null
 	private topicId: string | null = null
+	private projectId: string | null = null
 
 	// File information (initialized from backend preset_files)
 	private noteFile: ContentFileInfo | null = null
@@ -65,8 +70,13 @@ export class RecordingContentFileManager {
 	// Dispose flag
 	private isDisposed = false
 
-	constructor(tokenManager: UploadTokenManager, events: ContentFileManagerEvents = {}) {
+	constructor(
+		tokenManager: UploadTokenManager,
+		batchSaveReporter: RecordingBatchSaveReporter,
+		events: ContentFileManagerEvents = {},
+	) {
 		this.tokenManager = tokenManager
+		this.batchSaveReporter = batchSaveReporter
 		this.uploadInstance = new Upload()
 		this.events = events
 	}
@@ -80,7 +90,7 @@ export class RecordingContentFileManager {
 	async initialize(
 		sessionId: string,
 		topicId: string,
-		_projectId: string,
+		projectId: string,
 		options?: {
 			existingNote?: string // Existing note content for restoration
 			existingTranscript?: string // Existing transcript content for restoration
@@ -88,6 +98,7 @@ export class RecordingContentFileManager {
 	): Promise<void> {
 		this.sessionId = sessionId
 		this.topicId = topicId
+		this.projectId = projectId
 
 		logger.log(`Initializing content file manager for session ${sessionId}`)
 
@@ -109,11 +120,32 @@ export class RecordingContentFileManager {
 			throw new Error("Preset files not available from backend")
 		}
 
+		// Parent folder for preset content files is the ASR display directory
+		let displayDirId =
+			this.tokenManager.getDirectories(sessionId)?.asr_display_dir?.directory_id
+		if (!displayDirId) {
+			logger.warn(`ASR display dir missing for session ${sessionId}, refreshing token`)
+			try {
+				await this.tokenManager.getToken(sessionId, topicId)
+				displayDirId =
+					this.tokenManager.getDirectories(sessionId)?.asr_display_dir?.directory_id
+			} catch (error) {
+				logger.error("Failed to refresh token for ASR display directory", error)
+			}
+		}
+
+		if (!displayDirId) {
+			throw new Error("ASR display directory_id not available for content files")
+		}
+
+		const contentFilesParentId = displayDirId
+
 		// Initialize note file info from backend
 		this.noteFile = {
 			fileName: presetFiles.note_file.file_name,
 			fileId: presetFiles.note_file.file_id,
 			filePath: presetFiles.note_file.file_path,
+			parentId: contentFilesParentId,
 			lastContent: options?.existingNote,
 			isUploading: false,
 		}
@@ -123,6 +155,7 @@ export class RecordingContentFileManager {
 			fileName: presetFiles.transcript_file.file_name,
 			fileId: presetFiles.transcript_file.file_id,
 			filePath: presetFiles.transcript_file.file_path,
+			parentId: contentFilesParentId,
 			lastContent: options?.existingTranscript,
 			isUploading: false,
 		}
@@ -316,16 +349,21 @@ export class RecordingContentFileManager {
 		this.noteFile.isUploading = true
 
 		try {
-			const filePath = await this.uploadContentFile(
+			const uploadResult = await this.uploadContentFile(
 				this.noteFile.fileName,
 				content,
 				ContentFileType.Note,
 			)
 
 			this.noteFile.lastContent = content
-			this.events.onUploadSuccess?.(ContentFileType.Note, this.noteFile.fileId, filePath)
+			await this.reportUploadedContentFile(this.noteFile, uploadResult)
+			this.events.onUploadSuccess?.(
+				ContentFileType.Note,
+				this.noteFile.fileId,
+				uploadResult.fileKey,
+			)
 
-			logger.log(`Note file uploaded successfully: ${filePath}`)
+			logger.log(`Note file uploaded successfully: ${uploadResult.fileKey}`)
 		} catch (error) {
 			logger.error("Failed to upload note file", error)
 			this.events.onUploadError?.(ContentFileType.Note, error as Error)
@@ -355,20 +393,21 @@ export class RecordingContentFileManager {
 		this.transcriptFile.isUploading = true
 
 		try {
-			const filePath = await this.uploadContentFile(
+			const uploadResult = await this.uploadContentFile(
 				this.transcriptFile.fileName,
 				content,
 				ContentFileType.Transcript,
 			)
 
 			this.transcriptFile.lastContent = content
+			await this.reportUploadedContentFile(this.transcriptFile, uploadResult)
 			this.events.onUploadSuccess?.(
 				ContentFileType.Transcript,
 				this.transcriptFile.fileId,
-				filePath,
+				uploadResult.fileKey,
 			)
 
-			logger.log(`Transcript file uploaded successfully: ${filePath}`)
+			logger.log(`Transcript file uploaded successfully: ${uploadResult.fileKey}`)
 		} catch (error) {
 			logger.error("Failed to upload transcript file", error)
 			this.events.onUploadError?.(ContentFileType.Transcript, error as Error)
@@ -386,7 +425,7 @@ export class RecordingContentFileManager {
 		fileName: string,
 		content: string,
 		fileType: ContentFileType,
-	): Promise<string> {
+	): Promise<{ fileKey: string; fileSize: number }> {
 		if (!this.sessionId) {
 			throw new Error("Session ID not set")
 		}
@@ -420,6 +459,7 @@ export class RecordingContentFileManager {
 		// Create file blob
 		const blob = new Blob([content], { type: "text/markdown;charset=utf-8" })
 		const file = new File([blob], fileName, { type: "text/markdown;charset=utf-8" })
+		const uploadFileName = await getSnowflakeUploadFileName()
 
 		// Modify credentials to use display directory
 		const modifiedCredentials = this.modifyCredentialsDirectory(
@@ -430,13 +470,16 @@ export class RecordingContentFileManager {
 		return new Promise((resolve, reject) => {
 			const { success, fail } = this.uploadInstance.upload({
 				file,
-				fileName,
+				fileName: uploadFileName,
 				customCredentials: modifiedCredentials,
 			})
 
 			success?.((res) => {
 				if (res?.data?.path) {
-					resolve(res.data.path)
+					resolve({
+						fileKey: res.data.path,
+						fileSize: file.size,
+					})
 				} else {
 					reject(new Error(`Upload failed for ${fileType}: No path returned`))
 				}
@@ -515,6 +558,7 @@ export class RecordingContentFileManager {
 		// Reset state
 		this.sessionId = null
 		this.topicId = null
+		this.projectId = null
 
 		logger.log("Content file manager disposed")
 	}
@@ -531,6 +575,10 @@ export class RecordingContentFileManager {
 			note: this.noteFile ? { ...this.noteFile } : null,
 			transcript: this.transcriptFile ? { ...this.transcriptFile } : null,
 		}
+	}
+
+	getNoteLastUploadedContent(): string | undefined {
+		return this.noteFile?.lastContent
 	}
 
 	/**
@@ -552,5 +600,29 @@ export class RecordingContentFileManager {
 			this.transcriptFile !== null &&
 			!this.isDisposed
 		)
+	}
+
+	private async reportUploadedContentFile(
+		file: ContentFileInfo,
+		uploadResult: { fileKey: string; fileSize: number },
+	): Promise<void> {
+		if (!this.sessionId || !this.topicId || !this.projectId) {
+			logger.warn("Skip content batch save: missing session context", {
+				sessionId: this.sessionId,
+				topicId: this.topicId,
+				projectId: this.projectId,
+			})
+			return
+		}
+
+		await this.batchSaveReporter.reportUploadedFile({
+			sessionId: this.sessionId,
+			projectId: this.projectId,
+			topicId: this.topicId,
+			parentId: file.parentId,
+			fileKey: uploadResult.fileKey,
+			fileName: file.fileName,
+			fileSize: uploadResult.fileSize,
+		})
 	}
 }

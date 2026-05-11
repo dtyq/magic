@@ -45,10 +45,13 @@ function InterruptButton({
 	const buttonNode = (
 		<button
 			type="button"
+			disabled={loading}
 			onClick={onInterrupt}
 			aria-label={t("common.interrupt")}
+			aria-busy={loading}
 			className={cn(
 				"flex shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 transition-all hover:opacity-80 active:opacity-60",
+				loading && "cursor-not-allowed opacity-90",
 				classNames,
 			)}
 			data-testid="interrupt-button"

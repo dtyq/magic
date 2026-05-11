@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import type { LoginFormValuesMap, LoginStepResult } from "@/pages/login/types"
+import type { RequestConfig } from "@/apis/core/HttpClient"
 import { Login } from "@/types/login"
 import type { User } from "@/types/user"
 import { getDeviceInfo } from "@/utils/devices"
@@ -43,6 +44,7 @@ export class LoginService {
 		type: T,
 		values: LoginFormValuesMap[T],
 		organizationCode?: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
 	) => {
 		return async () => {
 			values.device = await getDeviceInfo(configStore.i18n.i18n.instance)
@@ -71,6 +73,7 @@ export class LoginService {
 							headers: {
 								"organization-code": orgCode || "",
 							},
+							...options,
 						},
 					)
 				case Login.LoginType.DingTalkAppLogin:
@@ -139,10 +142,10 @@ export class LoginService {
 	}
 
 	/** 同步当前登录帐号的环境配置 */
-	syncClusterConfig = async () => {
+	syncClusterConfig = async (options?: Pick<RequestConfig, "skipAppInitWait">) => {
 		try {
-			const { login_code } = await this.authApi.getAccountDeployCode()
-			const config = await this.getClusterConfig(login_code)
+			const { login_code } = await this.authApi.getAccountDeployCode(options)
+			const config = await this.getClusterConfig(login_code, options)
 			return { clusterCode: login_code, clusterConfig: config }
 		} catch (error: any) {
 			const newMessage = `deployCodeSyncStep: ${error.message}`
@@ -153,8 +156,8 @@ export class LoginService {
 	}
 
 	/** 获取集群环境 */
-	getClusterConfig = async (code: string) => {
-		const { config } = await this.commonApi.getPrivateConfigure(code)
+	getClusterConfig = async (code: string, options?: Pick<RequestConfig, "skipAppInitWait">) => {
+		const { config } = await this.commonApi.getPrivateConfigure(code, options)
 		// 获取集群配置后，更新集群配置
 		await this.service.get<ConfigService>("configService").setClusterConfig(code || "", config)
 		return Promise.resolve(config)
@@ -167,12 +170,14 @@ export class LoginService {
 		clusterCode: string,
 		accessToken: string,
 		thirdPlatformOrganizationCode?: string,
-	) => {
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	): Promise<Record<string, User.MagicOrganization>> => {
 		try {
 			const result = await this.authApi.bindMagicAuthorization(
 				accessToken,
 				clusterCode,
 				thirdPlatformOrganizationCode,
+				options,
 			)
 			return keyBy(result, "magic_organization_code")
 		} catch (error: any) {
@@ -185,7 +190,10 @@ export class LoginService {
 	}
 
 	/** Step 4: 账号同步(判断当前) */
-	accountSync = async (params: LoginStepResult & { deployCode: string }) => {
+	accountSync = async (
+		params: LoginStepResult & { deployCode: string },
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	) => {
 		try {
 			const {
 				deployCode,
@@ -201,7 +209,9 @@ export class LoginService {
 				teamshareOrganizationCode || magicOrgs?.[0]?.third_platform_organization_code
 
 			if (orgCode) {
-				const userInfo = await this.service.get<UserService>("userService").fetchUserInfo()
+				const userInfo = await this.service
+					.get<UserService>("userService")
+					.fetchUserInfo(options)
 				if (userInfo) {
 					userStore.user.setUserInfo(userTransformer(userInfo))
 					// 登录完成后构造用户信息，维护在账号体系中
@@ -239,6 +249,7 @@ export class LoginService {
 	getThirdPlatformOrganizations = async (
 		accessToken: string,
 		deployCode: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
 	): Promise<{
 		magicOrganizationMap: Record<string, User.MagicOrganization>
 		organizationCode: string
@@ -246,7 +257,12 @@ export class LoginService {
 		thirdPlatformOrganizationCode: string
 	}> => {
 		try {
-			const auth_status = await this.authApi.bindMagicAuthorization(accessToken, deployCode)
+			const auth_status = await this.authApi.bindMagicAuthorization(
+				accessToken,
+				deployCode,
+				undefined,
+				options,
+			)
 
 			// 聚合magic、第三方平台等组织集合
 			const magicOrganizationMap = keyBy(auth_status, "magic_organization_code")
@@ -335,6 +351,7 @@ export class LoginService {
 	async thirdPartyPrivateLogin(
 		_platformType: string,
 		_organizationCode: string,
+		_options?: Pick<RequestConfig, "skipAppInitWait">,
 	): Promise<Common.PrivateConfigSignInValues> {
 		return {} as Common.PrivateConfigSignInValues
 	}

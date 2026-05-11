@@ -1,17 +1,22 @@
 import type { Canvas } from "../Canvas"
-import type { TFunction } from "../../context/I18nContext"
 import { getImageSourceDimensions } from "../utils/imageSourceUtils"
+import { getMediaResourcePathKind } from "../utils/mediaResourcePathKind"
 import {
 	areAllFilesImages,
+	areAllFilesVideos,
 	isAllowedFileType,
+	isAudioFile,
+	isImageFile,
+	isVideoFile,
 	validateFile,
 	generateElementId,
 	generateUniqueElementName,
 	calculateHorizontalImageLayout,
-	validateImageFilePath,
+	validateCanvasFilePath,
+	SUPPORTED_VIDEO_EXTENSIONS,
 } from "../utils/utils"
 import { getAllExistingNames } from "../utils/elementUtils"
-import type { ImageElement } from "../types"
+import type { ImageElement, VideoElement } from "../types"
 import { ElementTypeEnum } from "../types"
 
 /**
@@ -27,7 +32,6 @@ export class DropOverlayManager {
 	private canvas: Canvas
 	private overlayElement?: HTMLDivElement
 	private dragCounter: number = 0 // 用于跟踪 dragenter/dragleave 的嵌套
-	private t?: TFunction
 
 	// 拖放事件处理函数引用（用于移除事件监听）
 	private handleDragEnterBound: ((e: DragEvent) => void) | null = null
@@ -37,7 +41,6 @@ export class DropOverlayManager {
 
 	constructor(options: { canvas: Canvas }) {
 		this.canvas = options.canvas
-		this.t = this.canvas.t
 
 		this.setupDragAndDropHandlers()
 	}
@@ -46,9 +49,8 @@ export class DropOverlayManager {
 	 * 获取翻译文本
 	 */
 	private getText(key: string, fallback: string): string {
-		if (this.t) {
-			return this.t(key, fallback)
-		}
+		const t = this.canvas.t
+		if (t) return t(key, fallback)
 		return fallback
 	}
 
@@ -107,6 +109,35 @@ export class DropOverlayManager {
 	}
 
 	/**
+	 * 检测文件类型（是否为视频）
+	 * @param dataTransfer DataTransfer 对象
+	 * @returns 是否为视频类型
+	 */
+	private isVideoType(dataTransfer: DataTransfer): boolean {
+		const items = dataTransfer.items
+		if (items && items.length > 0) {
+			const fileTypes: string[] = []
+			for (let i = 0; i < items.length; i++) {
+				const item = items[i]
+				if (item.kind === "file" && item.type) {
+					fileTypes.push(item.type)
+				}
+			}
+
+			if (fileTypes.length > 0) {
+				return fileTypes.every((type) => type.startsWith("video/"))
+			}
+		}
+
+		const files = dataTransfer.files
+		if (files && files.length > 0) {
+			return areAllFilesVideos(files)
+		}
+
+		return false
+	}
+
+	/**
 	 * 检测文件类型（是否为允许的类型）
 	 * @param dataTransfer DataTransfer 对象
 	 * @returns 是否为允许的文件类型
@@ -158,6 +189,10 @@ export class DropOverlayManager {
 		// 检测是否为图片类型
 		if (this.isImageType(dataTransfer)) {
 			return this.getText("dropOverlay.releaseToUploadImage", "松开以上传图片")
+		}
+
+		if (this.isVideoType(dataTransfer)) {
+			return this.getText("dropOverlay.releaseToUpload", "松开以上传文件")
 		}
 
 		// 检测是否为允许的文件类型
@@ -272,9 +307,11 @@ export class DropOverlayManager {
 			this.canvas.magicConfigManager.config?.methods?.getDataTransferFileInfo
 		if (getDataTransferFileInfo && e.dataTransfer) {
 			const filePaths = await getDataTransferFileInfo(e.dataTransfer)
-			// 使用 validateImageFilePath 过滤有效的图片文件路径
+			// 过滤有效的图片/视频文件路径
 			const validFilePaths = filePaths.filter(
-				(filePath) => validateImageFilePath(filePath).valid,
+				(filePath) =>
+					validateCanvasFilePath(filePath).valid &&
+					getMediaResourcePathKind(filePath) !== "audio",
 			)
 			if (validFilePaths.length > 0) {
 				// 显示加载状态遮罩层
@@ -319,12 +356,15 @@ export class DropOverlayManager {
 	 */
 	private getCanvasAreaCenter(): { x: number; y: number } {
 		const container = this.canvas.container
-		const viewportOffset = this.canvas.viewportController.getDefaultViewportOffset()
-
-		const leftOffset = viewportOffset?.left || 0
-		const rightOffset = viewportOffset?.right || 0
-		const topOffset = viewportOffset?.top || 0
-		const bottomOffset = viewportOffset?.bottom || 0
+		const {
+			left: leftOffset,
+			right: rightOffset,
+			top: topOffset,
+			bottom: bottomOffset,
+		} = this.canvas.viewportController.getResolvedDefaultViewportPadding(
+			container.offsetWidth,
+			container.offsetHeight,
+		)
 
 		const containerWidth = container.offsetWidth
 		const containerHeight = container.offsetHeight
@@ -522,16 +562,27 @@ export class DropOverlayManager {
 			return
 		}
 
-		// 处理所有有效文件
-		// 目前只支持图片文件，多个文件时根据宽度并排
-		const imageFiles = validFiles.filter((file) => file.type.startsWith("image/"))
-		if (imageFiles.length === 0) {
+		const canvasElementFiles = validFiles.filter(
+			(file) => isImageFile(file) || isVideoFile(file),
+		)
+		const audioFiles = validFiles.filter((file) => isAudioFile(file))
+
+		if (canvasElementFiles.length > 0) {
+			await this.canvas.clipboardManager.pasteMultipleCanvasFiles(
+				canvasElementFiles,
+				canvasPos,
+			)
+		}
+
+		if (audioFiles.length === 0) {
 			return
 		}
 
-		// 使用统一的多个图片粘贴方法
-		// 第一个图片的中心在 drop 位置，其他图片水平排列，无间隙
-		await this.canvas.clipboardManager.pasteMultipleImageFiles(imageFiles, canvasPos)
+		try {
+			await this.canvas.canvasFileUploadManager.uploadDirect(audioFiles)
+		} catch (error) {
+			console.error("[DropOverlayManager] 上传音频文件失败:", error)
+		}
 	}
 
 	/**
@@ -554,6 +605,35 @@ export class DropOverlayManager {
 	}
 
 	/**
+	 * 从 URL 获取视频尺寸
+	 * @param src 视频可访问地址
+	 * @returns Promise<{width: number, height: number}> 视频的宽度和高度
+	 */
+	private async getVideoDimensionsFromUrl(
+		src: string,
+	): Promise<{ width: number; height: number }> {
+		return new Promise((resolve, reject) => {
+			const video = document.createElement("video")
+			video.preload = "metadata"
+			video.onloadedmetadata = () => {
+				resolve({
+					width: video.videoWidth || 1280,
+					height: video.videoHeight || 720,
+				})
+			}
+			video.onerror = () => {
+				reject(new Error("Failed to load video"))
+			}
+			video.src = src
+		})
+	}
+
+	private isVideoFilePath(filePath: string): boolean {
+		const lowerCasePath = filePath.toLowerCase()
+		return SUPPORTED_VIDEO_EXTENSIONS.some((ext) => lowerCasePath.endsWith(ext))
+	}
+
+	/**
 	 * 获取文件信息列表
 	 * @param filePaths 文件路径数组
 	 * @returns 有效的文件信息列表
@@ -573,7 +653,9 @@ export class DropOverlayManager {
 		const fileInfos = await Promise.all(
 			filePaths.map(async (filePath) => {
 				try {
-					const fileInfo = await getFileInfo(filePath)
+					const fileInfo = await getFileInfo(filePath, {
+						useImageProcess: !this.isVideoFilePath(filePath),
+					})
 					return { filePath, fileInfo }
 				} catch (error) {
 					console.warn(`[DropOverlayManager] 获取文件信息失败: ${filePath}`, error)
@@ -594,24 +676,26 @@ export class DropOverlayManager {
 	}
 
 	/**
-	 * 获取图片尺寸列表
+	 * 获取媒体尺寸列表
 	 * @param fileInfos 文件信息列表
-	 * @returns 图片尺寸列表和对应的临时元素 ID
+	 * @returns 媒体尺寸列表和对应的临时元素 ID
 	 */
-	private async getImageDimensions(
+	private async getMediaDimensions(
 		fileInfos: Array<{ filePath: string; fileInfo: { src: string } }>,
 	): Promise<Array<{ width: number; height: number; tempElementId: string }>> {
 		return Promise.all(
-			fileInfos.map(async ({ filePath }) => {
-				// 为每个图片生成临时元素 ID，用于资源管理
+			fileInfos.map(async ({ filePath, fileInfo }) => {
 				const tempElementId = generateElementId()
 				try {
-					const dimensions = await this.getImageDimensionsFromUrl(filePath)
+					const dimensions = this.isVideoFilePath(filePath)
+						? await this.getVideoDimensionsFromUrl(fileInfo.src)
+						: await this.getImageDimensionsFromUrl(filePath)
 					return { ...dimensions, tempElementId }
 				} catch (error) {
-					console.warn(`[DropOverlayManager] 获取图片尺寸失败: ${filePath}`, error)
-					// 返回默认尺寸
-					return { width: 1024, height: 1024, tempElementId }
+					console.warn(`[DropOverlayManager] 获取媒体尺寸失败: ${filePath}`, error)
+					return this.isVideoFilePath(filePath)
+						? { width: 1280, height: 720, tempElementId }
+						: { width: 1024, height: 1024, tempElementId }
 				}
 			}),
 		)
@@ -665,6 +749,49 @@ export class DropOverlayManager {
 	}
 
 	/**
+	 * 创建视频元素
+	 * @param filePath 文件路径
+	 * @param fileInfo 文件信息
+	 * @param dimensions 视频尺寸
+	 * @param position 位置
+	 * @param zIndex z-index
+	 * @param existingNames 已存在的名称集合
+	 * @returns 创建的元素 ID
+	 */
+	private createVideoElement(
+		filePath: string,
+		fileInfo: { fileName: string },
+		dimensions: { width: number; height: number },
+		position: { x: number; y: number },
+		zIndex: number,
+		existingNames: Set<string>,
+	): string {
+		const fileName = fileInfo.fileName || filePath.split("/").pop() || "video"
+		const baseName = fileName.replace(/\.[^/.]+$/, "")
+		const uniqueName = generateUniqueElementName(baseName, existingNames)
+		existingNames.add(uniqueName)
+
+		const targetX = position.x - dimensions.width / 2
+		const targetY = position.y - dimensions.height / 2
+
+		const elementId = generateElementId()
+		const videoElement: VideoElement = {
+			type: ElementTypeEnum.Video,
+			id: elementId,
+			x: targetX,
+			y: targetY,
+			width: dimensions.width,
+			height: dimensions.height,
+			src: filePath,
+			name: uniqueName,
+			zIndex,
+		}
+
+		this.canvas.elementManager.create(videoElement)
+		return elementId
+	}
+
+	/**
 	 * 处理自定义拖拽数据（从文件列表或Tab拖拽）
 	 * @param filePaths 文件路径数组
 	 * @param anchorPosition 锚点位置（第一个图片的中心位置）
@@ -683,48 +810,58 @@ export class DropOverlayManager {
 				return
 			}
 
-			// 获取所有图片的尺寸（会通过 ImageResourceManager 预加载图片）
-			const imageDimensionsWithIds = await this.getImageDimensions(validFileInfos)
+			const mediaDimensionsWithIds = await this.getMediaDimensions(validFileInfos)
 
-			// 提取尺寸信息用于布局计算
-			const imageDimensions = imageDimensionsWithIds.map(({ width, height }) => ({
+			const mediaDimensions = mediaDimensionsWithIds.map(({ width, height }) => ({
 				width,
 				height,
 			}))
 
-			// 计算布局：使用水平排列，顶部对齐，无间距
-			const positions = calculateHorizontalImageLayout(imageDimensions, anchorPosition, 0)
+			const positions = calculateHorizontalImageLayout(mediaDimensions, anchorPosition, 0)
 
 			// 生成唯一的名称
 			const existingNames = getAllExistingNames(this.canvas.elementManager)
 			const maxZIndex = this.canvas.elementManager.getMaxZIndexInLevel()
 
-			// 创建图片元素
 			const createdElementIds: string[] = []
 			for (let i = 0; i < validFileInfos.length; i++) {
 				const { filePath, fileInfo } = validFileInfos[i]
-				const { width, height } = imageDimensionsWithIds[i]
+				const { width, height } = mediaDimensionsWithIds[i]
 				const position = positions[i]
 				const zIndex = maxZIndex + 1 + i
 
-				// 预填充缓存（含 expires_at，避免 loadImage 时重复换取）
-				this.canvas.imageResourceManager.primeCache(filePath, {
-					src: fileInfo.src,
-					expires_at: fileInfo.expires_at,
-				})
-
-				const elementId = this.createImageElement(
-					filePath,
-					fileInfo,
-					{ width, height },
-					position,
-					zIndex,
-					existingNames,
-				)
+				const elementId = this.isVideoFilePath(filePath)
+					? this.createVideoElement(
+							filePath,
+							fileInfo,
+							{ width, height },
+							position,
+							zIndex,
+							existingNames,
+						)
+					: this.createImageElement(
+							filePath,
+							fileInfo,
+							{ width, height },
+							position,
+							zIndex,
+							existingNames,
+						)
 				createdElementIds.push(elementId)
 
-				// 确保资源已加载
-				this.canvas.imageResourceManager.loadResource(filePath)
+				if (this.isVideoFilePath(filePath)) {
+					this.canvas.videoResourceManager.primeCache(filePath, {
+						src: fileInfo.src,
+						expires_at: fileInfo.expires_at,
+					})
+					this.canvas.videoResourceManager.loadResource(filePath)
+				} else {
+					this.canvas.imageResourceManager.primeCache(filePath, {
+						src: fileInfo.src,
+						expires_at: fileInfo.expires_at,
+					})
+					this.canvas.imageResourceManager.loadResource(filePath)
+				}
 			}
 
 			// 重新启用历史记录并立即记录一次

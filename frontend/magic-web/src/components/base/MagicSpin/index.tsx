@@ -14,6 +14,8 @@ interface MagicSpinProps extends Omit<HTMLAttributes<HTMLDivElement>, "children"
 	tip?: ReactNode
 	wrapperClassName?: string
 	innerClassName?: string
+	/** Props for the absolute overlay when spinning (e.g. data-testid for E2E). */
+	spinningOverlayProps?: HTMLAttributes<HTMLDivElement>
 }
 
 const iconSizeMap: Record<MagicSpinSize, number> = {
@@ -32,6 +34,7 @@ const MagicSpin = memo(function MagicSpin({
 	tip,
 	wrapperClassName,
 	innerClassName,
+	spinningOverlayProps,
 	...props
 }: MagicSpinProps) {
 	void section
@@ -87,7 +90,10 @@ const MagicSpin = memo(function MagicSpin({
 				{children}
 			</div>
 			{showSpinner ? (
-				<div className="absolute inset-0 flex items-center justify-center">
+				<div
+					className="absolute inset-0 flex items-center justify-center"
+					{...spinningOverlayProps}
+				>
 					{spinIndicator}
 				</div>
 			) : null}

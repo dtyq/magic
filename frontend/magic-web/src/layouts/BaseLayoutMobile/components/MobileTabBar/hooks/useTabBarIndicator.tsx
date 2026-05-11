@@ -9,9 +9,14 @@ interface UseTabBarIndicatorOptions {
 	activeKey: string
 	containerClassName?: string
 	indicatorClassName: string
+	layoutKey?: string
 }
 
-export function useTabBarIndicator({ activeKey, indicatorClassName }: UseTabBarIndicatorOptions) {
+export function useTabBarIndicator({
+	activeKey,
+	indicatorClassName,
+	layoutKey,
+}: UseTabBarIndicatorOptions) {
 	const tabBarRef = useRef<HTMLDivElement>(null)
 	const [selectedIndicatorStyle, setSelectedIndicatorStyle] =
 		useState<SelectedIndicatorStyle | null>(null)
@@ -47,17 +52,17 @@ export function useTabBarIndicator({ activeKey, indicatorClassName }: UseTabBarI
 			})
 		}
 
-		// 延迟更新，确保 DOM 已渲染
-		const timer = setTimeout(updateIndicatorPosition, 0)
+		// 延迟到本次渲染布局完成后测量，避免接口返回后 tab 数量变化时读取到旧宽度。
+		const frameId = window.requestAnimationFrame(updateIndicatorPosition)
 
 		// 监听窗口大小变化
 		window.addEventListener("resize", updateIndicatorPosition)
 
 		return () => {
-			clearTimeout(timer)
+			window.cancelAnimationFrame(frameId)
 			window.removeEventListener("resize", updateIndicatorPosition)
 		}
-	}, [activeKey])
+	}, [activeKey, layoutKey])
 
 	// 渲染选中框指示器
 	const renderIndicator = () => {

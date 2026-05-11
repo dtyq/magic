@@ -21,7 +21,11 @@ interface UseDragUploadOptions {
 }
 
 interface UseDragUploadReturn {
-	handleUploadFiles: (files: File[], targetPath: string, isFolder: boolean) => Promise<void>
+	handleUploadFiles: (
+		files: File[],
+		targetItem: AttachmentItem | undefined,
+		isFolder: boolean,
+	) => Promise<void>
 	duplicateFileHandler: ReturnType<typeof useDuplicateFileHandler>
 }
 
@@ -47,11 +51,11 @@ export function useDragUpload({
 
 	// 实际上传处理函数（用于单个文件上传）
 	const processFilesUpload = useCallback(
-		async (files: File[], pathStr: string) => {
+		async (files: File[], parentId?: string) => {
 			// 文件上传：每个文件都创建一个独立的上传任务
 			await Promise.all(
 				files.map((file) =>
-					multiFolderUploadStore.createUploadTask([file], pathStr, {
+					multiFolderUploadStore.createUploadTask([file], parentId, {
 						projectId: projectId || "",
 						workspaceId,
 						projectName: selectedProject?.project_name || t("common.untitledProject"),
@@ -99,9 +103,9 @@ export function useDragUpload({
 
 	// 实际上传处理函数（用于文件夹上传）
 	const processFolderUpload = useCallback(
-		async (files: File[], pathStr: string) => {
+		async (files: File[], parentId?: string) => {
 			console.log("📁 [processFolderUpload] 开始上传文件夹:")
-			console.log("  ↳ pathStr:", pathStr)
+			console.log("  ↳ parentId:", parentId)
 			console.log("  ↳ files 详情:")
 			files.forEach((file) => {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -110,7 +114,7 @@ export function useDragUpload({
 			})
 
 			// 文件夹上传：所有文件作为一个上传任务
-			await multiFolderUploadStore.createUploadTask(files, pathStr, {
+			await multiFolderUploadStore.createUploadTask(files, parentId, {
 				projectId: projectId || "",
 				workspaceId,
 				projectName: selectedProject?.project_name || t("common.untitledProject"),
@@ -162,11 +166,11 @@ export function useDragUpload({
 	 * 处理文件上传到指定路径
 	 *
 	 * @param files 要上传的文件列表
-	 * @param targetPath 目标路径（如 "/" 或 "/folder1/folder2/"）
+	 * @param targetItem 目标文件夹项（包含 file_id）
 	 * @param isFolder 是否为文件夹上传
 	 */
 	const handleUploadFiles = useCallback(
-		async (files: File[], targetPath: string, isFolder: boolean) => {
+		async (files: File[], targetItem: AttachmentItem | undefined, isFolder: boolean) => {
 			// 权限检查
 			if (!allowUpload) {
 				magicToast.warning(t("topicFiles.contextMenu.noEditPermission", "没有编辑权限"))
@@ -186,14 +190,13 @@ export function useDragUpload({
 			}
 
 			try {
-				// 将路径转换为目录名数组（用于上传）
-				const pathStr = pathToDirectoryNames(targetPath).join("/")
+				// 提取 parentId
+				const parentId = targetItem?.is_directory ? targetItem.file_id : undefined
 
 				if (debug) {
 					console.log("📤 开始上传文件:", {
 						fileCount: files.length,
-						targetPath,
-						pathStr,
+						parentId,
 						isFolder,
 					})
 				}
@@ -204,7 +207,7 @@ export function useDragUpload({
 				// 通过同名检测处理上传
 				await duplicateFileHandler.handleFilesWithDuplicateCheck(
 					files,
-					pathStr,
+					parentId,
 					uploadProcessor,
 				)
 

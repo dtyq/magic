@@ -54,7 +54,7 @@ export function useDownloadImageMenu({ onDownload }: UseDownloadImageMenuProps) 
 	const downloadMenuClick = ({ key }: { key: string }) => {
 		switch (key) {
 			case "download":
-				onDownload?.()
+				onDownload?.(DownloadImageMode.NormalDownload)
 				break
 			case "downloadNoWaterMark":
 				handleDownloadNoWaterMark()
@@ -87,5 +87,6 @@ export function useDownloadImageMenu({ onDownload }: UseDownloadImageMenuProps) 
 		downloadMenuClick,
 		handleDownloadNoWaterMark,
 		preloadWaterMarkFreeModal,
+		shouldUseSingleDownloadEntry: false,
 	}
 }

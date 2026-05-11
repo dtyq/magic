@@ -9,12 +9,8 @@ import {
 	type DesignProjectManagerOptions,
 	type DesignProjectStateBag,
 } from "../managers"
-import type { WaitForAttachmentsUpdateFn } from "../managers/DesignRemoteListener"
 
-export interface UseDesignProjectManagerOptions extends DesignProjectManagerOptions {
-	/** 等待附件列表更新完成的回调函数 */
-	waitForAttachmentsUpdate: WaitForAttachmentsUpdateFn
-}
+export type UseDesignProjectManagerOptions = DesignProjectManagerOptions
 
 export interface UseDesignProjectManagerReturn {
 	magicProjectJsFileId: string | null
@@ -39,7 +35,11 @@ export interface UseDesignProjectManagerReturn {
 	loadWithVersion: (version: number) => Promise<DesignData | null>
 	loadLatest: () => Promise<{ data: DesignData | null; version: number | null }>
 
-	checkRemoteUpdate: () => Promise<{ hasUpdate: boolean; currentVersion: number | null }>
+	checkRemoteUpdate: () => Promise<{
+		hasUpdate: boolean
+		currentVersion: number | null
+		isCheckReliable: boolean
+	}>
 	updateLocalVersion: (version: number) => void
 
 	isReadOnly: boolean
@@ -85,7 +85,7 @@ export function useDesignProjectManager(
 	const magicProjectJsFileIdRef = useRef<string | null>(null)
 	const isReadOnlyRef = useRef(isReadOnly)
 	const magicProjectJsVersionRef = useRef<number | null>(null)
-	const prevDesignDataStrRef = useRef<string>("")
+	const prevDesignDataFingerprintRef = useRef<string>("")
 	const fileVersionsListRef = useRef<FileHistoryVersion[]>([])
 	const fileVersionRef = useRef<number | undefined>(undefined)
 
@@ -103,9 +103,9 @@ export function useDesignProjectManager(
 			setMagicProjectJsVersion: (v) => {
 				magicProjectJsVersionRef.current = v
 			},
-			getPrevDesignDataStr: () => prevDesignDataStrRef.current,
-			setPrevDesignDataStr: (v) => {
-				prevDesignDataStrRef.current = v
+			getPrevDesignDataFingerprint: () => prevDesignDataFingerprintRef.current,
+			setPrevDesignDataFingerprint: (v) => {
+				prevDesignDataFingerprintRef.current = v
 			},
 			getIsReadOnly: () => isReadOnlyRef.current,
 			setters: {
@@ -126,24 +126,21 @@ export function useDesignProjectManager(
 		[updateDesignData],
 	)
 
-	const { waitForAttachmentsUpdate, ...managerOptions } = options
-
 	const managerRef = useRef<DesignProjectManager | null>(null)
 	if (!managerRef.current) {
 		managerRef.current = new DesignProjectManager({
 			stateBag,
-			options: { ...managerOptions, getT: () => t },
+			options: { ...options, getT: () => t },
 			getFileVersionsList: () => fileVersionsListRef.current,
 			getFileVersion: () => fileVersionRef.current,
-			waitForAttachmentsUpdate,
 		})
 	}
 
 	const manager = managerRef.current
 
 	useEffect(() => {
-		manager.updateOptions({ ...managerOptions, getT: () => t })
-	}, [manager, managerOptions, t])
+		manager.updateOptions({ ...options, getT: () => t })
+	}, [manager, options, t])
 
 	useEffect(() => {
 		if (options.isShareRoute || !magicProjectJsFileId) return

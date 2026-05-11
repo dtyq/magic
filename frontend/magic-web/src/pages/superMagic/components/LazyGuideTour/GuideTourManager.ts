@@ -5,7 +5,7 @@ import pubsub, { PubSubEvents } from "@/utils/pubsub"
 export const GuideTourElementId = {
 	Init: "tour-init",
 	MessagePanel: "tour-message-panel",
-	TopicModeTabs: "tour-topic-mode-tabs",
+	RoleSwitcher: "tour-role-switcher",
 	ModelSelector: "tour-model-selector",
 	MCPButton: "tour-mcp-button",
 	UploadFileButton: "tour-upload-file-button",

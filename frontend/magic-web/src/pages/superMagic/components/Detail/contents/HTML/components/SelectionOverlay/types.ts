@@ -12,6 +12,10 @@ export interface SelectedInfo {
 	rect: ElementRect
 	computedStyles: Record<string, string>
 	rotation?: number
+	isImageElement?: boolean
+	intrinsicWidth?: number
+	intrinsicHeight?: number
+	intrinsicAspectRatio?: number
 }
 
 export interface ResizeHandleConfig {

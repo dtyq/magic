@@ -5,9 +5,7 @@ import { StoreSkillsStore } from ".."
 vi.mock("@/services/skills/SkillsService", () => ({
 	skillsService: {
 		getStoreSkills: vi.fn(),
-		getUserSkillIdMapByCodes: vi.fn(),
 		addSkillFromStore: vi.fn(),
-		deleteSkill: vi.fn(),
 		upgradeSkill: vi.fn(),
 	},
 }))
@@ -27,7 +25,6 @@ function createDeferred<T>() {
 describe("StoreSkillsStore", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
-		vi.mocked(skillsService.getUserSkillIdMapByCodes).mockResolvedValue(new Map())
 	})
 
 	it("clears keyword when search input is emptied", async () => {
@@ -59,8 +56,9 @@ describe("StoreSkillsStore", () => {
 				skillCode: string
 				name: string
 				description: string
+				isFeatured: boolean
 				status: "added" | "not-added"
-				authorType: "official" | "user"
+				publisherType?: "USER" | "OFFICIAL" | "OFFICIAL_BUILTIN"
 				needUpgrade: boolean
 				updatedAt: string
 			}>
@@ -98,8 +96,9 @@ describe("StoreSkillsStore", () => {
 					skillCode: "skill.alpha",
 					name: "Alpha Skill",
 					description: "stale result",
+					isFeatured: false,
 					status: "not-added",
-					authorType: "user",
+					publisherType: "USER",
 					needUpgrade: false,
 					updatedAt: "2026-03-21 10:00:00",
 				},
@@ -112,5 +111,52 @@ describe("StoreSkillsStore", () => {
 
 		expect(store.keyword).toBe("")
 		expect(store.list).toEqual([])
+	})
+
+	it("optimistically marks the skill as added", async () => {
+		const store = new StoreSkillsStore()
+		store.list = [
+			{
+				id: "store-skill-1",
+				storeSkillId: "store-skill-1",
+				skillCode: "skill.alpha",
+				name: "Alpha Skill",
+				description: "before install",
+				isFeatured: false,
+				status: "not-added",
+				publisherType: "USER",
+				needUpgrade: false,
+				updatedAt: "2026-03-21 10:00:00",
+			},
+		]
+
+		vi.mocked(skillsService.addSkillFromStore).mockResolvedValueOnce([])
+		vi.mocked(skillsService.getStoreSkills).mockResolvedValueOnce({
+			list: [
+				{
+					id: "store-skill-1",
+					storeSkillId: "store-skill-1",
+					skillCode: "skill.alpha",
+					userSkillCode: "skill.alpha",
+					name: "Alpha Skill",
+					description: "after install",
+					isFeatured: false,
+					status: "added",
+					publisherType: "USER",
+					needUpgrade: false,
+					updatedAt: "2026-03-21 10:00:00",
+				},
+			],
+			page: 1,
+			pageSize: 20,
+			total: 1,
+		})
+
+		await store.addSkill("store-skill-1")
+
+		expect(skillsService.addSkillFromStore).toHaveBeenCalledWith("store-skill-1")
+		expect(skillsService.getStoreSkills).not.toHaveBeenCalled()
+		expect(store.list[0]?.status).toBe("added")
+		expect(store.list[0]?.userSkillCode).toBeUndefined()
 	})
 })

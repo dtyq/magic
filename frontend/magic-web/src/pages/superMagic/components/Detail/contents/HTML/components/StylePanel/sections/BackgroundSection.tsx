@@ -2,7 +2,7 @@ import { observer } from "mobx-react-lite"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useDebounceFn } from "ahooks"
-import { Plus, Trash2 } from "lucide-react"
+import { ImageUp, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { Label } from "@/components/shadcn-ui/label"
@@ -17,7 +17,7 @@ import { Slider } from "@/components/shadcn-ui/slider"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import type { StyleSectionProps } from "../types"
 
-type BackgroundType = "solid" | "linear-gradient" | "radial-gradient"
+type BackgroundType = "solid" | "linear-gradient" | "radial-gradient" | "image"
 
 interface ColorStop {
 	id: string
@@ -25,90 +25,65 @@ interface ColorStop {
 	position: number
 }
 
-/**
- * 背景样式配置区域
- */
+function parseColorStops(stopsStr: string): ColorStop[] {
+	const stops = stopsStr.split(",").map((stop) => stop.trim())
+	return stops
+		.map((stop, index) => {
+			const match = stop.match(/^(#[0-9a-f]{6}|rgb\(.+\))\s+(\d+)%$/i)
+			if (!match) {
+				return null
+			}
+
+			return {
+				id: String(index + 1),
+				color: match[1],
+				position: Number.parseInt(match[2], 10),
+			}
+		})
+		.filter((stop): stop is ColorStop => stop !== null)
+}
+
+function extractImageUrl(backgroundImage: string): string | null {
+	if (!backgroundImage || backgroundImage === "none") {
+		return null
+	}
+
+	const match = backgroundImage.match(/url\((['"]?)(.*?)\1\)/i)
+	return match?.[2] || null
+}
+
+function getDefaultColorStops(): ColorStop[] {
+	return [
+		{ id: "1", color: "#3b82f6", position: 0 },
+		{ id: "2", color: "#8b5cf6", position: 100 },
+	]
+}
+
 const BackgroundSection = observer(function BackgroundSection({
 	selectedElement,
+	editorRef,
 	onStyleChange,
 }: StyleSectionProps) {
 	const { t } = useTranslation("super")
 	const computedStyles = selectedElement?.computedStyles
-
-	// 解析当前背景
 	const currentBgColor = computedStyles?.backgroundColor || "transparent"
 	const currentBgImage = computedStyles?.backgroundImage || "none"
+	const hasBackgroundImage = Boolean(extractImageUrl(currentBgImage))
+	const isImageElement = selectedElement?.tagName?.toLowerCase() === "img"
 
-	// 本地状态
 	const [bgType, setBgType] = useState<BackgroundType>("solid")
 	const [solidColor, setSolidColor] = useState(currentBgColor)
 	const [gradientAngle, setGradientAngle] = useState(90)
-	const [colorStops, setColorStops] = useState<ColorStop[]>([
-		{ id: "1", color: "#3b82f6", position: 0 },
-		{ id: "2", color: "#8b5cf6", position: 100 },
-	])
+	const [colorStops, setColorStops] = useState<ColorStop[]>(getDefaultColorStops())
+	const [backgroundPreviewUrl, setBackgroundPreviewUrl] = useState<string | null>(null)
+	const [isImageActionLoading, setIsImageActionLoading] = useState(false)
 
-	/**
-	 * 从 backgroundImage 解析渐变设置
-	 */
-	useEffect(() => {
-		if (currentBgImage && currentBgImage !== "none") {
-			// 解析线性渐变: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 100%)
-			const linearMatch = currentBgImage.match(/linear-gradient\((\d+)deg,(.+)\)/)
-			if (linearMatch) {
-				setBgType("linear-gradient")
-				setGradientAngle(Number.parseInt(linearMatch[1]))
-				// 解析色标
-				parseColorStops(linearMatch[2])
-				return
-			}
-
-			// 解析径向渐变: radial-gradient(circle, #3b82f6 0%, #8b5cf6 100%)
-			const radialMatch = currentBgImage.match(/radial-gradient\(circle,(.+)\)/)
-			if (radialMatch) {
-				setBgType("radial-gradient")
-				parseColorStops(radialMatch[1])
-				return
-			}
-		}
-
-		// 默认为纯色
-		if (currentBgColor !== "transparent") {
-			setBgType("solid")
-			setSolidColor(currentBgColor)
-		}
-	}, [currentBgColor, currentBgImage])
-
-	/**
-	 * 解析色标字符串
-	 */
-	function parseColorStops(stopsStr: string) {
-		const stops = stopsStr.split(",").map((stop) => stop.trim())
-		const parsed = stops
-			.map((stop, index) => {
-				const match = stop.match(/^(#[0-9a-f]{6}|rgb\(.+\))\s+(\d+)%$/i)
-				if (match) {
-					return {
-						id: String(index + 1),
-						color: match[1],
-						position: Number.parseInt(match[2]),
-					}
-				}
-				return null
-			})
-			.filter((stop): stop is ColorStop => stop !== null)
-
-		if (parsed.length >= 2) {
-			setColorStops(parsed)
-		}
-	}
-
-	/**
-	 * 生成渐变 CSS 值
-	 */
 	const generateGradientCSS = useCallback(
 		(
-			type: BackgroundType = bgType,
+			type: Extract<
+				BackgroundType,
+				"linear-gradient" | "radial-gradient"
+			> = "linear-gradient",
 			stops: ColorStop[] = colorStops,
 			angle: number = gradientAngle,
 		) => {
@@ -118,21 +93,55 @@ const BackgroundSection = observer(function BackgroundSection({
 			if (type === "linear-gradient") {
 				return `linear-gradient(${angle}deg, ${stopsStr})`
 			}
-			if (type === "radial-gradient") {
-				return `radial-gradient(circle, ${stopsStr})`
-			}
-			return "none"
+
+			return `radial-gradient(circle, ${stopsStr})`
 		},
-		[bgType, colorStops, gradientAngle],
+		[colorStops, gradientAngle],
 	)
 
-	// Debounce for color input
+	useEffect(() => {
+		const nextPreviewUrl = extractImageUrl(currentBgImage)
+		setBackgroundPreviewUrl(nextPreviewUrl)
+
+		if (nextPreviewUrl) {
+			setBgType("image")
+			return
+		}
+
+		const linearMatch = currentBgImage.match(/linear-gradient\(\s*(\d+)deg\s*,\s*(.+)\)/i)
+		if (linearMatch) {
+			const parsedStops = parseColorStops(linearMatch[2])
+			setBgType("linear-gradient")
+			setGradientAngle(Number.parseInt(linearMatch[1], 10))
+			if (parsedStops.length >= 2) {
+				setColorStops(parsedStops)
+			}
+			return
+		}
+
+		const radialMatch = currentBgImage.match(/radial-gradient\(\s*circle\s*,\s*(.+)\)/i)
+		if (radialMatch) {
+			const parsedStops = parseColorStops(radialMatch[1])
+			setBgType("radial-gradient")
+			if (parsedStops.length >= 2) {
+				setColorStops(parsedStops)
+			}
+			return
+		}
+
+		setBgType("solid")
+		setSolidColor(currentBgColor !== "transparent" ? currentBgColor : "#ffffff")
+	}, [currentBgColor, currentBgImage])
+
 	const { run: applyBackgroundDebounced } = useDebounceFn(
 		(type: BackgroundType, color: string, gradient: string) => {
 			if (type === "solid") {
 				onStyleChange?.("backgroundColor", color)
 				onStyleChange?.("backgroundImage", "none")
-			} else {
+				return
+			}
+
+			if (type === "linear-gradient" || type === "radial-gradient") {
 				onStyleChange?.("backgroundColor", "transparent")
 				onStyleChange?.("backgroundImage", gradient)
 			}
@@ -140,30 +149,41 @@ const BackgroundSection = observer(function BackgroundSection({
 		{ wait: 300 },
 	)
 
-	/**
-	 * 处理背景类型变化
-	 */
+	const { run: applyGradientDebounced } = useDebounceFn(
+		(
+			type: Extract<BackgroundType, "linear-gradient" | "radial-gradient">,
+			stops: ColorStop[],
+			angle: number,
+		) => {
+			onStyleChange?.("backgroundColor", "transparent")
+			onStyleChange?.("backgroundImage", generateGradientCSS(type, stops, angle))
+		},
+		{ wait: 300 },
+	)
+
 	const handleBgTypeChange = useCallback(
 		(value: BackgroundType) => {
 			setBgType(value)
-			// 立即应用新类型，使用参数而不是状态以避免时序问题
+
+			if (value === "image") {
+				return
+			}
+
 			if (value === "solid") {
 				onStyleChange?.("backgroundColor", solidColor)
 				onStyleChange?.("backgroundImage", "none")
-			} else {
-				onStyleChange?.("backgroundColor", "transparent")
-				onStyleChange?.(
-					"backgroundImage",
-					generateGradientCSS(value, colorStops, gradientAngle),
-				)
+				return
 			}
+
+			onStyleChange?.("backgroundColor", "transparent")
+			onStyleChange?.(
+				"backgroundImage",
+				generateGradientCSS(value, colorStops, gradientAngle),
+			)
 		},
-		[solidColor, colorStops, gradientAngle, generateGradientCSS, onStyleChange],
+		[solidColor, onStyleChange, generateGradientCSS, colorStops, gradientAngle],
 	)
 
-	/**
-	 * 处理纯色变化
-	 */
 	const handleSolidColorChange = useCallback(
 		(value: string) => {
 			setSolidColor(value)
@@ -174,92 +194,92 @@ const BackgroundSection = observer(function BackgroundSection({
 		[bgType, applyBackgroundDebounced],
 	)
 
-	/**
-	 * 添加色标
-	 */
 	const handleAddColorStop = useCallback(() => {
 		const newStop: ColorStop = {
-			id: Date.now().toString(),
+			id: String(Date.now()),
 			color: "#6366f1",
 			position: 50,
 		}
-		setColorStops([...colorStops, newStop])
-	}, [colorStops])
+		setColorStops((prevStops) => [...prevStops, newStop])
+	}, [])
 
-	/**
-	 * 删除色标
-	 */
-	const handleRemoveColorStop = useCallback(
-		(id: string) => {
-			if (colorStops.length <= 2) return
-			setColorStops(colorStops.filter((stop) => stop.id !== id))
-		},
-		[colorStops],
-	)
-
-	// Debounce for gradient changes
-	const { run: applyGradientDebounced } = useDebounceFn(
-		(type: BackgroundType, stops: ColorStop[], angle: number) => {
-			const sortedStops = [...stops].sort((a, b) => a.position - b.position)
-			const stopsStr = sortedStops.map((stop) => `${stop.color} ${stop.position}%`).join(", ")
-
-			let gradientCSS = "none"
-			if (type === "linear-gradient") {
-				gradientCSS = `linear-gradient(${angle}deg, ${stopsStr})`
-			} else if (type === "radial-gradient") {
-				gradientCSS = `radial-gradient(circle, ${stopsStr})`
+	const handleRemoveColorStop = useCallback((id: string) => {
+		setColorStops((prevStops) => {
+			if (prevStops.length <= 2) {
+				return prevStops
 			}
 
-			onStyleChange?.("backgroundColor", "transparent")
-			onStyleChange?.("backgroundImage", gradientCSS)
-		},
-		{ wait: 300 },
-	)
+			return prevStops.filter((stop) => stop.id !== id)
+		})
+	}, [])
 
-	/**
-	 * 更新色标颜色
-	 */
 	const handleColorStopColorChange = useCallback(
 		(id: string, color: string) => {
-			const newStops = colorStops.map((stop) => (stop.id === id ? { ...stop, color } : stop))
-			setColorStops(newStops)
-			if (bgType !== "solid") {
-				applyGradientDebounced(bgType, newStops, gradientAngle)
-			}
+			setColorStops((prevStops) => {
+				const nextStops = prevStops.map((stop) =>
+					stop.id === id ? { ...stop, color } : stop,
+				)
+				if (bgType === "linear-gradient" || bgType === "radial-gradient") {
+					applyGradientDebounced(bgType, nextStops, gradientAngle)
+				}
+				return nextStops
+			})
 		},
-		[colorStops, bgType, gradientAngle, applyGradientDebounced],
+		[bgType, gradientAngle, applyGradientDebounced],
 	)
 
-	/**
-	 * 更新色标位置
-	 */
 	const handleColorStopPositionChange = useCallback(
 		(id: string, position: number) => {
-			const newStops = colorStops.map((stop) =>
-				stop.id === id ? { ...stop, position } : stop,
-			)
-			setColorStops(newStops)
-			if (bgType !== "solid") {
-				applyGradientDebounced(bgType, newStops, gradientAngle)
+			setColorStops((prevStops) => {
+				const nextStops = prevStops.map((stop) =>
+					stop.id === id ? { ...stop, position } : stop,
+				)
+				if (bgType === "linear-gradient" || bgType === "radial-gradient") {
+					applyGradientDebounced(bgType, nextStops, gradientAngle)
+				}
+				return nextStops
+			})
+		},
+		[bgType, gradientAngle, applyGradientDebounced],
+	)
+
+	const handleRunImageAction = useCallback(
+		async (action: "set-element-background-image" | "remove-element-background-image") => {
+			if (!editorRef.current || isImageElement) {
+				return
+			}
+
+			try {
+				setIsImageActionLoading(true)
+				await editorRef.current.runImageAction({ action })
+			} catch (error) {
+				console.error("[BackgroundSection] Failed to run image action:", error)
+			} finally {
+				setIsImageActionLoading(false)
 			}
 		},
-		[colorStops, bgType, gradientAngle, applyGradientDebounced],
+		[editorRef, isImageElement],
 	)
 
 	return (
-		<div className="space-y-4">
+		<div className="space-y-4" data-testid="html-style-panel-background-section">
 			<div className="space-y-2">
 				<h4 className="text-sm font-medium">{t("stylePanel.backgroundStyles")}</h4>
 			</div>
 
-			{/* 背景类型选择 */}
 			<div className="space-y-2">
 				<Label className="text-xs">{t("stylePanel.backgroundType")}</Label>
-				<Select value={bgType} onValueChange={handleBgTypeChange}>
-					<SelectTrigger className="h-9">
+				<Select
+					value={bgType}
+					onValueChange={(value) => handleBgTypeChange(value as BackgroundType)}
+				>
+					<SelectTrigger
+						className="h-9"
+						data-testid="html-style-panel-background-type-trigger"
+					>
 						<SelectValue />
 					</SelectTrigger>
-					<SelectContent>
+					<SelectContent data-testid="html-style-panel-background-type-content">
 						<SelectItem value="solid">{t("stylePanel.solidColor")}</SelectItem>
 						<SelectItem value="linear-gradient">
 							{t("stylePanel.linearGradient")}
@@ -267,11 +287,11 @@ const BackgroundSection = observer(function BackgroundSection({
 						<SelectItem value="radial-gradient">
 							{t("stylePanel.radialGradient")}
 						</SelectItem>
+						<SelectItem value="image">{t("stylePanel.imageBackground")}</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
 
-			{/* 纯色设置 */}
 			{bgType === "solid" && (
 				<div className="space-y-2">
 					<Label htmlFor="bg-color" className="text-xs">
@@ -284,6 +304,7 @@ const BackgroundSection = observer(function BackgroundSection({
 							value={solidColor === "transparent" ? "#ffffff" : solidColor}
 							onChange={(e) => handleSolidColorChange(e.target.value)}
 							className="h-9 w-16 cursor-pointer p-1"
+							data-testid="html-style-panel-background-color-picker"
 						/>
 						<Input
 							type="text"
@@ -291,15 +312,14 @@ const BackgroundSection = observer(function BackgroundSection({
 							onChange={(e) => handleSolidColorChange(e.target.value)}
 							placeholder={t("stylePanel.backgroundColorPlaceholder")}
 							className="flex-1 font-mono text-xs"
+							data-testid="html-style-panel-background-color-input"
 						/>
 					</div>
 				</div>
 			)}
 
-			{/* 渐变设置 */}
-			{bgType !== "solid" && (
+			{(bgType === "linear-gradient" || bgType === "radial-gradient") && (
 				<>
-					{/* 渐变角度（仅线性渐变） */}
 					{bgType === "linear-gradient" && (
 						<div className="space-y-2">
 							<div className="flex items-center justify-between">
@@ -318,22 +338,22 @@ const BackgroundSection = observer(function BackgroundSection({
 								max={360}
 								step={1}
 								className="w-full"
+								data-testid="html-style-panel-gradient-angle-slider"
 							/>
 						</div>
 					)}
 
-					{/* 渐变预览 */}
 					<div className="space-y-2">
 						<Label className="text-xs">{t("stylePanel.gradientPreview")}</Label>
 						<div
 							className="h-16 w-full rounded-md border"
 							style={{
-								background: generateGradientCSS(),
+								background: generateGradientCSS(bgType, colorStops, gradientAngle),
 							}}
+							data-testid="html-style-panel-gradient-preview"
 						/>
 					</div>
 
-					{/* 色标列表 */}
 					<div className="space-y-2">
 						<div className="flex items-center justify-between">
 							<Label className="text-xs">{t("stylePanel.colorStops")}</Label>
@@ -342,6 +362,7 @@ const BackgroundSection = observer(function BackgroundSection({
 								variant="ghost"
 								onClick={handleAddColorStop}
 								className="h-6 gap-1 px-2 text-xs"
+								data-testid="html-style-panel-add-color-stop-button"
 							>
 								<Plus className="h-3 w-3" />
 								{t("stylePanel.addColorStop")}
@@ -359,8 +380,8 @@ const BackgroundSection = observer(function BackgroundSection({
 												handleColorStopColorChange(stop.id, e.target.value)
 											}
 											className="h-9 w-16 cursor-pointer p-1"
+											data-testid="html-style-panel-color-stop-picker"
 										/>
-
 										<Input
 											type="text"
 											value={stop.color}
@@ -368,6 +389,7 @@ const BackgroundSection = observer(function BackgroundSection({
 												handleColorStopColorChange(stop.id, e.target.value)
 											}
 											className="flex-1 font-mono text-xs"
+											data-testid="html-style-panel-color-stop-input"
 										/>
 										<Button
 											size="sm"
@@ -375,6 +397,7 @@ const BackgroundSection = observer(function BackgroundSection({
 											onClick={() => handleRemoveColorStop(stop.id)}
 											disabled={colorStops.length <= 2}
 											className="h-9 w-9 p-0"
+											data-testid="html-style-panel-remove-color-stop-button"
 										>
 											<Trash2 className="h-4 w-4" />
 										</Button>
@@ -398,6 +421,7 @@ const BackgroundSection = observer(function BackgroundSection({
 											max={100}
 											step={1}
 											className="w-full"
+											data-testid="html-style-panel-color-stop-position-slider"
 										/>
 									</div>
 								</div>
@@ -405,6 +429,52 @@ const BackgroundSection = observer(function BackgroundSection({
 						</ScrollArea>
 					</div>
 				</>
+			)}
+
+			{bgType === "image" && (
+				<div className="space-y-3" data-testid="html-style-panel-background-image-controls">
+					<div className="space-y-2">
+						<Label className="text-xs">{t("stylePanel.currentBackgroundImage")}</Label>
+						<div
+							className="flex h-24 items-center justify-center rounded-md border bg-muted/30 bg-cover bg-center text-xs text-muted-foreground"
+							style={
+								backgroundPreviewUrl
+									? { backgroundImage: `url("${backgroundPreviewUrl}")` }
+									: undefined
+							}
+							data-testid="html-style-panel-background-image-preview"
+						>
+							{backgroundPreviewUrl ? null : t("stylePanel.noBackgroundImage")}
+						</div>
+					</div>
+
+					<div className="flex gap-2">
+						<Button
+							type="button"
+							variant="outline"
+							className="flex-1"
+							onClick={() => handleRunImageAction("set-element-background-image")}
+							disabled={isImageActionLoading || isImageElement}
+							data-testid="html-style-panel-background-image-upload-button"
+						>
+							<ImageUp className="mr-2 h-4 w-4" />
+							{hasBackgroundImage
+								? t("stylePanel.replaceBackgroundImage")
+								: t("stylePanel.uploadBackgroundImage")}
+						</Button>
+						<Button
+							type="button"
+							variant="ghost"
+							className="hover:bg-destructive/10 hover:text-destructive"
+							onClick={() => handleRunImageAction("remove-element-background-image")}
+							disabled={isImageActionLoading || !hasBackgroundImage || isImageElement}
+							data-testid="html-style-panel-background-image-remove-button"
+						>
+							<Trash2 className="mr-2 h-4 w-4" />
+							{t("stylePanel.removeBackgroundImage")}
+						</Button>
+					</div>
+				</div>
 			)}
 		</div>
 	)

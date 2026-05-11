@@ -1,0 +1,72 @@
+.root {
+	position: relative;
+	display: inline-block;
+	box-sizing: border-box;
+	width: max-content;
+	min-width: 1px;
+	max-width: none;
+	margin: 0;
+	padding: 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-wrap: anywhere;
+	background: transparent;
+	cursor: text;
+}
+
+.editable {
+	position: relative;
+	z-index: 1;
+	display: inline-block;
+	box-sizing: border-box;
+	width: max-content;
+	min-width: 1px;
+	max-width: none;
+	margin: 0;
+	padding: 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-wrap: anywhere;
+	background: transparent;
+	border: none;
+	outline: none;
+	cursor: text;
+	caret-color: #111827;
+}
+
+.paragraph {
+	margin: 0;
+	padding: 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+	overflow-wrap: anywhere;
+	cursor: text;
+}
+
+.list-marker {
+	user-select: none;
+}
+
+.virtual-selection-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+}
+
+.virtual-selection-rect {
+	position: absolute;
+	background-color: Highlight;
+	border-radius: 1px;
+}
+
+.text-decoration-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	pointer-events: none;
+}
+
+.text-decoration-rect {
+	position: absolute;
+}

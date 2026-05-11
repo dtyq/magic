@@ -15,10 +15,8 @@ import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
 import { colorScales } from "@/providers/ThemeProvider/colors"
 import { useMemo } from "react"
-import {
-	hasAdminRight,
-	hasEditRight,
-} from "@/pages/flow/components/AuthControlButton/types"
+import { hasAdminRight, hasEditRight } from "@/pages/flow/components/AuthControlButton/types"
+import { formatFlowCardCreatedAt } from "@/pages/flow/utils/formatCreatedAt"
 
 interface MCPCardProps {
 	item: Flow.Mcp.ListItem
@@ -43,7 +41,7 @@ const enum CardMenuItemType {
 export default function MCPCard(props: MCPCardProps) {
 	const { item, className, selected, onEdit, onDelete, onClick, onStatusChange } = props
 	const { styles, cx } = useStyles()
-	const { t } = useTranslation("agent")
+	const { t, i18n } = useTranslation("agent")
 
 	const onMenuItemClick = useMemoizedFn(async (event) => {
 		switch (event.key) {
@@ -150,7 +148,8 @@ export default function MCPCard(props: MCPCardProps) {
 					{t("mcp.card.creator")} {item?.creator_info?.name}
 				</span>
 				<span>
-					{t("mcp.card.creatAt")} {item?.created_at}
+					{t("mcp.card.creatAt")}{" "}
+					{formatFlowCardCreatedAt(item?.created_at, i18n.language)}
 				</span>
 			</div>
 		</div>

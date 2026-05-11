@@ -89,6 +89,10 @@ interface ConfirmDialogProps {
 	variant?: "default" | "destructive"
 	destructivePresentation?: "solid" | "soft"
 	dialogSize?: "default" | "sm"
+	confirmLoading?: boolean
+	confirmDisabled?: boolean
+	cancelDisabled?: boolean
+	loadingText?: string
 	onConfirm: () => void
 	onCancel: () => void
 }
@@ -106,6 +110,10 @@ export function ConfirmDialog({
 	variant = "default",
 	destructivePresentation = "solid",
 	dialogSize = "default",
+	confirmLoading = false,
+	confirmDisabled = false,
+	cancelDisabled = false,
+	loadingText,
 	onConfirm,
 	onCancel,
 }: ConfirmDialogProps) {
@@ -136,6 +144,7 @@ export function ConfirmDialog({
 						onClick={onCancel}
 						className={cn(dialogSize === "sm" && "flex-1")}
 						size="sm"
+						disabled={cancelDisabled}
 						data-testid="confirm-dialog-cancel"
 					>
 						{cancelText ?? t("button.cancel")}
@@ -150,6 +159,7 @@ export function ConfirmDialog({
 									: "default"
 						}
 						size="sm"
+						disabled={confirmDisabled || confirmLoading}
 						className={cn(
 							useSoftDestructive &&
 								"flex-1 border-0 bg-destructive/10 !text-destructive shadow-xs hover:bg-destructive/15 hover:!text-destructive sm:text-sm",
@@ -157,7 +167,9 @@ export function ConfirmDialog({
 						)}
 						data-testid="confirm-dialog-confirm"
 					>
-						{confirmText ?? t("deleteConfirm")}
+						{confirmLoading
+							? (loadingText ?? confirmText ?? t("deleteConfirm"))
+							: (confirmText ?? t("deleteConfirm"))}
 					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>

@@ -2,11 +2,12 @@ import type { NodeProps } from "../../../types"
 import { useStyle } from "./styles"
 import { Flex } from "antd"
 import { ChevronUp, ChevronRight } from "lucide-react"
-import { memo, useState } from "react"
+import { memo } from "react"
 import TerminalDisplay from "../../../../../../Detail/contents/Terminal/components/TerminalDisplay"
 import { observer } from "mobx-react-lite"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { defaultOpen } from "../../config"
+import { useToggleWithScrollPreserve } from "../../../shared/hooks/useToggleWithScrollPreserve"
 import { useToolTooltip } from "../../hooks/useToolTooltip"
 import { isEmpty } from "lodash-es"
 import { ToolIconBadge } from "@/pages/superMagic/components/MessageList/components/shared/ToolIconConfig"
@@ -19,7 +20,7 @@ function ShellExec(props: NodeProps) {
 
 	const { styles, cx } = useStyle()
 
-	const [open, setOpen] = useState(defaultOpen)
+	const [open, toggle] = useToggleWithScrollPreserve(defaultOpen)
 
 	const { tooltipProps, renderTooltip } = useToolTooltip({
 		text: data?.command,
@@ -52,10 +53,7 @@ function ShellExec(props: NodeProps) {
 							</span>
 						)}
 					</Flex>
-					<div
-						className={cx(styles.button, "mr-[6px]")}
-						onClick={() => setOpen((o) => !o)}
-					>
+					<div className={cx(styles.button, "mr-[6px]")} onClick={toggle}>
 						{open ? (
 							<ChevronUp
 								size={16}

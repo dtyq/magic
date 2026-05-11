@@ -1,0 +1,83 @@
+.selectTrigger {
+	display: flex;
+	gap: var(--spacing-1, 4px) !important;
+	align-items: center;
+	justify-content: center;
+	height: var(--height-h-6, 24px) !important;
+	padding: var(--spacing-1, 4px) var(--spacing-1-5, 6px) !important;
+	font-size: var(--text-xs-font-size, 12px) !important;
+	background: var(--base-secondary, #f5f5f5) !important;
+	border: none !important;
+	border-radius: var(--border-radius-rounded-md, 8px) !important;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.selectTrigger > svg:last-child {
+	display: none;
+}
+
+.selectContent {
+	z-index: 2 !important;
+}
+
+.selectOptionItem {
+	padding: var(--spacing-2, 8px) var(--spacing-2-5, 10px) !important;
+	padding-right: 40px !important;
+}
+
+.selectOptionItemIndented {
+	padding-left: 30px !important;
+}
+
+.selectOptionItem > span:first-child {
+	right: 10px !important;
+	left: unset !important;
+}
+
+.selectGroupLabel {
+	padding: 6px 10px 4px !important;
+	color: var(--base-muted-foreground, #737373) !important;
+	font-weight: var(--font-weight-semibold, 600) !important;
+	font-size: var(--text-xs-font-size, 12px) !important;
+}
+
+.selectGroupLabelContent {
+	display: inline-flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.selectGroupLabelIcon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	object-fit: contain;
+}
+
+.modelOptionItemContent {
+	display: flex;
+	gap: var(--spacing-1-5, 6px);
+	align-items: center;
+}
+
+.modelOptionItemContent > .icon {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+}
+
+.modelOptionItemContent > .icon > img {
+	width: 16px;
+	height: 16px;
+	object-fit: cover;
+}
+
+.modelOptionItemContent > .label {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}

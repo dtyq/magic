@@ -3,30 +3,41 @@ import styles from "./index.module.css"
 import { Link2, Unlink2 } from "lucide-react"
 import IconButton from "../../../ui/custom/IconButton/index"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useCanvasDesignI18n } from "../../../../context/I18nContext"
 
 export interface SizeInputProps {
 	width: number
 	height: number
 	isLocked?: boolean
+	isAutoFill?: boolean
 	readonly?: boolean
+	maxWidth?: number
+	maxHeight?: number
 	onWidthChange?: (value: number) => void
 	onHeightChange?: (value: number) => void
 	onToggleLock?: () => void
 	onWidthBlur?: () => void
 	onHeightBlur?: () => void
+	/** 为 true 时，输入过程中即提交数值（受控草稿）；默认仅在失焦时提交 */
+	commitOnInput?: boolean
 }
 
 export default function SizeInput({
 	width,
 	height,
 	isLocked = false,
+	isAutoFill = false,
 	readonly = false,
+	maxWidth,
+	maxHeight,
 	onWidthChange,
 	onHeightChange,
 	onToggleLock,
 	onWidthBlur,
 	onHeightBlur,
+	commitOnInput = false,
 }: SizeInputProps) {
+	const { t } = useCanvasDesignI18n()
 	// 本地输入框值状态
 	const [widthInput, setWidthInput] = useState<string>("")
 	const [heightInput, setHeightInput] = useState<string>("")
@@ -44,6 +55,53 @@ export default function SizeInput({
 		}
 	}, [width, height])
 
+	const applyWidthCommit = useCallback(
+		(numValue: number) => {
+			let finalWidth = numValue < 0 ? 0 : numValue
+			if (maxWidth !== undefined && finalWidth > maxWidth) {
+				finalWidth = maxWidth
+				setWidthInput(maxWidth.toString())
+			} else if (numValue < 0) {
+				finalWidth = 0
+				setWidthInput("0")
+			}
+
+			onWidthChange?.(finalWidth)
+
+			if (isLocked && aspectRatioRef.current > 0) {
+				const newHeight = Math.round(finalWidth / aspectRatioRef.current)
+				const finalHeight =
+					maxHeight !== undefined ? Math.min(newHeight, maxHeight) : newHeight
+				setHeightInput(finalHeight.toString())
+				onHeightChange?.(finalHeight)
+			}
+		},
+		[maxWidth, maxHeight, isLocked, onWidthChange, onHeightChange],
+	)
+
+	const applyHeightCommit = useCallback(
+		(numValue: number) => {
+			let finalHeight = numValue < 0 ? 0 : numValue
+			if (maxHeight !== undefined && finalHeight > maxHeight) {
+				finalHeight = maxHeight
+				setHeightInput(maxHeight.toString())
+			} else if (numValue < 0) {
+				finalHeight = 0
+				setHeightInput("0")
+			}
+
+			onHeightChange?.(finalHeight)
+
+			if (isLocked && aspectRatioRef.current > 0) {
+				const newWidth = Math.round(finalHeight * aspectRatioRef.current)
+				const finalWidth = maxWidth !== undefined ? Math.min(newWidth, maxWidth) : newWidth
+				setWidthInput(finalWidth.toString())
+				onWidthChange?.(finalWidth)
+			}
+		},
+		[maxWidth, maxHeight, isLocked, onWidthChange, onHeightChange],
+	)
+
 	// 处理宽度变化
 	const handleWidthChange = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,21 +110,11 @@ export default function SizeInput({
 			const newValue = e.target.value
 			setWidthInput(newValue)
 
-			if (newValue === "") return
-
-			const numValue = Number.parseInt(newValue, 10)
-			if (!Number.isNaN(numValue) && numValue >= 0) {
-				// 如果锁定了等比例，同时更新高度
-				if (isLocked && aspectRatioRef.current > 0) {
-					const newHeight = Math.round(numValue / aspectRatioRef.current)
-					setHeightInput(newHeight.toString())
-					onHeightChange?.(newHeight)
-				}
-
-				onWidthChange?.(numValue)
+			if (commitOnInput && newValue !== "" && !Number.isNaN(Number.parseInt(newValue, 10))) {
+				applyWidthCommit(Number.parseInt(newValue, 10))
 			}
 		},
-		[readonly, isLocked, onWidthChange, onHeightChange],
+		[readonly, commitOnInput, applyWidthCommit],
 	)
 
 	// 处理高度变化
@@ -77,38 +125,24 @@ export default function SizeInput({
 			const newValue = e.target.value
 			setHeightInput(newValue)
 
-			if (newValue === "") return
-
-			const numValue = Number.parseInt(newValue, 10)
-			if (!Number.isNaN(numValue) && numValue >= 0) {
-				// 如果锁定了等比例，同时更新宽度
-				if (isLocked && aspectRatioRef.current > 0) {
-					const newWidth = Math.round(numValue * aspectRatioRef.current)
-					setWidthInput(newWidth.toString())
-					onWidthChange?.(newWidth)
-				}
-
-				onHeightChange?.(numValue)
+			if (commitOnInput && newValue !== "" && !Number.isNaN(Number.parseInt(newValue, 10))) {
+				applyHeightCommit(Number.parseInt(newValue, 10))
 			}
 		},
-		[readonly, isLocked, onWidthChange, onHeightChange],
+		[readonly, commitOnInput, applyHeightCommit],
 	)
 
-	// 处理宽度输入框失焦
+	// 处理宽度输入框失焦（未开启 commitOnInput 时在此提交）
 	const handleWidthBlur = useCallback(() => {
 		if (readonly) return
 
 		if (widthInput === "" || Number.isNaN(Number.parseInt(widthInput, 10))) {
 			setWidthInput(Math.round(width).toString())
 		} else {
-			const numValue = Number.parseInt(widthInput, 10)
-			if (numValue < 0) {
-				setWidthInput("0")
-				onWidthChange?.(0)
-			}
+			applyWidthCommit(Number.parseInt(widthInput, 10))
 		}
 		onWidthBlur?.()
-	}, [readonly, widthInput, width, onWidthChange, onWidthBlur])
+	}, [readonly, widthInput, width, applyWidthCommit, onWidthBlur])
 
 	// 处理高度输入框失焦
 	const handleHeightBlur = useCallback(() => {
@@ -117,14 +151,10 @@ export default function SizeInput({
 		if (heightInput === "" || Number.isNaN(Number.parseInt(heightInput, 10))) {
 			setHeightInput(Math.round(height).toString())
 		} else {
-			const numValue = Number.parseInt(heightInput, 10)
-			if (numValue < 0) {
-				setHeightInput("0")
-				onHeightChange?.(0)
-			}
+			applyHeightCommit(Number.parseInt(heightInput, 10))
 		}
 		onHeightBlur?.()
-	}, [readonly, heightInput, height, onHeightChange, onHeightBlur])
+	}, [readonly, heightInput, height, applyHeightCommit, onHeightBlur])
 
 	// 切换锁定状态
 	const handleToggleLock = useCallback(() => {
@@ -139,13 +169,18 @@ export default function SizeInput({
 	}, [readonly, width, height, onToggleLock])
 
 	return (
-		<div className={styles.size}>
-			<div className={`${styles.inputWrapper} ${readonly ? styles.readonly : ""}`}>
-				<span className={styles.label}>宽</span>
+		<div className={`${styles.size} ${isAutoFill ? styles.autoFill : ""}`}>
+			<div
+				className={`${styles.inputWrapper} ${readonly ? styles.readonly : ""} ${
+					isAutoFill ? styles.autoFillWrapper : ""
+				}`}
+			>
+				<span className={styles.label}>{t("elementTools.size.width", "宽")}</span>
 				<Input
 					className={`${styles.input} ${readonly ? styles.readonly : ""}`}
 					type="number"
 					min={0}
+					max={maxWidth}
 					value={widthInput}
 					onChange={handleWidthChange}
 					onBlur={handleWidthBlur}
@@ -158,18 +193,24 @@ export default function SizeInput({
 					{isLocked ? <Link2 size={16} /> : <Unlink2 size={16} />}
 				</IconButton>
 			)}
-			<div className={`${styles.inputWrapper} ${readonly ? styles.readonly : ""}`}>
-				<span className={`${styles.label} ${isLocked || readonly ? styles.disabled : ""}`}>
-					高
+			<div
+				className={`${styles.inputWrapper} ${readonly ? styles.readonly : ""} ${
+					isAutoFill ? styles.autoFillWrapper : ""
+				}`}
+			>
+				<span className={`${styles.label} ${readonly ? styles.disabled : ""}`}>
+					{t("elementTools.size.height", "高")}
 				</span>
 				<Input
 					className={`${styles.input} ${readonly ? styles.readonly : ""}`}
 					type="number"
 					min={0}
+					max={maxHeight}
 					value={heightInput}
 					onChange={handleHeightChange}
 					onBlur={handleHeightBlur}
-					disabled={isLocked || readonly}
+					readOnly={readonly}
+					disabled={readonly}
 				/>
 			</div>
 		</div>

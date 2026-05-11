@@ -5,24 +5,39 @@ import { isEmpty, pick } from "lodash-es"
 import { memo, Suspense } from "react"
 import { observer } from "mobx-react-lite"
 import { superMagicStore } from "@/pages/superMagic/stores"
-import DefaultTool, { getToolDesignProjectInfo } from "./tools/DefaultTool"
+import DefaultTool from "./tools/DefaultTool"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { filterClickableMessageWithoutRevoked } from "@/pages/superMagic/utils/handleMessage"
+import { getToolDesignProjectInfo } from "@/pages/superMagic/components/Detail/contents/Design/utils/toolDesignProjectInfo"
 
 function ToolCall(props: NodeProps) {
 	const { onSelectDetail } = props
-	const node = superMagicStore.getMessageNode(props?.node?.app_message_id)
+	const node = superMagicStore.getMessageNode(props?.node?.app_message_id) as
+		| {
+				tool?: {
+					name?: string
+					detail?: Record<string, unknown>
+					[key: string]: unknown
+				}
+				[key: string]: unknown
+		  }
+		| undefined
 	const tool = node?.tool
 	// const { data, name } = tool?.detail || {}
 	// const tabs = data?.groups || []
 
 	// const { t } = useTranslation("super")
+	const toolName = typeof tool?.name === "string" ? tool.name : ""
 
-	const ToolComponent = ToolsMap?.[tool?.name] || DefaultTool
+	const ToolComponent = ToolsMap?.[toolName] || DefaultTool
 
 	// 调用onSelectDetail时检查是否为选中节点并添加isFromNode标记
-	const handleSelectDetail = (detail: any) => {
+	const handleSelectDetail = (detail: {
+		data?: { source_file_id?: string }
+		[key: string]: unknown
+	}) => {
 		switch (tool?.name) {
+			// 旧(保留,用于兼容旧消息)
 			case "create_design_project":
 			case "create_canvas_element":
 			case "update_canvas_element":
@@ -33,7 +48,13 @@ function ToolCall(props: NodeProps) {
 			case "query_canvas_element":
 			case "generate_images_to_canvas":
 			case "search_images_to_canvas":
+			case "generate_videos_to_canvas":
+			case "query_video_generation":
+			case "create_canvas": // 新
+			case "generate_canvas_images": // 新
+			case "generate_canvas_videos": // 新
 				const { designProjectId, designProject, elements } = getToolDesignProjectInfo(tool)
+				if (!designProjectId) return
 				pubsub.publish(PubSubEvents.Open_File_Tab, {
 					...designProject,
 					fileId: designProjectId,
@@ -96,4 +117,4 @@ function ToolCall(props: NodeProps) {
 	)
 }
 
-export default memo(observer(ToolCall))
+export default observer(ToolCall)

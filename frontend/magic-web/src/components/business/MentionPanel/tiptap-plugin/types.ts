@@ -7,21 +7,24 @@ import type {
 	SkillMentionData,
 	MentionData,
 	MentionItem,
+	MentionPanelCatalogBehavior,
 	PanelState,
+	MentionPanelLoadStateOptions,
+	NavigationItem,
 	UploadFileMentionData,
 	CloudFileMentionData,
 	ToolMentionData,
 	DirectoryMentionData,
 	CanvasMarkerMentionData,
-	TransformedCanvasMarkerMentionData,
 	DataService,
+	MentionSelectContext,
 } from "../types"
 import { MentionItemType, ProjectFileMentionData } from "../types"
 import type { Language } from "../i18n/types"
 import {
-	isCanvasMarkerMentionData,
-	isTransformedCanvasMarkerMentionData,
-} from "@/pages/superMagic/components/MessageEditor/components/MentionNodes/marker/useTransformedMarkerData"
+	getSelectedCanvasMarkerMentionSuggestion,
+	normalizeCanvasMarkerMentionData,
+} from "../utils/canvasMarkerMention"
 import i18n from "i18next"
 
 // Tiptap mention node attributes
@@ -33,6 +36,15 @@ export interface TiptapMentionAttributes {
 export interface MentionListItem {
 	type: "mention"
 	attrs: TiptapMentionAttributes
+}
+
+/** Source for mention node removal (keyboard vs other editor actions) */
+export type MentionDeletionInput = "forward-delete" | "backspace" | "other"
+
+export interface MentionRemoveItemPayload {
+	item: TiptapMentionAttributes
+	stillExists: boolean
+	deletionInput: MentionDeletionInput
 }
 
 // Suggestion props for MentionPanel
@@ -52,7 +64,10 @@ export interface MentionPanelRendererProps {
 	range: { from: number; to: number }
 	decorationNode: Element | null
 	language?: Language
-	onSelect: (item: MentionItem) => void
+	initialLoadOptions?: MentionPanelLoadStateOptions
+	initialNavigationStack?: NavigationItem[]
+	catalogBehavior?: MentionPanelCatalogBehavior
+	onSelect: (item: MentionItem, context?: MentionSelectContext) => void
 	onExit: () => void
 	disableKeyboardShortcuts?: boolean
 	dataService: DataService
@@ -71,15 +86,20 @@ export interface MentionPanelPluginOptions {
 	searchPlaceholder?: string
 	allowSpaces?: boolean
 	allowedPrefixes?: string[] | null
+	trailingTextAfterInsert?: string
+	canSelectItem?: (item: MentionItem) => boolean
 	renderText?: (props: {
 		options: MentionPanelPluginOptions
 		node: Record<string, unknown>
 	}) => string
 	getParentContainer?: () => HTMLElement | null
+	initialLoadOptions?: MentionPanelLoadStateOptions
+	initialNavigationStack?: NavigationItem[]
+	catalogBehavior?: MentionPanelCatalogBehavior
 	onInsert?: (item: MentionItem) => void
 	onInsertItems?: (items: MentionItem[]) => void
 	onRemove?: (item: TiptapMentionAttributes, stillExists: boolean) => void
-	onRemoveItems?: (items: { item: TiptapMentionAttributes; stillExists: boolean }[]) => void
+	onRemoveItems?: (items: MentionRemoveItemPayload[]) => void
 	disableKeyboardShortcuts?: boolean
 	isAllowedMention?: (attrs: TiptapMentionAttributes, dataService: DataService) => boolean
 	dataService?: DataService
@@ -89,7 +109,11 @@ export interface MentionPanelPluginOptions {
 	/** 程序化清空期间跳过 mention 删除同步，避免误判为用户删除 */
 	shouldSkipRemoveSync?: () => boolean
 	/** 删除后需要先恢复的 mention，用于等待外部确认后再真正删除 */
-	shouldRestoreRemovedMention?: (item: TiptapMentionAttributes, stillExists: boolean) => boolean
+	shouldRestoreRemovedMention?: (
+		item: TiptapMentionAttributes,
+		stillExists: boolean,
+		context?: { deletionInput: MentionDeletionInput },
+	) => boolean
 }
 
 export interface MentionNodeViewRendererProps extends ReactNodeViewProps {
@@ -107,7 +131,7 @@ export interface MentionPanelState {
 }
 
 // Event handler types
-export type MentionSelectHandler = (item: MentionItem) => void
+export type MentionSelectHandler = (item: MentionItem, context?: MentionSelectContext) => void
 export type MentionCloseHandler = () => void
 export type MentionKeyDownHandler = (props: SuggestionKeyDownProps) => boolean
 
@@ -125,33 +149,30 @@ export function getMentionUniqueId(attrs: TiptapMentionAttributes): string {
 		case MentionItemType.SKILL:
 			return `skill:${(data as SkillMentionData)?.id || ""}`
 		case MentionItemType.PROJECT_FILE:
-			return `project:${(data as ProjectFileMentionData)?.file_id || ""}/${(data as ProjectFileMentionData)?.file_path || ""
-				}`
+			return `project:${(data as ProjectFileMentionData)?.file_id || ""}/${
+				(data as ProjectFileMentionData)?.file_path || ""
+			}`
 		case MentionItemType.FOLDER:
 			return `folder:${(data as DirectoryMentionData)?.directory_path || ""}`
 		case MentionItemType.UPLOAD_FILE:
 			return `upload:${(data as UploadFileMentionData)?.file_id || ""}`
 		case MentionItemType.CLOUD_FILE:
-			return `cloud:${(data as CloudFileMentionData)?.file_id ||
+			return `cloud:${
+				(data as CloudFileMentionData)?.file_id ||
 				(data as CloudFileMentionData)?.file_path ||
 				""
-				}`
+			}`
 		case MentionItemType.TOOL:
 			return `tool:${(data as ToolMentionData)?.id || ""}`
 		case MentionItemType.DESIGN_MARKER:
 			const canvasMarkData = data as CanvasMarkerMentionData
-			const transformedMarkData = data as unknown as TransformedCanvasMarkerMentionData
-			const markId = canvasMarkData?.data?.id || ""
+			const markerData = normalizeCanvasMarkerMentionData(canvasMarkData)
+			const markId = markerData?.marker_id || ""
 			if (markId) {
 				return `marker:${markId}`
 			}
-			// 下面是兼容 TransformedCanvasMarkerMentionData 场景
-			const markNumber = canvasMarkData?.mark_number || ""
-			const selectedIndex = canvasMarkData?.data?.selectedSuggestionIndex || 0
-			const markLabel =
-				transformedMarkData.label ||
-				canvasMarkData?.data?.result?.suggestions?.[selectedIndex]?.label ||
-				""
+			const markNumber = markerData?.mark_number || ""
+			const markLabel = markerData?.label || ""
 			const result = [markId, markNumber, markLabel].filter(Boolean).join(":")
 			return `marker:${result}`
 		default:
@@ -182,25 +203,9 @@ export function getMentionDisplayName(attrs: TiptapMentionAttributes): string {
 		case MentionItemType.TOOL:
 			return (data?.name as string) || "Tool"
 		case MentionItemType.DESIGN_MARKER:
-			const markerData = data as unknown as
-				| CanvasMarkerMentionData
-				| TransformedCanvasMarkerMentionData
-			// 判断数据类型
-			if (isTransformedCanvasMarkerMentionData(markerData)) {
-				// TransformedCanvasMarkerMentionData 直接使用 label
-				return markerData.label || "Marker"
-			}
-			if (isCanvasMarkerMentionData(markerData)) {
-				// CanvasMarkerMentionData 需要从 data.result.suggestions 中获取
-				// 如果正在加载，返回加载中提示
-				if (markerData.loading === true) {
-					return t ? t("common.loading", "加载中...") : ""
-				}
-				const selectedSuggestionIndex = markerData.data?.selectedSuggestionIndex || 0
-				const suggestion = markerData.data?.result?.suggestions?.[selectedSuggestionIndex]
-				return suggestion?.label || "Marker"
-			}
-			return "Marker"
+			const markerData = normalizeCanvasMarkerMentionData(data)
+			if (markerData?.loading === true) return t ? t("common.loading", "加载中...") : ""
+			return markerData?.label || "Marker"
 		default:
 			return "Unknown"
 	}
@@ -225,21 +230,10 @@ export function getMentionDescription(attrs: TiptapMentionAttributes): string {
 		case MentionItemType.TOOL:
 			return (data?.description as string) || ""
 		case MentionItemType.DESIGN_MARKER:
-			const markerData = data as unknown as
-				| CanvasMarkerMentionData
-				| TransformedCanvasMarkerMentionData
-			// 判断数据类型
-			if (isTransformedCanvasMarkerMentionData(markerData)) {
-				// TransformedCanvasMarkerMentionData 直接使用 label
-				return markerData.label || ""
-			}
-			if (isCanvasMarkerMentionData(markerData)) {
-				// CanvasMarkerMentionData 需要从 data.result.suggestions 中获取
-				const selectedSuggestionIndex = markerData.data?.selectedSuggestionIndex || 0
-				const suggestion = markerData.data?.result?.suggestions?.[selectedSuggestionIndex]
-				return suggestion?.label || ""
-			}
-			return ""
+			const markerData = normalizeCanvasMarkerMentionData(data)
+			return markerData
+				? getSelectedCanvasMarkerMentionSuggestion(markerData)?.label || ""
+				: ""
 		default:
 			return ""
 	}
@@ -283,6 +277,7 @@ declare module "@tiptap/react" {
 			updateMentionLanguage: (language: string) => ReturnType
 			updateMentionKeyboardShortcuts: (disabled: boolean) => ReturnType
 			updateMentionEnabled: (enabled: boolean) => ReturnType
+			openMentionPanel: () => ReturnType
 		}
 	}
 }

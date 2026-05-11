@@ -4,7 +4,7 @@ import type { Canvas } from "../Canvas"
 import type { Rect } from "../utils/utils"
 import type { LayerElement } from "../types"
 import { normalizeSize } from "../utils/normalizeUtils"
-import { constrainRectToAspectRatio } from "./anchorUtils"
+import { constrainRectToAspectRatio, calculateSnapThreshold } from "./anchorUtils"
 import type { AlignmentInfo, AlignmentType } from "./snapGuideTypes"
 import { SnapGuideRenderer } from "./SnapGuideRenderer"
 import { SnapResolver, type SnapResolverContext } from "./SnapResolver"
@@ -24,9 +24,6 @@ export class SnapGuideManager implements SnapResolverContext {
 	private guideRenderer: SnapGuideRenderer
 	private snapResolver: SnapResolver
 
-	// 吸附阈值（像素）- 在此范围内会自动吸附
-	private readonly SNAP_THRESHOLD = 8
-
 	// 是否启用吸附
 	private enabled = true
 
@@ -42,6 +39,10 @@ export class SnapGuideManager implements SnapResolverContext {
 
 	// 上一帧吸附结果签名，用于判断辅助线是否需要重绘
 	private lastSnappedAlignmentsKey: string | null = null
+
+	// 当前交互的目标集缓存，避免拖拽过程中每帧递归整棵元素树
+	private cachedInteractionTargets: LayerElement[] | null = null
+	private cachedInteractionSelectionKey: string | null = null
 
 	constructor(options: { canvas: Canvas }) {
 		const { canvas } = options
@@ -63,10 +64,12 @@ export class SnapGuideManager implements SnapResolverContext {
 	private setupEventListeners(): void {
 		// 监听拖拽开始
 		this.canvas.eventEmitter.on("elements:transform:dragstart", () => {
+			const selectedIds = this.canvas.selectionManager.getSelectedIds()
 			this.isDragging = true
 			this.activeAnchor = null
 			this.lastSnappedAlignmentsKey = null
 			this.cacheVisualParams()
+			this.primeInteractionTargets(selectedIds)
 		})
 
 		// 监听拖拽移动
@@ -80,6 +83,7 @@ export class SnapGuideManager implements SnapResolverContext {
 			this.isDragging = false
 			this.activeAnchor = null
 			this.lastSnappedAlignmentsKey = null
+			this.clearInteractionTargets()
 			this.guideRenderer.clear()
 		})
 
@@ -89,6 +93,7 @@ export class SnapGuideManager implements SnapResolverContext {
 			this.activeAnchor = data.activeAnchor
 			this.lastSnappedAlignmentsKey = null
 			this.cacheVisualParams()
+			this.primeInteractionTargets(data.elementIds)
 		})
 
 		// 监听缩放移动
@@ -102,8 +107,41 @@ export class SnapGuideManager implements SnapResolverContext {
 			this.isDragging = false
 			this.activeAnchor = null
 			this.lastSnappedAlignmentsKey = null
+			this.clearInteractionTargets()
 			this.guideRenderer.clear()
 		})
+	}
+
+	private getSelectionKey(elementIds: string[]): string {
+		return [...elementIds].sort().join("|")
+	}
+
+	private primeInteractionTargets(selectedIds: string[]): void {
+		this.cachedInteractionSelectionKey = this.getSelectionKey(selectedIds)
+		this.cachedInteractionTargets = this.getAlignmentTargets(selectedIds)
+	}
+
+	private clearInteractionTargets(): void {
+		this.cachedInteractionTargets = null
+		this.cachedInteractionSelectionKey = null
+	}
+
+	private getActiveInteractionTargets(selectedIds: string[], draggingRect: Rect): LayerElement[] {
+		const selectionKey = this.getSelectionKey(selectedIds)
+		if (
+			!this.cachedInteractionTargets ||
+			!this.cachedInteractionSelectionKey ||
+			this.cachedInteractionSelectionKey !== selectionKey
+		) {
+			this.primeInteractionTargets(selectedIds)
+		}
+
+		const targets = this.cachedInteractionTargets ?? []
+		return this.canvas.geometryCacheManager.filterElementsByExpandedRect(
+			targets,
+			draggingRect,
+			this.cachedGuideThreshold,
+		)
 	}
 
 	/**
@@ -123,7 +161,7 @@ export class SnapGuideManager implements SnapResolverContext {
 	 */
 	private cacheVisualParams(): void {
 		const scale = this.canvas.stage.scaleX()
-		this.cachedSnapThreshold = this.SNAP_THRESHOLD / scale
+		this.cachedSnapThreshold = calculateSnapThreshold(scale)
 		const viewportWidth = this.canvas.stage.width() / scale
 		this.cachedGuideThreshold = viewportWidth / 4
 		this.guideRenderer.cacheVisualParams(scale)
@@ -139,9 +177,9 @@ export class SnapGuideManager implements SnapResolverContext {
 		const selectedIds = this.canvas.selectionManager.getSelectedIds()
 		if (selectedIds.length === 0) return
 
-		const targets = this.getAlignmentTargets(selectedIds)
 		const draggingRect = this.getDraggingElementsRect(selectedIds)
 		if (!draggingRect) return
+		const targets = this.getActiveInteractionTargets(selectedIds, draggingRect)
 
 		const options =
 			this.activeAnchor && this.canvas.transformManager.shouldKeepRatio(selectedIds)
@@ -255,33 +293,7 @@ export class SnapGuideManager implements SnapResolverContext {
 
 	/** @implements SnapResolverContext */
 	calculateElementsRect(elementIds: string[]): Rect | null {
-		const adapter = this.canvas.elementManager.getNodeAdapter()
-		const nodes = adapter.getNodesForTransform(elementIds)
-
-		if (nodes.length === 0) return null
-
-		let minX = Infinity
-		let minY = Infinity
-		let maxX = -Infinity
-		let maxY = -Infinity
-
-		for (const node of nodes) {
-			const clientRect = node.getClientRect({
-				relativeTo: this.canvas.contentLayer,
-			})
-
-			minX = Math.min(minX, clientRect.x)
-			minY = Math.min(minY, clientRect.y)
-			maxX = Math.max(maxX, clientRect.x + clientRect.width)
-			maxY = Math.max(maxY, clientRect.y + clientRect.height)
-		}
-
-		return {
-			x: minX,
-			y: minY,
-			width: maxX - minX,
-			height: maxY - minY,
-		}
+		return this.canvas.geometryCacheManager.getElementsBounds(elementIds)
 	}
 
 	/**
@@ -313,19 +325,10 @@ export class SnapGuideManager implements SnapResolverContext {
 		// 根据 activeAnchor 确定允许吸附的边
 		const allowedAlignments = this.getAllowedAlignments(overrideAnchor)
 
-		// 获取 NodeAdapter 用于获取节点的绝对位置
-		const adapter = this.canvas.elementManager.getNodeAdapter()
-
 		// 遍历其他元素，查找对齐关系
 		for (const element of otherElements) {
-			// 通过节点获取在 layer 坐标系中的绝对位置
-			// 这样可以正确处理 Frame 子元素的相对坐标
-			const node = adapter.getNodeForParenting(element.id)
-			if (!node) continue
-
-			const clientRect = node.getClientRect({
-				relativeTo: this.canvas.contentLayer,
-			})
+			const clientRect = this.canvas.geometryCacheManager.getElementBounds(element.id)
+			if (!clientRect) continue
 
 			// 确保尺寸有效
 			if (clientRect.width <= 0 || clientRect.height <= 0) {
@@ -702,21 +705,27 @@ export class SnapGuideManager implements SnapResolverContext {
 		if (this.activeAnchor) {
 			this.applySnapForScaling(nodes, snapOffsetX, snapOffsetY)
 		} else {
-			// 纯拖拽操作，直接调整位置
-			for (const node of nodes) {
-				const elementId = node.id()
-				const currentX = node.x()
-				const currentY = node.y()
-				const updates = {
-					x: currentX + snapOffsetX,
-					y: currentY + snapOffsetY,
-				}
+			const appliedToProxy = this.canvas.transformManager.applySelectionProxyDragOffset(
+				snapOffsetX,
+				snapOffsetY,
+			)
+			if (!appliedToProxy) {
+				// 纯拖拽操作，直接调整位置
+				for (const node of nodes) {
+					const elementId = node.id()
+					const currentX = node.x()
+					const currentY = node.y()
+					const updates = {
+						x: currentX + snapOffsetX,
+						y: currentY + snapOffsetY,
+					}
 
-				// 使用 ElementManager 的 update 接口（mode: 'node-only'）
-				this.canvas.elementManager.update(elementId, updates, {
-					mode: "node-only",
-					forceRerender: false,
-				})
+					// 使用 ElementManager 的 update 接口（mode: 'node-only'）
+					this.canvas.elementManager.update(elementId, updates, {
+						mode: "node-only",
+						forceRerender: false,
+					})
+				}
 			}
 		}
 

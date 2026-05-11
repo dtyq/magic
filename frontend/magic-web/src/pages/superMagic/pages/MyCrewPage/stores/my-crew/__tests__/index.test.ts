@@ -5,7 +5,8 @@ import { MyCrewStore } from ".."
 vi.mock("@/services/crew/CrewService", () => ({
 	crewService: {
 		getCreatedAgents: vi.fn(),
-		getExternalAgents: vi.fn(),
+		getTeamSharedAgents: vi.fn(),
+		getHiredAgents: vi.fn(),
 		deleteAgent: vi.fn(),
 		offlineAgent: vi.fn(),
 		upgradeAgent: vi.fn(),
@@ -49,6 +50,7 @@ describe("MyCrewStore", () => {
 					latestPublishedAt: null,
 					pinnedAt: null,
 					updatedAt: "2026-03-21 10:00:00",
+					creatorName: null,
 				},
 			],
 			page: 1,
@@ -64,18 +66,18 @@ describe("MyCrewStore", () => {
 			page_size: 20,
 			keyword: undefined,
 		})
-		expect(crewService.getExternalAgents).not.toHaveBeenCalled()
+		expect(crewService.getHiredAgents).not.toHaveBeenCalled()
 		expect(store.listVariant).toBe("created")
 		expect(store.list[0]?.agentCode).toBe("agent-created")
 	})
 
-	it("loads hired agents from the external endpoint", async () => {
-		vi.mocked(crewService.getExternalAgents).mockResolvedValue({
+	it("loads hired agents from the market installed endpoint", async () => {
+		vi.mocked(crewService.getHiredAgents).mockResolvedValue({
 			list: [
 				{
 					id: "2",
-					agentCode: "agent-external",
-					name: "External Agent",
+					agentCode: "agent-hired",
+					name: "Hired Agent",
 					role: "",
 					description: "",
 					icon: null,
@@ -89,6 +91,7 @@ describe("MyCrewStore", () => {
 					latestPublishedAt: null,
 					pinnedAt: null,
 					updatedAt: "2026-03-21 10:00:00",
+					creatorName: null,
 				},
 			],
 			page: 1,
@@ -99,7 +102,7 @@ describe("MyCrewStore", () => {
 		const store = new MyCrewStore()
 		await store.fetchAgents({ listVariant: "hired" })
 
-		expect(crewService.getExternalAgents).toHaveBeenCalledWith({
+		expect(crewService.getHiredAgents).toHaveBeenCalledWith({
 			page: 1,
 			page_size: 20,
 			keyword: undefined,
@@ -107,6 +110,48 @@ describe("MyCrewStore", () => {
 		expect(crewService.getCreatedAgents).not.toHaveBeenCalled()
 		expect(store.listVariant).toBe("hired")
 		expect(store.list[0]?.allowDelete).toBe(false)
+	})
+
+	it("loads team shared agents from the team shared endpoint", async () => {
+		vi.mocked(crewService.getTeamSharedAgents).mockResolvedValue({
+			list: [
+				{
+					id: "3",
+					agentCode: "agent-team-shared",
+					name: "Shared Agent",
+					role: "",
+					description: "",
+					icon: null,
+					playbooks: [],
+					sourceType: "LOCAL_CREATE",
+					enabled: true,
+					isStoreOffline: false,
+					needUpgrade: false,
+					allowDelete: false,
+					latestVersionCode: "1.0.0",
+					latestPublishedAt: null,
+					pinnedAt: null,
+					updatedAt: "2026-03-21 10:00:00",
+					creatorName: null,
+				},
+			],
+			page: 1,
+			pageSize: 20,
+			total: 1,
+		})
+
+		const store = new MyCrewStore()
+		await store.fetchAgents({ listVariant: "team-shared" })
+
+		expect(crewService.getTeamSharedAgents).toHaveBeenCalledWith({
+			page: 1,
+			page_size: 20,
+			keyword: undefined,
+		})
+		expect(crewService.getCreatedAgents).not.toHaveBeenCalled()
+		expect(crewService.getHiredAgents).not.toHaveBeenCalled()
+		expect(store.listVariant).toBe("team-shared")
+		expect(store.list[0]?.agentCode).toBe("agent-team-shared")
 	})
 
 	it("clears keyword when search input is emptied", async () => {
@@ -135,8 +180,8 @@ describe("MyCrewStore", () => {
 		store.list = [
 			{
 				id: "2",
-				agentCode: "agent-external",
-				name: "External Agent",
+				agentCode: "agent-hired",
+				name: "Hired Agent",
 				role: "",
 				description: "",
 				icon: null,
@@ -152,12 +197,13 @@ describe("MyCrewStore", () => {
 				latestPublishedAt: null,
 				pinnedAt: null,
 				updatedAt: "2026-03-21 10:00:00",
+				creatorName: null,
 			},
 		]
 
-		await store.offlineAgent("agent-external")
+		await store.offlineAgent("agent-hired")
 
-		expect(crewService.offlineAgent).toHaveBeenCalledWith("agent-external")
+		expect(crewService.offlineAgent).toHaveBeenCalledWith("agent-hired")
 		expect(store.list[0]?.enabled).toBe(false)
 	})
 
@@ -180,6 +226,7 @@ describe("MyCrewStore", () => {
 				latestPublishedAt: string | null
 				pinnedAt: string | null
 				updatedAt: string
+				creatorName: string | null
 			}>
 			page: number
 			pageSize: number
@@ -227,6 +274,7 @@ describe("MyCrewStore", () => {
 					latestPublishedAt: null,
 					pinnedAt: null,
 					updatedAt: "2026-03-21 10:00:00",
+					creatorName: null,
 				},
 			],
 			page: 1,

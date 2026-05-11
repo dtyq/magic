@@ -1,8 +1,10 @@
 /* TipTap Editor Design System Variables */
 /* Scoped to .tiptap-editor-root to avoid global pollution */
 
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
+
 /* 隐藏分隔符，在 @ 内容后，会导致异常换行问题 */
-.ProseMirror {
+@include scope.content {
   img.ProseMirror-separator {
     display: inline !important;
     border: none !important;

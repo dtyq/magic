@@ -10,8 +10,6 @@ import type {
 } from "./electron"
 import { DingTalk, DingTalkSDKAPI } from "./dingTalk"
 import type { Lark } from "./lark"
-import "vite-plugin-pwa/client"
-import "vite-plugin-pwa/info"
 
 declare global {
 	interface Window {

@@ -57,24 +57,38 @@ function MessageList({
 
 	return (
 		<MessageListProvider value={value}>
-			<div className="flex flex-col gap-2">
+			<div
+				className="flex flex-col gap-2"
+				onClick={() =>
+					console.log(
+						"=====",
+						JSON.parse(JSON.stringify(convertedMessages)),
+						JSON.parse(JSON.stringify(messageTurnGroups)),
+					)
+				}
+			>
 				<MessageTurnGroupList
 					groups={messageTurnGroups}
 					isMobile={isMobile}
 					stickyMessageClassName={stickyMessageClassName}
-					renderNode={({ node, index }) => (
-						<Node
-							node={node}
-							onSelectDetail={onSelectDetail}
-							isSelected
-							currentTopicStatus={TaskStatus.FINISHED}
-							role={node?.role || "user"}
-							isFirst={convertedMessages?.[index - 1]?.role === "user"}
-							checkIsLastMessage={checkIsLastMessage}
-							selectedTopic={null}
-							isShare={true}
-						/>
-					)}
+					renderNode={({ node, index }) => {
+						return (
+							<Node
+								node={node}
+								onSelectDetail={onSelectDetail}
+								isSelected
+								currentTopicStatus={TaskStatus.FINISHED}
+								role={node?.role || "user"}
+								isFirst={
+									convertedMessages?.[index - 1]?.role === "user" &&
+									convertedMessages?.[index]?.role === "assistant"
+								}
+								checkIsLastMessage={checkIsLastMessage}
+								selectedTopic={null}
+								isShare={true}
+							/>
+						)
+					}}
 				/>
 				{messageList.length > 0 && currentTopicStatus !== TaskStatus.RUNNING && (
 					<div className={styles.aiGeneratedTip}>{t("ui.aiGeneratedTip")}</div>

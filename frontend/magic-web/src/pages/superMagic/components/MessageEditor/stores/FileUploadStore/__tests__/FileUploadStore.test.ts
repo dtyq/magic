@@ -33,6 +33,7 @@ vi.mock("../../../services/UploadTokenService", () => ({
 
 import { FileUploadStore } from "../index"
 import type { FileData } from "../../../types"
+import { MentionItemType } from "@/components/business/MentionPanel/types"
 
 function createMockFileData(id: string): FileData {
 	return {
@@ -139,6 +140,95 @@ describe("FileUploadStore", () => {
 
 			expect(addedFiles).toHaveLength(1)
 			expect(store.isCurrentSessionUploadFile(addedFiles?.[0].id || "")).toBe(true)
+		})
+
+		it("should mark pasted pending project file as virtual reference", () => {
+			store.addPendingProjectFileReferences([
+				{
+					type: MentionItemType.PROJECT_FILE,
+					data: {
+						file_id: "source-file-1",
+						file_name: "source.md",
+						file_path: "/source.md",
+						file_extension: "md",
+						file_size: 10,
+						source_project_id: "source-project",
+						source_file_id: "source-file-1",
+						pending_project_copy: true,
+					},
+				},
+			])
+
+			expect(store.files).toHaveLength(1)
+			expect(store.files[0]).toMatchObject({
+				id: "source-file-1",
+				name: "source.md",
+				status: "done",
+				isVirtualReference: true,
+			})
+		})
+
+		it("should mark pasted pending project directory as virtual reference", () => {
+			store.addPendingProjectFileReferences([
+				{
+					type: MentionItemType.FOLDER,
+					data: {
+						directory_id: "source-directory-1",
+						directory_name: "docs",
+						directory_path: "/docs",
+						source_project_id: "source-project",
+						source_directory_id: "source-directory-1",
+						pending_project_copy: true,
+					},
+				},
+			])
+
+			expect(store.files).toHaveLength(1)
+			expect(store.files[0]).toMatchObject({
+				id: "source-directory-1",
+				name: "docs",
+				status: "done",
+				isVirtualReference: true,
+				saveResult: {
+					file_id: "source-directory-1",
+					file_key: "/docs",
+					file_name: "docs",
+					file_type: "directory",
+				},
+			})
+		})
+	})
+
+	describe("getUploadMentionItems", () => {
+		it("should return uploaded files with valid file paths", () => {
+			store.files = [
+				{
+					...createMockFileData("local-file-1"),
+					progress: 100,
+					reportResult: {
+						file_id: "uploaded-file-1",
+						file_name: "uploaded.txt",
+						file_key: "uploads/uploaded.txt",
+						file_size: 4,
+					} as FileData["reportResult"],
+				},
+				createMockFileData("local-file-2"),
+			]
+
+			expect(store.getUploadMentionItems()).toEqual([
+				expect.objectContaining({
+					id: "uploaded-file-1",
+					type: "upload_file",
+					name: "uploaded.txt",
+					extension: "txt",
+					data: expect.objectContaining({
+						file_id: "uploaded-file-1",
+						file_name: "uploaded.txt",
+						file_path: "uploads/uploaded.txt",
+						file_extension: "txt",
+					}),
+				}),
+			])
 		})
 	})
 })

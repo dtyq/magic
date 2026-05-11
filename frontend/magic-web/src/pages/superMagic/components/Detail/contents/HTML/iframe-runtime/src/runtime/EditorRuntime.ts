@@ -6,6 +6,7 @@
 import { EditorBridge } from "../core/EditorBridge"
 import { CommandHistory } from "../core/CommandHistory"
 import { ElementSelector } from "../features/ElementSelector"
+import { ImageManager } from "../managers/ImageManager"
 import { StyleManager } from "../managers/StyleManager"
 import { TextStyleManager } from "../managers/TextStyleManager"
 import { EditorLogger } from "../utils/EditorLogger"
@@ -22,9 +23,11 @@ export class EditorRuntime {
 	private styleManager: StyleManager
 	private textStyleManager: TextStyleManager
 	private elementSelector: ElementSelector
+	private imageManager: ImageManager
 	private isEditMode = false
 	private keyboardShortcutHandler: ((event: KeyboardEvent) => Promise<void>) | null = null
 	private wheelEventHandler: ((event: WheelEvent) => void) | null = null
+	private imageUploadResultHandler: ((event: MessageEvent) => void) | null = null
 
 	constructor() {
 		EditorLogger.info("Initializing editor runtime")
@@ -35,12 +38,19 @@ export class EditorRuntime {
 		this.styleManager = new StyleManager(this.commandHistory)
 		this.textStyleManager = new TextStyleManager(this.commandHistory, this.bridge)
 		this.elementSelector = new ElementSelector(this.bridge)
+		this.imageManager = new ImageManager(this.commandHistory, this.elementSelector)
 
 		// Connect styleManager with elementSelector for undo/redo refresh
 		this.styleManager.setElementSelector(this.elementSelector)
 
 		// Connect styleManager with textStyleManager for text selection state management
 		this.styleManager.setTextStyleManager(this.textStyleManager)
+
+		this.styleManager.registerCommandHandler({
+			canHandleCommand: (commandType) => this.imageManager.canHandleCommand(commandType),
+			restoreCommand: (command) => this.imageManager.restoreCommand(command),
+			applyCommand: (command) => this.imageManager.applyCommand(command),
+		})
 
 		// Connect textStyleManager with elementSelector for selecting created spans
 		this.textStyleManager.setElementSelector(this.elementSelector)
@@ -64,6 +74,9 @@ export class EditorRuntime {
 
 		// Setup wheel handler for trackpad pinch-to-zoom
 		this.setupWheelHandler()
+
+		// Setup host upload result handler
+		this.setupImageUploadResultHandler()
 
 		EditorLogger.info("Editor runtime initialized")
 
@@ -106,6 +119,7 @@ export class EditorRuntime {
 			bridge: this.bridge,
 			styleManager: this.styleManager,
 			textStyleManager: this.textStyleManager,
+			imageManager: this.imageManager,
 		})
 
 		// Register selection handlers
@@ -184,6 +198,19 @@ export class EditorRuntime {
 		EditorLogger.info("Wheel handler registered for trackpad pinch-to-zoom")
 	}
 
+	private setupImageUploadResultHandler(): void {
+		this.imageUploadResultHandler = (event: MessageEvent) => {
+			if (event.source !== window.parent) return
+			if (!event.data || event.data.type !== "IMAGE_UPLOAD_RESULT") return
+			if (!event.data.data) return
+
+			this.imageManager.handleUploadResult(event.data.data)
+		}
+
+		window.addEventListener("message", this.imageUploadResultHandler)
+		EditorLogger.info("Image upload result handler registered")
+	}
+
 	/**
 	 * Notify content changed
 	 */
@@ -233,6 +260,12 @@ export class EditorRuntime {
 			this.wheelEventHandler = null
 		}
 
+		if (this.imageUploadResultHandler) {
+			window.removeEventListener("message", this.imageUploadResultHandler)
+			this.imageUploadResultHandler = null
+		}
+
+		this.imageManager.destroy()
 		this.elementSelector.destroy()
 		this.bridge.destroy()
 

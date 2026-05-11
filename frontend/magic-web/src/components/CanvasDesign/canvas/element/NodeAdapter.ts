@@ -38,6 +38,9 @@ export class NodeAdapter {
 	 * @returns 边界矩形，如果元素不存在则返回 null
 	 */
 	public getElementBounds(elementId: string): Rect | null {
+		if (this.canvas.geometryCacheManager) {
+			return this.canvas.geometryCacheManager.getElementBounds(elementId)
+		}
 		const element = this.canvas.elementManager.getElementInstance(elementId)
 		return element?.getBoundingRect() ?? null
 	}
@@ -48,10 +51,11 @@ export class NodeAdapter {
 	 * @returns 总体边界矩形，如果没有有效元素则返回 null
 	 */
 	public getElementsBounds(elementIds: string[]): Rect | null {
+		if (this.canvas.geometryCacheManager) {
+			return this.canvas.geometryCacheManager.getElementsBounds(elementIds)
+		}
 		const nodes = this.getNodesForTransform(elementIds)
 		if (nodes.length === 0) return null
-
-		// 使用现有的 calculateNodesRect 工具函数
 		return calculateNodesRect(nodes, this.canvas.stage, this.canvas.elementManager)
 	}
 

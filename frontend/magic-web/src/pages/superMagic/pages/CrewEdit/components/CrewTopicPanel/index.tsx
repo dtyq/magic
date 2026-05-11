@@ -8,15 +8,21 @@ import { useTopicConversationLoading } from "@/pages/superMagic/hooks/useTopicCo
 import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
 import { useMemo } from "react"
 import { useMemoizedFn } from "ahooks"
+import { useScopedMessageHeaderTopicActions } from "@/pages/superMagic/hooks/useScopedMessageHeaderTopicActions"
 import { resolveMessageSendContext } from "@/pages/superMagic/services/messageSendPreparation"
 import { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import { merge } from "lodash-es"
 import { SendMessageOptions } from "@/pages/superMagic/components/MessagePanel/types"
 import { messageSendService } from "@/pages/superMagic/services/messageSendFlowService"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
+import type {
+	SceneEditorContext,
+	SceneEditorNodes,
+} from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
+import MessageQueue from "@/pages/superMagic/components/MessagePanel/components/MessageQueue"
+import useMessageQueue from "@/pages/superMagic/components/MessagePanel/hooks/useMessageQueue"
 import DefaultMessageEditorContainer from "@/pages/superMagic/components/MainInputContainer/components/editors/DefaultMessageEditorContainer"
-import MessageHeader from "./components/MessageHeader"
+import MessageHeader from "@/pages/superMagic/components/MessageHeader"
 import AnimatedEmptyHint from "./components/AnimatedEmptyHint"
 import { createMessageEditorDraftKey } from "@/pages/superMagic/components/MessageEditor/utils/draftKey"
 import { useInterruptAndUndoMessage } from "@/pages/superMagic/hooks/useInterruptAndUndoMessage"
@@ -24,8 +30,12 @@ import { userStore } from "@/models/user"
 import { useTranslation } from "react-i18next"
 import { useCrewEditStore } from "../../context"
 import { DEFAULT_LAYOUT_CONFIG } from "@/pages/superMagic/components/MessageEditor/constants/constant"
-import { MentionPanelStore } from "@/components/business/MentionPanel"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
+import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
+import useTopicModel from "@/pages/superMagic/components/MessageEditor/hooks/useTopicModel"
+import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
+import { useRefreshTopicDetailOnTaskComplete } from "@/pages/superMagic/hooks/useRefreshTopicDetailOnTaskComplete"
+import { useScopedTopicReadProgress } from "@/pages/superMagic/hooks/useScopedTopicReadProgress"
 
 interface CrewTopicPanelProps {
 	selectedProject: ProjectListItem | null
@@ -33,6 +43,9 @@ interface CrewTopicPanelProps {
 	onToggleConversationPanel?: () => void
 	onExpandConversationPanel?: () => void
 	detailPanelVisible?: boolean
+	historyTriggerMode?: "dropdown" | "layout"
+	isHistoryPanelOpen?: boolean
+	onToggleHistoryPanel?: () => void
 	topicStore: TopicStore
 	crewId: string
 	mentionPanelStore: MentionPanelStore
@@ -45,6 +58,9 @@ function CrewTopicPanel({
 	onToggleConversationPanel,
 	onExpandConversationPanel,
 	detailPanelVisible = true,
+	historyTriggerMode = "dropdown",
+	isHistoryPanelOpen = false,
+	onToggleHistoryPanel,
 	crewId,
 	topicStore,
 	mentionPanelStore,
@@ -53,19 +69,42 @@ function CrewTopicPanel({
 	const { t } = useTranslation("crew/create")
 	const { conversation } = useCrewEditStore()
 	const selectedTopic = topicStore.selectedTopic
+	const sharedTopicModelStore = useMemo(() => createSuperMagicTopicModelStore(), [])
+
+	useRefreshTopicDetailOnTaskComplete({
+		selectedTopic,
+		onTopicDetailLoaded: topicStore.updateTopic,
+	})
+
+	const { topicModelStore } = useTopicModel({
+		selectedTopic,
+		selectedProject,
+		topicMode: TopicMode.Default,
+		topicModelStore: sharedTopicModelStore,
+	})
+	const { handlePullMoreMessage, isMessagesInitialLoading, isSelectedTopicMessagesReady } =
+		useTopicMessages({
+			selectedTopic,
+		})
+	const { handleTopicMessagesChange } = useScopedTopicReadProgress({
+		scopeName: "CrewTopicPanel",
+		topicStore,
+		selectedTopic,
+		isSelectedTopicMessagesReady,
+	})
 	const { messages, showLoading } = useTopicConversationLoading({
 		selectedTopic,
 		onConversationGeneratingChange: conversation.setConversationGenerating,
-		onTopicMessagesChange: ({ lastMessageNode, selectedTopic: currentTopic }) => {
-			if (currentTopic?.id) {
-				void topicStore.updateTopicStatus(currentTopic.id, lastMessageNode?.status)
-			}
-		},
+		onTopicMessagesChange: handleTopicMessagesChange,
 	})
 
-	// Use unified topic messages hook
-	const { handlePullMoreMessage, isMessagesInitialLoading } = useTopicMessages({
-		selectedTopic: selectedTopic,
+	const messageQueue = useMessageQueue({
+		projectId: selectedProject?.id,
+		topicId: selectedTopic?.id,
+		agentCode: crewId,
+		isTaskRunning: showLoading,
+		isEmptyStatus: false,
+		isShowLoadingInit: isMessagesInitialLoading,
 	})
 
 	// 封装消息发送处理函数
@@ -93,9 +132,42 @@ function CrewTopicPanel({
 		messages,
 		userInfo: userStore.user.userInfo,
 	})
+	const topicActions = useScopedMessageHeaderTopicActions({
+		selectedProject,
+		selectedTopic,
+		topicStore,
+	})
+
+	const editorNodes = useMemo<SceneEditorNodes>(() => {
+		const messageQueueNode =
+			messageQueue.queue.length > 0 ? (
+				<div className="mb-2">
+					<MessageQueue
+						queue={messageQueue.queue}
+						queueStats={messageQueue.queueStats}
+						editingQueueItem={messageQueue.editingQueueItem}
+						onRemoveMessage={messageQueue.removeFromQueue}
+						onSendMessage={messageQueue.sendQueuedMessage}
+						onStartEdit={messageQueue.startEditQueueItem}
+						onCancelEdit={messageQueue.cancelEditQueueItem}
+					/>
+				</div>
+			) : null
+
+		return { messageQueueNode }
+	}, [
+		messageQueue.queue,
+		messageQueue.queueStats,
+		messageQueue.editingQueueItem,
+		messageQueue.removeFromQueue,
+		messageQueue.sendQueuedMessage,
+		messageQueue.startEditQueueItem,
+		messageQueue.cancelEditQueueItem,
+	])
 
 	const editorContext = useMemo<SceneEditorContext>(() => {
 		return {
+			placeholder: t("topic.inputPlaceholder"),
 			draftKey: createMessageEditorDraftKey({
 				selectedProject,
 				selectedTopic,
@@ -107,8 +179,10 @@ function CrewTopicPanel({
 			setSelectedTopic: topicStore.setSelectedTopic,
 			mentionPanelStore,
 			projectFilesStore,
+			topicModelStore,
 			layoutConfig: DEFAULT_LAYOUT_CONFIG,
 			showLoading,
+			size: detailPanelVisible ? "small" : "default",
 			mergeSendParams: ({ defaultParams }) => {
 				const mergedParams = merge(defaultParams, {
 					topicMode: TopicMode.CrewCreator,
@@ -116,24 +190,36 @@ function CrewTopicPanel({
 				})
 				return mergedParams
 			},
+			queueContext: {
+				editingQueueItem: messageQueue.editingQueueItem,
+				addToQueue: messageQueue.addToQueue,
+				finishEditQueueItem: messageQueue.finishEditQueueItem,
+			},
+			enableMessageSendByContent: true,
 		}
 	}, [
+		t,
 		selectedProject,
 		selectedTopic,
 		topicStore,
 		mentionPanelStore,
 		projectFilesStore,
+		topicModelStore,
 		showLoading,
 		crewId,
+		messageQueue.editingQueueItem,
+		messageQueue.addToQueue,
+		messageQueue.finishEditQueueItem,
+		detailPanelVisible,
 	])
 
 	const messageListProviderValue = useMemo(() => {
 		return {
-			allowRevoke: false,
+			allowRevoke: true,
 			allowUserMessageCopy: true,
 			allowScheduleTaskCreate: false,
 			allowMessageTooltip: true,
-			allowConversationCopy: false,
+			allowConversationCopy: true,
 			onTopicSwitch: topicStore.setSelectedTopic,
 		}
 	}, [topicStore.setSelectedTopic])
@@ -151,7 +237,11 @@ function CrewTopicPanel({
 					detailPanelVisible={detailPanelVisible}
 					selectedProject={selectedProject}
 					topicStore={topicStore}
+					topicActions={topicActions}
 					hideTopicListModeIcon
+					historyTriggerMode={historyTriggerMode}
+					isHistoryPanelOpen={isHistoryPanelOpen}
+					onToggleHistoryPanel={onToggleHistoryPanel}
 				/>
 			}
 			emptyHero={<EmptyState variant="hero" className="w-full" />}
@@ -164,6 +254,7 @@ function CrewTopicPanel({
 				/>
 			}
 			editor={<DefaultMessageEditorContainer editorContext={editorContext} />}
+			editorNodes={editorNodes}
 			messageListProviderValue={messageListProviderValue}
 			messages={messages as SuperMagicMessageItem[]}
 			selectedTopic={selectedTopic}

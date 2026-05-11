@@ -20,18 +20,22 @@ import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/sto
 import useSharedProjectMode from "@/pages/superMagic/hooks/useSharedProjectMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import useSandboxPreWarm from "@/pages/superMagic/components/MessagePanel/hooks/useSandboxPreWarm"
-import { useNanoBananaPrompt } from "@/pages/superMagic/hooks/useNanoBananaPrompt"
+import { useOfficialPromptsPayload } from "@/pages/superMagic/hooks/useOfficialPromptsPayload"
 import useTopicExamplesPortal from "@/pages/superMagic/hooks/useTopicExamplesPortal"
-import GlobalMentionPanelStore from "@/components/business/MentionPanel/store"
+import GlobalMentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 import type { SceneEditorContext, SceneEditorNodes } from "./types"
 import { useOptionalSceneStateStore } from "../../stores"
 import { cn } from "@/lib/utils"
-import { generateTextFromJSONContent } from "@/pages/superMagic/components/MessageEditor/utils"
+import {
+	buildPlainTextJSONContent,
+	generateTextFromJSONContent,
+} from "@/pages/superMagic/components/MessageEditor/utils"
+import { TaskStatus, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
 
 interface DefaultMessageEditorContainerProps {
 	editorContext?: SceneEditorContext
 	editorNodes?: SceneEditorNodes
-	editorRef?: RefObject<MessageEditorRef>
+	editorRef?: RefObject<MessageEditorRef | null>
 }
 
 export default function DefaultMessageEditorContainer(props: DefaultMessageEditorContainerProps) {
@@ -42,9 +46,15 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 	const sceneStateStore = useOptionalSceneStateStore()
 
 	const internalEditorRef = useRef<MessageEditorRef>(null)
-	const tiptapEditorRef = editorRef ?? internalEditorRef
+	const tiptapEditorRef = (editorRef ??
+		editorContext?.editorRef ??
+		internalEditorRef) as RefObject<MessageEditorRef>
 
 	const [isSending, setIsSending] = useState(false)
+	//fix:创建话题接口阶段的同步锁 解决弱网环境下isSending设置为true之前，用户再次触发创建话题接口导致重复创建话题的问题
+	const isPreparingSendRef = useRef(false)
+	//首页发送按钮loading状态
+	const [isHomePreparingSend, setIsHomePreparingSend] = useState(false)
 	const [, setFocused] = useState(false)
 	const [, setIsFocused] = useState(false)
 
@@ -80,8 +90,12 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 		function focusEditor() {
 			const editor = tiptapEditorRef.current?.editor
 			if (editor && !editor.isDestroyed) {
-				tiptapEditorRef.current?.focus?.({ enableWhenIsMobile: true })
-				return
+				try {
+					tiptapEditorRef.current?.focus?.({ enableWhenIsMobile: true })
+					return
+				} catch {
+					// view not mounted yet, fall through to retry
+				}
 			}
 
 			attemptCount += 1
@@ -98,9 +112,12 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 
 	useEffect(() => {
 		if (!editorContext?.initialContent) return
-		// useEffect 运行时子组件 useImperativeHandle 已完成，tiptapEditorRef.current 可用，
-		// 直接写入内容以消除弹窗打开时的 placeholder 闪烁（不再需要 setTimeout）
-		tiptapEditorRef.current?.setContent?.(editorContext.initialContent)
+		// initialContent 仅用于编辑器首次挂载时的内容回填，
+		// 后续父组件重渲染不应再次覆盖用户手动编辑过的内容。
+		tiptapEditorRef.current?.restoreContent?.(
+			editorContext.initialContent,
+			editorContext.initialMentionItems,
+		)
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [])
 
@@ -148,7 +165,14 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 			if (!prevEditingId || currentEditingId !== prevEditingId) {
 				setTimeout(() => {
 					tiptapEditorRef.current?.setContent?.(currentEditingItem.content)
-					tiptapEditorRef.current?.editor?.commands.focus()
+					const ed = tiptapEditorRef.current?.editor
+					if (ed && !ed.isDestroyed) {
+						try {
+							ed.commands.focus()
+						} catch {
+							// view may not be mounted yet
+						}
+					}
 				}, 100)
 			}
 		} else if (!currentEditingItem && prevEditingItem && tiptapEditorRef.current) {
@@ -160,9 +184,18 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 	}, [queueContext?.editingQueueItem, tiptapEditorRef, setFocused])
 
 	const handleSend = useMemoizedFn(async (params: HandleSendParams) => {
+		let hasStartedSend = false
+		let sendResult:
+			| {
+					currentProject: typeof selectedProject
+					currentTopic: typeof selectedTopic
+			  }
+			| undefined
+		let shouldShowHomeSendLoading = false
+
 		const nextValue = appendPresetSuffixContent(
 			params.value,
-			sceneStateStore?.presetSuffixContent ?? "",
+			sceneStateStore?.presetSuffixContent,
 		)
 
 		if (queueContext?.editingQueueItem) {
@@ -174,16 +207,27 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 			}
 		}
 
-		if (!params.value || isSending) {
+		// isPreparingSendRef 用于拦截弱网下的并发请求创建话题接口：
+		// isSending 基于 useState，赋值异步，无法在创建话题接口响应回来之前生效；
+		// isPreparingSendRef 基于 useRef，赋值同步立即生效，覆盖从发起创建话题到发送消息完成的完整阶段
+		if (!params.value || isSending || isPreparingSendRef.current) {
 			return
 		}
 
-		if (showLoading && !params.isFromQueue && queueContext) {
+		/**
+		 * IMPORTANT:
+		 * waiting_for_user 是 AskUser 独有状态，表示当前轮到用户输入。
+		 * 此时用户的输入应当直接发送，不应进入消息队列排队。
+		 */
+		const isWaitingForUser = selectedTopic?.task_status === TaskStatus.WAITING_FOR_USER
+
+		if (showLoading && !isWaitingForUser && !params.isFromQueue && queueContext) {
 			queueContext.addToQueue({
 				content: nextValue ?? params.value,
 				mentionItems: params.mentionItems,
 				selectedModel: params.selectedModel,
 				selectedImageModel: params.selectedImageModel,
+				selectedVideoModel: params.selectedVideoModel,
 				topicMode: params.topicMode,
 			})
 			tiptapEditorRef.current?.clearContentAfterSend()
@@ -204,57 +248,93 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 			effectiveSetSelectedWorkspace(selectedWorkspace)
 		}
 
-		const defaultParams: HandleSendParams = {
-			...params,
-			value: nextValue ?? params.value,
+		try {
+			const defaultParams: HandleSendParams = {
+				...params,
+				value: nextValue ?? params.value,
+				extra:
+					effectiveTopicMode === TopicMode.CustomAgent && editorContext?.agentCode
+						? {
+								...params.extra,
+								agent_code: editorContext.agentCode,
+							}
+						: params.extra,
+			}
+			const customParamsPatch = editorContext?.mergeSendParams?.({
+				defaultParams,
+			})
+
+			const finalParams = customParamsPatch
+				? { ...defaultParams, ...customParamsPatch }
+				: defaultParams
+			shouldShowHomeSendLoading = !selectedTopic?.id && !params.isFromQueue
+			hasStartedSend = true
+			isPreparingSendRef.current = true
+			if (shouldShowHomeSendLoading) {
+				setIsHomePreparingSend(true)
+			}
+			editorContext?.onSendStart?.({
+				content: finalParams.value,
+				mentionItems: finalParams.mentionItems,
+			})
+			const preparedSend = await preparePanelSend({
+				params: finalParams,
+				context: {
+					selectedProject,
+					selectedTopic,
+					selectedWorkspace,
+					setSelectedProject: editorContext?.setSelectedProject,
+					setSelectedTopic: editorContext?.setSelectedTopic,
+					setSelectedWorkspace: editorContext?.setSelectedWorkspace,
+					// 与 _topicStore 回退一致，保证 smartRename 写入 topicStore.topics（历史列表合并依赖）。
+					topicStore: _topicStore,
+				},
+				tabPattern: effectiveTopicMode,
+				editorRef: tiptapEditorRef.current,
+				messagesLength: editorContext?.messagesLength ?? 0,
+			})
+
+			if (!preparedSend) {
+				return
+			}
+
+			sendResult = await scopedMessageSendService.sendPanelMessage({
+				params: preparedSend.params,
+				context: preparedSend.context,
+				currentProject: preparedSend.currentProject,
+				currentTopic: preparedSend.currentTopic,
+				isSending,
+				setIsSending,
+				showLoading,
+				isMobile,
+				isEmptyStatus,
+				tabPattern: effectiveTopicMode,
+				editorRef: tiptapEditorRef.current,
+				setFocused,
+				messagesLength: editorContext?.messagesLength ?? 0,
+			})
+
+			if (sendResult) {
+				editorContext?.onSendSuccess?.({
+					currentProject: sendResult.currentProject ?? null,
+					currentTopic: sendResult.currentTopic ?? null,
+				})
+				sceneStateStore?.incrementSendCount()
+			}
+		} finally {
+			// 无论成功、失败、接口报错，都释放锁，保证下次发送可以正常进入
+			isPreparingSendRef.current = false
+			if (shouldShowHomeSendLoading) {
+				setIsHomePreparingSend(false)
+			}
+			if (hasStartedSend) {
+				editorContext?.onSendComplete?.({
+					success: Boolean(sendResult),
+					currentProject: sendResult?.currentProject ?? null,
+					currentTopic: sendResult?.currentTopic ?? null,
+				})
+			}
 		}
-		const customParamsPatch = editorContext?.mergeSendParams?.({
-			defaultParams,
-		})
-
-		const finalParams = customParamsPatch
-			? { ...defaultParams, ...customParamsPatch }
-			: defaultParams
-		const preparedSend = await preparePanelSend({
-			params: finalParams,
-			context: {
-				selectedProject,
-				selectedTopic,
-				selectedWorkspace,
-				setSelectedProject: editorContext?.setSelectedProject,
-				setSelectedTopic: editorContext?.setSelectedTopic,
-				setSelectedWorkspace: editorContext?.setSelectedWorkspace,
-				topicStore: editorContext?.topicStore,
-			},
-			tabPattern: effectiveTopicMode,
-			editorRef: tiptapEditorRef.current,
-			messagesLength: editorContext?.messagesLength ?? 0,
-		})
-
-		if (!preparedSend) {
-			return
-		}
-
-		const sendResult = await scopedMessageSendService.sendPanelMessage({
-			params: preparedSend.params,
-			context: preparedSend.context,
-			currentProject: preparedSend.currentProject,
-			currentTopic: preparedSend.currentTopic,
-			isSending,
-			setIsSending,
-			showLoading,
-			isMobile,
-			isEmptyStatus,
-			tabPattern: effectiveTopicMode,
-			editorRef: tiptapEditorRef.current,
-			setFocused,
-			messagesLength: editorContext?.messagesLength ?? 0,
-		})
-
-		editorContext?.onSendSuccess?.({
-			currentProject: sendResult?.currentProject ?? null,
-			currentTopic: sendResult?.currentTopic ?? null,
-		})
 	})
 
 	const handleFocus = useMemoizedFn(() => {
@@ -273,10 +353,11 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 			editorContext?.selectedWorkspace ??
 			workspaceStore.selectedWorkspace ??
 			workspaceStore.firstWorkspace,
+		projectId: selectedProject?.id,
 		editorRef: tiptapEditorRef.current?.editor,
 	})
 
-	useNanoBananaPrompt({
+	useOfficialPromptsPayload({
 		editorRef: tiptapEditorRef,
 		setTopicMode: effectiveSetTopicMode,
 		setIsFocused,
@@ -291,7 +372,12 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 	const placeholder = showLoading
 		? t("messageEditor.placeholderLoading")
 		: (configPlaceholder ??
-			(superMagicModeService.getModePlaceholderWithLegacy(effectiveTopicMode, t, isMobile) ||
+			(superMagicModeService.getModePlaceholderWithLegacy(
+				effectiveTopicMode,
+				t,
+				isMobile,
+				selectedTopic?.agent_code,
+			) ||
 				t("messageEditor.placeholderTask")))
 	const selectedWorkspace =
 		editorContext?.selectedWorkspace ??
@@ -329,11 +415,13 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 				size={editorContext?.size ?? "default"}
 				modules={editorContext?.modules}
 				isSending={isSending}
+				sendButtonLoading={isHomePreparingSend}
 				onFocus={handleFocus}
 				onBlur={handleBlur}
 				onFileClick={editorContext?.onFileClick}
 				attachments={editorContext?.attachments}
 				projectFilesStore={editorContext?.projectFilesStore}
+				topicModelStore={editorContext?.topicModelStore}
 				isEditingQueueItem={!!queueContext?.editingQueueItem}
 				onCreateTopic={() =>
 					createTopicForMessageContext({
@@ -348,9 +436,12 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 				}
 				showLoading={showLoading}
 				editorModeSwitch={editorContext?.editorModeSwitch}
+				modelSwitch={editorContext?.modelSwitch}
 				mentionPanelStore={mentionPanelStore}
+				isAllowedMention={editorContext?.isAllowedMention}
 				layoutConfig={editorContext?.layoutConfig}
 				enableMessageSendByContent={editorContext?.enableMessageSendByContent ?? false}
+				skipInitialDraftRestore={editorContext?.skipInitialDraftRestore}
 			/>
 			{editorContext?.showTopicExamplesPortal ? topicExamplesPortalNode : null}
 		</>
@@ -359,43 +450,20 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 
 function appendPresetSuffixContent(
 	value: JSONContent | undefined,
-	presetSuffixContent: string,
+	presetSuffixContent: JSONContent | undefined,
 ): JSONContent | undefined {
 	if (!value) return value
+	if (!presetSuffixContent?.content?.length) return value
 
-	const normalizedSuffixContent = presetSuffixContent.trim()
+	const normalizedSuffixContent = generateTextFromJSONContent(presetSuffixContent).trim()
 	if (!normalizedSuffixContent) return value
-
 	const currentText = generateTextFromJSONContent(value).trimEnd()
 	if (currentText.endsWith(normalizedSuffixContent)) return value
 
-	const suffixDoc = buildTextJSONContent(normalizedSuffixContent)
 	const baseContent = value.type === "doc" ? (value.content ?? []) : [value]
 
 	return {
 		type: "doc",
-		content: [...baseContent, ...(suffixDoc.content ?? [])],
-	}
-}
-
-function buildTextJSONContent(text: string): JSONContent {
-	const paragraphs = text
-		.split(/\n{2,}/)
-		.filter((paragraph) => paragraph.trim())
-		.map((paragraph) => ({
-			type: "paragraph",
-			content: [{ type: "text", text: paragraph }],
-		}))
-
-	if (paragraphs.length === 0) {
-		return {
-			type: "doc",
-			content: [],
-		}
-	}
-
-	return {
-		type: "doc",
-		content: paragraphs,
+		content: [...baseContent, ...(presetSuffixContent.content ?? [])],
 	}
 }

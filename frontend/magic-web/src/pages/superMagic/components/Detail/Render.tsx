@@ -12,6 +12,7 @@ import { getExportAllFileIds } from "./contents/HTML/utils"
 import MagicProgressToast from "@/components/base/MagicProgressToast"
 import useEditMode from "./hooks/useEditMode"
 import useCheckBeforeCloseWithSave from "./hooks/useCheckBeforeCloseWithSave"
+import { useSyncCustomProjectFolderNameBeforeSave } from "./hooks/useSyncCustomProjectFolderNameBeforeSave"
 import MagicModal from "@/components/base/MagicModal"
 import { downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
 import { DownloadImageMode } from "../../pages/Workspace/types"
@@ -19,8 +20,13 @@ import { MagicSpin } from "@/components/base"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { prepareSingleSlideExport } from "@/pages/superMagic/services/pptService"
+import { pptFontResolver } from "@/pages/superMagic/services/pptFontService"
 import { exportPPTX } from "../../../../../packages/html2pptx/src"
+import { pptxExternalLogger, reportPptxExportError } from "@/pages/superMagic/utils/pptxLogger"
+import { isFileInPPTMode } from "./utils/file"
 import { Button } from "@/components/shadcn-ui/button"
+import { cn } from "@/lib/utils"
+import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
 
 export default function Render(props: any) {
 	const {
@@ -56,7 +62,7 @@ export default function Render(props: any) {
 		className,
 		updatedAt,
 		detailMode,
-		metadata,
+		displayConfig,
 		openFileTab,
 		selectedProject,
 		selectedTopic,
@@ -71,6 +77,7 @@ export default function Render(props: any) {
 		onUnregisterCheckBeforeClose,
 		projectId,
 		allowDownload,
+		mdToolbarContainer,
 	} = props
 	const { t } = useTranslation("super")
 	const { isEditMode, setIsEditMode, checkBeforeClose } = useEditMode({
@@ -84,6 +91,11 @@ export default function Render(props: any) {
 		fileId: data?.file_id,
 		onRegisterCheckBeforeClose,
 		onUnregisterCheckBeforeClose,
+	})
+
+	const { syncCustomProjectFolderNameBeforeSave } = useSyncCustomProjectFolderNameBeforeSave({
+		attachments,
+		currentFileData: data,
 	})
 
 	const [exportProgress, setExportProgress] = useState(0)
@@ -184,6 +196,12 @@ export default function Render(props: any) {
 			key,
 		})
 		try {
+			try {
+				await syncCustomProjectFolderNameBeforeSave(targetFileId, newContent)
+			} catch (error) {
+				console.error("syncCustomProjectFolderNameBeforeSave failed:", error)
+			}
+
 			const res = await SuperMagicApi.saveFileContent([
 				{
 					file_id: targetFileId,
@@ -286,7 +304,7 @@ export default function Render(props: any) {
 	const exportPptx = async (fileId: string) => {
 		if (!fileId) return
 
-		const toastId = crypto.randomUUID()
+		const toastId = createRandomUuidV4()
 		let exportHandle: ReturnType<typeof exportPPTX> | null = null
 
 		function getExportToastContent(progressText: string) {
@@ -329,9 +347,15 @@ export default function Render(props: any) {
 				return
 			}
 
+			const autoSize = !isFileInPPTMode(fileId, attachmentList ?? [])
+
 			exportHandle = exportPPTX(result.htmlSlides, {
 				fileName: result.fileName,
 				skipFailedPages: true,
+				autoSize,
+				fontResolver: pptFontResolver,
+				logger: pptxExternalLogger,
+				logLevel: "warn",
 			})
 
 			await exportHandle.promise
@@ -355,7 +379,7 @@ export default function Render(props: any) {
 					content: t("topicFiles.contextMenu.fileExport.exportFailed"),
 					duration: 1000,
 				})
-				console.error("Export editable PPT failed:", error)
+				reportPptxExportError(error, { fileId, source: "Render" })
 			}
 		}
 	}
@@ -398,8 +422,8 @@ export default function Render(props: any) {
 		className,
 		updatedAt,
 		detailMode,
-		// metadata: metadata || data?.metadata,
-		metadata: data?.metadata,
+		// display_config: display_config || data?.display_config,
+		displayConfig: displayConfig || data?.display_config,
 		openFileTab,
 		exportFile,
 		exportPdf,
@@ -414,6 +438,7 @@ export default function Render(props: any) {
 		onActiveFileChange,
 		showFooter,
 		isPlaybackMode,
+		mdToolbarContainer,
 		isTabActive: props.isTabActive,
 		allowDownload,
 		projectId,
@@ -421,23 +446,25 @@ export default function Render(props: any) {
 
 	return (
 		<>
-			<Suspense
-				fallback={
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							height: "100%",
-							minHeight: "400px",
-						}}
-					>
-						<MagicSpin />
-					</div>
-				}
-			>
-				<ContentRenderer type={type} data={data} commonProps={commonProps} />
-			</Suspense>
+			<div className={cn("flex h-full min-h-0 min-w-0 flex-col", className)}>
+				<Suspense
+					fallback={
+						<div
+							style={{
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								height: "100%",
+								minHeight: "400px",
+							}}
+						>
+							<MagicSpin />
+						</div>
+					}
+				>
+					<ContentRenderer type={type} data={data} commonProps={commonProps} />
+				</Suspense>
+			</div>
 
 			{/* 使用封装的进度条组件 */}
 			<MagicProgressToast

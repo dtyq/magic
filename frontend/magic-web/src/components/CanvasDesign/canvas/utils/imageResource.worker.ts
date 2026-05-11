@@ -34,6 +34,8 @@ export interface ImageResourceWorkerResponse {
 	}
 	/** 错误信息 */
 	error?: string
+	/** 响应状态码（非 2xx 时返回） */
+	statusCode?: number
 }
 
 function extractFilenameFromUrl(url: string): string | null {
@@ -156,6 +158,7 @@ async function processRequest(
 			return {
 				requestId,
 				error: `Fetch failed: ${response.status}`,
+				statusCode: response.status,
 				thumbnails: { small: "" }, // 错误情况下返回空 thumbnails（不会被使用）
 				...(needsReExchange && { needsReExchange: true }),
 			}

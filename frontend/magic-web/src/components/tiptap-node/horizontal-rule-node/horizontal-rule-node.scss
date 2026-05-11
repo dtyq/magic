@@ -1,12 +1,10 @@
 /* =====================
      HORIZONTAL RULE (GitHub Markdown Style)
      ===================== */
-.tiptap.ProseMirror {
-  --horizontal-rule-color: var(--tt-gray-light-a-300);
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
 
-  .dark & {
-    --horizontal-rule-color: var(--tt-gray-dark-a-300);
-  }
+@include scope.content {
+  --horizontal-rule-color: var(--tt-gray-light-a-300);
 
   hr {
     height: 0.25em;
@@ -34,4 +32,8 @@
     margin-bottom: 1.5em;
     padding: 0;
   }
+}
+
+@include scope.dark-content {
+  --horizontal-rule-color: var(--tt-gray-dark-a-300);
 }

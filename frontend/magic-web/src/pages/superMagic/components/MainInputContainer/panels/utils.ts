@@ -1,4 +1,5 @@
 import i18n from "i18next"
+import type { JSONContent } from "@tiptap/core"
 import {
 	DEFAULT_LOCALE_KEY,
 	OptionViewType,
@@ -7,19 +8,19 @@ import {
 	type OptionGroup,
 	type OptionItem,
 } from "./types"
+import {
+	isPromptRichTextEmpty,
+	maybeResolvePromptRichTextPlainText,
+	parsePromptRichText,
+	PROMPT_PRESET_VALUE_NODE_NAME,
+	PROMPT_PRESET_VALUE_TOKEN,
+} from "./promptRichText"
 
 function isNonEmptyLocaleValue(value: string | undefined): value is string {
 	return typeof value === "string" && value.length > 0
 }
 
-/**
- * Resolve LocaleText to a plain string for the current locale.
- * Falls back in order: exact locale -> base language -> default -> "en_US" -> first available
- */
-export function resolveLocaleText(
-	text: LocaleText | undefined,
-	locale: string,
-): string | undefined {
+function resolveLocaleTextValue(text: LocaleText | undefined, locale: string): string | undefined {
 	if (text == null) return undefined
 	if (typeof text === "string") return text
 
@@ -37,6 +38,17 @@ export function resolveLocaleText(
 	if (isNonEmptyLocaleValue(text[DEFAULT_LOCALE_KEY])) return text[DEFAULT_LOCALE_KEY]
 	if (isNonEmptyLocaleValue(text["en_US"])) return text["en_US"]
 	return Object.values(text).find((value) => isNonEmptyLocaleValue(value))
+}
+
+/**
+ * Resolve LocaleText to a plain string for the current locale.
+ * Falls back in order: exact locale -> base language -> default -> "en_US" -> first available
+ */
+export function resolveLocaleText(
+	text: LocaleText | undefined,
+	locale: string,
+): string | undefined {
+	return maybeResolvePromptRichTextPlainText(resolveLocaleTextValue(text, locale))
 }
 
 /**
@@ -74,6 +86,19 @@ export function localeTextToDisplayString(value: LocaleText | undefined): string
 	)
 }
 
+export function isImageIconSource(value: string | undefined): value is string {
+	if (!value) return false
+
+	return (
+		value.startsWith("http://") ||
+		value.startsWith("https://") ||
+		value.startsWith("//") ||
+		value.startsWith("/") ||
+		value.startsWith("data:image/") ||
+		value.startsWith("blob:")
+	)
+}
+
 /** @internal used by buildConcatenatedPresetContent */
 function valueToDisplayString(value: LocaleText | undefined): string {
 	return localeTextToDisplayString(value)
@@ -108,6 +133,104 @@ function getSelectedOptionLabel(field: FieldItem, locale: string): string {
 	return `${label}: ${value}`
 }
 
+function createTextNode(text: string): JSONContent | undefined {
+	return text ? { type: "text", text } : undefined
+}
+
+function buildPlainTextDoc(text: string): JSONContent {
+	return {
+		type: "doc",
+		content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+	}
+}
+
+function replacePresetValueInText(text: string, presetValue: string): JSONContent[] {
+	const parts = text.split(PROMPT_PRESET_VALUE_TOKEN)
+	if (parts.length === 1) return [{ type: "text", text }]
+
+	return parts.flatMap((part, index) => {
+		const nodes: JSONContent[] = []
+		const partNode = createTextNode(part)
+		if (partNode) nodes.push(partNode)
+		if (index < parts.length - 1) {
+			const presetNode = createTextNode(presetValue)
+			if (presetNode) nodes.push(presetNode)
+		}
+		return nodes
+	})
+}
+
+function replacePresetValueInNode(node: JSONContent, presetValue: string): JSONContent[] {
+	if (node.type === "text") {
+		return replacePresetValueInText(node.text ?? "", presetValue)
+	}
+
+	if (node.type === PROMPT_PRESET_VALUE_NODE_NAME) {
+		const presetNode = createTextNode(presetValue)
+		return presetNode ? [presetNode] : []
+	}
+
+	const nextNode: JSONContent = { ...node }
+	if (Array.isArray(node.content)) {
+		nextNode.content = node.content.flatMap((child) =>
+			replacePresetValueInNode(child, presetValue),
+		)
+	}
+	return [nextNode]
+}
+
+function replacePresetValueInDoc(doc: JSONContent, presetValue: string): JSONContent {
+	return {
+		...doc,
+		content: (doc.content ?? []).flatMap((node) => replacePresetValueInNode(node, presetValue)),
+	}
+}
+
+function appendTextToLastBlock(doc: JSONContent, text: string): JSONContent {
+	if (!text) return doc
+
+	const content = [...(doc.content ?? [])]
+	const textNode = createTextNode(text)
+	if (!textNode) return { ...doc, content }
+
+	const lastBlock = content.at(-1)
+	if (!lastBlock) {
+		return {
+			...doc,
+			content: [{ type: "paragraph", content: [textNode] }],
+		}
+	}
+
+	content[content.length - 1] = {
+		...lastBlock,
+		content: [...(lastBlock.content ?? []), textNode],
+	}
+
+	return { ...doc, content }
+}
+
+function joinPresetContentDocs(parts: JSONContent[], comma: string, period: string): JSONContent {
+	const canJoinAsInlineContent = parts.every(
+		(part) => part.content?.length === 1 && part.content[0]?.type === "paragraph",
+	)
+
+	if (canJoinAsInlineContent) {
+		const content = parts.flatMap((part, index) => {
+			const suffix = index === parts.length - 1 ? period : comma
+			return [...(part.content?.[0]?.content ?? []), { type: "text", text: suffix }]
+		})
+
+		return { type: "doc", content: [{ type: "paragraph", content }] }
+	}
+
+	const content = parts.flatMap((part, index) => {
+		const suffix = index === parts.length - 1 ? period : comma
+		return appendTextToLastBlock(part, suffix).content ?? []
+	})
+
+	return { type: "doc", content }
+}
+
 /**
  * Build concatenated preset content from field items.
  * - Per field with preset_content: replaces {preset_value} with current_value.
@@ -117,15 +240,15 @@ function getSelectedOptionLabel(field: FieldItem, locale: string): string {
 export function buildConcatenatedPresetContent(
 	fields: FieldItem[],
 	locale = i18n.resolvedLanguage ?? i18n.language ?? DEFAULT_LOCALE_KEY,
-): string {
+): JSONContent | undefined {
 	const isZh = /^zh(-|_)?/i.test(locale)
 	const comma = isZh ? "，" : ", "
 	const period = isZh ? "。" : "."
-	const parts: string[] = []
+	const parts: JSONContent[] = []
 
 	for (const item of fields) {
-		const template = resolveLocaleText(item.preset_content, locale) ?? ""
-		if (template.trim()) {
+		const template = resolveLocaleTextValue(item.preset_content, locale) ?? ""
+		if (!isPromptRichTextEmpty(template)) {
 			const currentVal = item.current_value
 			if (currentVal == null || currentVal === "") continue
 
@@ -137,16 +260,16 @@ export function buildConcatenatedPresetContent(
 						: ""
 			if (!displayVal.trim()) continue
 
-			parts.push(template.replace(/\{preset_value\}/g, displayVal).trim())
+			parts.push(replacePresetValueInDoc(parsePromptRichText(template), displayVal))
 			continue
 		}
 
 		const label = getSelectedOptionLabel(item, locale).trim()
 		if (label) {
-			parts.push(label)
+			parts.push(buildPlainTextDoc(label))
 		}
 	}
 
-	const result = parts.join(comma).trim()
-	return result ? `${result}${period}` : ""
+	if (parts.length === 0) return undefined
+	return joinPresetContentDocs(parts, comma, period)
 }

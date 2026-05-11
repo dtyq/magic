@@ -11,6 +11,7 @@ interface MenuButtonProps {
 	showArrow?: boolean
 	onClick?: () => void
 	"data-testid"?: string
+	className?: string
 }
 
 function MenuButton({
@@ -22,13 +23,14 @@ function MenuButton({
 	showArrow = true,
 	onClick,
 	"data-testid": dataTestId,
+	className,
 }: MenuButtonProps) {
 	return (
 		<Button
 			variant="ghost"
 			onClick={onClick}
 			data-testid={dataTestId}
-			className="flex h-11 w-full items-center gap-2 bg-fill px-3 py-2"
+			className={cn("flex h-11 w-full items-center gap-2 bg-fill px-3 py-2", className)}
 		>
 			<div
 				className={cn(

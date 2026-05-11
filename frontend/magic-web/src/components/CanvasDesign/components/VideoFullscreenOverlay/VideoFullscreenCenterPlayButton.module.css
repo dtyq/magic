@@ -1,0 +1,69 @@
+/**
+ * 与 VideoRenderer 中心播放区对齐：半透明圆 + 白描边 + 阴影
+ * 直径 = iconSize * 1.44（Konva radius = iconSize * 0.72）
+ */
+.wrap {
+	position: absolute;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: opacity 0.38s ease, visibility 0.38s ease;
+	pointer-events: none;
+	will-change: opacity;
+	inset: 0;
+}
+
+.wrapHidden {
+	visibility: hidden;
+	opacity: 0;
+}
+
+.wrapVisible {
+	visibility: visible;
+	opacity: 1;
+}
+
+.centerButton {
+	--play-icon-size: 58px;
+
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: calc(var(--play-icon-size) * 1.44);
+	height: calc(var(--play-icon-size) * 1.44);
+	padding: 0;
+	color: #fff;
+	background: rgb(15 23 42 / 34%);
+	border: 1px solid rgb(255 255 255 / 22%);
+	border-radius: 9999px;
+	box-shadow: 0 3px 12px rgb(0 0 0 / 18%);
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+	pointer-events: auto;
+}
+
+.centerButton:hover {
+	background: rgb(15 23 42 / 48%);
+}
+
+.icon {
+	flex-shrink: 0;
+	opacity: 0.9;
+	transition: opacity 0.2s ease;
+}
+
+.centerButton:hover .icon {
+	opacity: 1;
+}
+
+.iconSvg {
+	width: clamp(28px, 9vmin, 52px);
+	height: clamp(28px, 9vmin, 52px);
+}
+
+/* 三角形播放键视觉居中（与 Konva 一致略偏右） */
+.playIcon {
+	margin-left: 3px;
+}

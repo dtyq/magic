@@ -3,6 +3,7 @@ import { MenuProps } from "antd"
 import { useTranslation } from "react-i18next"
 import { Pencil, Trash2 } from "lucide-react"
 import type { Workspace } from "../pages/Workspace/types"
+import { suppressSelectionAfterWorkspaceRename } from "@/pages/superMagic/utils/workspaceRenameSelectionGuard"
 
 interface UseWorkspaceActionMenuParams {
 	workspace: Workspace | null
@@ -52,6 +53,8 @@ export function useWorkspaceActionMenu({
 				</div>
 			),
 			onClick: () => {
+				// Guard next selection click to avoid rename menu click-through.
+				suppressSelectionAfterWorkspaceRename()
 				onRename(workspace.id)
 				onMenuClose?.()
 			},

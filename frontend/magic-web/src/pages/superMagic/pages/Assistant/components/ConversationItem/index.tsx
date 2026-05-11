@@ -1,7 +1,5 @@
 import { UserAvailableAgentInfo } from "@/apis/modules/chat/types"
-import FlexBox from "@/components/base/FlexBox"
 import MagicAvatar from "@/components/base/MagicAvatar"
-import { createStyles } from "antd-style"
 import ConversationStore from "@/stores/chatNew/conversation"
 import { observer } from "mobx-react-lite"
 import { useMemoizedFn } from "ahooks"
@@ -15,73 +13,15 @@ import { useGlobalLanguage } from "@/models/config/hooks"
 import { useMemo } from "react"
 import { computed } from "mobx"
 import SmartTooltip from "@/components/other/SmartTooltip"
+import { cn } from "@/lib/utils"
 
-const useStyles = createStyles(({ css, token }) => ({
-	container: css`
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		height: 60px;
-		padding: 10px;
-		border-radius: 8px;
-		cursor: pointer;
-		border: 1px solid ${token.magicColorUsages.border};
+const conversationRowClassName = cn(
+	"mb-0.5 flex h-[60px] cursor-pointer items-center gap-2 rounded-md p-2.5",
+	"hover:bg-fill active:bg-fill-secondary",
+	"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+)
 
-		&:hover {
-			background-color: ${token.colorFillTertiary};
-		}
-
-		margin-bottom: 2px;
-	`,
-	active: css`
-		background-color: ${token.magicColorUsages.primaryLight.default};
-	`,
-	assistantName: css`
-		color: ${token.magicColorUsages.text[1]};
-		text-overflow: ellipsis;
-		font-size: 14px;
-		font-weight: 400;
-		line-height: 20px;
-		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	`,
-	content: css`
-		width: 100%;
-		overflow: hidden;
-		color: ${token.colorTextQuaternary};
-		font-size: 12px;
-		font-weight: 400;
-		line-height: 16px;
-		max-height: 18px;
-		overflow: hidden;
-		user-select: none;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-
-		&:empty {
-			display: none;
-		}
-	`,
-	contentWrapper: css`
-		width: 100%;
-		max-width: 100%;
-		overflow: hidden;
-	`,
-	assistantNameTime: css`
-		overflow: hidden;
-		color: ${token.magicColorUsages.text[3]};
-		text-align: right;
-		text-overflow: ellipsis;
-		font-size: 12px;
-		font-weight: 400;
-		line-height: 16px;
-		white-space: nowrap;
-		flex-shrink: 0;
-	`,
-}))
-
-const ConversationItem = ({
+function ConversationItem({
 	data,
 	onUpdateConversationId,
 	onSelectAgent,
@@ -89,8 +29,7 @@ const ConversationItem = ({
 	data: UserAvailableAgentInfo
 	onUpdateConversationId: (agentId: string, conversationId: string) => void
 	onSelectAgent: (agent: UserAvailableAgentInfo) => void
-}) => {
-	const { styles, cx } = useStyles()
+}) {
 	const language = useGlobalLanguage(false)
 
 	const conversation = useMemo(
@@ -128,26 +67,29 @@ const ConversationItem = ({
 	})
 
 	return (
-		<FlexBox
-			align="center"
-			gap={8}
-			className={cx(styles.container, isActive && styles.active)}
+		<div
+			className={cn(
+				conversationRowClassName,
+				isActive && "bg-fill-secondary hover:bg-fill-secondary",
+			)}
 			onClick={onClick}
 		>
 			<MagicAvatar size={36} src={data.agent_avatar} />
-			<FlexBox vertical gap={2} className={styles.contentWrapper}>
-				<FlexBox align="center" justify="space-between" gap={4}>
-					<SmartTooltip className={styles.assistantName}>{data.agent_name}</SmartTooltip>
-					<span className={styles.assistantNameTime}>
+			<div className="flex w-full min-w-0 max-w-full flex-col gap-0.5 overflow-hidden">
+				<div className="flex min-w-0 items-center justify-between gap-1">
+					<SmartTooltip className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-5 text-foreground/80">
+						{data.agent_name}
+					</SmartTooltip>
+					<span className="shrink-0 overflow-hidden text-ellipsis whitespace-nowrap text-right text-xs font-normal leading-4 text-foreground/35">
 						{formatRelativeTime(language)(conversation?.last_receive_message_time)}
 					</span>
-				</FlexBox>
+				</div>
 				<LastMessageRender
 					message={conversation?.last_receive_message}
-					className={styles.content}
+					className="max-h-[18px] w-full select-none overflow-hidden text-ellipsis whitespace-nowrap text-xs font-normal leading-4 text-muted-foreground empty:hidden"
 				/>
-			</FlexBox>
-		</FlexBox>
+			</div>
+		</div>
 	)
 }
 

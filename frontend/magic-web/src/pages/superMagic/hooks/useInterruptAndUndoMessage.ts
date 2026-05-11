@@ -51,7 +51,7 @@ export function useInterruptAndUndoMessage({
 				if (!["suspended", "finished"].includes(node?.status)) {
 					// Call through pubsub to trigger useSendInterruptMessage handler
 					await new Promise<void>((resolve) => {
-						pubsub.publish("send_interrupt_message", resolve)
+						pubsub.publish(PubSubEvents.Send_Interrupt_Message, resolve)
 					})
 				}
 				await SuperMagicApi.undoMessage({

@@ -22,6 +22,9 @@ import { getRoutePath, routesPathMatch } from "@/routes/history/helpers"
 import Divider from "@/components/other/Divider"
 import { useSidebarMarketMenuItems } from "./hooks/useSidebarMarketMenuItems"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
+import { observer } from "mobx-react-lite"
+import useResourceStatusPolling from "@/pages/superMagic/hooks/useResourceStatusPolling"
+import { useNavigateToSuperHome } from "./hooks/useNavigateToSuperHome"
 
 const CollaborationProjectsPanel = lazy(
 	() =>
@@ -30,6 +33,7 @@ const CollaborationProjectsPanel = lazy(
 
 function SidebarContent({ collapsed }: SidebarContentProps) {
 	const { t } = useTranslation(["sidebar", "super"])
+	useResourceStatusPolling()
 	const clawBrandValues = getClawBrandTranslationValues()
 	const [shareProjectsPanelOpen, setShareProjectsPanelOpen] = useState(false)
 	const location = useLocation()
@@ -38,6 +42,7 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 	const isShareWorkspaceActive = isCollaborationWorkspace(selectedWorkspace)
 	const navigate = useNavigate()
 	const sidebarMarketMenuItems = useSidebarMarketMenuItems()
+	const { superRouteUrl, handleNavigateToSuperHome } = useNavigateToSuperHome()
 
 	function shouldHandleAnchorClick(event: MouseEvent<HTMLAnchorElement>) {
 		return (
@@ -71,7 +76,7 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 					asChild
 					tooltip={collapsed ? title : undefined}
 					data-testid={testId}
-					className="text-[#0a0a0a] dark:text-[#fafafa]"
+					className="text-sidebar-foreground"
 				>
 					<a
 						href={getRoutePath({ name: routeName }) || "#"}
@@ -90,7 +95,7 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 
 	return (
 		<div
-			className="flex min-h-0 w-full flex-col gap-1 overflow-hidden"
+			className="flex min-h-0 w-full flex-1 touch-pan-y flex-col gap-1 overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]"
 			data-testid="sidebar-content-root"
 		>
 			<SidebarGroup className="w-full shrink-0 p-2" data-testid="sidebar-content-apps-group">
@@ -101,23 +106,11 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 								asChild
 								tooltip={collapsed ? t("sidebar:home.title") : undefined}
 								data-testid="sidebar-content-home-button"
-								className="text-[#0a0a0a] dark:text-[#fafafa]"
+								className="text-sidebar-foreground"
 							>
 								<a
-									href={
-										getRoutePath({
-											name: RouteName.SuperWorkspaceState,
-											params: { workspaceId: selectedWorkspace?.id },
-										}) || "#"
-									}
-									onClick={(event) => {
-										event.preventDefault()
-										if (!selectedWorkspace) {
-											navigate({ name: RouteName.SuperWorkspace })
-											return
-										}
-										SuperMagicService.switchWorkspace(selectedWorkspace)
-									}}
+									href={superRouteUrl}
+									onClick={handleNavigateToSuperHome}
 									className="text-current no-underline"
 								>
 									<Home className="h-4 w-4 shrink-0" />
@@ -133,7 +126,7 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 								<SidebarMenuButton
 									tooltip={collapsed ? t("appsMenu.apps") : undefined}
 									data-testid="sidebar-content-apps-button"
-									className="text-[#0a0a0a] dark:text-[#fafafa]"
+									className="text-sidebar-foreground"
 								>
 									<LayoutGrid className="h-4 w-4 shrink-0" />
 									<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5">
@@ -149,34 +142,37 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 				</SidebarGroupContent>
 			</SidebarGroup>
 
-			<Divider direction="horizontal" className="mx-auto !w-[calc(100%-16px)]" />
+			<Divider direction="horizontal" className="mx-auto !w-[calc(100%-16px)] shrink-0" />
 
-			{collapsed ? <CollapsedWorkspaceMenu /> : <WorkspaceList />}
-
-			{!collapsed && (
-				<SidebarGroup
-					className="w-full shrink-0 px-2 py-0"
-					data-testid="sidebar-content-share-workspace-group"
-				>
-					<SidebarGroupContent>
-						<SidebarMenu>
-							<SidebarMenuItem>
-								<SidebarMenuButton
-									isActive={isShareWorkspaceActive}
-									onClick={() => setShareProjectsPanelOpen(true)}
-									data-testid="sidebar-content-share-workspace-button"
-									className="text-[#0a0a0a] dark:text-[#fafafa]"
-								>
-									<UsersRound className="ml-6 h-4 w-4 shrink-0" />
-									<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5">
-										{t("super:workspace.shareWorkspaceName")}
-									</span>
-									<ChevronRight className="h-4 w-4 shrink-0 text-sidebar-foreground" />
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						</SidebarMenu>
-					</SidebarGroupContent>
-				</SidebarGroup>
+			{collapsed ? (
+				<CollapsedWorkspaceMenu />
+			) : (
+				<div className="flex min-h-40 flex-1 flex-col gap-1 overflow-hidden">
+					<WorkspaceList />
+					<SidebarGroup
+						className="w-full flex-1 shrink-0 px-2 py-0"
+						data-testid="sidebar-content-share-workspace-group"
+					>
+						<SidebarGroupContent>
+							<SidebarMenu>
+								<SidebarMenuItem>
+									<SidebarMenuButton
+										isActive={isShareWorkspaceActive}
+										onClick={() => setShareProjectsPanelOpen(true)}
+										data-testid="sidebar-content-share-workspace-button"
+										className="text-sidebar-foreground"
+									>
+										<UsersRound className="ml-6 h-4 w-4 shrink-0" />
+										<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5">
+											{t("super:workspace.shareWorkspaceName")}
+										</span>
+										<ChevronRight className="h-4 w-4 shrink-0 text-sidebar-foreground" />
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				</div>
 			)}
 
 			{/* <SidebarGroup className="w-full px-2 py-0">
@@ -185,7 +181,7 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 						<SidebarMenuItem>
 							<SidebarMenuButton tooltip={collapsed ? t("agents.aiChat") : undefined}>
 								<MessageCircle className="h-4 w-4 shrink-0" />
-								<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5 text-[#0a0a0a]">
+								<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left text-sm leading-5 text-sidebar-foreground">
 									{t("agents.aiChat")}
 								</span>
 							</SidebarMenuButton>
@@ -215,4 +211,4 @@ function SidebarContent({ collapsed }: SidebarContentProps) {
 	)
 }
 
-export default SidebarContent
+export default observer(SidebarContent)

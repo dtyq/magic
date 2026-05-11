@@ -20,9 +20,15 @@ const routes = [
 	["/share/:topicId/file/:fileId", seoRoutes.shareTopic],
 	// 登录
 	["/login", seoRoutes.login],
-	// 协作项目 - 话题
+	/**
+	 * 协作项目 - 话题
+	 * 该路由已废弃，请使用 /:clusterCode/super/:projectId/:topicId 代替，保留用于兼容旧路由
+	 */
 	["/:clusterCode/super/collaboration/:projectId/:topicId", seoRoutes.collaborationTopic],
-	// 协作项目
+	/**
+	 * 协作项目
+	 * 该路由已废弃，请使用 /:clusterCode/super/:projectId 代替，保留用于兼容旧路由
+	 */
 	["/:clusterCode/super/collaboration/:projectId", seoRoutes.collaborationProject],
 	// 个人项目 - 话题
 	["/:clusterCode/super/:projectId/:topicId", seoRoutes.personalTopic],

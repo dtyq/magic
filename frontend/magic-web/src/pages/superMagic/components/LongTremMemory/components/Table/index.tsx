@@ -24,12 +24,14 @@ export default function Table({
 	setEditMemory,
 	onWorkspaceStateChange,
 	onClose,
+	onMemoryChanged,
 }: {
 	activeTab: MemoryTypeTab
 	setPage: (page: LongTremMemoryPage) => void
 	setEditMemory: (memory: LongMemory.Memory) => void
 	onWorkspaceStateChange: (params: NavigateToStateParams) => void
 	onClose: () => void
+	onMemoryChanged?: () => void
 }) {
 	const { styles, cx } = useStyles()
 	const { t } = useTranslation("super/longMemory")
@@ -79,6 +81,7 @@ export default function Table({
 				setProjectMemoryList((prev) =>
 					prev.map((memory) => (memory.id === id ? { ...memory, enabled } : memory)),
 				)
+				onMemoryChanged?.()
 				magicToast.success(enabled ? t("enabledSuccess") : t("disabledSuccess"))
 			}
 		} catch (error) {
@@ -113,6 +116,7 @@ export default function Table({
 				// 从两个状态中移除记忆
 				setGlobalMemoryList((prev) => prev.filter((memory) => memory.id !== memoryId))
 				setProjectMemoryList((prev) => prev.filter((memory) => memory.id !== memoryId))
+				onMemoryChanged?.()
 				magicToast.success(t("deleteSuccess"))
 			}
 		} catch (error) {

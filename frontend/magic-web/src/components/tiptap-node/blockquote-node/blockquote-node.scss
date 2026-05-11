@@ -1,14 +1,11 @@
 /* =====================
      BLOCKQUOTE (GitHub Markdown Style)
      ===================== */
-.tiptap.ProseMirror {
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
+
+@include scope.content {
   --blockquote-border-color: var(--tt-gray-light-a-300);
   --blockquote-text-color: var(--tt-gray-light-a-600);
-
-  .dark & {
-    --blockquote-border-color: var(--tt-gray-dark-a-300);
-    --blockquote-text-color: var(--tt-gray-dark-a-600);
-  }
 
   blockquote {
     position: relative;
@@ -49,4 +46,9 @@
       margin-bottom: 0.5em;
     }
   }
+}
+
+@include scope.dark-content {
+  --blockquote-border-color: var(--tt-gray-dark-a-300);
+  --blockquote-text-color: var(--tt-gray-dark-a-600);
 }

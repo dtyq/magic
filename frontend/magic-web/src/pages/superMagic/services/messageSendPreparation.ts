@@ -160,6 +160,7 @@ export async function preparePanelSend({
 	let currentTopic = resolvedContext.selectedTopic
 	let nextMentionItems = [...params.mentionItems]
 	let nextContent = params.value
+	const agentCode = resolveAgentCode(params)
 
 	if (!nextContent) {
 		return null
@@ -179,21 +180,13 @@ export async function preparePanelSend({
 		currentTopic = {
 			...createdProject.topic,
 			topic_mode: params.topicMode ?? tabPattern,
+			...(agentCode && { agent_code: agentCode }),
 		}
 
 		resolvedContext.setSelectedProject(currentProject)
 		resolvedContext.setSelectedTopic(currentTopic)
 
 		await migrateMcpCache(currentProject.id)
-
-		const result = await mentionItemsProcessor.processMentionItems(
-			nextContent,
-			nextMentionItems,
-			currentProject.id,
-			currentTopic.id,
-		)
-		nextMentionItems = result.mentionItems
-		nextContent = result.content
 	}
 
 	if (!currentProject?.id) {
@@ -210,15 +203,26 @@ export async function preparePanelSend({
 		currentTopic = {
 			...createdTopic,
 			topic_mode: params.topicMode ?? tabPattern,
+			...(agentCode && { agent_code: agentCode }),
 		}
 	} else {
 		currentTopic = {
 			...currentTopic,
 			topic_mode: params.topicMode ?? tabPattern,
+			...(agentCode && { agent_code: agentCode }),
 		}
 	}
 
 	resolvedContext.setSelectedTopic(currentTopic)
+
+	const result = await mentionItemsProcessor.processMentionItems(
+		nextContent,
+		nextMentionItems,
+		currentProject.id,
+		currentTopic.id,
+	)
+	nextMentionItems = result.mentionItems
+	nextContent = result.content
 
 	if (
 		params.selectedModel?.model_id &&
@@ -228,6 +232,7 @@ export async function preparePanelSend({
 			selectedTopic: currentTopic,
 			model: params.selectedModel,
 			imageModel: params.selectedImageModel || null,
+			videoModel: params.selectedVideoModel || null,
 		})
 	}
 
@@ -362,6 +367,12 @@ async function migrateMcpCache(projectId: string) {
 		await storageStrategy.saveMCP(mcpCache)
 		await mcpCacheStorage.saveMCP([])
 	}
+}
+
+function resolveAgentCode(params: HandleSendParams): string | undefined {
+	const agentCode = params.extra?.agent_code
+	if (typeof agentCode !== "string") return undefined
+	return agentCode.trim() || undefined
 }
 
 async function copyGlobalModelConfiguration({

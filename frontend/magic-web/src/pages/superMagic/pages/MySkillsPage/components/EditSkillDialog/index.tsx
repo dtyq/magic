@@ -27,7 +27,9 @@ interface EditSkillDialogProps {
 	/** Skill unique code; null means dialog is closed */
 	skillCode: string | null
 	/** Called after a skill is successfully saved */
-	onSuccess?: () => void
+	onSuccess?: () => void | Promise<void>
+	isPrePublishMode?: boolean
+	defaultNameRequiredMessage?: string
 }
 
 const INITIAL_IDENTITY: SkillIdentityData = createInitialSkillIdentityData()
@@ -40,15 +42,24 @@ function mapDetailToIdentity(detail: SkillDetailResponse): SkillIdentityData {
 			detail.description_i18n,
 			detail.package_description ?? "",
 		),
+		source: normalizeSkillI18nText(detail.source_i18n),
 	}
 }
 
-function EditSkillDialog({ open, onOpenChange, skillCode, onSuccess }: EditSkillDialogProps) {
+function EditSkillDialog({
+	open,
+	onOpenChange,
+	skillCode,
+	onSuccess,
+	isPrePublishMode = false,
+	defaultNameRequiredMessage,
+}: EditSkillDialogProps) {
 	const { t } = useTranslation("crew/market")
 
 	const [identity, setIdentity] = useState<SkillIdentityData>(INITIAL_IDENTITY)
 	const [isFetching, setIsFetching] = useState(false)
 	const [isSubmitting, setIsSubmitting] = useState(false)
+	const [showDefaultNameError, setShowDefaultNameError] = useState(false)
 
 	const { upload: uploadPublic } = useUpload({ storageType: "public" })
 
@@ -59,6 +70,7 @@ function EditSkillDialog({ open, onOpenChange, skillCode, onSuccess }: EditSkill
 		let cancelled = false
 		setIsFetching(true)
 		setIdentity(INITIAL_IDENTITY)
+		setShowDefaultNameError(false)
 
 		skillsService
 			.getSkillDetail(skillCode)
@@ -90,6 +102,11 @@ function EditSkillDialog({ open, onOpenChange, skillCode, onSuccess }: EditSkill
 
 	const handleConfirm = useCallback(async () => {
 		if (!skillCode) return
+		if (isPrePublishMode && !identity.name.default.trim()) {
+			setShowDefaultNameError(true)
+			return
+		}
+
 		setIsSubmitting(true)
 		try {
 			let logo = identity.iconUrl
@@ -104,18 +121,19 @@ function EditSkillDialog({ open, onOpenChange, skillCode, onSuccess }: EditSkill
 			await skillsService.updateSkillInfo(skillCode, {
 				name_i18n: identity.name,
 				description_i18n: identity.description,
+				source_i18n: identity.source,
 				logo,
 			})
 
 			magicToast.success(t("editSkill.done"))
-			onSuccess?.()
+			await onSuccess?.()
 			handleClose()
 		} catch {
 			magicToast.error(t("editSkill.errors.saveFailed"))
 		} finally {
 			setIsSubmitting(false)
 		}
-	}, [skillCode, identity, uploadPublic, t, onSuccess, handleClose])
+	}, [skillCode, isPrePublishMode, identity, uploadPublic, t, onSuccess, handleClose])
 
 	return (
 		<Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
@@ -125,11 +143,13 @@ function EditSkillDialog({ open, onOpenChange, skillCode, onSuccess }: EditSkill
 			>
 				<DialogHeader className="border-b border-border px-3 py-3">
 					<DialogTitle className="text-base font-semibold">
-						{t("editSkill.title")}
+						{isPrePublishMode
+							? t("skillEditPage.publishNameDialog.title")
+							: t("editSkill.title")}
 					</DialogTitle>
 				</DialogHeader>
 
-				<ScrollArea className="flex h-[452px] flex-col gap-2.5 overflow-y-auto p-4">
+				<ScrollArea className="flex max-h-[80vh] min-h-[452px] flex-col gap-2.5 overflow-y-auto p-4">
 					{isFetching ? (
 						<div
 							className="flex h-full items-center justify-center"
@@ -143,6 +163,17 @@ function EditSkillDialog({ open, onOpenChange, skillCode, onSuccess }: EditSkill
 							onChange={setIdentity}
 							namePlaceholder={t("editSkill.placeholders.name")}
 							descriptionPlaceholder={t("editSkill.placeholders.description")}
+							sourcePlaceholder={t("editSkill.placeholders.source")}
+							nameError={
+								showDefaultNameError
+									? (defaultNameRequiredMessage ??
+										t("skillEditPage.publishNameDialog.required"))
+									: undefined
+							}
+							isDefaultNameRequired={isPrePublishMode}
+							onDefaultNameChange={() => {
+								if (showDefaultNameError) setShowDefaultNameError(false)
+							}}
 						/>
 					)}
 				</ScrollArea>

@@ -16,22 +16,18 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/shadcn-ui/select"
-import { Separator } from "@/components/shadcn-ui/separator"
-import { DEFAULT_LOCALE_KEY } from "@/pages/superMagic/components/MainInputContainer/panels/types"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import type {
 	FieldItem,
 	LocaleText,
 	OptionItem,
 } from "@/pages/superMagic/components/MainInputContainer/panels/types"
+import { isPromptRichTextEmpty } from "@/pages/superMagic/components/MainInputContainer/panels/promptRichText"
 import TemplateViewSwitcher from "@/pages/superMagic/components/MainInputContainer/panels/TemplateViewSwitcher"
 import { resolveLocalText } from "../../utils"
-import { LocaleTextInput, setLocaleValue } from "../LocaleTextInput"
+import { LocaleTextInput } from "../LocaleTextInput"
 import { ImageUploadField, type ImageMetadata } from "../ImageUploadField"
-import {
-	PresetContentEditor,
-	type PresetContentEditorHandle,
-} from "../PresetItemEditDialog/PresetContentEditor"
-import { PresetContentLocaleDialog } from "../PresetItemEditDialog/PresetContentLocaleDialog"
+import { PromptRichTextLocaleEditor } from "../DemoItemEditDialog/PromptRichTextLocaleEditor"
 
 /** Sentinel used for the "no default" Select option (empty string is not valid in Radix). */
 const NO_DEFAULT = "__none__"
@@ -57,6 +53,13 @@ function isLocaleFilled(text: LocaleText): boolean {
 	return Object.values(text as Record<string, string>).some((v) => v && v.trim().length > 0)
 }
 
+function isPromptLocaleFilled(text: LocaleText): boolean {
+	if (typeof text === "string") return !isPromptRichTextEmpty(text)
+	return Object.values(text as Record<string, string>).some(
+		(value) => !isPromptRichTextEmpty(value),
+	)
+}
+
 function resolveOptionValue(value?: LocaleText): string {
 	return resolveLocalText(value ?? "", "default").trim()
 }
@@ -75,7 +78,6 @@ export function GalleryOptionsDialog({
 	onConfirm,
 }: GalleryOptionsDialogProps) {
 	const { t, i18n } = useTranslation("crew/create")
-	const contentRef = useRef<PresetContentEditorHandle>(null)
 
 	const [label, setLabel] = useState<LocaleText>("")
 	const [items, setItems] = useState<GalleryOptionItem[]>([])
@@ -108,13 +110,9 @@ export function GalleryOptionsDialog({
 			label,
 			options: items,
 			default_value: defaultValue || undefined,
-			preset_content: isLocaleFilled(presetContent) ? presetContent : undefined,
+			preset_content: isPromptLocaleFilled(presetContent) ? presetContent : undefined,
 		})
 		onOpenChange(false)
-	}
-
-	function handleInsertPresetValue() {
-		contentRef.current?.insertPresetValue()
 	}
 
 	function handleSelect(value: string, checked: boolean) {
@@ -139,6 +137,10 @@ export function GalleryOptionsDialog({
 			return next
 		})
 		if (defaultValue === value) setDefaultValue("")
+	}
+
+	function handleReorder(nextItems: OptionItem[]) {
+		setItems(nextItems.map(normalizeGalleryOptionItem))
 	}
 
 	function handleOpenCreate() {
@@ -172,14 +174,14 @@ export function GalleryOptionsDialog({
 	return (
 		<>
 			<Dialog open={open} onOpenChange={onOpenChange}>
-				<DialogContent className="flex max-h-[80vh] max-w-[560px] flex-col gap-0 p-0">
+				<DialogContent className="flex h-[80vh] max-h-[80vh] !max-w-3xl flex-col gap-0 p-0">
 					<DialogHeader className="shrink-0 border-b px-3 py-3">
 						<DialogTitle className="text-base font-semibold">
 							{t("playbook.edit.presets.gallery.dialog.title")}
 						</DialogTitle>
 					</DialogHeader>
 
-					<div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-4">
+					<div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden p-4">
 						{/* Name */}
 						<FormRow label={t("playbook.edit.presets.gallery.dialog.name")} required>
 							<LocaleTextInput
@@ -200,7 +202,7 @@ export function GalleryOptionsDialog({
 								onValueChange={(v) => setDefaultValue(v === NO_DEFAULT ? "" : v)}
 							>
 								<SelectTrigger
-									className="shadow-xs h-9 flex-1"
+									className="h-9 flex-1 shadow-xs"
 									data-testid="gallery-options-default-select"
 								>
 									<SelectValue
@@ -230,54 +232,23 @@ export function GalleryOptionsDialog({
 							label={t("playbook.edit.presets.gallery.dialog.presetContent")}
 							alignTop
 						>
-							<div className="flex flex-1 flex-col gap-2">
-								<div className="flex items-center justify-between gap-3">
-									<div className="flex w-full items-center justify-end gap-2">
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											className="shadow-xs h-8 gap-2 px-3 text-xs font-medium text-foreground"
-											onClick={handleInsertPresetValue}
-											data-testid="gallery-options-insert-preset-value-btn"
-										>
-											<CirclePlus className="h-4 w-4" />
-											{t("playbook.edit.presets.form.insertPresetValue")}
-										</Button>
-										<Separator orientation="vertical" className="!h-5" />
-										<PresetContentLocaleDialog
-											value={presetContent}
-											onChange={setPresetContent}
-											placeholder={t(
-												"playbook.edit.presets.gallery.dialog.presetContentPlaceholder",
-											)}
-											localizeLabel={t(
-												"playbook.edit.presets.gallery.dialog.presetContent",
-											)}
-											data-testid="gallery-options-preset-content"
-										/>
-									</div>
-								</div>
-								<PresetContentEditor
-									ref={contentRef}
-									value={resolveLocalText(presetContent, DEFAULT_LOCALE_KEY)}
-									onChange={(nextValue) =>
-										setPresetContent((prev) =>
-											setLocaleValue(prev, DEFAULT_LOCALE_KEY, nextValue),
-										)
-									}
-									placeholder={t(
-										"playbook.edit.presets.gallery.dialog.presetContentPlaceholder",
-									)}
-									data-testid="gallery-options-preset-content-textarea"
-								/>
-							</div>
+							<PromptRichTextLocaleEditor
+								value={presetContent}
+								onChange={setPresetContent}
+								placeholder={t(
+									"playbook.edit.presets.gallery.dialog.presetContentPlaceholder",
+								)}
+								localizeLabel={t(
+									"playbook.edit.presets.gallery.dialog.presetContent",
+								)}
+								data-testid="gallery-options-preset-content"
+							/>
 						</FormRow>
 
 						{/* Items area */}
-						<div className="flex flex-col gap-3 overflow-y-auto rounded-lg border border-border p-3">
+						<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-lg border border-border p-3">
 							<Button
-								className="shadow-xs h-9 w-full"
+								className="h-9 w-full shadow-xs"
 								onClick={handleOpenCreate}
 								data-testid="gallery-options-add-btn"
 							>
@@ -286,17 +257,23 @@ export function GalleryOptionsDialog({
 							</Button>
 
 							{items.length > 0 && (
-								<TemplateViewSwitcher
-									mode="edit"
-									viewType={
-										"grid" as import("@/pages/superMagic/components/MainInputContainer/panels/types").OptionViewType
-									}
-									items={items}
-									selectedKeys={selectedKeys}
-									onSelect={handleSelect}
-									onEdit={handleEdit}
-									onDelete={handleDelete}
-								/>
+								<ScrollArea
+									className="min-h-0 flex-1 [&_[data-slot='scroll-area-viewport']>div]:!block"
+									data-testid="gallery-options-items-scroll-area"
+								>
+									<TemplateViewSwitcher
+										mode="edit"
+										viewType={
+											"grid" as import("@/pages/superMagic/components/MainInputContainer/panels/types").OptionViewType
+										}
+										items={items}
+										selectedKeys={selectedKeys}
+										onSelect={handleSelect}
+										onEdit={handleEdit}
+										onDelete={handleDelete}
+										onReorder={handleReorder}
+									/>
+								</ScrollArea>
 							)}
 						</div>
 					</div>
@@ -304,14 +281,14 @@ export function GalleryOptionsDialog({
 					<DialogFooter className="shrink-0 border-t px-3 py-3">
 						<Button
 							variant="outline"
-							className="shadow-xs h-9"
+							className="h-9 shadow-xs"
 							onClick={() => onOpenChange(false)}
 							data-testid="gallery-options-cancel"
 						>
 							{t("playbook.edit.presets.gallery.dialog.cancel")}
 						</Button>
 						<Button
-							className="shadow-xs h-9"
+							className="h-9 shadow-xs"
 							disabled={!isValid}
 							onClick={handleConfirm}
 							data-testid="gallery-options-confirm"
@@ -375,6 +352,14 @@ function isLocaleTextEmpty(text: LocaleText): boolean {
 	return Object.values(text as Record<string, string>).every((v) => !v || v.trim().length === 0)
 }
 
+function getFileNameWithoutExtension(fileName: string): string {
+	const normalizedFileName = fileName.split(/[\\/]/).pop()?.trim() ?? ""
+	const extensionIndex = normalizedFileName.lastIndexOf(".")
+
+	if (extensionIndex <= 0) return normalizedFileName
+	return normalizedFileName.slice(0, extensionIndex)
+}
+
 function GalleryItemEditDialog({
 	item,
 	open,
@@ -387,6 +372,7 @@ function GalleryItemEditDialog({
 	const [form, setForm] = useState<GalleryItemFormState>(EMPTY_ITEM_FORM)
 	const [errors, setErrors] = useState<GalleryItemFormErrors>({})
 	const [isUploading, setIsUploading] = useState(false)
+	const formRef = useRef(form)
 
 	useEffect(() => {
 		if (open) {
@@ -394,20 +380,24 @@ function GalleryItemEditDialog({
 			setForm(
 				item
 					? {
-						value: item.value,
-						label: item.label ?? "",
-						thumbnail_url: item.thumbnail_url ?? "",
-						description: item.description ?? "",
-						sub_text: item.sub_text ?? "",
-						width: item.width,
-						height: item.height,
-						aspect_ratio: item.aspect_ratio,
-					}
+							value: item.value,
+							label: item.label ?? "",
+							thumbnail_url: item.thumbnail_url ?? "",
+							description: item.description ?? "",
+							sub_text: item.sub_text ?? "",
+							width: item.width,
+							height: item.height,
+							aspect_ratio: item.aspect_ratio,
+						}
 					: EMPTY_ITEM_FORM,
 			)
 			setErrors({})
 		}
 	}, [open, item])
+
+	useEffect(() => {
+		formRef.current = form
+	}, [form])
 
 	const isValid = useMemo(
 		() => !!form.thumbnail_url && !isLocaleTextEmpty(form.label) && !!form.value?.trim(),
@@ -427,7 +417,7 @@ function GalleryItemEditDialog({
 	}
 
 	function clearError(field: keyof GalleryItemFormErrors) {
-		if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }))
+		setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev))
 	}
 
 	function handleImageMetadataChange(metadata?: ImageMetadata) {
@@ -437,6 +427,19 @@ function GalleryItemEditDialog({
 			height: metadata?.height,
 			aspect_ratio: metadata?.aspectRatio,
 		}))
+	}
+
+	function handleImageUploadSuccess(file: File) {
+		const presetValue = getFileNameWithoutExtension(file.name)
+		const latestForm = formRef.current
+
+		if (!presetValue || !isLocaleTextEmpty(latestForm.label) || latestForm.value.trim()) return
+
+		setForm((prev) => {
+			if (!isLocaleTextEmpty(prev.label) || prev.value.trim()) return prev
+			return { ...prev, value: presetValue }
+		})
+		clearError("value")
 	}
 
 	function handleConfirm() {
@@ -480,6 +483,7 @@ function GalleryItemEditDialog({
 								clearError("thumbnail_url")
 							}}
 							onMetadataChange={handleImageMetadataChange}
+							onUploadSuccess={handleImageUploadSuccess}
 							onUploadingChange={setIsUploading}
 							buttonLabel={t("playbook.edit.presets.gallery.item.upload")}
 							emptyText={t("playbook.edit.presets.gallery.item.noCover")}
@@ -561,14 +565,14 @@ function GalleryItemEditDialog({
 				<DialogFooter className="border-t px-3 py-3">
 					<Button
 						variant="outline"
-						className="shadow-xs h-9"
+						className="h-9 shadow-xs"
 						onClick={() => onOpenChange(false)}
 						data-testid="gallery-item-cancel"
 					>
 						{t("playbook.edit.presets.gallery.item.cancel")}
 					</Button>
 					<Button
-						className="shadow-xs h-9"
+						className="h-9 shadow-xs"
 						disabled={!isValid || isUploading}
 						onClick={handleConfirm}
 						data-testid="gallery-item-confirm"

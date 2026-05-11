@@ -24,6 +24,7 @@ import magicToast from "@/components/base/MagicToaster/utils"
 import projectFilesStore from "@/stores/projectFiles"
 import { isInApp } from "@/pages/superMagicMobile/utils/mobile"
 import { userStore } from "@/models/user"
+import { flattenAttachments } from "../TopicFilesButton/hooks"
 
 const useStyles = createStyles(({ css, token }) => ({
 	shareModal: {
@@ -82,8 +83,8 @@ export default memo(function ShareModel(props: ShareModalProps) {
 		onSaveSuccess,
 	} = props
 
-	// Check if user is personal organization
-	const { isPersonalOrganization } = userStore.user
+	// Check if user is in free plan
+	const isFreePlan = userStore.user.organizationSubscriptionInfo?.is_paid_plan === false
 
 	// 默认的取消分享方法
 	const handleCancelShareDefault = useCallback(
@@ -111,7 +112,7 @@ export default memo(function ShareModel(props: ShareModalProps) {
 		if (shareMode === ShareMode.Topic) {
 			return ShareType.None
 		}
-		if (isPersonalOrganization) {
+		if (isFreePlan) {
 			return ShareType.Public
 		}
 		return ShareType.PasswordProtected
@@ -187,7 +188,7 @@ export default memo(function ShareModel(props: ShareModalProps) {
 							allowDownloadProjectFile: extra?.allow_download_project_file ?? true,
 						})
 					} else {
-						if (isPersonalOrganization) {
+						if (isFreePlan) {
 							setType(ShareType.Public)
 						} else {
 							// 如果没有分享设置
@@ -348,6 +349,13 @@ export default memo(function ShareModel(props: ShareModalProps) {
 		setActionsPopupVisible(false)
 	}, [])
 
+	const attachmentList = useMemo(() => {
+		if (projectFilesStore.workspaceFilesList.length > 0) {
+			return projectFilesStore.workspaceFilesList
+		}
+		return flattenAttachments(attachments || [])
+	}, [attachments])
+
 	// 文件分享模式和项目分享模式都使用FileShareModal
 	if (shareMode === ShareMode.File || shareMode === ShareMode.Project) {
 		return (
@@ -366,7 +374,7 @@ export default memo(function ShareModel(props: ShareModalProps) {
 						<FileShareModal
 							key={`file-share-${resourceId || shareSuccessData?.resourceId || "new"}-${modalKey}`}
 							attachments={attachments}
-							attachmentList={projectFilesStore.workspaceFilesList}
+							attachmentList={attachmentList}
 							types={types}
 							resourceId={resourceId || shareSuccessData?.resourceId}
 							defaultSelectedFileIds={defaultSelectedFileIds}
@@ -425,7 +433,7 @@ export default memo(function ShareModel(props: ShareModalProps) {
 						<FileShareModal
 							key={`file-share-${resourceId || shareSuccessData?.resourceId || "new"}-${modalKey}`}
 							attachments={attachments}
-							attachmentList={projectFilesStore.workspaceFilesList}
+							attachmentList={attachmentList}
 							types={types}
 							resourceId={resourceId || shareSuccessData?.resourceId}
 							defaultSelectedFileIds={defaultSelectedFileIds}

@@ -16,6 +16,7 @@ import { MobileTabParam } from "@/pages/mobileTabs/constants"
 import { configStore } from "@/models/config"
 import { defaultClusterCode } from "@/routes/helpers"
 import { RoutePathMobile } from "@/constants/routes"
+import { MobileImagePreviewProvider } from "@/pages/superMagic/components/MessageEditor/components/AtItem/components/MobileImagePreview"
 
 interface SuperMagicMobileTabsWrapperProps {
 	children: React.ReactNode
@@ -143,6 +144,7 @@ function SuperMagicMobileTabsWrapper({ children }: SuperMagicMobileTabsWrapperPr
 	return (
 		<>
 			<SuperMagicMobileLayoutContent>{children}</SuperMagicMobileLayoutContent>
+			{isMobile && <MobileImagePreviewProvider />}
 			{!isPrivateDeployment() && createPortal(<EditionActivityModal />, document.body)}
 		</>
 	)

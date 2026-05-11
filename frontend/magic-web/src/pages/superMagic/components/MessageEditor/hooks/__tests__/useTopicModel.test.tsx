@@ -3,11 +3,7 @@ import { renderHook } from "@testing-library/react"
 import useTopicModel from "../useTopicModel"
 import { superMagicTopicModelService } from "@/services/superMagic/topicModel"
 import { ModelStatusEnum, type ModelItem } from "../../types"
-import type {
-	ProjectListItem,
-	Topic,
-	TopicMode,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Topic, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
 
 // Mock dependencies
 vi.mock("@/services/superMagic/topicModel", () => ({
@@ -41,6 +37,7 @@ describe("useTopicModel", () => {
 		currentTopicId: "default",
 		currentProjectId: "",
 		currentTopicMode: defaultTopicMode,
+		currentAgentCode: "",
 		setCurrentContext: vi.fn(),
 		setSelectedLanguageModel: vi.fn(),
 		setSelectedImageModel: vi.fn(),
@@ -114,6 +111,7 @@ describe("useTopicModel", () => {
 				"topic-1",
 				"project-1",
 				"general",
+				undefined,
 			)
 
 			// Change props
@@ -127,6 +125,7 @@ describe("useTopicModel", () => {
 				"topic-2",
 				"project-2",
 				"chat",
+				undefined,
 			)
 		})
 
@@ -143,6 +142,7 @@ describe("useTopicModel", () => {
 				undefined,
 				"",
 				"general",
+				undefined,
 			)
 		})
 	})

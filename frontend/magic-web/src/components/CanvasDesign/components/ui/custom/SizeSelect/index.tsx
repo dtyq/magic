@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../../../ui/select"
-import { ChevronsUpDown } from "../../../ui/icons/index"
+import { ChevronsUpDown } from "lucide-react"
 import styles from "../ResolutionSelect/index.module.css"
 
 export interface SizeOption {

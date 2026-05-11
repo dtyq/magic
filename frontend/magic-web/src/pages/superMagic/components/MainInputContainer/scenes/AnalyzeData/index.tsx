@@ -9,7 +9,7 @@ import DefaultMessageEditorContainer from "../../components/editors/DefaultMessa
 import { ScenePanelComponentBaseProps } from "../../types"
 import { useCurrentSceneConfig } from "../../hooks"
 
-interface AnalyzeDataInputContainerProps extends ScenePanelComponentBaseProps { }
+interface AnalyzeDataInputContainerProps extends ScenePanelComponentBaseProps {}
 
 function AnalyzeDataInputContainer({ editorContext, editorNodes }: AnalyzeDataInputContainerProps) {
 	const { placeholder, panels, isLoading } = useCurrentSceneConfig()
@@ -17,7 +17,7 @@ function AnalyzeDataInputContainer({ editorContext, editorNodes }: AnalyzeDataIn
 		portalId: SCENE_INPUT_IDS.INPUT_CONTAINER,
 	})
 
-	const handleTemplateSelect = (template: OptionItem) => {
+	const handleTemplateSelect = (template: OptionItem | null) => {
 		console.log("Template selected:", template)
 	}
 

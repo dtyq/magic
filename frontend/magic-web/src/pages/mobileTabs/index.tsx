@@ -10,14 +10,12 @@ import SuperMagicMobileTabsWrapper from "./components/SuperMagicMobileTabsWrappe
 import ChatMobileSkeleton from "@/pages/chatNew/lazy/skeleton/ChatMobileSkeleton"
 import WorkspacePageMobileSkeleton from "../superMagic/lazy/skeleton/WorkspacePageMobileSkeleton"
 import { TAB_PARAM_TO_TAB_KEY, MobileTabBarKey } from "./constants"
-import { initializeSuperMagicIfNeeded } from "../superMagic/services/utils"
-import { interfaceStore } from "@/stores/interface"
 import { notifyAppTabChange } from "@/layouts/BaseLayoutMobile/components/MobileTabBar/utils"
 
 // Lazy load tab pages (只加载一次)
 const WorkspacePage = lazy(() => import("@/pages/superMagicMobile/pages/ChatPage"))
 const ChatPage = lazy(() => import("@/pages/chatNew"))
-const MagiClawPage = lazy(() => import("@/pages/superMagic/pages/MagiClawPageOld"))
+const MagiClawPage = lazy(() => import("@/pages/superMagic/pages/MagiClawPage"))
 const ContactsPage = lazy(() => import("@/pages/contacts/lazy/Contacts"))
 const ProfilePage = lazy(() => import("@/pages/user/pages/my/lazy/Profile"))
 
@@ -77,19 +75,6 @@ function MobileTabs() {
 				next.add(activeTab)
 				return next
 			})
-			if (activeTab === MobileTabBarKey.Super) {
-				// 获取当前路由参数
-				const searchParams = new URLSearchParams(window.location.search)
-				const workspaceId = searchParams.get("workspaceId") || undefined
-				const projectId = searchParams.get("projectId") || undefined
-				const topicId = searchParams.get("topicId") || undefined
-				initializeSuperMagicIfNeeded({
-					isMobile: interfaceStore.isMobile,
-					workspaceId,
-					projectId,
-					topicId,
-				})
-			}
 		}
 	}, [activeTab])
 
@@ -107,13 +92,13 @@ function MobileTabs() {
 					[styles.inactiveTab]: activeTab !== MobileTabBarKey.Super,
 				})}
 			>
-				<SuperMagicMobileTabsWrapper>
-					{loadedTabs.has(MobileTabBarKey.Super) && (
+				{loadedTabs.has(MobileTabBarKey.Super) && (
+					<SuperMagicMobileTabsWrapper>
 						<Suspense fallback={<WorkspacePageMobileSkeleton />}>
 							<WorkspacePage />
 						</Suspense>
-					)}
-				</SuperMagicMobileTabsWrapper>
+					</SuperMagicMobileTabsWrapper>
+				)}
 			</div>
 
 			{/* Chat Tab - 常驻 */}

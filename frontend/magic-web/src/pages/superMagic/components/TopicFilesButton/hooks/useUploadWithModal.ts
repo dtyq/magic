@@ -33,11 +33,11 @@ export function useUploadWithModal({
 
 	// 实际上传处理函数（用于单个文件上传）
 	const processFilesUpload = useCallback(
-		async (files: File[], pathStr: string) => {
+		async (files: File[], parentId?: string) => {
 			// 文件上传：每个文件都创建一个独立的上传任务
 			await Promise.all(
 				files.map((file) =>
-					multiFolderUploadStore.createUploadTask([file], pathStr, {
+					multiFolderUploadStore.createUploadTask([file], parentId, {
 						projectId: projectId || "",
 						workspaceId,
 						projectName: selectedProject?.project_name || t("common.untitledProject"),
@@ -79,9 +79,9 @@ export function useUploadWithModal({
 
 	// 实际上传处理函数（用于文件夹上传）
 	const processFolderUpload = useCallback(
-		async (files: File[], pathStr: string) => {
+		async (files: File[], parentId?: string) => {
 			// 文件夹上传：所有文件作为一个上传任务
-			await multiFolderUploadStore.createUploadTask(files, pathStr, {
+			await multiFolderUploadStore.createUploadTask(files, parentId, {
 				projectId: projectId || "",
 				workspaceId,
 				projectName: selectedProject?.project_name || t("common.untitledProject"),
@@ -175,8 +175,8 @@ export function useUploadWithModal({
 	const handleUploadModalSubmit = useCallback(
 		async ({ path, files }: { path: AttachmentItem[]; files: File[] }) => {
 			try {
-				// 将 AttachmentItem[] 转换为路径字符串
-				const pathStr = path.map((item) => item.file_name).join("/")
+				// 提取最后一个 AttachmentItem 的 file_id 作为 parentId
+				const parentId = path.length > 0 ? path[path.length - 1].file_id : undefined
 
 				// 根据是否为文件夹上传选择不同的处理函数
 				const uploadProcessor = isUploadingFolder ? processFolderUpload : processFilesUpload
@@ -184,7 +184,7 @@ export function useUploadWithModal({
 				// 通过同名检测处理上传
 				await duplicateFileHandler.handleFilesWithDuplicateCheck(
 					files,
-					pathStr,
+					parentId,
 					uploadProcessor,
 				)
 			} catch (error) {

@@ -15,7 +15,7 @@ import {
 	ConversationMessageType,
 	HDImageDataType,
 } from "@/types/chat/conversation_message"
-import pubsub from "@/utils/pubsub"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import type { SeqResponse } from "@/types/request"
 // 导入新的服务
 import MessageService from "@/services/chat/message/MessageService"
@@ -183,7 +183,8 @@ class ChatMessageApplyService {
 
 		switch (message.message.type) {
 			case ConversationMessageType.Text:
-				if (!options.isHistoryMessage) pubsub.publish("super_magic_new_message", message)
+				if (!options.isHistoryMessage)
+					pubsub.publish(PubSubEvents.Super_Magic_New_Message_V2, message)
 				StreamMessageApplyServiceV2.recordMessageInfo(
 					message as SeqResponse<ConversationMessage>,
 				)
@@ -220,7 +221,8 @@ class ChatMessageApplyService {
 				)
 				break
 			case ConversationMessageType.RichText:
-				if (!options.isHistoryMessage) pubsub.publish("super_magic_new_message", message)
+				if (!options.isHistoryMessage)
+					pubsub.publish(PubSubEvents.Super_Magic_New_Message_V2, message)
 				this.applyConversationMessage(message as SeqResponse<ConversationMessage>, options)
 				break
 			case ConversationMessageType.MagicSearchCard:

@@ -2,6 +2,7 @@ import {
 	getTemporaryDownloadUrl,
 	type GetTemporaryDownloadUrlItem,
 } from "@/pages/superMagic/utils/api"
+import type { ImageProcessOptions } from "@/utils/image-processing"
 import {
 	extractSlidesFromScript,
 	flattenAttachments,
@@ -20,6 +21,29 @@ import {
 } from "./utils/mediaInterceptor"
 import { injectAtPolyfillScript } from "./utils/polyfill"
 import { UrlCacheManager } from "./utils/urlCache"
+import {
+	applyDashboardBundledShellToHtml,
+	getBundledTemplateHtmlByKind,
+	omitDashboardShellFromFetchPlan,
+	type HtmlPreviewBundledTemplateKind,
+} from "./html-preview-bundled-shell"
+import { resolveResourceUrlsWithVersionOverrides } from "./dashboard/resourceVersioning"
+
+export type { HtmlPreviewBundledTemplateKind }
+
+function mergePreviewBundledMetadata(
+	base: any,
+	kind: HtmlPreviewBundledTemplateKind | undefined,
+): any {
+	if (!kind) return base
+	if (kind === "dashboard") {
+		return base?.type === "dashboard" ? base : { ...base, type: "dashboard" }
+	}
+	if (kind === "audio") {
+		return base?.type === "audio" ? base : { ...base, type: "audio" }
+	}
+	return base?.type === "video" ? base : { ...base, type: "video" }
+}
 
 /**
  * URL 缓存管理器实例
@@ -83,6 +107,11 @@ function serializeDocToHtml(doc: Document): string {
 	return restoreSerializedEntities(new XMLSerializer().serializeToString(doc))
 }
 
+function finalizeHtmlPreviewBundledShell(html: string, input: ProcessHtmlContentInput): string {
+	if (input.htmlPreviewBundledTemplate !== "dashboard") return html
+	return applyDashboardBundledShellToHtml(html)
+}
+
 // 输入参数接口
 export interface ProcessHtmlContentInput {
 	/** HTML内容字符串 */
@@ -97,10 +126,18 @@ export interface ProcessHtmlContentInput {
 	attachmentList?: any[]
 	/** 相对文件夹路径 */
 	html_relative_path?: string
-	/** 文件元数据 */
-	metadata?: any
+	/** 文件显示配置 */
+	displayConfig?: any
 	/** 预加载的 fileId -> url 映射 (用于批量处理时避免重复请求) */
 	preloadedUrlMapping?: Map<string, string>
+	/** 指定资源文件的版本号，用于按历史版本渲染依赖资源 */
+	resourceFileVersions?: Record<string, number | undefined>
+	/**
+	 * 仅详情页 HTML 可视化预览：使用构建内 templates 入口 HTML；dashboard 另将 index.css / dashboard.js 换为打包 URL；audio/video 仅换 HTML 正文。数据与 magic.project 等仍走附件 OSS。
+	 */
+	htmlPreviewBundledTemplate?: HtmlPreviewBundledTemplateKind
+	/** 图片处理参数，用于对资源图片进行压缩/缩放（通过 X-Magic-Image-Process 请求头） */
+	xMagicImageProcess?: ImageProcessOptions
 }
 
 // 输出结果接口
@@ -123,14 +160,14 @@ export interface ProcessHtmlContentOutput {
  * @param htmlDoc - Parsed HTML document
  * @param allFiles - Flattened attachments array
  * @param relativeFolderPath - Relative folder path
- * @param metadata - File metadata
+ * @param displayConfig - File display config
  * @returns Object containing fileIdsToFetch and other tracking maps
  */
 function processHtmlDocForFileIds(
 	htmlDoc: Document,
 	allFiles: any[],
 	relativeFolderPath: string,
-	metadata?: any,
+	displayConfig?: any,
 ): {
 	fileIdsToFetch: string[]
 	urlMap: Map<string, any>
@@ -241,7 +278,7 @@ function processHtmlDocForFileIds(
 		urlMap,
 		slidesMap,
 		htmlRelativeFolderPath: relativeFolderPath,
-		metadata,
+		displayConfig,
 	})
 
 	// Process style URLs (CSS background images)
@@ -265,7 +302,7 @@ function processHtmlDocForFileIds(
 	})
 
 	// Process dashboard arrays
-	if (metadata?.type === "dashboard") {
+	if (displayConfig?.type === "dashboard") {
 		processDashboardArray({
 			htmlDoc,
 			allFiles,
@@ -276,7 +313,7 @@ function processHtmlDocForFileIds(
 	}
 
 	// Process audio/video arrays
-	if (metadata?.type === "audio" || metadata?.type === "video") {
+	if (displayConfig?.type === "audio" || displayConfig?.type === "video") {
 		processAudioArray({
 			htmlDoc,
 			allFiles,
@@ -296,7 +333,7 @@ function processHtmlDocForFileIds(
  * @returns Set of file IDs that need to be fetched
  */
 export function collectFileIdsFromHtml(input: ProcessHtmlContentInput): Set<string> {
-	const { content, attachments, html_relative_path, metadata } = input
+	const { content, attachments, html_relative_path, displayConfig } = input
 
 	// If no content or no attachments, return empty set
 	if (!content || !attachments || attachments.length === 0) {
@@ -318,7 +355,7 @@ export function collectFileIdsFromHtml(input: ProcessHtmlContentInput): Set<stri
 		htmlDoc,
 		allFiles,
 		relativeFolderPath,
-		metadata,
+		displayConfig,
 	)
 
 	// Return unique file IDs
@@ -333,11 +370,20 @@ export function collectFileIdsFromHtml(input: ProcessHtmlContentInput): Set<stri
 export async function processHtmlContent(
 	input: ProcessHtmlContentInput,
 ): Promise<ProcessHtmlContentOutput> {
-	const { content, attachments, fileId, metadata, attachmentList, html_relative_path } = input
+	const { content, attachments, fileId, displayConfig, attachmentList, html_relative_path } =
+		input
+
+	const previewKind = input.htmlPreviewBundledTemplate
+	const processingMetadata = mergePreviewBundledMetadata(displayConfig, previewKind)
+
+	const applyPreviewShell = (html: string) => finalizeHtmlPreviewBundledShell(html, input)
+
+	const bundledTemplateHtml = previewKind ? getBundledTemplateHtmlByKind(previewKind) : ""
+	const sourceHtml = bundledTemplateHtml.length > 0 ? bundledTemplateHtml : content || ""
 
 	// 初始化返回值
 	const result: ProcessHtmlContentOutput = {
-		processedContent: content || "",
+		processedContent: sourceHtml,
 		hasSlides: false,
 		filePathMapping: new Map<string, string>(),
 		slidesMap: new Map<string, string>(),
@@ -345,16 +391,17 @@ export async function processHtmlContent(
 	}
 
 	// 如果没有内容，直接返回
-	if (!content) {
+	if (!sourceHtml) {
+		result.processedContent = applyPreviewShell(result.processedContent)
 		return result
 	}
 
 	// 如果没有附件，应用替换后直接返回
 	if (!attachments || attachments.length === 0) {
-		let processedContent = replaceLocationReload(content)
+		let processedContent = replaceLocationReload(sourceHtml)
 		// 注入 at() polyfill 脚本
 		processedContent = injectAtPolyfillScript(processedContent)
-		result.processedContent = processedContent
+		result.processedContent = applyPreviewShell(processedContent)
 		return result
 	}
 
@@ -373,9 +420,9 @@ export async function processHtmlContent(
 
 	// 在调用 handleHtCdnUrl 之前，检测原始HTML中是否有 slide-bridge.js
 	// 如果有，添加标记以便后续恢复
-	let contentWithMarker = content
+	let contentWithMarker = sourceHtml
 	const tempParser = new DOMParser()
-	const tempDoc = tempParser.parseFromString(content, "text/html")
+	const tempDoc = tempParser.parseFromString(sourceHtml, "text/html")
 	const hasSlideBridge = Array.from(tempDoc.querySelectorAll("script")).some((script) =>
 		script.getAttribute("src")?.includes("slide-bridge.js"),
 	)
@@ -404,7 +451,7 @@ export async function processHtmlContent(
 
 	// 创建新的解析器和文档对象，使用修改后的内容继续处理
 	const newParser = new DOMParser()
-	const newHtmlDoc = newParser.parseFromString(content, "text/html")
+	const newHtmlDoc = newParser.parseFromString(sourceHtml, "text/html")
 
 	const allFiles = flattenAttachments(attachments)
 
@@ -426,7 +473,7 @@ export async function processHtmlContent(
 		const scriptContent = script.textContent || script.innerHTML || ""
 		if (scriptContent.includes("slides")) {
 			foundSlides = true
-			const slides = metadata?.slides || extractSlidesFromScript(scriptContent)
+			const slides = processingMetadata?.slides || extractSlidesFromScript(scriptContent)
 			if (slides.length > 0) {
 				extractedSlides = slides
 				break
@@ -439,12 +486,17 @@ export async function processHtmlContent(
 	const relativeFolderPath = html_relative_path || htmlRelativeFolderPath
 
 	// Use shared logic to collect file IDs and build tracking maps
-	const { fileIdsToFetch, urlMap, filePathMap, slidesMap } = processHtmlDocForFileIds(
-		newHtmlDoc,
-		allFiles,
-		relativeFolderPath,
-		metadata,
-	)
+	const {
+		fileIdsToFetch: collectedFileIds,
+		urlMap,
+		filePathMap,
+		slidesMap,
+	} = processHtmlDocForFileIds(newHtmlDoc, allFiles, relativeFolderPath, processingMetadata)
+
+	let fileIdsToFetch = collectedFileIds
+	if (previewKind === "dashboard") {
+		fileIdsToFetch = omitDashboardShellFromFetchPlan(fileIdsToFetch, urlMap)
+	}
 
 	const magicProjectJSConfig: Record<string, unknown> = {}
 
@@ -452,35 +504,42 @@ export async function processHtmlContent(
 	// If there are resources to replace, fetch their temporary URLs
 	if (fileIdsToFetch.length > 0) {
 		try {
-			// Use preloaded URL mapping if provided, otherwise fetch from API
-			let urlData: GetTemporaryDownloadUrlItem[] = []
-			if (input.preloadedUrlMapping) {
-				// Construct urlData from preloaded mapping
-				urlData = fileIdsToFetch
-					.map((fileId) => ({
-						file_id: fileId,
-						url: input.preloadedUrlMapping!.get(fileId),
-					}))
-					.filter((item) => item.url) as GetTemporaryDownloadUrlItem[] // Only include items with valid URLs
-			} else {
-				// 先检查缓存，传入文件更新时间映射用于判断文件是否已更新
-				// 如果文件的 updated_at 更新了，即使 URL 未过期，也会重新获取最新的 URL
-				const { cached, missing } = urlCacheManager.getCachedUrls(
-					fileIdsToFetch,
-					fileUpdatedAtMap,
-				)
-				urlData = [...cached]
+			const urlData = await resolveResourceUrlsWithVersionOverrides({
+				fileIds: fileIdsToFetch,
+				resourceFileVersions: input.resourceFileVersions,
+				fetchUnversionedUrls: async (fileIds) => {
+					if (fileIds.length === 0) return []
 
-				// 如果有需要重新获取的 file_id（包括 updated_at 更新的文件），调用 API 获取最新的 URL
-				if (missing.length > 0) {
-					const response = await getTemporaryDownloadUrl({ file_ids: missing })
+					if (input.preloadedUrlMapping) {
+						const preloadedUrlMapping = input.preloadedUrlMapping
+						return fileIds
+							.map((fileId) => ({
+								file_id: fileId,
+								url: preloadedUrlMapping.get(fileId),
+							}))
+							.filter((item) => item.url) as GetTemporaryDownloadUrlItem[]
+					}
+
+					const { cached, missing } = urlCacheManager.getCachedUrls(
+						fileIds,
+						fileUpdatedAtMap,
+					)
+					let unversionedUrls = [...cached]
+					if (missing.length === 0) return unversionedUrls
+
+					const response = await getTemporaryDownloadUrl({
+						file_ids: missing,
+						...(input.xMagicImageProcess && {
+							options: { xMagicImageProcess: input.xMagicImageProcess },
+						}),
+					})
 					const fetchedUrls = response || []
-					// 更新缓存，保存最新的 URL 和文件的 updated_at，用于后续判断文件是否已更新
 					urlCacheManager.updateUrlCache(fetchedUrls, fileUpdatedAtMap)
-					// 合并缓存的 URL 和新获取的 URL
-					urlData = [...urlData, ...fetchedUrls]
-				}
-			}
+					unversionedUrls = [...unversionedUrls, ...fetchedUrls]
+					return unversionedUrls
+				},
+			})
+
 			// Replace URLs in the HTML content
 			let updatedContent = modifiedHtmlContent
 			urlData.forEach((item: GetTemporaryDownloadUrlItem) => {
@@ -510,7 +569,7 @@ export async function processHtmlContent(
 								if (!magicProjectJSConfig.geo) {
 									magicProjectJSConfig.geo = []
 								}
-								; (magicProjectJSConfig as any).geo.push({
+								;(magicProjectJSConfig as any).geo.push({
 									name: resourceInfo.fileName.split(".")[0],
 									url: item.url,
 								})
@@ -519,7 +578,7 @@ export async function processHtmlContent(
 								if (!magicProjectJSConfig.dataSources) {
 									magicProjectJSConfig.dataSources = []
 								}
-								; (magicProjectJSConfig as any).dataSources.push({
+								;(magicProjectJSConfig as any).dataSources.push({
 									name: resourceInfo.fileName.split(".")[0],
 									url: item.url,
 								})
@@ -604,7 +663,10 @@ export async function processHtmlContent(
 			})
 
 			// hook配置进去
-			if (metadata?.type === "dashboard" && Object.keys(magicProjectJSConfig).length > 0) {
+			if (
+				processingMetadata?.type === "dashboard" &&
+				Object.keys(magicProjectJSConfig).length > 0
+			) {
 				const splitUpdatedContent = updatedContent.split("</head>")
 				updatedContent = `
 					${splitUpdatedContent[0]}
@@ -618,7 +680,7 @@ export async function processHtmlContent(
 				`
 			}
 
-			if (metadata?.type === "audio" || metadata?.type === "video") {
+			if (processingMetadata?.type === "audio" || processingMetadata?.type === "video") {
 				// 为 audio/video 类型注入拦截器，使用预加载的URL映射
 				const preloadedMapping = createPreloadedUrlMapping(
 					allFiles as FileItem[],
@@ -637,7 +699,7 @@ export async function processHtmlContent(
 			// 注入 at() polyfill 脚本
 			updatedContent = injectAtPolyfillScript(updatedContent)
 
-			result.processedContent = updatedContent
+			result.processedContent = applyPreviewShell(updatedContent)
 			result.filePathMapping = filePathandOssUrlMap
 		} catch (error) {
 			console.error("Error fetching resource URLs:", error)
@@ -645,14 +707,14 @@ export async function processHtmlContent(
 			let processedContent = replaceLocationReload(modifiedHtmlContent)
 			// 注入 at() polyfill 脚本
 			processedContent = injectAtPolyfillScript(processedContent)
-			result.processedContent = processedContent
+			result.processedContent = applyPreviewShell(processedContent)
 		}
 	} else {
 		// 没有需要替换的资源，但仍需要替换脚本
 		let processedContent = replaceLocationReload(modifiedHtmlContent)
 		// 注入 at() polyfill 脚本
 		processedContent = injectAtPolyfillScript(processedContent)
-		result.processedContent = processedContent
+		result.processedContent = applyPreviewShell(processedContent)
 	}
 
 	// 将 slidesMap 和原始路径添加到结果中

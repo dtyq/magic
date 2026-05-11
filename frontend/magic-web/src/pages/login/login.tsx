@@ -57,7 +57,7 @@ function LoginPage() {
 	)
 
 	return (
-		<MagicSpin spinning={loading}>
+		<MagicSpin spinning={loading} data-testid="login-page">
 			<MobilePhonePasswordForm onSubmit={onSubmit} />
 		</MagicSpin>
 	)

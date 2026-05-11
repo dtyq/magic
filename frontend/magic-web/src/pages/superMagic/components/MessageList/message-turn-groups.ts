@@ -14,7 +14,12 @@ export interface MessageTurnGroup {
 
 /** User turn starts a sticky group; assistant lines attach to the latest user turn */
 export function isUserRoleMessage(node?: SuperMagicMessageItem): boolean {
-	return node?.role !== "assistant"
+	return node?.role !== "assistant" && node?.role !== "tool"
+}
+
+/** Tool role message */
+export function isToolRoleMessage(node?: SuperMagicMessageItem): boolean {
+	return node?.role === "tool"
 }
 
 export function buildMessageKeysAndTurnGroups(messages: Array<SuperMagicMessageItem>): {
@@ -56,6 +61,7 @@ export function buildMessageKeysAndTurnGroups(messages: Array<SuperMagicMessageI
 			}
 			groups.push(leadingGroup)
 		}
+
 		leadingGroup.items.push(item)
 	})
 

@@ -18,6 +18,10 @@ interface PointerCaptureState {
 	target: HTMLElement
 }
 
+// Tolerance for modulo-360 angle comparisons to absorb small floating-point errors
+// from transform parsing and trigonometric calculations.
+const ANGLE_EQUIVALENCE_EPSILON = 0.001
+
 export function useRotateHandle({
 	editorRef,
 	isPptRender,
@@ -50,6 +54,26 @@ export function useRotateHandle({
 	const getScaleFactor = useCallback(() => {
 		return isPptRender ? scaleRatio : 1
 	}, [isPptRender, scaleRatio])
+
+	const normalizeAngle360 = useCallback((angle: number): number => {
+		return ((angle % 360) + 360) % 360
+	}, [])
+
+	const areAnglesModuloEquivalent = useCallback(
+		(first: number, second: number): boolean => {
+			// Treat 10deg and 370deg as the same visual angle so we can
+			// preserve continuous rotation values without breaking sync.
+			const normalizedFirst = normalizeAngle360(first)
+			const normalizedSecond = normalizeAngle360(second)
+			const difference = Math.abs(normalizedFirst - normalizedSecond)
+
+			return (
+				difference < ANGLE_EQUIVALENCE_EPSILON ||
+				Math.abs(difference - 360) < ANGLE_EQUIVALENCE_EPSILON
+			)
+		},
+		[normalizeAngle360],
+	)
 
 	const extractRotationFromTransform = useCallback((transformValue: string): number => {
 		if (!transformValue || transformValue === "none") return 0
@@ -96,19 +120,32 @@ export function useRotateHandle({
 			return
 		}
 
-		if (selectedInfo) {
-			// Priority order for rotation value:
-			// 1. If we have a saved continuous rotation for this element, use it
-			// 2. Otherwise use selectedInfo.rotation if provided
-			// 3. Finally extract from transform
-			let currentRotation: number
-			const extractedRotation = extractRotationFromTransform(
-				selectedInfo.computedStyles?.transform || "none",
-			)
+		if (!selectedInfo) {
+			setRotation(0)
+			return
+		}
 
-			const savedRotation = elementRotationsRef.current.get(selectedInfo.selector)
-			if (savedRotation !== undefined) {
-				// Use saved continuous rotation to prevent jumps after refresh
+		// Priority order for rotation value:
+		// 1. If we have a saved continuous rotation for this element and it is still
+		//    modulo-equivalent to the iframe's latest rotation, use it
+		// 2. Otherwise use selectedInfo.rotation if provided
+		// 3. Finally extract from transform
+		let currentRotation: number
+		const extractedRotation = extractRotationFromTransform(
+			selectedInfo.computedStyles?.transform || "none",
+		)
+		const providedRotation = selectedInfo.rotation
+		const incomingRotation = providedRotation ?? extractedRotation
+
+		const savedRotation = elementRotationsRef.current.get(selectedInfo.selector)
+		if (savedRotation !== undefined) {
+			// Keep using the unwrapped rotation value if the iframe is only reporting
+			// the same angle in a normalized form (for example 370deg -> 10deg).
+			const shouldPreserveSavedRotation =
+				areAnglesModuloEquivalent(savedRotation, incomingRotation) ||
+				areAnglesModuloEquivalent(savedRotation, extractedRotation)
+
+			if (shouldPreserveSavedRotation) {
 				currentRotation = savedRotation
 
 				// Update selectedInfo with the continuous rotation value
@@ -123,33 +160,31 @@ export function useRotateHandle({
 					})
 				}
 			} else {
-				// No saved rotation for this element
-				const providedRotation = selectedInfo.rotation
-
-				// Auto-detect continuous rotation:
-				// If selectedInfo.rotation is provided and significantly different from extracted rotation,
-				// it likely means this is a continuous rotation value that we should preserve
-				if (
-					providedRotation !== undefined &&
-					providedRotation !== null &&
-					Math.abs(providedRotation - extractedRotation) > 180
-				) {
-					// This looks like a continuous rotation value (e.g., 370deg vs extracted 10deg)
-					// Save it to preserve continuity across refresh
-					elementRotationsRef.current.set(selectedInfo.selector, providedRotation)
-					currentRotation = providedRotation
-				} else {
-					// Use provided rotation or extract from transform
-					currentRotation = providedRotation ?? extractedRotation
-				}
+				// The iframe reported a real rotation change (e.g. undo), so the saved
+				// continuous rotation is stale and must be discarded.
+				elementRotationsRef.current.delete(selectedInfo.selector)
+				currentRotation = incomingRotation
 			}
-
-			setRotation(currentRotation)
+		} else if (
+			providedRotation !== undefined &&
+			providedRotation !== null &&
+			areAnglesModuloEquivalent(providedRotation, extractedRotation) &&
+			Math.abs(providedRotation - extractedRotation) > 180
+		) {
+			// This looks like a continuous rotation value (e.g., 370deg vs extracted 10deg)
+			// Save it to preserve continuity across refresh
+			elementRotationsRef.current.set(selectedInfo.selector, providedRotation)
+			currentRotation = providedRotation
+		} else {
+			currentRotation = incomingRotation
 		}
-	}, [selectedInfo, extractRotationFromTransform, setSelectedInfo])
+
+		setRotation(currentRotation)
+	}, [selectedInfo, areAnglesModuloEquivalent, extractRotationFromTransform, setSelectedInfo])
 
 	const scheduleRotateUpdate = useCallback(
 		(selector: string, styles: Record<string, string>) => {
+			// Coalesce high-frequency pointer moves into a single iframe update per frame.
 			// Always store the latest pending update (don't clear it in RAF)
 			pendingRotateRef.current = { selector, styles }
 
@@ -311,6 +346,9 @@ export function useRotateHandle({
 			const currentAngle = calculateAngle(event.clientX, event.clientY)
 			const angleDelta = currentAngle - rotateStartAngleRef.current
 			let newRotation = initialRotationRef.current + angleDelta
+
+			// Compute the next angle from the pointer delta instead of normalizing it,
+			// so dragging across 360deg keeps a continuous rotation value.
 
 			// Snap to 15-degree increments if Shift key is pressed
 			if (event.shiftKey) {

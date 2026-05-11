@@ -1,11 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import superMagicTopicModelService from "../SuperMagicTopicModelService"
-import topicModelStore from "@/opensource/stores/superMagic/topicModelStore"
-import {
-	ModelStatusEnum,
-	type ModelItem,
-} from "@/opensource/pages/superMagic/components/MessageEditor/types"
-import type { TopicMode } from "@/opensource/pages/superMagic/pages/Workspace/types"
+import topicModelStore from "@/stores/superMagic/topicModelStore"
+import { ModelStatusEnum, type ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
 
 // Mock dependencies
 vi.mock("@/apis", () => ({
@@ -17,10 +14,13 @@ vi.mock("@/apis", () => ({
 
 vi.mock("../SuperMagicTopicModelCacheService", () => ({
 	default: {
+		getDefaultModel: vi.fn(),
+		getModeDefaultModel: vi.fn(),
 		getTopicModel: vi.fn(),
 		getProjectModel: vi.fn(),
 		saveTopicModel: vi.fn(),
 		saveProjectModel: vi.fn(),
+		saveModeDefaultModel: vi.fn(),
 	},
 }))
 
@@ -33,7 +33,7 @@ vi.mock("../../SuperMagicModeService", () => ({
 	},
 }))
 
-import { SuperMagicApi } from "@/opensource/apis"
+import { SuperMagicApi } from "@/apis"
 import superMagicTopicModelCacheService from "../SuperMagicTopicModelCacheService"
 import superMagicModeService from "../../SuperMagicModeService"
 
@@ -81,8 +81,16 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 		)
 
 		// Setup default mocks
+		vi.mocked(superMagicTopicModelCacheService.getDefaultModel).mockResolvedValue(null)
+		vi.mocked(superMagicTopicModelCacheService.getModeDefaultModel).mockResolvedValue(null)
+		vi.mocked(superMagicTopicModelCacheService.getTopicModel).mockResolvedValue(null)
+		vi.mocked(superMagicTopicModelCacheService.getProjectModel).mockResolvedValue(null)
 		vi.mocked(superMagicTopicModelCacheService.saveTopicModel).mockResolvedValue(undefined)
-		vi.mocked(SuperMagicApi.saveSuperMagicTopicModel).mockResolvedValue({} as any)
+		vi.mocked(superMagicTopicModelCacheService.saveProjectModel).mockResolvedValue(undefined)
+		vi.mocked(superMagicTopicModelCacheService.saveModeDefaultModel).mockResolvedValue(
+			undefined,
+		)
+		vi.mocked(SuperMagicApi.saveSuperMagicTopicModel).mockResolvedValue({})
 	})
 
 	afterEach(() => {
@@ -351,6 +359,54 @@ describe("SuperMagicTopicModelService - Debounce", () => {
 			await superMagicTopicModelService.validateSelectedModels(topicModelStore)
 
 			expect(topicModelStore.selectedLanguageModel?.model_id).toBe(customModel.model_id)
+		})
+
+		it("should revalidate hydrated cache model before keeping it selected", async () => {
+			const cachedModel: ModelItem = {
+				...mockLanguageModel,
+				model_id: "cached-model",
+				model_name: "Cached Model",
+			}
+			const fallbackModel: ModelItem = {
+				...mockLanguageModel,
+				model_id: "fallback-model",
+				model_name: "Fallback Model",
+			}
+			let cachedResolveCount = 0
+
+			vi.mocked(superMagicModeService.getModelListByMode).mockReturnValue([fallbackModel])
+			vi.mocked(superMagicModeService.getImageModelListByMode).mockReturnValue([])
+			vi.mocked(superMagicTopicModelCacheService.getTopicModel).mockResolvedValue({
+				languageModelId: cachedModel.model_id,
+				imageModelId: undefined,
+				timestamp: Date.now(),
+			})
+			vi.mocked(SuperMagicApi.getSuperMagicTopicModel).mockRejectedValue(
+				new Error("network error"),
+			)
+			vi.mocked(superMagicModeService.resolveLanguageModelByMode).mockImplementation(
+				async (mode, modelId) => {
+					if (modelId === cachedModel.model_id) {
+						cachedResolveCount += 1
+						return cachedResolveCount === 1 ? cachedModel : null
+					}
+
+					return (
+						superMagicModeService
+							.getModelListByMode(mode)
+							.find((model) => model.model_id === modelId) ?? null
+					)
+				},
+			)
+
+			await superMagicTopicModelService.fetchTopicModel(
+				"topic-1",
+				"project-1",
+				generalMode,
+				topicModelStore,
+			)
+
+			expect(topicModelStore.selectedLanguageModel?.model_id).toBe(fallbackModel.model_id)
 		})
 	})
 

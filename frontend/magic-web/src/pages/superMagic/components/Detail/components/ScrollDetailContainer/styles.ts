@@ -17,7 +17,7 @@ export const useStyles = createStyles(({ token }) => ({
 		bottom: 0,
 		height: "100vh",
 		width: "100vw",
-		zIndex: 1000,
+		zIndex: "var(--z-index-detail-fullscreen)",
 		borderRadius: 0,
 	},
 	scrollContainer: {
@@ -70,7 +70,7 @@ export const useStyles = createStyles(({ token }) => ({
 		bottom: 0,
 		width: "100vw",
 		height: "100vh",
-		zIndex: 1000,
+		zIndex: "var(--z-index-detail-fullscreen)",
 		backgroundColor: "#FFFFFF",
 		overflow: "hidden",
 	},

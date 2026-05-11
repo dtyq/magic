@@ -1,11 +1,11 @@
 import { ReactNode, useState, useEffect } from "react"
 import { observer } from "mobx-react-lite"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import {
 	Collapsible,
 	CollapsibleTrigger,
 	CollapsibleContent,
 } from "@/components/shadcn-ui/collapsible"
-import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 
 interface CollapsiblePanelProps {
 	// Panel title
@@ -81,11 +81,19 @@ function CollapsiblePanel({
 				<CollapsibleTrigger asChild className="cursor-pointer">
 					<div className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-foreground hover:bg-accent">
 						{showExpandIcon && (
-							<LucideLazyIcon
-								icon={isExpanded ? "ChevronDown" : "ChevronRight"}
-								size={16}
-								className="flex-shrink-0 text-muted-foreground transition-transform"
-							/>
+							<>
+								{isExpanded ? (
+									<ChevronDown
+										size={16}
+										className="flex-shrink-0 text-muted-foreground transition-transform"
+									/>
+								) : (
+									<ChevronRight
+										size={16}
+										className="flex-shrink-0 text-muted-foreground transition-transform"
+									/>
+								)}
+							</>
 						)}
 						{header || <span className="font-medium">{title}</span>}
 					</div>

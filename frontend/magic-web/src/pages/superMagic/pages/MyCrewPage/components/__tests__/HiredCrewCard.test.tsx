@@ -1,14 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
+import { CollaboratorPermissionEnum } from "@/pages/superMagic/types/collaboration"
 import type { MyCrewView } from "@/services/crew/CrewService"
 import HiredCrewCard from "../HiredCrewCard"
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string, params?: { company?: string }) => {
+		t: (key: string, params?: { company?: string; name?: string }) => {
 			if (key === "interface:appList.powerBy")
 				return `powerBy ${params?.company ?? ""}`.trim()
 			if (key === "myCrewPage.footerPoweredByBrand") return "MagiCrew"
+			if (key === "myCrewPage.teamSharedCreatedBy")
+				return `createdBy ${params?.name ?? ""}`.trim()
 			return key
 		},
 	}),
@@ -19,7 +22,35 @@ vi.mock("@/pages/superMagic/components/CardFooterBadge", () => ({
 }))
 
 vi.mock("@/pages/superMagic/components/CardFooterLabel", () => ({
-	CardFooterLabel: ({ label }: { label: string }) => <div>{label}</div>,
+	CardFooterLabel: ({ label, dataTestId }: { label: string; dataTestId?: string }) => (
+		<div data-testid={dataTestId}>{label}</div>
+	),
+}))
+
+vi.mock("@/components/shadcn-ui/dropdown-menu", () => ({
+	DropdownMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+	DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+	DropdownMenuContent: ({
+		children,
+		"data-testid": dataTestId,
+	}: {
+		children: React.ReactNode
+		"data-testid"?: string
+	}) => <div data-testid={dataTestId}>{children}</div>,
+	DropdownMenuItem: ({
+		children,
+		onClick,
+		"data-testid": dataTestId,
+	}: {
+		children: React.ReactNode
+		onClick?: () => void
+		"data-testid"?: string
+	}) => (
+		<button type="button" data-testid={dataTestId} onClick={onClick}>
+			{children}
+		</button>
+	),
+	DropdownMenuSeparator: () => <div data-testid="my-crew-card-menu-separator" />,
 }))
 
 vi.mock("../MyCrewCardMainSection", () => ({
@@ -57,6 +88,8 @@ function createEmployee(overrides: Partial<MyCrewView> = {}): MyCrewView {
 		latestPublishedAt: null,
 		pinnedAt: null,
 		updatedAt: "2026-03-21 10:00:00",
+		creatorName: null,
+		userRole: undefined,
 		...overrides,
 	}
 }
@@ -129,5 +162,119 @@ describe("HiredCrewCard", () => {
 			"myCrewPage.sharedByTeamAction",
 		)
 		expect(screen.getByTestId("my-crew-card-disable-button")).toBeDisabled()
+	})
+
+	it("renders team shared creator label when card is in team-shared mode", () => {
+		render(
+			<HiredCrewCard
+				employee={createEmployee({ creatorName: "Cai" })}
+				href="/crew/agent-1"
+				isTeamSharedCard
+				onConversation={vi.fn()}
+			/>,
+		)
+
+		expect(screen.getByTestId("my-crew-card-team-shared-creator")).toHaveTextContent(
+			"createdBy Cai",
+		)
+	})
+
+	it("does not render team shared creator label when API omits creator name", () => {
+		render(
+			<HiredCrewCard
+				employee={createEmployee({ creatorName: null })}
+				href="/crew/agent-1"
+				isTeamSharedCard
+				onConversation={vi.fn()}
+			/>,
+		)
+
+		expect(screen.queryByTestId("my-crew-card-team-shared-creator")).not.toBeInTheDocument()
+	})
+
+	it("shows edit and publish actions for team-shared editors", () => {
+		render(
+			<HiredCrewCard
+				employee={createEmployee({
+					userRole: CollaboratorPermissionEnum.EDITABLE,
+				})}
+				href="/crew/agent-1"
+				onEdit={vi.fn()}
+				onConversation={vi.fn()}
+				onPublishToStore={vi.fn()}
+				isTeamSharedCard
+			/>,
+		)
+
+		expect(screen.getByTestId("my-crew-card-edit-button")).toHaveTextContent("myCrewPage.edit")
+		expect(screen.getByTestId("my-crew-card-more-trigger")).toBeInTheDocument()
+		fireEvent.pointerDown(screen.getByTestId("my-crew-card-more-trigger"), {
+			button: 0,
+			ctrlKey: false,
+		})
+		expect(screen.getByTestId("my-crew-card-menu-chat")).toBeInTheDocument()
+		expect(screen.getByTestId("my-crew-card-menu-publish")).toBeInTheDocument()
+		expect(screen.queryByTestId("my-crew-card-menu-delete")).not.toBeInTheDocument()
+	})
+
+	it("shows delete action for team-shared managers", () => {
+		render(
+			<HiredCrewCard
+				employee={createEmployee({
+					userRole: CollaboratorPermissionEnum.MANAGE,
+				})}
+				href="/crew/agent-1"
+				onEdit={vi.fn()}
+				onConversation={vi.fn()}
+				onPublishToStore={vi.fn()}
+				onDelete={vi.fn()}
+				isTeamSharedCard
+			/>,
+		)
+
+		fireEvent.pointerDown(screen.getByTestId("my-crew-card-more-trigger"), {
+			button: 0,
+			ctrlKey: false,
+		})
+
+		expect(screen.getByTestId("my-crew-card-menu-publish")).toBeInTheDocument()
+		expect(screen.getByTestId("my-crew-card-menu-delete")).toBeInTheDocument()
+	})
+
+	it("keeps conversation-only action for team-shared viewers", () => {
+		render(
+			<HiredCrewCard
+				employee={createEmployee({
+					userRole: CollaboratorPermissionEnum.READONLY,
+				})}
+				href="/crew/agent-1"
+				onConversation={vi.fn()}
+				isTeamSharedCard
+			/>,
+		)
+
+		expect(screen.getByTestId("my-crew-card-conversation-button")).toBeInTheDocument()
+		expect(screen.queryByTestId("my-crew-card-edit-button")).not.toBeInTheDocument()
+		expect(screen.queryByTestId("my-crew-card-more-trigger")).not.toBeInTheDocument()
+	})
+
+	it("does not enter edit from the card root for team-shared viewers", () => {
+		const onEdit = vi.fn()
+
+		render(
+			<HiredCrewCard
+				employee={createEmployee({
+					userRole: CollaboratorPermissionEnum.READONLY,
+				})}
+				href="/crew/agent-1"
+				onEdit={onEdit}
+				onConversation={vi.fn()}
+				isTeamSharedCard
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("my-crew-card"))
+
+		expect(onEdit).not.toHaveBeenCalled()
 	})
 })

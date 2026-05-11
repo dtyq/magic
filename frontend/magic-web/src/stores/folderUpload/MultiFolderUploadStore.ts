@@ -212,7 +212,7 @@ class MultiFolderUploadStore {
 	// 创建并开始新的上传任务
 	async createUploadTask(
 		files: File[] | UploadFileWithKey[],
-		baseSuffixDir: string,
+		parentId: string | undefined,
 		options: TaskCreateOptions,
 	): Promise<string> {
 		try {
@@ -270,7 +270,7 @@ class MultiFolderUploadStore {
 			// }
 
 			// 创建任务
-			const task = new FolderUploadTask(validFiles, baseSuffixDir, {
+			const task = new FolderUploadTask(validFiles, parentId, {
 				...options,
 				t: this.t.bind(this),
 			})

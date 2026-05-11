@@ -142,3 +142,23 @@ export const getCurrentProjectId = (): string => {
 		? window.location.pathname.split("/project/")[1].split("/")[0]
 		: ""
 }
+
+/**
+ * 过滤临时凭证中的敏感字段，用于安全的日志记录
+ * @param credential 原始凭证对象
+ * @returns 移除了敏感字段的凭证对象
+ */
+export const sanitizeTemporaryCredential = (credential: any): any => {
+	if (!credential) return undefined
+
+	return {
+		...credential,
+		credentials: credential.credentials
+			? {
+					...credential.credentials,
+					SecretAccessKey: undefined,
+					SessionToken: undefined,
+				}
+			: undefined,
+	}
+}

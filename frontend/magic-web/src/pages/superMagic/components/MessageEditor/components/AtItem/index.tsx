@@ -24,17 +24,25 @@ import { ImageInProjectFile, ImageInUploadFile } from "./components/AtItemPrevie
 import { showMobileImagePreview } from "./components/MobileImagePreview"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { useTranslation } from "react-i18next"
-import { getAttachmentType } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
+import {
+	getAttachmentType,
+	getFileTreeIconType,
+} from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
+import { CustomFolderMagicIcon } from "@/pages/superMagic/components/TopicFilesButton/components/CustomFolderMagicIcon"
+import projectFilesStore from "@/stores/projectFiles"
 import { cn } from "@/lib/utils"
 import { MentionTooltipWrapper } from "./components/MentionTooltipWrapper"
 import { JSONContent } from "@tiptap/core"
 import { type MarkerClickScene } from "../../hooks/useMarkerClickHandler"
 import MarkerAtItem from "../MentionNodes/marker/MarkerAtItem"
+import { observer } from "mobx-react-lite"
 
 interface AtItemProps {
 	data: TiptapMentionAttributes
 	onRemove?: (data: TiptapMentionAttributes) => void
 	className?: string
+	labelClassName?: string
+	retryClassName?: string
 	onFileClick?: (item: TiptapMentionAttributes["data"]) => void
 	placement?: TooltipProps["placement"]
 	flag?: string
@@ -56,6 +64,8 @@ function AtItem({
 	data,
 	onRemove,
 	className,
+	labelClassName,
+	retryClassName,
 	onFileClick,
 	placement,
 	flag,
@@ -105,7 +115,7 @@ function AtItem({
 				const data = item.data as UploadFileMentionData
 				const file = data.file
 				const fileExtension = data.file_extension || file?.type.split("/").pop() || ""
-				if (file && getFileType(fileExtension) === "image") {
+				if (isMobile && file && getFileType(fileExtension) === "image") {
 					showMobileImagePreview({
 						alt: data.file_name,
 						file: data.file,
@@ -152,6 +162,11 @@ function AtItem({
 	}
 
 	const iconRadius = isMobile ? 8 : 4
+
+	// Normalize path for comparison (remove leading slash)
+	const normalizePath = (path: string) => {
+		return path.startsWith("/") ? path.slice(1) : path
+	}
 
 	// Render icon based on type and hover state
 	const renderIcon = () => {
@@ -229,10 +244,52 @@ function AtItem({
 					)
 				}
 
-				return icon ? (
-					<MagicFileIcon type={icon as string} size={iconSize} />
-				) : (
-					<TSIcon type="ts-attachment" size={iconSize.toString()} />
+				const fileNode = projectFilesStore.workspaceFilesList.find((f) => {
+					if (item.file_id) {
+						return f.file_id === item.file_id
+					}
+					if (item.file_path) {
+						return (
+							normalizePath(f.relative_file_path || "") ===
+							normalizePath(item.file_path || "")
+						)
+					}
+					return false
+				})
+				const fileDisplayConfig = fileNode?.display_config
+
+				if (fileDisplayConfig?.type === "custom") {
+					// 优先使用 _customFolderId（入口文件需从原始 custom 文件夹解析 icon）
+					const customFolderId = (fileDisplayConfig as any)?._customFolderId
+					const targetFolderId = customFolderId || fileNode?.parent_id
+
+					const targetNode = targetFolderId
+						? projectFilesStore.getFolderData(targetFolderId)
+						: null
+					const childrenItems = (targetNode?.children as unknown[]) || []
+
+					return (
+						<CustomFolderMagicIcon
+							displayConfig={fileDisplayConfig}
+							childrenItems={childrenItems}
+							size={iconSize}
+							typeFallback="custom"
+						/>
+					)
+				}
+
+				const fileIconType = getFileTreeIconType(
+					fileNode || {
+						...item,
+						display_config: fileDisplayConfig,
+						file_extension: extension,
+					},
+				)
+				return (
+					<MagicFileIcon
+						type={fileIconType || (icon as string) || extension}
+						size={iconSize}
+					/>
 				)
 			case MentionItemType.TOOL:
 				return icon ? (
@@ -264,15 +321,45 @@ function AtItem({
 				}
 				return <MagicFileIcon type={icon as string} size={iconSize} />
 			case MentionItemType.FOLDER:
-				const directoryMetadata = (data.data as DirectoryMentionData)?.directory_metadata
-				if (directoryMetadata?.type) {
+				const directoryData = data.data as DirectoryMentionData
+				const directoryDisplayConfig = directoryData?.directory_metadata
+
+				if (directoryDisplayConfig?.type === "custom") {
+					const folderNode = projectFilesStore.workspaceFilesList.find((f) => {
+						if (directoryData.directory_id) {
+							return f.file_id === directoryData.directory_id
+						}
+						if (directoryData.directory_path) {
+							return (
+								normalizePath(f.relative_file_path || "") ===
+								normalizePath(directoryData.directory_path || "")
+							)
+						}
+						return false
+					})
+					const childrenItems = (folderNode?.children as unknown[]) || []
+
+					return (
+						<CustomFolderMagicIcon
+							displayConfig={directoryDisplayConfig}
+							childrenItems={childrenItems}
+							size={iconSize}
+							typeFallback="folder"
+						/>
+					)
+				}
+
+				if (directoryDisplayConfig?.type) {
 					return (
 						<MagicFileIcon
-							type={getAttachmentType(directoryMetadata) || ""}
+							type={
+								getAttachmentType({ display_config: directoryDisplayConfig }) || ""
+							}
 							size={iconSize}
 						/>
 					)
 				}
+
 				return (
 					<img
 						src={FoldIcon}
@@ -324,7 +411,11 @@ function AtItem({
 			<div className="relative z-10 flex w-full flex-1 items-center gap-1">
 				<div className="relative flex items-center justify-center">{renderIcon()}</div>
 				<span
-					className={`flex min-w-0 items-center text-[10px] leading-[13px] text-foreground md:text-xs md:leading-4 ${isUploadError ? "text-destructive" : ""} `}
+					className={cn(
+						"flex min-w-0 items-center text-[10px] leading-[13px] text-foreground md:text-xs md:leading-4",
+						isUploadError && "text-destructive",
+						labelClassName,
+					)}
 				>
 					{renderNamePrefix()}
 					<span className="truncate">{displayName}</span>
@@ -334,7 +425,10 @@ function AtItem({
 					<span
 						role="button"
 						tabIndex={0}
-						className="shrink-0 overflow-hidden text-ellipsis text-[10px] leading-[13px] text-primary md:text-sm md:leading-[18px]"
+						className={cn(
+							"shrink-0 overflow-hidden text-ellipsis text-[10px] leading-[13px] text-primary md:text-sm md:leading-[18px]",
+							retryClassName,
+						)}
 						onClick={() => {
 							if (data.data && onRetry) {
 								const fileData = data.data as UploadFileMentionData
@@ -371,4 +465,4 @@ function AtItem({
 	)
 }
 
-export default memo(AtItem)
+export default memo(observer(AtItem))

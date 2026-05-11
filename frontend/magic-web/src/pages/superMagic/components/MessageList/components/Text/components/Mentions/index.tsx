@@ -5,6 +5,7 @@ import {
 } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import AtItem from "@/pages/superMagic/components/MessageEditor/components/AtItem"
 import { memo } from "react"
+import { MentionItemType, ProjectFileMentionData } from "@/components/business/MentionPanel/types"
 
 const Mentions = ({
 	data,
@@ -23,11 +24,19 @@ const Mentions = ({
 
 	return (
 		<FlexBox gap={4} wrap align="center" className={className}>
-			{mentions?.map((mention: any) => (
+			{mentions?.map((mention: any, index: number) => (
 				<AtItem
 					data={mention.attrs}
-					key={getMentionUniqueId(mention.attrs)}
-					onFileClick={onFileClick}
+					key={`${getMentionUniqueId(mention.attrs)}-${index}`}
+					onFileClick={
+						onFileClick
+							? (item) =>
+									onFileClick((item as ProjectFileMentionData).file_id, {
+										type: MentionItemType.PROJECT_FILE,
+										data: item,
+									} as TiptapMentionAttributes)
+							: undefined
+					}
 				/>
 			))}
 		</FlexBox>

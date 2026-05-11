@@ -43,6 +43,12 @@
 	"batchRevokeConfirmContent": "确定批量撤回所选的代理记录吗？",
 	"batchTransfer": "批量转交",
 	"bigScreen": "大屏",
+	"bootstrap": {
+		"initFailed": "审批初始化失败",
+		"initializing": "正在准备审批数据...",
+		"retry": "重试",
+		"retryHint": "请稍后重试"
+	},
 	"cancel": "取消",
 	"chaoSongNRen": "抄送${n}人",
 	"chaoSongRen": "抄送人",

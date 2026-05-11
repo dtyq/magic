@@ -1,5 +1,5 @@
 import styles from "./index.module.css"
-import { Brush } from "../../../ui/icons/index"
+import { Brush } from "lucide-react"
 import { useCanvasDesignI18n } from "../../../../context/I18nContext"
 
 export default function LayersEmpty() {

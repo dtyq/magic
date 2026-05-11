@@ -12,7 +12,7 @@ export function useWorkspace() {
 
 	const fetchWorkspaces = useMemoizedFn(async () => {
 		try {
-			const response = await SuperMagicApi.getWorkspaces({ page: 1, page_size: 99 })
+			const response = await SuperMagicApi.getWorkspaces({ page: 1, page_size: 999 })
 			if (!response?.list) return
 
 			setWorkspaces([

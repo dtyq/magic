@@ -112,7 +112,8 @@ function Text(props: TextProps) {
 							data?.content ||
 							data?.[data?.type]?.content ||
 							data?.[data?.type]?.text?.content ||
-							data?.[data?.type]?.markdown?.content
+							data?.[data?.type]?.markdown?.content ||
+							""
 						}
 						className={cx(styles.githubMarkdown, "text-foreground")}
 					/>

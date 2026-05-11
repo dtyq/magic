@@ -1,9 +1,10 @@
-import { Skeleton } from "@/components/shadcn-ui/skeleton"
+import { Skeleton } from "@/components/base/Skeleton"
 import { Files, Timer } from "lucide-react"
 import ProjectSider from "../../components/ProjectSider"
 import { NormalModeHeader } from "../../components/TopicFilesButton/components"
-import { cn } from "@/lib/tiptap-utils"
 import EmptyState from "../../components/TopicFilesButton/components/EmptyState"
+
+const noop = () => undefined
 
 /**
  * ProjectPage Mobile Skeleton Component
@@ -28,16 +29,16 @@ export default function ProjectPageMobileSkeleton() {
 										isShareRoute={false}
 										refreshLoading={false}
 										allowEdit={true}
-										onRefresh={() => { }}
-										onSearch={() => { }}
-										onAddFile={() => { }}
-										onAddDesign={() => { }}
-										onAddFolder={() => { }}
-										onUploadFile={() => { }}
-										onUploadFolder={() => { }}
-										onEnterSelectMode={() => { }}
+										onRefresh={noop}
+										onSearch={noop}
+										onAddFile={noop}
+										onAddDesign={noop}
+										onAddFolder={noop}
+										onUploadFile={noop}
+										onUploadFolder={noop}
+										onEnterSelectMode={noop}
 									/>
-									<EmptyState onUploadFile={() => { }} />
+									<EmptyState onUploadFile={noop} />
 								</div>
 							),
 						},
@@ -52,42 +53,63 @@ export default function ProjectPageMobileSkeleton() {
 				/>
 			</div>
 
-			{/* Bottom Input Panel */}
-			<div
-				className={cn(
-					"flex shrink-0 flex-col items-start justify-end gap-1.5 rounded-tl-[14px] rounded-tr-[14px] bg-white p-2.5",
-					`pb-safe-bottom`,
-				)}
-			>
-				{/* Input Header Bar */}
-				<div className="flex w-full items-start gap-2">
-					<Skeleton className="h-6 w-20 rounded-md" />
-					<Skeleton className="h-6 w-20 rounded-md" />
-					<Skeleton className="h-6 w-20 rounded-md" />
-					<Skeleton className="h-6 w-16 rounded-md" />
-				</div>
+			{/* Bottom Input Panel：对齐 MobileComposer（MobileComposerHeader + 圆角主卡片 + 编辑区 + 底栏） */}
+			<div className="shrink-0 bg-gradient-to-t from-sidebar to-transparent px-2 pb-[max(24px,env(safe-area-inset-bottom))] pt-6">
+				<div className="flex w-full flex-col gap-2 pt-2">
+					{/* MobileComposerHeader：模式选择器 + 场景/技能条 */}
+					<div className="flex min-h-8 items-center gap-2">
+						<Skeleton.Title
+							animated
+							style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0 }}
+						/>
+						<Skeleton.Title
+							animated
+							style={{ flex: 1, height: 32, borderRadius: 8, minWidth: 0 }}
+						/>
+					</div>
 
-				{/* Input Container */}
-				<div className="flex w-full flex-col items-start gap-2 rounded-[14px] border border-[var(--base/muted-foreground,#737373)] bg-white p-2 shadow-xs">
-					<Skeleton className="h-6 w-6 rounded-md" />
-					<Skeleton className="h-8 w-full rounded-md" />
-					<div className="flex w-full items-start justify-between">
-						<div className="flex items-center gap-1">
-							<Skeleton className="size-8 rounded-md" />
-							<Skeleton className="size-8 rounded-md" />
-							<Skeleton className="size-8 rounded-md" />
+					{/* mobile-composer-card：rounded-3xl + 投影，与真实输入卡片一致 */}
+					<div className="overflow-hidden rounded-3xl bg-background shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]">
+						{/* 编辑器区域（对应 EditorContent 外层的 px-4 pb-2 pt-3） */}
+						<div className="flex flex-col gap-2 px-4 pb-2 pt-3">
+							<Skeleton.Title
+								animated
+								style={{ width: "100%", height: 14, borderRadius: 4 }}
+							/>
+							<Skeleton.Title
+								animated
+								style={{ width: "92%", height: 14, borderRadius: 4 }}
+							/>
 						</div>
-						<div className="flex items-center gap-1">
-							<Skeleton className="size-8 rounded-md" />
-							<Skeleton className="size-8 rounded-md bg-[var(--base/foreground,#0a0a0a)]" />
+
+						{/* 底栏：左侧「添加」+ 右侧 语音 + 发送 */}
+						<div className="flex items-center justify-between gap-2 px-1.5 py-1.5">
+							<Skeleton.Title
+								animated
+								style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0 }}
+							/>
+							<div className="flex items-center gap-1">
+								<Skeleton.Title
+									animated
+									style={{
+										width: 40,
+										height: 40,
+										borderRadius: 9999,
+										flexShrink: 0,
+									}}
+								/>
+								<Skeleton.Title
+									animated
+									style={{
+										width: 40,
+										height: 40,
+										borderRadius: 9999,
+										flexShrink: 0,
+									}}
+								/>
+							</div>
 						</div>
 					</div>
-				</div>
-
-				{/* Input Footer Bar */}
-				<div className="flex w-full items-start gap-2">
-					<Skeleton className="h-7 w-24 rounded-md" />
-					<Skeleton className="h-7 w-32 rounded-md" />
 				</div>
 			</div>
 		</div>

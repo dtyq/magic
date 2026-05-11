@@ -114,8 +114,8 @@ export function useLocateFile(options: UseLocateFileOptions) {
 			}
 		}
 
-		// 2. 从 metadata.slides 获取页面文件名
-		const slides = pptNode.item.metadata.slides
+		// 2. 从 display_config.slides 获取页面文件名
+		const slides = pptNode.item.display_config.slides
 		if (!slides || !Array.isArray(slides)) {
 			console.warn("⚠️ PPT slides array not found, fallback to entry file")
 			handleLocateNormalFile(pptFileId)
@@ -151,7 +151,7 @@ export function useLocateFile(options: UseLocateFileOptions) {
 		}
 
 		// 检查是否是 PPT 入口文件
-		if (node.item?.metadata?.type === "slide" && node.item?.metadata?.slides) {
+		if (node.item?.display_config?.type === "slide" && node.item?.display_config?.slides) {
 			const parentNode = findParentNode(treeData, fileId)
 			if (!parentNode) {
 				console.warn("⚠️ Parent node not found for PPT entry file:", fileId)

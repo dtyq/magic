@@ -1,6 +1,6 @@
 import { makeAutoObservable, runInAction } from "mobx"
 import type { AgentDetailResponse } from "@/apis/modules/crew"
-import { createMentionPanelStore } from "@/components/business/MentionPanel/store"
+import { createMentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import { ProjectFilesStore } from "@/stores/projectFiles"
 import { crewService } from "@/services/crew/CrewService"
 import { CREW_EDIT_ERROR } from "../constants/errors"
@@ -9,6 +9,7 @@ import { CrewIdentityStore } from "./identity-store"
 import { CrewLayoutStore } from "./layout-store"
 import { CrewPlaybookStore } from "./playbook-store"
 import { CrewSkillsStore } from "./skills-store"
+import { CrewKnowledgeStore } from "./knowledge-store"
 import { loadCrewEditBootstrap } from "./services/load-crew-edit-bootstrap"
 import { hasCrewUnpublishedChanges } from "../utils/publish-status"
 import {
@@ -31,6 +32,7 @@ export class CrewEditRootStore {
 	readonly skills: CrewSkillsStore
 	readonly playbook: CrewPlaybookStore
 	readonly conversation: CrewConversationStore
+	readonly knowledge: CrewKnowledgeStore
 	readonly projectFilesStore: ProjectFilesStore
 	readonly mentionPanelStore: ReturnType<typeof createMentionPanelStore>
 
@@ -42,6 +44,9 @@ export class CrewEditRootStore {
 				this.crewCode = crewCode
 			},
 			markCrewUpdated: this.markCrewUpdated,
+			getProjectId: () => this.conversation.selectedProject?.id,
+			getWorkspaceFilesList: () => this.projectFilesStore.workspaceFilesList,
+			getWorkspaceFileTree: () => this.projectFilesStore.workspaceFileTree,
 		})
 		this.skills = new CrewSkillsStore({
 			getCrewCode: () => this.crewCode,
@@ -54,6 +59,9 @@ export class CrewEditRootStore {
 			markCrewUpdated: this.markCrewUpdated,
 		})
 		this.conversation = new CrewConversationStore()
+		this.knowledge = new CrewKnowledgeStore({
+			getCrewCode: () => this.crewCode,
+		})
 		this.projectFilesStore = new ProjectFilesStore()
 		this.mentionPanelStore = createMentionPanelStore(this.projectFilesStore)
 
@@ -65,6 +73,7 @@ export class CrewEditRootStore {
 				skills: false,
 				playbook: false,
 				conversation: false,
+				knowledge: false,
 				projectFilesStore: false,
 				mentionPanelStore: false,
 			},
@@ -164,6 +173,7 @@ export class CrewEditRootStore {
 		this.skills.reset()
 		this.playbook.reset()
 		this.conversation.reset()
+		this.knowledge.reset()
 		this.projectFilesStore.setSelectedProject(null)
 	}
 

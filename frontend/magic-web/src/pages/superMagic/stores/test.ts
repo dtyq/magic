@@ -1,10 +1,11 @@
-import pubsub from "@/utils/pubsub"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { set } from "lodash-es"
+import mock from "./mock_v2.json"
 
 // @ts-ignore
 window.test = (topicId: string = "837333386617253888") => {
-	const mock: any[] = []
+	// const mock: any[] = []
 
 	function check() {
 		const allAfterAgentReply = mock.filter((o) => {
@@ -30,6 +31,9 @@ window.test = (topicId: string = "837333386617253888") => {
 
 	const lastMessageTime: null | number = null
 
+	superMagicStore.setTest(topicId)
+
+	// 串行推送
 	function run(i: number) {
 		const message = mock[i]
 		if (!message) {
@@ -38,21 +42,21 @@ window.test = (topicId: string = "837333386617253888") => {
 		// 获取当前消息节点传送过来的时间
 		const time = message?.send_time || message?.message?.send_time
 
-		if (message?.type === "raw") {
+		if (message?.type === "super_magic_chunk") {
 			set(message, ["topic_id"], topicId)
-			pubsub.publish("super_magic_stream_message", message)
+			pubsub.publish("super_magic_chunk_message", message)
 			setTimeout(() => {
 				run(i + 1)
-			}, 10)
+			}, 100)
 		} else {
-			// set(message, ["message", "send_time"], Date.now() / 1000)
-			set(message, ["message", "topic_id"], topicId)
-			set(message, ["message", "general_agent_card", "topic_id"], "83773982673888888")
-			superMagicStore.enqueueMessage(topicId, { seq: message })
+			set(message, ["message", "send_time"], Date.now() / 1000)
 
 			setTimeout(() => {
+				set(message, ["message", "topic_id"], topicId)
+				set(message, ["message", "super_magic_message", "topic_id"], "83773982673888888")
+				superMagicStore.enqueueMessage(topicId, { seq: message })
 				run(i + 1)
-			}, 50)
+			}, 100)
 		}
 		// console.log(
 		// 	"time",
@@ -70,5 +74,47 @@ window.test = (topicId: string = "837333386617253888") => {
 		// )
 	}
 
-	run(0)
+	// // 并发推送
+	// function run() {
+
+	// 	function send(array: any[], i: number) {
+	// 		const message = array[i]
+	// 		if (!message) {
+	// 			return
+	// 		}
+
+	// 		if (message?.type === "super_magic_chunk") {
+	// 			set(message, ["topic_id"], topicId)
+	// 			pubsub.publish("super_magic_chunk_message", message)
+	// 			setTimeout(() => {
+	// 				send(array, i + 1)
+	// 			}, 50)
+	// 		} else {
+	// 			// 获取当前消息节点传送过来的时间
+	// 			set(message, ["message", "send_time"], Date.now() / 1000)
+
+	// 			setTimeout(() => {
+	// 				set(message, ["message", "topic_id"], topicId)
+	// 				set(message, ["message", "super_magic_message", "topic_id"], "83773982673888888")
+	// 				superMagicStore.enqueueMessage(topicId, { seq: message })
+	// 				send(array, i + 1)
+	// 			}, 1000)
+	// 		}
+	// 	}
+	// 	const [a, b, ...c] = mock
+	// 	const messageA = c.filter((o) => o?.type === "super_magic_chunk")
+	// 	const messageB = c.filter((o) => o?.type !== "super_magic_chunk")
+
+	// 	superMagicStore.enqueueMessage(topicId, { seq: a })
+	// 	superMagicStore.enqueueMessage(topicId, { seq: b })
+
+	// 	setTimeout(() => {
+	// 		send(messageB, 0)
+	// 		send(messageA, 2)
+	// 	}, 3000)
+	// }
+
+	setTimeout(() => {
+		run(0)
+	}, 1000)
 }

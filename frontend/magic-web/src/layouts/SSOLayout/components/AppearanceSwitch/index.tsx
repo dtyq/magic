@@ -5,6 +5,7 @@ import { Flex } from "antd"
 import { createStyles } from "antd-style"
 import { useMemoizedFn } from "ahooks"
 import { magic } from "@/enhance/magicElectron"
+import { IS_DARK_MODE_DISABLED } from "@/constants/theme"
 import { useTheme } from "@/models/config/hooks"
 
 const useStyles = createStyles(({ css, isDarkMode, token }) => {
@@ -48,6 +49,7 @@ function AppearenceSwitch() {
 	const { prefersColorScheme, setTheme } = useTheme()
 
 	const onThemeChange = useMemoizedFn(() => {
+		if (IS_DARK_MODE_DISABLED) return
 		setTheme(prefersColorScheme === "dark" ? "light" : "dark")
 		magic?.theme?.setTheme?.(prefersColorScheme === "dark" ? "light" : "dark")
 	})

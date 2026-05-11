@@ -20,12 +20,12 @@ const templateCache = new Map()
  */
 function buildCdnScriptTags({ includeRegisterSW = true } = {}) {
 	let tags = CDNUrl
-		? `<script src="${CDNUrl}/react/18.3.1/react.production.min.js" crossorigin="anonymous"></script>
-	<script src="${CDNUrl}/react-dom/18.3.1/react-dom.production.min.js" crossorigin="anonymous"></script>
-	<script src="${CDNUrl}/lodash/4.17.21/lodash.min.js" crossorigin="anonymous"></script>`
-		: `<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js" crossorigin="anonymous"></script>
+		? `<script defer src="${CDNUrl}/react/18.3.1/react.production.min.js" crossorigin="anonymous"></script>
+	<script defer src="${CDNUrl}/react-dom/18.3.1/react-dom.production.min.js" crossorigin="anonymous"></script>
+	<script defer src="${CDNUrl}/lodash/4.17.21/lodash.min.js" crossorigin="anonymous"></script>`
+		: `<script defer src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js" crossorigin="anonymous"></script>
 	`
 
 	if (Array.isArray(behaviorAnalysis)) {
@@ -36,7 +36,7 @@ function buildCdnScriptTags({ includeRegisterSW = true } = {}) {
 	}
 
 	if (includeRegisterSW) {
-		tags += `\n\t<script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script>`
+		tags += `\n\t<script defer id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script>`
 	}
 
 	return tags

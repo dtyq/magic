@@ -42,13 +42,20 @@ function SelectModeHeader({
 			<label className="flex cursor-pointer items-center gap-2 p-0">
 				<Checkbox
 					checked={isIndeterminate ? "indeterminate" : isAllSelected}
+					data-testid="file-select-all-checkbox"
 					onCheckedChange={handleCheckboxChange}
 				/>
 				<span className="text-sm font-medium leading-none text-foreground">
 					{t("topicFiles.selectAll")}
 				</span>
 			</label>
-			<Button variant="outline" size="sm" onClick={onCancel} className="h-7 px-3 py-2">
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={onCancel}
+				data-testid="file-select-cancel-button"
+				className="h-7 px-3 py-2"
+			>
 				<span className="text-sm font-medium leading-5">
 					{t("topicFiles.cancelSelect")}
 				</span>

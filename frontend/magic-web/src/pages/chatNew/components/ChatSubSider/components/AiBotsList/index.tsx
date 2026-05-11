@@ -41,7 +41,7 @@ function AiBotsList({
 						conversationId={item}
 						onClick={onConversationClick}
 						domIdPrefix={SegmentedKey.AiBots}
-				/>
+					/>
 				</div>
 			))}
 		</div>

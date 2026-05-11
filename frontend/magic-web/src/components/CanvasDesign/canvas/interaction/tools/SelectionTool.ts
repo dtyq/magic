@@ -2,7 +2,10 @@ import Konva from "konva"
 import type { ToolOptions } from "./BaseTool"
 import { BaseTool } from "./BaseTool"
 import type { LayerElement } from "../../types"
+import { CropRenderer } from "../CropRenderer"
+import { ExtendRenderer } from "../ExtendRenderer"
 import { isMultiSelectEvent } from "../shortcuts/modifierUtils"
+import { resolveManagedElementIdFromKonvaNode } from "../elementNodeUtils"
 
 /**
  * 选择工具 - 提供框选功能
@@ -181,10 +184,35 @@ export class SelectionTool extends BaseTool {
 		}
 	}
 
+	private isPointerInsideSelectedElementArea(pointerPos: { x: number; y: number }): boolean {
+		const layerTransform = this.canvas.contentLayer.getAbsoluteTransform().copy().invert()
+		const layerPos = layerTransform.point(pointerPos)
+		const adapter = this.canvas.elementManager.getNodeAdapter()
+		const selectedIds = this.canvas.selectionManager.getSelectedIds()
+
+		return selectedIds.some((elementId) => {
+			const bounds = adapter.getElementBounds(elementId)
+			if (!bounds) {
+				return false
+			}
+
+			return (
+				layerPos.x >= bounds.x &&
+				layerPos.x <= bounds.x + bounds.width &&
+				layerPos.y >= bounds.y &&
+				layerPos.y <= bounds.y + bounds.height
+			)
+		})
+	}
+
 	/**
 	 * 处理鼠标按下事件
 	 */
 	private handleMouseDown(e: Konva.KonvaEventObject<MouseEvent>): void {
+		if (this.canvas.eraserManager.getErasingElementId()) {
+			return
+		}
+
 		// 右键点击时不触发框选
 		if (e.evt.button === 2) {
 			return
@@ -201,25 +229,11 @@ export class SelectionTool extends BaseTool {
 			currentNode = currentNode.getParent()
 		}
 
-		// 检查是否点击了有效的元素
+		// 检查是否点击了有效的元素（含视频等内部 listening 子节点，需沿父链解析根 Group id）
 		const isValidElement = this.isValidElementNode(clickedNode)
 
 		if (isValidElement) {
-			// 获取被点击元素的 ID
-			// 如果点击的是 hit-area 节点，使用其 ID（即父 Group 的 ID）
-			let elementId = clickedNode.id()
-
-			// 如果当前节点没有 ID，但它是 hit-area 且父节点是 Group，使用父节点的 ID
-			if (
-				!elementId &&
-				clickedNode.name() === "hit-area" &&
-				clickedNode.getParent() instanceof Konva.Group
-			) {
-				const parent = clickedNode.getParent()
-				if (parent) {
-					elementId = parent.id()
-				}
-			}
+			const elementId = resolveManagedElementIdFromKonvaNode(clickedNode, this.canvas)
 
 			if (elementId) {
 				// 检查是否按住 Cmd/Ctrl 键（多选）
@@ -232,7 +246,7 @@ export class SelectionTool extends BaseTool {
 					// 单选模式：如果点击的不是已选中的元素，选中它
 					// 如果点击的是已选中的元素，保持选中（允许拖拽）
 					if (!this.canvas.selectionManager.isSelected(elementId)) {
-						this.canvas.selectionManager.select(elementId, false)
+						this.canvas.selectionManager.replaceSelection([elementId])
 					}
 				}
 			}
@@ -245,6 +259,29 @@ export class SelectionTool extends BaseTool {
 			clickedNode.getClassName() === "Transformer" ||
 			clickedNode.getParent()?.getClassName() === "Transformer"
 		) {
+			return
+		}
+
+		// 命中多选代理矩形时，区分“元素区域拖拽”和“框内空白取消选中”
+		if (clickedNode.name() === "multi-selection-proxy") {
+			const pos = this.canvas.stage.getPointerPosition()
+			if (pos && this.isPointerInsideSelectedElementArea(pos)) {
+				return
+			}
+
+			const isMultiSelect = isMultiSelectEvent(e.evt)
+			if (!isMultiSelect) {
+				this.canvas.selectionManager.deselectAll()
+			}
+			return
+		}
+
+		// 检查是否点击了裁剪 overlay，若是则不做任何处理，避免触发选中/取消选中导致退出裁剪模式
+		if (CropRenderer.isCropOverlayNode(clickedNode)) {
+			return
+		}
+
+		if (ExtendRenderer.isExtendOverlayNode(clickedNode)) {
 			return
 		}
 
@@ -293,6 +330,10 @@ export class SelectionTool extends BaseTool {
 	 * 处理鼠标移动事件
 	 */
 	private handleMouseMove(): void {
+		if (this.canvas.eraserManager.getErasingElementId()) {
+			return
+		}
+
 		if (!this.isSelecting || !this.startPoint || !this.toolSelectionRect) {
 			return
 		}
@@ -345,6 +386,10 @@ export class SelectionTool extends BaseTool {
 		window.removeEventListener("mousemove", this.handleWindowMouseMove)
 		// 停止边缘滚动
 		this.stopEdgeScroll()
+
+		if (this.canvas.eraserManager.getErasingElementId()) {
+			return
+		}
 
 		if (!this.isSelecting || !this.startPoint || !this.toolSelectionRect) {
 			return
@@ -439,25 +484,9 @@ export class SelectionTool extends BaseTool {
 			return false
 		}
 
-		// 处理 hit-area 节点：hit 节点继承父 Group 的 ID，可以直接识别
-		// 如果点击的是 hit-area，使用其 ID（即父 Group 的 ID）来选中
-		let elementId = node.id()
+		const elementId = resolveManagedElementIdFromKonvaNode(node, this.canvas)
 
-		// 如果当前节点没有 ID，但它是 hit-area 且父节点是 Group，使用父节点的 ID
-		if (!elementId && node.name() === "hit-area" && node.getParent() instanceof Konva.Group) {
-			const parent = node.getParent()
-			if (parent) {
-				elementId = parent.id()
-			}
-		}
-
-		// 必须有 ID 才是有效的元素
 		if (!elementId) {
-			return false
-		}
-
-		// 检查是否是 ElementManager 管理的元素
-		if (!this.canvas.elementManager.hasElement(elementId)) {
 			return false
 		}
 

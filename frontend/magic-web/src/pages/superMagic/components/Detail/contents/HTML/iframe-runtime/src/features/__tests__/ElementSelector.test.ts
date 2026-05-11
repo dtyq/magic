@@ -172,6 +172,33 @@ describe("ElementSelector", () => {
 				}),
 			)
 		})
+
+		it("should include intrinsic image metadata when selecting an image", () => {
+			container.innerHTML = '<img id="image" src="test.jpg" width="320" height="180" />'
+			const element = container.querySelector("#image") as HTMLImageElement
+
+			Object.defineProperty(element, "naturalWidth", {
+				configurable: true,
+				value: 640,
+			})
+			Object.defineProperty(element, "naturalHeight", {
+				configurable: true,
+				value: 360,
+			})
+
+			selector.selectElement(element)
+
+			expect(sendEventSpy).toHaveBeenCalledWith(
+				"ELEMENT_SELECTED",
+				expect.objectContaining({
+					tagName: "img",
+					isImageElement: true,
+					intrinsicWidth: 640,
+					intrinsicHeight: 360,
+					intrinsicAspectRatio: 640 / 360,
+				}),
+			)
+		})
 	})
 
 	describe("deselectElement", () => {
@@ -598,6 +625,58 @@ describe("ElementSelector", () => {
 				tagName: "div",
 				selector: expect.stringContaining("element"),
 			})
+		})
+
+		it("should include intrinsic image metadata in multi-select payloads", () => {
+			container.innerHTML = `
+				<img id="image-1" src="one.jpg" />
+				<img id="image-2" src="two.jpg" />
+			`
+			const image1 = container.querySelector("#image-1") as HTMLImageElement
+			const image2 = container.querySelector("#image-2") as HTMLImageElement
+
+			Object.defineProperty(image1, "naturalWidth", {
+				configurable: true,
+				value: 800,
+			})
+			Object.defineProperty(image1, "naturalHeight", {
+				configurable: true,
+				value: 400,
+			})
+			Object.defineProperty(image2, "naturalWidth", {
+				configurable: true,
+				value: 300,
+			})
+			Object.defineProperty(image2, "naturalHeight", {
+				configurable: true,
+				value: 200,
+			})
+
+			selector.selectElement(image1, false)
+			sendEventSpy.mockClear()
+			selector.selectElement(image2, true)
+
+			expect(sendEventSpy).toHaveBeenCalledWith(
+				"ELEMENTS_SELECTED",
+				expect.objectContaining({
+					elements: expect.arrayContaining([
+						expect.objectContaining({
+							selector: expect.stringContaining("image-1"),
+							isImageElement: true,
+							intrinsicWidth: 800,
+							intrinsicHeight: 400,
+							intrinsicAspectRatio: 2,
+						}),
+						expect.objectContaining({
+							selector: expect.stringContaining("image-2"),
+							isImageElement: true,
+							intrinsicWidth: 300,
+							intrinsicHeight: 200,
+							intrinsicAspectRatio: 1.5,
+						}),
+					]),
+				}),
+			)
 		})
 
 		it("should not enable text editing in multi-select mode", () => {

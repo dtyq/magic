@@ -11,6 +11,7 @@ import { Ellipsis, Pencil, Trash2 } from "lucide-react"
 import type { ModelItem } from "../../types"
 import { ProviderTypeIcon } from "../ProviderTypeIcon"
 import type { MyModelGroup, MyModelProviderEntry } from "./utils"
+import { userStore } from "@/models/user"
 
 interface MyModelRowProps {
 	group: MyModelGroup
@@ -40,6 +41,9 @@ export function MyModelRow({
 		: ""
 	const extraProviderEntries = providerEntries.slice(1)
 	const moreProviderCount = extraProviderEntries.length
+
+	const { isPersonalOrganization, isAdmin } = userStore.user
+	const canManageModels = isPersonalOrganization || isAdmin
 
 	const handleSelect = () => onSelect?.(serviceProviderModelToModelItem(representativeModel))
 
@@ -74,20 +78,20 @@ export function MyModelRow({
 
 	const actionMenuItems = hasMultipleProviders
 		? buildGroupedActionMenuItems({
-			providerEntries,
-			multipleProviderHint: t("messageEditor.addModel.multipleProviderHint"),
-			editLabel: t("messageEditor.addModel.edit"),
-			deleteLabel: t("messageEditor.addModel.delete"),
-			onEdit,
-			onDelete,
-		})
+				providerEntries,
+				multipleProviderHint: t("messageEditor.addModel.multipleProviderHint"),
+				editLabel: t("messageEditor.addModel.edit"),
+				deleteLabel: t("messageEditor.addModel.delete"),
+				onEdit,
+				onDelete,
+			})
 		: buildModelActionMenuItems({
-			model: representativeModel,
-			editLabel: t("messageEditor.addModel.edit"),
-			deleteLabel: t("messageEditor.addModel.delete"),
-			onEdit,
-			onDelete,
-		})
+				model: representativeModel,
+				editLabel: t("messageEditor.addModel.edit"),
+				deleteLabel: t("messageEditor.addModel.delete"),
+				onEdit,
+				onDelete,
+			})
 
 	return (
 		<div
@@ -116,91 +120,93 @@ export function MyModelRow({
 						{representativeModel.description}
 					</p>
 				</div>
-				<div className="mt-1 flex items-center gap-2">
-					<div className="min-w-0">
-						{primaryProviderName && (
-							<div className="flex items-center gap-1">
-								<span
-									className="inline-flex max-w-full items-center rounded-md border border-border bg-background px-2 py-0.5 text-xs font-medium"
-									data-testid={`my-model-provider-badge-${representativeModel.id}`}
-								>
-									<span className="truncate">{primaryProviderName}</span>
-								</span>
-								{hasMultipleProviders && (
-									<div className="group/provider-more relative">
-										<button
-											type="button"
-											className="inline-flex h-5 items-center rounded-md border border-border bg-background px-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none"
-											data-stop-model-select="true"
-											data-testid={`my-model-provider-more-${representativeModel.id}`}
-											onPointerDown={handleActionTriggerPointerDown}
-										>
-											+{moreProviderCount}
-										</button>
-										<div
-											className={cn(
-												"pointer-events-none absolute left-0 top-[calc(100%+6px)] z-popup min-w-[180px] rounded-lg border bg-popover p-1.5 text-popover-foreground opacity-0 shadow-md transition-opacity",
-												"group-hover/provider-more:pointer-events-auto group-hover/provider-more:opacity-100",
-												"group-focus-within/provider-more:pointer-events-auto group-focus-within/provider-more:opacity-100",
-											)}
-											data-testid={`my-model-provider-more-content-${representativeModel.id}`}
-										>
-											<div className="flex flex-col gap-0.5">
-												{extraProviderEntries.map((providerEntry) => (
-													<div
-														key={providerEntry.model.id}
-														className="flex items-center gap-2 rounded-md px-2 py-1.5"
-														data-testid={`my-model-provider-more-item-${providerEntry.model.id}`}
-													>
-														<ProviderListIcon
-															providerEntry={providerEntry}
-														/>
-														<ProviderListLabel
-															providerEntry={providerEntry}
-														/>
-													</div>
-												))}
+				{canManageModels && (
+					<div className="mt-1 flex items-center gap-2">
+						<div className="min-w-0">
+							{primaryProviderName && (
+								<div className="flex items-center gap-1">
+									<span
+										className="inline-flex max-w-full items-center rounded-md border border-border bg-background px-2 py-0.5 text-xs font-medium"
+										data-testid={`my-model-provider-badge-${representativeModel.id}`}
+									>
+										<span className="truncate">{primaryProviderName}</span>
+									</span>
+									{hasMultipleProviders && (
+										<div className="group/provider-more relative">
+											<button
+												type="button"
+												className="inline-flex h-5 items-center rounded-md border border-border bg-background px-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none"
+												data-stop-model-select="true"
+												data-testid={`my-model-provider-more-${representativeModel.id}`}
+												onPointerDown={handleActionTriggerPointerDown}
+											>
+												+{moreProviderCount}
+											</button>
+											<div
+												className={cn(
+													"pointer-events-none absolute left-0 top-[calc(100%+6px)] z-popup min-w-[180px] rounded-lg border bg-popover p-1.5 text-popover-foreground opacity-0 shadow-md transition-opacity",
+													"group-hover/provider-more:pointer-events-auto group-hover/provider-more:opacity-100",
+													"group-focus-within/provider-more:pointer-events-auto group-focus-within/provider-more:opacity-100",
+												)}
+												data-testid={`my-model-provider-more-content-${representativeModel.id}`}
+											>
+												<div className="flex flex-col gap-0.5">
+													{extraProviderEntries.map((providerEntry) => (
+														<div
+															key={providerEntry.model.id}
+															className="flex items-center gap-2 rounded-md px-2 py-1.5"
+															data-testid={`my-model-provider-more-item-${providerEntry.model.id}`}
+														>
+															<ProviderListIcon
+																providerEntry={providerEntry}
+															/>
+															<ProviderListLabel
+																providerEntry={providerEntry}
+															/>
+														</div>
+													))}
+												</div>
 											</div>
 										</div>
-									</div>
-								)}
-							</div>
-						)}
-					</div>
-					<MagicDropdown
-						placement="bottomRight"
-						onOpenChange={handleActionMenuOpenChange}
-						overlayClassName={cn(
-							"min-w-[200px] rounded-lg shadow-md",
-							"[&_[data-slot=dropdown-menu-label]]:p-0",
-							"[&_[data-slot=dropdown-menu-item]]:rounded-md",
-							"[&_[data-slot=dropdown-menu-item]]:px-2",
-							"[&_[data-slot=dropdown-menu-item]]:py-1.5",
-							"[&_[data-slot=dropdown-menu-sub-trigger]]:rounded-md",
-							"[&_[data-slot=dropdown-menu-sub-trigger]]:px-2",
-							"[&_[data-slot=dropdown-menu-sub-trigger]]:py-1.5",
-							"[&_[data-slot=dropdown-menu-sub-content]]:min-w-[160px]",
-						)}
-						menu={{ items: actionMenuItems }}
-					>
-						<span
-							className="flex items-center justify-center"
-							data-stop-model-select="true"
-							onPointerDown={handleActionTriggerPointerDown}
+									)}
+								</div>
+							)}
+						</div>
+						<MagicDropdown
+							placement="bottomRight"
+							onOpenChange={handleActionMenuOpenChange}
+							overlayClassName={cn(
+								"min-w-[200px] rounded-lg shadow-md",
+								"[&_[data-slot=dropdown-menu-label]]:p-0",
+								"[&_[data-slot=dropdown-menu-item]]:rounded-md",
+								"[&_[data-slot=dropdown-menu-item]]:px-2",
+								"[&_[data-slot=dropdown-menu-item]]:py-1.5",
+								"[&_[data-slot=dropdown-menu-sub-trigger]]:rounded-md",
+								"[&_[data-slot=dropdown-menu-sub-trigger]]:px-2",
+								"[&_[data-slot=dropdown-menu-sub-trigger]]:py-1.5",
+								"[&_[data-slot=dropdown-menu-sub-content]]:min-w-[160px]",
+							)}
+							menu={{ items: actionMenuItems }}
 						>
-							<Button
-								variant="outline"
-								size="sm"
-								className="h-5 w-5 shrink-0 border p-0 shadow-none"
+							<span
+								className="flex items-center justify-center"
 								data-stop-model-select="true"
 								onPointerDown={handleActionTriggerPointerDown}
-								data-testid={`my-model-actions-${representativeModel.id}`}
 							>
-								<Ellipsis size={16} />
-							</Button>
-						</span>
-					</MagicDropdown>
-				</div>
+								<Button
+									variant="outline"
+									size="sm"
+									className="h-5 w-5 shrink-0 border p-0 shadow-none"
+									data-stop-model-select="true"
+									onPointerDown={handleActionTriggerPointerDown}
+									data-testid={`my-model-actions-${representativeModel.id}`}
+								>
+									<Ellipsis size={16} />
+								</Button>
+							</span>
+						</MagicDropdown>
+					</div>
+				)}
 			</div>
 			<Checkbox
 				checked={isSelected}

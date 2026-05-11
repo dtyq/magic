@@ -5,6 +5,7 @@ import type {
 	AggregateAISearchCardConversationMessageV2,
 	ConversationMessage,
 	SuperMagicContent,
+	SuperMagicContentV2,
 } from "./conversation_message"
 import type { ControlMessage } from "./control_message"
 import type { ConversationFromService } from "./conversation"
@@ -82,3 +83,4 @@ export type CMessage =
 	| AggregateAISearchCardConversationMessage<true>
 	| AggregateAISearchCardConversationMessageV2
 	| SuperMagicContent
+	| SuperMagicContentV2

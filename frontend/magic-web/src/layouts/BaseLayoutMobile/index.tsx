@@ -76,30 +76,31 @@ const BaseLayoutMobile = () => {
 		return shouldDisableGlobalSafeArea(location.pathname, location.search)
 	}, [location.pathname, location.search])
 
+	const hasVisibleTabBar = shouldShowTabBar && interfaceStore.mobileTabBarVisible
+
 	return (
 		<ConfigProvider>
-			<GlobalSafeArea direction="top" />
-			<div
-				className={cx(styles.container, {
-					[styles.view]: shouldShowTabBar && interfaceStore.mobileTabBarVisible,
-					[styles.noGlobalSafeAreaWithoutTabBar]:
-						(!shouldShowTabBar || !interfaceStore.mobileTabBarVisible) &&
-						isNoGlobalSafeArea,
-					[styles.noGlobalSafeAreaWithTabBar]:
-						shouldShowTabBar &&
-						interfaceStore.mobileTabBarVisible &&
-						isNoGlobalSafeArea,
-				})}
-				onClick={handleClick}
-			>
-				{Content}
+			<div className={styles.root}>
+				<GlobalSafeArea direction="top" />
+				<div
+					className={cx(styles.container, {
+						[styles.view]: hasVisibleTabBar,
+						[styles.noGlobalSafeAreaWithoutTabBar]:
+							(!shouldShowTabBar || !interfaceStore.mobileTabBarVisible) &&
+							isNoGlobalSafeArea,
+						[styles.noGlobalSafeAreaWithTabBar]: hasVisibleTabBar && isNoGlobalSafeArea,
+					})}
+					onClick={handleClick}
+				>
+					{Content}
+				</div>
+				{hasVisibleTabBar && (
+					<Suspense fallback={null}>
+						<MobileTabBar />
+					</Suspense>
+				)}
+				<GlobalSafeArea direction="bottom" />
 			</div>
-			{shouldShowTabBar && interfaceStore.mobileTabBarVisible && (
-				<Suspense fallback={null}>
-					<MobileTabBar />
-				</Suspense>
-			)}
-			<GlobalSafeArea direction="bottom" />
 			{/* <ComponentRender componentName={DefaultComponents.GlobalMobileSidebar} /> */}
 			<OrganizationSwitchPanel />
 			{/* 全局文件夹上传进度组件 */}

@@ -158,6 +158,21 @@ export class StoreCrewStore {
 		})
 	}
 
+	/** Refetch categories + agents after locale change (server i18n fields). */
+	refreshAfterLanguageChange() {
+		runInAction(() => {
+			this.categoriesLoaded = false
+			this.categories = []
+			this.categoriesLoading = false
+		})
+		void this.fetchCategories()
+		void this.fetchAgents({
+			page: 1,
+			keyword: toOptionalKeyword(this.keyword),
+			category_id: this.categoryId,
+		})
+	}
+
 	reset() {
 		this.list = []
 		this.total = 0

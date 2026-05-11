@@ -1,53 +1,25 @@
 import { useEffect, useState, useRef } from "react"
 import { reaction } from "mobx"
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
+import { CanvasMarkerMentionData, MentionItemType } from "@/components/business/MentionPanel/types"
 import {
-	CanvasMarkerMentionData,
-	TransformedCanvasMarkerMentionData,
-	MentionItemType,
-} from "@/components/business/MentionPanel/types"
+	getCanvasMarkerMentionImagePath,
+	normalizeCanvasMarkerMentionData,
+} from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 import projectFilesStore from "@/stores/projectFiles"
 import { getFileInfoByPath } from "@/pages/superMagic/components/Detail/contents/Design/utils/designFileInfoCache"
-import {
-	MarkerTypeEnum,
-	type Marker,
-	type MarkerArea,
-	type MarkerPoint,
-} from "@/components/CanvasDesign/canvas/types"
-import type {
-	IdentifyImageMarkResponse,
-	IdentifyImageMarkAreaResponse,
-	IdentifyImageMarkPointResponse,
-} from "@/components/CanvasDesign/types.magic"
 
-function normalizePath(path: string) {
-	if (!path) return ""
-	return path.replace(/^\/+|\/+$/g, "")
-}
-
-export function isCanvasMarkerMentionData(
-	data: CanvasMarkerMentionData | TransformedCanvasMarkerMentionData,
-): data is CanvasMarkerMentionData {
-	return "image_path" in data && "data" in data && data.data !== null
-}
-
-export function isTransformedCanvasMarkerMentionData(
-	data: CanvasMarkerMentionData | TransformedCanvasMarkerMentionData,
-): data is TransformedCanvasMarkerMentionData {
-	return "image" in data && !("image_path" in data)
-}
-
-async function transformMarkerData(
-	transformedMarkerData: TransformedCanvasMarkerMentionData,
+async function hydrateMarkerImageSize(
+	markerData: CanvasMarkerMentionData,
 ): Promise<CanvasMarkerMentionData | null> {
-	const normalizedPath = normalizePath(transformedMarkerData.image)
-	if (!normalizedPath) {
-		return null
-	}
+	const imagePath = getCanvasMarkerMentionImagePath(markerData)
+	if (!imagePath) return markerData
 
-	const fileInfo = await getFileInfoByPath(transformedMarkerData.image)
+	const fileInfo = await getFileInfoByPath(imagePath, undefined, {
+		useImageProcess: true,
+	})
 	if (!fileInfo?.src) {
-		return null
+		return markerData
 	}
 
 	const img = new Image()
@@ -60,78 +32,11 @@ async function transformMarkerData(
 
 	const naturalWidth = img.naturalWidth
 	const naturalHeight = img.naturalHeight
-	const relativeX = transformedMarkerData.mark?.[0] ?? transformedMarkerData.area?.[0] ?? 0
-	const relativeY = transformedMarkerData.mark?.[1] ?? transformedMarkerData.area?.[1] ?? 0
-
-	let markResult: IdentifyImageMarkResponse | undefined
-	if (transformedMarkerData.bbox) {
-		const baseResult = {
-			file_path: transformedMarkerData.image,
-			project_id: "",
-			suggestion: transformedMarkerData.label,
-			suggestions: [
-				{
-					label: transformedMarkerData.label,
-					kind: transformedMarkerData.kind,
-					bbox: transformedMarkerData.bbox,
-				},
-			],
-		}
-
-		if (transformedMarkerData.mark_type === MarkerTypeEnum.Area && transformedMarkerData.area) {
-			markResult = {
-				...baseResult,
-				type: MarkerTypeEnum.Area,
-				area: transformedMarkerData.area,
-			} as IdentifyImageMarkAreaResponse
-		} else if (
-			transformedMarkerData.mark_type === MarkerTypeEnum.Mark &&
-			transformedMarkerData.mark
-		) {
-			markResult = {
-				...baseResult,
-				type: MarkerTypeEnum.Mark,
-				mark: transformedMarkerData.mark,
-			} as IdentifyImageMarkPointResponse
-		}
-	}
-
-	let markerData: Marker
-
-	if (transformedMarkerData.mark_type === MarkerTypeEnum.Area && transformedMarkerData.area) {
-		const [, , pixelWidth, pixelHeight] = transformedMarkerData.area
-		const areaMarker: MarkerArea = {
-			id: "",
-			elementId: "",
-			type: MarkerTypeEnum.Area,
-			relativeX,
-			relativeY,
-			areaWidth: pixelWidth / naturalWidth,
-			areaHeight: pixelHeight / naturalHeight,
-			result: markResult,
-			selectedSuggestionIndex: 0,
-		}
-		markerData = areaMarker
-	} else {
-		const pointMarker: MarkerPoint = {
-			id: "",
-			elementId: "",
-			type: MarkerTypeEnum.Mark,
-			relativeX,
-			relativeY,
-			result: markResult,
-			selectedSuggestionIndex: 0,
-		}
-		markerData = pointMarker
-	}
 
 	return {
-		loading: false,
-		mark_number: transformedMarkerData.mark_number,
-		image_path: transformedMarkerData.image,
+		...markerData,
 		element_width: naturalWidth,
 		element_height: naturalHeight,
-		data: markerData,
 	}
 }
 
@@ -142,10 +47,10 @@ export function useTransformedMarkerData(
 	const [transformedData, setTransformedData] = useState<CanvasMarkerMentionData | null>(null)
 	const [loading, setLoading] = useState(false)
 	const cancelledRef = useRef(false)
-	const markerDataRef = useRef<TransformedCanvasMarkerMentionData | null>(null)
+	const markerDataRef = useRef<CanvasMarkerMentionData | null>(null)
 
-	const performTransform = (markerData: TransformedCanvasMarkerMentionData) => {
-		if (!markerData.image) {
+	const performHydrate = (markerData: CanvasMarkerMentionData) => {
+		if (!getCanvasMarkerMentionImagePath(markerData)) {
 			setTransformedData(null)
 			setLoading(false)
 			return
@@ -161,16 +66,16 @@ export function useTransformedMarkerData(
 		}
 
 		setLoading(true)
-		transformMarkerData(markerData)
+		hydrateMarkerImageSize(markerData)
 			.then((result) => {
 				if (!cancelledRef.current) {
 					setTransformedData(result)
 				}
 			})
 			.catch((error) => {
-				console.error("[useTransformedMarkerData] Failed to transform marker data:", error)
+				console.error("[useTransformedMarkerData] Failed to hydrate marker data:", error)
 				if (!cancelledRef.current) {
-					setTransformedData(null)
+					setTransformedData(markerData)
 				}
 			})
 			.finally(() => {
@@ -190,35 +95,25 @@ export function useTransformedMarkerData(
 			return
 		}
 
-		const markerData = data.data as CanvasMarkerMentionData | TransformedCanvasMarkerMentionData
+		const markerData = normalizeCanvasMarkerMentionData(data.data)
 
-		if (!isInMessageList) {
-			if (isCanvasMarkerMentionData(markerData)) {
-				setTransformedData(markerData)
-			} else {
-				setTransformedData(null)
-			}
-			setLoading(false)
-			markerDataRef.current = null
-			return
-		}
-
-		if (isCanvasMarkerMentionData(markerData)) {
-			setTransformedData(markerData)
-			setLoading(false)
-			markerDataRef.current = null
-			return
-		}
-
-		if (!isTransformedCanvasMarkerMentionData(markerData)) {
+		if (!markerData) {
 			setTransformedData(null)
 			setLoading(false)
 			markerDataRef.current = null
 			return
 		}
 
+		// 编辑态和已带尺寸的消息态可直接渲染；旧消息缺尺寸时再异步补图像尺寸，供 tooltip 定位使用。
+		if (!isInMessageList || markerData.element_width || markerData.element_height) {
+			setTransformedData(markerData)
+			setLoading(false)
+			markerDataRef.current = null
+			return
+		}
+
 		markerDataRef.current = markerData
-		performTransform(markerData)
+		performHydrate(markerData)
 
 		return () => {
 			cancelledRef.current = true
@@ -230,6 +125,7 @@ export function useTransformedMarkerData(
 			return
 		}
 
+		// 历史消息刷新时附件列表可能晚于消息到达，等附件加载后再补一次图片尺寸。
 		const disposer = reaction(
 			() => projectFilesStore.workspaceFilesList,
 			(attachmentList) => {
@@ -239,7 +135,7 @@ export function useTransformedMarkerData(
 					markerDataRef.current &&
 					!cancelledRef.current
 				) {
-					performTransform(markerDataRef.current)
+					performHydrate(markerDataRef.current)
 				}
 			},
 			{ fireImmediately: false },

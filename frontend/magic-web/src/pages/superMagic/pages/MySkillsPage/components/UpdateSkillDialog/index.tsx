@@ -12,7 +12,6 @@ import { Button } from "@/components/shadcn-ui/button"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import IdentityStep from "@/pages/superMagic/components/ImportSkillDialog/components/IdentityStep"
 import {
-	createEmptySkillI18nText,
 	createInitialSkillIdentityData,
 	normalizeSkillI18nText,
 } from "@/pages/superMagic/components/ImportSkillDialog/types"
@@ -36,8 +35,8 @@ function mapParseResultToIdentity(r: ParseSkillResponse): SkillIdentityData {
 	return {
 		iconUrl: r.logo || undefined,
 		name: normalizeSkillI18nText(r.name_i18n, r.package_name),
-		role: createEmptySkillI18nText(),
 		description: normalizeSkillI18nText(r.description_i18n, r.package_description),
+		source: normalizeSkillI18nText(r.source_i18n),
 	}
 }
 
@@ -82,6 +81,7 @@ function UpdateSkillDialog({ open, onOpenChange, parseResult, onSuccess }: Updat
 				import_token: parseResult.import_token,
 				name_i18n: identity.name,
 				description_i18n: identity.description,
+				source_i18n: identity.source,
 				logo,
 			})
 
@@ -107,7 +107,7 @@ function UpdateSkillDialog({ open, onOpenChange, parseResult, onSuccess }: Updat
 					</DialogTitle>
 				</DialogHeader>
 
-				<ScrollArea className="flex h-[452px] flex-col gap-2.5 overflow-y-auto p-4">
+				<ScrollArea className="flex max-h-[80vh] min-h-[452px] flex-col gap-2.5 overflow-y-auto p-4">
 					<IdentityStep identity={identity} onChange={setIdentity} />
 				</ScrollArea>
 

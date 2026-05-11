@@ -4,11 +4,13 @@ import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-
 import type { VoiceInputRef } from "@/components/business/VoiceInput"
 import magicToast from "@/components/base/MagicToaster/utils"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
+import projectFilesStore from "@/stores/projectFiles"
 import { logger as Logger } from "@/utils/log"
 import { replaceSuperPlaceholderToString } from "../extensions/super-placeholder/utils"
 import type { MessageEditorStore } from "../stores"
 import { ModelStatusEnum, type MessageEditorProps } from "../types"
 import { isEmptyJSONContent } from "../utils"
+import { transformMarkerImagePathsToWorkspaceAbsolute } from "../utils/mention"
 
 const logger = Logger.createLogger("SuperMagicMessageEditor")
 
@@ -37,10 +39,8 @@ export default function useMessageSendHandler({
 	collectMentionItemsFromEditor,
 	isMountedRef,
 }: UseMessageSendHandlerParams) {
-	return useMemoizedFn(() => {
-		if (voiceInputRef.current?.isRecording) {
-			voiceInputRef.current.stopRecording()
-		}
+	return useMemoizedFn(async () => {
+		if (voiceInputRef.current?.isRecording) voiceInputRef.current.stopRecording()
 
 		if (!canSendMessage) {
 			if (hasLoadingMarker) {
@@ -78,7 +78,12 @@ export default function useMessageSendHandler({
 		let content
 		try {
 			content = store.editorStore.value
-				? replaceSuperPlaceholderToString(store.editorStore.value, { validate: true })
+				? transformMarkerImagePathsToWorkspaceAbsolute(
+						replaceSuperPlaceholderToString(store.editorStore.value, {
+							validate: true,
+						}),
+						projectFilesStore.workspaceFilesList,
+					)
 				: undefined
 		} catch (error: unknown) {
 			const validationError = error as Error & {
@@ -98,13 +103,15 @@ export default function useMessageSendHandler({
 		}
 
 		store.draftStore.startSendingGuard()
+		const mentionItems = collectMentionItemsFromEditor()
 
 		onSend?.({
 			value: content,
 			topicMode,
-			mentionItems: collectMentionItemsFromEditor(),
+			mentionItems,
 			selectedModel,
 			selectedImageModel: store.topicModelStore.selectedImageModel,
+			selectedVideoModel: store.topicModelStore.selectedVideoModel,
 		})
 
 		store.draftStore.createSentDraft({

@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react"
+import {
+	FIXED_TOPIC_HISTORY_REQUIRED_WIDTH,
+	MIN_DETAIL_PANEL_WIDTH_FOR_FIXED_TOPIC_HISTORY,
+	RESIZABLE_PANEL_HANDLE_WIDTH,
+	TOPIC_HISTORY_PANEL_WIDTH,
+} from "../../../constants/resizablePanel"
 
 interface UseTopicDesktopPanelMotionOptions {
 	isReadOnly: boolean
+	isTopicHistoryPanelOpen?: boolean
 	showProjectResizeHandle?: boolean
 	shouldShowDetailPanel: boolean
 	containerWidthPx: number
@@ -21,17 +28,61 @@ interface UseTopicDesktopPanelMotionReturn {
 	messagePanelTransition: string
 	detailContentTransform: string
 	detailContentTransition: string
+	middleContainerWidth: number
+	canShowFixedTopicHistory: boolean
+	topicHistoryMode: TopicHistoryMode
+	topicHistoryPanelWidth: number
 	targetMessagePanelWidth: number
 	targetRightHandleWidth: number
 	targetDetailPanelWidth: number
 }
 
-const RESIZE_HANDLE_WIDTH = 8
 const OPENING_DURATION_MS = 380
 const CLOSING_DURATION_MS = 300
 
+type TopicHistoryMode = "hidden" | "full-right" | "fixed" | "drawer"
+
+function getMiddleContainerWidth({
+	containerWidthPx,
+	projectSiderWidthPx,
+	showProjectResizeHandle,
+}: {
+	containerWidthPx: number
+	projectSiderWidthPx: number
+	showProjectResizeHandle: boolean
+}) {
+	if (containerWidthPx <= 0) return 0
+	const leftHandleWidth = showProjectResizeHandle ? RESIZABLE_PANEL_HANDLE_WIDTH : 0
+	return Math.max(0, containerWidthPx - projectSiderWidthPx - leftHandleWidth)
+}
+
+function getTopicHistoryMode({
+	isReadOnly,
+	isTopicHistoryPanelOpen,
+	shouldShowDetailPanel,
+	canShowFixedTopicHistory,
+}: {
+	isReadOnly: boolean
+	isTopicHistoryPanelOpen: boolean
+	shouldShowDetailPanel: boolean
+	canShowFixedTopicHistory: boolean
+}): TopicHistoryMode {
+	if (isReadOnly || !isTopicHistoryPanelOpen) return "hidden"
+	if (!shouldShowDetailPanel) return "full-right"
+	if (!canShowFixedTopicHistory) return "drawer"
+	return "fixed"
+}
+
+function getReservedTopicHistoryPanelWidth(topicHistoryMode: TopicHistoryMode) {
+	if (topicHistoryMode === "fixed" || topicHistoryMode === "full-right") {
+		return TOPIC_HISTORY_PANEL_WIDTH
+	}
+	return 0
+}
+
 export function useTopicDesktopPanelMotion({
 	isReadOnly,
+	isTopicHistoryPanelOpen = false,
 	showProjectResizeHandle = !isReadOnly,
 	shouldShowDetailPanel,
 	containerWidthPx,
@@ -130,36 +181,86 @@ export function useTopicDesktopPanelMotion({
 	)
 
 	const middleContainerWidth = useMemo(() => {
-		if (containerWidthPx <= 0) return 0
-		const leftHandleWidth = showProjectResizeHandle ? RESIZE_HANDLE_WIDTH : 0
-		return Math.max(0, containerWidthPx - projectSiderWidthPx - leftHandleWidth)
+		return getMiddleContainerWidth({
+			containerWidthPx,
+			projectSiderWidthPx,
+			showProjectResizeHandle,
+		})
 	}, [containerWidthPx, projectSiderWidthPx, showProjectResizeHandle])
+
+	const canShowFixedTopicHistory = useMemo(() => {
+		if (isReadOnly || !isTopicHistoryPanelOpen) return false
+		if (!shouldShowDetailPanel) return true
+		return middleContainerWidth >= FIXED_TOPIC_HISTORY_REQUIRED_WIDTH
+	}, [isReadOnly, isTopicHistoryPanelOpen, middleContainerWidth, shouldShowDetailPanel])
+
+	const topicHistoryMode = useMemo(
+		() =>
+			getTopicHistoryMode({
+				isReadOnly,
+				isTopicHistoryPanelOpen,
+				shouldShowDetailPanel,
+				canShowFixedTopicHistory,
+			}),
+		[canShowFixedTopicHistory, isReadOnly, isTopicHistoryPanelOpen, shouldShowDetailPanel],
+	)
+
+	const topicHistoryPanelWidth = useMemo(() => {
+		if (topicHistoryMode === "hidden") return 0
+		return TOPIC_HISTORY_PANEL_WIDTH
+	}, [topicHistoryMode])
+
+	const reservedTopicHistoryPanelWidth = useMemo(
+		() => getReservedTopicHistoryPanelWidth(topicHistoryMode),
+		[topicHistoryMode],
+	)
+
+	const availablePanelWidth = useMemo(
+		() => Math.max(0, middleContainerWidth - reservedTopicHistoryPanelWidth),
+		[middleContainerWidth, reservedTopicHistoryPanelWidth],
+	)
 
 	const targetMessagePanelWidth = useMemo(() => {
 		if (isReadOnly) return 0
-		if (!shouldShowDetailPanel) return middleContainerWidth
+		if (!shouldShowDetailPanel) return availablePanelWidth
 		const preferredWidth = isConversationPanelCollapsed
 			? collapsedMessagePanelWidthPx
 			: messagePanelWidthPx
-		return Math.min(preferredWidth, middleContainerWidth)
+		if (topicHistoryMode !== "fixed") return Math.min(preferredWidth, availablePanelWidth)
+		const maxWidthForFixedTopicHistory = Math.max(
+			0,
+			availablePanelWidth -
+				MIN_DETAIL_PANEL_WIDTH_FOR_FIXED_TOPIC_HISTORY -
+				RESIZABLE_PANEL_HANDLE_WIDTH,
+		)
+		return Math.min(preferredWidth, maxWidthForFixedTopicHistory)
 	}, [
+		availablePanelWidth,
 		collapsedMessagePanelWidthPx,
 		isConversationPanelCollapsed,
 		isReadOnly,
 		messagePanelWidthPx,
-		middleContainerWidth,
 		shouldShowDetailPanel,
+		topicHistoryMode,
 	])
 
 	const targetRightHandleWidth = useMemo(() => {
 		if (isReadOnly || !shouldShowDetailPanel) return 0
-		return RESIZE_HANDLE_WIDTH
+		return RESIZABLE_PANEL_HANDLE_WIDTH
 	}, [isReadOnly, shouldShowDetailPanel])
 
 	const targetDetailPanelWidth = useMemo(() => {
 		if (isReadOnly) return middleContainerWidth
-		return Math.max(0, middleContainerWidth - targetMessagePanelWidth - targetRightHandleWidth)
-	}, [isReadOnly, middleContainerWidth, targetMessagePanelWidth, targetRightHandleWidth])
+		if (!shouldShowDetailPanel) return 0
+		return Math.max(0, availablePanelWidth - targetMessagePanelWidth - targetRightHandleWidth)
+	}, [
+		availablePanelWidth,
+		isReadOnly,
+		middleContainerWidth,
+		shouldShowDetailPanel,
+		targetMessagePanelWidth,
+		targetRightHandleWidth,
+	])
 
 	return {
 		panelResizeTransition,
@@ -168,6 +269,10 @@ export function useTopicDesktopPanelMotion({
 		messagePanelTransition,
 		detailContentTransform,
 		detailContentTransition,
+		middleContainerWidth,
+		canShowFixedTopicHistory,
+		topicHistoryMode,
+		topicHistoryPanelWidth,
 		targetMessagePanelWidth,
 		targetRightHandleWidth,
 		targetDetailPanelWidth,

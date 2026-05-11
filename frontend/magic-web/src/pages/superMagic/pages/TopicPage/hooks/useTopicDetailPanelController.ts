@@ -95,10 +95,11 @@ export function useTopicDetailPanelController({
 	)
 
 	useEffect(() => {
-		const handleOpenFileTab = (data: { fileId: string }) => {
+		const handleOpenFileTab = (data: { fileId: string; fileData?: any }) => {
 			// setActiveFileId(null)
 			// setActiveDetailTabType("file")
 			window.setTimeout(() => {
+				// 允许消息区直接传入临时 fileData，复用右侧详情区打开逻辑。
 				detailRef.current?.openFileTab?.({ file_id: data.fileId })
 			}, DETAIL_OPEN_DELAY_MS)
 			scheduleFileOpenFallback()

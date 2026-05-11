@@ -98,7 +98,8 @@ export function useFileShortcuts({
 			}
 
 			// 检查是否是 PPT 入口文件
-			const isPPTFile = node.item?.metadata?.type === "slide" && node.item?.metadata?.slides
+			const isPPTFile =
+				node.item?.display_config?.type === "slide" && node.item?.display_config?.slides
 
 			let targetItem: AttachmentItem | null = null
 
@@ -115,8 +116,8 @@ export function useFileShortcuts({
 					return
 				}
 
-				// 从 metadata.slides 获取页面文件名列表
-				const slides = parentNode.item?.metadata?.slides
+				// 从 display_config.slides 获取页面文件名列表
+				const slides = parentNode.item?.display_config?.slides
 				if (!slides || !Array.isArray(slides)) {
 					console.warn("⚠️ PPT slides array not found, using entry file")
 					targetItem = node.item

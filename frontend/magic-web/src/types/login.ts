@@ -1,5 +1,4 @@
 import type { ReactNode } from "react"
-import { LoginDeployment } from "@/pages/login/constants"
 import type { getDeviceInfo } from "@/utils/devices"
 
 export interface LoginPanelFormStorage {
@@ -11,8 +10,6 @@ export interface LoginPanelProps {
 	isDefaultLoginType?: boolean
 	/** 设置登录方式 */
 	setLoginType?: (loginType: Login.LoginType) => void
-	/** 设置登录环境 */
-	setDeployment?: (deployment: LoginDeployment) => void
 	/** 底部内容 */
 	footer?: ReactNode
 	/** 设置上一步 */
@@ -64,6 +61,8 @@ export namespace Login {
 		AppleLogin = "apple_login",
 		/** Google登录 */
 		GoogleLogin = "google_login",
+		/** Anta登录 */
+		AntaLogin = "anta_login",
 	}
 
 	/** 登录响应（验证码、手机号+密码、钉钉、飞书、企业微信等登录方式） */
@@ -160,13 +159,15 @@ export namespace Login {
 		authorization_code: string
 	}
 
-	export interface AppleLoginFormValues extends LoginFormCommonValues { }
+	export interface AppleLoginFormValues extends LoginFormCommonValues {}
 
-	export interface GoogleLoginFormValues extends LoginFormCommonValues { }
+	export interface GoogleLoginFormValues extends LoginFormCommonValues {}
 
-	export interface LarkRedirectFormValues extends LoginFormCommonValues { }
+	export interface AntaLoginFormValues extends LoginFormCommonValues {}
 
-	export interface RedirectFormValues extends LoginFormCommonValues { }
+	export interface LarkRedirectFormValues extends LoginFormCommonValues {}
+
+	export interface RedirectFormValues extends LoginFormCommonValues {}
 
 	/**  图片验证码账号类型 */
 	export type AccountParams =

@@ -344,7 +344,7 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 					</div>
 
 					{/* 底部按钮区域 */}
-					<div className="shrink-0 p-3 pb-safe-bottom">
+					<div className="shrink-0 p-3">
 						<DrawerFooter
 							activeTab={activeTab}
 							onNewChat={handleNewChat}

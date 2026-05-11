@@ -1,19 +1,12 @@
-.tiptap.ProseMirror {
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
+
+@include scope.content {
   --tt-frontmatter-bg: var(--tt-gray-light-50);
   --tt-frontmatter-border: var(--tt-gray-light-a-300);
   --tt-frontmatter-text: var(--tt-gray-light-700);
   --tt-frontmatter-muted: var(--tt-gray-light-600);
   --tt-frontmatter-surface: var(--tt-gray-light-a-100);
   --tt-frontmatter-error: var(--tt-red-light-600);
-
-  .dark & {
-    --tt-frontmatter-bg: var(--tt-gray-dark-a-50);
-    --tt-frontmatter-border: var(--tt-gray-dark-a-300);
-    --tt-frontmatter-text: var(--tt-gray-dark-200);
-    --tt-frontmatter-muted: var(--tt-gray-dark-300);
-    --tt-frontmatter-surface: var(--tt-gray-dark-a-100);
-    --tt-frontmatter-error: var(--tt-red-dark-500);
-  }
 
   .markdown-frontmatter-node {
     margin: 0 0 1rem;
@@ -47,6 +40,8 @@
     border-radius: 0.625rem;
     border: 1px solid var(--tt-frontmatter-border);
     background: var(--tt-frontmatter-surface);
+    -webkit-user-select: text;
+    user-select: text;
     white-space: pre-wrap;
     word-break: break-word;
     font-size: 0.875rem;
@@ -73,4 +68,13 @@
     font-size: 0.875rem;
     font-weight: 600;
   }
+}
+
+@include scope.dark-content {
+  --tt-frontmatter-bg: var(--tt-gray-dark-a-50);
+  --tt-frontmatter-border: var(--tt-gray-dark-a-300);
+  --tt-frontmatter-text: var(--tt-gray-dark-200);
+  --tt-frontmatter-muted: var(--tt-gray-dark-300);
+  --tt-frontmatter-surface: var(--tt-gray-dark-a-100);
+  --tt-frontmatter-error: var(--tt-red-dark-500);
 }

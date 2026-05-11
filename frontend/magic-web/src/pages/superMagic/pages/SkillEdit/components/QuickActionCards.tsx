@@ -1,4 +1,6 @@
-import { ChevronRight, Settings2, Upload } from "lucide-react"
+import type { ReactNode } from "react"
+import { ChevronRight, Loader2, Settings2, Upload } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { Separator } from "@/components/shadcn-ui/separator"
 import { cn } from "@/lib/utils"
@@ -9,9 +11,12 @@ interface QuickActionCardsProps {
 	publishLabel: string
 	unpublishedChangesLabel: string
 	publishStatus: SkillEditPublishStatus
+	isPublishPrepareLoading?: boolean
+	canPublish?: boolean
 	activeAction?: "publish" | "settings" | null
 	onSettingsClick?: () => void
 	onPublishClick?: () => void
+	extraContent?: ReactNode
 }
 
 function QuickActionCards({
@@ -19,15 +24,26 @@ function QuickActionCards({
 	publishLabel,
 	unpublishedChangesLabel,
 	publishStatus,
+	isPublishPrepareLoading = false,
+	canPublish = true,
 	activeAction = null,
 	onSettingsClick,
 	onPublishClick,
+	extraContent,
 }: QuickActionCardsProps) {
+	const { t } = useTranslation("crew/market")
+
 	return (
 		<div
 			className="overflow-hidden rounded-lg border border-border bg-background"
 			data-testid="skill-edit-quick-actions"
 		>
+			{extraContent ? (
+				<>
+					{extraContent}
+					<Separator />
+				</>
+			) : null}
 			<ActionRow
 				icon={<Settings2 className="size-4" />}
 				label={settingsLabel}
@@ -40,38 +56,67 @@ function QuickActionCards({
 				icon={<Upload className="size-4" />}
 				label={publishLabel}
 				trailing={
-					publishStatus === "draft" ? (
-						<Badge
-							variant="secondary"
-							className="border-transparent bg-amber-50 px-2 py-0.5 text-[12px] font-normal leading-4 text-amber-500"
+					!canPublish ? (
+						<span
+							className="text-xs text-muted-foreground"
+							data-testid="skill-edit-publish-no-permission"
 						>
-							{unpublishedChangesLabel}
-						</Badge>
+							{t("skillEditPage.actions.noPublishPermission")}
+						</span>
+					) : isPublishPrepareLoading || publishStatus === "draft" ? (
+						<span className="flex shrink-0 items-center gap-1.5">
+							{isPublishPrepareLoading ? (
+								<Loader2
+									className="size-4 shrink-0 animate-spin text-muted-foreground"
+									aria-hidden
+									data-testid="skill-edit-publish-preparing-loader"
+								/>
+							) : null}
+							{publishStatus === "draft" ? (
+								<Badge
+									variant="secondary"
+									className="border-transparent bg-amber-50 px-2 py-0.5 text-[12px] font-normal leading-4 text-amber-500"
+								>
+									{unpublishedChangesLabel}
+								</Badge>
+							) : null}
+						</span>
 					) : null
 				}
 				testId="skill-edit-publish-button"
 				isActive={activeAction === "publish"}
+				ariaBusy={isPublishPrepareLoading}
+				disabled={!canPublish}
+				hideChevron={!canPublish}
 				onClick={onPublishClick}
 			/>
 		</div>
 	)
 }
 
-function ActionRow({
+export interface QuickActionCardRowProps {
+	icon: ReactNode
+	label: string
+	trailing?: ReactNode
+	testId: string
+	isActive?: boolean
+	ariaBusy?: boolean
+	disabled?: boolean
+	hideChevron?: boolean
+	onClick?: () => void
+}
+
+export function QuickActionCardRow({
 	icon,
 	label,
 	trailing,
 	testId,
 	isActive = false,
+	ariaBusy = false,
+	disabled = false,
+	hideChevron = false,
 	onClick,
-}: {
-	icon: React.ReactNode
-	label: string
-	trailing?: React.ReactNode
-	testId: string
-	isActive?: boolean
-	onClick?: () => void
-}) {
+}: QuickActionCardRowProps) {
 	return (
 		<button
 			type="button"
@@ -79,9 +124,12 @@ function ActionRow({
 				"flex h-12 w-full items-center gap-1.5 overflow-hidden px-2.5 text-left transition-colors",
 				onClick ? "hover:bg-accent/50" : "cursor-default",
 				isActive && "bg-accent/70",
+				disabled && "cursor-not-allowed opacity-60 hover:bg-transparent",
 			)}
 			data-testid={testId}
+			disabled={disabled}
 			onClick={onClick}
+			aria-busy={ariaBusy}
 			aria-pressed={isActive}
 		>
 			<div className="flex size-6 shrink-0 items-center justify-center text-muted-foreground">
@@ -91,8 +139,32 @@ function ActionRow({
 				{label}
 			</p>
 			{trailing}
-			<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+			{hideChevron ? null : (
+				<ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+			)}
 		</button>
+	)
+}
+
+function ActionRow({
+	icon,
+	label,
+	trailing,
+	testId,
+	isActive = false,
+	ariaBusy = false,
+	onClick,
+}: QuickActionCardRowProps) {
+	return (
+		<QuickActionCardRow
+			icon={icon}
+			label={label}
+			trailing={trailing}
+			testId={testId}
+			isActive={isActive}
+			ariaBusy={ariaBusy}
+			onClick={onClick}
+		/>
 	)
 }
 

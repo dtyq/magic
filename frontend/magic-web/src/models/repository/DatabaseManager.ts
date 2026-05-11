@@ -305,6 +305,52 @@ export class DatabaseManager {
 				})
 			})
 
+		// Version 3: 添加 super-magic-mode-list 表
+		// Offload Super Magic mode list cache from localStorage to relieve quota
+		db.version(3)
+			.stores({
+				config: "&key, value",
+				user: "&key, value",
+				account: "&magic_id, deployCode, magic_user_id, organizationCode",
+				cluster: "&deployCode, name",
+				audioChunks: "&id, sessionId, index, timestamp, size, createdAt, updatedAt",
+				"super-project-state":
+					"&id, organization_code, project_id, fileState, treeState, searchState, uiState, createdAt, updatedAt",
+				"super-magic-mode-list": "&key, updatedAt",
+			})
+			.upgrade(async () => {
+				logger.log("databaseUpgradeToV3", {
+					version: 3,
+					newTable: "super-magic-mode-list",
+					message:
+						"Successfully upgraded database to version 3, added super-magic-mode-list table",
+				})
+			})
+
+		// Version 4: 添加 recording-session-history 表
+		// 用于备份用户历史发起过的录音会话（保留 30 天）
+		db.version(4)
+			.stores({
+				config: "&key, value",
+				user: "&key, value",
+				account: "&magic_id, deployCode, magic_user_id, organizationCode",
+				cluster: "&deployCode, name",
+				audioChunks: "&id, sessionId, index, timestamp, size, createdAt, updatedAt",
+				"super-project-state":
+					"&id, organization_code, project_id, fileState, treeState, searchState, uiState, createdAt, updatedAt",
+				"super-magic-mode-list": "&key, updatedAt",
+				"recording-session-history":
+					"&id, userId, organizationCode, status, startTime, lastActivityTime, updatedAt",
+			})
+			.upgrade(async () => {
+				logger.log("databaseUpgradeToV4", {
+					version: 4,
+					newTable: "recording-session-history",
+					message:
+						"Successfully upgraded database to version 4, added recording-session-history table",
+				})
+			})
+
 		this.globalDatabase = db
 		return this.globalDatabase
 	}

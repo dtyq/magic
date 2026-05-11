@@ -3,11 +3,9 @@ import { useStyle } from "./styles"
 import { Flex } from "antd"
 import { ChevronUp, ChevronRight, MonitorPlay } from "lucide-react"
 import { memo, useCallback, useEffect, useMemo, useState } from "react"
+import { useToggleWithScrollPreserve } from "../../../shared/hooks/useToggleWithScrollPreserve"
 import { TextEditor } from "../../../../Tool/components/ToolDetail"
-import {
-	downloadFileContent,
-	getTemporaryDownloadUrl,
-} from "@/pages/superMagic/utils/api"
+import { downloadFileContent, getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { observer } from "mobx-react-lite"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { defaultOpen } from "../../config"
@@ -58,7 +56,7 @@ function EditFile(props: NodeProps) {
 
 	const { styles, cx } = useStyle()
 
-	const [open, setOpen] = useState(defaultOpen)
+	const [open, toggle] = useToggleWithScrollPreserve(defaultOpen)
 	const [content, setContent] = useState(fileData?.content || "")
 
 	const { tooltipProps, renderTooltip } = useToolTooltip({
@@ -123,7 +121,7 @@ function EditFile(props: NodeProps) {
 		if (!fileData?.file_id) return null
 
 		return (
-			<div className={cx(styles.button, "mr-[6px]")} onClick={() => setOpen((o) => !o)}>
+			<div className={cx(styles.button, "mr-[6px]")} onClick={toggle}>
 				{open ? (
 					<ChevronUp
 						size={16}

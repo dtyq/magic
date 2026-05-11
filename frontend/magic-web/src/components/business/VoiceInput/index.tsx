@@ -3,11 +3,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/
 import { useTranslation } from "react-i18next"
 import { useVoiceInput, getHotkeyDisplayText } from "./hooks"
 import type { VoiceInputProps, VoiceInputRef } from "./types"
-import MagicIcon from "../../base/MagicIcon"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { SpinLoading } from "antd-mobile"
 import { GuideTourElementId } from "@/pages/superMagic/components/LazyGuideTour"
-import { IconMicrophone } from "@tabler/icons-react"
 import { cn } from "@/lib/utils"
 import { Mic } from "lucide-react"
 
@@ -52,7 +50,6 @@ export const VoiceInput = memo(
 				onRecordingChange,
 				disabled = false,
 				placeholder,
-				style,
 				className,
 				children,
 				config,
@@ -71,10 +68,8 @@ export const VoiceInput = memo(
 
 			// Handle hotkey press
 			const handleHotkey = useCallback(() => {
-				console.log("触发handleHotkey")
-
 				if (disabled) return
-				toggleRecording()
+				void toggleRecording()
 			}, [disabled, toggleRecording])
 
 			// Use ref to keep the latest handleHotkey function
@@ -132,9 +127,9 @@ export const VoiceInput = memo(
 				const hotkeyText = enableHotkey ? `(${hotkeyDisplay})` : ""
 				switch (status) {
 					case "idle":
-						return `${t("voiceInput.tooltip.idle")}${hotkeyText}`
+						return `${t("voiceInput.tooltip.idle")} ${hotkeyText}`
 					case "recording":
-						return `${t("voiceInput.tooltip.recording")}${hotkeyText}`
+						return `${t("voiceInput.tooltip.recording")} ${hotkeyText}`
 					case "error":
 						return t("voiceInput.tooltip.error")
 					default:
@@ -144,7 +139,7 @@ export const VoiceInput = memo(
 
 			const handleClick = () => {
 				if (disabled) return
-				toggleRecording()
+				void toggleRecording()
 			}
 
 			return (
@@ -161,10 +156,10 @@ export const VoiceInput = memo(
 								"bg-fill text-foreground dark:bg-sidebar dark:text-foreground dark:hover:bg-muted dark:hover:text-foreground",
 								// recording / processing
 								(status === "recording" || status === "processing") &&
-								"bg-orange-50 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400",
+									"bg-orange-50 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400",
 								// error
 								status === "error" &&
-								"bg-destructive text-destructive-foreground opacity-90 dark:bg-destructive dark:text-destructive-foreground",
+									"bg-destructive text-destructive-foreground opacity-90 dark:bg-destructive dark:text-destructive-foreground",
 								className,
 							)}
 							onClick={handleClick}

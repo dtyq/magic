@@ -2,10 +2,14 @@ import Mention from "@tiptap/extension-mention"
 import type { Editor } from "@tiptap/core"
 import { ReactNodeViewRenderer } from "@tiptap/react"
 import { Suggestion } from "@tiptap/suggestion"
-import { Plugin, PluginKey } from "@tiptap/pm/state"
+import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state"
 
 // Types
-import type { MentionPanelPluginOptions, TiptapMentionAttributes } from "./types"
+import type {
+	MentionDeletionInput,
+	MentionPanelPluginOptions,
+	TiptapMentionAttributes,
+} from "./types"
 import {
 	getMentionUniqueId,
 	getMentionDisplayName,
@@ -17,6 +21,26 @@ import {
 import { createMentionPanelSuggestion } from "./suggestion"
 import { MentionItemType } from "../types"
 import MentionNodeView from "./MentionNodeView"
+
+/** Meta key for keyboard-driven mention deletion (appendTransaction reads this) */
+export const mentionDeletionInputKey = new PluginKey<MentionDeletionInput | undefined>(
+	"mentionDeletionInput",
+)
+
+const MENTION_CARET_GUARD_TEXT = "\u200b"
+
+function getDeletionInputFromTransactions(
+	transactions: readonly Transaction[],
+): MentionDeletionInput {
+	let sawBackspace = false
+	for (const t of transactions) {
+		const m = t.getMeta(mentionDeletionInputKey)
+		if (m === "forward-delete") return "forward-delete"
+		if (m === "backspace") sawBackspace = true
+	}
+	if (sawBackspace) return "backspace"
+	return "other"
+}
 
 function deletePreviousTextCharBeforeMention(editor: Editor) {
 	const { selection } = editor.state
@@ -38,7 +62,57 @@ function deletePreviousTextCharBeforeMention(editor: Editor) {
 	return true
 }
 
-function deleteNextTextCharAfterMention(editor: Editor) {
+function getLeadingCaretGuardLength(text?: string | null) {
+	if (!text) return 0
+	let length = 0
+	while (text[length] === MENTION_CARET_GUARD_TEXT) {
+		length += 1
+	}
+	return length
+}
+
+function getTrailingCaretGuardLength(text?: string | null) {
+	if (!text) return 0
+	let length = 0
+	for (let index = text.length - 1; index >= 0; index -= 1) {
+		if (text[index] !== MENTION_CARET_GUARD_TEXT) break
+		length += 1
+	}
+	return length
+}
+
+export function deleteMentionBeforeCaretGuard(
+	editor: Editor,
+	deletionInput: Extract<MentionDeletionInput, "backspace" | "forward-delete">,
+) {
+	const { selection, doc } = editor.state
+	if (!selection.empty) return false
+
+	const { $from, from } = selection
+	const trailingGuardLength = getTrailingCaretGuardLength($from.nodeBefore?.text)
+
+	if (trailingGuardLength === 0 || from <= trailingGuardLength) {
+		return false
+	}
+
+	const mentionPos = from - trailingGuardLength - 1
+	const mentionNode = doc.nodeAt(mentionPos)
+
+	if (mentionNode?.type.name !== "mention") {
+		return false
+	}
+
+	const tr = editor.state.tr
+		.delete(mentionPos, from)
+		.setMeta(mentionDeletionInputKey, deletionInput)
+	editor.view.dispatch(tr)
+	return true
+}
+
+export function deleteNextTextCharAfterMention(
+	editor: Editor,
+	deletionInput: Extract<MentionDeletionInput, "backspace" | "forward-delete">,
+) {
 	const { selection } = editor.state
 	if (!selection.empty) return false
 
@@ -48,6 +122,16 @@ function deleteNextTextCharAfterMention(editor: Editor) {
 
 	if (nodeBefore?.type.name !== "mention" || !nodeAfter?.isText) {
 		return false
+	}
+
+	const leadingGuardLength = getLeadingCaretGuardLength(nodeAfter.text)
+
+	if (leadingGuardLength > 0) {
+		const tr = editor.state.tr
+			.delete(from - nodeBefore.nodeSize, from + leadingGuardLength)
+			.setMeta(mentionDeletionInputKey, deletionInput)
+		editor.view.dispatch(tr)
+		return true
 	}
 
 	if ((nodeAfter.text?.length ?? 0) === 0) {
@@ -162,10 +246,14 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 				}
 
 				const { selection, doc } = editor.state
-				const { from, to, empty } = selection
+				const { from, empty } = selection
 
 				if (!empty) {
 					return false
+				}
+
+				if (deleteMentionBeforeCaretGuard(editor, "backspace")) {
+					return true
 				}
 
 				// Fallback for marker-like mentions whose custom NodeView can make the
@@ -179,7 +267,9 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 					const nodeAfter = doc.nodeAt(from - 1)
 					if (nodeAfter && nodeAfter.type.name === "mention") {
 						// Delete the entire mention node
-						const tr = editor.state.tr.delete(from - 1, from)
+						const tr = editor.state.tr
+							.delete(from - 1, from)
+							.setMeta(mentionDeletionInputKey, "backspace")
 						editor.view.dispatch(tr)
 						return true
 					}
@@ -202,7 +292,9 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 
 				if (mentionNode && mentionPos >= 0) {
 					// Delete the entire mention node
-					const tr = editor.state.tr.delete(mentionPos, mentionPos + mentionNode.nodeSize)
+					const tr = editor.state.tr
+						.delete(mentionPos, mentionPos + mentionNode.nodeSize)
+						.setMeta(mentionDeletionInputKey, "backspace")
 					editor.view.dispatch(tr)
 					return true
 				}
@@ -218,14 +310,14 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 				}
 
 				const { selection, doc } = editor.state
-				const { from, to, empty } = selection
+				const { from, empty } = selection
 
 				if (!empty) {
 					return false
 				}
 
 				// Symmetric fallback for deleting the first character after a mention.
-				if (deleteNextTextCharAfterMention(editor)) {
+				if (deleteNextTextCharAfterMention(editor, "forward-delete")) {
 					return true
 				}
 
@@ -234,7 +326,9 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 					const nodeAfter = doc.nodeAt(from)
 					if (nodeAfter && nodeAfter.type.name === "mention") {
 						// Delete the entire mention node
-						const tr = editor.state.tr.delete(from, from + nodeAfter.nodeSize)
+						const tr = editor.state.tr
+							.delete(from, from + nodeAfter.nodeSize)
+							.setMeta(mentionDeletionInputKey, "forward-delete")
 						editor.view.dispatch(tr)
 						return true
 					}
@@ -257,7 +351,9 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 
 				if (mentionNode && mentionPos >= 0) {
 					// Delete the entire mention node
-					const tr = editor.state.tr.delete(mentionPos, mentionPos + mentionNode.nodeSize)
+					const tr = editor.state.tr
+						.delete(mentionPos, mentionPos + mentionNode.nodeSize)
+						.setMeta(mentionDeletionInputKey, "forward-delete")
 					editor.view.dispatch(tr)
 					return true
 				}
@@ -284,6 +380,15 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 				this.storage.enabled = enabled
 				return true
 			},
+			openMentionPanel:
+				() =>
+				({ editor }) => {
+					if (!this.storage.enabled) return false
+					const from = editor.state.selection.from
+					this.storage.lastAtInputAt = Date.now()
+					this.storage.lastAtInputPos = from
+					return editor.chain().focus().insertContent("@").run()
+				},
 		}
 	},
 
@@ -428,6 +533,8 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 						return
 					}
 
+					const deletionInput = getDeletionInputFromTransactions(transactions)
+
 					// Check for deleted mentions
 					const deletedMentions: Array<{
 						item: TiptapMentionAttributes
@@ -480,8 +587,11 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 					})
 
 					// Check if deleted mentions still exist elsewhere in the document
-					const itemsToRemove: { item: TiptapMentionAttributes; stillExists: boolean }[] =
-						[]
+					const itemsToRemove: {
+						item: TiptapMentionAttributes
+						stillExists: boolean
+						deletionInput: MentionDeletionInput
+					}[] = []
 					const mentionsToRestore: Array<{
 						item: TiptapMentionAttributes
 						pos: number
@@ -492,11 +602,17 @@ export const MentionExtension = Mention.extend<MentionPanelPluginOptions>({
 						const stillExists = Array.from(newMentions.values()).some(
 							(mention) => getMentionUniqueId(mention) === deletedId,
 						)
-						itemsToRemove.push({ item: deletedMention.item, stillExists })
+						itemsToRemove.push({
+							item: deletedMention.item,
+							stillExists,
+							deletionInput,
+						})
 
 						if (
 							!stillExists &&
-							shouldRestoreRemovedMention?.(deletedMention.item, stillExists)
+							shouldRestoreRemovedMention?.(deletedMention.item, stillExists, {
+								deletionInput,
+							})
 						) {
 							mentionsToRestore.push(deletedMention)
 						}

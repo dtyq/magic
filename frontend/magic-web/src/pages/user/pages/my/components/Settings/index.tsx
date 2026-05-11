@@ -7,10 +7,11 @@ import { Button } from "@/components/shadcn-ui/button"
 import { useTranslation } from "react-i18next"
 import { RouteName } from "@/routes/constants"
 import FontSizeChanger from "@/components/settings/FontSizeChanger"
-import { isLanguageSwitchEnabled } from "@/models/config/languagePolicy"
 import { useGlobalLanguage, useSupportLanguageOptions } from "@/models/config/hooks"
 import { useTimezone, useTimezoneList } from "@/providers/TimezoneProvider/hooks"
 import SettingItem from "../common/SettingItem"
+import { Switch } from "@/components/shadcn-ui/switch"
+import { useGlobalSuggestion } from "@/components/settings/FollowUpSuggestionItems/hooks"
 
 function Settings() {
 	const { t } = useTranslation("interface")
@@ -18,11 +19,16 @@ function Settings() {
 
 	const options = useSupportLanguageOptions()
 	const language = useGlobalLanguage()
-	const isLanguageSwitchVisible = isLanguageSwitchEnabled()
 	const { timezone } = useTimezone()
 	const { data: timezoneList } = useTimezoneList()
 
-	// 获取当前时区显示名称
+	const {
+		followUpSuggestions,
+		keepUsedFollowUpSuggestions,
+		setFollowUpSuggestions,
+		setKeepUsedFollowUpSuggestions,
+	} = useGlobalSuggestion()
+
 	const currentTimezoneName = useMemo(() => {
 		const targetTimezone = timezoneList?.find((tz) => tz.code === timezone)
 		return targetTimezone ? `GMT ${targetTimezone.offset}` : timezone
@@ -77,20 +83,18 @@ function Settings() {
 
 			{/* Content */}
 			<div className="flex w-full flex-1 flex-col gap-4 overflow-y-auto px-3.5">
-				{isLanguageSwitchVisible && (
-					<div className="flex w-full flex-col overflow-hidden rounded-md bg-popover">
-						<SettingItem
-							label={t("setting.language")}
-							description={t("setting.languageDescription")}
-							value={
-								<div className="whitespace-nowrap text-sm text-foreground">
-									{languageLabel}
-								</div>
-							}
-							onClick={handleLanguageClick}
-						/>
-					</div>
-				)}
+				<div className="flex w-full flex-col overflow-hidden rounded-md bg-popover">
+					<SettingItem
+						label={t("setting.language")}
+						description={t("setting.languageDescription")}
+						value={
+							<div className="whitespace-nowrap text-sm text-foreground">
+								{languageLabel}
+							</div>
+						}
+						onClick={handleLanguageClick}
+					/>
+				</div>
 
 				{/* 时区设置 */}
 				<div className="flex w-full flex-col overflow-hidden rounded-md bg-popover">
@@ -115,6 +119,36 @@ function Settings() {
 					<div className="text-xs leading-4 text-muted-foreground">
 						{t("setting.fontSizeDescription")}
 					</div>
+				</div>
+
+				{/* 始终显示追问建议 */}
+				<div className="flex w-full flex-col overflow-hidden rounded-md bg-popover">
+					<SettingItem
+						label={t("setting.followUpSuggestionsAlwaysShow")}
+						description={t("setting.followUpSuggestionsAlwaysShowDescription")}
+						showArrow={false}
+						value={
+							<Switch
+								checked={followUpSuggestions}
+								onCheckedChange={setFollowUpSuggestions}
+							/>
+						}
+					/>
+				</div>
+
+				{/* 保留历史追问建议 */}
+				<div className="flex w-full flex-col overflow-hidden rounded-md bg-popover">
+					<SettingItem
+						label={t("setting.followUpSuggestionsHistoryTurns")}
+						description={t("setting.followUpSuggestionsHistoryTurnsDescription")}
+						showArrow={false}
+						value={
+							<Switch
+								checked={keepUsedFollowUpSuggestions}
+								onCheckedChange={setKeepUsedFollowUpSuggestions}
+							/>
+						}
+					/>
 				</div>
 			</div>
 		</div>

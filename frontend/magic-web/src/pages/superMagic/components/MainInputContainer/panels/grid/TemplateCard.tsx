@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils"
+import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 import { useLocaleText } from "../hooks/useLocaleText"
 import type { OptionItem } from "../types"
+import { isImageIconSource } from "../utils"
 
 interface TemplateCardProps {
 	template: OptionItem
@@ -10,6 +12,8 @@ interface TemplateCardProps {
 
 function TemplateCard({ template, isSelected, onClick }: TemplateCardProps) {
 	const lt = useLocaleText()
+	const label = lt(template.label) ?? template.value
+	const isImageIcon = isImageIconSource(template.icon_url)
 	return (
 		<div
 			className={cn(
@@ -24,31 +28,34 @@ function TemplateCard({ template, isSelected, onClick }: TemplateCardProps) {
 					<div className="relative min-h-0 min-w-0 flex-1">
 						<img
 							src={template.thumbnail_url}
-							alt={lt(template.label) ?? template.value}
+							alt={label}
 							className="pointer-events-none absolute inset-0 size-full max-w-none object-cover"
 							loading="lazy"
 						/>
 					</div>
 				) : (
 					<div className="flex flex-1 items-center justify-center">
-						<span className="text-sm text-muted-foreground">
-							{lt(template.label) ?? template.value}
-						</span>
+						<span className="text-sm text-muted-foreground">{label}</span>
 					</div>
 				)}
 			</div>
 			<div className="flex w-full items-center justify-center gap-1">
 				{template.icon_url && (
 					<div className="relative size-4 shrink-0 overflow-hidden">
-						<img
-							src={template.icon_url}
-							alt="AI"
-							className="size-full object-contain"
-						/>
+						{isImageIcon ? (
+							<img
+								src={template.icon_url}
+								alt={label}
+								className="size-full object-contain"
+								loading="lazy"
+							/>
+						) : (
+							<LucideLazyIcon icon={template.icon_url} size={16} />
+						)}
 					</div>
 				)}
 				<div className="overflow-hidden text-ellipsis whitespace-nowrap text-center text-sm leading-5 text-foreground">
-					{lt(template.label) ?? template.value}
+					{label}
 				</div>
 			</div>
 		</div>

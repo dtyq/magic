@@ -7,7 +7,7 @@ import { useMemoizedFn } from "ahooks"
 import { groupBy } from "lodash-es"
 import { useRef, useState } from "react"
 import type { ReportFileUploadsResponse } from "@/apis/modules/file"
-import { FileApi } from "@/apis"
+import { FileApi, SuperMagicApi } from "@/apis"
 import type { UploadResponse, UseUploadFilesParams, UploadResult, DownloadResponse } from "./types"
 import { logger as Logger } from "@/utils/log"
 import { useTranslation } from "react-i18next"
@@ -17,6 +17,14 @@ import magicToast from "@/components/base/MagicToaster/utils"
 // CommercialRequestUrl 与 OpenSourceRequestUrl 待合并
 // CommercialRequestMethod 与 OpenSourceRequestMethod 待合并
 // 后续针对请求的 api 不应该再依赖 isCommercial 的判断
+
+/**
+ * 文件上传 Hook
+ *
+ * 支持通过 useSnowflakeId 参数控制文件名策略：
+ * - useSnowflakeId=false（默认）：使用原始文件名上传
+ * - useSnowflakeId=true：使用雪花ID作为OSS文件名，避免冲突
+ */
 
 export interface FileUploadDataPrevious {
 	name: string
@@ -38,8 +46,9 @@ export type FileUploadData = FileUploadDataPrevious | FileUploadDataNormal
 
 /**
  * 上传文件(不包含文件上报,只包含将文件上传到OSS)
- * @param param0
- * @returns
+ *
+ * @param useSnowflakeId - 是否使用雪花ID作为OSS文件名，默认为false。设为true时使用雪花ID，false时使用原始文件名
+ * @returns 包含上传、上传状态和其他工具函数的对象
  */
 export const useUpload = <F extends FileUploadData>({
 	onBeforeUpload,
@@ -52,6 +61,7 @@ export const useUpload = <F extends FileUploadData>({
 	body,
 	url,
 	rewriteFileName = true,
+	useSnowflakeId = false,
 }: UseUploadFilesParams<F> = {}) => {
 	const { t } = useTranslation("message")
 	const uploader = useRef(new Upload())
@@ -73,15 +83,24 @@ export const useUpload = <F extends FileUploadData>({
 		onBeforeUpload?.()
 		setUploading(true)
 
+		// 根据 useSnowflakeId 标识决定是否批量生成雪花ID
+		let snowflakeIds: { ids: string[] } = { ids: [] }
+		if (useSnowflakeId) {
+			snowflakeIds = await SuperMagicApi.getSnowflakeIds({
+				count: fileList.length,
+			})
+		}
+
 		const promises: Promise<UploadResponse>[] = []
 
 		for (let i = 0; i < fileList.length; i += 1) {
 			const fileData = fileList[i]
+			const originalFileName = fileData.name // 原始文件名
+			// 根据标识选择文件名：使用雪花ID 或 原始文件名
+			const uploadFileName = useSnowflakeId ? snowflakeIds.ids[i] : originalFileName
 
 			promises.push(
 				new Promise<UploadResponse>((resolve, reject) => {
-					const fileName = fileData.name
-
 					if (fileData.status === "done" && fileData.result) {
 						resolve(fileData.result)
 						return
@@ -90,7 +109,7 @@ export const useUpload = <F extends FileUploadData>({
 					const { organizationCode } = userStore.user
 
 					if (!fileData.file) {
-						logger.error("upload missing file body", { fileName: fileData.name })
+						logger.error("upload missing file body", { fileName: originalFileName })
 						reject(new Error("file is required"))
 						return
 					}
@@ -101,14 +120,15 @@ export const useUpload = <F extends FileUploadData>({
 					 * 所以需要对 url 进行组织编码隔离（目前通过添加`?organization_code=xxx`参数进行隔离）
 					 * 保证切换组织后，能正确获取鉴权信息
 					 */
-					const uploadUrl = `${url ??
+					const uploadUrl = `${
+						url ??
 						env("MAGIC_SERVICE_BASE_URL") +
-						genRequestUrl(
-							isCommercial()
-								? "/api/v1/file/temporary-credential"
-								: "/api/v1/file/temporary-credential",
-						)
-						}?organization_code=${organizationCode}`
+							genRequestUrl(
+								isCommercial()
+									? "/api/v1/file/temporary-credential"
+									: "/api/v1/file/temporary-credential",
+							)
+					}?organization_code=${organizationCode}`
 
 					const file = new File([fileData.file], "file", {
 						type: fileData.file.type,
@@ -119,7 +139,7 @@ export const useUpload = <F extends FileUploadData>({
 						uploader.current.upload({
 							url: uploadUrl,
 							file,
-							fileName,
+							fileName: uploadFileName, // 使用选定的文件名（雪花ID 或 原始文件名）
 							method: OpenSourceRequestMethod.POST,
 							headers: {
 								"Content-Type": "application/json",
@@ -144,7 +164,7 @@ export const useUpload = <F extends FileUploadData>({
 					// Wrap cancel function to ensure Promise is rejected when cancelled
 					const wrappedCancel = () => {
 						cancel?.()
-						logger.warn("upload cancelled", { fileName })
+						logger.warn("upload cancelled", { fileName: originalFileName })
 						reject(new Error("Upload cancelled"))
 					}
 
@@ -154,12 +174,12 @@ export const useUpload = <F extends FileUploadData>({
 						if (res) {
 							onSuccess?.(fileData, {
 								key: res.data.path,
-								name: fileName,
+								name: originalFileName, // 使用原始文件名
 								size: fileData.file?.size ?? 0,
 							})
 							resolve({
 								key: res.data.path,
-								name: fileName,
+								name: originalFileName, // 使用原始文件名
 								size: fileData.file?.size ?? 0,
 							})
 						} else reject(new Error("upload failed"))
@@ -167,7 +187,7 @@ export const useUpload = <F extends FileUploadData>({
 
 					fail?.((err) => {
 						logger.error("upload failed", {
-							fileName,
+							fileName: originalFileName,
 							fileSize: fileData.file?.size,
 							message: err?.message,
 						})

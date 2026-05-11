@@ -24,10 +24,11 @@ interface PreviewDetailPopupProps extends React.PropsWithChildren {
 	headerExtra?: React.ReactNode
 	showHeader?: boolean
 	wrapperStyle?: React.CSSProperties
+	hideHeader?: boolean
 }
 
 function CommonPopup(props: PreviewDetailPopupProps) {
-	const { styles } = useStyles()
+	const { styles } = useStyles({ hideHeader: props.hideHeader })
 	const { children, title, popupProps, headerExtra, showHeader = true, wrapperStyle } = props
 
 	const mergePopupProps = {
@@ -53,7 +54,7 @@ function CommonPopup(props: PreviewDetailPopupProps) {
 			}}
 		>
 			<div
-				className="max-h-[calc(100vh - 44px - 60px - var(--safe-area-inset-top) - var(--safe-area-inset-bottom))] flex h-full flex-col"
+				className="flex h-full max-h-[calc(100vh-44px-60px-var(--safe-area-inset-top)-var(--safe-area-inset-bottom))] flex-col"
 				style={wrapperStyle}
 			>
 				{showHeader && (

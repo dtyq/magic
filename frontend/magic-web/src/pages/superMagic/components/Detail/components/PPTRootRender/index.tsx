@@ -36,7 +36,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 		allowEdit,
 		saveEditContent,
 		className,
-		metadata,
+		displayConfig,
 		openFileTab,
 		selectedProject,
 		activeFileId,
@@ -46,6 +46,8 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 		exportPpt,
 		allowDownload,
 		projectId,
+		onRegisterCheckBeforeClose,
+		onUnregisterCheckBeforeClose,
 	} = props
 
 	const [filePathMapping, setFilePathMapping] = useState<Map<string, string>>(new Map())
@@ -114,7 +116,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 				fileId: displayData?.file_id,
 				fileName: entryFileData?.file_name,
 				attachmentList,
-				metadata: metadata,
+				displayConfig,
 			})
 
 			console.log("PPTRootRender processContent result", result)
@@ -147,7 +149,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 		// 首次由 attachmentList 分支接管，避免首轮重复解析
 		if (currentAttachmentList.length === 0 && attachmentList?.length) return
 		processContent()
-	}, [entryFileData, metadata, currentAttachmentList.length, attachmentList?.length])
+	}, [entryFileData, displayConfig, currentAttachmentList.length, attachmentList?.length])
 
 	// Handle sort panel save
 	const handleSortSave = useCallback((newSlidesPaths: string[]) => {
@@ -214,7 +216,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 					mainFileName={displayData?.file_name}
 					filePathMapping={filePathMapping}
 					selectedProject={selectedProject}
-					metadata={metadata}
+					displayConfig={displayConfig}
 					isPlaybackMode={isPlaybackMode}
 					allowEdit={allowEdit}
 					saveEditContent={saveEditContent}
@@ -227,6 +229,8 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 					}}
 					isTabActive={props.isTabActive}
 					allowDownload={allowDownload}
+					onRegisterCheckBeforeClose={onRegisterCheckBeforeClose}
+					onUnregisterCheckBeforeClose={onUnregisterCheckBeforeClose}
 				/>
 			)}
 		</div>

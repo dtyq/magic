@@ -1,5 +1,7 @@
 import type { HttpClient } from "@/apis/core/HttpClient"
+import type { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
 import { genRequestUrl } from "@/utils/http"
+import { getLocalePreferredKeys, resolveLocalizedText } from "@/utils/locale"
 
 import {
 	FieldPanelConfig,
@@ -23,18 +25,7 @@ export function buildCrewI18nText(
 
 /** Resolve CrewI18nText to a plain string for the given locale. */
 export function resolveCrewI18nText(text: CrewI18nText | null | undefined, locale: string): string {
-	if (!text) return ""
-	const lang = locale?.toLowerCase() ?? "en"
-	const preferredKeys = lang.startsWith("zh")
-		? ["zh_CN", "zh", "en_US", "en"]
-		: ["en_US", "en", "zh_CN", "zh"]
-	for (const key of preferredKeys) {
-		const value = text[key]
-		if (value) return value
-	}
-	if (text.default) return text.default
-	const fallback = Object.values(text).find(Boolean)
-	return (fallback as string) ?? ""
+	return resolveLocalizedText(text, locale)
 }
 
 /** Normalize mixed role i18n value to a single string. */
@@ -55,20 +46,14 @@ export function resolveCrewI18nArrayText(
 	locale: string,
 ): string {
 	if (!text) return ""
-	const lang = locale?.toLowerCase() ?? "en"
-	const preferredKeys = lang.startsWith("zh")
-		? ["zh_CN", "zh", "en_US", "en"]
-		: ["en_US", "en", "zh_CN", "zh"]
+	const preferredKeys = getLocalePreferredKeys(locale)
 	for (const key of preferredKeys) {
 		const value = normalizeCrewI18nArrayValue(text[key])
 		if (value) return value
 	}
 	const defaultValue = normalizeCrewI18nArrayValue(text.default)
 	if (defaultValue) return defaultValue
-	const fallback = Object.values(text)
-		.map((value) => normalizeCrewI18nArrayValue(value))
-		.find((value) => value.length > 0)
-	return fallback ?? ""
+	return ""
 }
 
 /** Multi-language array text object (e.g. role tags) */
@@ -157,6 +142,7 @@ export interface StoreAgentItem {
 	id: string
 	agent_code: string
 	user_code?: string | null
+	is_featured?: boolean
 	name_i18n: CrewI18nText
 	role_i18n: CrewI18nArrayText
 	description_i18n: CrewI18nText
@@ -214,11 +200,17 @@ export interface GetAgentsParams {
 	keyword?: string
 }
 
+/** Creator profile on team-shared agent list items */
+export interface CrewAgentCreatorInfo {
+	name?: string
+}
+
 /** Single user agent item */
 export interface AgentItem {
 	id: string
 	/** Crew unique code (magic_super_magic_agents.code) */
 	code: string
+	user_role?: CollaboratorPermission
 	name_i18n: CrewI18nText
 	role_i18n: CrewI18nArrayText
 	description_i18n: CrewI18nText
@@ -241,18 +233,23 @@ export interface AgentItem {
 	latest_published_at: string | null
 	updated_at: string
 	created_at: string
+	/** Present on team-shared list responses */
+	creator_info?: CrewAgentCreatorInfo | null
 }
 
-/** Response for user agents list */
-export interface GetAgentsResponse {
+/** Response for created user agents list */
+export interface GetCreatedAgentsResponse {
 	list: AgentItem[]
 	page: number
 	page_size: number
 	total: number
 }
 
-/** Response for external user agents list */
-export interface GetExternalAgentsResponse extends GetAgentsResponse {}
+/** Response for hired user agents list */
+export interface GetHiredAgentsResponse extends GetCreatedAgentsResponse {}
+
+/** Response for team-shared user agents list */
+export interface GetTeamSharedAgentsResponse extends GetCreatedAgentsResponse {}
 
 // ======================== Create Agent (API 4) ========================
 
@@ -281,7 +278,12 @@ export type AgentPublishToType = "INTERNAL" | "MARKET"
 
 export type AgentAllowedPublishTargetType = Exclude<AgentPublishTargetType, "MARKET">
 
-export type AgentVersionReviewStatus = "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED"
+export type AgentVersionReviewStatus =
+	| "PENDING"
+	| "UNDER_REVIEW"
+	| "APPROVED"
+	| "REJECTED"
+	| "INVALIDATED"
 
 export type AgentVersionPublishStatus = "PUBLISHED" | "OFFLINE"
 
@@ -586,34 +588,68 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 
 	/**
 	 * Get current user's created agents list.
+	 * Endpoint: POST /api/v2/super-magic/agents/queries/created
 	 * POST with body: page, page_size, keyword.
 	 * Only returns agents created by the current user.
 	 * @param params Request body
 	 */
-	getAgents(params: GetAgentsParams = {}) {
+	getCreatedAgents(params: GetAgentsParams = {}) {
 		const { page = 1, page_size = 20, keyword } = params
-		return fetch.post<GetAgentsResponse>(genRequestUrl("/api/v2/super-magic/agents/queries"), {
-			page,
-			page_size,
-			keyword,
-		})
-	},
-
-	/**
-	 * Get current user's external agents list.
-	 * POST with body: page, page_size, keyword.
-	 * Includes market hires and agents published to the current user.
-	 * @param params Request body
-	 */
-	getExternalAgents(params: GetAgentsParams = {}) {
-		const { page = 1, page_size = 20, keyword } = params
-		return fetch.post<GetExternalAgentsResponse>(
-			genRequestUrl("/api/v2/super-magic/agents/external/queries"),
+		return fetch.post<GetCreatedAgentsResponse>(
+			genRequestUrl("/api/v2/super-magic/agents/queries/created"),
 			{
 				page,
 				page_size,
 				keyword,
 			},
+		)
+	},
+
+	/**
+	 * Get current user's hired agents list.
+	 * Endpoint: POST /api/v2/super-magic/agents/queries/market-installed
+	 * POST with body: page, page_size, keyword.
+	 * Includes market hires and agents published to the current user.
+	 * @param params Request body
+	 */
+	getHiredAgents(params: GetAgentsParams = {}) {
+		const { page = 1, page_size = 20, keyword } = params
+		return fetch.post<GetHiredAgentsResponse>(
+			genRequestUrl("/api/v2/super-magic/agents/queries/market-installed"),
+			{
+				page,
+				page_size,
+				keyword,
+			},
+		)
+	},
+
+	/**
+	 * Get current user's team-shared agents list.
+	 * Endpoint: POST /api/v2/super-magic/agents/queries/team-shared
+	 * POST with body: page, page_size, keyword.
+	 * Includes agents shared by teammates into the current team.
+	 * @param params Request body
+	 */
+	getTeamSharedAgents(params: GetAgentsParams = {}) {
+		const { page = 1, page_size = 20, keyword } = params
+		return fetch.post<GetTeamSharedAgentsResponse>(
+			genRequestUrl("/api/v2/super-magic/agents/queries/team-shared"),
+			{
+				page,
+				page_size,
+				keyword,
+			},
+		)
+	},
+
+	/**
+	 * Set home featured frequent agents order (agent codes).
+	 */
+	updateFeaturedFrequentAgents(params: { codes: string[] }) {
+		return fetch.put<unknown>(
+			genRequestUrl("/api/v2/super-magic/agents/featured/frequent"),
+			params,
 		)
 	},
 

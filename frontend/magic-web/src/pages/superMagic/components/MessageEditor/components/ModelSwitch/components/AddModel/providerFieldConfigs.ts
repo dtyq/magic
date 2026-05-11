@@ -1,3 +1,5 @@
+// @ts-expect-error missing package types in host app
+import { AiModel } from "@dtyq/magic-admin"
 import type { ProviderFieldConfig } from "./types"
 
 interface BuildFieldConfigParams {
@@ -14,15 +16,39 @@ const FIELD_KEY_ALIAS_MAP: Record<string, string> = {
 	apikey: "api_key",
 }
 
-const PROVIDER_URL_PLACEHOLDER_MAP: Record<string, string> = {
-	microsoft: "https://docs-test-001.openai.azure.com",
-	microsoftazure: "https://docs-test-001.openai.azure.com",
-	azure: "https://docs-test-001.openai.azure.com",
+const PROVIDER_CODE_TO_SERVICE_PROVIDER_MAP: Partial<Record<string, AiModel.ServiceProvider>> = {
+	microsoft: AiModel.ServiceProvider.MicrosoftAzure,
+	microsoftazure: AiModel.ServiceProvider.MicrosoftAzure,
+	azure: AiModel.ServiceProvider.MicrosoftAzure,
+	openrouter: AiModel.ServiceProvider.OpenRouter,
+	deepseek: AiModel.ServiceProvider.DeepSeek,
+	alibabacloud: AiModel.ServiceProvider.DashScope,
+	dashscope: AiModel.ServiceProvider.DashScope,
+	qwen: AiModel.ServiceProvider.Qwen,
+	volcengine: AiModel.ServiceProvider.Volcengine,
+	volcengineark: AiModel.ServiceProvider.VolcengineArk,
+	tencent: AiModel.ServiceProvider.Tencent,
+	tencenthunyuan: AiModel.ServiceProvider.Tencent,
+	baidu: AiModel.ServiceProvider.Baidu,
+	baiduqianfan: AiModel.ServiceProvider.Baidu,
+	scnet: AiModel.ServiceProvider.SCNet,
+	nationalsupercomputingplatform: AiModel.ServiceProvider.SCNet,
+	moonshot: AiModel.ServiceProvider.Moonshot,
+	kimi: AiModel.ServiceProvider.Moonshot,
+	kimiopenplatform: AiModel.ServiceProvider.Moonshot,
+	bigmodel: AiModel.ServiceProvider.BigModel,
+	zhipu: AiModel.ServiceProvider.BigModel,
+	zhipuaiopenplatform: AiModel.ServiceProvider.BigModel,
+	minimax: AiModel.ServiceProvider.MiniMax,
+	minimaxopenplatform: AiModel.ServiceProvider.MiniMax,
+	siliconflow: AiModel.ServiceProvider.SiliconFlow,
+	gemini: AiModel.ServiceProvider.Gemini,
+	google: AiModel.ServiceProvider.Google,
+}
+
+const PROVIDER_URL_PLACEHOLDER_OVERRIDE_MAP: Record<string, string> = {
 	openrouter: "https://openrouter.ai/api/v1",
-	deepseek: "https://api.deepseek.com",
-	alibabacloud: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-	dashscope: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-	volcengine: "https://ark.cn-beijing.volces.com/api/v3",
+	ttapi: "https://api.ttapi.io",
 	gemini: "https://generativelanguage.googleapis.com",
 	google: "https://generativelanguage.googleapis.com",
 	custom: "https://api.example.com/v1",
@@ -37,8 +63,27 @@ const PROVIDER_API_KEY_PLACEHOLDER_MAP: Record<string, string> = {
 	openrouter: "OpenRouter API Key",
 	alibabacloud: "Aliyun (Bailian) API Key",
 	dashscope: "Aliyun (Bailian) API Key",
+	qwen: "Aliyun (Bailian) API Key",
 	volcengine: "Volcengine API Key",
+	volcengineark: "Volcengine Ark API Key",
 	deepseek: "DeepSeek API Key",
+	tencent: "Tencent Hunyuan API Key",
+	tencenthunyuan: "Tencent Hunyuan API Key",
+	baidu: "Baidu Qianfan API Key",
+	baiduqianfan: "Baidu Qianfan API Key",
+	scnet: "National Supercomputing Platform API Key",
+	nationalsupercomputingplatform: "National Supercomputing Platform API Key",
+	moonshot: "Kimi Open Platform API Key",
+	kimi: "Kimi Open Platform API Key",
+	kimiopenplatform: "Kimi Open Platform API Key",
+	bigmodel: "Zhipu AI Open Platform API Key",
+	zhipu: "Zhipu AI Open Platform API Key",
+	zhipuaiopenplatform: "Zhipu AI Open Platform API Key",
+	minimax: "MiniMax Open Platform API Key",
+	minimaxopenplatform: "MiniMax Open Platform API Key",
+	siliconflow: "SiliconFlow API Key",
+	ttapi: "TTAPI API Key",
+	miraclevision: "MiracleVision API Key",
 	custom: "Custom Provider API Key",
 }
 
@@ -52,6 +97,17 @@ function normalizeKey(rawKey: string): string {
 function normalizeProviderCode(providerCode?: string): string {
 	if (!providerCode) return ""
 	return providerCode.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()
+}
+
+function resolveProviderUrlPlaceholder(providerCode?: string): string | undefined {
+	const normalizedProviderCode = normalizeProviderCode(providerCode)
+	const overriddenUrl = PROVIDER_URL_PLACEHOLDER_OVERRIDE_MAP[normalizedProviderCode]
+	if (overriddenUrl) return overriddenUrl
+
+	const serviceProvider = PROVIDER_CODE_TO_SERVICE_PROVIDER_MAP[normalizedProviderCode]
+	if (!serviceProvider) return undefined
+
+	return AiModel.ServiceProviderUrl[serviceProvider]
 }
 
 function getFieldStorageKey(rawKey: string, canonicalKey: string): string {
@@ -134,12 +190,13 @@ export function buildProviderFieldConfig({
 
 	if (canonicalKey === "url") {
 		const isAzure = isAzureLikeProviderCode(providerCode)
-		const defaultUrl = PROVIDER_URL_PLACEHOLDER_MAP[normalizedProviderCode]
+		const defaultUrl = resolveProviderUrlPlaceholder(providerCode)
 		return {
 			key: fieldKey,
 			label: isAzure ? "Azure API Address" : "API Url",
 			labelKey: isAzure ? "azureApiAddress" : "apiUrl",
 			required: isRequired,
+			defaultValue: defaultUrl,
 			placeholder: defaultUrl ?? "https://api.example.com/v1",
 			inputType: "text",
 			validator: "url",
@@ -189,4 +246,15 @@ export function validateProviderFieldValue(
 	}
 
 	return null
+}
+
+export function getProviderFieldInitialValues(
+	fields: ProviderFieldConfig[],
+): Record<string, string> {
+	return fields.reduce<Record<string, string>>((acc, field) => {
+		if (field.defaultValue == null) return acc
+
+		acc[field.key] = field.defaultValue
+		return acc
+	}, {})
 }

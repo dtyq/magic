@@ -1,12 +1,14 @@
 import magicToast from "@/components/base/MagicToaster/utils"
 import { SuperMagicApi } from "@/apis"
 import type { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
-import { loadMagicProjectJsContent, parseMagicProjectJsContent } from "../utils/utils"
 import {
-	getDataToCompare,
-	type DesignProjectStateBag,
-	type DesignProjectManagerOptions,
-} from "./types"
+	loadMagicProjectJsContent,
+	parseMagicProjectJsContent,
+	resolveDesignProjectBasePathFromAttachments,
+	normalizeDesignDataPathsAfterLoad,
+} from "../utils/utils"
+import { hashDesignDataComparable } from "../utils/designContentHash"
+import { type DesignProjectStateBag, type DesignProjectManagerOptions } from "./types"
 import type { DesignData } from "../types"
 import type { DesignSaveManager } from "./DesignSaveManager"
 
@@ -43,7 +45,12 @@ export class DesignVersionManager {
 		const content = await loadMagicProjectJsContent(magicProjectJsFileId, {
 			file_versions: { [magicProjectJsFileId]: version },
 		})
-		return parseMagicProjectJsContent(content)
+		const data = parseMagicProjectJsContent(content)
+		if (data) {
+			const dslBase = resolveDesignProjectBasePathFromAttachments(this.options)
+			if (dslBase) normalizeDesignDataPathsAfterLoad(data, dslBase)
+		}
+		return data
 	}
 
 	async loadLatest(): Promise<{ data: DesignData | null; version: number | null }> {
@@ -52,6 +59,10 @@ export class DesignVersionManager {
 
 		const content = await loadMagicProjectJsContent(magicProjectJsFileId)
 		const data = parseMagicProjectJsContent(content)
+		if (data) {
+			const dslBase = resolveDesignProjectBasePathFromAttachments(this.options)
+			if (dslBase) normalizeDesignDataPathsAfterLoad(data, dslBase)
+		}
 
 		let version: number | null = null
 		if (!this.options.isShareRoute) {
@@ -92,13 +103,13 @@ export class DesignVersionManager {
 		this.saveManager.cancelAutoSave()
 		this.stateBag.setters.setIsSaving(false)
 		this.stateBag.setters.setDesignData(parsedDesignData)
-		this.stateBag.setPrevDesignDataStr(JSON.stringify(getDataToCompare(parsedDesignData)))
+		this.stateBag.setPrevDesignDataFingerprint(hashDesignDataComparable(parsedDesignData))
 		this.stateBag.setters.setIsReadOnly(
 			!this.options.allowEdit ||
-			this.options.isPlaybackMode ||
-			isViewingHistory ||
-			this.options.isShareRoute ||
-			this.options.isMobile,
+				this.options.isPlaybackMode ||
+				isViewingHistory ||
+				this.options.isShareRoute ||
+				this.options.isMobile,
 		)
 		this.options.onVersionChange?.(parsedDesignData, isViewingHistory)
 	}

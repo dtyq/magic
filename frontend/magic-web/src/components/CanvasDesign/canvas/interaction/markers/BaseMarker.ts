@@ -1,7 +1,6 @@
 import Konva from "konva"
 import type { Marker } from "../../types"
 import type { Canvas } from "../../Canvas"
-import { ToolTypeEnum } from "../../types"
 
 /**
  * BaseMarker 构造函数选项
@@ -13,8 +12,6 @@ export interface BaseMarkerOptions {
 	canvas: Canvas
 	/** 序号（从1开始） */
 	sequence: number
-	/** 当前选中的 Marker ID */
-	selectedMarkerId: string | null
 	/** 当前工具类型 */
 	currentTool: string | null
 }
@@ -28,14 +25,14 @@ export abstract class BaseMarker {
 	protected canvas: Canvas
 	protected sequence: number
 	protected group: Konva.Group | null = null
-	protected selectedMarkerId: string | null
 	protected currentTool: string | null
+	protected isHoveringDelete = false
+	protected isDeletePressing = false
 
 	constructor(options: BaseMarkerOptions) {
 		this.marker = options.marker
 		this.canvas = options.canvas
 		this.sequence = options.sequence
-		this.selectedMarkerId = options.selectedMarkerId
 		this.currentTool = options.currentTool
 	}
 
@@ -43,6 +40,34 @@ export abstract class BaseMarker {
 	 * 渲染 Marker（抽象方法，由子类实现）
 	 */
 	public abstract render(): void
+
+	/**
+	 * 更新 hover 删除态样式
+	 */
+	protected abstract updateDeleteHoverState(isHovering: boolean): void
+
+	/**
+	 * 获取删除交互的命中节点
+	 */
+	protected abstract getDeleteInteractionNode(): Konva.Node | null
+
+	/**
+	 * 获取删除态文字节点
+	 */
+	protected abstract getDeleteLabelNode(): Konva.Text | null
+
+	/**
+	 * 获取删除态背景节点
+	 */
+	protected abstract getDeleteBackgroundNode(): Konva.Shape | null
+
+	/**
+	 * 获取删除态背景颜色配置
+	 */
+	protected abstract getDeleteBackgroundColorConfig(): {
+		hoverColor: string
+		activeColor: string
+	}
 
 	/**
 	 * 在 Canvas 上绘制 Marker（用于图片合成）
@@ -105,20 +130,6 @@ export abstract class BaseMarker {
 	}
 
 	/**
-	 * 更新选中状态
-	 */
-	public updateSelection(selectedMarkerId: string | null): void {
-		this.selectedMarkerId = selectedMarkerId
-		if (!this.group) return
-
-		if (this.selectedMarkerId === this.marker.id) {
-			this.group.opacity(1) // 选中时完全不透明
-		} else {
-			this.group.opacity(0.6) // 未选中时半透明
-		}
-	}
-
-	/**
 	 * 更新当前工具
 	 */
 	public updateCurrentTool(currentTool: string | null): void {
@@ -126,23 +137,37 @@ export abstract class BaseMarker {
 	}
 
 	/**
-	 * 设置点击事件处理
+	 * 设置点击事件处理（阻止冒泡，避免点击标记时选中底层元素）
 	 */
-	public setupClickHandler(onSelect: (markerId: string) => void, onDeselect: () => void): void {
-		if (!this.group) return
+	public setupClickHandler(onDelete: (markerId: string) => void): void {
+		const interactionNode = this.getDeleteInteractionNode()
+		if (!interactionNode) return
 
-		this.group.on("click", (e) => {
+		interactionNode.on("mousedown touchstart", (e) => {
 			e.cancelBubble = true
-			// 只有在选择工具激活时才允许选中标记
-			if (this.currentTool === ToolTypeEnum.Select) {
-				// 如果点击的是已选中的marker，取消选中
-				if (this.selectedMarkerId === this.marker.id) {
-					onDeselect()
-				} else {
-					// 否则选中该marker
-					onSelect(this.marker.id)
-				}
-			}
+			if (!this.canDeleteFromInteraction()) return
+
+			this.isDeletePressing = true
+			this.updateDeleteActiveState(true)
+			this.canvas.markersLayer.batchDraw()
+		})
+
+		interactionNode.on("mouseup touchend", (e) => {
+			e.cancelBubble = true
+			if (!this.isHoveringDelete) return
+
+			this.isDeletePressing = false
+			this.updateDeleteActiveState(false)
+			this.canvas.markersLayer.batchDraw()
+		})
+
+		interactionNode.on("click", (e) => {
+			e.cancelBubble = true
+			if (!this.canDeleteFromInteraction()) return
+
+			this.isDeletePressing = false
+			this.canvas.cursorManager.restoreToolCursor()
+			onDelete(this.marker.id)
 		})
 	}
 
@@ -150,21 +175,49 @@ export abstract class BaseMarker {
 	 * 设置 hover 事件处理
 	 */
 	public setupHoverHandler(): void {
-		if (!this.group) return
+		const interactionNode = this.getDeleteInteractionNode()
+		if (!interactionNode) return
 
-		this.group.on("mouseenter", () => {
-			// 只有在选择工具激活时才显示 pointer 光标
-			if (this.currentTool === ToolTypeEnum.Select) {
-				this.canvas.cursorManager.setTemporary("pointer")
-			}
+		interactionNode.on("mouseenter", () => {
+			if (!this.canDeleteFromInteraction()) return
+
+			this.isHoveringDelete = true
+			this.isDeletePressing = false
+			this.updateDeleteHoverState(true)
+			this.updateDeleteActiveState(false)
+			this.canvas.cursorManager.setTemporary("pointer")
+			this.canvas.markersLayer.batchDraw()
 		})
 
-		this.group.on("mouseleave", () => {
-			// 只有在选择工具激活时才恢复光标
-			if (this.currentTool === ToolTypeEnum.Select) {
-				this.canvas.cursorManager.restoreToolCursor()
-			}
+		interactionNode.on("mouseleave", () => {
+			if (!this.isHoveringDelete) return
+
+			this.isHoveringDelete = false
+			this.isDeletePressing = false
+			this.updateDeleteHoverState(false)
+			this.updateDeleteActiveState(false)
+			this.canvas.cursorManager.restoreToolCursor()
+			this.canvas.markersLayer.batchDraw()
 		})
+	}
+
+	protected updateDeleteActiveState(isActive: boolean): void {
+		const backgroundNode = this.getDeleteBackgroundNode()
+		if (!backgroundNode) return
+
+		const { activeColor, hoverColor } = this.getDeleteBackgroundColorConfig()
+		if (!this.isHoveringDelete) {
+			this.updateDeleteHoverState(false)
+			return
+		}
+
+		backgroundNode.fill(isActive ? activeColor : hoverColor)
+	}
+
+	private canDeleteFromInteraction(): boolean {
+		if (!this.canvas.permissionManager.canDeleteMarker()) return false
+		if (!this.canvas.permissionManager.canUseSelectionToolAffordance()) return false
+		return true
 	}
 
 	/**

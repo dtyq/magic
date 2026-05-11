@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, Suspense, lazy } from "react"
+import { memo, useMemo, Suspense, lazy } from "react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import type { NodeProps } from "../../../types"
@@ -6,6 +6,7 @@ import { superMagicStore } from "@/pages/superMagic/stores"
 import { cn } from "@/lib/utils"
 import { ChevronUp, ChevronRight } from "lucide-react"
 import { defaultOpen } from "../../config"
+import { useToggleWithScrollPreserve } from "../../../shared/hooks/useToggleWithScrollPreserve"
 import { ToolIconBadge } from "@/pages/superMagic/components/MessageList/components/shared/ToolIconConfig"
 import { customTheme, syntaxCustomStyle, syntaxLineNumberStyle } from "./syntaxConfig"
 
@@ -38,7 +39,7 @@ function MCPInitNode(props: NodeProps) {
 
 	const { t } = useTranslation("component")
 
-	const [open, setOpen] = useState(defaultOpen)
+	const [open, toggle] = useToggleWithScrollPreserve(defaultOpen)
 
 	const [successPlugins, failPlugins] = useMemo(() => {
 		return [
@@ -55,7 +56,7 @@ function MCPInitNode(props: NodeProps) {
 		>
 			<div
 				className={cn(
-					"inline-flex w-fit max-w-full flex-col items-center overflow-hidden rounded-lg border border-[#e5e5e5] shadow-sm dark:border-border",
+					"inline-flex w-fit max-w-full flex-col items-center overflow-hidden rounded-lg border border-[#e5e5e5] bg-white shadow-sm dark:border-border dark:bg-card",
 					open && "w-full",
 				)}
 			>
@@ -74,10 +75,7 @@ function MCPInitNode(props: NodeProps) {
 							</div>
 						)}
 					</div>
-					<div
-						className={cn(mcpToggleButton, "mr-1.5")}
-						onClick={() => setOpen((o) => !o)}
-					>
+					<div className={cn(mcpToggleButton, "mr-1.5")} onClick={toggle}>
 						{open ? (
 							<ChevronUp
 								size={16}

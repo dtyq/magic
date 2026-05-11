@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import MainInputHeaderSlot from "@/pages/superMagic/components/MainInputContainer/components/MainInputHeaderSlot/index"
 import SloganContainer from "./components/SloganContainer"
@@ -12,39 +12,28 @@ import { roleStore } from "../../stores"
 import { observer } from "mobx-react-lite"
 import { cn } from "@/lib/utils"
 import { createSceneStateStore } from "./stores"
-import { useLocation } from "react-router"
-import { useModeList } from "../MessagePanel/hooks/usePatternTabs"
+import { useMemoizedFn } from "ahooks"
+import useAgentCodeModeFromSearch from "../../hooks/useAgentCodeModeFromSearch"
 
 const Container = observer(function Container() {
 	const { currentRole, setCurrentRole } = roleStore
 	const [sceneStateStore] = useState(() => createSceneStateStore())
 	const [shouldAutoFocusEditor, setShouldAutoFocusEditor] = useState(false)
-	const location = useLocation()
-	const { modeList } = useModeList({ includeGeneral: true, includeChat: true })
-	const consumedAgentCodeRef = useRef<string | null>(null)
 
 	const headerPortalTarget = usePortalTarget({
 		portalId: AGENT_INPUT_CONTAINER_HEADER_ID,
 		enabled: currentRole !== TopicMode.General,
 	})
 
-	useEffect(() => {
-		const agentCode = new URLSearchParams(location.search).get("agentCode")?.trim() || null
-		if (!agentCode) {
-			consumedAgentCodeRef.current = null
-			setShouldAutoFocusEditor(false)
-			return
-		}
-		if (consumedAgentCodeRef.current === agentCode) return
-
-		const targetMode = modeList.find((item) => item.mode.identifier === agentCode)?.mode
-			.identifier
-		if (!targetMode) return
-
-		consumedAgentCodeRef.current = agentCode
+	const handleResolveMode = useMemoizedFn((mode: TopicMode) => {
 		setShouldAutoFocusEditor(true)
-		setCurrentRole(targetMode as TopicMode)
-	}, [location.search, modeList, setCurrentRole])
+		setCurrentRole(mode)
+	})
+
+	useAgentCodeModeFromSearch({
+		onModeResolved: handleResolveMode,
+		onAgentCodeCleared: () => setShouldAutoFocusEditor(false),
+	})
 
 	return (
 		<ScrollArea

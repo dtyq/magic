@@ -6,6 +6,48 @@ import type { Language } from "../../i18n/types"
 
 // Mock the i18n modules
 vi.mock("../../i18n", () => ({
+	LANGUAGE_PACKS: {
+		en: {
+			searchPlaceholder: "Search project files",
+			loading: "Loading...",
+			error: "Failed to load data",
+			retry: "Retry",
+			empty: "No data available",
+			keyboardHints: {
+				navigate: "Navigate",
+				confirm: "Confirm",
+				goBack: "Go back",
+				goForward: "Go forward",
+				exitSearch: "Exit",
+			},
+			ariaLabels: {
+				panel: "Mention panel",
+				menuItem: "Menu item",
+				searchInput: "Search input",
+				retryButton: "Retry button",
+			},
+		},
+		"zh-CN": {
+			searchPlaceholder: "搜索项目文件",
+			loading: "加载中...",
+			error: "加载失败",
+			retry: "重试",
+			empty: "暂无数据",
+			keyboardHints: {
+				navigate: "切换选择",
+				confirm: "确认",
+				goBack: "返回上一层",
+				goForward: "进入下一层",
+				exitSearch: "退出",
+			},
+			ariaLabels: {
+				panel: "提及面板",
+				menuItem: "菜单项",
+				searchInput: "搜索输入框",
+				retryButton: "重试按钮",
+			},
+		},
+	},
 	getDefaultLanguage: vi.fn(() => "en"),
 	normalizeLocale: vi.fn((locale: string) => {
 		if (!locale || typeof locale !== "string") return "en"
@@ -30,52 +72,6 @@ vi.mock("../../i18n", () => ({
 			normalized === "中文"
 		)
 	}),
-}))
-
-vi.mock("../../i18n/locales/en", () => ({
-	en: {
-		searchPlaceholder: "Search project files",
-		loading: "Loading...",
-		error: "Failed to load data",
-		retry: "Retry",
-		empty: "No data available",
-		keyboardHints: {
-			navigate: "Navigate",
-			confirm: "Confirm",
-			goBack: "Go back",
-			goForward: "Go forward",
-			exitSearch: "Exit",
-		},
-		ariaLabels: {
-			panel: "Mention panel",
-			menuItem: "Menu item",
-			searchInput: "Search input",
-			retryButton: "Retry button",
-		},
-	},
-}))
-
-vi.mock("../../i18n/locales/zh-CN", () => ({
-	zhCN: {
-		searchPlaceholder: "搜索项目文件",
-		loading: "加载中...",
-		error: "加载失败",
-		retry: "重试",
-		empty: "暂无数据",
-		keyboardHints: {
-			navigate: "切换选择",
-			confirm: "确认",
-			goBack: "返回上一层",
-			goForward: "进入下一层",
-			exitSearch: "退出",
-		},
-		ariaLabels: {
-			panel: "提及面板",
-			menuItem: "菜单项",
-			searchInput: "搜索输入框",
-			retryButton: "重试按钮",
-		},
-	},
 }))
 
 describe("useI18n", () => {

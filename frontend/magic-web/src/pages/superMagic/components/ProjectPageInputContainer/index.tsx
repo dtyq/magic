@@ -1,18 +1,15 @@
-import { useMemoizedFn } from "ahooks"
 import { cn } from "@/lib/utils"
 import React, { useEffect, useMemo, useState } from "react"
-import { TopicMode } from "../../pages/Workspace/types"
 import TaskList from "../TaskList"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { observer } from "mobx-react-lite"
 import { MessageEditorSize } from "../MessageEditor/types"
 import { roleStore } from "../../stores"
 import useTopicMode from "../../hooks/useTopicMode"
-import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import MessageQueue from "../MessagePanel/components/MessageQueue"
 import useMessageQueue from "../MessagePanel/hooks/useMessageQueue"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
-import GlobalMentionPanelStore from "@/components/business/MentionPanel/store"
+import GlobalMentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 import { DEFAULT_LAYOUT_CONFIG } from "../MessageEditor/constants/constant"
 import { usePreload } from "../MessagePanel/utils/preload"
 import { useTaskData } from "../../hooks/useTaskData"
@@ -21,7 +18,8 @@ import type {
 	SceneEditorContext,
 	SceneEditorNodes,
 } from "../MainInputContainer/components/editors/types"
-import { createSceneStateStore } from "../MainInputContainer/stores"
+import { useSceneSelection } from "../MainInputContainer/hooks"
+import { buildTopicInputScopeKey, createSceneStateStore } from "../MainInputContainer/stores"
 import MobileInputContainer from "@/pages/superMagicMobile/pages/ChatPage/components/MobileInputContainer"
 import DesktopInputContainer from "./DesktopInputContainer"
 import { MOBILE_LAYOUT_CONFIG } from "../MainInputContainer/components/editors/constant"
@@ -58,6 +56,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	enableMessageSendByContent = true,
 	editorLayoutConfig,
 	showTopicModeExamplePortal = true,
+	enableReEditMessageFromPubSub = false,
 }) => {
 	const isMobile = useIsMobile()
 	const { taskData: taskDataFromStore } = useTaskData({ selectedTopic })
@@ -77,26 +76,13 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	/**
 	 * 聊天页的话题模式，用于已有话题的模式展示或新话题的模式切换
 	 */
-	const { topicMode, setTopicMode } = useTopicMode({
+	const { topicMode: innerTopicMode, setTopicMode: innerSetTopicMode } = useTopicMode({
 		selectedTopic,
 		selectedProject,
 	})
 
-	const setTabPatternWithFocus = useMemoizedFn((mode: TopicMode) => {
-		setTabPattern(mode)
-	})
-
-	const setTopicModeWithFocus = useMemoizedFn((mode: TopicMode) => {
-		setTopicMode(mode)
-		// 发布模式变化事件，通知 Design 组件等更新
-		if (selectedProject?.workspace_id && selectedProject?.id) {
-			pubsub.publish(PubSubEvents.Super_Magic_Topic_Mode_Changed, {
-				mode,
-				workspaceId: selectedProject.workspace_id,
-				projectId: selectedProject.id,
-			})
-		}
-	})
+	const topicMode = topicModeLogicProps?.topicMode ?? innerTopicMode
+	const setTopicMode = topicModeLogicProps?.setTopicMode ?? innerSetTopicMode
 
 	const { handleInterrupt } = useTaskInterrupt({
 		selectedTopic: selectedTopic ?? null,
@@ -110,6 +96,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	const messageQueue = useMessageQueue({
 		projectId: selectedProject?.id,
 		topicId: selectedTopic?.id,
+		agentCode: selectedTopic?.agent_code,
 		isTaskRunning: showLoading,
 		isEmptyStatus,
 		isShowLoadingInit,
@@ -120,58 +107,28 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	}, [sceneStateStore, organizationCode, userId])
 
 	useEffect(() => {
+		sceneStateStore.setInputScopeKey(
+			buildTopicInputScopeKey(
+				String(topicMode),
+				selectedTopic?.id ?? "",
+				selectedTopic?.agent_code ?? "",
+			),
+		)
+	}, [
+		topicMode,
+		selectedTopic?.id,
+		selectedTopic?.agent_code,
+		sceneStateStore,
+		organizationCode,
+		userId,
+	])
+
+	useEffect(() => {
 		if (selectedProject?.project_mode) {
 			setTabPattern(selectedProject.project_mode)
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [selectedProject?.project_mode])
-
-	const topicModeLogic = useMemo(() => {
-		if (topicModeLogicProps) {
-			return topicModeLogicProps
-		}
-
-		if (isMobile) {
-			const _topicMode =
-				tabPattern === TopicMode.Chat
-					? superMagicModeService.firstModeIdentifier
-					: topicMode
-
-			return {
-				topicMode: _topicMode,
-				setTopicMode: setTopicModeWithFocus,
-				allowEditorModeChange: (messages ?? []).length > 0 ? false : true,
-			}
-		}
-
-		if (!selectedTopic) {
-			const topicMode = tabPattern
-
-			return {
-				topicMode: topicMode,
-				setTopicMode: setTabPatternWithFocus,
-				allowEditorModeChange: false,
-			}
-		}
-
-		return {
-			topicMode:
-				topicMode === TopicMode.Chat
-					? superMagicModeService.firstModeIdentifier
-					: topicMode,
-			setTopicMode: setTopicModeWithFocus,
-			allowEditorModeChange: (messages ?? []).length > 0 ? false : true,
-		}
-	}, [
-		topicModeLogicProps,
-		isMobile,
-		selectedTopic,
-		topicMode,
-		setTopicModeWithFocus,
-		messages,
-		tabPattern,
-		setTabPatternWithFocus,
-	])
 
 	const editorSize = size as MessageEditorSize
 
@@ -229,8 +186,9 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 			selectedProject,
 			setSelectedTopic,
 			setSelectedProject,
-			topicMode: topicModeLogic.topicMode,
-			setTopicMode: topicModeLogic.setTopicMode,
+			topicMode: topicMode,
+			agentCode: selectedTopic?.agent_code,
+			setTopicMode: setTopicMode,
 			topicExamplesMode: tabPattern,
 			size: editorSize,
 			className: editPanelClassName,
@@ -273,8 +231,8 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		selectedWorkspace,
 		setSelectedTopic,
 		setSelectedProject,
-		topicModeLogic.topicMode,
-		topicModeLogic.setTopicMode,
+		topicMode,
+		setTopicMode,
 		tabPattern,
 		editorSize,
 		editPanelClassName,
@@ -300,24 +258,24 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 
 	usePreload()
 
-	const scenes = superMagicModeService.getModeConfigWithLegacy(sceneEditorContext.topicMode)?.mode
-		.playbooks
-	const currentScene = sceneStateStore.currentScene
-
-	useEffect(() => {
-		if (!currentScene || !scenes) return
-
-		const isSceneValid = scenes.some((scene) => scene.id === currentScene.id)
-		if (!isSceneValid) {
-			sceneStateStore.setCurrentScene(null)
-		}
-	}, [currentScene, scenes, sceneStateStore])
+	const scenes = superMagicModeService.getModeConfigWithLegacy(
+		sceneEditorContext.topicMode,
+		undefined,
+		false,
+		sceneEditorContext.agentCode,
+	)?.mode.playbooks
+	const { currentScene, shouldShowCurrentSceneBadge, shouldShowSceneControls } =
+		useSceneSelection({
+			scenes,
+			sceneStateStore,
+		})
 
 	if (isMobile) {
 		return (
 			<MobileInputContainer
 				editorContext={sceneEditorContext}
 				editorNodes={sceneEditorNodes}
+				enableReEditMessageFromPubSub={enableReEditMessageFromPubSub}
 			/>
 		)
 	}
@@ -325,6 +283,10 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	return (
 		<DesktopInputContainer
 			sceneStateStore={sceneStateStore}
+			scenes={scenes}
+			currentScene={currentScene}
+			shouldShowCurrentSceneBadge={shouldShowCurrentSceneBadge}
+			shouldShowSceneControls={shouldShowSceneControls}
 			containerRef={containerRef}
 			className={className}
 			classNames={classNames}

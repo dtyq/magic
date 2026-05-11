@@ -7,6 +7,7 @@ import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import { useLocaleText } from "../hooks/useLocaleText"
 import type { OptionItem } from "../types"
+import { isImageIconSource } from "../utils"
 
 interface EditableCapsuleProps {
 	items: OptionItem[]
@@ -34,6 +35,7 @@ function EditableCapsuleItem({
 	const { t } = useTranslation("crew/create")
 	const lt = useLocaleText()
 	const label = lt(item.label) ?? item.value
+	const isImageIcon = isImageIconSource(item.icon_url)
 
 	const menuItems = [
 		{
@@ -63,11 +65,23 @@ function EditableCapsuleItem({
 			/>
 			<div
 				className={cn(
-					"shadow-xs flex h-9 items-center gap-2 rounded-full border border-border px-4 py-2 transition-[border-color]",
+					"flex h-9 items-center gap-2 rounded-full border border-border px-4 py-2 shadow-xs transition-[border-color]",
 					isSelected && "border-2 border-primary",
 				)}
 			>
-				{item.icon_url && <LucideLazyIcon icon={item.icon_url} size={16} />}
+				{item.icon_url &&
+					(isImageIcon ? (
+						<img
+							src={item.icon_url}
+							alt={label}
+							width={16}
+							height={16}
+							className="shrink-0 object-contain"
+							loading="lazy"
+						/>
+					) : (
+						<LucideLazyIcon icon={item.icon_url} size={16} />
+					))}
 				<span className="text-sm font-medium leading-5">{label}</span>
 			</div>
 			<MagicDropdown menu={{ items: menuItems }} trigger={["click"]} placement="bottomRight">

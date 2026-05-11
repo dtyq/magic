@@ -12,15 +12,12 @@ const locateFileBlinkAnimation = keyframes`
 
 export default createStyles(({ token, css }) => ({
 	container: css`
-		width: 248px;
 		background: ${token.colorBgContainer};
 		padding: 8px;
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
 		height: 100%;
-		border-radius: 0 0 0 10px;
-		border-right: 1px solid ${token.colorBorder};
+		border-radius: 0 0 0 12px;
 	`,
 
 	containerMobile: css`

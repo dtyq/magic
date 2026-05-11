@@ -4,17 +4,31 @@ import { useMemo } from "react"
 import { observer } from "mobx-react-lite"
 import { computed } from "mobx"
 import { useTranslation } from "react-i18next"
-import FlexBox from "@/components/base/FlexBox"
-import { useStyles } from "./styles"
-import MagicButton from "@/components/base/MagicButton"
-import { IconHistory, IconMessageCirclePlus } from "@tabler/icons-react"
-import MagicIcon from "@/components/base/MagicIcon"
+import { History, MessageCirclePlus } from "lucide-react"
+import { Button } from "@/components/shadcn-ui/button"
 import { useMemoizedFn } from "ahooks"
 import chatTopicService from "@/services/chat/topic"
 import conversationService from "@/services/chat/conversation/ConversationService"
+import { cn } from "@/lib/utils"
+
+const headerRootClass = cn(
+	"flex h-full items-center justify-between gap-4 px-3",
+	"backdrop-blur-[50px]",
+)
+
+const topicNameClass = cn(
+	"min-w-0 flex-1 overflow-hidden text-ellipsis text-sm font-normal leading-5 text-foreground/80",
+)
+
+const actionsClass = "flex shrink-0 items-center gap-2"
+
+const headerActionButtonClass = cn(
+	"gap-1 text-xs font-normal text-foreground/80",
+	"hover:bg-fill hover:text-foreground",
+	"active:bg-fill-secondary",
+)
 
 function Header() {
-	const { styles } = useStyles()
 	const { t } = useTranslation("interface")
 	const { currentConversation, topicOpen } = ConversationStore
 
@@ -37,27 +51,31 @@ function Header() {
 	})
 
 	return (
-		<FlexBox gap={16} align="center" justify="space-between" className={styles.container}>
-			<div className={styles.topicName}>{topicName}</div>
-			<div className={styles.actions}>
-				<MagicButton
-					className={styles.actionButton}
-					icon={<MagicIcon component={IconMessageCirclePlus} size={18} />}
-					size="small"
+		<div className={headerRootClass}>
+			<div className={topicNameClass}>{topicName}</div>
+			<div className={actionsClass}>
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className={headerActionButtonClass}
 					onClick={onCreateTopic}
 				>
+					<MessageCirclePlus className="size-[18px] shrink-0" />
 					{t("chat.topic.newTopic")}
-				</MagicButton>
-				<MagicButton
-					className={styles.actionButton}
-					icon={<MagicIcon component={IconHistory} size={18} />}
-					size="small"
+				</Button>
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className={headerActionButtonClass}
 					onClick={openTopicHistory}
 				>
+					<History className="size-[18px] shrink-0" />
 					{t("chat.topic.historyTopic")}
-				</MagicButton>
+				</Button>
 			</div>
-		</FlexBox>
+		</div>
 	)
 }
 

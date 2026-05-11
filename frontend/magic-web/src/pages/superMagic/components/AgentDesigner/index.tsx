@@ -10,11 +10,8 @@ import { Modal, Button, Flex, Popover } from "antd"
 import { toolItem } from "@/pages/superMagic/components/AgentConfigPanel/components/types"
 import { useTranslation } from "react-i18next"
 import { useStyles } from "./styles"
-import {
-	encodeCrewAgentPrompt,
-	resolveCrewAgentPromptText,
-} from "@/services/crew/agent-prompt"
-import pubsub from "@/utils/pubsub"
+import { encodeCrewAgentPrompt, resolveCrewAgentPromptText } from "@/services/crew/agent-prompt"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import AIOptimizationSvg from "@/pages/superMagic/assets/svg/tabler-icon-sparkles.svg"
 import {
@@ -263,7 +260,7 @@ export default function AgentDesigner(props: {
 			await SuperMagicApi.editAgent({ data })
 			setAgentEditorVisible(false)
 			magicToast.success(t("agentEditor.saveSuccess"))
-			pubsub.publish("super_magic_update_agents")
+			pubsub.publish(PubSubEvents.Update_Agents)
 		} catch (error) {
 			console.error(error, "error")
 		} finally {

@@ -6,6 +6,7 @@ import type { Config } from "@/models/config/types"
 import { magic } from "@/enhance/magicElectron"
 import { service } from "@/services"
 import type { ConfigService } from "@/services/config/ConfigService"
+import { IS_DARK_MODE_DISABLED } from "@/constants/theme"
 import { configStore } from "../stores"
 
 /**
@@ -112,6 +113,7 @@ export function useTheme() {
 	}, [])
 
 	const prefersColorScheme = useMemo(() => {
+		if (IS_DARK_MODE_DISABLED) return "light"
 		if (themeConfig === "auto") {
 			return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
 		}

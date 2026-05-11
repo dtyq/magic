@@ -1,4 +1,4 @@
-import { IconFolder, IconGitFork } from "@tabler/icons-react"
+import { IconFolder, IconGitFork, IconMaximize } from "@tabler/icons-react"
 import {
 	useMemoizedFn,
 	useResponsive,
@@ -20,7 +20,7 @@ import CreatedByBadge from "./components/CreatedByBadge"
 import { SuperMagicApi } from "@/apis"
 import StatusIcon from "../superMagic/components/MessageHeader/components/StatusIcon"
 import { useTranslation } from "react-i18next"
-import pubsub from "@/utils/pubsub"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import Logo from "@/layouts/BaseLayout/components/Header/components/Logo"
 import { history } from "@/routes/history"
 import { RouteName } from "@/routes/constants"
@@ -37,11 +37,69 @@ import useNewFileShareData from "./hooks/useNewFileShareData"
 import useNewTopicShareData from "./hooks/useNewTopicShareData"
 import { userStore } from "@/models/user"
 import { MagicAvatar } from "@/components/base"
+import useBackHandler from "@/utils/historyStackManager/hooks"
 import { useSharePermission } from "./hooks/useSharePermission"
 import UserAvatar from "@/assets/logos/user-avatar.svg"
+import {
+	calculateDefaultOpenFileId,
+	findFileInTree,
+} from "@/pages/superMagic/components/Share/FileSelector/utils"
+import { getAppEntryFile } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
+import { getFileType } from "@/pages/superMagic/utils/handleFIle"
+// import { fixJsonPropertyNames } from "../flow/components/FlowAssistant/utils/streamUtils"
 
 const topicContainerBase =
 	"flex items-center justify-between py-2.5 px-3.5 h-12 bg-card dark:bg-card backdrop-blur-[50px] border-b border-border rounded-[5px] w-full z-[99] max-md:absolute max-md:h-[calc(52px+var(--safe-area-inset-top,0px))] max-md:pt-[var(--safe-area-inset-top,0px)] max-md:px-3 max-md:pb-0 max-md:rounded-none"
+
+function getAttachmentNodeId(node: any): string {
+	return node?.file_id || node?.id || ""
+}
+
+function isHtmlAttachmentNode(node: any): boolean {
+	if (!node) return false
+
+	const nodeName = node?.display_filename || node?.file_name || node?.filename || node?.name || ""
+	if (typeof nodeName === "string" && nodeName.toLowerCase().endsWith(".html")) return true
+
+	return getFileType(node?.file_extension || "") === "html"
+}
+
+function resolvePreviewEntryNode(node: any): any {
+	if (!node) return null
+	if (!node?.is_directory) return node
+
+	const entryFile = getAppEntryFile(node?.children || [], node?.display_config)
+	if (!entryFile) return null
+
+	return entryFile
+}
+
+function resolveImmersiveEntryFileId(params: {
+	attachmentsTree: any[]
+	defaultOpenFileId: string
+	fileId: string
+	isLegacy: boolean
+}): string {
+	const { attachmentsTree, defaultOpenFileId, fileId, isLegacy } = params
+	if (!attachmentsTree?.length) return ""
+
+	const fallbackTopLevelIds = attachmentsTree
+		.map((item: any) => getAttachmentNodeId(item))
+		.filter(Boolean)
+	const candidateId =
+		(isLegacy
+			? fileId
+			: defaultOpenFileId ||
+				calculateDefaultOpenFileId(fallbackTopLevelIds, attachmentsTree)) || ""
+
+	if (!candidateId) return ""
+
+	const candidateNode = findFileInTree(attachmentsTree, candidateId)
+	const previewEntryNode = resolvePreviewEntryNode(candidateNode)
+	if (!previewEntryNode || !isHtmlAttachmentNode(previewEntryNode)) return ""
+
+	return getAttachmentNodeId(previewEntryNode)
+}
 
 function Share() {
 	const navigate = useNavigate()
@@ -70,6 +128,8 @@ function Share() {
 	// Topic sharing: view_file_list state
 	const [viewFileList, setViewFileList] = useState(false)
 	const [defaultOpenFileId, setDefaultOpenFileId] = useState<string>("")
+	const [currentPreviewFileId, setCurrentPreviewFileId] = useState<string | null>(null)
+	const [previewIsFullscreen, setPreviewIsFullscreen] = useState(false)
 	// 是否允许复制项目文件（默认为 true）
 	const [allowCopyProjectFiles, setAllowCopyProjectFiles] = useState(false)
 	// 是否允许下载项目文件（默认为 true）
@@ -111,10 +171,46 @@ function Share() {
 	const [copyProjectIsRunning, setCopyProjectIsRunning] = useState(false)
 	// 实际验证成功的密码（可能来自 URL 或用户手动输入）
 	const [verifiedPassword, setVerifiedPasswordFn] = useState<string | undefined>(passwordFromUrl)
+	const isRouteFileShare = routeInfo.isFileShare
+	const entryHtmlFileId = useMemo(() => {
+		return resolveImmersiveEntryFileId({
+			attachmentsTree: attachments?.tree || [],
+			defaultOpenFileId,
+			fileId,
+			isLegacy: routeInfo.isLegacy,
+		})
+	}, [attachments?.tree, defaultOpenFileId, fileId, routeInfo.isLegacy])
+	const isEntryHtmlPreview = Boolean(entryHtmlFileId) && currentPreviewFileId === entryHtmlFileId
+	const enableImmersiveShareChrome = isMobile && isRouteFileShare && isEntryHtmlPreview
+	const isImmersiveFullscreen = enableImmersiveShareChrome && previewIsFullscreen
+
+	useBackHandler(
+		isImmersiveFullscreen,
+		() => {
+			pubsub.publish(PubSubEvents.Exit_Fullscreen)
+		},
+		"ShareImmersiveFullscreen",
+	)
 
 	const setVerifiedPassword = useMemoizedFn((verifiedPassword: string | undefined) => {
 		setVerifiedPasswordFn(verifiedPassword)
 	})
+
+	useEffect(() => {
+		setCurrentPreviewFileId(null)
+		setPreviewIsFullscreen(false)
+	}, [resourceId, pathname])
+
+	useEffect(() => {
+		if (!previewIsFullscreen) return
+		if (!isMobile) return
+		if (!isRouteFileShare) return
+		if (!entryHtmlFileId) return
+		if (isEntryHtmlPreview) return
+
+		pubsub.publish(PubSubEvents.Exit_Fullscreen)
+		setPreviewIsFullscreen(false)
+	}, [entryHtmlFileId, isEntryHtmlPreview, isMobile, isRouteFileShare, previewIsFullscreen])
 
 	useTokenRefreshPolling({
 		resourceId,
@@ -408,17 +504,17 @@ function Share() {
 	}
 
 	useEffect(() => {
-		pubsub.subscribe("super_magic_playback_end", (taskData: any) => {
+		pubsub.subscribe(PubSubEvents.Playback_End, (taskData) => {
 			const lastTaskStatus = taskData?.process?.[taskData?.process?.length - 1]?.status
 			setTaskStatus(lastTaskStatus)
 		})
-		pubsub.subscribe("super_magic_playback_start", () => {
+		pubsub.subscribe(PubSubEvents.Playback_Start, () => {
 			setTaskStatus("running")
 			setHasStarted(true)
 		})
 		return () => {
-			pubsub.unsubscribe("super_magic_playback_end")
-			pubsub.unsubscribe("super_magic_playback_start")
+			pubsub.unsubscribe(PubSubEvents.Playback_End)
+			pubsub.unsubscribe(PubSubEvents.Playback_Start)
 		}
 	}, [])
 
@@ -446,6 +542,12 @@ function Share() {
 		if (isFileShare && isMobile) return true
 		return !isMobile || (!hasStarted && isMobile)
 	}, [isFileShare, isMobile, hasStarted])
+
+	// 检查是否隐藏 header
+	const shouldHideHeader = useMemo(() => {
+		const urlSearchParams = new URLSearchParams(search)
+		return urlSearchParams.has("hideHeader")
+	}, [search])
 
 	const clearWindowData = useMemoizedFn(() => {
 		// @ts-ignore
@@ -508,6 +610,10 @@ function Share() {
 			// 新格式文件分享的参数
 			resourceId: resourceId, // 资源ID（用于新接口）
 			password: verifiedPassword, // 访问密码
+			// 是否为项目分享（通过 share_project 判断）
+			isProjectShare: data?.share_project === true,
+			// 分享名称（非项目分享时使用）
+			shareName: data?.resource_name,
 		}
 	}, [data, resourceId, verifiedPassword])
 
@@ -569,10 +675,13 @@ function Share() {
 	return (
 		<div
 			className={cn(
-				"box-border flex h-full w-screen flex-col overflow-hidden bg-muted pb-[50px] dark:bg-muted",
+				"box-border flex h-full w-screen flex-col overflow-hidden bg-muted dark:bg-muted",
 				"max-md:block max-md:bg-white max-md:pb-[calc(50px+var(--safe-area-inset-bottom,0px))] dark:max-md:bg-card",
 				isFileShare && "max-md:pb-0",
+				!isFileShare && "pb-[50px]",
+				isImmersiveFullscreen && "max-md:bg-transparent dark:max-md:bg-transparent",
 			)}
+			data-testid="share-page-root"
 		>
 			{copyProjectData && isProjectShare && isLogined && (
 				<CopyProjectModal
@@ -596,91 +705,105 @@ function Share() {
 				}}
 				position="top"
 			/>
-			<div className={topicContainerBase}>
-				{showSuperMagicIcon ? <Logo className="h-[42px] shrink-0 max-md:h-9" /> : null}
-				{isMobile && hasStarted && !isFileShare && (
-					<div className="flex min-w-0 flex-1 items-center gap-2 max-md:gap-1">
-						<StatusIcon status={taskStatus as any} />
-						<span className="min-w-0 flex-1 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-[1.43] text-foreground transition-all duration-200">
-							{data?.resource_name || t("messageHeader.untitledTopic")}
-						</span>
-					</div>
-				)}
-				{!isMobile && hasStarted && data?.extra?.show_original_info ? (
-					<div className="ml-[30px] flex min-w-0 flex-1 shrink items-center gap-2.5 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold leading-5 text-foreground/80">
-						<MagicAvatar src={data?.creator?.avatar_url || UserAvatar} size={24} />
-						<span className="shrink-0 font-semibold text-foreground/80">
-							{data?.creator?.nickname || t("common.unknownUser")}
-						</span>
-						<span className="shrink-0 text-muted-foreground">/</span>
-						<span>
-							{data?.resource_name ||
-								(isFileShare
-									? t("common.untitledProject")
-									: t("messageHeader.untitledTopic"))}
-						</span>
-					</div>
-				) : !isMobile && hasStarted && data?.extra ? (
-					<div className="ml-[30px] flex min-w-0 flex-1 shrink items-center gap-2.5 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold leading-5 text-foreground/80">
-						<span>
-							{data?.resource_name ||
-								(isFileShare
-									? t("common.untitledProject")
-									: t("messageHeader.untitledTopic"))}
-						</span>
-					</div>
-				) : null}
-				<div className="flex gap-2">
-					{isMobile && hasStarted && (
-						<Button
-							variant="outline"
-							size="icon-sm"
-							className="h-8 w-8 rounded-lg p-1.5"
-							onClick={() => pubsub.publish("super_magic_folder_click")}
-						>
-							<IconFolder size={20} />
-						</Button>
-					)}
-					{showCopyProjectButton && (
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-8 gap-1.5 rounded-lg border-black/[0.08] px-1.5 py-1.5 dark:border-white/[0.08]"
-							onClick={handleCopyProject}
-							disabled={copyProjectIsRunning}
-						>
-							<IconGitFork size={18} stroke={1.5} className="size-[18px]" />
-							<span className="text-sm font-normal leading-5 text-foreground/80">
-								{t("share.copyProject")}
+			{!isImmersiveFullscreen && !shouldHideHeader && (
+				<div className={topicContainerBase} data-testid="share-topbar">
+					{showSuperMagicIcon ? <Logo className="h-[42px] shrink-0 max-md:h-9" /> : null}
+					{isMobile && hasStarted && !isFileShare && (
+						<div className="flex min-w-0 flex-1 items-center gap-2 max-md:gap-1">
+							<StatusIcon status={taskStatus as any} />
+							<span className="min-w-0 flex-1 cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-[1.43] text-foreground transition-all duration-200">
+								{data?.resource_name || t("messageHeader.untitledTopic")}
 							</span>
-							<span className="inline-flex h-[22px] items-center rounded-[4px] bg-fill px-1.5 py-0.5 text-xs font-bold leading-4 text-foreground">
-								{formatCopyProjectCount(data?.data?.extended?.fork_num)}
-							</span>
-						</Button>
+						</div>
 					)}
-					{showWorkspaceButton ? (
-						<WorkspaceButton
-							onClick={() => {
-								clearWindowData()
-								history.push({ name: RouteName.Super })
-							}}
-						/>
+					{!isMobile && hasStarted && data?.extra?.show_original_info ? (
+						<div className="ml-[30px] flex min-w-0 flex-1 shrink items-center gap-2.5 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold leading-5 text-foreground/80">
+							<MagicAvatar src={data?.creator?.avatar_url || UserAvatar} size={24} />
+							<span className="shrink-0 font-semibold text-foreground/80">
+								{data?.creator?.nickname || t("common.unknownUser")}
+							</span>
+							<span className="shrink-0 text-muted-foreground">/</span>
+							<span>
+								{data?.resource_name ||
+									(isFileShare
+										? t("common.untitledProject")
+										: t("messageHeader.untitledTopic"))}
+							</span>
+						</div>
+					) : !isMobile && hasStarted && data?.extra ? (
+						<div className="ml-[30px] flex min-w-0 flex-1 shrink items-center gap-2.5 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold leading-5 text-foreground/80">
+							<span>
+								{data?.resource_name ||
+									(isFileShare
+										? t("common.untitledProject")
+										: t("messageHeader.untitledTopic"))}
+							</span>
+						</div>
 					) : null}
-					{!isLogined ? (
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-8 rounded-lg px-5 py-1.5"
-							onClick={() => {
-								clearWindowData()
-								history.replace({ name: RouteName.Login })
-							}}
-						>
-							{t("share.login")}
-						</Button>
-					) : null}
+					<div className="flex gap-2">
+						{isMobile && hasStarted && (
+							<Button
+								variant="outline"
+								size="icon-sm"
+								className="h-8 w-8 rounded-lg p-1.5"
+								onClick={() => pubsub.publish(PubSubEvents.Folder_Click)}
+								data-testid="share-folder-button"
+							>
+								<IconFolder size={20} />
+							</Button>
+						)}
+						{enableImmersiveShareChrome && (
+							<Button
+								variant="outline"
+								size="icon-sm"
+								className="h-8 w-8 rounded-lg p-1.5"
+								onClick={() => pubsub.publish(PubSubEvents.Maximize_File)}
+								data-testid="share-immersive-fullscreen-button"
+							>
+								<IconMaximize size={20} />
+							</Button>
+						)}
+						{showCopyProjectButton && (
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 gap-1.5 rounded-lg border-black/[0.08] px-1.5 py-1.5 dark:border-white/[0.08]"
+								onClick={handleCopyProject}
+								disabled={copyProjectIsRunning}
+							>
+								<IconGitFork size={18} stroke={1.5} className="size-[18px]" />
+								<span className="text-sm font-normal leading-5 text-foreground/80">
+									{t("share.copyProject")}
+								</span>
+								<span className="inline-flex h-[22px] items-center rounded-[4px] bg-fill px-1.5 py-0.5 text-xs font-bold leading-4 text-foreground">
+									{formatCopyProjectCount(data?.data?.extended?.fork_num)}
+								</span>
+							</Button>
+						)}
+						{showWorkspaceButton ? (
+							<WorkspaceButton
+								onClick={() => {
+									clearWindowData()
+									history.push({ name: RouteName.Super })
+								}}
+							/>
+						) : null}
+						{!isLogined ? (
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-8 rounded-lg px-5 py-1.5"
+								onClick={() => {
+									clearWindowData()
+									history.replace({ name: RouteName.Login })
+								}}
+							>
+								{t("share.login")}
+							</Button>
+						) : null}
+					</div>
 				</div>
-			</div>
+			)}
 			<div className="relative h-full overflow-hidden max-md:w-full">
 				{loading && (
 					<div className="flex h-full items-center justify-center">
@@ -714,18 +837,24 @@ function Share() {
 						isProjectShare={isProjectShare}
 						fileId={fileId}
 						defaultOpenFileId={defaultOpenFileId}
+						enableImmersiveShareChrome={enableImmersiveShareChrome}
+						isImmersiveFullscreen={isImmersiveFullscreen}
 						projectId={projectId}
 						topicId={resourceId}
 						showAllProjectFiles={showAllProjectFiles || viewFileList}
 						viewFileList={viewFileList}
 						showCreatedByBadge={data?.extra?.hide_created_by_super_magic === false}
 						allowDownloadProjectFile={allowDownloadProjectFile}
+						onPreviewFileChange={setCurrentPreviewFileId}
+						onPreviewFullscreenChange={setPreviewIsFullscreen}
 					/>
 				)}
 			</div>
 			{/* 由超级麦吉创造按钮：默认不显示，只有 hide_created_by_super_magic 为 false 时才显示 */}
 			<CreatedByBadge
-				visible={data?.extra?.hide_created_by_super_magic === false}
+				visible={
+					!isImmersiveFullscreen && data?.extra?.hide_created_by_super_magic === false
+				}
 				style={{ bottom: routeInfo.isFileShare || !hasStarted ? "12px" : "64px" }}
 			/>
 		</div>

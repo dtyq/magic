@@ -6,12 +6,7 @@ import { useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import useLoginFormOverrideStyles from "@/styles/login-form-overrider"
 import { cn } from "@/lib/utils"
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/shadcn-ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/shadcn-ui/dialog"
 import { userStore } from "@/models/user"
 import MobilePhonePasswordForm from "../components/MobilePhonePasswordForm"
 import Footer from "../components/Footer"
@@ -25,7 +20,6 @@ import { routesMatch } from "@/routes/history/helpers"
 import { appService } from "@/services/app/AppService"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { RouteName } from "@/routes/constants"
-import { LoginDeployment } from "@/pages/login/constants"
 import { isNil } from "lodash-es"
 
 interface AccountModalProps {
@@ -39,7 +33,13 @@ function AccountModal(props: AccountModalProps) {
 	const { onClose, onClusterChange, open: openProp = true } = props
 
 	const { styles: loginFormOverrideStyles } = useLoginFormOverrideStyles()
-	const { clusterCode, service, setDeployCode, setDeployment } = useLoginServiceContext()
+	const {
+		clusterCode,
+		service,
+		setPrivateClusterCode,
+		showPrivateDeployment,
+		showPublicDeployment,
+	} = useLoginServiceContext()
 	const { t } = useTranslation("login")
 
 	const [open, setOpen] = useState(false)
@@ -51,12 +51,13 @@ function AccountModal(props: AccountModalProps) {
 	useDeepCompareEffect(() => {
 		if (isNil(props?.clusterCode)) return
 
-		setDeployCode(props?.clusterCode || "")
-		setDeployment(
-			props?.clusterCode === ""
-				? LoginDeployment.PublicDeploymentLogin
-				: LoginDeployment.PrivateDeploymentLogin,
-		)
+		setPrivateClusterCode(props?.clusterCode || "")
+		if (props?.clusterCode === "") {
+			showPublicDeployment()
+			return
+		}
+
+		showPrivateDeployment()
 	}, [props?.clusterCode])
 
 	const { agree, setAgree, triggerUserAgreedPolicy } = useUserAgreedPolicy()
@@ -124,11 +125,11 @@ function AccountModal(props: AccountModalProps) {
 
 				// 更新路由集群编码
 				const routeMeta = routesMatch(window.location.pathname)
-				if (routeMeta) {
+				if (routeMeta?.route.name) {
 					const searchParams = new URLSearchParams(window.location.search)
 					const query = Object.fromEntries(searchParams.entries())
 					history.replace({
-						name: routeMeta.route.name!,
+						name: routeMeta.route.name,
 						params: {
 							...routeMeta?.params,
 							clusterCode,
@@ -137,9 +138,14 @@ function AccountModal(props: AccountModalProps) {
 					})
 				}
 				redirectUrlStep()
-			} catch (error: any) {
+			} catch (error: unknown) {
 				console.error("login error", error)
-				if (error.code === BUSINESS_API_ERROR_CODE.USER_NOT_CREATE_ACCOUNT) {
+				if (
+					error &&
+					typeof error === "object" &&
+					"code" in error &&
+					error.code === BUSINESS_API_ERROR_CODE.USER_NOT_CREATE_ACCOUNT
+				) {
 					magicToast.error(t("magicOrganizationSyncStep.pleaseBindExistingAccount"))
 				}
 			} finally {
@@ -162,7 +168,10 @@ function AccountModal(props: AccountModalProps) {
 				data-testid="account-modal-content"
 			>
 				<DialogHeader className="flex items-center px-6 pb-0 pt-5">
-					<DialogTitle className="w-full text-left text-base font-semibold leading-6">
+					<DialogTitle
+						className="w-full text-left text-base font-semibold leading-6"
+						data-testid="account-modal-title"
+					>
 						{t("account.create")}
 					</DialogTitle>
 				</DialogHeader>

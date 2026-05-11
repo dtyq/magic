@@ -14,9 +14,19 @@ import type {
 } from "@/components/CanvasDesign/types.magic"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import MyModelsIcon from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/assets/my-models-icon.svg"
+import type { GetOrCreateImagesDirFn } from "./useGetOrCreateImagesDir"
 import { normalizePath } from "../utils/utils"
 import { useTranslation } from "react-i18next"
+import { resolveDesignImagesFileDirWithSlash } from "./resolveDesignImagesFileDirWithSlash"
 import { toCanvasGenerateHightImageResponse } from "./useHighImageGeneration"
+import {
+	createDesignWorkspacePathExists,
+	resolveDesignDslPathToWorkspaceAbsoluteByCandidates,
+} from "../utils/designDslPathUtils"
+import { syncFileInfoAfterGenerationComplete } from "../utils/syncFileInfoAfterGenerationComplete"
+
+const IMAGE_MODEL_LIST_TTL_MS = 60_000
+const imageModelListCacheByKey = new Map<string, { models: ImageModelItem[]; fetchedAt: number }>()
 
 interface UseImageGenerationOptions {
 	projectId?: string
@@ -26,6 +36,8 @@ interface UseImageGenerationOptions {
 	}
 	/** 已扁平化的附件列表 */
 	flatAttachments?: FileItem[]
+	/** 画布目录路径段（与 magic.project.js 同级），用于把 DSL 相对路径还原为工作区路径 */
+	designProjectBasePath?: string
 	/**
 	 * 设置文件信息缓存的回调函数
 	 * 当图片生成完成时，用于将结果缓存到文件信息缓存中
@@ -33,8 +45,8 @@ interface UseImageGenerationOptions {
 	setFileInfoCache?: (path: string, fileInfo: { src: string; fileName: string }) => void
 	/** 文件列表更新 */
 	updateAttachments: () => void
-	/** 等待附件列表更新完成的回调函数 */
-	waitForAttachmentsUpdate: (callback: () => void | Promise<void>) => void
+	/** 获取/创建 images 目录（由顶层传入，用于复用 promise 缓存） */
+	getOrCreateImagesDir?: GetOrCreateImagesDirFn
 }
 
 interface UseImageGenerationReturn {
@@ -57,36 +69,43 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 		projectId,
 		currentFile,
 		flatAttachments,
+		designProjectBasePath,
 		setFileInfoCache,
 		updateAttachments,
-		waitForAttachmentsUpdate,
 	} = options
-	const { t } = useTranslation("super")
+	const { i18n, t } = useTranslation("super")
 
 	/**
 	 * 获取生图模型列表
 	 */
 	const getImageModelList = useCallback(async (): Promise<ImageModelItem[]> => {
-		const officialGroups = JSON.parse(
-			JSON.stringify(superMagicModeService.getImageModelGroupsByMode("general") || []),
-		) as Array<{
-			group: { id: string; name: string; icon: string; sort: number }
-			models: ImageModelItem[]
-		}>
-		const officialModels: ImageModelItem[] = officialGroups.flatMap((groupItem) =>
-			(groupItem.models || []).map(
-				(model): ImageModelItem => ({
-					...model,
-					model_source: "official",
-					model_group: {
-						id: groupItem.group.id,
-						name: normalizeImageModelGroupLabel(groupItem.group.name),
-						icon: groupItem.group.icon,
-						sort: groupItem.group.sort,
-						source: "official",
-					},
-				}),
-			),
+		const now = Date.now()
+		const cacheKey = [i18n.language, projectId ?? "", currentFile?.id ?? ""].join("\0")
+		const cached = imageModelListCacheByKey.get(cacheKey)
+		if (cached && now - cached.fetchedAt < IMAGE_MODEL_LIST_TTL_MS) {
+			return cached.models
+		}
+
+		await superMagicModeService.fetchDefaultModeModelList({ force: false })
+		const officialGroups = superMagicModeService.getImageModelGroupsByMode("general") || []
+		const officialModels: ImageModelItem[] = officialGroups.flatMap(
+			(groupItem: {
+				group: { id: string; name: string; icon: string; sort: number }
+				models: ImageModelItem[]
+			}) =>
+				(groupItem.models || []).map(
+					(model): ImageModelItem => ({
+						...model,
+						model_source: "official",
+						model_group: {
+							id: groupItem.group.id,
+							name: normalizeImageModelGroupLabel(groupItem.group.name),
+							icon: groupItem.group.icon,
+							sort: groupItem.group.sort,
+							source: "official",
+						},
+					}),
+				),
 		)
 		const customModels = getRepresentativeModelsByModelId(
 			await superMagicCustomModelService.getMyModelsByType(MODEL_TYPE_IMAGE),
@@ -99,9 +118,9 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 
 			mergedModels.push(toImageModelItem(model, t("messageEditor.addModel.myModels")))
 		})
-
+		imageModelListCacheByKey.set(cacheKey, { models: mergedModels, fetchedAt: Date.now() })
 		return mergedModels
-	}, [t])
+	}, [currentFile?.id, i18n.language, projectId, t])
 
 	/**
 	 * 发起图片生成
@@ -111,111 +130,26 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 			if (!projectId) {
 				throw new Error(t("design.errors.projectIdNotExistsForGenerate"))
 			}
+			const fileDirWithSlash = await resolveDesignImagesFileDirWithSlash({
+				projectId,
+				currentFile,
+				flatAttachments,
+				updateAttachments,
+			})
 
-			// 计算 file_dir（项目目录路径）
-			let fileDir = ""
-			let parentDirId: string | undefined = undefined
-
-			if (currentFile?.id && flatAttachments && flatAttachments.length > 0) {
-				// 查找 design 项目文件/文件夹
-				const designProjectFile = flatAttachments.find(
-					(item) => item.file_id === currentFile.id,
-				)
-
-				if (designProjectFile?.relative_file_path) {
-					const filePath = designProjectFile.relative_file_path
-
-					// 如果是文件夹，直接使用路径
-					if (designProjectFile.is_directory) {
-						fileDir = filePath
-						parentDirId = designProjectFile.file_id
-					} else {
-						// 如果是文件，计算目录路径：去掉文件名，保留目录部分
-						const fileName = designProjectFile.file_name || currentFile.name
-						// 如果文件路径以文件名结尾，则去掉文件名
-						if (filePath.endsWith(fileName)) {
-							fileDir = filePath.slice(0, -fileName.length)
-						} else {
-							// 否则使用文件路径的目录部分
-							const lastSlashIndex = filePath.lastIndexOf("/")
-							if (lastSlashIndex >= 0) {
-								fileDir = filePath.slice(0, lastSlashIndex + 1)
-							}
-						}
-						// 查找父目录的 ID
-						const parentDirPath = normalizePath(fileDir)
-						if (parentDirPath) {
-							const parentDir = flatAttachments.find(
-								(item) =>
-									item.is_directory &&
-									normalizePath(item.relative_file_path || "") === parentDirPath,
-							)
-							if (parentDir) {
-								parentDirId = parentDir.file_id
-							}
-						}
-					}
-
-					// 清理路径：移除前导和尾随斜杠，确保路径格式统一
-					fileDir = normalizePath(fileDir)
-
-					// 如果 fileDir 不为空但 parentDirId 未找到，尝试通过路径查找父目录
-					if (!parentDirId && fileDir) {
-						const parentDir = flatAttachments.find(
-							(item) =>
-								item.is_directory &&
-								normalizePath(item.relative_file_path || "") === fileDir,
-						)
-						if (parentDir) {
-							parentDirId = parentDir.file_id
-						}
-					}
-
-					// 检查 images 目录是否存在
-					const imagesDirPath = fileDir ? `${fileDir}/images` : "images"
-					const normalizedImagesDirPath = normalizePath(imagesDirPath)
-					const imagesDirExists = flatAttachments.some(
-						(item) =>
-							item.is_directory &&
-							normalizePath(item.relative_file_path || "") ===
-								normalizedImagesDirPath,
-					)
-
-					// 如果 images 目录不存在，创建它
-					if (!imagesDirExists) {
-						try {
-							await SuperMagicApi.createFile({
-								project_id: projectId,
-								parent_id: parentDirId || "",
-								file_name: "images",
-								is_directory: true,
-							})
-							// 触发文件列表更新
-							updateAttachments()
-						} catch (error: unknown) {
-							// 如果是"文件已存在"错误（code: 51168），说明目录已经存在，忽略错误
-							const errorObj = error as { code?: number; message?: string }
-							if (errorObj.code === 51168) {
-								// 触发文件列表更新，确保获取最新的文件列表
-								updateAttachments()
-							} else {
-								//
-							}
-						}
-					}
-
-					// 添加 images 子目录
-					fileDir = imagesDirPath
-				}
-			}
-
-			// 格式化为目录格式：以斜杠开头和结尾
-			const fileDirWithSlash = fileDir ? `/${fileDir}/` : undefined
-
-			// 处理 reference_images，在每个路径前添加前导斜杠
-			const referenceImagesWithSlash = params.reference_images?.map((imagePath) => {
-				// 如果已经有前导斜杠，直接返回，否则添加
-				return imagePath.startsWith("/") ? imagePath : `/${imagePath}`
+			const referenceImagesWithSlash = params.reference_images?.map((imagePath) =>
+				resolveReferenceImagePath({
+					imagePath,
+					designProjectBasePath,
+					flatAttachments,
+					getErrorMessage: () => t("design.errors.designResourcePathUnresolved"),
+				}),
+			)
+			const referenceImageOptionsWithSlash = resolveReferenceImageOptions({
+				referenceImageOptions: params.reference_image_options,
+				designProjectBasePath,
+				flatAttachments,
+				getErrorMessage: () => t("design.errors.designResourcePathUnresolved"),
 			})
 
 			// 构建完整的请求参数，添加 project_id 和 file_dir
@@ -224,12 +158,13 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 				project_id: projectId,
 				file_dir: fileDirWithSlash,
 				reference_images: referenceImagesWithSlash,
+				reference_image_options: referenceImageOptionsWithSlash,
 			}
 
 			const result = await SuperMagicApi.generateImage(requestParams)
 			return toCanvasGenerateHightImageResponse(result)
 		},
-		[projectId, currentFile?.id, currentFile?.name, flatAttachments, t, updateAttachments],
+		[projectId, currentFile, flatAttachments, designProjectBasePath, t, updateAttachments],
 	)
 
 	/**
@@ -253,13 +188,9 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 
 			const result = await SuperMagicApi.getImageGenerationResult(requestParams)
 
-			// 当状态为 completed 时，将结果缓存到文件信息缓存中
 			if (result.status === "completed" && result.file_url && result.file_name) {
-				// 构建文件路径：file_dir + file_name
-				// file_dir 格式可能是 "/新建画布/images/" 或 "新建画布/images/"
 				let filePath = ""
 				if (result.file_dir) {
-					// 移除前导和尾随斜杠，然后拼接文件名
 					const normalizedDir = normalizePath(result.file_dir)
 					filePath = normalizedDir
 						? `${normalizedDir}/${result.file_name}`
@@ -268,29 +199,18 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 					filePath = result.file_name
 				}
 
-				// 先触发附件列表更新，确保新生成的文件已同步到附件列表中
-				// 这样设置缓存时才能通过路径找到对应的 file_id
-				updateAttachments()
-
-				// 等待附件列表更新完成后再设置缓存
-				// 使用 Promise 包装 waitForAttachmentsUpdate 的回调形式
-				await new Promise<void>((resolve) => {
-					waitForAttachmentsUpdate(() => {
-						// 调用 setFileInfoCache 设置缓存
-						if (setFileInfoCache) {
-							setFileInfoCache(filePath, {
-								src: result.file_url,
-								fileName: result.file_name,
-							})
-						}
-						resolve()
-					})
+				await syncFileInfoAfterGenerationComplete({
+					projectId,
+					filePath,
+					fileUrl: result.file_url,
+					fileName: result.file_name,
+					setFileInfoCache,
 				})
 			}
 
 			return result
 		},
-		[projectId, setFileInfoCache, updateAttachments, waitForAttachmentsUpdate, t],
+		[projectId, setFileInfoCache, t],
 	)
 
 	return {
@@ -300,11 +220,49 @@ export function useImageGeneration(options: UseImageGenerationOptions): UseImage
 	}
 }
 
+function resolveReferenceImagePath(params: {
+	imagePath: string
+	designProjectBasePath?: string
+	flatAttachments?: FileItem[]
+	getErrorMessage: () => string
+}): string {
+	const { imagePath, designProjectBasePath, flatAttachments, getErrorMessage } = params
+	const resolved = resolveDesignDslPathToWorkspaceAbsoluteByCandidates(
+		imagePath,
+		designProjectBasePath,
+		{
+			pathExists: createDesignWorkspacePathExists(flatAttachments),
+		},
+	)
+	if (!resolved) throw new Error(getErrorMessage())
+	return resolved
+}
+
+function resolveReferenceImageOptions(params: {
+	referenceImageOptions?: GenerateImageRequest["reference_image_options"]
+	designProjectBasePath?: string
+	flatAttachments?: FileItem[]
+	getErrorMessage: () => string
+}): GenerateImageRequest["reference_image_options"] {
+	const { referenceImageOptions, designProjectBasePath, flatAttachments, getErrorMessage } =
+		params
+	if (!referenceImageOptions?.length) return undefined
+
+	return referenceImageOptions.map((entry) => ({
+		...entry,
+		path: resolveReferenceImagePath({
+			imagePath: entry.path,
+			designProjectBasePath,
+			flatAttachments,
+			getErrorMessage,
+		}),
+	}))
+}
+
 function toImageModelItem(model: ServiceProviderModel, groupName: string): ImageModelItem {
 	return {
-		id: model.id,
+		...model,
 		group_id: MY_MODELS_GROUP_ID,
-		model_id: model.model_id,
 		model_name: model.name,
 		provider_model_id: model.model_version || model.model_id,
 		model_description: typeof model.description === "string" ? model.description : "",
@@ -325,11 +283,22 @@ function getRepresentativeModelsByModelId(models: ServiceProviderModel[]): Servi
 	const modelMap = new Map<string, ServiceProviderModel>()
 
 	models.forEach((model) => {
-		if (modelMap.has(model.model_id)) return
-		modelMap.set(model.model_id, model)
+		const existing = modelMap.get(model.model_id)
+		if (!existing) {
+			modelMap.set(model.model_id, model)
+			return
+		}
+		// 同一 model_id 多条记录时，保留带可用 image_size_config 的一条
+		if (!hasUsableImageSizeConfig(existing) && hasUsableImageSizeConfig(model))
+			modelMap.set(model.model_id, model)
 	})
 
 	return Array.from(modelMap.values())
+}
+
+function hasUsableImageSizeConfig(model: ServiceProviderModel): boolean {
+	const sizes = model.image_size_config?.sizes
+	return Array.isArray(sizes) && sizes.length > 0
 }
 
 function normalizeImageModelGroupLabel(label: string): string {

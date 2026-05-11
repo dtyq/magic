@@ -16,6 +16,7 @@ import { BotApi } from "@/apis"
 import { useStyles } from "./styles"
 import { RouteName } from "@/routes/constants"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { formatFlowCardCreatedAt } from "@/pages/flow/utils/formatCreatedAt"
 
 type AgentInfoButtonProps = {
 	agent: Bot.Detail
@@ -23,7 +24,7 @@ type AgentInfoButtonProps = {
 }
 
 export default function AgentInfoButton({ agent, isAdminRight }: AgentInfoButtonProps) {
-	const { t } = useTranslation("interface")
+	const { t, i18n } = useTranslation("interface")
 	const { t: globalT } = useTranslation()
 	const { styles, cx } = useStyles()
 
@@ -118,15 +119,19 @@ export default function AgentInfoButton({ agent, isAdminRight }: AgentInfoButton
 						<Flex justify="space-between">
 							<div className={styles.text2}>{t("agent.createTime")}</div>
 							<div>
-								{agent.botEntity?.created_at &&
-									agent.botEntity?.created_at.replace(/-/g, "/")}
+								{formatFlowCardCreatedAt(
+									agent.botEntity?.created_at,
+									i18n.language,
+								)}
 							</div>
 						</Flex>
 						<Flex justify="space-between">
 							<div className={styles.text2}>{t("agent.updateTime")}</div>
 							<div>
-								{agent.botEntity?.updated_at &&
-									agent.botEntity?.updated_at.replace(/-/g, "/")}
+								{formatFlowCardCreatedAt(
+									agent.botEntity?.updated_at,
+									i18n.language,
+								)}
 							</div>
 						</Flex>
 						{agent.botVersionEntity && (

@@ -69,7 +69,8 @@ export class UserActionRegistry {
 		}
 
 		// 双重检查：即使是快捷键触发，也要验证是否可执行
-		if (!this.canExecute(id)) {
+		const canExecute = this.canExecute(id)
+		if (!canExecute) {
 			// 静默返回，不执行
 			return
 		}

@@ -11,5 +11,12 @@ export function hasCrewUnpublishedChanges({
 }: CrewPublishStatusParams) {
 	if (!latestPublishedAt) return true
 	if (!updatedAt) return false
+
+	const updatedAtMs = Date.parse(updatedAt)
+	const latestPublishedAtMs = Date.parse(latestPublishedAt)
+	const hasValidUpdatedAt = !Number.isNaN(updatedAtMs)
+	const hasValidLatestPublishedAt = !Number.isNaN(latestPublishedAtMs)
+
+	if (hasValidUpdatedAt && hasValidLatestPublishedAt) return updatedAtMs > latestPublishedAtMs
 	return updatedAt > latestPublishedAt
 }

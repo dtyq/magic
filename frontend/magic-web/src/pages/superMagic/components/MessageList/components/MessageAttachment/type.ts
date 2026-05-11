@@ -6,7 +6,7 @@ export interface AttachmentProps {
 	url: string
 	file_id: string
 	display_filename?: string
-	metadata?: {
+	display_config?: {
 		version: string
 		type: string
 		name: string

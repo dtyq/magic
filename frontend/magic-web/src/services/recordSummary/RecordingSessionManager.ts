@@ -1,15 +1,15 @@
 import type { RecordingSession, SessionRestoreOptions } from "@/types/recordSummary"
 import type { VoiceResultUtterance } from "@/components/business/VoiceInput/services/VoiceClient/types"
-import {
-	ProjectListItem,
-	Topic,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import { userStore } from "@/models/user"
 import { recordingLogger } from "./utils/RecordingLogger"
+import { RecordingSessionHistoryDB } from "./RecordingSessionHistoryDB"
 
 const logger = recordingLogger.namespace("Session")
+
+// Debounce window for high-frequency persistence writes (ms)
+const HISTORY_DEBOUNCE_MS = 2000
 
 /**
  * Recording session manager for handling session lifecycle
@@ -18,9 +18,56 @@ const logger = recordingLogger.namespace("Session")
 export class RecordingSessionManager {
 	private currentSession: RecordingSession | null = null
 	private restoreOptions: SessionRestoreOptions
+	private historyDB: RecordingSessionHistoryDB
+	private historyDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
-	constructor(restoreOptions: SessionRestoreOptions) {
+	constructor(restoreOptions: SessionRestoreOptions, historyDB?: RecordingSessionHistoryDB) {
 		this.restoreOptions = restoreOptions
+		this.historyDB = historyDB ?? new RecordingSessionHistoryDB()
+	}
+
+	/**
+	 * Persist current session snapshot to IndexedDB history immediately
+	 * 立即把当前会话写入历史表
+	 */
+	private persistHistoryImmediate(): void {
+		const snapshot = this.currentSession
+		if (!snapshot) return
+		this.clearHistoryDebounce()
+		const clone: RecordingSession = JSON.parse(JSON.stringify(snapshot))
+		this.historyDB.upsert(clone).catch((error) => {
+			logger.error("写入会话历史失败", {
+				error: error instanceof Error ? error.message : String(error),
+			})
+		})
+	}
+
+	/**
+	 * Schedule debounced persistence for high-frequency updates
+	 * 高频更新的防抖持久化
+	 */
+	private persistHistoryDebounced(): void {
+		if (!this.currentSession) return
+		this.clearHistoryDebounce()
+		this.historyDebounceTimer = setTimeout(() => {
+			this.historyDebounceTimer = null
+			this.persistHistoryImmediate()
+		}, HISTORY_DEBOUNCE_MS)
+	}
+
+	private clearHistoryDebounce(): void {
+		if (this.historyDebounceTimer) {
+			clearTimeout(this.historyDebounceTimer)
+			this.historyDebounceTimer = null
+		}
+	}
+
+	/**
+	 * Force flush pending debounced persistence and persist now
+	 * 强制刷写当前会话，供外部在关键节点调用
+	 */
+	public flushHistoryImmediate(): void {
+		this.persistHistoryImmediate()
 	}
 
 	/**
@@ -87,6 +134,8 @@ export class RecordingSessionManager {
 			audioSource: audioSource?.source,
 		})
 
+		this.persistHistoryImmediate()
+
 		return session
 	}
 
@@ -100,6 +149,8 @@ export class RecordingSessionManager {
 			projectId: project.id,
 			projectName: project.project_name,
 		})
+
+		this.persistHistoryImmediate()
 
 		return this.currentSession
 	}
@@ -115,6 +166,8 @@ export class RecordingSessionManager {
 			topicName: topic.topic_name,
 		})
 
+		this.persistHistoryImmediate()
+
 		return this.currentSession
 	}
 
@@ -123,6 +176,7 @@ export class RecordingSessionManager {
 
 		this.currentSession.chatTopic = chatTopic
 		this.currentSession.lastActivityTime = Date.now()
+		this.persistHistoryImmediate()
 		return this.currentSession
 	}
 
@@ -131,6 +185,7 @@ export class RecordingSessionManager {
 
 		this.currentSession.workspace = workspace
 		this.currentSession.lastActivityTime = Date.now()
+		this.persistHistoryImmediate()
 		return this.currentSession
 	}
 
@@ -139,6 +194,7 @@ export class RecordingSessionManager {
 
 		this.currentSession.model = model
 		this.currentSession.lastActivityTime = Date.now()
+		this.persistHistoryImmediate()
 		return this.currentSession
 	}
 
@@ -167,6 +223,8 @@ export class RecordingSessionManager {
 				newStatus: status,
 			})
 		}
+
+		this.persistHistoryImmediate()
 	}
 
 	/**
@@ -178,6 +236,7 @@ export class RecordingSessionManager {
 
 		this.currentSession.totalDuration = duration
 		this.currentSession.lastActivityTime = Date.now()
+		this.persistHistoryDebounced()
 	}
 
 	/**
@@ -189,6 +248,7 @@ export class RecordingSessionManager {
 
 		this.currentSession.textContent = text ?? []
 		this.currentSession.lastActivityTime = Date.now()
+		this.persistHistoryDebounced()
 	}
 
 	/**
@@ -200,6 +260,7 @@ export class RecordingSessionManager {
 
 		this.currentSession.currentChunkIndex = chunkIndex
 		this.currentSession.lastActivityTime = Date.now()
+		this.persistHistoryDebounced()
 	}
 
 	/**
@@ -234,6 +295,8 @@ export class RecordingSessionManager {
 			ageInHours: ageInHours.toFixed(2),
 		})
 
+		this.persistHistoryImmediate()
+
 		return true
 	}
 
@@ -255,6 +318,7 @@ export class RecordingSessionManager {
 			textContentLength: completedSession.textContent.length,
 		})
 
+		this.persistHistoryImmediate()
 		this.currentSession = null
 
 		return completedSession
@@ -277,6 +341,7 @@ export class RecordingSessionManager {
 			chunkCount: cancelledSession.currentChunkIndex,
 		})
 
+		this.persistHistoryImmediate()
 		this.currentSession = null
 
 		return cancelledSession
@@ -295,6 +360,8 @@ export class RecordingSessionManager {
 		logger.report("暂停录音会话", {
 			duration: this.currentSession.totalDuration,
 		})
+
+		this.persistHistoryImmediate()
 	}
 
 	/**
@@ -310,6 +377,8 @@ export class RecordingSessionManager {
 		logger.report("恢复录音会话", {
 			duration: this.currentSession.totalDuration,
 		})
+
+		this.persistHistoryImmediate()
 	}
 
 	/**
@@ -370,7 +439,16 @@ export class RecordingSessionManager {
 	 * 清除当前会话
 	 */
 	clearSession(): void {
+		this.clearHistoryDebounce()
 		this.currentSession = null
+	}
+
+	/**
+	 * Get history DB reference for external callers (panel/export)
+	 * 暴露历史仓库给外部（面板/导出）
+	 */
+	getHistoryDB(): RecordingSessionHistoryDB {
+		return this.historyDB
 	}
 
 	/**

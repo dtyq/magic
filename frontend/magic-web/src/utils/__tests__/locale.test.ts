@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { getCurrentLang, normalizeLocale, getAntdLocale } from "../locale"
-import { SupportLocales, DEFAULT_LOCALE } from "@/opensource/constants/locale"
-
-// Mock window.navigator for testing
-const mockNavigator = vi.fn()
+import {
+	getAntdLocale,
+	getCurrentLang,
+	getLocalePreferredKeys,
+	normalizeLocale,
+	resolveLocalizedText,
+} from "../locale"
+import { DEFAULT_LOCALE, SupportLocales } from "@/constants/locale"
 
 describe("locale utilities", () => {
 	let originalNavigator: Navigator
@@ -242,6 +245,64 @@ describe("locale utilities", () => {
 					expect(result).not.toBe("auto")
 				})
 			})
+		})
+	})
+
+	describe("localized text resolution", () => {
+		it("should prefer zh values and then default", () => {
+			expect(
+				resolveLocalizedText(
+					{
+						zh_CN: "中文",
+						en_US: "English",
+						default: "Default",
+					},
+					"zh_CN",
+				),
+			).toBe("中文")
+
+			expect(
+				resolveLocalizedText(
+					{
+						en_US: "English",
+						default: "Default",
+					},
+					"zh_CN",
+				),
+			).toBe("Default")
+		})
+
+		it("should prefer en values and then default", () => {
+			expect(
+				resolveLocalizedText(
+					{
+						zh_CN: "中文",
+						en_US: "English",
+						default: "Default",
+					},
+					"en_US",
+				),
+			).toBe("English")
+
+			expect(
+				resolveLocalizedText(
+					{
+						zh_CN: "中文",
+						default: "Default",
+					},
+					"en_US",
+				),
+			).toBe("Default")
+		})
+
+		it("should not cross fallback between zh and en", () => {
+			expect(resolveLocalizedText({ en_US: "English" }, "zh_CN")).toBe("")
+			expect(resolveLocalizedText({ zh_CN: "中文" }, "en_US")).toBe("")
+		})
+
+		it("should return preferred locale keys without cross-language fallback", () => {
+			expect(getLocalePreferredKeys("zh_CN")).toEqual(["zh_CN", "zh"])
+			expect(getLocalePreferredKeys("en_US")).toEqual(["en_US", "en"])
 		})
 	})
 

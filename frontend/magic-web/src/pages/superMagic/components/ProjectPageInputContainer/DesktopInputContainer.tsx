@@ -4,7 +4,6 @@ import CurrentSceneBadge from "../MainInputContainer/components/SelectedSkillBad
 import { SCENE_INPUT_IDS, INPUT_CONTAINER_MIN_HEIGHT } from "../MainInputContainer/constants"
 import { SceneStateProvider, SceneStateStore } from "../MainInputContainer/stores"
 import { ModeToggle } from "../TopicMode"
-import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import LazyScenePanel from "../MainInputContainer/components/LazyScenePanel"
 import { cn } from "@/lib/utils"
 import {
@@ -14,9 +13,14 @@ import {
 import { MessageEditorSize } from "../MessageEditor/types"
 import { observer } from "mobx-react-lite"
 import { getEditorSpanClass } from "../MessageEditor/constants/editor_span_map"
+import type { SceneItem } from "../../types/skill"
 
 interface DesktopInputContainerProps {
 	sceneStateStore: SceneStateStore
+	scenes?: SceneItem[]
+	currentScene: SceneItem | null
+	shouldShowCurrentSceneBadge: boolean
+	shouldShowSceneControls: boolean
 	containerRef?: React.RefObject<HTMLDivElement>
 	className?: string
 	classNames?: {
@@ -32,6 +36,10 @@ interface DesktopInputContainerProps {
 
 function DesktopInputContainer({
 	sceneStateStore,
+	scenes,
+	currentScene,
+	shouldShowCurrentSceneBadge,
+	shouldShowSceneControls,
 	containerRef,
 	className,
 	classNames,
@@ -40,10 +48,6 @@ function DesktopInputContainer({
 	editorContext,
 	editorNodes,
 }: DesktopInputContainerProps) {
-	const scenes = superMagicModeService.getModeConfigWithLegacy(editorContext.topicMode)?.mode
-		.playbooks
-	const currentScene = sceneStateStore.currentScene
-
 	return (
 		<SceneStateProvider store={sceneStateStore} variant={ScenePanelVariant.TopicPage}>
 			<div
@@ -66,21 +70,29 @@ function DesktopInputContainer({
 					<ModeToggle
 						size={editorSize}
 						topicMode={editorContext.topicMode}
+						agentCode={
+							editorContext.agentCode ?? editorContext.selectedTopic?.agent_code
+						}
 						allowChangeMode={(editorContext.messagesLength ?? 0) > 0 ? false : true}
 						onModeChange={editorContext.setTopicMode}
 					/>
-					{scenes && scenes.length > 0 && (
-						<div className="h-[60%] w-[1px] bg-border"></div>
-					)}
+					{shouldShowSceneControls && <div className="h-[60%] w-[1px] bg-border"></div>}
 					{/* 场景切换器 */}
-					{currentScene ? (
-						<CurrentSceneBadge
-							scene={currentScene}
-							variant="outlineButton"
-							onClose={() => sceneStateStore.setCurrentScene(null)}
-						/>
-					) : (
-						<div id={SCENE_INPUT_IDS.SCENES_SWITCHER} className="min-w-0 flex-1"></div>
+					{shouldShowSceneControls && (
+						<>
+							{shouldShowCurrentSceneBadge && currentScene ? (
+								<CurrentSceneBadge
+									scene={currentScene}
+									variant="outlineButton"
+									onClose={() => sceneStateStore.setCurrentScene(null)}
+								/>
+							) : (
+								<div
+									id={SCENE_INPUT_IDS.SCENES_SWITCHER}
+									className="min-w-0 flex-1"
+								></div>
+							)}
+						</>
 					)}
 				</div>
 				<div className={cn("w-full", classNames?.editorWrapper)}>

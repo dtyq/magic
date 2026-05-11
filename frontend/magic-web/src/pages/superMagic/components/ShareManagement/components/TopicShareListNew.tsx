@@ -112,7 +112,10 @@ function TopicShareListNew({ data, loading, onCancelShare, onRefresh }: TopicSha
 						>
 							{/* 话题模式图标 */}
 							<div className="flex h-5 w-5 flex-shrink-0 items-center justify-center">
-								<ModeTag mode={item.topic_mode || TopicMode.General} />
+								<ModeTag
+									mode={item.topic_mode || TopicMode.General}
+									agentCode={item.agent_code}
+								/>
 							</div>
 
 							{/* 内容区域 */}

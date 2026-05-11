@@ -1,12 +1,13 @@
 import { makeAutoObservable } from "mobx"
-import type { ServiceProvider } from "../types"
+import { getProviderFieldInitialValues } from "../providerFieldConfigs"
+import type { ProviderFieldConfig, ServiceProvider } from "../types"
 
 export interface ProviderTemplateLike {
 	id: string
 	name: string
 	icon: string
 	providerCode: string
-	fields: { key: string }[]
+	fields: ProviderFieldConfig[]
 }
 
 export class ProviderFormStore {
@@ -57,14 +58,14 @@ export class ProviderFormStore {
 		this.resetForm()
 	}
 
-	setSelectedProviderTypeId(id: string) {
+	setSelectedProviderTypeId(id: string, fields: ProviderFieldConfig[] = []) {
 		if (this.selectedProviderTypeId === id) {
 			this.selectedProviderTypeId = ""
 			this.providerFields = {}
 			return
 		}
 		this.selectedProviderTypeId = id
-		this.providerFields = {}
+		this.providerFields = getProviderFieldInitialValues(fields)
 	}
 
 	setProviderField(key: string, value: string) {

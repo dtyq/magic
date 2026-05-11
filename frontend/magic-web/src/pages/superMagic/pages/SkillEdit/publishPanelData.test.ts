@@ -197,6 +197,36 @@ describe("buildPublishParamsFromDraft", () => {
 		])
 	})
 
+	it("maps invalidated market review status into publish history", () => {
+		const data = createSkillEditPublishPanelData({
+			skill: null,
+			versions: [
+				{
+					id: "version-invalidated",
+					version: "1.0.0",
+					publish_status: "OFFLINE",
+					review_status: "INVALIDATED",
+					publish_target_type: "MARKET",
+					publish_target_value: null,
+					publisher: null,
+					published_at: null,
+					is_current_version: false,
+					version_description_i18n: null,
+				},
+			],
+			currentPublisherName: "Alice",
+			t: ((key: string) => key) as never,
+		})
+
+		expect(data.historyRecords[0]?.status).toBe("invalidated")
+		expect(data.historyRecords[0]?.skillsLibraryReview).toEqual({
+			submit: "done",
+			review: "done",
+			published: "failed",
+			failureReason: undefined,
+		})
+	})
+
 	it("maps publish prefill payloads into a localized create draft", () => {
 		expect(
 			createSkillEditPublishPrefillDraft({

@@ -3,9 +3,6 @@
  * 格式: 2026-03-03 11:14:03（按本地时间解析）
  */
 
-/** 提前刷新缓冲时间（毫秒），在过期前 5 分钟视为已过期 */
-export const OSS_EXPIRY_BUFFER_MS = 5 * 60 * 1000
-
 /**
  * 解析 expires_at 字符串为时间戳
  * @param expiresAt 格式: 2026-03-03 11:14:03
@@ -20,10 +17,10 @@ export function parseExpiresAt(expiresAt: string | undefined): number | null {
 }
 
 /**
- * 判断 ossSrc 是否已过期（含提前刷新缓冲）
+ * 判断 ossSrc 是否已过期
  * @param expiresAtTs 过期时间戳，null 表示永不过期
  */
 export function isOssExpired(expiresAtTs: number | null): boolean {
 	if (expiresAtTs === null) return false
-	return Date.now() >= expiresAtTs - OSS_EXPIRY_BUFFER_MS
+	return Date.now() >= expiresAtTs
 }

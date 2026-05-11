@@ -200,10 +200,10 @@ export function buildProjectActionMenuItems<T extends ProjectItemLike>({
 			key: ProjectActionMenuKey.Delete,
 			label: (
 				<div
-					className="flex cursor-pointer items-center gap-1 rounded text-sm font-normal leading-5 text-red-500 transition-colors hover:bg-destructive/10 active:bg-destructive/10 [&_svg]:shrink-0"
+					className="flex cursor-pointer items-center gap-1 rounded text-sm font-normal leading-5 text-red-500 transition-colors [&_svg]:shrink-0"
 					data-testid="project-context-delete"
 				>
-					<Trash2 size={16} className="text-red-500" />
+					<Trash2 size={16} />
 					<span>{t("project.deleteProject")}</span>
 				</div>
 			),

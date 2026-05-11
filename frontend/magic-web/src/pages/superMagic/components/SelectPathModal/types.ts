@@ -83,3 +83,20 @@ export interface CrossProjectFileOperationModalProps {
 		sourceAttachments: AttachmentItem[]
 	}) => void
 }
+
+export interface ImportFromOtherProjectModalProps {
+	visible: boolean
+	workspaces: Workspace[]
+	currentProjectId: string
+	currentProject: ProjectListItem | null
+	targetPath: AttachmentItem[]
+	targetAttachments: AttachmentItem[]
+	onClose: () => void
+	onSubmit: (data: {
+		filesByProject: Array<{
+			sourceProjectId: string
+			selectedFileIds: string[]
+			selectedFiles: AttachmentItem[]
+		}>
+	}) => void
+}

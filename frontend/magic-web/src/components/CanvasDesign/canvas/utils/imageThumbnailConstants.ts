@@ -1,5 +1,5 @@
 /** 小图最大边长（像素）- 用于列表等小图场景 */
-export const SMALL_THUMBNAIL_MAX_SIZE = 48
+export const SMALL_THUMBNAIL_MAX_SIZE = 72
 
 /** tooltip/popover 缩略图最小边长（像素）- 用于悬浮预览等场景 */
 export const TOOLTIP_THUMBNAIL_MIN_SIZE = 400

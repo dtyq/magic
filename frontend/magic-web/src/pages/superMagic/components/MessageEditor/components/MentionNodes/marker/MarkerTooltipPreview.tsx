@@ -11,7 +11,7 @@ interface MarkerTooltipPreviewProps {
 }
 
 function MarkerTooltipPreview({ markerData, className, imageUrl }: MarkerTooltipPreviewProps) {
-	const isAreaMarker = markerData.data?.type === MarkerTypeEnum.Area
+	const isAreaMarker = markerData.mark_type === MarkerTypeEnum.Area
 
 	if (isAreaMarker) {
 		return (

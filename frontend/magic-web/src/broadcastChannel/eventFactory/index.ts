@@ -255,14 +255,14 @@ async function handleSwitchOrganization(data: {
 		},
 		pending: pendingOperation
 			? {
-				type: pendingOperation.type,
-				targetMagicId:
-					pendingOperation.type === "organization"
-						? pendingOperation.data.userInfo?.magic_id
-						: pendingOperation.data.magicId,
-				targetOrgCode: pendingOperation.data.magicOrganizationCode,
-				age: Date.now() - pendingOperation.timestamp,
-			}
+					type: pendingOperation.type,
+					targetMagicId:
+						pendingOperation.type === "organization"
+							? pendingOperation.data.userInfo?.magic_id
+							: pendingOperation.data.magicId,
+					targetOrgCode: pendingOperation.data.magicOrganizationCode,
+					age: Date.now() - pendingOperation.timestamp,
+				}
 			: null,
 		accountsCount: currentState.accounts.length,
 		timestamp: new Date().toISOString(),
@@ -329,6 +329,8 @@ async function handleSwitchOrganization(data: {
 				okText: t("broadcastChannel.organization.confirm", { ns: "common" }),
 				cancelText: t("broadcastChannel.organization.cancel", { ns: "common" }),
 				centered: true,
+				maskClosable: false,
+				closable: false,
 				onOk: () => {
 					// 重新获取最新状态并验证
 					const latestState = getLatestState()
@@ -472,14 +474,14 @@ async function handleSwitchAccount(data: {
 		},
 		pending: pendingOperation
 			? {
-				type: pendingOperation.type,
-				targetMagicId:
-					pendingOperation.type === "organization"
-						? pendingOperation.data.userInfo?.magic_id
-						: pendingOperation.data.magicId,
-				targetOrgCode: pendingOperation.data.magicOrganizationCode,
-				age: Date.now() - pendingOperation.timestamp,
-			}
+					type: pendingOperation.type,
+					targetMagicId:
+						pendingOperation.type === "organization"
+							? pendingOperation.data.userInfo?.magic_id
+							: pendingOperation.data.magicId,
+					targetOrgCode: pendingOperation.data.magicOrganizationCode,
+					age: Date.now() - pendingOperation.timestamp,
+				}
 			: null,
 		accountsCount: currentState.accounts.length,
 		timestamp: new Date().toISOString(),
@@ -568,6 +570,8 @@ async function handleSwitchAccount(data: {
 				okText: t("broadcastChannel.account.confirm", { ns: "common" }),
 				cancelText: t("broadcastChannel.account.cancel", { ns: "common" }),
 				centered: true,
+				maskClosable: false,
+				closable: false,
 				onOk: async () => {
 					// 重新获取最新状态并验证
 					const latestState = getLatestState()

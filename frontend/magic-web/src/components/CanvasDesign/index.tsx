@@ -5,22 +5,29 @@ import Tools from "./components/Tools"
 import Layers from "./components/Layers"
 import ElementTools from "./components/ElementTools"
 import { CanvasProvider, useCanvas } from "./context/CanvasContext"
-import { CanvasUIProvider } from "./context/CanvasUIContext"
+import { CanvasUIProvider, useCanvasPanelUI } from "./context/CanvasUIContext"
 import { LayersUIProvider, useLayersUI } from "./context/LayersUIContext"
 import { ElementMenuProvider } from "./components/ElementMenu/ElementMenuProvider"
 import { useMount, useUnmount, useUpdateEffect } from "ahooks"
 import { Canvas } from "./canvas/Canvas"
 import ImageMessageEditor from "./components/ImageMessageEditor"
+import VideoGenerateEditor from "./components/VideoGenerateEditor"
 import MessageHistory from "./components/MessageHistory"
+import VideoFullscreenOverlay from "./components/VideoFullscreenOverlay"
 import { MagicProvider, useMagic } from "./context/MagicContext"
 import { toPlainObject } from "./canvas/utils/utils"
 import { PortalContainerProvider } from "./components/ui/custom/PortalContainerContext"
 import { CanvasDesignI18nProvider } from "./context/I18nContext"
+import { HostUiLocaleProvider } from "./context/HostUiLocaleContext"
 import type { CanvasDesignRef, CanvasDesignProps } from "./types"
 import CanvasTips from "./components/CanvasTips"
 import { FloatingUIProvider } from "./context/FloatingUIContext"
 import { useCanvasDesignRef } from "./hooks/useCanvasDesignRef"
 import { useCanvasEventListeners } from "./hooks/useCanvasEventListeners"
+import ImageCropPanel from "./components/ImageCropPanel"
+import ImageExtendPanel from "./components/ImageExtendPanel"
+import ImageEraserPanel from "./components/ImageEraserPanel"
+import ElementRenameOverlay from "./components/ElementRenameOverlay"
 
 import styles from "./index.module.css"
 
@@ -34,7 +41,6 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 		beforeMarkerCreate,
 		onMarkerCreated,
 		onMarkerDeleted,
-		onMarkerSelectChange,
 		onMarkerUpdated,
 		onMarkerRestored,
 	} = marker
@@ -47,6 +53,8 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 
 	const { methods, permissions } = useMagic()
 
+	const { fullscreenVideoElementId } = useCanvasPanelUI()
+
 	const canvasContainerRef = useRef<HTMLDivElement>(null)
 
 	const canvasInstanceRef = useRef<Canvas | null>(null)
@@ -58,7 +66,6 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 	useCanvasEventListeners({
 		readonly,
 		methods,
-		onMarkerSelectChange,
 		beforeMarkerCreate,
 		onMarkerCreated,
 		onMarkerDeleted,
@@ -67,11 +74,11 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 	})
 
 	// 更新视口偏移量
-	const updateViewportOffset = useCallback(
+	const updatePadding = useCallback(
 		(instance: Canvas | null) => {
 			if (!instance) return
 			const left = layersCollapsed ? 0 : layersWidth + 8
-			instance.viewportController.setDefaultViewportOffset({
+			instance.viewportController.setDefaultViewportPadding({
 				left,
 				right: 0,
 				top: 0,
@@ -83,8 +90,11 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 
 	useMount(() => {
 		if (!canvasContainerRef.current) return
+		const scopeElement = canvasContainerRef.current.closest("[data-canvas-ui-component]")
 		const canvasInstance = new Canvas({
 			element: canvasContainerRef.current,
+			scopeElement:
+				scopeElement instanceof HTMLElement ? scopeElement : canvasContainerRef.current,
 			id,
 			defaultReadyonly: readonly,
 			magic: {
@@ -98,7 +108,7 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 		setCanvas(canvasInstance)
 		// 保存到 ref，确保卸载时能拿到实例
 		canvasInstanceRef.current = canvasInstance
-		updateViewportOffset(canvasInstance)
+		updatePadding(canvasInstance)
 
 		// 监听 document:loaded 事件，恢复 markers
 		canvasInstance.eventEmitter.once("document:loaded", () => {
@@ -155,18 +165,25 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 			methods: methods,
 			permissions: permissions,
 		})
-	}, [methods, permissions, canvas])
+		canvas?.invalidateMagicModelListCaches()
+	}, [methods, permissions, canvas, t])
 
 	useUpdateEffect(() => {
-		updateViewportOffset(canvas)
-	}, [layersCollapsed, layersWidth, canvas, updateViewportOffset])
+		updatePadding(canvas)
+	}, [layersCollapsed, layersWidth, canvas, updatePadding])
 
 	return (
 		<FloatingUIProvider canvas={canvas}>
 			<div ref={canvasContainerRef} className={styles.canvasContainer} />
+			{!readonly && <ElementRenameOverlay />}
 			{!readonly && <ElementTools />}
 			{!readonly && <ImageMessageEditor />}
+			{!readonly && <VideoGenerateEditor />}
+			{!readonly && <ImageCropPanel />}
+			{!readonly && <ImageExtendPanel />}
+			{!readonly && <ImageEraserPanel />}
 			<MessageHistory />
+			{fullscreenVideoElementId ? <VideoFullscreenOverlay /> : null}
 			<Layers />
 			{!readonly && <Tools />}
 			{!readonly && <CanvasTips />}
@@ -193,27 +210,38 @@ const CanvasDesign = forwardRef<CanvasDesignRef, CanvasDesignProps>((props, ref)
 
 	return (
 		<MagicProvider
+			readonly={props.readonly}
 			methods={props.magic?.methods}
 			permissions={props.magic?.permissions}
-			imageFilesForMention={props.data?.imageFilesForMention}
+			hostUiLocale={props.magic?.hostUiLocale}
+			projectAttachmentMentionTree={props.data?.projectAttachmentMentionTree}
+			defaultProjectAttachmentFolderId={props.data?.defaultProjectAttachmentFolderId}
+			defaultProjectAttachmentFolderName={props.data?.defaultProjectAttachmentFolderName}
 			mentionDataServiceCtor={props.data?.mentionDataServiceCtor}
 			mentionExtension={props.data?.mentionExtension}
+			referenceResourcePanelRenderer={props.data?.referenceResourcePanelRenderer}
 		>
 			<UIProvider>
 				<CanvasDesignI18nProvider t={props.t}>
-					<PortalContainerProvider value={portalContainer}>
-						<div ref={setAppContainerRef} className={styles.appContainer}>
-							<CanvasProvider>
-								<CanvasUIProvider readonly={props.readonly}>
-									<ElementMenuProvider>
-										<LayersUIProvider getIsMobile={getIsMobile}>
-											<CanvasDesignContent ref={ref} {...props} />
-										</LayersUIProvider>
-									</ElementMenuProvider>
-								</CanvasUIProvider>
-							</CanvasProvider>
-						</div>
-					</PortalContainerProvider>
+					<HostUiLocaleProvider locale={props.magic?.hostUiLocale}>
+						<PortalContainerProvider value={portalContainer}>
+							<div
+								ref={setAppContainerRef}
+								className={styles.appContainer}
+								data-canvas-ui-component
+							>
+								<CanvasProvider>
+									<CanvasUIProvider readonly={props.readonly}>
+										<ElementMenuProvider>
+											<LayersUIProvider getIsMobile={getIsMobile}>
+												<CanvasDesignContent ref={ref} {...props} />
+											</LayersUIProvider>
+										</ElementMenuProvider>
+									</CanvasUIProvider>
+								</CanvasProvider>
+							</div>
+						</PortalContainerProvider>
+					</HostUiLocaleProvider>
 				</CanvasDesignI18nProvider>
 			</UIProvider>
 		</MagicProvider>

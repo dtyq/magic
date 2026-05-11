@@ -2,9 +2,12 @@ import useSWRImmutable from "swr/immutable"
 import { getCurrentLang } from "@/utils/locale"
 import { useMemoizedFn } from "ahooks"
 import { useGlobalLanguage } from "@/models/config/hooks"
-import { useAppearanceStore } from "@/providers/AppearanceProvider/context"
 import { getTimezones } from "@dtyq/timezone"
 import type { Timezone } from "@dtyq/timezone"
+import { MagicUserApi } from "@/apis"
+import { useUserInfo } from "@/models/user/hooks/useUserInfo"
+import type { StructureUserItem } from "@/types/organization"
+import { getPreferredTimezone } from "./utils"
 
 export function useTimezoneList() {
 	const lang = useGlobalLanguage()
@@ -15,9 +18,19 @@ export function useTimezoneList() {
 }
 
 export function useTimezone() {
-	const timezone = useAppearanceStore((state) => state.timezone)
-	const setTimezone = useMemoizedFn((tz: Timezone.TimezoneCode) => {
-		useAppearanceStore.setState({ timezone: tz })
+	const { userInfo, setUserInfo } = useUserInfo()
+	const timezone = getPreferredTimezone(userInfo?.timezone)
+
+	const setTimezone = useMemoizedFn(async (tz: Timezone.TimezoneCode) => {
+		if (tz === userInfo?.timezone) return
+
+		try {
+			const response = await MagicUserApi.updateUserInfo({ timezone: tz })
+			setUserInfo(response as StructureUserItem)
+		} catch (error) {
+			console.error("Failed to update timezone:", error)
+		}
 	})
+
 	return { timezone, setTimezone }
 }

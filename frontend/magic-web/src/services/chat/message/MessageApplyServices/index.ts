@@ -9,7 +9,7 @@ import ControlMessageApplyService from "./ControlMessageApplyService"
 import messageSeqIdService from "../MessageSeqIdService"
 import ConversationService from "../../conversation/ConversationService"
 import { ConversationMessageType } from "@/types/chat/conversation_message"
-import pubsub from "@/utils/pubsub"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { BroadcastChannelSender } from "@/broadcastChannel"
 import { ApplyMessageOptions } from "@/types/chat/message"
 import userInfoService from "@/services/userInfo"
@@ -118,12 +118,17 @@ class MessageApplyService {
 			case ChatMessageApplyService.isChatMessage(message):
 				ChatMessageApplyService.apply(message, { ...options, isFromOtherTab: true })
 				break
-			case message?.message?.type === ConversationMessageType.SuperMagic:
-				if (!options.isHistoryMessage) pubsub.publish("super_magic_new_message", message)
+			// case message?.message?.type === ConversationMessageType.SuperMagic:
+			// 	if (!options.isHistoryMessage)
+			// 		pubsub.publish(PubSubEvents.Super_Magic_New_Message, message)
+			// 	break
+			case message?.message?.type === ConversationMessageType.SuperMagicMessage:
+				if (!options.isHistoryMessage)
+					pubsub.publish(PubSubEvents.Super_Magic_New_Message_V2, message)
 				break
 			default:
 				// 检查是否有自定义处理器可以处理该消息
-				for (const handler of this.customHandlers.values()) {
+				for (const handler of Array.from(this.customHandlers.values())) {
 					if (handler.isMatch(message)) {
 						handler.apply(message, { ...options, isFromOtherTab: true })
 						return

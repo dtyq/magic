@@ -96,7 +96,7 @@ function FilterSelectItem({ filter, onFilterChange, variant }: FilterSelectItemP
 					type="button"
 					onClick={handleOpenDrawer}
 					className={cn(
-						"shadow-xs group flex h-8 items-center gap-1.5 rounded-full border border-input bg-background px-3 text-sm dark:bg-card",
+						"group flex h-8 items-center gap-1.5 rounded-full border border-input bg-background px-3 text-sm shadow-xs dark:bg-card",
 					)}
 				>
 					{filter.has_leading_icon && filter.leading_icon && (
@@ -107,25 +107,17 @@ function FilterSelectItem({ filter, onFilterChange, variant }: FilterSelectItemP
 						/>
 					)}
 					<span className={cn(!hasSelection && "text-muted-foreground")}>
-						{lt(selectedOption?.label) ??
-							lt(selectedOption?.value) ??
-							filter.current_value ??
+						{lt(selectedOption?.label) ||
+							lt(selectedOption?.value) ||
+							filter.current_value ||
 							placeholder}
 					</span>
 					<span className="relative inline-flex size-4 shrink-0 items-center justify-center">
-						<ChevronDown
-							className={cn(
-								"size-4 text-muted-foreground opacity-50 transition-opacity",
-								hasSelection &&
-								"group-focus-within:opacity-0 group-hover:opacity-0",
-							)}
-						/>
-						{hasSelection && (
+						{hasSelection ? (
 							<span
 								role="button"
 								tabIndex={0}
 								aria-label={clearText}
-								className="absolute inset-0 inline-flex items-center justify-center text-muted-foreground/70 opacity-0 transition-opacity group-focus-within:opacity-90 group-hover:opacity-90"
 								onPointerDown={(event) => {
 									event.preventDefault()
 									event.stopPropagation()
@@ -136,8 +128,12 @@ function FilterSelectItem({ filter, onFilterChange, variant }: FilterSelectItemP
 									handleClear()
 								}}
 							>
-								<CircleX className="size-4" />
+								<CircleX className="size-4 text-muted-foreground opacity-50" />
 							</span>
+						) : (
+							<ChevronDown
+								className={cn("size-4 text-muted-foreground opacity-50")}
+							/>
 						)}
 					</span>
 				</button>
@@ -197,7 +193,7 @@ function FilterSelectItem({ filter, onFilterChange, variant }: FilterSelectItemP
 				{lt(filter.label)}
 			</Label>
 			<Select
-				value={filter.current_value || undefined}
+				value={filter.current_value || ""}
 				onValueChange={(value) => onFilterChange?.(filter.data_key, value)}
 			>
 				<SelectTrigger

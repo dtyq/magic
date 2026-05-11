@@ -1,6 +1,8 @@
 import dayjs from "dayjs"
 import i18n from "i18next"
 import { SkillsApi } from "@/apis"
+import type { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
+import { resolveLocalizedText } from "@/utils/locale"
 import type {
 	CreateSkillResponse,
 	GetSkillVersionsParams,
@@ -14,9 +16,11 @@ import type {
 	PublishSkillPrefillResponse,
 	PublishSkillResponse,
 	SkillDetailResponse,
+	SkillMarketDetailResponse,
 	SkillI18nText,
 	SkillItem,
 	SkillLastVersionItem,
+	SkillPublisherType,
 	SkillSourceType,
 	SkillVersionItem,
 	StoreSkillItem,
@@ -37,13 +41,15 @@ export interface StoreSkillView {
 	storeSkillId: string
 	userSkillCode?: string
 	skillCode: string
+	packageName?: string
 	name: string
 	description: string
 	thumbnail?: string
+	isFeatured: boolean
 	latestVersion?: string
 	status: "added" | "not-added"
-	authorType: "official" | "user"
 	authorName?: string
+	publisherType?: SkillPublisherType
 	needUpgrade: boolean
 	updatedAt: string
 }
@@ -51,7 +57,9 @@ export interface StoreSkillView {
 export interface UserSkillView {
 	id: string
 	userSkillId: string
+	userRole?: CollaboratorPermission
 	skillCode: string
+	packageName?: string
 	name: string
 	description: string
 	thumbnail?: string
@@ -62,6 +70,8 @@ export interface UserSkillView {
 	sourceType: SkillSourceType
 	creatorName?: string
 	creatorAvatar?: string
+	publisherType?: SkillPublisherType
+	publisherName?: string
 	latestVersion?: string
 	latestPublishedAt?: string | null
 	needUpgrade: boolean
@@ -69,7 +79,24 @@ export interface UserSkillView {
 	createdAt: string
 }
 
-export type UserSkillsListScope = "all" | "created" | "team-shared" | "market-installed"
+export interface SkillDetailView {
+	code: string
+	name: string
+	description: string
+	logo: string
+	packageName?: string
+	versionCode?: string
+	updatedAt?: string | null
+	sourceLabel?: string | null
+	publisherType?: SkillPublisherType | null
+	publisherName?: string | null
+	skillFileUrl?: string | null
+	isFeatured: boolean
+	isAdded?: boolean
+	isCreator?: boolean
+}
+
+export type UserSkillsListScope = "created" | "team-shared" | "market-installed"
 
 export class SkillsService {
 	async getStoreSkills(params: GetStoreSkillsParams = {}): Promise<PagedSkills<StoreSkillView>> {
@@ -80,10 +107,6 @@ export class SkillsService {
 			pageSize: data.page_size,
 			total: data.total,
 		}
-	}
-
-	async getUserSkills(params: GetSkillsParams = {}): Promise<PagedSkills<UserSkillView>> {
-		return this.getUserSkillsByScope("all", params)
 	}
 
 	async getCreatedSkills(params: GetSkillsParams = {}): Promise<PagedSkills<UserSkillView>> {
@@ -122,31 +145,6 @@ export class SkillsService {
 		}
 	}
 
-	async getUserSkillIdMapByCodes(skillCodes: string[]): Promise<Map<string, string>> {
-		const idMap = new Map<string, string>()
-		const pendingCodes = new Set(skillCodes.filter(Boolean))
-		if (!pendingCodes.size) return idMap
-
-		let page = 1
-		const pageSize = 100
-
-		while (pendingCodes.size) {
-			const data = await SkillsApi.getSkills({ page, page_size: pageSize })
-			for (const item of data.list) {
-				if (!pendingCodes.has(item.code)) continue
-				idMap.set(item.code, item.id)
-				pendingCodes.delete(item.code)
-			}
-
-			const loadedCount = page * data.page_size
-			const hasNextPage = loadedCount < data.total && data.list.length > 0
-			if (!hasNextPage) break
-			page += 1
-		}
-
-		return idMap
-	}
-
 	addSkillFromStore(storeSkillId: string) {
 		return SkillsApi.addSkillFromStore({ store_skill_id: storeSkillId })
 	}
@@ -169,6 +167,20 @@ export class SkillsService {
 
 	getSkillDetail(code: string): Promise<SkillDetailResponse> {
 		return SkillsApi.getSkillDetail({ code })
+	}
+
+	getSkillMarketDetail(code: string): Promise<SkillMarketDetailResponse> {
+		return SkillsApi.getSkillMarketDetail({ code })
+	}
+
+	async getUserSkillDetailView(code: string): Promise<SkillDetailView> {
+		const detail = await this.getSkillDetail(code)
+		return this.mapUserSkillDetail(detail)
+	}
+
+	async getMarketSkillDetailView(code: string): Promise<SkillDetailView> {
+		const detail = await this.getSkillMarketDetail(code)
+		return this.mapMarketSkillDetail(detail)
 	}
 
 	getSkillVersions(
@@ -196,19 +208,20 @@ export class SkillsService {
 	}
 
 	private mapStoreSkill(item: StoreSkillItem): StoreSkillView {
-		const isOfficialPublisher = item.publisher_type === "OFFICIAL"
 		return {
 			id: String(item.id),
 			storeSkillId: item.id,
 			skillCode: item.skill_code,
+			packageName: item.package_name?.trim() || undefined,
 			userSkillCode: item.user_skill_code,
 			name: this.mapI18nText(item.name_i18n),
 			description: this.mapI18nText(item.description_i18n),
 			thumbnail: item.logo || undefined,
+			isFeatured: Boolean(item.is_featured),
 			latestVersion: item.latest_version || undefined,
 			status: item.is_added ? "added" : "not-added",
-			authorType: isOfficialPublisher ? "official" : "user",
-			authorName: isOfficialPublisher ? undefined : item.publisher?.name,
+			authorName: item.publisher?.name,
+			publisherType: item.publisher_type,
 			needUpgrade: item.need_upgrade,
 			updatedAt: this.formatDateTime(item.updated_at),
 		}
@@ -218,7 +231,9 @@ export class SkillsService {
 		return {
 			id: String(item.id),
 			userSkillId: item.id,
+			userRole: item.user_role,
 			skillCode: item.code,
+			packageName: item.package_name?.trim() || undefined,
 			name: item.name || this.mapI18nText(item.name_i18n),
 			description: item.description || this.mapI18nText(item.description_i18n),
 			thumbnail: item.logo || undefined,
@@ -228,6 +243,8 @@ export class SkillsService {
 			sourceType: item.source_type,
 			creatorName: item.creator_info?.name,
 			creatorAvatar: item.creator_info?.avatar,
+			publisherType: item.publisher_type,
+			publisherName: item.publisher?.name?.trim() || undefined,
 			latestVersion: item.latest_version || undefined,
 			latestPublishedAt: item.latest_published_at ?? null,
 			needUpgrade: Boolean(item.need_upgrade),
@@ -241,6 +258,7 @@ export class SkillsService {
 			id: item.code,
 			userSkillId: item.code,
 			skillCode: item.code,
+			packageName: item.package_name?.trim() || undefined,
 			name: item.name || this.mapI18nText(item.name_i18n),
 			description: item.description || this.mapI18nText(item.description_i18n),
 			thumbnail: item.logo || undefined,
@@ -253,6 +271,47 @@ export class SkillsService {
 			needUpgrade: false,
 			updatedAt: this.formatDateTime(item.updated_at),
 			createdAt: item.created_at,
+		}
+	}
+
+	private mapUserSkillDetail(detail: SkillDetailResponse): SkillDetailView {
+		return {
+			code: detail.code,
+			name: this.mapI18nText(detail.name_i18n) || detail.package_name || detail.code,
+			description:
+				this.mapI18nText(detail.description_i18n) || detail.package_description || "",
+			logo: detail.logo,
+			packageName: detail.package_name?.trim() || undefined,
+			versionCode: detail.version_code?.trim() || undefined,
+			updatedAt: detail.updated_at,
+			sourceLabel: this.mapI18nText(detail.source_i18n) || undefined,
+			skillFileUrl: detail.skill_file_url?.trim() || undefined,
+			isFeatured: Boolean(detail.is_featured),
+		}
+	}
+
+	private mapMarketSkillDetail(detail: SkillMarketDetailResponse): SkillDetailView {
+		const publisherName = detail.publisher?.name?.trim()
+
+		return {
+			code: detail.code,
+			name:
+				detail.name ||
+				this.mapI18nText(detail.name_i18n) ||
+				detail.package_name ||
+				detail.code,
+			description: detail.description || this.mapI18nText(detail.description_i18n) || "",
+			logo: detail.logo,
+			packageName: detail.package_name?.trim() || undefined,
+			versionCode: detail.version_code?.trim() || undefined,
+			updatedAt: detail.version_created_at,
+			sourceLabel: detail.source || this.mapI18nText(detail.source_i18n) || undefined,
+			publisherType: detail.publisher_type,
+			publisherName: publisherName || undefined,
+			skillFileUrl: detail.skill_file_url?.trim() || undefined,
+			isFeatured: Boolean(detail.is_featured),
+			isAdded: detail.is_added,
+			isCreator: detail.is_creator,
 		}
 	}
 
@@ -277,26 +336,11 @@ export class SkillsService {
 				return SkillsApi.getTeamSharedSkills(params)
 			case "market-installed":
 				return SkillsApi.getMarketInstalledSkills(params)
-			default:
-				return SkillsApi.getSkills(params)
 		}
 	}
 
 	private mapI18nText(text: SkillI18nText | Record<string, string> | null | undefined) {
-		if (!text) return ""
-		const i18nMap = text as Record<string, string>
-		const language = i18n.language?.toLowerCase() ?? "en"
-		const preferredKeys = language.startsWith("zh")
-			? ["zh_CN", "zh", "en_US", "en"]
-			: ["en_US", "en", "zh_CN", "zh"]
-
-		for (const key of preferredKeys) {
-			const value = i18nMap[key]
-			if (value) return value
-		}
-
-		const fallback = Object.values(i18nMap).find(Boolean)
-		return fallback ?? ""
+		return resolveLocalizedText(text as Record<string, string>, i18n.language)
 	}
 
 	private formatDateTime(value: string) {

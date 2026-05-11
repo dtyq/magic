@@ -15,6 +15,7 @@ import useStyles from "./style"
 import OperateMenu from "../OperateMenu"
 import { hasEditRight } from "../AuthControlButton/types"
 import type { Knowledge } from "@/types/knowledge"
+import { formatFlowCardCreatedAt } from "@/pages/flow/utils/formatCreatedAt"
 
 type Flow = MagicFlow.Flow & {
 	quote?: number
@@ -45,7 +46,7 @@ function Card({
 }: FlowCardProps) {
 	const { styles } = useStyles()
 
-	const { t } = useTranslation("interface")
+	const { t, i18n } = useTranslation("interface")
 	const { t: tFlow } = useTranslation("flow")
 	const isSSEMcp = useMemo(() => {
 		return flowType === FlowRouteType.Mcp && (data as FlowScope.Mcp.Detail).type === "sse"
@@ -92,29 +93,29 @@ function Card({
 		const quoteTag =
 			quote > 0
 				? [
-					{
-						key: "quote",
-						text: t("agent.quoteAgent", { num: quote || 0 }),
-						icon: <IconCircleCheckFilled size={12} color={colorScales.green[4]} />,
-					},
-				]
+						{
+							key: "quote",
+							text: t("agent.quoteAgent", { num: quote || 0 }),
+							icon: <IconCircleCheckFilled size={12} color={colorScales.green[4]} />,
+						},
+					]
 				: [
-					{
-						key: "quote",
-						text: t("agent.noQuote"),
-						icon: <IconAlertCircleFilled size={12} color={colorScales.orange[5]} />,
-					},
-				]
+						{
+							key: "quote",
+							text: t("agent.noQuote"),
+							icon: <IconAlertCircleFilled size={12} color={colorScales.orange[5]} />,
+						},
+					]
 
 		return hasTools
 			? [
-				{
-					key: "tool",
-					text: t("flow.toolsNum", { num: tools }),
-					icon: <IconTools size={12} color={colorScales.brand[5]} />,
-				},
-				...quoteTag,
-			]
+					{
+						key: "tool",
+						text: t("flow.toolsNum", { num: tools }),
+						icon: <IconTools size={12} color={colorScales.brand[5]} />,
+					},
+					...quoteTag,
+				]
 			: quoteTag
 	}, [data, flowType, t])
 
@@ -162,7 +163,7 @@ function Card({
 				</Flex>
 			</Flex>
 			<Flex justify="space-between" align="center">
-				<div>{`${t("agent.createTo")} ${data.created_at?.replace(/-/g, "/")}`}</div>
+				<div>{`${t("agent.createTo")} ${formatFlowCardCreatedAt(data.created_at, i18n.language)}`}</div>
 				{flowType === FlowRouteType.VectorKnowledge && (
 					<Flex gap={5} align="center">
 						<div>

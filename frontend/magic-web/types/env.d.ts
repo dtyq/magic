@@ -58,8 +58,13 @@ interface ImportMetaEnv {
 	readonly MAGIC_PUBLIC_CDN_URL?: string
 	/** CDN 资源地址 */
 	readonly MAGIC_CDNHOST?: string
+	/** iframe HTML 渲染站地址（跨域时主应用 iframe src 指向此 URL，如 https://localhost:4173 或 http://localhost:4173） */
+	readonly MAGIC_HTML_SANDBOX_URL?: string
+
 	/** 云服务商“应用性能全链路监控” */
 	readonly MAGIC_APM?: string
+	/** 开发环境是否启用 MSW mock（需配合 .env 中 MAGIC_MOCK=true） */
+	readonly MAGIC_MOCK?: string
 }
 
 interface ImportMeta {

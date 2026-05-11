@@ -11,7 +11,7 @@ import {
 } from "@/pages/superMagic/utils/paged-list-store"
 
 const DEFAULT_PAGE_SIZE = 20
-export type MyCrewListVariant = "created" | "hired"
+export type MyCrewListVariant = "created" | "team-shared" | "hired"
 
 export class MyCrewStore {
 	list: MyCrewView[] = []
@@ -36,6 +36,18 @@ export class MyCrewStore {
 		return !this.loading && this.list.length === 0
 	}
 
+	private resolveListServiceMethod(listVariant: MyCrewListVariant) {
+		switch (listVariant) {
+			case "created":
+				return crewService.getCreatedAgents.bind(crewService)
+			case "team-shared":
+				return crewService.getTeamSharedAgents.bind(crewService)
+			case "hired":
+			default:
+				return crewService.getHiredAgents.bind(crewService)
+		}
+	}
+
 	async fetchAgents(params: GetAgentsParams & { listVariant?: MyCrewListVariant } = {}) {
 		const page = params.page ?? 1
 		const pageSize = params.page_size ?? this.pageSize
@@ -58,10 +70,7 @@ export class MyCrewStore {
 		}
 
 		try {
-			const serviceMethod =
-				listVariant === "created"
-					? crewService.getCreatedAgents.bind(crewService)
-					: crewService.getExternalAgents.bind(crewService)
+			const serviceMethod = this.resolveListServiceMethod(listVariant)
 			const data = await serviceMethod({
 				page,
 				page_size: pageSize,
@@ -93,10 +102,7 @@ export class MyCrewStore {
 		const requestId = this.fetchRequestId
 
 		try {
-			const serviceMethod =
-				this.listVariant === "created"
-					? crewService.getCreatedAgents.bind(crewService)
-					: crewService.getExternalAgents.bind(crewService)
+			const serviceMethod = this.resolveListServiceMethod(this.listVariant)
 			const data = await serviceMethod({
 				page: nextPage,
 				page_size: this.pageSize,

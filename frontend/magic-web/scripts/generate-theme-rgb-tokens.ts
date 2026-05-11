@@ -3,9 +3,7 @@ import path from "path"
 import postcss from "postcss"
 import postcssOklabFunction from "@csstools/postcss-oklab-function"
 
-const TARGET_FILES = [
-	"src/index.css",
-]
+const TARGET_FILES = ["src/index.css"]
 
 // Match OKLCH channel tokens like:
 // --primary: 0.205 0 0;

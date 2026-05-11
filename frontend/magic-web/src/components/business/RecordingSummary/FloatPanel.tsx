@@ -12,18 +12,19 @@ import { onSummarizeSuccessDefaultCallback } from "./utils/callback"
 import { useMemoizedFn, useDebounceFn, useUpdateEffect } from "ahooks"
 import { ProjectFilesStore } from "@/stores/projectFiles"
 import { useAttachmentsPolling } from "@/pages/superMagic/hooks/useAttachmentsPolling"
-import { createMentionPanelStore } from "@/components/business/MentionPanel/store"
-import pubsub from "@/utils/pubsub"
+import { createMentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useImageUrlResolver } from "@/pages/superMagic/components/Detail/contents/Md/hooks/useImageUrlResolver"
 import { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import { useFileChangeCheck } from "./hooks/useFileChangeCheck"
-import { SimpleEditorRef } from "@/components/tiptap-templates/simple/simple-editor"
+import type { SimpleEditorRef } from "@/components/tiptap-templates/simple/types"
 import { SuperMagicApi } from "@/apis"
+import useSandboxPreWarm from "@/pages/superMagic/components/MessagePanel/hooks/useSandboxPreWarm"
 
 /**
  * 录音纪要浮动面板
  */
-export interface RecordingSummaryFloatPanelProps { }
+export interface RecordingSummaryFloatPanelProps {}
 
 export function RecordingSummaryFloatPanel() {
 	const isMobile = useIsMobile()
@@ -86,7 +87,7 @@ export function RecordingSummaryFloatPanel() {
 				return
 			}
 			try {
-				pubsub.publish("update_attachments_loading", true)
+				pubsub.publish(PubSubEvents.Update_Attachments_Loading, true)
 				SuperMagicApi.getAttachmentsByProjectId({
 					projectId: selectedProject?.id,
 					// @ts-ignore 使用window添加临时的token
@@ -98,7 +99,7 @@ export function RecordingSummaryFloatPanel() {
 						callback?.(res)
 					})
 					.finally(() => {
-						pubsub.publish("update_attachments_loading", false)
+						pubsub.publish(PubSubEvents.Update_Attachments_Loading, false)
 					})
 			} catch (error) {
 				console.error("Failed to fetch attachments:", error)
@@ -296,6 +297,12 @@ export function RecordingSummaryFloatPanel() {
 
 	const handleSave = useMemoizedFn(() => {
 		recordSummaryService.flushNoteUpdate()
+	})
+
+	useSandboxPreWarm({
+		selectedTopic: recordingSummaryStore.businessData.chatTopic,
+		projectId: recordingSummaryStore.businessData.project?.id,
+		enabled: isVisible,
 	})
 
 	// Early return after all hooks have been called

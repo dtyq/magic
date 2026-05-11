@@ -15,11 +15,19 @@ import {
 export { MOBILE_TAB_BAR_APPS_KEY }
 export type { MobileTabBarConfig, MobileTabBarItem }
 
-type GetMobileTabBarConfigsParams = Pick<SharedMobileTabBarConfigsParams, "isPersonalOrganization">
+type GetMobileTabBarConfigsParams = Pick<
+	SharedMobileTabBarConfigsParams,
+	"isPersonalOrganization" | "shouldHideMagiClawEntry"
+>
 
 type GetMobileTabBarItemsParams = Pick<
 	SharedMobileTabBarItemsParams,
-	"activeKey" | "chatUnreadCount" | "iconSize" | "isPersonalOrganization" | "translate"
+	| "activeKey"
+	| "chatUnreadCount"
+	| "iconSize"
+	| "isPersonalOrganization"
+	| "shouldHideMagiClawEntry"
+	| "translate"
 >
 
 export function getMobileTabBarConfigs(params: GetMobileTabBarConfigsParams): MobileTabBarConfig[] {

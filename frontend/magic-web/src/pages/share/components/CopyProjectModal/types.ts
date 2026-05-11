@@ -17,6 +17,10 @@ export interface CopyProjectModalProps {
 		resourceId?: string
 		/** 访问密码，用于新接口 */
 		password?: string
+		/** 是否为项目分享（通过 share_project 判断） */
+		isProjectShare?: boolean
+		/** 分享名称（非项目分享时使用） */
+		shareName?: string
 	}
 	/** 复制成功后的回调 */
 	onCopySuccess?: (copiedProject: CopiedProjectResponse, selectedWorkspaceId: string) => void

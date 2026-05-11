@@ -99,6 +99,19 @@ export interface ServiceProviderModel {
 	icon?: string
 	description?: string
 	service_provider_config_id: string
+	service_provider_config: {
+		id: string
+		name: string
+	}
+	/** 生图尺寸与参考图上限等（个人/服务商模型接口可能返回） */
+	image_size_config?: {
+		max_reference_images?: number
+		sizes: {
+			label: string
+			value: string
+			scale?: string
+		}[]
+	}
 }
 
 /** Response from GET /service-provider/models/queries */
@@ -116,11 +129,7 @@ export const generateOrgAiModelProviderApi = (fetch: HttpClient) => ({
 
 	getNonOfficialProviderTemplates(category: "llm" | "vlm" = "llm") {
 		return fetch.get<ProviderTemplate[]>(
-			genRequestUrl(
-				"/api/v1/organization/admin/service-providers/templates/queries",
-				{},
-				{ category },
-			),
+			genRequestUrl("/api/v1/service-providers/templates/queries", {}, { category }),
 		)
 	},
 

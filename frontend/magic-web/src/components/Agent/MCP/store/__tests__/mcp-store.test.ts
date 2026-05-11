@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const { getMCPFromProject, saveMCPFromProject } = vi.hoisted(() => ({
 	getMCPFromProject: vi.fn(),
@@ -21,6 +21,12 @@ describe("defaultMCPStore", () => {
 		defaultMCPStore.mcpList = []
 		defaultMCPStore.loading = false
 		defaultMCPStore.initialized = false
+		defaultMCPStore.hasEverAddedMcp = false
+		localStorage.clear()
+	})
+
+	afterEach(() => {
+		localStorage.clear()
 	})
 
 	it("loads MCP list from template project storage", async () => {
@@ -32,6 +38,7 @@ describe("defaultMCPStore", () => {
 
 		expect(getMCPFromProject).toHaveBeenCalledWith("__template_project_id__")
 		expect(defaultMCPStore.hasMCP).toBe(true)
+		expect(defaultMCPStore.hasEverAddedMcp).toBe(true)
 		expect(defaultMCPStore.initialized).toBe(true)
 	})
 
@@ -48,6 +55,7 @@ describe("defaultMCPStore", () => {
 			{ id: "template-mcp" },
 		])
 		expect(defaultMCPStore.hasMCP).toBe(true)
+		expect(defaultMCPStore.hasEverAddedMcp).toBe(true)
 	})
 
 	it("removes MCP from shared store", async () => {
@@ -63,5 +71,6 @@ describe("defaultMCPStore", () => {
 
 		expect(saveMCPFromProject).toHaveBeenCalledWith("__template_project_id__", [])
 		expect(defaultMCPStore.hasMCP).toBe(false)
+		expect(defaultMCPStore.hasEverAddedMcp).toBe(true)
 	})
 })

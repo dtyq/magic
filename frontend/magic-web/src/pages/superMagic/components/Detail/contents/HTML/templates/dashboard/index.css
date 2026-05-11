@@ -1,0 +1,716 @@
+/* react-grid-layout */
+.react-grid-layout {
+  position: relative;
+  transition: height 200ms ease;
+}
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+.react-grid-item img {
+  pointer-events: none;
+  user-select: none;
+}
+.react-grid-item.cssTransforms {
+  transition-property: transform, width, height;
+}
+.react-grid-item.resizing {
+  transition: none;
+  z-index: 3;
+  will-change: width, height;
+}
+
+.react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 3;
+  will-change: transform;
+}
+
+.react-grid-item.dropping {
+  visibility: hidden;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: red;
+  opacity: 0.2;
+  transition-duration: 100ms;
+  z-index: 2;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+}
+
+.react-grid-item.react-grid-placeholder.placeholder-resizing {
+  transition: none;
+}
+
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  border-right: 2px solid rgba(0, 0, 0, 0.4);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.4);
+}
+
+.react-resizable-hide > .react-resizable-handle {
+  display: none;
+}
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-sw {
+  bottom: 0;
+  left: 0;
+  cursor: sw-resize;
+  transform: rotate(90deg);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-nw {
+  top: 0;
+  left: 0;
+  cursor: nw-resize;
+  transform: rotate(180deg);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
+  top: 0;
+  right: 0;
+  cursor: ne-resize;
+  transform: rotate(270deg);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-w,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e {
+  top: 50%;
+  margin-top: -10px;
+  cursor: ew-resize;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-w {
+  left: 0;
+  transform: rotate(135deg);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e {
+  right: 0;
+  transform: rotate(315deg);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-n,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  left: 50%;
+  margin-left: -10px;
+  cursor: ns-resize;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-n {
+  top: 0;
+  transform: rotate(225deg);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  bottom: 0;
+  transform: rotate(45deg);
+}
+
+/* react-resizable */
+.react-resizable {
+  position: relative;
+}
+.react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background-repeat: no-repeat;
+  background-origin: content-box;
+  box-sizing: border-box;
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDYiIHN0eWxlPSJiYWNrZ3JvdW5kLWNvbG9yOiNmZmZmZmYwMCIgeD0iMHB4IiB5PSIwcHgiIHdpZHRoPSI2cHgiIGhlaWdodD0iNnB4Ij48ZyBvcGFjaXR5PSIwLjMwMiI+PHBhdGggZD0iTSA2IDYgTCAwIDYgTCAwIDQuMiBMIDQgNC4yIEwgNC4yIDQuMiBMIDQuMiAwIEwgNiAwIEwgNiA2IEwgNiA2IFoiIGZpbGw9IiMwMDAwMDAiLz48L2c+PC9zdmc+");
+  background-position: bottom right;
+  padding: 0 3px 3px 0;
+}
+.react-resizable-handle-sw {
+  bottom: 0;
+  left: 0;
+  cursor: sw-resize;
+  transform: rotate(90deg);
+}
+.react-resizable-handle-se {
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+}
+.react-resizable-handle-nw {
+  top: 0;
+  left: 0;
+  cursor: nw-resize;
+  transform: rotate(180deg);
+}
+.react-resizable-handle-ne {
+  top: 0;
+  right: 0;
+  cursor: ne-resize;
+  transform: rotate(270deg);
+}
+.react-resizable-handle-w,
+.react-resizable-handle-e {
+  top: 50%;
+  margin-top: -10px;
+  cursor: ew-resize;
+}
+.react-resizable-handle-w {
+  left: 0;
+  transform: rotate(135deg);
+}
+.react-resizable-handle-e {
+  right: 0;
+  transform: rotate(315deg);
+}
+.react-resizable-handle-n,
+.react-resizable-handle-s {
+  left: 50%;
+  margin-left: -10px;
+  cursor: ns-resize;
+}
+.react-resizable-handle-n {
+  top: 0;
+  transform: rotate(225deg);
+}
+.react-resizable-handle-s {
+  bottom: 0;
+  transform: rotate(45deg);
+}
+
+/* Data analytics dashboard style file */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  /* Use CSS variables, dynamically set by applyThemeStyles function */
+  font-family: var(--body-font-family);
+  background: var(--body-background);
+  background-image: var(--body-background-image);
+  font-size: var(--base-font-size);
+  height: 100vh;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  /* Smooth transition effects */
+  transition:
+    background-color 0.3s ease,
+    font-size 0.3s ease;
+}
+
+.dashboard-container {
+  width: 100vw;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* React Grid Layout style overrides */
+.react-grid-layout {
+  position: relative;
+  transition: none !important;
+  width: 100%;
+}
+
+.react-grid-item {
+  transition: none !important;
+}
+
+.react-grid-item.grid-item.draggable {
+  cursor: default !important; /* Default cursor, dragging controlled by drag-handle */
+}
+
+.react-grid-item.grid-item.non-draggable {
+  cursor: default !important;
+}
+
+/* Drag handle styles */
+.drag-handle {
+  position: absolute;
+  top: calc(-1 * var(--card-gap, 12px)); /* 负的卡片padding值 */
+  left: 50%;
+  margin-left: -16px; /* 负的一半宽度来居中 */
+  width: 32px;
+  height: 12px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 0 2px 2px;
+  background-color: rgba(128, 128, 128, 0.3);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+  transform-origin: center;
+  z-index: 10;
+}
+
+.drag-handle:hover {
+  opacity: 0.8;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  background-color: rgba(64, 64, 64, 0.6);
+}
+
+/* Unified action button styles (for delete, expand, etc.) */
+.action-button {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background-color: transparent;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.15s ease;
+  transform-origin: center;
+  user-select: none;
+}
+
+.action-button:hover {
+  opacity: var(--button-hover-opacity);
+  background-color: var(--button-hover-bg);
+}
+
+.action-button:active {
+  opacity: var(--button-active-opacity);
+  background-color: var(--button-active-bg);
+  transform: scale(0.98);
+}
+
+/* Show action buttons on card hover */
+.react-grid-item:hover .action-button {
+  opacity: 0.6;
+  visibility: visible;
+}
+
+/* Ensure active state has higher priority */
+.react-grid-item .action-button:active {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Styles when card is being dragged */
+.react-grid-item.react-draggable-dragging .drag-handle,
+.react-grid-item.dragging-immediate .drag-handle {
+  cursor: grabbing;
+  opacity: 1;
+  background-color: rgba(64, 64, 64, 0.6);
+}
+
+/* Immediate drag state styles */
+.react-grid-item.dragging-immediate {
+  z-index: 3;
+  opacity: 1;
+  transform: scale(1.02);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  transition: all 0.1s ease;
+}
+
+/* Show drag handle on card hover */
+.grid-item:hover .drag-handle {
+  opacity: 0.6;
+  visibility: visible;
+}
+
+/* Ensure active state has higher priority */
+.grid-item .drag-handle:active {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.react-grid-item > .react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  bottom: 0;
+  right: 0;
+  background: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNiIgaGVpZ2h0PSI2IiB2aWV3Qm94PSIwIDAgNiA2IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8ZG90cyBmaWxsPSIjOTk5IiBkPSJtMTUgMTJoM3YzaC0zeiIvPgo8L3N2Zz4K");
+  background-position: bottom right;
+  padding: 0 3px 3px 0;
+  background-repeat: no-repeat;
+  background-origin: content-box;
+  cursor: se-resize;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background: rgba(102, 126, 234, 0.3);
+  opacity: 0.8;
+  z-index: 2;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -o-user-select: none;
+  user-select: none;
+  border-radius: var(--border-radius-small);
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid rgba(102, 126, 234, 0.6);
+  border-bottom: 2px solid rgba(102, 126, 234, 0.6);
+}
+
+/* Show resize handle on card hover */
+.grid-item:hover .react-resizable-handle {
+  opacity: 0.6;
+  visibility: visible;
+}
+
+/* Apply hover styles only when hover effects are enabled */
+.grid-item {
+  background: var(--card-background, #ffffff);
+  border: var(--card-border-width, 1px) var(--card-border-style, solid) var(--card-border-color, #e8e8e8);
+  border-radius: var(--card-border-radius, 4px);
+  padding: var(--card-gap, 10px);
+  box-shadow: var(--card-shadow, 0 1px 4px rgba(0, 0, 0, 0.1));
+  height: 100%;
+  overflow: hidden;
+  backdrop-filter: blur(5px);
+  display: flex;
+  flex-direction: column;
+  transition: 0.2s ease-in-out;
+  box-sizing: border-box;
+}
+
+/* Card styles with hover effects enabled */
+.grid-item.hoverable:hover {
+  border: var(--card-border-width, 1px) var(--card-border-style, solid) var(--card-border-color, #e8e8e8);
+  box-shadow: var(--card-hover-shadow, 0 4px 12px rgba(49, 92, 236, 0.15));
+}
+
+/* Card styles with hover effects disabled (keep original) */
+.grid-item:not(.hoverable):hover {
+  /* No hover effects applied - intentionally empty */
+  border: var(--card-border-width, 1px) var(--card-border-style, solid) var(--card-border-color, #e8e8e8);
+}
+
+.metric-value {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--color-primary);
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.metric-label {
+  color: var(--color-text-primary);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.metric-change {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.metric-change.positive {
+  color: var(--color-success);
+}
+
+.metric-change.negative {
+  color: var(--color-error);
+}
+
+.metric-change.neutral {
+  color: var(--color-text-secondary);
+}
+
+.status-badge {
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* Basic table styles */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+/* Table header control buttons */
+.table-control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  background-color: transparent;
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease;
+  cursor: pointer;
+}
+
+.table-control-button:hover {
+  background-color: var(--table-button-hover-bg);
+}
+
+.table-control-button:active {
+  background-color: var(--table-button-active-bg);
+  transform: scale(0.95);
+}
+
+.table-control-button.active {
+  background-color: var(--table-button-active-state-bg);
+}
+
+.table-control-button.active:hover {
+  background-color: var(--table-button-active-hover-bg);
+}
+
+.table-control-button.active:active {
+  background-color: var(--table-button-active-active-bg);
+  transform: scale(0.95);
+}
+
+/* BaseCard drag handle styles */
+.drag-handle {
+  position: absolute;
+  width: 32px;
+  height: 12px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0 0 2px 2px;
+  background-color: rgba(128, 128, 128, 0.3);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.15s ease;
+  transform-origin: center;
+  z-index: 10;
+}
+
+.drag-handle:hover {
+  opacity: 0.8;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  background-color: rgba(64, 64, 64, 0.6);
+  opacity: 1;
+  transform: scale(0.98);
+}
+
+
+/* Table row hover effects */
+.table-row {
+  transition: background-color 0.2s ease;
+}
+
+.table-row:hover {
+  background-color: var(--hover-color, rgba(124, 58, 237, 0.05));
+}
+
+/* ECharts styles */
+.echarts-tooltip::first-line {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+/* Filter Popup Button Styles */
+.filter-popup-button {
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: var(--base-font-size);
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+
+.filter-popup-button:hover {
+  opacity: 0.8;
+}
+
+.filter-popup-button:active {
+  opacity: 0.9;
+  transform: scale(0.98);
+}
+
+.filter-popup-button-clear {
+  border: 1px solid var(--color-border);
+  background-color: var(--card-background, #ffffff);
+  color: var(--color-text-primary);
+}
+
+.filter-popup-button-apply {
+  border: none;
+  background-color: var(--color-primary);
+  color: #fff;
+}
+
+/* Card Modal Styles */
+.card-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+.card-modal-container {
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  /* Size will be set dynamically by JavaScript */
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 58px;
+  padding: 0 16px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-text-primary, #1f2937);
+}
+
+.modal-close-btn {
+  /* Override action-button size for modal */
+  width: 24px !important;
+  height: 24px !important;
+  /* Always visible in modal (not like card action buttons) */
+  opacity: 0.7 !important;
+  visibility: visible !important;
+  /* Static positioning in modal header */
+  position: static !important;
+}
+
+.modal-close-btn i {
+  font-size: 1rem;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.modal-close-btn:hover {
+  opacity: 1 !important;
+}
+
+.modal-close-btn:active {
+  opacity: var(--button-active-opacity);
+  background-color: var(--button-active-bg);
+  transform: scale(0.98);
+}
+
+.modal-body {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0 16px 16px 16px;
+}
+
+/* Card Modal Animation */
+.card-modal-overlay {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.card-modal-container {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Magic Input Component Styles */
+.magic-input-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  height: 32px;
+}
+
+.magic-input {
+  width: 100%;
+  height: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border, rgba(28, 29, 35, 0.08));
+  border-radius: 4px;
+  background-color: var(--card-background, rgba(255, 255, 255, 1));
+  color: var(--color-text-primary, rgba(28, 29, 35, 1));
+  font-family: var(--body-font-family, "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "SimSun", sans-serif);
+  font-size: var(--base-font-size, 12px);
+  line-height: 1.5;
+  box-sizing: border-box;
+  transition: all 0.2s ease-in-out;
+  outline: none;
+}
+
+.magic-input:focus {
+  border-color: var(--color-primary, #6851ff);
+  box-shadow: 0 0 0 3px rgba(104, 81, 255, 0.1);
+}
+
+/* Loading icon spin animation */
+.ti.ti-loader.loading-icon-spin {
+  -webkit-animation: spin 1.6s linear infinite !important;
+  animation: spin 1.6s linear infinite !important;
+  color: var(--color-primary, #8674ff) !important;
+  display: inline-flex;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

@@ -50,8 +50,8 @@ export default defineConfig({
 					exclude: "node_modules/**",
 				}
 			: null,
-		// Rollup options
-		rollupOptions: {
+		// Rolldown options
+		rolldownOptions: {
 			external: [],
 			output: {
 				// Strict mode

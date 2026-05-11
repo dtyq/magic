@@ -2,14 +2,15 @@ import { genRequestUrl } from "@/utils/http"
 
 import type { Common } from "@/types/common"
 import { env } from "@/utils/env"
-import type { HttpClient } from "@/apis/core/HttpClient"
+import type { HttpClient, RequestConfig } from "@/apis/core/HttpClient"
 
 export const generateCommonApi = (fetch: HttpClient) => ({
 	/**
 	 * 获取应用国际化语言、国际冠号等配置(开源版本本地获取)
 	 * @returns
 	 */
-	async getInternationalizedSettings() {
+	async getInternationalizedSettings(options?: Pick<RequestConfig, "skipAppInitWait">) {
+		void options
 		return {
 			phone_area_codes: [
 				{
@@ -92,7 +93,10 @@ export const generateCommonApi = (fetch: HttpClient) => ({
 	 * @description 获取私有化登录环境配置
 	 * @param {string} code 私有化部署授权码
 	 */
-	async getPrivateConfigure(code: string): Promise<{ config: Common.PrivateConfig }> {
+	async getPrivateConfigure(
+		code: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	): Promise<{ config: Common.PrivateConfig }> {
 		// 当且仅当 code 为空或不存在则返回当前 magic 部署环境的对应相同环境下 teamshare、keewood 配置
 		if (!code || code === "") {
 			return {
@@ -120,7 +124,7 @@ export const generateCommonApi = (fetch: HttpClient) => ({
 			env("MAGIC_SERVICE_KEEWOOD_BASE_URL", true) +
 				genRequestUrl("/v4/private-deployments/configuration"),
 			{ identifier: code || "" },
-			{ enableRequestUnion: true },
+			{ enableRequestUnion: true, ...options },
 		)
 	},
 
@@ -128,10 +132,13 @@ export const generateCommonApi = (fetch: HttpClient) => ({
 	 * @description 私有化部署中，根据组织Code获取集群第三方登录配置
 	 * @param data
 	 */
-	async getPrivateLoginConfig(data: {
-		organization_code: string
-		platform_type: string
-	}): Promise<{ corp_id?: string; app_key?: string; app_id?: string; agent_id?: string }> {
-		return fetch.post("/v4/user/pre-login", { data })
+	async getPrivateLoginConfig(
+		data: {
+			organization_code: string
+			platform_type: string
+		},
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	): Promise<{ corp_id?: string; app_key?: string; app_id?: string; agent_id?: string }> {
+		return fetch.post("/v4/user/pre-login", { data }, options)
 	},
 })

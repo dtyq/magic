@@ -1,19 +1,42 @@
-import { ChevronLeft, Files } from "lucide-react"
+import { CircleArrowUp, ChevronLeft, Files, Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import avatarHighlight from "@/assets/resources/magi-claw/card-avatar-highlight.svg"
+import type { MagicClawItem } from "@/apis"
 import { Button } from "@/components/shadcn-ui/button"
-import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { cn } from "@/lib/utils"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
+import { MagiClawTemplateAvatar } from "../../MagiClawPage/MagiClawTemplateAvatar"
 
 interface ClawMobileHeaderProps {
-	selectedProject: ProjectListItem | null
+	magicClaw: MagicClawItem | null
+	sandboxLatestVersion?: string | null
+	isUpdatingSandbox?: boolean
 	onBack: () => void
+	onUpgradeSandbox: () => void
 	onFilesClick: () => void
 }
 
-export function ClawMobileHeader({ selectedProject, onBack, onFilesClick }: ClawMobileHeaderProps) {
+export function ClawMobileHeader({
+	magicClaw,
+	sandboxLatestVersion,
+	isUpdatingSandbox = false,
+	onBack,
+	onUpgradeSandbox,
+	onFilesClick,
+}: ClawMobileHeaderProps) {
 	const { t } = useTranslation("sidebar")
 	const clawBrandValues = getClawBrandTranslationValues()
+	const shouldShowUpgradeButton = Boolean(magicClaw?.need_upgrade || isUpdatingSandbox)
+
+	function buildUpgradeTitle() {
+		if (sandboxLatestVersion) {
+			return t("superLobster.workspace.updateTooltip", {
+				...clawBrandValues,
+				version: sandboxLatestVersion,
+			})
+		}
+
+		return t("superLobster.workspace.upgradeAvailable", clawBrandValues)
+	}
 
 	return (
 		<header
@@ -31,19 +54,39 @@ export function ClawMobileHeader({ selectedProject, onBack, onFilesClick }: Claw
 				<ChevronLeft className="size-6" />
 			</Button>
 
-			<div className="size-7 shrink-0 overflow-hidden rounded-full border border-border bg-background">
-				<img
-					alt=""
-					aria-hidden
-					className="pointer-events-none size-full object-cover"
-					src={avatarHighlight}
-				/>
-			</div>
+			<MagiClawTemplateAvatar
+				templateCode={magicClaw?.template_code}
+				src={magicClaw?.icon_file_url}
+				className="size-7 shrink-0 rounded-full border border-border"
+			/>
 
 			<p className="min-w-0 flex-1 truncate text-sm font-medium text-sidebar-foreground">
-				{selectedProject?.project_name ||
-					t("superLobster.workspace.untitledProject", clawBrandValues)}
+				{magicClaw?.name || t("superLobster.workspace.untitledProject", clawBrandValues)}
 			</p>
+
+			{shouldShowUpgradeButton ? (
+				<button
+					type="button"
+					className={cn(
+						"inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-transparent bg-indigo-50 px-2 text-xs font-normal text-indigo-500 transition-colors hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-70",
+					)}
+					data-testid="claw-mobile-update-button"
+					title={buildUpgradeTitle()}
+					disabled={isUpdatingSandbox}
+					onClick={onUpgradeSandbox}
+				>
+					{isUpdatingSandbox ? (
+						<Loader2 className="size-3 animate-spin" aria-hidden />
+					) : (
+						<CircleArrowUp className="size-3" aria-hidden />
+					)}
+					<span>
+						{isUpdatingSandbox
+							? t("superLobster.workspace.updating", clawBrandValues)
+							: t("superLobster.workspace.update", clawBrandValues)}
+					</span>
+				</button>
+			) : null}
 
 			<Button
 				type="button"

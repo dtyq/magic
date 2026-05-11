@@ -41,6 +41,11 @@ const CollapsedWorkspaceMenu = observer(function CollapsedWorkspaceMenu() {
 		}
 	}
 
+	function handleCloseAllPopovers() {
+		setOpenProjectMenuId(null)
+		setIsOpen(false)
+	}
+
 	useEffect(() => {
 		const scrollElement = workspaceScrollRef.current?.querySelector(
 			"[data-slot='scroll-area-viewport']",
@@ -80,19 +85,34 @@ const CollapsedWorkspaceMenu = observer(function CollapsedWorkspaceMenu() {
 		setWorkspaceName("")
 	}
 
+	function handleWorkspacePopoverOpenChange(open: boolean) {
+		setIsOpen(open)
+		if (open) {
+			void superMagicService.workspace.fetchWorkspaces({
+				page: 1,
+				isAutoSelect: false,
+				isSelectLast: false,
+			})
+		}
+	}
+
 	return (
 		<div
 			className="flex shrink-0 flex-col items-center p-2"
 			data-testid="sidebar-collapsed-workspace-menu"
 		>
 			<div className="flex w-8 shrink-0 flex-col items-start gap-1">
-				<Popover open={isOpen} onOpenChange={setIsOpen} modal={false}>
+				<Popover
+					open={isOpen}
+					onOpenChange={handleWorkspacePopoverOpenChange}
+					modal={false}
+				>
 					<PopoverTrigger asChild>
 						<span>
 							<SidebarMenuButton
 								tooltip={t("sidebar:workspace.title")}
 								data-testid="sidebar-collapsed-workspace-menu-button"
-								className="text-[#0a0a0a] dark:text-[#fafafa]"
+								className="text-sidebar-foreground"
 							>
 								<Box className="h-4 w-4 shrink-0" />
 							</SidebarMenuButton>
@@ -101,7 +121,7 @@ const CollapsedWorkspaceMenu = observer(function CollapsedWorkspaceMenu() {
 					<PopoverContent
 						side="right"
 						align="start"
-						className="shadow-xs w-[240px] p-1"
+						className="w-[240px] p-1 shadow-xs"
 						data-testid="sidebar-collapsed-workspace-popover"
 						onEscapeKeyDown={(e) => {
 							if (isCreatingWorkspace) {
@@ -110,7 +130,7 @@ const CollapsedWorkspaceMenu = observer(function CollapsedWorkspaceMenu() {
 						}}
 					>
 						<div className="flex h-8 items-center rounded-md px-2">
-							<span className="truncate text-sm font-medium leading-5 text-sidebar-foreground">
+							<span className="truncate text-sm font-normal leading-5 text-sidebar-foreground">
 								{t("sidebar:workspace.title")}
 							</span>
 						</div>
@@ -161,6 +181,7 @@ const CollapsedWorkspaceMenu = observer(function CollapsedWorkspaceMenu() {
 													onProjectClick={handleProjectClick}
 													openProjectMenuId={openProjectMenuId}
 													onProjectMenuChange={setOpenProjectMenuId}
+													onRequestCloseAll={handleCloseAllPopovers}
 												/>
 											)
 										})}
@@ -178,6 +199,7 @@ const CollapsedWorkspaceMenu = observer(function CollapsedWorkspaceMenu() {
 												onProjectClick={handleProjectClick}
 												openProjectMenuId={openProjectMenuId}
 												onProjectMenuChange={setOpenProjectMenuId}
+												onRequestCloseAll={handleCloseAllPopovers}
 											/>
 										)
 									})}
@@ -195,7 +217,7 @@ const CollapsedWorkspaceMenu = observer(function CollapsedWorkspaceMenu() {
 							<Button
 								variant={isShareWorkspaceActive ? "secondary" : "ghost"}
 								size="sm"
-								className="h-[54px] w-full justify-between px-2"
+								className="h-[54px] w-full justify-between px-2 font-normal"
 								data-testid="sidebar-collapsed-workspace-share"
 								onClick={() => {
 									setIsOpen(false)
@@ -207,7 +229,7 @@ const CollapsedWorkspaceMenu = observer(function CollapsedWorkspaceMenu() {
 										<UsersRound className="h-4 w-4 text-white dark:text-[#171717]" />
 									</div>
 									<div className="min-w-0 text-left">
-										<div className="truncate text-sm leading-5 text-[#0a0a0a] dark:text-[#fafafa]">
+										<div className="truncate text-sm leading-5 text-sidebar-foreground">
 											{t("super:workspace.shareWorkspaceName")}
 										</div>
 										<div className="mt-1 truncate text-xs leading-4 text-[#737373] dark:text-[#a3a3a3]">

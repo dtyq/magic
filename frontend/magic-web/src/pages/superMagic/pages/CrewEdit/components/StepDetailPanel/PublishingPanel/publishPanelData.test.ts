@@ -307,6 +307,59 @@ describe("buildPublishParamsFromDraft", () => {
 		])
 	})
 
+	it("maps invalidated market review status into publish history", () => {
+		const data = createCrewEditPublishPanelData({
+			agentDetail: {
+				id: "agent-1",
+				agent_code: "agent_1",
+				name_i18n: { default: "Agent 1", zh_CN: "Agent 1", en_US: "Agent 1" },
+				role_i18n: { default: ["Role"], zh_CN: ["Role"], en_US: ["Role"] },
+				description_i18n: {
+					default: "Description",
+					zh_CN: "Description",
+					en_US: "Description",
+				},
+				icon: null,
+				prompt: null,
+				enabled: true,
+				source_type: "LOCAL_CREATE",
+				is_store_offline: null,
+				pinned_at: null,
+				latest_published_at: "2026-03-20 12:00:00",
+				skills: [],
+				features: [],
+				created_at: "2026-03-19 12:00:00",
+				updated_at: "2026-03-20 12:00:00",
+				project_id: null,
+				publish_type: "MARKET",
+				allowed_publish_target_types: [],
+			},
+			versions: [
+				{
+					id: "version-invalidated",
+					version: "1.0.0",
+					publish_status: "OFFLINE",
+					review_status: "INVALIDATED",
+					publish_target_type: "MARKET",
+					publish_to_label: "Market",
+					publisher: null,
+					published_at: null,
+					display_time: "",
+					is_current_version: false,
+					version_description_i18n: null,
+				},
+			],
+			locale: "zh_CN",
+		})
+
+		expect(data.historyRecords[0]?.status).toBe("invalidated")
+		expect(data.historyRecords[0]?.skillsLibraryReview).toEqual({
+			submit: "done",
+			review: "done",
+			published: "failed",
+		})
+	})
+
 	it("maps publish prefill payloads into a localized create draft", () => {
 		expect(
 			createCrewEditPublishPrefillDraft({

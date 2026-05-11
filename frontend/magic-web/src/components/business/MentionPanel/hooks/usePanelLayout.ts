@@ -9,7 +9,7 @@ import { createDefaultConfig } from "../constants"
 import { I18nTexts } from "../i18n"
 
 interface UsePanelLayoutProps {
-	triggerRef?: React.RefObject<HTMLElement>
+	triggerRef?: React.RefObject<HTMLElement | null>
 	currentState: PanelState
 	t: I18nTexts
 }

@@ -35,9 +35,10 @@ export function useMoveHandle({
 	const moveStartRectRef = useRef<ElementRect | null>(null)
 	const pendingMoveRef = useRef<{ selector: string; styles: Record<string, string> } | null>(null)
 	const pointerCaptureRef = useRef<PointerCaptureState | null>(null)
-	// Store initial position values (relative offsets)
+	// Store initial top/left values for the current element
 	const initialPositionRef = useRef<{ top: number; left: number }>({ top: 0, left: 0 })
-	// Store element's original bounding rect (before any top/left offsets applied)
+	const positionModeRef = useRef<string>("relative")
+	// Store element's origin rect before current top/left offsets are applied
 	const elementOriginalRectRef = useRef<ElementRect | null>(null)
 
 	const getScaleFactor = useCallback(() => {
@@ -48,9 +49,8 @@ export function useMoveHandle({
 	 * Constrain element position to keep it within iframe bounds
 	 * Ensures at least 20% of element or 50px (whichever is larger) remains visible
 	 *
-	 * For position:relative elements:
-	 * - newLeft/newTop are relative offsets from original position
-	 * - We need to calculate actual position and then constrain it
+	 * Works for both relative-offset and absolute/fixed positioned elements by
+	 * normalizing the element's origin rect before drag starts.
 	 */
 	const constrainToBounds = useCallback(
 		(
@@ -64,11 +64,14 @@ export function useMoveHandle({
 			}
 
 			const iframe = iframeRef.current
-			const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+			let iframeDoc: Document | null = null
+			try {
+				iframeDoc = iframe.contentDocument || iframe.contentWindow?.document || null
+			} catch {
+				iframeDoc = null
+			}
 			if (!iframeDoc) return { left: newLeft, top: newTop }
 
-			// Get iframe viewport dimensions
-			// Note: clientWidth/Height gives the visible area (excluding scrollbars)
 			const iframeWidth = iframeDoc.documentElement.clientWidth
 			const iframeHeight = iframeDoc.documentElement.clientHeight
 
@@ -253,6 +256,7 @@ export function useMoveHandle({
 		) {
 			// Reset to ensure each element starts from its own position
 			initialPositionRef.current = { top: 0, left: 0 }
+			positionModeRef.current = "relative"
 			elementOriginalRectRef.current = null
 			console.log("[useMoveHandle] Element changed - reset initial position cache")
 		}
@@ -319,7 +323,7 @@ export function useMoveHandle({
 
 			// Apply style update to iframe immediately (no RAF throttling)
 			scheduleMoveUpdate(selectedInfoRef.current.selector, {
-				position: "relative",
+				position: positionModeRef.current,
 				top: `${Math.round(newTop)}px`,
 				left: `${Math.round(newLeft)}px`,
 			})
@@ -350,6 +354,10 @@ export function useMoveHandle({
 
 			// Parse current position from computed styles
 			const computedStyles = selectedInfoRef.current.computedStyles
+			const currentPositionMode =
+				computedStyles.position === "absolute" || computedStyles.position === "fixed"
+					? computedStyles.position
+					: "relative"
 
 			// Helper to determine if a position value is explicitly set (not auto/empty)
 			const hasExplicitValue = (value: string | undefined): boolean => {
@@ -383,18 +391,21 @@ export function useMoveHandle({
 			}
 
 			console.log("[useMoveHandle] Start move - position resolution:", {
+				computedPosition: computedStyles.position,
 				computedTop: computedStyles.top,
 				computedLeft: computedStyles.left,
 				hasExplicitTop: hasExplicitValue(computedStyles.top),
 				hasExplicitLeft: hasExplicitValue(computedStyles.left),
 				cachedTop: initialPositionRef.current.top,
 				cachedLeft: initialPositionRef.current.left,
+				positionMode: currentPositionMode,
 				finalTop: currentTop,
 				finalLeft: currentLeft,
 			})
 
 			// Store initial position for this drag operation
 			initialPositionRef.current = { top: currentTop, left: currentLeft }
+			positionModeRef.current = currentPositionMode
 
 			// Calculate and store element's original rect (before any top/left offsets applied)
 			// Original position = current position - current offset
@@ -421,7 +432,7 @@ export function useMoveHandle({
 			if (editorRef?.current) {
 				try {
 					await editorRef.current.beginBatchOperation(selectedInfoRef.current.selector, {
-						position: "relative",
+						position: currentPositionMode,
 						top: `${Math.round(currentTop)}px`,
 						left: `${Math.round(currentLeft)}px`,
 					})

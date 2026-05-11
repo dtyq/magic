@@ -76,7 +76,7 @@ const ChatImagePreviewModal = observer(() => {
 			mask={false}
 			onCancel={closeModel}
 			onOk={closeModel}
-			width="fit-content"
+			width={bodySize.width}
 			wrapClassName={styles.wrapper}
 			title={header}
 			classNames={{

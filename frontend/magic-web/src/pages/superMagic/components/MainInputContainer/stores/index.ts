@@ -1,5 +1,10 @@
 export { SceneConfigStore, sceneConfigStore } from "./SceneConfigStore"
-export { SceneStateStore, createSceneStateStore, sceneStateStore } from "./SceneStateStore"
+export {
+	buildTopicInputScopeKey,
+	SceneStateStore,
+	createSceneStateStore,
+	sceneStateStore,
+} from "./SceneStateStore"
 export {
 	SceneStateProvider,
 	SceneStateStoreProvider,

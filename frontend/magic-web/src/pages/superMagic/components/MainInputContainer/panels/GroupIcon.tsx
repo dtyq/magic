@@ -1,4 +1,4 @@
-import * as LucideIcons from "lucide-react"
+import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 
 interface GroupIconProps {
 	icon: string
@@ -10,12 +10,7 @@ interface GroupIconProps {
  * Fallback to LayoutTemplate if icon not found
  */
 function GroupIcon({ icon, className = "size-6" }: GroupIconProps) {
-	const IconComponent =
-		(LucideIcons[icon as keyof typeof LucideIcons] as React.ComponentType<{
-			className?: string
-		}>) || LucideIcons.LayoutTemplate
-
-	return <IconComponent className={className} />
+	return <LucideLazyIcon icon={icon} fallbackIcon="LayoutTemplate" className={className} />
 }
 
 export default GroupIcon

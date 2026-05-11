@@ -1,5 +1,6 @@
 import type { StructureUserItem } from "@/types/organization"
 import type { User } from "@/types/user"
+import type { RequestConfig } from "@/apis/core/HttpClient"
 import { isEmpty, keyBy } from "lodash-es"
 import type * as apis from "@/apis"
 import type { Container } from "@/services/ServiceContainer"
@@ -13,6 +14,7 @@ import { logger as Logger } from "@/utils/log"
 import { BroadcastChannelSender } from "@/broadcastChannel"
 import { env, isDev } from "@/utils/env"
 import { getNativePort } from "@/platform/native"
+import { BUSINESS_API_ERROR_CODE } from "@/constants/api"
 
 const logger = Logger.createLogger("UserService", {
 	enableConfig: { console: !isDev },
@@ -103,8 +105,10 @@ export class UserService {
 	/**
 	 * @description 获取当前组织下当前用户信息
 	 */
-	fetchUserInfo = async (): Promise<StructureUserItem | null> => {
-		const userInfo = await this.contactApi.getAccountUserInfo()
+	fetchUserInfo = async (
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	): Promise<StructureUserItem | null> => {
+		const userInfo = await this.contactApi.getAccountUserInfo(undefined, options)
 
 		if (userInfo) {
 			this.setUserInfo(userTransformer(userInfo))
@@ -170,6 +174,7 @@ export class UserService {
 			// 同步账号信息到原生 App
 			getNativePort().account.syncAccountInfo({
 				domain: env("MAGIC_SERVICE_BASE_URL"),
+				keewoodDomain: env("MAGIC_SERVICE_KEEWOOD_BASE_URL"),
 				token: accessToken,
 				userId: info.user_id,
 				organizationCode: info.organization_code,
@@ -292,7 +297,10 @@ export class UserService {
 		userStore.user.setTeamshareOrganization(teamshareOrgCode)
 	}
 
-	async setTeamshareOrganization(organizationCode: string) {
+	async setTeamshareOrganization(
+		organizationCode: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	) {
 		const user = new UserRepository()
 		const { magicOrganizationMap } = userStore.user
 		const orgMap = keyBy(
@@ -307,10 +315,13 @@ export class UserService {
 		userStore.user.setTeamshareOrganization(organizationCode)
 
 		// 拉取用户信息
-		const { items } = await this.contactApi.getUsersInfo({
-			user_ids: [orgMap?.[organizationCode]?.magic_user_id],
-			query_type: 2,
-		})
+		const { items } = await this.contactApi.getUsersInfo(
+			{
+				user_ids: [orgMap?.[organizationCode]?.magic_user_id],
+				query_type: 2,
+			},
+			options,
+		)
 
 		const targetUser = items[0]
 
@@ -546,7 +557,7 @@ export class UserService {
 				})
 				.catch(async (err) => {
 					logger.log("ws 登录失败", err)
-					if (err.code === 3103) {
+					if (err.code === BUSINESS_API_ERROR_CODE.USER_TOKEN_EXPIRED) {
 						logger.log(err)
 						// accountBusiness.accountLogout() -》 this.deleteAccount()
 						await this.service.get<AccountService>("accountService").deleteAccount()

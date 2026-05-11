@@ -1,5 +1,5 @@
 import styles from "./index.module.css"
-import { Hd, ArrowUp } from "../../../ui/icons/index"
+import { ArrowUp, Hd } from "lucide-react"
 import { useMagic } from "../../../../context/MagicContext"
 import { useCanvasUI } from "../../../../context/CanvasUIContext"
 import { useCanvas } from "../../../../context/CanvasContext"
@@ -13,6 +13,12 @@ import SizeInput from "../Size/SizeInput"
 import { Button } from "../../../ui/button"
 import { useCanvasDesignI18n } from "../../../../context/I18nContext"
 import { useImageConvertHightOptions } from "./useImageConvertHightOptions"
+import { getImageGenerationTaskMeta } from "../../../../canvas/utils/imageGenerationTaskMeta"
+import { ImageGenerationTaskTypeMap } from "../../../../types.magic"
+import {
+	buildReferenceImageOptions,
+	getNormalizedImageProcessCrop,
+} from "../../../../canvas/utils/imageCropUtils"
 
 export default function ImageConvertHight() {
 	const { t } = useCanvasDesignI18n()
@@ -36,10 +42,15 @@ export default function ImageConvertHight() {
 		return canvas.elementManager.getElementInstance(selectedImageElement.id)
 	}, [selectedImageElement, canvas])
 
-	// const request = selectedImageElement?.generateImageRequest
+	const imageGenerationTaskMeta = selectedImageElement
+		? getImageGenerationTaskMeta(selectedImageElement)
+		: undefined
+
 	const requestSize =
 		selectedImageElement?.generateImageRequest?.size ||
-		selectedImageElement?.generateHightImageRequest?.size ||
+		(imageGenerationTaskMeta?.type === ImageGenerationTaskTypeMap.High
+			? imageGenerationTaskMeta.size
+			: undefined) ||
 		`${selectedImageElement?.width}x${selectedImageElement?.height}`
 
 	// 使用 hook 获取分辨率选项
@@ -82,6 +93,9 @@ export default function ImageConvertHight() {
 		if (!selectedResolution || !selectedImageElement || !imageElementInstance || !canvas) {
 			return
 		}
+		if (!(imageElementInstance instanceof ImageElementClass)) {
+			return
+		}
 
 		// 获取当前图片的 src（文件路径）
 		const filePath = selectedImageElement.src
@@ -94,6 +108,20 @@ export default function ImageConvertHight() {
 		if (!selectedOption?.data) {
 			return
 		}
+
+		let imageInfo = imageElementInstance.getImageInfo()
+		if (!imageInfo?.naturalWidth || !imageInfo?.naturalHeight) {
+			await imageElementInstance.getHTMLImageElement()
+			imageInfo = imageElementInstance.getImageInfo()
+		}
+
+		const crop = getNormalizedImageProcessCrop({
+			crop: selectedImageElement.crop,
+			sourceDimensions: {
+				width: imageInfo?.naturalWidth ?? selectedImageElement.width ?? 0,
+				height: imageInfo?.naturalHeight ?? selectedImageElement.height ?? 0,
+			},
+		})
 
 		// 新元素位置间距常量（像素）
 		const NEW_ELEMENT_SPACING = 0
@@ -150,6 +178,10 @@ export default function ImageConvertHight() {
 		const hightImageRequest: GenerateHightImageRequest = {
 			file_path: filePath,
 			size: selectedResolution,
+			reference_image_options: buildReferenceImageOptions({
+				filePath,
+				crop,
+			}),
 		}
 
 		// 调用新元素的 generateHightImage 方法

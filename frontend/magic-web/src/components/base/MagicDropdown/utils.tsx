@@ -143,11 +143,16 @@ export function convertMenuItemsToComponents(
 				}}
 			>
 				{menuItem.icon && (
-					<span className={cn("shrink-0", menuItem?.danger && "text-red-500")}>
+					<span
+						className={cn(
+							"inline-flex shrink-0 items-center justify-center",
+							menuItem?.danger && "text-red-500",
+						)}
+					>
 						{menuItem.icon}
 					</span>
 				)}
-				<span className="flex-1">{menuItem.label}</span>
+				<span className="min-w-0 flex-1">{menuItem.label}</span>
 			</ItemComponent>
 		)
 	})

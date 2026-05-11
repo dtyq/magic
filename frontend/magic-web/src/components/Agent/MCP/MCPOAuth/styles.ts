@@ -49,8 +49,17 @@ export const useStyles = createStyles(({ css, token }) => {
 			line-height: 16px;
 			display: -webkit-box;
 			-webkit-box-orient: vertical;
-			-webkit-line-clamp: 1;
+			-webkit-line-clamp: 2;
 			align-self: stretch;
+		`,
+		descLink: css`
+			color: ${token.magicColorUsages.primary.default};
+			text-decoration: underline;
+			text-underline-offset: 2px;
+
+			&:hover {
+				opacity: 0.9;
+			}
 		`,
 		close: css`
 			width: 24px;

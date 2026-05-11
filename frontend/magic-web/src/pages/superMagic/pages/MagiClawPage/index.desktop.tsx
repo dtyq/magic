@@ -1,15 +1,18 @@
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useRequest } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { MagicClawApi } from "@/apis"
+import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import { usePoppinsFont } from "@/styles/font"
 import useGeistFont from "@/styles/fonts/geist"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
+import { useNamedPageTitle } from "@/pages/superMagic/hooks/useNamedPageTitle"
 import { MagiClawCreatedSection } from "./MagiClawCreatedSection"
-import { MagiClawCreateDialog } from "./MagiClawCreateDialog"
+import { MagiClawCreateDialog, type MagiClawCreatePayload } from "./MagiClawCreateDialog"
+import { EMPTY_MAGIC_CLAW_LIST, MAGI_CLAW_LIST_POLLING_INTERVAL } from "./constants"
 import { MagiClawFeatures } from "./MagiClawFeatures"
 import { MagiClawHeader } from "./MagiClawHeader"
 import { MagiClawHero } from "./MagiClawHero"
@@ -22,22 +25,33 @@ export default function MagiClawDesktopPage() {
 	const [isCreating, setIsCreating] = useState(false)
 	usePoppinsFont()
 	useGeistFont()
+	useNamedPageTitle({
+		pageTitle: t("superLobster.title", clawBrandValues),
+	})
 
 	const {
 		data: listPayload,
 		loading: listLoading,
 		error: listError,
 		refresh: refreshClawList,
+		refreshAsync: refreshClawListAsync,
 	} = useRequest(
 		() =>
 			MagicClawApi.queryMagicClawList(
 				{ page: 1, page_size: 100 },
 				{ enableErrorMessagePrompt: false },
 			),
-		{ refreshDeps: [] },
+		{
+			refreshDeps: [],
+			pollingInterval: MAGI_CLAW_LIST_POLLING_INTERVAL,
+			pollingWhenHidden: false,
+		},
 	)
 
-	const claws = listPayload?.list ?? []
+	const hasLoadedClawList = typeof listPayload !== "undefined"
+	const visibleListLoading = listLoading && !hasLoadedClawList
+	const visibleListError = hasLoadedClawList ? undefined : listError
+	const claws = useMemo(() => listPayload?.list ?? EMPTY_MAGIC_CLAW_LIST, [listPayload])
 
 	function handleOpenClawPlayground(clawCode: string) {
 		if (!clawCode) return
@@ -47,15 +61,15 @@ export default function MagiClawDesktopPage() {
 		})
 	}
 
-	async function handleCreateClaw(name: string, icon?: string | null) {
+	async function handleCreateClaw({ name, icon, template_code }: MagiClawCreatePayload) {
 		setIsCreating(true)
 		try {
 			const created = await MagicClawApi.createMagicClaw({
 				name,
+				template_code,
 				...(icon ? { icon } : {}),
 			})
-			const projectId = created.extra?.project?.id
-			if (!projectId) {
+			if (!created.code) {
 				toast.error(t("superLobster.created.createFailed", clawBrandValues))
 				return
 			}
@@ -63,7 +77,7 @@ export default function MagiClawDesktopPage() {
 			void refreshClawList()
 			handleOpenClawPlayground(created.code)
 		} catch {
-			toast.error(t("superLobster.created.createFailed", clawBrandValues))
+			// toast.error(t("superLobster.created.createFailed", clawBrandValues))
 		} finally {
 			setIsCreating(false)
 		}
@@ -72,30 +86,31 @@ export default function MagiClawDesktopPage() {
 	return (
 		<>
 			<div
-				className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-xl border border-border bg-background"
+				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xs"
 				data-testid="magi-claw-page"
 			>
 				<MagiClawHeader className="shrink-0" />
-				<div className="flex min-h-0 flex-1 justify-center overflow-auto px-4 py-10 md:px-6 md:py-20">
-					<div className="flex w-full max-w-[896px] flex-col gap-6">
+				<ScrollArea className="min-h-0 flex-1 [&_[data-slot='scroll-area-viewport']>div]:!block">
+					<div className="mx-auto flex w-full min-w-0 max-w-[896px] flex-col gap-6 px-4 py-10 md:px-6 md:py-20">
 						<MagiClawHero />
-						<MagiClawFeatures />
 						<MagiClawCreatedSection
 							claws={claws}
-							listLoading={listLoading}
-							listError={listError}
-							onRefreshList={refreshClawList}
+							listLoading={visibleListLoading}
+							isRefreshingList={listLoading}
+							listError={visibleListError}
+							onRefreshList={refreshClawListAsync}
 							onOpenCreate={() => setIsCreateDialogOpen(true)}
 							onOpenClawPlayground={handleOpenClawPlayground}
 						/>
+						<MagiClawFeatures />
 					</div>
-				</div>
+				</ScrollArea>
 			</div>
 
 			<MagiClawCreateDialog
 				open={isCreateDialogOpen}
 				onOpenChange={setIsCreateDialogOpen}
-				onCreate={(name, icon) => void handleCreateClaw(name, icon)}
+				onCreate={(payload) => void handleCreateClaw(payload)}
 				isSubmitting={isCreating}
 			/>
 		</>

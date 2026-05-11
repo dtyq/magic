@@ -4,6 +4,25 @@ import MobileMenuItem from "../index"
 import type { MentionItem } from "../../../types"
 import { MentionItemType } from "../../../types"
 
+vi.mock("../../../renderers/context", () => ({
+	useMentionItemRenderer: () => ({
+		renderIcon: ({ item }: { item: MentionItem }) => {
+			if (item.type === MentionItemType.AGENT && item.icon)
+				return <img data-testid="magic-avatar" alt="avatar" />
+			if (item.type === MentionItemType.AGENT) return <span data-testid="bot-icon">🤖</span>
+			if (item.type === MentionItemType.MCP && item.icon)
+				return <img data-testid="magic-avatar" alt="avatar" />
+			if (item.type === MentionItemType.MCP) return <span data-testid="plug-icon">🔌</span>
+			if (item.type === MentionItemType.PROJECT_FILE)
+				return <span data-testid="magic-file-icon">📄</span>
+			return null
+		},
+		renderDescription: ({ item }: { item: MentionItem }) => item.description ?? null,
+		renderTitleSuffix: () => null,
+		getTypeDescription: () => null,
+	}),
+}))
+
 // Mock the styles hook
 vi.mock("../../../mobileStyles", () => ({
 	useMobileStyles: () => ({

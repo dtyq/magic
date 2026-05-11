@@ -2,61 +2,52 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ChevronLeft, CirclePlus, Loader2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
-import { useLocation } from "react-router"
 import { Button } from "@/components/shadcn-ui/button"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
 import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
 import ImportSkillPublishPromptDialog from "@/pages/superMagic/components/ImportSkillPublishPromptDialog"
 import PcOnlyNoticeDialog from "@/pages/superMagic/components/PcOnlyNoticeDialog"
+import { SkillDetailDialog } from "@/pages/superMagic/components/SkillDetailDialog"
 import ActionsPopupComponent from "@/pages/superMagicMobile/components/ActionsPopup"
 import type { ActionsPopup } from "@/pages/superMagicMobile/components/ActionsPopup/types"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
-import { RoutePath } from "@/constants/routes"
-import { configStore } from "@/models/config"
-import { defaultClusterCode } from "@/routes/helpers"
-import { fillRoute } from "@/routes/history/helpers"
 import { ViewTransitionPresets } from "@/types/viewTransition"
 import type { UserSkillView } from "@/services/skills/SkillsService"
+import { FUNCTION_PERMISSION_CODE } from "@/apis"
+import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import { useAutoLoadMoreSentinel } from "@/pages/superMagic/hooks/useAutoLoadMoreSentinel"
 import { useDelayedVisibility } from "@/pages/superMagic/hooks/useDelayedVisibility"
 import MySkillCardMobile from "./components/MySkillCardMobile"
+import { resolveTeamSharedSkillPermissions } from "./components/MySkillCardShared"
 import { UserSkillsStore } from "./stores/user-skills"
-import {
-	buildMySkillsQuery,
-	getMySkillsPublishPromptSkillCode,
-	getMySkillsRequestedTab,
-	MY_SKILLS_TAB_SCOPE_MAP,
-	MY_SKILLS_TAB_VALUES,
-	type MySkillsTabValue,
-} from "./route-state"
-
-interface MySkillsTabItem {
-	value: MySkillsTabValue
-	labelKey: string
-	testId: string
-}
+import { useMySkillsTabs } from "./hooks/useMySkillsTabs"
 
 function MySkillsPageMobile() {
 	const { t } = useTranslation("crew/market")
 	const navigate = useNavigate()
-	const location = useLocation()
-	const clusterCode = configStore.cluster.clusterCode || defaultClusterCode
 	const storeRef = useRef(new UserSkillsStore())
 	const userSkillsStore = storeRef.current
 	const scrollViewportRef = useRef<HTMLDivElement | null>(null)
-
-	const [activeTab, setActiveTab] = useState<MySkillsTabValue>(
-		() => getMySkillsRequestedTab(location.search) ?? MY_SKILLS_TAB_VALUES.createdByMe,
-	)
-	const [publishPromptSkillCode, setPublishPromptSkillCode] = useState<string | null>(null)
 	const [isPcOnlyDialogOpen, setIsPcOnlyDialogOpen] = useState(false)
 	const [selectedSkill, setSelectedSkill] = useState<UserSkillView | null>(null)
-
-	const currentScope = MY_SKILLS_TAB_SCOPE_MAP[activeTab]
-	const isCreatedByMeTab = activeTab === MY_SKILLS_TAB_VALUES.createdByMe
-	const isFromSkillsLibraryTab = activeTab === MY_SKILLS_TAB_VALUES.fromSkillsLibrary
+	const [detailSkill, setDetailSkill] = useState<UserSkillView | null>(null)
+	const {
+		activeTab,
+		currentScope,
+		publishPromptSkillCode,
+		setPublishPromptSkillCode,
+		tabItems,
+		handleTabValueChange,
+		tabCount,
+		isCreatedByMeTab,
+		isFromSkillsLibraryTab,
+	} = useMySkillsTabs({ variant: "mobile" })
+	const isTeamSharedTab = !isCreatedByMeTab && !isFromSkillsLibraryTab
+	const { isAllowed: canCreateSkill } = useFunctionPermission(
+		FUNCTION_PERMISSION_CODE.SkillCreate,
+	)
 	const handleAutoLoadMore = useCallback(() => {
 		void userSkillsStore.loadMore()
 	}, [userSkillsStore])
@@ -75,60 +66,10 @@ function MySkillsPageMobile() {
 	}, [userSkillsStore])
 
 	useEffect(() => {
-		const requestedTab = getMySkillsRequestedTab(location.search)
-		const requestedPublishPromptSkillCode = getMySkillsPublishPromptSkillCode(location.search)
-		if (!requestedTab && !requestedPublishPromptSkillCode) return
-
-		if (requestedTab) setActiveTab(requestedTab)
-		if (requestedPublishPromptSkillCode) {
-			setPublishPromptSkillCode(requestedPublishPromptSkillCode)
-		}
-		navigate({
-			name: RouteName.MySkills,
-			query: buildMySkillsQuery({
-				search: location.search,
-				tab: null,
-				publishSkillCode: null,
-			}),
-			replace: true,
-		})
-	}, [location.search, navigate])
-
-	useEffect(() => {
 		void userSkillsStore.fetchSkills({ page: 1 }, currentScope)
 	}, [currentScope, userSkillsStore])
 
 	const { confirm, dialog } = useConfirmDialog()
-
-	const tabItems = useMemo<MySkillsTabItem[]>(
-		() => [
-			{
-				value: MY_SKILLS_TAB_VALUES.createdByMe,
-				labelKey: "mySkills.tabs.createdByMe",
-				testId: "my-skills-mobile-tab-created-by-me",
-			},
-			{
-				value: MY_SKILLS_TAB_VALUES.sharedByTeam,
-				labelKey: "mySkills.tabs.sharedByTeam",
-				testId: "my-skills-mobile-tab-shared-by-team",
-			},
-			{
-				value: MY_SKILLS_TAB_VALUES.fromSkillsLibrary,
-				labelKey: "mySkills.tabs.fromSkillsLibrary",
-				testId: "my-skills-mobile-tab-from-skills-library",
-			},
-		],
-		[],
-	)
-
-	const getSkillEditHref = useCallback(
-		(skillCode: string) =>
-			fillRoute(`/:clusterCode${RoutePath.SkillEdit}`, {
-				clusterCode,
-				code: skillCode,
-			}) || "#",
-		[clusterCode],
-	)
 
 	const handleBack = useCallback(() => {
 		navigate({
@@ -137,18 +78,20 @@ function MySkillsPageMobile() {
 		})
 	}, [navigate])
 
+	const handleEdit = useCallback(
+		(code: string) => {
+			navigate({
+				name: RouteName.SkillEdit,
+				params: { code },
+				viewTransition: ViewTransitionPresets.slideLeft,
+			})
+		},
+		[navigate],
+	)
+
 	const showPcOnlyNotice = useCallback(() => {
 		setIsPcOnlyDialogOpen(true)
 	}, [])
-
-	const handlePcOnlyEdit = useCallback(
-		(event?: React.MouseEvent<HTMLAnchorElement>) => {
-			event?.preventDefault()
-			event?.stopPropagation()
-			showPcOnlyNotice()
-		},
-		[showPcOnlyNotice],
-	)
 
 	const handleDeleteCreatedSkill = useCallback(
 		(skill: UserSkillView) => {
@@ -188,6 +131,25 @@ function MySkillsPageMobile() {
 		setSelectedSkill(skill)
 	}
 
+	function handleOpenDetail(skill: UserSkillView) {
+		setDetailSkill(skill)
+	}
+
+	const handleCardOpen = useCallback(
+		(skill: UserSkillView) => {
+			if (
+				isCreatedByMeTab ||
+				(isTeamSharedTab && resolveTeamSharedSkillPermissions(skill.userRole).canEdit)
+			) {
+				handleEdit(skill.skillCode)
+				return
+			}
+
+			handleOpenDetail(skill)
+		},
+		[handleEdit, isCreatedByMeTab, isTeamSharedTab],
+	)
+
 	const handleEditAction = useCallback(() => {
 		setSelectedSkill(null)
 		showPcOnlyNotice()
@@ -197,8 +159,9 @@ function MySkillsPageMobile() {
 		if (!selectedSkill) return []
 
 		const actions: ActionsPopup.ActionButtonConfig[] = []
+		const teamPermissions = resolveTeamSharedSkillPermissions(selectedSkill.userRole)
 
-		if (isCreatedByMeTab) {
+		if (isCreatedByMeTab || (isTeamSharedTab && teamPermissions.canEdit)) {
 			actions.push({
 				key: "edit",
 				label: t("mySkills.edit"),
@@ -207,20 +170,29 @@ function MySkillsPageMobile() {
 			})
 		}
 
-		actions.push({
-			key: "delete",
-			label: t(isCreatedByMeTab ? "mySkills.delete" : "mySkills.remove"),
-			variant: "danger",
-			onClick: () => {
-				if (isCreatedByMeTab) {
+		if (isCreatedByMeTab || (isTeamSharedTab && teamPermissions.canDelete)) {
+			actions.push({
+				key: "delete",
+				label: t("mySkills.delete"),
+				variant: "danger",
+				onClick: () => {
 					handleDeleteCreatedSkill(selectedSkill)
-					return
-				}
+				},
+				"data-testid": "my-skills-mobile-action-delete",
+			})
+		}
 
-				handleRemoveInstalledSkill(selectedSkill)
-			},
-			"data-testid": "my-skills-mobile-action-delete",
-		})
+		if (isFromSkillsLibraryTab) {
+			actions.push({
+				key: "delete",
+				label: t("mySkills.remove"),
+				variant: "danger",
+				onClick: () => {
+					handleRemoveInstalledSkill(selectedSkill)
+				},
+				"data-testid": "my-skills-mobile-action-delete",
+			})
+		}
 
 		return actions
 	}, [
@@ -228,6 +200,8 @@ function MySkillsPageMobile() {
 		handleEditAction,
 		handleRemoveInstalledSkill,
 		isCreatedByMeTab,
+		isFromSkillsLibraryTab,
+		isTeamSharedTab,
 		selectedSkill,
 		t,
 	])
@@ -244,6 +218,16 @@ function MySkillsPageMobile() {
 				}}
 			/>
 			{dialog}
+			<SkillDetailDialog
+				open={detailSkill != null}
+				onOpenChange={(nextOpen) => {
+					if (nextOpen) return
+					setDetailSkill(null)
+				}}
+				skillCode={detailSkill?.skillCode ?? null}
+				detailSource="user"
+				skillSummary={detailSkill}
+			/>
 			<PcOnlyNoticeDialog
 				open={isPcOnlyDialogOpen}
 				onOpenChange={setIsPcOnlyDialogOpen}
@@ -283,7 +267,7 @@ function MySkillsPageMobile() {
 						{t("mySkills.title")}
 					</h1>
 					<div className="z-10 ml-auto flex shrink-0">
-						{isCreatedByMeTab ? (
+						{isCreatedByMeTab && canCreateSkill ? (
 							<Button
 								variant="ghost"
 								className="h-8 gap-1 rounded-md px-2 text-xs font-medium text-foreground"
@@ -304,12 +288,14 @@ function MySkillsPageMobile() {
 					<div className="flex min-w-0 flex-col gap-2.5 px-2 pb-8 pt-2">
 						<Tabs
 							value={activeTab}
-							onValueChange={(value) => setActiveTab(value as MySkillsTabValue)}
+							onValueChange={handleTabValueChange}
 							className="gap-0"
 							data-testid="my-skills-mobile-tabs"
 						>
 							<TabsList
-								className="grid h-9 w-full max-w-[340px] grid-cols-3"
+								className={`grid h-9 w-full max-w-[440px] ${
+									tabCount === 2 ? "grid-cols-2" : "grid-cols-3"
+								}`}
 								data-testid="my-skills-mobile-tabs-list"
 							>
 								{tabItems.map((tabItem) => (
@@ -350,30 +336,40 @@ function MySkillsPageMobile() {
 								className="flex flex-col gap-2.5"
 								data-testid="my-skills-mobile-card-list"
 							>
-								{displayedSkills.map((skill) => (
-									<MySkillCardMobile
-										key={skill.id}
-										skill={skill}
-										cardVariant={
-											isCreatedByMeTab
-												? "created"
-												: isFromSkillsLibraryTab
-													? "library"
-													: "team"
-										}
-										href={
-											isCreatedByMeTab
-												? getSkillEditHref(skill.skillCode)
-												: undefined
-										}
-										onNavigate={isCreatedByMeTab ? handlePcOnlyEdit : undefined}
-										onMoreClick={
-											isCreatedByMeTab || isFromSkillsLibraryTab
-												? handleMenuOpen
-												: undefined
-										}
-									/>
-								))}
+								{displayedSkills.map((skill) => {
+									const teamPermissions = resolveTeamSharedSkillPermissions(
+										skill.userRole,
+									)
+									const canOpenTeamSharedMenu =
+										isTeamSharedTab &&
+										(teamPermissions.canEdit || teamPermissions.canDelete)
+									const canOpenMoreMenu =
+										isCreatedByMeTab ||
+										isFromSkillsLibraryTab ||
+										canOpenTeamSharedMenu
+
+									return (
+										<MySkillCardMobile
+											key={skill.id}
+											skill={skill}
+											cardVariant={
+												isCreatedByMeTab
+													? "created"
+													: isFromSkillsLibraryTab
+														? "library"
+														: "team"
+											}
+											onOpenDetail={handleCardOpen}
+											onMoreClick={
+												skill.publisherType === "OFFICIAL_BUILTIN"
+													? undefined
+													: canOpenMoreMenu
+														? handleMenuOpen
+														: undefined
+											}
+										/>
+									)
+								})}
 							</div>
 						) : null}
 

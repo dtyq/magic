@@ -30,17 +30,17 @@ export interface CommonResponse<D> {
  */
 export type WebSocketPayload =
 	| {
-		type: Omit<EventType, EventType.Stream>
-		payload: SeqRecord<CMessage>
-	}
+			type: Omit<EventType, EventType.Stream>
+			payload: SeqRecord<CMessage>
+	  }
 	| {
-		type: EventType.Stream
-		payload: StreamResponseV2
-	}
+			type: EventType.Stream
+			payload: StreamResponseV2
+	  }
 	| {
-		type: EventType.Intermediate
-		payload: RecordSummaryResultMessage
-	}
+			type: EventType.Intermediate
+			payload: RecordSummaryResultMessage
+	  }
 
 /**
  * 流式消息响应

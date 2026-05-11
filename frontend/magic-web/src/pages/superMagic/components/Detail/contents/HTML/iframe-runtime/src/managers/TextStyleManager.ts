@@ -1,6 +1,12 @@
 /**
  * Text Style Manager
- * Handles text selection and applying styles to selected text portions
+ * Handles text selection and applying styles to selected text portions.
+ *
+ * APPLY_TEXT_STYLE undo/redo is implemented inside StyleManager (restoreState
+ * and applyCommand), not via registerCommandHandler, because it is tightly
+ * coupled with StyleManager (e.g. restoreTextSelection). When adding a new
+ * domain (e.g. image, video), prefer implementing a CustomCommandHandler and
+ * registering it on StyleManager so StyleManager remains a thin dispatcher.
  */
 
 import type { CommandHistory } from "../core/CommandHistory"

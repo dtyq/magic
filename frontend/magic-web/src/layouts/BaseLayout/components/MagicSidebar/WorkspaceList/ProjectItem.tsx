@@ -6,12 +6,8 @@ import { useTranslation } from "react-i18next"
 import projectStore from "@/pages/superMagic/stores/core/project"
 import type { ProjectItemProps } from "./types"
 import superMagicService from "@/pages/superMagic/services"
-import { sidebarStore } from "@/stores/layout/SidebarStore"
 import { SidebarMenuSubButton } from "@/components/shadcn-ui/sidebar"
-import {
-	isCollaborationProject,
-	isWorkspaceShortcutProject,
-} from "@/pages/superMagic/constants"
+import { isCollaborationProject, isWorkspaceShortcutProject } from "@/pages/superMagic/constants"
 import CollaborationProjectTag from "@/pages/superMagic/components/CollaborationProjectTag"
 import PinnedTag from "@/pages/superMagic/components/EmptyWorkspacePanel/components/ProjectItem/components/PinnedTag"
 import ProjectActionsDropdown from "@/pages/superMagic/components/ProjectActionsDropdown"
@@ -19,6 +15,9 @@ import SidebarCreateInput from "../components/SidebarCreateInput"
 import useProjectRename from "@/pages/superMagic/hooks/useProjectRename"
 import { canManageProject } from "@/pages/superMagic/utils/permission"
 import { getWorkspaceProjectRouteUrl } from "@/pages/superMagic/utils/route"
+import { preloadProjectPage } from "@/pages/superMagic/pages/ProjectPage/utils"
+import { preloadTopicPage } from "@/pages/superMagic/pages/TopicPage/utils"
+import NavigationStatusIcon from "@/pages/superMagic/components/NavigationStatusIcon"
 
 function ProjectItem({
 	project,
@@ -86,7 +85,12 @@ function ProjectItem({
 		if (!shouldHandleAnchorClick(event)) return
 		event.preventDefault()
 		superMagicService.switchProjectById(project.id)
-		sidebarStore.collapseIfNarrow()
+		// sidebarStore.collapseIfNarrow()
+	}
+
+	function handlePreloadPage() {
+		void preloadProjectPage()
+		void preloadTopicPage()
 	}
 
 	const handleRenameStart = () => {
@@ -141,8 +145,8 @@ function ProjectItem({
 			onPinProject={
 				onPinProject
 					? (targetProject) => {
-						onPinProject(targetProject)
-					}
+							onPinProject(targetProject)
+						}
 					: undefined
 			}
 			onCopyCollaborationLink={onCopyCollaborationLink}
@@ -152,12 +156,12 @@ function ProjectItem({
 			onCancelWorkspaceShortcut={
 				onCancelWorkspaceShortcut
 					? (projectId, workspaceId) => {
-						onCancelWorkspaceShortcut({
-							...project,
-							id: projectId,
-							bind_workspace_id: workspaceId ?? project.bind_workspace_id,
-						})
-					}
+							onCancelWorkspaceShortcut({
+								...project,
+								id: projectId,
+								bind_workspace_id: workspaceId ?? project.bind_workspace_id,
+							})
+						}
 					: undefined
 			}
 			onDeleteProject={onDeleteProject}
@@ -178,19 +182,33 @@ function ProjectItem({
 						href={getWorkspaceProjectRouteUrl(project.workspace_id, project.id)}
 						onClick={handleClick}
 						data-testid={`sidebar-project-item-${project.id}`}
-						onMouseEnter={() => setIsHovered(true)}
+						onMouseEnter={() => {
+							setIsHovered(true)
+							handlePreloadPage()
+						}}
+						onFocus={handlePreloadPage}
 						onMouseLeave={() => setIsHovered(false)}
 						className="w-full min-w-0 text-left text-current no-underline"
 					>
 						<div className="flex w-full min-w-0 items-center">
 							<div className="min-w-0 flex-1">
 								<div className="flex min-w-0 max-w-full items-center gap-1.5">
+									<NavigationStatusIcon
+										itemType="project"
+										status={project.project_status}
+										showDefaultIcon={false}
+										className={
+											isSelected
+												? "text-sidebar-accent-foreground"
+												: "text-sidebar-foreground"
+										}
+									/>
 									<span
 										className={cn(
 											"min-w-0 max-w-full truncate text-left text-sm leading-5",
 											isSelected
-												? "text-[#171717] dark:text-[#f0f0f0]"
-												: "text-[#0a0a0a] dark:text-[#fafafa]",
+												? "text-sidebar-accent-foreground"
+												: "text-sidebar-foreground",
 										)}
 									>
 										{project.project_name || t("project.unnamedProject")}

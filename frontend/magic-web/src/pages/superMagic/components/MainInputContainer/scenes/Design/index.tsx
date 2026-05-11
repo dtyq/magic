@@ -9,7 +9,7 @@ import DefaultMessageEditorContainer from "../../components/editors/DefaultMessa
 import { ScenePanelComponentBaseProps } from "../../types"
 import { useCurrentSceneConfig } from "../../hooks"
 
-interface DesignInputContainerProps extends ScenePanelComponentBaseProps { }
+interface DesignInputContainerProps extends ScenePanelComponentBaseProps {}
 
 function DesignInputContainer({ editorContext, editorNodes }: DesignInputContainerProps) {
 	const { panels, isLoading } = useCurrentSceneConfig()
@@ -17,7 +17,7 @@ function DesignInputContainer({ editorContext, editorNodes }: DesignInputContain
 		portalId: SCENE_INPUT_IDS.INPUT_CONTAINER,
 	})
 
-	const handleTemplateSelect = (_template: OptionItem) => {
+	const handleTemplateSelect = (_template: OptionItem | null) => {
 		// Reserved for future template selection handling
 	}
 

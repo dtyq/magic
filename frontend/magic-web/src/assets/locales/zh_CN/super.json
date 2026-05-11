@@ -179,6 +179,46 @@
 		"thinkDone": "已完成思考",
 		"thinking": "思考中..."
 	},
+	"askUser": {
+		"actions": {
+			"collapse": "折叠问题卡片",
+			"confirm": "是",
+			"expand": "展开问题卡片",
+			"reject": "否",
+			"skip": "跳过",
+			"submit": "提交"
+		},
+		"answersTitle": "回答",
+		"defaultValueHint": "超时后将使用默认值：{{defaultValue}}",
+		"otherPlaceholder": "其它",
+		"placeholder": "请输入你的回答",
+		"questionCount": "共 {{count}} 题",
+		"status": {
+			"alreadyProcessed": "该问题已取消",
+			"answered": "已回答",
+			"answeredWithValue": "已回答：{{answer}}",
+			"autoSubmitIn": "{{time}} 后自动提交",
+			"autoSubmitInFixed": "{{minutes}} 分钟后自动提交",
+			"cancelled": "已取消",
+			"emptyAnswer": "未填写",
+			"expiredPending": "已过期，等待服务端确认最终状态",
+			"processingFailed": "处理失败，请稍后重试",
+			"processingInProgress": "正在处理中，请勿重复提交",
+			"skipped": "已跳过",
+			"submitFailed": "提交失败，请稍后重试",
+			"taskNotFound": "任务不存在或已结束，请刷新页面重试",
+			"timeout": "已超时",
+			"timeoutWithDefault": "已超时，Agent 已按默认值继续：{{defaultValue}}",
+			"timeoutWithDefaultItem": "{{question}}：已按默认值继续（{{defaultValue}}）"
+		},
+		"subQuestionLabel": "问题 {{index}}",
+		"title": "需要你的确认",
+		"validation": {
+			"incomplete": "请完成当前问题",
+			"multiSelectRange": "至少选择 {{min}} 项，最多选择 {{max}} 项",
+			"unlimited": "不限"
+		}
+	},
 	"assistant": {
 		"agentChatPlaceholder": "您可输入您与\"{{agentName}}\"对话的内容",
 		"aiChat": "AI 聊天",
@@ -202,6 +242,10 @@
 		"historyTopics": "历史话题",
 		"newTopic": "新话题",
 		"projectFiles": "项目文件"
+	},
+	"clawPlayground": {
+		"stopTaskBeforeToolbarAction": "请先停止当前任务后再操作",
+		"toolbarNewChat": "新对话"
 	},
 	"collaborationInvite": {
 		"currentLogin": "将以下身份加入该共享项目",
@@ -320,6 +364,7 @@
 		"remove": "移除",
 		"removeFailed": "移除协作者失败",
 		"removeSuccess": "移除协作者成功",
+		"selected": "已添加",
 		"selectorTitle": "项目协作者",
 		"sharingClosed": "已关闭共享",
 		"updateFailed": "更新协作者失败"
@@ -403,6 +448,10 @@
 		"searchFiles": "搜索",
 		"share": "分享",
 		"shareFeatureDevelopment": "分享功能开发中...",
+		"sourceTagDingTalk": "钉钉",
+		"sourceTagLark": "飞书",
+		"sourceTagWechat": "微信",
+		"sourceTagWecom": "企业微信",
 		"taskComplete": "完成任务",
 		"taskList": "待办事项",
 		"thinking": "正在思考",
@@ -434,7 +483,14 @@
 			"cannotGetFileUrl": "无法获取文件下载地址",
 			"cannotRefreshMissingInfo": "无法刷新：缺少文件信息",
 			"createUploadTaskFailed": "创建上传任务失败",
+			"designResourcePathUnresolved": "无法解析设计资源路径，请确认设计文件已在话题附件中打开并完成加载",
 			"downloadImageFailed": "下载图片失败: {{statusText}}",
+			"eraserImagesDirUnresolved": "无法解析设计项目的 images 目录，无法发起橡皮擦除。请确认设计文件已在话题附件中打开",
+			"eraserParamsIncomplete": "橡皮擦除失败：请提供图片任务 ID、源文件路径与合成图路径",
+			"eraserProjectIdNotExists": "项目 ID 不存在，无法发起橡皮擦除",
+			"expandImageImagesDirUnresolved": "无法解析设计项目的 images 目录，无法发起扩图。请确认设计文件已在话题附件中打开",
+			"expandImageParamsIncomplete": "扩图失败：请提供图片任务 ID、源文件路径、扩图合成图路径与位置标记图路径",
+			"expandImageProjectIdNotExists": "项目 ID 不存在，无法发起扩图",
 			"fileContentEmpty": "magic.project.js 文件内容为空（已达到最大重试次数）",
 			"fileContentEmptyUnknown": "magic.project.js 文件内容为空（未知错误）",
 			"fileIdRequired": "文件 ID 不能为空",
@@ -447,6 +503,7 @@
 			"imageAlreadyAdded": "该图片已添加",
 			"imageIdNotExists": "图片 ID 不存在，无法查询图片生成结果",
 			"imageSrcEmpty": "图片源地址为空",
+			"imagesDirNotFound": "无法获取上传目标目录，请刷新后重试",
 			"noDownloadLink": "无下载链接",
 			"noDownloadableImages": "没有可下载的图片",
 			"noFileList": "没有文件列表",
@@ -456,11 +513,24 @@
 			"projectIdNotExists": "项目 ID 不存在，无法上传图片",
 			"projectIdNotExistsForGenerate": "项目 ID 不存在，无法生成图片",
 			"refreshFailed": "刷新失败，请稍后重试",
+			"removeBackgroundImagesDirUnresolved": "无法解析设计项目的 images 目录，请确认设计文件已在话题附件中打开",
+			"removeBackgroundParamsIncomplete": "去背景失败：请提供图片任务 ID 与源文件路径",
 			"rollbackFailed": "还原失败",
 			"saveNameFailed": "保存名称失败，请稍后重试",
 			"uploadCancelled": "上传已取消",
 			"uploadFailed": "上传图片失败，请稍后重试",
-			"uploadSuccess": "图片上传成功"
+			"uploadFailedBySubDir": {
+				"audios": "上传音频失败，请稍后重试",
+				"images": "上传图片失败，请稍后重试",
+				"videos": "上传视频失败，请稍后重试"
+			},
+			"uploadSuccess": "图片上传成功",
+			"uploadSuccessBySubDir": {
+				"audios": "音频上传成功",
+				"images": "图片上传成功",
+				"videos": "视频上传成功"
+			},
+			"videoIdNotExists": "视频 ID 不存在，无法查询视频生成结果"
 		},
 		"messages": {
 			"downloadSuccess": "成功下载 {{count}} 张图片",
@@ -490,6 +560,146 @@
 		"pleaseDownloadToView": "请下载文件后查看内容",
 		"refreshSlides": "重新加载",
 		"saveAndClose": "保存并关闭",
+		"selfMedia": {
+			"codeView": {
+				"htmlSource": "HTML 源码",
+				"save": "保存",
+				"saving": "保存中..."
+			},
+			"common": {
+				"clockTime": "9:41",
+				"loading": "加载中...",
+				"noPosts": "暂无帖子",
+				"postFallbackTitle": "帖子 {{index}}",
+				"unknownAuthor": "未知作者",
+				"unknownError": "未知错误",
+				"untitledPost": "未命名帖子"
+			},
+			"edit": {
+				"addCurrentPageToChat": "添加本卡片到当前对话",
+				"addPostFolderToCurrentChat": "添加该文章到当前对话",
+				"cancel": "取消",
+				"discard": "放弃",
+				"goToEdit": "修改本卡片",
+				"noCards": "当前文章没有卡片",
+				"refreshCard": "刷新卡片",
+				"refreshConfirmDescription": "当前编辑内容有未保存更改。你可以立即保存，或放弃更改后再刷新。",
+				"refreshConfirmTitle": "刷新前处理未保存更改",
+				"refreshCurrentPost": "刷新当前文章所有卡片",
+				"retry": "立即重试",
+				"save": "保存",
+				"saveFailed": "保存失败",
+				"saveFailedDescription": "保存后切换失败。你可以立即重试，或放弃本次修改后继续切换。",
+				"saved": "已保存",
+				"saving": "保存中...",
+				"unsavedDescription": "当前卡片正在编辑中，是否保存更改后再切换？",
+				"unsavedTitle": "未保存的更改"
+			},
+			"errors": {
+				"loadCardError": "卡片加载失败",
+				"magicProjectNotFound": "未找到 magic.project.js",
+				"noCardUrl": "卡片地址不可用",
+				"postManifestInvalid": "post.json 内容无效",
+				"postManifestMissing": "未找到 post.json",
+				"selfMediaConfigMissing": "缺少 self-media 配置"
+			},
+			"export": {
+				"action": "导出",
+				"cancel": "取消",
+				"cardFallbackTitle": "卡片 {{index}}",
+				"confirm": "开始导出",
+				"confirmWithCount": "开始导出 ({{count}})",
+				"dialogDescription": "选择要导出的文章、卡片和图片清晰度",
+				"dialogTitle": "导出预览",
+				"exporting": "导出中...",
+				"failed": "导出失败",
+				"postSelectorLabel": "选择文章",
+				"running": "导出中 {{current}}/{{total}}",
+				"scaleLabel": "导出清晰度",
+				"scaleOption": "{{ratio}}x",
+				"scaleOutputSize": "{{width}} × {{height}} px",
+				"selectAll": "全选",
+				"selectCards": "选择卡片",
+				"selectNone": "清空",
+				"selectedSummary": "已选 {{count}}/{{total}} 张",
+				"success": "导出成功"
+			},
+			"platform": {
+				"instagram": {
+					"commentsTotal": "{{count}} 条评论",
+					"footer": {
+						"create": "+",
+						"home": "首页",
+						"profile": "我",
+						"reels": "Reels",
+						"search": "搜索"
+					},
+					"tabs": {
+						"detail": "Reel",
+						"edit": "编辑",
+						"feed": "列表",
+						"scroll": "长图"
+					},
+					"title": "Instagram"
+				},
+				"rednote": {
+					"commentsTotal": "{{count}} 条评论",
+					"feedHeader": {
+						"discover": "发现",
+						"follow": "关注",
+						"following": "关注",
+						"local": "同城",
+						"menu": "菜单",
+						"search": "搜索"
+					},
+					"footer": {
+						"home": "首页",
+						"me": "我",
+						"messages": "消息",
+						"publish": "+",
+						"shopping": "购物"
+					},
+					"tabs": {
+						"detail": "笔记",
+						"edit": "编辑",
+						"feed": "首页",
+						"scroll": "长图"
+					},
+					"title": "小红书"
+				},
+				"switcher": {
+					"label": "平台"
+				},
+				"wechat-official-accounts": {
+					"cover": {
+						"navTitle": "公众号",
+						"timeHint": "刚刚"
+					},
+					"tabs": {
+						"article": "全文内容",
+						"code": "源码",
+						"cover": "封面",
+						"edit": "编辑"
+					},
+					"title": "微信公众号"
+				}
+			},
+			"postSelector": {
+				"label": "帖子"
+			},
+			"refreshAllData": "刷新所有数据",
+			"unsupported": {
+				"description": "暂不支持预览 {{platform}} 平台内容。",
+				"title": "敬请期待"
+			},
+			"viewTabs": {
+				"code": "源码",
+				"detail": "详情",
+				"edit": "编辑",
+				"feed": "列表",
+				"scroll": "长图"
+			}
+		},
 		"unsavedChangesWarning": "您有未保存的更改，确定要离开吗？"
 	},
 	"draftBox": {
@@ -909,6 +1119,7 @@
 			"addModel": "自定义模型",
 			"addProvider": "添加厂商",
 			"addProviderHint": "添加你的模型服务厂商信息",
+			"addProviderNotice": "<noticeTitle>定义模型接入须知</noticeTitle><noticeCopy><noticeBody>本功能仅支持接入平台白名单内的合规服务提供商。平台将对模型输入输出进行实时安全检测，违法违规内容将被拦截删除，情节严重者将上报相关监管部门。用户对自定义模型产生的全部输出内容及法律后果承担独立责任，平台不承担连带责任。</noticeBody><noticeTerms>继续操作即视为同意<termsLink>《用户协议》</termsLink>相关条款。</noticeTerms></noticeCopy>",
 			"apiKey": "API Key",
 			"apiUrl": "API 地址",
 			"awsAccessKeyId": "AWS Access Key Id",
@@ -946,6 +1157,7 @@
 			"provider": "厂商",
 			"providerAlias": "厂商别名",
 			"selectPlaceholder": "请选择",
+			"teamModels": "企业内置模型",
 			"typeImage": "图像",
 			"typeText": "文本",
 			"typeVideo": "视频",
@@ -985,14 +1197,21 @@
 				"saveError": "草稿保存失败，请稍后重试"
 			}
 		},
+		"dragDropFilesHint": "将本地文件添加至对话中",
 		"markerDropdown": {
 			"customPlaceholder": "自定义",
 			"markedObjectTitle": "标记的对象"
 		},
 		"mcpConfig": "MCP 配置",
+		"mentionList": {
+			"close": "关闭提及列表",
+			"remainingTitle": "剩余 {{count}} 项",
+			"title": "提及列表"
+		},
 		"modeNotAvailableMessage": "当前模式暂不可用，请\"新建话题\" 并选择可用的模式后继续",
 		"modelSwitch": {
 			"autoModelDescription": "Auto 模式自动选用当前任务执行效率最高的AI模型，适合处理大多数常规任务，积分消耗适中。",
+			"headerTitle": "模型选择",
 			"imageModel": "生图模型",
 			"languageModel": "语言模型",
 			"maxModelDescription": "MAX 模式自动选用当前能力最强的AI模型，适合处理大型或复杂任务，或在任务完成质量不佳时切换使用，但任务执行时长更久，积分消耗更大。",
@@ -1004,10 +1223,14 @@
 			"noModels": "暂无可用模型",
 			"noModelsDesc": "请先添加或启用模型",
 			"noModelsFound": "未找到匹配的模型",
+			"noVideoModels": "暂无视频模型",
+			"noVideoModelsDesc": "当前模式暂无可用的视频模型",
 			"searchPlaceholder": "搜索模型",
 			"selectModel": "选择模型",
 			"tooltipImageModel": "生图模型",
-			"tooltipLanguageModel": "语言模型"
+			"tooltipLanguageModel": "语言模型",
+			"tooltipVideoModel": "视频模型",
+			"videoModel": "视频模型"
 		},
 		"newTopicButton": "新建话题",
 		"placeholder": "输入消息...",
@@ -1034,6 +1257,8 @@
 	"messageHeader": {
 		"addTopic": "新增话题",
 		"aiRename": "智能重命名",
+		"archive": "归档",
+		"archived": "已归档",
 		"cannotDeleteCurrentTopicInRecording": "当前正在录音中，无法删除当前话题",
 		"cannotDeleteLastTopic": "无法删除最后一个话题",
 		"collapseConversationPanel": "收起对话面板",
@@ -1041,20 +1266,30 @@
 		"confirmDeleteTopicContent": "确定要删除话题 \"{{name}}\" 吗？",
 		"createNewTopic": "创建新话题",
 		"createTopicSuccess": "创建话题成功",
+		"daysAgo": "{{count}} 天前",
 		"deleteTopic": "删除话题",
 		"deleteTopicFailed": "删除话题失败",
 		"deleteTopicSuccess": "删除话题成功",
 		"editTopicSuccess": "修改话题成功",
 		"expandConversationPanel": "展开对话面板",
 		"historyTopics": "其他话题",
+		"more": "更多",
 		"newTopic": "新话题",
 		"noMatchingTopics": "暂无匹配的话题",
+		"noTopics": "暂无话题",
+		"pin": "置顶",
+		"pinned": "置顶",
 		"rename": "重命名",
 		"renameTopicSuccess": "重命名话题成功",
 		"searchHistoryTopics": "搜索",
 		"share": "分享",
+		"today": "今天",
 		"topicMenu": "话题菜单",
-		"untitledTopic": "未命名话题"
+		"topicPanelTitle": "话题（{{count}}）",
+		"unarchive": "取消归档",
+		"unpin": "取消置顶",
+		"untitledTopic": "未命名话题",
+		"yesterday": "昨天"
 	},
 	"messageQueue": {
 		"addFailed": "添加消息到队列失败",
@@ -1221,9 +1456,14 @@
 		"backToLatest": "回到最新",
 		"close": "关闭",
 		"continue": "继续",
+		"copyMarkdown": "复制",
+		"copyMarkdownFailed": "复制失败",
+		"copyMarkdownSuccess": "已复制",
 		"finished": "任务已完成",
 		"hidden": "隐藏(Esc)",
 		"magicVirtualMachine": "$t(common:platform.name)虚拟机",
+		"mdViewModeRender": "渲染",
+		"mdViewModeSource": "原文",
 		"openSourceFile": "打开文件",
 		"sourceFileMissing": "原文件已丢失",
 		"stopTitle": "正在查看文件，暂停自动驾驶",
@@ -1236,6 +1476,10 @@
 		"viewProcess": "查看过程"
 	},
 	"ppt": {
+		"codeVersionCompare": {
+			"description": "检测到服务端有新的源码版本。请对比当前编辑内容与服务端版本，选择您想要保留的版本。",
+			"title": "源码版本对比"
+		},
 		"deselectAll": "取消全选",
 		"discardAndNavigate": "不保存",
 		"discardChanges": "放弃更改",
@@ -1367,6 +1611,14 @@
 			"label": "录音音源",
 			"microphone": {
 				"desc": "仅录制麦克风收录的声音，适合线下会议或面对面交流等线下场景。",
+				"deviceDefault": "系统默认",
+				"deviceEmpty": "未检测到麦克风设备",
+				"deviceLabel": "麦克风设备",
+				"deviceLoading": "加载设备列表...",
+				"devicePermissionDenied": "无法获取麦克风列表，请检查权限",
+				"devicePlaceholder": "选择麦克风",
+				"deviceSwitchFailed": "麦克风切换失败，请重试",
+				"deviceSwitchSuccess": "麦克风已切换至 {{label}}",
 				"label": "仅麦克风"
 			},
 			"prefix": "音源",
@@ -1623,8 +1875,13 @@
 		},
 		"restore": {
 			"cancel": "取消",
-			"confirm": "恢复",
-			"content": "存在历史录音，是否恢复？",
+			"confirm": "恢复录音",
+			"content": "存在历史录音，请选择操作：",
+			"discard": "放弃录音",
+			"finish": "总结录音",
+			"sessionDuration": "录制时长",
+			"sessionStartTime": "录音开始时间",
+			"summarizing": "正在生成录音总结，请稍候...",
 			"title": "提示"
 		},
 		"silenceDetected": "当前未检测到声音，请确认麦克风正常工作",
@@ -1646,6 +1903,12 @@
 				"uploadAudioCancelUploading": "上传中",
 				"uploadAudioSimple": "上传音频",
 				"viewCurrentRecording": "查看当前录音"
+			},
+			"mobileRecordingReminder": {
+				"cancel": "取消",
+				"continue": "继续",
+				"description": "当前浏览器环境可能因系统熄屏、切屏或来电导致录音意外中断。为确保您的记录万无一失，建议前往 APP 发起录音。",
+				"title": "录音建议"
 			},
 			"model": {
 				"claude4Sonnet": "claude-4-sonnet"
@@ -1796,43 +2059,26 @@
 		},
 		"title": "回收站"
 	},
-	"saasKK": {
-		"bottomHint": "如您仍需使用当前服务，可暂时关闭当前窗口。",
-		"closeButton": "暂时关闭提示",
-		"closeGuide": "关闭提示",
-		"copyFailed": "复制失败",
-		"copySuccess": "复制成功",
-		"deployCodeGuide": {
-			"step1Description": "在浏览器中打开 「https://www.letsmagic.cn/login」,点击 「私有部署」",
-			"step2Description": "在 「私有部署识别码」 中输入 「KK」 即可",
-			"title": "填写私有部署识别码指引"
-		},
-		"dialogTitle": "超级麦吉登录指引",
-		"dingtalkGuide": {
-			"description": "打开 「钉钉」 后,通过左侧栏进入 「工作台」,在工作台中找到 「超级麦吉」 打开即可。",
-			"title": "钉钉工作台指引"
-		},
-		"loginMethod": "登录方式",
-		"method1Desc": "在 「钉钉工作台 - 全员」 中打开并自动登录",
-		"method1Title": "方式 1 : 钉钉工作台",
-		"method2Desc": "复制链接并在浏览器打开",
-		"method2Title": "方式 2 : 通过链接登录",
-		"method3Desc": "在登录页面「私有部署」配置中输入\"KK\"",
-		"method3Title": "方式 3 : 填写私有部署识别码",
-		"viewGuide": "查看指引",
-		"warningMessage": "当前 SaaS 环境仅供 「KK集团」 组织使用 「司南」 等应用\n如需使用超级麦吉，请根据下方方式进入使用。"
-	},
 	"scheduleTask": {
+		"clearSearch": "清空搜索",
 		"configTask": "任务配置",
 		"createScheduleTask": "创建定时任务",
 		"createTask": "创建任务",
 		"deleteTask": "删除",
+		"disableTask": "停用",
+		"editTask": "编辑",
 		"emptyDescription": "支持创建多个定时任务，灵活应对各类工作场景",
 		"emptyTitle": "暂无定时任务",
+		"enableTask": "启用",
+		"manageTasks": "管理任务",
 		"noTask": "暂无任务",
 		"pauseTask": "停用任务",
 		"playTask": "启用任务",
+		"runLogs": "运行记录",
 		"runningRecord": "运行记录",
+		"searchTasks": "搜索任务",
+		"searchTasksEmpty": "没有匹配的定时任务",
+		"searchTasksPlaceholder": "搜索定时任务",
 		"title": "定时任务"
 	},
 	"search": {
@@ -1854,8 +2100,11 @@
 		"emptyStorageTitle": "可储存到当前文件夹",
 		"enterSubfolderName": "请输入文件夹名称",
 		"fetchAttachmentsFailed": "获取文件列表失败",
+		"fetchClawsFailed": "获取龙虾列表失败",
 		"fetchProjectsFailed": "获取项目列表失败",
 		"file": "文件",
+		"importFiles": "导入 {{count}} 个文件",
+		"importFromOtherProject": "从其他项目导入",
 		"inputFolderName": "输入文件夹名称",
 		"inputProjectName": "输入项目名称",
 		"inputWorkspaceName": "输入工作区名称",
@@ -1868,6 +2117,7 @@
 		"noWorkspace": "暂无工作区",
 		"onlySelectableAdministratorDocument": "仅可选择有管理员权限的文档",
 		"pleaseSelectFile": "请选择文件",
+		"projects": "项目",
 		"returnSearch": "退出搜索",
 		"rootDirectory": "根目录",
 		"searchDirectory": "搜索文件夹",
@@ -1876,12 +2126,13 @@
 		"searchProject": "搜索项目",
 		"searchResult": "搜索结果",
 		"searchWorkspace": "搜索工作区",
+		"selectSourceFiles": "存储位置",
 		"selectSpaceOrFolder": "请选择空间或文件夹",
 		"selectStorageLocation": "存储位置",
 		"selectedFileNumber": "已选择 {{count}} 个文件",
 		"switchSelection": "全选切换",
 		"uploadDirectoryTip": "请选择上传文件的储存位置，上传后的文件将在项目文件中。",
-		"uploadFileTip": "请选择文件的存储位置，上传后的文件将保存到所选的文件夹中。",
+		"uploadFileTip": "请选择文件的存储位置,上传后的文件将保存到所选的文件夹中。",
 		"uploadFolderTip": "请选择文件夹的存储位置，整个文件夹结构将保持完整并保存到所选位置。",
 		"workspace": "工作空间"
 	},
@@ -1926,6 +2177,7 @@
 		"createNewShare": "创建新的分享",
 		"createNewWorkspace": "新建工作区",
 		"createSuccess": "创建分享成功",
+		"createSuccessAndCopied": "创建分享成功，分享信息已复制到粘贴板",
 		"createdBy": {
 			"brand": "$t(common:platform.name)",
 			"footerLine": "-- 来自「{{brand}}」的 {{username}} 分享",
@@ -2002,6 +2254,7 @@
 		"internetShare": "互联网可访问",
 		"internetShareDescription": "任何获得链接的人可访问结果回放",
 		"linkCopied": "链接已复制到剪贴板",
+		"loadingMessages": "正在加载消息 {{loadedCount}}/{{totalCount}} ({{progress}}%)",
 		"login": "登录",
 		"manage": "管理",
 		"manageShareLinks": "管理分享链接",
@@ -2048,6 +2301,7 @@
 		"resetPasswordSuccess": "密码已重置",
 		"resetPasswordTip": "重置访问密码后，之前生成的密码将失效",
 		"searchWorkspace": "搜索工作区",
+		"selectAll": "全选",
 		"selectFile": "选择",
 		"selectFileWithCount": "选择文件 ({{count}})",
 		"selectShareFiles": "选择分享文件",
@@ -2061,6 +2315,7 @@
 		"shareLink": "分享链接",
 		"shareLinkGenerated": "文件分享",
 		"shareMessageAudio": "我分享了一个录音总结给你:",
+		"shareMessageCustom": "我分享了一个自定义项目给你:",
 		"shareMessageDashboard": "我分享了一个数据分析仪表板给你:",
 		"shareMessageDesign": "我分享了一个画布给你:",
 		"shareMessageMultipleFiles": "我分享了一些文件给你 (共 {{count}} 个文件):",
@@ -2112,6 +2367,7 @@
 		"untitled": "未命名",
 		"updateFailed": "更新分享失败",
 		"updateSuccess": "更新分享成功",
+		"updateSuccessAndCopied": "更新分享成功，分享信息已复制到粘贴板",
 		"useSimilarShare": "使用已有分享链接",
 		"user": "用户",
 		"validTime": "有效时间",
@@ -2273,6 +2529,7 @@
 		"border": "边框",
 		"borderSettings": "边框设置",
 		"colorStops": "色标",
+		"currentBackgroundImage": "当前背景图",
 		"decreaseFontSize": "缩小字号",
 		"decreaseZoom": "缩小",
 		"deleteElement": "删除元素",
@@ -2293,8 +2550,10 @@
 		"gradientPreview": "渐变预览",
 		"gridLayout": "Grid 布局",
 		"height": "高度",
+		"imageBackground": "图片背景",
 		"increaseFontSize": "增大字号",
 		"increaseZoom": "放大",
+		"insertImage": "新增图片",
 		"italic": "斜体",
 		"justifyContent": "主轴对齐",
 		"justifyItems": "水平对齐",
@@ -2303,8 +2562,10 @@
 		"layoutStyles": "布局样式",
 		"linearGradient": "线性渐变",
 		"linkAll": "关联所有边",
+		"lockAspectRatio": "锁定比例",
 		"margin": "外边距",
 		"marginLabel": "外边距 (Margin)",
+		"noBackgroundImage": "当前无背景图",
 		"opacity": "不透明度",
 		"padding": "内边距",
 		"paddingLabel": "内边距 (Padding)",
@@ -2313,6 +2574,9 @@
 		"previewScale": "显示比例",
 		"radialGradient": "径向渐变",
 		"redo": "重做",
+		"removeBackgroundImage": "移除背景图",
+		"replaceBackgroundImage": "替换背景图",
+		"replaceImage": "替换图片",
 		"resetZoom": "重置缩放",
 		"shadow": "阴影",
 		"shadowAndEffects": "阴影与效果",
@@ -2323,6 +2587,8 @@
 		"shadowOffsetX": "偏移 X",
 		"shadowOffsetY": "偏移 Y",
 		"shadowSpread": "扩散",
+		"size": "尺寸",
+		"sizeSettings": "尺寸设置",
 		"smallSelectionHint": "选择框过小,请前往工具栏进行复制/删除操作,或调整缩放比例",
 		"solidColor": "纯色",
 		"strikethrough": "删除线",
@@ -2337,6 +2603,7 @@
 		"underline": "下划线",
 		"undo": "撤销",
 		"unlinkAll": "解除关联",
+		"uploadBackgroundImage": "上传背景图",
 		"width": "宽度",
 		"wrap": "换行",
 		"zoomIn": "放大",
@@ -2400,6 +2667,7 @@
 		"convert_pdf": "PDF 转换",
 		"convert_to_markdown": "转换为 Markdown",
 		"convert_video_to_audio": "视频转音频",
+		"create_canvas": "创建画布",
 		"create_canvas_element": "创建画布元素",
 		"create_dashboard_cards": "创建仪表盘卡片",
 		"create_dashboard_project": "创建仪表盘项目",
@@ -2420,8 +2688,11 @@
 		"edit_file": "编辑文件",
 		"edit_file_range": "按范围编辑文件",
 		"file_search": "文件搜索",
+		"generate_canvas_images": "画布生成图片",
+		"generate_canvas_videos": "画布生成视频",
 		"generate_image": "生成图片",
-		"generate_images_to_canvas": "生成图片到画布",
+		"generate_images_to_canvas": "添加图片到画布",
+		"generate_videos_to_canvas": "添加视频到画布",
 		"get_im_channel_status": "获取 IM 频道状态",
 		"get_js_cdn_address": "获取 JS CDN 地址",
 		"get_sub_agent_results": "获取子代理结果",
@@ -2436,6 +2707,7 @@
 		"query_canvas_element": "查询画布元素",
 		"query_canvas_overview": "查询画布概览",
 		"query_dashboard_cards": "查询仪表盘卡片",
+		"query_video_generation": "查询视频生成",
 		"read_file": "读取文件",
 		"read_files": "批量读取文件",
 		"read_webpages_as_markdown": "网页转 Markdown 读取",
@@ -2497,6 +2769,8 @@
 			"identityInfo": "身份信息",
 			"initialSetup": "初始化设置",
 			"installedSkills": "已安装技能",
+			"memoryFile": "记忆配置",
+			"memoryFolder": "记忆库",
 			"proactiveExecution": "主动执行",
 			"prompts": "提示词",
 			"scheduledTasks": "定时任务",
@@ -2519,6 +2793,7 @@
 			"cancel": "取消",
 			"confirmBatchDelete": "确认删除{{count}}个文件？",
 			"confirmBatchDeleteWithFolders": "选中项包含文件夹，子级未选中文件也将被删除",
+			"confirmBatchDeleteWithMagicSystemFolder": "你选择删除的文件中包含 .magic 系统文件夹。删除后，部分功能及能力可能无法正常使用，且此操作不可撤销，请谨慎操作。",
 			"copyTo": "复制至",
 			"createDesignFailed": "创建画布项目失败",
 			"createDesignSuccess": "创建画布项目成功",
@@ -2549,6 +2824,7 @@
 			"deleteFolderSuccess": "删除文件夹成功",
 			"deleteFolderSuccessWithName": "文件夹 \"{{name}}\" 删除成功",
 			"deleteFolderTip": "删除文件夹确认",
+			"deleteMagicFolderContent": ".magic 文件夹包含系统运行的关键文件。删除后，部分功能及能力可能无法正常使用，且此操作不可撤销，请谨慎操作。",
 			"deleteTip": "删除操作确认",
 			"download": "下载文件",
 			"downloadFolder": "下载文件夹",
@@ -2568,6 +2844,7 @@
 				"pptExportFailed": "导出PPT失败",
 				"pptExportTimeoutMessage": "导出PPT超时，请重试"
 			},
+			"importFromOtherProject": "从其他项目导入",
 			"move": "移动",
 			"moveTo": "移动至",
 			"newDesign": {
@@ -2608,6 +2885,7 @@
 		"createMenu": "新建",
 		"custom": "自定义修改",
 		"customDescription": "根据我的需求让AI进行处理",
+		"customMainFileNotFound": "未找到配置的入口文件，请检查 magic.project.js 中的 index 是否与文件夹内路径一致",
 		"customPlaceholder": "请输入修改内容",
 		"dataCorrection": "数据校正",
 		"dataCorrectionDescription": "AI 检查表格、数据里的错误，并进行纠正",
@@ -2673,6 +2951,7 @@
 			"deleteFolderSuccess": "文件夹删除成功",
 			"deleteFolderSuccessWithName": "文件夹 \"{{name}}\" 删除成功",
 			"dragFolderNotSupported": "暂不支持拖拽文件夹",
+			"importFileFailed": "导入文件失败",
 			"moveFileFailed": "移动文件失败",
 			"moveFileParamsRequired": "文件ID和目标位置不能为空",
 			"noEditPermission": "没有编辑权限",
@@ -2691,8 +2970,8 @@
 		"exportPpt": "下载 PPT 格式",
 		"exportPptx": "下载 PPT 格式（可编辑）",
 		"exportSource": "下载原始文件",
-		"exportSuccess": "下载成功",
-		"exporting": "下载中",
+		"exportSuccess": "导出成功",
+		"exporting": "导出中",
 		"exportingPdf": "导出 PDF 中",
 		"exportingPpt": "导出 PPT 中",
 		"exportingTip": "正在导出",
@@ -2708,6 +2987,7 @@
 		"fileModifyElements": "里的这个元素：",
 		"fileReadContentPrompt": "的内容，",
 		"fileReadPrompt": "请读取",
+		"fileTitle": "文件",
 		"fileUploadFail": "文件上传失败",
 		"fileUploadSuccess": "文件上传成功",
 		"fileUploading": "文件正在上传中，请稍候",
@@ -2715,6 +2995,7 @@
 		"layoutCorrection": "布局修正",
 		"layoutCorrectionDescription": "AI 检测并修正页面中的布局问题",
 		"layoutCorrectionPrompt": "请先读取上述文件中元素的内容，现在这块内容的布局有问题，我所观察到的问题是：",
+		"loadingFiles": "正在加载文件...",
 		"moveModal": {
 			"confirm": "确认",
 			"overwriteConfirm": "继续移动",
@@ -2737,6 +3018,7 @@
 		"source": "源文件",
 		"success": {
 			"fileCopied": "复制文件成功",
+			"fileImported": "文件导入成功",
 			"fileMoved": "移动文件成功"
 		},
 		"textOmitted": "此处文本已省略",
@@ -2808,6 +3090,9 @@
 		"expandAllFiles": "展开全部文件",
 		"expandUserMessage": "展开",
 		"filePreviewNotSupported": "暂不支持预览该文件,请下载该文件",
+		"followUpSuggestionsClose": "关闭追问建议",
+		"followUpSuggestionsDisabledStatus": "追问建议已关闭",
+		"followUpSuggestionsReenable": "重新启用",
 		"internetSearchClose": "互联网搜索：关闭",
 		"internetSearchOpen": "互联网搜索：开启",
 		"logoutAccount": "退出账号",
@@ -2862,6 +3147,7 @@
 		"tokenUsage": {
 			"compressContext": "压缩上下文",
 			"contextUsage": "上下文用量",
+			"contextUsageDescription": "对话记忆用量。进度条满时，AI 可能会遗忘较早的内容。",
 			"highContextWarning": "较高的上下文长度可能会大幅增加每次响应的成本",
 			"tokenCount": "{{used}} / {{max}} Tokens"
 		}
@@ -2909,6 +3195,7 @@
 	},
 	"workspace": {
 		"addWorkspace": "新增工作区",
+		"allWorkspaceTitle": "全部工作区",
 		"collaborationProjectsDesc": "共享工作区中查看他人与你共享的项目，也可对你共享的项目进行管理",
 		"collaborationProjectsTitle": "共享工作区",
 		"confirmDeleteThread": "确定要删除对话 \"{name}\" 吗？",
@@ -2922,6 +3209,8 @@
 		"deleteWorkspaceTip": "确定要删除工作区 “{{workspaceName}}” 吗？",
 		"externalSharedWithMe": "外部共享的",
 		"fileNotSupported": "暂不支持预览该文件,请下载该文件",
+		"home": "工作区主页",
+		"myClawWorkspaceName": "我的龙虾",
 		"newWorkspace": "新建工作区",
 		"noOtherWorkspace": "暂无其它可用工作区",
 		"noWorkspaces": "暂无工作空间",

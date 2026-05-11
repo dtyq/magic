@@ -16,8 +16,7 @@ export default memo(function ShareTypeField(props: ShareTypeFieldProps) {
 	const { t } = useTranslation("super")
 	const [hoveredType, setHoveredType] = useState<ShareType | null>(null)
 
-	// Check if user is personal organization
-	const { isPersonalOrganization } = userStore.user
+	const isFreePlan = userStore.user.organizationSubscriptionInfo?.is_paid_plan === false
 
 	const normalizedValue = useMemo(() => {
 		return value
@@ -47,8 +46,8 @@ export default memo(function ShareTypeField(props: ShareTypeFieldProps) {
 		]
 
 		return list.filter((item) => {
-			// 个人版用户不显示团队可访问选项
-			if (isPersonalOrganization && item.type === ShareType.Organization) {
+			// 免费用户不显示团队可访问选项
+			if (isFreePlan && item.type === ShareType.Organization) {
 				return false
 			}
 			// If Internet is in allowed types, show both Public and PasswordProtected
@@ -58,7 +57,7 @@ export default memo(function ShareTypeField(props: ShareTypeFieldProps) {
 				availableTypes.includes(item.type)
 			)
 		})
-	}, [availableTypes, isPersonalOrganization, t])
+	}, [availableTypes, isFreePlan, t])
 
 	// Handle type change
 	const handleTypeChange = (newType: ShareType) => {
@@ -75,8 +74,8 @@ export default memo(function ShareTypeField(props: ShareTypeFieldProps) {
 					const isActive = item.type === normalizedValue
 					const isPasswordProtected = item.type === ShareType.PasswordProtected
 
-					// 个人版用户，密码保护为禁用状态
-					const isDisabled = isPersonalOrganization && isPasswordProtected
+					// 免费用户，密码保护为禁用状态
+					const isDisabled = isFreePlan && isPasswordProtected
 
 					// 禁用状态始终显示 VIP Badge，否则在选中或悬浮时显示 Checkbox
 					const showCheckbox = isDisabled || isActive || hoveredType === item.type

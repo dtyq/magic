@@ -2,20 +2,15 @@ import { useEffect, useState } from "react"
 import type * as React from "react"
 import type { IconProps } from "@tabler/icons-react"
 
-interface TablerIconModule {
-	[key: string]: unknown
-}
-
 type TablerIconComponent = React.ComponentType<IconProps> | React.ExoticComponent<IconProps>
 
 const iconCache = new Map<string, TablerIconComponent>()
-let iconModulePromise: Promise<TablerIconModule> | null = null
+const iconModules = import.meta.glob<{ default: TablerIconComponent }>(
+	"/node_modules/@tabler/icons-react/dist/esm/icons/*.mjs",
+)
 
-async function loadTablerIconModule() {
-	if (!iconModulePromise)
-		iconModulePromise = import("@tabler/icons-react") as Promise<TablerIconModule>
-
-	return iconModulePromise
+function getIconModulePath(name: string): string {
+	return `/node_modules/@tabler/icons-react/dist/esm/icons/${name}.mjs`
 }
 
 function isTablerIconComponent(value: unknown): value is TablerIconComponent {
@@ -27,8 +22,11 @@ export async function loadTablerIconComponent(name?: string) {
 	if (iconCache.has(name)) return iconCache.get(name) || null
 
 	try {
-		const iconModule = await loadTablerIconModule()
-		const IconComponent = iconModule[name]
+		const loader = iconModules[getIconModulePath(name)]
+		if (!loader) return null
+
+		const iconModule = await loader()
+		const IconComponent = iconModule.default
 		if (!isTablerIconComponent(IconComponent)) return null
 
 		iconCache.set(name, IconComponent)

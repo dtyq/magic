@@ -1,6 +1,6 @@
 import type { HTMLAttributes, MutableRefObject } from "react"
 
-export type HtmlCodeBlockPreviewMode = "code" | "desktop"
+export type HtmlCodeBlockPreviewMode = "code" | "desktop" | "phone"
 
 // 流式代码块滚动状态。
 // 当前只记录用户是否已经主动滚离底部，后续如果需要可继续扩展。
@@ -13,13 +13,19 @@ export interface HtmlCodeBlockPreviewStreamingScrollState {
 export interface HtmlCodeBlockPreviewProps extends HTMLAttributes<HTMLPreElement> {
 	// 当前代码块是否仍处于流式生成阶段。
 	isStreaming?: boolean
+	// 当前消息是否已经收到服务端暂停终态。
+	isSuspended?: boolean
+	// 已经由上游解析确认过的 HTML 代码块信息。
+	codeBlockInfo: HtmlCodeBlockPreviewCodeBlockInfo
+	// 上游已归一化过的 HTML 预览代码。
+	previewCode: string
 	// 完整 HTML 源码。非流式完成态下，优先使用它保证复制/预览拿到的是完整代码。
 	fullCode?: string
-	// 多个预览实例之间传递滚动状态时使用的 ref。
-	streamingScrollStateRef?: MutableRefObject<HtmlCodeBlockPreviewStreamingScrollState>
+	// 多个预览实例之间共享的滚动状态 ref（hook 会更新 .current.hasUserInteracted）。
+	streamingScrollStateRef: MutableRefObject<HtmlCodeBlockPreviewStreamingScrollState>
 }
 
-// 从 markdown-to-jsx 的 `<pre><code /></pre>` 结构中抽出的代码块信息。
+// 从标准的 `<pre><code /></pre>` 结构中抽出的代码块信息。
 export interface HtmlCodeBlockPreviewCodeBlockInfo {
 	// `language-html` / `lang-html` 这类语言 class。
 	className?: string
@@ -37,4 +43,6 @@ export interface HtmlCodeBlockPreviewContentMetrics {
 	// 是否存在水平/垂直溢出，用于辅助外层布局判断。
 	hasHorizontalOverflow?: boolean
 	hasVerticalOverflow?: boolean
+	// 纵向滚动条实际占用宽度，用于手机预览补齐外层容器宽度。
+	verticalScrollbarWidth?: number
 }

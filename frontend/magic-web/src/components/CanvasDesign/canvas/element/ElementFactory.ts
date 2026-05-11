@@ -5,8 +5,9 @@ import { BaseElement, BASE_ELEMENT_DEFAULTS } from "./BaseElement"
 // import { EllipseElement } from "./elements/EllipseElement"
 // import { TriangleElement } from "./elements/TriangleElement"
 // import { StarElement } from "./elements/StarElement"
-// import { TextElement } from "./elements/TextElement"
+import { TextElement } from "./elements/TextElement"
 import { ImageElement } from "./elements/ImageElement"
+import { VideoElement } from "./elements/VideoElement"
 // import { GroupElement } from "./elements/GroupElement"
 import { FrameElement } from "./elements/FrameElement"
 import type { Canvas } from "../Canvas"
@@ -57,17 +58,14 @@ export class ElementFactory {
 			// 		selectionManager,
 			// 	)
 
-			// case ElementTypeEnum.Text:
-			// 	return new TextElement(
-			// 		data,
-			// 		eventEmitter,
-			// 		methods,
-			// 		elementManager,
-			// 		selectionManager,
-			// 	)
+			case ElementTypeEnum.Text:
+				return new TextElement(data, canvas)
 
 			case ElementTypeEnum.Image:
 				return new ImageElement(data, canvas)
+
+			case ElementTypeEnum.Video:
+				return new VideoElement(data, canvas)
 
 			// case ElementTypeEnum.Group:
 			// 	return new GroupElement(
@@ -137,6 +135,9 @@ export class ElementFactory {
 			// case ElementTypeEnum.Star:
 			// 	return StarElement.createElementData(id, x, y, roundedWidth, roundedHeight, zIndex)
 
+			case ElementTypeEnum.Text:
+				return TextElement.createElementData(id, x, y, roundedWidth, roundedHeight, zIndex)
+
 			case ElementTypeEnum.Frame:
 				return FrameElement.createElementData(id, x, y, roundedWidth, roundedHeight, zIndex)
 
@@ -155,7 +156,12 @@ export class ElementFactory {
 	 */
 	static getDefaultConfig(
 		elementType: ElementType,
-		options?: { imageWidth?: number; imageHeight?: number },
+		options?: {
+			imageWidth?: number
+			imageHeight?: number
+			videoWidth?: number
+			videoHeight?: number
+		},
 	): Record<string, unknown> {
 		// 先获取基础元素默认配置
 		const baseConfig = { ...BASE_ELEMENT_DEFAULTS }
@@ -180,14 +186,21 @@ export class ElementFactory {
 			// 	specificConfig = StarElement.getDefaultConfig()
 			// 	break
 
-			// case ElementTypeEnum.Text:
-			// 	specificConfig = TextElement.getDefaultConfig()
-			// 	break
+			case ElementTypeEnum.Text:
+				specificConfig = TextElement.getDefaultConfig()
+				break
 
 			case ElementTypeEnum.Image:
 				specificConfig = ImageElement.getDefaultConfig(
 					options?.imageWidth,
 					options?.imageHeight,
+				)
+				break
+
+			case ElementTypeEnum.Video:
+				specificConfig = VideoElement.getDefaultConfig(
+					options?.videoWidth,
+					options?.videoHeight,
 				)
 				break
 

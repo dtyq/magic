@@ -40,6 +40,7 @@ export function useRecordSummaryEditorPanelController({
 	topicMode,
 	isTaskRunning = false,
 	editorModeSwitch,
+	modelSwitch,
 	attachments,
 }: RecordSummaryEditorPanelProps) {
 	const isMobile = useIsMobile()
@@ -54,7 +55,7 @@ export function useRecordSummaryEditorPanelController({
 	)
 
 	const saveSuperMagicTopicModel = useMemoizedFn<SaveSuperMagicTopicModel>(
-		({ selectedTopic: topic, model, imageModel }) => {
+		({ selectedTopic: topic, model, imageModel, videoModel }) => {
 			if (!selectedProject?.id) {
 				console.error("selectedProject is null")
 				return
@@ -65,6 +66,7 @@ export function useRecordSummaryEditorPanelController({
 				selectedProject.id,
 				model,
 				imageModel,
+				videoModel,
 				store.topicModelStore,
 			)
 		},
@@ -303,15 +305,17 @@ export function useRecordSummaryEditorPanelController({
 	const leftToolbar = useMemo(
 		() => (
 			<>
-				<ModelSwitchContainer
-					size={size}
-					selectedTopic={selectedTopic}
-					selectedProject={selectedProject}
-					topicMode={topicMode}
-				/>
+				{modelSwitch ?? (
+					<ModelSwitchContainer
+						size={size}
+						selectedTopic={selectedTopic}
+						selectedProject={selectedProject}
+						topicMode={topicMode}
+					/>
+				)}
 			</>
 		),
-		[selectedProject, selectedTopic, size, topicMode],
+		[modelSwitch, selectedProject, selectedTopic, size, topicMode],
 	)
 
 	const audioSourceSelector = !isMobile ? (

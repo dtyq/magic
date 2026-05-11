@@ -2,14 +2,20 @@ import type { Editor, JSONContent } from "@tiptap/react"
 import { useEffect } from "react"
 import { useMemoizedFn } from "ahooks"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
+import type { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import MagicModal from "@/components/base/MagicModal"
 import { Button } from "@/components/shadcn-ui/button"
 import {
+	DirectoryMentionData,
 	MentionItemType,
 	ProjectFileMentionData,
 	UploadFileMentionData,
 } from "@/components/business/MentionPanel/types"
-import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
+import type {
+	MentionDeletionInput,
+	MentionListItem,
+	MentionRemoveItemPayload,
+} from "@/components/business/MentionPanel/tiptap-plugin/types"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { logger as Logger } from "@/utils/log"
 import type { FileData } from "../types"
@@ -23,11 +29,13 @@ import {
 	replaceUploadMentionNode as replaceUploadMentionNodeService,
 	updateUploadMentionProgress as updateUploadMentionProgressService,
 } from "../services/uploadMentionService"
+import { isPendingProjectFileMention } from "../utils/mention"
 
 const logger = Logger.createLogger("SuperMagicMessageEditor")
 
 interface UseUploadMentionFlowParams {
 	fileUploadStore: FileUploadStore
+	mentionPanelStore?: Pick<MentionPanelStore, "setUploadFiles">
 	getEditor: () => Editor | null
 	isProjectContext: boolean
 	isQueueDraftMode?: boolean
@@ -41,6 +49,7 @@ interface UseUploadMentionFlowParams {
 
 export default function useUploadMentionFlow({
 	fileUploadStore,
+	mentionPanelStore,
 	getEditor,
 	isProjectContext,
 	isQueueDraftMode = false,
@@ -115,6 +124,11 @@ export default function useUploadMentionFlow({
 			return fileUploadStore.isCurrentSessionProjectFile(fileId)
 		}
 
+		if (mentionAttrs.type === MentionItemType.FOLDER) {
+			const directoryId = (mentionAttrs.data as DirectoryMentionData).directory_id
+			return fileUploadStore.isCurrentSessionProjectFile(directoryId)
+		}
+
 		return false
 	})
 
@@ -127,11 +141,27 @@ export default function useUploadMentionFlow({
 			return (mentionAttrs.data as ProjectFileMentionData).file_name
 		}
 
+		if (mentionAttrs.type === MentionItemType.FOLDER) {
+			return (mentionAttrs.data as DirectoryMentionData).directory_name
+		}
+
 		return ""
 	})
 
 	const createMentionAttrsFromFile = useMemoizedFn(
 		(file: FileData): TiptapMentionAttributes | null => {
+			if (file.isVirtualReference && file.saveResult?.file_type === "directory") {
+				return {
+					type: MentionItemType.FOLDER,
+					data: {
+						directory_id: file.saveResult.file_id,
+						directory_name: file.saveResult.file_name ?? file.name,
+						directory_path:
+							file.saveResult.relative_file_path ?? file.saveResult.file_key ?? "",
+					},
+				}
+			}
+
 			if (file.saveResult?.file_id) {
 				return {
 					type: MentionItemType.PROJECT_FILE,
@@ -182,6 +212,15 @@ export default function useUploadMentionFlow({
 					savedFileId: fileId,
 				})
 			}
+
+			if (mentionAttrs.type === MentionItemType.FOLDER) {
+				const directoryId = (mentionAttrs.data as DirectoryMentionData).directory_id
+				removeUploadMentionNodesService({
+					editor: getEditor(),
+					fileId: directoryId,
+					savedFileId: directoryId,
+				})
+			}
 		})
 	})
 
@@ -201,6 +240,11 @@ export default function useUploadMentionFlow({
 				await deleteProjectFile(fileId)
 			}
 		}
+
+		if (mentionAttrs.type === MentionItemType.FOLDER) {
+			const directoryId = (mentionAttrs.data as DirectoryMentionData).directory_id
+			removeUploadedFile(directoryId)
+		}
 	})
 
 	const removeMentionOnly = useMemoizedFn((mentionAttrs: TiptapMentionAttributes) => {
@@ -215,6 +259,11 @@ export default function useUploadMentionFlow({
 		if (mentionAttrs.type === MentionItemType.PROJECT_FILE) {
 			const fileId = (mentionAttrs.data as ProjectFileMentionData).file_id
 			removeUploadedFile(fileId)
+		}
+
+		if (mentionAttrs.type === MentionItemType.FOLDER) {
+			const directoryId = (mentionAttrs.data as DirectoryMentionData).directory_id
+			removeUploadedFile(directoryId)
 		}
 	})
 
@@ -262,7 +311,7 @@ export default function useUploadMentionFlow({
 			onFileRemoved: (fileId) => {
 				const target = fileUploadStore.files.find((file) => file.id === fileId)
 				const savedFileId = target?.saveResult?.file_id
-				if (isProjectContext && savedFileId) {
+				if (isProjectContext && savedFileId && !target?.isVirtualReference) {
 					void deleteProjectFile(savedFileId)
 				}
 			},
@@ -281,6 +330,10 @@ export default function useUploadMentionFlow({
 		updateUploadMentionProgress,
 	])
 
+	useEffect(() => {
+		mentionPanelStore?.setUploadFiles(fileUploadStore.getUploadMentionItems())
+	}, [fileUploadStore, fileUploadStore.files, mentionPanelStore])
+
 	const {
 		files,
 		addFiles,
@@ -293,30 +346,58 @@ export default function useUploadMentionFlow({
 		validateFileCount,
 	} = fileUploadStore
 
-	const handleRemoveFile = useMemoizedFn((mentionAttrs: TiptapMentionAttributes) => {
-		if (
-			mentionAttrs.type !== MentionItemType.UPLOAD_FILE &&
-			mentionAttrs.type !== MentionItemType.PROJECT_FILE
-		) {
-			return
-		}
+	const handleRemoveFile = useMemoizedFn(
+		(
+			mentionAttrs: TiptapMentionAttributes,
+			options?: { deletionInput?: MentionDeletionInput },
+		) => {
+			if (
+				mentionAttrs.type !== MentionItemType.UPLOAD_FILE &&
+				mentionAttrs.type !== MentionItemType.PROJECT_FILE &&
+				mentionAttrs.type !== MentionItemType.FOLDER
+			) {
+				return
+			}
 
-		if (!isCurrentSessionUpload(mentionAttrs)) {
-			return
-		}
+			if (
+				(mentionAttrs.type === MentionItemType.PROJECT_FILE ||
+					mentionAttrs.type === MentionItemType.FOLDER) &&
+				isPendingProjectFileMention(mentionAttrs)
+			) {
+				removeMentionOnly(mentionAttrs)
+				return
+			}
 
-		if (isQueueDraftMode) {
-			removeMentionOnly(mentionAttrs)
-			return
-		}
+			if (!isCurrentSessionUpload(mentionAttrs)) {
+				return
+			}
 
-		if (!confirmDelete) {
-			void executeFileDeletion(mentionAttrs)
-			return
-		}
+			if (isQueueDraftMode) {
+				removeMentionOnly(mentionAttrs)
+				return
+			}
 
-		confirmDeleteCurrentSessionUpload(mentionAttrs)
-	})
+			if (!confirmDelete) {
+				void executeFileDeletion(mentionAttrs)
+				return
+			}
+
+			const deletionInput = options?.deletionInput
+			// Keyboard shortcuts in MentionExtension tag forward-delete + backspace;
+			// other paths (cut, range delete, programmatic) stay remove-only.
+			const shouldShowConfirmModal =
+				deletionInput === undefined ||
+				deletionInput === "forward-delete" ||
+				deletionInput === "backspace"
+
+			if (!shouldShowConfirmModal) {
+				removeMentionOnly(mentionAttrs)
+				return
+			}
+
+			confirmDeleteCurrentSessionUpload(mentionAttrs)
+		},
+	)
 
 	const handleRemoveUploadedFile = useMemoizedFn((file: FileData) => {
 		const mentionAttrs = createMentionAttrsFromFile(file)
@@ -328,7 +409,11 @@ export default function useUploadMentionFlow({
 	})
 
 	const shouldRestoreRemovedMention = useMemoizedFn(
-		(mentionAttrs: TiptapMentionAttributes, stillExists: boolean) => {
+		(
+			mentionAttrs: TiptapMentionAttributes,
+			stillExists: boolean,
+			context?: { deletionInput: MentionDeletionInput },
+		) => {
 			if (stillExists) {
 				return false
 			}
@@ -344,8 +429,16 @@ export default function useUploadMentionFlow({
 			}
 
 			if (
+				context?.deletionInput !== "forward-delete" &&
+				context?.deletionInput !== "backspace"
+			) {
+				return false
+			}
+
+			if (
 				mentionAttrs.type !== MentionItemType.UPLOAD_FILE &&
-				mentionAttrs.type !== MentionItemType.PROJECT_FILE
+				mentionAttrs.type !== MentionItemType.PROJECT_FILE &&
+				mentionAttrs.type !== MentionItemType.FOLDER
 			) {
 				return false
 			}
@@ -354,20 +447,19 @@ export default function useUploadMentionFlow({
 		},
 	)
 
-	const handleMentionRemoveItems = useMemoizedFn(
-		(items: { item: TiptapMentionAttributes; stillExists: boolean }[]) => {
-			const filesToRemove = items.filter(
-				({ stillExists, item }) =>
-					!stillExists &&
-					(item.type === MentionItemType.UPLOAD_FILE ||
-						item.type === MentionItemType.PROJECT_FILE),
-			)
+	const handleMentionRemoveItems = useMemoizedFn((items: MentionRemoveItemPayload[]) => {
+		const filesToRemove = items.filter(
+			({ stillExists, item }) =>
+				!stillExists &&
+				(item.type === MentionItemType.UPLOAD_FILE ||
+					item.type === MentionItemType.PROJECT_FILE ||
+					item.type === MentionItemType.FOLDER),
+		)
 
-			filesToRemove.forEach((mention) => {
-				handleRemoveFile(mention.item)
-			})
-		},
-	)
+		filesToRemove.forEach((mention) => {
+			handleRemoveFile(mention.item, { deletionInput: mention.deletionInput })
+		})
+	})
 
 	return {
 		files,

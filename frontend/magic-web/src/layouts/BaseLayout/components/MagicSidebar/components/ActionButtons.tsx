@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/models/config/hooks"
 import type { ThemeMode } from "antd-style"
+import { IS_DARK_MODE_DISABLED } from "@/constants/theme"
 import { isDev } from "@/utils/env"
 import { MagicTooltip } from "@/components/base"
 import { useActionButtonsMenu } from "./useActionButtonsMenu"
@@ -25,6 +26,7 @@ function ActionButtons({ collapsed }: ActionButtonsProps) {
 	const { theme, setTheme } = useTheme()
 
 	function handleThemeToggle() {
+		if (IS_DARK_MODE_DISABLED) return
 		const currentIndex = THEME_CYCLE.indexOf(theme)
 		const nextIndex = (currentIndex + 1) % THEME_CYCLE.length
 		setTheme(THEME_CYCLE[nextIndex])
@@ -62,12 +64,12 @@ function ActionButtons({ collapsed }: ActionButtonsProps) {
 						>
 							<Icon
 								className={cn(
-									"h-4 w-4 text-[#0a0a0a] dark:text-[#fafafa]",
+									"h-4 w-4 text-sidebar-foreground",
 									!collapsed && "mr-2",
 								)}
 							/>
 							{!collapsed && (
-								<span className="text-sm text-[#0a0a0a] dark:text-[#fafafa]">
+								<span className="text-sm text-sidebar-foreground">
 									{t(item.label)}
 								</span>
 							)}
@@ -89,12 +91,12 @@ function ActionButtons({ collapsed }: ActionButtonsProps) {
 						>
 							<ThemeIcon
 								className={cn(
-									"h-4 w-4 text-[#0a0a0a] dark:text-[#fafafa]",
+									"h-4 w-4 text-sidebar-foreground",
 									!collapsed && "mr-2",
 								)}
 							/>
 							{!collapsed && (
-								<span className="text-sm text-[#0a0a0a] dark:text-[#fafafa]">
+								<span className="text-sm text-sidebar-foreground">
 									{themeLabel}
 								</span>
 							)}

@@ -1,4 +1,5 @@
 import type { AttachmentItem } from "../hooks/types"
+import { TreeNodeData } from "./treeDataConverter"
 
 /**
  * 获取目标上传路径
@@ -66,4 +67,25 @@ export function pathToDirectoryNames(path: string): string[] {
  */
 export function isRootPath(path: string): boolean {
 	return !path || path === "/" || path.trim() === ""
+}
+
+// 如果没有 relative_file_path,从树结构中查找并构建完整路径
+export function findNodePath(
+	nodes: TreeNodeData[],
+	targetFileId: string,
+	parentPath: string = "",
+): string | null {
+	for (const node of nodes) {
+		const currentPath = parentPath
+			? `${parentPath}/${node.item?.name || ""}`
+			: `/${node.item?.name || ""}`
+		if (node.item?.file_id === targetFileId) {
+			return currentPath + "/"
+		}
+		if (node.children && node.children.length > 0) {
+			const found = findNodePath(node.children, targetFileId, currentPath)
+			if (found) return found
+		}
+	}
+	return null
 }

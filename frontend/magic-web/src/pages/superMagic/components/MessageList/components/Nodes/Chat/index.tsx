@@ -85,7 +85,8 @@ function Chat(props: NodeProps) {
 			)}
 			{attachmentsVisible && (
 				<Attachment
-					attachments={node.attachments}
+					className="mb-3"
+					attachments={node?.attachments}
 					onSelectDetail={onFileClick}
 					onFileClick={handleFileClick}
 				/>

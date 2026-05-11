@@ -1,0 +1,63 @@
+.imageEraserPanel {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing-2-5, 10px);
+	width: 260px;
+	padding: var(--spacing-2-5, 10px);
+	background: var(--base-background, #fff);
+	border: var(--border-width-border, 1px) solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-md, 8px);
+	box-shadow: var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 1px)
+		var(--shadow-xs-blur-radius, 2px) var(--shadow-xs-spread-radius, 0)
+		var(--shadow-xs-color, rgb(0 0 0 / 5%));
+	opacity: 0;
+	pointer-events: none;
+}
+
+.titleRow {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	justify-content: space-between;
+	min-width: 0;
+}
+
+.title {
+	flex: 1;
+	min-width: 0;
+	font-weight: var(--font-weight-semibold, 600);
+	font-size: var(--text-sm-font-size, 14px);
+}
+
+.undoIconButton {
+	flex-shrink: 0;
+	width: 28px;
+	height: 28px;
+	border: none;
+}
+
+.section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing-2, 8px);
+}
+
+.section [role="slider"] {
+	cursor: pointer;
+}
+
+.buttons {
+	display: flex;
+	gap: var(--spacing-2-5, 10px);
+	align-items: center;
+	justify-content: center;
+	margin-top: var(--spacing-2-5, 10px);
+}
+
+.buttons > button {
+	flex: 1;
+}

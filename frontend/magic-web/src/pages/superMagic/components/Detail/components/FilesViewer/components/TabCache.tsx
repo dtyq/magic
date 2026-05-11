@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
+import useFullscreenMode from "@/hooks/useFullscreenMode"
 import Render from "../../../Render"
 import PlaybackTabContent, { type PlaybackTabContentProps } from "./PlaybackTabContent"
 import { PLAYBACK_TAB_ID } from "../hooks/usePlaybackTab"
@@ -34,6 +35,7 @@ const TabCache = memo(
 	}: TabCacheProps) => {
 		const isPlaybackTab = tab.id === PLAYBACK_TAB_ID
 		const tabContentRef = useRef<HTMLDivElement>(null)
+		const isFullscreenMode = useFullscreenMode()
 
 		// 使用 useMemo 缓存渲染属性，避免不必要的重新渲染
 
@@ -66,10 +68,10 @@ const TabCache = memo(
 			}
 		}, [isActive])
 
-		// For playback tab, use isFullscreen from playbackProps
+		// For playback tab, use isFullscreen from playbackProps; for other tabs, use URL parameter
 		const effectiveIsFullscreen = isPlaybackTab
 			? playbackProps?.isFullscreen === true
-			: isFullscreen
+			: isFullscreenMode || isFullscreen
 
 		return (
 			<div
@@ -78,7 +80,7 @@ const TabCache = memo(
 					"left-0 w-full transition-[opacity,visibility] duration-200",
 					effectiveIsFullscreen
 						? "fixed top-0 h-full"
-						: "absolute top-10 h-[calc(100%-40px)]",
+						: "absolute top-11 h-[calc(100%-44px)]",
 					isPlaybackTab ? "z-[9]" : isActive ? "z-10" : "z-0",
 					isActive
 						? "pointer-events-auto visible opacity-100"

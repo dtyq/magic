@@ -2,30 +2,9 @@ import Konva from "konva"
 import type { LayerElement } from "../types"
 import type { Canvas } from "../Canvas"
 import type { Box } from "konva/lib/shapes/Transformer"
-import { getKeepRatioAspectRatio, isEdgeAnchor } from "./anchorUtils"
-
-/**
- * Transformer 样式配置常量
- * 用于统一管理单选和多选时 Transformer 的线框和样式
- */
-const TRANSFORMER_CONFIG = {
-	/** Anchor 尺寸（像素） */
-	ANCHOR_SIZE: 8,
-	/** 边框描边颜色 */
-	BORDER_STROKE: "#3B82F6",
-	/** 边框描边宽度（像素） */
-	BORDER_STROKE_WIDTH: 1.25,
-	/** Anchor 描边颜色 */
-	ANCHOR_STROKE: "#3B82F6",
-	/** Anchor 填充颜色 */
-	ANCHOR_FILL: "#FFFFFF",
-	/** Anchor 描边宽度（像素） */
-	ANCHOR_STROKE_WIDTH: 1.25,
-	/** Anchor 透明度（0-1），用于中间位置的 anchor（top-center, bottom-center, middle-left, middle-right） */
-	ANCHOR_OPACITY: 0,
-	/** 是否忽略 stroke，避免边框影响边界计算 */
-	IGNORE_STROKE: true,
-} as const
+import { getKeepRatioAspectRatio, isEdgeAnchor, applyAspectRatioToBoundBox } from "./anchorUtils"
+import { STANDARD_TRANSFORMER_STYLE } from "./FrameEditorShared"
+import type { Rect } from "../utils/utils"
 
 /**
  * 变换行为类型
@@ -57,6 +36,7 @@ export class TransformManager {
 
 	// Transformer 管理
 	private transformer: Konva.Transformer | null = null
+	private multiSelectionProxy: Konva.Rect | null = null
 
 	// 记录正在被 transform 的元素 ID
 	private transformingElementIds: Set<string> = new Set()
@@ -64,14 +44,24 @@ export class TransformManager {
 	// 记录是否正在拖拽
 	private isDragging: boolean = false
 
-	// 记录 Shift 键是否按下（用于临时锁定宽高比）
-	private shiftKeyPressed: boolean = false
-
-	// 记录 Meta/Command 键是否按下（用于临时锁定宽高比）
-	private metaKeyPressed: boolean = false
-
 	// 记录 transform 开始时的初始宽高比（用于 Shift 或 Command 键锁定）
 	private initialAspectRatio: number | null = null
+
+	// 记录 transform 开始时每个元素各自的初始宽高比（用于多选保持各自比例）
+	private initialElementAspectRatios: Map<string, number> = new Map()
+	private proxyInitialBounds: Rect | null = null
+	private proxyInitialNodeStates: Map<
+		string,
+		{
+			x: number
+			y: number
+			scaleX: number
+			scaleY: number
+			width?: number
+			height?: number
+		}
+	> = new Map()
+	private isProxyInteractionActive = false
 
 	constructor(options: { canvas: Canvas }) {
 		const { canvas } = options
@@ -108,6 +98,9 @@ export class TransformManager {
 			const { elementId } = data
 			// 如果更新的元素正在被 transform，需要更新 Transformer
 			if (this.transformingElementIds.has(elementId)) {
+				if (this.isUsingSelectionProxy() && this.isProxyInteractionActive) {
+					return
+				}
 				const elementIds = Array.from(this.transformingElementIds)
 				this.updateTransformer(elementIds)
 			}
@@ -121,11 +114,10 @@ export class TransformManager {
 	}
 
 	/**
-	 * 设置 Shift、Meta/Command 键的宽高比锁定状态
-	 * @param locked - 是否锁定宽高比（true 表示强制锁定，false 表示恢复元素本身的逻辑）
+	 * 同步 Transformer 的宽高比锁定状态
+	 * 修饰键状态由 Canvas 在键盘事件中统一设置，此处仅根据当前状态更新 Transformer
 	 */
-	public setKeepRatio(locked: boolean): void {
-		this.shiftKeyPressed = locked
+	public setKeepRatio(): void {
 		this.updateKeepRatio()
 	}
 
@@ -137,11 +129,11 @@ export class TransformManager {
 	}
 
 	/**
-	 * 检查 Shift 键是否按下
-	 * @returns Shift 键是否按下
+	 * 检查 Shift/Meta 键是否按下（宽高比锁定修饰键）
+	 * @returns 是否按下
 	 */
-	public isShiftPressed(): boolean {
-		return this.shiftKeyPressed
+	public isKeepRatioModifierPressed(): boolean {
+		return this.canvas.isKeepRatioModifierPressed()
 	}
 
 	/**
@@ -151,7 +143,7 @@ export class TransformManager {
 	 */
 	public shouldKeepRatio(elementIds?: string[]): boolean {
 		// 如果 Shift 或 Meta/Command 键按下，强制锁定宽高比
-		if (this.shiftKeyPressed || this.metaKeyPressed) {
+		if (this.canvas.isKeepRatioModifierPressed()) {
 			return true
 		}
 
@@ -172,7 +164,7 @@ export class TransformManager {
 		element: ReturnType<Canvas["elementManager"]["getElementInstance"]>,
 	): boolean {
 		// 如果 Shift 或 Meta/Command 键按下，强制锁定宽高比
-		if (this.shiftKeyPressed || this.metaKeyPressed) {
+		if (this.canvas.isKeepRatioModifierPressed()) {
 			return true
 		}
 
@@ -189,6 +181,187 @@ export class TransformManager {
 		this.transformer.keepRatio(this.shouldKeepRatio())
 	}
 
+	private isUsingSelectionProxy(): boolean {
+		return !!this.multiSelectionProxy
+	}
+
+	private getTransformableElementIds(elementIds: string[]): string[] {
+		return elementIds.filter((id) => {
+			const elementData = this.canvas.elementManager.getElementData(id)
+			return this.canvas.permissionManager.canTransform(elementData)
+		})
+	}
+
+	private getValidTransformNodes(elementIds: string[]): Konva.Node[] {
+		const adapter = this.canvas.elementManager.getNodeAdapter()
+		return adapter.getNodesForTransform(elementIds).filter((node): node is Konva.Node => {
+			if (!node) return false
+			const elementData = this.canvas.elementManager.getElementData(node.id())
+			if (elementData && elementData.width === 0 && elementData.height === 0) {
+				return false
+			}
+			return true
+		})
+	}
+
+	private getSelectionBounds(elementIds: string[]): Rect | null {
+		const adapter = this.canvas.elementManager.getNodeAdapter()
+		return adapter.getElementsBounds(elementIds)
+	}
+
+	private createMultiSelectionProxy(bounds: Rect): Konva.Rect {
+		return new Konva.Rect({
+			x: bounds.x,
+			y: bounds.y,
+			width: bounds.width,
+			height: bounds.height,
+			draggable: !this.canvas.readonly,
+			fill: "rgba(0, 0, 0, 0.001)",
+			strokeWidth: 0,
+			listening: true,
+			name: "multi-selection-proxy",
+		})
+	}
+
+	private bindMultiSelectionContextMenu(proxy: Konva.Rect): void {
+		proxy.on("contextmenu", (e: Konva.KonvaEventObject<MouseEvent>) => {
+			e.evt.preventDefault()
+			e.cancelBubble = true
+
+			const [elementId] = this.canvas.selectionManager.getSelectedIds()
+			if (!elementId) {
+				return
+			}
+
+			this.canvas.eventEmitter.emit({
+				type: "element:contextmenu",
+				data: {
+					elementId,
+					x: e.evt.clientX,
+					y: e.evt.clientY,
+				},
+			})
+		})
+	}
+
+	private getProxyBounds(): Rect | null {
+		if (!this.multiSelectionProxy) {
+			return null
+		}
+
+		return {
+			x: this.multiSelectionProxy.x(),
+			y: this.multiSelectionProxy.y(),
+			width: this.multiSelectionProxy.width() * this.multiSelectionProxy.scaleX(),
+			height: this.multiSelectionProxy.height() * this.multiSelectionProxy.scaleY(),
+		}
+	}
+
+	private captureProxyState(elementIds: string[]): void {
+		this.proxyInitialBounds = this.getSelectionBounds(elementIds)
+		this.proxyInitialNodeStates.clear()
+
+		const nodes = this.getValidTransformNodes(elementIds)
+		nodes.forEach((node) => {
+			this.proxyInitialNodeStates.set(node.id(), {
+				x: node.x(),
+				y: node.y(),
+				scaleX: node.scaleX(),
+				scaleY: node.scaleY(),
+				width: node instanceof Konva.Group ? node.width() : undefined,
+				height: node instanceof Konva.Group ? node.height() : undefined,
+			})
+		})
+	}
+
+	private syncSelectionProxyToElements(options: {
+		isRealtime: boolean
+		isScaling: boolean
+	}): void {
+		if (!this.multiSelectionProxy || !this.proxyInitialBounds) {
+			return
+		}
+
+		const { isRealtime, isScaling } = options
+		const currentBounds = this.getProxyBounds()
+		if (!currentBounds) {
+			return
+		}
+
+		const initialBounds = this.proxyInitialBounds
+		const initialWidth = initialBounds.width || 1
+		const initialHeight = initialBounds.height || 1
+		const selectionScaleX = currentBounds.width / initialWidth
+		const selectionScaleY = currentBounds.height / initialHeight
+		const skipImageCropResizeSync = isRealtime && isScaling
+
+		for (const [elementId, snapshot] of this.proxyInitialNodeStates) {
+			const element = this.canvas.elementManager.getElementInstance(elementId)
+			if (!element) continue
+
+			const rawUpdates: Partial<LayerElement> = {
+				x: currentBounds.x + (snapshot.x - initialBounds.x) * selectionScaleX,
+				y: currentBounds.y + (snapshot.y - initialBounds.y) * selectionScaleY,
+				scaleX: snapshot.scaleX * selectionScaleX,
+				scaleY: snapshot.scaleY * selectionScaleY,
+				width: snapshot.width,
+				height: snapshot.height,
+			}
+
+			const appliedUpdates = element.applyTransform(rawUpdates, {
+				isRealtime,
+				isScaling,
+				shouldKeepRatio: this.shouldKeepRatio([elementId]),
+				initialAspectRatio:
+					this.initialElementAspectRatios.get(elementId) ??
+					this.initialAspectRatio ??
+					undefined,
+			})
+
+			this.canvas.elementManager.update(elementId, appliedUpdates, {
+				mode: "node-only",
+				forceRerender: false,
+				skipImageCropResizeSync,
+			})
+
+			this.canvas.elementManager.update(elementId, appliedUpdates, {
+				mode: "data-only",
+				silent: true,
+				skipImageCropResizeSync,
+			})
+		}
+	}
+
+	private syncSelectionProxyFromElements(elementIds: string[]): void {
+		if (!this.multiSelectionProxy) {
+			return
+		}
+
+		const bounds = this.getSelectionBounds(elementIds)
+		if (!bounds) {
+			this.hideTransformer()
+			return
+		}
+
+		this.multiSelectionProxy.position({ x: bounds.x, y: bounds.y })
+		this.multiSelectionProxy.size({ width: bounds.width, height: bounds.height })
+		this.multiSelectionProxy.scale({ x: 1, y: 1 })
+	}
+
+	public applySelectionProxyDragOffset(snapOffsetX: number, snapOffsetY: number): boolean {
+		if (!this.multiSelectionProxy || !this.isProxyInteractionActive) {
+			return false
+		}
+
+		this.multiSelectionProxy.position({
+			x: this.multiSelectionProxy.x() + snapOffsetX,
+			y: this.multiSelectionProxy.y() + snapOffsetY,
+		})
+		this.syncSelectionProxyToElements({ isRealtime: true, isScaling: false })
+		this.canvas.controlsLayer.batchDraw()
+		return true
+	}
+
 	/**
 	 * 将 Transformer 绑定节点的状态同步到 ElementManager
 	 */
@@ -197,6 +370,7 @@ export class TransformManager {
 		isScaling: boolean
 	}): void {
 		const { isRealtime, isScaling } = options
+		const skipImageCropResizeSync = isRealtime && isScaling
 		const transformerNodes = this.transformer?.nodes() || []
 
 		transformerNodes.forEach((node) => {
@@ -218,12 +392,16 @@ export class TransformManager {
 				isRealtime,
 				isScaling,
 				shouldKeepRatio: this.shouldKeepRatio([elementId]),
-				initialAspectRatio: this.initialAspectRatio ?? undefined,
+				initialAspectRatio:
+					this.initialElementAspectRatios.get(elementId) ??
+					this.initialAspectRatio ??
+					undefined,
 			})
 
 			this.canvas.elementManager.update(elementId, appliedUpdates, {
 				mode: "node-only",
 				forceRerender: false,
+				skipImageCropResizeSync,
 			})
 
 			if (appliedUpdates.width !== undefined || appliedUpdates.height !== undefined) {
@@ -233,6 +411,7 @@ export class TransformManager {
 			this.canvas.elementManager.update(elementId, appliedUpdates, {
 				mode: "data-only",
 				silent: true,
+				skipImageCropResizeSync,
 			})
 		})
 	}
@@ -245,6 +424,10 @@ export class TransformManager {
 
 		this.isDragging = true
 		const elementIds = Array.from(this.transformingElementIds)
+		if (this.isUsingSelectionProxy()) {
+			this.isProxyInteractionActive = true
+			this.captureProxyState(elementIds)
+		}
 
 		elementIds.forEach((elementId) => {
 			this.canvas.eventEmitter.emit({
@@ -271,7 +454,11 @@ export class TransformManager {
 		if (this.canvas.readonly) return
 
 		const elementIds = Array.from(this.transformingElementIds)
-		this.syncTransformerNodesToElements({ isRealtime: true, isScaling: false })
+		if (this.isUsingSelectionProxy()) {
+			this.syncSelectionProxyToElements({ isRealtime: true, isScaling: false })
+		} else {
+			this.syncTransformerNodesToElements({ isRealtime: true, isScaling: false })
+		}
 
 		this.canvas.eventEmitter.emit({
 			type: "elements:transform:dragmove",
@@ -298,7 +485,12 @@ export class TransformManager {
 		try {
 			const elementIds = Array.from(this.transformingElementIds)
 
-			this.syncTransformerNodesToElements({ isRealtime: false, isScaling: false })
+			if (this.isUsingSelectionProxy()) {
+				this.syncSelectionProxyToElements({ isRealtime: false, isScaling: false })
+				this.syncSelectionProxyFromElements(elementIds)
+			} else {
+				this.syncTransformerNodesToElements({ isRealtime: false, isScaling: false })
+			}
 
 			this.canvas.eventEmitter.emit({
 				type: "elements:transform:dragend",
@@ -317,9 +509,13 @@ export class TransformManager {
 				historyManager.recordHistoryImmediate()
 			}
 
-			this.canvas.eventEmitter.emit({ type: "element:change", data: undefined })
+			this.canvas.eventEmitter.emit({
+				type: "element:change",
+				data: elementIds.length > 0 ? { elementIds } : undefined,
+			})
 
 			this.isDragging = false
+			this.isProxyInteractionActive = false
 			this.initialAspectRatio = null
 
 			if (this.transformer && !this.transformer.visible()) {
@@ -338,17 +534,12 @@ export class TransformManager {
 	private handleTransformerTransformstart(): void {
 		if (this.canvas.readonly) return
 
-		const transformerNodes = this.transformer?.nodes() || []
-		if (transformerNodes.length > 0) {
-			const firstNode = transformerNodes[0]
-			if (firstNode instanceof Konva.Group) {
-				const width = firstNode.width() * firstNode.scaleX()
-				const height = firstNode.height() * firstNode.scaleY()
-				this.initialAspectRatio = width / height
-			}
-		}
-
 		const elementIds = Array.from(this.transformingElementIds)
+		this.captureInitialAspectRatios(elementIds)
+		if (this.isUsingSelectionProxy()) {
+			this.isProxyInteractionActive = true
+			this.captureProxyState(elementIds)
+		}
 		const activeAnchor = this.transformer?.getActiveAnchor()
 		if (activeAnchor) {
 			this.canvas.eventEmitter.emit({
@@ -367,7 +558,11 @@ export class TransformManager {
 		const activeAnchor = this.transformer?.getActiveAnchor()
 		const elementIds = Array.from(this.transformingElementIds)
 
-		this.syncTransformerNodesToElements({ isRealtime: true, isScaling: true })
+		if (this.isUsingSelectionProxy()) {
+			this.syncSelectionProxyToElements({ isRealtime: true, isScaling: true })
+		} else {
+			this.syncTransformerNodesToElements({ isRealtime: true, isScaling: true })
+		}
 
 		if (activeAnchor) {
 			this.canvas.eventEmitter.emit({
@@ -390,7 +585,12 @@ export class TransformManager {
 			const elementIds = Array.from(this.transformingElementIds)
 			const activeAnchor = this.transformer?.getActiveAnchor()
 
-			this.syncTransformerNodesToElements({ isRealtime: false, isScaling: false })
+			if (this.isUsingSelectionProxy()) {
+				this.syncSelectionProxyToElements({ isRealtime: false, isScaling: false })
+				this.syncSelectionProxyFromElements(elementIds)
+			} else {
+				this.syncTransformerNodesToElements({ isRealtime: false, isScaling: false })
+			}
 
 			if (activeAnchor) {
 				this.canvas.eventEmitter.emit({
@@ -404,12 +604,40 @@ export class TransformManager {
 				historyManager.recordHistoryImmediate()
 			}
 
-			this.canvas.eventEmitter.emit({ type: "element:change", data: undefined })
+			this.canvas.eventEmitter.emit({
+				type: "element:change",
+				data: elementIds.length > 0 ? { elementIds } : undefined,
+			})
 
 			this.initialAspectRatio = null
+			this.initialElementAspectRatios.clear()
+			this.isProxyInteractionActive = false
 		} finally {
 			this.canvas.historyManager?.enable()
 		}
+	}
+
+	/**
+	 * 记录 transform 开始时的整体/单元素初始宽高比
+	 */
+	private captureInitialAspectRatios(elementIds: string[]): void {
+		const adapter = this.canvas.elementManager.getNodeAdapter()
+		const selectionBounds = adapter.getElementsBounds(elementIds)
+		if (selectionBounds && selectionBounds.width > 0 && selectionBounds.height > 0) {
+			this.initialAspectRatio = selectionBounds.width / selectionBounds.height
+		} else {
+			this.initialAspectRatio = null
+		}
+
+		this.initialElementAspectRatios.clear()
+		elementIds.forEach((elementId) => {
+			const elementBounds = adapter.getElementBounds(elementId)
+			if (!elementBounds || elementBounds.width <= 0 || elementBounds.height <= 0) return
+			this.initialElementAspectRatios.set(
+				elementId,
+				elementBounds.width / elementBounds.height,
+			)
+		})
 	}
 
 	/**
@@ -423,32 +651,29 @@ export class TransformManager {
 		if (elementIds.length === 0) return
 
 		// 使用 PermissionManager 过滤可以变换的元素
-		const transformableElementIds = elementIds.filter((id) => {
-			const elementData = this.canvas.elementManager.getElementData(id)
-			return this.canvas.permissionManager.canTransform(elementData)
-		})
+		const transformableElementIds = this.getTransformableElementIds(elementIds)
 
 		// 如果所有元素都不可变换，不显示 Transformer
 		if (transformableElementIds.length === 0) return
 
-		// 使用 NodeAdapter 获取节点，并过滤掉宽高为0的节点
-		const adapter = this.canvas.elementManager.getNodeAdapter()
-		const nodes = adapter
-			.getNodesForTransform(transformableElementIds)
-			.filter((node): node is Konva.Node => {
-				if (!node) return false
-				const elementData = this.canvas.elementManager.getElementData(node.id())
-				// 过滤掉宽高都为0的节点
-				if (elementData && elementData.width === 0 && elementData.height === 0) {
-					return false
-				}
-				return true
-			})
-
-		if (nodes.length === 0) return
+		let nodes: Konva.Node[] = []
+		if (transformableElementIds.length === 1) {
+			nodes = this.getValidTransformNodes(transformableElementIds)
+			if (nodes.length === 0) return
+		} else {
+			const selectionBounds = this.getSelectionBounds(transformableElementIds)
+			if (!selectionBounds) return
+			this.multiSelectionProxy = this.createMultiSelectionProxy(selectionBounds)
+			this.bindMultiSelectionContextMenu(this.multiSelectionProxy)
+			this.multiSelectionProxy.on("dragstart", () => this.handleTransformerDragstart())
+			this.multiSelectionProxy.on("dragmove", () => this.handleTransformerDragmove())
+			this.multiSelectionProxy.on("dragend", () => this.handleTransformerDragend())
+			this.canvas.controlsLayer.add(this.multiSelectionProxy)
+			nodes = [this.multiSelectionProxy]
+		}
 
 		// 创建新的 Transformer
-		const anchorSize = TRANSFORMER_CONFIG.ANCHOR_SIZE
+		const anchorSize = STANDARD_TRANSFORMER_STYLE.ANCHOR_SIZE
 		let enabledAnchors: string[] = []
 		if (!this.canvas.readonly) {
 			enabledAnchors = [
@@ -483,30 +708,12 @@ export class TransformManager {
 				activeAnchor &&
 				isEdgeAnchor(activeAnchor)
 			) {
-				const ratio = getKeepRatioAspectRatio(this.initialAspectRatio, oldBox)
-				if (activeAnchor === "middle-left") {
-					const newHeight = resultBox.width / ratio
-					const heightDiff = newHeight - oldBox.height
-					resultBox = {
-						...resultBox,
-						height: newHeight,
-						y: resultBox.y - heightDiff,
-					}
-				} else if (activeAnchor === "middle-right") {
-					const newHeight = resultBox.width / ratio
-					resultBox = { ...resultBox, height: newHeight }
-				} else if (activeAnchor === "top-center") {
-					const newWidth = resultBox.height * ratio
-					const widthDiff = newWidth - oldBox.width
-					resultBox = {
-						...resultBox,
-						width: newWidth,
-						x: resultBox.x - widthDiff,
-					}
-				} else if (activeAnchor === "bottom-center") {
-					const newWidth = resultBox.height * ratio
-					resultBox = { ...resultBox, width: newWidth }
-				}
+				resultBox = applyAspectRatioToBoundBox(
+					oldBox,
+					resultBox,
+					activeAnchor,
+					this.initialAspectRatio,
+				)
 			}
 
 			// 仅多选时通过 boundBoxFunc 注入吸附（单选用 processSnap 的 applySnapOffset，坐标系一致）
@@ -588,7 +795,7 @@ export class TransformManager {
 				default:
 					break
 			}
-			anchor.opacity(TRANSFORMER_CONFIG.ANCHOR_OPACITY)
+			anchor.opacity(STANDARD_TRANSFORMER_STYLE.ANCHOR_OPACITY)
 		}
 
 		this.transformer = new Konva.Transformer({
@@ -598,19 +805,21 @@ export class TransformManager {
 			enabledAnchors,
 			anchorSize,
 			rotateEnabled: false,
-			borderStroke: TRANSFORMER_CONFIG.BORDER_STROKE,
-			borderStrokeWidth: TRANSFORMER_CONFIG.BORDER_STROKE_WIDTH,
-			anchorStroke: TRANSFORMER_CONFIG.ANCHOR_STROKE,
-			anchorFill: TRANSFORMER_CONFIG.ANCHOR_FILL,
-			anchorStrokeWidth: TRANSFORMER_CONFIG.ANCHOR_STROKE_WIDTH,
-			ignoreStroke: TRANSFORMER_CONFIG.IGNORE_STROKE, // 忽略 stroke，避免边框影响边界计算
+			borderStroke: STANDARD_TRANSFORMER_STYLE.BORDER_STROKE,
+			borderStrokeWidth: STANDARD_TRANSFORMER_STYLE.BORDER_STROKE_WIDTH,
+			anchorStroke: STANDARD_TRANSFORMER_STYLE.ANCHOR_STROKE,
+			anchorFill: STANDARD_TRANSFORMER_STYLE.ANCHOR_FILL,
+			anchorStrokeWidth: STANDARD_TRANSFORMER_STYLE.ANCHOR_STROKE_WIDTH,
+			ignoreStroke: STANDARD_TRANSFORMER_STYLE.IGNORE_STROKE, // 忽略 stroke，避免边框影响边界计算
 			boundBoxFunc,
 			anchorStyleFunc,
 		})
 
-		this.transformer.on("dragstart", () => this.handleTransformerDragstart())
-		this.transformer.on("dragmove", () => this.handleTransformerDragmove())
-		this.transformer.on("dragend", () => this.handleTransformerDragend())
+		if (!this.isUsingSelectionProxy()) {
+			this.transformer.on("dragstart", () => this.handleTransformerDragstart())
+			this.transformer.on("dragmove", () => this.handleTransformerDragmove())
+			this.transformer.on("dragend", () => this.handleTransformerDragend())
+		}
 		this.transformer.on("transformstart", () => this.handleTransformerTransformstart())
 		this.transformer.on("transform", () => this.handleTransformerTransform())
 		this.transformer.on("transformend", () => this.handleTransformerTransformend())
@@ -643,10 +852,23 @@ export class TransformManager {
 			this.canvas.controlsLayer.batchDraw()
 		}
 
+		if (this.multiSelectionProxy) {
+			this.multiSelectionProxy.off("dragstart")
+			this.multiSelectionProxy.off("dragmove")
+			this.multiSelectionProxy.off("dragend")
+			this.multiSelectionProxy.off("contextmenu")
+			this.multiSelectionProxy.destroy()
+			this.multiSelectionProxy = null
+		}
+
 		// 清空正在 transform 的元素集合
 		this.transformingElementIds.clear()
 		// 清除初始宽高比记录
 		this.initialAspectRatio = null
+		this.initialElementAspectRatios.clear()
+		this.proxyInitialBounds = null
+		this.proxyInitialNodeStates.clear()
+		this.isProxyInteractionActive = false
 	}
 
 	/**
@@ -658,9 +880,36 @@ export class TransformManager {
 			this.hideTransformer()
 			return
 		}
-		// 使用 NodeAdapter 获取选中的节点
-		const adapter = this.canvas.elementManager.getNodeAdapter()
-		const nodes = adapter.getNodesForTransform(elementIds)
+
+		const transformableElementIds = this.getTransformableElementIds(elementIds)
+		if (transformableElementIds.length === 0) {
+			this.hideTransformer()
+			return
+		}
+
+		if (transformableElementIds.length > 1) {
+			if (!this.isUsingSelectionProxy()) {
+				this.showTransformer(transformableElementIds)
+				return
+			}
+
+			this.syncSelectionProxyFromElements(transformableElementIds)
+			this.transformer.nodes(this.multiSelectionProxy ? [this.multiSelectionProxy] : [])
+			this.transformer.keepRatio(this.shouldKeepRatio(transformableElementIds))
+			this.transformer.forceUpdate()
+			this.canvas.controlsLayer.batchDraw()
+
+			this.transformingElementIds.clear()
+			transformableElementIds.forEach((id) => this.transformingElementIds.add(id))
+			return
+		}
+
+		if (this.isUsingSelectionProxy()) {
+			this.showTransformer(transformableElementIds)
+			return
+		}
+
+		const nodes = this.getValidTransformNodes(transformableElementIds)
 
 		if (nodes.length === 0) {
 			this.hideTransformer()
@@ -669,13 +918,13 @@ export class TransformManager {
 
 		// 更新 Transformer 的节点和 keepRatio
 		this.transformer.nodes(nodes)
-		this.transformer.keepRatio(this.shouldKeepRatio(elementIds))
+		this.transformer.keepRatio(this.shouldKeepRatio(transformableElementIds))
 		this.transformer.forceUpdate()
 		this.canvas.controlsLayer.batchDraw()
 
 		// 更新正在 transform 的元素集合
 		this.transformingElementIds.clear()
-		elementIds.forEach((id) => this.transformingElementIds.add(id))
+		transformableElementIds.forEach((id) => this.transformingElementIds.add(id))
 	}
 
 	/**

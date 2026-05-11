@@ -1,5 +1,7 @@
 import i18n from "i18next"
 import { CrewApi } from "@/apis"
+import type { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
+import { getLocalePreferredKeys, resolveLocalizedText } from "@/utils/locale"
 import { resolveCrewAgentPromptText } from "./agent-prompt"
 import {
 	buildCrewI18nText,
@@ -46,6 +48,7 @@ export interface StoreAgentView {
 	id: string
 	agentCode: string
 	userCode: string | null
+	isFeatured: boolean
 	latestVersionCode: string | null
 	name: string
 	role: string
@@ -63,6 +66,7 @@ export interface StoreAgentView {
 export interface MyCrewView {
 	id: string
 	agentCode: string
+	userRole?: CollaboratorPermission
 	name: string
 	role: string
 	description: string
@@ -79,6 +83,8 @@ export interface MyCrewView {
 	latestPublishedAt: string | null
 	pinnedAt: string | null
 	updatedAt: string
+	/** From team-shared API `creator_info.name` */
+	creatorName: string | null
 }
 
 export interface AgentDetailView {
@@ -173,6 +179,20 @@ export class CrewService {
 		return CrewApi.hireStoreAgent({ code })
 	}
 
+	/**
+	 * Notify home featured frequent list before opening chat (single agent code).
+	 * Best-effort: failures are ignored so navigation still works.
+	 */
+	async pinFeaturedFrequentForConversation(agentCode: string): Promise<void> {
+		const code = agentCode.trim()
+		if (!code) return
+		try {
+			await CrewApi.updateFeaturedFrequentAgents({ codes: [code] })
+		} catch {
+			// ignore
+		}
+	}
+
 	async getStoreAgentMarketDetail(code: string): Promise<StoreAgentMarketDetailView> {
 		const data = await CrewApi.getStoreAgentMarketDetail({ code })
 		return this.mapStoreAgentMarketDetail(data)
@@ -181,7 +201,7 @@ export class CrewService {
 	// ─── User Agents ─────────────────────────────────────────────────────────
 
 	async getCreatedAgents(params: GetAgentsParams = {}): Promise<PagedResult<MyCrewView>> {
-		const data = await CrewApi.getAgents(params)
+		const data = await CrewApi.getCreatedAgents(params)
 		return {
 			list: data.list.map((item) => this.mapMyAgent(item)),
 			page: data.page,
@@ -190,8 +210,18 @@ export class CrewService {
 		}
 	}
 
-	async getExternalAgents(params: GetAgentsParams = {}): Promise<PagedResult<MyCrewView>> {
-		const data = await CrewApi.getExternalAgents(params)
+	async getHiredAgents(params: GetAgentsParams = {}): Promise<PagedResult<MyCrewView>> {
+		const data = await CrewApi.getHiredAgents(params)
+		return {
+			list: data.list.map((item) => this.mapMyAgent(item)),
+			page: data.page,
+			pageSize: data.page_size,
+			total: data.total,
+		}
+	}
+
+	async getTeamSharedAgents(params: GetAgentsParams = {}): Promise<PagedResult<MyCrewView>> {
+		const data = await CrewApi.getTeamSharedAgents(params)
 		return {
 			list: data.list.map((item) => this.mapMyAgent(item)),
 			page: data.page,
@@ -329,6 +359,7 @@ export class CrewService {
 			id: String(item.id),
 			agentCode: item.agent_code,
 			userCode: item.user_code ?? null,
+			isFeatured: Boolean(item.is_featured),
 			latestVersionCode: item.latest_version_code,
 			name: this.mapI18nText(item.name_i18n),
 			role: this.mapI18nArrayText(item.role_i18n),
@@ -375,6 +406,7 @@ export class CrewService {
 		return {
 			id: String(item.id),
 			agentCode: item.code,
+			userRole: item.user_role,
 			name: this.mapI18nText(item.name_i18n),
 			role: this.mapI18nArrayText(item.role_i18n),
 			description: this.mapI18nText(item.description_i18n),
@@ -395,6 +427,7 @@ export class CrewService {
 			latestPublishedAt: item.latest_published_at,
 			pinnedAt: item.pinned_at,
 			updatedAt: item.updated_at,
+			creatorName: item.creator_info?.name?.trim() || null,
 		}
 	}
 
@@ -450,27 +483,12 @@ export class CrewService {
 	}
 
 	private mapI18nText(text: CrewI18nText | null | undefined): string {
-		if (!text) return ""
-		const language = i18n.language?.toLowerCase() ?? "en"
-		const preferredKeys = language.startsWith("zh")
-			? ["zh_CN", "zh", "en_US", "en"]
-			: ["en_US", "en", "zh_CN", "zh"]
-
-		for (const key of preferredKeys) {
-			const value = text[key]
-			if (value) return value
-		}
-		if (text.default) return text.default
-		const fallback = Object.values(text).find(Boolean)
-		return fallback ?? ""
+		return resolveLocalizedText(text, i18n.language)
 	}
 
 	private mapI18nArrayText(text: CrewI18nArrayText | null | undefined): string {
 		if (!text) return ""
-		const language = i18n.language?.toLowerCase() ?? "en"
-		const preferredKeys = language.startsWith("zh")
-			? ["zh_CN", "zh", "en_US", "en"]
-			: ["en_US", "en", "zh_CN", "zh"]
+		const preferredKeys = getLocalePreferredKeys(i18n.language)
 
 		for (const key of preferredKeys) {
 			const value = normalizeCrewI18nArrayValue(text[key])
@@ -479,11 +497,7 @@ export class CrewService {
 
 		const defaultValue = normalizeCrewI18nArrayValue(text.default)
 		if (defaultValue) return defaultValue
-
-		const fallback = Object.values(text)
-			.map((value) => normalizeCrewI18nArrayValue(value))
-			.find((value) => value.length > 0)
-		return fallback ?? ""
+		return ""
 	}
 }
 

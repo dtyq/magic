@@ -1,9 +1,8 @@
 import defaultToolIcon from "@/pages/superMagic/assets/tool_icon/default.svg"
 
-const iconModules = import.meta.glob<string>(
-	"/src/pages/superMagic/assets/tool_icon/*.svg",
-	{ import: "default" },
-)
+const iconModules = import.meta.glob<string>("/src/pages/superMagic/assets/tool_icon/*.svg", {
+	import: "default",
+})
 
 const iconNameMap: Record<string, string> = {
 	shell_exec: "shell_exec",
@@ -55,6 +54,7 @@ const iconNameMap: Record<string, string> = {
 	delete_memory: "long_memory",
 	audio_understanding_progress: "audio_understanding_progress",
 	audio_understanding: "audio_understanding_progress",
+	video_generation_progress: "create_design_project",
 	init_virtual_machine: "init_virtual_machine",
 	todo_create: "todo_write",
 	todo_update: "todo_write",
@@ -63,6 +63,7 @@ const iconNameMap: Record<string, string> = {
 	long_memory: "long_memory",
 	agent_think: "agent_think",
 	create_design_project: "create_design_project",
+	create_canvas: "create_design_project",
 	create_canvas_element: "create_design_project",
 	update_canvas_element: "create_design_project",
 	batch_create_canvas_elements: "create_design_project",
@@ -71,7 +72,11 @@ const iconNameMap: Record<string, string> = {
 	query_canvas_overview: "create_design_project",
 	query_canvas_element: "create_design_project",
 	generate_images_to_canvas: "create_design_project",
+	generate_canvas_images: "create_design_project",
 	search_images_to_canvas: "create_design_project",
+	generate_videos_to_canvas: "create_design_project",
+	generate_canvas_videos: "create_design_project",
+	query_video_generation: "create_design_project",
 	query_dashboard_cards: "list_dir",
 	create_dashboard_cards: "write_to_file",
 	delete_dashboard_cards: "delete_file",

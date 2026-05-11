@@ -10,7 +10,7 @@ import { observer } from "mobx-react-lite"
 import { ScenePanelComponentBaseProps } from "../../types"
 import { useCurrentSceneConfig } from "../../hooks"
 
-interface SummarizeVideosInputContainerProps extends ScenePanelComponentBaseProps { }
+interface SummarizeVideosInputContainerProps extends ScenePanelComponentBaseProps {}
 
 function SummarizeVideosInputContainer(_props: SummarizeVideosInputContainerProps) {
 	void _props
@@ -20,7 +20,7 @@ function SummarizeVideosInputContainer(_props: SummarizeVideosInputContainerProp
 		portalId: SCENE_INPUT_IDS.INPUT_CONTAINER,
 	})
 
-	const handleTemplateSelect = (template: OptionItem) => {
+	const handleTemplateSelect = (template: OptionItem | null) => {
 		console.log("Template selected:", template)
 	}
 

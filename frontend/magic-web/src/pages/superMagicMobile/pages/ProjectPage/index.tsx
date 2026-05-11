@@ -18,7 +18,7 @@ import { useFileOperations } from "./hooks"
 import TopicsPopup from "./ProjectPageMain/components/TopicsPopup"
 import TopicPopup from "@/pages/superMagicMobile/components/TopicPopup"
 import ProjectSider from "@/pages/superMagic/components/ProjectSider"
-import { Files, Timer, CirclePlus } from "lucide-react"
+import { Brain, Files, Timer, CirclePlus } from "lucide-react"
 import TopicFilesButton, {
 	type TopicFilesButtonRef,
 } from "@/pages/superMagic/components/TopicFilesButton"
@@ -33,16 +33,14 @@ import MobileFileMenuDropdown from "@/pages/superMagic/components/TopicFilesButt
 import { useIsMobile } from "@/hooks/use-mobile"
 import IconShareCog from "@/enhance/tabler/icons-react/icons/iconShareCog"
 import ShareManagementPanel from "@/pages/superMagic/components/ShareManagement/ShareManagementPanel"
+import { LongTremMemorySider } from "@/pages/superMagic/components/LongTremMemory/components/MemorySider"
 import ProjectPageInputContainer from "@/pages/superMagic/components/ProjectPageInputContainer"
-import MobileInputContainer from "../ChatPage/components/MobileInputContainer"
-import { MOBILE_LAYOUT_CONFIG } from "@/pages/superMagic/components/MainInputContainer/components/editors/constant"
 
-const WithCollaborators = lazy(
-	() => import("@/pages/superMagic/components/WithCollaborators"),
-)
+const WithCollaborators = lazy(() => import("@/pages/superMagic/components/WithCollaborators"))
 
 function ProjectPage() {
 	const { t } = useTranslation("super")
+	const { t: tLongMemory } = useTranslation("super/longMemory")
 	const isMobile = useIsMobile()
 
 	// Get state from stores
@@ -50,7 +48,6 @@ function ProjectPage() {
 	const selectedWorkspace = workspaceStore.selectedWorkspace
 	const selectedTopic = topicStore.selectedTopic
 
-	const messagePanelContainerRef = useRef<HTMLDivElement>(null)
 	const previewDetailPopupRef = useRef<PreviewDetailPopupRef>(null)
 	const linkPreviewPopupRef = useRef<PreviewDetailPopupRef>(null)
 	const topicFilesButtonRef = useRef<TopicFilesButtonRef>(null)
@@ -222,9 +219,10 @@ function ProjectPage() {
 					</Suspense>,
 					collaborationPortalTarget,
 				)}
-			{/* Render file creation button via portal - always visible regardless of active tab */}
+			{/* Render file creation button via portal only for files tab */}
 			{!isReadonly &&
 				isMobile &&
+				activeSiderTab === "topicFiles" &&
 				createButtonPortalTarget &&
 				createPortal(
 					<MobileFileMenuDropdown
@@ -269,14 +267,6 @@ function ProjectPage() {
 								/>
 							),
 						},
-						// {
-						// 	title: "数据看板",
-						// 	content: <SiderDashboard />,
-						// },
-						// {
-						// 	title: "数据源",
-						// 	content: <SiderDataSource />,
-						// },
 						{
 							key: "task",
 							title: t("scheduleTask.title"),
@@ -289,6 +279,12 @@ function ProjectPage() {
 								/>
 							),
 							visible: !isReadonly,
+						},
+						{
+							key: "longMemory",
+							title: tLongMemory("longMemory"),
+							icon: <Brain size={16} />,
+							content: <LongTremMemorySider projectId={selectedProject?.id} />,
 						},
 						{
 							key: "share",

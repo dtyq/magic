@@ -33,8 +33,14 @@ export interface ClawSkillsPanelProps {
 	onClose: () => void
 	/** Hide shell top border when shown inside mobile drawer (avoids double edge). */
 	hideShellTopBorder?: boolean
+	/** Close panel after a successful install action. */
+	closeAfterInstall?: boolean
 	/** Optional full install override (see useSkillsPanel.overrideInstall). */
-	overrideInstall?: (skillCode: string) => Promise<void>
+	overrideInstall?: (params: {
+		skillCode: string
+		skill: SkillPanelItem | undefined
+		content: JSONContent
+	}) => Promise<void>
 	/** Optional full uninstall override (see useSkillsPanel.overrideUninstall). */
 	overrideUninstall?: (skillCode: string) => Promise<void>
 	/** Show skill create button (default true). */
@@ -44,6 +50,7 @@ export interface ClawSkillsPanelProps {
 export function ClawSkillsPanel({
 	onClose,
 	hideShellTopBorder = false,
+	closeAfterInstall = false,
 	overrideInstall: overrideInstallProp,
 	overrideUninstall: overrideUninstallProp,
 	showSkillCreateButton = true,
@@ -57,18 +64,20 @@ export function ClawSkillsPanel({
 	const [activeTab, setActiveTab] = useState<CrewSkillsTab>(CREW_SKILLS_TAB.Library)
 
 	const handlePlaygroundInstall = useMemoizedFn(async (skillCode: string) => {
-		if (overrideInstallProp) {
-			await overrideInstallProp(skillCode)
-			return
-		}
 		const skill = filteredItemsRef.current.find((item) => item.skillCode === skillCode)
 		const prefix = t("superLobster.workspace.skillInstallPromptPrefix")
 		const content = buildSkillInstallPromptDoc({ prefix, skillCode, skill })
+		if (overrideInstallProp) {
+			await overrideInstallProp({ skillCode, skill, content })
+			if (closeAfterInstall) onClose()
+			return
+		}
 		pubsub.publish(PubSubEvents.Add_Content_To_Chat, { content })
 		pubsub.publish(PubSubEvents.Message_Scroll_To_Bottom, { time: 1000 })
 		queueMicrotask(() => {
 			pubsub.publish(PubSubEvents.Send_Message_by_Content, { jsonContent: content })
 		})
+		if (closeAfterInstall) onClose()
 	})
 
 	const handlePlaygroundUninstall = useMemoizedFn(async (_skillCode: string) => {

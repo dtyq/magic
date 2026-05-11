@@ -42,12 +42,16 @@ export class SizeLabelManager extends BaseLabelManager {
 				offsetLeft: SIZE_LABEL_CONFIG.OFFSET_RIGHT, // 复用 offsetLeft 字段存储 offsetRight
 			},
 			visibilityConfig: {
-				// 只有 Frame 和 Image 元素显示尺寸标签
-				elementTypes: new Set([ElementTypeEnum.Frame, ElementTypeEnum.Image]),
+				// 只有 Frame、Image 和 Video 元素显示尺寸标签
+				elementTypes: new Set([
+					ElementTypeEnum.Frame,
+					ElementTypeEnum.Image,
+					ElementTypeEnum.Video,
+				]),
 				// Frame 元素一直显示
 				alwaysVisibleTypes: new Set([ElementTypeEnum.Frame]),
-				// Image 元素在选中或 hover 时显示
-				hoverOrSelectTypes: new Set([ElementTypeEnum.Image]),
+				// Image / Video 元素在选中或 hover 时显示
+				hoverOrSelectTypes: new Set([ElementTypeEnum.Image, ElementTypeEnum.Video]),
 			},
 		}
 
@@ -89,54 +93,27 @@ export class SizeLabelManager extends BaseLabelManager {
 	}
 
 	/**
-	 * 更新标签可见性（重写以添加智能隐藏逻辑）
+	 * 计算自定义可见性（检查 size label 是否超出元素宽度或与其他标签重叠）
 	 * 当标签重叠时，优先隐藏 size label
 	 * @param elementId - 元素 ID
-	 * @param skipBatchDraw - 是否跳过 batchDraw（用于批量更新时统一调用）
+	 * @param element - 元素实例
+	 * @param labelGroup - 标签组
+	 * @param baseVisibility - 基础可见性
+	 * @returns 自定义可见性
 	 */
-	protected updateLabelVisibility(elementId: string, skipBatchDraw = false): void {
-		const labelGroup = this.labelMap.get(elementId)
-		if (!labelGroup) {
-			return
-		}
-
-		const element = this.canvas.elementManager.getElementInstance(elementId)
-		if (!element) {
-			labelGroup.visible(false)
-			if (!skipBatchDraw) {
-				this.canvas.overlayLayer.batchDraw()
-			}
-			return
-		}
-
-		const elementData = element.getData()
-		const elementType = elementData.type
-
-		let shouldShow = false
-
-		// 检查是否为一直显示的类型
-		if (this.visibilityConfig.alwaysVisibleTypes.has(elementType)) {
-			shouldShow = true
-		}
-		// 检查是否为选中或 hover 时显示的类型
-		else if (this.visibilityConfig.hoverOrSelectTypes.has(elementType)) {
-			const isSelected = this.canvas.selectionManager.isSelected(elementId)
-			const hoveredId = this.canvas.hoverManager.getHoveredElementId()
-			const isHovered = hoveredId === elementId
-			shouldShow = isHovered || isSelected
-		}
-
-		// 如果基础可见性为 false，直接隐藏
-		if (!shouldShow) {
-			labelGroup.visible(false)
-			if (!skipBatchDraw) {
-				this.canvas.overlayLayer.batchDraw()
-			}
-			return
+	protected calculateCustomVisibility(
+		elementId: string,
+		element: ReturnType<typeof this.canvas.elementManager.getElementInstance>,
+		labelGroup: Konva.Group,
+		baseVisibility: boolean,
+	): boolean | null {
+		// 如果基础可见性为 false，不需要检查自定义逻辑
+		if (!baseVisibility) {
+			return null
 		}
 
 		// 检查 size label 是否超出元素宽度或与其他标签重叠
-		const boundingRect = element.getBoundingRect()
+		const boundingRect = element?.getBoundingRect()
 		const textNode = labelGroup.findOne("Text") as Konva.Text
 		if (textNode && boundingRect) {
 			const scaleX = labelGroup.scaleX()
@@ -151,37 +128,30 @@ export class SizeLabelManager extends BaseLabelManager {
 			// 检查 size label 是否超出元素宽度（从右侧超出）
 			// size label 是从右侧对齐的，如果元素宽度太小，size label 可能会超出左侧边界
 			if (sizeLabelBounds.x < boundingRect.x) {
-				shouldShow = false
+				return false
 			}
 
-			// 如果还没有被隐藏，检查其他标签是否因为超出元素宽度而隐藏
+			// 检查其他标签是否因为超出元素宽度而隐藏
 			// 如果 name label 存在但不可见，且会超出元素宽度，说明空间太小，size label 也应该隐藏
-			if (shouldShow && this.checkOtherLabelHiddenDueToWidth(elementId, this, boundingRect)) {
+			if (this.checkOtherLabelHiddenDueToWidth(elementId, this, boundingRect)) {
 				// 其他标签因为超出元素宽度而隐藏，说明空间太小，size label 也应该隐藏
-				shouldShow = false
+				return false
 			}
 
-			// 如果还没有被隐藏，检查是否与其他可见标签重叠
-			if (shouldShow) {
-				// 获取其他标签的位置信息
-				const otherLabelBounds = this.getOtherLabelBounds(elementId, this)
+			// 检查是否与其他可见标签重叠
+			// 获取其他标签的位置信息
+			const otherLabelBounds = this.getOtherLabelBounds(elementId, this)
 
-				// 检查是否与其他标签重叠
-				for (const otherBounds of otherLabelBounds) {
-					if (this.checkRectOverlap(sizeLabelBounds, otherBounds)) {
-						// 如果重叠，隐藏 size label
-						shouldShow = false
-						break
-					}
+			// 检查是否与其他标签重叠
+			for (const otherBounds of otherLabelBounds) {
+				if (this.checkRectOverlap(sizeLabelBounds, otherBounds)) {
+					// 如果重叠，隐藏 size label
+					return false
 				}
 			}
 		}
 
-		labelGroup.visible(shouldShow)
-
-		// 触发重绘（批量更新时跳过，由调用方统一调用）
-		if (!skipBatchDraw) {
-			this.canvas.overlayLayer.batchDraw()
-		}
+		// 不修改基础可见性
+		return null
 	}
 }

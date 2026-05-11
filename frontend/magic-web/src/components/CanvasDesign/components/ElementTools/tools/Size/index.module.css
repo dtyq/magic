@@ -2,6 +2,13 @@
 	display: inline-flex;
 	gap: var(--spacing-1, 4px);
 	align-items: center;
+	width: 100%;
+}
+
+.size.autoFill {
+	display: flex;
+	width: 100%;
+	min-width: 0;
 }
 
 .input-wrapper {
@@ -11,6 +18,11 @@
 
 .input-wrapper.readonly {
 	width: 72px;
+}
+
+.input-wrapper.autoFillWrapper {
+	flex: 1;
+	min-width: 0;
 }
 
 .label {

@@ -65,6 +65,11 @@ export class EditorStore {
 	 */
 	setEditor(editor: Editor | null) {
 		this.tiptapEditor = editor
+		if (editor && this.value !== undefined) {
+			// If content was restored before TipTap finished mounting,
+			// replay the buffered value into the live editor instance.
+			editor.commands.setContent(this.value, { emitUpdate: false })
+		}
 	}
 
 	/**

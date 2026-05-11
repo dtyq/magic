@@ -1,14 +1,21 @@
-import { useEffect, useRef } from "react"
-import { useModeList } from "../../MessagePanel/hooks/usePatternTabs"
+import { useCallback } from "react"
+import { useMount } from "ahooks"
+import { observer } from "mobx-react-lite"
 import { TopicMode } from "../../../pages/Workspace/types"
 import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll"
 import { Button } from "@/components/shadcn-ui/button"
+import { Skeleton } from "@/components/shadcn-ui/skeleton"
 import { cn } from "@/lib/utils"
 import ModeAvatar from "../../ModeAvatar"
 import { Plus } from "lucide-react"
 import { RouteName } from "@/routes/constants"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { useTranslation } from "react-i18next"
+import { CREW_OVERFLOW_THRESHOLD, RoleSwitcherOverflowMenu } from "./RoleSwitcherOverflowMenu"
+import { useCenteredHorizontalScroll } from "../hooks/useCenteredHorizontalScroll"
+import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
+import { GuideTourElementId } from "@/pages/superMagic/components/LazyGuideTour"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 
 interface ModeSwitcherProps {
 	role: TopicMode
@@ -16,27 +23,37 @@ interface ModeSwitcherProps {
 	onPlaybookClick?: () => void
 }
 
-// const AgentDesigner = lazy(() => import("../../AgentDesigner"))
-
 function RoleSwitcher({ role, onActionClick }: ModeSwitcherProps) {
-	const { modeList } = useModeList({ includeGeneral: true, includeChat: false })
-	const optionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+	const modeList = superMagicModeService.modeList
+	const isModeListLoading = superMagicModeService.isModeListLoading
+	const { scrollContainerRef, setItemRef } = useCenteredHorizontalScroll({
+		activeKey: role,
+		itemCount: modeList.length,
+	})
 	const navigate = useNavigate()
 	const { t } = useTranslation("crew/create")
 
-	useEffect(() => {
-		const activeOption = optionRefs.current[role]
-		if (!activeOption) return
+	const modeCount = modeList.length
+	const showOverflowMenu = modeCount >= CREW_OVERFLOW_THRESHOLD
+	const shouldShowLoading = isModeListLoading && modeCount <= 0
 
-		activeOption.scrollIntoView({
-			behavior: "smooth",
-			inline: "center",
-			block: "nearest",
+	useMount(() => {
+		pubsub.publish(PubSubEvents.GuideTourElementReady, GuideTourElementId.RoleSwitcher)
+	})
+
+	const handleNavigateMyCrew = useCallback(() => {
+		navigate({
+			name: RouteName.MyCrew,
 		})
-	}, [role])
+	}, [navigate])
+
+	if (shouldShowLoading) {
+		return <RoleSwitcherSkeleton />
+	}
 
 	return (
 		<div
+			id={GuideTourElementId.RoleSwitcher}
 			className="flex w-auto min-w-0 max-w-full items-center gap-2"
 			data-testid="role-switcher"
 		>
@@ -44,6 +61,7 @@ function RoleSwitcher({ role, onActionClick }: ModeSwitcherProps) {
 				className="min-w-0 flex-1"
 				data-testid="role-switcher-mode-selector"
 				scrollContainerClassName="no-scrollbar flex min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden"
+				scrollContainerRef={scrollContainerRef}
 			>
 				{modeList.map((modeItem) => {
 					const isSelected = modeItem.mode.identifier === role
@@ -51,9 +69,7 @@ function RoleSwitcher({ role, onActionClick }: ModeSwitcherProps) {
 					return (
 						<div
 							key={modeItem.mode.identifier}
-							ref={(element) => {
-								optionRefs.current[modeItem.mode.identifier] = element
-							}}
+							ref={(element) => setItemRef(modeItem.mode.identifier, element)}
 							className="shrink-0"
 						>
 							<Button
@@ -93,21 +109,58 @@ function RoleSwitcher({ role, onActionClick }: ModeSwitcherProps) {
 					)
 				})}
 			</HeadlessHorizontalScroll>
-			<Button
-				variant="outline"
-				size="icon"
-				className="size-9 flex-shrink-0 rounded-full"
-				data-testid="role-switcher-add-button"
-				onClick={() => {
-					navigate({
-						name: RouteName.MyCrew,
-					})
-				}}
-			>
-				<Plus className="size-4" />
-			</Button>
+
+			{showOverflowMenu ? (
+				<RoleSwitcherOverflowMenu
+					modeList={modeList}
+					role={role}
+					onSelectMode={(modeIdentifier) => onActionClick?.(modeIdentifier)}
+				/>
+			) : (
+				<Button
+					variant="outline"
+					size="icon"
+					className="size-9 shrink-0 rounded-full"
+					data-testid="role-switcher-add-button"
+					onClick={handleNavigateMyCrew}
+				>
+					<Plus className="size-4" />
+				</Button>
+			)}
 		</div>
 	)
 }
 
-export default RoleSwitcher
+function RoleSwitcherSkeleton() {
+	return (
+		<div
+			id={GuideTourElementId.RoleSwitcher}
+			className="flex w-auto min-w-0 max-w-full items-center gap-2"
+			data-testid="role-switcher"
+		>
+			<div
+				className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+				data-testid="role-switcher-loading"
+			>
+				{Array.from({ length: 4 }).map((_, index) => (
+					<div
+						key={`role-switcher-skeleton-${index}`}
+						className="shrink-0"
+						data-testid="role-switcher-mode-selector-skeleton"
+					>
+						<div className="flex h-10 items-center gap-2 rounded-full border border-border bg-background/80 p-[4px] pr-4">
+							<Skeleton className="size-7 rounded-full" />
+							<Skeleton className="h-4 w-16 rounded-full" />
+						</div>
+					</div>
+				))}
+			</div>
+			<Skeleton
+				className="size-9 shrink-0 rounded-full"
+				data-testid="role-switcher-add-button-skeleton"
+			/>
+		</div>
+	)
+}
+
+export default observer(RoleSwitcher)

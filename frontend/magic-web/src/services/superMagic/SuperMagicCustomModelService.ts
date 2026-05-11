@@ -4,8 +4,8 @@ import {
 	MODEL_TYPE_LLM,
 	ServiceProviderModel,
 } from "@/apis/modules/org-ai-model-provider"
-import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
-import { ModelStatusEnum } from "@/pages/superMagic/components/MessageEditor/types"
+import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
+import { ModelStatusEnum } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import { logger as Logger } from "@/utils/log"
 
 const logger = Logger.createLogger("SuperMagicCustomModelService")

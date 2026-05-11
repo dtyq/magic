@@ -1,4 +1,5 @@
 import { makeAutoObservable, runInAction } from "mobx"
+import type { JSONContent } from "@tiptap/core"
 import {
 	FieldPanelConfig,
 	FieldItem,
@@ -187,6 +188,10 @@ class TemplatePanelStore {
 	 */
 	setSelectedTemplate(template: OptionItem | null) {
 		this.selectedTemplate = template
+		const complexField = this.complexField
+		if (complexField) {
+			complexField.current_value = template ? localeTextToDisplayString(template.value) : ""
+		}
 	}
 
 	/**
@@ -258,7 +263,7 @@ class TemplatePanelStore {
 	 * Computed: concatenated preset content with {preset_value} replaced.
 	 * Built from field_items that have preset_content; uses current_value per field.
 	 */
-	get concatenatedPresetContent(): string {
+	get concatenatedPresetContent(): JSONContent | undefined {
 		return buildConcatenatedPresetContent(this.field_items)
 	}
 
@@ -273,6 +278,15 @@ class TemplatePanelStore {
 			this.isExpanded = true
 			this.selectedTemplate = null
 		})
+	}
+
+	/**
+	 * 发送后清空选中状态（保留配置，恢复过滤器默认值）
+	 */
+	clearSelection() {
+		if (this.config) {
+			this.initialize(this.config)
+		}
 	}
 }
 

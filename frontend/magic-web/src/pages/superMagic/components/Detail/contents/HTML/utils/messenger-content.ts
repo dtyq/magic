@@ -48,6 +48,64 @@ export const getHTMLMessengerContent = () => {
     }
 
     var isAnimationPaused = false;
+    var runtimeState = { loaded: false, loading: false, runtimeUrl: "" };
+
+    function resetRuntimeState() {
+      runtimeState.loaded = false;
+      runtimeState.loading = false;
+      runtimeState.runtimeUrl = "";
+    }
+
+    function loadIframeRuntime(runtimeUrl, scaleRatio) {
+      if (!runtimeUrl) {
+        return;
+      }
+
+      if (scaleRatio !== undefined && scaleRatio !== null) {
+        window.__MAGIC_SCALE_RATIO__ = scaleRatio || 1;
+      }
+
+      if (runtimeState.loaded || runtimeState.loading) {
+        return;
+      }
+
+      runtimeState.loading = true;
+      runtimeState.runtimeUrl = runtimeUrl;
+
+      try {
+        var script = document.createElement("script");
+        script.setAttribute("data-injected", "true");
+        script.async = true;
+        script.src = runtimeUrl;
+        script.onload = function() {
+          runtimeState.loaded = true;
+          runtimeState.loading = false;
+        };
+        script.onerror = function(err) {
+          runtimeState.loading = false;
+          sendErrorToParent({
+            errorType: "runtimeLoad",
+            message: "iframe runtime script load failed",
+            runtimeUrl: runtimeUrl,
+            detail: err ? String(err) : ""
+          });
+        };
+
+        if (document.head) {
+          document.head.appendChild(script);
+        } else if (document.documentElement) {
+          document.documentElement.appendChild(script);
+        }
+      } catch (error) {
+        runtimeState.loading = false;
+        sendErrorToParent({
+          errorType: "runtimeLoad",
+          message: "iframe runtime script injection failed",
+          runtimeUrl: runtimeUrl,
+          detail: error && error.message ? error.message : String(error)
+        });
+      }
+    }
 
     function applyAnimationState() {
       var styleId = "magic-animation-pause";
@@ -134,6 +192,7 @@ export const getHTMLMessengerContent = () => {
           document.open();
           document.write(event.data.content);
           document.close();
+          resetRuntimeState();
           setupMessageListener();
           setupClickListener();
           setupKeyboardListener();
@@ -186,6 +245,13 @@ export const getHTMLMessengerContent = () => {
             // }, 100);
           } catch (error) {
             console.error("注入编辑脚本失败:", error);
+          }
+        } else if (event.data && event.data.type === "loadEditRuntime") {
+          // 加载 iframe-runtime 静态资源（跨域模式）
+          try {
+            loadIframeRuntime(event.data.runtimeUrl, event.data.scaleRatio);
+          } catch (error) {
+            console.error("加载 iframe-runtime 失败:", error);
           }
         } else if (event.data && event.data.type === "injectEditScriptV2") {
           // 动态注入 V2 编辑脚本
@@ -371,6 +437,29 @@ export const getHTMLMessengerContent = () => {
       }, 0);
     }
 
+    function measureVerticalScrollbarWidth(hasVerticalOverflow) {
+      if (!hasVerticalOverflow) {
+        return 0;
+      }
+
+      var docEl = document.documentElement;
+      var body = document.body;
+      var viewportWidth = window.innerWidth || 0;
+      var docClientWidth = docEl ? docEl.clientWidth : viewportWidth;
+      var bodyClientWidth = body ? body.clientWidth : docClientWidth;
+      var bodyOffsetWidth = body ? body.offsetWidth : bodyClientWidth;
+
+      return Math.max(
+        0,
+        Math.round(
+          Math.max(
+            viewportWidth - docClientWidth,
+            bodyOffsetWidth - bodyClientWidth,
+          ),
+        ),
+      );
+    }
+
     function measureContentMetrics() {
       var docEl = document.documentElement;
       var body = document.body;
@@ -391,11 +480,14 @@ export const getHTMLMessengerContent = () => {
         ? overflowHeight
         : (intrinsicContentHeight || viewportHeight);
 
+      var hasVerticalOverflow = overflowHeight > viewportHeight;
+
       return {
         contentWidth: Math.max(1, Math.ceil(contentWidth)),
         contentHeight: Math.max(1, Math.ceil(contentHeight)),
         hasHorizontalOverflow: overflowWidth > viewportWidth,
-        hasVerticalOverflow: overflowHeight > viewportHeight
+        hasVerticalOverflow: hasVerticalOverflow,
+        verticalScrollbarWidth: measureVerticalScrollbarWidth(hasVerticalOverflow)
       };
     }
 
@@ -408,7 +500,8 @@ export const getHTMLMessengerContent = () => {
           contentWidth: metrics.contentWidth,
           contentHeight: metrics.contentHeight,
           hasHorizontalOverflow: metrics.hasHorizontalOverflow,
-          hasVerticalOverflow: metrics.hasVerticalOverflow
+          hasVerticalOverflow: metrics.hasVerticalOverflow,
+          verticalScrollbarWidth: metrics.verticalScrollbarWidth
         }, "*");
       } catch (error) {
         console.error("发送contentMetrics消息时出错:", error);

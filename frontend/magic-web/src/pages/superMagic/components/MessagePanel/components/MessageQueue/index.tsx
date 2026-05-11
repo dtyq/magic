@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Spin, Tooltip } from "antd"
+import { CircleArrowUp, Trash } from "lucide-react"
 import {
 	IconHourglassEmpty,
 	IconArrowUpDashed,
@@ -12,7 +13,6 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/shadcn-ui/button"
 import { QueuedMessage } from "../../hooks/useMessageQueue"
 import CollapsibleText from "./components/CollapsibleText"
-import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 
 export interface MessageQueueProps {
 	queue: QueuedMessage[]
@@ -158,7 +158,7 @@ function MessageQueue({
 													{message.isDeletingLoading ? (
 														<Spin size="small" />
 													) : (
-														<LucideLazyIcon icon="Trash" size={14} />
+														<Trash size={14} />
 													)}
 												</div>
 											</Tooltip>
@@ -191,10 +191,7 @@ function MessageQueue({
 													{message.isSendingLoading ? (
 														<IconArrowUpDashed size={14} />
 													) : (
-														<LucideLazyIcon
-															icon="CircleArrowUp"
-															size={14}
-														/>
+														<CircleArrowUp size={14} />
 													)}
 												</div>
 											</Tooltip>

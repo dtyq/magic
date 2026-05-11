@@ -51,7 +51,7 @@ const Account = withLoginService(
 			</BrowserRouter>
 		)
 	},
-	{ service, autoSyncWhenGlobalClusterCodeChanged: false },
+	{ service, syncFromGlobalClusterCode: false },
 )
 
 export default function openAccountModal(params?: AccountModalParams): ClusterLoginSession {

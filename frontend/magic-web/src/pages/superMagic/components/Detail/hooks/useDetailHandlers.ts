@@ -1,4 +1,4 @@
-import pubsub from "@/utils/pubsub"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { DetailType } from "../types"
 import { useMemoizedFn } from "ahooks"
 
@@ -26,7 +26,7 @@ function useDetailHandlers({
 	const openNewTab = useMemoizedFn((file: any, autoEdit?: boolean) => {
 		if (!isMobile) {
 			filesViewerRef?.current?.openFileTab(file, autoEdit)
-			pubsub.publish("super_magic_switch_detail_mode", "files")
+			pubsub.publish(PubSubEvents.Switch_Detail_Mode, "files")
 		} else {
 			setUserSelectDetail?.({
 				type: DetailType.Html,

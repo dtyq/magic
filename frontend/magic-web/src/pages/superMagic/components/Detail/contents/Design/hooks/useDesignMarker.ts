@@ -10,6 +10,7 @@ import type {
 	CanvasDesignMethods,
 	IdentifyImageMarkResponse,
 } from "@/components/CanvasDesign/types.magic"
+import type { SuperMagicMarkerDataUpdatedPayload } from "@/pages/superMagic/events/markers"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { Marker } from "@/components/CanvasDesign/canvas/types"
 import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
@@ -138,6 +139,20 @@ export function useDesignMarker(options: UseDesignMarkerOptions): UseDesignMarke
 		(marker: Marker, markers: Marker[]) => {
 			if (designProjectId && markerManager) {
 				markerManager.setMarkers(designProjectId, markers)
+				const managedMarker = markerManager.getMarker(designProjectId, marker.id)
+				if (!managedMarker?.result) {
+					if (managedMarker?.error) {
+						updateMarkerSuggestionData(managedMarker.id, "", undefined, undefined, true)
+					}
+					return
+				}
+				updateMarkerSuggestionData(
+					managedMarker.id,
+					managedMarker.result.suggestion,
+					managedMarker.result.suggestions,
+					managedMarker.selectedSuggestionIndex,
+				)
+				return
 			}
 			if (!marker.result) {
 				if (marker.error) {
@@ -220,16 +235,54 @@ export function useDesignMarker(options: UseDesignMarkerOptions): UseDesignMarke
 
 	// 监听 marker 数据更新（fetch 完成 / Chat 选择 suggestion）
 	useEffect(() => {
-		const handleMarkerDataUpdated = (data: {
-			markerId: string
-			designProjectId?: string
-			result?: IdentifyImageMarkResponse
-			error?: string
-			suggestions?: IdentifyImageMarkResponse["suggestions"]
-			selectedSuggestionIndex?: number
-		}) => {
+		const handleMarkerDataUpdated = (data: SuperMagicMarkerDataUpdatedPayload) => {
+			if (!canvasDesignRef.current) return
+
+			if (Array.isArray(data.updates) && data.updates.length > 0) {
+				data.updates.forEach((update) => {
+					const currentMarker = canvasDesignRef.current?.getMarker(update.markerId)
+					if (!currentMarker) return
+
+					const updates: Partial<Marker> = {}
+					let hasChanges = false
+
+					if (
+						update.data.error !== undefined &&
+						currentMarker.error !== update.data.error
+					) {
+						updates.error = update.data.error
+						hasChanges = true
+					}
+					if (
+						update.data.selected_suggestion_index !== undefined &&
+						currentMarker.selectedSuggestionIndex !==
+							update.data.selected_suggestion_index
+					) {
+						updates.selectedSuggestionIndex = update.data.selected_suggestion_index
+						hasChanges = true
+					}
+					if (update.data.suggestions !== undefined && currentMarker.result) {
+						const suggestionsChanged =
+							JSON.stringify(currentMarker.result.suggestions) !==
+							JSON.stringify(update.data.suggestions)
+						if (suggestionsChanged) {
+							updates.result = {
+								...currentMarker.result,
+								suggestions: update.data.suggestions,
+							}
+							hasChanges = true
+						}
+					}
+
+					if (hasChanges) {
+						canvasDesignRef.current?.updateMarker(update.markerId, updates)
+					}
+				})
+				return
+			}
+
 			const { markerId, result, suggestions, selectedSuggestionIndex } = data
-			if (!markerId || !canvasDesignRef.current) return
+			if (!markerId) return
 
 			try {
 				const currentMarker = canvasDesignRef.current.getMarker(markerId)

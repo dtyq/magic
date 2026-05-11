@@ -13,6 +13,8 @@ import {
 } from "../extensions"
 import MentionExtension, {
 	Language,
+	type MentionDeletionInput,
+	type MentionRemoveItemPayload,
 	TiptapMentionAttributes,
 } from "@/components/business/MentionPanel/tiptap-plugin"
 import { useTranslation } from "react-i18next"
@@ -23,10 +25,10 @@ import { ChatApi } from "@/apis"
 import { isEmptyJSONContent } from "../utils"
 import { UndoRedo } from "@tiptap/extensions"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { isAllowedMention } from "../utils/mention"
+import { isAllowedMention as defaultIsAllowedMention } from "../utils/mention"
 import GlobalMentionPanelStore, {
 	MentionPanelStore,
-} from "@/components/business/MentionPanel/store"
+} from "@/components/business/MentionPanel/builtin-store"
 import { SUPER_PLACEHOLDER_TYPE } from "../extensions/super-placeholder/const"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
 import MarkerMentionNodeView from "../components/MentionNodes/marker/MarkerMentionNodeView"
@@ -38,13 +40,12 @@ interface UseMessageEditorProps {
 	onMentionsInsert?: (item: TiptapMentionAttributes) => void
 	onMentionInsertItems?: (items: TiptapMentionAttributes[]) => void
 	onMentionRemove?: (item: TiptapMentionAttributes, stillExists: boolean) => void
-	onMentionRemoveItems?: (
-		items: { item: TiptapMentionAttributes; stillExists: boolean }[],
-	) => void
+	onMentionRemoveItems?: (items: MentionRemoveItemPayload[]) => void
 	onChange?: (content: JSONContent) => void
 	selectedTopic?: Topic | null
 	onKeyboardInput?: () => void
 	shouldEnableMention?: boolean
+	isAllowedMention?: (attrs: TiptapMentionAttributes, dataService: MentionPanelStore) => boolean
 	sendEnabled?: boolean
 	aiCompletionEnabled?: boolean
 	isOAuthInProgress?: boolean
@@ -58,7 +59,11 @@ interface UseMessageEditorProps {
 	/** 程序化清空期间跳过删除同步，避免误判为用户删除 */
 	shouldSkipRemoveSync?: () => boolean
 	/** 删除后需要先恢复的 mention，用于等待确认弹窗 */
-	shouldRestoreRemovedMention?: (item: TiptapMentionAttributes, stillExists: boolean) => boolean
+	shouldRestoreRemovedMention?: (
+		item: TiptapMentionAttributes,
+		stillExists: boolean,
+		context?: { deletionInput: MentionDeletionInput },
+	) => boolean
 }
 
 type MentionEditorCommands = {
@@ -114,6 +119,7 @@ export const useMessageEditor = ({
 	selectedTopic,
 	onKeyboardInput,
 	shouldEnableMention = true,
+	isAllowedMention,
 	sendEnabled = true,
 	aiCompletionEnabled = true,
 	isOAuthInProgress = false,
@@ -168,8 +174,8 @@ export const useMessageEditor = ({
 	})
 
 	useEffect(() => {
-		mentionPanelStore.setSkillQueryContext(topicMode)
-	}, [mentionPanelStore, topicMode])
+		mentionPanelStore.setSkillQueryContext(topicMode, selectedTopic?.agent_code)
+	}, [mentionPanelStore, topicMode, selectedTopic?.agent_code])
 
 	// Update AI completion state based on focus position
 	const updateAiCompletionState = useMemoizedFn((editor: ReturnType<typeof useEditor>) => {
@@ -308,7 +314,7 @@ export const useMessageEditor = ({
 							onRemoveItems: onMentionRemoveItems,
 							// 保持 onRemove 兼容性
 							onRemove: onMentionRemove,
-							isAllowedMention,
+							isAllowedMention: isAllowedMention ?? defaultIsAllowedMention,
 							dataService: mentionPanelStore,
 							nodeViewRenderers: {
 								[MentionItemType.DESIGN_MARKER]: MarkerMentionNodeView,
@@ -356,7 +362,7 @@ export const useMessageEditor = ({
 
 	// Handle dynamic placeholder updates
 	useUpdateEffect(() => {
-		if (!tiptapEditor || tiptapEditor.isDestroyed || !placeholder) {
+		if (!tiptapEditor || tiptapEditor.isDestroyed || placeholder === undefined) {
 			return
 		}
 

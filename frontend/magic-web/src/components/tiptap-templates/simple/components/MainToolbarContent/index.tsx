@@ -15,6 +15,9 @@ import { UndoRedoButton } from "@/components/tiptap-ui/undo-redo-button"
 import { ProjectImageButton } from "@/components/tiptap-ui/project-image-button"
 import { useProjectImage } from "@/components/tiptap-ui/project-image-button/use-project-image"
 import { CopyMarkdownButton } from "@/components/tiptap-ui/copy-markdown-button"
+import { IconSearch } from "@tabler/icons-react"
+import { Button } from "@/components/tiptap-ui-primitive/button"
+import { useTranslation } from "react-i18next"
 import type { Editor } from "@tiptap/react"
 interface MainToolbarContentProps {
 	editor: Editor | null
@@ -22,6 +25,8 @@ interface MainToolbarContentProps {
 	onLinkClick: () => void
 	isMobile: boolean
 	isEditable: boolean
+	enableSearchReplace?: boolean
+	onSearchClick?: () => void
 }
 
 export const MainToolbarContent: React.FC<MainToolbarContentProps> = ({
@@ -30,7 +35,10 @@ export const MainToolbarContent: React.FC<MainToolbarContentProps> = ({
 	onLinkClick,
 	isMobile,
 	isEditable,
+	enableSearchReplace = true,
+	onSearchClick,
 }) => {
+	const { t } = useTranslation("tiptap")
 	const { isVisible: isProjectImageVisible } = useProjectImage({
 		editor,
 		hideWhenUnavailable: true,
@@ -52,8 +60,8 @@ export const MainToolbarContent: React.FC<MainToolbarContentProps> = ({
 			<ToolbarSeparator />
 
 			{/* <ToolbarGroup> */}
-			<HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={isMobile} />
-			<ListDropdownMenu types={["bulletList", "orderedList", "taskList"]} portal={isMobile} />
+			<HeadingDropdownMenu levels={[1, 2, 3, 4]} portal />
+			<ListDropdownMenu types={["bulletList", "orderedList", "taskList"]} portal />
 			<BlockquoteButton editor={editor} />
 			<CodeBlockButton editor={editor} />
 			{/* </ToolbarGroup> */}
@@ -105,6 +113,21 @@ export const MainToolbarContent: React.FC<MainToolbarContentProps> = ({
 			{/* <ToolbarGroup> */}
 			<CopyMarkdownButton editor={editor} disabled={!isEditable} />
 			{/* </ToolbarGroup> */}
+
+			{enableSearchReplace && !isMobile && (
+				<>
+					<ToolbarSeparator />
+					<Button
+						onClick={onSearchClick}
+						tooltip={t("toolbar.searchReplace.tooltip")}
+						shortcutKeys="Mod+F"
+						aria-label={t("toolbar.searchReplace.ariaLabel")}
+						data-style="ghost"
+					>
+						<IconSearch className="tiptap-button-icon" />
+					</Button>
+				</>
+			)}
 
 			{/* <Spacer /> */}
 

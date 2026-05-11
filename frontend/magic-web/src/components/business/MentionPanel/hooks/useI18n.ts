@@ -1,14 +1,6 @@
 import { useState, useMemo, useCallback } from "react"
 import type { Language, I18nTexts, UseI18nReturn, LocaleInput } from "../i18n/types"
-import { en } from "../i18n/locales/en"
-import { zhCN } from "../i18n/locales/zh-CN"
-import { getDefaultLanguage, normalizeLocale, isSupportedLocale } from "../i18n"
-
-// Language pack mapping
-const LANGUAGE_PACKS: Record<Language, I18nTexts> = {
-	en,
-	"zh-CN": zhCN,
-}
+import { LANGUAGE_PACKS, getDefaultLanguage, normalizeLocale, isSupportedLocale } from "../i18n"
 
 /**
  * useI18n - Internationalization hook with enhanced locale support

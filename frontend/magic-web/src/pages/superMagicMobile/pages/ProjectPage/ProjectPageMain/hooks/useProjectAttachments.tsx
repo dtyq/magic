@@ -1,14 +1,11 @@
 import { useBoolean, useMemoizedFn } from "ahooks"
 import { useEffect, useRef } from "react"
 import { useAttachments } from "../../../../components/HierarchicalWorkspacePopup/hooks"
-import {
-	ProjectListItem,
-	Topic,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { TopicFilesCoreRef } from "@/pages/superMagic/components/TopicFilesButton/TopicFilesCore"
 import type { PreviewDetail } from "../../../../components/PreviewDetailPopup"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { releaseAttachmentsRefreshWaitersWithoutFetch } from "@/pages/superMagic/services/attachmentsTopicSync"
 
 interface UseProjectAttachmentsParams {
 	selectedProject?: ProjectListItem | null
@@ -39,7 +36,10 @@ export function useProjectAttachments({ selectedProject }: UseProjectAttachments
 		const handleUpdateAttachments = (callback: any) => {
 			if (selectedProject) {
 				updateAttachments(selectedProject, callback)
+				return
 			}
+			callback?.()
+			releaseAttachmentsRefreshWaitersWithoutFetch()
 		}
 
 		pubsub.subscribe(PubSubEvents.Update_Attachments, handleUpdateAttachments)

@@ -1,3 +1,4 @@
+import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 import type { SeqMessageBase } from "./base"
 import type { ConversationMessageStatus } from "./conversation_message"
 
@@ -12,8 +13,12 @@ export const enum IntermediateMessageType {
 	EndConversationInput = "end_conversation_input",
 	/** 元数据(超级麦吉) */
 	Raw = "raw",
+	/** 超级麦吉消息 */
+	SuperMagicChunk = "super_magic_chunk",
 	/** 超级麦吉消息队列更新事件 */
 	SuperMagicMessageQueueChange = "super_magic_message_queue_change",
+	/** 超级麦吉工程文件变更 */
+	SuperMagicFileChange = "super_magic_file_change",
 }
 
 /**
@@ -76,6 +81,68 @@ export interface SuperMagicMessageQueueMessage extends SeqMessageBase {
 	message_id: string
 }
 
+/** 超级麦吉消息(新版本流式块) */
+export interface SuperMagicChunkMessage extends SeqMessageBase {
+	type: IntermediateMessageType.SuperMagicChunk
+	project_id: string
+	topic_id: string
+	chat_topic_id: string
+	message_id: string
+	super_magic_chunk: {
+		/** 当前流式块索引 */
+		i: number
+		/** 使用统计 */
+		usage: {
+			/** 完成 token 数 */
+			completion_tokens: number
+			/** 提示 token 数 */
+			prompt_tokens: number
+			/** 总 token 数 */
+			total_tokens: number
+		} | null
+		/** 消息卡片关联唯一字段 */
+		correlation_id: string
+		choices: Array<{
+			finish_reason: "stop" | "tool_calls" | "length" | null
+			delta: {
+				content: string
+				role: "assistant" | "user" | "tool"
+				tool_calls: Array<{
+					id: string
+					type: string
+					function: {
+						name: string
+						arguments: string
+					}
+					index: number
+				}>
+				reasoning_content: string
+				index: number
+				logprobs?: {
+					token_logprobs: Array<number>
+					token_ids: Array<number>
+					token_strs: Array<string>
+				} | null
+			}
+		}>
+	}
+}
+
+export interface SuperMagicFileChangeItem {
+	file: FileItem
+	file_id: string
+	operation: string
+}
+
+export interface SuperMagicFileChangeMessage extends Partial<SeqMessageBase> {
+	type: IntermediateMessageType.SuperMagicFileChange
+	project_id: string
+	workspace_id: string
+	topic_id: string
+	timestamp: string
+	changes: SuperMagicFileChangeItem[]
+}
+
 /**
  * 即时消息
  */
@@ -84,3 +151,5 @@ export type IntermediateMessage =
 	| EndConversationInputMessage
 	| RawMessage
 	| SuperMagicMessageQueueMessage
+	| SuperMagicFileChangeMessage
+	| SuperMagicChunkMessage

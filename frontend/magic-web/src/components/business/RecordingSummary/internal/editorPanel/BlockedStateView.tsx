@@ -58,7 +58,7 @@ export function BlockedStateView({
 	return (
 		<div
 			className={cn(
-				"relative flex min-h-[156px] w-full flex-col items-center justify-end p-2",
+				"relative flex min-h-[156px] w-full flex-col items-center justify-end",
 				(size === "small" || size === "mobile") && "items-center gap-2.5",
 			)}
 		>

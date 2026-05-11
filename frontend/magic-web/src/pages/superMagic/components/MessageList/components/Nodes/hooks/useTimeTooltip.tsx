@@ -177,14 +177,14 @@ export function useTimeTooltip({
 			const tooltipHeight = tooltipElementRef.current?.offsetHeight || 60
 
 			// 固定显示在消息容器的左侧
-			const clampedX = containerRect.left
+			const clampedX = containerRect.left - 24
 
 			// Y位置使用鼠标进入时的位置，如果没有提供则使用当前tooltip位置
 			const targetY = mouseY ?? tooltipPosition.y
 
 			// 确保Y位置在消息容器范围内且不超出边界
 			const maxY = containerRect.bottom - tooltipHeight
-			const minY = containerRect.top + 8
+			const minY = containerRect.top
 			const clampedY = Math.max(minY, Math.min(targetY, maxY))
 
 			return {
@@ -277,23 +277,7 @@ export function useTimeTooltip({
 		tooltipManager.hideTooltip(tooltipIdRef.current)
 
 		// 确保获取到最外层的消息容器元素
-		let element = (event.currentTarget || event.target) as HTMLElement
-
-		// 向上查找到包含 data-id 属性的消息容器
-		// 优先使用 currentTarget，因为它是绑定事件的元素
-		if (event.currentTarget && (event.currentTarget as HTMLElement).getAttribute("data-id")) {
-			element = event.currentTarget as HTMLElement
-		} else {
-			// 如果 currentTarget 没有 data-id，则向上查找
-			while (element && !element.getAttribute("data-id")) {
-				element = element.parentElement as HTMLElement
-				if (!element || element === document.body) {
-					// 如果找不到，回退到 currentTarget
-					element = (event.currentTarget || event.target) as HTMLElement
-					break
-				}
-			}
-		}
+		const element = (event.currentTarget || event.target) as HTMLElement
 
 		setDOM(element)
 
@@ -327,7 +311,7 @@ export function useTimeTooltip({
 			if (canShow) {
 				setShouldShowTooltip(true)
 			}
-		}, 300)
+		}, 16)
 
 		// 添加全局鼠标移动监听器，仅用于检测悬停区域（不再更新tooltip位置）
 		const handleGlobalMouseMove = (e: globalThis.MouseEvent) => {
@@ -359,7 +343,7 @@ export function useTimeTooltip({
 			document.removeEventListener("mousemove", handleGlobalMouseMove)
 		}
 
-			; (element as HTMLElement & { __tooltipCleanup?: () => void }).__tooltipCleanup = cleanup
+		;(element as HTMLElement & { __tooltipCleanup?: () => void }).__tooltipCleanup = cleanup
 	})
 
 	const handleMouseLeave = useMemoizedFn(() => {
@@ -527,9 +511,11 @@ export function useTimeTooltip({
 
 	// 组件完全卸载时清理所有定时器和全局状态
 	useEffect(() => {
+		const tooltipId = tooltipIdRef.current
+
 		return () => {
 			// 从全局管理器中移除tooltip
-			tooltipManager.hideTooltip(tooltipIdRef.current)
+			tooltipManager.hideTooltip(tooltipId)
 
 			if (showDelayTimerRef.current) {
 				clearTimeout(showDelayTimerRef.current)
@@ -540,7 +526,7 @@ export function useTimeTooltip({
 				hideDelayTimerRef.current = null
 			}
 		}
-	}, [])
+	}, [tooltipManager])
 
 	const renderTooltip = useMemoizedFn(() => {
 		// 检查是否是当前活跃的tooltip
@@ -586,19 +572,20 @@ export function useTimeTooltip({
 	})
 
 	const renderCopyButton = useMemoizedFn(() => {
-		if (!enableCopyMessage || !isHovered || isMobile) return null
+		if (!enableCopyMessage || isMobile) return null
 
 		return (
 			<Tooltip>
-				<TooltipTrigger className="absolute bottom-1 right-1 z-10">
+				<TooltipTrigger asChild>
 					<Button
 						variant="outline"
 						size="icon"
-						className="h-5 w-5 cursor-pointer text-muted-foreground transition-colors"
+						className="pointer-events-none absolute bottom-1 right-1 z-10 h-5 w-5 cursor-pointer text-muted-foreground opacity-0 transition-[opacity,background-color,color,border-color] group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
 						onClick={handleCopyMessage}
 						onMouseEnter={handleInnerMouseEnter}
 						onMouseLeave={handleInnerMouseLeave}
 						aria-label={t("common.copyMessage")}
+						data-testid="message-node-copy-button"
 						tabIndex={0}
 					>
 						<IconCopy className="size-3" stroke={1.5} />

@@ -1,11 +1,15 @@
 import type { DesignData } from "../types"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
+import type { DesignAttachmentIndex } from "../utils/designAttachmentIndex"
 import type { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
+
+export type DesignRemoteUpdateListenerMode = "message" | "file-change"
 
 export interface DesignProjectManagerOptions {
 	currentFile?: { id: string; name: string }
 	attachments?: FileItem[]
 	flatAttachments?: FileItem[]
+	projectPath?: string
 	projectId?: string
 	allowEdit: boolean
 	isPlaybackMode: boolean
@@ -13,6 +17,8 @@ export interface DesignProjectManagerOptions {
 	isMobile: boolean
 	designProjectId?: string
 	designProjectName?: string
+	/** 扁平附件索引：远端同步 / 路径解析等链路复用，避免重复 O(N) 扫描 */
+	attachmentIndex?: DesignAttachmentIndex | null
 	selectedTopicId?: string | null
 	onRemoteDesignDataUpdate?: (
 		oldDesignData: DesignData,
@@ -20,6 +26,7 @@ export interface DesignProjectManagerOptions {
 		updateType: "message" | "revoke" | "restore",
 	) => void
 	updateListenerDebounceMs?: number
+	remoteUpdateListenerMode?: DesignRemoteUpdateListenerMode
 	onVersionChange?: (designData: DesignData, isViewingHistory: boolean) => void
 	/** i18n 翻译函数，用于 toasts 等 */
 	getT?: () => (key: string) => string
@@ -42,8 +49,9 @@ export interface DesignProjectStateBag {
 	getMagicProjectJsFileId: () => string | null
 	getMagicProjectJsVersion: () => number | null
 	setMagicProjectJsVersion: (v: number | null) => void
-	getPrevDesignDataStr: () => string
-	setPrevDesignDataStr: (v: string) => void
+	/** 空字符串表示尚未建立基线（等价于旧逻辑的「空字符串」） */
+	getPrevDesignDataFingerprint: () => string
+	setPrevDesignDataFingerprint: (v: string) => void
 	getIsReadOnly: () => boolean
 	setters: DesignProjectStateBagSetters
 }

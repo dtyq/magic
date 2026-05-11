@@ -46,6 +46,7 @@ export interface ShareResourceApiItem {
 	is_password_enabled?: boolean // 是否开启密码
 	password?: string // 分享密码
 	topic_mode?: string // 话题模式
+	agent_code?: string
 	shared_at?: string // 分享时间
 	share_project?: boolean // 是否分享整个项目（仅文件分享时有效）
 	deleted_at?: string // 删除时间（如果存在则表示已删除，不允许操作）
@@ -67,6 +68,7 @@ export interface TopicShareItem {
 	password?: string // 分享密码
 	shared_at: string // 分享时间
 	topic_mode?: string // 话题模式
+	agent_code?: string
 	created_at: string // 创建时间
 	view_count?: number // 用户查看分享次数
 	expire_days?: number // 有效时间（天数）

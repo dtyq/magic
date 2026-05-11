@@ -53,11 +53,11 @@ function SearchBar({
 			<div className="flex min-w-0 flex-1 items-center gap-1.5">
 				<Badge
 					variant="outline"
-					className="flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5"
+					className="flex shrink-0 items-center gap-1 rounded-md p-2"
 					data-testid="search-bar-ai-badge"
 				>
 					<WandSparkles className="h-4 w-4 shrink-0" />
-					<span className="text-xs font-semibold">{t("aiSearch")}</span>
+					<span className="text-xs">{t("aiSearch")}</span>
 				</Badge>
 				<Input
 					value={query}

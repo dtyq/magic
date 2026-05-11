@@ -16,6 +16,8 @@ export const frameActions: UserAction[] = [
 			const selectedIds = canvas.selectionManager.getSelectedIds()
 			if (selectedIds.length === 0) return false
 
+			if (canvas.permissionManager.isAnySelectedElementLocked()) return false
+
 			// 获取选中的元素
 			const selectedElements = selectedIds
 				.map((id) => canvas.elementManager.getElementData(id))
@@ -50,9 +52,9 @@ export const frameActions: UserAction[] = [
 			const selectedIds = canvas.selectionManager.getSelectedIds()
 			if (selectedIds.length !== 1) return false
 
-			// 该元素必须是 Frame
 			const element = canvas.elementManager.getElementData(selectedIds[0])
-			return element?.type === ElementTypeEnum.Frame
+			if (!element || element.type !== ElementTypeEnum.Frame) return false
+			return canvas.permissionManager.canRemoveFrame(element)
 		},
 		execute: (canvas) => {
 			canvas.frameManager.removeFrame()

@@ -30,7 +30,7 @@ export function findFileInTree(
  */
 export function canSetAsDefault(item: Record<string, any>): boolean {
 	// 普通文件夹不支持
-	if (item.is_directory && !item?.metadata?.type) {
+	if (item.is_directory && !item?.display_config?.type) {
 		return false
 	}
 	// 携带 metadata 的文件夹和普通文件都支持
@@ -47,13 +47,13 @@ function getFileId(file: Record<string, unknown>): string | null {
 /**
  * 查找文件夹中第一个可以设置为默认打开的文件
  * 对于普通文件夹：优先匹配第一级的 index.html（只找第一层），否则递归查找第一个文件
- * 对于携带metadata的文件夹：返回文件夹本身
+ * 对于携带display_config的文件夹：返回文件夹本身
  * @param folder 文件夹项
  * @returns 第一个可设置为默认打开的文件ID，如果没有找到则返回 null
  */
 export function findFirstDefaultOpenFileInFolder(folder: Record<string, unknown>): string | null {
-	// 如果文件夹本身携带metadata，优先返回文件夹ID
-	if (folder.is_directory && folder.metadata) {
+	// 如果文件夹本身携带display_config，优先返回文件夹ID
+	if (folder.is_directory && folder.display_config) {
 		return getFileId(folder)
 	}
 
@@ -75,13 +75,13 @@ export function findFirstDefaultOpenFileInFolder(folder: Record<string, unknown>
 		// 第二遍：如果没有找到第一级的 index.html，递归查找第一个文件
 		for (const child of folder.children) {
 			// 如果是普通文件夹，递归查找
-			if (child.is_directory && !child.metadata) {
+			if (child.is_directory && !child.display_config) {
 				const found = findFirstDefaultOpenFileInFolder(child)
 				if (found) return found
 				continue
 			}
-			// 如果是携带metadata的文件夹，返回其ID
-			if (child.is_directory && child.metadata) {
+			// 如果是携带display_config的文件夹，返回其ID
+			if (child.is_directory && child.display_config) {
 				return getFileId(child)
 			}
 			// 如果是文件，返回其ID
@@ -128,14 +128,14 @@ export function calculateDefaultOpenFileId(fileIds: string[], attachments: any[]
 		if (!file || file.is_hidden) continue
 
 		// 如果是普通文件夹，跳过
-		if (file.is_directory && !file?.metadata?.type) {
+		if (file.is_directory && !file?.display_config?.type) {
 			// 如果是文件夹，查找其第一个可设置为默认打开的子级文件
 			const found = findFirstDefaultOpenFileInFolder(file)
 			if (found) return found
 			continue
 		}
 
-		// 携带metadata的文件夹或普通文件都可以
+		// 携带display_config的文件夹或普通文件都可以
 		return fileId
 	}
 
@@ -180,17 +180,17 @@ export function isFileDescendantOfSelectedFolders(
 }
 
 /**
- * 检查选中的文件列表中是否至少有一个文件或携带metadata的文件夹
+ * 检查选中的文件列表中是否至少有一个文件或携带display_config的文件夹
  * @param fileIds 选中的文件ID列表
  * @param attachments 附件树结构
- * @returns 是否至少有一个有效文件（文件或携带metadata的文件夹）
+ * @returns 是否至少有一个有效文件（文件或携带display_config的文件夹）
  */
 export function hasValidFileForShare(fileIds: string[], attachments: any[]): boolean {
 	if (fileIds.length === 0) return false
 
 	const allFiles = flattenAttachments(attachments)
 
-	// 检查是否有至少一个文件或携带metadata的文件夹
+	// 检查是否有至少一个文件或携带display_config的文件夹
 	for (const fileId of fileIds) {
 		const file = allFiles.find((f) => {
 			const fId = f.file_id || f.id
@@ -199,14 +199,14 @@ export function hasValidFileForShare(fileIds: string[], attachments: any[]): boo
 		if (!file) continue
 
 		// 如果是普通文件夹，检查其子级是否有有效文件
-		if (file.is_directory && !file?.metadata?.type) {
+		if (file.is_directory && !file?.display_config?.type) {
 			const found = findFirstDefaultOpenFileInFolder(file)
 			console.log("found", found)
 			if (found) return true
 			continue
 		}
 
-		// 携带metadata的文件夹或普通文件都算有效
+		// 携带display_config的文件夹或普通文件都算有效
 		return true
 	}
 

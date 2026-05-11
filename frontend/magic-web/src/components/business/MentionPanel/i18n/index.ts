@@ -1,15 +1,16 @@
 // Types
 export type { Language, I18nTexts, UseI18nReturn, LocaleInput } from "./types"
 import type { Language, LocaleInput } from "./types"
+import { en } from "./locales/en"
+import { zhCN } from "./locales/zh-CN"
 
 // Language packs
-export { en } from "./locales/en"
-export { zhCN } from "./locales/zh-CN"
+export { en, zhCN }
 
 // Default language mapping
 export const LANGUAGE_PACKS = {
-	en: () => import("./locales/en").then((m) => m.en),
-	"zh-CN": () => import("./locales/zh-CN").then((m) => m.zhCN),
+	en,
+	"zh-CN": zhCN,
 } as const
 
 /**

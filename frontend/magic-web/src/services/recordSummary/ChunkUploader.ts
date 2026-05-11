@@ -1,8 +1,10 @@
 import { Upload, UploadConfig as SDKUploadConfig } from "@dtyq/upload-sdk"
 import type { UploadConfig, UploadEvents } from "@/types/recordSummary"
 import { UploadTokenManager } from "./UploadTokenManager"
+import { RecordingBatchSaveReporter } from "./RecordingBatchSaveReporter"
 import { AudioChunkDB, type StoredAudioChunk } from "./MediaRecorderService/AudioChunkDB"
 import { recordingLogger } from "./utils/RecordingLogger"
+import { getSnowflakeUploadFileName } from "./utils/getSnowflakeUploadFileName"
 import { isTaskEndError } from "./RecordingErrorManager"
 import { getNetworkMonitor, type NetworkMonitor } from "./NetworkMonitor"
 
@@ -37,8 +39,10 @@ export class ChunkUploader {
 
 	private uploadInstance: Upload = new Upload()
 	private tokenManager: UploadTokenManager
+	private batchSaveReporter: RecordingBatchSaveReporter
 	private audioChunkDB: AudioChunkDB
 	private sessionTopicMap = new Map<string, string>() // sessionId -> topicId mapping
+	private sessionProjectMap = new Map<string, string>() // sessionId -> projectId mapping
 
 	// Retry management
 	private chunkRetries = new Map<string, number>() // chunkId -> retry count
@@ -50,16 +54,21 @@ export class ChunkUploader {
 	private networkUnsubscribe: (() => void) | null = null
 	private wasOffline = false
 
-	constructor(config: UploadConfig, events: Partial<UploadEvents> = {}) {
+	constructor(
+		config: UploadConfig,
+		batchSaveReporter: RecordingBatchSaveReporter,
+		events: Partial<UploadEvents> = {},
+	) {
 		this.config = config
+		this.batchSaveReporter = batchSaveReporter
 		this.events = events
 		// Initialize token manager with task end callback
 		this.tokenManager = new UploadTokenManager(
 			{},
 			events.onTaskEnd
 				? (sessionId: string) => {
-					events.onTaskEnd?.(sessionId)
-				}
+						events.onTaskEnd?.(sessionId)
+					}
 				: undefined,
 		)
 		this.audioChunkDB = new AudioChunkDB()
@@ -98,7 +107,8 @@ export class ChunkUploader {
 	 */
 	private async handleNetworkOffline() {
 		// Notify all active sessions about offline status
-		for (const [sessionId] of this.sessionQueues) {
+		const sessionIds = Array.from(this.sessionQueues.keys())
+		for (const sessionId of sessionIds) {
 			const progress = await this.audioChunkDB.getSessionUploadProgress(sessionId)
 			this.events.onNetworkOffline?.(sessionId, progress.pending)
 		}
@@ -110,13 +120,12 @@ export class ChunkUploader {
 	 */
 	private async handleNetworkOnline() {
 		// Clear all retry timers and immediately retry
-		for (const timer of this.retryTimers.values()) {
-			clearTimeout(timer)
-		}
+		this.retryTimers.forEach((timer) => clearTimeout(timer))
 		this.retryTimers.clear()
 
 		// Check if there are pending chunks and notify
-		for (const [sessionId] of this.sessionQueues) {
+		const sessionIds = Array.from(this.sessionQueues.keys())
+		for (const sessionId of sessionIds) {
 			const progress = await this.audioChunkDB.getSessionUploadProgress(sessionId)
 			// Only notify if there are pending chunks
 			if (progress.pending > 0) {
@@ -179,9 +188,10 @@ export class ChunkUploader {
 	 * Start uploading all pending chunks for a session
 	 * 开始上传会话的所有待上传分片
 	 */
-	async uploadSession(sessionId: string, topicId: string): Promise<void> {
+	async uploadSession(sessionId: string, topicId: string, projectId: string = ""): Promise<void> {
 		// Store topic ID mapping
 		this.sessionTopicMap.set(sessionId, topicId)
+		this.sessionProjectMap.set(sessionId, projectId)
 
 		// Get all pending chunks for the session
 		const pendingChunks = await this.audioChunkDB.getChunksByUploadStatus(sessionId, "pending")
@@ -241,7 +251,9 @@ export class ChunkUploader {
 			let foundWork = false
 
 			// Iterate through all session queues
-			for (const [sessionId, queue] of this.sessionQueues.entries()) {
+			const sessionQueueEntries = Array.from(this.sessionQueues.entries())
+			for (let i = 0; i < sessionQueueEntries.length; i++) {
+				const [sessionId, queue] = sessionQueueEntries[i]
 				// Skip if this session already has an active upload
 				if (
 					this.sessionActiveUploads.has(sessionId) &&
@@ -296,7 +308,9 @@ export class ChunkUploader {
 			if (!chunk) {
 				logger.error(`在 IndexedDB 中找不到分片 ${chunkId}`)
 				// Clear session active status to unblock this session
-				for (const [sessionId, activeChunkId] of this.sessionActiveUploads.entries()) {
+				const activeEntries = Array.from(this.sessionActiveUploads.entries())
+				for (let i = 0; i < activeEntries.length; i++) {
+					const [sessionId, activeChunkId] = activeEntries[i]
 					if (activeChunkId === chunkId) {
 						this.sessionActiveUploads.delete(sessionId)
 						break
@@ -337,9 +351,10 @@ export class ChunkUploader {
 		// Auto-detect audio format based on data header or use default WebM
 		const { mimeType, extension } = this.detectAudioFormat(chunk.chunk)
 
-		// Create filename using chunk index and extension
-		const fileName = `${chunk.index}.${extension}`
-		const audioFile = new File([chunk.chunk], fileName, {
+		const originalFileName = `${chunk.index}.${extension}`
+		// Use a snowflake ID to avoid backend name collisions.
+		const uploadFileName = await getSnowflakeUploadFileName()
+		const audioFile = new File([chunk.chunk], originalFileName, {
 			type: mimeType,
 		})
 
@@ -350,17 +365,11 @@ export class ChunkUploader {
 		// Get upload credentials
 		const customCredentials = await this.getUploadCredentials(chunk.sessionId)
 
-		// Modify credentials to use asr_hidden_dir for audio chunks
-		const modifiedCredentials = this.modifyCredentialsForAudioChunks(
-			customCredentials,
-			chunk.sessionId,
-		)
-
 		return new Promise((resolve, reject) => {
 			const { success, fail } = this.uploadInstance.upload({
 				file: audioFile,
-				fileName,
-				customCredentials: modifiedCredentials,
+				fileName: uploadFileName,
+				customCredentials,
 				body: JSON.stringify({
 					storage: "private",
 					sts: true,
@@ -441,6 +450,8 @@ export class ChunkUploader {
 		// Clear retry count on success
 		this.clearRetryCount(chunk.id)
 
+		await this.reportUploadedChunk(chunk, uploadUrl)
+
 		// Sampling: log every 10 chunks
 		if (chunk.index % 10 === 0) {
 			logger.report("分片上传成功", {
@@ -454,6 +465,38 @@ export class ChunkUploader {
 
 		// Continue processing queue (will pick next chunk from this session or other sessions)
 		this.processQueue()
+	}
+
+	private async reportUploadedChunk(chunk: StoredAudioChunk, uploadUrl: string): Promise<void> {
+		const topicId = this.sessionTopicMap.get(chunk.sessionId) || ""
+		const projectId = this.sessionProjectMap.get(chunk.sessionId) || ""
+		const hiddenDirectory = this.tokenManager.getDirectories(chunk.sessionId)?.asr_hidden_dir
+		const fileName = this.getChunkFileName(chunk)
+
+		if (!projectId || !topicId || !hiddenDirectory?.directory_id) {
+			logger.warn("Skip chunk batch save: missing session context", {
+				sessionId: chunk.sessionId,
+				projectId,
+				topicId,
+				parentId: hiddenDirectory?.directory_id,
+			})
+			return
+		}
+
+		await this.batchSaveReporter.reportUploadedFile({
+			sessionId: chunk.sessionId,
+			projectId,
+			topicId,
+			parentId: hiddenDirectory.directory_id,
+			fileKey: uploadUrl,
+			fileName,
+			fileSize: chunk.size,
+		})
+	}
+
+	private getChunkFileName(chunk: StoredAudioChunk): string {
+		const { extension } = this.detectAudioFormat(chunk.chunk)
+		return `${chunk.index}.${extension}`
 	}
 
 	/**
@@ -501,7 +544,9 @@ export class ChunkUploader {
 			this.activeUploads.delete(chunkId)
 			this.clearRetryCount(chunkId)
 			// Clear session active status
-			for (const [sessionId, activeChunkId] of this.sessionActiveUploads.entries()) {
+			const activeEntries = Array.from(this.sessionActiveUploads.entries())
+			for (let i = 0; i < activeEntries.length; i++) {
+				const [sessionId, activeChunkId] = activeEntries[i]
 				if (activeChunkId === chunkId) {
 					this.sessionActiveUploads.delete(sessionId)
 					break
@@ -697,9 +742,9 @@ export class ChunkUploader {
 
 		// Aggregate status across all sessions
 		let totalPending = 0
-		for (const queue of this.sessionQueues.values()) {
+		this.sessionQueues.forEach((queue) => {
 			totalPending += queue.length
-		}
+		})
 
 		return {
 			pending: totalPending,
@@ -762,6 +807,7 @@ export class ChunkUploader {
 		this.sessionActiveUploads.delete(sessionId)
 		// Clear topic mapping
 		this.sessionTopicMap.delete(sessionId)
+		this.sessionProjectMap.delete(sessionId)
 		return this.audioChunkDB.deleteSessionChunks(sessionId)
 	}
 
@@ -798,7 +844,7 @@ export class ChunkUploader {
 	 */
 	pauseAll(): void {
 		// Move active uploads back to their session queues
-		for (const [chunkId, chunk] of this.activeUploads) {
+		this.activeUploads.forEach((chunk, chunkId) => {
 			const sessionQueue = this.sessionQueues.get(chunk.sessionId)
 			if (sessionQueue) {
 				sessionQueue.unshift(chunkId)
@@ -806,7 +852,7 @@ export class ChunkUploader {
 				// If session queue doesn't exist, create it
 				this.sessionQueues.set(chunk.sessionId, [chunkId])
 			}
-		}
+		})
 
 		// Clear all active uploads
 		this.activeUploads.clear()
@@ -899,11 +945,10 @@ export class ChunkUploader {
 		this.sessionActiveUploads.clear()
 		this.activeUploads.clear()
 		this.sessionTopicMap.clear()
+		this.sessionProjectMap.clear()
 
 		// Clear all retry timers
-		for (const timer of this.retryTimers.values()) {
-			clearTimeout(timer)
-		}
+		this.retryTimers.forEach((timer) => clearTimeout(timer))
 		this.retryTimers.clear()
 		this.chunkRetries.clear()
 

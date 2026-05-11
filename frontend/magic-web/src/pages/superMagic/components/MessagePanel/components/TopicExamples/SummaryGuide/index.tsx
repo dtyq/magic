@@ -78,7 +78,7 @@ function SummaryGuide({ type, onClose, onFinish }: SummaryGuideProps) {
 			SummaryGuideDOMId.SwitchRecordingActionButton,
 		)
 		if (recordingButtonElement) {
-			const isRecordingMode = recordingButtonElement.getAttribute("data-isChecked") === "true"
+			const isRecordingMode = recordingButtonElement.getAttribute("data-ischecked") === "true"
 			setOriginalEditorMode(
 				isRecordingMode
 					? RecordingSummaryEditorMode.Recording

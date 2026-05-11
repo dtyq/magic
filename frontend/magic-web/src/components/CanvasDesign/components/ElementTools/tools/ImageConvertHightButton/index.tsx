@@ -1,6 +1,6 @@
 import IconButton from "../../../ui/custom/IconButton/index"
 import styles from "./index.module.css"
-import { Hd } from "../../../ui/icons/index"
+import { Hd } from "lucide-react"
 import { useCanvasUI } from "../../../../context/CanvasUIContext"
 import { ElementToolTypeEnum } from "../../../../types"
 import { useCanvasDesignI18n } from "../../../../context/I18nContext"

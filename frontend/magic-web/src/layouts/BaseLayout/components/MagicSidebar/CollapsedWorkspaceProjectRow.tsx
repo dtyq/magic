@@ -1,13 +1,9 @@
 import { useRef, useState, type MouseEvent } from "react"
-import { Ellipsis, FolderDot } from "lucide-react"
+import { Ellipsis } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { Button } from "@/components/shadcn-ui/button"
 import { cn } from "@/lib/utils"
 import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
-import {
-	isCollaborationProject,
-	isWorkspaceShortcutProject,
-} from "@/pages/superMagic/constants"
+import { isCollaborationProject, isWorkspaceShortcutProject } from "@/pages/superMagic/constants"
 import PinnedTag from "@/pages/superMagic/components/EmptyWorkspacePanel/components/ProjectItem/components/PinnedTag"
 import CollaborationProjectTag from "@/pages/superMagic/components/CollaborationProjectTag"
 import ProjectActionsDropdown from "@/pages/superMagic/components/ProjectActionsDropdown"
@@ -16,6 +12,7 @@ import useProjectRename from "@/pages/superMagic/hooks/useProjectRename"
 import { canManageProject } from "@/pages/superMagic/utils/permission"
 import type { HandleRenameProjectParams } from "@/pages/superMagic/hooks/useProjects"
 import { getWorkspaceProjectRouteUrl } from "@/pages/superMagic/utils/route"
+import NavigationStatusIcon from "@/pages/superMagic/components/NavigationStatusIcon"
 
 type ProjectRowActionHandler = (project: ProjectListItem) => void | Promise<void>
 
@@ -161,19 +158,11 @@ function CollapsedWorkspaceProjectRow({
 		open: boolean,
 		triggerContextMenu?: (e: React.MouseEvent<HTMLElement>) => void,
 	) => (
-		<Button
-			asChild
-			variant="ghost"
-			size="sm"
-			data-testid={`sidebar-collapsed-project-row-${project.id}`}
-			className={cn(
-				"h-8 w-full justify-start gap-2 px-2 text-sm leading-5 hover:bg-sidebar-accent",
-				isSelected && "bg-sidebar-accent",
-			)}
-		>
+		<div className={cn("h-8 w-full rounded-md", isSelected && "bg-sidebar-accent")}>
 			<a
 				href={getWorkspaceProjectRouteUrl(workspaceId, project.id)}
-				className="text-current no-underline"
+				data-testid={`sidebar-collapsed-project-row-${project.id}`}
+				className="inline-flex h-full w-full items-center justify-start gap-2 rounded-md px-2 text-sm font-normal leading-5 text-current no-underline outline-none hover:bg-sidebar-accent focus-visible:outline-none"
 				onMouseEnter={() => setIsHovered(true)}
 				onMouseLeave={() => setIsHovered(false)}
 				onClick={(event) => {
@@ -191,11 +180,12 @@ function CollapsedWorkspaceProjectRow({
 					onSelectProject(project)
 				}}
 			>
-				<FolderDot
-					className={cn(
-						"h-4 w-4 shrink-0",
-						isSelected ? "text-sidebar-accent-foreground" : "text-sidebar-foreground",
-					)}
+				<NavigationStatusIcon
+					itemType="project"
+					status={project.project_status}
+					className={
+						isSelected ? "text-sidebar-accent-foreground" : "text-sidebar-foreground"
+					}
 				/>
 				<div className="min-w-0 flex-1">
 					<div className="flex min-w-0 max-w-full items-center gap-1.5">
@@ -221,7 +211,7 @@ function CollapsedWorkspaceProjectRow({
 				</div>
 				{threeDotTrigger(open, triggerContextMenu)}
 			</a>
-		</Button>
+		</div>
 	)
 
 	if (isEditing && canRename) {

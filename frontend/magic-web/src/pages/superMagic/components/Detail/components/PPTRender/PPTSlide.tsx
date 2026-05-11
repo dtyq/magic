@@ -17,13 +17,12 @@ import {
 } from "@/components/shadcn-ui/alert-dialog"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import useEditMode from "../../hooks/useEditMode"
-import useSaveHandlerRegistration from "../../hooks/useSaveHandlerRegistration"
 import useServerUpdate from "../../hooks/useServerUpdate"
 import { observer } from "mobx-react-lite"
 import { SaveResult } from "../../contents/HTML/iframe-bridge/types/props"
 import type { SlideLoadingState } from "./PPTSidebar/types"
 import PPTSlideError from "./PPTSlideError"
-import VersionCompareDialog from "./components/VersionCompareDialog"
+import VersionCompareDialog from "../versioning/VersionCompareDialog"
 import HistoryVersionCompareDialog from "./components/HistoryVersionCompareDialog"
 import { CodeEditor } from "@/components/base"
 import { shadow } from "@/utils/shadow"
@@ -65,7 +64,11 @@ interface PPTSlideProps {
 	/** 编辑状态变化回调 - 通知父组件当前幻灯片的编辑状态 */
 	onEditModeChange?: (isEditing: boolean) => void
 	/** 注册保存处理器 - 用于导航确认对话框 */
-	onRegisterSaveHandler?: (handler: (() => Promise<void>) | null) => void
+	onRegisterSaveHandler?: (handler: (() => Promise<boolean>) | null) => void
+	/** 注册放弃处理器 - 用于导航确认对话框和关闭文件 */
+	onRegisterDiscardHandler?: (handler: (() => Promise<boolean>) | null) => void
+	/** 注册保存处理器 - 用于关闭文件/标签页 */
+	onRegisterCloseSaveHandler?: (handler: (() => Promise<boolean>) | null) => void
 	/** Callback when user manually saves - mark as manual save and update thumbnail */
 	onManualSave?: (saveResult: SaveResult | undefined, index: number) => Promise<void>
 	/** Server updated content (passed from parent) */
@@ -82,6 +85,11 @@ interface PPTSlideProps {
 	mainFileName?: string
 	/** 附件列表 */
 	attachments?: AttachmentItem[]
+}
+
+interface PerformSaveOptions {
+	shouldExitEditMode?: boolean
+	shouldDeactivate?: boolean
 }
 
 const PPTSlide = observer(function PPTSlide({
@@ -106,6 +114,8 @@ const PPTSlide = observer(function PPTSlide({
 	onDeactivate,
 	onEditModeChange,
 	onRegisterSaveHandler,
+	onRegisterDiscardHandler,
+	onRegisterCloseSaveHandler,
 	onManualSave,
 	serverUpdatedContent: externalServerUpdatedContent,
 	onClearServerUpdate,
@@ -131,6 +141,9 @@ const PPTSlide = observer(function PPTSlide({
 	>(null)
 	// IsolatedHTMLRenderer 的 ref，用于重置内容
 	const rendererRef = useRef<IsolatedHTMLRendererRef>(null)
+	const pendingSaveIntentRef = useRef<"save" | "save-and-exit" | "save-and-switch" | null>(null)
+	const pendingSaveResolveRef = useRef<((didSave: boolean) => void) | null>(null)
+	const isConfirmingConflictSaveRef = useRef(false)
 
 	const { isShareRoute } = useShareRoute()
 
@@ -377,130 +390,215 @@ const PPTSlide = observer(function PPTSlide({
 		}
 	})
 
+	const executeSaveContent = useMemoizedFn(async () => {
+		if (viewMode === "code") {
+			await saveEditContent?.(
+				shadow(editingCodeContent),
+				fileId,
+				true,
+				fetchFileVersions,
+				true,
+			)
+			await onManualSave?.(
+				{
+					success: true,
+					cleanContent: editingCodeContent,
+					rawContent: content,
+					fileId,
+				},
+				index,
+			)
+			return true
+		}
+
+		if (!triggerSaveRef) return false
+
+		const saveResult = await triggerSaveRef()
+		await onManualSave?.(saveResult, index)
+		return saveResult?.success !== false
+	})
+
+	const finishSave = useMemoizedFn((options: PerformSaveOptions = {}) => {
+		const { shouldExitEditMode = false, shouldDeactivate = false } = options
+
+		if (shouldExitEditMode) {
+			setIsEditMode(false)
+		}
+
+		setShowSaveDialog(false)
+		setPendingDeactivate(false)
+		clearServerUpdate()
+		setShowSaveWithUpdateConfirmDialog(false)
+
+		if (shouldDeactivate && pendingDeactivate) {
+			onDeactivate?.()
+		}
+	})
+
+	const resolvePendingSave = useMemoizedFn((didSave: boolean) => {
+		pendingSaveResolveRef.current?.(didSave)
+		pendingSaveResolveRef.current = null
+	})
+
 	// 执行实际保存操作
-	const performSave = useMemoizedFn(async () => {
+	const performSave = useMemoizedFn(async (options: PerformSaveOptions = {}) => {
 		setIsSaving(true)
 		try {
-			if (viewMode === "code") {
-				await saveEditContent?.(
-					shadow(editingCodeContent),
-					fileId,
-					true,
-					fetchFileVersions,
-					true,
-				)
-				await onManualSave?.(
-					{
-						success: true,
-						cleanContent: editingCodeContent,
-						rawContent: content,
-						fileId,
-					},
-					index,
-				)
-			} else {
-				// 触发实际的保存操作
-				if (triggerSaveRef) {
-					const saveResult = await triggerSaveRef()
-					await onManualSave?.(saveResult, index)
-				}
-			}
-			await setIsEditMode(false)
-			setShowSaveDialog(false)
-			setPendingDeactivate(false)
-			// 清除服务端更新标志
-			clearServerUpdate()
-			setShowSaveWithUpdateConfirmDialog(false)
+			const didSave = await executeSaveContent()
+			if (!didSave) return false
+
+			finishSave(options)
+			return true
 		} catch (err) {
 			console.error("保存失败", err)
+			return false
 		} finally {
 			setIsSaving(false)
 		}
 	})
+
+	const runSaveAttempt = useMemoizedFn(
+		async (intent: "save" | "save-and-exit" | "save-and-switch") => {
+			if (isSaving) return false
+
+			pendingSaveIntentRef.current = intent
+
+			if (!checkServerUpdateBeforeSave()) {
+				return await new Promise<boolean>((resolve) => {
+					pendingSaveResolveRef.current = resolve
+				})
+			}
+
+			const didSave = await performSave({
+				shouldExitEditMode: intent !== "save",
+				shouldDeactivate: intent === "save-and-switch",
+			})
+
+			pendingSaveIntentRef.current = null
+			resolvePendingSave(didSave)
+			return didSave
+		},
+	)
 
 	// 保存按钮处理
-	const handleSave = useCallback(async () => {
-		if (isSaving) return
-
-		// 如果有服务端更新，先确认
-		if (!checkServerUpdateBeforeSave()) {
-			return
-		}
-
-		await performSave()
-	}, [isSaving, checkServerUpdateBeforeSave, performSave])
-
-	// Register save handler for navigation confirmation
-	useSaveHandlerRegistration({
-		isEditMode,
-		handleSave,
-		onRegisterSaveHandler,
+	const handleSave = useMemoizedFn(async () => {
+		await runSaveAttempt("save")
 	})
 
-	// 取消按钮处理
-	const handleCancel = useCallback(() => {
-		// 应用服务端更新或恢复原始内容
-		applyServerUpdate()
-		setIsEditMode(false)
-		setShowSaveDialog(false)
-		setPendingDeactivate(false)
-		clearServerUpdate()
-		// 通知父组件可以继续切换
-		if (pendingDeactivate) {
-			onDeactivate?.()
-		}
-	}, [pendingDeactivate, onDeactivate, setIsEditMode, applyServerUpdate, clearServerUpdate])
+	const handleSaveForNavigation = useMemoizedFn(async () => {
+		return await runSaveAttempt("save-and-switch")
+	})
 
-	// 对话框 - 保存并切换
-	const handleSaveAndSwitch = useCallback(async () => {
-		if (isSaving) return
+	const handleSaveForClose = useMemoizedFn(async () => {
+		return await runSaveAttempt("save-and-exit")
+	})
 
-		setIsSaving(true)
-		try {
-			// 触发实际的保存操作
-			if (triggerSaveRef) {
-				const saveResult = await triggerSaveRef()
-				await onManualSave?.(saveResult, index)
-			}
-			// 标记为手动保存并更新缩略图
+	const performDiscard = useMemoizedFn(
+		async (options?: { shouldDeactivate?: boolean }): Promise<boolean> => {
+			const { shouldDeactivate = false } = options || {}
+
+			pendingSaveIntentRef.current = null
+			resolvePendingSave(false)
+			applyServerUpdate()
 			await setIsEditMode(false)
 			setShowSaveDialog(false)
 			setPendingDeactivate(false)
-			// 清除服务端更新标志
 			clearServerUpdate()
-			// 通知父组件可以继续切换
-			if (pendingDeactivate) {
+			setShowSaveWithUpdateConfirmDialog(false)
+
+			if (shouldDeactivate && pendingDeactivate) {
 				onDeactivate?.()
 			}
-		} catch (err) {
-			console.error("保存失败", err)
-		} finally {
-			setIsSaving(false)
+
+			return true
+		},
+	)
+
+	const handleDiscardForExternalAction = useMemoizedFn(async () => {
+		return await performDiscard()
+	})
+
+	useEffect(() => {
+		if (!onRegisterSaveHandler) return
+
+		if (isEditMode) onRegisterSaveHandler(handleSaveForNavigation)
+		else onRegisterSaveHandler(null)
+
+		return () => {
+			onRegisterSaveHandler(null)
 		}
-	}, [
-		isSaving,
-		triggerSaveRef,
-		setIsEditMode,
-		pendingDeactivate,
-		onDeactivate,
-		onManualSave,
-		index,
-		clearServerUpdate,
-	])
+	}, [handleSaveForNavigation, isEditMode, onRegisterSaveHandler])
+
+	useEffect(() => {
+		if (!onRegisterDiscardHandler) return
+
+		if (isEditMode) onRegisterDiscardHandler(handleDiscardForExternalAction)
+		else onRegisterDiscardHandler(null)
+
+		return () => {
+			onRegisterDiscardHandler(null)
+		}
+	}, [handleDiscardForExternalAction, isEditMode, onRegisterDiscardHandler])
+
+	useEffect(() => {
+		if (!onRegisterCloseSaveHandler) return
+
+		if (isEditMode) onRegisterCloseSaveHandler(handleSaveForClose)
+		else onRegisterCloseSaveHandler(null)
+
+		return () => {
+			onRegisterCloseSaveHandler(null)
+		}
+	}, [handleSaveForClose, isEditMode, onRegisterCloseSaveHandler])
+
+	// 取消按钮处理
+	const handleCancel = useMemoizedFn(() => {
+		void performDiscard()
+	})
+
+	// 对话框 - 保存并切换
+	const handleSaveAndExit = useMemoizedFn(async () => {
+		await runSaveAttempt("save-and-exit")
+	})
+
+	// 对话框 - 保存并切换
+	const handleSaveAndSwitch = useMemoizedFn(async () => {
+		await runSaveAttempt("save-and-switch")
+	})
 
 	// 对话框 - 不保存，直接切换
-	const handleDiscardAndSwitch = useCallback(() => {
-		// 应用服务端更新或恢复原始内容
-		applyServerUpdate()
-		setIsEditMode(false)
-		setShowSaveDialog(false)
-		setPendingDeactivate(false)
-		clearServerUpdate()
-		// 通知父组件可以继续切换
-		if (pendingDeactivate) {
-			onDeactivate?.()
+	const handleDiscardAndSwitch = useMemoizedFn(async () => {
+		await performDiscard({ shouldDeactivate: true })
+	})
+
+	const handleSaveConflictDialogChange = useMemoizedFn((open: boolean) => {
+		setShowSaveWithUpdateConfirmDialog(open)
+		if (!open && !isConfirmingConflictSaveRef.current) {
+			pendingSaveIntentRef.current = null
+			resolvePendingSave(false)
 		}
-	}, [pendingDeactivate, onDeactivate, setIsEditMode, applyServerUpdate, clearServerUpdate])
+	})
+
+	const handleDismissSaveWithUpdate = useMemoizedFn(() => {
+		pendingSaveIntentRef.current = null
+		resolvePendingSave(false)
+		setShowSaveWithUpdateConfirmDialog(false)
+	})
+
+	const handleConfirmSaveWithUpdate = useMemoizedFn(async () => {
+		const intent = pendingSaveIntentRef.current
+		if (!intent) return
+
+		isConfirmingConflictSaveRef.current = true
+		const didSave = await performSave({
+			shouldExitEditMode: intent !== "save",
+			shouldDeactivate: intent === "save-and-switch",
+		})
+		isConfirmingConflictSaveRef.current = false
+
+		pendingSaveIntentRef.current = null
+		resolvePendingSave(didSave)
+	})
 
 	// Handle refresh current slide
 	const handleRefresh = useMemoizedFn(async () => {
@@ -553,6 +651,8 @@ const PPTSlide = observer(function PPTSlide({
 				id: mainFileId,
 				name: mainFileName,
 				type: "html",
+				projectId: selectedProject?.id || projectId,
+				projectName: selectedProject?.project_name,
 			}
 		}
 
@@ -566,8 +666,19 @@ const PPTSlide = observer(function PPTSlide({
 			id: fileId,
 			name: fileName,
 			type: "html",
+			projectId: selectedProject?.id || projectId,
+			projectName: selectedProject?.project_name,
 		}
-	}, [mainFileId, mainFileName, fileId, relative_file_path, index])
+	}, [
+		mainFileId,
+		mainFileName,
+		fileId,
+		relative_file_path,
+		index,
+		selectedProject?.id,
+		selectedProject?.project_name,
+		projectId,
+	])
 
 	const renderMainContent = () => {
 		if (loadingState === "loading") {
@@ -696,6 +807,7 @@ const PPTSlide = observer(function PPTSlide({
 						projectId={selectedProject?.id || projectId}
 						onEdit={handleEdit}
 						onSave={handleSave}
+						onSaveAndExit={handleSaveAndExit}
 						onCancel={handleCancel}
 						hasServerUpdate={hasServerUpdate}
 						onViewServerUpdate={handleViewServerUpdate}
@@ -760,7 +872,7 @@ const PPTSlide = observer(function PPTSlide({
 			{/* 保存时服务端更新确认对话框 */}
 			<AlertDialog
 				open={showSaveWithUpdateConfirmDialog}
-				onOpenChange={setShowSaveWithUpdateConfirmDialog}
+				onOpenChange={handleSaveConflictDialogChange}
 			>
 				<AlertDialogContent data-testid="ppt-slide-save-with-update-dialog">
 					<AlertDialogHeader>
@@ -770,10 +882,16 @@ const PPTSlide = observer(function PPTSlide({
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
-						<AlertDialogCancel disabled={isSaving}>
+						<AlertDialogCancel
+							onClick={handleDismissSaveWithUpdate}
+							disabled={isSaving}
+						>
 							{t("common.cancel")}
 						</AlertDialogCancel>
-						<AlertDialogAction onClick={performSave} disabled={isSaving}>
+						<AlertDialogAction
+							onClick={handleConfirmSaveWithUpdate}
+							disabled={isSaving}
+						>
 							{isSaving ? t("ppt.saving") : t("ppt.saveChanges")}
 						</AlertDialogAction>
 					</AlertDialogFooter>

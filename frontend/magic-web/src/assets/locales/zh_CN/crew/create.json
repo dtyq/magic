@@ -56,22 +56,388 @@
 		"save": "保存",
 		"skills": "技能"
 	},
+	"collaborators": {
+		"dialogTitle": "协作开发者",
+		"entry": "协作开发者"
+	},
+	"common": {
+		"cancel": "取消",
+		"close": "关闭",
+		"delete": "删除",
+		"loadMore": "加载更多",
+		"noMoreData": "没有更多数据了",
+		"save": "保存"
+	},
+	"documentCreate": {
+		"common": {
+			"comingSoon": "功能开发中...",
+			"comingSoonBadge": "即将开放",
+			"deselectAll": "取消全选",
+			"emptyState": "暂无数据",
+			"knowledgeBase": "知识库",
+			"loading": "加载中...",
+			"noSearchResults": "未找到匹配结果",
+			"realTimeUpdates": "实时更新",
+			"searchPlaceholder": "搜索...",
+			"selectAll": "全选",
+			"selectDocument": "选择文档",
+			"selectEnterpriseWiki": "选择企业知识库",
+			"selectFile": "选择文件",
+			"selectProject": "选择项目",
+			"selectWorkspace": "选择工作区",
+			"selectedCount": "已选择 {{count}} 项",
+			"sharedWorkspace": "共享工作区",
+			"totalCount": "共 {{count}} 项",
+			"unselectAll": "取消全选"
+		},
+		"customContent": {
+			"comingSoon": "自定义内容功能即将上线...",
+			"step1": "输入文本",
+			"step2": "分块策略",
+			"step3": "数据处理",
+			"textInput": {
+				"charCount": "{{count}} 个字符",
+				"clear": "清空",
+				"documentName": "文档名称",
+				"documentNamePlaceholder": "输入文档名称",
+				"documentNameRequired": "文档名称不能为空",
+				"editorPlaceholder": "输入文档内容",
+				"maxCharsLimit": "最多 {{max}} 个字符",
+				"minCharsRequired": "至少需要 {{min}} 个字符",
+				"paste": "粘贴",
+				"placeholder": "在此输入或粘贴您的自定义文本内容...\n\n支持纯文本、Markdown格式。",
+				"title": "输入自定义内容"
+			},
+			"title": "自定义内容"
+		},
+		"enterpriseWiki": {
+			"comingSoon": "企业知识库功能即将上线...",
+			"selection": {
+				"documentListTitle": "文档列表",
+				"documentsInWiki": "共 {{count}} 个文档",
+				"loadDocumentsFailed": "加载文档列表失败",
+				"loadWikisFailed": "加载企业知识库失败",
+				"noDocuments": "该知识库下暂无文档",
+				"noWikis": "暂无企业知识库",
+				"selectEntireWiki": "选择整个知识库",
+				"title": "选择企业知识库和文档",
+				"wikiListTitle": "企业知识库列表",
+				"wikiSelected": "已选择知识库"
+			},
+			"step1": "选择企业知识库",
+			"step2": "策略配置",
+			"step3": "数据处理",
+			"title": "企业知识库"
+		},
+		"error": {
+			"invalidType": "无效的文档类型",
+			"selectValidType": "请选择有效的文档类型"
+		},
+		"localDocuments": {
+			"chunkPreview": "Chunk 预览",
+			"dataProcessing": "数据处理",
+			"step1": "上传文件",
+			"step2": "策略配置",
+			"step3": "Chunk 预览",
+			"step4": "数据处理",
+			"strategyConfig": "策略配置",
+			"title": "本地文档"
+		},
+		"navigation": {
+			"complete": "完成",
+			"next": "下一步",
+			"previous": "上一步"
+		},
+		"preview": {
+			"chunkPreview": "分块预览",
+			"documents": "文档",
+			"emptyContent": "文档暂无内容",
+			"hierarchicalChunking": "层级分块",
+			"level": "层级",
+			"loadFailed": "加载预览数据失败",
+			"loading": "加载预览数据中...",
+			"noData": "暂无预览数据",
+			"originalDocumentPreview": "原始文档预览",
+			"parseError": "无法解析文档结构",
+			"title": "Chunk 预览"
+		},
+		"processing": {
+			"canLeavePageHint": "正在处理数据。您可以离开此页面；内容处理完成后即可引用。",
+			"cannotGetDetail": "无法获取知识库详情",
+			"complete": "所有文件处理完成！",
+			"createCustomContentFailed": "创建自定义内容失败",
+			"createDocumentFailed": "创建文档失败",
+			"createFailed": "创建文档失败",
+			"createKnowledgeBaseFailed": "创建知识库失败",
+			"createLocalDocumentFailed": "创建文档失败",
+			"creatingDocuments": "正在创建文档...",
+			"documentProcessingFailed": "文档处理失败",
+			"documentProcessingTimeout": "文档处理超时，请稍后查看",
+			"estimatedTime": "预计剩余时间: {{time}}",
+			"fetchDocumentStatusFailed": "获取文档状态失败",
+			"fileProcessed": "已处理: {{name}}",
+			"noDocumentCode": "未返回文档代码",
+			"noKnowledgeCode": "未返回知识库代码",
+			"pleaseWait": "正在处理您的文档，请稍候...",
+			"pollTimeout": "轮询超时（已尝试 {{attempts}} 次，总计 {{seconds}} 秒）",
+			"processing": "处理中...",
+			"processingFile": "正在处理: {{name}}",
+			"realTimeUpdates": "实时更新",
+			"retry": "重试",
+			"statusFailed": "处理失败",
+			"statusPending": "待处理",
+			"statusProcessing": "处理中",
+			"success": "处理完成",
+			"syncFailed": "同步失败",
+			"title": "数据处理",
+			"totalProgress": "总进度: {{current}}/{{total}}",
+			"unknownSyncStatus": "未知的同步状态: {{status}}",
+			"updatesDescription": "处理完成后,文档将自动添加到知识库中",
+			"uploadFailed": "文件上传失败"
+		},
+		"project": {
+			"comingSoon": "项目文档功能即将上线...",
+			"defaultName": "项目文档",
+			"entireProjectSelected": "已选择整个项目",
+			"realtimeUpdates": "实时更新",
+			"realtimeUpdatesDescription": "系统仅监控此特定文件的变更。如果文件被删除，将从向量数据库中移除，但不会跟踪项目中新增的文件。",
+			"selectFile": "选择文件",
+			"selectProject": "选择项目",
+			"selectWorkspace": "选择工作区",
+			"selection": {
+				"fileListTitle": "文件列表",
+				"fileTreeDisabled": "已选择整个项目,文件树已禁用",
+				"filesInProject": "共 {{count}} 个文件",
+				"loadFilesFailed": "加载文件列表失败",
+				"loadProjectsFailed": "加载项目列表失败",
+				"loadWorkspacesFailed": "加载工作区失败",
+				"noFiles": "该项目下暂无文件",
+				"noProjects": "该工作区下暂无项目",
+				"noWorkspaces": "暂无工作区",
+				"projectListTitle": "项目列表",
+				"projectSelected": "已选择项目",
+				"selectEntireProject": "选择整个项目",
+				"selectProjectFirst": "请先选择项目",
+				"selectWorkspaceFirst": "请先选择工作区",
+				"sharedWorkspace": "共享工作区",
+				"title": "选择工作区、项目和文件",
+				"workspaceListTitle": "工作区列表"
+			},
+			"sharedWorkspace": "共享工作区",
+			"step1": "选择项目或文件",
+			"step2": "策略配置",
+			"step3": "数据处理",
+			"title": "项目",
+			"unnamedWorkspace": "未命名工作区"
+		},
+		"strategy": {
+			"autoChunkClean": "自动分块和清理",
+			"autoChunkCleanDesc": "自动分块和预处理规则",
+			"chunkHierarchy": "分块层级",
+			"chunkOverlapPercent": "块重叠 (%)",
+			"chunkSeparator": "分块分隔符",
+			"chunkSize": "块大小",
+			"chunkSizeLabel": "设置块大小（字符数）",
+			"chunkingStrategy": "分块策略",
+			"customChunking": "自定义分块",
+			"customChunkingDesc": "自定义分块规则、块长度和预处理规则",
+			"extractContent": "提取内容",
+			"fixed": "固定大小",
+			"fixedDesc": "按固定字符数分块，适用于结构简单的文档",
+			"hierarchical": "层级分块",
+			"hierarchicalDesc": "根据文档层级结构分块,将文档转换为包含层级信息的树形结构",
+			"imageElements": "图片元素",
+			"imageElementsDesc": "目前暂不支持 doc 类型文档的图片解析",
+			"lineBreak": "换行符",
+			"maxChunkLength": "最大块长度",
+			"method": "分块方法",
+			"methodLabel": "选择分块方法",
+			"ocrRecognition": "扫描文档（OCR识别）",
+			"ocrRecognitionDesc": "识别过程涉及复杂的字符匹配，将显著增加解析时间",
+			"overlap": "重叠大小",
+			"overlapLabel": "设置重叠大小（字符数）",
+			"paragraph": "段落",
+			"parsingStrategy": "文档解析策略",
+			"preciseParsing": "精确解析",
+			"preciseParsingDesc": "从文档中提取图片、表格和其他元素，需要额外的处理时间",
+			"preserveHierarchy": "在检索的块中保留层级信息",
+			"quickParse": "快速解析",
+			"quickParseDesc": "不从文档中提取图片、表格或其他元素，仅适用于纯文本",
+			"recommended": "推荐",
+			"removeUrls": "删除所有 URL 和电子邮件地址",
+			"replaceWhitespace": "替换连续空格、换行符和制表符",
+			"semantic": "语义分块",
+			"semanticDesc": "基于语义边界智能分块，保持内容连贯性",
+			"tableElements": "表格元素",
+			"tableElementsDesc": "自动识别行列结构",
+			"textPreprocessingRules": "文本预处理规则",
+			"title": "策略配置"
+		},
+		"upload": {
+			"browseFiles": "浏览文件",
+			"dragDropHint": "拖拽文件到此处，或点击上传",
+			"error": {
+				"fileTooBig": "文件大小超过 {{maxSize}}MB",
+				"invalidFiles": "以下文件格式不支持：{{files}}",
+				"tooManyFiles": "文件数量超过限制（最多 {{maxCount}} 个）",
+				"unsupportedFormat": "不支持的文件格式：{{ext}}"
+			},
+			"limits": "最多 {{count}} 个文件，单文件不超过 {{size}}MB",
+			"retry": "重试",
+			"supportedFormats": "支持 {{formats}} 等格式",
+			"supportedFormatsWithLimits": "支持 TXT、MD、JSON、XML、HTML、HTM、CSV、XLSX、XLSM、DOCX、PPTX、PDF、JPG、JPEG、PNG、BMP 格式。最多上传 300 个文件，单个文件最大 100MB。PDF 限制 500 页。",
+			"uploadedFiles": "已上传文件 ({{count}})"
+		},
+		"wiki": {
+			"defaultName": "企业知识库",
+			"documentCount": "{{count}} 个文档",
+			"entireWikiSelected": "已选择整个知识库",
+			"partialWikiDescription": "已选择 {{count}} 个文档/文件夹",
+			"realtimeUpdates": "实时更新",
+			"realtimeUpdatesDescription": "系统仅监控此特定文档的变更。如果文档被删除，将从向量数据库中移除，但不会跟踪知识库中新增的文档。",
+			"selectDocument": "选择文档",
+			"selectWiki": "选择企业知识库",
+			"unnamedWiki": "未命名知识库",
+			"wholeWikiDescription": "自动同步整个企业知识库的所有文档"
+		}
+	},
 	"errors": {
 		"createSceneFailed": "创建 Playbook 失败，请先保存 Crew",
 		"crewCodeRequired": "请先保存 Crew",
 		"deleteSceneFailed": "删除 Playbook 失败",
+		"identityMarkdownMissing": "当前项目缺少 identity.md 文件。",
 		"loadAgentFailed": "加载 Agent 失败",
+		"loadIdentityMarkdownFailed": "读取 identity.md 内容失败。",
 		"loadScenesFailed": "加载 Playbook 失败",
 		"reorderScenesFailed": "重排 Playbook 失败",
 		"saveCrewFailed": "保存 Crew 失败",
 		"saveSkillsFailed": "保存技能失败",
+		"syncIdentityMarkdownFailed": "已保存 Crew，但回写 identity.md 失败。",
 		"toggleSceneFailed": "切换 Playbook 失败",
 		"updateSceneFailed": "更新 Playbook 失败"
 	},
 	"knowledgeBase": {
-		"create": "创建知识库",
-		"emptyDescription": "关联专业知识，让智能体回复更准确、更专业。",
-		"emptyTitle": "未关联知识库"
+		"actions": "更多操作",
+		"create": {
+			"createAndImport": "创建并导入",
+			"createOnly": "仅创建",
+			"description": "描述",
+			"descriptionPlaceholder": "描述此知识的范围",
+			"dialogTitle": "创建知识库",
+			"failed": "知识库创建失败",
+			"importLabel": "导入",
+			"nameRequired": "名称不能为空",
+			"sourceRequired": "请选择导入类型",
+			"sourceTypeCustomContent": "自定义内容",
+			"sourceTypeCustomContentDesc": "手动创建或编辑内容",
+			"sourceTypeEnterpriseKnowledge": "企业知识库",
+			"sourceTypeEnterpriseKnowledgeDesc": "从现有企业知识库选择",
+			"sourceTypeLocalFile": "本地文件",
+			"sourceTypeLocalFileDesc": "上传 XLSX、CSV、XLS、PDF、TXT、MD、DOC、DOCX、JPG、JPEG、PNG 格式的本地文件",
+			"sourceTypeProjectFile": "项目文件",
+			"sourceTypeProjectFileDesc": "从现有项目中选择文件",
+			"success": "知识库创建成功",
+			"title": "名称",
+			"titlePlaceholder": "输入知识库名称",
+			"typeDocuments": "文档",
+			"typeEnterpriseWiki": "企业知识库",
+			"typeLabel": "类型",
+			"typeProject": "项目文件",
+			"typeRequired": "请选择知识库类型"
+		},
+		"createButton": "创建",
+		"delete": "删除",
+		"deleteContent": "确定要删除知识库「{{name}}」吗？删除后无法恢复。",
+		"deleteFailed": "知识库删除失败",
+		"deleteSuccess": "知识库删除成功",
+		"deleteTitle": "删除知识库",
+		"disable": "禁用",
+		"edit": "编辑",
+		"emptyDescription": "关联专业知识，让数字员工的回答更加准确和专业。",
+		"emptyTitle": "暂未关联知识库",
+		"enable": "启用",
+		"filter": {
+			"all": "全部",
+			"disabled": "已禁用",
+			"enabled": "已启用"
+		},
+		"loadFailed": "加载知识库详情失败",
+		"loading": "加载中...",
+		"noDescription": "暂无描述",
+		"rebind": "重新选择绑定文件",
+		"rebindDescription": "请重新选择要绑定的文件或文件夹",
+		"rebindFailed": "重新绑定失败",
+		"rebindSuccess": "重新绑定成功",
+		"rebindTitle": "重新选择绑定文件 - {{name}}",
+		"reset": "重置",
+		"saving": "保存中...",
+		"searchPlaceholder": "搜索",
+		"unsupportedType": "不支持的知识库类型",
+		"updateFailed": "知识库更新失败",
+		"updateSuccess": "知识库更新成功",
+		"updatedOn": "更新于"
+	},
+	"knowledgeDetail": {
+		"addContentButton": "添加内容",
+		"addContentDesc": "添加本地文件、项目文档、企业知识库或第三方数据",
+		"addContentDescDocuments": "添加本地文件、自定义内容",
+		"addContentDescProject": "添加项目文件",
+		"addContentDescWiki": "添加企业知识库",
+		"addContentMenu": {
+			"customContent": {
+				"description": "手动创建或编辑内容",
+				"title": "自定义内容"
+			},
+			"enterpriseWiki": {
+				"description": "从已有企业知识库中选择",
+				"title": "企业知识库"
+			},
+			"localDocuments": {
+				"description": "上传 TXT、MD、JSON、XML、HTML、HTM、CSV、XLSX、XLSM、DOCX、PPTX、PDF、JPG、JPEG、PNG、BMP 等格式的本地文件",
+				"title": "本地文档"
+			},
+			"project": {
+				"description": "从已有项目中选择文件",
+				"title": "项目"
+			}
+		},
+		"chunkingMode": {
+			"auto": "自动分块",
+			"custom": "自定义分块",
+			"hierarchy": "层级分块"
+		},
+		"deleteDocument": "删除文档",
+		"deleteDocumentAria": "删除文档",
+		"deleteDocumentConfirm": "确定删除「{{name}}」吗？此操作无法撤销。",
+		"deleteDocumentFailed": "删除文档失败",
+		"deleteDocumentSuccess": "文档已删除",
+		"documentNotFoundRefreshing": "文档已不存在，即将刷新列表",
+		"documentsTitle": "文档 ({{count}})",
+		"importMethod": {
+			"customContent": "自定义内容",
+			"enterpriseWiki": "企业知识库",
+			"local": "本地",
+			"project": "项目"
+		},
+		"loading": "加载中...",
+		"noDocumentsYet": "暂无文档",
+		"noSearchResults": "没有匹配的文档",
+		"previewOriginalDocument": "预览原始文档",
+		"retry": "重试",
+		"retryTooltip": "点击重新处理此文档",
+		"revectorize": "重新向量化",
+		"searchPlaceholder": "搜索",
+		"segmentationMethod": {
+			"custom": "自定义分段",
+			"general": "通用",
+			"parentChild": "父子"
+		},
+		"segmentationSettingsAria": "分段与检索设置",
+		"selectDocument": "请选择一个文档",
+		"titleRequired": "标题不能为空",
+		"untitled": "未命名知识库",
+		"updateTitleFailed": "更新文档标题失败",
+		"updateTitleSuccess": "文档标题已更新"
 	},
 	"noDescription": "暂无员工描述信息",
 	"noSkills": "暂无员工技能",
@@ -228,6 +594,7 @@
 					"title": "确认删除"
 				},
 				"cancelSelection": "取消",
+				"clearSelection": "清除选择",
 				"config": {
 					"cancel": "取消",
 					"confirm": "确认",
@@ -268,12 +635,15 @@
 					"presetContentPlaceholder": "输入将追加到用户消息的指令（通过预设值）",
 					"presetValue": "预设值",
 					"preview": "预览",
+					"select": "选择",
+					"selectedTemplate": "已选择「{{name}}」模板",
 					"setAsDefault": "设为默认",
 					"titleCreate": "创建",
-					"titleEdit": "编辑"
+					"titleEdit": "编辑",
+					"useTemplate": "使用该模板"
 				},
 				"gallery": {
-					"configured": "Gallery Options: 已配置",
+					"configured": "卡片选项: 已配置",
 					"dialog": {
 						"add": "添加",
 						"cancel": "取消",
@@ -285,7 +655,7 @@
 						"noDefault": "无默认值",
 						"presetContent": "预设内容",
 						"presetContentPlaceholder": "输入将追加到用户消息的指令（通过预设值）",
-						"title": "Gallery Options"
+						"title": "卡片选项"
 					},
 					"edit": "编辑",
 					"item": {
@@ -311,8 +681,16 @@
 						"valuePlaceholder": "输入预设值"
 					}
 				},
+				"selected": "已选：",
 				"title": "预设",
+				"unselected": "未选择",
 				"updatedAt": "更新于 {{date}}"
+			},
+			"preview": {
+				"empty": "暂无配置",
+				"home": "首页",
+				"title": "配置预览",
+				"topic": "话题内"
 			},
 			"quickStart": {
 				"action": {
@@ -405,6 +783,21 @@
 		"required": "请输入员工名称",
 		"title": "发布前请命名员工"
 	},
+	"recallTest": {
+		"button": "召回测试",
+		"description": "输入测试文本，检测知识库的检索召回能力",
+		"inputPlaceholder": "请输入测试文本",
+		"loading": "加载中...",
+		"noResults": "暂无结果",
+		"recallParagraphs": "召回段落 {{count}}",
+		"segment": "片段",
+		"sourceText": "源文本",
+		"test": "测试",
+		"testFailed": "测试失败",
+		"testSuccess": "测试成功",
+		"title": "召回测试",
+		"wordCount": "{{count}} 字"
+	},
 	"scenarioPresets": "场景预设",
 	"sidebarTabs": {
 		"advanced": "高级",
@@ -426,6 +819,7 @@
 		"loadingMore": "加载更多中...",
 		"mySkills": "我的技能",
 		"noMoreData": "没有更多数据。",
+		"openSkillDetail": "查看技能详情",
 		"remove": "移除",
 		"title": "技能",
 		"uninstall": "卸载"
@@ -433,6 +827,7 @@
 	"status": {
 		"builtIn": "内置 ({{count}})",
 		"configured": "已配置",
+		"noPublishPermission": "暂无发布权限",
 		"notConfigured": "未配置",
 		"skillCount": "{{count}} 个技能",
 		"unpublished": "未发布"
@@ -446,12 +841,12 @@
 		"step": "步骤 {{number}}"
 	},
 	"topic": {
-		"emptySubtitle": "描述他们的工作，我们来处理其余的。",
+		"emptySubtitle": "描述角色即可，$t(common:platform.name) 会处理剩下的。",
 		"emptyTitle": "创建您的数字员工",
 		"helpAction": "让它帮您设计数字员工的个性。",
 		"helpText": "不知道如何设置？",
 		"inputHint": "Enter 发送；Shift + Enter 换行",
-		"inputPlaceholder": "这个成员应该做什么？例如，一个可以每周撰写报告的市场分析师...",
+		"inputPlaceholder": "描述角色即可，$t(common:platform.name) 会处理剩下的。",
 		"untitledTopic": "未命名话题 {{index}}"
 	},
 	"untitledCrew": "未命名员工",

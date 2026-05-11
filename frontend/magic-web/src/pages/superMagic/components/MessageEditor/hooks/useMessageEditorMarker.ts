@@ -2,16 +2,14 @@ import { useEffect, useMemo, useRef } from "react"
 import { useMemoizedFn } from "ahooks"
 import { Editor } from "@tiptap/react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { MentionItemType, CanvasMarkerMentionData } from "@/components/business/MentionPanel/types"
 import {
-	MentionItemType,
-	CanvasMarkerMentionData,
-} from "@/components/business/MentionPanel/types"
-import type { Marker } from "@/components/CanvasDesign/canvas/types"
+	getCanvasMarkerMentionId,
+	mergeCanvasMarkerMentionRecognitionData,
+	normalizeCanvasMarkerMentionData,
+} from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
-import type {
-	IdentifyImageMarkResponse,
-	IdentifyImageMarkResponseBase,
-} from "@/components/CanvasDesign/types.magic"
+import type { SuperMagicMarkerDataUpdatedPayload } from "@/pages/superMagic/events/markers"
 import { SuperMagicMarkerManager } from "@/pages/superMagic/components/Detail/contents/Design/marker-manager"
 import type { JSONContent } from "@tiptap/core"
 import { hasLoadingMarkerInContent } from "../utils/mention"
@@ -48,9 +46,9 @@ function removeMarkerNodesFromEditor(
 		if (node.type.name === "mention") {
 			const attrs = node.attrs as TiptapMentionAttributes
 			if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
-				const markerData = attrs.data as CanvasMarkerMentionData
+				const markerData = normalizeCanvasMarkerMentionData(attrs.data)
 				if (
-					markerData?.data?.id === markerId &&
+					markerData?.marker_id === markerId &&
 					markerData?.design_project_id === designProjectId
 				) {
 					toDelete.push({ from: pos, to: pos + node.nodeSize })
@@ -88,8 +86,8 @@ function updateMarkerNumbersInEditor(editor: Editor): void {
 		if (node.type.name === "mention") {
 			const attrs = node.attrs as TiptapMentionAttributes
 			if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
-				const markerData = attrs.data as CanvasMarkerMentionData
-				if (markerData?.data?.id) {
+				const markerData = normalizeCanvasMarkerMentionData(attrs.data)
+				if (markerData?.marker_id) {
 					markers.push({ attrs, pos, data: markerData })
 				}
 			}
@@ -147,9 +145,9 @@ function updateMarkerAttributesInEditor(
 		if (node.type.name === "mention") {
 			const attrs = node.attrs as TiptapMentionAttributes
 			if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
-				const markerData = attrs.data as CanvasMarkerMentionData
+				const markerData = normalizeCanvasMarkerMentionData(attrs.data)
 				if (
-					markerData?.data?.id === markerId &&
+					markerData?.marker_id === markerId &&
 					markerData?.design_project_id === designProjectId
 				) {
 					const updatedData: CanvasMarkerMentionData = {
@@ -203,8 +201,8 @@ function batchUpdateMarkerAttributesInEditor(
 		if (node.type.name === "mention") {
 			const attrs = node.attrs as TiptapMentionAttributes
 			if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
-				const markerData = attrs.data as CanvasMarkerMentionData
-				const markerId = markerData?.data?.id
+				const markerData = normalizeCanvasMarkerMentionData(attrs.data)
+				const markerId = markerData?.marker_id
 				const designProjectId = markerData?.design_project_id
 
 				if (markerId && designProjectId) {
@@ -252,8 +250,9 @@ export function useMessageEditorMarker(
 		(items: Array<{ type?: string; data?: unknown }>) => {
 			items.forEach((item) => {
 				if (item.type === MentionItemType.DESIGN_MARKER && item.data) {
-					const data = item.data as CanvasMarkerMentionData
-					if (data.design_project_id && data.data?.id) {
+					// 插入来源可能是历史剪贴板/草稿旧结构，先归一化再同步给 Manager。
+					const data = normalizeCanvasMarkerMentionData(item.data)
+					if (data?.design_project_id && data.marker_id) {
 						markerManager.syncFromCanvasMarkerMentionData(data)
 					}
 				}
@@ -263,9 +262,9 @@ export function useMessageEditorMarker(
 
 	// 处理 marker 移除（供 handleMentionRemoveItems 调用）
 	const handleMarkerMentionRemove = useMemoizedFn((mentionAttrs: TiptapMentionAttributes) => {
-		const markerData = mentionAttrs.data as CanvasMarkerMentionData
+		const markerData = normalizeCanvasMarkerMentionData(mentionAttrs.data)
 		const designProjectId = markerData?.design_project_id ?? ""
-		const markerId = markerData?.data?.id ?? ""
+		const markerId = markerData?.marker_id ?? ""
 
 		if (!markerId || !designProjectId) return
 
@@ -341,14 +340,18 @@ export function useMessageEditorMarker(
 				if (node.type.name === "mention") {
 					const attrs = node.attrs as TiptapMentionAttributes
 					if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
-						const markerData = attrs.data as CanvasMarkerMentionData
-						const markId = markerData?.data?.id
+						// restore 场景只更新已有 marker，避免刷新/恢复时重复插入同一个标记。
+						const markerData = normalizeCanvasMarkerMentionData(attrs.data)
+						const markId = markerData?.marker_id
 						if (markId) {
 							const replacement = items.find(
-								(i) => (i.data as CanvasMarkerMentionData)?.data?.id === markId,
+								(i) => getCanvasMarkerMentionId(i.data) === markId,
 							)
 							if (replacement) {
-								const replacementData = replacement.data as CanvasMarkerMentionData
+								const replacementData = normalizeCanvasMarkerMentionData(
+									replacement.data,
+								)
+								if (!replacementData) return true
 								updates.push({
 									markerId: markId,
 									designProjectId: replacementData.design_project_id ?? "",
@@ -372,9 +375,9 @@ export function useMessageEditorMarker(
 				if (node.type.name === "mention") {
 					const attrs = node.attrs as TiptapMentionAttributes
 					if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
-						const markerData = attrs.data as CanvasMarkerMentionData
-						if (markerData?.data?.id) {
-							existingIds.add(markerData.data.id)
+						const markerData = normalizeCanvasMarkerMentionData(attrs.data)
+						if (markerData?.marker_id) {
+							existingIds.add(markerData.marker_id)
 						}
 					}
 				}
@@ -382,7 +385,7 @@ export function useMessageEditorMarker(
 			})
 
 			const toAdd = items.filter((i) => {
-				const markId = (i.data as CanvasMarkerMentionData)?.data?.id
+				const markId = getCanvasMarkerMentionId(i.data)
 				return markId && !existingIds.has(markId)
 			})
 
@@ -437,19 +440,7 @@ export function useMessageEditorMarker(
 
 	// 监听 marker 数据更新（统一事件：fetch 完成 / Chat 选择 suggestion）
 	useEffect(() => {
-		const handleMarkerDataUpdated = (data: {
-			markerId: string
-			designProjectId?: string
-			result?: IdentifyImageMarkResponse
-			error?: string
-			suggestions?: IdentifyImageMarkResponseBase["suggestions"]
-			selectedSuggestionIndex?: number
-			loading?: boolean
-			updates?: Array<{
-				markerId: string
-				data: Partial<CanvasMarkerMentionData>
-			}>
-		}) => {
+		const handleMarkerDataUpdated = (data: SuperMagicMarkerDataUpdatedPayload) => {
 			const currentEditor = getEditor()
 			if (!currentEditor || currentEditor.isDestroyed) return
 
@@ -465,8 +456,8 @@ export function useMessageEditorMarker(
 							if (node.type.name === "mention") {
 								const attrs = node.attrs as TiptapMentionAttributes
 								if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
-									const markerData = attrs.data as CanvasMarkerMentionData
-									if (markerData?.data?.id === update.markerId) {
+									const markerData = normalizeCanvasMarkerMentionData(attrs.data)
+									if (markerData?.marker_id === update.markerId) {
 										designProjectId = markerData.design_project_id ?? ""
 										return false // 找到后停止遍历
 									}
@@ -509,8 +500,8 @@ export function useMessageEditorMarker(
 				if (node.type.name === "mention") {
 					const attrs = node.attrs as TiptapMentionAttributes
 					if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
-						const markerData = attrs.data as CanvasMarkerMentionData
-						if (markerData?.data?.id === markerId) {
+						const markerData = normalizeCanvasMarkerMentionData(attrs.data)
+						if (markerData?.marker_id === markerId) {
 							currentMarkerData = markerData
 							foundDesignProjectId = markerData.design_project_id ?? ""
 							return false // 找到后停止遍历
@@ -521,11 +512,6 @@ export function useMessageEditorMarker(
 			})
 
 			if (!currentMarkerData || !foundDesignProjectId) return
-
-			// 类型断言：确保 data 存在
-			const markerData: Marker | undefined = (currentMarkerData as CanvasMarkerMentionData)
-				.data
-			if (!markerData) return
 
 			const chatData: Partial<CanvasMarkerMentionData> = {}
 			// fetch 成功或失败时都应清除 loading 状态
@@ -541,34 +527,16 @@ export function useMessageEditorMarker(
 				error !== undefined
 
 			if (shouldUpdateData) {
-				const currentMarker: Marker = markerData
-				let updatedResult: IdentifyImageMarkResponse | undefined = currentMarker.result
-
-				// fetch 完成：直接使用完整的 result（首次加载时 currentMarker.result 为 undefined，必须用 event 的 result）
-				if (result !== undefined) {
-					updatedResult = result as IdentifyImageMarkResponse
-				}
-				// Chat 选择 suggestion：只更新 suggestions，与现有 result 合并（此时 result 未传入，仅 suggestions）
-				else if (suggestions !== undefined && currentMarker.result) {
-					const newSuggestions = suggestions
-					if (newSuggestions) {
-						updatedResult = {
-							...currentMarker.result,
-							suggestions: newSuggestions,
-						} as IdentifyImageMarkResponse
-					}
-				}
-
-				const updatedMarker: Marker = {
-					...currentMarker,
-					result: updatedResult,
-					selectedSuggestionIndex:
-						selectedSuggestionIndex !== undefined
-							? selectedSuggestionIndex
-							: currentMarker.selectedSuggestionIndex,
-					error: error !== undefined ? error : currentMarker.error,
-				}
-				chatData.data = updatedMarker
+				Object.assign(
+					chatData,
+					mergeCanvasMarkerMentionRecognitionData({
+						data: currentMarkerData,
+						result,
+						suggestions,
+						selectedSuggestionIndex,
+						error,
+					}),
+				)
 			}
 
 			if (Object.keys(chatData).length > 0) {

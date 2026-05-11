@@ -143,6 +143,44 @@ describe("StyleManager", () => {
 		})
 	})
 
+	describe("position handling", () => {
+		it("should preserve absolute positioning during batch move undo and redo", async () => {
+			container.innerHTML =
+				"<div id='test' style='position: absolute; top: 10px; left: 20px;'>Content</div>"
+			const element = container.querySelector("#test") as HTMLElement
+
+			styleManager.beginBatchOperation("div#test", {
+				position: "absolute",
+				top: "10px",
+				left: "20px",
+			})
+			styleManager.applyStylesTemporary("div#test", {
+				position: "absolute",
+				top: "60px",
+				left: "80px",
+			})
+			styleManager.endBatchOperation("div#test", {
+				position: "absolute",
+				top: "60px",
+				left: "80px",
+			})
+
+			expect(element.style.position).toBe("absolute")
+			expect(element.style.top).toBe("60px")
+			expect(element.style.left).toBe("80px")
+
+			await styleManager.undo()
+			expect(element.style.position).toBe("absolute")
+			expect(element.style.top).toBe("10px")
+			expect(element.style.left).toBe("20px")
+
+			await styleManager.redo()
+			expect(element.style.position).toBe("absolute")
+			expect(element.style.top).toBe("60px")
+			expect(element.style.left).toBe("80px")
+		})
+	})
+
 	describe("setBatchStyles", () => {
 		it("should set multiple styles", async () => {
 			container.innerHTML = "<div id='test'>Content</div>"
@@ -300,6 +338,27 @@ describe("StyleManager", () => {
 			bridge.destroy()
 			elementSelector.destroy()
 		})
+
+		it("should refresh current selection instead of reselecting on undo", async () => {
+			container.innerHTML = "<img id='test' src='old.png' />"
+
+			const mockElementSelector = {
+				refreshSelection: vi.fn(),
+				getSelectedSelectors: vi.fn(),
+				selectElement: vi.fn(),
+				isSelected: vi.fn(() => true),
+			}
+
+			styleManager.setElementSelector(mockElementSelector as any)
+
+			await styleManager.setTextColor("img#test", "red")
+			mockElementSelector.refreshSelection.mockClear()
+
+			await styleManager.undo()
+
+			expect(mockElementSelector.refreshSelection).toHaveBeenCalledTimes(1)
+			expect(mockElementSelector.selectElement).not.toHaveBeenCalled()
+		})
 	})
 
 	describe("redo", () => {
@@ -335,6 +394,29 @@ describe("StyleManager", () => {
 
 			await styleManager.redo()
 			expect(element.style.backgroundColor).toBe("blue")
+		})
+
+		it("should refresh current selection instead of reselecting on redo", async () => {
+			container.innerHTML = "<img id='test' src='old.png' />"
+
+			const mockElementSelector = {
+				refreshSelection: vi.fn(),
+				getSelectedSelectors: vi.fn(),
+				selectElement: vi.fn(),
+				isSelected: vi.fn(() => true),
+			}
+
+			styleManager.setElementSelector(mockElementSelector as any)
+
+			await styleManager.setTextColor("img#test", "red")
+			await styleManager.undo()
+			mockElementSelector.refreshSelection.mockClear()
+			mockElementSelector.selectElement.mockClear()
+
+			await styleManager.redo()
+
+			expect(mockElementSelector.refreshSelection).toHaveBeenCalledTimes(1)
+			expect(mockElementSelector.selectElement).not.toHaveBeenCalled()
 		})
 	})
 
@@ -499,6 +581,22 @@ describe("StyleManager", () => {
 
 			expect(container.querySelector("#test")).toBeNull()
 			expect(commandHistory.canUndo()).toBe(true)
+		})
+
+		it("should delete element directly under body", async () => {
+			const directChild = document.createElement("img")
+			directChild.id = "direct-test"
+			document.body.appendChild(directChild)
+
+			try {
+				await styleManager.deleteElement("img#direct-test")
+				expect(document.getElementById("direct-test")).toBeNull()
+				expect(commandHistory.canUndo()).toBe(true)
+			} finally {
+				if (document.getElementById("direct-test")) {
+					document.body.removeChild(directChild)
+				}
+			}
 		})
 
 		it("should restore deleted element on undo", async () => {

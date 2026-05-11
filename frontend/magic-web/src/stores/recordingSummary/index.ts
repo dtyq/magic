@@ -7,11 +7,7 @@ import {
 } from "@/components/business/VoiceInput/services/VoiceClient/types"
 import { last } from "lodash-es"
 import { userStore } from "@/models/user"
-import {
-	AudioSourceConfig,
-	RecordingSession,
-	RecordingStatus,
-} from "@/types/recordSummary"
+import { AudioSourceConfig, RecordingSession, RecordingStatus } from "@/types/recordSummary"
 import { formatDuration } from "@/services/recordSummary/utils/format"
 import { nanoid } from "nanoid"
 import {
@@ -66,6 +62,17 @@ class RecordingSummaryStore {
 	isWaitingUpload = false
 
 	/**
+	 * 当前选中的麦克风设备 ID。
+	 * - 空字符串 / undefined 表示跟随系统默认（等同于 deviceId: { ideal: 'default' }）。
+	 * - 具体 deviceId 字符串表示用户主动选择的设备。
+	 */
+	selectedMicrophoneDeviceId: string = ""
+
+	setSelectedMicrophoneDeviceId(deviceId: string) {
+		this.selectedMicrophoneDeviceId = deviceId
+	}
+
+	/**
 	 * 录音消息
 	 */
 	message: (VoiceResultUtterance & { add_time: number; id: string })[] = []
@@ -108,14 +115,14 @@ class RecordingSummaryStore {
 			max: number
 		}
 	} = {
-			hasVoiceError: false,
-			hasRecordingError: false,
-			isRetrying: false,
-			retryInfo: {
-				current: 0,
-				max: 3,
-			},
-		}
+		hasVoiceError: false,
+		hasRecordingError: false,
+		isRetrying: false,
+		retryInfo: {
+			current: 0,
+			max: 3,
+		},
+	}
 
 	businessData = {
 		/**
@@ -151,9 +158,7 @@ class RecordingSummaryStore {
 		/**
 		 * 音频源配置
 		 */
-		audioSource: undefined as
-			| import("@/types/recordSummary").AudioSourceConfig
-			| undefined,
+		audioSource: undefined as import("@/types/recordSummary").AudioSourceConfig | undefined,
 	}
 
 	/**
@@ -170,13 +175,13 @@ class RecordingSummaryStore {
 			sessionId?: string
 		}
 	} = {
-			tabStatus: "inactive",
-			activeTabData: {
-				message: [],
-				duration: "00:00:00",
-				isRecording: false,
-			},
-		}
+		tabStatus: "inactive",
+		activeTabData: {
+			message: [],
+			duration: "00:00:00",
+			isRecording: false,
+		},
+	}
 
 	// ==== 代理属性和方法，保持向后兼容 ====
 
@@ -571,56 +576,53 @@ class RecordingSummaryStore {
 			const sessionStatus = session.status
 
 			try {
-				const saved = localStorage.getItem(this.storageKey)
-				if (saved) {
-					// 根据会话状态决定是否恢复UI状态
-					if (sessionStatus === "recording" || sessionStatus === "paused") {
-						// 恢复录音中或暂停状态的UI
-						this.isVisible = true
-						this.status = sessionStatus
-						this.businessData.workspace = session.workspace
-						this.businessData.project = session.project
-						this.businessData.topic = session.topic
-						this.businessData.chatTopic = session.chatTopic ?? null
-						this.businessData.model = session.model
-						this.businessData.userId = session.userId
-						this.businessData.audioSource = session.audioSource
+				// Restore UI whenever the session status calls for it — even if the
+				// UI-persistence key is absent (e.g. first restore after a hard crash).
+				if (sessionStatus === "recording" || sessionStatus === "paused") {
+					// 恢复录音中或暂停状态的UI
+					this.isVisible = true
+					this.status = sessionStatus
+					this.businessData.workspace = session.workspace
+					this.businessData.project = session.project
+					this.businessData.topic = session.topic
+					this.businessData.chatTopic = session.chatTopic ?? null
+					this.businessData.model = session.model
+					this.businessData.userId = session.userId
+					this.businessData.audioSource = session.audioSource
 
-						const lastMessage = last(session.textContent)
-						if (lastMessage) {
-							lastMessage.definite = true
-						}
-						this.setMessage(session.textContent || [])
-
-						if (session.totalDuration > 0) {
-							const formattedDuration = formatDuration(session.totalDuration)
-							this.updateDuration(formattedDuration)
-						}
-
-						// 恢复笔记内容
-						if (session.note) {
-							this.note = {
-								content: session.note.content,
-								file_extension: session.note.file_extension,
-							}
-						}
-
-						// 初始化浮动面板位置
-						this.floatPanel.initializePosition()
-						// this.floatPanel.setExpanded(true)
-
-						this.resetMultiTabState()
-
-						console.log("UI state restored:", {
-							isVisible: this.isVisible,
-							isRecording: this.status,
-							sessionStatus,
-						})
-					} else {
-						// 已完成的会话不恢复UI显示
-						this.isVisible = false
-						this.status = "init"
+					const lastMessage = last(session.textContent)
+					if (lastMessage) {
+						lastMessage.definite = true
 					}
+					this.setMessage(session.textContent || [])
+
+					if (session.totalDuration > 0) {
+						const formattedDuration = formatDuration(session.totalDuration)
+						this.updateDuration(formattedDuration)
+					}
+
+					// 恢复笔记内容
+					if (session.note) {
+						this.note = {
+							content: session.note.content,
+							file_extension: session.note.file_extension,
+						}
+					}
+
+					// 初始化浮动面板位置
+					this.floatPanel.initializePosition()
+
+					this.resetMultiTabState()
+
+					console.log("UI state restored:", {
+						isVisible: this.isVisible,
+						isRecording: this.status,
+						sessionStatus,
+					})
+				} else {
+					// 已完成的会话不恢复UI显示
+					this.isVisible = false
+					this.status = "init"
 				}
 			} catch (error) {
 				console.warn("Failed to restore UI state:", error)
@@ -885,9 +887,7 @@ class RecordingSummaryStore {
 	/**
 	 * 设置音频源
 	 */
-	setAudioSource(
-		audioSource: import("@/types/recordSummary").AudioSourceConfig | undefined,
-	) {
+	setAudioSource(audioSource: import("@/types/recordSummary").AudioSourceConfig | undefined) {
 		this.businessData.audioSource = audioSource
 		this.saveToStorage()
 	}

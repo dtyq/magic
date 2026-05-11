@@ -113,6 +113,11 @@ export class KeyboardManager {
 				return
 			}
 
+			// 与 Ctrl/Cmd+C 一致：仅焦点在画布容器内时才接管粘贴，避免误拦页面其它区域
+			if (!this.isFocusWithinKeyboardContainer()) {
+				return
+			}
+
 			// 触发 keyboard:paste 事件，传递 ClipboardEvent
 			// 注意：必须在 preventDefault() 之前触发，否则 clipboardData 会被清空
 			this.canvas.eventEmitter.emit({
@@ -157,6 +162,11 @@ export class KeyboardManager {
 			if ((e.metaKey || e.ctrlKey) && !e.repeat) {
 				// 如果用户在输入框中，不处理
 				if (this.isInputElement(e.target)) {
+					return
+				}
+
+				// 与冒泡阶段一致：仅当焦点在画布容器内时才拦截，避免全局吞掉 Ctrl/Cmd 组合键
+				if (!this.isFocusWithinKeyboardContainer()) {
 					return
 				}
 
@@ -217,13 +227,8 @@ export class KeyboardManager {
 			return
 		}
 
-		// 如果设置了容器，检查容器是否有焦点或者焦点在容器内
-		if (this.container) {
-			const activeElement = document.activeElement
-			const containsActive = this.container.contains(activeElement)
-			if (activeElement !== this.container && !containsActive) {
-				return
-			}
+		if (!this.isFocusWithinKeyboardContainer()) {
+			return
 		}
 
 		// 使用 code 来检测物理按键，这样可以正确处理 Shift + 数字键的情况
@@ -273,13 +278,15 @@ export class KeyboardManager {
 	 * 分发快捷键事件
 	 */
 	private emitShortcutEvent(eventType: string, key: string): void {
-		// 只读模式下允许的快捷键：缩放、复制、平移工具(space)、选择工具(v)
+		// 只读模式下允许的快捷键：缩放、复制、添加至当前对话、平移工具(space)、选择工具(v)
 		const allowedInReadonly = [
 			"keyboard:zoom:in",
 			"keyboard:zoom:out",
 			"keyboard:zoom:fit",
 			"keyboard:copy",
 			"keyboard:copy-png",
+			"keyboard:select:all",
+			"keyboard:conversation:add-to-current",
 		]
 
 		// 只读模式下允许的工具快捷键
@@ -441,12 +448,8 @@ export class KeyboardManager {
 			return
 		}
 
-		// 如果设置了容器，检查容器是否有焦点或者焦点在容器内
-		if (this.container) {
-			const activeElement = document.activeElement
-			if (activeElement !== this.container && !this.container.contains(activeElement)) {
-				return
-			}
+		if (!this.isFocusWithinKeyboardContainer()) {
+			return
 		}
 
 		// 使用 code 来检测物理按键，这样可以正确处理 Shift + 数字键的情况
@@ -552,6 +555,17 @@ export class KeyboardManager {
 			modifiers.push("alt")
 		}
 		return modifiers
+	}
+
+	/**
+	 * 未设置容器时不限制；已设置容器时仅当 document.activeElement 在容器内（或就是容器）才处理快捷键
+	 */
+	private isFocusWithinKeyboardContainer(): boolean {
+		if (!this.container) {
+			return true
+		}
+		const activeElement = document.activeElement
+		return activeElement === this.container || this.container.contains(activeElement)
 	}
 
 	/**

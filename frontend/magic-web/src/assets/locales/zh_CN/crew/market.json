@@ -1,5 +1,5 @@
 {
-	"aiSearch": "AI 搜索",
+	"aiSearch": "搜索",
 	"aiSearchPlaceholder": "输入关键词或描述您的需求，获取所需的数字员工",
 	"back": "返回",
 	"categories": {
@@ -52,7 +52,8 @@
 		},
 		"placeholders": {
 			"description": "请输入技能描述",
-			"name": "请输入技能名称"
+			"name": "请输入技能名称",
+			"source": "请输入技能来源"
 		},
 		"title": "编辑技能"
 	},
@@ -93,6 +94,7 @@
 			"description": "描述",
 			"icon": "图标",
 			"skillName": "技能名称",
+			"source": "来源",
 			"upload": "上传"
 		},
 		"processing": "正在分析技能文件...",
@@ -108,6 +110,8 @@
 		},
 		"title": "导入技能"
 	},
+	"loadMore": "加载更多",
+	"loadingMore": "加载更多中",
 	"localizeIdentity": {
 		"cancel": "取消",
 		"confirm": "确认",
@@ -118,9 +122,10 @@
 		"tabs": {
 			"description": "描述",
 			"name": "名称",
-			"role": "职责"
+			"role": "职责",
+			"source": "来源"
 		},
-		"title": "本地化：身份信息",
+		"title": "国际化配置",
 		"usingDefault": "使用默认"
 	},
 	"mobile": {
@@ -133,7 +138,8 @@
 		"crewType": {
 			"ariaLabel": "员工类型",
 			"createdByMe": "我创建的",
-			"hiredByMe": "我雇佣的"
+			"hiredByMe": "我雇佣的",
+			"teamShared": "团队共享"
 		},
 		"delete": "删除",
 		"deleteConfirm": {
@@ -158,6 +164,7 @@
 		"footerPoweredByLead": "由 ",
 		"footerPoweredByTail": " 提供",
 		"footerPublisherHandle": "@MagiCrew",
+		"manageSorting": "管理排序",
 		"moreActionsAria": "更多操作",
 		"openConversation": "对话",
 		"openPublish": "发布",
@@ -167,10 +174,26 @@
 			"message": "请到 PC 端操作",
 			"title": "移动端暂不支持编辑"
 		},
+		"roleSwitcherPopover": {
+			"goToMyCrewAria": "进入我的员工",
+			"sorting": "排序"
+		},
 		"sharedByTeamAction": "团队共享的",
+		"sortingDialog": {
+			"atLeastOneDisplayed": "首页至少需要展示 1 个员工。",
+			"cancel": "取消",
+			"displayed": "显示中 ({{count}})",
+			"hidden": "已隐藏 ({{count}})",
+			"loadFailed": "加载员工排序失败，请稍后重试。",
+			"retry": "重试",
+			"save": "保存",
+			"saveFailed": "保存员工排序失败，请稍后重试。",
+			"title": "管理排序"
+		},
 		"sourceCustom": "自建",
 		"sourceStore": "商店",
 		"subtitle": "管理您的专属数字员工。",
+		"teamSharedCreatedBy": "由 {{name}} 创建",
 		"title": "我的员工",
 		"upgradeAvailable": "有新版本可用，点击更新。"
 	},
@@ -211,8 +234,20 @@
 	},
 	"noMoreData": "没有更多数据。",
 	"noResults": "暂无结果。",
+	"skillDetailDialog": {
+		"collapse": "收起",
+		"emptyName": "未命名技能",
+		"expandAll": "展开全部",
+		"loadFailed": "加载技能详情失败，请稍后重试。",
+		"retry": "重试",
+		"skillFileEmpty": "暂无 SKILL.md 内容。",
+		"skillFileTitle": "SKILL.md",
+		"source": "来源：{{source}}"
+	},
 	"skillEditPage": {
 		"actions": {
+			"collaborators": "协作开发者",
+			"noPublishPermission": "暂无发布权限",
 			"publish": "发布",
 			"settings": "设置",
 			"unpublishedChanges": "未发布变更"
@@ -340,6 +375,7 @@
 				}
 			},
 			"statuses": {
+				"invalidated": "已失效",
 				"published": "已发布",
 				"rejected": "已拒绝",
 				"under_review": "审核中"
@@ -367,7 +403,10 @@
 				}
 			},
 			"toast": {
+				"ensureSkillConfigFailed": "自动生成 skill_config.yaml 失败，请稍后重试",
+				"noValidSkillForPublish": "未找到有效的技能目录（需存在 .magic/skills/<名称>/SKILL.md），无法发布",
 				"publishFailed": "发布失败，请稍后重试",
+				"publishNeedsProject": "未关联项目工作区，无法发布",
 				"publishSuccess": "发布成功"
 			}
 		},
@@ -388,6 +427,7 @@
 			"importSkillDesc": "上传 .Skill、.Zip 或文件夹"
 		},
 		"createSkill": "创建技能",
+		"featured": "精选",
 		"mySkills": "我的技能",
 		"noMoreData": "没有更多数据。",
 		"official": "官方",
@@ -404,7 +444,7 @@
 		"crewMarket": "员工市场",
 		"skillsLibrary": "技能库"
 	},
-	"title": "员工市场",
+	"title": "数字员工市场",
 	"updateSkill": {
 		"cancel": "取消",
 		"continue": "继续",

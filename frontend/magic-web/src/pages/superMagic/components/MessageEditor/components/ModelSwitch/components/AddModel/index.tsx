@@ -1,8 +1,8 @@
-import { useMemo } from "react"
+import { Suspense, useMemo } from "react"
 import { observer } from "mobx-react-lite"
 import { AddModelStore } from "./store"
 import { AddModelStoreProvider } from "./context"
-import AddModelDialog from "./AddModelDialog"
+import { AddModelDialogLazy } from "./add-model-dialog-lazy"
 
 export { useAddModelStore } from "./context"
 export { AddModelStore } from "./store"
@@ -13,7 +13,9 @@ function AddModelProvider({ children }: { children: React.ReactNode }) {
 	return (
 		<AddModelStoreProvider value={store}>
 			{children}
-			<AddModelDialog />
+			<Suspense fallback={null}>
+				<AddModelDialogLazy />
+			</Suspense>
 		</AddModelStoreProvider>
 	)
 }

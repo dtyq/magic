@@ -1,5 +1,6 @@
 import { MCPType } from "../types"
 import { get, set } from "lodash-es"
+import { highlight, languages } from "prismjs"
 
 /** Form fields */
 export const enum MCPFormField {
@@ -29,6 +30,20 @@ export const enum MCPFormField {
 	AuthorizationUrl = "authorization_url",
 }
 
+interface JsonObject {
+	[key: string]: unknown
+}
+
+interface MCPKeyValueItem {
+	key?: string
+	value?: string
+}
+
+interface MCPNormalizedKeyValueItem {
+	key: string
+	value: string
+}
+
 /** Request header import */
 export function importHeaders(headers: Record<string, string>): Array<Record<string, string>> {
 	if (headers) {
@@ -45,17 +60,17 @@ export function importHeaders(headers: Record<string, string>): Array<Record<str
 }
 
 /** Convert MCP form data to JSON */
-export function MCPConfigToJson(values: Record<string, any>) {
-	const config: Record<string, any> = {}
+export function MCPConfigToJson(values: JsonObject) {
+	const config: JsonObject = {}
 
-	function setValue(target: Record<string, any>, key: string) {
+	function setValue(target: JsonObject, key: string) {
 		const v = get(values, key)
 		if (v) {
 			set(target, key, v)
 		}
 	}
 
-	function setServiceConfig(target: Record<string, any>, key: Array<string>) {
+	function setServiceConfig(target: JsonObject, key: Array<string>) {
 		const v = get(values, [MCPFormField.ServiceConfig, ...key])
 		if (v) {
 			set(target, key, v)
@@ -63,16 +78,19 @@ export function MCPConfigToJson(values: Record<string, any>) {
 	}
 
 	// Special handling for request headers and Env
-	function setObject(target: Record<string, any>, key: string) {
+	function setObject(target: JsonObject, key: string) {
 		const v = get(values, [MCPFormField.ServiceConfig, key])
 
 		if (v && Array.isArray(v)) {
 			set(
 				target,
 				key,
-				v.reduce<Record<string, string>>((o, i) => {
-					o[i.key] = i.value
-					return o
+				v.reduce<Record<string, string>>((objectValue, item) => {
+					const normalizedItem = normalizeKeyValueItem(item)
+					if (!normalizedItem) return objectValue
+
+					objectValue[normalizedItem.key] = normalizedItem.value
+					return objectValue
 				}, {}),
 			)
 		}
@@ -95,7 +113,7 @@ export function MCPConfigToJson(values: Record<string, any>) {
 
 		// Handle args separately
 		const args = get(values, [MCPFormField.ServiceConfig, MCPFormField.Arguments])
-		if (args) {
+		if (typeof args === "string" && args) {
 			set(config, ["args"], args.split(","))
 		}
 
@@ -113,5 +131,70 @@ export function MCPConfigToJson(values: Record<string, any>) {
 	} catch (error) {
 		console.error(error)
 		return config
+	}
+}
+
+const htmlEscapeMap: Record<string, string> = {
+	"&": "&amp;",
+	"<": "&lt;",
+	">": "&gt;",
+}
+
+const prismJsonGrammar = {
+	property: {
+		pattern: /(^|[^\\])"(?:\\.|[^\\"\r\n])*"(?=\s*:)/,
+		lookbehind: true,
+		greedy: true,
+	},
+	string: {
+		pattern: /(^|[^\\])"(?:\\.|[^\\"\r\n])*"(?!\s*:)/,
+		lookbehind: true,
+		greedy: true,
+	},
+	comment: {
+		pattern: /\/\/.*|\/\*[\s\S]*?(?:\*\/|$)/,
+		greedy: true,
+	},
+	number: /-?\b\d+(?:\.\d+)?(?:e[+-]?\d+)?\b/i,
+	punctuation: /[{}[\],]/,
+	operator: /:/,
+	boolean: /\b(?:false|true)\b/,
+	null: {
+		pattern: /\bnull\b/,
+		alias: "keyword",
+	},
+}
+
+function escapeHtml(value: string) {
+	return value.replace(/[&<>]/g, (char) => htmlEscapeMap[char] || char)
+}
+
+function normalizeKeyValueItem(value: unknown): MCPNormalizedKeyValueItem | null {
+	if (!value || typeof value !== "object") return null
+
+	const { key, value: itemValue } = value as MCPKeyValueItem
+	if (typeof key !== "string" || !key) return null
+
+	return {
+		key,
+		value: typeof itemValue === "string" ? itemValue : "",
+	}
+}
+
+function ensurePrismJsonGrammar() {
+	if (!languages.json) languages.json = prismJsonGrammar
+
+	if (!languages.webmanifest) languages.webmanifest = languages.json
+}
+
+export function highlightJsonCode(code: string) {
+	if (!code) return ""
+
+	try {
+		ensurePrismJsonGrammar()
+		return highlight(code, languages.json, "json")
+	} catch (error) {
+		console.warn("Prism JSON highlight failed", error)
+		return escapeHtml(code)
 	}
 }

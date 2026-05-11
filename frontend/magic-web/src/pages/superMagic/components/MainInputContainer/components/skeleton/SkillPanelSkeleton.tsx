@@ -2,7 +2,6 @@ import { Skeleton } from "@/components/shadcn-ui/skeleton"
 import usePortalTarget from "@/hooks/usePortalTarget"
 import { createPortal } from "react-dom"
 import { SCENE_INPUT_IDS } from "../../constants"
-import { SkillPanelDefaultLayoutSkeleton } from "./SkillPanelDefaultLayoutSkeleton"
 import MessageEditorSkeleton from "./MessageEditorSkeleton"
 import { ScenePanelVariant } from "../LazyScenePanel/types"
 import { Spinner } from "@/components/shadcn-ui/spinner"
@@ -78,7 +77,7 @@ function SkillPanelSkeleton({
 				editorPortalTarget &&
 				createPortal(<MessageEditorSkeleton />, editorPortalTarget)}
 			<div className="flex items-center justify-center">
-				<Spinner className="animate-spin" size={20} />
+				<Spinner className="animate-spin text-sidebar" size={20} />
 			</div>
 			{/* <SkillPanelDefaultLayoutSkeleton /> */}
 		</>

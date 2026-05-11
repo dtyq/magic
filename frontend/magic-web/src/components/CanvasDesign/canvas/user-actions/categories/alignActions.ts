@@ -8,10 +8,7 @@ export const alignActions: UserAction[] = [
 		id: "align.left",
 		category: "align",
 		canExecute: (canvas) => {
-			// 非只读模式且有选中的元素
-			if (canvas.readonly) return false
-			const selectedIds = canvas.selectionManager.getSelectedIds()
-			return selectedIds.length > 0
+			return canvas.permissionManager.canAlignCurrentSelection()
 		},
 		execute: (canvas) => {
 			canvas.alignmentManager.align("left")
@@ -21,10 +18,7 @@ export const alignActions: UserAction[] = [
 		id: "align.horizontal-center",
 		category: "align",
 		canExecute: (canvas) => {
-			// 非只读模式且有选中的元素
-			if (canvas.readonly) return false
-			const selectedIds = canvas.selectionManager.getSelectedIds()
-			return selectedIds.length > 0
+			return canvas.permissionManager.canAlignCurrentSelection()
 		},
 		execute: (canvas) => {
 			canvas.alignmentManager.align("horizontal-center")
@@ -34,10 +28,7 @@ export const alignActions: UserAction[] = [
 		id: "align.right",
 		category: "align",
 		canExecute: (canvas) => {
-			// 非只读模式且有选中的元素
-			if (canvas.readonly) return false
-			const selectedIds = canvas.selectionManager.getSelectedIds()
-			return selectedIds.length > 0
+			return canvas.permissionManager.canAlignCurrentSelection()
 		},
 		execute: (canvas) => {
 			canvas.alignmentManager.align("right")
@@ -47,10 +38,7 @@ export const alignActions: UserAction[] = [
 		id: "align.top",
 		category: "align",
 		canExecute: (canvas) => {
-			// 非只读模式且有选中的元素
-			if (canvas.readonly) return false
-			const selectedIds = canvas.selectionManager.getSelectedIds()
-			return selectedIds.length > 0
+			return canvas.permissionManager.canAlignCurrentSelection()
 		},
 		execute: (canvas) => {
 			canvas.alignmentManager.align("top")
@@ -60,10 +48,7 @@ export const alignActions: UserAction[] = [
 		id: "align.vertical-center",
 		category: "align",
 		canExecute: (canvas) => {
-			// 非只读模式且有选中的元素
-			if (canvas.readonly) return false
-			const selectedIds = canvas.selectionManager.getSelectedIds()
-			return selectedIds.length > 0
+			return canvas.permissionManager.canAlignCurrentSelection()
 		},
 		execute: (canvas) => {
 			canvas.alignmentManager.align("vertical-center")
@@ -73,10 +58,7 @@ export const alignActions: UserAction[] = [
 		id: "align.bottom",
 		category: "align",
 		canExecute: (canvas) => {
-			// 非只读模式且有选中的元素
-			if (canvas.readonly) return false
-			const selectedIds = canvas.selectionManager.getSelectedIds()
-			return selectedIds.length > 0
+			return canvas.permissionManager.canAlignCurrentSelection()
 		},
 		execute: (canvas) => {
 			canvas.alignmentManager.align("bottom")

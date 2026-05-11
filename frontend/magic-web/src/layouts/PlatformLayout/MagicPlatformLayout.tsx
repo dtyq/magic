@@ -1,11 +1,14 @@
-import { Outlet } from "react-router"
+import { Outlet, useLocation } from "react-router"
 import { RecordSummaryNotificationProvider } from "@/components/business/RecordingSummary/components/RecordSummaryNotification"
-import { MobileImagePreviewProvider } from "@/pages/superMagic/components/MessageEditor/components/AtItem/components"
 import LowResolutionScaleTip from "@/components/other/LowResolutionScaleTip"
 import { logger as Logger } from "@/utils/log"
 import { lazy, Suspense, useEffect } from "react"
 import { useChatWebSocketConnection } from "@/hooks/useChatWebSocketConnection"
 import routeManageService from "@/pages/superMagic/services/routeManageService"
+import {
+	clearSuperRouteScopedSelectionState,
+	isSuperWorkspaceRouteLocation,
+} from "@/pages/superMagic/services/routeScopedState"
 import useNavigate from "@/routes/hooks/useNavigate"
 import SwitchingOrganizationLoading from "@/components/fallback/SwitchingOrganizationLoading"
 
@@ -14,15 +17,26 @@ const RecordSummaryServiceListenerModal = lazy(
 		import("@/components/business/RecordingSummary/components/RecordSummaryServiceListenerModal"),
 )
 
+const RecordingHistoryPanelMount = lazy(
+	() =>
+		import("@/components/business/RecordingSummary/components/RecordingHistoryPanel/RecordingHistoryPanelMount"),
+)
+
 const logger = Logger.createLogger("MagicPlatformLayout")
 
 function MagicPlatformLayoutContent() {
 	const navigate = useNavigate()
+	const location = useLocation()
 
 	useEffect(() => {
 		routeManageService.setNavigate(navigate)
 		return () => routeManageService.setNavigate(null)
 	}, [navigate])
+
+	useEffect(() => {
+		if (isSuperWorkspaceRouteLocation(location)) return
+		clearSuperRouteScopedSelectionState()
+	}, [location])
 
 	// Setup WebSocket connection and authentication
 	useChatWebSocketConnection({
@@ -35,9 +49,11 @@ function MagicPlatformLayoutContent() {
 	return (
 		<SwitchingOrganizationLoading>
 			<Outlet />
-			<MobileImagePreviewProvider />
 			<Suspense fallback={null}>
 				<RecordSummaryServiceListenerModal />
+			</Suspense>
+			<Suspense fallback={null}>
+				<RecordingHistoryPanelMount />
 			</Suspense>
 			<LowResolutionScaleTip />
 		</SwitchingOrganizationLoading>

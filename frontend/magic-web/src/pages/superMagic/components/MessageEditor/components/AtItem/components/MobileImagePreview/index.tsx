@@ -20,7 +20,7 @@ export type { MobileImagePreviewProps, MobileImagePreviewRef } from "./types"
 // Global instance for functional usage
 let globalPreviewRef: MobileImagePreviewRef | null = null
 
-// Provider component to be mounted in app root
+// Provider component to be mounted at the Super route root
 export function MobileImagePreviewProvider() {
 	return (
 		<Suspense fallback={null}>
@@ -44,7 +44,7 @@ export const showMobileImagePreview = (options: {
 		globalPreviewRef.show(options)
 	} else {
 		console.warn(
-			"MobileImagePreviewProvider not mounted. Please add <MobileImagePreviewProvider /> to your app root.",
+			"MobileImagePreviewProvider not mounted. Please add <MobileImagePreviewProvider /> to the Super route root layout.",
 		)
 	}
 }

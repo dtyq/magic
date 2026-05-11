@@ -41,7 +41,10 @@ const TopicItemComponent = memo(
 			>
 				<div className={styles.leftContent}>
 					<StatusIcon status={item.task_status} />
-					<ModeTag mode={item.topic_mode || TopicMode.General} />
+					<ModeTag
+						mode={item.topic_mode || TopicMode.General}
+						agentCode={item.agent_code}
+					/>
 					<div className={styles.topicTitle}>
 						{item.topic_name || t("topic.unnamedTopic")}
 					</div>

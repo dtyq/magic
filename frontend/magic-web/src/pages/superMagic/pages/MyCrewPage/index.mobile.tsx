@@ -15,17 +15,21 @@ import { configStore } from "@/models/config"
 import { defaultClusterCode } from "@/routes/helpers"
 import { fillRoute } from "@/routes/history/helpers"
 import { ViewTransitionPresets } from "@/types/viewTransition"
+import { FUNCTION_PERMISSION_CODE } from "@/apis"
+import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import { useAutoLoadMoreSentinel } from "@/pages/superMagic/hooks/useAutoLoadMoreSentinel"
 import { useDelayedVisibility } from "@/pages/superMagic/hooks/useDelayedVisibility"
 import MyCrewCardMobile from "./components/MyCrewCardMobile"
-import MyCrewCrewTypeTabs, { type MyCrewCrewTypeTab } from "./components/MyCrewCrewTypeTabs"
+import MyCrewCrewTypeTabs from "./components/MyCrewCrewTypeTabs"
 import { MyCrewStore } from "./stores/my-crew"
 import type { MyCrewView } from "@/services/crew/CrewService"
 import {
 	resolveMyCrewDisableActionDisabled,
 	resolveMyCrewDisableActionLabel,
 	resolveMyCrewHiredActionKind,
+	resolveTeamSharedCrewPermissions,
 } from "./components/my-crew-card-shared"
+import { useMyCrewTabs } from "./hooks/useMyCrewTabs"
 
 function MyCrewPageMobile() {
 	const { t } = useTranslation("crew/market")
@@ -34,11 +38,14 @@ function MyCrewPageMobile() {
 	const storeRef = useRef(new MyCrewStore())
 	const scrollViewportRef = useRef<HTMLDivElement | null>(null)
 	const store = storeRef.current
-
-	const [crewTypeTab, setCrewTypeTab] = useState<MyCrewCrewTypeTab>("created")
 	const [pcOnlyDialogOpen, setPcOnlyDialogOpen] = useState(false)
 	const [selectedAgent, setSelectedAgent] = useState<MyCrewView | null>(null)
 	const [selectedActionAgent, setSelectedActionAgent] = useState<MyCrewView | null>(null)
+	const { crewTypeTab, setCrewTypeTab, isCreatedTab, isHiredTab, isTeamSharedTab } =
+		useMyCrewTabs()
+	const { isAllowed: canCreateAgent } = useFunctionPermission(
+		FUNCTION_PERMISSION_CODE.AgentCreate,
+	)
 	const handleAutoLoadMore = useCallback(() => {
 		void store.loadMore()
 	}, [store])
@@ -183,8 +190,12 @@ function MyCrewPageMobile() {
 		if (!selectedActionAgent) return []
 
 		const actions: ActionsPopup.ActionButtonConfig[] = []
+		const { canDelete, canPublish } = resolveTeamSharedCrewPermissions(
+			selectedActionAgent.userRole,
+		)
+		const isTeamSharedActionAgent = crewTypeTab === "team-shared"
 
-		if (selectedActionAgent.needUpgrade) {
+		if (!isTeamSharedActionAgent && selectedActionAgent.needUpgrade) {
 			actions.push({
 				key: "upgrade",
 				label: t("skillsLibrary.upgrade"),
@@ -196,19 +207,40 @@ function MyCrewPageMobile() {
 			})
 		}
 
-		actions.push({
-			key: "delete",
-			label: t("myCrewPage.delete"),
-			variant: "danger",
-			onClick: () => {
-				setSelectedActionAgent(null)
-				handleDeleteCreatedCrew(selectedActionAgent.agentCode)
-			},
-			"data-testid": "my-crew-mobile-action-delete",
-		})
+		if (isTeamSharedActionAgent && canPublish) {
+			actions.push({
+				key: "publish",
+				label: t("myCrewPage.openPublish"),
+				onClick: () => {
+					setSelectedActionAgent(null)
+					showPcOnlyNotice()
+				},
+				"data-testid": "my-crew-mobile-action-publish",
+			})
+		}
+
+		if (!isTeamSharedActionAgent || canDelete) {
+			actions.push({
+				key: "delete",
+				label: t("myCrewPage.delete"),
+				variant: "danger",
+				onClick: () => {
+					setSelectedActionAgent(null)
+					handleDeleteCreatedCrew(selectedActionAgent.agentCode)
+				},
+				"data-testid": "my-crew-mobile-action-delete",
+			})
+		}
 
 		return actions
-	}, [handleDeleteCreatedCrew, handleUpgrade, selectedActionAgent, t])
+	}, [
+		crewTypeTab,
+		handleDeleteCreatedCrew,
+		handleUpgrade,
+		selectedActionAgent,
+		showPcOnlyNotice,
+		t,
+	])
 
 	return (
 		<>
@@ -233,6 +265,7 @@ function MyCrewPageMobile() {
 							: {
 									label: resolveMyCrewDisableActionLabel(
 										selectedAgent.allowDelete,
+										selectedAgent.publisherType,
 										t,
 									),
 									variant: "secondary",
@@ -283,15 +316,17 @@ function MyCrewPageMobile() {
 						{t("myCrewPage.title")}
 					</h1>
 					<div className="z-10 ml-auto flex shrink-0">
-						<Button
-							variant="ghost"
-							className="h-8 gap-1 rounded-md px-2 text-xs font-medium text-foreground"
-							onClick={handleCreateCrew}
-							data-testid="my-crew-create-button"
-						>
-							<CirclePlus className="size-4 shrink-0" aria-hidden />
-							{t("createCrew")}
-						</Button>
+						{canCreateAgent ? (
+							<Button
+								variant="ghost"
+								className="h-8 gap-1 rounded-md px-2 text-xs font-medium text-foreground"
+								onClick={handleCreateCrew}
+								data-testid="my-crew-create-button"
+							>
+								<CirclePlus className="size-4 shrink-0" aria-hidden />
+								{t("createCrew")}
+							</Button>
+						) : null}
 					</div>
 				</header>
 
@@ -319,15 +354,17 @@ function MyCrewPageMobile() {
 								<p className="text-sm text-muted-foreground">
 									{t("myCrewPage.empty")}
 								</p>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={handleCreateCrew}
-									className="gap-2"
-								>
-									<CirclePlus className="size-4" />
-									{t("createCrew")}
-								</Button>
+								{isCreatedTab && canCreateAgent ? (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={handleCreateCrew}
+										className="gap-2"
+									>
+										<CirclePlus className="size-4" />
+										{t("createCrew")}
+									</Button>
+								) : null}
 							</div>
 						) : null}
 
@@ -347,17 +384,29 @@ function MyCrewPageMobile() {
 												handleCrewCardNavigate(employee.agentCode, event)
 											}
 											onEdit={
-												crewTypeTab === "created"
+												isCreatedTab
 													? handleEdit
-													: handleOpenDetails
+													: isTeamSharedTab &&
+														  resolveTeamSharedCrewPermissions(
+																employee.userRole,
+														  ).canEdit
+														? handleEdit
+														: handleOpenDetails
 											}
 											onMoreClick={
-												crewTypeTab === "created"
+												isCreatedTab ||
+												(isTeamSharedTab &&
+													(resolveTeamSharedCrewPermissions(
+														employee.userRole,
+													).canPublish ||
+														resolveTeamSharedCrewPermissions(
+															employee.userRole,
+														).canDelete))
 													? handleOpenActions
 													: undefined
 											}
 											onUpgrade={handleUpgrade}
-											{...(crewTypeTab === "hired"
+											{...(isHiredTab
 												? {
 														onDismiss: handleDismissHiredCrew,
 														onDisable: handleDisableHiredCrew,

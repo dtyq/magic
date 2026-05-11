@@ -25,7 +25,7 @@ export interface PPTStoreConfig {
 	attachmentList?: any[]
 	mainFileId?: string
 	mainFileName?: string
-	metadata?: any
+	displayConfig?: any
 	/**
 	 * Whether to automatically load slides and generate screenshots
 	 * when slides are initialized
@@ -49,7 +49,7 @@ export interface PPTStoreConfig {
 	enableCache?: boolean
 }
 
-export interface PPTExportConfig extends PPTStoreConfig { }
+export interface PPTExportConfig extends PPTStoreConfig {}
 
 /**
  * PPTStore - Main store that coordinates all managers
@@ -120,7 +120,7 @@ export class PPTStore {
 			attachmentList: config.attachmentList,
 			mainFileId: config.mainFileId,
 			mainFileName: config.mainFileName,
-			metadata: config.metadata,
+			displayConfig: config.displayConfig,
 		})
 		const screenshotService = getScreenshotService()
 		this.logger = createPPTLogger(config.logger)
@@ -1330,7 +1330,7 @@ export class PPTStore {
 			metadata: { configKeys: Object.keys(config) },
 		})
 
-		const previousMetadata = this.config.metadata
+		const previousDisplayConfig = this.config.displayConfig
 		const previousAttachmentList = this.config.attachmentList
 
 		this.config = { ...this.config, ...config }
@@ -1342,7 +1342,7 @@ export class PPTStore {
 			processorConfig.attachmentList = config.attachmentList
 		if (config.mainFileId !== undefined) processorConfig.mainFileId = config.mainFileId
 		if (config.mainFileName !== undefined) processorConfig.mainFileName = config.mainFileName
-		if (config.metadata !== undefined) processorConfig.metadata = config.metadata
+		if (config.displayConfig !== undefined) processorConfig.displayConfig = config.displayConfig
 
 		if (Object.keys(processorConfig).length > 0) {
 			this.processorService.updateConfig(processorConfig)
@@ -1357,7 +1357,7 @@ export class PPTStore {
 		}
 
 		// Check if slides data needs incremental update
-		await this.handleIncrementalUpdate(config, previousMetadata, previousAttachmentList)
+		await this.handleIncrementalUpdate(config, previousDisplayConfig, previousAttachmentList)
 
 		// Update cache manager config if cache-related fields changed
 		if (
@@ -1382,15 +1382,15 @@ export class PPTStore {
 	 */
 	private async handleIncrementalUpdate(
 		config: Partial<PPTStoreConfig>,
-		previousMetadata: { slides: string[] },
+		previousDisplayConfig: { slides: string[] },
 		previousAttachmentList: AttachmentItem[] | undefined,
 	): Promise<void> {
-		if (!config.metadata && !config.attachmentList) {
+		if (!config.displayConfig && !config.attachmentList) {
 			return
 		}
 
-		const previousSlidePaths = this.extractSlidePathsFromMetadata(previousMetadata)
-		const newSlidePaths = this.extractSlidePathsFromMetadata(config.metadata)
+		const previousSlidePaths = this.extractSlidePathsFromDisplayConfig(previousDisplayConfig)
+		const newSlidePaths = this.extractSlidePathsFromDisplayConfig(config.displayConfig)
 		const currentSlidePaths = this.slidePaths
 		const updatedFiles = this.incrementalUpdateService.detectUpdatedFiles(
 			previousAttachmentList,
@@ -1525,13 +1525,13 @@ export class PPTStore {
 	}
 
 	/**
-	 * Extract slide paths from metadata
+	 * Extract slide paths from display_config
 	 */
-	private extractSlidePathsFromMetadata(metadata: { slides: string[] }): string[] {
-		if (!metadata || !metadata.slides || !Array.isArray(metadata.slides)) {
+	private extractSlidePathsFromDisplayConfig(displayConfig: { slides: string[] }): string[] {
+		if (!displayConfig || !displayConfig.slides || !Array.isArray(displayConfig.slides)) {
 			return []
 		}
-		return metadata.slides
+		return displayConfig.slides
 	}
 
 	// ==================== Manual Save Tracking ====================

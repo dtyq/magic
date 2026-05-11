@@ -1,9 +1,6 @@
 import { useCallback } from "react"
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
-import {
-	MentionItemType,
-	CanvasMarkerMentionData,
-} from "@/components/business/MentionPanel/types"
+import { MentionItemType, CanvasMarkerMentionData } from "@/components/business/MentionPanel/types"
 import { JSONContent } from "@tiptap/core"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import {
@@ -81,46 +78,32 @@ export function useMarkerClickHandler(context: MarkerClickContext) {
 
 			// 验证数据完整性
 			if (
-				!markerData?.data?.id ||
-				!markerData?.data?.elementId ||
+				!markerData?.marker_id ||
+				!markerData?.element_id ||
 				!markerData?.design_project_id
 			) {
 				return
 			}
 
-			const markerId = markerData.data.id
-			const elementId = markerData.data.elementId
+			const elementId = markerData.element_id
 			const designProjectId = markerData.design_project_id
 
-			// 根据场景决定行为
-			let shouldSelectMarker = false
-			let shouldFocusElement = false
-
-			switch (scene) {
-				case "messageEditorMentionList":
-					shouldSelectMarker = true
-					shouldFocusElement = false
-					break
-				case "messageEditorTiptap":
-					shouldSelectMarker = true
-					shouldFocusElement = false
-					break
-				case "messageList":
-					shouldSelectMarker = false
-					shouldFocusElement = true
-					break
-				case "draftBox":
-					// 草稿箱应该被 disabled 拦截，这里不应该执行到
-					return
+			if (scene === "draftBox") {
+				// 草稿箱应该被 disabled 拦截，这里不应该执行到
+				return
 			}
 
-			// 发布事件
-			pubsub.publish(PubSubEvents.Super_Magic_Select_Marker_And_Focus, {
-				designProjectId,
-				markerId,
-				elementId,
-				shouldFocusElement,
-				shouldSelectMarker,
+			pubsub.publish(PubSubEvents.Super_Magic_Focus_Canvas_Element, {
+				canvasDesignId: designProjectId,
+				elementIds: [elementId],
+				animated: true,
+				selectElement: true,
+				padding: {
+					top: "25%",
+					right: "25%",
+					bottom: "25%",
+					left: "25%",
+				},
 			})
 		},
 		[scene, disabled, transformedMarkerData, messageContent],

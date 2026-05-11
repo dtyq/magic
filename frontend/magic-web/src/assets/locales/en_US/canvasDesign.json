@@ -2,6 +2,7 @@
 	"common": {
 		"cancel": "Cancel",
 		"close": "Close",
+		"complete": "Complete",
 		"confirm": "Confirm",
 		"delete": "Delete",
 		"edit": "Edit",
@@ -10,9 +11,14 @@
 	},
 	"dropOverlay": {
 		"loading": "Loading",
+		"referenceImageLimitReached": "Reference image limit reached",
+		"referenceImageUnavailable": "Reference images are not available right now",
+		"releaseToAddAttachment": "Release to add attachment",
 		"releaseToAddToCanvas": "Release to add to canvas",
 		"releaseToUpload": "Release to upload file",
-		"releaseToUploadImage": "Release to upload image"
+		"releaseToUploadImage": "Release to upload image",
+		"unsupportedDropContent": "This dragged content cannot be added as a reference image",
+		"unsupportedReferenceImageType": "Only image files can be added as reference images"
 	},
 	"elementTools": {
 		"elementAlign": {
@@ -35,10 +41,31 @@
 			"placeholder": "Font"
 		},
 		"fontStyle": {
+			"bold": "Blob",
+			"italic": "Italic",
 			"placeholder": "Font Weight"
 		},
 		"imageConvertHight": {
+			"exitHint": "Exit",
+			"tip": "Select upscale factor",
 			"title": "High Definition Upscale"
+		},
+		"imageCrop": {
+			"preset": "Preset",
+			"restoreOriginal": "Restore Original",
+			"title": "Crop"
+		},
+		"imageEraser": {
+			"tip": "Paint areas to erase",
+			"title": "Eraser"
+		},
+		"imageExtend": {
+			"presetSection": "Preset",
+			"scaleSection": "Scale",
+			"title": "Expand"
+		},
+		"imageRemoveBackground": {
+			"title": "Remove Background"
 		},
 		"shapeStyle": {
 			"advanced": "Advanced",
@@ -46,6 +73,13 @@
 			"innerRadiusRatio": "Inner Radius Ratio",
 			"opacity": "Opacity",
 			"sides": "Sides"
+		},
+		"size": {
+			"height": "Height",
+			"width": "Width"
+		},
+		"sizeEdit": {
+			"title": "Edit Size"
 		},
 		"strokeColor": {
 			"title": "Stroke"
@@ -76,6 +110,9 @@
 			"center": "Center",
 			"left": "Left",
 			"right": "Right"
+		},
+		"videoOriginalSize": {
+			"title": "Original Video Size"
 		}
 	},
 	"ellipse": {
@@ -92,18 +129,26 @@
 		"empty": "Please send an instruction to generate an image",
 		"errorPrefix": "Image generation failed, ",
 		"errorRetry": "Click to retry",
+		"fileMissing": "Image file is missing",
 		"generateFailed": "Image generation failed",
 		"generating": "Generating...",
 		"generatorName": "Image Generator",
 		"loadError": "Failed to load image",
 		"loading": "Loading...",
 		"nameSuffix": {
+			"erasing": "(Erasing)",
+			"expanding": "(Expanding)",
 			"failed": "(Failed)",
 			"generating": "(Generating)",
 			"loading": "(Loading)",
+			"removingBackground": "(Removing Background)",
 			"uploading": "(Uploading)"
 		},
 		"nameWithIndex": "Image {{index}}",
+		"retryEditing": "Please edit your image generation request again",
+		"retryEditingEraser": "Please edit your eraser request again",
+		"retryEditingExpand": "Please edit your expand request again",
+		"retryEditingRemoveBackground": "Please edit your remove-background request again",
 		"uploadFailed": "Image upload failed",
 		"uploading": "Uploading..."
 	},
@@ -111,10 +156,15 @@
 		"currentImage": "(Current Image)",
 		"custom": "Custom",
 		"editPlaceholder": "Please enter your edit requirements",
+		"generateAgain": "Generate again",
 		"maxReferenceImagesReached": "Maximum {{maxReferenceImages}} reference images allowed",
 		"originalImage": "Original Image",
 		"placeholder": "Please enter your creative requirements",
+		"projectFilesRoot": "Current Project Files",
+		"quickEdit": "Quick edit",
+		"reEditFromSaved": "Re-edit",
 		"referenceImage": "Reference Image",
+		"resolution": "Resolution",
 		"size": "Size"
 	},
 	"layers": {
@@ -136,6 +186,7 @@
 		"downloadFile": "Download File",
 		"downloadImage": "Download Image",
 		"downloadImageNoWatermark": "Download Image (No Watermark)",
+		"downloadVideo": "Download Video",
 		"hide": "Hide",
 		"lock": "Lock",
 		"moveDown": "Move Down",
@@ -143,20 +194,32 @@
 		"moveToTop": "Move to Top",
 		"moveUp": "Move Up",
 		"paste": "Paste",
+		"pasteUseShortcutHint": "System files please use Ctrl/Cmd+V to paste",
 		"removeFrame": "Remove Frame",
+		"rename": "Rename",
 		"show": "Show",
 		"unlock": "Unlock"
 	},
 	"messageHistory": {
+		"copyPrompt": "Copy",
+		"expandPrompt": "Expand",
+		"inputMode": "Input mode",
 		"model": "Model",
 		"noPrompt": "No prompt",
 		"prompt": "Prompt",
+		"referenceAudio": "Reference Audio",
 		"referenceImage": "Reference Image",
+		"referenceVideo": "Reference Video",
 		"size": "Size",
 		"title": "Generation History"
 	},
 	"rectangle": {
 		"defaultName": "Rectangle"
+	},
+	"referenceAssets": {
+		"localUpload": "Upload from local",
+		"projectFilesRoot": "Current Project Files",
+		"projectSelect": "Select from project"
 	},
 	"shortcuts": {
 		"align": {
@@ -320,6 +383,8 @@
 	},
 	"sizeSelect": {
 		"custom": "Custom",
+		"originalImageSize": "Original Image Size",
+		"originalVideoSize": "Original Video Size",
 		"selectSize": "Select Size"
 	},
 	"star": {
@@ -335,10 +400,63 @@
 		"marker": "Marker",
 		"selection": "Selection Tool",
 		"space": "Space",
-		"text": "Text"
+		"text": "Text",
+		"videoGenerator": "Video Generator"
 	},
 	"triangle": {
 		"defaultName": "Triangle"
+	},
+	"video": {
+		"defaultName": "Video Generator",
+		"empty": "Please send an instruction to generate a video",
+		"fileMissing": "Video file is missing",
+		"generateFailed": "Video generation failed",
+		"generating": "Generating...",
+		"loadError": "Failed to load video",
+		"loading": "Loading...",
+		"retryEditing": "Please edit your video generation request again",
+		"uploading": "Uploading..."
+	},
+	"videoEditor": {
+		"aspectRatio": "Aspect ratio",
+		"duration": "Duration",
+		"firstFrame": "First frame",
+		"frames": "First & last frame",
+		"generateAgain": "Generate again",
+		"generationSettings": "Generation settings",
+		"generationSettingsAria": "Video generation parameters",
+		"lastFrame": "Last frame",
+		"placeholder": "Please enter your video creation requirements",
+		"promptPlaceholderReferenceAudioTokenLabel": "Audio",
+		"promptPlaceholderReferenceImageTokenLabel": "Image",
+		"promptPlaceholderReferenceVideoTokenLabel": "Video",
+		"quality": "Quality",
+		"reEditFromSaved": "Re-edit",
+		"referenceAsset": "Omni Mode",
+		"referenceAssetTotalMaxReached": "Up to {{max}} reference assets are allowed",
+		"referenceAssetTotalMinNotMet": "At least {{min}} reference assets are required",
+		"referenceAssetTypeMaxReached": "Up to {{max}} {{assetType}} are allowed",
+		"referenceAssetTypeMinNotMet": "At least {{min}} {{assetType}} are required",
+		"referenceImage": "Reference Image",
+		"referenceImageWithIndex": "Reference image {{index}}",
+		"referenceSourceMaterial": "Sources",
+		"referenceVideoMaxReached": "Up to {{max}} reference videos are allowed",
+		"removeSlotResource": "Remove this reference",
+		"resolution": "Resolution",
+		"sendButtonEstimatedPoints": "Estimated {{points}}",
+		"sendConfirmDescription": "This task is estimated to consume approximately {{points}} points. Confirm execution?",
+
+		"sendConfirmOk": "Confirm",
+		"sendConfirmSkip": "Don't ask again",
+		"sendConfirmTitle": "Consumption notice",
+		"size": "Size",
+		"slotLabelFirstFrame": "Start",
+		"slotLabelLastFrame": "End",
+		"slotLabelReferenceImage": "Ref",
+		"slotLabelReferenceMedia": "Media",
+		"standard": "Text to video",
+		"videoEdit": "Video Edit",
+		"videoEditRequiresOneVideo": "Video edit mode requires exactly 1 reference video"
 	},
 	"zoom": {
 		"fitToScreen": "Fit to Screen",

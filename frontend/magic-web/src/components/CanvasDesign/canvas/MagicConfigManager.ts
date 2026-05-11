@@ -14,6 +14,12 @@ export class MagicConfigManager {
 	}
 
 	update(config?: MagicConfig): void {
+		const methods = config?.methods
+		if (methods != null && typeof methods.resolveAbsolutePath !== "function") {
+			throw new Error(
+				"MagicConfigManager: methods.resolveAbsolutePath is required when methods is provided.",
+			)
+		}
 		this.config = config
 	}
 }

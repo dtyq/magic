@@ -12,7 +12,11 @@ export const LarkStrategy: ThirdPartyLoginStrategy = {
 	 * @description Lark login free, obtain temporary authorization code (return third-party temporary authorization code for third-party login)
 	 * @constructor
 	 */
-	getAuthCode: (deployCode: string): Promise<string> => {
+	getAuthCode: (
+		deployCode: string,
+		options?: Pick<import("@/apis/core/HttpClient").RequestConfig, "skipAppInitWait">,
+	): Promise<string> => {
+		void options
 		// eslint-disable-next-line no-async-promise-executor
 		return new Promise(async (resolve, reject) => {
 			try {

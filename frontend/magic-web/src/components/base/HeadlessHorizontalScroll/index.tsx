@@ -76,7 +76,7 @@ function defaultRenderLeftControl({ scroll }: HeadlessHorizontalScrollRenderProp
 				<Button
 					variant="outline"
 					size="icon"
-					className="pointer-events-auto !size-4 shrink-0 rounded-full border-muted-foreground text-muted-foreground shadow-xs [&_svg]:size-3"
+					className="pointer-events-auto !size-4 shrink-0 rounded-full border-muted-foreground/50 text-muted-foreground/50 shadow-xs [&_svg]:size-3"
 					onClick={() => scroll("left")}
 				>
 					<ChevronLeft />
@@ -99,7 +99,7 @@ function defaultRenderRightControl({ scroll }: HeadlessHorizontalScrollRenderPro
 				<Button
 					variant="outline"
 					size="icon"
-					className="pointer-events-auto !size-4 shrink-0 rounded-full border-muted-foreground text-muted-foreground shadow-xs [&_svg]:size-3"
+					className="pointer-events-auto !size-4 shrink-0 rounded-full border-muted-foreground/50 text-muted-foreground/50 shadow-xs [&_svg]:size-3"
 					onClick={() => scroll("right")}
 				>
 					<ChevronRight />

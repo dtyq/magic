@@ -10,6 +10,7 @@ interface UseSlideHandlers {
 interface UseSlideHandlersReturn {
 	handleEditModeChange: (fileId: string, isEditing: boolean) => void
 	handleRefreshSlide: (index: number) => Promise<void>
+	handleRefreshAllSlides: () => Promise<void>
 	handleRegenerateScreenshot: (index: number) => Promise<void>
 	handleSidebarCollapsedChange: (collapsed: boolean) => void
 }
@@ -51,6 +52,30 @@ export function useSlideHandlers({
 		}
 	})
 
+	const handleRefreshAllSlides = useMemoizedFn(async () => {
+		if (store.isTransitioning) return
+
+		const fileIds = [
+			...Array.from(
+				new Set(
+					store.slides
+						.map((slide) => store.getFileIdByPath(slide.path))
+						.filter((id): id is string => Boolean(id)),
+				),
+			),
+		]
+
+		await Promise.all(
+			fileIds.map(async (fileId) => {
+				try {
+					await store.refreshSlideByFileId(fileId)
+				} catch (error) {
+					console.error("Failed to refresh slide content:", fileId, error)
+				}
+			}),
+		)
+	})
+
 	const handleRegenerateScreenshot = useMemoizedFn(async (index: number) => {
 		const slide = store.slides[index]
 		if (!slide) {
@@ -75,6 +100,7 @@ export function useSlideHandlers({
 	return {
 		handleEditModeChange,
 		handleRefreshSlide,
+		handleRefreshAllSlides,
 		handleRegenerateScreenshot,
 		handleSidebarCollapsedChange,
 	}

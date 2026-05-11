@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import type { NodeProps } from "../types"
 import { defaultOpen } from "../ToolCall/config"
-import { ChevronUp } from "lucide-react"
 import { Node } from "../index"
 import { getMessageNodeKey } from "../../../helpers"
 import { SuperMagicMessageItem } from "../../../type"
@@ -12,7 +11,7 @@ import { useDeepCompareEffect } from "ahooks"
 import { reaction } from "mobx"
 import { throttle } from "lodash-es"
 import { useTranslation } from "react-i18next"
-import { ToolIconBadge } from "../../shared/ToolIconConfig"
+import { ReasoningPanel } from "../shared/ReasoningPanel"
 
 export default memo(function AgentThink(props: NodeProps) {
 	const { selectedTopic } = props
@@ -24,11 +23,14 @@ export default memo(function AgentThink(props: NodeProps) {
 	const hasUserInteractedRef = useRef(false)
 	const isProgrammaticScrollRef = useRef(false)
 
-	const node = superMagicStore.getMessageNode(props?.node?.app_message_id)
+	const node = superMagicStore.getMessageNode(props?.node?.app_message_id) as
+		| Record<string, unknown>
+		| undefined
+	const nodeEvent = typeof node?.event === "string" ? node.event : ""
 
 	useEffect(() => {
-		setOpen(node?.event === "before_agent_think")
-	}, [node?.event])
+		setOpen(nodeEvent === "before_agent_think")
+	}, [nodeEvent])
 
 	useEffect(() => {
 		if (!open) return
@@ -76,7 +78,7 @@ export default memo(function AgentThink(props: NodeProps) {
 	}, [open])
 
 	useDeepCompareEffect(() => {
-		if (node?.event !== "before_agent_think") {
+		if (nodeEvent !== "before_agent_think") {
 			return
 		}
 
@@ -85,7 +87,7 @@ export default memo(function AgentThink(props: NodeProps) {
 				if (
 					streamingContent &&
 					open &&
-					node?.event === "before_agent_think" &&
+					nodeEvent === "before_agent_think" &&
 					!hasUserInteractedRef.current
 				) {
 					const viewport = viewportRef.current
@@ -113,102 +115,69 @@ export default memo(function AgentThink(props: NodeProps) {
 			if (!lastMessageNode?.event || lastMessageNode?.event?.indexOf("agent_reply") < 0) {
 				return false
 			}
-			return superMagicStore.messageMap.get(lastMessageNode?.app_message_id)?.content
+			const replyNode = superMagicStore.messageMap.get(lastMessageNode?.app_message_id) as
+				| Record<string, unknown>
+				| undefined
+			return typeof replyNode?.content === "string" ? replyNode.content : ""
 		}, handleStreamingScroll)
 
 		return () => {
 			disposeReaction()
 			handleStreamingScroll.cancel()
 		}
-	}, [node?.event, open])
+	}, [nodeEvent, open])
 
 	const isValidity = props?.node?.childMessages?.length > 0
 
 	if (!isValidity) return null
 
-	const isThinking = node?.event === "before_agent_think"
+	const isThinking = nodeEvent === "before_agent_think"
 
 	return (
-		<div className="flex h-fit w-full flex-none overflow-hidden py-[5px]">
+		<ReasoningPanel
+			open={open}
+			title={isThinking ? t("agentThink.thinking") : t("agentThink.thinkDone")}
+			onToggle={() => setOpen((o) => !o)}
+		>
 			<div
 				className={cn(
-					"inline-flex flex-col overflow-hidden",
-					"rounded-md border border-border shadow-sm",
-					open ? "w-full" : "w-fit",
+					"relative w-full rounded-b-md",
+					"[&_[data-radix-scroll-area-viewport]>div]:!block",
+					"[&_[data-radix-scroll-area-viewport]]:max-h-60",
+					"[&_p]:leading-5",
+					"[&_p>code]:!text-[11px] [&_p>code]:!leading-4",
+					"[&_p>strong]:!text-[11px] [&_p>strong]:!leading-4",
+					"[&_p>em]:!text-[11px] [&_p>em]:!leading-4",
+					"[&_p>i]:!text-[11px] [&_p>i]:!leading-4",
 				)}
 			>
-				{/* Header */}
-				<div className="flex w-full items-center gap-1.5 bg-white pl-1.5 dark:bg-card">
-					<div className="inline-flex h-7 w-fit items-center gap-1.5 overflow-hidden py-1.5">
-						<ToolIconBadge toolName="agent_think" />
-						<span className="w-fit flex-none text-xs font-normal leading-4 text-foreground">
-							{isThinking ? t("agentThink.thinking") : t("agentThink.thinkDone")}
-						</span>
+				<ScrollArea
+					ref={scrollAreaRef}
+					className="mx-[6px] mb-[6px] rounded-lg border-black/[0.08] bg-[#f5f6f7] dark:bg-white/10"
+				>
+					<div className="w-full">
+						{props?.node?.childMessages?.map((o: SuperMagicMessageItem) => (
+							<Node
+								role={o?.role || "user"}
+								key={getMessageNodeKey(o)}
+								node={o}
+								classNames={{
+									card: "!p-0 after:!hidden after:!border-0",
+									markdown: "text-muted-foreground text-xs font-normal leading-4",
+								}}
+								isFirst={false}
+								checkIsLastMessage={() => false}
+								selectedTopic={null}
+								onSelectDetail={() => undefined}
+								isSelected={false}
+								onFileClick={() => undefined}
+								isShare={false}
+							/>
+						))}
 					</div>
-					<div
-						className="ml-auto mr-[6px] inline-flex size-5 flex-none cursor-pointer items-center justify-center rounded-[4px] hover:bg-fill active:bg-fill-secondary"
-						onClick={() => setOpen((o) => !o)}
-					>
-						<ChevronUp
-							size={16}
-							className={cn(
-								"text-muted-foreground transition-transform duration-200 ease-in-out",
-								open ? "rotate-180" : "rotate-90",
-							)}
-						/>
-					</div>
-				</div>
-
-				{/* Animated collapsible content */}
-				{open && (
-					<div className="w-full duration-200 animate-in fade-in slide-in-from-top-1">
-						<div className="overflow-hidden">
-							<div
-								className={cn(
-									"relative w-full rounded-b-md",
-									"[&_[data-radix-scroll-area-viewport]>div]:!block",
-									"[&_[data-radix-scroll-area-viewport]]:max-h-60",
-									"[&_p]:leading-5",
-									"[&_p>code]:!text-[11px] [&_p>code]:!leading-4",
-									"[&_p>strong]:!text-[11px] [&_p>strong]:!leading-4",
-									"[&_p>em]:!text-[11px] [&_p>em]:!leading-4",
-									"[&_p>i]:!text-[11px] [&_p>i]:!leading-4",
-								)}
-							>
-								<ScrollArea
-									ref={scrollAreaRef}
-									className="mx-[6px] mb-[6px] rounded-lg border-black/[0.08] bg-[#f5f6f7] dark:bg-white/10"
-								>
-									<div className="w-full">
-										{props?.node?.childMessages?.map(
-											(o: SuperMagicMessageItem) => (
-												<Node
-													role={o?.role || "user"}
-													key={getMessageNodeKey(o)}
-													node={o}
-													classNames={{
-														card: "!p-0 after:!hidden after:!border-0",
-														markdown:
-															"text-muted-foreground text-xs font-normal leading-4",
-													}}
-													isFirst={false}
-													checkIsLastMessage={() => false}
-													selectedTopic={null}
-													onSelectDetail={() => undefined}
-													isSelected={false}
-													onFileClick={() => undefined}
-													isShare={false}
-												/>
-											),
-										)}
-									</div>
-									<ScrollBar orientation="vertical" />
-								</ScrollArea>
-							</div>
-						</div>
-					</div>
-				)}
+					<ScrollBar orientation="vertical" />
+				</ScrollArea>
 			</div>
-		</div>
+		</ReasoningPanel>
 	)
 })

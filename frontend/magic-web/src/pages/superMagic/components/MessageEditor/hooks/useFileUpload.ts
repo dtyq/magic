@@ -23,7 +23,6 @@ export interface UseFileUploadOptions {
 	maxMediaUploadSize?: number
 	projectId?: string
 	topicId?: string
-	suffixDir?: string // 自定义上传目录，默认为"uploads"
 	onFileUpload?: (files: FileData[]) => void
 	// New mention management callbacks
 	onFileAdded?: (files: FileData[]) => void
@@ -83,7 +82,6 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
 		onFileUpload,
 		projectId,
 		topicId,
-		suffixDir = "uploads",
 		onFileAdded,
 		onFileProgressUpdate,
 		onFileCompleted,
@@ -123,7 +121,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
 
 		const customCredentials = await superMagicUploadTokenService.getUploadToken(
 			projectId ?? "",
-			file.suffixDir,
+			file.parentId,
 			true,
 		)
 		upload([file], customCredentials).then(async (res) => {
@@ -140,6 +138,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
 			expires: 3600,
 		},
 		rewriteFileName: false,
+		useSnowflakeId: true,
 		onProgress(file, progress) {
 			setFilesWithLimit((prev) => {
 				const newFiles = [...prev]
@@ -188,12 +187,14 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
 					saveRes = await superMagicUploadTokenService.saveFileToProject({
 						project_id: projectId ?? "",
 						topic_id: topicId ?? "",
+						parent_id: file.parentId,
 						file_key: response.key,
 						file_name: response.name,
 						file_size: response.size,
 						file_type: "user_upload",
 						storage_type: options.storageType ?? "workspace",
 						source: options.source ?? UploadSource.Home,
+						relative_file_path: file.defaultRelativePath,
 					})
 				} catch (error) {
 					logger.error("save file to project failed", error)
@@ -303,7 +304,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
 	})
 
 	// Validation functions
-	const validateDuplicateFiles = useMemoizedFn((newFiles: File[], targetSuffixDir: string) => {
+	const validateDuplicateFiles = useMemoizedFn((newFiles: File[], targetParentId?: string) => {
 		if (!needFilterSameFile) {
 			return { validFiles: newFiles, hasWarning: false }
 		}
@@ -314,7 +315,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
 					existingFile.file.name === newFile.name &&
 					existingFile.file.size === newFile.size &&
 					existingFile.file.lastModified === newFile.lastModified &&
-					existingFile.suffixDir === targetSuffixDir
+					existingFile.parentId === targetParentId
 				)
 			})
 			return !isDuplicate
@@ -326,7 +327,7 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
 			magicToast.warning(t("fileUpload.duplicateFilesFiltered", { count: duplicateCount }))
 			logger.warn("duplicate files filtered", {
 				count: duplicateCount,
-				suffixDir: targetSuffixDir,
+				parentId: targetParentId,
 			})
 		}
 
@@ -421,175 +422,190 @@ export function useFileUpload(options: UseFileUploadOptions = {}) {
 		return true
 	})
 
-	const addFiles = useMemoizedFn(async (newFiles: File[], customSuffixDir?: string) => {
-		console.log("useFileUpload addFiles 开始执行:", newFiles)
+	const addFiles = useMemoizedFn(
+		async (newFiles: File[], parentId?: string, defaultRelativePathPrefix?: string) => {
+			console.log("useFileUpload addFiles 开始执行:", newFiles)
 
-		// 使用传入的suffixDir或默认值
-		const targetSuffixDir = customSuffixDir ?? suffixDir
+			// 使用传入的parentId
+			const targetParentId = parentId
 
-		// Step 1: Validate duplicate files
-		const duplicateValidation = validateDuplicateFiles(newFiles, targetSuffixDir)
-		let validFiles = duplicateValidation.validFiles
+			// Step 1: Validate duplicate files
+			const duplicateValidation = validateDuplicateFiles(newFiles, targetParentId)
+			let validFiles = duplicateValidation.validFiles
 
-		// Step 2: Validate file size
-		const sizeValidation = validateFileSize(validFiles)
-		validFiles = sizeValidation.validFiles
+			// Step 2: Validate file size
+			const sizeValidation = validateFileSize(validFiles)
+			validFiles = sizeValidation.validFiles
 
-		// Step 3: Validate file count
-		const countValidation = validateFileCount(validFiles)
-		validFiles = countValidation.validFiles
+			// Step 3: Validate file count
+			const countValidation = validateFileCount(validFiles)
+			validFiles = countValidation.validFiles
 
-		// Step 4: Check if any files remain after validation
-		if (!validateEmptyFiles(validFiles)) {
-			return
-		}
+			// Step 4: Check if any files remain after validation
+			if (!validateEmptyFiles(validFiles)) {
+				return
+			}
 
-		// Continue with file processing after validation...
+			// Continue with file processing after validation...
 
-		// Step 1: First rename to avoid conflicts with current upload queue
-		let fileDataList: FileData[] = []
-		// Only include names from files with the same target directory
-		const processedNames: string[] = files
-			.filter((f) => f.suffixDir === targetSuffixDir)
-			.map((f) => f.name)
-
-		for (const file of validFiles) {
-			const uniqueFileName = generateUniqueFileName(
-				file.name,
-				files,
-				processedNames,
-				targetSuffixDir,
-			)
-
-			// Add the new name to processed names for next iteration
-			processedNames.push(uniqueFileName)
-
-			// Create new File object with unique name if renamed
-			const renamedFile =
-				uniqueFileName !== file.name
-					? new File([file], uniqueFileName, {
-						type: file.type,
-						lastModified: file.lastModified,
-					})
-					: file
-
-			fileDataList.push({
-				id: `${Date.now()}-${Math.random()}`,
-				name: uniqueFileName,
-				file: renamedFile,
-				status: "init",
-				suffixDir: targetSuffixDir,
-			})
-		}
-
-		const customCredentials = await superMagicUploadTokenService.getUploadToken(
-			projectId ?? "",
-			targetSuffixDir,
-		)
-
-		// Step 2: Check project files and rename again if needed
-		if (projectId && customCredentials) {
-			// Get project file names for comparison using the new method
-			const projectFileNames = projectFilesStore.getFileNamesInFolder(
-				customCredentials.temporary_credential.dir,
-			)
-
-			// Rename files that conflict with project files
+			// Step 1: First rename to avoid conflicts with current upload queue
+			let fileDataList: FileData[] = []
 			// Only include names from files with the same target directory
-			const existingFileNamesInSameDir = files
-				.filter((f) => f.suffixDir === targetSuffixDir)
+			const processedNames: string[] = files
+				.filter((f) => f.parentId === targetParentId)
 				.map((f) => f.name)
-			const processedFileNames: string[] = existingFileNamesInSameDir.concat(projectFileNames) // Track both existing files and project files
 
-			fileDataList = fileDataList.map((fileData) => {
-				const finalFileName = generateUniqueFileName(
-					fileData.name,
+			for (const file of validFiles) {
+				const uniqueFileName = generateUniqueFileName(
+					file.name,
 					files,
-					processedFileNames,
-					targetSuffixDir,
+					processedNames,
+					targetParentId,
 				)
 
 				// Add the new name to processed names for next iteration
-				processedFileNames.push(finalFileName)
+				processedNames.push(uniqueFileName)
 
-				if (finalFileName !== fileData.name) {
-					// Create new File object with final unique name
-					const finalRenamedFile = new File([fileData.file], finalFileName, {
-						type: fileData.file.type,
-						lastModified: fileData.file.lastModified,
-					})
+				// Create new File object with unique name if renamed
+				const renamedFile =
+					uniqueFileName !== file.name
+						? new File([file], uniqueFileName, {
+								type: file.type,
+								lastModified: file.lastModified,
+							})
+						: file
 
-					return {
-						...fileData,
-						name: finalFileName,
-						file: finalRenamedFile,
-						suffixDir: targetSuffixDir,
-					}
-				}
-
-				return fileData
-			})
-		}
-
-		console.log("创建的文件数据:", fileDataList)
-		// Keep side effects out of state updater to avoid duplicate calls in StrictMode
-		onFileAdded?.(fileDataList)
-		setFilesWithLimit((prev) => [...prev, ...fileDataList])
-
-		// Start uploading immediately
-		upload(fileDataList, customCredentials).then(async (res) => {
-			if (res.rejected.length > 0) {
-				// 如果项目存在，则重新获取上传凭证
-				if (projectId) {
-					const hasExpired = res.rejected.filter((item) =>
-						item.reason?.message?.includes("expired"),
-					)
-					if (hasExpired.length > 0) {
-						// 如果上传凭证过期，则重新获取上传凭证
-						logger.warn("upload credentials expired, refreshing and retrying", {
-							expiredCount: hasExpired.length,
-						})
-						await superMagicUploadTokenService.fetchUploadToken(projectId)
-					}
-
-					const newCustomCredentials = await superMagicUploadTokenService.getUploadToken(
-						projectId,
-						targetSuffixDir,
-						true,
-					)
-
-					// 重新上传失败文件
-					const newFileDataList = fileDataList
-						.map((file) => {
-							const target = res.rejected.find(
-								(item) => item.reason?.uploadFile?.id === file.id,
-							)
-							if (target) {
-								return {
-									...file,
-									reportResult: undefined,
-									saveResult: undefined,
-									error: target.reason?.message,
-								}
-							}
-							return undefined
-						})
-						.filter(Boolean) as FileData[]
-
-					// 重新上传失败文件
-					if (newFileDataList.length > 0) {
-						logger.warn("retrying failed uploads", { count: newFileDataList.length })
-						upload(newFileDataList, newCustomCredentials).then((res) => {
-							if (res.rejected.length > 0) {
-								logger.error("reUpload file failed", res.rejected)
-							}
-						})
-					}
-				}
+				fileDataList.push({
+					id: `${Date.now()}-${Math.random()}`,
+					name: uniqueFileName,
+					file: renamedFile,
+					status: "init",
+					parentId: targetParentId,
+					defaultRelativePath: defaultRelativePathPrefix
+						? `${defaultRelativePathPrefix}/${uniqueFileName}`
+						: undefined,
+				})
 			}
-		})
-		return fileDataList
-	})
+
+			const customCredentials = await superMagicUploadTokenService.getUploadToken(
+				projectId ?? "",
+				targetParentId,
+			)
+
+			// Step 2: Check project files and rename again if needed
+			if (projectId && customCredentials) {
+				// Get project file names for comparison using the new method
+				const projectFileNames = projectFilesStore.getFileNamesByParentId(targetParentId)
+
+				// Rename files that conflict with project files
+				// Only include names from files with the same target directory
+				const existingFileNamesInSameDir = files
+					.filter((f) => f.parentId === targetParentId)
+					.map((f) => f.name)
+				const processedFileNames: string[] =
+					existingFileNamesInSameDir.concat(projectFileNames) // Track both existing files and project files
+
+				fileDataList = fileDataList.map((fileData) => {
+					const finalFileName = generateUniqueFileName(
+						fileData.name,
+						files,
+						processedFileNames,
+						targetParentId,
+					)
+
+					// Add the new name to processed names for next iteration
+					processedFileNames.push(finalFileName)
+
+					if (finalFileName !== fileData.name) {
+						// Create new File object with final unique name
+						const finalRenamedFile = new File([fileData.file], finalFileName, {
+							type: fileData.file.type,
+							lastModified: fileData.file.lastModified,
+						})
+
+						return {
+							...fileData,
+							name: finalFileName,
+							file: finalRenamedFile,
+							parentId: targetParentId,
+							defaultRelativePath: defaultRelativePathPrefix
+								? `${defaultRelativePathPrefix}/${finalFileName}`
+								: undefined,
+						}
+					}
+
+					return fileData
+				})
+			}
+
+			console.log("创建的文件数据:", fileDataList)
+			setFilesWithLimit((prev) => {
+				const newList = [...prev, ...fileDataList]
+
+				// Event-driven: 直接调用文件添加回调
+				onFileAdded?.(fileDataList)
+
+				return newList
+			})
+
+			// Start uploading immediately
+			upload(fileDataList, customCredentials).then(async (res) => {
+				if (res.rejected.length > 0) {
+					// 如果项目存在，则重新获取上传凭证
+					if (projectId) {
+						const hasExpired = res.rejected.filter((item) =>
+							item.reason?.message?.includes("expired"),
+						)
+						if (hasExpired.length > 0) {
+							// 如果上传凭证过期，则重新获取上传凭证
+							logger.warn("upload credentials expired, refreshing and retrying", {
+								expiredCount: hasExpired.length,
+							})
+							await superMagicUploadTokenService.fetchUploadToken(projectId)
+						}
+
+						const newCustomCredentials =
+							await superMagicUploadTokenService.getUploadToken(
+								projectId,
+								targetParentId,
+								true,
+							)
+
+						// 重新上传失败文件
+						const newFileDataList = fileDataList
+							.map((file) => {
+								const target = res.rejected.find(
+									(item) => item.reason?.uploadFile?.id === file.id,
+								)
+								if (target) {
+									return {
+										...file,
+										reportResult: undefined,
+										saveResult: undefined,
+										error: target.reason?.message,
+									}
+								}
+								return undefined
+							})
+							.filter(Boolean) as FileData[]
+
+						// 重新上传失败文件
+						if (newFileDataList.length > 0) {
+							logger.warn("retrying failed uploads", {
+								count: newFileDataList.length,
+							})
+							upload(newFileDataList, newCustomCredentials).then((res) => {
+								if (res.rejected.length > 0) {
+									logger.error("reUpload file failed", res.rejected)
+								}
+							})
+						}
+					}
+				}
+			})
+			return fileDataList
+		},
+	)
 
 	const removeFile = useMemoizedFn((id: string) => {
 		setFilesWithLimit((prev) => {

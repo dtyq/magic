@@ -10,6 +10,7 @@ import {
 	delay,
 	calculateUploadSpeed,
 	estimateTimeRemaining,
+	sanitizeTemporaryCredential,
 } from "./helpers"
 import type {
 	FolderUploadTask as IFolderUploadTask,
@@ -37,7 +38,7 @@ export class FolderUploadTask implements IFolderUploadTask {
 	workspaceId?: string
 	topicId?: string
 	taskId?: string
-	baseSuffixDir: string
+	parentId?: string
 	files: File[]
 	fileKeysMap: Map<string, string> // 文件名到自定义fileKey的映射
 	state: FolderUploadState
@@ -69,10 +70,14 @@ export class FolderUploadTask implements IFolderUploadTask {
 	private completionCheckTimer: NodeJS.Timeout | null = null
 	// 失败文件追踪：fileId -> FailedFileInfo
 	private failedFilesMap: Map<string, FailedFileInfo> = new Map()
+	// 文件夹路径到 file_id 的映射，用于预创建文件夹结构：targetPath -> file_id
+	private folderIdMap: Map<string, string> = new Map()
+	// file_key 到 folderPath 的映射，用于实时保存时确定正确的 parent_id
+	private fileKeyToFolderPath: Map<string, string> = new Map()
 
 	constructor(
 		files: File[] | UploadFileWithKey[],
-		baseSuffixDir: string,
+		parentId: string | undefined,
 		options: FolderUploadOptions & {
 			projectName: string
 			t: (key: string, params?: Record<string, unknown>) => string | unknown
@@ -84,7 +89,7 @@ export class FolderUploadTask implements IFolderUploadTask {
 		this.workspaceId = options.workspaceId
 		this.topicId = options.topicId
 		this.taskId = options.taskId
-		this.baseSuffixDir = baseSuffixDir
+		this.parentId = parentId
 
 		// 处理文件和自定义fileKey
 		if (files.length > 0 && !(files[0] instanceof File)) {
@@ -151,8 +156,8 @@ export class FolderUploadTask implements IFolderUploadTask {
 			this.startedAt = Date.now()
 
 			// 创建文件夹文件对象
-			const folderFiles = createFolderFiles(this.files, this.baseSuffixDir, this.fileKeysMap)
-			const folderGroups = groupFilesByFolder(folderFiles, this.baseSuffixDir)
+			const folderFiles = createFolderFiles(this.files, "", this.fileKeysMap)
+			const folderGroups = groupFilesByFolder(folderFiles, "")
 			const batchSize = this.options.batchSize || 10
 			const totalBatches = Array.from(folderGroups.values()).reduce(
 				(sum, groupFiles) => sum + Math.ceil(groupFiles.length / batchSize),
@@ -164,6 +169,11 @@ export class FolderUploadTask implements IFolderUploadTask {
 				uploadedBytes: 0,
 				currentPhase: "uploading",
 			})
+
+			// 非 onlyUpload 模式下，预创建文件夹结构（后端不再自动根据 relative_file_path 创建目录）
+			if (!this.options.onlyUpload) {
+				await this.createFolderStructure(folderGroups)
+			}
 
 			// 按文件夹分组处理
 			let currentBatch = 0
@@ -186,7 +196,7 @@ export class FolderUploadTask implements IFolderUploadTask {
 
 						// 上传批次（返回详细的成功/失败计数）
 						const { successCount: batchSuccessCount, failedCount: batchFailedCount } =
-							await this.uploadBatch(batch, folderPath, currentBatch)
+							await this.uploadBatch(batch, currentBatch, folderPath)
 
 						// 计算这个批次上传的字节数（用于批次回调信息）
 						const batchBytes = batch.reduce(
@@ -350,8 +360,8 @@ export class FolderUploadTask implements IFolderUploadTask {
 	 */
 	private async uploadBatch(
 		batch: FolderUploadFile[],
-		folderPath: string,
 		currentBatch: number,
+		folderPath: string,
 	): Promise<{ successCount: number; failedCount: number }> {
 		if (this.abortController?.signal.aborted) {
 			throw new Error("Task cancelled")
@@ -361,7 +371,7 @@ export class FolderUploadTask implements IFolderUploadTask {
 		await this.waitIfPaused()
 
 		// OSS 上传（文件会在完成时自动实时保存，返回成功和失败的结果）
-		const { results: ossResults, failedFiles } = await this.uploadFilesToOSS(batch, folderPath)
+		const { results: ossResults, failedFiles } = await this.uploadFilesToOSS(batch)
 
 		// 记录失败的文件到 failedFilesMap
 		if (failedFiles.length > 0) {
@@ -388,7 +398,7 @@ export class FolderUploadTask implements IFolderUploadTask {
 				console.log(
 					`🔄 Batch fallback save: Found ${unsavedFiles.length} unsaved files, saving them now`,
 				)
-				const savedFilesWithIds = await this.saveBatchToProject(unsavedFiles)
+				const savedFilesWithIds = await this.saveBatchToProject(unsavedFiles, folderPath)
 
 				// 记录已保存的文件
 				unsavedFiles.forEach((file) => {
@@ -460,7 +470,6 @@ export class FolderUploadTask implements IFolderUploadTask {
 	 */
 	private async uploadFilesToOSS(
 		folderFiles: FolderUploadFile[],
-		folderPath: string,
 	): Promise<{ results: UploadResult[]; failedFiles: FailedFileInfo[] }> {
 		// 检查是否被取消
 		if (this.abortController?.signal.aborted) {
@@ -478,13 +487,19 @@ export class FolderUploadTask implements IFolderUploadTask {
 			this.fileSizeMap.set(fileId, folderFile.file.size)
 		})
 
+		// 批量获取雪花ID（一次性获取所有文件的ID，避免在每次uploadFiles调用时重复获取）
+		const snowflakeIdsResult = await SuperMagicApi.getSnowflakeIds({
+			count: folderFiles.length,
+		})
+
 		// 为每个文件创建单独的上传Promise
-		const uploadPromises = folderFiles.map((folderFile) => {
+		const uploadPromises = folderFiles.map((folderFile, index) => {
 			return ossUploadService.uploadFiles(
 				[folderFile], // 单个文件作为数组传入
 				this.projectId,
-				folderPath || this.baseSuffixDir,
+				"", // 上传到根目录
 				this.id, // 传递 taskId
+				[snowflakeIdsResult.ids[index]], // 传入预生成的雪花ID
 				// 进度回调函数
 				(fileId: string, uploadedBytes: number) => {
 					// 更新单个文件的进度
@@ -495,6 +510,8 @@ export class FolderUploadTask implements IFolderUploadTask {
 				},
 				// 文件完成回调函数
 				(fileId: string, result: UploadResult) => {
+					// 记录 file_key → folderPath 映射，用于实时保存时确定正确的 parent_id
+					this.fileKeyToFolderPath.set(result.file_key, folderFile.targetPath)
 					// 处理单文件完成的实时保存
 					this.handleFileCompleted(fileId, result)
 				},
@@ -521,6 +538,12 @@ export class FolderUploadTask implements IFolderUploadTask {
 						? result.reason.message
 						: String(result.reason || "Unknown error")
 
+				// 🔍 提取凭证信息（如果有）
+				const temporaryCredential = (result.reason as any)?.temporaryCredential
+
+				// 🔒 过滤敏感字段用于日志记录
+				const sanitizedCredential = sanitizeTemporaryCredential(temporaryCredential)
+
 				// 跳过暂停导致的"失败"
 				const isPaused = errorMessage.includes("isPause")
 				if (!isPaused) {
@@ -538,6 +561,8 @@ export class FolderUploadTask implements IFolderUploadTask {
 						error: errorMessage,
 						taskId: this.id,
 						projectId: this.projectId,
+						// 🔍 补充脱敏后的凭证信息
+						temporaryCredential: sanitizedCredential,
 					})
 				}
 			}
@@ -552,9 +577,14 @@ export class FolderUploadTask implements IFolderUploadTask {
 
 	/**
 	 * 批量保存到项目
+	 * @param ossResults OSS 上传结果列表
+	 * @param folderPath 文件所在的文件夹路径（targetPath），用于查找对应的 parent_id
 	 * @returns 保存后的文件信息（包含 file_id）
 	 */
-	private async saveBatchToProject(ossResults: UploadResult[]): Promise<
+	private async saveBatchToProject(
+		ossResults: UploadResult[],
+		folderPath?: string,
+	): Promise<
 		Array<{
 			file_id: string
 			file_key: string
@@ -565,13 +595,16 @@ export class FolderUploadTask implements IFolderUploadTask {
 	> {
 		this.updateState({ currentPhase: "saving" })
 
-		try {
-			// 获取父级ID
-			const parentId = this.getParentIdFromPath()?.toString() || ""
+		// 根据 folderPath 从 folderIdMap 中取已创建文件夹的 file_id；
+		// 找不到时降级使用任务级 parentId（根目录）
+		const parent_id = folderPath
+			? (this.folderIdMap.get(folderPath) ?? this.parentId)
+			: this.parentId
 
+		try {
 			const payload = {
 				project_id: this.projectId,
-				parent_id: parentId,
+				parent_id, // 文件所在文件夹的 file_id；根目录则为 this.parentId (undefined)
 				files: ossResults.map((result) => ({
 					project_id: this.projectId,
 					topic_id: this.topicId || "",
@@ -582,6 +615,7 @@ export class FolderUploadTask implements IFolderUploadTask {
 					file_type: "user_upload",
 					storage_type: this.options.storageType || "workspace",
 					source: (this.options.source as number) || 2,
+					relative_file_path: result.relative_file_path,
 				})),
 			}
 
@@ -600,7 +634,7 @@ export class FolderUploadTask implements IFolderUploadTask {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			console.error("Failed to save batch to project:", error)
 
-			logger.error("[saveBatchToProject] Failed to save batch to project", {
+			logger.error("[saveBatchToProject] Failed to save batch to project ", {
 				error: errorMessage,
 				taskId: this.id,
 				projectId: this.projectId,
@@ -615,12 +649,76 @@ export class FolderUploadTask implements IFolderUploadTask {
 	}
 
 	/**
-	 * 获取父级ID
+	 * 预创建文件夹结构：在上传文件之前，先通过 API 创建所有需要的目录层级
+	 * 并将返回的 file_id 缓存到 folderIdMap 供后续 saveBatchToProject 使用
 	 */
-	private getParentIdFromPath(): string | number | undefined {
-		// 这里需要根据实际项目的attachments来解析
-		// 暂时返回空字符串，表示根目录
-		return ""
+	private async createFolderStructure(
+		folderGroups: Map<string, FolderUploadFile[]>,
+	): Promise<void> {
+		// 展开所有中间层级路径，避免遗漏没有直属文件的中间文件夹
+		// 例如只有 "a/b/c" 时，展开为 ["a", "a/b", "a/b/c"]
+		const allPaths = new Set<string>()
+		for (const folderPath of folderGroups.keys()) {
+			if (!folderPath) continue
+			const parts = folderPath.split("/")
+			parts.forEach((_, i) => allPaths.add(parts.slice(0, i + 1).join("/")))
+		}
+
+		if (allPaths.size === 0) return
+
+		// 按路径深度升序排序，确保父文件夹先于子文件夹创建
+		const sortedPaths = Array.from(allPaths).sort(
+			(a, b) => a.split("/").length - b.split("/").length,
+		)
+
+		logger.log("[createFolderStructure] Creating folder structure", {
+			taskId: this.id,
+			projectId: this.projectId,
+			folderCount: sortedPaths.length,
+			folders: sortedPaths,
+		})
+
+		for (const folderPath of sortedPaths) {
+			if (this.abortController?.signal.aborted) break
+
+			const parts = folderPath.split("/")
+			const folderName = parts[parts.length - 1]
+			const parentPath = parts.slice(0, -1).join("/")
+
+			// 父目录为根时使用任务的 parentId，否则从 folderIdMap 中取已创建的文件夹 ID
+			const parent_id = parentPath === "" ? this.parentId : this.folderIdMap.get(parentPath)
+
+			try {
+				const response = await SuperMagicApi.createFile({
+					project_id: this.projectId,
+					parent_id,
+					file_name: folderName,
+					is_directory: true,
+					ignore_duplicate: true,
+				})
+
+				if (response?.file_id) {
+					this.folderIdMap.set(folderPath, response.file_id)
+					logger.log("[createFolderStructure] Folder created", {
+						folderPath,
+						file_id: response.file_id,
+					})
+				} else {
+					logger.warn("[createFolderStructure] No file_id returned for folder", {
+						folderPath,
+						response,
+					})
+				}
+			} catch (error) {
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				logger.error("[createFolderStructure] Failed to create folder", {
+					folderPath,
+					error: errorMessage,
+					taskId: this.id,
+				})
+				// 文件夹创建失败时不中断整体流程，saveBatchToProject 会降级使用 this.parentId
+			}
+		}
 	}
 
 	/**
@@ -685,6 +783,49 @@ export class FolderUploadTask implements IFolderUploadTask {
 	}
 
 	/**
+	 * 将文件列表按 folderPath 分组，然后逐组调用 saveBatchToProject
+	 * 保证每组文件都保存到其对应文件夹的正确 parent_id 下
+	 * @returns 所有成功保存的文件信息（合并各组结果）
+	 */
+	private async saveFilesGroupedByFolder(filesToSave: UploadResult[]): Promise<
+		Array<{
+			file_id: string
+			file_key: string
+			file_name: string
+			file_size: number
+			relative_file_path: string
+		}>
+	> {
+		// 按 folderPath 分组
+		const groupedByFolder = new Map<string, UploadResult[]>()
+		for (const file of filesToSave) {
+			const folderPath = this.fileKeyToFolderPath.get(file.file_key) ?? ""
+			const group = groupedByFolder.get(folderPath)
+			if (group) {
+				group.push(file)
+			} else {
+				groupedByFolder.set(folderPath, [file])
+			}
+		}
+
+		const allSaved: Array<{
+			file_id: string
+			file_key: string
+			file_name: string
+			file_size: number
+			relative_file_path: string
+		}> = []
+
+		for (const [folderPath, files] of groupedByFolder) {
+			const saved = await this.saveBatchToProject(files, folderPath)
+			allSaved.push(...saved)
+			files.forEach((file) => this.savedFileKeys.add(file.file_key))
+		}
+
+		return allSaved
+	}
+
+	/**
 	 * 执行待保存文件的批量保存
 	 */
 	private async executePendingSave(): Promise<void> {
@@ -695,13 +836,9 @@ export class FolderUploadTask implements IFolderUploadTask {
 
 		try {
 			console.log(`📁 Executing real-time batch save for ${filesToSave.length} files`)
-			const savedFilesWithIds = await this.saveBatchToProject(filesToSave)
+			// 按文件夹分组保存，确保每个文件保存到正确的 parent_id 下
+			const savedFilesWithIds = await this.saveFilesGroupedByFolder(filesToSave)
 			console.log(`✅ Successfully saved ${filesToSave.length} files to project`)
-
-			// 记录已保存的文件，避免重复保存
-			filesToSave.forEach((file) => {
-				this.savedFileKeys.add(file.file_key)
-			})
 
 			// 触发批量保存完成回调
 			if (this.callbacks.onBatchSaveComplete) {
@@ -826,8 +963,8 @@ export class FolderUploadTask implements IFolderUploadTask {
 
 			console.warn(
 				`⚠️ [ANOMALY DETECTED] Task ${this.id} (${this.projectName}): ` +
-				`processedFiles=${currentProcessedFiles} but only ${actualSuccessFiles} files saved. ` +
-				`${incorrectCount} failed files were incorrectly counted. Correcting now.`,
+					`processedFiles=${currentProcessedFiles} but only ${actualSuccessFiles} files saved. ` +
+					`${incorrectCount} failed files were incorrectly counted. Correcting now.`,
 			)
 		}
 
@@ -917,15 +1054,10 @@ export class FolderUploadTask implements IFolderUploadTask {
 				`📁 Finalizing ${unsavedFiles.length} remaining unsaved files before task completion (filtered from ${this.pendingSaveFiles.length} pending)`,
 			)
 
-			// 直接保存未保存的文件，不走pendingSaveFiles队列
+			// 直接保存未保存的文件，不走pendingSaveFiles队列，按文件夹分组保存
 			try {
-				const savedFilesWithIds = await this.saveBatchToProject(unsavedFiles)
+				const savedFilesWithIds = await this.saveFilesGroupedByFolder(unsavedFiles)
 				console.log(`✅ Successfully finalized ${unsavedFiles.length} files to project`)
-
-				// 记录已保存的文件
-				unsavedFiles.forEach((file) => {
-					this.savedFileKeys.add(file.file_key)
-				})
 
 				// 触发批量保存完成回调（最终保存）
 				if (this.callbacks.onBatchSaveComplete) {
@@ -1096,6 +1228,10 @@ export class FolderUploadTask implements IFolderUploadTask {
 		this.fileSizeMap.clear()
 		this.fileResultMap.clear()
 		this.fileKeyToRelativePath.clear()
+
+		// 清理文件夹结构预创建状态
+		this.folderIdMap.clear()
+		this.fileKeyToFolderPath.clear()
 
 		// 清理实时保存状态
 		this.pendingSaveFiles = []
@@ -1303,12 +1439,9 @@ export class FolderUploadTask implements IFolderUploadTask {
 				file: fileToRetry,
 				relativePath: (fileToRetry as any).webkitRelativePath || fileToRetry.name,
 				folderPath: filePath.substring(0, filePath.lastIndexOf("/")) || "",
-				targetPath: this.baseSuffixDir ? `${this.baseSuffixDir}/${filePath}` : filePath,
+				targetPath: "", // 不再使用 targetPath
 				customFileKey: this.fileKeysMap.get(fileToRetry.name),
 			}
-
-			// 确定文件的文件夹路径
-			const folderPath = folderFile.folderPath || this.baseSuffixDir
 
 			// 初始化进度跟踪
 			const fileId = `${this.id}_${filePath}_${fileName}`
@@ -1319,7 +1452,7 @@ export class FolderUploadTask implements IFolderUploadTask {
 			console.log(`🔄 Retrying single file: ${fileName} (${filePath})`)
 
 			// 调用上传方法
-			const { results, failedFiles } = await this.uploadFilesToOSS([folderFile], folderPath)
+			const { results, failedFiles } = await this.uploadFilesToOSS([folderFile])
 
 			if (results.length > 0 && failedFiles.length === 0) {
 				// 上传成功
@@ -1392,7 +1525,7 @@ export class FolderUploadTask implements IFolderUploadTask {
 			projectName: this.projectName,
 			topicId: this.topicId,
 			taskId: this.taskId,
-			baseSuffixDir: this.baseSuffixDir,
+			parentId: this.parentId,
 			fileCount: this.files.length,
 			state: this.state,
 			options: this.options,
@@ -1413,7 +1546,7 @@ export class FolderUploadTask implements IFolderUploadTask {
 			// 注意：文件对象无法序列化，这里创建一个空的任务用于恢复状态显示
 			const task = new FolderUploadTask(
 				[], // 文件列表为空，无法恢复实际文件
-				data.baseSuffixDir,
+				data.parentId,
 				{ ...data.options, projectName: data.projectName, t },
 			)
 

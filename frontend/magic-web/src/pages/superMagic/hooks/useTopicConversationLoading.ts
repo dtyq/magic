@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { useMemoizedFn } from "ahooks"
 import { isObject } from "lodash-es"
-import { reaction } from "mobx"
+import { reaction, toJS } from "mobx"
 import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
 import type { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { superMagicStore } from "@/pages/superMagic/stores"
@@ -36,9 +36,7 @@ export function useTopicConversationLoading<TStatus = unknown>({
 
 	const handleTopicMessagesChange = useMemoizedFn((topicMessages: SuperMagicMessageItem[]) => {
 		if (topicMessages.length > 1) {
-			const lastMessageWithRole = topicMessages.findLast(
-				(message) => message.role === "assistant",
-			)
+			const lastMessageWithRole = topicMessages.findLast((message) => message.role !== "user")
 			const lastMessage = topicMessages[topicMessages.length - 1]
 			const lastMessageNode = superMagicStore.getMessageNode(
 				lastMessageWithRole?.app_message_id,
@@ -46,6 +44,7 @@ export function useTopicConversationLoading<TStatus = unknown>({
 
 			const isLoading =
 				lastMessageNode?.status === "running" ||
+				lastMessageNode?.status === "waiting" ||
 				lastMessage?.type === "rich_text" ||
 				isObject(lastMessageNode?.content) ||
 				Boolean(lastMessageNode?.rich_text?.content) ||

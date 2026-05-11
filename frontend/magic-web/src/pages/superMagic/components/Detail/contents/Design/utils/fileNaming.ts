@@ -60,9 +60,9 @@ function getAllExistingFileNames(
 	// 添加 duplicateCheckList 中的文件名
 	if (duplicateCheckList && duplicateCheckList.length > 0) {
 		const duplicateFileNames = extractDuplicateFileNames(duplicateCheckList)
-		for (const fileName of duplicateFileNames) {
+		duplicateFileNames.forEach((fileName) => {
 			allExistingFileNames.add(fileName)
-		}
+		})
 	}
 
 	return allExistingFileNames

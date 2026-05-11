@@ -10,18 +10,22 @@ import { ScenePanelComponentBaseProps } from "../../types"
 import { useCurrentSceneConfig } from "../../hooks"
 import { useIsMobile } from "@/hooks/useIsMobile"
 
-interface SlidesInputContainerProps extends ScenePanelComponentBaseProps { }
+interface SlidesInputContainerProps extends ScenePanelComponentBaseProps {}
 
 function SlidesInputContainer({ editorContext, editorNodes }: SlidesInputContainerProps) {
-	const { placeholder, panels, isLoading } = useCurrentSceneConfig()
+	const { panels, isLoading } = useCurrentSceneConfig()
 	const isMobile = useIsMobile()
 
 	const editorPortalTarget = usePortalTarget({
 		portalId: SCENE_INPUT_IDS.INPUT_CONTAINER,
 	})
 
-	const handleTemplateSelect = (template: OptionItem) => {
+	const handleTemplateSelect = (template: OptionItem | null) => {
 		console.log("Template selected:", template)
+		editorPortalTarget?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+		window.setTimeout(() => {
+			editorContext?.editorRef?.current?.focus?.({ enableWhenIsMobile: true })
+		}, 100)
 	}
 
 	const handleFilterChange = (filters: FieldItem[]) => {

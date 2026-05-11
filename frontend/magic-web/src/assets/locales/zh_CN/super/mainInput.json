@@ -1,6 +1,25 @@
 {
+	"addSheet": {
+		"actions": {
+			"mention": "提及",
+			"plugin": "插件",
+			"skills": "技能",
+			"webSearch": "网页搜索"
+		},
+		"addButton": "添加",
+		"closeAriaLabel": "关闭添加到对话弹窗",
+		"media": {
+			"camera": "相机",
+			"files": "文件",
+			"photos": "相册"
+		},
+		"title": "添加到对话"
+	},
 	"analyzeData": {
 		"placeholder": "描述你想创建的网站。\n按 Enter 发送；Shift + Enter 换行"
+	},
+	"attachments": {
+		"removeAriaLabel": "移除 {{fileName}}"
 	},
 	"chatInput": {
 		"helpText": "按 Enter 发送；Shift + Enter 换行",
@@ -8,8 +27,13 @@
 		"model": "模型",
 		"placeholder": "输入你的请求或上传文件，Super Magic 会帮你处理。"
 	},
+	"chatSettings": {
+		"close": "关闭",
+		"title": "对话设置"
+	},
 	"crewSelectModal": {
 		"empty": {
+			"all": "暂无可用数字员工",
 			"my": "暂无我的数字员工",
 			"official": "暂无官方数字员工"
 		},
@@ -27,7 +51,7 @@
 	},
 	"selectedSkillBadge": {
 		"closeAriaLabel": "关闭",
-		"inUse": "使用中"
+		"inUse": "使用"
 	},
 	"sloganContainer": {
 		"subtitle": "你的专属 AI 团队已就绪",

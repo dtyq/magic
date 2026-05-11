@@ -277,7 +277,10 @@ export class AddModelStore {
 	}
 
 	setSelectedProviderTypeId = (id: string) => {
-		this.providerForm.setSelectedProviderTypeId(id)
+		const providerTemplate = this.providerResource.providerTemplates.find(
+			(provider) => provider.id === id,
+		)
+		this.providerForm.setSelectedProviderTypeId(id, providerTemplate?.fields)
 	}
 
 	setProviderField = (key: string, value: string) => {
@@ -325,26 +328,6 @@ export class AddModelStore {
 			})
 		}
 		return false
-	}
-
-	loadServiceProvidersForModelKey = async (
-		modelKey: "models" | "image_models",
-	): Promise<void> => {
-		await this.providerResource.loadProvidersForModelKey(modelKey)
-	}
-
-	loadProviderTemplatesForModelKey = async (
-		modelKey: "models" | "image_models",
-	): Promise<void> => {
-		await this.providerResource.loadTemplatesForModelKey(modelKey)
-	}
-
-	getServiceProvidersByModelKey(modelKey: "models" | "image_models"): ServiceProvider[] {
-		return this.providerResource.getProvidersByModelKey(modelKey)
-	}
-
-	getProviderTemplatesByModelKey(modelKey: "models" | "image_models"): ProviderTemplateOption[] {
-		return this.providerResource.getTemplatesByModelKey(modelKey)
 	}
 
 	loadOrgAiModelProviderTemplates = async (category: "llm" | "vlm") => {

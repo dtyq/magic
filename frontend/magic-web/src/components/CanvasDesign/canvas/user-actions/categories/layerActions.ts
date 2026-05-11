@@ -8,10 +8,7 @@ export const layerActions: UserAction[] = [
 		id: "layer.move-up",
 		category: "layer",
 		canExecute: (canvas) => {
-			// 非只读模式且有选中的元素
-			if (canvas.readonly) return false
-			const selectedIds = canvas.selectionManager.getSelectedIds()
-			return selectedIds.length > 0
+			return canvas.permissionManager.canReorderLayersForSelection()
 		},
 		execute: (canvas) => {
 			const selectedIds = canvas.selectionManager.getSelectedIds()
@@ -22,10 +19,7 @@ export const layerActions: UserAction[] = [
 		id: "layer.move-down",
 		category: "layer",
 		canExecute: (canvas) => {
-			// 非只读模式且有选中的元素
-			if (canvas.readonly) return false
-			const selectedIds = canvas.selectionManager.getSelectedIds()
-			return selectedIds.length > 0
+			return canvas.permissionManager.canReorderLayersForSelection()
 		},
 		execute: (canvas) => {
 			const selectedIds = canvas.selectionManager.getSelectedIds()
@@ -36,10 +30,7 @@ export const layerActions: UserAction[] = [
 		id: "layer.move-to-top",
 		category: "layer",
 		canExecute: (canvas) => {
-			// 非只读模式且有选中的元素
-			if (canvas.readonly) return false
-			const selectedIds = canvas.selectionManager.getSelectedIds()
-			return selectedIds.length > 0
+			return canvas.permissionManager.canReorderLayersForSelection()
 		},
 		execute: (canvas) => {
 			const selectedIds = canvas.selectionManager.getSelectedIds()
@@ -50,10 +41,7 @@ export const layerActions: UserAction[] = [
 		id: "layer.move-to-bottom",
 		category: "layer",
 		canExecute: (canvas) => {
-			// 非只读模式且有选中的元素
-			if (canvas.readonly) return false
-			const selectedIds = canvas.selectionManager.getSelectedIds()
-			return selectedIds.length > 0
+			return canvas.permissionManager.canReorderLayersForSelection()
 		},
 		execute: (canvas) => {
 			const selectedIds = canvas.selectionManager.getSelectedIds()

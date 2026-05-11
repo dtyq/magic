@@ -1,9 +1,6 @@
 import { AudioProcessor } from "@/components/business/VoiceInput/services/AudioProcessor"
 import { VoiceClientProxy } from "@/components/business/VoiceInput/services/VoiceClient/VoiceClientProxy"
-import type {
-	VoiceInputConfig,
-	VoiceInputStatus,
-} from "@/components/business/VoiceInput/types"
+import type { VoiceInputConfig, VoiceInputStatus } from "@/components/business/VoiceInput/types"
 import { ChatApi } from "@/apis"
 import { userStore } from "@/models/user"
 import { env } from "@/utils/env"
@@ -83,6 +80,14 @@ export interface VoiceToTextOptions {
 		/** 最大存储的会话数，默认为10 */
 		maxSessions?: number
 	}
+}
+
+interface VoiceToTextSubscriberCallbacks {
+	onResult?: (params: VoiceResultParams) => void
+	onAudioChunk?: (params: AudioChunkParams) => void
+	onError?: (error: Error) => void
+	onStatusChange?: (status: VoiceInputStatus) => void
+	onConnect?: () => void
 }
 
 export interface RecordingSession {
@@ -176,6 +181,8 @@ class VoiceToTextService {
 	private isConnected = false
 	private isRecording = false
 	private options: VoiceToTextOptions = {}
+	private subscribers = new Map<string, VoiceToTextSubscriberCallbacks>()
+	private activeSubscriberId: string | null = null
 	private currentRecordingId: string | null = null
 	private chunkIndex = 0
 	private stopPromise: { resolve: () => void; reject: (error: Error) => void } | null = null
@@ -347,7 +354,7 @@ class VoiceToTextService {
 		if (this.networkStatus === "offline") {
 			const error = new Error("Network is offline. Unable to start recording")
 			logger.error(this.createLogContext("开始录音失败：网络离线，无法开始录音"))
-			this.options.onError?.(error)
+			this.emitError(error)
 			throw error
 		}
 
@@ -607,7 +614,7 @@ class VoiceToTextService {
 			// 将 recordingId 透传给 Worker，保持重连时的连接ID一致
 			await this.voiceClient?.connect(recordingId ?? this.currentRecordingId ?? undefined)
 			this.resetRetryState()
-			this.options.onConnect?.()
+			this.emitConnect()
 		} catch (error) {
 			this.isRetrying = false
 			logger.error(this.createLogContext("连接失败：连接失败", { error: String(error) }))
@@ -683,6 +690,8 @@ class VoiceToTextService {
 
 		// Reset all state
 		this.options = {}
+		this.subscribers.clear()
+		this.activeSubscriberId = null
 		this.status = "idle"
 		this.isConnected = false
 		this.isRecording = false
@@ -714,7 +723,7 @@ class VoiceToTextService {
 	 * 是否正在录音
 	 */
 	getIsRecording(): boolean {
-		return this.status === "recording"
+		return this.isRecording
 	}
 
 	/**
@@ -731,6 +740,27 @@ class VoiceToTextService {
 		return this.currentRecordingId
 	}
 
+	getSubscriberCount(): number {
+		return this.subscribers.size
+	}
+
+	registerSubscriber(subscriberId: string, callbacks: VoiceToTextSubscriberCallbacks): void {
+		this.subscribers.set(subscriberId, callbacks)
+	}
+
+	unregisterSubscriber(subscriberId: string): void {
+		const wasActiveSubscriber = this.activeSubscriberId === subscriberId
+		this.subscribers.delete(subscriberId)
+		if (wasActiveSubscriber) this.activeSubscriberId = null
+	}
+
+	setActiveSubscriber(subscriberId: string | null): void {
+		if (subscriberId && !this.subscribers.has(subscriberId)) return
+		if (this.activeSubscriberId === subscriberId) return
+
+		this.activeSubscriberId = subscriberId
+	}
+
 	/**
 	 * 获取重试状态信息
 	 */
@@ -741,6 +771,56 @@ class VoiceToTextService {
 			maxRetries: this.maxRetries,
 			hasExceededRetries: this.retryCount >= this.maxRetries,
 		}
+	}
+
+	private getActiveSubscriberCallbacks(): VoiceToTextSubscriberCallbacks | null {
+		if (!this.activeSubscriberId) return null
+		return this.subscribers.get(this.activeSubscriberId) ?? null
+	}
+
+	private emitAudioChunk(params: AudioChunkParams): void {
+		const activeSubscriber = this.getActiveSubscriberCallbacks()
+		if (activeSubscriber?.onAudioChunk) {
+			activeSubscriber.onAudioChunk(params)
+			return
+		}
+		this.options.onAudioChunk?.(params)
+	}
+
+	private emitResult(params: VoiceResultParams): void {
+		const activeSubscriber = this.getActiveSubscriberCallbacks()
+		if (activeSubscriber?.onResult) {
+			activeSubscriber.onResult(params)
+			return
+		}
+		this.options.onResult?.(params)
+	}
+
+	private emitError(error: Error): void {
+		const activeSubscriber = this.getActiveSubscriberCallbacks()
+		if (activeSubscriber?.onError) {
+			activeSubscriber.onError(error)
+			return
+		}
+		this.options.onError?.(error)
+	}
+
+	private emitStatusChange(newStatus: VoiceInputStatus): void {
+		const activeSubscriber = this.getActiveSubscriberCallbacks()
+		if (activeSubscriber?.onStatusChange) {
+			activeSubscriber.onStatusChange(newStatus)
+			return
+		}
+		this.options.onStatusChange?.(newStatus)
+	}
+
+	private emitConnect(): void {
+		const activeSubscriber = this.getActiveSubscriberCallbacks()
+		if (activeSubscriber?.onConnect) {
+			activeSubscriber.onConnect()
+			return
+		}
+		this.options.onConnect?.()
 	}
 
 	/**
@@ -1057,14 +1137,14 @@ class VoiceToTextService {
 			// 初始化音频处理器
 			this.audioProcessor = new AudioProcessor(config.audio)
 
-				// Expose audioProcessor for debugging purposes
-				; (window as typeof window & { audioProcessor?: AudioProcessor }).audioProcessor =
-					this.audioProcessor
+			// Expose audioProcessor for debugging purposes
+			;(window as typeof window & { audioProcessor?: AudioProcessor }).audioProcessor =
+				this.audioProcessor
 
 			this.unsubscribeAudioProcessor = this.audioProcessor.on("data", (audioData) => {
 				// 提供音频分片给业务层（用于上传等场景）
 				if (this.currentRecordingId) {
-					this.options.onAudioChunk?.({
+					this.emitAudioChunk({
 						audioData,
 						recordingId: this.currentRecordingId,
 						chunkIndex: this.chunkIndex++,
@@ -1243,7 +1323,7 @@ class VoiceToTextService {
 
 		this.voiceClient.on("result", (result) => {
 			if (this.currentRecordingId) {
-				this.options.onResult?.({
+				this.emitResult({
 					result: result,
 					recordingId: this.currentRecordingId,
 				})
@@ -1309,7 +1389,7 @@ class VoiceToTextService {
 					break
 				case "connected":
 					this.isConnected = true
-					this.updateStatus("recording")
+					this.updateStatus(this.isRecording ? "recording" : "idle")
 					break
 				case "error":
 					this.isConnected = false
@@ -1327,11 +1407,10 @@ class VoiceToTextService {
 		// 幂等：状态未变化则不触发回调
 		if (this.status === newStatus) return
 		this.status = newStatus
-		this.options.onStatusChange?.(newStatus)
+		this.emitStatusChange(newStatus)
 	}
 
 	private handleError(error: Error) {
-		console.trace("handleError", error)
 		void this.logErrorWithPendingSnapshot("错误捕获：记录待发送队列快照", error)
 		// 若已处于安全的错误态且无录制会话，忽略重复错误，避免日志洪泛
 		if (
@@ -1520,7 +1599,7 @@ class VoiceToTextService {
 			`${error.message} (failed after ${this.retryCount} retries)`,
 		)
 		errorWithContext.stack = error.stack
-		this.options.onError?.(errorWithContext)
+		this.emitError(errorWithContext)
 	}
 
 	/**
@@ -1884,7 +1963,7 @@ class VoiceToTextService {
 		}
 
 		this.updateStatus("error")
-		this.options.onError?.(new Error("Network connection lost"))
+		this.emitError(new Error("Network connection lost"))
 		// 上报网络离线事件
 		logger.report(this.createLogContext("网络离线：网络连接丢失"))
 
@@ -2016,7 +2095,7 @@ class VoiceToTextService {
 					logger.warn(this.createLogContext("网络恢复：未连接，录音将被缓冲"))
 				}
 
-				this.options.onConnect?.()
+				this.emitConnect()
 
 				this.isRecording = true
 				await this.saveCurrentSession()

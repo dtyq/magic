@@ -24,10 +24,10 @@ function WorkspaceHeaderSkeleton() {
 function WorkspaceBodySkeleton() {
 	return (
 		<div
-			className="flex h-full min-h-0 w-full flex-col overflow-auto px-4"
+			className="flex h-full min-h-0 w-full flex-col items-center justify-center overflow-hidden px-4"
 			data-testid="main-workspace-container"
 		>
-			<div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-6 pb-10 pt-24">
+			<div className="mx-auto flex w-full max-w-4xl flex-col items-center gap-6">
 				<Skeleton className="h-10 w-80 rounded-full" />
 
 				<div className="flex w-full flex-col items-center gap-3">
@@ -53,7 +53,7 @@ function WorkspaceBodySkeleton() {
 						className="rounded-2xl bg-card px-4 py-8"
 						data-testid="workspace-page-desktop-skeleton-loading"
 					>
-						<MagicSpin spinning size="large" className="min-h-[260px]" />
+						<MagicSpin spinning size="large" className="min-h-[60px]" />
 					</div>
 				</div>
 			</div>

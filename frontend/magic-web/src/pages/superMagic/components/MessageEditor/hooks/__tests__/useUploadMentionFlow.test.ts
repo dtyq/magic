@@ -34,6 +34,7 @@ function createFileUploadStore() {
 	return {
 		updateOptions: vi.fn(),
 		files: [],
+		getUploadMentionItems: vi.fn(() => []),
 		addFiles: vi.fn(),
 		removeFile: vi.fn(),
 		removeUploadedFile: vi.fn(),
@@ -108,6 +109,43 @@ describe("useUploadMentionFlow", () => {
 		expect(confirmMock).not.toHaveBeenCalled()
 		expect(fileUploadStore.removeUploadedFile).not.toHaveBeenCalled()
 		expect(deleteProjectFileMock).not.toHaveBeenCalled()
+	})
+
+	it("should sync upload mention items to mention panel store", () => {
+		const syncedItems = [
+			{
+				id: "uploaded-file-1",
+				type: MentionItemType.UPLOAD_FILE,
+				name: "demo.txt",
+				data: {
+					file_id: "uploaded-file-1",
+					file_name: "demo.txt",
+					file_path: "uploads/demo.txt",
+					file_extension: "txt",
+				},
+			},
+		]
+		const fileUploadStore = createFileUploadStore()
+		fileUploadStore.getUploadMentionItems.mockReturnValue(syncedItems)
+		const mentionPanelStore = {
+			setUploadFiles: vi.fn(),
+		}
+
+		renderHook(() =>
+			useUploadMentionFlow({
+				fileUploadStore: fileUploadStore as unknown as FileUploadStore,
+				mentionPanelStore,
+				getEditor: () => null,
+				isProjectContext: false,
+				runWithoutMentionRemoveSync: (callback) => callback(),
+				selectedProjectId: "project-1",
+				selectedTopicId: "topic-1",
+				t: (key: string) => key,
+			}),
+		)
+
+		expect(fileUploadStore.getUploadMentionItems).toHaveBeenCalledTimes(1)
+		expect(mentionPanelStore.setUploadFiles).toHaveBeenCalledWith(syncedItems)
 	})
 
 	it("should confirm before deleting current session project files", async () => {
@@ -197,14 +235,30 @@ describe("useUploadMentionFlow", () => {
 			result.current.shouldRestoreRemovedMention(
 				createProjectFileMention() as TiptapMentionAttributes,
 				false,
+				{ deletionInput: "forward-delete" },
 			),
 		).toBe(true)
 		expect(
 			result.current.shouldRestoreRemovedMention(
 				createProjectFileMention() as TiptapMentionAttributes,
 				true,
+				{ deletionInput: "forward-delete" },
 			),
 		).toBe(false)
+		expect(
+			result.current.shouldRestoreRemovedMention(
+				createProjectFileMention() as TiptapMentionAttributes,
+				false,
+				{ deletionInput: "other" },
+			),
+		).toBe(false)
+		expect(
+			result.current.shouldRestoreRemovedMention(
+				createProjectFileMention() as TiptapMentionAttributes,
+				false,
+				{ deletionInput: "backspace" },
+			),
+		).toBe(true)
 	})
 
 	it("should not restore removed mentions when delete confirmation is disabled", () => {
@@ -228,6 +282,7 @@ describe("useUploadMentionFlow", () => {
 			result.current.shouldRestoreRemovedMention(
 				createProjectFileMention() as TiptapMentionAttributes,
 				false,
+				{ deletionInput: "forward-delete" },
 			),
 		).toBe(false)
 	})
@@ -260,8 +315,98 @@ describe("useUploadMentionFlow", () => {
 			result.current.shouldRestoreRemovedMention(
 				createProjectFileMention() as TiptapMentionAttributes,
 				false,
+				{ deletionInput: "forward-delete" },
 			),
 		).toBe(false)
+	})
+
+	it("should remove only without modal when editor deletion is non-keyboard (other)", () => {
+		const fileUploadStore = createFileUploadStore()
+		fileUploadStore.isCurrentSessionProjectFile.mockReturnValue(true)
+
+		const { result } = renderHook(() =>
+			useUploadMentionFlow({
+				fileUploadStore: fileUploadStore as unknown as FileUploadStore,
+				getEditor: () => null,
+				isProjectContext: true,
+				runWithoutMentionRemoveSync: (callback) => callback(),
+				selectedProjectId: "project-1",
+				selectedTopicId: "topic-1",
+				t: (key: string) => key,
+			}),
+		)
+
+		act(() => {
+			result.current.handleMentionRemoveItems([
+				{
+					item: createProjectFileMention() as TiptapMentionAttributes,
+					stillExists: false,
+					deletionInput: "other",
+				},
+			])
+		})
+
+		expect(confirmMock).not.toHaveBeenCalled()
+		expect(fileUploadStore.removeUploadedFile).toHaveBeenCalledWith("project-file-1")
+		expect(deleteProjectFileMock).not.toHaveBeenCalled()
+	})
+
+	it("should confirm when editor reports forward-delete removal", () => {
+		const fileUploadStore = createFileUploadStore()
+		fileUploadStore.isCurrentSessionProjectFile.mockReturnValue(true)
+
+		const { result } = renderHook(() =>
+			useUploadMentionFlow({
+				fileUploadStore: fileUploadStore as unknown as FileUploadStore,
+				getEditor: () => null,
+				isProjectContext: true,
+				runWithoutMentionRemoveSync: (callback) => callback(),
+				selectedProjectId: "project-1",
+				selectedTopicId: "topic-1",
+				t: (key: string) => key,
+			}),
+		)
+
+		act(() => {
+			result.current.handleMentionRemoveItems([
+				{
+					item: createProjectFileMention() as TiptapMentionAttributes,
+					stillExists: false,
+					deletionInput: "forward-delete",
+				},
+			])
+		})
+
+		expect(confirmMock).toHaveBeenCalledTimes(1)
+	})
+
+	it("should confirm when editor reports backspace removal", () => {
+		const fileUploadStore = createFileUploadStore()
+		fileUploadStore.isCurrentSessionProjectFile.mockReturnValue(true)
+
+		const { result } = renderHook(() =>
+			useUploadMentionFlow({
+				fileUploadStore: fileUploadStore as unknown as FileUploadStore,
+				getEditor: () => null,
+				isProjectContext: true,
+				runWithoutMentionRemoveSync: (callback) => callback(),
+				selectedProjectId: "project-1",
+				selectedTopicId: "topic-1",
+				t: (key: string) => key,
+			}),
+		)
+
+		act(() => {
+			result.current.handleMentionRemoveItems([
+				{
+					item: createProjectFileMention() as TiptapMentionAttributes,
+					stillExists: false,
+					deletionInput: "backspace",
+				},
+			])
+		})
+
+		expect(confirmMock).toHaveBeenCalledTimes(1)
 	})
 
 	it("should remove only the mention when choosing remove only", () => {

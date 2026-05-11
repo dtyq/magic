@@ -9,7 +9,7 @@ import RecordSummaryEditorContainer from "../../components/editors/RecordSummary
 import { ScenePanelComponentBaseProps } from "../../types"
 import { useCurrentSceneConfig } from "../../hooks"
 
-interface SummarizeRecordingsInputContainerProps extends ScenePanelComponentBaseProps { }
+interface SummarizeRecordingsInputContainerProps extends ScenePanelComponentBaseProps {}
 
 function SummarizeRecordingsInputContainer({
 	editorContext,
@@ -20,7 +20,7 @@ function SummarizeRecordingsInputContainer({
 		portalId: SCENE_INPUT_IDS.INPUT_CONTAINER,
 	})
 
-	const handleScenarioSelect = (scenario: OptionItem) => {
+	const handleScenarioSelect = (scenario: OptionItem | null) => {
 		console.log("Scenario selected:", scenario)
 		// TODO: implement scenario switching logic
 	}

@@ -1,6 +1,6 @@
 import IconButton from "../../../ui/custom/IconButton/index"
 import styles from "./index.module.css"
-import { FrameDotted } from "../../../ui/icons/index"
+import { FrameDotted } from "../../../ui/icons"
 import { useCanvas } from "../../../../context/CanvasContext"
 
 export default function FrameRemoveButton() {

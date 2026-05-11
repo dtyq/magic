@@ -1,5 +1,6 @@
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { memo, useEffect, useMemo, useState } from "react"
+import { createPortal } from "react-dom"
 import CommonHeaderV2 from "../../components/CommonHeaderV2"
 import { cn } from "@/lib/utils"
 import { useFileData } from "@/pages/superMagic/hooks/useFileData"
@@ -28,6 +29,7 @@ import useSaveHandlerRegistration from "../../hooks/useSaveHandlerRegistration"
 import { AttachmentItem } from "../../../TopicFilesButton/hooks/types"
 import useShareButtonVisibility from "../../hooks/useShareButtonVisibility"
 import type { HeaderActionConfig } from "../../components/CommonHeaderV2/types"
+import magicToast from "@/components/base/MagicToaster/utils"
 
 interface TextEditorProps {
 	data?: any
@@ -89,6 +91,8 @@ interface TextEditorProps {
 	isPlaybackMode?: boolean
 	// 是否允许下载（用于分享页面权限控制）
 	allowDownload?: boolean
+	/** playback 模式下，由 PlaybackTabContent 提供的 portal 挂载点 */
+	mdToolbarContainer?: HTMLDivElement | null
 }
 
 interface MdExportActionProps {
@@ -150,6 +154,7 @@ export default memo(function TextEditor(props: TextEditorProps) {
 		openFileTab,
 		isPlaybackMode,
 		allowDownload,
+		mdToolbarContainer,
 	} = props
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
@@ -434,6 +439,13 @@ export default memo(function TextEditor(props: TextEditorProps) {
 		exportPdf?.(displayData?.file_id)
 	})
 
+	const handleCopyMarkdown = useMemoizedFn(() => {
+		navigator.clipboard
+			.writeText(currentContent)
+			.then(() => magicToast.success(t("playbackControl.copyMarkdownSuccess")))
+			.catch(() => magicToast.error(t("playbackControl.copyMarkdownFailed")))
+	})
+
 	const headerActionConfig = useMemo(() => {
 		const customActions: NonNullable<HeaderActionConfig["customActions"]> = []
 
@@ -509,98 +521,145 @@ export default memo(function TextEditor(props: TextEditorProps) {
 	])
 
 	return (
-		<div
-			className={cn(
-				"flex h-full flex-col overflow-hidden [&_pre]:pl-0 [&_pre_>_pre]:!bg-muted",
-				className,
-			)}
-		>
-			{showFileHeader && (
-				<CommonHeaderV2
-					type={type}
-					onFullscreen={onFullscreen}
-					onDownload={() => onDownload?.(displayData?.file_id, fileVersion)}
-					isFromNode={isFromNode}
-					isFullscreen={isFullscreen}
-					viewMode={internalViewMode}
-					onViewModeChange={onViewModeChange}
-					onCopy={onCopy}
-					fileContent={fileContent || processedContent}
-					currentFile={currentFile}
-					detailMode={detailMode}
-					isEditMode={isEditMode}
-					fileVersion={fileVersion}
-					isNewestFileVersion={isNewestVersion}
-					showDownload={
-						(isMobile || !allowEdit) &&
-						!shouldHideByPermission &&
-						allowDownload !== false
-					}
-					changeFileVersion={changeFileVersion}
-					fileVersionsList={fileVersionsList}
-					handleVersionRollback={handleVersionRollback}
-					quitEditMode={quitEditMode}
-					allowEdit={allowEdit}
-					attachments={attachments as AttachmentItem[] | undefined}
-					actionConfig={headerActionConfig}
-				/>
-			)}
-			{loading ? (
-				<div className="flex h-full w-full items-center justify-center bg-background">
-					<MagicSpin spinning />
-				</div>
-			) : isDeleted ? (
-				<Deleted data={displayData} showHeader={false} />
-			) : (
-				<div
-					className={cn(
-						"h-full overflow-auto transition-[background-color_0.4s_cubic-bezier(0.4,0,0.2,1)]",
-						internalViewMode === "phone" &&
-						"flex w-full items-center justify-center bg-muted",
-					)}
-				>
+		<>
+			<div
+				className={cn(
+					"flex h-full flex-col overflow-hidden [&_pre]:pl-0 [&_pre_>_pre]:!bg-muted",
+					className,
+				)}
+			>
+				{showFileHeader && (
+					<CommonHeaderV2
+						type={type}
+						onFullscreen={onFullscreen}
+						onDownload={() => onDownload?.(displayData?.file_id, fileVersion)}
+						isFromNode={isFromNode}
+						isFullscreen={isFullscreen}
+						viewMode={internalViewMode}
+						onViewModeChange={onViewModeChange}
+						onCopy={onCopy}
+						fileContent={fileContent || processedContent}
+						currentFile={currentFile}
+						detailMode={detailMode}
+						isEditMode={isEditMode}
+						fileVersion={fileVersion}
+						isNewestFileVersion={isNewestVersion}
+						showDownload={
+							(isMobile || !allowEdit) &&
+							!shouldHideByPermission &&
+							allowDownload !== false
+						}
+						changeFileVersion={changeFileVersion}
+						fileVersionsList={fileVersionsList}
+						handleVersionRollback={handleVersionRollback}
+						quitEditMode={quitEditMode}
+						allowEdit={allowEdit}
+						attachments={attachments as AttachmentItem[] | undefined}
+						actionConfig={headerActionConfig}
+					/>
+				)}
+				{loading ? (
+					<div className="flex h-full w-full items-center justify-center bg-background">
+						<MagicSpin spinning />
+					</div>
+				) : isDeleted ? (
+					<Deleted data={displayData} showHeader={false} />
+				) : (
 					<div
 						className={cn(
-							"m-auto h-full w-full flex-none transition-[width_0.4s_cubic-bezier(0.4,0,0.2,1),border-radius_0.4s_cubic-bezier(0.4,0,0.2,1),background-color_0.4s_cubic-bezier(0.4,0,0.2,1),box-shadow_0.4s_cubic-bezier(0.4,0,0.2,1)]",
+							"h-full overflow-auto transition-[background-color_0.4s_cubic-bezier(0.4,0,0.2,1)]",
 							internalViewMode === "phone" &&
-							"!my-5 h-[calc(100%-40px)] w-[416px] flex-none overflow-hidden rounded-lg border border-border bg-background shadow-[0_4px_14px_0_rgba(0,0,0,0.1),0_0_1px_0_rgba(0,0,0,0.3)]",
+								"flex w-full items-center justify-center bg-muted",
 						)}
 					>
-						<EditorBody
-							isLoading={isLoading}
-							viewMode={internalViewMode as "code" | "markdown"}
-							language={language}
-							content={currentContent}
-							processedContent={processedContent}
+						<div
 							className={cn(
-								"h-full flex-1 overflow-auto whitespace-pre-wrap bg-background text-base [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-black/15 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1.5",
-								internalViewMode === "code" && "[&_>_pre]:!bg-background",
+								"m-auto h-full w-full flex-none transition-[width_0.4s_cubic-bezier(0.4,0,0.2,1),border-radius_0.4s_cubic-bezier(0.4,0,0.2,1),background-color_0.4s_cubic-bezier(0.4,0,0.2,1),box-shadow_0.4s_cubic-bezier(0.4,0,0.2,1)]",
+								internalViewMode === "phone" &&
+									"!my-5 h-[calc(100%-40px)] w-[416px] flex-none overflow-hidden rounded-lg border border-border bg-background shadow-[0_4px_14px_0_rgba(0,0,0,0.1),0_0_1px_0_rgba(0,0,0,0.3)]",
 							)}
-							isEditMode={isEditMode}
-							editContent={editContent}
-							setEditContent={setEditContent}
-							selectedProject={selectedProject}
-							currentDocumentPath={relativeFilePath}
-							urlResolver={urlResolver}
-							attachments={attachments}
-							onOpenFile={openFileTab}
-							placeholder={t("fileViewer.placeholder.content")}
-						/>
+						>
+							<EditorBody
+								isLoading={isLoading}
+								viewMode={internalViewMode as "code" | "markdown"}
+								language={language}
+								content={currentContent}
+								processedContent={processedContent}
+								className={cn(
+									"h-full flex-1 overflow-auto whitespace-pre-wrap bg-background text-base [&::-webkit-scrollbar-thumb]:rounded [&::-webkit-scrollbar-thumb]:bg-black/15 dark:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1.5",
+									internalViewMode === "code" && "[&_>_pre]:!bg-background",
+								)}
+								isEditMode={isEditMode}
+								editContent={editContent}
+								setEditContent={setEditContent}
+								selectedProject={selectedProject}
+								currentDocumentPath={relativeFilePath}
+								urlResolver={urlResolver}
+								attachments={attachments}
+								onOpenFile={openFileTab}
+								placeholder={t("fileViewer.placeholder.content")}
+							/>
+						</div>
 					</div>
-				</div>
-			)}
-			{/* 底部 */}
-			{showFooter && (
-				<CommonFooter
-					fileVersion={fileVersion}
-					changeFileVersion={changeFileVersion}
-					fileVersionsList={fileVersionsList}
-					handleVersionRollback={handleVersionRollback}
-					quitEditMode={quitEditMode}
-					allowEdit={allowEdit}
-					isEditMode={isEditMode}
-				/>
-			)}
-		</div>
+				)}
+				{/* 底部 */}
+				{showFooter && (
+					<CommonFooter
+						fileVersion={fileVersion}
+						changeFileVersion={changeFileVersion}
+						fileVersionsList={fileVersionsList}
+						handleVersionRollback={handleVersionRollback}
+						quitEditMode={quitEditMode}
+						allowEdit={allowEdit}
+						isEditMode={isEditMode}
+					/>
+				)}
+			</div>
+			{/* Playback 模式下通过 portal 将工具栏按钮渲染到 PlaybackTabContent 的 header 右侧 */}
+			{isPlaybackMode &&
+				mdToolbarContainer &&
+				createPortal(
+					<div className="align-center flex gap-2">
+						<div className="flex h-6 items-center overflow-hidden rounded-full border border-border bg-muted text-xs">
+							<button
+								type="button"
+								className={cn(
+									"flex h-6 items-center rounded-full px-3 text-muted-foreground transition-colors",
+									internalViewMode !== "code" &&
+										"bg-background font-medium text-foreground shadow-sm",
+								)}
+								onClick={() => {
+									setInternalViewMode("desktop")
+									onViewModeChange?.("desktop")
+								}}
+							>
+								{t("playbackControl.mdViewModeRender")}
+							</button>
+							<button
+								type="button"
+								className={cn(
+									"flex h-6 items-center rounded-full px-3 text-muted-foreground transition-colors",
+									internalViewMode === "code" &&
+										"bg-background font-medium text-foreground shadow-sm",
+								)}
+								onClick={() => {
+									setInternalViewMode("code")
+									onViewModeChange?.("code")
+								}}
+							>
+								{t("playbackControl.mdViewModeSource")}
+							</button>
+						</div>
+						<button
+							type="button"
+							className="flex h-6 items-center rounded-full border border-border px-3 text-xs text-muted-foreground transition-colors hover:text-foreground"
+							onClick={handleCopyMarkdown}
+						>
+							{t("playbackControl.copyMarkdown")}
+						</button>
+					</div>,
+					mdToolbarContainer as HTMLDivElement,
+				)}
+		</>
 	)
 })

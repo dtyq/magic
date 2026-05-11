@@ -89,6 +89,7 @@
 		"codeInvalid": "Verification code error, please re-enter",
 		"greeting": ", hello!",
 		"instruction": "Please use the following phone number to get verification code and join the organization",
+		"instructionEmail": "Please use the following email to get verification code and join the organization",
 		"invitation": {
 			"member": " is inviting you to join",
 			"partner": " is inviting you to become a partner"

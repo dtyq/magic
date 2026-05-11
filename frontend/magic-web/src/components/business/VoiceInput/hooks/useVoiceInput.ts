@@ -4,6 +4,13 @@ import { useMicrophonePermission } from "@/hooks/useMicrophonePermission"
 import { getVoiceToTextServiceInstance } from "../services/VoiceToTextServiceSingleton"
 import type { AudioChunkParams, VoiceResultParams } from "@/services/voiceToText"
 
+let voiceInputSubscriberSequence = 0
+
+function createVoiceInputSubscriberId(): string {
+	voiceInputSubscriberSequence += 1
+	return `voice-input-subscriber-${voiceInputSubscriberSequence}`
+}
+
 export interface UseVoiceInputOptions {
 	config?: Partial<VoiceInputConfig>
 	onResult?: (text: string, response: VoiceResult) => void
@@ -46,31 +53,61 @@ export const useVoiceInput = (options: UseVoiceInputOptions = {}) => {
 
 	const serviceRef = useRef(getVoiceToTextServiceInstance())
 	const isInitializedRef = useRef(false)
+	const subscriberIdRef = useRef(createVoiceInputSubscriberId())
 
 	// ✅ 使用 ref 存储最新的状态值，避免闭包问题
+	const statusRef = useRef(status)
 	const isRecordingRef = useRef(isRecording)
 	const isConnectedRef = useRef(isConnected)
+	const onResultRef = useRef(onResult)
+	const onErrorRef = useRef(onError)
+	const onStatusChangeRef = useRef(onStatusChange)
+	const onAudioChunkRef = useRef(onAudioChunk)
 
 	// 同步 ref
 	useEffect(() => {
+		statusRef.current = status
 		isRecordingRef.current = isRecording
 		isConnectedRef.current = isConnected
-	}, [isRecording, isConnected])
+	}, [status, isRecording, isConnected])
 
-	const updateStatus = useCallback(
-		(newStatus: VoiceInputStatus) => {
-			setStatus(newStatus)
-			onStatusChange?.(newStatus)
-		},
-		[onStatusChange],
-	)
+	useEffect(() => {
+		onResultRef.current = onResult
+		onErrorRef.current = onError
+		onStatusChangeRef.current = onStatusChange
+		onAudioChunkRef.current = onAudioChunk
+	}, [onResult, onError, onStatusChange, onAudioChunk])
+
+	const updateStatus = useCallback((newStatus: VoiceInputStatus) => {
+		statusRef.current = newStatus
+		setStatus(newStatus)
+		onStatusChangeRef.current?.(newStatus)
+	}, [])
+
+	const syncStateFromService = useCallback(() => {
+		const service = serviceRef.current
+		const nextStatus = service.getStatus()
+		const nextIsConnected = service.getIsConnected()
+		const nextIsRecording = service.getIsRecording()
+
+		statusRef.current = nextStatus
+		isConnectedRef.current = nextIsConnected
+		isRecordingRef.current = nextIsRecording
+		setStatus(nextStatus)
+		setIsConnected(nextIsConnected)
+		setIsRecording(nextIsRecording)
+	}, [])
+
+	const markAsActiveOwner = useCallback(() => {
+		serviceRef.current.setActiveSubscriber(subscriberIdRef.current)
+	}, [])
 
 	const handleError = useCallback(
 		(error: Error) => {
 			updateStatus("error")
-			onError?.(error)
+			onErrorRef.current?.(error)
 		},
-		[onError, updateStatus],
+		[updateStatus],
 	)
 
 	// Integrate permission management
@@ -88,58 +125,74 @@ export const useVoiceInput = (options: UseVoiceInputOptions = {}) => {
 	useEffect(() => {
 		if (isInitializedRef.current) return
 
-		const service = serviceRef.current
-
-		service.initialize({
+		serviceRef.current.initialize({
 			config: userConfig,
-			onResult: (params: VoiceResultParams) => {
-				onResult?.(params.result.text, params.result)
-			},
-			onAudioChunk,
-			onError: handleError,
-			onStatusChange: (newStatus: any) => {
-				updateStatus(newStatus)
-				const serviceIsConnected = service.getIsConnected()
-				const serviceIsRecording = service.getIsRecording()
-
-				setIsConnected(serviceIsConnected)
-				setIsRecording(serviceIsRecording)
-			},
-			onConnect: () => {
-				setIsConnected(true)
-			},
 			retry,
 			persistence,
 		})
 
 		isInitializedRef.current = true
-	}, [userConfig, onResult, onAudioChunk, handleError, updateStatus, retry, persistence])
+	}, [userConfig, retry, persistence])
+
+	useEffect(() => {
+		const service = serviceRef.current
+		const subscriberId = subscriberIdRef.current
+
+		service.registerSubscriber(subscriberId, {
+			onResult: (params: VoiceResultParams) => {
+				onResultRef.current?.(params.result.text, params.result)
+			},
+			onAudioChunk: (params: AudioChunkParams) => {
+				onAudioChunkRef.current?.(params)
+			},
+			onError: handleError,
+			onStatusChange: (newStatus: VoiceInputStatus) => {
+				updateStatus(newStatus)
+				syncStateFromService()
+			},
+			onConnect: () => {
+				setIsConnected(true)
+			},
+		})
+
+		syncStateFromService()
+
+		return () => {
+			service.unregisterSubscriber(subscriberId)
+			if (service.getSubscriberCount() === 0 && service.getStatus() === "idle") {
+				service.disconnect()
+			}
+		}
+	}, [handleError, updateStatus, syncStateFromService])
 
 	const connect = useCallback(async () => {
 		// ✅ 使用 ref 读取最新值
 		if (isConnectedRef.current) return
 
 		try {
+			markAsActiveOwner()
 			await serviceRef.current.connect()
 			setIsConnected(true)
 		} catch (error) {
 			handleError(error as Error)
 			throw error
 		}
-	}, [handleError])
+	}, [handleError, markAsActiveOwner])
 
 	const disconnect = useCallback(() => {
+		markAsActiveOwner()
 		serviceRef.current.disconnect()
 		setIsConnected(false)
 		setIsRecording(false)
 		updateStatus("idle")
-	}, [updateStatus])
+	}, [updateStatus, markAsActiveOwner])
 
 	const startRecording = useCallback(async () => {
 		// ✅ 使用 ref 读取最新值
 		if (isRecordingRef.current) return
 
 		try {
+			markAsActiveOwner()
 			await serviceRef.current.startRecording()
 			setIsRecording(true)
 		} catch (error) {
@@ -150,22 +203,24 @@ export const useVoiceInput = (options: UseVoiceInputOptions = {}) => {
 				handleError(error as Error)
 			}
 		}
-	}, [handleError, handlePermissionError])
+	}, [handleError, handlePermissionError, markAsActiveOwner])
 
 	// ✅ 使用 useCallback 而不是 useMemoizedFn，正确声明依赖
 	const stopRecording = useCallback(async () => {
 		// ✅ 使用 ref 读取最新值
 		if (!isRecordingRef.current) return
 
+		markAsActiveOwner()
 		await serviceRef.current.stopRecording()
 		setIsRecording(false)
-	}, [])
+	}, [markAsActiveOwner])
 
 	// ✅ 使用 useCallback 而不是 useMemoizedFn
 	const toggleRecording = useCallback(async () => {
 		// ✅ 使用 ref 读取最新值
 		const currentIsRecording = isRecordingRef.current
 		const currentIsConnected = isConnectedRef.current
+		markAsActiveOwner()
 
 		if (currentIsRecording) {
 			await stopRecording()
@@ -179,15 +234,7 @@ export const useVoiceInput = (options: UseVoiceInputOptions = {}) => {
 				handleError(error as Error)
 			}
 		}
-	}, [connect, startRecording, stopRecording, handleError])
-
-	// Cleanup on unmount
-	useEffect(() => {
-		const service = serviceRef.current
-		return () => {
-			service.disconnect()
-		}
-	}, [])
+	}, [connect, startRecording, stopRecording, handleError, markAsActiveOwner])
 
 	return {
 		status,

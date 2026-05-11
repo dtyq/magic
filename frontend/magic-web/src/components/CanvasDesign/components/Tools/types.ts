@@ -6,5 +6,6 @@ export interface ToolOptionItem {
 	icon?: React.ComponentType<LucideProps>
 	value?: ToolType
 	shortcut?: string[]
+	onClick?: () => void
 	children?: ToolOptionItem[]
 }

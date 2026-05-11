@@ -1,17 +1,10 @@
 // 话题相关行为
-import pubsub from "@/utils/pubsub"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
-import {
-	DirectoryMentionData,
-	MentionItemType,
-	ProjectFileMentionData,
-} from "@/components/business/MentionPanel/types"
+import { MentionItemType, ProjectFileMentionData } from "@/components/business/MentionPanel/types"
+import { getFolderMentionData } from "@/components/business/MentionPanel/utils/directoryMention"
 import { AttachmentItem } from "../components/TopicFilesButton/hooks"
-import type {
-	Topic,
-	Workspace,
-	ProjectListItem,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { Topic, Workspace, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import { SuperMagicApi } from "@/apis"
 import SuperMagicService from "../services"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -96,13 +89,12 @@ function convertFileToMention(fileItem: AttachmentItem): TiptapMentionAttributes
 	if (fileItem.is_directory) {
 		return {
 			type: MentionItemType.FOLDER,
-			data: {
-				directory_id: fileItem.file_id,
-				directory_name:
-					fileItem.file_name || fileItem.filename || fileItem.display_filename,
-				directory_path: fileItem.file_path || fileItem.relative_file_path,
-				directory_metadata: fileItem.metadata,
-			} as DirectoryMentionData,
+			data: getFolderMentionData({
+				directoryId: fileItem.file_id,
+				directoryName: fileItem.file_name || fileItem.filename || fileItem.display_filename,
+				directoryPath: fileItem.relative_file_path,
+				directoryMetadata: fileItem.display_config,
+			}),
 		}
 	}
 	return {
@@ -110,7 +102,7 @@ function convertFileToMention(fileItem: AttachmentItem): TiptapMentionAttributes
 		data: {
 			file_id: fileItem.file_id,
 			file_name: fileItem.file_name || fileItem.filename || fileItem.display_filename,
-			file_path: fileItem.file_path || fileItem.relative_file_path,
+			file_path: fileItem.relative_file_path,
 			file_extension: fileItem.file_extension,
 		} as ProjectFileMentionData,
 	}
@@ -122,12 +114,9 @@ function convertFileToMention(fileItem: AttachmentItem): TiptapMentionAttributes
 export function addFileToCurrentChat(options: AddToCurrentChatOptions) {
 	const { fileItem, isNewTopic = false, autoFocus = false } = options
 
-	// 转换为mention格式
+	// 转换为 mention 格式并发布事件，由 MessageEditor 统一插入（仅此一条链路，避免与 insert_drag_data 重复插入）
 	const mentionItem = convertFileToMention(fileItem)
-
-	// 发布事件，通知MessageEditor添加文件并插入到编辑器
-	// 注意：super_magic_add_file_to_chat 事件的处理函数会自动插入到编辑器
-	pubsub.publish("super_magic_add_file_to_chat", {
+	pubsub.publish(PubSubEvents.Add_File_To_Chat, {
 		items: [mentionItem],
 		is_new_topic: isNewTopic,
 		autoFocus,
@@ -175,12 +164,9 @@ export async function addFileToNewChat(options: AddToNewChatOptions) {
 export function addMultipleFilesToCurrentChat(options: AddMultipleFilesToCurrentChatOptions) {
 	const { fileItems, autoFocus = false } = options
 
-	// 转换为mention格式
+	// 转换为 mention 格式并发布事件，由 MessageEditor 统一插入（仅此一条链路，避免与 insert_drag_data 重复插入）
 	const mentionItems = fileItems.map(convertFileToMention)
-
-	// 发布事件，通知MessageEditor添加多个文件并插入到编辑器
-	// 注意：super_magic_add_file_to_chat 事件的处理函数会自动插入到编辑器
-	pubsub.publish("super_magic_add_file_to_chat", {
+	pubsub.publish(PubSubEvents.Add_File_To_Chat, {
 		items: mentionItems,
 		is_new_topic: false,
 		autoFocus,

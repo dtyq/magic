@@ -18,6 +18,7 @@ import type { ModelItem } from "../types"
 import MyModelsIcon from "../assets/my-models-icon.svg"
 import { MyModelRow } from "./my-models-list/MyModelRow"
 import { buildMyModelGroups } from "./my-models-list/utils"
+import { userStore } from "@/models/user"
 
 const MODEL_TYPE_BY_KEY: Record<"models" | "image_models", number> = {
 	models: MODEL_TYPE_LLM,
@@ -41,6 +42,7 @@ function MyModelsListInner({
 }: MyModelsListProps) {
 	const { t } = useTranslation("super")
 	const store = useOptionalAddModelStore()
+	const { isPersonalOrganization } = userStore.user
 
 	useEffect(() => {
 		if (!store) return
@@ -60,24 +62,12 @@ function MyModelsListInner({
 		}
 	}, [store, onModelsLoaded])
 
-	useEffect(() => {
-		if (!store) return
-		void store.loadServiceProvidersForModelKey(modelKey)
-	}, [store, modelKey])
-
-	useEffect(() => {
-		if (!store) return
-		void store.loadProviderTemplatesForModelKey(modelKey)
-	}, [store, modelKey])
-
 	if (!store) return null
 
 	const targetModelType = MODEL_TYPE_BY_KEY[modelKey]
 	const visibleModels = store.myModels.filter((model) => model.model_type === targetModelType)
 	const groupedModels = buildMyModelGroups({
 		models: visibleModels,
-		providers: store.getServiceProvidersByModelKey(modelKey),
-		providerTemplates: store.getProviderTemplatesByModelKey(modelKey),
 	})
 
 	if (groupedModels.length === 0) return null
@@ -88,7 +78,9 @@ function MyModelsListInner({
 				<div className="flex items-center gap-1 pb-1">
 					<img src={MyModelsIcon} alt="" className="size-4" />
 					<span className="text-xs text-foreground">
-						{t("messageEditor.addModel.myModels")}
+						{isPersonalOrganization
+							? t("messageEditor.addModel.myModels")
+							: t("messageEditor.addModel.teamModels")}
 					</span>
 				</div>
 				<div className="flex flex-col gap-1">

@@ -85,7 +85,7 @@
 		"checkToEnable": "Whether to enable ?",
 		"checkbox": "Checkbox",
 		"code": "Code",
-		"comeToTheEnd": "Have come to the end",
+		"comeToTheEnd": "You 've reached the end",
 		"computing": "Computing...",
 		"conditions": "Conditions",
 		"confirm": "Confirm",
@@ -290,7 +290,13 @@
 		"multiple": "Multiple Choice",
 		"mutualRelation": "Bidirectional Relation",
 		"name": "Name",
-		"neverCreate": "No ${name} have been created yet",
+		"neverCreateByType": {
+			"agent": "No assistants created yet.",
+			"mcp": "No MCP services created yet.",
+			"sub": "No flows created yet.",
+			"tools": "No toolsets created yet.",
+			"vector-knowledge": "No knowledge bases created yet."
+		},
 		"nextSevenDay": "Next 7 Days",
 		"nextStep": "Next Step",
 		"nextThirtyDay": "Next 30 Days",

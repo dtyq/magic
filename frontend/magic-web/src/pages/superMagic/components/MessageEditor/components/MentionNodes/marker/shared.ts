@@ -1,4 +1,4 @@
-import type { CanvasMarkerMentionData } from "@/components/business/MentionPanel/types"
+export { isCanvasMarkerMentionData } from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 
 export interface MarkerMentionStyleConfig {
 	iconSize: number
@@ -6,10 +6,6 @@ export interface MarkerMentionStyleConfig {
 	paddingClassName: string
 	textClassName: string
 	arrowSize: number
-}
-
-export function isCanvasMarkerMentionData(data: unknown): data is CanvasMarkerMentionData {
-	return Boolean(data && typeof data === "object" && "data" in data)
 }
 
 export function getMarkerMentionStyleConfig({

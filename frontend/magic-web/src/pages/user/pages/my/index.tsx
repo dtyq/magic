@@ -21,6 +21,7 @@ import { useUserInfo } from "@/models/user/hooks"
 import GlobalSidebarStore from "@/stores/display/GlobalSidebarStore"
 import OrganizationRender from "@/components/business/OrganizationRender"
 import UserAvatarRender from "@/components/business/UserAvatarRender"
+import { isPrivateDeployment } from "@/utils/env"
 
 function SuperMagicMobileMy() {
 	const isMobile = useIsMobile()
@@ -118,22 +119,22 @@ function SuperMagicMobileMy() {
 				ref={scrollContainerRef}
 				className={cn(
 					"h-full w-full overflow-y-auto bg-sidebar [&::-webkit-scrollbar]:hidden",
-					`pb-safe-bottom-with-tabbar pt-safe-top`,
+					`pb-4 pt-safe-top`,
 				)}
 			>
 				<div className="flex w-full flex-col justify-end gap-3.5 p-3.5">
 					{/* 用户信息头部 + 背景 */}
 					<UserInfoHeader />
 					{/* 套餐卡片 */}
-					{<PlanCard />}
+					{!isPrivateDeployment() && <PlanCard />}
 				</div>
 
 				{/* 主内容区 */}
 				<div className="flex w-full flex-col items-stretch gap-4 px-3.5 py-4">
-					<ProfileExtraSection />
+					{!isPrivateDeployment() && <ProfileExtraSection />}
 
 					{/* 账户明细 */}
-					<AccountDetailsSection />
+					{<AccountDetailsSection />}
 
 					{/* 账户管理 */}
 					<AccountManagementSection />

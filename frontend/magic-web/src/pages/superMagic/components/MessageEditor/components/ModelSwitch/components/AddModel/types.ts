@@ -50,6 +50,7 @@ export interface ProviderFieldConfig {
 	label: string
 	labelKey?: string
 	required: boolean
+	defaultValue?: string
 	placeholder?: string
 	description?: string
 	inputType?: "text" | "password" | "textarea"

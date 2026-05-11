@@ -5,6 +5,7 @@ import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 import { cn } from "@/lib/utils"
 import { useLocaleText } from "../hooks/useLocaleText"
 import type { OptionItem } from "../types"
+import { isImageIconSource } from "../utils"
 
 interface TemplateCapsuleProps {
 	selectedTemplate?: OptionItem
@@ -54,23 +55,33 @@ const TemplateCapsule = observer(
 			>
 				{templates.map((template) => {
 					const isSelected = selectedTemplate?.value === template.value
+					const isImageIcon = isImageIconSource(template.icon_url)
+					const label = lt(template.label) ?? template.value
 
 					return (
 						<motion.div key={template.value} variants={itemVariants}>
 							<Button
 								variant="outline"
 								className={cn(
-									"shadow-xs h-9 gap-2 rounded-full border border-border px-4 py-2 transition-[border-color]",
+									"h-9 gap-2 rounded-full border border-border px-4 py-2 shadow-xs transition-[border-color]",
 									isSelected && "border-2 border-primary",
 								)}
 								onClick={() => onTemplateClick?.(template)}
 							>
-								{template.icon_url && (
-									<LucideLazyIcon icon={template.icon_url} size={24} />
-								)}
-								<span className="text-sm font-medium leading-5">
-									{lt(template.label) ?? template.value}
-								</span>
+								{template.icon_url &&
+									(isImageIcon ? (
+										<img
+											src={template.icon_url}
+											alt={label}
+											width={24}
+											height={24}
+											className="shrink-0 object-contain"
+											loading="lazy"
+										/>
+									) : (
+										<LucideLazyIcon icon={template.icon_url} size={24} />
+									))}
+								<span className="text-sm font-medium leading-5">{label}</span>
 							</Button>
 						</motion.div>
 					)

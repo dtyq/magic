@@ -2,7 +2,8 @@ import { memo, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import type { SuperMagicMessageItem } from "./type"
 import { getMessageNodeKey } from "./helpers"
-import type { MessageTurnGroup } from "./message-turn-groups"
+import { isUserRoleMessage, isToolRoleMessage, type MessageTurnGroup } from "./message-turn-groups"
+import { superMagicStore } from "@/pages/superMagic/stores"
 
 export const USER_MESSAGE_STICKY_OVERLAY_CLASS = cn(
 	"sticky z-20 overflow-visible",
@@ -15,18 +16,8 @@ export function getUserMessageStickyTopClass(isMobile: boolean): "top-[10px]" | 
 	return isMobile ? "top-[10px]" : "top-[40px]"
 }
 
-/** User bubble: right-aligned for sticky turns */
-export function wrapUserMessageRow(
-	node: SuperMagicMessageItem | undefined,
-	content: ReactNode,
-): ReactNode {
-	if (!node || node.role === "assistant") return content
-	return (
-		<div className="flex w-full min-w-0 justify-end">
-			<div className="w-full">{content}</div>
-		</div>
-	)
-}
+/** Extra classes applied to the row wrapper when the message is from the user */
+export const USER_MESSAGE_ROW_CLASS = "flex min-w-0 justify-end"
 
 export interface MessageTurnGroupListProps {
 	groups: Array<MessageTurnGroup>
@@ -35,6 +26,8 @@ export interface MessageTurnGroupListProps {
 	/** Inner message UI (e.g. Node); wrapped with user right-align + sticky section */
 	renderNode: (args: { node: SuperMagicMessageItem; index: number }) => ReactNode
 }
+
+const statusList = new Set(["completed", "failed", "error", "finished", "suspended"])
 
 function MessageTurnGroupListInner({
 	groups,
@@ -48,14 +41,26 @@ function MessageTurnGroupListInner({
 		const nodeKey = getMessageNodeKey(node) || `${node?.role || "message"}-${index}`
 		const inner = renderNode({ node, index })
 		if (inner == null || inner === false) return null
+		const card = superMagicStore.getMessageNode(node?.app_message_id)
+		if (!statusList.has(card?.status as string) && node?.role === "tool") {
+			return null
+		}
+		const isUser = isUserRoleMessage(node)
+		const isTool = isToolRoleMessage(node)
 		return (
 			<div
 				key={nodeKey}
 				data-message-id={nodeKey}
 				data-message-role={node?.role || "user"}
-				className="relative"
+				className={cn(
+					"relative w-full",
+					!isUser &&
+						!isTool &&
+						"pb-2 pl-6 after:absolute after:left-[11px] after:top-0 after:z-[-1] after:h-full after:w-px after:border-l after:border-dashed after:border-border after:content-['']",
+					isUser && USER_MESSAGE_ROW_CLASS,
+				)}
 			>
-				{wrapUserMessageRow(node, inner)}
+				{inner}
 			</div>
 		)
 	}
@@ -77,13 +82,14 @@ function MessageTurnGroupListInner({
 					`${stickyItem.node?.role || "message"}-${stickyItem.index}`
 
 				return (
-					<section key={group.key} className="relative flex flex-col gap-2">
+					<section key={group.key} className="relative z-[1] flex flex-col">
 						<div
 							data-sticky-message-id={stickyNodeKey}
 							className={cn(
 								USER_MESSAGE_STICKY_OVERLAY_CLASS,
 								userMessageStickyTopClass,
 								stickyMessageClassName,
+								"mb-2",
 							)}
 						>
 							{row(stickyItem.node, stickyItem.index)}

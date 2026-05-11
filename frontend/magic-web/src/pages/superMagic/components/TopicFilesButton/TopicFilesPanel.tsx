@@ -19,9 +19,11 @@ import { cn } from "@/lib/utils"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { type PresetFileType } from "./constant"
 import type { TopicFileRowDecorationResolver } from "./topic-file-row-decoration.types"
+import { useUpdateEffect } from "ahooks"
 
 interface TopicFilesPanelProps {
 	className?: string
+	title?: string
 	attachments?: AttachmentItem[]
 	setUserSelectDetail?: (detail: any) => void
 	onFileClick?: (fileItem: any) => void
@@ -60,6 +62,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 	function TopicFilesPanel(
 		{
 			className,
+			title,
 			attachments = [],
 			setUserSelectDetail,
 			onFileClick,
@@ -82,6 +85,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 		ref,
 	) {
 		const { t } = useTranslation("super")
+		const resolvedTitle = title || t("topicFiles.title")
 		const { isShareRoute } = useShareRoute()
 		const [fileFilters] = useState({
 			documents: true,
@@ -95,6 +99,17 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 		const [isSelectMode, setIsSelectMode] = useState(false)
 		const [isSearchMode, setIsSearchMode] = useState(false)
 		const [searchValue, setSearchValue] = useState("")
+		const prevProjectIdRef = useRef<string | undefined>()
+
+		// 监听 projectId 变化，只在首次加载或切换项目时设置 loading 状态
+		// 避免在任务执行过程中频繁进入 loading 状态
+		useUpdateEffect(() => {
+			const projectIdChanged = prevProjectIdRef.current !== projectId
+			if (projectId && projectIdChanged && attachments.length === 0) {
+				setRefreshLoading(true)
+			}
+			prevProjectIdRef.current = projectId
+		}, [projectId])
 
 		// 创建统一的同名文件处理 handler（单例）
 		// 用于 TopicFilesCore 和 useUploadWithModal 共享
@@ -191,6 +206,11 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			coreRef.current?.createVirtualFolder()
 		}
 
+		// 处理从其他项目导入
+		const handleImportFromOtherProject = () => {
+			coreRef.current?.handleImportFromOtherProject()
+		}
+
 		const handleRefreshList = () => {
 			setRefreshLoading(true)
 			pubsub.publish(PubSubEvents.Update_Attachments, () => {
@@ -281,6 +301,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 					) : (
 						<NormalModeHeader
 							key="normal-header"
+							title={resolvedTitle}
 							isShareRoute={isShareRoute}
 							refreshLoading={refreshLoading}
 							allowEdit={allowEdit}
@@ -291,6 +312,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 							onAddFolder={handleAddFolder}
 							onUploadFile={handleCustomUploadFile}
 							onUploadFolder={handleCustomUploadFolder}
+							onImportFromOtherProject={handleImportFromOtherProject}
 							onEnterSelectMode={handleEnterSelectMode}
 							className="duration-200 animate-in fade-in"
 						/>
@@ -329,6 +351,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 						filterBatchDownloadLayerMenuItems={filterBatchDownloadLayerMenuItems}
 						allowDownload={allowDownload}
 						resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
+						refreshLoading={refreshLoading}
 					/>
 				</div>
 
@@ -336,6 +359,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 				{selectedProject && (
 					<UploadModal
 						visible={uploadModalVisible}
+						title={resolvedTitle}
 						projectId={selectedProject.id}
 						uploadFiles={selectedUploadFiles}
 						attachments={attachments}

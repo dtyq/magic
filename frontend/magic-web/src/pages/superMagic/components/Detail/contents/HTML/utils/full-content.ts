@@ -1,4 +1,13 @@
+import {
+	getPostMessageTargetBootstrapScript,
+	POST_MESSAGE_TARGET_STRATEGIES,
+	injectedIsRelativePathFunctionSource,
+	type PostMessageTargetStrategy,
+	MAGIC_FETCH_POST_MESSAGE_TARGET_HELPER,
+} from "./fetchInterceptor"
 import { getNestedIframeInterceptorScript } from "./nested-iframe-content"
+import { configStore } from "@/models/config"
+import { normalizeLocale } from "@/utils/locale"
 
 // Cookie 模拟实现脚本
 const getCookieMockScript = () => {
@@ -409,19 +418,90 @@ const getDOMContentLoadedScript = (disableParentClickBridge = false) => {
 		document.addEventListener("DOMContentLoaded", function() {
 			// 空状态占位图的 base64 SVG
 			const emptyStateSvg = "${fallbackImageBase64}"
+			const maxImageRetryCount = 3
+
+			// 去掉 query 或 hash 里的 __magic_img_retry__（兼容历史注入的 query 写法）
+			function stripMagicImgRetryFromSrc(src) {
+				if (!src || src === emptyStateSvg) return src
+				if (src.indexOf("__magic_img_retry__") === -1) return src
+				try {
+					const url = new URL(src, window.location.href)
+					url.searchParams.delete("__magic_img_retry__")
+					if (url.hash) {
+						const parts = url.hash.slice(1).split("&").filter(function(p) {
+							return p.indexOf("__magic_img_retry__=") !== 0
+						})
+						url.hash = parts.length ? parts.join("&") : ""
+					}
+					return url.toString()
+				} catch (e) {
+					return src
+						.replace(/&__magic_img_retry__=[0-9]+/g, "")
+						.replace(/[?]__magic_img_retry__=[0-9]+(?=#|$)/, "")
+						.replace(/[?]__magic_img_retry__=[0-9]+&/, "?")
+						.replace(/#__magic_img_retry__=[0-9]+/g, "")
+				}
+			}
+
+			function normalizeImgSrcStripRetry(img) {
+				if (!img || img.src === emptyStateSvg) return
+				const next = stripMagicImgRetryFromSrc(img.src)
+				if (next && next !== img.src) img.src = next
+			}
+
+			// 仅用 URL hash 做重试区分：请求 URL 不含 fragment，不改动签名 query
+			function buildRetrySrc(src, retryCount) {
+				if (!src || src === emptyStateSvg) return src
+
+				try {
+					const url = new URL(src, window.location.href)
+					url.searchParams.delete("__magic_img_retry__")
+					const parts = (url.hash ? url.hash.slice(1) : "").split("&").filter(function(p) {
+						return p.indexOf("__magic_img_retry__=") !== 0
+					})
+					const nextFrag =
+						(parts.length ? parts.join("&") + "&" : "") +
+						"__magic_img_retry__=" +
+						String(retryCount)
+					url.hash = nextFrag
+					return url.toString()
+				} catch (error) {
+					const base = stripMagicImgRetryFromSrc(src)
+					const sep = base.indexOf("#") !== -1 ? "&" : "#"
+					return base + sep + "__magic_img_retry__=" + retryCount
+				}
+			}
 
 			// 给所有图片添加 onerror 处理
 			function handleImageError() {
 				document.querySelectorAll("img").forEach(img => {
 					if (!img.hasAttribute("data-listener-added")) {
+						img.addEventListener("load", function() {
+							normalizeImgSrcStripRetry(this)
+						})
 						img.addEventListener("error", function() {
+							if (this.src === emptyStateSvg) return
+
+							normalizeImgSrcStripRetry(this)
+
 							// 保存原始尺寸信息
 							const originalWidth = this.style.width || this.getAttribute('width') || this.offsetWidth;
 							const originalHeight = this.style.height || this.getAttribute('height') || this.offsetHeight;
 							
 							// 保存原始src到data-src属性（仅当不是占位图时）
 							if (this.src && this.src !== emptyStateSvg && !this.hasAttribute('data-src')) {
-								this.setAttribute('data-src', this.src);
+								this.setAttribute('data-src', stripMagicImgRetryFromSrc(this.src));
+							}
+
+							const originalSrc = stripMagicImgRetryFromSrc(
+								this.getAttribute('data-src') || this.getAttribute('src') || this.src
+							);
+							const retryCount = Number(this.getAttribute('data-retry-count') || '0') + 1;
+							this.setAttribute('data-retry-count', String(retryCount));
+
+							if (retryCount < maxImageRetryCount && originalSrc && originalSrc !== emptyStateSvg) {
+								this.src = buildRetrySrc(originalSrc, retryCount);
+								return
 							}
 							
 							// 替换为占位图
@@ -447,6 +527,7 @@ const getDOMContentLoadedScript = (disableParentClickBridge = false) => {
 							this.setAttribute("data-error-handled", "true");
 						});
 						img.setAttribute("data-listener-added", "true");
+						if (img.complete && img.naturalWidth) normalizeImgSrcStripRetry(img)
 					}
 				});
 			}
@@ -520,6 +601,7 @@ const getDOMContentLoadedScript = (disableParentClickBridge = false) => {
 
 // MAGIC 方法集脚本 - 提供安全的页面操作方法
 const getMagicMethodsScript = () => {
+	const lang = configStore.i18n.language
 	return `
 		// 初始化 window.Magic 方法集
 		if (typeof window.Magic === 'undefined') {
@@ -546,6 +628,63 @@ const getMagicMethodsScript = () => {
 				timestamp: Date.now()
 			}, "*");
 		};
+
+		(function setupMagicI18nSubscription() {
+			const i18nSubscribers = new Set();
+
+			if (!window.Magic.i18n || typeof window.Magic.i18n !== "object") {
+				window.Magic.i18n = {};
+			}
+
+			window.Magic.i18n.lang = "${normalizeLocale(lang)}";
+
+			// 统一监听父窗口下发的语言变更消息，订阅后会持续回调
+			const onI18nMessage = function(event) {
+				if (!event.data || event.data.type !== "MAGIC_I18N_LANG_SUBSCRIBE") return;
+				if (!event.data.success) return;
+
+				const results = event.data.results || {};
+				const nextLang = typeof results.lang === "string" ? results.lang : "";
+				if (nextLang) {
+					window.Magic.i18n.lang = nextLang;
+				}
+
+				i18nSubscribers.forEach(function(subscriber) {
+					try {
+						subscriber(results);
+					} catch (error) {
+						console.error("window.Magic.i18n.subscribe callback error:", error);
+					}
+				});
+			};
+
+			window.addEventListener("message", onI18nMessage);
+
+			// 订阅语言变化事件，返回取消订阅函数
+			window.Magic.i18n.subscribe = function(callback) {
+				if (typeof callback !== "function") {
+					console.error("window.Magic.i18n.subscribe: callback must be a function");
+					return function() {};
+				}
+
+				i18nSubscribers.add(callback);
+				const requestId = "i18n_subscribe_" + Date.now() + "_" + Math.random().toString(36).slice(2, 11);
+				window.parent.postMessage({
+					type: "MAGIC_I18N_LANG_SUBSCRIBE",
+					requestId: requestId,
+					timestamp: Date.now()
+				}, "*");
+
+				return function unsubscribe() {
+					i18nSubscribers.delete(callback);
+				};
+			};
+
+			window.Magic.i18n.unsubscribe = function(callback) {
+				if (typeof callback !== "function") return;
+				i18nSubscribers.delete(callback);
+			};
+		})();
 		
 		// 添加 uploadFiles 方法，通过 postMessage 通知父窗口上传文件
 		window.Magic.uploadFiles = function(files) {
@@ -752,6 +891,48 @@ const getMagicMethodsScript = () => {
 // 链接处理脚本
 const getLinkHandlingScript = () => {
 	return `
+
+		if (window.navigation && typeof window.navigation.addEventListener === "function") {
+			window.navigation.addEventListener("navigate", function(e) {
+				var url = e.destination && e.destination.url;
+				var href = url;
+				if (!url) return;
+				try {
+					var destination = new URL(url, window.location.href);
+					var isSameDocument =
+						destination.pathname === window.location.pathname &&
+						destination.search === window.location.search;
+					var isHashRouter =
+						destination.hash.indexOf("#?") === 0 ||
+						destination.hash.indexOf("#/") === 0;
+
+					if (isSameDocument && isHashRouter) {
+						return;
+					}
+				} catch (error) {
+					console.warn("linkClicked navigate URL parse failed", error);
+				}
+
+				var currentOrigin = window.location.origin;
+				if (url.indexOf(currentOrigin) === 0) {
+					href = href.replace(currentOrigin, "");
+					e.preventDefault();
+				} else {
+					return 
+				}
+				try {
+					window.parent.postMessage({
+						type: "linkClicked",
+						href: href,
+						originalHref: url,
+						text: "",
+						target: "_self",
+						autoEdit: false,
+						fileId: window.__MAGIC_FILE_ID__ || ""
+					}, "*")
+				} catch (err) { console.warn("linkClicked postMessage failed", err); }
+			});
+		}
 		// 处理非HTTP链接的点击事件
 		document.addEventListener("DOMContentLoaded", function() {
 			// 监听所有 a 标签的点击事件
@@ -791,7 +972,8 @@ const getLinkHandlingScript = () => {
 							originalHref: linkElement.href,
 							text: linkElement.textContent || linkElement.innerText || "",
 							target: linkElement.target || "",
-							autoEdit: autoEdit
+							autoEdit: autoEdit,
+							fileId: window.__MAGIC_FILE_ID__ || ""
 						}, "*");
 					} catch (error) {
 						console.error("发送链接点击消息时出错:", error);
@@ -820,7 +1002,8 @@ const getLinkHandlingScript = () => {
 							originalHref: url,
 							text: "",
 							target: target || "_blank",
-							autoEdit: false // window.open 不支持 data-auto-edit 属性
+							autoEdit: false, // window.open 不支持 data-auto-edit 属性
+							fileId: window.__MAGIC_FILE_ID__ || ""
 						}, "*");
 					} catch (error) {
 						console.error("发送 window.open 消息时出错:", error);
@@ -851,7 +1034,11 @@ const getLinkHandlingScript = () => {
  * @returns 动态资源拦截器脚本
  */
 const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptorOptions = {}) => {
-	const { enable = true, fileId = "" } = options
+	const {
+		enable = true,
+		fileId = "",
+		postMessageTargetStrategy = POST_MESSAGE_TARGET_STRATEGIES.SAME_ORIGIN_ANCESTOR,
+	} = options
 
 	return `
 		(function() {
@@ -863,10 +1050,18 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 				window.__MAGIC_FILE_ID__ = '${fileId}';
 			}
 
-			function isRelativePath(url) {
-				if (!url) return false;
-				return !/^(https?:\\/\\/|\\/\\/|data:|blob:|mailto:|tel:|javascript:|about:)/i.test(url);
+			var nativeElementSetAttribute = Element.prototype.setAttribute;
+			var urlAssignGen = new WeakMap();
+			function startUrlAssignToken(el) {
+				var n = (urlAssignGen.get(el) || 0) + 1;
+				urlAssignGen.set(el, n);
+				return n;
 			}
+
+			window.__MAGIC_POST_MESSAGE_TARGET_STRATEGY__ = '${postMessageTargetStrategy}';
+			${MAGIC_FETCH_POST_MESSAGE_TARGET_HELPER}
+
+			${injectedIsRelativePathFunctionSource}
 
 			function escapeRegExp(value) {
 				return value.replace(/[-/\\\\^$*+?.()|[\\]{}]/g, "\\\\$&");
@@ -912,7 +1107,7 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 
 					window.addEventListener("message", messageHandler);
 
-					(window.top || window.parent).postMessage(
+					__magicGetFetchPostMessageTarget().postMessage(
 						{
 							type: "MAGIC_FETCH_URL_REQUEST",
 							requestId: requestId,
@@ -950,7 +1145,35 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 
 			function setOriginalPath(element, originalPath) {
 				if (!element || !originalPath) return;
-				element.setAttribute("data-original-path", originalPath);
+				nativeElementSetAttribute.call(element, "data-original-path", originalPath);
+			}
+
+			// link 的 rel 含空格；仅对会发起子资源请求的 href 做替换，避免 canonical/alternate 等导航类重复处理
+			function linkRelLoadsSubresource(relStr) {
+				if (!relStr) return false;
+				var parts = relStr.toLowerCase().trim().split(/\\s+/);
+				for (var i = 0; i < parts.length; i++) {
+					var p = parts[i];
+					if (
+						p === "stylesheet" ||
+						p === "preload" ||
+						p === "modulepreload" ||
+						p === "prefetch" ||
+						p === "icon" ||
+						p === "mask-icon" ||
+						p === "apple-touch-icon" ||
+						p === "manifest"
+					) {
+						return true;
+					}
+				}
+				return false;
+			}
+
+			function isRelativeHtmlIframeSrc(srcStr) {
+				if (!srcStr || shouldSkipUrl(srcStr) || !isRelativePath(srcStr)) return false;
+				var clean = srcStr.split(/[?#]/)[0];
+				return /[.]html?$/i.test(clean);
 			}
 
 			function replaceAttributeUrl(element, attrName) {
@@ -963,9 +1186,281 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 				resolveUrl(attrValue).then(function(resolvedUrl) {
 					if (!resolvedUrl) return;
 					setOriginalPath(element, attrValue);
-					element.setAttribute(attrName, resolvedUrl);
+					nativeElementSetAttribute.call(element, attrName, resolvedUrl);
 				});
 			}
+
+			// srcset / imagesrcset：单点解析，供 replaceSrcsetLikeFromRaw 与 patchSrcsetProperty 共用
+			function parseSrcsetLikeRaw(raw) {
+				var empty = { tasks: [], toResolve: [], raw: raw == null ? "" : String(raw) };
+				if (!raw || shouldSkipUrl(raw)) return empty;
+				if (/\\bdata:/i.test(raw)) return empty;
+				var segments = String(raw)
+					.split(",")
+					.map(function(s) {
+						return s.trim();
+					})
+					.filter(Boolean);
+				if (segments.length === 0) return empty;
+				var tasks = segments
+					.map(function(seg) {
+						var m = seg.match(/^([^\\s]+)(.*)$/);
+						if (!m) return null;
+						return { urlPart: m[1].trim(), desc: m[2].trim(), rawSeg: seg };
+					})
+					.filter(Boolean);
+				var toResolve = [];
+				for (var ti = 0; ti < tasks.length; ti++) {
+					var u = tasks[ti].urlPart;
+					if (u && !shouldSkipUrl(u) && isRelativePath(u) && toResolve.indexOf(u) === -1) {
+						toResolve.push(u);
+					}
+				}
+				return { tasks: tasks, toResolve: toResolve, raw: String(raw) };
+			}
+
+			// srcset / imagesrcset：最终写回走 native setAttribute，避免与 Element#setAttribute 劫持递归
+			function replaceSrcsetLikeFromRaw(element, attrName, raw, assignToken) {
+				if (!isEnabled || !element) return;
+				var parsed = parseSrcsetLikeRaw(raw);
+				if (parsed.toResolve.length === 0) return;
+
+				Promise.all(
+					parsed.toResolve.map(function(path) {
+						return resolveUrl(path).then(function(resolved) {
+							return { path: path, resolved: resolved };
+						});
+					}),
+				).then(function(pairs) {
+					if (assignToken != null && urlAssignGen.get(element) !== assignToken) return;
+
+					var map = {};
+					for (var j = 0; j < pairs.length; j++) {
+						if (pairs[j].resolved) map[pairs[j].path] = pairs[j].resolved;
+					}
+
+					var newParts = parsed.tasks.map(function(task) {
+						var u = task.urlPart;
+						if (!u || shouldSkipUrl(u) || !isRelativePath(u)) {
+							return task.desc ? u + " " + task.desc : u;
+						}
+						var repl = map[u];
+						if (!repl) return task.desc ? u + " " + task.desc : u;
+						return task.desc ? repl + " " + task.desc : repl;
+					});
+
+					var next = newParts.join(", ");
+					if (next !== parsed.raw) {
+						nativeElementSetAttribute.call(element, attrName, next);
+					}
+				});
+			}
+
+			function replaceSrcsetLikeAttribute(element, attrName) {
+				if (!isEnabled || !element || !element.getAttribute) return;
+				replaceSrcsetLikeFromRaw(element, attrName, element.getAttribute(attrName), undefined);
+			}
+
+			// 动态插入 img/link/script 等时，在连接文档前赋相对路径会先于 MO 异步替换触发加载；对常用资源入口做与 script 同构的延迟写入
+			function installDeferredResourceUrlHooks() {
+				if (window.__MAGIC_DEFERRED_RESOURCE_URL_HOOKS__) return;
+				window.__MAGIC_DEFERRED_RESOURCE_URL_HOOKS__ = true;
+
+				function runDeferredUrlResolve(el, token, relativePath, onResolved) {
+					resolveUrl(relativePath).then(function(resolvedUrl) {
+						if (urlAssignGen.get(el) !== token) return;
+						onResolved(resolvedUrl);
+					});
+				}
+
+				function runDeferredSetAttributeNative(el, attrName, originalV, token, origSetAttr) {
+					runDeferredUrlResolve(el, token, originalV, function(resolvedUrl) {
+						if (!resolvedUrl) {
+							origSetAttr.call(el, attrName, originalV);
+							return;
+						}
+						setOriginalPath(el, originalV);
+						origSetAttr.call(el, attrName, resolvedUrl);
+					});
+				}
+
+				function patchUrlProperty(Ctor, prop, skipDeferWhen) {
+					if (!Ctor || !Ctor.prototype) return;
+					var desc = Object.getOwnPropertyDescriptor(Ctor.prototype, prop);
+					if (!desc || !desc.set || !desc.get) return;
+					var origSet = desc.set;
+					var origGet = desc.get;
+					Object.defineProperty(Ctor.prototype, prop, {
+						configurable: true,
+						enumerable: desc.enumerable,
+						get: function() {
+							return origGet.call(this);
+						},
+						set: function(url) {
+							var s = String(url == null ? "" : url);
+							if (!isEnabled || !s || shouldSkipUrl(s) || !isRelativePath(s)) {
+								return origSet.call(this, url);
+							}
+							if (skipDeferWhen && skipDeferWhen(this, s)) {
+								return origSet.call(this, url);
+							}
+							var el = this;
+							var token = startUrlAssignToken(el);
+							runDeferredUrlResolve(el, token, s, function(resolvedUrl) {
+								if (prop === "href") {
+									var relNow = el.getAttribute("rel") || "";
+									if (!linkRelLoadsSubresource(relNow)) {
+										origSet.call(el, s);
+										return;
+									}
+								}
+								if (!resolvedUrl) {
+									origSet.call(el, s);
+									return;
+								}
+								setOriginalPath(el, s);
+								origSet.call(el, resolvedUrl);
+							});
+						},
+					});
+				}
+
+				function patchSrcsetProperty(Ctor, propName) {
+					if (!Ctor || !Ctor.prototype) return;
+					var desc = Object.getOwnPropertyDescriptor(Ctor.prototype, propName);
+					if (!desc || !desc.set || !desc.get) return;
+					var origSet = desc.set;
+					var origGet = desc.get;
+					Object.defineProperty(Ctor.prototype, propName, {
+						configurable: true,
+						enumerable: desc.enumerable,
+						get: function() {
+							return origGet.call(this);
+						},
+						set: function(val) {
+							var s = String(val == null ? "" : val);
+							if (!isEnabled || !s || shouldSkipUrl(s)) return origSet.call(this, val);
+							var el = this;
+							var attrLower = String(propName).toLowerCase();
+							var parsedSs = parseSrcsetLikeRaw(s);
+							if (parsedSs.toResolve.length === 0) return origSet.call(this, val);
+							var token = startUrlAssignToken(el);
+							replaceSrcsetLikeFromRaw(el, attrLower, s, token);
+						},
+					});
+				}
+
+				patchUrlProperty(window.HTMLScriptElement, "src");
+				patchUrlProperty(window.HTMLImageElement, "src");
+				patchUrlProperty(window.HTMLSourceElement, "src");
+				patchUrlProperty(window.HTMLIFrameElement, "src", function(_el, s) {
+					return isRelativeHtmlIframeSrc(s);
+				});
+				patchUrlProperty(window.HTMLTrackElement, "src");
+				patchUrlProperty(window.HTMLVideoElement, "src");
+				patchUrlProperty(window.HTMLAudioElement, "src");
+				patchUrlProperty(window.HTMLEmbedElement, "src");
+				patchUrlProperty(window.HTMLVideoElement, "poster");
+				patchUrlProperty(window.HTMLLinkElement, "href");
+				if (window.HTMLObjectElement) {
+					patchUrlProperty(window.HTMLObjectElement, "data");
+				}
+
+				patchSrcsetProperty(window.HTMLImageElement, "srcset");
+				patchSrcsetProperty(window.HTMLSourceElement, "srcset");
+				if (window.HTMLLinkElement) {
+					patchSrcsetProperty(window.HTMLLinkElement, "imageSrcset");
+				}
+
+				var origSetAttribute = nativeElementSetAttribute;
+				Element.prototype.setAttribute = function(name, value) {
+					var attr = String(name || "").toLowerCase();
+					var v = value == null ? "" : String(value);
+					var tag = this.tagName;
+
+					if (attr === "data-original-path") {
+						return origSetAttribute.call(this, name, value);
+					}
+
+					if (
+						!isEnabled ||
+						!v ||
+						shouldSkipUrl(v) ||
+						!isRelativePath(v)
+					) {
+						return origSetAttribute.call(this, name, value);
+					}
+
+					if (attr === "srcset" && (tag === "IMG" || tag === "SOURCE")) {
+						var elImg = this;
+						var tokS = startUrlAssignToken(elImg);
+						replaceSrcsetLikeFromRaw(elImg, "srcset", v, tokS);
+						return;
+					}
+
+					if (attr === "imagesrcset" && tag === "LINK") {
+						var elL = this;
+						var tokI = startUrlAssignToken(elL);
+						replaceSrcsetLikeFromRaw(elL, "imagesrcset", v, tokI);
+						return;
+					}
+
+					if (attr === "src") {
+						if (tag === "IFRAME" && isRelativeHtmlIframeSrc(v)) {
+							return origSetAttribute.call(this, name, value);
+						}
+						if (
+							tag === "SCRIPT" ||
+							tag === "IMG" ||
+							tag === "SOURCE" ||
+							tag === "IFRAME" ||
+							tag === "TRACK" ||
+							tag === "VIDEO" ||
+							tag === "AUDIO" ||
+							tag === "EMBED"
+						) {
+							var elS = this;
+							runDeferredSetAttributeNative(elS, name, v, startUrlAssignToken(elS), origSetAttribute);
+							return;
+						}
+					}
+
+					if (attr === "href" && tag === "LINK") {
+						var elH = this;
+						var tokH = startUrlAssignToken(elH);
+						runDeferredUrlResolve(elH, tokH, v, function(resolvedUrl) {
+							var relH = elH.getAttribute("rel") || "";
+							if (!linkRelLoadsSubresource(relH)) {
+								origSetAttribute.call(elH, name, v);
+								return;
+							}
+							if (!resolvedUrl) {
+								origSetAttribute.call(elH, name, v);
+								return;
+							}
+							setOriginalPath(elH, v);
+							origSetAttribute.call(elH, name, resolvedUrl);
+						});
+						return;
+					}
+
+					if (attr === "data" && tag === "OBJECT") {
+						var elO = this;
+						runDeferredSetAttributeNative(elO, name, v, startUrlAssignToken(elO), origSetAttribute);
+						return;
+					}
+
+					if (attr === "poster" && tag === "VIDEO") {
+						var elP = this;
+						runDeferredSetAttributeNative(elP, name, v, startUrlAssignToken(elP), origSetAttribute);
+						return;
+					}
+
+					return origSetAttribute.call(this, name, value);
+				};
+			}
+
+			installDeferredResourceUrlHooks();
 
 			function replaceStyleText(styleText, applyResult) {
 				if (!styleText || shouldSkipUrl(styleText)) return;
@@ -1007,7 +1502,10 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 						);
 					});
 
-					applyResult(nextStyle);
+					// 仅在样式文本实际发生变化时回写，避免 style 属性触发 MutationObserver 后反复进入重写循环。
+					if (nextStyle !== styleText) {
+						applyResult(nextStyle);
+					}
 				});
 			}
 
@@ -1015,7 +1513,7 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 				if (!element || !element.getAttribute) return;
 				var styleText = element.getAttribute("style");
 				replaceStyleText(styleText, function(nextStyle) {
-					element.setAttribute("style", nextStyle);
+					nativeElementSetAttribute.call(element, "style", nextStyle);
 				});
 			}
 
@@ -1051,10 +1549,15 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 				tag === "SOURCE" ||
 				tag === "VIDEO" ||
 				tag === "AUDIO" ||
-				tag === "EMBED"
+				tag === "EMBED" ||
+				tag === "TRACK"
 			) {
 				replaceAttributeUrl(element, "src");
 			}
+
+				if (tag === "IMG" || tag === "SOURCE") {
+					replaceSrcsetLikeAttribute(element, "srcset");
+				}
 
 				if (tag === "OBJECT") {
 					replaceAttributeUrl(element, "data");
@@ -1065,9 +1568,12 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 				}
 
 				if (tag === "LINK") {
-					var rel = element.getAttribute("rel") || "";
-					if (rel.toLowerCase() === "stylesheet") {
+					var linkRel = element.getAttribute("rel") || "";
+					if (linkRelLoadsSubresource(linkRel)) {
 						replaceAttributeUrl(element, "href");
+					}
+					if (element.hasAttribute("imagesrcset")) {
+						replaceSrcsetLikeAttribute(element, "imagesrcset");
 					}
 				}
 
@@ -1089,7 +1595,7 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 					if (node.querySelectorAll) {
 						node
 							.querySelectorAll(
-								"img,iframe,script,source,video,audio,embed,object,link[rel='stylesheet'],style,[style]",
+								"img,iframe,script,source,video,audio,embed,object,link,track,style,[style],[srcset],[imagesrcset]",
 							)
 							.forEach(function(child) {
 								processElement(child);
@@ -1125,7 +1631,10 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 								attrName === "href" ||
 								attrName === "poster" ||
 								attrName === "data" ||
-								attrName === "style"
+								attrName === "style" ||
+								attrName === "srcset" ||
+								attrName === "imagesrcset" ||
+								attrName === "rel"
 							) {
 								processElement(mutation.target);
 							}
@@ -1137,7 +1646,16 @@ const getDynamicResourceInterceptorScript = (options: DynamicResourceInterceptor
 					childList: true,
 					subtree: true,
 					attributes: true,
-					attributeFilter: ["src", "href", "poster", "data", "style"],
+					attributeFilter: [
+						"src",
+						"href",
+						"poster",
+						"data",
+						"style",
+						"srcset",
+						"imagesrcset",
+						"rel",
+					],
 				});
 			}
 
@@ -1183,6 +1701,23 @@ const getOverscrollContainStylesScript = () => {
 	return `
 		html, body {
 			overscroll-behavior: contain;
+		}
+	`
+}
+
+const getHideVerticalScrollStylesScript = () => {
+	return `
+		html, body {
+			overflow-y: auto !important;
+			scrollbar-width: none;
+			-ms-overflow-style: none;
+		}
+
+		html::-webkit-scrollbar,
+		body::-webkit-scrollbar {
+			display: none;
+			width: 0;
+			height: 0;
 		}
 	`
 }
@@ -1251,6 +1786,10 @@ export const getFullContent = (
 	options: GetFullContentOptions = {},
 ) => {
 	const dynamicInterceptionOptions = options.dynamicInterception ?? {}
+	const postMessageTargetStrategy =
+		options.postMessageTargetStrategy ??
+		dynamicInterceptionOptions.postMessageTargetStrategy ??
+		POST_MESSAGE_TARGET_STRATEGIES.SAME_ORIGIN_ANCESTOR
 
 	// 使用DOMParser解析原始HTML
 	const parser = new DOMParser()
@@ -1286,6 +1825,7 @@ export const getFullContent = (
 	styleElement.textContent = [
 		getBaseStylesScript(),
 		options.containOverscroll ? getOverscrollContainStylesScript() : "",
+		options.hideVerticalScroll ? getHideVerticalScrollStylesScript() : "",
 	]
 		.filter(Boolean)
 		.join("\n")
@@ -1295,6 +1835,7 @@ export const getFullContent = (
 	const scriptElement = doc.createElement("script")
 	scriptElement.setAttribute("data-injected", "true")
 	scriptElement.textContent = `
+		${getPostMessageTargetBootstrapScript(postMessageTargetStrategy)}
 		${getMagicMethodsScript()}
 		${getCookieMockScript()}
 		${getStorageMockScript(markerId)}
@@ -1359,10 +1900,13 @@ export function decodeHTMLEntities(html: string): string {
 interface DynamicResourceInterceptorOptions {
 	enable?: boolean
 	fileId?: string
+	postMessageTargetStrategy?: PostMessageTargetStrategy
 }
 
 interface GetFullContentOptions {
 	dynamicInterception?: DynamicResourceInterceptorOptions
 	containOverscroll?: boolean
+	hideVerticalScroll?: boolean
 	disableParentClickBridge?: boolean
+	postMessageTargetStrategy?: PostMessageTargetStrategy
 }

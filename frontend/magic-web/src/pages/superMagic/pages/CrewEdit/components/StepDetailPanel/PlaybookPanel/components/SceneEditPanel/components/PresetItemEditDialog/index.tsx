@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { CirclePlus, GripVertical, Plus, Trash2 } from "lucide-react"
+import { GripVertical, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Switch } from "@/components/shadcn-ui/switch"
-import { Separator } from "@/components/shadcn-ui/separator"
 import {
 	Dialog,
 	DialogContent,
@@ -11,16 +10,14 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/shadcn-ui/dialog"
-import { DEFAULT_LOCALE_KEY } from "@/pages/superMagic/components/MainInputContainer/panels/types"
 import type {
 	FieldItem,
 	LocaleText,
 	OptionItem,
 } from "@/pages/superMagic/components/MainInputContainer/panels/types"
 import { localeTextToDisplayString } from "@/pages/superMagic/components/MainInputContainer/panels/utils"
-import { LocaleTextInput, setLocaleValue } from "../LocaleTextInput"
-import { PresetContentEditor, type PresetContentEditorHandle } from "./PresetContentEditor"
-import { PresetContentLocaleDialog } from "./PresetContentLocaleDialog"
+import { LocaleTextInput } from "../LocaleTextInput"
+import { PresetContentLocaleEditor } from "./PresetContentLocaleEditor"
 
 function genKey() {
 	return Math.random().toString(36).slice(2)
@@ -90,12 +87,6 @@ function isLocaleTextEmpty(text: LocaleText | undefined): boolean {
 	return Object.values(text).every((value) => !value || value.trim() === "")
 }
 
-function getRawLocaleValue(text: LocaleText, locale: string): string {
-	if (typeof text === "string") return locale === DEFAULT_LOCALE_KEY ? text : ""
-	if (locale === DEFAULT_LOCALE_KEY) return text[DEFAULT_LOCALE_KEY] ?? ""
-	return text[locale] ?? ""
-}
-
 export function PresetItemEditDialog({
 	item,
 	open,
@@ -106,7 +97,6 @@ export function PresetItemEditDialog({
 	const isEditing = !!item
 	const [form, setForm] = useState<PresetItemFormState>(EMPTY_FORM)
 	const [errors, setErrors] = useState<FormErrors>({})
-	const contentRef = useRef<PresetContentEditorHandle>(null)
 
 	useEffect(() => {
 		if (open) {
@@ -144,10 +134,6 @@ export function PresetItemEditDialog({
 	function handleLabelChange(v: LocaleText) {
 		setForm((prev) => ({ ...prev, label: v }))
 		if (!isLabelEmpty(v)) setErrors((prev) => ({ ...prev, label: undefined }))
-	}
-
-	function handleInsertPresetValue() {
-		contentRef.current?.insertPresetValue()
 	}
 
 	const isValid = useMemo(
@@ -300,69 +286,29 @@ export function PresetItemEditDialog({
 
 					{/* Preset Content */}
 					<FormRow label={t("playbook.edit.presets.form.presetContent")} alignTop>
-						<div className="flex flex-1 flex-col gap-2">
-							<div className="flex items-center justify-between gap-3">
-								<div className="flex w-full items-center justify-end gap-2">
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										className="shadow-xs h-8 gap-2 px-3 text-xs font-medium text-foreground"
-										onClick={handleInsertPresetValue}
-										data-testid="preset-item-insert-preset-value-btn"
-									>
-										<CirclePlus className="h-4 w-4" />
-										{t("playbook.edit.presets.form.insertPresetValue")}
-									</Button>
-									<Separator orientation="vertical" className="!h-5" />
-									<PresetContentLocaleDialog
-										value={form.preset_content}
-										onChange={(preset_content) =>
-											setForm((prev) => ({ ...prev, preset_content }))
-										}
-										placeholder={t(
-											"playbook.edit.presets.form.presetContentPlaceholder",
-										)}
-										localizeLabel={t(
-											"playbook.edit.presets.form.presetContent",
-										)}
-										data-testid="preset-item-content"
-									/>
-								</div>
-							</div>
-							<PresetContentEditor
-								ref={contentRef}
-								value={getRawLocaleValue(form.preset_content, DEFAULT_LOCALE_KEY)}
-								onChange={(preset_content) =>
-									setForm((prev) => ({
-										...prev,
-										preset_content: setLocaleValue(
-											prev.preset_content,
-											DEFAULT_LOCALE_KEY,
-											preset_content,
-										),
-									}))
-								}
-								placeholder={t(
-									"playbook.edit.presets.form.presetContentPlaceholder",
-								)}
-								data-testid="preset-item-content-textarea"
-							/>
-						</div>
+						<PresetContentLocaleEditor
+							value={form.preset_content}
+							onChange={(preset_content) =>
+								setForm((prev) => ({ ...prev, preset_content }))
+							}
+							placeholder={t("playbook.edit.presets.form.presetContentPlaceholder")}
+							localizeLabel={t("playbook.edit.presets.form.presetContent")}
+							data-testid="preset-item-content"
+						/>
 					</FormRow>
 				</div>
 
 				<DialogFooter className="border-t px-3 py-3">
 					<Button
 						variant="outline"
-						className="shadow-xs h-9"
+						className="h-9 shadow-xs"
 						onClick={() => onOpenChange(false)}
 						data-testid="preset-item-dialog-cancel"
 					>
 						{t("playbook.edit.presets.form.cancel")}
 					</Button>
 					<Button
-						className="shadow-xs h-9"
+						className="h-9 shadow-xs"
 						disabled={!isValid}
 						onClick={handleConfirm}
 						data-testid="preset-item-dialog-confirm"

@@ -33,7 +33,7 @@ import {
 	CandlestickChart,
 } from "lucide-react"
 import type { ToolIconConfig } from "./types"
-import { AgentIcon, ImageSearch, SkillIcon } from "./CustomIcons"
+import { AgentIcon, WechatIcon, ImageSearch, SkillIcon, DefaultIcon } from "./CustomIcons"
 
 /**
  * 工具图标配置映射
@@ -191,6 +191,10 @@ export const toolIconMap: Record<string, ToolIconConfig> = {
 		icon: AudioWaveform,
 		bgColor: "#3583FF",
 	},
+	video_generation_progress: {
+		icon: Shapes,
+		bgColor: "#3D74FF",
+	},
 
 	// 内容生成
 	generate_image: {
@@ -245,6 +249,10 @@ export const toolIconMap: Record<string, ToolIconConfig> = {
 		icon: Frame,
 		bgColor: "#484848",
 	},
+	create_canvas: {
+		icon: Frame,
+		bgColor: "#484848",
+	},
 
 	// 设计画布操作
 	create_canvas_element: {
@@ -275,6 +283,10 @@ export const toolIconMap: Record<string, ToolIconConfig> = {
 		icon: Shapes,
 		bgColor: "#3D74FF",
 	},
+	generate_canvas_images: {
+		icon: Shapes,
+		bgColor: "#3D74FF",
+	},
 	search_images_to_canvas: {
 		icon: Shapes,
 		bgColor: "#3D74FF",
@@ -286,6 +298,18 @@ export const toolIconMap: Record<string, ToolIconConfig> = {
 	query_canvas_overview: {
 		icon: LayoutGrid,
 		bgColor: "#FC4B9A",
+	},
+	generate_videos_to_canvas: {
+		icon: Shapes,
+		bgColor: "#3D74FF",
+	},
+	generate_canvas_videos: {
+		icon: Shapes,
+		bgColor: "#3D74FF",
+	},
+	query_video_generation: {
+		icon: Shapes,
+		bgColor: "#3D74FF",
 	},
 
 	// 记忆管理
@@ -332,7 +356,7 @@ export const toolIconMap: Record<string, ToolIconConfig> = {
 
 	// 默认图标
 	default: {
-		icon: HelpCircle,
+		icon: DefaultIcon,
 		bgColor: "#333333",
 	},
 	thinking: {
@@ -378,6 +402,14 @@ export const toolIconMap: Record<string, ToolIconConfig> = {
 	update_agent: {
 		icon: AgentIcon,
 		bgColor: "#4B4EFC",
+	},
+	connect_wechat_bot: {
+		icon: WechatIcon,
+		bgColor: "#1BCB00",
+	},
+	wait_wechat_login: {
+		icon: WechatIcon,
+		bgColor: "#1BCB00",
 	},
 }
 

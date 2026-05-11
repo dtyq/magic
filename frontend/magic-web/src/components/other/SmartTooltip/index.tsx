@@ -9,7 +9,7 @@ interface SmartTooltipProps {
 	className?: string
 	style?: React.CSSProperties
 	placement?: "top" | "bottom" | "left" | "right"
-	maxWidth?: number
+	maxWidth?: number | string
 	/**
 	 * Line limit: 1 = single-line ellipsis (default); >1 = line clamp;
 	 * 0 = wrap naturally (no clamp), use with width constraints
@@ -44,6 +44,7 @@ const SmartTooltip = memo(function SmartTooltip({
 }: SmartTooltipProps) {
 	const textRef = useRef<HTMLDivElement | HTMLSpanElement>(null)
 	const [showTooltip, setShowTooltip] = useState(false)
+	const [tooltipTextContent, setTooltipTextContent] = useState("")
 
 	// Convert trigger array to open state management for shadcn/ui
 	const [open, setOpen] = useState(false)
@@ -55,6 +56,7 @@ const SmartTooltip = memo(function SmartTooltip({
 
 			const element = textRef.current
 			let isOverflowing = false
+			const nextTooltipTextContent = element.textContent?.trim() ?? ""
 
 			if (maxLines > 1) {
 				// Multi-line clamp: hidden lines increase scrollHeight
@@ -69,6 +71,11 @@ const SmartTooltip = memo(function SmartTooltip({
 				isOverflowing = element.scrollWidth > element.clientWidth
 			}
 
+			setTooltipTextContent((previousContent) =>
+				previousContent === nextTooltipTextContent
+					? previousContent
+					: nextTooltipTextContent,
+			)
 			setShowTooltip(isOverflowing)
 		}
 
@@ -102,7 +109,9 @@ const SmartTooltip = memo(function SmartTooltip({
 	)
 
 	const textStyle: React.CSSProperties = {
-		...(maxWidth && { maxWidth: `${maxWidth}px` }),
+		...(maxWidth !== undefined && {
+			maxWidth: typeof maxWidth === "number" ? `${maxWidth}px` : maxWidth,
+		}),
 		...(maxLines > 1 && { WebkitLineClamp: maxLines }),
 	}
 
@@ -113,6 +122,12 @@ const SmartTooltip = memo(function SmartTooltip({
 		onDoubleClick,
 		...props,
 	}
+	// Avoid inheriting trigger layout styles into the tooltip body.
+	const tooltipBodyContent = resolveTooltipBodyContent({
+		children,
+		content,
+		tooltipTextContent,
+	})
 
 	return (
 		<Tooltip
@@ -133,12 +148,12 @@ const SmartTooltip = memo(function SmartTooltip({
 			{showTooltip && (
 				<TooltipContent
 					className={cn(
-						"z-tooltip max-w-[min(20rem,var(--radix-tooltip-content-available-width,100vw))] whitespace-normal break-words",
+						"z-tooltip max-w-[min(20rem,var(--radix-tooltip-content-available-width,100vw))] whitespace-normal text-wrap break-words",
 					)}
 					sideOffset={sideOffset}
 					side={placement}
 				>
-					{content || children}
+					{tooltipBodyContent}
 				</TooltipContent>
 			)}
 		</Tooltip>
@@ -146,3 +161,22 @@ const SmartTooltip = memo(function SmartTooltip({
 })
 
 export default SmartTooltip
+
+function resolveTooltipBodyContent({
+	children,
+	content,
+	tooltipTextContent,
+}: {
+	children: ReactNode
+	content?: ReactNode
+	tooltipTextContent: string
+}) {
+	if (content !== undefined && content !== null) return content
+	if (isPrimitiveTooltipContent(children)) return children
+
+	return tooltipTextContent
+}
+
+function isPrimitiveTooltipContent(children: ReactNode): children is string | number {
+	return typeof children === "string" || typeof children === "number"
+}

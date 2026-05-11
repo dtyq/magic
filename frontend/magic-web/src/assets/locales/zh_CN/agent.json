@@ -111,6 +111,7 @@
 			"formatError": "格式错误",
 			"title": "配置自定义 MCP 插件"
 		},
+		"empty": "暂无MCP插件，点击创建开始使用。",
 		"form": {
 			"args": "Args",
 			"argsPlaceholder": "请输入 Args，如 -y @modelcontextprotocol/server-sequential-thinking",

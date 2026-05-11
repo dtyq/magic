@@ -1,8 +1,9 @@
 import { useState } from "react"
+import { flushSync } from "react-dom"
 import type { TFunction } from "i18next"
 import { useMemoizedFn } from "ahooks"
-import magicToast from "@/components/base/MagicToaster/utils"
-import { skillsService } from "@/services/skills/SkillsService"
+import { pickManifestSkillName } from "../utils/skill-workspace-manifest"
+import { ensureSkillConfigYamlForPublish } from "../utils/ensureSkillConfigYaml"
 import type { SkillEditRootStore } from "../store/root-store"
 
 interface UseSkillPublishGuardParams {
@@ -12,70 +13,52 @@ interface UseSkillPublishGuardParams {
 }
 
 export function useSkillPublishGuard({ store, t, onPublishReady }: UseSkillPublishGuardParams) {
-	const [isSavingSkillName, setIsSavingSkillName] = useState(false)
-	const [isPublishNameDialogOpen, setIsPublishNameDialogOpen] = useState(false)
+	const [isPublishIdentityDialogOpen, setIsPublishIdentityDialogOpen] = useState(false)
+	const [isEnsuringSkillConfigForPublish, setIsEnsuringSkillConfigForPublish] = useState(false)
 
-	const saveSkillName = useMemoizedFn(async (name: string) => {
-		const skill = store.skill
-		if (!skill) return false
-
-		const nextName = name.trim()
-		if (nextName === skill.name) return true
-
-		const previousName = skill.name
-		const previousNameI18n = skill.nameI18n
-		const nextNameI18n = store.setSkillName(nextName)
-		if (!nextNameI18n) return false
-
-		setIsSavingSkillName(true)
-
+	const preparePublish = useMemoizedFn(async () => {
+		flushSync(() => setIsEnsuringSkillConfigForPublish(true))
 		try {
-			await skillsService.updateSkillInfo(skill.code, {
-				name_i18n: nextNameI18n,
+			const ensured = await ensureSkillConfigYamlForPublish({
+				projectId: store.project?.id,
+				getWorkspaceFilesList: () => store.projectFilesStore.workspaceFilesList,
+				getWorkspaceFileTree: () => store.projectFilesStore.workspaceFileTree,
+				t,
 			})
-			await store.refreshSkillDetail()
-			return true
-		} catch {
-			store.setSkillName(previousName, previousNameI18n)
-			magicToast.error(t("editSkill.errors.saveFailed"))
-			return false
+			if (!ensured) return
+
+			onPublishReady()
 		} finally {
-			setIsSavingSkillName(false)
+			setIsEnsuringSkillConfigForPublish(false)
 		}
 	})
 
-	const handleSaveSkillName = useMemoizedFn(async (name: string) => {
-		await saveSkillName(name)
-	})
+	const handleOpenPublishPanel = useMemoizedFn(async () => {
+		const hasApiName = Boolean(store.skill?.name?.trim())
+		const hasManifestName = Boolean(pickManifestSkillName(store.skillWorkspaceManifest)?.trim())
 
-	const handleOpenPublishPanel = useMemoizedFn(() => {
-		if (!store.skill?.name?.trim()) {
-			setIsPublishNameDialogOpen(true)
+		if (!hasApiName && !hasManifestName) {
+			setIsPublishIdentityDialogOpen(true)
 			return
 		}
 
-		onPublishReady()
+		await preparePublish()
 	})
 
-	const handlePublishNameDialogOpenChange = useMemoizedFn((open: boolean) => {
-		setIsPublishNameDialogOpen(open)
+	const handlePublishIdentityDialogOpenChange = useMemoizedFn((open: boolean) => {
+		setIsPublishIdentityDialogOpen(open)
 	})
 
-	const handleConfirmPublishName = useMemoizedFn(async (name: string) => {
-		const isSaved = await saveSkillName(name)
-		if (!isSaved) return false
-
-		setIsPublishNameDialogOpen(false)
-		onPublishReady()
-		return true
+	const handlePublishIdentitySaved = useMemoizedFn(async () => {
+		setIsPublishIdentityDialogOpen(false)
+		await preparePublish()
 	})
 
 	return {
-		isPublishNameDialogOpen,
-		isSavingSkillName,
-		handleConfirmPublishName,
+		isPublishIdentityDialogOpen,
+		isEnsuringSkillConfigForPublish,
 		handleOpenPublishPanel,
-		handlePublishNameDialogOpenChange,
-		handleSaveSkillName,
+		handlePublishIdentityDialogOpenChange,
+		handlePublishIdentitySaved,
 	}
 }

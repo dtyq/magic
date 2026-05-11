@@ -20,11 +20,12 @@ import TokenUsageButton from "../components/TokenUsageButton"
 import { ToolbarButton, MessageEditorSize } from "../types"
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import { VoiceInputRef } from "@/components/business/VoiceInput"
-import { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import { ProjectListItem, Topic, TopicMode } from "../../../pages/Workspace/types"
 import { getButtonPaddingClass } from "../constants/BUTTON_PADDING_CLASS_MAP"
 import { MagicTooltip } from "@/components/base"
 import ModelSwitchContainer from "../components/ModelSwitch/ModelSwitchContainer"
+import { Spinner } from "@/components/shadcn-ui/spinner"
 import type { DraftStore } from "../stores"
 import type { FileUploadStore } from "../stores/FileUploadStore"
 import type { FileData } from "../types"
@@ -52,6 +53,7 @@ export interface ButtonRendererContext {
 	uploadEnabled: boolean
 	sendEnabled: boolean
 	sendButtonDisabled: boolean
+	sendButtonLoading: boolean
 	showLoading: boolean
 	isTaskRunning: boolean
 	stopEventLoading: boolean
@@ -121,7 +123,7 @@ export const BUTTON_RENDERERS: Record<ToolbarButton, ButtonRenderer> = {
 				topicMode={ctx.topicMode}
 				showName
 				showBorder={false}
-				placement={ctx.size === "default" ? "bottomLeft" : "top"}
+				placement="top"
 			/>
 		),
 
@@ -197,6 +199,9 @@ export const BUTTON_RENDERERS: Record<ToolbarButton, ButtonRenderer> = {
 				if (ctx.isUploadingFiles) {
 					return ctx.t("shortcut.uploadingFiles")
 				}
+				if (ctx.sendButtonLoading) {
+					return ctx.t("shortcut.sendMessage")
+				}
 				// 可以发送消息
 				return ctx.t("shortcut.sendMessage")
 			} else {
@@ -225,10 +230,12 @@ export const BUTTON_RENDERERS: Record<ToolbarButton, ButtonRenderer> = {
 					onClick={ctx.handleSend}
 					data-testid="super-message-editor-send-button"
 					data-disabled={ctx.sendButtonDisabled}
-					data-loading={ctx.showLoading}
+					data-loading={ctx.showLoading || ctx.sendButtonLoading}
 					data-queue-editing={ctx.isEditingQueueItem}
 				>
-					{ctx.showLoading ? (
+					{ctx.sendButtonLoading ? (
+						<Spinner className="animate-spin" size={16} />
+					) : ctx.showLoading ? (
 						<MagicIcon
 							component={IconArrowUpDashed}
 							size={ctx.iconSize}
@@ -258,7 +265,7 @@ export const BUTTON_RENDERERS: Record<ToolbarButton, ButtonRenderer> = {
 		return (
 			<TokenUsageButton
 				tokenUsed={tokenUsed}
-				iconSize={ctx.iconSize}
+				iconSize={ctx.topBarIconSize}
 				size={ctx.size}
 				onCompressContext={ctx.handleCompressContext}
 			/>

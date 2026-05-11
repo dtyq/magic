@@ -12,6 +12,7 @@ import { BotApi } from "@/apis"
 import { EntrepriseStatus, Status } from "../../constants"
 import { useStyles } from "./styles"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { formatFlowCardCreatedAt } from "@/pages/flow/utils/formatCreatedAt"
 
 interface AgentCardProps {
 	card: Bot.BotItem
@@ -22,7 +23,7 @@ interface AgentCardProps {
 function Card({ card, dropdownItems, onCardClick }: AgentCardProps) {
 	const { styles, cx } = useStyles()
 
-	const { t } = useTranslation("interface")
+	const { t, i18n } = useTranslation("interface")
 	const { t: globalT } = useTranslation()
 
 	const [enable, setEnable] = useState(false)
@@ -107,7 +108,7 @@ function Card({ card, dropdownItems, onCardClick }: AgentCardProps) {
 					</Flex>
 				)}
 			</Flex>
-			<span>{`${t("agent.createTo")} ${card.created_at?.replace(/-/g, "/")}`}</span>
+			<span>{`${t("agent.createTo")} ${formatFlowCardCreatedAt(card.created_at, i18n.language)}`}</span>
 		</Flex>
 	)
 }

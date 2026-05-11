@@ -8,37 +8,45 @@ import { useTranslation } from "react-i18next"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { isEmpty } from "lodash-es"
 import { ToolIconBadge } from "@/pages/superMagic/components/MessageList/components/shared/ToolIconConfig"
-import projectFilesStore from "@/stores/projectFiles"
-import { LayerElement } from "@/components/CanvasDesign/canvas/types"
-import { FileItem } from "@/pages/superMagic/pages/Workspace/types"
 import { MonitorPlay } from "lucide-react"
 import { MagicTooltip, VerticalLine } from "@/components/base"
+import {
+	getToolDesignProjectInfo,
+	type ToolDesignProjectData,
+} from "@/pages/superMagic/components/Detail/contents/Design/utils/toolDesignProjectInfo"
+import type { ReactNode } from "react"
+import { IconLoader2 } from "@tabler/icons-react"
+import { FileItem } from "@/pages/superMagic/pages/Workspace/types"
 
-export const getToolDesignProjectInfo = (tool: unknown) => {
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const toolData = tool as any
-	const magicProjectJSFile = toolData.attachments?.find(
-		(item: FileItem) => item.filename === "magic.project.js",
-	)
-	const fileTree = projectFilesStore.workspaceFileTree
-	const designProject = fileTree.find((item) =>
-		item.children?.find((child) => child.file_id === magicProjectJSFile?.file_id),
-	)
-	const designProjectId = designProject?.file_id || ""
-	const elements = (toolData.detail?.data?.elements || []) as LayerElement[]
-	return {
-		designProjectId,
-		designProject,
-		magicProjectJSFile,
-		elements,
+export interface ToolDataLike {
+	id?: string
+	name?: string
+	action?: string | ReactNode
+	remark?: string
+	status?: string
+	detail?: {
+		data?: Record<string, unknown>
 	}
+	attachments?: FileItem[]
 }
 
-function DefaultTool(props: NodeProps) {
+export interface DefaultToolProps extends Partial<NodeProps> {
+	toolData?: ToolDataLike
+	loading?: boolean
+	classNames?: string
+}
+
+interface ToolMessageNode {
+	tool?: ToolDesignProjectData
+}
+
+function DefaultTool(props: DefaultToolProps) {
 	const { t } = useTranslation("super")
-	const { onMouseEnter, onMouseLeave } = props
-	const node = superMagicStore.getMessageNode(props?.node?.app_message_id)
-	const tool = node?.tool
+	const { onMouseEnter, onMouseLeave, loading, classNames } = props
+	const node = superMagicStore.getMessageNode(props?.node?.app_message_id) as
+		| ToolMessageNode
+		| undefined
+	const tool = props.toolData || node?.tool
 	const fileData = useMemo(() => tool?.detail?.data || {}, [tool?.detail?.data])
 
 	const { tooltipProps, renderTooltip } = useToolTooltip({
@@ -48,7 +56,7 @@ function DefaultTool(props: NodeProps) {
 	})
 
 	const onClick = () => {
-		if (tool.status !== "error") {
+		if (tool?.status !== "error") {
 			props?.onClick?.()
 		}
 	}
@@ -65,6 +73,7 @@ function DefaultTool(props: NodeProps) {
 				isFromNode: true,
 			})
 			const designToolNames = [
+				// 旧(保留,用于兼容旧消息)
 				"create_design_project",
 				"create_canvas_element",
 				"update_canvas_element",
@@ -75,9 +84,17 @@ function DefaultTool(props: NodeProps) {
 				"query_canvas_element",
 				"generate_images_to_canvas",
 				"search_images_to_canvas",
+				"generate_videos_to_canvas",
+				"query_video_generation",
+
+				// 新
+				"create_canvas",
+				"generate_canvas_images",
+				"generate_canvas_videos",
 			]
-			if (designToolNames.includes(tool?.name)) {
+			if (tool?.name && designToolNames.includes(tool.name)) {
 				const { designProjectId, elements } = getToolDesignProjectInfo(tool)
+				if (!designProjectId) return
 				pubsub.publish(PubSubEvents.Super_Magic_Focus_Canvas_Element, {
 					isFromPlaybackToolNode: true,
 					canvasDesignId: designProjectId,
@@ -91,10 +108,9 @@ function DefaultTool(props: NodeProps) {
 	)
 
 	const showSuffixIcon = useMemo(() => {
-		if (tool?.status === "error") return false
 		if (isEmpty(fileData)) return false
 		return true
-	}, [tool?.status, fileData])
+	}, [fileData])
 
 	const renderSuffixIcon = useMemo(() => {
 		if (!showSuffixIcon) return null
@@ -116,7 +132,8 @@ function DefaultTool(props: NodeProps) {
 
 	return (
 		<div
-			className="h-fit w-full flex-none overflow-hidden"
+			className={cn("h-fit w-full flex-none overflow-hidden", classNames)}
+			data-tool={tool?.id}
 			onMouseEnter={onMouseEnter}
 			onMouseLeave={onMouseLeave}
 		>
@@ -125,6 +142,7 @@ function DefaultTool(props: NodeProps) {
 					className={cn(
 						"inline-flex h-7 w-fit cursor-pointer items-center gap-1.5 overflow-hidden rounded-md bg-white p-1.5 dark:bg-card",
 						isEmpty(fileData) && "cursor-not-allowed",
+						renderSuffixIcon && "rounded-r-none",
 					)}
 					onClick={onClick}
 				>
@@ -142,7 +160,15 @@ function DefaultTool(props: NodeProps) {
 						{tool?.remark || ""}
 					</span>
 				</div>
-				{renderSuffixIcon}
+				{loading ? (
+					<div
+						style={{ padding: 4, display: "inline-flex", alignItems: "center", gap: 6 }}
+					>
+						<IconLoader2 size={14} className="animate-spin" />
+					</div>
+				) : (
+					renderSuffixIcon
+				)}
 			</div>
 			{renderTooltip()}
 		</div>

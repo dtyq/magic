@@ -28,6 +28,7 @@ import {
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { SuperMagicApi } from "@/apis"
 import type { TopicStore } from "../stores/core/topic"
+import topicReadProgressService from "./topicReadProgressService"
 
 class SuperMagicService {
 	workspace: WorkspaceService
@@ -37,6 +38,12 @@ class SuperMagicService {
 	route: typeof routeManageService
 
 	shouldShowErrorMessagePrompt = false
+
+	private flushCurrentTopicReadProgress(
+		reason: "switch-topic" | "switch-project" | "switch-workspace" | "route-leave",
+	) {
+		void topicReadProgressService.flushCurrentTopicReadProgress(reason)
+	}
 
 	constructor() {
 		this.workspace = new WorkspaceService()
@@ -116,12 +123,51 @@ class SuperMagicService {
 	}
 
 	/**
+	 * 静默刷新侧栏已加载的工作区列表与各工作区项目缓存（含当前工作区扁平 projects），不改变选中项。
+	 */
+	silentRefreshSidebarLoadedCaches = async (): Promise<void> => {
+		const loadedIds = Array.from(projectStore.loadedWorkspaces).filter(
+			(id) => id !== SHARE_WORKSPACE_ID,
+		)
+		const selectedId = workspaceStore.selectedWorkspace?.id
+		const needsFlatSync = Boolean(selectedId && selectedId !== SHARE_WORKSPACE_ID)
+
+		const tasks: Promise<unknown>[] = [
+			this.workspace.fetchWorkspaces({
+				page: 1,
+				isAutoSelect: false,
+				isSelectLast: false,
+			}),
+		]
+
+		for (const wsId of loadedIds) {
+			tasks.push(projectStore.loadProjectsForWorkspace(wsId, true, true))
+		}
+
+		if (needsFlatSync) {
+			tasks.push(this.project.updateProjects({ workspaceId: selectedId as string }))
+		}
+
+		await Promise.allSettled(tasks)
+	}
+
+	/**
+	 * Clear project/topic when showing workspace-only UI (no open project).
+	 * Matches switchWorkspace entry; also used by ProjectCard "back to workspace".
+	 */
+	clearProjectAndTopicSelection() {
+		projectStore.setSelectedProject(null)
+		this.topicStore.setSelectedTopic(null)
+		this.topicStore.setTopics([])
+	}
+
+	/**
 	 * Switch workspace - fetch projects and navigate to workspace
 	 * @param workspaceId Workspace ID to switch to
 	 */
 	switchWorkspace(workspace: Workspace) {
-		projectStore.setSelectedProject(null)
-		this.topicStore.setSelectedTopic(null)
+		this.flushCurrentTopicReadProgress("switch-workspace")
+		this.clearProjectAndTopicSelection()
 		runInAction(() => {
 			projectStore.setFetchingProjects(true)
 		})
@@ -282,6 +328,7 @@ class SuperMagicService {
 	 * @param topic_id Optional topic ID to navigate to
 	 */
 	async switchProjectInMobile(project: ProjectListItem, topic_id?: string) {
+		this.flushCurrentTopicReadProgress("switch-project")
 		// 1. 同步设置与检查
 		const _isReadOnlyProject = isReadOnlyProject(project.user_role)
 
@@ -411,6 +458,7 @@ class SuperMagicService {
 	 * @param project Project to switch to
 	 */
 	async switchProjectInDesktop(project: ProjectListItem, topic_id?: string) {
+		this.flushCurrentTopicReadProgress("switch-project")
 		// 1. 同步设置与检查
 		const _isReadOnlyProject = isReadOnlyProject(project.user_role)
 		const _isOwner = isOwner(project.user_role)
@@ -715,6 +763,7 @@ class SuperMagicService {
 					{
 						workspaceId: workspace.id,
 						page: 1,
+						clearWhenNoProjects: false,
 					},
 					{ enableErrorMessagePrompt: false },
 				)
@@ -925,7 +974,11 @@ class SuperMagicService {
 				const globalModelCache =
 					await superMagicTopicModelCacheService.getTopicModel(DEFAULT_TOPIC_ID)
 
-				if (globalModelCache?.languageModelId || globalModelCache?.imageModelId) {
+				if (
+					globalModelCache?.languageModelId ||
+					globalModelCache?.imageModelId ||
+					globalModelCache?.videoModelId
+				) {
 					// Find the full ModelItem objects
 					const languageModel = globalModelCache.languageModelId
 						? await superMagicModeService.resolveLanguageModelByMode(
@@ -940,14 +993,21 @@ class SuperMagicService {
 								globalModelCache.imageModelId,
 							)
 						: null
+					const videoModel = globalModelCache.videoModelId
+						? await superMagicModeService.resolveVideoModelByMode(
+								projectMode,
+								globalModelCache.videoModelId,
+							)
+						: null
 
 					// Save to the new topic
-					if (languageModel || imageModel) {
+					if (languageModel || imageModel || videoModel) {
 						await superMagicTopicModelService.saveModel(
 							res.topic.id,
 							res.project.id,
 							languageModel,
 							imageModel,
+							videoModel,
 						)
 					}
 				}
@@ -1165,6 +1225,7 @@ class SuperMagicService {
 	 * @param topic Topic to switch to
 	 */
 	switchTopic(topic: Topic) {
+		this.flushCurrentTopicReadProgress("switch-topic")
 		this.topicStore.setSelectedTopic(topic)
 		this.route.navigateToTopic({
 			workspaceId: topic.workspace_id || "",
