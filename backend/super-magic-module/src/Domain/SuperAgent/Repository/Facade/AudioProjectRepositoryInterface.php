@@ -81,4 +81,18 @@ interface AudioProjectRepositoryInterface
      * Delete audio project by project ID.
      */
     public function deleteByProjectId(int $projectId): void;
+
+    /**
+     * Find audio projects stuck in the merging phase.
+     *
+     * Returns tasks where current_phase='merging', phase_status='in_progress',
+     * and updated_at is older than $stuckMinutes minutes.
+     * JOINs with the project table to include user_id and organization_code
+     * so the caller can re-trigger handleFinishRecording without extra lookups.
+     *
+     * @param int $stuckMinutes Minutes since last update before a task is considered stuck
+     * @param int $limit Maximum number of tasks to return per invocation
+     * @return array<int, array{project_id: int, task_key: string, user_id: string, organization_code: string, auto_summary: bool}>
+     */
+    public function findStuckMergingTasks(int $stuckMinutes, int $limit): array;
 }

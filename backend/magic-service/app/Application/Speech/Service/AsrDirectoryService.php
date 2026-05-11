@@ -48,8 +48,12 @@ class AsrDirectoryService extends AbstractAppService
         string $organizationCode,
         string $projectId,
         string $userId,
-        string $taskKey
+        string $taskKey,
+        int $topicId = 0
     ): AsrRecordingDirectoryDTO {
+        // Ensure .asr_recordings parent directory exists and get its ID
+        $recordingsDir = $this->createRecordingsDirectory($organizationCode, $projectId, $userId, $topicId);
+
         $relativePath = AsrPaths::getHiddenDirPath($taskKey);
 
         return $this->createDirectoryInternal(
@@ -62,7 +66,9 @@ class AsrDirectoryService extends AbstractAppService
             errorContext: ['project_id' => $projectId, 'task_key' => $taskKey],
             logMessage: '创建隐藏录音目录失败',
             failedProjectError: AsrErrorCode::CreateHiddenDirectoryFailedProject,
-            failedError: AsrErrorCode::CreateHiddenDirectoryFailedError
+            failedError: AsrErrorCode::CreateHiddenDirectoryFailedError,
+            parentDirectoryId: $recordingsDir->directoryId,
+            topicId: $topicId
         );
     }
 
@@ -73,12 +79,14 @@ class AsrDirectoryService extends AbstractAppService
      * @param string $organizationCode 组织编码
      * @param string $projectId 项目ID
      * @param string $userId 用户ID
+     * @param int $topicId 话题ID
      * @return AsrRecordingDirectoryDTO 目录DTO
      */
     public function createStatesDirectory(
         string $organizationCode,
         string $projectId,
-        string $userId
+        string $userId,
+        int $topicId = 0
     ): AsrRecordingDirectoryDTO {
         $relativePath = AsrPaths::getStatesDirPath();
 
@@ -92,7 +100,8 @@ class AsrDirectoryService extends AbstractAppService
             errorContext: ['project_id' => $projectId],
             logMessage: '创建 .asr_states 目录失败',
             failedProjectError: AsrErrorCode::CreateStatesDirectoryFailedProject,
-            failedError: AsrErrorCode::CreateStatesDirectoryFailedError
+            failedError: AsrErrorCode::CreateStatesDirectoryFailedError,
+            topicId: $topicId
         );
     }
 
@@ -103,12 +112,14 @@ class AsrDirectoryService extends AbstractAppService
      * @param string $organizationCode 组织编码
      * @param string $projectId 项目ID
      * @param string $userId 用户ID
+     * @param int $topicId 话题ID
      * @return AsrRecordingDirectoryDTO 目录DTO
      */
     public function createRecordingsDirectory(
         string $organizationCode,
         string $projectId,
-        string $userId
+        string $userId,
+        int $topicId = 0
     ): AsrRecordingDirectoryDTO {
         $relativePath = AsrPaths::getRecordingsDirPath();
 
@@ -122,7 +133,8 @@ class AsrDirectoryService extends AbstractAppService
             errorContext: ['project_id' => $projectId],
             logMessage: '创建 .asr_recordings 目录失败',
             failedProjectError: AsrErrorCode::CreateStatesDirectoryFailedProject,
-            failedError: AsrErrorCode::CreateStatesDirectoryFailedError
+            failedError: AsrErrorCode::CreateStatesDirectoryFailedError,
+            topicId: $topicId
         );
     }
 
@@ -149,7 +161,8 @@ class AsrDirectoryService extends AbstractAppService
         string $organizationCode,
         string $projectId,
         string $userId,
-        ?string $generatedTitle = null
+        ?string $generatedTitle = null,
+        int $topicId = 0
     ): AsrRecordingDirectoryDTO {
         $relativePath = $this->generateDirectoryName($generatedTitle);
 
@@ -163,7 +176,8 @@ class AsrDirectoryService extends AbstractAppService
             errorContext: ['project_id' => $projectId],
             logMessage: '创建显示录音目录失败',
             failedProjectError: AsrErrorCode::CreateDisplayDirectoryFailedProject,
-            failedError: AsrErrorCode::CreateDisplayDirectoryFailedError
+            failedError: AsrErrorCode::CreateDisplayDirectoryFailedError,
+            topicId: $topicId
         );
     }
 
@@ -263,6 +277,22 @@ class AsrDirectoryService extends AbstractAppService
     }
 
     /**
+     * Get the workspace root directory ID for a project.
+     * The root directory is the parent_id of all ASR directories.
+     * Since createHiddenDirectory already called ensureWorkspaceRootDirectoryExists,
+     * this is effectively just a DB lookup (no extra writes).
+     *
+     * @param string $organizationCode Organization code
+     * @param string $projectId Project ID
+     * @param string $userId User ID
+     * @return int Root directory file_id
+     */
+    public function getWorkspaceRootDirectoryId(string $organizationCode, string $projectId, string $userId): int
+    {
+        return $this->ensureWorkspaceRootDirectoryExists($organizationCode, $projectId, $userId);
+    }
+
+    /**
      * 生成 ASR 目录名.
      *
      * @param null|string $generatedTitle 预设标题
@@ -319,21 +349,35 @@ class AsrDirectoryService extends AbstractAppService
         array $errorContext,
         string $logMessage,
         AsrErrorCode $failedProjectError,
-        AsrErrorCode $failedError
+        AsrErrorCode $failedError,
+        ?int $parentDirectoryId = null,
+        int $topicId = 0
     ): AsrRecordingDirectoryDTO {
         try {
             // 1. 确保项目工作区根目录存在
             $rootDirectoryId = $this->ensureWorkspaceRootDirectoryExists($organizationCode, $projectId, $userId);
+
+            // Use explicit parent if provided, otherwise default to workspace root
+            $effectiveParentId = $parentDirectoryId ?? $rootDirectoryId;
 
             // 2. 获取项目信息
             $projectEntity = $this->getAccessibleProject((int) $projectId, $userId, $organizationCode);
             $workDir = $projectEntity->getWorkDir();
             $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
 
-            // 3. 检查目录是否已存在
-            $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
-            $fileKey = rtrim($fileKey, '/') . '/';
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
+            // Compute the canonical directory file_name. Mirrors AsrAssembler::createDirectoryEntity
+            // so the existence check uses the same name that will be persisted on insert.
+            $directoryFileName = $role === AsrDirectoryRoleEnum::SUMMARY_DIR
+                ? $relativePath
+                : basename($relativePath);
+
+            // 3. Check whether the directory already exists via tree-model lookup
+            // (project_id, parent_id, file_name) — independent of file_key string format.
+            $existingDir = $this->taskFileDomainService->getByProjectParentAndName(
+                (int) $projectId,
+                $effectiveParentId,
+                $directoryFileName
+            );
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
                     $relativePath,
@@ -351,9 +395,10 @@ class AsrDirectoryService extends AbstractAppService
                 $relativePath,
                 $fullPrefix,
                 $workDir,
-                $rootDirectoryId,
+                $effectiveParentId,
                 $role,
-                taskKey: $taskKey
+                taskKey: $taskKey,
+                topicId: $topicId
             );
 
             // 5. 插入或忽略
@@ -367,8 +412,12 @@ class AsrDirectoryService extends AbstractAppService
                 );
             }
 
-            // 6. 如果插入被忽略，查询现有目录
-            $existingDir = $this->taskFileDomainService->getByProjectIdAndFileKey((int) $projectId, $fileKey);
+            // 6. Tree-model fallback when the insert was ignored due to a concurrent insert.
+            $existingDir = $this->taskFileDomainService->getByProjectParentAndName(
+                (int) $projectId,
+                $effectiveParentId,
+                $directoryFileName
+            );
             if ($existingDir !== null) {
                 return new AsrRecordingDirectoryDTO(
                     $relativePath,

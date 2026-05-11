@@ -29,6 +29,7 @@ use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TopicDuplicateConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
@@ -42,6 +43,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
@@ -49,9 +51,11 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskStatusValidator;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchTopicStatusRequestDTO;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetResourceStatusRequestDTO;
@@ -91,6 +95,7 @@ class TopicAppService extends AbstractAppService
 
     public function __construct(
         protected TaskDomainService $taskDomainService,
+        protected TaskFileDomainService $taskFileDomainService,
         protected WorkspaceDomainService $workspaceDomainService,
         protected ProjectDomainService $projectDomainService,
         protected TopicDomainService $topicDomainService,
@@ -553,12 +558,31 @@ class TopicAppService extends AbstractAppService
             $requestDto->getFileType()
         );
 
-        // 处理文件 URL
+        // 处理文件列表
         $list = [];
-        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
+        $fileKeySet = [];
+        $filteredEntities = [];
+
+        foreach ($result['list'] as $entity) {
+            /**
+             * @var TaskFileEntity $entity
+             */
+            $fileKey = $entity->getFileKey();
+            // Skip duplicate file keys and root directory entries (same as getProjectAttachmentList)
+            if (isset($fileKeySet[$fileKey]) || empty($entity->getParentId())) {
+                continue;
+            }
+            $fileKeySet[$fileKey] = true;
+            $filteredEntities[] = $entity;
+        }
+
+        $relativePathMap = $this->buildRelativePathsByParentIds($filteredEntities, $topicEntity->getProjectId());
 
         // 遍历附件列表，使用TaskFileItemDTO处理
-        foreach ($result['list'] as $entity) {
+        foreach ($filteredEntities as $entity) {
+            /**
+             * @var TaskFileEntity $entity
+             */
             // 创建DTO
             $dto = new TaskFileItemDTO();
             $dto->fileId = (string) $entity->getFileId();
@@ -569,35 +593,22 @@ class TopicAppService extends AbstractAppService
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
             $dto->isHidden = $entity->getIsHidden();
+            $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
-
-            // Calculate relative file path by removing workDir from fileKey
-            $fileKey = $entity->getFileKey();
-            $workDirPos = strpos($fileKey, $workDir);
-            if ($workDirPos !== false) {
-                $dto->relativeFilePath = substr($fileKey, $workDirPos + strlen($workDir));
-            } else {
-                $dto->relativeFilePath = $fileKey; // If workDir not found, use original fileKey
-            }
-
-            // 添加 file_url 字段
-            $fileKey = $entity->getFileKey();
-            if (! empty($fileKey)) {
-                $fileLink = $this->fileAppService->getLink($projectOrganizationCode, $fileKey, StorageBucketType::SandBox);
-                if ($fileLink) {
-                    $dto->fileUrl = $fileLink->getUrl();
-                } else {
-                    $dto->fileUrl = '';
-                }
-            } else {
-                $dto->fileUrl = '';
-            }
+            $dto->relativeFilePath = $relativePathMap[$entity->getFileId()]
+                ?? WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
+            $dto->isDirectory = $entity->getIsDirectory();
+            $dto->projectId = (string) $entity->getProjectId();
+            $dto->sort = $entity->getSort();
+            $dto->parentId = (string) $entity->getParentId();
+            $dto->source = $entity->getSource();
+            $dto->fileUrl = '';
 
             $list[] = $dto->toArray();
         }
 
-        // 构建树状结构
-        $tree = FileTreeUtil::assembleFilesTree($list);
+        // Build tree structure with VS Code-style sorting (always use zh_CN for pinyin sorting)
+        $tree = FileTreeUtil::assembleFilesTreeByParentId($list, 'zh_CN');
 
         return [
             'list' => $list,
@@ -1364,6 +1375,28 @@ class TopicAppService extends AbstractAppService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Build relative paths based on parent_id chain instead of file_key.
+     *
+     * @param TaskFileEntity[] $entities
+     * @return array<int, string> [file_id => relative_path]
+     */
+    private function buildRelativePathsByParentIds(array $entities, int $projectId): array
+    {
+        if (empty($entities)) {
+            return [];
+        }
+
+        $fileIds = array_values(array_unique(array_map(
+            static fn (TaskFileEntity $entity): int => $entity->getFileId(),
+            $entities
+        )));
+
+        $filesWithParents = $this->taskFileDomainService->getFilesWithParentsByIds($fileIds, $projectId);
+        $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
+        return RelativeFilePathUtil::buildPathMapByParentChain($entities, $fileMap);
     }
 
     /**

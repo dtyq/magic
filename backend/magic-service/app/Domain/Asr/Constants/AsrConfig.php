@@ -108,4 +108,29 @@ class AsrConfig
      * Redis 扫描最大数量.
      */
     public const int REDIS_SCAN_MAX_COUNT = 2000;
+
+    // ==================== 合并任务恢复配置 ====================
+
+    /**
+     * 合并阶段卡住判定阈值（分钟）.
+     * 超过此时长仍处于 in_progress 的 merging 任务将被恢复定时任务重新触发.
+     * SANDBOX_MERGE_TIMEOUT 为 1200s（20 分钟），此处设置 25 分钟留有余量.
+     */
+    public const int MERGING_STUCK_THRESHOLD_MINUTES = 25;
+
+    /**
+     * 合并恢复定时任务每次最多处理的任务数量.
+     * 避免单次处理过多任务导致下次定时任务重叠.
+     */
+    public const int MERGING_RECOVERY_MAX_TASKS = 10;
+
+    /**
+     * 合并恢复定时任务互斥锁 TTL（秒），对应定时任务执行周期.
+     */
+    public const int MERGING_RECOVERY_MUTEX_EXPIRES = 120;
+
+    /**
+     * 单个任务最大恢复重试次数，超过后停止处理（需人工介入）.
+     */
+    public const int MERGING_RECOVERY_MAX_RETRIES = 3;
 }

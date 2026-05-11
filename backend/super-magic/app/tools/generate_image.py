@@ -46,11 +46,7 @@ from app.core.context.agent_context import AgentContext
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.core.entity.tool.tool_result_types import ImageToolResult
 from app.i18n import i18n
-from app.service.media_generation_service import (
-    AI_IMAGE_GENERATION_SOURCE,
-    generate_presigned_url_for_file,
-    notify_generated_media_file,
-)
+from app.service.file_service import FileService, WorkspaceFileURLError
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.visual_understanding_utils.image_compress_utils import compress_if_needed
@@ -226,58 +222,50 @@ Key rules:
             logger.debug(f"文件不在工作区内: {file_path}")
             return False
 
-    async def _generate_presigned_url_for_file(self, file_path: str) -> Optional[str]:
-        return await generate_presigned_url_for_file(file_path)
+    async def _resolve_local_image_path(self, image_path: str, output_path: str) -> Path:
+        """将工具参数里的图片路径解析为绝对路径。
 
-    async def generate_presigned_url_for_file(self, file_path: str) -> Optional[str]:
-        return await self._generate_presigned_url_for_file(file_path)
+        兼容三种写法：绝对路径、相对工作区根目录、相对工具默认输出目录 (output_path)。
+        """
+        normalized_input = Path(image_path)
+        workspace_dir = Path(PathManager.get_workspace_dir())
+        candidates = [normalized_input]
+        if not normalized_input.is_absolute():
+            candidates.append(workspace_dir / normalized_input)
+            if output_path:
+                candidates.append(workspace_dir / output_path / normalized_input)
+
+        for candidate in candidates:
+            if await async_exists(str(candidate)):
+                return candidate.expanduser().resolve()
+
+        raise FileNotFoundError(f"Image file does not exist: {image_path}")
 
     async def _convert_local_image_to_url(self, image_path: str, output_path: str) -> Optional[str]:
-        """将本地图片文件转换为可访问的预签名 URL"""
+        """将本地图片文件解析后转为可访问的预签名 URL。
+
+        统一走 `FileService.get_workspace_file_url`：local file -> xattr s3_key -> presigned URL，
+        额外携带图片缩放参数 (`resize=80`) 让上游 OCR / 模型侧节流。
+        """
         try:
-            image_path = image_path.lstrip('/')
-
-            # 检查文件是否存在
-            if not await async_exists(image_path):
-                logger.error(f"图片文件不存在: {image_path}")
-                image_path = output_path + "/" + image_path
-                if not await async_exists(image_path):
-                    raise ValueError(
-                        f"Image file not found: '{image_path}'. "
-                        f"Verify the path is relative to the workspace root and the file exists. "
-                        f"Use list_dir or file_search to locate the correct path before retrying."
-                    )
-
-            logger.info(f"将本地图片转换为 URL: {image_path}")
-
-            # 构造存储系统中的完整 file_path
-            file_path = Path(image_path)
-            # 如果 image_path 是绝对路径，需要转换为相对路径
-            if file_path.is_absolute():
-                # 尝试获取相对于工作区的路径
-                try:
-                    workspace_dir = PathManager.get_workspace_dir()
-                    file_path = str(file_path.relative_to(workspace_dir))
-                except ValueError:
-                    # 如果不在工作区内，使用文件名
-                    file_path = file_path.name
-            else:
-                # 已经是相对路径，转换为字符串
-                file_path = str(file_path)
-
-            logger.info(f"为存储生成 image_path: {file_path}")
-
-            # 生成预签名 URL
-            presigned_url = await self._generate_presigned_url_for_file(file_path)
-            if not presigned_url:
-                logger.error(f"生成预签名 URL 失败: {file_path}")
-                return None
-
-            logger.info(f"本地图片已转换为 URL: {file_path} -> {presigned_url}")
+            resolved_path = await self._resolve_local_image_path(image_path, output_path)
+            logger.info(f"将本地图片转换为 URL: {resolved_path}")
+            presigned_url = await FileService().get_workspace_file_url(
+                resolved_path,
+                expires_in=7200,
+                options={"resize": 80},
+            )
+            logger.info(f"本地图片已转换为 URL: {resolved_path} -> {presigned_url}")
             return presigned_url
 
+        except FileNotFoundError as e:
+            logger.error(f"图片文件不存在: {image_path}, 错误: {e}")
+            return None
+        except WorkspaceFileURLError as e:
+            logger.error(f"将本地图片转换为 URL 失败: {image_path}, 错误: {e}")
+            return None
         except Exception as e:
-            logger.error(f"将本地图片转换为 URL 失败: {file_path}，错误: {e}")
+            logger.error(f"将本地图片转换为 URL 失败: {image_path}, 错误: {e}")
             return None
 
     async def _generate_image_via_magic_service(self, params: GenerateImageParams, tool_context: Optional[ToolContext] = None) -> List[str]:
@@ -330,27 +318,25 @@ Key rules:
             if model == "qwen-image":
                 params.size = "1328x1328"
 
-            # Convert local reference image paths to presigned URLs so the API can access them
+            # 将本地参考图转为可访问的预签名 URL；超过大小阈值的先压缩到 .visual 目录
             reference_image_urls: List[str] = []
             if params.image_paths:
                 visual_dir = os.path.join(str(self.base_dir), ".visual")
                 for image_source in params.image_paths:
                     image_url = image_source
+
                     if not image_source.startswith(("http://", "https://")):
                         logger.info(f"将参考图本地路径转换为 URL: {image_source}")
+
+                        effective_path = image_source
                         await async_mkdir(visual_dir, parents=True, exist_ok=True)
                         compressed_path = await compress_if_needed(image_source, output_dir=visual_dir)
                         if compressed_path != image_source and await async_exists(compressed_path):
                             logger.info(f"参考图超过大小限制，已压缩: {image_source} -> {compressed_path}")
                             compressed_temp_files.append(compressed_path)
-                            workspace_dir = PathManager.get_workspace_dir()
-                            try:
-                                rel_path = str(Path(compressed_path).relative_to(workspace_dir))
-                            except ValueError:
-                                rel_path = Path(compressed_path).name
-                            image_url = await self._generate_presigned_url_for_file(rel_path)
-                        else:
-                            image_url = await self._convert_local_image_to_url(image_source, params.output_path)
+                            effective_path = compressed_path
+
+                        image_url = await self._convert_local_image_to_url(effective_path, params.output_path)
                         if not image_url:
                             raise ValueError(
                                 f"Reference image '{image_source}' could not be converted to an accessible URL. "
@@ -358,6 +344,7 @@ Key rules:
                                 f"Do not retry with the same path; either correct the path or proceed without a reference image."
                             )
                         logger.info(f"参考图已转换为 URL: {image_source} -> {image_url}")
+
                     reference_image_urls.append(image_url)
 
             # 构建请求参数
@@ -496,17 +483,7 @@ Key rules:
                         compressed_temp_files.append(compressed_path)
                         effective_path = compressed_path
 
-                    # 压缩后的文件使用绝对路径直接转相对路径生成预签名 URL，
-                    # 避免 _convert_local_image_to_url 对绝对路径 lstrip('/') 的处理问题
-                    if effective_path != image_source:
-                        workspace_dir = PathManager.get_workspace_dir()
-                        try:
-                            rel_path = str(Path(effective_path).relative_to(workspace_dir))
-                        except ValueError:
-                            rel_path = Path(effective_path).name
-                        image_url = await self._generate_presigned_url_for_file(rel_path)
-                    else:
-                        image_url = await self._convert_local_image_to_url(image_source, params.output_path)
+                    image_url = await self._convert_local_image_to_url(effective_path, params.output_path)
 
                     if not image_url:
                         raise ValueError(
@@ -771,12 +748,6 @@ Key rules:
                     await f.write(image_data)
                     await f.flush()
 
-                # 发送文件通知
-                try:
-                    await self._send_file_notification(str(save_path), file_existed_before, file_size)
-                except Exception as e:
-                    logger.warning(f"发送文件通知失败: {e}")
-
                 return str(save_path), file_existed_before
 
             except Exception as e:
@@ -830,19 +801,6 @@ Key rules:
         """分发文件创建/更新事件"""
         # 使用父类的通用方法，传递 source=5 (AI generated)
         await super()._dispatch_file_event(tool_context, filepath, event_type, is_screenshot=False, source=5)
-
-    async def _send_file_notification(self, file_path: str, file_existed: bool, file_size: Optional[int] = None) -> None:
-        """图片下载后发送文件变更通知"""
-        await notify_generated_media_file(
-            file_path=file_path,
-            base_dir=self.base_dir,
-            file_existed=file_existed,
-            file_size=file_size,
-            source=AI_IMAGE_GENERATION_SOURCE,
-        )
-
-    async def send_file_notification(self, file_path: str, file_existed: bool, file_size: Optional[int] = None) -> None:
-        await self._send_file_notification(file_path, file_existed, file_size)
 
     async def execute(self, tool_context: ToolContext, params: GenerateImageParams) -> ImageToolResult:
         """执行图片生成或编辑（工具系统入口）"""

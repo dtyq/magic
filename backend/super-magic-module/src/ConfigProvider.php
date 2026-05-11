@@ -67,6 +67,7 @@ use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\SkillVersionRepository;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\UserSkillRepository;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioMarkerRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\AudioProjectRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\BatchDownloadPackRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageQueueRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleLogRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\MessageScheduleRepositoryInterface;
@@ -106,6 +107,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence\WorkspaceVersionRep
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\MessageScheduleDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectOperationLogDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileVersionDomainService;
+use Dtyq\SuperMagic\ErrorCode\MagicFSErrorCode;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
@@ -115,6 +117,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInter
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\AsrRecorder\AsrRecorderService;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\BatchDownloadPack\BatchDownloadPackRepository;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConverterService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
@@ -181,6 +184,7 @@ class ConfigProvider
                 SandboxGatewayInterface::class => SandboxGatewayService::class,
                 SandboxAgentInterface::class => SandboxAgentService::class,
                 FileConverterInterface::class => FileConverterService::class,
+                BatchDownloadPackRepositoryInterface::class => BatchDownloadPackRepository::class,
                 WorkspaceExporterInterface::class => WorkspaceExporterService::class,
                 WorkspaceImporterInterface::class => WorkspaceImporterService::class,
                 AsrRecorderInterface::class => AsrRecorderService::class,
@@ -252,6 +256,7 @@ class ConfigProvider
             'error_message' => [
                 'error_code_mapper' => [
                     SuperAgentErrorCode::class => [51000, 51299],
+                    MagicFSErrorCode::class => [51300, 51399],
                     ShareErrorCode::class => [51300, 51400],
                     SkillErrorCode::class => [51239, 51338],
                 ],

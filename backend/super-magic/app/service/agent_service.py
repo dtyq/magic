@@ -395,35 +395,22 @@ class AgentService(Base):
             # Get sandbox_id from agent_context. If not present, skip download.
             sandbox_id = agent_context.get_sandbox_id()
             if not sandbox_id:
-                logger.warning("agent_context 中没有 sandbox_id，跳过下载checkpoints")
+                logger.info("No sandbox_id in agent_context, skipping checkpoints download")
                 return
 
-            # Construct the object name using the sandbox_id
+            # Construct the object key using the sandbox_id
             checkpoints_object_name = f"checkpoints_{sandbox_id}.zip"
-            logger.info(
-                f"使用来自 agent_context 的 sandbox_id: {sandbox_id}，构造checkpoints归档名称: {checkpoints_object_name}"
-            )
-
-            logger.info(f"下载checkpoints归档: {checkpoints_object_name}")
-
-            # Get work_dir as base path
             base_path = get_storage_dir(storage_service.credentials)
-
-            # Get checkpoints dir name
             checkpoints_dir_name = InitClientMessageUtil.get_checkpoints_dir()
-
-            # Combine paths
             dir_path = BaseFileProcessor.combine_path(base_path, checkpoints_dir_name)
-
             checkpoints_object_key = BaseFileProcessor.combine_path(dir_path, checkpoints_object_name)
-            logger.info(f"使用checkpoints路径构造对象键: {checkpoints_object_key}")
 
             # Check if object exists
             if not await storage_service.exists(checkpoints_object_key):
-                logger.warning(
-                    f"checkpoints归档在存储中不存在: {checkpoints_object_key} (如果是新话题, 没有checkpoints归档)"
-                )
+                logger.info(f"Checkpoints archive not found: {checkpoints_object_key}")
                 return
+
+            logger.info(f"Downloading checkpoints archive: {checkpoints_object_key}")
 
             # Stream archive directly to a temporary file to avoid loading
             # a multi-GB object into memory (otherwise the agent container
@@ -432,48 +419,28 @@ class AgentService(Base):
             temp_file_path = temp_file.name
             temp_file.close()
 
-            written_bytes = await storage_service.download_file_by_stream(
+            await storage_service.download_file_by_stream(
                 key=checkpoints_object_key,
                 dest_path=temp_file_path,
             )
             file_size = os.path.getsize(temp_file_path)
-            logger.info(
-                f"checkpoints归档下载完成: {temp_file_path} "
-                f"({file_size} 字节 / {file_size / (1024 * 1024):.2f} MiB, "
-                f"流式写入 {written_bytes} 字节)"
-            )
 
             # Extract archive
             checkpoints_dir = PathManager.get_checkpoints_dir()
             with zipfile.ZipFile(temp_file_path, "r") as zip_ref:
                 infos = zip_ref.infolist()
-                num_files = len(infos)
                 total_uncompressed = sum(info.file_size for info in infos)
                 total_compressed = sum(info.compress_size for info in infos)
-                logger.info(
-                    f"checkpoints压缩包统计: 文件数={num_files}, "
-                    f"压缩前={total_uncompressed} 字节 "
-                    f"({total_uncompressed / (1024 * 1024):.2f} MiB), "
-                    f"压缩后={total_compressed} 字节 "
-                    f"({total_compressed / (1024 * 1024):.2f} MiB)"
-                )
-                # Dump every entry so we can spot the heavy hitter when an
-                # archive is unexpectedly large.
-                for info in infos:
-                    logger.info(
-                        f"checkpoints文件: {info.filename} "
-                        f"压缩前={info.file_size} 字节, 压缩后={info.compress_size} 字节"
-                    )
 
-                # Ensure checkpoints directory exists (without clearing)
                 os.makedirs(checkpoints_dir, exist_ok=True)
-                logger.info(f"checkpoints目录已准备就绪: {checkpoints_dir}")
-                logger.info(f"解压checkpoints归档到: {checkpoints_dir}")
                 zip_ref.extractall(checkpoints_dir)
-                extracted_count = len(os.listdir(checkpoints_dir))
-                logger.info(f"checkpoints解压完成，包含 {extracted_count} 个文件/目录")
+                logger.info(
+                    f"Checkpoints restored to {checkpoints_dir}: "
+                    f"{len(infos)} files, {file_size / (1024 * 1024):.2f} MiB compressed "
+                    f"-> {total_uncompressed / (1024 * 1024):.2f} MiB uncompressed"
+                )
         except Exception as e:
-            logger.error(f"下载和解压checkpoints时出错: {e}")
+            logger.error(f"Failed to download and extract checkpoints: {e}")
         finally:
             # Clean up temporary file
             if "temp_file_path" in locals() and os.path.exists(temp_file_path):

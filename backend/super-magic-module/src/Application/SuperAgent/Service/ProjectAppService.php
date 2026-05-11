@@ -28,6 +28,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\DTO\Response\AudioProjectExtraDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Response\AudioProjectListResponseDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\ProjectForkPublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\RecycleBin\Enum\RecycleBinResourceType;
 use Dtyq\SuperMagic\Domain\RecycleBin\Service\RecycleBinDomainService;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
@@ -69,7 +70,8 @@ use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
-use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeBuilder;
+use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\Share\DTO\Request\CreateShareRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteProjectsRequestDTO;
@@ -122,6 +124,7 @@ class ProjectAppService extends AbstractAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly MagicFSFileDomainService $magicFSFileDomainService,
         private readonly ChatAppService $chatAppService,
         private readonly ResourceShareDomainService $resourceShareDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
@@ -131,6 +134,7 @@ class ProjectAppService extends AbstractAppService
         private readonly PackageFilterInterface $packageFilterService,
         private readonly AudioProjectDomainService $audioProjectDomainService,
         private readonly RecycleBinDomainService $recycleBinDomainService,
+        private readonly FileTreeBuilder $fileTreeBuilder,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -730,7 +734,12 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 获取附件列表（传入workDir用于相对路径计算）
-        return $this->getProjectAttachmentList($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
+        return $this->getProjectAttachmentList(
+            $dataIsolation,
+            $requestDTO,
+            $projectEntity->getWorkDir() ?? '',
+            $projectEntity
+        );
     }
 
     /**
@@ -762,7 +771,12 @@ class ProjectAppService extends AbstractAppService
         // 创建基于用户的数据隔离
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        return $this->getProjectAttachmentList($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
+        return $this->getProjectAttachmentList(
+            $dataIsolation,
+            $requestDTO,
+            $projectEntity->getWorkDir() ?? '',
+            $projectEntity
+        );
     }
 
     /**
@@ -807,13 +821,18 @@ class ProjectAppService extends AbstractAppService
                 ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
         }
 
+        $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $projectId);
+        if (empty($projectEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
+        }
+        $workDir = $projectEntity->getWorkDir() ?: $workDir;
         $requestDto->setProjectId($projectId);
         $organizationCode = AccessTokenUtil::getOrganizationCode($token);
         // 创建DataIsolation
         $dataIsolation = DataIsolation::simpleMake($organizationCode, '');
 
         // 令牌模式不需要workDir处理，传空字符串
-        return $this->getProjectAttachmentList($dataIsolation, $requestDto, $workDir);
+        return $this->getProjectAttachmentList($dataIsolation, $requestDto, $workDir, $projectEntity);
     }
 
     /**
@@ -1318,27 +1337,46 @@ class ProjectAppService extends AbstractAppService
     /**
      * 获取项目附件列表的核心逻辑.
      */
-    public function getProjectAttachmentList(DataIsolation $dataIsolation, GetProjectAttachmentsRequestDTO $requestDTO, string $workDir = ''): array
-    {
-        // 通过任务领域服务获取项目下的附件列表
-        $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
-            (int) $requestDTO->getProjectId(),
-            $dataIsolation,
-            $requestDTO->getPage(),
-            $requestDTO->getPageSize(),
-            $requestDTO->getFileType(),
-            StorageType::WORKSPACE->value,
-        );
+    public function getProjectAttachmentList(
+        DataIsolation $dataIsolation,
+        GetProjectAttachmentsRequestDTO $requestDTO,
+        string $workDir = '',
+        ?ProjectEntity $projectEntity = null
+    ): array {
+        $parentId = $requestDTO->getParentId();
+        if ($parentId === null || $parentId === '') {
+            $parentId = $this->resolveRootDirectoryId($dataIsolation, $requestDTO, $projectEntity, $workDir);
+            if ($parentId !== '') {
+                $requestDTO->setParentId($parentId);
+            }
+        }
 
-        // 处理文件 URL
+        // After resolveRootDirectoryId, $parentId is always a string (possibly empty)
+        if ($parentId === '') {
+            return [
+                'total' => 0,
+                'list' => [],
+                'tree' => [],
+            ];
+        }
+
+        // Only return workspace-type files; filter at DB level to avoid loading snapshot/other files
+        $fileTree = $this->magicFSFileDomainService->getFileTree($parentId, -1, 0, StorageType::WORKSPACE->value);
+        /** @var TaskFileEntity[] $entities */
+        $entities = $fileTree['children'] ?? [];
+        $fileTypes = $requestDTO->getFileType();
+        if (! empty($fileTypes)) {
+            $entities = array_filter(
+                $entities,
+                static fn (TaskFileEntity $entity) => in_array($entity->getFileType(), $fileTypes, true)
+            );
+            $entities = array_values($entities);
+        }
+
         $list = [];
         $fileKeys = [];
-        // 遍历附件列表，使用TaskFileItemDTO处理
-        foreach ($result['list'] as $entity) {
-            /**
-             * @var TaskFileEntity $entity
-             */
-            // 创建DTO
+        $relativePathMap = $this->buildRelativePathsByParentIds($entities, (int) $requestDTO->getProjectId());
+        foreach ($entities as $entity) {
             $dto = new TaskFileItemDTO();
             $dto->fileId = (string) $entity->getFileId();
             $dto->taskId = (string) $entity->getTaskId();
@@ -1350,39 +1388,33 @@ class ProjectAppService extends AbstractAppService
             $dto->isHidden = $entity->getIsHidden();
             $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
-            $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
-            if ($this->shouldForceMagicVisible($dto->relativeFilePath, $dto->fileKey)) {
-                $dto->isHidden = false;
-            }
+            $dto->relativeFilePath = $relativePathMap[$entity->getFileId()] ?? WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
             $dto->isDirectory = $entity->getIsDirectory();
-            $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
-            // 添加 project_id 字段
+            $dto->displayConfig = FileMetadataUtil::decodeJsonObject($entity->getDisplayConfig());
+            $dto->metadata = $dto->displayConfig;
             $dto->projectId = (string) $entity->getProjectId();
-            // 设置排序字段
             $dto->sort = $entity->getSort();
             $dto->fileUrl = '';
             $dto->parentId = (string) $entity->getParentId();
             $dto->source = $entity->getSource();
-            // 添加 file_url 字段
+
             $fileKey = $entity->getFileKey();
-            // 判断file key是否重复，如果重复，则跳过
-            // 如果根目录，也跳过
-            if (in_array($fileKey, $fileKeys) || empty($entity->getParentId())) {
+            if (in_array($fileKey, $fileKeys, true)) {
                 continue;
             }
             $fileKeys[] = $fileKey;
             $list[] = $dto->toArray();
         }
 
-        // Build tree structure with VS Code-style sorting (always use zh_CN for pinyin sorting)
-        $tree = FileTreeUtil::assembleFilesTreeByParentId($list, 'zh_CN');
+        $tree = $this->fileTreeBuilder->buildTree($list, (int) $parentId, 'zh_CN');
+        $total = count($list);
 
-        if ($result['total'] > 3000) {
-            $this->logger->error(sprintf('Project attachment list is too large, project ID: %d, total: %d', $requestDTO->getProjectId(), $result['total']));
+        if ($total > 3000) {
+            $this->logger->error(sprintf('Project attachment list is too large, project ID: %d, total: %d', $requestDTO->getProjectId(), $total));
         }
 
         return [
-            'total' => $result['total'],
+            'total' => $total,
             'list' => $list,
             'tree' => $tree,
         ];
@@ -1407,6 +1439,7 @@ class ProjectAppService extends AbstractAppService
         // 处理文件 URL
         $list = [];
         $fileKeys = [];
+        $relativePathMap = $this->buildRelativePathsByParentIds($result['list'], (int) $requestDTO->getProjectId());
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
             /**
@@ -1424,12 +1457,10 @@ class ProjectAppService extends AbstractAppService
             $dto->isHidden = $entity->getIsHidden();
             $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
-            $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
-            if ($this->shouldForceMagicVisible($dto->relativeFilePath, $dto->fileKey)) {
-                $dto->isHidden = false;
-            }
+            $dto->relativeFilePath = $relativePathMap[$entity->getFileId()] ?? WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
             $dto->isDirectory = $entity->getIsDirectory();
-            $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
+            $dto->displayConfig = FileMetadataUtil::decodeJsonObject($entity->getDisplayConfig());
+            $dto->metadata = $dto->displayConfig;
             // 添加 project_id 字段
             $dto->projectId = (string) $entity->getProjectId();
             // 设置排序字段
@@ -2099,25 +2130,55 @@ class ProjectAppService extends AbstractAppService
         $this->projectDomainService->deleteProject($projectId, $project->getUserId());
     }
 
-    private function shouldForceMagicVisible(string $relativeFilePath, string $fileKey): bool
-    {
-        foreach ([$relativeFilePath, $fileKey] as $path) {
-            $normalizedPath = trim($path, '/');
-            if ($normalizedPath === '') {
-                continue;
-            }
-
-            if (
-                $normalizedPath === '.magic'
-                || str_starts_with($normalizedPath, '.magic/')
-                || str_contains($normalizedPath, '/.magic/')
-                || str_ends_with($normalizedPath, '/.magic')
-            ) {
-                return true;
-            }
+    /**
+     * Resolve the root directory id for a project if parent_id is missing.
+     */
+    private function resolveRootDirectoryId(
+        DataIsolation $dataIsolation,
+        GetProjectAttachmentsRequestDTO $requestDTO,
+        ?ProjectEntity $projectEntity,
+        string $workDir
+    ): string {
+        if ($projectEntity === null) {
+            return '';
         }
 
-        return false;
+        $userId = $dataIsolation->getCurrentUserId() ?? $projectEntity->getUserId();
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode() ?: $organizationCode;
+
+        $rootId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+            (int) $requestDTO->getProjectId(),
+            $workDir,
+            (string) $userId,
+            $organizationCode,
+            $projectOrganizationCode
+        );
+
+        return (string) $rootId;
+    }
+
+    /**
+     * Build relative paths based on parent_id chain instead of file_key.
+     *
+     * @param TaskFileEntity[] $entities
+     * @param int $projectId Project ID from request context
+     * @return array<int, string> [file_id => relative_path]
+     */
+    private function buildRelativePathsByParentIds(array $entities, int $projectId): array
+    {
+        if (empty($entities)) {
+            return [];
+        }
+
+        $fileIds = array_values(array_unique(array_map(
+            static fn (TaskFileEntity $entity): int => $entity->getFileId(),
+            $entities
+        )));
+
+        $filesWithParents = $this->taskFileDomainService->getFilesWithParentsByIds($fileIds, $projectId);
+        $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
+        return RelativeFilePathUtil::buildPathMapByParentChain($entities, $fileMap);
     }
 
     /**
@@ -2162,8 +2223,6 @@ class ProjectAppService extends AbstractAppService
                 projectId: $projectEntity->getId(),
                 parentId: $rootDirId,
                 dirName: '.magic',
-                relativePath: '.magic',
-                workDir: $projectEntity->getWorkDir(),
                 userId: $dataIsolation->getCurrentUserId(),
                 organizationCode: $dataIsolation->getCurrentOrganizationCode(),
                 projectOrganizationCode: $projectEntity->getUserOrganizationCode(),

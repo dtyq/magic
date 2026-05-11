@@ -17,11 +17,6 @@ class MoveFileRequestDTO extends AbstractRequestDTO
     public string $targetParentId = '';
 
     /**
-     * The ID of the previous file for positioning, 0=first position, -1=last position (default).
-     */
-    public string $preFileId = '-1';
-
-    /**
      * The ID of the target project (optional, for cross-project move).
      */
     public string $targetProjectId = '';
@@ -35,11 +30,6 @@ class MoveFileRequestDTO extends AbstractRequestDTO
     public function getTargetParentId(): string
     {
         return $this->targetParentId;
-    }
-
-    public function getPreFileId(): string
-    {
-        return $this->preFileId;
     }
 
     public function getTargetProjectId(): string
@@ -59,7 +49,6 @@ class MoveFileRequestDTO extends AbstractRequestDTO
     {
         return [
             'target_parent_id' => 'nullable|string',
-            'pre_file_id' => 'string', // -1表示末尾，0表示第一位，>0表示指定位置
             'target_project_id' => 'nullable|string',
             'keep_both_file_ids' => 'nullable|array',
             'keep_both_file_ids.*' => 'string',
@@ -73,7 +62,6 @@ class MoveFileRequestDTO extends AbstractRequestDTO
     {
         return [
             'target_parent_id.string' => 'Target parent ID must be a string',
-            'pre_file_id.string' => 'Pre file ID must be a string',
             'target_project_id.string' => 'Target project ID must be a string',
             'keep_both_file_ids.array' => 'Keep both file IDs must be an array',
             'keep_both_file_ids.*.string' => 'Each keep both file ID must be a string',

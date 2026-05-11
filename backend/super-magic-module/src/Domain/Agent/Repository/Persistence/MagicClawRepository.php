@@ -92,6 +92,27 @@ class MagicClawRepository extends SuperMagicAbstractRepository implements MagicC
         return ['total' => $total, 'list' => $list];
     }
 
+    public function getAllValidList(int $page, int $pageSize): array
+    {
+        $builder = $this->magicClawModel::query()
+            ->orderByDesc('created_at');
+
+        $total = $builder->count();
+
+        if ($total === 0) {
+            return ['total' => 0, 'list' => []];
+        }
+
+        $models = $builder->forPage($page, $pageSize)->get();
+
+        $list = [];
+        foreach ($models as $model) {
+            $list[] = $this->modelToEntity($model);
+        }
+
+        return ['total' => $total, 'list' => $list];
+    }
+
     public function updateProjectId(int $id, int $projectId): bool
     {
         return (bool) $this->magicClawModel::query()

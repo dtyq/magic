@@ -60,6 +60,12 @@ class CheckpointService(Base):
                 # 系统已正确初始化
                 logger.debug(f"Checkpoint系统已初始化，当前checkpoint: {manifest.current_checkpoint_id}")
 
+            # 兜底：清除残留的 rollback_in_progress 标记
+            # 若上次进程在回滚过程中异常退出，标记可能停留在 True，会让 magicfs 持续跳过 checkpoint 维护
+            if manifest and manifest.rollback_in_progress:
+                logger.warning("检测到残留的 rollback_in_progress=True，自动清除")
+                await self.metadata_manager.set_rollback_in_progress(False)
+
         except Exception as e:
             logger.error(f"初始化checkpoint系统失败: {e}")
             raise

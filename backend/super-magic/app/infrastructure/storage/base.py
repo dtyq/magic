@@ -71,6 +71,13 @@ class AbstractStorage(ABC):
         # 添加 Magic-Authorization 与 User-Authorization 请求头
         MetadataUtil.add_magic_and_user_authorization_headers(headers)
 
+        # 添加 magic-user-id 和 magic-organization-code，后端鉴权必需
+        if self.metadata:
+            if user_id := self.metadata.get("user_id"):
+                headers["magic-user-id"] = user_id
+            if org_code := self.metadata.get("organization_code"):
+                headers["magic-organization-code"] = org_code
+
         return headers
 
     def get_platform_name(self) -> str:

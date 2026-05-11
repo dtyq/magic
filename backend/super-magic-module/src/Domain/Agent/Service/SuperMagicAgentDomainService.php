@@ -41,6 +41,7 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterfa
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Market\Service\MarketSearchTextBuilder;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\ExportWorkspaceRequest;
@@ -61,6 +62,7 @@ readonly class SuperMagicAgentDomainService
         protected SandboxGatewayInterface $sandboxGateway,
         protected WorkspaceExporterInterface $workspaceExporter,
         protected AgentMarketRepositoryInterface $agentMarketRepository,
+        protected TaskFileRepositoryInterface $taskFileRepository,
     ) {
     }
 
@@ -679,14 +681,22 @@ readonly class SuperMagicAgentDomainService
         string $code,
         int $projectId,
         string $fullWorkdir,
-        ?string $sourcePath = null
+        ?string $sourcePath = null,
+        string $authorization = ''
     ): array {
         // Build sandbox ID (same strategy as file converter)
         $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
 
+        // Get root file ID for sandbox initialization
+        $rootFileId = '';
+        $rootDir = $this->taskFileRepository->findRootDirectoryByProjectId($projectId);
+        if ($rootDir !== null) {
+            $rootFileId = (string) $rootDir->getFileId();
+        }
+
         // Ensure sandbox is running
         $this->sandboxGateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $this->sandboxGateway->ensureSandboxAvailable($sandboxId, (string) $projectId, $fullWorkdir);
+        $this->sandboxGateway->ensureSandboxAvailable($sandboxId, (string) $projectId, $fullWorkdir, $rootFileId, $authorization);
 
         // Build upload_config: STS credentials for private bucket, matches sandbox API contract
         $uploadConfig = $this->cloudFileRepository->getStsTemporaryCredential(

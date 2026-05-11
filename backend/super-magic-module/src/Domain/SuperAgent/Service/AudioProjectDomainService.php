@@ -131,29 +131,31 @@ class AudioProjectDomainService
         ?string $audioSource = null,
         ?int $audioFileId = null
     ): bool {
-        $audioProject = $this->getAudioProjectByProjectId($projectId);
-
-        if ($audioProject === null) {
-            return false;
-        }
-
-        // Update audio metadata if provided
+        // Build partial update payload — only include non-null fields to avoid
+        // overwriting phase state (current_phase, phase_percent, etc.) that may
+        // have been written concurrently by syncPhaseStateToDatabase().
+        $data = [];
         if ($duration !== null) {
-            $audioProject->setDuration($duration);
+            $data['duration'] = $duration;
         }
         if ($fileSize !== null) {
-            $audioProject->setFileSize($fileSize);
+            $data['file_size'] = $fileSize;
         }
         if ($audioSource !== null) {
-            $audioProject->setAudioSource($audioSource);
+            $data['audio_source'] = $audioSource;
         }
         if ($audioFileId !== null) {
-            $audioProject->setAudioFileId($audioFileId);
+            $data['audio_file_id'] = $audioFileId;
         }
 
-        $this->save($audioProject);
+        if (empty($data)) {
+            return true;
+        }
 
-        return true;
+        $affected = $this->audioProjectRepository->updateByProjectId($projectId, $data);
+
+        // 0 rows updated means the audio project record does not exist yet
+        return $affected >= 0;
     }
 
     /**

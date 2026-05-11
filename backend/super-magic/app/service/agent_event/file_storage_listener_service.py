@@ -2,18 +2,26 @@
 文件存储监听器服务，用于监听文件事件并上传文件到对象存储服务
 """
 
+import asyncio
 import hashlib
 import json
 import os
 import shutil
-import stat
 import tempfile
 import time
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Union
 
-from app.utils.async_file_utils import async_stat, async_read_json, async_write_text, async_exists
+from app.utils.async_file_utils import (
+    async_stat,
+    async_read_json,
+    async_write_text,
+    async_exists,
+    get_file_id_from_xattr,
+    get_s3_key_from_xattr,
+)
 
 from agentlang.context.tool_context import ToolContext
 from agentlang.event.data import AfterMainAgentRunEventData, AgentSuspendedEventData
@@ -21,10 +29,10 @@ from agentlang.event.event import Event, EventType
 from agentlang.logger import get_logger
 from app.core.context.agent_context import AgentContext
 from app.core.entity.attachment import Attachment, AttachmentTag
+from app.core.entity.checkpoint import FileOperation, FileSnapshot, FileType
 from app.core.entity.event.file_event import FileEventData  # 从业务层导入 FileEventData
 from app.core.entity.project_archive import ArchiveDetail, ProjectArchiveInfo
 from app.infrastructure.storage.base import BaseFileProcessor
-from app.infrastructure.storage.exceptions import InitException, UploadException
 from app.infrastructure.storage.factory import StorageFactory
 from app.infrastructure.storage.types import StorageResponse
 from app.path_manager import PathManager
@@ -33,6 +41,14 @@ from app.utils.init_client_message_util import InitClientMessageUtil
 from app.utils.path_utils import get_workspace_dir, get_storage_dir, get_storage_dir_with_fallback
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class ConstructedFileKey:
+    """Object-storage location of a workspace file managed by magicfs."""
+
+    file_key: str
+    file_id: Optional[str]
 
 
 class FileStorageListenerService:
@@ -72,26 +88,25 @@ class FileStorageListenerService:
         event_type_name = "创建" if event.event_type == EventType.FILE_CREATED else "更新"
         logger.info(f"处理文件{event_type_name}事件: {event.data.filepath}")
 
-        # 1. 构造文件存储键
-        file_key = await FileStorageListenerService._construct_file_key(
+        # 1. 构造文件存储键（仅消费 magicfs xattr，没有 xattr 视为 magicfs 未接管，跳过）
+        constructed = await FileStorageListenerService._construct_file_key(
             event.data.filepath,
-            event.data.tool_context.get_extension_typed("agent_context", AgentContext)
         )
 
         # 2. 如果构造成功，创建附件并添加到事件上下文
-        if file_key:
+        #    注意: 这里只往 event_context 里加 (per-tool-call, 用于 AFTER_TOOL_CALL 消息实时上报),
+        #    不再写入 agent_context.attachments。agent_context 的最终变更附件会在
+        #    AFTER_MAIN_AGENT_RUN 时一次性从 checkpoint 收集 (见 _handle_after_main_agent_run)。
+        if constructed:
             try:
-                # 创建附件对象，传递file_key字符串
                 attachment = FileStorageListenerService._create_attachment_from_uploaded_file(
                     filepath=event.data.filepath,
-                    file_key=file_key,
+                    file_key=constructed.file_key,
+                    file_id=constructed.file_id,
                     file_event_data=event.data
                 )
 
-                # 将附件添加到事件上下文
                 FileStorageListenerService._add_attachment_to_event_context(event.data.tool_context, attachment)
-                # 将附件添加到代理上下文
-                FileStorageListenerService._add_attachment_to_agent_context(event.data.tool_context.get_extension_typed("agent_context", AgentContext), attachment)
             except Exception as e:
                 logger.error(f"处理附件信息失败: {e}")
 
@@ -112,13 +127,27 @@ class FileStorageListenerService:
     @staticmethod
     async def _handle_after_main_agent_run(event: Event[AfterMainAgentRunEventData]) -> None:
         """
-        处理主代理完成事件，压缩并上传项目目录并创建文件版本
+        处理主代理完成事件：
+        1. 从当前消息对应的 checkpoint 里收集本轮变更的文件，一次性填充到
+           agent_context.attachments (替代原来通过 FILE_CREATED / FILE_UPDATED
+           事件逐次写入的方式)，这样 shell / python 脚本等绕过工具层的写入
+           也能被 magicfs 捕获并正确形成最终附件
+        2. 基于填充后的 attachments 创建文件版本
+
+        执行顺序依赖: dispatcher 按注册顺序顺序 await 监听器，FileStorage 的
+        AFTER_MAIN_AGENT_RUN 比 StreamListener / ResourceCleanup 都先跑，
+        因此 StreamListener 读到的 attachments 已经就绪。
 
         Args:
             event: 主代理完成事件对象，包含 AfterMainAgentRunEventData 数据
         """
+        agent_context = event.data.agent_context
+
+        logger.info("处理主代理完成事件：从 checkpoint 收集变更附件")
+        await FileStorageListenerService._collect_changed_attachments_from_checkpoint(agent_context)
+
         logger.info("处理主代理完成事件：创建文件版本")
-        await FileStorageListenerService._create_changed_files_versions(event.data.agent_context)
+        await FileStorageListenerService._create_changed_files_versions(agent_context)
 
     @staticmethod
     def _calculate_directory_hash(directory_path: str) -> str:
@@ -579,110 +608,74 @@ class FileStorageListenerService:
         return md5_hash.hexdigest()
 
     @staticmethod
-    async def _construct_file_key(filepath: str, agent_context: AgentContext) -> Optional[str]:
+    async def _construct_file_key(filepath: str) -> Optional[ConstructedFileKey]:
         """
-        构造文件存储键，不实际上传文件
+        Resolve the magicfs object-storage key for a workspace file.
+
+        Reads ``user.magicfs.s3_key`` (and ``user.magicfs.file_id``) directly
+        from xattr. Files without ``s3_key`` xattr are skipped — they are not
+        managed by magicfs and any synthetic key would only feed dead links
+        to ``create_file_version`` and the frontend.
 
         Args:
-            filepath: 文件路径
-            agent_context: 代理上下文对象
+            filepath: 文件绝对路径
 
         Returns:
-            Optional[str]: 构造的文件键，构造失败则返回None
+            Optional[ConstructedFileKey]: None when the file does not exist
+              or has no magicfs xattr. ``file_id`` may still be None when
+              ``user.magicfs.file_id`` is absent (e.g. read-only mounts).
         """
-        try:
-            # 检查文件是否存在
-            if not os.path.exists(filepath):
-                logger.warning(f"文件不存在，无法生成file_key: {filepath}")
-                return None
+        if not await async_exists(filepath):
+            logger.warning(f"文件不存在，跳过 file_key 构造: {filepath}")
+            return None
 
-            # 使用 async_stat 判断是否为目录
-            try:
-                stat_info = await async_stat(filepath)
-                is_directory = stat.S_ISDIR(stat_info.st_mode)
-            except Exception as e:
-                logger.warning(f"无法获取文件状态信息，使用默认文件处理: {filepath}, 错误: {e}")
-                is_directory = False
+        s3_key, file_id = await asyncio.gather(
+            get_s3_key_from_xattr(filepath),
+            get_file_id_from_xattr(filepath),
+        )
 
-            sts_token_refresh = agent_context.get_init_client_message_sts_token_refresh()
-            metadata = agent_context.get_metadata()
-
-            # 获取平台类型，优先使用客户端消息中指定的平台
-            platform_type = agent_context.get_init_client_message_platform_type()
-
-            storage_service = await StorageFactory.get_storage(
-                sts_token_refresh=sts_token_refresh,
-                metadata=metadata,
-                platform=platform_type
+        if not s3_key:
+            logger.error(
+                f"文件无 magicfs xattr (user.magicfs.s3_key)，跳过 file_key 构造: {filepath}"
             )
-
-            # 构造 file_key
-            workspace_dir = agent_context.get_workspace_dir()
-            # 去除掉workspace_dir - 确保两个参数都是字符串类型
-            if isinstance(filepath, Path):
-                filepath = str(filepath)
-            if isinstance(workspace_dir, Path):
-                workspace_dir = str(workspace_dir)
-            relative_path = filepath.replace(workspace_dir, "")
-
-            # 如果是目录且相对路径不以"/"结尾，则添加"/"
-            if is_directory and not relative_path.endswith("/"):
-                relative_path += "/"
-
-            # 构造最终的file_key
-            file_key = BaseFileProcessor.combine_path(get_storage_dir_with_fallback(storage_service.credentials), relative_path)
-
-            logger.info(f"构造文件键成功: {filepath} ({'目录' if is_directory else '文件'}), 存储键: {file_key}")
-            return file_key
-
-        except (InitException, UploadException) as e:
-            logger.error(f"构造文件键失败: {e}")
             return None
-        except Exception as e:
-            logger.error(f"构造文件键过程中发生错误: {e}")
-            return None
+
+        logger.info(
+            f"构造文件键成功: {filepath}, file_id: {file_id}, 存储键: {s3_key}"
+        )
+        return ConstructedFileKey(file_key=s3_key, file_id=file_id)
 
     @staticmethod
-    def _create_attachment_from_uploaded_file(filepath: str, file_key: str, file_event_data: FileEventData) -> Attachment:
+    def _create_attachment_from_uploaded_file(
+        filepath: str,
+        file_key: str,
+        file_event_data: FileEventData,
+        file_id: Optional[str] = None,
+    ) -> Attachment:
         """
-        根据文件信息和file_key创建附件对象
+        根据文件事件数据创建附件对象 (用于 event_context 实时上报链路)。
 
         Args:
             filepath: 原始文件路径
             file_key: 文件存储键
             file_event_data: 文件事件数据
+            file_id: magicfs xattr file ID (user.magicfs.file_id), optional
 
         Returns:
             Attachment: 创建的附件对象
         """
-        # 获取文件信息
-        file_path_obj = Path(filepath)
-        file_size = os.path.getsize(filepath)
-        file_ext = file_path_obj.suffix.lstrip('.')
-        file_name = file_path_obj.name
-        display_name = file_name
-
-        # 设置附件类型固定为中间产物
-        if file_event_data.is_screenshot:
-            file_tag = AttachmentTag.BROWSER
-        else:
-            file_tag = AttachmentTag.PROCESS
-
-        # 创建附件对象，现在包含完整的文件路径
-        attachment = Attachment(
+        file_tag = AttachmentTag.BROWSER if file_event_data.is_screenshot else AttachmentTag.PROCESS
+        attachment = FileStorageListenerService._build_attachment(
+            filepath=filepath,
             file_key=file_key,
+            file_id=file_id,
             file_tag=file_tag,
-            file_extension=file_ext,
-            filepath=filepath,  # 新增：保存完整的文件路径
-            filename=file_name,
-            display_filename=display_name,
-            file_size=file_size,
-            file_url=None,
-            source=file_event_data.source,  # 透传文件来源信息
-            timestamp=int(time.time())
+            source=file_event_data.source,
         )
-
-        logger.info(f"已创建附件对象: {file_name}, 路径: {filepath}, 标签: {file_tag}, file_key: {file_key}")
+        logger.info(
+            f"已创建附件对象: {attachment.filename}, 路径: {filepath}, "
+            f"标签: {file_tag}, file_key: {file_key}"
+        )
         return attachment
 
     @staticmethod
@@ -705,13 +698,6 @@ class FileStorageListenerService:
                 logger.warning("无法添加附件到事件上下文：EventContext未注册")
         except Exception as e:
             logger.error(f"添加附件到事件上下文失败: {e}")
-
-    @staticmethod
-    def _add_attachment_to_agent_context(agent_context: AgentContext, attachment: Attachment) -> None:
-        """
-        将附件添加到代理上下文
-        """
-        agent_context.add_attachment(attachment)
 
     @staticmethod
     def _compress_directory(directory_paths: Union[str, List[str]], output_filename: str) -> Optional[str]:
@@ -791,6 +777,168 @@ class FileStorageListenerService:
         except Exception as e:
             logger.error(f"压缩目录过程中发生错误: {e}")
             return None
+
+    @staticmethod
+    async def _collect_changed_attachments_from_checkpoint(agent_context: AgentContext) -> None:
+        """
+        从当前消息的 checkpoint 中收集变更文件并填充到 agent_context.attachments。
+
+        变更文件清单的权威来源是 magicfs 在 FUSE 层写入的 checkpoint_info.json，
+        它覆盖所有写入路径 (工具、shell、python 脚本)，无需依赖 FILE_CREATED /
+        FILE_UPDATED 事件。
+
+        过滤规则:
+        - 跳过目录快照 (版本与 attachment 都只针对文件)
+        - 跳过 DELETED 操作 (文件已不存在，无法构造 attachment)
+        - 跳过任一路径段以 "." 开头的隐藏路径 (等价于原 BROWSER + 隐藏文件过滤，
+          覆盖 .browser_screenshots / .magic / .agent 等自动产物目录)
+        - 同一路径同一 checkpoint 内只取第一次出现 (file_snapshots 已是按顺序追加
+          的操作流，保留首次即可)
+
+        Args:
+            agent_context: 代理上下文，attachments 会被就地追加
+        """
+        try:
+            # 延迟导入: CheckpointService / CheckpointUtils 在顶层 import 会形成
+            # file_storage_listener_service ↔ checkpoint_service 的循环依赖
+            from app.service.checkpoint_service import CheckpointService
+            from app.utils.checkpoint_utils import CheckpointUtils
+
+            message_id = CheckpointUtils.get_current_checkpoint_context(agent_context)
+            if not message_id:
+                logger.warning("未能获取 message_id，跳过从 checkpoint 收集变更附件")
+                return
+
+            checkpoint_service = CheckpointService()
+            checkpoint_info = await checkpoint_service.get_checkpoint(message_id)
+            if not checkpoint_info or not checkpoint_info.file_snapshots:
+                logger.info(f"checkpoint {message_id} 无文件变更，跳过收集变更附件")
+                return
+
+            relative_paths = FileStorageListenerService._collect_changed_file_paths(
+                checkpoint_info.file_snapshots
+            )
+            if not relative_paths:
+                logger.info(f"checkpoint {message_id} 过滤后无有效文件变更，跳过收集变更附件")
+                return
+
+            workspace_dir = PathManager.get_workspace_dir()
+            collected = 0
+            for relative_path in relative_paths:
+                absolute_path = str(workspace_dir / relative_path.lstrip("/"))
+
+                constructed = await FileStorageListenerService._construct_file_key(absolute_path)
+                if not constructed:
+                    continue
+
+                try:
+                    attachment = FileStorageListenerService._build_attachment(
+                        filepath=absolute_path,
+                        file_key=constructed.file_key,
+                        file_id=constructed.file_id,
+                        file_tag=AttachmentTag.PROCESS,
+                    )
+                except Exception as build_err:
+                    logger.error(
+                        f"从 checkpoint 构造附件失败 ({relative_path}): {build_err}"
+                    )
+                    continue
+
+                agent_context.add_attachment(attachment)
+                collected += 1
+
+            logger.info(
+                f"checkpoint {message_id} 共收集 {collected} 个变更附件到 agent_context "
+                f"(候选路径 {len(relative_paths)} 个)"
+            )
+        except Exception as e:
+            logger.error(f"从 checkpoint 收集变更附件失败: {e}", exc_info=True)
+
+    @staticmethod
+    def _collect_changed_file_paths(file_snapshots: List[FileSnapshot]) -> List[str]:
+        """
+        从 checkpoint 的 file_snapshots 中挑出需要构造 attachment 的文件路径。
+
+        Args:
+            file_snapshots: checkpoint_info.file_snapshots
+
+        Returns:
+            List[str]: 按首次出现顺序去重后的 workspace 相对路径列表
+        """
+        seen: set = set()
+        ordered: List[str] = []
+        for snapshot in file_snapshots:
+            if snapshot.file_type == FileType.DIRECTORY:
+                continue
+            if snapshot.operation == FileOperation.DELETED:
+                continue
+
+            path = snapshot.file_path
+            if path in seen:
+                continue
+
+            if FileStorageListenerService._is_hidden_path(path):
+                continue
+
+            seen.add(path)
+            ordered.append(path)
+        return ordered
+
+    @staticmethod
+    def _is_hidden_path(path: str) -> bool:
+        """
+        判断路径是否属于隐藏路径 (任一路径段以 "." 开头)。
+
+        用于过滤诸如 .browser_screenshots/* 这类由工具自动生成、不应出现在
+        "本轮变更附件" 列表里的产物。
+        """
+        normalized = path.replace("\\", "/").lstrip("/")
+        if not normalized:
+            return False
+        for segment in normalized.split("/"):
+            if segment.startswith("."):
+                return True
+        return False
+
+    @staticmethod
+    def _build_attachment(
+        filepath: str,
+        file_key: str,
+        file_id: Optional[str],
+        file_tag: AttachmentTag,
+        source: int = 3,
+    ) -> Attachment:
+        """
+        构造 Attachment 对象的公共实现，供事件路径与 checkpoint 路径共用。
+
+        Args:
+            filepath: 文件绝对路径
+            file_key: 对象存储 key (来自 magicfs xattr)
+            file_id: magicfs file_id (可为 None)
+            file_tag: 附件标签
+            source: 文件来源编码，默认 3 (容器生成)
+
+        Returns:
+            Attachment: 构造好的附件对象
+        """
+        file_path_obj = Path(filepath)
+        file_size = os.path.getsize(filepath)
+        file_ext = file_path_obj.suffix.lstrip('.')
+        file_name = file_path_obj.name
+
+        return Attachment(
+            file_key=file_key,
+            file_id=file_id,
+            file_tag=file_tag,
+            file_extension=file_ext,
+            filepath=filepath,
+            filename=file_name,
+            display_filename=file_name,
+            file_size=file_size,
+            file_url=None,
+            source=source,
+            timestamp=int(time.time()),
+        )
 
     @staticmethod
     async def _create_changed_files_versions(agent_context: AgentContext) -> bool:
