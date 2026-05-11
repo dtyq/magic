@@ -176,7 +176,13 @@ class AuditLogRepository extends AbstractRepository implements AuditLogRepositor
 
         $hasMore = count($list) > $pageSize;
         if ($hasMore) {
-            array_pop($list);
+            // prev 方向多取的哨兵位于 ASC 结果最前面（id 最小），应丢弃第一条
+            // next 方向多取的哨兵位于 DESC 结果最后面（id 最小），array_pop 即可
+            if ($isPrev) {
+                array_shift($list);
+            } else {
+                array_pop($list);
+            }
         }
 
         // prev 方向是 ASC 取的，结果需要反转回 DESC 顺序
