@@ -194,25 +194,36 @@ async def _do_generate(
 
     skills_xml_parts = []
     total_chars = 0
+    degraded = False
     for meta in skills_metadata:
         # 已预加载内容的 skill 不再出现在 available_skills 列表中
         if meta.name in preload_map:
             continue
 
-        parts = [
-            "<skill>\n",
-            f"<name>{meta.name}</name>\n",
-            f"<description>{meta.description}</description>\n",
-        ]
-        location = meta.skill_file or meta.skill_dir
-        if location:
-            parts.append(f"<location>{location}</location>\n")
-        parts.append("</skill>")
-        skill_xml = "".join(parts)
+        if not degraded:
+            # 完整模式：包含 name + description + location
+            parts = [
+                "<skill>\n",
+                f"<name>{meta.name}</name>\n",
+                f"<description>{meta.description}</description>\n",
+            ]
+            location = meta.skill_file or meta.skill_dir
+            if location:
+                parts.append(f"<location>{location}</location>\n")
+            parts.append("</skill>")
+            skill_xml = "".join(parts)
 
-        if total_chars + len(skill_xml) > MAX_CHARS:
-            logger.warning(f"skills_content 超过字符限制，已截断，实际输出 {len(skills_xml_parts)} 个")
-            break
+            if total_chars + len(skill_xml) > MAX_CHARS:
+                # 切换到降级模式：仅输出 name
+                degraded = True
+                logger.warning(
+                    f"skills_content 达到字符限制 ({MAX_CHARS})，"
+                    f"已输出 {len(skills_xml_parts)} 个完整 skill，后续降级为仅 name"
+                )
+
+        if degraded:
+            # 降级模式：只保留 name，节省 token
+            skill_xml = f"<skill>\n<name>{meta.name}</name>\n</skill>"
 
         skills_xml_parts.append(skill_xml)
         total_chars += len(skill_xml)
