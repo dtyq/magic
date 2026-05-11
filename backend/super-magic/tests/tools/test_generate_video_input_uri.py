@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from app.service.file_service import WorkspaceFileURLError
 from app.core.entity.tool.tool_result import VideoToolResult
 from app.tools.design.tools.generate_canvas_videos import GenerateCanvasVideos, GenerateCanvasVideosParams, VideoTaskSpec
+from app.tools.design.tools.base_generate_canvas_elements import ElementDetail
 from app.tools.generate_video import GenerateVideo, GenerateVideoParams, MagicServiceVideoError
 
 
@@ -224,3 +225,48 @@ def test_generate_canvas_videos_keeps_non_visible_provider_error_wrapped():
     )
 
     assert GenerateCanvasVideos._extract_generate_error_message(result) == result.content
+
+
+@pytest.mark.asyncio
+async def test_execute_video_task_carries_error_message_to_result(tmp_path):
+    explicit_error = "该提示词包含政治问题 (code=4018, request_id=req-1)"
+    tool = GenerateCanvasVideos()
+
+    class FakeGenerateTool:
+        async def execute_purely(self, tool_context, params):
+            return VideoToolResult(
+                ok=False,
+                content="视频生成失败",
+                videos=[],
+                extra_info={"error": explicit_error, "error_code": "4018"},
+            )
+
+    tool._generate_tool = FakeGenerateTool()
+    task = VideoTaskSpec(
+        prompt="森林中的小路。",
+        name="错误信息测试",
+        width=1280,
+        height=720,
+    )
+    placeholder = ElementDetail(
+        id="element-1",
+        type="video",
+        name="错误信息测试",
+        x=0,
+        y=0,
+        width=1280,
+        height=720,
+    )
+
+    result = await tool._execute_task_item(
+        idx=0,
+        task=task,
+        placeholder=placeholder,
+        tool_context=None,
+        project_path=tmp_path,
+        resolved_output_path="demo/videos",
+    )
+
+    assert not result.success
+    assert result.error_message == explicit_error
+    assert result.placeholder_update.errorMessage == explicit_error

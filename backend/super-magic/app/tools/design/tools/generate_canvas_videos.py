@@ -512,7 +512,12 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
             generateVideoRequest=metadata,
             errorMessage=error_message,
         )
-        return TaskExecutionResult(index=idx, success=False, placeholder_update=update)
+        return TaskExecutionResult(
+            index=idx,
+            success=False,
+            placeholder_update=update,
+            error_message=error_message,
+        )
 
     # ------------------------------------------------------------------
     # 覆盖钩子
