@@ -1263,7 +1263,7 @@ class TopicDomainService
             'topic_name' => $topic->getTopicName(),
             'project_id' => (string) $topic->getProjectId(),
             'workspace_id' => $topic->getWorkspaceId() !== null ? (string) $topic->getWorkspaceId() : '',
-            'status' => $topic->getCurrentTaskStatus()?->value ?? null,
+            'status' => $topic->getCurrentTaskStatus()?->value,
             'topic_mode' => $topic->getTopicMode(),
             'updated_at' => $topic->getUpdatedAt() ?? '',
             'is_pinned' => $topic->isPinned(),
@@ -1279,7 +1279,7 @@ class TopicDomainService
     {
         return [
             'id' => (string) $topic->getId(),
-            'status' => $topic->getCurrentTaskStatus()?->value ?? null,
+            'status' => $topic->getCurrentTaskStatus()?->value,
             'has_unread' => $hasUnread,
         ];
     }

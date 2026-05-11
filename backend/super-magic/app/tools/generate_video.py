@@ -42,7 +42,12 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists, async_mkdir
+from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
+from app.infrastructure.sdk.magic_service.parameter.update_file_source_parameter import (
+    FileSource,
+    UpdateFileSourceParameter,
+)
+from app.utils.async_file_utils import async_exists, async_mkdir, get_file_id_from_xattr
 from app.utils.video_logger import get_video_logger
 
 logger = get_video_logger(__name__)
@@ -1079,6 +1084,21 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                         raise
 
                     # magicfs 已实现文件同步与索引，该通知方法已废弃。
+
+        try:
+            file_id_str = await get_file_id_from_xattr(str(save_path))
+            if file_id_str:
+                sdk = get_magic_service_sdk()
+                param = UpdateFileSourceParameter(
+                    file_id=int(file_id_str),
+                    source=FileSource.AI_VIDEO_GENERATION,
+                )
+                await sdk.file.update_file_source_async(param)
+                logger.info(f"Updated file source: file_id={file_id_str}, source={FileSource.AI_VIDEO_GENERATION}")
+            else:
+                logger.warning(f"No file_id found in xattr, skipping update_file_source: {save_path}")
+        except Exception as e:
+            logger.warning(f"Failed to update file source: {e}")
 
         relative_path = self._relative_to_workspace(save_path)
         return str(save_path), relative_path

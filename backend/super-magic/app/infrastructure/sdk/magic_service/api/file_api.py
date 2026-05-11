@@ -10,11 +10,30 @@ API implementation for file-related operations in Magic Service.
 
 from ..kernel.magic_service_api import MagicServiceAbstractApi
 from ..parameter.scan_wav_parameter import ScanWavParameter
+from ..parameter.update_file_source_parameter import UpdateFileSourceParameter
 from ..result.scan_wav_result import ScanWavResult
+from ..result.update_file_source_result import UpdateFileSourceResult
 
 
 class FileApi(MagicServiceAbstractApi):
     """File API for Magic Service."""
+
+    async def update_file_source_async(self, parameter: UpdateFileSourceParameter) -> UpdateFileSourceResult:
+        """
+        Update the source field of a file record.
+
+        The call is idempotent: repeated requests with the same arguments produce
+        the same result without side effects.
+
+        Args:
+            parameter: UpdateFileSourceParameter with file_id and source.
+
+        Returns:
+            UpdateFileSourceResult containing the updated file_id and source.
+        """
+        endpoint_path = "/api/v1/open-api/sandbox/file/source"
+        data = await self.request_by_parameter_async(parameter, "PATCH", endpoint_path)
+        return UpdateFileSourceResult(data)
 
     async def scan_wav_async(self, parameter: ScanWavParameter) -> ScanWavResult:
         """
