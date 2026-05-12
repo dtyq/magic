@@ -1166,8 +1166,10 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertSame($creatorId, $organizationVisibility[0]['principal_id']);
 
         $organizationApproveResponse = $this->put(
-            '/api/v1/organization/admin/skills/versions/' . $organizationResponse['data']['version_id'] . '/approve',
-            [],
+            '/api/v1/organization/admin/skills/versions/' . $organizationResponse['data']['version_id'] . '/review',
+            [
+                'action' => 'APPROVED',
+            ],
             $this->getCommonHeaders()
         );
         $this->assertEquals(1000, $organizationApproveResponse['code'], $organizationApproveResponse['message'] ?? '');
@@ -1195,8 +1197,10 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertSame($organizationCode, $memberVisibilityBeforeApprove[0]['principal_id']);
 
         $memberApproveResponse = $this->put(
-            '/api/v1/organization/admin/skills/versions/' . $memberResponse['data']['version_id'] . '/approve',
-            [],
+            '/api/v1/organization/admin/skills/versions/' . $memberResponse['data']['version_id'] . '/review',
+            [
+                'action' => 'APPROVED',
+            ],
             $this->getCommonHeaders()
         );
         $this->assertEquals(1000, $memberApproveResponse['code'], $memberApproveResponse['message'] ?? '');

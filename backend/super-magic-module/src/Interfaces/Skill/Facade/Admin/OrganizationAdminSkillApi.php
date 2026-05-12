@@ -14,6 +14,7 @@ use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Skill\Service\AdminSkillAppService;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestAdminDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ReviewOrganizationSkillVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\Di\Annotation\Inject;
 
@@ -34,21 +35,12 @@ class OrganizationAdminSkillApi extends AbstractApi
     }
 
     #[CheckPermission(MagicResourceEnum::WORKSPACE_ADMIN_AI_SKILL, MagicOperationEnum::EDIT)]
-    public function approveVersion(RequestContext $requestContext, int $id): array
+    public function reviewVersion(RequestContext $requestContext, int $id): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
+        $requestDTO = ReviewOrganizationSkillVersionRequestDTO::fromRequest($this->request);
 
-        $this->adminSkillAppService->approveOrganizationVersion($requestContext, $id);
-
-        return [];
-    }
-
-    #[CheckPermission(MagicResourceEnum::WORKSPACE_ADMIN_AI_SKILL, MagicOperationEnum::EDIT)]
-    public function rejectVersion(RequestContext $requestContext, int $id): array
-    {
-        $requestContext->setUserAuthorization($this->getAuthorization());
-
-        $this->adminSkillAppService->rejectOrganizationVersion($requestContext, $id);
+        $this->adminSkillAppService->reviewOrganizationVersion($requestContext, $id, $requestDTO);
 
         return [];
     }

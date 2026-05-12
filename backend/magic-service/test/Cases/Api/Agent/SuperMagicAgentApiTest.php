@@ -32,6 +32,7 @@ use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
 use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillModel;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillVersionModel;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectModel;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
@@ -2099,8 +2100,10 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertEquals('MEMBER', $memberResponse['data']['publish_target_type']);
 
         $memberApproveResponse = $this->put(
-            '/api/v1/organization/admin/super-magic/agents/versions/' . $memberResponse['data']['version_id'] . '/approve',
-            [],
+            '/api/v1/organization/admin/super-magic/agents/versions/' . $memberResponse['data']['version_id'] . '/review',
+            [
+                'action' => 'APPROVED',
+            ],
             $headers
         );
         $this->assertEquals(1000, $memberApproveResponse['code'], $memberApproveResponse['message'] ?? '');
@@ -2226,8 +2229,10 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertSame([$targetDepartmentId], $organizationVisibilityDepartmentIds);
 
         $organizationApproveResponse = $this->put(
-            '/api/v1/organization/admin/super-magic/agents/versions/' . $organizationResponse['data']['version_id'] . '/approve',
-            [],
+            '/api/v1/organization/admin/super-magic/agents/versions/' . $organizationResponse['data']['version_id'] . '/review',
+            [
+                'action' => 'APPROVED',
+            ],
             $headers
         );
         $this->assertEquals(1000, $organizationApproveResponse['code'], $organizationApproveResponse['message'] ?? '');
@@ -3082,6 +3087,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $sandboxGateway,
             $workspaceExporter,
             $container->get(AgentMarketRepositoryInterface::class),
+            $container->get(TaskFileRepositoryInterface::class),
         );
 
         $container->set(SuperMagicAgentDomainService::class, $domainService);

@@ -24,6 +24,7 @@ use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewAgentVersionRequestDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewOrganizationAgentVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\UpdateAgentMarketRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\GetEmployeeDetailResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Response\QueryAgentMarketsResponseAdminDTO;
@@ -147,9 +148,22 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
     }
 
     /**
+     * 组织后台审核数字员工版本，按 action 分发通过或拒绝逻辑。
+     */
+    public function reviewOrganizationVersion(Authenticatable $authorization, int $id, ReviewOrganizationAgentVersionRequestDTO $requestDTO): void
+    {
+        if ($requestDTO->isApproved()) {
+            $this->approveOrganizationVersion($authorization, $id, $requestDTO->getReviewRemark());
+            return;
+        }
+
+        $this->rejectOrganizationVersion($authorization, $id, $requestDTO->getReviewRemark());
+    }
+
+    /**
      * 组织后台审核通过数字员工版本，并按发布目标同步组织内可见范围。
      */
-    public function approveOrganizationVersion(Authenticatable $authorization, int $id): void
+    public function approveOrganizationVersion(Authenticatable $authorization, int $id, ?string $reviewRemark = null): void
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
         $modifier = $dataIsolation->getCurrentUserId();
@@ -160,7 +174,8 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
                 $dataIsolation,
                 $id,
                 ReviewStatus::APPROVED,
-                $modifier
+                $modifier,
+                $reviewRemark
             );
             $agentEntity = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $versionEntity->getCode());
             $this->syncOrganizationAgentScope($dataIsolation, $agentEntity, $versionEntity);
@@ -174,7 +189,7 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
     /**
      * 组织后台审核拒绝数字员工版本，不改变当前生效版本和可见范围。
      */
-    public function rejectOrganizationVersion(Authenticatable $authorization, int $id): void
+    public function rejectOrganizationVersion(Authenticatable $authorization, int $id, ?string $reviewRemark = null): void
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
@@ -182,7 +197,8 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             $dataIsolation,
             $id,
             ReviewStatus::REJECTED,
-            $dataIsolation->getCurrentUserId()
+            $dataIsolation->getCurrentUserId(),
+            $reviewRemark
         );
     }
 
@@ -232,7 +248,8 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             $id,
             $requestDTO->getAction(),
             $modifier,
-            $requestDTO->getPublisherType() ?: null
+            $requestDTO->getPublisherType() ?: null,
+            reviewRemark: $requestDTO->getReviewRemark()
         );
     }
 

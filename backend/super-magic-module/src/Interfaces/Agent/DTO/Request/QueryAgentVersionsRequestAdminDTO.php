@@ -35,7 +35,7 @@ class QueryAgentVersionsRequestAdminDTO extends AbstractRequestDTO
      */
     public ?string $nameI18n = null;
 
-    public string $orderBy = 'asc';
+    public string $orderBy = 'desc';
 
     public ?string $startTime = null;
 

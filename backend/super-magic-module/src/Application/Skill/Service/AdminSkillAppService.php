@@ -26,6 +26,7 @@ use Dtyq\SuperMagic\Domain\Skill\Service\SkillVersionDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestAdminDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ReviewOrganizationSkillVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ReviewSkillVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\UpdateSkillMarketRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\QuerySkillMarketsResponseAdminDTO;
@@ -146,9 +147,22 @@ class AdminSkillAppService extends AbstractSkillAppService
     }
 
     /**
+     * 组织后台审核 Skill 版本，按 action 分发通过或拒绝逻辑。
+     */
+    public function reviewOrganizationVersion(RequestContext $requestContext, int $id, ReviewOrganizationSkillVersionRequestDTO $requestDTO): void
+    {
+        if ($requestDTO->isApproved()) {
+            $this->approveOrganizationVersion($requestContext, $id, $requestDTO->getReviewRemark());
+            return;
+        }
+
+        $this->rejectOrganizationVersion($requestContext, $id, $requestDTO->getReviewRemark());
+    }
+
+    /**
      * 组织后台审核通过 Skill 版本，并按发布目标同步组织内可见范围。
      */
-    public function approveOrganizationVersion(RequestContext $requestContext, int $id): void
+    public function approveOrganizationVersion(RequestContext $requestContext, int $id, ?string $reviewRemark = null): void
     {
         $dataIsolation = $this->createSkillDataIsolation($requestContext->getUserAuthorization());
 
@@ -157,7 +171,8 @@ class AdminSkillAppService extends AbstractSkillAppService
             $versionEntity = $this->skillVersionDomainService->reviewOrganizationSkillVersion(
                 $dataIsolation,
                 $id,
-                ReviewStatus::APPROVED
+                ReviewStatus::APPROVED,
+                $reviewRemark
             );
             $skillEntity = $this->skillDomainService->findSkillByCode($dataIsolation, $versionEntity->getCode());
             $this->syncOrganizationSkillScope($dataIsolation, $skillEntity, $versionEntity);
@@ -171,14 +186,15 @@ class AdminSkillAppService extends AbstractSkillAppService
     /**
      * 组织后台审核拒绝 Skill 版本，不改变当前生效版本和可见范围。
      */
-    public function rejectOrganizationVersion(RequestContext $requestContext, int $id): void
+    public function rejectOrganizationVersion(RequestContext $requestContext, int $id, ?string $reviewRemark = null): void
     {
         $dataIsolation = $this->createSkillDataIsolation($requestContext->getUserAuthorization());
 
         $this->skillVersionDomainService->reviewOrganizationSkillVersion(
             $dataIsolation,
             $id,
-            ReviewStatus::REJECTED
+            ReviewStatus::REJECTED,
+            $reviewRemark
         );
     }
 
@@ -267,7 +283,8 @@ class AdminSkillAppService extends AbstractSkillAppService
             $dataIsolation,
             $id,
             $requestDTO->getAction(),
-            $requestDTO->getPublisherType()
+            $requestDTO->getPublisherType(),
+            $requestDTO->getReviewRemark()
         );
     }
 

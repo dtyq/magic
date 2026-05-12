@@ -212,6 +212,7 @@ class AdminSkillAssembler
             version: $entity->getVersion(),
             publishStatus: $entity->getPublishStatus()->value,
             reviewStatus: $entity->getReviewStatus()->value,
+            reviewRemark: $entity->getReviewRemark(),
             publishTargetType: $entity->getPublishTargetType()->value,
             sourceType: $entity->getSourceType()->value,
             publisher: $publisher,

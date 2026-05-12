@@ -17,19 +17,15 @@ Router::addGroup('/api/v1/organization/admin', static function () {
     Router::addGroup('/super-magic/agents', static function () {
         // 查询组织内待审核/已审核的数字员工版本列表。
         Router::post('/versions/queries', [OrganizationAdminSuperMagicAgentApi::class, 'queryVersions']);
-        // 审核通过后会发布该版本，并同步组织内可见范围。
-        Router::put('/versions/{id}/approve', [OrganizationAdminSuperMagicAgentApi::class, 'approveVersion']);
-        // 审核拒绝只更新审核状态，不改变当前生效版本和可见范围。
-        Router::put('/versions/{id}/reject', [OrganizationAdminSuperMagicAgentApi::class, 'rejectVersion']);
+        // 审核数字员工版本。APPROVED 会发布该版本并同步组织内可见范围；REJECTED 只更新审核状态。
+        Router::put('/versions/{id}/review', [OrganizationAdminSuperMagicAgentApi::class, 'reviewVersion']);
     });
 
     // Skill 组织内发布审核。
     Router::addGroup('/skills', static function () {
         // 查询组织内待审核/已审核的 Skill 版本列表。
         Router::post('/versions/queries', [OrganizationAdminSkillApi::class, 'queryVersions']);
-        // 审核通过后会发布该版本，并同步组织内可见范围。
-        Router::put('/versions/{id}/approve', [OrganizationAdminSkillApi::class, 'approveVersion']);
-        // 审核拒绝只更新审核状态，不改变当前生效版本和可见范围。
-        Router::put('/versions/{id}/reject', [OrganizationAdminSkillApi::class, 'rejectVersion']);
+        // 审核 Skill 版本。APPROVED 会发布该版本并同步组织内可见范围；REJECTED 只更新审核状态。
+        Router::put('/versions/{id}/review', [OrganizationAdminSkillApi::class, 'reviewVersion']);
     });
 }, ['middleware' => [RequestContextMiddleware::class]]);

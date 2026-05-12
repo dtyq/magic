@@ -392,7 +392,8 @@ class SkillVersionDomainService
     public function reviewOrganizationSkillVersion(
         SkillDataIsolation $dataIsolation,
         int $id,
-        ReviewStatus $reviewStatus
+        ReviewStatus $reviewStatus,
+        ?string $reviewRemark = null
     ): SkillVersionEntity {
         $skillVersion = $this->skillVersionRepository->findById($dataIsolation, $id);
         if (! $skillVersion) {
@@ -412,6 +413,7 @@ class SkillVersionDomainService
             $this->skillVersionRepository->clearCurrentVersion($dataIsolation, $skillVersion->getCode());
             $skillVersion->setReviewStatus(ReviewStatus::APPROVED);
             $skillVersion->setPublishStatus(PublishStatus::PUBLISHED);
+            $skillVersion->setReviewRemark($reviewRemark);
             $skillVersion->setPublishedAt(date('Y-m-d H:i:s'));
             $skillVersion->setIsCurrentVersion(true);
             $skillVersion = $this->saveSkillVersion($dataIsolation, $skillVersion);
@@ -425,6 +427,7 @@ class SkillVersionDomainService
 
         $skillVersion->setReviewStatus(ReviewStatus::REJECTED);
         $skillVersion->setPublishStatus(PublishStatus::UNPUBLISHED);
+        $skillVersion->setReviewRemark($reviewRemark);
         return $this->saveSkillVersion($dataIsolation, $skillVersion);
     }
 
@@ -432,7 +435,8 @@ class SkillVersionDomainService
         SkillDataIsolation $dataIsolation,
         int $id,
         string $action,
-        string $publisherType = ''
+        string $publisherType = '',
+        ?string $reviewRemark = null
     ): void {
         $skillVersion = $this->findPendingReviewSkillVersionById($id);
         if (! $skillVersion) {
@@ -458,11 +462,11 @@ class SkillVersionDomainService
             if ($publisherType === '') {
                 $publisherType = PublisherType::USER->value;
             }
-            $this->approveSkillVersion($dataIsolation, $skillVersion, PublisherType::from($publisherType));
+            $this->approveSkillVersion($dataIsolation, $skillVersion, PublisherType::from($publisherType), $reviewRemark);
             return;
         }
 
-        $this->rejectSkillVersion($dataIsolation, $skillVersion);
+        $this->rejectSkillVersion($dataIsolation, $skillVersion, $reviewRemark);
     }
 
     private function getSkillByCodeOrFail(SkillDataIsolation $dataIsolation, string $code): SkillEntity
@@ -525,13 +529,15 @@ class SkillVersionDomainService
     private function approveSkillVersion(
         SkillDataIsolation $dataIsolation,
         SkillVersionEntity $skillVersion,
-        PublisherType $publisherType
+        PublisherType $publisherType,
+        ?string $reviewRemark = null
     ): void {
         $dataIsolation->disabled();
 
         $this->skillVersionRepository->clearCurrentVersion($dataIsolation, $skillVersion->getCode());
         $skillVersion->setReviewStatus(ReviewStatus::APPROVED);
         $skillVersion->setPublishStatus(PublishStatus::PUBLISHED);
+        $skillVersion->setReviewRemark($reviewRemark);
         $skillVersion->setPublishTargetType(PublishTargetType::MARKET);
         $skillVersion->setPublishedAt(date('Y-m-d H:i:s'));
         $skillVersion->setPublisherUserId($skillVersion->getCreatorId());
@@ -578,9 +584,14 @@ class SkillVersionDomainService
         $this->skillMarketDomainService->saveStoreSkill($newStoreSkill);
     }
 
-    private function rejectSkillVersion(SkillDataIsolation $dataIsolation, SkillVersionEntity $skillVersion): void
+    private function rejectSkillVersion(
+        SkillDataIsolation $dataIsolation,
+        SkillVersionEntity $skillVersion,
+        ?string $reviewRemark = null
+    ): void
     {
         $skillVersion->setReviewStatus(ReviewStatus::REJECTED);
+        $skillVersion->setReviewRemark($reviewRemark);
         $this->saveSkillVersion($dataIsolation, $skillVersion);
     }
 }

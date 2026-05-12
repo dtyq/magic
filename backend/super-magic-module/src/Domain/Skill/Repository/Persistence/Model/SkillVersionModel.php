@@ -28,6 +28,7 @@ use Hyperf\Database\Model\SoftDeletes;
  * @property null|string $skill_file_key Skill.md file key snapshot
  * @property string $publish_status 发布状态
  * @property string $review_status 审核状态
+ * @property null|string $review_remark 审核说明
  * @property string $publish_target_type 发布对象类型
  * @property null|array $publish_target_value 发布对象实际值
  * @property null|array $version_description_i18n 版本描述（多语言）
@@ -65,6 +66,7 @@ class SkillVersionModel extends AbstractModel
         'skill_file_key',
         'publish_status',
         'review_status',
+        'review_remark',
         'publish_target_type',
         'publish_target_value',
         'version_description_i18n',
@@ -94,6 +96,7 @@ class SkillVersionModel extends AbstractModel
         'skill_file_key' => 'string',
         'publish_status' => 'string',
         'review_status' => 'string',
+        'review_remark' => 'string',
         'publish_target_type' => 'string',
         'publish_target_value' => 'array',
         'version_description_i18n' => 'array',

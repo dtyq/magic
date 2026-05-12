@@ -88,6 +88,7 @@ interface AgentVersionRepositoryInterface
      * @param ReviewStatus $reviewStatus 审核状态
      * @param PublishStatus $publishStatus 发布状态
      * @param string $modifier 修改者
+     * @param null|string $reviewRemark 审核说明
      * @return bool 是否更新成功
      */
     public function updateReviewStatus(
@@ -95,7 +96,8 @@ interface AgentVersionRepositoryInterface
         int $id,
         ReviewStatus $reviewStatus,
         PublishStatus $publishStatus,
-        string $modifier
+        string $modifier,
+        ?string $reviewRemark = null
     ): bool;
 
     public function deleteByAgentCode(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): bool;

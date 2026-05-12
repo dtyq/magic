@@ -13,6 +13,7 @@ use App\Infrastructure\Util\Permission\Annotation\CheckPermission;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\Agent\Service\AdminSuperMagicAgentAppService;
 use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\QueryAgentVersionsRequestAdminDTO;
+use Dtyq\SuperMagic\Interfaces\Agent\DTO\Request\ReviewOrganizationAgentVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\AbstractSuperMagicApi;
 use Hyperf\Di\Annotation\Inject;
 
@@ -32,17 +33,10 @@ class OrganizationAdminSuperMagicAgentApi extends AbstractSuperMagicApi
     }
 
     #[CheckPermission(MagicResourceEnum::WORKSPACE_ADMIN_AI_AGENT, MagicOperationEnum::EDIT)]
-    public function approveVersion(int $id): array
+    public function reviewVersion(int $id): array
     {
-        $this->adminAgentAppService->approveOrganizationVersion($this->getAuthorization(), $id);
-
-        return [];
-    }
-
-    #[CheckPermission(MagicResourceEnum::WORKSPACE_ADMIN_AI_AGENT, MagicOperationEnum::EDIT)]
-    public function rejectVersion(int $id): array
-    {
-        $this->adminAgentAppService->rejectOrganizationVersion($this->getAuthorization(), $id);
+        $requestDTO = ReviewOrganizationAgentVersionRequestDTO::fromRequest($this->request);
+        $this->adminAgentAppService->reviewOrganizationVersion($this->getAuthorization(), $id, $requestDTO);
 
         return [];
     }

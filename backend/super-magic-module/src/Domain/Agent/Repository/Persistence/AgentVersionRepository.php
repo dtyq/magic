@@ -267,7 +267,8 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         int $id,
         ReviewStatus $reviewStatus,
         PublishStatus $publishStatus,
-        string $modifier
+        string $modifier,
+        ?string $reviewRemark = null
     ): bool {
         $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
 
@@ -278,6 +279,7 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             ->whereNull('deleted_at')
             ->update([
                 'review_status' => $reviewStatus->value,
+                'review_remark' => $reviewRemark,
                 'publish_status' => $publishStatus->value,
                 'modifier' => $modifier,
                 'updated_at' => date('Y-m-d H:i:s'),
@@ -534,6 +536,7 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         $entity->setDescriptionI18n($descriptionI18n);
         $entity->setPublishStatus($data['publish_status'] ?? PublishStatus::UNPUBLISHED->value);
         $entity->setReviewStatus($data['review_status'] ?? ReviewStatus::PENDING->value);
+        $entity->setReviewRemark($data['review_remark'] ?? null);
         $entity->setPublishTargetType($data['publish_target_type'] ?? PublishTargetType::MARKET->value);
         $entity->setPublishTargetValue(PublishTargetValue::fromArray($publishTargetValue));
         $entity->setVersionDescriptionI18n($versionDescriptionI18n);
@@ -581,6 +584,7 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             'description_i18n' => $entity->getDescriptionI18n(),
             'publish_status' => $entity->getPublishStatus()->value,
             'review_status' => $entity->getReviewStatus()->value,
+            'review_remark' => $entity->getReviewRemark(),
             'publish_target_type' => $entity->getPublishTargetType()->value,
             'publish_target_value' => $entity->getPublishTargetValue()?->toArray(),
             'version_description_i18n' => $entity->getVersionDescriptionI18n(),

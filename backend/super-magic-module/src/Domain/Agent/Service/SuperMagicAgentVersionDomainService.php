@@ -283,7 +283,8 @@ class SuperMagicAgentVersionDomainService
         SuperMagicAgentDataIsolation $dataIsolation,
         int $versionId,
         ReviewStatus $reviewStatus,
-        string $modifier
+        string $modifier,
+        ?string $reviewRemark = null
     ): AgentVersionEntity {
         $versionEntity = $this->agentVersionRepository->findPendingReviewById($dataIsolation, $versionId);
         if (! $versionEntity) {
@@ -298,6 +299,7 @@ class SuperMagicAgentVersionDomainService
             $this->agentVersionRepository->clearCurrentVersion($dataIsolation, $versionEntity->getCode());
             $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
             $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
+            $versionEntity->setReviewRemark($reviewRemark);
             $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
             $versionEntity->setIsCurrentVersion(true);
             $versionEntity->setModifier($modifier);
@@ -316,6 +318,7 @@ class SuperMagicAgentVersionDomainService
 
         $versionEntity->setReviewStatus(ReviewStatus::REJECTED);
         $versionEntity->setPublishStatus(PublishStatus::UNPUBLISHED);
+        $versionEntity->setReviewRemark($reviewRemark);
         $versionEntity->setModifier($modifier);
         return $this->agentVersionRepository->save($dataIsolation, $versionEntity);
     }
@@ -328,7 +331,8 @@ class SuperMagicAgentVersionDomainService
         string $modifier,
         ?string $publisherType = null,
         ?bool $marketIsFeatured = null,
-        ?int $marketSortOrder = null
+        ?int $marketSortOrder = null,
+        ?string $reviewRemark = null
     ): void {
         $dataIsolation->disabled();
 
@@ -366,6 +370,7 @@ class SuperMagicAgentVersionDomainService
             $versionEntity->setPublisherUserId($versionEntity->getCreator());
             $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
             $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
+            $versionEntity->setReviewRemark($reviewRemark);
             $versionEntity->setModifier($modifier);
             $this->agentVersionRepository->save($dataIsolation, $versionEntity);
 
@@ -435,7 +440,8 @@ class SuperMagicAgentVersionDomainService
             $versionId,
             ReviewStatus::REJECTED,
             PublishStatus::UNPUBLISHED,
-            $modifier
+            $modifier,
+            $reviewRemark
         );
 
         if (! $success) {
