@@ -168,17 +168,31 @@ class MagicFSFileDomainService
         // 4. 生成文件 ID
         $fileId = IdGenerator::getSnowId();
 
-        // 5. 获取项目信息（用于生成 S3 key 和对象存储操作）
-        $project = $this->projectRepository->findById($projectId);
-        if ($project === null) {
-            // 如果项目不存在，抛出异常
-            ExceptionBuilder::throw(
-                MagicFSErrorCode::FILE_NOT_FOUND,
-                'magicfs.project_not_found',
-                ['project_id' => $projectId]
-            );
+        // 5. 获取 workDir：
+        //    - project 空间：从 project_id 反查 project 实体取 workDir；
+        //    - user 空间（projectId<=0）：固定按 user_{userId}，与
+        //      TaskFileDomainService::findOrCreateUserRootDirectory 保持一致。
+        if ($projectId > 0) {
+            $project = $this->projectRepository->findById($projectId);
+            if ($project === null) {
+                ExceptionBuilder::throw(
+                    MagicFSErrorCode::FILE_NOT_FOUND,
+                    'magicfs.project_not_found',
+                    ['project_id' => $projectId]
+                );
+            }
+            $workDir = $project->getWorkDir();
+        } else {
+            if ($userId === '') {
+                ExceptionBuilder::throw(
+                    MagicFSErrorCode::FILE_NOT_FOUND,
+                    'magicfs.project_not_found',
+                    ['project_id' => $projectId]
+                );
+            }
+            // user 空间：user_{userId}/workspace，与 project 空间的 workspace 布局对齐
+            $workDir = WorkDirectoryUtil::getUserWorkDir($userId);
         }
-        $workDir = $project->getWorkDir();
 
         // 6. 为文件生成 S3 key (完整路径)
         // 注意：目录也需要唯一的 file_key，避免唯一索引冲突

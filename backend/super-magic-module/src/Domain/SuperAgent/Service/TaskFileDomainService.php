@@ -1948,9 +1948,10 @@ class TaskFileDomainService
                 return $rootDir->getFileId();
             }
 
-            // 生成 S3 key：用户空间使用 user_{userId} 作为工作目录
+            // 生成 S3 key：用户空间使用 user_{userId}/workspace 作为工作目录，
+            // 与 project 空间的 project_{id}/workspace 布局保持一致
             $fullPrefix = $this->getFullPrefix($organizationCode);
-            $userWorkDir = sprintf('user_%s', $userId);
+            $userWorkDir = WorkDirectoryUtil::getUserWorkDir($userId);
             $fullWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $userWorkDir);
             $fileKey = rtrim($fullWorkDir, '/') . '/';
 
