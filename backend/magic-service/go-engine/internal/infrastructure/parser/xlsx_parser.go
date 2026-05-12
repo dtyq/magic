@@ -120,7 +120,7 @@ func (p *XlsxParser) ParseDocumentWithOptions(
 		if visibleErr != nil {
 			visible = true
 		}
-		matrix, matrixErr := buildExcelMatrix(f, sheet, rows)
+		matrix, matrixErr := buildExcelMatrix(f, sheet, rows, p.limits)
 		if matrixErr != nil {
 			return nil, fmt.Errorf("build excel matrix for sheet %s failed: %w", sheet, matrixErr)
 		}
@@ -224,13 +224,21 @@ func readExcelSheetRowsWithLimits(
 	return rows, nil
 }
 
-func buildExcelMatrix(f *excelize.File, sheet string, rows [][]string) ([][]tabularCell, error) {
+func buildExcelMatrix(
+	f *excelize.File,
+	sheet string,
+	rows [][]string,
+	limits document.ResourceLimits,
+) ([][]tabularCell, error) {
 	mergeCells, err := f.GetMergeCells(sheet, true)
 	if err != nil {
 		return nil, fmt.Errorf("get merge cells failed: %w", err)
 	}
 	maxCols, err := resolveExcelMatrixMaxCols(rows, mergeCells)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkExcelMatrixExpandedSize(len(rows), maxCols, limits); err != nil {
 		return nil, err
 	}
 	matrix, err := initializeExcelMatrix(f, sheet, rows, maxCols)
@@ -260,6 +268,17 @@ func resolveExcelMatrixMaxCols(rows [][]string, mergeCells []excelize.MergeCell)
 		maxCols = max(maxCols, startCol, endCol)
 	}
 	return maxCols, nil
+}
+
+func checkExcelMatrixExpandedSize(rowCount, maxCols int, limits document.ResourceLimits) error {
+	if rowCount <= 0 || maxCols <= 0 {
+		return nil
+	}
+	expandedCells := int64(rowCount) * int64(maxCols)
+	if err := document.CheckTabularSize(int64(rowCount), expandedCells, limits, "parse_xlsx_matrix"); err != nil {
+		return fmt.Errorf("check xlsx matrix size: %w", err)
+	}
+	return nil
 }
 
 func initializeExcelMatrix(f *excelize.File, sheet string, rows [][]string, maxCols int) ([][]tabularCell, error) {
