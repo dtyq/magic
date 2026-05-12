@@ -347,16 +347,25 @@ class MagicFSFileAppService extends AbstractAppService
 
     /**
      * 校验当前用户对指定 file 所属项目的角色权限，并返回 file 实体（若不存在则按 file_not_found 抛错）。
+     *
+     * user-space 文件没有项目锚点（project_id<=0），改走 user 维度校验：
+     * 仅 file 所属用户本人在同组织内可访问。
      */
     protected function assertFileAccessible(string $fileId, MagicUserAuthorization $authorization, MemberRole $requiredRole): TaskFileEntity
     {
         $fileEntity = $this->magicFSFileDomainService->getFileById($fileId);
+        if ($fileEntity->getProjectId() <= 0) {
+            $this->assertUserSpaceFileAccessible($fileEntity, $authorization);
+            return $fileEntity;
+        }
         $this->assertProjectAccessible($fileEntity->getProjectId(), $authorization, $requiredRole);
         return $fileEntity;
     }
 
     /**
      * 批量校验：按 project_id 去重后逐项目校验，避免重复 ProjectMember 查询。
+     *
+     * project_id<=0 的 user-space 文件按 (user_id, organization_code) 去重并逐用户校验。
      *
      * @param array<int|string> $fileIds
      */
@@ -367,9 +376,19 @@ class MagicFSFileAppService extends AbstractAppService
         }
 
         $checkedProjects = [];
+        $checkedUserScopes = [];
         foreach (array_unique($fileIds) as $fileId) {
             $fileEntity = $this->magicFSFileDomainService->getFileById((string) $fileId);
             $projectId = $fileEntity->getProjectId();
+            if ($projectId <= 0) {
+                $scopeKey = $fileEntity->getOrganizationCode() . '|' . $fileEntity->getUserId();
+                if (isset($checkedUserScopes[$scopeKey])) {
+                    continue;
+                }
+                $this->assertUserSpaceFileAccessible($fileEntity, $authorization);
+                $checkedUserScopes[$scopeKey] = true;
+                continue;
+            }
             if (isset($checkedProjects[$projectId])) {
                 continue;
             }
@@ -383,6 +402,8 @@ class MagicFSFileAppService extends AbstractAppService
      *
      * 根目录目前没有项目锚点（domain 层 getParentFileInfo 在该场景返回 project_id=0、user_id 空），
      * 没有上下文可以做权限校验，必须由调用方显式提供 parent_id。
+     *
+     * user-space 父目录（project_id<=0 但有 user_id）按 user 维度校验，返回的 project_id 为 0。
      */
     protected function resolveAndAuthorizeParentProject(string $parentId, MagicUserAuthorization $authorization, MemberRole $requiredRole): int
     {
@@ -391,6 +412,10 @@ class MagicFSFileAppService extends AbstractAppService
         }
 
         $parentEntity = $this->magicFSFileDomainService->getFileById($parentId);
+        if ($parentEntity->getProjectId() <= 0) {
+            $this->assertUserSpaceFileAccessible($parentEntity, $authorization);
+            return 0;
+        }
         $this->assertProjectAccessible($parentEntity->getProjectId(), $authorization, $requiredRole);
         return $parentEntity->getProjectId();
     }
@@ -412,5 +437,21 @@ class MagicFSFileAppService extends AbstractAppService
             $authorization->getOrganizationCode(),
             $requiredRole
         );
+    }
+
+    /**
+     * user-space 文件鉴权：要求 file 所属 user 与当前授权 user 完全一致（含组织）。
+     *
+     * user-space 没有协作角色概念，要么是文件 owner，要么拒绝；不区分 VIEWER/EDITOR/MANAGE。
+     */
+    protected function assertUserSpaceFileAccessible(TaskFileEntity $fileEntity, MagicUserAuthorization $authorization): void
+    {
+        $fileUserId = $fileEntity->getUserId();
+        $fileOrgCode = $fileEntity->getOrganizationCode();
+        if ($fileUserId === '' || $fileOrgCode === ''
+            || $fileUserId !== $authorization->getId()
+            || $fileOrgCode !== $authorization->getOrganizationCode()) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
+        }
     }
 }
