@@ -19,7 +19,7 @@ use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
-use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
+use App\Domain\Permission\Entity\ValueObject\RecomsourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityDepartment;
