@@ -164,6 +164,8 @@ Router::addGroup(
         Router::addGroup('/file', static function () {
             // 获取项目文件上传 STS Token
             Router::get('/project-upload-token', [OpenFileApi::class, 'getProjectUploadToken']);
+            // 批量获取文件 URL
+            Router::post('/get-urls', [OpenFileApi::class, 'getFileUrls']);
             // 保存项目附件关系
             Router::post('/project/save', [OpenFileApi::class, 'saveProjectFile']);
         });

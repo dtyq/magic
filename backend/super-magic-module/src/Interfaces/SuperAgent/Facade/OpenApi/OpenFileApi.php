@@ -13,6 +13,7 @@ use App\Infrastructure\Util\Context\RequestCoContext;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\ApiResponse\Annotation\ApiResponse;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileManagementAppService;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileUrlsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ProjectUploadTokenRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
@@ -43,6 +44,46 @@ class OpenFileApi extends AbstractApi
         $requestDTO = ProjectUploadTokenRequestDTO::fromRequest($this->request->all());
 
         return $this->fileManagementAppService->getProjectUploadToken($requestContext, $requestDTO);
+    }
+
+    /**
+     * Get multiple file URLs for the authenticated open-api caller.
+     */
+    public function getFileUrls(RequestContext $requestContext): array
+    {
+        $userAuthorization = RequestCoContext::getUserAuthorization();
+        if (empty($userAuthorization)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'user_authorization_not_found');
+        }
+
+        $requestContext->setUserAuthorization($userAuthorization);
+
+        $requestDTO = GetFileUrlsRequestDTO::fromRequest($this->request);
+
+        if ($requestDTO->getToken() !== '') {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'token is not supported in open-api');
+        }
+
+        if ($requestDTO->getIsDownload()) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, 'is_download is not supported in open-api');
+        }
+
+        $list = $this->fileManagementAppService->getFileUrls(
+            $requestContext,
+            $requestDTO->getFileIds(),
+            $requestDTO->getDownloadMode(),
+            ['cache' => $requestDTO->getCache()],
+            $requestDTO->getFileVersions()
+        );
+
+        $returnedFileIds = array_map(static fn (array $item): int => (int) ($item['file_id'] ?? 0), $list);
+        $missingFileIds = array_values(array_map('intval', array_diff($requestDTO->getFileIds(), $returnedFileIds)));
+
+        return [
+            'list' => $list,
+            'missing_file_ids' => $missingFileIds,
+            'partial_success' => ! empty($missingFileIds),
+        ];
     }
 
     /**
