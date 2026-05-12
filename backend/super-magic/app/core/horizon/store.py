@@ -66,8 +66,14 @@ class HorizonStore:
     """原子写入的 JSON 持久化，与 ChatHistory 同目录。"""
 
     def __init__(self, chat_history_dir: str, agent_name: str, agent_id: str) -> None:
+        self.agent_name = agent_name
+        self.agent_id = agent_id
         self._path = Path(chat_history_dir) / f"{agent_name}<{agent_id}>.horizon.json"
         self._path.parent.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def path(self) -> Path:
+        return self._path
 
     async def load(self) -> Optional[HorizonState]:
         if not await async_exists(self._path):

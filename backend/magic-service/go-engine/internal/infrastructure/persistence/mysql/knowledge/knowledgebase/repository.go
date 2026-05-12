@@ -11,7 +11,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
 	"magic/internal/infrastructure/logging"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
@@ -54,7 +54,7 @@ func NewBaseRepositoryWithCollectionMetaCache(
 	}
 }
 
-func buildInsertKnowledgeBaseParams(knowledgeBase *knowledgebase.KnowledgeBase) (mysqlsqlc.InsertKnowledgeBaseParams, error) {
+func buildInsertKnowledgeBaseParams(knowledgeBase *kbentity.KnowledgeBase) (mysqlsqlc.InsertKnowledgeBaseParams, error) {
 	retrieveConfigJSON, err := json.Marshal(knowledgeBase.RetrieveConfig)
 	if err != nil {
 		return mysqlsqlc.InsertKnowledgeBaseParams{}, fmt.Errorf("failed to marshal retrieve config: %w", err)
@@ -97,7 +97,7 @@ func buildInsertKnowledgeBaseParams(knowledgeBase *knowledgebase.KnowledgeBase) 
 		}
 		sourceType = sql.NullInt32{Int32: sourceTypeInt32, Valid: true}
 	}
-	knowledgeBaseType := string(knowledgebase.NormalizeKnowledgeBaseTypeOrDefault(knowledgeBase.KnowledgeBaseType))
+	knowledgeBaseType := string(kbentity.NormalizeKnowledgeBaseTypeOrDefault(knowledgeBase.KnowledgeBaseType))
 
 	return mysqlsqlc.InsertKnowledgeBaseParams{
 		Code:              knowledgeBase.Code,
@@ -129,12 +129,12 @@ func buildInsertKnowledgeBaseParams(knowledgeBase *knowledgebase.KnowledgeBase) 
 }
 
 // Save 保存知识库
-func (repo *BaseRepository) Save(ctx context.Context, knowledgeBase *knowledgebase.KnowledgeBase) error {
+func (repo *BaseRepository) Save(ctx context.Context, knowledgeBase *kbentity.KnowledgeBase) error {
 	return repo.save(ctx, repo.queries, knowledgeBase)
 }
 
 // SaveWithTx 在给定事务中保存知识库。
-func (repo *BaseRepository) SaveWithTx(ctx context.Context, tx *sql.Tx, knowledgeBase *knowledgebase.KnowledgeBase) error {
+func (repo *BaseRepository) SaveWithTx(ctx context.Context, tx *sql.Tx, knowledgeBase *kbentity.KnowledgeBase) error {
 	if tx == nil || repo == nil || repo.client == nil {
 		return repo.Save(ctx, knowledgeBase)
 	}
@@ -144,7 +144,7 @@ func (repo *BaseRepository) SaveWithTx(ctx context.Context, tx *sql.Tx, knowledg
 func (repo *BaseRepository) save(
 	ctx context.Context,
 	queries *mysqlsqlc.Queries,
-	knowledgeBase *knowledgebase.KnowledgeBase,
+	knowledgeBase *kbentity.KnowledgeBase,
 ) error {
 	now := time.Now()
 	knowledgeBase.CreatedAt = now
@@ -169,12 +169,12 @@ func (repo *BaseRepository) save(
 }
 
 // Update 更新知识库
-func (repo *BaseRepository) Update(ctx context.Context, knowledgeBase *knowledgebase.KnowledgeBase) error {
+func (repo *BaseRepository) Update(ctx context.Context, knowledgeBase *kbentity.KnowledgeBase) error {
 	return repo.update(ctx, repo.queries, knowledgeBase)
 }
 
 // UpdateWithTx 在给定事务中更新知识库。
-func (repo *BaseRepository) UpdateWithTx(ctx context.Context, tx *sql.Tx, knowledgeBase *knowledgebase.KnowledgeBase) error {
+func (repo *BaseRepository) UpdateWithTx(ctx context.Context, tx *sql.Tx, knowledgeBase *kbentity.KnowledgeBase) error {
 	if tx == nil || repo == nil || repo.client == nil {
 		return repo.Update(ctx, knowledgeBase)
 	}
@@ -184,7 +184,7 @@ func (repo *BaseRepository) UpdateWithTx(ctx context.Context, tx *sql.Tx, knowle
 func (repo *BaseRepository) update(
 	ctx context.Context,
 	queries *mysqlsqlc.Queries,
-	knowledgeBase *knowledgebase.KnowledgeBase,
+	knowledgeBase *kbentity.KnowledgeBase,
 ) error {
 	knowledgeBase.UpdatedAt = time.Now()
 
@@ -208,7 +208,7 @@ func (repo *BaseRepository) update(
 		}
 		sourceType = sql.NullInt32{Int32: sourceTypeInt32, Valid: true}
 	}
-	knowledgeBaseType := string(knowledgebase.NormalizeKnowledgeBaseTypeOrDefault(knowledgeBase.KnowledgeBaseType))
+	knowledgeBaseType := string(kbentity.NormalizeKnowledgeBaseTypeOrDefault(knowledgeBase.KnowledgeBaseType))
 
 	_, err = queries.UpdateKnowledgeBase(ctx, mysqlsqlc.UpdateKnowledgeBaseParams{
 		Name:              knowledgeBase.Name,
@@ -233,7 +233,7 @@ func (repo *BaseRepository) update(
 }
 
 // FindByID 根据 ID 查询知识库
-func (repo *BaseRepository) FindByID(ctx context.Context, id int64) (*knowledgebase.KnowledgeBase, error) {
+func (repo *BaseRepository) FindByID(ctx context.Context, id int64) (*kbentity.KnowledgeBase, error) {
 	row, err := repo.queries.FindKnowledgeBaseByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -245,7 +245,7 @@ func (repo *BaseRepository) FindByID(ctx context.Context, id int64) (*knowledgeb
 }
 
 // FindByCode 根据 Code 查询知识库
-func (repo *BaseRepository) FindByCode(ctx context.Context, code string) (*knowledgebase.KnowledgeBase, error) {
+func (repo *BaseRepository) FindByCode(ctx context.Context, code string) (*kbentity.KnowledgeBase, error) {
 	row, err := repo.queries.FindKnowledgeBaseByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -257,7 +257,7 @@ func (repo *BaseRepository) FindByCode(ctx context.Context, code string) (*knowl
 }
 
 // FindByCodeAndOrg 根据 Code 和组织查询知识库
-func (repo *BaseRepository) FindByCodeAndOrg(ctx context.Context, code, orgCode string) (*knowledgebase.KnowledgeBase, error) {
+func (repo *BaseRepository) FindByCodeAndOrg(ctx context.Context, code, orgCode string) (*kbentity.KnowledgeBase, error) {
 	row, err := repo.queries.FindKnowledgeBaseByCodeAndOrg(ctx, mysqlsqlc.FindKnowledgeBaseByCodeAndOrgParams{
 		Code:             code,
 		OrganizationCode: orgCode,

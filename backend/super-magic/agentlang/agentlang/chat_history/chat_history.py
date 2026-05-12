@@ -4,8 +4,10 @@
 """
 
 import asyncio
+import hashlib
 import json
 import os
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
@@ -38,6 +40,53 @@ logger = get_logger(__name__)
 # Horizon 注入消息的安全上限；超过此值说明历史中存在异常膨胀的 diff bomb，
 # 需要在 load 时自动修复以避免后续每轮都把垃圾内容发给 LLM
 _HORIZON_MSG_CONTENT_MAX_CHARS = 32 * 1024  # 32 KB
+_HORIZON_DIAGNOSTIC_BLOCK_TAGS = (
+    "current_time",
+    "initial_context",
+    "workspace_files",
+    "context_usage",
+    "model_info",
+    "workspace_files_changed",
+    "long_term_memory_changed",
+    "user_preferred_language_changed",
+    "file_changes",
+    "notifications",
+    "magiclaw_startup",
+)
+
+
+def _sha256_short(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()[:12]
+
+
+def _tag_total_len(content: str, tag: str) -> int:
+    normal_pattern = rf"<{tag}(?:\s[^>]*)?>.*?</{tag}>"
+    self_closing_pattern = rf"<{tag}(?:\s[^>]*)?/>"
+    normal_total = sum(len(match.group(0)) for match in re.finditer(normal_pattern, content, re.DOTALL))
+    self_closing_total = sum(len(match.group(0)) for match in re.finditer(self_closing_pattern, content))
+    return normal_total + self_closing_total
+
+
+def _format_horizon_block_lengths(content: str) -> str:
+    parts = [f"{tag}:{_tag_total_len(content, tag):,}" for tag in _HORIZON_DIAGNOSTIC_BLOCK_TAGS]
+    return "{" + ", ".join(parts) + "}"
+
+
+def _largest_xml_block(content: str, tag: str, path_attr: str) -> tuple[int, str, int]:
+    count = 0
+    largest_value = "none"
+    largest_len = 0
+    pattern = rf"<{tag}\b([^>]*)>.*?</{tag}>"
+    attr_pattern = rf'{path_attr}="([^"]+)"'
+    for match in re.finditer(pattern, content, re.DOTALL):
+        count += 1
+        block_len = len(match.group(0))
+        if block_len <= largest_len:
+            continue
+        largest_len = block_len
+        attr_match = re.search(attr_pattern, match.group(1))
+        largest_value = attr_match.group(1) if attr_match else "unknown"
+    return count, largest_value, largest_len
 
 
 @dataclass
@@ -476,11 +525,14 @@ class ChatHistory:
                         logger.error(f"加载历史时处理消息出错: {msg_dict}，错误: {e}", exc_info=True)
 
                 self.messages = loaded_messages
-                self._sanitize_oversized_messages()
-                fixes = self._sanitize_message_sequences()
-                if fixes > 0:
+                oversized_fixes = self._sanitize_oversized_messages()
+                sequence_fixes = self._sanitize_message_sequences()
+                if oversized_fixes + sequence_fixes > 0:
                     await self.save()
-                    logger.info(f"[ChatHistory] 序列修复已落盘")
+                    logger.info(
+                        f"[ChatHistory] load 修复已落盘: "
+                        f"oversized_horizon={oversized_fixes}, sequence={sequence_fixes}"
+                    )
                 logger.info(f"成功从 {self._history_file_path} 加载 {len(self.messages)} 条聊天记录。")
             else:
                 logger.warning(f"聊天记录文件格式无效 (不是列表): {self._history_file_path}")
@@ -649,31 +701,62 @@ class ChatHistory:
 
         return message
 
-    def _sanitize_oversized_messages(self) -> None:
+    def _log_removed_oversized_horizon_message(
+        self,
+        msg: UserMessage,
+        message_index: int,
+        content_len: int,
+    ) -> None:
+        content = msg.content
+        file_count, largest_file_path, largest_file_len = _largest_xml_block(content, "file", "path")
+        notification_count, largest_notification_source, largest_notification_len = _largest_xml_block(
+            content, "notification", "source"
+        )
+        logger.warning(
+            "[ChatHistory] removed oversized historical horizon message: "
+            f"agent_name={self.agent_name} "
+            f"agent_id={self.agent_id} "
+            f"history_file={self._history_file_path} "
+            f"message_index={message_index} "
+            f"created_at={getattr(msg, 'created_at', '')!r} "
+            f"content_len={content_len:,} "
+            f"limit={_HORIZON_MSG_CONTENT_MAX_CHARS:,} "
+            f"sha256={_sha256_short(content)} "
+            f"blocks={_format_horizon_block_lengths(content)} "
+            f"file_changes_count={file_count} "
+            f"largest_file_path={largest_file_path} "
+            f"largest_file_block_len={largest_file_len:,} "
+            f"notification_count={notification_count} "
+            f"largest_notification_source={largest_notification_source} "
+            f"largest_notification_len={largest_notification_len:,}"
+        )
+
+    def _sanitize_oversized_messages(self) -> int:
         """Load 时自动修复历史中异常膨胀的 horizon 注入消息。
 
         之前的 diff bug 可能导致 5MB+ 的内容被持久化到 source="horizon" 的 UserMessage 中，
         后续每轮 LLM 调用都会带上这些垃圾内容，直接撑爆上下文。
         修复后下次 save() 会自动落盘。
         """
-        for msg in self.messages:
+        sanitized_messages: List[ChatMessage] = []
+        fixes = 0
+        for idx, msg in enumerate(self.messages):
             if not isinstance(msg, UserMessage):
+                sanitized_messages.append(msg)
                 continue
             if getattr(msg, "source", None) != "horizon":
+                sanitized_messages.append(msg)
                 continue
             content_len = len(msg.content)
             if content_len <= _HORIZON_MSG_CONTENT_MAX_CHARS:
+                sanitized_messages.append(msg)
                 continue
-            msg.content = (
-                "<system_injected_context>\n"
-                "[auto-repaired: oversized historical context removed "
-                f"({content_len:,} chars, limit {_HORIZON_MSG_CONTENT_MAX_CHARS:,})]\n"
-                "</system_injected_context>"
-            )
-            logger.warning(
-                f"[ChatHistory] 修复异常膨胀的 horizon 消息: "
-                f"{content_len:,} chars → sanitized"
-            )
+            fixes += 1
+            self._log_removed_oversized_horizon_message(msg, idx, content_len)
+
+        if fixes > 0:
+            self.messages = sanitized_messages
+        return fixes
 
     def _sanitize_message_sequences(self) -> int:
         """Load 时对 self.messages 执行全量序列修复并持久化。
@@ -1079,7 +1162,8 @@ class ChatHistory:
                                  # --- 仅接受 TokenUsage 对象 ---
                                  token_usage: Optional[TokenUsage] = None,
                                  request_id: Optional[str] = None,
-                                 reasoning_content: Optional[str] = None
+                                 reasoning_content: Optional[str] = None,
+                                 interrupted: bool = False,
                                  ) -> None:
         """
         添加一条助手消息。
@@ -1161,7 +1245,8 @@ class ChatHistory:
             duration_ms=duration_ms,
             token_usage=token_usage,
             request_id=request_id,
-            reasoning_content=reasoning_content
+            reasoning_content=reasoning_content,
+            interrupted=interrupted,
         )
         await self.add_message(message)
 

@@ -22,6 +22,8 @@ import (
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
 	"magic/internal/domain/knowledge/shared"
 	sharedentity "magic/internal/domain/knowledge/shared/entity"
@@ -50,14 +52,14 @@ const (
 // 1) list/show 走真实返回与参数记录，用于断言跨层透传
 // 2) 其余方法显式返回未实现，避免测试误调用被静默吞掉
 type fakeKnowledgeBaseRepoForE2E struct {
-	listResult []*knowledgebasedomain.KnowledgeBase
+	listResult []*kbentity.KnowledgeBase
 	listTotal  int64
 	listErr    error
 
-	showResult *knowledgebasedomain.KnowledgeBase
+	showResult *kbentity.KnowledgeBase
 	showErr    error
 
-	lastQuery *knowledgebasedomain.Query
+	lastQuery *kbrepository.Query
 	lastCode  string
 	lastOrg   string
 }
@@ -70,7 +72,7 @@ type fakeFragmentServiceForE2E struct {
 }
 
 type fakeKnowledgeBaseReaderForFragmentE2E struct {
-	showResult *knowledgebasedomain.KnowledgeBase
+	showResult *kbentity.KnowledgeBase
 	showErr    error
 }
 
@@ -97,23 +99,29 @@ type fakeRebuildTriggerForE2E struct {
 	lastRunOptions rebuilddto.RunOptions
 }
 
-func (f *fakeKnowledgeBaseRepoForE2E) Save(_ context.Context, _ *knowledgebasedomain.KnowledgeBase) error {
+type rebuildReadyKnowledgeBaseAppForE2E struct{}
+
+func (*rebuildReadyKnowledgeBaseAppForE2E) PrepareRebuild(context.Context, string, kbapp.RebuildScope) error {
+	return nil
+}
+
+func (f *fakeKnowledgeBaseRepoForE2E) Save(_ context.Context, _ *kbentity.KnowledgeBase) error {
 	return errNotImplemented
 }
 
-func (f *fakeKnowledgeBaseRepoForE2E) Update(_ context.Context, _ *knowledgebasedomain.KnowledgeBase) error {
+func (f *fakeKnowledgeBaseRepoForE2E) Update(_ context.Context, _ *kbentity.KnowledgeBase) error {
 	return errNotImplemented
 }
 
-func (f *fakeKnowledgeBaseRepoForE2E) FindByID(_ context.Context, _ int64) (*knowledgebasedomain.KnowledgeBase, error) {
+func (f *fakeKnowledgeBaseRepoForE2E) FindByID(_ context.Context, _ int64) (*kbentity.KnowledgeBase, error) {
 	return nil, errNotImplemented
 }
 
-func (f *fakeKnowledgeBaseRepoForE2E) FindByCode(_ context.Context, _ string) (*knowledgebasedomain.KnowledgeBase, error) {
+func (f *fakeKnowledgeBaseRepoForE2E) FindByCode(_ context.Context, _ string) (*kbentity.KnowledgeBase, error) {
 	return nil, errNotImplemented
 }
 
-func (f *fakeKnowledgeBaseRepoForE2E) FindByCodeAndOrg(_ context.Context, code, orgCode string) (*knowledgebasedomain.KnowledgeBase, error) {
+func (f *fakeKnowledgeBaseRepoForE2E) FindByCodeAndOrg(_ context.Context, code, orgCode string) (*kbentity.KnowledgeBase, error) {
 	f.lastCode = code
 	f.lastOrg = orgCode
 	if f.showErr != nil {
@@ -122,13 +130,13 @@ func (f *fakeKnowledgeBaseRepoForE2E) FindByCodeAndOrg(_ context.Context, code, 
 	return f.showResult, nil
 }
 
-func (f *fakeKnowledgeBaseRepoForE2E) List(_ context.Context, query *knowledgebasedomain.Query) ([]*knowledgebasedomain.KnowledgeBase, int64, error) {
+func (f *fakeKnowledgeBaseRepoForE2E) List(_ context.Context, query *kbrepository.Query) ([]*kbentity.KnowledgeBase, int64, error) {
 	f.lastQuery = query
 	if f.listErr != nil {
 		return nil, 0, f.listErr
 	}
 	if f.listResult == nil {
-		return []*knowledgebasedomain.KnowledgeBase{}, 0, nil
+		return []*kbentity.KnowledgeBase{}, 0, nil
 	}
 	return f.listResult, f.listTotal, nil
 }
@@ -151,6 +159,44 @@ func (f *fakeFragmentServiceForE2E) Save(context.Context, *fragmodel.KnowledgeBa
 
 func (f *fakeFragmentServiceForE2E) Show(context.Context, int64) (*fragmodel.KnowledgeBaseFragment, error) {
 	return nil, errNotImplemented
+}
+
+func (f *fakeFragmentServiceForE2E) FindByPointIDs(_ context.Context, pointIDs []string) ([]*fragmodel.KnowledgeBaseFragment, error) {
+	if len(pointIDs) == 0 {
+		return []*fragmodel.KnowledgeBaseFragment{}, nil
+	}
+	byPointID := make(map[string]*fragmodel.KnowledgeBaseFragment, len(pointIDs))
+	for _, fragments := range f.listByDocument {
+		for _, fragment := range fragments {
+			if fragment == nil || fragment.PointID == "" {
+				continue
+			}
+			byPointID[fragment.PointID] = fragment
+		}
+	}
+	result := make([]*fragmodel.KnowledgeBaseFragment, 0, len(pointIDs))
+	for _, pointID := range pointIDs {
+		if fragment, ok := byPointID[pointID]; ok {
+			result = append(result, fragment)
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeFragmentServiceForE2E) ListContextByDocuments(
+	_ context.Context,
+	documentKeys []fragmodel.DocumentKey,
+	limit int,
+) (map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment, error) {
+	result := make(map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment, len(documentKeys))
+	for _, key := range documentKeys {
+		fragments := append([]*fragmodel.KnowledgeBaseFragment(nil), f.listByDocument[key.DocumentCode]...)
+		if limit > 0 && len(fragments) > limit {
+			fragments = fragments[:limit]
+		}
+		result[key] = fragments
+	}
+	return result, nil
 }
 
 func (f *fakeFragmentServiceForE2E) List(_ context.Context, query *fragmodel.Query) ([]*fragmodel.KnowledgeBaseFragment, int64, error) {
@@ -176,6 +222,18 @@ func (f *fakeFragmentServiceForE2E) Destroy(context.Context, *fragmodel.Knowledg
 	return errNotImplemented
 }
 
+func (*fakeFragmentServiceForE2E) DestroyBatch(context.Context, []*fragmodel.KnowledgeBaseFragment, string) error {
+	return nil
+}
+
+func (*fakeFragmentServiceForE2E) SetPayloadByPointIDs(context.Context, string, map[string]map[string]any) error {
+	return nil
+}
+
+func (*fakeFragmentServiceForE2E) ListPointIDsByFilter(context.Context, string, *fragmodel.VectorFilter, int) ([]string, error) {
+	return []string{}, nil
+}
+
 func (f *fakeFragmentServiceForE2E) SyncFragment(context.Context, any, *fragmodel.KnowledgeBaseFragment, *ctxmeta.BusinessParams) error {
 	return errNotImplemented
 }
@@ -193,14 +251,14 @@ func (*fakeFragmentServiceForE2E) WarmupRetrieval(context.Context) error {
 	return nil
 }
 
-func (f *fakeKnowledgeBaseReaderForFragmentE2E) Show(context.Context, string) (*knowledgebasedomain.KnowledgeBase, error) {
+func (f *fakeKnowledgeBaseReaderForFragmentE2E) Show(context.Context, string) (*kbentity.KnowledgeBase, error) {
 	if f.showErr != nil {
 		return nil, f.showErr
 	}
 	return f.showResult, nil
 }
 
-func (f *fakeKnowledgeBaseReaderForFragmentE2E) ShowByCodeAndOrg(context.Context, string, string) (*knowledgebasedomain.KnowledgeBase, error) {
+func (f *fakeKnowledgeBaseReaderForFragmentE2E) ShowByCodeAndOrg(context.Context, string, string) (*kbentity.KnowledgeBase, error) {
 	if f.showErr != nil {
 		return nil, f.showErr
 	}
@@ -209,21 +267,21 @@ func (f *fakeKnowledgeBaseReaderForFragmentE2E) ShowByCodeAndOrg(context.Context
 
 func (f *fakeKnowledgeBaseReaderForFragmentE2E) List(
 	_ context.Context,
-	query *knowledgebasedomain.Query,
-) ([]*knowledgebasedomain.KnowledgeBase, int64, error) {
+	query *kbrepository.Query,
+) ([]*kbentity.KnowledgeBase, int64, error) {
 	if f.showErr != nil {
 		return nil, 0, f.showErr
 	}
 	if f.showResult == nil {
-		return []*knowledgebasedomain.KnowledgeBase{}, 0, nil
+		return []*kbentity.KnowledgeBase{}, 0, nil
 	}
 	if query != nil && len(query.Codes) > 0 && !slices.Contains(query.Codes, f.showResult.Code) {
-		return []*knowledgebasedomain.KnowledgeBase{}, 0, nil
+		return []*kbentity.KnowledgeBase{}, 0, nil
 	}
-	return []*knowledgebasedomain.KnowledgeBase{f.showResult}, 1, nil
+	return []*kbentity.KnowledgeBase{f.showResult}, 1, nil
 }
 
-func (f *fakeKnowledgeBaseReaderForFragmentE2E) ResolveRuntimeRoute(_ context.Context, kb *knowledgebasedomain.KnowledgeBase) sharedroute.ResolvedRoute {
+func (f *fakeKnowledgeBaseReaderForFragmentE2E) ResolveRuntimeRoute(_ context.Context, kb *kbentity.KnowledgeBase) sharedroute.ResolvedRoute {
 	collectionName := constants.KnowledgeBaseCollectionName
 	if kb != nil && kb.CollectionName() != "" {
 		collectionName = kb.CollectionName()
@@ -318,11 +376,11 @@ func (f *fakeDocumentQueryAppForE2E) Update(context.Context, *docdto.UpdateDocum
 	return nil, errNotImplemented
 }
 
-func (f *fakeDocumentQueryAppForE2E) Show(context.Context, string, string, string) (*docdto.DocumentDTO, error) {
+func (f *fakeDocumentQueryAppForE2E) Show(context.Context, string, string, string, string) (*docdto.DocumentDTO, error) {
 	return nil, errNotImplemented
 }
 
-func (f *fakeDocumentQueryAppForE2E) GetOriginalFileLink(context.Context, string, string, string) (*docdto.OriginalFileLinkDTO, error) {
+func (f *fakeDocumentQueryAppForE2E) GetOriginalFileLink(context.Context, string, string, string, string) (*docdto.OriginalFileLinkDTO, error) {
 	return &docdto.OriginalFileLinkDTO{}, nil
 }
 
@@ -344,7 +402,7 @@ func (f *fakeDocumentQueryAppForE2E) CountByKnowledgeBaseCodes(context.Context, 
 	return nil, errNotImplemented
 }
 
-func (f *fakeDocumentQueryAppForE2E) Destroy(context.Context, string, string, string) error {
+func (f *fakeDocumentQueryAppForE2E) Destroy(context.Context, string, string, string, string) error {
 	return errNotImplemented
 }
 
@@ -475,7 +533,6 @@ func setupKnowledgeHandlersForE2EWithCounter(repo *fakeKnowledgeBaseRepoForE2E, 
 }
 
 func setupKnowledgeAndDocumentHandlersForE2E(
-	repo *fakeKnowledgeBaseRepoForE2E,
 	rebuildTrigger *fakeRebuildTriggerForE2E,
 	documentApp *fakeDocumentQueryAppForE2E,
 ) map[string]jsonrpc.ServerHandler {
@@ -483,10 +540,7 @@ func setupKnowledgeAndDocumentHandlersForE2E(
 		Level:  autoloadcfg.LogLevelInfo,
 		Format: autoloadcfg.LogFormatJSON,
 	})
-	domain := knowledgebasedomain.NewDomainService(repo, nil, nil, "text-embedding-3-large", "", logger)
-	kbApp := kbapp.NewKnowledgeBaseAppService(domain, nil, logger, "text-embedding-3-large")
-	kbApp.SetKnowledgeBasePermissionReader(&fakeKnowledgeBasePermissionReaderForE2E{repo: repo})
-	kbRPC := knowledgeService.NewKnowledgeBaseRPCService(kbApp, rebuildTrigger, nil, logger)
+	kbRPC := knowledgeService.NewKnowledgeBaseRPCService(&rebuildReadyKnowledgeBaseAppForE2E{}, rebuildTrigger, nil, logger)
 	documentRPC := knowledgeService.NewDocumentRPCServiceWithDependencies(documentApp, logger)
 
 	router := &captureRouter{}
@@ -614,7 +668,7 @@ func TestE2E_KnowledgeBaseShow_ResolveOrganizationIDFallback(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeKnowledgeBaseRepoForE2E{
-		showResult: &knowledgebasedomain.KnowledgeBase{
+		showResult: &kbentity.KnowledgeBase{
 			Code:      "KNOWLEDGE-TEST",
 			CreatedAt: time.Unix(1772001461, 0),
 			UpdatedAt: time.Unix(1772001501, 0),
@@ -651,7 +705,7 @@ func TestE2E_KnowledgeBaseShow_ResponseIncludesFragmentCounts(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeKnowledgeBaseRepoForE2E{
-		showResult: &knowledgebasedomain.KnowledgeBase{
+		showResult: &kbentity.KnowledgeBase{
 			Code:      "KNOWLEDGE-TEST",
 			CreatedAt: time.Unix(1772001461, 0),
 			UpdatedAt: time.Unix(1772001501, 0),
@@ -762,7 +816,7 @@ func TestE2E_FragmentQueries_StableFragmentAndPointCountsByDocument(t *testing.T
 		},
 	}
 	handlers := setupFragmentHandlersForE2E(t, service, &fakeKnowledgeBaseReaderForFragmentE2E{
-		showResult: &knowledgebasedomain.KnowledgeBase{Code: "KB1"},
+		showResult: &kbentity.KnowledgeBase{Code: "KB1"},
 	})
 	handler := mustGetHandler(t, handlers, constants.MethodFragmentList)
 
@@ -842,7 +896,7 @@ func TestE2E_FragmentSimilarity_ReturnsExpectedRecallContent(t *testing.T) {
 		},
 	}
 	handlers := setupFragmentHandlersForE2E(t, service, &fakeKnowledgeBaseReaderForFragmentE2E{
-		showResult: &knowledgebasedomain.KnowledgeBase{Code: "KB1"},
+		showResult: &kbentity.KnowledgeBase{Code: "KB1"},
 	})
 	handler := mustGetHandler(t, handlers, constants.MethodFragmentSimilarity)
 
@@ -927,7 +981,7 @@ func TestE2E_RebuildTrigger_ThenDocumentQueries_ConvergesFailedToSuccess(t *test
 		now:   func() time.Time { return rebuiltAt },
 		runID: testRebuildRunID,
 	}
-	handlers := setupKnowledgeAndDocumentHandlersForE2E(&fakeKnowledgeBaseRepoForE2E{}, rebuildTrigger, documentApp)
+	handlers := setupKnowledgeAndDocumentHandlersForE2E(rebuildTrigger, documentApp)
 	rebuildHandler := mustGetHandler(t, handlers, constants.MethodKnowledgeBaseRebuild)
 	documentListHandler := mustGetHandler(t, handlers, constants.MethodDocumentList)
 
@@ -989,7 +1043,7 @@ func decodeSingleListItem(t *testing.T, page *rpcdto.KnowledgeBasePageResponse) 
 func newListContractRepo() *fakeKnowledgeBaseRepoForE2E {
 	// 构造一条最小但能覆盖兼容点的知识库数据。
 	return &fakeKnowledgeBaseRepoForE2E{
-		listResult: []*knowledgebasedomain.KnowledgeBase{
+		listResult: []*kbentity.KnowledgeBase{
 			{
 				ID:               1,
 				Code:             "KNOWLEDGE-TEST",

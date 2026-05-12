@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/net/html"
 
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	documentdomain "magic/internal/domain/knowledge/document/metadata"
 )
 
 // HTMLParser 解析 HTML 文档。
@@ -98,6 +98,9 @@ func (p *HTMLParser) ParseDocumentWithOptions(
 	blocks := p.htmlRenderer.renderBlocks(ctx, fileURL, root, ocrHelper)
 	parsed := documentdomain.NewPlainTextParsedDocument(fileType, strings.Join(filterNonEmptyStrings(blocks), "\n\n"))
 	ocrHelper.apply(parsed)
+	if err := failIfEmptyDueToOCROverload(parsed, ocrHelper); err != nil {
+		return nil, err
+	}
 	return parsed, nil
 }
 

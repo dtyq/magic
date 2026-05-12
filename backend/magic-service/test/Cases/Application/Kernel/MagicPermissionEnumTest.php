@@ -69,6 +69,8 @@ class MagicPermissionEnumTest extends HttpTestCase
         $this->assertTrue($this->permission->isValidPermission(MagicPermission::PLATFORM_PERMISSIONS));
         $this->assertTrue($this->permission->isValidPermission('workspace.ai.model_management.query'));
         $this->assertTrue($this->permission->isValidPermission('workspace.ai.image_generation.edit'));
+        $this->assertTrue($this->permission->isValidPermission('admin.ai.model_access_role.query'));
+        $this->assertTrue($this->permission->isValidPermission('admin.ai.model_access_role.edit'));
         $this->assertFalse($this->permission->isValidPermission('admin.ai.model_management.query'));
         $this->assertFalse($this->permission->isValidPermission('workspace.ai.model_management.manage'));
     }
@@ -89,6 +91,7 @@ class MagicPermissionEnumTest extends HttpTestCase
 
         $this->assertTrue($this->containsPermissionKey($tree, 'workspace.ai.model_management.query'));
         $this->assertTrue($this->containsPermissionKey($tree, 'workspace.ai.image_generation.edit'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'admin.ai.model_access_role.query'));
         $this->assertFalse($this->containsPermissionKey($tree, 'platform.ai.model_management.query'));
     }
 

@@ -18,7 +18,7 @@
 - Go 角色：IPC 服务端，监听 `runtime/magic_engine.sock`
 - PHP 角色：IPC 客户端，连接 Go；同时暴露一组 RPC 方法供 Go 回调
 - 部署关系：PHP 与 Go 仍然运行在同一个 `magic-service` 工作目录下，但**不是**入口脚本双进程编排模式
-- 当前生产/测试链路里，Go 由 PHP 启动阶段触发自启动；Go 启动失败时，PHP 继续以降级模式存活
+- 当前生产/测试链路里，Go 由 PHP 启动阶段触发自启动，并由 PHP 内建 supervisor 托管生命周期；Go 启动失败时，PHP 继续以降级模式存活
 
 ---
 
@@ -33,6 +33,15 @@
 - [`backend/magic-service/app/Infrastructure/Rpc/Listener/StartRpcClientListener.php`](/Users/liangpeng/Documents/kk/magic/backend/magic-service/app/Infrastructure/Rpc/Listener/StartRpcClientListener.php)
   - 在 `MainCoroutineServerStart` 时尝试启动 Go
   - 然后启动 PHP 侧 `RpcClientManager`
+- [`backend/magic-service/app/Infrastructure/Rpc/Lifecycle/GoEngineBootstrapService.php`](/Users/liangpeng/Documents/kk/magic/backend/magic-service/app/Infrastructure/Rpc/Lifecycle/GoEngineBootstrapService.php)
+  - 负责首次启动决策：复用已有连接、等待已有 socket，或启动新的 Go 进程
+  - 首次启动完成后把 Go 进程句柄交给 supervisor
+- [`backend/magic-service/app/Infrastructure/Rpc/Lifecycle/GoEngineSupervisor.php`](/Users/liangpeng/Documents/kk/magic/backend/magic-service/app/Infrastructure/Rpc/Lifecycle/GoEngineSupervisor.php)
+  - 常驻协程托管 Go 进程生命周期
+  - 负责检测进程退出、RPC 长时间不健康和 stale socket，并按需重启 Go
+- [`backend/magic-service/app/Infrastructure/Rpc/Lifecycle/GoEngineProcessStarter.php`](/Users/liangpeng/Documents/kk/magic/backend/magic-service/app/Infrastructure/Rpc/Lifecycle/GoEngineProcessStarter.php)
+  - 默认使用结构化 `proc_open([$executable, ...$args], ..., $workDir, $env)` 启动 Go
+  - 不经过 shell，不支持 legacy command 分支
 
 #### RPC Runtime
 - [`backend/magic-service/app/Infrastructure/Rpc/JsonRpc/JsonRpcRuntimeClient.php`](/Users/liangpeng/Documents/kk/magic/backend/magic-service/app/Infrastructure/Rpc/JsonRpc/JsonRpcRuntimeClient.php)
@@ -102,6 +111,15 @@ PHP 侧 IPC 启动和连接参数来自：
 CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine
 ```
 
+它是展示用等价命令。当前实现不是通过 shell 执行这串命令，而是结构化启动：
+
+- `workDir`: `BASE_PATH`
+- `executable`: `./bin/magic-go-engine`
+- `arguments`: `[]`
+- `environment.CONFIG_FILE`: `./magic-go-engine-config.yaml`
+
+PHP 会把当前进程环境变量传给 Go，并覆盖/补充 `CONFIG_FILE`。
+
 ---
 
 ## 5. 启动链路
@@ -113,9 +131,18 @@ CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine
 3. `start.sh` 启动 PHP：`php bin/hyperf.php start`
 4. PHP 进入 `MainCoroutineServerStart`
 5. [`StartRpcClientListener`](/Users/liangpeng/Documents/kk/magic/backend/magic-service/app/Infrastructure/Rpc/Listener/StartRpcClientListener.php#L58) 检查 Go socket 是否已可连
-6. 若不可连，则用 `proc_open(['/bin/sh', '-c', 'cd ... && CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine'])` 拉起 Go
-7. PHP 等待 socket ready，随后启动 `RpcClientManager`
+6. 若不可连且允许自动启动，则用 structured `proc_open` 拉起 Go
+7. PHP 启动 `RpcClientManager`，等待 Go socket ready
 8. PHP 与 Go 完成 `ipc.hello` 握手并开始心跳
+9. PHP 启动 `GoEngineSupervisor` 常驻协程，托管 Go 进程后续生命周期
+
+默认 structured 启动等价于：
+
+```bash
+cd /opt/www && CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine
+```
+
+实际实现是直接 argv 执行，因此 PHP 记录的 pid 就是 Go 进程 pid。
 
 ### 本地开发
 
@@ -174,19 +201,27 @@ cd .. && CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine
 ### Go 进程生命周期
 
 - Go 不是容器入口脚本直接拉起的，而是 PHP 启动阶段按需拉起
+- 默认启动方式是 structured `proc_open`，PHP 持有 Go 进程句柄
 - Go 收到 `SIGINT/SIGTERM` 后会走优雅关闭
-- PHP 退出时，`StartRpcClientListener` 只会停止 PHP 侧 `RpcClientManager`，不会在 PHP 内显式托管 Go 的整个生命周期
+- PHP 退出时，`GoEngineBootstrapService::shutdown()` 会先停止 supervisor，再停止 PHP 侧 `RpcClientManager`
+- supervisor 停止时会终止当前托管的 Go 进程，避免 PHP shutdown 期间误重启
 
 ### 故障策略
 
 - Go 启动失败：
   - PHP 记录错误
   - PHP 继续存活，进入降级模式
-- Go 运行中断开：
-  - PHP 侧 `RpcClientManager` 按既有重试策略重连
+- Go 运行中进程退出：
+  - supervisor 记录 `process_exited`，关闭旧 RPC client，清理 stale socket，并重新启动 Go
+- RPC 断开但 Go 进程仍运行：
+  - `RpcClientManager` 先按既有 keepalive 策略重连
+  - 超过 `IPC_ENGINE_SUPERVISOR_RPC_UNHEALTHY_SECONDS` 后，supervisor 终止并重启 Go
+- Go 重启失败：
+  - supervisor 按 backoff 重试
+  - PHP 请求线程不参与拉起 Go，请求仍 fail-fast
 - PHP 不会因为 Go 不可用而立即退出
 
-这也是当前 `/heartbeat` 需要单独看待的原因：它反映的是运行健康状态，不是容器内进程编排器。
+这也是当前 `/heartbeat` 需要单独看待的原因：它反映的是运行健康状态，不会在探针请求里触发启动、重启或真实 UDS 探测。
 
 ---
 
@@ -203,6 +238,17 @@ cd .. && CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine
 - `rpc_connected` 直接反映 `RpcClientManager` 当前是否已连通
 - `socket_connectable` 是兼容字段，现与 `rpc_connected` 同步，不再触发真实 UDS 探测
 - `go_alive` 表示当前 RPC 状态是否仍处于可接受区间：`ready` 与 `degraded` 为 `true`
+- `meta.supervisor` 暴露 PHP supervisor 的只读状态：
+  - `enabled`
+  - `running`
+  - `restarting`
+  - `go_pid`
+  - `go_pid_type`
+  - `go_uptime_seconds`
+  - `restart_count`
+  - `last_restart_reason`
+  - `last_exit_code`
+  - `current_backoff_ms`
 
 因此：
 
@@ -216,8 +262,24 @@ cd .. && CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine
 ### PHP 侧
 
 - IPC 配置文件：[`backend/magic-service/config/autoload/ipc.php`](/Users/liangpeng/Documents/kk/magic/backend/magic-service/config/autoload/ipc.php)
-- 默认 Go 启动命令：`CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine`
+- 默认 Go 启动方式：结构化 `proc_open([$executable, ...$args], ..., $workDir, $env)`
+- 默认 Go executable：`./bin/magic-go-engine`
+- 默认 Go config file：`./magic-go-engine-config.yaml`
+- 默认 Go 等价启动命令：`CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine`
 - 默认 Go socket：`BASE_PATH/runtime/magic_engine.sock`
+
+关键环境变量：
+
+- `IPC_ENGINE_EXECUTABLE`
+- `IPC_ENGINE_ARGUMENTS_JSON`
+- `IPC_ENGINE_CONFIG_FILE`
+- `IPC_ENGINE_ENV_JSON`
+- `IPC_ENGINE_SUPERVISOR_ENABLED`
+- `IPC_ENGINE_SUPERVISOR_INTERVAL_SECONDS`
+- `IPC_ENGINE_SUPERVISOR_RPC_UNHEALTHY_SECONDS`
+- `IPC_ENGINE_SUPERVISOR_RESTART_BACKOFF_MS`
+- `IPC_ENGINE_SUPERVISOR_RESTART_MAX_BACKOFF_MS`
+- `IPC_ENGINE_SUPERVISOR_TERMINATE_GRACE_SECONDS`
 
 ### Go 侧
 
@@ -231,6 +293,8 @@ cd .. && CONFIG_FILE=./magic-go-engine-config.yaml ./bin/magic-go-engine
 
 - PHP 入口脚本是否仍只启动 PHP，而不是双进程编排
 - Go 默认配置文件名是否统一为 `magic-go-engine-config.yaml`
-- PHP 默认启动命令、Go loader、开发态 air 运行命令是否都指向同一个配置文件
+- PHP structured 启动、Go loader、开发态 air 运行命令是否都指向同一个配置文件
 - `magic-service/.env` 是否仍是 PHP 与 Go 共用的环境变量入口
+- supervisor 是否只在 `IPC_RPC_CLIENT_ENABLED=true`、`IPC_ENGINE_AUTO_START=true`、`IPC_ENGINE_SUPERVISOR_ENABLED=true` 时启用
+- 请求线程是否仍保持 fail-fast，不在业务请求里启动或重启 Go
 - `/heartbeat` 的部署语义是否与当前“Go 可降级、PHP 继续存活”的策略一致

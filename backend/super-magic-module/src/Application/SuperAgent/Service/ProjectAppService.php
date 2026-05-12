@@ -253,7 +253,8 @@ class ProjectAppService extends AbstractAppService
             $this->logger->info(sprintf('创建默认项目, projectId=%s', $projectEntity->getId()));
 
             // Standard initialization flow (steps 2-6 + 8)
-            $topicEntity = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity);
+            $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
+            $topicEntity = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams);
 
             // 7. Initialize project root directory or bind files
             if ($requestDTO->getFiles()) {
@@ -2251,6 +2252,10 @@ class ProjectAppService extends AbstractAppService
         $hiddenTopic->setHiddenType(null);
         $hiddenTopic->setUpdatedUid($dataIsolation->getCurrentUserId());
         $hiddenTopic->setUpdatedAt(date('Y-m-d H:i:s'));
+        // 将当前请求的动态参数写入话题
+        if (! empty($requestDTO->getDynamicParams())) {
+            $hiddenTopic->setDynamicParams($requestDTO->getDynamicParams());
+        }
 
         $this->topicDomainService->saveTopicEntity($hiddenTopic);
 
@@ -2289,7 +2294,8 @@ class ProjectAppService extends AbstractAppService
     private function initializeProject(
         DataIsolation $dataIsolation,
         ?WorkspaceEntity $workspaceEntity,
-        ProjectEntity $projectEntity
+        ProjectEntity $projectEntity,
+        ?array $dynamicParams = null
     ): TopicEntity {
         // 2. Get project work directory
         $workDir = WorkDirectoryUtil::getWorkDir(
@@ -2310,7 +2316,13 @@ class ProjectAppService extends AbstractAppService
             $chatConversationId,
             $chatConversationTopicId,
             '',
-            $workDir
+            $workDir,
+            '',
+            CreationSource::USER_CREATED->value,
+            '',
+            false,
+            null,
+            $dynamicParams
         );
         $this->logger->info(sprintf('创建默认话题成功, topicId=%s', $topicEntity->getId()));
 

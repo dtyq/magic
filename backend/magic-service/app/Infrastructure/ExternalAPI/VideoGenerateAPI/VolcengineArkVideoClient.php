@@ -109,6 +109,17 @@ readonly class VolcengineArkVideoClient
                 'elapsed_ms' => $this->calculateElapsedMilliseconds($startedAt),
                 'error' => $errorMessage,
             ]);
+
+            // 如果id没有找到，则需要返回异常
+            try {
+                $errorMessageArr = Json::decode($errorMessage);
+                if (in_array($errorMessageArr['error']['code'] ?? '', ['ResourceNotFound'])) {
+                    $errorMessageArr['status'] = 'error';
+                    return $errorMessageArr;
+                }
+            } catch (Throwable $throwable) {
+            }
+
             throw new ProviderVideoException($this->formatRequestExceptionMessage($errorMessage), $exception);
         } catch (Throwable $throwable) {
             $this->logger->error('volcengine ark video error', [
@@ -154,7 +165,7 @@ readonly class VolcengineArkVideoClient
                 $error = is_array($payload['error'] ?? null) ? $payload['error'] : [];
                 $errorCode = trim((string) ($error['code'] ?? ''));
                 if ($errorCode !== '') {
-                    $key = sprintf('video.errors.volcengine.%s', $errorCode);
+                    $key = sprintf('video.errors.%s', $errorCode);
                     $translated = __($key);
                     if (is_string($translated) && $translated !== '' && $translated !== $key) {
                         return $translated;

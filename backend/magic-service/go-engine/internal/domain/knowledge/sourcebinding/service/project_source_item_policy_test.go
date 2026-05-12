@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	sourcebinding "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebindingservice "magic/internal/domain/knowledge/sourcebinding/service"
 	"magic/internal/pkg/projectfile"
 )
 
@@ -12,7 +12,7 @@ func TestBuildProjectSourceItemUsesAppPreparedSnapshotMetaAndFallbackContentHash
 	t.Parallel()
 
 	resolvedAt := time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC)
-	item, err := sourcebinding.BuildProjectSourceItem(sourcebinding.ProjectSourceItemInput{
+	item, err := sourcebindingservice.BuildProjectSourceItem(sourcebindingservice.ProjectSourceItemInput{
 		OrganizationCode: "ORG1",
 		RootRef:          "900",
 		Resolved: &projectfile.ResolveResult{

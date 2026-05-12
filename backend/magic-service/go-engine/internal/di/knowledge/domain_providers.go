@@ -3,12 +3,15 @@ package knowledge
 
 import (
 	autoloadcfg "magic/internal/config/autoload"
+	docrepo "magic/internal/domain/knowledge/document/repository"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	embeddingdomain "magic/internal/domain/knowledge/embedding"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
+	kbrepo "magic/internal/domain/knowledge/knowledgebase/repository"
 	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	"magic/internal/infrastructure/logging"
 )
 
@@ -46,7 +49,7 @@ func ProvideKnowledgeBaseDomainConfig(
 
 // ProvideKnowledgeBaseDomainService 提供知识库领域服务。
 func ProvideKnowledgeBaseDomainService(
-	repo knowledgebasedomain.Repository,
+	repo kbrepo.Repository,
 	vectorRepo fragmodel.VectorDBManagementRepository,
 	dimensionResolver embeddingdomain.DimensionResolver,
 	cfg BaseDomainConfig,
@@ -80,7 +83,7 @@ func ProvideFragmentRetrievalSegmenterProvider() *fragretrieval.SegmenterProvide
 func ProvideFragmentDomainInfra(
 	vectorMgmtRepo fragmodel.VectorDBManagementRepository,
 	vectorDataRepo FragmentVectorDBDataRepository,
-	metaReader knowledgebasedomain.CollectionMetaReader,
+	metaReader sharedroute.CollectionMetaReader,
 	defaultEmbeddingModel autoloadcfg.EmbeddingDefaultModel,
 	segmenterProvider *fragretrieval.SegmenterProvider,
 	logger *logging.SugaredLogger,
@@ -97,7 +100,7 @@ func ProvideFragmentDomainInfra(
 
 // ProvideDocumentDomainService 提供文档领域服务。
 func ProvideDocumentDomainService(
-	repo documentdomain.KnowledgeBaseDocumentRepository,
+	repo docrepo.KnowledgeBaseDocumentRepository,
 	logger *logging.SugaredLogger,
 ) *documentdomain.DomainService {
 	return documentdomain.NewDocumentDomainService(repo, logger)

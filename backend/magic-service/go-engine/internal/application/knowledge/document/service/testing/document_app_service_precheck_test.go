@@ -9,8 +9,9 @@ import (
 	"time"
 
 	documentapp "magic/internal/application/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentdomain "magic/internal/domain/knowledge/document/service"
-	knowledgebase "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/thirdplatform"
 	"magic/internal/pkg/tokenizer"
@@ -60,8 +61,8 @@ func TestPreflightDocumentSourceForTest_ReturnsPrecheckError(t *testing.T) {
 		Tokenizer:    tokenizer.NewService(),
 	}, logging.New())
 
-	doc := &documentdomain.KnowledgeBaseDocument{
-		DocumentFile: &documentdomain.File{URL: "DT001/path/to/file.md"},
+	doc := &docentity.KnowledgeBaseDocument{
+		DocumentFile: &docentity.File{URL: "DT001/path/to/file.md"},
 	}
 	err := documentapp.PreflightDocumentSourceForTest(context.Background(), appSvc, doc)
 	if err == nil {
@@ -90,9 +91,9 @@ func TestPreflightDocumentSourceForTest_SkipWhenThirdPlatformPortEnabled(t *test
 		Tokenizer:                 tokenizer.NewService(),
 	}, logging.New())
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		ThirdFileID: "third-file-1",
-		DocumentFile: &documentdomain.File{
+		DocumentFile: &docentity.File{
 			Type: "third_platform",
 		},
 	}
@@ -118,7 +119,7 @@ func TestPreflightDocumentSourceForTest_ProjectFileSkipsGenericURLStat(t *testin
 		t,
 		&documentDomainServiceStub{},
 		&knowledgeBaseReaderStub{
-			showByCodeAndOrgResult: &knowledgebase.KnowledgeBase{
+			showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 				Code:             "KB1",
 				OrganizationCode: "ORG1",
 			},
@@ -132,11 +133,11 @@ func TestPreflightDocumentSourceForTest_ProjectFileSkipsGenericURLStat(t *testin
 		},
 	})
 
-	doc := &documentdomain.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		KnowledgeBaseCode: "KB1",
 		OrganizationCode:  "ORG1",
 		ProjectFileID:     501,
-		DocumentFile: &documentdomain.File{
+		DocumentFile: &docentity.File{
 			Type:       "project_file",
 			SourceType: "project",
 			Name:       "demo.md",

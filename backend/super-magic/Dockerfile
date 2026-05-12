@@ -13,7 +13,6 @@ ENV TZ=${TZ} \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONUTF8=1 \
-    TIKTOKEN_CACHE_DIR=/app/tiktoken_cache \
     AUTO_REGENERATE_TOOL_DEFINITIONS=false \
     UNZIP="-O UTF-8" \
     ZIPINFO="-O UTF-8"
@@ -145,19 +144,14 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-pip-${TARGETARCH},target=/roo
     pip install \
         --prefer-binary \
         uv \
-        tiktoken \
         -r requirements.txt \
         -r requirements_sandbox.txt && \
     opentelemetry-bootstrap -a install && \
     python /app/deploy/setup_font.py
 
-# 安装项目并预加载 tiktoken
+# 安装项目
 COPY . .
-COPY scripts/preload_tiktoken.py /app/scripts/preload_tiktoken.py
-RUN mkdir -p /app/tiktoken_cache && \
-    chmod 777 /app/tiktoken_cache && \
-    pip install ./agentlang && \
-    python3 /app/scripts/preload_tiktoken.py && \
+RUN pip install ./agentlang && \
     python3 main.py tools generate
 
 # 还原镜像源

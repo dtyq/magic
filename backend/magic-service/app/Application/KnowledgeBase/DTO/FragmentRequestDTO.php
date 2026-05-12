@@ -23,12 +23,13 @@ readonly class FragmentRequestDTO
         public array $documentFile = [],
         public array $strategyConfig = [],
         public array $fragmentConfig = [],
-        public bool $debug = false,
+        public mixed $debug = false,
         public ?BusinessParamsDTO $businessParams = null,
         public array $knowledgeCodes = [],
         public string $question = '',
         public array $metadataFilter = [],
         public string $businessId = '',
+        public string $acceptEncoding = '',
     ) {
     }
 
@@ -65,23 +66,13 @@ readonly class FragmentRequestDTO
         );
     }
 
-    public static function forSync(int $fragmentId, string $knowledgeCode, DataIsolationDTO $dataIsolation, BusinessParamsDTO $businessParams): self
-    {
-        return new self(
-            dataIsolation: $dataIsolation,
-            id: $fragmentId,
-            knowledgeCode: $knowledgeCode,
-            businessParams: $businessParams
-        );
-    }
-
     public static function forSimilarity(
         string $knowledgeCode,
         string $queryText,
         int $topK,
         float $scoreThreshold,
         DataIsolationDTO $dataIsolation,
-        bool $debug,
+        mixed $debug,
         BusinessParamsDTO $businessParams,
     ): self {
         return new self(
@@ -103,7 +94,7 @@ readonly class FragmentRequestDTO
         ?float $scoreThreshold,
         array $metadataFilter,
         DataIsolationDTO $dataIsolation,
-        bool $debug,
+        mixed $debug,
         BusinessParamsDTO $businessParams,
     ): self {
         return new self(
@@ -155,13 +146,64 @@ readonly class FragmentRequestDTO
         array $documentFile,
         array $strategyConfig,
         array $fragmentConfig,
-        DataIsolationDTO $dataIsolation
+        DataIsolationDTO $dataIsolation,
+        ?string $documentCode = null,
     ): self {
         return new self(
             dataIsolation: $dataIsolation,
+            documentCode: $documentCode,
             documentFile: $documentFile,
             strategyConfig: $strategyConfig,
             fragmentConfig: $fragmentConfig
+        );
+    }
+
+    public static function forListPassthrough(array $query, DataIsolationDTO $dataIsolation, string $acceptEncoding): self
+    {
+        return new self(
+            dataIsolation: $dataIsolation,
+            query: $query,
+            acceptEncoding: $acceptEncoding,
+        );
+    }
+
+    public static function forPreviewPassthrough(
+        array $documentFile,
+        array $strategyConfig,
+        array $fragmentConfig,
+        DataIsolationDTO $dataIsolation,
+        string $acceptEncoding,
+        ?string $documentCode = null,
+    ): self {
+        return new self(
+            dataIsolation: $dataIsolation,
+            documentCode: $documentCode,
+            documentFile: $documentFile,
+            strategyConfig: $strategyConfig,
+            fragmentConfig: $fragmentConfig,
+            acceptEncoding: $acceptEncoding,
+        );
+    }
+
+    public static function forSimilarityPassthrough(
+        string $knowledgeCode,
+        string $queryText,
+        int $topK,
+        float $scoreThreshold,
+        DataIsolationDTO $dataIsolation,
+        mixed $debug,
+        BusinessParamsDTO $businessParams,
+        string $acceptEncoding,
+    ): self {
+        return new self(
+            dataIsolation: $dataIsolation,
+            knowledgeCode: $knowledgeCode,
+            queryText: $queryText,
+            topK: $topK,
+            scoreThreshold: $scoreThreshold,
+            debug: $debug,
+            businessParams: $businessParams,
+            acceptEncoding: $acceptEncoding,
         );
     }
 

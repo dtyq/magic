@@ -6,6 +6,7 @@ from datetime import datetime
 from agentlang.logger import get_logger
 from agentlang.llms.factory import LLMFactory
 from app.i18n import i18n
+from app.tools.media_utils import DISABLE_THINKING_BODY
 from app.utils.async_file_utils import async_exists
 from .models import BatchImageProcessingResults, SingleImageResult
 from .image_conversion_utils import local_file_to_base64
@@ -121,16 +122,13 @@ class LLMRequestHandler:
             use_base64=False
         )
 
-        # 视觉理解不需要模型思考，禁用思考模式以减少无效 token 消耗
-        disable_thinking_body = {"thinking": {"type": "disabled"}}
-
         try:
             # 第一次尝试：使用当前模式（可能包含URL）
             logger.info(f"第一次尝试LLM调用")
             response = await LLMFactory.call_with_tool_support(
                 model_id=model_id,
                 messages=messages,
-                extra_body=disable_thinking_body,
+                extra_body=DISABLE_THINKING_BODY,
             )
             return response
 
@@ -160,7 +158,7 @@ class LLMRequestHandler:
                     response = await LLMFactory.call_with_tool_support(
                         model_id=model_id,
                         messages=fallback_messages,
-                        extra_body=disable_thinking_body,
+                        extra_body=DISABLE_THINKING_BODY,
                     )
                     return response
 

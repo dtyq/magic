@@ -15,7 +15,7 @@ const (
 	DefaultSparseModelName = shared.DefaultSparseModelName
 	// SparseBackendClientBM25QdrantIDFV1 表示客户端构造 sparse vector、Qdrant 负责 IDF 的后端版本。
 	SparseBackendClientBM25QdrantIDFV1 = shared.SparseBackendClientBM25QdrantIDFV1
-	// SparseBackendQdrantBM25ZHV1 表示中文优先的 Qdrant BM25 后端版本。
+	// SparseBackendQdrantBM25ZHV1 表示依赖 Qdrant 原生 BM25 inference 的中文优先后端版本，不等价于 gse 分词。
 	SparseBackendQdrantBM25ZHV1 = shared.SparseBackendQdrantBM25ZHV1
 )
 
@@ -97,6 +97,7 @@ type KnowledgeBaseFragmentDeleter interface {
 	Delete(ctx context.Context, id int64) error
 	DeleteByIDs(ctx context.Context, ids []int64) error
 	DeleteByDocument(ctx context.Context, knowledgeCode, documentCode string) error
+	DeleteByDocumentCodes(ctx context.Context, knowledgeCode string, documentCodes []string) error
 	DeleteByKnowledgeBase(ctx context.Context, knowledgeCode string) error
 }
 
@@ -110,7 +111,7 @@ type KnowledgeBaseFragmentWriter interface {
 // KnowledgeBaseFragmentReader 片段读仓储接口。
 type KnowledgeBaseFragmentReader interface {
 	FindByID(ctx context.Context, id int64) (*KnowledgeBaseFragment, error)
-	FindByPointID(ctx context.Context, knowledgeCode, documentCode, pointID string) (*KnowledgeBaseFragment, error)
+	FindByPointIDs(ctx context.Context, pointIDs []string) ([]*KnowledgeBaseFragment, error)
 	FindByIDs(ctx context.Context, ids []int64) ([]*KnowledgeBaseFragment, error)
 	List(ctx context.Context, query *Query) ([]*KnowledgeBaseFragment, int64, error)
 	ListByDocument(ctx context.Context, knowledgeCode, documentCode string, offset, limit int) ([]*KnowledgeBaseFragment, int64, error)

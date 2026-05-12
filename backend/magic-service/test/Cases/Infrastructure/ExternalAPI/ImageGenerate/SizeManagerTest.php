@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Infrastructure\ExternalAPI\ImageGenerate;
 
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
+use Hyperf\Contract\ConfigInterface;
 use HyperfTest\Cases\BaseTest;
 use InvalidArgumentException;
 
@@ -1086,22 +1087,87 @@ class SizeManagerTest extends BaseTest
         $config = SizeManager::matchConfig('gemini-3-pro-image-preview', null);
         $this->assertNotNull($config);
 
-        // 6. 测试 model_id 正则匹配
+        // 6. 测试 model_id 模糊匹配
         $config = SizeManager::matchConfig('unknown', 'test-seedream-4-0-model');
         $this->assertNotNull($config); // 应该匹配到 seedream-4-0
     }
 
     /**
-     * 测试边界情况：model_id 正则匹配.
+     * 测试边界情况：model_id 模糊匹配.
      */
-    public function testModelIdRegexMatch()
+    public function testModelIdFuzzyMatch()
     {
-        // seedream-4-0 使用正则匹配，应该匹配包含该字符串的 model_id
+        // seedream-4-0 使用模糊匹配，应该匹配包含该字符串的 model_id
         $config = SizeManager::matchConfig('unknown', 'prefix-seedream-4-0-suffix');
         $this->assertNotNull($config);
 
         $config = SizeManager::matchConfig('unknown', 'SEEDREAM-4-0');
         $this->assertNotNull($config); // 大小写不敏感
+    }
+
+    public function testMatchConfigUsesExactMatchByDefault()
+    {
+        $this->withTemporaryImageModelConfigs([
+            [
+                'match' => [
+                    ['field' => 'model_version', 'value' => 'exact-model'],
+                ],
+                'config' => [
+                    'test_marker' => 'version-exact',
+                ],
+            ],
+            [
+                'match' => [
+                    ['field' => 'model_id', 'value' => 'exact-id'],
+                ],
+                'config' => [
+                    'test_marker' => 'id-exact',
+                ],
+            ],
+        ], function (): void {
+            $config = SizeManager::matchConfig('EXACT-MODEL', null);
+            $this->assertSame('version-exact', $config['test_marker'] ?? null);
+
+            $config = SizeManager::matchConfig('prefix-exact-model', null);
+            $this->assertNull($config);
+
+            $config = SizeManager::matchConfig('unknown', 'EXACT-ID');
+            $this->assertSame('id-exact', $config['test_marker'] ?? null);
+
+            $config = SizeManager::matchConfig('unknown', 'prefix-exact-id');
+            $this->assertNull($config);
+        });
+    }
+
+    public function testMatchConfigSupportsExplicitFuzzyMatchType()
+    {
+        $this->withTemporaryImageModelConfigs([
+            [
+                'match' => [
+                    ['field' => 'model_version', 'value' => 'gemini-3-pro-image', 'match_type' => 'fuzzy'],
+                ],
+                'config' => [
+                    'test_marker' => 'version-fuzzy',
+                ],
+            ],
+            [
+                'match' => [
+                    ['field' => 'model_id', 'value' => 'seedream-4-0', 'match_type' => 'fuzzy'],
+                ],
+                'config' => [
+                    'test_marker' => 'id-fuzzy',
+                ],
+            ],
+        ], function (): void {
+            $config = SizeManager::matchConfig('openrouter/GEMINI-3-PRO-IMAGE', null);
+            $this->assertSame('version-fuzzy', $config['test_marker'] ?? null);
+
+            $config = SizeManager::matchConfig('unknown', 'prefix-SEEDREAM-4-0-suffix');
+            $this->assertSame('id-fuzzy', $config['test_marker'] ?? null);
+
+            $config = SizeManager::matchConfig('totally-different-model', null);
+            $this->assertNull($config);
+        });
     }
 
     /**
@@ -1171,5 +1237,21 @@ class SizeManagerTest extends BaseTest
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Both numbers cannot be zero');
         SizeManager::calculateRatio(0, 0);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $models
+     */
+    private function withTemporaryImageModelConfigs(array $models, callable $callback): mixed
+    {
+        $config = di(ConfigInterface::class);
+        $originalModels = $config->get('image_models.models', []);
+        $config->set('image_models.models', $models);
+
+        try {
+            return $callback();
+        } finally {
+            $config->set('image_models.models', $originalModels);
+        }
     }
 }

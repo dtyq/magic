@@ -18,6 +18,7 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Dtyq\SuperMagic\Application\Contract\UserAiWatermarkPolicyInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -34,6 +35,7 @@ class ImageGenerationAppService extends DesignAppService
         private readonly FileDomainService $fileDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly AiAbilityDomainService $aiAbilityDomainService,
+        private readonly UserAiWatermarkPolicyInterface $userAiWatermarkPolicy,
     ) {
     }
 
@@ -187,11 +189,14 @@ class ImageGenerationAppService extends DesignAppService
                 return $entity;
             }
 
+            $addWatermark = $this->userAiWatermarkPolicy->shouldApplyVisibleAiWatermark($authenticatable);
+
             $fileUrl = $this->taskFileDomainService->getFileUrls(
                 projectOrganizationCode: $project->getUserOrganizationCode(),
                 projectId: $project->getId(),
                 fileIds: [$taskFile->getFileId()],
-                downloadMode: 'preview'
+                downloadMode: 'preview',
+                addWatermark: $addWatermark
             )[0]['url'] ?? '';
         }
         $entity->setFileUrl($fileUrl);

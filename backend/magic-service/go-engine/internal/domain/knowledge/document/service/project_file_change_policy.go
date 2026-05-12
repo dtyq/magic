@@ -4,11 +4,11 @@ import (
 	"strconv"
 	"strings"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
+	parseddocument "magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/projectfile"
 )
-
-const projectFileDeletedStatus = "deleted"
 
 // ProjectFileBindingTarget 描述项目文件绑定目标。
 type ProjectFileBindingTarget struct {
@@ -27,6 +27,7 @@ type ProjectFileBindingRef struct {
 	SyncMode          string
 	Enabled           bool
 	UserID            string
+	CoversChangedFile bool
 	Targets           []ProjectFileBindingTarget
 }
 
@@ -52,14 +53,14 @@ type ProjectFileChangeActionGroup struct {
 // ProjectFileChangePlan 描述项目文件变更的完整执行计划。
 type ProjectFileChangePlan struct {
 	Ignore                   bool
-	DeleteDocuments          []*KnowledgeBaseDocument
+	DeleteDocuments          []*docentity.KnowledgeBaseDocument
 	Standard                 ProjectFileChangeActionGroup
 	Enterprise               ProjectFileChangeActionGroup
 	NeedEnterpriseResolution bool
 }
 
 // CollectProjectFileKnowledgeBaseCodes 汇总项目文件变更涉及的知识库编码。
-func CollectProjectFileKnowledgeBaseCodes(bindings []ProjectFileBindingRef, docs []*KnowledgeBaseDocument) []string {
+func CollectProjectFileKnowledgeBaseCodes(bindings []ProjectFileBindingRef, docs []*docentity.KnowledgeBaseDocument) []string {
 	codes := make([]string, 0, len(bindings)+len(docs))
 	seen := make(map[string]struct{}, len(bindings)+len(docs))
 	for _, binding := range bindings {
@@ -94,13 +95,13 @@ func CollectProjectFileKnowledgeBaseCodes(bindings []ProjectFileBindingRef, docs
 func BuildProjectFileChangePlan(
 	meta *projectfile.Meta,
 	bindings []ProjectFileBindingRef,
-	docs []*KnowledgeBaseDocument,
+	docs []*docentity.KnowledgeBaseDocument,
 	useSourceOverrideByKnowledgeBase map[string]bool,
 ) ProjectFileChangePlan {
 	if meta == nil {
 		return ProjectFileChangePlan{}
 	}
-	if strings.EqualFold(strings.TrimSpace(meta.Status), projectFileDeletedStatus) {
+	if projectfile.IsDeletedResolveStatus(meta.Status) || projectfile.IsUnsupportedResolveStatus(meta.Status) {
 		return ProjectFileChangePlan{DeleteDocuments: cloneProjectDocuments(docs)}
 	}
 	if meta.IsDirectory {
@@ -148,7 +149,7 @@ type existingProjectDocumentRef struct {
 	Code              string
 }
 
-func buildExistingProjectDocumentRefs(docs []*KnowledgeBaseDocument) map[int64]existingProjectDocumentRef {
+func buildExistingProjectDocumentRefs(docs []*docentity.KnowledgeBaseDocument) map[int64]existingProjectDocumentRef {
 	results := make(map[int64]existingProjectDocumentRef, len(docs))
 	for _, doc := range docs {
 		if doc == nil || doc.SourceBindingID <= 0 {
@@ -172,6 +173,10 @@ func filterApplicableProjectBindingsForPlan(bindings []ProjectFileBindingRef, pr
 			!strings.EqualFold(strings.TrimSpace(binding.Provider), "project") ||
 			!strings.EqualFold(strings.TrimSpace(binding.RootType), "project") ||
 			!strings.EqualFold(strings.TrimSpace(binding.SyncMode), "realtime") {
+			continue
+		}
+		if binding.CoversChangedFile {
+			results = append(results, binding)
 			continue
 		}
 		if len(binding.Targets) == 0 {
@@ -206,11 +211,11 @@ func partitionProjectBindingsForPlan(
 }
 
 func partitionProjectDocumentsForPlan(
-	docs []*KnowledgeBaseDocument,
+	docs []*docentity.KnowledgeBaseDocument,
 	useSourceOverrideByKnowledgeBase map[string]bool,
-) ([]*KnowledgeBaseDocument, []*KnowledgeBaseDocument) {
-	standard := make([]*KnowledgeBaseDocument, 0, len(docs))
-	enterprise := make([]*KnowledgeBaseDocument, 0, len(docs))
+) ([]*docentity.KnowledgeBaseDocument, []*docentity.KnowledgeBaseDocument) {
+	standard := make([]*docentity.KnowledgeBaseDocument, 0, len(docs))
+	enterprise := make([]*docentity.KnowledgeBaseDocument, 0, len(docs))
 	for _, doc := range docs {
 		if doc == nil {
 			continue
@@ -277,7 +282,7 @@ func buildProjectFileBindingResyncRequests(
 	return requests
 }
 
-func buildProjectFileDocResyncRequests(docs []*KnowledgeBaseDocument, override *SourceOverride) []*SyncDocumentInput {
+func buildProjectFileDocResyncRequests(docs []*docentity.KnowledgeBaseDocument, override *SourceOverride) []*SyncDocumentInput {
 	requests := make([]*SyncDocumentInput, 0, len(docs))
 	for _, doc := range docs {
 		if doc == nil {
@@ -289,7 +294,12 @@ func buildProjectFileDocResyncRequests(docs []*KnowledgeBaseDocument, override *
 			Code:              strings.TrimSpace(doc.Code),
 			Mode:              SyncModeResync,
 			Async:             true,
-			SourceOverride:    CloneProjectSourceOverride(override),
+			BusinessParams: &ctxmeta.BusinessParams{
+				OrganizationCode: strings.TrimSpace(doc.OrganizationCode),
+				UserID:           ResolveMappedDocumentUserID(doc),
+				BusinessID:       strings.TrimSpace(doc.KnowledgeBaseCode),
+			},
+			SourceOverride: CloneProjectSourceOverride(override),
 		})
 	}
 	return requests
@@ -302,14 +312,15 @@ func CloneProjectSourceOverride(override *SourceOverride) *SourceOverride {
 	}
 	cloned := *override
 	cloned.DocumentFile = CloneDocumentFilePayload(override.DocumentFile)
+	cloned.ParsedDocument = parseddocument.CloneParsedDocument(override.ParsedDocument)
 	return &cloned
 }
 
-func cloneProjectDocuments(docs []*KnowledgeBaseDocument) []*KnowledgeBaseDocument {
+func cloneProjectDocuments(docs []*docentity.KnowledgeBaseDocument) []*docentity.KnowledgeBaseDocument {
 	if len(docs) == 0 {
 		return nil
 	}
-	cloned := make([]*KnowledgeBaseDocument, 0, len(docs))
+	cloned := make([]*docentity.KnowledgeBaseDocument, 0, len(docs))
 	for _, doc := range docs {
 		if doc != nil {
 			cloned = append(cloned, doc)

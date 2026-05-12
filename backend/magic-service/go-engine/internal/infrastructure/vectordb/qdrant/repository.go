@@ -85,6 +85,11 @@ func (r *VectorDBManagementRepository) GetCollectionInfo(ctx context.Context, na
 	return r.client.GetCollectionInfo(ctx, name)
 }
 
+// EnsurePayloadIndexes 确保集合具备指定 payload 索引。
+func (r *VectorDBManagementRepository) EnsurePayloadIndexes(ctx context.Context, name string, specs []shared.PayloadIndexSpec) error {
+	return r.client.EnsurePayloadIndexes(ctx, name, specs)
+}
+
 // GetAliasTarget 查询 alias 当前指向的物理集合。
 func (r *VectorDBManagementRepository) GetAliasTarget(ctx context.Context, alias string) (string, bool, error) {
 	return r.client.GetAliasTarget(ctx, alias)

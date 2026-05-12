@@ -21,6 +21,7 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
 from app.utils.diff_generator import DiffGenerator
+from app.utils.line_number_handler import LineNumberHandler
 from app.utils.replace_range_resolver import resolve_replace_range
 
 logger = get_logger(__name__)
@@ -67,6 +68,7 @@ class EditFileRange(AbstractFileTool[EditFileRangeParams], WorkspaceTool[EditFil
 
 锚点规则：
 - 调用前先读文件，确认锚点文本存在，再逐字复制（空格/缩进/标点/大小写完全一致）
+- 从 read_file 输出复制文本时，只复制行号前缀之后的实际文件内容；不要把「行号 + 制表符」放进 replace_start、replace_end 或 new_content
 - replace_start 与 replace_end（非空时）各自至少满足其一：
   1) >= 2 行
   2) >= 50 字符
@@ -89,6 +91,7 @@ Usage prerequisites (must meet):
 
 Anchor rules:
 - Read the file before calling and copy anchors verbatim (spaces/indentation/punctuation/case must match exactly)
+- When copying from read_file output, copy only the actual file content after the line-number prefix; never include the line number + tab in replace_start, replace_end, or new_content
 - For non-empty anchors, replace_start and replace_end must each meet at least one threshold:
   1) >= 2 lines
   2) >= 50 characters
@@ -119,6 +122,7 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
             file_path = resolved.path
             fuzzy_warning = resolved.warning
             ai_warnings = []
+            ai_warnings.extend(self._strip_line_number_prefixes(file_path, params))
             if fuzzy_warning:
                 ai_warnings.append(fuzzy_warning)
 
@@ -239,6 +243,38 @@ On failure: re-read and verify anchor existence/uniqueness -> increase anchor le
                 "If multiple attempts fail and the edit_file tool is available (for short/precise edits), try it. "
                 "As a last resort, use shell commands or write a Python script."
             )
+
+    def _strip_line_number_prefixes(self, file_path: Path, params: EditFileRangeParams) -> list[str]:
+        warnings: list[str] = []
+
+        replace_start_cleaned, had_start_numbers, _ = LineNumberHandler.detect_and_strip(params.replace_start)
+        if had_start_numbers:
+            logger.info(f"Stripped line numbers from replace_start for {file_path}")
+            params.replace_start = replace_start_cleaned
+            warnings.append(
+                "WARNING: Line numbers were detected and automatically removed from replace_start. "
+                "When copying from read_file output, exclude the line number prefix (e.g., '123\\t')."
+            )
+
+        replace_end_cleaned, had_end_numbers, _ = LineNumberHandler.detect_and_strip(params.replace_end)
+        if had_end_numbers:
+            logger.info(f"Stripped line numbers from replace_end for {file_path}")
+            params.replace_end = replace_end_cleaned
+            warnings.append(
+                "WARNING: Line numbers were detected and automatically removed from replace_end. "
+                "When copying from read_file output, exclude the line number prefix (e.g., '123\\t')."
+            )
+
+        new_content_cleaned, had_new_numbers, _ = LineNumberHandler.detect_and_strip(params.new_content)
+        if had_new_numbers:
+            logger.info(f"Stripped line numbers from new_content for {file_path}")
+            params.new_content = new_content_cleaned
+            warnings.append(
+                "WARNING: Line numbers were detected and automatically removed from new_content. "
+                "Replacement content should not contain read_file line-number prefixes."
+            )
+
+        return warnings
 
     async def _read_file(self, file_path: Path) -> str:
         """Read file content"""

@@ -33,6 +33,7 @@ return [
     'invalid_aspect_ratio' => '图生图的尺寸比例差距过大，只能相差3倍',
     'image_url_is_empty' => '图片为空',
     'unsupported_image_size' => '不支持的图片尺寸 :size，支持的尺寸为：:supported_sizes',
+    'azure_image_size_must_be_divisible_by_16' => 'Azure 图片尺寸 :size 非法，宽度和高度都必须是 16 的倍数。',
     'unsupported_image_size_range' => '图片尺寸 :size 超出支持范围，宽度和高度必须在 :min_size-:max_size 像素之间',
 
     // Azure OpenAI 相关错误消息

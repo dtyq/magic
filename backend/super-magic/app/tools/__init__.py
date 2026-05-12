@@ -29,6 +29,7 @@ from app.tools.get_js_cdn_address import GetJsCdnAddress
 from app.tools.grep_search import GrepSearch
 
 from app.tools.generate_image import GenerateImage
+from app.tools.generate_images import GenerateImages
 from app.tools.generate_video import GenerateVideo, QueryVideoGeneration
 from app.tools.image_search import ImageSearch
 from app.tools.list_dir import ListDir
@@ -43,6 +44,7 @@ from app.tools.reflection import Reflection
 from app.tools.deep_write import DeepWrite
 from app.tools.run_python_snippet import RunPythonSnippet
 from app.tools.shell_exec import ShellExec
+from app.tools.shell_await import ShellAwait
 from app.tools.summarize import Summarize
 from app.tools.thinking import Thinking
 from app.tools.todo_read import TodoRead
@@ -53,12 +55,14 @@ from app.tools.upgrade_sandbox import UpgradeSandbox
 from app.tools.use_browser import UseBrowser
 from app.tools.write_file import WriteFile
 from app.tools.manage_cron import ManageCron
+from app.tools.magic_calendar import ManageCalendar, CreateCalendarProject
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.append_to_file import AppendToFile
 from app.tools.convert_pdf import ConvertPdf
 from app.tools.convert_to_markdown import ConvertToMarkdown
 from app.tools.visual_understanding import VisualUnderstanding
 from app.tools.visual_understanding_webpage import VisualUnderstandingWebpage
+from app.tools.video_understanding import VideoUnderstanding
 from app.tools.analysis_slide_webpage import AnalysisSlideWebpage
 from app.tools.channel import ConnectDingTalkBot, ConnectLarkBot, ConnectWecomBot, ConnectWechatBot, GetIMChannelStatus, WaitWechatLogin
 
@@ -67,8 +71,6 @@ from app.tools.data_analyst_dashboard_tools import (
     CreateDashboardProject,
     ValidateDashboard,
     DownloadDashboardMaps,
-    UpdateDashboardTemplate,
-    BackupDashboardTemplate,
     CreateDashboardCards,
     UpdateDashboardCards,
     DeleteDashboardCards,
@@ -157,6 +159,7 @@ __all__ = [
     "GrepSearch",
     "ImageSearch",
     "GenerateImage",
+    "GenerateImages",
     "GenerateVideo",
     "QueryVideoGeneration",
     "GetIMChannelStatus",
@@ -173,6 +176,7 @@ __all__ = [
     "ReadWebpagesAsMarkdown",
     "Reflection",
     "ShellExec",
+    "ShellAwait",
     "Summarize",
     "Thinking",
     "TodoRead",
@@ -182,8 +186,11 @@ __all__ = [
     "UseBrowser",
     "VisualUnderstanding",
     "VisualUnderstandingWebpage",
+    "VideoUnderstanding",
     "WriteFile",
     "ManageCron",
+    "ManageCalendar",
+    "CreateCalendarProject",
     "excel_plugin",
     "docx_plugin",
 
@@ -204,8 +211,6 @@ __all__ = [
     "CreateDashboardProject",
     "ValidateDashboard",
     "DownloadDashboardMaps",
-    "UpdateDashboardTemplate",
-    "BackupDashboardTemplate",
     "CreateDashboardCards",
     "UpdateDashboardCards",
     "DeleteDashboardCards",

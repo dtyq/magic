@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	service "magic/internal/application/knowledge/document/service"
-	"magic/internal/domain/knowledge/document/service"
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
 	"magic/internal/pkg/knowledgeroute"
 	"magic/internal/pkg/tokenizer"
@@ -16,7 +16,7 @@ import (
 func TestBuildSyncSegmentConfigShouldRespectAbsoluteChunkConfig(t *testing.T) {
 	t.Parallel()
 
-	doc := &document.KnowledgeBaseDocument{
+	doc := &docentity.KnowledgeBaseDocument{
 		FragmentConfig: &shared.FragmentConfig{
 			Mode: shared.FragmentModeNormal,
 			Normal: &shared.NormalFragmentConfig{
@@ -48,7 +48,7 @@ func TestBuildSyncSegmentConfigShouldRespectAbsoluteChunkConfig(t *testing.T) {
 func TestBuildSyncSegmentConfigShouldConvertKnowledgeBasePercentOverlap(t *testing.T) {
 	t.Parallel()
 
-	kb := &knowledgebase.KnowledgeBase{
+	kb := &kbentity.KnowledgeBase{
 		FragmentConfig: &shared.FragmentConfig{
 			Mode: shared.FragmentModeNormal,
 			Normal: &shared.NormalFragmentConfig{
@@ -91,6 +91,11 @@ func TestSplitContentByTokenPipeline(t *testing.T) {
 	t.Run("ShouldCapChunkSizeAtOneThousand", func(t *testing.T) {
 		t.Parallel()
 		assertTokenSplitCapsChunkSizeAtOneThousand(t, tokenizerSvc)
+	})
+
+	t.Run("ShouldRespectRemoveURLEmailRule", func(t *testing.T) {
+		t.Parallel()
+		assertTokenSplitRespectsRemoveURLEmailRule(t, tokenizerSvc)
 	})
 }
 
@@ -136,6 +141,57 @@ func assertTokenSplitAppliesPostReplaceWhitespace(t *testing.T, tokenizerSvc *to
 			t.Fatalf("chunk %d token count mismatch after post process: got=%d want=%d", i, got, want)
 		}
 	}
+}
+
+func assertTokenSplitRespectsRemoveURLEmailRule(t *testing.T, tokenizerSvc *tokenizer.Service) {
+	t.Helper()
+
+	content := "alpha <https://docs.example.com/file/831538921692561409> beta contact@example.com"
+	baseCfg := service.PreviewSegmentConfigForTest{
+		ChunkSize:    100,
+		ChunkOverlap: 0,
+		Separator:    "\n",
+	}
+
+	keptChunks, err := service.SplitContentByTokenPipelineWithTokenizerForTest(
+		context.Background(),
+		content,
+		baseCfg,
+		"text-embedding-3-small",
+		tokenizerSvc,
+	)
+	if err != nil {
+		t.Fatalf("split without remove url rule failed: %v", err)
+	}
+	if got := joinTokenChunkContent(keptChunks); !strings.Contains(got, "https://docs.example.com/file/831538921692561409") ||
+		!strings.Contains(got, "contact@example.com") {
+		t.Fatalf("expected URL and email to be preserved without rule 2, got %q", got)
+	}
+
+	removeCfg := baseCfg
+	removeCfg.TextPreprocessRule = []int{service.PreviewRuleRemoveURLEmailForTest()}
+	removedChunks, err := service.SplitContentByTokenPipelineWithTokenizerForTest(
+		context.Background(),
+		content,
+		removeCfg,
+		"text-embedding-3-small",
+		tokenizerSvc,
+	)
+	if err != nil {
+		t.Fatalf("split with remove url rule failed: %v", err)
+	}
+	if got := joinTokenChunkContent(removedChunks); strings.Contains(got, "docs.example.com") ||
+		strings.Contains(got, "contact@example.com") {
+		t.Fatalf("expected URL and email to be removed with rule 2, got %q", got)
+	}
+}
+
+func joinTokenChunkContent(chunks []service.TokenChunkForTest) string {
+	parts := make([]string, 0, len(chunks))
+	for _, chunk := range chunks {
+		parts = append(parts, chunk.Content)
+	}
+	return strings.Join(parts, "\n")
 }
 
 func assertTokenSplitFallsBackForUnknownModel(t *testing.T, tokenizerSvc *tokenizer.Service) {
@@ -217,7 +273,7 @@ func TestResolveSplitModelShouldPreferCollectionMetaModelOverDocumentHistory(t *
 	kbReader := &knowledgeBaseReaderStub{
 		routeModel: "text-embedding-3-large",
 	}
-	kb := &knowledgebase.KnowledgeBase{Model: "text-embedding-3-small"}
+	kb := &kbentity.KnowledgeBase{Model: "text-embedding-3-small"}
 
 	model := service.ResolveSplitModelForTest(context.Background(), t, kbReader, kb, "")
 	if model != "text-embedding-3-large" {

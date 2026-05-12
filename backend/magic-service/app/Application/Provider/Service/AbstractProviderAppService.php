@@ -25,7 +25,6 @@ abstract class AbstractProviderAppService
 
     /**
      * 处理模型图标，将路径转换为完整URL.
-     * @param ProviderModelEntity[] $providerModelDetailDTOs 模型DTO数组
      */
     protected function processModelIcons(array $providerModelDetailDTOs): void
     {

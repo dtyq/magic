@@ -8,7 +8,6 @@ package mysqlsqlc
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"strings"
 	"time"
 )
@@ -18,38 +17,58 @@ SELECT COUNT(*)
 FROM magic_flow_knowledge
 WHERE deleted_at IS NULL
   AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
 `
 
 type CountKnowledgeBasesParams struct {
-	OrganizationCode  sql.NullString `json:"organization_code"`
-	NameLike          sql.NullString `json:"name_like"`
-	Type              sql.NullInt32  `json:"type"`
-	KnowledgeBaseType sql.NullString `json:"knowledge_base_type"`
-	Enabled           sql.NullBool   `json:"enabled"`
-	SyncStatus        sql.NullInt32  `json:"sync_status"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
 }
 
 func (q *Queries) CountKnowledgeBases(ctx context.Context, arg CountKnowledgeBasesParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countKnowledgeBases,
-		arg.OrganizationCode,
-		arg.OrganizationCode,
-		arg.NameLike,
-		arg.NameLike,
-		arg.Type,
-		arg.Type,
-		arg.KnowledgeBaseType,
-		arg.KnowledgeBaseType,
-		arg.Enabled,
-		arg.Enabled,
-		arg.SyncStatus,
-		arg.SyncStatus,
-	)
+	query := countKnowledgeBases
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -60,40 +79,134 @@ SELECT COUNT(*)
 FROM magic_flow_knowledge
 WHERE deleted_at IS NULL
   AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND organization_code = ?
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
   AND business_id IN (/*SLICE:business_ids*/?)
 `
 
 type CountKnowledgeBasesByBusinessIDsParams struct {
-	OrganizationCode  sql.NullString `json:"organization_code"`
-	NameLike          sql.NullString `json:"name_like"`
-	Type              sql.NullInt32  `json:"type"`
-	KnowledgeBaseType sql.NullString `json:"knowledge_base_type"`
-	Enabled           sql.NullBool   `json:"enabled"`
-	SyncStatus        sql.NullInt32  `json:"sync_status"`
-	BusinessIds       []string       `json:"business_ids"`
+	OrganizationCode        string   `json:"organization_code"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	BusinessIds             []string `json:"business_ids"`
 }
 
 func (q *Queries) CountKnowledgeBasesByBusinessIDs(ctx context.Context, arg CountKnowledgeBasesByBusinessIDsParams) (int64, error) {
 	query := countKnowledgeBasesByBusinessIDs
 	var queryParams []interface{}
 	queryParams = append(queryParams, arg.OrganizationCode)
-	queryParams = append(queryParams, arg.OrganizationCode)
 	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	if len(arg.BusinessIds) > 0 {
+		for _, v := range arg.BusinessIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:business_ids*/?", strings.Repeat(",?", len(arg.BusinessIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:business_ids*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countKnowledgeBasesByBusinessIDsNoOrganization = `-- name: CountKnowledgeBasesByBusinessIDsNoOrganization :one
+SELECT COUNT(*)
+FROM magic_flow_knowledge
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+  AND business_id IN (/*SLICE:business_ids*/?)
+`
+
+type CountKnowledgeBasesByBusinessIDsNoOrganizationParams struct {
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	BusinessIds             []string `json:"business_ids"`
+}
+
+func (q *Queries) CountKnowledgeBasesByBusinessIDsNoOrganization(ctx context.Context, arg CountKnowledgeBasesByBusinessIDsNoOrganizationParams) (int64, error) {
+	query := countKnowledgeBasesByBusinessIDsNoOrganization
+	var queryParams []interface{}
 	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.SyncStatus)
-	queryParams = append(queryParams, arg.SyncStatus)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
 	if len(arg.BusinessIds) > 0 {
 		for _, v := range arg.BusinessIds {
 			queryParams = append(queryParams, v)
@@ -113,40 +226,59 @@ SELECT COUNT(*)
 FROM magic_flow_knowledge
 WHERE deleted_at IS NULL
   AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
   AND code IN (/*SLICE:codes*/?)
 `
 
 type CountKnowledgeBasesByCodesParams struct {
-	OrganizationCode  sql.NullString `json:"organization_code"`
-	NameLike          sql.NullString `json:"name_like"`
-	Type              sql.NullInt32  `json:"type"`
-	KnowledgeBaseType sql.NullString `json:"knowledge_base_type"`
-	Enabled           sql.NullBool   `json:"enabled"`
-	SyncStatus        sql.NullInt32  `json:"sync_status"`
-	Codes             []string       `json:"codes"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	Codes                   []string `json:"codes"`
 }
 
 func (q *Queries) CountKnowledgeBasesByCodes(ctx context.Context, arg CountKnowledgeBasesByCodesParams) (int64, error) {
 	query := countKnowledgeBasesByCodes
 	var queryParams []interface{}
-	queryParams = append(queryParams, arg.OrganizationCode)
-	queryParams = append(queryParams, arg.OrganizationCode)
 	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.SyncStatus)
-	queryParams = append(queryParams, arg.SyncStatus)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
 	if len(arg.Codes) > 0 {
 		for _, v := range arg.Codes {
 			queryParams = append(queryParams, v)
@@ -166,42 +298,64 @@ SELECT COUNT(*)
 FROM magic_flow_knowledge
 WHERE deleted_at IS NULL
   AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND organization_code = ?
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
   AND code IN (/*SLICE:codes*/?)
   AND business_id IN (/*SLICE:business_ids*/?)
 `
 
 type CountKnowledgeBasesByCodesAndBusinessIDsParams struct {
-	OrganizationCode  sql.NullString `json:"organization_code"`
-	NameLike          sql.NullString `json:"name_like"`
-	Type              sql.NullInt32  `json:"type"`
-	KnowledgeBaseType sql.NullString `json:"knowledge_base_type"`
-	Enabled           sql.NullBool   `json:"enabled"`
-	SyncStatus        sql.NullInt32  `json:"sync_status"`
-	Codes             []string       `json:"codes"`
-	BusinessIds       []string       `json:"business_ids"`
+	OrganizationCode        string   `json:"organization_code"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	Codes                   []string `json:"codes"`
+	BusinessIds             []string `json:"business_ids"`
 }
 
 func (q *Queries) CountKnowledgeBasesByCodesAndBusinessIDs(ctx context.Context, arg CountKnowledgeBasesByCodesAndBusinessIDsParams) (int64, error) {
 	query := countKnowledgeBasesByCodesAndBusinessIDs
 	var queryParams []interface{}
 	queryParams = append(queryParams, arg.OrganizationCode)
-	queryParams = append(queryParams, arg.OrganizationCode)
 	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.SyncStatus)
-	queryParams = append(queryParams, arg.SyncStatus)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
 	if len(arg.Codes) > 0 {
 		for _, v := range arg.Codes {
 			queryParams = append(queryParams, v)
@@ -217,6 +371,228 @@ func (q *Queries) CountKnowledgeBasesByCodesAndBusinessIDs(ctx context.Context, 
 		query = strings.Replace(query, "/*SLICE:business_ids*/?", strings.Repeat(",?", len(arg.BusinessIds))[1:], 1)
 	} else {
 		query = strings.Replace(query, "/*SLICE:business_ids*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countKnowledgeBasesByCodesAndBusinessIDsNoOrganization = `-- name: CountKnowledgeBasesByCodesAndBusinessIDsNoOrganization :one
+SELECT COUNT(*)
+FROM magic_flow_knowledge
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+  AND code IN (/*SLICE:codes*/?)
+  AND business_id IN (/*SLICE:business_ids*/?)
+`
+
+type CountKnowledgeBasesByCodesAndBusinessIDsNoOrganizationParams struct {
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	Codes                   []string `json:"codes"`
+	BusinessIds             []string `json:"business_ids"`
+}
+
+func (q *Queries) CountKnowledgeBasesByCodesAndBusinessIDsNoOrganization(ctx context.Context, arg CountKnowledgeBasesByCodesAndBusinessIDsNoOrganizationParams) (int64, error) {
+	query := countKnowledgeBasesByCodesAndBusinessIDsNoOrganization
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	if len(arg.Codes) > 0 {
+		for _, v := range arg.Codes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:codes*/?", strings.Repeat(",?", len(arg.Codes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:codes*/?", "NULL", 1)
+	}
+	if len(arg.BusinessIds) > 0 {
+		for _, v := range arg.BusinessIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:business_ids*/?", strings.Repeat(",?", len(arg.BusinessIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:business_ids*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countKnowledgeBasesByOrganization = `-- name: CountKnowledgeBasesByOrganization :one
+SELECT COUNT(*)
+FROM magic_flow_knowledge
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND organization_code = ?
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+`
+
+type CountKnowledgeBasesByOrganizationParams struct {
+	OrganizationCode        string   `json:"organization_code"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+}
+
+func (q *Queries) CountKnowledgeBasesByOrganization(ctx context.Context, arg CountKnowledgeBasesByOrganizationParams) (int64, error) {
+	query := countKnowledgeBasesByOrganization
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countKnowledgeBasesByOrganizationAndCodes = `-- name: CountKnowledgeBasesByOrganizationAndCodes :one
+SELECT COUNT(*)
+FROM magic_flow_knowledge
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND organization_code = ?
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+  AND code IN (/*SLICE:codes*/?)
+`
+
+type CountKnowledgeBasesByOrganizationAndCodesParams struct {
+	OrganizationCode        string   `json:"organization_code"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	Codes                   []string `json:"codes"`
+}
+
+func (q *Queries) CountKnowledgeBasesByOrganizationAndCodes(ctx context.Context, arg CountKnowledgeBasesByOrganizationAndCodesParams) (int64, error) {
+	query := countKnowledgeBasesByOrganizationAndCodes
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	if len(arg.Codes) > 0 {
+		for _, v := range arg.Codes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:codes*/?", strings.Repeat(",?", len(arg.Codes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:codes*/?", "NULL", 1)
 	}
 	row := q.db.QueryRowContext(ctx, query, queryParams...)
 	var count int64
@@ -238,14 +614,7 @@ func (q *Queries) DeleteKnowledgeBaseByID(ctx context.Context, id int64) (int64,
 }
 
 const findKnowledgeBaseByCode = `-- name: FindKnowledgeBaseByCode :one
-SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
 FROM magic_flow_knowledge
 WHERE code = ?
   AND deleted_at IS NULL
@@ -253,38 +622,9 @@ WHERE code = ?
 LIMIT 1
 `
 
-type FindKnowledgeBaseByCodeRow struct {
-	ID                int64           `json:"id"`
-	Code              string          `json:"code"`
-	Version           int32           `json:"version"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Type              int32           `json:"type"`
-	Enabled           bool            `json:"enabled"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	Model             string          `json:"model"`
-	VectorDb          string          `json:"vector_db"`
-	OrganizationCode  string          `json:"organization_code"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	ExpectedNum       int32           `json:"expected_num"`
-	CompletedNum      int32           `json:"completed_num"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	WordCount         int64           `json:"word_count"`
-	Icon              string          `json:"icon"`
-	SourceType        sql.NullInt32   `json:"source_type"`
-	KnowledgeBaseType string          `json:"knowledge_base_type"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-}
-
-func (q *Queries) FindKnowledgeBaseByCode(ctx context.Context, code string) (FindKnowledgeBaseByCodeRow, error) {
+func (q *Queries) FindKnowledgeBaseByCode(ctx context.Context, code string) (MagicFlowKnowledge, error) {
 	row := q.db.QueryRowContext(ctx, findKnowledgeBaseByCode, code)
-	var i FindKnowledgeBaseByCodeRow
+	var i MagicFlowKnowledge
 	err := row.Scan(
 		&i.ID,
 		&i.Code,
@@ -312,19 +652,13 @@ func (q *Queries) FindKnowledgeBaseByCode(ctx context.Context, code string) (Fin
 		&i.KnowledgeBaseType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const findKnowledgeBaseByCodeAndOrg = `-- name: FindKnowledgeBaseByCodeAndOrg :one
-SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
 FROM magic_flow_knowledge
 WHERE code = ?
   AND organization_code = ?
@@ -338,38 +672,9 @@ type FindKnowledgeBaseByCodeAndOrgParams struct {
 	OrganizationCode string `json:"organization_code"`
 }
 
-type FindKnowledgeBaseByCodeAndOrgRow struct {
-	ID                int64           `json:"id"`
-	Code              string          `json:"code"`
-	Version           int32           `json:"version"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Type              int32           `json:"type"`
-	Enabled           bool            `json:"enabled"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	Model             string          `json:"model"`
-	VectorDb          string          `json:"vector_db"`
-	OrganizationCode  string          `json:"organization_code"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	ExpectedNum       int32           `json:"expected_num"`
-	CompletedNum      int32           `json:"completed_num"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	WordCount         int64           `json:"word_count"`
-	Icon              string          `json:"icon"`
-	SourceType        sql.NullInt32   `json:"source_type"`
-	KnowledgeBaseType string          `json:"knowledge_base_type"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-}
-
-func (q *Queries) FindKnowledgeBaseByCodeAndOrg(ctx context.Context, arg FindKnowledgeBaseByCodeAndOrgParams) (FindKnowledgeBaseByCodeAndOrgRow, error) {
+func (q *Queries) FindKnowledgeBaseByCodeAndOrg(ctx context.Context, arg FindKnowledgeBaseByCodeAndOrgParams) (MagicFlowKnowledge, error) {
 	row := q.db.QueryRowContext(ctx, findKnowledgeBaseByCodeAndOrg, arg.Code, arg.OrganizationCode)
-	var i FindKnowledgeBaseByCodeAndOrgRow
+	var i MagicFlowKnowledge
 	err := row.Scan(
 		&i.ID,
 		&i.Code,
@@ -397,57 +702,22 @@ func (q *Queries) FindKnowledgeBaseByCodeAndOrg(ctx context.Context, arg FindKno
 		&i.KnowledgeBaseType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const findKnowledgeBaseByID = `-- name: FindKnowledgeBaseByID :one
-SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
 FROM magic_flow_knowledge
 WHERE id = ?
   AND deleted_at IS NULL
   AND code <> '__qdrant_collection_meta__'
 `
 
-type FindKnowledgeBaseByIDRow struct {
-	ID                int64           `json:"id"`
-	Code              string          `json:"code"`
-	Version           int32           `json:"version"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Type              int32           `json:"type"`
-	Enabled           bool            `json:"enabled"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	Model             string          `json:"model"`
-	VectorDb          string          `json:"vector_db"`
-	OrganizationCode  string          `json:"organization_code"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	ExpectedNum       int32           `json:"expected_num"`
-	CompletedNum      int32           `json:"completed_num"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	WordCount         int64           `json:"word_count"`
-	Icon              string          `json:"icon"`
-	SourceType        sql.NullInt32   `json:"source_type"`
-	KnowledgeBaseType string          `json:"knowledge_base_type"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-}
-
-func (q *Queries) FindKnowledgeBaseByID(ctx context.Context, id int64) (FindKnowledgeBaseByIDRow, error) {
+func (q *Queries) FindKnowledgeBaseByID(ctx context.Context, id int64) (MagicFlowKnowledge, error) {
 	row := q.db.QueryRowContext(ctx, findKnowledgeBaseByID, id)
-	var i FindKnowledgeBaseByIDRow
+	var i MagicFlowKnowledge
 	err := row.Scan(
 		&i.ID,
 		&i.Code,
@@ -475,13 +745,14 @@ func (q *Queries) FindKnowledgeBaseByID(ctx context.Context, id int64) (FindKnow
 		&i.KnowledgeBaseType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const findKnowledgeBaseCollectionMeta = `-- name: FindKnowledgeBaseCollectionMeta :one
 SELECT model,
-       COALESCE(embedding_config, CAST('{}' AS JSON)) AS embedding_config
+       embedding_config
 FROM magic_flow_knowledge
 WHERE code = ?
   AND deleted_at IS NULL
@@ -489,8 +760,8 @@ LIMIT 1
 `
 
 type FindKnowledgeBaseCollectionMetaRow struct {
-	Model           string          `json:"model"`
-	EmbeddingConfig json.RawMessage `json:"embedding_config"`
+	Model           string `json:"model"`
+	EmbeddingConfig []byte `json:"embedding_config"`
 }
 
 func (q *Queries) FindKnowledgeBaseCollectionMeta(ctx context.Context, code string) (FindKnowledgeBaseCollectionMetaRow, error) {
@@ -513,31 +784,31 @@ INSERT INTO magic_flow_knowledge (
 `
 
 type InsertKnowledgeBaseParams struct {
-	Code              string          `json:"code"`
-	Version           int32           `json:"version"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Type              int32           `json:"type"`
-	Enabled           bool            `json:"enabled"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	Model             string          `json:"model"`
-	VectorDb          string          `json:"vector_db"`
-	OrganizationCode  string          `json:"organization_code"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	ExpectedNum       int32           `json:"expected_num"`
-	CompletedNum      int32           `json:"completed_num"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	WordCount         int64           `json:"word_count"`
-	Icon              string          `json:"icon"`
-	SourceType        sql.NullInt32   `json:"source_type"`
-	KnowledgeBaseType string          `json:"knowledge_base_type"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
+	Code              string        `json:"code"`
+	Version           int32         `json:"version"`
+	Name              string        `json:"name"`
+	Description       string        `json:"description"`
+	Type              int32         `json:"type"`
+	Enabled           bool          `json:"enabled"`
+	BusinessID        string        `json:"business_id"`
+	SyncStatus        int32         `json:"sync_status"`
+	SyncStatusMessage string        `json:"sync_status_message"`
+	Model             string        `json:"model"`
+	VectorDb          string        `json:"vector_db"`
+	OrganizationCode  string        `json:"organization_code"`
+	CreatedUid        string        `json:"created_uid"`
+	UpdatedUid        string        `json:"updated_uid"`
+	ExpectedNum       int32         `json:"expected_num"`
+	CompletedNum      int32         `json:"completed_num"`
+	RetrieveConfig    []byte        `json:"retrieve_config"`
+	FragmentConfig    []byte        `json:"fragment_config"`
+	EmbeddingConfig   []byte        `json:"embedding_config"`
+	WordCount         int64         `json:"word_count"`
+	Icon              string        `json:"icon"`
+	SourceType        sql.NullInt32 `json:"source_type"`
+	KnowledgeBaseType string        `json:"knowledge_base_type"`
+	CreatedAt         time.Time     `json:"created_at"`
+	UpdatedAt         time.Time     `json:"updated_at"`
 }
 
 func (q *Queries) InsertKnowledgeBase(ctx context.Context, arg InsertKnowledgeBaseParams) (sql.Result, error) {
@@ -570,92 +841,241 @@ func (q *Queries) InsertKnowledgeBase(ctx context.Context, arg InsertKnowledgeBa
 	)
 }
 
+const listActiveKnowledgeBaseCodesByCodes = `-- name: ListActiveKnowledgeBaseCodesByCodes :many
+SELECT code
+FROM magic_flow_knowledge
+WHERE code IN (/*SLICE:codes*/?)
+  AND deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+ORDER BY code ASC
+`
+
+func (q *Queries) ListActiveKnowledgeBaseCodesByCodes(ctx context.Context, codes []string) ([]string, error) {
+	query := listActiveKnowledgeBaseCodesByCodes
+	var queryParams []interface{}
+	if len(codes) > 0 {
+		for _, v := range codes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:codes*/?", strings.Repeat(",?", len(codes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:codes*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		items = append(items, code)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveKnowledgeBaseCodesByOrganization = `-- name: ListActiveKnowledgeBaseCodesByOrganization :many
+SELECT code
+FROM magic_flow_knowledge
+WHERE organization_code = ?
+  AND deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+ORDER BY code ASC
+`
+
+func (q *Queries) ListActiveKnowledgeBaseCodesByOrganization(ctx context.Context, organizationCode string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveKnowledgeBaseCodesByOrganization, organizationCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		items = append(items, code)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveKnowledgeBaseCodesByOrganizationAndCodes = `-- name: ListActiveKnowledgeBaseCodesByOrganizationAndCodes :many
+SELECT code
+FROM magic_flow_knowledge
+WHERE organization_code = ?
+  AND code IN (/*SLICE:codes*/?)
+  AND deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+ORDER BY code ASC
+`
+
+type ListActiveKnowledgeBaseCodesByOrganizationAndCodesParams struct {
+	OrganizationCode string   `json:"organization_code"`
+	Codes            []string `json:"codes"`
+}
+
+func (q *Queries) ListActiveKnowledgeBaseCodesByOrganizationAndCodes(ctx context.Context, arg ListActiveKnowledgeBaseCodesByOrganizationAndCodesParams) ([]string, error) {
+	query := listActiveKnowledgeBaseCodesByOrganizationAndCodes
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	if len(arg.Codes) > 0 {
+		for _, v := range arg.Codes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:codes*/?", strings.Repeat(",?", len(arg.Codes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:codes*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		items = append(items, code)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveKnowledgeBaseOrganizationsByCodes = `-- name: ListActiveKnowledgeBaseOrganizationsByCodes :many
+SELECT organization_code
+FROM magic_flow_knowledge
+WHERE code IN (/*SLICE:codes*/?)
+  AND deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+ORDER BY organization_code ASC, code ASC
+`
+
+func (q *Queries) ListActiveKnowledgeBaseOrganizationsByCodes(ctx context.Context, codes []string) ([]string, error) {
+	query := listActiveKnowledgeBaseOrganizationsByCodes
+	var queryParams []interface{}
+	if len(codes) > 0 {
+		for _, v := range codes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:codes*/?", strings.Repeat(",?", len(codes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:codes*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var organization_code string
+		if err := rows.Scan(&organization_code); err != nil {
+			return nil, err
+		}
+		items = append(items, organization_code)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listKnowledgeBases = `-- name: ListKnowledgeBases :many
-SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
 FROM magic_flow_knowledge
 WHERE deleted_at IS NULL
   AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
 ORDER BY id DESC
 LIMIT ? OFFSET ?
 `
 
 type ListKnowledgeBasesParams struct {
-	OrganizationCode  sql.NullString `json:"organization_code"`
-	NameLike          sql.NullString `json:"name_like"`
-	Type              sql.NullInt32  `json:"type"`
-	KnowledgeBaseType sql.NullString `json:"knowledge_base_type"`
-	Enabled           sql.NullBool   `json:"enabled"`
-	SyncStatus        sql.NullInt32  `json:"sync_status"`
-	Limit             int32          `json:"limit"`
-	Offset            int32          `json:"offset"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	Limit                   int32    `json:"limit"`
+	Offset                  int32    `json:"offset"`
 }
 
-type ListKnowledgeBasesRow struct {
-	ID                int64           `json:"id"`
-	Code              string          `json:"code"`
-	Version           int32           `json:"version"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Type              int32           `json:"type"`
-	Enabled           bool            `json:"enabled"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	Model             string          `json:"model"`
-	VectorDb          string          `json:"vector_db"`
-	OrganizationCode  string          `json:"organization_code"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	ExpectedNum       int32           `json:"expected_num"`
-	CompletedNum      int32           `json:"completed_num"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	WordCount         int64           `json:"word_count"`
-	Icon              string          `json:"icon"`
-	SourceType        sql.NullInt32   `json:"source_type"`
-	KnowledgeBaseType string          `json:"knowledge_base_type"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-}
-
-func (q *Queries) ListKnowledgeBases(ctx context.Context, arg ListKnowledgeBasesParams) ([]ListKnowledgeBasesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listKnowledgeBases,
-		arg.OrganizationCode,
-		arg.OrganizationCode,
-		arg.NameLike,
-		arg.NameLike,
-		arg.Type,
-		arg.Type,
-		arg.KnowledgeBaseType,
-		arg.KnowledgeBaseType,
-		arg.Enabled,
-		arg.Enabled,
-		arg.SyncStatus,
-		arg.SyncStatus,
-		arg.Limit,
-		arg.Offset,
-	)
+func (q *Queries) ListKnowledgeBases(ctx context.Context, arg ListKnowledgeBasesParams) ([]MagicFlowKnowledge, error) {
+	query := listKnowledgeBases
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListKnowledgeBasesRow{}
+	items := []MagicFlowKnowledge{}
 	for rows.Next() {
-		var i ListKnowledgeBasesRow
+		var i MagicFlowKnowledge
 		if err := rows.Scan(
 			&i.ID,
 			&i.Code,
@@ -683,6 +1103,7 @@ func (q *Queries) ListKnowledgeBases(ctx context.Context, arg ListKnowledgeBases
 			&i.KnowledgeBaseType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -698,84 +1119,70 @@ func (q *Queries) ListKnowledgeBases(ctx context.Context, arg ListKnowledgeBases
 }
 
 const listKnowledgeBasesByBusinessIDs = `-- name: ListKnowledgeBasesByBusinessIDs :many
-SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
 FROM magic_flow_knowledge
 WHERE deleted_at IS NULL
   AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND organization_code = ?
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
   AND business_id IN (/*SLICE:business_ids*/?)
 ORDER BY id DESC
 LIMIT ? OFFSET ?
 `
 
 type ListKnowledgeBasesByBusinessIDsParams struct {
-	OrganizationCode  sql.NullString `json:"organization_code"`
-	NameLike          sql.NullString `json:"name_like"`
-	Type              sql.NullInt32  `json:"type"`
-	KnowledgeBaseType sql.NullString `json:"knowledge_base_type"`
-	Enabled           sql.NullBool   `json:"enabled"`
-	SyncStatus        sql.NullInt32  `json:"sync_status"`
-	BusinessIds       []string       `json:"business_ids"`
-	Limit             int32          `json:"limit"`
-	Offset            int32          `json:"offset"`
+	OrganizationCode        string   `json:"organization_code"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	BusinessIds             []string `json:"business_ids"`
+	Limit                   int32    `json:"limit"`
+	Offset                  int32    `json:"offset"`
 }
 
-type ListKnowledgeBasesByBusinessIDsRow struct {
-	ID                int64           `json:"id"`
-	Code              string          `json:"code"`
-	Version           int32           `json:"version"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Type              int32           `json:"type"`
-	Enabled           bool            `json:"enabled"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	Model             string          `json:"model"`
-	VectorDb          string          `json:"vector_db"`
-	OrganizationCode  string          `json:"organization_code"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	ExpectedNum       int32           `json:"expected_num"`
-	CompletedNum      int32           `json:"completed_num"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	WordCount         int64           `json:"word_count"`
-	Icon              string          `json:"icon"`
-	SourceType        sql.NullInt32   `json:"source_type"`
-	KnowledgeBaseType string          `json:"knowledge_base_type"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-}
-
-func (q *Queries) ListKnowledgeBasesByBusinessIDs(ctx context.Context, arg ListKnowledgeBasesByBusinessIDsParams) ([]ListKnowledgeBasesByBusinessIDsRow, error) {
+func (q *Queries) ListKnowledgeBasesByBusinessIDs(ctx context.Context, arg ListKnowledgeBasesByBusinessIDsParams) ([]MagicFlowKnowledge, error) {
 	query := listKnowledgeBasesByBusinessIDs
 	var queryParams []interface{}
 	queryParams = append(queryParams, arg.OrganizationCode)
-	queryParams = append(queryParams, arg.OrganizationCode)
 	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.SyncStatus)
-	queryParams = append(queryParams, arg.SyncStatus)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
 	if len(arg.BusinessIds) > 0 {
 		for _, v := range arg.BusinessIds {
 			queryParams = append(queryParams, v)
@@ -791,9 +1198,9 @@ func (q *Queries) ListKnowledgeBasesByBusinessIDs(ctx context.Context, arg ListK
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListKnowledgeBasesByBusinessIDsRow{}
+	items := []MagicFlowKnowledge{}
 	for rows.Next() {
-		var i ListKnowledgeBasesByBusinessIDsRow
+		var i MagicFlowKnowledge
 		if err := rows.Scan(
 			&i.ID,
 			&i.Code,
@@ -821,6 +1228,129 @@ func (q *Queries) ListKnowledgeBasesByBusinessIDs(ctx context.Context, arg ListK
 			&i.KnowledgeBaseType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKnowledgeBasesByBusinessIDsNoOrganization = `-- name: ListKnowledgeBasesByBusinessIDsNoOrganization :many
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
+FROM magic_flow_knowledge
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+  AND business_id IN (/*SLICE:business_ids*/?)
+ORDER BY id DESC
+LIMIT ? OFFSET ?
+`
+
+type ListKnowledgeBasesByBusinessIDsNoOrganizationParams struct {
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	BusinessIds             []string `json:"business_ids"`
+	Limit                   int32    `json:"limit"`
+	Offset                  int32    `json:"offset"`
+}
+
+func (q *Queries) ListKnowledgeBasesByBusinessIDsNoOrganization(ctx context.Context, arg ListKnowledgeBasesByBusinessIDsNoOrganizationParams) ([]MagicFlowKnowledge, error) {
+	query := listKnowledgeBasesByBusinessIDsNoOrganization
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	if len(arg.BusinessIds) > 0 {
+		for _, v := range arg.BusinessIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:business_ids*/?", strings.Repeat(",?", len(arg.BusinessIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:business_ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MagicFlowKnowledge{}
+	for rows.Next() {
+		var i MagicFlowKnowledge
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Version,
+			&i.Name,
+			&i.Description,
+			&i.Type,
+			&i.Enabled,
+			&i.BusinessID,
+			&i.SyncStatus,
+			&i.SyncStatusMessage,
+			&i.Model,
+			&i.VectorDb,
+			&i.OrganizationCode,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.ExpectedNum,
+			&i.CompletedNum,
+			&i.RetrieveConfig,
+			&i.FragmentConfig,
+			&i.EmbeddingConfig,
+			&i.WordCount,
+			&i.Icon,
+			&i.SourceType,
+			&i.KnowledgeBaseType,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -836,84 +1366,67 @@ func (q *Queries) ListKnowledgeBasesByBusinessIDs(ctx context.Context, arg ListK
 }
 
 const listKnowledgeBasesByCodes = `-- name: ListKnowledgeBasesByCodes :many
-SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
 FROM magic_flow_knowledge
 WHERE deleted_at IS NULL
   AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
   AND code IN (/*SLICE:codes*/?)
 ORDER BY id DESC
 LIMIT ? OFFSET ?
 `
 
 type ListKnowledgeBasesByCodesParams struct {
-	OrganizationCode  sql.NullString `json:"organization_code"`
-	NameLike          sql.NullString `json:"name_like"`
-	Type              sql.NullInt32  `json:"type"`
-	KnowledgeBaseType sql.NullString `json:"knowledge_base_type"`
-	Enabled           sql.NullBool   `json:"enabled"`
-	SyncStatus        sql.NullInt32  `json:"sync_status"`
-	Codes             []string       `json:"codes"`
-	Limit             int32          `json:"limit"`
-	Offset            int32          `json:"offset"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	Codes                   []string `json:"codes"`
+	Limit                   int32    `json:"limit"`
+	Offset                  int32    `json:"offset"`
 }
 
-type ListKnowledgeBasesByCodesRow struct {
-	ID                int64           `json:"id"`
-	Code              string          `json:"code"`
-	Version           int32           `json:"version"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Type              int32           `json:"type"`
-	Enabled           bool            `json:"enabled"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	Model             string          `json:"model"`
-	VectorDb          string          `json:"vector_db"`
-	OrganizationCode  string          `json:"organization_code"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	ExpectedNum       int32           `json:"expected_num"`
-	CompletedNum      int32           `json:"completed_num"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	WordCount         int64           `json:"word_count"`
-	Icon              string          `json:"icon"`
-	SourceType        sql.NullInt32   `json:"source_type"`
-	KnowledgeBaseType string          `json:"knowledge_base_type"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-}
-
-func (q *Queries) ListKnowledgeBasesByCodes(ctx context.Context, arg ListKnowledgeBasesByCodesParams) ([]ListKnowledgeBasesByCodesRow, error) {
+func (q *Queries) ListKnowledgeBasesByCodes(ctx context.Context, arg ListKnowledgeBasesByCodesParams) ([]MagicFlowKnowledge, error) {
 	query := listKnowledgeBasesByCodes
 	var queryParams []interface{}
-	queryParams = append(queryParams, arg.OrganizationCode)
-	queryParams = append(queryParams, arg.OrganizationCode)
 	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.SyncStatus)
-	queryParams = append(queryParams, arg.SyncStatus)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
 	if len(arg.Codes) > 0 {
 		for _, v := range arg.Codes {
 			queryParams = append(queryParams, v)
@@ -929,9 +1442,9 @@ func (q *Queries) ListKnowledgeBasesByCodes(ctx context.Context, arg ListKnowled
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListKnowledgeBasesByCodesRow{}
+	items := []MagicFlowKnowledge{}
 	for rows.Next() {
-		var i ListKnowledgeBasesByCodesRow
+		var i MagicFlowKnowledge
 		if err := rows.Scan(
 			&i.ID,
 			&i.Code,
@@ -959,6 +1472,7 @@ func (q *Queries) ListKnowledgeBasesByCodes(ctx context.Context, arg ListKnowled
 			&i.KnowledgeBaseType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -974,23 +1488,16 @@ func (q *Queries) ListKnowledgeBasesByCodes(ctx context.Context, arg ListKnowled
 }
 
 const listKnowledgeBasesByCodesAndBusinessIDs = `-- name: ListKnowledgeBasesByCodesAndBusinessIDs :many
-SELECT id, code, version, name, description, type, enabled, business_id,
-       sync_status, sync_status_message, model, vector_db, organization_code,
-       created_uid, updated_uid, expected_num, completed_num,
-       COALESCE(retrieve_config, CAST('null' AS JSON)) AS retrieve_config,
-       COALESCE(fragment_config, CAST('null' AS JSON)) AS fragment_config,
-       COALESCE(embedding_config, CAST('null' AS JSON)) AS embedding_config,
-       word_count, icon,
-       source_type, knowledge_base_type, created_at, updated_at
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
 FROM magic_flow_knowledge
 WHERE deleted_at IS NULL
   AND code <> '__qdrant_collection_meta__'
-  AND (? IS NULL OR organization_code = ?)
-  AND (? IS NULL OR name LIKE ?)
-  AND (? IS NULL OR type = ?)
-  AND (? IS NULL OR knowledge_base_type = ?)
-  AND (? IS NULL OR enabled = ?)
-  AND (? IS NULL OR sync_status = ?)
+  AND organization_code = ?
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
   AND code IN (/*SLICE:codes*/?)
   AND business_id IN (/*SLICE:business_ids*/?)
 ORDER BY id DESC
@@ -998,62 +1505,55 @@ LIMIT ? OFFSET ?
 `
 
 type ListKnowledgeBasesByCodesAndBusinessIDsParams struct {
-	OrganizationCode  sql.NullString `json:"organization_code"`
-	NameLike          sql.NullString `json:"name_like"`
-	Type              sql.NullInt32  `json:"type"`
-	KnowledgeBaseType sql.NullString `json:"knowledge_base_type"`
-	Enabled           sql.NullBool   `json:"enabled"`
-	SyncStatus        sql.NullInt32  `json:"sync_status"`
-	Codes             []string       `json:"codes"`
-	BusinessIds       []string       `json:"business_ids"`
-	Limit             int32          `json:"limit"`
-	Offset            int32          `json:"offset"`
+	OrganizationCode        string   `json:"organization_code"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	Codes                   []string `json:"codes"`
+	BusinessIds             []string `json:"business_ids"`
+	Limit                   int32    `json:"limit"`
+	Offset                  int32    `json:"offset"`
 }
 
-type ListKnowledgeBasesByCodesAndBusinessIDsRow struct {
-	ID                int64           `json:"id"`
-	Code              string          `json:"code"`
-	Version           int32           `json:"version"`
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Type              int32           `json:"type"`
-	Enabled           bool            `json:"enabled"`
-	BusinessID        string          `json:"business_id"`
-	SyncStatus        int32           `json:"sync_status"`
-	SyncStatusMessage string          `json:"sync_status_message"`
-	Model             string          `json:"model"`
-	VectorDb          string          `json:"vector_db"`
-	OrganizationCode  string          `json:"organization_code"`
-	CreatedUid        string          `json:"created_uid"`
-	UpdatedUid        string          `json:"updated_uid"`
-	ExpectedNum       int32           `json:"expected_num"`
-	CompletedNum      int32           `json:"completed_num"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	WordCount         int64           `json:"word_count"`
-	Icon              string          `json:"icon"`
-	SourceType        sql.NullInt32   `json:"source_type"`
-	KnowledgeBaseType string          `json:"knowledge_base_type"`
-	CreatedAt         time.Time       `json:"created_at"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-}
-
-func (q *Queries) ListKnowledgeBasesByCodesAndBusinessIDs(ctx context.Context, arg ListKnowledgeBasesByCodesAndBusinessIDsParams) ([]ListKnowledgeBasesByCodesAndBusinessIDsRow, error) {
+func (q *Queries) ListKnowledgeBasesByCodesAndBusinessIDs(ctx context.Context, arg ListKnowledgeBasesByCodesAndBusinessIDsParams) ([]MagicFlowKnowledge, error) {
 	query := listKnowledgeBasesByCodesAndBusinessIDs
 	var queryParams []interface{}
 	queryParams = append(queryParams, arg.OrganizationCode)
-	queryParams = append(queryParams, arg.OrganizationCode)
 	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.NameLike)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.Type)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.KnowledgeBaseType)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.Enabled)
-	queryParams = append(queryParams, arg.SyncStatus)
-	queryParams = append(queryParams, arg.SyncStatus)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
 	if len(arg.Codes) > 0 {
 		for _, v := range arg.Codes {
 			queryParams = append(queryParams, v)
@@ -1077,9 +1577,9 @@ func (q *Queries) ListKnowledgeBasesByCodesAndBusinessIDs(ctx context.Context, a
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListKnowledgeBasesByCodesAndBusinessIDsRow{}
+	items := []MagicFlowKnowledge{}
 	for rows.Next() {
-		var i ListKnowledgeBasesByCodesAndBusinessIDsRow
+		var i MagicFlowKnowledge
 		if err := rows.Scan(
 			&i.ID,
 			&i.Code,
@@ -1107,6 +1607,7 @@ func (q *Queries) ListKnowledgeBasesByCodesAndBusinessIDs(ctx context.Context, a
 			&i.KnowledgeBaseType,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -1119,6 +1620,437 @@ func (q *Queries) ListKnowledgeBasesByCodesAndBusinessIDs(ctx context.Context, a
 		return nil, err
 	}
 	return items, nil
+}
+
+const listKnowledgeBasesByCodesAndBusinessIDsNoOrganization = `-- name: ListKnowledgeBasesByCodesAndBusinessIDsNoOrganization :many
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
+FROM magic_flow_knowledge
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+  AND code IN (/*SLICE:codes*/?)
+  AND business_id IN (/*SLICE:business_ids*/?)
+ORDER BY id DESC
+LIMIT ? OFFSET ?
+`
+
+type ListKnowledgeBasesByCodesAndBusinessIDsNoOrganizationParams struct {
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	Codes                   []string `json:"codes"`
+	BusinessIds             []string `json:"business_ids"`
+	Limit                   int32    `json:"limit"`
+	Offset                  int32    `json:"offset"`
+}
+
+func (q *Queries) ListKnowledgeBasesByCodesAndBusinessIDsNoOrganization(ctx context.Context, arg ListKnowledgeBasesByCodesAndBusinessIDsNoOrganizationParams) ([]MagicFlowKnowledge, error) {
+	query := listKnowledgeBasesByCodesAndBusinessIDsNoOrganization
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	if len(arg.Codes) > 0 {
+		for _, v := range arg.Codes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:codes*/?", strings.Repeat(",?", len(arg.Codes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:codes*/?", "NULL", 1)
+	}
+	if len(arg.BusinessIds) > 0 {
+		for _, v := range arg.BusinessIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:business_ids*/?", strings.Repeat(",?", len(arg.BusinessIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:business_ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MagicFlowKnowledge{}
+	for rows.Next() {
+		var i MagicFlowKnowledge
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Version,
+			&i.Name,
+			&i.Description,
+			&i.Type,
+			&i.Enabled,
+			&i.BusinessID,
+			&i.SyncStatus,
+			&i.SyncStatusMessage,
+			&i.Model,
+			&i.VectorDb,
+			&i.OrganizationCode,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.ExpectedNum,
+			&i.CompletedNum,
+			&i.RetrieveConfig,
+			&i.FragmentConfig,
+			&i.EmbeddingConfig,
+			&i.WordCount,
+			&i.Icon,
+			&i.SourceType,
+			&i.KnowledgeBaseType,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKnowledgeBasesByOrganization = `-- name: ListKnowledgeBasesByOrganization :many
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
+FROM magic_flow_knowledge
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND organization_code = ?
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+ORDER BY id DESC
+LIMIT ? OFFSET ?
+`
+
+type ListKnowledgeBasesByOrganizationParams struct {
+	OrganizationCode        string   `json:"organization_code"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	Limit                   int32    `json:"limit"`
+	Offset                  int32    `json:"offset"`
+}
+
+func (q *Queries) ListKnowledgeBasesByOrganization(ctx context.Context, arg ListKnowledgeBasesByOrganizationParams) ([]MagicFlowKnowledge, error) {
+	query := listKnowledgeBasesByOrganization
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MagicFlowKnowledge{}
+	for rows.Next() {
+		var i MagicFlowKnowledge
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Version,
+			&i.Name,
+			&i.Description,
+			&i.Type,
+			&i.Enabled,
+			&i.BusinessID,
+			&i.SyncStatus,
+			&i.SyncStatusMessage,
+			&i.Model,
+			&i.VectorDb,
+			&i.OrganizationCode,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.ExpectedNum,
+			&i.CompletedNum,
+			&i.RetrieveConfig,
+			&i.FragmentConfig,
+			&i.EmbeddingConfig,
+			&i.WordCount,
+			&i.Icon,
+			&i.SourceType,
+			&i.KnowledgeBaseType,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listKnowledgeBasesByOrganizationAndCodes = `-- name: ListKnowledgeBasesByOrganizationAndCodes :many
+SELECT magic_flow_knowledge.id, magic_flow_knowledge.code, magic_flow_knowledge.version, magic_flow_knowledge.name, magic_flow_knowledge.description, magic_flow_knowledge.type, magic_flow_knowledge.enabled, magic_flow_knowledge.business_id, magic_flow_knowledge.sync_status, magic_flow_knowledge.sync_status_message, magic_flow_knowledge.model, magic_flow_knowledge.vector_db, magic_flow_knowledge.organization_code, magic_flow_knowledge.created_uid, magic_flow_knowledge.updated_uid, magic_flow_knowledge.expected_num, magic_flow_knowledge.completed_num, magic_flow_knowledge.retrieve_config, magic_flow_knowledge.fragment_config, magic_flow_knowledge.embedding_config, magic_flow_knowledge.word_count, magic_flow_knowledge.icon, magic_flow_knowledge.source_type, magic_flow_knowledge.knowledge_base_type, magic_flow_knowledge.created_at, magic_flow_knowledge.updated_at, magic_flow_knowledge.deleted_at
+FROM magic_flow_knowledge
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND organization_code = ?
+  AND name LIKE ?
+  AND type IN (/*SLICE:type_values*/?)
+  AND knowledge_base_type IN (/*SLICE:knowledge_base_type_values*/?)
+  AND enabled IN (/*SLICE:enabled_values*/?)
+  AND sync_status IN (/*SLICE:sync_status_values*/?)
+  AND code IN (/*SLICE:codes*/?)
+ORDER BY id DESC
+LIMIT ? OFFSET ?
+`
+
+type ListKnowledgeBasesByOrganizationAndCodesParams struct {
+	OrganizationCode        string   `json:"organization_code"`
+	NameLike                string   `json:"name_like"`
+	TypeValues              []int32  `json:"type_values"`
+	KnowledgeBaseTypeValues []string `json:"knowledge_base_type_values"`
+	EnabledValues           []int8   `json:"enabled_values"`
+	SyncStatusValues        []int32  `json:"sync_status_values"`
+	Codes                   []string `json:"codes"`
+	Limit                   int32    `json:"limit"`
+	Offset                  int32    `json:"offset"`
+}
+
+func (q *Queries) ListKnowledgeBasesByOrganizationAndCodes(ctx context.Context, arg ListKnowledgeBasesByOrganizationAndCodesParams) ([]MagicFlowKnowledge, error) {
+	query := listKnowledgeBasesByOrganizationAndCodes
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.OrganizationCode)
+	queryParams = append(queryParams, arg.NameLike)
+	if len(arg.TypeValues) > 0 {
+		for _, v := range arg.TypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:type_values*/?", strings.Repeat(",?", len(arg.TypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:type_values*/?", "NULL", 1)
+	}
+	if len(arg.KnowledgeBaseTypeValues) > 0 {
+		for _, v := range arg.KnowledgeBaseTypeValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", strings.Repeat(",?", len(arg.KnowledgeBaseTypeValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:knowledge_base_type_values*/?", "NULL", 1)
+	}
+	if len(arg.EnabledValues) > 0 {
+		for _, v := range arg.EnabledValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", strings.Repeat(",?", len(arg.EnabledValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:enabled_values*/?", "NULL", 1)
+	}
+	if len(arg.SyncStatusValues) > 0 {
+		for _, v := range arg.SyncStatusValues {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", strings.Repeat(",?", len(arg.SyncStatusValues))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:sync_status_values*/?", "NULL", 1)
+	}
+	if len(arg.Codes) > 0 {
+		for _, v := range arg.Codes {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:codes*/?", strings.Repeat(",?", len(arg.Codes))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:codes*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Limit)
+	queryParams = append(queryParams, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MagicFlowKnowledge{}
+	for rows.Next() {
+		var i MagicFlowKnowledge
+		if err := rows.Scan(
+			&i.ID,
+			&i.Code,
+			&i.Version,
+			&i.Name,
+			&i.Description,
+			&i.Type,
+			&i.Enabled,
+			&i.BusinessID,
+			&i.SyncStatus,
+			&i.SyncStatusMessage,
+			&i.Model,
+			&i.VectorDb,
+			&i.OrganizationCode,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.ExpectedNum,
+			&i.CompletedNum,
+			&i.RetrieveConfig,
+			&i.FragmentConfig,
+			&i.EmbeddingConfig,
+			&i.WordCount,
+			&i.Icon,
+			&i.SourceType,
+			&i.KnowledgeBaseType,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const resetKnowledgeBaseSyncStatusAll = `-- name: ResetKnowledgeBaseSyncStatusAll :execrows
+UPDATE magic_flow_knowledge
+SET sync_status = 0,
+    sync_status_message = '',
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+`
+
+func (q *Queries) ResetKnowledgeBaseSyncStatusAll(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resetKnowledgeBaseSyncStatusAll)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const resetKnowledgeBaseSyncStatusByKnowledgeBase = `-- name: ResetKnowledgeBaseSyncStatusByKnowledgeBase :execrows
+UPDATE magic_flow_knowledge
+SET sync_status = 0,
+    sync_status_message = '',
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND organization_code = ?
+  AND code = ?
+`
+
+type ResetKnowledgeBaseSyncStatusByKnowledgeBaseParams struct {
+	OrganizationCode string `json:"organization_code"`
+	Code             string `json:"code"`
+}
+
+func (q *Queries) ResetKnowledgeBaseSyncStatusByKnowledgeBase(ctx context.Context, arg ResetKnowledgeBaseSyncStatusByKnowledgeBaseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resetKnowledgeBaseSyncStatusByKnowledgeBase, arg.OrganizationCode, arg.Code)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const resetKnowledgeBaseSyncStatusByOrganization = `-- name: ResetKnowledgeBaseSyncStatusByOrganization :execrows
+UPDATE magic_flow_knowledge
+SET sync_status = 0,
+    sync_status_message = '',
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND organization_code = ?
+`
+
+func (q *Queries) ResetKnowledgeBaseSyncStatusByOrganization(ctx context.Context, organizationCode string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resetKnowledgeBaseSyncStatusByOrganization, organizationCode)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateKnowledgeBase = `-- name: UpdateKnowledgeBase :execrows
@@ -1140,19 +2072,19 @@ WHERE id = ?
 `
 
 type UpdateKnowledgeBaseParams struct {
-	Name              string          `json:"name"`
-	Description       string          `json:"description"`
-	Enabled           bool            `json:"enabled"`
-	UpdatedUid        string          `json:"updated_uid"`
-	SourceType        sql.NullInt32   `json:"source_type"`
-	KnowledgeBaseType string          `json:"knowledge_base_type"`
-	RetrieveConfig    json.RawMessage `json:"retrieve_config"`
-	FragmentConfig    json.RawMessage `json:"fragment_config"`
-	EmbeddingConfig   json.RawMessage `json:"embedding_config"`
-	WordCount         int64           `json:"word_count"`
-	Icon              string          `json:"icon"`
-	UpdatedAt         time.Time       `json:"updated_at"`
-	ID                int64           `json:"id"`
+	Name              string        `json:"name"`
+	Description       string        `json:"description"`
+	Enabled           bool          `json:"enabled"`
+	UpdatedUid        string        `json:"updated_uid"`
+	SourceType        sql.NullInt32 `json:"source_type"`
+	KnowledgeBaseType string        `json:"knowledge_base_type"`
+	RetrieveConfig    []byte        `json:"retrieve_config"`
+	FragmentConfig    []byte        `json:"fragment_config"`
+	EmbeddingConfig   []byte        `json:"embedding_config"`
+	WordCount         int64         `json:"word_count"`
+	Icon              string        `json:"icon"`
+	UpdatedAt         time.Time     `json:"updated_at"`
+	ID                int64         `json:"id"`
 }
 
 func (q *Queries) UpdateKnowledgeBase(ctx context.Context, arg UpdateKnowledgeBaseParams) (int64, error) {
@@ -1171,6 +2103,80 @@ func (q *Queries) UpdateKnowledgeBase(ctx context.Context, arg UpdateKnowledgeBa
 		arg.UpdatedAt,
 		arg.ID,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateKnowledgeBaseModelAll = `-- name: UpdateKnowledgeBaseModelAll :execrows
+UPDATE magic_flow_knowledge
+SET model = ?,
+    embedding_config = JSON_SET(COALESCE(embedding_config, JSON_OBJECT()), '$.model_id', ?),
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+`
+
+type UpdateKnowledgeBaseModelAllParams struct {
+	Model string `json:"model"`
+}
+
+func (q *Queries) UpdateKnowledgeBaseModelAll(ctx context.Context, arg UpdateKnowledgeBaseModelAllParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateKnowledgeBaseModelAll, arg.Model, arg.Model)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateKnowledgeBaseModelByKnowledgeBase = `-- name: UpdateKnowledgeBaseModelByKnowledgeBase :execrows
+UPDATE magic_flow_knowledge
+SET model = ?,
+    embedding_config = JSON_SET(COALESCE(embedding_config, JSON_OBJECT()), '$.model_id', ?),
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND organization_code = ?
+  AND code = ?
+`
+
+type UpdateKnowledgeBaseModelByKnowledgeBaseParams struct {
+	Model            string `json:"model"`
+	OrganizationCode string `json:"organization_code"`
+	Code             string `json:"code"`
+}
+
+func (q *Queries) UpdateKnowledgeBaseModelByKnowledgeBase(ctx context.Context, arg UpdateKnowledgeBaseModelByKnowledgeBaseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateKnowledgeBaseModelByKnowledgeBase,
+		arg.Model,
+		arg.Model,
+		arg.OrganizationCode,
+		arg.Code,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateKnowledgeBaseModelByOrganization = `-- name: UpdateKnowledgeBaseModelByOrganization :execrows
+UPDATE magic_flow_knowledge
+SET model = ?,
+    embedding_config = JSON_SET(COALESCE(embedding_config, JSON_OBJECT()), '$.model_id', ?),
+    updated_at = NOW()
+WHERE deleted_at IS NULL
+  AND code <> '__qdrant_collection_meta__'
+  AND organization_code = ?
+`
+
+type UpdateKnowledgeBaseModelByOrganizationParams struct {
+	Model            string `json:"model"`
+	OrganizationCode string `json:"organization_code"`
+}
+
+func (q *Queries) UpdateKnowledgeBaseModelByOrganization(ctx context.Context, arg UpdateKnowledgeBaseModelByOrganizationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateKnowledgeBaseModelByOrganization, arg.Model, arg.Model, arg.OrganizationCode)
 	if err != nil {
 		return 0, err
 	}
@@ -1261,13 +2267,13 @@ ON DUPLICATE KEY UPDATE
 `
 
 type UpsertKnowledgeBaseCollectionMetaParams struct {
-	Code             string          `json:"code"`
-	Name             string          `json:"name"`
-	Description      string          `json:"description"`
-	Model            string          `json:"model"`
-	VectorDb         string          `json:"vector_db"`
-	OrganizationCode string          `json:"organization_code"`
-	EmbeddingConfig  json.RawMessage `json:"embedding_config"`
+	Code             string `json:"code"`
+	Name             string `json:"name"`
+	Description      string `json:"description"`
+	Model            string `json:"model"`
+	VectorDb         string `json:"vector_db"`
+	OrganizationCode string `json:"organization_code"`
+	EmbeddingConfig  []byte `json:"embedding_config"`
 }
 
 func (q *Queries) UpsertKnowledgeBaseCollectionMeta(ctx context.Context, arg UpsertKnowledgeBaseCollectionMetaParams) error {

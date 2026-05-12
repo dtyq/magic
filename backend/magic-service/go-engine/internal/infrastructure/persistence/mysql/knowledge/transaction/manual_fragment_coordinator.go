@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"magic/internal/domain/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
 	fragmetadata "magic/internal/domain/knowledge/fragment/metadata"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	"magic/internal/domain/knowledge/shared"
@@ -37,9 +37,9 @@ func NewManualFragmentCoordinator(client *mysqlclient.SQLCClient, logger *loggin
 // EnsureDocumentAndSaveFragment 在单事务中确保文档存在并保存片段。
 func (c *ManualFragmentCoordinator) EnsureDocumentAndSaveFragment(
 	ctx context.Context,
-	doc *document.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	fragment *fragmodel.KnowledgeBaseFragment,
-) (*document.KnowledgeBaseDocument, error) {
+) (*docentity.KnowledgeBaseDocument, error) {
 	if doc == nil {
 		return nil, shared.ErrDocumentNotFound
 	}
@@ -78,8 +78,8 @@ func (c *ManualFragmentCoordinator) EnsureDocumentAndSaveFragment(
 func (c *ManualFragmentCoordinator) ensureDocument(
 	ctx context.Context,
 	queries *mysqlsqlc.Queries,
-	doc *document.KnowledgeBaseDocument,
-) (*document.KnowledgeBaseDocument, error) {
+	doc *docentity.KnowledgeBaseDocument,
+) (*docentity.KnowledgeBaseDocument, error) {
 	found, err := queries.FindDocumentByCodeAndKnowledgeBase(ctx, mysqlsqlc.FindDocumentByCodeAndKnowledgeBaseParams{
 		Code:              doc.Code,
 		KnowledgeBaseCode: doc.KnowledgeBaseCode,
@@ -118,8 +118,8 @@ func (c *ManualFragmentCoordinator) ensureDocument(
 func (c *ManualFragmentCoordinator) findDuplicateDocument(
 	ctx context.Context,
 	queries *mysqlsqlc.Queries,
-	doc *document.KnowledgeBaseDocument,
-) (*document.KnowledgeBaseDocument, error) {
+	doc *docentity.KnowledgeBaseDocument,
+) (*docentity.KnowledgeBaseDocument, error) {
 	duplicateDoc, err := queries.FindDocumentByCodeAndKnowledgeBase(ctx, mysqlsqlc.FindDocumentByCodeAndKnowledgeBaseParams{
 		Code:              doc.Code,
 		KnowledgeBaseCode: doc.KnowledgeBaseCode,
@@ -170,7 +170,7 @@ func (c *ManualFragmentCoordinator) insertFragment(
 	return nil
 }
 
-func applyDocumentToFragment(fragment *fragmodel.KnowledgeBaseFragment, doc *document.KnowledgeBaseDocument) {
+func applyDocumentToFragment(fragment *fragmodel.KnowledgeBaseFragment, doc *docentity.KnowledgeBaseDocument) {
 	if fragment == nil || doc == nil {
 		return
 	}
@@ -179,7 +179,7 @@ func applyDocumentToFragment(fragment *fragmodel.KnowledgeBaseFragment, doc *doc
 	fragment.DocumentName = doc.Name
 	fragment.DocumentType = doc.DocType
 	fragment.OrganizationCode = doc.OrganizationCode
-	fragment.Metadata = fragmetadata.BuildFragmentSemanticMetadataV1(fragment.Metadata, fragmetadata.FragmentSemanticMetadataDefaults{
+	fragment.Metadata = fragmetadata.BuildFragmentSemanticMetadata(fragment.Metadata, fragmetadata.FragmentSemanticMetadataDefaults{
 		ChunkIndex:   fragment.ChunkIndex,
 		ContentHash:  fragment.ContentHash,
 		SplitVersion: fragment.SplitVersion,

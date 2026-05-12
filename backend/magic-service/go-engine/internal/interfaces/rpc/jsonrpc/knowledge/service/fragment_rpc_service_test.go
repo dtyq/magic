@@ -1,9 +1,13 @@
 package service_test
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -27,6 +31,9 @@ type mockFragmentAppService struct {
 	lastSimilarityInput   *fragdto.SimilarityInput
 	lastRuntimeSimilarity *fragdto.RuntimeSimilarityInput
 	lastAgentSimilarity   *fragdto.AgentSimilarityInput
+	lastSyncInput         *fragdto.SyncFragmentInput
+	lastShowID            int64
+	lastDestroyID         int64
 	createCalls           int
 	runtimeCreateCalls    int
 	destroyCalls          int
@@ -43,6 +50,9 @@ type mockFragmentAppService struct {
 	previewErr            error
 	agentSimilarityErr    error
 	agentSimilarityResult *fragdto.AgentSimilarityResultDTO
+	listResult            *fragdto.FragmentPageResultDTO
+	previewResult         *fragdto.FragmentPageResultDTO
+	similarityResults     []*fragdto.SimilarityResultDTO
 }
 
 func (m *mockFragmentAppService) Create(_ context.Context, input *fragdto.CreateFragmentInput) (*fragdto.FragmentDTO, error) {
@@ -71,7 +81,8 @@ func (m *mockFragmentAppService) RuntimeCreate(_ context.Context, input *fragdto
 	return &fragdto.FragmentDTO{ID: 11, KnowledgeCode: testFragmentKBCode}, nil
 }
 
-func (m *mockFragmentAppService) Show(_ context.Context, _ int64, _, _, _ string) (*fragdto.FragmentDTO, error) {
+func (m *mockFragmentAppService) Show(_ context.Context, id int64, _, _, _ string) (*fragdto.FragmentDTO, error) {
+	m.lastShowID = id
 	if m.showErr != nil {
 		return nil, m.showErr
 	}
@@ -102,6 +113,9 @@ func (m *mockFragmentAppService) ListV2(_ context.Context, input *fragdto.ListFr
 	if m.listErr != nil {
 		return nil, m.listErr
 	}
+	if m.listResult != nil {
+		return m.listResult, nil
+	}
 	return &fragdto.FragmentPageResultDTO{
 		List: []*fragdto.FragmentListItemDTO{
 			{
@@ -119,8 +133,9 @@ func (m *mockFragmentAppService) ListV2(_ context.Context, input *fragdto.ListFr
 	}, nil
 }
 
-func (m *mockFragmentAppService) Destroy(_ context.Context, _ int64, _, _, _ string) error {
+func (m *mockFragmentAppService) Destroy(_ context.Context, id int64, _, _, _ string) error {
 	m.destroyCalls++
+	m.lastDestroyID = id
 	return m.destroyErr
 }
 
@@ -134,8 +149,9 @@ func (m *mockFragmentAppService) RuntimeDestroyByMetadataFilter(_ context.Contex
 	return m.runtimeDestroyErr
 }
 
-func (m *mockFragmentAppService) Sync(context.Context, *fragdto.SyncFragmentInput) (*fragdto.FragmentDTO, error) {
+func (m *mockFragmentAppService) Sync(_ context.Context, input *fragdto.SyncFragmentInput) (*fragdto.FragmentDTO, error) {
 	m.syncCalls++
+	m.lastSyncInput = input
 	if m.syncErr != nil {
 		return nil, m.syncErr
 	}
@@ -146,6 +162,9 @@ func (m *mockFragmentAppService) Similarity(_ context.Context, input *fragdto.Si
 	m.lastSimilarityInput = input
 	if m.similarityErr != nil {
 		return nil, m.similarityErr
+	}
+	if m.similarityResults != nil {
+		return m.similarityResults, nil
 	}
 	return []*fragdto.SimilarityResultDTO{
 		{
@@ -223,6 +242,9 @@ func (m *mockFragmentAppService) PreviewV2(_ context.Context, input *fragdto.Pre
 	m.lastPreviewInput = input
 	if m.previewErr != nil {
 		return nil, m.previewErr
+	}
+	if m.previewResult != nil {
+		return m.previewResult, nil
 	}
 	return &fragdto.FragmentPageResultDTO{
 		List: []*fragdto.FragmentListItemDTO{
@@ -331,6 +353,127 @@ func TestFragmentRPCIgnoresAgentScopeFields(t *testing.T) {
 	}
 }
 
+func TestFragmentListRPCCompatAcceptsStringPagination(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+	list := jsonrpc.WrapTyped(handler.ListRPC)
+
+	if _, err := list(context.Background(), "svc.knowledge.fragment.queries", json.RawMessage(`{
+		"data_isolation": {"organization_code": "ORG1", "user_id": "U1"},
+		"knowledge_code": "KB1",
+		"document_code": "DOC1",
+		"sync_status": "1",
+		"version": "2",
+		"page": "4",
+		"page_size": "10"
+	}`)); err != nil {
+		t.Fatalf("expected list string pagination compat, got %v", err)
+	}
+	if appSvc.lastListInput == nil || appSvc.lastListInput.Offset != 30 || appSvc.lastListInput.Limit != 10 {
+		t.Fatalf("expected string pagination mapped to offset/limit=30/10, got %#v", appSvc.lastListInput)
+	}
+}
+
+func TestFragmentRPCCompatAcceptsStringCarrierIDs(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+
+	show := jsonrpc.WrapTyped(handler.ShowRPC)
+	if _, err := show(context.Background(), "svc.knowledge.fragment.show", json.RawMessage(`{
+		"data_isolation": {"organization_code": "ORG1", "user_id": "U1"},
+		"id": "7",
+		"knowledge_code": "KB1",
+		"document_code": "DOC1"
+	}`)); err != nil {
+		t.Fatalf("expected show string id compat, got %v", err)
+	}
+	if appSvc.lastShowID != 7 {
+		t.Fatalf("expected show id=7, got %d", appSvc.lastShowID)
+	}
+
+	destroy := jsonrpc.WrapTyped(handler.DestroyRPC)
+	if _, err := destroy(context.Background(), "svc.knowledge.fragment.destroy", json.RawMessage(`{
+		"data_isolation": {"organization_code": "ORG1", "user_id": "U1"},
+		"id": "8",
+		"knowledge_code": "KB1",
+		"document_code": "DOC1"
+	}`)); err != nil {
+		t.Fatalf("expected destroy string id compat, got %v", err)
+	}
+	if appSvc.lastDestroyID != 8 {
+		t.Fatalf("expected destroy id=8, got %d", appSvc.lastDestroyID)
+	}
+
+	syncFragment := jsonrpc.WrapTyped(handler.SyncRPC)
+	_, err := syncFragment(context.Background(), "svc.knowledge.fragment.sync", json.RawMessage(`{
+		"data_isolation": {"organization_code": "ORG1", "user_id": "U1"},
+		"business_params": {"organization_code": "ORG1", "user_id": "U1", "business_id": "B1"},
+		"knowledge_code": "KB1",
+		"fragment_id": "9"
+	}`))
+	if err == nil {
+		t.Fatal("expected fragment sync disabled error")
+	}
+	var bizErr *jsonrpc.BusinessError
+	if !errors.As(err, &bizErr) {
+		t.Fatalf("expected business error, got %T", err)
+	}
+	if bizErr.Code != jsonrpc.ErrCodeInvalidParams || bizErr.Message != fragmentapp.ErrFragmentWriteDisabled.Error() {
+		t.Fatalf("expected disabled business error after DTO compat, got %#v", bizErr)
+	}
+
+	_, err = syncFragment(context.Background(), "svc.knowledge.fragment.sync", json.RawMessage(`{
+		"data_isolation": {"organization_code": "ORG1", "user_id": "U1"},
+		"business_params": {"organization_code": "ORG1", "user_id": "U1", "business_id": "B1"},
+		"knowledge_code": "KB1",
+		"id": "10"
+	}`))
+	if err == nil {
+		t.Fatal("expected fragment sync disabled error for legacy id compat")
+	}
+	if !errors.As(err, &bizErr) {
+		t.Fatalf("expected business error for legacy id compat, got %T", err)
+	}
+	if bizErr.Code != jsonrpc.ErrCodeInvalidParams || bizErr.Message != fragmentapp.ErrFragmentWriteDisabled.Error() {
+		t.Fatalf("expected disabled business error after legacy id compat, got %#v", bizErr)
+	}
+}
+
+func TestFragmentSimilarityRPCCompatAcceptsStringNestedFilterScalars(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+	similarity := jsonrpc.WrapTyped(handler.SimilarityRPC)
+
+	if _, err := similarity(context.Background(), "svc.knowledge.fragment.similarity", json.RawMessage(`{
+		"data_isolation": {"organization_code": "ORG1", "user_id": "U1"},
+		"business_params": {"organization_code": "ORG1", "user_id": "U1"},
+		"knowledge_code": "KB1",
+		"query": "hello",
+		"filters": {
+			"document_types": ["1", "2"],
+			"section_levels": ["3"],
+			"time_range": {"start_unix": "10", "end_unix": "20"}
+		}
+	}`)); err != nil {
+		t.Fatalf("expected nested filter string compat, got %v", err)
+	}
+	if appSvc.lastSimilarityInput == nil || appSvc.lastSimilarityInput.Filters == nil {
+		t.Fatalf("expected filters captured, got %#v", appSvc.lastSimilarityInput)
+	}
+	if len(appSvc.lastSimilarityInput.Filters.DocumentTypes) != 2 || appSvc.lastSimilarityInput.Filters.DocumentTypes[0] != 1 {
+		t.Fatalf("unexpected document_types %#v", appSvc.lastSimilarityInput.Filters.DocumentTypes)
+	}
+	if appSvc.lastSimilarityInput.Filters.TimeRange == nil || appSvc.lastSimilarityInput.Filters.TimeRange.StartUnix != 10 || appSvc.lastSimilarityInput.Filters.TimeRange.EndUnix != 20 {
+		t.Fatalf("unexpected time_range %#v", appSvc.lastSimilarityInput.Filters.TimeRange)
+	}
+}
+
 func TestNewFragmentRPCService(t *testing.T) {
 	t.Parallel()
 
@@ -431,6 +574,49 @@ func TestFragmentPreviewRPCMapsTopLevelStrategyConfig(t *testing.T) {
 	}
 	if appSvc.lastPreviewInput == nil || appSvc.lastPreviewInput.StrategyConfig != strategyConfig {
 		t.Fatalf("expected strategy config forwarded, got %#v", appSvc.lastPreviewInput)
+	}
+}
+
+func TestFragmentPreviewRPCForwardsDocumentCode(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+
+	if _, err := handler.PreviewRPC(context.Background(), &dto.PreviewFragmentRequest{
+		DocumentCode: "DOC-1",
+	}); err != nil {
+		t.Fatalf("preview rpc: %v", err)
+	}
+	if appSvc.lastPreviewInput == nil || appSvc.lastPreviewInput.DocumentCode != "DOC-1" {
+		t.Fatalf("expected document_code forwarded, got %#v", appSvc.lastPreviewInput)
+	}
+}
+
+func TestFragmentPreviewRPCWrappedPreservesDocumentCodeFromJSON(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+	wrapped := jsonrpc.WrapTyped(handler.PreviewRPC)
+
+	if _, err := wrapped(context.Background(), "svc.knowledge.fragment.preview", jsonRawMessagef(`{
+		"data_isolation": {"organization_code": "ORG1", "user_id": "U1"},
+		"document_code": "DOC-JSON-1",
+		"document_file": {
+			"type": "project_file",
+			"name": "门店数据.xml",
+			"project_file_id": 42,
+			"relative_file_path": "门店数据.xml",
+			"source_type": "project",
+			"key": "DT001/project/门店数据.xml"
+		}
+	}`)); err != nil {
+		t.Fatalf("wrapped preview rpc: %v", err)
+	}
+
+	if appSvc.lastPreviewInput == nil || appSvc.lastPreviewInput.DocumentCode != "DOC-JSON-1" {
+		t.Fatalf("expected wrapped preview rpc to preserve document_code, got %#v", appSvc.lastPreviewInput)
 	}
 }
 
@@ -744,5 +930,170 @@ func TestFragmentRPCMapsShowListSimilarityAndPreviewErrors(t *testing.T) {
 	}
 	if _, err := handler.PreviewRPC(context.Background(), &dto.PreviewFragmentRequest{}); err == nil {
 		t.Fatal("expected preview error")
+	}
+}
+
+func TestFragmentListHTTPRPCBuildsLowCodeBody(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+
+	result, err := handler.ListHTTPRPC(context.Background(), &dto.ListFragmentRequest{
+		DataIsolation:  dto.DataIsolation{OrganizationCode: "ORG1", UserID: "U1"},
+		KnowledgeCode:  "KB1",
+		DocumentCode:   "DOC1",
+		Page:           dto.PageParams{Offset: 0, Limit: 10},
+		AcceptEncoding: "gzip",
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected passthrough result")
+	}
+	if result.ContentEncoding != "" || result.Vary != "" {
+		t.Fatalf("expected small body to stay plain, got %#v", result)
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(result.BodyBase64)
+	if err != nil {
+		t.Fatalf("decode base64: %v", err)
+	}
+	if len(decoded) != result.BodyBytes {
+		t.Fatalf("expected body_bytes=%d, got decoded=%d", result.BodyBytes, len(decoded))
+	}
+	if !strings.Contains(string(decoded), `"code":1000`) || !strings.Contains(string(decoded), `"message":"ok"`) {
+		t.Fatalf("unexpected low code body: %s", string(decoded))
+	}
+}
+
+func TestFragmentPreviewHTTPRPCCompressesLargeBody(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{
+		previewResult: &fragdto.FragmentPageResultDTO{
+			List: []*fragdto.FragmentListItemDTO{{
+				ID:                9,
+				KnowledgeBaseCode: testFragmentKBCode,
+				KnowledgeCode:     testFragmentKBCode,
+				DocumentCode:      "DOC1",
+				DocumentName:      "demo.md",
+				DocumentType:      2,
+				DocType:           2,
+				Content:           strings.Repeat("x", 150*1024),
+			}},
+		},
+	}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+
+	result, err := handler.PreviewHTTPRPC(context.Background(), &dto.PreviewFragmentRequest{
+		DataIsolation:  dto.DataIsolation{OrganizationCode: "ORG1", UserID: "U1"},
+		AcceptEncoding: "gzip, br",
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected passthrough result")
+	}
+	if result.ContentEncoding != "gzip" || result.Vary != "Accept-Encoding" {
+		t.Fatalf("expected gzip passthrough result, got %#v", result)
+	}
+
+	compressed, err := base64.StdEncoding.DecodeString(result.BodyBase64)
+	if err != nil {
+		t.Fatalf("decode base64: %v", err)
+	}
+	if len(compressed) != result.BodyBytes {
+		t.Fatalf("expected body_bytes=%d, got decoded=%d", result.BodyBytes, len(compressed))
+	}
+
+	reader, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		t.Fatalf("new gzip reader: %v", err)
+	}
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			t.Fatalf("close gzip reader: %v", closeErr)
+		}
+	}()
+
+	raw, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read gzip body: %v", err)
+	}
+	if !strings.Contains(string(raw), `"code":1000`) || !strings.Contains(string(raw), strings.Repeat("x", 1024)) {
+		t.Fatalf("unexpected decompressed body")
+	}
+}
+
+func TestFragmentPreviewHTTPRPCKeepsLargeBodyPlainWhenGzipNotAccepted(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{
+		previewResult: &fragdto.FragmentPageResultDTO{
+			List: []*fragdto.FragmentListItemDTO{{
+				ID:                9,
+				KnowledgeBaseCode: testFragmentKBCode,
+				KnowledgeCode:     testFragmentKBCode,
+				DocumentCode:      "DOC1",
+				DocumentName:      "demo.md",
+				DocumentType:      2,
+				DocType:           2,
+				Content:           strings.Repeat("x", 150*1024),
+			}},
+		},
+	}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+
+	result, err := handler.PreviewHTTPRPC(context.Background(), &dto.PreviewFragmentRequest{
+		DataIsolation:  dto.DataIsolation{OrganizationCode: "ORG1", UserID: "U1"},
+		AcceptEncoding: "br",
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected passthrough result")
+	}
+	if result.ContentEncoding != "" || result.Vary != "Accept-Encoding" {
+		t.Fatalf("expected plain passthrough body with vary header, got %#v", result)
+	}
+
+	raw, err := base64.StdEncoding.DecodeString(result.BodyBase64)
+	if err != nil {
+		t.Fatalf("decode base64: %v", err)
+	}
+	if !strings.Contains(string(raw), `"code":1000`) {
+		t.Fatalf("unexpected plain body")
+	}
+}
+
+func TestFragmentSimilarityHTTPRPCMapsBusinessErrorToLowCodeBody(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &mockFragmentAppService{similarityErr: errEmbeddingBoom}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+
+	result, err := handler.SimilarityHTTPRPC(context.Background(), &dto.SimilarityRequest{
+		DataIsolation:  dto.DataIsolation{OrganizationCode: "ORG1", UserID: "U1"},
+		BusinessParams: dto.BusinessParams{OrganizationCode: "ORG1", UserID: "U1"},
+		KnowledgeCode:  "KB1",
+		Query:          "hello",
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected passthrough result")
+	}
+
+	raw, err := base64.StdEncoding.DecodeString(result.BodyBase64)
+	if err != nil {
+		t.Fatalf("decode base64: %v", err)
+	}
+	if !strings.Contains(string(raw), `"code":31005`) {
+		t.Fatalf("expected mapped business error body, got %s", string(raw))
 	}
 }

@@ -97,18 +97,23 @@ Go 侧当前主要分为四层：
 3. Domain
    - `internal/domain/knowledge/...`
    - 负责实体、规则、同步计划、检索策略、rebuild 策略
+   - `entity/model/repository/shared/metadata` 承载稳定领域模型与契约
+   - `service` 只承载领域服务和业务规则，不再作为实体/Repository 的长期入口
 
 4. Infrastructure
    - MySQL
    - Vector DB
    - PHP RPC ports
    - project / third-platform resolver
+   - 允许依赖 domain 的稳定模型与契约
+   - 禁止依赖 `internal/domain/**/service` 这类业务流程包
 
 ### 3.3 当前真实边界
 
 当前真正的边界可以概括成一句话：
 
 - “Go 负责知识库主 API、文档同步和 Flow/Teamshare runtime fragment 主链，PHP 负责权限、协议适配、外部取源，以及少量兼容与遗留外壳。”
+- 在 Go 内部，`application` 负责跨子域编排，`interfaces` 只依赖 `application`，`infrastructure` 只实现稳定 domain 契约，不直接挂到 domain `service` 业务流程包上。
 
 ## 4. PHP / Go 职责矩阵（按当前代码）
 
@@ -122,7 +127,7 @@ Go 侧当前主要分为四层：
 | 知识库 rebuild | 组装参数、RPC 转发 | 实际执行 | 主 API 已 Go 化 |
 | 修复历史来源绑定 | RPC 转发 | 实际执行 | 主 API 已 Go 化 |
 | 文档创建/更新/详情/列表/删除 | 权限校验、参数归一化、RPC 转发 | 实际执行 + 定义最终响应 | 主 API 已 Go 直出 |
-| 文档 `reVectorized` | 权限校验、状态校验、触发 sync，可通过 `sync=true` 要求同步执行 | 实际执行 | 主 API 已 Go 化 |
+| 文档 `reVectorized` | 权限校验、状态校验、异步调度重向量化 | 实际执行 | 主 API 已 Go 化 |
 | 按 third file 查询 document | RPC 转发 | 实际执行 | 主 API 已 Go 化 |
 | 按 third file 触发重向量化 | RPC 转发 | 实际执行 | 主 API 已 Go 化 |
 | 分片创建/查询/详情/删除 | 权限校验、RPC 转发 | 实际执行 + 定义最终响应 | 主 API 已 Go 直出 |
@@ -179,8 +184,8 @@ Go 侧当前主要分为四层：
 | AIImage 知识库 tool | PHP tool -> Go `runtimeSimilarity` | 与 Flow 节点共用同一 runtime 检索链路 |
 | Teamshare 知识检索节点 v0/v1 | 企业包 PHP 节点编排 -> Go `runtimeSimilarity` | 与主仓 runtime 检索链路一致 |
 | Teamshare 知识检索内置 tool | 企业包 PHP tool -> Go `runtimeSimilarity` | 与 Teamshare 节点共用 |
-| deprecated Open/Admin `fragmentSave` | PHP 兼容 facade -> Go `runtimeCreate` | 保留 `id` 兼容字段，但当前不是按 `id` 更新 fragment |
-| deprecated Open `fragmentDestroyByMetadataFilter` | PHP 兼容 facade -> Go `runtimeDestroyByMetadataFilter` | 保持旧 HTTP 形态，真正删除执行已在 Go |
+| deprecated Admin `fragmentSave` | PHP 兼容 facade -> Go `runtimeCreate` | 保留 `id` 兼容字段，但当前不是按 `id` 更新 fragment |
+| deprecated Open 外部 fragment 直操接口 | PHP Open facade 直接返回成功 | `/open/external-api/magic/knowledge/fragment*` 已是 no-op，不再调用 Go |
 | `KnowledgeSearchNodeRunner` | PHP + Go | 知识库基础数据来自 Go `knowledgeBase.queries`；权限资源筛选、表达式编排和结果集差集仍在 PHP |
 
 当前仍保留在 PHP 的，更多是边界职责和旧代码，而不是这些 runtime 入口的执行真值：
@@ -255,8 +260,8 @@ Go 侧当前主要分为四层：
 - `source_type` 用于描述来源类型，但真正的来源运行态以 source binding 为准
 - `knowledge_base_type` 才是产品线字段；`source_type` 不能反推产品线
 - 当前 `source_type` 取值：
-  - 旧向量知识库：`1 = 本地文件`，`1001 = 企业知识库`
-  - 数字员工知识库：`1 = 本地文件`，`2 = 自定义内容`，`3 = 项目文件`，`4 = 企业知识库`
+  - 旧向量知识库：`1 = 本地文件`，`4/1001 = 企业知识库（兼容 raw 值）`
+  - 数字员工知识库：`1 = 本地文件`，`2 = 自定义内容`，`3 = 项目文件`，`4/1001 = 企业知识库（兼容 raw 值）`
 - Go 侧另外维护统一语义映射，避免业务逻辑直接散落比较 raw int：
   - `1` => `local`
   - `2` => `custom`
@@ -274,7 +279,7 @@ Go 侧当前主要分为四层：
 禁止性规则：
 
 - `source_type` 不能判产品线
-- `1001` 是 flow 的企业知识库来源，不是数字员工标识
+- enterprise raw 值兼容 `4/1001`，业务判断只能看产品线 + 统一来源语义
 - source binding 只能参与 flow 缺失 `source_type` 时的来源推断，不能覆盖创建时 `agent_codes` 的产品线判定
 
 ### 5.2 文档
@@ -304,6 +309,28 @@ Go 侧当前主要分为四层：
 - 不只是上传文件记录
 - 也是 source binding 物化后的托管 document
 - 项目/企业知识来源统一通过 `source_binding_id`、`source_item_id` 和 `document_file` 衍生，不再依赖 `knowledge_base_documents` 上的旧 `project_*` 物理列
+- `knowledge_base_documents.doc_type` 表示内部持久化的文档精确类型，不表示产品线，也不表示来源类型
+- 内部持久化 `doc_type` 典型值应按语义名理解，而不是只看裸数字：
+  - `DocTypeText = 1`
+  - `DocTypeMarkdown = 2`
+  - `DocTypePDF = 3`
+  - `DocTypeCloudDocument = 1001`
+  - `DocTypeMultiTable = 1002`
+- 数字员工知识库里出现 `doc_type=1001/1002` 是合法的；这表示企业文档子类型，不表示它变成了 flow
+- 主 API 响应顶层 `doc_type` 是前端历史契约里的“知识库来源类型”，由 Go RPC 兼容响应层按知识库产品线和 `source_type` 投影：
+  - 数字员工知识库：本地文件 `1`，自定义内容 `2`，项目文件 `3`，企业知识库 `4`
+  - flow 向量知识库：本地文件 `1`，企业知识库 `1001`
+- 因此，内部 `knowledge_base_documents.doc_type=2` 的 Teamshare Markdown 文档，在数字员工企业知识库详情响应中顶层 `doc_type` 应返回 `4`
+- 文档片段列表/详情和 similarity 响应同样遵循这个顶层 `doc_type` 契约：片段里的 `document_type` 表示内部精确文件类型，片段顶层 `doc_type` 表示知识库来源类型
+- Teamshare 文件自身类型不借用顶层 `doc_type` 表达：
+  - 原始 Teamshare 文件类型使用 `document_file.third_file_type` / `document_file.teamshare_file_type`
+  - 文件扩展名使用 `document_file.extension` / `document_file.third_file_extension_name`
+- 文档列表查询入参 `doc_type` 当前仍按内部持久化的精确文件/文档类型过滤，本次语义拆分不改变查询过滤口径
+- 进入同步链路时另外还有一层 `DocumentInputKind` 三态：
+  - `DocumentInputKindText = 1`
+  - `DocumentInputKindFile = 2`
+  - `DocumentInputKindURL = 3`
+  - 它只描述输入形态，不等同于主表 `doc_type`
 
 ### 5.3 来源绑定
 
@@ -349,6 +376,8 @@ Go 侧当前主要分为四层：
 当前语义：
 
 - `document_code` 是标准归属字段
+- `document_type` 是片段所属文档的内部精确文件/文档类型，通常来自 `knowledge_base_documents.doc_type`
+- 片段主 API 和 similarity 响应里的顶层 `doc_type` 不等同于 `document_type`；它按知识库上下文投影为前端历史契约中的知识库来源类型
 - `business_id` 仅保留兼容意义
 - point 与 MySQL 片段记录仍然是双存储结构
 
@@ -433,6 +462,7 @@ Go 侧当前主要分为四层：
 3. 在该产品线下解析 / 推断 `source_type`
    - `digital_employee` 缺失 `source_type` 直接报错
    - `flow_vector` 缺失 `source_type` 时，按 binding 语义推断 `1 / 1001`
+   - 两条产品线显式传 `4 / 1001` 时，都按 `enterprise` 语义解释并保留 raw 值
 4. 按统一来源语义校验 binding
 5. 构造知识库实体
 6. 解析统一运行时路由 `ResolvedRoute`
@@ -466,9 +496,9 @@ Go 侧当前主要分为四层：
 2. 继承知识库级 route / model / config
 3. 持久化 `knowledge_base_documents`
 4. 若 `AutoSync=true`
-   - 主 API `POST /documents` 默认在当前请求内执行 `create sync`
-   - 返回响应前回读最新 document，并把最终 `sync_status/sync_status_message` 直接返回给 PHP
-   - 若同步失败，HTTP 仍返回文档响应，但状态为 `sync_failed`
+   - 主 API `POST /documents` 默认异步调度一次 `create sync`
+   - 接口返回新落库 document 当前状态，默认保持 `pending`
+   - `sync_status/sync_status_message` 由后台任务推进更新
 5. source binding materialize、project realtime auto-create 等内部托管文档链路仍保持“调度一次 `create sync`”
 
 ### 6.2.1 文档更新
@@ -481,9 +511,9 @@ Go 侧当前主要分为四层：
 2. 持久化 `knowledge_base_documents`
 3. 如果本次更新没有改变实际生效的解析/分片配置，则直接返回
 4. 如果本次更新触发重同步
-   - 主 API `PUT /documents/{code}` 默认在当前请求内执行 `resync`
-   - 返回响应前回读最新 document，并把最终 `sync_status/sync_status_message` 直接返回给 PHP
-   - 若同步失败，HTTP 仍返回文档响应，但状态为 `sync_failed`
+   - 主 API `PUT /documents/{code}` 默认异步调度一次 `resync`
+   - 接口返回更新后的当前 document 状态；是否进入 `syncing` 由后台 worker 真正开始执行时标记
+   - 同步失败后的 `sync_failed` 状态由后台任务回写
 5. 其他内部更新链路仍可以继续使用异步调度
 
 ### 6.3 文档同步
@@ -494,7 +524,7 @@ Go 侧当前主要分为四层：
 
 1. 取 document 并校验组织
 2. 如果是 project file document，先尝试注入 `SourceOverride`
-3. 如果是第三方 document 的 `resync`，且本次没有显式 override，则重定向到“按 third file 重向量化”；默认异步调度，`sync=true` 时在当前请求内阻塞执行
+3. 如果是第三方 document 的 `resync`，且本次没有显式 override，则重定向到“按 third file 重向量化”；默认异步调度
 4. 其余情况进入标准同步
 
 标准同步流程：
@@ -527,17 +557,18 @@ Go 侧当前主要分为四层：
 当前流程：
 
 1. 归一化 `(organization_code, third_platform_type, third_file_id)`
-2. 在文档域里查询所有命中的 document
-3. 选一个 seed document 生成稳定 source cache key
-4. 通过第三方 `resolve` RPC 取最新 source descriptor
-5. 在 Go 里按 `raw_content/download_url + extension` 解析正文，并生成稳定 `ResolvedSourceSnapshot`
-6. 对命中的每个 document 生成一条 `resync + SourceOverride`，按调用模式调度或同步执行
+2. 投 MQ 前先判断组织内是否存在 enabled + realtime 绑定下的映射 document
+3. 执行时按 third file 查询所有 enabled + realtime 绑定命中的 document
+4. 在 app 层批量过滤 `knowledge_base.enabled = true` 的目标知识库
+5. 对过滤后的每个 document 直接生成一条自包含的 `document_sync` MQ task
+6. 单文档 consumer 再按标准同步链解析最新 source、切片并写 MySQL / Vector DB
 
 关键变化：
 
 - 当前不是“third file 只能映射一个 document”
 - 而是允许一个 third file fan-out 到多个 document
-- 主文档 `reVectorized` 接口默认保持异步；请求体传 `sync=true` 时，fan-out 出来的每个 document 会在当前请求内顺序执行同步重向量化
+- third-file 入口不再向 MQ 投递 source task，也不再依赖 Redis state / wakeup recovery 补发
+- 主文档 `reVectorized` 接口统一异步调度，不再提供 `sync=true` 强制同步执行
 - 如果前端在 `PUT /documents/{code}` 成功后又额外调用一次 `/re-vectorized`，当前会重复执行一轮重向量化；主 API 本身不做这层短路
 
 ### 6.6 项目文件实时同步
@@ -549,16 +580,22 @@ Go 侧当前主要分为四层：
 
 当前流程：
 
-1. 按 `project_file_id` 拉最新项目文件内容
-2. 构造 `SourceOverride`
-3. 找出该 project 下所有 realtime binding
-4. 生成执行计划：
+1. 按 `project_file_id` 读取最新项目文件轻量元数据
+2. 投 MQ 前先判断是否命中 enabled + realtime 项目来源绑定，或已存在 enabled + realtime 绑定物化出的 project-file document
+3. 找出该 project 下所有 enabled + realtime binding 和当前已落库的 project-file document
+4. 在 app 层批量过滤 `knowledge_base.enabled = true` 的目标知识库
+5. 生成执行计划：
    - 删除失效 document
    - 重同步已有 document
    - 自动创建新命中的 document
-5. 调度 create / resync
+6. 对需要同步的目标直接投递多条自包含的 `document_sync` MQ task
+7. 真正执行单文档同步时：
+   - 标准项目知识库通过 `svc.knowledge.projectFile.getLink` 取最新文件链接，再重新解析正文
+   - 企业知识库按需先注入 `SourceOverride`，再进入标准同步链
 
 这条链不走第三方重向量化逻辑，而是直接复用标准同步链。
+
+RabbitMQ 文档同步当前只消费新版自包含 `document_sync` task 消息。可解码任务执行失败时会用 Redis 记录重试次数并 `Nack(false, true)` 重新入队，最多 requeue 10 次；第 11 次仍失败时会 ack 并调用终态处理，把文档落为 `document sync retry exhausted`，同时推进知识库级重向量化进度。Redis 计数 TTL 默认 1 天，任务成功或终态化后会清理计数。旧生产环境遗留的 wakeup 消息、缺字段消息、未知 task kind 或非法 JSON 会被 consumer 直接 ack 并记录 skip 日志，不读取旧 Redis state，不触发 recovery / delayed retry 补发。RabbitMQ 不可用或任务结构不符合新版 `document_sync` 时只跳过，不做本地内存同步。
 
 ### 6.7 分片 API 与 runtime 分片链路
 
@@ -594,6 +631,7 @@ Go 侧当前主要分为四层：
 
 3. `RuntimeSimilarity(...)`
    - 支持多 knowledge base
+   - 面向 Flow / Teamshare runtime，Go 侧信任上游传入的 `knowledge_codes` 已经过助理/流程绑定约束，不再按当前执行用户逐库校验知识库 read 权限
    - 未显式传 `top_k / score_threshold` 时，整次检索沿用首个知识库的 `retrieve_config`
    - 检索结果按 `knowledge_codes` 顺序拼接，不做跨库全局重排
    - `question` 非空时用于 embedding query，否则回退到 `query`
@@ -609,13 +647,14 @@ Go 侧当前主要分为四层：
 
 当前流程：
 
-1. 先取 knowledge base
-2. 解析统一运行时路由 `ResolvedRoute`
-3. 进入 retrieval service
-4. 根据知识库配置执行：
+1. 先做检索权限判定
+2. 再取 knowledge base
+3. 解析统一运行时路由 `ResolvedRoute`
+4. 进入 retrieval service
+5. 根据知识库配置执行：
    - legacy similarity search
    - enhanced similarity search
-5. enhanced 模式下执行：
+6. enhanced 模式下执行：
    - query rewrite
    - hard / soft filter
    - dense 命中 `VectorCollectionName`，sparse 命中 `TermCollectionName`
@@ -625,8 +664,10 @@ Go 侧当前主要分为四层：
 
 补充边界：
 
-- `svc.knowledge.fragment.similarityByAgent` 只会在 agent 绑定且 `enabled=true` 的知识库中检索。
-- 显式指定 `knowledge_base_code` 的 fragment similarity 仍然不受知识库启用状态影响。
+- 普通 `svc.knowledge.fragment.similarity` 对显式 `knowledge_base_code` 的权限语义是：如果该知识库在当前组织绑定了 `super_magic_agent`，则按当前用户是否可访问任一绑定 agent 判定；如果没有绑定 agent，则回退到知识库 read 权限。
+- `svc.knowledge.fragment.similarityByAgent` 先校验当前用户可访问该 agent，再只在该 agent 绑定且 `enabled=true` 的知识库中检索。
+- Flow / Teamshare `svc.knowledge.fragment.runtimeSimilarity` 信任上游绑定校验，只按传入知识库做组织范围加载、enabled 校验和检索。
+- 显式指定 `knowledge_base_code` 的普通 fragment similarity 仍然不受知识库启用状态影响。
 
 ## 7. Flow / Teamshare runtime 与仍保留的 PHP 代码
 
@@ -640,13 +681,15 @@ Go 侧当前主要分为四层：
    - Go 负责加载 knowledge base、resolve route、执行多库检索并返回统一结果
 
 2. 写入
-   - Flow 向量存储节点和 deprecated Open/Admin `fragmentSave` 都改走 `runtimeCreate`
+   - Flow 向量存储节点和 deprecated Admin `fragmentSave` 都改走 `runtimeCreate`
+   - deprecated Open 外部 `fragmentSave` 当前在 PHP Open facade 直接返回成功，不再调用 Go
    - 当前语义是“写入一条已经准备好的 runtime fragment”
    - 不是“先创建文档，再交给 Go 解析文档并自动切片”的文档导入规范链路
 
 3. 删除
    - Flow 向量删除节点的 `business_id` 删除改走 `runtimeDestroyByBusinessId`
-   - Flow / Open 兼容入口的 metadata 删除改走 `runtimeDestroyByMetadataFilter`
+   - Flow 兼容入口的 metadata 删除改走 `runtimeDestroyByMetadataFilter`
+   - deprecated Open 外部 fragment 删除和 metadata 删除当前在 PHP Open facade 直接返回成功，不再调用 Go
    - 删 fragment 和删 point 的实际执行都已经在 Go
 
 4. 列表匹配
@@ -678,7 +721,7 @@ Go 侧当前主要分为四层：
 
 即使 runtime 已迁到 Go，PHP 仍不是纯转发壳，当前还承担：
 
-1. 知识库级权限校验、组织/用户上下文注入、BusinessParams 组装
+1. 主 API 和 runtime 写入/删除的知识库级权限校验、runtime similarity 上游绑定约束、组织/用户上下文注入、BusinessParams 组装
 2. Open/Admin 兼容 HTTP 外壳与 Teamshare open token 鉴权
 3. `KnowledgeSearchNodeRunner` 的权限资源选择、表达式编排和结果集集合运算
 4. Teamshare / 第三方来源展开、取源、权限与租户上下文相关 RPC
@@ -755,7 +798,7 @@ Go 侧仍保留 `fixlegacy` 工具链，用于：
 
 3. Teamshare / 第三方文件的权限、来源展开和取源仍依赖 PHP 提供 RPC 端口；第三方文件正文解析已统一在 Go。
 
-4. Flow / Teamshare runtime 的知识检索、片段写入、片段删除，以及兼容 `fragmentSave` / metadata delete，当前已经收口到 Go runtime fragment RPC。
+4. Flow / Teamshare runtime 的知识检索、片段写入、片段删除，以及 Admin 兼容 `fragmentSave` / Flow metadata delete，当前已经收口到 Go runtime fragment RPC；deprecated Open 外部 fragment 直操接口当前由 PHP 直接返回成功。
 
 5. 当前系统的边界更准确地说是：
    - 主 API、文档同步、runtime fragment 读写删走 Go

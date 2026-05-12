@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	"magic/internal/infrastructure/logging"
 	thirdfilemappingpkg "magic/internal/pkg/thirdfilemapping"
 )
@@ -27,7 +27,7 @@ type FragmentDomainService struct {
 type FragmentDomainInfra struct {
 	VectorMgmtRepo        fragmodel.VectorDBManagementRepository
 	VectorDataRepo        fragmodel.VectorDBDataRepository[fragmodel.FragmentPayload]
-	MetaReader            any
+	MetaReader            sharedroute.CollectionMetaReader
 	DefaultEmbeddingModel string
 	Logger                *logging.SugaredLogger
 	SegmenterProvider     *fragretrieval.SegmenterProvider
@@ -45,16 +45,8 @@ type fragmentSyncStatusBatchUpdater interface {
 	UpdateSyncStatusBatch(ctx context.Context, fragments []*fragmodel.KnowledgeBaseFragment) error
 }
 
-type fragmentPointBatchReader interface {
-	FindByPointIDs(ctx context.Context, pointIDs []string) ([]*fragmodel.KnowledgeBaseFragment, error)
-}
-
-type fragmentContextBatchReader interface {
-	ListContextByDocuments(
-		ctx context.Context,
-		documentKeys []fragmodel.DocumentKey,
-		limit int,
-	) (map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment, error)
+type fragmentDocumentAfterIDReader interface {
+	ListByDocumentAfterID(ctx context.Context, knowledgeCode, documentCode string, afterID int64, limit int) ([]*fragmodel.KnowledgeBaseFragment, error)
 }
 
 type vectorPointIDFilterScanner interface {
@@ -68,11 +60,11 @@ type thirdFileRepairRepository interface {
 }
 
 var (
-	errThirdFileRepairOrganizationsUnsupported = errors.New("repository does not support repair organizations")
-	errThirdFileRepairGroupsUnsupported        = errors.New("repository does not support repair groups")
-	errThirdFileBackfillUnsupported            = errors.New("repository does not support third-file backfill")
-	errFragmentPointBatchLookupUnsupported     = errors.New("repository does not support point id batch lookup")
-	errFragmentPointFilterScanUnsupported      = errors.New("vector repository does not support filter scan")
+	errThirdFileRepairOrganizationsUnsupported   = errors.New("repository does not support repair organizations")
+	errThirdFileRepairGroupsUnsupported          = errors.New("repository does not support repair groups")
+	errThirdFileBackfillUnsupported              = errors.New("repository does not support third-file backfill")
+	errFragmentPointFilterScanUnsupported        = errors.New("vector repository does not support filter scan")
+	errFragmentDocumentSeekPaginationUnsupported = errors.New("repository does not support document seek pagination")
 )
 
 // NewFragmentDomainService 创建片段领域服务
@@ -151,57 +143,11 @@ func (s *FragmentDomainService) FindByIDs(ctx context.Context, ids []int64) ([]*
 
 // FindByPointIDs 根据 point_id 批量查询片段。
 func (s *FragmentDomainService) FindByPointIDs(ctx context.Context, pointIDs []string) ([]*fragmodel.KnowledgeBaseFragment, error) {
-	reader, ok := s.repo.(fragmentPointBatchReader)
-	if !ok {
-		return nil, fmt.Errorf("failed to find fragments by point ids: %w", errFragmentPointBatchLookupUnsupported)
-	}
-	fragments, err := reader.FindByPointIDs(ctx, pointIDs)
+	fragments, err := s.repo.FindByPointIDs(ctx, pointIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find fragments by point ids: %w", err)
 	}
 	return fragments, nil
-}
-
-// ListContextByDocuments 按文档批量查询上下文片段。
-func (s *FragmentDomainService) ListContextByDocuments(
-	ctx context.Context,
-	documentKeys []fragmodel.DocumentKey,
-	limit int,
-) (map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment, error) {
-	if limit <= 0 {
-		return map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment{}, nil
-	}
-
-	if reader, ok := s.repo.(fragmentContextBatchReader); ok {
-		grouped, err := reader.ListContextByDocuments(ctx, documentKeys, limit)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list context fragments by documents: %w", err)
-		}
-		return grouped, nil
-	}
-
-	grouped := make(map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment, len(documentKeys))
-	seen := make(map[fragmodel.DocumentKey]struct{}, len(documentKeys))
-	for _, documentKey := range documentKeys {
-		normalizedKey := fragmodel.DocumentKey{
-			KnowledgeCode: strings.TrimSpace(documentKey.KnowledgeCode),
-			DocumentCode:  strings.TrimSpace(documentKey.DocumentCode),
-		}
-		if normalizedKey.KnowledgeCode == "" || normalizedKey.DocumentCode == "" {
-			continue
-		}
-		if _, ok := seen[normalizedKey]; ok {
-			continue
-		}
-		seen[normalizedKey] = struct{}{}
-
-		fragments, _, err := s.repo.ListByDocument(ctx, normalizedKey.KnowledgeCode, normalizedKey.DocumentCode, 0, limit)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list context fragments by document: %w", err)
-		}
-		grouped[normalizedKey] = fragments
-	}
-	return grouped, nil
 }
 
 // List 分页查询片段
@@ -309,10 +255,41 @@ func (s *FragmentDomainService) ListByDocument(
 	return fragments, total, nil
 }
 
+// ListByDocumentAfterID 根据知识库和文档按主键游标查询片段。
+func (s *FragmentDomainService) ListByDocumentAfterID(
+	ctx context.Context,
+	knowledgeCode string,
+	documentCode string,
+	afterID int64,
+	limit int,
+) ([]*fragmodel.KnowledgeBaseFragment, error) {
+	reader, ok := s.repo.(fragmentDocumentAfterIDReader)
+	if !ok {
+		return nil, fmt.Errorf("failed to list fragments by document after id: %w", errFragmentDocumentSeekPaginationUnsupported)
+	}
+	fragments, err := reader.ListByDocumentAfterID(ctx, knowledgeCode, documentCode, afterID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list fragments by document after id: %w", err)
+	}
+	return fragments, nil
+}
+
 // DeleteByDocument 根据知识库和文档删除所有片段。
 func (s *FragmentDomainService) DeleteByDocument(ctx context.Context, knowledgeCode, documentCode string) error {
 	if err := s.repo.DeleteByDocument(ctx, knowledgeCode, documentCode); err != nil {
 		return fmt.Errorf("failed to delete fragments by document: %w", err)
+	}
+	return nil
+}
+
+// DeleteByDocumentCodes 根据知识库和文档编码批量删除所有片段。
+func (s *FragmentDomainService) DeleteByDocumentCodes(
+	ctx context.Context,
+	knowledgeCode string,
+	documentCodes []string,
+) error {
+	if err := s.repo.DeleteByDocumentCodes(ctx, knowledgeCode, documentCodes); err != nil {
+		return fmt.Errorf("failed to delete fragments by document codes: %w", err)
 	}
 	return nil
 }
@@ -363,6 +340,21 @@ func (s *FragmentDomainService) DeletePointsByFilter(ctx context.Context, collec
 // DeletePointsByDocument 根据文档信息删除向量点
 func (s *FragmentDomainService) DeletePointsByDocument(ctx context.Context, collectionName, organizationCode, knowledgeCode, documentCode string) error {
 	filter := buildDocumentFilter(organizationCode, knowledgeCode, documentCode)
+	return s.DeletePointsByFilter(ctx, collectionName, filter)
+}
+
+// DeletePointsByDocuments 根据多篇文档批量删除向量点。
+func (s *FragmentDomainService) DeletePointsByDocuments(
+	ctx context.Context,
+	collectionName string,
+	organizationCode string,
+	knowledgeCode string,
+	documentCodes []string,
+) error {
+	filter := buildDocumentsFilter(organizationCode, knowledgeCode, documentCodes)
+	if filter == nil {
+		return nil
+	}
 	return s.DeletePointsByFilter(ctx, collectionName, filter)
 }
 

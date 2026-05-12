@@ -24,6 +24,8 @@ readonly class DesignVideoSubmissionDomainService
     }
 
     /**
+     * 构建 provider 请求并提交视频生成任务，返回 Design 侧需要保存的提交快照。
+     *
      * @return array<string, mixed>
      */
     public function submit(DesignGenerationTaskEntity $entity): array
@@ -62,5 +64,20 @@ readonly class DesignVideoSubmissionDomainService
             'poll_attempts' => 0,
             'deadline_at' => date(DATE_ATOM, time() + (int) config('design_generation.video_poll.timeout_seconds', 3600)),
         ];
+    }
+
+    public function estimate(array $payload, array $businessParams): array
+    {
+        try {
+            return $this->videoGatewayClient->estimateVideo($payload, $businessParams);
+        } catch (BusinessException $exception) {
+            throw $exception;
+        } catch (Throwable $throwable) {
+            ExceptionBuilder::throw(
+                DesignErrorCode::ThirdPartyServiceError,
+                'design.video_generation.estimate_failed',
+                throwable: $throwable
+            );
+        }
     }
 }

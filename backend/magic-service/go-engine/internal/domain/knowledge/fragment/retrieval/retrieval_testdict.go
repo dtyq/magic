@@ -11,8 +11,10 @@ const retrievalTestSegmenterDict = `退款 1000 n
 鉴权 1000 n
 错误码 1000 n
 小哥 1000 n
+指出 1000 v
 录音 1000 n
 纪要 1000 n
+哪些 1000 r
 问题 1000 n
 原文 1000 n
 显示 1000 n
@@ -32,3 +34,23 @@ const retrievalTestSegmenterDict = `退款 1000 n
 界面 1000 n
 交互 1000 n
 体验 1000 n`
+
+const retrievalTestStopwords = `的
+了
+和
+是
+在
+与
+及
+并
+对
+将
+把
+被
+给
+让
+也
+又
+还
+就
+很`

@@ -5,12 +5,13 @@ import (
 	"strings"
 
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingservice "magic/internal/domain/knowledge/sourcebinding/service"
 )
 
 func validateSourceBindingsForSourceType(
-	knowledgeBaseType knowledgebasedomain.Type,
+	knowledgeBaseType kbentity.Type,
 	sourceType *int,
 	bindings []sourcebindingdomain.Binding,
 ) error {
@@ -20,7 +21,7 @@ func validateSourceBindingsForSourceType(
 
 	// binding 校验只消费“已确定产品线 + 已归一化 source_type”推导出的统一来源语义，
 	// 不允许 source binding 自己反过来决定产品线。
-	semanticSourceType, err := knowledgebasedomain.ResolveSemanticSourceType(knowledgeBaseType, *sourceType)
+	semanticSourceType, err := kbentity.ResolveSemanticSourceType(knowledgeBaseType, *sourceType)
 	if err != nil {
 		return fmt.Errorf("resolve semantic source type: %w", err)
 	}
@@ -29,22 +30,22 @@ func validateSourceBindingsForSourceType(
 	if err != nil {
 		return err
 	}
-	if err := sourcebindingdomain.ValidateBindings(semantic, bindings); err != nil {
+	if err := sourcebindingservice.ValidateBindings(semantic, bindings); err != nil {
 		return fmt.Errorf("validate source bindings: %w", err)
 	}
 	return nil
 }
 
 func mapSourceBindingSemantic(
-	semanticSourceType knowledgebasedomain.SemanticSourceType,
+	semanticSourceType kbentity.SemanticSourceType,
 	sourceType int,
 ) (sourcebindingdomain.Semantic, error) {
 	switch semanticSourceType {
-	case knowledgebasedomain.SemanticSourceTypeProject:
+	case kbentity.SemanticSourceTypeProject:
 		return sourcebindingdomain.SemanticProject, nil
-	case knowledgebasedomain.SemanticSourceTypeEnterprise:
+	case kbentity.SemanticSourceTypeEnterprise:
 		return sourcebindingdomain.SemanticEnterprise, nil
-	case knowledgebasedomain.SemanticSourceTypeLocal, knowledgebasedomain.SemanticSourceTypeCustomContent:
+	case kbentity.SemanticSourceTypeLocal, kbentity.SemanticSourceTypeCustomContent:
 		return sourcebindingdomain.SemanticLegacy, nil
 	default:
 		return "", fmt.Errorf("%w: source_type=%d", ErrSourceBindingSemanticMismatch, sourceType)
@@ -101,11 +102,11 @@ func normalizeSourceBindingInputs(bindings []kbdto.SourceBindingInput) []sourceb
 			Targets:    targets,
 		})
 	}
-	return sourcebindingdomain.NormalizeBindings(normalized)
+	return sourcebindingservice.NormalizeBindings(normalized)
 }
 
 func validateAndNormalizeSourceBindings(
-	knowledgeBaseType knowledgebasedomain.Type,
+	knowledgeBaseType kbentity.Type,
 	sourceType *int,
 	bindings []kbdto.SourceBindingInput,
 ) ([]sourcebindingdomain.Binding, error) {

@@ -16,6 +16,7 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.core.entity.message.server_message import DisplayType, ToolDetail, TerminalContent
+from app.utils.async_file_utils import async_write_text
 
 # 导入共享工具函数
 from app.tools.data_analyst_dashboard_tools.dashboard_card_utils import (
@@ -24,10 +25,10 @@ from app.tools.data_analyst_dashboard_tools.dashboard_card_utils import (
     validate_card_structure,
     validate_getCardData_syntax,
     compact_layout,
+    get_grid_cols_from_config,
     CardParseError,
     CardValidationError,
     VALID_CARD_TYPES,
-    GRID_COLS
 )
 
 # 导入验证器
@@ -114,8 +115,8 @@ Dashboard project name, relative to workspace root, e.g. "SalesDashboard" """
     
     updates: List[CardUpdate] = Field(
         ...,
-        description="""<!--zh: 要更新的卡片列表（1-10个），每个卡片至少要提供一个要更新的字段-->
-List of card updates (1-10 cards), each card must provide at least one field to update""",
+        description="""<!--zh: 更新列表（1-10）；建议每批≤6；每项至少一个非 id 字段-->
+List of updates (1-10); prefer ≤6 per call; each entry needs ≥1 field besides id""",
         min_length=1,
         max_length=10
     )
@@ -164,7 +165,7 @@ class UpdateDashboardCards(AbstractFileTool[UpdateDashboardCardsParams], Workspa
     ✓ 批量调整：同时修改多个卡片的相同属性
     
     【核心特性】
-    - 支持批量更新（1-10个卡片）
+    - 支持批量更新（1-10；建议≤6/批）
     - 支持单字段编辑（只更新提供的字段）
     - 支持layout部分字段更新（如只修改y坐标）
     - 自动处理layout变更引起的冲突
@@ -197,7 +198,7 @@ class UpdateDashboardCards(AbstractFileTool[UpdateDashboardCardsParams], Workspa
     ✓ Batch adjustment: Modify same properties of multiple cards simultaneously
     
     【Core Features】
-    - Supports batch updates (1-10 cards)
+    - Supports batch updates (1-10; prefer ≤6 per call)
     - Supports single-field editing (only updates provided fields)
     - Supports partial layout field updates (e.g., only modify y coordinate)
     - Automatically handles conflicts caused by layout changes
@@ -233,26 +234,25 @@ class UpdateDashboardCards(AbstractFileTool[UpdateDashboardCardsParams], Workspa
             # 1. 获取项目路径
             project_path = self.resolve_path(params.project_path)
             if not project_path.exists():
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.project_not_exist", category="tool.messages", project_path=params.project_path)
+                return ToolResult.error(
+                    i18n.translate("dashboard_cards.project_not_exist", category="tool.messages", project_path=params.project_path)
                 )
             
             data_js_path = project_path / "data.js"
             if not data_js_path.exists():
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.data_js_not_exist", category="tool.messages", project_path=params.project_path)
+                return ToolResult.error(
+                    i18n.translate("dashboard_cards.data_js_not_exist", category="tool.messages", project_path=params.project_path)
                 )
+
+            grid_cols = get_grid_cols_from_config(project_path)
             
             # 2. 解析现有卡片
             try:
                 existing_cards, original_content = parse_data_js(data_js_path)
             except CardParseError as e:
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.parse_error", category="tool.messages", error=str(e))
+                return ToolResult.error(
+                    i18n.translate("dashboard_cards.parse_error", category="tool.messages", error=str(e))
                 )
-            
-            # 3. 备份原始内容（用于回滚）
-            backup_content = original_content
             
             try:
                 # 4. 应用更新（部分成功：ID不存在或验证失败仅跳过该卡片，不回滚整批）
@@ -313,71 +313,118 @@ class UpdateDashboardCards(AbstractFileTool[UpdateDashboardCardsParams], Workspa
                 # 若全部失败，返回错误
                 if not updated_card_ids:
                     failed_list = "; ".join(f"{cid} ({reason})" for cid, reason in failed_updates)
-                    return ToolResult(
-                        error=i18n.translate("update_dashboard_cards.skipped", category="tool.messages", failed_list=failed_list)
+                    return ToolResult.error(
+                        i18n.translate("update_dashboard_cards.skipped", category="tool.messages", failed_list=failed_list)
                     )
                 
                 # 6. 压缩布局（处理layout变更引起的冲突）
-                updated_cards = compact_layout(updated_cards, GRID_COLS)
+                updated_cards = compact_layout(updated_cards, grid_cols)
                 
                 # 7. 序列化并写入文件
                 new_content = serialize_cards(updated_cards)
                 
-                with open(data_js_path, 'w', encoding='utf-8') as f:
-                    f.write(new_content)
-                
-                # 分发文件修改事件
-                await self._dispatch_file_event(tool_context, str(data_js_path), EventType.FILE_UPDATED)
+                await async_write_text(data_js_path, new_content)
 
                 # 8. 更新后自动同步地图与数据源配置
-                result_message = i18n.translate("update_dashboard_cards.success", category="tool.messages", count=len(updated_card_ids))
-
+                warnings = []
                 extra_info: Dict[str, Any] = {
                     'updated_cards': updated_card_ids,
                     'total_cards': len(updated_cards),
                 }
 
-                if failed_updates:
-                    failed_list = "; ".join(f"{cid} ({reason})" for cid, reason in failed_updates)
-                    result_message += "\n\n" + i18n.translate("update_dashboard_cards.skipped", category="tool.messages", failed_list=failed_list)
-                    extra_info["failed_updates"] = [{"id": cid, "reason": r} for cid, r in failed_updates]
+                # 8.0 分发文件修改事件
+                try:
+                    await self._dispatch_file_event(tool_context, str(data_js_path), EventType.FILE_UPDATED)
+                except Exception as e:
+                    logger.warning("更新卡片后分发文件事件失败，已跳过: %s", e, exc_info=True)
+                    warnings.append(f"File update event dispatch failed: {e}")
+
+                failed_updates_data = [{"id": cid, "reason": reason} for cid, reason in failed_updates]
+                result_message = self._build_success_content(
+                    updated_count=len(updated_card_ids),
+                    failed_updates=failed_updates_data,
+                    warnings=warnings,
+                )
+                extra_info["failed_updates"] = failed_updates_data
 
                 # 8.1 同步地图与数据源配置（复用公共工具）
-                await sync_geo_and_data_sources(
-                    tool=self,
-                    tool_context=tool_context,
-                    project_path=project_path,
-                    phase="更新卡片阶段",
-                    extra_info=extra_info,
+                try:
+                    await sync_geo_and_data_sources(
+                        tool=self,
+                        tool_context=tool_context,
+                        project_path=project_path,
+                        phase="更新卡片阶段",
+                        extra_info=extra_info,
+                    )
+                except Exception as e:
+                    logger.warning("更新卡片后同步地图与数据源配置失败，已跳过: %s", e, exc_info=True)
+                    warnings.append(f"Geo/data source sync failed: {e}")
+
+                result_message = self._build_success_content(
+                    updated_count=len(updated_card_ids),
+                    failed_updates=failed_updates_data,
+                    warnings=warnings,
                 )
+                extra_info["warnings"] = warnings
 
                 return ToolResult(
                     content=result_message,
+                    data={
+                        "updated_cards": updated_card_ids,
+                        "failed_updates": failed_updates_data,
+                        "warnings": warnings,
+                        "summary": {
+                            "requested_count": len(params.updates),
+                            "updated_count": len(updated_card_ids),
+                            "failed_count": len(failed_updates_data),
+                            "warning_count": len(warnings),
+                            "total_cards": len(updated_cards),
+                        },
+                    },
                     extra_info=extra_info,
                     ok=True,  # 部分成功也算成功，仅全部失败才返回 error
                 )
                 
             except Exception as e:
-                # 发生错误，回滚
                 logger.error(f"Error during card update: {e}", exc_info=True)
-                with open(data_js_path, 'w', encoding='utf-8') as f:
-                    f.write(backup_content)
-                await self._dispatch_file_event(tool_context, str(data_js_path), EventType.FILE_UPDATED)
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.operation_rollback", category="tool.messages", error=str(e))
+                return ToolResult.error(
+                    i18n.translate("update_dashboard_cards.error", category="tool.messages", error=str(e))
                 )
                 
         except Exception as e:
             logger.error(f"Failed to update dashboard cards: {e}", exc_info=True)
-            return ToolResult(
-                error=i18n.translate("update_dashboard_cards.error", category="tool.messages", error=str(e))
+            return ToolResult.error(
+                i18n.translate("update_dashboard_cards.error", category="tool.messages", error=str(e))
             )
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
-        if not arguments:
-            updates_count = 0
-        else:
-            updates_count = len(arguments.get('updates', []))
-        
-        return i18n.translate("update_dashboard_cards.success", category="tool.messages", count=updates_count)
+        summary = result.data.get("summary", {}) if getattr(result, "data", None) else {}
+        updated_count = summary.get("updated_count")
+        failed_count = summary.get("failed_count", 0)
+
+        if updated_count is None:
+            updated_count = len(arguments.get('updates', [])) if arguments else 0
+
+        if failed_count > 0:
+            return i18n.translate(
+                "update_dashboard_cards.partial_success",
+                category="tool.messages",
+                updated=updated_count,
+                failed=failed_count,
+            )
+
+        return i18n.translate("update_dashboard_cards.success", category="tool.messages", count=updated_count)
+
+    def _build_success_content(self, updated_count: int, failed_updates: List[Dict[str, str]], warnings: List[str]) -> str:
+        """构建给调用agent读取的成功内容"""
+        message = f"Updated {updated_count} requested card(s)."
+
+        if failed_updates:
+            failed_details = "; ".join(f"{card['id']} ({card['reason']})" for card in failed_updates)
+            message += f" Failed to update {len(failed_updates)} card(s): {failed_details}."
+
+        if warnings:
+            message += f" Warnings: {'; '.join(warnings)}."
+
+        return message

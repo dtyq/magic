@@ -14,7 +14,6 @@ use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\DocumentRpcClient;
 use App\Infrastructure\Rpc\JsonRpc\RpcClientManager;
 use App\Infrastructure\Rpc\Method\SvcMethods;
 use PHPUnit\Framework\TestCase;
-use stdClass;
 
 /**
  * @internal
@@ -30,14 +29,16 @@ class DocumentRpcClientTest extends TestCase
                 SvcMethods::SERVICE_KNOWLEDGE_DOCUMENT . '.' . SvcMethods::METHOD_CREATE,
                 $this->callback(function (array $params): bool {
                     return $params['knowledge_base_code'] === 'KB1'
-                        && $params['doc_metadata'] instanceof stdClass
-                        && $params['metadata'] instanceof stdClass;
+                        && $params['doc_metadata'] === []
+                        && ! array_key_exists('metadata', $params);
                 })
             )
             ->willReturn([]);
 
         $client = new DocumentRpcClient($manager);
         $client->create(DocumentRequestDTO::forCreate([
+            'organization_code' => 'ORG1',
+            'user_id' => 'U1',
             'knowledge_base_code' => 'KB1',
             'name' => 'demo',
             'doc_metadata' => [],
@@ -60,6 +61,8 @@ class DocumentRpcClientTest extends TestCase
                 SvcMethods::SERVICE_KNOWLEDGE_DOCUMENT . '.' . SvcMethods::METHOD_CREATE,
                 $this->callback(function (array $params) use ($strategyConfig): bool {
                     return $params['knowledge_base_code'] === 'KB1'
+                        && $params['organization_code'] === 'ORG1'
+                        && $params['user_id'] === 'U1'
                         && ($params['doc_metadata']['source'] ?? '') === 'knowledge-demo'
                         && $params['strategy_config'] === $strategyConfig;
                 })
@@ -68,10 +71,50 @@ class DocumentRpcClientTest extends TestCase
 
         $client = new DocumentRpcClient($manager);
         $client->create(DocumentRequestDTO::forCreate([
+            'organization_code' => 'ORG1',
+            'user_id' => 'U1',
             'knowledge_base_code' => 'KB1',
             'name' => 'demo',
             'doc_metadata' => ['source' => 'knowledge-demo'],
             'strategy_config' => $strategyConfig,
+        ], new DataIsolationDTO('ORG1', 'U1')));
+    }
+
+    public function testCreateShouldPassDocumentFileThrough(): void
+    {
+        $manager = $this->createMock(RpcClientManager::class);
+        $manager->expects($this->once())
+            ->method('call')
+            ->with(
+                SvcMethods::SERVICE_KNOWLEDGE_DOCUMENT . '.' . SvcMethods::METHOD_CREATE,
+                $this->callback(function (array $params): bool {
+                    $documentFile = $params['document_file'] ?? [];
+                    return $params['knowledge_base_code'] === 'KB1'
+                        && ($documentFile['type'] ?? null) === 1
+                        && ($documentFile['key'] ?? '') === 'ORG1/demo.md'
+                        && ($documentFile['third_file_id'] ?? '') === 'FILE-1'
+                        && ($documentFile['platform_type'] ?? '') === 'teamshare'
+                        && ! array_key_exists('embedding_model', $params);
+                })
+            )
+            ->willReturn([]);
+
+        $client = new DocumentRpcClient($manager);
+        $client->create(DocumentRequestDTO::forCreate([
+            'organization_code' => 'ORG1',
+            'user_id' => 'U1',
+            'knowledge_base_code' => 'KB1',
+            'name' => 'demo',
+            'document_file' => [
+                'type' => 1,
+                'name' => 'demo.md',
+                'key' => 'ORG1/demo.md',
+                'third_file_id' => 'FILE-1',
+                'platform_type' => 'teamshare',
+            ],
+            'embedding_config' => [
+                'model_id' => 'text-embedding-3-small',
+            ],
         ], new DataIsolationDTO('ORG1', 'U1')));
     }
 
@@ -94,7 +137,7 @@ class DocumentRpcClientTest extends TestCase
         $client->show(DocumentRequestDTO::forShow('DOC1', 'KB1', new DataIsolationDTO('ORG1', 'U1')));
     }
 
-    public function testUpdateShouldFallbackToDataIsolationOrganizationCodeWhenPayloadIsBlank(): void
+    public function testUpdateShouldPassExplicitTransportContext(): void
     {
         $manager = $this->createMock(RpcClientManager::class);
         $manager->expects($this->once())
@@ -104,7 +147,8 @@ class DocumentRpcClientTest extends TestCase
                 $this->callback(function (array $params): bool {
                     return $params['code'] === 'DOC1'
                         && $params['knowledge_base_code'] === 'KB1'
-                        && $params['organization_code'] === 'ORG1';
+                        && $params['organization_code'] === 'ORG1'
+                        && $params['user_id'] === 'U1';
                 })
             )
             ->willReturn([]);
@@ -113,7 +157,8 @@ class DocumentRpcClientTest extends TestCase
         $client->update(DocumentRequestDTO::forUpdate(
             'DOC1',
             [
-                'organization_code' => '',
+                'organization_code' => 'ORG1',
+                'user_id' => 'U1',
                 'knowledge_base_code' => 'KB1',
                 'name' => 'demo',
             ],
@@ -139,6 +184,8 @@ class DocumentRpcClientTest extends TestCase
                 $this->callback(function (array $params) use ($strategyConfig): bool {
                     return $params['code'] === 'DOC1'
                         && $params['knowledge_base_code'] === 'KB1'
+                        && $params['organization_code'] === 'ORG1'
+                        && $params['user_id'] === 'U1'
                         && ($params['doc_metadata']['source'] ?? '') === 'knowledge-demo'
                         && $params['strategy_config'] === $strategyConfig;
                 })
@@ -149,6 +196,8 @@ class DocumentRpcClientTest extends TestCase
         $client->update(DocumentRequestDTO::forUpdate(
             'DOC1',
             [
+                'organization_code' => 'ORG1',
+                'user_id' => 'U1',
                 'knowledge_base_code' => 'KB1',
                 'doc_metadata' => ['source' => 'knowledge-demo'],
                 'strategy_config' => $strategyConfig,
@@ -225,7 +274,6 @@ class DocumentRpcClientTest extends TestCase
                 $this->callback(function (array $params): bool {
                     return $params['code'] === 'DOC1'
                         && $params['knowledge_base_code'] === 'KB1'
-                        && $params['knowledge_code'] === 'KB1'
                         && $params['data_isolation']['organization_code'] === 'ORG1';
                 })
             )
@@ -251,7 +299,8 @@ class DocumentRpcClientTest extends TestCase
                         && $params['knowledge_base_code'] === 'KB1'
                         && $params['mode'] === 'resync'
                         && ! array_key_exists('async', $params)
-                        && ! array_key_exists('sync', $params);
+                        && ! array_key_exists('sync', $params)
+                        && ! array_key_exists('knowledge_code', $params);
                 })
             )
             ->willReturn([]);
@@ -266,7 +315,7 @@ class DocumentRpcClientTest extends TestCase
         ));
     }
 
-    public function testSyncShouldPassSyncFlagWhenProvided(): void
+    public function testSyncShouldPassRevectorizeSourceWithoutSyncFlag(): void
     {
         $manager = $this->createMock(RpcClientManager::class);
         $manager->expects($this->once())
@@ -277,8 +326,10 @@ class DocumentRpcClientTest extends TestCase
                     return $params['code'] === 'DOC1'
                         && $params['knowledge_base_code'] === 'KB1'
                         && $params['mode'] === 'resync'
-                        && $params['sync'] === true
-                        && ! array_key_exists('async', $params);
+                        && $params['revectorize_source'] === DocumentRequestDTO::REVECTORIZE_SOURCE_SINGLE_DOCUMENT_MANUAL
+                        && ! array_key_exists('sync', $params)
+                        && ! array_key_exists('async', $params)
+                        && ! array_key_exists('knowledge_code', $params);
                 })
             )
             ->willReturn([]);
@@ -290,7 +341,7 @@ class DocumentRpcClientTest extends TestCase
             'resync',
             new DataIsolationDTO('ORG1', 'U1'),
             new BusinessParamsDTO('ORG1', 'U1', 'KB1'),
-            sync: true
+            revectorizeSource: DocumentRequestDTO::REVECTORIZE_SOURCE_SINGLE_DOCUMENT_MANUAL,
         ));
     }
 

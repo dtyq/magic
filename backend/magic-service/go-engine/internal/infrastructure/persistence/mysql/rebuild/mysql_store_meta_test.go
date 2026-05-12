@@ -8,7 +8,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 
 	"magic/internal/constants"
-	domainrebuild "magic/internal/domain/knowledge/rebuild"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	mysqlrebuild "magic/internal/infrastructure/persistence/mysql/rebuild"
 )
 
@@ -36,7 +36,7 @@ func TestMySQLStoreUpsertCollectionMeta_UsesFixedOrganizationCode(t *testing.T) 
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = store.UpsertCollectionMeta(context.Background(), domainrebuild.CollectionMeta{
+	err = store.UpsertCollectionMeta(context.Background(), sharedroute.CollectionMeta{
 		CollectionName:         "magic_knowledge",
 		PhysicalCollectionName: "magic_knowledge_shadow_r1",
 		Model:                  "text-embedding-3-large",

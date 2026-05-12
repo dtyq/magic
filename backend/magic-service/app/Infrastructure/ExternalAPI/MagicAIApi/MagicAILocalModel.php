@@ -205,6 +205,12 @@ class MagicAILocalModel extends AbstractModel
         $sendMsgGPTDTO->setBusinessParams($businessParams);
         $this->fillClientIpsIfEmpty($sendMsgGPTDTO);
 
+        $thinking = $businessParams['thinking'] ?? null;
+        unset($businessParams['thinking']);
+        if (is_array($thinking)) {
+            $sendMsgGPTDTO->setThinking($thinking);
+        }
+
         $lastException = null;
         foreach ($models as $model) {
             $sendMsgGPTDTO->setModel($model);

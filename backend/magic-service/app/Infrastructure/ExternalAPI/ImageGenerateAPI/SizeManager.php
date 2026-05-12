@@ -178,6 +178,11 @@ class SizeManager
         return ($width / $gcd) . ':' . ($height / $gcd);
     }
 
+    public static function isDivisibleBy16(int $width, int $height): bool
+    {
+        return $width % 16 === 0 && $height % 16 === 0;
+    }
+
     /**
      * 根据模型版本、名称和 model_id 匹配配置.
      * @param string $modelVersion 模型版本
@@ -198,11 +203,12 @@ class SizeManager
             foreach ($config['match'] ?? [] as $rule) {
                 $field = $rule['field'] ?? '';
                 $value = strtolower($rule['value'] ?? '');
+                $matchType = strtolower($rule['match_type'] ?? 'exact');
 
-                if ($field === 'model_version' && $modelVersion === $value) {
+                if ($field === 'model_version' && self::matchesRule($modelVersion, $value, $matchType)) {
                     return $config['config'] ?? null;
                 }
-                if ($field === 'model_id' && $modelId !== null && preg_match('/' . $rule['value'] . '/i', $modelId)) {
+                if ($field === 'model_id' && $modelId !== null && self::matchesRule($modelId, $value, $matchType)) {
                     return $config['config'] ?? null;
                 }
             }
@@ -468,5 +474,13 @@ class SizeManager
         }
 
         return $a;
+    }
+
+    private static function matchesRule(string $actualValue, string $expectedValue, string $matchType): bool
+    {
+        return match ($matchType) {
+            'fuzzy' => str_contains($actualValue, $expectedValue),
+            default => $actualValue === $expectedValue,
+        };
     }
 }

@@ -7,10 +7,14 @@ declare(strict_types=1);
 
 namespace App\Application\ModelGateway\Component\Points;
 
+use App\Application\ModelGateway\Component\Points\DTO\PointEstimateResult;
+use App\Application\ModelGateway\Component\Points\DTO\VideoPointEstimateRequest;
 use App\Domain\ModelGateway\Entity\Dto\ProxyModelRequestInterface;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 
 interface PointComponentInterface
 {
     public function checkPointsSufficient(ProxyModelRequestInterface $proxyModelRequest, ModelGatewayDataIsolation $modelGatewayDataIsolation): void;
+
+    public function estimateVideoPoints(VideoPointEstimateRequest $request, ModelGatewayDataIsolation $modelGatewayDataIsolation): PointEstimateResult;
 }

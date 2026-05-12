@@ -107,7 +107,7 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
         Authenticatable|BaseDataIsolation $authorization,
         OperationResourceType $operationResourceType,
         ResourceVisibilityResourceType $visibilityResourceType,
-        array $resourceCodes = []
+        ?array $resourceCodes = null
     ): array {
         $permissionDataIsolation = $this->createPermissionDataIsolation($authorization);
         $currentUserId = $permissionDataIsolation->getCurrentUserId();

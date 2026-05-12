@@ -230,7 +230,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      */
     protected function getAccessibleSkillCodesWithBuiltinFallback(
         SuperMagicAgentDataIsolation $dataIsolation,
-        array $skillCodes
+        ?array $skillCodes = null
     ): array {
         /** @var array<string> $accessibleSkillCodes */
         $accessibleSkillCodes = $this->resourceAccessPolicyService->getReadableResourceCodes(
@@ -242,7 +242,7 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
 
         return array_values(array_unique(array_merge(
             $accessibleSkillCodes,
-            array_values(array_intersect(BuiltinSkill::values(), $skillCodes))
+            array_values(array_intersect(BuiltinSkill::values(), $skillCodes ?? []))
         )));
     }
 

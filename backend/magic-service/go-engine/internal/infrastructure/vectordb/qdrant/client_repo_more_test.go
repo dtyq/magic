@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
+	"magic/internal/infrastructure/logging"
 	qdrantpkg "magic/internal/infrastructure/vectordb/qdrant"
 )
 
@@ -64,6 +66,23 @@ func decodeSingleLogEntry(t *testing.T, buffer *bytes.Buffer) map[string]any {
 		t.Fatalf("unmarshal log entry: %v, raw=%s", err, buffer.String())
 	}
 	return entry
+}
+
+func requireTimingLogMessage(t *testing.T, entry map[string]any, fragments ...string) string {
+	t.Helper()
+	msg, ok := entry["msg"].(string)
+	if !ok {
+		t.Fatalf("log message is not string: %#v", entry["msg"])
+	}
+	if !strings.HasPrefix(msg, "[qdrant:") && !strings.HasPrefix(msg, logging.PrefixEngineException("[qdrant:")) {
+		t.Fatalf("expected qdrant compact log message, got %q", msg)
+	}
+	for _, fragment := range fragments {
+		if !strings.Contains(msg, fragment) {
+			t.Fatalf("expected log message %q to contain %q", msg, fragment)
+		}
+	}
+	return msg
 }
 
 func TestClientCollectionOperations(t *testing.T) {
@@ -227,6 +246,36 @@ func TestClientDeleteOperationsIgnoreMissingCollection(t *testing.T) {
 	}
 }
 
+func TestClientListExistingPointIDsReturnsCollectionNotFound(t *testing.T) {
+	t.Parallel()
+
+	client := newClientWithClients(1, newDefaultCollectionsClient(), fakePointsClient{
+		getFn: func(_ context.Context, _ *pb.GetPoints, _ ...grpc.CallOption) (*pb.GetResponse, error) {
+			return nil, status.Error(codes.NotFound, "Not found: Collection `missing` doesn't exist!")
+		},
+	})
+
+	_, err := client.ListExistingPointIDs(context.Background(), "missing", []string{"p1"})
+	if !errors.Is(err, qdrantpkg.ErrCollectionNotFound) {
+		t.Fatalf("expected ErrCollectionNotFound, got %v", err)
+	}
+}
+
+func TestClientListExistingPointIDsPreservesNonNotFoundErrors(t *testing.T) {
+	t.Parallel()
+
+	client := newClientWithClients(1, newDefaultCollectionsClient(), fakePointsClient{
+		getFn: func(_ context.Context, _ *pb.GetPoints, _ ...grpc.CallOption) (*pb.GetResponse, error) {
+			return nil, status.Error(codes.Unavailable, "qdrant unavailable")
+		},
+	})
+
+	_, err := client.ListExistingPointIDs(context.Background(), "missing", []string{"p1"})
+	if err == nil || errors.Is(err, qdrantpkg.ErrCollectionNotFound) || !strings.Contains(err.Error(), "failed to get points") {
+		t.Fatalf("expected wrapped non-NotFound error, got %v", err)
+	}
+}
+
 func TestClientSearchDenseWithFilterLogsTiming(t *testing.T) {
 	t.Parallel()
 
@@ -266,9 +315,7 @@ func TestClientSearchDenseWithFilterLogsTiming(t *testing.T) {
 	}
 
 	entry := decodeSingleLogEntry(t, &logBuffer)
-	if entry["msg"] != "Qdrant operation success" {
-		t.Fatalf("unexpected log message: %#v", entry["msg"])
-	}
+	requireTimingLogMessage(t, entry, "search_dense", "collection="+testCollectionName, "result_count=1", "top_k=3")
 	if entry["level"] != "DEBUG" {
 		t.Fatalf("unexpected level: %#v", entry["level"])
 	}
@@ -286,6 +333,34 @@ func TestClientSearchDenseWithFilterLogsTiming(t *testing.T) {
 	}
 	if entry["filter_applied"] != true {
 		t.Fatalf("expected filter_applied=true, got %#v", entry["filter_applied"])
+	}
+}
+
+func TestBuildTimingLogMessageSummarizesStableFields(t *testing.T) {
+	t.Parallel()
+
+	message := qdrantpkg.BuildTimingLogMessageForTest(14*time.Millisecond, "search_sparse",
+		"filter_applied", true,
+		"top_k", 120,
+		"collection", testCollectionName,
+		"selected_sparse_api", testQueryPointsAPI,
+		"result_count", 6,
+		"transport", "grpc",
+		"sparse_mode", testSparseModeVector,
+	)
+	want := "[qdrant:14.00ms] search_sparse collection=" + testCollectionName + " result_count=6 top_k=120 transport=grpc selected_sparse_api=" + testQueryPointsAPI
+	if message != want {
+		t.Fatalf("unexpected summary message:\nwant: %s\ngot:  %s", want, message)
+	}
+
+	message = qdrantpkg.BuildTimingLogMessageForTest(3*time.Millisecond, "set_payload_by_point_ids",
+		"filter_applied", false,
+		"point_count", 0,
+		"vector_name", fragmodel.DefaultDenseVectorName,
+	)
+	want = "[qdrant:3.00ms] set_payload_by_point_ids point_count=0"
+	if message != want {
+		t.Fatalf("unexpected fallback summary message:\nwant: %s\ngot:  %s", want, message)
 	}
 }
 
@@ -309,7 +384,8 @@ func TestClientSearchSparseWithFilterLogsDocumentModeAndSlowThreshold(t *testing
 		}
 
 		entry := decodeSingleLogEntry(t, &logBuffer)
-		if entry["msg"] != "Qdrant operation slow" || entry["level"] != testLogLevelWarn {
+		requireTimingLogMessage(t, entry, "search_sparse", "collection="+testCollectionName, "result_count=1", "top_k=2", "selected_sparse_api="+testQueryPointsAPI)
+		if entry["level"] != testLogLevelWarn {
 			t.Fatalf("unexpected slow log entry: %#v", entry)
 		}
 		if entry["operation"] != "search_sparse" || entry["sparse_mode"] != testSparseModeDocument {
@@ -320,6 +396,9 @@ func TestClientSearchSparseWithFilterLogsDocumentModeAndSlowThreshold(t *testing
 		}
 		if entry["query_term_count"] != float64(0) {
 			t.Fatalf("unexpected query_term_count: %#v", entry["query_term_count"])
+		}
+		if entry["slow_qdrant_threshold_ms"] != float64(5) {
+			t.Fatalf("unexpected slow_qdrant_threshold_ms: %#v", entry["slow_qdrant_threshold_ms"])
 		}
 	})
 }
@@ -343,11 +422,15 @@ func TestClientSearchSparseWithFilterLogsVectorModeAndSlowThreshold(t *testing.T
 		}
 
 		entry := decodeSingleLogEntry(t, &logBuffer)
-		if entry["msg"] != "Qdrant operation slow" || entry["level"] != testLogLevelWarn {
+		requireTimingLogMessage(t, entry, "search_sparse", "collection="+testCollectionName, "result_count=1", "top_k=1", "selected_sparse_api="+testQueryPointsAPI)
+		if entry["level"] != testLogLevelWarn {
 			t.Fatalf("unexpected slow log entry: %#v", entry)
 		}
 		if entry["sparse_mode"] != testSparseModeVector || entry["query_term_count"] != float64(3) {
 			t.Fatalf("unexpected vector sparse fields: %#v", entry)
+		}
+		if entry["slow_qdrant_threshold_ms"] != float64(5) {
+			t.Fatalf("unexpected slow_qdrant_threshold_ms: %#v", entry["slow_qdrant_threshold_ms"])
 		}
 	})
 }
@@ -418,6 +501,7 @@ func TestClientStoreHybridPointsAndFailuresLogTiming(t *testing.T) {
 		t.Fatalf("StoreHybridPoints() error = %v", err)
 	}
 	entry := decodeSingleLogEntry(t, &logBuffer)
+	requireTimingLogMessage(t, entry, "store_hybrid_points", "collection="+testCollectionName, "point_count=2", "transport=grpc")
 	if entry["operation"] != "store_hybrid_points" || entry["point_count"] != float64(2) || entry["payload_count"] != float64(2) {
 		t.Fatalf("unexpected store log entry: %#v", entry)
 	}
@@ -434,7 +518,8 @@ func TestClientStoreHybridPointsAndFailuresLogTiming(t *testing.T) {
 		t.Fatal("expected SearchDenseWithFilter to fail")
 	}
 	entry = decodeSingleLogEntry(t, &logBuffer)
-	if entry["msg"] != "Qdrant operation failed" || entry["level"] != testLogLevelWarn {
+	requireTimingLogMessage(t, entry, "search_dense", "collection="+testCollectionName, "top_k=1")
+	if entry["level"] != testLogLevelWarn {
 		t.Fatalf("unexpected failed log entry: %#v", entry)
 	}
 	if entry["error"] == nil {
@@ -785,7 +870,8 @@ func TestClientSearchSparseWithFilterDoesNotFallbackAfterQueryFailure(t *testing
 	}
 
 	entries := decodeLogEntries(t, &logBuffer)
-	searchEntry := requireLogEntryByMessage(t, entries, "Qdrant operation failed")
+	searchEntry := requireLogEntryByOperation(t, entries, "search_sparse")
+	requireTimingLogMessage(t, searchEntry, "search_sparse", "collection="+testCollectionName, "top_k=2", "selected_sparse_api="+testQueryPointsAPI)
 	if searchEntry["selected_sparse_api"] != testQueryPointsAPI {
 		t.Fatalf("unexpected selected_sparse_api: %#v", searchEntry["selected_sparse_api"])
 	}

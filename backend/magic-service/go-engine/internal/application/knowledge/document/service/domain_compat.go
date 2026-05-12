@@ -3,8 +3,12 @@ package docapp
 import (
 	"errors"
 	"fmt"
+	"maps"
 
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	"magic/internal/domain/knowledge/shared"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
@@ -38,7 +42,7 @@ func (e *resolvedRouteBindingMismatchError) Error() string {
 	)
 }
 
-func knowledgeBaseSnapshotFromDomain(kb *knowledgebasedomain.KnowledgeBase) *sharedsnapshot.KnowledgeBaseRuntimeSnapshot {
+func knowledgeBaseSnapshotFromDomain(kb *kbentity.KnowledgeBase) *sharedsnapshot.KnowledgeBaseRuntimeSnapshot {
 	if kb == nil {
 		return nil
 	}
@@ -50,22 +54,56 @@ func knowledgeBaseSnapshotFromDomain(kb *knowledgebasedomain.KnowledgeBase) *sha
 		VectorDB:         kb.VectorDB,
 		CreatedUID:       kb.CreatedUID,
 		UpdatedUID:       kb.UpdatedUID,
-		RetrieveConfig:   kb.RetrieveConfig,
-		FragmentConfig:   kb.FragmentConfig,
-		EmbeddingConfig:  kb.EmbeddingConfig,
-		ResolvedRoute:    kb.ResolvedRoute,
+		RetrieveConfig:   shared.CloneRetrieveConfig(kb.RetrieveConfig),
+		FragmentConfig:   shared.CloneFragmentConfig(kb.FragmentConfig),
+		EmbeddingConfig:  shared.CloneEmbeddingConfig(kb.EmbeddingConfig),
+		ResolvedRoute:    sharedroute.CloneResolvedRoute(kb.ResolvedRoute),
 	})
 }
 
+func fragDocumentFromDomain(doc *docentity.KnowledgeBaseDocument) *fragmodel.KnowledgeBaseDocument {
+	if doc == nil {
+		return nil
+	}
+	return &fragmodel.KnowledgeBaseDocument{
+		KnowledgeDocumentSnapshot: sharedsnapshot.KnowledgeDocumentSnapshot{
+			OrganizationCode:  doc.OrganizationCode,
+			KnowledgeBaseCode: doc.KnowledgeBaseCode,
+			Name:              doc.Name,
+			Code:              doc.Code,
+			DocType:           doc.DocType,
+			DocMetadata:       cloneDocumentMetadata(doc.DocMetadata),
+			FragmentConfig:    shared.CloneFragmentConfig(doc.FragmentConfig),
+			UpdatedUID:        doc.UpdatedUID,
+		},
+		DocumentFile:      cloneFragDocumentFileFromDomain(doc.DocumentFile),
+		ThirdPlatformType: doc.ThirdPlatformType,
+		ThirdFileID:       doc.ThirdFileID,
+		SyncStatus:        doc.SyncStatus,
+		EmbeddingModel:    doc.EmbeddingModel,
+		VectorDB:          doc.VectorDB,
+		RetrieveConfig:    shared.CloneRetrieveConfig(doc.RetrieveConfig),
+		EmbeddingConfig:   shared.CloneEmbeddingConfig(doc.EmbeddingConfig),
+		WordCount:         doc.WordCount,
+		CreatedUID:        doc.CreatedUID,
+		CreatedAt:         doc.CreatedAt,
+		UpdatedAt:         doc.UpdatedAt,
+	}
+}
+
 func cloneKnowledgeBaseWithResolvedRoute(
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	route sharedroute.ResolvedRoute,
-) (*knowledgebasedomain.KnowledgeBase, error) {
+) (*kbentity.KnowledgeBase, error) {
 	if kb == nil {
 		return nil, errKnowledgeBaseNil
 	}
 
 	cloned := *kb
+	cloned.RetrieveConfig = shared.CloneRetrieveConfig(kb.RetrieveConfig)
+	cloned.FragmentConfig = shared.CloneFragmentConfig(kb.FragmentConfig)
+	cloned.EmbeddingConfig = shared.CloneEmbeddingConfig(kb.EmbeddingConfig)
+	cloned.ResolvedRoute = sharedroute.CloneResolvedRoute(kb.ResolvedRoute)
 	cloned.ApplyResolvedRoute(route)
 	if cloned.ResolvedRoute == nil {
 		return nil, errResolvedRouteMissingAfterBinding
@@ -83,4 +121,29 @@ func cloneKnowledgeBaseWithResolvedRoute(
 		)
 	}
 	return &cloned, nil
+}
+
+func cloneDocumentMetadata(metadata map[string]any) map[string]any {
+	if len(metadata) == 0 {
+		return nil
+	}
+	return maps.Clone(metadata)
+}
+
+func cloneFragDocumentFileFromDomain(file *docentity.File) *fragmodel.DocumentFile {
+	if file == nil {
+		return nil
+	}
+	return &fragmodel.DocumentFile{
+		Type:            file.Type,
+		Name:            file.Name,
+		URL:             file.URL,
+		FileKey:         file.FileKey,
+		Size:            file.Size,
+		Extension:       file.Extension,
+		ThirdID:         file.ThirdID,
+		SourceType:      file.SourceType,
+		ThirdFileType:   file.ThirdFileType,
+		KnowledgeBaseID: file.KnowledgeBaseID,
+	}
 }

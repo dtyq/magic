@@ -2,8 +2,8 @@ package retrieval_test
 
 import (
 	"context"
-	"errors"
 	"maps"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,208 +14,71 @@ import (
 	retrieval "magic/internal/domain/knowledge/fragment/retrieval"
 	shared "magic/internal/domain/knowledge/shared"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/knowledgeroute"
 )
 
-var (
-	errBatchLookupFailed  = errors.New("batch lookup failed")
-	errUnexpectedStubCall = errors.New("unexpected stub call")
-)
+const sparseOnlyCandidateID = "sparse-only"
 
-func TestEnrichSimilarityResultsWithContextUsesBatchLookup(t *testing.T) {
-	repo := &contextFragmentRepoStub{
-		batchFragments: map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment{
-			{KnowledgeCode: "KB1", DocumentCode: "DOC1"}: {{KnowledgeCode: "KB1", DocumentCode: "DOC1", Content: "doc1 context"}},
-			{KnowledgeCode: "KB1", DocumentCode: "DOC2"}: {{KnowledgeCode: "KB1", DocumentCode: "DOC2", Content: "doc2 context"}},
+func TestSimilarityKeepsNonTabularHitContentUntouched(t *testing.T) {
+	t.Parallel()
+
+	result := runSimilarityForTest(t, &shared.VectorSearchResult[fragmodel.FragmentPayload]{
+		ID:      "POINT-1",
+		Score:   0.92,
+		Content: "命中正文",
+		Metadata: map[string]any{
+			"chunk_type": "text",
 		},
-	}
-	results := []*fragmodel.SimilarityResult{
-		{KnowledgeCode: "KB1", DocumentCode: "DOC1", Content: "hit-1"},
-		{KnowledgeCode: "KB1", DocumentCode: "DOC1", Content: "hit-2"},
-		{KnowledgeCode: "KB1", DocumentCode: "DOC2", Content: "hit-3"},
-	}
-
-	enriched := retrieval.EnrichSimilarityResultsWithContextForTest(context.Background(), results, repo)
-
-	if len(enriched) != 3 {
-		t.Fatalf("expected 3 enriched results, got %d", len(enriched))
-	}
-	if repo.batchCalls != 1 {
-		t.Fatalf("expected one batch lookup, got %d", repo.batchCalls)
-	}
-	if repo.listCalls != 0 {
-		t.Fatalf("expected no fallback list calls, got %d", repo.listCalls)
-	}
-}
-
-func TestEnrichSimilarityResultsWithContextFallsBackPerDocumentOnBatchError(t *testing.T) {
-	repo := &contextFragmentRepoStub{
-		batchErr: errBatchLookupFailed,
-		listFragments: map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment{
-			{KnowledgeCode: "KB1", DocumentCode: "DOC1"}: {{KnowledgeCode: "KB1", DocumentCode: "DOC1", Content: "doc1 context"}},
-			{KnowledgeCode: "KB1", DocumentCode: "DOC2"}: {{KnowledgeCode: "KB1", DocumentCode: "DOC2", Content: "doc2 context"}},
-		},
-	}
-	results := []*fragmodel.SimilarityResult{
-		{KnowledgeCode: "KB1", DocumentCode: "DOC1", Content: "hit-1"},
-		{KnowledgeCode: "KB1", DocumentCode: "DOC1", Content: "hit-2"},
-		{KnowledgeCode: "KB1", DocumentCode: "DOC2", Content: "hit-3"},
-	}
-
-	enriched := retrieval.EnrichSimilarityResultsWithContextForTest(context.Background(), results, repo)
-
-	if len(enriched) != 3 {
-		t.Fatalf("expected 3 enriched results, got %d", len(enriched))
-	}
-	if repo.batchCalls != 1 {
-		t.Fatalf("expected one batch lookup attempt, got %d", repo.batchCalls)
-	}
-	if repo.listCalls != 2 {
-		t.Fatalf("expected fallback list calls for 2 unique documents, got %d", repo.listCalls)
-	}
-}
-
-func TestEnrichSimilarityResultsWithContextBackfillsFragmentIDFromContextFragments(t *testing.T) {
-	repo := &contextFragmentRepoStub{
-		batchFragments: map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment{
-			{KnowledgeCode: "KB1", DocumentCode: "DOC1"}: {{
-				ID:            88,
-				BusinessID:    "BIZ-88",
-				KnowledgeCode: "KB1",
-				DocumentCode:  "DOC1",
-				PointID:       "POINT-1",
-				Content:       "doc1 context",
-			}},
-		},
-	}
-	results := []*fragmodel.SimilarityResult{
-		{
+		Payload: fragmodel.FragmentPayload{
+			FragmentID:    11,
 			KnowledgeCode: "KB1",
 			DocumentCode:  "DOC1",
-			Content:       "hit-1",
-			Metadata: map[string]any{
-				"point_id": "POINT-1",
-			},
+			DocumentName:  "会议纪要",
+			DocumentType:  1,
+			ChunkIndex:    3,
+			SectionPath:   "会议纪要 > 讨论要点",
+			SectionTitle:  "1.14 原文显示问题",
 		},
-	}
+	})
 
-	enriched := retrieval.EnrichSimilarityResultsWithContextForTest(context.Background(), results, repo)
-
-	if len(enriched) != 1 || enriched[0].FragmentID != 88 {
-		t.Fatalf("expected fragment id backfilled from context fragments, got %#v", enriched)
+	if result.Content != "命中正文" {
+		t.Fatalf("expected non-tabular hit content to remain untouched, got %q", result.Content)
 	}
-	if enriched[0].BusinessID != "BIZ-88" {
-		t.Fatalf("expected business id backfilled from context fragments, got %#v", enriched)
-	}
-	if repo.pointLookupCalls != 0 {
-		t.Fatalf("expected no point lookup fallback, got %d", repo.pointLookupCalls)
-	}
+	assertSimilarityResultHasNoContextMetadata(t, result.Metadata)
 }
 
-func TestEnrichSimilarityResultsWithContextUsesDocumentFallbackBeforePointLookup(t *testing.T) {
-	repo := &contextFragmentRepoStub{
-		batchErr: errBatchLookupFailed,
-		listFragments: map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment{
-			{KnowledgeCode: "KB1", DocumentCode: "DOC1"}: {{
-				ID:            77,
-				BusinessID:    "BIZ-77",
-				KnowledgeCode: "KB1",
-				DocumentCode:  "DOC1",
-				PointID:       "POINT-77",
-				Content:       "doc1 context",
-			}},
-		},
-	}
-	results := []*fragmodel.SimilarityResult{
-		{
-			KnowledgeCode: "KB1",
-			DocumentCode:  "DOC1",
-			Content:       "hit-1",
-			Metadata: map[string]any{
-				"point_id": "POINT-77",
-			},
-		},
-	}
+func TestSimilarityKeepsTabularSubchunkContentUntouched(t *testing.T) {
+	t.Parallel()
 
-	enriched := retrieval.EnrichSimilarityResultsWithContextForTest(context.Background(), results, repo)
-
-	if len(enriched) != 1 || enriched[0].FragmentID != 77 || enriched[0].BusinessID != "BIZ-77" {
-		t.Fatalf("expected fragment fields backfilled from document fallback, got %#v", enriched)
-	}
-	if repo.listCalls != 1 {
-		t.Fatalf("expected one document fallback list call, got %d", repo.listCalls)
-	}
-	if repo.pointLookupCalls != 0 {
-		t.Fatalf("expected no point lookup fallback when document fallback succeeds, got %d", repo.pointLookupCalls)
-	}
-}
-
-func TestEnrichSimilarityResultsWithContextFallsBackToPointLookupForFragmentID(t *testing.T) {
-	repo := &contextFragmentRepoStub{
-		pointLookupFragments: map[string]*fragmodel.KnowledgeBaseFragment{
-			"POINT-2": {
-				ID:         99,
-				BusinessID: "BIZ-99",
-				PointID:    "POINT-2",
-			},
+	content := "文件名: 销售表.xlsx\n工作表: Sheet1\n表格: 销售表\n行号: 2\n- 客户: 示例客户A"
+	result := runSimilarityForTest(t, &shared.VectorSearchResult[fragmodel.FragmentPayload]{
+		ID:      "POINT-2",
+		Score:   0.88,
+		Content: content,
+		Metadata: map[string]any{
+			"chunk_type":         "table_row",
+			"row_subchunk_index": 1,
+			"table_id":           "table-1",
+			"row_index":          2,
 		},
-	}
-	results := []*fragmodel.SimilarityResult{
-		{
+		Payload: fragmodel.FragmentPayload{
+			FragmentID:    12,
 			KnowledgeCode: "KB1",
 			DocumentCode:  "DOC2",
-			Content:       "hit-2",
-			Metadata: map[string]any{
-				"point_id": "POINT-2",
-			},
+			DocumentName:  "销售表.xlsx",
+			DocumentType:  2,
+			ChunkIndex:    7,
+			SectionPath:   "Sheet1 > 销售表",
+			SectionTitle:  "销售表",
 		},
-	}
+	})
 
-	enriched := retrieval.EnrichSimilarityResultsWithContextForTest(context.Background(), results, repo)
-
-	if len(enriched) != 1 || enriched[0].FragmentID != 99 {
-		t.Fatalf("expected fragment id backfilled via point lookup, got %#v", enriched)
+	if result.Content != content {
+		t.Fatalf("expected tabular hit to keep matched subchunk content, got %q", result.Content)
 	}
-	if enriched[0].BusinessID != "BIZ-99" {
-		t.Fatalf("expected business id backfilled via point lookup, got %#v", enriched)
-	}
-	if repo.pointLookupCalls != 1 {
-		t.Fatalf("expected one point lookup fallback, got %d", repo.pointLookupCalls)
-	}
-}
-
-func TestEnrichSimilarityResultsWithContextFallsBackToScopedPointLookupForFragmentID(t *testing.T) {
-	repo := &contextFragmentRepoStub{
-		pointLookupFragments: map[string]*fragmodel.KnowledgeBaseFragment{
-			"POINT-2": {
-				ID:      99,
-				PointID: "POINT-2",
-			},
-		},
-	}
-	results := []*fragmodel.SimilarityResult{
-		{
-			KnowledgeCode: "KB1",
-			DocumentCode:  "DOC2",
-			Content:       "hit-2",
-			Metadata: map[string]any{
-				"point_id": "POINT-2",
-			},
-		},
-	}
-
-	enriched := retrieval.EnrichSimilarityResultsWithContextForTest(context.Background(), results, repo)
-
-	if len(enriched) != 1 || enriched[0].FragmentID != 99 {
-		t.Fatalf("expected fragment id backfilled via scoped point lookup, got %#v", enriched)
-	}
-	if repo.pointLookupCalls != 1 {
-		t.Fatalf("expected one scoped point lookup, got %d", repo.pointLookupCalls)
-	}
-	if repo.pointBatchCalls != 0 {
-		t.Fatalf("expected no batch point lookup, got %d", repo.pointBatchCalls)
-	}
+	assertSimilarityResultHasNoContextMetadata(t, result.Metadata)
 }
 
 func TestSearchSimilarityCandidatesReadsCollectionMetaOnce(t *testing.T) {
@@ -293,6 +156,51 @@ func TestSearchSimilarityCandidatesUsesCapabilitySelectedSparseBackend(t *testin
 	}
 }
 
+func TestSearchSimilarityCandidatesKeepsDenseQueryOriginalWhileEnrichingSparseDocument(t *testing.T) {
+	t.Parallel()
+
+	vectorRepo := &vectorDataRepoStub{}
+	embeddingSvc := &recordingEmbeddingServiceStub{}
+	service := retrieval.NewService(
+		nil,
+		embeddingSvc,
+		retrieval.Infra{
+			VectorDataRepo:        vectorRepo,
+			MetaReader:            managedBM25MetaReader(),
+			DefaultEmbeddingModel: "text-embedding-3-small",
+		},
+	)
+
+	query := "小哥对录音纪要提出了哪些问题和建议"
+	_, err := retrieval.SearchSimilarityCandidatesForTest(
+		context.Background(),
+		service,
+		&struct{ Code string }{Code: "KB1"},
+		retrieval.SimilarityRequest{
+			Query:                   query,
+			TopK:                    4,
+			CandidateScoreThreshold: 0.1,
+		},
+	)
+	if err != nil {
+		t.Fatalf("SearchSimilarityCandidatesForTest returned error: %v", err)
+	}
+
+	if len(embeddingSvc.queries) != 1 || embeddingSvc.queries[0] != query {
+		t.Fatalf("expected dense embedding to keep original query, got %#v", embeddingSvc.queries)
+	}
+	requests := vectorRepo.sparseSearchRequests()
+	if len(requests) != 1 || requests[0].Document == nil {
+		t.Fatalf("expected one managed sparse search request, got %#v", requests)
+	}
+	if got := requests[0].Document.Text; got == query ||
+		!strings.Contains(got, "小哥") ||
+		!strings.Contains(got, "录音") ||
+		!strings.Contains(got, "建议") {
+		t.Fatalf("expected sparse document to use tokenized query text, got %q", got)
+	}
+}
+
 func TestSearchSimilarityCandidatesShortQuerySkipsSparseSearch(t *testing.T) {
 	assertShortQuerySkipsSparseSearch(t, "小")
 }
@@ -338,7 +246,7 @@ func assertShortQuerySkipsSparseSearch(t *testing.T, query string) {
 
 func TestSearchSimilarityCandidatesSoftFilterFallbackKeepsSparseSearch(t *testing.T) {
 	vectorRepo := &vectorDataRepoStub{
-		denseResponsePlan: [][]*fragmodel.VectorSearchResult[fragmodel.FragmentPayload]{
+		denseResponsePlan: [][]*shared.VectorSearchResult[fragmodel.FragmentPayload]{
 			nil,
 			{{ID: "doc-1", Score: 0.9}},
 		},
@@ -382,6 +290,246 @@ func TestSearchSimilarityCandidatesSoftFilterFallbackKeepsSparseSearch(t *testin
 	}
 	if !foundHardOnlySparseFallback {
 		t.Fatalf("expected a sparse search on soft-filter fallback, got %#v", sparseRequests)
+	}
+}
+
+func TestSearchSimilarityCandidatesUsesSplitDenseAndSparseThresholds(t *testing.T) {
+	t.Parallel()
+
+	vectorRepo := &vectorDataRepoStub{}
+	service := retrieval.NewService(
+		nil,
+		embeddingServiceStub{},
+		retrieval.Infra{
+			VectorDataRepo:        vectorRepo,
+			MetaReader:            managedBM25MetaReader(),
+			DefaultEmbeddingModel: "text-embedding-3-small",
+		},
+	)
+
+	_, err := retrieval.SearchSimilarityCandidatesForTest(
+		context.Background(),
+		service,
+		&struct{ Code string }{Code: "KB1"},
+		retrieval.SimilarityRequest{
+			Query:                   "退款 API 错误码 E1001",
+			TopK:                    3,
+			CandidateScoreThreshold: 0.1,
+		},
+	)
+	if err != nil {
+		t.Fatalf("SearchSimilarityCandidatesForTest returned error: %v", err)
+	}
+
+	denseRequests := vectorRepo.denseSearchRequests()
+	if len(denseRequests) != 1 || denseRequests[0].ScoreThreshold != 0.1 {
+		t.Fatalf("expected dense threshold 0.1, got %#v", denseRequests)
+	}
+
+	sparseRequests := vectorRepo.sparseSearchRequests()
+	if len(sparseRequests) != 1 || sparseRequests[0].ScoreThreshold != 0 {
+		t.Fatalf("expected sparse threshold 0, got %#v", sparseRequests)
+	}
+}
+
+func TestSearchSimilarityCandidatesKeepsSparseOnlyCandidatesAfterUnion(t *testing.T) {
+	t.Parallel()
+
+	vectorRepo := &vectorDataRepoStub{
+		denseResponsePlan: [][]*shared.VectorSearchResult[fragmodel.FragmentPayload]{
+			{
+				{
+					ID:      "shared",
+					Score:   0.88,
+					Content: "退款流程",
+					Payload: fragmodel.FragmentPayload{DocumentCode: "doc-shared"},
+				},
+			},
+		},
+		sparseResponsePlan: [][]*shared.VectorSearchResult[fragmodel.FragmentPayload]{
+			{
+				{
+					ID:      "shared",
+					Score:   4.2,
+					Content: "退款流程",
+					Payload: fragmodel.FragmentPayload{DocumentCode: "doc-shared"},
+				},
+				{
+					ID:      sparseOnlyCandidateID,
+					Score:   7.8,
+					Content: "E1001 错误码说明",
+					Payload: fragmodel.FragmentPayload{DocumentCode: "doc-sparse"},
+				},
+			},
+		},
+	}
+	service := retrieval.NewService(
+		nil,
+		embeddingServiceStub{},
+		retrieval.Infra{
+			VectorDataRepo:        vectorRepo,
+			MetaReader:            managedBM25MetaReader(),
+			DefaultEmbeddingModel: "text-embedding-3-small",
+		},
+	)
+
+	results, err := retrieval.SearchSimilarityCandidatesForTest(
+		context.Background(),
+		service,
+		&struct{ Code string }{Code: "KB1"},
+		retrieval.SimilarityRequest{
+			Query:                   "退款流程 E1001",
+			TopK:                    3,
+			CandidateScoreThreshold: 0.1,
+		},
+	)
+	if err != nil {
+		t.Fatalf("SearchSimilarityCandidatesForTest returned error: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected shared and sparse-only candidates in union, got %#v", results)
+	}
+	foundSparseOnly := false
+	for _, result := range results {
+		if result.ID == sparseOnlyCandidateID {
+			foundSparseOnly = true
+			break
+		}
+	}
+	if !foundSparseOnly {
+		t.Fatalf("expected sparse-only candidate to survive union, got %#v", results)
+	}
+}
+
+func TestSimilarityDebugMetadataIncludesBM25QueryAndTokenPolicyDebug(t *testing.T) {
+	t.Parallel()
+
+	vectorRepo := &vectorDataRepoStub{
+		denseResponsePlan: [][]*shared.VectorSearchResult[fragmodel.FragmentPayload]{
+			{{
+				ID:      "POINT-1",
+				Score:   0.93,
+				Content: "录音问题优化建议",
+				Payload: fragmodel.FragmentPayload{
+					DocumentCode: "DOC-1",
+				},
+			}},
+		},
+	}
+	service := retrieval.NewService(
+		nil,
+		embeddingServiceStub{},
+		retrieval.Infra{
+			VectorDataRepo:        vectorRepo,
+			MetaReader:            managedBM25MetaReader(),
+			DefaultEmbeddingModel: "text-embedding-3-small",
+		},
+	)
+
+	results, err := service.Similarity(
+		context.Background(),
+		&sharedsnapshot.KnowledgeBaseRuntimeSnapshot{Code: "KB1"},
+		retrieval.SimilarityRequest{
+			Query:                   "小哥对录音纪要提出了哪些问题和建议",
+			TopK:                    1,
+			CandidateScoreThreshold: 0.1,
+			Options:                 &retrieval.SimilaritySearchOptions{Debug: true},
+		},
+	)
+	if err != nil {
+		t.Fatalf("Similarity returned error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected one similarity result, got %#v", results)
+	}
+	ranking, ok := results[0].Metadata["retrieval_ranking"].(retrieval.Ranking)
+	if !ok {
+		t.Fatalf("expected retrieval_ranking in metadata, got %#v", results[0].Metadata)
+	}
+	if ranking.BM25Query.RawQuery == "" || ranking.BM25Query.Backend == "" {
+		t.Fatalf("expected retrieval_ranking.bm25_query in metadata, got %#v", results[0].Metadata)
+	}
+	if _, ok := results[0].Metadata["sparse_query_debug"]; ok {
+		t.Fatalf("expected sparse_query_debug to be removed, got %#v", results[0].Metadata)
+	}
+	assertTokenPolicyDebugMetadata(t, results[0].Metadata)
+}
+
+func assertTokenPolicyDebugMetadata(t *testing.T, metadata map[string]any) {
+	t.Helper()
+
+	tokenPolicyDebug, ok := metadata["token_policy_debug"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected token_policy_debug in metadata, got %#v", metadata)
+	}
+	assertTokenPolicyDebugTokens(t, tokenPolicyDebug)
+	assertTokenPolicyDebugOmitsPathFields(t, tokenPolicyDebug)
+	assertTokenPolicyDebugStatusFields(t, tokenPolicyDebug)
+	assertTokenPolicyDebugHasNoStringPaths(t, tokenPolicyDebug)
+}
+
+func assertTokenPolicyDebugTokens(t *testing.T, tokenPolicyDebug map[string]any) {
+	t.Helper()
+
+	for _, key := range []string{"raw_query_tokens", "retrieval_tokens"} {
+		tokens, ok := tokenPolicyDebug[key].([]string)
+		if !ok || len(tokens) == 0 {
+			t.Fatalf("expected %s tokens in token_policy_debug, got %#v", key, tokenPolicyDebug)
+		}
+	}
+	stopwordCount, ok := tokenPolicyDebug["stopword_count"].(int)
+	if !ok || stopwordCount <= 0 {
+		t.Fatalf("expected stopword_count in token_policy_debug, got %#v", tokenPolicyDebug)
+	}
+}
+
+func assertTokenPolicyDebugOmitsPathFields(t *testing.T, tokenPolicyDebug map[string]any) {
+	t.Helper()
+
+	for _, key := range []string{
+		"retrieval_stopwords",
+		"custom_terms",
+		"bundled_dict_dir",
+		"upstream_stop_word",
+		"upstream_stop_tokens",
+		"idf",
+		"tf_idf",
+		"tf_idf_origin",
+	} {
+		if _, exists := tokenPolicyDebug[key]; exists {
+			t.Fatalf("expected local path field %q to be omitted, got %#v", key, tokenPolicyDebug)
+		}
+	}
+}
+
+func assertTokenPolicyDebugStatusFields(t *testing.T, tokenPolicyDebug map[string]any) {
+	t.Helper()
+
+	for _, key := range []string{
+		"has_custom_terms",
+		"has_retrieval_stopwords",
+		"has_upstream_stop_word",
+		"has_upstream_stop_tokens",
+		"has_idf",
+		"has_tf_idf",
+		"has_tf_idf_origin",
+	} {
+		if _, ok := tokenPolicyDebug[key].(bool); !ok {
+			t.Fatalf("expected %s bool in token_policy_debug, got %#v", key, tokenPolicyDebug)
+		}
+	}
+	if source, ok := tokenPolicyDebug["dict_source"].(string); !ok || source != "bundled" {
+		t.Fatalf("expected bundled dict_source in token_policy_debug, got %#v", tokenPolicyDebug)
+	}
+}
+
+func assertTokenPolicyDebugHasNoStringPaths(t *testing.T, tokenPolicyDebug map[string]any) {
+	t.Helper()
+
+	for key, value := range tokenPolicyDebug {
+		if text, ok := value.(string); ok && strings.ContainsAny(text, `/\`) {
+			t.Fatalf("expected token_policy_debug string field %q to avoid local paths, got %q", key, text)
+		}
 	}
 }
 
@@ -452,10 +600,10 @@ func TestSearchSimilarityCandidatesDoesNotLowerCandidateThreshold(t *testing.T) 
 	}
 
 	denseRequests := vectorRepo.denseSearchRequests()
-	if len(denseRequests) != 2 {
-		t.Fatalf("expected two dense search passes without candidate threshold fallback, got %#v", denseRequests)
+	if len(denseRequests) != 1 {
+		t.Fatalf("expected dense search to keep a single pass when no soft-filter fallback applies, got %#v", denseRequests)
 	}
-	if denseRequests[0].ScoreThreshold != 0.1 || denseRequests[1].ScoreThreshold != 0.1 {
+	if denseRequests[0].ScoreThreshold != 0.1 {
 		t.Fatalf("expected dense passes to keep threshold 0.1, got %#v", denseRequests)
 	}
 }
@@ -496,6 +644,111 @@ func TestSearchSimilarityCandidatesEnhancedRetrievalUsesEmbeddingQuery(t *testin
 		if query != "这是原始问题" {
 			t.Fatalf("expected embedding query to use original question, got %#v", embeddingSvc.queries)
 		}
+	}
+}
+
+func TestSearchSimilarityCandidatesDerivesSoftFilterFromQueryProfile(t *testing.T) {
+	t.Parallel()
+
+	vectorRepo := &vectorDataRepoStub{}
+	service := retrieval.NewService(
+		nil,
+		embeddingServiceStub{},
+		retrieval.Infra{
+			VectorDataRepo:        vectorRepo,
+			MetaReader:            managedBM25MetaReader(),
+			DefaultEmbeddingModel: "text-embedding-3-small",
+		},
+	)
+
+	_, err := retrieval.SearchSimilarityCandidatesForTest(
+		context.Background(),
+		service,
+		&struct{ Code string }{Code: "KB1"},
+		retrieval.SimilarityRequest{
+			Query:                   "这是重写后的查询",
+			EmbeddingQuery:          "退款 section:帮助中心",
+			TopK:                    4,
+			CandidateScoreThreshold: 0.1,
+		},
+	)
+	if err != nil {
+		t.Fatalf("SearchSimilarityCandidatesForTest returned error: %v", err)
+	}
+
+	denseRequests := vectorRepo.denseSearchRequests()
+	if len(denseRequests) == 0 || denseRequests[0].Filter == nil {
+		t.Fatalf("expected dense search requests, got %#v", denseRequests)
+	}
+
+	foundSectionTitleFilter := false
+	for _, filter := range denseRequests[0].Filter.Must {
+		if filter.Key == "section_title" && len(filter.Match.InStrings) == 1 && filter.Match.InStrings[0] == "帮助中心" {
+			foundSectionTitleFilter = true
+			break
+		}
+	}
+	if !foundSectionTitleFilter {
+		t.Fatalf("expected soft filter to be derived from query profile raw query, got %#v", denseRequests[0].Filter)
+	}
+}
+
+func TestSimilarityUsesQueryProfileForRerankAndThreshold(t *testing.T) {
+	t.Parallel()
+
+	vectorRepo := &vectorDataRepoStub{
+		denseResponsePlan: [][]*shared.VectorSearchResult[fragmodel.FragmentPayload]{{
+			{
+				ID:      "profile-score",
+				Score:   0.82,
+				Content: "这里回答这是原始问题的处理方式",
+				Payload: fragmodel.FragmentPayload{
+					FragmentID:    1,
+					DocumentCode:  "doc-profile",
+					DocumentName:  "问题处理手册",
+					SectionTitle:  "这是原始问题的处理方式",
+					SectionPath:   "帮助中心 > 原始问题",
+					KnowledgeCode: "KB1",
+					Metadata:      map[string]any{},
+				},
+				Metadata: map[string]any{},
+			},
+		}},
+	}
+	service := retrieval.NewService(
+		nil,
+		embeddingServiceStub{},
+		retrieval.Infra{
+			VectorDataRepo:        vectorRepo,
+			MetaReader:            managedBM25MetaReader(),
+			DefaultEmbeddingModel: "text-embedding-3-small",
+		},
+	)
+
+	results, err := service.Similarity(
+		context.Background(),
+		&sharedsnapshot.KnowledgeBaseRuntimeSnapshot{Code: "KB1"},
+		retrieval.SimilarityRequest{
+			Query:                   "这是重写后的查询",
+			EmbeddingQuery:          "这是原始问题",
+			TopK:                    1,
+			CandidateScoreThreshold: 0.1,
+			Options:                 &retrieval.SimilaritySearchOptions{Debug: true},
+		},
+	)
+	if err != nil {
+		t.Fatalf("Similarity returned error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected one similarity result, got %#v", results)
+	}
+
+	queryRewrite, ok := results[0].Metadata["query_rewrite"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected query_rewrite metadata, got %#v", results[0].Metadata)
+	}
+	if got := queryRewrite["original_query"]; got != "这是原始问题" {
+		t.Fatalf("expected original_query to come from query profile, got %#v", queryRewrite)
 	}
 }
 
@@ -558,19 +811,6 @@ func TestWarmupPreventsFirstSearchFromReloadingSegmenter(t *testing.T) {
 	}
 }
 
-type contextFragmentRepoStub struct {
-	batchCalls           int
-	listCalls            int
-	pointBatchCalls      int
-	pointLookupCalls     int
-	batchErr             error
-	pointBatchErr        error
-	batchFragments       map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment
-	listFragments        map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment
-	pointBatchFragments  map[string]*fragmodel.KnowledgeBaseFragment
-	pointLookupFragments map[string]*fragmodel.KnowledgeBaseFragment
-}
-
 type countingCollectionMetaReader struct {
 	meta  sharedroute.CollectionMeta
 	err   error
@@ -592,90 +832,6 @@ func managedBM25MetaReader() *countingCollectionMetaReader {
 func (s *countingCollectionMetaReader) GetCollectionMeta(context.Context) (sharedroute.CollectionMeta, error) {
 	s.calls.Add(1)
 	return s.meta, s.err
-}
-
-func (*contextFragmentRepoStub) FindByID(context.Context, int64) (*fragmodel.KnowledgeBaseFragment, error) {
-	return nil, errUnexpectedStubCall
-}
-
-func (s *contextFragmentRepoStub) FindByPointID(_ context.Context, _, _, pointID string) (*fragmodel.KnowledgeBaseFragment, error) {
-	s.pointLookupCalls++
-	if fragment, ok := s.pointLookupFragments[pointID]; ok {
-		return fragment, nil
-	}
-	return nil, errUnexpectedStubCall
-}
-
-func (s *contextFragmentRepoStub) FindByPointIDs(_ context.Context, pointIDs []string) ([]*fragmodel.KnowledgeBaseFragment, error) {
-	s.pointBatchCalls++
-	if s.pointBatchErr != nil {
-		return nil, s.pointBatchErr
-	}
-	results := make([]*fragmodel.KnowledgeBaseFragment, 0, len(pointIDs))
-	for _, pointID := range pointIDs {
-		if fragment, ok := s.pointBatchFragments[pointID]; ok {
-			results = append(results, fragment)
-		}
-	}
-	return results, nil
-}
-
-func (*contextFragmentRepoStub) FindByIDs(context.Context, []int64) ([]*fragmodel.KnowledgeBaseFragment, error) {
-	return []*fragmodel.KnowledgeBaseFragment{}, nil
-}
-
-func (*contextFragmentRepoStub) List(context.Context, *fragmodel.Query) ([]*fragmodel.KnowledgeBaseFragment, int64, error) {
-	return nil, 0, nil
-}
-
-func (s *contextFragmentRepoStub) ListByDocument(
-	_ context.Context,
-	knowledgeCode string,
-	documentCode string,
-	_ int,
-	_ int,
-) ([]*fragmodel.KnowledgeBaseFragment, int64, error) {
-	s.listCalls++
-	fragments := s.listFragments[fragmodel.DocumentKey{KnowledgeCode: knowledgeCode, DocumentCode: documentCode}]
-	return fragments, int64(len(fragments)), nil
-}
-
-func (*contextFragmentRepoStub) ListByKnowledgeBase(context.Context, string, int, int) ([]*fragmodel.KnowledgeBaseFragment, int64, error) {
-	return nil, 0, nil
-}
-
-func (*contextFragmentRepoStub) ListPendingSync(context.Context, string, int) ([]*fragmodel.KnowledgeBaseFragment, error) {
-	return nil, nil
-}
-
-func (*contextFragmentRepoStub) CountByKnowledgeBase(context.Context, string) (int64, error) {
-	return 0, nil
-}
-
-func (*contextFragmentRepoStub) CountSyncedByKnowledgeBase(context.Context, string) (int64, error) {
-	return 0, nil
-}
-
-func (*contextFragmentRepoStub) ListMissingDocumentCode(context.Context, fragmodel.MissingDocumentCodeQuery) ([]*fragmodel.KnowledgeBaseFragment, error) {
-	return nil, nil
-}
-
-func (s *contextFragmentRepoStub) ListContextByDocuments(
-	_ context.Context,
-	documentKeys []fragmodel.DocumentKey,
-	_ int,
-) (map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment, error) {
-	s.batchCalls++
-	if s.batchErr != nil {
-		return nil, s.batchErr
-	}
-	result := make(map[fragmodel.DocumentKey][]*fragmodel.KnowledgeBaseFragment, len(documentKeys))
-	for _, documentKey := range documentKeys {
-		if fragments, ok := s.batchFragments[documentKey]; ok {
-			result[documentKey] = fragments
-		}
-	}
-	return result, nil
 }
 
 type embeddingServiceStub struct{}
@@ -705,19 +861,20 @@ type vectorDataRepoStub struct {
 	denseCalls  atomic.Int32
 	sparseCalls atomic.Int32
 
-	mu                sync.Mutex
-	denseRequests     []fragmodel.DenseSearchRequest
-	sparseRequests    []fragmodel.SparseSearchRequest
-	denseResponsePlan [][]*fragmodel.VectorSearchResult[fragmodel.FragmentPayload]
-	defaultSelection  shared.SparseBackendSelection
-	selections        map[string]shared.SparseBackendSelection
+	mu                 sync.Mutex
+	denseRequests      []shared.DenseSearchRequest
+	sparseRequests     []shared.SparseSearchRequest
+	denseResponsePlan  [][]*shared.VectorSearchResult[fragmodel.FragmentPayload]
+	sparseResponsePlan [][]*shared.VectorSearchResult[fragmodel.FragmentPayload]
+	defaultSelection   shared.SparseBackendSelection
+	selections         map[string]shared.SparseBackendSelection
 }
 
 func (*vectorDataRepoStub) StorePoint(context.Context, string, string, []float64, fragmodel.FragmentPayload) error {
 	return nil
 }
 
-func (*vectorDataRepoStub) StoreHybridPoint(context.Context, string, string, []float64, *fragmodel.SparseInput, fragmodel.FragmentPayload) error {
+func (*vectorDataRepoStub) StoreHybridPoint(context.Context, string, string, []float64, *shared.SparseInput, fragmodel.FragmentPayload) error {
 	return nil
 }
 
@@ -725,7 +882,7 @@ func (*vectorDataRepoStub) StorePoints(context.Context, string, []string, [][]fl
 	return nil
 }
 
-func (*vectorDataRepoStub) StoreHybridPoints(context.Context, string, []string, [][]float64, []*fragmodel.SparseInput, []fragmodel.FragmentPayload) error {
+func (*vectorDataRepoStub) StoreHybridPoints(context.Context, string, []string, [][]float64, []*shared.SparseInput, []fragmodel.FragmentPayload) error {
 	return nil
 }
 
@@ -737,31 +894,34 @@ func (*vectorDataRepoStub) ListExistingPointIDs(context.Context, string, []strin
 	return map[string]struct{}{}, nil
 }
 
-func (*vectorDataRepoStub) Search(context.Context, string, []float64, int, float64) ([]*fragmodel.VectorSearchResult[fragmodel.FragmentPayload], error) {
-	return []*fragmodel.VectorSearchResult[fragmodel.FragmentPayload]{}, nil
+func (*vectorDataRepoStub) Search(context.Context, string, []float64, int, float64) ([]*shared.VectorSearchResult[fragmodel.FragmentPayload], error) {
+	return []*shared.VectorSearchResult[fragmodel.FragmentPayload]{}, nil
 }
 
-func (*vectorDataRepoStub) SearchWithFilter(context.Context, string, []float64, int, float64, *fragmodel.VectorFilter) ([]*fragmodel.VectorSearchResult[fragmodel.FragmentPayload], error) {
-	return []*fragmodel.VectorSearchResult[fragmodel.FragmentPayload]{}, nil
+func (*vectorDataRepoStub) SearchWithFilter(context.Context, string, []float64, int, float64, *shared.VectorFilter) ([]*shared.VectorSearchResult[fragmodel.FragmentPayload], error) {
+	return []*shared.VectorSearchResult[fragmodel.FragmentPayload]{}, nil
 }
 
-func (s *vectorDataRepoStub) SearchDenseWithFilter(_ context.Context, request fragmodel.DenseSearchRequest) ([]*fragmodel.VectorSearchResult[fragmodel.FragmentPayload], error) {
+func (s *vectorDataRepoStub) SearchDenseWithFilter(_ context.Context, request shared.DenseSearchRequest) ([]*shared.VectorSearchResult[fragmodel.FragmentPayload], error) {
 	callIndex := int(s.denseCalls.Add(1))
 	s.mu.Lock()
 	s.denseRequests = append(s.denseRequests, cloneDenseSearchRequest(request))
 	s.mu.Unlock()
 	if planIndex := callIndex - 1; planIndex >= 0 && planIndex < len(s.denseResponsePlan) {
-		return append([]*fragmodel.VectorSearchResult[fragmodel.FragmentPayload](nil), s.denseResponsePlan[planIndex]...), nil
+		return append([]*shared.VectorSearchResult[fragmodel.FragmentPayload](nil), s.denseResponsePlan[planIndex]...), nil
 	}
-	return []*fragmodel.VectorSearchResult[fragmodel.FragmentPayload]{}, nil
+	return []*shared.VectorSearchResult[fragmodel.FragmentPayload]{}, nil
 }
 
-func (s *vectorDataRepoStub) SearchSparseWithFilter(_ context.Context, request fragmodel.SparseSearchRequest) ([]*fragmodel.VectorSearchResult[fragmodel.FragmentPayload], error) {
-	s.sparseCalls.Add(1)
+func (s *vectorDataRepoStub) SearchSparseWithFilter(_ context.Context, request shared.SparseSearchRequest) ([]*shared.VectorSearchResult[fragmodel.FragmentPayload], error) {
+	callIndex := int(s.sparseCalls.Add(1))
 	s.mu.Lock()
 	s.sparseRequests = append(s.sparseRequests, cloneSparseSearchRequest(request))
 	s.mu.Unlock()
-	return []*fragmodel.VectorSearchResult[fragmodel.FragmentPayload]{}, nil
+	if planIndex := callIndex - 1; planIndex >= 0 && planIndex < len(s.sparseResponsePlan) {
+		return append([]*shared.VectorSearchResult[fragmodel.FragmentPayload](nil), s.sparseResponsePlan[planIndex]...), nil
+	}
+	return []*shared.VectorSearchResult[fragmodel.FragmentPayload]{}, nil
 }
 
 func (s *vectorDataRepoStub) DefaultSparseBackend() shared.SparseBackendSelection {
@@ -778,31 +938,31 @@ func (s *vectorDataRepoStub) SelectSparseBackend(requested string) shared.Sparse
 	return shared.ResolveSparseBackendSelection(nil, requested)
 }
 
-func (s *vectorDataRepoStub) sparseSearchRequests() []fragmodel.SparseSearchRequest {
+func (s *vectorDataRepoStub) sparseSearchRequests() []shared.SparseSearchRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]fragmodel.SparseSearchRequest(nil), s.sparseRequests...)
+	return append([]shared.SparseSearchRequest(nil), s.sparseRequests...)
 }
 
-func (s *vectorDataRepoStub) denseSearchRequests() []fragmodel.DenseSearchRequest {
+func (s *vectorDataRepoStub) denseSearchRequests() []shared.DenseSearchRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]fragmodel.DenseSearchRequest(nil), s.denseRequests...)
+	return append([]shared.DenseSearchRequest(nil), s.denseRequests...)
 }
 
-func cloneSparseSearchRequest(request fragmodel.SparseSearchRequest) fragmodel.SparseSearchRequest {
+func cloneSparseSearchRequest(request shared.SparseSearchRequest) shared.SparseSearchRequest {
 	request.Filter = cloneVectorFilterForTest(request.Filter)
 	if request.Document != nil {
 		options := make(map[string]any, len(request.Document.Options))
 		maps.Copy(options, request.Document.Options)
-		request.Document = &fragmodel.SparseDocument{
+		request.Document = &shared.SparseDocument{
 			Text:    request.Document.Text,
 			Model:   request.Document.Model,
 			Options: options,
 		}
 	}
 	if request.Vector != nil {
-		request.Vector = &fragmodel.SparseVector{
+		request.Vector = &shared.SparseVector{
 			Indices: append([]uint32(nil), request.Vector.Indices...),
 			Values:  append([]float32(nil), request.Vector.Values...),
 		}
@@ -810,19 +970,66 @@ func cloneSparseSearchRequest(request fragmodel.SparseSearchRequest) fragmodel.S
 	return request
 }
 
-func cloneDenseSearchRequest(request fragmodel.DenseSearchRequest) fragmodel.DenseSearchRequest {
+func cloneDenseSearchRequest(request shared.DenseSearchRequest) shared.DenseSearchRequest {
 	request.Filter = cloneVectorFilterForTest(request.Filter)
 	request.Vector = append([]float64(nil), request.Vector...)
 	return request
 }
 
-func cloneVectorFilterForTest(filter *fragmodel.VectorFilter) *fragmodel.VectorFilter {
+func cloneVectorFilterForTest(filter *shared.VectorFilter) *shared.VectorFilter {
 	if filter == nil {
 		return nil
 	}
-	return &fragmodel.VectorFilter{
-		Must:    append([]fragmodel.FieldFilter(nil), filter.Must...),
-		Should:  append([]fragmodel.FieldFilter(nil), filter.Should...),
-		MustNot: append([]fragmodel.FieldFilter(nil), filter.MustNot...),
+	return &shared.VectorFilter{
+		Must:    append([]shared.FieldFilter(nil), filter.Must...),
+		Should:  append([]shared.FieldFilter(nil), filter.Should...),
+		MustNot: append([]shared.FieldFilter(nil), filter.MustNot...),
+	}
+}
+
+func runSimilarityForTest(
+	t *testing.T,
+	searchResult *shared.VectorSearchResult[fragmodel.FragmentPayload],
+) *fragmodel.SimilarityResult {
+	t.Helper()
+
+	vectorRepo := &vectorDataRepoStub{
+		denseResponsePlan: [][]*shared.VectorSearchResult[fragmodel.FragmentPayload]{{searchResult}},
+	}
+	service := retrieval.NewService(
+		nil,
+		embeddingServiceStub{},
+		retrieval.Infra{
+			VectorDataRepo:        vectorRepo,
+			MetaReader:            managedBM25MetaReader(),
+			DefaultEmbeddingModel: "text-embedding-3-small",
+		},
+	)
+
+	results, err := service.Similarity(
+		context.Background(),
+		&sharedsnapshot.KnowledgeBaseRuntimeSnapshot{Code: "KB1"},
+		retrieval.SimilarityRequest{
+			Query:                   "测试查询",
+			TopK:                    1,
+			CandidateScoreThreshold: 0.1,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Similarity returned error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected one similarity result, got %#v", results)
+	}
+	return results[0]
+}
+
+func assertSimilarityResultHasNoContextMetadata(t *testing.T, metadata map[string]any) {
+	t.Helper()
+
+	for _, key := range []string{"hit_chunk", "context_section_path", "neighbor_chunks", "row_context_chunks"} {
+		if _, ok := metadata[key]; ok {
+			t.Fatalf("expected similarity metadata to omit %q, got %#v", key, metadata)
+		}
 	}
 }

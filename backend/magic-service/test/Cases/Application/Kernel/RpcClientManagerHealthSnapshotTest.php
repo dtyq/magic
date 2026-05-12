@@ -33,19 +33,19 @@ class RpcClientManagerHealthSnapshotTest extends TestCase
         $markFailure->invoke($manager);
         $markFailure->invoke($manager);
 
-        $snapshotAfterFailure = $manager->getHealthSnapshot();
-        $this->assertSame(2, $snapshotAfterFailure['consecutive_failures']);
-        $this->assertFalse($snapshotAfterFailure['has_ever_connected']);
-        $this->assertNotNull($snapshotAfterFailure['last_failure_at']);
+        $snapshotAfterFailure = $manager->healthSnapshot();
+        $this->assertSame(2, $snapshotAfterFailure->consecutiveFailures);
+        $this->assertFalse($snapshotAfterFailure->hasEverConnected);
+        $this->assertGreaterThan(0.0, $snapshotAfterFailure->lastFailureAt);
 
         $markConnected = new ReflectionMethod(RpcClientManager::class, 'markConnected');
         $markConnected->setAccessible(true);
         $markConnected->invoke($manager);
 
-        $snapshotAfterRecover = $manager->getHealthSnapshot();
-        $this->assertSame(0, $snapshotAfterRecover['consecutive_failures']);
-        $this->assertTrue($snapshotAfterRecover['has_ever_connected']);
-        $this->assertNotNull($snapshotAfterRecover['last_connected_at']);
+        $snapshotAfterRecover = $manager->healthSnapshot();
+        $this->assertSame(0, $snapshotAfterRecover->consecutiveFailures);
+        $this->assertTrue($snapshotAfterRecover->hasEverConnected);
+        $this->assertGreaterThan(0.0, $snapshotAfterRecover->lastConnectedAt);
     }
 
     private function createManager(): RpcClientManager

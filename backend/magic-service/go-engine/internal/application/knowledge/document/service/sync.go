@@ -9,12 +9,15 @@ import (
 	"time"
 
 	docdto "magic/internal/application/knowledge/document/dto"
-	"magic/internal/domain/knowledge/document/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	document "magic/internal/domain/knowledge/document/service"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
+	"magic/internal/domain/knowledge/shared/parseddocument"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/pkg/ctxmeta"
 	"magic/internal/pkg/filetype"
 )
@@ -26,20 +29,19 @@ const (
 
 func (s *DocumentAppService) buildFragments(
 	ctx context.Context,
-	doc *document.KnowledgeBaseDocument,
-	kb *knowledgebasedomain.KnowledgeBase,
-	parsed *document.ParsedDocument,
+	doc *docentity.KnowledgeBaseDocument,
+	kb *kbentity.KnowledgeBase,
+	parsed *parseddocument.ParsedDocument,
 	model string,
 ) ([]*fragmodel.KnowledgeBaseFragment, error) {
 	kbSnapshot := knowledgeBaseSnapshotFromDomain(kb)
-	segmentConfig := document.BuildSyncSegmentConfig(doc, kbSnapshot)
-	requestedMode, fragmentConfig := document.ResolveSyncRequestedModeAndConfig(doc, kbSnapshot)
+	splitPlan := document.ResolveEffectiveSyncSplitPlan(doc, kbSnapshot, shouldForceAutoSplitForKnowledgeBase(kb))
 	chunks, splitVersion, err := documentsplitter.SplitParsedDocumentToChunks(ctx, documentsplitter.ParsedDocumentChunkInput{
 		Parsed:           parsed,
 		SourceFileType:   normalizeDocumentSourceFileType(doc),
-		RequestedMode:    requestedMode,
-		FragmentConfig:   fragmentConfig,
-		SegmentConfig:    toSplitterSegmentConfig(segmentConfig),
+		RequestedMode:    splitPlan.RequestedMode,
+		FragmentConfig:   splitPlan.FragmentConfig,
+		SegmentConfig:    toSplitterSegmentConfig(splitPlan.SegmentConfig),
 		Model:            model,
 		TokenizerService: s.tokenizer,
 		Logger:           s.logger,
@@ -47,16 +49,29 @@ func (s *DocumentAppService) buildFragments(
 	if err != nil {
 		return nil, fmt.Errorf("split parsed document to chunks: %w", err)
 	}
+	if err := document.CheckFragmentCount(len(chunks), s.ResourceLimits()); err != nil {
+		return nil, fmt.Errorf("check document chunk count: %w", err)
+	}
 
 	fragments, err := fragdomain.AssembleDocumentFragments(fragdomain.DocumentFragmentAssembleInput{
-		Doc:          doc,
+		Doc:          fragDocumentFromDomain(doc),
 		Chunks:       toFragmentTokenChunks(chunks),
 		SplitVersion: splitVersion,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build document fragments: %w", err)
 	}
+	if err := document.CheckFragmentCount(len(fragments), s.ResourceLimits()); err != nil {
+		return nil, fmt.Errorf("check document fragment count: %w", err)
+	}
 	return fragments, nil
+}
+
+func shouldForceAutoSplitForKnowledgeBase(kb *kbentity.KnowledgeBase) bool {
+	if kb == nil {
+		return false
+	}
+	return kbentity.NormalizeKnowledgeBaseTypeOrDefault(kb.KnowledgeBaseType) == kbentity.KnowledgeBaseTypeFlowVector
 }
 
 func toSplitterSegmentConfig(config document.SyncSegmentConfig) documentsplitter.PreviewSegmentConfig {
@@ -88,7 +103,7 @@ func toFragmentTokenChunks(chunks []documentsplitter.TokenChunk) []fragdomain.To
 	return result
 }
 
-func normalizeDocumentSourceFileType(doc *document.KnowledgeBaseDocument) string {
+func normalizeDocumentSourceFileType(doc *docentity.KnowledgeBaseDocument) string {
 	if doc == nil || doc.DocumentFile == nil {
 		return ""
 	}
@@ -105,7 +120,9 @@ func (s *DocumentAppService) ScheduleSync(ctx context.Context, input *document.S
 	if s == nil || s.syncScheduler == nil || input == nil {
 		return
 	}
-	s.syncScheduler.Schedule(ctx, input)
+	cloned := *input
+	cloned.Async = true
+	s.syncScheduler.Schedule(ctx, &cloned)
 }
 
 // IsDocumentSourcePrecheckError 判断是否为同步前文档源预检错误。
@@ -115,8 +132,8 @@ func IsDocumentSourcePrecheckError(err error) bool {
 
 func (s *DocumentAppService) loadRuntimeKnowledgeBaseForSync(
 	ctx context.Context,
-	doc *document.KnowledgeBaseDocument,
-) (*knowledgebasedomain.KnowledgeBase, error) {
+	doc *docentity.KnowledgeBaseDocument,
+) (*kbentity.KnowledgeBase, error) {
 	kb, err := s.kbService.ShowByCodeAndOrg(ctx, doc.KnowledgeBaseCode, doc.OrganizationCode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find knowledge base: %w", err)
@@ -132,7 +149,10 @@ func (s *DocumentAppService) loadRuntimeKnowledgeBaseForSync(
 	return runtimeKB, nil
 }
 
-func (s *DocumentAppService) fetchDocumentForSync(ctx context.Context, input *document.SyncDocumentInput) (*document.KnowledgeBaseDocument, error) {
+func (s *DocumentAppService) fetchDocumentForSync(ctx context.Context, input *document.SyncDocumentInput) (*docentity.KnowledgeBaseDocument, error) {
+	if input == nil {
+		return nil, shared.ErrDocumentKnowledgeBaseRequired
+	}
 	if err := validateDocumentKnowledgeBaseCode(input.KnowledgeBaseCode); err != nil {
 		return nil, err
 	}
@@ -140,10 +160,129 @@ func (s *DocumentAppService) fetchDocumentForSync(ctx context.Context, input *do
 	if err != nil {
 		return nil, fmt.Errorf("failed to find document: %w", err)
 	}
+	if err := s.completeDocumentSyncBusinessContext(ctx, input, doc); err != nil {
+		return doc, err
+	}
+	if err := s.authorizeKnowledgeBaseAction(ctx, input.OrganizationCode, input.BusinessParams.UserID, input.KnowledgeBaseCode, "edit"); err != nil {
+		return doc, err
+	}
 	return doc, nil
 }
 
-func (s *DocumentAppService) validateDocumentOrg(doc *document.KnowledgeBaseDocument, orgCode string) error {
+func (s *DocumentAppService) completeDocumentSyncBusinessContext(
+	ctx context.Context,
+	input *document.SyncDocumentInput,
+	doc *docentity.KnowledgeBaseDocument,
+) error {
+	if input == nil {
+		return shared.ErrDocumentKnowledgeBaseRequired
+	}
+	input.OrganizationCode = s.resolveDocumentSyncOrganizationCode(ctx, input, doc)
+	if err := s.validateDocumentOrg(doc, input.OrganizationCode); err != nil {
+		return err
+	}
+
+	if input.BusinessParams == nil {
+		input.BusinessParams = &ctxmeta.BusinessParams{}
+	}
+	params := input.BusinessParams
+	params.OrganizationCode = strings.TrimSpace(input.OrganizationCode)
+	if strings.TrimSpace(params.BusinessID) == "" {
+		params.BusinessID = strings.TrimSpace(input.KnowledgeBaseCode)
+	}
+	if strings.TrimSpace(params.UserID) == "" {
+		userID, err := s.resolveDocumentSyncUserID(ctx, input, doc)
+		if err != nil {
+			return err
+		}
+		params.UserID = userID
+	}
+	params.UserID = strings.TrimSpace(params.UserID)
+	if params.UserID == "" && s.knowledgeAccessService() != nil {
+		return fmt.Errorf(
+			"%w: organization_code=%s knowledge_base_code=%s document_code=%s",
+			ErrDocumentAccessActorMissing,
+			input.OrganizationCode,
+			input.KnowledgeBaseCode,
+			input.Code,
+		)
+	}
+	return nil
+}
+
+func (s *DocumentAppService) resolveDocumentSyncOrganizationCode(
+	ctx context.Context,
+	input *document.SyncDocumentInput,
+	doc *docentity.KnowledgeBaseDocument,
+) string {
+	if input == nil {
+		return ""
+	}
+	if organizationCode := strings.TrimSpace(input.OrganizationCode); organizationCode != "" {
+		return organizationCode
+	}
+	if input.BusinessParams != nil {
+		if organizationCode := strings.TrimSpace(input.BusinessParams.GetOrganizationCode()); organizationCode != "" {
+			return organizationCode
+		}
+	}
+	if actor, ok := ctxmeta.AccessActorFromContext(ctx); ok {
+		if organizationCode := strings.TrimSpace(actor.OrganizationCode); organizationCode != "" {
+			return organizationCode
+		}
+	}
+	if doc != nil {
+		return strings.TrimSpace(doc.OrganizationCode)
+	}
+	return ""
+}
+
+func (s *DocumentAppService) resolveDocumentSyncUserID(
+	ctx context.Context,
+	input *document.SyncDocumentInput,
+	doc *docentity.KnowledgeBaseDocument,
+) (string, error) {
+	if actor, ok := ctxmeta.AccessActorFromContext(ctx); ok {
+		if userID := strings.TrimSpace(actor.UserID); userID != "" {
+			return userID, nil
+		}
+	}
+	if userID := strings.TrimSpace(document.ResolveMappedDocumentUserID(doc)); userID != "" {
+		return userID, nil
+	}
+	return s.resolveKnowledgeBaseSyncUserIDForDocumentSyncActor(ctx, input)
+}
+
+func (s *DocumentAppService) resolveKnowledgeBaseSyncUserIDForDocumentSyncActor(
+	ctx context.Context,
+	input *document.SyncDocumentInput,
+) (string, error) {
+	if s == nil || s.kbService == nil || input == nil {
+		return "", nil
+	}
+	organizationCode := strings.TrimSpace(input.OrganizationCode)
+	knowledgeBaseCode := strings.TrimSpace(input.KnowledgeBaseCode)
+	if organizationCode == "" || knowledgeBaseCode == "" {
+		return "", nil
+	}
+	kb, err := s.kbService.ShowByCodeAndOrg(ctx, knowledgeBaseCode, organizationCode)
+	if err != nil {
+		return "", fmt.Errorf("load knowledge base while resolving document sync actor: %w", err)
+	}
+	return resolveKnowledgeBaseSyncUserID(kb), nil
+}
+
+func resolveKnowledgeBaseSyncUserID(kb *kbentity.KnowledgeBase) string {
+	if kb == nil {
+		return ""
+	}
+	if userID := strings.TrimSpace(kb.UpdatedUID); userID != "" {
+		return userID
+	}
+	return strings.TrimSpace(kb.CreatedUID)
+}
+
+func (s *DocumentAppService) validateDocumentOrg(doc *docentity.KnowledgeBaseDocument, orgCode string) error {
 	if doc != nil && !doc.BelongsToOrganization(orgCode) {
 		return ErrDocumentOrgMismatch
 	}
@@ -153,38 +292,59 @@ func (s *DocumentAppService) validateDocumentOrg(doc *document.KnowledgeBaseDocu
 func (s *DocumentAppService) redirectThirdPlatformResync(
 	ctx context.Context,
 	mode string,
-	doc *document.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	input *document.SyncDocumentInput,
 ) (bool, error) {
-	if input != nil && input.SingleDocumentThirdPlatformResync {
-		return false, nil
-	}
-	userID := ""
-	organizationCode := ""
-	if input != nil && input.BusinessParams != nil {
-		userID = input.BusinessParams.UserID
-	}
+	source := ""
 	if input != nil {
-		organizationCode = input.OrganizationCode
+		source = document.NormalizeRevectorizeSource(input.RevectorizeSource)
 	}
-	decision := document.ResolveThirdPlatformRedirect(doc, mode, input != nil && input.SourceOverride != nil, organizationCode, userID)
+	if input != nil && shouldPrepareSingleDocumentThirdPlatformResync(input) {
+		// third-file fan-out 之后的单文档任务必须停留在 document_sync，
+		// 不能再从 consumer 里回跳到 third-file 广播入口，否则会形成回环。
+		s.logThirdPlatformRedirect(ctx, "info", "Skip third-file broadcast redirect for fixed single-document scope", doc, thirdPlatformRedirectLog{
+			source:         source,
+			targetScope:    "document",
+			targetCount:    1,
+			allowBroadcast: false,
+		})
+		return false, nil
+	}
+	allowBroadcast := document.RevectorizeSourceAllowsThirdFileBroadcast(source)
+	decision := document.ResolveThirdPlatformRedirect(
+		doc,
+		mode,
+		input != nil && input.SourceOverride != nil,
+		redirectOrganizationCode(input),
+		redirectUserID(input),
+	)
 	if !decision.Redirect {
-		if !decision.IncompleteBinding {
-			return false, nil
-		}
-		if s.logger != nil {
-			s.logger.WarnContext(
-				ctx,
-				"Third-platform document binding is incomplete, fallback to standard resync",
-				"organization_code", doc.OrganizationCode,
-				"knowledge_base_code", doc.KnowledgeBaseCode,
-				"document_code", doc.Code,
-				"third_platform_type", strings.ToLower(strings.TrimSpace(doc.ThirdPlatformType)),
-				"third_file_id", strings.TrimSpace(doc.ThirdFileID),
-			)
+		if decision.IncompleteBinding {
+			s.logThirdPlatformRedirect(ctx, "warn", "Third-platform document binding is incomplete, fallback to standard resync", doc, thirdPlatformRedirectLog{
+				source:         source,
+				targetScope:    "document",
+				targetCount:    1,
+				allowBroadcast: false,
+			})
 		}
 		return false, nil
 	}
+	if !allowBroadcast {
+		// 单文档手动入口、项目文件通知、Teamshare 单知识库批量入口都自带稳定目标集合，
+		// 这里不能再借 third-file 链路扩散成“全组织同源广播”。
+		s.logThirdPlatformRedirect(ctx, "info", "Skip third-file broadcast redirect because source scope is fixed", doc, thirdPlatformRedirectLog{
+			source:         source,
+			targetScope:    "document",
+			targetCount:    1,
+			allowBroadcast: false,
+		})
+		return false, nil
+	}
+	s.logThirdPlatformRedirect(ctx, "info", "Redirect document resync to third-file broadcast", doc, thirdPlatformRedirectLog{
+		source:         source,
+		targetScope:    "third_file_documents",
+		allowBroadcast: true,
+	})
 
 	redirectInput := &docdto.ReVectorizedByThirdFileIDInput{
 		OrganizationCode:  decision.Input.OrganizationCode,
@@ -192,24 +352,64 @@ func (s *DocumentAppService) redirectThirdPlatformResync(
 		ThirdPlatformType: decision.Input.ThirdPlatformType,
 		ThirdFileID:       decision.Input.ThirdFileID,
 	}
-	if input != nil && !input.Async {
-		err := s.runThirdFileRevectorize(ctx, &document.ThirdFileRevectorizeInput{
-			OrganizationCode:  redirectInput.OrganizationCode,
-			UserID:            redirectInput.UserID,
-			ThirdPlatformType: redirectInput.ThirdPlatformType,
-			ThirdFileID:       redirectInput.ThirdFileID,
-		}, false)
-		return true, err
-	}
 	if err := s.ReVectorizedByThirdFileID(ctx, redirectInput); err != nil {
 		return true, err
 	}
 	return true, nil
 }
 
+func redirectUserID(input *document.SyncDocumentInput) string {
+	if input == nil || input.BusinessParams == nil {
+		return ""
+	}
+	return input.BusinessParams.UserID
+}
+
+func redirectOrganizationCode(input *document.SyncDocumentInput) string {
+	if input == nil {
+		return ""
+	}
+	return input.OrganizationCode
+}
+
+type thirdPlatformRedirectLog struct {
+	source         string
+	targetScope    string
+	targetCount    int
+	allowBroadcast bool
+}
+
+func (s *DocumentAppService) logThirdPlatformRedirect(
+	ctx context.Context,
+	level string,
+	message string,
+	doc *docentity.KnowledgeBaseDocument,
+	logMeta thirdPlatformRedirectLog,
+) {
+	if s == nil || s.logger == nil || doc == nil {
+		return
+	}
+	fields := []any{
+		"organization_code", doc.OrganizationCode,
+		"knowledge_base_code", doc.KnowledgeBaseCode,
+		"document_code", doc.Code,
+		"third_platform_type", strings.ToLower(strings.TrimSpace(doc.ThirdPlatformType)),
+		"third_file_id", strings.TrimSpace(doc.ThirdFileID),
+		"revectorize_source", logMeta.source,
+		"target_scope", logMeta.targetScope,
+		"target_count", logMeta.targetCount,
+		"allow_broadcast", logMeta.allowBroadcast,
+	}
+	if level == "warn" {
+		s.logger.KnowledgeWarnContext(ctx, message, fields...)
+		return
+	}
+	s.logger.InfoContext(ctx, message, fields...)
+}
+
 func (s *DocumentAppService) injectProjectFileSourceOverride(
 	ctx context.Context,
-	doc *document.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	input *document.SyncDocumentInput,
 ) error {
 	if s == nil || doc == nil || input == nil || input.SourceOverride != nil || doc.ProjectFileID <= 0 {
@@ -235,7 +435,7 @@ func (s *DocumentAppService) injectProjectFileSourceOverride(
 
 func (s *DocumentAppService) preflightDocumentSource(
 	ctx context.Context,
-	doc *document.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 	sourceOverride *document.SourceOverride,
 ) error {
 	shouldParseProjectFileDirectly, err := s.shouldParseProjectFileDirectly(ctx, doc, sourceOverride)
@@ -263,7 +463,7 @@ func (s *DocumentAppService) preflightDocumentSource(
 
 func (s *DocumentAppService) preflightProjectFileSource(
 	ctx context.Context,
-	doc *document.KnowledgeBaseDocument,
+	doc *docentity.KnowledgeBaseDocument,
 ) error {
 	link, err := document.ResolveProjectFileContentLink(ctx, s.projectFileContentPort, doc.ProjectFileID, 10*time.Minute)
 	if err != nil {
@@ -279,23 +479,23 @@ func (s *DocumentAppService) preflightProjectFileSource(
 	return nil
 }
 
-func (s *DocumentAppService) markDocumentSyncing(ctx context.Context, doc *document.KnowledgeBaseDocument) error {
+func (s *DocumentAppService) markDocumentSyncing(ctx context.Context, doc *docentity.KnowledgeBaseDocument) error {
 	if err := s.domainService.MarkSyncing(ctx, doc); err != nil {
 		return fmt.Errorf("failed to mark document syncing: %w", err)
 	}
 	return nil
 }
 
-func (s *DocumentAppService) cleanupFragmentsByDocument(ctx context.Context, doc *document.KnowledgeBaseDocument, collectionName string) {
+func (s *DocumentAppService) cleanupFragmentsByDocument(ctx context.Context, doc *docentity.KnowledgeBaseDocument, collectionName string) {
 	if err := s.fragmentService.DeletePointsByDocument(ctx, collectionName, doc.OrganizationCode, doc.KnowledgeBaseCode, doc.Code); err != nil {
-		s.logger.WarnContext(ctx, "Failed to delete vector points", "documentCode", doc.Code, "error", err)
+		s.logger.KnowledgeWarnContext(ctx, "Failed to delete vector points", "documentCode", doc.Code, "error", err)
 	}
 	if err := s.fragmentService.DeleteByDocument(ctx, doc.KnowledgeBaseCode, doc.Code); err != nil {
-		s.logger.WarnContext(ctx, "Failed to delete fragments", "documentCode", doc.Code, "error", err)
+		s.logger.KnowledgeWarnContext(ctx, "Failed to delete fragments", "documentCode", doc.Code, "error", err)
 	}
 }
 
-func (s *DocumentAppService) finishSync(ctx context.Context, doc *document.KnowledgeBaseDocument, content string) error {
+func (s *DocumentAppService) finishSync(ctx context.Context, doc *docentity.KnowledgeBaseDocument, content string) error {
 	if err := s.domainService.MarkSynced(ctx, doc, document.CountSyncContentWordCount(content)); err != nil {
 		return fmt.Errorf("failed to mark document synced: %w", err)
 	}
@@ -303,8 +503,9 @@ func (s *DocumentAppService) finishSync(ctx context.Context, doc *document.Knowl
 }
 
 type documentFragmentSyncRequest struct {
-	doc            *document.KnowledgeBaseDocument
-	kb             *knowledgebasedomain.KnowledgeBase
+	doc            *docentity.KnowledgeBaseDocument
+	kb             *kbentity.KnowledgeBase
+	kbSnapshot     *sharedsnapshot.KnowledgeBaseRuntimeSnapshot
 	collectionName string
 	fragments      []*fragmodel.KnowledgeBaseFragment
 	businessParams *ctxmeta.BusinessParams
@@ -315,6 +516,9 @@ func (s *DocumentAppService) syncDocumentFragments(
 	trace *documentSyncTracer,
 	req documentFragmentSyncRequest,
 ) error {
+	if err := s.ensureRuntimeCollectionReady(ctx, trace, req); err != nil {
+		return err
+	}
 	if document.ShouldCleanupBeforeSync(trace.mode) {
 		cleanupStartedAt := time.Now()
 		s.cleanupFragmentsByDocument(ctx, req.doc, req.collectionName)
@@ -325,6 +529,23 @@ func (s *DocumentAppService) syncDocumentFragments(
 		return s.runIncrementalResync(ctx, trace, req)
 	}
 	return s.runFullFragmentSync(ctx, trace, req)
+}
+
+func (s *DocumentAppService) ensureRuntimeCollectionReady(
+	ctx context.Context,
+	trace *documentSyncTracer,
+	req documentFragmentSyncRequest,
+) error {
+	startedAt := time.Now()
+	err := s.kbService.EnsureCollectionExists(ctx, req.kb)
+	trace.log(ctx, "ensure_runtime_collection", startedAt, err, "collection_name", req.collectionName)
+	if err != nil {
+		return document.NewSyncStageError(
+			document.SyncFailureSyncVector,
+			fmt.Errorf("ensure runtime collection exists: %w", err),
+		)
+	}
+	return nil
 }
 
 func (s *DocumentAppService) runIncrementalResync(
@@ -371,7 +592,7 @@ func (s *DocumentAppService) runFullFragmentSync(
 	trace.log(ctx, "save_fragment_batch", saveStartedAt, nil, "fragment_count", len(req.fragments))
 
 	syncStartedAt := time.Now()
-	if err := s.fragmentService.SyncFragmentBatch(ctx, req.kb, req.fragments, req.businessParams); err != nil {
+	if err := s.fragmentService.SyncFragmentBatch(ctx, req.kbSnapshot, req.fragments, req.businessParams); err != nil {
 		trace.log(
 			ctx,
 			"sync_fragment_batch",

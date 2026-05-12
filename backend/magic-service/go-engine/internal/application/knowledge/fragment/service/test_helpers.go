@@ -7,10 +7,16 @@ import (
 	confighelper "magic/internal/application/knowledge/helper/config"
 	docfilehelper "magic/internal/application/knowledge/helper/docfile"
 	thirdplatformprovider "magic/internal/application/knowledge/shared/thirdplatformprovider"
+	kbaccess "magic/internal/domain/knowledge/access/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	documentdomain "magic/internal/domain/knowledge/document/service"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	"magic/internal/domain/knowledge/shared"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/tokenizer"
 )
@@ -22,12 +28,14 @@ type AppServiceForTestOptions struct {
 	DocumentService           any
 	ManualFragmentCoordinator any
 	ParseService              any
+	ProjectFileContentPort    documentdomain.ProjectFileContentAccessor
 	ThirdPlatformDocumentPort thirdPlatformPreviewResolver
 	ThirdPlatformProviders    *thirdplatformprovider.Registry
 	PreviewSplitter           documentsplitter.PreviewSplitter
 	KnowledgeBaseBindingRepo  fragmentAppKnowledgeBaseBindingReader
 	SuperMagicAgentAccess     fragmentAppSuperMagicAgentAccessChecker
 	TeamshareTempCodeMapper   fragmentAppTeamshareTempCodeMapper
+	PermissionReader          kbaccess.PermissionReader
 	DefaultEmbeddingModel     string
 	Logger                    *logging.SugaredLogger
 }
@@ -87,12 +95,14 @@ func NewFragmentAppServiceForTest(tb testing.TB, opts AppServiceForTestOptions) 
 		documentService:           ds,
 		manualFragmentCoordinator: coordinator,
 		parseService:              ps,
+		projectFileContentPort:    opts.ProjectFileContentPort,
 		thirdPlatformDocumentPort: opts.ThirdPlatformDocumentPort,
 		thirdPlatformProviders:    opts.ThirdPlatformProviders,
 		previewSplitter:           opts.PreviewSplitter,
 		knowledgeBaseBindingRepo:  opts.KnowledgeBaseBindingRepo,
 		superMagicAgentAccess:     opts.SuperMagicAgentAccess,
 		teamshareTempCodeMapper:   opts.TeamshareTempCodeMapper,
+		permissionReader:          opts.PermissionReader,
 		tokenizer:                 tokenizer.NewService(),
 		defaultEmbeddingModel:     opts.DefaultEmbeddingModel,
 		logger:                    opts.Logger,
@@ -111,28 +121,36 @@ func BuildPreviewRequestKeyForTest(input *fragdto.PreviewFragmentInput) string {
 	return buildPreviewRequestKey(input)
 }
 
+// SetKnowledgeBasePermissionReaderForTest 供测试覆盖知识库权限读取依赖。
+func (s *FragmentAppService) SetKnowledgeBasePermissionReaderForTest(reader kbaccess.PermissionReader) {
+	if s == nil {
+		return
+	}
+	s.permissionReader = reader
+}
+
 // BuildPreviewSegmentConfigForTest 供测试构造预览切片配置。
 func BuildPreviewSegmentConfigForTest(cfg *confighelper.FragmentConfigDTO) fragdomain.PreviewSegmentConfig {
 	return fragdomain.BuildPreviewSegmentConfig(confighelper.FragmentConfigDTOToEntity(cfg))
 }
 
 // NormalizePreviewDocumentFileForTest 供测试归一化预览文件。
-func NormalizePreviewDocumentFileForTest(file *docfilehelper.DocumentFileDTO) *fragdomain.File {
+func NormalizePreviewDocumentFileForTest(file *docfilehelper.DocumentFileDTO) *fragmodel.DocumentFile {
 	return fragdomain.NormalizePreviewDocumentFile(previewDomainFileFromDTO(file))
 }
 
 // IsThirdPlatformPreviewDocumentForTest 供测试判断第三方文件。
-func IsThirdPlatformPreviewDocumentForTest(file *fragdomain.File) bool {
+func IsThirdPlatformPreviewDocumentForTest(file *fragmodel.DocumentFile) bool {
 	return fragdomain.IsThirdPlatformPreviewDocument(file)
 }
 
 // BuildPreviewDocumentFilePayloadForTest 供测试构造预览文件载荷。
-func BuildPreviewDocumentFilePayloadForTest(file *fragdomain.File) map[string]any {
+func BuildPreviewDocumentFilePayloadForTest(file *fragmodel.DocumentFile) map[string]any {
 	return fragdomain.BuildPreviewDocumentFilePayload(file)
 }
 
 // ApplyResolvedPreviewDocumentFileForTest 供测试回填预览文件解析结果。
-func ApplyResolvedPreviewDocumentFileForTest(file *fragdomain.File, result map[string]any) {
+func ApplyResolvedPreviewDocumentFileForTest(file *fragmodel.DocumentFile, result map[string]any) {
 	fragdomain.ApplyResolvedPreviewDocumentFile(file, result)
 }
 
@@ -149,4 +167,19 @@ func ValidateFragmentScopeForTest(fragment *fragmodel.KnowledgeBaseFragment, org
 // BuildSimilarityDisplayContentForTest 供测试构造相似度展示文案。
 func BuildSimilarityDisplayContentForTest(content string, metadata map[string]any) (string, int) {
 	return buildSimilarityDisplayContent(content, metadata)
+}
+
+// KnowledgeBaseSnapshotFromDomainForTest 供测试验证知识库快照隔离。
+func KnowledgeBaseSnapshotFromDomainForTest(kb *kbentity.KnowledgeBase) *sharedsnapshot.KnowledgeBaseRuntimeSnapshot {
+	return knowledgeBaseSnapshotFromDomain(kb)
+}
+
+// FragDocumentFromDomainForTest 供测试验证文档快照隔离。
+func FragDocumentFromDomainForTest(doc *docentity.KnowledgeBaseDocument) *fragmodel.KnowledgeBaseDocument {
+	return fragDocumentFromDomain(doc)
+}
+
+// BuildRuntimeMetadataFieldFilterForTest 供测试验证 runtime metadata 过滤归一化。
+func BuildRuntimeMetadataFieldFilterForTest(key string, value any) (shared.FieldFilter, bool) {
+	return buildRuntimeMetadataFieldFilter(key, value)
 }

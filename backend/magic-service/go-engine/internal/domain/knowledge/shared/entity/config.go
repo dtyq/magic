@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 )
 
@@ -132,10 +133,33 @@ func isNullJSON(data []byte) bool {
 
 // OCRConfig OCR 服务配置。
 type OCRConfig struct {
-	Identity  string `json:"identity"`
-	Signature string `json:"signature"`
+	Identity  string `json:"-"`
+	Signature string `json:"-"`
 	Region    string `json:"region"`
 	Endpoint  string `json:"endpoint"`
+}
+
+func (c OCRConfig) String() string {
+	return fmt.Sprintf(
+		"OCRConfig{Region:%q Endpoint:%q CredentialsConfigured:%t}",
+		c.Region,
+		c.Endpoint,
+		c.Identity != "" && c.Signature != "",
+	)
+}
+
+// GoString 返回不包含 OCR 凭据的调试字符串。
+func (c OCRConfig) GoString() string {
+	return c.String()
+}
+
+// LogValue 返回不包含 OCR 凭据的结构化日志值。
+func (c OCRConfig) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("region", c.Region),
+		slog.String("endpoint", c.Endpoint),
+		slog.Bool("credentials_configured", c.Identity != "" && c.Signature != ""),
+	)
 }
 
 // StorageConfig 存储服务配置。

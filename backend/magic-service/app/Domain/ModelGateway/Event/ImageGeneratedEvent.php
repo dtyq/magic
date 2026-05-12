@@ -10,9 +10,16 @@ namespace App\Domain\ModelGateway\Event;
 use App\Domain\ImageGenerate\ValueObject\ImageGenerateSourceEnum;
 use App\Infrastructure\Core\AbstractEvent;
 use DateTime;
+use Hyperf\Odin\Api\Response\Usage;
 
 class ImageGeneratedEvent extends AbstractEvent
 {
+    /**
+     * 图片模型返回的 token 用量。
+     * 有些生图 provider 按 token 计费，返回 usage 时通过该字段传递给审计/计费链路。
+     */
+    public ?Usage $usage = null;
+
     protected string $organizationCode;
 
     protected string $userId;
@@ -147,6 +154,16 @@ class ImageGeneratedEvent extends AbstractEvent
     public function setBusinessParams(array $businessParams): void
     {
         $this->businessParams = $businessParams;
+    }
+
+    public function getUsage(): ?Usage
+    {
+        return $this->usage;
+    }
+
+    public function setUsage(?Usage $usage): void
+    {
+        $this->usage = $usage;
     }
 
     public function getOrganizationCode(): string

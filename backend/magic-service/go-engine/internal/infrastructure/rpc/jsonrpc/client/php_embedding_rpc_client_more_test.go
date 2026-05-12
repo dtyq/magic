@@ -3,8 +3,9 @@ package client_test
 import (
 	"context"
 	"errors"
+	"slices"
+	"strconv"
 	"strings"
-	"sync/atomic"
 	"testing"
 
 	client "magic/internal/infrastructure/rpc/jsonrpc/client"
@@ -45,6 +46,50 @@ func TestPHPEmbeddingRPCClientGetEmbeddingVariants(t *testing.T) {
 	}
 }
 
+func TestPHPEmbeddingRPCClientGetEmbeddingRetriesOnceOnNetworkError(t *testing.T) {
+	t.Parallel()
+
+	embeddingClient := client.NewPHPEmbeddingRPCClient(nil, nil, nil)
+	embeddingClient.SetClientReadyFuncForTest(func() bool { return true })
+
+	callCount := 0
+	embeddingClient.SetCallEmbeddingComputeRPCForTest(func(ctx context.Context, server *unixsocket.Server, params map[string]any, out any) error {
+		callCount++
+		if callCount == 1 {
+			*requireEmbeddingComputeResult(t, out) = client.RPCResultForTest[client.EmbeddingResultForTest]{
+				Code:      500,
+				Message:   "network timeout",
+				ErrorCode: 4020,
+			}
+			return nil
+		}
+
+		setEmbeddingComputeSuccess(t, out, []float64{0.3, 0.4})
+		return nil
+	})
+
+	vector, err := embeddingClient.GetEmbedding(context.Background(), "hello", "text-embedding-3-small", nil)
+	if err != nil {
+		t.Fatalf("GetEmbedding() error = %v", err)
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 rpc calls, got %d", callCount)
+	}
+	if len(vector) != 2 || vector[0] != 0.3 || vector[1] != 0.4 {
+		t.Fatalf("unexpected vector: %#v", vector)
+	}
+}
+
+func TestPHPEmbeddingRPCClientGetEmbeddingReturnsNetworkErrorAfterRetryFailure(t *testing.T) {
+	t.Parallel()
+	assertEmbeddingRPCClientGetEmbeddingError(t, 4020, "network timeout", 2)
+}
+
+func TestPHPEmbeddingRPCClientGetEmbeddingDoesNotRetryWhenErrorCodeIsNotNetwork(t *testing.T) {
+	t.Parallel()
+	assertEmbeddingRPCClientGetEmbeddingError(t, 4999, "internal", 1)
+}
+
 func TestPHPEmbeddingRPCClientBatchEmbeddingsWithoutAccessToken(t *testing.T) {
 	t.Parallel()
 
@@ -57,6 +102,7 @@ func TestPHPEmbeddingRPCClientBatchEmbeddingsWithoutAccessToken(t *testing.T) {
 		if _, exists := params["access_token"]; exists {
 			t.Fatalf("access_token should be omitted when provider fails: %#v", params)
 		}
+		assertHelloInput(t, params)
 		called = true
 		setEmbeddingComputeSuccess(t, out, []float64{1})
 		return nil
@@ -76,72 +122,38 @@ func TestPHPEmbeddingRPCClientBatchEmbeddingsWithoutAccessToken(t *testing.T) {
 	}
 }
 
-func TestPHPEmbeddingRPCClientGetBatchEmbeddingsLimitsConcurrencyToThree(t *testing.T) {
+func TestPHPEmbeddingRPCClientGetBatchEmbeddingsRetriesOnceOnNetworkError(t *testing.T) {
 	t.Parallel()
 
 	embeddingClient := client.NewPHPEmbeddingRPCClient(nil, nil, nil)
 	embeddingClient.SetClientReadyFuncForTest(func() bool { return true })
 
-	inputs := []string{"0", "1", "2", "3", "4"}
-	started := make(chan string, len(inputs))
-	release := make(chan struct{})
-	var current atomic.Int32
-	var maxConcurrent atomic.Int32
-
+	callCount := 0
 	embeddingClient.SetCallEmbeddingComputeRPCForTest(func(ctx context.Context, server *unixsocket.Server, params map[string]any, out any) error {
-		input, ok := params["input"].(string)
-		if !ok {
-			t.Fatalf("expected single string input, got %#v", params["input"])
+		callCount++
+		assertHelloInput(t, params)
+		if callCount == 1 {
+			*requireEmbeddingComputeResult(t, out) = client.RPCResultForTest[client.EmbeddingResultForTest]{
+				Code:      500,
+				Message:   "network timeout",
+				ErrorCode: 4020,
+			}
+			return nil
 		}
 
-		concurrent := current.Add(1)
-		updateMaxInt32(&maxConcurrent, concurrent)
-		started <- input
-		defer current.Add(-1)
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-release:
-		}
-
-		setEmbeddingComputeSuccess(t, out, []float64{float64(input[0] - '0')})
+		setEmbeddingComputeSuccess(t, out, []float64{0.3, 0.4})
 		return nil
 	})
 
-	type batchResult struct {
-		embeddings [][]float64
-		err        error
+	embeddings, err := embeddingClient.GetBatchEmbeddings(context.Background(), []string{"hello"}, "m", nil)
+	if err != nil {
+		t.Fatalf("GetBatchEmbeddings() error = %v", err)
 	}
-	resultCh := make(chan batchResult, 1)
-	go func() {
-		embeddings, err := embeddingClient.GetBatchEmbeddings(context.Background(), inputs, "m", nil)
-		resultCh <- batchResult{embeddings: embeddings, err: err}
-	}()
-
-	for range 3 {
-		<-started
+	if callCount != 2 {
+		t.Fatalf("expected 2 rpc calls, got %d", callCount)
 	}
-	if got := current.Load(); got != 3 {
-		t.Fatalf("expected 3 in-flight rpc calls, got %d", got)
-	}
-
-	close(release)
-
-	result := <-resultCh
-	if result.err != nil {
-		t.Fatalf("GetBatchEmbeddings() error = %v", result.err)
-	}
-	if got := maxConcurrent.Load(); got != 3 {
-		t.Fatalf("expected max concurrency 3, got %d", got)
-	}
-	if len(result.embeddings) != len(inputs) {
-		t.Fatalf("expected %d embeddings, got %d", len(inputs), len(result.embeddings))
-	}
-	for i := range inputs {
-		if len(result.embeddings[i]) != 1 || result.embeddings[i][0] != float64(i) {
-			t.Fatalf("embedding at index %d mismatch: %#v", i, result.embeddings)
-		}
+	if len(embeddings) != 1 || len(embeddings[0]) != 2 || embeddings[0][0] != 0.3 || embeddings[0][1] != 0.4 {
+		t.Fatalf("unexpected embeddings: %#v", embeddings)
 	}
 }
 
@@ -152,140 +164,105 @@ func TestPHPEmbeddingRPCClientGetBatchEmbeddingsPreservesInputOrder(t *testing.T
 	embeddingClient.SetClientReadyFuncForTest(func() bool { return true })
 
 	inputs := []string{"first", "second", "third"}
-	values := map[string]float64{
-		"first":  1,
-		"second": 2,
-		"third":  3,
+	values := map[string][]float64{
+		"first":  {1},
+		"second": {2},
+		"third":  {3},
 	}
-	releaseByInput := map[string]chan struct{}{
-		"first":  make(chan struct{}),
-		"second": make(chan struct{}),
-		"third":  make(chan struct{}),
-	}
-	started := make(chan string, len(inputs))
+	calledInputs := make([]string, 0, len(inputs))
 
 	embeddingClient.SetCallEmbeddingComputeRPCForTest(func(ctx context.Context, server *unixsocket.Server, params map[string]any, out any) error {
-		input, ok := params["input"].(string)
-		if !ok {
-			t.Fatalf("expected single string input, got %#v", params["input"])
-		}
-		started <- input
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-releaseByInput[input]:
-		}
-
-		setEmbeddingComputeSuccess(t, out, []float64{values[input]})
+		input := requireSingleInput(t, params)
+		calledInputs = append(calledInputs, input)
+		setEmbeddingComputeSuccess(t, out, values[input])
 		return nil
 	})
 
-	type batchResult struct {
-		embeddings [][]float64
-		err        error
+	embeddings, err := embeddingClient.GetBatchEmbeddings(context.Background(), inputs, "m", nil)
+	if err != nil {
+		t.Fatalf("GetBatchEmbeddings() error = %v", err)
 	}
-	resultCh := make(chan batchResult, 1)
-	go func() {
-		embeddings, err := embeddingClient.GetBatchEmbeddings(context.Background(), inputs, "m", nil)
-		resultCh <- batchResult{embeddings: embeddings, err: err}
-	}()
-
-	startedInputs := make(map[string]struct{}, len(inputs))
-	for range inputs {
-		startedInputs[<-started] = struct{}{}
+	if !slices.Equal(calledInputs, inputs) {
+		t.Fatalf("unexpected call order: got %v want %v", calledInputs, inputs)
 	}
-	for _, input := range inputs {
-		if _, ok := startedInputs[input]; !ok {
-			t.Fatalf("expected input %q to start, got %#v", input, startedInputs)
-		}
-	}
-
-	close(releaseByInput["third"])
-	close(releaseByInput["second"])
-	close(releaseByInput["first"])
-
-	result := <-resultCh
-	if result.err != nil {
-		t.Fatalf("GetBatchEmbeddings() error = %v", result.err)
-	}
-	if len(result.embeddings) != len(inputs) {
-		t.Fatalf("expected %d embeddings, got %d", len(inputs), len(result.embeddings))
+	if len(embeddings) != len(inputs) {
+		t.Fatalf("expected %d embeddings, got %d", len(inputs), len(embeddings))
 	}
 	for i, input := range inputs {
-		if len(result.embeddings[i]) != 1 || result.embeddings[i][0] != values[input] {
-			t.Fatalf("embedding at index %d mismatch: %#v", i, result.embeddings)
+		if !slices.Equal(embeddings[i], values[input]) {
+			t.Fatalf("embedding at index %d mismatch: got %v want %v", i, embeddings[i], values[input])
 		}
 	}
 }
 
-func TestPHPEmbeddingRPCClientGetBatchEmbeddingsReturnsIndexedErrorAndCancelsPeers(t *testing.T) {
+func TestPHPEmbeddingRPCClientGetBatchEmbeddingsReturnsIndexedError(t *testing.T) {
 	t.Parallel()
 
 	embeddingClient := client.NewPHPEmbeddingRPCClient(nil, nil, nil)
 	embeddingClient.SetClientReadyFuncForTest(func() bool { return true })
 
-	inputs := []string{"first", "second", "third", "fourth"}
-	started := make(chan string, 3)
-	errorGate := make(chan struct{})
-	release := make(chan struct{})
-	var canceledCount atomic.Int32
-
+	callCount := 0
 	embeddingClient.SetCallEmbeddingComputeRPCForTest(func(ctx context.Context, server *unixsocket.Server, params map[string]any, out any) error {
-		input, ok := params["input"].(string)
-		if !ok {
-			t.Fatalf("expected single string input, got %#v", params["input"])
-		}
-		started <- input
-
-		if input == "second" {
-			<-errorGate
+		callCount++
+		input := requireSingleInput(t, params)
+		switch input {
+		case "first":
+			setEmbeddingComputeSuccess(t, out, []float64{1})
+		case "second":
 			*requireEmbeddingComputeResult(t, out) = client.RPCResultForTest[client.EmbeddingResultForTest]{
 				Code:      500,
 				Message:   "boom",
 				ErrorCode: 4999,
 			}
-			return nil
+		default:
+			t.Fatalf("unexpected input: %s", input)
 		}
-
-		select {
-		case <-ctx.Done():
-			canceledCount.Add(1)
-			return ctx.Err()
-		case <-release:
-		}
-
-		setEmbeddingComputeSuccess(t, out, []float64{1})
 		return nil
 	})
 
-	errCh := make(chan error, 1)
-	go func() {
-		_, err := embeddingClient.GetBatchEmbeddings(context.Background(), inputs, "m", nil)
-		errCh <- err
-	}()
-
-	startedInputs := make(map[string]struct{}, 3)
-	for range 3 {
-		startedInputs[<-started] = struct{}{}
-	}
-	for _, input := range []string{"first", "second", "third"} {
-		if _, ok := startedInputs[input]; !ok {
-			t.Fatalf("expected input %q to start before error, got %#v", input, startedInputs)
-		}
-	}
-
-	close(errorGate)
-
-	err := <-errCh
+	_, err := embeddingClient.GetBatchEmbeddings(context.Background(), []string{"first", "second", "third"}, "m", nil)
 	if err == nil {
 		t.Fatal("expected error")
+	}
+	if callCount != 2 {
+		t.Fatalf("expected 2 rpc calls before failure, got %d", callCount)
 	}
 	if !strings.Contains(err.Error(), "index 1") || !strings.Contains(err.Error(), "error_code=4999") {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got := canceledCount.Load(); got < 2 {
-		t.Fatalf("expected at least 2 canceled peer calls, got %d", got)
+}
+
+func assertEmbeddingRPCClientGetEmbeddingError(
+	t *testing.T,
+	errorCode int,
+	message string,
+	wantCallCount int,
+) {
+	t.Helper()
+
+	embeddingClient := client.NewPHPEmbeddingRPCClient(nil, nil, nil)
+	embeddingClient.SetClientReadyFuncForTest(func() bool { return true })
+
+	callCount := 0
+	embeddingClient.SetCallEmbeddingComputeRPCForTest(func(ctx context.Context, server *unixsocket.Server, params map[string]any, out any) error {
+		callCount++
+		*requireEmbeddingComputeResult(t, out) = client.RPCResultForTest[client.EmbeddingResultForTest]{
+			Code:      500,
+			Message:   message,
+			ErrorCode: errorCode,
+		}
+		return nil
+	})
+
+	_, err := embeddingClient.GetEmbedding(context.Background(), "hello", "text-embedding-3-small", nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if callCount != wantCallCount {
+		t.Fatalf("expected %d rpc calls, got %d", wantCallCount, callCount)
+	}
+	if !strings.Contains(err.Error(), "error_code="+strconv.Itoa(errorCode)) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -306,19 +283,28 @@ func setEmbeddingComputeSuccess(t *testing.T, out any, embedding []float64) {
 		Code:    0,
 		Message: "ok",
 		Data: client.EmbeddingResultForTest{
-			Data: []client.EmbeddingDataForTest{{Index: 0, Embedding: embedding}},
+			Data: []client.EmbeddingDataForTest{
+				{Index: 0, Embedding: append([]float64(nil), embedding...)},
+			},
 		},
 	}
 }
 
-func updateMaxInt32(target *atomic.Int32, candidate int32) {
-	for {
-		current := target.Load()
-		if candidate <= current {
-			return
-		}
-		if target.CompareAndSwap(current, candidate) {
-			return
-		}
+func requireSingleInput(t *testing.T, params map[string]any) string {
+	t.Helper()
+
+	input, ok := params["input"].(string)
+	if !ok {
+		t.Fatalf("expected string input, got %#v", params["input"])
+	}
+	return input
+}
+
+func assertHelloInput(t *testing.T, params map[string]any) {
+	t.Helper()
+
+	got := requireSingleInput(t, params)
+	if got != "hello" {
+		t.Fatalf("input mismatch: got %q want %q", got, "hello")
 	}
 }

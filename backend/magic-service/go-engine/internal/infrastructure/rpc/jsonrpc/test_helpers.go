@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,12 +29,14 @@ func NewServerForTest(logger *logging.SugaredLogger, cfg *RuntimeConfig) *Server
 		cfg = DefaultRuntimeConfig()
 	}
 	return &Server{
-		logger:   logger,
-		config:   cfg,
-		metrics:  newIsolatedTestMetrics(),
-		handlers: make(map[string]common.ServerHandler),
-		clients:  make(map[int64]*Session),
-		stopCh:   make(chan struct{}),
+		logger:       logger,
+		config:       cfg,
+		metrics:      newIsolatedTestMetrics(),
+		handlers:     make(map[string]common.ServerHandler),
+		clients:      make(map[int64]*Session),
+		stateChanged: make(chan struct{}),
+		stopCh:       make(chan struct{}),
+		panicExit:    os.Exit,
 	}
 }
 
@@ -73,6 +76,9 @@ func AttachSessionForTest(server *Server, session *Session, primary bool) {
 	if primary {
 		server.primaryClient.Store(session)
 	}
+	if session.handshaked.Load() {
+		server.notifyStateChanged()
+	}
 }
 
 // SetSessionCapabilitiesForTest 标记 session 已握手并注入能力集。
@@ -85,6 +91,7 @@ func SetSessionCapabilitiesForTest(session *Session, methods ...string) {
 	session.info.MaxMessageBytes = DefaultMaxMessageBytes
 	session.infoMu.Unlock()
 	session.handshaked.Store(true)
+	session.server.notifyStateChanged()
 }
 
 // CloseSessionForTest 暴露 close 供测试使用。
@@ -93,6 +100,21 @@ func CloseSessionForTest(session *Session) {
 		return
 	}
 	session.close()
+	session.server.notifyStateChanged()
+}
+
+// DetachSessionForTest 从 server 移除 session，不触发连接侧副作用。
+func DetachSessionForTest(server *Server, session *Session) {
+	if server == nil || session == nil {
+		return
+	}
+	server.clientsMu.Lock()
+	delete(server.clients, session.ID)
+	if server.primaryClient.Load() == session {
+		server.primaryClient.Store(nil)
+	}
+	server.clientsMu.Unlock()
+	server.notifyStateChanged()
 }
 
 // SetPendingResponseForTest 注册等待响应通道。
@@ -101,7 +123,7 @@ func SetPendingResponseForTest(session *Session, key string, responseCh chan *co
 		return
 	}
 	session.pendingMu.Lock()
-	session.pending[key] = responseCh
+	session.pending[key] = pendingCall{ch: responseCh}
 	session.pendingMu.Unlock()
 }
 
@@ -150,7 +172,11 @@ func HandleMessageForTest(ctx context.Context, session *Session, payload []byte)
 	if session == nil {
 		return
 	}
-	session.handleMessage(ctx, payload)
+	frameSummary, err := summarizeIPCFrame(payload)
+	if err != nil {
+		frameSummary = ipcFrameSummary{}
+	}
+	session.handleMessage(ctx, payload, frameSummary)
 }
 
 // CallSessionWithTimeoutForTest 暴露 callWithTimeout 供外部测试使用。
@@ -210,7 +236,11 @@ func SendErrorPacketForTest(id any, code int, message string, data any) ([]byte,
 	}
 
 	<-done
-	return body, nil
+	decoded, _, err := decodeIPCFrame(body)
+	if err != nil {
+		return nil, fmt.Errorf("decode ipc frame: %w", err)
+	}
+	return decoded, nil
 }
 
 // ExecuteHandlerPacketForTest 暴露 executeHandler 发送结果供测试使用。
@@ -248,7 +278,34 @@ func ExecuteHandlerPacketForTest(req *common.Request, handler common.ServerHandl
 	}
 
 	<-done
-	return body, nil
+	decoded, _, err := decodeIPCFrame(body)
+	if err != nil {
+		return nil, fmt.Errorf("decode ipc frame: %w", err)
+	}
+	return decoded, nil
+}
+
+// DecodeIPCFrameForTest 暴露帧解码逻辑供外部测试使用。
+func DecodeIPCFrameForTest(frameBody []byte) ([]byte, error) {
+	decoded, _, err := decodeIPCFrame(frameBody)
+	return decoded, err
+}
+
+// EncodeIPCFrameForTest 暴露帧编码逻辑供外部测试使用。
+func EncodeIPCFrameForTest(rawJSON []byte, maxMessageBytes int) ([]byte, string, error) {
+	frameBody, summary, err := encodeIPCFrame(rawJSON, maxMessageBytes)
+	return frameBody, summary.Codec, err
+}
+
+// SummarizeIPCFrameForTest 暴露帧摘要逻辑供外部测试使用。
+func SummarizeIPCFrameForTest(rawJSON []byte) (int, int, string, error) {
+	summary, err := summarizeIPCFrame(rawJSON)
+	return summary.RawJSONBytes, summary.FrameBytes, summary.Codec, err
+}
+
+// IdentityThresholdBytesForTest 暴露 identity codec 阈值。
+func IdentityThresholdBytesForTest() int {
+	return ipcIdentityThresholdByte
 }
 
 // EncodeRequestForTest 构造测试请求报文。

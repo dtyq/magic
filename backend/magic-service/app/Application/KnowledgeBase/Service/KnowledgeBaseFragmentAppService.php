@@ -9,8 +9,8 @@ namespace App\Application\KnowledgeBase\Service;
 
 use App\Application\KnowledgeBase\DTO\FragmentRequestDTO;
 use App\Application\KnowledgeBase\DTO\KnowledgeBaseRawContextDTO;
+use App\Application\KnowledgeBase\DTO\RpcHttpPassthroughResult;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
-use App\Domain\Permission\Entity\ValueObject\OperationPermission\OperationAction;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\KnowledgeBase\DTO\KnowledgeBaseFragmentDTO;
 use Qbhy\HyperfAuth\Authenticatable;
@@ -26,11 +26,8 @@ class KnowledgeBaseFragmentAppService extends AbstractKnowledgeAppService
     ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Edit->value, $knowledgeBaseCode, $documentCode);
         $payload['knowledge_code'] = $knowledgeBaseCode;
         $payload['document_code'] = $documentCode;
-        $payload = $context->withOrganization($payload);
-        $payload = $context->withCreatedUid($payload);
         if ($id !== null && $id > 0) {
             $payload['id'] = $id;
         }
@@ -50,7 +47,6 @@ class KnowledgeBaseFragmentAppService extends AbstractKnowledgeAppService
     ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Read->value, $knowledgeBaseCode, $documentCode, $id);
         return $this->fragmentAppClient->show(FragmentRequestDTO::forShow(
             $id,
             $knowledgeBaseCode,
@@ -67,7 +63,6 @@ class KnowledgeBaseFragmentAppService extends AbstractKnowledgeAppService
     ): void {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Delete->value, $knowledgeBaseCode, $documentCode, $id);
         $this->fragmentAppClient->destroy(FragmentRequestDTO::forDestroy(
             $id,
             $knowledgeBaseCode,
@@ -79,7 +74,6 @@ class KnowledgeBaseFragmentAppService extends AbstractKnowledgeAppService
     public function destroyByMetadataFilter(Authenticatable $authorization, string $knowledgeBaseCode, array $metadataFilter): void
     {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Delete->value, $knowledgeBaseCode);
         $this->runtimeDestroyByMetadataFilterByDataIsolation($dataIsolation, $knowledgeBaseCode, $metadataFilter);
     }
 
@@ -88,42 +82,52 @@ class KnowledgeBaseFragmentAppService extends AbstractKnowledgeAppService
         array $query,
         string $knowledgeBaseCode,
         string $documentCode,
-        Page $page,
+        ?Page $page = null,
     ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Read->value, $knowledgeBaseCode, $documentCode);
-
-        $rpcQuery = [
-            'knowledge_code' => $knowledgeBaseCode,
-            'document_code' => $documentCode,
-            'page' => $page->getPage(),
-            'page_size' => $page->getPageNum(),
-            'offset' => $page->getSliceStart(),
-            'limit' => $page->getPageNum(),
-        ];
-        foreach (['content', 'sync_status'] as $field) {
-            if (array_key_exists($field, $query)) {
-                $rpcQuery[$field] = $query[$field];
-            }
-        }
+        $rpcQuery = $this->buildFragmentListQuery($query, $knowledgeBaseCode, $documentCode, $page);
         return $this->fragmentAppClient->list(FragmentRequestDTO::forList($rpcQuery, $context->dataIsolation()));
     }
 
-    public function fragmentPreviewRaw(
+    public function queriesHttpPassthroughRaw(
+        Authenticatable $authorization,
+        array $query,
+        string $knowledgeBaseCode,
+        string $documentCode,
+        string $acceptEncoding = '',
+        ?Page $page = null,
+    ): RpcHttpPassthroughResult {
+        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
+        $rpcQuery = $this->buildFragmentListQuery($query, $knowledgeBaseCode, $documentCode, $page);
+
+        return $this->fragmentHttpPassthroughClient->listPassthrough(
+            FragmentRequestDTO::forListPassthrough($rpcQuery, $context->dataIsolation(), $acceptEncoding)
+        );
+    }
+
+    public function fragmentPreviewHttpPassthroughRaw(
         Authenticatable $authorization,
         array $documentFile,
         array $strategyConfig,
-        array $fragmentConfig
-    ): array {
+        array $fragmentConfig,
+        string $acceptEncoding = '',
+        string $documentCode = '',
+    ): RpcHttpPassthroughResult {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authorization);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        return $this->fragmentAppClient->preview(FragmentRequestDTO::forPreview(
-            $documentFile,
-            $strategyConfig,
-            $fragmentConfig,
-            $context->dataIsolation()
-        ));
+
+        return $this->fragmentHttpPassthroughClient->previewPassthrough(
+            FragmentRequestDTO::forPreviewPassthrough(
+                $documentFile,
+                $strategyConfig,
+                $fragmentConfig,
+                $context->dataIsolation(),
+                $acceptEncoding,
+                $documentCode,
+            )
+        );
     }
 
     /**
@@ -133,11 +137,10 @@ class KnowledgeBaseFragmentAppService extends AbstractKnowledgeAppService
         Authenticatable $authenticatable,
         string $knowledgeBaseCode,
         string $query,
-        bool $debug = false,
+        mixed $debug = false,
     ): array {
         $dataIsolation = $this->createKnowledgeBaseDataIsolation($authenticatable);
         $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
-        $this->checkKnowledgeBaseOperation($dataIsolation, OperationAction::Read->value, $knowledgeBaseCode);
         return $this->fragmentAppClient->similarity(FragmentRequestDTO::forSimilarity(
             $knowledgeBaseCode,
             $query,
@@ -147,6 +150,30 @@ class KnowledgeBaseFragmentAppService extends AbstractKnowledgeAppService
             $debug,
             $context->businessParams($knowledgeBaseCode),
         ));
+    }
+
+    public function similarityHttpPassthroughRaw(
+        Authenticatable $authenticatable,
+        string $knowledgeBaseCode,
+        string $query,
+        string $acceptEncoding = '',
+        mixed $debug = false,
+    ): RpcHttpPassthroughResult {
+        $dataIsolation = $this->createKnowledgeBaseDataIsolation($authenticatable);
+        $context = KnowledgeBaseRawContextDTO::fromDataIsolation($dataIsolation);
+
+        return $this->fragmentHttpPassthroughClient->similarityPassthrough(
+            FragmentRequestDTO::forSimilarityPassthrough(
+                $knowledgeBaseCode,
+                $query,
+                0,
+                0.0,
+                $context->dataIsolation(),
+                $debug,
+                $context->businessParams($knowledgeBaseCode),
+                $acceptEncoding,
+            )
+        );
     }
 
     /**
@@ -264,5 +291,33 @@ class KnowledgeBaseFragmentAppService extends AbstractKnowledgeAppService
             $metadataFilter,
             $context->dataIsolation(),
         ));
+    }
+
+    private function buildFragmentListQuery(
+        array $query,
+        string $knowledgeBaseCode,
+        string $documentCode,
+        ?Page $page = null,
+    ): array {
+        $rpcQuery = [
+            'knowledge_code' => $knowledgeBaseCode,
+            'document_code' => $documentCode,
+        ];
+        foreach (['content', 'sync_status', 'version', 'page', 'page_size', 'offset', 'limit'] as $field) {
+            if (array_key_exists($field, $query)) {
+                $rpcQuery[$field] = $query[$field];
+            }
+        }
+        if ($page === null) {
+            return $rpcQuery;
+        }
+        if (! array_key_exists('page', $rpcQuery) && ! array_key_exists('offset', $rpcQuery)) {
+            $rpcQuery['page'] = $page->getPage();
+        }
+        if (! array_key_exists('page_size', $rpcQuery) && ! array_key_exists('limit', $rpcQuery)) {
+            $rpcQuery['page_size'] = $page->getPageNum();
+        }
+
+        return $rpcQuery;
     }
 }

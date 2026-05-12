@@ -16,6 +16,7 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.core.entity.message.server_message import DisplayType, ToolDetail, TerminalContent
+from app.utils.async_file_utils import async_write_text
 
 # 导入共享工具函数
 from app.tools.data_analyst_dashboard_tools.dashboard_card_utils import (
@@ -118,8 +119,8 @@ Dashboard project name, relative to workspace root, e.g. "SalesDashboard" """
     
     cards: List[CardCreation] = Field(
         ...,
-        description="""<!--zh: 要创建的卡片列表（1-10个）-->
-List of cards to create (1-10 cards)""",
+        description="""<!--zh: 卡片列表（1-10）；建议每批≤6-->
+List of cards to create (1-10); prefer ≤6 per call""",
         min_length=1,
         max_length=10
     )
@@ -144,8 +145,6 @@ class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], Workspa
     """<!--zh
     创建Dashboard卡片工具
     
-    【调用时机】完成 cards_todo.md 规划和 data_cleaning.py 执行后，按规划批量创建卡片
-    
     【主要用途】批量创建新的dashboard卡片，自动处理layout冲突
     
     【project_path】使用看板项目名，相对于工作区根目录，如 "销售分析看板" 或 "SalesDashboard"
@@ -157,7 +156,7 @@ class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], Workspa
     ✓ 创建Markdown卡片：添加说明文档
     
     【核心特性】
-    - 支持批量创建（1-10个卡片）
+    - 支持批量创建（1-10；建议≤6/批）
     - 自动检测并解决layout冲突
     - 自动压缩布局，保持紧凑
     - 严格验证数据完整性
@@ -178,8 +177,6 @@ class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], Workspa
     -->
     Create Dashboard Cards Tool
     
-    【Invocation】After completing cards_todo.md planning and data_cleaning.py execution
-    
     【Main Purpose】Batch create new dashboard cards with automatic layout conflict resolution
     
     【project_path】Use dashboard project name relative to workspace root, e.g. "SalesDashboard"
@@ -191,7 +188,7 @@ class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], Workspa
     ✓ Create Markdown cards: Add documentation
     
     【Core Features】
-    - Supports batch creation (1-10 cards)
+    - Supports batch creation (1-10; prefer ≤6 per call)
     - Automatically detects and resolves layout conflicts
     - Automatically compacts layout for compactness
     - Strict data integrity validation
@@ -225,38 +222,23 @@ class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], Workspa
             # 1. 获取项目路径
             project_path = self.resolve_path(params.project_path)
             if not project_path.exists():
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.project_not_exist", category="tool.messages", project_path=params.project_path)
+                return ToolResult.error(
+                    i18n.translate("dashboard_cards.project_not_exist", category="tool.messages", project_path=params.project_path)
                 )
             
             data_js_path = project_path / "data.js"
             if not data_js_path.exists():
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.data_js_not_exist", category="tool.messages", project_path=params.project_path)
+                return ToolResult.error(
+                    i18n.translate("dashboard_cards.data_js_not_exist", category="tool.messages", project_path=params.project_path)
                 )
             
             # 2. 解析现有卡片
             try:
                 existing_cards, original_content = parse_data_js(data_js_path)
             except CardParseError as e:
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.parse_error", category="tool.messages", error=str(e))
+                return ToolResult.error(
+                    i18n.translate("dashboard_cards.parse_error", category="tool.messages", error=str(e))
                 )
-            
-            # 3. 备份原始内容（用于回滚）
-            backup_content = original_content
-            
-            # 3.1 当 auto_layout=False 时，所有卡片必须提供 layout
-            if not params.auto_layout:
-                for card_creation in params.cards:
-                    if card_creation.layout is None:
-                        return ToolResult(
-                            error=i18n.translate(
-                                "create_dashboard_cards.layout_required",
-                                category="tool.messages",
-                                card_id=card_creation.id,
-                            )
-                        )
             
             try:
                 # 4. 验证新卡片（部分成功：验证失败仅跳过该卡片，不回滚整批）
@@ -266,6 +248,17 @@ class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], Workspa
                 grid_cols = get_grid_cols_from_config(project_path)
                 
                 for i, card_creation in enumerate(params.cards):
+                    if not params.auto_layout and card_creation.layout is None:
+                        failed_cards.append((
+                            card_creation.id,
+                            i18n.translate(
+                                "create_dashboard_cards.layout_required",
+                                category="tool.messages",
+                                card_id=card_creation.id,
+                            )
+                        ))
+                        continue
+
                     # 确定 layout：auto_layout 时用占位符（后续会覆盖），否则必须提供
                     layout = card_creation.layout
                     if params.auto_layout:
@@ -312,9 +305,8 @@ class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], Workspa
                 
                 # 若全部失败，返回错误
                 if not new_cards_data:
-                    failed_list = "; ".join(f"{cid} ({reason})" for cid, reason in failed_cards)
-                    return ToolResult(
-                        error=i18n.translate("create_dashboard_cards.skipped", category="tool.messages", failed_list=failed_list)
+                    return ToolResult.error(
+                        self._build_all_failed_content(failed_cards)
                     )
                 
                 # 5. 处理 layout
@@ -341,28 +333,36 @@ class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], Workspa
                 # 7. 序列化并写入文件
                 new_content = serialize_cards(all_cards)
                 
-                with open(data_js_path, 'w', encoding='utf-8') as f:
-                    f.write(new_content)
-                
-                # 分发文件修改事件
-                await self._dispatch_file_event(tool_context, str(data_js_path), EventType.FILE_UPDATED)
+                await async_write_text(data_js_path, new_content)
 
                 # 8. 创建后自动同步地图与数据源配置，并在至少有一个卡片新增成功时设置为 ready
                 created_ids = [card['id'] for card in new_cards_data]
+                warnings = []
                 extra_info: Dict[str, Any] = {
                     'created_cards': created_ids,
                     'total_cards': len(all_cards),
                     'affected_cards': affected_cards_summary,
                 }
 
+                # 8.0 分发文件修改事件
+                try:
+                    await self._dispatch_file_event(tool_context, str(data_js_path), EventType.FILE_UPDATED)
+                except Exception as e:
+                    logger.warning("创建卡片后分发文件事件失败，已跳过: %s", e, exc_info=True)
+                    warnings.append(f"File update event dispatch failed: {e}")
+
                 # 8.1 同步地图与数据源配置（复用公共工具）
-                await sync_geo_and_data_sources(
-                    tool=self,
-                    tool_context=tool_context,
-                    project_path=project_path,
-                    phase="创建卡片阶段",
-                    extra_info=extra_info,
-                )
+                try:
+                    await sync_geo_and_data_sources(
+                        tool=self,
+                        tool_context=tool_context,
+                        project_path=project_path,
+                        phase="创建卡片阶段",
+                        extra_info=extra_info,
+                    )
+                except Exception as e:
+                    logger.warning("创建卡片后同步地图与数据源配置失败，已跳过: %s", e, exc_info=True)
+                    warnings.append(f"Geo/data source sync failed: {e}")
 
                 # 8.2 若至少有一个卡片新增成功，则将 dashboard 标记为 ready
                 try:
@@ -380,52 +380,85 @@ class CreateDashboardCards(AbstractFileTool[CreateDashboardCardsParams], Workspa
                         e,
                         exc_info=True,
                     )
+                    warnings.append(f"Dashboard ready flag update failed: {e}")
 
                 # 9. 构建成功结果
-                result_message = i18n.translate("create_dashboard_cards.success", category="tool.messages", count=len(created_ids))
-                
-                if failed_cards:
-                    failed_list = "; ".join(f"{cid} ({reason})" for cid, reason in failed_cards)
-                    result_message += "\n\n" + i18n.translate("create_dashboard_cards.skipped", category="tool.messages", failed_list=failed_list)
-                    extra_info["failed_cards"] = [{"id": cid, "reason": r} for cid, r in failed_cards]
-                
-                if affected_cards_summary:
-                    layout_messages = []
-                    for item in affected_cards_summary:
-                        layout_messages.append(
-                            i18n.translate("create_dashboard_cards.layout_adjustment", category="tool.messages",
-                                new_card_id=item['new_card_id'],
-                                affected_count=len(item['affected_ids']))
-                        )
-                    result_message += "\n\n" + "\n".join(layout_messages)
+                failed_cards_data = [{"id": cid, "reason": reason} for cid, reason in failed_cards]
+                result_message = self._build_success_content(
+                    created_count=len(created_ids),
+                    failed_cards=failed_cards_data,
+                    warnings=warnings,
+                )
+                extra_info["failed_cards"] = failed_cards_data
+                extra_info["warnings"] = warnings
                 
                 return ToolResult(
                     content=result_message,
+                    data={
+                        "created_cards": created_ids,
+                        "failed_cards": failed_cards_data,
+                        "affected_cards": affected_cards_summary,
+                        "warnings": warnings,
+                        "summary": {
+                            "requested_count": len(params.cards),
+                            "created_count": len(created_ids),
+                            "failed_count": len(failed_cards_data),
+                            "warning_count": len(warnings),
+                            "total_cards": len(all_cards),
+                        },
+                    },
                     extra_info=extra_info,
                     ok=True,  # 部分成功也算成功，仅全部失败才返回 error
                 )
                 
             except Exception as e:
-                # 发生错误，回滚
                 logger.error(f"Error during card creation: {e}", exc_info=True)
-                with open(data_js_path, 'w', encoding='utf-8') as f:
-                    f.write(backup_content)
-                await self._dispatch_file_event(tool_context, str(data_js_path), EventType.FILE_UPDATED)
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.operation_rollback", category="tool.messages", error=str(e))
+                return ToolResult.error(
+                    i18n.translate("create_dashboard_cards.error", category="tool.messages", error=str(e))
                 )
                 
         except Exception as e:
             logger.error(f"Failed to create dashboard cards: {e}", exc_info=True)
-            return ToolResult(
-                error=i18n.translate("create_dashboard_cards.error", category="tool.messages", error=str(e))
+            return ToolResult.error(
+                i18n.translate("create_dashboard_cards.error", category="tool.messages", error=str(e))
             )
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
-        if not arguments:
-            cards_count = 0
-        else:
-            cards_count = len(arguments.get('cards', []))
-        
-        return i18n.translate("create_dashboard_cards.success", category="tool.messages", count=cards_count)
+        summary = result.data.get("summary", {}) if getattr(result, "data", None) else {}
+        created_count = summary.get("created_count")
+        failed_count = summary.get("failed_count", 0)
+
+        if created_count is None:
+            created_count = len(arguments.get('cards', [])) if arguments else 0
+
+        if failed_count > 0:
+            return i18n.translate(
+                "create_dashboard_cards.partial_success",
+                category="tool.messages",
+                created=created_count,
+                failed=failed_count,
+            )
+
+        return i18n.translate("create_dashboard_cards.success", category="tool.messages", count=created_count)
+
+    def _build_success_content(self, created_count: int, failed_cards: List[Dict[str, str]], warnings: List[str]) -> str:
+        """构建给调用agent读取的成功内容"""
+        message = f"Created {created_count} requested card(s)."
+
+        if failed_cards:
+            failed_details = "; ".join(f"{card['id']} ({card['reason']})" for card in failed_cards)
+            message += f" Failed to create {len(failed_cards)} card(s): {failed_details}."
+
+        if warnings:
+            message += f" Warnings: {'; '.join(warnings)}."
+
+        return message
+
+    def _build_all_failed_content(self, failed_cards: List[tuple[str, str]]) -> str:
+        """构建全部失败时给调用agent读取的错误内容"""
+        if not failed_cards:
+            return "Failed to create any requested cards."
+
+        failed_details = "; ".join(f"{card_id} ({reason})" for card_id, reason in failed_cards)
+        return f"Failed to create any requested cards. {failed_details}."

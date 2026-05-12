@@ -36,15 +36,22 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
     private const array SUPPORTED_DURATIONS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
     /**
-     * 当前按方舟 Seedance 文档支持范围声明，后续如果官方扩容需要同步这里。
+     * @var list<string>
+     */
+    private const array PRO_SUPPORTED_RESOLUTIONS = ['480p', '720p', '1080p'];
+
+    /**
+     * 目前根据 provider 实际返回，Seedance 2.0 Fast 的 t2v 仅开放到 720p。
      *
      * @var list<string>
      */
-    private const array SUPPORTED_RESOLUTIONS = ['480p', '720p'];
+    private const array FAST_SUPPORTED_RESOLUTIONS = ['480p', '720p'];
+
+    private const string FAST_MODEL_KEYWORD = 'seedance-2-0-fast';
 
     /**
-     * 当前接入的 Seedance 1.5 Pro / 2.0 / 2.0 Fast 尺寸表。
-     * 这里用于 featured 能力下发给前端，不参与 provider 请求参数组装。
+     * 当前接入的 Seedance 尺寸基表。
+     * 这里用于 featured 能力下发给前端；不同模型再按能力过滤。
      *
      * @var list<array{label: string, value: string, width: int, height: int, resolution: string}>
      */
@@ -61,6 +68,12 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
         ['label' => '3:4', 'value' => '834x1112', 'width' => 834, 'height' => 1112, 'resolution' => '720p'],
         ['label' => '9:16', 'value' => '720x1280', 'width' => 720, 'height' => 1280, 'resolution' => '720p'],
         ['label' => '21:9', 'value' => '1470x630', 'width' => 1470, 'height' => 630, 'resolution' => '720p'],
+        ['label' => '16:9', 'value' => '1920x1080', 'width' => 1920, 'height' => 1080, 'resolution' => '1080p'],
+        ['label' => '4:3', 'value' => '1668x1252', 'width' => 1668, 'height' => 1252, 'resolution' => '1080p'],
+        ['label' => '1:1', 'value' => '1440x1440', 'width' => 1440, 'height' => 1440, 'resolution' => '1080p'],
+        ['label' => '3:4', 'value' => '1252x1668', 'width' => 1252, 'height' => 1668, 'resolution' => '1080p'],
+        ['label' => '9:16', 'value' => '1080x1920', 'width' => 1080, 'height' => 1920, 'resolution' => '1080p'],
+        ['label' => '21:9', 'value' => '2205x945', 'width' => 2205, 'height' => 945, 'resolution' => '1080p'],
     ];
 
     public function __construct(
@@ -81,6 +94,8 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
             return null;
         }
 
+        $capabilityProfile = $this->resolveCapabilityProfile($modelVersion, $modelId);
+
         return new VideoGenerationConfig([
             'supported_inputs' => [
                 'text_prompt',
@@ -100,22 +115,7 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
                 'style_supported' => false,
             ],
             'generation' => [
-                'aspect_ratios' => self::SUPPORTED_ASPECT_RATIOS,
-                'durations' => self::SUPPORTED_DURATIONS,
-                'default_duration_seconds' => self::DEFAULT_DURATION_SECONDS,
-                'resolutions' => self::SUPPORTED_RESOLUTIONS,
-                'sizes' => self::SUPPORTED_SIZES,
-                'default_resolution' => self::DEFAULT_RESOLUTION,
-                'supports_seed' => true,
-                'seed_range' => [-1, 4294967295],
-                'supports_watermark' => true,
-                'supports_negative_prompt' => false,
-                'supports_generate_audio' => true,
-                'supports_person_generation' => false,
-                'supports_enhance_prompt' => false,
-                'supports_compression_quality' => false,
-                'supports_resize_mode' => false,
-                'supports_sample_count' => false,
+                ...$capabilityProfile['generation'],
             ],
             'input_modes' => [
                 'standard' => [
@@ -249,15 +249,54 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
         }
 
         $modelId = $this->firstNonEmptyString($request['model_id'] ?? null, $operation->getModel()) ?? $operation->getModel();
+        $modelVersion = $this->firstNonEmptyString($operation->getModelVersion(), $modelId) ?? $modelId;
+        $capabilityProfile = $this->resolveCapabilityProfile($modelVersion, $modelId);
+        $generationConfig = $capabilityProfile['generation'];
+        $validationConfig = $capabilityProfile['validation'];
         $payload = [
             'model' => $modelId,
             'task' => $this->firstNonEmptyString($request['task'] ?? null, 'generate') ?? 'generate',
             'content' => $content,
         ];
-        $payload['resolution'] = $this->resolveResolution($generation, $acceptedParams, $ignoredParams);
-        $payload['duration'] = $this->resolveDuration($generation, $acceptedParams, $ignoredParams);
+        $requestedResolution = $this->firstNonEmptyString($generation['resolution'] ?? null);
+        $resolutionErrorRule = is_string($requestedResolution)
+            ? ($validationConfig['explicit_resolution_errors'][$requestedResolution] ?? null)
+            : null;
+        if (is_array($resolutionErrorRule)) {
+            throw new ProviderVideoException($this->translateError(
+                (string) ($resolutionErrorRule['key'] ?? 'model_resolution_not_supported'),
+                array_merge(
+                    $resolutionErrorRule['replace'] ?? [],
+                    [
+                        'model' => $modelId,
+                        'resolution' => $requestedResolution,
+                    ],
+                ),
+            ));
+        }
 
-        $aspectRatio = $this->resolveAspectRatio($generation, $acceptedParams, $ignoredParams);
+        $payload['resolution'] = $this->resolveResolution(
+            $generation,
+            $acceptedParams,
+            $ignoredParams,
+            $generationConfig['resolutions'],
+            $generationConfig['default_resolution'],
+        );
+
+        $payload['duration'] = $this->resolveDuration(
+            $generation,
+            $acceptedParams,
+            $ignoredParams,
+            $generationConfig['durations'],
+            $generationConfig['default_duration_seconds'],
+        );
+
+        $aspectRatio = $this->resolveAspectRatio(
+            $generation,
+            $acceptedParams,
+            $ignoredParams,
+            $generationConfig['aspect_ratios'],
+        );
         if ($aspectRatio !== null) {
             $payload['ratio'] = $aspectRatio;
         }
@@ -391,14 +430,19 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
             'failed', 'error', 'expired', 'cancelled', 'canceled' => 'failed',
             default => 'processing',
         };
-        $errorCode = match ($status) {
-            'expired' => 'PROVIDER_EXPIRED',
-            'cancelled', 'canceled' => 'PROVIDER_CANCELLED',
-            'failed', 'error' => 'PROVIDER_FAILED',
-            default => null,
-        };
+
         $error = is_array($detail['error'] ?? null) ? $detail['error'] : [];
         $data = is_array($detail['data'] ?? null) ? $detail['data'] : [];
+
+        $errorCode = $detail['error']['code'] ?? '';
+        if (! $errorCode) {
+            $errorCode = match ($status) {
+                'expired' => 'PROVIDER_EXPIRED',
+                'cancelled', 'canceled' => 'PROVIDER_CANCELLED',
+                'failed', 'error' => 'PROVIDER_FAILED',
+                default => null,
+            };
+        }
 
         return [
             'status' => $resultStatus,
@@ -436,16 +480,21 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
      * @param list<string> $acceptedParams
      * @param list<string> $ignoredParams
      */
-    private function resolveResolution(array $generation, array &$acceptedParams, array &$ignoredParams): string
-    {
+    private function resolveResolution(
+        array $generation,
+        array &$acceptedParams,
+        array &$ignoredParams,
+        array $supportedResolutions,
+        string $defaultResolution,
+    ): string {
         if (! array_key_exists('resolution', $generation)) {
-            return self::DEFAULT_RESOLUTION;
+            return $defaultResolution;
         }
 
         $resolution = trim((string) $generation['resolution']);
-        if (! in_array($resolution, self::SUPPORTED_RESOLUTIONS, true)) {
+        if (! in_array($resolution, $supportedResolutions, true)) {
             $ignoredParams[] = 'generation.resolution';
-            return self::DEFAULT_RESOLUTION;
+            return $defaultResolution;
         }
 
         $acceptedParams[] = 'generation.resolution';
@@ -457,16 +506,21 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
      * @param list<string> $acceptedParams
      * @param list<string> $ignoredParams
      */
-    private function resolveDuration(array $generation, array &$acceptedParams, array &$ignoredParams): int
-    {
+    private function resolveDuration(
+        array $generation,
+        array &$acceptedParams,
+        array &$ignoredParams,
+        array $supportedDurations,
+        int $defaultDurationSeconds,
+    ): int {
         if (! array_key_exists('duration_seconds', $generation)) {
-            return self::DEFAULT_DURATION_SECONDS;
+            return $defaultDurationSeconds;
         }
 
         $duration = (int) $generation['duration_seconds'];
-        if (! in_array($duration, self::SUPPORTED_DURATIONS, true)) {
+        if (! in_array($duration, $supportedDurations, true)) {
             $ignoredParams[] = 'generation.duration_seconds';
-            return self::DEFAULT_DURATION_SECONDS;
+            return $defaultDurationSeconds;
         }
 
         $acceptedParams[] = 'generation.duration_seconds';
@@ -478,14 +532,18 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
      * @param list<string> $acceptedParams
      * @param list<string> $ignoredParams
      */
-    private function resolveAspectRatio(array $generation, array &$acceptedParams, array &$ignoredParams): ?string
-    {
+    private function resolveAspectRatio(
+        array $generation,
+        array &$acceptedParams,
+        array &$ignoredParams,
+        array $supportedAspectRatios,
+    ): ?string {
         if (! array_key_exists('aspect_ratio', $generation)) {
             return null;
         }
 
         $aspectRatio = trim((string) $generation['aspect_ratio']);
-        if (! in_array($aspectRatio, self::SUPPORTED_ASPECT_RATIOS, true)) {
+        if (! in_array($aspectRatio, $supportedAspectRatios, true)) {
             $ignoredParams[] = 'generation.aspect_ratio';
             return null;
         }
@@ -567,5 +625,128 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
     private function translateInputMode(string $key, array $replace = []): string
     {
         return di(TranslatorInterface::class)->trans('video.input_modes.' . $key, $replace);
+    }
+
+    private function translateError(string $key, array $replace = []): string
+    {
+        return (string) di(TranslatorInterface::class)->trans('video.errors.' . $key, $replace);
+    }
+
+    /**
+     * @return array{
+     *   generation: array{
+     *     aspect_ratios: list<string>,
+     *     durations: list<int>,
+     *     default_duration_seconds: int,
+     *     resolutions: list<string>,
+     *     sizes: list<array{label: string, value: string, width: int, height: int, resolution: string}>,
+     *     default_resolution: string,
+     *     supports_seed: bool,
+     *     seed_range: list<int>,
+     *     supports_watermark: bool,
+     *     supports_negative_prompt: bool,
+     *     supports_generate_audio: bool,
+     *     supports_person_generation: bool,
+     *     supports_enhance_prompt: bool,
+     *     supports_compression_quality: bool,
+     *     supports_resize_mode: bool,
+     *     supports_sample_count: bool
+     *   },
+     *   validation: array{
+     *     explicit_resolution_errors?: array<string, array{key: string, replace: array<string, string>}>
+     *   }
+     * }
+     */
+    private function resolveCapabilityProfile(string $modelVersion, string $modelId): array
+    {
+        $baseGenerationConfig = $this->baseGenerationConfig();
+
+        if ($this->isSeedanceTwoFastModel($modelVersion, $modelId)) {
+            return [
+                'generation' => array_merge($baseGenerationConfig, [
+                    'resolutions' => self::FAST_SUPPORTED_RESOLUTIONS,
+                    'sizes' => $this->filterSizesByResolution(self::FAST_SUPPORTED_RESOLUTIONS),
+                ]),
+                'validation' => [
+                    'explicit_resolution_errors' => [
+                        '1080p' => [
+                            'key' => 'model_resolution_not_supported',
+                            'replace' => [
+                                'supported' => implode(' / ', self::FAST_SUPPORTED_RESOLUTIONS),
+                            ],
+                        ],
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'generation' => array_merge($baseGenerationConfig, [
+                'resolutions' => self::PRO_SUPPORTED_RESOLUTIONS,
+                'sizes' => self::SUPPORTED_SIZES,
+            ]),
+            'validation' => [],
+        ];
+    }
+
+    /**
+     * @return array{
+     *   aspect_ratios: list<string>,
+     *   durations: list<int>,
+     *   default_duration_seconds: int,
+     *   default_resolution: string,
+     *   supports_seed: bool,
+     *   seed_range: list<int>,
+     *   supports_watermark: bool,
+     *   supports_negative_prompt: bool,
+     *   supports_generate_audio: bool,
+     *   supports_person_generation: bool,
+     *   supports_enhance_prompt: bool,
+     *   supports_compression_quality: bool,
+     *   supports_resize_mode: bool,
+     *   supports_sample_count: bool
+     * }
+     */
+    private function baseGenerationConfig(): array
+    {
+        return [
+            'aspect_ratios' => self::SUPPORTED_ASPECT_RATIOS,
+            'durations' => self::SUPPORTED_DURATIONS,
+            'default_duration_seconds' => self::DEFAULT_DURATION_SECONDS,
+            'default_resolution' => self::DEFAULT_RESOLUTION,
+            'supports_seed' => true,
+            'seed_range' => [-1, 4294967295],
+            'supports_watermark' => true,
+            'supports_negative_prompt' => false,
+            'supports_generate_audio' => true,
+            'supports_person_generation' => false,
+            'supports_enhance_prompt' => false,
+            'supports_compression_quality' => false,
+            'supports_resize_mode' => false,
+            'supports_sample_count' => false,
+        ];
+    }
+
+    private function isSeedanceTwoFastModel(string $modelVersion, string $modelId): bool
+    {
+        foreach ([$modelVersion, $modelId] as $identifier) {
+            if ($identifier !== '' && str_contains(strtolower($identifier), self::FAST_MODEL_KEYWORD)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $resolutions
+     * @return list<array{label: string, value: string, width: int, height: int, resolution: string}>
+     */
+    private function filterSizesByResolution(array $resolutions): array
+    {
+        return array_values(array_filter(
+            self::SUPPORTED_SIZES,
+            static fn (array $size): bool => in_array($size['resolution'], $resolutions, true),
+        ));
     }
 }

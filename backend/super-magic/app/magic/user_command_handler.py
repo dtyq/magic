@@ -155,7 +155,7 @@ Commands.register(
 
 Commands.register(
     name="continue",
-    variants=['', ' ', 'continue', '继续'],
+    variants=['/continue'],
     handler=handle_continue
 )
 

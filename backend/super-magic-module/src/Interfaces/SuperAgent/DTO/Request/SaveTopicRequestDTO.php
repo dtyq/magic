@@ -51,6 +51,11 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
     public bool $isHidden = false;
 
     /**
+     * 动态参数，前端以对象形式传递（如 { message_version: "v2" }），存入话题 dynamic_params 字段.
+     */
+    public array $dynamicParams = [];
+
+    /**
      * Get topic ID (primary key).
      */
     public function getId(): string
@@ -133,6 +138,16 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
         $this->isHidden = (bool) $isHidden;
     }
 
+    public function getDynamicParams(): array
+    {
+        return $this->dynamicParams;
+    }
+
+    public function setDynamicParams(?array $dynamicParams): void
+    {
+        $this->dynamicParams = $dynamicParams ?? [];
+    }
+
     /**
      * Check if this is an update operation.
      */
@@ -152,6 +167,7 @@ class SaveTopicRequestDTO extends AbstractRequestDTO
             'project_id' => 'required|string',
             'project_mode' => 'nullable|string',
             'is_hidden' => 'nullable|boolean',
+            'dynamic_params' => 'nullable|array',
         ];
     }
 

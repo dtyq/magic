@@ -15,6 +15,7 @@ import (
 	kbapp "magic/internal/application/knowledge/knowledgebase/service"
 	apprebuild "magic/internal/application/knowledge/rebuild"
 	rebuilddto "magic/internal/application/knowledge/rebuild/dto"
+	revectorizeshared "magic/internal/application/knowledge/shared/revectorize"
 	autoloadcfg "magic/internal/config/autoload"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/interfaces/rpc/jsonrpc/knowledge/dto"
@@ -42,6 +43,7 @@ const (
 	testFragmentModeAuto        = 2
 	testLegacyAgentCode         = "SMA-LEGACY"
 	testAsyncAcceptedStatus     = "accepted"
+	testRebuildTriggeredStatus  = "triggered"
 )
 
 var errKnowledgeBaseRPCBoom = errors.New("knowledge base rpc boom")
@@ -63,7 +65,7 @@ type fakeKnowledgeBaseAppService struct {
 	repairResp       *kbdto.RepairSourceBindingsResult
 	repairErr        error
 	prepareErr       error
-	teamshareStart   *kbdto.TeamshareStartVectorResult
+	teamshareStart   *revectorizeshared.TeamshareStartResult
 	teamshareList    []*kbdto.TeamshareKnowledgeProgressDTO
 	teamshareErr     error
 	teamshareProg    []*kbdto.TeamshareKnowledgeProgressDTO
@@ -83,7 +85,7 @@ type fakeKnowledgeBaseAppService struct {
 	lastPrepareOrg       string
 	lastPrepareScope     kbapp.RebuildScope
 	lastPrepareRequestID string
-	lastTeamshareStart   *kbdto.TeamshareStartVectorInput
+	lastTeamshareStart   *revectorizeshared.TeamshareStartInput
 	lastTeamshareList    *kbdto.TeamshareManageableInput
 	lastTeamshareProg    *kbdto.TeamshareManageableProgressInput
 	repairCalled         chan struct{}
@@ -197,8 +199,8 @@ func (f *fakeKnowledgeBaseAppService) PrepareRebuild(
 
 func (f *fakeKnowledgeBaseAppService) TeamshareStartVector(
 	_ context.Context,
-	input *kbdto.TeamshareStartVectorInput,
-) (*kbdto.TeamshareStartVectorResult, error) {
+	input *revectorizeshared.TeamshareStartInput,
+) (*revectorizeshared.TeamshareStartResult, error) {
 	f.lastTeamshareStart = input
 	if f.teamshareErr != nil {
 		return nil, f.teamshareErr
@@ -206,7 +208,7 @@ func (f *fakeKnowledgeBaseAppService) TeamshareStartVector(
 	if f.teamshareStart != nil {
 		return f.teamshareStart, nil
 	}
-	return &kbdto.TeamshareStartVectorResult{KnowledgeCode: "KB-teamshare"}, nil
+	return &revectorizeshared.TeamshareStartResult{KnowledgeCode: "KB-teamshare"}, nil
 }
 
 func (f *fakeKnowledgeBaseAppService) TeamshareManageable(
@@ -518,6 +520,11 @@ func TestKnowledgeBaseNodesRPC_MapsPaginationCompat(t *testing.T) {
 					NodeRef:     "11",
 					Name:        "工作区 A",
 					HasChildren: true,
+					Meta: map[string]any{
+						"workspace_id": "11",
+						"project_id":   "22",
+						"label":        "保留原类型",
+					},
 				},
 			},
 		},
@@ -552,6 +559,31 @@ func TestKnowledgeBaseNodesRPC_MapsPaginationCompat(t *testing.T) {
 	}
 	if page.Page != 3 || page.Total != 41 || len(page.List) != 1 {
 		t.Fatalf("unexpected nodes page response: %#v", page)
+	}
+	body, err := json.Marshal(page)
+	if err != nil {
+		t.Fatalf("marshal nodes page failed: %v", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		t.Fatalf("unmarshal nodes page failed: %v", err)
+	}
+	list, ok := parsed["list"].([]any)
+	if !ok || len(list) != 1 {
+		t.Fatalf("expected single node, got %#v", parsed["list"])
+	}
+	item, ok := list[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected object node, got %#v", list[0])
+	}
+	meta, ok := item["meta"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected meta object, got %#v", item["meta"])
+	}
+	assertJSONStringField(t, meta, "workspace_id", "11")
+	assertJSONStringField(t, meta, "project_id", "22")
+	if meta["label"] != "保留原类型" {
+		t.Fatalf("expected non-id field unchanged, got %#v", meta["label"])
 	}
 }
 
@@ -601,6 +633,34 @@ func TestKnowledgeBaseCreateRPCMapsSourceBindings(t *testing.T) {
 	}
 	if appSvc.lastCreateInput.SourceBindings[0].Provider != "project" || appSvc.lastCreateInput.SourceBindings[0].RootRef != "1001" {
 		t.Fatalf("unexpected source binding mapping: %#v", appSvc.lastCreateInput.SourceBindings[0])
+	}
+}
+
+func TestKnowledgeBaseListSourceBindingNodesRPCAcceptsStringPagination(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &fakeKnowledgeBaseAppService{
+		nodesResp: &kbdto.ListSourceBindingNodesResult{},
+	}
+	rpcSvc := buildKnowledgeBaseRPCServiceForTest(appSvc, nil)
+	wrapped := jsonrpc.WrapTyped(rpcSvc.ListSourceBindingNodesRPC)
+
+	raw := json.RawMessage(`{
+		"data_isolation": {
+			"organization_code": "ORG-1",
+			"user_id": "user-1"
+		},
+		"source_type": "project",
+		"parent_type": "root",
+		"page": "2",
+		"page_size": "20"
+	}`)
+
+	if _, err := wrapped(context.Background(), "svc.knowledge.knowledgeBase.nodes", raw); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if appSvc.lastNodesInput == nil || appSvc.lastNodesInput.Offset != 20 || appSvc.lastNodesInput.Limit != 20 {
+		t.Fatalf("expected string pagination mapped to offset/limit=20/20, got %#v", appSvc.lastNodesInput)
 	}
 }
 
@@ -725,6 +785,31 @@ func TestKnowledgeBaseRebuildCleanupRPCMapsPayload(t *testing.T) {
 	}
 	if result.SkipReason["magic_knowledge_r_r2"] == "" {
 		t.Fatalf("expected skip reason copied, got %#v", result.SkipReason)
+	}
+}
+
+func TestKnowledgeBaseRebuildCleanupRPCAcceptsStringBoolCompat(t *testing.T) {
+	t.Parallel()
+
+	cleanupSvc := &fakeRebuildCleanupService{
+		resp: &rebuilddto.CleanupResult{},
+	}
+	rpcSvc := buildKnowledgeBaseRPCServiceForTest(&fakeKnowledgeBaseAppService{}, nil, cleanupSvc)
+	wrapped := jsonrpc.WrapTyped(rpcSvc.RebuildCleanupRPC)
+
+	raw := json.RawMessage(`{
+		"data_isolation": {
+			"organization_code": "ORG-1"
+		},
+		"apply": "0",
+		"force_delete_non_empty": "false"
+	}`)
+
+	if _, err := wrapped(context.Background(), "svc.knowledge.knowledgeBase.rebuildCleanup", raw); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if cleanupSvc.lastInput == nil || cleanupSvc.lastInput.Apply || !cleanupSvc.lastInput.ForceDeleteNonEmpty {
+		t.Fatalf("expected PHP truthy bool compat applied, got %#v", cleanupSvc.lastInput)
 	}
 }
 
@@ -1174,6 +1259,88 @@ func TestKnowledgeBaseCreateRPC_AcceptsEmptyArraySyncConfig(t *testing.T) {
 	}
 }
 
+func TestKnowledgeBaseCreateRPCPreservesLargeNumericIDFields(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &fakeKnowledgeBaseAppService{
+		createResp: &kbdto.KnowledgeBaseDTO{Code: "KNOWLEDGE-TEST"},
+	}
+	rpcSvc := buildKnowledgeBaseRPCServiceForTest(appSvc, nil)
+	wrapped := jsonrpc.WrapTyped(rpcSvc.CreateRPC)
+
+	raw := jsonRawMessagef(`{
+		"data_isolation": {
+			"organization_code": "%s",
+			"user_id": "usi_test"
+		},
+		"name": "test",
+		"source_type": 3,
+		"document_files": [
+			{
+				"type": 2,
+				"third_file_id": 904787325064802305,
+				"knowledge_base_id": 904787325064802306,
+				"project_file_id": 904787325064802307
+			}
+		],
+		"source_bindings": [
+			{
+				"provider": "teamshare",
+				"root_type": "knowledge_base",
+				"root_ref": 904787325064802308,
+				"sync_mode": "manual",
+				"targets": [
+					{"target_type": "file", "target_ref": 904787325064802309}
+				],
+				"sync_config": {
+					"root_context": {"knowledge_base_id": 904787325064802310},
+					"document_file": {
+						"third_file_id": 904787325064802311,
+						"knowledge_base_id": 904787325064802312,
+						"project_file_id": 904787325064802313
+					}
+				}
+			}
+		]
+	}`, testKnowledgeBaseRPCOrgCode)
+
+	if _, err := wrapped(context.Background(), "svc.knowledge.knowledgeBase.create", raw); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if appSvc.lastCreateInput == nil {
+		t.Fatal("expected create input to be captured")
+	}
+	if len(appSvc.lastCreateInput.LegacyDocumentFiles) != 1 {
+		t.Fatalf("expected legacy document_files captured, got %#v", appSvc.lastCreateInput.LegacyDocumentFiles)
+	}
+	documentFile := map[string]any(appSvc.lastCreateInput.LegacyDocumentFiles[0])
+	if documentFile["third_file_id"] != "904787325064802305" ||
+		documentFile["knowledge_base_id"] != "904787325064802306" ||
+		documentFile["project_file_id"] != "904787325064802307" {
+		t.Fatalf("expected create legacy document file ids preserved, got %#v", documentFile)
+	}
+	if len(appSvc.lastCreateInput.SourceBindings) != 1 {
+		t.Fatalf("expected source binding captured, got %#v", appSvc.lastCreateInput.SourceBindings)
+	}
+	binding := appSvc.lastCreateInput.SourceBindings[0]
+	if binding.RootRef != "904787325064802308" {
+		t.Fatalf("expected create root_ref preserved, got %#v", binding.RootRef)
+	}
+	if len(binding.Targets) != 1 || binding.Targets[0].TargetRef != "904787325064802309" {
+		t.Fatalf("expected create target_ref preserved, got %#v", binding.Targets)
+	}
+	rootContext, _ := binding.SyncConfig["root_context"].(map[string]any)
+	if rootContext["knowledge_base_id"] != "904787325064802310" {
+		t.Fatalf("expected create root_context knowledge_base_id preserved, got %#v", binding.SyncConfig)
+	}
+	bindingDocumentFile, _ := binding.SyncConfig["document_file"].(map[string]any)
+	if bindingDocumentFile["third_file_id"] != "904787325064802311" ||
+		bindingDocumentFile["knowledge_base_id"] != "904787325064802312" ||
+		bindingDocumentFile["project_file_id"] != "904787325064802313" {
+		t.Fatalf("expected create sync_config document_file ids preserved, got %#v", bindingDocumentFile)
+	}
+}
+
 func TestKnowledgeBaseCreateRPC_AcceptsQuotedEmptyOptionalConfigs(t *testing.T) {
 	t.Parallel()
 
@@ -1206,6 +1373,87 @@ func TestKnowledgeBaseCreateRPC_AcceptsQuotedEmptyOptionalConfigs(t *testing.T) 
 	}
 	if appSvc.lastCreateInput.RetrieveConfig != nil || appSvc.lastCreateInput.FragmentConfig != nil || appSvc.lastCreateInput.EmbeddingConfig != nil {
 		t.Fatalf("expected optional configs normalized to nil, got %#v", appSvc.lastCreateInput)
+	}
+}
+
+func TestKnowledgeBaseUpdateRPCPreservesLargeNumericIDFields(t *testing.T) {
+	t.Parallel()
+
+	appSvc := &fakeKnowledgeBaseAppService{
+		updateResp: &kbdto.KnowledgeBaseDTO{Code: "KNOWLEDGE-TEST"},
+	}
+	rpcSvc := buildKnowledgeBaseRPCServiceForTest(appSvc, nil)
+	wrapped := jsonrpc.WrapTyped(rpcSvc.UpdateRPC)
+
+	raw := jsonRawMessagef(`{
+		"data_isolation": {
+			"organization_code": "%s",
+			"user_id": "usi_test"
+		},
+		"code": "KB-1",
+		"document_files": [
+			{
+				"type": 2,
+				"third_file_id": 904787325064802305,
+				"knowledge_base_id": 904787325064802306,
+				"project_file_id": 904787325064802307
+			}
+		],
+		"source_bindings": [
+			{
+				"provider": "teamshare",
+				"root_type": "knowledge_base",
+				"root_ref": 904787325064802308,
+				"sync_mode": "manual",
+				"targets": [
+					{"target_type": "file", "target_ref": 904787325064802309}
+				],
+				"sync_config": {
+					"root_context": {"knowledge_base_id": 904787325064802310},
+					"document_file": {
+						"third_file_id": 904787325064802311,
+						"knowledge_base_id": 904787325064802312,
+						"project_file_id": 904787325064802313
+					}
+				}
+			}
+		]
+	}`, testKnowledgeBaseRPCOrgCode)
+
+	if _, err := wrapped(context.Background(), "svc.knowledge.knowledgeBase.update", raw); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if appSvc.lastUpdateInput == nil {
+		t.Fatal("expected update input to be captured")
+	}
+	if appSvc.lastUpdateInput.LegacyDocumentFiles == nil || len(*appSvc.lastUpdateInput.LegacyDocumentFiles) != 1 {
+		t.Fatalf("expected update legacy document_files captured, got %#v", appSvc.lastUpdateInput.LegacyDocumentFiles)
+	}
+	documentFile := map[string]any((*appSvc.lastUpdateInput.LegacyDocumentFiles)[0])
+	if documentFile["third_file_id"] != "904787325064802305" ||
+		documentFile["knowledge_base_id"] != "904787325064802306" ||
+		documentFile["project_file_id"] != "904787325064802307" {
+		t.Fatalf("expected update legacy document file ids preserved, got %#v", documentFile)
+	}
+	if appSvc.lastUpdateInput.SourceBindings == nil || len(*appSvc.lastUpdateInput.SourceBindings) != 1 {
+		t.Fatalf("expected update source binding captured, got %#v", appSvc.lastUpdateInput.SourceBindings)
+	}
+	binding := (*appSvc.lastUpdateInput.SourceBindings)[0]
+	if binding.RootRef != "904787325064802308" {
+		t.Fatalf("expected update root_ref preserved, got %#v", binding.RootRef)
+	}
+	if len(binding.Targets) != 1 || binding.Targets[0].TargetRef != "904787325064802309" {
+		t.Fatalf("expected update target_ref preserved, got %#v", binding.Targets)
+	}
+	rootContext, _ := binding.SyncConfig["root_context"].(map[string]any)
+	if rootContext["knowledge_base_id"] != "904787325064802310" {
+		t.Fatalf("expected update root_context knowledge_base_id preserved, got %#v", binding.SyncConfig)
+	}
+	bindingDocumentFile, _ := binding.SyncConfig["document_file"].(map[string]any)
+	if bindingDocumentFile["third_file_id"] != "904787325064802311" ||
+		bindingDocumentFile["knowledge_base_id"] != "904787325064802312" ||
+		bindingDocumentFile["project_file_id"] != "904787325064802313" {
+		t.Fatalf("expected update sync_config document_file ids preserved, got %#v", bindingDocumentFile)
 	}
 }
 
@@ -1625,11 +1873,9 @@ func TestKnowledgeBaseTeamshareStartVectorRPC(t *testing.T) {
 	t.Parallel()
 
 	appSvc := &fakeKnowledgeBaseAppService{
-		teamshareStart: &kbdto.TeamshareStartVectorResult{KnowledgeCode: "KB-teamshare-1"},
+		teamshareStart: &revectorizeshared.TeamshareStartResult{KnowledgeCode: "KB-teamshare-1"},
 	}
-	trigger := &fakeRebuildTrigger{
-		resp: &apprebuild.TriggerResult{Status: apprebuild.TriggerStatusTriggered, RunID: "r-teamshare-1"},
-	}
+	trigger := &fakeRebuildTrigger{}
 	rpcSvc := buildKnowledgeBaseRPCServiceForTest(appSvc, trigger)
 
 	resp, err := rpcSvc.TeamshareStartVectorRPC(context.Background(), &dto.TeamshareStartVectorRequest{
@@ -1639,7 +1885,7 @@ func TestKnowledgeBaseTeamshareStartVectorRPC(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TeamshareStartVectorRPC returned error: %v", err)
 	}
-	if resp == nil || resp.ID != "r-teamshare-1" {
+	if resp == nil || resp.ID != "KB-teamshare-1" {
 		t.Fatalf("unexpected response: %#v", resp)
 	}
 	if appSvc.lastTeamshareStart == nil ||
@@ -1648,19 +1894,8 @@ func TestKnowledgeBaseTeamshareStartVectorRPC(t *testing.T) {
 		appSvc.lastTeamshareStart.KnowledgeID != "TS-KB-1" {
 		t.Fatalf("unexpected teamshare start input: %#v", appSvc.lastTeamshareStart)
 	}
-	if trigger.lastOpts == nil ||
-		trigger.lastOpts.Scope.Mode != rebuilddto.ScopeModeKnowledgeBase ||
-		trigger.lastOpts.Scope.OrganizationCode != testKnowledgeBaseRPCOrgCode ||
-		trigger.lastOpts.Scope.KnowledgeBaseCode != "KB-teamshare-1" ||
-		trigger.lastOpts.Scope.UserID != testKBUserID ||
-		trigger.lastOpts.Mode != rebuilddto.ModeAuto {
-		t.Fatalf("unexpected rebuild trigger opts: %#v", trigger.lastOpts)
-	}
-	if trigger.lastBusinessParams == nil ||
-		trigger.lastBusinessParams.OrganizationCode != testKnowledgeBaseRPCOrgCode ||
-		trigger.lastBusinessParams.UserID != testKBUserID ||
-		trigger.lastBusinessParams.BusinessID != "KB-teamshare-1" {
-		t.Fatalf("unexpected rebuild business params: %#v", trigger.lastBusinessParams)
+	if trigger.lastOpts != nil || trigger.lastBusinessParams != nil {
+		t.Fatalf("expected teamshare start-vector not to trigger rebuild, got opts=%#v business=%#v", trigger.lastOpts, trigger.lastBusinessParams)
 	}
 }
 
@@ -1744,17 +1979,13 @@ func TestKnowledgeBaseRebuildRPCMapsTriggerError(t *testing.T) {
 
 	trigger := &fakeRebuildTrigger{err: errKnowledgeBaseRPCBoom}
 	rpcSvc := buildKnowledgeBaseRPCServiceForTest(&fakeKnowledgeBaseAppService{}, trigger)
-	resp, err := rpcSvc.RebuildRPC(context.Background(), &dto.RebuildKnowledgeBaseRequest{
+	_, err := rpcSvc.RebuildRPC(context.Background(), &dto.RebuildKnowledgeBaseRequest{
 		Scope:            string(rebuilddto.ScopeModeAll),
 		OrganizationCode: testKBOrgCode,
 	})
-	if err != nil {
-		t.Fatalf("expected async rebuild response, got %v", err)
+	if err == nil {
+		t.Fatal("expected rebuild trigger error")
 	}
-	if resp == nil || resp.Status != testAsyncAcceptedStatus || resp.RunID == "" {
-		t.Fatalf("unexpected async rebuild response: %#v", resp)
-	}
-	waitAsyncCall(t, trigger.called, "knowledge rebuild trigger")
 }
 
 func TestNewKnowledgeBaseRPCServiceFromConcrete(t *testing.T) {
@@ -1790,7 +2021,7 @@ func TestKnowledgeBaseRebuildRPCTriggeredAllScope(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *RebuildKnowledgeBaseResponse, got %T", resp)
 	}
-	if result.Status != testAsyncAcceptedStatus || result.RunID == "" {
+	if result.Status != testRebuildTriggeredStatus || result.RunID == "" {
 		t.Fatalf("unexpected response: %#v", result)
 	}
 	if result.Scope != string(rebuilddto.ScopeModeAll) {
@@ -1807,8 +2038,11 @@ func TestKnowledgeBaseRebuildRPCTriggeredAllScope(t *testing.T) {
 	if trigger.lastOpts == nil || trigger.lastOpts.Scope.Mode != rebuilddto.ScopeModeAll {
 		t.Fatalf("unexpected trigger opts: %#v", trigger.lastOpts)
 	}
-	if trigger.lastOpts.ResumeRunID != result.RunID {
-		t.Fatalf("expected accepted run_id to be forwarded, got response=%q trigger=%q", result.RunID, trigger.lastOpts.ResumeRunID)
+	if result.RunID != "r-triggered" {
+		t.Fatalf("expected trigger run_id to be returned, got %q", result.RunID)
+	}
+	if trigger.lastOpts.ResumeRunID == "" {
+		t.Fatal("expected generated resume run_id to be forwarded to trigger")
 	}
 	if appSvc.lastPrepareOrg != testKnowledgeBaseRPCOrgCode || appSvc.lastPrepareScope.Mode != kbapp.RebuildScopeModeAll {
 		t.Fatalf("unexpected prepare input: org=%q scope=%#v", appSvc.lastPrepareOrg, appSvc.lastPrepareScope)
@@ -1855,7 +2089,7 @@ func TestKnowledgeBaseRebuildRPCOrganizationScopeMapping(t *testing.T) {
 	if result.Scope != string(rebuilddto.ScopeModeOrganization) {
 		t.Fatalf("expected scope=organization, got %s", result.Scope)
 	}
-	if result.Status != testAsyncAcceptedStatus || result.RunID == "" {
+	if result.Status != testRebuildTriggeredStatus || result.RunID == "" {
 		t.Fatalf("unexpected async rebuild response: %#v", result)
 	}
 	waitAsyncCall(t, appSvc.prepareCalled, "knowledge rebuild prepare")
@@ -1962,7 +2196,7 @@ func assertRebuildScopeMapping(
 	if result.Scope != string(expectedMode) {
 		t.Fatalf("expected scope=%s, got %s", expectedMode, result.Scope)
 	}
-	if result.Status != testAsyncAcceptedStatus || result.RunID == "" {
+	if result.Status != testRebuildTriggeredStatus || result.RunID == "" {
 		t.Fatalf("unexpected async rebuild response: %#v", result)
 	}
 	waitAsyncCall(t, appSvc.prepareCalled, "knowledge rebuild prepare")
@@ -1978,8 +2212,11 @@ func assertRebuildScopeMapping(
 		trigger.lastOpts.Scope.DocumentCode != documentCode {
 		t.Fatalf("unexpected scope mapping: %#v", trigger.lastOpts.Scope)
 	}
-	if trigger.lastOpts.ResumeRunID != result.RunID {
-		t.Fatalf("expected accepted run_id to match trigger resume id, got response=%q trigger=%q", result.RunID, trigger.lastOpts.ResumeRunID)
+	if result.RunID != "r-scope" {
+		t.Fatalf("expected trigger run_id to be returned, got %q", result.RunID)
+	}
+	if trigger.lastOpts.ResumeRunID == "" {
+		t.Fatal("expected generated resume run_id to be forwarded to trigger")
 	}
 }
 
@@ -2006,7 +2243,7 @@ func TestKnowledgeBaseRebuildRPCAlreadyRunning(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *RebuildKnowledgeBaseResponse, got %T", resp)
 	}
-	if result.Status != testAsyncAcceptedStatus || result.RunID == "" {
+	if result.Status != string(apprebuild.TriggerStatusAlreadyRunning) || result.RunID == "" {
 		t.Fatalf("unexpected response: %#v", result)
 	}
 	waitAsyncCall(t, appSvc.prepareCalled, "knowledge rebuild prepare")
@@ -2149,6 +2386,15 @@ func assertJSONIntField(t *testing.T, body map[string]any, key string, expected 
 	value, ok := body[key].(float64)
 	if !ok || int(value) != expected {
 		t.Fatalf("expected %s=%d, got %#v", key, expected, body[key])
+	}
+}
+
+func assertJSONStringField(t *testing.T, body map[string]any, key, expected string) {
+	t.Helper()
+
+	value, ok := body[key].(string)
+	if !ok || value != expected {
+		t.Fatalf("expected %s=%q, got %#v", key, expected, body[key])
 	}
 }
 

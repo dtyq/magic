@@ -327,9 +327,9 @@ describe("MentionPanelStore Sorting Algorithm", () => {
 				message: "ok",
 				data: [
 					{
-						id: "analyzing-data-dashboard",
-						code: "analyzing-data-dashboard",
-						name: "数据分析看板",
+						id: "develop-data-analysis-dashboard",
+						code: "develop-data-analysis-dashboard",
+						name: "数据分析看板开发",
 						description: "Dashboard skill",
 						logo: null,
 						source: "system",

@@ -33,6 +33,7 @@ return [
     'invalid_aspect_ratio' => 'Perbezaan nisbah dimensi imej ke imej terlalu besar, hanya boleh berbeza 3 kali ganda',
     'image_url_is_empty' => 'Imej kosong',
     'unsupported_image_size' => 'Saiz imej :size tidak disokong, saiz yang disokong ialah: :supported_sizes',
+    'azure_image_size_must_be_divisible_by_16' => 'Saiz imej Azure :size tidak sah. Lebar dan tinggi mesti kedua-duanya boleh dibahagi dengan 16.',
     'unsupported_image_size_range' => 'Saiz imej :size melebihi julat sokongan, lebar dan tinggi mesti antara :min_size-:max_size piksel',
 
     // Azure OpenAI 相关错误消息

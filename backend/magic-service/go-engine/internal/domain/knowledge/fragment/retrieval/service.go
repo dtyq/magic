@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	shared "magic/internal/domain/knowledge/shared"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/ctxmeta"
 )
@@ -16,8 +18,8 @@ type EmbeddingService interface {
 
 // Infra 聚合检索领域服务所需的基础设施依赖。
 type Infra struct {
-	VectorDataRepo        VectorDBDataRepository[FragmentPayload]
-	MetaReader            any
+	VectorDataRepo        shared.VectorDBDataRepository[fragmodel.FragmentPayload]
+	MetaReader            sharedroute.CollectionMetaReader
 	DefaultEmbeddingModel string
 	Logger                *logging.SugaredLogger
 	SegmenterProvider     *SegmenterProvider
@@ -25,19 +27,20 @@ type Infra struct {
 
 // Service 提供片段检索增强相关的领域能力。
 type Service struct {
-	repo                  KnowledgeBaseFragmentReader
+	repo                  fragmodel.KnowledgeBaseFragmentReader
 	embeddingSvc          EmbeddingService
-	vectorDataRepo        VectorDBDataRepository[FragmentPayload]
+	vectorDataRepo        shared.VectorDBDataRepository[fragmodel.FragmentPayload]
 	sparseBackendSelector shared.SparseBackendSelector
-	metaReader            any
+	metaReader            sharedroute.CollectionMetaReader
 	defaultEmbeddingModel string
 	logger                *logging.SugaredLogger
 	segmenterProvider     *SegmenterProvider
+	tokenPolicyProvider   *retrievalTokenPolicyProvider
 }
 
 // NewService 创建检索领域服务。
 func NewService(
-	repo KnowledgeBaseFragmentReader,
+	repo fragmodel.KnowledgeBaseFragmentReader,
 	embeddingSvc EmbeddingService,
 	infra Infra,
 ) *Service {
@@ -56,43 +59,64 @@ func NewService(
 		defaultEmbeddingModel: infra.DefaultEmbeddingModel,
 		logger:                infra.Logger,
 		segmenterProvider:     segmenterProvider,
+		tokenPolicyProvider:   defaultRetrievalTokenPolicyProvider,
 	}
 }
 
 func (s *Service) newRetrievalAnalyzer() retrievalAnalyzer {
 	if s == nil || s.segmenterProvider == nil {
-		return retrievalAnalyzer{}
+		return newRetrievalAnalyzer()
 	}
 	segmenter, err := s.segmenterProvider.cutter()
-	if err != nil {
-		return retrievalAnalyzer{}
+	policyProvider := s.tokenPolicyProvider
+	if policyProvider == nil {
+		policyProvider = defaultRetrievalTokenPolicyProvider
 	}
-	return retrievalAnalyzer{segmenter: segmenter}
+	policy, policyErr := policyProvider.get()
+	return newRetrievalAnalyzerFromParts(segmenter, err, policy, policyErr)
 }
 
-// Warmup 预热检索分词器词典，避免首个查询触发懒加载。
-func (s *Service) Warmup(ctx context.Context) error {
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("warmup retrieval cancelled before start: %w", err)
-		}
-	}
-	if s == nil || s.segmenterProvider == nil {
+func (s *Service) ensureRuntimeReady(ctx context.Context) error {
+	if s == nil {
 		return nil
 	}
-	if err := s.segmenterProvider.warmup(); err != nil {
-		return fmt.Errorf("warmup retrieval segmenter: %w", err)
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("prepare retrieval runtime cancelled before start: %w", err)
+		}
+	}
+	if s.segmenterProvider != nil {
+		if err := s.segmenterProvider.warmup(); err != nil {
+			return fmt.Errorf("warmup retrieval segmenter: %w", err)
+		}
+	}
+	policyProvider := s.tokenPolicyProvider
+	if policyProvider == nil {
+		policyProvider = defaultRetrievalTokenPolicyProvider
+	}
+	if policyProvider != nil {
+		if err := policyProvider.warmup(); err != nil {
+			return fmt.Errorf("warmup retrieval token policy: %w", err)
+		}
+	}
+	analyzer := s.newRetrievalAnalyzer()
+	if err := analyzer.selfCheck(); err != nil {
+		return fmt.Errorf("retrieval offline dict self-check: %w", err)
 	}
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("warmup retrieval cancelled after load: %w", err)
+			return fmt.Errorf("prepare retrieval runtime cancelled after load: %w", err)
 		}
 	}
 	return nil
 }
 
+// Warmup 预热检索分词器词典，避免首个查询触发懒加载。
+func (s *Service) Warmup(ctx context.Context) error {
+	return s.ensureRuntimeReady(ctx)
+}
+
 // BuildRetrievalTextFromFragment 使用共享检索分词器构建用于检索的片段文本。
-func (s *Service) BuildRetrievalTextFromFragment(fragment *KnowledgeBaseFragment) string {
-	text, _ := buildRetrievalTextFromFragmentWithAnalyzer(fragment, s.newRetrievalAnalyzer())
-	return text
+func (s *Service) BuildRetrievalTextFromFragment(fragment *fragmodel.KnowledgeBaseFragment) string {
+	return buildRetrievalTextFromFragmentWithAnalyzer(fragment, s.newRetrievalAnalyzer())
 }

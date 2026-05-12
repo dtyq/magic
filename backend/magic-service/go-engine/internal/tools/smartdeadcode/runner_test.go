@@ -150,6 +150,54 @@ func TestRunnerDoesNotCacheExecutionFailure(t *testing.T) {
 	}
 }
 
+func TestRunnerDisableCacheAlwaysExecutes(t *testing.T) {
+	t.Parallel()
+
+	rootDir := t.TempDir()
+	cacheFile := filepath.Join(rootDir, ".cache", "lint", "deadcode.json")
+
+	writeFile(t, filepath.Join(rootDir, "go.mod"), "module magic\n\ngo 1.26.0\n")
+	writeFile(t, filepath.Join(rootDir, "foo.go"), "package magic\n\nfunc Foo() {}\n")
+
+	var output bytes.Buffer
+	runCount := 0
+	runner := newTestRunner(t, rootDir, cacheFile, &output, func(context.Context, string) (string, error) {
+		runCount++
+		return "", nil
+	})
+
+	if err := runner.Run(t.Context()); err != nil {
+		t.Fatalf("first run failed: %v", err)
+	}
+	assertRunCount(t, runCount, 1)
+
+	output.Reset()
+	runner = smartdeadcode.NewRunner(smartdeadcode.Options{
+		RootDir:      rootDir,
+		CacheFile:    cacheFile,
+		Binary:       filepath.Join(rootDir, "deadcode"),
+		DisableCache: true,
+	}, &output, &output)
+	smartdeadcode.SetLookPathForTest(runner, func(file string) (string, error) {
+		return file, nil
+	})
+	smartdeadcode.SetRunDeadcodeForTest(runner, func(context.Context, string) (string, error) {
+		runCount++
+		return "", nil
+	})
+
+	if err := runner.Run(t.Context()); err != nil {
+		t.Fatalf("second run with disabled cache failed: %v", err)
+	}
+	assertRunCount(t, runCount, 2)
+	if strings.Contains(output.String(), "Skipping deadcode") {
+		t.Fatalf("expected disabled cache run to execute instead of skipping, got %q", output.String())
+	}
+	if !strings.Contains(output.String(), "✓ No deadcode found") {
+		t.Fatalf("expected success output, got %q", output.String())
+	}
+}
+
 func newTestRunner(t *testing.T, rootDir, cacheFile string, output *bytes.Buffer, run func(context.Context, string) (string, error)) *smartdeadcode.Runner {
 	t.Helper()
 

@@ -32,6 +32,7 @@ return [
     'invalid_aspect_ratio' => 'The difference in size ratio of Tucson diagram is too large, and can only be 3 times different',
     'image_url_is_empty' => 'Image url is empty',
     'unsupported_image_size' => 'Unsupported image size :size, supported sizes are: :supported_sizes',
+    'azure_image_size_must_be_divisible_by_16' => 'Azure image size :size is invalid. Width and height must both be divisible by 16.',
     'unsupported_image_size_range' => 'Image size :size is out of supported range, width and height must be between :min_size-:max_size pixels',
 
     // Azure OpenAI related error messages

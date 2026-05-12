@@ -206,7 +206,15 @@ func (a *vectorCollectionManagerAdapter) GetCollectionInfo(ctx context.Context, 
 		Points:              info.Points,
 		HasNamedDenseVector: info.HasNamedDenseVector,
 		HasSparseVector:     info.HasSparseVector,
+		PayloadSchemaKeys:   append([]string(nil), info.PayloadSchemaKeys...),
 	}, nil
+}
+
+func (a *vectorCollectionManagerAdapter) EnsurePayloadIndexes(ctx context.Context, name string, specs []shared.PayloadIndexSpec) error {
+	if err := a.repo.EnsurePayloadIndexes(ctx, name, specs); err != nil {
+		return fmt.Errorf("ensure collection %s payload indexes: %w", name, err)
+	}
+	return nil
 }
 
 func (a *vectorCollectionManagerAdapter) GetAliasTarget(ctx context.Context, alias string) (string, bool, error) {

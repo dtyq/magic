@@ -76,6 +76,24 @@ readonly class KnowledgeBasePermissionRpcService
         }
     }
 
+    #[RpcMethod(name: SvcMethods::METHOD_INITIALIZE)]
+    public function initialize(array $params): array
+    {
+        return $this->mutateKnowledgePermission($params, 'initialize');
+    }
+
+    #[RpcMethod(name: SvcMethods::METHOD_GRANT_OWNER)]
+    public function grantOwner(array $params): array
+    {
+        return $this->mutateKnowledgePermission($params, 'grant_owner');
+    }
+
+    #[RpcMethod(name: SvcMethods::METHOD_CLEANUP)]
+    public function cleanup(array $params): array
+    {
+        return $this->mutateKnowledgePermission($params, 'cleanup');
+    }
+
     #[RpcMethod(name: SvcMethods::METHOD_CHECK_OFFICIAL_ORGANIZATION_MEMBER)]
     public function checkOfficialOrganizationMember(array $params): array
     {
@@ -96,6 +114,74 @@ readonly class KnowledgeBasePermissionRpcService
                 'is_official_member' => OfficialOrganizationUtil::isOfficialOrganization($organizationCode),
             ],
         ];
+    }
+
+    private function mutateKnowledgePermission(array $params, string $action): array
+    {
+        $dataIsolation = $params['data_isolation'] ?? [];
+        $organizationCode = trim((string) ($dataIsolation['organization_code'] ?? ''));
+        $userId = trim((string) ($dataIsolation['user_id'] ?? ''));
+        $knowledgeCode = trim((string) ($params['knowledge_base_code'] ?? ''));
+        $ownerUserId = trim((string) ($params['owner_user_id'] ?? ''));
+        $adminUserIds = array_values(array_filter(array_map(
+            static fn (mixed $value): string => trim((string) $value),
+            (array) ($params['admin_user_ids'] ?? [])
+        ), static fn (string $value): bool => $value !== ''));
+
+        if ($organizationCode === '' || $userId === '' || $knowledgeCode === '') {
+            return [
+                'code' => 400,
+                'message' => 'organization_code, user_id and knowledge_base_code are required',
+            ];
+        }
+        if (($action === 'initialize' || $action === 'grant_owner') && $ownerUserId === '') {
+            return [
+                'code' => 400,
+                'message' => 'owner_user_id is required',
+            ];
+        }
+
+        try {
+            $baseDataIsolation = KnowledgeBaseDataIsolation::create($organizationCode, $userId);
+            $permissionDataIsolation = KnowledgeBasePermissionDataIsolation::createByBaseDataIsolation($baseDataIsolation);
+
+            match ($action) {
+                'initialize' => $this->knowledgeBaseOperationPermissionAppService->initializeKnowledgePermission(
+                    $permissionDataIsolation,
+                    $knowledgeCode,
+                    $ownerUserId,
+                    $adminUserIds,
+                ),
+                'grant_owner' => $this->knowledgeBaseOperationPermissionAppService->grantKnowledgeOwner(
+                    $permissionDataIsolation,
+                    $knowledgeCode,
+                    $ownerUserId,
+                ),
+                'cleanup' => $this->knowledgeBaseOperationPermissionAppService->cleanupKnowledgePermission(
+                    $permissionDataIsolation,
+                    $knowledgeCode,
+                ),
+                default => null,
+            };
+
+            return [
+                'code' => 0,
+                'message' => 'success',
+            ];
+        } catch (Throwable $throwable) {
+            $this->logger->error('IPC KnowledgeBasePermission mutate failed', [
+                'action' => $action,
+                'organization_code' => $organizationCode,
+                'user_id' => $userId,
+                'knowledge_base_code' => $knowledgeCode,
+                'error' => $throwable->getMessage(),
+            ]);
+
+            return [
+                'code' => 500,
+                'message' => $throwable->getMessage(),
+            ];
+        }
     }
 
     /**

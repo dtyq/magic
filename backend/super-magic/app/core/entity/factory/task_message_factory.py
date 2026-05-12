@@ -607,9 +607,8 @@ class TaskMessageFactory(TaskMessageFactoryProtocol):
         # Get parent_correlation_id: prioritize event data, fallback to agent_context
         parent_correlation_id = event.data.parent_correlation_id or agent_context.get_thinking_correlation_id()
 
-        message_status = TaskStatus.RUNNING
-        if tool_name == "ask_user":
-            message_status = TaskStatus.WAITING_FOR_USER
+        from app.tools.core.base_user_tool_call_tool import BaseUserToolCallTool
+        message_status = TaskStatus.WAITING_FOR_USER if isinstance(tool_instance, BaseUserToolCallTool) else TaskStatus.RUNNING
 
         # 创建ServerMessage
         payload = ServerMessagePayload.create(

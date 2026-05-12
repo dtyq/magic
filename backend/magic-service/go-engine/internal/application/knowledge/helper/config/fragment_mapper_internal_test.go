@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"magic/internal/domain/knowledge/shared"
@@ -128,5 +130,57 @@ func TestFragmentConfigMapperNilInputs(t *testing.T) {
 	}
 	if segmentRuleEntityToOutputDTO(nil) != nil {
 		t.Fatal("expected nil segment output dto")
+	}
+}
+
+func TestFragmentConfigMapperNormalizesNilTextPreprocessRuleToEmptyArray(t *testing.T) {
+	t.Parallel()
+
+	cfg := &shared.FragmentConfig{
+		Mode: shared.FragmentModeCustom,
+		Normal: &shared.NormalFragmentConfig{
+			SegmentRule: &shared.SegmentRule{
+				Separator:    "\n\n",
+				ChunkSize:    500,
+				ChunkOverlap: 50,
+			},
+		},
+		Hierarchy: &shared.HierarchyFragmentConfig{
+			MaxLevel:          3,
+			KeepHierarchyInfo: true,
+		},
+	}
+
+	dto := FragmentConfigEntityToDTO(cfg)
+	if dto == nil || dto.Normal == nil || dto.Hierarchy == nil {
+		t.Fatalf("expected fragment config dto, got %#v", dto)
+	}
+	if dto.Normal.TextPreprocessRule == nil || len(dto.Normal.TextPreprocessRule) != 0 {
+		t.Fatalf("expected normal text preprocess rule to be empty slice, got %#v", dto.Normal.TextPreprocessRule)
+	}
+	if dto.Hierarchy.TextPreprocessRule == nil || len(dto.Hierarchy.TextPreprocessRule) != 0 {
+		t.Fatalf("expected hierarchy text preprocess rule to be empty slice, got %#v", dto.Hierarchy.TextPreprocessRule)
+	}
+
+	data, err := json.Marshal(dto)
+	if err != nil {
+		t.Fatalf("marshal dto: %v", err)
+	}
+	if string(data) == "" {
+		t.Fatal("expected non-empty json")
+	}
+	if !strings.Contains(string(data), `"text_preprocess_rule":[]`) {
+		t.Fatalf("expected text_preprocess_rule serialized as [], got %s", string(data))
+	}
+
+	outputDTO := FragmentConfigEntityToOutputDTO(cfg)
+	if outputDTO == nil || outputDTO.Normal == nil || outputDTO.Hierarchy == nil {
+		t.Fatalf("expected output dto, got %#v", outputDTO)
+	}
+	if outputDTO.Normal.TextPreprocessRule == nil || len(outputDTO.Normal.TextPreprocessRule) != 0 {
+		t.Fatalf("expected output normal text preprocess rule to be empty slice, got %#v", outputDTO.Normal.TextPreprocessRule)
+	}
+	if outputDTO.Hierarchy.TextPreprocessRule == nil || len(outputDTO.Hierarchy.TextPreprocessRule) != 0 {
+		t.Fatalf("expected output hierarchy text preprocess rule to be empty slice, got %#v", outputDTO.Hierarchy.TextPreprocessRule)
 	}
 }

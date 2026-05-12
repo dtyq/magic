@@ -17,8 +17,12 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Guzzle\ClientFactory;
 use PHPUnit\Framework\TestCase;
+
+use function Hyperf\Translation\trans;
 
 /**
  * @internal
@@ -44,8 +48,8 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $generation = $config->toArray()['generation'];
         $this->assertSame(['16:9', '4:3', '1:1', '3:4', '9:16', '21:9'], $generation['aspect_ratios']);
         $this->assertSame([4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], $generation['durations']);
-        $this->assertSame(['480p', '720p'], $generation['resolutions']);
-        $this->assertCount(12, $generation['sizes']);
+        $this->assertSame(['480p', '720p', '1080p'], $generation['resolutions']);
+        $this->assertCount(18, $generation['sizes']);
         $this->assertSame([
             'label' => '16:9',
             'value' => '864x496',
@@ -60,6 +64,32 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
             'height' => 1280,
             'resolution' => '720p',
         ], $generation['sizes'][10]);
+        $this->assertSame([
+            'label' => '21:9',
+            'value' => '2205x945',
+            'width' => 2205,
+            'height' => 945,
+            'resolution' => '1080p',
+        ], $generation['sizes'][17]);
+    }
+
+    public function testResolveGenerationConfigOmits1080pForFastModel(): void
+    {
+        $adapter = new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class)));
+
+        $config = $adapter->resolveGenerationConfig('doubao-seedance-2-0-fast-260128', 'doubao-seedance-2-0-fast-260128');
+
+        $this->assertNotNull($config);
+        $generation = $config->toArray()['generation'];
+        $this->assertSame(['480p', '720p'], $generation['resolutions']);
+        $this->assertCount(12, $generation['sizes']);
+        $this->assertSame([
+            'label' => '21:9',
+            'value' => '1470x630',
+            'width' => 1470,
+            'height' => 630,
+            'resolution' => '720p',
+        ], $generation['sizes'][11]);
     }
 
     public function testBuildProviderPayloadMapsGenerateEditAndReferenceInputsWithoutServiceTierForProModel(): void
@@ -125,7 +155,7 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $this->assertSame('https://callback.example.com/video', $payload['callback_url']);
         $this->assertArrayNotHasKey('service_tier', $payload);
         $this->assertSame(7200, $payload['execution_expires_after']);
-        $this->assertSame('720p', $payload['resolution']);
+        $this->assertSame('1080p', $payload['resolution']);
         $this->assertSame('16:9', $payload['ratio']);
         $this->assertSame(5, $payload['duration']);
         $this->assertSame(7, $payload['seed']);
@@ -133,6 +163,126 @@ class VolcengineArkSeedanceVideoAdapterTest extends TestCase
         $this->assertTrue($payload['watermark']);
         $this->assertTrue($payload['return_last_frame']);
         $this->assertTrue($payload['generate_audio']);
+    }
+
+    public function testBuildProviderPayloadAllowsReferenceImagesWhenResolutionIs1080pForProModel(): void
+    {
+        $adapter = new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class)));
+        $operation = new VideoQueueOperationEntity(
+            id: 'op-ark-ref-image-1080p',
+            endpoint: 'video:doubao-seedance-2-0-260128',
+            model: 'doubao-seedance-2-0-260128',
+            modelVersion: 'doubao-seedance-2-0-260128',
+            providerModelId: 'provider-model-ark-seedance',
+            providerCode: 'VolcengineArk',
+            providerName: 'volcengineark',
+            organizationCode: 'org-1',
+            userId: 'user-1',
+            status: VideoOperationStatus::QUEUED,
+            seq: 1,
+            rawRequest: [
+                'model_id' => 'doubao-seedance-2-0-260128',
+                'task' => 'generate',
+                'prompt' => 'animate this portrait',
+                'inputs' => [
+                    'reference_images' => [
+                        ['uri' => 'https://example.com/reference.png'],
+                    ],
+                ],
+                'generation' => [
+                    'resolution' => '1080p',
+                    'duration_seconds' => 5,
+                ],
+            ],
+            createdAt: date(DATE_ATOM),
+            heartbeatAt: date(DATE_ATOM),
+        );
+
+        $payload = $adapter->buildProviderPayload($operation);
+
+        $this->assertSame('1080p', $payload['resolution']);
+        $this->assertSame('https://example.com/reference.png', $payload['content'][1]['image_url']['url']);
+        $this->assertSame('reference_image', $payload['content'][1]['role']);
+    }
+
+    public function testBuildProviderPayloadRejects1080pForFastModel(): void
+    {
+        $adapter = new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class)));
+        $operation = new VideoQueueOperationEntity(
+            id: 'op-ark-fast-1080p',
+            endpoint: 'video:doubao-seedance-2-0-fast-260128',
+            model: 'doubao-seedance-2-0-fast-260128',
+            modelVersion: 'doubao-seedance-2-0-fast-260128',
+            providerModelId: 'provider-model-ark-seedance-fast',
+            providerCode: 'VolcengineArk',
+            providerName: 'volcengineark',
+            organizationCode: 'org-1',
+            userId: 'user-1',
+            status: VideoOperationStatus::QUEUED,
+            seq: 1,
+            rawRequest: [
+                'model_id' => 'doubao-seedance-2-0-fast-260128',
+                'task' => 'generate',
+                'prompt' => 'make a fast high quality video',
+                'generation' => [
+                    'resolution' => '1080p',
+                    'duration_seconds' => 5,
+                ],
+            ],
+            createdAt: date(DATE_ATOM),
+            heartbeatAt: date(DATE_ATOM),
+        );
+
+        $this->expectException(ProviderVideoException::class);
+        $this->expectExceptionMessage(trans('video.errors.model_resolution_not_supported', [
+            'model' => 'doubao-seedance-2-0-fast-260128',
+            'resolution' => '1080p',
+            'supported' => '480p / 720p',
+        ]));
+
+        $adapter->buildProviderPayload($operation);
+    }
+
+    public function testBuildProviderPayloadRejects1080pForFastModelWithEnglishLocalizedMessage(): void
+    {
+        $translator = ApplicationContext::getContainer()->get(TranslatorInterface::class);
+        $originalLocale = $translator->getLocale();
+        $translator->setLocale('en_US');
+
+        try {
+            $adapter = new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class)));
+            $operation = new VideoQueueOperationEntity(
+                id: 'op-ark-fast-1080p-en',
+                endpoint: 'video:doubao-seedance-2-0-fast-260128',
+                model: 'doubao-seedance-2-0-fast-260128',
+                modelVersion: 'doubao-seedance-2-0-fast-260128',
+                providerModelId: 'provider-model-ark-seedance-fast',
+                providerCode: 'VolcengineArk',
+                providerName: 'volcengineark',
+                organizationCode: 'org-1',
+                userId: 'user-1',
+                status: VideoOperationStatus::QUEUED,
+                seq: 1,
+                rawRequest: [
+                    'model_id' => 'doubao-seedance-2-0-fast-260128',
+                    'task' => 'generate',
+                    'prompt' => 'make a fast high quality video',
+                    'generation' => [
+                        'resolution' => '1080p',
+                        'duration_seconds' => 5,
+                    ],
+                ],
+                createdAt: date(DATE_ATOM),
+                heartbeatAt: date(DATE_ATOM),
+            );
+
+            $this->expectException(ProviderVideoException::class);
+            $this->expectExceptionMessage('The current model (doubao-seedance-2-0-fast-260128) does not support 1080p. Please switch to 480p / 720p and try again.');
+
+            $adapter->buildProviderPayload($operation);
+        } finally {
+            $translator->setLocale($originalLocale);
+        }
     }
 
     public function testBuildProviderPayloadDropsServiceTierForFastModelToo(): void

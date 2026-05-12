@@ -1,6 +1,10 @@
 package document
 
-import "context"
+import (
+	"context"
+
+	docentity "magic/internal/domain/knowledge/document/entity"
+)
 
 // ThirdFileDocumentPlanInput 描述第三方文件文档映射解析输入。
 type ThirdFileDocumentPlanInput struct {
@@ -11,7 +15,7 @@ type ThirdFileDocumentPlanInput struct {
 
 // ThirdFileDocumentPlan 描述第三方文件重向量化使用的文档集合与 seed。
 type ThirdFileDocumentPlan struct {
-	Documents []*KnowledgeBaseDocument
+	Documents []*docentity.KnowledgeBaseDocument
 	Seed      *ThirdFileRevectorizeSeed
 }
 

@@ -50,9 +50,6 @@ func New() *autoload.Config {
 		serverEnabled := false
 		cfg.Server.Enabled = &serverEnabled
 	}
-	if cfg.Server.Mode == "" {
-		cfg.Server.Mode = autoload.RunModeDebug
-	}
 	if cfg.Logging.Level == "" {
 		cfg.Logging.Level = autoload.LogLevelInfo
 	}

@@ -29,48 +29,25 @@ class DocumentRpcClient extends AbstractRpcClient implements DocumentGateway
     public function create(DocumentRequestDTO $request): array
     {
         $data = $request->payload;
-        $dataIsolation = $request->dataIsolation->toArray();
-        $userId = $dataIsolation['user_id'] ?? '';
-        $knowledgeBaseCode = (string) ($data['knowledge_base_code'] ?? ($data['knowledge_code'] ?? ''));
         $params = [
-            'organization_code' => $this->resolvePreferredString(
-                $data['organization_code'] ?? null,
-                $dataIsolation['organization_code'] ?? null,
-            ),
-            'user_id' => (string) ($data['created_uid'] ?? $userId),
-            'knowledge_base_code' => $knowledgeBaseCode,
-            // 兼容旧 Go/PHP 协议
-            'data_isolation' => $dataIsolation,
-            'knowledge_code' => $knowledgeBaseCode,
-            'created_uid' => (string) ($data['created_uid'] ?? $userId),
+            'organization_code' => (string) ($data['organization_code'] ?? ''),
+            'user_id' => (string) ($data['user_id'] ?? ''),
+            'knowledge_base_code' => (string) ($data['knowledge_base_code'] ?? ''),
+            'data_isolation' => $request->dataIsolation->toArray(),
         ];
-        $documentFile = [];
         if (array_key_exists('document_file', $data)) {
-            $documentFile = $this->normalizeDocumentFile((array) $data['document_file']);
-            $params['document_file'] = $documentFile === [] ? null : $documentFile;
+            $params['document_file'] = $data['document_file'];
         }
         $this->copyIfKeyExists($params, $data, 'name', transform: static fn ($value) => (string) $value);
         $this->copyIfKeyExists($params, $data, 'description', transform: static fn ($value) => (string) $value);
-        if ($this->hasAnyKey($data, ['doc_type', 'type'])) {
-            $docType = (int) ($data['doc_type'] ?? ($data['type'] ?? 0));
-            $params['doc_type'] = $docType;
-            $params['type'] = $docType;
-        }
-        if ($this->hasAnyKey($data, ['doc_metadata', 'metadata'])) {
-            $docMetadata = $this->normalizeMetadataPayload($data['doc_metadata'] ?? ($data['metadata'] ?? []));
-            $params['doc_metadata'] = $docMetadata;
-            $params['metadata'] = $docMetadata;
-        }
+        $this->copyIfKeyExists($params, $data, 'doc_type');
+        $this->copyIfKeyExists($params, $data, 'type');
+        $this->copyIfKeyExists($params, $data, 'doc_metadata');
+        $this->copyIfKeyExists($params, $data, 'metadata');
         $this->copyIfKeyExists($params, $data, 'strategy_config');
-        if ($this->hasAnyKey($data, ['third_platform_type']) || $documentFile !== []) {
-            $params['third_platform_type'] = (string) ($data['third_platform_type'] ?? ($documentFile['platform_type'] ?? ''));
-        }
-        if ($this->hasAnyKey($data, ['third_file_id']) || $documentFile !== []) {
-            $params['third_file_id'] = (string) ($data['third_file_id'] ?? ($documentFile['third_id'] ?? ''));
-        }
-        if ($this->hasAnyKey($data, ['embedding_model', 'embedding_config'])) {
-            $params['embedding_model'] = (string) ($data['embedding_model'] ?? ($data['embedding_config']['model_id'] ?? ''));
-        }
+        $this->copyIfKeyExists($params, $data, 'third_platform_type', transform: static fn ($value) => (string) $value);
+        $this->copyIfKeyExists($params, $data, 'third_file_id', transform: static fn ($value) => (string) $value);
+        $this->copyIfKeyExists($params, $data, 'embedding_model', transform: static fn ($value) => (string) $value);
         $this->copyIfKeyExists($params, $data, 'vector_db', transform: static fn ($value) => (string) $value);
         $this->copyIfKeyExists($params, $data, 'retrieve_config');
         $this->copyIfKeyExists($params, $data, 'fragment_config');
@@ -86,47 +63,28 @@ class DocumentRpcClient extends AbstractRpcClient implements DocumentGateway
     public function update(DocumentRequestDTO $request): array
     {
         $data = $request->payload;
-        $dataIsolation = $request->dataIsolation->toArray();
-        $userId = $dataIsolation['user_id'] ?? '';
-        $knowledgeBaseCode = (string) ($request->knowledgeBaseCode ?? ($data['knowledge_base_code'] ?? ($data['knowledge_code'] ?? '')));
         $params = [
-            'organization_code' => $this->resolvePreferredString(
-                $data['organization_code'] ?? null,
-                $dataIsolation['organization_code'] ?? null,
-            ),
-            'user_id' => (string) ($data['updated_uid'] ?? $userId),
+            'organization_code' => (string) ($data['organization_code'] ?? ''),
+            'user_id' => (string) ($data['user_id'] ?? ''),
             'code' => (string) $request->code,
-            'knowledge_base_code' => $knowledgeBaseCode,
-            // 兼容旧 Go/PHP 协议
-            'data_isolation' => $dataIsolation,
-            'knowledge_code' => $knowledgeBaseCode,
-            'updated_uid' => (string) ($data['updated_uid'] ?? $userId),
+            'knowledge_base_code' => (string) ($request->knowledgeBaseCode ?? ($data['knowledge_base_code'] ?? '')),
+            'data_isolation' => $request->dataIsolation->toArray(),
         ];
         $this->copyIfKeyExists($params, $data, 'name', transform: static fn ($value) => (string) $value);
         $this->copyIfKeyExists($params, $data, 'description', transform: static fn ($value) => (string) $value);
-        if ($this->hasAnyKey($data, ['enabled', 'status'])) {
-            $params['enabled'] = $this->resolveNullableEnabled($data);
-            if (array_key_exists('status', $data)) {
-                $params['status'] = $data['status'] === null ? null : (int) $data['status'];
-            }
-        }
+        $this->copyIfKeyExists($params, $data, 'enabled');
+        $this->copyIfKeyExists($params, $data, 'status');
         if (array_key_exists('document_file', $data)) {
-            $documentFile = $this->normalizeDocumentFile((array) $data['document_file']);
-            $params['document_file'] = $documentFile === [] ? null : $documentFile;
+            $params['document_file'] = $data['document_file'];
         }
-        if ($this->hasAnyKey($data, ['doc_type', 'type'])) {
-            $docType = $this->resolveNullableDocType($data);
-            $params['doc_type'] = $docType;
-        }
-        if ($this->hasAnyKey($data, ['doc_metadata', 'metadata'])) {
-            $docMetadata = $this->normalizeMetadataPayload($data['doc_metadata'] ?? ($data['metadata'] ?? []));
-            $params['doc_metadata'] = $docMetadata;
-            $params['metadata'] = $docMetadata;
-        }
+        $this->copyIfKeyExists($params, $data, 'doc_type');
+        $this->copyIfKeyExists($params, $data, 'type');
+        $this->copyIfKeyExists($params, $data, 'doc_metadata');
+        $this->copyIfKeyExists($params, $data, 'metadata');
         $this->copyIfKeyExists($params, $data, 'strategy_config');
         $this->copyIfKeyExists($params, $data, 'retrieve_config');
         $this->copyIfKeyExists($params, $data, 'fragment_config');
-        $this->copyIfKeyExists($params, $data, 'word_count', transform: static fn ($value) => $value === null ? null : (int) $value);
+        $this->copyIfKeyExists($params, $data, 'word_count');
 
         return $this->callRpc(__FUNCTION__, $params);
     }
@@ -166,37 +124,15 @@ class DocumentRpcClient extends AbstractRpcClient implements DocumentGateway
     public function list(DocumentRequestDTO $request): array
     {
         $query = $request->query;
-        ['limit' => $limit, 'offset' => $offset] = $this->resolvePageWindow($query);
-        $knowledgeBaseCode = (string) ($query['knowledge_base_code'] ?? ($query['knowledge_code'] ?? ''));
         $params = [
-            'organization_code' => (string) ($query['organization_code'] ?? $request->dataIsolation->organizationCode),
-            'knowledge_base_code' => $knowledgeBaseCode,
-            'page' => [
-                'offset' => $offset,
-                'limit' => $limit,
-            ],
-            // 兼容旧 Go/PHP 协议
+            'organization_code' => (string) ($query['organization_code'] ?? ''),
+            'knowledge_base_code' => (string) ($query['knowledge_base_code'] ?? ''),
             'data_isolation' => $request->dataIsolation->toArray(),
-            'knowledge_code' => $knowledgeBaseCode,
-            'offset' => $offset,
-            'limit' => $limit,
         ];
-        if (array_key_exists('name', $query)) {
-            $params['name'] = (string) $query['name'];
-        }
-        if ($this->hasAnyKey($query, ['doc_type', 'type'])) {
-            $docType = $this->resolveNullableDocType($query);
-            $params['doc_type'] = $docType;
-            $params['type'] = $docType;
-        }
-        if ($this->hasAnyKey($query, ['enabled', 'status'])) {
-            $params['enabled'] = $this->resolveNullableEnabled($query);
-            if (array_key_exists('status', $query)) {
-                $params['status'] = $query['status'] === null ? null : (int) $query['status'];
+        foreach (['name', 'doc_type', 'type', 'enabled', 'status', 'sync_status', 'page', 'page_size', 'offset', 'limit'] as $field) {
+            if (array_key_exists($field, $query)) {
+                $params[$field] = $query[$field];
             }
-        }
-        if (array_key_exists('sync_status', $query)) {
-            $params['sync_status'] = $query['sync_status'] === null ? null : (int) $query['sync_status'];
         }
         return $this->callRpc(__FUNCTION__, $params);
     }
@@ -224,8 +160,6 @@ class DocumentRpcClient extends AbstractRpcClient implements DocumentGateway
         $params = [
             'code' => (string) $request->code,
             'knowledge_base_code' => (string) $request->knowledgeBaseCode,
-            // 兼容旧 Go/PHP 协议
-            'knowledge_code' => (string) $request->knowledgeBaseCode,
             'data_isolation' => $request->dataIsolation->toArray(),
         ];
         $this->callRpc(__FUNCTION__, $params);
@@ -244,11 +178,9 @@ class DocumentRpcClient extends AbstractRpcClient implements DocumentGateway
             'mode' => $request->mode,
             'data_isolation' => $request->dataIsolation->toArray(),
             'business_params' => $request->businessParams?->toArray() ?? [],
-            // 兼容旧 Go/PHP 协议
-            'knowledge_code' => (string) $request->knowledgeBaseCode,
         ];
-        if ($request->sync !== null) {
-            $params['sync'] = $request->sync;
+        if ($request->revectorizeSource !== null && $request->revectorizeSource !== '') {
+            $params['revectorize_source'] = $request->revectorizeSource;
         }
         $this->callRpc(__FUNCTION__, $params);
         return true;
@@ -293,90 +225,5 @@ class DocumentRpcClient extends AbstractRpcClient implements DocumentGateway
         }
 
         return $counts;
-    }
-
-    /**
-     * @param array<string, mixed> $documentFile
-     * @return array<string, mixed>
-     */
-    private function normalizeDocumentFile(array $documentFile): array
-    {
-        if ($documentFile === []) {
-            return [];
-        }
-
-        $typeRaw = $documentFile['type'] ?? null;
-        $type = is_string($typeRaw) ? $typeRaw : match ($typeRaw) {
-            1 => 'external',
-            2 => 'third_platform',
-            default => '',
-        };
-
-        return [
-            'type' => $type,
-            'name' => (string) ($documentFile['name'] ?? ''),
-            'url' => (string) ($documentFile['url'] ?? ($documentFile['file_link']['url'] ?? '')),
-            'size' => (int) ($documentFile['size'] ?? 0),
-            'extension' => (string) ($documentFile['extension'] ?? ($documentFile['third_file_extension_name'] ?? '')),
-            'third_id' => (string) ($documentFile['third_id'] ?? ($documentFile['third_file_id'] ?? '')),
-            'source_type' => (string) ($documentFile['source_type'] ?? ($documentFile['platform_type'] ?? '')),
-            // 扩展字段：Go 侧当前未全部使用，但保留透传以兼容 enterprise 数据
-            'third_file_id' => (string) ($documentFile['third_file_id'] ?? ''),
-            'platform_type' => (string) ($documentFile['platform_type'] ?? ''),
-            'doc_type' => isset($documentFile['doc_type']) ? (int) $documentFile['doc_type'] : null,
-            'key' => (string) ($documentFile['key'] ?? ''),
-            'file_link' => $documentFile['file_link'] ?? null,
-            'third_file_type' => (string) ($documentFile['third_file_type'] ?? ''),
-            'third_file_extension_name' => (string) ($documentFile['third_file_extension_name'] ?? ''),
-            'knowledge_base_id' => (string) ($documentFile['knowledge_base_id'] ?? ''),
-        ];
-    }
-
-    /**
-     * @param array<string, mixed> $payload
-     */
-    private function resolveNullableEnabled(array $payload): ?bool
-    {
-        foreach (['enabled', 'status'] as $key) {
-            if (! array_key_exists($key, $payload)) {
-                continue;
-            }
-            $value = $payload[$key];
-            if ($value === null || $value === '') {
-                return null;
-            }
-            return (bool) $value;
-        }
-        return null;
-    }
-
-    /**
-     * @param array<string, mixed> $payload
-     */
-    private function resolveNullableDocType(array $payload): ?int
-    {
-        if (isset($payload['doc_type'])) {
-            return (int) $payload['doc_type'];
-        }
-
-        if (isset($payload['type'])) {
-            return (int) $payload['type'];
-        }
-
-        return null;
-    }
-
-    private function resolvePreferredString(mixed ...$values): string
-    {
-        foreach ($values as $value) {
-            if (! is_string($value)) {
-                continue;
-            }
-            $trimmed = trim($value);
-            if ($trimmed !== '') {
-                return $trimmed;
-            }
-        }
-        return '';
     }
 }

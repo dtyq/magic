@@ -11,10 +11,10 @@ import (
 
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
 	service "magic/internal/application/knowledge/knowledgebase/service"
-	documentdomain "magic/internal/domain/knowledge/document/service"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	docentity "magic/internal/domain/knowledge/document/entity"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/entity"
 	"magic/internal/pkg/thirdplatform"
 )
 
@@ -87,7 +87,7 @@ func TestTeamshareManageablePrefersRealKnowledgeCode(t *testing.T) {
 
 	domain := &recordingKnowledgeBaseDomainService{
 		filterListByQuery: true,
-		listKBS: []*knowledgebasedomain.KnowledgeBase{{
+		listKBS: []*kbentity.KnowledgeBase{{
 			Code:             testAppKnowledgeBaseCode,
 			Type:             2,
 			BusinessID:       testTeamshareKnowledgeID,
@@ -132,7 +132,7 @@ func TestTeamshareManageableProgressReturnsLocalTruthForRealCode(t *testing.T) {
 
 	domain := &recordingKnowledgeBaseDomainService{
 		filterListByQuery: true,
-		listKBS: []*knowledgebasedomain.KnowledgeBase{{
+		listKBS: []*kbentity.KnowledgeBase{{
 			Code:             testAppKnowledgeBaseCode,
 			Type:             2,
 			BusinessID:       testTeamshareKnowledgeID,
@@ -155,6 +155,40 @@ func TestTeamshareManageableProgressReturnsLocalTruthForRealCode(t *testing.T) {
 	}
 	if len(list) != 1 || list[0].KnowledgeCode != testAppKnowledgeBaseCode || list[0].VectorStatus != 2 {
 		t.Fatalf("unexpected progress result: %#v", list)
+	}
+}
+
+func TestTeamshareManageableProgressTreatsEmptyImportedKnowledgeAsCompleted(t *testing.T) {
+	t.Parallel()
+
+	domain := &recordingKnowledgeBaseDomainService{
+		filterListByQuery: true,
+		listKBS: []*kbentity.KnowledgeBase{{
+			Code:             testAppKnowledgeBaseCode,
+			Type:             2,
+			BusinessID:       testTeamshareKnowledgeID,
+			Name:             "空知识库",
+			Description:      "no docs",
+			OrganizationCode: testOrganizationCode1,
+			ExpectedNum:      0,
+			CompletedNum:     0,
+		}},
+	}
+	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, nil, nil, nil, effectiveEmbeddingModel)
+
+	list, err := app.TeamshareManageableProgress(context.Background(), &kbdto.TeamshareManageableProgressInput{
+		OrganizationCode: testOrganizationCode1,
+		UserID:           testKnowledgeBaseUpdater,
+		KnowledgeCodes:   []string{testAppKnowledgeBaseCode},
+	})
+	if err != nil {
+		t.Fatalf("TeamshareManageableProgress returned error: %v", err)
+	}
+	if len(list) != 1 || list[0].KnowledgeCode != testAppKnowledgeBaseCode {
+		t.Fatalf("unexpected progress result: %#v", list)
+	}
+	if list[0].VectorStatus != 2 || list[0].ExpectedNum != 0 || list[0].CompletedNum != 0 {
+		t.Fatalf("expected empty imported knowledge to be completed, got %#v", list[0])
 	}
 }
 
@@ -203,7 +237,7 @@ func TestTeamshareManageableProgressResolvesImportedKnowledgeByTempCode(t *testi
 
 	domain := &recordingKnowledgeBaseDomainService{
 		filterListByQuery: true,
-		listKBS: []*knowledgebasedomain.KnowledgeBase{{
+		listKBS: []*kbentity.KnowledgeBase{{
 			Code:             testAppKnowledgeBaseCode,
 			Type:             2,
 			BusinessID:       testTeamshareKnowledgeID,
@@ -271,7 +305,7 @@ func TestTeamshareStartVectorCreatesKnowledgeWithoutImmediateSync(t *testing.T) 
 			Name:            "Teamshare 知识库",
 			Description:     "首次导入",
 		}},
-		expandResults: []*documentdomain.File{{
+		expandResults: []*docentity.File{{
 			Type:            "third_platform",
 			Name:            "文档-1",
 			ThirdID:         "FILE-1",
@@ -283,7 +317,7 @@ func TestTeamshareStartVectorCreatesKnowledgeWithoutImmediateSync(t *testing.T) 
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, nil, effectiveEmbeddingModel)
 	app.SetSourceBindingRepository(sourceBindingRepo)
 	app.SetThirdPlatformExpander(expander)
-	app.SetOwnerGrantPort(ownerGrantPort)
+	app.SetKnowledgeBasePermissionWriter(ownerGrantPort)
 	app.SetOfficialOrganizationMemberChecker(&recordingKnowledgeBasePermissionReader{official: false})
 
 	result, err := app.TeamshareStartVector(context.Background(), &kbdto.TeamshareStartVectorInput{
@@ -343,7 +377,7 @@ func TestTeamshareStartVectorUpsertsByBusinessIDWithoutDuplicateCreate(t *testin
 			Name:            "Teamshare 知识库",
 			Description:     "首次导入",
 		}},
-		expandResults: []*documentdomain.File{{
+		expandResults: []*docentity.File{{
 			Type:            "third_platform",
 			Name:            "文档-1",
 			ThirdID:         "FILE-1",
@@ -355,7 +389,7 @@ func TestTeamshareStartVectorUpsertsByBusinessIDWithoutDuplicateCreate(t *testin
 	app := service.NewKnowledgeBaseAppServiceForTest(t, domain, docManager, nil, nil, effectiveEmbeddingModel)
 	app.SetSourceBindingRepository(sourceBindingRepo)
 	app.SetThirdPlatformExpander(expander)
-	app.SetOwnerGrantPort(ownerGrantPort)
+	app.SetKnowledgeBasePermissionWriter(ownerGrantPort)
 
 	if _, err := app.TeamshareStartVector(context.Background(), &kbdto.TeamshareStartVectorInput{
 		OrganizationCode: testOrganizationCode1,
@@ -369,7 +403,7 @@ func TestTeamshareStartVectorUpsertsByBusinessIDWithoutDuplicateCreate(t *testin
 	existing.Description = "旧描述"
 	existing.RetrieveConfig = nil
 	existing.FragmentConfig = nil
-	domain.listKBS = []*knowledgebasedomain.KnowledgeBase{existing}
+	domain.listKBS = []*kbentity.KnowledgeBase{existing}
 	domain.savedKB = nil
 	ownerGrantPort.lastKnowledgeBaseCode = ""
 	expander.knowledgeBases = []thirdplatform.KnowledgeBaseItem{{
@@ -395,8 +429,8 @@ func TestTeamshareStartVectorUpsertsByBusinessIDWithoutDuplicateCreate(t *testin
 	if domain.updatedKB.RetrieveConfig == nil || domain.updatedKB.FragmentConfig == nil {
 		t.Fatalf("expected updated knowledge base configs normalized, got %#v", domain.updatedKB)
 	}
-	if ownerGrantPort.lastKnowledgeBaseCode != "" {
-		t.Fatalf("expected update path not to grant owner again, got %q", ownerGrantPort.lastKnowledgeBaseCode)
+	if ownerGrantPort.lastKnowledgeBaseCode != existing.Code {
+		t.Fatalf("expected update path to refresh owner grant, got %q", ownerGrantPort.lastKnowledgeBaseCode)
 	}
 }
 
@@ -416,7 +450,7 @@ func newTeamshareTestRedis(t *testing.T) (*miniredis.Miniredis, *redis.Client) {
 
 type teamshareKnowledgeExpander struct {
 	knowledgeBases   []thirdplatform.KnowledgeBaseItem
-	expandResults    []*documentdomain.File
+	expandResults    []*docentity.File
 	err              error
 	lastListOrg      string
 	lastListUser     string
@@ -430,7 +464,7 @@ func (e *teamshareKnowledgeExpander) Expand(
 	organizationCode string,
 	userID string,
 	documentFiles []map[string]any,
-) ([]*documentdomain.File, error) {
+) ([]*docentity.File, error) {
 	e.lastExpandOrg = organizationCode
 	e.lastExpandUser = userID
 	e.lastDocumentFile = append([]map[string]any(nil), documentFiles...)
@@ -440,21 +474,39 @@ func (e *teamshareKnowledgeExpander) Expand(
 	return e.expandResults, nil
 }
 
+func (e *teamshareKnowledgeExpander) Resolve(context.Context, thirdplatform.DocumentResolveInput) (*thirdplatform.DocumentResolveResult, error) {
+	if e.err != nil {
+		return nil, e.err
+	}
+	return &thirdplatform.DocumentResolveResult{}, nil
+}
+
 func (e *teamshareKnowledgeExpander) ListKnowledgeBases(
 	_ context.Context,
-	organizationCode string,
-	userID string,
+	input thirdplatform.KnowledgeBaseListInput,
 ) ([]thirdplatform.KnowledgeBaseItem, error) {
-	e.lastListOrg = organizationCode
-	e.lastListUser = userID
+	e.lastListOrg = input.OrganizationCode
+	e.lastListUser = input.UserID
 	if e.err != nil {
 		return nil, e.err
 	}
 	return append([]thirdplatform.KnowledgeBaseItem(nil), e.knowledgeBases...), nil
 }
 
-func (e *teamshareKnowledgeExpander) ListTreeNodes(context.Context, string, string, string, string) ([]thirdplatform.TreeNode, error) {
-	return nil, nil
+func (e *teamshareKnowledgeExpander) ListTreeNodes(context.Context, thirdplatform.TreeNodeListInput) ([]thirdplatform.TreeNode, error) {
+	nodes := make([]thirdplatform.TreeNode, 0, len(e.expandResults))
+	for _, file := range e.expandResults {
+		if file == nil {
+			continue
+		}
+		nodes = append(nodes, thirdplatform.TreeNode{
+			KnowledgeBaseID: file.KnowledgeBaseID,
+			ThirdFileID:     file.ThirdID,
+			Name:            file.Name,
+			Extension:       firstNonEmpty(file.Extension, "md"),
+		})
+	}
+	return nodes, nil
 }
 
 type teamshareTempCodeMapperStub struct {

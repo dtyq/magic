@@ -8,7 +8,10 @@ declare(strict_types=1);
 namespace HyperfTest\Cases\Application\Kernel;
 
 use App\Infrastructure\Rpc\Health\HeartbeatStatusService;
+use App\Infrastructure\Rpc\JsonRpc\RpcClientHealthSnapshot;
 use App\Infrastructure\Rpc\JsonRpc\RpcClientManager;
+use App\Infrastructure\Rpc\Lifecycle\GoEngineSupervisor;
+use App\Infrastructure\Rpc\Lifecycle\GoEngineSupervisorSnapshot;
 use Hyperf\Contract\ConfigInterface;
 use Mockery;
 use PHPUnit\Framework\TestCase;
@@ -38,6 +41,8 @@ class HeartbeatStatusServiceTest extends TestCase
         $this->assertSame(200, $result['httpCode']);
         $this->assertTrue($result['checks']['php_up']);
         $this->assertFalse($result['checks']['rpc_client_enabled']);
+        $this->assertFalse($result['meta']['supervisor']['enabled']);
+        $this->assertFalse($result['meta']['supervisor']['running']);
     }
 
     public function testInspectReturnsStartingWithinStartupGraceWhenGoUnavailable(): void
@@ -48,12 +53,7 @@ class HeartbeatStatusServiceTest extends TestCase
                 'socket_path' => '/tmp/heartbeat-starting.sock',
                 'heartbeat_startup_grace_seconds' => 45,
             ],
-            [
-                'running' => true,
-                'is_connected' => false,
-                'has_ever_connected' => false,
-                'started_at_unix' => time() - 10,
-            ]
+            new RpcClientHealthSnapshot(running: true, startedAt: time() - 10)
         );
 
         $result = $service->inspect();
@@ -75,12 +75,7 @@ class HeartbeatStatusServiceTest extends TestCase
                 'socket_path' => '/tmp/heartbeat-down.sock',
                 'heartbeat_startup_grace_seconds' => 45,
             ],
-            [
-                'running' => true,
-                'is_connected' => false,
-                'has_ever_connected' => false,
-                'started_at_unix' => time() - 120,
-            ]
+            new RpcClientHealthSnapshot(running: true, startedAt: time() - 120)
         );
 
         $result = $service->inspect();
@@ -101,12 +96,7 @@ class HeartbeatStatusServiceTest extends TestCase
                 'socket_path' => '/tmp/heartbeat-loop-not-running.sock',
                 'heartbeat_startup_grace_seconds' => 45,
             ],
-            [
-                'running' => false,
-                'is_connected' => false,
-                'has_ever_connected' => false,
-                'started_at_unix' => time() - 10,
-            ]
+            new RpcClientHealthSnapshot(startedAt: time() - 10)
         );
 
         $result = $service->inspect();
@@ -126,12 +116,7 @@ class HeartbeatStatusServiceTest extends TestCase
                 'socket_path' => '/tmp/heartbeat-degraded.sock',
                 'heartbeat_startup_grace_seconds' => 45,
             ],
-            [
-                'running' => true,
-                'is_connected' => false,
-                'has_ever_connected' => true,
-                'started_at_unix' => time() - 120,
-            ]
+            new RpcClientHealthSnapshot(running: true, startedAt: time() - 120, hasEverConnected: true)
         );
 
         $result = $service->inspect();
@@ -153,12 +138,12 @@ class HeartbeatStatusServiceTest extends TestCase
                 'socket_path' => '/tmp/heartbeat-ready.sock',
                 'heartbeat_startup_grace_seconds' => 45,
             ],
-            [
-                'running' => true,
-                'is_connected' => true,
-                'has_ever_connected' => true,
-                'started_at_unix' => time() - 120,
-            ]
+            new RpcClientHealthSnapshot(
+                running: true,
+                isConnected: true,
+                startedAt: time() - 120,
+                hasEverConnected: true
+            )
         );
 
         $result = $service->inspect();
@@ -170,10 +155,14 @@ class HeartbeatStatusServiceTest extends TestCase
         $this->assertTrue($result['checks']['rpc_connected']);
         $this->assertTrue($result['checks']['socket_connectable']);
         $this->assertTrue($result['checks']['go_alive']);
+        $this->assertFalse($result['meta']['supervisor']['enabled']);
+        $this->assertFalse($result['meta']['supervisor']['running']);
     }
 
-    private function createService(array $ipcConfig, ?array $snapshot = null): HeartbeatStatusService
-    {
+    private function createService(
+        array $ipcConfig,
+        ?RpcClientHealthSnapshot $snapshot = null,
+    ): HeartbeatStatusService {
         $config = Mockery::mock(ConfigInterface::class);
         $config->shouldReceive('get')
             ->once()
@@ -182,13 +171,18 @@ class HeartbeatStatusServiceTest extends TestCase
 
         $manager = Mockery::mock(RpcClientManager::class);
         if (! (bool) ($ipcConfig['rpc_client_enabled'] ?? false)) {
-            $manager->shouldNotReceive('getHealthSnapshot');
+            $manager->shouldNotReceive('healthSnapshot');
         } else {
-            $manager->shouldReceive('getHealthSnapshot')
+            $manager->shouldReceive('healthSnapshot')
                 ->once()
-                ->andReturn($snapshot ?? []);
+                ->andReturn($snapshot ?? new RpcClientHealthSnapshot());
         }
 
-        return new HeartbeatStatusService($config, $manager);
+        $supervisor = Mockery::mock(GoEngineSupervisor::class);
+        $supervisor->shouldReceive('snapshot')
+            ->once()
+            ->andReturn(new GoEngineSupervisorSnapshot());
+
+        return new HeartbeatStatusService($config, $manager, $supervisor);
     }
 }

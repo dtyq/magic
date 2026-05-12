@@ -326,8 +326,8 @@ class StreamListenerService:
         if StreamListenerService._should_suppress_tool_events(event, agent_context):
             return
 
-        # ask_user manages its own AFTER message (sent after user reply or timeout)
-        if getattr(event.data.result, "system", None) == "ASK_USER":
+        # USER_TOOL_CALL tools manage their own AFTER message (sent after frontend reply or timeout)
+        if getattr(event.data.result, "system", None) == "USER_TOOL_CALL":
             return
 
         # run_sdk_snippet (v2) already sent its after message before script execution;

@@ -7,7 +7,8 @@ import (
 	"strings"
 
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/entity"
+	sourcebindingservice "magic/internal/domain/knowledge/sourcebinding/service"
 	thirdfilemappingpkg "magic/internal/pkg/thirdfilemapping"
 )
 
@@ -287,7 +288,7 @@ func (s *KnowledgeBaseDocumentFlowApp) repairKnowledgeSourceBindings(
 	groups []thirdfilemappingpkg.RepairGroup,
 	result *kbdto.RepairSourceBindingsResult,
 ) error {
-	repairResult, err := s.newSourceBindingRepairService().RepairKnowledge(ctx, sourcebindingdomain.RepairKnowledgeInput{
+	repairResult, err := s.newSourceBindingRepairService().RepairKnowledge(ctx, sourcebindingservice.RepairKnowledgeInput{
 		OrganizationCode:  result.OrganizationCode,
 		KnowledgeBaseCode: knowledgeCode,
 		UserID:            userID,
@@ -309,8 +310,8 @@ func (s *KnowledgeBaseDocumentFlowApp) repairKnowledgeSourceBindings(
 	return nil
 }
 
-func (s *KnowledgeBaseDocumentFlowApp) newSourceBindingRepairService() *sourcebindingdomain.RepairService {
-	return sourcebindingdomain.NewRepairService(
+func (s *KnowledgeBaseDocumentFlowApp) newSourceBindingRepairService() *sourcebindingservice.RepairService {
+	return sourcebindingservice.NewRepairService(
 		sourceBindingRepairKnowledgeLoader{app: s},
 		sourceBindingRepairRepository{repo: s.support.sourceBindingRepo},
 		sourceBindingRepairDocumentStore{app: s},
@@ -327,12 +328,12 @@ func (l sourceBindingRepairKnowledgeLoader) LoadRepairKnowledgeBase(
 	ctx context.Context,
 	knowledgeBaseCode string,
 	organizationCode string,
-) (*sourcebindingdomain.RepairKnowledgeBase, error) {
+) (*sourcebindingservice.RepairKnowledgeBase, error) {
 	kb, err := l.app.support.domainService.ShowByCodeAndOrg(ctx, knowledgeBaseCode, organizationCode)
 	if err != nil {
 		return nil, fmt.Errorf("show knowledge base by org: %w", err)
 	}
-	return &sourcebindingdomain.RepairKnowledgeBase{
+	return &sourcebindingservice.RepairKnowledgeBase{
 		Code:             kb.Code,
 		OrganizationCode: kb.OrganizationCode,
 		CreatedUID:       kb.CreatedUID,
@@ -405,7 +406,7 @@ type sourceBindingRepairBackfiller struct {
 
 func (b sourceBindingRepairBackfiller) BackfillDocumentCodeByThirdFile(
 	ctx context.Context,
-	input sourcebindingdomain.RepairBackfillInput,
+	input sourcebindingservice.RepairBackfillInput,
 ) (int64, error) {
 	rows, err := b.repair.BackfillDocumentCodeByThirdFile(ctx, thirdfilemappingpkg.BackfillByThirdFileInput{
 		OrganizationCode: input.OrganizationCode,

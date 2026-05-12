@@ -27,6 +27,7 @@ return [
 
         // Content Processing
         'visual_understanding' => 'Visual Understanding',
+        'video_understanding' => 'Video Understanding',
         'convert_to_markdown' => 'Convert to Markdown',
         'voice_understanding' => 'Voice Recognition',
         'summarize' => 'Summarize',
@@ -34,8 +35,6 @@ return [
         'create_slide' => 'Create Slide',
         'create_slide_project' => 'Create Slide Project',
         'create_dashboard_project' => 'Create Dashboard',
-        'update_dashboard_template' => 'Update Dashboard Template',
-        'backup_dashboard_template' => 'Backup Dashboard Template',
         'finish_dashboard_task' => 'Finish Dashboard Task',
 
         // System Execution
@@ -72,6 +71,7 @@ return [
 
         // Content Processing
         'visual_understanding' => 'Visual understanding tool, analyzes and interprets image content, supports JPEG, PNG, GIF and other formats, suitable for image recognition description, chart analysis, text extraction, multi-image comparison and other scenarios',
+        'video_understanding' => 'Video understanding tool, analyzes and interprets video content, suitable for frame description, motion and scene understanding, timeline-related reasoning and similar scenarios',
         'convert_to_markdown' => 'Document format conversion tool, converts documents to Markdown format and saves to specified location. Supports multiple file types: PDF, Word, Excel, PowerPoint, images, Jupyter notebooks, etc',
         'voice_understanding' => 'Speech recognition tool, converts audio files to text, supports wav, mp3, ogg, m4a and other formats, can enable speaker information recognition function',
         'summarize' => 'Information refining tool, improves text information density, removes redundant content to make it more structured, supports custom refining requirements and target length settings',
@@ -79,8 +79,6 @@ return [
         'create_slide' => 'Slide creation tool, generates HTML slides and executes custom JavaScript analysis, supports layout checking and element boundary validation',
         'create_slide_project' => 'Slide project creation tool, automatically creates complete project structure, includes presentation controller, configuration files, resource folders and communication scripts',
         'create_dashboard_project' => 'Data dashboard project creation tool, copies complete data dashboard framework from template directory, includes HTML, CSS, JavaScript and chart components',
-        'update_dashboard_template' => 'Dashboard template update tool, syncs dashboard.js, index.css, index.html and config.js files from template directory to existing project',
-        'backup_dashboard_template' => 'Dashboard template backup recovery tool, restores backup version of template files for specified project, implements swapping of current files and backup files',
         'finish_dashboard_task' => 'Dashboard project completion tool, automates completion of map and data source configuration, includes GeoJSON download, HTML configuration update and data file scanning',
 
         // System Execution

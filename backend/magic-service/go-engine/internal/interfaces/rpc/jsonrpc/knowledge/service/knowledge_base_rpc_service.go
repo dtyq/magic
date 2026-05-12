@@ -14,10 +14,12 @@ import (
 	knowledgebaseapp "magic/internal/application/knowledge/knowledgebase/service"
 	apprebuild "magic/internal/application/knowledge/rebuild"
 	rebuilddto "magic/internal/application/knowledge/rebuild/dto"
+	revectorizeshared "magic/internal/application/knowledge/shared/revectorize"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/interfaces/rpc/jsonrpc/knowledge/dto"
 	"magic/internal/pkg/ctxmeta"
 	jsonrpc "magic/internal/pkg/jsonrpc"
+	"magic/internal/pkg/runguard"
 )
 
 var (
@@ -27,7 +29,6 @@ var (
 	errRebuildScopeInvalid                     = errors.New("invalid rebuild scope")
 	errRebuildModeInvalid                      = errors.New("invalid rebuild mode")
 	errUnexpectedKnowledgeBaseListResultType   = errors.New("unexpected knowledge base list result type")
-	errTeamshareKnowledgeCodeRequired          = errors.New("teamshare start vector missing knowledge code")
 )
 
 type knowledgeBaseSaveProcessQuery interface {
@@ -58,12 +59,19 @@ type knowledgeBaseDestroyCommand interface {
 	Destroy(ctx context.Context, code, orgCode, userID string) error
 }
 
+type knowledgeBasePermissionRebuildCommand interface {
+	RebuildPermissions(ctx context.Context, input *kbdto.RebuildKnowledgeBasePermissionsInput) (*kbdto.RebuildKnowledgeBasePermissionsResult, error)
+}
+
 type knowledgeBaseRepairCommand interface {
 	RepairSourceBindings(ctx context.Context, input *kbdto.RepairSourceBindingsInput) (*kbdto.RepairSourceBindingsResult, error)
 }
 
 type knowledgeBaseTeamshareStartVectorCommand interface {
-	TeamshareStartVector(ctx context.Context, input *kbdto.TeamshareStartVectorInput) (*kbdto.TeamshareStartVectorResult, error)
+	TeamshareStartVector(
+		ctx context.Context,
+		input *revectorizeshared.TeamshareStartInput,
+	) (*revectorizeshared.TeamshareStartResult, error)
 }
 
 type knowledgeBaseTeamshareManageableQuery interface {
@@ -107,22 +115,23 @@ type knowledgeBaseQueryAppProvider interface {
 
 // KnowledgeBaseRPCService 知识库 RPC 处理器
 type KnowledgeBaseRPCService struct {
-	saveProcessQuery knowledgeBaseSaveProcessQuery
-	showQuery        knowledgeBaseShowQuery
-	listQuery        knowledgeBaseListQuery
-	createCommand    knowledgeBaseCreateCommand
-	updateCommand    knowledgeBaseUpdateCommand
-	nodesCommand     knowledgeBaseSourceBindingNodesCommand
-	destroyCommand   knowledgeBaseDestroyCommand
-	repairCommand    knowledgeBaseRepairCommand
-	teamshareStart   knowledgeBaseTeamshareStartVectorCommand
-	teamshareList    knowledgeBaseTeamshareManageableQuery
-	teamshareShow    knowledgeBaseTeamshareManageableProgressQuery
-	rebuildPreparer  knowledgeBaseRebuildPreparer
-	documentCounter  knowledgeBaseDocumentCounter
-	rebuildTrigger   knowledgeBaseRebuildTrigger
-	rebuildCleaner   knowledgeBaseRebuildCleaner
-	logger           *logging.SugaredLogger
+	saveProcessQuery         knowledgeBaseSaveProcessQuery
+	showQuery                knowledgeBaseShowQuery
+	listQuery                knowledgeBaseListQuery
+	createCommand            knowledgeBaseCreateCommand
+	updateCommand            knowledgeBaseUpdateCommand
+	nodesCommand             knowledgeBaseSourceBindingNodesCommand
+	destroyCommand           knowledgeBaseDestroyCommand
+	permissionRebuildCommand knowledgeBasePermissionRebuildCommand
+	repairCommand            knowledgeBaseRepairCommand
+	teamshareStart           knowledgeBaseTeamshareStartVectorCommand
+	teamshareList            knowledgeBaseTeamshareManageableQuery
+	teamshareShow            knowledgeBaseTeamshareManageableProgressQuery
+	rebuildPreparer          knowledgeBaseRebuildPreparer
+	documentCounter          knowledgeBaseDocumentCounter
+	rebuildTrigger           knowledgeBaseRebuildTrigger
+	rebuildCleaner           knowledgeBaseRebuildCleaner
+	logger                   *logging.SugaredLogger
 }
 
 // NewKnowledgeBaseRPCService 创建知识库处理器
@@ -157,6 +166,9 @@ func NewKnowledgeBaseRPCService(
 	}
 	if destroyCommand, ok := appService.(knowledgeBaseDestroyCommand); ok {
 		svc.destroyCommand = destroyCommand
+	}
+	if permissionRebuildCommand, ok := appService.(knowledgeBasePermissionRebuildCommand); ok {
+		svc.permissionRebuildCommand = permissionRebuildCommand
 	}
 	if repairCommand, ok := appService.(knowledgeBaseRepairCommand); ok {
 		svc.repairCommand = repairCommand
@@ -209,25 +221,39 @@ func (h *KnowledgeBaseRPCService) SetDocumentCounter(counter knowledgeBaseDocume
 	h.documentCounter = counter
 }
 
+// SetTeamshareStartCommand 覆盖 Teamshare start-vector 对应的应用服务。
+//
+// RPC 层只负责协议映射，不再在这里串 knowledgebase app / rebuild app。
+// 生产环境会把这个入口替换成独立的 knowledge revectorize app。
+func (h *KnowledgeBaseRPCService) SetTeamshareStartCommand(command knowledgeBaseTeamshareStartVectorCommand) {
+	if h == nil || command == nil {
+		return
+	}
+	h.teamshareStart = command
+}
+
 // ==================== 新的强类型 RPC 方法 ====================
 
 // CreateRPC 创建知识库（RPC 版本）
 func (h *KnowledgeBaseRPCService) CreateRPC(ctx context.Context, req *dto.CreateKnowledgeBaseRequest) (*dto.KnowledgeBaseResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	input := &kbdto.CreateKnowledgeBaseInput{
-		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
-		UserID:           req.DataIsolation.UserID,
-		Code:             req.Code,
-		Name:             req.Name,
-		Description:      req.Description,
-		Type:             req.Type,
-		Model:            req.Model,
-		VectorDB:         req.VectorDB,
-		BusinessID:       req.BusinessID,
-		Icon:             req.Icon,
-		SourceType:       req.SourceType,
-		AgentCodes:       append([]string(nil), req.AgentCodes...),
-		EmbeddingConfig:  req.EmbeddingConfig,
-		SourceBindings:   toSourceBindingInputs(req.SourceBindings),
+		OrganizationCode:       req.DataIsolation.ResolveOrganizationCode(),
+		UserID:                 req.DataIsolation.UserID,
+		Code:                   req.Code,
+		Name:                   req.Name,
+		Description:            req.Description,
+		Type:                   req.Type,
+		Model:                  req.Model,
+		VectorDB:               req.VectorDB,
+		BusinessID:             req.BusinessID,
+		Icon:                   req.Icon,
+		SourceType:             req.SourceType,
+		AgentCodes:             append([]string(nil), req.AgentCodes...),
+		EmbeddingConfig:        req.EmbeddingConfig,
+		SourceBindings:         toSourceBindingInputs(req.SourceBindings),
+		LegacyDocumentFiles:    toLegacyDocumentFileInputs(req.DocumentFiles),
+		SourceBindingsProvided: req.SourceBindingsProvided,
 	}
 
 	if req.RetrieveConfig != nil {
@@ -240,7 +266,7 @@ func (h *KnowledgeBaseRPCService) CreateRPC(ctx context.Context, req *dto.Create
 
 	result, err := h.createCommand.Create(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to create knowledge base", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to create knowledge base", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -249,6 +275,7 @@ func (h *KnowledgeBaseRPCService) CreateRPC(ctx context.Context, req *dto.Create
 
 // UpdateRPC 更新知识库（RPC 版本）
 func (h *KnowledgeBaseRPCService) UpdateRPC(ctx context.Context, req *dto.UpdateKnowledgeBaseRequest) (*dto.KnowledgeBaseResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	input := &kbdto.UpdateKnowledgeBaseInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		UserID:           req.DataIsolation.UserID,
@@ -264,6 +291,10 @@ func (h *KnowledgeBaseRPCService) UpdateRPC(ctx context.Context, req *dto.Update
 		sourceBindings := toSourceBindingInputs(*req.SourceBindings)
 		input.SourceBindings = &sourceBindings
 	}
+	if req.DocumentFiles != nil {
+		documentFiles := toLegacyDocumentFileInputs(*req.DocumentFiles)
+		input.LegacyDocumentFiles = &documentFiles
+	}
 
 	if req.RetrieveConfig != nil {
 		input.RetrieveConfig = req.RetrieveConfig
@@ -275,7 +306,7 @@ func (h *KnowledgeBaseRPCService) UpdateRPC(ctx context.Context, req *dto.Update
 
 	result, err := h.updateCommand.Update(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to update knowledge base", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to update knowledge base", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -284,6 +315,7 @@ func (h *KnowledgeBaseRPCService) UpdateRPC(ctx context.Context, req *dto.Update
 
 // ShowRPC 查询知识库详情（RPC 版本）
 func (h *KnowledgeBaseRPCService) ShowRPC(ctx context.Context, req *dto.ShowKnowledgeBaseRequest) (*dto.KnowledgeBaseResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	result, err := h.showQuery.Show(
 		ctx,
 		req.Code,
@@ -299,6 +331,7 @@ func (h *KnowledgeBaseRPCService) ShowRPC(ctx context.Context, req *dto.ShowKnow
 
 // SaveProcessRPC 更新知识库向量化进度（RPC 版本）。
 func (h *KnowledgeBaseRPCService) SaveProcessRPC(ctx context.Context, req *dto.SaveProcessKnowledgeBaseRequest) (*dto.KnowledgeBaseResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	input := &kbdto.SaveProcessKnowledgeBaseInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		UserID:           req.DataIsolation.UserID,
@@ -309,7 +342,7 @@ func (h *KnowledgeBaseRPCService) SaveProcessRPC(ctx context.Context, req *dto.S
 
 	result, err := h.saveProcessQuery.SaveProcess(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to update knowledge base progress", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to update knowledge base progress", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -318,6 +351,7 @@ func (h *KnowledgeBaseRPCService) SaveProcessRPC(ctx context.Context, req *dto.S
 
 // ListRPC 查询知识库列表（RPC 版本）
 func (h *KnowledgeBaseRPCService) ListRPC(ctx context.Context, req *dto.ListKnowledgeBaseRequest) (*dto.KnowledgeBasePageResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	// PHP 以 type=0 表示"不过滤类型"，需要转换为 nil 以避免 AND type=0 过滤条件
 	var typeFilter *int
 	if req.Type != nil && *req.Type != 0 {
@@ -338,7 +372,7 @@ func (h *KnowledgeBaseRPCService) ListRPC(ctx context.Context, req *dto.ListKnow
 
 	result, err := h.listQuery.List(ctx, input)
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to list knowledge bases", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to list knowledge bases", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -360,72 +394,29 @@ func (h *KnowledgeBaseRPCService) ListRPC(ctx context.Context, req *dto.ListKnow
 	), nil
 }
 
-// TeamshareStartVectorRPC 触发 Teamshare 知识库本地接管与重建。
+// TeamshareStartVectorRPC 触发 Teamshare 知识库级批量重向量化。
+//
+// RPC 层只做协议适配，真正的知识库 prepare、文档异步调度和 session 进度编排
+// 统一下沉到 knowledge revectorize app，不再在这里补 trigger rebuild。
 func (h *KnowledgeBaseRPCService) TeamshareStartVectorRPC(
 	ctx context.Context,
 	req *dto.TeamshareStartVectorRequest,
 ) (*dto.TeamshareStartVectorResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	if h.teamshareStart == nil {
 		return nil, jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInternalError, "teamshare startVector handler not initialized", nil)
 	}
-	if h.rebuildTrigger == nil {
-		return nil, jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInternalError, "knowledge rebuild trigger not initialized", nil)
-	}
-	result, err := h.teamshareStart.TeamshareStartVector(ctx, &kbdto.TeamshareStartVectorInput{
+	result, err := h.teamshareStart.TeamshareStartVector(ctx, &revectorizeshared.TeamshareStartInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		UserID:           req.DataIsolation.UserID,
 		KnowledgeID:      req.KnowledgeID,
 	})
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to start teamshare vector", "error", err)
-		return nil, mapBusinessError(err)
-	}
-	runID, err := h.triggerTeamshareKnowledgeRebuild(
-		ctx,
-		req.DataIsolation.ResolveOrganizationCode(),
-		req.DataIsolation.UserID,
-		strings.TrimSpace(result.KnowledgeCode),
-	)
-	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to trigger teamshare rebuild", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to start teamshare vector", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
-	return &dto.TeamshareStartVectorResponse{ID: runID}, nil
-}
-
-func (h *KnowledgeBaseRPCService) triggerTeamshareKnowledgeRebuild(
-	ctx context.Context,
-	organizationCode string,
-	userID string,
-	knowledgeBaseCode string,
-) (string, error) {
-	if strings.TrimSpace(knowledgeBaseCode) == "" {
-		return "", errTeamshareKnowledgeCodeRequired
-	}
-
-	opts := apprebuild.NormalizeRunOptions(rebuilddto.RunOptions{
-		Scope: rebuilddto.Scope{
-			Mode:              rebuilddto.ScopeModeKnowledgeBase,
-			OrganizationCode:  strings.TrimSpace(organizationCode),
-			KnowledgeBaseCode: strings.TrimSpace(knowledgeBaseCode),
-			UserID:            strings.TrimSpace(userID),
-		},
-		Mode: rebuilddto.ModeAuto,
-	})
-	ctx = ctxmeta.WithBusinessParams(ctx, &ctxmeta.BusinessParams{
-		OrganizationCode: strings.TrimSpace(organizationCode),
-		UserID:           strings.TrimSpace(userID),
-		BusinessID:       strings.TrimSpace(knowledgeBaseCode),
-	})
-	result, err := h.rebuildTrigger.Trigger(ctx, opts)
-	if err != nil {
-		return "", fmt.Errorf("trigger teamshare rebuild: %w", err)
-	}
-	if result == nil {
-		return strings.TrimSpace(opts.ResumeRunID), nil
-	}
-	return strings.TrimSpace(result.RunID), nil
+	return &dto.TeamshareStartVectorResponse{ID: strings.TrimSpace(result.KnowledgeCode)}, nil
 }
 
 // TeamshareManageableRPC 返回当前用户可管理的 Teamshare 知识库。
@@ -433,6 +424,7 @@ func (h *KnowledgeBaseRPCService) TeamshareManageableRPC(
 	ctx context.Context,
 	req *dto.TeamshareManageableRequest,
 ) (*dto.TeamshareKnowledgeListResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	if h.teamshareList == nil {
 		return nil, jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInternalError, "teamshare manageable handler not initialized", nil)
 	}
@@ -441,7 +433,7 @@ func (h *KnowledgeBaseRPCService) TeamshareManageableRPC(
 		UserID:           req.DataIsolation.UserID,
 	})
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to list teamshare manageable knowledge bases", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to list teamshare manageable knowledge bases", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -453,6 +445,7 @@ func (h *KnowledgeBaseRPCService) TeamshareManageableProgressRPC(
 	ctx context.Context,
 	req *dto.TeamshareManageableProgressRequest,
 ) (*dto.TeamshareKnowledgeListResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	if h.teamshareShow == nil {
 		return nil, jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInternalError, "teamshare manageableProgress handler not initialized", nil)
 	}
@@ -462,7 +455,7 @@ func (h *KnowledgeBaseRPCService) TeamshareManageableProgressRPC(
 		KnowledgeCodes:   append([]string(nil), req.KnowledgeCodes...),
 	})
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to query teamshare manageable progress", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to query teamshare manageable progress", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
@@ -474,6 +467,7 @@ func (h *KnowledgeBaseRPCService) ListSourceBindingNodesRPC(
 	ctx context.Context,
 	req *dto.ListSourceBindingNodesRequest,
 ) (*dto.ListSourceBindingNodesResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	result, err := h.nodesCommand.ListSourceBindingNodes(ctx, &kbdto.ListSourceBindingNodesInput{
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		UserID:           req.DataIsolation.UserID,
@@ -509,24 +503,54 @@ func (h *KnowledgeBaseRPCService) ListSourceBindingNodesRPC(
 
 // DestroyRPC 删除知识库（RPC 版本）
 func (h *KnowledgeBaseRPCService) DestroyRPC(ctx context.Context, req *dto.DestroyKnowledgeBaseRequest) (*map[string]bool, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	if err := h.destroyCommand.Destroy(
 		ctx,
 		req.Code,
 		req.DataIsolation.ResolveOrganizationCode(),
 		req.DataIsolation.UserID,
 	); err != nil {
-		h.logger.ErrorContext(ctx, "Failed to destroy knowledge base", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to destroy knowledge base", "error", err)
 		return nil, mapBusinessError(err)
 	}
 
 	return &map[string]bool{"success": true}, nil
 }
 
-// RebuildRPC 手动触发知识库重建（异步）。
+// RebuildPermissionsRPC 补齐知识库权限。
+func (h *KnowledgeBaseRPCService) RebuildPermissionsRPC(
+	ctx context.Context,
+	req *dto.RebuildKnowledgeBasePermissionsRequest,
+) (*dto.RebuildKnowledgeBasePermissionsResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
+	if h.permissionRebuildCommand == nil {
+		return nil, jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInternalError, "knowledge permission rebuild handler not initialized", nil)
+	}
+
+	result, err := h.permissionRebuildCommand.RebuildPermissions(ctx, &kbdto.RebuildKnowledgeBasePermissionsInput{
+		OperatorOrganizationCode:  req.DataIsolation.ResolveOrganizationCode(),
+		OperatorUserID:            req.DataIsolation.UserID,
+		KnowledgeOrganizationCode: strings.TrimSpace(req.KnowledgeOrganizationCode),
+		KnowledgeBaseCodes:        append([]string(nil), req.KnowledgeBaseCodes...),
+		Limit:                     req.Limit,
+	})
+	if err != nil {
+		h.logger.KnowledgeErrorContext(ctx, "Failed to rebuild knowledge base permissions", "error", err)
+		return nil, mapBusinessError(err)
+	}
+
+	return &dto.RebuildKnowledgeBasePermissionsResponse{
+		Scanned:     result.Scanned,
+		Initialized: result.Initialized,
+	}, nil
+}
+
+// RebuildRPC 手动触发知识库重建。
 func (h *KnowledgeBaseRPCService) RebuildRPC(
 	ctx context.Context,
 	req *dto.RebuildKnowledgeBaseRequest,
 ) (*dto.RebuildKnowledgeBaseResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	if h.rebuildTrigger == nil {
 		return nil, jsonrpc.NewBusinessErrorWithMessage(jsonrpc.ErrCodeInternalError, "knowledge rebuild trigger not initialized", nil)
 	}
@@ -559,12 +583,45 @@ func (h *KnowledgeBaseRPCService) RebuildRPC(
 	opts.ResumeRunID = generateAsyncRebuildRunID(opts.ResumeRunID)
 	ctx = ctxmeta.WithBusinessParams(ctx, buildRebuildBusinessParams(req, scope))
 	normalized := apprebuild.NormalizeRunOptions(opts)
-	h.logRebuildRPCAccepted(ctx, scope, normalized)
-	h.runKnowledgeRebuildInBackground(ctx, req, scope, opts, normalized)
+	ctx = context.WithValue(ctx, asyncTaskRunIDContextKey{}, normalized.ResumeRunID)
+	fields := rebuildRPCLogFields(
+		scope,
+		"run_id", normalized.ResumeRunID,
+		"requested_mode", string(normalized.Mode),
+		"target_model", normalized.TargetModel,
+		"target_dimension", normalized.TargetDimension,
+		"concurrency", normalized.Concurrency,
+		"batch_size", normalized.BatchSize,
+		"retry", normalized.Retry,
+	)
+	if err := h.prepareKnowledgeRebuild(ctx, req, scope); err != nil {
+		return nil, mapBusinessError(err)
+	}
+
+	h.logger.InfoContext(ctx, "Knowledge rebuild trigger started", fields...)
+	triggerResult, err := h.rebuildTrigger.Trigger(ctx, opts)
+	if err != nil {
+		h.logger.KnowledgeErrorContext(ctx, "Failed to trigger knowledge rebuild", appendBackgroundErrorField(fields, err)...)
+		return nil, mapBusinessError(err)
+	}
+	runID := normalized.ResumeRunID
+	status := ""
+	if triggerResult != nil {
+		runID = strings.TrimSpace(triggerResult.RunID)
+		status = triggerResult.Status
+	}
+	finishFields := rebuildRPCLogFields(
+		scope,
+		"run_id", runID,
+		"status", status,
+		"requested_mode", string(normalized.Mode),
+		"target_model", normalized.TargetModel,
+	)
+	h.logger.InfoContext(ctx, "Knowledge rebuild trigger finished", finishFields...)
 
 	return &dto.RebuildKnowledgeBaseResponse{
-		Status:        asyncTaskStatusAccepted,
-		RunID:         normalized.ResumeRunID,
+		Status:        status,
+		RunID:         runID,
 		Scope:         string(scope.Mode),
 		RequestedMode: string(normalized.Mode),
 		TargetModel:   normalized.TargetModel,
@@ -575,31 +632,8 @@ const (
 	rebuildRPCBaseLogFieldCount       = 8
 	asyncTaskStatusAccepted           = "accepted"
 	repairSourceBindingsTaskIDPrefix  = "repair-source-bindings-"
-	knowledgeRebuildAsyncTaskName     = "knowledge rebuild"
 	repairSourceBindingsAsyncTaskName = "repair source bindings"
 )
-
-func (h *KnowledgeBaseRPCService) logRebuildRPCAccepted(
-	ctx context.Context,
-	scope rebuilddto.Scope,
-	normalized rebuilddto.RunOptions,
-) {
-	h.logger.InfoContext(
-		ctx,
-		"Knowledge rebuild RPC accepted",
-		rebuildRPCLogFields(
-			scope,
-			"status", asyncTaskStatusAccepted,
-			"run_id", normalized.ResumeRunID,
-			"requested_mode", string(normalized.Mode),
-			"target_model", normalized.TargetModel,
-			"target_dimension", normalized.TargetDimension,
-			"concurrency", normalized.Concurrency,
-			"batch_size", normalized.BatchSize,
-			"retry", normalized.Retry,
-		)...,
-	)
-}
 
 func (h *KnowledgeBaseRPCService) prepareKnowledgeRebuild(
 	ctx context.Context,
@@ -619,7 +653,7 @@ func (h *KnowledgeBaseRPCService) prepareKnowledgeRebuild(
 		req.DataIsolation.ResolveOrganizationCode(),
 		knowledgeBaseRebuildScopeFromDTO(scope),
 	); err != nil {
-		h.logger.ErrorContext(ctx, "Failed to prepare knowledge rebuild", appendBackgroundErrorField(fields, err)...)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to prepare knowledge rebuild", appendBackgroundErrorField(fields, err)...)
 		return fmt.Errorf("prepare knowledge rebuild: %w", err)
 	}
 	h.logger.InfoContext(ctx, "Knowledge rebuild prepare finished", fields...)
@@ -660,6 +694,7 @@ func (h *KnowledgeBaseRPCService) RepairSourceBindingsRPC(
 	ctx context.Context,
 	req *dto.RepairSourceBindingsRequest,
 ) (*dto.RepairSourceBindingsResponse, error) {
+	ctx = withAccessActorFromDataIsolation(ctx, req.DataIsolation)
 	input := &kbdto.RepairSourceBindingsInput{
 		OrganizationCode:  req.DataIsolation.ResolveOrganizationCode(),
 		UserID:            req.DataIsolation.UserID,
@@ -678,47 +713,6 @@ func (h *KnowledgeBaseRPCService) RepairSourceBindingsRPC(
 		OrganizationCodes: append([]string(nil), input.OrganizationCodes...),
 		ThirdPlatformType: input.ThirdPlatformType,
 	}, nil
-}
-
-func (h *KnowledgeBaseRPCService) runKnowledgeRebuildInBackground(
-	ctx context.Context,
-	req *dto.RebuildKnowledgeBaseRequest,
-	scope rebuilddto.Scope,
-	opts rebuilddto.RunOptions,
-	normalized rebuilddto.RunOptions,
-) {
-	bgCtx := ctxmeta.Detach(ctx)
-	baseFields := rebuildRPCLogFields(
-		scope,
-		"run_id", normalized.ResumeRunID,
-		"requested_mode", string(normalized.Mode),
-		"target_model", normalized.TargetModel,
-	)
-	go func() {
-		defer h.recoverAsyncTask(bgCtx, knowledgeRebuildAsyncTaskName, baseFields...)
-
-		asyncCtx := context.WithValue(bgCtx, asyncTaskRunIDContextKey{}, normalized.ResumeRunID)
-		h.logger.InfoContext(asyncCtx, "Knowledge rebuild background task started", baseFields...)
-		if err := h.prepareKnowledgeRebuild(asyncCtx, req, scope); err != nil {
-			return
-		}
-
-		h.logger.InfoContext(asyncCtx, "Knowledge rebuild trigger started", baseFields...)
-		triggerResult, err := h.rebuildTrigger.Trigger(asyncCtx, opts)
-		if err != nil {
-			h.logger.ErrorContext(asyncCtx, "Failed to trigger knowledge rebuild", appendBackgroundErrorField(baseFields, err)...)
-			return
-		}
-
-		finishFields := rebuildRPCLogFields(
-			scope,
-			"accepted_run_id", normalized.ResumeRunID,
-			"run_id", triggerResult.RunID,
-			"status", triggerResult.Status,
-		)
-		h.logger.InfoContext(asyncCtx, "Knowledge rebuild trigger finished", finishFields...)
-		h.logger.InfoContext(asyncCtx, "Knowledge rebuild background task finished", finishFields...)
-	}()
 }
 
 func (h *KnowledgeBaseRPCService) logRepairSourceBindingsAccepted(
@@ -741,12 +735,12 @@ func (h *KnowledgeBaseRPCService) runRepairSourceBindingsInBackground(
 	bgCtx := ctxmeta.Detach(ctx)
 	baseFields := repairSourceBindingsLogFields(input, taskID)
 	go func() {
-		defer h.recoverAsyncTask(bgCtx, repairSourceBindingsAsyncTaskName, baseFields...)
+		defer runguard.Recover(bgCtx, h.asyncTaskPanicOptions(repairSourceBindingsAsyncTaskName, baseFields...))
 
 		h.logger.InfoContext(bgCtx, "Repair source bindings background task started", baseFields...)
 		result, err := h.repairCommand.RepairSourceBindings(bgCtx, input)
 		if err != nil {
-			h.logger.ErrorContext(bgCtx, "Repair source bindings background task failed", appendBackgroundErrorField(baseFields, err)...)
+			h.logger.KnowledgeErrorContext(bgCtx, "Repair source bindings background task failed", appendBackgroundErrorField(baseFields, err)...)
 			return
 		}
 
@@ -794,13 +788,19 @@ func repairSourceBindingsLogFields(input *kbdto.RepairSourceBindingsInput, taskI
 	return append(fields, extra...)
 }
 
-func (h *KnowledgeBaseRPCService) recoverAsyncTask(ctx context.Context, taskName string, fields ...any) {
-	if recovered := recover(); recovered != nil {
-		h.logger.ErrorContext(
-			ctx,
-			fmt.Sprintf("%s background task panicked", taskName),
-			append(fields, "panic", recovered)...,
-		)
+func (h *KnowledgeBaseRPCService) asyncTaskPanicOptions(taskName string, fields ...any) runguard.Options {
+	guardFields := make([]any, 0, len(fields)+2)
+	guardFields = append(guardFields, fields...)
+	guardFields = append(guardFields, "task_kind", taskName)
+	return runguard.Options{
+		Scope:  "knowledge_base.background_task",
+		Policy: runguard.Continue,
+		Fields: guardFields,
+		OnPanic: func(ctx context.Context, report runguard.Report) {
+			if h.logger != nil {
+				h.logger.KnowledgeErrorContext(ctx, fmt.Sprintf("%s background task panicked", taskName), report.Fields...)
+			}
+		},
 	}
 }
 
@@ -846,7 +846,7 @@ func (h *KnowledgeBaseRPCService) RebuildCleanupRPC(
 		ForceDeleteNonEmpty: req.ForceDeleteNonEmpty,
 	})
 	if err != nil {
-		h.logger.ErrorContext(ctx, "Failed to cleanup rebuild collections", "error", err)
+		h.logger.KnowledgeErrorContext(ctx, "Failed to cleanup rebuild collections", "error", err)
 		return nil, mapBusinessError(err)
 	}
 	return cleanupResultToRPCResponse(result), nil
@@ -1001,6 +1001,14 @@ func toSourceBindingInputs(bindings []dto.SourceBindingPayload) []kbdto.SourceBi
 	return results
 }
 
+func toLegacyDocumentFileInputs(files []dto.JSONObject) []kbdto.LegacyDocumentFileInput {
+	results := make([]kbdto.LegacyDocumentFileInput, 0, len(files))
+	for _, file := range files {
+		results = append(results, kbdto.LegacyDocumentFileInput(maps.Clone(map[string]any(file))))
+	}
+	return results
+}
+
 func normalizeSourceBindingTargetTypePayload(targetType string) string {
 	switch strings.ToLower(strings.TrimSpace(targetType)) {
 	case "group", "folder":
@@ -1033,7 +1041,7 @@ func (h *KnowledgeBaseRPCService) lookupDocumentCounts(
 	counts, err := h.documentCounter.CountByKnowledgeBaseCodes(ctx, organizationCode, codes)
 	if err != nil {
 		if h.logger != nil {
-			h.logger.WarnContext(ctx, "Failed to count knowledge base documents", "organization_code", organizationCode, "error", err)
+			h.logger.KnowledgeWarnContext(ctx, "Failed to count knowledge base documents", "organization_code", organizationCode, "error", err)
 		}
 		return map[string]int64{}
 	}

@@ -141,6 +141,50 @@ func TestServerStart_IPCOnlyModeDoesNotListenOnHTTPPort(t *testing.T) {
 	}
 }
 
+func TestServerStart_IPCOnlyModeStartsBackgroundServicesAndRegistersRPC(t *testing.T) {
+	t.Parallel()
+
+	port := mustAllocateFreePort(t)
+	rpcStarted := make(chan struct{})
+	cleanupStarted := make(chan struct{})
+	cleanupCancelled := make(chan struct{})
+	rpcServer := &rpcServerStub{startCh: rpcStarted}
+	server := httpapi.NewServerWithDependencies(&httpapi.ServerDependencies{
+		Config: &httpapi.ServerConfig{
+			Enabled: false,
+			Host:    "127.0.0.1",
+			Port:    port,
+			Mode:    httpapi.ModeTest,
+			Env:     "dev",
+		},
+		CacheCleanupService: &cacheCleanupServiceStub{
+			started:    cleanupStarted,
+			cancelled:  cleanupCancelled,
+			waitForCtx: true,
+		},
+		InfraServices: infraServicesStub{},
+		Logger:        logging.New().Named("httpapi.test"),
+		Metrics:       metricsServiceStub{},
+		RPCServer:     rpcServer,
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Start(context.Background())
+	}()
+
+	waitForChannel(t, cleanupStarted, "cleanup start")
+	waitForChannel(t, rpcStarted, "rpc start")
+	assertNotListening(t, port)
+
+	if rpcServer.registered.Load() == 0 {
+		t.Fatal("expected rpc handlers to be registered in ipc-only mode")
+	}
+
+	stopServerForTest(t, server, errCh)
+	waitForChannel(t, cleanupCancelled, "cleanup cancel")
+}
+
 type warmupServiceStub struct {
 	started    chan struct{}
 	cancelled  chan struct{}
@@ -162,6 +206,27 @@ func (s *warmupServiceStub) WarmupRetrieval(ctx context.Context) error {
 	}
 	if s.waitCh != nil {
 		<-s.waitCh
+	}
+	return s.err
+}
+
+type cacheCleanupServiceStub struct {
+	started    chan struct{}
+	cancelled  chan struct{}
+	waitForCtx bool
+	err        error
+}
+
+func (s *cacheCleanupServiceStub) StartCleanupDaemon(ctx context.Context) error {
+	if s.started != nil {
+		close(s.started)
+	}
+	if s.waitForCtx {
+		<-ctx.Done()
+		if s.cancelled != nil {
+			close(s.cancelled)
+		}
+		return fmt.Errorf("cache cleanup context done: %w", context.Cause(ctx))
 	}
 	return s.err
 }
@@ -204,8 +269,9 @@ func (metricsServiceStub) Handler() gin.HandlerFunc {
 }
 
 type rpcServerStub struct {
-	startCh chan struct{}
-	started atomic.Int32
+	startCh    chan struct{}
+	started    atomic.Int32
+	registered atomic.Int32
 }
 
 func (s *rpcServerStub) Start() error {
@@ -220,7 +286,9 @@ func (*rpcServerStub) Close() error {
 	return nil
 }
 
-func (*rpcServerStub) RegisterHandler(string, jsonrpc.ServerHandler) {}
+func (s *rpcServerStub) RegisterHandler(string, jsonrpc.ServerHandler) {
+	s.registered.Add(1)
+}
 
 func newServerDependenciesForTest(port int) *httpapi.ServerDependencies {
 	return &httpapi.ServerDependencies{

@@ -27,6 +27,7 @@ return [
 
         // Pemprosesan Kandungan
         'visual_understanding' => 'Pemahaman Visual',
+        'video_understanding' => 'Pemahaman Video',
         'convert_to_markdown' => 'Tukar ke Markdown',
         'voice_understanding' => 'Pengecaman Suara',
         'summarize' => 'Ringkasan',
@@ -34,8 +35,6 @@ return [
         'create_slide' => 'Cipta Slaid',
         'create_slide_project' => 'Cipta Projek Slaid',
         'create_dashboard_project' => 'Cipta Dashboard',
-        'update_dashboard_template' => 'Kemas Kini Template Dashboard',
-        'backup_dashboard_template' => 'Sandaran Template Dashboard',
         'finish_dashboard_task' => 'Selesaikan Tugas Dashboard',
 
         // Pelaksanaan Sistem
@@ -72,6 +71,7 @@ return [
 
         // Pemprosesan Kandungan
         'visual_understanding' => 'Alat pemahaman visual, menganalisis dan mentafsir kandungan imej, menyokong JPEG, PNG, GIF dan format lain, sesuai untuk penerangan pengecaman imej, analisis carta, pengekstrakan teks, perbandingan berbilang imej dan senario lain',
+        'video_understanding' => 'Alat pemahaman video, menganalisis dan mentafsir kandungan video, sesuai untuk penerangan bingkai, pemahaman gerakan dan adegan, penaakulan berkait garis masa dan senario serupa',
         'convert_to_markdown' => 'Alat penukaran format dokumen, menukar dokumen ke format Markdown dan menyimpan ke lokasi yang ditentukan. Menyokong pelbagai jenis fail: PDF, Word, Excel, PowerPoint, imej, Jupyter notebooks, dll',
         'voice_understanding' => 'Alat pengecaman pertuturan, menukar fail audio ke teks, menyokong wav, mp3, ogg, m4a dan format lain, boleh membolehkan fungsi pengecaman maklumat penutur',
         'summarize' => 'Alat penapisan maklumat, meningkatkan kepadatan maklumat teks, menghapuskan kandungan berlebihan untuk menjadikannya lebih berstruktur, menyokong keperluan penapisan tersuai dan tetapan panjang sasaran',
@@ -79,8 +79,6 @@ return [
         'create_slide' => 'Alat penciptaan slaid, menjana slaid HTML dan melaksanakan analisis JavaScript tersuai, menyokong pemeriksaan susun atur dan pengesahan sempadan elemen',
         'create_slide_project' => 'Alat penciptaan projek slaid, mencipta struktur projek lengkap secara automatik, termasuk pengawal persembahan, fail konfigurasi, folder sumber dan skrip komunikasi',
         'create_dashboard_project' => 'Alat penciptaan projek dashboard data, menyalin rangka kerja dashboard data lengkap dari direktori templat, termasuk komponen HTML, CSS, JavaScript dan carta',
-        'update_dashboard_template' => 'Alat kemas kini templat dashboard, menyegerakkan fail dashboard.js, index.css, index.html dan config.js dari direktori templat ke projek sedia ada',
-        'backup_dashboard_template' => 'Alat pemulihan sandaran templat dashboard, memulihkan versi sandaran fail templat untuk projek yang ditentukan, melaksanakan pertukaran fail semasa dan fail sandaran',
         'finish_dashboard_task' => 'Alat penyiapan projek dashboard, mengautomasikan penyiapan konfigurasi peta dan sumber data, termasuk muat turun GeoJSON, kemas kini konfigurasi HTML dan pengimbasan fail data',
 
         // Pelaksanaan Sistem

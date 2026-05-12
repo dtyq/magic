@@ -3,6 +3,7 @@ package docparser_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +11,7 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
-	"magic/internal/domain/knowledge/document/service"
+	document "magic/internal/domain/knowledge/document/metadata"
 	parser "magic/internal/infrastructure/parser"
 )
 
@@ -34,6 +35,48 @@ func TestXlsxParser_Parse(t *testing.T) {
 	}
 	if !strings.Contains(out, "hello") {
 		t.Fatalf("expected cell content, got %q", out)
+	}
+}
+
+func TestXlsxParser_ParseDocumentRejectsTooManyRows(t *testing.T) {
+	t.Parallel()
+
+	f := excelize.NewFile()
+	_ = f.SetCellValue("Sheet1", "A1", "a")
+	_ = f.SetCellValue("Sheet1", "A2", "b")
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatalf("write buffer: %v", err)
+	}
+
+	p := parser.NewXlsxParserWithOCRAndLimits(nil, document.DefaultEmbeddedImageOCRLimit(), document.ResourceLimits{
+		MaxTabularRows:  1,
+		MaxTabularCells: 100,
+	})
+	_, err = p.ParseDocument(context.Background(), "large.xlsx", bytes.NewReader(buf.Bytes()), "xlsx")
+	if !errors.Is(err, document.ErrDocumentResourceLimitExceeded) {
+		t.Fatalf("expected resource limit error, got %v", err)
+	}
+}
+
+func TestXlsxParser_ParseDocumentRejectsTooManyCells(t *testing.T) {
+	t.Parallel()
+
+	f := excelize.NewFile()
+	_ = f.SetCellValue("Sheet1", "A1", "a")
+	_ = f.SetCellValue("Sheet1", "B1", "b")
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatalf("write buffer: %v", err)
+	}
+
+	p := parser.NewXlsxParserWithOCRAndLimits(nil, document.DefaultEmbeddedImageOCRLimit(), document.ResourceLimits{
+		MaxTabularRows:  100,
+		MaxTabularCells: 1,
+	})
+	_, err = p.ParseDocument(context.Background(), "large.xlsx", bytes.NewReader(buf.Bytes()), "xlsx")
+	if !errors.Is(err, document.ErrDocumentResourceLimitExceeded) {
+		t.Fatalf("expected resource limit error, got %v", err)
 	}
 }
 

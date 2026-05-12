@@ -1,16 +1,62 @@
 package fragapp
 
 import (
-	documentdomain "magic/internal/domain/knowledge/document/service"
+	"maps"
+
+	docentity "magic/internal/domain/knowledge/document/entity"
 	documentsplitter "magic/internal/domain/knowledge/document/splitter"
+	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragdomain "magic/internal/domain/knowledge/fragment/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	"magic/internal/domain/knowledge/shared"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 )
 
-func fragDocumentFileFromDomain(file *documentdomain.File) *fragdomain.File {
+func knowledgeBaseSnapshotFromDomain(kb *kbentity.KnowledgeBase) *sharedsnapshot.KnowledgeBaseRuntimeSnapshot {
+	if kb == nil {
+		return nil
+	}
+
+	snapshot := &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
+		Code:             kb.Code,
+		Name:             kb.Name,
+		OrganizationCode: kb.OrganizationCode,
+		Model:            kb.Model,
+		VectorDB:         kb.VectorDB,
+		CreatedUID:       kb.CreatedUID,
+		UpdatedUID:       kb.UpdatedUID,
+		RetrieveConfig:   shared.CloneRetrieveConfig(kb.RetrieveConfig),
+		FragmentConfig:   shared.CloneFragmentConfig(kb.FragmentConfig),
+		EmbeddingConfig:  shared.CloneEmbeddingConfig(kb.EmbeddingConfig),
+		ResolvedRoute:    sharedroute.CloneResolvedRoute(kb.ResolvedRoute),
+	}
+	return sharedsnapshot.NormalizeKnowledgeBaseSnapshotConfigs(snapshot)
+}
+
+func fragDocumentFileFromDomain(file *docentity.File) *fragmodel.DocumentFile {
 	if file == nil {
 		return nil
 	}
-	return &fragdomain.File{
+	return &fragmodel.DocumentFile{
+		Type:            file.Type,
+		Name:            file.Name,
+		URL:             file.URL,
+		FileKey:         file.FileKey,
+		Size:            file.Size,
+		Extension:       file.Extension,
+		ThirdID:         file.ThirdID,
+		SourceType:      file.SourceType,
+		ThirdFileType:   file.ThirdFileType,
+		KnowledgeBaseID: file.KnowledgeBaseID,
+	}
+}
+
+func domainDocumentFileFromFrag(file *fragmodel.DocumentFile) *docentity.File {
+	if file == nil {
+		return nil
+	}
+	return &docentity.File{
 		Type:            file.Type,
 		Name:            file.Name,
 		URL:             file.URL,
@@ -23,43 +69,56 @@ func fragDocumentFileFromDomain(file *documentdomain.File) *fragdomain.File {
 	}
 }
 
-func domainDocumentFileFromFrag(file *fragdomain.File) *documentdomain.File {
-	if file == nil {
-		return nil
-	}
-	return &documentdomain.File{
-		Type:            file.Type,
-		Name:            file.Name,
-		URL:             file.URL,
-		FileKey:         file.FileKey,
-		Size:            file.Size,
-		Extension:       file.Extension,
-		ThirdID:         file.ThirdID,
-		SourceType:      file.SourceType,
-		KnowledgeBaseID: file.KnowledgeBaseID,
-	}
-}
-
-func fragDocumentFromDomain(doc *documentdomain.KnowledgeBaseDocument) *fragdomain.KnowledgeBaseDocument {
+func fragDocumentFromDomain(doc *docentity.KnowledgeBaseDocument) *fragmodel.KnowledgeBaseDocument {
 	if doc == nil {
 		return nil
 	}
-	return &fragdomain.KnowledgeBaseDocument{
-		OrganizationCode:  doc.OrganizationCode,
-		KnowledgeBaseCode: doc.KnowledgeBaseCode,
-		Name:              doc.Name,
-		Code:              doc.Code,
-		DocType:           doc.DocType,
-		DocMetadata:       doc.DocMetadata,
+	return &fragmodel.KnowledgeBaseDocument{
+		KnowledgeDocumentSnapshot: sharedsnapshot.KnowledgeDocumentSnapshot{
+			OrganizationCode:  doc.OrganizationCode,
+			KnowledgeBaseCode: doc.KnowledgeBaseCode,
+			Name:              doc.Name,
+			Code:              doc.Code,
+			DocType:           doc.DocType,
+			DocMetadata:       cloneDocumentMetadata(doc.DocMetadata),
+			FragmentConfig:    shared.CloneFragmentConfig(doc.FragmentConfig),
+			UpdatedUID:        doc.UpdatedUID,
+		},
 		DocumentFile:      fragDocumentFileFromDomain(doc.DocumentFile),
 		ThirdPlatformType: doc.ThirdPlatformType,
 		ThirdFileID:       doc.ThirdFileID,
 		SyncStatus:        doc.SyncStatus,
 		EmbeddingModel:    doc.EmbeddingModel,
 		VectorDB:          doc.VectorDB,
-		RetrieveConfig:    doc.RetrieveConfig,
-		FragmentConfig:    doc.FragmentConfig,
-		EmbeddingConfig:   doc.EmbeddingConfig,
+		RetrieveConfig:    shared.CloneRetrieveConfig(doc.RetrieveConfig),
+		EmbeddingConfig:   shared.CloneEmbeddingConfig(doc.EmbeddingConfig),
+		WordCount:         doc.WordCount,
+		CreatedUID:        doc.CreatedUID,
+		CreatedAt:         doc.CreatedAt,
+		UpdatedAt:         doc.UpdatedAt,
+	}
+}
+
+func domainDocumentFromFrag(doc *fragmodel.KnowledgeBaseDocument) *docentity.KnowledgeBaseDocument {
+	if doc == nil {
+		return nil
+	}
+	return &docentity.KnowledgeBaseDocument{
+		OrganizationCode:  doc.OrganizationCode,
+		KnowledgeBaseCode: doc.KnowledgeBaseCode,
+		Name:              doc.Name,
+		Code:              doc.Code,
+		DocType:           doc.DocType,
+		DocMetadata:       cloneDocumentMetadata(doc.DocMetadata),
+		DocumentFile:      domainDocumentFileFromFrag(doc.DocumentFile),
+		ThirdPlatformType: doc.ThirdPlatformType,
+		ThirdFileID:       doc.ThirdFileID,
+		SyncStatus:        doc.SyncStatus,
+		EmbeddingModel:    doc.EmbeddingModel,
+		VectorDB:          doc.VectorDB,
+		RetrieveConfig:    shared.CloneRetrieveConfig(doc.RetrieveConfig),
+		FragmentConfig:    shared.CloneFragmentConfig(doc.FragmentConfig),
+		EmbeddingConfig:   shared.CloneEmbeddingConfig(doc.EmbeddingConfig),
 		WordCount:         doc.WordCount,
 		CreatedUID:        doc.CreatedUID,
 		UpdatedUID:        doc.UpdatedUID,
@@ -68,32 +127,11 @@ func fragDocumentFromDomain(doc *documentdomain.KnowledgeBaseDocument) *fragdoma
 	}
 }
 
-func domainDocumentFromFrag(doc *fragdomain.KnowledgeBaseDocument) *documentdomain.KnowledgeBaseDocument {
-	if doc == nil {
+func cloneDocumentMetadata(metadata map[string]any) map[string]any {
+	if len(metadata) == 0 {
 		return nil
 	}
-	return &documentdomain.KnowledgeBaseDocument{
-		OrganizationCode:  doc.OrganizationCode,
-		KnowledgeBaseCode: doc.KnowledgeBaseCode,
-		Name:              doc.Name,
-		Code:              doc.Code,
-		DocType:           doc.DocType,
-		DocMetadata:       doc.DocMetadata,
-		DocumentFile:      domainDocumentFileFromFrag(doc.DocumentFile),
-		ThirdPlatformType: doc.ThirdPlatformType,
-		ThirdFileID:       doc.ThirdFileID,
-		SyncStatus:        doc.SyncStatus,
-		EmbeddingModel:    doc.EmbeddingModel,
-		VectorDB:          doc.VectorDB,
-		RetrieveConfig:    doc.RetrieveConfig,
-		FragmentConfig:    doc.FragmentConfig,
-		EmbeddingConfig:   doc.EmbeddingConfig,
-		WordCount:         doc.WordCount,
-		CreatedUID:        doc.CreatedUID,
-		UpdatedUID:        doc.UpdatedUID,
-		CreatedAt:         doc.CreatedAt,
-		UpdatedAt:         doc.UpdatedAt,
-	}
+	return maps.Clone(metadata)
 }
 
 func previewSegmentConfigToSplitter(cfg fragdomain.PreviewSegmentConfig) documentsplitter.PreviewSegmentConfig {

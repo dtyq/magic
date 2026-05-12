@@ -9,17 +9,18 @@ import (
 	rebuilddto "magic/internal/application/knowledge/rebuild/dto"
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	domainrebuild "magic/internal/domain/knowledge/rebuild"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	"magic/internal/infrastructure/logging"
 )
 
 type cleanupMetaReaderStub struct {
-	meta domainrebuild.CollectionMeta
+	meta sharedroute.CollectionMeta
 	err  error
 }
 
-func (s cleanupMetaReaderStub) GetCollectionMeta(context.Context) (domainrebuild.CollectionMeta, error) {
+func (s cleanupMetaReaderStub) GetCollectionMeta(context.Context) (sharedroute.CollectionMeta, error) {
 	if s.err != nil {
-		return domainrebuild.CollectionMeta{}, s.err
+		return sharedroute.CollectionMeta{}, s.err
 	}
 	return s.meta, nil
 }
@@ -111,7 +112,7 @@ func TestCleanupServiceDryRunReport(t *testing.T) {
 	t.Parallel()
 
 	service := rebuildapp.NewCleanupService(
-		cleanupMetaReaderStub{meta: domainrebuild.CollectionMeta{PhysicalCollectionName: "magic_knowledge_active"}},
+		cleanupMetaReaderStub{meta: sharedroute.CollectionMeta{PhysicalCollectionName: "magic_knowledge_active"}},
 		&cleanupCoordinatorStub{
 			dualWriteState: &domainrebuild.VectorDualWriteState{RunID: "run-stale", Enabled: false},
 		},
@@ -172,7 +173,7 @@ func TestCleanupServiceForceDeleteNonEmpty(t *testing.T) {
 	t.Parallel()
 
 	service := rebuildapp.NewCleanupService(
-		cleanupMetaReaderStub{meta: domainrebuild.CollectionMeta{PhysicalCollectionName: "magic_knowledge_active"}},
+		cleanupMetaReaderStub{meta: sharedroute.CollectionMeta{PhysicalCollectionName: "magic_knowledge_active"}},
 		&cleanupCoordinatorStub{},
 		&cleanupCollectionRepoStub{
 			info: map[string]*fragmodel.VectorCollectionInfo{

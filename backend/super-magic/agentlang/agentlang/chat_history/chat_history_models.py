@@ -479,6 +479,8 @@ class AssistantMessage:
     request_id: Optional[str] = None # LLM请求的唯一标识符
     # --- 新增思考内容字段（用于思考模型如 deepseek-reasoner, gemini-3-pro-preview）---
     reasoning_content: Optional[str] = None # 模型的思考过程内容
+    # 标记此响应是否在 LLM 流式输出期间被用户中断，被中断意味着 tool call 参数可能不完整
+    interrupted: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         result = {
@@ -505,6 +507,9 @@ class AssistantMessage:
         # 添加 reasoning_content (思考内容)
         if self.reasoning_content:
             result["reasoning_content"] = self.reasoning_content
+
+        if self.interrupted:
+            result["interrupted"] = True
 
         if self.tool_calls:
             result["tool_calls"] = [tc.to_dict() for tc in self.tool_calls]
@@ -569,8 +574,9 @@ class AssistantMessage:
             show_in_ui=data.get("show_in_ui", True),
             duration_ms=data.get("duration_ms"),
             created_at=data.get("timestamp", datetime.now().isoformat()),
-            request_id=data.get("request_id"),  # 添加 request_id 字段的解析
-            reasoning_content=data.get("reasoning_content"),  # 添加 reasoning_content 字段的解析
+            request_id=data.get("request_id"),
+            reasoning_content=data.get("reasoning_content"),
+            interrupted=data.get("interrupted", False),
         )
 
         # --- 解析 token_usage ---

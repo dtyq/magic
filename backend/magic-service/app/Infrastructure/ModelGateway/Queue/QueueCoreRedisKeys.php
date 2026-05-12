@@ -44,6 +44,22 @@ final class QueueCoreRedisKeys
         return sprintf('mg:queue:user_active:%s:%s', $endpoint, $userId);
     }
 
+    /**
+     * 记录同一组织用户当前正在运行的视频任务 ID 列表。
+     */
+    public static function userActiveOperations(string $organizationCode, string $userId): string
+    {
+        return sprintf('mg:video:user_active_operations:%s:%s', $organizationCode, $userId);
+    }
+
+    /**
+     * 记录同一组织当前正在运行的视频任务 ID 列表。
+     */
+    public static function organizationActiveOperations(string $organizationCode): string
+    {
+        return sprintf('mg:video:organization_active_operations:%s', $organizationCode);
+    }
+
     public static function signalList(): string
     {
         return 'mg:queue:dispatch_signal';

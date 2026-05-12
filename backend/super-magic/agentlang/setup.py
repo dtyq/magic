@@ -33,7 +33,6 @@ setup(
     python_requires=">=3.8",
     install_requires=[
         "pydantic>=2.0.0",
-        "tiktoken>=0.5.0",
         "aiofiles>=0.8.0",
         "openai>=1.0.0",
         "PyYAML>=6.0",

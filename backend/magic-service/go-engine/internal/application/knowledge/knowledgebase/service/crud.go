@@ -7,13 +7,16 @@ import (
 
 	confighelper "magic/internal/application/knowledge/helper/config"
 	kbdto "magic/internal/application/knowledge/knowledgebase/dto"
-	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
+	kbaccess "magic/internal/domain/knowledge/access/service"
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/shared"
-	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/service"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
+	sourcebindingdomain "magic/internal/domain/knowledge/sourcebinding/entity"
 )
 
 type preparedCreateKnowledgeBase struct {
-	kb             *knowledgebasedomain.KnowledgeBase
+	kb             *kbentity.KnowledgeBase
 	effectiveModel string
 	agentCodes     []string
 	sourceBindings []sourcebindingdomain.Binding
@@ -23,15 +26,17 @@ type preparedCreateKnowledgeBase struct {
 }
 
 type normalizedCreateKnowledgeBaseCommand struct {
-	knowledgeBaseType knowledgebasedomain.Type
+	knowledgeBaseType kbentity.Type
 	sourceType        *int
 	agentCodes        []string
 	sourceBindings    []sourcebindingdomain.Binding
 }
 
 type preparedUpdateKnowledgeBase struct {
-	kb                  *knowledgebasedomain.KnowledgeBase
+	kb                  *kbentity.KnowledgeBase
+	previousKB          *kbentity.KnowledgeBase
 	agentCodes          []string
+	previousAgentCodes  []string
 	sourceBindings      []sourcebindingdomain.Binding
 	replaceSource       bool
 	replaceAgentBinding bool
@@ -41,9 +46,11 @@ type preparedUpdateKnowledgeBase struct {
 }
 
 type normalizedUpdateKnowledgeBaseCommand struct {
-	currentKnowledgeBaseType knowledgebasedomain.Type
-	knowledgeBaseType        knowledgebasedomain.Type
+	currentKnowledgeBaseType kbentity.Type
+	knowledgeBaseType        kbentity.Type
+	currentAgentCodes        []string
 	sourceType               *int
+	validationSourceType     *int
 	agentCodes               []string
 	sourceBindings           []sourcebindingdomain.Binding
 	replaceSource            bool
@@ -52,6 +59,12 @@ type normalizedUpdateKnowledgeBaseCommand struct {
 
 // Create 创建知识库。
 func (s *KnowledgeBaseCreateApp) Create(ctx context.Context, input *kbdto.CreateKnowledgeBaseInput) (*kbdto.KnowledgeBaseDTO, error) {
+	if input == nil {
+		return nil, ErrKnowledgeBaseNotFound
+	}
+	if err := s.requireActiveUser(ctx, input.OrganizationCode, input.UserID, "create knowledge base"); err != nil {
+		return nil, err
+	}
 	existing, found, err := s.findExistingByBusinessID(ctx, input)
 	if err != nil {
 		return nil, err
@@ -70,20 +83,47 @@ func (s *KnowledgeBaseCreateApp) Create(ctx context.Context, input *kbdto.Create
 	if err != nil {
 		return nil, err
 	}
-	if err := s.persistCreate(ctx, prepared); err != nil {
+	savedBindings, err := s.persistCreate(ctx, prepared)
+	if err != nil {
 		return nil, err
 	}
 	if err := s.grantKnowledgeBaseOwner(ctx, prepared.kb, input); err != nil {
 		_ = s.DestroyCommandApp().destroyKnowledgeBase(ctx, prepared.kb)
 		return nil, err
 	}
+	if prepared.hasBindings {
+		flow, err := s.requireDocumentFlow()
+		if err != nil {
+			_ = s.DestroyCommandApp().destroyKnowledgeBase(ctx, prepared.kb)
+			return nil, err
+		}
+		if err := flow.materializeKnowledgeBaseDocuments(
+			ctx,
+			prepared.kb,
+			prepared.organization,
+			prepared.userID,
+			savedBindings,
+		); err != nil {
+			_ = s.DestroyCommandApp().destroyKnowledgeBase(ctx, prepared.kb)
+			return nil, err
+		}
+	}
 
-	return applyKnowledgeBaseUserOperation(
+	dto, err := s.attachKnowledgeBaseSourceBindings(
+		ctx,
 		applyKnowledgeBaseBindingInfo(
 			s.entityToDTOWithResolvedModel(prepared.kb, prepared.effectiveModel),
 			prepared.agentCodes,
 			knowledgeBaseTypeFromAgentCodes(prepared.agentCodes),
 		),
+		prepared.kb.Code,
+		prepared.userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return applyKnowledgeBaseUserOperation(
+		dto,
 		knowledgeBasePermissionOwner,
 	), nil
 }
@@ -91,12 +131,12 @@ func (s *KnowledgeBaseCreateApp) Create(ctx context.Context, input *kbdto.Create
 func (s *KnowledgeBaseCreateApp) findExistingByBusinessID(
 	ctx context.Context,
 	input *kbdto.CreateKnowledgeBaseInput,
-) (*knowledgebasedomain.KnowledgeBase, bool, error) {
+) (*kbentity.KnowledgeBase, bool, error) {
 	if input == nil || strings.TrimSpace(input.BusinessID) == "" {
 		return nil, false, nil
 	}
 
-	items, _, err := s.domainService.List(ctx, &knowledgebasedomain.Query{
+	items, _, err := s.domainService.List(ctx, &kbrepository.Query{
 		OrganizationCode: input.OrganizationCode,
 		BusinessIDs:      []string{input.BusinessID},
 		Offset:           0,
@@ -121,7 +161,7 @@ func (s *KnowledgeBaseCreateApp) prepareCreate(
 		return nil, err
 	}
 
-	kb := knowledgebasedomain.BuildKnowledgeBaseForCreate(&knowledgebasedomain.CreateInput{
+	kb := kbentity.BuildKnowledgeBaseForCreate(&kbentity.CreateInput{
 		Code:              input.Code,
 		Name:              input.Name,
 		Description:       input.Description,
@@ -143,7 +183,7 @@ func (s *KnowledgeBaseCreateApp) prepareCreate(
 		return nil, ErrEmbeddingModelRequired
 	}
 	if requestedModel != "" && requestedModel != route.Model && s.logger != nil {
-		s.logger.WarnContext(
+		s.logger.KnowledgeWarnContext(
 			ctx,
 			"Embedding model from request is ignored, resolve using target model, collection meta model, or default embedding model",
 			"requested_model", requestedModel,
@@ -181,7 +221,11 @@ func (s *KnowledgeBaseCreateApp) normalizeCreateCommand(
 		return nil, err
 	}
 	knowledgeBaseType := knowledgeBaseTypeFromAgentCodes(normalizedAgentCodes)
-	normalizedBindings := normalizeSourceBindingInputs(input.SourceBindings)
+	bindingInputs, err := s.resolveCreateSourceBindingInputs(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	normalizedBindings := normalizeSourceBindingInputs(bindingInputs)
 	normalizedSourceType, err := s.resolveCreateSourceType(knowledgeBaseType, input.SourceType, normalizedBindings)
 	if err != nil {
 		return nil, err
@@ -198,9 +242,12 @@ func (s *KnowledgeBaseCreateApp) normalizeCreateCommand(
 	}, nil
 }
 
-func (s *KnowledgeBaseCreateApp) persistCreate(ctx context.Context, prepared *preparedCreateKnowledgeBase) error {
+func (s *KnowledgeBaseCreateApp) persistCreate(
+	ctx context.Context,
+	prepared *preparedCreateKnowledgeBase,
+) ([]sourcebindingdomain.Binding, error) {
 	if prepared == nil || prepared.kb == nil {
-		return shared.ErrKnowledgeBaseNotFound
+		return nil, shared.ErrKnowledgeBaseNotFound
 	}
 	if s.writeCoordinator == nil {
 		return s.persistCreateWithoutCoordinator(ctx, prepared)
@@ -208,49 +255,45 @@ func (s *KnowledgeBaseCreateApp) persistCreate(ctx context.Context, prepared *pr
 	return s.persistCreateWithCoordinator(ctx, prepared)
 }
 
-func (s *KnowledgeBaseCreateApp) persistCreateWithCoordinator(ctx context.Context, prepared *preparedCreateKnowledgeBase) error {
+func (s *KnowledgeBaseCreateApp) persistCreateWithCoordinator(
+	ctx context.Context,
+	prepared *preparedCreateKnowledgeBase,
+) ([]sourcebindingdomain.Binding, error) {
 	if err := s.domainService.PrepareForSave(ctx, prepared.kb); err != nil {
-		return fmt.Errorf("failed to prepare knowledge base: %w", err)
+		return nil, fmt.Errorf("failed to prepare knowledge base: %w", err)
 	}
 	savedBindings, err := s.writeCoordinator.Create(ctx, prepared.kb, prepared.sourceBindings, prepared.agentCodes)
 	if err != nil {
-		return fmt.Errorf("failed to create knowledge base: %w", err)
+		return nil, fmt.Errorf("failed to create knowledge base: %w", err)
 	}
-	if !prepared.hasBindings {
-		return nil
-	}
-	flow, err := s.requireDocumentFlow()
-	if err != nil {
-		_ = s.DestroyCommandApp().destroyKnowledgeBase(ctx, prepared.kb)
-		return err
-	}
-	if err := flow.materializeKnowledgeBaseDocuments(ctx, prepared.kb, prepared.organization, prepared.userID, savedBindings); err != nil {
-		_ = s.DestroyCommandApp().destroyKnowledgeBase(ctx, prepared.kb)
-		return err
-	}
-	return nil
+	return savedBindings, nil
 }
 
-func (s *KnowledgeBaseCreateApp) persistCreateWithoutCoordinator(ctx context.Context, prepared *preparedCreateKnowledgeBase) error {
+func (s *KnowledgeBaseCreateApp) persistCreateWithoutCoordinator(
+	ctx context.Context,
+	prepared *preparedCreateKnowledgeBase,
+) ([]sourcebindingdomain.Binding, error) {
 	if err := s.domainService.Save(ctx, prepared.kb); err != nil {
-		return fmt.Errorf("failed to create knowledge base: %w", err)
+		return nil, fmt.Errorf("failed to create knowledge base: %w", err)
 	}
+	var savedBindings []sourcebindingdomain.Binding
 	if prepared.hasBindings {
-		flow, err := s.requireDocumentFlow()
+		if s.sourceBindingRepo == nil {
+			_ = s.DestroyCommandApp().destroyKnowledgeBase(ctx, prepared.kb)
+			return nil, ErrKnowledgeBaseSourceBindingRepositoryRequired
+		}
+		var err error
+		savedBindings, err = s.sourceBindingRepo.ReplaceBindings(ctx, prepared.kb.Code, prepared.sourceBindings)
 		if err != nil {
 			_ = s.DestroyCommandApp().destroyKnowledgeBase(ctx, prepared.kb)
-			return err
-		}
-		if err := flow.replaceSourceBindingsAndMaterializeDocumentsWithBindings(ctx, prepared.kb, prepared.organization, prepared.userID, prepared.sourceBindings); err != nil {
-			_ = s.DestroyCommandApp().destroyKnowledgeBase(ctx, prepared.kb)
-			return err
+			return nil, fmt.Errorf("failed to replace knowledge base source bindings: %w", err)
 		}
 	}
 	if err := s.replaceKnowledgeBaseAgentBindings(ctx, prepared.kb.Code, prepared.kb.OrganizationCode, prepared.userID, prepared.agentCodes); err != nil {
 		_ = s.DestroyCommandApp().destroyKnowledgeBase(ctx, prepared.kb)
-		return err
+		return nil, err
 	}
-	return nil
+	return savedBindings, nil
 }
 
 // Update 更新知识库。
@@ -263,6 +306,12 @@ func (s *KnowledgeBaseUpdateApp) update(
 	input *kbdto.UpdateKnowledgeBaseInput,
 	bypassPermission bool,
 ) (*kbdto.KnowledgeBaseDTO, error) {
+	if input == nil {
+		return nil, ErrKnowledgeBaseNotFound
+	}
+	if err := s.requireActiveUser(ctx, input.OrganizationCode, input.UserID, "update knowledge base"); err != nil {
+		return nil, err
+	}
 	prepared, err := s.prepareUpdate(ctx, input, bypassPermission)
 	if err != nil {
 		return nil, err
@@ -271,8 +320,12 @@ func (s *KnowledgeBaseUpdateApp) update(
 		return nil, err
 	}
 
+	dto, err := s.entityToDTOWithKnownBindings(ctx, prepared.kb, prepared.userID, prepared.agentCodes)
+	if err != nil {
+		return nil, err
+	}
 	return applyKnowledgeBaseUserOperation(
-		s.entityToDTOWithKnownBindings(ctx, prepared.kb, prepared.agentCodes),
+		dto,
 		prepared.userOperation,
 	), nil
 }
@@ -298,12 +351,13 @@ func (s *KnowledgeBaseUpdateApp) prepareUpdate(
 	if err != nil {
 		return nil, err
 	}
-	kb.ApplyUpdate(knowledgebasedomain.BuildKnowledgeBaseUpdatePatch(&knowledgebasedomain.UpdateInput{
+	previousKB := cloneKnowledgeBaseForUpdate(kb)
+	kb.ApplyUpdate(kbentity.BuildKnowledgeBaseUpdatePatch(&kbentity.UpdateInput{
 		Name:              input.Name,
 		Description:       input.Description,
 		Enabled:           input.Enabled,
 		Icon:              input.Icon,
-		SourceType:        command.sourceType,
+		SourceType:        nil,
 		KnowledgeBaseType: &command.knowledgeBaseType,
 		RetrieveConfig:    confighelper.RetrieveConfigDTOToEntity(input.RetrieveConfig),
 		EmbeddingConfig:   confighelper.EmbeddingConfigDTOToEntity(input.EmbeddingConfig),
@@ -313,7 +367,9 @@ func (s *KnowledgeBaseUpdateApp) prepareUpdate(
 
 	prepared := &preparedUpdateKnowledgeBase{
 		kb:                  kb,
+		previousKB:          previousKB,
 		agentCodes:          command.agentCodes,
+		previousAgentCodes:  append([]string(nil), command.currentAgentCodes...),
 		replaceSource:       command.replaceSource,
 		replaceAgentBinding: command.replaceAgentBinding,
 		organization:        input.OrganizationCode,
@@ -329,7 +385,7 @@ func (s *KnowledgeBaseUpdateApp) prepareUpdate(
 func (s *KnowledgeBaseUpdateApp) normalizeUpdateCommand(
 	ctx context.Context,
 	input *kbdto.UpdateKnowledgeBaseInput,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 ) (*normalizedUpdateKnowledgeBaseCommand, error) {
 	currentAgentCodes, err := s.listKnowledgeBaseAgentCodes(ctx, kb.Code)
 	if err != nil {
@@ -337,36 +393,37 @@ func (s *KnowledgeBaseUpdateApp) normalizeUpdateCommand(
 	}
 	// 更新链路不允许按本次请求重新判产品线，统一以存量 knowledge_base_type 为准。
 	currentKnowledgeBaseType := knowledgeBaseTypeFromKnowledgeBase(kb)
-	replaceSource := input.SourceBindings != nil
+	replaceSource := input.SourceBindings != nil || input.LegacyDocumentFiles != nil
 	var normalizedBindings []sourcebindingdomain.Binding
 	if replaceSource {
-		normalizedBindings = normalizeSourceBindingInputs(*input.SourceBindings)
-	}
-	normalizedSourceType, err := s.resolveUpdateSourceType(
-		ctx,
-		currentKnowledgeBaseType,
-		updateSourceTypeInput{
-			inputSourceType:   input.SourceType,
-			currentSourceType: kb.SourceType,
-			knowledgeBaseCode: kb.Code,
-			replaceSource:     replaceSource,
-			bindings:          normalizedBindings,
-		},
-	)
-	if err != nil {
-		return nil, err
+		bindingInputs, resolveErr := s.resolveUpdateSourceBindingInputs(ctx, input)
+		if resolveErr != nil {
+			return nil, resolveErr
+		}
+		normalizedBindings = normalizeSourceBindingInputs(bindingInputs)
 	}
 	command := &normalizedUpdateKnowledgeBaseCommand{
 		currentKnowledgeBaseType: currentKnowledgeBaseType,
 		knowledgeBaseType:        currentKnowledgeBaseType,
-		sourceType:               normalizedSourceType,
+		currentAgentCodes:        append([]string(nil), currentAgentCodes...),
+		sourceType:               nil,
 		agentCodes:               currentAgentCodes,
 		replaceSource:            replaceSource,
 	}
 	if !replaceSource {
 		return command, nil
 	}
-	if err := validateSourceBindingsForSourceType(currentKnowledgeBaseType, normalizedSourceType, normalizedBindings); err != nil {
+	normalizedSourceType, err := s.resolveUpdateSourceType(
+		currentKnowledgeBaseType,
+		updateSourceTypeInput{
+			currentSourceType: kb.SourceType,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	command.validationSourceType = normalizedSourceType
+	if err := validateSourceBindingsForSourceType(currentKnowledgeBaseType, command.validationSourceType, normalizedBindings); err != nil {
 		return nil, err
 	}
 	command.sourceBindings = normalizedBindings
@@ -389,32 +446,51 @@ func (s *KnowledgeBaseUpdateApp) persistUpdate(
 		}
 	}
 	if s.writeCoordinator != nil {
-		savedBindings, err := s.writeCoordinator.Update(
+		if prepared.replaceSource {
+			return flow.incrementallySyncSourceBindings(
+				ctx,
+				prepared.kb,
+				prepared.organization,
+				prepared.userID,
+				prepared.sourceBindings,
+				incrementalSyncOptions{
+					ReplaceAgentBinding: prepared.replaceAgentBinding,
+					AgentCodes:          prepared.agentCodes,
+					PreviousKB:          prepared.previousKB,
+					PreviousAgentCodes:  prepared.previousAgentCodes,
+				},
+			)
+		}
+		if _, err := s.writeCoordinator.Update(
 			ctx,
 			prepared.kb,
-			prepared.replaceSource,
-			prepared.sourceBindings,
+			false,
+			nil,
 			prepared.replaceAgentBinding,
 			prepared.agentCodes,
-		)
-		if err != nil {
+		); err != nil {
 			return fmt.Errorf("failed to update knowledge base: %w", err)
-		}
-		if prepared.replaceSource {
-			if err := flow.rebuildKnowledgeBaseDocumentsFromBindings(ctx, prepared.kb, prepared.organization, prepared.userID, savedBindings); err != nil {
-				return err
-			}
 		}
 		return nil
 	}
 
+	if prepared.replaceSource {
+		return flow.incrementallySyncSourceBindings(
+			ctx,
+			prepared.kb,
+			prepared.organization,
+			prepared.userID,
+			prepared.sourceBindings,
+			incrementalSyncOptions{
+				ReplaceAgentBinding: prepared.replaceAgentBinding,
+				AgentCodes:          prepared.agentCodes,
+				PreviousKB:          prepared.previousKB,
+				PreviousAgentCodes:  prepared.previousAgentCodes,
+			},
+		)
+	}
 	if err := s.domainService.Update(ctx, prepared.kb); err != nil {
 		return fmt.Errorf("failed to update knowledge base: %w", err)
-	}
-	if prepared.replaceSource {
-		if err := flow.syncSourceBindingsAndRebuildDocuments(ctx, prepared.kb, prepared.organization, prepared.userID, prepared.sourceBindings); err != nil {
-			return err
-		}
 	}
 	if prepared.replaceAgentBinding {
 		if err := s.replaceKnowledgeBaseAgentBindings(ctx, prepared.kb.Code, prepared.kb.OrganizationCode, prepared.userID, prepared.agentCodes); err != nil {
@@ -439,26 +515,31 @@ func (s *KnowledgeBaseDestroyApp) Destroy(ctx context.Context, code, orgCode, us
 
 func (s *KnowledgeBaseAppService) grantKnowledgeBaseOwner(
 	ctx context.Context,
-	kb *knowledgebasedomain.KnowledgeBase,
+	kb *kbentity.KnowledgeBase,
 	input *kbdto.CreateKnowledgeBaseInput,
 ) error {
-	if s == nil || s.ownerGrantPort == nil || kb == nil || input == nil {
+	if s == nil || kb == nil || input == nil {
 		return nil
 	}
-
-	if err := s.ownerGrantPort.GrantKnowledgeBaseOwner(
-		ctx,
-		input.OrganizationCode,
-		input.UserID,
-		kb.Code,
-		input.UserID,
-	); err != nil {
-		return fmt.Errorf("grant knowledge base owner: %w", err)
+	accessService, err := s.knowledgeAccessService()
+	if err != nil {
+		return err
+	}
+	if err := accessService.Initialize(ctx, kbaccess.Actor{
+		OrganizationCode: input.OrganizationCode,
+		UserID:           input.UserID,
+	}, kbaccess.InitializeInput{
+		KnowledgeBaseCode: kb.Code,
+		OwnerUserID:       input.UserID,
+		KnowledgeType:     kb.Type,
+		BusinessID:        kb.BusinessID,
+	}); err != nil {
+		return fmt.Errorf("initialize knowledge base permission: %w", err)
 	}
 	return nil
 }
 
-func (s *KnowledgeBaseDestroyApp) destroyKnowledgeBase(ctx context.Context, kb *knowledgebasedomain.KnowledgeBase) error {
+func (s *KnowledgeBaseDestroyApp) destroyKnowledgeBase(ctx context.Context, kb *kbentity.KnowledgeBase) error {
 	if kb == nil {
 		return nil
 	}
@@ -483,7 +564,7 @@ func (s *KnowledgeBaseDestroyApp) destroyKnowledgeBase(ctx context.Context, kb *
 		if _, err := s.knowledgeBaseBindings.ReplaceBindings(
 			ctx,
 			kb.Code,
-			knowledgebasedomain.BindingTypeSuperMagicAgent,
+			kbentity.BindingTypeSuperMagicAgent,
 			kb.OrganizationCode,
 			kb.CreatedUID,
 			[]string{},
@@ -498,17 +579,35 @@ func (s *KnowledgeBaseDestroyApp) destroyKnowledgeBase(ctx context.Context, kb *
 	return nil
 }
 
-func (s *KnowledgeBaseAppService) cleanupKnowledgeBasePermissions(ctx context.Context, kb *knowledgebasedomain.KnowledgeBase) {
-	if s == nil || s.ownerGrantPort == nil || kb == nil {
+func cloneKnowledgeBaseForUpdate(kb *kbentity.KnowledgeBase) *kbentity.KnowledgeBase {
+	if kb == nil {
+		return nil
+	}
+	cloned := *kb
+	cloned.SourceType = cloneIntPtr(kb.SourceType)
+	cloned.RetrieveConfig = shared.CloneRetrieveConfig(kb.RetrieveConfig)
+	cloned.FragmentConfig = shared.CloneFragmentConfig(kb.FragmentConfig)
+	cloned.EmbeddingConfig = shared.CloneEmbeddingConfig(kb.EmbeddingConfig)
+	cloned.ResolvedRoute = sharedroute.CloneResolvedRoute(kb.ResolvedRoute)
+	return &cloned
+}
+
+func (s *KnowledgeBaseAppService) cleanupKnowledgeBasePermissions(ctx context.Context, kb *kbentity.KnowledgeBase) {
+	if s == nil || kb == nil {
+		return
+	}
+	accessService, err := s.knowledgeAccessService()
+	if err != nil {
+		if s.logger != nil {
+			s.logger.KnowledgeWarnContext(ctx, "build knowledge access service failed", "knowledge_base_code", kb.Code, "error", err)
+		}
 		return
 	}
 
-	if err := s.ownerGrantPort.DeleteKnowledgeBasePermissions(
-		ctx,
-		kb.OrganizationCode,
-		kb.CreatedUID,
-		kb.Code,
-	); err != nil && s.logger != nil {
-		s.logger.WarnContext(ctx, "cleanup knowledge base permissions failed", "knowledge_base_code", kb.Code, "error", err)
+	if err := accessService.Cleanup(ctx, kbaccess.Actor{
+		OrganizationCode: kb.OrganizationCode,
+		UserID:           kb.CreatedUID,
+	}, kb.Code); err != nil && s.logger != nil {
+		s.logger.KnowledgeWarnContext(ctx, "cleanup knowledge base permissions failed", "knowledge_base_code", kb.Code, "error", err)
 	}
 }

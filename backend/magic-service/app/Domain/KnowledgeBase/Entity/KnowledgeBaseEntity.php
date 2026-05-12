@@ -226,9 +226,9 @@ class KnowledgeBaseEntity extends AbstractKnowledgeBaseEntity
         return $this->id;
     }
 
-    public function setId(?int $id): static
+    public function setId(null|int|string $id): static
     {
-        $this->id = $id;
+        $this->id = is_null($id) ? null : (int) $id;
         return $this;
     }
 

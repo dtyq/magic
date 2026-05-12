@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 )
 
 // BindingReader 定义产品线判定依赖的知识库绑定读取能力。
@@ -12,19 +14,19 @@ type BindingReader interface {
 	ListBindIDsByKnowledgeBase(
 		ctx context.Context,
 		knowledgeBaseCode string,
-		bindType BindingType,
+		bindType kbentity.BindingType,
 	) ([]string, error)
 	ListBindIDsByKnowledgeBases(
 		ctx context.Context,
 		knowledgeBaseCodes []string,
-		bindType BindingType,
+		bindType kbentity.BindingType,
 	) (map[string][]string, error)
 }
 
 // ProductLineSnapshot 表示知识库绑定关系与推导后的产品线快照。
 type ProductLineSnapshot struct {
 	AgentCodesByKnowledgeBase map[string][]string
-	KnowledgeBaseTypes        map[string]Type
+	KnowledgeBaseTypes        map[string]kbentity.Type
 }
 
 // ProductLineResolver 负责基于 knowledge_base_bindings 统一解析知识库产品线。
@@ -44,20 +46,20 @@ func NewProductLineResolver(bindingReader BindingReader) ProductLineResolver {
 // 2. agent_codes 为空 => flow_vector
 //
 // source_type 和 source binding 只能在产品线确定后再解释，不能反向参与产品线判定。
-func ResolveKnowledgeBaseTypeByAgentCodes(agentCodes []string) Type {
+func ResolveKnowledgeBaseTypeByAgentCodes(agentCodes []string) kbentity.Type {
 	for _, agentCode := range agentCodes {
 		if strings.TrimSpace(agentCode) != "" {
-			return KnowledgeBaseTypeDigitalEmployee
+			return kbentity.KnowledgeBaseTypeDigitalEmployee
 		}
 	}
-	return KnowledgeBaseTypeFlowVector
+	return kbentity.KnowledgeBaseTypeFlowVector
 }
 
 // ResolveKnowledgeBaseType 按知识库编码解析产品线。
 func (r ProductLineResolver) ResolveKnowledgeBaseType(
 	ctx context.Context,
 	knowledgeBaseCode string,
-) (Type, error) {
+) (kbentity.Type, error) {
 	snapshot, err := r.ResolveSnapshot(ctx, []string{knowledgeBaseCode})
 	if err != nil {
 		return "", err
@@ -76,11 +78,11 @@ func (r ProductLineResolver) ResolveSnapshot(
 	normalizedCodes := normalizeKnowledgeBaseCodes(knowledgeBaseCodes)
 	snapshot := &ProductLineSnapshot{
 		AgentCodesByKnowledgeBase: make(map[string][]string, len(normalizedCodes)),
-		KnowledgeBaseTypes:        make(map[string]Type, len(normalizedCodes)),
+		KnowledgeBaseTypes:        make(map[string]kbentity.Type, len(normalizedCodes)),
 	}
 	for _, code := range normalizedCodes {
 		snapshot.AgentCodesByKnowledgeBase[code] = []string{}
-		snapshot.KnowledgeBaseTypes[code] = KnowledgeBaseTypeFlowVector
+		snapshot.KnowledgeBaseTypes[code] = kbentity.KnowledgeBaseTypeFlowVector
 	}
 	if len(normalizedCodes) == 0 || r.bindingReader == nil {
 		return snapshot, nil
@@ -89,7 +91,7 @@ func (r ProductLineResolver) ResolveSnapshot(
 	agentCodesByKnowledgeBase, err := r.bindingReader.ListBindIDsByKnowledgeBases(
 		ctx,
 		normalizedCodes,
-		BindingTypeSuperMagicAgent,
+		kbentity.BindingTypeSuperMagicAgent,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list knowledge base super magic agent bindings: %w", err)

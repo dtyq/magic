@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	knowledgebasedomain "magic/internal/domain/knowledge/knowledgebase/service"
 )
 
@@ -13,10 +14,10 @@ var errProductLineBindingReaderBoom = errors.New("boom")
 func TestResolveKnowledgeBaseTypeByAgentCodes(t *testing.T) {
 	t.Parallel()
 
-	if got := knowledgebasedomain.ResolveKnowledgeBaseTypeByAgentCodes(nil); got != knowledgebasedomain.KnowledgeBaseTypeFlowVector {
+	if got := knowledgebasedomain.ResolveKnowledgeBaseTypeByAgentCodes(nil); got != kbentity.KnowledgeBaseTypeFlowVector {
 		t.Fatalf("expected flow vector, got %q", got)
 	}
-	if got := knowledgebasedomain.ResolveKnowledgeBaseTypeByAgentCodes([]string{" SMA-1 "}); got != knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee {
+	if got := knowledgebasedomain.ResolveKnowledgeBaseTypeByAgentCodes([]string{" SMA-1 "}); got != kbentity.KnowledgeBaseTypeDigitalEmployee {
 		t.Fatalf("expected digital employee, got %q", got)
 	}
 }
@@ -30,7 +31,7 @@ func TestProductLineResolverResolveKnowledgeBaseTypeDefaultsToFlowVectorWhenBind
 	if err != nil {
 		t.Fatalf("ResolveKnowledgeBaseType returned error: %v", err)
 	}
-	if got != knowledgebasedomain.KnowledgeBaseTypeFlowVector {
+	if got != kbentity.KnowledgeBaseTypeFlowVector {
 		t.Fatalf("expected flow vector, got %q", got)
 	}
 }
@@ -52,10 +53,10 @@ func TestProductLineResolverResolveSnapshotUsesBatchBindingLookupAndDefaultsMiss
 	if reader.batchCalls != 1 {
 		t.Fatalf("expected one batch call, got %d", reader.batchCalls)
 	}
-	if snapshot.KnowledgeBaseTypes["KB-1"] != knowledgebasedomain.KnowledgeBaseTypeDigitalEmployee {
+	if snapshot.KnowledgeBaseTypes["KB-1"] != kbentity.KnowledgeBaseTypeDigitalEmployee {
 		t.Fatalf("expected KB-1 digital employee, got %q", snapshot.KnowledgeBaseTypes["KB-1"])
 	}
-	if snapshot.KnowledgeBaseTypes["KB-2"] != knowledgebasedomain.KnowledgeBaseTypeFlowVector {
+	if snapshot.KnowledgeBaseTypes["KB-2"] != kbentity.KnowledgeBaseTypeFlowVector {
 		t.Fatalf("expected KB-2 flow vector, got %q", snapshot.KnowledgeBaseTypes["KB-2"])
 	}
 }
@@ -81,7 +82,7 @@ type bindingReaderStub struct {
 func (s *bindingReaderStub) ListBindIDsByKnowledgeBase(
 	context.Context,
 	string,
-	knowledgebasedomain.BindingType,
+	kbentity.BindingType,
 ) ([]string, error) {
 	return nil, nil
 }
@@ -89,7 +90,7 @@ func (s *bindingReaderStub) ListBindIDsByKnowledgeBase(
 func (s *bindingReaderStub) ListBindIDsByKnowledgeBases(
 	context.Context,
 	[]string,
-	knowledgebasedomain.BindingType,
+	kbentity.BindingType,
 ) (map[string][]string, error) {
 	s.batchCalls++
 	if s.err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	sourcebindingentity "magic/internal/domain/knowledge/sourcebinding/entity"
 	thirdfilemappingpkg "magic/internal/pkg/thirdfilemapping"
 )
 
@@ -35,9 +36,9 @@ type RepairKnowledgeBaseLoader interface {
 
 // RepairBindingRepository 定义 repair 生命周期所需的 source binding 持久化能力。
 type RepairBindingRepository interface {
-	ListBindingsByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) ([]Binding, error)
-	ReplaceBindings(ctx context.Context, knowledgeBaseCode string, bindings []Binding) ([]Binding, error)
-	SaveBindings(ctx context.Context, knowledgeBaseCode string, bindings []Binding) ([]Binding, error)
+	ListBindingsByKnowledgeBase(ctx context.Context, knowledgeBaseCode string) ([]sourcebindingentity.Binding, error)
+	ReplaceBindings(ctx context.Context, knowledgeBaseCode string, bindings []sourcebindingentity.Binding) ([]sourcebindingentity.Binding, error)
+	SaveBindings(ctx context.Context, knowledgeBaseCode string, bindings []sourcebindingentity.Binding) ([]sourcebindingentity.Binding, error)
 }
 
 // RepairDocumentStore 定义 repair 生命周期所需的托管文档读写能力。
@@ -195,7 +196,7 @@ func (s *RepairService) loadKnowledgeBase(
 func (s *RepairService) listBindings(
 	ctx context.Context,
 	knowledgeBaseCode string,
-) ([]Binding, error) {
+) ([]sourcebindingentity.Binding, error) {
 	bindings, err := s.repo.ListBindingsByKnowledgeBase(ctx, knowledgeBaseCode)
 	if err != nil {
 		return nil, fmt.Errorf("list source bindings by knowledge base: %w", err)
@@ -219,7 +220,7 @@ func (s *RepairService) materializeBindings(
 	ctx context.Context,
 	knowledgeBase *RepairKnowledgeBase,
 	userID string,
-	savedBindings []Binding,
+	savedBindings []sourcebindingentity.Binding,
 ) (int, error) {
 	if len(savedBindings) == 0 {
 		return 0, nil
@@ -312,9 +313,9 @@ func (s *RepairService) backfillGroup(
 func (s *RepairService) persistBindings(
 	ctx context.Context,
 	knowledgeBase *RepairKnowledgeBase,
-	existingBindings []Binding,
-	newBindings []Binding,
-) ([]Binding, error) {
+	existingBindings []sourcebindingentity.Binding,
+	newBindings []sourcebindingentity.Binding,
+) ([]sourcebindingentity.Binding, error) {
 	if len(newBindings) == 0 {
 		return nil, nil
 	}

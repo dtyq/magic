@@ -1,12 +1,16 @@
 package eventbus_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 
+	autoloadcfg "magic/internal/config/autoload"
+	"magic/internal/infrastructure/logging"
 	"magic/pkg/eventbus"
 )
 
@@ -390,6 +394,41 @@ func TestBus_PanicRecovery(t *testing.T) {
 
 	if errorCalled.Load() != 1 {
 		t.Error("onError should be called on panic")
+	}
+}
+
+func TestBusPanicRecoveryLogsWithEngineException(t *testing.T) {
+	t.Parallel()
+
+	var logBuf bytes.Buffer
+	logger := logging.NewFromConfigWithWriter(autoloadcfg.LoggingConfig{
+		Level:  autoloadcfg.LogLevel("debug"),
+		Format: autoloadcfg.LogFormatJSON,
+	}, &logBuf).Named("eventbus.test")
+	bus := eventbus.NewWithConfig(&eventbus.Config{
+		Logger: logger,
+	})
+	defer bus.Close()
+
+	event := newUserCreatedEvent()
+	_, _ = eventbus.Subscribe(bus, event, func(*eventbus.EventEnvelope[UserCreatedPayload]) error {
+		triggerNilPointerDerefForBusTest()
+		return nil
+	})
+
+	if err := eventbus.Publish(bus, eventbus.NewEnvelope(event, UserCreatedPayload{})); err != nil {
+		t.Fatalf("Publish returned error: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(logBuf.Bytes(), &got); err != nil {
+		t.Fatalf("unmarshal panic log: %v", err)
+	}
+	if got["msg"] != "goEngineException: Event bus handler panic recovered" {
+		t.Fatalf("unexpected msg: %#v", got["msg"])
+	}
+	if got["event_name"] != event.Name() || got["panic"] == "" || got["stack"] == "" {
+		t.Fatalf("unexpected eventbus panic log fields: %#v", got)
 	}
 }
 

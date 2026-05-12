@@ -27,6 +27,8 @@ interface KnowledgeBaseGateway
 
     public function rebuild(KnowledgeBaseRequestDTO $request): array;
 
+    public function rebuildPermissions(KnowledgeBaseRequestDTO $request): array;
+
     public function repairSourceBindings(KnowledgeBaseRequestDTO $request): array;
 
     public function rebuildCleanup(KnowledgeBaseRequestDTO $request): array;

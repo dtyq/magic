@@ -112,7 +112,7 @@ func listSuperMagicAgentCodes[T any](
 		"agent_codes": request.agentCodes,
 	}, &result); err != nil {
 		if logger != nil {
-			logger.ErrorContext(ctx, request.logMessage, "organization_code", request.organization, "user_id", request.userID, "agent_codes", request.agentCodes, "error", err)
+			logger.KnowledgeErrorContext(ctx, request.logMessage, "organization_code", request.organization, "user_id", request.userID, "agent_codes", request.agentCodes, "error", err)
 		}
 		return nil, errors.Join(ErrPHPRequestFailed, err)
 	}

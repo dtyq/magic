@@ -21,6 +21,7 @@ use Exception;
 use Hyperf\Coroutine\Parallel;
 use Hyperf\Engine\Coroutine;
 use Hyperf\Retry\Annotation\Retry;
+use Throwable;
 
 use function Hyperf\Translation\__;
 
@@ -299,12 +300,16 @@ class GoogleGeminiModel extends AbstractImageGenerate
             throw new Exception(__('image_generate.response_missing_candidates'));
         }
 
-        foreach ($result['candidates'] as $candidate) {
+        foreach ($result['candidates'] as $candidateIndex => $candidate) {
             if (! isset($candidate['content']['parts'])) {
                 continue;
             }
 
-            foreach ($candidate['content']['parts'] as $part) {
+            foreach ($candidate['content']['parts'] as $partIndex => $part) {
+                if (($part['thought'] ?? false) === true) {
+                    $this->logSkippedThoughtImagePart($candidateIndex, $partIndex, 'extract_image');
+                    continue;
+                }
                 if (isset($part['inlineData']['data'])) {
                     return $part['inlineData']['data'];
                 }
@@ -312,6 +317,19 @@ class GoogleGeminiModel extends AbstractImageGenerate
         }
 
         throw new Exception(__('image_generate.response_missing_image_data'));
+    }
+
+    private function logSkippedThoughtImagePart(int|string $candidateIndex, int|string $partIndex, string $stage): void
+    {
+        try {
+            $this->logger->info('Google Gemini响应：检测到思考图，已过滤', [
+                'stage' => $stage,
+                'candidate_index' => $candidateIndex,
+                'part_index' => $partIndex,
+            ]);
+        } catch (Throwable) {
+            // Diagnostic logging must never affect image extraction.
+        }
     }
 
     private function processGoogleGeminiRawDataWithWatermark(array $rawData, ImageGenerateRequest $imageGenerateRequest): array
@@ -344,9 +362,13 @@ class GoogleGeminiModel extends AbstractImageGenerate
         }
 
         $hasValidImage = false;
-        foreach ($result['candidates'] as $candidate) {
+        foreach ($result['candidates'] as $candidateIndex => $candidate) {
             if (isset($candidate['content']['parts']) && is_array($candidate['content']['parts'])) {
-                foreach ($candidate['content']['parts'] as $part) {
+                foreach ($candidate['content']['parts'] as $partIndex => $part) {
+                    if (($part['thought'] ?? false) === true) {
+                        $this->logSkippedThoughtImagePart($candidateIndex, $partIndex, 'validate_response');
+                        continue;
+                    }
                     if (isset($part['inlineData']['data']) && ! empty($part['inlineData']['data'])) {
                         $hasValidImage = true;
                         break 2;

@@ -31,6 +31,7 @@ return [
         'workspace_ai_image' => '智能绘图',
         'workspace_ai_model_audit_log' => '模型调用审计',
         'platform_ai_model_audit_log' => '模型调用审计',
+        'admin_ai_model_access_role' => '模型访问权限',
         'platform_setting' => '系统设置',
         'platform_setting_platform_info' => '平台信息',
         'platform_setting_maintenance' => '维护管理',

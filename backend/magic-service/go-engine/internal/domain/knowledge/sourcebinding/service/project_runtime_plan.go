@@ -5,11 +5,12 @@ import (
 	"strconv"
 	"strings"
 
+	sourcebindingentity "magic/internal/domain/knowledge/sourcebinding/entity"
 	"magic/internal/pkg/projectfile"
 )
 
 // BindingUserID 返回绑定当前有效的操作者 ID。
-func BindingUserID(binding Binding) string {
+func BindingUserID(binding sourcebindingentity.Binding) string {
 	if userID := strings.TrimSpace(binding.UpdatedUID); userID != "" {
 		return userID
 	}

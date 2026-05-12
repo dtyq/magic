@@ -8,13 +8,15 @@ declare(strict_types=1);
 namespace App\Infrastructure\Rpc\Health;
 
 use App\Infrastructure\Rpc\JsonRpc\RpcClientManager;
+use App\Infrastructure\Rpc\Lifecycle\GoEngineSupervisor;
 use Hyperf\Contract\ConfigInterface;
 
-class HeartbeatStatusService
+readonly class HeartbeatStatusService
 {
     public function __construct(
-        private readonly ConfigInterface $config,
-        private readonly RpcClientManager $rpcClientManager,
+        private ConfigInterface $config,
+        private RpcClientManager $rpcClientManager,
+        private GoEngineSupervisor $goEngineSupervisor,
     ) {
     }
 
@@ -27,6 +29,7 @@ class HeartbeatStatusService
         $rpcClientEnabled = (bool) ($ipcConfig['rpc_client_enabled'] ?? false);
         $socketPath = (string) ($ipcConfig['socket_path'] ?? BASE_PATH . '/runtime/magic_engine.sock');
         $startupGraceSeconds = max(0, (int) ($ipcConfig['heartbeat_startup_grace_seconds'] ?? 45));
+        $supervisorSnapshot = $this->goEngineSupervisor->snapshot();
 
         if (! $rpcClientEnabled) {
             return [
@@ -40,29 +43,25 @@ class HeartbeatStatusService
                     'mode' => 'ready',
                     'reason' => 'rpc_client_disabled',
                     'socket_path' => $this->toRelativePath($socketPath),
+                    'supervisor' => $supervisorSnapshot->toArray(),
                 ],
                 'httpCode' => 200,
             ];
         }
 
-        $snapshot = $this->rpcClientManager->getHealthSnapshot();
-        $rpcConnected = (bool) ($snapshot['is_connected'] ?? false);
-        $hasEverConnected = (bool) ($snapshot['has_ever_connected'] ?? false);
-        $rpcLoopRunning = (bool) ($snapshot['running'] ?? false);
-        $startedAtUnix = (int) ($snapshot['started_at_unix'] ?? 0);
-        $startedSinceSeconds = $startedAtUnix > 0 ? max(0, time() - $startedAtUnix) : null;
-        $withinStartupGrace = $rpcLoopRunning
-            && ! $hasEverConnected
-            && ($startedSinceSeconds === null || $startedSinceSeconds < $startupGraceSeconds);
+        $rpcSnapshot = $this->rpcClientManager->healthSnapshot();
+        $rpcConnected = $rpcSnapshot->isConnected;
+        $hasEverConnected = $rpcSnapshot->hasEverConnected;
+        $now = time();
+        $startedSinceSeconds = $rpcSnapshot->startedSinceSeconds($now);
+        $withinStartupGrace = $rpcSnapshot->withinStartupGrace($startupGraceSeconds, $now);
 
         $status = 'UP';
         $httpCode = 200;
-        $mode = 'ready';
-        $reason = 'rpc_connected';
 
         // /heartbeat 只负责读取 RpcClientManager 的只读健康快照，必须保持无副作用：
         // - kube probe 可能高频触发，不能把探针变成进程编排器；
-        // - Go 的拉起、重启、保活都应由入口脚本与容器运行时负责；
+        // - Go 的拉起、重启、保活都应由 bootstrap/supervisor 负责；
         // - 请求路径只读当前状态，绝不能在这里尝试修复 IPC、探测 UDS 或启动子进程。
         //
         // 状态语义：
@@ -75,7 +74,7 @@ class HeartbeatStatusService
         } elseif ($withinStartupGrace) {
             $mode = 'starting';
             $reason = 'rpc_connecting_during_grace_period';
-        } elseif ($rpcLoopRunning && $hasEverConnected) {
+        } elseif ($rpcSnapshot->running && $hasEverConnected) {
             $mode = 'degraded';
             $reason = 'rpc_reconnecting';
         } else {
@@ -104,7 +103,8 @@ class HeartbeatStatusService
                 'startup_grace_seconds' => $startupGraceSeconds,
                 'started_since_seconds' => $startedSinceSeconds,
                 'socket_path' => $this->toRelativePath($socketPath),
-                'rpc' => $snapshot,
+                'rpc' => $rpcSnapshot->toArray(),
+                'supervisor' => $supervisorSnapshot->toArray(),
             ],
             'httpCode' => $httpCode,
         ];

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	docentity "magic/internal/domain/knowledge/document/entity"
 	document "magic/internal/domain/knowledge/document/service"
 	"magic/internal/domain/knowledge/shared"
 )
@@ -73,7 +74,7 @@ func TestThirdFileRevectorizeLifecycleServicePlanBuildsRequests(t *testing.T) {
 
 	seed := &document.ThirdFileRevectorizeSeed{
 		SourceCacheKey: "teamshare:ORG1:teamshare:FILE-1",
-		SeedDocument: &document.KnowledgeBaseDocument{
+		SeedDocument: &docentity.KnowledgeBaseDocument{
 			KnowledgeBaseCode: "KB-1",
 			Code:              "DOC-SEED",
 			UpdatedUID:        "seed-user",
@@ -81,7 +82,7 @@ func TestThirdFileRevectorizeLifecycleServicePlanBuildsRequests(t *testing.T) {
 	}
 	planner := &thirdFilePlannerStub{
 		plan: document.ThirdFileDocumentPlan{
-			Documents: []*document.KnowledgeBaseDocument{
+			Documents: []*docentity.KnowledgeBaseDocument{
 				{KnowledgeBaseCode: "KB-1", Code: "DOC-1", UpdatedUID: "doc-user"},
 				nil,
 				{KnowledgeBaseCode: "KB-2", Code: "DOC-2"},
@@ -94,7 +95,7 @@ func TestThirdFileRevectorizeLifecycleServicePlanBuildsRequests(t *testing.T) {
 		snapshot: &document.ResolvedSourceSnapshot{
 			Content:            "new content",
 			ContentHash:        "hash-1",
-			DocType:            int(document.DocTypeFile),
+			DocType:            int(docentity.DocumentInputKindFile),
 			DocumentFile:       map[string]any{"name": "spec.md"},
 			Source:             "resolve",
 			FetchedAtUnixMilli: 123,
@@ -164,10 +165,10 @@ func TestThirdFileRevectorizeLifecycleServicePlanStopsAfterProviderError(t *test
 	providerErr := shared.ErrUnsupportedThirdPlatformType
 	planner := &thirdFilePlannerStub{
 		plan: document.ThirdFileDocumentPlan{
-			Documents: []*document.KnowledgeBaseDocument{{KnowledgeBaseCode: "KB-1", Code: "DOC-1"}},
+			Documents: []*docentity.KnowledgeBaseDocument{{KnowledgeBaseCode: "KB-1", Code: "DOC-1"}},
 			Seed: &document.ThirdFileRevectorizeSeed{
 				SourceCacheKey: "teamshare:ORG1:teamshare:FILE-1",
-				SeedDocument:   &document.KnowledgeBaseDocument{KnowledgeBaseCode: "KB-1", Code: "DOC-1"},
+				SeedDocument:   &docentity.KnowledgeBaseDocument{KnowledgeBaseCode: "KB-1", Code: "DOC-1"},
 			},
 		},
 	}
@@ -271,7 +272,7 @@ func assertThirdFileLifecycleRequests(t *testing.T, requests []*document.SyncDoc
 	if requests[0].Async {
 		t.Fatalf("expected sync request to keep async=false, got %#v", requests[0])
 	}
-	if requests[0].BusinessParams == nil || requests[0].BusinessParams.UserID != "U1" {
+	if requests[0].BusinessParams == nil || requests[0].BusinessParams.UserID != "doc-user" {
 		t.Fatalf("unexpected first request business params: %#v", requests[0])
 	}
 	if requests[0].SourceOverride == nil || requests[0].SourceOverride.Content != "new content" {

@@ -19,6 +19,8 @@ use App\Domain\Mode\Entity\ModeDataIsolation;
 use App\Domain\Mode\Entity\ModeGroupRelationEntity;
 use App\Domain\Mode\Service\ModeDomainService;
 use App\Domain\Mode\Service\ModeGroupDomainService;
+use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterFactoryInterface;
+use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\AggregateStrategy;
 use App\Domain\Provider\Entity\ValueObject\Category;
@@ -143,14 +145,27 @@ class AdminModeAppServiceTest extends TestCase
         ProviderModelDomainService $providerModelDomainService
     ): AdminModeAppService {
         $modeDataIsolation = new ModeDataIsolation('TGosRaFhvb', 'usi_test');
+        $groupDomainService = $this->createMock(ModeGroupDomainService::class);
+        $fileDomainService = new FileDomainService($this->createMock(CloudFileRepositoryInterface::class));
+        $providerConfigDomainService = new ProviderConfigDomainService(
+            $this->createMock(ProviderConfigRepositoryInterface::class),
+            $this->createMock(ProviderModelRepositoryInterface::class),
+            $this->createMock(ProviderRepositoryInterface::class),
+            $this->createMock(LockerInterface::class)
+        );
+        $videoGenerationConfigDomainService = new VideoGenerationConfigDomainService(
+            $this->createMock(VideoGenerationProviderAdapterFactoryInterface::class)
+        );
+        $organizationModelFilter = $this->createMock(OrganizationBasedModelFilterInterface::class);
 
-        return new class($modeDomainService, $providerModelDomainService, $this->createMock(ModeGroupDomainService::class), new FileDomainService($this->createMock(CloudFileRepositoryInterface::class)), new ProviderConfigDomainService($this->createMock(ProviderConfigRepositoryInterface::class), $this->createMock(ProviderModelRepositoryInterface::class), $this->createMock(ProviderRepositoryInterface::class), $this->createMock(LockerInterface::class)), $this->createMock(OrganizationBasedModelFilterInterface::class), $modeDataIsolation) extends AdminModeAppService {
+        return new class($modeDomainService, $providerModelDomainService, $groupDomainService, $fileDomainService, $providerConfigDomainService, $videoGenerationConfigDomainService, $organizationModelFilter, $modeDataIsolation) extends AdminModeAppService {
             public function __construct(
                 ModeDomainService $modeDomainService,
                 ProviderModelDomainService $providerModelDomainService,
                 ModeGroupDomainService $groupDomainService,
                 FileDomainService $fileDomainService,
                 ProviderConfigDomainService $providerConfigDomainService,
+                VideoGenerationConfigDomainService $videoGenerationConfigDomainService,
                 ?OrganizationBasedModelFilterInterface $organizationModelFilter,
                 private readonly ModeDataIsolation $modeDataIsolation
             ) {
@@ -160,6 +175,7 @@ class AdminModeAppServiceTest extends TestCase
                     $groupDomainService,
                     $fileDomainService,
                     $providerConfigDomainService,
+                    $videoGenerationConfigDomainService,
                     $organizationModelFilter
                 );
             }

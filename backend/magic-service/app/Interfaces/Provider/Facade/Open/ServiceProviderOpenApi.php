@@ -69,7 +69,7 @@ class ServiceProviderOpenApi extends AbstractApi
             ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidModelType);
         }
 
-        return $this->adminProviderAppService->getAvailableModelsForOrganization(
+        return $this->providerModelAppService->getAvailableOrganizationModels(
             $authenticatable,
             $queryRequest->getCategory(),
             $queryRequest->getModelTypes()

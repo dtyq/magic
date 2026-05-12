@@ -1927,11 +1927,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
      */
     private function buildMineMentionSkills(SuperMagicAgentDataIsolation $dataIsolation, string $language): array
     {
-        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
-            $this->createPermissionDataIsolation($dataIsolation),
-            $dataIsolation->getCurrentUserId(),
-            ResourceVisibilityResourceType::SKILL
-        );
+        $accessibleSkillCodes = $this->getAccessibleSkillCodesWithBuiltinFallback($dataIsolation);
 
         if ($accessibleSkillCodes === []) {
             return [];

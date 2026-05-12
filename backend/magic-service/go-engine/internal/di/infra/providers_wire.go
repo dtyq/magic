@@ -8,8 +8,9 @@ import (
 	diknowledge "magic/internal/di/knowledge"
 	documentdomain "magic/internal/domain/knowledge/document/service"
 	"magic/internal/domain/knowledge/embedding"
-	"magic/internal/domain/knowledge/knowledgebase/service"
+	kbrepository "magic/internal/domain/knowledge/knowledgebase/repository"
 	"magic/internal/domain/knowledge/rebuild"
+	sharedroute "magic/internal/domain/knowledge/shared/route"
 	mysqldocumentrepo "magic/internal/infrastructure/persistence/mysql/knowledge/document"
 	mysqlembeddingcache "magic/internal/infrastructure/persistence/mysql/knowledge/embeddingcache"
 	mysqlfragmentrepo "magic/internal/infrastructure/persistence/mysql/knowledge/fragment"
@@ -25,6 +26,7 @@ var ProviderSet = wire.NewSet(
 	ProvideLogger,
 	ProvideMySQLSQLCClient,
 	ProvideRedisClient,
+	ProvideDocumentSyncRabbitMQBroker,
 	ProvideRedisLockManager,
 	ProvideSinglePodJobRunner,
 	ProvideVectorRebuildCoordinator,
@@ -38,14 +40,15 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(embedding.CacheAnalysisRepository), new(*mysqlembeddingcache.Repository)),
 	ProvideEmbeddingRepository,
 	ProvideKnowledgeBaseRepository,
-	wire.Bind(new(knowledgebase.Repository), new(*mysqlknowledgebase.BaseRepository)),
-	wire.Bind(new(knowledgebase.CollectionMetaReader), new(*mysqlknowledgebase.BaseRepository)),
+	wire.Bind(new(kbrepository.Repository), new(*mysqlknowledgebase.BaseRepository)),
+	wire.Bind(new(sharedroute.CollectionMetaReader), new(*mysqlknowledgebase.BaseRepository)),
 	ProvideFragmentRepository,
 	ProvideDocumentRepository,
 	ProvideOCRResultCacheRepository,
 	ProvideSourceBindingRepository,
 	ProvideKnowledgeBaseBindingRepository,
 	ProvideSuperMagicAgentRepository,
+	ProvideSuperMagicProjectRepository,
 	ProvideKnowledgeBaseDestroyCoordinator,
 	ProvideKnowledgeBaseWriteCoordinator,
 	ProvideManualFragmentCoordinator,
@@ -59,12 +62,14 @@ var ProviderSet = wire.NewSet(
 	ProvideThirdPlatformDocumentPort,
 	ProvideProjectFilePort,
 	ProvideTaskFileDomainService,
-	ProvideOperationPermissionPort,
+	ProvideContactUserRepository,
+	ProvideContactUserDomainService,
 	ProvideKnowledgeBasePermissionPort,
 	ProvideSuperMagicAgentPort,
 	ProvideOCRConfigProvider,
 	wire.Bind(new(diknowledge.FragmentVectorDBDataRepository), new(*FragmentVectorDBDataRepository)),
 	wire.Bind(new(documentdomain.OCRConfigProviderPort), new(*ipcclient.PHPOCRConfigRPCClient)),
+	wire.Bind(new(documentdomain.OCRUsageReporterPort), new(*ipcclient.PHPOCRConfigRPCClient)),
 	ProvideEmbeddingClientFactory,
 	ProvideEmbeddingService,
 	ProvideEmbeddingDimensionResolver,

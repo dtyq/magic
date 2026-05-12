@@ -75,6 +75,25 @@ func TestTokenTextSplitterFallbackModel(t *testing.T) {
 	}
 }
 
+func TestTokenTextSplitterDoubaoEmbeddingVisionUsesO200KBase(t *testing.T) {
+	t.Parallel()
+
+	s := splitter.NewTokenTextSplitter(tokenizer.NewService(), "doubao-embedding-vision", 30, 6, "\n")
+	result, err := s.SplitText("hello world\nhello tokenizer")
+	if err != nil {
+		t.Fatalf("split failed: %v", err)
+	}
+	if result.Encoder == nil {
+		t.Fatal("expected encoder in split result")
+	}
+	if result.Encoder.UsesFallback() {
+		t.Fatal("expected doubao-embedding-vision to avoid fallback")
+	}
+	if result.Encoder.EncodingName() != "o200k_base" {
+		t.Fatalf("expected encoding %q, got %q", "o200k_base", result.Encoder.EncodingName())
+	}
+}
+
 func TestTokenTextSplitterLongSegmentKeepsOverlapAcrossBoundary(t *testing.T) {
 	t.Parallel()
 

@@ -129,6 +129,14 @@ return [
             ],
             'tag' => '安全与权限',
         ],
+        'admin.ai.model_access_role' => [
+            'path' => [
+                ['key' => 'ai_management', 'label' => 'AI管理'],
+                ['key' => 'custom_model', 'label' => '自定义大模型'],
+                ['key' => 'model_access_role', 'label' => '模型访问权限'],
+            ],
+            'tag' => '自定义大模型',
+        ],
         'workspace.ai.model_management' => [
             'path' => [
                 ['key' => 'ai_management', 'label' => 'AI 管理'],

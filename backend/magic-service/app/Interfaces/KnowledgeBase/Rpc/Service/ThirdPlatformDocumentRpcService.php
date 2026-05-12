@@ -12,6 +12,7 @@ use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\DocumentFileStra
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\AbstractDocumentFile;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPlatformDocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Rpc\Annotation\RpcMethod;
 use App\Infrastructure\Rpc\Annotation\RpcService;
 use App\Infrastructure\Rpc\Method\SvcMethods;
@@ -29,9 +30,15 @@ use Throwable;
 #[RpcService(name: SvcMethods::SERVICE_KNOWLEDGE_THIRD_PLATFORM_DOCUMENT)]
 readonly class ThirdPlatformDocumentRpcService
 {
+    private const int TEAMSHARE_CHILDREN_PAGE_SIZE = 500;
+
     private const string SOURCE_KIND_RAW_CONTENT = 'raw_content';
 
     private const string SOURCE_KIND_DOWNLOAD_URL = 'download_url';
+
+    private const int ERROR_CODE_DOCUMENT_UNAVAILABLE = 40404;
+
+    private const string ERROR_MESSAGE_DOCUMENT_UNAVAILABLE = 'resolve third_platform document failed: missing or unsupported file identifiers';
 
     public function __construct(
         private DocumentFileStrategy $documentFileStrategy,
@@ -46,8 +53,6 @@ readonly class ThirdPlatformDocumentRpcService
     public function resolve(array $params): array
     {
         $dataIsolation = (array) ($params['data_isolation'] ?? []);
-        $organizationCode = (string) ($dataIsolation['organization_code'] ?? '');
-        $userId = (string) ($dataIsolation['user_id'] ?? '');
 
         $documentFilePayload = (array) ($params['document_file'] ?? []);
         $documentFilePayload['type'] = $documentFilePayload['type'] ?? 'third_platform';
@@ -87,10 +92,7 @@ readonly class ThirdPlatformDocumentRpcService
             }
 
             $isolation = $this->createKnowledgeBaseDataIsolation([
-                'data_isolation' => [
-                    'organization_code' => $organizationCode,
-                    'user_id' => $userId,
-                ],
+                'data_isolation' => $dataIsolation,
             ]);
             $processedDocumentFile = $this->documentFileStrategy->preProcessDocumentFile($isolation, $documentFile);
             if (! $processedDocumentFile instanceof ThirdPlatformDocumentFileInterface) {
@@ -108,10 +110,25 @@ readonly class ThirdPlatformDocumentRpcService
                     'source_kind' => $sourceDescriptor['source_kind'],
                     'raw_content' => $sourceDescriptor['raw_content'],
                     'download_url' => $sourceDescriptor['download_url'],
+                    'download_urls' => $sourceDescriptor['download_urls'],
                     'content' => '',
                     'doc_type' => $processedDocumentFile->getDocType(),
                     'document_file' => $this->normalizeDocumentFilePayload($processedDocumentFile),
                 ],
+            ];
+        } catch (BusinessException $e) {
+            $this->logger->error('IPC ThirdPlatformDocument resolve failed', [
+                'error' => $e->getMessage(),
+            ]);
+            if ($this->isDocumentUnavailableException($e)) {
+                return [
+                    'code' => self::ERROR_CODE_DOCUMENT_UNAVAILABLE,
+                    'message' => $e->getMessage(),
+                ];
+            }
+            return [
+                'code' => 500,
+                'message' => $e->getMessage(),
             ];
         } catch (Throwable $e) {
             $this->logger->error('IPC ThirdPlatformDocument resolve failed', [
@@ -128,8 +145,6 @@ readonly class ThirdPlatformDocumentRpcService
     public function expand(array $params): array
     {
         $dataIsolation = (array) ($params['data_isolation'] ?? []);
-        $organizationCode = (string) ($dataIsolation['organization_code'] ?? '');
-        $userId = (string) ($dataIsolation['user_id'] ?? '');
         $documentFilesPayload = array_values(array_filter(
             array_map(static fn ($item) => is_array($item) ? $item : [], (array) ($params['document_files'] ?? [])),
             static fn (array $item): bool => $item !== []
@@ -144,10 +159,7 @@ readonly class ThirdPlatformDocumentRpcService
             }, $documentFilesPayload);
 
             $isolation = $this->createKnowledgeBaseDataIsolation([
-                'data_isolation' => [
-                    'organization_code' => $organizationCode,
-                    'user_id' => $userId,
-                ],
+                'data_isolation' => $dataIsolation,
             ]);
             $expanded = $this->documentFileStrategy->preProcessDocumentFiles($isolation, $documentFiles);
             $result = [];
@@ -226,36 +238,12 @@ readonly class ThirdPlatformDocumentRpcService
 
         try {
             $dataIsolation = $this->createKnowledgeBaseDataIsolation($params);
-            $knowledgeBaseId = $parentRef;
-
-            if ($parentType === 'folder') {
-                $parentFile = $this->fileOauth2AppService->getFile($dataIsolation, $parentRef)->getData();
-                $knowledgeBaseId = (string) ($parentFile['knowledge_base_id'] ?? '');
-            }
-
-            $parameter = new GetChildFilesParameter('');
-            $parameter->setParentId((int) $parentRef);
-            $parameter->setPageSize(500);
-            $children = $this->fileOauth2AppService->getChildFilesByParams($dataIsolation, $parameter)->getData();
-
-            $items = [];
-            foreach ($children as $child) {
-                $childFileType = (int) ($child['file_type'] ?? FileType::UN_KNOW);
-                $items[] = [
-                    'knowledge_base_id' => (string) ($child['knowledge_base_id'] ?? $knowledgeBaseId),
-                    'third_file_id' => (string) ($child['id'] ?? ''),
-                    'parent_id' => (string) ($child['parent_id'] ?? $parentRef),
-                    'name' => (string) ($child['name'] ?? ''),
-                    'file_type' => (string) ($child['file_type'] ?? ''),
-                    'extension' => (string) ($child['extension'] ?? ''),
-                    'is_directory' => in_array($childFileType, [FileType::FOLDER, FileType::KNOWLEDGE_BASE], true),
-                ];
-            }
+            $children = $this->listAllDirectChildren($dataIsolation, (int) $parentRef);
 
             return [
                 'code' => 0,
                 'message' => 'success',
-                'data' => $items,
+                'data' => $children,
             ];
         } catch (Throwable $e) {
             $this->logger->error('IPC ThirdPlatformDocument listTreeNodes failed', [
@@ -268,6 +256,204 @@ readonly class ThirdPlatformDocumentRpcService
                 'message' => $e->getMessage(),
             ];
         }
+    }
+
+    #[RpcMethod(name: SvcMethods::METHOD_RESOLVE_NODE)]
+    public function resolveNode(array $params): array
+    {
+        $thirdFileId = trim((string) ($params['third_file_id'] ?? ''));
+        $thirdPlatformType = trim((string) ($params['third_platform_type'] ?? ThirdPartyPlatform::TeamshareOpenPlatformPro->value));
+        $thirdKnowledgeId = trim((string) ($params['third_knowledge_id'] ?? ''));
+        if ($thirdFileId === '') {
+            return [
+                'code' => 400,
+                'message' => 'third_file_id is required',
+            ];
+        }
+
+        try {
+            $dataIsolation = $this->createKnowledgeBaseDataIsolation($params);
+            $fileInfo = $this->resolveSingleFileInfo($dataIsolation, $thirdFileId);
+            if ($fileInfo === []) {
+                return [
+                    'code' => self::ERROR_CODE_DOCUMENT_UNAVAILABLE,
+                    'message' => self::ERROR_MESSAGE_DOCUMENT_UNAVAILABLE,
+                ];
+            }
+
+            $path = $this->normalizeTeamsharePath((array) ($fileInfo['path'] ?? []));
+            $knowledgeBaseId = $this->resolveCurrentKnowledgeBaseId(
+                trim((string) ($fileInfo['knowledge_base_id'] ?? '')),
+                $path
+            );
+
+            $fileType = (string) ($fileInfo['file_type'] ?? '');
+            $extension = trim((string) ($fileInfo['extension'] ?? $fileInfo['third_file_extension_name'] ?? ''));
+            $name = trim((string) ($fileInfo['name'] ?? ''));
+            $documentFile = [
+                'type' => 'third_platform',
+                'name' => $name,
+                'doc_type' => 0,
+                'source_type' => $thirdPlatformType,
+                'platform_type' => $thirdPlatformType,
+                'third_id' => $thirdFileId,
+                'third_file_id' => $thirdFileId,
+                'third_file_type' => $fileType,
+                'file_type' => $fileType,
+                'url' => '',
+                'size' => (int) ($fileInfo['size'] ?? 0),
+                'extension' => $extension,
+                'third_file_extension_name' => $extension,
+                'knowledge_base_id' => $knowledgeBaseId,
+                'knowledge_base_id_hint' => $thirdKnowledgeId,
+            ];
+
+            return [
+                'code' => 0,
+                'message' => 'success',
+                'data' => [
+                    'id' => (string) ($fileInfo['id'] ?? $thirdFileId),
+                    'file_id' => (string) ($fileInfo['file_id'] ?? $fileInfo['id'] ?? $thirdFileId),
+                    'third_file_id' => $thirdFileId,
+                    'knowledge_base_id' => $knowledgeBaseId,
+                    'knowledge_base_id_hint' => $thirdKnowledgeId,
+                    'parent_id' => (string) ($fileInfo['parent_id'] ?? ''),
+                    'name' => $name,
+                    'file_type' => $fileType,
+                    'extension' => $extension,
+                    'is_directory' => in_array((int) $fileType, [FileType::FOLDER, FileType::KNOWLEDGE_BASE], true),
+                    'path' => $path,
+                    'document_file' => $documentFile,
+                ],
+            ];
+        } catch (Throwable $e) {
+            $this->logger->error('IPC ThirdPlatformDocument resolveNode failed', [
+                'third_file_id' => $thirdFileId,
+                'third_knowledge_id' => $thirdKnowledgeId,
+                'error' => $e->getMessage(),
+            ]);
+            return [
+                'code' => 500,
+                'message' => $e->getMessage(),
+            ];
+        }
+    }
+
+    private function resolveSingleFileInfo(
+        KnowledgeBaseDataIsolation $dataIsolation,
+        string $thirdFileId,
+    ): array {
+        $fileInfos = $this->fileOauth2AppService->getFilesByIds($dataIsolation, [$thirdFileId])->toArray();
+        if (isset($fileInfos[$thirdFileId]) && is_array($fileInfos[$thirdFileId])) {
+            return $fileInfos[$thirdFileId];
+        }
+        foreach ($fileInfos as $fileInfo) {
+            if (! is_array($fileInfo)) {
+                continue;
+            }
+            $candidate = (string) ($fileInfo['id'] ?? $fileInfo['file_id'] ?? $fileInfo['third_file_id'] ?? '');
+            if ($candidate === $thirdFileId) {
+                return $fileInfo;
+            }
+        }
+        return [];
+    }
+
+    private function normalizeTeamsharePath(array $path): array
+    {
+        $nodes = [];
+        foreach ($path as $node) {
+            if (! is_array($node)) {
+                continue;
+            }
+            $id = trim((string) ($node['id'] ?? $node['file_id'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            $nodes[] = [
+                'id' => $id,
+                'name' => (string) ($node['name'] ?? ''),
+                'type' => (string) ($node['type'] ?? $node['file_type'] ?? ''),
+            ];
+        }
+        return $nodes;
+    }
+
+    private function resolveCurrentKnowledgeBaseId(string $fileKnowledgeBaseId, array $path): string
+    {
+        if ($fileKnowledgeBaseId !== '' && $fileKnowledgeBaseId !== '0') {
+            return $fileKnowledgeBaseId;
+        }
+        return $this->resolveKnowledgeBaseIdFromPath($path);
+    }
+
+    private function resolveKnowledgeBaseIdFromPath(array $path): string
+    {
+        foreach ($path as $root) {
+            if (! is_array($root)) {
+                continue;
+            }
+            $id = trim((string) ($root['id'] ?? ''));
+            if ($id === '' || $id === '0') {
+                continue;
+            }
+            if (strcasecmp(trim((string) ($root['type'] ?? '')), 'space') === 0) {
+                continue;
+            }
+            return $id;
+        }
+        return '';
+    }
+
+    private function listAllDirectChildren(
+        KnowledgeBaseDataIsolation $dataIsolation,
+        int $parentId,
+    ): array {
+        if ($parentId <= 0) {
+            return [];
+        }
+
+        $children = [];
+        $lastFileId = 0;
+
+        while (true) {
+            $parameter = new GetChildFilesParameter('');
+            $parameter
+                ->setParentId($parentId)
+                ->setLastFileId($lastFileId)
+                ->setPageSize(self::TEAMSHARE_CHILDREN_PAGE_SIZE);
+
+            $page = array_values(
+                $this->fileOauth2AppService->getChildFilesByParams($dataIsolation, $parameter)->getData()
+            );
+            if ($page === []) {
+                break;
+            }
+
+            $children = array_merge($children, $page);
+            $nextLastFileId = $this->extractLastFileId($page);
+            if (count($page) < self::TEAMSHARE_CHILDREN_PAGE_SIZE || $nextLastFileId <= $lastFileId) {
+                break;
+            }
+            $lastFileId = $nextLastFileId;
+        }
+
+        return $children;
+    }
+
+    private function extractLastFileId(array $children): int
+    {
+        $lastChild = end($children);
+        if (! is_array($lastChild)) {
+            return 0;
+        }
+
+        $candidate = $lastChild['id'] ?? $lastChild['file_id'] ?? $lastChild['third_file_id'] ?? 0;
+        if (is_int($candidate)) {
+            return $candidate;
+        }
+
+        return (int) $candidate;
     }
 
     private function normalizeDocumentFilePayload(ThirdPlatformDocumentFileInterface $documentFile): array
@@ -300,7 +486,7 @@ readonly class ThirdPlatformDocumentRpcService
     }
 
     /**
-     * @return array{source_kind: string, raw_content: string, download_url: string}
+     * @return array{source_kind: string, raw_content: string, download_url: string, download_urls: array<int, string>}
      */
     private function resolveDocumentSourceDescriptor(
         KnowledgeBaseDataIsolation $dataIsolation,
@@ -326,17 +512,49 @@ readonly class ThirdPlatformDocumentRpcService
                 'source_kind' => self::SOURCE_KIND_RAW_CONTENT,
                 'raw_content' => $rawContent,
                 'download_url' => '',
+                'download_urls' => [],
             ];
         }
 
-        $downloadURL = (string) ($this->fileOauth2AppService->getTeamshareFileDownloadUrls($dataIsolation, [$documentFile->getThirdFileId()])->getData()[0]['url'] ?? '');
-        $this->overrideResolvedDocumentExtension($documentFile, (string) ($this->normalizeDocumentFilePayload($documentFile)['extension'] ?? ''));
+        $downloadURLs = $this->extractDownloadURLs(
+            $this->fileOauth2AppService->getTeamshareFileDownloadUrls($dataIsolation, [$documentFile->getThirdFileId()])->getData()
+        );
+        $downloadURL = $downloadURLs[0] ?? '';
+        $resolvedExtension = (string) ($this->normalizeDocumentFilePayload($documentFile)['extension'] ?? '');
+        $this->overrideResolvedDocumentExtension($documentFile, $resolvedExtension);
 
         return [
             'source_kind' => self::SOURCE_KIND_DOWNLOAD_URL,
             'raw_content' => '',
             'download_url' => $downloadURL,
+            'download_urls' => $downloadURLs,
         ];
+    }
+
+    private function isDocumentUnavailableException(BusinessException $exception): bool
+    {
+        return $exception->getMessage() === self::ERROR_MESSAGE_DOCUMENT_UNAVAILABLE;
+    }
+
+    /**
+     * @param array<int, mixed> $downloadItems
+     * @return array<int, string>
+     */
+    private function extractDownloadURLs(array $downloadItems): array
+    {
+        $downloadURLs = [];
+        foreach ($downloadItems as $downloadItem) {
+            if (! is_array($downloadItem)) {
+                continue;
+            }
+            $downloadURL = trim((string) ($downloadItem['url'] ?? ''));
+            if ($downloadURL === '') {
+                continue;
+            }
+            $downloadURLs[] = $downloadURL;
+        }
+
+        return $downloadURLs;
     }
 
     private function overrideResolvedDocumentExtension(ThirdPlatformDocumentFileInterface $documentFile, string $extension): void
@@ -420,6 +638,12 @@ readonly class ThirdPlatformDocumentRpcService
             EnvManager::getMagicId($userId) ?? ''
         );
         EnvManager::initDataIsolationEnv($knowledgeBaseDataIsolation);
+        if (array_key_exists('third_platform_user_id', $dataIsolation)) {
+            $knowledgeBaseDataIsolation->setThirdPlatformUserId((string) ($dataIsolation['third_platform_user_id'] ?? ''));
+        }
+        if (array_key_exists('third_platform_organization_code', $dataIsolation)) {
+            $knowledgeBaseDataIsolation->setThirdPlatformOrganizationCode((string) ($dataIsolation['third_platform_organization_code'] ?? ''));
+        }
         return $knowledgeBaseDataIsolation;
     }
 }
