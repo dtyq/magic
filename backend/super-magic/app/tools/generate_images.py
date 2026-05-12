@@ -35,6 +35,7 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.image_utils import (
     cleanup_temp_files,
+    detect_image_file_extension,
     resolve_image_model,
     resolve_reference_images_to_urls,
     resolve_safe_save_path,
@@ -478,7 +479,8 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
         tool_context: ToolContext,
     ) -> str:
         """将单张生成图片的临时文件拷贝到最终目标路径，触发文件版本事件和媒体通知。"""
-        save_path = await resolve_safe_save_path(save_dir, filename_stem)
+        extension = await detect_image_file_extension(image.temp_file_path)
+        save_path = await resolve_safe_save_path(save_dir, filename_stem, extension)
 
         async with self._file_versioning_context(
             tool_context, save_path, update_timestamp=False

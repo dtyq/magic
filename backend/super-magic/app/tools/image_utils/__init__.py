@@ -1,5 +1,6 @@
 from app.tools.image_utils.image_generation_utils import (
     cleanup_temp_files,
+    detect_image_file_extension,
     local_image_to_presigned_url,
     resolve_image_model,
     resolve_reference_images_to_urls,
@@ -9,6 +10,7 @@ from app.tools.image_utils.image_generation_utils import (
 
 __all__ = [
     "cleanup_temp_files",
+    "detect_image_file_extension",
     "local_image_to_presigned_url",
     "resolve_image_model",
     "resolve_reference_images_to_urls",
