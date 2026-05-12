@@ -25,6 +25,11 @@ export interface SimpleEditorProps {
 	 */
 	enableDragHandle?: boolean
 	/**
+	 * Enable or disable search and replace functionality
+	 * @default true
+	 */
+	enableSearchReplace?: boolean
+	/**
 	 * Enable or disable editor editability
 	 * @default true
 	 */

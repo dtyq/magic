@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
 import { userStore } from "@/models/user"
-import { ModelSwitchProps } from "./types"
+import { ModelSwitchProps, type ModelListKey, type ModelTabType } from "./types"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import FlexBox from "@/components/base/FlexBox"
 import { TooltipProvider, TooltipTrigger, TooltipContent } from "@/components/shadcn-ui/tooltip"
@@ -16,14 +16,21 @@ import { cn } from "@/lib/utils"
 import { modelSwitchVariants, ICON_SIZE_MAP, CHEVRON_SIZE_MAP } from "./constants"
 import { useModelSwitchLogic } from "./hooks/useModelSwitchLogic"
 import { ModelListContent } from "./components/ModelListContent"
-import { ChevronsUpDownIcon, ChevronDownIcon, MessageSquareTextIcon, ImageIcon } from "lucide-react"
+import {
+	ChevronsUpDownIcon,
+	ChevronLeft,
+	ChevronDownIcon,
+	MessageSquareTextIcon,
+	ImageIcon,
+	ClapperboardIcon,
+	Search,
+	X,
+} from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { MagicDropdown } from "@/components/base"
 import { ModelEmptyState } from "./components/ModelEmptyState"
 import { ModelSwitchTriggerContent } from "./components/ModelSwitchTriggerContent"
 import { ModelTabSwitcher } from "./components/ModelTabSwitcher"
-
-type ModelTabType = "language" | "image"
 
 export const ModelSwitch = observer(function ModelSwitch({
 	size = "default",
@@ -33,6 +40,9 @@ export const ModelSwitch = observer(function ModelSwitch({
 	selectedImageModel,
 	imageModelList,
 	onImageModelChange,
+	selectedVideoModel,
+	videoModelList,
+	onVideoModelChange,
 	showName = true,
 	showBorder = false,
 	className,
@@ -42,9 +52,13 @@ export const ModelSwitch = observer(function ModelSwitch({
 	openAddModelMenuSignal = 0,
 	editable = true,
 	onAddModel,
+	onPreloadAddModel,
 	onBeforeOpen,
+	defaultTab = "language",
+	triggerTab,
+	triggerTestId,
 }: ModelSwitchProps) {
-	const [activeTab, setActiveTab] = useState<ModelTabType>("language")
+	const [activeTab, setActiveTab] = useState<ModelTabType>(defaultTab)
 	const [tooltipOpen, setTooltipOpen] = useState(false)
 	const [addMenuOpen, setAddMenuOpen] = useState(false)
 	const dropdownJustClosedRef = useRef(false)
@@ -53,6 +67,7 @@ export const ModelSwitch = observer(function ModelSwitch({
 	const {
 		isOpen,
 		searchKeyword,
+		setSearchKeyword,
 		isMobile,
 		t,
 		selectedItemRef,
@@ -66,6 +81,8 @@ export const ModelSwitch = observer(function ModelSwitch({
 		onModelClick: (model) => {
 			if (activeTab === "image") {
 				onImageModelChange?.(model)
+			} else if (activeTab === "video") {
+				onVideoModelChange?.(model)
 			} else {
 				onModelChange?.(model)
 			}
@@ -84,18 +101,26 @@ export const ModelSwitch = observer(function ModelSwitch({
 		imageModelList &&
 		imageModelList.length > 0 &&
 		imageModelList.some((item) => (item.image_models ?? []).length > 0)
+	const hasVideoModels =
+		videoModelList &&
+		videoModelList.length > 0 &&
+		videoModelList.some((item) => (item.video_models ?? []).length > 0)
 
-	// If activeTab is "image" but no image models and cannot add models, switch back to "language"
+	// If activeTab points to an unsupported tab and cannot add models, switch back to "language"
 	const canAddModel = editable && !!onAddModel && canManageModels
 	useEffect(() => {
-		if (activeTab === "image" && !hasImageModels && !canAddModel) {
+		const shouldFallbackToLanguage =
+			(activeTab === "image" && !hasImageModels && !canAddModel) ||
+			(activeTab === "video" && !hasVideoModels)
+		if (shouldFallbackToLanguage) {
 			setActiveTab("language")
 		}
-	}, [activeTab, hasImageModels, canAddModel])
+	}, [activeTab, hasImageModels, hasVideoModels, canAddModel])
 
 	useEffect(() => {
 		if (!openAddModelMenuSignal || isMobile || !canAddModel) return
 
+		onPreloadAddModel?.()
 		setTooltipOpen(false)
 		void handleOpenChange(true)
 
@@ -106,7 +131,7 @@ export const ModelSwitch = observer(function ModelSwitch({
 		openAddMenuTimerRef.current = window.setTimeout(() => {
 			setAddMenuOpen(true)
 		}, 80)
-	}, [openAddModelMenuSignal, isMobile, canAddModel, handleOpenChange])
+	}, [openAddModelMenuSignal, isMobile, canAddModel, handleOpenChange, onPreloadAddModel])
 
 	useEffect(() => {
 		return () => {
@@ -116,9 +141,25 @@ export const ModelSwitch = observer(function ModelSwitch({
 		}
 	}, [])
 
-	const currentModelList = activeTab === "language" ? modelList : imageModelList || []
+	useEffect(() => {
+		if (!isOpen) return
+		setActiveTab(defaultTab)
+	}, [defaultTab, isOpen])
+
+	const currentModelList =
+		activeTab === "image"
+			? imageModelList || []
+			: activeTab === "video"
+				? videoModelList || []
+				: modelList
 	const currentSelectedModel =
-		activeTab === "language" ? selectedModel : selectedImageModel || null
+		activeTab === "image"
+			? selectedImageModel || null
+			: activeTab === "video"
+				? selectedVideoModel || null
+				: selectedModel
+	const currentModelKey: ModelListKey =
+		activeTab === "image" ? "image_models" : activeTab === "video" ? "video_models" : "models"
 
 	const ADD_MODEL_DROPDOWN_CONTENT_CLASS = "model-switch-add-model-dropdown-content"
 
@@ -146,7 +187,7 @@ export const ModelSwitch = observer(function ModelSwitch({
 					<button
 						className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm font-normal leading-none text-foreground hover:bg-accent"
 						onClick={() => {
-							onAddModel("text")
+							void onAddModel("text")
 							setAddMenuOpen(false)
 						}}
 						data-testid="add-model-type-text"
@@ -157,7 +198,7 @@ export const ModelSwitch = observer(function ModelSwitch({
 					<button
 						className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm font-normal leading-none text-foreground hover:bg-accent"
 						onClick={() => {
-							onAddModel("image")
+							void onAddModel("image")
 							setAddMenuOpen(false)
 						}}
 						data-testid="add-model-type-image"
@@ -168,7 +209,7 @@ export const ModelSwitch = observer(function ModelSwitch({
 				</div>
 			)}
 		>
-			<span>
+			<span onPointerEnter={onPreloadAddModel} onFocus={onPreloadAddModel}>
 				<Button
 					size="sm"
 					className="h-8 gap-2 px-3 py-2 text-xs font-medium"
@@ -184,24 +225,65 @@ export const ModelSwitch = observer(function ModelSwitch({
 	const popoverHeader = (
 		<div className="flex items-center gap-2.5 px-4 pb-2.5 pt-4">
 			<p className="min-w-0 flex-1 truncate text-lg font-semibold leading-7 text-foreground">
-				{t("messageEditor.modelSwitch.models")}
+				{t("messageEditor.modelSwitch.headerTitle")}
 			</p>
 			{addModelMenu}
 		</div>
 	)
 
-	const showTabSwitcher = hasImageModels || canAddModel
+	const mobilePopoverHeader = (
+		<div className="relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
+			<button
+				type="button"
+				onClick={handleClose}
+				className="absolute left-[10px] top-1/2 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
+				aria-label={t("common.back", { defaultValue: "Back" })}
+				data-testid="model-switch-mobile-header-back-button"
+			>
+				<ChevronLeft className="size-[22px] text-foreground" />
+			</button>
+			<p className="max-w-[247px] truncate text-center text-[18px] font-medium leading-6 text-foreground">
+				{t("messageEditor.modelSwitch.headerTitle")}
+			</p>
+			{addModelMenu ? (
+				<div className="absolute right-4 top-1/2 -translate-y-1/2">{addModelMenu}</div>
+			) : null}
+		</div>
+	)
+
+	const showImageTab = hasImageModels || canAddModel
+	const showVideoTab = hasVideoModels
+	const showTabSwitcher = showImageTab || showVideoTab
 	const tabSwitcher = showTabSwitcher ? (
-		<ModelTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
+		<ModelTabSwitcher
+			activeTab={activeTab}
+			onTabChange={setActiveTab}
+			showImageTab={showImageTab}
+			showVideoTab={showVideoTab}
+			isMobile={isMobile}
+		/>
 	) : null
 
-	const isImageTabEmpty = activeTab === "image" && !hasImageModels
+	const isCurrentTabEmpty =
+		(activeTab === "image" && !hasImageModels) || (activeTab === "video" && !hasVideoModels)
+	const currentEmptyState =
+		activeTab === "video"
+			? {
+					icon: ClapperboardIcon,
+					title: t("messageEditor.modelSwitch.noVideoModels"),
+					description: t("messageEditor.modelSwitch.noVideoModelsDesc"),
+				}
+			: {
+					icon: ImageIcon,
+					title: t("messageEditor.modelSwitch.noImageModels"),
+					description: t("messageEditor.modelSwitch.noImageModelsDesc"),
+				}
 
-	const mainContent = isImageTabEmpty ? (
+	const mainContent = isCurrentTabEmpty ? (
 		<ModelEmptyState
-			icon={ImageIcon}
-			title={t("messageEditor.modelSwitch.noImageModels")}
-			description={t("messageEditor.modelSwitch.noImageModelsDesc")}
+			icon={currentEmptyState.icon}
+			title={currentEmptyState.title}
+			description={currentEmptyState.description}
 			className="min-h-0 border-0 bg-transparent py-8"
 		/>
 	) : (
@@ -213,7 +295,7 @@ export const ModelSwitch = observer(function ModelSwitch({
 			onModelClick={baseHandleModelClick}
 			selectedItemRef={selectedItemRef}
 			getModelDescription={getModelDescription}
-			modelKey={activeTab === "image" ? "image_models" : "models"}
+			modelKey={currentModelKey}
 			onModelsLoaded={onBeforeOpen}
 		/>
 	)
@@ -228,18 +310,21 @@ export const ModelSwitch = observer(function ModelSwitch({
 					className={cn(
 						modelSwitchVariants({ size, variant: "secondary" }),
 						showBorder && "border border-border",
+						"shrink-0",
 						className,
 					)}
 					onClick={() => void handleOpenChange(true)}
-					data-testid="super-message-editor-model-switch-mobile"
+					data-testid={triggerTestId ?? "super-message-editor-model-switch-mobile"}
 				>
 					{showName && (
 						<ModelSwitchTriggerContent
 							showLabel={showLabel}
 							selectedLanguageModel={selectedModel}
 							selectedImageModel={selectedImageModel}
+							selectedVideoModel={selectedVideoModel}
 							isLoading={isLoading}
 							iconSize={iconSize}
+							triggerTab={triggerTab}
 						/>
 					)}
 					<ChevronsUpDownIcon size={chevronSize} />
@@ -248,16 +333,45 @@ export const ModelSwitch = observer(function ModelSwitch({
 				<MagicPopup
 					visible={isOpen}
 					onClose={handleClose}
-					bodyClassName="rounded-t-xl p-0 bg-card"
+					bodyClassName="rounded-t-xl p-0 bg-card overflow-hidden"
 				>
-					<div className="flex w-full flex-col bg-card">
-						<div className="border-b border-border">{popoverHeader}</div>
-						<div className="pt-2.5">{tabSwitcher}</div>
+					<div className="flex h-[min(640px,calc(100vh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-44px))] min-h-0 w-full flex-col overflow-hidden bg-card">
+						{mobilePopoverHeader}
+						<div className="shrink-0 pt-2.5">{tabSwitcher}</div>
 						<div
 							ref={mobileScrollContainerRef}
-							className="scrollbar-y-thin flex max-h-[60vh] flex-col overflow-y-auto rounded-lg p-3"
+							className="scrollbar-y-thin flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto rounded-lg p-3"
 						>
 							{mainContent}
+						</div>
+						<div className="shrink-0 px-2.5 pb-safe-bottom pt-2">
+							<div className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2.5 shadow-xs">
+								<Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+								<input
+									type="search"
+									value={searchKeyword}
+									onChange={(event) => setSearchKeyword(event.target.value)}
+									placeholder={t("messageEditor.modelSwitch.searchPlaceholder")}
+									className="min-h-0 flex-1 border-0 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground"
+									autoComplete="off"
+									autoCorrect="off"
+									autoCapitalize="off"
+									spellCheck={false}
+									enterKeyHint="search"
+									data-testid="mobile-model-switch-search-input"
+								/>
+								{searchKeyword ? (
+									<button
+										type="button"
+										onClick={() => setSearchKeyword("")}
+										className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted-foreground text-background transition active:opacity-80"
+										aria-label={t("common.auth.cancel")}
+										data-testid="mobile-model-switch-search-clear-button"
+									>
+										<X className="h-3 w-3" />
+									</button>
+								) : null}
+							</div>
 						</div>
 					</div>
 				</MagicPopup>
@@ -315,14 +429,15 @@ export const ModelSwitch = observer(function ModelSwitch({
 								<button
 									type="button"
 									className={cn(
-										"inline-flex items-center justify-center gap-2 border-0 bg-transparent p-0",
+										"inline-flex shrink-0 items-center justify-center gap-2 border-0 bg-transparent p-0",
 										"outline-none",
 										modelSwitchVariants({ size, variant: "secondary" }),
 										showBorder && "border border-border",
-										size === "small" && "max-w-[150px]",
 										className,
 									)}
-									data-testid="super-message-editor-model-switch"
+									data-testid={
+										triggerTestId ?? "super-message-editor-model-switch"
+									}
 									data-model-id={selectedModel?.model_id}
 									data-model-name={selectedModel?.model_name}
 								>
@@ -331,8 +446,10 @@ export const ModelSwitch = observer(function ModelSwitch({
 											showLabel={showLabel}
 											selectedLanguageModel={selectedModel}
 											selectedImageModel={selectedImageModel}
+											selectedVideoModel={selectedVideoModel}
 											isLoading={isLoading}
 											iconSize={iconSize}
+											triggerTab={triggerTab}
 										/>
 									)}
 									<ChevronsUpDownIcon size={chevronSize} />
@@ -379,6 +496,7 @@ export const ModelSwitch = observer(function ModelSwitch({
 					<ModelPreferenceTooltip
 						selectedLanguageModel={selectedModel || null}
 						selectedImageModel={selectedImageModel || null}
+						selectedVideoModel={selectedVideoModel || null}
 					/>
 				</TooltipContent>
 			</TooltipPrimitive.Root>

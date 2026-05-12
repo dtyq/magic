@@ -1,6 +1,11 @@
 import { useLayoutEffect, useState } from "react"
 import { getNativePort } from "@/platform/native"
 import type { NativeSafeArea } from "@/platform/native/contracts/types"
+import {
+	getNativeSafeAreaInsetValue,
+	safeAreaFallbackTokens,
+	syncSafeAreaCssVars,
+} from "@/utils/safeArea"
 import { useDeepCompareEffect } from "ahooks"
 import { logger as Logger } from "@/utils/log"
 
@@ -19,10 +24,7 @@ const admPopupBodyPositionBottomStyleId = "magic-custom-adm-popup-body-position-
 export function useSafeArea(): SafeAreaTokens {
 	const [magicSafeTokens, setMagicSafeAreaTokens] = useState<SafeAreaTokens>({
 		appEnv: false,
-		safeAreaInsetTop: "var(--safe-area-inset-top, env(safe-area-inset-top))",
-		safeAreaInsetBottom: "var(--safe-area-inset-bottom, env(safe-area-inset-bottom))",
-		safeAreaInsetLeft: "var(--safe-area-inset-left, env(safe-area-inset-left))",
-		safeAreaInsetRight: "var(--safe-area-inset-right, env(safe-area-inset-right))",
+		...safeAreaFallbackTokens,
 	})
 
 	/**
@@ -63,15 +65,17 @@ export function useSafeArea(): SafeAreaTokens {
 					safeAreaInsetLeft = 0,
 					safeAreaInsetRight = 0,
 				} = response
-				setMagicSafeAreaTokens({
+				const nextSafeAreaTokens = {
 					appEnv: true,
-					safeAreaInsetTop: `${safeAreaInsetTop / dpi || 0}px`,
-					safeAreaInsetBottom: `${safeAreaInsetBottom / dpi || 0}px`,
-					safeAreaInsetLeft: `${safeAreaInsetLeft / dpi || 0}px`,
-					safeAreaInsetRight: `${safeAreaInsetRight / dpi || 0}px`,
-				})
+					safeAreaInsetTop: getNativeSafeAreaInsetValue(safeAreaInsetTop, dpi),
+					safeAreaInsetBottom: getNativeSafeAreaInsetValue(safeAreaInsetBottom, dpi),
+					safeAreaInsetLeft: getNativeSafeAreaInsetValue(safeAreaInsetLeft, dpi),
+					safeAreaInsetRight: getNativeSafeAreaInsetValue(safeAreaInsetRight, dpi),
+				}
+				syncSafeAreaCssVars(nextSafeAreaTokens)
+				setMagicSafeAreaTokens(nextSafeAreaTokens)
 			})
-			.catch((error: any) => {
+			.catch((error: unknown) => {
 				logger.error({
 					namespace: "useSafeArea:getSafeArea",
 					data: {

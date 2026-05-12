@@ -143,7 +143,7 @@ const Detail = forwardRef<DetailRef, DetailProps>((props, ref) => {
 
 	// Return unified files mode with playback tab
 	return (
-		<div className={cn("relative flex h-full flex-col overflow-hidden rounded-lg border")}>
+		<div className={cn("relative flex h-full flex-col overflow-hidden rounded-lg")}>
 			<FilesViewer
 				ref={filesViewerRef}
 				attachments={attachments}

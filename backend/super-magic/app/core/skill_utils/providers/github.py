@@ -134,7 +134,7 @@ class GitHubProvider(SkillProvider):
     id = SkillProviderId.GITHUB
     enabled = True
 
-    async def search(self, keyword: str, limit: int = 10) -> list[SkillCandidate]:
+    async def search(self, keyword: str, limit: int | None = 10) -> list[SkillCandidate]:
         # 首版不接 GitHub Search API（避免限流），返回空
         return []
 

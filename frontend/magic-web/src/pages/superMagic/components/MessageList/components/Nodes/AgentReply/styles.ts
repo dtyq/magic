@@ -174,5 +174,10 @@ export const useStyles = createStyles(({ css, isDarkMode, token }) => {
 				marginBottom: 0,
 			},
 		},
+		reasoningTextContent: {
+			".x-markdown": {
+				color: "rgb(115,115,115)!important",
+			},
+		},
 	}
 })

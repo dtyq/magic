@@ -1,6 +1,7 @@
 import { makeAutoObservable, runInAction } from "mobx"
 import type { IMCPItem } from "../types"
 import { MCPStorageService, ProjectStorage } from "../service/MCPStorageService"
+import { readMcpPluginTipsEverAdded, writeMcpPluginTipsEverAdded } from "./mcp-plugin-tips-storage"
 
 interface SaveMCPPayload {
 	selectedIds: Set<string>
@@ -13,6 +14,8 @@ export class MCPStore {
 	mcpList: Array<IMCPItem> = []
 	loading = false
 	initialized = false
+	/** True once user has added MCP at least once (persists if list later empty). */
+	hasEverAddedMcp = false
 
 	private readonly storage: MCPStorageService
 	private readonly persistMode: MCPPersistMode
@@ -35,6 +38,9 @@ export class MCPStore {
 			const mcpList = await this.storage.getMCP()
 			runInAction(() => {
 				this.mcpList = mcpList
+				const persistedEverAdded = readMcpPluginTipsEverAdded()
+				this.hasEverAddedMcp = persistedEverAdded || mcpList.length > 0
+				if (mcpList.length > 0 && !persistedEverAdded) writeMcpPluginTipsEverAdded()
 				this.initialized = true
 			})
 		} catch (error) {
@@ -54,6 +60,13 @@ export class MCPStore {
 			this.persistMode === "items"
 				? items.filter((item) => selectedIds.has(item.id))
 				: Array.from(selectedIds).map((id) => ({ id }))
+
+		if (payload.length > 0) {
+			writeMcpPluginTipsEverAdded()
+			runInAction(() => {
+				this.hasEverAddedMcp = true
+			})
+		}
 
 		await this.storage.saveMCP(payload)
 		await this.load()

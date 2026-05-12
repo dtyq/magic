@@ -5,15 +5,25 @@ import useUploadMenuItems from "./hooks/useUploadMenuItems"
 interface UploadMenuDropdownProps {
 	onUploadFile?: () => void
 	onUploadFolder?: () => void
+	onImportFromOtherProject?: () => void
 	children: ReactNode
 }
 
 /**
  * Upload menu dropdown component
- * Displays upload operation menu (file/folder) with custom trigger
+ * Displays upload operation menu (file/folder/import) with custom trigger
  */
-function UploadMenuDropdown({ onUploadFile, onUploadFolder, children }: UploadMenuDropdownProps) {
-	const uploadMenuItems = useUploadMenuItems({ onUploadFile, onUploadFolder })
+function UploadMenuDropdown({
+	onUploadFile,
+	onUploadFolder,
+	onImportFromOtherProject,
+	children,
+}: UploadMenuDropdownProps) {
+	const uploadMenuItems = useUploadMenuItems({
+		onUploadFile,
+		onUploadFolder,
+		onImportFromOtherProject,
+	})
 
 	return (
 		<MagicDropdown

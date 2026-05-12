@@ -1,13 +1,12 @@
 import { makeAutoObservable } from "mobx"
 import { createI18nNext } from "@/assets/locales/create"
 import { normalizeLocale } from "@/utils/locale"
-import { getForcedLanguage, resolveLanguageSelection } from "@/models/config/languagePolicy"
 import type { Config } from "../types"
 import { languageHelper } from "../utils"
 import { env } from "@/utils/env"
 
 export class I18nStore {
-	language = getForcedLanguage() || env("MAGIC_DEFAULT_LANGUAGE") || "auto"
+	language = env("MAGIC_DEFAULT_LANGUAGE") || "auto"
 
 	temporaryLanguage: Config.LanguageValue | null = null
 
@@ -17,40 +16,54 @@ export class I18nStore {
 
 	i18n: ReturnType<typeof createI18nNext>
 
+	/** Resolves after init + first changeLanguage; avoids racing hydrate/sync. */
+	private readonly i18nCoreReady: Promise<void>
+
 	constructor() {
 		makeAutoObservable(this, {}, { autoBind: true })
 		this.i18n = createI18nNext(this.displayLanguage)
-		this.i18n.init()
+		// After init(), i18next can still report a different `language` than
+		// MobX. Align before any hydrate/sync touches the singleton instance.
+		this.i18nCoreReady = this.i18n
+			.init()
+			.then(() =>
+				this.i18n.instance.changeLanguage(this.displayLanguage).then(() => undefined),
+			)
+	}
+
+	waitForI18nCoreReady(): Promise<void> {
+		return this.i18nCoreReady
 	}
 
 	get displayLanguage() {
 		// URL language wins for the current session.
 		if (this.temporaryLanguage) return this.temporaryLanguage
 
-		const forcedLanguage = getForcedLanguage()
-		if (forcedLanguage) return forcedLanguage
-
-		return languageHelper.transform(
-			this.language === "auto" ? normalizeLocale(window.navigator.language) : this.language,
-		)
+		return languageHelper.transform(normalizeLocale(this.language))
 	}
 
 	setTemporaryLanguage(lang: Config.LanguageValue | null) {
 		this.temporaryLanguage = lang
-		this.i18n.instance.changeLanguage(this.displayLanguage)
+		return this.waitForI18nCoreReady().then(() =>
+			this.i18n.instance.changeLanguage(this.displayLanguage).then(() => undefined),
+		)
 	}
 
 	// Sync persisted language without dropping URL overrides.
-	syncLanguage(lang: string) {
-		this.language = resolveLanguageSelection(lang)
-		this.i18n.instance.changeLanguage(this.displayLanguage)
+	syncLanguage(lang: string): Promise<void> {
+		this.language = lang
+		return this.waitForI18nCoreReady().then(() =>
+			this.i18n.instance.changeLanguage(this.displayLanguage).then(() => undefined),
+		)
 	}
 
 	// Explicit user changes should clear URL overrides.
-	setLanguage(lang: string) {
-		this.language = resolveLanguageSelection(lang)
+	setLanguage(lang: string): Promise<void> {
+		this.language = lang
 		this.temporaryLanguage = null
-		this.i18n.instance.changeLanguage(this.displayLanguage)
+		return this.waitForI18nCoreReady().then(() =>
+			this.i18n.instance.changeLanguage(this.displayLanguage).then(() => undefined),
+		)
 	}
 
 	setLanguages(languages: Config.LanguageOption[]) {
@@ -66,10 +79,7 @@ export class I18nStore {
 					}
 				}) || []
 
-		const forcedLanguage = getForcedLanguage()
-		this.languages = forcedLanguage
-			? supportedLanguages.filter((lang) => lang.locale === forcedLanguage)
-			: supportedLanguages
+		this.languages = supportedLanguages
 	}
 
 	setAreaCodes(areaCodes: Config.AreaCodeOption[]) {

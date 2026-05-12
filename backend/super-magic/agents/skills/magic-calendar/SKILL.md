@@ -1,9 +1,6 @@
 ---
 name: magic-calendar
 description: Create and manage calendar projects for scheduling, content planning, and event management. Use when user wants to create a calendar, schedule events, or build a content/publishing calendar.
-
-name-cn: 日历日程管理
-description-cn: 创建和管理日历项目，用于日程安排、内容规划和活动管理。当用户想创建日历、安排日程、制作内容/发布日历时使用。
 ---
 
 # Magic Calendar

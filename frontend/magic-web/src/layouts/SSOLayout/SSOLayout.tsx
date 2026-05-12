@@ -9,16 +9,10 @@ import useLoginFormOverrideStyles from "@/styles/login-form-overrider"
 import { useStyles } from "./styles"
 import { withLoginService } from "./providers/LoginServiceProvider"
 import { service } from "@/services"
-import {
-	WindowMenu,
-	MacMenu,
-} from "@/layouts/BaseLayout/components/Header/components/DesktopMenu"
+import { WindowMenu, MacMenu } from "@/layouts/BaseLayout/components/Header/components/DesktopMenu"
 import { lazy, Suspense } from "react"
-import { cn } from "@/lib/utils"
 
-const EditionActivitySlogan = lazy(
-	() => import("@/components/business/EditionActivity/Slogan"),
-)
+const EditionActivitySlogan = lazy(() => import("@/components/business/EditionActivity/Slogan"))
 
 export function Layout() {
 	const { styles, cx } = useStyles()
@@ -67,6 +61,6 @@ export default withLoginService(
 	},
 	{
 		service,
-		autoSyncWhenGlobalClusterCodeChanged: true,
+		syncFromGlobalClusterCode: true,
 	},
 )

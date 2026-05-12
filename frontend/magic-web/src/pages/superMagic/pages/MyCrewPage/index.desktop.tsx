@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Check, CirclePlus, Loader2 } from "lucide-react"
+import { Check, CirclePlus, Loader2, SlidersHorizontal } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
@@ -11,6 +11,8 @@ import { RouteName } from "@/routes/constants"
 import { RoutePath } from "@/constants/routes"
 import { configStore } from "@/models/config"
 import { userStore } from "@/models/user"
+import { FUNCTION_PERMISSION_CODE } from "@/apis"
+import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import PageTopBar from "@/pages/superMagic/components/PageTopBar"
 import { crewService } from "@/services/crew/CrewService"
 import { defaultClusterCode } from "@/routes/helpers"
@@ -25,13 +27,15 @@ import {
 import { MyCrewStore } from "./stores/my-crew"
 import CreatedCrewCard from "./components/CreatedCrewCard"
 import HiredCrewCard from "./components/HiredCrewCard"
-import MyCrewCrewTypeTabs, { type MyCrewCrewTypeTab } from "./components/MyCrewCrewTypeTabs"
+import { MyCrewManageSortingDialog } from "./components/MyCrewManageSortingDialog"
+import MyCrewCrewTypeTabs from "./components/MyCrewCrewTypeTabs"
 import type { MyCrewView } from "@/services/crew/CrewService"
 import {
 	resolveMyCrewDisableActionDisabled,
 	resolveMyCrewDisableActionLabel,
 	resolveMyCrewHiredActionKind,
 } from "./components/my-crew-card-shared"
+import { useMyCrewTabs } from "./hooks/useMyCrewTabs"
 
 function MyCrewPage() {
 	const { t } = useTranslation("crew/market")
@@ -41,8 +45,13 @@ function MyCrewPage() {
 	const scrollViewportRef = useRef<HTMLDivElement | null>(null)
 	const store = storeRef.current
 	const [isCreating, setIsCreating] = useState(false)
-	const [crewTypeTab, setCrewTypeTab] = useState<MyCrewCrewTypeTab>("created")
+	const [isSortingDialogOpen, setIsSortingDialogOpen] = useState(false)
 	const [selectedAgent, setSelectedAgent] = useState<MyCrewView | null>(null)
+	const { crewTypeTab, setCrewTypeTab, includeTeamShared, isCreatedTab, isTeamSharedTab } =
+		useMyCrewTabs({ includeTeamShared: true })
+	const { isAllowed: canCreateAgent } = useFunctionPermission(
+		FUNCTION_PERMISSION_CODE.AgentCreate,
+	)
 	const handleAutoLoadMore = useCallback(() => {
 		void store.loadMore()
 	}, [store])
@@ -197,7 +206,8 @@ function MyCrewPage() {
 	}
 
 	const handleOpenConversation = useCallback(
-		(agentCode: string) => {
+		async (agentCode: string) => {
+			await crewService.pinFeaturedFrequentForConversation(agentCode)
 			const fallbackWorkspaceId = resolveFallbackWorkspaceId()
 			navigate({
 				name: fallbackWorkspaceId ? RouteName.SuperWorkspaceState : RouteName.Super,
@@ -216,6 +226,10 @@ function MyCrewPage() {
 
 	return (
 		<>
+			<MyCrewManageSortingDialog
+				open={isSortingDialogOpen}
+				onOpenChange={setIsSortingDialogOpen}
+			/>
 			<CrewDetailDialog
 				open={selectedAgent != null}
 				onOpenChange={(open) => {
@@ -237,6 +251,7 @@ function MyCrewPage() {
 							: {
 									label: resolveMyCrewDisableActionLabel(
 										selectedAgent.allowDelete,
+										selectedAgent.publisherType,
 										t,
 									),
 									variant: "secondary",
@@ -273,24 +288,36 @@ function MyCrewPage() {
 							</div>
 							<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
 								<Button
+									variant="outline"
 									className="h-9 flex-1 gap-2 shadow-xs sm:flex-none"
-									onClick={handleCreateCrew}
-									disabled={isCreating}
-									data-testid="my-crew-create-button"
+									onClick={() => setIsSortingDialogOpen(true)}
+									data-testid="my-crew-manage-sorting-button"
 								>
-									{isCreating ? (
-										<Loader2 className="h-4 w-4 animate-spin" />
-									) : (
-										<CirclePlus className="h-4 w-4" />
-									)}
-									{t("createCrew")}
+									<SlidersHorizontal className="h-4 w-4" />
+									{t("myCrewPage.manageSorting")}
 								</Button>
+								{canCreateAgent ? (
+									<Button
+										className="h-9 flex-1 gap-2 shadow-xs sm:flex-none"
+										onClick={handleCreateCrew}
+										disabled={isCreating}
+										data-testid="my-crew-create-button"
+									>
+										{isCreating ? (
+											<Loader2 className="h-4 w-4 animate-spin" />
+										) : (
+											<CirclePlus className="h-4 w-4" />
+										)}
+										{t("createCrew")}
+									</Button>
+								) : null}
 							</div>
 						</div>
 
 						<MyCrewCrewTypeTabs
 							value={crewTypeTab}
 							onChange={setCrewTypeTab}
+							includeTeamShared={includeTeamShared}
 							className="max-w-md sm:max-w-lg"
 						/>
 
@@ -313,20 +340,22 @@ function MyCrewPage() {
 								<p className="text-sm text-muted-foreground">
 									{t("myCrewPage.empty")}
 								</p>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={handleCreateCrew}
-									disabled={isCreating}
-									className="gap-2"
-								>
-									{isCreating ? (
-										<Loader2 className="h-4 w-4 animate-spin" />
-									) : (
-										<CirclePlus className="h-4 w-4" />
-									)}
-									{t("createCrew")}
-								</Button>
+								{isCreatedTab && canCreateAgent ? (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={handleCreateCrew}
+										disabled={isCreating}
+										className="gap-2"
+									>
+										{isCreating ? (
+											<Loader2 className="h-4 w-4 animate-spin" />
+										) : (
+											<CirclePlus className="h-4 w-4" />
+										)}
+										{t("createCrew")}
+									</Button>
+								) : null}
 							</div>
 						)}
 
@@ -338,7 +367,7 @@ function MyCrewPage() {
 									data-testid="my-crew-card-grid"
 								>
 									{store.list.map((employee) =>
-										crewTypeTab === "created" ? (
+										isCreatedTab ? (
 											<CreatedCrewCard
 												key={employee.id}
 												employee={employee}
@@ -360,10 +389,23 @@ function MyCrewPage() {
 												key={employee.id}
 												employee={employee}
 												href={getCrewEditHref(employee.agentCode)}
-												onEdit={handleOpenDetails}
+												onEdit={
+													isTeamSharedTab ? handleEdit : handleOpenDetails
+												}
 												onConversation={handleOpenConversation}
+												onDelete={
+													isTeamSharedTab
+														? handleDeleteCreatedCrew
+														: undefined
+												}
 												onDismiss={handleDismissHiredCrew}
 												onDisable={handleDisableHiredCrew}
+												onPublishToStore={
+													isTeamSharedTab
+														? handleOpenPublishPanel
+														: undefined
+												}
+												isTeamSharedCard={isTeamSharedTab}
 											/>
 										),
 									)}

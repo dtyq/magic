@@ -1,6 +1,30 @@
 import { cn } from "@/lib/utils"
 import { cva, type VariantProps } from "class-variance-authority"
 
+const messageEditorContentBaseClasses =
+	"h-full w-full resize-none rounded-none border-0 bg-transparent p-0 text-foreground caret-foreground placeholder:text-muted-foreground hover:shadow-none hover:outline-none focus:shadow-none focus:outline-none focus-visible:ring-0"
+
+const messageEditorContentEditorClasses =
+	"prose prose-sm font-inherit min-h-[50px] max-w-none flex-1 overflow-y-auto text-sm leading-5 [&_.ProseMirror]:m-0 [&_.ProseMirror]:h-full [&_.ProseMirror]:min-h-[40px] [&_.ProseMirror]:break-words [&_.ProseMirror]:border-none [&_.ProseMirror]:bg-transparent [&_.ProseMirror]:font-normal [&_.ProseMirror]:text-inherit [&_.ProseMirror]:outline-none"
+
+const messageEditorContentPlaceholderClasses =
+	"[&_.ProseMirror_.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_.is-editor-empty:first-child::before]:text-muted-foreground [&_.ProseMirror_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
+
+const messageEditorContentMentionClasses =
+	"[&_.ProseMirror_.magic-mention]:mx-0.5 [&_.ProseMirror_.magic-mention]:inline [&_.ProseMirror_.magic-mention]:cursor-pointer [&_.ProseMirror_.magic-mention]:overflow-hidden [&_.ProseMirror_.magic-mention]:text-ellipsis [&_.ProseMirror_.magic-mention]:rounded [&_.ProseMirror_.magic-mention]:bg-primary/10 [&_.ProseMirror_.magic-mention]:bg-primary-10 [&_.ProseMirror_.magic-mention]:px-1 [&_.ProseMirror_.magic-mention]:py-0.5 [&_.ProseMirror_.magic-mention]:align-top [&_.ProseMirror_.magic-mention]:text-xs [&_.ProseMirror_.magic-mention]:font-normal [&_.ProseMirror_.magic-mention]:leading-5 [&_.ProseMirror_.magic-mention]:text-primary"
+
+const messageEditorContentParagraphClasses =
+	"[&_.ProseMirror_p]:m-0 [&_.ProseMirror_p]:break-all [&_.ProseMirror_p]:p-0 [&_.ProseMirror_p]:leading-[1.5]"
+
+const messageEditorContentSelectionClasses =
+	"[&_.ProseMirror::selection]:bg-blue-200 dark:[&_.ProseMirror::selection]:bg-blue-500/40 [&_.ProseMirror_*::selection]:bg-blue-200 dark:[&_.ProseMirror_*::selection]:bg-blue-500/40"
+
+const messageEditorContentMobileSelectionClasses =
+	"select-text [&_.ProseMirror]:select-text [&_.ProseMirror]:[-moz-user-select:text] [&_.ProseMirror]:[-ms-user-select:text] [&_.ProseMirror]:[-webkit-user-select:text] [&_.ProseMirror]:[user-select:text] [&_.ProseMirror]:[-webkit-touch-callout:default]"
+
+const messageEditorContentSuggestionClasses =
+	"[&_.ProseMirror_p[data-suggestion]:not([data-suggestion=''])]:relative [&_.ProseMirror_p[data-suggestion]:not([data-suggestion=''])]:overflow-visible [&_.ProseMirror_p[data-suggestion]:not([data-suggestion=''])::after]:pointer-events-none [&_.ProseMirror_p[data-suggestion]:not([data-suggestion=''])::after]:inline-block [&_.ProseMirror_p[data-suggestion]:not([data-suggestion=''])::after]:h-0 [&_.ProseMirror_p[data-suggestion]:not([data-suggestion=''])::after]:text-muted-foreground [&_.ProseMirror_p[data-suggestion]:not([data-suggestion=''])::after]:content-[attr(data-suggestion)] [&_.ProseMirror_p[data-suggestion]:not([data-suggestion=''])::after]:hidden [&_.ProseMirror_p[data-suggestion]:not([data-suggestion=''])::after]:md:inline-block"
+
 export const messageEditorContainerVariants = cva(
 	"relative flex w-full flex-col gap-2 rounded-xl border border-transparent bg-background",
 	{
@@ -8,7 +32,7 @@ export const messageEditorContainerVariants = cva(
 			size: {
 				default: "max-h-[50vh] min-h-[172px] overflow-hidden rounded-xl p-2.5",
 				small: "max-h-[50vh] min-h-[122px] overflow-hidden rounded-lg p-2",
-				mobile: "max-h-[50vh] min-h-[122px] overflow-hidden rounded-xl p-2.5",
+				mobile: "max-h-[50vh] min-h-[132px] overflow-hidden rounded-xl p-2.5",
 			},
 			focused: {
 				true: "border-primary",
@@ -41,27 +65,22 @@ export const messageEditorInnerVariants = cva("h-full min-h-0 w-full flex-1", {
 
 export const messageEditorContentVariants = cva(
 	cn(
-		"h-full w-full resize-none rounded-none border-0 bg-transparent p-0 text-foreground caret-foreground placeholder:text-muted-foreground hover:shadow-none hover:outline-none focus:shadow-none focus:outline-none focus-visible:ring-0",
-		"prose prose-sm font-inherit min-h-[50px] max-w-none flex-1 overflow-y-auto text-sm leading-5 [&_.ProseMirror]:m-0 [&_.ProseMirror]:h-full [&_.ProseMirror]:min-h-[40px] [&_.ProseMirror]:break-words [&_.ProseMirror]:border-none [&_.ProseMirror]:bg-transparent [&_.ProseMirror]:font-normal [&_.ProseMirror]:text-inherit [&_.ProseMirror]:outline-none [&_.ProseMirror_.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_.is-editor-empty:first-child::before]:text-muted-foreground [&_.ProseMirror_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_.magic-mention]:mx-0.5 [&_.ProseMirror_.magic-mention]:inline [&_.ProseMirror_.magic-mention]:cursor-pointer [&_.ProseMirror_.magic-mention]:overflow-hidden [&_.ProseMirror_.magic-mention]:text-ellipsis [&_.ProseMirror_.magic-mention]:rounded [&_.ProseMirror_.magic-mention]:bg-primary/10 [&_.ProseMirror_.magic-mention]:px-1 [&_.ProseMirror_.magic-mention]:py-0.5 [&_.ProseMirror_.magic-mention]:align-top [&_.ProseMirror_.magic-mention]:text-xs [&_.ProseMirror_.magic-mention]:font-normal [&_.ProseMirror_.magic-mention]:leading-5 [&_.ProseMirror_.magic-mention]:text-primary [&_.ProseMirror_p]:m-0 [&_.ProseMirror_p]:break-all [&_.ProseMirror_p]:p-0",
-		"[&_.ProseMirror_.magic-mention]:bg-primary-10",
-		// Text selection styles
-		"[&_.ProseMirror::selection]:bg-blue-200 dark:[&_.ProseMirror::selection]:bg-blue-500/40 [&_.ProseMirror_*::selection]:bg-blue-200 dark:[&_.ProseMirror_*::selection]:bg-blue-500/40",
-		// Enable text selection on mobile
-		"select-text [&_.ProseMirror]:select-text [&_.ProseMirror]:[-moz-user-select:text] [&_.ProseMirror]:[-ms-user-select:text] [&_.ProseMirror]:[-webkit-user-select:text] [&_.ProseMirror]:[user-select:text]",
-		// Enable touch callout on iOS
-		"[&_.ProseMirror]:[-webkit-touch-callout:default]",
-		// AI completion suggestion styles
-		"[&_.ProseMirror_p[data-suggestion]]:relative [&_.ProseMirror_p[data-suggestion]]:overflow-visible",
-		"[&_.ProseMirror_p[data-suggestion]::after]:pointer-events-none [&_.ProseMirror_p[data-suggestion]::after]:inline-block [&_.ProseMirror_p[data-suggestion]::after]:h-0 [&_.ProseMirror_p[data-suggestion]::after]:text-muted-foreground [&_.ProseMirror_p[data-suggestion]::after]:content-[attr(data-suggestion)]",
-		// Hide AI completion on mobile
-		"[&_.ProseMirror_p[data-suggestion]::after]:hidden [&_.ProseMirror_p[data-suggestion]::after]:md:inline-block",
+		messageEditorContentBaseClasses,
+		messageEditorContentEditorClasses,
+		messageEditorContentPlaceholderClasses,
+		messageEditorContentMentionClasses,
+		messageEditorContentParagraphClasses,
+		messageEditorContentSelectionClasses,
+		messageEditorContentMobileSelectionClasses,
+		messageEditorContentSuggestionClasses,
+		"[&_img.ProseMirror-separator]:inline",
 	),
 	{
 		variants: {
 			size: {
 				default: "",
-				small: "min-h-[100px] text-[13px] leading-4 [&_.ProseMirror]:min-h-[34px]",
-				mobile: "min-h-[100px] text-[13px] leading-4 [&_.ProseMirror]:min-h-[34px]",
+				small: "min-h-[78px] text-[13px] leading-4 [&_.ProseMirror]:min-h-[34px]",
+				mobile: "min-h-[78px] text-[13px] leading-4 [&_.ProseMirror]:min-h-[34px]",
 			},
 		},
 		defaultVariants: {

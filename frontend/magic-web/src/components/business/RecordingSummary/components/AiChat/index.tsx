@@ -9,7 +9,7 @@ import { LongMemoryApi } from "@/apis"
 import { initializeService } from "@/services/recordSummary/serviceInstance"
 import Editor from "./components/Editor"
 import { useStyles } from "./styles"
-import { type MentionPanelStore } from "@/components/business/MentionPanel/store"
+import { type MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import { useTopicMessages } from "./hooks/useTopicMessages"
 import { useEffect, useMemo, useRef } from "react"
 import PreviewDetailPopup, {

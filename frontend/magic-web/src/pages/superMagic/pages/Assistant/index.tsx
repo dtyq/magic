@@ -44,7 +44,7 @@ function Assistant() {
 	}
 
 	return (
-		<>
+		<div className="flex h-full w-full overflow-hidden rounded-lg border border-border">
 			{headerPortalTarget && createPortal(<Header />, headerPortalTarget)}
 
 			<MagicSplitter onResize={handleSiderResize} className={styles.splitter}>
@@ -78,7 +78,7 @@ function Assistant() {
 				<Conversation />
 				<TopicPanel />
 			</FlexBox> */}
-		</>
+		</div>
 	)
 }
 

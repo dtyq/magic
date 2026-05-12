@@ -8,7 +8,7 @@ import { SuperMagicApi } from "@/apis"
  */
 export function useFileDisplayConfig(fileIds?: string[]) {
 	const [fileDisplayConfig, setFileDisplayConfig] = useState<
-		{ type?: string;[key: string]: any } | undefined
+		{ type?: string; [key: string]: any } | undefined
 	>()
 	const [loading, setLoading] = useState(false)
 
@@ -24,7 +24,7 @@ export function useFileDisplayConfig(fileIds?: string[]) {
 				setLoading(true)
 				const response = await SuperMagicApi.batchGetFileDetails({ file_ids: fileIds })
 				const file = response?.files?.[0]
-				setFileDisplayConfig(file?.metadata)
+				setFileDisplayConfig(file?.display_config)
 			} catch (error) {
 				console.error("Failed to fetch file details:", error)
 				setFileDisplayConfig(undefined)

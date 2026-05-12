@@ -29,7 +29,7 @@ describe("PPTStore", () => {
 		],
 		mainFileId: "main-id",
 		mainFileName: "main.html",
-		metadata: {},
+		display_config: {},
 	}
 
 	beforeEach(() => {

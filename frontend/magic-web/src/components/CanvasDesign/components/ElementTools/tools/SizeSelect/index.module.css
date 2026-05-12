@@ -4,6 +4,13 @@
 	color: var(--base-foreground, #0a0a0a) !important;
 }
 
+/* 需写在 .select-trigger 之后，覆盖固定宽度 */
+.select-trigger-full {
+	width: 100% !important;
+	min-width: 0;
+	max-width: 100%;
+}
+
 .trigger-text {
 	overflow: hidden;
 	white-space: nowrap;
@@ -24,22 +31,6 @@
 	align-items: center;
 	height: 32px;
 	padding: 0 var(--spacing-2, 8px);
-}
-
-.icon-wrapper {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 24px;
-	height: 24px;
-	background: var(--base-input, #e5e5e5);
-	border-radius: var(--border-radius-rounded-sm, 6px);
-}
-
-.icon {
-	background: var(--alpha-60, rgb(255 255 255 / 40%));
-	border: 1px solid var(--base-muted-foreground, #737373);
-	border-radius: var(--border-radius-rounded-xs, 2px);
 }
 
 .label {

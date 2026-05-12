@@ -117,7 +117,7 @@ export function createFileDragHandlers(
 		// 只有在未展开且为普通文件夹时才启用自动展开
 		if (
 			!isExpanded &&
-			isEmpty(item.metadata) &&
+			isEmpty(item.display_config) &&
 			allowEdit &&
 			(dragState.isDragging || dragState.isExternalDrag)
 		) {

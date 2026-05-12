@@ -32,7 +32,7 @@ function TopicItem({ topic, onClose, onOpenActionsPopup }: TopicItemProps) {
 			<StatusIcon status={topic.task_status} size={16} className="shrink-0" />
 
 			{/* Mode Tag */}
-			<ModeTag mode={topic.topic_mode || TopicMode.General} />
+			<ModeTag mode={topic.topic_mode || TopicMode.General} agentCode={topic.agent_code} />
 
 			{/* Topic Title */}
 			<span className="flex-1 truncate text-sm font-normal leading-none text-sidebar-foreground">

@@ -32,7 +32,7 @@ vi.mock("@/services/index", () => ({
 	},
 }))
 
-vi.mock("@/components/business/MentionPanel/store", () => ({
+vi.mock("@/components/business/MentionPanel/builtin-store", () => ({
 	default: {
 		setUploadFiles: vi.fn(),
 	},
@@ -193,6 +193,7 @@ describe("useMessageEditor Integration Tests", () => {
 						},
 					},
 					stillExists: false,
+					deletionInput: "other" as const,
 				},
 				{
 					item: {
@@ -204,6 +205,7 @@ describe("useMessageEditor Integration Tests", () => {
 						},
 					},
 					stillExists: true,
+					deletionInput: "other" as const,
 				},
 			]
 

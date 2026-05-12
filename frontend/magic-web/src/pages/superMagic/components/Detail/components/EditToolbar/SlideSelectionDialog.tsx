@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import {
 	Dialog,
@@ -64,6 +64,16 @@ function SlideSelectionDialog({
 		})
 		return () => cancelAnimationFrame(rafId)
 	}, [open])
+
+	// 弹窗每次打开（false → true）默认全选当前所有幻灯片；
+	// 之后用户的取消勾选不会被覆盖
+	const prevOpenRef = useRef(false)
+	useEffect(() => {
+		if (open && !prevOpenRef.current) {
+			setSelectedIds(new Set(slides.map((slide) => slide.path)))
+		}
+		prevOpenRef.current = open
+	}, [open, slides])
 
 	// 当对话框打开且列表已就绪时，检查并生成缺失的缩略图
 	useEffect(() => {

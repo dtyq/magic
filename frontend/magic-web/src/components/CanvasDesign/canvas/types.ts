@@ -3,20 +3,47 @@ import type {
 	CanvasDesignMethods,
 	MagicPermissions,
 	GenerateHightImageRequest,
+	ImageGenerationTaskMeta,
 	IdentifyImageMarkResponse,
 	GenerateVideoRequest,
 	GenerationStatus,
 } from "../types.magic"
 import type { TFunction } from "../context/I18nContext"
 
-/**
- * 视口偏移量类型
- */
-export type ViewportOffset = {
-	left?: number
-	right?: number
-	top?: number
-	bottom?: number
+/** 裁剪矩形配置 */
+export interface CropConfig {
+	/** 宽度 */
+	width: number
+	/** 高度 */
+	height: number
+	/** 横坐标 */
+	x: number
+	/** 纵坐标 */
+	y: number
+	/** 裁剪编辑态下的完整显示宽度 */
+	displayWidth?: number
+	/** 裁剪编辑态下的完整显示高度 */
+	displayHeight?: number
+}
+
+/** 裁剪信息（不包含显示宽高） */
+export type CropConfigWithoutDisplaySize = Omit<CropConfig, "displayWidth" | "displayHeight">
+
+/** 扩展编辑框配置 */
+export interface ExtendFrameConfig {
+	/** 宽度 */
+	width: number
+	/** 高度 */
+	height: number
+	/** 横坐标 */
+	x: number
+	/** 纵坐标 */
+	y: number
+}
+
+/** 扩展编辑态会话数据 */
+export interface ExtendSession {
+	frame: ExtendFrameConfig
 }
 
 /**
@@ -25,6 +52,8 @@ export type ViewportOffset = {
 export interface CanvasConfig {
 	/** 用于挂载Konva画布的DOM元素 */
 	element: HTMLDivElement
+	/** 交互作用域根节点，仅在该范围内处理画布外点击 */
+	scopeElement?: HTMLElement
 	/** 画布唯一标识，用于跨画布粘贴校验 */
 	id?: string
 	/** 默认只读模式 */
@@ -47,6 +76,7 @@ export const ToolTypeEnum = {
 	Text: "text", // 文本
 	Frame: "frame", // 画框
 	ImageGenerator: "image-generator", // 图像生成
+	VideoGenerator: "video-generator", // 视频生成
 	Marker: "Marker", // 标记
 	Rect: "rect", // 矩形形状
 	Ellipse: "ellipse", // 圆形形状
@@ -246,11 +276,13 @@ export interface RichTextParagraph {
 	/** 段落样式 */
 	style?: {
 		/** 文本对齐 */
-		textAlign?: "left" | "center" | "right" | "justify"
+		textAlign?: "left" | "center" | "right"
 		/** 行高 */
 		lineHeight?: number
 		/** 段落间距 */
 		paragraphSpacing?: number
+		/** 列表类型 */
+		listType?: "bullet" | "ordered"
 	}
 }
 
@@ -274,8 +306,12 @@ export interface ImageElement extends BaseElementProps {
 	errorMessage?: string
 	/** 图片生成请求参数（请求成功后保存） */
 	generateImageRequest?: GenerateImageRequest
-	/** 高清化图片生成请求参数（请求成功后保存） */
+	/** 图片生成任务元数据（用于高清放大 / 去背景 / 橡皮擦 / 扩图） */
+	imageGenerationTaskMeta?: ImageGenerationTaskMeta
+	/** @deprecated 仅用于兼容旧版高清放大数据，新的持久化请使用 imageGenerationTaskMeta */
 	generateHightImageRequest?: GenerateHightImageRequest
+	/** 源图裁剪区域 */
+	crop?: CropConfig
 }
 
 /** 视频元素 */
@@ -285,9 +321,16 @@ export interface VideoElement extends BaseElementProps {
 	src?: string
 	/** 视频状态 */
 	status?: GenerationStatus
+	/** 错误信息 */
+	errorMessage?: string
+	/** 海报源(用来换取 ossSrc 的临时 path) （暂未支持） */
+	// poster?: string
 	/** 视频生成请求参数（请求成功后保存） */
 	generateVideoRequest?: GenerateVideoRequest
 }
+
+/** 可上传/下载的文件类元素（图片、视频等），用于 uploadFiles / downloadFiles 等接口 */
+export type CanvasFileElement = ImageElement | VideoElement
 
 /** 图层元素联合类型 */
 export type LayerElement =
@@ -330,6 +373,8 @@ export interface MarkerCommon {
 	filePath?: string
 	/** 关联的元素ID */
 	elementId: string
+	/** 标记创建/更新时对应的图片裁剪信息 */
+	elementCrop?: CropConfigWithoutDisplaySize
 	/** 标记在元素内的相对X位置（0-1，相对于元素宽度的比例） */
 	relativeX: number
 	/** 标记在元素内的相对Y位置（0-1，相对于元素高度的比例） */
@@ -368,16 +413,48 @@ export interface CanvasDocument {
 }
 
 /**
- * Padding 值类型：支持数值（像素）或百分比字符串
+ * 视口预留值类型：支持数值（像素）或百分比字符串，与 Padding 语义统一
  */
-export type PaddingValue = number | `${number}%`
+export type PaddingInsetValue = number | `${number}%`
 
 /**
- * Padding 配置：支持四个方向独立配置
+ * 视口预留配置
+ * 支持数字与百分比字符串
  */
-export interface PaddingConfig {
-	top: PaddingValue
-	right: PaddingValue
-	bottom: PaddingValue
-	left: PaddingValue
+export interface PaddingInsetConfig {
+	left?: PaddingInsetValue
+	right?: PaddingInsetValue
+	top?: PaddingInsetValue
+	bottom?: PaddingInsetValue
+	minLeft?: PaddingInsetValue
+	minRight?: PaddingInsetValue
+	minTop?: PaddingInsetValue
+	minBottom?: PaddingInsetValue
+	maxLeft?: PaddingInsetValue
+	maxRight?: PaddingInsetValue
+	maxTop?: PaddingInsetValue
+	maxBottom?: PaddingInsetValue
+}
+
+/**
+ * 视口预留后的智能对齐规则（由 padding 配置及解析后的 insets 推导）：
+ * - 仅设置水平方向 padding 时，垂直居中、水平左对齐
+ * - 仅设置垂直方向 padding 时，水平居中、垂直顶对齐
+ * - 水平与垂直都设置时，根据两侧 inset 大小决定：哪侧 inset 更小则贴哪侧，相等则居中
+ * - 都未设置时，水平垂直都居中
+ */
+export type ViewportPaddingAlignHorizontal = "left" | "center" | "right"
+export type ViewportPaddingAlignVertical = "top" | "center" | "bottom"
+
+export interface ViewportPaddingAlignment {
+	horizontal: ViewportPaddingAlignHorizontal
+	vertical: ViewportPaddingAlignVertical
+}
+
+/** 解析后的四边 inset（像素），用于智能对齐推导 */
+export interface ViewportPaddingInsets {
+	left: number
+	right: number
+	top: number
+	bottom: number
 }

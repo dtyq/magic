@@ -16,6 +16,7 @@ import { RouteName } from "@/routes/constants"
 import { convertSearchParams, routesMatch } from "@/routes/history/helpers"
 import { AppInitErrorCode, AppInitializationError } from "./errors"
 import type { User } from "@/types/user"
+import type { SettingsAll } from "@/apis/types"
 import type { ConfigService } from "@/services/config/ConfigService"
 import type { UserService } from "@/services/user/UserService"
 import type { AccountService } from "@/services/user/AccountService"
@@ -34,7 +35,6 @@ import { whiteListRoutes } from "@/routes/const/whiteRoutes"
 import { interfaceStore } from "@/stores/interface"
 import { BroadcastChannelSender } from "@/broadcastChannel"
 import { defaultClusterCode } from "@/routes/helpers"
-import { reaction } from "mobx"
 
 interface PlatformServiceFactory {
 	(context: AppServiceContext): Promise<PlatformServiceInterface>
@@ -42,8 +42,7 @@ interface PlatformServiceFactory {
 
 const platformServiceFactories: Record<Platform, PlatformServiceFactory> = {
 	[Platform.APIPlatform]: async (context) => {
-		const { default: APIPlatformService } =
-			await import("@/services/app/platformServices/api")
+		const { default: APIPlatformService } = await import("@/services/app/platformServices/api")
 		return new APIPlatformService(context)
 	},
 	[Platform.AdminPlatform]: async (context) => {
@@ -58,6 +57,10 @@ const platformServiceFactories: Record<Platform, PlatformServiceFactory> = {
 	},
 }
 
+const appInitSkipWaitRequestOptions = {
+	skipAppInitWait: true,
+} as const
+
 const AuthenticationKey = "authorization"
 
 /**
@@ -66,6 +69,8 @@ const AuthenticationKey = "authorization"
 export enum AppInitResult {
 	/** 初始化成功 */
 	SUCCESS = "SUCCESS",
+	/** 没有授权码但当前是公开路由，允许轻量继续 */
+	NO_TOKEN_PUBLIC_ROUTE = "NO_TOKEN_PUBLIC_ROUTE",
 	/** 没有授权码但是白名单路由，允许继续 */
 	NO_TOKEN_WHITELIST = "NO_TOKEN_WHITELIST",
 	/** 没有授权码且已重定向到登录页 */
@@ -103,12 +108,15 @@ export interface AppInitResultData {
  */
 class AppService extends AbstractAppService<AppInitResultData> {
 	private platformService: PlatformServiceInterface | null = null
+	private pendingPostInitUser: User.UserInfo | null = null
 	private isConfigInitializing = false
 	private configInitPromise: Promise<void> | null = null
 	private configRetryTimer: number | null = null
 	private configInitStatus: "idle" | "pending" | "success" | "failed" = "idle"
 	private configInitRetryCount = 0
 	private readonly configInitMaxRetry = 5
+	private settingsAllPromise: Promise<SettingsAll> | null = null
+	private authenticatedConfigPromise: Promise<void> | null = null
 
 	private clearConfigRetryTimer() {
 		if (this.configRetryTimer) {
@@ -139,8 +147,8 @@ class AppService extends AbstractAppService<AppInitResultData> {
 		this.clearConfigRetryTimer()
 		this.configRetryTimer = window.setTimeout(() => {
 			const runRetry = () => {
-				this.initializeConfiguration().catch((error) => {
-					this.logger.warn("配置初始化退避重试失败", error)
+				this.initializePublicConfiguration().catch((error) => {
+					this.logger.warn("公开配置初始化退避重试失败", error)
 				})
 			}
 
@@ -153,6 +161,30 @@ class AppService extends AbstractAppService<AppInitResultData> {
 
 			runRetry()
 		}, delay)
+	}
+
+	/**
+	 * 加载平台配置
+	 * 包括默认语言，默认图标，平台设置等配置
+	 * @returns Promise<SettingsAll>
+	 * @throws AppInitializationError
+	 */
+	private loadSettingsAll = async () => {
+		if (this.settingsAllPromise) return this.settingsAllPromise
+
+		this.settingsAllPromise = GlobalApi.getSettingsAll(appInitSkipWaitRequestOptions).catch(
+			(error) => {
+				this.settingsAllPromise = null
+				this.logger.error("加载平台配置失败", error)
+				throw new AppInitializationError({
+					code: AppInitErrorCode.PlatformSettingsRequestFailed,
+					cause: error,
+					message: "platform settings request failed",
+				})
+			},
+		)
+
+		return this.settingsAllPromise
 	}
 
 	logger = Logger.createLogger("appService")
@@ -218,9 +250,9 @@ class AppService extends AbstractAppService<AppInitResultData> {
 		return resultData
 	}
 
-	private async initializeConfiguration() {
+	private async initializePublicConfiguration() {
 		if (this.isConfigInitializing) {
-			this.logger.log("配置初始化进行中，跳过重复调用")
+			this.logger.log("公开配置初始化进行中，跳过重复调用")
 			return this.configInitPromise
 		}
 
@@ -229,9 +261,13 @@ class AppService extends AbstractAppService<AppInitResultData> {
 		this.clearConfigRetryTimer()
 
 		this.configInitPromise = (async () => {
-			this.logger.log("加载配置服务")
+			await service.get<ConfigService>("configService").hydrateLanguageEarly()
+
+			this.logger.log("加载公开配置服务")
 			try {
-				service.get<ConfigService>("configService").loadConfig()
+				service
+					.get<ConfigService>("configService")
+					.loadConfig(appInitSkipWaitRequestOptions)
 			} catch (error) {
 				this.logger.error("加载配置服务失败", error)
 				throw new AppInitializationError({
@@ -241,30 +277,11 @@ class AppService extends AbstractAppService<AppInitResultData> {
 				})
 			}
 
-			const response = await GlobalApi.getSettingsAll().catch((error) => {
-				this.logger.error("加载平台配置失败", error)
-				throw new AppInitializationError({
-					code: AppInitErrorCode.PlatformSettingsRequestFailed,
-					cause: error,
-					message: "platform settings request failed",
-				})
-			})
+			const response = await this.loadSettingsAll()
 
-			botStore.setDefaultIcon({ icons: response.defaultIcons })
+			this.logger.log("开始公开配置初始化")
 
-			await globalConfigStore
-				.initGlobalConfig(response.platform_settings, i18next)
-				.catch((error) => {
-					this.logger.error("全局配置语言包初始化失败", error)
-					throw new AppInitializationError({
-						code: AppInitErrorCode.GlobalConfigInitFailed,
-						cause: error,
-						message: "global config init failed",
-					})
-				})
-
-			this.logger.log("开始全局配置初始化")
-			await withTimeout(
+			const languageReadyPromise = withTimeout(
 				service
 					.get<ConfigService>("configService")
 					.init({
@@ -292,20 +309,35 @@ class AppService extends AbstractAppService<AppInitResultData> {
 				})
 			})
 
+			appStore.setLanguageReadyPromise(languageReadyPromise)
+
+			const globalConfigInitPromise = globalConfigStore
+				.initGlobalConfig(response.platform_settings, i18next)
+				.catch((error) => {
+					this.logger.error("全局配置语言包初始化失败", error)
+					throw new AppInitializationError({
+						code: AppInitErrorCode.GlobalConfigInitFailed,
+						cause: error,
+						message: "global config init failed",
+					})
+				})
+
+			await Promise.all([globalConfigInitPromise, languageReadyPromise])
+
 			this.configInitStatus = "success"
 			this.configInitRetryCount = 0
-			this.logger.log("配置初始化完成")
+			this.logger.log("公开配置初始化完成")
 		})().catch((error) => {
 			const configError =
 				error instanceof AppInitializationError
 					? error
 					: new AppInitializationError({
-						code: AppInitErrorCode.Unknown,
-						cause: error,
-						message: "config init failed",
-					})
+							code: AppInitErrorCode.Unknown,
+							cause: error,
+							message: "config init failed",
+						})
 			this.configInitStatus = "failed"
-			this.logger.warn("配置初始化失败，但不中断登录流程", configError)
+			this.logger.warn("公开配置初始化失败，但不中断登录流程", configError)
 			this.scheduleConfigRetry()
 			throw configError
 		})
@@ -313,7 +345,28 @@ class AppService extends AbstractAppService<AppInitResultData> {
 			this.isConfigInitializing = false
 		})
 
+		appStore.setPublicConfigInitPromise(this.configInitPromise)
+
 		return this.configInitPromise
+	}
+
+	private async initializeAuthenticatedConfiguration() {
+		if (this.authenticatedConfigPromise) {
+			this.logger.log("登录后配置初始化进行中，跳过重复调用")
+			return this.authenticatedConfigPromise
+		}
+
+		this.authenticatedConfigPromise = (async () => {
+			const response = await this.loadSettingsAll()
+			botStore.setDefaultIcon({ icons: response.defaultIcons })
+			this.logger.log("登录后配置初始化完成")
+		})().catch((error) => {
+			this.authenticatedConfigPromise = null
+			this.logger.warn("登录后配置初始化失败，但不中断登录流程", error)
+			throw error
+		})
+
+		return this.authenticatedConfigPromise
 	}
 
 	private getPlatformType = () => {
@@ -328,144 +381,181 @@ class AppService extends AbstractAppService<AppInitResultData> {
 	}
 
 	async init(): Promise<AppInitResultData> {
-		appStore.setIsInitialing(true)
-		let pathname = window.location.pathname
-		let isWhiteListRoute = this.isWhiteListRoute(pathname)
-		let hasAccessToken = false
-
-		try {
-			this.logger.log("开始应用初始化")
-			const traceId = sessionStorage.getItem("traceId") ?? v4()
-			sessionStorage.setItem("traceId", traceId)
-			this.logger.log("设置会话追踪ID", { traceId })
-			trackLogger.setConfig({
-				sessionId: traceId,
-			})
-
-			this.logger.log("初始化用户服务")
-			await service
-				.get<UserService>("userService")
-				.init()
-				.catch((error) => {
-					this.logger.error("用户服务初始化失败", error)
-					throw new AppInitializationError({
-						code: AppInitErrorCode.UserInitFailed,
-						cause: error,
-						message: "user service init failed",
-					})
-				})
-
-			// 集群初始化优先
-			await service.get<ConfigService>("configService").initialCluster()
-
-			// 1. 检查系统是否需要初始化（在所有鉴权检查之前）
-			const needsInitialization = await this.checkSystemInitialization()
-			if (needsInitialization) {
-				this.logger.log("系统需要初始化，已重定向到初始化页面")
-				return this.createAndReportInitResult(
-					AppInitResult.NEED_SYSTEM_INITIALIZATION,
-					pathname,
-					false,
-					false,
-				)
-			}
-
-			this.initializeConfiguration().catch((error) => {
-				this.logger.warn("配置初始化失败，但不中断登录流程", error)
-			})
-
-			pathname = window.location.pathname
-			isWhiteListRoute = this.isWhiteListRoute(pathname)
-			this.logger.log("检查路由信息", { pathname, isWhiteListRoute })
-
-			const queryAuthorization = this.getQueryAuthorization()
-			const accessToken = queryAuthorization ?? userStore.user.authorization
-			hasAccessToken = !!accessToken
-			this.logger.log("检查授权码", { hasAccessToken, fromQuery: !!queryAuthorization })
-
-			if (!accessToken && isWhiteListRoute) {
-				// 没有授权码但是白名单路由，允许继续
-				this.logger.log("无授权码但为白名单路由，允许继续访问")
-				return this.createAndReportInitResult(
-					AppInitResult.NO_TOKEN_WHITELIST,
-					pathname,
-					isWhiteListRoute,
-					hasAccessToken,
-				)
-			}
-
-			if (!accessToken) {
-				this.logger.log("无授权码，重定向到登录页")
-				this.redirectToLogin()
-				return this.createAndReportInitResult(
-					AppInitResult.NO_TOKEN_REDIRECTED,
-					pathname,
-					isWhiteListRoute,
-					hasAccessToken,
-				)
-			}
-
-			this.logger.log("开始初始化账户")
-			await this.initAccount().catch((error) => {
-				this.logger.error("账户初始化失败", error)
-				throw new AppInitializationError({
-					code: AppInitErrorCode.AccountInitFailed,
-					cause: error,
-					message: "account init failed",
-				})
-			})
-			this.logger.log("账户初始化完成")
-
-			// Wait for config initialization to complete before finishing app init
-			this.logger.log("等待配置初始化完成")
-			if (this.configInitPromise) {
-				await withTimeout(this.configInitPromise, 15000, "等待配置初始化超时 (15秒)").catch(
-					(error) => {
-						this.logger.warn("配置初始化等待失败，但不中断应用初始化", error)
-					},
-				)
-			}
-
-			if (this.configInitStatus === "success") {
-				this.logger.log("配置初始化已完成")
-			} else {
-				this.logger.warn("配置初始化未完成，当前状态:", this.configInitStatus)
-			}
-
-			this.logger.log("应用初始化成功完成")
-			return this.createAndReportInitResult(
-				AppInitResult.SUCCESS,
-				pathname,
-				isWhiteListRoute,
-				hasAccessToken,
-			)
-		} catch (error) {
-			const initError =
-				error instanceof AppInitializationError
-					? error
-					: new AppInitializationError({
-						code: AppInitErrorCode.Unknown,
-						cause: error,
-						message: "app init failed",
-					})
-			this.logger.error("应用初始化失败", initError)
-			if (!isWhiteListRoute) {
-				this.logger.log("非白名单路由，重定向到登录页")
-				this.redirectToLogin()
-			}
-
-			return this.createAndReportInitResult(
-				isWhiteListRoute
-					? AppInitResult.INIT_FAILED_WHITELIST
-					: AppInitResult.INIT_FAILED_REDIRECTED,
-				pathname,
-				isWhiteListRoute,
-				hasAccessToken,
-				initError,
-			)
-		} finally {
-			appStore.setIsInitialing(false)
+		if (appStore.appInitPromise) {
+			this.logger.log("应用初始化进行中，复用已有 promise")
+			return appStore.appInitPromise as Promise<AppInitResultData>
 		}
+
+		let resolveAppInit!: (value: AppInitResultData) => void
+		let rejectAppInit!: (reason?: unknown) => void
+
+		const initPromise = new Promise<AppInitResultData>((resolve, reject) => {
+			resolveAppInit = resolve
+			rejectAppInit = reject
+		})
+
+		appStore.setAppInitPromise(initPromise)
+		this.schedulePostAppInitUserData(initPromise)
+
+		const initTask = (async () => {
+			appStore.setIsInitialing(true)
+			let pathname = window.location.pathname
+			let isWhiteListRoute = this.isWhiteListRoute(pathname)
+			let hasAccessToken = false
+
+			try {
+				this.logger.log("开始应用初始化")
+				const traceId = sessionStorage.getItem("traceId") ?? v4()
+				sessionStorage.setItem("traceId", traceId)
+				this.logger.log("设置会话追踪ID", { traceId })
+				trackLogger.setConfig({
+					sessionId: traceId,
+				})
+
+				this.logger.log("初始化用户服务")
+				await service
+					.get<UserService>("userService")
+					.init()
+					.catch((error) => {
+						this.logger.error("用户服务初始化失败", error)
+						throw new AppInitializationError({
+							code: AppInitErrorCode.UserInitFailed,
+							cause: error,
+							message: "user service init failed",
+						})
+					})
+
+				pathname = window.location.pathname
+				isWhiteListRoute = this.isWhiteListRoute(pathname)
+				this.logger.log("检查路由信息", { pathname, isWhiteListRoute })
+
+				this.initializePublicConfiguration().catch((error) => {
+					this.logger.warn("公开配置初始化失败，但不中断登录流程", error)
+				})
+
+				// 系统初始化检查必须先于登录/白名单分流，避免未初始化实例误入登录页
+				const needsInitialization = await this.checkSystemInitialization()
+				if (needsInitialization) {
+					this.logger.log("系统需要初始化，已重定向到初始化页面")
+					return this.createAndReportInitResult(
+						AppInitResult.NEED_SYSTEM_INITIALIZATION,
+						pathname,
+						false,
+						false,
+					)
+				}
+
+				const queryAuthorization = this.getQueryAuthorization()
+				const accessToken = queryAuthorization ?? userStore.user.authorization
+				hasAccessToken = !!accessToken
+				this.logger.log("检查授权码", { hasAccessToken, fromQuery: !!queryAuthorization })
+
+				if (!accessToken) {
+					if (this.isPublicRoute(pathname)) {
+						this.logger.log("无授权码但为公开路由，走轻初始化路径")
+						return this.createAndReportInitResult(
+							AppInitResult.NO_TOKEN_PUBLIC_ROUTE,
+							pathname,
+							isWhiteListRoute,
+							hasAccessToken,
+						)
+					}
+
+					this.logger.log("无授权码，重定向到登录页")
+					this.redirectToLogin()
+					return this.createAndReportInitResult(
+						AppInitResult.NO_TOKEN_REDIRECTED,
+						pathname,
+						isWhiteListRoute,
+						hasAccessToken,
+					)
+				}
+
+				// 集群初始化优先
+				await service.get<ConfigService>("configService").initialCluster()
+
+				this.initializeAuthenticatedConfiguration().catch((error) => {
+					this.logger.warn("登录后配置初始化失败，但不中断登录流程", error)
+				})
+
+				this.logger.log("开始初始化账户")
+				await this.initAccount().catch((error) => {
+					this.logger.error("账户初始化失败", error)
+					throw new AppInitializationError({
+						code: AppInitErrorCode.AccountInitFailed,
+						cause: error,
+						message: "account init failed",
+					})
+				})
+				this.logger.log("账户初始化完成")
+
+				// // Wait for config initialization to complete before finishing app init
+				// this.logger.log("等待公开配置初始化完成")
+				// if (this.configInitPromise) {
+				// 	await withTimeout(
+				// 		this.configInitPromise,
+				// 		15000,
+				// 		"等待公开配置初始化超时 (15秒)",
+				// 	).catch((error) => {
+				// 		this.logger.warn("公开配置初始化等待失败，但不中断应用初始化", error)
+				// 	})
+				// }
+
+				// if (this.configInitStatus === "success") {
+				// 	this.logger.log("公开配置初始化已完成")
+				// } else {
+				// 	this.logger.warn("公开配置初始化未完成，当前状态:", this.configInitStatus)
+				// }
+
+				// if (this.authenticatedConfigPromise) {
+				// 	await withTimeout(
+				// 		this.authenticatedConfigPromise,
+				// 		5000,
+				// 		"等待登录后配置初始化超时 (5秒)",
+				// 	).catch((error) => {
+				// 		this.logger.warn("登录后配置初始化等待失败，但不中断应用初始化", error)
+				// 	})
+				// }
+
+				this.logger.log("应用初始化成功完成")
+				return this.createAndReportInitResult(
+					AppInitResult.SUCCESS,
+					pathname,
+					isWhiteListRoute,
+					hasAccessToken,
+				)
+			} catch (error) {
+				const initError =
+					error instanceof AppInitializationError
+						? error
+						: new AppInitializationError({
+								code: AppInitErrorCode.Unknown,
+								cause: error,
+								message: "app init failed",
+							})
+				this.logger.error("应用初始化失败", initError)
+				if (!isWhiteListRoute) {
+					this.logger.log("非白名单路由，重定向到登录页")
+					this.redirectToLogin()
+				}
+
+				return this.createAndReportInitResult(
+					isWhiteListRoute
+						? AppInitResult.INIT_FAILED_WHITELIST
+						: AppInitResult.INIT_FAILED_REDIRECTED,
+					pathname,
+					isWhiteListRoute,
+					hasAccessToken,
+					initError,
+				)
+			} finally {
+				appStore.setIsInitialing(false)
+			}
+		})()
+
+		void initTask.then(resolveAppInit).catch(rejectAppInit)
+
+		return initPromise
 	}
 
 	private getQueryAuthorization = () => {
@@ -477,6 +567,12 @@ class AppService extends AbstractAppService<AppInitResultData> {
 		}
 		return authCode
 	}
+
+	private isLoginRoute = (pathname: string) =>
+		pathname === RoutePath.Login || pathname === RoutePath.Invite
+
+	private isPublicRoute = (pathname: string) =>
+		this.isWhiteListRoute(pathname) || this.isLoginRoute(pathname)
 
 	/**
 	 * @description 判断是否为白名单路由
@@ -559,13 +655,19 @@ class AppService extends AbstractAppService<AppInitResultData> {
 				return false
 			}
 
-			// 调用 /api/v1/settings/global 检查是否需要初始化
+			// 复用公开配置请求结果，避免初始化阶段重复请求
 			this.logger.log("检查系统是否需要初始化")
-			const globalConfig = await GlobalApi.getGlobalConfig().catch((error) => {
-				// 如果接口调用失败，假设不需要初始化，继续正常流程
-				this.logger.warn("获取全局配置失败，假设系统已初始化", error)
-				return { need_initial: false, is_maintenance: false, maintenance_description: "" }
-			})
+			const globalConfig = await this.loadSettingsAll()
+				.then((response) => response.global_config)
+				.catch((error) => {
+					// 如果接口调用失败，假设不需要初始化，继续正常流程
+					this.logger.warn("获取公开配置失败，假设系统已初始化", error)
+					return {
+						need_initial: false,
+						is_maintenance: false,
+						maintenance_description: "",
+					}
+				})
 
 			if (globalConfig.need_initial) {
 				this.logger.log("系统需要初始化，跳转到初始化页面")
@@ -596,7 +698,9 @@ class AppService extends AbstractAppService<AppInitResultData> {
 		service.get<UserService>("userService").setAuthorization(accessToken)
 
 		this.logger.log("同步集群配置")
-		const { clusterCode } = await service.get<LoginService>("loginService").syncClusterConfig()
+		const { clusterCode } = await service
+			.get<LoginService>("loginService")
+			.syncClusterConfig(appInitSkipWaitRequestOptions)
 		this.logger.log("集群配置同步完成", { clusterCode })
 
 		this.logger.log("获取第三方平台组织信息")
@@ -605,10 +709,9 @@ class AppService extends AbstractAppService<AppInitResultData> {
 			organizationCode,
 			thirdPlatformOrganizations,
 			thirdPlatformOrganizationCode,
-		} = await (service.get<LoginService>("loginService") as any).getThirdPlatformOrganizations(
-			accessToken,
-			clusterCode,
-		)
+		} = await service
+			.get<LoginService>("loginService")
+			.getThirdPlatformOrganizations(accessToken, clusterCode, appInitSkipWaitRequestOptions)
 		this.logger.log("第三方平台组织信息获取完成", {
 			organizationCode,
 			thirdPlatformOrganizationCode,
@@ -625,13 +728,16 @@ class AppService extends AbstractAppService<AppInitResultData> {
 
 		// Account system synchronization
 		this.logger.log("同步账户系统")
-		await service.get<LoginService>("loginService").accountSync({
-			deployCode: clusterCode,
-			access_token: accessToken,
-			magicOrganizationMap,
-			organizations: thirdPlatformOrganizations,
-			teamshareOrganizationCode: thirdPlatformOrganizationCode,
-		})
+		await service.get<LoginService>("loginService").accountSync(
+			{
+				deployCode: clusterCode,
+				access_token: accessToken,
+				magicOrganizationMap,
+				organizations: thirdPlatformOrganizations,
+				teamshareOrganizationCode: thirdPlatformOrganizationCode,
+			},
+			appInitSkipWaitRequestOptions,
+		)
 		this.logger.log("账户系统同步完成")
 
 		// Temporary processing
@@ -647,8 +753,8 @@ class AppService extends AbstractAppService<AppInitResultData> {
 
 		const user = userStore.user.userInfo
 		if (user) {
-			this.logger.log("账户初始化完成，开始初始化用户切换后的流程")
-			await this.initUserData(user)
+			this.logger.log("账户初始化完成，准备在 app init 完成后触发后置初始化流程")
+			this.pendingPostInitUser = user
 		}
 	}
 
@@ -661,6 +767,33 @@ class AppService extends AbstractAppService<AppInitResultData> {
 	initUserData = async (user: User.UserInfo) => {
 		if (!this.platformService) return
 		return this.platformService.initUserData(user)
+	}
+
+	private triggerPostAppInitUserData(user: User.UserInfo) {
+		Promise.resolve(this.initUserData(user)).catch((error) => {
+			this.logger.error("应用启动后的用户数据初始化失败", error)
+		})
+	}
+
+	private schedulePostAppInitUserData(initPromise: Promise<AppInitResultData>) {
+		void initPromise
+			.then((result) => {
+				if (result.result !== AppInitResult.SUCCESS) {
+					this.pendingPostInitUser = null
+					return
+				}
+
+				const user = this.pendingPostInitUser
+				this.pendingPostInitUser = null
+				if (!user) return
+
+				this.logger.log("app init 已完成，开始执行用户数据后置初始化")
+				this.triggerPostAppInitUserData(user)
+			})
+			.catch((error) => {
+				this.pendingPostInitUser = null
+				this.logger.warn("调度用户数据后置初始化失败", error)
+			})
 	}
 
 	/**

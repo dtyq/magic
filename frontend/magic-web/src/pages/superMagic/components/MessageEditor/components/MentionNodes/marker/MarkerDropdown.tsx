@@ -4,10 +4,15 @@ import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { Input } from "@/components/shadcn-ui/input"
 import { cn } from "@/lib/utils"
 import { useDebounceFn } from "ahooks"
+import type { ComponentProps } from "react"
 import { memo, useCallback, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import MarkerIcon from "./marker.svg"
 import { useMarkerImageUrl } from "./useMarkerImageUrl"
+import {
+	getCanvasMarkerMentionImagePath,
+	getCanvasMarkerMentionSuggestions,
+} from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 
 interface MarkerDropdownProps {
 	markerData: CanvasMarkerMentionData
@@ -16,6 +21,7 @@ interface MarkerDropdownProps {
 	popoverClassName?: string
 	side?: "top" | "right" | "bottom" | "left"
 	imageUrl?: string | null
+	onFocusOutside?: ComponentProps<typeof PopoverContent>["onFocusOutside"]
 }
 
 function MarkerDropdown({
@@ -25,17 +31,19 @@ function MarkerDropdown({
 	popoverClassName,
 	side = "top",
 	imageUrl: imageUrlProp,
+	onFocusOutside,
 }: MarkerDropdownProps) {
 	const { t } = useTranslation("super")
-	const suggestions = markerData.data?.result?.suggestions || []
-	const selectedIndex = markerData.data?.selectedSuggestionIndex ?? 0
+	const suggestions = getCanvasMarkerMentionSuggestions(markerData)
+	const selectedIndex = markerData.selected_suggestion_index ?? 0
 	const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 	const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null)
 	const customInputRef = useRef<HTMLInputElement>(null)
 	const THUMBNAIL_SIZE = 24
 
 	const { imageUrl: imageUrlFromHook } = useMarkerImageUrl(
-		imageUrlProp !== undefined ? undefined : markerData.image_path,
+		imageUrlProp !== undefined ? undefined : getCanvasMarkerMentionImagePath(markerData),
+		markerData.design_project_id,
 	)
 	const imageUrl = imageUrlProp !== undefined ? imageUrlProp : imageUrlFromHook
 
@@ -176,6 +184,7 @@ function MarkerDropdown({
 				// 避免 Popover 打开时自动聚焦到输入框，导致已有自定义文本被整段选中
 				event.preventDefault()
 			}}
+			onFocusOutside={onFocusOutside}
 		>
 			<div className="mb-[10px] text-sm font-semibold">
 				{t("messageEditor.markerDropdown.markedObjectTitle")}
@@ -284,7 +293,7 @@ function MarkerDropdown({
 						className={cn(
 							"shrink-0",
 							!(hoveredIndex === CUSTOM_ITEM_INDEX || isCustomSelected) &&
-							"invisible",
+								"invisible",
 						)}
 					/>
 				</div>

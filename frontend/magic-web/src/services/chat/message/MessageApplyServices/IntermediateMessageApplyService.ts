@@ -4,6 +4,8 @@ import {
 	IntermediateMessageType,
 	RawMessage,
 	StartConversationInputMessage,
+	SuperMagicChunkMessage,
+	SuperMagicFileChangeMessage,
 	SuperMagicMessageQueueMessage,
 } from "@/types/chat/intermediate_message"
 import ConversationService from "@/services/chat/conversation/ConversationService"
@@ -24,6 +26,9 @@ class IntermediateMessageApplyService {
 			case IntermediateMessageType.Raw:
 				this.applyRawConversationSuperMagicMessage(message.seq as SeqResponse<RawMessage>)
 				break
+			case IntermediateMessageType.SuperMagicChunk:
+				this.applySuperMagicChunkMessage(message.seq as SeqResponse<SuperMagicChunkMessage>)
+				break
 			case IntermediateMessageType.EndConversationInput:
 				this.applyEndConversationInputMessage(
 					message.seq as SeqResponse<EndConversationInputMessage>,
@@ -32,6 +37,11 @@ class IntermediateMessageApplyService {
 			case IntermediateMessageType.SuperMagicMessageQueueChange:
 				this.applySuperMagicMessageQueue(
 					message.seq as SeqResponse<SuperMagicMessageQueueMessage>,
+				)
+				break
+			case IntermediateMessageType.SuperMagicFileChange:
+				this.applySuperMagicFileChange(
+					message.seq as SeqResponse<SuperMagicFileChangeMessage>,
 				)
 				break
 			default:
@@ -66,7 +76,15 @@ class IntermediateMessageApplyService {
 	 * @param seq 消息对象
 	 */
 	applyRawConversationSuperMagicMessage(seq: SeqResponse<RawMessage>) {
-		pubsub.publish("super_magic_stream_message", seq?.message)
+		pubsub.publish(PubSubEvents.Stream_Message, seq?.message)
+	}
+
+	/**
+	 * 超级麦吉流式消息块接收
+	 * @param seq 消息对象
+	 */
+	applySuperMagicChunkMessage(seq: SeqResponse<SuperMagicChunkMessage>) {
+		pubsub.publish("super_magic_chunk_message", seq?.message)
 	}
 
 	/**
@@ -75,6 +93,10 @@ class IntermediateMessageApplyService {
 	 */
 	applySuperMagicMessageQueue(seq: SeqResponse<SuperMagicMessageQueueMessage>) {
 		pubsub.publish(PubSubEvents.SuperMagicMessageQueueConsumed, seq?.message)
+	}
+
+	applySuperMagicFileChange(seq: SeqResponse<SuperMagicFileChangeMessage>) {
+		pubsub.publish(PubSubEvents.Super_Magic_File_Change_Intermediate, seq)
 	}
 }
 

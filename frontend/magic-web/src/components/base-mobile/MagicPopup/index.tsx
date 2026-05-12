@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils"
 import * as React from "react"
 import { memo, useEffect, useRef } from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
+import { useIosBottomDrawerScrollLock } from "./useIosBottomDrawerScrollLock"
 
 export type MagicPopupProps = React.ComponentProps<typeof Drawer> & {
 	/** Whether the popup is visible (maps to open) */
@@ -61,8 +62,11 @@ const MagicPopup = memo(
 		withSafeBottom = true,
 		...props
 	}: MagicPopupProps) => {
-		const { open, onOpenChange, direction, ...restProps } = props
+		const { open, onOpenChange, direction, onAnimationEnd, ...restProps } = props
 		const hasBeenOpenedRef = useRef(false)
+		const { contentStyle, handleContentRef } = useIosBottomDrawerScrollLock({
+			position,
+		})
 
 		const isOpen = visible ?? open
 
@@ -90,6 +94,7 @@ const MagicPopup = memo(
 			<Drawer
 				open={isOpen}
 				onOpenChange={handleOpenChange}
+				onAnimationEnd={onAnimationEnd}
 				direction={position ?? direction}
 				dismissible={maskClosable}
 				repositionInputs={false}
@@ -108,13 +113,13 @@ const MagicPopup = memo(
 					/>
 					<DrawerPrimitive.Content
 						data-slot="drawer-content"
+						ref={handleContentRef}
 						className={cn(
 							"group/drawer-content fixed flex h-auto flex-col bg-background",
 							"data-[vaul-drawer-direction=top]:inset-x-0 data-[vaul-drawer-direction=top]:top-0 data-[vaul-drawer-direction=top]:mb-24 data-[vaul-drawer-direction=top]:rounded-b-lg data-[vaul-drawer-direction=top]:border-b",
 							"data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:mt-24 data-[vaul-drawer-direction=bottom]:rounded-t-lg data-[vaul-drawer-direction=bottom]:border-t",
 							"data-[vaul-drawer-direction=right]:inset-y-0 data-[vaul-drawer-direction=right]:right-0 data-[vaul-drawer-direction=right]:w-3/4 data-[vaul-drawer-direction=right]:border-l data-[vaul-drawer-direction=right]:sm:max-w-sm",
 							"data-[vaul-drawer-direction=left]:inset-y-0 data-[vaul-drawer-direction=left]:left-0 data-[vaul-drawer-direction=left]:w-3/4 data-[vaul-drawer-direction=left]:border-r data-[vaul-drawer-direction=left]:sm:max-w-sm",
-							"data-[data-vaul-drawer-direction=bottom]::after",
 							"data-[vaul-drawer-direction=bottom]::after:bg-background",
 							"overflow-hidden bg-background",
 							"z-popup",
@@ -126,6 +131,7 @@ const MagicPopup = memo(
 						style={{
 							zIndex,
 							...style,
+							...contentStyle,
 						}}
 					>
 						{/* Hidden title for accessibility */}

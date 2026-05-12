@@ -149,7 +149,7 @@ export function useTopicMessages({
 
 	// Subscribe to WebSocket messages
 	useEffect(() => {
-		pubsub.subscribe("super_magic_new_message", (data: any) => {
+		pubsub.subscribe(PubSubEvents.Super_Magic_New_Message_V2, (data: any) => {
 			console.log("我接受到的 ws 消息", data)
 			const { topic_id: chat_topic_id = "" } = data.message || {}
 
@@ -166,13 +166,14 @@ export function useTopicMessages({
 			}
 		})
 		return () => {
-			pubsub?.unsubscribe("super_magic_new_message")
+			pubsub?.unsubscribe(PubSubEvents.Super_Magic_New_Message_V2)
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [selectedTopic])
 
 	// Update messages when topic changes
 	useDeepCompareEffect(() => {
+		superMagicStore.setActiveTopicId(selectedTopic?.chat_topic_id || null)
 		updateTopicMessages()
 	}, [selectedTopic])
 
@@ -201,7 +202,7 @@ export function useTopicMessages({
 			(topicMessages) => {
 				if (topicMessages.length > 1) {
 					const lastMessageWithRole = topicMessages.findLast(
-						(m) => m.role === "assistant",
+						(message) => message.role !== "user",
 					)
 					const lastMessage = topicMessages?.[topicMessages.length - 1]
 					const lastMessageNode = superMagicStore.getMessageNode(
@@ -210,7 +211,8 @@ export function useTopicMessages({
 
 					const isLoading =
 						lastMessageNode?.status === "running" ||
-						lastMessage.type === "rich_text" ||
+						lastMessageNode?.status === "waiting" ||
+						lastMessage?.type === "rich_text" ||
 						isObject(lastMessageNode?.content) ||
 						Boolean(lastMessageNode?.rich_text?.content) ||
 						Boolean(lastMessageNode?.text?.content)

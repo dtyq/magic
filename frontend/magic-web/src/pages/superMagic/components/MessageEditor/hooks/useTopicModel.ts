@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef } from "react"
-import {
-	ProjectListItem,
-	Topic,
-	TopicMode,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { ProjectListItem, Topic, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
 import { useMount } from "ahooks"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { superMagicTopicModelService } from "@/services/superMagic/topicModel"
@@ -17,11 +13,15 @@ import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelS
 function useTopicModel({
 	selectedTopic,
 	selectedProject,
+	agentCode,
+	autoFetch = true,
 	topicMode = superMagicModeService.firstModeIdentifier,
 	topicModelStore,
 }: {
 	selectedTopic?: Topic | null
 	selectedProject?: ProjectListItem | null
+	agentCode?: string | null
+	autoFetch?: boolean
 	topicMode?: TopicMode
 	topicModelStore?: ReturnType<typeof createSuperMagicTopicModelStore>
 }) {
@@ -34,30 +34,46 @@ function useTopicModel({
 
 	// Initialize Service (only once)
 	useMount(() => {
+		if (!autoFetch) return
 		superMagicTopicModelService.initForStore(topicStore)
 	})
 
 	// Sync context to Store when props change
 	// Store's reaction will automatically trigger model loading
 	useEffect(() => {
+		if (!autoFetch) return
 		if (selectedTopic && !selectedProject) {
 			return
 		}
-		topicStore.setCurrentContext(selectedTopic?.id, selectedProject?.id || "", topicMode)
-	}, [topicMode, selectedTopic, selectedProject, topicStore])
+		topicStore.setCurrentContext(
+			selectedTopic?.id,
+			selectedProject?.id || "",
+			topicMode,
+			agentCode ?? selectedTopic?.agent_code,
+		)
+	}, [agentCode, autoFetch, topicMode, selectedTopic, selectedProject, topicStore])
 
 	// Cleanup on unmount
 	useEffect(() => {
+		if (!autoFetch) return
 		return () => {
 			// Flush all pending saves on unmount
 			superMagicTopicModelService.flushAll(topicStore.currentTopicId)
 			superMagicTopicModelService.destroyForStore(topicStore)
 		}
-	}, [topicStore])
+	}, [autoFetch, topicStore])
 
+	const currentAgentCode = agentCode ?? selectedTopic?.agent_code ?? null
 	// Get model lists from mode service
-	const modelGroups = superMagicModeService.getModelGroupsByMode(topicMode)
-	const imageModelGroups = superMagicModeService.getImageModelGroupsByMode(topicMode)
+	const modelGroups = superMagicModeService.getModelGroupsByMode(topicMode, currentAgentCode)
+	const imageModelGroups = superMagicModeService.getImageModelGroupsByMode(
+		topicMode,
+		currentAgentCode,
+	)
+	const videoModelGroups = superMagicModeService.getVideoModelGroupsByMode(
+		topicMode,
+		currentAgentCode,
+	)
 	const validateSelectedModels = useCallback(() => {
 		return superMagicTopicModelService.validateSelectedModels(topicStore)
 	}, [topicStore])
@@ -65,6 +81,7 @@ function useTopicModel({
 	return {
 		modelList: modelGroups ?? [],
 		imageModelList: imageModelGroups ?? [],
+		videoModelList: videoModelGroups ?? [],
 		topicModelStore: topicStore,
 		validateSelectedModels,
 		setSelectedModel: (model: ModelItem | null) => {
@@ -72,6 +89,7 @@ function useTopicModel({
 				topicStore.currentTopicId,
 				topicStore.currentProjectId,
 				model,
+				undefined,
 				undefined,
 				topicStore,
 			)
@@ -82,6 +100,17 @@ function useTopicModel({
 				topicStore.currentProjectId,
 				undefined,
 				model,
+				undefined,
+				topicStore,
+			)
+		},
+		setSelectedVideoModel: (model: ModelItem | null) => {
+			superMagicTopicModelService.saveModel(
+				topicStore.currentTopicId,
+				topicStore.currentProjectId,
+				undefined,
+				undefined,
+				model,
 				topicStore,
 			)
 		},
@@ -90,16 +119,19 @@ function useTopicModel({
 			selectedTopic: topic,
 			model,
 			imageModel,
+			videoModel,
 		}: {
 			selectedTopic: Topic
 			model: ModelItem
 			imageModel: ModelItem | null
+			videoModel?: ModelItem | null
 		}) => {
 			superMagicTopicModelService.saveModel(
 				topic?.id,
 				selectedProject?.id || "",
 				model,
 				imageModel,
+				videoModel,
 				topicStore,
 			)
 		},

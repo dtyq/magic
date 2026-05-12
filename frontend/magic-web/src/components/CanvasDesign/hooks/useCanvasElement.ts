@@ -1,7 +1,7 @@
 import { useReducer } from "react"
 import { useCanvas } from "../context/CanvasContext"
 import type { LayerElement } from "../canvas/types"
-import { useCanvasEvent } from "./useCanvasEvent"
+import { useCanvasEventWithInstance } from "./useCanvasEvent"
 
 /**
  * 获取 Canvas 元素的 Hook
@@ -11,9 +11,29 @@ import { useCanvasEvent } from "./useCanvasEvent"
 export function useCanvasElements(elementIds?: string[]): LayerElement[] {
 	const { canvas } = useCanvas()
 	const [, forceUpdate] = useReducer((x) => x + 1, 0)
+	const shouldSubscribe = Boolean(canvas) && (elementIds === undefined || elementIds.length > 0)
 
 	// 订阅元素变化事件
-	useCanvasEvent("element:change", forceUpdate, [elementIds])
+	useCanvasEventWithInstance(
+		shouldSubscribe ? canvas : null,
+		"element:change",
+		({ data }) => {
+			if (elementIds === undefined) {
+				forceUpdate()
+				return
+			}
+
+			if (elementIds.length === 0) {
+				return
+			}
+
+			const changedElementIds = data?.elementIds
+			if (!changedElementIds || changedElementIds.some((id) => elementIds.includes(id))) {
+				forceUpdate()
+			}
+		},
+		[elementIds, shouldSubscribe],
+	)
 
 	if (!canvas) {
 		return []
@@ -38,9 +58,24 @@ export function useCanvasElements(elementIds?: string[]): LayerElement[] {
 export function useCanvasElement(elementId: string | null): LayerElement | null {
 	const { canvas } = useCanvas()
 	const [, forceUpdate] = useReducer((x) => x + 1, 0)
+	const shouldSubscribe = Boolean(canvas) && Boolean(elementId)
 
 	// 订阅元素变化事件
-	useCanvasEvent("element:change", forceUpdate, [elementId])
+	useCanvasEventWithInstance(
+		shouldSubscribe ? canvas : null,
+		"element:change",
+		({ data }) => {
+			if (!elementId) {
+				return
+			}
+
+			const changedElementIds = data?.elementIds
+			if (!changedElementIds || changedElementIds.includes(elementId)) {
+				forceUpdate()
+			}
+		},
+		[elementId, shouldSubscribe],
+	)
 
 	if (!elementId || !canvas) {
 		return null

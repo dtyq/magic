@@ -174,8 +174,6 @@ export class UserSkillsStore {
 				return skillsService.getTeamSharedSkills(params)
 			case "market-installed":
 				return skillsService.getMarketInstalledSkills(params)
-			default:
-				return skillsService.getUserSkills(params)
 		}
 	}
 

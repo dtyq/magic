@@ -1,41 +1,17 @@
 import { IconPlug, IconX, IconSearch, IconPlus } from "@tabler/icons-react"
 import type { BasePanel } from "../types"
 import { Segmented } from "antd"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { useMemoizedFn, useRequest, useDebounceEffect, useResponsive, useCreation } from "ahooks"
-import { MCPItem } from "./MCPItem"
-import type { IMCPItem } from "../../../types"
-import { useImmer } from "use-immer"
-import {
-	MCPManagerService,
-	OfficialStrategy,
-	OrganizationStrategy,
-	PersonStrategy,
-} from "../../../service/MCPManagerService"
-import { openAgentCommonModal } from "../../../../AgentCommonModal"
-import MCPForm from "../../../MCPForm"
+import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import NoDataImage from "@/assets/resources/defaultImages/no_data.svg"
-import { checkMCPOAuth, MCPOAuthType } from "./helpers"
-import { getMCPAccess } from "../../../store/mcp-access"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { cn } from "@/lib/utils"
 import { Spinner } from "@/components/shadcn-ui/spinner"
 import { observer } from "mobx-react-lite"
-
-export const enum MCPUserGroup {
-	Official = "official",
-	Organization = "organization",
-	Person = "person",
-}
-
-const MCPStrategy = {
-	[MCPUserGroup.Official]: OfficialStrategy,
-	[MCPUserGroup.Organization]: OrganizationStrategy,
-	[MCPUserGroup.Person]: PersonStrategy,
-}
+import { MCPItem } from "./MCPItem"
+import { MCPUserGroup, useMCPPanelController } from "./useMCPPanelController"
 
 const segmentedClassName = cn(
 	"rounded-md border border-border p-1",
@@ -64,130 +40,24 @@ export const MCPPanel = observer(function MCPPanel(props: MCPPanelProps) {
 	const { onClose, onSuccessCallback, storageKey, useTempStorage = false } = props
 
 	const { t } = useTranslation("agent")
-	const { md } = useResponsive()
-	const isMobile = !md
-
-	const mcpAccess = useCreation(
-		() =>
-			getMCPAccess({
-				storageKey,
-				useTempStorage,
-			}),
-		[storageKey, useTempStorage],
-	)
-
-	const service = useCreation(() => new MCPManagerService(), [])
-
-	const [type, setMCPType] = useState(MCPUserGroup.Official)
-	const [searchText, setSearchText] = useState("")
-	const hasInitializedSearch = useRef(false)
-	/** Saved form data */
-	const [usableCache, setUsableCache] = useImmer<Set<string>>(new Set())
-
-	const { run, data, loading, refresh } = useRequest(
-		(name?: string) => service.getMCPList(name),
-		{
-			manual: true,
-		},
-	)
-
-	useEffect(() => {
-		mcpAccess.load().catch(console.error)
-	}, [mcpAccess])
-
-	const selectedMCPIds = mcpAccess.mcpList.map((item) => item.id).join(",")
-
-	useEffect(() => {
-		setUsableCache((draft) => {
-			draft.clear()
-			mcpAccess.mcpList.forEach((item) => {
-				draft.add(item.id)
-			})
-		})
-	}, [mcpAccess, selectedMCPIds, setUsableCache])
-
-	useDebounceEffect(
-		() => {
-			if (!hasInitializedSearch.current) {
-				hasInitializedSearch.current = true
-				return
-			}
-			run(searchText)
-		},
-		[searchText],
-		{ wait: 1000, leading: false },
-	)
-
-	const submit = useMemoizedFn(async (o: Set<string>) => {
-		await mcpAccess.save({
-			selectedIds: o,
-			items: data || [],
-		})
-
-		onSuccessCallback?.()
+	const controller = useMCPPanelController({
+		onSuccessCallback,
+		storageKey,
+		useTempStorage,
 	})
-
-	const onOAuthCallback = useMemoizedFn(async (id: string) => {
-		setUsableCache((preState) => {
-			if (preState.has(id)) {
-				preState.delete(id)
-			} else {
-				preState.add(id)
-			}
-			submit(preState).catch(console.error)
-		})
-	})
-
-	const onStatusChange = useMemoizedFn(async (item: IMCPItem) => {
-		if (usableCache.has(item?.id)) {
-			// 针对已经授权过的直接
-			setUsableCache((preState) => {
-				if (preState.has(item?.id)) {
-					preState.delete(item?.id)
-				} else {
-					preState.add(item?.id)
-				}
-				submit(preState).catch(console.error)
-			})
-		} else {
-			// 没有添加的则先获取状态，判断是否需要授权
-			const type = await checkMCPOAuth(item)
-			if (type === MCPOAuthType.successful) {
-				await onOAuthCallback(item?.id)
-			} else if (type === MCPOAuthType.noVerificationRequired) {
-				// 无需授权，直接添加
-				setUsableCache((preState) => {
-					if (preState.has(item?.id)) {
-						preState.delete(item?.id)
-					} else {
-						preState.add(item?.id)
-					}
-					submit(preState).catch(console.error)
-				})
-			}
-		}
-	})
-
-	const onMCPItemClick = useMemoizedFn((item: IMCPItem) => {
-		openAgentCommonModal({
-			width: 600,
-			footer: null,
-			closable: false,
-			centered: isMobile,
-			isResponsive: false,
-			children: <MCPForm id={item?.id} onSuccessCallback={refresh} />,
-		})
-	})
-
-	useLayoutEffect(() => {
-		try {
-			const Strategy = MCPStrategy?.[type]
-			service.setContext(new Strategy())
-			run(searchText)
-		} catch (error) {
-			console.error(error)
-		}
-	}, [run, searchText, service, type])
+	const {
+		isMobile,
+		type,
+		setType,
+		searchText,
+		setSearchText,
+		data,
+		loading,
+		openCreateForm,
+		openEditForm,
+		onStatusChange,
+		usableCache,
+	} = controller
 
 	const options = useMemo(() => {
 		return [
@@ -216,7 +86,7 @@ export const MCPPanel = observer(function MCPPanel(props: MCPPanelProps) {
 					<Segmented<string>
 						value={type}
 						className={segmentedClassName}
-						onChange={(rawType) => setMCPType(rawType as MCPUserGroup)}
+						onChange={(rawType) => setType(rawType as MCPUserGroup)}
 						options={options}
 						name="label"
 						data-testid="agent-mcp-panel-group-segmented"
@@ -227,14 +97,7 @@ export const MCPPanel = observer(function MCPPanel(props: MCPPanelProps) {
 							variant="outline"
 							size="sm"
 							className="h-8 px-3"
-							onClick={() => {
-								openAgentCommonModal({
-									width: 600,
-									footer: null,
-									closable: false,
-									children: <MCPForm onSuccessCallback={refresh} />,
-								})
-							}}
+							onClick={openCreateForm}
 							data-testid="agent-mcp-panel-open-form-button"
 						>
 							<IconPlus size={16} />
@@ -259,7 +122,7 @@ export const MCPPanel = observer(function MCPPanel(props: MCPPanelProps) {
 									item={item}
 									selected={usableCache.has(item.id)}
 									onStatusChange={onStatusChange}
-									onClick={onMCPItemClick}
+									onClick={openEditForm}
 								/>
 							))}
 							{data && data?.length < 1 && (
@@ -278,7 +141,18 @@ export const MCPPanel = observer(function MCPPanel(props: MCPPanelProps) {
 				</div>
 			</div>
 		),
-		[data, loading, onMCPItemClick, onStatusChange, options, refresh, t, type, usableCache],
+		[
+			data,
+			loading,
+			onStatusChange,
+			openCreateForm,
+			openEditForm,
+			options,
+			setType,
+			t,
+			type,
+			usableCache,
+		],
 	)
 
 	if (isMobile) {

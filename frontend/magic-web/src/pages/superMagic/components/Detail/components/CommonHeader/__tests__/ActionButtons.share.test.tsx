@@ -22,7 +22,7 @@ function useShareHandler(currentFile: any, attachments: any[]) {
 				file_name: currentFile.name,
 				is_directory: false,
 				source: currentFile.source || AttachmentSource.DEFAULT,
-				metadata: currentFile.metadata,
+				display_config: currentFile.display_config,
 			}
 
 			// 如果是入口文件，获取整个文件夹的文件
@@ -60,7 +60,7 @@ describe("ActionButtons Share Handler", () => {
 							name: "index.html",
 							is_directory: false,
 							source: AttachmentSource.DEFAULT,
-							metadata: { type: "webapp" },
+							display_config: { type: "webapp" },
 						},
 						{
 							file_id: "file-2",
@@ -77,7 +77,7 @@ describe("ActionButtons Share Handler", () => {
 				name: "index.html",
 				type: "html",
 				source: AttachmentSource.DEFAULT,
-				metadata: { type: "webapp" },
+				display_config: { type: "webapp" },
 			}
 
 			const { result } = renderHook(() => useShareHandler(currentFile, attachments))
@@ -146,7 +146,7 @@ describe("ActionButtons Share Handler", () => {
 							name: "index.html",
 							is_directory: false,
 							source: AttachmentSource.DEFAULT,
-							metadata: { type: "webapp" },
+							display_config: { type: "webapp" },
 						},
 						{
 							file_id: "file-2",
@@ -188,7 +188,7 @@ describe("ActionButtons Share Handler", () => {
 							name: "index.html",
 							is_directory: false,
 							source: AttachmentSource.DEFAULT,
-							metadata: { type: "slide" },
+							display_config: { type: "slide" },
 						},
 						{
 							file_id: "file-2",
@@ -211,7 +211,7 @@ describe("ActionButtons Share Handler", () => {
 				name: "index.html",
 				type: "html",
 				source: AttachmentSource.DEFAULT,
-				metadata: { type: "slide" },
+				display_config: { type: "slide" },
 			}
 
 			const { result } = renderHook(() => useShareHandler(currentFile, attachments))
@@ -246,7 +246,7 @@ describe("ActionButtons Share Handler", () => {
 									name: "index.html",
 									is_directory: false,
 									source: AttachmentSource.DEFAULT,
-									metadata: { type: "webapp" },
+									display_config: { type: "webapp" },
 								},
 								{
 									file_id: "file-2",
@@ -265,7 +265,7 @@ describe("ActionButtons Share Handler", () => {
 				name: "index.html",
 				type: "html",
 				source: AttachmentSource.DEFAULT,
-				metadata: { type: "webapp" },
+				display_config: { type: "webapp" },
 			}
 
 			const { result } = renderHook(() => useShareHandler(currentFile, attachments))

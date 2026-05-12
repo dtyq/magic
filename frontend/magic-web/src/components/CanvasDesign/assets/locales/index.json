@@ -2,6 +2,7 @@
 	"common": {
 		"cancel": "取消",
 		"close": "关闭",
+		"complete": "完成",
 		"confirm": "确认",
 		"delete": "删除",
 		"edit": "编辑",
@@ -10,9 +11,14 @@
 	},
 	"dropOverlay": {
 		"loading": "加载中",
+		"referenceImageLimitReached": "参考图数量已达上限",
+		"referenceImageUnavailable": "当前不支持添加参考图",
+		"releaseToAddAttachment": "松开以添加附件",
 		"releaseToAddToCanvas": "松开以添加至画布",
 		"releaseToUpload": "松开以上传文件",
-		"releaseToUploadImage": "松开以上传图片"
+		"releaseToUploadImage": "松开以上传图片",
+		"unsupportedDropContent": "当前拖拽内容不支持添加为参考图",
+		"unsupportedReferenceImageType": "当前仅支持添加图片类型的参考图"
 	},
 	"elementTools": {
 		"elementAlign": {
@@ -35,10 +41,31 @@
 			"placeholder": "字体"
 		},
 		"fontStyle": {
+			"bold": "粗体",
+			"italic": "斜体",
 			"placeholder": "字重"
 		},
 		"imageConvertHight": {
+			"exitHint": "退出",
+			"tip": "选择放大倍数",
 			"title": "高清放大"
+		},
+		"imageCrop": {
+			"preset": "预设",
+			"restoreOriginal": "恢复原图",
+			"title": "裁剪"
+		},
+		"imageEraser": {
+			"tip": "涂抹可擦除区域",
+			"title": "橡皮工具"
+		},
+		"imageExtend": {
+			"presetSection": "预设",
+			"scaleSection": "缩放比例",
+			"title": "扩展"
+		},
+		"imageRemoveBackground": {
+			"title": "去背景"
 		},
 		"shapeStyle": {
 			"advanced": "高级",
@@ -46,6 +73,13 @@
 			"innerRadiusRatio": "内凹比例",
 			"opacity": "透明度",
 			"sides": "边数"
+		},
+		"size": {
+			"height": "高",
+			"width": "宽"
+		},
+		"sizeEdit": {
+			"title": "编辑尺寸"
 		},
 		"strokeColor": {
 			"title": "描边"
@@ -76,6 +110,9 @@
 			"center": "居中对齐",
 			"left": "左对齐",
 			"right": "右对齐"
+		},
+		"videoOriginalSize": {
+			"title": "恢复原比例"
 		}
 	},
 	"ellipse": {
@@ -92,18 +129,26 @@
 		"empty": "请发送生成图像的指令",
 		"errorPrefix": "图像生成失败, ",
 		"errorRetry": "点击重试",
+		"fileMissing": "图片文件不存在",
 		"generateFailed": "图片生成失败",
 		"generating": "正在生成中...",
 		"generatorName": "图片生成器",
 		"loadError": "图片加载失败",
 		"loading": "正在加载中...",
 		"nameSuffix": {
+			"erasing": "(擦除中)",
+			"expanding": "(扩展中)",
 			"failed": "(失败)",
 			"generating": "(生成中)",
 			"loading": "(加载中)",
+			"removingBackground": "(去背景中)",
 			"uploading": "(上传中)"
 		},
-		"nameWithIndex": "Image {{index}}",
+		"nameWithIndex": "图片 {{index}}",
+		"retryEditing": "请重新编辑图片生成需求",
+		"retryEditingEraser": "请重新编辑擦除需求",
+		"retryEditingExpand": "请重新编辑扩展需求",
+		"retryEditingRemoveBackground": "请重新编辑去背景需求",
 		"uploadFailed": "图片上传失败",
 		"uploading": "正在上传中..."
 	},
@@ -111,10 +156,15 @@
 		"currentImage": "(当前图片)",
 		"custom": "自定义",
 		"editPlaceholder": "请输入您的编辑需求",
+		"generateAgain": "再次生成",
 		"maxReferenceImagesReached": "最多只能上传 {{maxReferenceImages}} 张参考图",
 		"originalImage": "原图",
 		"placeholder": "请输入您的创作需求",
+		"projectFilesRoot": "当前项目文件",
+		"quickEdit": "快捷编辑",
+		"reEditFromSaved": "重新编辑",
 		"referenceImage": "参考图",
+		"resolution": "分辨率",
 		"size": "尺寸"
 	},
 	"layers": {
@@ -136,6 +186,7 @@
 		"downloadFile": "下载文件",
 		"downloadImage": "下载图片",
 		"downloadImageNoWatermark": "下载无水印图片",
+		"downloadVideo": "下载视频",
 		"hide": "隐藏",
 		"lock": "锁定",
 		"moveDown": "下移一层",
@@ -143,20 +194,32 @@
 		"moveToTop": "移至顶部",
 		"moveUp": "上移一层",
 		"paste": "粘贴",
+		"pasteUseShortcutHint": "系统文件请使用 Ctrl/Cmd+V 粘贴",
 		"removeFrame": "取消画框",
+		"rename": "重命名",
 		"show": "显示",
 		"unlock": "解锁"
 	},
 	"messageHistory": {
+		"copyPrompt": "复制",
+		"expandPrompt": "展开",
+		"inputMode": "输入模式",
 		"model": "模型",
 		"noPrompt": "暂无提示词",
 		"prompt": "提示词",
+		"referenceAudio": "参考音频",
 		"referenceImage": "参考图",
+		"referenceVideo": "参考视频",
 		"size": "尺寸",
 		"title": "生成记录"
 	},
 	"rectangle": {
 		"defaultName": "矩形"
+	},
+	"referenceAssets": {
+		"localUpload": "从本地上传",
+		"projectFilesRoot": "当前项目文件",
+		"projectSelect": "从项目选择"
 	},
 	"shortcuts": {
 		"align": {
@@ -320,6 +383,8 @@
 	},
 	"sizeSelect": {
 		"custom": "自定义",
+		"originalImageSize": "原图尺寸",
+		"originalVideoSize": "恢复原比例",
 		"selectSize": "选择尺寸"
 	},
 	"star": {
@@ -335,10 +400,62 @@
 		"marker": "标记",
 		"selection": "选择工具",
 		"space": "空格",
-		"text": "文本"
+		"text": "文本",
+		"videoGenerator": "视频生成"
 	},
 	"triangle": {
 		"defaultName": "三角形"
+	},
+	"video": {
+		"defaultName": "视频生成器",
+		"empty": "请发送生成视频的指令",
+		"fileMissing": "视频文件不存在",
+		"generateFailed": "视频生成失败",
+		"generating": "正在生成中...",
+		"loadError": "视频加载失败",
+		"loading": "正在加载中...",
+		"retryEditing": "请重新编辑视频生成需求",
+		"uploading": "正在上传中..."
+	},
+	"videoEditor": {
+		"aspectRatio": "比例",
+		"duration": "时长",
+		"firstFrame": "首帧",
+		"frames": "首尾帧",
+		"generateAgain": "再次生成",
+		"generationSettings": "生成设置",
+		"generationSettingsAria": "视频生成参数",
+		"lastFrame": "尾帧",
+		"placeholder": "请输入您的视频创作需求",
+		"promptPlaceholderReferenceAudioTokenLabel": "音频",
+		"promptPlaceholderReferenceImageTokenLabel": "图片",
+		"promptPlaceholderReferenceVideoTokenLabel": "视频",
+		"quality": "画质",
+		"reEditFromSaved": "重新编辑",
+		"referenceAsset": "全能模式",
+		"referenceAssetTotalMaxReached": "参考素材最多可上传 {{max}} 个",
+		"referenceAssetTotalMinNotMet": "参考素材至少需要 {{min}} 个",
+		"referenceAssetTypeMaxReached": "{{assetType}}最多可上传 {{max}} 个",
+		"referenceAssetTypeMinNotMet": "{{assetType}}至少需要 {{min}} 个",
+		"referenceImage": "参考图",
+		"referenceImageWithIndex": "参考图 {{index}}",
+		"referenceSourceMaterial": "素材",
+		"referenceVideoMaxReached": "参考视频最多可上传 {{max}} 个",
+		"removeSlotResource": "移除该参考资源",
+		"resolution": "分辨率",
+		"sendButtonEstimatedPoints": "预计{{points}}",
+		"sendConfirmDescription": "本次任务预计消耗约 {{points}} 积分，是否确认执行？",
+		"sendConfirmOk": "确认执行",
+		"sendConfirmSkip": "下次不再提示",
+		"sendConfirmTitle": "消耗提示",
+		"size": "尺寸",
+		"slotLabelFirstFrame": "首帧",
+		"slotLabelLastFrame": "尾帧",
+		"slotLabelReferenceImage": "参考图",
+		"slotLabelReferenceMedia": "素材",
+		"standard": "文生视频",
+		"videoEdit": "视频编辑",
+		"videoEditRequiresOneVideo": "视频编辑模式需上传 1 个参考视频"
 	},
 	"zoom": {
 		"fitToScreen": "适配屏幕",

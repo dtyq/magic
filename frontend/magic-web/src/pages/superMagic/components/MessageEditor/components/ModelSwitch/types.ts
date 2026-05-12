@@ -1,7 +1,9 @@
-import { ModeItem } from "@/pages/superMagic/pages/Workspace/types"
-import { MessageEditorSize } from "../../types"
+import type { ModeItem } from "@/pages/superMagic/pages/Workspace/types"
+import type { MessageEditorSize } from "../../types"
 
 export type { MessageEditorSize }
+
+export type ModelTabType = "language" | "image" | "video"
 
 export interface ModelConfig {
 	max_tokens: number | null
@@ -60,6 +62,9 @@ export interface ModelSwitchProps {
 	selectedImageModel?: ModelItem | null
 	imageModelList?: ModeItem["groups"]
 	onImageModelChange?: (model: ModelItem | null) => void
+	selectedVideoModel?: ModelItem | null
+	videoModelList?: ModeItem["groups"]
+	onVideoModelChange?: (model: ModelItem | null) => void
 	openAddModelMenuSignal?: number
 	showName?: boolean
 	showBorder?: boolean
@@ -69,7 +74,11 @@ export interface ModelSwitchProps {
 	showLabel?: boolean
 	/** Whether add model button is allowed (hidden on mobile when false) */
 	editable?: boolean
-	onAddModel?: (modelType: "text" | "image") => void
+	onAddModel?: (modelType: "text" | "image") => void | Promise<void>
+	onPreloadAddModel?: () => void
+	defaultTab?: ModelTabType
+	triggerTab?: ModelTabType
+	triggerTestId?: string
 }
 
 /**
@@ -86,6 +95,8 @@ export interface ModeModelGroup {
 	status: boolean
 	created_at: string
 }
+
+export type ModelListKey = "models" | "image_models" | "video_models"
 
 /**
  * 模型列表分组

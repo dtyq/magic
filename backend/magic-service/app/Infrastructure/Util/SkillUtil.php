@@ -49,6 +49,7 @@ class SkillUtil
         if ($content === false) {
             ExceptionBuilder::throw(SkillErrorCode::SKILL_MD_READ_FAILED, 'skill.skill_md_read_failed');
         }
+        $content = self::trimInvalidUtf8Suffix($content);
 
         self::logSkillUtil('开始解析 SKILL.md', ['path' => $skillMdPath]);
 
@@ -280,7 +281,7 @@ class SkillUtil
      */
     private static function collapseYamlFoldedBlock(string $block): string
     {
-        $lines = preg_split('/\R/', $block);
+        $lines = preg_split('/\R/u', $block);
         $paragraphs = [];
         $current = [];
         foreach ($lines as $line) {
@@ -298,6 +299,17 @@ class SkillUtil
             $paragraphs[] = implode(' ', $current);
         }
         return implode("\n\n", $paragraphs);
+    }
+
+    /**
+     * 固定字节长度读取可能切断 UTF-8 多字节字符，解析前去掉末尾不完整字符.
+     */
+    private static function trimInvalidUtf8Suffix(string $content): string
+    {
+        while ($content !== '' && ! mb_check_encoding($content, 'UTF-8')) {
+            $content = substr($content, 0, -1);
+        }
+        return $content;
     }
 
     /**

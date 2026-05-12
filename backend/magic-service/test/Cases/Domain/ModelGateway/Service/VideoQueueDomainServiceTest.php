@@ -10,22 +10,127 @@ namespace HyperfTest\Cases\Domain\ModelGateway\Service;
 use App\Domain\ModelGateway\Entity\Dto\CreateVideoDTO;
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoOperationStatus;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
 use App\Domain\ModelGateway\Repository\VideoQueueOperationRepositoryInterface;
 use App\Domain\ModelGateway\Service\VideoQueueDomainService;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use App\ErrorCode\MagicApiErrorCode;
+use App\Infrastructure\Core\DataIsolation\OrganizationInfoManagerInterface;
+use App\Infrastructure\Core\DataIsolation\SubscriptionManagerInterface;
+use App\Infrastructure\Core\DataIsolation\ThirdPlatformDataIsolationManagerInterface;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayKelingVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\ConfigInterface;
+use Hyperf\Contract\TranslatorInterface;
 use Hyperf\Guzzle\ClientFactory;
+use Hyperf\Logger\LoggerFactory;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 
 /**
  * @internal
  */
 class VideoQueueDomainServiceTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $logger = $this->createMock(LoggerInterface::class);
+
+        $loggerFactory = $this->createMock(LoggerFactory::class);
+        $loggerFactory->method('get')->willReturn($logger);
+
+        $config = $this->createMock(ConfigInterface::class);
+        $config
+            ->method('get')
+            ->willReturnCallback(static function (string $key, mixed $default = null): mixed {
+                return match ($key) {
+                    'error_message' => [
+                        'exception_class' => BusinessException::class,
+                        'error_code_mapper' => [
+                            MagicApiErrorCode::class => [4000, 4999],
+                        ],
+                    ],
+                    'app_env' => 'testing',
+                    default => $default,
+                };
+            });
+
+        $translator = new class implements TranslatorInterface {
+            public function trans(string $key, array $replace = [], ?string $locale = null): string
+            {
+                return $key;
+            }
+
+            public function transChoice(string $key, $number, array $replace = [], ?string $locale = null): string
+            {
+                return $key;
+            }
+
+            public function getLocale(): string
+            {
+                return 'zh_CN';
+            }
+
+            public function setLocale(string $locale)
+            {
+                return $this;
+            }
+        };
+
+        $thirdPlatformDataIsolationManager = $this->createMock(ThirdPlatformDataIsolationManagerInterface::class);
+        $subscriptionManager = $this->createMock(SubscriptionManagerInterface::class);
+        $organizationInfoManager = $this->createMock(OrganizationInfoManagerInterface::class);
+
+        ApplicationContext::setContainer(new readonly class($loggerFactory, $config, $translator, $thirdPlatformDataIsolationManager, $subscriptionManager, $organizationInfoManager) implements ContainerInterface {
+            public function __construct(
+                private LoggerFactory $loggerFactory,
+                private ConfigInterface $config,
+                private TranslatorInterface $translator,
+                private ThirdPlatformDataIsolationManagerInterface $thirdPlatformDataIsolationManager,
+                private SubscriptionManagerInterface $subscriptionManager,
+                private OrganizationInfoManagerInterface $organizationInfoManager,
+            ) {
+            }
+
+            public function get(string $id): mixed
+            {
+                return match ($id) {
+                    LoggerFactory::class => $this->loggerFactory,
+                    ConfigInterface::class => $this->config,
+                    TranslatorInterface::class => $this->translator,
+                    ThirdPlatformDataIsolationManagerInterface::class => $this->thirdPlatformDataIsolationManager,
+                    SubscriptionManagerInterface::class => $this->subscriptionManager,
+                    OrganizationInfoManagerInterface::class => $this->organizationInfoManager,
+                    default => null,
+                };
+            }
+
+            public function has(string $id): bool
+            {
+                return in_array($id, [
+                    LoggerFactory::class,
+                    ConfigInterface::class,
+                    TranslatorInterface::class,
+                    ThirdPlatformDataIsolationManagerInterface::class,
+                    SubscriptionManagerInterface::class,
+                    OrganizationInfoManagerInterface::class,
+                ], true);
+            }
+
+            public function make(string $name, array $parameters = []): mixed
+            {
+                return $this->get($name);
+            }
+        });
+    }
+
     public function testCreateOperationCanonicalizes4kAndKeepsCanonicalSections(): void
     {
         $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
@@ -229,6 +334,128 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertSame('720p', $operation->getRawRequest()['generation']['resolution']);
     }
 
+    public function testCreateOperationNormalizesKelingPromptReferenceAliasesToCanonicalTokens(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'kling-v3-omni',
+            'task' => 'generate',
+            'prompt' => '[图片1] 跟随 [video1] 的动态节奏',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => 'https://localhost/ref.png'],
+                ],
+                'reference_videos' => [
+                    ['uri' => 'https://localhost/ref.mp4'],
+                ],
+            ],
+            'input_mode' => VideoInputMode::OmniReference->value,
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'kling-v3-omni',
+            'provider-model-keling-omni',
+            ProviderCode::Keling,
+            $requestDTO,
+            $this->createKelingOmniConfig(),
+        );
+
+        $this->assertSame('{{image_1}} 跟随 {{video_1}} 的动态节奏', $operation->getRawRequest()['prompt']);
+    }
+
+    public function testCreateOperationNormalizesCloudswaySeedancePromptReferenceAliasesToCanonicalTokens(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'seedance-1.5-pro',
+            'task' => 'generate',
+            'prompt' => '@图片1 让它动起来',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => 'https://localhost/ref.png'],
+                ],
+            ],
+            'input_mode' => VideoInputMode::ImageReference->value,
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'seedance-1.5-pro',
+            'provider-model-seedance',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            $this->createCloudswaySeedanceConfig(),
+        );
+
+        $this->assertSame('{{image_1}} 让它动起来', $operation->getRawRequest()['prompt']);
+    }
+
+    public function testCreateOperationNormalizesVolcengineSeedancePromptReferenceAliasesToCanonicalTokens(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'doubao-seedance-2-0-260128',
+            'task' => 'generate',
+            'prompt' => '@图片1 跟随 [视频1] 并配合 [audio1] 的节奏',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => 'https://localhost/ref.png'],
+                ],
+                'reference_videos' => [
+                    ['uri' => 'https://localhost/ref.mp4'],
+                ],
+                'reference_audios' => [
+                    ['uri' => 'https://localhost/ref.wav'],
+                ],
+            ],
+            'input_mode' => VideoInputMode::OmniReference->value,
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'doubao-seedance-2-0-260128',
+            'provider-model-ark-seedance',
+            ProviderCode::VolcengineArk,
+            $requestDTO,
+            $this->createVolcengineSeedanceConfig(),
+        );
+
+        $this->assertSame('{{image_1}} 跟随 {{video_1}} 并配合 {{audio_1}} 的节奏', $operation->getRawRequest()['prompt']);
+    }
+
+    public function testCreateOperationKeepsKelingReferenceAudiosForProviderLayerValidation(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'kling-v3-omni',
+            'task' => 'generate',
+            'prompt' => '@音频1 配合画面节奏',
+            'inputs' => [
+                'reference_audios' => [
+                    ['uri' => 'https://localhost/ref.mp3'],
+                ],
+            ],
+            'input_mode' => VideoInputMode::OmniReference->value,
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'kling-v3-omni',
+            'provider-model-keling-omni',
+            ProviderCode::Keling,
+            $requestDTO,
+            $this->createKelingOmniConfig(),
+        );
+
+        $this->assertSame('{{audio_1}} 配合画面节奏', $operation->getRawRequest()['prompt']);
+        $this->assertSame('https://localhost/ref.mp3', $operation->getRawRequest()['inputs']['reference_audios'][0]['uri']);
+    }
+
     public function testCreateOperationKeepsExplicitCloudswayVeoDurationAndResolution(): void
     {
         $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
@@ -301,6 +528,31 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertSame(300, $operation->getRawRequest()['execution']['expires_after_seconds']);
     }
 
+    public function testCreateOperationPreservesEnhancePromptWhenModelSupportsIt(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make the shot',
+            'generation' => [
+                'enhance_prompt' => true,
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'LCnVzCkkMnVulyrz',
+            'provider-model-veo',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            $this->createConfigForModel($requestDTO->getModel(), ProviderCode::Cloudsway),
+        );
+
+        $this->assertTrue($operation->getRawRequest()['generation']['enhance_prompt']);
+    }
+
     public function testCreateOperationDefaultsKelingDurationAndResolutionWhenGenerationMissing(): void
     {
         $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
@@ -351,6 +603,88 @@ class VideoQueueDomainServiceTest extends TestCase
         $this->assertSame(5, $operation->getRawRequest()['generation']['duration_seconds']);
         $this->assertSame('1080p', $operation->getRawRequest()['generation']['resolution']);
         $this->assertArrayNotHasKey('aspect_ratio', $operation->getRawRequest()['generation']);
+    }
+
+    public function testCreateOperationInfersAspectRatioAndResolutionFromSupportedSize(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make the shot',
+            'generation' => [
+                'size' => '1280x720',
+                'duration_seconds' => 4,
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'LCnVzCkkMnVulyrz',
+            'provider-model-veo-fast',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            $this->createConfigForModel($requestDTO->getModel(), ProviderCode::Cloudsway),
+        );
+
+        $generation = $operation->getRawRequest()['generation'];
+        $this->assertSame('1280x720', $generation['size']);
+        $this->assertSame('16:9', $generation['aspect_ratio']);
+        $this->assertSame('720p', $generation['resolution']);
+        $this->assertSame(4, $generation['duration_seconds']);
+    }
+
+    public function testCreateOperationRejectsUnsupportedGenerationSizeWithSupportedList(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make the shot',
+            'generation' => [
+                'size' => '1024x1024',
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('generation.size 1024x1024 is not supported. Supported sizes: 1280x720(16:9,720p)');
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'LCnVzCkkMnVulyrz',
+            'provider-model-veo-fast',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            $this->createConfigForModel($requestDTO->getModel(), ProviderCode::Cloudsway),
+        );
+    }
+
+    public function testCreateOperationRejectsGenerationSizeMetadataConflict(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make the shot',
+            'generation' => [
+                'size' => '1280x720',
+                'aspect_ratio' => '9:16',
+                'resolution' => '720p',
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $this->expectException(BusinessException::class);
+        $this->expectExceptionMessage('generation.aspect_ratio must be 16:9 when generation.size is 1280x720');
+        $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'LCnVzCkkMnVulyrz',
+            'provider-model-veo-fast',
+            ProviderCode::Cloudsway,
+            $requestDTO,
+            $this->createConfigForModel($requestDTO->getModel(), ProviderCode::Cloudsway),
+        );
     }
 
     public function testCreateOperationInfersKelingResolutionFrom1080DimensionsWhenResolutionMissing(): void
@@ -1005,6 +1339,27 @@ class VideoQueueDomainServiceTest extends TestCase
         ]);
     }
 
+    private function createVolcengineSeedanceConfig(): VideoGenerationConfig
+    {
+        return new VideoGenerationConfig([
+            'supported_inputs' => ['text_prompt', 'image', 'reference_images', 'reference_videos', 'reference_audios', 'mask', 'video_edit', 'video_extension', 'video_upscale'],
+            'reference_images' => [
+                'max_count' => 9,
+                'reference_types' => ['asset'],
+                'style_supported' => false,
+            ],
+            'generation' => [
+                'durations' => [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+                'default_duration_seconds' => 5,
+                'resolutions' => ['480p', '720p', '1080p'],
+                'default_resolution' => '720p',
+                'supports_generate_audio' => true,
+                'supports_watermark' => true,
+            ],
+            'constraints' => [],
+        ]);
+    }
+
     private function createCloudswayKelingConfig(): VideoGenerationConfig
     {
         return new VideoGenerationConfig([
@@ -1019,6 +1374,29 @@ class VideoQueueDomainServiceTest extends TestCase
                 'default_duration_seconds' => 5,
                 'resolutions' => ['720p', '1080p'],
                 'default_resolution' => '720p',
+            ],
+            'constraints' => [],
+        ]);
+    }
+
+    private function createKelingOmniConfig(): VideoGenerationConfig
+    {
+        return new VideoGenerationConfig([
+            'supported_inputs' => ['text_prompt', 'image', 'last_frame', 'reference_images', 'reference_videos', VideoInputMode::VideoEdit->value],
+            'reference_images' => [
+                'max_count' => 7,
+                'reference_types' => ['asset', 'style'],
+                'style_supported' => true,
+            ],
+            'generation' => [
+                'aspect_ratios' => ['16:9', '9:16', '1:1'],
+                'durations' => [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+                'default_duration_seconds' => 5,
+                'resolutions' => ['720p', '1080p'],
+                'default_resolution' => '720p',
+                'supports_negative_prompt' => true,
+                'supports_generate_audio' => true,
+                'supports_watermark' => true,
             ],
             'constraints' => [],
         ]);

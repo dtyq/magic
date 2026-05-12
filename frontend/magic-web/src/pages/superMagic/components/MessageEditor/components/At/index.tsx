@@ -4,15 +4,16 @@ import { memo, useRef, useEffect, lazy, Suspense } from "react"
 import { useBoolean, useMemoizedFn, useMount } from "ahooks"
 
 import {
-	BuiltinItemId,
 	MentionItem,
 	MentionPanelRef,
+	type MentionSelectContext,
 } from "@/components/business/MentionPanel/types"
+import { isSelectableBuiltinItemId } from "@/components/business/MentionPanel/runtime/builtin/default-items"
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import GlobalMentionPanelStore, {
 	MentionPanelStore,
-} from "@/components/business/MentionPanel/store"
+} from "@/components/business/MentionPanel/runtime/builtin/store"
 import { cn } from "@/lib/utils"
 import { GuideTourElementId } from "../../../LazyGuideTour/GuideTourManager"
 
@@ -23,7 +24,7 @@ function preloadMentionPanel() {
 }
 
 interface AtProps {
-	onSelect?: (item: TiptapMentionAttributes) => void
+	onSelect?: (item: TiptapMentionAttributes, context?: MentionSelectContext) => void
 	showText?: boolean
 	iconSize?: number
 	onClose?: () => void
@@ -57,24 +58,18 @@ function At({
 		})
 	})
 
-	const handleSelect = (item: MentionItem, context?: { reset?: () => void }) => {
-		if (
-			[
-				BuiltinItemId.PERSONAL_DRIVE,
-				BuiltinItemId.ENTERPRISE_DRIVE,
-				BuiltinItemId.ORGANIZATION_DRIVE,
-				BuiltinItemId.PROJECT_FILES,
-				BuiltinItemId.MCP_EXTENSIONS,
-				BuiltinItemId.AGENTS,
-			].includes(item.id as BuiltinItemId)
-		) {
+	const handleSelect = (item: MentionItem, context?: MentionSelectContext) => {
+		if (!isSelectableBuiltinItemId(item.id)) {
 			return
 		}
 
-		onSelect?.({
-			type: item.type,
-			data: item.data,
-		})
+		onSelect?.(
+			{
+				type: item.type,
+				data: item.data,
+			},
+			context,
+		)
 		// Only close the panel if this is a final selection (when reset is provided)
 		// For navigation items (folders, etc.), the panel should stay open
 		if (context?.reset) {
@@ -138,7 +133,7 @@ function At({
 						triggerRef={ref}
 						onSelect={handleSelect}
 						onClose={handleClose}
-						dataService={mentionPanelStore}
+						runtime={{ dataService: mentionPanelStore }}
 					/>
 				</Suspense>
 			)}

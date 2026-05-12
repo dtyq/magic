@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useMemo, type ReactNode } from "react"
+import { createContext, useContext, useState, useMemo, useCallback, type ReactNode } from "react"
 import type { LayerElement } from "../canvas/types"
 import { useCanvasEvent } from "../hooks/useCanvasEvent"
 import { useCanvasElements } from "../hooks/useCanvasElement"
@@ -6,9 +6,13 @@ import { useUpdateEffect } from "ahooks"
 import type { ElementToolType } from "../types"
 
 interface CanvasUIContextValue {
-	// 当前正在编辑的元素 ID
-	editingElementId: string | null
-	setEditingElementId: (id: string | null) => void
+	// 当前正在图层列表中重命名的元素 ID
+	layerRenamingElementId: string | null
+	setLayerRenamingElementId: (id: string | null) => void
+
+	// 当前正在画布中重命名的元素 ID
+	canvasRenamingElementId: string | null
+	setCanvasRenamingElementId: (id: string | null) => void
 
 	// 选中的元素 ID 列表（从 Canvas.selectionManager 同步）
 	selectedElementIds: string[]
@@ -26,6 +30,22 @@ interface CanvasUIContextValue {
 	messageHistoryElementId: string | null
 	setMessageHistoryElementId: (id: string | null) => void
 
+	// 当前全屏播放的视频元素 ID（null 表示不显示）
+	fullscreenVideoElementId: string | null
+	setFullscreenVideoElementId: (id: string | null) => void
+
+	// 当前正在裁剪的图片元素 ID（null 表示不在裁剪模式）
+	croppingElementId: string | null
+	setCroppingElementId: (id: string | null) => void
+
+	// 当前正在扩展的图片元素 ID（null 表示不在扩展模式）
+	extendingElementId: string | null
+	setExtendingElementId: (id: string | null) => void
+
+	// 当前正在使用橡皮擦的图片元素 ID（null 表示不在橡皮擦模式）
+	erasingElementId: string | null
+	setErasingElementId: (id: string | null) => void
+
 	// 画布提示
 	subElementTooltip: ElementToolType | null
 	setSubElementTooltip: (type: ElementToolType | null) => void
@@ -34,7 +54,43 @@ interface CanvasUIContextValue {
 	readonly?: boolean
 }
 
-const CanvasUIContext = createContext<CanvasUIContextValue | undefined>(undefined)
+interface CanvasRenameUIContextValue {
+	layerRenamingElementId: string | null
+	setLayerRenamingElementId: (id: string | null) => void
+	canvasRenamingElementId: string | null
+	setCanvasRenamingElementId: (id: string | null) => void
+}
+
+interface CanvasSelectionUIContextValue {
+	selectedElementIds: string[]
+	selectedElements: LayerElement[]
+	isDragging: boolean
+	isSelecting: boolean
+	subElementTooltip: ElementToolType | null
+	setSubElementTooltip: (type: ElementToolType | null) => void
+}
+
+interface CanvasPanelUIContextValue {
+	messageHistoryElementId: string | null
+	setMessageHistoryElementId: (id: string | null) => void
+	fullscreenVideoElementId: string | null
+	setFullscreenVideoElementId: (id: string | null) => void
+}
+
+interface CanvasModeUIContextValue {
+	croppingElementId: string | null
+	setCroppingElementId: (id: string | null) => void
+	extendingElementId: string | null
+	setExtendingElementId: (id: string | null) => void
+	erasingElementId: string | null
+	setErasingElementId: (id: string | null) => void
+	readonly?: boolean
+}
+
+const CanvasRenameUIContext = createContext<CanvasRenameUIContextValue | undefined>(undefined)
+const CanvasSelectionUIContext = createContext<CanvasSelectionUIContextValue | undefined>(undefined)
+const CanvasPanelUIContext = createContext<CanvasPanelUIContextValue | undefined>(undefined)
+const CanvasModeUIContext = createContext<CanvasModeUIContextValue | undefined>(undefined)
 
 interface CanvasUIProviderProps {
 	readonly?: boolean
@@ -42,13 +98,19 @@ interface CanvasUIProviderProps {
 }
 
 export function CanvasUIProvider({ children, readonly }: CanvasUIProviderProps) {
-	const [editingElementId, setEditingElementId] = useState<string | null>(null)
+	const [layerRenamingElementId, setLayerRenamingElementId] = useState<string | null>(null)
+	const [canvasRenamingElementId, setCanvasRenamingElementId] = useState<string | null>(null)
 
 	const [selectedElementIds, setSelectedElementIds] = useState<string[]>([])
 	const [isDragging, setIsDragging] = useState(false)
 	const [isSelecting, setIsSelecting] = useState(false)
 
 	const [messageHistoryElementId, setMessageHistoryElementId] = useState<string | null>(null)
+	const [fullscreenVideoElementId, setFullscreenVideoElementId] = useState<string | null>(null)
+
+	const [croppingElementId, setCroppingElementId] = useState<string | null>(null)
+	const [extendingElementId, setExtendingElementId] = useState<string | null>(null)
+	const [erasingElementId, setErasingElementId] = useState<string | null>(null)
 
 	const [subElementTooltip, setSubElementTooltip] = useState<ElementToolType | null>(null)
 
@@ -84,9 +146,52 @@ export function CanvasUIProvider({ children, readonly }: CanvasUIProviderProps) 
 		setIsSelecting(false)
 	})
 
-	// 监听图片 Info 按钮点击事件
+	const openMessageHistory = useCallback((elementId: string) => {
+		setMessageHistoryElementId(elementId)
+	}, [])
+
 	useCanvasEvent("element:image:infoButtonClick", ({ data }) => {
-		setMessageHistoryElementId(data.elementId)
+		openMessageHistory(data.elementId)
+	})
+
+	useCanvasEvent("element:video:infoButtonClick", ({ data }) => {
+		openMessageHistory(data.elementId)
+	})
+
+	useCanvasEvent(
+		"element:video:fullscreenClick",
+		({ data }) => {
+			setFullscreenVideoElementId(data.elementId)
+		},
+		[],
+	)
+
+	// 监听进入裁剪模式事件
+	useCanvasEvent("crop:enter", ({ data }) => {
+		setCroppingElementId(data.elementId)
+	})
+
+	// 监听退出裁剪模式事件
+	useCanvasEvent("crop:exit", () => {
+		setCroppingElementId(null)
+	})
+
+	useCanvasEvent("extend:enter", ({ data }) => {
+		setExtendingElementId(data.elementId)
+	})
+
+	useCanvasEvent("extend:exit", () => {
+		setExtendingElementId(null)
+	})
+
+	// 监听进入橡皮擦模式事件
+	useCanvasEvent("eraser:enter", ({ data }) => {
+		setErasingElementId(data.elementId)
+	})
+
+	// 监听退出橡皮擦模式事件
+	useCanvasEvent("eraser:exit", () => {
+		setErasingElementId(null)
 	})
 
 	useUpdateEffect(() => {
@@ -95,46 +200,107 @@ export function CanvasUIProvider({ children, readonly }: CanvasUIProviderProps) 
 		}
 	}, [selectedElementIds])
 
+	useUpdateEffect(() => {
+		if (!readonly) return
+		setLayerRenamingElementId(null)
+		setCanvasRenamingElementId(null)
+	}, [readonly])
+
 	// 获取选中的元素列表
 	const selectedElements = useCanvasElements(selectedElementIds)
 
-	const value: CanvasUIContextValue = useMemo(() => {
+	const renameValue = useMemo<CanvasRenameUIContextValue>(() => {
 		return {
-			editingElementId,
-			setEditingElementId,
+			layerRenamingElementId,
+			setLayerRenamingElementId,
+			canvasRenamingElementId,
+			setCanvasRenamingElementId,
+		}
+	}, [layerRenamingElementId, canvasRenamingElementId])
 
+	const selectionValue = useMemo<CanvasSelectionUIContextValue>(() => {
+		return {
 			selectedElements,
 			selectedElementIds,
-
 			isDragging,
 			isSelecting,
-
-			messageHistoryElementId,
-			setMessageHistoryElementId,
-
 			subElementTooltip,
 			setSubElementTooltip,
+		}
+	}, [selectedElements, selectedElementIds, isDragging, isSelecting, subElementTooltip])
 
+	const panelValue = useMemo<CanvasPanelUIContextValue>(() => {
+		return {
+			messageHistoryElementId,
+			setMessageHistoryElementId,
+			fullscreenVideoElementId,
+			setFullscreenVideoElementId,
+		}
+	}, [messageHistoryElementId, fullscreenVideoElementId])
+
+	const modeValue = useMemo<CanvasModeUIContextValue>(() => {
+		return {
+			croppingElementId,
+			setCroppingElementId,
+			extendingElementId,
+			setExtendingElementId,
+			erasingElementId,
+			setErasingElementId,
 			readonly,
 		}
-	}, [
-		editingElementId,
-		selectedElements,
-		selectedElementIds,
-		isDragging,
-		isSelecting,
-		messageHistoryElementId,
-		subElementTooltip,
-		readonly,
-	])
+	}, [croppingElementId, extendingElementId, erasingElementId, readonly])
 
-	return <CanvasUIContext.Provider value={value}>{children}</CanvasUIContext.Provider>
+	return (
+		<CanvasRenameUIContext.Provider value={renameValue}>
+			<CanvasSelectionUIContext.Provider value={selectionValue}>
+				<CanvasPanelUIContext.Provider value={panelValue}>
+					<CanvasModeUIContext.Provider value={modeValue}>
+						{children}
+					</CanvasModeUIContext.Provider>
+				</CanvasPanelUIContext.Provider>
+			</CanvasSelectionUIContext.Provider>
+		</CanvasRenameUIContext.Provider>
+	)
+}
+
+export function useCanvasRenameUI() {
+	const context = useContext(CanvasRenameUIContext)
+	if (context === undefined) {
+		throw new Error("useCanvasRenameUI must be used within a CanvasUIProvider")
+	}
+	return context
+}
+
+export function useCanvasSelectionUI() {
+	const context = useContext(CanvasSelectionUIContext)
+	if (context === undefined) {
+		throw new Error("useCanvasSelectionUI must be used within a CanvasUIProvider")
+	}
+	return context
+}
+
+export function useCanvasPanelUI() {
+	const context = useContext(CanvasPanelUIContext)
+	if (context === undefined) {
+		throw new Error("useCanvasPanelUI must be used within a CanvasUIProvider")
+	}
+	return context
+}
+
+export function useCanvasModeUI() {
+	const context = useContext(CanvasModeUIContext)
+	if (context === undefined) {
+		throw new Error("useCanvasModeUI must be used within a CanvasUIProvider")
+	}
+	return context
 }
 
 export function useCanvasUI() {
-	const context = useContext(CanvasUIContext)
-	if (context === undefined) {
-		throw new Error("useCanvasUI must be used within a CanvasUIProvider")
+	const value: CanvasUIContextValue = {
+		...useCanvasRenameUI(),
+		...useCanvasSelectionUI(),
+		...useCanvasPanelUI(),
+		...useCanvasModeUI(),
 	}
-	return context
+	return value
 }

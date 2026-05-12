@@ -1,11 +1,7 @@
 import IconMicRecord from "@/enhance/tabler/icons-react/icons/IconMicRecord"
 import MagicIcon from "@/components/base/MagicIcon"
 import { RecordingSummaryEditorMode } from "@/pages/superMagic/components/MessagePanel/const/recordSummary"
-import {
-	ProjectListItem,
-	Topic,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { IconKeyboard, IconMusicUp } from "@tabler/icons-react"
 import { useIsCurrentRecording } from "@/components/business/RecordingSummary/hooks/useisCurrentRecording"
 import recordSummaryStore from "@/stores/recordingSummary"
@@ -139,7 +135,7 @@ function EditorModeSwitch({
 							width: `${dimensions.buttonSize}px`,
 						}}
 						id={SummaryGuideDOMId.SwitchRecordingActionButton}
-						data-isChecked={editorMode === RecordingSummaryEditorMode.Recording}
+						data-ischecked={editorMode === RecordingSummaryEditorMode.Recording}
 						onClick={() => handleClick(RecordingSummaryEditorMode.Recording)}
 						disabled={disabled}
 					>
@@ -166,7 +162,7 @@ function EditorModeSwitch({
 							width: `${dimensions.buttonSize}px`,
 						}}
 						id={SummaryGuideDOMId.SwitchEditingActionButton}
-						data-isChecked={editorMode === RecordingSummaryEditorMode.Editing}
+						data-ischecked={editorMode === RecordingSummaryEditorMode.Editing}
 						onClick={() => handleClick(RecordingSummaryEditorMode.Editing)}
 						disabled={disabled}
 					>

@@ -1,5 +1,6 @@
 import { Topic } from "@/pages/superMagic/pages/Workspace/types"
-import { createContext, PropsWithChildren, useContext } from "react"
+import type { JSONContent } from "@tiptap/core"
+import { createContext, type PropsWithChildren, type ReactNode, useContext } from "react"
 
 export interface MessageListContextState {
 	/** 是否允许撤回 */
@@ -16,6 +17,10 @@ export interface MessageListContextState {
 	allowCreateNewTopic?: boolean
 	/** 切换当前话题 */
 	onTopicSwitch?: (topic: Topic) => void
+	/** Optional assistant avatar renderer for scoped scenes */
+	renderAssistantAvatar?: (props?: { className?: string }) => ReactNode
+	/** When false, hide the assistant "task completed" status badge */
+	showTaskCompletedBadge?: boolean
 }
 
 const MessageListContext = createContext<MessageListContextState>({
@@ -26,6 +31,7 @@ const MessageListContext = createContext<MessageListContextState>({
 	allowConversationCopy: false,
 	allowCreateNewTopic: true,
 	onTopicSwitch: undefined,
+	renderAssistantAvatar: undefined,
 })
 
 export function useMessageListContext(): MessageListContextState {

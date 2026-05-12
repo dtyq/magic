@@ -26,7 +26,7 @@ export interface PPTRootRenderProps {
 		isPPTEditMode?: boolean,
 	) => Promise<void>
 	className?: string
-	metadata?: any
+	displayConfig?: any
 	openFileTab?: (fileItem: any, autoEdit?: boolean) => void
 	selectedProject?: ProjectListItem | null
 	selectedTopic?: Topic | null
@@ -39,4 +39,6 @@ export interface PPTRootRenderProps {
 	isTabActive?: boolean
 	allowDownload?: boolean
 	projectId?: string
+	onRegisterCheckBeforeClose?: (fileId: string, callback: () => Promise<boolean>) => void
+	onUnregisterCheckBeforeClose?: (fileId: string) => void
 }

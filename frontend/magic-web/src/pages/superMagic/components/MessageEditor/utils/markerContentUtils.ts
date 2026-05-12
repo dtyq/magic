@@ -1,41 +1,7 @@
 import { JSONContent } from "@tiptap/core"
 import { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
-import {
-	MentionItemType,
-	CanvasMarkerMentionData,
-	TransformedCanvasMarkerMentionData,
-} from "@/components/business/MentionPanel/types"
-
-/**
- * 检查数据是否是 CanvasMarkerMentionData
- */
-function isCanvasMarkerMentionData(data: unknown): data is CanvasMarkerMentionData {
-	if (!data || typeof data !== "object") return false
-
-	const markerData = data as Record<string, unknown>
-	return (
-		"design_project_id" in markerData &&
-		"data" in markerData &&
-		markerData.data !== null &&
-		typeof markerData.data === "object" &&
-		"id" in markerData.data &&
-		"elementId" in markerData.data
-	)
-}
-
-/**
- * 检查数据是否是 TransformedCanvasMarkerMentionData
- */
-function isTransformedCanvasMarkerMentionData(
-	data: unknown,
-): data is TransformedCanvasMarkerMentionData {
-	if (!data || typeof data !== "object") return false
-
-	const transformedData = data as Record<string, unknown>
-	return (
-		"mark_number" in transformedData && "image" in transformedData && "label" in transformedData
-	)
-}
+import { MentionItemType, CanvasMarkerMentionData } from "@/components/business/MentionPanel/types"
+import { normalizeCanvasMarkerMentionData } from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 
 /**
  * 从 JSONContent 中递归查找所有 DESIGN_MARKER 节点
@@ -45,12 +11,10 @@ function findMarkerNodes(node: JSONContent): CanvasMarkerMentionData[] {
 
 	if (node.type === "mention" && node.attrs) {
 		const attrs = node.attrs as TiptapMentionAttributes
-		if (
-			attrs.type === MentionItemType.DESIGN_MARKER &&
-			attrs.data &&
-			isCanvasMarkerMentionData(attrs.data)
-		) {
-			markers.push(attrs.data)
+		if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
+			// 消息列表、复制、点击定位都从 content 读 marker；这里统一兼容旧结构和新轻量结构。
+			const markerData = normalizeCanvasMarkerMentionData(attrs.data)
+			if (markerData) markers.push(markerData)
 		}
 	}
 
@@ -110,7 +74,7 @@ export function findMarkerByMarkNumber(
 
 /**
  * 从 mention 数据中提取 mark_number
- * @param mentionData - mention 数据（可能是 CanvasMarkerMentionData 或 TransformedCanvasMarkerMentionData）
+ * @param mentionData - mention 数据（兼容旧 CanvasMarkerMentionData）
  * @returns mark_number 或 undefined
  */
 export function extractMarkNumber(mentionData: unknown): number | undefined {
@@ -126,7 +90,7 @@ export function extractMarkNumber(mentionData: unknown): number | undefined {
 
 /**
  * 从 mention 数据中提取完整的 CanvasMarkerMentionData
- * 如果是 TransformedCanvasMarkerMentionData，会尝试从 content 中查找完整数据
+ * 如果是轻量 marker 数据，会尝试从 content 中按 mark_number 查找
  * @param mentionData - mention 数据
  * @param transformedMarkerData - 转换后的 marker 数据（可选）
  * @param content - 消息的 content（用于查找完整数据）
@@ -137,22 +101,15 @@ export function extractMarkerData(
 	transformedMarkerData: CanvasMarkerMentionData | null,
 	content?: JSONContent | string | Record<string, unknown>,
 ): CanvasMarkerMentionData | null {
-	// 优先使用转换后的数据
-	if (transformedMarkerData && isCanvasMarkerMentionData(transformedMarkerData)) {
-		// 检查是否有完整的 id 和 elementId
-		if (transformedMarkerData.data?.id && transformedMarkerData.data?.elementId) {
-			return transformedMarkerData
-		}
-	}
+	if (transformedMarkerData?.marker_id && transformedMarkerData.element_id)
+		return transformedMarkerData
 
-	// 如果 mentionData 本身就是 CanvasMarkerMentionData
-	if (isCanvasMarkerMentionData(mentionData)) {
-		return mentionData
-	}
+	const markerData = normalizeCanvasMarkerMentionData(mentionData)
+	if (markerData?.marker_id && markerData.element_id) return markerData
 
-	// 如果是 TransformedCanvasMarkerMentionData，尝试从 content 中查找
-	if (isTransformedCanvasMarkerMentionData(mentionData) && content) {
-		const markNumber = mentionData.mark_number
+	if (markerData && content) {
+		// 旧 mentions 可能只带轻量展示数据，回退到 content 中按编号找完整 marker。
+		const markNumber = markerData.mark_number
 		if (markNumber !== undefined) {
 			return findMarkerByMarkNumber(content, markNumber)
 		}
@@ -189,7 +146,7 @@ export function extractMentionAttrsFromDOM(
 	if (attrs) {
 		try {
 			const parsedData = JSON.parse(attrs)
-			// 检查是否是 TransformedCanvasMarkerMentionData 或 CanvasMarkerMentionData
+			// 检查是否是新旧 marker mention 数据
 			if (parsedData && typeof parsedData === "object") {
 				if ("mark_number" in parsedData) {
 					domMarkNumber = parsedData.mark_number
@@ -219,12 +176,9 @@ export function extractMentionAttrsFromDOM(
 				const data = m.attrs.data
 				let mentionMarkNumber: number | undefined
 
-				// 检查是否是 TransformedCanvasMarkerMentionData
 				if (data && typeof data === "object" && "mark_number" in data) {
 					mentionMarkNumber = (data as { mark_number?: number }).mark_number
-				}
-				// 检查是否是 CanvasMarkerMentionData
-				else if (
+				} else if (
 					data &&
 					typeof data === "object" &&
 					"data" in data &&

@@ -32,6 +32,9 @@ enum UserSettingKey: string
     // 智能体排序配置
     case SuperMagicAgentSort = 'SuperMagicAgentSort';
 
+    // 特殊项目配置
+    case SuperMagicSpecialProject = 'SuperMagicSpecialProject';
+
     /**
      * 个人偏好（一条记录内可放多项，字段名见 {@see PersonalPreferencesKeys}）.
      * magic_user_settings.key = personal_preferences；value 为 JSON 对象.
@@ -46,6 +49,11 @@ enum UserSettingKey: string
     public static function genSuperMagicProjectTopicModel(string $topicId): string
     {
         return self::SuperMagicProjectTopicModel->value . '_' . $topicId;
+    }
+
+    public static function genSuperMagicSpecialProject(string $key): string
+    {
+        return self::SuperMagicSpecialProject->value . '_' . $key;
     }
 
     public function getValueHandler(): ?UserSettingHandlerInterface
@@ -70,6 +78,10 @@ enum UserSettingKey: string
 
         if (str_starts_with($key, self::SuperMagicProjectTopicModel->value)) {
             return self::SuperMagicProjectTopicModel;
+        }
+
+        if (str_starts_with($key, self::SuperMagicSpecialProject->value)) {
+            return self::SuperMagicSpecialProject;
         }
 
         return self::None;

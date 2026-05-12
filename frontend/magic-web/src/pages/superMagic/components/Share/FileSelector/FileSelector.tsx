@@ -5,14 +5,20 @@ import { useTranslation } from "react-i18next"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import MagicIcon from "@/components/base/MagicIcon"
 import MagicFileIcon from "@/components/base/MagicFileIcon"
+import { CustomFolderMagicIcon } from "@/pages/superMagic/components/TopicFilesButton/components/CustomFolderMagicIcon"
 import FoldIcon from "@/pages/superMagic/assets/svg/file-folder.svg"
 import useStyles from "./style"
 import type { FileSelectorProps } from "./types"
+import { CheckboxState } from "./types"
 import { useTreeData } from "@/pages/superMagic/components/TopicFilesButton/hooks/useTreeData"
 import CustomTree from "@/pages/superMagic/components/TopicFilesButton/components/CustomTree/CustomTree"
 import type { TreeNodeData } from "@/pages/superMagic/components/TopicFilesButton/utils/treeDataConverter"
 import { getNodePath } from "@/pages/superMagic/components/TopicFilesButton/utils/treeDataConverter"
-import { getAttachmentType } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
+import {
+	getAttachmentType,
+	getChildrenForCustomMetadataIconPath,
+	getFileTreeIconType,
+} from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
 import {
 	findFileInTree,
 	getAllDescendantIds,
@@ -34,6 +40,9 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 		onDefaultOpenFileChange,
 		disabled = false,
 		allowSetDefaultOpen = false,
+		showSelectAll = false,
+		supportedFileExtensions,
+		allowEmptySelection = false,
 		className,
 	} = props
 	const { styles, cx } = useStyles()
@@ -69,6 +78,37 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 		setExpandedKeys,
 		treeAreaRef,
 	})
+
+	/**
+	 * 检查文件是否受支持
+	 * @param node 文件节点
+	 * @returns true 表示支持，false 表示不支持
+	 */
+	const isFileSupported = useCallback(
+		(node: any): boolean => {
+			// 如果没有指定支持的文件扩展名，则所有文件都支持
+			if (!supportedFileExtensions || supportedFileExtensions.length === 0) {
+				return true
+			}
+
+			// 文件夹始终支持
+			if (node.is_directory || node.metadata?.type) {
+				return true
+			}
+
+			// 获取文件扩展名
+			const fileName = node.name || node.file_name || node.display_filename || ""
+			const lastDotIndex = fileName.lastIndexOf(".")
+			if (lastDotIndex === -1) {
+				// 没有扩展名的文件不支持
+				return false
+			}
+
+			const extension = fileName.slice(lastDotIndex + 1).toLowerCase()
+			return supportedFileExtensions.includes(extension)
+		},
+		[supportedFileExtensions],
+	)
 
 	// Check if file is the default open file
 	const isDefaultOpenFile = useCallback(
@@ -111,7 +151,7 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 
 	// Memoize checkbox states for all nodes to avoid O(n²) complexity
 	const nodeCheckStates = useMemo(() => {
-		const states = new Map<string, "checked" | "unchecked" | "indeterminate">()
+		const states = new Map<string, CheckboxState>()
 		const selectedSet = new Set(selectedFileIds)
 
 		// Build a map for fast node lookup
@@ -145,22 +185,22 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 		}
 
 		// Helper: calculate state for a node
-		const calculateState = (node: any): "checked" | "unchecked" | "indeterminate" => {
+		const calculateState = (node: any): CheckboxState => {
 			const nodeId = node.file_id || node.id
 
 			// File node: check if selected (including parent selection)
 			if (!node.is_directory) {
-				return isSelected(nodeId) ? "checked" : "unchecked"
+				return isSelected(nodeId) ? CheckboxState.Checked : CheckboxState.Unchecked
 			}
 
 			// Empty folder: check self and parent selection
 			if (!node.children || node.children.length === 0) {
-				return isSelected(nodeId) ? "checked" : "unchecked"
+				return isSelected(nodeId) ? CheckboxState.Checked : CheckboxState.Unchecked
 			}
 
 			// 🐛 FIX: If folder itself is selected, return checked
 			if (selectedSet.has(nodeId)) {
-				return "checked"
+				return CheckboxState.Checked
 			}
 
 			// Folder with children: check children states
@@ -169,7 +209,7 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 
 			// If no visible children, check self only
 			if (visibleChildren.length === 0) {
-				return isSelected(nodeId) ? "checked" : "unchecked"
+				return isSelected(nodeId) ? CheckboxState.Checked : CheckboxState.Unchecked
 			}
 
 			let checkedCount = 0
@@ -177,17 +217,19 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 
 			for (const child of visibleChildren) {
 				const childState = states.get(child.file_id || child.id)
-				if (childState === "checked") {
+				if (childState === CheckboxState.Checked) {
 					checkedCount++
-				} else if (childState === "indeterminate") {
+				} else if (childState === CheckboxState.Indeterminate) {
 					indeterminateFound = true
 				}
 			}
 
 			if (indeterminateFound || (checkedCount > 0 && checkedCount < visibleChildren.length)) {
-				return "indeterminate"
+				return CheckboxState.Indeterminate
 			}
-			return checkedCount === visibleChildren.length ? "checked" : "unchecked"
+			return checkedCount === visibleChildren.length
+				? CheckboxState.Checked
+				: CheckboxState.Unchecked
 		}
 
 		// Post-order traversal to calculate states bottom-up
@@ -216,17 +258,23 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 			const node = findFileInTree(attachments, fileId)
 			if (!node) return
 
+			// 检查文件是否支持
+			if (!isFileSupported(node)) {
+				// 不支持的文件不能被选中
+				return
+			}
+
 			// 使用缓存的状态而非重新计算
-			const checkState = nodeCheckStates.get(fileId) || "unchecked"
+			const checkState = nodeCheckStates.get(fileId) || CheckboxState.Unchecked
 			let newSelectedIds: string[]
 
 			// 情况1: 未选中 → 选中
-			if (checkState === "unchecked") {
+			if (checkState === CheckboxState.Unchecked) {
 				// 直接添加该节点ID（无论是文件夹还是文件）
 				newSelectedIds = [...selectedFileIds, fileId]
 			}
 			// 情况2: 全选中 → 取消
-			else if (checkState === "checked") {
+			else if (checkState === CheckboxState.Checked) {
 				if (selectedFileIds.includes(fileId)) {
 					// 直接选中的节点 - 直接移除
 					newSelectedIds = selectedFileIds.filter((id) => id !== fileId)
@@ -256,7 +304,7 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 				}
 			}
 			// 情况3: 半选 → 全选（清除所有子级的选中状态，只保留当前节点）
-			else if (checkState === "indeterminate") {
+			else if (checkState === CheckboxState.Indeterminate) {
 				// 获取所有子级ID
 				const allDescendants = getAllDescendantIds(node)
 				// 移除所有子级的选中状态，添加当前节点
@@ -272,15 +320,17 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 				.map((id) => findFileInTree(attachments, id))
 				.filter(Boolean) as Record<string, unknown>[]
 
-			// 验证：检查是否还有至少一个文件或携带metadata的文件夹
-			const hasValidFile = hasValidFileForShare(newSelectedIds, attachments)
-			if (!hasValidFile) {
-				// 如果没有有效文件，阻止操作并提示
-				magicToast.warning(
-					t("share.atLeastOneFileRequired") ||
-					"至少需要选中一个文件或携带metadata的文件夹",
-				)
-				return
+			// 验证：检查是否还有至少一个文件或携带metadata的文件夹（如果不允许空选择）
+			if (!allowEmptySelection) {
+				const hasValidFile = hasValidFileForShare(newSelectedIds, attachments)
+				if (!hasValidFile) {
+					// 如果没有有效文件，阻止操作并提示
+					magicToast.warning(
+						t("share.atLeastOneFileRequired") ||
+							"至少需要选中一个文件或携带metadata的文件夹",
+					)
+					return
+				}
 			}
 
 			// 如果取消选中的文件是默认打开文件，需要清除默认打开文件
@@ -301,8 +351,73 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 			t,
 			defaultOpenFileId,
 			onDefaultOpenFileChange,
+			isFileSupported,
+			allowEmptySelection,
 		],
 	)
+
+	// 计算全选状态
+	const selectAllState = useMemo(() => {
+		if (!showSelectAll || attachments.length === 0) return CheckboxState.Unchecked
+
+		// 获取根级别的所有项目ID
+		const rootItemIds = attachments
+			.filter((item) => !item.is_hidden)
+			.map((item) => item.file_id || item.id)
+			.filter(Boolean)
+
+		if (rootItemIds.length === 0) return CheckboxState.Unchecked
+
+		// 检查有多少根级别项目被选中
+		let checkedCount = 0
+		let indeterminateFound = false
+
+		for (const itemId of rootItemIds) {
+			const state = nodeCheckStates.get(itemId)
+			if (state === CheckboxState.Checked) {
+				checkedCount++
+			} else if (state === CheckboxState.Indeterminate) {
+				indeterminateFound = true
+			}
+		}
+
+		if (indeterminateFound || (checkedCount > 0 && checkedCount < rootItemIds.length)) {
+			return CheckboxState.Indeterminate
+		}
+		return checkedCount === rootItemIds.length ? CheckboxState.Checked : CheckboxState.Unchecked
+	}, [showSelectAll, attachments, nodeCheckStates])
+
+	// 处理全选/取消全选
+	const handleSelectAll = useCallback(() => {
+		// 获取根级别的所有项目ID
+		const rootItemIds = attachments
+			.filter((item) => !item.is_hidden)
+			.map((item) => item.file_id || item.id)
+			.filter(Boolean)
+
+		if (rootItemIds.length === 0) return
+
+		let newSelectedIds: string[]
+
+		if (selectAllState === CheckboxState.Checked) {
+			// 当前全选 → 取消全选
+			// 移除所有根级别项目ID
+			newSelectedIds = selectedFileIds.filter((id) => !rootItemIds.includes(id))
+		} else {
+			// 当前未全选或半选 → 全选
+			// 添加所有根级别项目ID（去重）
+			const existingIds = new Set(selectedFileIds)
+			rootItemIds.forEach((id) => existingIds.add(id))
+			newSelectedIds = Array.from(existingIds)
+		}
+
+		// 构建新的选中文件列表
+		const newSelectedFiles = newSelectedIds
+			.map((id) => findFileInTree(attachments, id))
+			.filter(Boolean) as Record<string, unknown>[]
+
+		onSelectionChange(newSelectedIds, newSelectedFiles)
+	}, [attachments, selectAllState, selectedFileIds, onSelectionChange])
 
 	// Render tree node title (simplified version of TopicFilesCore's titleRender)
 	const titleRender = useCallback(
@@ -317,11 +432,11 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 			const isLocating = locatingFileId === itemId
 
 			// 使用缓存的 checkbox 状态（避免重复计算）
-			const checkState = nodeCheckStates.get(itemId) || "unchecked"
+			const checkState = nodeCheckStates.get(itemId) || CheckboxState.Unchecked
 			const checkedValue =
-				checkState === "checked"
+				checkState === CheckboxState.Checked
 					? true
-					: checkState === "indeterminate"
+					: checkState === CheckboxState.Indeterminate
 						? "indeterminate"
 						: false
 
@@ -355,10 +470,17 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 			const canSetDefault = canSetAsDefault(item)
 			const isDefault = isDefaultOpenFile(itemId)
 
+			// Check if this file is supported
+			const fileSupported = isFileSupported(item)
+			// 文件级别的禁用：全局禁用 或 文件不支持
+			const isFileDisabled = disabled || !fileSupported
+
 			// Render default open file icon
 			const renderDefaultOpenIcon = () => {
-				// 如果 disabled 为 true，但 allowSetDefaultOpen 也为 true，则允许设置默认打开文件
-				if (!canSetDefault || (disabled && !allowSetDefaultOpen)) return null
+				// 如果不允许设置默认打开文件，直接返回 null
+				if (!allowSetDefaultOpen) return null
+
+				if (!canSetDefault) return null
 
 				if (isDefault) {
 					// Already set as default - always show
@@ -392,14 +514,13 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 									if (!canSetDefault) {
 										return
 									}
-									// If file is not selected and not disabled, select it first
-									// 如果 disabled 为 true 但 allowSetDefaultOpen 为 true，则不需要先选中文件
+									// If file is not selected, select it first
 									const isSelected = isNodeSelected(
 										itemId,
 										selectedFileIds,
 										attachments,
 									)
-									if (!isSelected && !disabled) {
+									if (!isSelected) {
 										handleFileToggle(itemId)
 									}
 									// Then set as default open file
@@ -436,12 +557,12 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 					onMouseLeave={() => setHoveredItemId(null)}
 					onClick={(e) => {
 						e.stopPropagation()
-						if (!disabled) {
+						if (!isFileDisabled) {
 							handleFileToggle(itemId)
 						}
 					}}
 					style={{
-						cursor: "pointer",
+						cursor: isFileDisabled ? "not-allowed" : "pointer",
 					}}
 				>
 					<div
@@ -461,9 +582,17 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 						{!disabled && (
 							<div className={styles.iconWrapper}>
 								<Checkbox
-									checked={checkedValue}
+									checked={fileSupported ? checkedValue : false}
+									disabled={!fileSupported}
+									className={
+										!fileSupported
+											? "border-border bg-muted hover:bg-muted"
+											: undefined
+									}
 									onCheckedChange={() => {
-										handleFileToggle(itemId)
+										if (fileSupported) {
+											handleFileToggle(itemId)
+										}
 									}}
 									onClick={(e) => e.stopPropagation()}
 								/>
@@ -471,24 +600,50 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 						)}
 
 						{/* File/Folder icon */}
-						<div className={styles.iconWrapper}>
-							{item?.is_directory && !item?.metadata?.type ? (
+						<div className={cx(styles.iconWrapper, !fileSupported && "opacity-50")}>
+							{item?.is_directory && !item?.display_config?.type ? (
 								<img
 									src={FoldIcon as unknown as string}
 									alt="folder"
 									width={16}
 									height={16}
 								/>
+							) : item?.metadata?.type === "custom" ? (
+								<CustomFolderMagicIcon
+									displayConfig={item?.display_config}
+									childrenItems={getChildrenForCustomMetadataIconPath(
+										item,
+										(id) =>
+											attachments?.length
+												? findFileInTree(
+														attachments as Record<string, unknown>[],
+														id,
+													)
+												: null,
+									)}
+									typeFallback="custom"
+									size={16}
+								/>
 							) : (
 								<MagicFileIcon
-									type={getAttachmentType(item?.metadata) || item?.file_extension}
+									type={
+										getFileTreeIconType(item) ||
+										getAttachmentType(item) ||
+										item?.file_extension
+									}
 									size={16}
 								/>
 							)}
 						</div>
 
 						{/* File name */}
-						<div className={cx(styles.fileName, isMobile && styles.mobileFileName)}>
+						<div
+							className={cx(
+								styles.fileName,
+								isMobile && styles.mobileFileName,
+								!fileSupported && "text-muted-foreground/50",
+							)}
+						>
 							{item?.name || item?.file_name}
 						</div>
 
@@ -503,6 +658,7 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 			selectedFileIds,
 			expandedKeys,
 			isDefaultOpenFile,
+			isFileSupported,
 			cx,
 			styles.fileItem,
 			styles.mobileFileItem,
@@ -551,6 +707,23 @@ export default memo(function FileSelector(props: FileSelectorProps) {
 
 	return (
 		<div className={cx(styles.container, isMobile && styles.containerMobile, className)}>
+			{/* Select All Checkbox */}
+			{showSelectAll && !disabled && (
+				<div className="flex items-center gap-2 px-2 py-1.5">
+					<Checkbox
+						checked={
+							selectAllState === CheckboxState.Checked
+								? true
+								: selectAllState === CheckboxState.Indeterminate
+									? "indeterminate"
+									: false
+						}
+						onCheckedChange={handleSelectAll}
+					/>
+					<span className="text-sm text-muted-foreground">{t("share.selectAll")}</span>
+				</div>
+			)}
+
 			{/* Search input */}
 			{/* <Input
 				placeholder={t("common.searchFiles")}

@@ -12,6 +12,7 @@ import { observer } from "mobx-react-lite"
 import { IconMenu2, IconX } from "@tabler/icons-react"
 import { Tooltip } from "antd"
 import { cn } from "@/lib/utils"
+import useFullscreenMode from "@/hooks/useFullscreenMode"
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -31,11 +32,10 @@ import TabCache from "./components/TabCache"
 import TabItem from "./components/TabItem"
 import { TabContextMenu } from "./components/TabContextMenu"
 import { useTranslation } from "react-i18next"
-import MagicFileIcon from "@/components/base/MagicFileIcon"
 import MagicIcon from "@/components/base/MagicIcon"
 import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll"
 import DetailEmpty from "../DetailEmpty"
-import { getAttachmentExtension } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
+import { FileTabMagicIcon } from "./components/FileTabMagicIcon"
 
 // 获取文件路径用作tooltip的工具函数
 const getFileTooltip = (tab: any, unknownFileText: string) => {
@@ -69,9 +69,10 @@ const FilesViewer = memo(
 	observer(
 		forwardRef<FilesViewerRef, FilesViewerProps>((props, ref) => {
 			// Props are passed directly to hook
+			const tabAttachments = props.attachments ?? props.attachmentList
 			const { t } = useTranslation("super")
+			const isFullscreenMode = useFullscreenMode()
 			const [expandPanelVisible, setExpandPanelVisible] = useState(false)
-			const expandButtonRef = useRef<HTMLDivElement>(null)
 			const tabsContainerRef = useRef<HTMLDivElement>(null)
 
 			// 使用自定义 Hook 管理状态
@@ -254,11 +255,6 @@ const FilesViewer = memo(
 				}
 			}, [activeTab, tabs])
 
-			// 处理展开按钮点击
-			const handleExpandClick = () => {
-				setExpandPanelVisible(!expandPanelVisible)
-			}
-
 			// 渲染tab项
 			const renderTabItem = (tab: TabItemType, index: number) => {
 				const isActive = activeTab?.id === tab.id
@@ -278,6 +274,7 @@ const FilesViewer = memo(
 						dragDirection={dragDirection || undefined}
 						isPlayback={isPlayback}
 						contextMenuState={contextMenuState}
+						attachments={tabAttachments}
 						onSwitchToTab={switchToTab}
 						onCloseTab={handleTabClose}
 						onDragStart={handleTabDragStart}
@@ -293,6 +290,7 @@ const FilesViewer = memo(
 				const isPlayback = isPlaybackTab(tab.id)
 				return (
 					<Tooltip
+						key={tab.id}
 						title={getFileTooltip(tab, t("fileViewer.unknownFile"))}
 						placement="right"
 						mouseEnterDelay={0.3}
@@ -301,21 +299,16 @@ const FilesViewer = memo(
 						}}
 					>
 						<div
-							key={tab.id}
 							className="flex cursor-pointer items-center gap-1 rounded px-[10px] py-[6px] transition-colors duration-200 hover:bg-black/5"
 							onClick={() => {
 								switchToTab(tab.id)
 								setExpandPanelVisible(false)
 							}}
 						>
-							<MagicFileIcon
-								type={
-									isPlayback
-										? "replay"
-										: getAttachmentExtension(tab?.fileData?.metadata) ||
-											tab.fileData?.file_extension ||
-											""
-								}
+							<FileTabMagicIcon
+								tab={tab}
+								attachments={tabAttachments}
+								isPlayback={isPlayback}
 								size={12}
 							/>
 							<span className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-sans text-xs font-normal leading-[1.33] text-foreground/80">
@@ -442,16 +435,16 @@ const FilesViewer = memo(
 					className={cn(
 						"flex h-full flex-col",
 						isFullscreen &&
-							"fixed inset-0 z-[1022] h-screen w-screen rounded-none bg-white",
+							"fixed inset-0 z-detail-fullscreen h-screen w-screen rounded-none bg-white",
 					)}
 				>
 					{/* Tab Bar */}
-					{tabs.length > 0 && (
-						<div className="relative flex h-9 items-center bg-accent">
+					{tabs.length > 0 && !isFullscreenMode && (
+						<div className="relative flex h-11 items-center bg-accent">
 							<HeadlessHorizontalScroll
 								className="h-full min-w-0 flex-1"
 								controlBackground="rgb(var(--accent-rgb))"
-								scrollContainerClassName="no-scrollbar flex h-full w-full items-center overflow-x-auto overflow-y-hidden px-1"
+								scrollContainerClassName="no-scrollbar flex h-full w-full items-center overflow-x-auto overflow-y-hidden px-1 gap-0.5"
 								scrollContainerRef={tabsContainerRef}
 								onScrollContainerContextMenu={handleContainerContextMenu}
 							>
@@ -464,15 +457,8 @@ const FilesViewer = memo(
 								onOpenChange={setExpandPanelVisible}
 							>
 								<DropdownMenuTrigger asChild>
-									<div
-										className="relative mx-1 flex size-7 shrink-0 cursor-pointer select-none items-center justify-center rounded-md transition-all duration-200 hover:bg-black/10"
-										ref={expandButtonRef}
-									>
-										<MagicIcon
-											component={IconMenu2}
-											onClick={handleExpandClick}
-											size={18}
-										/>
+									<div className="relative mx-1 flex size-7 shrink-0 cursor-pointer select-none items-center justify-center rounded-md transition-all duration-200 hover:bg-black/10">
+										<MagicIcon component={IconMenu2} size={18} />
 									</div>
 								</DropdownMenuTrigger>
 								<DropdownMenuContent

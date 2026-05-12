@@ -7,6 +7,7 @@ import { Button } from "@/components/tiptap-ui-primitive/button"
 import { CloseIcon } from "@/components/tiptap-icons/close-icon"
 import "@/components/tiptap-node/image-upload-node/image-upload-node.scss"
 import { focusNextNode, isValidPosition } from "@/lib/tiptap-utils"
+import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
 
 export interface FileItem {
 	/**
@@ -95,7 +96,7 @@ function useFileUpload(options: UploadOptions) {
 		}
 
 		const abortController = new AbortController()
-		const fileId = crypto.randomUUID()
+		const fileId = createRandomUuidV4()
 
 		const newFileItem: FileItem = {
 			id: fileId,
@@ -317,8 +318,9 @@ const ImageUploadDragArea: React.FC<ImageUploadDragAreaProps> = ({ onFile, child
 
 	return (
 		<div
-			className={`tiptap-image-upload-drag-area ${isDragActive ? "drag-active" : ""} ${isDragOver ? "drag-over" : ""
-				}`}
+			className={`tiptap-image-upload-drag-area ${isDragActive ? "drag-active" : ""} ${
+				isDragOver ? "drag-over" : ""
+			}`}
 			onDragEnter={handleDragEnter}
 			onDragLeave={handleDragLeave}
 			onDragOver={handleDragOver}

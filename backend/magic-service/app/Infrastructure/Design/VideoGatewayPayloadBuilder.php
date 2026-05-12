@@ -9,11 +9,11 @@ namespace App\Infrastructure\Design;
 
 use App\Domain\Design\Contract\VideoGatewayPayloadBuilderInterface;
 use App\Domain\Design\Entity\DesignGenerationTaskEntity;
-use App\Domain\Design\Factory\PathFactory;
 use App\Domain\File\Service\FileDomainService;
 use App\ErrorCode\DesignErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 
 readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderInterface
 {
@@ -48,6 +48,8 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
 
     public function __construct(
         private FileDomainService $fileDomainService,
+        private TaskFileDomainService $taskFileDomainService,
+        private DesignVideoPromptReferenceRewriter $promptReferenceRewriter,
     ) {
     }
 
@@ -55,9 +57,8 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
     {
         $payload = $entity->getRequestPayload();
         $payload['inputs'] = $this->buildInputs($entity);
-        $payload['prompt'] = $this->rewritePromptReferenceMentions(
+        $payload['prompt'] = $this->promptReferenceRewriter->rewrite(
             (string) ($payload['prompt'] ?? ''),
-            (string) ($payload['input_mode'] ?? ''),
             is_array($entity->getRequestPayload()['inputs'] ?? null) ? $entity->getRequestPayload()['inputs'] : [],
         );
 
@@ -74,15 +75,14 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
      */
     private function buildInputs(DesignGenerationTaskEntity $entity): array
     {
-        $filePrefix = $this->fileDomainService->getFullPrefix($entity->getOrganizationCode());
-        $workspacePrefix = PathFactory::getWorkspacePrefix($filePrefix, $entity->getProjectId());
+        $projectId = $entity->getProjectId();
         // VolcengineArk 这类支持图片直链的模型直接走 URL，避免无谓的 base64 转换。
         $supportsImageInputUrl = $this->supportsImageInputUrl($entity);
 
         $mask = [];
         if ($entity->getMask() !== null) {
-            $fullPath = $workspacePrefix . $entity->getMask();
-            $url = $this->fileDomainService->getLink($entity->getOrganizationCode(), $fullPath, StorageBucketType::SandBox)?->getUrl();
+            $fileKey = $this->resolveFileKey($projectId, $entity->getMask(), self::ERROR_REFERENCE_MEDIA_URL_MISSING);
+            $url = $this->fileDomainService->getLink($entity->getOrganizationCode(), $fileKey, StorageBucketType::SandBox)?->getUrl();
             if (! $url) {
                 ExceptionBuilder::throw(
                     DesignErrorCode::ThirdPartyServiceError,
@@ -96,17 +96,17 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         $referenceImages = [];
         foreach ($entity->getReferenceImages() as $referenceImage) {
             $relativePath = (string) ($referenceImage[self::FIELD_URI] ?? '');
-            $fullPath = $workspacePrefix . $relativePath;
+            $fileKey = $this->resolveFileKey($projectId, $relativePath, self::ERROR_REFERENCE_IMAGE_URL_MISSING);
             $item = [self::FIELD_URI => $supportsImageInputUrl
                 ? $this->buildImageUrl(
                     $entity->getOrganizationCode(),
-                    $fullPath,
+                    $fileKey,
                     $relativePath,
                     self::ERROR_REFERENCE_IMAGE_URL_MISSING,
                 )
                 : $this->buildImageDataUrl(
                     $entity->getOrganizationCode(),
-                    $fullPath,
+                    $fileKey,
                     $relativePath,
                     self::ERROR_REFERENCE_IMAGE_URL_MISSING,
                 )];
@@ -121,19 +121,19 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
         foreach ($entity->getFrames() as $frame) {
             $uri = (string) ($frame[self::FIELD_URI] ?? '');
             $role = (string) ($frame[self::FIELD_ROLE] ?? '');
-            $fullPath = $workspacePrefix . $uri;
+            $fileKey = $this->resolveFileKey($projectId, $uri, self::ERROR_FRAME_URL_MISSING);
             $frames[] = [
                 self::FIELD_ROLE => $role,
                 self::FIELD_URI => $supportsImageInputUrl
                     ? $this->buildImageUrl(
                         $entity->getOrganizationCode(),
-                        $fullPath,
+                        $fileKey,
                         $uri,
                         self::ERROR_FRAME_URL_MISSING,
                     )
                     : $this->buildImageDataUrl(
                         $entity->getOrganizationCode(),
-                        $fullPath,
+                        $fileKey,
                         $uri,
                         self::ERROR_FRAME_URL_MISSING,
                     ),
@@ -147,10 +147,10 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
                 continue;
             }
 
-            $fullPath = $workspacePrefix . $uri;
+            $fileKey = $this->resolveFileKey($projectId, $uri, self::ERROR_REFERENCE_MEDIA_URL_MISSING);
             $referenceVideos[] = [self::FIELD_URI => $this->buildImageUrl(
                 $entity->getOrganizationCode(),
-                $fullPath,
+                $fileKey,
                 $uri,
                 self::ERROR_REFERENCE_MEDIA_URL_MISSING,
             )];
@@ -163,8 +163,8 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
                 continue;
             }
 
-            $fullPath = $workspacePrefix . $uri;
-            $url = $this->fileDomainService->getLink($entity->getOrganizationCode(), $fullPath, StorageBucketType::SandBox)?->getUrl();
+            $fileKey = $this->resolveFileKey($projectId, $uri, self::ERROR_REFERENCE_MEDIA_URL_MISSING);
+            $url = $this->fileDomainService->getLink($entity->getOrganizationCode(), $fileKey, StorageBucketType::SandBox)?->getUrl();
             if (! $url) {
                 ExceptionBuilder::throw(
                     DesignErrorCode::ThirdPartyServiceError,
@@ -185,103 +185,20 @@ readonly class VideoGatewayPayloadBuilder implements VideoGatewayPayloadBuilderI
     }
 
     /**
-     * 真正发起 submit 前，先构造“素材索引”，再把 prompt 中对文件名的引用改成稳定占位，
-     * 避免 provider 误解中文文件名，同时让模型先建立“图片1/视频1/音频1”的素材映射。
-     *
-     * @param array<string, mixed> $rawInputs
+     * Resolve the actual file_key from the file tree for a given relative workspace path.
+     * Uses findEntityByRelativePath instead of string concatenation, aligned with MagicFS v2 semantics.
      */
-    private function rewritePromptReferenceMentions(string $prompt, string $inputMode, array $rawInputs): string
+    private function resolveFileKey(int $projectId, string $relativePath, string $errorKey): string
     {
-        if (! in_array(trim($inputMode), ['omni_reference', 'image_reference'], true)) {
-            return $prompt;
+        $fileEntity = $this->taskFileDomainService->findEntityByRelativePath($projectId, $relativePath);
+        if ($fileEntity === null) {
+            ExceptionBuilder::throw(
+                DesignErrorCode::ThirdPartyServiceError,
+                $errorKey,
+                ['file_key' => $relativePath]
+            );
         }
-
-        $referenceMappings = array_merge(
-            $this->buildReferenceMentionMappings(
-                is_array($rawInputs[self::INPUT_KEY_REFERENCE_IMAGES] ?? null) ? $rawInputs[self::INPUT_KEY_REFERENCE_IMAGES] : [],
-                '图片',
-            ),
-            $this->buildReferenceMentionMappings(
-                is_array($rawInputs[self::INPUT_KEY_REFERENCE_VIDEOS] ?? null) ? $rawInputs[self::INPUT_KEY_REFERENCE_VIDEOS] : [],
-                '视频',
-            ),
-            $this->buildReferenceMentionMappings(
-                is_array($rawInputs[self::INPUT_KEY_REFERENCE_AUDIOS] ?? null) ? $rawInputs[self::INPUT_KEY_REFERENCE_AUDIOS] : [],
-                '音频',
-            ),
-        );
-        if ($referenceMappings === []) {
-            return $prompt;
-        }
-
-        $rewrittenPrompt = $prompt;
-        $replacements = [];
-        foreach ($referenceMappings as $mapping) {
-            $replacements[$mapping['mention']] = $mapping['placeholder'];
-        }
-
-        uksort($replacements, static fn (string $left, string $right): int => strlen($right) <=> strlen($left));
-        if ($rewrittenPrompt !== '' && str_contains($rewrittenPrompt, '@')) {
-            $rewrittenPrompt = str_replace(array_keys($replacements), array_values($replacements), $rewrittenPrompt);
-        }
-
-        $indexLines = array_map(
-            static fn (array $mapping): string => '- ' . ltrim($mapping['placeholder'], '@') . '：' . $mapping['file_name'],
-            $referenceMappings,
-        );
-
-        return '素材索引（右侧是用户上传的原始文件名，仅用于标识素材）：' . "\n"
-            . implode("\n", $indexLines)
-            . "\n\n"
-            . '任务描述（请按素材编号理解下面的引用）：' . "\n"
-            . $rewrittenPrompt;
-    }
-
-    /**
-     * @param list<mixed> $references
-     * @return list<array{mention: string, placeholder: string, file_name: string}>
-     */
-    private function buildReferenceMentionMappings(array $references, string $label): array
-    {
-        $mappings = [];
-        $seenMentions = [];
-        $index = 0;
-        foreach ($references as $reference) {
-            if (! is_array($reference)) {
-                continue;
-            }
-
-            $fileName = $this->extractReferenceFileName((string) ($reference[self::FIELD_URI] ?? ''));
-            if ($fileName === '') {
-                continue;
-            }
-
-            $mention = '@' . $fileName;
-            if (isset($seenMentions[$mention])) {
-                continue;
-            }
-
-            ++$index;
-            $seenMentions[$mention] = true;
-            $mappings[] = [
-                'mention' => $mention,
-                'placeholder' => '@' . $label . $index,
-                'file_name' => $fileName,
-            ];
-        }
-
-        return $mappings;
-    }
-
-    private function extractReferenceFileName(string $uri): string
-    {
-        $candidate = $uri;
-        if (preg_match('#^https?://#i', $uri) === 1) {
-            $path = parse_url($uri, PHP_URL_PATH);
-            $candidate = is_string($path) && $path !== '' ? $path : $uri;
-        }
-
-        return trim(basename(rawurldecode($candidate)));
+        return $fileEntity->getFileKey();
     }
 
     private function buildImageUrl(

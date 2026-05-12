@@ -20,6 +20,7 @@ export default function MemorySuggestion({
 	setEditMemory,
 	setBreadcrumbList,
 	onClose,
+	onMemoryChanged,
 	onWorkspaceStateChange,
 }: PageProps) {
 	const { styles, cx } = useStyles()
@@ -55,6 +56,7 @@ export default function MemorySuggestion({
 		try {
 			const res = await LongMemoryApi.batchAcceptMemories([memoryId], "reject")
 			if (res.success) {
+				onMemoryChanged?.()
 				getPendingMemoryList()
 				magicToast.success(res.message)
 			}
@@ -68,6 +70,7 @@ export default function MemorySuggestion({
 		try {
 			const res = await LongMemoryApi.batchAcceptMemories([memoryId], "accept")
 			if (res.success) {
+				onMemoryChanged?.()
 				getPendingMemoryList()
 				magicToast.success(res.message)
 			}
@@ -135,7 +138,7 @@ export default function MemorySuggestion({
 										<span className={styles.itemLabel}>
 											<IconLight size={20} />
 											{memory.status ===
-												LongMemory.MemoryStatus.PENDING_REVISION
+											LongMemory.MemoryStatus.PENDING_REVISION
 												? t("memoryRevisionSuggestion")
 												: t("memorySuggestion")}
 										</span>

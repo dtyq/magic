@@ -19,6 +19,31 @@ export const normalizeLocale = (locale?: string): string => {
 	}
 }
 
+export interface LocalizedTextMap {
+	default?: string | null
+	[key: string]: string | null | undefined
+}
+
+export function getLocalePreferredKeys(locale?: string): string[] {
+	const normalizedLocale = locale?.toLowerCase() ?? "en"
+	return normalizedLocale.startsWith("zh") ? ["zh_CN", "zh"] : ["en_US", "en"]
+}
+
+export function resolveLocalizedText(
+	text: LocalizedTextMap | null | undefined,
+	locale?: string,
+): string {
+	if (!text) return ""
+
+	for (const key of getLocalePreferredKeys(locale)) {
+		const value = text[key]
+		if (value) return value
+	}
+
+	if (text.default) return text.default
+	return ""
+}
+
 export const getAntdLocale = async (lang: string) => {
 	const normalLang = languageHelper.transform(lang)
 
@@ -87,7 +112,7 @@ export const getCurrentLang = <T extends string>(lang: "auto" | T): T => {
 	}
 
 	// For non-auto languages, validate if it's supported
-	if (SUPPORT_LOCALES.includes(normalizedLang as any)) {
+	if (SUPPORT_LOCALES.includes(normalizedLang as SupportLocales)) {
 		return normalizedLang
 	}
 
@@ -95,7 +120,7 @@ export const getCurrentLang = <T extends string>(lang: "auto" | T): T => {
 	return DEFAULT_LOCALE as T
 }
 
-const ANTD_LOCALE_LOADERS: Record<string, () => Promise<{ default: any }>> = {
+const ANTD_LOCALE_LOADERS: Record<string, () => Promise<{ default: unknown }>> = {
 	[SupportLocales.zhCN]: () => import("antd/locale/zh_CN"),
 	[SupportLocales.enUS]: () => import("antd/locale/en_US"),
 }

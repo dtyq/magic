@@ -1,5 +1,5 @@
 import IconButton from "../../../ui/custom/IconButton/index"
-import { Layers3 } from "../../../ui/icons/index"
+import { Layers3 } from "lucide-react"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import { Tooltip, TooltipTrigger, TooltipContent } from "../../../ui/tooltip"
 import { useLayersUI } from "../../../../context/LayersUIContext"

@@ -23,6 +23,7 @@ const Video = lazy(() => import("../../contents/Video"))
 const Audio = lazy(() => import("../../contents/Audio"))
 const Design = lazy(() => import("../../contents/Design"))
 const PPTRootRender = lazy(() => import("../PPTRootRender"))
+const SelfMediaRootRender = lazy(() => import("../SelfMediaRootRender"))
 
 let RenderOffice: any = null
 if (localStorage.getItem("office_preview") === "onlyoffice") {
@@ -117,6 +118,8 @@ function ContentRenderer({ type, data, commonProps }: ContentRendererProps) {
 			return <Audio data={data} {...commonProps} />
 		case DetailType.Design:
 			return <Design data={data} {...commonProps} />
+		case DetailType.SelfMedia:
+			return <SelfMediaRootRender data={data} {...commonProps} />
 		case DetailType.FileTree:
 			return <FileTree data={data} {...commonProps} />
 		case DetailType.Deleted:

@@ -1,9 +1,5 @@
 import { useTranslation } from "react-i18next"
-import {
-	BatchSaveInfo,
-	multiFolderUploadStore,
-	UploadFileWithKey,
-} from "@/stores/folderUpload"
+import { BatchSaveInfo, multiFolderUploadStore, UploadFileWithKey } from "@/stores/folderUpload"
 import { UploadSource } from "../../MessageEditor/hooks/useFileUpload"
 import {
 	getFileExtension,
@@ -53,7 +49,7 @@ export function useFileReplace({
 				},
 			]
 
-			await multiFolderUploadStore.createUploadTask(filesWithKeys, "", {
+			await multiFolderUploadStore.createUploadTask(filesWithKeys, undefined, {
 				projectId: projectId || "",
 				workspaceId,
 				projectName: selectedProject?.project_name || t("common.untitledProject"),

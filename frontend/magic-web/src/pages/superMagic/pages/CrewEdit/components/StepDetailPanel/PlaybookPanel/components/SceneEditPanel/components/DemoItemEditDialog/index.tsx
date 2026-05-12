@@ -21,10 +21,12 @@ import type {
 	OptionGroup,
 	OptionItem,
 } from "@/pages/superMagic/components/MainInputContainer/panels/types"
+import { isPromptRichTextEmpty } from "@/pages/superMagic/components/MainInputContainer/panels/promptRichText"
 import { resolveLocalText } from "../../utils"
 import { LocaleTextInput } from "../LocaleTextInput"
 import { ImageUploadField, type ImageMetadata } from "../ImageUploadField"
 import { DemoGroupEditDialog } from "../DemoGroupEditDialog"
+import { PromptRichTextLocaleEditor } from "./PromptRichTextLocaleEditor"
 
 interface DemoItemFormState {
 	thumbnail_url: string
@@ -76,6 +78,13 @@ function isLocaleFilled(text: LocaleText): boolean {
 	return Object.values(text as Record<string, string>).some((v) => v && v.trim().length > 0)
 }
 
+function isPromptLocaleFilled(text: LocaleText): boolean {
+	if (typeof text === "string") return !isPromptRichTextEmpty(text)
+	return Object.values(text as Record<string, string>).some(
+		(value) => !isPromptRichTextEmpty(value),
+	)
+}
+
 export function DemoItemEditDialog({
 	item,
 	defaultGroupKey = "",
@@ -104,7 +113,7 @@ export function DemoItemEditDialog({
 
 	const isValid = useMemo(() => {
 		const groupValid = groups.length === 0 || !!form.group_key
-		return isLocaleFilled(form.label) && isLocaleFilled(form.description) && groupValid
+		return isLocaleFilled(form.label) && isPromptLocaleFilled(form.description) && groupValid
 	}, [form.label, form.description, form.group_key, groups.length])
 
 	function handleImageMetadataChange(metadata?: ImageMetadata) {
@@ -185,12 +194,11 @@ export function DemoItemEditDialog({
 							alignTop
 							required
 						>
-							<LocaleTextInput
+							<PromptRichTextLocaleEditor
 								value={form.description}
 								onChange={(v) => setForm((prev) => ({ ...prev, description: v }))}
 								placeholder={t("playbook.edit.inspiration.item.promptPlaceholder")}
 								localizeLabel={t("playbook.edit.inspiration.item.prompt")}
-								multiline
 								data-testid="demo-item-prompt-input"
 							/>
 						</FormRow>
@@ -206,7 +214,7 @@ export function DemoItemEditDialog({
 										}
 									>
 										<SelectTrigger
-											className="shadow-xs h-9 w-[200px]"
+											className="h-9 w-[200px] shadow-xs"
 											data-testid="demo-item-group-select"
 										>
 											<SelectValue />
@@ -223,7 +231,7 @@ export function DemoItemEditDialog({
 										<Button
 											variant="outline"
 											size="icon"
-											className="shadow-xs h-9 w-9 shrink-0"
+											className="h-9 w-9 shrink-0 shadow-xs"
 											onClick={() => setGroupDialogOpen(true)}
 											data-testid="demo-item-create-group-btn"
 										>
@@ -238,14 +246,14 @@ export function DemoItemEditDialog({
 					<DialogFooter className="border-t px-3 py-3">
 						<Button
 							variant="outline"
-							className="shadow-xs h-9"
+							className="h-9 shadow-xs"
 							onClick={() => onOpenChange(false)}
 							data-testid="demo-item-dialog-cancel"
 						>
 							{t("playbook.edit.inspiration.item.cancel")}
 						</Button>
 						<Button
-							className="shadow-xs h-9"
+							className="h-9 shadow-xs"
 							disabled={!isValid || isUploading}
 							onClick={handleConfirm}
 							data-testid="demo-item-dialog-confirm"

@@ -583,7 +583,11 @@ class TopicDomainService
         }
 
         // 从仓储层获取有运行中话题的工作区ID列表
-        $runningWorkspaceIds = $this->topicRepository->getRunningWorkspaceIds($workspaceIds, $userId);
+        $runningWorkspaceIds = $this->topicRepository->getWorkspaceIdsByTopicStatus(
+            $workspaceIds,
+            [TaskStatus::RUNNING, TaskStatus::WAITING_FOR_USER],
+            $userId
+        );
 
         // 计算每个工作区的状态
         $result = [];
@@ -610,7 +614,11 @@ class TopicDomainService
         }
 
         // 从仓储层获取有运行中话题的项目ID列表
-        $runningProjectIds = $this->topicRepository->getRunningProjectIds($projectIds, $userId);
+        $runningProjectIds = $this->topicRepository->getProjectIdsByTopicStatus(
+            $projectIds,
+            [TaskStatus::RUNNING, TaskStatus::WAITING_FOR_USER],
+            $userId
+        );
 
         // 计算每个项目的状态
         $result = [];
@@ -1255,7 +1263,7 @@ class TopicDomainService
             'topic_name' => $topic->getTopicName(),
             'project_id' => (string) $topic->getProjectId(),
             'workspace_id' => $topic->getWorkspaceId() !== null ? (string) $topic->getWorkspaceId() : '',
-            'status' => $topic->getCurrentTaskStatus()?->value ?? null,
+            'status' => $topic->getCurrentTaskStatus()?->value,
             'topic_mode' => $topic->getTopicMode(),
             'updated_at' => $topic->getUpdatedAt() ?? '',
             'is_pinned' => $topic->isPinned(),
@@ -1271,7 +1279,7 @@ class TopicDomainService
     {
         return [
             'id' => (string) $topic->getId(),
-            'status' => $topic->getCurrentTaskStatus()?->value ?? null,
+            'status' => $topic->getCurrentTaskStatus()?->value,
             'has_unread' => $hasUnread,
         ];
     }

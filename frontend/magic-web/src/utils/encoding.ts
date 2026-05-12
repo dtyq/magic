@@ -33,6 +33,21 @@ export function safeAtob(str: string): string {
 }
 
 /**
+ * Safely decode URI component strings.
+ * Falls back to the original input when percent-encoding is malformed.
+ * @param str - URI component string to decode
+ * @returns Decoded string or the original input if decoding fails
+ */
+export function safeDecodeURIComponent(str: string): string {
+	try {
+		return decodeURIComponent(str)
+	} catch (error) {
+		console.error("Failed to decode URI component:", error)
+		return str
+	}
+}
+
+/**
  * Safely encode JSON object to base64
  * @param obj - Object to encode
  * @returns Base64 encoded JSON string or empty string if encoding fails

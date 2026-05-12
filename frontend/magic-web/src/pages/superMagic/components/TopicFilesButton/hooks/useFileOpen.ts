@@ -50,7 +50,7 @@ export function useFileOpen(options: UseFileOpenOptions = {}) {
 						file_extension: fileExtension,
 						file_id: item.file_id,
 						file_size: item.file_size,
-						metadata: item.metadata,
+						display_config: item.display_config,
 					},
 					currentFileId: item.file_id,
 					attachments,

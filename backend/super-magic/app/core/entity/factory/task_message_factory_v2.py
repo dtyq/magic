@@ -213,6 +213,9 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         attachments: Optional[List[Attachment]] = None,
     ) -> Tool:
         """构建 Tool 实例（供外层 payload 直接使用，或序列化后放入 inner_message）"""
+        # remark 字段截断，最多 200 字符，超长时以 ... 结尾
+        if remark and len(remark) > 200:
+            remark = remark[:197] + "..."
         return Tool(
             id=tool_id,
             name=name,
@@ -1019,6 +1022,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         for att in attachments:
             final_attachment = Attachment(
                 file_key=att.file_key,
+                file_id=att.file_id,
                 file_tag=AttachmentTag.FINAL,
                 file_extension=att.file_extension,
                 filepath=att.filepath,

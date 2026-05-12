@@ -104,6 +104,7 @@
 
 		/* z-index：所有悬浮层的 z-index 都基于1000，业务中普通场景不需要自己控制 z-index
 		*/
+		--z-index-detail-fullscreen: 999;
 		--z-index-popup: 1000;
 		--z-index-dialog: var(--z-index-popup);
 		--z-index-dropdown: var(--z-index-popup);
@@ -154,6 +155,8 @@
 		--muted-rgb: 245 245 245;
 		--muted-foreground: 0.556 0 0;
 		--muted-foreground-rgb: 115 115 115;
+		--info: 0.623 0.188 259.814;
+		--info-rgb: 59 130 246;
 		--accent: 0.97 0 0;
 		--accent-rgb: 245 245 245;
 		--accent-foreground: 0.205 0 0;
@@ -208,6 +211,7 @@
 
 		/* Custom primary colors with opacity variants */
 		--custom-primary-10-dark-primary-20: rgba(37, 99, 235, 0.1);
+		--custom-destructive-60: rgba(239, 68, 68, 0.1);
 	}
 
 	*,
@@ -224,7 +228,20 @@
 		width: 100%;
 		height: 100%;
 		overflow: hidden;
+		font-family:
+			-apple-system,
+			BlinkMacSystemFont,
+			Segoe UI Variable Display,
+			Segoe UI,
+			Helvetica,
+			Apple Color Emoji,
+			Arial,
+			sans-serif,
+			Segoe UI Emoji,
+			Segoe UI Symbol;
+		letter-spacing: 0.01em;
 		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
 		-webkit-overflow-scrolling: touch;
 	}
 
@@ -276,6 +293,8 @@
 		--muted-rgb: 38 38 38;
 		--muted-foreground: 0.708 0 0;
 		--muted-foreground-rgb: 161 161 161;
+		--info: 0.623 0.188 259.814;
+		--info-rgb: 59 130 246;
 		--accent: 0.269 0 0;
 		--accent-rgb: 38 38 38;
 		--accent-foreground: 0.985 0 0;
@@ -328,6 +347,7 @@
 
 		/* Custom primary colors with opacity variants */
 		--custom-primary-10-dark-primary-20: rgba(37, 99, 235, 0.2);
+		--custom-destructive-60: rgba(239, 68, 68, 0.2);
 	}
 }
 
@@ -387,4 +407,25 @@
 
 .ant-modal-confirm-body > svg {
 	flex-shrink: 0;
+}
+
+.approval-preview-popup-container {
+	padding-top: var(--safe-area-inset-top);
+	padding-bottom: var(--safe-area-inset-bottom);
+}
+
+/* Document Create - Custom Content Editor Scroll Fix */
+.document-create-editor-wrapper .simple-editor {
+	flex: 1;
+}
+
+.document-create-editor-wrapper .tiptap-toolbar {
+	border-radius: 0.625rem;
+}
+
+.document-create-editor-wrapper .simple-editor-wrapper {
+	background: transparent;
+	overflow: visible !important;
+	overscroll-behavior: auto !important;
+	height: auto !important;
 }

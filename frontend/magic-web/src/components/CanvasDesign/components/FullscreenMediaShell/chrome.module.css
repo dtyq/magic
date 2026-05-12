@@ -1,0 +1,52 @@
+/**
+ * 顶部关闭区 / 底部控制器共用：渐变遮罩上的显隐过渡
+ */
+.layer {
+	position: absolute;
+	z-index: 2;
+	transition: opacity 0.38s ease, visibility 0.38s ease;
+	will-change: opacity;
+}
+
+.layerHidden {
+	visibility: hidden;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.layerVisible {
+	visibility: visible;
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.topBar {
+	top: 0;
+	right: 0;
+	left: 0;
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	padding: 16px;
+	background: linear-gradient(180deg, rgb(0 0 0 / 55%) 0%, rgb(0 0 0 / 0%) 100%);
+	pointer-events: none;
+}
+
+.topBarLeft {
+	flex: 1 1 0;
+	min-width: 0;
+	margin-right: auto;
+	padding-right: 12px;
+	pointer-events: none;
+}
+
+.fileName {
+	display: block;
+	overflow: hidden;
+	color: #fff;
+	font-weight: 500;
+	font-size: 14px;
+	line-height: 20px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}

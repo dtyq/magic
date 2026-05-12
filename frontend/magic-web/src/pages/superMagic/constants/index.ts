@@ -11,11 +11,24 @@ import { TFunction } from "i18next"
 import { isOwner } from "../utils/permission"
 
 export const SHARE_WORKSPACE_ID = "collaboration"
+export const MY_CLAW_WORKSPACE_ID = "my-claw"
 
 export const SHARE_WORKSPACE_DATA = (t: TFunction): Workspace => {
 	return {
 		id: SHARE_WORKSPACE_ID,
 		name: t("workspace.shareWorkspaceName", { ns: "super" }),
+		workspace_status: WorkspaceStatus.WAITING,
+		is_archived: 0 as const,
+		current_topic_id: "",
+		current_project_id: "",
+		project_count: 0,
+	}
+}
+
+export const MY_CLAW_WORKSPACE_DATA = (t: TFunction): Workspace => {
+	return {
+		id: MY_CLAW_WORKSPACE_ID,
+		name: t("workspace.myClawWorkspaceName", { ns: "super" }),
 		workspace_status: WorkspaceStatus.WAITING,
 		is_archived: 0 as const,
 		current_topic_id: "",

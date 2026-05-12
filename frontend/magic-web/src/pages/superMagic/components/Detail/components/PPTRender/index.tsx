@@ -2,7 +2,7 @@ import { useEffect, useRef, useMemo, useState } from "react"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
-import { Loader2, PanelLeftOpen, Presentation, Plus } from "lucide-react"
+import { ChevronDown, Loader2, PanelLeftOpen, Presentation, Plus } from "lucide-react"
 import PPTSlide from "./PPTSlide"
 import PPTSidebar from "./PPTSidebar/index"
 import { PPTControlBar } from "./PPTControlBar"
@@ -34,12 +34,13 @@ import {
 } from "@/components/shadcn-ui/alert-dialog"
 import { TAILWIND_Z_INDEX_CLASSES } from "../../contents/HTML/constants/z-index"
 import TextAnimation from "@/components/animations/TextAnimation"
-import { MagicTooltip } from "@/components/base"
+import { MagicDropdown, MagicTooltip } from "@/components/base"
+import MagicModal from "@/components/base/MagicModal"
 import { Button } from "@/components/shadcn-ui/button"
 import { cn } from "@/lib/utils"
 import { PPTProvider } from "./contexts/PPTContext"
 import { useContainerShowButtonText } from "@/hooks/useContainerShowButtonText"
-import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import type { MenuProps } from "antd"
 
 interface PPTRenderProps {
 	// ========== 外部依赖（必需） ==========
@@ -51,7 +52,7 @@ interface PPTRenderProps {
 	filePathMapping: Map<string, string>
 	selectedProject?: any
 	projectId?: string
-	metadata?: any
+	displayConfig?: any
 	allowDownload?: boolean
 
 	// ========== 受控状态（可选） ==========
@@ -84,6 +85,8 @@ interface PPTRenderProps {
 	}) => void
 	onFullscreen?: () => void
 	isTabActive?: boolean
+	onRegisterCheckBeforeClose?: (fileId: string, callback: () => Promise<boolean>) => void
+	onUnregisterCheckBeforeClose?: (fileId: string) => void
 }
 
 /**
@@ -96,7 +99,7 @@ const PPTRender = function PPTRender(props: PPTRenderProps) {
 		attachmentList,
 		mainFileId,
 		mainFileName,
-		metadata,
+		displayConfig,
 		selectedProject,
 		projectId,
 		allowDownload,
@@ -112,7 +115,7 @@ const PPTRender = function PPTRender(props: PPTRenderProps) {
 			projectId: resolvedProjectId,
 			mainFileId,
 			mainFileName,
-			metadata,
+			displayConfig,
 			organizationCode,
 			selectedProjectId: selectedProject?.id,
 			enableCache: true,
@@ -124,7 +127,7 @@ const PPTRender = function PPTRender(props: PPTRenderProps) {
 			resolvedProjectId,
 			mainFileId,
 			mainFileName,
-			metadata,
+			displayConfig,
 			organizationCode,
 			selectedProject?.id,
 			allowDownload,
@@ -162,6 +165,8 @@ const PPTRenderInner = observer(function PPTRenderInner({
 	onFullscreen: onFileFullscreen,
 	isTabActive,
 	allowDownload,
+	onRegisterCheckBeforeClose,
+	onUnregisterCheckBeforeClose,
 }: PPTRenderProps) {
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
@@ -171,6 +176,8 @@ const PPTRenderInner = observer(function PPTRenderInner({
 
 	const [isAnySlideEditing, setIsAnySlideEditing] = useState(false)
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+	const activeSlideCloseSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
+	const activeSlideDiscardHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
 
 	const { sidebarWidth, isResizing, handleResizeStart } = useResizableSidebar({
 		containerRef,
@@ -181,6 +188,7 @@ const PPTRenderInner = observer(function PPTRenderInner({
 	const {
 		checkBeforeNavigate,
 		registerSaveHandler,
+		registerDiscardHandler: registerDiscardHandlerForNavigation,
 		showNavigationDialog,
 		setShowNavigationDialog,
 		isSavingForNavigation,
@@ -203,6 +211,7 @@ const PPTRenderInner = observer(function PPTRenderInner({
 	const {
 		handleEditModeChange,
 		handleRefreshSlide,
+		handleRefreshAllSlides,
 		handleRegenerateScreenshot,
 		handleSidebarCollapsedChange,
 	} = useSlideHandlers({ store, setIsAnySlideEditing, setIsSidebarCollapsed })
@@ -383,6 +392,114 @@ const PPTRenderInner = observer(function PPTRenderInner({
 		store.updateSlideContent(index, saveResult.cleanContent)
 		store.generateSlideScreenshot(index, saveResult.cleanContent)
 	})
+
+	const registerCloseSaveHandler = useMemoizedFn((handler: (() => Promise<boolean>) | null) => {
+		activeSlideCloseSaveHandlerRef.current = handler
+	})
+
+	const registerDiscardHandlerForClose = useMemoizedFn(
+		(handler: (() => Promise<boolean>) | null) => {
+			activeSlideDiscardHandlerRef.current = handler
+		},
+	)
+
+	const registerDiscardHandler = useMemoizedFn((handler: (() => Promise<boolean>) | null) => {
+		registerDiscardHandlerForNavigation(handler)
+		registerDiscardHandlerForClose(handler)
+	})
+
+	const handleCheckBeforeClose = useMemoizedFn(async (): Promise<boolean> => {
+		if (!isAnySlideEditing) return true
+
+		return await new Promise<boolean>((resolve) => {
+			const fileName = mainFileName || t("common.untitledFile")
+
+			const handleDirectClose = async () => {
+				try {
+					const didDiscard = activeSlideDiscardHandlerRef.current
+						? await activeSlideDiscardHandlerRef.current()
+						: true
+					if (!didDiscard) return
+
+					modal.destroy()
+					resolve(true)
+				} catch (error) {
+					console.error("Failed to discard slide changes before close:", error)
+				}
+			}
+
+			const handleSaveAndClose = async () => {
+				try {
+					const didSave = activeSlideCloseSaveHandlerRef.current
+						? await activeSlideCloseSaveHandlerRef.current()
+						: true
+					if (!didSave) return
+
+					modal.destroy()
+					resolve(true)
+				} catch (error) {
+					console.error("Failed to save slide before close:", error)
+				}
+			}
+
+			const menuItems: MenuProps["items"] = [
+				{
+					key: "directClose",
+					label: t("detail.directClose"),
+					onClick: () => {
+						void handleDirectClose()
+					},
+				},
+			]
+
+			const modal = MagicModal.confirm({
+				title: t("detail.closeEditingFilePrompt", { fileName }),
+				content: t("detail.closeEditingFileContent"),
+				cancelText: t("common.cancel"),
+				closable: false,
+				maskClosable: false,
+				centered: true,
+				footer: (_, { CancelBtn }) => (
+					<div className={cn("flex items-center justify-end gap-2 px-4 pb-4")}>
+						<CancelBtn />
+						{activeSlideCloseSaveHandlerRef.current ? (
+							<MagicDropdown menu={{ items: menuItems }} trigger={["hover"]}>
+								<span>
+									<Button onClick={() => void handleSaveAndClose()}>
+										{t("detail.saveAndClose")}
+										<ChevronDown className="ml-1 size-4" />
+									</Button>
+								</span>
+							</MagicDropdown>
+						) : (
+							<Button onClick={() => void handleDirectClose()}>
+								{t("common.confirm")}
+							</Button>
+						)}
+					</div>
+				),
+				onCancel: () => {
+					modal.destroy()
+					resolve(false)
+				},
+			})
+		})
+	})
+
+	useEffect(() => {
+		if (!mainFileId || !onRegisterCheckBeforeClose) return
+
+		onRegisterCheckBeforeClose(mainFileId, handleCheckBeforeClose)
+
+		return () => {
+			onUnregisterCheckBeforeClose?.(mainFileId)
+		}
+	}, [
+		handleCheckBeforeClose,
+		mainFileId,
+		onRegisterCheckBeforeClose,
+		onUnregisterCheckBeforeClose,
+	])
 
 	return (
 		<>
@@ -586,6 +703,16 @@ const PPTRenderInner = observer(function PPTRenderInner({
 													? registerSaveHandler
 													: undefined
 											}
+											onRegisterDiscardHandler={
+												index === store.activeIndex
+													? registerDiscardHandler
+													: undefined
+											}
+											onRegisterCloseSaveHandler={
+												index === store.activeIndex
+													? registerCloseSaveHandler
+													: undefined
+											}
 											serverUpdatedContent={store.getSlideServerUpdate(
 												slideFileId,
 											)}
@@ -614,9 +741,7 @@ const PPTRenderInner = observer(function PPTRenderInner({
 									onPrevSlide={() => changeSlide("prev")}
 									onNextSlide={() => changeSlide("next")}
 									onGoToFirstSlide={goToFirstSlide}
-									onRefreshSlides={() =>
-										pubsub.publish(PubSubEvents.Super_Magic_Detail_Refresh)
-									}
+									onRefreshSlides={handleRefreshAllSlides}
 									onJumpToPage={handleJumpToPage}
 									onToggleFullscreen={toggleFullscreen}
 									t={t}

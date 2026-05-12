@@ -1,16 +1,14 @@
 import { useDeepCompareEffect, useMemoizedFn, useUpdateEffect } from "ahooks"
-import { throttle, isObject } from "lodash-es"
+import { throttle } from "lodash-es"
 import { useMemo, useRef, useState, useEffect, useCallback } from "react"
 import { observer } from "mobx-react-lite"
-import { reaction } from "mobx"
 import MessageList, { MessageListProvider } from "@/pages/superMagic/components/MessageList"
 import { useStyles } from "./styles"
 import { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { userStore } from "@/models/user"
 import { useMessageChanges } from "@/pages/superMagic/hooks/useMessageChanges"
-import GlobalMentionPanelStore from "@/components/business/MentionPanel/store"
+import GlobalMentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 import { topicStore, projectStore, workspaceStore } from "@/pages/superMagic/stores/core"
-import { superMagicStore } from "@/pages/superMagic/stores"
 import { useTaskData } from "@/pages/superMagic/hooks/useTaskData"
 import SuperMagicService from "@/pages/superMagic/services"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
@@ -18,9 +16,15 @@ import { LongMemoryApi, SuperMagicApi } from "@/apis"
 import { AttachmentDataProcessor } from "@/pages/superMagic/utils/attachmentDataProcessor"
 import { useAttachmentsPolling } from "@/pages/superMagic/hooks/useAttachmentsPolling"
 import projectFilesStore from "@/stores/projectFiles"
+import {
+	releaseAttachmentsRefreshWaitersWithoutFetch,
+	resolveAttachmentsRefreshWaitersForProject,
+	withAttachmentsRefreshWaitersResolved,
+} from "@/pages/superMagic/services/attachmentsTopicSync"
 import { useInterruptAndUndoMessage } from "@/pages/superMagic/hooks/useInterruptAndUndoMessage"
 import { isCollaborationWorkspace } from "@/pages/superMagic/constants"
 import { useNoPermissionCollaborationProject } from "@/pages/superMagic/hooks/useNoPermissionCollaborationProject"
+import { useScopedTopicReadProgress } from "@/pages/superMagic/hooks/useScopedTopicReadProgress"
 import ChatHeader from "./components/ChatHeader"
 import { useTopicListActions } from "../ProjectPage/ProjectPageMain/hooks"
 import PreviewDetailPopup, {
@@ -33,6 +37,14 @@ import { LongMemory } from "@/types/longMemory"
 import { cn } from "@/lib/utils"
 import ProjectPageInputContainer from "@/pages/superMagic/components/ProjectPageInputContainer"
 import ChatActions from "../ProjectPage/ProjectPageMain/components/ChatActions"
+import useTopicMode from "@/pages/superMagic/hooks/useTopicMode"
+import useTopicModel from "@/pages/superMagic/components/MessageEditor/hooks/useTopicModel"
+import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
+import ModeAvatar from "@/pages/superMagic/components/ModeAvatar"
+import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
+import { MessageListContextState } from "@/pages/superMagic/components/MessageList/context"
+import { useTopicConversationLoading } from "@/pages/superMagic/hooks/useTopicConversationLoading"
+import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
 
 interface TopicPageProps {
 	onHistoryClick?: () => void
@@ -47,19 +59,10 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 	const selectedProject = projectStore.selectedProject
 	const selectedWorkspace = workspaceStore.selectedWorkspace
 
-	// Get messages from store
-	const messages = selectedTopic?.chat_topic_id
-		? superMagicStore.messages?.get(selectedTopic?.chat_topic_id) || []
-		: []
-
-	// Calculate isEmptyStatus
-	const isEmptyStatus = messages.length === 0
-
 	// Get task data
-	const { taskData } = useTaskData({ selectedTopic })
+	useTaskData({ selectedTopic })
 
 	// Local state
-	const [showLoading, setShowLoading] = useState(false)
 	const attachments = projectFilesStore.workspaceFileTree
 	const attachmentList = projectFilesStore.workspaceFilesList
 
@@ -69,54 +72,59 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 	const [isProgrammaticScroll, setIsProgrammaticScroll] = useState(false)
 	const scrollHeightRef = useRef<number>(0)
 	const scrollTopRef = useRef<number>(0)
-	const messagePanelContainerRef = useRef<HTMLDivElement>(null)
 	const [isShowLoadingInit, setIsShowLoadingInit] = useState(false)
 
 	// Hooks
 	const { userInfo } = userStore.user
 	const { handleNoPermissionCollaborationProject } = useNoPermissionCollaborationProject()
-
-	// Monitor message changes and update loading state
-	useEffect(() => {
-		return reaction(
-			() => superMagicStore.messages?.get(selectedTopic?.chat_topic_id || "") || [],
-			(topicMessages) => {
-				if (topicMessages.length > 1) {
-					const lastMessageWithRole = topicMessages.findLast(
-						(m) => m.role === "assistant",
-					)
-					const lastMessage = topicMessages?.[topicMessages.length - 1]
-					const lastMessageNode = superMagicStore.getMessageNode(
-						lastMessageWithRole?.app_message_id,
-					)
-
-					const isLoading =
-						lastMessageNode?.status === "running" ||
-						lastMessage.type === "rich_text" ||
-						isObject(lastMessageNode?.content) ||
-						Boolean(lastMessageNode?.rich_text?.content) ||
-						Boolean(lastMessageNode?.text?.content)
-
-					setShowLoading(isLoading)
-					setIsShowLoadingInit(true)
-				} else if (topicMessages?.length === 1) {
-					setShowLoading(true)
+	const handleTopicMessagesChangeRef = useRef<
+		| ((payload: {
+				lastMessageNode?: {
+					status?: unknown
 				}
-			},
-		)
-	}, [selectedTopic?.chat_topic_id])
+				selectedTopic?: Topic | null
+				topicMessages: SuperMagicMessageItem[]
+		  }) => void)
+		| null
+	>(null)
 
-	// Subscribe to buffer changes
-	useEffect(() => {
-		return reaction(
-			() => superMagicStore.buffer.get(selectedTopic?.chat_topic_id || ""),
-			(next) => {
-				if (next && next?.length > 0) {
-					setShowLoading(false)
-				}
-			},
-		)
-	}, [selectedTopic?.chat_topic_id])
+	const { messages, showLoading } = useTopicConversationLoading({
+		selectedTopic,
+		hideLoadingWhenBufferHasContent: true,
+		onTopicMessagesChange: ({
+			lastMessageNode,
+			selectedTopic: currentTopic,
+			topicMessages,
+		}) => {
+			setIsShowLoadingInit(true)
+			handleTopicMessagesChangeRef.current?.({
+				lastMessageNode,
+				selectedTopic: currentTopic,
+				topicMessages,
+			})
+
+			// if (filterClickableMessageWithoutRevoked(lastDetailMessageNode)) {
+			// 	updateDetail({
+			// 		latestMessageDetail: lastDetailMessageNode?.tool?.detail,
+			// 		isLoading,
+			// 		tool: lastDetailMessageNode?.tool,
+			// 	})
+
+			// 	scheduleWhenTabsCacheReady(() => {
+			// 		checkAndOpenFileByMessages({
+			// 			lastMessageNode,
+			// 			lastDetailMessageNode,
+			// 			hasStatusChanged,
+			// 			activeFileId,
+			// 			getActiveFileId: () => activeFileIdRef.current,
+			// 		})
+			// 	})
+			// }
+		},
+	})
+
+	// Calculate isEmptyStatus
+	const isEmptyStatus = messages.length === 0
 
 	// Attachment polling
 	const { checkNowDebounced } = useAttachmentsPolling({
@@ -134,43 +142,69 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 	})
 
 	// Use unified topic messages hook
-	const { handlePullMoreMessage, isMessagesInitialLoading } = useTopicMessages({
-		selectedTopic,
-		checkNowDebounced,
-	})
+	const { handlePullMoreMessage, isMessagesInitialLoading, isSelectedTopicMessagesReady } =
+		useTopicMessages({
+			selectedTopic,
+			checkNowDebounced,
+		})
 
-	useDeepCompareEffect(() => {
-		setShowLoading(false)
-	}, [selectedTopic?.id, selectedTopic?.chat_topic_id])
+	const { handleTopicMessagesChange } = useScopedTopicReadProgress({
+		scopeName: "MobileTopicPage",
+		topicStore,
+		selectedTopic,
+		isSelectedTopicMessagesReady,
+	})
+	handleTopicMessagesChangeRef.current = handleTopicMessagesChange
 
 	// Update attachments
 	const updateAttachments = useMemoizedFn((selectedProject: any, callback?: () => void) => {
-		if (!selectedProject?.id) {
+		const projectId = selectedProject?.id as string | undefined
+		if (!projectId) {
 			projectFilesStore.setWorkspaceFileTree([])
+			releaseAttachmentsRefreshWaitersWithoutFetch()
 			return
 		}
 		try {
 			pubsub.publish(PubSubEvents.Update_Attachments_Loading, true)
-			SuperMagicApi.getAttachmentsByProjectId({
-				projectId: selectedProject?.id,
-				// @ts-ignore 使用window添加临时的token
-				temporaryToken: window.temporary_token || "",
-			})
-				.then((res: any) => {
-					const processedData = AttachmentDataProcessor.processAttachmentData(res)
-					projectFilesStore.setWorkspaceFileTree(processedData.tree)
-					GlobalMentionPanelStore.finishLoadAttachmentsPromise(selectedProject?.id)
+			withAttachmentsRefreshWaitersResolved(
+				projectId,
+				SuperMagicApi.getAttachmentsByProjectId({
+					projectId,
+					// @ts-ignore 使用window添加临时的token
+					temporaryToken: window.temporary_token || "",
 				})
-				.finally(() => {
-					pubsub.publish(PubSubEvents.Update_Attachments_Loading, false)
-				})
+					.then((res: any) => {
+						const processedData = AttachmentDataProcessor.processAttachmentData(res)
+						projectFilesStore.setWorkspaceFileTree(processedData.tree)
+						GlobalMentionPanelStore.finishLoadAttachmentsPromise(projectId)
+					})
+					.finally(() => {
+						pubsub.publish(PubSubEvents.Update_Attachments_Loading, false)
+						callback?.()
+					}),
+			)
 		} catch (error) {
 			console.error("Failed to fetch attachments:", error)
 			projectFilesStore.setWorkspaceFileTree([])
-		} finally {
+			resolveAttachmentsRefreshWaitersForProject(projectId)
 			callback?.()
 		}
 	})
+
+	useEffect(() => {
+		pubsub.subscribe(PubSubEvents.Update_Attachments, (callback) => {
+			if (selectedProject && selectedTopic) {
+				updateAttachments(selectedProject, callback)
+				return
+			}
+			callback?.()
+			releaseAttachmentsRefreshWaitersWithoutFetch()
+		})
+		return () => {
+			pubsub.unsubscribe(PubSubEvents.Update_Attachments)
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- 与桌面 TopicPage 一致：仅依赖 project/topic 引用
+	}, [selectedProject, selectedTopic])
 
 	// Update attachments when project changes
 	useUpdateEffect(() => {
@@ -343,7 +377,28 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 		}
 	}, [isProgrammaticScroll, nodesPanelRef, handlePullMoreMessage, selectedTopic])
 
-	const value = useMemo(() => {
+	const sharedTopicModelStore = useMemo(() => createSuperMagicTopicModelStore(), [])
+	const { topicMode, setTopicMode } = useTopicMode({
+		selectedTopic,
+		selectedProject,
+	})
+
+	useTopicModel({
+		selectedTopic,
+		selectedProject,
+		topicMode,
+		topicModelStore: sharedTopicModelStore,
+	})
+
+	const topicModeConfig = useMemo(() => {
+		return superMagicModeService.getModeConfigWithLegacy(
+			topicMode,
+			undefined,
+			false,
+			selectedTopic?.agent_code,
+		)
+	}, [topicMode, selectedTopic?.agent_code])
+	const value = useMemo<MessageListContextState>(() => {
 		return {
 			allowRevoke: true,
 			allowUserMessageCopy: true,
@@ -351,8 +406,17 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 			allowMessageTooltip: true,
 			allowConversationCopy: true,
 			onTopicSwitch: topicStore.setSelectedTopic,
+			renderAssistantAvatar: topicModeConfig?.mode
+				? ({ className } = {}) => (
+						<ModeAvatar
+							mode={topicModeConfig.mode}
+							className={className}
+							iconSize={20}
+						/>
+					)
+				: undefined,
 		}
-	}, [])
+	}, [topicModeConfig])
 
 	const setUserSelectDetail = useMemoizedFn((detail: PreviewDetail | null) => {
 		if (!detail) return
@@ -364,6 +428,41 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 
 	const previewDetailPopupRef = useRef<PreviewDetailPopupRef>(null)
 	const linkPreviewPopupRef = useRef<PreviewDetailPopupRef>(null)
+
+	// 消息里 HTML 预览组件的全局按钮在移动端复用现有弹层，不走桌面详情面板。
+	useEffect(() => {
+		const handleOpenFileTab = (data: { fileId?: string; fileData?: any }) => {
+			const filePayload = data?.fileData
+			const fileId = filePayload?.file_id || data?.fileId
+
+			// 移动端统一把携带完整 fileData 的打开请求桥接到现有预览弹层；不需要感知来源模块。
+			if (filePayload) {
+				if (!fileId) return
+
+				setUserSelectDetail({
+					type: getFileType(filePayload?.file_extension || ""),
+					data: {
+						...filePayload,
+						file_id: fileId,
+						file_name: filePayload?.file_name || filePayload?.display_filename || "",
+					},
+					currentFileId: fileId,
+				} as PreviewDetail)
+				return
+			}
+
+			onFileClick({
+				file_id: fileId,
+				file_name: filePayload?.file_name,
+			})
+		}
+
+		pubsub.subscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
+
+		return () => {
+			pubsub.unsubscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
+		}
+	}, [onFileClick, setUserSelectDetail])
 
 	return (
 		<div className={cn(styles.container, className)}>
@@ -392,7 +491,7 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 				</MessageListProvider>
 			</div>
 			<div ref={footerRef} className={styles.footer}>
-				<div className="flex flex-col gap-2">
+				<div className="flex flex-col">
 					<ChatActions
 						onNewTopicClick={onNewTopicClick}
 						onHistoryTopicsClick={onHistoryClick}
@@ -411,6 +510,11 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 						selectedWorkspace={selectedWorkspace}
 						attachments={attachments}
 						isShowLoadingInit={isShowLoadingInit}
+						enableReEditMessageFromPubSub
+						topicModeLogic={{
+							topicMode,
+							setTopicMode,
+						}}
 					/>
 				</div>
 			</div>

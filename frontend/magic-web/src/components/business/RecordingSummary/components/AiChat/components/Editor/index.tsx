@@ -19,10 +19,11 @@ import {
 	Workspace,
 } from "@/pages/superMagic/pages/Workspace/types"
 import { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
-import { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { initializeService } from "@/services/recordSummary/serviceInstance"
-import { useStyles } from "./styles"
+import { cn } from "@/lib/tiptap-utils"
+import { useIsMobile } from "@/hooks/useIsMobile"
 
 interface EditorProps {
 	messages: SuperMagicMessageItem[]
@@ -47,9 +48,9 @@ const Editor: FC<EditorProps> = ({
 	isShowLoadingInit,
 	showLoading,
 }: EditorProps) => {
-	const { styles } = useStyles()
 	const recordSummaryService = initializeService()
 	const { taskData } = useTaskData({ selectedTopic })
+	const isMobile = useIsMobile()
 
 	const messageQueue = useMessageQueue({
 		projectId: selectedProject?.id,
@@ -94,7 +95,7 @@ const Editor: FC<EditorProps> = ({
 				recordingSummaryStore.setChatTopic(null)
 			},
 			topicMode: TopicMode.General,
-			size: "small",
+			size: isMobile ? "mobile" : "small",
 			className: "border-none",
 			containerClassName: "rounded-xl border-muted-foreground",
 			showLoading,
@@ -105,6 +106,9 @@ const Editor: FC<EditorProps> = ({
 				aiCompletion: {
 					enabled: true,
 				},
+				voiceInput: {
+					enabled: false,
+				},
 			},
 			attachments,
 			mentionPanelStore,
@@ -112,10 +116,8 @@ const Editor: FC<EditorProps> = ({
 			mergeSendParams: ({ defaultParams }) => {
 				return merge({}, defaultParams, {
 					extra: {
-						super_agent: {
-							dynamic_params: {
-								asr_task_key: recordSummaryService.getCurrentSessionTaskKey(),
-							},
+						dynamic_params: {
+							asr_task_key: recordSummaryService.getCurrentSessionTaskKey(),
 						},
 					},
 				})
@@ -132,18 +134,19 @@ const Editor: FC<EditorProps> = ({
 			},
 		}
 	}, [
-		attachments,
-		messageQueue.addToQueue,
-		messageQueue.editingQueueItem,
-		messageQueue.finishEditQueueItem,
-		messages.length,
-		mentionPanelStore,
-		projectFilesStore,
-		recordSummaryService,
+		selectedWorkspace,
 		selectedProject,
 		selectedTopic,
-		selectedWorkspace,
+		isMobile,
 		showLoading,
+		messages.length,
+		attachments,
+		mentionPanelStore,
+		projectFilesStore,
+		messageQueue.editingQueueItem,
+		messageQueue.addToQueue,
+		messageQueue.finishEditQueueItem,
+		recordSummaryService,
 	])
 
 	const taskDataNode = taskData && taskData?.process?.length > 0 && (
@@ -174,7 +177,7 @@ const Editor: FC<EditorProps> = ({
 
 	return (
 		<MessageEditorProvider config={messageEditorProviderConfig}>
-			<div className={styles.editor}>
+			<div className={cn("m-2 rounded-xl", isMobile && "border border-border !p-0")}>
 				{taskDataNode}
 				{messageQueueNode}
 				<DefaultMessageEditorContainer editorContext={editorContext} />

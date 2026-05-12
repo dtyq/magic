@@ -295,7 +295,24 @@ export const useStyles = createStyles(({ css, token }) => ({
 	`,
 
 	expandedContainer: css`
-		height: calc(90vh - ${token.safeAreaInsetTop});
+		flex: 1;
+		min-height: 0;
+	`,
+
+	popupFrame: css`
+		box-sizing: border-box;
+		height: 90vh;
+		height: 90dvh;
+		max-height: calc(100vh - ${token.safeAreaInsetTop} - 44px);
+		max-height: calc(100dvh - ${token.safeAreaInsetTop} - 44px);
+	`,
+
+	popupBody: css`
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
 	`,
 
 	header: css`
@@ -544,6 +561,7 @@ export const useStyles = createStyles(({ css, token }) => ({
 
 	content: css`
 		flex: 1;
+		min-height: 0;
 		display: flex;
 		flex-direction: column;
 		overflow: hidden;
@@ -716,11 +734,13 @@ export const useStyles = createStyles(({ css, token }) => ({
 		line-height: 20px;
 	`,
 	editorBody: css`
-		height: calc(100% - 40px - 28px);
+		flex: 1;
+		min-height: 0;
 	`,
 
 	aiChatContainer: css`
-		height: 80vh;
+		flex: 1;
+		min-height: 0;
 		display: flex;
 		flex-direction: column;
 	`,
@@ -860,6 +880,9 @@ export const useStyles = createStyles(({ css, token }) => ({
 		}
 	`,
 	popupContainer: css`
-		height: calc(90vh - ${token.safeAreaInsetBottom} - ${token.safeAreaInsetTop});
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
 	`,
 }))

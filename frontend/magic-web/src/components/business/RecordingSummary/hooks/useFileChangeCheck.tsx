@@ -2,13 +2,11 @@ import { useCallback } from "react"
 import { useMemoizedFn } from "ahooks"
 import { initializeService } from "@/services/recordSummary/serviceInstance"
 
-import {
-	getTemporaryDownloadUrl,
-	downloadFileContent,
-} from "@/pages/superMagic/utils/api"
+import { getTemporaryDownloadUrl, downloadFileContent } from "@/pages/superMagic/utils/api"
 import { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import { RECORD_SUMMARY_EVENTS } from "@/services/recordSummary/const/events"
-import { SimpleEditorRef } from "@/components/tiptap-templates/simple/simple-editor"
+import type { SimpleEditorRef } from "@/components/tiptap-templates/simple/types"
+import { decideNoteFileConflict } from "./useFileChangeCheck.utils"
 
 interface UseFileChangeCheckOptions {
 	/** Current note content */
@@ -34,12 +32,19 @@ export function useFileChangeCheck({
 	 */
 	const handleFileContentChange = useMemoizedFn(
 		async (targetFile: AttachmentItem, serverContent: string = "") => {
-			// Compare content with latest currentContent value
-			if (serverContent.trim() === currentContent.trim()) {
-				// Content is same, only update timestamp
+			const lastSyncedContent = recordSummaryService.getNoteLastSyncedContent()
+			const decision = decideNoteFileConflict({
+				currentContent,
+				serverContent,
+				lastSyncedContent,
+			})
+
+			if (!decision.shouldPromptConflict) {
 				recordSummaryService.updateNoteLastUpdatedAt(targetFile.updated_at)
 				return
 			}
+
+			recordSummaryService.cancelNoteUpdate()
 
 			// Emit event to show modal component
 			recordSummaryService.emit(RECORD_SUMMARY_EVENTS.FILE_CONTENT_CHANGE_CONFLICT, {
@@ -90,9 +95,6 @@ export function useFileChangeCheck({
 			// If timestamp changed or not set before
 			if (currentUpdatedAt && currentUpdatedAt !== savedLastUpdatedAt) {
 				try {
-					// Cancel current note update task
-					recordSummaryService.cancelNoteUpdate()
-
 					// Fetch latest file content from server
 					const urlResponse = await getTemporaryDownloadUrl({
 						file_ids: [nodeFileId],

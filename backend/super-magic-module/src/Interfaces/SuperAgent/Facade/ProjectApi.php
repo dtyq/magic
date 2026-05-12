@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\TransferAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateSpecialProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetParticipatedProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
@@ -55,6 +56,18 @@ class ProjectApi extends AbstractApi
         $requestDTO = CreateProjectRequestDTO::fromRequest($this->request);
 
         return $this->projectAppService->createOrReuseProject($requestContext, $requestDTO);
+    }
+
+    /**
+     * Create or get special project by key.
+     */
+    public function storeSpecial(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = CreateSpecialProjectRequestDTO::fromRequest($this->request);
+
+        return $this->projectAppService->createOrGetSpecialProject($requestContext, $requestDTO);
     }
 
     /**

@@ -2,6 +2,7 @@ import type { FolderUploadFile, UploadResult as FolderUploadResult } from "./typ
 import { superMagicUploadTokenService } from "@/pages/superMagic/components/MessageEditor/services/UploadTokenService"
 import { Upload, UploadConfig } from "@dtyq/upload-sdk"
 import type { FileUploadData } from "@/hooks/useUploadFiles"
+import { SuperMagicApi } from "@/apis"
 
 // 上传凭证接口（兼容现有系统）
 type UploadCredentials = UploadConfig["customCredentials"]
@@ -92,13 +93,17 @@ class OSSUploadService {
 	 * @param files 要上传的文件列表
 	 * @param projectId 项目ID
 	 * @param folderPath 文件夹路径
+	 * @param taskId 任务ID
+	 * @param preGeneratedSnowflakeIds 预生成的雪花ID数组（可选），如果提供则直接使用，否则调用API批量获取
 	 * @param onProgress 进度回调函数
+	 * @param onFileCompleted 文件完成回调函数
 	 */
 	async uploadFiles(
 		files: FolderUploadFile[],
 		projectId: string,
 		folderPath: string,
 		taskId?: string,
+		preGeneratedSnowflakeIds?: string[],
 		onProgress?: (fileId: string, uploadedBytes: number) => void,
 		onFileCompleted?: (fileId: string, result: FolderUploadResult) => void,
 	): Promise<FolderUploadResult[]> {
@@ -108,16 +113,26 @@ class OSSUploadService {
 		// }
 		// 设置上传状态为正在上传
 		this.uploadState = "uploading"
+
+		// 检查是否有文件使用自定义fileKey
+		const hasCustomFileKey = files.some((file) => file.customFileKey)
+
+		// 获取上传凭证
+		// 如果有自定义fileKey，使用专门的方法获取修改过dir的凭证
+		const customCredentials = hasCustomFileKey
+			? await superMagicUploadTokenService.getUploadTokenForCustomKey(projectId)
+			: await superMagicUploadTokenService.getUploadToken(projectId, folderPath)
 		try {
-			// 检查是否有文件使用自定义fileKey
-			const hasCustomFileKey = files.some((file) => file.customFileKey)
-
-			// 获取上传凭证
-			// 如果有自定义fileKey，使用专门的方法获取修改过dir的凭证
-			const customCredentials = hasCustomFileKey
-				? await superMagicUploadTokenService.getUploadTokenForCustomKey(projectId)
-				: await superMagicUploadTokenService.getUploadToken(projectId, folderPath)
-
+			// 批量生成雪花ID（用作 OSS 文件名）
+			// 如果提供了预生成的雪花ID，则直接使用；否则调用API批量获取
+			let snowflakeIds: { ids: string[] }
+			if (preGeneratedSnowflakeIds && preGeneratedSnowflakeIds.length === files.length) {
+				snowflakeIds = { ids: preGeneratedSnowflakeIds }
+			} else {
+				snowflakeIds = await SuperMagicApi.getSnowflakeIds({
+					count: files.length,
+				})
+			}
 			// 准备文件数据（转换为 Upload SDK 期望的格式）
 			interface FolderFileUploadData {
 				name: string
@@ -125,9 +140,11 @@ class OSSUploadService {
 				status: "init" | "uploading" | "done" | "error"
 				file_id: string
 				customFileKey?: string
+				relativePath: string
+				snowflakeId: string // 雪花ID，用作 OSS 文件名
 			}
 
-			const fileDataList: FolderFileUploadData[] = files.map((folderFile) => ({
+			const fileDataList: FolderFileUploadData[] = files.map((folderFile, index) => ({
 				name: folderFile.file.name,
 				file: folderFile.file,
 				status: "init" as const,
@@ -135,6 +152,8 @@ class OSSUploadService {
 					? `${taskId}_${folderFile.relativePath}_${folderFile.file.name}`
 					: `${folderFile.relativePath}_${folderFile.file.name}`,
 				customFileKey: folderFile.customFileKey, // 传递自定义fileKey
+				relativePath: folderFile.relativePath, // 保留相对路径
+				snowflakeId: snowflakeIds.ids[index], // 雪花ID
 			}))
 
 			// 上传到OSS - 使用 Upload 实例的上传方法
@@ -148,13 +167,15 @@ class OSSUploadService {
 						return
 					}
 
-					// 处理fileName：如果有自定义fileKey，需要提取相对于dir的路径
+					// 处理fileName：
+					// 1. 如果有自定义fileKey（文件替换场景），提取相对于dir的路径
+					// 2. 否则使用雪花ID（无扩展名）
 					const fileName = fileData.customFileKey
 						? extractRelativePathFromCustomKey(
-							fileData.customFileKey,
-							customCredentials?.temporary_credential?.dir,
-						)
-						: fileData.name
+								fileData.customFileKey,
+								customCredentials?.temporary_credential?.dir,
+							)
+						: fileData.snowflakeId
 
 					const uploadParams = {
 						file: fileData.file,
@@ -200,6 +221,7 @@ class OSSUploadService {
 								file_name: fileData.name,
 								file_size: fileData.file?.size || 0,
 								file_extension: fileData.name.split(".").pop() || "",
+								relative_file_path: fileData.relativePath,
 							}
 
 							// 调用文件完成回调
@@ -245,6 +267,7 @@ class OSSUploadService {
 			console.error("OSS upload failed:", error)
 			// 上传失败时也要重置状态
 			this.uploadState = "idle"
+			;(error as any).temporaryCredential = customCredentials?.temporary_credential
 			throw error
 		}
 	}

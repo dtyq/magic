@@ -15,6 +15,7 @@ use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
 use Dtyq\CloudFile\Kernel\Struct\ImageProcessOptions;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 
 /**
  * 设计异步生图 Handler 公共逻辑：业务参数、访问令牌、参考图链接（SandBox / Private、crop）。
@@ -23,6 +24,7 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
 {
     public function __construct(
         protected readonly FileDomainService $fileDomainService,
+        protected readonly TaskFileDomainService $taskFileDomainService,
     ) {
     }
 
@@ -59,19 +61,25 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
     }
 
     /**
-     * 工作区内相对路径图片在 SandBox 下的访问 URL。
+     * Get the sandbox access URL for an image at a relative workspace path.
+     * Resolves the actual file_key from the file tree via findEntityByRelativePath,
+     * rather than constructing the path string from workspacePrefix + relativePath.
      *
      * @param array<string, mixed> $linkOptions
      */
     protected function getWorkspaceSandboxImageUrl(
         DesignDataIsolation $dataIsolation,
-        string $workspacePrefix,
+        int $projectId,
         string $relativePath,
         array $linkOptions = [],
     ): ?string {
+        $fileEntity = $this->taskFileDomainService->findEntityByRelativePath($projectId, $relativePath);
+        if ($fileEntity === null) {
+            return null;
+        }
         return $this->fileDomainService->getLink(
             $dataIsolation->getCurrentOrganizationCode(),
-            $workspacePrefix . $relativePath,
+            $fileEntity->getFileKey(),
             StorageBucketType::SandBox,
             [],
             $linkOptions
@@ -125,7 +133,7 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
 
         foreach ($entity->getReferenceImages() ?? [] as $referenceImage) {
             $linkOptions = $this->buildLinkOptionsFromImageOptions($this->findImageOptions($referenceImageOptions, $referenceImage));
-            $url = $this->getWorkspaceSandboxImageUrl($dataIsolation, $workspacePrefix, $referenceImage, $linkOptions);
+            $url = $this->getWorkspaceSandboxImageUrl($dataIsolation, $entity->getProjectId(), $referenceImage, $linkOptions);
             if ($url !== null && $url !== '') {
                 $urls[] = $url;
             }
@@ -158,7 +166,7 @@ abstract class AbstractDesignImageGenerationTaskHandler implements DesignImageGe
                 )?->getUrl();
             } else {
                 $linkOptions = $this->buildLinkOptionsFromImageOptions($this->findImageOptions($referenceImageOptions, $referenceImage));
-                $url = $this->getWorkspaceSandboxImageUrl($dataIsolation, $workspacePrefix, $referenceImage, $linkOptions);
+                $url = $this->getWorkspaceSandboxImageUrl($dataIsolation, $entity->getProjectId(), $referenceImage, $linkOptions);
             }
             if ($url !== null && $url !== '') {
                 $urls[] = $url;

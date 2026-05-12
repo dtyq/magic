@@ -317,6 +317,22 @@
 			"tooltip": "Image",
 			"upload": "Upload to Project"
 		},
+		"searchReplace": {
+			"ariaLabel": "Search and Replace",
+			"caseSensitive": "Match Case",
+			"close": "Close",
+			"nextMatch": "Next Match",
+			"noResults": "No results",
+			"previousMatch": "Previous Match",
+			"replace": "Replace",
+			"replaceAll": "Replace All",
+			"replacePlaceholder": "Replace",
+			"resultCount": "{{current}} of {{total}}",
+			"search": "Search",
+			"searchPlaceholder": "Search",
+			"tooltip": "Search and Replace",
+			"useRegex": "Use Regular Expression"
+		},
 		"storageImage": {
 			"ariaLabel": "Insert storage image",
 			"tooltip": "Storage Image",

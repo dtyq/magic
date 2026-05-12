@@ -3,11 +3,11 @@ import { createStyles, cx } from "antd-style"
 import topicEmptyIcon from "../../assets/svg/topic-status-empty.svg"
 import topicRunningIcon from "../../assets/svg/topic-status-running.svg"
 import topicFinishedIcon from "../../assets/svg/topic-status-success.svg"
-import type { Thread } from "../../pages/Workspace/types"
+import { TaskStatus } from "../../pages/Workspace/types"
 
 interface TopicIconProps {
 	size?: number
-	status?: Thread["task_status"]
+	status?: TaskStatus
 	className?: string
 	style?: React.CSSProperties
 }
@@ -28,9 +28,10 @@ const useStyles = createStyles(() => ({
 
 export default memo(function TopicIcon({ size = 24, status, className, style }: TopicIconProps) {
 	const { styles } = useStyles()
+	const normalizedStatus = status === TaskStatus.WAITING_FOR_USER ? TaskStatus.RUNNING : status
 
 	const image = useMemo(() => {
-		switch (status) {
+		switch (normalizedStatus) {
 			case "running":
 				return topicRunningIcon
 			case "finished":
@@ -38,7 +39,7 @@ export default memo(function TopicIcon({ size = 24, status, className, style }: 
 			default:
 				return topicEmptyIcon
 		}
-	}, [status])
+	}, [normalizedStatus])
 
 	return (
 		<div

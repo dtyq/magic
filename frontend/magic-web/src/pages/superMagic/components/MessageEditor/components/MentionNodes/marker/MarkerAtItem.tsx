@@ -7,6 +7,7 @@ import MarkerMentionChip from "./MarkerMentionChip"
 import MarkerTooltip from "./index"
 import { useTransformedMarkerData } from "./useTransformedMarkerData"
 import { useMarkerImageUrl } from "./useMarkerImageUrl"
+import { getCanvasMarkerMentionImagePath } from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 
 interface MarkerAtItemProps {
 	data: TiptapMentionAttributes
@@ -39,7 +40,10 @@ function MarkerAtItem({
 		data,
 		isInMessageList,
 	)
-	const { imageUrl: markerImageUrl } = useMarkerImageUrl(transformedMarkerData?.image_path)
+	const { imageUrl: markerImageUrl } = useMarkerImageUrl(
+		transformedMarkerData ? getCanvasMarkerMentionImagePath(transformedMarkerData) : undefined,
+		transformedMarkerData?.design_project_id,
+	)
 
 	const scene: MarkerClickScene = useMemo(() => {
 		if (markerClickScene) return markerClickScene

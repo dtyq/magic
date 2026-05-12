@@ -76,6 +76,7 @@ export function useSharePermission() {
 						phone: userInfo.phone,
 						email: userInfo.email,
 						country_code: userInfo.country_code,
+						preferences: userInfo.preferences,
 					})
 				}
 			} catch (error) {

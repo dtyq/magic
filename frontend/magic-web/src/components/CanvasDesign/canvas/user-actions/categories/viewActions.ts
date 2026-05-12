@@ -60,6 +60,7 @@ export const viewActions: UserAction[] = [
 			if (!isInViewport) {
 				canvas.viewportController.moveElementToViewport(validElementIds, {
 					animated: true,
+					padding: { top: 50, right: 50, bottom: 50, left: 100 },
 				})
 			}
 		},

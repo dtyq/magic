@@ -65,7 +65,7 @@ export function findParentFolder(
 
 /**
  * 检查文件是否是特殊文件夹的入口文件
- * 条件：文件名为 index.html 且 metadata.type 不为空，且不是目录
+ * 条件：文件名为 index.html 且 display_config.type 不为空，且不是目录
  * @param file 文件项
  * @returns 是否是入口文件
  */
@@ -81,12 +81,12 @@ export function isAppEntryFile(file: AttachmentItem): boolean {
 		return false
 	}
 
-	// 必须有 metadata.type 且不为空
-	if (!file.metadata || typeof file.metadata !== "object") {
+	// 必须有 display_config.type 且不为空
+	if (!file.display_config || typeof file.display_config !== "object") {
 		return false
 	}
 
-	if (!("type" in file.metadata) || !file.metadata.type) {
+	if (!("type" in file.display_config) || !file.display_config.type) {
 		return false
 	}
 

@@ -132,6 +132,10 @@ export function useVirtualFolder(options: UseVirtualFolderOptions) {
 	const createVirtualFolder = (key?: string, parentPath?: string) => {
 		// 如果已经有虚拟文件夹在编辑中，不允许创建新的虚拟文件夹
 		if (editingVirtualId || virtualFolder) {
+			console.warn("已有虚拟文件夹在编辑中，无法创建新文件夹:", {
+				editingVirtualId,
+				virtualFolder,
+			})
 			return
 		}
 
@@ -150,6 +154,7 @@ export function useVirtualFolder(options: UseVirtualFolderOptions) {
 			parentPath,
 		}
 
+		console.log("创建虚拟文件夹:", newVirtualFolder)
 		// 设置单个虚拟文件夹
 		setVirtualFolder(newVirtualFolder)
 		setEditingVirtualId(newVirtualFolder.id)
@@ -159,6 +164,7 @@ export function useVirtualFolder(options: UseVirtualFolderOptions) {
 
 	// 清理虚拟文件夹状态的统一方法
 	const clearVirtualFolder = () => {
+		console.log("清除虚拟文件夹状态")
 		setVirtualFolder(null)
 		setEditingVirtualId(null)
 		setVirtualFolderName("")
@@ -289,12 +295,21 @@ export function useVirtualFolder(options: UseVirtualFolderOptions) {
 			return [virtualAttachment, ...attachmentList]
 		}
 
+		// 标准化路径：统一移除尾部斜杠以便比较
+		const normalizePathForComparison = (path: string) => {
+			return path.replace(/\/+$/, "") // 移除所有尾部斜杠
+		}
+
+		const normalizedParentPath = normalizePathForComparison(parentPath)
+
 		// 递归插入到指定文件夹
 		const insertIntoFolder = (items: AttachmentItem[]): AttachmentItem[] => {
 			return items.map((item) => {
 				if (item.is_directory && "children" in item) {
 					const folderPath = item.relative_file_path || `/${item.name}`
-					if (folderPath === parentPath) {
+					const normalizedFolderPath = normalizePathForComparison(folderPath)
+
+					if (normalizedFolderPath === normalizedParentPath) {
 						return {
 							...item,
 							children: [virtualAttachment, ...(item.children || [])],

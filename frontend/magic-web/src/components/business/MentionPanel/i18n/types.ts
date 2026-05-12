@@ -57,6 +57,10 @@ export interface I18nTexts {
 
 	// Mobile specific
 	selectItem: string
+	/** 顶部「已选」入口文案（不含数量） */
+	mobileSelectedItemsLabel: string
+	/** 已选列表全屏标题 */
+	mobileSelectedItemsTitle: string
 
 	// Default items
 	defaultItems: {
@@ -88,6 +92,11 @@ export interface I18nTexts {
 		exitSearch: string
 	}
 
+	// Navigation actions
+	navigationActions: {
+		enter: string
+	}
+
 	// Accessibility labels
 	ariaLabels: {
 		panel: string
@@ -96,6 +105,13 @@ export interface I18nTexts {
 		retryButton: string
 		goBackButton: string
 		closeButton: string
+		confirmButton: string
+		/** 已选列表内移除单项 */
+		removeSelectedItem: string
+		/** 清空全部已选（橡皮擦） */
+		clearAllSelected: string
+		/** 查看已选列表 */
+		viewSelectedItems: string
 	}
 
 	// History and tabs related

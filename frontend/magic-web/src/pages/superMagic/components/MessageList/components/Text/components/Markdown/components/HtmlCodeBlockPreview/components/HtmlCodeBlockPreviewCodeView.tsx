@@ -24,7 +24,7 @@ export function HtmlCodeBlockPreviewCodeView(props: HtmlCodeBlockPreviewCodeView
 					<pre
 						className={cn(
 							preClassName,
-							"whitespace-pre bg-muted/60 px-2.5 py-2 text-foreground",
+							"whitespace-pre bg-muted/60 px-2.5 py-2 !text-[12px] text-foreground",
 						)}
 						{...preProps}
 					>

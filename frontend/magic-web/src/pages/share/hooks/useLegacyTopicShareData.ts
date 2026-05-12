@@ -38,7 +38,7 @@ export default function useLegacyTopicShareData(): UseLegacyTopicShareDataReturn
 				fetchPageCountRef.current = 0
 				const pageSize = 500
 
-				const fetchPage = async (page = 1) => {
+				async function fetchPage(page = 1) {
 					try {
 						fetchPageCountRef.current += 1
 						const res: any = await SuperMagicApi.getShareResource({

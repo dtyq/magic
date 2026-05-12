@@ -14,7 +14,7 @@ function PointsDisplay() {
 				/>
 			</div>
 			<div className="mb-[-6px] flex w-full shrink-0 items-center justify-center rounded-full bg-white p-px shadow-sm dark:bg-[#262626]">
-				<div className="text-center text-[10px] font-normal leading-3 text-[#0a0a0a] dark:text-[#fafafa]">
+				<div className="text-center text-[10px] font-normal leading-3 text-sidebar-foreground">
 					500K
 				</div>
 			</div>

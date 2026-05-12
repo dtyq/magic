@@ -16,10 +16,13 @@ import { getFileContentById } from "@/pages/superMagic/utils/api"
 import { processHtmlContent } from "../htmlProcessor"
 import { getFullContent, decodeHTMLEntities } from "./full-content"
 import {
+	MAGIC_FETCH_POST_MESSAGE_TARGET_HELPER,
+	POST_MESSAGE_TARGET_STRATEGIES,
 	findMatchingFile,
 	isKnownRequestFileId,
 	resolveRequesterFolderPath,
 	type FileItem,
+	type PostMessageTargetStrategy,
 } from "./fetchInterceptor"
 
 // --------------------------------------------------------------------------
@@ -30,6 +33,10 @@ export const NESTED_IFRAME_MESSAGE_TYPES = {
 	REQUEST: "MAGIC_IFRAME_CONTENT_REQUEST",
 	RESPONSE: "MAGIC_IFRAME_CONTENT_RESPONSE",
 } as const
+
+interface NestedIframeContentHandlerOptions {
+	postMessageTargetStrategy?: PostMessageTargetStrategy
+}
 
 // 规范化链路文件 ID：去重并补齐当前请求发起文件
 function normalizeChainFileIds(chainFileIds: unknown, requesterFileId?: string): string[] {
@@ -108,6 +115,8 @@ export function getNestedIframeInterceptorScript(): string {
 
 	// Expose so the dynamic resource interceptor can defer to this module
 	window.__MAGIC_IS_RELATIVE_HTML_PATH__ = isRelativeHtmlPath;
+
+	${MAGIC_FETCH_POST_MESSAGE_TARGET_HELPER}
 
 	function handleNestedIframeContent(element, relativePath, fallbackSrc) {
 		// Guard against duplicate processing
@@ -218,8 +227,8 @@ export function getNestedIframeInterceptorScript(): string {
 			parentChain.push(currentFileId);
 		}
 
-		// 发送到顶层窗口，确保多层 iframe 下消息可达
-		(window.top || window.parent).postMessage({
+		// 发到挂载了 createNestedIframeContentHandler 的同源祖先（避免第三方 iframe 嵌套时误发到 window.top）
+		__magicGetFetchPostMessageTarget().postMessage({
 			type: '${requestType}',
 			requestId: requestId,
 			relativePath: relativePath,
@@ -333,7 +342,11 @@ export function createNestedIframeContentHandler(
 	htmlRelativeFolderPath: string,
 	fileId: string,
 	attachmentList: unknown[],
+	options: NestedIframeContentHandlerOptions = {},
 ) {
+	const { postMessageTargetStrategy = POST_MESSAGE_TARGET_STRATEGIES.SAME_ORIGIN_ANCESTOR } =
+		options
+
 	return async (event: MessageEvent) => {
 		if (!event.data || event.data.type !== NESTED_IFRAME_MESSAGE_TYPES.REQUEST) return
 
@@ -350,7 +363,7 @@ export function createNestedIframeContentHandler(
 			skipProcessing?: boolean,
 			skipReason?: string,
 		) => {
-			; (event.source as Window)?.postMessage(
+			;(event.source as Window)?.postMessage(
 				{
 					type: NESTED_IFRAME_MESSAGE_TYPES.RESPONSE,
 					requestId,
@@ -431,7 +444,9 @@ export function createNestedIframeContentHandler(
 					dynamicInterception: {
 						enable: true,
 						fileId: matchedFile.file_id,
+						postMessageTargetStrategy,
 					},
+					postMessageTargetStrategy,
 				},
 			)
 

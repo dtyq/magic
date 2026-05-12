@@ -2,6 +2,7 @@ import { t } from "i18next"
 import type { FileTypeResult } from "file-type"
 import { fileTypeFromStream } from "file-type"
 import { safeBinaryToBtoa } from "@/utils/encoding"
+import { isInlineSvgContent } from "./svgProcessor"
 
 const fileExtCache = new Map<string | File, FileTypeResult | undefined>()
 
@@ -275,6 +276,13 @@ export const downloadFile = async (
 		}
 	}
 
+	if (isInlineSvgContent(url)) {
+		return {
+			success: false,
+			message: t("DownloadFailed", { ns: "message" }),
+		}
+	}
+
 	try {
 		const extension = ext ?? (await getFileExtension(url))?.ext ?? ""
 		const fileName = ensureFileExtension(name || "download", extension)
@@ -300,6 +308,23 @@ export const downloadFile = async (
 			success: false,
 			message: t("DownloadFailed", { ns: "message" }),
 		}
+	}
+}
+
+export async function downloadBlobFile(
+	blob: Blob,
+	name?: string,
+	ext?: string,
+	options: Omit<DownloadOptions, "forceProxy"> = {},
+) {
+	const blobUrl = window.URL.createObjectURL(blob)
+
+	try {
+		return await downloadFile(blobUrl, name, ext, options)
+	} finally {
+		setTimeout(() => {
+			window.URL.revokeObjectURL(blobUrl)
+		}, 1000)
 	}
 }
 

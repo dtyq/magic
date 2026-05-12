@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { useBoolean, useMemoizedFn } from "ahooks"
 import type { OpenableProps } from "@/utils/react"
-import { AlertTriangle } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import {
@@ -93,23 +92,6 @@ function DeleteDangerModal({
 	// 按钮变体
 	const buttonVariant = dangerLevel === DangerLevel.Danger ? "destructive" : "default"
 
-	// Icon 容器（使用 JSX 变量避免内部函数组件导致的重渲染卸载问题）
-	const iconContainer = (
-		<div
-			className={cn(
-				"flex size-10 shrink-0 items-center justify-center rounded-lg",
-				dangerLevel === DangerLevel.Danger ? "bg-destructive/10" : "bg-muted",
-			)}
-		>
-			<AlertTriangle
-				className={cn(
-					"size-6",
-					dangerLevel === DangerLevel.Danger ? "text-destructive" : "text-primary",
-				)}
-			/>
-		</div>
-	)
-
 	// 描述内容（使用 JSX 变量避免内部函数组件导致 Input 被卸载重建、中文 IME 输入中断）
 	const descriptionContent = (() => {
 		if (needConfirm) {
@@ -199,15 +181,11 @@ function DeleteDangerModal({
 				data-testid="delete-danger-modal"
 			>
 				{/* Header Section */}
-				<div className="p-4">
+				<div className="px-4 pb-4 pt-6">
 					<div
-						className={cn(
-							"flex gap-3.5",
-							effectiveSize === "sm" && "flex-col items-center",
-						)}
+						className={cn("flex", effectiveSize === "sm" && "flex-col items-center")}
 						data-testid="delete-danger-modal-content"
 					>
-						{iconContainer}
 						<div
 							className={cn(
 								"flex-1 space-y-1.5",
@@ -228,7 +206,7 @@ function DeleteDangerModal({
 				{/* Footer Section - 符合 Figma 设计 */}
 				<div
 					className={cn(
-						"flex items-center gap-2 border-t border-border bg-muted/50 p-4",
+						"flex items-center gap-2 border-t border-border bg-muted/50 p-2",
 						effectiveSize === "sm"
 							? "flex-row justify-stretch"
 							: "flex-row justify-end",

@@ -64,13 +64,24 @@ class FileMetadataUtil
         return $config;
     }
 
-    public static function getMetadataObject(?string $metadataStr): ?array
+    /**
+     * Decode JSON string to associative array.
+     */
+    public static function decodeJsonObject(?string $json): ?array
     {
-        if ($metadataStr !== null) {
-            $decodedMetadata = json_decode($metadataStr, true);
-            return (json_last_error() === JSON_ERROR_NONE) ? $decodedMetadata : null;
+        if ($json !== null) {
+            $decoded = json_decode($json, true);
+            return (json_last_error() === JSON_ERROR_NONE) ? $decoded : null;
         }
         return null;
+    }
+
+    /**
+     * @deprecated use decodeJsonObject() instead
+     */
+    public static function getMetadataObject(?string $metadataStr): ?array
+    {
+        return self::decodeJsonObject($metadataStr);
     }
 
     /**

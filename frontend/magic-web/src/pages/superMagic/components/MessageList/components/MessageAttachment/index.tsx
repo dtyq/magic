@@ -17,10 +17,12 @@ export const Attachment = ({
 	attachments,
 	onSelectDetail,
 	onFileClick,
+	className,
 }: {
 	attachments?: Array<AttachmentProps>
 	onSelectDetail: any
 	onFileClick?: (fileItem: any) => void
+	className?: string
 }) => {
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
@@ -63,7 +65,7 @@ export const Attachment = ({
 					// file_url: res[0]?.url,
 					file_extension: item.file_extension,
 					file_id: item.file_id,
-					metadata: item.metadata,
+					display_config: item.display_config,
 				},
 				currentFileId: item.file_id,
 			})
@@ -81,7 +83,7 @@ export const Attachment = ({
 	}
 	if (!show) return null
 	return (
-		<div className="flex w-full flex-col rounded-md">
+		<div className={cn("flex w-full flex-col rounded-md", className)}>
 			<div
 				className={cn(
 					"flex items-center gap-1",
@@ -106,14 +108,14 @@ export const Attachment = ({
 			{!!displayedAttachments?.length && (
 				<div className="mt-2 flex flex-wrap gap-2">
 					{displayedAttachments?.map((item: AttachmentProps) => {
-						const { metadata } = item
+						const { display_config } = item
 						const isFolder = item.file_extension === ""
 						return (
 							<div
 								key={item.file_id}
 								className="w-full cursor-pointer"
 								onClick={(e) => {
-									if (isFolder && !metadata) {
+									if (isFolder && !display_config) {
 										return
 									}
 									e.stopPropagation()
@@ -127,13 +129,11 @@ export const Attachment = ({
 										"hover:bg-fill-secondary",
 									)}
 								>
-									{isFolder && !metadata ? (
+									{isFolder && !display_config ? (
 										<img src={FolderIcon} alt="folder" width={24} height={24} />
 									) : (
 										<MagicFileIcon
-											type={
-												getAttachmentType(metadata) || item.file_extension
-											}
+											type={getAttachmentType(item) || item.file_extension}
 											size={24}
 											className="shrink-0"
 										/>
@@ -145,7 +145,7 @@ export const Attachment = ({
 											"min-w-0 overflow-hidden text-ellipsis whitespace-nowrap",
 										)}
 									>
-										{getMetaDataName(metadata) ||
+										{getMetaDataName(display_config) ||
 											item.display_filename ||
 											item.file_name ||
 											item.filename}
@@ -160,7 +160,7 @@ export const Attachment = ({
 										stroke={2}
 										size={18}
 									/>
-									{isEmpty(item.metadata) && (
+									{isEmpty(item.display_config) && (
 										<MagicIcon
 											className="shrink-0 cursor-pointer text-muted-foreground [&_svg]:text-muted-foreground hover:[&_svg]:text-foreground/80"
 											onClick={(e: any) => {

@@ -21,6 +21,7 @@ interface InterceptedCacheItem {
 export function useFetchInterceptionCache(options: {
 	attachmentList?: any[]
 	sandboxType?: "iframe" | "shadow-dom"
+	isEditMode?: boolean
 	iframeRef: React.RefObject<HTMLIFrameElement>
 	content: string
 	refreshIframeContent: () => void
@@ -29,6 +30,7 @@ export function useFetchInterceptionCache(options: {
 	const {
 		attachmentList,
 		sandboxType,
+		isEditMode,
 		iframeRef,
 		content,
 		refreshIframeContent,
@@ -96,6 +98,13 @@ export function useFetchInterceptionCache(options: {
 
 		// 如果有文件更新，触发 iframe 内容刷新
 		if (hasUpdatedFile) {
+			if (isEditMode) {
+				logger.report("编辑模式下检测到拦截文件更新，跳过 iframe 自动刷新", {
+					hasUpdatedFile,
+				})
+				return
+			}
+
 			try {
 				refreshIframeContent()
 				setContentInjected(true)
@@ -104,7 +113,7 @@ export function useFetchInterceptionCache(options: {
 				setContentInjected(false)
 			}
 		}
-	}, [attachmentList, sandboxType, content, refreshIframeContent, setContentInjected])
+	}, [attachmentList, sandboxType, isEditMode, content, refreshIframeContent, setContentInjected])
 
 	return {
 		handleFetchIntercepted,

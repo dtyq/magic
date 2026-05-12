@@ -7,11 +7,14 @@
 # .lark-cli   : lark-cli 应用配置（macOS 上存放 config.json）
 # .dws        : 钉钉 Workspace CLI 配置
 # .local/share: lark-cli 和 dws 在 Linux 上的凭据存储目录（加密 token、master.key、dek 等）
+#
+# 懒创建策略：此处只建立软链接，不预创建目标目录。
+# 目标目录由 shell_exec 的 CliDirInitHandler 在对应 CLI 首次执行时按需创建。
+# 这样用户 workspace 中不会出现一堆从未使用的空目录。
 if [ -n "${IS_DOCKER}" ] && [ -n "${USER_HOME_DIR}" ]; then
     for config_dir in .lark-cli .dws .local/share; do
         target="${USER_HOME_DIR}/${config_dir}"
         link="${HOME}/${config_dir}"
-        mkdir -p "${target}"
         mkdir -p "$(dirname "${link}")"
         if [ ! -L "${link}" ]; then
             rm -rf "${link}"

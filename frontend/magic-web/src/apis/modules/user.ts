@@ -149,11 +149,24 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	},
 
 	/**
-	 * 获取用户信息
-	 * @returns
+	 * @description 获取用户信息
+	 * @param {Record<string, string>} headers 请求头，由业务层决定携带哪个账号的请求头获取组织
+	 * @param {string} deployCode 私有化部署Code，由业务层决定请求哪个服务
 	 */
-	getUserInfo() {
-		return fetch.get<User.UserInfo>(genRequestUrl("/v4/users/info"))
+	getUserInfo(
+		headers?: Record<string, string>,
+		deployCode?: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	) {
+		const { clusterConfig } = configStore.cluster
+		const url =
+			(!isNil(deployCode) ? clusterConfig?.[deployCode]?.services?.keewoodAPI?.url : "") || ""
+
+		return fetch.get<User.ThirdPlatformUserInfo>(url + genRequestUrl("/v4/users/info"), {
+			headers: headers ?? {},
+			enableRequestUnion: true,
+			...options,
+		})
 	},
 
 	/**
@@ -161,7 +174,11 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @param {Record<string, string>} headers 请求头，由业务层决定携带哪个账号的请求头获取组织
 	 * @param {string} deployCode 私有化部署Code，由业务层决定请求哪个服务
 	 */
-	getUserOrganizations(headers?: Record<string, string>, deployCode?: string) {
+	getUserOrganizations(
+		headers?: Record<string, string>,
+		deployCode?: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	) {
 		const { clusterConfig } = configStore.cluster
 		const url =
 			(!isNil(deployCode) ? clusterConfig?.[deployCode]?.services?.keewoodAPI?.url : "") || ""
@@ -169,6 +186,7 @@ export const generateUserApi = (fetch: HttpClient) => ({
 		return fetch.get<User.UserOrganization[]>(url + genRequestUrl("/v4/users/organizations"), {
 			headers: headers ?? {},
 			enableRequestUnion: true,
+			...options,
 		})
 	},
 
@@ -257,14 +275,6 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	},
 
 	/**
-	 * 获取天书用户信息
-	 * @returns
-	 */
-	getTeamshareUserInfo() {
-		return fetch.get<TeamshareUserInfo>(genRequestUrl("/v4/users/info"))
-	},
-
-	/**
 	 * @description 获取公众号登录二维码
 	 * @returns {Promise<{scene_value: string; ticket: string; expire_seconds: number; url: string}>}
 	 */
@@ -346,10 +356,11 @@ export const generateUserApi = (fetch: HttpClient) => ({
 	 * @param {object} params 用户信息参数
 	 * @param {string} params.avatar_url 头像路径
 	 * @param {string} params.nickname 用户名
+	 * @param {string | null} params.timezone 用户时区
 	 * @returns {Promise<any>}
 	 */
-	updateUserInfo(params: { avatar_url: string; nickname: string }) {
-		return fetch.patch(genRequestUrl("/api/v1/contact/users/me"), params)
+	updateUserInfo(params: { avatar_url: string; nickname: string; timezone?: string | null }) {
+		return fetch.post(genRequestUrl("/api/v1/contact/users/me"), params)
 	},
 
 	/**

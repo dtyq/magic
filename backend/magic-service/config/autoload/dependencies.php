@@ -268,6 +268,8 @@ use App\Infrastructure\ExternalAPI\Sms\SmsInterface;
 use App\Infrastructure\ExternalAPI\Sms\TemplateInterface;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\Template;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\VolceApiClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\DashScopeTransportInterface;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Transport\ApiKeyDashScopeTransport;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoProviderOperationExecutor;
 use App\Infrastructure\ImageGenerate\DefaultFontProvider;
@@ -326,6 +328,7 @@ $dependencies = [
     // 统一视频参数的能力来源由各 provider adapter 自行声明，
     // domain 通过这个工厂接口拿到 adapter，保持依赖方向正确。
     VideoGenerationProviderAdapterFactoryInterface::class => VideoGenerateFactory::class,
+    DashScopeTransportInterface::class => ApiKeyDashScopeTransport::class,
     MagicTokenRepositoryInterface::class => MagicTokenRepository::class,
     TemplateInterface::class => Template::class,
 

@@ -16,7 +16,7 @@ import {
 	createUploadFileMentionAttributes,
 	transformUploadFileToProjectFile,
 } from "../utils/mention"
-import MentionPanelStore from "@/components/business/MentionPanel/store"
+import MentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 
 /**
  * useMentionManager - 管理 mention 相关的状态和逻辑

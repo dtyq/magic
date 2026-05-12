@@ -1,5 +1,6 @@
 import { makeAutoObservable } from "mobx"
-import type { Workspace } from "../../pages/Workspace/types"
+import { WorkspaceStatus, type Workspace } from "../../pages/Workspace/types"
+import type { SuperAgentScopedStatusItem } from "@/apis/modules/superMagic"
 
 interface WorkspaceState {
 	selectedWorkspace: Workspace | null
@@ -10,6 +11,8 @@ class WorkspaceStore {
 	workspaces: Workspace[] = []
 	selectedWorkspace: Workspace | null = null
 	workspaceStateMap: Map<string, WorkspaceState> = new Map()
+	/** Tracks concurrent workspace list fetches for loading UI */
+	workspaceListFetchInFlight = 0
 
 	constructor() {
 		makeAutoObservable(this, {}, { autoBind: true })
@@ -17,6 +20,18 @@ class WorkspaceStore {
 
 	get firstWorkspace(): Workspace | null {
 		return this.workspaces[0] || null
+	}
+
+	get isWorkspaceListLoading(): boolean {
+		return this.workspaceListFetchInFlight > 0
+	}
+
+	beginWorkspaceListFetch() {
+		this.workspaceListFetchInFlight++
+	}
+
+	endWorkspaceListFetch() {
+		this.workspaceListFetchInFlight = Math.max(0, this.workspaceListFetchInFlight - 1)
 	}
 
 	setWorkspaces(workspaces: Workspace[]) {
@@ -42,6 +57,30 @@ class WorkspaceStore {
 		}
 		if (this.selectedWorkspace?.id === workspace.id) {
 			this.selectedWorkspace = workspace
+		}
+	}
+
+	/** 按接口返回的显式状态补丁更新工作区状态，避免将终态误降级为 waiting。 */
+	applyWorkspaceStatusPatches(items: SuperAgentScopedStatusItem[]) {
+		if (!Array.isArray(items) || items.length === 0) return
+
+		const statusMap = new Map(items.map((item) => [item.id, item.status]))
+
+		const getPatchedWorkspace = (workspace: Workspace): Workspace | null => {
+			const nextStatus = statusMap.get(workspace.id)
+			if (nextStatus && workspace.workspace_status !== nextStatus) {
+				return { ...workspace, workspace_status: nextStatus as WorkspaceStatus }
+			}
+			return null
+		}
+
+		this.workspaces = this.workspaces.map((ws) => getPatchedWorkspace(ws) || ws)
+
+		if (this.selectedWorkspace) {
+			const patched = getPatchedWorkspace(this.selectedWorkspace)
+			if (patched) {
+				this.selectedWorkspace = patched
+			}
 		}
 	}
 
@@ -71,6 +110,7 @@ class WorkspaceStore {
 		this.workspaces = []
 		this.selectedWorkspace = null
 		this.workspaceStateMap.clear()
+		this.workspaceListFetchInFlight = 0
 	}
 }
 

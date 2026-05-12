@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
@@ -124,6 +125,12 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $savedEntity->setModifier($userId);
             $savedEntity->setUpdatedAt(new DateTime());
             $this->superMagicAgentDomainService->saveDirectly($dataIsolation, $savedEntity);
+            $this->operationPermissionDomainService->accessOwner(
+                $this->createPermissionDataIsolation($dataIsolation),
+                ResourceType::CustomAgent,
+                $agentCode,
+                $savedEntity->getCreator()
+            );
 
             // 6. Auto-publish (skip sandbox export — reuse the already-uploaded ZIP as file_key)
             // Inherit publish_target_type and publish_target_value from the latest version;
@@ -137,7 +144,7 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $versionEntity->setVersion($this->resolveNextVersion($latestVersion));
             $versionEntity->setPublishTargetType($inheritedTargetType);
             $versionEntity->setPublishTargetValue($inheritedTargetValue);
-            $this->superMagicAgentDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
+            $this->superMagicAgentVersionDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
 
             // 7. Sync resource visibility: ORGANIZATION publish means the agent is visible to all org members.
             //    The application-layer publishAgent (SuperMagicAgentAppService) normally calls syncPublishedAgentScope
@@ -282,8 +289,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $projectId,
             $rootDirId,
             '.magic',
-            '.magic',
-            $workDir,
             $userId,
             $projectOrgCode,
             $projectOrgCode,
@@ -298,8 +303,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $agentDir,
             $magicDirId,
             $projectId,
-            '.magic',
-            $workDir,
             $userId,
             $projectOrgCode,
             $projectOrgCode
@@ -315,8 +318,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
         string $localDir,
         int $parentDirId,
         int $projectId,
-        string $relativePath,
-        string $workDir,
         string $userId,
         string $orgCode,
         string $projectOrgCode
@@ -325,15 +326,12 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
 
         foreach ($items as $item) {
             $localPath = $localDir . '/' . $item;
-            $itemRelativePath = $relativePath . '/' . $item;
 
             if (is_dir($localPath)) {
                 $subDirId = $this->taskFileDomainService->createDirectory(
                     $projectId,
                     $parentDirId,
                     $item,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $orgCode,
                     $projectOrgCode,
@@ -346,8 +344,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
                     $localPath,
                     $subDirId,
                     $projectId,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $orgCode,
                     $projectOrgCode

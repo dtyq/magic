@@ -1,22 +1,18 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react"
+import { useState, useCallback, useRef, useEffect, useMemo, type RefObject } from "react"
 import { useTranslation } from "react-i18next"
 import { type Topic, TaskStatus, MessageStatus, ProjectListItem } from "../../pages/Workspace/types"
 import TopicSharePopover from "../TopicSharePopover"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useMemoizedFn, useMount } from "ahooks"
 import MagicModal from "@/components/base/MagicModal"
-import routeManageService from "../../services/routeManageService"
 import { GuideTourElementId } from "../../components/LazyGuideTour"
-import { SuperMagicApi } from "@/apis"
 import { observer } from "mobx-react-lite"
 import { superMagicStore } from "../../stores"
-import SuperMagicService from "../../services"
 import { computed } from "mobx"
 import { MagicTooltip } from "@/components/base"
 import magicToast from "@/components/base/MagicToaster/utils"
 import {
 	MessageCirclePlus,
-	History,
 	PanelRightClose,
 	PanelRightOpen,
 	Ellipsis,
@@ -36,10 +32,15 @@ import {
 import recordSummaryStore from "@/stores/recordingSummary"
 import { cn } from "@/lib/utils"
 import StatusIcon from "./components/StatusIcon"
-import TopicHistoryDropdown from "./components/TopicHistoryDropdown"
+import TopicHistoryPanelContent from "./components/TopicHistoryPanelContent"
+import { MessageHeaderHistoryControl } from "./components/MessageHeaderHistoryControl"
 import { IconShare3 } from "@tabler/icons-react"
-import { TopicStore } from "../../stores/core/topic"
+import type { TopicStore } from "../../stores/core/topic"
 import { smartRenameTopic } from "../../services/topicRename"
+import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
+interface TopicMutationSuccessOptions {
+	onSuccess?: () => Promise<void> | void
+}
 
 interface MessageHeaderProps {
 	isConversationPanelCollapsed?: boolean
@@ -48,26 +49,54 @@ interface MessageHeaderProps {
 	detailPanelVisible?: boolean
 	selectedProject: ProjectListItem | null
 	topicStore: TopicStore
+	topicActions: MessageHeaderTopicActions
+	/** Hide mode tag in topic history list rows */
+	hideTopicListModeIcon?: boolean
+	historyTriggerMode?: "dropdown" | "layout"
+	isHistoryPanelOpen?: boolean
+	onToggleHistoryPanel?: () => void
+}
+
+export interface MessageHeaderTopicActions {
+	createTopic: () => Promise<void> | void
+	selectTopic: (topic: Topic) => Promise<void> | void
+	renameTopic: (params: { topicId: string; topicName: string }) => Promise<void> | void
+	deleteTopic: (topicId: string) => Promise<void> | void
+	updateTopicName: (topicId: string, topicName: string) => Promise<void> | void
+	pinTopic: (topicId: string) => Promise<void> | void
+	unpinTopic: (topicId: string) => Promise<void> | void
+	archiveTopic: (topicId: string) => Promise<void> | void
+	unarchiveTopic: (topicId: string) => Promise<void> | void
+}
+
+interface MessageHeaderTopicHistoryPanelProps {
+	selectedProject: ProjectListItem | null
+	topicStore: TopicStore
+	topicActions: MessageHeaderTopicActions
+	isConversationPanelCollapsed?: boolean
+	onExpandConversationPanel?: () => void
+	/** Hide mode tag in topic history list rows */
+	hideTopicListModeIcon?: boolean
+	onClose?: () => void
+	closeButtonRef?: RefObject<HTMLButtonElement | null>
 }
 
 const headerIconButtonClassName = "!size-6 !min-h-6 !min-w-6 !rounded-md !p-0"
 const renameInputClassName =
 	"h-6 min-w-0 flex-1 rounded-lg border-border bg-background px-3 text-sm leading-5 text-foreground placeholder:text-muted-foreground"
 
-function MessageHeader({
-	isConversationPanelCollapsed = false,
-	onToggleConversationPanel,
-	onExpandConversationPanel,
-	detailPanelVisible = true,
+function useTopicHistoryPanelController({
 	selectedProject,
 	topicStore,
-}: MessageHeaderProps) {
+	topicActions,
+	isConversationPanelCollapsed = false,
+	onExpandConversationPanel,
+}: MessageHeaderTopicHistoryPanelProps) {
 	const { t } = useTranslation("super")
-
-	// Get data from stores
+	const { hideCreateNewTopic } = useFileActionVisibility()
+	const shouldHideTopicEntry = hideCreateNewTopic
 	const topics = topicStore.topics
 	const selectedTopic = topicStore.selectedTopic
-
 	const messages = useMemo(
 		() =>
 			computed(() =>
@@ -77,6 +106,233 @@ function MessageHeader({
 			),
 		[selectedTopic?.chat_topic_id],
 	).get()
+	const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
+	const [editingValue, setEditingValue] = useState("")
+
+	const handleAiRename = useMemoizedFn(async (topic?: Topic) => {
+		const targetTopic = topic ?? selectedTopic
+		if (!targetTopic || !selectedProject?.id) return
+
+		const userMessage = messages.find((message) => message.is_self)
+		const userQuestion =
+			typeof userMessage?.content === "string"
+				? userMessage.content
+				: targetTopic.topic_name || ""
+
+		const topicName = await smartRenameTopic({
+			topicId: targetTopic.id,
+			userQuestion,
+			updateTopicName: topicActions.updateTopicName,
+		})
+		if (!topicName) return
+		magicToast.success(t("messageHeader.renameTopicSuccess"))
+	})
+
+	const handleDeleteTopic = useCallback(
+		(topicId: string, topicName: string, options?: TopicMutationSuccessOptions) => {
+			if (recordSummaryStore.isRecordingTopic(topicId)) {
+				magicToast.error(t("messageHeader.cannotDeleteCurrentTopicInRecording"))
+				return
+			}
+
+			if (topics.length === 1) {
+				magicToast.error(t("messageHeader.cannotDeleteLastTopic"))
+				return
+			}
+
+			MagicModal.confirm({
+				title: t("messageHeader.confirmDeleteTopic"),
+				content: t("messageHeader.confirmDeleteTopicContent", { name: topicName }),
+				variant: "destructive",
+				showIcon: true,
+				okText: t("button.confirm", { ns: "interface" }),
+				onOk: async () => {
+					try {
+						await topicActions.deleteTopic(topicId)
+						await options?.onSuccess?.()
+					} catch (err) {
+						console.error(t("messageHeader.deleteTopicFailed"), err)
+						throw err
+					}
+				},
+			})
+		},
+		[t, topicActions, topics],
+	)
+
+	const handleEditTopic = useCallback((topic: Topic) => {
+		setEditingTopicId(topic.id)
+		setEditingValue(topic.topic_name || "")
+	}, [])
+
+	const handleEditSubmit = useCallback(
+		async (topicId: string) => {
+			if (!editingValue.trim()) {
+				setEditingTopicId(null)
+				return
+			}
+
+			const trimmedName = editingValue.trim()
+			const topic = topics.find((item) => item.id === topicId)
+
+			if (trimmedName === topic?.topic_name) {
+				setEditingTopicId(null)
+				return
+			}
+
+			if (!selectedProject?.id) {
+				setEditingTopicId(null)
+				setEditingValue("")
+				magicToast.error(t("messageHeader.editTopicFailed"))
+				return
+			}
+
+			try {
+				await topicActions.renameTopic({
+					topicId,
+					topicName: trimmedName,
+				})
+				setEditingTopicId(null)
+				setEditingValue("")
+				magicToast.success(t("messageHeader.editTopicSuccess"))
+			} catch (err: unknown) {
+				console.error("Failed to rename topic:", err)
+				setEditingTopicId(null)
+				setEditingValue("")
+			}
+		},
+		[editingValue, selectedProject?.id, topicActions, topics, t],
+	)
+
+	const handleEditCancel = useCallback(() => {
+		setEditingTopicId(null)
+		setEditingValue("")
+	}, [])
+
+	const handleCreateTopic = useMemoizedFn(() => {
+		if (shouldHideTopicEntry) return
+		if (isConversationPanelCollapsed) {
+			onExpandConversationPanel?.()
+		}
+		void topicActions.createTopic()
+	})
+
+	return {
+		messages,
+		topics,
+		selectedTopic,
+		shouldHideTopicEntry,
+		editingTopicId,
+		editingValue,
+		setEditingValue,
+		handleEditSubmit,
+		handleEditCancel,
+		handleEditTopic,
+		handleAiRename,
+		handleDeleteTopic,
+		handleCreateTopic,
+	}
+}
+
+/** 订阅 topicStore，mergeTopic 后 topics 会立刻传入话题历史（父级 TopicPage 未读 topics 时也不会丢订阅）。 */
+export const MessageHeaderTopicHistoryPanel = observer(function MessageHeaderTopicHistoryPanel({
+	selectedProject,
+	topicStore,
+	topicActions,
+	isConversationPanelCollapsed = false,
+	onExpandConversationPanel,
+	hideTopicListModeIcon = false,
+	onClose,
+	closeButtonRef,
+}: MessageHeaderTopicHistoryPanelProps) {
+	const {
+		topics,
+		selectedTopic,
+		shouldHideTopicEntry,
+		editingTopicId,
+		editingValue,
+		setEditingValue,
+		handleEditSubmit,
+		handleEditCancel,
+		handleEditTopic,
+		handleAiRename,
+		handleDeleteTopic,
+		handleCreateTopic,
+	} = useTopicHistoryPanelController({
+		selectedProject,
+		topicStore,
+		topicActions,
+		isConversationPanelCollapsed,
+		onExpandConversationPanel,
+	})
+
+	return (
+		<TopicHistoryPanelContent
+			topics={topics}
+			projectId={selectedProject?.id || ""}
+			selectedTopicId={selectedTopic?.id}
+			editingTopicId={editingTopicId}
+			editingValue={editingValue}
+			onEditingValueChange={setEditingValue}
+			onEditSubmit={handleEditSubmit}
+			onEditCancel={handleEditCancel}
+			onEditTopic={handleEditTopic}
+			onAiRenameTopic={handleAiRename}
+			onDeleteTopic={handleDeleteTopic}
+			onSelectTopic={(topic) => {
+				void topicActions.selectTopic(topic)
+			}}
+			canDeleteTopic={topics.length > 1}
+			onCreateTopic={handleCreateTopic}
+			onPinTopic={topicActions.pinTopic}
+			onUnpinTopic={topicActions.unpinTopic}
+			onArchiveTopic={topicActions.archiveTopic}
+			onUnarchiveTopic={topicActions.unarchiveTopic}
+			hideTopicListModeIcon={hideTopicListModeIcon}
+			hideCreateTopicButton={shouldHideTopicEntry}
+			hideDeleteTopicButton={shouldHideTopicEntry}
+			onClose={onClose}
+			closeButtonRef={closeButtonRef}
+		/>
+	)
+})
+
+function MessageHeader({
+	isConversationPanelCollapsed = false,
+	onToggleConversationPanel,
+	onExpandConversationPanel,
+	detailPanelVisible = true,
+	selectedProject,
+	topicStore,
+	topicActions,
+	hideTopicListModeIcon = false,
+	historyTriggerMode = "dropdown",
+	isHistoryPanelOpen = false,
+	onToggleHistoryPanel,
+}: MessageHeaderProps) {
+	const { t } = useTranslation("super")
+	const { hideShareTopic } = useFileActionVisibility()
+	const {
+		messages,
+		topics,
+		selectedTopic,
+		shouldHideTopicEntry,
+		editingTopicId,
+		editingValue,
+		setEditingValue,
+		handleEditSubmit,
+		handleEditCancel,
+		handleEditTopic,
+		handleAiRename,
+		handleDeleteTopic,
+		handleCreateTopic,
+	} = useTopicHistoryPanelController({
+		selectedProject,
+		topicStore,
+		topicActions,
+		isConversationPanelCollapsed,
+		onExpandConversationPanel,
+	})
 
 	const currentTopicStatus = selectedTopic?.task_status
 
@@ -85,9 +341,9 @@ function MessageHeader({
 	const [sharePopoverVisible, setSharePopoverVisible] = useState(false)
 	const [topicMenuOpen, setTopicMenuOpen] = useState(false)
 	const [topicHistoryOpen, setTopicHistoryOpen] = useState(false)
-	const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
-	const [editingValue, setEditingValue] = useState("")
 	const inputRef = useRef<HTMLInputElement>(null)
+	const isLayoutHistoryTrigger = historyTriggerMode === "layout"
+	const isHistoryButtonActive = isLayoutHistoryTrigger ? isHistoryPanelOpen : topicHistoryOpen
 
 	const handleRename = useCallback(() => {
 		if (!selectedTopic) return
@@ -95,7 +351,7 @@ function MessageHeader({
 		setRenamingValue(selectedTopic.topic_name || "")
 	}, [selectedTopic])
 
-	const handleRenameSubmit = useMemoizedFn(() => {
+	const handleRenameSubmit = useMemoizedFn(async () => {
 		if (!selectedTopic || !renamingValue.trim()) {
 			setIsRenaming(false)
 			return
@@ -108,27 +364,22 @@ function MessageHeader({
 			return
 		}
 
-		// Call API to update topic name
-		if (selectedProject?.id) {
-			SuperMagicApi.editTopic({
-				topic_name: trimmedName,
-				id: selectedTopic.id,
-				project_id: selectedProject.id,
-			})
-				.then(() => {
-					// Update store after successful API call
-					SuperMagicService.topic.updateTopicName(selectedTopic.id, trimmedName)
-					setIsRenaming(false)
-					magicToast.success(t("messageHeader.renameTopicSuccess"))
-				})
-				.catch((err: unknown) => {
-					console.error("Failed to rename topic:", err)
-					// Reset editing state on error
-					setIsRenaming(false)
-				})
-		} else {
+		if (!selectedProject?.id) {
 			setIsRenaming(false)
 			magicToast.error(t("messageHeader.renameTopicFailed"))
+			return
+		}
+
+		try {
+			await topicActions.renameTopic({
+				topicId: selectedTopic.id,
+				topicName: trimmedName,
+			})
+			setIsRenaming(false)
+			magicToast.success(t("messageHeader.renameTopicSuccess"))
+		} catch (err: unknown) {
+			console.error("Failed to rename topic:", err)
+			setIsRenaming(false)
 		}
 	})
 
@@ -136,27 +387,6 @@ function MessageHeader({
 		setIsRenaming(false)
 		setRenamingValue("")
 	}, [])
-
-	const handleAiRename = useMemoizedFn((topicId?: string) => {
-		const targetTopic = topicId ? topics.find((t) => t.id === topicId) : selectedTopic
-		if (!targetTopic || !selectedProject?.id) return
-
-		const userMessage = messages.find((msg) => msg.is_self)
-		const userQuestion = userMessage?.content || targetTopic.topic_name || ""
-
-		void smartRenameTopic({
-			topicId: targetTopic.id,
-			userQuestion,
-			updateTopicName: topicStore.updateTopicName,
-		})
-			.then((topicName) => {
-				if (!topicName) return
-				magicToast.success(t("messageHeader.renameTopicSuccess"))
-			})
-			.catch((err: unknown) => {
-				console.error("Failed to AI rename topic:", err)
-			})
-	})
 
 	const isAllowShare = useMemo(() => {
 		if (!messages?.length) {
@@ -169,89 +399,6 @@ function MessageHeader({
 			_revokedMessageIndex !== -1 ? _revokedMessageIndex : messages.length
 		return messages.slice(0, revokedMessageIndex).length > 0
 	}, [messages])
-
-	// Handle delete topic with confirmation
-	const handleDeleteTopic = useCallback(
-		(topicId: string, topicName: string) => {
-			if (recordSummaryStore.isRecordingTopic(topicId)) {
-				magicToast.error(t("messageHeader.cannotDeleteCurrentTopicInRecording"))
-				return
-			}
-
-			if (topics.length === 1) {
-				magicToast.error(t("messageHeader.cannotDeleteLastTopic"))
-				return
-			}
-			MagicModal.confirm({
-				title: t("messageHeader.confirmDeleteTopic"),
-				content: t("messageHeader.confirmDeleteTopicContent", { name: topicName }),
-				variant: "destructive",
-				showIcon: true,
-				okText: t("button.confirm", { ns: "interface" }),
-				onOk: () => {
-					SuperMagicService.deleteTopic(topicId).catch((err) => {
-						console.error(t("messageHeader.deleteTopicFailed"), err)
-					})
-				},
-			})
-		},
-		[t, topics],
-	)
-
-	// Handle edit topic in history list
-	const handleEditTopic = useCallback((topic: Topic) => {
-		setEditingTopicId(topic.id)
-		setEditingValue(topic.topic_name || "")
-	}, [])
-
-	const handleEditSubmit = useCallback(
-		(topicId: string) => {
-			if (!editingValue.trim()) {
-				setEditingTopicId(null)
-				return
-			}
-
-			const trimmedName = editingValue.trim()
-			const topic = topics.find((t) => t.id === topicId)
-
-			if (trimmedName === topic?.topic_name) {
-				setEditingTopicId(null)
-				return
-			}
-
-			// Call API to update topic name
-			if (selectedProject?.id) {
-				SuperMagicApi.editTopic({
-					id: topicId,
-					topic_name: trimmedName,
-					project_id: selectedProject.id,
-				})
-					.then(() => {
-						// Update store after successful API call
-						SuperMagicService.topic.updateTopicName(topicId, trimmedName)
-						setEditingTopicId(null)
-						setEditingValue("")
-						magicToast.success(t("messageHeader.editTopicSuccess"))
-					})
-					.catch((err: unknown) => {
-						console.error("Failed to rename topic:", err)
-						// Reset editing state on error
-						setEditingTopicId(null)
-						setEditingValue("")
-					})
-			} else {
-				setEditingTopicId(null)
-				setEditingValue("")
-				magicToast.error(t("messageHeader.editTopicFailed"))
-			}
-		},
-		[editingValue, selectedProject?.id, topics, t],
-	)
-
-	const handleEditCancel = useCallback(() => {
-		setEditingTopicId(null)
-		setEditingValue("")
-	}, [])
 
 	useEffect(() => {
 		if (isRenaming && inputRef.current) {
@@ -267,15 +414,6 @@ function MessageHeader({
 	useEffect(() => {
 		setTopicHistoryOpen(false)
 	}, [selectedTopic?.id])
-
-	const handleCreateTopic = useMemoizedFn(() => {
-		if (isConversationPanelCollapsed) {
-			onExpandConversationPanel?.()
-		}
-		SuperMagicService.handleCreateTopic({
-			selectedProject,
-		})
-	})
 
 	const handleToggleConversationPanel = useMemoizedFn(() => {
 		onToggleConversationPanel?.()
@@ -295,13 +433,51 @@ function MessageHeader({
 		)
 	})
 
+	function renderHistoryTrigger(placement: "bottomRight" | "leftBottom") {
+		return (
+			<MessageHeaderHistoryControl
+				historyTriggerMode={historyTriggerMode}
+				isHistoryButtonActive={isHistoryButtonActive}
+				tooltipTitle={t("messageHeader.historyTopics")}
+				onToggleHistoryPanel={onToggleHistoryPanel}
+				dropdownProps={{
+					topics,
+					projectId: selectedProject?.id || "",
+					selectedTopicId: selectedTopic?.id,
+					editingTopicId,
+					editingValue,
+					onEditingValueChange: setEditingValue,
+					onEditSubmit: handleEditSubmit,
+					onEditCancel: handleEditCancel,
+					onEditTopic: handleEditTopic,
+					onAiRenameTopic: handleAiRename,
+					onDeleteTopic: handleDeleteTopic,
+					onSelectTopic: (topic) => {
+						void topicActions.selectTopic(topic)
+					},
+					canDeleteTopic: topics.length > 1,
+					onCreateTopic: handleCreateTopic,
+					onPinTopic: topicActions.pinTopic,
+					onUnpinTopic: topicActions.unpinTopic,
+					onArchiveTopic: topicActions.archiveTopic,
+					onUnarchiveTopic: topicActions.unarchiveTopic,
+					placement,
+					onDropdownOpenChange: handleTopicHistoryDropdownOpenChange,
+					hideTopicListModeIcon,
+					hideCreateTopicButton: shouldHideTopicEntry,
+					hideDeleteTopicButton: shouldHideTopicEntry,
+				}}
+			/>
+		)
+	}
+
 	return (
 		<>
 			<div
 				className={cn(
 					"absolute z-[30] mb-2.5 flex h-10 w-full items-center justify-between gap-2 px-1.5 py-2",
 					"bg-sidebar",
-					isConversationPanelCollapsed && "h-full flex-col py-1.5 pl-0 pr-2",
+					isConversationPanelCollapsed && "h-full flex-col px-0 py-1.5",
 				)}
 				data-testid="message-header-container"
 			>
@@ -329,71 +505,34 @@ function MessageHeader({
 									</span>
 								</MagicTooltip>
 
-								<div className="w-6 border-t border-border" />
+								{!shouldHideTopicEntry ? (
+									<div className="w-6 border-t border-border" />
+								) : null}
 							</>
 						)}
 
-						<MagicTooltip title={t("messageHeader.newTopic")}>
-							<span>
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									className={headerIconButtonClassName}
-									data-testid="message-header-new-topic-button"
-									onClick={handleCreateTopic}
-								>
-									<MessageCirclePlus
-										size={16}
-										className="shrink-0 text-foreground"
-									/>
-								</Button>
-							</span>
-						</MagicTooltip>
-
-						<TopicHistoryDropdown
-							topics={topics}
-							projectId={selectedProject?.id || ""}
-							selectedTopicId={selectedTopic?.id}
-							editingTopicId={editingTopicId}
-							editingValue={editingValue}
-							onEditingValueChange={setEditingValue}
-							onEditSubmit={handleEditSubmit}
-							onEditCancel={handleEditCancel}
-							onEditTopic={handleEditTopic}
-							onAiRenameTopic={handleAiRename}
-							onDeleteTopic={handleDeleteTopic}
-							onSelectTopic={(topic) => {
-								topicStore.setSelectedTopic(topic)
-								routeManageService.navigateToState({
-									topicId: topic.id,
-								})
-							}}
-							canDeleteTopic={topics.length > 1}
-							onCreateTopic={handleCreateTopic}
-							placement="bottomRight"
-							onDropdownOpenChange={handleTopicHistoryDropdownOpenChange}
-						>
-							<span>
-								<MagicTooltip title={t("messageHeader.historyTopics")}>
+						{!shouldHideTopicEntry ? (
+							<>
+								<MagicTooltip title={t("messageHeader.newTopic")}>
 									<span>
 										<Button
 											variant="ghost"
 											size="icon-sm"
-											className={cn(
-												headerIconButtonClassName,
-												topicHistoryOpen && "bg-accent",
-											)}
-											data-testid="message-header-history-button"
+											className={headerIconButtonClassName}
+											data-testid="message-header-new-topic-button"
+											onClick={handleCreateTopic}
 										>
-											<History
+											<MessageCirclePlus
 												size={16}
 												className="shrink-0 text-foreground"
 											/>
 										</Button>
 									</span>
 								</MagicTooltip>
-							</span>
-						</TopicHistoryDropdown>
+
+								{renderHistoryTrigger("bottomRight")}
+							</>
+						) : null}
 					</div>
 				) : (
 					<>
@@ -419,7 +558,7 @@ function MessageHeader({
 							className="flex min-w-0 flex-1 items-center gap-1"
 							data-testid="message-header-topic-section"
 						>
-							<StatusIcon status={currentTopicStatus as TaskStatus} />
+							<StatusIcon size={14} status={currentTopicStatus as TaskStatus} />
 							{isRenaming ? (
 								<Input
 									ref={inputRef}
@@ -456,66 +595,61 @@ function MessageHeader({
 							className="flex items-center gap-1"
 							data-testid="message-header-action-buttons"
 						>
-							<div
-								className="flex items-center gap-1"
-								id={GuideTourElementId.MessageHeaderTopicGroup}
-								data-testid="message-header-topic-group"
-							>
-								<MagicTooltip title={t("messageHeader.newTopic")}>
-									<span>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											data-testid="message-header-new-topic-button"
-											onClick={handleCreateTopic}
-											className={headerIconButtonClassName}
-										>
-											<MessageCirclePlus
-												size={16}
-												className="shrink-0 text-foreground"
-											/>
-										</Button>
-									</span>
-								</MagicTooltip>
+							{!shouldHideTopicEntry ? (
+								<div
+									className="flex items-center gap-1"
+									id={GuideTourElementId.MessageHeaderTopicGroup}
+									data-testid="message-header-topic-group"
+								>
+									<MagicTooltip title={t("messageHeader.newTopic")}>
+										<span>
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												data-testid="message-header-new-topic-button"
+												onClick={handleCreateTopic}
+												className={headerIconButtonClassName}
+											>
+												<MessageCirclePlus
+													size={16}
+													className="shrink-0 text-foreground"
+												/>
+											</Button>
+										</span>
+									</MagicTooltip>
 
-								<TopicHistoryDropdown
-									topics={topics}
-									projectId={selectedProject?.id || ""}
-									selectedTopicId={selectedTopic?.id}
-									editingTopicId={editingTopicId}
-									editingValue={editingValue}
-									onEditingValueChange={setEditingValue}
-									onEditSubmit={handleEditSubmit}
-									onEditCancel={handleEditCancel}
-									onEditTopic={handleEditTopic}
-									onAiRenameTopic={handleAiRename}
-									onDeleteTopic={handleDeleteTopic}
-									onSelectTopic={(topic) => {
-										topicStore.setSelectedTopic(topic)
-										routeManageService.navigateToState({
-											topicId: topic.id,
-										})
+									{renderHistoryTrigger(
+										isConversationPanelCollapsed ? "leftBottom" : "bottomRight",
+									)}
+								</div>
+							) : null}
+
+							{!hideShareTopic ? (
+								<TopicSharePopover
+									open={sharePopoverVisible}
+									onOpenChange={(open) => {
+										// Only allow opening if share is allowed, always allow closing
+										if (!open || isAllowShare) {
+											setSharePopoverVisible(open)
+										}
 									}}
-									canDeleteTopic={topics.length > 1}
-									onCreateTopic={handleCreateTopic}
-									placement={
-										isConversationPanelCollapsed ? "leftBottom" : "bottomRight"
-									}
-									onDropdownOpenChange={handleTopicHistoryDropdownOpenChange}
+									topicId={selectedTopic?.id || ""}
+									topicTitle={selectedTopic?.topic_name}
 								>
 									<span>
-										<MagicTooltip title={t("messageHeader.historyTopics")}>
+										<MagicTooltip title={t("messageHeader.share")}>
 											<span>
 												<Button
 													variant="ghost"
 													size="icon-sm"
-													data-testid="message-header-history-button"
+													disabled={!isAllowShare}
+													data-testid="message-header-share-button"
 													className={cn(
 														headerIconButtonClassName,
-														topicHistoryOpen && "bg-accent",
+														sharePopoverVisible && "bg-accent",
 													)}
 												>
-													<History
+													<IconShare3
 														size={16}
 														className="shrink-0 text-foreground"
 													/>
@@ -523,42 +657,8 @@ function MessageHeader({
 											</span>
 										</MagicTooltip>
 									</span>
-								</TopicHistoryDropdown>
-							</div>
-
-							<TopicSharePopover
-								open={sharePopoverVisible}
-								onOpenChange={(open) => {
-									// Only allow opening if share is allowed, always allow closing
-									if (!open || isAllowShare) {
-										setSharePopoverVisible(open)
-									}
-								}}
-								topicId={selectedTopic?.id || ""}
-								topicTitle={selectedTopic?.topic_name}
-							>
-								<span>
-									<MagicTooltip title={t("messageHeader.share")}>
-										<span>
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												disabled={!isAllowShare}
-												data-testid="message-header-share-button"
-												className={cn(
-													headerIconButtonClassName,
-													sharePopoverVisible && "bg-accent",
-												)}
-											>
-												<IconShare3
-													size={16}
-													className="shrink-0 text-foreground"
-												/>
-											</Button>
-										</span>
-									</MagicTooltip>
-								</span>
-							</TopicSharePopover>
+								</TopicSharePopover>
+							) : null}
 
 							<DropdownMenu onOpenChange={setTopicMenuOpen}>
 								<DropdownMenuTrigger asChild>
@@ -592,21 +692,25 @@ function MessageHeader({
 										<WandSparkles size={16} className="text-muted-foreground" />
 										{t("messageHeader.aiRename")}
 									</DropdownMenuItem>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem
-										variant="destructive"
-										onClick={() =>
-											selectedTopic &&
-											handleDeleteTopic(
-												selectedTopic.id,
-												selectedTopic.topic_name ||
-													t("messageHeader.untitledTopic"),
-											)
-										}
-									>
-										<Trash2 size={16} />
-										{t("messageHeader.deleteTopic")}
-									</DropdownMenuItem>
+									{!shouldHideTopicEntry ? (
+										<>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												variant="destructive"
+												onClick={() =>
+													selectedTopic &&
+													handleDeleteTopic(
+														selectedTopic.id,
+														selectedTopic.topic_name ||
+															t("messageHeader.untitledTopic"),
+													)
+												}
+											>
+												<Trash2 size={16} />
+												{t("messageHeader.deleteTopic")}
+											</DropdownMenuItem>
+										</>
+									) : null}
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</div>

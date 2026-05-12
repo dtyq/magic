@@ -11,6 +11,10 @@ vi.mock("react-i18next", () => ({
 		t: (key: string) => key,
 		i18n: { language: "en_US" },
 	}),
+	initReactI18next: {
+		type: "3rdParty",
+		init: () => {},
+	},
 }))
 
 vi.mock("@/components/shadcn-ui/button", () => ({
@@ -46,6 +50,10 @@ vi.mock("@/components/shadcn-ui/sheet", () => ({
 	SheetContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 	SheetHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 	SheetTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}))
+
+vi.mock("@/pages/superMagic/components/SkillDetailDialog", () => ({
+	SkillDetailDialog: () => null,
 }))
 
 vi.mock("@/enhance/lucide-react", () => ({
@@ -94,8 +102,9 @@ describe("SkillsLibraryMobile pagination", () => {
 						skillCode: "skill.code.1",
 						name: "Skill 1",
 						description: "First skill",
+						isFeatured: false,
 						status: "not-added",
-						authorType: "official",
+						publisherType: "OFFICIAL",
 						needUpgrade: false,
 						updatedAt: "2026-03-23 10:00:00",
 					},
@@ -112,8 +121,9 @@ describe("SkillsLibraryMobile pagination", () => {
 						skillCode: "skill.code.2",
 						name: "Skill 2",
 						description: "Second skill",
+						isFeatured: false,
 						status: "not-added",
-						authorType: "official",
+						publisherType: "OFFICIAL",
 						needUpgrade: false,
 						updatedAt: "2026-03-23 11:00:00",
 					},

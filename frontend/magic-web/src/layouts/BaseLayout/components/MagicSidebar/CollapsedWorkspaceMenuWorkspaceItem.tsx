@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react"
-import { Box, ChevronRight, CirclePlus, Ellipsis } from "lucide-react"
+import { useEffect, useRef, useState, type MouseEvent } from "react"
+import { ChevronRight, CirclePlus, Ellipsis, Home } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn-ui/popover"
@@ -7,7 +7,9 @@ import { Button } from "@/components/shadcn-ui/button"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { cn } from "@/lib/utils"
 import projectStore from "@/pages/superMagic/stores/core/project"
+import workspaceStore from "@/pages/superMagic/stores/core/workspace"
 import superMagicService from "@/pages/superMagic/services"
+import { SHARE_WORKSPACE_ID } from "@/pages/superMagic/constants"
 import { MagicDropdown } from "@/components/base"
 import { useWorkspaceActionMenu } from "@/pages/superMagic/hooks/useWorkspaceActionMenu"
 import { useWorkspaceDelete } from "@/pages/superMagic/components/WorkspacesMenu/useWorkspaceDelete"
@@ -18,6 +20,9 @@ import CollapsedWorkspaceProjectRow from "./CollapsedWorkspaceProjectRow"
 import { toTestIdSegment } from "@/utils/testid"
 import SidebarCreateInput from "./components/SidebarCreateInput"
 import { openProjectInNewTab } from "@/pages/superMagic/utils/project"
+import { getWorkspaceRouteUrl } from "@/pages/superMagic/utils/route"
+import NavigationStatusIcon from "@/pages/superMagic/components/NavigationStatusIcon"
+import { shouldIgnoreSelectionAfterWorkspaceRename } from "@/pages/superMagic/utils/workspaceRenameSelectionGuard"
 
 export interface CollapsedWorkspaceMenuWorkspaceItemProps {
 	workspace: Workspace
@@ -25,6 +30,7 @@ export interface CollapsedWorkspaceMenuWorkspaceItemProps {
 	onProjectClick: (projectId: string, workspaceId: string) => void
 	openProjectMenuId: string | null
 	onProjectMenuChange: (workspaceId: string | null) => void
+	onRequestCloseAll: () => void
 }
 
 const CollapsedWorkspaceMenuWorkspaceItem = observer(function CollapsedWorkspaceMenuWorkspaceItem({
@@ -33,18 +39,21 @@ const CollapsedWorkspaceMenuWorkspaceItem = observer(function CollapsedWorkspace
 	onProjectClick,
 	openProjectMenuId,
 	onProjectMenuChange,
+	onRequestCloseAll,
 }: CollapsedWorkspaceMenuWorkspaceItemProps) {
 	const { t } = useTranslation(["super"])
 	const workspaceIdSegment = toTestIdSegment(workspace.id)
 	const workspaceNameTestId = `sidebar-collapsed-workspace-name-${workspaceIdSegment}`
 	const workspaceMoreTriggerTestId = `sidebar-collapsed-workspace-more-${workspaceIdSegment}`
 	const projectPopoverTestId = `sidebar-collapsed-workspace-project-popover-${workspaceIdSegment}`
+	const workspaceHomeTestId = `sidebar-collapsed-workspace-home-${workspaceIdSegment}`
 	const addProjectTestId = `sidebar-collapsed-workspace-add-project-${workspaceIdSegment}`
 	const createProjectInputTestId = `sidebar-collapsed-workspace-create-project-input-${workspaceIdSegment}`
 	const projectEmptyTestId = `sidebar-collapsed-workspace-project-empty-${workspaceIdSegment}`
 	const isProjectMenuOpen = openProjectMenuId === workspace.id
 	const projects = projectStore.getProjectsByWorkspace(workspace.id)
 	const selectedProject = projectStore.selectedProject
+	const isWorkspaceHomeSelected = isActive && !selectedProject?.id
 	const [isCreatingProject, setIsCreatingProject] = useState(false)
 	const [projectName, setProjectName] = useState("")
 	const [isSubmittingProject, setIsSubmittingProject] = useState(false)
@@ -80,9 +89,15 @@ const CollapsedWorkspaceMenuWorkspaceItem = observer(function CollapsedWorkspace
 	})
 
 	useEffect(() => {
-		if (isProjectMenuOpen && !projectStore.hasLoadedWorkspace(workspace.id)) {
-			projectStore.loadProjectsForWorkspace(workspace.id)
-		}
+		if (!isProjectMenuOpen) return
+		if (workspace.id === SHARE_WORKSPACE_ID) return
+
+		void (async () => {
+			await projectStore.loadProjectsForWorkspace(workspace.id, true, true)
+			if (workspace.id === workspaceStore.selectedWorkspace?.id) {
+				await superMagicService.project.updateProjects({ workspaceId: workspace.id })
+			}
+		})()
 	}, [isProjectMenuOpen, workspace.id])
 
 	useEffect(() => {
@@ -127,6 +142,28 @@ const CollapsedWorkspaceMenuWorkspaceItem = observer(function CollapsedWorkspace
 	function handleCancelCreateProject() {
 		setIsCreatingProject(false)
 		setProjectName("")
+	}
+
+	function shouldHandleAnchorClick(event: MouseEvent<HTMLAnchorElement>) {
+		return (
+			event.button === 0 &&
+			!event.metaKey &&
+			!event.ctrlKey &&
+			!event.shiftKey &&
+			!event.altKey
+		)
+	}
+
+	function handleWorkspaceHomeClick(event: MouseEvent<HTMLAnchorElement>) {
+		if (!shouldHandleAnchorClick(event)) return
+		if (shouldIgnoreSelectionAfterWorkspaceRename()) {
+			event.preventDefault()
+			event.stopPropagation()
+			return
+		}
+		event.preventDefault()
+		superMagicService.switchWorkspace(workspace)
+		onRequestCloseAll()
 	}
 
 	const renderProjectList = () =>
@@ -174,7 +211,7 @@ const CollapsedWorkspaceMenuWorkspaceItem = observer(function CollapsedWorkspace
 								variant="ghost"
 								size="sm"
 								className={cn(
-									"h-8 w-full justify-start gap-2 px-2 hover:bg-sidebar-accent",
+									"h-8 w-full justify-start gap-2 px-2 font-normal hover:bg-sidebar-accent",
 									isActive && "bg-sidebar-accent",
 								)}
 								onMouseEnter={() => {
@@ -184,13 +221,14 @@ const CollapsedWorkspaceMenuWorkspaceItem = observer(function CollapsedWorkspace
 									setIsWorkspaceHovered(false)
 								}}
 							>
-								<Box
-									className={cn(
-										"h-4 w-4 shrink-0",
+								<NavigationStatusIcon
+									itemType="workspace"
+									status={workspace.workspace_status}
+									className={
 										isActive
 											? "text-sidebar-accent-foreground"
-											: "text-sidebar-foreground",
-									)}
+											: "text-sidebar-foreground"
+									}
 								/>
 								<span
 									className={cn(
@@ -250,7 +288,7 @@ const CollapsedWorkspaceMenuWorkspaceItem = observer(function CollapsedWorkspace
 						ref={projectMenuContentRef}
 						side="right"
 						align="start"
-						className="shadow-xs w-[240px] p-1"
+						className="w-[240px] p-1 shadow-xs"
 						sideOffset={8}
 						alignOffset={-4}
 						data-testid={projectPopoverTestId}
@@ -261,10 +299,45 @@ const CollapsedWorkspaceMenuWorkspaceItem = observer(function CollapsedWorkspace
 						}}
 					>
 						<div className="flex h-8 items-center rounded-md px-2">
-							<span className="truncate text-sm font-medium leading-5 text-sidebar-foreground">
+							<span className="truncate text-sm font-normal leading-5 text-sidebar-foreground">
 								{t("super:workspace.projects")}
 							</span>
 						</div>
+						<Button
+							asChild
+							variant="ghost"
+							size="sm"
+							data-testid={workspaceHomeTestId}
+							className={cn(
+								"h-8 w-full justify-start gap-2 px-2 text-sm font-normal leading-5 hover:bg-sidebar-accent",
+								isWorkspaceHomeSelected && "bg-sidebar-accent",
+							)}
+						>
+							<a
+								href={getWorkspaceRouteUrl(workspace.id)}
+								className="text-current no-underline"
+								onClick={handleWorkspaceHomeClick}
+							>
+								<Home
+									className={cn(
+										"h-4 w-4 shrink-0",
+										isWorkspaceHomeSelected
+											? "text-sidebar-accent-foreground"
+											: "text-sidebar-foreground",
+									)}
+								/>
+								<span
+									className={cn(
+										"flex-1 truncate text-left",
+										isWorkspaceHomeSelected
+											? "text-sidebar-accent-foreground"
+											: "text-sidebar-foreground",
+									)}
+								>
+									{t("super:workspace.home")}
+								</span>
+							</a>
+						</Button>
 						<button
 							type="button"
 							className="flex h-8 w-full items-center gap-2 rounded-md px-2 hover:bg-sidebar-accent"

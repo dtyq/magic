@@ -29,7 +29,7 @@ export function ClawMobileFilesDrawer({
 		<MagicPopup
 			visible={open}
 			onClose={onClose}
-			title={t("chatActions.projectFiles")}
+			title={t("topicFiles.fileTitle")}
 			position="bottom"
 			className="h-[85vh] max-h-[calc(100vh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom))]"
 			bodyClassName="flex h-full flex-col overflow-hidden"
@@ -43,6 +43,7 @@ export function ClawMobileFilesDrawer({
 					<TopicFilesButton
 						{...topicFilesProps}
 						className="h-full"
+						title={t("topicFiles.fileTitle")}
 						resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
 					/>
 				</FileActionVisibilityProvider>

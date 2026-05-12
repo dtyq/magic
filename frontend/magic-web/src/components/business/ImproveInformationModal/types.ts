@@ -9,6 +9,7 @@ export interface ImproveInformationModalProps {
 
 export interface ImproveInformationData {
 	userName: string
+	timezone: string
 	avatarUrl?: string
 	avatarKey?: string
 	profession?: string

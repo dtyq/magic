@@ -29,7 +29,13 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
         try {
             // 使用网关的 ensureSandbox 方法，确保沙箱存在
             $this->gateway->setUserContext($userId, $organizationCode);
-            $actualSandboxId = $this->gateway->ensureSandboxAvailable($sandboxId, $projectId, $workDir);
+            $actualSandboxId = $this->gateway->ensureSandboxAvailable(
+                $sandboxId,
+                $projectId,
+                $workDir,
+                $request->getRootFileId(),
+                $request->getAuthorization()
+            );
 
             // 然后直接代理请求到沙箱
             $result = $this->gateway->proxySandboxRequest(

@@ -41,8 +41,13 @@ class FileBatchStatusManager
      * @param string $organizationCode Organization code
      * @return bool True if successful, false otherwise
      */
-    public function initializeTask(string $batchKey, string $userId, int $totalFiles, string $organizationCode = ''): bool
-    {
+    public function initializeTask(
+        string $batchKey,
+        string $userId,
+        int $totalFiles,
+        string $organizationCode = '',
+        array $context = []
+    ): bool {
         try {
             $taskKey = FileBatchConstant::getTaskKey($batchKey);
 
@@ -58,6 +63,11 @@ class FileBatchStatusManager
                 ],
                 'result' => null,
                 'error' => null,
+                'sandbox_id' => (string) ($context['sandbox_id'] ?? ''),
+                'project_id' => (string) ($context['project_id'] ?? ''),
+                'task_key' => (string) ($context['task_key'] ?? $batchKey),
+                'zip_bucket_type' => (string) ($context['zip_bucket_type'] ?? ''),
+                'target_name' => (string) ($context['target_name'] ?? ''),
                 'created_at' => time(),
                 'updated_at' => time(),
             ];

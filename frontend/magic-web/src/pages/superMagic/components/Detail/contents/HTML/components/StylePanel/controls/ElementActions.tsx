@@ -1,5 +1,5 @@
 import { useCallback, useRef } from "react"
-import { Trash2, Copy } from "lucide-react"
+import { Trash2, Copy, ImageUp, Plus } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { MagicTooltip } from "@/components/base"
 import { useTranslation } from "react-i18next"
@@ -22,6 +22,8 @@ export function ElementActions({ editorRef, disabled = false }: ElementActionsPr
 	// Refs to prevent duplicate operations
 	const isDeleteInProgressRef = useRef(false)
 	const isDuplicateInProgressRef = useRef(false)
+	const isReplaceImageInProgressRef = useRef(false)
+	const isInsertImageInProgressRef = useRef(false)
 
 	/**
 	 * Handle delete element
@@ -99,17 +101,103 @@ export function ElementActions({ editorRef, disabled = false }: ElementActionsPr
 		}
 	}, [editorRef, stylePanelStore])
 
+	const handleReplaceImage = useCallback(async () => {
+		if (isReplaceImageInProgressRef.current) {
+			console.log("[StylePanel] Replace image already in progress, ignoring")
+			return
+		}
+
+		if (!editorRef?.current) {
+			console.warn("[StylePanel] No editor ref")
+			return
+		}
+
+		try {
+			isReplaceImageInProgressRef.current = true
+			await editorRef.current.runImageAction({
+				action: "replace-element-image",
+			})
+		} catch (error) {
+			console.error("[StylePanel] Failed to replace image:", error)
+		} finally {
+			setTimeout(() => {
+				isReplaceImageInProgressRef.current = false
+			}, 300)
+		}
+	}, [editorRef])
+
+	const handleInsertImage = useCallback(async () => {
+		if (isInsertImageInProgressRef.current) {
+			console.log("[StylePanel] Insert image already in progress, ignoring")
+			return
+		}
+
+		if (!editorRef?.current) {
+			console.warn("[StylePanel] No editor ref")
+			return
+		}
+
+		try {
+			isInsertImageInProgressRef.current = true
+			await editorRef.current.runImageAction({
+				action: "insert-floating-image",
+			})
+		} catch (error) {
+			console.error("[StylePanel] Failed to insert image:", error)
+		} finally {
+			setTimeout(() => {
+				isInsertImageInProgressRef.current = false
+			}, 300)
+		}
+	}, [editorRef])
+
+	const selectors = stylePanelStore.getSelectedSelectors()
+	const hasSingleSelection = selectors.length === 1
+	const isSingleImageSelected =
+		hasSingleSelection && stylePanelStore.selectedElement?.tagName?.toLowerCase() === "img"
+
 	return (
-		<>
+		<div className="contents" data-testid="html-style-panel-element-actions">
+			<MagicTooltip title={t("stylePanel.insertImage")}>
+				<span>
+					<Button
+						variant="ghost"
+						size="sm"
+						disabled={disabled}
+						onClick={handleInsertImage}
+						className="h-7 px-2"
+						data-testid="html-style-panel-insert-image-button"
+					>
+						<Plus className="h-4 w-4" />
+					</Button>
+				</span>
+			</MagicTooltip>
+
+			<MagicTooltip title={t("stylePanel.replaceImage")}>
+				<span>
+					<Button
+						variant="ghost"
+						size="sm"
+						disabled={disabled || !isSingleImageSelected}
+						onClick={handleReplaceImage}
+						className="h-7 px-2"
+						data-testid="html-style-panel-replace-image-button"
+					>
+						<ImageUp className="h-4 w-4" />
+					</Button>
+				</span>
+			</MagicTooltip>
+
 			{/* Duplicate button */}
 			<MagicTooltip title={t("stylePanel.duplicateElement")}>
 				<span>
 					<Button
 						variant="ghost"
 						size="sm"
-						disabled={disabled}
+						disabled={disabled || !hasSingleSelection}
 						onClick={handleDuplicate}
 						className="h-7 px-2"
+						data-testid="html-style-panel-duplicate-button"
 					>
 						<Copy className="h-4 w-4" />
 					</Button>
@@ -122,14 +210,15 @@ export function ElementActions({ editorRef, disabled = false }: ElementActionsPr
 					<Button
 						variant="ghost"
 						size="sm"
-						disabled={disabled}
+						disabled={disabled || !hasSingleSelection}
 						onClick={handleDelete}
 						className="h-7 px-2 hover:bg-destructive/10 hover:text-destructive"
+						data-testid="html-style-panel-delete-button"
 					>
 						<Trash2 className="h-4 w-4" />
 					</Button>
 				</span>
 			</MagicTooltip>
-		</>
+		</div>
 	)
 }

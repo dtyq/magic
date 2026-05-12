@@ -1,12 +1,13 @@
 import { useMemoizedFn } from "ahooks"
-import type { ChangeEventHandler, HTMLAttributes, ReactNode } from "react"
+import type { ChangeEventHandler, InputHTMLAttributes, ReactNode } from "react"
 import { useRef } from "react"
 
-interface UploadActionProps extends HTMLAttributes<HTMLInputElement> {
-	multiple?: boolean
-	accept?: string
+interface UploadActionProps extends Omit<
+	InputHTMLAttributes<HTMLInputElement>,
+	"type" | "onChange"
+> {
 	handler: (onUpload: () => void) => ReactNode
-	onFileChange?: (File: FileList) => void
+	onFileChange?: (files: FileList) => void
 }
 
 const UploadAction = ({ handler, onFileChange, multiple = false, ...props }: UploadActionProps) => {

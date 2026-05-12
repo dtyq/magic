@@ -25,10 +25,20 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 
 	// 初始化项目名称
 	useEffect(() => {
-		if (open && projectData?.defaultNewProjectName) {
-			setNewProjectName(projectData.defaultNewProjectName)
+		if (open) {
+			// 根据是否为项目分享，使用不同的默认名称
+			if (projectData?.isProjectShare) {
+				setNewProjectName(projectData.defaultNewProjectName || "")
+			} else {
+				setNewProjectName(projectData.shareName || projectData.defaultNewProjectName || "")
+			}
 		}
-	}, [open, projectData?.defaultNewProjectName])
+	}, [
+		open,
+		projectData?.isProjectShare,
+		projectData?.shareName,
+		projectData?.defaultNewProjectName,
+	])
 
 	// 获取工作区列表
 	const fetchWorkspaces = useMemoizedFn(async () => {
@@ -36,7 +46,7 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 
 		setLoading(true)
 		try {
-			const response = await SuperMagicApi.getWorkspaces({ page: 1, page_size: 99 })
+			const response = await SuperMagicApi.getWorkspaces({ page: 1, page_size: 999 })
 			if (response?.list) {
 				setWorkspaces(response.list)
 				// 默认选择第一个工作区
@@ -223,7 +233,9 @@ function CopyProjectModal({ open, onCancel, projectData, onCopySuccess }: CopyPr
 							{`${t("share.originalProject")}${t("share.name")}`}
 						</span>
 						<div className="flex h-9 items-center justify-start gap-1.5 rounded-lg border border-border bg-muted px-1.5 text-sm font-semibold leading-5 text-foreground">
-							{projectData?.originalProjectName || t("project.unnamedProject")}
+							{projectData?.isProjectShare
+								? projectData?.originalProjectName || t("project.unnamedProject")
+								: projectData?.shareName || t("project.unnamedProject")}
 						</div>
 					</div>
 				</div>

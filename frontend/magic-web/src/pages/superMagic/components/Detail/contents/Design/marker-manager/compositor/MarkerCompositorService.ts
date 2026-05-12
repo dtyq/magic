@@ -1,8 +1,4 @@
-import type {
-	Marker,
-	MarkerArea,
-	ImageElement,
-} from "@/components/CanvasDesign/canvas/types"
+import type { Marker, MarkerArea, ImageElement } from "@/components/CanvasDesign/canvas/types"
 import { MarkerTypeEnum } from "@/components/CanvasDesign/canvas/types"
 import type {
 	IdentifyImageMarkRequest,
@@ -10,6 +6,7 @@ import type {
 	UploadPrivateFile,
 	UploadPrivateFileResponse,
 } from "@/components/CanvasDesign/types.magic"
+import { getPersistedSourceCrop } from "@/components/CanvasDesign/canvas/utils/imageCropUtils"
 import { drawMarkerOnCanvas } from "./markerDrawers"
 import { generateUUID } from "@/components/CanvasDesign/canvas/utils/utils"
 
@@ -45,7 +42,10 @@ const DEFAULT_COMPRESSION_CONFIG: ImageCompressionConfig = {
 }
 
 export interface MarkerCompositorMethods {
-	getFileInfo: (path: string) => Promise<{ src?: string }>
+	getFileInfo: (
+		path: string,
+		options?: { useImageProcess?: boolean; forceRefresh?: boolean },
+	) => Promise<{ src?: string }>
 	uploadPrivateFiles: (files: UploadPrivateFile[]) => Promise<UploadPrivateFileResponse[]>
 	identifyImageMark: (params: IdentifyImageMarkRequest) => Promise<IdentifyImageMarkResponse>
 }
@@ -56,6 +56,7 @@ export interface MarkerCompositorInput {
 	sequence: number
 	methods: MarkerCompositorMethods
 	projectId?: string
+	signal?: AbortSignal
 	/** 可选的图片信息（从画布获取，避免重复加载） */
 	imageInfo?: Partial<ImageInfoForComposite>
 	/** 可选的 OSS URL（从画布获取，避免重复调用 getFileInfo） */
@@ -75,6 +76,7 @@ export interface IdentifyInput {
 	imageInfo: ImageInfoForComposite
 	methods: Pick<MarkerCompositorMethods, "identifyImageMark">
 	projectId?: string
+	signal?: AbortSignal
 }
 
 /**
@@ -91,6 +93,7 @@ export class MarkerCompositorService {
 			element,
 			sequence,
 			methods,
+			signal,
 			imageInfo: providedImageInfo,
 			ossUrl: providedOssUrl,
 			image: providedImage,
@@ -104,7 +107,8 @@ export class MarkerCompositorService {
 		// 1. 获取 OSS URL（优先使用提供的）
 		let ossUrl = providedOssUrl
 		if (!ossUrl) {
-			const fileInfo = await getFileInfo(element.src)
+			throwIfAborted(signal)
+			const fileInfo = await getFileInfo(element.src, { useImageProcess: true })
 			ossUrl = fileInfo?.src
 			if (!ossUrl) {
 				throw new Error(`无法获取图片 OSS 地址: ${element.src}`)
@@ -127,23 +131,36 @@ export class MarkerCompositorService {
 			}
 		} else {
 			// 降级：加载图片
-			const loaded = await loadImageFromUrl(ossUrl)
+			const loaded = await loadImageFromUrl(ossUrl, signal)
 			image = loaded.image
 			imageInfo = loaded.imageInfo
 		}
 
+		throwIfAborted(signal)
+		const sourceCrop = getCompositeSourceCrop(element, imageInfo)
+		const compositeImageInfo = getCompositeImageInfo(imageInfo, sourceCrop)
+
 		// 3. 创建离屏 canvas 并绘制
-		const composedFile = await compositeMarkerWithImage(marker, image, imageInfo, sequence)
+		const composedFile = await compositeMarkerWithImage(
+			marker,
+			image,
+			imageInfo,
+			compositeImageInfo,
+			sequence,
+			sourceCrop,
+			signal,
+		)
 
 		// 4. 上传
+		throwIfAborted(signal)
 		const uploadResults = await uploadPrivateFiles([
 			{
 				file: composedFile,
 				relativePath: "design-mark/",
 				// eslint-disable-next-line @typescript-eslint/no-empty-function
-				onUploadComplete: () => { },
+				onUploadComplete: () => {},
 				// eslint-disable-next-line @typescript-eslint/no-empty-function
-				onUploadFailed: () => { },
+				onUploadFailed: () => {},
 			},
 		])
 
@@ -155,7 +172,7 @@ export class MarkerCompositorService {
 
 		return {
 			filePath,
-			imageInfo,
+			imageInfo: compositeImageInfo,
 		}
 	}
 
@@ -164,11 +181,13 @@ export class MarkerCompositorService {
 	 * @returns 返回识别结果
 	 */
 	static async identify(input: IdentifyInput): Promise<IdentifyImageMarkResponse> {
-		const { marker, filePath, imageInfo, methods, projectId } = input
+		const { marker, filePath, imageInfo, methods, projectId, signal } = input
 		const { identifyImageMark } = methods
 
+		throwIfAborted(signal)
 		const request = buildIdentifyRequest(marker, filePath, imageInfo, projectId)
 		const result = await identifyImageMark(request)
+		throwIfAborted(signal)
 		return result
 	}
 
@@ -193,8 +212,10 @@ export class MarkerCompositorService {
 
 async function loadImageFromUrl(
 	url: string,
+	signal?: AbortSignal,
 ): Promise<{ image: HTMLImageElement; imageInfo: ImageInfoForComposite }> {
-	const response = await fetch(url)
+	throwIfAborted(signal)
+	const response = await fetch(url, { signal })
 	if (!response.ok) {
 		throw new Error(`加载图片失败: ${response.status} ${response.statusText}`)
 	}
@@ -203,7 +224,7 @@ async function loadImageFromUrl(
 	const fileSize = blob.size
 	const mimeType = blob.type || "image/png"
 
-	const image = await createImageFromBlob(blob)
+	const image = await createImageFromBlob(blob, signal)
 	const naturalWidth = image.naturalWidth
 	const naturalHeight = image.naturalHeight
 
@@ -222,18 +243,33 @@ async function loadImageFromUrl(
 	}
 }
 
-function createImageFromBlob(blob: Blob): Promise<HTMLImageElement> {
+function createImageFromBlob(blob: Blob, signal?: AbortSignal): Promise<HTMLImageElement> {
 	return new Promise((resolve, reject) => {
+		if (signal?.aborted) {
+			reject(createAbortError())
+			return
+		}
+
 		const url = URL.createObjectURL(blob)
 		const img = new Image()
-		img.onload = () => {
+		const cleanup = () => {
+			signal?.removeEventListener("abort", handleAbort)
 			URL.revokeObjectURL(url)
+		}
+		const handleAbort = () => {
+			img.src = ""
+			cleanup()
+			reject(createAbortError())
+		}
+		img.onload = () => {
+			cleanup()
 			resolve(img)
 		}
 		img.onerror = () => {
-			URL.revokeObjectURL(url)
+			cleanup()
 			reject(new Error("创建图片失败"))
 		}
+		signal?.addEventListener("abort", handleAbort, { once: true })
 		img.src = url
 	})
 }
@@ -288,11 +324,15 @@ async function compositeMarkerWithImage(
 	marker: Marker,
 	image: HTMLImageElement | ImageBitmap,
 	imageInfo: ImageInfoForComposite,
+	compositeImageInfo: ImageInfoForComposite,
 	sequence: number,
+	sourceCrop?: { x: number; y: number; width: number; height: number },
+	signal?: AbortSignal,
 ): Promise<File> {
+	throwIfAborted(signal)
 	const canvas = document.createElement("canvas")
-	canvas.width = imageInfo.naturalWidth
-	canvas.height = imageInfo.naturalHeight
+	canvas.width = compositeImageInfo.naturalWidth
+	canvas.height = compositeImageInfo.naturalHeight
 
 	const ctx = canvas.getContext("2d")
 	if (!ctx) {
@@ -300,16 +340,36 @@ async function compositeMarkerWithImage(
 	}
 
 	// 绘制原图
-	ctx.drawImage(image, 0, 0, imageInfo.naturalWidth, imageInfo.naturalHeight)
+	if (sourceCrop) {
+		ctx.drawImage(
+			image,
+			sourceCrop.x,
+			sourceCrop.y,
+			sourceCrop.width,
+			sourceCrop.height,
+			0,
+			0,
+			compositeImageInfo.naturalWidth,
+			compositeImageInfo.naturalHeight,
+		)
+	} else {
+		ctx.drawImage(
+			image,
+			0,
+			0,
+			compositeImageInfo.naturalWidth,
+			compositeImageInfo.naturalHeight,
+		)
+	}
 
 	// 绘制 marker
-	drawMarkerOnCanvas(ctx, marker, imageInfo, sequence)
+	drawMarkerOnCanvas(ctx, marker, compositeImageInfo, sequence)
 
 	// 压缩策略
 	const compressionResult = shouldCompressImage({
 		fileSize: imageInfo.fileSize,
-		width: imageInfo.naturalWidth,
-		height: imageInfo.naturalHeight,
+		width: compositeImageInfo.naturalWidth,
+		height: compositeImageInfo.naturalHeight,
 		mimeType: imageInfo.mimeType,
 	})
 
@@ -324,6 +384,7 @@ async function compositeMarkerWithImage(
 	if (!blob) {
 		throw new Error("将 Canvas 转换为 Blob 失败")
 	}
+	throwIfAborted(signal)
 
 	const lastDotIndex = imageInfo.filename.lastIndexOf(".")
 	const baseExt = lastDotIndex !== -1 ? imageInfo.filename.slice(lastDotIndex) : ""
@@ -334,6 +395,49 @@ async function compositeMarkerWithImage(
 	const newFilename = `${generateUUID()}${ext}`
 
 	return new File([blob], newFilename, { type: compressionResult.outputFormat })
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+	if (!signal?.aborted) return
+	throw createAbortError()
+}
+
+function createAbortError(): Error {
+	return new DOMException("The operation was aborted", "AbortError")
+}
+
+function getCompositeSourceCrop(
+	element: ImageElement,
+	imageInfo: ImageInfoForComposite,
+): { x: number; y: number; width: number; height: number } | undefined {
+	const crop = getPersistedSourceCrop(element.crop, {
+		width: imageInfo.naturalWidth,
+		height: imageInfo.naturalHeight,
+	})
+	if (crop.width <= 0 || crop.height <= 0) return undefined
+	if (
+		crop.x === 0 &&
+		crop.y === 0 &&
+		crop.width === imageInfo.naturalWidth &&
+		crop.height === imageInfo.naturalHeight
+	) {
+		return undefined
+	}
+
+	return crop
+}
+
+function getCompositeImageInfo(
+	imageInfo: ImageInfoForComposite,
+	sourceCrop?: { width: number; height: number },
+): ImageInfoForComposite {
+	if (!sourceCrop) return imageInfo
+
+	return {
+		...imageInfo,
+		naturalWidth: Math.max(1, Math.round(sourceCrop.width)),
+		naturalHeight: Math.max(1, Math.round(sourceCrop.height)),
+	}
 }
 
 function buildIdentifyRequest(

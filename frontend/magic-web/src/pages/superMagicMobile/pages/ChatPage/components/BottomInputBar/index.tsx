@@ -1,6 +1,9 @@
 import { cn } from "@/lib/utils"
 import ModeSelector from "./ModeSelector"
-import { SceneEditorNodes } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
+import {
+	type SceneEditorContext,
+	SceneEditorNodes,
+} from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import { useTranslation } from "react-i18next"
 import { useEffect, useState } from "react"
 import { useEditor, EditorContent } from "@tiptap/react"
@@ -18,6 +21,8 @@ interface BottomInputBarProps {
 	syncContent?: JSONContent | null
 	editorNodes?: SceneEditorNodes
 	showModeSelector?: boolean
+	/** 传入后 ModeSelector 与桌面端 ModeToggle 数据源一致（topicMode / agentCode / messagesLength） */
+	editorContext?: SceneEditorContext
 	isTaskRunning?: boolean
 	stopEventLoading?: boolean
 	onInterrupt?: () => void
@@ -29,6 +34,7 @@ export default function BottomInputBar({
 	syncContent,
 	editorNodes,
 	showModeSelector = true,
+	editorContext,
 	isTaskRunning = false,
 	stopEventLoading = false,
 	onInterrupt,
@@ -62,8 +68,8 @@ export default function BottomInputBar({
 					isTaskRunning && "pr-2",
 				)}
 			>
-				{/* 角色选择器 */}
-				{showModeSelector && <ModeSelector iconSize={28} />}
+				{/* 话题模式（移动端 UI：ModeSelector + CrewSelectModal） */}
+				{showModeSelector && <ModeSelector iconSize={28} editorContext={editorContext} />}
 
 				{/* TipTap 编辑器展示区 - 语音输入内容落点，点击只触发弹出输入框 */}
 				<div className="relative flex min-h-8 min-w-0 flex-1 items-center">

@@ -1,0 +1,36 @@
+.shell {
+	position: relative;
+	min-width: 0;
+	max-width: 100%;
+}
+
+.dragOverlay {
+	position: absolute;
+	inset: 0;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgb(255 255 255 / 82%);
+	border: 1px dashed var(--base-primary, #007aff);
+	border-radius: inherit;
+	pointer-events: none;
+}
+
+.dragOverlayContent {
+	display: inline-flex;
+	gap: var(--spacing-1-5, 6px);
+	align-items: center;
+	justify-content: center;
+	padding: var(--spacing-1-5, 6px) var(--spacing-2, 8px);
+	color: var(--base-foreground, #0a0a0a);
+	font-size: var(--text-xs-font-size, 12px);
+}
+
+.dragOverlayInvalid {
+	border: 1px dashed var(--base-destructive, #dc2626) !important;
+}
+
+.dragOverlayInvalid .dragOverlayContent {
+	color: var(--base-destructive, #dc2626);
+}

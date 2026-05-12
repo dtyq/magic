@@ -52,7 +52,7 @@ class ClawHubProvider(CliProvider):
 
     # ── search：clawhub search 输出纯文本，覆盖父类实现 ──────────────────────
 
-    async def search(self, keyword: str, limit: int = 10) -> list[SkillCandidate]:
+    async def search(self, keyword: str, limit: int | None = 10) -> list[SkillCandidate]:
         self._ensure_enabled()
         cmd = self.cli + ["--no-input", "search", keyword]
         logger.debug(f"[clawhub] 执行: {' '.join(cmd)}")

@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileReplacedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -64,6 +65,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             FileMovedEvent::class,
             FileBatchMoveEvent::class,
             FileContentSavedEvent::class,
+            FileReplacedEvent::class,
         ];
     }
 
@@ -82,6 +84,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
                 $event instanceof FileMovedEvent => $this->handleFileMoved($event),
                 $event instanceof FileBatchMoveEvent => $this->handleBatchMoved($event),
                 $event instanceof FileContentSavedEvent => $this->handleFileContentSaved($event),
+                $event instanceof FileReplacedEvent => $this->handleFileReplaced($event),
                 default => null,
             };
         } catch (Throwable $e) {
@@ -358,6 +361,36 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         foreach ($fileIds as $fileId) {
             $this->notifyKnowledgeProjectFileChange((int) $fileId);
         }
+    }
+
+    /**
+     * Handle file replaced event.
+     */
+    private function handleFileReplaced(FileReplacedEvent $event): void
+    {
+        $fileEntity = $event->getFileEntity();
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
+
+        if (! $projectEntity) {
+            $this->logger->warning('Project not found for file replace notification', [
+                'project_id' => $fileEntity->getProjectId(),
+            ]);
+            return;
+        }
+
+        $userAuthorization = $event->getUserAuthorization();
+        $pushData = $this->buildPushData(
+            operation: 'update',
+            projectId: (string) $fileEntity->getProjectId(),
+            workspaceId: $projectEntity->getWorkDir(),
+            fileEntity: $fileEntity,
+            workDir: $projectEntity->getWorkDir(),
+            organizationCode: $userAuthorization->getOrganizationCode(),
+            conversationId: '',
+            topicId: (string) $fileEntity->getTopicId()
+        );
+
+        $this->pushNotification($userAuthorization->getId(), $pushData);
     }
 
     /**

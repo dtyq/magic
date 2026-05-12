@@ -1,10 +1,14 @@
 import { makeAutoObservable, runInAction } from "mobx"
 import { MagicClawApi, SuperMagicApi } from "@/apis"
 import type { MagicClawItem } from "@/apis"
-import { createMentionPanelStore } from "@/components/business/MentionPanel/store"
+import { MAGIC_CLAW_STATUS, type MagicClawStatus } from "@/apis/modules/magicClaw"
+import { createMentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import { ProjectFilesStore } from "@/stores/projectFiles"
 import type { ProjectListItem, TaskStatus, Workspace } from "../../Workspace/types"
+
+const SANDBOX_VERSION_CHECK_POLL_INTERVAL_MS = 10 * 60 * 1000
+const VALID_MAGIC_CLAW_STATUS_SET = new Set<MagicClawStatus>(Object.values(MAGIC_CLAW_STATUS))
 
 class ClawWorkspaceStore {
 	workspaces: Workspace[] = []
@@ -72,6 +76,13 @@ export class ClawPlaygroundRootStore {
 	loading = false
 	error: string | null = null
 	isConversationGenerating = false
+	isUpgradingSandbox = false
+	sandboxLatestVersion: string | null = null
+	private sandboxVersionCheckPollTimer: ReturnType<typeof setInterval> | null = null
+	/** Bumps on stop/reset so in-flight sandbox calls ignore stale results */
+	private sandboxSessionId = 0
+	private isSandboxStatusPolling = false
+	private isSandboxVersionChecking = false
 
 	constructor() {
 		makeAutoObservable(
@@ -105,6 +116,196 @@ export class ClawPlaygroundRootStore {
 
 	updateTopicStatus(topicId: string, status: TaskStatus) {
 		this.topicStore.updateTopicStatus(topicId, status)
+	}
+
+	setMagicClaw(magicClaw: MagicClawItem | null) {
+		this.magicClaw = magicClaw
+	}
+
+	async upgradeSandbox() {
+		const topicId = this.selectedTopic?.id
+		const sessionId = this.sandboxSessionId
+		if (!topicId || !this.magicClaw || this.isUpgradingSandbox) return false
+
+		this.isUpgradingSandbox = true
+
+		try {
+			await MagicClawApi.upgradeMagicClawSandbox(
+				{ topic_id: topicId },
+				{ enableErrorMessagePrompt: false },
+			)
+
+			runInAction(() => {
+				if (!this.shouldApplySandboxResult(topicId, sessionId) || !this.magicClaw) return
+
+				this.magicClaw = {
+					...this.magicClaw,
+					need_upgrade: false,
+				}
+			})
+
+			const [statusResult, versionResult] = await Promise.allSettled([
+				MagicClawApi.getMagicClawSandboxStatus(
+					{ topic_id: topicId },
+					{ enableErrorMessagePrompt: false },
+				),
+				MagicClawApi.checkMagicClawSandboxVersion(
+					{ topic_id: topicId },
+					{ enableErrorMessagePrompt: false },
+				),
+			])
+
+			runInAction(() => {
+				if (!this.shouldApplySandboxResult(topicId, sessionId) || !this.magicClaw) return
+
+				let nextMagicClaw = this.magicClaw
+
+				if (statusResult.status === "fulfilled") {
+					nextMagicClaw = {
+						...nextMagicClaw,
+						status: this.normalizeMagicClawStatus(statusResult.value?.status),
+					}
+				}
+
+				if (versionResult.status === "fulfilled") {
+					this.sandboxLatestVersion = versionResult.value?.latest_version ?? null
+					nextMagicClaw = {
+						...nextMagicClaw,
+						// Version check can lag right after upgrade API succeeds
+						need_upgrade: false,
+					}
+				}
+
+				this.magicClaw = nextMagicClaw
+			})
+
+			return true
+		} catch (error) {
+			console.error("Failed to upgrade claw sandbox:", error)
+			return false
+		} finally {
+			runInAction(() => {
+				this.isUpgradingSandbox = false
+			})
+		}
+	}
+
+	private startSandboxPolling(topicId: string) {
+		this.stopSandboxPolling()
+		this.sandboxSessionId += 1
+		const sessionId = this.sandboxSessionId
+
+		void this.pollSandboxStatus({ topicId, sessionId })
+		void this.pollSandboxVersion({ topicId, sessionId })
+
+		this.sandboxVersionCheckPollTimer = setInterval(() => {
+			void this.pollSandboxVersion({ topicId, sessionId })
+		}, SANDBOX_VERSION_CHECK_POLL_INTERVAL_MS)
+	}
+
+	private stopSandboxPolling() {
+		if (this.sandboxVersionCheckPollTimer) {
+			clearInterval(this.sandboxVersionCheckPollTimer)
+			this.sandboxVersionCheckPollTimer = null
+		}
+
+		this.sandboxSessionId += 1
+		this.isSandboxStatusPolling = false
+		this.isSandboxVersionChecking = false
+	}
+
+	private shouldApplySandboxResult(topicId: string, sessionId: number) {
+		return this.selectedTopic?.id === topicId && this.sandboxSessionId === sessionId
+	}
+
+	private normalizeMagicClawStatus(status?: string): MagicClawStatus {
+		if (status && VALID_MAGIC_CLAW_STATUS_SET.has(status as MagicClawStatus))
+			return status as MagicClawStatus
+
+		return MAGIC_CLAW_STATUS.UNKNOWN
+	}
+
+	private async pollSandboxStatus({
+		topicId,
+		sessionId,
+	}: {
+		topicId: string
+		sessionId: number
+	}) {
+		if (!this.shouldApplySandboxResult(topicId, sessionId) || this.isSandboxStatusPolling)
+			return
+
+		this.isSandboxStatusPolling = true
+
+		try {
+			const data = await MagicClawApi.getMagicClawSandboxStatus(
+				{ topic_id: topicId },
+				{ enableErrorMessagePrompt: false },
+			)
+			if (!this.shouldApplySandboxResult(topicId, sessionId)) return
+
+			const nextStatus = this.normalizeMagicClawStatus(data?.status)
+			if (!this.magicClaw || this.magicClaw.status === nextStatus) return
+
+			runInAction(() => {
+				if (!this.magicClaw || !this.shouldApplySandboxResult(topicId, sessionId)) return
+
+				this.magicClaw = {
+					...this.magicClaw,
+					status: nextStatus,
+				}
+			})
+		} catch (error) {
+			console.error("Failed to poll claw sandbox status:", error)
+		} finally {
+			if (this.sandboxSessionId === sessionId) this.isSandboxStatusPolling = false
+		}
+	}
+
+	private async pollSandboxVersion({
+		topicId,
+		sessionId,
+	}: {
+		topicId: string
+		sessionId: number
+	}) {
+		if (!this.shouldApplySandboxResult(topicId, sessionId) || this.isSandboxVersionChecking)
+			return
+
+		this.isSandboxVersionChecking = true
+
+		try {
+			const data = await MagicClawApi.checkMagicClawSandboxVersion(
+				{ topic_id: topicId },
+				{ enableErrorMessagePrompt: false },
+			)
+			if (!this.shouldApplySandboxResult(topicId, sessionId)) return
+
+			const nextNeedUpgrade = Boolean(data?.needs_update)
+			const nextLatestVersion = data?.latest_version ?? null
+			const shouldSkipUpdate =
+				this.magicClaw?.need_upgrade === nextNeedUpgrade &&
+				this.sandboxLatestVersion === nextLatestVersion
+
+			if (shouldSkipUpdate) return
+
+			runInAction(() => {
+				if (!this.shouldApplySandboxResult(topicId, sessionId)) return
+
+				this.sandboxLatestVersion = nextLatestVersion
+
+				if (!this.magicClaw) return
+
+				this.magicClaw = {
+					...this.magicClaw,
+					need_upgrade: nextNeedUpgrade,
+				}
+			})
+		} catch (error) {
+			console.error("Failed to poll claw sandbox version:", error)
+		} finally {
+			if (this.sandboxSessionId === sessionId) this.isSandboxVersionChecking = false
+		}
 	}
 
 	async init(clawCode: string) {
@@ -159,8 +360,42 @@ export class ClawPlaygroundRootStore {
 				topics = selectedTopic ? [selectedTopic] : []
 			}
 
+			let mergedMagicClaw: MagicClawItem = magicClaw
+			let initialSandboxLatestVersion: string | null | undefined
+
+			if (selectedTopic) {
+				const [statusResult, versionResult] = await Promise.allSettled([
+					MagicClawApi.getMagicClawSandboxStatus(
+						{ topic_id: selectedTopic.id },
+						{ enableErrorMessagePrompt: false },
+					),
+					MagicClawApi.checkMagicClawSandboxVersion(
+						{ topic_id: selectedTopic.id },
+						{ enableErrorMessagePrompt: false },
+					),
+				])
+
+				if (statusResult.status === "fulfilled") {
+					mergedMagicClaw = {
+						...mergedMagicClaw,
+						status: this.normalizeMagicClawStatus(statusResult.value?.status),
+					}
+				}
+
+				if (versionResult.status === "fulfilled") {
+					initialSandboxLatestVersion = versionResult.value?.latest_version ?? null
+					mergedMagicClaw = {
+						...mergedMagicClaw,
+						need_upgrade: Boolean(versionResult.value?.needs_update),
+					}
+				}
+			}
+
 			runInAction(() => {
-				this.magicClaw = magicClaw
+				this.setMagicClaw(mergedMagicClaw)
+				if (initialSandboxLatestVersion !== undefined) {
+					this.sandboxLatestVersion = initialSandboxLatestVersion
+				}
 				this.projectStore.setProjects([project])
 				this.projectStore.setSelectedProject(project)
 				this.workspaceStore.setWorkspaces(workspace ? [workspace] : [])
@@ -169,6 +404,7 @@ export class ClawPlaygroundRootStore {
 				this.topicStore.setSelectedTopic(selectedTopic)
 				this.loading = false
 			})
+			if (selectedTopic) this.startSandboxPolling(selectedTopic.id)
 			// Prefetch @mention skills/agents/MCP; panel stays closed so hook skips preLoad
 			void this.mentionPanelStore.preLoadList()
 		} catch (error) {
@@ -182,14 +418,18 @@ export class ClawPlaygroundRootStore {
 	}
 
 	resetData() {
+		this.stopSandboxPolling()
 		this.isConversationGenerating = false
+		this.isUpgradingSandbox = false
 		this.magicClaw = null
+		this.sandboxLatestVersion = null
 		this.projectStore.reset()
 		this.workspaceStore.reset()
 		this.topicStore.reset()
 	}
 
 	dispose() {
+		this.stopSandboxPolling()
 		this.currentProjectId = null
 		this.currentClawCode = null
 		this.loading = false

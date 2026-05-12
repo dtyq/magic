@@ -40,10 +40,14 @@ function useSharedDataFromApp({ editor, addFiles, uploadEnabled }: UseSharedData
 				try {
 					if (
 						data.project_mode &&
-						superMagicModeService.isModeValid(data.project_mode as TopicMode)
+						superMagicModeService.isModeValid(
+							data.project_mode as TopicMode,
+							data.agent_code,
+						)
 					) {
 						pubsub.publish(PubSubEvents.Super_Magic_Receive_Shared_Project_Mode, {
 							mode: data.project_mode as TopicMode,
+							agent_code: data.agent_code,
 						})
 					}
 

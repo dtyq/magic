@@ -1,6 +1,6 @@
 import { useBoolean, useMemoizedFn } from "ahooks"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { downloadFile } from "@/utils/file"
+import { downloadBlobFile, downloadFile } from "@/utils/file"
 import useSendMessage from "@/pages/chatNew/hooks/useSendMessage"
 import { ConversationMessageType } from "@/types/chat/conversation_message"
 import { Dialog } from "antd-mobile"
@@ -8,9 +8,10 @@ import { useTranslation } from "react-i18next"
 import ChatFileService from "@/services/chat/file/ChatFileService"
 import MessageService from "@/services/chat/message/MessageService"
 import { computed } from "mobx"
-import { convertSvgToPng } from "@/utils/image"
+import { exportMermaidSvgToPngBlob } from "@/utils/mermaidExport"
 import { ImagePreviewInfo } from "@/types/chat/preview"
 import { useTheme } from "antd-style"
+import { isInlineSvgContent, shouldExportSvgAsPng } from "@/utils/svgProcessor"
 
 function useImagePreview(info?: ImagePreviewInfo) {
 	const { t } = useTranslation("interface")
@@ -58,7 +59,8 @@ function useImagePreview(info?: ImagePreviewInfo) {
 				setProgress((prevProgress) => {
 					let step = Math.ceil(Math.random() * 5)
 					if (info?.oldFileId) {
-						clearInterval(timerRef.current!)
+						const activeTimer = timerRef.current
+						if (activeTimer) clearInterval(activeTimer)
 						timerRef.current = null
 						return 100
 					}
@@ -102,17 +104,34 @@ function useImagePreview(info?: ImagePreviewInfo) {
 	})
 
 	const onDownload = useMemoizedFn(async () => {
-		// Handle SVG files conversion for mobile
-		const isSvg = info?.ext?.ext === "svg" || info?.ext?.ext === "svg+xml"
-		if (isSvg && currentImage) {
-			const png = await convertSvgToPng(currentImage, 2000, 2000)
-			downloadFile(png, info?.fileName, "png", {
+		try {
+			const isSvg = info?.ext?.ext === "svg" || info?.ext?.ext === "svg+xml"
+			if (isSvg && currentImage) {
+				if (shouldExportSvgAsPng(currentImage)) {
+					const pngBlob = await exportMermaidSvgToPngBlob(currentImage)
+					await downloadBlobFile(pngBlob, info?.fileName, "png")
+					return
+				}
+
+				if (isInlineSvgContent(currentImage)) {
+					const svgBlob = new Blob([currentImage], {
+						type: "image/svg+xml;charset=utf-8",
+					})
+					await downloadBlobFile(svgBlob, info?.fileName, "svg")
+				} else {
+					await downloadFile(currentImage, info?.fileName, "svg", {
+						forceProxy: true,
+					})
+				}
+
+				return
+			}
+
+			await downloadFile(currentImage, info?.fileName, info?.ext?.ext, {
 				forceProxy: true,
 			})
-		} else {
-			downloadFile(currentImage, info?.fileName, info?.ext?.ext, {
-				forceProxy: true,
-			})
+		} catch (error) {
+			console.error("Image download failed", error)
 		}
 	})
 
@@ -133,10 +152,10 @@ function useImagePreview(info?: ImagePreviewInfo) {
 							content: "转超清",
 							attachments: info?.fileId
 								? [
-									{
-										file_id: info?.fileId,
-									},
-								]
+										{
+											file_id: info?.fileId,
+										},
+									]
 								: [],
 						},
 					})

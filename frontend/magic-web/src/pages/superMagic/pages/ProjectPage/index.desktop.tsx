@@ -4,13 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Detail, { type DetailRef } from "../../components/Detail"
 import TopicFilesButton from "../../components/TopicFilesButton"
 import useStyles from "../Workspace/style"
-import GlobalMentionPanelStore from "@/components/business/MentionPanel/store"
+import GlobalMentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 import projectFilesStore from "@/stores/projectFiles"
 import ProjectSider from "../../components/ProjectSider"
 import { useTranslation } from "react-i18next"
 import { useDetailModeCache } from "../../hooks/useDetailModeCache"
 import { useAttachmentsPolling } from "../../hooks/useAttachmentsPolling"
 import { AttachmentDataProcessor } from "../../utils/attachmentDataProcessor"
+import {
+	releaseAttachmentsRefreshWaitersWithoutFetch,
+	resolveAttachmentsRefreshWaitersForProject,
+	withAttachmentsRefreshWaitersResolved,
+} from "@/pages/superMagic/services/attachmentsTopicSync"
 import { isCollaborationWorkspace } from "../../constants"
 import { useNoPermissionCollaborationProject } from "../../hooks/useNoPermissionCollaborationProject"
 import { observer } from "mobx-react-lite"
@@ -80,13 +85,14 @@ function ProjectPage() {
 	}, [selectedProject?.id])
 
 	useEffect(() => {
-		pubsub.subscribe(PubSubEvents.Open_File_Tab, (data: { fileId: string; fileData: any }) => {
+		pubsub.subscribe(PubSubEvents.Open_File_Tab, (data) => {
 			// 使用setTimeout确保DOM更新后再打开tab
 			setTimeout(() => {
+				// 允许消息区直接传入临时 fileData，复用右侧详情区打开逻辑。
 				detailRef.current?.openFileTab?.({ file_id: data.fileId })
 			}, 100)
 		})
-		pubsub.subscribe(PubSubEvents.Open_Playback_Tab, (toolData: any) => {
+		pubsub.subscribe(PubSubEvents.Open_Playback_Tab, (toolData) => {
 			// 打开playback tab，用户主动点击时应该强制激活
 			setTimeout(() => {
 				detailRef.current?.openPlaybackTab?.({ toolData, forceActivate: true })
@@ -126,34 +132,40 @@ function ProjectPage() {
 
 	const updateAttachments = useDebounceFn(
 		(selectedProject: any, callback?: () => void) => {
-			if (!selectedProject?.id) {
+			const projectId = selectedProject?.id as string | undefined
+			if (!projectId) {
 				setAttachments([])
 				projectFilesStore.setWorkspaceFileTree([])
+				releaseAttachmentsRefreshWaitersWithoutFetch()
 				return
 			}
 			try {
 				pubsub.publish(PubSubEvents.Update_Attachments_Loading, true)
-				SuperMagicApi.getAttachmentsByProjectId({
-					projectId: selectedProject?.id,
-					// @ts-ignore 使用window添加临时的token
-					temporaryToken: window.temporary_token || "",
-				})
-					.then((res) => {
-						// 统一处理 metadata，包括 index.html 文件的特殊逻辑，内部自闭环处理验证和返回逻辑
-						const processedData = AttachmentDataProcessor.processAttachmentData(res)
-						setAttachments(processedData.tree)
-						setAttachmentList(processedData.list)
-						projectFilesStore.setWorkspaceFileTree(processedData.tree)
-						GlobalMentionPanelStore.finishLoadAttachmentsPromise(selectedProject?.id)
+				withAttachmentsRefreshWaitersResolved(
+					projectId,
+					SuperMagicApi.getAttachmentsByProjectId({
+						projectId,
+						// @ts-ignore 使用window添加临时的token
+						temporaryToken: window.temporary_token || "",
 					})
-					.finally(() => {
-						pubsub.publish(PubSubEvents.Update_Attachments_Loading, false)
-					})
+						.then((res) => {
+							// 统一处理 metadata，包括 index.html 文件的特殊逻辑，内部自闭环处理验证和返回逻辑
+							const processedData = AttachmentDataProcessor.processAttachmentData(res)
+							setAttachments(processedData.tree)
+							setAttachmentList(processedData.list)
+							projectFilesStore.setWorkspaceFileTree(processedData.tree)
+							GlobalMentionPanelStore.finishLoadAttachmentsPromise(projectId)
+						})
+						.finally(() => {
+							pubsub.publish(PubSubEvents.Update_Attachments_Loading, false)
+							callback?.()
+						}),
+				)
 			} catch (error) {
 				console.error("Failed to fetch attachments:", error)
 				setAttachments([])
 				projectFilesStore.setWorkspaceFileTree([])
-			} finally {
+				resolveAttachmentsRefreshWaitersForProject(projectId)
 				callback?.()
 			}
 		},
@@ -182,8 +194,12 @@ function ProjectPage() {
 	}, [userSelectDetail, autoDetail])
 
 	useEffect(() => {
-		pubsub.subscribe(PubSubEvents.Update_Attachments, (callback: any) => {
-			if (!selectedProject) return
+		pubsub.subscribe(PubSubEvents.Update_Attachments, (callback) => {
+			if (!selectedProject) {
+				callback?.()
+				releaseAttachmentsRefreshWaitersWithoutFetch()
+				return
+			}
 
 			updateAttachments(selectedProject, callback)
 		})
@@ -194,7 +210,7 @@ function ProjectPage() {
 	}, [selectedProject])
 
 	useEffect(() => {
-		pubsub.subscribe(PubSubEvents.Super_Magic_Update_Auto_Detail, (data: any) => {
+		pubsub.subscribe(PubSubEvents.Super_Magic_Update_Auto_Detail, (data) => {
 			setAutoDetail(data)
 		})
 		return () => {

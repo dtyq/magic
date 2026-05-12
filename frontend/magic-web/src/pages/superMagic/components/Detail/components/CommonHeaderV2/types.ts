@@ -29,6 +29,8 @@ export interface CurrentFileInfo {
 	type: string
 	url?: string
 	source?: AttachmentSource
+	projectId?: string
+	projectName?: string
 }
 
 export interface ActionContext {
@@ -39,6 +41,7 @@ export interface ActionContext {
 	isShareRoute: boolean
 	isFromNode: boolean
 	isFullscreen: boolean
+	isFullscreenMode: boolean
 	isEditMode: boolean
 	detailMode?: "single" | "files"
 	showDownload: boolean

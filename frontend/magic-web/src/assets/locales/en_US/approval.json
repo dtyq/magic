@@ -43,6 +43,12 @@
 	"batchRevokeConfirmContent": "Confirm to batch revoke the selected delegation records?",
 	"batchTransfer": "Batch Transfer",
 	"bigScreen": "Big Screen",
+	"bootstrap": {
+		"initFailed": "Failed to initialize approvals",
+		"initializing": "Preparing approval data...",
+		"retry": "Retry",
+		"retryHint": "Please try again later"
+	},
 	"cancel": "Cancel",
 	"chaoSongNRen": "CC ${n} people",
 	"chaoSongRen": "CC",

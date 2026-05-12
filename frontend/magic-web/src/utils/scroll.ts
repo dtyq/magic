@@ -6,5 +6,9 @@
  */
 export function resetDocumentScrollPosition() {
 	// 将文档元素滚动到顶部，避免文档位置异常
-	document.documentElement.scrollTo({ top: 0, behavior: "instant" })
+	scrollDocumentToPosition(0)
+}
+
+export function scrollDocumentToPosition(top: number) {
+	document.documentElement.scrollTo({ top: Math.max(0, top), behavior: "instant" })
 }

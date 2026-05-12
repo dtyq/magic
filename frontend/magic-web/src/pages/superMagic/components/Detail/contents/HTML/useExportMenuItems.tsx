@@ -25,6 +25,7 @@ export function useExportMenuItems({
 	showButtonText = true,
 	supportPPT = true,
 	handleExportPptx,
+	showExportPptx = false,
 }: {
 	handleExportSource: () => void
 	handleExportPDF: () => void
@@ -33,6 +34,7 @@ export function useExportMenuItems({
 	showButtonText?: boolean
 	supportPPT?: boolean
 	handleExportPptx?: () => void
+	showExportPptx?: boolean
 }) {
 	const { t } = useTranslation("super")
 	const { styles } = useStyles()
@@ -50,14 +52,8 @@ export function useExportMenuItems({
 				icon: <IconFileTypePdf size={16} stroke={1.5} />,
 				onClick: handleExportPDF,
 			},
-			...(supportPPT && handleExportPPT
+			...(showExportPptx && handleExportPptx
 				? [
-						{
-							key: "ppt",
-							label: t("topicFiles.exportPpt"),
-							icon: <IconFileTypePpt size={16} stroke={1.5} />,
-							onClick: handleExportPPT,
-						},
 						{
 							key: "pptx",
 							label: t("topicFiles.exportPptx"),
@@ -66,8 +62,26 @@ export function useExportMenuItems({
 						},
 					]
 				: []),
+			...(supportPPT && handleExportPPT
+				? [
+						{
+							key: "ppt",
+							label: t("topicFiles.exportPpt"),
+							icon: <IconFileTypePpt size={16} stroke={1.5} />,
+							onClick: handleExportPPT,
+						},
+					]
+				: []),
 		],
-		[handleExportPDF, handleExportPPT, handleExportSource, supportPPT, t],
+		[
+			handleExportPDF,
+			handleExportPPT,
+			handleExportPptx,
+			handleExportSource,
+			showExportPptx,
+			supportPPT,
+			t,
+		],
 	)
 
 	const ExportDropdownButton = (
@@ -76,6 +90,7 @@ export function useExportMenuItems({
 			placement="bottomRight"
 			disabled={isExporting}
 			trigger={["click"]}
+			overlayStyle={{ zIndex: 1050 }}
 		>
 			<span>
 				<ActionButton

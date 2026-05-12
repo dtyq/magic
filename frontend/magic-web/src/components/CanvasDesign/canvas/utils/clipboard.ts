@@ -1,6 +1,6 @@
 import type { LayerElement } from "../types"
 import {
-	validateAndFilterImageFiles,
+	validateAndFilterCanvasFiles,
 	getFileExtensionFromMimeType,
 	isCanvasClipboardData,
 	type ElementClipboardMetadata,
@@ -13,7 +13,7 @@ const ELEMENT_METADATA_MIME_TYPE = "application/x-canvas-element-metadata"
  * 剪贴板解析结果类型
  */
 export type ClipboardParseResult =
-	| { type: "images"; files: File[]; metadata?: ElementClipboardMetadata[] }
+	| { type: "files"; files: File[]; metadata?: ElementClipboardMetadata[] }
 	| { type: "elements"; elements: LayerElement[]; canvasId?: string }
 	| { type: "empty" }
 	| { type: "invalid"; reason: string }
@@ -48,9 +48,9 @@ export async function parseClipboardContent(
 		const eventResult = parseFromClipboardEvent(clipboardEvent)
 		if (eventResult) {
 			// 如果从 ClipboardEvent 获取到图片，但没有 metadata，尝试从 Clipboard API 补充 metadata
-			if (eventResult.type === "images" && !eventResult.metadata) {
+			if (eventResult.type === "files" && !eventResult.metadata) {
 				const clipboardApiResult = await parseFromClipboardAPI(options)
-				if (clipboardApiResult?.type === "images" && clipboardApiResult.metadata) {
+				if (clipboardApiResult?.type === "files" && clipboardApiResult.metadata) {
 					// 合并 metadata
 					eventResult.metadata = clipboardApiResult.metadata
 					// 使用 metadata 的 filename 重命名 File
@@ -118,16 +118,16 @@ function parseFromClipboardEvent(clipboardEvent?: ClipboardEvent): ClipboardPars
 	// 方法1：尝试从 files 获取
 	if (clipboardEvent.clipboardData.files && clipboardEvent.clipboardData.files.length > 0) {
 		const files = Array.from(clipboardEvent.clipboardData.files)
-		const validImageFiles = validateAndFilterImageFiles(files)
+		const validFiles = validateAndFilterCanvasFiles(files)
 
-		if (validImageFiles.length > 0) {
-			return { type: "images", files: validImageFiles }
+		if (validFiles.length > 0) {
+			return { type: "files", files: validFiles }
 		}
 	}
 
 	// 方法2：尝试从 items 获取图片数据（更全面的检查）
 	if (clipboardEvent.clipboardData.items) {
-		const imageFiles: File[] = []
+		const validFiles: File[] = []
 		for (let i = 0; i < clipboardEvent.clipboardData.items.length; i++) {
 			const item = clipboardEvent.clipboardData.items[i]
 
@@ -137,9 +137,9 @@ function parseFromClipboardEvent(clipboardEvent?: ClipboardEvent): ClipboardPars
 				try {
 					const file = item.getAsFile()
 					if (file) {
-						const validImageFiles = validateAndFilterImageFiles([file])
-						if (validImageFiles.length > 0) {
-							imageFiles.push(...validImageFiles)
+						const validCanvasFiles = validateAndFilterCanvasFiles([file])
+						if (validCanvasFiles.length > 0) {
+							validFiles.push(...validCanvasFiles)
 						}
 					}
 				} catch (error) {
@@ -147,8 +147,8 @@ function parseFromClipboardEvent(clipboardEvent?: ClipboardEvent): ClipboardPars
 				}
 			}
 		}
-		if (imageFiles.length > 0) {
-			return { type: "images", files: imageFiles }
+		if (validFiles.length > 0) {
+			return { type: "files", files: validFiles }
 		}
 	}
 
@@ -172,7 +172,7 @@ async function parseFromClipboardAPI(
 	try {
 		const clipboardItems = await read()
 		const parsedItems: Array<{
-			type: "image" | "json"
+			type: "file" | "json"
 			file?: File
 			element?: LayerElement
 			metadata?: ElementClipboardMetadata
@@ -205,8 +205,13 @@ async function parseFromClipboardAPI(
 			}
 		}
 
+		if (parsedItems.length === 0 && clipboardItems.some((item) => item.types.length === 0)) {
+			return { type: "invalid", reason: "clipboard-api-unreadable-items" }
+		}
+
+		const categorizedResult = categorizeParseResults(parsedItems)
 		// 分类处理解析结果
-		return categorizeParseResults(parsedItems)
+		return categorizedResult
 	} catch (error) {
 		// 读取剪贴板失败，返回 null 继续尝试其他方式
 		return null
@@ -218,7 +223,7 @@ async function parseFromClipboardAPI(
  */
 async function parseClipboardItem(item: ClipboardItem): Promise<
 	Array<{
-		type: "image" | "json"
+		type: "file" | "json"
 		file?: File
 		element?: LayerElement
 		metadata?: ElementClipboardMetadata
@@ -226,7 +231,7 @@ async function parseClipboardItem(item: ClipboardItem): Promise<
 	}>
 > {
 	const results: Array<{
-		type: "image" | "json"
+		type: "file" | "json"
 		file?: File
 		element?: LayerElement
 		metadata?: ElementClipboardMetadata
@@ -236,14 +241,14 @@ async function parseClipboardItem(item: ClipboardItem): Promise<
 	// 1. 尝试读取元数据
 	const metadata = await parseMetadata(item)
 
-	// 2. 尝试读取图片
-	const imageResult = await parseImage(item, metadata)
-	if (imageResult) {
-		results.push(imageResult)
+	// 2. 尝试读取文件
+	const fileResult = await parseFile(item, metadata)
+	if (fileResult) {
+		results.push(fileResult)
 		return results
 	}
 
-	// 3. 如果没有图片，尝试读取 JSON 元素
+	// 3. 如果没有文件，尝试读取 JSON 元素
 	const jsonResults = await parseJSON(item)
 	if (jsonResults.length > 0) {
 		results.push(...jsonResults)
@@ -293,13 +298,13 @@ async function parseMetadata(item: ClipboardItem): Promise<ElementClipboardMetad
 }
 
 /**
- * 解析图片
+ * 解析文件（图片/视频）
  */
-async function parseImage(
+async function parseFile(
 	item: ClipboardItem,
 	metadata?: ElementClipboardMetadata,
 ): Promise<{
-	type: "image"
+	type: "file"
 	file: File
 	metadata?: ElementClipboardMetadata
 } | null> {
@@ -309,7 +314,7 @@ async function parseImage(
 			continue
 		}
 
-		if (type.startsWith("image/")) {
+		if (type.startsWith("image/") || type.startsWith("video/")) {
 			try {
 				const blob = await item.getType(type)
 				let filename: string
@@ -322,12 +327,12 @@ async function parseImage(
 					filename = `image.${getFileExtensionFromMimeType(type)}`
 				}
 				const file = new File([blob], filename, { type })
-				const validImageFiles = validateAndFilterImageFiles([file])
+				const validFiles = validateAndFilterCanvasFiles([file])
 
-				if (validImageFiles.length > 0) {
+				if (validFiles.length > 0) {
 					return {
-						type: "image",
-						file: validImageFiles[0],
+						type: "file",
+						file: validFiles[0],
 						metadata,
 					}
 				}
@@ -397,26 +402,26 @@ async function parseJSON(item: ClipboardItem): Promise<
  */
 function categorizeParseResults(
 	parsedItems: Array<{
-		type: "image" | "json"
+		type: "file" | "json"
 		file?: File
 		element?: LayerElement
 		metadata?: ElementClipboardMetadata
 		canvasId?: string
 	}>,
 ): ClipboardParseResult | null {
-	const imageItems = parsedItems.filter((item) => item.type === "image")
+	const fileItems = parsedItems.filter((item) => item.type === "file")
 	const jsonItems = parsedItems.filter((item) => item.type === "json")
 
-	if (imageItems.length > 0) {
-		// 如果有图片，返回图片
-		const files = imageItems
+	if (fileItems.length > 0) {
+		// 如果有文件，返回文件
+		const files = fileItems
 			.map((item) => item.file)
 			.filter((file): file is File => file !== undefined)
-		const metadataList = imageItems
+		const metadataList = fileItems
 			.map((item) => item.metadata)
 			.filter((meta): meta is ElementClipboardMetadata => meta !== undefined)
 		return {
-			type: "images",
+			type: "files",
 			files,
 			metadata: metadataList.length > 0 ? metadataList : undefined,
 		}
@@ -462,7 +467,7 @@ async function parseFromText(
 		}
 		try {
 			clipboardText = await readText()
-		} catch (error) {
+		} catch {
 			// Clipboard API 读取失败，返回 null
 			return null
 		}

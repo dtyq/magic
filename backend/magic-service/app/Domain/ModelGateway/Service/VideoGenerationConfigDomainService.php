@@ -385,6 +385,10 @@ readonly class VideoGenerationConfigDomainService
                 $item['description'] = trim($config['description']);
             }
 
+            if (is_string($config['task'] ?? null) && trim($config['task']) !== '') {
+                $item['task'] = trim($config['task']);
+            }
+
             $supportedFields = self::normalizeStringList($config['supported_fields'] ?? []);
             if ($supportedFields !== []) {
                 $item['supported_fields'] = $supportedFields;
@@ -409,6 +413,10 @@ readonly class VideoGenerationConfigDomainService
             } elseif (is_array($config['total_count'] ?? null)) {
                 $totalCount = $config['total_count'];
                 $item['max_count'] = max(0, (int) ($totalCount['max'] ?? 0));
+            }
+
+            if (is_array($config['variants'] ?? null) && $config['variants'] !== []) {
+                $item['variants'] = array_values($config['variants']);
             }
 
             $normalized[$mode] = $item;

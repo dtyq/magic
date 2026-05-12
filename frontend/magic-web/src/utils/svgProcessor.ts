@@ -10,6 +10,42 @@ export interface SvgProcessResult {
 	error?: string
 }
 
+function isSvgDataUrl(src: string): boolean {
+	return src.startsWith("data:image/svg+xml")
+}
+
+function isSvgMarkup(src: string): boolean {
+	return src.trim().startsWith("<svg")
+}
+
+export function isInlineSvgContent(src: string): boolean {
+	if (!src) return false
+
+	return isSvgDataUrl(src) || isSvgMarkup(src)
+}
+
+export function isMermaidSvgContent(src: string): boolean {
+	if (!isInlineSvgContent(src)) return false
+
+	return (
+		/src=["']?#?mermaid[_-]/i.test(src) ||
+		/id=["']mermaid[_-]/i.test(src) ||
+		/#mermaid[_-]/i.test(src) ||
+		/aria-roledescription=["'][^"']*flowchart/i.test(src) ||
+		/class=["'][^"']*(flowchart|sequenceDiagram|classDiagram|stateDiagram)/i.test(src)
+	)
+}
+
+export function shouldExportSvgAsPng(src: string): boolean {
+	return isMermaidSvgContent(src)
+}
+
+function isSvgUrl(src: string): boolean {
+	if (!src) return false
+
+	return /\.svg(?:$|[?#])/i.test(src)
+}
+
 /**
  * Safely process SVG content from various sources
  * @param src - SVG source (data URL, raw SVG, or file URL)
@@ -17,21 +53,19 @@ export interface SvgProcessResult {
  */
 export function processSvgContent(src: string): SvgProcessResult {
 	try {
-		// Handle data URLs
-		if (src.startsWith("data:image/svg+xml")) {
+		if (isSvgDataUrl(src)) {
 			return processDataUrl(src)
 		}
 
-		// Handle raw SVG content
-		if (src.trim().startsWith("<svg")) {
+		if (isSvgMarkup(src)) {
 			return processSvgString(src)
 		}
 
-		// Handle file URLs ending with .svg
-		if (src.endsWith(".svg")) {
+		if (isSvgUrl(src)) {
 			return {
 				content: src,
-				isValid: true,
+				isValid: false,
+				error: "SVG URL should be loaded before processing",
 			}
 		}
 
@@ -165,21 +199,5 @@ export function isSvgContent(src: string, fileExtension?: string): boolean {
 		return fileExtension === "svg" || fileExtension === "svg+xml"
 	}
 
-	// If no file extension provided, check content patterns
-	// Check data URL
-	if (src.startsWith("data:image/svg+xml")) {
-		return true
-	}
-
-	// Check file extension in URL
-	if (src.endsWith(".svg")) {
-		return true
-	}
-
-	// Check raw SVG content
-	if (src.trim().startsWith("<svg")) {
-		return true
-	}
-
-	return false
+	return isInlineSvgContent(src) || isSvgUrl(src)
 }

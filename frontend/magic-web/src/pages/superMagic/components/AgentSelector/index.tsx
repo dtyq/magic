@@ -16,7 +16,7 @@ import { useMemoizedFn } from "ahooks"
 import { DraggableCommonAgentProps, Agent, DragItem, AgentType, IconType } from "./types"
 import AddAgentIcon from "@/pages/superMagic/assets/svg/addAgentIcon.svg"
 import { useTranslation } from "react-i18next"
-import pubsub from "@/utils/pubsub"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { getModeBgColor } from "@/pages/superMagic/components/TopicMode/modeColor"
 import { SuperMagicApi } from "@/apis"
 import SmartTooltip from "@/components/other/SmartTooltip"
@@ -343,9 +343,9 @@ export default function AgentSelector(props: {
 
 	useEffect(() => {
 		fetchAgents()
-		pubsub.subscribe("super_magic_update_agents", fetchAgents)
+		pubsub.subscribe(PubSubEvents.Update_Agents, fetchAgents)
 		return () => {
-			pubsub.unsubscribe("super_magic_update_agents")
+			pubsub.unsubscribe(PubSubEvents.Update_Agents)
 		}
 	}, [fetchAgents])
 

@@ -47,11 +47,11 @@ class GenerateVideoFormRequest extends FormRequest
 
     public function rules(): array
     {
-        $taskValues = implode(',', DesignVideoCreateDTO::SUPPORTED_TASKS);
+        $taskValues = implode(',', DesignVideoCreateDTO::supportedTasks());
         $referenceImageTypes = implode(',', DesignVideoCreateDTO::REFERENCE_IMAGE_TYPES);
         $serviceTiers = implode(',', DesignVideoCreateDTO::SERVICE_TIERS);
         $frameRoles = implode(',', DesignVideoCreateDTO::FRAME_ROLES);
-        $inputModes = implode(',', DesignVideoCreateDTO::INPUT_MODES);
+        $inputModes = implode(',', DesignVideoCreateDTO::inputModes());
 
         return [
             'project_id' => 'required|integer|min:' . self::MAX_PROJECT_ID,

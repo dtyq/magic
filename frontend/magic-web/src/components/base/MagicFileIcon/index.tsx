@@ -31,6 +31,7 @@ const iconNameMap: Record<string, string> = {
 	ogg: "audio",
 	flac: "audio",
 	aac: "audio",
+	audio: "audio-project",
 	mp4: "video",
 	avi: "video",
 	mov: "video",
@@ -86,6 +87,9 @@ const iconNameMap: Record<string, string> = {
 	design: "design",
 	replay: "replay",
 	playback: "replay",
+	custom: "custom",
+	customFile: "custom",
+	"self-media": "self-media",
 }
 
 function normalizeExtension(fileExtension?: string): string | null {
@@ -155,6 +159,8 @@ interface MagicFileIconProps {
 	size?: number
 	className?: string
 	style?: React.CSSProperties
+	/** 例如 custom 文件夹 icon 解析后的临时 URL；加载失败时回退内置类型图标 */
+	remoteIconUrl?: string
 }
 
 const useStyles = createStyles(() => ({
@@ -176,10 +182,16 @@ export default memo(function MagicFileIcon({
 	size = 24,
 	className,
 	style,
+	remoteIconUrl,
 }: MagicFileIconProps) {
 	const { styles } = useStyles()
 
 	const [icon, setIcon] = useState<string | null>(() => getFileIconByType(type) || null)
+	const [remoteFailed, setRemoteFailed] = useState(false)
+
+	useEffect(() => {
+		setRemoteFailed(false)
+	}, [remoteIconUrl])
 
 	useEffect(() => {
 		let isMounted = true
@@ -197,6 +209,23 @@ export default memo(function MagicFileIcon({
 			isMounted = false
 		}
 	}, [type])
+
+	if (remoteIconUrl && !remoteFailed) {
+		return (
+			<div
+				className={cx(styles.fileIcon, className)}
+				style={{ width: size, height: size, ...style }}
+			>
+				<img
+					src={remoteIconUrl}
+					draggable={false}
+					alt={type}
+					className={styles.image}
+					onError={() => setRemoteFailed(true)}
+				/>
+			</div>
+		)
+	}
 
 	if (!icon) {
 		return <FileTypeIcon type={type} size={size} className={className} style={style} />

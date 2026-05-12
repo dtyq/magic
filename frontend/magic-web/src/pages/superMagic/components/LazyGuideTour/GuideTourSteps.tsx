@@ -10,7 +10,7 @@ export function getWorkspaceGuideTourSteps(t: TFunction): TourProps["steps"] {
 		{
 			title: t("superMagic.title"),
 			description: t("superMagic.description"),
-			target: document.getElementById(GuideTourElementId.MessagePanel) || null,
+			target: document.getElementById(GuideTourElementId.RoleSwitcher) || null,
 		},
 		{
 			title: t("agent.title"),
@@ -39,7 +39,7 @@ export function getWorkspaceGuideTourSteps(t: TFunction): TourProps["steps"] {
 					</div>
 				</Flex>
 			),
-			target: document.getElementById(GuideTourElementId.TopicModeTabs) || null,
+			target: document.getElementById(GuideTourElementId.MessagePanel) || null,
 		},
 		{
 			title: t("mcp.title"),

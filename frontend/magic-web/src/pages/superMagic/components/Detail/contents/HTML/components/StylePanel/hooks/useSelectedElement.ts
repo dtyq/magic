@@ -4,6 +4,26 @@ import { type SelectedElementInfo } from "../../../iframe-bridge/stores/StylePan
 import { useStylePanelStore } from "../../../iframe-bridge/contexts/StylePanelContext"
 
 /**
+ * Keep non-style metadata stable when computed styles are refreshed.
+ * This prevents image-only controls from disappearing after width/height updates.
+ */
+function buildRefreshedSelectedElement(
+	previousElement: SelectedElementInfo,
+	computedStyles: SelectedElementInfo["computedStyles"],
+): SelectedElementInfo {
+	return {
+		selector: previousElement.selector,
+		tagName: previousElement.tagName,
+		isImageElement: previousElement.isImageElement,
+		intrinsicWidth: previousElement.intrinsicWidth,
+		intrinsicHeight: previousElement.intrinsicHeight,
+		intrinsicAspectRatio: previousElement.intrinsicAspectRatio,
+		isTextElement: previousElement.isTextElement,
+		computedStyles,
+	}
+}
+
+/**
  * 使用选中元素的 Hook
  * 处理元素选择、样式更新等逻辑
  */
@@ -30,14 +50,12 @@ export function useSelectedElement(editorRef: React.RefObject<HTMLEditorV2Ref>) 
 			if (textStyles && Object.keys(textStyles).length > 0) {
 				// Update the selectedElement with text selection styles
 				// This ensures the style panel displays the correct styles
-				stylePanelStore.selectElement({
-					selector: stylePanelStore.selectedElement.selector,
-					tagName: stylePanelStore.selectedElement.tagName,
-					computedStyles: {
+				stylePanelStore.selectElement(
+					buildRefreshedSelectedElement(stylePanelStore.selectedElement, {
 						...stylePanelStore.selectedElement.computedStyles,
 						...textStyles,
-					} as any,
-				})
+					} as any),
+				)
 			}
 		} catch (error) {
 			console.debug("[useSelectedElement] Failed to update text selection styles:", error)
@@ -137,12 +155,12 @@ export function useSelectedElement(editorRef: React.RefObject<HTMLEditorV2Ref>) 
 						)
 
 						if (updatedStyles && Object.keys(updatedStyles).length > 0) {
-							stylePanelStore.selectElement({
-								selector: selectors[0],
-								tagName: stylePanelStore.selectedElement.tagName,
-								computedStyles:
+							stylePanelStore.selectElement(
+								buildRefreshedSelectedElement(
+									stylePanelStore.selectedElement,
 									updatedStyles as SelectedElementInfo["computedStyles"],
-							})
+								),
+							)
 						}
 					}
 					// For multi-select, we don't update computed styles as they may differ
@@ -193,12 +211,12 @@ export function useSelectedElement(editorRef: React.RefObject<HTMLEditorV2Ref>) 
 						)
 
 						if (updatedStyles && Object.keys(updatedStyles).length > 0) {
-							stylePanelStore.selectElement({
-								selector: selectors[0],
-								tagName: stylePanelStore.selectedElement.tagName,
-								computedStyles:
+							stylePanelStore.selectElement(
+								buildRefreshedSelectedElement(
+									stylePanelStore.selectedElement,
 									updatedStyles as SelectedElementInfo["computedStyles"],
-							})
+								),
+							)
 						}
 					}
 				}

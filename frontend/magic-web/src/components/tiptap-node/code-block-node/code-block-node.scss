@@ -1,20 +1,14 @@
 /* =====================
    CODE FORMATTING (GitHub Markdown Style)
    ===================== */
-.tiptap.ProseMirror {
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
+
+@include scope.content {
   --tt-inline-code-bg-color: var(--tt-gray-light-a-100);
   --tt-inline-code-text-color: var(--tt-gray-light-900);
   --tt-codeblock-bg: var(--tt-gray-light-50);
   --tt-codeblock-text: var(--tt-gray-light-900);
   --tt-codeblock-border: var(--tt-gray-light-a-200);
-
-  .dark & {
-    --tt-inline-code-bg-color: var(--tt-gray-dark-a-100);
-    --tt-inline-code-text-color: var(--tt-gray-dark-100);
-    --tt-codeblock-bg: var(--tt-gray-dark-a-50);
-    --tt-codeblock-text: var(--tt-gray-dark-100);
-    --tt-codeblock-border: var(--tt-gray-dark-a-200);
-  }
 
   // Inline code
   code {
@@ -89,4 +83,12 @@
   .code-block-node-view {
     border: none;
   }
+}
+
+@include scope.dark-content {
+  --tt-inline-code-bg-color: var(--tt-gray-dark-a-100);
+  --tt-inline-code-text-color: var(--tt-gray-dark-100);
+  --tt-codeblock-bg: var(--tt-gray-dark-a-50);
+  --tt-codeblock-text: var(--tt-gray-dark-100);
+  --tt-codeblock-border: var(--tt-gray-dark-a-200);
 }

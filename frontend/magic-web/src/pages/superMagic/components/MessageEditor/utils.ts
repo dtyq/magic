@@ -74,3 +74,18 @@ export const generateTextFromJSONContent = (value: JSONContent | undefined) => {
 export const isEmptyJSONContent = (value: JSONContent | undefined) => {
 	return generateTextFromJSONContent(value).trim() === ""
 }
+
+/** TipTap doc from plain text; blank lines split paragraphs */
+export function buildPlainTextJSONContent(text: string): JSONContent {
+	const paragraphs = text
+		.split(/\n{2,}/)
+		.filter((paragraph) => paragraph.trim())
+		.map((paragraph) => ({
+			type: "paragraph",
+			content: [{ type: "text", text: paragraph }],
+		}))
+
+	if (paragraphs.length === 0) return { type: "doc", content: [] }
+
+	return { type: "doc", content: paragraphs }
+}

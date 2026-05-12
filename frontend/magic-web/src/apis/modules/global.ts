@@ -1,5 +1,5 @@
 import { genRequestUrl } from "@/utils/http"
-import { HttpClient } from "../core/HttpClient"
+import { HttpClient, RequestConfig } from "../core/HttpClient"
 
 import { AppMenuItem, GlobalConfig, SettingsAll, GetSettingsGlobalDataResponse } from "../types"
 import { LongMemory } from "@/types/longMemory"
@@ -21,13 +21,14 @@ export const generateGlobalApi = (fetch: HttpClient) => ({
 	 * /api/v1/file/default-icons
 	 * @returns GlobalConfig & { default_icons: string }
 	 */
-	getSettingsAll() {
+	getSettingsAll(options?: Pick<RequestConfig, "skipAppInitWait">) {
 		return fetch.get<SettingsAll>(genRequestUrl("/api/v1/settings/all"), {
 			headers: {
 				"X-Magic-Image-Process": buildImageProcessQuery({
 					format: "webp",
 				}),
 			},
+			...options,
 		})
 	},
 

@@ -3,6 +3,7 @@ import type { Editor, JSONContent } from "@tiptap/react"
 import { useMemoizedFn } from "ahooks"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import type { DraftStore } from "../stores"
+import type { SendMessageByContentPayload } from "../types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import {
 	insertMentionFromDroppedData,
@@ -19,7 +20,7 @@ interface UseMessageEditorPubSubParams {
 	draftStore: DraftStore
 	updateContent: (content: JSONContent | undefined) => void
 	enableMessageSendByContent: boolean
-	onSendMessageByContent: (data: { jsonContent: JSONContent }) => void
+	onSendMessageByContent: (data: SendMessageByContentPayload) => void
 }
 
 interface AddContentPayload {
@@ -27,10 +28,6 @@ interface AddContentPayload {
 	extraData?: {
 		hasInput?: boolean
 	}
-}
-
-interface ReEditPayload {
-	content?: string
 }
 
 type DragData = TabDragData | AttachmentDragData | MultipleFilesDragData | PPTSlideDragData
@@ -46,6 +43,15 @@ function isDragData(data: unknown): data is DragData {
 		dragType === DRAG_TYPE.MultipleFiles ||
 		dragType === DRAG_TYPE.PPTSlide
 	)
+}
+
+function safeEditorFocus(editor: Editor | null) {
+	if (!editor || editor.isDestroyed) return
+	try {
+		editor.commands.focus()
+	} catch {
+		// view may not be mounted yet during rapid state transitions
+	}
 }
 
 function useMessageEditorPubSub({
@@ -73,7 +79,7 @@ function useMessageEditorPubSub({
 						}))
 						editor?.commands.insertContent(mentions)
 						if (autoFocus) {
-							editor?.commands.focus()
+							safeEditorFocus(editor)
 							if (isMobile) {
 								editor?.commands.scrollIntoView()
 							}
@@ -83,10 +89,10 @@ function useMessageEditorPubSub({
 			}, 400)
 		}
 
-		pubsub.subscribe("super_magic_add_file_to_chat", handleAddFileToChat)
+		pubsub.subscribe(PubSubEvents.Add_File_To_Chat, handleAddFileToChat)
 
 		return () => {
-			pubsub.unsubscribe("super_magic_add_file_to_chat", handleAddFileToChat)
+			pubsub.unsubscribe(PubSubEvents.Add_File_To_Chat, handleAddFileToChat)
 		}
 	}, [editor, isMobile, draftStore])
 
@@ -96,11 +102,11 @@ function useMessageEditorPubSub({
 			insertMentionFromDroppedData({ editor, data: dragData })
 		}
 
-		pubsub.subscribe("super_magic_insert_drag_data_to_editor", handleInsertDragDataToEditor)
+		pubsub.subscribe(PubSubEvents.Insert_Drag_Data_To_Editor, handleInsertDragDataToEditor)
 
 		return () => {
 			pubsub.unsubscribe(
-				"super_magic_insert_drag_data_to_editor",
+				PubSubEvents.Insert_Drag_Data_To_Editor,
 				handleInsertDragDataToEditor,
 			)
 		}
@@ -112,7 +118,7 @@ function useMessageEditorPubSub({
 		if (extraData?.hasInput) {
 			editor?.commands?.focusFirstSuperPlaceholder?.()
 		} else {
-			editor?.commands.focus()
+			safeEditorFocus(editor)
 		}
 	})
 
@@ -122,20 +128,6 @@ function useMessageEditorPubSub({
 			pubsub.unsubscribe(PubSubEvents.Add_Content_To_Chat, handleAddContent)
 		}
 	}, [handleAddContent])
-
-	const handleReEdit = useMemoizedFn((node: ReEditPayload) => {
-		if (node?.content) {
-			updateContent(JSON.parse(node.content))
-		}
-		editor?.commands.focus()
-	})
-
-	useEffect(() => {
-		pubsub.subscribe(PubSubEvents.Re_Edit_Message, handleReEdit)
-		return () => {
-			pubsub.unsubscribe(PubSubEvents.Re_Edit_Message, handleReEdit)
-		}
-	}, [handleReEdit])
 
 	useEffect(() => {
 		const handleSetInputMessage = (message: string) => {
@@ -155,7 +147,7 @@ function useMessageEditorPubSub({
 				],
 			}
 			updateContent(content)
-			editor?.commands.focus()
+			safeEditorFocus(editor)
 		}
 		pubsub.subscribe(PubSubEvents.Set_Input_Message, handleSetInputMessage)
 		return () => {
@@ -186,11 +178,35 @@ function useMessageEditorPubSub({
 				],
 			}
 			updateContent(content)
-			editor?.commands.focus()
+			safeEditorFocus(editor)
 		}
 		pubsub.subscribe(PubSubEvents.Set_Demo_Text_To_Input, handleInsertDemoText)
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Set_Demo_Text_To_Input, handleInsertDemoText)
+		}
+	}, [editor, updateContent])
+
+	useEffect(() => {
+		const handleAppendSuggestion = (text: string) => {
+			if (typeof text !== "string" || !text || !editor) return
+
+			const newParagraph: JSONContent = {
+				type: "paragraph",
+				content: [{ type: "text", text }],
+			}
+			const currentContent = editor.getJSON()
+			const mergedContent: JSONContent = !editor?.isEmpty
+				? {
+						...currentContent,
+						content: [...(currentContent.content ?? []), newParagraph],
+					}
+				: { type: "doc", content: [newParagraph] }
+			updateContent(mergedContent)
+			safeEditorFocus(editor)
+		}
+		pubsub.subscribe(PubSubEvents.Append_Suggestion_To_Editor, handleAppendSuggestion)
+		return () => {
+			pubsub.unsubscribe(PubSubEvents.Append_Suggestion_To_Editor, handleAppendSuggestion)
 		}
 	}, [editor, updateContent])
 }

@@ -9,18 +9,18 @@ export function withLoginService<P extends object = NonNullable<unknown>>(
 	{
 		service,
 		onClusterChange,
-		autoSyncWhenGlobalClusterCodeChanged,
+		syncFromGlobalClusterCode,
 	}: {
 		service: ServiceContainer
 		onClusterChange?: (code: string) => void
-		autoSyncWhenGlobalClusterCodeChanged?: boolean
+		syncFromGlobalClusterCode?: boolean
 	},
 ): (props: P) => ReactElement {
 	return (props: P) => {
 		return (
 			<ClusterProvider
 				onClusterChange={onClusterChange}
-				autoSyncWhenGlobalClusterCodeChanged={autoSyncWhenGlobalClusterCodeChanged}
+				syncFromGlobalClusterCode={syncFromGlobalClusterCode}
 			>
 				<LoginServiceProvider service={service}>
 					<WrapperComponent {...props} />

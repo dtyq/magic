@@ -696,7 +696,7 @@ class AgentHorizon:
 
     async def update_video_model(self, model_id: str, config: dict) -> None:
         """用户消息处理时调用，检测视频模型配置是否变化；变化则标记需注入并持久化。"""
-        if not model_id or not config:
+        if not model_id:
             return
         await self._ensure_loaded()
         try:
@@ -739,6 +739,7 @@ class AgentHorizon:
         """统一构建紧凑媒体模型信息，避免首次和增量注入格式漂移。"""
         media_parts: list[str] = []
         has_video = False
+        has_video_config = False
 
         # 首次注入和增量注入共用这一层组装，目的是让模型始终看到同一种结构，
         # 避免 initial_context 和 model_info 里出现两套不同格式，增加理解负担。
@@ -766,6 +767,7 @@ class AgentHorizon:
             if video_text:
                 media_parts.append(video_text)
                 has_video = True
+                has_video_config = bool(vid.config)
 
         if not media_parts:
             return []
@@ -777,7 +779,10 @@ class AgentHorizon:
             "<media_model_info>",
             *media_parts,
             "</media_model_info>",
-            VideoModelConfigService.build_media_model_rules(has_video=has_video),
+            VideoModelConfigService.build_media_model_rules(
+                has_video=has_video,
+                has_video_config=has_video_config,
+            ),
         ]
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -947,7 +952,7 @@ class AgentHorizon:
             init_parts.extend(
                 self._build_media_model_info(
                     include_image=bool(self._state.image_model.model_id and self._state.image_model.sizes),
-                    include_video=bool(self._state.video_model.model_id and self._state.video_model.config),
+                    include_video=bool(self._state.video_model.model_id),
                     image_changed=False,
                     video_changed=False,
                 )
@@ -1009,7 +1014,7 @@ class AgentHorizon:
                 model_info_parts.extend(
                     self._build_media_model_info(
                         include_image=self._image_model_changed and bool(self._state.image_model.model_id),
-                        include_video=self._video_model_changed and bool(self._state.video_model.model_id and self._state.video_model.config),
+                        include_video=self._video_model_changed and bool(self._state.video_model.model_id),
                         image_changed=self._image_model_changed,
                         video_changed=self._video_model_changed,
                     )

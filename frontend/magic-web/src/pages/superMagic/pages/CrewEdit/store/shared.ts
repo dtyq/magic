@@ -15,7 +15,7 @@ import {
 /** Steps in the crew edit workflow */
 export const CREW_EDIT_STEP = {
 	Identity: "identity",
-	KnowledgeBase: "knowledge-base",
+	KnowledgeBase: "knowledge",
 	Skills: "skills",
 	RunAndDebug: "run-and-debug",
 	Publishing: "publishing",
@@ -41,7 +41,7 @@ export type CrewSidebarTab = (typeof CREW_SIDEBAR_TAB)[keyof typeof CREW_SIDEBAR
 
 export const CREW_PANEL_ENABLED = {
 	[CREW_EDIT_STEP.Identity]: false,
-	[CREW_EDIT_STEP.KnowledgeBase]: false,
+	[CREW_EDIT_STEP.KnowledgeBase]: true,
 	[CREW_EDIT_STEP.Skills]: true,
 	[CREW_EDIT_STEP.RunAndDebug]: false,
 	[CREW_EDIT_STEP.Publishing]: true,

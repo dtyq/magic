@@ -30,9 +30,10 @@ export interface AttachmentItem {
 	canDrop?: boolean
 	[key: string]: any
 	relative_file_path?: string
-	source: AttachmentSource
+	source?: AttachmentSource
 	task_id?: string
 	topic_id?: string
+	display_config?: any
 }
 
 // 文件夹项类型

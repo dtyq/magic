@@ -18,16 +18,19 @@ from typing import Any, ClassVar, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from agentlang.context.tool_context import ToolContext
+from agentlang.event.event import EventType
 from agentlang.logger import get_logger
 from agentlang.path_manager import PathManager
 from agentlang.tools.tool_result import ToolResult
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.core.entity.tool.tool_result_types import ImageToolResult
 from app.i18n import i18n
-from app.service.media_generation_service import (
-    AI_IMAGE_GENERATION_SOURCE,
-    notify_generated_media_file,
+from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
+from app.infrastructure.sdk.magic_service.parameter.update_file_source_parameter import (
+    FileSource,
+    UpdateFileSourceParameter,
 )
+from app.service.media_generation_service import AI_IMAGE_GENERATION_SOURCE
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.image_utils import (
@@ -47,7 +50,7 @@ from app.tools.media_generator import (
 )
 from app.tools.media_generator.base import ImageGenerationProviderError
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_copy2, async_exists, async_mkdir, async_stat, async_unlink
+from app.utils.async_file_utils import async_copy2, async_exists, async_mkdir, async_stat, async_unlink, get_file_id_from_xattr
 
 logger = get_logger(__name__)
 
@@ -238,6 +241,10 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
         if "base_dir" not in data:
             data["base_dir"] = PathManager.get_workspace_dir()
         super().__init__(**data)
+
+    async def _dispatch_file_event(self, tool_context: ToolContext, filepath: str, event_type: EventType, is_screenshot: bool = False, source: int = AI_IMAGE_GENERATION_SOURCE) -> None:
+        """分发文件创建/更新事件，source=5 (AI图片生成)"""
+        await super()._dispatch_file_event(tool_context, filepath, event_type, is_screenshot=False, source=AI_IMAGE_GENERATION_SOURCE)
 
     async def execute_purely(
         self, tool_context: ToolContext, params: GenerateImagesParams
@@ -484,14 +491,19 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
             logger.warning(f"清理临时文件失败: {image.temp_file_path}, 错误: {e}")
 
         try:
-            await notify_generated_media_file(
-                file_path=str(save_path),
-                base_dir=self.base_dir,
-                file_existed=file_existed,
-                source=AI_IMAGE_GENERATION_SOURCE,
-            )
+            file_id_str = await get_file_id_from_xattr(str(save_path))
+            if file_id_str:
+                sdk = get_magic_service_sdk()
+                param = UpdateFileSourceParameter(
+                    file_id=int(file_id_str),
+                    source=FileSource.AI_IMAGE_GENERATION,
+                )
+                await sdk.file.update_file_source_async(param)
+                logger.info(f"Updated file source: file_id={file_id_str}, source={FileSource.AI_IMAGE_GENERATION}")
+            else:
+                logger.warning(f"No file_id found in xattr, skipping update_file_source: {save_path}")
         except Exception as e:
-            logger.warning(f"发送文件通知失败: {e}")
+            logger.warning(f"Failed to update file source: {e}")
 
         return str(save_path)
 

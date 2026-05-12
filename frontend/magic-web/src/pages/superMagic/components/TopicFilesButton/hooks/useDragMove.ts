@@ -13,7 +13,6 @@ import {
 import type { AttachmentItem } from "./types"
 import type { TreeNodeData } from "../utils/treeDataConverter"
 import { processDroppedItems } from "../utils/file-system"
-import { getTargetUploadPath } from "../utils/path-helper"
 import magicToast from "@/components/base/MagicToaster/utils"
 
 // 拖拽移动配置选项
@@ -29,9 +28,11 @@ interface UseDragMoveOptions {
 	/** 是否允许外部文件拖拽上传 */
 	allowExternalDrop?: boolean
 	/** 外部文件上传回调 */
-	onUploadFiles?: (files: File[], targetPath: string, isFolder: boolean) => Promise<void>
-	/** 附件列表（用于路径计算） */
-	attachments?: AttachmentItem[]
+	onUploadFiles?: (
+		files: File[],
+		targetItem: AttachmentItem | undefined,
+		isFolder: boolean,
+	) => Promise<void>
 }
 
 // 拖拽移动状态
@@ -276,7 +277,7 @@ function setDragData(dataTransfer: DataTransfer, fileIds: string[]) {
 		fileIds,
 	}
 	dataTransfer.setData("application/json", JSON.stringify(data))
-	dataTransfer.effectAllowed = "move"
+	dataTransfer.effectAllowed = "copyMove"
 }
 
 /**
@@ -403,7 +404,6 @@ export function useDragMove({
 	isMoving = false,
 	allowExternalDrop = false,
 	onUploadFiles,
-	attachments = [],
 }: UseDragMoveOptions): UseDragMoveReturn {
 	const { t } = useTranslation("super")
 
@@ -1016,9 +1016,6 @@ export function useDragMove({
 					return
 				}
 
-				// 计算目标路径
-				const targetPath = getTargetUploadPath(targetItem, attachments)
-
 				// 使用新的 processDroppedItems 函数来处理混合拖拽
 				const { standaloneFiles, folders } = await processDroppedItems(dataTransfer, debug)
 
@@ -1026,8 +1023,9 @@ export function useDragMove({
 					console.log("📤 外部文件上传:", {
 						standaloneFilesCount: standaloneFiles.length,
 						foldersCount: folders.length,
-						targetPath,
-						targetName: targetItem?.file_name || "根目录",
+						targetItem: targetItem
+							? `${targetItem.file_name} (id: ${targetItem.file_id})`
+							: "根目录",
 					})
 				}
 
@@ -1040,7 +1038,7 @@ export function useDragMove({
 					if (debug) {
 						console.log(`📄 上传 ${standaloneFiles.length} 个单独文件`)
 					}
-					uploadTasks.push(onUploadFiles(standaloneFiles, targetPath, false))
+					uploadTasks.push(onUploadFiles(standaloneFiles, targetItem ?? undefined, false))
 				}
 
 				// 2. 处理文件夹
@@ -1051,7 +1049,7 @@ export function useDragMove({
 							`📁 上传文件夹: "${folder.name}"，包含 ${folder.files.length} 个文件`,
 						)
 					}
-					uploadTasks.push(onUploadFiles(folder.files, targetPath, true))
+					uploadTasks.push(onUploadFiles(folder.files, targetItem ?? undefined, true))
 				}
 
 				// 等待所有上传任务创建完成
@@ -1067,7 +1065,7 @@ export function useDragMove({
 				magicToast.error(t("topicFiles.contextMenu.uploadError", "文件上传失败"))
 			}
 		},
-		[allowExternalDrop, onUploadFiles, attachments, debug, t],
+		[allowExternalDrop, onUploadFiles, debug, t],
 	)
 
 	// 拖拽放置到目标

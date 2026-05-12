@@ -1,4 +1,5 @@
 import type { HttpClient } from "@/apis/core/HttpClient"
+import type { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
 import { genRequestUrl } from "@/utils/http"
 
 import { SupportLocales } from "@/constants/locale"
@@ -6,7 +7,12 @@ import { SupportLocales } from "@/constants/locale"
 // ======================== Types ========================
 
 /** Publisher type for store skills */
-export type SkillPublisherType = "USER" | "OFFICIAL" | "VERIFIED_CREATOR" | "PARTNER"
+export type SkillPublisherType =
+	| "USER"
+	| "OFFICIAL"
+	| "OFFICIAL_BUILTIN"
+	| "VERIFIED_CREATOR"
+	| "PARTNER"
 
 /** Source type for user skills */
 export type SkillSourceType =
@@ -20,6 +26,14 @@ export type SkillSourceType =
 
 /** Publish status */
 export type SkillPublishStatus = "PUBLISHED" | "UNPUBLISHED"
+
+/** Review status for published skill versions */
+export type SkillVersionReviewStatus =
+	| "PENDING"
+	| "UNDER_REVIEW"
+	| "APPROVED"
+	| "REJECTED"
+	| "INVALIDATED"
 
 /**
  * i18n text object for skills.
@@ -43,6 +57,14 @@ export interface SkillCreatorInfo {
 	avatar: string
 }
 
+/** Creator info returned by single skill detail APIs */
+export interface SkillDetailCreatorInfo {
+	id: string
+	name: string
+	avatar: string
+	operate_at: string
+}
+
 // ======================== Store Skills ========================
 
 /** Query params for getting store skills list */
@@ -59,6 +81,8 @@ export interface StoreSkillItem {
 	id: string
 	skill_code: string
 	user_skill_code?: string
+	package_name?: string
+	is_featured?: boolean
 	/** Latest published version; empty string if unavailable */
 	latest_version?: string
 	name_i18n: SkillI18nText
@@ -98,6 +122,8 @@ export interface GetSkillsParams {
 export interface SkillItem {
 	id: string
 	code: string
+	user_role?: CollaboratorPermission
+	package_name?: string
 	/** Resolved name for current locale (optional; from API) */
 	name?: string
 	/** Resolved description for current locale (optional; from API) */
@@ -118,6 +144,9 @@ export interface SkillItem {
 	need_upgrade?: boolean
 	/** Creator profile for team-shared / market-installed / visible lists */
 	creator_info?: SkillCreatorInfo | null
+	/** Publisher profile for market-installed lists */
+	publisher_type?: SkillPublisherType
+	publisher?: SkillPublisher | null
 	updated_at: string
 	created_at: string
 }
@@ -145,6 +174,7 @@ export interface GetSkillLastVersionsParams {
 export interface SkillLastVersionItem {
 	id: string
 	code: string
+	package_name?: string
 	version: string
 	/** Resolved name for current locale */
 	name: string
@@ -210,6 +240,7 @@ export interface ParseSkillResponse {
 	skill_id: number | null
 	name_i18n: SkillI18nText
 	description_i18n: SkillI18nText
+	source_i18n?: SkillI18nText
 	logo: string
 }
 
@@ -224,6 +255,7 @@ export interface ImportSkillParams {
 	import_token: string
 	name_i18n: SkillI18nText
 	description_i18n: SkillI18nText
+	source_i18n?: SkillI18nText
 	logo?: string
 	source_type?: SkillSourceType
 }
@@ -246,11 +278,13 @@ export interface SkillDetailResponse {
 	pinned_at: string | null
 	name_i18n: SkillI18nText
 	description_i18n: SkillI18nText
+	source_i18n: SkillI18nText
 	logo: string
 	package_name: string
 	package_description: string | null
 	file_key: string
 	file_url: string
+	skill_file_url: string
 	source_id: number | null
 	source_meta: Record<string, unknown> | null
 	created_at: string
@@ -260,6 +294,29 @@ export interface SkillDetailResponse {
 	latest_published_at?: string | null
 	publish_type?: PublishToType | null
 	allowed_publish_target_types?: AllowedPublishTargetType[]
+	creator_info?: SkillDetailCreatorInfo | null
+	is_featured?: boolean
+}
+
+/** Response data for single market skill detail */
+export interface SkillMarketDetailResponse {
+	code: string
+	name: string
+	description: string
+	source: string
+	name_i18n: SkillI18nText
+	description_i18n: SkillI18nText
+	source_i18n: SkillI18nText
+	skill_file_url: string
+	version_code: string
+	package_name: string
+	version_created_at: string
+	logo: string
+	publisher_type: SkillPublisherType
+	publisher: SkillPublisher | null
+	is_added: boolean
+	is_creator: boolean
+	is_featured: boolean
 }
 
 /** Query params for skill version history */
@@ -267,7 +324,7 @@ export interface GetSkillVersionsParams {
 	page?: number
 	page_size?: number
 	publish_target_type?: PublishTargetType
-	status?: "PENDING" | "UNDER_REVIEW" | "APPROVED" | "REJECTED"
+	status?: SkillVersionReviewStatus
 }
 
 export interface SkillVersionPublisher {
@@ -294,7 +351,7 @@ export interface SkillVersionItem {
 	id: string
 	version: string
 	publish_status: string
-	review_status: string
+	review_status: SkillVersionReviewStatus
 	publish_target_type: PublishTargetType
 	publisher: SkillVersionPublisher | null
 	published_at: string | null
@@ -348,7 +405,7 @@ export interface PublishSkillResponse {
 	version_id: string
 	version: string
 	publish_status: string
-	review_status: string
+	review_status: SkillVersionReviewStatus
 	publish_to_type?: PublishToType
 	publish_target_type: PublishTargetType
 	is_current_version: boolean
@@ -361,6 +418,7 @@ export interface PublishSkillResponse {
 export interface UpdateSkillInfoParams {
 	name_i18n?: SkillI18nText
 	description_i18n?: SkillI18nText
+	source_i18n?: SkillI18nText
 	/** Empty string clears the logo */
 	logo?: string
 }
@@ -370,6 +428,7 @@ export interface UpdateSkillInfoParams {
 export const generateSkillsApi = (fetch: HttpClient) => ({
 	/**
 	 * Get store skills list (marketplace).
+	 * Endpoint: POST /api/v1/skill-market/queries
 	 * Supports pagination, keyword search and publisher type filter.
 	 * Results indicate whether the current user has already added each skill.
 	 * @param params Query parameters
@@ -379,16 +438,6 @@ export const generateSkillsApi = (fetch: HttpClient) => ({
 			genRequestUrl("/api/v1/skill-market/queries"),
 			params,
 		)
-	},
-
-	/**
-	 * Get current user's skill list.
-	 * Pinned skills are sorted first, then sorted by updated_at DESC.
-	 * Returns need_upgrade=true for MARKET skills with newer versions available.
-	 * @param params Query parameters
-	 */
-	getSkills(params: GetSkillsParams = {}) {
-		return fetch.post<GetSkillsResponse>(genRequestUrl("/api/v1/skills/queries"), params)
 	},
 
 	/**
@@ -405,6 +454,7 @@ export const generateSkillsApi = (fetch: HttpClient) => ({
 
 	/**
 	 * Get current user's created skills.
+	 * Endpoint: POST /api/v1/skills/queries/created
 	 * latest_version is the newest published version or an empty string.
 	 * @param params Query parameters
 	 */
@@ -417,6 +467,7 @@ export const generateSkillsApi = (fetch: HttpClient) => ({
 
 	/**
 	 * Get team-shared skills visible to the current user.
+	 * Endpoint: POST /api/v1/skills/queries/team-shared
 	 * Data is based on the current published snapshot, not local drafts.
 	 * @param params Query parameters
 	 */
@@ -429,6 +480,7 @@ export const generateSkillsApi = (fetch: HttpClient) => ({
 
 	/**
 	 * Get skills installed from the marketplace.
+	 * Endpoint: POST /api/v1/skills/queries/market-installed
 	 * Data is based on the current published snapshot, not local drafts.
 	 * @param params Query parameters
 	 */
@@ -502,6 +554,17 @@ export const generateSkillsApi = (fetch: HttpClient) => ({
 	 */
 	getSkillDetail({ code }: { code: string }) {
 		return fetch.get<SkillDetailResponse>(genRequestUrl("/api/v1/skills/${code}", { code }))
+	},
+
+	/**
+	 * Get detailed info for a single market skill.
+	 * Includes localized metadata and the published SKILL.md URL.
+	 * @param code Skill unique code
+	 */
+	getSkillMarketDetail({ code }: { code: string }) {
+		return fetch.get<SkillMarketDetailResponse>(
+			genRequestUrl("/api/v1/skill-market/${code}", { code }),
+		)
 	},
 
 	/**

@@ -1,10 +1,9 @@
 import { useMemoizedFn } from "ahooks"
 import { observer } from "mobx-react-lite"
 import { cn } from "@/lib/utils"
-import { userStore } from "@/models/user"
 import { SearchX, Sparkles } from "lucide-react"
 import { MyModelsList } from "./MyModelsList"
-import type { ModelItem, ModelListGroup, MessageEditorSize } from "../types"
+import type { ModelItem, ModelListGroup, MessageEditorSize, ModelListKey } from "../types"
 import type React from "react"
 import { useTranslation } from "react-i18next"
 import { isModelDisabled } from "../utils"
@@ -19,7 +18,7 @@ interface ModelListContentProps {
 	onModelClick: (model: ModelItem) => void
 	selectedItemRef: React.RefObject<HTMLDivElement>
 	getModelDescription: (model: ModelItem) => string | undefined
-	modelKey?: "models" | "image_models"
+	modelKey?: ModelListKey
 	onModelsLoaded?: () => Promise<void> | void
 }
 
@@ -34,11 +33,10 @@ export const ModelListContent = observer(function ModelListContent({
 	modelKey = "models",
 	onModelsLoaded,
 }: ModelListContentProps) {
-	const { isAdmin, isPersonalOrganization } = userStore.user
-	const canManageModels = isPersonalOrganization || isAdmin
 	const { t } = useTranslation("super")
 	const visibleGroups = getVisibleGroups({ modelList, modelKey, searchKeyword })
 	const isSearchResultEmpty = !!searchKeyword && visibleGroups.length === 0
+	const shouldShowMyModelsList = modelKey !== "video_models"
 	const EmptyStateIcon = isSearchResultEmpty ? SearchX : Sparkles
 	const emptyStateTitle = isSearchResultEmpty
 		? t("messageEditor.modelSwitch.noModelsFound")
@@ -52,9 +50,9 @@ export const ModelListContent = observer(function ModelListContent({
 
 	return (
 		<>
-			{canManageModels && (
+			{shouldShowMyModelsList && (
 				<MyModelsList
-					modelKey={modelKey}
+					modelKey={modelKey === "image_models" ? "image_models" : "models"}
 					selectedModel={selectedModel}
 					onModelClick={onModelClick}
 					selectedItemRef={selectedItemRef}
@@ -70,7 +68,7 @@ export const ModelListContent = observer(function ModelListContent({
 							? undefined
 							: t("messageEditor.modelSwitch.noModelsDesc")
 					}
-					className={cn(canManageModels && "mt-2.5", "mb-2.5")}
+					className={cn(shouldShowMyModelsList && "mt-2.5", "mb-2.5")}
 					testId="model-list-empty-state"
 				/>
 			)}
@@ -95,13 +93,17 @@ function getVisibleGroups({
 	searchKeyword,
 }: {
 	modelList: ModelListGroup[]
-	modelKey: "models" | "image_models"
+	modelKey: ModelListKey
 	searchKeyword: string
 }): RenderableModelGroup[] {
 	return modelList
 		.map((item) => {
 			const modelItems =
-				modelKey === "image_models" ? (item.image_models ?? []) : (item.models ?? [])
+				modelKey === "image_models"
+					? (item.image_models ?? [])
+					: modelKey === "video_models"
+						? (item.video_models ?? [])
+						: (item.models ?? [])
 			const displayModels = modelItems.filter((model) =>
 				(model.model_name || model.model_id).includes(searchKeyword),
 			)

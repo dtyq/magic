@@ -2,8 +2,17 @@ import { ReactRenderer } from "@tiptap/react"
 import { exitSuggestion, type SuggestionOptions, type SuggestionProps } from "@tiptap/suggestion"
 
 // Types
-import { McpMentionData, MentionItemType, type MentionItem } from "../types"
-import type { MentionPanelPluginOptions } from "./types"
+import {
+	McpMentionData,
+	MentionItemType,
+	type MentionItem,
+	type MentionSelectContext,
+} from "../types"
+import type {
+	MentionPanelPluginOptions,
+	MentionPanelRendererProps,
+	MentionPanelRendererRef,
+} from "./types"
 
 // Components
 import MentionPanelRenderer from "./MentionPanelRenderer"
@@ -24,7 +33,17 @@ const MENTION_INPUT_ACTIVATION_WINDOW_MS = 1200
 export function createMentionPanelSuggestion(
 	options: MentionPanelPluginOptions = {},
 ): Omit<SuggestionOptions<MentionItem>, "editor"> {
-	const { allowSpaces = true, allowedPrefixes = null, getParentContainer, dataService } = options
+	const {
+		allowSpaces = true,
+		allowedPrefixes = null,
+		getParentContainer,
+		dataService,
+		initialLoadOptions,
+		initialNavigationStack,
+		catalogBehavior,
+		trailingTextAfterInsert,
+		canSelectItem,
+	} = options
 
 	return {
 		// 触发建议面板的字符
@@ -40,7 +59,7 @@ export function createMentionPanelSuggestion(
 		startOfLine: false,
 
 		// 只允许“本次输入 @”触发首次激活，避免光标落在历史 @ 后输入文本时自动弹出
-		allow: ({ editor, state, range, isActive }) => {
+		allow: ({ editor, range, isActive }) => {
 			const enabled = editor.storage.mention?.enabled ?? true
 			if (!enabled) {
 				return false
@@ -69,27 +88,77 @@ export function createMentionPanelSuggestion(
 		}),
 
 		// Items function - required by Tiptap suggestion
-		items: ({ query }) => {
-			console.log("[MentionPanel] items called with query:", query)
-			// Return empty array since we handle items in our custom component
-			return []
-		},
+		items: () => [],
 
 		// Render function - handles panel lifecycle
 		render: () => {
-			let component: ReactRenderer<any> | null = null
+			let component: ReactRenderer<
+				MentionPanelRendererRef,
+				MentionPanelRendererProps
+			> | null = null
 			let currentProps: SuggestionProps<MentionItem> | null = null
+			let activeEditor = null as SuggestionProps<MentionItem>["editor"] | null
+			let insertionRange = null as { from: number; to: number } | null
+			let batchInsertState = null as { total: number; inserted: number } | null
+			let shouldSuppressLifecycleExit = false
+
+			function getInsertedContent(item: MentionItem) {
+				return [
+					{
+						type: "mention",
+						attrs: {
+							type: item.type,
+							data: item.data,
+						},
+					},
+					...(trailingTextAfterInsert
+						? [
+								{
+									type: "text",
+									text: trailingTextAfterInsert,
+								},
+							]
+						: []),
+				]
+			}
+
+			function getInsertedContentSize(
+				editor: NonNullable<typeof activeEditor>,
+				content: ReturnType<typeof getInsertedContent>,
+			) {
+				return content.reduce((totalSize, node) => {
+					return totalSize + editor.schema.nodeFromJSON(node).nodeSize
+				}, 0)
+			}
 
 			// Define onSelect callback once to avoid duplication
-			const handleSelect = async (item: MentionItem) => {
-				// Insert the mention into the editor
-				const { editor, range } = currentProps!
+			const cleanupSelectionContext = () => {
+				currentProps = null
+				activeEditor = null
+				insertionRange = null
+				batchInsertState = null
+				shouldSuppressLifecycleExit = false
+			}
 
-				if (
-					item.type === MentionItemType.MCP &&
-					((item.data as McpMentionData).check_auth ||
-						(item.data as McpMentionData).check_require_fields)
-				) {
+			const handleSelect = async (item: MentionItem, context?: MentionSelectContext) => {
+				if (canSelectItem && !canSelectItem(item)) return
+
+				// Insert the mention into the editor
+				const editor = currentProps?.editor ?? activeEditor
+				const range = insertionRange ?? currentProps?.range
+				const batch = context?.batch
+				const isBatchInsert = (batch?.total ?? 1) > 1
+
+				if (isBatchInsert && batch) {
+					batchInsertState = {
+						total: batch.total,
+						inserted: batch.index,
+					}
+					shouldSuppressLifecycleExit = true
+				}
+				if (!editor || !range) return
+
+				if (item.type === MentionItemType.MCP && !context?.mcpValidated) {
 					// 先 blur 一下，避免在 OAuth 过程中，键盘还能输入
 					editor.chain().blur().run()
 
@@ -111,8 +180,11 @@ export function createMentionPanelSuggestion(
 							handleExit?.()
 							return
 						}
-						// 如果验证成功，则预加载 MCP 列表
-						dataService?.fetchMcpList()
+						// 如果验证成功，则让 store 内部刷新 MCP 列表
+						void dataService?.dispatch({
+							kind: "effect",
+							effect: "refresh-mcp",
+						})
 					} finally {
 						// Re-enable keyboard shortcuts after OAuth
 						if (component) {
@@ -124,24 +196,32 @@ export function createMentionPanelSuggestion(
 					}
 				}
 
-				editor
-					.chain()
-					.focus()
-					.insertContentAt(range, [
-						{
-							type: "mention",
-							attrs: {
-								type: item.type,
-								data: item.data,
-							},
-						},
-					])
-					.run()
+				const insertContent = getInsertedContent(item)
+				editor.chain().focus().insertContentAt(range, insertContent).run()
+
+				const insertedSize = getInsertedContentSize(editor, insertContent)
+				const nextPosition = range.from + insertedSize
+				insertionRange = {
+					from: nextPosition,
+					to: nextPosition,
+				}
+				if (batchInsertState) {
+					batchInsertState = {
+						...batchInsertState,
+						inserted: (batch?.index ?? batchInsertState.inserted) + 1,
+					}
+				}
+
+				if (!context?.reset) return
+
+				shouldSuppressLifecycleExit = false
+				context.reset?.()
+				handleExit()
 			}
 
 			// Define onExit callback once to avoid duplication
 			const handleExit = () => {
-				const editor = currentProps?.editor
+				const editor = currentProps?.editor ?? activeEditor
 				if (editor?.storage.mention) {
 					// 手动关闭后清空触发信息，避免后续编辑回流匹配到旧 @
 					editor.storage.mention.lastAtInputAt = 0
@@ -156,18 +236,13 @@ export function createMentionPanelSuggestion(
 				// Clean up when panel is closed
 				component?.destroy()
 				component = null
-				currentProps = null
+				cleanupSelectionContext()
 				editor?.commands.focus()
 			}
 
 			return {
 				// Called when @ is typed
 				onStart: (props: SuggestionProps<MentionItem>) => {
-					console.log("[MentionPanel] onStart triggered:", {
-						query: props.query,
-						range: props.range,
-					})
-
 					// Get dynamic values from editor storage
 					const enabled = props.editor.storage.mention?.enabled ?? true
 					const language = props.editor.storage.mention?.language || "en"
@@ -175,12 +250,11 @@ export function createMentionPanelSuggestion(
 						props.editor.storage.mention?.disableKeyboardShortcuts || false
 
 					// Check if mention extension is enabled
-					if (!enabled) {
-						console.log("[MentionPanel] Extension is disabled, skipping panel creation")
-						return
-					}
+					if (!enabled) return
 
 					currentProps = props
+					activeEditor = props.editor
+					insertionRange = props.range
 
 					// 在移动端，当 MentionPanel 显示时主动收起键盘
 					// 检查是否在移动端（通过检查视口宽度或 user agent）
@@ -192,7 +266,6 @@ export function createMentionPanelSuggestion(
 					if (isMobile) {
 						// 失焦编辑器以收起键盘
 						props.editor.commands.blur()
-						console.log("[MentionPanel] Mobile detected, keyboard hidden")
 					}
 
 					// Create and mount the renderer component
@@ -204,6 +277,9 @@ export function createMentionPanelSuggestion(
 							range: props.range,
 							decorationNode: props.decorationNode,
 							language,
+							initialLoadOptions,
+							initialNavigationStack,
+							catalogBehavior,
 							onSelect: handleSelect,
 							onExit: handleExit,
 							disableKeyboardShortcuts,
@@ -230,21 +306,8 @@ export function createMentionPanelSuggestion(
 					const disableKeyboardShortcuts =
 						props.editor.storage.mention?.disableKeyboardShortcuts || false
 
-					console.log("[MentionPanel] onUpdate triggered:", {
-						query: props.query,
-						queryLength: props.query.length,
-						range: props.range,
-						hasQuery: !!props.query.trim(),
-						allowSpaces,
-						enabled,
-						language,
-						disableKeyboardShortcuts,
-					})
-
 					// Check if mention extension is disabled
 					if (!enabled) {
-						console.log("[MentionPanel] Extension is disabled, closing panel")
-						// Clean up component
 						if (component) {
 							component.destroy()
 							component = null
@@ -255,8 +318,6 @@ export function createMentionPanelSuggestion(
 
 					// Check if spaces are not allowed and query contains space
 					if (!allowSpaces && props.query.includes(" ")) {
-						console.log("[MentionPanel] Space detected and not allowed, closing panel")
-						// Clean up component
 						if (component) {
 							component.destroy()
 							component = null
@@ -266,6 +327,8 @@ export function createMentionPanelSuggestion(
 					}
 
 					currentProps = props
+					activeEditor = props.editor
+					insertionRange = props.range
 
 					// Update component props with new query
 					if (component) {
@@ -276,6 +339,9 @@ export function createMentionPanelSuggestion(
 							range: props.range,
 							decorationNode: props.decorationNode,
 							language,
+							initialLoadOptions,
+							initialNavigationStack,
+							catalogBehavior,
 							onSelect: handleSelect,
 							onExit: handleExit,
 							disableKeyboardShortcuts,
@@ -293,9 +359,12 @@ export function createMentionPanelSuggestion(
 
 				// Called when suggestion ends (escape, click outside, etc.)
 				onExit: () => {
-					if (currentProps?.editor?.storage.mention) {
-						currentProps.editor.storage.mention.lastAtInputAt = 0
-						currentProps.editor.storage.mention.lastAtInputPos = -1
+					if (shouldSuppressLifecycleExit) return
+
+					const editor = currentProps?.editor ?? activeEditor
+					if (editor?.storage.mention) {
+						editor.storage.mention.lastAtInputAt = 0
+						editor.storage.mention.lastAtInputPos = -1
 					}
 
 					// Clean up component
@@ -303,7 +372,7 @@ export function createMentionPanelSuggestion(
 						component.destroy()
 						component = null
 					}
-					currentProps = null
+					cleanupSelectionContext()
 				},
 			}
 		},

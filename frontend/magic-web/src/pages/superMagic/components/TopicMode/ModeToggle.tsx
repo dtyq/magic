@@ -1,20 +1,20 @@
 import {
-	memo,
 	useCallback,
+	useEffect,
 	useMemo,
 	useRef,
 	useState,
 	type MouseEvent as ReactMouseEvent,
 	type RefObject,
 } from "react"
+import { observer } from "mobx-react-lite"
 import { useTranslation, Trans } from "react-i18next"
 import { isString } from "lodash-es"
 import { useMemoizedFn } from "ahooks"
 import { Check, ChevronsUpDown, MessageCirclePlus } from "lucide-react"
 import { CrewItem, TopicMode } from "../../pages/Workspace/types"
-import { useModeList } from "../MessagePanel/hooks/usePatternTabs"
+import { useFeaturedModeListRefreshOnFirstOpen } from "@/pages/superMagic/hooks/useFeaturedModeListRefresh"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
-import IconComponent from "@/pages/superMagic/components/IconViewComponent/index"
 import { MagicIcon } from "@/components/base"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import BlackPurpleButton from "@/components/other/BlackPurpleButton"
@@ -38,13 +38,25 @@ import { DrawerTitle } from "@/components/shadcn-ui/drawer"
 import ModeAvatar from "../ModeAvatar"
 
 const TRIGGER_SIZE_MAP: Record<MessageEditorSize, string> = {
-	small: "h-6 px-1.5 py-1",
-	default: "h-[30px] px-2.5 py-1.5",
-	mobile: "h-7 px-2 py-1",
+	small: "h-6 px-1.5 py-1 gap-1.5",
+	default: "h-[30px] pl-1 pr-2.5 py-1.5 gap-2",
+	mobile: "h-7 px-2 py-1 gap-2",
 }
 
+/** No browser / Radix focus ring; avoids outline overflow in tight layouts */
+const MODE_TOGGLE_TRIGGER_CLASS = cn(
+	"[WebkitTapHighlightColor:transparent] flex min-w-0 shrink-0 cursor-pointer items-center gap-2 rounded-md",
+	"shadow-none outline-none ring-0 ring-offset-0",
+	"hover:bg-sidebar/50 dark:bg-sidebar dark:hover:bg-muted",
+	"focus:outline-none focus:ring-0 focus:ring-offset-0",
+	"focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
+	"data-[state=open]:outline-none data-[state=open]:ring-0",
+	"transition-all duration-200",
+)
 interface ModeToggleProps {
 	topicMode?: TopicMode
+	/** custom_agent: featured mode.identifier */
+	agentCode?: string | null
 	allowChangeMode: boolean
 	onModeChange?: (mode: TopicMode) => void
 	size?: MessageEditorSize
@@ -52,8 +64,18 @@ interface ModeToggleProps {
 
 const TopicPlusIcon = <MagicIcon component={MessageCirclePlus} size={18} color="currentColor" />
 
+function modeMatchesTopic(
+	modeIdentifier: string,
+	topicMode: TopicMode | undefined,
+	agentCode?: string | null,
+) {
+	if (topicMode === TopicMode.CustomAgent && agentCode) return modeIdentifier === agentCode
+	return modeIdentifier === topicMode
+}
+
 function ModeToggle({
 	topicMode,
+	agentCode,
 	allowChangeMode = true,
 	onModeChange,
 	size = "default",
@@ -71,13 +93,16 @@ function ModeToggle({
 	})
 	const [popoverOpen, setPopoverOpen] = useState(false)
 	const [popoverTarget, setPopoverTarget] = useState<HTMLElement | null>(null)
-	const { modeList } = useModeList({ includeChat: false })
+	const modeList = superMagicModeService.modeList
 	const popoverTargetRef = useRef<HTMLElement | null>(null)
+	const modeListScrollRef = useRef<HTMLDivElement | null>(null)
+
+	useFeaturedModeListRefreshOnFirstOpen(open)
 
 	const currentMode = useMemo(() => {
 		if (!topicMode) return null
-		return superMagicModeService.getModeConfigWithLegacy(topicMode, t)
-	}, [topicMode, t])
+		return superMagicModeService.getModeConfigWithLegacy(topicMode, t, false, agentCode)
+	}, [topicMode, t, agentCode])
 
 	const isCompactList = isMobile || !allowChangeMode
 
@@ -99,6 +124,31 @@ function ModeToggle({
 		setShowNewTopicModal({ visible: false, mode: null })
 	})
 
+	const scrollToSelectedMode = useMemoizedFn(() => {
+		const container = modeListScrollRef.current
+		if (!container) return
+
+		const selectedItem = container.querySelector("[data-selected='true']") as HTMLElement | null
+		if (!selectedItem) return
+
+		selectedItem.scrollIntoView({
+			block: "nearest",
+			inline: "nearest",
+		})
+	})
+
+	useEffect(() => {
+		if (!open) return
+
+		const frameId = window.requestAnimationFrame(() => {
+			scrollToSelectedMode()
+		})
+
+		return () => {
+			window.cancelAnimationFrame(frameId)
+		}
+	}, [open, scrollToSelectedMode, topicMode, agentCode])
+
 	const handleModeChange = useMemoizedFn(
 		(mode: CrewItem["mode"], event?: ReactMouseEvent<HTMLElement>) => {
 			if (allowChangeMode) {
@@ -107,7 +157,7 @@ function ModeToggle({
 				return
 			}
 
-			if (mode.identifier === topicMode) {
+			if (modeMatchesTopic(mode.identifier, topicMode, agentCode)) {
 				closeAllPanels()
 				return
 			}
@@ -228,15 +278,17 @@ function ModeToggle({
 
 	const renderDropdownModeItem = useCallback(
 		(tab: CrewItem) => {
-			const isSelected = topicMode === tab.mode.identifier
+			const isSelected = modeMatchesTopic(tab.mode.identifier, topicMode, agentCode)
 
 			return (
 				<DropdownMenuItem
 					key={tab.mode.identifier}
 					className={cn(
-						"group min-w-0 cursor-pointer rounded-md px-2.5 py-2 text-foreground outline-none",
+						"group min-w-0 cursor-pointer rounded-md px-2.5 py-2 text-foreground outline-none ring-0 ring-offset-0",
 						isCompactList ? "flex items-center gap-2" : "flex items-start gap-2",
-						"focus:bg-transparent focus:text-foreground data-[highlighted]:bg-sidebar-accent data-[highlighted]:text-foreground",
+						"focus:bg-transparent focus:text-foreground focus:outline-none focus:ring-0 focus:ring-offset-0",
+						"focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
+						"data-[highlighted]:bg-sidebar-accent data-[highlighted]:text-foreground",
 					)}
 					onClick={(event) => {
 						event.stopPropagation()
@@ -251,12 +303,19 @@ function ModeToggle({
 				</DropdownMenuItem>
 			)
 		},
-		[handleModeChange, isCompactList, renderModeItemInner, resolveModeText, topicMode],
+		[
+			agentCode,
+			handleModeChange,
+			isCompactList,
+			renderModeItemInner,
+			resolveModeText,
+			topicMode,
+		],
 	)
 
 	const renderStaticModeItem = useCallback(
 		(tab: CrewItem) => {
-			const isSelected = topicMode === tab.mode.identifier
+			const isSelected = modeMatchesTopic(tab.mode.identifier, topicMode, agentCode)
 
 			return (
 				<button
@@ -265,7 +324,9 @@ function ModeToggle({
 					className={cn(
 						"group flex w-full min-w-0 rounded-md px-2.5 py-2 text-left text-foreground transition-colors",
 						isCompactList ? "items-center gap-2" : "items-start gap-2",
-						"hover:bg-sidebar-accent",
+						"outline-none ring-0 ring-offset-0 hover:bg-sidebar-accent",
+						"focus:outline-none focus:ring-0 focus:ring-offset-0",
+						"focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
 					)}
 					onClick={(event) => {
 						event.stopPropagation()
@@ -280,7 +341,14 @@ function ModeToggle({
 				</button>
 			)
 		},
-		[handleModeChange, isCompactList, renderModeItemInner, resolveModeText, topicMode],
+		[
+			agentCode,
+			handleModeChange,
+			isCompactList,
+			renderModeItemInner,
+			resolveModeText,
+			topicMode,
+		],
 	)
 
 	const shouldUseDropdownModeItem = allowChangeMode && !isMobile
@@ -298,6 +366,7 @@ function ModeToggle({
 					{t("modeToggle.selectCrew")}
 				</div>
 				<div
+					ref={modeListScrollRef}
 					className={cn(
 						"scrollbar-y-thin flex flex-col gap-1 overflow-y-auto",
 						isCompactList ? "max-h-[236px]" : "max-h-[340px]",
@@ -360,20 +429,27 @@ function ModeToggle({
 
 		return (
 			<div
-				className={cn(
-					"[WebkitTapHighlightColor:transparent] flex shrink-0 cursor-pointer items-center gap-2 outline-none hover:bg-sidebar/50 focus:outline-none focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-sidebar dark:hover:bg-muted",
-					TRIGGER_SIZE_MAP[size],
-				)}
+				className={cn(MODE_TOGGLE_TRIGGER_CLASS, TRIGGER_SIZE_MAP[size])}
 				data-testid="mode-toggle-button"
 				data-mode={topicMode}
 				data-disabled={!allowChangeMode}
 				data-mode-name={resolveModeText(currentMode.mode.name)}
 			>
-				{renderModeIcon(currentMode.mode, 16)}
-				<div className="max-w-20 overflow-hidden text-ellipsis whitespace-nowrap text-xs font-medium leading-4 text-foreground">
+				{renderModeIcon(currentMode.mode, size === "small" ? 16 : 24)}
+				<div
+					className={cn(
+						"max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-medium leading-4 text-foreground",
+						size === "small" ? "text-xs" : "text-sm",
+					)}
+				>
 					{resolveModeText(currentMode.mode.name)}
 				</div>
-				<ChevronsUpDown className="size-4 shrink-0 text-foreground" />
+				<ChevronsUpDown
+					className={cn(
+						"shrink-0 text-foreground",
+						size === "small" ? "size-3" : "size-4",
+					)}
+				/>
 			</div>
 		)
 	}, [allowChangeMode, currentMode, renderModeIcon, resolveModeText, size, topicMode])
@@ -384,8 +460,11 @@ function ModeToggle({
 
 	if (isMobile) {
 		return (
-			<div className="relative" data-testid="super-message-editor-mode-toggle-root">
-				<div className="w-fit" onClick={() => setOpen(true)}>
+			<div
+				className="relative w-fit min-w-0"
+				data-testid="super-message-editor-mode-toggle-root"
+			>
+				<div className="w-fit min-w-0 rounded-md" onClick={() => setOpen(true)}>
 					{currentModeItem}
 				</div>
 				<MagicPopup
@@ -420,7 +499,7 @@ function ModeToggle({
 	if (allowChangeMode) {
 		return (
 			<div
-				className={cn("relative", "w-fit")}
+				className={cn("relative w-fit min-w-0")}
 				data-testid="super-message-editor-mode-toggle-root"
 			>
 				<DropdownMenu
@@ -445,7 +524,7 @@ function ModeToggle({
 	}
 
 	return (
-		<div className="relative" data-testid="super-message-editor-mode-toggle-root">
+		<div className="relative w-fit min-w-0" data-testid="super-message-editor-mode-toggle-root">
 			<Popover
 				open={open}
 				onOpenChange={(nextOpen) => {
@@ -496,4 +575,4 @@ function ModeToggle({
 	)
 }
 
-export default memo(ModeToggle)
+export default observer(ModeToggle)

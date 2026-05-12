@@ -16,7 +16,7 @@ export interface TransformContext {
 	isScaling: boolean
 	/** 是否保持宽高比 */
 	shouldKeepRatio: boolean
-	/** 初始宽高比（用于锁定比例） */
+	/** 初始宽高比（用于锁定比例；多选时传入当前元素自己的初始比例） */
 	initialAspectRatio?: number
 }
 

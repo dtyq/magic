@@ -4,9 +4,9 @@ import { StrictMode, createElement, type ReactNode } from "react"
 import { useFileUpload } from "../useFileUpload"
 import { FileData } from "../../types"
 import { message } from "antd"
-import MentionPanelStore from "@/opensource/components/business/MentionPanel/store"
-import { useUpload } from "@/opensource/hooks/useUploadFiles"
-import projectFilesStore from "@/opensource/stores/projectFiles"
+import MentionPanelStore from "@/components/business/MentionPanel/runtime/builtin/store"
+import { useUpload } from "@/hooks/useUploadFiles"
+import projectFilesStore from "@/stores/projectFiles"
 
 // Mock dependencies
 vi.mock("antd", () => ({
@@ -98,7 +98,7 @@ vi.mock("../../services/UploadTokenService", () => ({
 	},
 }))
 
-vi.mock("@/opensource/components/business/MentionPanel/store", () => {
+vi.mock("@/opensource/components/business/MentionPanel/builtin-store", () => {
 	const mockStore = {
 		workspaceFilesList: [] as any[],
 		hasProjectFiles: vi.fn().mockReturnValue(false),

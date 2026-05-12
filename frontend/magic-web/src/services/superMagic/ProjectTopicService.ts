@@ -43,9 +43,9 @@ class ProjectTopicService {
 		return `${workspaceId}/${projectId}`
 	}
 
-	isTopicModeValid(mode: TopicMode) {
+	isTopicModeValid(mode: TopicMode, agentCode?: string | null) {
 		if (!mode) return false
-		return superMagicModeService.isModeValid(mode)
+		return superMagicModeService.isModeValid(mode, agentCode)
 	}
 
 	/**

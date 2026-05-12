@@ -19,6 +19,37 @@ export enum DetailType {
 	Video = "video",
 	Audio = "audio",
 	Design = "design",
+	SelfMedia = "self-media",
+}
+
+/** Self-media platform values supported by the dispatcher */
+export type SelfMediaPlatform =
+	| "rednote"
+	| "instagram"
+	| "x"
+	| "facebook"
+	| "wechat-official-accounts"
+	| "tiktok"
+	| "wechat-channels"
+
+/** In-memory one-shot target when opening self-media from the file tree */
+export interface SelfMediaInitialNavigation {
+	activePostId: string
+	initialView: "detail"
+	/** If omitted, the store picks the first slice that declares the post */
+	activePlatform?: SelfMediaPlatform
+}
+
+/** Self-media folder detail payload */
+export interface DetailSelfMediaData {
+	file_id: string
+	file_name?: string
+	is_directory?: boolean
+	metadata?: Record<string, unknown>
+	children?: unknown[]
+	/** Optional jump target when opening a nested post from the file tree */
+	initialNavigation?: SelfMediaInitialNavigation
+	[key: string]: unknown
 }
 
 /** 详情 */
@@ -86,7 +117,7 @@ export interface DetailHTMLData {
 	file_id: string
 	file_extension?: string
 	content?: string
-	metadata?: Record<string, any>
+	display_config?: Record<string, any>
 }
 
 /** 工具 Tool */
@@ -114,6 +145,7 @@ export interface DetailUniverData {
 	content: any
 	file_name: string
 	file_extension?: string
+	file_id?: string
 }
 
 /** 文件树数据 */

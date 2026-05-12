@@ -16,6 +16,8 @@ interface ImageUploadFieldProps {
 	/** Current persisted image URL (controlled) */
 	value: string
 	onChange: (url: string) => void
+	/** Callback with the original local file after a successful upload */
+	onUploadSuccess?: (file: File) => void
 	/** Callback with detected image metadata after upload */
 	onMetadataChange?: (metadata?: ImageMetadata) => void
 	/** Upload button label */
@@ -73,6 +75,7 @@ function loadImageMetadata(file: File): Promise<ImageMetadata | undefined> {
 export function ImageUploadField({
 	value,
 	onChange,
+	onUploadSuccess,
 	onMetadataChange,
 	buttonLabel,
 	emptyText,
@@ -109,6 +112,7 @@ export function ImageUploadField({
 			const { fullfilled } = await uploadAndGetFileUrl([fileData])
 			if (fullfilled.length > 0) {
 				onChange(fullfilled[0].value.url)
+				onUploadSuccess?.(file)
 				onMetadataChange?.(metadata)
 				magicToast.success(successToast)
 			} else {
@@ -153,7 +157,7 @@ export function ImageUploadField({
 				handler={(onUpload) => (
 					<Button
 						variant="outline"
-						className="shadow-xs h-9"
+						className="h-9 shadow-xs"
 						disabled={uploading}
 						onClick={onUpload}
 						data-testid={uploadBtnTestId}

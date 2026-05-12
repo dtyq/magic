@@ -5,7 +5,7 @@ import { DEFAULT_TOPIC_ID } from "@/services/superMagic/topicModel/constants"
 
 /**
  * Super Magic Topic Model Store
- * Manages current selected language and image models
+ * Manages current selected language, image and video models
  * Provides event mechanism for topic changes
  */
 class SuperMagicTopicModelStore {
@@ -14,6 +14,9 @@ class SuperMagicTopicModelStore {
 
 	/** Selected image model */
 	selectedImageModel: ModelItem | null = null
+
+	/** Selected video model */
+	selectedVideoModel: ModelItem | null = null
 
 	/** Loading state */
 	isLoading = false
@@ -26,6 +29,9 @@ class SuperMagicTopicModelStore {
 
 	/** Current topic mode */
 	currentTopicMode: TopicMode = "" as TopicMode
+
+	/** Agent code when topic_mode is custom_agent (featured mode.identifier) */
+	currentAgentCode: string = ""
 
 	constructor() {
 		makeAutoObservable(this, {}, { autoBind: true })
@@ -48,6 +54,14 @@ class SuperMagicTopicModelStore {
 	}
 
 	/**
+	 * Set selected video model
+	 * @param model - Model to set
+	 */
+	setSelectedVideoModel(model: ModelItem | null) {
+		this.selectedVideoModel = model
+	}
+
+	/**
 	 * Set loading state
 	 * @param loading - Loading state
 	 */
@@ -66,10 +80,12 @@ class SuperMagicTopicModelStore {
 		topicId: string | undefined,
 		projectId: string | undefined,
 		topicMode: TopicMode,
+		agentCode?: string | null,
 	) {
 		this.currentTopicId = topicId || ""
 		this.currentProjectId = projectId || ""
 		this.currentTopicMode = topicMode
+		this.currentAgentCode = agentCode ?? ""
 	}
 
 	/**
@@ -78,10 +94,12 @@ class SuperMagicTopicModelStore {
 	reset() {
 		this.selectedLanguageModel = null
 		this.selectedImageModel = null
+		this.selectedVideoModel = null
 		this.isLoading = false
 		this.currentTopicId = DEFAULT_TOPIC_ID
 		this.currentProjectId = ""
 		this.currentTopicMode = "general" as TopicMode
+		this.currentAgentCode = ""
 	}
 }
 

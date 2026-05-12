@@ -9,11 +9,12 @@ import {
 	lazy,
 	Suspense,
 } from "react"
+import type { RefObject } from "react"
 import { observer } from "mobx-react-lite"
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso"
 
 // Types
-import type { MentionPanelProps, MentionPanelRef, MentionItem } from "./types"
+import type { MentionItem, MentionPanelProps, MentionPanelRef } from "./types"
 import { PanelState } from "./types"
 
 // Hooks
@@ -36,6 +37,8 @@ import { Button } from "@/components/shadcn-ui/button"
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/shadcn-ui/popover"
 import { ChevronLeft, Plug, Puzzle } from "lucide-react"
 import useGeistFont from "@/styles/fonts/geist"
+import { MentionPanelRootProviders } from "./renderers/context"
+import { resolveMentionPanelRuntime } from "./runtime/default-runtime"
 
 const MentionPanelMobile = lazy(() => import("./MentionPanelMobile"))
 
@@ -52,13 +55,19 @@ const MentionPanel = observer(
 			onSelect,
 			onClose,
 			initialState,
+			initialLoadOptions,
+			initialNavigationStack,
 			searchPlaceholder,
 			triggerRef,
 			language,
 			className,
 			style,
 			disableKeyboardShortcuts = false,
+			lockDismissToExplicitClose = false,
+			runtime,
 			dataService,
+			catalogBehavior,
+			buildStoreRequest,
 			...restProps
 		} = props
 
@@ -74,15 +83,29 @@ const MentionPanel = observer(
 		// Internationalization
 		const t = useI18nStatic(language)
 		const defaultConfig = useMemo(() => createDefaultConfig(t), [t])
+		const resolvedRuntime = useMemo(
+			() =>
+				resolveMentionPanelRuntime({
+					runtime,
+					dataService,
+					catalogBehavior,
+					buildStoreRequest,
+				}),
+			[runtime, dataService, catalogBehavior, buildStoreRequest],
+		)
 
 		// Main panel logic
 		const { state, actions, computed, dataSource, focus } = useMentionPanel({
 			initialState,
+			initialLoadOptions,
+			initialNavigationStack,
 			onSelect,
 			onClose,
 			enabled: visible && !disableKeyboardShortcuts,
-			dataService,
+			dataService: resolvedRuntime.dataService,
 			t,
+			catalogBehavior: resolvedRuntime.catalogBehavior,
+			buildStoreRequest: resolvedRuntime.buildStoreRequest,
 		})
 
 		// Destructure focus properties to avoid ESLint dependency warnings
@@ -217,26 +240,43 @@ const MentionPanel = observer(
 				const selectedItem = displayItems[index]
 				if (!selectedItem) return
 
-				// Check if item is unselectable - if so, don't handle click
-				if (selectedItem.unSelectable) {
-					return
-				}
+				const currentCatalogId =
+					state.navigationStack[state.navigationStack.length - 1]?.catalogId
 
 				const eventTarget = event?.target
 				const isRightArrow =
 					eventTarget instanceof HTMLElement
 						? Boolean(eventTarget.closest("[data-right-arrow]"))
 						: false
+				const shouldEnterFolderDirectly =
+					resolvedRuntime.catalogBehavior.shouldEnterFolderDirectly?.({
+						currentState: state.currentState,
+						currentCatalogId,
+						selectedItem,
+						enterFolder: isRightArrow,
+					}) ?? false
+				const enterFolder = isRightArrow || shouldEnterFolderDirectly
+
+				// Check if item is unselectable - if so, don't handle click
+				if (selectedItem.unSelectable && !enterFolder) {
+					return
+				}
 
 				// Update selection index
 				actions.selectItem(index)
 
 				// Use normal confirmation process (history items are handled in useMentionPanel)
 				setTimeout(() => {
-					actions.confirmSelection({ enterFolder: isRightArrow })
+					actions.confirmSelection({ enterFolder })
 				})
 			},
-			[actions, displayItems],
+			[
+				actions,
+				displayItems,
+				resolvedRuntime.catalogBehavior,
+				state.currentState,
+				state.navigationStack,
+			],
 		)
 
 		// Handle delete history item
@@ -274,9 +314,7 @@ const MentionPanel = observer(
 						item={item}
 						selected={index === state.selectedIndex}
 						onClick={(e) => handleItemClick(index, e)}
-						isSearch={
-							state.currentState === PanelState.DEFAULT && Boolean(state.searchQuery)
-						}
+						isSearch={Boolean(state.searchQuery.trim())}
 						t={t}
 						onDelete={isHistoryItem ? handleDeleteHistoryItem : undefined}
 					/>
@@ -285,7 +323,6 @@ const MentionPanel = observer(
 			[
 				displayItems,
 				state.selectedIndex,
-				state.currentState,
 				state.searchQuery,
 				t,
 				handleDeleteHistoryItem,
@@ -306,13 +343,18 @@ const MentionPanel = observer(
 						onSelect={onSelect}
 						onClose={onClose}
 						initialState={initialState}
+						initialLoadOptions={initialLoadOptions}
+						initialNavigationStack={initialNavigationStack}
 						searchPlaceholder={searchPlaceholder}
 						triggerRef={triggerRef}
 						language={language}
 						className={className}
 						lastHistoryIndex={lastHistoryIndex}
 						style={style}
+						runtime={resolvedRuntime}
 						dataService={dataService}
+						catalogBehavior={catalogBehavior}
+						buildStoreRequest={buildStoreRequest}
 						{...restProps}
 					/>
 				</Suspense>
@@ -326,11 +368,14 @@ const MentionPanel = observer(
 		)
 
 		const currentNavigationItem = state.navigationStack[state.navigationStack.length - 1]
+		const currentCatalogId = currentNavigationItem?.catalogId
 
 		const stateHeader = (() => {
 			if (!currentNavigationItem || state.currentState === PanelState.SEARCH) return null
 
-			if (state.currentState === PanelState.MCP) {
+			const catalogHeaderMeta = resolvedRuntime.getCatalogHeaderMeta(currentCatalogId, t)
+
+			if (catalogHeaderMeta.icon === "mcp") {
 				return (
 					<div className="flex items-center gap-1 px-1.5">
 						<div className="inline-flex flex-1 items-center gap-1.5 break-words pb-1.5 pl-1.5 pt-2 font-['Geist'] text-xs leading-[13px] text-foreground">
@@ -338,13 +383,13 @@ const MentionPanel = observer(
 							<span>{currentNavigationItem.name}</span>
 						</div>
 						<span className="ml-auto text-[10px] leading-[13px] text-muted-foreground">
-							{t.mcpHint}
+							{catalogHeaderMeta.hint}
 						</span>
 					</div>
 				)
 			}
 
-			if (state.currentState === PanelState.SKILLS) {
+			if (catalogHeaderMeta.icon === "skills") {
 				return (
 					<div className="flex items-center gap-1 px-1.5">
 						<div className="inline-flex flex-1 items-center gap-1.5 break-words pb-1.5 pl-1.5 pt-2 font-['Geist'] text-xs leading-[13px] text-foreground">
@@ -352,7 +397,7 @@ const MentionPanel = observer(
 							<span>{currentNavigationItem.name}</span>
 						</div>
 						<span className="ml-auto text-[10px] leading-[13px] text-muted-foreground">
-							{t.skillHint}
+							{catalogHeaderMeta.hint}
 						</span>
 					</div>
 				)
@@ -360,7 +405,7 @@ const MentionPanel = observer(
 
 			return (
 				<div className="flex items-center gap-1 px-1.5">
-					<div className="inline flex-1 break-words pb-1.5 pl-1.5 pt-2 font-['Geist'] text-xs leading-[13px] text-foreground">
+					<div className="inline flex-1 break-words pb-1.5 pl-1.5 pt-2 font-['Geist'] text-xs leading-[16px] text-foreground">
 						{state.navigationStack.map((item, index) => (
 							<span key={item.id}>
 								{index > 0 && <span className="mx-0.5">/</span>}
@@ -391,157 +436,162 @@ const MentionPanel = observer(
 		})()
 
 		const panelBody = (
-			<div className="flex w-full flex-1 flex-col overflow-hidden transition-all duration-200 ease-out">
-				{/* Search header (matches Figma design) */}
-				<div className="flex h-9 w-full items-start">
-					{/* Back button - show when not in default state or has navigation stack */}
-					{(state.currentState !== PanelState.DEFAULT ||
-						state.navigationStack.length > 0) && (
-						<Button
-							variant="outline"
-							size="icon"
-							className="border-b-1 size-9 shrink-0 rounded-none border-l-0 border-t-0 border-input shadow-xs"
-							onClick={actions.navigateBack}
-							role="button"
-							aria-label={t.ariaLabels.goBackButton}
-							tabIndex={-1}
-						>
-							<ChevronLeft />
-						</Button>
-					)}
-
-					{/* Search area */}
-					<div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-						<div
-							className="relative flex h-9 w-full cursor-text items-center gap-1 overflow-hidden rounded-t-lg border-b border-input bg-background px-3 py-1 shadow-xs"
-							onClick={handleSearchAreaClick}
-							role="searchbox"
-							aria-label="Search input area"
-						>
-							{/* Search icon */}
-							<div className="flex size-6 shrink-0 items-center justify-center text-muted-foreground">
-								<MagicIcon component={IconSearch} size={16} />
-							</div>
-
-							{/* Search text - show search placeholder when empty, hide when typing */}
-							{!internalSearchQuery && (
-								<p className="pointer-events-none min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-['Geist'] text-sm font-normal leading-5 text-muted-foreground">
-									{t.searchPlaceholder}
-								</p>
-							)}
-
-							{/* Hidden input field */}
-							<input
-								ref={searchInputRef}
-								type="text"
-								value={internalSearchQuery}
-								onChange={handleSearchChange}
-								className="absolute bottom-0 left-9 right-0 top-0 z-[1] m-0 h-full border-none bg-transparent p-0 pl-1 font-['Geist'] text-sm leading-4 text-foreground/80 outline-none placeholder:text-transparent focus:outline-none"
-								disabled={disableKeyboardShortcuts}
-								placeholder={t.searchPlaceholder}
-							/>
-						</div>
-					</div>
-				</div>
-
-				{/* Search query display (when in search state) */}
-				{state.searchQuery && state.currentState === PanelState.DEFAULT && (
-					<div className="flex items-center gap-1 px-1.5">
-						<div className="inline flex-1 break-words pb-1.5 pl-1.5 pt-2 font-['Geist'] text-xs leading-[13px] text-foreground">
-							{t.searchResults}
-						</div>
-					</div>
-				)}
-
-				{/* Navigation breadcrumb / state header */}
-				{stateHeader}
-
-				{/* Menu Items */}
-				<div
-					ref={menuListRef}
-					className="[&_div[data-virtuoso-scroller]]:scrollbar-thin [&_div[data-virtuoso-scroller]]:scrollbar-thumb-border [&_div[data-virtuoso-scroller]]:scrollbar-track-transparent [&_div[data-virtuoso-scroller]]:scrollbar-thumb-rounded flex flex-1 flex-col gap-0 overflow-hidden p-1 transition-all duration-200 ease-out [&_div[data-virtuoso-scroller]]:mr-0.5"
-					style={menuListStyle}
-					role="listbox"
-				>
-					{dataSource.loading ? (
-						<div className="flex items-center justify-center p-5 text-xs text-muted-foreground">
-							{t.loading}
-						</div>
-					) : dataSource.error ? (
-						<div className="flex flex-col items-center justify-center p-5 text-center text-xs text-destructive">
-							<div>{dataSource.error}</div>
+			<MentionPanelRootProviders
+				getItemRenderer={resolvedRuntime.getItemRenderer}
+				items={displayItems}
+			>
+				<div className="flex w-full flex-1 flex-col overflow-hidden transition-all duration-200 ease-out">
+					{/* Search header (matches Figma design) */}
+					<div className="flex h-9 w-full items-start">
+						{/* Back button - show when not in default state or has navigation stack */}
+						{(state.currentState !== PanelState.DEFAULT ||
+							state.navigationStack.length > 0) && (
 							<Button
-								onClick={dataSource.refreshData}
-								aria-label={t.ariaLabels.retryButton}
 								variant="outline"
-								size="sm"
-								className="mt-2"
+								size="icon"
+								className="border-b-1 size-9 shrink-0 rounded-none border-l-0 border-t-0 border-input shadow-xs"
+								onClick={actions.navigateBack}
+								role="button"
+								aria-label={t.ariaLabels.goBackButton}
+								tabIndex={-1}
 							>
-								{t.retry}
+								<ChevronLeft />
 							</Button>
-						</div>
-					) : displayItems.length === 0 ? (
-						<div className="flex flex-col items-center justify-center p-5 text-center text-xs text-muted-foreground">
-							{t.empty}
-						</div>
-					) : (
-						<Virtuoso
-							ref={virtuosoRef}
-							totalCount={displayItems.length}
-							itemContent={renderItem}
-							style={{
-								height: "100%",
-								width: "100%",
-							}}
-						/>
-					)}
-				</div>
+						)}
 
-				{/* Keyboard Hints */}
-				<div className="mx-1 mb-1 flex flex-nowrap items-center gap-2.5 rounded bg-accent px-2.5 py-1.5">
-					<div className="flex items-center gap-1">
-						<div className="flex min-h-[22px] min-w-[22px] items-center justify-center rounded border border-border bg-background font-['Geist'] text-[10px] text-secondary-foreground">
-							↓
-						</div>
-						<div className="flex min-h-[22px] min-w-[22px] items-center justify-center rounded border border-border bg-background font-['Geist'] text-[10px] text-secondary-foreground">
-							↑
-						</div>
-						<span className="whitespace-nowrap font-['Geist'] text-[10px] leading-[13px] text-foreground">
-							{t.keyboardHints.navigate}
-						</span>
-					</div>
-					<div className="flex items-center gap-1">
-						<div className="flex min-h-[22px] min-w-[22px] items-center justify-center rounded border border-border bg-background font-['Geist'] text-[10px] text-secondary-foreground">
-							<MagicIcon component={IconArrowBack} size={12} />
-						</div>
-						<span className="whitespace-nowrap font-['Geist'] text-[10px] leading-[13px] text-foreground">
-							{t.keyboardHints.confirm}
-						</span>
-					</div>
-					{computed.canNavigateBack && (
-						<div className="flex items-center gap-1">
-							<div className="flex min-h-[22px] min-w-[22px] items-center justify-center rounded border border-border bg-background font-['Geist'] text-[10px] text-secondary-foreground">
-								<MagicIcon component={IconArrowNarrowLeft} size={12} />
+						{/* Search area */}
+						<div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+							<div
+								className="relative flex h-9 w-full cursor-text items-center gap-1 overflow-hidden rounded-t-lg border-b border-input bg-background px-3 py-1 shadow-xs"
+								onClick={handleSearchAreaClick}
+								role="searchbox"
+								aria-label="Search input area"
+							>
+								{/* Search icon */}
+								<div className="flex size-6 shrink-0 items-center justify-center text-muted-foreground">
+									<MagicIcon component={IconSearch} size={16} />
+								</div>
+
+								{/* Search text - show search placeholder when empty, hide when typing */}
+								{!internalSearchQuery && (
+									<p className="pointer-events-none min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-['Geist'] text-sm font-normal leading-5 text-muted-foreground">
+										{t.searchPlaceholder}
+									</p>
+								)}
+
+								{/* Hidden input field */}
+								<input
+									ref={searchInputRef}
+									type="text"
+									value={internalSearchQuery}
+									onChange={handleSearchChange}
+									className="absolute bottom-0 left-9 right-0 top-0 z-[1] m-0 h-full border-none bg-transparent p-0 pl-1 font-['Geist'] text-sm leading-4 text-foreground/80 outline-none placeholder:text-transparent focus:outline-none"
+									disabled={disableKeyboardShortcuts}
+									placeholder={t.searchPlaceholder}
+								/>
 							</div>
-							<span className="whitespace-nowrap font-['Geist'] text-[10px] leading-[13px] text-foreground">
-								{state.currentState !== PanelState.SEARCH
-									? t.keyboardHints.goBack
-									: t.keyboardHints.exitSearch}
-							</span>
+						</div>
+					</div>
+
+					{/* Search query display (when in search state) */}
+					{state.searchQuery.trim() && (
+						<div className="flex items-center gap-1 px-1.5">
+							<div className="inline flex-1 break-words pb-1.5 pl-1.5 pt-2 font-['Geist'] text-xs leading-[16px] text-foreground">
+								{t.searchResults}
+							</div>
 						</div>
 					)}
-					{computed.canEnterFolder && (
-						<div className="flex items-center gap-1">
-							<div className="flex min-h-[22px] min-w-[22px] items-center justify-center rounded border border-border bg-background font-['Geist'] text-[10px] text-secondary-foreground">
-								<MagicIcon component={IconArrowNarrowRight} size={12} />
+
+					{/* Navigation breadcrumb / state header（搜索态仅展示「搜索结果」行，不叠面包屑） */}
+					{!state.searchQuery.trim() && stateHeader}
+
+					{/* Menu Items */}
+					<div
+						ref={menuListRef}
+						className="[&_div[data-virtuoso-scroller]]:scrollbar-thin [&_div[data-virtuoso-scroller]]:scrollbar-thumb-border [&_div[data-virtuoso-scroller]]:scrollbar-track-transparent [&_div[data-virtuoso-scroller]]:scrollbar-thumb-rounded flex flex-1 flex-col gap-0 overflow-hidden p-1 transition-all duration-200 ease-out [&_div[data-virtuoso-scroller]]:mr-0.5"
+						style={menuListStyle}
+						role="listbox"
+					>
+						{dataSource.loading ? (
+							<div className="flex items-center justify-center p-5 text-xs text-muted-foreground">
+								{t.loading}
+							</div>
+						) : dataSource.error ? (
+							<div className="flex flex-col items-center justify-center p-5 text-center text-xs text-destructive">
+								<div>{dataSource.error}</div>
+								<Button
+									onClick={dataSource.refreshData}
+									aria-label={t.ariaLabels.retryButton}
+									variant="outline"
+									size="sm"
+									className="mt-2"
+								>
+									{t.retry}
+								</Button>
+							</div>
+						) : displayItems.length === 0 ? (
+							<div className="flex flex-col items-center justify-center p-5 text-center text-xs text-muted-foreground">
+								{t.empty}
+							</div>
+						) : (
+							<Virtuoso
+								ref={virtuosoRef}
+								totalCount={displayItems.length}
+								itemContent={renderItem}
+								style={{
+									height: "100%",
+									width: "100%",
+								}}
+							/>
+						)}
+					</div>
+
+					{/* Keyboard Hints */}
+					<div className="mx-1 mb-1 flex flex-nowrap items-center gap-1.5 rounded bg-accent px-1.5 py-1.5">
+						<div className="flex items-center gap-0.5">
+							<div className="flex min-h-[16px] min-w-[16px] items-center justify-center rounded border border-border bg-background font-['Geist'] text-[10px] text-secondary-foreground">
+								↓
+							</div>
+							<div className="flex min-h-[16px] min-w-[16px] items-center justify-center rounded border border-border bg-background font-['Geist'] text-[10px] text-secondary-foreground">
+								↑
 							</div>
 							<span className="whitespace-nowrap font-['Geist'] text-[10px] leading-[13px] text-foreground">
-								{t.keyboardHints.goForward}
+								{t.keyboardHints.navigate}
 							</span>
 						</div>
-					)}
+						<div className="flex items-center gap-0.5">
+							<div className="flex min-h-[16px] min-w-[16px] items-center justify-center rounded border border-border bg-background font-['Geist'] text-[10px] text-secondary-foreground">
+								<MagicIcon component={IconArrowBack} size={12} />
+							</div>
+							<span className="whitespace-nowrap font-['Geist'] text-[10px] leading-[13px] text-foreground">
+								{t.keyboardHints.confirm}
+							</span>
+						</div>
+						{computed.canNavigateBack && (
+							<div className="flex items-center gap-0.5">
+								<div className="flex min-h-[16px] min-w-[16px] items-center justify-center rounded border border-border bg-background font-['Geist'] text-[10px] text-secondary-foreground">
+									<MagicIcon component={IconArrowNarrowLeft} size={12} />
+								</div>
+								<span className="whitespace-nowrap font-['Geist'] text-[10px] leading-[13px] text-foreground">
+									{state.currentState !== PanelState.SEARCH
+										? t.keyboardHints.goBack
+										: t.keyboardHints.exitSearch}
+								</span>
+							</div>
+						)}
+						{computed.canEnterFolder && (
+							<div className="flex items-center gap-0.5">
+								<div className="flex min-h-[16px] min-w-[16px] items-center justify-center rounded border border-border bg-background font-['Geist'] text-[10px] text-secondary-foreground">
+									<MagicIcon component={IconArrowNarrowRight} size={12} />
+								</div>
+								<span className="whitespace-nowrap font-['Geist'] text-[10px] leading-[13px] text-foreground">
+									{t.keyboardHints.goForward}
+								</span>
+							</div>
+						)}
+					</div>
 				</div>
-			</div>
+			</MentionPanelRootProviders>
 		)
 
 		// Fallback for legacy callers without triggerRef
@@ -583,7 +633,7 @@ const MentionPanel = observer(
 
 		return (
 			<Popover open={visible} onOpenChange={handleOpenChange} modal={false}>
-				<PopoverAnchor virtualRef={triggerRef} />
+				<PopoverAnchor virtualRef={triggerRef as unknown as RefObject<HTMLElement>} />
 				<PopoverContent
 					ref={internalRef}
 					data-mention-panel
@@ -596,6 +646,28 @@ const MentionPanel = observer(
 					onOpenAutoFocus={handleOpenAutoFocus}
 					onCloseAutoFocus={(event) => event.preventDefault()}
 					onInteractOutside={(event) => {
+						const root = internalRef.current
+						const target = event.target
+						if (lockDismissToExplicitClose) {
+							event.preventDefault()
+							return
+						}
+						const outsideDetail = event as unknown as {
+							detail?: { originalEvent?: Event }
+						}
+						const orig = outsideDetail.detail?.originalEvent
+						const path =
+							orig && typeof orig.composedPath === "function"
+								? orig.composedPath()
+								: []
+						const pathInsideRoot =
+							root && path.some((n) => n instanceof Node && root.contains(n))
+						const targetInsideRoot =
+							root && target instanceof Node && root.contains(target)
+						if (pathInsideRoot || targetInsideRoot) {
+							event.preventDefault()
+							return
+						}
 						if (disableKeyboardShortcuts) {
 							event.preventDefault()
 						}

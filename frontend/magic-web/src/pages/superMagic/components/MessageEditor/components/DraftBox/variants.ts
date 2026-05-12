@@ -7,7 +7,7 @@ export const draftBoxTriggerVariants = cva(
 		variants: {
 			size: {
 				default: "",
-				mobile: "flex cursor-pointer items-center justify-center rounded-md border-0 bg-[#f5f5f5] transition-all hover:opacity-80 active:opacity-60",
+				mobile: "flex cursor-pointer items-center justify-center rounded-md border-0 bg-[#f5f5f5] p-2 transition-all hover:opacity-80 active:opacity-60",
 				small: "",
 			},
 		},

@@ -4,12 +4,13 @@ import { ElementTypeEnum } from "../types"
 import { GenerationStatus } from "../../types.magic"
 import { toast } from "sonner"
 import {
-	getImageDimensions,
+	getMediaDimensions,
 	calculateHorizontalImageLayout,
 	calculateElementsRect,
 	calculateNodesRect,
 	type ElementClipboardMetadata,
 	type CanvasClipboardData,
+	isVideoFile,
 } from "../utils/utils"
 import { validateFile } from "../utils/utils"
 import { ImageElement as ImageElementClass } from "../element/elements/ImageElement"
@@ -95,205 +96,82 @@ export class ClipboardManager {
 		return clipboardCanvasId === currentCanvasId
 	}
 
+	private async readClipboardText(): Promise<string> {
+		const clipboard = this.canvas.magicConfigManager.config?.methods?.clipboard
+		const readText =
+			clipboard?.readText ??
+			(navigator.clipboard?.readText
+				? navigator.clipboard.readText.bind(navigator.clipboard)
+				: undefined)
+		if (!readText) {
+			return ""
+		}
+		try {
+			return await readText()
+		} catch {
+			return ""
+		}
+	}
+
+	private looksLikeClipboardFileNameOnlyText(text: string): boolean {
+		const trimmed = text.trim()
+		if (!trimmed || trimmed.startsWith("{") || trimmed.startsWith("[")) {
+			return false
+		}
+		return /\.(jpg|jpeg|png|gif|webp|bmp|svg|ico|mp4|mov|webm|avi|mkv)$/i.test(trimmed)
+	}
+
+	private async showPasteShortcutHintIfNeeded(): Promise<boolean> {
+		const clipboardText = await this.readClipboardText()
+		if (!this.looksLikeClipboardFileNameOnlyText(clipboardText)) {
+			return false
+		}
+
+		this.showUnreadableClipboardHint()
+		return true
+	}
+
+	private showUnreadableClipboardHint(): void {
+		toast(
+			this.canvas.t?.("menu.pasteUseShortcutHint", "系统文件请使用 Ctrl/Cmd+V 粘贴") ||
+				"系统文件请使用 Ctrl/Cmd+V 粘贴",
+		)
+	}
+
 	/**
 	 * 将多个元素复制为PNG图片
 	 * @param elementIds - 元素ID列表
 	 * @returns Promise<boolean> - 复制是否成功
 	 */
 	public async copyElementsAsPNG(elementIds: string[]): Promise<boolean> {
-		if (elementIds.length === 0) {
+		try {
+			const exportResult = await this.exportElementsAsPNG(elementIds)
+			if (!exportResult) {
+				return false
+			}
+
+			return await this.writePngToClipboard(
+				exportResult.blob,
+				exportResult.filename,
+				exportResult.metadata,
+			)
+		} catch (error) {
 			return false
 		}
+	}
 
+	/**
+	 * 将多个元素导出并下载为 PNG 图片
+	 */
+	public async downloadElementsAsPNG(elementIds: string[]): Promise<boolean> {
 		try {
-			// 1. 过滤冗余元素（如果父元素已选中，则子元素无需单独处理）
-			const filteredIds = filterRedundantElements(elementIds, this.canvas.elementManager)
-
-			if (filteredIds.length === 0) {
+			const exportResult = await this.exportElementsAsPNG(elementIds)
+			if (!exportResult) {
 				return false
 			}
 
-			// 2. 获取所有元素实例和节点
-			const adapter = this.canvas.elementManager.getNodeAdapter()
-			const nodes = adapter.getNodesForTransform(filteredIds)
-
-			if (nodes.length === 0) {
-				return false
-			}
-
-			// 3. 使用 calculateNodesRect 计算总体边界
-			const boundingRect = calculateNodesRect(
-				nodes,
-				this.canvas.stage,
-				this.canvas.elementManager,
-			)
-
-			if (!boundingRect || boundingRect.width <= 0 || boundingRect.height <= 0) {
-				return false
-			}
-
-			// 4. 创建Canvas，设置宽高
-			const canvas = document.createElement("canvas")
-			const ctx = canvas.getContext("2d")
-
-			if (!ctx) {
-				return false
-			}
-
-			// 获取Canvas最大支持尺寸
-			const { width: canvasMaxWidth, height: canvasMaxHeight } = await canvasSize.maxArea({
-				usePromise: true,
-				useWorker: true,
-			})
-
-			// 计算原始Canvas尺寸
-			const originalWidth = Math.ceil(boundingRect.width)
-			const originalHeight = Math.ceil(boundingRect.height)
-
-			// 检查是否需要按比例压缩
-			let canvasWidth = originalWidth
-			let canvasHeight = originalHeight
-			let scaleRatio = 1
-
-			if (originalWidth > canvasMaxWidth || originalHeight > canvasMaxHeight) {
-				// 计算缩放比例，取宽度和高度的缩放比例中的较小值，确保两个方向都不超过最大值
-				const widthRatio = canvasMaxWidth / originalWidth
-				const heightRatio = canvasMaxHeight / originalHeight
-				scaleRatio = Math.min(widthRatio, heightRatio)
-
-				canvasWidth = Math.ceil(originalWidth * scaleRatio)
-				canvasHeight = Math.ceil(originalHeight * scaleRatio)
-			}
-
-			canvas.width = canvasWidth
-			canvas.height = canvasHeight
-
-			// 5. 判断是否需要绘制边框
-			// 只有当单选图片元素时，才不绘制边框；其他情况（多个元素，或单个非图片元素）都绘制边框
-			const firstElementData =
-				filteredIds.length === 1
-					? this.canvas.elementManager.getElementData(filteredIds[0])
-					: null
-			const shouldDrawBorder =
-				filteredIds.length !== 1 || firstElementData?.type !== ElementTypeEnum.Image
-
-			// 6. 如果是单个图片元素且不需要边框，直接复用 getImageBlobAndMetadata
-			if (
-				!shouldDrawBorder &&
-				filteredIds.length === 1 &&
-				firstElementData?.type === ElementTypeEnum.Image
-			) {
-				const result = await this.getImageBlobAndMetadata(firstElementData)
-				if (result) {
-					const pngBlob = await this.convertToPngBlob(result.blob)
-					if (pngBlob) {
-						const filename = this.getPngFilename(result.metadata.filename)
-						const success = await this.writePngToClipboard(
-							pngBlob,
-							filename,
-							result.metadata,
-						)
-						if (success) {
-							return true
-						}
-					}
-				}
-				// 如果 getImageBlobAndMetadata 失败，降级到原来的逻辑
-			}
-
-			// 7. 收集所有需要渲染的元素信息并按 zIndex 排序
-			const elementsToRender: Array<{
-				elementInstance: {
-					renderToCanvas: (
-						ctx: CanvasRenderingContext2D,
-						offsetX: number,
-						offsetY: number,
-						options?: { shouldDrawBorder?: boolean; width?: number; height?: number },
-					) => Promise<boolean>
-				}
-				offsetX: number
-				offsetY: number
-				elementWidth: number
-				elementHeight: number
-				zIndex: number
-			}> = []
-
-			for (const node of nodes) {
-				const elementId = node.id()
-				if (!elementId) continue
-
-				const element = this.canvas.elementManager.getElementData(elementId)
-				if (!element) continue
-
-				const elementInstance = this.canvas.elementManager.getElementInstance(elementId)
-				if (!elementInstance || typeof elementInstance.renderToCanvas !== "function") {
-					continue
-				}
-
-				// 计算元素在导出Canvas中的位置
-				const elementRect = calculateNodesRect(
-					[node],
-					this.canvas.stage,
-					this.canvas.elementManager,
-				)
-
-				if (!elementRect) continue
-
-				// 计算相对于boundingRect的偏移量（考虑缩放比例）
-				const offsetX = (elementRect.x - boundingRect.x) * scaleRatio
-				const offsetY = (elementRect.y - boundingRect.y) * scaleRatio
-
-				// 计算元素的缩放后尺寸
-				const elementWidth = elementRect.width * scaleRatio
-				const elementHeight = elementRect.height * scaleRatio
-
-				elementsToRender.push({
-					elementInstance,
-					offsetX,
-					offsetY,
-					elementWidth,
-					elementHeight,
-					zIndex: element.zIndex ?? 0,
-				})
-			}
-
-			// 按 zIndex 排序（zIndex 小的先渲染，zIndex 大的后渲染，确保上层元素覆盖下层元素）
-			elementsToRender.sort((a, b) => a.zIndex - b.zIndex)
-
-			// 8. 串行执行 renderToCanvas（避免 Canvas 上下文状态冲突）并检查结果
-			let hasSuccess = false
-			for (const {
-				elementInstance,
-				offsetX,
-				offsetY,
-				elementWidth,
-				elementHeight,
-			} of elementsToRender) {
-				const result = await elementInstance.renderToCanvas(ctx, offsetX, offsetY, {
-					shouldDrawBorder,
-					width: elementWidth,
-					height: elementHeight,
-				})
-				if (result) {
-					hasSuccess = true
-				}
-			}
-
-			if (!hasSuccess) {
-				return false
-			}
-
-			// 9. 使用 canvas.toBlob 转换为PNG
-			return new Promise<boolean>((resolve) => {
-				canvas.toBlob(async (blob) => {
-					if (!blob) {
-						resolve(false)
-						return
-					}
-					const success = await this.writePngToClipboard(blob, `canvas${PNG_EXTENSION}`)
-					resolve(success)
-				}, PNG_MIME_TYPE)
-			})
+			this.downloadBlob(exportResult.blob, exportResult.filename)
+			return true
 		} catch (error) {
 			return false
 		}
@@ -334,6 +212,220 @@ export class ClipboardManager {
 		} catch (error) {
 			return null
 		}
+	}
+
+	private async exportElementsAsPNG(elementIds: string[]): Promise<{
+		blob: Blob
+		filename: string
+		metadata?: ElementClipboardMetadata
+	} | null> {
+		if (elementIds.length === 0) {
+			return null
+		}
+
+		// 1. 过滤冗余元素（如果父元素已选中，则子元素无需单独处理）
+		const filteredIds = filterRedundantElements(elementIds, this.canvas.elementManager)
+		if (filteredIds.length === 0) {
+			return null
+		}
+
+		// 2. 获取所有元素实例和节点
+		const adapter = this.canvas.elementManager.getNodeAdapter()
+		const nodes = adapter.getNodesForTransform(filteredIds)
+		if (nodes.length === 0) {
+			return null
+		}
+
+		// 3. 使用 calculateNodesRect 计算总体边界
+		const boundingRect = calculateNodesRect(
+			nodes,
+			this.canvas.stage,
+			this.canvas.elementManager,
+		)
+		if (!boundingRect || boundingRect.width <= 0 || boundingRect.height <= 0) {
+			return null
+		}
+
+		// 4. 创建 Canvas，设置宽高
+		const exportCanvas = document.createElement("canvas")
+		const ctx = exportCanvas.getContext("2d")
+		if (!ctx) {
+			return null
+		}
+
+		// 获取 Canvas 最大支持尺寸
+		const { width: canvasMaxWidth, height: canvasMaxHeight } = await canvasSize.maxArea({
+			usePromise: true,
+			useWorker: true,
+		})
+
+		// 计算原始 Canvas 尺寸
+		const originalWidth = Math.ceil(boundingRect.width)
+		const originalHeight = Math.ceil(boundingRect.height)
+
+		// 检查是否需要按比例压缩
+		let canvasWidth = originalWidth
+		let canvasHeight = originalHeight
+		let scaleRatio = 1
+
+		if (originalWidth > canvasMaxWidth || originalHeight > canvasMaxHeight) {
+			const widthRatio = canvasMaxWidth / originalWidth
+			const heightRatio = canvasMaxHeight / originalHeight
+			scaleRatio = Math.min(widthRatio, heightRatio)
+
+			canvasWidth = Math.ceil(originalWidth * scaleRatio)
+			canvasHeight = Math.ceil(originalHeight * scaleRatio)
+		}
+
+		exportCanvas.width = canvasWidth
+		exportCanvas.height = canvasHeight
+
+		// 5. 判断是否需要绘制边框
+		const firstElementData =
+			filteredIds.length === 1
+				? this.canvas.elementManager.getElementData(filteredIds[0])
+				: null
+		const shouldDrawBorder = false
+
+		// 6. 单选图片时优先复用原图 blob，避免额外重渲染
+		if (
+			!shouldDrawBorder &&
+			filteredIds.length === 1 &&
+			firstElementData?.type === ElementTypeEnum.Image
+		) {
+			const result = await this.getImageBlobAndMetadata(firstElementData)
+			if (result) {
+				const pngBlob = await this.convertToPngBlob(result.blob)
+				if (pngBlob) {
+					return {
+						blob: pngBlob,
+						filename: this.getPngFilename(result.metadata.filename),
+						metadata: result.metadata,
+					}
+				}
+			}
+		}
+
+		// 7. 收集所有需要渲染的元素信息并按 zIndex 排序
+		const elementsToRender: Array<{
+			elementInstance: {
+				renderToCanvas: (
+					ctx: CanvasRenderingContext2D,
+					offsetX: number,
+					offsetY: number,
+					options?: { shouldDrawBorder?: boolean; width?: number; height?: number },
+				) => Promise<boolean>
+			}
+			offsetX: number
+			offsetY: number
+			elementWidth: number
+			elementHeight: number
+			zIndex: number
+		}> = []
+
+		for (const node of nodes) {
+			const elementId = node.id()
+			if (!elementId) continue
+
+			const element = this.canvas.elementManager.getElementData(elementId)
+			if (!element) continue
+
+			const elementInstance = this.canvas.elementManager.getElementInstance(elementId)
+			if (!elementInstance || typeof elementInstance.renderToCanvas !== "function") {
+				continue
+			}
+
+			const elementRect = calculateNodesRect(
+				[node],
+				this.canvas.stage,
+				this.canvas.elementManager,
+			)
+			if (!elementRect) continue
+
+			elementsToRender.push({
+				elementInstance,
+				offsetX: (elementRect.x - boundingRect.x) * scaleRatio,
+				offsetY: (elementRect.y - boundingRect.y) * scaleRatio,
+				elementWidth: elementRect.width * scaleRatio,
+				elementHeight: elementRect.height * scaleRatio,
+				zIndex: element.zIndex ?? 0,
+			})
+		}
+
+		elementsToRender.sort((a, b) => a.zIndex - b.zIndex)
+
+		// 8. 串行执行 renderToCanvas，避免 Canvas 上下文状态冲突
+		let hasSuccess = false
+		for (const {
+			elementInstance,
+			offsetX,
+			offsetY,
+			elementWidth,
+			elementHeight,
+		} of elementsToRender) {
+			const result = await elementInstance.renderToCanvas(ctx, offsetX, offsetY, {
+				shouldDrawBorder,
+				width: elementWidth,
+				height: elementHeight,
+			})
+			if (result) {
+				hasSuccess = true
+			}
+		}
+
+		if (!hasSuccess) {
+			return null
+		}
+
+		const blob = await this.canvasToBlob(exportCanvas)
+		if (!blob) {
+			return null
+		}
+
+		return {
+			blob,
+			filename: this.getSelectionPngFilename(filteredIds),
+		}
+	}
+
+	private canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
+		return new Promise<Blob | null>((resolve) => {
+			canvas.toBlob((blob) => {
+				resolve(blob || null)
+			}, PNG_MIME_TYPE)
+		})
+	}
+
+	private getSelectionPngFilename(elementIds: string[]): string {
+		if (elementIds.length !== 1) {
+			return `canvas${PNG_EXTENSION}`
+		}
+
+		const element = this.canvas.elementManager.getElementData(elementIds[0])
+		const sanitizedName = element?.name?.trim().replace(/[\\/:*?"<>|]+/g, "-")
+		if (sanitizedName) {
+			return this.getPngFilename(sanitizedName)
+		}
+
+		if (element?.type === ElementTypeEnum.Text) {
+			return this.getPngFilename("text")
+		}
+
+		return `canvas${PNG_EXTENSION}`
+	}
+
+	private downloadBlob(blob: Blob, filename: string): void {
+		const downloadUrl = URL.createObjectURL(blob)
+		const link = document.createElement("a")
+		link.href = downloadUrl
+		link.download = filename
+		link.style.display = "none"
+		document.body.appendChild(link)
+		link.click()
+		link.remove()
+		window.setTimeout(() => {
+			URL.revokeObjectURL(downloadUrl)
+		}, 0)
 	}
 
 	/**
@@ -398,6 +490,7 @@ export class ClipboardManager {
 			toast.success(this.canvas.t?.("menu.copySuccess", "复制成功") || "复制成功")
 			return true
 		} catch (error) {
+			void error
 			return false
 		}
 	}
@@ -421,12 +514,6 @@ export class ClipboardManager {
 				return null
 			}
 
-			// 调用 getHTMLImageElement 获取图片对象
-			const htmlImage = await elementInstance.getHTMLImageElement()
-			if (!htmlImage) {
-				return null
-			}
-
 			// 获取资源并从 ossSrc fetch blob（利用浏览器 HTTP 缓存）
 			let blob: Blob | null = null
 			let imageInfo = null
@@ -434,13 +521,17 @@ export class ClipboardManager {
 				const resource = await this.canvas.imageResourceManager.getResource(element.src)
 				if (resource) {
 					imageInfo = resource.imageInfo
-					try {
-						const response = await fetch(resource.ossSrc, { cache: "default" })
-						if (response.ok) {
-							blob = await response.blob()
+					if (element.crop) {
+						blob = await this.renderImageElementToBlob(element, elementInstance)
+					} else {
+						try {
+							const response = await fetch(resource.ossSrc, { cache: "default" })
+							if (response.ok) {
+								blob = await response.blob()
+							}
+						} catch {
+							// 忽略 fetch 错误
 						}
-					} catch {
-						// 忽略 fetch 错误
 					}
 				}
 			}
@@ -455,12 +546,50 @@ export class ClipboardManager {
 				filename: imageInfo.filename,
 				mimeType: imageInfo.mimeType,
 				fileSize: imageInfo.fileSize,
+				renderMode: element.crop ? "cropped" : "original",
 			}
 
 			return { blob, metadata }
 		} catch (error) {
 			return null
 		}
+	}
+
+	/**
+	 * 渲染图片元素到 Blob
+	 * @param element - 图片元素数据
+	 * @param elementInstance - 图片元素实例
+	 * @returns Blob 或 null（如果渲染失败）
+	 */
+	private async renderImageElementToBlob(
+		element: ImageElement,
+		elementInstance: ImageElementClass,
+	): Promise<Blob | null> {
+		const width = Math.max(1, Math.round(element.width ?? 0))
+		const height = Math.max(1, Math.round(element.height ?? 0))
+		const canvas = document.createElement("canvas")
+		canvas.width = width
+		canvas.height = height
+
+		const ctx = canvas.getContext("2d")
+		if (!ctx) {
+			return null
+		}
+
+		const rendered = await elementInstance.renderToCanvas(ctx, 0, 0, {
+			width,
+			height,
+			shouldDrawBorder: false,
+		})
+		if (!rendered) {
+			return null
+		}
+
+		return new Promise<Blob | null>((resolve) => {
+			canvas.toBlob((blob) => {
+				resolve(blob || null)
+			}, PNG_MIME_TYPE)
+		})
 	}
 	/**
 	 * 复制元素到剪贴板
@@ -539,6 +668,17 @@ export class ClipboardManager {
 
 			// 根据解析结果执行相应操作
 			if (parseResult.type === "empty" || parseResult.type === "invalid") {
+				if (
+					!clipboardEvent &&
+					parseResult.type === "invalid" &&
+					parseResult.reason === "clipboard-api-unreadable-items"
+				) {
+					this.showUnreadableClipboardHint()
+					return
+				}
+				if (!clipboardEvent) {
+					await this.showPasteShortcutHintIfNeeded()
+				}
 				return
 			}
 
@@ -550,8 +690,8 @@ export class ClipboardManager {
 				return
 			}
 
-			if (parseResult.type === "images") {
-				await this.pasteImagesFromClipboard(
+			if (parseResult.type === "files") {
+				await this.pasteFilesFromClipboard(
 					parseResult.files,
 					parseResult.metadata,
 					position,
@@ -568,9 +708,9 @@ export class ClipboardManager {
 	}
 
 	/**
-	 * 从剪贴板粘贴图片
+	 * 从剪贴板粘贴文件
 	 */
-	private async pasteImagesFromClipboard(
+	private async pasteFilesFromClipboard(
 		files: File[],
 		metadataList?: ElementClipboardMetadata[],
 		position?: { x: number; y: number },
@@ -581,13 +721,12 @@ export class ClipboardManager {
 		}
 
 		if (files.length === 1) {
-			// pasteImageFile 内部会调用 pasteMultipleImageFiles，后者已经处理了 focusOnElements
-			await this.pasteImageFile(files[0], position)
+			await this.pasteCanvasFile(files[0], position)
 			return
 		}
 
 		const targetPosition = this.getTargetPosition(position)
-		await this.pasteMultipleImageFiles(files, targetPosition)
+		await this.pasteMultipleCanvasFiles(files, targetPosition)
 	}
 
 	/**
@@ -622,8 +761,7 @@ export class ClipboardManager {
 					continue
 				}
 
-				// 传递 skipFocus: true，避免重复聚焦，统一在最后聚焦所有元素
-				const elementId = await this.pasteImageFile(file, position, { skipFocus: true })
+				const elementId = await this.pasteCanvasFile(file, position, { skipFocus: true })
 				if (elementId) {
 					createdElementIds.push(elementId)
 				}
@@ -660,8 +798,12 @@ export class ClipboardManager {
 		const canReuseOriginal =
 			originalElementExists &&
 			imageElementData.src &&
-			metadata.mimeType === file.type &&
-			metadata.filename === file.name
+			(metadata.renderMode === "cropped" ||
+				(metadata.mimeType === file.type && metadata.filename === file.name))
+		const nextCrop =
+			metadata.renderMode === "cropped" && !canReuseOriginal
+				? undefined
+				: imageElementData.crop
 
 		const commonFinalElement = {
 			id: elementWithNewIds.id,
@@ -676,6 +818,7 @@ export class ClipboardManager {
 			opacity: imageElementData.opacity,
 			scaleX: imageElementData.scaleX,
 			scaleY: imageElementData.scaleY,
+			crop: nextCrop,
 		}
 
 		if (canReuseOriginal) {
@@ -690,18 +833,115 @@ export class ClipboardManager {
 			return finalElement.id
 		}
 
-		// 使用 ImageUploadManager 上传
+		// 使用画布文件上传管理器上传
 		const position = {
 			x: (imageElementData.x ?? 0) + offsetX + (imageElementData.width ?? 0) / 2,
 			y: (imageElementData.y ?? 0) + offsetY + (imageElementData.height ?? 0) / 2,
 		}
 
-		return await this.canvas.imageUploadManager.uploadImage({
+		return await this.canvas.canvasFileUploadManager.uploadImageElement({
 			file,
 			position,
 			elementData: commonFinalElement,
 			manageHistory: false, // 在批量操作中，由外层的 withHistoryManagerAsync 管理历史记录
 		})
+	}
+
+	/**
+	 * 粘贴多个文件到画布（支持图片、视频）
+	 * @param files 文件数组
+	 * @param anchorPosition 锚点位置（第一个文件的中心位置）
+	 * @param options 可选配置
+	 * @returns 创建的元素 ID 数组
+	 */
+	public async pasteMultipleCanvasFiles(
+		files: File[],
+		anchorPosition: { x: number; y: number },
+		options?: { skipFocus?: boolean },
+	): Promise<string[]> {
+		this.canvas.historyManager.disable()
+
+		try {
+			const { createdElementIds, pendingBatchId } =
+				await this.canvas.canvasFileUploadManager.withLock(async () => {
+					const pendingBatchId =
+						this.canvas.canvasFileUploadManager.getCurrentPendingBatchId()
+					const mediaDimensions = await Promise.all(
+						files.map((file) => getMediaDimensions(file)),
+					)
+					const positions = calculateHorizontalImageLayout(
+						mediaDimensions,
+						anchorPosition,
+						0,
+					)
+
+					const createdElementIds: string[] = []
+					for (let i = 0; i < files.length; i++) {
+						const file = files[i]
+						const position = positions[i]
+
+						const elementId =
+							await this.canvas.canvasFileUploadManager.uploadFileElement({
+								file,
+								position,
+								manageHistory: false,
+							})
+						if (elementId) {
+							createdElementIds.push(elementId)
+						}
+					}
+
+					if (createdElementIds.length > 0 && !options?.skipFocus) {
+						this.focusOnElements(createdElementIds)
+					}
+
+					return { createdElementIds, pendingBatchId }
+				})
+
+			this.canvas.historyManager.enable()
+
+			if (
+				pendingBatchId &&
+				this.canvas.canvasFileUploadManager.hasPendingUploadBatch(pendingBatchId)
+			) {
+				this.canvas.historyManager.recordHistoryImmediate()
+				this.canvas.canvasFileUploadManager.commitPendingUploadBatch(pendingBatchId)
+			}
+
+			return createdElementIds.filter((elementId) =>
+				this.canvas.elementManager.hasElement(elementId),
+			)
+		} catch (error) {
+			this.canvas.historyManager.enable()
+			throw error
+		}
+	}
+
+	/**
+	 * 粘贴文件到画布（支持图片、视频）
+	 * @param file 文件
+	 * @param position 可选的位置参数，如果提供则在该位置创建文件元素
+	 * @param options 可选配置
+	 * @returns 创建的元素 ID
+	 */
+	public async pasteCanvasFile(
+		file: File,
+		position?: { x: number; y: number },
+		options?: { skipFocus?: boolean },
+	): Promise<string | null> {
+		if (this.canvas.readonly) {
+			return null
+		}
+
+		const validation = validateFile(file)
+		if (!validation.valid) {
+			return null
+		}
+
+		const targetPosition = this.getTargetPosition(position)
+		const elementIds = await this.pasteMultipleCanvasFiles([file], targetPosition, options)
+
+		return elementIds.length > 0 ? elementIds[0] : null
 	}
 
 	/**
@@ -796,56 +1036,8 @@ export class ClipboardManager {
 		anchorPosition: { x: number; y: number },
 		options?: { skipFocus?: boolean },
 	): Promise<string[]> {
-		// 禁用历史记录
-		this.canvas.historyManager.disable()
-
-		try {
-			// 使用全局上传管理器的锁机制，合并批量上传
-			const createdElementIds = await this.canvas.imageUploadManager.withLock(async () => {
-				// 先获取所有图片的尺寸
-				const imageDimensions = await Promise.all(
-					files.map((file) => getImageDimensions(file)),
-				)
-
-				// 计算布局：使用水平排列，顶部对齐，无间距
-				const positions = calculateHorizontalImageLayout(imageDimensions, anchorPosition, 0)
-
-				// 逐个上传图片，收集创建的 elementId
-				const createdElementIds: string[] = []
-				for (let i = 0; i < files.length; i++) {
-					const file = files[i]
-					const position = positions[i]
-
-					// 直接调用 uploadImage，传递 manageHistory: false 让外层手动管理历史记录
-					const elementId = await this.canvas.imageUploadManager.uploadImage({
-						file,
-						position,
-						manageHistory: false, // 由外层手动管理历史记录
-					})
-					if (elementId) {
-						createdElementIds.push(elementId)
-					}
-				}
-
-				// 在 withLock 内部，所有临时元素创建完成后立即记录历史
-				// 这样可以确保在用户撤销之前就已经记录了包含临时元素的状态
-				this.canvas.historyManager.enable()
-				this.canvas.historyManager.recordHistoryImmediate()
-
-				// 在上传完成之前就聚焦到所有新创建的元素（此时元素处于 processing 状态）
-				if (createdElementIds.length > 0 && !options?.skipFocus) {
-					this.focusOnElements(createdElementIds)
-				}
-
-				return createdElementIds
-			})
-
-			return createdElementIds
-		} catch (error) {
-			// 确保异常情况下也能重新启用历史记录
-			this.canvas.historyManager.enable()
-			throw error
-		}
+		const imageFiles = files.filter((file) => !isVideoFile(file))
+		return this.pasteMultipleCanvasFiles(imageFiles, anchorPosition, options)
 	}
 
 	/**
@@ -860,22 +1052,9 @@ export class ClipboardManager {
 		position?: { x: number; y: number },
 		options?: { skipFocus?: boolean },
 	): Promise<string | null> {
-		// 检查只读模式
-		if (this.canvas.readonly) {
+		if (isVideoFile(file)) {
 			return null
 		}
-
-		// 验证文件类型和大小
-		const validation = validateFile(file)
-		if (!validation.valid) {
-			return null
-		}
-
-		const targetPosition = this.getTargetPosition(position)
-
-		// 统一使用 pasteMultipleImageFiles 处理，保持行为一致
-		const elementIds = await this.pasteMultipleImageFiles([file], targetPosition, options)
-
-		return elementIds.length > 0 ? elementIds[0] : null
+		return this.pasteCanvasFile(file, position, options)
 	}
 }

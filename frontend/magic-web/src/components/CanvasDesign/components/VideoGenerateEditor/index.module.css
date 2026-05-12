@@ -1,0 +1,390 @@
+.videoMessageEditor {
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	align-items: stretch;
+	align-self: flex-start;
+	box-sizing: border-box;
+
+	/* 名义宽度由 VideoGenerateEditorRender 注入 --video-editor-shell-nominal-width（中文 580px / 其他 760px） */
+	width: min(var(--video-editor-shell-nominal-width, 580px), calc(100vw - 24px));
+	max-width: calc(100vw - 24px);
+	padding: var(--spacing-2, 8px);
+	overflow-x: hidden;
+	background: var(--base-background, #fff);
+	border-radius: var(--border-radius-rounded-md, 8px);
+	box-shadow: var(--shadow-md-1-offset-x, 0) var(--shadow-md-1-offset-y, 4px)
+			var(--shadow-md-1-blur-radius, 6px) var(--shadow-md-1-spread-radius, -1px)
+			var(--shadow-md-1-color, rgb(0 0 0 / 10%)),
+		var(--shadow-md-2-offset-x, 0) var(--shadow-md-2-offset-y, 2px)
+			var(--shadow-md-2-blur-radius, 4px) var(--shadow-md-2-spread-radius, -2px)
+			var(--shadow-md-2-color, rgb(0 0 0 / 10%));
+	opacity: 0;
+	pointer-events: none;
+}
+
+.controllers {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+}
+
+.top,
+.bottom {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+}
+
+.sourceListScroller {
+	width: 100%;
+	overflow: auto hidden;
+	overscroll-behavior-x: contain;
+	scrollbar-gutter: stable;
+}
+
+.sourceListScroller[data-has-scrollbar] {
+	padding-bottom: 0;
+}
+
+.sourceListScrollerContent {
+	width: max-content;
+	min-width: 100%;
+}
+
+.bottom {
+	z-index: 1;
+	gap: var(--spacing-2, 8px);
+	background-color: white;
+}
+
+.bottom .left,
+.bottom .right {
+	display: flex;
+	flex-shrink: 0;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.tabsList {
+	display: inline-flex !important;
+	flex: none;
+	gap: 2px;
+	align-items: stretch;
+	justify-content: center;
+	box-sizing: border-box;
+	height: var(--height-h-6, 24px) !important;
+	min-height: var(--height-h-6, 24px);
+	padding: 2px !important;
+	background: var(--base-secondary, #f5f5f5) !important;
+	border-radius: var(--border-radius-rounded-md, 8px) !important;
+	box-shadow: none !important;
+}
+
+.tabsTrigger {
+	display: inline-flex !important;
+	flex: 1 1 auto;
+	align-items: center;
+	justify-content: center;
+	min-height: 0 !important;
+	padding: 0 var(--spacing-1-5, 6px) !important;
+	color: var(--base-muted-foreground, #737373);
+	font-weight: var(--font-weight-medium, 500);
+	font-size: var(--text-xs-font-size, 12px) !important;
+	line-height: 1;
+	border-radius: var(--border-radius-rounded-sm, 6px) !important;
+	box-shadow: none !important;
+}
+
+.tabsTrigger[data-state="active"] {
+	color: var(--base-foreground, #0a0a0a) !important;
+	background: var(--base-background, #fff) !important;
+}
+
+/* SourceList overlay：绝对层内可点击，与列表 flex 互不占位 */
+.sourceListOverlaySwapButton {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	margin: 0;
+	padding: 0;
+	color: var(--base-muted-foreground, #737373);
+	background: var(--base-background, #fff);
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: 9999px;
+	box-shadow: var(--shadow-xs-1-offset-x, 0) var(--shadow-xs-1-offset-y, 1px)
+		var(--shadow-xs-1-blur-radius, 2px) var(--shadow-xs-1-spread-radius, -1px)
+		var(--shadow-xs-1-color, rgb(0 0 0 / 10%));
+	cursor: pointer;
+	transition: color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+	pointer-events: auto;
+}
+
+.sourceListOverlaySwapButton:hover {
+	color: var(--base-foreground, #0a0a0a);
+	background: var(--base-secondary, #f5f5f5);
+	box-shadow: 0 2px 4px rgb(0 0 0 / 10%);
+}
+
+.sourceListOverlaySwapIcon {
+	flex-shrink: 0;
+}
+
+/* 本地上传进行中：与已选图槽位同结构，hover 显示右上角圆形删除（见 SourceList .sourceItemRemoveButton） */
+.imageSlotUploadingBackdrop {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: 4px;
+	align-items: center;
+	justify-content: center;
+	background: var(--base-background, #fff);
+}
+
+.imageSlotUploadingLabel {
+	max-width: 100%;
+	overflow: hidden;
+	color: var(--base-muted-foreground, #737373);
+	font-size: 10px;
+	line-height: 1.2;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.imageUploadButton {
+	display: flex;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: center;
+	min-width: var(--width-w-6, 24px);
+	height: var(--height-h-6, 24px);
+	padding: var(--spacing-1, 4px);
+	border-radius: var(--border-radius-rounded-md, 8px);
+}
+
+.sendButton {
+	display: flex;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: center;
+	min-width: var(--width-w-6, 24px) !important;
+	height: var(--height-h-6, 24px) !important;
+	padding: var(--spacing-1, 4px) var(--spacing-1-5, 6px) !important;
+}
+
+.sendButtonPoints {
+	font-size: var(--text-xs-font-size, 12px);
+	line-height: 1;
+	white-space: nowrap;
+}
+
+.sendConfirmContent {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.sendConfirmDescription {
+	margin: 0;
+	color: var(--base-foreground, #0a0a0a);
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+.sendConfirmCheckboxRow {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	cursor: pointer;
+}
+
+.sendConfirmCheckboxLabel {
+	color: var(--base-muted-foreground, #737373);
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+.selectTrigger {
+	display: flex;
+	gap: var(--spacing-1, 4px) !important;
+	align-items: center;
+	justify-content: center;
+	height: var(--height-h-6, 24px) !important;
+	padding: var(--spacing-1, 4px) var(--spacing-1-5, 6px) !important;
+	font-size: var(--text-xs-font-size, 12px) !important;
+	background: var(--base-secondary, #f5f5f5) !important;
+	border: none !important;
+	border-radius: var(--border-radius-rounded-md, 8px) !important;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.selectTrigger > svg:last-child {
+	display: none;
+}
+
+.selectTriggerText {
+	overflow: visible !important;
+	white-space: nowrap !important;
+}
+
+.selectContentName {
+	margin-bottom: var(--spacing-1, 4px);
+	padding: 0 4px;
+	color: var(--base-foreground, #0a0a0a);
+	font-weight: var(--font-weight-semibold, 600);
+	font-size: var(--text-sm-font-size, 14px);
+}
+
+.selectOptionItem {
+	padding: var(--spacing-2, 8px) var(--spacing-2-5, 10px) !important;
+	padding-right: 40px !important;
+}
+
+.selectOptionItem > span:first-child {
+	right: 10px !important;
+	left: unset !important;
+}
+
+.ratioOptionItemContent {
+	display: flex;
+	gap: var(--spacing-1-5, 6px);
+}
+
+.ratioOptionItemContent > .icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--width-w-6, 24px);
+	height: var(--height-h-6, 24px);
+	background: var(--base-input, #e5e5e5);
+	border-radius: var(--border-radius-rounded-sm, 6px);
+	aspect-ratio: 1/1;
+}
+
+.ratioOptionItemContent > .icon > .iconContent {
+	width: 12px;
+	height: 12px;
+	background: var(--alpha-60, rgb(255 255 255 / 40%));
+	border: 1px solid var(--base-muted-foreground, #737373);
+	border-radius: var(--border-radius-rounded-xs, 2px);
+}
+
+.ratioOptionItemContent > .label {
+	font-weight: var(--font-weight-medium, 500);
+	font-size: var(--text-sm-font-size, 14px);
+}
+
+.ratioOptionItemContent > .size {
+	color: var(--base-muted-foreground, #737373);
+}
+
+.selectContent {
+	z-index: 2 !important;
+}
+
+.referenceImagePopover {
+	z-index: 2 !important;
+	width: 320px !important;
+	padding: var(--spacing-2-5, 10px) !important;
+}
+
+.referenceImagePopoverTrigger {
+	outline: none !important;
+}
+
+.referenceImagePopoverTrigger:focus,
+.referenceImagePopoverTrigger:focus-visible {
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.referenceImageContent {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing-2-5, 10px);
+}
+
+.referenceImageTitle {
+	font-weight: var(--font-weight-semibold, 600);
+	font-size: var(--text-sm-font-size, 14px);
+}
+
+.referenceImageList {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing-1, 4px);
+}
+
+.referenceImageItem {
+	display: flex;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	height: 36px;
+	padding: var(--spacing-1-5, 6px) var(--spacing-2-5, 10px);
+	border-radius: var(--border-radius-rounded-sm, 6px);
+}
+
+.referenceImageItem:hover {
+	background: var(--base-sidebar-accent, #f5f5f5);
+}
+
+.referenceImageName {
+	display: flex;
+	flex: 1;
+	gap: 4px;
+	align-items: center;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.referenceImageDelete {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: var(--border-radius-rounded-sm, 6px);
+}
+
+.referenceImageDelete:hover {
+	background: var(--base-sidebar-accent, #f5f5f5);
+}
+
+/* 成片后「重新生成」结果态：与图片 SecondEdit 未展开时同风格缩窄外壳 */
+.videoSecondEditNoEditing {
+	width: unset !important;
+	height: 42px;
+	padding: var(--spacing-1, 4px);
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-md, 8px);
+	box-shadow: var(--shadow-xs-offset-x, 0) var(--shadow-xs-offset-y, 1px)
+		var(--shadow-xs-blur-radius, 2px) var(--shadow-xs-spread-radius, 0)
+		var(--shadow-xs-color, rgb(0 0 0 / 5%));
+}
+
+.secondEditButton {
+	display: flex;
+	gap: var(--spacing-1-5, 6px);
+	align-items: center;
+	justify-content: center;
+	height: var(--width-w-8, 32px);
+	padding: var(--spacing-0, 0) var(--spacing-1-5, 6px);
+	color: var(--base-foreground, #030712);
+	background: var(--tailwind-colors-base-transparent, rgb(255 255 255 / 0%));
+	border-radius: var(--border-radius-rounded-sm, 6px);
+	cursor: pointer;
+}

@@ -3,6 +3,11 @@ import { IMAGE_CONFIG, COLORS, LAYOUT } from "../elements/ImageElement.config"
 import infoIcon from "../../../assets/svg/Info.svg"
 import type { Canvas } from "../../Canvas"
 
+/** 无自定义 onClick 时，向画布发射的 Info 点击事件类型（由调用方显式指定，避免隐式默认） */
+export type InfoButtonClickEventType =
+	| "element:image:infoButtonClick"
+	| "element:video:infoButtonClick"
+
 /**
  * Info 按钮装饰器配置
  */
@@ -15,8 +20,12 @@ export interface InfoButtonDecoratorConfig {
 	width: number
 	/** 元素高度 */
 	height: number
-	/** 点击回调 */
+	/** 点击回调；若提供则优先执行，且不再发射 infoClickEventType */
 	onClick?: () => void
+	/**
+	 * 无 onClick 时发射的画布事件类型（必填，由 Image / Video 等元素各自传入）
+	 */
+	infoClickEventType: InfoButtonClickEventType
 }
 
 /**
@@ -95,6 +104,7 @@ export class InfoButtonDecorator {
 
 			buttonGroup.add(iconNode)
 			this.group.add(buttonGroup)
+			buttonGroup.moveToTop()
 
 			// 绑定事件
 			this.setupButtonEvents(buttonBg)
@@ -133,16 +143,14 @@ export class InfoButtonDecorator {
 				e.evt.stopImmediatePropagation()
 			}
 
-			// 选中该图片元素
-			this.config.canvas.selectionManager.select(this.config.elementId, false)
+			// 选中该元素
+			this.config.canvas.selectionManager.replaceSelection([this.config.elementId])
 
-			// 触发点击回调
 			if (this.config.onClick) {
 				this.config.onClick()
 			} else {
-				// 默认行为：触发显示 MessageHistory 事件
 				this.config.canvas.eventEmitter.emit({
-					type: "element:image:infoButtonClick",
+					type: this.config.infoClickEventType,
 					data: {
 						elementId: this.config.elementId,
 					},
@@ -175,11 +183,7 @@ export class InfoButtonDecorator {
 
 		// 添加悬停效果（只在选择工具下生效）
 		buttonBg.on("mouseenter", () => {
-			// 检查当前工具是否为选择工具
-			const currentTool = this.config.canvas.toolManager.getActiveTool()
-			const isSelectionTool =
-				currentTool && this.config.canvas.toolManager.getSelectionTool() === currentTool
-			if (!isSelectionTool) {
+			if (!this.config.canvas.permissionManager.canUseSelectionToolAffordance()) {
 				return
 			}
 
@@ -189,11 +193,7 @@ export class InfoButtonDecorator {
 		})
 
 		buttonBg.on("mouseleave", () => {
-			// 检查当前工具是否为选择工具
-			const currentTool = this.config.canvas.toolManager.getActiveTool()
-			const isSelectionTool =
-				currentTool && this.config.canvas.toolManager.getSelectionTool() === currentTool
-			if (!isSelectionTool) {
+			if (!this.config.canvas.permissionManager.canUseSelectionToolAffordance()) {
 				return
 			}
 
@@ -267,6 +267,7 @@ export class InfoButtonDecorator {
 			x: adjustedX,
 			y: adjustedY,
 		})
+		this.buttonGroup.moveToTop()
 	}
 
 	/**
@@ -341,9 +342,13 @@ export class InfoButtonDecorator {
 	 */
 	private setupHoverBehavior(): void {
 		this.group.on("mouseenter", () => {
+			if (!this.config.canvas.permissionManager.canShowTransientElementAffordance()) {
+				return
+			}
 			if (this.buttonGroup) {
 				// 先设置为可见
 				this.buttonGroup.visible(true)
+				this.buttonGroup.moveToTop()
 				// 更新按钮缩放，内部会根据元素屏幕尺寸判断是否需要隐藏
 				this.updateButtonScale()
 				this.group.getLayer()?.batchDraw()
@@ -373,6 +378,9 @@ export class InfoButtonDecorator {
 
 		// 监听拖拽结束事件，如果鼠标还在元素上则显示 info button
 		this.group.on("dragend", () => {
+			if (!this.config.canvas.permissionManager.canShowTransientElementAffordance()) {
+				return
+			}
 			if (this.buttonGroup) {
 				// 检查鼠标是否还在元素上
 				const stage = this.group.getStage()
@@ -391,6 +399,7 @@ export class InfoButtonDecorator {
 						if (isInGroup) {
 							// 先设置为可见
 							this.buttonGroup.visible(true)
+							this.buttonGroup.moveToTop()
 							// 更新按钮缩放，内部会根据元素屏幕尺寸判断是否需要隐藏
 							this.updateButtonScale()
 							this.group.getLayer()?.batchDraw()
@@ -407,6 +416,7 @@ export class InfoButtonDecorator {
 	public show(): void {
 		if (this.buttonGroup) {
 			this.buttonGroup.visible(true)
+			this.buttonGroup.moveToTop()
 			this.updateButtonScale()
 			this.group.getLayer()?.batchDraw()
 		}

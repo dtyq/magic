@@ -9,7 +9,6 @@ namespace App\Domain\Audit\ModelCall\Service;
 
 use App\Domain\Audit\ModelCall\Entity\AuditLogEntity;
 use App\Domain\Audit\ModelCall\Repository\Facade\AuditLogRepositoryInterface;
-use App\Infrastructure\Core\ValueObject\Page;
 
 /**
  * 模型调用审计领域服务：持久化与查询经此中转，不暴露仓储给 Application 层.
@@ -39,19 +38,23 @@ readonly class ModelCallAuditDomainService
 
     /**
      * @param array<string, mixed> $filters
-     * @return array{total: int, list: array<int, array<string, mixed>>}
+     * @return array{list: array, next_cursor_id: ?string, prev_cursor_id: ?string, has_more: bool}
      */
     public function queries(
-        Page $page,
+        int $pageSize,
         array $filters = [],
         string $currentOrganizationCode = '',
-        bool $isOfficialOrganization = false
+        bool $isOfficialOrganization = false,
+        ?string $cursorId = null,
+        string $direction = 'next'
     ): array {
         return $this->auditLogRepository->queries(
-            $page,
+            $pageSize,
             $filters,
             $currentOrganizationCode,
-            $isOfficialOrganization
+            $isOfficialOrganization,
+            $cursorId,
+            $direction
         );
     }
 }

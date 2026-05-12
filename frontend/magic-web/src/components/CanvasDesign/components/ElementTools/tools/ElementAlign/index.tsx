@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useState } from "react"
 import {
-	AlignStartHorizontal,
 	AlignCenterHorizontal,
-	AlignEndHorizontal,
-	AlignStartVertical,
 	AlignCenterVertical,
+	AlignEndHorizontal,
 	AlignEndVertical,
-} from "../../../ui/icons/index"
+	AlignStartHorizontal,
+	AlignStartVertical,
+} from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../../../ui/select"
 import styles from "./index.module.css"
 import { useCanvas } from "../../../../context/CanvasContext"

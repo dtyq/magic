@@ -8,6 +8,8 @@ export default function ShareContent({
 	isFileShare,
 	fileId,
 	defaultOpenFileId,
+	enableImmersiveShareChrome,
+	isImmersiveFullscreen,
 	projectId,
 	topicId,
 	showAllProjectFiles,
@@ -15,6 +17,8 @@ export default function ShareContent({
 	viewFileList,
 	showCreatedByBadge,
 	allowDownloadProjectFile,
+	onPreviewFileChange,
+	onPreviewFullscreenChange,
 }: {
 	isMobile: boolean
 	data: any
@@ -23,6 +27,8 @@ export default function ShareContent({
 	isFileShare?: boolean
 	fileId?: string
 	defaultOpenFileId?: string
+	enableImmersiveShareChrome?: boolean
+	isImmersiveFullscreen?: boolean
 	projectId?: string
 	topicId?: string
 	showAllProjectFiles?: boolean
@@ -30,6 +36,8 @@ export default function ShareContent({
 	viewFileList?: boolean
 	showCreatedByBadge?: boolean
 	allowDownloadProjectFile?: boolean
+	onPreviewFileChange?: (fileId: string | null) => void
+	onPreviewFullscreenChange?: (isFullscreen: boolean) => void
 }) {
 	return (
 		<Topic
@@ -41,6 +49,8 @@ export default function ShareContent({
 			isFileShare={isFileShare}
 			fileId={fileId}
 			defaultOpenFileId={defaultOpenFileId}
+			enableImmersiveShareChrome={enableImmersiveShareChrome}
+			isImmersiveFullscreen={isImmersiveFullscreen}
 			topicId={topicId}
 			projectId={projectId}
 			showAllProjectFiles={showAllProjectFiles}
@@ -48,6 +58,8 @@ export default function ShareContent({
 			viewFileList={viewFileList}
 			showCreatedByBadge={showCreatedByBadge}
 			allowDownloadProjectFile={allowDownloadProjectFile}
+			onPreviewFileChange={onPreviewFileChange}
+			onPreviewFullscreenChange={onPreviewFullscreenChange}
 		/>
 	)
 }

@@ -66,9 +66,17 @@ export function useShareFile(options: UseShareFileOptions) {
 				onShowSimilarSharesDialog: (similarShares, fileIds) => {
 					setSimilarSharesInfo({ similarShares, fileIds })
 				},
+				selectedProject,
 			})
 		},
-		[getItemId, selectedItems, mergedFiles, setShareFileInfo, setShareModalVisible],
+		[
+			getItemId,
+			selectedItems,
+			mergedFiles,
+			setShareFileInfo,
+			setShareModalVisible,
+			selectedProject,
+		],
 	)
 
 	const closeSuccessModal = useCallback(() => {

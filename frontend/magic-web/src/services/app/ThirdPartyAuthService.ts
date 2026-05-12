@@ -1,4 +1,5 @@
 import { AuthApi, CommonApi } from "@/apis"
+import type { RequestConfig } from "@/apis/core/HttpClient"
 import { service } from "@/services"
 import { RoutePath } from "@/constants/routes"
 import { baseHistory, history } from "@/routes/history"
@@ -25,6 +26,7 @@ export const thirdPartyOrganizationCodeKey = "thirdPartyOrganizationCode"
  */
 export type GetAuthCodeFn = (
 	deployCode: string,
+	options?: Pick<RequestConfig, "skipAppInitWait">,
 ) => Promise<{ authCode: string; platform: Login.LoginType }>
 
 /**
@@ -139,11 +141,14 @@ class ThirdPartyAuthService {
 	 * Process temporary authorization token, exchange for user token,
 	 * save locally, and remove corresponding query
 	 */
-	async generateAuthorizationToken(tempToken: string): Promise<void> {
+	async generateAuthorizationToken(
+		tempToken: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	): Promise<void> {
 		logger.log("开始生成授权令牌", { tempToken: tempToken.substring(0, 10) + "..." })
 		try {
 			logger.log("调用API将临时令牌转换为用户令牌")
-			const { teamshare_token } = await AuthApi.getUserTokenFromTempToken(tempToken)
+			const { teamshare_token } = await AuthApi.getUserTokenFromTempToken(tempToken, options)
 			if (teamshare_token) {
 				logger.log("设置用户授权令牌")
 				// Avoid issues caused by reusing temporary authorization tokens that have already been used.
@@ -157,7 +162,7 @@ class ThirdPartyAuthService {
 			logger.log("同步集群配置")
 			const { clusterCode } = await service
 				.get<LoginService>("loginService")
-				.syncClusterConfig()
+				.syncClusterConfig(options)
 			logger.log("设置集群代码", { clusterCode })
 
 			service.get<ConfigService>("configService").setClusterCode(clusterCode)
@@ -204,7 +209,7 @@ class ThirdPartyAuthService {
 	 * After replacing the temporary authorization token,
 	 * the query will be carried and redirected again
 	 */
-	async redirectUrlStep(): Promise<void> {
+	async redirectUrlStep(options?: Pick<RequestConfig, "skipAppInitWait">): Promise<void> {
 		logger.log("开始URL重定向步骤")
 		const url = new URL(window.location.href)
 		const { searchParams } = url
@@ -226,7 +231,7 @@ class ThirdPartyAuthService {
 
 		// Open in a new browser window
 		logger.log("获取临时令牌用于重定向")
-		const { temp_token } = await AuthApi.getTempTokenFromUserToken()
+		const { temp_token } = await AuthApi.getTempTokenFromUserToken(options)
 		const redirect = searchParams.get(LoginValueKey.REDIRECT_URL)
 
 		if (redirect) {
@@ -265,7 +270,10 @@ class ThirdPartyAuthService {
 	/**
 	 * Submit data and handle the logic of different login methods uniformly
 	 */
-	async handleAutoLogin(deployCode: string): Promise<void> {
+	async handleAutoLogin(
+		deployCode: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	): Promise<void> {
 		logger.log("开始处理自动登录流程", { deployCode })
 		try {
 			/**
@@ -275,7 +283,7 @@ class ThirdPartyAuthService {
 			 * (as authorization requires obtaining the corresponding third-party organization ID, application key, etc.)
 			 */
 			logger.log("获取私有化配置", { deployCode })
-			const data = await CommonApi.getPrivateConfigure(deployCode)
+			const data = await CommonApi.getPrivateConfigure(deployCode, options)
 			logger.log("私有化配置获取完成")
 
 			/**
@@ -296,18 +304,21 @@ class ThirdPartyAuthService {
 			logger.log("集群配置设置完成")
 
 			logger.log("获取授权码", { deployCode })
-			const { authCode, platform } = await this.getAuthCode(deployCode)
+			const { authCode, platform } = await this.getAuthCode(deployCode, options)
 			logger.log("授权码获取完成", { platform, authCodeLength: authCode?.length })
 
 			const url = new URL(window.location.href)
 			logger.log("执行登录步骤", { platform, redirect: url.toString() })
-			const { access_token } = await service
-				.get<LoginService>("loginService")
-				.loginStep(platform, {
+			const { access_token } = await service.get<LoginService>("loginService").loginStep(
+				platform,
+				{
 					platform_type: platform,
 					authorization_code: authCode,
 					redirect: url.toString(),
-				})()
+				},
+				undefined,
+				options,
+			)()
 			logger.log("登录步骤完成，获取到访问令牌")
 
 			logger.log("设置用户授权令牌")
@@ -317,12 +328,12 @@ class ThirdPartyAuthService {
 			logger.log("同步魔法组织映射关系", { deployCode })
 			await service
 				.get<LoginService>("loginService")
-				.magicOrganizationSync(deployCode, access_token)
+				.magicOrganizationSync(deployCode, access_token, undefined, options)
 			logger.log("魔法组织映射关系同步完成")
 
 			// Optimized for specific scenarios, continue the business process under the same tab
 			logger.log("执行URL重定向步骤")
-			await this.redirectUrlStep()
+			await this.redirectUrlStep(options)
 			logger.log("自动登录流程完成")
 		} catch (error: any) {
 			logger.error("自动登录流程失败", { deployCode, error })
@@ -337,7 +348,7 @@ class ThirdPartyAuthService {
 	 * Initialize third party auth process
 	 * @description Main entry point for third party authentication flow
 	 */
-	async init(): Promise<void> {
+	async init(options?: Pick<RequestConfig, "skipAppInitWait">): Promise<void> {
 		logger.log("开始初始化第三方认证流程")
 		// 每次经来都需要通过判断当前用户token是否为空，若为空且query存在组织编码且命中第三方环境下则做私有化环境免登流程
 		const { authorization } = userStore.user
@@ -355,20 +366,20 @@ class ThirdPartyAuthService {
 
 		if (authorization && thirdPartyAuthDeployCode) {
 			// 优先判断当前 authorization 是否为 thirdPartyAuthDeployCode 集群，如果不是则强制走免登流程
-			const { login_code } = await AuthApi.getAccountDeployCode()
+			const { login_code } = await AuthApi.getAccountDeployCode(options)
 			if (login_code !== thirdPartyAuthDeployCode) {
-				await this.handleAutoLogin(thirdPartyAuthDeployCode)
+				await this.handleAutoLogin(thirdPartyAuthDeployCode, options)
 				return
 			}
 			await service
 				.get<LoginService>("loginService")
-				.magicOrganizationSync(thirdPartyAuthDeployCode, authorization)
-			await this.redirectUrlStep()
+				.magicOrganizationSync(thirdPartyAuthDeployCode, authorization, undefined, options)
+			await this.redirectUrlStep(options)
 		} else if (tempAuthorizationCode) {
-			await this.generateAuthorizationToken(tempAuthorizationCode)
+			await this.generateAuthorizationToken(tempAuthorizationCode, options)
 		} else if (thirdPartyAuthDeployCode) {
 			// If and only if there is a private exclusive code can it trigger login exemption
-			await this.handleAutoLogin(thirdPartyAuthDeployCode)
+			await this.handleAutoLogin(thirdPartyAuthDeployCode, options)
 		} else {
 			throw new Error("no third party auth params")
 		}

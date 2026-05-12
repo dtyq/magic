@@ -9,6 +9,10 @@ import { loadMermaid } from "@/lib/mermaid"
 import { convertSvgToPng } from "@/utils/image"
 import MagicMermaid from "."
 
+const MAX_MERMAID_EXPORT_WIDTH = 4096
+const MAX_MERMAID_EXPORT_HEIGHT = 4096
+const MAX_MERMAID_EXPORT_PIXELS = 4096 * 4096
+
 const useStyles = createStyles(({ css }) => ({
 	mindMap: css`
 		width: 100vw;
@@ -24,10 +28,7 @@ const useStyles = createStyles(({ css }) => ({
 const getSvgData = async (data: string) => {
 	const mermaid = await loadMermaid()
 	mermaid.initialize({ startOnLoad: false })
-	const dom = document.createElement("div")
 	const id = `mermaid-js-bridge/${nanoid()}`
-	dom.setAttribute("id", id)
-	dom.innerHTML = data
 	return mermaid.render(id, data).then(({ svg }) => {
 		return svg
 	})
@@ -51,7 +52,11 @@ const MagicMermaidShared = memo(function MagicMermaidShared() {
 		const callback = async (event: BridgeEventData[BridgeEventType.GetMermaidImage]) => {
 			try {
 				const svg = await getSvgData(event.data)
-				const png = await convertSvgToPng(svg, event?.width, event?.height)
+				const png = await convertSvgToPng(svg, event?.width, event?.height, {
+					maxWidth: MAX_MERMAID_EXPORT_WIDTH,
+					maxHeight: MAX_MERMAID_EXPORT_HEIGHT,
+					maxPixels: MAX_MERMAID_EXPORT_PIXELS,
+				})
 				getJSBridge()?.callNative(BridgeCallNativeEvent.getMermaidImage, png)
 			} catch (err) {
 				console.error("获取思维导图图片失败", err)

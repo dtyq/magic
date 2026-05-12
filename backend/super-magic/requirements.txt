@@ -9,6 +9,7 @@ loguru~=0.7.3
 typer>=0.15.2
 backoff>=2.2.1  # 重试机制库
 json_repair>=0.47.7  # JSON 修复和解析库
+bashlex>=0.18  # shell 命令解析（复合命令拆分、安全检测）
 
 # CLI 工具依赖
 click>=8.0.0  # CLI 框架

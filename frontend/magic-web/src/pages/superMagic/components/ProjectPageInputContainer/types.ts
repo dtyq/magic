@@ -1,4 +1,4 @@
-import { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import { ProjectListItem, Topic, Workspace } from "../../pages/Workspace/types"
 import { MessageEditorLayoutConfig } from "../MessageEditor"
 import { MessageEditorSize } from "../MessageEditor/types"
@@ -34,8 +34,6 @@ export interface ProjectPageInputContainerProps {
 	mentionPanelStore?: MentionPanelStore
 	/**
 	 * 话题模式逻辑，用于控制话题模式的选择和切换
-	 *
-	 * PS: 录音总结模式，AI 对话功能使用该逻辑
 	 */
 	topicModeLogic?: TopicModeLogic
 	/**
@@ -57,4 +55,6 @@ export interface ProjectPageInputContainerProps {
 	 * 是否显示话题模式示例卡片
 	 */
 	showTopicModeExamplePortal?: boolean
+	/** 仅允许特定页面消费“撤回消息重新编辑”事件，避免移动端保活页面重复弹层 */
+	enableReEditMessageFromPubSub?: boolean
 }

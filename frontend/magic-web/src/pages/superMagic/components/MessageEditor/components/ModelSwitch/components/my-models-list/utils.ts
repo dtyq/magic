@@ -1,5 +1,5 @@
 import type { ServiceProviderModel } from "@/apis/modules/org-ai-model-provider"
-import type { ProviderTemplateOption, ServiceProvider } from "../AddModel/types"
+import type { ServiceProvider } from "../AddModel/types"
 
 export interface MyModelProviderEntry {
 	model: ServiceProviderModel
@@ -14,31 +14,14 @@ export interface MyModelGroup {
 	providerEntries: MyModelProviderEntry[]
 }
 
-export function buildMyModelGroups({
-	models,
-	providers,
-	providerTemplates,
-}: {
-	models: ServiceProviderModel[]
-	providers: ServiceProvider[]
-	providerTemplates: ProviderTemplateOption[]
-}): MyModelGroup[] {
-	const providerById = new Map(providers.map((provider) => [provider.id, provider]))
-	const providerTemplateNameMap = new Map(
-		providerTemplates.map((providerTemplate) => [
-			providerTemplate.providerCode,
-			providerTemplate.name,
-		]),
-	)
+export function buildMyModelGroups({ models }: { models: ServiceProviderModel[] }): MyModelGroup[] {
 	const groupByModelId = new Map<string, MyModelGroup>()
 
 	for (const model of models) {
-		const provider = providerById.get(model.service_provider_config_id) ?? null
+		const provider = buildProviderFromModel(model)
 		const providerAlias = provider?.fields.alias?.trim() ?? ""
 		const providerName = provider?.name ?? ""
-		const providerTypeName = provider
-			? (providerTemplateNameMap.get(provider.providerTypeId) ?? "")
-			: ""
+		const providerTypeName = ""
 		const providerEntry: MyModelProviderEntry = {
 			model,
 			provider,
@@ -60,4 +43,21 @@ export function buildMyModelGroups({
 	}
 
 	return Array.from(groupByModelId.values())
+}
+
+function buildProviderFromModel(model: ServiceProviderModel): ServiceProvider | null {
+	const providerConfig = model.service_provider_config
+	if (!providerConfig?.id) return null
+
+	const providerName = providerConfig.name?.trim() ?? ""
+
+	return {
+		id: providerConfig.id,
+		name: providerName,
+		icon: "",
+		providerTypeId: "",
+		fields: {
+			alias: "",
+		},
+	}
 }

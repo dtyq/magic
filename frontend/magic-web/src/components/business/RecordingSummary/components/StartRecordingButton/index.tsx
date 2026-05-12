@@ -4,7 +4,7 @@ import LoadingIcon from "../LoadingIcon"
 import { useStyles } from "./styles"
 import { useState, useCallback, useRef, useEffect } from "react"
 import MicrophoneIcon from "./MicrophoneIcon"
-import { useMemoizedFn, useUpdateEffect } from "ahooks"
+import { useMemoizedFn, useSize, useUpdateEffect } from "ahooks"
 import { SummaryGuideDOMId } from "@/pages/superMagic/components/MessagePanel/components/TopicExamples/SummaryGuide"
 import { preloadProjectSelector } from "../ProjectSelector/utils/preloadProjectSelector"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -38,6 +38,11 @@ function StartRecordingButton({
 	const iconContainerRef = useRef<HTMLDivElement>(null)
 	const textContainerRef = useRef<HTMLDivElement>(null)
 	const buttonRef = useRef<HTMLButtonElement>(null)
+	const buttonSize = useSize(buttonRef)
+	const newItemSize = useSize(newItemRef)
+	const currentItemSize = useSize(currentItemRef)
+	const iconContainerSize = useSize(iconContainerRef)
+	const textContainerSize = useSize(textContainerRef)
 
 	// Cache measured dimensions
 	const dimensionsCache = useRef({
@@ -58,7 +63,6 @@ function StartRecordingButton({
 	const calculateDimensions = useCallback(() => {
 		if (
 			!newItemRef.current ||
-			!currentItemRef.current ||
 			!iconContainerRef.current ||
 			!textContainerRef.current ||
 			!buttonRef.current
@@ -69,13 +73,13 @@ function StartRecordingButton({
 		// Use offsetLeft to get layout position (not affected by CSS transforms)
 		const iconWidth = iconContainerRef.current.offsetWidth
 		const newItemWidth = newItemRef.current.offsetWidth
-		const currentItemWidth = currentItemRef.current.offsetWidth
+		const currentItemWidth = currentItemRef.current?.offsetWidth ?? 0
 
 		// Get layout positions using offsetLeft (relative to offsetParent)
 		// textContainer's offsetLeft relative to button
 		const textContainerLeft = textContainerRef.current.offsetLeft
 		// newItem and currentItem's offsetLeft relative to textContainer
-		const currentItemOffsetLeft = currentItemRef.current.offsetLeft
+		const currentItemOffsetLeft = currentItemRef.current?.offsetLeft ?? 0
 
 		// Calculate absolute positions relative to button
 		const currentItemLayoutLeft = textContainerLeft + currentItemOffsetLeft
@@ -115,7 +119,7 @@ function StartRecordingButton({
 			setBgWidth(width)
 			setBgLeft(bgLeft)
 			setIconLeftPosition(iconRelativeLeft)
-		} else {
+		} else if (currentItemRef.current) {
 			// When hovering "current" item:
 			// Background should have internal padding around the content
 			const width =
@@ -139,6 +143,10 @@ function StartRecordingButton({
 			setBgWidth(width)
 			setBgLeft(bgLeft)
 			setIconLeftPosition(iconRelativeLeft)
+		} else {
+			setBgWidth(buttonRef.current.offsetWidth)
+			setBgLeft(0)
+			setIconLeftPosition(dimensionsCache.current.bgPaddingLeft)
 		}
 	}, [isNewItem])
 
@@ -152,10 +160,9 @@ function StartRecordingButton({
 	}, [displayText, subText, calculateDimensions])
 
 	useUpdateEffect(() => {
-		if (disabled && currentItem === "current") {
-			setCurrentItem("new")
-		}
-	}, [disabled])
+		if (currentItem !== "current") return
+		if (disabled || !allowSelectProject) setCurrentItem("new")
+	}, [allowSelectProject, currentItem, disabled])
 
 	const handleMouseEnterNew = useMemoizedFn(() => {
 		if (disabled) return
@@ -177,6 +184,18 @@ function StartRecordingButton({
 	useEffect(() => {
 		calculateDimensions()
 	}, [currentItem, calculateDimensions])
+
+	useEffect(() => {
+		calculateDimensions()
+	}, [
+		allowSelectProject,
+		buttonSize?.width,
+		iconContainerSize?.width,
+		textContainerSize?.width,
+		newItemSize?.width,
+		currentItemSize?.width,
+		calculateDimensions,
+	])
 
 	return (
 		<button

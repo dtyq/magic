@@ -85,7 +85,7 @@ export function VersionHistorySelector({
 							onClick={() => {
 								fetchFileVersions(fileId)
 							}}
-							className="shadow-xs h-6 gap-1.5 rounded-md px-3 text-xs font-normal text-foreground"
+							className="h-6 gap-1.5 rounded-md px-3 text-xs font-normal text-foreground shadow-xs"
 						>
 							<History size={16} />
 							{showButtonText && <span>{t("common.historyVersion")}</span>}

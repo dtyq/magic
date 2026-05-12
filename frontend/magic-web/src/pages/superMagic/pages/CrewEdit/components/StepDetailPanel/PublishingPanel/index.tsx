@@ -7,6 +7,7 @@ import PublishPanel, {
 	type PublishDraft,
 	PublishPanelStore,
 } from "@/pages/superMagic/components/PublishPanel"
+import { FUNCTION_PERMISSION_CODE } from "@/apis"
 import type { AgentVersionItem } from "@/apis/modules/crew"
 import { crewService } from "@/services/crew/CrewService"
 import useNavigate from "@/routes/hooks/useNavigate"
@@ -21,6 +22,7 @@ import {
 	createCrewEditPublishPrefillDraft,
 	createInitialCrewEditPublishPanelData,
 } from "./publishPanelData"
+import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 
 const CREW_EDIT_PUBLISH_VIEW_QUERY_KEY = "publishView"
 const CREW_EDIT_PUBLISH_VERSION_QUERY_KEY = "publishVersion"
@@ -34,12 +36,21 @@ function PublishingPanel() {
 		layout: { setActiveStep },
 		crewCode,
 	} = store
+	const { isAllowed: canCreateAgent } = useFunctionPermission(
+		FUNCTION_PERMISSION_CODE.AgentCreate,
+	)
+	const { isAllowed: canPublishAgentTeam } = useFunctionPermission(
+		FUNCTION_PERMISSION_CODE.AgentPublish,
+	)
 	const submitDraftRef = useRef<(draft: PublishDraft) => Promise<void>>(async () => undefined)
 	const versionsRef = useRef<AgentVersionItem[]>([])
 	const [publishPanelStore] = useState(
 		() =>
 			new PublishPanelStore({
-				initialData: createInitialCrewEditPublishPanelData(),
+				initialData: createInitialCrewEditPublishPanelData({
+					canPublishPrivate: canCreateAgent,
+					canPublishTeam: canPublishAgentTeam,
+				}),
 				onSubmit: (draft) => submitDraftRef.current(draft),
 			}),
 	)
@@ -47,7 +58,12 @@ function PublishingPanel() {
 	const loadPublishPanelData = useCallback(async () => {
 		if (!crewCode) {
 			versionsRef.current = []
-			publishPanelStore.hydrate(createInitialCrewEditPublishPanelData())
+			publishPanelStore.hydrate(
+				createInitialCrewEditPublishPanelData({
+					canPublishPrivate: canCreateAgent,
+					canPublishTeam: canPublishAgentTeam,
+				}),
+			)
 			return
 		}
 
@@ -60,6 +76,8 @@ function PublishingPanel() {
 				agentDetail,
 				versions: versions.list,
 				locale: i18n.resolvedLanguage ?? i18n.language,
+				canPublishPrivate: canCreateAgent,
+				canPublishTeam: canPublishAgentTeam,
 			})
 			versionsRef.current = versions.list
 			publishPanelStore.hydrate(panelData, {
@@ -109,6 +127,8 @@ function PublishingPanel() {
 		}
 	}, [
 		crewCode,
+		canCreateAgent,
+		canPublishAgentTeam,
 		i18n.language,
 		i18n.resolvedLanguage,
 		location.search,

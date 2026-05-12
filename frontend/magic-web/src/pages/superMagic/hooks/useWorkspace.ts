@@ -85,7 +85,7 @@ export function useWorkspace({
 			page,
 		}: FetchWorkspacesParams) => {
 			try {
-				const res = await SuperMagicApi.getWorkspaces({ page, page_size: 99 })
+				const res = await SuperMagicApi.getWorkspaces({ page, page_size: 999 })
 				if (res) {
 					setWorkspaces(res.list)
 					setWorkspacesPage(1)

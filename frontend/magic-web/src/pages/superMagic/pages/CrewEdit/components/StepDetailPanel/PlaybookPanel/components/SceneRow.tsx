@@ -11,6 +11,7 @@ import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 import type { SceneAction, SceneItem } from "../types"
 import { observer } from "mobx-react-lite"
 import { resolveLocalText } from "./SceneEditPanel/utils"
+import { getSceneThemePreviewStyle } from "../../../common/sceneThemePreview"
 
 interface SceneRowProps {
 	scene: SceneItem
@@ -31,6 +32,7 @@ export const SceneRow = observer(function SceneRow({
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: scene.id,
 	})
+	const sceneThemeStyle = getSceneThemePreviewStyle(scene.theme_color)
 
 	return (
 		<div
@@ -64,8 +66,15 @@ export const SceneRow = observer(function SceneRow({
 				className="flex min-w-0 flex-1 items-start gap-2"
 				onClick={() => onAction(scene.id, "edit")}
 			>
-				<div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-sidebar-accent">
-					<LucideLazyIcon icon={scene.icon} size={16} className="text-muted-foreground" />
+				<div
+					className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-transparent bg-sidebar-accent"
+					style={sceneThemeStyle}
+				>
+					<LucideLazyIcon
+						icon={scene.icon}
+						size={16}
+						className={sceneThemeStyle ? "text-current" : "text-muted-foreground"}
+					/>
 				</div>
 
 				<div className="flex min-w-0 flex-1 flex-col gap-1">

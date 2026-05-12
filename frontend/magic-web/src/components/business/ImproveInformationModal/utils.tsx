@@ -3,8 +3,9 @@ import type { ImproveInformationData } from "./types"
 import { lazy, Suspense } from "react"
 import AppearanceProvider from "@/providers/AppearanceProvider"
 import { interfaceStore } from "@/stores/interface"
-import { history } from "@/routes/history"
+import { baseHistory, history } from "@/routes/history"
 import { RouteName } from "@/routes/constants"
+import { RoutePathMobile } from "@/constants/routes"
 import { improveInformationPageCallbackStore } from "@/stores/improve-information/store"
 
 const ImproveInformationModal = lazy(() => import("./component"))
@@ -20,6 +21,9 @@ interface ShowImproveInformationModalOptions {
 
 let modalContainer: HTMLDivElement | null = null
 let modalRoot: Root | null = null
+let activeModalPromise: Promise<ImproveInformationData | null> | null = null
+let activeModalPlatform: "pc" | "mobile" | null = null
+let resolveActiveModalPromise: ((value: ImproveInformationData | null) => void) | null = null
 
 /**
  * 动态显示完善信息弹窗（PC）或跳转到完善信息页面（移动端）
@@ -29,30 +33,43 @@ let modalRoot: Root | null = null
 export function showImproveInformationModal(
 	options: ShowImproveInformationModalOptions = {},
 ): Promise<ImproveInformationData | null> {
-	return new Promise((resolve) => {
+	const currentPlatform = interfaceStore.isMobile ? "mobile" : "pc"
+
+	if (activeModalPromise) {
+		if (activeModalPlatform === currentPlatform) return activeModalPromise
+
+		cleanupActiveModalCarrier(currentPlatform)
+		resolveActiveModalPromise?.(null)
+	}
+
+	activeModalPlatform = currentPlatform
+
+	activeModalPromise = new Promise((resolve) => {
+		resolveActiveModalPromise = (value) => resolveModalPromise({ resolve, value })
+
 		// 移动端：跳转到独立页面
 		if (interfaceStore.isMobile) {
 			improveInformationPageCallbackStore.onSubmit = async (data) => {
 				try {
 					const res = await options.onSubmit?.(data)
 					if (res) {
-						resolve(res as ImproveInformationData)
+						resolveActiveModalPromise?.(res as ImproveInformationData)
 					} else {
-						resolve(data)
+						resolveActiveModalPromise?.(data)
 					}
 				} catch (error) {
 					console.error("Submit error in showImproveInformationModal:", error)
-					resolve(data)
+					resolveActiveModalPromise?.(data)
 				}
 			}
 
 			improveInformationPageCallbackStore.onSuccess = () => {
-				resolve(null)
+				resolveActiveModalPromise?.(null)
 			}
 
 			improveInformationPageCallbackStore.onClose = () => {
 				options.onClose?.()
-				resolve(null)
+				resolveActiveModalPromise?.(null)
 			}
 
 			history.replace({
@@ -62,9 +79,7 @@ export function showImproveInformationModal(
 		}
 
 		// PC 端：弹窗展示
-		if (modalContainer && modalRoot) {
-			closeModal()
-		}
+		if (modalContainer && modalRoot) return
 
 		modalContainer = document.createElement("div")
 		modalContainer.id = ImproveInformationModalContainerId
@@ -77,20 +92,20 @@ export function showImproveInformationModal(
 		const handleClose = () => {
 			options.onClose?.()
 			closeModal()
-			resolve(null)
+			resolveActiveModalPromise?.(null)
 		}
 
 		const handleSubmit = async (data: ImproveInformationData) => {
 			try {
 				const res = await options.onSubmit?.(data)
 				if (res) {
-					resolve(res as ImproveInformationData)
+					resolveActiveModalPromise?.(res as ImproveInformationData)
 				} else {
-					resolve(null)
+					resolveActiveModalPromise?.(null)
 				}
 			} catch (error) {
 				console.error("Submit error in showImproveInformationModal:", error)
-				resolve(data)
+				resolveActiveModalPromise?.(data)
 			}
 		}
 
@@ -110,6 +125,8 @@ export function showImproveInformationModal(
 			</AppearanceProvider>,
 		)
 	})
+
+	return activeModalPromise
 }
 
 /**
@@ -121,10 +138,11 @@ function closeModal() {
 		modalRoot = null
 	}
 
-	if (modalContainer) {
-		document.body.removeChild(modalContainer)
-		modalContainer = null
+	if (modalContainer?.parentNode) {
+		modalContainer.parentNode.removeChild(modalContainer)
 	}
+
+	modalContainer = null
 }
 
 /**
@@ -139,4 +157,42 @@ export function isImproveInformationModalOpen(): boolean {
  */
 export function forceCloseImproveInformationModal(): void {
 	closeModal()
+	resolveActiveModalPromise?.(null)
+}
+
+function cleanupActiveModalCarrier(nextPlatform: "pc" | "mobile") {
+	if (activeModalPlatform === "pc") {
+		closeModal()
+		return
+	}
+
+	resetImproveInformationPageCallbacks()
+	if (
+		nextPlatform === "pc" &&
+		baseHistory.location.pathname === RoutePathMobile.ImproveInformation
+	) {
+		history.replace({
+			name: RouteName.Super,
+		})
+	}
+}
+
+function resolveModalPromise({
+	resolve,
+	value,
+}: {
+	resolve: (value: ImproveInformationData | null) => void
+	value: ImproveInformationData | null
+}) {
+	resolve(value)
+	resetImproveInformationPageCallbacks()
+	activeModalPlatform = null
+	activeModalPromise = null
+	resolveActiveModalPromise = null
+}
+
+function resetImproveInformationPageCallbacks() {
+	improveInformationPageCallbackStore.onSubmit = undefined
+	improveInformationPageCallbackStore.onSuccess = undefined
+	improveInformationPageCallbackStore.onClose = undefined
 }

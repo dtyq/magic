@@ -97,7 +97,7 @@ export interface FolderUploadTask {
 	workspaceId?: string // 工作区ID，只有在超级麦吉环境下才有
 	topicId?: string
 	taskId?: string
-	baseSuffixDir: string
+	parentId?: string
 	files: File[]
 
 	// 任务状态
@@ -134,7 +134,7 @@ export interface SerializedTask {
 	projectName: string
 	topicId?: string
 	taskId?: string
-	baseSuffixDir: string
+	parentId?: string
 	fileCount: number
 	state: FolderUploadState
 	options: FolderUploadOptions
@@ -210,6 +210,7 @@ export interface UploadResult {
 	file_name: string
 	file_size: number
 	file_extension: string
+	relative_file_path?: string
 }
 
 export interface FolderUploadResult {

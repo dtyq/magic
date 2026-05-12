@@ -12,9 +12,10 @@ import { useTranslation } from "react-i18next"
 interface DemoPanelProps {
 	config: DemoPanelConfig
 	onTemplateSelect?: (template: OptionItem) => void
+	readOnly?: boolean
 }
 
-const DemoPanel = observer(({ config, onTemplateSelect }: DemoPanelProps) => {
+const DemoPanel = observer(({ config, onTemplateSelect, readOnly = false }: DemoPanelProps) => {
 	const lt = useLocaleText()
 	const { t } = useTranslation("crew/create")
 
@@ -27,6 +28,8 @@ const DemoPanel = observer(({ config, onTemplateSelect }: DemoPanelProps) => {
 	}, [config, store])
 
 	const handleTemplateClick = (template: OptionItem) => {
+		if (readOnly) return
+
 		onTemplateSelect?.(template)
 		pubsub.publish(PubSubEvents.Set_Demo_Text_To_Input, template.value)
 	}

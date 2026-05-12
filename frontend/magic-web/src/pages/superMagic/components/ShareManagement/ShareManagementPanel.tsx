@@ -16,11 +16,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/shadcn-ui/select"
-import {
-	InputGroup,
-	InputGroupAddon,
-	InputGroupInput,
-} from "@/components/shadcn-ui/input-group"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/shadcn-ui/input-group"
 
 interface ShareManagementPanelProps {
 	projectId?: string
@@ -97,7 +93,7 @@ function ShareManagementPanel({ projectId }: ShareManagementPanelProps) {
 						value={filterStatus}
 						onValueChange={(val) => handleStatusChange(val as SharedTopicFilterStatus)}
 					>
-						<SelectTrigger className="!h-7 w-[90px] border-input bg-transparent text-foreground hover:bg-accent">
+						<SelectTrigger className="!h-7 w-[90px] overflow-hidden text-ellipsis border-input bg-transparent text-foreground hover:bg-accent">
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>

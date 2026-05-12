@@ -8,6 +8,30 @@ import {
 
 export { SMALL_THUMBNAIL_MAX_SIZE, TOOLTIP_THUMBNAIL_MIN_SIZE } from "./imageThumbnailConstants"
 
+/**
+ * 将图片自然尺寸按比例缩放到不超过 tooltip / popover 预览最大边长（与参考图预览一致）
+ */
+export function calculateTooltipBoundedPreviewSize(
+	imageInfo: { naturalWidth: number; naturalHeight: number } | undefined,
+): { width?: number; height?: number } {
+	if (!imageInfo) {
+		return {}
+	}
+
+	const maxSize = TOOLTIP_THUMBNAIL_MIN_SIZE
+	const { naturalWidth, naturalHeight } = imageInfo
+
+	if (naturalWidth <= maxSize && naturalHeight <= maxSize) {
+		return { width: naturalWidth, height: naturalHeight }
+	}
+
+	const ratio = naturalWidth / naturalHeight
+	if (naturalWidth > naturalHeight) {
+		return { width: maxSize, height: Math.round(maxSize / ratio) }
+	}
+	return { width: Math.round(maxSize * ratio), height: maxSize }
+}
+
 /** WebP 支持缓存（一次性检测） */
 let webpSupported: boolean | null = null
 

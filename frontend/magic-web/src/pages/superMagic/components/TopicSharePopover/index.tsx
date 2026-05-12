@@ -6,20 +6,15 @@ import { clipboard } from "@/utils/clipboard-helpers"
 import { Switch } from "@/components/shadcn-ui/switch"
 import { Separator } from "@/components/shadcn-ui/separator"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn-ui/popover"
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/shadcn-ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/shadcn-ui/dialog"
 import { Button } from "@/components/shadcn-ui/button"
 import { IconCopy, IconChevronRight, IconChevronDown } from "@tabler/icons-react"
+import { Check } from "lucide-react"
 import MagicIcon from "@/components/base/MagicIcon"
 import CommonPopup from "@/pages/superMagicMobile/components/CommonPopup"
-import { userStore } from "@/models/user"
 import { VipSwitch, VipBadge } from "@/pages/superMagic/components/VipSwitch"
 import { ResourceType, ShareType } from "../Share/types"
-import { generateSharePassword } from "../Share/utils"
+import { generateSharePassword, generateTopicShareMessageText } from "../Share/utils"
 import { SharePasswordField } from "../Share/ShareFields"
 import { useStyles } from "./styles"
 import { cn } from "@/lib/tiptap-utils"
@@ -73,6 +68,47 @@ function TopicSharePopoverContent({
 		shareType: ShareType.PasswordProtected,
 	})
 	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false)
+	const [isCopied, setIsCopied] = useState(false)
+	const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+	// Auto copy share message and show visual feedback
+	// Only enable auto-copy in HTTPS environments to avoid clipboard permission issues
+	const autoCopyShareMessage = useCallback(
+		(shareUrl: string) => {
+			// Skip auto-copy in HTTP environments to prevent popover from closing unexpectedly
+			// Note: window.isSecureContext returns true for localhost/127.0.0.1, so we check protocol directly
+			if (window.location.protocol !== "https:") {
+				console.log("Auto-copy disabled in HTTP environment")
+				return
+			}
+
+			try {
+				const shareMessage = generateTopicShareMessageText({
+					topicTitle,
+					shareUrl,
+					t,
+				})
+				clipboard.writeText(shareMessage)
+
+				// Clear existing timeout
+				if (copyTimeoutRef.current) {
+					clearTimeout(copyTimeoutRef.current)
+				}
+
+				// Show check icon
+				setIsCopied(true)
+
+				// Reset to copy icon after 2 seconds
+				copyTimeoutRef.current = setTimeout(() => {
+					setIsCopied(false)
+					copyTimeoutRef.current = null
+				}, 2000)
+			} catch (error) {
+				console.error("Failed to auto copy share message:", error)
+			}
+		},
+		[topicTitle, t],
+	)
 
 	// Load existing share settings
 	useEffect(() => {
@@ -81,17 +117,25 @@ function TopicSharePopoverContent({
 				const data = await SuperMagicApi.getShareInfoByCode({ code: topicId })
 				if (data?.resource_id) {
 					const shareUrl = `${window.location.origin}/share/topic/${topicId}`
+					const finalShareUrl = data.password
+						? `${shareUrl}?password=${data.password}`
+						: shareUrl
+					const isShareEnabled = data.share_type !== ShareType.None
+
 					setSettings({
-						shareEnabled: data.share_type !== ShareType.None,
-						shareUrl: data.password
-							? `${shareUrl}?password=${data.password}`
-							: shareUrl,
+						shareEnabled: isShareEnabled,
+						shareUrl: finalShareUrl,
 						passwordEnabled: !!data.password,
 						password: data.password || "",
 						showOriginalInfo: data.extra?.show_original_info ?? true,
 						showFileList: data.extra?.view_file_list ?? true,
 						shareType: data.share_type as ShareType,
 					})
+
+					// If share is already enabled, auto copy share message
+					if (isShareEnabled) {
+						autoCopyShareMessage(finalShareUrl)
+					}
 				}
 			} catch (error) {
 				// If no share settings exist, keep default state
@@ -102,7 +146,7 @@ function TopicSharePopoverContent({
 		if (topicId) {
 			loadShareSettings()
 		}
-	}, [topicId])
+	}, [topicId, autoCopyShareMessage])
 
 	// Handle share enable toggle
 	const handleShareEnabledChange = useCallback(
@@ -127,16 +171,21 @@ function TopicSharePopoverContent({
 					})
 
 					const shareUrl = `${window.location.origin}/share/topic/${topicId}`
+					const finalShareUrl = password ? `${shareUrl}?password=${password}` : shareUrl
 					const newShareType = settings.passwordEnabled
 						? ShareType.PasswordProtected
 						: ShareType.Public
 					setSettings((prev) => ({
 						...prev,
 						shareEnabled: true,
-						shareUrl: password ? `${shareUrl}?password=${password}` : shareUrl,
+						shareUrl: finalShareUrl,
 						password,
 						shareType: newShareType,
 					}))
+
+					// Auto copy share message to clipboard (silently, no toast)
+					autoCopyShareMessage(finalShareUrl)
+
 					onSaveSuccess?.()
 					onDataChanged?.()
 				} else {
@@ -160,9 +209,10 @@ function TopicSharePopoverContent({
 			settings.showOriginalInfo,
 			settings.showFileList,
 			topicId,
-			t,
+			autoCopyShareMessage,
 			onSaveSuccess,
 			onDataChanged,
+			t,
 		],
 	)
 
@@ -220,20 +270,11 @@ function TopicSharePopoverContent({
 
 	// Generate share message text
 	const shareMessageText = useMemo(() => {
-		const displayTopicTitle = topicTitle || t("common.untitledTopic")
-		const displayName =
-			userStore.user.userInfo?.nickname || userStore.user.userInfo?.real_name || ""
-		const lines = [
-			t("share.shareMessageTopic"),
-			t("share.shareMessageTopicName", { topicTitle: displayTopicTitle }),
-			t("share.shareMessageTopicLink", { shareUrl: settings.shareUrl }),
-			t("share.shareMessageTopicTip"),
-			t("share.createdBy.footerLine", {
-				brand: t("share.createdBy.brand"),
-				username: displayName,
-			}),
-		]
-		return lines.join("\n")
+		return generateTopicShareMessageText({
+			topicTitle,
+			shareUrl: settings.shareUrl,
+			t,
+		})
 	}, [topicTitle, settings.shareUrl, t])
 
 	// Render share message with clickable links
@@ -271,7 +312,30 @@ function TopicSharePopoverContent({
 	const handleCopyShareMessage = useCallback(() => {
 		clipboard.writeText(shareMessageText)
 		magicToast.success(t("share.copyShareMessageSuccess"))
+
+		// Clear existing timeout
+		if (copyTimeoutRef.current) {
+			clearTimeout(copyTimeoutRef.current)
+		}
+
+		// Show check icon
+		setIsCopied(true)
+
+		// Reset to copy icon after 2 seconds
+		copyTimeoutRef.current = setTimeout(() => {
+			setIsCopied(false)
+			copyTimeoutRef.current = null
+		}, 2000)
 	}, [shareMessageText, t])
+
+	// Cleanup timeout on unmount
+	useEffect(() => {
+		return () => {
+			if (copyTimeoutRef.current) {
+				clearTimeout(copyTimeoutRef.current)
+			}
+		}
+	}, [])
 
 	// Handle copy password
 	const handleCopyPassword = useCallback(() => {
@@ -401,8 +465,14 @@ function TopicSharePopoverContent({
 							onClick={handleCopyShareMessage}
 							className="mt-1 h-8 w-full gap-2"
 						>
-							<MagicIcon component={IconCopy} size={16} color="#fff" stroke={2} />
-							{t("share.copyShareMessage")}
+							{isCopied ? (
+								<Check size={16} color="#22c55e" strokeWidth={2} />
+							) : (
+								<MagicIcon component={IconCopy} size={16} color="#fff" stroke={2} />
+							)}
+							{isCopied
+								? t("share.copyShareMessageSuccess")
+								: t("share.copyShareMessage")}
 						</Button>
 					</div>
 

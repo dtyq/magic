@@ -10,7 +10,7 @@ export interface ElementRect {
 	height: number
 }
 
-export interface ZoomControlsConfig extends Omit<IframeScalingConfig, "enableHeightCalculation"> {
+export interface ZoomControlsConfig extends IframeScalingConfig {
 	isEditMode?: boolean
 	minScale?: number
 	maxScale?: number
@@ -68,7 +68,6 @@ export function useZoomControls(config: ZoomControlsConfig): ZoomControlsResult 
 		isManualZoom,
 	} = useIframeScaling({
 		...scalingConfig,
-		enableHeightCalculation: false,
 	})
 
 	// 跟踪前一个编辑模式以检测转换
@@ -97,6 +96,16 @@ export function useZoomControls(config: ZoomControlsConfig): ZoomControlsResult 
 		// Calculate zoom center point
 		let zoomCenterX: number
 		let zoomCenterY: number
+		const viewportCenterX = container.scrollLeft + container.clientWidth / 2
+		const viewportCenterY = container.scrollTop + container.clientHeight / 2
+		const containerRect = container.getBoundingClientRect()
+		const iframeRect = scalingConfig.iframeRef.current?.getBoundingClientRect()
+		const visualContentOriginX = iframeRect
+			? iframeRect.left - containerRect.left + container.scrollLeft
+			: 0
+		const visualContentOriginY = iframeRect
+			? iframeRect.top - containerRect.top + container.scrollTop
+			: 0
 
 		if (selectedElementRect) {
 			// Use selected element center as zoom center
@@ -106,18 +115,17 @@ export function useZoomControls(config: ZoomControlsConfig): ZoomControlsResult 
 			zoomCenterX = elementCenterX
 			zoomCenterY = elementCenterY
 		} else {
-			// Use viewport center as zoom center
-			const viewportCenterX = container.scrollLeft + container.clientWidth / 2
-			const viewportCenterY = container.scrollTop + container.clientHeight / 2
-
-			// Convert from scaled coordinates to content coordinates
-			zoomCenterX = viewportCenterX / scaleRatio
-			zoomCenterY = viewportCenterY / scaleRatio
+			// Convert viewport center into content coordinates using the
+			// iframe's current visual origin inside the scroll container.
+			zoomCenterX = (viewportCenterX - visualContentOriginX) / scaleRatio
+			zoomCenterY = (viewportCenterY - visualContentOriginY) / scaleRatio
 		}
 
 		// Calculate new scroll position to keep the zoom center point visually stable
-		const newScrollLeft = zoomCenterX * clampedScale - container.clientWidth / 2
-		const newScrollTop = zoomCenterY * clampedScale - container.clientHeight / 2
+		const newScrollLeft =
+			visualContentOriginX + zoomCenterX * clampedScale - container.clientWidth / 2
+		const newScrollTop =
+			visualContentOriginY + zoomCenterY * clampedScale - container.clientHeight / 2
 
 		// Apply scale change
 		setManualScale(clampedScale)
@@ -185,27 +193,33 @@ export function useZoomControls(config: ZoomControlsConfig): ZoomControlsResult 
 			const visualWidth = contentWidth * scaleRatio
 			const visualHeight = contentHeight * scaleRatio
 			const paddingSize = 40
+			const wrapperWidth = Math.ceil(visualWidth + paddingSize)
+			const wrapperHeight = Math.ceil(visualHeight + paddingSize)
+			const verticalInset =
+				containerDimensions.height > wrapperHeight
+					? Math.floor((containerDimensions.height - wrapperHeight) / 2)
+					: 0
 
 			return {
-				display: "flex",
-				justifyContent: "center",
-				alignItems: "center",
-				minWidth: `${Math.ceil(visualWidth + paddingSize)}px`,
-				minHeight: `${Math.ceil(visualHeight + paddingSize) + 160}px`,
-				width: "100%",
-				height: "auto",
+				minWidth: `${wrapperWidth}px`,
+				minHeight: `${wrapperHeight}px`,
+				width: `${wrapperWidth}px`,
+				height: `${wrapperHeight}px`,
 				padding: "20px",
+				margin: `${verticalInset}px auto`,
+				position: "relative",
+				flex: "none",
+				boxSizing: "border-box",
 			}
 		}
 
-		// 自动缩放：固定尺寸以适应容器
+		// 自动缩放：保持容器占满可视区，由 iframe 自身偏移到中心。
 		return {
-			width: containerDimensions.width > 0 ? `${containerDimensions.width}px` : "unset",
-			height: containerDimensions.height > 0 ? `${containerDimensions.height}px` : "unset",
+			width: containerDimensions.width > 0 ? `${containerDimensions.width}px` : "100%",
+			height: containerDimensions.height > 0 ? `${containerDimensions.height}px` : "100%",
 			flex: 1,
-			display: "flex",
-			justifyContent: "center",
-			alignItems: "center",
+			overflow: "hidden",
+			position: "relative",
 		}
 	})
 
@@ -215,6 +229,8 @@ export function useZoomControls(config: ZoomControlsConfig): ZoomControlsResult 
 			return {}
 		}
 
+		const shouldHideUntilScaleReady = !hasRenderedOnce && !isScaleReady
+
 		// For manual zoom, add a subtle transform transition for smoother scaling
 		// For auto zoom or first render, keep existing behavior
 		const transition = hasRenderedOnce
@@ -223,15 +239,26 @@ export function useZoomControls(config: ZoomControlsConfig): ZoomControlsResult 
 				: "none"
 			: "opacity 120ms ease"
 
-		return {
-			transform: `scale(${scaleRatio})`,
-			transformOrigin: "center center",
-			width: contentWidth,
-			height: contentHeight,
-			// 仅在首次加载时隐藏，后续可见性变化不影响
-			// opacity: !isFullscreen ? 0 : 1,
-			transition,
-		}
+		return isManualZoom
+			? {
+					transform: `scale(${scaleRatio})`,
+					transformOrigin: "top left",
+					width: contentWidth,
+					height: contentHeight,
+					position: "absolute",
+					top: "20px",
+					left: "20px",
+					opacity: shouldHideUntilScaleReady ? 0 : 1,
+					transition,
+				}
+			: {
+					transform: `scale(${scaleRatio}) translate(${horizontalOffset}px, ${verticalOffset}px)`,
+					transformOrigin: "top left",
+					width: contentWidth,
+					height: contentHeight,
+					opacity: shouldHideUntilScaleReady ? 0 : 1,
+					transition,
+				}
 	})
 
 	return {

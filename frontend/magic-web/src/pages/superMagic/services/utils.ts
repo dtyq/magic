@@ -1,5 +1,6 @@
 import { userStore } from "@/models/user"
 import { INIT_DOMAINS } from "@/models/user/stores/initialization.store"
+import workspaceStore from "../stores/core/workspace"
 import SuperMagicService from "./index"
 
 interface InitializeSuperMagicParams {
@@ -18,37 +19,48 @@ export function initializeSuperMagicIfNeeded({
 	projectId,
 	topicId,
 }: InitializeSuperMagicParams) {
-	// Check if user is already initialized
-	const isInitialized = userStore.initialization.isInitialized({
-		magicId: userStore.user.userInfo?.magic_id,
-		organizationCode: userStore.user.userInfo?.organization_code,
-		domain: INIT_DOMAINS.super,
-	})
+	const magicId = userStore.user.userInfo?.magic_id
+	const organizationCode = userStore.user.userInfo?.organization_code
+	if (!magicId || !organizationCode) return
 
-	if (isInitialized) return
+	// 如果已经初始化过，则直接返回
+	if (
+		userStore.initialization.isInitialized({
+			magicId,
+			organizationCode,
+			domain: INIT_DOMAINS.super,
+		})
+	)
+		return
 
 	const hasRouteParams = !!(workspaceId || projectId || topicId)
+	void userStore.initialization
+		.runInitialization(
+			{
+				magicId,
+				organizationCode,
+				domain: INIT_DOMAINS.super,
+			},
+			async () => {
+				// Reuse sidebar workspace state to avoid clearing it on route entry.
+				if (isMobile && hasRouteParams) {
+					await SuperMagicService.refreshState({
+						workspaceId: workspaceId || undefined,
+						projectId,
+						topicId,
+					})
+					return
+				}
 
-	// Mobile with route params: use refresh to keep cached data
-	if (isMobile && hasRouteParams) {
-		SuperMagicService.refreshState({
-			workspaceId: workspaceId || undefined,
-			projectId,
-			topicId,
+				// Desktop or mobile without workspace: full initialization
+				await SuperMagicService.initializeState({
+					workspaceId: workspaceId || undefined,
+					projectId,
+					topicId,
+				})
+			},
+		)
+		.catch(() => {
+			// Keep existing fire-and-forget behavior for callers.
 		})
-	} else {
-		// Desktop or mobile without workspace: full initialization
-		SuperMagicService.initializeState({
-			workspaceId: workspaceId || undefined,
-			projectId,
-			topicId,
-		})
-	}
-
-	// 标记为已初始化
-	userStore.initialization.markInitialized({
-		magicId: userStore.user.userInfo?.magic_id,
-		organizationCode: userStore.user.userInfo?.organization_code,
-		domain: INIT_DOMAINS.super,
-	})
 }

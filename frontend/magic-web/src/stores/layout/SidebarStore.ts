@@ -16,7 +16,7 @@ export class SidebarStore {
 	readonly MAX_WIDTH_PERCENT = 50
 	readonly COLLAPSED_WIDTH = 48
 	readonly DEFAULT_WIDTH_PX = 256
-	readonly AUTO_COLLAPSE_MIN_VIEWPORT_WIDTH_PX = 1728
+	readonly AUTO_COLLAPSE_MIN_VIEWPORT_WIDTH_PX = 1280
 
 	// Min main content width; collapse sidebar if viewport is too narrow
 	readonly MIN_MAIN_CONTENT_WIDTH_PX = 720

@@ -1,0 +1,126 @@
+/* 根层不接收点击，避免误关；仅遮罩层绑定关闭 */
+.overlayRoot {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+
+	/* padding 由各全屏组件内联 insetPx */
+}
+
+.overlayBackdrop {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	background: rgb(0 0 0 / 56%);
+	backdrop-filter: blur(8px);
+	pointer-events: auto;
+}
+
+.overlayContent {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	max-width: 100%;
+	max-height: 100%;
+	pointer-events: auto;
+}
+
+.panel {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
+	max-width: 100%;
+	max-height: 100%;
+	overflow: hidden;
+	background: rgb(0 0 0 / 50%);
+	border-radius: 10px;
+	box-shadow: 0 24px 80px rgb(0 0 0 / 32%);
+
+	/* width / height：各组件内联；视口留白：insetPx */
+}
+
+.closeButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	color: #fff;
+	background: rgb(255 255 255 / 14%);
+	border: 0;
+	border-radius: 9999px;
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+	pointer-events: auto;
+}
+
+.closeButton:hover {
+	background: rgb(255 255 255 / 24%);
+}
+
+.player {
+	position: relative;
+	flex: 1;
+	width: 100%;
+	height: 100%;
+	background: transparent;
+}
+
+.videoHost {
+	width: 100%;
+	height: 100%;
+}
+
+.video {
+	position: relative;
+	z-index: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+	background: transparent;
+	cursor: pointer;
+}
+
+.centerOverlay {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+
+.spinner {
+	width: 36px;
+	height: 36px;
+	border: 3px solid rgb(255 255 255 / 35%);
+	border-top-color: #fff;
+	border-radius: 9999px;
+	animation: spin 0.8s linear infinite;
+}
+
+.errorState {
+	display: flex;
+	max-width: 360px;
+	padding: 12px 16px;
+	color: #fff;
+	text-align: center;
+	background: rgb(0 0 0 / 58%);
+	border-radius: 12px;
+	pointer-events: auto;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}

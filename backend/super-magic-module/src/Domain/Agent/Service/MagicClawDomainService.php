@@ -81,6 +81,16 @@ readonly class MagicClawDomainService
     }
 
     /**
+     * Get paginated list of all non-deleted magic claws across users.
+     *
+     * @return array{total: int, list: MagicClawEntity[]}
+     */
+    public function getAllValidList(int $page, int $pageSize): array
+    {
+        return $this->magicClawRepository->getAllValidList($page, $pageSize);
+    }
+
+    /**
      * Bind a project to a magic claw.
      */
     public function bindProject(int $clawId, int $projectId): void

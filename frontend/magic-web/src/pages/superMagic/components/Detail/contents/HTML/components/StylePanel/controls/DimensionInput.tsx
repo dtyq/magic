@@ -17,6 +17,8 @@ interface DimensionInputProps {
 	placeholder?: string
 	id?: string
 	allowedUnits?: string[]
+	fixedUnit?: string
+	testIdPrefix?: string
 }
 
 const DEFAULT_UNITS = ["px", "%", "em", "rem", "vw", "vh", "auto"]
@@ -47,17 +49,20 @@ export function DimensionInput({
 	placeholder = "auto",
 	id,
 	allowedUnits = DEFAULT_UNITS,
+	fixedUnit,
+	testIdPrefix,
 }: DimensionInputProps) {
 	const { num, unit } = parseValue(value)
 	const [numValue, setNumValue] = useState(num)
-	const [unitValue, setUnitValue] = useState(unit)
+	const resolvedUnit = fixedUnit || unit
+	const [unitValue, setUnitValue] = useState(resolvedUnit)
 
 	// Sync with external value changes
 	useEffect(() => {
 		const parsed = parseValue(value)
 		setNumValue(parsed.num)
-		setUnitValue(parsed.unit)
-	}, [value])
+		setUnitValue(fixedUnit || parsed.unit)
+	}, [value, fixedUnit])
 
 	// Debounce for input changes
 	const { run: onChangeDebounced } = useDebounceFn(
@@ -106,7 +111,7 @@ export function DimensionInput({
 	)
 
 	return (
-		<div className="space-y-2">
+		<div className="space-y-2" data-testid={testIdPrefix ? `${testIdPrefix}-root` : undefined}>
 			<Label htmlFor={id} className="text-xs">
 				{label}
 			</Label>
@@ -119,19 +124,31 @@ export function DimensionInput({
 					placeholder={placeholder}
 					disabled={unitValue === "auto"}
 					className="flex-1 font-mono text-xs"
+					data-testid={testIdPrefix ? `${testIdPrefix}-input` : undefined}
 				/>
-				<Select value={unitValue} onValueChange={handleUnitChange}>
-					<SelectTrigger className="w-20">
-						<SelectValue />
-					</SelectTrigger>
-					<SelectContent>
-						{allowedUnits.map((u) => (
-							<SelectItem key={u} value={u}>
-								{u}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+				{fixedUnit ? null : (
+					<Select value={unitValue} onValueChange={handleUnitChange}>
+						<SelectTrigger
+							className="w-20"
+							data-testid={testIdPrefix ? `${testIdPrefix}-unit-trigger` : undefined}
+						>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{allowedUnits.map((u) => (
+								<SelectItem
+									key={u}
+									value={u}
+									data-testid={
+										testIdPrefix ? `${testIdPrefix}-unit-${u}` : undefined
+									}
+								>
+									{u}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				)}
 			</div>
 		</div>
 	)

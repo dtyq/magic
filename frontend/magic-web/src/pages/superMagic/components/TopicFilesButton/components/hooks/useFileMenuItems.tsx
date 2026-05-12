@@ -69,20 +69,20 @@ export function createFileMenuItems({
 		{ type: "divider" as const },
 		...(onAddDesign
 			? [
-				{
-					key: "createDesign",
-					label: t("topicFiles.contextMenu.createSubMenu.designFile"),
-					onClick: () => onAddDesign(),
-					icon: <MagicFileIcon type="design" size={18} />,
-				},
-				{ type: "divider" as const },
-			]
+					{
+						key: "createDesign",
+						label: t("topicFiles.contextMenu.createSubMenu.designFile"),
+						onClick: () => onAddDesign(),
+						icon: <MagicFileIcon type="design" size={18} />,
+					},
+					{ type: "divider" as const },
+				]
 			: []),
 		{
 			key: "createCustom",
 			label: t("topicFiles.contextMenu.createSubMenu.customFile"),
-			onClick: () => onAddFile?.("custom"),
-			icon: <MagicFileIcon type="custom" size={18} />,
+			onClick: () => onAddFile?.("customFile"),
+			icon: <MagicFileIcon type="customFile" size={18} />,
 		},
 	]
 }

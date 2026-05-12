@@ -10,7 +10,6 @@ import {
 	SCENE_INPUT_IDS,
 	INPUT_CONTAINER_MIN_HEIGHT,
 } from "@/pages/superMagic/components/MainInputContainer/constants"
-import { roleStore } from "@/pages/superMagic/stores/RoleStore"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import { ScenePanelVariant } from "@/pages/superMagic/components/MainInputContainer/components/LazyScenePanel/types"
@@ -21,18 +20,20 @@ const MobileInputLayout = observer(function MobileInputLayout({
 	editorContext: SceneEditorContext
 }) {
 	const selectedScene = sceneStateStore.currentScene
-	const currentRole = roleStore.currentRole
 
-	const scenes = currentRole
-		? superMagicModeService.getModeConfigWithLegacy(currentRole)?.mode.playbooks
-		: []
+	const scenes = superMagicModeService.getModeConfigWithLegacy(
+		editorContext.topicMode,
+		undefined,
+		false,
+		editorContext.agentCode ?? editorContext.selectedTopic?.agent_code,
+	)?.mode.playbooks
 
 	return (
 		<SceneStateProvider store={sceneStateStore} variant={ScenePanelVariant.Mobile}>
 			<div className="flex w-full flex-col gap-2.5">
 				{/* Plugin Tips or Selected Skill Badge */}
 				<div className="flex items-center gap-2 pr-2.5 pt-2.5">
-					<ModeSelector className="h-7" iconSize={28} />
+					<ModeSelector className="h-7" iconSize={28} editorContext={editorContext} />
 					{scenes && scenes.length > 0 && <div className="h-5 w-[1px] bg-border" />}
 					{selectedScene ? (
 						<CurrentSceneBadge
@@ -52,7 +53,7 @@ const MobileInputLayout = observer(function MobileInputLayout({
 				{/* skill editor input container with min height to prevent layout shift */}
 				<div
 					id={SCENE_INPUT_IDS.INPUT_CONTAINER}
-					style={{ minHeight: INPUT_CONTAINER_MIN_HEIGHT.HomePage }}
+					style={{ minHeight: INPUT_CONTAINER_MIN_HEIGHT.MobilePage }}
 				/>
 			</div>
 		</SceneStateProvider>

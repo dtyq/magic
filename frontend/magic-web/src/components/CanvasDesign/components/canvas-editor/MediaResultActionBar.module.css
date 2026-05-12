@@ -1,0 +1,20 @@
+.root {
+	display: inline-flex;
+	flex-flow: row wrap;
+	gap: var(--spacing-2, 8px);
+	align-items: center;
+	justify-content: center;
+}
+
+.item,
+.itemContent {
+	display: inline-flex;
+	align-items: center;
+}
+
+.divider {
+	flex-shrink: 0;
+	width: 1px;
+	height: var(--width-w-6, 24px);
+	background: var(--base-border, #e5e5e5);
+}

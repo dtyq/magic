@@ -1,6 +1,6 @@
 import { Dropdown, Flex, Slider } from "antd"
 import type { HTMLAttributes } from "react"
-import { memo, useMemo, useRef } from "react"
+import { useMemo, useRef } from "react"
 import {
 	IconChevronLeft,
 	IconChevronRight,

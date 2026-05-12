@@ -18,9 +18,12 @@ export enum MemoryTypeTab {
 
 export interface PageProps {
 	editMemory?: LongMemory.Memory
+	initialSelectedProjectId?: string
+	closeOnCreateSuccess?: boolean
 	setPage: (page: LongTremMemoryPage) => void
 	setEditMemory: (memory: LongMemory.Memory | undefined) => void
 	setBreadcrumbList: (breadcrumbList: string[]) => void
 	onClose: () => void
+	onMemoryChanged?: () => void
 	onWorkspaceStateChange: (params: NavigateToStateParams) => void
 }

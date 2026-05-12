@@ -13,6 +13,8 @@ interface ResolvePublishAvailabilityParams {
 	allowedPublishTargetTypes?: DetailAllowedPublishTargetType[] | null
 	fallbackPublishTo: PublishTo[]
 	fallbackInternalTargets: PublishInternalTarget[]
+	canPublishPrivate?: boolean
+	canPublishTeam?: boolean
 }
 
 interface NormalizeDraftForAvailabilityParams extends PublishAvailability {
@@ -26,6 +28,8 @@ export function resolvePublishAvailability({
 	allowedPublishTargetTypes,
 	fallbackPublishTo,
 	fallbackInternalTargets,
+	canPublishPrivate = true,
+	canPublishTeam = true,
 }: ResolvePublishAvailabilityParams): PublishAvailability {
 	if (publishType === "MARKET") {
 		return {
@@ -35,20 +39,33 @@ export function resolvePublishAvailability({
 	}
 
 	if (publishType === "INTERNAL") {
-		const availableInternalTargets = resolveInternalTargets(allowedPublishTargetTypes)
+		const resolvedInternalTargets = resolveInternalTargets(allowedPublishTargetTypes)
+		const availableInternalTargets = filterInternalTargetsByPermission(
+			resolvedInternalTargets.length > 0
+				? resolvedInternalTargets
+				: [...fallbackInternalTargets],
+			{ canPublishPrivate, canPublishTeam },
+		)
 
 		return {
-			availablePublishTo: ["INTERNAL"],
-			availableInternalTargets:
-				availableInternalTargets.length > 0
-					? availableInternalTargets
-					: [...fallbackInternalTargets],
+			availablePublishTo: availableInternalTargets.length > 0 ? ["INTERNAL"] : [],
+			availableInternalTargets,
 		}
 	}
 
+	const availableInternalTargets = filterInternalTargetsByPermission(
+		[...fallbackInternalTargets],
+		{
+			canPublishPrivate,
+			canPublishTeam,
+		},
+	)
+
 	return {
-		availablePublishTo: [...fallbackPublishTo],
-		availableInternalTargets: [...fallbackInternalTargets],
+		availablePublishTo: fallbackPublishTo.filter(
+			(publishTo) => publishTo !== "INTERNAL" || availableInternalTargets.length > 0,
+		),
+		availableInternalTargets,
 	}
 }
 
@@ -106,4 +123,20 @@ function resolveInternalTargets(
 	const mappedTargets = new Set(allowedPublishTargetTypes ?? [])
 
 	return internalTargetOrder.filter((target) => mappedTargets.has(target))
+}
+
+function filterInternalTargetsByPermission(
+	targets: PublishInternalTarget[],
+	{
+		canPublishPrivate,
+		canPublishTeam,
+	}: {
+		canPublishPrivate: boolean
+		canPublishTeam: boolean
+	},
+): PublishInternalTarget[] {
+	return targets.filter((target) => {
+		if (target === "PRIVATE") return canPublishPrivate
+		return canPublishTeam
+	})
 }

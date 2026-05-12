@@ -4,6 +4,10 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "../../lib/utils"
 import { usePortalContainer } from "./custom/PortalContainerContext"
+import {
+	PRESERVE_TEXT_EDITOR_FOCUS_ATTR,
+	useShouldPreserveTextEditorFocus,
+} from "../../utils/preserveTextEditorFocus"
 
 const Select = SelectPrimitive.Root
 
@@ -61,38 +65,99 @@ SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayNam
 
 const SelectContent = React.forwardRef<
 	React.ElementRef<typeof SelectPrimitive.Content>,
-	React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => {
-	const container = usePortalContainer()
-	return (
-		<SelectPrimitive.Portal container={container || undefined}>
-			<SelectPrimitive.Content
-				ref={ref}
-				className={cn(
-					"relative z-50 max-h-[--radix-select-content-available-height] min-w-[8rem] origin-[--radix-select-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-					position === "popper" &&
-						"data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
-					className,
-				)}
-				position={position}
-				{...props}
-			>
-				<SelectScrollUpButton />
-				<SelectPrimitive.Viewport
+	React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+		onContentPreserveSelection?: () => void
+	}
+>(
+	(
+		{
+			className,
+			children,
+			position = "popper",
+			sideOffset = 0,
+			collisionPadding = 8,
+			onContentPreserveSelection,
+			onPointerDownCapture,
+			onCloseAutoFocus,
+			...props
+		},
+		ref,
+	) => {
+		const container = usePortalContainer()
+		const shouldPreserveTextEditorFocus = useShouldPreserveTextEditorFocus()
+		const handlePointerDownCapture = React.useCallback(
+			(event: React.PointerEvent<HTMLDivElement>) => {
+				onPointerDownCapture?.(event)
+				if (event.defaultPrevented || shouldAllowNativeFocus(event.target)) {
+					return
+				}
+				requestAnimationFrame(() => {
+					onContentPreserveSelection?.()
+				})
+			},
+			[onContentPreserveSelection, onPointerDownCapture],
+		)
+		const handleCloseAutoFocus = React.useCallback(
+			(event: Event) => {
+				onCloseAutoFocus?.(event)
+				if (!onContentPreserveSelection) {
+					return
+				}
+				event.preventDefault()
+				requestAnimationFrame(() => {
+					onContentPreserveSelection()
+				})
+			},
+			[onCloseAutoFocus, onContentPreserveSelection],
+		)
+		return (
+			<SelectPrimitive.Portal container={container || undefined}>
+				<SelectPrimitive.Content
+					ref={ref}
+					data-canvas-ui-component
+					{...(shouldPreserveTextEditorFocus
+						? { [PRESERVE_TEXT_EDITOR_FOCUS_ATTR]: "" }
+						: {})}
+					sideOffset={sideOffset}
+					collisionPadding={collisionPadding}
+					onCloseAutoFocus={handleCloseAutoFocus}
+					onPointerDownCapture={handlePointerDownCapture}
 					className={cn(
-						"p-1",
+						// 仅用淡入淡出，不用 zoom/slide：避免打开瞬间面板掠过 trigger 导致同一次点击的 mouseup 落在 content 上
+						"relative z-50 max-h-[--radix-select-content-available-height] min-w-[8rem] origin-[--radix-select-content-transform-origin] overflow-y-auto overflow-x-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 						position === "popper" &&
-							"h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+							"data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+						className,
 					)}
+					position={position}
+					{...props}
 				>
-					{children}
-				</SelectPrimitive.Viewport>
-				<SelectScrollDownButton />
-			</SelectPrimitive.Content>
-		</SelectPrimitive.Portal>
-	)
-})
+					<SelectScrollUpButton />
+					<SelectPrimitive.Viewport
+						className={cn(
+							"p-1",
+							position === "popper" &&
+								"h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+						)}
+					>
+						{children}
+					</SelectPrimitive.Viewport>
+					<SelectScrollDownButton />
+				</SelectPrimitive.Content>
+			</SelectPrimitive.Portal>
+		)
+	},
+)
 SelectContent.displayName = SelectPrimitive.Content.displayName
+
+function shouldAllowNativeFocus(target: EventTarget | null): boolean {
+	return (
+		target instanceof Element &&
+		target.closest(
+			"input, textarea, [contenteditable='true'], [contenteditable=''], [contenteditable]",
+		) !== null
+	)
+}
 
 const SelectLabel = React.forwardRef<
 	React.ElementRef<typeof SelectPrimitive.Label>,
@@ -113,7 +178,7 @@ const SelectItem = React.forwardRef<
 	<SelectPrimitive.Item
 		ref={ref}
 		className={cn(
-			"relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+			"relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
 			className,
 		)}
 		{...props}

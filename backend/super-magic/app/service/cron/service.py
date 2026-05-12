@@ -62,8 +62,9 @@ class CronService:
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT_RUNS)
         self._state_lock = asyncio.Lock()
         # 内存中缓存的任务列表，避免每次 tick 都重建
-        self._jobs: Dict[str, CronJob] = {}          # job_id → CronJob
-        self._known_mtimes: Dict[str, float] = {}    # job_id → mtime
+        self._jobs: Dict[str, CronJob] = {}                  # job_id → CronJob
+        self._known_mtimes: Dict[str, float] = {}            # job_id → mtime（有效文件）
+        self._known_invalid_mtimes: Dict[str, float] = {}    # job_id → mtime（无效文件，用于抑制重复告警）
         # 下次最近到期任务的时间戳（毫秒），用于动态 sleep
         self._next_due_ms: Optional[int] = None
 
@@ -126,7 +127,8 @@ class CronService:
         5. 为每个到期任务创建独立 asyncio.Task
         """
         # 1. 扫描目录
-        scanned = await scan_jobs(self._known_mtimes)
+        scanned, new_invalid_mtimes = await scan_jobs(self._known_mtimes, self._known_invalid_mtimes)
+        self._known_invalid_mtimes = new_invalid_mtimes
         scanned_ids = {j.id for j in scanned}
 
         new_jobs: Dict[str, CronJob] = {}
@@ -266,7 +268,8 @@ class CronService:
         - at：已过期直接 disable
         """
         try:
-            scanned = await scan_jobs({})
+            scanned, new_invalid_mtimes = await scan_jobs({}, {})
+            self._known_invalid_mtimes = new_invalid_mtimes
             scanned_ids = {j.id for j in scanned}
             logger.info(f"cron startup: scanned jobs={scanned_ids}")
             if not scanned:

@@ -1,5 +1,6 @@
 import Konva from "konva"
 import type { Canvas } from "../Canvas"
+import { resolveManagedElementIdFromKonvaNode } from "./elementNodeUtils"
 
 /**
  * Hover 管理器 - 管理元素的 hover 效果
@@ -63,6 +64,20 @@ export class HoverManager {
 		// 监听文档恢复事件（撤销/恢复时触发）
 		this.canvas.eventEmitter.on("document:restored", () => {
 			// 清除 hover 状态，因为元素位置可能已经改变
+			this.clearHover()
+		})
+
+		// 监听裁剪模式进入事件，清除 hover（裁剪模式下元素不应显示 hover 效果）
+		this.canvas.eventEmitter.on("crop:enter", () => {
+			this.clearHover()
+		})
+
+		this.canvas.eventEmitter.on("extend:enter", () => {
+			this.clearHover()
+		})
+
+		// 监听橡皮擦模式进入事件，清除 hover（橡皮擦模式下元素不应显示 hover 效果）
+		this.canvas.eventEmitter.on("eraser:enter", () => {
 			this.clearHover()
 		})
 	}
@@ -205,20 +220,10 @@ export class HoverManager {
 	}
 
 	/**
-	 * 从节点获取元素 ID（处理 hit-area 节点的情况）
+	 * 从节点沿父链解析 ElementManager 中的元素 ID
 	 */
 	private getElementIdFromNode(node: Konva.Node): string | null {
-		let elementId = node.id()
-
-		// 如果当前节点没有 ID，但它是 hit-area 且父节点是 Group，使用父节点的 ID
-		if (!elementId && node.name() === "hit-area" && node.getParent() instanceof Konva.Group) {
-			const parent = node.getParent()
-			if (parent) {
-				elementId = parent.id()
-			}
-		}
-
-		return elementId || null
+		return resolveManagedElementIdFromKonvaNode(node, this.canvas) ?? null
 	}
 
 	/**
@@ -253,16 +258,9 @@ export class HoverManager {
 			return false
 		}
 
-		// 获取元素 ID（处理 hit-area 节点的情况）
 		const elementId = this.getElementIdFromNode(node)
 
-		// 必须有 ID 才是有效的元素
 		if (!elementId) {
-			return false
-		}
-
-		// 检查是否是 ElementManager 管理的元素
-		if (!this.canvas.elementManager.hasElement(elementId)) {
 			return false
 		}
 
@@ -320,5 +318,9 @@ export class HoverManager {
 		this.canvas.eventEmitter.off("element:select")
 		this.canvas.eventEmitter.off("elements:transform:dragstart")
 		this.canvas.eventEmitter.off("viewport:scale")
+		this.canvas.eventEmitter.off("document:restored")
+		this.canvas.eventEmitter.off("crop:enter")
+		this.canvas.eventEmitter.off("extend:enter")
+		this.canvas.eventEmitter.off("eraser:enter")
 	}
 }

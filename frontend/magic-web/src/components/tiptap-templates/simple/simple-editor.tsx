@@ -44,6 +44,7 @@ import {
 } from "@/components/tiptap-node/frontmatter-node"
 import { Placeholder } from "@/pages/superMagic/components/MessageEditor/extensions/placeholder"
 import { TableWithWrapper } from "@/components/tiptap-node/table-node/table-node-extension"
+import { SearchAndReplace as SearchAndReplaceExtension } from "@/components/tiptap-node/search-and-replace-node/search-and-replace-extension"
 
 // --- Hooks ---
 import { useCursorVisibility } from "@/hooks/use-cursor-visibility"
@@ -56,6 +57,7 @@ import { SlashCommandTriggerButton } from "./components/SlashCommandTriggerButto
 import { MainToolbarContent } from "./components/MainToolbarContent"
 import { MobileToolbarContent } from "./components/MobileToolbarContent"
 import { TableMenu } from "./components/TableMenu"
+import { SearchAndReplace } from "./components/SearchAndReplace"
 
 // --- Types ---
 import type { SimpleEditorProps, SimpleEditorRef } from "./types"
@@ -81,6 +83,7 @@ export const SimpleEditor = React.forwardRef<SimpleEditorRef, SimpleEditorProps>
 		className,
 		additionalExtensions,
 		enableDragHandle = true,
+		enableSearchReplace = true,
 		isEditable = true,
 		isMobile = false,
 	},
@@ -180,6 +183,13 @@ export const SimpleEditor = React.forwardRef<SimpleEditorRef, SimpleEditorProps>
 			TableRow,
 			TableCell,
 			TableHeader,
+			...(enableSearchReplace
+				? [
+						SearchAndReplaceExtension.configure({
+							searchResultClass: "search-result",
+						}),
+					]
+				: []),
 			...(additionalExtensions ?? []),
 		],
 		content: processedContent,
@@ -301,6 +311,27 @@ export const SimpleEditor = React.forwardRef<SimpleEditorRef, SimpleEditorProps>
 	)
 	const [selectedNode, setSelectedNode] = React.useState<ProseMirrorNode | null>(null)
 	const [selectedNodePos, setSelectedNodePos] = React.useState<number | null>(null)
+	const [showSearchPanel, setShowSearchPanel] = React.useState(false)
+
+	// Keyboard shortcut: Cmd/Ctrl+F to open search panel
+	React.useEffect(() => {
+		if (!enableSearchReplace) return
+
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "f" && (e.metaKey || e.ctrlKey) && !e.altKey) {
+				e.preventDefault()
+				e.stopPropagation()
+				setShowSearchPanel(true)
+			}
+		}
+
+		window.addEventListener("keydown", handleKeyDown, true)
+		return () => window.removeEventListener("keydown", handleKeyDown, true)
+	}, [enableSearchReplace])
+
+	const handleToggleSearch = useMemoizedFn(() => {
+		setShowSearchPanel((prev) => !prev)
+	})
 	const onClickSlashCommandTriggerButton = useMemoizedFn(() => {
 		setSelectedNode(lastDragHandleTargetNode.current)
 		setSelectedNodePos(lastDragHandleTargetPos.current)
@@ -323,6 +354,8 @@ export const SimpleEditor = React.forwardRef<SimpleEditorRef, SimpleEditorProps>
 					onLinkClick={() => setMobileView("link")}
 					isMobile={isMobile}
 					isEditable={isEditable}
+					enableSearchReplace={enableSearchReplace}
+					onSearchClick={handleToggleSearch}
 				/>
 			) : (
 				<MobileToolbarContent
@@ -369,6 +402,14 @@ export const SimpleEditor = React.forwardRef<SimpleEditorRef, SimpleEditorProps>
 							</FlexBox>
 						)}
 					</DragHandle>
+				)}
+
+				{enableSearchReplace && (
+					<SearchAndReplace
+						editor={editor}
+						visible={showSearchPanel}
+						onClose={() => setShowSearchPanel(false)}
+					/>
 				)}
 
 				<EditorContent

@@ -1,6 +1,6 @@
 import { useCallback, useRef, useEffect } from "react"
 import classNames from "classnames"
-import { ChevronRight as ChevronRightIcon } from "../../icons/index"
+import { ChevronRight as ChevronRightIcon } from "lucide-react"
 import type { TreeNodeItemProps, TreeData } from "./types"
 import IconButton from "../IconButton"
 import { isMultiSelectEvent } from "../../../../canvas/interaction/shortcuts/modifierUtils"

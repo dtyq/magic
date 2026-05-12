@@ -1,17 +1,30 @@
-import { useState, useCallback, useRef, useMemo, type PropsWithChildren } from "react"
+import {
+	useState,
+	useCallback,
+	useRef,
+	useMemo,
+	useLayoutEffect,
+	useEffect,
+	type PropsWithChildren,
+} from "react"
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "../ui/context-menu"
 import { ElementMenuContext } from "./ElementMenuContext"
 import { getMenuItems } from "./getMenuItems"
 import { MenuItemRenderer } from "./MenuItemRenderer"
 import type { MenuItem, MenuOption, MenuSource } from "./types"
 import { useCanvas } from "../../context/CanvasContext"
+import { useMagic } from "../../context/MagicContext"
 import { useCanvasUI } from "../../context/CanvasUIContext"
 import { useCanvasEvent } from "../../hooks/useCanvasEvent"
-import { useMagic } from "../../context/MagicContext"
 import { useUpdateEffect } from "ahooks"
 import { useCanvasDesignI18n } from "../../context/I18nContext"
-import { ClipboardPaste } from "../ui/icons/index"
+import { ClipboardPaste } from "lucide-react"
 import { getShortcutDisplay } from "../../lib/index"
+import {
+	resolveCanvasDownloadMenuContext,
+	type CanvasDownloadMenuContext,
+} from "./resolveCanvasDownloadMenuContext"
+import { getLoadedImageElements } from "../../canvas/utils/utils"
 
 export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 	const { children } = props
@@ -25,15 +38,61 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 		x: number
 		y: number
 	} | null>(null)
+	/** resource:image:loaded 时递增，触发下载菜单按资源管理器缓存重算 */
+	const [fileInfoEpoch, setFileInfoEpoch] = useState(0)
+	const [downloadMenuContext, setDownloadMenuContext] = useState<CanvasDownloadMenuContext>({
+		useAiImageSubmenu: false,
+		selectionKind: "none",
+	})
 	const menuSource = useRef<MenuSource | null>(null)
+	const isMenuOpenRef = useRef(false)
 
 	const triggerRef = useRef<HTMLDivElement>(null)
 
 	const { canvas } = useCanvas()
-	const { readonly, selectedElementIds } = useCanvasUI()
-	const { methods, permissions } = useMagic()
+	const { permissions } = useMagic()
+	const { readonly, selectedElementIds, setLayerRenamingElementId, setCanvasRenamingElementId } =
+		useCanvasUI()
 
 	const MENU_WIDTH = 220
+
+	// 菜单打开时触发未换链图片的 loadResource；resource:image:loaded 后刷新下载子菜单
+	useLayoutEffect(() => {
+		isMenuOpenRef.current = isMenuOpen
+	}, [isMenuOpen])
+
+	useLayoutEffect(() => {
+		if (!isMenuOpen || isCanvasMenu || !canvas) return
+		void (async () => {
+			const images = getLoadedImageElements(canvas)
+			for (const img of images) {
+				if (!img.src) continue
+				const entry = await canvas.imageResourceManager.getEntry(img.src)
+				if (entry?.fileName) continue
+				canvas.imageResourceManager.loadResource(img.src)
+			}
+		})()
+	}, [isMenuOpen, isCanvasMenu, canvas, menuKey, selectedElementIds, currentElementId])
+
+	useEffect(() => {
+		if (!canvas) return
+		let cancelled = false
+		void resolveCanvasDownloadMenuContext(canvas).then((ctx) => {
+			if (!cancelled) setDownloadMenuContext(ctx)
+		})
+		return () => {
+			cancelled = true
+		}
+	}, [canvas, fileInfoEpoch, currentElementId, selectedElementIds, isCanvasMenu])
+
+	useCanvasEvent(
+		"resource:image:loaded",
+		() => {
+			if (!isMenuOpenRef.current) return
+			setFileInfoEpoch((n) => n + 1)
+		},
+		[],
+	)
 
 	// 监听菜单打开/关闭状态，控制 pan 和缩放
 	// 只有当菜单是从画布打开时，才禁用 pan 和缩放
@@ -49,10 +108,7 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 	// 处理元素选中逻辑（公共逻辑）
 	const handleElementSelection = useCallback(
 		(elementId: string) => {
-			if (!canvas || readonly) return
-
-			const isLocked = canvas.elementManager.getElementData(elementId)?.locked === true
-			if (isLocked) return
+			if (!canvas) return
 
 			// 如果当前是多选状态，不改变选中状态
 			if (selectedElementIds.length > 1) {
@@ -62,10 +118,10 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 				}
 			} else {
 				// 单选或未选中状态，选中该元素
-				canvas.selectionManager.select(elementId)
+				canvas.selectionManager.replaceSelection([elementId])
 			}
 		},
-		[canvas, readonly, selectedElementIds],
+		[canvas, selectedElementIds],
 	)
 
 	// 触发菜单显示（公共逻辑）
@@ -154,23 +210,76 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 		return cleaned
 	}, [])
 
+	const handleRenameElement = useCallback(
+		(elementId: string, source: MenuSource | null) => {
+			if (!canvas) return
+
+			if (source === "layers") {
+				canvas.elementRenameManager.cancelRename()
+				setCanvasRenamingElementId(null)
+				setLayerRenamingElementId(elementId)
+				return
+			}
+
+			setLayerRenamingElementId(null)
+			const started = canvas.elementRenameManager.startRename(elementId)
+			if (!started) {
+				return
+			}
+
+			setCanvasRenamingElementId(elementId)
+		},
+		[canvas, setCanvasRenamingElementId, setLayerRenamingElementId],
+	)
+
+	const canRenameElement = useCallback(
+		(elementId: string, source: MenuSource | null) => {
+			if (!canvas) return false
+
+			if (source === "layers") {
+				return canvas.permissionManager.canRename(
+					canvas.elementManager.getElementData(elementId),
+				)
+			}
+
+			return canvas.elementRenameManager.canRename(elementId)
+		},
+		[canvas],
+	)
+
 	// 预计算元素菜单项数量（用于决定是否展开菜单）
 	const getElementMenuItemsCount = useCallback(
-		(elementId: string) =>
-			canvas
-				? cleanMenuItems(
-						getMenuItems(
-							canvas,
-							selectedElementIds,
-							elementId,
-							methods,
-							permissions,
-							readonly,
-							t,
-						),
-					).length
-				: 0,
-		[canvas, selectedElementIds, methods, permissions, readonly, t, cleanMenuItems],
+		async (elementId: string, source: MenuSource) => {
+			void fileInfoEpoch
+			if (!canvas) return 0
+			const ctx = await resolveCanvasDownloadMenuContext(canvas)
+			return cleanMenuItems(
+				getMenuItems({
+					canvas,
+					selectedIds: canvas.selectionManager.getSelectedIds(),
+					currentElementId: elementId,
+					readonly,
+					t,
+					downloadMenuContext: ctx,
+					renameMenuConfig: {
+						menuSource: source,
+						onRenameElement: handleRenameElement,
+						canRenameElement,
+					},
+					permissions,
+				}),
+			).length
+		},
+		[
+			canvas,
+			readonly,
+			t,
+			cleanMenuItems,
+			fileInfoEpoch,
+			handleRenameElement,
+			canRenameElement,
+			permissions,
+		],
 	)
 
 	// 打开菜单
@@ -178,12 +287,15 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 		(event: React.MouseEvent, elementId: string, source: MenuSource = "layers") => {
 			event.preventDefault()
 			event.stopPropagation()
-			if (getElementMenuItemsCount(elementId) === 0) return
+			// 须先同步画布选区：canExecute 依赖 selectionManager，否则会误判菜单为空
 			handleElementSelection(elementId)
-			menuSource.current = source
-			setCurrentElementId(elementId)
-			setMenuKey((prev) => prev + 1)
-			triggerMenuDisplay(event.clientX, event.clientY)
+			void (async () => {
+				if ((await getElementMenuItemsCount(elementId, source)) === 0) return
+				menuSource.current = source
+				setCurrentElementId(elementId)
+				setMenuKey((prev) => prev + 1)
+				triggerMenuDisplay(event.clientX, event.clientY)
+			})()
 		},
 		[handleElementSelection, triggerMenuDisplay, getElementMenuItemsCount],
 	)
@@ -191,12 +303,15 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 	// 打开菜单（通过坐标）
 	const openMenuByPosition = useCallback(
 		(elementId: string, x: number, y: number, source: MenuSource = "canvas") => {
-			if (getElementMenuItemsCount(elementId) === 0) return
+			// 须先同步画布选区：canExecute 依赖 selectionManager，否则会误判菜单为空
 			handleElementSelection(elementId)
-			menuSource.current = source
-			setCurrentElementId(elementId)
-			setMenuKey((prev) => prev + 1)
-			triggerMenuDisplay(x, y)
+			void (async () => {
+				if ((await getElementMenuItemsCount(elementId, source)) === 0) return
+				menuSource.current = source
+				setCurrentElementId(elementId)
+				setMenuKey((prev) => prev + 1)
+				triggerMenuDisplay(x, y)
+			})()
 		},
 		[handleElementSelection, triggerMenuDisplay, getElementMenuItemsCount],
 	)
@@ -234,6 +349,7 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 
 	// 获取菜单项
 	const menuItems = useMemo(() => {
+		void fileInfoEpoch
 		if (!canvas) return []
 
 		// 如果是画布空白区域的菜单，只返回粘贴项
@@ -241,27 +357,34 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 			return getCanvasMenuItems()
 		}
 
-		const items = getMenuItems(
+		const items = getMenuItems({
 			canvas,
-			selectedElementIds,
+			selectedIds: canvas.selectionManager.getSelectedIds(),
 			currentElementId,
-			methods,
-			permissions,
 			readonly,
 			t,
-		)
+			downloadMenuContext,
+			renameMenuConfig: {
+				menuSource: menuSource.current,
+				onRenameElement: handleRenameElement,
+				canRenameElement,
+			},
+			permissions,
+		})
 		return cleanMenuItems(items)
 	}, [
 		canvas,
 		readonly,
-		selectedElementIds,
 		currentElementId,
-		methods,
-		permissions,
 		t,
 		cleanMenuItems,
 		isCanvasMenu,
 		getCanvasMenuItems,
+		fileInfoEpoch,
+		handleRenameElement,
+		canRenameElement,
+		permissions,
+		downloadMenuContext,
 	])
 
 	// 处理菜单打开/关闭状态变化
@@ -333,7 +456,14 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 						}}
 					/>
 				</ContextMenuTrigger>
-				<ContextMenuContent className={`w-[${MENU_WIDTH}px]`} data-canvas-ui-component>
+				<ContextMenuContent
+					className="box-border"
+					style={{ width: MENU_WIDTH, minWidth: MENU_WIDTH }}
+					data-canvas-ui-component
+					onCloseAutoFocus={(event) => {
+						event.preventDefault()
+					}}
+				>
 					{((isCanvasMenu && !!menuItems.length) ||
 						(currentElementId && !!menuItems.length)) && (
 						<MenuItemRenderer

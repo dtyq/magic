@@ -1,0 +1,235 @@
+.root {
+	right: 0;
+	bottom: 0;
+	left: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 12px 20px 18px;
+	background: linear-gradient(0deg, rgb(0 0 0 / 72%) 0%, rgb(0 0 0 / 0%) 100%);
+}
+
+.pinnedSecondaryVisible {
+	max-height: 160px;
+	overflow: visible;
+	visibility: visible;
+	opacity: 1;
+	transition: opacity 0.38s ease, visibility 0.38s ease, max-height 0.38s ease;
+}
+
+.pinnedSecondaryHidden {
+	max-height: 0;
+	overflow: hidden;
+	visibility: hidden;
+	opacity: 0;
+	transition: opacity 0.38s ease, visibility 0.38s ease, max-height 0.38s ease;
+	pointer-events: none;
+}
+
+/* 音频 pinned：略收紧块间距；进度行固定高度，显隐按钮区时布局稳定 */
+.rootAudioPinned {
+	gap: 8px;
+}
+
+/* 固定进度行高度（与按钮行视觉接近）；显隐按钮区时时间与滑轨相对位置不变 */
+.progressPinnedWrap {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-height: 32px;
+}
+
+.timeRow {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 2px;
+	color: rgb(255 255 255 / 88%);
+	font-size: 12px;
+}
+
+.progress {
+	--progress-fill: #3b82f6;
+	--progress-fill-hover: #2563eb;
+	--progress-track: rgb(255 255 255 / 28%);
+	--progress-track-hover: rgb(255 255 255 / 40%);
+
+	display: block;
+	width: 100%;
+	height: 14px;
+	margin: 0;
+	padding: 0;
+	background: transparent;
+	cursor: pointer;
+	appearance: none;
+}
+
+/* WebKit：整条 input:hover 时轨道与滑块同色阶变化 */
+.progress::-webkit-slider-runnable-track {
+	height: 4px;
+	background: linear-gradient(
+		to right,
+		var(--progress-fill) 0%,
+		var(--progress-fill) var(--progress, 0%),
+		var(--progress-track) var(--progress, 0%),
+		var(--progress-track) 100%
+	);
+	border-radius: 9999px;
+}
+
+.progress:hover::-webkit-slider-runnable-track {
+	background: linear-gradient(
+		to right,
+		var(--progress-fill-hover) 0%,
+		var(--progress-fill-hover) var(--progress, 0%),
+		var(--progress-track-hover) var(--progress, 0%),
+		var(--progress-track-hover) 100%
+	);
+}
+
+.progress::-webkit-slider-thumb {
+	width: 14px;
+	height: 14px;
+	margin-top: -5px;
+	background: var(--progress-fill);
+	border-radius: 9999px;
+	/* stylelint-disable-next-line property-no-vendor-prefix -- WebKit 滑块需去默认外观 */
+	-webkit-appearance: none;
+}
+
+.progress:hover::-webkit-slider-thumb {
+	background: var(--progress-fill-hover);
+}
+
+.progress::-moz-range-track {
+	height: 4px;
+	background: var(--progress-track);
+	border-radius: 9999px;
+}
+
+.progress:hover::-moz-range-track {
+	background: var(--progress-track-hover);
+}
+
+.progress::-moz-range-progress {
+	height: 4px;
+	background: var(--progress-fill);
+	border-radius: 9999px;
+}
+
+.progress:hover::-moz-range-progress {
+	background: var(--progress-fill-hover);
+}
+
+.progress::-moz-range-thumb {
+	width: 14px;
+	height: 14px;
+	background: var(--progress-fill);
+	border: 0;
+	border-radius: 9999px;
+}
+
+.progress:hover::-moz-range-thumb {
+	background: var(--progress-fill-hover);
+}
+
+.actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.actionGroup {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+}
+
+.iconButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	color: #fff;
+	background: transparent;
+	border: 0;
+	border-radius: 12px;
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+}
+
+.iconButton:hover {
+	background: rgb(255 255 255 / 10%);
+}
+
+.volumeGroup {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.volumeSliderWrap {
+	display: flex;
+	align-items: center;
+	width: 0;
+	max-width: 96px;
+	height: 40px;
+	margin: 0;
+	overflow: hidden;
+	line-height: 0;
+	opacity: 0;
+	transition: width 0.28s ease, opacity 0.22s ease;
+	pointer-events: none;
+}
+
+.volumeGroup:hover .volumeSliderWrap,
+.volumeGroup:focus-within .volumeSliderWrap {
+	width: 96px;
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.volumeSlider {
+	display: block;
+	flex-shrink: 0;
+	align-self: center;
+	width: 96px;
+	margin: 0;
+	padding: 0;
+	background: transparent;
+	accent-color: #fff;
+	cursor: pointer;
+	appearance: none;
+}
+
+/* 自定义轨道/滑块，避免原生控件在 flex 中与 40px 按钮视觉不齐 */
+.volumeSlider::-webkit-slider-runnable-track {
+	height: 4px;
+	background: rgb(255 255 255 / 35%);
+	border-radius: 9999px;
+}
+
+.volumeSlider::-webkit-slider-thumb {
+	width: 12px;
+	height: 12px;
+	margin-top: -4px;
+	background: #fff;
+	border-radius: 9999px;
+	/* stylelint-disable-next-line property-no-vendor-prefix -- WebKit 滑块需去默认外观 */
+	-webkit-appearance: none;
+}
+
+.volumeSlider::-moz-range-track {
+	height: 4px;
+	background: rgb(255 255 255 / 35%);
+	border-radius: 9999px;
+}
+
+.volumeSlider::-moz-range-thumb {
+	width: 12px;
+	height: 12px;
+	background: #fff;
+	border: 0;
+	border-radius: 9999px;
+}

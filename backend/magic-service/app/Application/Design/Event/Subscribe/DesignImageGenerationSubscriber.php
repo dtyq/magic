@@ -132,7 +132,7 @@ class DesignImageGenerationSubscriber implements ListenerInterface
         $taskFileEntity->setFileKey($imageGenerationEntity->getFullFilePath($filePrefix));
         $taskFileEntity->setSource(TaskFileSource::AI_IMAGE_GENERATION);
         $taskFileEntity->setFileName($imageGenerationEntity->getFileName());
-        $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->name);
+        $taskFileEntity->setFileType(FileType::SYSTEM_AUTO_UPLOAD->value);
         $taskFileEntity->setFileSize($uploadFile->getSize());
         $taskFileEntity->setIsDirectory(false);
         $taskFileEntity->setParentId($imageGenerationEntity->getFileDirId());

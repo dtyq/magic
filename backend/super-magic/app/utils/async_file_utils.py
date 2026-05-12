@@ -872,6 +872,66 @@ async def async_scandir(path: Union[str, Path]) -> list[os.DirEntry]:
         raise
 
 
+def _read_magicfs_file_id(filepath: str) -> Optional[str]:
+    """Synchronous xattr read, intended to run in a thread pool."""
+    try:
+        raw = os.getxattr(filepath, "user.magicfs.file_id")  # type: ignore[attr-defined]
+        return raw.decode("utf-8").strip("\"'")
+    except (OSError, AttributeError):
+        return None
+
+
+async def get_file_id_from_xattr(filepath: Union[str, Path]) -> Optional[str]:
+    """
+    Read the magicfs file ID from extended attributes (user.magicfs.file_id).
+
+    Runs in a thread pool via ``asyncio.to_thread`` because magicfs is a
+    FUSE-based filesystem where xattr reads involve user-space IPC and can
+    block the event loop for a non-trivial amount of time.
+
+    Only available on Linux; returns None silently on other platforms or when
+    the attribute is absent.
+
+    Args:
+        filepath: path to the file or directory
+
+    Returns:
+        Optional[str]: the file ID (e.g. "877250661392134145"), or None
+    """
+    return await asyncio.to_thread(_read_magicfs_file_id, str(filepath))
+
+
+def _read_magicfs_s3_key(filepath: str) -> Optional[str]:
+    """Synchronous xattr read for s3_key, intended to run in a thread pool."""
+    try:
+        raw = os.getxattr(filepath, "user.magicfs.s3_key")  # type: ignore[attr-defined]
+        return raw.decode("utf-8").strip("\"'")
+    except (OSError, AttributeError):
+        return None
+
+
+async def get_s3_key_from_xattr(filepath: Union[str, Path]) -> Optional[str]:
+    """
+    Read the magicfs S3 object key from extended attributes (user.magicfs.s3_key).
+
+    Runs in a thread pool via ``asyncio.to_thread`` because magicfs is a
+    FUSE-based filesystem where xattr reads involve user-space IPC and can
+    block the event loop for a non-trivial amount of time.
+
+    Only available on Linux; returns None silently on other platforms or when
+    the attribute is absent.
+
+    Args:
+        filepath: path to the file or directory
+
+    Returns:
+        Optional[str]: the S3 object key
+            (e.g. "TGosRaFhvb/588417216353927169/project_xxx/workspace/877250661392134145"),
+            or None when unavailable
+    """
+    return await asyncio.to_thread(_read_magicfs_s3_key, str(filepath))
+
+
 async def async_iterdir(path: Union[str, Path]) -> list[Path]:
     """
     异步遍历目录内容，返回 Path 对象列表

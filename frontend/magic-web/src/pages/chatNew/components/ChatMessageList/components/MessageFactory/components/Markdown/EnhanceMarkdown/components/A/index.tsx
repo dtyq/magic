@@ -1,6 +1,7 @@
 import { Suspense, type AnchorHTMLAttributes } from "react"
 import { useMessageRenderContext } from "@/components/business/MessageRenderProvider/hooks"
 import { useTranslation } from "react-i18next"
+import { safeDecodeURIComponent } from "@/utils/encoding"
 import MagicFunctionLink from "../MagicFunctionLink"
 import ARenderFactory from "../../factories/ARenderFactory"
 export function A(props: AnchorHTMLAttributes<HTMLAnchorElement>) {
@@ -16,7 +17,8 @@ export function A(props: AnchorHTMLAttributes<HTMLAnchorElement>) {
 		)
 	}
 
-	const uncodeHref = decodeURIComponent(href as string)
+	const normalizedHref = typeof href === "string" ? href : ""
+	const uncodeHref = safeDecodeURIComponent(normalizedHref)
 
 	switch (true) {
 		case uncodeHref.startsWith("magic://"):

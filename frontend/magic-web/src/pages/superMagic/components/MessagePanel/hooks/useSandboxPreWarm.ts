@@ -4,33 +4,41 @@ import { useMemoizedFn, useThrottleFn } from "ahooks"
 import { logger as Logger } from "@/utils/log"
 import { Editor } from "@tiptap/core"
 import { useEffect } from "react"
+import { SHARE_WORKSPACE_ID } from "@/pages/superMagic/constants"
 
 const logger = Logger.createLogger("useSandboxPreWarm")
 
 function useSandboxPreWarm({
 	selectedTopic,
 	selectedWorkspace,
+	projectId,
 	editorRef,
+	enabled = true,
 }: {
 	selectedTopic?: Topic | null
 	selectedWorkspace?: Workspace | null
+	projectId?: string | null
 	editorRef?: Editor | null
+	enabled?: boolean
 }) {
 	const { run: preWarmSandbox, cancel: cancelPreWarmSandbox } = useThrottleFn(
 		useMemoizedFn(() => {
-			if (!selectedTopic && !selectedWorkspace) {
+			if (!selectedTopic && !selectedWorkspace && !projectId) {
 				return
 			}
 
-			SuperMagicApi.preWarmSandbox(
-				selectedTopic
-					? {
-						topic_id: selectedTopic?.id,
-					}
-					: {
-						workspace_id: selectedWorkspace?.id,
-					},
-			).catch((error) => {
+			const params = selectedTopic
+				? { topic_id: selectedTopic.id }
+				: projectId
+					? { project_id: projectId }
+					: { workspace_id: selectedWorkspace?.id }
+
+			// 共享工作区不预加载沙箱，共享工作区是一个虚拟概念
+			if (params.workspace_id && params.workspace_id === SHARE_WORKSPACE_ID) {
+				return
+			}
+
+			SuperMagicApi.preWarmSandbox(params).catch((error) => {
 				logger.error("preWarmSandbox error", error)
 			})
 		}),
@@ -47,7 +55,15 @@ function useSandboxPreWarm({
 			cancelPreWarmSandbox()
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [selectedTopic, selectedWorkspace])
+	}, [selectedTopic, selectedWorkspace, projectId])
+
+	useEffect(() => {
+		if (!enabled) {
+			return
+		}
+
+		preWarmSandbox()
+	}, [enabled, preWarmSandbox, projectId, selectedTopic?.id, selectedWorkspace?.id])
 
 	useEffect(() => {
 		if (!editorRef) {

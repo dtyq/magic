@@ -43,8 +43,8 @@ function SceneSwitcher({ scenes, onSceneClick: onSkillClick }: SceneSwitcherProp
 				className={cn(
 					"duration-150 animate-in fade-in slide-in-from-right-2",
 					variant &&
-					[ScenePanelVariant.TopicPage, ScenePanelVariant.Mobile].includes(variant) &&
-					"shrink-0",
+						[ScenePanelVariant.TopicPage, ScenePanelVariant.Mobile].includes(variant) &&
+						"shrink-0",
 				)}
 				style={{
 					animationDelay: `${index * ANIMATION_DELAY_STEP}ms`,
@@ -55,12 +55,12 @@ function SceneSwitcher({ scenes, onSceneClick: onSkillClick }: SceneSwitcherProp
 					variant="outline"
 					size="sm"
 					className={cn(
-						"shadow-xs h-9 gap-2 rounded-full px-4 py-2 dark:text-white",
+						"h-9 gap-2 rounded-full px-4 py-2 shadow-xs dark:text-white",
 						variant &&
-						[ScenePanelVariant.TopicPage, ScenePanelVariant.Mobile].includes(
-							variant,
-						) &&
-						"h-7 gap-2 rounded-full px-2.5",
+							[ScenePanelVariant.TopicPage, ScenePanelVariant.Mobile].includes(
+								variant,
+							) &&
+							"h-7 gap-2 rounded-full px-2.5",
 					)}
 					onClick={() => onSkillClick?.(skill)}
 				>
@@ -79,16 +79,11 @@ function SceneSwitcher({ scenes, onSceneClick: onSkillClick }: SceneSwitcherProp
 				className="relative w-[calc(100%-1px)]"
 				scrollContainerClassName="no-scrollbar flex min-w-0 w-full flex-nowrap items-center justify-start gap-2 overflow-x-auto overflow-y-hidden"
 				renderLeftControl={({ scroll }) => (
-					<div
-						className={cn(
-							"z-11 pointer-events-none absolute left-[-1px] top-0 flex h-full w-[52px] items-center justify-start bg-gradient-to-r from-sidebar from-50% to-transparent",
-							[ScenePanelVariant.Mobile].includes(variant) && "from-background",
-						)}
-					>
+					<div className="z-11 pointer-events-none absolute left-0 top-0 flex h-full w-[52px] items-center justify-start bg-gradient-to-r from-sidebar from-50% to-transparent">
 						<Button
 							variant="outline"
 							size="icon"
-							className="shadow-xs pointer-events-auto size-4 rounded-full dark:text-white"
+							className="pointer-events-auto size-4 rounded-full shadow-xs dark:text-white"
 							onClick={() => scroll("left")}
 						>
 							<ChevronLeft className="size-3" />
@@ -96,16 +91,11 @@ function SceneSwitcher({ scenes, onSceneClick: onSkillClick }: SceneSwitcherProp
 					</div>
 				)}
 				renderRightControl={({ scroll }) => (
-					<div
-						className={cn(
-							"z-11 pointer-events-none absolute right-[-1px] top-0 flex h-full w-[52px] items-center justify-end bg-gradient-to-r from-transparent from-0% to-sidebar",
-							[ScenePanelVariant.Mobile].includes(variant) && "to-background",
-						)}
-					>
+					<div className="z-11 pointer-events-none absolute right-[-1px] top-0 flex h-full w-[52px] items-center justify-end bg-gradient-to-r from-transparent from-0% to-sidebar">
 						<Button
 							variant="outline"
 							size="icon"
-							className="shadow-xs pointer-events-auto size-4 rounded-full dark:text-white"
+							className="pointer-events-auto size-4 rounded-full shadow-xs dark:text-white"
 							onClick={() => scroll("right")}
 						>
 							<ChevronRight className="size-3" />

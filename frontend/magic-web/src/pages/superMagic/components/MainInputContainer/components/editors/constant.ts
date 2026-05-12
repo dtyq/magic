@@ -13,7 +13,11 @@ export const MOBILE_LAYOUT_CONFIG: MessageEditorLayoutConfig = {
 		ToolbarButton.UPLOAD,
 	],
 	// bottom-right toolbar buttons: mic + send
-	bottomRight: [ToolbarButton.VOICE_INPUT, ToolbarButton.SEND_BUTTON],
+	bottomRight: [
+		ToolbarButton.EDITOR_MODE_SWITCH,
+		ToolbarButton.VOICE_INPUT,
+		ToolbarButton.SEND_BUTTON,
+	],
 	// outside bottom area: none
 	outsideBottom: [],
 }

@@ -24,7 +24,7 @@ const useStyles = createStyles(({ token }) => ({
 		height: "100%",
 		display: "flex",
 		flexDirection: "column",
-		padding: "12px",
+		padding: "12px 6px",
 		gap: "12px",
 		paddingTop: 0,
 	},

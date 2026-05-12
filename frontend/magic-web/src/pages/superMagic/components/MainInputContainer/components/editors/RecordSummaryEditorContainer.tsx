@@ -8,12 +8,14 @@ import { getButtonPaddingClass } from "../../../MessageEditor/constants/BUTTON_P
 import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import useRecordSummaryAudioFile from "../../../MessagePanel/hooks/useRecordSummaryAudioFile"
 import { roleStore } from "@/pages/superMagic/stores"
+import { useIsMobile } from "@/hooks/useIsMobile"
 import type { MessageEditorRef } from "../../../MessageEditor/MessageEditor"
 import DefaultMessageEditorContainer from "./DefaultMessageEditorContainer"
 import type { SceneEditorContext, SceneEditorNodes } from "./types"
 import useSharedProjectMode from "@/pages/superMagic/hooks/useSharedProjectMode"
 import RecordingSummaryEditorModeSwitch from "@/components/business/RecordingSummary/components/EditorModeSwitch"
 import RecordingSummaryEditorPanel from "@/components/business/RecordingSummary/EditorPanel"
+import MobileComposer from "@/pages/superMagicMobile/pages/ChatPage/components/mobile-composer/MobileComposer"
 
 interface RecordSummaryEditorContainerProps {
 	editorContext?: SceneEditorContext
@@ -24,6 +26,7 @@ export default function RecordSummaryEditorContainer({
 	editorContext,
 	editorNodes,
 }: RecordSummaryEditorContainerProps) {
+	const isMobile = useIsMobile()
 	const scopedTopicStore = editorContext?.topicStore ?? topicStore
 
 	const selectedTopic = editorContext?.selectedTopic ?? scopedTopicStore.selectedTopic
@@ -58,7 +61,7 @@ export default function RecordSummaryEditorContainer({
 			/>
 		))
 
-	const tiptapEditorRef = useRef<MessageEditorRef>(null)
+	const tiptapEditorRef = useRef<MessageEditorRef | null>(null)
 
 	useRecordSummaryAudioFile({
 		editorMode,
@@ -77,6 +80,7 @@ export default function RecordSummaryEditorContainer({
 		size: editorSize,
 		editorModeSwitch,
 		containerClassName: editorContext?.containerClassName,
+		editorRef: tiptapEditorRef,
 	}
 
 	return editorMode === RecordingSummaryEditorMode.Recording ? (
@@ -92,11 +96,14 @@ export default function RecordSummaryEditorContainer({
 				topicMode={editorContext?.topicMode ?? TopicMode.RecordSummary}
 				isTaskRunning={editorContext?.showLoading}
 				editorModeSwitch={editorModeSwitch}
+				modelSwitch={editorContext?.modelSwitch}
 				attachments={editorContext?.attachments}
 				taskDataNode={editorNodes?.taskDataNode}
 				messageQueueNode={editorNodes?.messageQueueNode}
 			/>
 		</Suspense>
+	) : isMobile ? (
+		<MobileComposer editorContext={editingEditorContext} editorNodes={editorNodes} />
 	) : (
 		<DefaultMessageEditorContainer
 			editorContext={editingEditorContext}

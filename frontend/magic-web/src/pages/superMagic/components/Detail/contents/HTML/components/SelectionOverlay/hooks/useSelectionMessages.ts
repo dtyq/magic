@@ -60,6 +60,10 @@ export function useSelectionMessages({
 					const tagName = payload?.tagName ?? "div"
 					const computedStyles = payload?.computedStyles ?? {}
 					const rotation = payload?.rotation ?? 0
+					const isImageElement = payload?.isImageElement ?? false
+					const intrinsicWidth = payload?.intrinsicWidth
+					const intrinsicHeight = payload?.intrinsicHeight
+					const intrinsicAspectRatio = payload?.intrinsicAspectRatio
 
 					if (rect && selector) {
 						// Disable text editing on previous elements before switching
@@ -84,7 +88,18 @@ export function useSelectionMessages({
 							}
 						}
 
-						setSelectedInfoList([{ rect, selector, computedStyles, rotation }])
+						setSelectedInfoList([
+							{
+								rect,
+								selector,
+								computedStyles,
+								rotation,
+								isImageElement,
+								intrinsicWidth,
+								intrinsicHeight,
+								intrinsicAspectRatio,
+							},
+						])
 						setHoveredRect(null)
 						setIsSelectionMode(true) // Ensure selection mode is active
 
@@ -92,6 +107,10 @@ export function useSelectionMessages({
 						stylePanelStore.selectElement({
 							selector,
 							tagName,
+							isImageElement,
+							intrinsicWidth,
+							intrinsicHeight,
+							intrinsicAspectRatio,
 							computedStyles: computedStyles as any,
 						})
 
@@ -124,6 +143,10 @@ export function useSelectionMessages({
 							selector: el.selector,
 							computedStyles: el.computedStyles,
 							rotation: el.rotation ?? 0,
+							isImageElement: el.isImageElement ?? false,
+							intrinsicWidth: el.intrinsicWidth,
+							intrinsicHeight: el.intrinsicHeight,
+							intrinsicAspectRatio: el.intrinsicAspectRatio,
 						}))
 
 						setSelectedInfoList(newSelectedInfoList)
@@ -134,10 +157,18 @@ export function useSelectionMessages({
 						const selectedElementsInfo: Array<{
 							selector: string
 							tagName: string
+							isImageElement?: boolean
+							intrinsicWidth?: number
+							intrinsicHeight?: number
+							intrinsicAspectRatio?: number
 							computedStyles: any
 						}> = elements.map((el) => ({
 							selector: el.selector,
 							tagName: el.tagName || "div",
+							isImageElement: el.isImageElement ?? false,
+							intrinsicWidth: el.intrinsicWidth,
+							intrinsicHeight: el.intrinsicHeight,
+							intrinsicAspectRatio: el.intrinsicAspectRatio,
 							computedStyles: el.computedStyles || {},
 						}))
 						stylePanelStore.selectElements(selectedElementsInfo)

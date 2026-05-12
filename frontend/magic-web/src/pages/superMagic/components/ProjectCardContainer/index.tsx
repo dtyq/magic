@@ -36,7 +36,6 @@ const ShareSuccessModal = lazy(
 function ProjectCardContainer({
 	selectedProject,
 	selectedWorkspace,
-	onProjectClick,
 	onDropdownClick,
 	className,
 }: ProjectCardContainerProps) {
@@ -45,10 +44,16 @@ function ProjectCardContainer({
 	const isMobile = responsive.md === false
 
 	const isReceivedCollaboration = isOtherCollaborationProject(selectedProject)
+	const currentWorkspaceId = selectedProject?.workspace_id || selectedWorkspace?.id || ""
+	const isSelectedWorkspaceMatched =
+		!!selectedWorkspace?.id && selectedWorkspace.id === currentWorkspaceId
+	const currentWorkspaceName = isSelectedWorkspaceMatched
+		? selectedWorkspace?.name || selectedProject?.workspace_name || ""
+		: selectedProject?.workspace_name || selectedWorkspace?.name || ""
 
 	const projectOptions = isReceivedCollaboration
 		? projectStore.receivedCollaborationProjects
-		: projectStore.getProjectsByWorkspace(selectedWorkspace?.id || "")
+		: projectStore.getProjectsByWorkspace(currentWorkspaceId)
 
 	const handleProjectMenuOpenChange = (open: boolean) => {
 		if (!open) return
@@ -56,9 +61,9 @@ function ProjectCardContainer({
 			void projectStore.loadReceivedCollaborationProjects()
 			return
 		}
-		if (selectedWorkspace?.id) {
+		if (currentWorkspaceId) {
 			void SuperMagicService.project.fetchProjects({
-				workspaceId: selectedWorkspace.id,
+				workspaceId: currentWorkspaceId,
 				clearWhenNoProjects: false,
 			})
 		}
@@ -66,19 +71,38 @@ function ProjectCardContainer({
 
 	const workspaceForProjectActions = useMemo<Workspace>(
 		() => ({
-			id: selectedWorkspace?.id || selectedProject?.workspace_id || "",
-			name: selectedWorkspace?.name || selectedProject?.workspace_name || "",
-			is_archived: selectedWorkspace?.is_archived ?? 0,
+			id: currentWorkspaceId,
+			name: currentWorkspaceName,
+			is_archived: isSelectedWorkspaceMatched ? (selectedWorkspace?.is_archived ?? 0) : 0,
 			current_topic_id:
-				selectedWorkspace?.current_topic_id || selectedProject?.current_topic_id || "",
-			current_project_id:
-				selectedWorkspace?.current_project_id ?? selectedProject?.id ?? null,
-			workspace_status: selectedWorkspace?.workspace_status ?? WorkspaceStatus.WAITING,
-			project_count: selectedWorkspace?.project_count ?? 0,
+				selectedProject?.current_topic_id ||
+				(isSelectedWorkspaceMatched ? selectedWorkspace?.current_topic_id : "") ||
+				"",
+			current_project_id: selectedProject?.id ?? null,
+			workspace_status: isSelectedWorkspaceMatched
+				? (selectedWorkspace?.workspace_status ?? WorkspaceStatus.WAITING)
+				: WorkspaceStatus.WAITING,
+			project_count: isSelectedWorkspaceMatched ? (selectedWorkspace?.project_count ?? 0) : 0,
 		}),
-		[selectedWorkspace, selectedProject],
+		[
+			currentWorkspaceId,
+			currentWorkspaceName,
+			isSelectedWorkspaceMatched,
+			selectedProject,
+			selectedWorkspace,
+		],
 	)
 
+	const handleWorkspaceHomeClick = () => {
+		if (currentWorkspaceId) {
+			SuperMagicService.clearProjectAndTopicSelection()
+			SuperMagicService.route.navigateToWorkspace(currentWorkspaceId)
+			return
+		}
+
+		SuperMagicService.clearProjectAndTopicSelection()
+		SuperMagicService.route.navigateToHome()
+	}
 	// 使用分享项目 hook
 	const shareProject = useShareProject({
 		attachments: projectFilesStore.workspaceFileTree,
@@ -93,17 +117,14 @@ function ProjectCardContainer({
 		<>
 			<ProjectCard
 				project={selectedProject}
-				workspaceName={
-					selectedWorkspace?.name ||
-					selectedProject.workspace_name ||
-					t("workspace.unnamedWorkspace")
-				}
+				workspaceName={currentWorkspaceName || t("workspace.unnamedWorkspace")}
 				collaborators={t("collaborators.empty")}
-				onProjectClick={onProjectClick}
+				onWorkspaceHomeClick={handleWorkspaceHomeClick}
 				onShareClick={shareProject.openShareModal}
 				onDropdownClick={onDropdownClick}
 				projectOptions={projectOptions}
 				showCreateProject={!isReceivedCollaboration}
+				enableWorkspaceNavigation={!isReceivedCollaboration}
 				onProjectMenuOpenChange={handleProjectMenuOpenChange}
 				actionWorkspace={workspaceForProjectActions}
 				className={className}

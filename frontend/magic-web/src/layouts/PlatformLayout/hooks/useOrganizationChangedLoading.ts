@@ -10,7 +10,8 @@ export function useOrganizationChangedLoading() {
 				() => userStore.user.userInfo,
 				async (magicUser, previousUser) => {
 					if (magicUser) {
-						const showSwitchLoading = previousUser?.user_id !== magicUser.user_id
+						const showSwitchLoading =
+							previousUser != null && previousUser.user_id !== magicUser.user_id
 						if (showSwitchLoading) {
 							interfaceStore.setIsSwitchingOrganization(true)
 							setTimeout(() => {

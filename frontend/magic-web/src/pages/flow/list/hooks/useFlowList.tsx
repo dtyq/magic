@@ -14,8 +14,7 @@ import useNavigate from "@/routes/hooks/useNavigate"
 import type { Flow, FlowTool } from "@/types/flow"
 import { FlowRouteType, FlowType, VectorKnowledge } from "@/types/flow"
 import { useTranslation } from "react-i18next"
-import { useMemo, useRef } from "react"
-import { openModal } from "@/utils/react"
+import { useMemo, useRef, useState } from "react"
 import DeleteDangerModal from "@/components/business/DeleteDangerModal"
 import useSWRInfinite from "swr/infinite"
 import MagicButton from "@/components/base/MagicButton"
@@ -45,6 +44,18 @@ interface KeyProp {
 }
 
 type CurrentDataType = any[] | undefined
+
+type DeleteFlowTarget =
+	| MagicFlow.Flow
+	| Knowledge.KnowledgeItem
+	| Flow.Mcp.Detail
+	| FlowTool.Tool
+	| Flow.Mcp.ListItem
+
+interface DeleteFlowModalPayload {
+	flow: DeleteFlowTarget
+	tool: boolean
+}
 
 export default function useFlowList({ flowType }: FlowListHooksProps) {
 	const { t: globalT } = useTranslation()
@@ -230,113 +241,136 @@ export default function useFlowList({ flowType }: FlowListHooksProps) {
 		return tool?.source_version?.latest_version_code === tool?.rel_version_code
 	})
 
-	const deleteFlow = useMemoizedFn(async (flow, tool = false) => {
-		openModal(DeleteDangerModal, {
-			content: flow.name,
-			needConfirm: false,
-			onSubmit: async () => {
-				switch (flowType) {
-					case FlowRouteType.Tools:
-						// tool 表示是否为工具,而非工具集
-						if (tool) {
-							// 删除工具
-							await FlowApi.deleteFlow(flow.code)
-						} else {
-							// 删除工具集
-							await FlowApi.deleteTool(flow.id)
-						}
-						break
-					case FlowRouteType.Sub:
-						// 删除子流程
-						await FlowApi.deleteFlow(flow.id)
-						break
-					case FlowRouteType.VectorKnowledge:
-						// 删除知识库
-						await KnowledgeApi.deleteKnowledge(flow.code)
-						break
-					case FlowRouteType.Mcp:
-						// 删除MCP
-						if (tool) {
-							await FlowApi.deleteMcpTool(flow.id, currentFlow.id ?? "")
-						} else {
-							await FlowApi.deleteMcp(flow.id)
-						}
-						break
-					default:
-						break
-				}
-				// 删除的是MCP的工具时
-				if (isMcp && tool) {
-					mutate((currentData: CurrentDataType) => {
-						return currentData?.map((page) => ({
-							...page,
-							list: page?.list.map((item: Flow.Mcp.Detail) => {
-								if (item.id === flow.mcp_server_code) {
-									return {
-										...item,
-										tools_count: item.tools_count - 1,
-									}
-								}
-								return item
-							}),
-						}))
-					}, false)
-					setCurrentFlow((prev) => {
-						return {
-							...prev,
-							tools_count: (prev as Flow.Mcp.Detail).tools_count - 1,
-						}
-					})
-					mcpEventListener.emit("updateMcpList")
-				}
-				// 更新工具列表
-				else if (tool) {
-					let { tools = [] } = currentFlow as FlowWithTools
-					tools = tools.filter((n) => n.code !== flow.code)
-					setCurrentFlow(() => {
-						return {
-							...currentFlow,
-							tools,
-						}
-					})
-					// 更新工具集中的工具数量
-					mutate((currentData: CurrentDataType) => {
-						const updatedData = currentData?.map((page) => {
-							const list = page?.list.map((item: MagicFlow.Flow) => {
-								if (item.id === flow.tool_set_id) {
-									item.tools = tools
-									return item
-								}
-								return item
-							})
-							return {
-								...page,
-								list,
-							}
-						})
-						return updatedData
-					}, false)
+	const [deleteFlowModalPayload, setDeleteFlowModalPayload] =
+		useState<DeleteFlowModalPayload | null>(null)
+
+	const closeDeleteFlowModal = useMemoizedFn(() => setDeleteFlowModalPayload(null))
+
+	const submitDeleteFlow = useMemoizedFn(async () => {
+		const payload = deleteFlowModalPayload
+		if (!payload) return
+
+		const { flow, tool } = payload
+
+		switch (flowType) {
+			case FlowRouteType.Tools:
+				// tool 表示是否为工具,而非工具集
+				if (tool) {
+					const toolCode = "code" in flow ? flow.code : undefined
+					if (!toolCode) return
+					await FlowApi.deleteFlow(toolCode)
 				} else {
-					// 更新流程列表
-					mutate((currentData: CurrentDataType) => {
-						if (!currentData) return currentData
-						const updatedData = currentData?.map((page) => ({
-							...page,
-							list: page?.list.filter((item: MagicFlow.Flow) => item.id !== flow.id),
-						}))
-						updatedData[0].total -= 1 // 更新总数
-						return updatedData
-					}, false)
+					if (!flow.id) return
+					await FlowApi.deleteTool(flow.id)
 				}
-				magicToast.success(
-					`${globalT("common.delete", { ns: "flow" })} ${title} ${flow.name} ${globalT(
-						"common.success",
-						{ ns: "flow" },
-					)}`,
-				)
-			},
-		})
+				break
+			case FlowRouteType.Sub:
+				if (!flow.id) return
+				await FlowApi.deleteFlow(flow.id)
+				break
+			case FlowRouteType.VectorKnowledge: {
+				const knowledgeCode = "code" in flow ? flow.code : undefined
+				if (!knowledgeCode) return
+				await KnowledgeApi.deleteKnowledge(knowledgeCode)
+				break
+			}
+			case FlowRouteType.Mcp:
+				if (!flow.id) return
+				if (tool) {
+					await FlowApi.deleteMcpTool(flow.id, currentFlow.id ?? "")
+				} else {
+					await FlowApi.deleteMcp(flow.id)
+				}
+				break
+			default:
+				break
+		}
+		// 删除的是MCP的工具时
+		if (isMcp && tool) {
+			const mcpServerCode = "mcp_server_code" in flow ? flow.mcp_server_code : undefined
+			mutate((currentData: CurrentDataType) => {
+				return currentData?.map((page) => ({
+					...page,
+					list: page?.list.map((item: Flow.Mcp.Detail) => {
+						if (mcpServerCode && item.id === mcpServerCode) {
+							return {
+								...item,
+								tools_count: item.tools_count - 1,
+							}
+						}
+						return item
+					}),
+				}))
+			}, false)
+			setCurrentFlow((prev) => {
+				return {
+					...prev,
+					tools_count: (prev as Flow.Mcp.Detail).tools_count - 1,
+				}
+			})
+			mcpEventListener.emit("updateMcpList")
+		}
+		// 更新工具列表
+		else if (tool) {
+			const toolRow = flow as FlowTool.Tool
+			let { tools = [] } = currentFlow as FlowWithTools
+			tools = tools.filter((n) => n.code !== toolRow.code)
+			setCurrentFlow(() => {
+				return {
+					...currentFlow,
+					tools,
+				}
+			})
+			// 更新工具集中的工具数量
+			mutate((currentData: CurrentDataType) => {
+				const updatedData = currentData?.map((page) => {
+					const list = page?.list.map((item: MagicFlow.Flow) => {
+						if (item.id === toolRow.tool_set_id) {
+							item.tools = tools
+							return item
+						}
+						return item
+					})
+					return {
+						...page,
+						list,
+					}
+				})
+				return updatedData
+			}, false)
+		} else {
+			// 更新流程列表
+			mutate((currentData: CurrentDataType) => {
+				if (!currentData) return currentData
+				const updatedData = currentData?.map((page) => ({
+					...page,
+					list: page?.list.filter((item: MagicFlow.Flow) => item.id !== flow.id),
+				}))
+				updatedData[0].total -= 1 // 更新总数
+				return updatedData
+			}, false)
+		}
+		magicToast.success(
+			`${globalT("common.delete", { ns: "flow" })} ${title} ${flow.name} ${globalT(
+				"common.success",
+				{ ns: "flow" },
+			)}`,
+		)
 	})
+
+	const deleteFlow = useMemoizedFn((flow: DeleteFlowTarget, tool = false) => {
+		setDeleteFlowModalPayload({ flow, tool })
+	})
+
+	const deleteFlowModal = deleteFlowModalPayload ? (
+		<DeleteDangerModal
+			key={`${deleteFlowModalPayload.flow.id ?? ("code" in deleteFlowModalPayload.flow ? deleteFlowModalPayload.flow.code : "")}-${deleteFlowModalPayload.tool}`}
+			content={deleteFlowModalPayload.flow.name}
+			needConfirm={false}
+			onSubmit={submitDeleteFlow}
+			onClose={closeDeleteFlowModal}
+		/>
+	) : null
 
 	const updateFlowEnable = useMemoizedFn(async (flow) => {
 		switch (flowType) {
@@ -466,15 +500,15 @@ export default function useFlowList({ flowType }: FlowListHooksProps) {
 					list: page?.list.map((item: MagicFlow.Flow) =>
 						item.id === flow.id
 							? {
-								...item,
-								name: flow.name,
-								description: flow.description,
-								icon: flow.icon,
-								...(isMcp && {
-									type: flow.type,
-									external_sse_url: flow.external_sse_url,
-								}),
-							}
+									...item,
+									name: flow.name,
+									description: flow.description,
+									icon: flow.icon,
+									...(isMcp && {
+										type: flow.type,
+										external_sse_url: flow.external_sse_url,
+									}),
+								}
 							: item,
 					),
 				}))
@@ -658,6 +692,7 @@ export default function useFlowList({ flowType }: FlowListHooksProps) {
 		scrollRef,
 		goToFlow,
 		deleteFlow,
+		deleteFlowModal,
 		updateFlowEnable,
 		getDropdownItems,
 		getRightPanelDropdownItems,

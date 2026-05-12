@@ -6,10 +6,11 @@ import {
 	ContextMenuSubContent,
 } from "../ui/context-menu"
 import { formatShortcut } from "../../lib/index"
+import { cn } from "../../lib/utils"
 import classNames from "classnames"
 import type { MenuItem, MenuOption } from "./types"
 import styles from "./index.module.css"
-import { isValidElement } from "react"
+// import { isValidElement } from "react"
 
 interface MenuItemRendererProps {
 	menuWidth: number
@@ -41,13 +42,13 @@ export function MenuItemRenderer({
 				const isDisabled = option.disabled ? option.disabled() : false
 
 				// 判断 icon 是组件还是 ReactElement，并渲染
-				const renderIcon = () => {
-					if (isValidElement(option.icon)) {
-						return option.icon
-					}
-					const IconComponent = option.icon as React.ComponentType<{ size?: number }>
-					return <IconComponent size={16} />
-				}
+				// const renderIcon = () => {
+				// 	if (isValidElement(option.icon)) {
+				// 		return option.icon
+				// 	}
+				// 	const IconComponent = option.icon as React.ComponentType<{ size?: number }>
+				// 	return <IconComponent size={16} />
+				// }
 
 				// 如果有子菜单，渲染子菜单结构
 				if (option.children && option.children.length > 0) {
@@ -57,7 +58,7 @@ export function MenuItemRenderer({
 								disabled={isDisabled}
 								className={classNames(styles.menuItem)}
 							>
-								<div className={styles.menuItemIcon}>{renderIcon()}</div>
+								{/* <div className={styles.menuItemIcon}>{renderIcon()}</div> */}
 								<div className={styles.menuItemLabel}>{option.label}</div>
 								{option.rightContentRender ? (
 									<div className={styles.menuItemRightContent}>
@@ -83,7 +84,13 @@ export function MenuItemRenderer({
 									</div>
 								)}
 							</ContextMenuSubTrigger>
-							<ContextMenuSubContent className={`w-[${menuWidth}px]`}>
+							<ContextMenuSubContent
+								className={cn(
+									/* Radix 子菜单默认 minWidth 对齐触发项，显式改为按内容收缩 */
+									"w-max min-w-0 max-w-[min(100vw,20rem)]",
+									styles.subMenuContent,
+								)}
+							>
 								<MenuItemRenderer
 									menuWidth={menuWidth}
 									items={option.children}
@@ -112,7 +119,7 @@ export function MenuItemRenderer({
 							styles.menuItem,
 						)}
 					>
-						<div className={styles.menuItemIcon}>{renderIcon()}</div>
+						{/* <div className={styles.menuItemIcon}>{renderIcon()}</div> */}
 						<div className={styles.menuItemLabel}>{option.label}</div>
 						{option.rightContentRender ? (
 							<div className={styles.menuItemRightContent}>

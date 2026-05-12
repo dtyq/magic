@@ -23,12 +23,13 @@ function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.C
 	return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
-function DialogOverlay({
-	className,
-	...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
+const DialogOverlay = React.forwardRef<
+	React.ElementRef<typeof DialogPrimitive.Overlay>,
+	React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
+>(function DialogOverlay({ className, ...props }, ref) {
 	return (
 		<DialogPrimitive.Overlay
+			ref={ref}
 			data-slot="dialog-overlay"
 			className={cn(
 				// PROJECT OVERRIDE — z-modal stack token vs upstream z-50.
@@ -38,7 +39,7 @@ function DialogOverlay({
 			{...props}
 		/>
 	)
-}
+})
 
 function DialogContent({
 	className,

@@ -1,9 +1,14 @@
 import type { LayerElement } from "../types"
-import { generateElementId, generateUniqueElementName } from "./utils"
+import { generateElementId, generateUniqueElementName, type Rect } from "./utils"
 import type { ElementManager } from "../element/ElementManager"
 import type { HistoryManager } from "../interaction/HistoryManager"
-import type { ImageUploadManager } from "./ImageUploadManager"
+import type { CanvasFileUploadManager } from "./CanvasFileUploadManager"
 import type { Canvas } from "../Canvas"
+import {
+	AGENT_PLACEHOLDER_ELEMENT_SPACING,
+	AGENT_PLACEHOLDER_MAX_PER_ROW,
+	DEFAULT_VIEWPORT_SEARCH_RINGS,
+} from "./findNonOverlappingPlacement"
 
 /**
  * 获取所有现有元素的名称集合（包括所有元素，包括子元素）
@@ -81,30 +86,84 @@ export function filterRedundantElements(
 }
 
 /**
- * 计算画布中心位置（考虑 defaultViewportOffset.left）
+ * 获取当前 viewport 在画布坐标系中的可用区域（考虑默认视口预留）
+ * @param canvas Canvas 实例
+ * @returns 可用区域
+ */
+export function getViewportCanvasRect(canvas: Canvas): Rect {
+	const stage = canvas.stage
+	const stageWidth = stage.width()
+	const stageHeight = stage.height()
+	const {
+		left: offsetLeft,
+		right: offsetRight,
+		top: offsetTop,
+		bottom: offsetBottom,
+	} = canvas.viewportController.getResolvedDefaultViewportPadding(stageWidth, stageHeight)
+
+	// 转换为画布坐标（考虑视口缩放和平移）
+	const transform = stage.getAbsoluteTransform().copy().invert()
+	const topLeft = transform.point({ x: offsetLeft, y: offsetTop })
+	const bottomRight = transform.point({
+		x: stageWidth - offsetRight,
+		y: stageHeight - offsetBottom,
+	})
+
+	return {
+		x: topLeft.x,
+		y: topLeft.y,
+		width: bottomRight.x - topLeft.x,
+		height: bottomRight.y - topLeft.y,
+	}
+}
+
+/**
+ * 计算画布中心位置（考虑默认视口预留）
  * @param canvas Canvas 实例
  * @returns 画布中心坐标 { x, y }
  */
 export function getCanvasCenter(canvas: Canvas): { x: number; y: number } {
-	const stage = canvas.stage
-	const stageWidth = stage.width()
-	const stageHeight = stage.height()
+	const viewportRect = getViewportCanvasRect(canvas)
 
-	// 获取 defaultViewportOffset
-	const viewportOffset = canvas.viewportController.getDefaultViewportOffset()
-	const offsetLeft = viewportOffset?.left || 0
-	const offsetRight = viewportOffset?.right || 0
+	return {
+		x: viewportRect.x + viewportRect.width / 2,
+		y: viewportRect.y + viewportRect.height / 2,
+	}
+}
 
-	// 计算可视区域中心（考虑左右偏移）
-	const availableWidth = stageWidth - offsetLeft - offsetRight
-	const screenCenterX = offsetLeft + availableWidth / 2
-	const screenCenterY = stageHeight / 2
+function resolveNonNegativeNumber(value: unknown, fallback: number): number {
+	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : fallback
+}
 
-	// 转换为画布坐标（考虑视口缩放和平移）
-	const transform = stage.getAbsoluteTransform().copy().invert()
-	const canvasCenter = transform.point({ x: screenCenterX, y: screenCenterY })
+function resolvePositiveInteger(value: unknown, fallback: number): number {
+	return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : fallback
+}
 
-	return { x: canvasCenter.x, y: canvasCenter.y }
+/**
+ * 获取媒体元素落位配置（支持 rootStorage 覆盖）
+ */
+export function getResolvedMediaPlacementConfig(canvas: Canvas): {
+	spacing: number
+	maxPerRow: number
+	maxSearchRings: number
+} {
+	const rootStorage = canvas.magicConfigManager.config?.methods?.getRootStorage?.()
+	const mediaPlacementConfig = rootStorage?.mediaPlacementConfig
+
+	return {
+		spacing: resolveNonNegativeNumber(
+			mediaPlacementConfig?.spacing,
+			AGENT_PLACEHOLDER_ELEMENT_SPACING,
+		),
+		maxPerRow: resolvePositiveInteger(
+			mediaPlacementConfig?.maxPerRow,
+			AGENT_PLACEHOLDER_MAX_PER_ROW,
+		),
+		maxSearchRings: resolvePositiveInteger(
+			mediaPlacementConfig?.maxSearchRings,
+			DEFAULT_VIEWPORT_SEARCH_RINGS,
+		),
+	}
 }
 
 /**
@@ -137,20 +196,20 @@ export async function withHistoryManagerAsync<T>(
  * 在上传锁定状态下执行回调
  * 类似 withHistoryManagerAsync，自动处理锁定/解锁
  *
- * @param imageUploadManager 图片上传管理器
+ * @param canvasFileUploadManager 文件上传管理器
  * @param callback 要执行的回调函数
  * @param options 可选配置
  * @param options.referenceImages 参考图列表（用于参考图上传）
  * @returns 回调函数的返回值
  */
 export async function withUploadLock<T>(
-	imageUploadManager: ImageUploadManager | null | undefined,
+	canvasFileUploadManager: CanvasFileUploadManager | null | undefined,
 	callback: () => Promise<T>,
 	options?: { referenceImages?: string[] },
 ): Promise<T> {
-	if (!imageUploadManager) {
+	if (!canvasFileUploadManager) {
 		return await callback()
 	}
 
-	return await imageUploadManager.withLock(callback, options)
+	return await canvasFileUploadManager.withLock(callback, options)
 }

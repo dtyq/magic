@@ -1,5 +1,6 @@
 import { useMemoizedFn } from "ahooks"
 import type { JSONContent } from "@tiptap/react"
+import type { SendMessageByContentPayload } from "../types"
 
 /** TipTap JSON for /compact command in current topic */
 const COMPACT_CONTEXT_JSON: JSONContent = {
@@ -13,18 +14,18 @@ const COMPACT_CONTEXT_JSON: JSONContent = {
 }
 
 interface UseCompressContextParams {
-	updateContent: (content: JSONContent | undefined) => void
-	handleSend: () => void
+	handleSendMessageByContent: (data: SendMessageByContentPayload) => void
 }
 
-/** Fills editor with /compact and triggers the same send path as the send button */
+/** Sends /compact via the same path as Send_Message_by_Content (avoids stale editor value) */
 export default function useCompressContext({
-	updateContent,
-	handleSend,
+	handleSendMessageByContent,
 }: UseCompressContextParams) {
 	const handleCompressContext = useMemoizedFn(() => {
-		updateContent(COMPACT_CONTEXT_JSON)
-		handleSend()
+		handleSendMessageByContent({
+			jsonContent: COMPACT_CONTEXT_JSON,
+			shouldClearEditorAfterSend: false,
+		})
 	})
 
 	return { handleCompressContext }

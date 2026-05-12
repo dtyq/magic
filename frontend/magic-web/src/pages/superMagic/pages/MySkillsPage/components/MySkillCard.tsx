@@ -12,6 +12,7 @@ import {
 	MySkillCardBadges,
 	MySkillCardFooterLabel,
 	MySkillCardInfoSection,
+	resolveTeamSharedSkillPermissions,
 	type MySkillCardVariant,
 } from "./MySkillCardShared"
 
@@ -31,8 +32,7 @@ export interface MySkillCardData {
 interface MySkillCardProps {
 	skill: UserSkillView
 	cardVariant: MySkillCardVariant
-	href?: string
-	onNavigate?: (event: React.MouseEvent<HTMLElement>) => void
+	onOpenDetail?: (skill: UserSkillView) => void
 	onEdit?: (code: string) => void
 	onDelete?: (id: string) => void
 	onRemove?: (id: string) => void
@@ -52,10 +52,6 @@ function stopCardNavigation(domEvent?: MenuActionInfo["domEvent"]) {
 	domEvent?.stopPropagation?.()
 }
 
-function hasModifiedNavigation(event: React.MouseEvent<HTMLElement>) {
-	return event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
-}
-
 function isEventFromDetachedTarget(event: React.MouseEvent<HTMLElement>) {
 	const target = event.target
 	if (!(target instanceof Node)) return false
@@ -65,8 +61,7 @@ function isEventFromDetachedTarget(event: React.MouseEvent<HTMLElement>) {
 function MySkillCard({
 	skill,
 	cardVariant,
-	href,
-	onNavigate,
+	onOpenDetail,
 	onEdit,
 	onDelete,
 	onRemove,
@@ -74,12 +69,25 @@ function MySkillCard({
 	isInteractive = true,
 }: MySkillCardProps) {
 	const { t } = useTranslation("crew/market")
-	const { displayDescription, displayName, footerLabel, latestVersion } = getMySkillCardCopy({
-		skill,
-		cardVariant,
-		t,
-	})
-	const canManage = Boolean(onDelete || onRemove || canEdit)
+	const { displayDescription, displayName, footerLabel, latestVersion, packageName } =
+		getMySkillCardCopy({
+			skill,
+			cardVariant,
+			t,
+		})
+	const isTeamSharedCard = cardVariant === "team"
+	const teamPermissions = resolveTeamSharedSkillPermissions(skill.userRole)
+	const canShowTeamSharedMenu =
+		isTeamSharedCard && (teamPermissions.canEdit || teamPermissions.canDelete)
+	const resolvedOnDelete = isTeamSharedCard
+		? teamPermissions.canDelete
+			? onDelete
+			: undefined
+		: onDelete
+	const resolvedOnRemove = isTeamSharedCard ? undefined : onRemove
+	const canManage = isTeamSharedCard
+		? canShowTeamSharedMenu
+		: Boolean(onDelete || onRemove || canEdit)
 
 	const menuItems = useMemo(() => {
 		if (!canManage) return []
@@ -99,34 +107,43 @@ function MySkillCard({
 			})
 		}
 
-		if (onDelete) {
+		if (resolvedOnDelete) {
 			items.push({
 				key: "delete",
 				icon: <Trash2 className="size-4 text-destructive" />,
 				label: <span className="text-destructive">{t("mySkills.delete")}</span>,
 				onClick: ({ domEvent }: MenuActionInfo) => {
 					stopCardNavigation(domEvent)
-					onDelete(skill.id)
+					resolvedOnDelete(skill.id)
 				},
 				"data-testid": "my-skill-card-delete",
 			})
 		}
 
-		if (onRemove) {
+		if (resolvedOnRemove) {
 			items.push({
 				key: "remove",
 				icon: <Trash2 className="size-4 text-destructive" />,
 				label: <span className="text-destructive">{t("mySkills.remove")}</span>,
 				onClick: ({ domEvent }: MenuActionInfo) => {
 					stopCardNavigation(domEvent)
-					onRemove(skill.id)
+					resolvedOnRemove(skill.id)
 				},
 				"data-testid": "my-skill-card-remove",
 			})
 		}
 
 		return items
-	}, [canManage, canEdit, t, onEdit, skill.skillCode, skill.id, onDelete, onRemove])
+	}, [
+		canManage,
+		canEdit,
+		t,
+		onEdit,
+		skill.skillCode,
+		skill.id,
+		resolvedOnDelete,
+		resolvedOnRemove,
+	])
 
 	function preventCardNavigation(event: React.MouseEvent<HTMLElement>) {
 		event.preventDefault()
@@ -134,40 +151,27 @@ function MySkillCard({
 	}
 
 	function handleCardClick(event: React.MouseEvent<HTMLElement>) {
-		if (!isInteractive || !href) return
+		if (!isInteractive) return
 
 		if (event.defaultPrevented) return
 		if (isEventFromDetachedTarget(event)) return
-
-		if (event.button === 1 || hasModifiedNavigation(event)) {
-			window.open(href, "_blank", "noopener,noreferrer")
-			return
-		}
-
-		onNavigate?.(event)
+		onOpenDetail?.(skill)
 	}
 
 	function handleCardKeyDown(event: React.KeyboardEvent<HTMLElement>) {
-		if (!isInteractive || !href) return
+		if (!isInteractive) return
 
 		if (event.key !== "Enter" && event.key !== " ") return
 
 		event.preventDefault()
-
-		if (event.key === "Enter") {
-			window.location.assign(href)
-			return
-		}
-
-		window.location.assign(href)
+		onOpenDetail?.(skill)
 	}
 
 	return (
 		<div
-			role={isInteractive ? "link" : undefined}
+			role={isInteractive ? "button" : undefined}
 			tabIndex={isInteractive ? 0 : undefined}
 			onClick={isInteractive ? handleCardClick : undefined}
-			onAuxClick={isInteractive ? handleCardClick : undefined}
 			onKeyDown={isInteractive ? handleCardKeyDown : undefined}
 			className={cn(
 				"flex h-full flex-col gap-3 overflow-hidden rounded-md border border-border bg-popover p-4 text-current no-underline shadow-sm",
@@ -189,9 +193,11 @@ function MySkillCard({
 				descriptionClassName="text-sm leading-5 text-muted-foreground"
 				testIdPrefix="my-skill-card"
 				belowTitle={
-					<div className="flex flex-wrap items-center gap-2">
+					<div className="flex min-w-0 items-center gap-2 overflow-hidden">
 						<MySkillCardBadges
 							skill={skill}
+							cardVariant={cardVariant}
+							packageName={packageName}
 							latestVersion={latestVersion}
 							t={t}
 							testIdPrefix="my-skill-card"
@@ -212,7 +218,7 @@ function MySkillCard({
 					className="min-w-0 flex-1 text-xs text-muted-foreground"
 					testId="my-skill-card-footer-label"
 				/>
-				{cardVariant !== "team" && menuItems.length > 0 ? (
+				{skill.publisherType !== "OFFICIAL_BUILTIN" && menuItems.length > 0 ? (
 					<MagicDropdown menu={{ items: menuItems }} placement="bottomRight" model={true}>
 						<span onClick={preventCardNavigation}>
 							<Button

@@ -20,8 +20,8 @@ final class SkillMention extends AbstractMention
             return '';
         }
 
-        $name = $data->getName() ?? '';
-        return sprintf('[@skill:%s]', $name);
+        $skillName = $data->getPackageName() !== '' ? $data->getPackageName() : ($data->getName() ?? '');
+        return sprintf('[@skill:%s]', $skillName);
     }
 
     /**
@@ -32,6 +32,7 @@ final class SkillMention extends AbstractMention
      *     id: ?string,
      *     code: ?string,
      *     name: ?string,
+     *     package_name: string,
      *     icon: ?string,
      *     description: ?string,
      *     mention_source: ?string
@@ -50,6 +51,7 @@ final class SkillMention extends AbstractMention
             'id' => $data->getId(),
             'code' => $data->getCode(),
             'name' => $data->getName(),
+            'package_name' => $data->getPackageName(),
             'icon' => $data->getIcon(),
             'description' => $data->getDescription(),
             'mention_source' => $data->getMentionSource(),

@@ -2,7 +2,7 @@ import type { LocaleText } from "@/pages/superMagic/components/MainInputContaine
 
 export type PublishPanelView = "history" | "create" | "detail"
 
-export type PublishRecordStatus = "under_review" | "rejected" | "published"
+export type PublishRecordStatus = "under_review" | "rejected" | "invalidated" | "published"
 
 export type PublishTo = "INTERNAL" | "MARKET"
 

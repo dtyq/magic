@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { reaction } from "mobx"
+import { configStore } from "@/models/config"
 import { Check, ChevronLeft, Loader2, Search, UserRoundCog } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
+import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/shadcn-ui/sheet"
 import { Skeleton } from "@/components/shadcn-ui/skeleton"
+import { userStore } from "@/models/user"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import { CrewDetailDialog } from "@/pages/superMagic/components/CrewDetailDialog"
+import {
+	UserWorkspaceMapCache,
+	WorkspaceStateCache,
+} from "@/pages/superMagic/utils/superMagicCache"
 import {
 	isEmployeeMarketPrimaryActionDisabled,
 	resolveEmployeeMarketPrimaryActionLabel,
@@ -17,7 +25,7 @@ import {
 import CategoryFilter from "./employee-market/components/CategoryFilter"
 import EmployeeCardMobile from "./employee-market/components/EmployeeCardMobile"
 import { StoreCrewStore } from "./employee-market/stores/store-crew"
-import type { StoreAgentView } from "@/services/crew/CrewService"
+import { crewService, type StoreAgentView } from "@/services/crew/CrewService"
 
 const SKELETON_CARD_COUNT = 6
 
@@ -57,6 +65,7 @@ function CrewMarketMobilePage() {
 	const navigate = useNavigate()
 	const storeRef = useRef(new StoreCrewStore())
 	const store = storeRef.current
+	const { confirm, dialog } = useConfirmDialog()
 
 	const [searchOpen, setSearchOpen] = useState(false)
 	const [queryDraft, setQueryDraft] = useState("")
@@ -66,6 +75,15 @@ function CrewMarketMobilePage() {
 		store.fetchCategories()
 		void store.fetchAgents()
 		return () => store.reset()
+	}, [store])
+
+	useEffect(() => {
+		return reaction(
+			() => configStore.i18n.displayLanguage,
+			() => {
+				store.refreshAfterLanguageChange()
+			},
+		)
 	}, [store])
 
 	function handleSearchOpenChange(open: boolean) {
@@ -87,7 +105,56 @@ function CrewMarketMobilePage() {
 
 	const handleDismiss = useCallback(
 		(id: string) => {
-			store.dismissAgent(id)
+			const target = store.list.find((item) => item.id === id)
+			if (!target?.allowDelete) return
+			const displayName =
+				target.name?.trim() || t("crew/create:untitledCrew") || target.agentCode
+			confirm({
+				title: t("myCrewPage.dismissConfirm.title", { name: displayName }),
+				description: t("myCrewPage.dismissConfirm.description"),
+				confirmText: t("myCrewPage.dismissConfirm.confirm"),
+				variant: "destructive",
+				destructivePresentation: "soft",
+				dialogSize: "sm",
+				onConfirm: () => {
+					if (selectedAgent?.id === id) setSelectedAgent(null)
+					store.dismissAgent(id)
+				},
+			})
+		},
+		[confirm, selectedAgent?.id, store, t],
+	)
+
+	function resolveFallbackWorkspaceId() {
+		const userInfo = userStore.user.userInfo
+		const cachedWorkspaceState = WorkspaceStateCache.get(userInfo)
+		return cachedWorkspaceState.workspaceId || UserWorkspaceMapCache.get(userInfo)
+	}
+
+	const handleOpenConversation = useCallback(
+		async (agentCode: string) => {
+			await crewService.pinFeaturedFrequentForConversation(agentCode)
+			const fallbackWorkspaceId = resolveFallbackWorkspaceId()
+			navigate({
+				name: fallbackWorkspaceId ? RouteName.SuperWorkspaceState : RouteName.Super,
+				params: fallbackWorkspaceId
+					? {
+							workspaceId: fallbackWorkspaceId,
+						}
+					: undefined,
+				query: {
+					agentCode,
+				},
+			})
+		},
+		[navigate],
+	)
+
+	const handleOpenMarketDetail = useCallback(
+		(id: string) => {
+			const target = store.list.find((item) => item.id === id)
+			if (!target) return
+			setSelectedAgent(target)
 		},
 		[store],
 	)
@@ -96,9 +163,13 @@ function CrewMarketMobilePage() {
 		(id: string) => {
 			const target = store.list.find((item) => item.id === id)
 			if (!target) return
+			if (target.isAdded) {
+				handleOpenConversation(target.agentCode)
+				return
+			}
 			setSelectedAgent(target)
 		},
-		[store],
+		[handleOpenConversation, store],
 	)
 
 	const activeCategoryId = store.categoryId ?? "all"
@@ -134,12 +205,13 @@ function CrewMarketMobilePage() {
 								testId: "crew-market-mobile-detail-action-button",
 								onClick: () =>
 									selectedAgent.allowDelete
-										? store.dismissAgent(selectedAgent.id)
+										? handleDismiss(selectedAgent.id)
 										: store.hireAgent(selectedAgent.id),
 							}
 						: undefined
 				}
 			/>
+			{dialog}
 			<div
 				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border border-t-0 border-border bg-background shadow-xs"
 				data-testid="crew-market-page-mobile"
@@ -254,6 +326,7 @@ function CrewMarketMobilePage() {
 											onHire={handleHire}
 											onDismiss={handleDismiss}
 											onDetails={handleDetails}
+											onOpenMarketDetail={handleOpenMarketDetail}
 										/>
 									))}
 								</div>
@@ -272,7 +345,7 @@ function CrewMarketMobilePage() {
 											{store.loadingMore ? (
 												<Loader2 className="mr-2 size-4 animate-spin" />
 											) : null}
-											{t("loadMore")}
+											{store.loadingMore ? t("loadingMore") : t("loadMore")}
 										</Button>
 									) : (
 										<div

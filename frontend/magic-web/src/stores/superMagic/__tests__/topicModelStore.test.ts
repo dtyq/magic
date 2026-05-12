@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest"
 import topicModelStore from "../topicModelStore"
-import type { ModelItem } from "@/opensource/pages/superMagic/components/MessageEditor/types"
-import { DEFAULT_TOPIC_ID } from "@/opensource/services/superMagic/topicModel"
+import { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
+import { DEFAULT_TOPIC_ID } from "@/services/superMagic/topicModel/constants"
 
 describe("SuperMagicTopicModelStore", () => {
 	const mockLanguageModel: ModelItem = {
@@ -41,6 +41,7 @@ describe("SuperMagicTopicModelStore", () => {
 			expect(topicModelStore.currentTopicId).toBe(DEFAULT_TOPIC_ID)
 			expect(topicModelStore.currentProjectId).toBe("")
 			expect(topicModelStore.currentTopicMode).toBe("general")
+			expect(topicModelStore.currentAgentCode).toBe("")
 		})
 	})
 
@@ -91,11 +92,12 @@ describe("SuperMagicTopicModelStore", () => {
 
 	describe("setCurrentContext", () => {
 		it("should set all context values", () => {
-			topicModelStore.setCurrentContext("topic-123", "project-456", "chat")
+			topicModelStore.setCurrentContext("topic-123", "project-456", "chat", "agent_x")
 
 			expect(topicModelStore.currentTopicId).toBe("topic-123")
 			expect(topicModelStore.currentProjectId).toBe("project-456")
 			expect(topicModelStore.currentTopicMode).toBe("chat")
+			expect(topicModelStore.currentAgentCode).toBe("agent_x")
 		})
 
 		it("should update context values", () => {
@@ -126,6 +128,7 @@ describe("SuperMagicTopicModelStore", () => {
 			expect(topicModelStore.currentTopicId).toBe(DEFAULT_TOPIC_ID)
 			expect(topicModelStore.currentProjectId).toBe("")
 			expect(topicModelStore.currentTopicMode).toBe("general")
+			expect(topicModelStore.currentAgentCode).toBe("")
 		})
 	})
 

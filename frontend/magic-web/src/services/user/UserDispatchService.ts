@@ -9,6 +9,7 @@ import { RouteName } from "@/routes/constants"
 import { convertSearchParams, getRoutePath, routesMatch } from "@/routes/history/helpers"
 import { defaultClusterCode } from "@/routes/helpers"
 import { appService } from "../app/AppService"
+import { interfaceStore } from "@/stores/interface"
 import type { UserService } from "./UserService"
 import type { AccountService } from "./AccountService"
 
@@ -29,7 +30,12 @@ const UserDispatchService = {
 		try {
 			userService.setUserInfo(data.userInfo)
 			userService.setMagicOrganizationCode(data.magicOrganizationCode)
-			await appService.initUserData(data.userInfo)
+			interfaceStore.setIsSwitchingOrganization(true)
+			try {
+				await appService.initUserData(data.userInfo)
+			} finally {
+				interfaceStore.setIsSwitchingOrganization(false)
+			}
 		} catch (err) {
 			// 切换失败，恢复当前组织
 			userService.setUserInfo(oldUserInfo)

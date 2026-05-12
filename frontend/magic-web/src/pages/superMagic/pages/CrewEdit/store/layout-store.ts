@@ -42,7 +42,10 @@ export class CrewLayoutStore {
 	}
 
 	get isMessagePanelHidden(): boolean {
-		return this.activeDetailKey === CREW_EDIT_STEP.Publishing
+		return (
+			this.activeDetailKey === CREW_EDIT_STEP.Publishing ||
+			this.activeDetailKey === CREW_EDIT_STEP.KnowledgeBase
+		)
 	}
 
 	toggleStep(step: CrewEditStep) {
@@ -51,12 +54,17 @@ export class CrewLayoutStore {
 			this.activeDetailKey = null
 			if (step === CREW_EDIT_STEP.Skills) this.activeAccordionStep = null
 			if (step === CREW_EDIT_STEP.Playbook) this.activePlaybookId = null
+			if (step === CREW_EDIT_STEP.KnowledgeBase) this.activeAccordionStep = null
 			return
 		}
 
 		this.activeSidebarTab = CREW_SIDEBAR_TAB.Advanced
 		this.activeDetailKey = step
-		if (step === CREW_EDIT_STEP.Skills || step === CREW_EDIT_STEP.Playbook) {
+		if (
+			step === CREW_EDIT_STEP.Skills ||
+			step === CREW_EDIT_STEP.Playbook ||
+			step === CREW_EDIT_STEP.KnowledgeBase
+		) {
 			this.activeAccordionStep = step
 		}
 		this.ensureExpandedWhenDetailVisible(true)
@@ -66,7 +74,11 @@ export class CrewLayoutStore {
 		if (step !== null && !isCrewStepEnabled(step)) return
 		if (step !== null) this.activeSidebarTab = CREW_SIDEBAR_TAB.Advanced
 		this.activeDetailKey = step
-		if (step === CREW_EDIT_STEP.Skills || step === CREW_EDIT_STEP.Playbook) {
+		if (
+			step === CREW_EDIT_STEP.Skills ||
+			step === CREW_EDIT_STEP.Playbook ||
+			step === CREW_EDIT_STEP.KnowledgeBase
+		) {
 			this.activeAccordionStep = step
 		}
 		if (step !== CREW_EDIT_STEP.Playbook) this.activePlaybookId = null
@@ -157,6 +169,33 @@ export class CrewLayoutStore {
 		this.activeAccordionStep = null
 	}
 
+	openKnowledgeBaseList() {
+		if (!isCrewStepEnabled(CREW_EDIT_STEP.KnowledgeBase)) return
+		this.activeSidebarTab = CREW_SIDEBAR_TAB.Advanced
+		this.activeAccordionStep = CREW_EDIT_STEP.KnowledgeBase
+		this.activeDetailKey = null
+	}
+
+	expandKnowledgeBaseSection() {
+		if (!isCrewStepEnabled(CREW_EDIT_STEP.KnowledgeBase)) return
+		this.activeSidebarTab = CREW_SIDEBAR_TAB.Advanced
+		this.activeAccordionStep = CREW_EDIT_STEP.KnowledgeBase
+	}
+
+	collapseKnowledgeBaseSection() {
+		if (this.activeAccordionStep !== CREW_EDIT_STEP.KnowledgeBase) return
+		this.activeAccordionStep = null
+	}
+
+	applyKnowledgeRouteFromSearch(search: string) {
+		if (!isCrewStepEnabled(CREW_EDIT_STEP.KnowledgeBase)) return
+		const code = new URLSearchParams(search).get("code")
+		this.activeSidebarTab = CREW_SIDEBAR_TAB.Advanced
+		this.activeAccordionStep = CREW_EDIT_STEP.KnowledgeBase
+		this.activeDetailKey = code ? CREW_EDIT_STEP.KnowledgeBase : null
+		if (code) this.ensureExpandedWhenDetailVisible(true)
+	}
+
 	closePlaybookEditor() {
 		this.activeDetailKey = null
 		this.activePlaybookId = null
@@ -212,7 +251,8 @@ export class CrewLayoutStore {
 		this.activeDetailKey = fallbackDetailKey
 		this.activeAccordionStep =
 			fallbackDetailKey === CREW_EDIT_STEP.Skills ||
-			fallbackDetailKey === CREW_EDIT_STEP.Playbook
+			fallbackDetailKey === CREW_EDIT_STEP.Playbook ||
+			fallbackDetailKey === CREW_EDIT_STEP.KnowledgeBase
 				? fallbackDetailKey
 				: null
 		this.activePlaybookId = null

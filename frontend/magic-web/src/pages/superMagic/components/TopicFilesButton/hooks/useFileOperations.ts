@@ -25,6 +25,10 @@ import {
 	prepareExportSlides,
 	prepareSingleSlideExport,
 } from "@/pages/superMagic/services/pptService"
+import { pptFontResolver } from "@/pages/superMagic/services/pptFontService"
+import { pptxExternalLogger, reportPptxExportError } from "@/pages/superMagic/utils/pptxLogger"
+import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
+import { hasPPTMetadata } from "@/pages/superMagic/components/Detail/utils/file"
 
 // 工具函数：从attachments中递归删除指定ID的文件/文件夹
 const removeItemFromAttachments = (
@@ -273,14 +277,26 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 	// 文件移动loading状态
 	const [movingFiles, setMovingFiles] = useState<Set<string>>(new Set())
 
+	// 获取父文件夹ID - 从路径中解析
+	const getParentIdFromPath = useCallback(
+		(parentPath?: string): string | number | undefined => {
+			return _getParentIdFromPath(attachments || [], parentPath)
+		},
+		[attachments],
+	)
+
 	// 通用的文件上传处理函数（实际执行上传）- 用于普通文件上传（每个文件一个任务）
 	const processFilesUpload = useCallback(
-		async (files: File[], targetSuffixDir: string) => {
+		async (files: File[], suffixDir?: string) => {
+			// 获取父文件夹路径
+			const parentPath = suffixDir ? `/${suffixDir}` : undefined
+			// 获取父文件夹ID
+			const parentId = getParentIdFromPath(parentPath) as string
 			// 为每个文件创建单独的任务
 			for (const file of files) {
 				try {
 					// 为单个文件创建任务
-					await multiFolderUploadStore.createUploadTask([file], targetSuffixDir, {
+					await multiFolderUploadStore.createUploadTask([file], parentId, {
 						projectId: projectId || "",
 						workspaceId: workspaceId,
 						projectName: selectedProject?.project_name || t("common.untitledProject"),
@@ -324,15 +340,26 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				}
 			}
 		},
-		[projectId, workspaceId, selectedProject, selectedTopic, t, onUpdateAttachments],
+		[
+			projectId,
+			workspaceId,
+			selectedProject,
+			selectedTopic,
+			t,
+			onUpdateAttachments,
+			getParentIdFromPath,
+		],
 	)
 
 	// 文件夹上传处理函数（所有文件作为一个任务）
 	const processFolderUpload = useCallback(
-		async (files: File[], targetSuffixDir: string) => {
+		async (files: File[], suffixDir?: string) => {
+			// 获取父文件夹ID
+			const parentPath = suffixDir ? `/${suffixDir}` : undefined
+			const parentId = getParentIdFromPath(parentPath) as string
 			try {
 				// 所有文件作为一个任务
-				await multiFolderUploadStore.createUploadTask(files, targetSuffixDir, {
+				await multiFolderUploadStore.createUploadTask(files, parentId, {
 					projectId: projectId || "",
 					workspaceId: workspaceId,
 					projectName: selectedProject?.project_name || t("common.untitledProject"),
@@ -375,7 +402,15 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				console.error(`❌ Failed to create folder upload task:`, error)
 			}
 		},
-		[projectId, workspaceId, selectedProject, selectedTopic, t, onUpdateAttachments],
+		[
+			projectId,
+			workspaceId,
+			selectedProject,
+			selectedTopic,
+			t,
+			onUpdateAttachments,
+			getParentIdFromPath,
+		],
 	)
 
 	// 同名文件处理 handler（优先使用外部传入的共享 handler）
@@ -398,14 +433,6 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		maxUploadCount: 99999,
 		maxUploadSize: multiFolderUploadStore.uploadConfig.maxFileSize, // 使用store的配置
 	})
-
-	// 获取父文件夹ID - 从路径中解析
-	const getParentIdFromPath = useCallback(
-		(parentPath?: string): string | number | undefined => {
-			return _getParentIdFromPath(attachments || [], parentPath)
-		},
-		[attachments],
-	)
 
 	// 创建文件的实际实现 - 供useVirtualFile调用
 	const createFileAndUpload = async (file: File, suffixDir?: string) => {
@@ -581,7 +608,6 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		}
 	}
 
-	// 文件上传操作 - 每个文件作为单独任务
 	const handleUploadFile = (item?: AttachmentItem) => {
 		// 获取上传目标文件夹路径
 		const targetPath = item?.is_directory ? item.relative_file_path || item.name : undefined
@@ -888,12 +914,19 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		async (item: AttachmentItem, folderChildren?: AttachmentItem[]) => {
 			if (!item.file_id) return
 
-			const toastId = crypto.randomUUID()
-			const metadata = item.metadata as
-				| { name?: string; slides?: string[]; [key: string]: unknown }
+			const toastId = createRandomUuidV4()
+			const displayConfig = item.display_config as
+				| { type?: string; slides?: string[]; [key: string]: unknown }
 				| undefined
-			const slidePaths: string[] = metadata?.slides ?? []
+			const metadata = item.metadata as
+				| { type?: string; slides?: string[]; [key: string]: unknown }
+				| undefined
+			const mergedDisplayConfig = displayConfig || metadata
+			const slidePaths: string[] = Array.isArray(mergedDisplayConfig?.slides)
+				? mergedDisplayConfig.slides
+				: []
 			const isSingleFile = !slidePaths.length
+			const autoSize = !hasPPTMetadata(item)
 
 			let exportHandle: ReturnType<typeof exportPPTX> | null = null
 			setExportingFiles((prev) => new Set(prev).add(item.file_id || ""))
@@ -918,7 +951,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 								: (attachments ?? []),
 							mainFileId: item.file_id,
 							mainFileName: item.file_name,
-							metadata,
+							displayConfig: mergedDisplayConfig,
 						})
 
 				if (!result.htmlSlides.some(Boolean)) {
@@ -933,6 +966,10 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				exportHandle = exportPPTX(result.htmlSlides, {
 					fileName: result.fileName,
 					skipFailedPages: true,
+					autoSize,
+					fontResolver: pptFontResolver,
+					logger: pptxExternalLogger,
+					logLevel: "warn",
 					onSlideProgress: ({ index, total }) => {
 						const progress = total > 1 ? ` (${index + 1}/${total})` : ""
 						magicToast.loading({
@@ -964,7 +1001,11 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
 						duration: 1000,
 					})
-					console.error("Export editable PPT failed:", error)
+					reportPptxExportError(error, {
+						fileId: item.file_id,
+						autoSize,
+						source: "useFileOperations",
+					})
 				}
 			} finally {
 				setExportingFiles((prev) => {

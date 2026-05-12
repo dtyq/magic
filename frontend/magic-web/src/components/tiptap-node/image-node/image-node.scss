@@ -1,7 +1,9 @@
 /* =====================
      IMAGE STYLES (GitHub Markdown Style)
      ===================== */
-.tiptap.ProseMirror {
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
+
+@include scope.content {
   // 修改图片样式，避免和分隔符冲突
   img:not(.ProseMirror-separator) {
     max-width: 100%;

@@ -5,6 +5,7 @@ import SimilarSharesDialog from "@/pages/superMagic/components/Share/SimilarShar
 import SimilarSharesDrawer from "@/pages/superMagic/components/Share/SimilarSharesDrawer"
 import { ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
 import type { AttachmentItem } from "../../../../TopicFilesButton/hooks/types"
+import { projectStore } from "@/pages/superMagic/stores/core"
 
 interface FileShareModalsProps {
 	/** Share modal visibility */
@@ -21,6 +22,8 @@ interface FileShareModalsProps {
 		name: string
 		type: string
 		url?: string
+		projectId?: string
+		projectName?: string
 	}
 	/** Share file ID */
 	shareFileId?: string
@@ -67,6 +70,15 @@ function FileShareModals({
 	onCloseSimilarSharesDialog,
 	isMobile = false,
 }: FileShareModalsProps) {
+	const projectId =
+		findProjectIdInAttachments(attachments) ||
+		currentFile?.projectId ||
+		projectStore.selectedProject?.id
+	const projectName =
+		currentFile?.projectName ||
+		projectStore.projects.find((item) => item.id === projectId)?.project_name ||
+		projectStore.selectedProject?.project_name
+
 	return (
 		<>
 			{/* Share Modal */}
@@ -79,6 +91,8 @@ function FileShareModals({
 				resourceId={existingShareInfo?.resource_id}
 				defaultSelectedFileIds={shareFileId ? [shareFileId] : undefined}
 				defaultOpenFileId={shareFileId || currentFile?.id}
+				projectName={projectName}
+				projectId={projectId}
 			/>
 
 			{/* Share Success Modal - for existing shares */}
@@ -92,8 +106,9 @@ function FileShareModals({
 					projectName={existingShareInfo.project_name}
 					fileCount={1}
 					mainFileName={currentFile.name}
-					shareUrl={`${window.location.origin}/share/files/${existingShareInfo.resource_id}${existingShareInfo.password ? `?password=${existingShareInfo.password}` : ""
-						}`}
+					shareUrl={`${window.location.origin}/share/files/${existingShareInfo.resource_id}${
+						existingShareInfo.password ? `?password=${existingShareInfo.password}` : ""
+					}`}
 					password={existingShareInfo.password}
 					expire_at={existingShareInfo.expire_at}
 					shareType={existingShareInfo.share_type}
@@ -122,6 +137,19 @@ function FileShareModals({
 			)}
 		</>
 	)
+}
+
+function findProjectIdInAttachments(attachments?: AttachmentItem[]): string | undefined {
+	if (!attachments?.length) return undefined
+
+	for (const item of attachments) {
+		if (item.project_id) return item.project_id
+
+		const childProjectId = findProjectIdInAttachments(item.children)
+		if (childProjectId) return childProjectId
+	}
+
+	return undefined
 }
 
 export default memo(FileShareModals)

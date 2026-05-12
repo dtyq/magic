@@ -1,11 +1,13 @@
+import {
+	clearProjectAttachmentDragHoverPlainText,
+	setProjectAttachmentDragHoverPlainText,
+} from "@/components/CanvasDesign/components/MessageEditor/reference-assets/projectAttachmentDragHoverBridge"
 import { TabItem } from "../../Detail/components/FilesViewer/types"
 import { AttachmentItem } from "../../TopicFilesButton/hooks"
 import projectFilesStore from "@/stores/projectFiles"
-import {
-	DirectoryMentionData,
-	MentionItemType,
-	ProjectFileMentionData,
-} from "@/components/business/MentionPanel/types"
+import { MentionItemType, ProjectFileMentionData } from "@/components/business/MentionPanel/types"
+import { getFolderMentionData } from "@/components/business/MentionPanel/utils/directoryMention"
+import { dragLogger } from "./dragLogger"
 
 export enum DRAG_TYPE {
 	Tab = "tab",
@@ -13,6 +15,7 @@ export enum DRAG_TYPE {
 	ProjectDirectory = "project_directory",
 	MultipleFiles = "multiple_files",
 	PPTSlide = "ppt_slide",
+	SelfMediaCard = "self_media_card",
 }
 
 export interface TabDragData {
@@ -38,14 +41,32 @@ export function genTabDragData(data: TabItem) {
  * @param tab
  */
 export function handleTabDragStart(e: React.DragEvent, tab: TabItem) {
-	e.dataTransfer.setData("text/plain", genTabDragData(tab))
+	clearProjectAttachmentDragHoverPlainText()
+	const payload = genTabDragData(tab)
+	e.dataTransfer.setData("text/plain", payload)
+	setProjectAttachmentDragHoverPlainText(payload)
+
+	// 📋 日志记录：开始拖拽 Tab
+	dragLogger.startSession()
+	dragLogger.logDragStart({
+		source: "tab",
+		itemType: DRAG_TYPE.Tab,
+		itemId: tab.fileData.file_id,
+		itemName: tab.fileData.file_name,
+		dataTransferTypes: Array.from(e.dataTransfer.types),
+		payload: payload.substring(0, 200),
+	})
 }
 /**
  * 处理tab拖拽结束事件
  * @param e
  */
 export function handleTabDragEnd(e: React.DragEvent) {
+	clearProjectAttachmentDragHoverPlainText()
 	e.dataTransfer.clearData()
+
+	// 📋 日志记录：拖拽结束
+	dragLogger.logDragEnd()
 }
 
 export interface AttachmentDragData {
@@ -67,6 +88,16 @@ export interface PPTSlideDragData {
 		file_extension: string
 		slide_index?: number
 		slide_title?: string
+	}
+}
+
+export interface SelfMediaCardDragData {
+	type: DRAG_TYPE.SelfMediaCard
+	data: {
+		file_id: string
+		file_name: string
+		relative_file_path: string
+		file_extension: string
 	}
 }
 
@@ -100,7 +131,20 @@ export function genMultipleFilesDragData(data: AttachmentItem[]) {
  * @param file
  */
 export function handleAttachmentDragStart(e: React.DragEvent, file: AttachmentItem) {
-	e.dataTransfer.setData("text/plain", genAttachmentDragData(file))
+	const payload = genAttachmentDragData(file)
+	e.dataTransfer.setData("text/plain", payload)
+	setProjectAttachmentDragHoverPlainText(payload)
+
+	// 📋 日志记录：开始拖拽附件
+	dragLogger.startSession()
+	dragLogger.logDragStart({
+		source: "attachment",
+		itemType: file.is_directory ? DRAG_TYPE.ProjectDirectory : DRAG_TYPE.ProjectFile,
+		itemId: file.file_id,
+		itemName: file.file_name,
+		dataTransferTypes: Array.from(e.dataTransfer.types),
+		payload: payload.substring(0, 200),
+	})
 }
 
 /**
@@ -109,7 +153,19 @@ export function handleAttachmentDragStart(e: React.DragEvent, file: AttachmentIt
  * @param files 文件列表
  */
 export function handleMultipleFilesDragStart(e: React.DragEvent, files: AttachmentItem[]) {
-	e.dataTransfer.setData("text/plain", genMultipleFilesDragData(files))
+	const payload = genMultipleFilesDragData(files)
+	e.dataTransfer.setData("text/plain", payload)
+	setProjectAttachmentDragHoverPlainText(payload)
+
+	// 📋 日志记录：开始拖拽多个文件
+	dragLogger.startSession()
+	dragLogger.logDragStart({
+		source: "multipleFiles",
+		itemType: DRAG_TYPE.MultipleFiles,
+		itemName: `${files.length} files`,
+		dataTransferTypes: Array.from(e.dataTransfer.types),
+		payload: payload.substring(0, 200),
+	})
 }
 
 /**
@@ -132,6 +188,31 @@ export function genPPTSlideDragData(data: {
 }
 
 /**
+ * 生成自媒体卡片拖拽数据
+ * @param data
+ * @returns
+ */
+export function genSelfMediaCardDragData(data: SelfMediaCardDragData["data"]) {
+	return JSON.stringify({
+		type: DRAG_TYPE.SelfMediaCard,
+		data,
+	})
+}
+
+/**
+ * 处理自媒体卡片拖拽开始事件
+ * @param e
+ * @param cardData
+ */
+export function handleSelfMediaCardDragStart(
+	e: React.DragEvent,
+	cardData: SelfMediaCardDragData["data"],
+) {
+	clearProjectAttachmentDragHoverPlainText()
+	e.dataTransfer.setData("text/plain", genSelfMediaCardDragData(cardData))
+}
+
+/**
  * 处理PPT slide拖拽开始事件
  * @param e
  * @param slideData
@@ -147,7 +228,20 @@ export function handlePPTSlideDragStart(
 		slide_title?: string
 	},
 ) {
-	e.dataTransfer.setData("text/plain", genPPTSlideDragData(slideData))
+	clearProjectAttachmentDragHoverPlainText()
+	const payload = genPPTSlideDragData(slideData)
+	e.dataTransfer.setData("text/plain", payload)
+
+	// 📋 日志记录：开始拖拽 PPT slide
+	dragLogger.startSession()
+	dragLogger.logDragStart({
+		source: "pptSlide",
+		itemType: DRAG_TYPE.PPTSlide,
+		itemId: slideData.file_id,
+		itemName: slideData.slide_title || `Slide ${slideData.slide_index}`,
+		dataTransferTypes: Array.from(e.dataTransfer.types),
+		payload: payload.substring(0, 200),
+	})
 }
 
 /**
@@ -193,7 +287,11 @@ export function insertMultipleFilesToEditor(editor: unknown, items: AttachmentIt
  * @param e
  */
 export function handleAttachmentDragEnd(e: React.DragEvent) {
+	clearProjectAttachmentDragHoverPlainText()
 	e.dataTransfer.clearData()
+
+	// 📋 日志记录：拖拽结束
+	dragLogger.logDragEnd()
 }
 
 export function insertMentionFromDroppedData({
@@ -201,9 +299,29 @@ export function insertMentionFromDroppedData({
 	data,
 }: {
 	editor?: unknown | null
-	data: TabDragData | AttachmentDragData | MultipleFilesDragData | PPTSlideDragData
+	data:
+		| TabDragData
+		| AttachmentDragData
+		| MultipleFilesDragData
+		| PPTSlideDragData
+		| SelfMediaCardDragData
 }) {
-	if (!editor) return
+	// 📋 日志记录：检查编辑器状态
+	const hasEditor = !!editor
+	const isDestroyed = hasEditor && (editor as any).isDestroyed === true
+	const canExecuteCommands =
+		hasEditor && typeof (editor as any).commands?.insertContent === "function"
+
+	dragLogger.logEditorCheck({
+		hasEditor,
+		isDestroyed,
+		canExecuteCommands,
+	})
+
+	if (!editor) {
+		dragLogger.logError("insertMention", new Error("Editor is null"))
+		return
+	}
 
 	interface TiptapLikeEditor {
 		commands: {
@@ -222,137 +340,260 @@ export function insertMentionFromDroppedData({
 		)
 	}
 
-	if (!isTiptapLikeEditor(editor)) return
+	if (!isTiptapLikeEditor(editor)) {
+		dragLogger.logError("insertMention", new Error("Editor is not Tiptap-like"))
+		return
+	}
 
-	switch (data.type) {
-		case DRAG_TYPE.Tab: {
-			const fileData = data.data.fileData
+	try {
+		switch (data.type) {
+			case DRAG_TYPE.Tab: {
+				const fileData = data.data.fileData
 
-			if (fileData.metadata?.type === "slide") {
-				const folderData = projectFilesStore.getFolderData(fileData.parent_id)
-				if (folderData) {
+				if (fileData.display_config?.type === "slide") {
+					const folderData = projectFilesStore.getFolderData(fileData.parent_id)
+					if (folderData) {
+						editor.commands.insertContent({
+							type: "mention",
+							attrs: {
+								type: MentionItemType.FOLDER,
+								data: getFolderMentionData({
+									directoryId: folderData.file_id,
+									directoryName: folderData.file_name,
+									directoryPath: folderData.relative_file_path,
+									directoryMetadata: folderData.display_config,
+								}),
+							},
+						})
+						editor.commands.focus()
+
+						// 📋 日志记录：Mention 插入成功
+						dragLogger.logMentionInsert({
+							success: true,
+							mentionType: MentionItemType.FOLDER,
+							mentionData: {
+								directory_name: folderData.file_name,
+							},
+						})
+					}
+					return
+				}
+
+				const isDirectoryLikeTab =
+					fileData.is_directory === true ||
+					(typeof fileData.relative_file_path === "string" &&
+						fileData.relative_file_path.endsWith("/")) ||
+					fileData.metadata?.type === "design"
+
+				if (isDirectoryLikeTab) {
 					editor.commands.insertContent({
 						type: "mention",
 						attrs: {
 							type: MentionItemType.FOLDER,
-							data: {
-								directory_id: folderData.file_id,
-								directory_name: folderData.file_name,
-								directory_path: folderData.relative_file_path,
-								directory_metadata: folderData.metadata,
-							} as DirectoryMentionData,
+							data: getFolderMentionData({
+								directoryId: fileData.file_id,
+								directoryName: fileData.file_name,
+								directoryPath: fileData.relative_file_path,
+								directoryMetadata: fileData.metadata,
+							}),
 						},
 					})
 					editor.commands.focus()
+
+					dragLogger.logMentionInsert({
+						success: true,
+						mentionType: MentionItemType.FOLDER,
+						mentionData: {
+							directory_name: fileData.file_name,
+						},
+					})
+					return
 				}
+
+				editor.commands.insertContent({
+					type: "mention",
+					attrs: {
+						type: MentionItemType.PROJECT_FILE,
+						data: {
+							file_id: data.data.fileData.file_id,
+							file_name: data.data.fileData.file_name,
+							file_path: data.data.fileData.relative_file_path,
+							file_extension: data.data.fileData.file_extension,
+							file_size: data.data.fileData.file_size,
+						} as ProjectFileMentionData,
+					},
+				})
+				editor.commands.focus()
+
+				// 📋 日志记录：Mention 插入成功
+				dragLogger.logMentionInsert({
+					success: true,
+					mentionType: MentionItemType.PROJECT_FILE,
+					mentionData: {
+						file_name: data.data.fileData.file_name,
+					},
+				})
 				return
 			}
+			case DRAG_TYPE.ProjectFile: {
+				editor.commands.insertContent({
+					type: "mention",
+					attrs: {
+						type: MentionItemType.PROJECT_FILE,
+						data: {
+							file_id: data.data.file_id,
+							file_name: data.data.file_name,
+							file_path: data.data.relative_file_path,
+							file_extension: data.data.file_extension,
+							file_size: data.data.file_size,
+						} as ProjectFileMentionData,
+					},
+				})
+				editor.commands.focus()
 
-			editor.commands.insertContent({
-				type: "mention",
-				attrs: {
-					type: MentionItemType.PROJECT_FILE,
-					data: {
-						file_id: data.data.fileData.file_id,
-						file_name: data.data.fileData.file_name,
-						file_path: data.data.fileData.relative_file_path,
-						file_extension: data.data.fileData.file_extension,
-						file_size: data.data.fileData.file_size,
-					} as ProjectFileMentionData,
-				},
-			})
-			editor.commands.focus()
-			return
-		}
-		case DRAG_TYPE.ProjectFile: {
-			editor.commands.insertContent({
-				type: "mention",
-				attrs: {
-					type: MentionItemType.PROJECT_FILE,
-					data: {
-						file_id: data.data.file_id,
+				// 📋 日志记录：Mention 插入成功
+				dragLogger.logMentionInsert({
+					success: true,
+					mentionType: MentionItemType.PROJECT_FILE,
+					mentionData: {
 						file_name: data.data.file_name,
-						file_path: data.data.relative_file_path,
-						file_extension: data.data.file_extension,
-						file_size: data.data.file_size,
-					} as ProjectFileMentionData,
-				},
-			})
-			editor.commands.focus()
-			return
-		}
-		case DRAG_TYPE.ProjectDirectory: {
-			editor.commands.insertContent({
-				type: "mention",
-				attrs: {
-					type: MentionItemType.FOLDER,
-					data: {
-						directory_id: data.data.file_id,
+					},
+				})
+				return
+			}
+			case DRAG_TYPE.ProjectDirectory: {
+				editor.commands.insertContent({
+					type: "mention",
+					attrs: {
+						type: MentionItemType.FOLDER,
+						data: getFolderMentionData({
+							directoryId: data.data.file_id,
+							directoryName: data.data.file_name,
+							directoryPath: data.data.relative_file_path,
+							directoryMetadata: data.data.display_config,
+						}),
+					},
+				})
+				editor.commands.focus()
+
+				// 📋 日志记录：Mention 插入成功
+				dragLogger.logMentionInsert({
+					success: true,
+					mentionType: MentionItemType.FOLDER,
+					mentionData: {
 						directory_name: data.data.file_name,
-						directory_path: data.data.relative_file_path,
-						directory_metadata: data.data.metadata,
-					} as DirectoryMentionData,
-				},
-			})
-			editor.commands.focus()
-			return
-		}
-		case DRAG_TYPE.MultipleFiles: {
-			// 处理多文件拖拽，为每个文件创建一个mention
-			const mentions = data.data.map((item) => {
-				if (item.is_directory) {
-					return {
-						type: "mention",
-						attrs: {
-							type: MentionItemType.FOLDER,
-							data: {
-								directory_id: item.file_id,
-								directory_name: item.file_name,
-								directory_path: item.relative_file_path,
-								directory_metadata: item.metadata,
-							} as DirectoryMentionData,
-						},
+					},
+				})
+				return
+			}
+			case DRAG_TYPE.MultipleFiles: {
+				// 处理多文件拖拽，为每个文件创建一个mention
+				const mentions = data.data.map((item) => {
+					if (item.is_directory) {
+						return {
+							type: "mention",
+							attrs: {
+								type: MentionItemType.FOLDER,
+								data: getFolderMentionData({
+									directoryId: item.file_id,
+									directoryName: item.file_name,
+									directoryPath: item.relative_file_path,
+									directoryMetadata: item.display_config,
+								}),
+							},
+						}
+					} else {
+						return {
+							type: "mention",
+							attrs: {
+								type: MentionItemType.PROJECT_FILE,
+								data: {
+									file_id: item.file_id,
+									file_name: item.file_name,
+									file_path: item.relative_file_path,
+									file_extension: item.file_extension,
+									file_size: item.file_size,
+								} as ProjectFileMentionData,
+							},
+						}
 					}
-				} else {
-					return {
-						type: "mention",
-						attrs: {
-							type: MentionItemType.PROJECT_FILE,
-							data: {
-								file_id: item.file_id,
-								file_name: item.file_name,
-								file_path: item.relative_file_path,
-								file_extension: item.file_extension,
-								file_size: item.file_size,
-							} as ProjectFileMentionData,
-						},
-					}
-				}
-			})
+				})
 
-			editor.commands.insertContent(mentions)
-			editor.commands.focus()
+				editor.commands.insertContent(mentions)
+				editor.commands.focus()
 
-			return
-		}
-		case DRAG_TYPE.PPTSlide: {
-			// 处理 PPT slide 拖拽，插入为 PROJECT_FILE mention
-			editor.commands.insertContent({
-				type: "mention",
-				attrs: {
-					type: MentionItemType.PROJECT_FILE,
-					data: {
-						file_id: data.data.file_id,
+				// 📋 日志记录：Mention 插入成功
+				dragLogger.logMentionInsert({
+					success: true,
+					mentionType: "multiple",
+					itemsCount: data.data.length,
+					mentionData: data.data.map((item) => item.file_name),
+				})
+
+				return
+			}
+			case DRAG_TYPE.PPTSlide: {
+				// 处理 PPT slide 拖拽，插入为 PROJECT_FILE mention
+				editor.commands.insertContent({
+					type: "mention",
+					attrs: {
+						type: MentionItemType.PROJECT_FILE,
+						data: {
+							file_id: data.data.file_id,
+							file_name: data.data.file_name,
+							file_path: data.data.relative_file_path,
+							file_extension: data.data.file_extension,
+						} as ProjectFileMentionData,
+					},
+				})
+				editor.commands.focus()
+
+				// 📋 日志记录：Mention 插入成功
+				dragLogger.logMentionInsert({
+					success: true,
+					mentionType: MentionItemType.PROJECT_FILE,
+					mentionData: {
 						file_name: data.data.file_name,
-						file_path: data.data.relative_file_path,
-						file_extension: data.data.file_extension,
-					} as ProjectFileMentionData,
-				},
-			})
-			editor.commands.focus()
-			return
+						slide_index: data.data.slide_index,
+					},
+				})
+				return
+			}
+			case DRAG_TYPE.SelfMediaCard: {
+				// Self-media card: insert as PROJECT_FILE mention
+				editor.commands.insertContent({
+					type: "mention",
+					attrs: {
+						type: MentionItemType.PROJECT_FILE,
+						data: {
+							file_id: data.data.file_id,
+							file_name: data.data.file_name,
+							file_path: data.data.relative_file_path,
+							file_extension: data.data.file_extension,
+						} as ProjectFileMentionData,
+					},
+				})
+				editor.commands.focus()
+				dragLogger.logMentionInsert({
+					success: true,
+					mentionType: MentionItemType.PROJECT_FILE,
+					mentionData: { file_name: data.data.file_name },
+				})
+				return
+			}
+			default: {
+				dragLogger.logError("insertMention", new Error("Unknown drag type"), {
+					dragType: (data as { type?: string }).type,
+				})
+				return
+			}
 		}
-		default:
-			return
+	} catch (error) {
+		dragLogger.logMentionInsert({
+			success: false,
+			error,
+			mentionData: data,
+		})
+		throw error
 	}
 }

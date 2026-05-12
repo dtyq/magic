@@ -135,6 +135,12 @@ export class AccountService {
 
 			this.service.get<UserService>("userService").setUserInfo(null)
 			this.service.get<UserService>("userService").removeOrganization()
+			// 清空全局 active cluster，让退出后的请求回退到 SaaS；
+			// 同时保留缓存私有码，方便登录页继续恢复上一次私有化入口 /
+			// Clear the global active cluster so post-logout requests fall back to SaaS.
+			// Keep the cached private cluster code untouched so the login page can still
+			// restore the previous private login option.
+			await this.service.get<ConfigService>("configService").setClusterCode("")
 
 			const account = new AccountRepository()
 			await account.clearAccount()

@@ -1,13 +1,18 @@
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { useTranslation } from "react-i18next"
-import { ClawSkillsPanel } from "./ClawSkillsPanel"
+import { ClawSkillsPanel, type ClawSkillsPanelProps } from "./ClawSkillsPanel"
 
 interface ClawMobileSkillsDrawerProps {
 	open: boolean
 	onClose: () => void
+	overrideInstall?: ClawSkillsPanelProps["overrideInstall"]
 }
 
-export function ClawMobileSkillsDrawer({ open, onClose }: ClawMobileSkillsDrawerProps) {
+export function ClawMobileSkillsDrawer({
+	open,
+	onClose,
+	overrideInstall,
+}: ClawMobileSkillsDrawerProps) {
 	const { t } = useTranslation("sidebar")
 
 	return (
@@ -27,6 +32,8 @@ export function ClawMobileSkillsDrawer({ open, onClose }: ClawMobileSkillsDrawer
 				<ClawSkillsPanel
 					onClose={onClose}
 					hideShellTopBorder
+					closeAfterInstall
+					overrideInstall={overrideInstall}
 					showSkillCreateButton={false}
 				/>
 			</div>

@@ -51,7 +51,7 @@ class CloudswayVideoClientTest extends TestCase
 
         $client = new CloudswayVideoClient($clientFactory, $loggerFactory);
         $response = $client->get(
-            'https://genaiapi.cloudsway.net',
+            'https://localhost',
             'secret-api-key',
             '/v1/ai/YGNqszpCuuWLpyUt/kling/videos/text2video/866464916562530396',
             ['video_id' => 'video-123', 'operation_id' => 'op-123'],
@@ -61,7 +61,7 @@ class CloudswayVideoClientTest extends TestCase
         $this->assertCount(2, $logger->records);
         $this->assertSame('cloudsway video get request', $logger->records[0]['message']);
         $this->assertSame('cloudsway video get response', $logger->records[1]['message']);
-        $this->assertSame('https://genaiapi.cloudsway.net', $logger->records[1]['context']['base_url']);
+        $this->assertSame('https://localhost', $logger->records[1]['context']['base_url']);
         $this->assertSame('/v1/ai/YGNqszpCuuWLpyUt/kling/videos/text2video/866464916562530396', $logger->records[1]['context']['path']);
         $this->assertSame('video-123', $logger->records[1]['context']['context']['video_id']);
         $this->assertSame('op-123', $logger->records[1]['context']['context']['operation_id']);
@@ -77,7 +77,7 @@ class CloudswayVideoClientTest extends TestCase
             ->method('post')
             ->willThrowException(new RequestException(
                 'bad request',
-                new Request('POST', 'https://genaiapi.cloudsway.net/v1/ai/endpoint/veo/videos/generate'),
+                new Request('POST', 'https://localhost/v1/ai/endpoint/veo/videos/generate'),
                 new Response(400, [], json_encode([
                     'error' => [
                         'code' => 'INVALID_ARGUMENT',
@@ -104,7 +104,7 @@ class CloudswayVideoClientTest extends TestCase
         $this->expectExceptionMessage('durationSeconds must be one of [4,6,8]');
         try {
             $client->post(
-                'https://genaiapi.cloudsway.net',
+                'https://localhost',
                 'secret-api-key',
                 '/v1/ai/endpoint/veo/videos/generate',
                 ['prompt' => 'test'],

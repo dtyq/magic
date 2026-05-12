@@ -94,7 +94,7 @@
 			"title": "Configure MCP Plugin"
 		},
 		"card": {
-			"creatAt": "Created at",
+			"creatAt": "Created on",
 			"creator": "Creator:",
 			"deleteTool": "Delete Tool",
 			"desc": "No description available",
@@ -111,6 +111,7 @@
 			"formatError": "Format Error",
 			"title": "Configure Custom MCP Plugin"
 		},
+		"empty": "No MCP plugins added yet. Create one to get started.",
 		"form": {
 			"args": "Arguments",
 			"argsPlaceholder": "Please enter arguments, e.g., -y @modelcontextprotocol/server-sequential-thinking",

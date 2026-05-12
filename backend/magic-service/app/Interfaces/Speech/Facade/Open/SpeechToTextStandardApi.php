@@ -132,7 +132,7 @@ class SpeechToTextStandardApi extends AbstractOpenApi
 
         // Parse task status and audio duration from response
         $taskStatus = $result->getVolcengineStatusCode();
-        $audioDuration = $result->getAudioInfo()->getDuration();
+        $audioDuration = $result->getDuration();
 
         $businessParams = $this->formatHeaderBusinessParams();
         $businessParams['audio_duration'] = $audioDuration;

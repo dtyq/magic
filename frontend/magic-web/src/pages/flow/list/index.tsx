@@ -67,6 +67,7 @@ function FlowListPage() {
 		hasMore,
 		total,
 		mcpEventListener,
+		deleteFlowModal,
 	} = useFlowList({
 		flowType,
 	})
@@ -202,12 +203,10 @@ function FlowListPage() {
 								</Flex>
 								<div className={styles.emptyTips}>
 									{flowList.length === 0
-										? resolveToString(t("common.neverCreate", { ns: "flow" }), {
-											name: title,
-										})
+										? t(`common.neverCreateByType.${flowType}`, { ns: "flow" })
 										: resolveToString(t("common.queryNone", { ns: "flow" }), {
-											name: title,
-										})}
+												name: title,
+											})}
 								</div>
 
 								{flowList.length === 0 && (
@@ -312,6 +311,7 @@ function FlowListPage() {
 					updateList={updateFlowOrTool}
 				/>
 			)}
+			{deleteFlowModal}
 		</Flex>
 	)
 }

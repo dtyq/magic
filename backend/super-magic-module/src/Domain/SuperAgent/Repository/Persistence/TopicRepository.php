@@ -564,21 +564,27 @@ class TopicRepository implements TopicRepositoryInterface
     }
 
     /**
-     * 批量获取有运行中话题的工作区ID列表.
+     * 按话题状态批量获取工作区ID列表.
      *
      * @param array $workspaceIds 工作区ID数组
+     * @param TaskStatus[] $taskStatuses 话题任务状态列表
      * @param null|string $userId 可选的用户ID，指定时只查询该用户的话题
-     * @return array 有运行中话题的工作区ID数组
+     * @return array 命中指定状态的话题所属工作区ID数组
      */
-    public function getRunningWorkspaceIds(array $workspaceIds, ?string $userId = null): array
+    public function getWorkspaceIdsByTopicStatus(array $workspaceIds, array $taskStatuses, ?string $userId = null): array
     {
-        if (empty($workspaceIds)) {
+        if (empty($workspaceIds) || empty($taskStatuses)) {
             return [];
         }
 
+        $statusValues = array_map(
+            static fn (TaskStatus $taskStatus): string => $taskStatus->value,
+            $taskStatuses
+        );
+
         $query = $this->model::query()
             ->whereIn('workspace_id', $workspaceIds)
-            ->where('current_task_status', TaskStatus::RUNNING->value)
+            ->whereIn('current_task_status', $statusValues)
             ->whereNull('deleted_at');
 
         if ($userId !== null) {
@@ -592,21 +598,27 @@ class TopicRepository implements TopicRepositoryInterface
     }
 
     /**
-     * 批量获取有运行中话题的项目ID列表.
+     * 按话题状态批量获取项目ID列表.
      *
      * @param array $projectIds 项目ID数组
+     * @param TaskStatus[] $taskStatuses 话题任务状态列表
      * @param null|string $userId 可选的用户ID，指定时只查询该用户的话题
-     * @return array 有运行中话题的项目ID数组
+     * @return array 命中指定状态的话题所属项目ID数组
      */
-    public function getRunningProjectIds(array $projectIds, ?string $userId = null): array
+    public function getProjectIdsByTopicStatus(array $projectIds, array $taskStatuses, ?string $userId = null): array
     {
-        if (empty($projectIds)) {
+        if (empty($projectIds) || empty($taskStatuses)) {
             return [];
         }
 
+        $statusValues = array_map(
+            static fn (TaskStatus $taskStatus): string => $taskStatus->value,
+            $taskStatuses
+        );
+
         $query = $this->model::query()
             ->whereIn('project_id', $projectIds)
-            ->where('current_task_status', TaskStatus::RUNNING->value)
+            ->whereIn('current_task_status', $statusValues)
             ->whereNull('deleted_at');
 
         if ($userId !== null) {

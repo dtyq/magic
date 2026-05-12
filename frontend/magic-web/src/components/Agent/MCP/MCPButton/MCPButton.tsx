@@ -4,11 +4,7 @@ import MagicScrollBar from "@/components/base/MagicScrollBar"
 import MagicButton from "@/components/base/MagicButton"
 import { useMemoizedFn, useCreation, useMount } from "ahooks"
 import { AgentCommonModal } from "../../AgentCommonModal"
-import {
-	HoverCard,
-	HoverCardContent,
-	HoverCardTrigger,
-} from "@/components/shadcn-ui/hover-card"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/shadcn-ui/hover-card"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/tooltip"
 import { IconMCP } from "@/enhance/tabler/icons-react"
 import MagicImage from "@/components/base/MagicImage"
@@ -17,6 +13,7 @@ import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { getMCPAccess } from "../store/mcp-access"
 import { GuideTourElementId } from "@/pages/superMagic/components/LazyGuideTour"
 import AgentSettings from "../AgentSettings"
+import MobileMCPPluginsSheet from "./MobileMCPPluginsSheet"
 import { cn } from "@/lib/utils"
 import { Plug } from "lucide-react"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -197,7 +194,12 @@ function MCPButton(props?: MCPButtonProps) {
 		return (
 			<>
 				{button}
-				{modal}
+				<MobileMCPPluginsSheet
+					open={modalOpen}
+					onClose={closeModal}
+					storageKey={props?.storageKey}
+					useTempStorage={useTempStorage}
+				/>
 			</>
 		)
 	}

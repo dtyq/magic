@@ -2,7 +2,10 @@ import { memo } from "react"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { CommonHeaderV2Props } from "../../../../components/CommonHeaderV2/types"
 import CommonHeaderV2 from "../../../../components/CommonHeaderV2"
-import { HistoryVersionBanner } from "../../../../components/CommonHeader/components/HistoryVersionBanner"
+import {
+	HistoryVersionBanner,
+	HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX,
+} from "../../../../components/CommonHeader/components/HistoryVersionBanner"
 
 export default memo(function CanvasDesignHeaderV2(props: CommonHeaderV2Props) {
 	const isMobile = useIsMobile()
@@ -12,8 +15,10 @@ export default memo(function CanvasDesignHeaderV2(props: CommonHeaderV2Props) {
 		props.fileVersionsList &&
 		props.fileVersionsList.length > 0
 
-	// 有 banner 时悬浮按钮下移，避免遮挡 banner；banner 高度约 44px（py-1.5 + 内容）
-	const actionsTopOffset = showVersionBanner ? "44px" : "10px"
+	// 有 banner 时悬浮按钮下移，避免遮挡 banner（与 HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX 一致）
+	const actionsTopOffset = showVersionBanner
+		? `${HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX + 8}px`
+		: "10px"
 
 	return (
 		<>

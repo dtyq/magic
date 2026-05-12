@@ -146,6 +146,19 @@ describe("dom utils", () => {
 			expect(selector).toContain("p > span")
 		})
 
+		it("should prefix body for direct child elements", () => {
+			const floatingImage = document.createElement("img")
+			floatingImage.alt = ""
+			document.body.appendChild(floatingImage)
+
+			const selector = getElementSelector(floatingImage)
+
+			expect(selector).toBe("body > img")
+			expect(document.querySelector(selector)).toBe(floatingImage)
+
+			floatingImage.remove()
+		})
+
 		it("should stop at ID and not traverse further", () => {
 			container.innerHTML = `
 				<div class="outer">

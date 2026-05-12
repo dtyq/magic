@@ -603,10 +603,13 @@ Expand brief user descriptions into full prompts covering subject, style, compos
 
     # noinspection PyMethodMayBeStatic
     def _make_relative_to_project(self, absolute_path: str, project_path: Path) -> str:
-        """将绝对路径转换为相对于项目目录的路径，转换失败时仅返回文件名"""
+        """将绝对路径转换为以 ./ 开头的项目相对路径，转换失败时仅返回文件名。
+
+        新协议约定：项目相对路径统一以 ./ 开头，与 workspace 相对路径（无 ./ 前缀）区分。
+        """
         path_obj = Path(absolute_path)
         try:
-            return str(path_obj.relative_to(project_path))
+            return "./" + str(path_obj.relative_to(project_path))
         except ValueError:
             logger.warning(f"图片路径 {absolute_path} 不在项目目录 {project_path} 下，仅使用文件名")
             return path_obj.name

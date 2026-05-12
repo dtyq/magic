@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/shadcn-ui/input"
 import SuperMagicService from "@/pages/superMagic/services"
 import { Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import { suppressSelectionAfterWorkspaceRename } from "@/pages/superMagic/utils/workspaceRenameSelectionGuard"
 
 interface WorkspaceRenameDialogProps {
 	open: boolean
@@ -51,6 +52,7 @@ export function WorkspaceRenameDialog({
 				page: 1,
 			})
 			magicToast.success(t("workspace.renameWorkspaceSuccess"))
+			suppressSelectionAfterWorkspaceRename()
 			onOpenChange(false)
 		} catch (error) {
 			console.log("重命名工作区失败，失败原因：", error)
@@ -61,7 +63,12 @@ export function WorkspaceRenameDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="sm:max-w-[425px]">
+			<DialogContent
+				className="sm:max-w-[425px]"
+				onCloseAutoFocus={(event) => {
+					event.preventDefault()
+				}}
+			>
 				<DialogHeader>
 					<DialogTitle>{t("common.rename")}</DialogTitle>
 				</DialogHeader>

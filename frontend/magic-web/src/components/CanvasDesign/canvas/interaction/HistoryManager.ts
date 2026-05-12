@@ -74,6 +74,10 @@ export class HistoryManager {
 			this.recordHistoryImmediate()
 		})
 
+		this.canvas.eventEmitter.on("upload:pending-change", () => {
+			this.emitHistoryStateChange()
+		})
+
 		// 监听撤销/恢复快捷键
 		this.canvas.eventEmitter.on("keyboard:undo", () => {
 			this.canvas.userActionRegistry.execute("edit.undo")
@@ -157,6 +161,11 @@ export class HistoryManager {
 	 * 撤销
 	 */
 	public undo(): void {
+		if (this.canvas.canvasFileUploadManager.cancelLatestPendingUpload()) {
+			this.emitHistoryStateChange()
+			return
+		}
+
 		if (!this.canUndo()) {
 			return
 		}
@@ -229,7 +238,7 @@ export class HistoryManager {
 	 * 是否可以撤销
 	 */
 	public canUndo(): boolean {
-		return this.currentIndex > 0
+		return this.getUndoStackSize() > 0
 	}
 
 	/**
@@ -243,7 +252,10 @@ export class HistoryManager {
 	 * 获取撤销栈大小
 	 */
 	public getUndoStackSize(): number {
-		return this.currentIndex
+		return (
+			Math.max(this.currentIndex, 0) +
+			this.canvas.canvasFileUploadManager.getPendingUndoCount()
+		)
 	}
 
 	/**

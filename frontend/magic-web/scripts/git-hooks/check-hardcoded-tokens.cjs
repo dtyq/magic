@@ -57,6 +57,7 @@ const IGNORE_PATTERNS = [
     '*.test.tsx',
     '*.spec.ts',
     '*.spec.tsx',
+    'src/pages/superMagic/services/pptFont/config/manifest.json',
 ]
 
 // Whitelist: files that are known to contain test data or examples

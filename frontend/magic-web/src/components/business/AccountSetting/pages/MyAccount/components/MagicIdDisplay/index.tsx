@@ -36,7 +36,7 @@ function MagicIdDisplay({ magicId }: MagicIdDisplayProps) {
 			className={styles.magicIdDetail}
 			data-testid="account-setting-magic-id-display"
 		>
-			<span className={styles.magicIdLabel}>Magic ID</span>
+			<span className={styles.magicIdLabel}>ID</span>
 			<div className={styles.magicIdText}>{magicId}</div>
 			<div
 				className={styles.copyButton}

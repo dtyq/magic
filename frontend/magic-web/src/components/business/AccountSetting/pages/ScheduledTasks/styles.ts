@@ -35,6 +35,16 @@ export const useModalStyles = createStyles(
 					cursor: pointer;
 				}
 			`,
+			timepickerPopup: css`
+				.${prefixCls}-picker-time-panel-cell-selected
+					.${prefixCls}-picker-time-panel-cell-inner {
+					color: #fff !important;
+				}
+				.${prefixCls}-picker-time-panel-cell-selected:hover
+					.${prefixCls}-picker-time-panel-cell-inner {
+					color: #000 !important;
+				}
+			`,
 		}
 	},
 )
@@ -178,6 +188,16 @@ export const useScheduledItemStyles = createStyles(({ css, prefixCls }) => {
 				width: 100%;
 				height: 32px;
 				border-radius: 6px;
+			}
+		`,
+		timepickerPopup: css`
+			.${prefixCls}-picker-time-panel-cell-selected
+				.${prefixCls}-picker-time-panel-cell-inner {
+				color: #fff !important;
+			}
+			.${prefixCls}-picker-time-panel-cell-selected:hover
+				.${prefixCls}-picker-time-panel-cell-inner {
+				color: #000 !important;
 			}
 		`,
 	}

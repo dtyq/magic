@@ -45,31 +45,30 @@ export function openAgentCommonModal(props: AgentCommonModalProps) {
 	activeModals.add(instance)
 
 	function handleClose() {
-		// Prevent duplicate cleanup
 		if (instance.isCleaningUp) return
 
 		instance.isCleaningUp = true
 
-		// Clean up after modal animation completes
-		// Both desktop (afterClose) and mobile (setTimeout in component) ensure animation is done
 		try {
-			// Dispose MobX reaction
 			instance.disposer()
-
-			// Unmount React tree
-			instance.root.unmount()
-
-			// Remove DOM element
-			if (instance.div.parentNode) {
-				instance.div.parentNode.removeChild(instance.div)
-			}
-
-			// Unregister from active modals
-			activeModals.delete(instance)
 		} catch (error) {
-			console.warn("Error during cleanup:", error)
-			activeModals.delete(instance)
+			console.warn("Error disposing AgentCommonModal reaction:", error)
 		}
+
+		// Defer unmount to the next macrotask: afterClose runs during React commit/effects;
+		// synchronous root.unmount() triggers "unmount while already rendering" (see openFlowModal).
+		setTimeout(() => {
+			try {
+				instance.root.unmount()
+				if (instance.div.parentNode) {
+					instance.div.parentNode.removeChild(instance.div)
+				}
+			} catch (error) {
+				console.warn("Error during AgentCommonModal root cleanup:", error)
+			} finally {
+				activeModals.delete(instance)
+			}
+		}, 0)
 	}
 
 	root.render(

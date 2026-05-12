@@ -189,6 +189,46 @@ class CheckpointMetadataManager:
             logger.error(f"获取当前checkpoint失败: {e}")
             return None
 
+    async def set_rollback_in_progress(self, in_progress: bool) -> bool:
+        """标记回滚进行中的状态
+
+        Python 侧在执行反向/撤回回滚时，会直接改写工作区文件（删除或从 latest_content 拷回）。
+        magicfs 看到这些工作区写入时需要跳过 checkpoint 维护，否则会把回滚正在恢复的内容
+        误当作新的用户改动，把 latest_content 刷成错误状态。
+
+        该方法把状态写回 checkpoint_manifest.json，由 magicfs 订阅/轮询该文件感知。
+
+        Args:
+            in_progress: True 表示进入回滚；False 表示回滚结束恢复正常维护
+
+        Returns:
+            bool: 是否成功写入
+        """
+        try:
+            manifest = await self.load_checkpoint_manifest()
+            if not manifest:
+                logger.warning(
+                    f"checkpoint清单不存在，跳过设置 rollback_in_progress={in_progress}"
+                )
+                return False
+
+            if manifest.rollback_in_progress == in_progress:
+                return True
+
+            manifest.rollback_in_progress = in_progress
+            manifest.updated_time = datetime.now()
+
+            manifest_file = self.storage.get_checkpoint_manifest_file_path()
+            await async_write_json(
+                manifest_file, manifest.model_dump(), ensure_ascii=False, indent=2, default=str
+            )
+
+            logger.info(f"设置 rollback_in_progress={in_progress}")
+            return True
+        except Exception as e:
+            logger.error(f"设置 rollback_in_progress 失败: {e}")
+            return False
+
     async def ensure_initial_checkpoint_created(self) -> bool:
         """确保__INITIAL__checkpoint已创建"""
         try:

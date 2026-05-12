@@ -21,12 +21,10 @@ import MagicSpin from "@/components/base/MagicSpin"
 import type { FormItemProps } from "antd"
 import { FlowApi } from "@/apis"
 import Editor from "react-simple-code-editor"
-import { highlight, languages } from "prismjs/components/prism-core"
-import "prismjs/components/prism-json"
 import type { AgentCommonModalChildrenProps } from "../../AgentCommonModal"
 import { MCPType } from "../types"
 import { set } from "lodash-es"
-import { MCPFormField, importHeaders, MCPConfigToJson } from "./helpers"
+import { MCPFormField, importHeaders, MCPConfigToJson, highlightJsonCode } from "./helpers"
 import ToolsPanel from "./ToolsPanel"
 import type { ToolsPanelRefs } from "./ToolsPanel"
 import { cn } from "@/lib/utils"
@@ -809,28 +807,13 @@ export default function MCPForm(props: MCPFormProps) {
 															)
 														}
 													}}
-													highlight={(code: string) => {
-														try {
-															const highlighted = highlight(
-																code,
-																languages.json,
-																"json",
-															)
-															return (
-																<span
-																	dangerouslySetInnerHTML={{
-																		__html: highlighted,
-																	}}
-																/>
-															)
-														} catch (error) {
-															console.warn(
-																"Syntax highlighting failed:",
-																error,
-															)
-															return <span>{code}</span>
-														}
-													}}
+													highlight={(code: string) => (
+														<span
+															dangerouslySetInnerHTML={{
+																__html: highlightJsonCode(code),
+															}}
+														/>
+													)}
 													padding={12}
 													readOnly={false}
 													disabled={false}

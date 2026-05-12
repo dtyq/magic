@@ -205,7 +205,7 @@ class AsrApi extends AbstractApi
         try {
             // 3. 创建 .asr_recordings 父目录（所有录音类型都需要）
             try {
-                $recordingsDir = $this->directoryService->createRecordingsDirectory($organizationCode, $projectId, $userId);
+                $recordingsDir = $this->directoryService->createRecordingsDirectory($organizationCode, $projectId, $userId, (int) $topicId);
                 $this->logger->info('.asr_recordings 父目录创建或确认存在', [
                     'task_key' => $taskKey,
                     'recording_type' => $recordingType->value,
@@ -223,7 +223,7 @@ class AsrApi extends AbstractApi
 
             // 4. 创建 .asr_states 目录（所有录音类型都需要）
             try {
-                $statesDir = $this->directoryService->createStatesDirectory($organizationCode, $projectId, $userId);
+                $statesDir = $this->directoryService->createStatesDirectory($organizationCode, $projectId, $userId, (int) $topicId);
                 $this->logger->info('.asr_states 目录创建或确认存在', [
                     'task_key' => $taskKey,
                     'recording_type' => $recordingType->value,
@@ -305,7 +305,8 @@ class AsrApi extends AbstractApi
                         (int) $taskStatus->displayDirectoryId,
                         $taskStatus->tempHiddenDirectory,
                         (int) $taskStatus->tempHiddenDirectoryId,
-                        $taskKey
+                        $taskKey,
+                        (int) $topicId
                     );
 
                     // 保存预设文件ID和路径到任务状态

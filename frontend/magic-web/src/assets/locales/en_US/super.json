@@ -179,6 +179,46 @@
 		"thinkDone": "Done thinking",
 		"thinking": "Thinking..."
 	},
+	"askUser": {
+		"actions": {
+			"collapse": "Collapse question card",
+			"confirm": "Yes",
+			"expand": "Expand question card",
+			"reject": "No",
+			"skip": "Skip",
+			"submit": "Submit"
+		},
+		"answersTitle": "Answers",
+		"defaultValueHint": "The default value will be used after timeout: {{defaultValue}}",
+		"otherPlaceholder": "other",
+		"placeholder": "Enter your answer",
+		"questionCount": "{{count}} question(s)",
+		"status": {
+			"alreadyProcessed": "This question has already been processed",
+			"answered": "Answered",
+			"answeredWithValue": "Answered: {{answer}}",
+			"autoSubmitIn": "Auto-submit in {{time}}",
+			"autoSubmitInFixed": "Auto-submit in {{minutes}} minute(s)",
+			"cancelled": "Cancelled",
+			"emptyAnswer": "Not provided",
+			"expiredPending": "Locally expired. Waiting for the server to confirm the final status",
+			"processingFailed": "Processing failed. Please try again later",
+			"processingInProgress": "Processing in progress. Please do not submit again",
+			"skipped": "Skipped",
+			"submitFailed": "Failed to submit. Please try again later",
+			"taskNotFound": "The task was not found or has ended. Please refresh and try again",
+			"timeout": "Timed out",
+			"timeoutWithDefault": "Timed out. The agent continued with the default value: {{defaultValue}}",
+			"timeoutWithDefaultItem": "{{question}}: continued with the default value ({{defaultValue}})"
+		},
+		"subQuestionLabel": "Question {{index}}",
+		"title": "Needs your input",
+		"validation": {
+			"incomplete": "Please complete this question",
+			"multiSelectRange": "Select at least {{min}} item(s) and at most {{max}} item(s)",
+			"unlimited": "unlimited"
+		}
+	},
 	"assistant": {
 		"agentChatPlaceholder": "You can enter your conversation content with \"{{agentName}}\"",
 		"aiChat": "AI Chat",
@@ -202,6 +242,10 @@
 		"historyTopics": "History Topics",
 		"newTopic": "New Topic",
 		"projectFiles": "Project Files"
+	},
+	"clawPlayground": {
+		"stopTaskBeforeToolbarAction": "Stop the current task before using this",
+		"toolbarNewChat": "New Chat"
 	},
 	"collaborationInvite": {
 		"currentLogin": "You will join the shared project as",
@@ -318,6 +362,7 @@
 		"remove": "Remove",
 		"removeFailed": "Failed to remove collaborator",
 		"removeSuccess": "Collaborator removed successfully",
+		"selected": "Added",
 		"selectorTitle": "Project Collaborators",
 		"sharingClosed": "Sharing closed",
 		"updateFailed": "Failed to update collaborators"
@@ -373,7 +418,7 @@
 		"noActiveTime": "No active time",
 		"noContentToCopy": "No content available to copy",
 		"noHistoryVersionHint": "No history version",
-		"noMoreData": "No more data",
+		"noMoreData": "You've seen everything!",
 		"notFound": "No results found",
 		"onlineEdit": "Online Edit",
 		"onlySupportUploadImage": "Only support uploading png/jpg/gif format images",
@@ -401,6 +446,10 @@
 		"searchFiles": "Search",
 		"share": "Share",
 		"shareFeatureDevelopment": "Share feature in development...",
+		"sourceTagDingTalk": "DingTalk",
+		"sourceTagLark": "Feishu",
+		"sourceTagWechat": "WeChat",
+		"sourceTagWecom": "WeCom",
 		"taskComplete": "Task Complete",
 		"taskList": "To-do Items",
 		"thinking": "Thinking",
@@ -432,7 +481,14 @@
 			"cannotGetFileUrl": "Cannot get file download URL",
 			"cannotRefreshMissingInfo": "Cannot refresh: missing file information",
 			"createUploadTaskFailed": "Failed to create upload task",
+			"designResourcePathUnresolved": "Cannot resolve the design resource path. Make sure the design file is open in the topic attachments and fully loaded.",
 			"downloadImageFailed": "Failed to download image: {{statusText}}",
+			"eraserImagesDirUnresolved": "Cannot resolve the design project's images folder, cannot start eraser. Make sure the design file is open in the topic attachments.",
+			"eraserParamsIncomplete": "Eraser failed: image task ID, source file path, and mask file path are required.",
+			"eraserProjectIdNotExists": "Project ID does not exist, cannot start eraser.",
+			"expandImageImagesDirUnresolved": "Cannot resolve the design project's images folder, cannot start expand image. Make sure the design file is open in the topic attachments.",
+			"expandImageParamsIncomplete": "Expand image failed: image task ID, source file path, expand composite path, and position marker path are required.",
+			"expandImageProjectIdNotExists": "Project ID does not exist, cannot start expand image.",
 			"fileContentEmpty": "magic.project.js file content is empty (maximum retries reached)",
 			"fileContentEmptyUnknown": "magic.project.js file content is empty (unknown error)",
 			"fileIdRequired": "File ID cannot be empty",
@@ -445,6 +501,7 @@
 			"imageAlreadyAdded": "This image has already been added",
 			"imageIdNotExists": "Image ID does not exist, cannot query image generation result",
 			"imageSrcEmpty": "Image source address is empty",
+			"imagesDirNotFound": "Cannot get upload target directory, please refresh and try again",
 			"noDownloadLink": "No download link",
 			"noDownloadableImages": "No downloadable images",
 			"noFileList": "No file list",
@@ -454,11 +511,24 @@
 			"projectIdNotExists": "Project ID does not exist, cannot upload image",
 			"projectIdNotExistsForGenerate": "Project ID does not exist, cannot generate image",
 			"refreshFailed": "Refresh failed, please try again later",
+			"removeBackgroundImagesDirUnresolved": "Cannot resolve the design project's images folder. Make sure the design file is open in the topic attachments.",
+			"removeBackgroundParamsIncomplete": "Remove background failed: image task ID and source file path are required.",
 			"rollbackFailed": "Rollback failed",
 			"saveNameFailed": "Failed to save name, please try again later",
 			"uploadCancelled": "Upload cancelled",
 			"uploadFailed": "Failed to upload image, please try again later",
-			"uploadSuccess": "Image uploaded successfully"
+			"uploadFailedBySubDir": {
+				"audios": "Failed to upload audio, please try again later",
+				"images": "Failed to upload image, please try again later",
+				"videos": "Failed to upload video, please try again later"
+			},
+			"uploadSuccess": "Image uploaded successfully",
+			"uploadSuccessBySubDir": {
+				"audios": "Audio uploaded successfully",
+				"images": "Image uploaded successfully",
+				"videos": "Video uploaded successfully"
+			},
+			"videoIdNotExists": "Video ID does not exist, cannot query video generation result"
 		},
 		"messages": {
 			"downloadSuccess": "Successfully downloaded {{count}} images",
@@ -488,6 +558,146 @@
 		"pleaseDownloadToView": "Please download the file to view content",
 		"refreshSlides": "Refresh",
 		"saveAndClose": "Save and Close",
+		"selfMedia": {
+			"codeView": {
+				"htmlSource": "HTML Source",
+				"save": "Save",
+				"saving": "Saving..."
+			},
+			"common": {
+				"clockTime": "9:41",
+				"loading": "Loading...",
+				"noPosts": "No posts",
+				"postFallbackTitle": "Post {{index}}",
+				"unknownAuthor": "Unknown author",
+				"unknownError": "Unknown error",
+				"untitledPost": "Untitled post"
+			},
+			"edit": {
+				"addCurrentPageToChat": "Add this card to chat",
+				"addPostFolderToCurrentChat": "Add this post to chat",
+				"cancel": "Cancel",
+				"discard": "Discard",
+				"goToEdit": "Edit this card",
+				"noCards": "No cards in current post",
+				"refreshCard": "Refresh card",
+				"refreshConfirmDescription": "The current editor has unsaved changes. Save now or discard changes before refreshing.",
+				"refreshConfirmTitle": "Handle unsaved changes first",
+				"refreshCurrentPost": "Refresh current post cards",
+				"retry": "Retry Now",
+				"save": "Save",
+				"saveFailed": "Save failed",
+				"saveFailedDescription": "Saving before navigation failed. Retry now, or discard this round of changes and continue switching.",
+				"saved": "Saved",
+				"saving": "Saving...",
+				"unsavedDescription": "The current card is being edited. Save changes before switching?",
+				"unsavedTitle": "Unsaved changes"
+			},
+			"errors": {
+				"loadCardError": "Failed to load card",
+				"magicProjectNotFound": "magic.project.js not found",
+				"noCardUrl": "Card URL is unavailable",
+				"postManifestInvalid": "post.json is invalid",
+				"postManifestMissing": "post.json not found",
+				"selfMediaConfigMissing": "self-media config missing"
+			},
+			"export": {
+				"action": "Export",
+				"cancel": "Cancel",
+				"cardFallbackTitle": "Card {{index}}",
+				"confirm": "Start export",
+				"confirmWithCount": "Start export ({{count}})",
+				"dialogDescription": "Pick a post, choose cards, and set the image scale",
+				"dialogTitle": "Export preview",
+				"exporting": "Exporting...",
+				"failed": "Export failed",
+				"postSelectorLabel": "Post",
+				"running": "Exporting {{current}}/{{total}}",
+				"scaleLabel": "Image scale",
+				"scaleOption": "{{ratio}}x",
+				"scaleOutputSize": "{{width}} × {{height}} px",
+				"selectAll": "Select all",
+				"selectCards": "Cards",
+				"selectNone": "Clear",
+				"selectedSummary": "{{count}}/{{total}} selected",
+				"success": "Export complete"
+			},
+			"platform": {
+				"instagram": {
+					"commentsTotal": "{{count}} comments",
+					"footer": {
+						"create": "+",
+						"home": "Home",
+						"profile": "Me",
+						"reels": "Reels",
+						"search": "Search"
+					},
+					"tabs": {
+						"detail": "Reel",
+						"edit": "Edit",
+						"feed": "Feed",
+						"scroll": "Scroll"
+					},
+					"title": "Instagram"
+				},
+				"rednote": {
+					"commentsTotal": "{{count}} comments",
+					"feedHeader": {
+						"discover": "Discover",
+						"follow": "Follow",
+						"following": "Following",
+						"local": "Local",
+						"menu": "Menu",
+						"search": "Search"
+					},
+					"footer": {
+						"home": "Home",
+						"me": "Me",
+						"messages": "Messages",
+						"publish": "+",
+						"shopping": "Shop"
+					},
+					"tabs": {
+						"detail": "Post",
+						"edit": "Edit",
+						"feed": "Home",
+						"scroll": "Long Image"
+					},
+					"title": "Xiaohongshu"
+				},
+				"switcher": {
+					"label": "Platform"
+				},
+				"wechat-official-accounts": {
+					"cover": {
+						"navTitle": "Official Accounts",
+						"timeHint": "Just now"
+					},
+					"tabs": {
+						"article": "Full Article",
+						"code": "Source",
+						"cover": "Cover",
+						"edit": "Edit"
+					},
+					"title": "WeChat Official Account"
+				}
+			},
+			"postSelector": {
+				"label": "Post"
+			},
+			"refreshAllData": "Refresh all data",
+			"unsupported": {
+				"description": "The previewer for {{platform}} is not implemented yet.",
+				"title": "Coming soon"
+			},
+			"viewTabs": {
+				"code": "Source",
+				"detail": "Detail",
+				"edit": "Edit",
+				"feed": "Feed",
+				"scroll": "Long Scroll"
+			}
+		},
 		"unsavedChangesWarning": "You have unsaved changes. Are you sure you want to leave?"
 	},
 	"draftBox": {
@@ -907,6 +1117,7 @@
 			"addModel": "Custom Model",
 			"addProvider": "Add Provider",
 			"addProviderHint": "Add your model service provider information",
+			"addProviderNotice": "<noticeTitle>Custom Model Integration Notice</noticeTitle><noticeCopy><noticeBody>This feature only supports model providers on our approved compliance whitelist. All inputs and outputs are subject to real-time safety monitoring. Any illegal or violating content will be removed, and severe cases will be reported to the relevant regulatory authorities. Users bear sole legal responsibility for all content generated through custom models. The platform assumes no joint liability.</noticeBody><noticeTerms>By proceeding, you agree to the relevant terms in our <termsLink>Terms of Service</termsLink>.</noticeTerms></noticeCopy>",
 			"apiKey": "API Key",
 			"apiUrl": "API Url",
 			"awsAccessKeyId": "AWS Access Key Id",
@@ -944,6 +1155,7 @@
 			"provider": "Provider",
 			"providerAlias": "Provider Alias",
 			"selectPlaceholder": "Select",
+			"teamModels": "Enterprise Built-in",
 			"typeImage": "Image",
 			"typeText": "Text",
 			"typeVideo": "Video",
@@ -983,14 +1195,21 @@
 				"saveError": "Failed to save draft, please try again later"
 			}
 		},
+		"dragDropFilesHint": "Drop local files to add them to the conversation",
 		"markerDropdown": {
 			"customPlaceholder": "Custom",
 			"markedObjectTitle": "Marked object(s)"
 		},
 		"mcpConfig": "MCP Config",
+		"mentionList": {
+			"close": "Close mention list",
+			"remainingTitle": "{{count}} remaining",
+			"title": "Mentions"
+		},
 		"modeNotAvailableMessage": "Current mode is not available, please create a \"New Topic\" and select an available mode to continue",
 		"modelSwitch": {
 			"autoModelDescription": "Auto mode automatically selects the most efficient AI model for the current task, suitable for handling most regular tasks with moderate credit consumption.",
+			"headerTitle": "Model Selection",
 			"imageModel": "Image",
 			"languageModel": "Text",
 			"maxModelDescription": "MAX mode automatically selects the most powerful AI model available, suitable for handling large or complex tasks, or for switching when task completion quality is poor. However, it takes longer to execute and consumes more credits.",
@@ -1002,23 +1221,27 @@
 			"noModels": "No models available",
 			"noModelsDesc": "Add or enable a model first",
 			"noModelsFound": "No matching models found",
+			"noVideoModels": "No video models available",
+			"noVideoModelsDesc": "No video models are available for the current mode",
 			"searchPlaceholder": "Search Model",
 			"selectModel": "Select Model",
 			"tooltipImageModel": "Image Model",
-			"tooltipLanguageModel": "Text Model"
+			"tooltipLanguageModel": "Text Model",
+			"tooltipVideoModel": "Video Model",
+			"videoModel": "Video"
 		},
 		"newTopicButton": "New Topic",
 		"placeholder": "Type a message...",
-		"placeholderDataAnalysis": "You can select data sources or upload Excel files, and then enter the requirements for analysis. $t(common:platform.name) will perform comprehensive data analysis for you.\nEnter to send; Shift + Enter to line break",
+		"placeholderDataAnalysis": "You can select data sources or upload Excel files, and then enter the requirements for analysis. $t(common:platform.name) will perform comprehensive data analysis for you.\nEnter to send; Shift + Enter for a new line",
 		"placeholderDataAnalysisMobile": "You can select data sources or upload Excel files, and then enter the requirements for analysis. $t(common:platform.name) will perform comprehensive data analysis for you.",
 		"placeholderLoading": "You can continue chatting with me to adjust tasks in real time",
-		"placeholderMeeting": "You can enter the text content of the meeting, or upload meeting audio files, $t(common:platform.name) will help you complete the meeting summary.\nEnter to send; Shift + Enter to line break",
+		"placeholderMeeting": "You can enter the text content of the meeting, or upload meeting audio files, $t(common:platform.name) will help you complete the meeting summary.\nEnter to send; Shift + Enter for a new line",
 		"placeholderMeetingMobile": "You can enter the text content of the meeting, or upload meeting audio files, $t(common:platform.name) will help you complete the meeting summary.",
-		"placeholderPPT": "You can enter the theme and specific requirements of the PPT, or upload files, $t(common:platform.name) will help you create a beautiful PPT.\nEnter to send; Shift + Enter to line break",
+		"placeholderPPT": "You can enter the theme and specific requirements of the PPT, or upload files, $t(common:platform.name) will help you create a beautiful PPT.\nEnter to send; Shift + Enter for a new line",
 		"placeholderPPTMobile": "You can enter the theme and specific requirements of the PPT, or upload files, $t(common:platform.name) will help you create a beautiful PPT.",
-		"placeholderReport": "You can enter the theme and specific requirements of the report, or upload files, $t(common:platform.name) will help you write a complete and detailed report.\nEnter to send; Shift + Enter to line break",
+		"placeholderReport": "You can enter the theme and specific requirements of the report, or upload files, $t(common:platform.name) will help you write a complete and detailed report.\nEnter to send; Shift + Enter for a new line",
 		"placeholderReportMobile": "You can enter the theme and specific requirements of the report, or upload files, $t(common:platform.name) will help you write a complete and detailed report.",
-		"placeholderTask": "Please enter your requirements, or upload files, $t(common:platform.name) will help you solve the problem.\nEnter to send; Shift + Enter to line break",
+		"placeholderTask": "Please enter your requirements, or upload files, $t(common:platform.name) will help you solve the problem.\nEnter to send; Shift + Enter for a new line",
 		"placeholderTaskMobile": "Please enter your requirements, or upload files, $t(common:platform.name) will help you solve the problem.",
 		"pleaseInputContent": "Please enter content",
 		"pleaseSelectModel": "Please select model",
@@ -1032,6 +1255,8 @@
 	"messageHeader": {
 		"addTopic": "Add Topic",
 		"aiRename": "AI Rename",
+		"archive": "Archive",
+		"archived": "Archived",
 		"cannotDeleteCurrentTopicInRecording": "Cannot delete the current topic in recording",
 		"cannotDeleteLastTopic": "Cannot delete the last topic",
 		"collapseConversationPanel": "Collapse Conversation Panel",
@@ -1039,20 +1264,31 @@
 		"confirmDeleteTopicContent": "Are you sure to delete the conversation \"{{name}}\"?",
 		"createNewTopic": "Create New Topic",
 		"createTopicSuccess": "Create topic successfully",
+		"daysAgo_one": "{{count}} day ago",
+		"daysAgo_other": "{{count}} days ago",
 		"deleteTopic": "Delete Topic",
 		"deleteTopicFailed": "Failed to delete topic",
 		"deleteTopicSuccess": "Delete topic successfully",
 		"editTopicSuccess": "Update topic successfully",
 		"expandConversationPanel": "Expand Conversation Panel",
 		"historyTopics": "Other Topics",
+		"more": "More",
 		"newTopic": "New Topic",
 		"noMatchingTopics": "No matching topics found",
+		"noTopics": "No topics yet",
+		"pin": "Pin",
+		"pinned": "Pinned",
 		"rename": "Rename",
 		"renameTopicSuccess": "Rename topic successfully",
 		"searchHistoryTopics": "Search",
 		"share": "Share",
+		"today": "Today",
 		"topicMenu": "Topic Menu",
-		"untitledTopic": "Untitled Topic"
+		"topicPanelTitle": "Topics ({{count}})",
+		"unarchive": "Unarchive",
+		"unpin": "Unpin",
+		"untitledTopic": "Untitled Topic",
+		"yesterday": "Yesterday"
 	},
 	"messageQueue": {
 		"addFailed": "Failed to add message to queue",
@@ -1138,7 +1374,7 @@
 				"validDays": "Valid for {{days}} days"
 			},
 			"loader": {
-				"noMoreData": "No more data."
+				"noMoreData": "You've seen everything!"
 			},
 			"restoreFileTip": "Please restore files on PC.",
 			"restoreNeedPc": "Some items need to be restored on PC.",
@@ -1186,7 +1422,7 @@
 		"attachmentLimit": "It supports adding up to 10 JPG or PNG images. The width and height of the image should be less than 2048 pixels, and the file size should be less than 2MB.",
 		"cancel": "Cancel",
 		"contactEmail": "Email",
-		"contactEmailPlaceholder": "Please enter your frequently used email address.",
+		"contactEmailPlaceholder": "Your email address.",
 		"creditDeductRelated": "Points Deduction Issues",
 		"creditRechargeRelated": "Related to Points Recharge/Usage",
 		"emailFormatError": "Please enter a valid email address",
@@ -1204,7 +1440,7 @@
 		"paidPackageRelated": "Related to Paid Packages",
 		"pointsDeductProblemDescription": "Transaction ID: {{id}}\nI have questions about the points consumption, please check.",
 		"problemDescription": "Problem Description",
-		"problemDescriptionPlaceholder": "Please enter the content you need to feedback.",
+		"problemDescriptionPlaceholder": "Describe your issue or suggestion.",
 		"problemFeedback": "Problem Feedback",
 		"problemType": "Issue Type",
 		"refundApplication": "Refund Application",
@@ -1219,9 +1455,14 @@
 		"backToLatest": "Back to Latest",
 		"close": "Close",
 		"continue": "Continue",
+		"copyMarkdown": "Copy",
+		"copyMarkdownFailed": "Copy failed",
+		"copyMarkdownSuccess": "Copied",
 		"finished": "Task Complete",
 		"hidden": "Hidden(Esc)",
 		"magicVirtualMachine": "$t(common:platform.name) Virtual Machine",
+		"mdViewModeRender": "Render",
+		"mdViewModeSource": "Source",
 		"openSourceFile": "Open File",
 		"sourceFileMissing": "Source file is missing",
 		"stopTitle": "Paused Auto Driving",
@@ -1233,6 +1474,10 @@
 		"viewProcess": "View Process"
 	},
 	"ppt": {
+		"codeVersionCompare": {
+			"description": "A new server source version has been detected. Compare your current edits with the latest server version and choose which version to keep.",
+			"title": "Source Version Comparison"
+		},
 		"deselectAll": "Deselect All",
 		"discardAndNavigate": "Discard",
 		"discardChanges": "Discard Changes",
@@ -1364,6 +1609,14 @@
 			"label": "Recording Audio Source",
 			"microphone": {
 				"desc": "Only record the sound captured by the microphone, suitable for offline meetings or face-to-face communication etc. offline scenarios.",
+				"deviceDefault": "System Default",
+				"deviceEmpty": "No microphone detected",
+				"deviceLabel": "Microphone Device",
+				"deviceLoading": "Loading devices...",
+				"devicePermissionDenied": "Cannot list microphones, please check permissions",
+				"devicePlaceholder": "Select microphone",
+				"deviceSwitchFailed": "Failed to switch microphone, please try again",
+				"deviceSwitchSuccess": "Microphone switched to {{label}}",
 				"label": "Microphone Only"
 			},
 			"prefix": "Source",
@@ -1619,8 +1872,13 @@
 		},
 		"restore": {
 			"cancel": "Cancel",
-			"confirm": "Restore",
-			"content": "Historical recording found. Would you like to restore it?",
+			"confirm": "Resume Recording",
+			"content": "A historical recording was found. What would you like to do?",
+			"discard": "Discard Recording",
+			"finish": "Summarize Recording",
+			"sessionDuration": "Duration",
+			"sessionStartTime": "Recording start time",
+			"summarizing": "Generating recording summary, please wait...",
 			"title": "Notice"
 		},
 		"silenceDetected": "No sound detected. Please ensure your microphone is working properly",
@@ -1642,6 +1900,12 @@
 				"uploadAudioCancelUploading": "Uploading",
 				"uploadAudioSimple": "Upload Audio",
 				"viewCurrentRecording": "View Current Recording"
+			},
+			"mobileRecordingReminder": {
+				"cancel": "Cancel",
+				"continue": "Continue",
+				"description": "The current browser environment may interrupt recording when the screen turns off, the app goes to the background, or a call comes in. To better protect your recording, we recommend starting it in the app.",
+				"title": "Recording Advice"
 			},
 			"model": {
 				"claude4Sonnet": "claude-4-sonnet"
@@ -1737,7 +2001,7 @@
 			"validDays": "Valid for {{days}} days"
 		},
 		"loader": {
-			"noMoreData": "No more data."
+			"noMoreData": "You've seen everything!"
 		},
 		"restoreCheck": {
 			"confirmMessage": "Restore {{type}}「{{name}}」to its original location?",
@@ -1792,43 +2056,26 @@
 		},
 		"title": "Recycle Bin"
 	},
-	"saasKK": {
-		"bottomHint": "If you still need to use the current service, you can temporarily close this window.",
-		"closeButton": "Close Temporarily",
-		"closeGuide": "Close",
-		"copyFailed": "Copy failed",
-		"copySuccess": "Copied successfully",
-		"deployCodeGuide": {
-			"step1Description": "Open 「https://www.letsmagic.cn/login」 in your browser, click 「Private Deployment」",
-			"step2Description": "Enter 「KK」 in the 「Private Deployment Code」",
-			"title": "Private Deployment Code Guide"
-		},
-		"dialogTitle": "Super Magic Login Guide",
-		"dingtalkGuide": {
-			"description": "After opening 「DingTalk」, navigate to 「Workbench」 through the left sidebar, find 「Super Magic」 in the workbench and open it.",
-			"title": "DingTalk Workbench Guide"
-		},
-		"loginMethod": "Login Methods",
-		"method1Desc": "Open and auto-login from 「DingTalk Workbench - All Staff」",
-		"method1Title": "Method 1: DingTalk Workbench",
-		"method2Desc": "Copy the link and open it in your browser",
-		"method2Title": "Method 2: Login via URL",
-		"method3Desc": "Enter \"KK\" in the 「Private Deployment」 configuration on the login page",
-		"method3Title": "Method 3: Private Deployment Code",
-		"viewGuide": "View Guide",
-		"warningMessage": "This SaaS environment is only for 「KK Group」 organization to use 「Sinan」 and other applications. To use Super Magic, please follow the methods below."
-	},
 	"scheduleTask": {
+		"clearSearch": "Clear search",
 		"configTask": "Task Config",
 		"createScheduleTask": "Create Scheduled Task",
 		"createTask": "Create Task",
 		"deleteTask": "Delete",
+		"disableTask": "Disable",
+		"editTask": "Edit",
 		"emptyDescription": "Create multiple scheduled tasks for various scenarios",
 		"emptyTitle": "No tasks configured",
+		"enableTask": "Enable",
+		"manageTasks": "Manage tasks",
 		"noTask": "No Task",
 		"pauseTask": "Pause Task",
 		"playTask": "Play Task",
+		"runLogs": "Run Logs",
 		"runningRecord": "Running Record",
+		"searchTasks": "Search tasks",
+		"searchTasksEmpty": "No scheduled tasks match your search",
+		"searchTasksPlaceholder": "Search scheduled tasks",
 		"title": "Scheduled Tasks"
 	},
 	"search": {
@@ -1850,8 +2097,11 @@
 		"emptyStorageTitle": "Store in current folder",
 		"enterSubfolderName": "Enter Folder Name",
 		"fetchAttachmentsFailed": "Failed to fetch file list",
+		"fetchClawsFailed": "Failed to fetch claws list",
 		"fetchProjectsFailed": "Failed to fetch project list",
 		"file": "File",
+		"importFiles": "Import {{count}} file(s)",
+		"importFromOtherProject": "Import from other",
 		"inputFolderName": "Input Folder Name",
 		"inputProjectName": "Input Project Name",
 		"inputWorkspaceName": "Input Workspace Name",
@@ -1864,6 +2114,7 @@
 		"noWorkspace": "No Workspace",
 		"onlySelectableAdministratorDocument": "Only Selectable Administrator Document",
 		"pleaseSelectFile": "Please Select File",
+		"projects": "projects",
 		"returnSearch": "Exit Search",
 		"rootDirectory": "Root",
 		"searchDirectory": "Search Directory",
@@ -1872,6 +2123,7 @@
 		"searchProject": "Search Project",
 		"searchResult": "Search Result",
 		"searchWorkspace": "Search Workspace",
+		"selectSourceFiles": "Destination",
 		"selectSpaceOrFolder": "Select Space or Folder",
 		"selectStorageLocation": "Storage Location",
 		"selectedFileNumber": "Selected {{count}} files",
@@ -1922,6 +2174,7 @@
 		"createNewShare": "Create New Share",
 		"createNewWorkspace": "Create new workspace",
 		"createSuccess": "Share created successfully",
+		"createSuccessAndCopied": "Shared successfully. Link copied.",
 		"createdBy": {
 			"brand": "$t(common:platform.name)",
 			"footerLine": "-- Shared by {{username}} from「{{brand}}」",
@@ -1998,6 +2251,7 @@
 		"internetShare": "Internet accessible",
 		"internetShareDescription": "Anyone who obtains the link can access the result playback",
 		"linkCopied": "Link copied to clipboard",
+		"loadingMessages": "Loading messages {{loadedCount}}/{{totalCount}} ({{progress}}%)",
 		"login": "Login",
 		"manage": "Manage",
 		"manageShareLinks": "Manage Share Links",
@@ -2044,6 +2298,7 @@
 		"resetPasswordSuccess": "Password has been reset",
 		"resetPasswordTip": "After resetting the access password, the previously generated password will be invalid",
 		"searchWorkspace": "Search workspace",
+		"selectAll": "Select All",
 		"selectFile": "Select File",
 		"selectFileWithCount": "Select Files ({{count}})",
 		"selectShareFiles": "Select Files to Share",
@@ -2057,6 +2312,7 @@
 		"shareLink": "Share Link",
 		"shareLinkGenerated": "File Sharing",
 		"shareMessageAudio": "I've shared a recording summary with you:",
+		"shareMessageCustom": "I've shared a custom project with you:",
 		"shareMessageDashboard": "I've shared a data analytics dashboard with you:",
 		"shareMessageDesign": "I've shared a canvas with you:",
 		"shareMessageMultipleFiles": "I've shared some files with you ({{count}} files in total):",
@@ -2108,6 +2364,7 @@
 		"untitled": "Untitled",
 		"updateFailed": "Failed to update share",
 		"updateSuccess": "Share updated successfully",
+		"updateSuccessAndCopied": "Shared successfully. Link copied.",
 		"useSimilarShare": "Use Existing Share Link",
 		"user": "User",
 		"validTime": "Valid time",
@@ -2269,6 +2526,7 @@
 		"border": "Border",
 		"borderSettings": "Border Settings",
 		"colorStops": "Color Stops",
+		"currentBackgroundImage": "Current Background Image",
 		"decreaseFontSize": "Decrease Font Size",
 		"decreaseZoom": "Decrease Zoom",
 		"deleteElement": "Delete Element",
@@ -2289,8 +2547,10 @@
 		"gradientPreview": "Gradient Preview",
 		"gridLayout": "Grid Layout",
 		"height": "Height",
+		"imageBackground": "Image Background",
 		"increaseFontSize": "Increase Font Size",
 		"increaseZoom": "Increase Zoom",
+		"insertImage": "Insert Image",
 		"italic": "Italic",
 		"justifyContent": "Justify Content",
 		"justifyItems": "Justify Items",
@@ -2299,8 +2559,10 @@
 		"layoutStyles": "Layout Styles",
 		"linearGradient": "Linear Gradient",
 		"linkAll": "Link All Sides",
+		"lockAspectRatio": "Lock Aspect Ratio",
 		"margin": "Margin",
 		"marginLabel": "Margin",
+		"noBackgroundImage": "No Background Image",
 		"opacity": "Opacity",
 		"padding": "Padding",
 		"paddingLabel": "Padding",
@@ -2309,6 +2571,9 @@
 		"previewScale": "Preview Scale",
 		"radialGradient": "Radial Gradient",
 		"redo": "Redo",
+		"removeBackgroundImage": "Remove Background Image",
+		"replaceBackgroundImage": "Replace Background Image",
+		"replaceImage": "Replace Image",
 		"resetZoom": "Reset Zoom",
 		"shadow": "Shadow",
 		"shadowAndEffects": "Shadow & Effects",
@@ -2319,6 +2584,8 @@
 		"shadowOffsetX": "Offset X",
 		"shadowOffsetY": "Offset Y",
 		"shadowSpread": "Spread",
+		"size": "Size",
+		"sizeSettings": "Size Settings",
 		"smallSelectionHint": "Selection too small, please go to toolbar to delete/duplicate or zoom in/out",
 		"solidColor": "Solid Color",
 		"strikethrough": "Strikethrough",
@@ -2333,6 +2600,7 @@
 		"underline": "Underline",
 		"undo": "Undo",
 		"unlinkAll": "Unlink All Sides",
+		"uploadBackgroundImage": "Upload Background Image",
 		"width": "Width",
 		"wrap": "Wrap",
 		"zoomIn": "Zoom In",
@@ -2386,6 +2654,7 @@
 		"convert_pdf": "Convert Pdf",
 		"convert_to_markdown": "Convert To Markdown",
 		"convert_video_to_audio": "Convert Video To Audio",
+		"create_canvas": "Create Canvas",
 		"create_canvas_element": "Create Canvas Element",
 		"create_dashboard_cards": "Create Dashboard Cards",
 		"create_dashboard_project": "Create Dashboard Project",
@@ -2406,8 +2675,11 @@
 		"edit_file": "Edit File",
 		"edit_file_range": "Edit File Range",
 		"file_search": "File Search",
+		"generate_canvas_images": "Generate Canvas Images",
+		"generate_canvas_videos": "Generate Canvas Videos",
 		"generate_image": "Generate Image",
-		"generate_images_to_canvas": "Generate Images To Canvas",
+		"generate_images_to_canvas": "Add Images To Canvas",
+		"generate_videos_to_canvas": "Add Videos To Canvas",
 		"get_im_channel_status": "Get IMChannel Status",
 		"get_js_cdn_address": "Get Js Cdn Address",
 		"get_sub_agent_results": "Get Sub Agent Results",
@@ -2422,6 +2694,7 @@
 		"query_canvas_element": "Query Canvas Element",
 		"query_canvas_overview": "Query Canvas Overview",
 		"query_dashboard_cards": "Query Dashboard Cards",
+		"query_video_generation": "Query Video Generation",
 		"read_file": "Read File",
 		"read_files": "Read Files",
 		"read_webpages_as_markdown": "Read Webpages As Markdown",
@@ -2483,6 +2756,8 @@
 			"identityInfo": "Identity Info",
 			"initialSetup": "Initial Setup",
 			"installedSkills": "Installed Skills",
+			"memoryFile": "Memory Config",
+			"memoryFolder": "Memory Store",
 			"proactiveExecution": "Proactive Execution",
 			"prompts": "Prompts",
 			"scheduledTasks": "Scheduled Tasks",
@@ -2505,6 +2780,7 @@
 			"cancel": "Cancel",
 			"confirmBatchDelete": "Confirm Delete {{count}} Files?",
 			"confirmBatchDeleteWithFolders": "Selection includes folders, subfiles not selected will also be deleted",
+			"confirmBatchDeleteWithMagicSystemFolder": "Your selection includes the .magic system folder. After deletion, some capabilities may stop working and this cannot be undone. Proceed with caution.",
 			"copyTo": "Copy to",
 			"createDesignFailed": "Failed to create design project",
 			"createDesignSuccess": "Design project created successfully",
@@ -2535,6 +2811,7 @@
 			"deleteFolderSuccess": "Folder deleted successfully",
 			"deleteFolderSuccessWithName": "Folder \"{{name}}\" deleted successfully",
 			"deleteFolderTip": "Delete Folder Confirmation",
+			"deleteMagicFolderContent": "The .magic folder holds files required for core features. After deletion, some capabilities may stop working and this cannot be undone. Proceed with caution.",
 			"deleteTip": "Confirmation of deletion operation",
 			"download": "Download File",
 			"downloadFolder": "Download Folder",
@@ -2554,6 +2831,7 @@
 				"pptExportFailed": "PPT export failed",
 				"pptExportTimeoutMessage": "PPT export timeout, please try again"
 			},
+			"importFromOtherProject": "Import from other",
 			"move": "Move",
 			"moveTo": "Move to",
 			"newDesign": {
@@ -2593,6 +2871,7 @@
 		"createMenu": "Create",
 		"custom": "Custom",
 		"customDescription": "Enable the AI to process according to my needs.",
+		"customMainFileNotFound": "Entry file not found. Check that the index in magic.project.js matches a file under this folder.",
 		"customPlaceholder": "Please enter the modification content",
 		"dataCorrection": "Data Correction",
 		"dataCorrectionDescription": "AI checks for errors in tables and data and corrects them",
@@ -2660,6 +2939,7 @@
 			"deleteFolderSuccess": "Folder deleted successfully",
 			"deleteFolderSuccessWithName": "Folder \"{{name}}\" deleted successfully",
 			"dragFolderNotSupported": "Dragging folders is not supported yet",
+			"importFileFailed": "Failed to import file",
 			"moveFileFailed": "Failed to move file",
 			"moveFileParamsRequired": "File ID and target location cannot be empty",
 			"noEditPermission": "No edit permission",
@@ -2678,8 +2958,8 @@
 		"exportPpt": "Download PPTX Format",
 		"exportPptx": "Download PPT Format (Editable)",
 		"exportSource": "Download Original File",
-		"exportSuccess": "Download successful",
-		"exporting": "Downloading",
+		"exportSuccess": "Export successful",
+		"exporting": "Exporting",
 		"exportingPdf": "Exporting PDF...",
 		"exportingPpt": "Exporting PPT...",
 		"exportingTip": "Exporting",
@@ -2695,6 +2975,7 @@
 		"fileModifyElements": ":",
 		"fileReadContentPrompt": "content",
 		"fileReadPrompt": "Please read",
+		"fileTitle": "Files",
 		"fileUploadFail": "File upload failed",
 		"fileUploadSuccess": "File uploaded successfully",
 		"fileUploading": "File is uploading, please wait",
@@ -2702,6 +2983,7 @@
 		"layoutCorrection": "Layout Correction",
 		"layoutCorrectionDescription": "AI detects and corrects layout problems in the page",
 		"layoutCorrectionPrompt": "Please check the layout of the page. If the layout is unreasonable, please provide suggestions and modify it.",
+		"loadingFiles": "Loading files...",
 		"moveModal": {
 			"confirm": "Confirm",
 			"overwriteConfirm": "Continue Moving",
@@ -2724,6 +3006,7 @@
 		"source": "Source File",
 		"success": {
 			"fileCopied": "File copied successfully",
+			"fileImported": "File imported successfully",
 			"fileMoved": "File moved successfully"
 		},
 		"textOmitted": "Text Omitted Here",
@@ -2795,8 +3078,11 @@
 		"expandAllFiles": "Expand All Files",
 		"expandUserMessage": "Expand",
 		"filePreviewNotSupported": "File preview not supported, please download the file",
-		"internetSearchClose": "Internet search: Disabled",
-		"internetSearchOpen": "Internet search: Enabled",
+		"followUpSuggestionsClose": "Turn off follow-up suggestions",
+		"followUpSuggestionsDisabledStatus": "Follow-up suggestions are off",
+		"followUpSuggestionsReenable": "Turn back on",
+		"internetSearchClose": "Internet Search: Disabled",
+		"internetSearchOpen": "Internet Search: Enabled",
 		"logoutAccount": "Logout Account",
 		"moreAgents": "More Agents",
 		"navigation": "Navigation",
@@ -2849,6 +3135,7 @@
 		"tokenUsage": {
 			"compressContext": "Compress Context",
 			"contextUsage": "Context Usage",
+			"contextUsageDescription": "Conversation memory usage. When the progress bar is full, AI may forget earlier content.",
 			"highContextWarning": "High context length may significantly increase the cost per response",
 			"tokenCount": "{{used}} / {{max}} Tokens"
 		}
@@ -2896,6 +3183,7 @@
 	},
 	"workspace": {
 		"addWorkspace": "New Workspace",
+		"allWorkspaceTitle": "All Workspace",
 		"collaborationProjectsDesc": "View projects shared with you by other members, and manage projects you have shared",
 		"collaborationProjectsTitle": "Collaboration Workspace",
 		"confirmDeleteThread": "Are you sure to delete the conversation \"{name}\"?",
@@ -2907,6 +3195,8 @@
 		"deleteWorkspaceTip": "Confirm to delete workspace \"{{workspaceName}}\"?",
 		"externalSharedWithMe": "External Shared",
 		"fileNotSupported": "File preview not supported, please download the file",
+		"home": "Workspace Home",
+		"myClawWorkspaceName": "My Claws",
 		"newWorkspace": "New Workspace",
 		"noOtherWorkspace": "No other workspaces available",
 		"noWorkspaces": "No workspaces",

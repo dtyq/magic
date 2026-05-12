@@ -1,18 +1,35 @@
 import type {
 	GetFileInfoResponse,
-	UploadImageResponse,
+	UploadFileResponse,
 	UploadFile,
+	UploadSubDirType,
 } from "@/components/CanvasDesign/types.magic"
 import type { BatchSaveInfo } from "@/stores/folderUpload/types"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { normalizeDesignAttachmentPathForCanvas } from "./designDslPathUtils"
 
 /**
  * 包含 file_id 的上传图片响应类型
  * 用于通过 file_id 获取文件信息时的响应类型
  */
-export type UploadImageResponseWithFileId = UploadImageResponse & { file_id: string }
+export type UploadFileResponseWithFileId = UploadFileResponse & { file_id: string }
 
 export type GetFileInfoResponseWithFileId = GetFileInfoResponse & { file_id: string }
+
+function normalizeUploadResponsePath(params: {
+	rawPath: string
+	uploadSubDir: UploadSubDirType
+	fileName: string
+	designProjectBasePath?: string
+}): string {
+	const { rawPath, uploadSubDir, fileName, designProjectBasePath } = params
+	const normalized = normalizeDesignAttachmentPathForCanvas(rawPath, designProjectBasePath)
+	const uploadSubDirPath = `${uploadSubDir}/${fileName}`.replace(/\/+/g, "/")
+	if (normalized === uploadSubDirPath || normalized.startsWith(`${uploadSubDir}/`)) {
+		return normalized.startsWith("./") ? normalized : `./${normalized}`
+	}
+	return normalized
+}
 
 /**
  * 检查是否是用户取消操作
@@ -24,6 +41,9 @@ function isCancelledError(error: Error | unknown): boolean {
 
 interface CreateUploadCallbacksParams {
 	suffixDir: string
+	/** 上传子目录，用于区分成功/失败提示文案（图片 vs 视频） */
+	uploadSubDir: UploadSubDirType
+	designProjectBasePath?: string
 	fileNameToUploadFileMap: Map<string, UploadFile>
 	filesToUpload: File[]
 	processedFileNames: Set<string>
@@ -36,7 +56,7 @@ interface CreateUploadCallbacksParams {
 	setIsUploading: (isUploading: boolean) => void
 	setUploadProgress: (progress: number) => void
 	t: (key: string) => string
-	onComplete: (responses: UploadImageResponse[]) => void
+	onComplete: (responses: UploadFileResponse[]) => void
 	onError: (error: Error) => void
 	onCompleteAlways: () => void
 }
@@ -46,7 +66,7 @@ interface CreateUploadCallbacksParams {
  */
 function callUploadSuccessCallback(
 	uploadFile: UploadFile | undefined,
-	response: UploadImageResponse,
+	response: UploadFileResponse,
 ): void {
 	if (!uploadFile?.onUploadComplete) return
 
@@ -78,11 +98,10 @@ export function callFailedCallbacksForUnprocessedFiles(
 	processedFileNames: Set<string>,
 	error: Error,
 ): void {
-	for (const [fileName, uploadFile] of fileNameToUploadFileMap) {
-		if (!processedFileNames.has(fileName)) {
-			callUploadFailedCallback(uploadFile, error)
-		}
-	}
+	fileNameToUploadFileMap.forEach((uploadFile, fileName) => {
+		if (processedFileNames.has(fileName)) return
+		callUploadFailedCallback(uploadFile, error)
+	})
 }
 
 /**
@@ -91,6 +110,8 @@ export function callFailedCallbacksForUnprocessedFiles(
 export async function processBatchSavedFiles(params: {
 	batchSaveInfo: BatchSaveInfo
 	suffixDir: string
+	uploadSubDir: UploadSubDirType
+	designProjectBasePath?: string
 	fileNameToUploadFileMap: Map<string, UploadFile>
 	processedFileNames: Set<string>
 	pendingGetFileInfoRef: React.MutableRefObject<Map<string, Promise<GetFileInfoResponse>>>
@@ -101,19 +122,21 @@ export async function processBatchSavedFiles(params: {
 	) => Promise<GetFileInfoResponseWithFileId>
 	t: (key: string) => string
 }): Promise<{
-	responses: UploadImageResponse[]
+	responses: UploadFileResponse[]
 	errors: Error[]
 }> {
 	const {
 		batchSaveInfo,
 		suffixDir,
+		uploadSubDir,
+		designProjectBasePath,
 		fileNameToUploadFileMap,
 		processedFileNames,
 		getFileInfoById,
 		t,
 	} = params
 
-	const batchUploadResponses: UploadImageResponse[] = []
+	const batchUploadResponses: UploadFileResponse[] = []
 	const batchErrors: Error[] = []
 
 	// 等待一段时间，确保文件已完全保存
@@ -124,13 +147,23 @@ export async function processBatchSavedFiles(params: {
 		// 查找对应的 UploadFile（用于回调）
 		const uploadFile = fileNameToUploadFileMap.get(savedFile.file_name)
 
-		// 构造 relative_file_path
 		const relativeFilePath = suffixDir
 			? `${suffixDir}/${savedFile.file_name}`
 			: savedFile.file_name
 
-		// 在路径前添加前导斜杠
-		const filePathWithSlash = savedFile.relative_file_path || `/${relativeFilePath}`
+		// parent_id 模式下后端可能返回 file_key 或雪花 ID，不能直接写入画布 path。
+		// 只有当 relative_file_path 看起来确实是目录/文件名路径时才信任它，否则回退到前端已知目录。
+		const apiPath = savedFile.relative_file_path?.trim()
+		const rawPath =
+			apiPath && apiPath.endsWith(savedFile.file_name) && apiPath.includes("/")
+				? apiPath
+				: relativeFilePath
+		const filePath = normalizeUploadResponsePath({
+			rawPath,
+			uploadSubDir,
+			fileName: savedFile.file_name,
+			designProjectBasePath,
+		})
 
 		try {
 			// 如果 API 返回了 file_id，直接使用，无需再次调用 getFileInfo
@@ -151,9 +184,9 @@ export async function processBatchSavedFiles(params: {
 				}
 
 				// 构造上传响应，file_id 已通过展开 fileInfo 自动包含
-				const uploadResponse: UploadImageResponseWithFileId = {
+				const uploadResponse: UploadFileResponseWithFileId = {
 					...fileInfo,
-					path: filePathWithSlash,
+					path: filePath,
 				}
 
 				batchUploadResponses.push(uploadResponse)
@@ -194,6 +227,8 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 } {
 	const {
 		suffixDir,
+		uploadSubDir,
+		designProjectBasePath,
 		fileNameToUploadFileMap,
 		filesToUpload,
 		processedFileNames,
@@ -207,8 +242,11 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 		onCompleteAlways,
 	} = params
 
+	const uploadSuccessMessage = t(`design.errors.uploadSuccessBySubDir.${uploadSubDir}`)
+	const uploadFailedMessage = t(`design.errors.uploadFailedBySubDir.${uploadSubDir}`)
+
 	// 收集所有批次的结果
-	const allUploadResponses: UploadImageResponse[] = []
+	const allUploadResponses: UploadFileResponse[] = []
 	const allErrors: Error[] = []
 	let pendingBatches = 0
 	let onCompleteCalled = false
@@ -223,18 +261,18 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 			setIsUploading(false)
 			setUploadProgress(0)
 			resolved = true
-			magicToast.error(t("design.errors.uploadFailed"))
-			// 确保错误消息是多语言的
-			const errorMessage = t("design.errors.uploadFailed")
+			magicToast.error(uploadFailedMessage)
 			const error =
-				allErrors[0] instanceof Error ? new Error(errorMessage) : new Error(errorMessage)
+				allErrors[0] instanceof Error
+					? new Error(uploadFailedMessage)
+					: new Error(uploadFailedMessage)
 			onError(error)
 			return
 		}
 
-		// 显示成功消息
+		// 显示成功消息（按 uploadSubDir 区分图片/视频）
 		if (allUploadResponses.length > 0) {
-			magicToast.success(t("design.errors.uploadSuccess"))
+			magicToast.success(uploadSuccessMessage)
 		}
 
 		// 上传完成，隐藏进度条
@@ -259,6 +297,8 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 				const result = await processBatchSavedFiles({
 					batchSaveInfo,
 					suffixDir,
+					uploadSubDir,
+					designProjectBasePath,
 					fileNameToUploadFileMap,
 					processedFileNames,
 					pendingGetFileInfoRef,
@@ -285,10 +325,8 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 					setIsUploading(false)
 					setUploadProgress(0)
 					resolved = true
-					magicToast.error(t("design.errors.uploadFailed"))
-					onError(
-						error instanceof Error ? error : new Error(t("design.errors.uploadFailed")),
-					)
+					magicToast.error(uploadFailedMessage)
+					onError(error instanceof Error ? error : new Error(uploadFailedMessage))
 				}
 			}
 		},
@@ -312,12 +350,12 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 			// 否则等待所有批次完成（在 onBatchSaveComplete 中处理）
 		},
 
-		onError: (taskId: string, error: Error) => {
+		onError: (_taskId: string, error: Error) => {
 			const isCancelled = isCancelledError(error)
 
 			if (!resolved) {
 				// 如果是取消操作，只重置状态，不显示错误提示，不调用失败回调
-				// 但仍然需要调用 onError 来 reject Promise，否则画布调用 uploadImages 没有响应
+				// 但仍然需要调用 onError 来 reject Promise，否则画布调用 uploadFiles 没有响应
 				// 使用多语言的取消错误消息
 				if (isCancelled) {
 					setIsUploading(false)
@@ -330,9 +368,7 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 				}
 
 				// 为所有未处理的文件调用失败回调
-				// 确保错误消息是多语言的
-				const errorMessage = t("design.errors.uploadFailed")
-				const translatedError = new Error(errorMessage)
+				const translatedError = new Error(uploadFailedMessage)
 				callFailedCallbacksForUnprocessedFiles(
 					fileNameToUploadFileMap,
 					processedFileNames,
@@ -342,7 +378,7 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 				setIsUploading(false)
 				setUploadProgress(0)
 				resolved = true
-				magicToast.error(t("design.errors.uploadFailed"))
+				magicToast.error(uploadFailedMessage)
 				onError(translatedError)
 			}
 		},

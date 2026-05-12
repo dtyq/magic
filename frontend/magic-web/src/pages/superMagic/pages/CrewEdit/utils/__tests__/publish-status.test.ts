@@ -28,4 +28,13 @@ describe("hasCrewUnpublishedChanges", () => {
 			}),
 		).toBe(true)
 	})
+
+	it("falls back to string comparison for invalid date strings", () => {
+		expect(
+			hasCrewUnpublishedChanges({
+				latestPublishedAt: "2026-03-21 10:00",
+				updatedAt: "2026-03-22 10:00",
+			}),
+		).toBe(true)
+	})
 })

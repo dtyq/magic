@@ -1,11 +1,7 @@
 import { memo, useRef, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { Search, X } from "lucide-react"
-import {
-	InputGroup,
-	InputGroupAddon,
-	InputGroupInput,
-} from "@/components/shadcn-ui/input-group"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/shadcn-ui/input-group"
 import { Button } from "@/components/shadcn-ui/button"
 import { cn } from "@/lib/utils"
 
@@ -60,6 +56,7 @@ function SearchModeHeader({
 				<InputGroupInput
 					className="h-6"
 					placeholder={t("common.searchFiles")}
+					data-testid="file-search-input"
 					value={localValue}
 					onChange={handleChange}
 					onCompositionStart={handleCompositionStart}
@@ -71,6 +68,7 @@ function SearchModeHeader({
 				type="button"
 				size="icon-sm"
 				className="size-7 border bg-white text-foreground duration-300 animate-in fade-in hover:bg-accent"
+				data-testid="file-search-close-button"
 				onClick={onClose}
 				aria-label={t("common.cancel")}
 			>

@@ -72,9 +72,29 @@ export function getDropdownSize(config: DropdownSizeConfig): { width: number; he
 /**
  * 从DOM中测量现有的下拉菜单尺寸
  */
+function findVisibleDropdownElement(): HTMLElement | null {
+	const selectors = [
+		".ant-dropdown:not([style*='display: none'])",
+		"[data-slot='dropdown-menu-content']",
+	]
+
+	for (const selector of selectors) {
+		const dropdownNodes = Array.from(document.querySelectorAll<HTMLElement>(selector))
+		const visibleDropdown = dropdownNodes.findLast((node) => {
+			const rect = node.getBoundingClientRect()
+			return rect.width > 0 && rect.height > 0
+		})
+
+		if (visibleDropdown) {
+			return visibleDropdown
+		}
+	}
+
+	return null
+}
+
 function measureDropdownFromDOM(): { width: number; height: number } | null {
-	// 查找当前页面中的 Antd Dropdown 菜单
-	const dropdownMenu = document.querySelector('.ant-dropdown:not([style*="display: none"])')
+	const dropdownMenu = findVisibleDropdownElement()
 
 	if (dropdownMenu) {
 		const rect = dropdownMenu.getBoundingClientRect()
@@ -99,7 +119,7 @@ export function observeDropdownMenu(
 	let observer: MutationObserver | null = null
 
 	const checkForDropdown = () => {
-		const dropdown = document.querySelector('.ant-dropdown:not([style*="display: none"])')
+		const dropdown = findVisibleDropdownElement()
 		if (dropdown) {
 			const rect = dropdown.getBoundingClientRect()
 			if (rect.width > 0 && rect.height > 0) {
@@ -411,8 +431,8 @@ export function selectBestPlacement(
 	const allPlacements = {
 		"bottom-left": { top: rect.bottom, left: rect.left },
 		"bottom-right": { top: rect.bottom, left: rect.right - size.width },
-		"top-left": { top: rect.top - size.height, left: rect.left },
-		"top-right": { top: rect.top - size.height, left: rect.right - size.width },
+		"top-left": { top: rect.top - size.height, left: rect.right },
+		"top-right": { top: rect.top - size.height, left: rect.left - size.width },
 	}
 
 	// 按照首选顺序检查每个 placement 是否在边界内
@@ -462,7 +482,7 @@ export function selectBestPlacement(
 /**
  * 通用的事件处理器工厂 - 泛型支持（原有版本，保持向后兼容）
  */
-export function createEventHandler<T = any>(
+export function createEventHandler<T = unknown>(
 	onPositionCalculated: (position: Position, itemData: T) => void,
 	sizeConfig: DropdownSizeConfig,
 ) {
@@ -509,7 +529,7 @@ export function createEventHandler<T = any>(
 /**
  * 增强的元素点击处理器，自动选择最佳 placement
  */
-export function createSmartEventHandler<T = any>(
+export function createSmartEventHandler<T = unknown>(
 	onPositionCalculated: (position: Position, itemData: T) => void,
 	sizeConfig: DropdownSizeConfig,
 	smartConfig?: {
@@ -533,6 +553,7 @@ export function createSmartEventHandler<T = any>(
 		) => {
 			event.stopPropagation()
 			event.preventDefault()
+			void _preferredPlacement
 
 			// 智能选择最佳 placement
 			const bestPlacement = selectBestPlacement(event.currentTarget, sizeConfig, smartConfig)
@@ -551,12 +572,12 @@ export function createSmartEventHandler<T = any>(
 					position = { top: rect.bottom, left: rect.right - size.width }
 					break
 				case "top-left":
-					position = { top: rect.top + rect.height - size.height, left: rect.left }
+					position = { top: rect.top - size.height, left: rect.right }
 					break
 				case "top-right":
 					position = {
-						top: rect.top + rect.height - size.height,
-						left: rect.right - size.width,
+						top: rect.top - size.height,
+						left: rect.left - size.width,
 					}
 					break
 				default:

@@ -2,16 +2,17 @@ import { useCallback, useMemo, useState, useEffect } from "react"
 import styles from "./index.module.css"
 import IconButton from "../../../ui/custom/IconButton/index"
 import {
-	Minimize2 as MinimizeIcon,
-	LockOpen,
-	LockKeyhole,
 	Eye,
 	EyeClosed,
-	FolderIcon,
 	Folder,
-	Type,
 	Image,
-} from "../../../ui/icons/index"
+	LockKeyhole,
+	LockOpen,
+	Minimize2 as MinimizeIcon,
+	Type,
+	Video,
+} from "lucide-react"
+import { FolderIcon } from "../../../ui/icons"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import { Input } from "../../../ui/input"
 import LayersEmpty from "../LayersEmpty"
@@ -25,6 +26,7 @@ import {
 	type EllipseElement,
 	type TriangleElement,
 	type StarElement,
+	type ImageElement,
 } from "../../../../canvas/types"
 import { useCanvas } from "../../../../context/CanvasContext"
 import { useCanvasData } from "../../../../hooks/useCanvasData"
@@ -42,6 +44,7 @@ import { StarThumbnail } from "./thumbnails/StarThumbnail"
 import { useCanvasDesignI18n } from "../../../../context/I18nContext"
 import type { LayerTreeData } from "../../types"
 import { convertLayerToTreeNode } from "../../../../lib"
+import LayerImageThumbnail from "./thumbnails/ImageThumbnail"
 
 export default function LayersDrawer() {
 	const { t } = useCanvasDesignI18n()
@@ -83,7 +86,8 @@ export default function LayersDrawer() {
 	const imageUrls = useImageUrls(!collapsed)
 
 	// 从 Context 获取画布 UI 状态
-	const { editingElementId, setEditingElementId, selectedElementIds, readonly } = useCanvasUI()
+	const { layerRenamingElementId, setLayerRenamingElementId, selectedElementIds, readonly } =
+		useCanvasUI()
 
 	// 将画布数据转换为树形结构，先按 zIndex 降序排序（zIndex 大的在上面）
 	const treeData = useMemo(() => {
@@ -92,10 +96,8 @@ export default function LayersDrawer() {
 		return sortedFrames.map((frame) => convertLayerToTreeNode(frame, canvas))
 	}, [elements, canvas])
 
-	// 获取选中的元素 ID
-	const selectedIds = useMemo(() => {
-		return readonly ? [] : selectedElementIds
-	}, [readonly, selectedElementIds])
+	// 获取选中的元素 ID（只读下与画布选区一致，便于高亮与定位）
+	const selectedIds = useMemo(() => selectedElementIds, [selectedElementIds])
 
 	// 获取悬浮的元素 ID
 	const hoveredIds = useMemo(() => {
@@ -142,7 +144,7 @@ export default function LayersDrawer() {
 		(node: TreeNode<LayerTreeData>, context: RenderNodeContext) => {
 			const isLocked = node.data?.locked ?? false
 			const isVisible = node.data?.visible ?? true
-			const isEditing = editingElementId === node.id
+			const isEditing = layerRenamingElementId === node.id
 			const LockIcon = isLocked ? LockKeyhole : LockOpen
 			const VisibilityIcon = isVisible ? Eye : EyeClosed
 
@@ -160,17 +162,12 @@ export default function LayersDrawer() {
 				case ElementTypeEnum.Image:
 					const imageUrl = imageUrls.get(node.id)
 					if (imageUrl) {
-						// 使用 key 属性稳定 img 元素，避免 hover 时重新创建导致浏览器重新加载
 						iconContent = (
-							<div className={styles.layerNodeElementIcon}>
-								<img
-									key={imageUrl}
-									src={imageUrl}
-									alt={node.label}
-									loading="lazy"
-									decoding="async"
-								/>
-							</div>
+							<LayerImageThumbnail
+								element={node.data as ImageElement}
+								src={imageUrl}
+								alt={node.label}
+							/>
 						)
 					} else {
 						iconContent = <Image size={16} className={styles.layerNodeImageIcon} />
@@ -204,6 +201,9 @@ export default function LayersDrawer() {
 						</div>
 					)
 					break
+				case ElementTypeEnum.Video:
+					iconContent = <Video size={16} className={styles.layerNodeVideoIcon} />
+					break
 				default:
 					iconContent = <div className={styles.layerNodeElementIcon}></div>
 					break
@@ -228,13 +228,18 @@ export default function LayersDrawer() {
 									if (newName && newName !== node.label) {
 										canvas?.elementManager.update(node.id, { name: newName })
 									}
-									setEditingElementId(null)
+									setLayerRenamingElementId(null)
 								}}
 								onKeyDown={(e) => {
-									if (e.key === "Enter") {
+									const nativeEvent = e.nativeEvent
+									if (
+										e.key === "Enter" &&
+										!nativeEvent.isComposing &&
+										nativeEvent.keyCode !== 229
+									) {
 										e.currentTarget.blur()
 									} else if (e.key === "Escape") {
-										setEditingElementId(null)
+										setLayerRenamingElementId(null)
 									}
 								}}
 							/>
@@ -293,13 +298,13 @@ export default function LayersDrawer() {
 			)
 		},
 		[
-			editingElementId,
+			layerRenamingElementId,
 			stopPropagation,
 			toggleLocked,
 			toggleVisible,
 			readonly,
 			canvas,
-			setEditingElementId,
+			setLayerRenamingElementId,
 			imageUrls,
 		],
 	)
@@ -324,9 +329,9 @@ export default function LayersDrawer() {
 				return
 			}
 			// 双击进入编辑模式
-			setEditingElementId(node.id)
+			setLayerRenamingElementId(node.id)
 		},
-		[readonly, setEditingElementId],
+		[readonly, setLayerRenamingElementId],
 	)
 
 	const handleMouseEnter = useCallback(
@@ -404,28 +409,18 @@ export default function LayersDrawer() {
 							readonly ? styles.treeNodeContentReadonly : undefined
 						}
 						onSelect={(_nodes, ids) => {
-							if (readonly) return
-							const isLocked = ids.some(
-								(id) => canvas?.elementManager.getElementData(id)?.locked === true,
-							)
-							if (!isLocked) {
-								// 智能判断：只有当选中状态发生变化时才自动聚焦
-								// 比较新旧选中的元素ID，判断是否有变化
-								const hasSelectionChanged =
-									ids.length !== selectedElementIds.length ||
-									ids.some((id) => !selectedElementIds.includes(id)) ||
-									selectedElementIds.some((id) => !ids.includes(id))
-								canvas?.selectionManager.selectMultiple(
-									ids,
-									false,
-									hasSelectionChanged,
-								)
-								// 定位到选中的元素
-								if (ids.length > 0) {
-									canvas?.userActionRegistry.execute("view.focus-element", {
-										elementIds: ids,
-									})
-								}
+							// 智能判断：只有当选中状态发生变化时才自动聚焦
+							// 比较新旧选中的元素ID，判断是否有变化
+							const hasSelectionChanged =
+								ids.length !== selectedElementIds.length ||
+								ids.some((id) => !selectedElementIds.includes(id)) ||
+								selectedElementIds.some((id) => !ids.includes(id))
+							canvas?.selectionManager.replaceSelection(ids, hasSelectionChanged)
+							// 定位到选中的元素
+							if (ids.length > 0) {
+								canvas?.userActionRegistry.execute("view.focus-element", {
+									elementIds: ids,
+								})
 							}
 						}}
 						expandedIds={expandedElementIds}

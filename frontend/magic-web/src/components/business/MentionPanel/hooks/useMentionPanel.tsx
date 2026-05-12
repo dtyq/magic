@@ -1,26 +1,37 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useMemoizedFn } from "ahooks"
-import {
+import type { MentionStoreRequest } from "../dispatch"
+import { MentionItemType, PanelState } from "../types"
+import type {
 	MentionPanelState,
 	UseMentionPanelReturn,
-	PanelState,
 	NavigationItem,
 	MentionItem,
 	DataService,
-	MentionItemType,
+	MentionPanelCatalogBehavior,
+	MentionPanelLoadStateOptions,
+	MentionStoreRequestBuildOptions,
+	StateTransition,
 } from "../types"
-import { STATE_TRANSITIONS } from "../constants"
 import type { I18nTexts } from "../i18n/types"
 import { useKeyboardNav } from "./useKeyboardNav"
 import { useDataSource, useDebouncedSearch } from "./useDataSource"
 
-interface UseMentionPanelProps {
+interface UseMentionPanelProps<TCatalogId extends string = string> {
 	initialState?: PanelState
+	initialLoadOptions?: MentionPanelLoadStateOptions<TCatalogId>
+	initialNavigationStack?: NavigationItem<TCatalogId>[]
 	onSelect?: (item: MentionItem, context?: { reset?: () => void }) => void
 	onClose?: () => void
 	dataService?: DataService
 	enabled?: boolean
+	/** 为 false 时仍加载数据，但禁用键盘 Enter/方向键等（移动端多选面板需避免 Enter 直接插入） */
+	keyboardShortcutsEnabled?: boolean
 	t: I18nTexts // I18nTexts from the i18n system
+	catalogBehavior: MentionPanelCatalogBehavior<TCatalogId>
+	buildStoreRequest?: (
+		options: MentionStoreRequestBuildOptions<TCatalogId>,
+	) => MentionStoreRequest | null
 }
 
 /**
@@ -115,28 +126,41 @@ function filterItemsByQuery(items: MentionItem[], query: string): MentionItem[] 
 	})
 }
 
+function getCurrentCatalogId<TCatalogId extends string = string>(
+	navigationStack: NavigationItem<TCatalogId>[],
+): TCatalogId | undefined {
+	return navigationStack[navigationStack.length - 1]?.catalogId
+}
+
 /**
  * useMentionPanel - Main logic hook for MentionPanel
  *
  * @param props - Panel configuration
  * @returns Panel state and actions
  */
-export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelReturn {
+export function useMentionPanel<TCatalogId extends string = string>(
+	props: UseMentionPanelProps<TCatalogId>,
+): UseMentionPanelReturn<TCatalogId> {
 	const {
 		initialState = PanelState.DEFAULT,
+		initialLoadOptions,
+		initialNavigationStack,
 		onSelect,
 		onClose,
 		dataService,
 		enabled = true,
+		keyboardShortcutsEnabled = true,
 		t,
+		catalogBehavior,
+		buildStoreRequest,
 	} = props
 
 	// Panel state with state-specific selection history
-	const [panelState, setPanelState] = useState<MentionPanelState>({
+	const [panelState, setPanelState] = useState<MentionPanelState<TCatalogId>>({
 		currentState: initialState,
 		selectedIndex: 0,
 		searchQuery: "",
-		navigationStack: [],
+		navigationStack: initialNavigationStack ?? [],
 		items: [],
 		originalItems: [],
 		loading: false,
@@ -158,11 +182,13 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 	const transitionLockRef = useRef<boolean>(false)
 
 	// Data source management
-	const dataSourceHook = useDataSource({
+	const dataSourceHook = useDataSource<TCatalogId>({
 		dataService,
 		initialState,
 		t: t as I18nTexts,
+		buildStoreRequest,
 	})
+	const { loadDefaultItems, loadStateItems } = dataSourceHook
 
 	// Note: Debounced search is no longer used for context-aware search
 	// We keep the reference for potential future use with global search
@@ -218,21 +244,40 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 		}
 	}, [panelState.items])
 
-	// Handle initial data loading
-	useEffect(() => {
-		if (initialState === PanelState.DEFAULT) {
-			dataSourceHook.loadDefaultItems()
+	const initializePanel = useCallback(async () => {
+		setStateSelectionHistory({})
+		setStateBeforeSearch(initialState)
+		setSearchQueryBeforeFolder("")
+
+		setPanelState({
+			currentState: initialState,
+			selectedIndex: 0,
+			searchQuery: "",
+			navigationStack: initialNavigationStack ?? [],
+			items: [],
+			originalItems: [],
+			loading: false,
+		})
+
+		if (
+			initialState === PanelState.DEFAULT &&
+			!initialLoadOptions?.catalogId &&
+			!initialLoadOptions?.itemId &&
+			!initialLoadOptions?.query
+		) {
+			await loadDefaultItems()
+			return
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [initialState])
+
+		await loadStateItems(initialState, initialLoadOptions)
+	}, [initialLoadOptions, initialNavigationStack, initialState, loadDefaultItems, loadStateItems])
 
 	useEffect(() => {
-		if (enabled) {
-			dataService?.preLoadList()
-			dataSourceHook.loadDefaultItems()
-		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [enabled])
+		if (!enabled) return
+
+		dataService?.preLoadList?.()
+		void initializePanel()
+	}, [dataService, enabled, initializePanel])
 
 	// Cleanup debounced search on unmount
 	useEffect(() => {
@@ -318,7 +363,7 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 	})
 
 	// Navigation stack management
-	const pushNavigation = useCallback((item: NavigationItem) => {
+	const pushNavigation = useCallback((item: NavigationItem<TCatalogId>) => {
 		setPanelState((prev) => ({
 			...prev,
 			navigationStack: [...prev.navigationStack, item],
@@ -334,8 +379,13 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 
 	const deleteHistoryItem = useCallback(
 		async (item: MentionItem) => {
+			const historyItemId =
+				typeof item.metadata?.historyItemId === "string"
+					? item.metadata.historyItemId
+					: item.id
+
 			// Remove from store
-			dataService?.removeFromHistory(item.id)
+			dataService?.removeFromHistory?.(historyItemId)
 
 			// Always immediately remove from current items to provide instant feedback
 			setPanelState((prev) => ({
@@ -398,12 +448,20 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 			searchQuery: "",
 		}))
 
+		if (targetNav.catalogId) {
+			await transitionToState(PanelState.CATALOG, {
+				catalogId: targetNav.catalogId,
+				itemId: targetNav.id,
+			})
+			return
+		}
+
 		await transitionToState(PanelState.FOLDER, { itemId: targetNav.id })
 	})
 
 	// State transition logic with selection history preservation
 	const transitionToState = useCallback(
-		async (newState: PanelState, context?: { itemId?: string; query?: string }) => {
+		async (newState: PanelState, context?: MentionPanelLoadStateOptions<TCatalogId>) => {
 			// Prevent concurrent transitions
 			if (transitionLockRef.current) {
 				console.log(
@@ -453,45 +511,18 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 				// Update state before search to the new state
 				setStateBeforeSearch(newState)
 
-				// Load appropriate data for the new state
-				switch (newState) {
-					case PanelState.DEFAULT:
-						console.log("[useMentionPanel] loading default items")
-						await dataSourceHook.loadDefaultItems()
-						// Focus search input when returning to default state
-						setShouldFocusSearch(true)
-						break
-					case PanelState.HISTORIES:
-						await dataSourceHook.loadAllHistory()
-						break
-					case PanelState.TABS:
-						await dataSourceHook.loadCurrentTabs()
-						break
-					case PanelState.FOLDER:
-						// 如果当前是工具文件夹，则加载工具列表
-						if (context?.itemId === PanelState.TOOLS) {
-							await dataSourceHook.loadToolItems(context.itemId)
-						} else if (context?.itemId) {
-							await dataSourceHook.loadFolderItems(context.itemId)
-						}
-						break
-					case PanelState.TOOLS:
-						if (context?.itemId) {
-							await dataSourceHook.loadToolItems(context.itemId)
-						}
-						break
-					case PanelState.UPLOAD_FILES:
-						await dataSourceHook.loadUploadFiles()
-						break
-					case PanelState.MCP:
-						await dataSourceHook.loadMcpExtensions()
-						break
-					case PanelState.AGENT:
-						await dataSourceHook.loadAgents()
-						break
-					case PanelState.SKILLS:
-						await dataSourceHook.loadSkills()
-						break
+				if (newState === PanelState.DEFAULT)
+					console.log("[useMentionPanel] loading default items")
+
+				await dataSourceHook.loadStateItems(newState, {
+					catalogId: context?.catalogId,
+					itemId: context?.itemId,
+					query: context?.query,
+				})
+
+				if (newState === PanelState.DEFAULT) {
+					// Focus search input when returning to default state
+					setShouldFocusSearch(true)
 				}
 
 				// After data is loaded, ensure the selection index is valid and selectable
@@ -534,75 +565,56 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 			const selectedItem = panelState.items[panelState.selectedIndex]
 			if (!selectedItem || panelState.loading || transitionLockRef.current) return
 
-			// Check if item is unselectable - if so, don't select it
-			if (selectedItem.unSelectable) {
-				return
-			}
-
 			// Check if this is a history item - if so, select directly
 			if (selectedItem.tags?.includes("history")) {
 				onSelect?.(selectedItem, { reset })
 				return
 			}
 
-			// In TABS state, folders from tabs should be selectable directly
-			// When not explicitly entering folder (enterFolder = false), select the folder directly
+			const currentCatalogId = getCurrentCatalogId(panelState.navigationStack)
+			const shouldEnterFolderDirectly =
+				catalogBehavior.shouldEnterFolderDirectly?.({
+					currentState: panelState.currentState,
+					currentCatalogId,
+					selectedItem,
+					enterFolder,
+				}) ?? false
+			const nextEnterFolder = enterFolder || shouldEnterFolderDirectly
+
+			// unSelectable 项不能被插入；右箭头会带 enterFolder，但仅对真实文件夹应放行（否则禁用文件会落到下方 onSelect）
+			const allowUnselectableForFolderNavigation =
+				nextEnterFolder && selectedItem.isFolder === true
+
+			if (selectedItem.unSelectable && !allowUnselectableForFolderNavigation) {
+				return
+			}
+
 			if (
-				panelState.currentState === PanelState.TABS &&
-				selectedItem.type === MentionItemType.FOLDER &&
-				!enterFolder
+				catalogBehavior.shouldSelectItemDirectly?.({
+					currentState: panelState.currentState,
+					currentCatalogId,
+					selectedItem,
+					enterFolder: nextEnterFolder,
+				})
 			) {
 				onSelect?.(selectedItem, { reset })
 				return
 			}
 
-			// Dynamic state transition logic based on item type
-			let targetState: PanelState | null = null
+			const targetTransition: StateTransition<TCatalogId> | null =
+				catalogBehavior.getStaticTransition?.({
+					currentState: panelState.currentState,
+					itemId: selectedItem.id,
+				}) ??
+				catalogBehavior.getDynamicTransition?.({
+					currentState: panelState.currentState,
+					currentCatalogId,
+					selectedItem,
+					enterFolder: nextEnterFolder,
+				}) ??
+				null
 
-			// Check static transitions first (for built-in items)
-			const stateTransitions = STATE_TRANSITIONS[panelState.currentState]
-			const staticTransition = stateTransitions?.[selectedItem.id]
-
-			if (staticTransition) {
-				targetState = staticTransition
-			} else {
-				// Dynamic transitions based on item type
-				switch (selectedItem.type) {
-					case MentionItemType.FOLDER:
-						if (enterFolder) {
-							if (selectedItem.isFolder) {
-								targetState = PanelState.FOLDER
-							}
-						} else {
-							targetState = null
-						}
-						break
-					case MentionItemType.TOOL:
-						if (selectedItem.isFolder) {
-							targetState = PanelState.TOOLS
-						} else {
-							targetState = null
-						}
-						break
-					case MentionItemType.TABS:
-						targetState = PanelState.TABS
-						break
-					case MentionItemType.HISTORIES:
-						targetState = PanelState.HISTORIES
-						break
-					case MentionItemType.MCP:
-					case MentionItemType.AGENT:
-					case MentionItemType.SKILL:
-					case MentionItemType.PROJECT_FILE:
-					case MentionItemType.UPLOAD_FILE:
-					case MentionItemType.CLOUD_FILE:
-						// These items are selected directly, no state transition
-						targetState = null
-						break
-				}
-			}
-
-			if (targetState) {
+			if (targetTransition) {
 				// Navigate to the next state
 				// 确定当前所在的父文件夹ID (仅在文件夹导航时需要)
 				let currentParentId: string | undefined
@@ -620,7 +632,7 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 				const isFromSearchResults =
 					panelState.currentState === PanelState.DEFAULT &&
 					panelState.searchQuery.trim() &&
-					targetState === PanelState.FOLDER
+					targetTransition.state === PanelState.FOLDER
 
 				if (isFromSearchResults) {
 					setSearchQueryBeforeFolder(panelState.searchQuery)
@@ -642,11 +654,15 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 					id: selectedItem.id,
 					name: selectedItem.name || "",
 					state: panelState.currentState,
+					catalogId: targetTransition.catalogId,
 					parentId: currentParentId,
 				})
 
 				// Transition to new state
-				await transitionToState(targetState, { itemId: selectedItem.id })
+				await transitionToState(targetTransition.state, {
+					catalogId: targetTransition.catalogId,
+					itemId: selectedItem.id,
+				})
 			} else {
 				// No transition available, select the item directly
 				onSelect?.(selectedItem, { reset })
@@ -689,6 +705,14 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 						await transitionToState(PanelState.DEFAULT)
 					}
 				} else {
+					if (parentNav.catalogId) {
+						await transitionToState(PanelState.CATALOG, {
+							catalogId: parentNav.catalogId,
+							itemId: parentNav.id,
+						})
+						return
+					}
+
 					// 正常的文件夹上级，返回到上级文件夹
 					await transitionToState(PanelState.FOLDER, { itemId: parentNav.id })
 				}
@@ -757,10 +781,39 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 
 				// Use debounced search to get global results
 				await debouncedSearch(query)
+			} else if (panelState.currentState === PanelState.FOLDER) {
+				const folderNav = panelState.navigationStack[panelState.navigationStack.length - 1]
+				const scopeFolderId = folderNav?.id
+				if (!scopeFolderId) {
+					setPanelState((prev) => {
+						const originalItems = prev.searchQuery ? prev.originalItems : prev.items
+						const filteredItems = filterItemsByQuery(originalItems, query)
+						return {
+							...prev,
+							searchQuery: query,
+							items: filteredItems,
+							originalItems,
+							selectedIndex: findFirstSelectableIndex(filteredItems),
+						}
+					})
+					return
+				}
+
+				if (!panelState.searchQuery) {
+					setStateBeforeSearch(panelState.currentState)
+				}
+
+				setPanelState((prev) => ({
+					...prev,
+					searchQuery: query,
+					loading: true,
+					selectedIndex: findFirstSelectableIndex(prev.items),
+				}))
+
+				await debouncedSearch(query, scopeFolderId)
 			} else {
-				// Context-aware search: filter items based on current panel's data
+				// CATALOG 等：仍仅对当前列表做本地过滤
 				setPanelState((prev) => {
-					// If this is the first search (no previous search query), save current items as original
 					const originalItems = prev.searchQuery ? prev.originalItems : prev.items
 					const filteredItems = filterItemsByQuery(originalItems, query)
 
@@ -769,7 +822,7 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 						searchQuery: query,
 						items: filteredItems,
 						originalItems,
-						selectedIndex: findFirstSelectableIndex(filteredItems), // Reset selection to first selectable item
+						selectedIndex: findFirstSelectableIndex(filteredItems),
 					}
 				})
 
@@ -798,6 +851,18 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 
 				// Reset state before search
 				setStateBeforeSearch(PanelState.DEFAULT)
+			} else if (
+				panelState.currentState === PanelState.FOLDER &&
+				panelState.navigationStack.length > 0
+			) {
+				const folderId =
+					panelState.navigationStack[panelState.navigationStack.length - 1].id
+				setPanelState((prev) => ({
+					...prev,
+					searchQuery: query,
+					selectedIndex: 0,
+				}))
+				await dataSourceHook.loadStateItems(PanelState.FOLDER, { itemId: folderId })
 			} else {
 				// For other states, restore original items
 				setPanelState((prev) => ({
@@ -860,7 +925,7 @@ export function useMentionPanel(props: UseMentionPanelProps): UseMentionPanelRet
 		onNavigateBack: navigateBack,
 		onEnterFolder: enterFolder,
 		onExit: exit,
-		enabled,
+		enabled: enabled && keyboardShortcutsEnabled,
 		preventDefault: true,
 	})
 
@@ -936,8 +1001,8 @@ export function usePanelVisibility(initialVisible = false) {
 
 // Hook for managing panel position
 export function usePanelPosition(
-	triggerRef: React.RefObject<HTMLElement>,
-	panelRef: React.RefObject<HTMLElement>,
+	triggerRef: React.RefObject<HTMLElement | null>,
+	panelRef: React.RefObject<HTMLElement | null>,
 ) {
 	const [position, setPosition] = useState({ top: 0, left: 0 })
 

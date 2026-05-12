@@ -1,6 +1,25 @@
 {
+	"addSheet": {
+		"actions": {
+			"mention": "Mention",
+			"plugin": "Plugin",
+			"skills": "Skills",
+			"webSearch": "Web Search"
+		},
+		"addButton": "Add",
+		"closeAriaLabel": "Close add to chat dialog",
+		"media": {
+			"camera": "Camera",
+			"files": "Files",
+			"photos": "Photos"
+		},
+		"title": "Add to Chat"
+	},
 	"analyzeData": {
 		"placeholder": "Describe the website you want to create.\nPress Enter to send ; Shift + Enter for a new line"
+	},
+	"attachments": {
+		"removeAriaLabel": "Remove {{fileName}}"
 	},
 	"chatInput": {
 		"helpText": "Press Enter to send ; Shift + Enter for a new line",
@@ -8,8 +27,13 @@
 		"model": "Model",
 		"placeholder": "Type your request or upload a file, and Super Magic will take care of it."
 	},
+	"chatSettings": {
+		"close": "Close",
+		"title": "Chat Settings"
+	},
 	"crewSelectModal": {
 		"empty": {
+			"all": "No crews available",
 			"my": "No crews in My Crew yet",
 			"official": "No official crews available"
 		},

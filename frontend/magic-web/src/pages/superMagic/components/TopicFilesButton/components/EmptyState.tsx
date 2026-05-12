@@ -41,13 +41,16 @@ function EmptyState({ onAddFile, onAddDesign, onUploadFile, allowEdit = true }: 
 					<div className="flex flex-wrap items-center justify-center gap-3">
 						<FileMenuDropdown onAddFile={onAddFile} onAddDesign={onAddDesign}>
 							<span>
-								<Button>{t("topicFiles.emptyState.createFile")}</Button>
+								<Button data-testid="file-empty-create-button">
+									{t("topicFiles.emptyState.createFile")}
+								</Button>
 							</span>
 						</FileMenuDropdown>
 						<Button
 							variant="outline"
 							className="text-foreground"
 							onClick={onUploadFile}
+							data-testid="file-empty-upload-button"
 						>
 							{t("topicFiles.emptyState.uploadFile")}
 						</Button>

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react"
-import { useMount } from "ahooks"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import PluginTips from "../components/PluginTips"
 import { AgentCommonModal } from "@/components/Agent/AgentCommonModal"
-import AgentSettings from "@/components/Agent/MCP/AgentSettings"
+
+const AgentSettingsLazy = lazy(() => import("@/components/Agent/MCP/AgentSettings"))
 import CurrentSceneBadge from "../components/SelectedSkillBadge"
 import { SCENE_INPUT_IDS, INPUT_CONTAINER_MIN_HEIGHT, SCENE_PANEL_MIN_HEIGHT } from "../constants"
 import { TopicMode } from "../../../pages/Workspace/types"
@@ -10,12 +10,15 @@ import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { observer } from "mobx-react-lite"
 import { defaultMCPStore } from "@/components/Agent/MCP/store/mcp-store"
 import { useSkillPanelScroll } from "../hooks/useSkillPanelScroll"
+import { useSceneSelection } from "../hooks/useSceneSelection"
 import LazyScenePanel from "../components/LazyScenePanel"
 import { roleStore } from "@/pages/superMagic/stores"
 import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import type { SceneEditorContext } from "../components/editors/types"
+import type { MessageEditorRef } from "@/pages/superMagic/components/MessageEditor/MessageEditor"
 import { ScenePanelVariant } from "../components/LazyScenePanel/types"
 import {
+	buildTopicInputScopeKey,
 	SceneStateProvider,
 	SceneStateStore,
 	sceneStateStore as defaultSceneStateStore,
@@ -38,13 +41,19 @@ function EditorLayout({
 	onAutoFocusHandled,
 }: EditorLayoutProps) {
 	const editorContainerRef = useRef<HTMLDivElement>(null)
+	const editorRef = useRef<MessageEditorRef>(null)
 	const [mcpModalOpen, setMcpModalOpen] = useState(false)
 
-	const scenes = superMagicModeService.getModeConfigWithLegacy(mode)?.mode.playbooks
-	const selectedScene = sceneStateStore.currentScene
 	const selectedTopic = topicStore.selectedTopic
 	const selectedProject = projectStore.selectedProject
 	const selectedWorkspace = workspaceStore.selectedWorkspace ?? workspaceStore.firstWorkspace
+
+	const scenes = superMagicModeService.getModeConfigWithLegacy(
+		mode,
+		undefined,
+		false,
+		selectedTopic?.agent_code,
+	)?.mode.playbooks
 	const organizationCode = userStore.user.organizationCode
 	const userId = userStore.user.userInfo?.user_id
 	const editorContext = useMemo<SceneEditorContext>(
@@ -74,6 +83,7 @@ function EditorLayout({
 					topicId: currentTopic.id,
 				})
 			},
+			editorRef,
 			modules: {
 				upload: {
 					confirmDelete: false,
@@ -86,26 +96,52 @@ function EditorLayout({
 	// Automatically scroll to scene panel when scene config loaded
 	useSkillPanelScroll(editorContainerRef, sceneStateStore)
 
-	useMount(() => {
-		defaultMCPStore.load().catch(console.error)
-	})
+	// Defer MCP list load so first paint is not blocked; PluginTips still appears after init.
+	useEffect(() => {
+		const run = () => {
+			defaultMCPStore.load().catch(console.error)
+		}
+		let scheduledId: number
+		let usedIdleCallback = false
+		if (typeof requestIdleCallback !== "undefined") {
+			usedIdleCallback = true
+			scheduledId = requestIdleCallback(run, { timeout: 2500 })
+		} else {
+			scheduledId = window.setTimeout(run, 1)
+		}
+		return () => {
+			if (usedIdleCallback && typeof cancelIdleCallback !== "undefined") {
+				cancelIdleCallback(scheduledId)
+			} else {
+				window.clearTimeout(scheduledId)
+			}
+		}
+	}, [])
 
 	useEffect(() => {
 		sceneStateStore.resetState()
 	}, [sceneStateStore, organizationCode, userId])
 
 	useEffect(() => {
-		const currentScene = sceneStateStore.currentScene
-		if (!currentScene || !scenes) return
+		sceneStateStore.setInputScopeKey(
+			buildTopicInputScopeKey(
+				String(mode),
+				selectedTopic?.id ?? "",
+				selectedTopic?.agent_code ?? "",
+			),
+		)
+	}, [mode, selectedTopic?.id, selectedTopic?.agent_code, sceneStateStore])
 
-		const isSceneValid = scenes.some((scene) => scene.id === currentScene.id)
-		if (!isSceneValid) {
-			sceneStateStore.setCurrentScene(null)
-		}
-	}, [mode, sceneStateStore, scenes, sceneStateStore.currentScene])
+	const { currentScene: selectedScene, shouldShowCurrentSceneBadge } = useSceneSelection({
+		scenes,
+		sceneStateStore,
+	})
 
 	const shouldShowPluginTips =
-		!selectedScene && defaultMCPStore.initialized && !defaultMCPStore.hasMCP
+		!selectedScene &&
+		defaultMCPStore.initialized &&
+		!defaultMCPStore.hasMCP &&
+		!defaultMCPStore.hasEverAddedMcp
 
 	return (
 		<SceneStateProvider store={sceneStateStore} variant={ScenePanelVariant.HomePage}>
@@ -121,7 +157,7 @@ function EditorLayout({
 
 					{/* Plugin Tips or Selected Skill Badge */}
 					<div className="mt-2 [&:empty]:hidden">
-						{selectedScene ? (
+						{shouldShowCurrentSceneBadge && selectedScene ? (
 							<CurrentSceneBadge
 								scene={selectedScene}
 								onClose={() => {
@@ -151,7 +187,11 @@ function EditorLayout({
 				footer={null}
 				closable={false}
 			>
-				<AgentSettings onClose={() => setMcpModalOpen(false)} />
+				{mcpModalOpen ? (
+					<Suspense fallback={null}>
+						<AgentSettingsLazy onClose={() => setMcpModalOpen(false)} />
+					</Suspense>
+				) : null}
 			</AgentCommonModal>
 		</SceneStateProvider>
 	)

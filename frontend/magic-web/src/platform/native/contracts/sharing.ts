@@ -13,6 +13,8 @@ export interface NativeSharedStreamData {
 
 export interface NativeSharedDataPayload {
 	project_mode?: string
+	/** When project_mode is custom_agent, matches featured mode.identifier */
+	agent_code?: string
 	type: NativeSharedDataType
 	content?: string
 	file_paths?: string[]

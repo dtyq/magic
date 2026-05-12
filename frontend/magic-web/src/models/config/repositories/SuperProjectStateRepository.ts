@@ -13,12 +13,12 @@ interface CachedTabItem {
 		display_filename?: string
 		file_extension?: string
 		relative_file_path?: string
-		metadata?: any
+		display_config?: any
 		updated_at?: string
 	}
 	active: boolean
 	filePath?: string
-	metadata?: any
+	display_config?: any
 }
 
 // 文件状态接口
@@ -472,11 +472,13 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 					if (state.fileState.detailState) {
 						console.log(`🔍 详情状态:`)
 						console.log(
-							`   autoDetail: ${state.fileState.detailState.autoDetail ? "有" : "无"
+							`   autoDetail: ${
+								state.fileState.detailState.autoDetail ? "有" : "无"
 							}`,
 						)
 						console.log(
-							`   userDetail: ${state.fileState.detailState.userDetail ? "有" : "无"
+							`   userDetail: ${
+								state.fileState.detailState.userDetail ? "有" : "无"
 							}`,
 						)
 					}
@@ -587,11 +589,11 @@ export class ProjectStateRepository extends GlobalBaseRepository<ProjectState> {
 // 将调试函数添加到全局 window 对象 (仅开发环境)
 if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
 	const debugRepo = new ProjectStateRepository()
-		; (window as any).debugProjectCache = {
-			view: () => debugRepo.debugViewAllCache(),
-			clear: () => debugRepo.debugClearAllCache(),
-			help: () => {
-				console.log(`
+	;(window as any).debugProjectCache = {
+		view: () => debugRepo.debugViewAllCache(),
+		clear: () => debugRepo.debugClearAllCache(),
+		help: () => {
+			console.log(`
 🔧 项目缓存调试工具使用说明:
 
 1. 查看所有缓存:
@@ -605,8 +607,107 @@ if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
 
 注意: view() 方法已包含所有状态信息，包括文件标签和树展开状态
 			`)
-			},
+		},
+	}
+}
+
+// 🔧 生产环境缓存管理工具（始终可用）
+if (typeof window !== "undefined") {
+	const prodRepo = new ProjectStateRepository()
+
+	// 根据 project_id 直接删除（推荐使用）
+	;(window as any).clearProjectCacheByProjectId = async (projectId: string) => {
+		try {
+			console.log(`🔍 正在查找项目 ID: ${projectId}`)
+
+			// 1. 查询所有缓存
+			const allStates = await prodRepo.getAllProjectStates()
+
+			// 2. 通过 project_id 匹配
+			const matchedStates = allStates.filter((state) => state.project_id === projectId)
+
+			if (matchedStates.length === 0) {
+				console.warn(`⚠️ 未找到项目 ID 为 ${projectId} 的缓存`)
+				return { success: false, deleted: 0 }
+			}
+
+			console.log(`📊 找到 ${matchedStates.length} 个匹配的缓存`)
+
+			// 3. 删除所有匹配的缓存
+			let deletedCount = 0
+			for (const state of matchedStates) {
+				if (state.id) {
+					try {
+						// 删除 IndexedDB 缓存
+						await prodRepo.delete(state.id)
+						console.log(`✅ 已清除 IndexedDB: ${state.id}`)
+
+						// 删除 localStorage 缓存
+						const memoryKey = `${ProjectStateRepository.tableName}:${state.id}`
+						if (localStorage.getItem(memoryKey)) {
+							localStorage.removeItem(memoryKey)
+							console.log(`✅ 已清除 localStorage: ${memoryKey}`)
+						}
+
+						deletedCount++
+					} catch (err) {
+						console.error(`❌ 删除失败: ${state.id}`, err)
+					}
+				}
+			}
+
+			console.log(`✅ 清除完成! 共删除 ${deletedCount}/${matchedStates.length} 个缓存`)
+			return { success: true, deleted: deletedCount, total: matchedStates.length }
+		} catch (error) {
+			console.error(`❌ 清除缓存失败 (project_id: ${projectId}):`, error)
+			return { success: false, deleted: 0, error }
 		}
+	}
+
+	// 清除所有项目缓存
+	;(window as any).clearAllProjectCache = async () => {
+		try {
+			const allStates = await prodRepo.getAllProjectStates()
+			console.log(`📊 找到 ${allStates.length} 个缓存项目`)
+
+			for (const state of allStates) {
+				if (state.id) {
+					await prodRepo.delete(state.id)
+				}
+			}
+
+			// 清理内存缓存
+			const memoryKeys = Object.keys(localStorage).filter((key) =>
+				key.includes(`${ProjectStateRepository.tableName}:`),
+			)
+			memoryKeys.forEach((key) => localStorage.removeItem(key))
+
+			console.log(
+				`✅ 已清除 ${allStates.length} 个项目缓存和 ${memoryKeys.length} 个内存缓存`,
+			)
+		} catch (error) {
+			console.error("❌ 清除所有缓存失败:", error)
+		}
+	}
+
+	// 列出所有缓存（带详细信息）
+	;(window as any).listProjectCache = async () => {
+		try {
+			const allStates = await prodRepo.getAllProjectStates()
+			console.log(`📊 共有 ${allStates.length} 个项目缓存\n`)
+
+			allStates.forEach((state, index) => {
+				console.log(
+					`${index + 1}. ID: ${state.id}\n   组织: ${state.organization_code}\n   项目: ${state.project_id}\n   更新: ${new Date(state.updatedAt || 0).toLocaleString()}\n`,
+				)
+			})
+
+			return allStates
+		} catch (error) {
+			console.error("❌ 获取缓存列表失败:", error)
+			return []
+		}
+	}
 }
 
 // 导出类型供其他模块使用

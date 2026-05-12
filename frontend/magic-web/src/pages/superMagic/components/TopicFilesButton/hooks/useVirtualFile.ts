@@ -17,7 +17,7 @@ const FILE_TYPE_MAP = {
 	go: "go",
 	php: "php",
 	design: "design",
-	custom: "",
+	customFile: "",
 }
 
 // 文件内容模板
@@ -66,7 +66,7 @@ echo "Hello, World!";
 ?>
 `,
 	design: "{}",
-	custom: " ",
+	customFile: " ",
 }
 
 // 获取 MIME 类型

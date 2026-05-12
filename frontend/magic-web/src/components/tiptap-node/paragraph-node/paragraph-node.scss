@@ -1,7 +1,9 @@
 /* =====================
      PARAGRAPH & CORE STYLES (GitHub Markdown Style)
      ===================== */
-.tiptap.ProseMirror {
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
+
+@include scope.content {
   --tt-collaboration-carets-label: var(--tt-gray-light-900);
   --link-text-color: var(--tt-brand-color-500);
   --thread-text: var(--tt-gray-light-900);
@@ -10,28 +12,20 @@
 
   // ai
   --tiptap-ai-insertion-color: var(--tt-brand-color-600);
-
-  .dark & {
-    --tt-collaboration-carets-label: var(--tt-gray-dark-100);
-    --link-text-color: var(--tt-brand-color-400);
-    --thread-text: var(--tt-gray-dark-900);
-    --placeholder-color: var(--tt-gray-dark-a-400);
-    --thread-bg-color: var(--tt-color-yellow-dec-2);
-
-    --tiptap-ai-insertion-color: var(--tt-brand-color-400);
-  }
 }
 
 /* Ensure each top-level node has relative positioning 
    so absolutely positioned placeholders work correctly */
-.tiptap.ProseMirror > * {
-  position: relative;
+@include scope.content {
+  > * {
+    position: relative;
+  }
 }
 
 /* =====================
      CORE EDITOR STYLES
      ===================== */
-.tiptap.ProseMirror {
+@include scope.content {
   white-space: pre-wrap;
   outline: none;
   caret-color: var(--tt-cursor-color);
@@ -113,7 +107,7 @@
 /* =====================
      TEXT DECORATION
      ===================== */
-.tiptap.ProseMirror {
+@include scope.content {
   // Text decoration inheritance for spans
   a span {
     text-decoration: underline;
@@ -135,7 +129,7 @@
 /* =====================
      COLLABORATION
      ===================== */
-.tiptap.ProseMirror {
+@include scope.content {
   .collaboration-carets {
     &__caret {
       border-right: 1px solid transparent;
@@ -167,17 +161,19 @@
 /* =====================
      EMOJI
      ===================== */
-.tiptap.ProseMirror [data-type="emoji"] img {
-  display: inline-block;
-  width: 1.25em;
-  height: 1.25em;
-  cursor: text;
+@include scope.content {
+  [data-type="emoji"] img {
+    display: inline-block;
+    width: 1.25em;
+    height: 1.25em;
+    cursor: text;
+  }
 }
 
 /* =====================
      LINKS (GitHub Markdown Style)
      ===================== */
-.tiptap.ProseMirror {
+@include scope.content {
   a {
     color: var(--link-text-color);
     text-decoration: none;
@@ -202,7 +198,7 @@
 /* =====================
      MENTION
      ===================== */
-.tiptap.ProseMirror {
+@include scope.content {
   [data-type="mention"] {
     display: inline-block;
     color: var(--tt-brand-color-500);
@@ -212,7 +208,7 @@
 /* =====================
      THREADS
      ===================== */
-.tiptap.ProseMirror {
+@include scope.content {
   // Base styles for inline threads
   .tiptap-thread.tiptap-thread--unresolved.tiptap-thread--inline {
     transition:
@@ -279,45 +275,58 @@
 /* =====================
      PLACEHOLDER
      ===================== */
-.is-empty:not(.with-slash)[data-placeholder]:has(
-    > .ProseMirror-trailingBreak:only-child
-  )::before {
-  content: attr(data-placeholder);
-}
+@include scope.content {
+  &.is-empty:not(.with-slash)[data-placeholder]:has(
+      > .ProseMirror-trailingBreak:only-child
+    )::before {
+    content: attr(data-placeholder);
+  }
 
-.is-empty.with-slash[data-placeholder]:has(
-    > .ProseMirror-trailingBreak:only-child
-  )::before {
-  content: "Write, type '/' for commands…";
-  font-style: italic;
-}
+  &.is-empty.with-slash[data-placeholder]:has(
+      > .ProseMirror-trailingBreak:only-child
+    )::before {
+    content: "Write, type '/' for commands…";
+    font-style: italic;
+  }
 
-.is-empty[data-placeholder]:has(
-    > .ProseMirror-trailingBreak:only-child
-  ):before {
-  pointer-events: none;
-  height: 0;
-  position: absolute;
-  width: 100%;
-  text-align: inherit;
-  left: 0;
-  right: 0;
-}
+  &.is-empty[data-placeholder]:has(
+      > .ProseMirror-trailingBreak:only-child
+    ):before {
+    pointer-events: none;
+    height: 0;
+    position: absolute;
+    width: 100%;
+    text-align: inherit;
+    left: 0;
+    right: 0;
+  }
 
-.is-empty[data-placeholder]:has(> .ProseMirror-trailingBreak):before {
-  color: var(--placeholder-color);
+  &.is-empty[data-placeholder]:has(> .ProseMirror-trailingBreak):before {
+    color: var(--placeholder-color);
+  }
 }
 
 /* =====================
      DROPCURSOR
      ===================== */
-.prosemirror-dropcursor-block,
-.prosemirror-dropcursor-inline {
-  background: var(--tt-brand-color-400) !important;
-  border-radius: 0.25rem;
-  margin-left: -1px;
-  margin-right: -1px;
-  width: 100%;
-  height: 0.188rem;
-  cursor: grabbing;
+@include scope.wrapper {
+  .prosemirror-dropcursor-block,
+  .prosemirror-dropcursor-inline {
+    background: var(--tt-brand-color-400) !important;
+    border-radius: 0.25rem;
+    margin-left: -1px;
+    margin-right: -1px;
+    width: 100%;
+    height: 0.188rem;
+    cursor: grabbing;
+  }
+}
+
+@include scope.dark-content {
+  --tt-collaboration-carets-label: var(--tt-gray-dark-100);
+  --link-text-color: var(--tt-brand-color-400);
+  --thread-text: var(--tt-gray-dark-900);
+  --placeholder-color: var(--tt-gray-dark-a-400);
+  --thread-bg-color: var(--tt-color-yellow-dec-2);
+  --tiptap-ai-insertion-color: var(--tt-brand-color-400);
 }

@@ -6,6 +6,10 @@ import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { createStyles } from "antd-style"
 import { POINT_MARKER_STYLES } from "@/components/CanvasDesign/canvas/interaction/markers/markerStyles"
 import { useMarkerImageUrl } from "./useMarkerImageUrl"
+import {
+	getCanvasMarkerMentionImagePath,
+	getSelectedCanvasMarkerMentionSuggestion,
+} from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 
 interface MarkerPointTooltipPreviewProps {
 	markerData: CanvasMarkerMentionData
@@ -69,11 +73,11 @@ function MarkerPointTooltipPreview({
 	const imageRef = useRef<HTMLImageElement>(null)
 	const [imageLoaded, setImageLoaded] = useState(false)
 	const [isZoomed, setIsZoomed] = useState(false)
-	const selectedIndex = markerData.data?.selectedSuggestionIndex || 0
-	const suggestion = markerData.data?.result?.suggestions?.[selectedIndex]
+	const suggestion = getSelectedCanvasMarkerMentionSuggestion(markerData)
 
 	const { imageUrl: imageUrlFromHook } = useMarkerImageUrl(
-		imageUrlProp !== undefined ? undefined : markerData.image_path,
+		imageUrlProp !== undefined ? undefined : getCanvasMarkerMentionImagePath(markerData),
+		markerData.design_project_id,
 	)
 	const imageUrl = imageUrlProp !== undefined ? imageUrlProp : imageUrlFromHook
 
@@ -86,8 +90,8 @@ function MarkerPointTooltipPreview({
 		const width = imageWidth * imageScale * imageZoomScale
 		const height = imageHeight * imageScale * imageZoomScale
 
-		const relativeX = markerData.data?.relativeX || 0
-		const relativeY = markerData.data?.relativeY || 0
+		const relativeX = markerData.mark?.[0] ?? markerData.area?.[0] ?? 0
+		const relativeY = markerData.mark?.[1] ?? markerData.area?.[1] ?? 0
 		const markerAbsoluteX = width * relativeX
 		const markerAbsoluteY = height * relativeY
 
@@ -117,11 +121,17 @@ function MarkerPointTooltipPreview({
 				transformOrigin: `${markerAbsoluteX}px ${markerAbsoluteY}px`,
 			},
 		}
-	}, [isZoomed, markerData.element_height, markerData.element_width, markerData.data])
+	}, [
+		isZoomed,
+		markerData.element_height,
+		markerData.element_width,
+		markerData.mark,
+		markerData.area,
+	])
 
 	const markerPositionStyle = useMemo(() => {
-		const relativeX = markerData.data?.relativeX || 0
-		const relativeY = markerData.data?.relativeY || 0
+		const relativeX = markerData.mark?.[0] ?? markerData.area?.[0] ?? 0
+		const relativeY = markerData.mark?.[1] ?? markerData.area?.[1] ?? 0
 		return {
 			left: markerImageStyle.offsetX + markerImageStyle.width * relativeX,
 			top: markerImageStyle.offsetY + markerImageStyle.height * relativeY,
@@ -131,7 +141,8 @@ function MarkerPointTooltipPreview({
 		markerImageStyle.width,
 		markerImageStyle.offsetY,
 		markerImageStyle.height,
-		markerData.data,
+		markerData.mark,
+		markerData.area,
 	])
 
 	useEffect(() => {

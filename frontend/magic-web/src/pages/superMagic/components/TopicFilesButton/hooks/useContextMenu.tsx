@@ -17,12 +17,13 @@ import {
 } from "@tabler/icons-react"
 import IconOpenWindow from "@/enhance/tabler/icons-react/icons/IconOpenWindow"
 import MagicIcon from "@/components/base/MagicIcon"
-import { Flex } from "antd"
+import { Flex, message } from "antd"
 import { AttachmentSource, type AttachmentItem } from "./types"
 import { useStyles } from "../style"
 import { useIsMobile } from "@/hooks/useIsMobile"
 
 import MagicModal from "@/components/base/MagicModal"
+import { MagicSystemFolderIcon } from "../components/MagicSystemFolderIcon"
 import { getAppEntryFile } from "../../MessageList/components/MessageAttachment/utils"
 import VIPTag from "../../VIPTag"
 import { IMAGE_EXTENSIONS } from "../../Detail/hooks/useDetailActions"
@@ -30,12 +31,17 @@ import { DownloadImageMode } from "../../../pages/Workspace/types"
 import { createFileMenuItems } from "../components/hooks/useFileMenuItems"
 import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
 import { normalizeMenuItems, type TopicFilesMenuItem } from "../utils/menu-items"
+import { isMagicSystemFolder } from "../utils/magic-system-folder"
+import { isConvertibleFile } from "../../Detail/utils/file"
+import type { TreeNodeData } from "../utils/treeDataConverter"
+import { findNodePath } from "../utils/path-helper"
 
 type MenuItem = TopicFilesMenuItem
 
 interface UseContextMenuOptions {
 	handleUploadFile: (item?: AttachmentItem) => void
 	handleUploadFolder: (item?: AttachmentItem) => void
+	handleImportFromOtherProject?: (item?: AttachmentItem) => void
 	handleShareItem: (item: AttachmentItem) => void
 	handleDeleteItem: (item: AttachmentItem) => void
 	handleDownloadOriginal: (item: AttachmentItem, mode?: DownloadImageMode) => void
@@ -49,7 +55,7 @@ interface UseContextMenuOptions {
 	handleMoveFile?: (item: AttachmentItem) => void
 	handleReplaceFile?: (item: AttachmentItem) => void
 	createVirtualFile: (
-		type: "txt" | "md" | "html" | "py" | "go" | "php" | "design" | "custom",
+		type: "txt" | "md" | "html" | "py" | "go" | "php" | "design" | "customFile",
 		key?: string,
 		parentPath?: string,
 	) => void
@@ -64,6 +70,8 @@ interface UseContextMenuOptions {
 	preloadWaterMarkFreeModal?: () => void
 	/* 当前订阅套餐是否为免费试用版 */
 	isFreeTrialVersion?: boolean
+	/* 是否收敛为单一下载入口 */
+	shouldUseSingleDownloadEntry?: boolean
 	onCopyFile?: (fileIds: string[]) => void
 	/** 自定义处理菜单渲染 */
 	filterMenuItems?: (menuItems: MenuItem[]) => MenuItem[]
@@ -75,32 +83,14 @@ interface UseContextMenuOptions {
 	handleEnterMultiSelectMode?: (item: AttachmentItem) => void
 	/* 是否已在多选模式 */
 	isSelectMode?: boolean
+	/* 树形数据，用于检查父级节点 */
+	treeData?: TreeNodeData[]
 }
 
 function isImage(fileExtension?: string): boolean {
 	if (!fileExtension) return false
 	const ext = fileExtension.toLowerCase()
 	return IMAGE_EXTENSIONS.includes(ext)
-}
-
-/**
- * 判断文件是否支持转换为PDF格式
- * markdown和HTML文件都支持转换为PDF
- */
-function isConvertiblePdf(fileExtension?: string): boolean {
-	if (!fileExtension) return false
-	const ext = fileExtension.toLowerCase()
-	return ext === "md" || ext === "html"
-}
-
-/**
- * 判断文件是否支持转换为PPTX格式
- * 只有HTML文件支持转换为PPTX
- */
-function isConvertiblePPTX(fileExtension?: string): boolean {
-	if (!fileExtension) return false
-	const ext = fileExtension.toLowerCase()
-	return ext === "html"
 }
 
 /**
@@ -159,16 +149,72 @@ export function flattenMenuItems(items: MenuItem[]): MenuItem[] {
 }
 
 /**
+ * 检查父级或更父级是否有 display_config
+ * @param item - 当前文件/文件夹项
+ * @param treeData - 完整的树形数据
+ * @returns 如果父级链中有任何节点带 display_config，返回 true
+ */
+function hasDisplayConfigInAncestors(item: AttachmentItem, treeData?: TreeNodeData[]): boolean {
+	if (!treeData || !item.relative_file_path) return false
+
+	const currentPath = item.relative_file_path
+	// 如果是根目录，没有父级
+	if (currentPath === "/" || !currentPath.includes("/")) return false
+
+	// 规范化路径：去掉尾部的 /
+	const normalizePath = (path: string) => path.replace(/\/+$/, "")
+
+	// 递归查找指定路径的节点
+	const findNodeByPath = (nodes: TreeNodeData[], targetPath: string): AttachmentItem | null => {
+		const normalizedTargetPath = normalizePath(targetPath)
+		for (const node of nodes) {
+			const nodePath = node.item.relative_file_path
+			if (nodePath && normalizePath(nodePath) === normalizedTargetPath) {
+				return node.item
+			}
+			if (node.children) {
+				const found = findNodeByPath(node.children, targetPath)
+				if (found) return found
+			}
+		}
+		return null
+	}
+
+	// 获取所有父级路径
+	const pathParts = currentPath.split("/").filter(Boolean)
+
+	// 逐级向上检查每个父级路径
+	for (let i = pathParts.length - 1; i > 0; i--) {
+		const parentPath = "/" + pathParts.slice(0, i).join("/")
+		const parentNode = findNodeByPath(treeData, parentPath)
+
+		// 如果找到父级节点且有 display_config，返回 true
+		if (parentNode?.display_config) {
+			return true
+		}
+	}
+
+	// 检查根目录
+	const rootNode = findNodeByPath(treeData, "/")
+	if (rootNode?.display_config) {
+		return true
+	}
+
+	return false
+}
+
+/**
  * useContextMenu - 处理右键菜单配置
  */
 export function useContextMenu(options: UseContextMenuOptions) {
 	const { t } = useTranslation("super")
 	const { styles } = useStyles()
 	const isMobile = useIsMobile()
-	const { hideAddToNewChat, hideCopyTo, hideMoveTo, hideShare } = useFileActionVisibility()
+	const { hideCopyTo, hideCreateNewTopic, hideMoveTo, hideShareFile } = useFileActionVisibility()
 	const {
 		handleUploadFile,
 		handleUploadFolder,
+		handleImportFromOtherProject,
 		handleShareItem,
 		handleDeleteItem,
 		handleDownloadOriginal,
@@ -192,17 +238,25 @@ export function useContextMenu(options: UseContextMenuOptions) {
 		handleAddMultipleFilesToCurrentChat,
 		handleAddMultipleFilesToNewChat,
 		isFreeTrialVersion,
+		shouldUseSingleDownloadEntry,
 		filterMenuItems,
 		filterBatchDownloadLayerMenuItems,
 		getShortcutHint,
 		handleEnterMultiSelectMode,
 		isSelectMode = false,
+		treeData,
 	} = options
 
-	// 获取文件夹路径
+	// 获取文件夹路径 - 优先使用 relative_file_path,否则从树结构中计算
 	const getFolderPath = (item: AttachmentItem): string | undefined => {
 		if (item.is_directory && "children" in item) {
-			return item.relative_file_path || `/${item.name}`
+			// 优先使用 relative_file_path
+			if (item.relative_file_path) {
+				return item.relative_file_path
+			}
+
+			const pathFromTree = item.file_id ? findNodePath(treeData || [], item.file_id) : null
+			return pathFromTree || `/${item.name}`
 		}
 		return undefined
 	}
@@ -251,6 +305,16 @@ export function useContextMenu(options: UseContextMenuOptions) {
 			})
 		}
 
+		// 添加导入选项
+		if (handleImportFromOtherProject) {
+			menuItems.push({
+				key: "importFromOtherProject",
+				label: t("topicFiles.contextMenu.importFromOtherProject"),
+				icon: <MagicIcon component={IconFolderSymlink} stroke={2} size={18} />,
+				onClick: () => handleImportFromOtherProject(),
+			})
+		}
+
 		return filterBatchDownloadLayerMenuItems?.(menuItems) || menuItems
 	}
 
@@ -261,8 +325,9 @@ export function useContextMenu(options: UseContextMenuOptions) {
 		if (item.is_directory && "children" in item) {
 			const parentPath = getFolderPath(item)
 			const key = item.file_id
-			// 判断是否为根目录：根目录的 parentPath 为 undefined 或者 relative_file_path 为空/根路径
-			const isRootDirectory = !item.relative_file_path || item.relative_file_path === "/"
+			// 判断是否允许创建画布：当前项或父级/更父级没有携带 display_config 时才允许
+			const canCreateDesignProject =
+				!item.display_config && !hasDisplayConfigInAncestors(item, treeData)
 
 			menuItems.push(
 				{
@@ -272,9 +337,9 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					children: createFileMenuItems({
 						t,
 						onAddFile: (type) => createVirtualFile(type, key, parentPath),
-						// 只在根目录显示新建画布选项
+						// 只在当前项和父级或更父级都没有 display_config 时显示新建画布选项
 						onAddDesign:
-							createVirtualDesignProject && isRootDirectory
+							createVirtualDesignProject && canCreateDesignProject
 								? () => createVirtualDesignProject(key, parentPath)
 								: undefined,
 					}),
@@ -299,6 +364,19 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								label: t("topicFiles.contextMenu.uploadFolder"),
 								icon: <MagicIcon component={IconFolderUp} stroke={2} size={18} />,
 								onClick: () => handleUploadFolder(item),
+							},
+						]
+					: []),
+				// 添加从其他项目导入选项
+				...(handleImportFromOtherProject
+					? [
+							{
+								key: "importFromOtherProject",
+								label: t("topicFiles.contextMenu.importFromOtherProject"),
+								icon: (
+									<MagicIcon component={IconFolderSymlink} stroke={2} size={18} />
+								),
+								onClick: () => handleImportFromOtherProject(item),
 							},
 						]
 					: []),
@@ -363,7 +441,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								onClick: () => handleAddMultipleFilesToNewChat?.(),
 							},
 						].filter((menuItem) =>
-							hideAddToNewChat ? menuItem.key !== "addSelectedToNewChat" : true,
+							hideCreateNewTopic ? menuItem.key !== "addSelectedToNewChat" : true,
 						)
 					: [
 							{
@@ -424,11 +502,11 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								onClick: () => handleAddToNewChat(item),
 							},
 						].filter((menuItem) =>
-							hideAddToNewChat ? menuItem.key !== "addToNewChat" : true,
+							hideCreateNewTopic ? menuItem.key !== "addToNewChat" : true,
 						)),
 				{ type: "divider" as const },
-				// 文件夹下载菜单：根据metadata决定显示方式
-				...(item.metadata
+				// 文件夹下载菜单：根据display_config决定显示方式
+				...(item.display_config && item.display_config?.type === "slide"
 					? [
 							{
 								key: "download",
@@ -446,8 +524,13 @@ export function useContextMenu(options: UseContextMenuOptions) {
 										onClick: () => {
 											const appEntryFile = getAppEntryFile(
 												item.children || [],
+												item.display_config,
 											)
 											if (appEntryFile) handleDownloadPdf(appEntryFile)
+											else if (item.display_config?.type === "custom")
+												message.error(
+													t("topicFiles.customMainFileNotFound"),
+												)
 										},
 									},
 									{
@@ -456,8 +539,13 @@ export function useContextMenu(options: UseContextMenuOptions) {
 										onClick: () => {
 											const appEntryFile = getAppEntryFile(
 												item.children || [],
+												item.display_config,
 											)
 											if (appEntryFile) handleDownloadPpt(appEntryFile)
+											else if (item.display_config?.type === "custom")
+												message.error(
+													t("topicFiles.customMainFileNotFound"),
+												)
 										},
 									},
 									{
@@ -465,11 +553,17 @@ export function useContextMenu(options: UseContextMenuOptions) {
 										label: t("topicFiles.contextMenu.downloadPptx"),
 										onClick: () => {
 											const children = item.children || []
-											const appEntryFile = getAppEntryFile(children)
+											const appEntryFile = getAppEntryFile(
+												children,
+												item.display_config,
+											)
 											if (appEntryFile) {
 												console.log("children", children)
 												handleDownloadPptx(appEntryFile, children)
-											}
+											} else if (item.display_config?.type === "custom")
+												message.error(
+													t("topicFiles.customMainFileNotFound"),
+												)
 										},
 									},
 								],
@@ -484,7 +578,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 							},
 						]),
 				{ type: "divider" as const },
-				...(!hideShare
+				...(!hideShareFile
 					? [
 							{
 								key: "share",
@@ -522,19 +616,23 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					disabled: isMoving,
 					onClick: () => {
 						const isFolder = item.is_directory
+						const isMagicFolder = Boolean(isFolder && isMagicSystemFolder(item))
 						MagicModal.confirm({
 							title: isFolder
 								? t("topicFiles.contextMenu.deleteFolderTip")
 								: t("topicFiles.contextMenu.deleteTip"),
-							content: isFolder
-								? t("topicFiles.contextMenu.deleteFolderContent", {
-										name: item.name,
-									})
-								: t("topicFiles.contextMenu.deleteContent", {
-										name: item.name,
-									}),
+							content: isMagicFolder
+								? t("topicFiles.contextMenu.deleteMagicFolderContent")
+								: isFolder
+									? t("topicFiles.contextMenu.deleteFolderContent", {
+											name: item.name,
+										})
+									: t("topicFiles.contextMenu.deleteContent", {
+											name: item.name,
+										}),
 							variant: "destructive",
 							showIcon: true,
+							icon: isMagicFolder ? <MagicSystemFolderIcon size={24} /> : undefined,
 							okText: t("topicFiles.contextMenu.delete"),
 							cancelText: t("topicFiles.contextMenu.cancel"),
 							onOk() {
@@ -548,8 +646,8 @@ export function useContextMenu(options: UseContextMenuOptions) {
 			return normalizeMenuItems(filterMenuItems?.(menuItems) || menuItems)
 		} else {
 			// 文件菜单
-			const canConvertToPdf = isConvertiblePdf(item.file_extension)
-			const canConvertToPPTX = isConvertiblePPTX(item.file_extension)
+			const canConvertToPdf = isConvertibleFile(item, ["html", "md"])
+			const canConvertToPPTX = isConvertibleFile(item, ["html"])
 
 			menuItems.push(
 				{
@@ -630,7 +728,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								onClick: () => handleAddMultipleFilesToNewChat?.(),
 							},
 						].filter((menuItem) =>
-							hideAddToNewChat ? menuItem.key !== "addSelectedToNewChat" : true,
+							hideCreateNewTopic ? menuItem.key !== "addSelectedToNewChat" : true,
 						)
 					: [
 							{
@@ -691,7 +789,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 								onClick: () => handleAddToNewChat(item),
 							},
 						].filter((menuItem) =>
-							hideAddToNewChat ? menuItem.key !== "addToNewChat" : true,
+							hideCreateNewTopic ? menuItem.key !== "addToNewChat" : true,
 						)),
 				{ type: "divider" as const },
 			)
@@ -747,41 +845,44 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					icon: <MagicIcon component={IconDownload} stroke={2} size={18} />,
 					onClick: !isAIImageFile
 						? () => handleDownloadOriginal(item, DownloadImageMode.Download)
-						: undefined,
-					children: isAIImageFile
-						? [
-								{
-									key: "downloadImage",
-									label: t("topicFiles.contextMenu.downloadImage"),
-									onClick: () =>
-										handleDownloadOriginal(
-											item,
-											DownloadImageMode.NormalDownload,
+						: shouldUseSingleDownloadEntry
+							? () => handleDownloadNoWaterMark?.(item)
+							: undefined,
+					children:
+						isAIImageFile && !shouldUseSingleDownloadEntry
+							? [
+									{
+										key: "downloadImage",
+										label: t("topicFiles.contextMenu.downloadImage"),
+										onClick: () =>
+											handleDownloadOriginal(
+												item,
+												DownloadImageMode.NormalDownload,
+											),
+									},
+									{
+										key: "downloadImageNoWaterMark",
+										label: (
+											<Flex align="center" gap={4}>
+												<span>
+													{t(
+														"topicFiles.contextMenu.downloadImageNoWaterMark",
+													)}
+												</span>
+												{isFreeTrialVersion && <VIPTag />}
+											</Flex>
 										),
-								},
-								{
-									key: "downloadImageNoWaterMark",
-									label: (
-										<Flex align="center" gap={4}>
-											<span>
-												{t(
-													"topicFiles.contextMenu.downloadImageNoWaterMark",
-												)}
-											</span>
-											{isFreeTrialVersion && <VIPTag />}
-										</Flex>
-									),
-									onClick: () => handleDownloadNoWaterMark?.(item),
-									onMouseEnter: () => preloadWaterMarkFreeModal?.(),
-								},
-							]
-						: undefined,
+										onClick: () => handleDownloadNoWaterMark?.(item),
+										onMouseEnter: () => preloadWaterMarkFreeModal?.(),
+									},
+								]
+							: undefined,
 				})
 			}
 
 			menuItems.push(
 				{ type: "divider" as const },
-				...(!hideShare
+				...(!hideShareFile
 					? [
 							{
 								key: "share",
@@ -819,19 +920,23 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					disabled: isMoving,
 					onClick: () => {
 						const isFolder = item.is_directory
+						const isMagicFolder = Boolean(isFolder && isMagicSystemFolder(item))
 						MagicModal.confirm({
 							title: isFolder
 								? t("topicFiles.contextMenu.deleteFolderTip")
 								: t("topicFiles.contextMenu.deleteTip"),
-							content: isFolder
-								? t("topicFiles.contextMenu.deleteFolderContent", {
-										name: item.name,
-									})
-								: t("topicFiles.contextMenu.deleteContent", {
-										name: item.name,
-									}),
+							content: isMagicFolder
+								? t("topicFiles.contextMenu.deleteMagicFolderContent")
+								: isFolder
+									? t("topicFiles.contextMenu.deleteFolderContent", {
+											name: item.name,
+										})
+									: t("topicFiles.contextMenu.deleteContent", {
+											name: item.name,
+										}),
 							variant: "destructive",
 							showIcon: true,
+							icon: isMagicFolder ? <MagicSystemFolderIcon size={24} /> : undefined,
 							okText: t("topicFiles.contextMenu.delete"),
 							cancelText: t("topicFiles.contextMenu.cancel"),
 							onOk() {

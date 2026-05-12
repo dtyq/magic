@@ -77,6 +77,7 @@ export function useVirtualDesignProject(options: UseVirtualDesignProjectOptions)
 	const [errorMessage, setErrorMessage] = useState("")
 	const virtualInputRef = useRef<InputRef>(null)
 	const hasFocusedRef = useRef(false)
+	const submittedVirtualIdsRef = useRef<Set<string>>(new Set())
 
 	// 聚焦并选择文件夹名的统一处理函数
 	const focusAndSelectFolderName = (inputRef: InputRef) => {
@@ -173,6 +174,7 @@ export function useVirtualDesignProject(options: UseVirtualDesignProjectOptions)
 	// 确认虚拟画布项目创建
 	const confirmVirtualDesignProject = async () => {
 		if (!editingVirtualId || !virtualDesignProject) return
+		if (submittedVirtualIdsRef.current.has(editingVirtualId)) return
 
 		const trimmedName = virtualDesignProjectName.trim()
 
@@ -200,6 +202,8 @@ export function useVirtualDesignProject(options: UseVirtualDesignProjectOptions)
 			}, 0)
 			return
 		}
+
+		submittedVirtualIdsRef.current.add(editingVirtualId)
 
 		try {
 			// 调用画布项目创建回调
@@ -240,6 +244,7 @@ export function useVirtualDesignProject(options: UseVirtualDesignProjectOptions)
 			// 创建成功后清理虚拟文件夹
 			clearVirtualDesignProject()
 		} catch (error) {
+			submittedVirtualIdsRef.current.delete(editingVirtualId)
 			setErrorMessage("创建画布项目失败，请重试")
 			// 失败时不清理虚拟文件夹，让用户可以看到错误并重新尝试
 		}
@@ -255,6 +260,7 @@ export function useVirtualDesignProject(options: UseVirtualDesignProjectOptions)
 
 	// 取消虚拟画布项目创建
 	const cancelVirtualDesignProject = () => {
+		if (editingVirtualId && submittedVirtualIdsRef.current.has(editingVirtualId)) return
 		clearVirtualDesignProject()
 	}
 

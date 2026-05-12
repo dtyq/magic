@@ -49,40 +49,16 @@ export const generateRecordingSummaryApi = (fetch: HttpClient) => ({
 		return fetch.get<{
 			sts_token: SDKUploadConfig["customCredentials"]
 			task_key: string
-			upload_directory: string
 			expires_in: number
-			storage_type: "sandbox"
-			workspace_directory_name: string
-			user: {
-				user_id: string
-				organization_code: string
-			}
-			usage_note: string
 			directories: {
-				asr_hidden_dir: {
-					directory_path: string
-					directory_id: string
-					hidden: boolean
-					type: "asr_hidden_dir"
-				}
-				asr_display_dir: {
-					directory_path: string
-					directory_id: string
-					hidden: boolean
-					type: "asr_display_dir"
-				}
+				asr_hidden_dir: RecordingDirectory
+				asr_display_dir: RecordingDirectory
 			}
+			sandbox_topic_id: string
 			preset_files: {
-				note_file: {
-					file_id: string
-					file_name: string
-					file_path: string
-				}
-				transcript_file: {
-					file_id: string
-					file_name: string
-					file_path: string
-				}
+				note_file: PresetFile
+				transcript_file: PresetFile
+				marker_file: PresetFile
 			}
 		}>(genRequestUrl(`/api/v1/asr/upload-tokens`, {}, { task_key, topic_id, type, file_name }))
 	},

@@ -1,4 +1,5 @@
 import type { UserAction, EditActionOptions } from "../types"
+import { ElementTypeEnum } from "../../types"
 
 /**
  * 编辑操作相关的用户动作
@@ -23,10 +24,21 @@ export const editActions: UserAction[] = [
 			const selectedIds = canvas.selectionManager.getSelectedIds()
 			if (selectedIds.length === 0) return false
 			// 检查是否所有选中元素都支持PNG导出
-			return selectedIds.every((id) => {
+			const selectedElements = selectedIds.map((id) => {
 				const element = canvas.elementManager.getElementData(id)
-				return element?.type === "image" || element?.type === "frame"
+				return {
+					id,
+					type: element?.type ?? null,
+				}
 			})
+			const allowed = selectedElements.every((element) => {
+				return (
+					element.type === ElementTypeEnum.Image ||
+					element.type === ElementTypeEnum.Frame ||
+					element.type === ElementTypeEnum.Text
+				)
+			})
+			return allowed
 		},
 		execute: async (canvas) => {
 			const selectedIds = canvas.selectionManager.getSelectedIds()
@@ -76,9 +88,16 @@ export const editActions: UserAction[] = [
 		canExecute: (canvas) => {
 			// 非只读模式且有可撤销的历史
 			if (canvas.readonly) return false
+			if (canvas.textEditingManager.isEditing()) {
+				return canvas.textEditingManager.canUndo()
+			}
 			return canvas.historyManager.canUndo()
 		},
 		execute: (canvas) => {
+			if (canvas.textEditingManager.isEditing()) {
+				canvas.textEditingManager.undo()
+				return
+			}
 			canvas.historyManager.undo()
 		},
 	},
@@ -88,9 +107,16 @@ export const editActions: UserAction[] = [
 		canExecute: (canvas) => {
 			// 非只读模式且有可重做的历史
 			if (canvas.readonly) return false
+			if (canvas.textEditingManager.isEditing()) {
+				return canvas.textEditingManager.canRedo()
+			}
 			return canvas.historyManager.canRedo()
 		},
 		execute: (canvas) => {
+			if (canvas.textEditingManager.isEditing()) {
+				canvas.textEditingManager.redo()
+				return
+			}
 			canvas.historyManager.redo()
 		},
 	},

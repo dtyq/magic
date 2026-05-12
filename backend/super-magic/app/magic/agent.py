@@ -481,9 +481,6 @@ class Agent(BaseAgent):
             "workspace_dir": self.agent_context._workspace_dir,
             "workspace_skills_dir": str(get_workspace_skills_dir().relative_to(PathManager.get_workspace_dir())),
             "project_root": str(PathManager.get_project_root()),
-            # 此处直接使用 _workspace_dir 而非 os.getcwd()：
-            # os.chdir(workspace_dir) 在 run() 中执行，晚于当前 _initialize_agent 阶段，
-            # 若用 os.getcwd() 会拿到进程启动时的目录（项目根），而非工作区目录
             "cwd": self.agent_context._workspace_dir,
             "recommended_max_output_tokens": recommended_max_output_tokens,
             "python_version": sys.version,
@@ -552,15 +549,7 @@ class Agent(BaseAgent):
         失败或开发环境降级为本地扫描。
         """
         snapshot: Optional[WorkspaceSnapshot] = None
-        if Environment.is_dev():
-            logger.info("开发环境：使用本地文件系统扫描获取目录树")
-            snapshot = await self._get_file_tree_from_local_filesystem()
-        else:
-            logger.info("生产环境：尝试使用 Magic Service 获取目录树")
-            snapshot = await self._get_file_tree_from_magic_service()
-            if snapshot is None:
-                logger.warning("Magic Service 获取目录树失败，降级使用本地文件系统扫描")
-                snapshot = await self._get_file_tree_from_local_filesystem()
+        snapshot = await self._get_file_tree_from_local_filesystem()
 
         if not snapshot.display or "目录为空，没有文件" in snapshot.display:
             return WorkspaceSnapshot(display="当前工作目录为空，没有文件", entries=[])
@@ -895,18 +884,6 @@ class Agent(BaseAgent):
             # prepare 阶段要确保能完整写入会话，再进入可取消的主循环。
             self.agent_context.increment_cancel_blocker()
             prepare_blocker_acquired = True
-
-            # 切换到工作空间目录
-            try:
-                # 使用os.chdir()替代os.chroot()，避免需要root权限
-                workspace_dir = self.agent_context._workspace_dir
-                if os.path.exists(workspace_dir):
-                    os.chdir(workspace_dir)
-                    logger.info(f"已切换工作目录到: {workspace_dir}")
-                else:
-                    logger.warning(f"工作空间目录不存在: {workspace_dir}")
-            except Exception as e:
-                logger.error(f"切换工作目录时出错: {e!s}")
 
             # 构造 chat_history
             # ChatHistory 在 run() 入口已 await load()

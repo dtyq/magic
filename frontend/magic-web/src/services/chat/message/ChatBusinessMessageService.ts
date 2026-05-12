@@ -156,8 +156,6 @@ class ChatBusinessMessageService {
 	private handleIntermediateMessage(
 		messagePayload: RecordSummaryResultMessage | IntermediateResponse,
 	) {
-		console.log("message.payload", messagePayload)
-
 		// Check if it's a record summary result message
 		if (
 			typeof messagePayload === "object" &&

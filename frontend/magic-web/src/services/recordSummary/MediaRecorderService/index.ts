@@ -60,9 +60,9 @@ export class MediaRecorderService {
 		// Deep merge audio source config to ensure all defaults are applied
 		const audioSourceConfig = config.audioSource
 			? {
-				...this.DEFAULT_CONFIG.audioSource,
-				...config.audioSource,
-			}
+					...this.DEFAULT_CONFIG.audioSource,
+					...config.audioSource,
+				}
 			: this.DEFAULT_CONFIG.audioSource
 
 		this.config = {
@@ -94,9 +94,9 @@ export class MediaRecorderService {
 	updateConfig(config: Partial<MediaRecorderConfig>): void {
 		const audioSourceConfig = config.audioSource
 			? {
-				...this.config.audioSource,
-				...config.audioSource,
-			}
+					...this.config.audioSource,
+					...config.audioSource,
+				}
 			: this.config.audioSource
 
 		this.config = {
@@ -114,11 +114,10 @@ export class MediaRecorderService {
 	 * 获取当前录制配置
 	 */
 	getConfig(): MediaRecorderConfig {
+		const audioSource = this.config.audioSource
 		return {
 			...this.config,
-			audioSource: {
-				...this.config.audioSource,
-			},
+			audioSource: audioSource ? { ...audioSource } : undefined,
 		}
 	}
 
@@ -182,7 +181,7 @@ export class MediaRecorderService {
 				} else {
 					throw new Error(
 						supportCheck.message ||
-						`Audio source "${requestedSource}" is not supported`,
+							`Audio source "${requestedSource}" is not supported`,
 					)
 				}
 			}
@@ -365,6 +364,49 @@ export class MediaRecorderService {
 			// If we reach here, both switch and rollback failed
 			logger.error("音频源切换失败", {
 				newSource,
+				error: error instanceof Error ? error.message : String(error),
+			})
+			throw error
+		}
+	}
+
+	/**
+	 * Switch the microphone device without changing the audio source type.
+	 * 切换麦克风设备（不改变音频源类型）
+	 */
+	async switchMicrophoneDevice(deviceId: string): Promise<void> {
+		if (!this.recorderAdapter) {
+			throw new RecorderInitializationError(
+				"Cannot switch microphone device: RecorderAdapter not initialized",
+			)
+		}
+
+		if (!this.isRecording) {
+			// When paused: only update config for next resume
+			const currentSource = this.config.audioSource?.source ?? "microphone"
+			this.updateConfig({
+				audioSource: {
+					...this.config.audioSource,
+					source: currentSource,
+					microphoneConstraints: {
+						...this.config.audioSource?.microphoneConstraints,
+						deviceId,
+					},
+				},
+			})
+			logger.log("Recording is paused – microphone deviceId stored for next resume", {
+				deviceId,
+			})
+			return
+		}
+
+		try {
+			logger.log("Switching microphone device", { deviceId })
+			await this.recorderAdapter.switchMicrophoneDevice(deviceId)
+			logger.log("Microphone device switched successfully", { deviceId })
+		} catch (error) {
+			logger.error("Microphone device switch failed", {
+				deviceId,
 				error: error instanceof Error ? error.message : String(error),
 			})
 			throw error

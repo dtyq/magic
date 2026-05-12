@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from "react"
+import type { JSONContent } from "@tiptap/core"
 import { FieldConfigPanel, GuidePanel } from "../panels"
 import {
 	SkillPanelType,
@@ -17,7 +18,8 @@ import { useOptionalScenePanelVariant, useOptionalSceneStateStore } from "../sto
 interface ScenePanelContainerProps {
 	panels?: SkillPanelConfigArray
 	loading?: boolean
-	onTemplateSelect?: (template: OptionItem) => void
+	readOnly?: boolean
+	onTemplateSelect?: (template: OptionItem | null) => void
 	onFilterChange?: (filters: FieldItem[]) => void
 	onGuideItemClick?: (item: GuideItem) => void
 }
@@ -25,6 +27,7 @@ interface ScenePanelContainerProps {
 function ScenePanelContainer({
 	panels,
 	loading = false,
+	readOnly = false,
 	onTemplateSelect,
 	onFilterChange,
 	onGuideItemClick,
@@ -32,7 +35,7 @@ function ScenePanelContainer({
 	const variant = useOptionalScenePanelVariant()
 	const sceneStateStore = useOptionalSceneStateStore()
 	const lt = useLocaleText()
-	const presetContentMapRef = useRef<Record<string, string>>({})
+	const presetContentMapRef = useRef<Record<string, JSONContent | undefined>>({})
 
 	const fieldPanelKeys = useMemo(
 		() =>
@@ -42,13 +45,22 @@ function ScenePanelContainer({
 		[panels, lt],
 	)
 
+	// Flush FIELD panel merges when scope changes without new keys
 	useEffect(() => {
 		if (!sceneStateStore) return
+		if (readOnly) return
+
+		presetContentMapRef.current = {}
+	}, [readOnly, sceneStateStore?.inputScopeKey, sceneStateStore])
+
+	useEffect(() => {
+		if (!sceneStateStore) return
+		if (readOnly) return
 		if (loading) return
 
 		if (fieldPanelKeys.length === 0) {
 			presetContentMapRef.current = {}
-			sceneStateStore.setPresetSuffixContent("")
+			sceneStateStore.setPresetSuffixContent(undefined)
 			return
 		}
 
@@ -57,16 +69,17 @@ function ScenePanelContainer({
 		)
 		presetContentMapRef.current = Object.fromEntries(nextEntries)
 		sceneStateStore.setPresetSuffixContent(joinPresetContents(presetContentMapRef.current))
-	}, [fieldPanelKeys, loading, sceneStateStore])
+	}, [fieldPanelKeys, loading, readOnly, sceneStateStore])
 
 	const createPresetContentChangeHandler = useCallback(
-		(panelKey: string) => (content: string) => {
+		(panelKey: string) => (content: JSONContent | undefined) => {
 			if (!sceneStateStore) return
+			if (readOnly) return
 
 			presetContentMapRef.current[panelKey] = content
 			sceneStateStore.setPresetSuffixContent(joinPresetContents(presetContentMapRef.current))
 		},
-		[sceneStateStore],
+		[readOnly, sceneStateStore],
 	)
 
 	const emptyContent = useMemo(() => {
@@ -103,6 +116,7 @@ function ScenePanelContainer({
 							onTemplateSelect={onTemplateSelect}
 							onFilterChange={onFilterChange}
 							onPresetContentChange={createPresetContentChangeHandler(panelKey)}
+							readOnly={readOnly}
 							variant={variant}
 						/>
 					)
@@ -126,6 +140,7 @@ function ScenePanelContainer({
 								onTemplateSelect={onTemplateSelect}
 								onFilterChange={onFilterChange}
 								onPresetContentChange={createPresetContentChangeHandler(key)}
+								readOnly={readOnly}
 								variant={variant}
 							/>
 						)
@@ -135,11 +150,17 @@ function ScenePanelContainer({
 								key={key}
 								config={config}
 								onTemplateSelect={onTemplateSelect}
+								readOnly={readOnly}
 							/>
 						)
 					case SkillPanelType.GUIDE:
 						return (
-							<GuidePanel key={key} config={config} onItemClick={onGuideItemClick} />
+							<GuidePanel
+								key={key}
+								config={config}
+								onItemClick={onGuideItemClick}
+								readOnly={readOnly}
+							/>
 						)
 				}
 			})}
@@ -155,11 +176,18 @@ function buildPanelKey(
 	return `${config.type}-${lt(config.title) ?? ""}-${index}`
 }
 
-function joinPresetContents(contentMap: Record<string, string>) {
-	return Object.values(contentMap)
-		.filter((content) => content.trim())
-		.join("\n\n")
-		.trim()
+function joinPresetContents(contentMap: Record<string, JSONContent | undefined>) {
+	const docs = Object.values(contentMap).filter((content): content is JSONContent =>
+		Boolean(content?.content?.length),
+	)
+	if (docs.length === 0) return undefined
+
+	const content = docs.flatMap((doc, index) => {
+		const shouldAddGap = index < docs.length - 1
+		return shouldAddGap ? [...(doc.content ?? []), { type: "paragraph" }] : (doc.content ?? [])
+	})
+
+	return { type: "doc", content }
 }
 
 export default observer(ScenePanelContainer)

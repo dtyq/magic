@@ -1,8 +1,9 @@
-import { memo, useMemo, useState, useEffect } from "react"
+import { memo, useState, useEffect } from "react"
 import { useThemeMode } from "antd-style"
 import { MonacoEditor } from "@/lib/monacoEditor"
 import { Spinner } from "@/components/shadcn-ui/spinner"
 import { CodeEditorProps } from "./types"
+import { getMonacoLanguageByFileName } from "./utils"
 
 function CodeEditor(props: CodeEditorProps) {
 	const {
@@ -26,69 +27,7 @@ function CodeEditor(props: CodeEditorProps) {
 		setEditingContent(content)
 	}, [content])
 
-	// 获取Monaco Editor语言
-	const monacoLanguage = useMemo(() => {
-		const ext = fileName.split(".").pop()?.toLowerCase()
-
-		switch (ext) {
-			case "html":
-			case "htm":
-				return "html"
-			case "css":
-				return "css"
-			case "js":
-				return "javascript"
-			case "ts":
-				return "typescript"
-			case "jsx":
-				return "javascript"
-			case "tsx":
-				return "typescript"
-			case "json":
-				return "json"
-			case "xml":
-				return "xml"
-			case "md":
-				return "markdown"
-			case "py":
-				return "python"
-			case "java":
-				return "java"
-			case "php":
-				return "php"
-			case "sql":
-				return "sql"
-			case "go":
-				return "go"
-			case "cpp":
-			case "c":
-				return "cpp"
-			case "cs":
-				return "csharp"
-			case "rb":
-				return "ruby"
-			case "swift":
-				return "swift"
-			case "kt":
-				return "kotlin"
-			case "rs":
-				return "rust"
-			case "scala":
-				return "scala"
-			case "sh":
-			case "bash":
-				return "shell"
-			case "yaml":
-			case "yml":
-				return "yaml"
-			case "toml":
-				return "toml"
-			case "ini":
-				return "ini"
-			default:
-				return "html"
-		}
-	}, [fileName])
+	const monacoLanguage = getMonacoLanguageByFileName(fileName)
 
 	// 处理内容变化
 	const handleContentChange = (value: string | undefined) => {

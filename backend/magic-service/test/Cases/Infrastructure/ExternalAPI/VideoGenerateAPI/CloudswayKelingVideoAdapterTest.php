@@ -184,7 +184,7 @@ class CloudswayKelingVideoAdapterTest extends TestCase
         $httpClient->expects($this->once())
             ->method('get')
             ->with(
-                'https://genaiapi.cloudsway.net/v1/ai/' . self::ENDPOINT_ID . '/kling/videos/image2video/task-123',
+                'https://localhost/v1/ai/' . self::ENDPOINT_ID . '/kling/videos/image2video/task-123',
                 [
                     'headers' => [
                         'Authorization' => 'Bearer secret',
@@ -233,7 +233,7 @@ class CloudswayKelingVideoAdapterTest extends TestCase
                 createdAt: date(DATE_ATOM),
                 heartbeatAt: date(DATE_ATOM),
             ),
-            new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20),
+            new QueueExecutorConfig('https://localhost', 'secret', 3, 20),
             'task-123',
         );
 

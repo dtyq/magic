@@ -2,16 +2,18 @@ import {
 	KeyboardAction,
 	KeyboardMapping,
 	MentionItemType,
-	PanelState,
 	AnimationConfig,
 	MentionPanelTheme,
-	BuiltinItemId,
+	PanelState,
 } from "./types"
 import type { I18nTexts } from "./i18n/types"
-import PlugIcon from "./components/icons/PlugIcon"
-import BotIcon from "./components/icons/BotIcon"
-import SkillIcon from "./components/icons/SkillIcon"
-import ToolIcon from "./components/icons/ToolIcon"
+export {
+	createDefaultItems,
+	DEFAULT_ITEMS,
+	isSelectableBuiltinItemId,
+	NON_SELECTABLE_BUILTIN_ITEM_IDS,
+} from "./runtime/builtin/default-items"
+import { createDefaultItems, DEFAULT_ITEMS } from "./runtime/builtin/default-items"
 
 // Keyboard mappings
 export const KEYBOARD_MAPPING: KeyboardMapping = {
@@ -38,119 +40,8 @@ export const createPanelTitles = (t: I18nTexts) => ({
 	[PanelState.DEFAULT]: t.panelTitles.default,
 	[PanelState.SEARCH]: t.panelTitles.search,
 	[PanelState.FOLDER]: t.panelTitles.folder,
-	[PanelState.MCP]: t.panelTitles.mcp,
-	[PanelState.AGENT]: t.panelTitles.agent,
-	[PanelState.SKILLS]: t.panelTitles.skills,
+	[PanelState.CATALOG]: t.selectItem,
 })
-
-// Default items for different panel states
-export const createDefaultItems = (t: I18nTexts) => ({
-	[PanelState.DEFAULT]: [
-		// {
-		// 	id: "personal-drive",
-		// 	type: MentionItemType.FOLDER,
-		// 	name: t.defaultItems.personalDrive,
-		// 	icon: "file-folder",
-		// 	hasChildren: true,
-		// },
-		// {
-		// 	id: "enterprise-drive",
-		// 	type: MentionItemType.FOLDER,
-		// 	name: t.defaultItems.enterpriseDrive,
-		// 	icon: "file-sharefolder",
-		// 	hasChildren: true,
-		// },
-		{
-			id: BuiltinItemId.PROJECT_FILES,
-			type: MentionItemType.FOLDER,
-			name: t.defaultItems.projectFiles,
-			icon: "file-folder",
-			hasChildren: true,
-			isFolder: true,
-		},
-		{
-			id: BuiltinItemId.UPLOAD_FILES,
-			type: MentionItemType.FOLDER,
-			name: t.defaultItems.uploadFiles,
-			icon: "file-folder",
-			hasChildren: true,
-			isFolder: true,
-		},
-		{
-			id: BuiltinItemId.AGENTS,
-			type: MentionItemType.AGENT,
-			name: t.defaultItems.agents,
-			icon: <BotIcon />,
-			hasChildren: true,
-			isFolder: true,
-		},
-		{
-			id: BuiltinItemId.MCP_EXTENSIONS,
-			type: MentionItemType.MCP,
-			name: t.defaultItems.mcpExtensions,
-			icon: <PlugIcon />,
-			hasChildren: true,
-			isFolder: true,
-		},
-		{
-			id: BuiltinItemId.SKILLS,
-			type: MentionItemType.SKILL,
-			name: t.defaultItems.skills,
-			icon: <SkillIcon />,
-			hasChildren: true,
-			isFolder: true,
-		},
-		{
-			id: BuiltinItemId.TOOLS,
-			type: MentionItemType.TOOL,
-			name: t.defaultItems.tools,
-			icon: <ToolIcon />,
-			hasChildren: true,
-			isFolder: true,
-		},
-	],
-})
-
-// Static default items (for backwards compatibility)
-export const DEFAULT_ITEMS = {
-	[PanelState.DEFAULT]: [
-		// {
-		// 	id: "personal-drive",
-		// 	type: ItemType.FOLDER,
-		// 	name: "个人云盘",
-		// 	icon: "file-folder",
-		// 	hasChildren: true,
-		// },
-		// {
-		// 	id: "enterprise-drive",
-		// 	type: ItemType.FOLDER,
-		// 	name: "企业云盘",
-		// 	icon: "file-sharefolder",
-		// 	hasChildren: true,
-		// },
-		{
-			id: BuiltinItemId.PROJECT_FILES,
-			type: MentionItemType.FOLDER,
-			name: "当前项目文件",
-			icon: "file-folder",
-			hasChildren: true,
-		},
-		// {
-		// 	id: BuiltinItemId.MCP_EXTENSIONS,
-		// 	type: ItemType.MCP,
-		// 	name: "MCP 扩展",
-		// 	icon: <PlugIcon />,
-		// 	hasChildren: true,
-		// },
-		// {
-		// 	id: BuiltinItemId.AGENTS,
-		// 	type: ItemType.AGENT,
-		// 	name: "智能体",
-		// 	icon: <BotIcon />,
-		// 	hasChildren: true,
-		// },
-	],
-}
 
 // Animation configurations
 export const ANIMATIONS: Record<string, AnimationConfig> = {
@@ -273,29 +164,6 @@ export const FILE_TYPE_ICONS: Record<string, string> = {
 
 	// Default
 	default: "ts-other-file",
-}
-
-// State transitions for built-in items only
-export const STATE_TRANSITIONS: Record<PanelState, Record<string, PanelState>> = {
-	[PanelState.DEFAULT]: {
-		[BuiltinItemId.PERSONAL_DRIVE]: PanelState.FOLDER,
-		[BuiltinItemId.ENTERPRISE_DRIVE]: PanelState.FOLDER,
-		[BuiltinItemId.PROJECT_FILES]: PanelState.FOLDER,
-		[BuiltinItemId.MCP_EXTENSIONS]: PanelState.MCP,
-		[BuiltinItemId.AGENTS]: PanelState.AGENT,
-		[BuiltinItemId.SKILLS]: PanelState.SKILLS,
-		[BuiltinItemId.TOOLS]: PanelState.TOOLS,
-		[BuiltinItemId.UPLOAD_FILES]: PanelState.UPLOAD_FILES,
-	},
-	[PanelState.SEARCH]: {},
-	[PanelState.FOLDER]: {},
-	[PanelState.MCP]: {},
-	[PanelState.AGENT]: {},
-	[PanelState.SKILLS]: {},
-	[PanelState.TOOLS]: {},
-	[PanelState.UPLOAD_FILES]: {},
-	[PanelState.HISTORIES]: {},
-	[PanelState.TABS]: {},
 }
 
 // Error messages

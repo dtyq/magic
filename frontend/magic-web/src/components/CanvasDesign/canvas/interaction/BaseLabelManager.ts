@@ -189,6 +189,31 @@ export abstract class BaseLabelManager {
 			// 重新排序所有标签（zIndex 可能已改变）
 			this.reorderAllLabels()
 		})
+
+		// 监听裁剪模式进入/退出事件，更新标签可见性
+		this.canvas.eventEmitter.on("crop:enter", () => {
+			this.updateAllLabelsVisibility()
+		})
+
+		this.canvas.eventEmitter.on("crop:exit", () => {
+			this.updateAllLabelsVisibility()
+		})
+
+		this.canvas.eventEmitter.on("extend:enter", () => {
+			this.updateAllLabelsVisibility()
+		})
+
+		this.canvas.eventEmitter.on("extend:exit", () => {
+			this.updateAllLabelsVisibility()
+		})
+
+		this.canvas.eventEmitter.on("eraser:enter", () => {
+			this.updateAllLabelsVisibility()
+		})
+
+		this.canvas.eventEmitter.on("eraser:exit", () => {
+			this.updateAllLabelsVisibility()
+		})
 	}
 
 	/**
@@ -347,7 +372,84 @@ export abstract class BaseLabelManager {
 	}
 
 	/**
-	 * 更新标签可见性
+	 * 计算基础可见性（包括裁剪状态检查和配置的可见性规则）
+	 * @param elementId - 元素 ID
+	 * @param element - 元素实例
+	 * @returns 基础可见性结果，如果为 null 表示元素不存在，如果为 true/false 表示基础可见性
+	 */
+	protected calculateBaseVisibility(
+		elementId: string,
+		element: ReturnType<typeof this.canvas.elementManager.getElementInstance>,
+	): boolean | null {
+		if (!element) {
+			return null
+		}
+
+		// 检查是否在裁剪状态下，如果是裁剪的元素，强制显示标签
+		const croppingElementId = this.canvas.cropManager.getCroppingElementId()
+		if (croppingElementId === elementId) {
+			return true
+		}
+
+		const extendingElementId = this.canvas.extendManager.getExtendingElementId()
+		if (extendingElementId === elementId) {
+			return false
+		}
+
+		const erasingElementId = this.canvas.eraserManager.getErasingElementId()
+		if (erasingElementId === elementId) {
+			return true
+		}
+
+		const elementData = element.getData()
+		const elementType = elementData.type
+
+		// 检查是否为一直显示的类型
+		if (this.visibilityConfig.alwaysVisibleTypes.has(elementType)) {
+			return true
+		}
+		// 检查是否为选中或 hover 时显示的类型
+		if (this.visibilityConfig.hoverOrSelectTypes.has(elementType)) {
+			const isSelected = this.canvas.selectionManager.isSelected(elementId)
+			const hoveredId = this.canvas.hoverManager.getHoveredElementId()
+			const isHovered = hoveredId === elementId
+
+			// 如果有元素正在裁剪，且当前元素不是正在裁剪的元素，则hover时不显示标签
+			if (croppingElementId && croppingElementId !== elementId && isHovered && !isSelected) {
+				return false
+			}
+
+			// 如果有元素正在橡皮擦，且当前元素不是正在橡皮擦的元素，则 hover 时不显示标签
+			if (erasingElementId && erasingElementId !== elementId && isHovered && !isSelected) {
+				return false
+			}
+
+			return isHovered || isSelected
+		}
+
+		return false
+	}
+
+	/**
+	 * 计算自定义可见性（由子类重写以添加特殊逻辑）
+	 * @param elementId - 元素 ID
+	 * @param element - 元素实例
+	 * @param labelGroup - 标签组
+	 * @param baseVisibility - 基础可见性
+	 * @returns 自定义可见性，如果返回 null 表示不修改基础可见性
+	 */
+	protected calculateCustomVisibility(
+		elementId: string,
+		element: ReturnType<typeof this.canvas.elementManager.getElementInstance>,
+		labelGroup: Konva.Group,
+		baseVisibility: boolean,
+	): boolean | null {
+		// 默认不修改基础可见性，子类可以重写此方法
+		return null
+	}
+
+	/**
+	 * 更新标签可见性（模板方法）
 	 * @param elementId - 元素 ID
 	 * @param skipBatchDraw - 是否跳过 batchDraw（用于批量更新时统一调用）
 	 */
@@ -358,7 +460,12 @@ export abstract class BaseLabelManager {
 		}
 
 		const element = this.canvas.elementManager.getElementInstance(elementId)
-		if (!element) {
+
+		// 计算基础可见性
+		const baseVisibility = this.calculateBaseVisibility(elementId, element)
+
+		// 如果元素不存在，隐藏标签
+		if (baseVisibility === null) {
 			labelGroup.visible(false)
 			if (!skipBatchDraw) {
 				this.canvas.overlayLayer.batchDraw()
@@ -366,22 +473,25 @@ export abstract class BaseLabelManager {
 			return
 		}
 
-		const elementData = element.getData()
-		const elementType = elementData.type
-
-		let shouldShow = false
-
-		// 检查是否为一直显示的类型
-		if (this.visibilityConfig.alwaysVisibleTypes.has(elementType)) {
-			shouldShow = true
+		// 如果基础可见性为 false，直接隐藏
+		if (!baseVisibility) {
+			labelGroup.visible(false)
+			if (!skipBatchDraw) {
+				this.canvas.overlayLayer.batchDraw()
+			}
+			return
 		}
-		// 检查是否为选中或 hover 时显示的类型
-		else if (this.visibilityConfig.hoverOrSelectTypes.has(elementType)) {
-			const isSelected = this.canvas.selectionManager.isSelected(elementId)
-			const hoveredId = this.canvas.hoverManager.getHoveredElementId()
-			const isHovered = hoveredId === elementId
-			shouldShow = isHovered || isSelected
-		}
+
+		// 计算自定义可见性（子类可以重写以添加特殊逻辑）
+		const customVisibility = this.calculateCustomVisibility(
+			elementId,
+			element,
+			labelGroup,
+			baseVisibility,
+		)
+
+		// 如果自定义可见性不为 null，使用自定义可见性；否则使用基础可见性
+		const shouldShow = customVisibility !== null ? customVisibility : baseVisibility
 
 		labelGroup.visible(shouldShow)
 
@@ -597,6 +707,19 @@ export abstract class BaseLabelManager {
 	}
 
 	/**
+	 * 画布翻译函数切换后，刷新已存在标签的文案与布局（如默认元素名、尺寸标签）
+	 */
+	public refreshAfterLocaleChange(): void {
+		const allElements = this.canvas.elementManager.getAllElements()
+		for (const elementData of allElements) {
+			if (!this.shouldShowLabel(elementData.id)) continue
+			this.createOrUpdateLabel(elementData.id)
+		}
+		this.updateAllLabels()
+		this.reorderAllLabels()
+	}
+
+	/**
 	 * 销毁管理器
 	 */
 	public destroy(): void {
@@ -628,5 +751,11 @@ export abstract class BaseLabelManager {
 		this.canvas.eventEmitter.off("element:deselect")
 		this.canvas.eventEmitter.off("element:hover")
 		this.canvas.eventEmitter.off("viewport:scale")
+		this.canvas.eventEmitter.off("crop:enter")
+		this.canvas.eventEmitter.off("crop:exit")
+		this.canvas.eventEmitter.off("extend:enter")
+		this.canvas.eventEmitter.off("extend:exit")
+		this.canvas.eventEmitter.off("eraser:enter")
+		this.canvas.eventEmitter.off("eraser:exit")
 	}
 }

@@ -15,6 +15,11 @@ import chatDb from "@/database/chat"
 const logger = Logger.createLogger("MessageDbService")
 
 class MessageDbService {
+	private messageTableCreatingMap = new Map<
+		string,
+		Promise<Table<SeqResponse<ConversationMessage>> | undefined>
+	>()
+
 	/**
 	 * 获取待发送消息表
 	 * @returns 待发送消息表
@@ -54,25 +59,34 @@ class MessageDbService {
 	 * @returns 消息表
 	 */
 	async getMessageTable(conversationId: string) {
-		try {
-			const table = chatDb.getMessageTable(conversationId)
-			return table as Table<SeqResponse<ConversationMessage>>
-		} catch (err) {
-			// 尝试创建表
-			try {
-				const t = await this.createMessageTable(conversationId)
-				return t
-			} catch (createErr) {
-				// 如果创建失败，可能是索引问题，尝试重建索引
-				logger.warn(`创建消息表失败，尝试重建索引: ${conversationId}`, createErr)
-				throw new Error("创建消息表失败")
-				// await this.rebuildMessageTableIndex(conversationId)
+		if (!conversationId) return undefined
 
-				// // 重新获取表
-				// return ChatBusiness.getChatDb().table(tableName) as Table<
-				// 	SeqResponse<ConversationMessage>
-				// >
+		const creatingTask = this.messageTableCreatingMap.get(conversationId)
+		if (creatingTask) return creatingTask
+
+		const nextTask = (async () => {
+			try {
+				const existedTable = chatDb.getMessageTable(conversationId)
+				if (existedTable) return existedTable as Table<SeqResponse<ConversationMessage>>
+			} catch (error) {
+				logger.warn(`获取消息表失败，准备尝试创建: ${conversationId}`, error)
 			}
+
+			try {
+				const createdTable = await this.createMessageTable(conversationId)
+				if (createdTable) return createdTable as Table<SeqResponse<ConversationMessage>>
+			} catch (createErr) {
+				logger.warn(`创建消息表失败: ${conversationId}`, createErr)
+			}
+
+			return undefined
+		})()
+
+		this.messageTableCreatingMap.set(conversationId, nextTask)
+		try {
+			return await nextTask
+		} finally {
+			this.messageTableCreatingMap.delete(conversationId)
 		}
 	}
 
@@ -85,7 +99,7 @@ class MessageDbService {
 		const table = await this.getMessageTable(conversationId)
 		if (table) {
 			table
-				.put(message)
+				.put(message as unknown as SeqResponse<ConversationMessage>)
 				.then((res) => {
 					logger.log("addMessage success", res)
 				})
@@ -103,9 +117,6 @@ class MessageDbService {
 	 */
 	public async addMessages(conversationId: string, messages: SeqResponse<CMessage>[]) {
 		try {
-			const tableName = chatDb.getMessageTableName(conversationId)
-			await this.createMessageTable(tableName)
-
 			const messageList = messages.map((message) => ({
 				...message,
 				conversation_id: conversationId,
@@ -116,7 +127,13 @@ class MessageDbService {
 				throw new Error("Failed to get message table")
 			}
 
-			await Promise.all(messageList.map((message) => table.add(message).catch()))
+			await Promise.all(
+				messageList.map((message) =>
+					table
+						.add(message as unknown as SeqResponse<ConversationMessage>)
+						.catch(() => undefined),
+				),
+			)
 			return { success: true, count: messageList.length }
 		} catch (error) {
 			// 记录错误信息
@@ -365,9 +382,10 @@ class MessageDbService {
 		messageId: string,
 		message: SeqResponse<SeenMessage>,
 	) {
-		this.getMessageTable(conversationId).then((table) => {
-			if (table) {
-				table
+		void this.getMessageTable(conversationId)
+			.then((table) => {
+				if (!table) return
+				return table
 					.update(messageId, {
 						"message.status":
 							message.message.unread_count > 0
@@ -381,8 +399,10 @@ class MessageDbService {
 					.catch((err) => {
 						logger.error("updateMessageStatus error", err)
 					})
-			}
-		})
+			})
+			.catch((error) => {
+				logger.error("updateMessageStatus getMessageTable error", error)
+			})
 	}
 
 	/**
@@ -392,9 +412,10 @@ class MessageDbService {
 	 * @param unreadCount 未读数
 	 */
 	updateMessageUnreadCount(conversationId: string, messageId: string, unreadCount: number) {
-		this.getMessageTable(conversationId).then((table) => {
-			if (table) {
-				table
+		void this.getMessageTable(conversationId)
+			.then((table) => {
+				if (!table) return
+				return table
 					.update(messageId, {
 						"message.unread_count": unreadCount,
 					})
@@ -404,8 +425,10 @@ class MessageDbService {
 					.catch((err) => {
 						logger.error("updateMessageUnreadCount error", err)
 					})
-			}
-		})
+			})
+			.catch((error) => {
+				logger.error("updateMessageUnreadCount getMessageTable error", error)
+			})
 	}
 
 	/**

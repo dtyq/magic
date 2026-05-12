@@ -12,7 +12,8 @@ import { mobileTabStore } from "@/stores/mobileTab"
 import { RoutePathMobile } from "@/constants/routes"
 import { configStore } from "@/models/config"
 import { defaultClusterCode } from "@/routes/helpers"
-import TabBarOverlayGradient from "./TabBarOverlayGradient"
+import { FUNCTION_PERMISSION_CODE } from "@/apis"
+import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import {
 	ROUTE_NAME_TO_TAB_PARAM,
 	MobileTabParam,
@@ -35,6 +36,9 @@ function MobileTabBar() {
 
 	const { isPersonalOrganization } = userStore.user
 	const chatUnreadCount = useChatUnreadCount()
+	const { isAllowed: canAccessMagicClaw } = useFunctionPermission(
+		FUNCTION_PERMISSION_CODE.MagicClawAccess,
+	)
 	const [isAppsMenuOpen, setIsAppsMenuOpen] = useState(false)
 
 	// Get active key from store (cast via unknown for type compatibility)
@@ -43,13 +47,6 @@ function MobileTabBar() {
 
 	// Check if we're on MobileTabs route
 	const isOnMobileTabsRoute = location.pathname.includes("/mobile-tabs")
-
-	// 使用选中框动画 hook
-	const { tabBarRef, renderIndicator } = useTabBarIndicator({
-		activeKey: visualActiveKey as string,
-		indicatorClassName:
-			"absolute h-12 bg-fill rounded-full transition-[left,width] duration-300 ease-in-out z-0 pointer-events-none",
-	})
 
 	// Sync activeTab from route on initial load (for deep links)
 	useEffect(() => {
@@ -166,9 +163,22 @@ function MobileTabBar() {
 			chatUnreadCount,
 			iconSize: TAB_ICON_SIZE,
 			isPersonalOrganization,
+			shouldHideMagiClawEntry: !canAccessMagicClaw,
 			translate: (key, values) => t(key, values),
 		})
-	}, [activeKey, chatUnreadCount, isPersonalOrganization, t])
+	}, [activeKey, canAccessMagicClaw, chatUnreadCount, isPersonalOrganization, t])
+
+	const tabItemsLayoutKey = useMemo(() => {
+		return tabItems.map((item) => item.key).join("|")
+	}, [tabItems])
+
+	// 使用选中框动画 hook
+	const { tabBarRef, renderIndicator } = useTabBarIndicator({
+		activeKey: visualActiveKey as string,
+		indicatorClassName:
+			"absolute h-12 bg-fill rounded-full transition-[left,width] duration-300 ease-in-out z-0 pointer-events-none",
+		layoutKey: tabItemsLayoutKey,
+	})
 
 	const appsMenuItems = useMemo(
 		() => tabItems.find((item) => item.key === MOBILE_TAB_BAR_APPS_KEY)?.children ?? [],
@@ -182,92 +192,90 @@ function MobileTabBar() {
 
 	return (
 		<>
-			<div
-				className={cn(
-					"absolute z-[999] mx-2 h-mobile-tabbar rounded-full border bg-background px-1.5",
-					"shadow-[0_2px_10px_rgba(0,0,0,0.05)] backdrop:blur-md",
-					"border border-[var(--custom-outline-10-dark-outline-20)]",
-				)}
-				data-testid="mobile-tab-bar"
-				style={{
-					bottom: "max(var(--safe-area-inset-bottom), 12px)",
-					left: 0,
-					right: 0,
-				}}
-				ref={tabBarRef}
-			>
-				{/* 注意：这里的 data-tabbar-wrap 是自定义的，已用于精确控制选中框位置，谨慎删改。 */}
+			<div className="relative z-[997] flex-none pb-[max(var(--safe-area-inset-bottom),_12px)]">
+				{/* <TabBarOverlayGradient /> */}
 				<div
-					className="relative flex h-full items-center justify-around gap-1"
-					data-tabbar-wrap
+					className={cn(
+						"relative z-[999] mx-2 h-mobile-tabbar rounded-full border bg-background px-1.5",
+						"shadow-[0_2px_10px_rgba(0,0,0,0.05)] backdrop:blur-md",
+						"border border-[var(--custom-outline-10-dark-outline-20)]",
+					)}
+					data-testid="mobile-tab-bar"
+					ref={tabBarRef}
 				>
-					{/* 选中框指示器 */}
-					{renderIndicator()}
+					{/* 注意：这里的 data-tabbar-wrap 是自定义的，已用于精确控制选中框位置，谨慎删改。 */}
+					<div
+						className="relative flex h-full items-center justify-around gap-1"
+						data-tabbar-wrap
+					>
+						{/* 选中框指示器 */}
+						{renderIndicator()}
 
-					{/* Tab Items */}
-					{tabItems.map((item) => {
-						const isActive =
-							item.key === MOBILE_TAB_BAR_APPS_KEY
-								? isAppsMenuOpen
-								: activeKey === item.key
-						return (
-							<button
-								key={item.key}
-								data-tab-key={item.key}
-								data-testid={`mobile-tab-bar-${item.testIdSuffix}-${item.children?.length ? "trigger" : "tab"}`}
-								aria-expanded={
-									item.key === MOBILE_TAB_BAR_APPS_KEY
-										? isAppsMenuOpen
-										: undefined
-								}
-								aria-haspopup={
-									item.key === MOBILE_TAB_BAR_APPS_KEY ? "dialog" : undefined
-								}
-								onClick={() => handleTabItemClick(item)}
-								className={cn(
-									"relative z-[1] flex h-11 flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-3 py-1 transition-colors duration-200",
-									item.className,
-								)}
-							>
-								{/* Icon with Badge */}
-								<div className="relative flex h-5 w-5 items-center justify-center">
-									<div
-										className={cn(
-											"flex items-center justify-center transition-colors duration-200",
-											isActive ? "text-primary" : "text-muted-foreground",
-										)}
-									>
-										{item.key === MOBILE_TAB_BAR_APPS_KEY
-											? createElement(item.iconComponent, {
-													active: isActive,
-													size: TAB_ICON_SIZE,
-												})
-											: item.icon}
-									</div>
-									{item.badge && item.badge > 0 ? (
-										<Badge
-											variant="destructive"
-											className="absolute -right-1.5 -top-2.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-background px-1 text-[10px] font-normal leading-4"
-										>
-											{item.badge > 99 ? "99+" : item.badge}
-										</Badge>
-									) : null}
-								</div>
-
-								{/* Title */}
-								<span
+						{/* Tab Items */}
+						{tabItems.map((item) => {
+							const isActive =
+								item.key === MOBILE_TAB_BAR_APPS_KEY
+									? isAppsMenuOpen
+									: activeKey === item.key
+							return (
+								<button
+									key={item.key}
+									data-tab-key={item.key}
+									data-testid={`mobile-tab-bar-${item.testIdSuffix}-${item.children?.length ? "trigger" : "tab"}`}
+									aria-expanded={
+										item.key === MOBILE_TAB_BAR_APPS_KEY
+											? isAppsMenuOpen
+											: undefined
+									}
+									aria-haspopup={
+										item.key === MOBILE_TAB_BAR_APPS_KEY ? "dialog" : undefined
+									}
+									onClick={() => handleTabItemClick(item)}
 									className={cn(
-										"text-nowrap text-[10px] leading-[14px] transition-all duration-200",
-										isActive
-											? "font-semibold text-primary"
-											: "font-normal text-muted-foreground",
+										"relative z-[1] flex h-11 flex-1 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl px-3 py-1 transition-colors duration-200",
+										item.className,
 									)}
 								>
-									{item.title}
-								</span>
-							</button>
-						)
-					})}
+									{/* Icon with Badge */}
+									<div className="relative flex h-5 w-5 items-center justify-center">
+										<div
+											className={cn(
+												"flex items-center justify-center transition-colors duration-200",
+												isActive ? "text-primary" : "text-muted-foreground",
+											)}
+										>
+											{item.key === MOBILE_TAB_BAR_APPS_KEY
+												? createElement(item.iconComponent, {
+														active: isActive,
+														size: TAB_ICON_SIZE,
+													})
+												: item.icon}
+										</div>
+										{item.badge && item.badge > 0 ? (
+											<Badge
+												variant="destructive"
+												className="absolute -right-1.5 -top-2.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-background px-1 text-[10px] font-normal leading-4"
+											>
+												{item.badge > 99 ? "99+" : item.badge}
+											</Badge>
+										) : null}
+									</div>
+
+									{/* Title */}
+									<span
+										className={cn(
+											"text-nowrap text-[10px] leading-[14px] transition-all duration-200",
+											isActive
+												? "font-semibold text-primary"
+												: "font-normal text-muted-foreground",
+										)}
+									>
+										{item.title}
+									</span>
+								</button>
+							)
+						})}
+					</div>
 				</div>
 			</div>
 
@@ -279,8 +287,6 @@ function MobileTabBar() {
 				onClose={handleAppsMenuClose}
 				onItemClick={handleTabChange}
 			/>
-
-			<TabBarOverlayGradient className="z-[997]" />
 		</>
 	)
 }

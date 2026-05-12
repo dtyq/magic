@@ -28,7 +28,7 @@ describe("createShareHandler", () => {
 							name: "index.html",
 							is_directory: false,
 							source: AttachmentSource.DEFAULT,
-							metadata: { type: "webapp" },
+							display_config: { type: "webapp" },
 						},
 						{
 							file_id: "file-2",
@@ -78,7 +78,7 @@ describe("createShareHandler", () => {
 							name: "index.html",
 							is_directory: false,
 							source: AttachmentSource.DEFAULT,
-							metadata: { type: "slide" },
+							display_config: { type: "slide" },
 						},
 						{
 							file_id: "file-2",
@@ -128,7 +128,7 @@ describe("createShareHandler", () => {
 							name: "index.html",
 							is_directory: false,
 							source: AttachmentSource.DEFAULT,
-							metadata: { type: "webapp" },
+							display_config: { type: "webapp" },
 						},
 						{
 							file_id: "file-2",

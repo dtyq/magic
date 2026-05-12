@@ -1,13 +1,120 @@
 import { renderHook, act, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
-// @ts-ignore
 import { useDataSource, useDebouncedSearch } from "../useDataSource"
-import { PanelState, MentionItemType } from "../../types"
-import type { DataService, MentionItem } from "../../types"
+import { MentionItemType } from "../../types"
+import { MentionPanelCatalogId, MentionPanelState as PanelState } from "../../businessTypes"
+import type { DataService, MentionItem, MentionStoreRequestBuildOptions } from "../../types"
+import type { MentionStoreRequest } from "../../dispatch"
+
+type MockFunction = ReturnType<typeof vi.fn>
+
+interface MockDataService extends DataService {
+	dispatch: MockFunction
+	fetchMcpList: MockFunction
+	setRefreshHandler?: MockFunction
+	getDefaultItems: MockFunction
+	searchItems: MockFunction
+	getFolderItems: MockFunction
+	getUploadFiles: MockFunction
+	getMcpExtensions: MockFunction
+	getAgents: MockFunction
+	getSkills: MockFunction
+	refreshSkills?: MockFunction
+	getToolItems: MockFunction
+	preLoadList: MockFunction
+	getAllHistory: MockFunction
+	getCurrentTabs: MockFunction
+	hasAgent: MockFunction
+	hasMcp: MockFunction
+	hasSkill: MockFunction
+	hasTool: MockFunction
+	hasUploadFile: MockFunction
+	hasProjectFile: MockFunction
+	hasFolder: MockFunction
+	removeFromHistory: MockFunction
+}
+
+function createDispatch(dataService: MockDataService) {
+	return vi.fn(async (request: MentionStoreRequest) => {
+		switch (request.kind) {
+			case "default":
+				return { items: await dataService.getDefaultItems(request.options.t) }
+			case "search":
+				return { items: await dataService.searchItems(request.query) }
+			case "children":
+				return { items: await dataService.getFolderItems(request.id) }
+			case "catalog":
+				switch (request.catalogId) {
+					case MentionPanelCatalogId.UPLOAD_FILES:
+						return { items: await dataService.getUploadFiles() }
+					case MentionPanelCatalogId.MCP_EXTENSIONS:
+						return { items: await dataService.getMcpExtensions() }
+					case MentionPanelCatalogId.AGENTS:
+						return { items: await dataService.getAgents() }
+					case MentionPanelCatalogId.SKILLS:
+						return {
+							items: await (request.options?.refresh
+								? (dataService.refreshSkills?.() ?? dataService.getSkills())
+								: dataService.getSkills()),
+						}
+					case MentionPanelCatalogId.TOOLS:
+						return { items: await dataService.getToolItems(request.id ?? "") }
+					case MentionPanelCatalogId.HISTORIES:
+						return { items: await dataService.getAllHistory() }
+					case MentionPanelCatalogId.TABS:
+						return { items: await dataService.getCurrentTabs() }
+					default:
+						return { items: [] }
+				}
+			case "validate":
+			case "effect":
+			default:
+				return {}
+		}
+	})
+}
 
 // Mock ahooks
 vi.mock("ahooks", () => ({
-	useMemoizedFn: (fn: any) => fn,
+	useMemoizedFn: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+}))
+
+vi.mock("../../runtime/builtin/request-builder", () => ({
+	buildMentionStoreRequest: vi.fn((options: MentionStoreRequestBuildOptions<string>) => {
+		switch (options.state) {
+			case "default":
+				return {
+					kind: "default",
+					options: {
+						t: options.t as never,
+					},
+				}
+			case "search":
+				if (!options.query?.trim()) return null
+				return {
+					kind: "search",
+					query: options.query,
+					...(options.scopeFolderId?.trim()
+						? { scopeFolderId: options.scopeFolderId.trim() }
+						: {}),
+				}
+			case "directory":
+				if (!options.itemId) return null
+				return {
+					kind: "children",
+					id: options.itemId,
+				}
+			case "catalog":
+				if (!options.catalogId) return null
+				return {
+					kind: "catalog",
+					catalogId: options.catalogId,
+					...(options.itemId ? { id: options.itemId } : {}),
+				}
+			default:
+				return null
+		}
+	}),
 }))
 
 // Mock constants - using factory function to avoid initialization issues
@@ -16,8 +123,7 @@ vi.mock("../../constants", () => {
 		DEFAULT: "default",
 		SEARCH: "search",
 		FOLDER: "folder",
-		MCP: "mcp",
-		AGENT: "agent",
+		CATALOG: "catalog",
 	}
 
 	return {
@@ -58,20 +164,35 @@ vi.mock("../../constants", () => {
 })
 
 describe("useDataSource", () => {
-	let mockDataService: {
-		[K in keyof DataService]: ReturnType<typeof vi.fn>
-	}
+	let mockDataService: MockDataService
 
 	beforeEach(() => {
 		mockDataService = {
+			dispatch: vi.fn(),
+			fetchMcpList: vi.fn(),
+			setRefreshHandler: vi.fn(),
 			getDefaultItems: vi.fn(),
 			searchItems: vi.fn(),
 			getFolderItems: vi.fn(),
+			getUploadFiles: vi.fn(),
 			getMcpExtensions: vi.fn(),
 			getAgents: vi.fn(),
+			getSkills: vi.fn(),
 			refreshSkills: vi.fn(),
+			getToolItems: vi.fn(),
 			preLoadList: vi.fn(),
+			getAllHistory: vi.fn(),
+			getCurrentTabs: vi.fn(),
+			hasAgent: vi.fn(),
+			hasMcp: vi.fn(),
+			hasSkill: vi.fn(),
+			hasTool: vi.fn(),
+			hasUploadFile: vi.fn(),
+			hasProjectFile: vi.fn(),
+			hasFolder: vi.fn(),
+			removeFromHistory: vi.fn(),
 		}
+		mockDataService.dispatch = createDispatch(mockDataService)
 	})
 
 	afterEach(() => {
@@ -161,6 +282,22 @@ describe("useDataSource", () => {
 			expect(result.current.loading).toBe(false)
 		})
 
+		it("should dispatch default item requests", async () => {
+			mockDataService.getDefaultItems.mockResolvedValue([])
+
+			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
+
+			await act(async () => {
+				await result.current.loadDefaultItems()
+			})
+
+			expect(mockDataService.dispatch).toHaveBeenCalledWith(
+				expect.objectContaining({
+					kind: "default",
+				}),
+			)
+		})
+
 		it("should handle errors and use fallback data", async () => {
 			const error = new Error("Service error")
 			mockDataService.getDefaultItems.mockRejectedValue(error)
@@ -214,7 +351,7 @@ describe("useDataSource", () => {
 			expect(result.current.loading).toBe(true)
 
 			await act(async () => {
-				resolvePromise!([])
+				resolvePromise?.([])
 				await promise
 			})
 
@@ -242,6 +379,94 @@ describe("useDataSource", () => {
 
 			expect(mockDataService.searchItems).toHaveBeenCalledWith("test query")
 			expect(result.current.items).toEqual(mockItems)
+		})
+
+		it("should dispatch search requests", async () => {
+			mockDataService.searchItems.mockResolvedValue([])
+
+			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
+
+			await act(async () => {
+				await result.current.searchItems("dispatch query")
+			})
+
+			expect(mockDataService.dispatch).toHaveBeenCalledWith({
+				kind: "search",
+				query: "dispatch query",
+			})
+		})
+
+		it("should dispatch search requests with scope folder id", async () => {
+			mockDataService.searchItems.mockResolvedValue([])
+
+			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
+
+			await act(async () => {
+				await result.current.searchItems("q", "folder-a")
+			})
+
+			expect(mockDataService.dispatch).toHaveBeenCalledWith({
+				kind: "search",
+				query: "q",
+				scopeFolderId: "folder-a",
+			})
+		})
+
+		it("should build search request via buildStoreRequest when provided", async () => {
+			const buildStoreRequest = vi.fn(
+				(
+					options: MentionStoreRequestBuildOptions<MentionPanelCatalogId>,
+				): MentionStoreRequest | null => ({
+					kind: "catalog",
+					catalogId: MentionPanelCatalogId.TOOLS,
+					id: options.query,
+				}),
+			)
+			mockDataService.getToolItems.mockResolvedValue([])
+
+			const { result } = renderHook(() =>
+				useDataSource({
+					dataService: mockDataService,
+					buildStoreRequest,
+				}),
+			)
+
+			await act(async () => {
+				await result.current.searchItems("custom-search")
+			})
+
+			expect(buildStoreRequest).toHaveBeenCalledWith({
+				state: PanelState.SEARCH,
+				query: "custom-search",
+				t: undefined,
+			})
+			expect(mockDataService.dispatch).toHaveBeenCalledWith({
+				kind: "catalog",
+				catalogId: MentionPanelCatalogId.TOOLS,
+				id: "custom-search",
+			})
+		})
+
+		it("should stop searching when buildStoreRequest returns null", async () => {
+			const buildStoreRequest = vi.fn(() => null)
+
+			const { result } = renderHook(() =>
+				useDataSource({
+					dataService: mockDataService,
+					buildStoreRequest,
+				}),
+			)
+
+			await act(async () => {
+				await result.current.searchItems("custom-search")
+			})
+
+			expect(buildStoreRequest).toHaveBeenCalledWith({
+				state: PanelState.SEARCH,
+				query: "custom-search",
+				t: undefined,
+			})
+			expect(mockDataService.dispatch).not.toHaveBeenCalled()
 		})
 
 		it("should not search for empty query", async () => {
@@ -291,8 +516,8 @@ describe("useDataSource", () => {
 		})
 	})
 
-	describe("loadFolderItems", () => {
-		it("should load folder items", async () => {
+	describe("loadStateItems", () => {
+		it("should load folder items for folder state", async () => {
 			const mockItems: MentionItem[] = [
 				{
 					id: "folder-item-1",
@@ -306,39 +531,14 @@ describe("useDataSource", () => {
 			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
 
 			await act(async () => {
-				await result.current.loadFolderItems("folder-id")
+				await result.current.loadStateItems(PanelState.FOLDER, { itemId: "folder-id" })
 			})
 
 			expect(mockDataService.getFolderItems).toHaveBeenCalledWith("folder-id")
 			expect(result.current.items).toEqual(mockItems)
 		})
 
-		it("should use mock folder items when no data service", async () => {
-			const { result } = renderHook(() => useDataSource({}))
-
-			await act(async () => {
-				await result.current.loadFolderItems("project-files")
-			})
-
-			expect(result.current.items).toEqual([])
-		})
-
-		it("should handle folder loading errors", async () => {
-			const error = new Error("Folder load failed")
-			mockDataService.getFolderItems.mockRejectedValue(error)
-
-			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
-
-			await act(async () => {
-				await result.current.loadFolderItems("folder-id")
-			})
-
-			expect(result.current.error).toBe("Folder load failed")
-		})
-	})
-
-	describe("loadMcpExtensions", () => {
-		it("should load MCP extensions", async () => {
+		it("should load MCP extensions for catalog state", async () => {
 			const mockItems: MentionItem[] = [
 				{
 					id: "mcp-1",
@@ -352,39 +552,16 @@ describe("useDataSource", () => {
 			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
 
 			await act(async () => {
-				await result.current.loadMcpExtensions()
+				await result.current.loadStateItems(PanelState.CATALOG, {
+					catalogId: MentionPanelCatalogId.MCP_EXTENSIONS,
+				})
 			})
 
 			expect(mockDataService.getMcpExtensions).toHaveBeenCalled()
 			expect(result.current.items).toEqual(mockItems)
 		})
 
-		it("should use mock MCP extensions when no data service", async () => {
-			const { result } = renderHook(() => useDataSource({}))
-
-			await act(async () => {
-				await result.current.loadMcpExtensions()
-			})
-
-			expect(result.current.items).toEqual([])
-		})
-
-		it("should handle MCP loading errors", async () => {
-			const error = new Error("MCP load failed")
-			mockDataService.getMcpExtensions.mockRejectedValue(error)
-
-			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
-
-			await act(async () => {
-				await result.current.loadMcpExtensions()
-			})
-
-			expect(result.current.error).toBe("MCP load failed")
-		})
-	})
-
-	describe("loadAgents", () => {
-		it("should load agents", async () => {
+		it("should load agents for catalog state", async () => {
 			const mockItems: MentionItem[] = [
 				{
 					id: "agent-1",
@@ -398,57 +575,13 @@ describe("useDataSource", () => {
 			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
 
 			await act(async () => {
-				await result.current.loadAgents()
+				await result.current.loadStateItems(PanelState.CATALOG, {
+					catalogId: MentionPanelCatalogId.AGENTS,
+				})
 			})
 
 			expect(mockDataService.getAgents).toHaveBeenCalled()
 			expect(result.current.items).toEqual(mockItems)
-		})
-
-		it("should use mock agents when no data service", async () => {
-			const { result } = renderHook(() => useDataSource({}))
-
-			await act(async () => {
-				await result.current.loadAgents()
-			})
-
-			expect(result.current.items).toEqual([])
-		})
-
-		it("should handle agent loading errors", async () => {
-			const error = new Error("Agent load failed")
-			mockDataService.getAgents.mockRejectedValue(error)
-
-			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
-
-			await act(async () => {
-				await result.current.loadAgents()
-			})
-
-			expect(result.current.error).toBe("Agent load failed")
-		})
-	})
-
-	describe("clearError", () => {
-		it("should clear error state", async () => {
-			const error = new Error("Test error")
-			mockDataService.getDefaultItems.mockRejectedValue(error)
-
-			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
-
-			// Set an error first
-			await act(async () => {
-				await result.current.loadDefaultItems()
-			})
-
-			expect(result.current.error).toBeTruthy()
-
-			// Clear the error
-			act(() => {
-				result.current.clearError()
-			})
-
-			expect(result.current.error).toBeUndefined()
 		})
 	})
 
@@ -500,7 +633,7 @@ describe("useDataSource", () => {
 			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
 
 			await act(async () => {
-				await result.current.loadFolderItems("folder-id")
+				await result.current.loadStateItems(PanelState.FOLDER, { itemId: "folder-id" })
 			})
 
 			expect(result.current.error).toBe("Request timeout")
@@ -513,7 +646,9 @@ describe("useDataSource", () => {
 			const { result } = renderHook(() => useDataSource({ dataService: mockDataService }))
 
 			await act(async () => {
-				await result.current.loadMcpExtensions()
+				await result.current.loadStateItems(PanelState.CATALOG, {
+					catalogId: MentionPanelCatalogId.MCP_EXTENSIONS,
+				})
 			})
 
 			expect(result.current.error).toBe("Unknown error")
@@ -545,7 +680,7 @@ describe("useDebouncedSearch", () => {
 		// Wait for debounce - only the last call should execute
 		await waitFor(
 			() => {
-				expect(mockSearchFn).toHaveBeenCalledWith("query3")
+				expect(mockSearchFn).toHaveBeenCalledWith("query3", undefined)
 			},
 			{ timeout: 200 },
 		)
@@ -564,7 +699,7 @@ describe("useDebouncedSearch", () => {
 
 		await waitFor(
 			() => {
-				expect(mockSearchFn).toHaveBeenCalledWith("test")
+				expect(mockSearchFn).toHaveBeenCalledWith("test", undefined)
 			},
 			{ timeout: 400 },
 		)
@@ -580,7 +715,7 @@ describe("useDebouncedSearch", () => {
 
 		await waitFor(
 			() => {
-				expect(mockSearchFn).toHaveBeenCalledWith("")
+				expect(mockSearchFn).toHaveBeenCalledWith("", undefined)
 			},
 			{ timeout: 200 },
 		)

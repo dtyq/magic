@@ -3,10 +3,7 @@ import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { SuperMagicApi } from "@/apis"
 import { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
-import {
-	downloadFileContent,
-	getTemporaryDownloadUrl,
-} from "@/pages/superMagic/utils/api"
+import { downloadFileContent, getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import magicToast from "@/components/base/MagicToaster/utils"
 
 interface UsePPTVersionManagerProps {

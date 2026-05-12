@@ -10,7 +10,7 @@ import { ScenePanelComponentBaseProps } from "../../types"
 import { useCurrentSceneConfig } from "../../hooks"
 import { useIsMobile } from "@/hooks/useIsMobile"
 
-interface DefaultInputContainerProps extends ScenePanelComponentBaseProps { }
+interface DefaultInputContainerProps extends ScenePanelComponentBaseProps {}
 
 function DefaultInputContainer({ editorContext, editorNodes }: DefaultInputContainerProps) {
 	const { placeholder, panels, isLoading } = useCurrentSceneConfig()
@@ -20,8 +20,22 @@ function DefaultInputContainer({ editorContext, editorNodes }: DefaultInputConta
 		portalId: SCENE_INPUT_IDS.INPUT_CONTAINER,
 	})
 
-	const handleTemplateSelect = (template: OptionItem) => {
+	const handleTemplateSelect = (template: OptionItem | null) => {
 		console.log("Template selected:", template)
+		editorPortalTarget?.scrollIntoView({ behavior: "smooth", block: "center" })
+
+		let attemptCount = 0
+		const tryFocus = () => {
+			const editor = editorContext?.editorRef?.current?.editor
+			if (editor && !editor.isDestroyed) {
+				editorContext?.editorRef?.current?.focus?.({ enableWhenIsMobile: false })
+				return
+			}
+			attemptCount++
+			if (attemptCount >= 20) return
+			window.setTimeout(tryFocus, 100)
+		}
+		window.setTimeout(tryFocus, 300)
 	}
 
 	const handleFilterChange = (filters: FieldItem[]) => {

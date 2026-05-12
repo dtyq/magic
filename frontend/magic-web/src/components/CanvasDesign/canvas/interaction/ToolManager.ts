@@ -7,6 +7,7 @@ import { FrameTool } from "./tools/FrameTool"
 import { TextTool } from "./tools/TextTool"
 import { MarkerTool } from "./tools/MarkerTool"
 import { ImageGeneratorTool } from "./tools/ImageGeneratorTool"
+import { VideoGeneratorTool } from "./tools/VideoGeneratorTool"
 import type { Canvas } from "../Canvas"
 
 /**
@@ -35,6 +36,7 @@ export class ToolManager {
 	private textTool: TextTool
 	private markerTool: MarkerTool
 	private imageGeneratorTool: ImageGeneratorTool
+	private videoGeneratorTool: VideoGeneratorTool
 
 	/**
 	 * 构造函数
@@ -89,6 +91,10 @@ export class ToolManager {
 			canvas,
 		})
 
+		this.videoGeneratorTool = new VideoGeneratorTool({
+			canvas,
+		})
+
 		// 监听只读状态变化
 		this.canvas.eventEmitter.on("canvas:readonly", () => {
 			// 如果切换到只读模式，强制切换到选择工具
@@ -133,6 +139,8 @@ export class ToolManager {
 				return this.markerTool
 			case ToolTypeEnum.ImageGenerator:
 				return this.imageGeneratorTool
+			case ToolTypeEnum.VideoGenerator:
+				return this.videoGeneratorTool
 			default:
 				return null
 		}
@@ -255,6 +263,8 @@ export class ToolManager {
 			toolType = ToolTypeEnum.Marker
 		} else if (this.activeTool === this.imageGeneratorTool) {
 			toolType = ToolTypeEnum.ImageGenerator
+		} else if (this.activeTool === this.videoGeneratorTool) {
+			toolType = ToolTypeEnum.VideoGenerator
 		}
 
 		this.canvas.eventEmitter.emit({ type: "tool:change", data: { tool: toolType } })
@@ -331,6 +341,19 @@ export class ToolManager {
 	}
 
 	/**
+	 * 获取视频生成工具
+	 */
+	public getVideoGeneratorTool(): VideoGeneratorTool {
+		return this.videoGeneratorTool
+	}
+
+	/** Magic 配置或语言变化时，避免工具内仍使用旧的模型列表缓存 */
+	public invalidateMagicModelListCaches(): void {
+		this.imageGeneratorTool.clearModelListCache()
+		this.videoGeneratorTool.clearModelListCache()
+	}
+
+	/**
 	 * 根据工具类型设置激活的工具
 	 * @param toolType 工具类型
 	 * @param source 工具激活来源
@@ -382,5 +405,6 @@ export class ToolManager {
 		this.textTool.destroy()
 		this.markerTool.destroy()
 		this.imageGeneratorTool.destroy()
+		this.videoGeneratorTool.destroy()
 	}
 }

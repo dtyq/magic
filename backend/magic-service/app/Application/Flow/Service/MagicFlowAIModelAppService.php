@@ -42,7 +42,7 @@ class MagicFlowAIModelAppService extends AbstractFlowAppService
             if ($model->getModelOptions()->isEmbedding()) {
                 continue;
             }
-            if ($accessibleModelIdMap !== null && ! isset($accessibleModelIdMap[$model->getModelName()])) {
+            if ($accessibleModelIdMap !== null && ! isset($accessibleModelIdMap[$modelEntry->getAttributes()->getName()])) {
                 continue;
             }
 

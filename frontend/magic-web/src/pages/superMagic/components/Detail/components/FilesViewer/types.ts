@@ -14,6 +14,16 @@ export interface BaseComponentProps {
 	children?: ReactNode
 }
 
+/** 预览策略：打开方声明能力，FilesViewer 按配置执行，不关心文件来源。 */
+export interface FilePreviewPolicy {
+	temporary?: boolean
+	persistTab?: boolean
+	syncWithAttachments?: boolean
+	keepLocalContent?: boolean
+	restoreAsActive?: boolean
+	readonly?: boolean
+}
+
 // File item interface
 export interface FileItem {
 	file_id: string
@@ -28,9 +38,10 @@ export interface FileItem {
 	children?: FileItem[]
 	content?: string
 	updated_at?: string
-	metadata?: {
+	display_config?: {
 		type?: "slide" | "design" | "dashboard" | "audio" | "video" | string
 		name?: string
+		previewPolicy?: FilePreviewPolicy
 	}
 	file_size?: number
 	parent_id?: string | number
@@ -65,7 +76,7 @@ export interface TabItem {
 	/**
 	 * 文件的元数据
 	 */
-	metadata?: any
+	display_config?: any
 	/**
 	 * Tab 创建时间戳（毫秒）
 	 */

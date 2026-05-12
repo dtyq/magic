@@ -3,6 +3,7 @@ import { runInAction } from "mobx"
 import type { TopicStore } from "../stores/core/topic"
 import type { Topic, TaskStatus, ProjectListItem } from "../pages/Workspace/types"
 import { RequestConfig } from "@/apis/core/HttpClient"
+import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory"
 
 export interface FetchTopicsParams {
 	projectId: string
@@ -21,9 +22,22 @@ export interface CreateTopicParams {
 	topicName: string
 }
 
+export interface MarkTopicReadProgressParams {
+	topicId: string
+	lastReadAt?: string
+	lastReadMessageId?: string
+}
+
 interface TopicsApiResponse {
 	list: Topic[]
 	total: number
+}
+
+interface GetSidebarTopicsByProjectIdParams {
+	projectId: string
+	page: number
+	pageSize: number
+	searchKeyword?: string
 }
 
 class TopicService {
@@ -59,6 +73,44 @@ class TopicService {
 		}).finally(() => {
 			this.pendingRequests.delete(requestKey)
 		})
+
+		this.pendingRequests.set(requestKey, requestPromise)
+
+		return requestPromise
+	}
+
+	async getSidebarTopicsByProjectId({
+		projectId,
+		page,
+		pageSize,
+		searchKeyword,
+	}: GetSidebarTopicsByProjectIdParams): Promise<TopicsApiResponse> {
+		const requestKey = this.getRequestKey(
+			"getSidebarTopicsByProjectId",
+			projectId,
+			page,
+			pageSize,
+			searchKeyword?.trim() || "",
+		)
+
+		const pendingRequest = this.pendingRequests.get(requestKey)
+		if (pendingRequest) return pendingRequest
+
+		const requestPromise = SuperMagicApi.getSidebarTopicsByProjectId({
+			id: projectId,
+			page,
+			page_size: pageSize,
+			q: searchKeyword?.trim() || undefined,
+		})
+			.then((response) => ({
+				...response,
+				list: Array.isArray(response.list)
+					? response.list.map(normalizeTopicHistoryItem)
+					: [],
+			}))
+			.finally(() => {
+				this.pendingRequests.delete(requestKey)
+			})
 
 		this.pendingRequests.set(requestKey, requestPromise)
 
@@ -152,6 +204,96 @@ class TopicService {
 		runInAction(() => {
 			this.topicStore.updateTopicStatus(topicId, status)
 		})
+	}
+
+	async markTopicReadProgress({
+		topicId,
+		lastReadAt,
+		lastReadMessageId,
+	}: MarkTopicReadProgressParams): Promise<{
+		topic_id: string
+		last_read_at: string | null
+		last_read_message_id: string | null
+		has_unread: boolean
+	} | null> {
+		if (!topicId) return null
+		if (!lastReadAt && !lastReadMessageId) return null
+
+		try {
+			const response = await SuperMagicApi.markTopicReadProgress(topicId, {
+				...(lastReadAt ? { last_read_at: lastReadAt } : {}),
+				...(lastReadMessageId ? { last_read_message_id: lastReadMessageId } : {}),
+			})
+
+			runInAction(() => {
+				this.topicStore.mergeTopic(topicId, {
+					last_read_at: response.last_read_at ?? null,
+					last_read_message_id: response.last_read_message_id ?? null,
+					has_unread: Boolean(response.has_unread),
+				})
+			})
+
+			return response
+		} catch (error) {
+			console.warn("上报话题已读进度失败:", error)
+			return null
+		}
+	}
+
+	async pinTopic(topicId: string): Promise<Topic | null> {
+		try {
+			const response = await SuperMagicApi.pinTopic(topicId)
+			const topic = normalizeTopicHistoryItem(response.topic)
+			runInAction(() => {
+				this.topicStore.mergeTopic(topicId, topic)
+			})
+			return topic
+		} catch (error) {
+			console.error("置顶话题失败:", error)
+			return null
+		}
+	}
+
+	async unpinTopic(topicId: string): Promise<Topic | null> {
+		try {
+			const response = await SuperMagicApi.unpinTopic(topicId)
+			const topic = normalizeTopicHistoryItem(response.topic)
+			runInAction(() => {
+				this.topicStore.mergeTopic(topicId, topic)
+			})
+			return topic
+		} catch (error) {
+			console.error("取消置顶话题失败:", error)
+			return null
+		}
+	}
+
+	async archiveTopic(topicId: string): Promise<Topic | null> {
+		try {
+			const response = await SuperMagicApi.archiveTopic(topicId)
+			const topic = normalizeTopicHistoryItem(response.topic)
+			runInAction(() => {
+				this.topicStore.mergeTopic(topicId, topic)
+			})
+			return topic
+		} catch (error) {
+			console.error("归档话题失败:", error)
+			return null
+		}
+	}
+
+	async unarchiveTopic(topicId: string): Promise<Topic | null> {
+		try {
+			const response = await SuperMagicApi.unarchiveTopic(topicId)
+			const topic = normalizeTopicHistoryItem(response.topic)
+			runInAction(() => {
+				this.topicStore.mergeTopic(topicId, topic)
+			})
+			return topic
+		} catch (error) {
+			console.error("取消归档话题失败:", error)
+			return null
+		}
 	}
 
 	/**

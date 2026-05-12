@@ -2,7 +2,6 @@ import { t as i18nT } from "i18next"
 import { useTranslation } from "react-i18next"
 import { useMemo, type ReactNode, type FC } from "react"
 import { createRoot } from "react-dom/client"
-import { CircleIcon } from "lucide-react"
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
 import type { ButtonProps as AntdButtonProps } from "antd"
 import {
@@ -166,22 +165,6 @@ function detectMobileDevice(): boolean {
 	return window.innerWidth < 768
 }
 
-// Get default icon for variant
-function getDefaultIconForVariant(variant: ModalVariant): ReactNode {
-	if (variant === "destructive") {
-		return (
-			<div className="flex size-10 items-center justify-center rounded-lg bg-destructive/10">
-				<CircleIcon className="size-6 text-destructive" />
-			</div>
-		)
-	}
-	return (
-		<div className="flex size-10 items-center justify-center rounded-lg bg-muted">
-			<CircleIcon className="size-6 text-foreground" />
-		</div>
-	)
-}
-
 // Helper to create imperative modals
 function createImperativeModal(
 	config: ModalFuncProps,
@@ -220,7 +203,6 @@ function createImperativeModal(
 			footer,
 			variant = "default",
 			size,
-			showIcon = false,
 			autoResponsive = true,
 		} = props
 
@@ -234,15 +216,8 @@ function createImperativeModal(
 			md: "384px",
 		}
 
-		// Determine icon to display
-		let displayIcon: ReactNode = null
-		if (icon !== undefined) {
-			// Custom icon provided
-			displayIcon = icon
-		} else if (showIcon) {
-			// Use default icon for variant
-			displayIcon = getDefaultIconForVariant(variant)
-		}
+		// 仅保留显式传入的自定义 icon，不再渲染默认顶部图标
+		const displayIcon = icon ?? null
 
 		// Normalize width (prefer size-based width over custom width)
 		const normalizedWidth =
@@ -310,7 +285,7 @@ function createImperativeModal(
 		const defaultFooterNode = (
 			<div
 				className={cn(
-					"flex items-center gap-2 border-t border-border bg-muted/50 p-4",
+					"flex items-center gap-2 border-t border-border bg-muted/50 p-2",
 					effectiveSize === "sm"
 						? "flex-row justify-stretch" // Mobile: full width buttons in row
 						: "flex-row justify-end", // Desktop: right-aligned
@@ -393,7 +368,7 @@ function createImperativeModal(
 									{content && (
 										<DialogDescription
 											className={cn(
-												"text-sm text-muted-foreground",
+												"[line-break:anywhere]",
 												effectiveSize === "sm" &&
 													displayIcon &&
 													"text-center",

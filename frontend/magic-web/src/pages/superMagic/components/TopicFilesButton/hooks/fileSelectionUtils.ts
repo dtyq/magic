@@ -32,6 +32,29 @@ export function findFileInTree(
 }
 
 /**
+ * 在附件树中找到包含 targetFileId 的那一层「目录直接子节点」数组（用于 icon 解析）。
+ * 当缓存恢复的 tab 缺少 parent_id 时作为回退。
+ */
+export function findParentFolderChildrenForFileId(
+	roots: Record<string, unknown>[],
+	targetFileId: string,
+): unknown[] | undefined {
+	for (const node of roots) {
+		const children = node.children as Record<string, unknown>[] | undefined
+		if (!children?.length) continue
+		const hasDirect = children.some((c) => String(c.file_id || c.id) === targetFileId)
+		if (hasDirect) return children as unknown[]
+	}
+	for (const node of roots) {
+		const children = node.children as Record<string, unknown>[] | undefined
+		if (!children?.length) continue
+		const nested = findParentFolderChildrenForFileId(children, targetFileId)
+		if (nested) return nested
+	}
+	return undefined
+}
+
+/**
  * 扁平化附件树结构
  */
 export function flattenAttachments(items: any[]): any[] {

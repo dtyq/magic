@@ -115,8 +115,8 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 									className={cn(
 										"flex items-center gap-2",
 										variant &&
-										[ScenePanelVariant.Mobile].includes(variant) &&
-										"flex-col items-start gap-1",
+											[ScenePanelVariant.Mobile].includes(variant) &&
+											"flex-col items-start gap-1",
 									)}
 								>
 									<Label
@@ -124,8 +124,8 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 										className={cn(
 											"text-sm font-normal text-foreground",
 											variant &&
-											[ScenePanelVariant.Mobile].includes(variant) &&
-											"text-xs font-medium text-muted-foreground",
+												[ScenePanelVariant.Mobile].includes(variant) &&
+												"text-xs font-medium text-muted-foreground",
 										)}
 									>
 										{lt(filter.label)}
@@ -150,17 +150,17 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 														}
 														leftControlClassName={cn(
 															variant &&
-															[ScenePanelVariant.Mobile].includes(
-																variant,
-															) &&
-															"from-secondary",
+																[ScenePanelVariant.Mobile].includes(
+																	variant,
+																) &&
+																"from-secondary",
 														)}
 														rightControlClassName={cn(
 															variant &&
-															[ScenePanelVariant.Mobile].includes(
-																variant,
-															) &&
-															"to-secondary",
+																[ScenePanelVariant.Mobile].includes(
+																	variant,
+																) &&
+																"to-secondary",
 														)}
 													/>
 												)}
@@ -194,9 +194,9 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 												variant="outline"
 												size="sm"
 												className={cn(
-													"shadow-xs group h-8 max-w-[220px] justify-start rounded-full bg-background px-3 font-normal dark:bg-card",
+													"group h-8 max-w-[220px] justify-start rounded-full bg-background px-3 font-normal shadow-xs dark:bg-card",
 													!selectedTemplateOption &&
-													"text-muted-foreground",
+														"text-muted-foreground",
 												)}
 											>
 												<span className="flex items-center gap-2 truncate">
@@ -208,24 +208,16 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 																className="text-muted-foreground"
 															/>
 														)}
-													{lt(selectedTemplateOption?.label) ??
-														lt(selectedTemplateOption?.value) ??
+													{lt(selectedTemplateOption?.label) ||
+														lt(selectedTemplateOption?.value) ||
 														placeholder}
 												</span>
 												<span className="relative inline-flex size-4 shrink-0 items-center justify-center">
-													<ChevronDown
-														className={cn(
-															"size-4 text-muted-foreground opacity-50 transition-opacity",
-															selectedTemplateOption &&
-															"group-focus-within:opacity-0 group-hover:opacity-0",
-														)}
-													/>
-													{selectedTemplateOption && (
+													{selectedTemplateOption ? (
 														<span
 															role="button"
 															tabIndex={0}
 															aria-label={clearText}
-															className="absolute inset-0 inline-flex items-center justify-center text-muted-foreground/70 opacity-0 transition-opacity group-focus-within:opacity-90 group-hover:opacity-90"
 															onPointerDown={(event) => {
 																event.preventDefault()
 																event.stopPropagation()
@@ -236,8 +228,14 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 																handleClearComplexTemplate(filter)
 															}}
 														>
-															<CircleX className="size-4" />
+															<CircleX className="size-4 text-muted-foreground opacity-50" />
 														</span>
+													) : (
+														<ChevronDown
+															className={cn(
+																"size-4 text-muted-foreground opacity-50 transition-opacity",
+															)}
+														/>
 													)}
 												</span>
 											</Button>

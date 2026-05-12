@@ -15,7 +15,7 @@ import { useMemoizedFn } from "ahooks"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconCopy } from "@tabler/icons-react"
-import { processSvgContent, isSvgContent } from "@/utils/svgProcessor"
+import { isInlineSvgContent, processSvgContent } from "@/utils/svgProcessor"
 
 interface ImagePreviewMainProps {
 	info: ImagePreviewInfo | undefined
@@ -46,11 +46,9 @@ const ImagePreviewMain = memo(
 		const ImageNode = useMemo(() => {
 			if (!currentImage) return null
 
-			// Enhanced SVG detection logic
-			const fileExt = info?.ext?.ext
-			const isSvg = isSvgContent(currentImage, fileExt)
+			const isInlineSvg = isInlineSvgContent(currentImage)
 
-			if (isSvg) {
+			if (isInlineSvg) {
 				try {
 					const svgResult = processSvgContent(currentImage)
 
@@ -66,14 +64,14 @@ const ImagePreviewMain = memo(
 								style={
 									isLongImage
 										? {
-											objectFit: "contain",
-											width: "100%",
-										}
+												objectFit: "contain",
+												width: "100%",
+											}
 										: {
-											objectFit: "contain",
-											width: "100%",
-											height: "100%",
-										}
+												objectFit: "contain",
+												width: "100%",
+												height: "100%",
+											}
 								}
 							/>
 						)
@@ -98,14 +96,14 @@ const ImagePreviewMain = memo(
 							style={
 								isLongImage
 									? {
-										objectFit: "contain",
-										width: "100%",
-									}
+											objectFit: "contain",
+											width: "100%",
+										}
 									: {
-										objectFit: "contain",
-										width: "100%",
-										height: "100%",
-									}
+											objectFit: "contain",
+											width: "100%",
+											height: "100%",
+										}
 							}
 						/>
 					)
@@ -121,18 +119,18 @@ const ImagePreviewMain = memo(
 					style={
 						isLongImage
 							? {
-								objectFit: "contain",
-								width: "100%",
-							}
+									objectFit: "contain",
+									width: "100%",
+								}
 							: {
-								objectFit: "contain",
-								width: "100%",
-								height: "100%",
-							}
+									objectFit: "contain",
+									width: "100%",
+									height: "100%",
+								}
 					}
 				/>
 			)
-		}, [info?.ext?.ext, currentImage, styles.svg, isLongImage])
+		}, [currentImage, styles.svg, isLongImage])
 
 		const getContextMenuItems = useMemoizedFn(() => {
 			return [
@@ -163,11 +161,12 @@ const ImagePreviewMain = memo(
 		return (
 			<MagicDropdown
 				trigger={["contextMenu"]}
+				rootClassName={styles.dropdownRoot}
 				menu={{
 					items: getContextMenuItems(),
 				}}
 			>
-				<div className={containerClassName}>
+				<div className={containerClassName ?? styles.imagePreview}>
 					<MagicImagePreview
 						rootClassName={styles.imagePreview}
 						onNext={info?.standalone ? undefined : toNext}

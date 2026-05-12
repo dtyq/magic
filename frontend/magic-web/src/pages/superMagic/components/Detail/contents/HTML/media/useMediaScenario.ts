@@ -27,7 +27,7 @@ export function useMediaScenario({ attachmentList, fileId }: UseMediaScenarioPar
 		const file = attachmentList.find((item: any) => item.file_id === fileId)
 		if (!file?.parent_id) return null
 		const parent = attachmentList.find((item: any) => item.file_id === file.parent_id)
-		const metadataType = parent?.metadata?.type
+		const metadataType = parent?.display_config?.type
 		if (metadataType === "audio" || metadataType === "video") {
 			return metadataType
 		}

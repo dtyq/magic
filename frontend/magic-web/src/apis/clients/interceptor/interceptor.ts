@@ -58,6 +58,11 @@ export const genLoginRedirectUrl = () => {
 
 /** 登录无效 */
 export function generateUnauthorizedResInterceptor(service: Container) {
+	const loginInvalidCodeSet = new Set([
+		BUSINESS_API_ERROR_CODE.ACCOUNT_NO_PERMISSION,
+		BUSINESS_API_ERROR_CODE.USER_TOKEN_EXPIRED,
+	])
+
 	/** 登录无效处理: 清除登录态、重定向登录页 */
 	async function unAuthorizedRedirect() {
 		await service.get<AccountService>("accountService").deleteAccount()
@@ -73,7 +78,7 @@ export function generateUnauthorizedResInterceptor(service: Container) {
 
 		if (
 			(enableAuthorizationVerification && response.status === HttpStatusCode.Unauthorized) ||
-			response?.data?.code === 3103
+			loginInvalidCodeSet.has(response?.data?.code)
 		) {
 			const authorization = request.headers?.get("authorization")
 			const user = userStore.account.getAccountByAccessToken(authorization || "")
@@ -97,13 +102,14 @@ export function generateUnauthorizedResInterceptor(service: Container) {
 					if (
 						(enableAuthorizationVerification &&
 							res.status === HttpStatusCode.Unauthorized) ||
-						jsonData?.data?.code === 3103
+						loginInvalidCodeSet.has(jsonData?.data?.code)
 					) {
 						await unAuthorizedRedirect()
 						throw new Error("Unauthorized")
 					}
 
 					return {
+						http,
 						request,
 						response: {
 							status: res.status,
@@ -117,13 +123,13 @@ export function generateUnauthorizedResInterceptor(service: Container) {
 			await unAuthorizedRedirect()
 			throw new Error("Unauthorized")
 		}
-		return { request, response }
+		return { http, request, response }
 	}
 }
 
 /** 组织无效 */
 export function generateInvalidOrgResInterceptor(service: Container) {
-	return async function invalidOrg({ request, response }: InterceptorContext) {
+	return async function invalidOrg({ request, response, http }: InterceptorContext) {
 		const jsonResponse = response.data
 		if (jsonResponse?.code === BusinessResponseCode.InvalidOrganization) {
 			service
@@ -131,34 +137,37 @@ export function generateInvalidOrgResInterceptor(service: Container) {
 				.setMagicOrganizationCode(userStore.user.organizations?.[0]?.organization_code)
 			window.location.reload()
 		}
-		return { request, response }
+		return { http, request, response }
 	}
 }
 
 /** api平台无权限 */
 export function generatePlatformUnauthorizedResInterceptor() {
-	return async function invalidPlatform({ request, response }: InterceptorContext) {
+	return async function invalidPlatform({ request, response, http }: InterceptorContext) {
 		const jsonResponse = response.data
 		if (jsonResponse?.code !== BusinessResponseCode.PlatformUnauthorized) {
-			return { request, response }
+			return { http, request, response }
 		}
+
+		if (request?.enableErrorMessagePrompt && jsonResponse?.message) {
+			magicToast.error(jsonResponse.message)
+		}
+
+		throw jsonResponse
 	}
 }
 
 /** 成功响应 */
 export function generateSuccessResInterceptor() {
-	return async function success({ request, response }: InterceptorContext) {
+	return async function success({ request, response, http }: InterceptorContext) {
 		const jsonResponse = response.data
 		if (jsonResponse?.code !== BusinessResponseCode.Success) {
 			if (request?.enableErrorMessagePrompt && jsonResponse?.message) {
-				/** 业务入侵性调整 */
-				if (jsonResponse?.code !== BUSINESS_API_ERROR_CODE.ACCOUNT_NO_PERMISSION) {
-					magicToast.error(jsonResponse.message)
-				}
+				magicToast.error(jsonResponse.message)
 			}
 			throw jsonResponse
 		}
 
-		return { request, response }
+		return { http, request, response }
 	}
 }

@@ -21,6 +21,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use Carbon\Carbon;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\VideoModelConfigResolver;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\MagicClawRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
@@ -39,8 +40,10 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Exception\WorkspaceReadyTimeoutException;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\AskUserResponseMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCheckRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCommitRequest;
@@ -87,6 +90,7 @@ class AgentDomainService
         private readonly LockerInterface $locker,
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskMessageRepositoryInterface $taskMessageRepository,
+        private readonly TaskFileRepositoryInterface $taskFileRepository,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -173,7 +177,6 @@ class AgentDomainService
         $topicId = (int) $topicEntity->getId();
         $topicHasHistory = $topicId > 0 && $this->taskMessageRepository->hasMessagesByTopicId($topicId);
         $agentInitContext->setFetchHistory($topicHasHistory);
-
         // 将话题的 dynamic_params 作为 dynamic_config 下发，使 sandbox 在 init 阶段即可获取 message_version 等配置
         $dynamicParams = $topicEntity->getDynamicParams();
         if (! empty($dynamicParams)) {
@@ -272,12 +275,27 @@ class AgentDomainService
                 ]);
             }
 
-            // Step 2: Create sandbox container
+            // Step 2: Get root file ID for sandbox initialization
+            $rootFileId = '';
+            try {
+                $projectId = $agentContext->getProjectEntity()->getId();
+                $rootDir = $this->taskFileRepository->findRootDirectoryByProjectId($projectId);
+                if ($rootDir !== null) {
+                    $rootFileId = (string) $rootDir->getFileId();
+                }
+            } catch (Throwable $e) {
+                $this->logger->warning('[Sandbox][Domain] Failed to get root file id for sandbox initialization', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Step 3: Create sandbox container
             $sandboxId = $this->createSandbox(
                 dataIsolation: $dataIsolation,
                 projectId: (string) $agentContext->getProjectEntity()->getId(),
                 sandboxID: $agentContext->getSandboxId(),
-                workDir: $agentContext?->getInitContext()->getWorkDir() ?? ''
+                workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
+                rootFileId: $rootFileId
             );
 
             if ($interruptChecker !== null && $interruptChecker()) {
@@ -338,16 +356,21 @@ class AgentDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $rootFileId = ''): string
     {
+        // 获取用户 authorization token，用于沙箱创建时的身份验证
+        $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+
         $this->logger->debug('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
             'project_oss_path' => $workDir,
+            'root_file_id' => $rootFileId,
+            'authorization_provided' => $authorization !== '',
         ]);
 
         $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir);
+        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $rootFileId, $authorization);
 
         // 添加详细的调试日志，检查 result 对象
         $this->logger->debug('[Sandbox][App] Gateway result analysis', [
@@ -502,9 +525,9 @@ class AgentDomainService
             }
         }
 
-        // 图片模型不走 init 顶层字段，而是跟现有生图链路保持一致，
-        // 在发送聊天消息时桥接到 dynamic_config。视频模型由应用层提前写入
-        // TaskContext.dynamicConfig，领域层这里不再从 extra 派生，避免重复桥接。
+        // 图片/视频模型都不走 init 顶层字段，而是跟现有生图链路保持一致，
+        // 在发送聊天消息时桥接到 dynamic_config。这样沙箱内的工具只需要读取
+        // dynamic_config.image_model / dynamic_config.video_model，就能和用户本轮选择保持一致。
         $extra = $taskContext->getExtra();
         if ($extra !== null) {
             $imageModelId = $extra->getImageModelId();
@@ -519,6 +542,30 @@ class AgentDomainService
                     'sizes' => $sizes,
                 ];
             }
+
+            $videoModelId = $extra->getVideoModelId();
+            if (! empty($videoModelId)) {
+                try {
+                    $videoModel = di(VideoModelConfigResolver::class)->resolve($extra->getVideoModel(), $taskContext->getDataIsolation());
+                    $taskDynamicConfig['video_model'] = [
+                        'model_id' => $videoModelId,
+                        'video_generation_config' => is_array($videoModel) ? $videoModel['video_generation_config'] : null,
+                    ];
+                } catch (Throwable $throwable) {
+                    $this->logger->warning('[Sandbox][App] get video model config failed', [
+                        'error_message' => $throwable->getMessage(),
+                    ]);
+                    $taskDynamicConfig['video_model'] = [
+                        'model_id' => $videoModelId,
+                    ];
+                }
+            }
+        }
+
+        $agentMode = $taskContext->getAgentMode();
+        if (str_starts_with($taskContext->getAgentMode(), 'SMA-')) {
+            $agentMode = ProjectMode::CUSTOM_AGENT->value;
+            $taskDynamicConfig['agent_code'] = $taskContext->getAgentMode();
         }
 
         $agentMode = $taskContext->getAgentMode();
@@ -588,6 +635,58 @@ class AgentDomainService
             ]);
             throw new SandboxOperationException('Send chat message', $result->getMessage(), $result->getCode());
         }
+    }
+
+    /**
+     * 发送 ask_user 答复给沙盒（Human-in-the-Loop 回调）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param string $sandboxId 沙箱ID
+     * @param string $taskId 任务ID
+     * @param string $questionId 问题ID
+     * @param string $responseStatus 答复状态（'answered' | 'skipped'）
+     * @param string $answer 用户答复内容
+     */
+    public function sendAskUserFeedback(
+        DataIsolation $dataIsolation,
+        string $sandboxId,
+        string $taskId,
+        string $questionId,
+        string $responseStatus,
+        string $answer
+    ): void {
+        $this->logger->debug('[Sandbox][Domain] Sending ask_user feedback to sandbox', [
+            'sandbox_id' => $sandboxId,
+            'task_id' => $taskId,
+            'question_id' => $questionId,
+            'response_status' => $responseStatus,
+        ]);
+
+        $request = AskUserResponseMessageRequest::createResponse(
+            userId: $dataIsolation->getCurrentUserId(),
+            taskId: $taskId,
+            questionId: $questionId,
+            responseStatus: $responseStatus,
+            answer: $answer,
+        );
+
+        $result = $this->agent->sendChatMessage($sandboxId, $request);
+
+        if (! $result->isSuccess()) {
+            $this->logger->error('[Sandbox][Domain] Failed to send ask_user feedback', [
+                'sandbox_id' => $sandboxId,
+                'task_id' => $taskId,
+                'question_id' => $questionId,
+                'error' => $result->getMessage(),
+            ]);
+            throw new SandboxOperationException('Send ask_user feedback', $result->getMessage(), $result->getCode());
+        }
+
+        $this->logger->debug('[Sandbox][Domain] Ask_user feedback sent successfully', [
+            'sandbox_id' => $sandboxId,
+            'task_id' => $taskId,
+            'question_id' => $questionId,
+        ]);
     }
 
     /**
@@ -731,7 +830,7 @@ class AgentDomainService
      * @param string $sandboxId Sandbox ID
      * @param null|callable $interruptChecker Interrupt checker closure, return true to interrupt
      * @param int $maxWaitSeconds Maximum wait time in seconds (default 5 minutes)
-     * @param int $checkIntervalMs Check interval in milliseconds (default 100 ms)
+     * @param int $checkIntervalMs Check interval in milliseconds (default 100ms)
      * @return bool True if workspace is ready, false if interrupted
      * @throws WorkspaceReadyTimeoutException When timeout occurs
      * @throws SandboxOperationException When initialization fails or error occurs
@@ -1038,6 +1137,48 @@ class AgentDomainService
     }
 
     /**
+     * 根据用户ID获取 Authorization.
+     * - 先以用户级别 token（MagicTokenType::User）为准，支持一个账号多个组织
+     * - 若 token 已存在但剩余有效期不足 30 天，则刷新至 30 天后.
+     *
+     * @param string $userId 用户ID
+     * @return string Authorization 字符串，如果不存在则返回空字符串
+     */
+    public function getAuthorizationByUserId(string $userId): string
+    {
+        // 先按 MagicTokenType::User + userId 查询是否有可用的 token
+        $tokenEntity = $this->magicTokenRepository->getTokenByTypeAndRelationValue(MagicTokenType::User, $userId);
+
+        // 如果已存在可用的 token，根据有效期情况刷新后返回
+        if ($tokenEntity !== null) {
+            $this->refreshTokenExpirationIfNeeded($tokenEntity);
+            return $tokenEntity->getToken();
+        }
+
+        // 如果没有可用的 token，创建一个新的 token（有效期一个月）
+        try {
+            $newToken = IdGenerator::getUniqueIdSha256();
+            $magicTokenEntity = new MagicTokenEntity();
+            $magicTokenEntity->setType(MagicTokenType::User);
+            $magicTokenEntity->setTypeRelationValue($userId);
+            $magicTokenEntity->setToken($newToken);
+            // 设置有效期为30天
+            $expiredAt = Carbon::now()->addDays(30)->toDateTimeString();
+            $magicTokenEntity->setExpiredAt($expiredAt);
+
+            $this->magicTokenRepository->createToken($magicTokenEntity);
+
+            return $newToken;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][App] Failed to create user token', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+            return '';
+        }
+    }
+
+    /**
      * 构建消息元数据
      * 公共方法，用于 chat 消息复用.
      *
@@ -1232,48 +1373,6 @@ class AgentDomainService
         }
 
         return empty($constraints) ? '' : implode('', $constraints);
-    }
-
-    /**
-     * 根据用户ID获取 Authorization.
-     * - 先以用户级别 token（MagicTokenType::User）为准，支持一个账号多个组织
-     * - 若 token 已存在但剩余有效期不足 30 天，则刷新至 30 天后.
-     *
-     * @param string $userId 用户ID
-     * @return string Authorization 字符串，如果不存在则返回空字符串
-     */
-    private function getAuthorizationByUserId(string $userId): string
-    {
-        // 先按 MagicTokenType::User + userId 查询是否有可用的 token
-        $tokenEntity = $this->magicTokenRepository->getTokenByTypeAndRelationValue(MagicTokenType::User, $userId);
-
-        // 如果已存在可用的 token，根据有效期情况刷新后返回
-        if ($tokenEntity !== null) {
-            $this->refreshTokenExpirationIfNeeded($tokenEntity);
-            return $tokenEntity->getToken();
-        }
-
-        // 如果没有可用的 token，创建一个新的 token（有效期一个月）
-        try {
-            $newToken = IdGenerator::getUniqueIdSha256();
-            $magicTokenEntity = new MagicTokenEntity();
-            $magicTokenEntity->setType(MagicTokenType::User);
-            $magicTokenEntity->setTypeRelationValue($userId);
-            $magicTokenEntity->setToken($newToken);
-            // 设置有效期为30天
-            $expiredAt = Carbon::now()->addDays(30)->toDateTimeString();
-            $magicTokenEntity->setExpiredAt($expiredAt);
-
-            $this->magicTokenRepository->createToken($magicTokenEntity);
-
-            return $newToken;
-        } catch (Throwable $e) {
-            $this->logger->error('[Sandbox][App] Failed to create user token', [
-                'user_id' => $userId,
-                'error' => $e->getMessage(),
-            ]);
-            return '';
-        }
     }
 
     /**

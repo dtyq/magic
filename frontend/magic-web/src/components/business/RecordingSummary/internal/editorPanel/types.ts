@@ -22,6 +22,7 @@ export interface RecordSummaryEditorPanelProps {
 	editorModeSwitch?: ({ disabled }: { disabled: boolean }) => ReactNode
 	selectedModel?: ModelItem | null
 	selectedImageModel?: ModelItem | null
+	selectedVideoModel?: ModelItem | null
 	modelSwitch?: ReactNode
 	attachments?: AttachmentItem[]
 	taskDataNode?: ReactNode
@@ -35,6 +36,7 @@ export interface RecordSummaryEditorPanelRef {
 		selectedTopic: Topic
 		model: ModelItem
 		imageModel: ModelItem | null
+		videoModel?: ModelItem | null
 	}) => void
 }
 

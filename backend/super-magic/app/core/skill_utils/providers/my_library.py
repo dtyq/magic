@@ -20,9 +20,9 @@ class MyLibraryProvider(SkillProvider):
 
     id = SkillProviderId.MY_LIBRARY
 
-    async def search(self, keyword: str, limit: int = 10) -> list[SkillCandidate]:
-        # keyword 为空表示列出全量，使用更大的 page_size
-        effective_limit = 100 if not keyword else limit
+    async def search(self, keyword: str, limit: int | None = 10) -> list[SkillCandidate]:
+        # keyword 为空或 limit=None 表示列出全量，使用更大的 page_size
+        effective_limit = 100 if (not keyword or limit is None) else limit
         try:
             from app.infrastructure.sdk.magic_service.factory import create_magic_service_sdk_with_defaults
             from app.infrastructure.sdk.magic_service.parameter.get_latest_published_skill_versions_parameter import (

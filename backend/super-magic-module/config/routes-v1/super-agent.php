@@ -148,6 +148,12 @@ Router::addGroup(
             });
         });
 
+        // 用户级别特殊项目
+        Router::addGroup('/user/special-projects', static function () {
+            // 创建或获取特殊项目
+            Router::post('', [ProjectApi::class, 'storeSpecial']);
+        });
+
         // 协作项目相关路由分组
         Router::addGroup('/collaboration-projects', static function () {
             // 获取协作项目列表

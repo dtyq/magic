@@ -1,4 +1,4 @@
-import { HistoryState } from "./messages"
+import { HistoryState, ImageActionPayload } from "./messages"
 import { EditorError } from "./errors"
 
 /**
@@ -83,7 +83,7 @@ export interface AttachmentInfo {
 	file_name: string
 	relative_file_path: string
 	parent_id?: string
-	metadata?: any
+	display_config?: any
 }
 
 /**
@@ -284,6 +284,10 @@ export interface HTMLEditorV2Ref {
 	// ========== 元素复制 ==========
 	/** 复制指定元素并插入到其后作为兄弟元素 */
 	duplicateElement: (selector: string) => Promise<void>
+
+	// ========== 图片编辑 ==========
+	/** 执行图片相关动作（替换图片、设置背景图等） */
+	runImageAction: (payload: ImageActionPayload) => Promise<void>
 
 	// ========== 文本样式编辑（选中部分文字） ==========
 	/** 对选中的文本应用样式（将选中部分拆分为新节点并应用样式） */

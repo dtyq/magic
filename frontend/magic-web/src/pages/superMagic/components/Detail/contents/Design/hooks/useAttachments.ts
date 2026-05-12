@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from "react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { flattenAttachmentsList } from "../utils/utils"
+import { buildDesignAttachmentIndex } from "../utils/designAttachmentIndex"
+import type { DesignAttachmentIndex } from "../utils/designAttachmentIndex"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
 
 interface UseAttachmentsOptions {
@@ -13,6 +15,8 @@ interface UseAttachmentsOptions {
 interface UseAttachmentsReturn {
 	/** 已扁平化的附件列表 */
 	flatAttachments: FileItem[]
+	/** 附件索引（路径 / id / 文件名维度快速查找） */
+	attachmentIndex: DesignAttachmentIndex
 	/** 触发文件列表更新，返回新的文件列表 */
 	updateAttachments: () => void
 }
@@ -34,6 +38,11 @@ export function useAttachments(options: UseAttachmentsOptions): UseAttachmentsRe
 		return flattenAttachmentsList(attachments)
 	}, [attachments, attachmentList])
 
+	const attachmentIndex = useMemo(
+		() => buildDesignAttachmentIndex(flatAttachments),
+		[flatAttachments],
+	)
+
 	/**
 	 * 触发文件列表更新
 	 */
@@ -43,6 +52,7 @@ export function useAttachments(options: UseAttachmentsOptions): UseAttachmentsRe
 
 	return {
 		flatAttachments,
+		attachmentIndex,
 		updateAttachments,
 	}
 }

@@ -122,21 +122,21 @@ class ProjectService {
 				const res =
 					workspaceId === SHARE_WORKSPACE_ID
 						? await SuperMagicApi.getCollaborationProjects(
-							{
-								page,
-								page_size: 99,
-								type: collaborationTabKey,
-							},
-							options,
-						)
+								{
+									page,
+									page_size: 99,
+									type: collaborationTabKey,
+								},
+								options,
+							)
 						: await SuperMagicApi.getProjectsWithCollaboration(
-							{
-								workspace_id: workspaceId,
-								page,
-								page_size: 99,
-							},
-							options,
-						)
+								{
+									workspace_id: workspaceId,
+									page,
+									page_size: 99,
+								},
+								options,
+							)
 				const updatedProjects = res.list
 				runInAction(() => {
 					projectStore.setProjects(updatedProjects)
@@ -267,7 +267,6 @@ class ProjectService {
 			try {
 				await SuperMagicApi.editProject({
 					id,
-					workspace_id: workspaceId,
 					project_name: name,
 					project_description: "",
 				})

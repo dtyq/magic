@@ -13,6 +13,8 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileManagementAppService;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\FileVersionAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileTreeRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ScanWavFilesRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateFileSourceRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -51,5 +53,31 @@ class FileApi extends AbstractApi
         $requestDTO = GetFileTreeRequestDTO::fromRequest($this->request);
 
         return $this->fileManagementAppService->getFileTree($requestContext, $requestDTO)->toArray();
+    }
+
+    /**
+     * Scan object storage directory for .wav files and persist any new ones.
+     *
+     * @return array Scan result summary
+     */
+    public function scanWavFiles(RequestContext $requestContext): array
+    {
+        $requestContext->setUserAuthorization($this->getAuthorization());
+
+        $requestDTO = ScanWavFilesRequestDTO::fromRequest($this->request);
+
+        return $this->fileManagementAppService->scanWavFiles($requestContext, $requestDTO);
+    }
+
+    /**
+     * Update the source of a task file.
+     *
+     * @return array Updated file info
+     */
+    public function updateFileSource(): array
+    {
+        $requestDTO = UpdateFileSourceRequestDTO::fromRequest($this->request);
+
+        return $this->fileManagementAppService->updateFileSource($requestDTO);
     }
 }

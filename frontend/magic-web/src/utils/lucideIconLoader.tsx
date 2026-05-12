@@ -1,14 +1,9 @@
-import { useEffect, useState } from "react"
-import type { LucideIcon, LucideProps } from "lucide-react"
-import dynamicIconImports from "lucide-react/dynamicIconImports"
+import type { LucideProps } from "lucide-react"
+import { DynamicIcon, iconNames } from "lucide-react/dynamic"
+import type { IconName } from "lucide-react/dynamic"
 
-interface LucideIconModule {
-	default: LucideIcon
-}
-
-const iconModules = dynamicIconImports as Record<string, () => Promise<LucideIconModule>>
-const iconCache = new Map<string, LucideIcon>()
-export const ALL_LUCIDE_ICON_KEBAB_NAMES = Object.keys(iconModules)
+const validIconNames = new Set<string>(iconNames)
+export const ALL_LUCIDE_ICON_KEBAB_NAMES = [...iconNames]
 
 /**
  * Convert icon name from PascalCase/camelCase to kebab-case
@@ -27,56 +22,23 @@ export function toKebabCase(name: string): string {
 		.toLowerCase()
 }
 
-export async function loadLucideIconComponent(name?: string) {
+function normalizeIconName(name?: string): IconName | null {
 	if (!name) return null
 
 	const kebabName = toKebabCase(name)
-	if (iconCache.has(kebabName)) return iconCache.get(kebabName) || null
+	if (!validIconNames.has(kebabName)) return null
 
-	const loader = iconModules[kebabName]
-	if (!loader) return null
-
-	try {
-		const mod = await loader()
-		const IconComponent = mod?.default
-		if (IconComponent) iconCache.set(kebabName, IconComponent)
-		return IconComponent || null
-	} catch {
-		return null
-	}
+	return kebabName as IconName
 }
 
-export function useLucideIcon(name?: string) {
-	const [iconComponent, setIconComponent] = useState<LucideIcon | null>(null)
-
-	useEffect(() => {
-		let active = true
-		if (!name) {
-			setIconComponent(null)
-			return () => {
-				active = false
-			}
-		}
-
-		loadLucideIconComponent(name).then((component) => {
-			if (!active) return
-			setIconComponent(component)
-		})
-
-		return () => {
-			active = false
-		}
-	}, [name])
-
-	return iconComponent
-}
-
-interface LucideLazyIconProps extends LucideProps {
+interface LucideLazyIconProps extends Omit<LucideProps, "name"> {
 	icon?: string
+	fallbackIcon?: string
 }
 
-export function LucideLazyIcon({ icon, size = 16, ...rest }: LucideLazyIconProps) {
-	const IconComponent = useLucideIcon(icon)
-	if (!IconComponent) return null
-	return <IconComponent size={size} {...rest} />
+export function LucideLazyIcon({ icon, fallbackIcon, size = 16, ...rest }: LucideLazyIconProps) {
+	const iconName = normalizeIconName(icon) ?? normalizeIconName(fallbackIcon)
+	if (!iconName) return null
+
+	return <DynamicIcon {...rest} name={iconName} size={size} />
 }

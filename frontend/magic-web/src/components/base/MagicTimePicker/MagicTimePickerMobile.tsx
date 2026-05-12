@@ -33,6 +33,7 @@ function MagicTimePickerMobile({
 	onChange,
 	format = "HH:mm",
 	disabled,
+	disabledTime,
 	className,
 	placeholder,
 }: MagicTimePickerProps) {
@@ -40,8 +41,55 @@ function MagicTimePickerMobile({
 	const [visible, setVisible] = useState(false)
 	const [selectedTime, setSelectedTime] = useState<[string, string]>(["00", "00"])
 
-	const hourOptions = useMemo(() => generateHourOptions(), [])
-	const minuteOptions = useMemo(() => generateMinuteOptions(), [])
+	const allHourOptions = useMemo(() => generateHourOptions(), [])
+	const allMinuteOptions = useMemo(() => generateMinuteOptions(), [])
+
+	const disabledHourValues = useMemo(() => {
+		if (!disabledTime) return new Set<number>()
+
+		const pickerTime = dayjs(
+			`2000-01-01 ${selectedTime[0] || "00"}:${selectedTime[1] || "00"}`,
+			"YYYY-MM-DD HH:mm",
+		)
+		return new Set(disabledTime(pickerTime)?.disabledHours?.() || [])
+	}, [disabledTime, selectedTime])
+
+	const hourOptions = useMemo(
+		() => allHourOptions.filter((option) => !disabledHourValues.has(Number(option.value))),
+		[allHourOptions, disabledHourValues],
+	)
+
+	const resolvedHourValue = useMemo(() => {
+		if (hourOptions.some((option) => option.value === selectedTime[0])) return selectedTime[0]
+		return hourOptions[0]?.value?.toString() || "00"
+	}, [hourOptions, selectedTime])
+
+	const disabledMinuteValues = useMemo(() => {
+		if (!disabledTime) return new Set<number>()
+
+		const pickerTime = dayjs(
+			`2000-01-01 ${resolvedHourValue}:${selectedTime[1] || "00"}`,
+			"YYYY-MM-DD HH:mm",
+		)
+		return new Set(disabledTime(pickerTime)?.disabledMinutes?.(Number(resolvedHourValue)) || [])
+	}, [disabledTime, resolvedHourValue, selectedTime])
+
+	const minuteOptions = useMemo(
+		() => allMinuteOptions.filter((option) => !disabledMinuteValues.has(Number(option.value))),
+		[allMinuteOptions, disabledMinuteValues],
+	)
+
+	useEffect(() => {
+		if (!hourOptions.length || !minuteOptions.length) return
+
+		const nextHourValue = resolvedHourValue
+		const nextMinuteValue = minuteOptions.some((option) => option.value === selectedTime[1])
+			? selectedTime[1]
+			: minuteOptions[0]?.value?.toString() || "00"
+
+		if (selectedTime[0] === nextHourValue && selectedTime[1] === nextMinuteValue) return
+		setSelectedTime([nextHourValue, nextMinuteValue])
+	}, [hourOptions, minuteOptions, resolvedHourValue, selectedTime])
 
 	// Picker columns configuration
 	const columns = useMemo(() => [hourOptions, minuteOptions], [hourOptions, minuteOptions])
@@ -91,7 +139,7 @@ function MagicTimePickerMobile({
 				onClick={() => !disabled && setVisible(true)}
 				disabled={disabled}
 				className={cn(
-					"shadow-xs flex h-9 w-fit items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-[color,box-shadow] focus-visible:ring-ring/50",
+					"flex h-9 w-fit items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:ring-ring/50",
 					"focus-visible:border-ring focus-visible:ring-[3px]",
 					"disabled:cursor-not-allowed disabled:opacity-50",
 					"data-[placeholder]:text-muted-foreground",

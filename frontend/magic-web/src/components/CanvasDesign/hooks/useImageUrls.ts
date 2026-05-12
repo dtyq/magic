@@ -4,7 +4,8 @@ import { useCanvasData } from "./useCanvasData"
 import { useCanvasEvent } from "./useCanvasEvent"
 import { ElementTypeEnum, type LayerElement } from "../canvas/types"
 import { ImageElement as ImageElementClass } from "../canvas/element/elements/ImageElement"
-import { normalizePath } from "../canvas/utils/utils"
+import { resolveCanonicalResourcePath } from "../canvas/utils/pathUtils"
+import type { CanvasEvent } from "../canvas/EventEmitter"
 
 /**
  * 获取图片元素的 URL 映射
@@ -13,11 +14,31 @@ import { normalizePath } from "../canvas/utils/utils"
  */
 export function useImageUrls(enabled: boolean = true): Map<string, string> {
 	const { canvas } = useCanvas()
-	const elements = useCanvasData((manager) => manager.getAllElements())
-	const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map())
-
-	// 使用 ref 存储上一次的元素 ID 列表，避免因为 elements 引用变化导致不必要的更新
 	const prevElementIdsRef = useRef<Set<string>>(new Set())
+	const shouldUpdateOnElementChange = useCallback(
+		(event: CanvasEvent<"element:change">) => {
+			if (!enabled || !canvas) return false
+
+			const changedElementIds = event.data?.elementIds
+			if (!changedElementIds || changedElementIds.length === 0) {
+				return true
+			}
+
+			return changedElementIds.some((elementId) => {
+				if (prevElementIdsRef.current.has(elementId)) {
+					return true
+				}
+
+				const elementData = canvas.elementManager.getElementData(elementId)
+				return elementData?.type === ElementTypeEnum.Image
+			})
+		},
+		[canvas, enabled],
+	)
+	const elements = useCanvasData((manager) => manager.getAllElements(), ["element:change"], {
+		shouldUpdateOnElementChange,
+	})
+	const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map())
 
 	// 更新单个图片元素的 URL
 	const updateImageUrl = useCallback(
@@ -27,6 +48,7 @@ export function useImageUrls(enabled: boolean = true): Map<string, string> {
 			if (elementInstance && elementInstance instanceof ImageElementClass) {
 				const elementData = canvas.elementManager.getElementData(elementId)
 				if (elementData && elementData.type === ElementTypeEnum.Image) {
+					prevElementIdsRef.current.add(elementId)
 					if (elementData.src && elementData.src) {
 						const resource = await canvas.imageResourceManager.getResource(
 							elementData.src,
@@ -199,6 +221,7 @@ export function useImageUrls(enabled: boolean = true): Map<string, string> {
 	useCanvasEvent(
 		"element:deleted",
 		useCallback(({ data }) => {
+			prevElementIdsRef.current.delete(data.elementId)
 			setImageUrls((prev) => {
 				if (!prev.has(data.elementId)) {
 					return prev
@@ -217,13 +240,13 @@ export function useImageUrls(enabled: boolean = true): Map<string, string> {
 		useCallback(
 			({ data }) => {
 				if (!canvas || !enabled) return
+				const resolveAbs = canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
 				const elementsDict = canvas.elementManager.getElementsDict()
-				const normalizedPath = normalizePath(data.path)
+				const normalizedPath = resolveCanonicalResourcePath(data.path, resolveAbs)
 				for (const elementData of Object.values(elementsDict)) {
+					if (elementData.type !== ElementTypeEnum.Image || !elementData.src) continue
 					if (
-						elementData.type === ElementTypeEnum.Image &&
-						elementData.src &&
-						normalizePath(elementData.src) === normalizedPath
+						resolveCanonicalResourcePath(elementData.src, resolveAbs) === normalizedPath
 					) {
 						updateImageUrl(elementData.id)
 					}

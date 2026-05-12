@@ -7,15 +7,23 @@ import imageIconError from "../../../assets/image/image-icon-error.png"
 import imageBackgroundUnselected from "../../../assets/image/image-background-unselected.jpg"
 import imageBackgroundLoading from "../../../assets/image/image-background-loading.jpg"
 import type {
+	EraserRequest,
+	GenerateExtendedImageRequest,
 	GenerateImageRequest,
 	GenerateHightImageRequest,
-	UploadImageResponse,
+	ImageGenerationTaskMeta,
+	RemoveBackgroundRequest,
+	UploadFileResponse,
 } from "../../../types.magic"
-import { GenerationStatus } from "../../../types.magic"
-import { generateUUID, collectElementsByType, type Rect, normalizePath } from "../../utils/utils"
+import { GenerationStatus, ImageGenerationTaskTypeMap } from "../../../types.magic"
+import { generateUUID, collectElementsByType, type Rect } from "../../utils/utils"
+import { resolveCanonicalResourcePath } from "../../utils/pathUtils"
+import type { ResourceLoadFailureReason } from "../../utils/resourceLoadFailure"
 import { TransformBehavior } from "../../interaction/TransformManager"
 import type { Canvas } from "../../Canvas"
 import type { ImageSource, ImageInfo, LoadedResource } from "../../utils/ImageResourceManager"
+import { getPersistedSourceCrop } from "../../utils/imageCropUtils"
+import { getImageSourceDimensions } from "../../utils/imageSourceUtils"
 import { IMAGE_CONFIG, COLORS } from "./ImageElement.config"
 import { ImageStaticLoader } from "../../utils/ImageStaticLoader"
 import { RenderUtils } from "../../utils/RenderUtils"
@@ -24,6 +32,13 @@ import { InfoButtonDecorator } from "../decorators/InfoButtonDecorator"
 import { ImagePollingManager } from "../../utils/ImagePollingManager"
 import { DECORATOR_COLORS, DECORATOR_CONFIG } from "../decorators/DecoratorConfig"
 import type { TransformContext } from "../BaseElement"
+import {
+	createExpandImageTaskMeta,
+	createEraserTaskMeta,
+	createHighImageTaskMeta,
+	createRemoveBackgroundTaskMeta,
+	getImageGenerationTaskMeta,
+} from "../../utils/imageGenerationTaskMeta"
 
 /**
  * 图片元素类
@@ -40,7 +55,6 @@ export class ImageElement extends BaseElement<ImageElementData> {
 
 	// 渲染相关
 	private backgroundNode?: Konva.Image
-	private isGeneratingState: boolean = false // 生成中状态（AI 生成图片）
 	private isLoadingState: boolean = false // 加载中状态（图片已生成，等待 ossSrc）
 	private isErrorState: boolean = false
 	private contentGroup?: Konva.Group
@@ -64,17 +78,32 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	private resourceLoadedHandler?: (event: {
 		data: { path: string; resource: LoadedResource }
 	}) => void
-	private resourceLoadFailedHandler?: (event: { data: { path: string } }) => void
+	private resourceLoadFailedHandler?: (event: {
+		data: { path: string; reason?: ResourceLoadFailureReason }
+	}) => void
+	/** 最后一次加载失败原因（与 resource:image:load-failed 同步） */
+	private imageLoadFailureReason: ResourceLoadFailureReason | null = null
 
 	// 临时生成图片请求数据（用于弹窗关闭后恢复）
 	private tempGenerateImageRequest?: Partial<GenerateImageRequest>
 	// 参考图信息列表（保存上传的参考图完整信息）
-	private referenceImageInfos: UploadImageResponse[] = []
+	private referenceImageInfos: UploadFileResponse[] = []
 	// 上传结果（由全局上传管理器设置）
-	public uploadResult?: UploadImageResponse
+	public uploadResult?: UploadFileResponse
+
+	// 裁剪相关（仅监听 enter/exit 用于 rerender，绘制由 CropRenderer 负责）
+	private cropEnterHandler?: (event: { data: { elementId: string } }) => void
+	private cropExitHandler?: (event: { data: { elementId: string; restored: boolean } }) => void
+	private selectionChangeHandler?: (event: { data: { elementIds: string[] } }) => void
+	private deselectHandler?: (event: { data: { elementIds?: string[] } | undefined }) => void
+	private isRetryEditing = false
 
 	constructor(data: ImageElementData, canvas: Canvas) {
 		super(data, canvas)
+
+		// 设置裁剪事件监听
+		this.setupCropEventListeners()
+		this.setupRetryEditingListeners()
 
 		// 初始化轮询管理器（仅用于生成状态轮询）
 		this.pollingManager = new ImagePollingManager({
@@ -103,11 +132,13 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		}
 		// 如果没有临时配置，从 generateImageRequest 恢复临时配置
 		else if (this.data.generateImageRequest && !this.tempGenerateImageRequest) {
-			const { model_id, resolution, size } = this.data.generateImageRequest || {}
+			const { model_id, resolution, size, image_generation_config } =
+				this.data.generateImageRequest || {}
 			this.tempGenerateImageRequest = {
 				...(model_id && { model_id }),
 				...(resolution && { resolution }),
 				...(size && { size }),
+				...(image_generation_config && { image_generation_config }),
 			}
 		}
 
@@ -120,9 +151,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		else if (this.data.generateImageRequest?.image_id) {
 			this.createOssSrcPromise()
 			this.pollingManager.start()
-		}
-		// 没有 src 但有 generateHightImageRequest：启动轮询检查生成结果
-		else if (this.data.generateHightImageRequest?.image_id) {
+		} else if (this.getImageGenerationTaskMeta()?.image_id) {
 			this.createOssSrcPromise()
 			this.pollingManager.start()
 		}
@@ -148,6 +177,8 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	 */
 	override destroy(): void {
 		this.removeResourceLoadedListener()
+		this.removeCropEventListeners()
+		this.removeRetryEditingListeners()
 		this.pollingManager.destroy()
 		this.borderDecorator?.destroy()
 		this.infoButtonDecorator?.destroy()
@@ -185,8 +216,28 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			...request,
 			image_id: generateUUID(),
 		}
+		const previousStatus = this.data.status
+		const previousErrorMessage = this.data.errorMessage
 
 		this.isGenerating = true
+		this.isErrorState = false
+		this.isRetryEditing = false
+		if (previousStatus === GenerationStatus.Failed) {
+			this.canvas.elementManager.update(
+				this.data.id,
+				{
+					status: undefined,
+					errorMessage: undefined,
+				},
+				{ silent: false },
+			)
+		} else {
+			this.rerender()
+		}
+		this.canvas.eventEmitter.emit({
+			type: "element:image:generate-submit-started",
+			data: { elementId: this.data.id },
+		})
 
 		try {
 			// 发起图片生成请求
@@ -226,9 +277,23 @@ export class ImageElement extends BaseElement<ImageElementData> {
 
 			return true
 		} catch (error) {
-			return false
-		} finally {
 			this.isGenerating = false
+			if (previousStatus === GenerationStatus.Failed) {
+				this.canvas.elementManager.update(
+					this.data.id,
+					{
+						status: previousStatus,
+						errorMessage: previousErrorMessage,
+					},
+					{ silent: false },
+				)
+			}
+			this.canvas.eventEmitter.emit({
+				type: "element:image:generate-submit-failed",
+				data: { elementId: this.data.id },
+			})
+			this.rerender()
+			return false
 		}
 	}
 
@@ -269,7 +334,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 				this.canvas.elementManager.update(
 					this.data.id,
 					{
-						generateHightImageRequest: requestWithId,
+						imageGenerationTaskMeta: createHighImageTaskMeta(requestWithId),
 						status: undefined,
 						errorMessage: undefined,
 					},
@@ -291,9 +356,225 @@ export class ImageElement extends BaseElement<ImageElementData> {
 
 			return true
 		} catch (error) {
-			return false
-		} finally {
 			this.isGenerating = false
+			this.canvas.eventEmitter.emit({
+				type: "element:image:generate-submit-failed",
+				data: { elementId: this.data.id },
+			})
+			this.rerender()
+			return false
+		}
+	}
+
+	/**
+	 * 发起去背景请求
+	 * @param request 请求参数
+	 * @returns 请求是否成功发起
+	 */
+	async removeBackground(request: RemoveBackgroundRequest): Promise<boolean> {
+		if (!this.canvas.magicConfigManager.config?.methods?.removeBackground) {
+			return false
+		}
+
+		if (this.isGenerating) {
+			return false
+		}
+
+		if (!request.file_path) {
+			return false
+		}
+
+		const requestWithId: RemoveBackgroundRequest = {
+			...request,
+			image_id: request.image_id || generateUUID(),
+		}
+
+		this.isGenerating = true
+		this.isErrorState = false
+		this.rerender()
+
+		try {
+			await this.canvas.magicConfigManager.config?.methods?.removeBackground(requestWithId)
+
+			const currentElement = this.canvas.elementManager.getElementData(this.data.id)
+			if (currentElement) {
+				this.canvas.elementManager.update(
+					this.data.id,
+					{
+						imageGenerationTaskMeta: createRemoveBackgroundTaskMeta(requestWithId),
+						status: undefined,
+						errorMessage: undefined,
+					},
+					{ silent: false },
+				)
+			}
+
+			this.isErrorState = false
+			this.createOssSrcPromise()
+			this.pollingManager.start()
+			this.rerender()
+
+			return true
+		} catch (error) {
+			this.isGenerating = false
+			this.rerender()
+			return false
+		}
+	}
+
+	/**
+	 * 发起橡皮擦除请求
+	 * @param request 请求参数
+	 * @returns 请求是否成功发起
+	 */
+	async eraser(request: EraserRequest): Promise<boolean> {
+		if (!this.canvas.magicConfigManager.config?.methods?.eraser) {
+			return false
+		}
+
+		if (this.isGenerating) {
+			return false
+		}
+
+		if (!request.file_path || !request.mark_path) {
+			return false
+		}
+
+		const requestWithId: EraserRequest = {
+			...request,
+			image_id: request.image_id || generateUUID(),
+		}
+
+		this.isGenerating = true
+		this.isErrorState = false
+		this.rerender()
+
+		try {
+			await this.canvas.magicConfigManager.config?.methods?.eraser(requestWithId)
+
+			const currentElement = this.canvas.elementManager.getElementData(this.data.id)
+			if (currentElement) {
+				this.canvas.elementManager.update(
+					this.data.id,
+					{
+						imageGenerationTaskMeta: createEraserTaskMeta(requestWithId),
+						status: undefined,
+						errorMessage: undefined,
+					},
+					{ silent: false },
+				)
+			}
+
+			this.isErrorState = false
+			this.createOssSrcPromise()
+			this.pollingManager.start()
+			this.rerender()
+
+			return true
+		} catch (error) {
+			this.isGenerating = false
+			this.rerender()
+			return false
+		}
+	}
+
+	/**
+	 * 发起扩图请求
+	 * @param request 请求参数
+	 * @returns 请求是否成功发起
+	 */
+	async expandImage(request: GenerateExtendedImageRequest): Promise<boolean> {
+		if (!this.canvas.magicConfigManager.config?.methods?.expandImage) {
+			return false
+		}
+
+		if (this.isGenerating) {
+			return false
+		}
+
+		if (!request.file_path || !request.canvas_path || !request.mask_path || !request.size) {
+			return false
+		}
+
+		const requestWithId: GenerateExtendedImageRequest = {
+			...request,
+			image_id: request.image_id || generateUUID(),
+		}
+
+		this.isGenerating = true
+		this.isErrorState = false
+		this.rerender()
+
+		try {
+			await this.canvas.magicConfigManager.config?.methods?.expandImage(requestWithId)
+
+			const currentElement = this.canvas.elementManager.getElementData(this.data.id)
+			if (currentElement) {
+				this.canvas.elementManager.update(
+					this.data.id,
+					{
+						imageGenerationTaskMeta: createExpandImageTaskMeta(requestWithId),
+						status: undefined,
+						errorMessage: undefined,
+					},
+					{ silent: false },
+				)
+			}
+
+			this.isErrorState = false
+			this.createOssSrcPromise()
+			this.pollingManager.start()
+			this.rerender()
+
+			return true
+		} catch (error) {
+			this.isGenerating = false
+			this.rerender()
+			return false
+		}
+	}
+
+	private getImageGenerationTaskMeta(): ImageGenerationTaskMeta | undefined {
+		return getImageGenerationTaskMeta(this.data)
+	}
+
+	private retryImageGenerationTask(taskMeta: ImageGenerationTaskMeta): void {
+		if (taskMeta.type === ImageGenerationTaskTypeMap.High) {
+			this.generateHightImage({
+				file_path: taskMeta.file_path,
+				size: taskMeta.size,
+				reference_image_options: taskMeta.reference_image_options,
+			})
+			return
+		}
+
+		if (taskMeta.type === ImageGenerationTaskTypeMap.RemoveBackground) {
+			this.removeBackground({
+				file_path: taskMeta.file_path,
+				size: taskMeta.size,
+				reference_image_options: taskMeta.reference_image_options,
+			})
+			return
+		}
+
+		if (taskMeta.type === ImageGenerationTaskTypeMap.Eraser) {
+			this.eraser({
+				file_path: taskMeta.file_path,
+				mark_path: taskMeta.mark_path,
+				size: taskMeta.size,
+				reference_image_options: taskMeta.reference_image_options,
+			})
+			return
+		}
+
+		if (taskMeta.type === ImageGenerationTaskTypeMap.Expand) {
+			this.expandImage({
+				file_path: taskMeta.file_path,
+				canvas_path: taskMeta.canvas_path,
+				mask_path: taskMeta.mask_path,
+				size: taskMeta.size,
+				reference_image_options: taskMeta.reference_image_options,
+			})
 		}
 	}
 
@@ -377,6 +658,20 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		this.rerender()
 	}
 
+	private getImageLoadErrorText(): string {
+		const failureReason =
+			this.imageLoadFailureReason ??
+			(this.data.src
+				? this.canvas.imageResourceManager.getFailureReason(this.data.src)
+				: null)
+
+		if (failureReason === "not-found") {
+			return this.getText("image.fileMissing", "图片文件不存在")
+		}
+
+		return this.getText("image.loadError", "图片加载失败")
+	}
+
 	/**
 	 * 触发 path 的图片加载（通过 resource:image:loaded 事件获取完成通知）
 	 */
@@ -400,13 +695,23 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		if (!this.data.src) return
 
 		const path = this.data.src
+		const resolveAbs = this.canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
+
 		this.resourceLoadedHandler = ({ data }) => {
-			if (normalizePath(data.path) === normalizePath(path)) {
+			if (
+				resolveCanonicalResourcePath(data.path, resolveAbs) ===
+				resolveCanonicalResourcePath(path, resolveAbs)
+			) {
+				this.imageLoadFailureReason = null
 				this.applyResourceFromEvent(data.resource)
 			}
 		}
 		this.resourceLoadFailedHandler = ({ data }) => {
-			if (normalizePath(data.path) === normalizePath(path)) {
+			if (
+				resolveCanonicalResourcePath(data.path, resolveAbs) ===
+				resolveCanonicalResourcePath(path, resolveAbs)
+			) {
+				this.imageLoadFailureReason = data.reason ?? "load-error"
 				this.handleImageLoadFailure()
 			}
 		}
@@ -414,11 +719,12 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		this.canvas.eventEmitter.on("resource:image:load-failed", this.resourceLoadFailedHandler)
 
 		// 同步可能已缓存的资源（如其他消费者已加载，或 memorized 事件尚未匹配）
-		this.canvas.imageResourceManager.getResource(path).then((resource) => {
+		void this.canvas.imageResourceManager.getResource(path).then((resource) => {
 			if (
 				resource &&
 				!this.loadedImage &&
-				normalizePath(path) === normalizePath(this.data.src || "")
+				resolveCanonicalResourcePath(path, resolveAbs) ===
+					resolveCanonicalResourcePath(this.data.src || "", resolveAbs)
 			) {
 				this.applyResourceFromEvent(resource)
 			}
@@ -527,9 +833,13 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	 * 检查图片是否满足生成条件（正在生成中或等待生成结果）
 	 */
 	private isImageGenerationPending(): boolean {
+		if (this.isGenerating) {
+			return true
+		}
+
 		// 有生成请求但还没有 src，说明正在生成中
 		const hasGenerateRequest =
-			!!this.data.generateImageRequest || !!this.data.generateHightImageRequest
+			!!this.data.generateImageRequest || !!this.getImageGenerationTaskMeta()
 		const hasSrc = !!this.data.src
 		const status = this.data.status
 
@@ -606,6 +916,60 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	}
 
 	/**
+	 * 获取图片源的尺寸
+	 * @param image - 图片源
+	 * @returns 图片源的尺寸
+	 */
+	private getSourceDimensions(image?: ImageSource): { width: number; height: number } {
+		if (this.storedImageInfo?.naturalWidth && this.storedImageInfo?.naturalHeight) {
+			return {
+				width: this.storedImageInfo.naturalWidth,
+				height: this.storedImageInfo.naturalHeight,
+			}
+		}
+
+		if (image) {
+			return getImageSourceDimensions(image)
+		}
+
+		return {
+			width: this.data.width ?? 0,
+			height: this.data.height ?? 0,
+		}
+	}
+
+	/**
+	 * 获取图片源的裁剪区域
+	 * @param image - 图片源
+	 * @returns 图片源的裁剪区域
+	 */
+	private getSourceCrop(image?: ImageSource) {
+		const sourceDimensions = this.getSourceDimensions(image)
+		const crop = getPersistedSourceCrop(this.data.crop, sourceDimensions)
+		if (crop.width <= 0 || crop.height <= 0) {
+			return undefined
+		}
+		return crop
+	}
+
+	/** 比较持久化 crop 是否一致（用于判断是否需要整节点重渲染） */
+	private isPersistedCropConfigEqual(
+		a: ImageElementData["crop"],
+		b: ImageElementData["crop"],
+	): boolean {
+		if (a === b) return true
+		if (a === undefined || b === undefined) return false
+		return (
+			a.x === b.x &&
+			a.y === b.y &&
+			a.width === b.width &&
+			a.height === b.height &&
+			a.displayWidth === b.displayWidth &&
+			a.displayHeight === b.displayHeight
+		)
+	}
+
+	/**
 	 * 将元素渲染到Canvas上下文
 	 * @param ctx - Canvas 2D渲染上下文
 	 * @param offsetX - 元素在Canvas中的X偏移量
@@ -646,8 +1010,23 @@ export class ImageElement extends BaseElement<ImageElementData> {
 				return false
 			}
 
-			// 绘制图片到Canvas
-			ctx.drawImage(img, offsetX, offsetY, renderWidth, renderHeight)
+			const crop = this.getSourceCrop(img)
+
+			if (crop) {
+				ctx.drawImage(
+					img,
+					crop.x,
+					crop.y,
+					crop.width,
+					crop.height,
+					offsetX,
+					offsetY,
+					renderWidth,
+					renderHeight,
+				)
+			} else {
+				ctx.drawImage(img, offsetX, offsetY, renderWidth, renderHeight)
+			}
 
 			// 如果需要绘制边框
 			if (options?.shouldDrawBorder) {
@@ -753,8 +1132,13 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			return baseName
 		}
 
-		const hasRequest = !!this.data.generateImageRequest || !!this.data.generateHightImageRequest
+		const hasRequest = !!this.data.generateImageRequest || !!this.getImageGenerationTaskMeta()
 		const status = this.data.status
+
+		if (this.isGenerating) {
+			const suffix = this.getGeneratingNameSuffix()
+			return `${baseName}${suffix}`
+		}
 
 		// 有结果且失败，添加"(失败)"后缀
 		if (status === GenerationStatus.Failed) {
@@ -766,7 +1150,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		if (status === GenerationStatus.Pending || status === GenerationStatus.Processing) {
 			// 区分上传中和生成中
 			if (hasRequest) {
-				const suffix = this.getText("image.nameSuffix.generating", "(生成中)")
+				const suffix = this.getGeneratingNameSuffix()
 				return `${baseName}${suffix}`
 			} else {
 				const suffix = this.getText("image.nameSuffix.uploading", "(上传中)")
@@ -793,7 +1177,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 
 		// 没有 src，但有请求且没有状态，添加"(生成中)"后缀
 		if (hasRequest && !status) {
-			const suffix = this.getText("image.nameSuffix.generating", "(生成中)")
+			const suffix = this.getGeneratingNameSuffix()
 			return `${baseName}${suffix}`
 		}
 
@@ -928,14 +1312,14 @@ export class ImageElement extends BaseElement<ImageElementData> {
 
 	render(): Konva.Group | null {
 		// 检查是否有生成请求（生图或高清图）
-		const hasRequest = !!this.data.generateImageRequest || !!this.data.generateHightImageRequest
+		const hasRequest = !!this.data.generateImageRequest || !!this.getImageGenerationTaskMeta()
 		const status = this.data.status
 
 		// 有 src：视为 completed 状态，直接渲染图片或加载状态
 		if (!!this.data.src || status === GenerationStatus.Completed) {
 			// 如果图片加载失败，渲染错误状态
 			if (this.isErrorState) {
-				return this.renderError(this.getText("image.loadError", "图片加载失败"))
+				return this.renderError(this.getImageLoadErrorText())
 			}
 
 			// 从 ImageResourceManager 实时查询状态
@@ -943,7 +1327,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 
 			// 主图已加载，直接渲染主图
 			if (loadState.imageLoaded && loadState.ossSrc && this.data.src) {
-				return this.renderImage(loadState.ossSrc)
+				return this.renderImage()
 			}
 
 			// 其他情况（ossSrc 未换取、图片加载中、缩略图可用但主图未加载）都显示加载中
@@ -973,12 +1357,15 @@ export class ImageElement extends BaseElement<ImageElementData> {
 
 	update(newData: ImageElementData): boolean {
 		// 判断是否需要重新渲染
+		const currentTaskMeta = this.getImageGenerationTaskMeta()
+		const nextTaskMeta = getImageGenerationTaskMeta(newData)
 		const needsRerender =
 			this.data.generateImageRequest?.image_id !== newData.generateImageRequest?.image_id ||
-			this.data.generateHightImageRequest?.image_id !==
-				newData.generateHightImageRequest?.image_id ||
+			currentTaskMeta?.image_id !== nextTaskMeta?.image_id ||
+			currentTaskMeta?.type !== nextTaskMeta?.type ||
 			this.data.src !== newData.src ||
-			this.data.status !== newData.status
+			this.data.status !== newData.status ||
+			!this.isPersistedCropConfigEqual(this.data.crop, newData.crop)
 
 		// 检查 src 是否变化
 		const srcChanged = this.data.src !== newData.src
@@ -988,8 +1375,16 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		const newStatus = newData.status
 		const statusChangedToFailed =
 			oldStatus !== GenerationStatus.Failed && newStatus === GenerationStatus.Failed
+		const generationSettled =
+			!!newData.src ||
+			newStatus === GenerationStatus.Completed ||
+			newStatus === GenerationStatus.Failed
 
 		this.data = newData
+
+		if (generationSettled) {
+			this.isGenerating = false
+		}
 
 		// 如果 src 变化，重新加载图片并设置/移除监听
 		if (srcChanged) {
@@ -1093,7 +1488,6 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		const height = this.data.height
 
 		// 重置状态标记
-		this.isGeneratingState = false
 		this.isLoadingState = false
 		this.isErrorState = false
 
@@ -1135,7 +1529,10 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			})
 
 			// 创建边框
-			this.createBorder(group, width, height)
+			this.createBorder(group, width, height, false)
+			if (this.shouldShowInfoButton()) {
+				this.createInfoButton(group, width, height)
+			}
 		})
 
 		this.finalizeNode(group)
@@ -1154,7 +1551,6 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		const height = this.data.height
 
 		// 标记为生成中状态
-		this.isGeneratingState = true
 		this.isLoadingState = false
 		this.isErrorState = false
 
@@ -1170,15 +1566,16 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		// 创建事件代理 hit 节点
 		RenderUtils.createHitNode(group, width, height)
 
-		// 区分上传中和生成中
-		const hasRequest = !!this.data.generateImageRequest || !!this.data.generateHightImageRequest
+		// 区分上传中和不同任务类型的生成中
+		const hasRequest = !!this.data.generateImageRequest || !!this.getImageGenerationTaskMeta()
 		// 如果是 processing 状态且不是临时元素，视为生成中（即使没有生成请求信息）
 		const isGenerating =
 			hasRequest ||
+			this.isGenerating ||
 			(this.data.status === GenerationStatus.Processing &&
 				!this.canvas.elementManager.isTemporary(this.data.id))
 		const displayText = isGenerating
-			? this.getText("image.generating", "正在生成中...")
+			? this.getGeneratingPlaceholderText()
 			: this.getText("image.uploading", "正在上传中...")
 
 		// 异步加载背景和内容
@@ -1199,11 +1596,56 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			})
 
 			// 创建边框
-			this.createBorder(group, width, height)
+			this.createBorder(group, width, height, true)
+			if (this.shouldShowInfoButton()) {
+				this.createInfoButton(group, width, height)
+			}
 		})
 
 		this.finalizeNode(group)
 		return group
+	}
+
+	private getGeneratingPlaceholderText(): string {
+		const taskMeta = this.getImageGenerationTaskMeta()
+		if (taskMeta?.type === ImageGenerationTaskTypeMap.Expand) {
+			return this.getText("image.expanding", "正在扩展中...")
+		}
+		if (taskMeta?.type === ImageGenerationTaskTypeMap.Eraser) {
+			return this.getText("image.erasing", "正在擦除中...")
+		}
+		if (taskMeta?.type === ImageGenerationTaskTypeMap.RemoveBackground) {
+			return this.getText("image.removingBackground", "正在去除背景...")
+		}
+		return this.getText("image.generating", "正在生成中...")
+	}
+
+	private getGeneratingNameSuffix(): string {
+		const taskMeta = this.getImageGenerationTaskMeta()
+		if (taskMeta?.type === ImageGenerationTaskTypeMap.Expand) {
+			return this.getText("image.nameSuffix.expanding", "(扩展中)")
+		}
+		if (taskMeta?.type === ImageGenerationTaskTypeMap.Eraser) {
+			return this.getText("image.nameSuffix.erasing", "(擦除中)")
+		}
+		if (taskMeta?.type === ImageGenerationTaskTypeMap.RemoveBackground) {
+			return this.getText("image.nameSuffix.removingBackground", "(去背景中)")
+		}
+		return this.getText("image.nameSuffix.generating", "(生成中)")
+	}
+
+	private getRetryEditingPlaceholderText(): string {
+		const taskMeta = this.getImageGenerationTaskMeta()
+		if (taskMeta?.type === ImageGenerationTaskTypeMap.Expand) {
+			return this.getText("image.retryEditingExpand", "请重新编辑扩展需求")
+		}
+		if (taskMeta?.type === ImageGenerationTaskTypeMap.Eraser) {
+			return this.getText("image.retryEditingEraser", "请重新编辑擦除需求")
+		}
+		if (taskMeta?.type === ImageGenerationTaskTypeMap.RemoveBackground) {
+			return this.getText("image.retryEditingRemoveBackground", "请重新编辑去背景需求")
+		}
+		return this.getText("image.retryEditing", "请重新编辑图片生成需求")
 	}
 
 	/**
@@ -1218,7 +1660,6 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		const height = this.data.height
 
 		// 标记为加载中状态
-		this.isGeneratingState = false
 		this.isLoadingState = true
 		this.isErrorState = false
 
@@ -1252,7 +1693,10 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			})
 
 			// 创建边框
-			this.createBorder(group, width, height)
+			this.createBorder(group, width, height, true)
+			if (this.shouldShowInfoButton()) {
+				this.createInfoButton(group, width, height)
+			}
 		})
 
 		this.finalizeNode(group)
@@ -1262,7 +1706,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	/**
 	 * 渲染实际图片
 	 */
-	private renderImage(imageUrl: string): Konva.Group {
+	private renderImage(): Konva.Group {
 		if (!this.data.width || !this.data.height) {
 			throw new Error("Image element must have width and height")
 		}
@@ -1271,7 +1715,6 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		const height = this.data.height
 
 		// 重置状态标记
-		this.isGeneratingState = false
 		this.isLoadingState = false
 		this.isErrorState = false
 
@@ -1293,6 +1736,9 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			return group
 		}
 
+		const crop = this.getSourceCrop(this.loadedImage)
+		const isCropping = this.canvas.cropManager.getCroppingElementId() === this.data.id
+
 		// 创建图片节点
 		const imageNode = new Konva.Image({
 			image: this.loadedImage,
@@ -1301,15 +1747,16 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			x: 0,
 			y: 0,
 			listening: false,
+			crop: isCropping ? undefined : crop,
 		})
 
 		group.add(imageNode)
 
 		// 创建边框
-		this.createBorder(group, width, height)
+		this.createBorder(group, width, height, false)
 
-		// 只有在有生成请求（生图）时才创建 info 按钮
-		if (this.data.generateImageRequest) {
+		// 只有在有生成请求时才创建 info 按钮
+		if (this.shouldShowInfoButton()) {
 			this.createInfoButton(group, width, height)
 		}
 
@@ -1329,7 +1776,6 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		const height = this.data.height
 
 		// 标记为错误状态
-		this.isGeneratingState = false
 		this.isLoadingState = false
 		this.isErrorState = true
 
@@ -1360,23 +1806,23 @@ export class ImageElement extends BaseElement<ImageElementData> {
 
 			// 创建居中的图标和错误文本
 			RenderUtils.createCenteredIconText(group, width, height, {
-				text: errorMessage,
+				text: this.isRetryEditing ? this.getRetryEditingPlaceholderText() : errorMessage,
 				textColor: COLORS.ERROR_TEXT,
 				iconSrc: imageIconError,
 				withBackground: false,
 				isErrorState: true,
 				t: this.canvas.t,
 				onRetry: () => {
-					const imageRequest = this.data.generateImageRequest
-					const hightImageRequest = this.data.generateHightImageRequest
-					if (imageRequest) {
-						this.generateImage(imageRequest)
-					} else if (hightImageRequest) {
-						this.generateHightImage(hightImageRequest)
-					}
+					this.isRetryEditing = true
+					this.canvas.selectionManager.select(this.data.id, false, false)
+					this.rerender()
+					this.canvas.eventEmitter.emit({
+						type: "element:image:retryClick",
+						data: { elementId: this.data.id },
+					})
 				},
-				hasGenerateImageRequest:
-					!!this.data.generateImageRequest || !!this.data.generateHightImageRequest,
+				// 仅文生图失败态展示“重新生成”；去背景/扩展/橡皮/高清放大轮询失败只保留错误提示。
+				hasGenerateImageRequest: !this.isRetryEditing && !!this.data.generateImageRequest,
 				canvas: this.canvas,
 			}).then((contentGroup) => {
 				this.contentGroup = contentGroup
@@ -1384,7 +1830,10 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			})
 
 			// 创建边框
-			this.createBorder(group, width, height)
+			this.createBorder(group, width, height, false)
+			if (this.shouldShowInfoButton()) {
+				this.createInfoButton(group, width, height)
+			}
 		})
 
 		this.finalizeNode(group)
@@ -1394,9 +1843,14 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	/**
 	 * 创建边框
 	 */
-	private createBorder(group: Konva.Group, width: number, height: number): void {
+	private createBorder(
+		group: Konva.Group,
+		width: number,
+		height: number,
+		isAnimated: boolean,
+	): void {
 		this.borderDecorator = new BorderDecorator(group, width, height, {
-			isAnimated: this.isGeneratingState || this.isLoadingState,
+			isAnimated,
 			elementId: this.data.id,
 			canvas: this.canvas,
 		})
@@ -1412,8 +1866,13 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			canvas: this.canvas,
 			width,
 			height,
+			infoClickEventType: "element:image:infoButtonClick",
 		})
 		this.infoButtonDecorator.create()
+	}
+
+	private shouldShowInfoButton(): boolean {
+		return !!this.data.generateImageRequest
 	}
 
 	/**
@@ -1468,6 +1927,71 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	}
 
 	/**
+	 * 设置裁剪事件监听
+	 */
+	private setupCropEventListeners(): void {
+		// 监听进入裁剪模式事件
+		this.cropEnterHandler = ({ data }) => {
+			if (data.elementId === this.data.id) {
+				this.rerender()
+			}
+		}
+		this.canvas.eventEmitter.on("crop:enter", this.cropEnterHandler)
+
+		// 监听退出裁剪模式事件
+		this.cropExitHandler = ({ data }) => {
+			if (data.elementId === this.data.id) {
+				this.rerender()
+			}
+		}
+		this.canvas.eventEmitter.on("crop:exit", this.cropExitHandler)
+	}
+
+	/**
+	 * 移除裁剪事件监听
+	 */
+	private removeCropEventListeners(): void {
+		if (this.cropEnterHandler) {
+			this.canvas.eventEmitter.off("crop:enter", this.cropEnterHandler)
+			this.cropEnterHandler = undefined
+		}
+		if (this.cropExitHandler) {
+			this.canvas.eventEmitter.off("crop:exit", this.cropExitHandler)
+			this.cropExitHandler = undefined
+		}
+	}
+
+	private setupRetryEditingListeners(): void {
+		this.selectionChangeHandler = ({ data }) => {
+			if (!this.isRetryEditing) return
+			if (!data.elementIds.includes(this.data.id)) {
+				this.isRetryEditing = false
+				this.rerender()
+			}
+		}
+		this.deselectHandler = ({ data }) => {
+			if (!this.isRetryEditing) return
+			if (!data?.elementIds || data.elementIds.includes(this.data.id)) {
+				this.isRetryEditing = false
+				this.rerender()
+			}
+		}
+		this.canvas.eventEmitter.on("element:select", this.selectionChangeHandler)
+		this.canvas.eventEmitter.on("element:deselect", this.deselectHandler)
+	}
+
+	private removeRetryEditingListeners(): void {
+		if (this.selectionChangeHandler) {
+			this.canvas.eventEmitter.off("element:select", this.selectionChangeHandler)
+			this.selectionChangeHandler = undefined
+		}
+		if (this.deselectHandler) {
+			this.canvas.eventEmitter.off("element:deselect", this.deselectHandler)
+			this.deselectHandler = undefined
+		}
+	}
+
+	/**
 	 * 保存临时生成图片请求数据
 	 */
 	saveTempGenerateImageRequest(request: Partial<GenerateImageRequest>): void {
@@ -1506,7 +2030,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	 * 保存参考图信息（单个）
 	 * 与 saveReferenceImageInfos 一致：对新项预加载资源，供 Popover 缩略图立即展示
 	 */
-	saveReferenceImageInfo(fileInfo: UploadImageResponse): void {
+	saveReferenceImageInfo(fileInfo: UploadFileResponse): void {
 		const exists = this.referenceImageInfos.some((info) => info.path === fileInfo.path)
 		if (!exists) {
 			this.canvas.imageResourceManager.loadResource(fileInfo.path)
@@ -1517,7 +2041,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	/**
 	 * 批量保存参考图信息（追加模式，性能优化版本）
 	 */
-	saveReferenceImageInfos(fileInfos: UploadImageResponse[]): void {
+	saveReferenceImageInfos(fileInfos: UploadFileResponse[]): void {
 		// 构建现有 path 的 Set，用于快速查重
 		const existingPaths = new Set(this.referenceImageInfos.map((info) => info.path))
 
@@ -1536,7 +2060,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	/**
 	 * 完全替换参考图信息列表（用于重新排序或批量更新）
 	 */
-	setReferenceImageInfos(fileInfos: UploadImageResponse[]): void {
+	setReferenceImageInfos(fileInfos: UploadFileResponse[]): void {
 		// 为新的参考图加载资源
 		fileInfos.forEach((info) => {
 			this.canvas.imageResourceManager.loadResource(info.path)
@@ -1555,7 +2079,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	/**
 	 * 获取参考图信息列表
 	 */
-	getReferenceImageInfos(): UploadImageResponse[] {
+	getReferenceImageInfos(): UploadFileResponse[] {
 		return [...this.referenceImageInfos]
 	}
 

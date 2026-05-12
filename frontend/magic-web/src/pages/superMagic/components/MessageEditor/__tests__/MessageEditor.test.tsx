@@ -32,7 +32,7 @@ vi.mock("@/services/index", () => ({
 	},
 }))
 
-vi.mock("@/components/business/MentionPanel/store", () => ({
+vi.mock("@/components/business/MentionPanel/builtin-store", () => ({
 	default: {
 		setUploadFiles: vi.fn(),
 	},

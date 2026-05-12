@@ -132,6 +132,7 @@ export function isValidElementData(data: unknown): data is LayerElement {
 			break
 
 		case ElementTypeEnum.Image:
+		case ElementTypeEnum.Video:
 			// 验证图片特有的字段
 			if (element.src !== undefined && typeof element.src !== "string") {
 				return false

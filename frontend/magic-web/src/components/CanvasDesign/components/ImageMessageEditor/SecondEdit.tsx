@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from "react"
+import { useCallback, useEffect, useState, useRef, type ClipboardEvent } from "react"
 import { useEventListener, useLatest } from "ahooks"
 import { ElementTypeEnum, type ImageElement } from "../../canvas/types"
 import { useCanvasUI } from "../../context/CanvasUIContext"
@@ -7,23 +7,38 @@ import { useMagic } from "../../context/MagicContext"
 import { useCanvasDesignI18n } from "../../context/I18nContext"
 import useElementPositionEffect from "../../hooks/useElementPositionEffect"
 import IconButton from "../ui/custom/IconButton"
+import { MediaResultActionBar } from "../canvas-editor/MediaResultActionBar"
 import styles from "./index.module.css"
 import { Button } from "../ui/button"
-import { ArrowUp } from "../ui/icons"
-import MessageEditor, { type MessageEditorRef } from "./MessageEditor"
-import { useMessageEditorMention } from "./useMessageEditorMention"
-import { useMentionSync } from "./useMentionSync"
-import { removeMentionFromString } from "./tiptap/contentUtils"
+import { ArrowUp, LoaderCircle, Pencil, RotateCcw, SquarePen } from "lucide-react"
+import MessageEditor, { type MessageEditorRef } from "../MessageEditor/MessageEditor"
+import { useMessageEditorMention } from "../MessageEditor/useMessageEditorMention"
+import { useMentionSync } from "../MessageEditor/useMentionSync"
+import { removeMentionFromString } from "../MessageEditor/tiptap/contentUtils"
 import { ImageElement as ImageElementClass } from "../../canvas/element/elements/ImageElement"
 import {
 	generateElementId,
 	calculateNewElementPosition,
 	getDefaultImageSize,
 } from "../../canvas/utils/utils"
+import { getImageProcessRequestPayload } from "../../canvas/utils/imageCropUtils"
 import type { GenerateImageRequest } from "../../types.magic"
 import { useImageEditorConfig } from "./useImageEditorConfig"
 import ImageEditorControls from "./ImageEditorControls"
 import { useFloatingComponent } from "../../hooks/useFloatingComponent"
+import type { ReferenceResourceSourceType } from "../MessageEditor/reference-assets/reference-resource.types"
+import type { ReferenceResourcePanelItem } from "../../types"
+import { ReferenceResourceDropSurface } from "../MessageEditor/reference-assets/ReferenceResourceDropSurface"
+import { createReferenceResourcePanelItemFromDropFile } from "../MessageEditor/reference-assets/createReferenceResourcePanelItem"
+import {
+	checkLocalReferenceResourceDrop,
+	checkProjectReferenceResourceDrop,
+	getReferenceResourceHoverState,
+	getReferenceResourceLocalHoverState,
+	normalizeProjectDropFiles,
+	type ReferenceDropProjectFile,
+	useReferenceResourceDrop,
+} from "../MessageEditor/reference-assets/useReferenceResourcePanelDataService"
 
 interface SecondEditProps {
 	imageElement: ImageElement
@@ -35,12 +50,15 @@ export default function SecondEdit(props: SecondEditProps) {
 	const { imageModelList } = useMagic()
 	const { t } = useCanvasDesignI18n()
 	const editorRef = useRef<MessageEditorRef>(null)
+	const [entryMode, setEntryMode] = useState<"quick-edit" | "regenerate">("quick-edit")
+	const [pendingOpenMode, setPendingOpenMode] = useState<"quick-edit" | "regenerate" | null>(null)
 
 	// 使用共享的配置 hook（ossSrc 会直接从实例中获取，因为二次编辑只有在 ossSrc 准备好后才会显示）
 	const config = useImageEditorConfig({
 		imageElement: props.imageElement,
-		protectedReferenceImageIndex: 0, // 第一个参考图（原图）不能删除
-		originalImageSrc: props.imageElement.src, // 原图自动作为第一个参考图
+		protectedReferenceImageIndex: entryMode === "quick-edit" ? 0 : undefined,
+		originalImageSrc: props.imageElement.src, // 原图自动作为第一个参考文件
+		includeOriginalImageAsReference: entryMode === "quick-edit",
 		editorFocusRef: editorRef,
 		originalImageName:
 			// 从 src 字段提取文件名（例如："/超级画布/images/111.jpg" -> "111.jpg"）
@@ -53,34 +71,47 @@ export default function SecondEdit(props: SecondEditProps) {
 		prompt,
 		handlers,
 		fileInputRef,
-		selectedSize,
-		maxReferenceImages,
-		currentReferenceImages,
-		isReferenceImageLimitReached,
+		fileInputAccept,
+		maxReferenceFiles,
+		currentReferenceFiles,
+		isReferenceFileLimitReached,
 	} = config
+	const {
+		restoreQuickEditConfigToUi,
+		restoreOriginalGenerateImageRequestToUi,
+		uploadFiles,
+		setPrompt,
+		handleReferenceFileRemove,
+		syncReferenceFilesFromElement,
+	} = handlers
 
-	// 将参考图的 matchableItems 传递给 useMessageEditorMention，用于合并到 @ 面板
+	// 将参考文件的 matchableItems 传递给 useMessageEditorMention，用于合并到 @ 面板
 	const { matchableItems, mentionDataService, mentionExtension, mentionEnabled } =
 		useMessageEditorMention({
 			matchableItems: config.matchableItems,
-			maxReferenceImages,
-			currentReferenceImages,
-			isReferenceImageLimitReached,
+			maxReferenceFiles,
+			currentReferenceFiles,
+			isReferenceFileLimitReached,
+			referenceResourceType: config.referenceResourceType,
 		})
 
 	const [isEditing, setIsEditing] = useState<boolean>(false)
 	const [isVisible, setIsVisible] = useState<boolean>(true)
 	const [hasScrollbar, setHasScrollbar] = useState<boolean>(false)
+	const [isSending, setIsSending] = useState(false)
+	const sendingRef = useRef(false)
 
 	const { syncMentionPaths } = useMentionSync({
 		canvas,
-		imageElementId: props.imageElement.id,
+		elementId: props.imageElement.id,
 		matchableItems,
-		protectedReferenceImageIndex: 0,
-		maxReferenceImages,
-		isReferenceImageLimitReached,
-		syncFromElement: config.handlers.syncReferenceImagesFromElement,
+		protectedReferenceFileIndex: entryMode === "quick-edit" ? 0 : undefined,
+		maxReferenceFiles,
+		isReferenceFileLimitReached,
+		syncFromElement: syncReferenceFilesFromElement,
 	})
+	const canRegenerate = Boolean(props.imageElement.generateImageRequest?.model_id)
+	const directGenerateRequest = props.imageElement.generateImageRequest
 
 	const { containerRef: positionRef } = useElementPositionEffect({
 		position: "bottom",
@@ -104,144 +135,311 @@ export default function SecondEdit(props: SecondEditProps) {
 		[positionRef, floatingRef],
 	)
 
-	// 处理发送按钮点击
-	const handleSend = useCallback(async () => {
-		if (!canvas || !prompt.trim()) {
-			return
-		}
+	const createAndSubmitImageGeneration = useCallback(
+		async (
+			request: GenerateImageRequest,
+			options?: {
+				closeEditorOnSuccess?: boolean
+				clearEditorPromptOnSuccess?: boolean
+				deselectOnSuccess?: boolean
+			},
+		) => {
+			if (sendingRef.current) return false
+			if (!canvas || !request.prompt?.trim() || !request.model_id) {
+				return false
+			}
 
-		// 验证原图片是否有 src
-		const originalSrc = props.imageElement.src
-		if (!originalSrc) {
-			return
-		}
+			// 获取原图片元素实例
+			const originalElementInstance = canvas.elementManager.getElementInstance(
+				props.imageElement.id,
+			)
+			if (
+				!originalElementInstance ||
+				!(originalElementInstance instanceof ImageElementClass)
+			) {
+				return false
+			}
 
-		// 获取原图片元素实例
-		const originalElementInstance = canvas.elementManager.getElementInstance(
-			props.imageElement.id,
-		)
-		if (!originalElementInstance || !(originalElementInstance instanceof ImageElementClass)) {
-			return
-		}
+			// 新元素位置间距常量（像素）
+			const NEW_ELEMENT_SPACING = 0
 
-		// 新元素位置间距常量（像素）
-		const NEW_ELEMENT_SPACING = 0
+			// 计算新元素的位置（放在原元素右边，顶部对齐）
+			const newPosition = calculateNewElementPosition(
+				props.imageElement,
+				originalElementInstance,
+				canvas.elementManager,
+				NEW_ELEMENT_SPACING,
+			)
+			if (!newPosition) {
+				return false
+			}
+			const { x: newX, y: newY } = newPosition
 
-		// 计算新元素的位置（放在原元素右边，顶部对齐）
-		const newPosition = calculateNewElementPosition(
-			props.imageElement,
-			originalElementInstance,
-			canvas.elementManager,
-			NEW_ELEMENT_SPACING,
-		)
-		if (!newPosition) {
-			return
-		}
-		const { x: newX, y: newY } = newPosition
+			const originalElement = props.imageElement
+			const croppedVisibleWidth = originalElement.width ?? originalElement.crop?.displayWidth
+			const croppedVisibleHeight =
+				originalElement.height ?? originalElement.crop?.displayHeight
+			const hasCroppedVisibleSize =
+				!!originalElement.crop &&
+				Number.isFinite(croppedVisibleWidth) &&
+				Number.isFinite(croppedVisibleHeight) &&
+				!!croppedVisibleWidth &&
+				!!croppedVisibleHeight &&
+				croppedVisibleWidth > 0 &&
+				croppedVisibleHeight > 0
 
-		// 获取新图片的尺寸（优先使用选中的尺寸，否则使用原图的尺寸）
-		let newWidth: number
-		let newHeight: number
-		if (selectedSize) {
-			// 解析选中的尺寸（格式： "1024x1024"）
-			const [w, h] = selectedSize.split("x").map(Number)
-			if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
-				newWidth = w
-				newHeight = h
+			// 获取新图片的尺寸：已裁剪图片二次编辑时优先复用当前可视尺寸
+			let newWidth: number
+			let newHeight: number
+			if (hasCroppedVisibleSize) {
+				newWidth = croppedVisibleWidth
+				newHeight = croppedVisibleHeight
+			} else if (request.size) {
+				const [w, h] = request.size.split("x").map(Number)
+				if (!isNaN(w) && !isNaN(h) && w > 0 && h > 0) {
+					newWidth = w
+					newHeight = h
+				} else {
+					const defaultSize = getDefaultImageSize(imageModelList)
+					newWidth = originalElement.width ?? defaultSize?.width ?? 1024
+					newHeight = originalElement.height ?? defaultSize?.height ?? 1024
+				}
 			} else {
-				// 如果解析失败，使用原图尺寸
-				const originalElement = props.imageElement
 				const defaultSize = getDefaultImageSize(imageModelList)
 				newWidth = originalElement.width ?? defaultSize?.width ?? 1024
 				newHeight = originalElement.height ?? defaultSize?.height ?? 1024
 			}
-		} else {
-			// 如果没有选中尺寸，使用原图尺寸
-			const originalElement = props.imageElement
-			const defaultSize = getDefaultImageSize(imageModelList)
-			newWidth = originalElement.width ?? defaultSize?.width ?? 1024
-			newHeight = originalElement.height ?? defaultSize?.height ?? 1024
-		}
 
-		// 生成新元素 ID
-		const newElementId = generateElementId()
+			// 生成新元素 ID
+			const newElementId = generateElementId()
 
-		// 获取下一个 zIndex
-		const newZIndex = canvas.elementManager.getNextZIndexInLevel()
+			// 获取下一个 zIndex
+			const newZIndex = canvas.elementManager.getNextZIndexInLevel()
 
-		// 使用 hook 返回的配置构建请求参数
+			let imageInfo = originalElementInstance.getImageInfo()
+			if (!imageInfo?.naturalWidth || !imageInfo?.naturalHeight) {
+				await originalElementInstance.getHTMLImageElement()
+				imageInfo = originalElementInstance.getImageInfo()
+			}
+
+			const imageProcessRequestPayload = getImageProcessRequestPayload({
+				crop: props.imageElement.crop,
+				sourceDimensions: {
+					width: imageInfo?.naturalWidth ?? props.imageElement.width ?? 0,
+					height: imageInfo?.naturalHeight ?? props.imageElement.height ?? 0,
+				},
+			})
+
+			const generateRequest: GenerateImageRequest = {
+				...request,
+				prompt: request.prompt.trim(),
+				size: request.size || imageProcessRequestPayload.size,
+			}
+
+			// 创建新的图片元素数据（使用选中的尺寸）
+			const newImageElement: ImageElement = {
+				id: newElementId,
+				type: ElementTypeEnum.Image,
+				x: newX,
+				y: newY,
+				width: newWidth,
+				height: newHeight,
+				zIndex: newZIndex,
+				name: "Image",
+			}
+
+			// 创建元素
+			canvas.elementManager.create(newImageElement)
+
+			// 获取新创建的元素实例
+			const newElementInstance = canvas.elementManager.getElementInstance(newElementId)
+			if (!newElementInstance || !(newElementInstance instanceof ImageElementClass)) {
+				return false
+			}
+
+			// 保存新元素的临时配置（清除 prompt / reference_images / reference_image_options）
+			newElementInstance.saveTempGenerateImageRequest({
+				...generateRequest,
+				prompt: "",
+				reference_images: [],
+				reference_image_options: undefined,
+			})
+
+			sendingRef.current = true
+			setIsSending(true)
+			try {
+				canvas.eventEmitter.emit({
+					type: "element:image:generate-submit-started",
+					data: { elementId: props.imageElement.id },
+				})
+				const submitted = await newElementInstance.generateImage(generateRequest)
+				if (!submitted) {
+					canvas.eventEmitter.emit({
+						type: "element:image:generate-submit-failed",
+						data: { elementId: props.imageElement.id },
+					})
+					return false
+				}
+				originalElementInstance.clearTempGenerateImageRequestPrompt()
+				if (options?.clearEditorPromptOnSuccess) {
+					setPrompt("")
+				}
+				if (options?.closeEditorOnSuccess) {
+					setIsEditing(false)
+				}
+				if (options?.deselectOnSuccess) {
+					canvas.selectionManager.deselectAll()
+				}
+				return true
+			} catch (error) {
+				canvas.eventEmitter.emit({
+					type: "element:image:generate-submit-failed",
+					data: { elementId: props.imageElement.id },
+				})
+				return false
+			} finally {
+				sendingRef.current = false
+				setIsSending(false)
+			}
+		},
+		[canvas, imageModelList, props.imageElement, setPrompt],
+	)
+
+	// 处理发送按钮点击
+	const handleSend = useCallback(async () => {
 		const requestParams = handlers.buildRequestParams()
-
-		// 确保有 model_id
 		if (!requestParams.model_id) {
 			console.error("[SecondEdit] 无法确定 model_id")
 			return
 		}
+		await createAndSubmitImageGeneration(
+			{
+				model_id: requestParams.model_id,
+				prompt: requestParams.prompt || prompt.trim(),
+				size: requestParams.size,
+				resolution: requestParams.resolution,
+				reference_images: requestParams.reference_images,
+				reference_image_options: requestParams.reference_image_options,
+				image_generation_config: requestParams.image_generation_config,
+			},
+			{
+				clearEditorPromptOnSuccess: true,
+				closeEditorOnSuccess: true,
+				deselectOnSuccess: true,
+			},
+		)
+	}, [createAndSubmitImageGeneration, handlers, prompt])
 
-		// 创建新的图片元素数据（使用选中的尺寸）
-		const newImageElement: ImageElement = {
-			id: newElementId,
-			type: ElementTypeEnum.Image,
-			x: newX,
-			y: newY,
-			width: newWidth,
-			height: newHeight,
-			zIndex: newZIndex,
-			name: "Image",
-		}
+	const handleGenerateAgain = useCallback(async () => {
+		if (!directGenerateRequest?.model_id || !directGenerateRequest.prompt) return
+		await createAndSubmitImageGeneration(directGenerateRequest)
+	}, [createAndSubmitImageGeneration, directGenerateRequest])
 
-		// 创建元素
-		canvas.elementManager.create(newImageElement)
+	const handleSelectSource = useCallback(
+		(source: ReferenceResourceSourceType) => {
+			handlers.setPopoverOpen(false)
+			if (source === "local-upload") {
+				if (config.isReferenceFileLimitReached) {
+					return
+				}
+				handlers.triggerFileSelect()
+			}
+		},
+		[config.isReferenceFileLimitReached, handlers],
+	)
 
-		// 获取新创建的元素实例
-		const newElementInstance = canvas.elementManager.getElementInstance(newElementId)
-		if (!newElementInstance || !(newElementInstance instanceof ImageElementClass)) {
-			return
-		}
+	const handleProjectSelect = useCallback((item: ReferenceResourcePanelItem) => {
+		editorRef.current?.insertMentionItems([item])
+	}, [])
 
-		// 构建生图请求参数（使用 hook 返回的配置）
-		// reference_images 应该已经包含了原图（通过 ensureOriginalImageFirst 确保原图在第一个位置）
-		const generateRequest: GenerateImageRequest = {
-			model_id: requestParams.model_id,
-			prompt: requestParams.prompt || prompt.trim(),
-			size: requestParams.size,
-			resolution: requestParams.resolution,
-			reference_images: requestParams.reference_images, // 原图已经在列表中（第一个位置，且不能删除）
-		}
+	const canAcceptReferenceDrop =
+		!config.isUploading && Boolean(maxReferenceFiles && maxReferenceFiles > 0)
 
-		// 保存新元素的临时配置（清除 prompt 和 reference_images）
-		newElementInstance.saveTempGenerateImageRequest({
-			...generateRequest,
-			prompt: "",
-			reference_images: [],
-		})
+	const canAcceptProjectFiles = useCallback(
+		(files: ReferenceDropProjectFile[]) => {
+			return checkProjectReferenceResourceDrop({
+				isDropEnabled: canAcceptReferenceDrop,
+				files,
+				matchableItems,
+				currentReferenceFiles,
+				maxReferenceFiles,
+			})
+		},
+		[canAcceptReferenceDrop, matchableItems, currentReferenceFiles, maxReferenceFiles],
+	)
 
-		// 发起生图请求
-		try {
-			await newElementInstance.generateImage(generateRequest)
-			// 清除原元素的临时配置中的 prompt（保留其他配置，以便二次编辑时复用）
-			originalElementInstance.clearTempGenerateImageRequestPrompt()
-			// 清空输入框并退出编辑状态
-			handlers.setPrompt("")
-			setIsEditing(false)
+	const canAcceptLocalFiles = useCallback(
+		(files: File[]) => {
+			return checkLocalReferenceResourceDrop({
+				isDropEnabled: canAcceptReferenceDrop,
+				files,
+				accept: fileInputAccept,
+				currentReferenceFileCount: currentReferenceFiles.length,
+				maxReferenceFiles,
+			})
+		},
+		[canAcceptReferenceDrop, fileInputAccept, maxReferenceFiles, currentReferenceFiles],
+	)
 
-			// 清空画布选中状态
-			canvas.selectionManager.deselectAll()
-		} catch (error) {
-			//
-		}
-	}, [canvas, props.imageElement, prompt, imageModelList, handlers, selectedSize])
+	const getHoverDropState = useCallback(
+		() =>
+			getReferenceResourceHoverState({
+				isDropEnabled: canAcceptReferenceDrop,
+				currentReferenceFileCount: currentReferenceFiles.length,
+				maxReferenceFiles,
+			}),
+		[canAcceptReferenceDrop, maxReferenceFiles, currentReferenceFiles],
+	)
 
-	// 处理上传按钮点击
-	const handleUploadClick = useCallback(() => {
-		if (config.isReferenceImageLimitReached) {
-			return
-		}
-		handlers.triggerFileSelect()
-	}, [config.isReferenceImageLimitReached, handlers])
+	const getLocalHoverState = useCallback(
+		(dataTransfer: DataTransfer | null) =>
+			getReferenceResourceLocalHoverState({
+				isDropEnabled: canAcceptReferenceDrop,
+				dataTransfer,
+				accept: fileInputAccept,
+				currentReferenceFileCount: currentReferenceFiles.length,
+				maxReferenceFiles,
+			}),
+		[canAcceptReferenceDrop, fileInputAccept, maxReferenceFiles, currentReferenceFiles],
+	)
 
-	// 处理进入编辑状态的函数
-	const handleStartEditing = useCallback(() => {
+	const handleProjectFilesDrop = useCallback(
+		(files: ReferenceDropProjectFile[]) => {
+			const normalizedFiles = normalizeProjectDropFiles(
+				files,
+				matchableItems,
+				currentReferenceFiles,
+			)
+			editorRef.current?.insertMentionItems(
+				normalizedFiles.map((file) => createReferenceResourcePanelItemFromDropFile(file)),
+			)
+		},
+		[currentReferenceFiles, matchableItems],
+	)
+
+	const handlePaste = useCallback(
+		(event: ClipboardEvent<HTMLDivElement>) => {
+			const files = Array.from(event.clipboardData.files)
+			if (files.length === 0) return
+			if (!canAcceptLocalFiles(files).accepted) return
+
+			event.preventDefault()
+			void uploadFiles(files)
+		},
+		[canAcceptLocalFiles, uploadFiles],
+	)
+
+	const { overlayState, dragEvents } = useReferenceResourceDrop({
+		isEnabled: isEditing,
+		checkProjectFiles: canAcceptProjectFiles,
+		checkLocalFiles: canAcceptLocalFiles,
+		getProjectHoverState: getHoverDropState,
+		getLocalHoverState,
+		onDropProjectFiles: handleProjectFilesDrop,
+		onDropLocalFiles: uploadFiles,
+	})
+
+	const openEditor = useCallback(() => {
 		// 先隐藏
 		setIsVisible(false)
 		// 设置编辑状态
@@ -251,6 +449,44 @@ export default function SecondEdit(props: SecondEditProps) {
 			setIsVisible(true)
 		}, 50)
 	}, [])
+
+	// 处理进入编辑状态的函数
+	const handleStartEditing = useCallback(() => {
+		setEntryMode("quick-edit")
+		setPendingOpenMode("quick-edit")
+	}, [])
+
+	/** 按已保存的 generateImageRequest 完整回填后进入编辑态（与快捷编辑仅对齐模型/尺寸不同） */
+	const handleRegenerateFromSavedConfig = useCallback(() => {
+		if (!props.imageElement.generateImageRequest?.model_id) return
+		setEntryMode("regenerate")
+		setPendingOpenMode("regenerate")
+	}, [props.imageElement.generateImageRequest])
+
+	useEffect(() => {
+		if (!pendingOpenMode) return
+		if (isEditing) {
+			setPendingOpenMode(null)
+			return
+		}
+
+		const modeToOpen = pendingOpenMode
+		// 先消费指令，避免 restore/open 过程中 effect 重入再次执行。
+		setPendingOpenMode(null)
+
+		if (modeToOpen === "quick-edit") {
+			restoreQuickEditConfigToUi()
+		} else {
+			restoreOriginalGenerateImageRequestToUi()
+		}
+		openEditor()
+	}, [
+		isEditing,
+		openEditor,
+		pendingOpenMode,
+		restoreOriginalGenerateImageRequestToUi,
+		restoreQuickEditConfigToUi,
+	])
 
 	// 使用 useLatest 获取最新的值，避免闭包问题
 	const isEditingRef = useLatest(isEditing)
@@ -301,74 +537,125 @@ export default function SecondEdit(props: SecondEditProps) {
 	)
 
 	// Popover 删除时同步到 TipTap：移除 prompt 中的 @ 提及
-	const handleReferenceImageRemoveFromPopover = useCallback(
+	const handleReferenceFileRemoveFromPopover = useCallback(
 		(path: string) => {
 			// 从编辑器获取最新的 prompt，避免闭包问题
 			const currentPrompt = editorRef.current?.getCurrentPrompt() ?? prompt
 			const fileName =
-				config.referenceImageInfos.find((i) => i.path === path)?.fileName ??
+				config.referenceFileInfos.find((i) => i.path === path)?.fileName ??
 				path.split("/").pop()
-			handlers.setPrompt(removeMentionFromString(currentPrompt, path, fileName))
-			handlers.handleReferenceImageRemove(path)
+			setPrompt(removeMentionFromString(currentPrompt, path, fileName))
+			handleReferenceFileRemove(path)
 		},
-		[prompt, config.referenceImageInfos, handlers],
+		[prompt, config.referenceFileInfos, handleReferenceFileRemove, setPrompt],
 	)
+
+	if (isEditing) {
+		return (
+			<ReferenceResourceDropSurface
+				ref={setRefs}
+				className={styles.imageMessageEditor}
+				data-canvas-ui-component
+				style={{ visibility: isVisible ? "visible" : "hidden" }}
+				dropOverlayState={overlayState}
+				dragEvents={dragEvents}
+			>
+				<input
+					ref={fileInputRef}
+					type="file"
+					accept={fileInputAccept}
+					multiple
+					style={{ display: "none" }}
+					onChange={handlers.handleFileChange}
+				/>
+				<MessageEditor
+					ref={editorRef}
+					autoFocus
+					fullWidth
+					selectionPersistenceKey={`image-second-edit:${props.imageElement.id}`}
+					placeholder={t("imageEditor.editPlaceholder", "请输入您的编辑需求")}
+					value={prompt}
+					onChange={handlers.setPrompt}
+					onEnter={handleSend}
+					onScrollbarChange={setHasScrollbar}
+					matchableItems={matchableItems}
+					mentionDataService={mentionDataService}
+					mentionExtension={mentionExtension}
+					onMentionChange={handleMentionChange}
+					mentionEnabled={mentionEnabled}
+					onPaste={handlePaste}
+				/>
+				<ImageEditorControls
+					config={config}
+					protectedReferenceFileIndex={entryMode === "quick-edit" ? 0 : undefined}
+					onSelectSource={handleSelectSource}
+					onProjectSelect={handleProjectSelect}
+					onReferenceFileRemove={handleReferenceFileRemoveFromPopover}
+					renderSendButton={() => (
+						<Button
+							className={styles.sendButton}
+							onClick={handleSend}
+							disabled={isSending || !prompt.trim() || !config.selectedModelId}
+							aria-busy={isSending}
+						>
+							{isSending ? (
+								<LoaderCircle size={16} className="animate-spin" />
+							) : (
+								<ArrowUp size={16} />
+							)}
+						</Button>
+					)}
+				/>
+			</ReferenceResourceDropSurface>
+		)
+	}
 
 	return (
 		<div
 			ref={setRefs}
-			className={`${styles.imageMessageEditor} ${
-				!isEditing ? styles.secondEditImageMessageEditorNoEditing : ""
-			}`}
+			className={`${styles.imageMessageEditor} ${styles.secondEditImageMessageEditorNoEditing}`}
 			data-canvas-ui-component
 			style={{ visibility: isVisible ? "visible" : "hidden" }}
 		>
-			{isEditing ? (
-				<>
-					<input
-						ref={fileInputRef}
-						type="file"
-						accept="image/*"
-						multiple
-						style={{ display: "none" }}
-						onChange={handlers.handleFileChange}
-					/>
-					<MessageEditor
-						ref={editorRef}
-						autoFocus
-						placeholder={t("imageEditor.editPlaceholder", "请输入您的编辑需求")}
-						value={prompt}
-						onChange={handlers.setPrompt}
-						onEnter={handleSend}
-						onScrollbarChange={setHasScrollbar}
-						matchableItems={matchableItems}
-						mentionDataService={mentionDataService}
-						mentionExtension={mentionExtension}
-						onMentionChange={handleMentionChange}
-						mentionEnabled={mentionEnabled}
-					/>
-					<ImageEditorControls
-						config={config}
-						protectedReferenceImageIndex={0}
-						onUploadClick={handleUploadClick}
-						onReferenceImageRemove={handleReferenceImageRemoveFromPopover}
-						renderSendButton={() => (
-							<Button
-								className={styles.sendButton}
-								onClick={handleSend}
-								disabled={!prompt.trim() || !config.selectedModelId}
-							>
-								<ArrowUp size={16} />
-							</Button>
-						)}
-					/>
-				</>
-			) : (
-				<IconButton className={styles.secondEditButton} onClick={handleStartEditing}>
-					<span>快捷编辑</span>
-					<span className={styles.secondEditButtonTag}>Tab</span>
-				</IconButton>
-			)}
+			<MediaResultActionBar
+				showDividers
+				dividerBeforeIndices={canRegenerate ? [1] : []}
+				actions={[
+					<IconButton
+						className={styles.secondEditButton}
+						onClick={handleStartEditing}
+						key="quick-edit"
+					>
+						<Pencil size={14} />
+						<span>{t("imageEditor.quickEdit", "快捷编辑")}</span>
+						<span className={styles.secondEditButtonTag}>Tab</span>
+					</IconButton>,
+					canRegenerate ? (
+						<IconButton
+							className={styles.secondEditButton}
+							onClick={handleRegenerateFromSavedConfig}
+							key="re-edit"
+						>
+							<SquarePen size={14} />
+							<span>{t("imageEditor.reEditFromSaved", "重新编辑")}</span>
+						</IconButton>
+					) : null,
+					canRegenerate ? (
+						<IconButton
+							className={styles.secondEditButton}
+							onClick={handleGenerateAgain}
+							key="generate-again"
+						>
+							{isSending ? (
+								<LoaderCircle size={14} className="animate-spin" />
+							) : (
+								<RotateCcw size={14} />
+							)}
+							<span>{t("imageEditor.generateAgain", "再次生成")}</span>
+						</IconButton>
+					) : null,
+				]}
+			/>
 		</div>
 	)
 }

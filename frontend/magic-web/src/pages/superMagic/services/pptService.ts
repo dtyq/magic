@@ -19,7 +19,7 @@ export interface PrepareExportSlidesInput {
 	attachmentList: AttachmentItem[]
 	mainFileId: string
 	mainFileName?: string
-	metadata?: SlideMetadata
+	displayConfig?: SlideMetadata
 }
 
 export interface PrepareExportSlidesOutput {
@@ -156,9 +156,9 @@ export async function prepareSingleSlideExport(input: {
 export async function prepareExportSlides(
 	input: PrepareExportSlidesInput,
 ): Promise<PrepareExportSlidesOutput> {
-	const { slidePaths, attachmentList, mainFileId, mainFileName, metadata } = input
-
-	if (!slidePaths.length) return { htmlSlides: [], fileName: metadata?.name || "slides" }
+	const { slidePaths, attachmentList, mainFileId, mainFileName, displayConfig } = input
+	const fileName = displayConfig?.name || mainFileName || "slides"
+	if (!slidePaths.length) return { htmlSlides: [], fileName }
 
 	const searchScope = ensureFlatScope(attachmentList, mainFileId)
 
@@ -199,7 +199,7 @@ export async function prepareExportSlides(
 		attachmentList: searchScope,
 		mainFileId,
 		mainFileName,
-		metadata,
+		displayConfig,
 	})
 
 	const allResourceFileIds = new Set<string>()
@@ -279,6 +279,6 @@ export async function prepareExportSlides(
 
 	return {
 		htmlSlides,
-		fileName: metadata?.name || "slides",
+		fileName,
 	}
 }

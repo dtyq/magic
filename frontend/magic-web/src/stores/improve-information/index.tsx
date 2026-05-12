@@ -29,7 +29,7 @@ function ImproveInformationPage() {
 	}, [isMobile, navigate])
 
 	return (
-		<div className="h-full overflow-y-auto bg-background pt-safe-top">
+		<div className="h-full overflow-y-auto bg-background pb-40">
 			<ImproveInformationForm form={form} />
 		</div>
 	)

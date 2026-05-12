@@ -86,15 +86,15 @@ export function useProjects({ selectedWorkspace, onWorkspaceStateChange }: UsePr
 				const res =
 					workspaceId === SHARE_WORKSPACE_ID
 						? await SuperMagicApi.getCollaborationProjects({
-							page,
-							page_size: 99,
-							type: collaborationTabKey,
-						})
+								page,
+								page_size: 99,
+								type: collaborationTabKey,
+							})
 						: await SuperMagicApi.getProjectsWithCollaboration({
-							workspace_id: workspaceId,
-							page,
-							page_size: 99,
-						})
+								workspace_id: workspaceId,
+								page,
+								page_size: 99,
+							})
 				const updatedProjects = res.list
 				setProjects(updatedProjects)
 				return updatedProjects
@@ -255,7 +255,6 @@ export function useProjects({ selectedWorkspace, onWorkspaceStateChange }: UsePr
 				if (!selectedWorkspace || isCollaborationWorkspace(selectedWorkspace)) return
 				await SuperMagicApi.editProject({
 					id: projectId,
-					workspace_id: selectedWorkspace.id,
 					project_name: projectName,
 					project_description: "",
 				})

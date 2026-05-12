@@ -13,5 +13,7 @@ export function userTransformer(userInfo: StructureUserItem): User.UserInfo {
 		phone: userInfo?.phone,
 		email: userInfo?.email,
 		country_code: userInfo?.country_code,
+		timezone: userInfo?.timezone,
+		preferences: userInfo?.preferences,
 	}
 }

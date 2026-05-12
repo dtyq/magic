@@ -18,7 +18,7 @@ const ChatActions = memo(function ChatActions({
 	const { t } = useTranslation("super")
 
 	return (
-		<div className={cn("flex w-full items-start gap-2 px-2", className)}>
+		<div className={cn("flex w-full items-start gap-2 px-2 pt-1.5", className)}>
 			{onNewTopicClick && (
 				<Button
 					variant="outline"

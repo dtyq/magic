@@ -1,0 +1,94 @@
+.trigger {
+	display: inline-flex;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: center;
+	max-width: 220px;
+	height: var(--height-h-6, 24px);
+	padding: var(--spacing-1, 4px) var(--spacing-1-5, 6px);
+	color: var(--base-foreground, #0a0a0a);
+	font-size: var(--text-xs-font-size, 12px);
+	line-height: 1;
+	white-space: nowrap;
+	background: var(--base-secondary, #f5f5f5);
+	border: none;
+	border-radius: var(--border-radius-rounded-md, 8px);
+	outline: none;
+	cursor: pointer;
+}
+
+.trigger:hover {
+	background: var(--base-sidebar-accent, #ebebeb);
+}
+
+.triggerText {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.popoverContent {
+	width: min(320px, calc(100vw - 24px));
+	padding: var(--spacing-3, 12px) !important;
+}
+
+.section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing-1-5, 6px);
+}
+
+.section + .section {
+	margin-top: var(--spacing-4, 16px);
+}
+
+.sectionTitle {
+	padding: 0 2px;
+	color: var(--base-muted-foreground, #737373);
+	font-weight: var(--font-weight-medium, 500);
+	font-size: var(--text-xs-font-size, 12px);
+	line-height: 1.2;
+}
+
+.buttonGroup {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.buttonGroupItem {
+	min-width: 44px;
+	padding: 6px 10px;
+	color: var(--base-foreground, #0a0a0a);
+	font-weight: var(--font-weight-medium, 500);
+	font-size: var(--text-xs-font-size, 12px);
+	line-height: 1;
+	background: var(--base-background, #fff);
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-sm, 6px);
+	cursor: pointer;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.buttonGroupItem:hover {
+	background: var(--base-sidebar-accent, #ebebeb);
+}
+
+.buttonGroupItemActive {
+	color: var(--base-foreground, #0a0a0a);
+	background: var(--base-secondary, #f5f5f5);
+	border-color: var(--base-border, #e5e5e5);
+}
+
+.aspectButtonInner {
+	display: inline-flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.aspectIconBox {
+	display: inline-block;
+	flex-shrink: 0;
+	background: var(--alpha-60, rgb(255 255 255 / 40%));
+	border: 1px solid var(--base-muted-foreground, #737373);
+	border-radius: var(--border-radius-rounded-xs, 2px);
+}

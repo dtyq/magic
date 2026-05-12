@@ -1,9 +1,19 @@
 /**
  * Style Manager
- * Handles style modification commands and history management
+ * Handles style modification commands and history management.
+ *
+ * Undo/redo is centralized here: all commands share one CommandHistory, and
+ * StyleManager dispatches restore/apply. For extension:
+ * - Built-in command types (e.g. SET_BACKGROUND_COLOR, APPLY_TEXT_STYLE) are
+ *   handled directly in restoreState() and applyCommand().
+ * - Other domains (e.g. image replace/background) should implement
+ *   CustomCommandHandler and be registered via registerCommandHandler() so
+ *   StyleManager stays a dispatcher without domain-specific logic. Register
+ *   the handler in EditorRuntime after creating the manager.
  */
 
 import type { CommandHistory } from "../core/CommandHistory"
+import type { CommandRecord } from "../core/types"
 import type { ElementSelector } from "../features/ElementSelector"
 import type { TextStyleManager } from "./TextStyleManager"
 import { EditorLogger } from "../utils/EditorLogger"
@@ -46,12 +56,25 @@ type SpecialElementData =
 	| AudioElementData
 	| ContainerWithCanvasData
 
+/**
+ * Extension point for undo/redo of non-style commands. Register via
+ * StyleManager.registerCommandHandler() so restore/apply are delegated to
+ * the owning manager (e.g. ImageManager) instead of adding branches in
+ * StyleManager.
+ */
+interface CustomCommandHandler {
+	canHandleCommand: (commandType: string) => boolean
+	restoreCommand: (command: CommandRecord) => boolean
+	applyCommand: (command: CommandRecord) => Promise<boolean> | boolean
+}
+
 export class StyleManager {
 	private commandHistory: CommandHistory
 	private elementSelector: ElementSelector | null = null
 	private textStyleManager: TextStyleManager | null = null
 	private isDuplicating = false
 	private isDeleting = false
+	private customCommandHandlers: CustomCommandHandler[] = []
 
 	constructor(commandHistory: CommandHistory) {
 		this.commandHistory = commandHistory
@@ -137,6 +160,17 @@ export class StyleManager {
 	 */
 	setTextStyleManager(textStyleManager: TextStyleManager): void {
 		this.textStyleManager = textStyleManager
+	}
+
+	/**
+	 * Register custom command handlers for undo/redo replay.
+	 * Use this when adding a new manager (e.g. image, video) whose commands
+	 * are in the same CommandHistory but should be restored/applied by that
+	 * manager. Do not add new command-type branches in restoreState/applyCommand
+	 * for domain-specific logic; register a handler instead.
+	 */
+	registerCommandHandler(handler: CustomCommandHandler): void {
+		this.customCommandHandlers.push(handler)
 	}
 
 	/**
@@ -862,19 +896,20 @@ export class StyleManager {
 	 */
 	async setElementPosition(selector: string, top: number, left: number): Promise<void> {
 		const element = findElement(selector) as HTMLElement
+		const nextPosition = this.getMovablePositionMode(element)
 		const previousPosition = element.style.position || ""
 		const previousTop = element.style.top || ""
 		const previousLeft = element.style.left || ""
 
 		// Apply position styles
-		element.style.position = "relative"
+		element.style.position = nextPosition
 		element.style.top = `${top}px`
 		element.style.left = `${left}px`
 
 		// Record command
 		this.commandHistory.push({
 			commandType: "SET_ELEMENT_POSITION",
-			payload: { selector, top, left },
+			payload: { selector, top, left, position: nextPosition },
 			previousState: {
 				selector,
 				position: previousPosition,
@@ -887,6 +922,13 @@ export class StyleManager {
 				description: `Move element to (${left}, ${top})`,
 			},
 		})
+	}
+
+	private getMovablePositionMode(element: HTMLElement): "relative" | "absolute" | "fixed" {
+		const computedPosition = window.getComputedStyle(element).position
+		if (computedPosition === "absolute" || computedPosition === "fixed") return computedPosition
+
+		return "relative"
 	}
 
 	/**
@@ -1240,10 +1282,23 @@ export class StyleManager {
 	/**
 	 * Generate a unique selector for an element
 	 */
+	/**
+	 * Generate a CSS selector for an element
+	 * @deprecated This logic is duplicated in utils/dom.ts as getElementSelector.
+	 * Plan to refactor and merge into a single utility in the future.
+	 */
 	private generateSelectorForElement(element: HTMLElement): string {
 		// Validate element
 		if (!element || !element.tagName) {
 			throw new Error("Invalid element: element or tagName is undefined")
+		}
+
+		const tagNameLower = element.tagName.toLowerCase()
+		if (tagNameLower === "body") {
+			return "body"
+		}
+		if (tagNameLower === "html") {
+			return "html"
 		}
 
 		if (element.id) {
@@ -1325,24 +1380,8 @@ export class StyleManager {
 		// For other commands, refresh selected element if there's a selector
 		if (command.commandType !== "DELETE_ELEMENT") {
 			const previousState = command.previousState as any
-			if (previousState?.selector && this.elementSelector) {
-				try {
-					const element = findElement(previousState.selector)
-					if (element instanceof HTMLElement) {
-						// Check if element is currently being edited
-						const isTextEditing = element.getAttribute("data-text-editing") === "true"
-						if (isTextEditing) {
-							// Just refresh to update dimensions, don't re-select
-							this.elementSelector.refreshSelection()
-						} else {
-							// Re-select the element to update the overlay
-							this.elementSelector.selectElement(element)
-						}
-					}
-				} catch (error) {
-					EditorLogger.warn("Failed to refresh element after undo", error)
-				}
-			}
+			if (previousState?.selector)
+				this.syncSelectionAfterHistoryReplay(previousState.selector)
 		}
 
 		return true
@@ -1362,27 +1401,33 @@ export class StyleManager {
 		// For other commands, refresh selected element if there's a selector
 		if (command.commandType !== "DELETE_ELEMENT") {
 			const payload = command.payload as any
-			if (payload?.selector && this.elementSelector) {
-				try {
-					const element = findElement(payload.selector)
-					if (element instanceof HTMLElement) {
-						// Check if element is currently being edited
-						const isTextEditing = element.getAttribute("data-text-editing") === "true"
-						if (isTextEditing) {
-							// Just refresh to update dimensions, don't re-select
-							this.elementSelector.refreshSelection()
-						} else {
-							// Re-select the element to update the overlay
-							this.elementSelector.selectElement(element)
-						}
-					}
-				} catch (error) {
-					EditorLogger.warn("Failed to refresh element after redo", error)
-				}
-			}
+			if (payload?.selector) this.syncSelectionAfterHistoryReplay(payload.selector)
 		}
 
 		return true
+	}
+
+	private syncSelectionAfterHistoryReplay(selector: string): void {
+		if (!this.elementSelector) return
+
+		try {
+			const element = findElement(selector)
+			if (!(element instanceof HTMLElement)) return
+
+			const isTextEditing = element.getAttribute("data-text-editing") === "true"
+			const isAlreadySelected = this.elementSelector.isSelected(element)
+
+			// Refresh the existing selection object when possible so the overlay
+			// keeps up with restored DOM/style changes without a deselect/select bounce.
+			if (isTextEditing || isAlreadySelected) {
+				this.elementSelector.refreshSelection()
+				return
+			}
+
+			this.elementSelector.selectElement(element)
+		} catch (error) {
+			EditorLogger.warn("Failed to sync selection after history replay", error)
+		}
 	}
 
 	/**
@@ -1392,6 +1437,10 @@ export class StyleManager {
 		if (!command.previousState) return
 
 		try {
+			if (this.restoreWithCustomHandlers(command)) {
+				return
+			}
+
 			// Handle batch styles multiple restoration FIRST (before destructuring selector)
 			if (command.commandType === "BATCH_STYLES_MULTIPLE") {
 				const { elements } = command.previousState as {
@@ -1737,6 +1786,10 @@ export class StyleManager {
 		if (!command.payload) return
 
 		try {
+			if (await this.applyWithCustomHandlers(command)) {
+				return
+			}
+
 			// Handle batch styles multiple FIRST (before destructuring selector)
 			if (command.commandType === "BATCH_STYLES_MULTIPLE") {
 				const { selectors, styles } = command.payload as {
@@ -1805,8 +1858,18 @@ export class StyleManager {
 			}
 
 			// NOW safe to destructure selector for single-element operations
-			const { selector, styles, color, fontSize, unit, content, textContent, top, left } =
-				command.payload
+			const {
+				selector,
+				styles,
+				color,
+				fontSize,
+				unit,
+				content,
+				textContent,
+				top,
+				left,
+				position,
+			} = command.payload
 
 			// Handle duplicate element (redo)
 			if (command.commandType === "DUPLICATE_ELEMENT") {
@@ -1898,7 +1961,7 @@ export class StyleManager {
 					break
 				}
 				case "SET_ELEMENT_POSITION": {
-					element.style.position = "relative"
+					element.style.position = position || this.getMovablePositionMode(element)
 					element.style.top = `${top}px`
 					element.style.left = `${left}px`
 					break
@@ -1958,5 +2021,33 @@ export class StyleManager {
 		} catch (error) {
 			EditorLogger.error("Failed to apply command", error)
 		}
+	}
+
+	private restoreWithCustomHandlers(command: any): boolean {
+		for (const handler of this.customCommandHandlers) {
+			if (!handler.canHandleCommand(command.commandType)) {
+				continue
+			}
+
+			if (handler.restoreCommand(command)) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	private async applyWithCustomHandlers(command: any): Promise<boolean> {
+		for (const handler of this.customCommandHandlers) {
+			if (!handler.canHandleCommand(command.commandType)) {
+				continue
+			}
+
+			if (await handler.applyCommand(command)) {
+				return true
+			}
+		}
+
+		return false
 	}
 }

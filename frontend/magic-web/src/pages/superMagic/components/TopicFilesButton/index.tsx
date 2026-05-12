@@ -14,6 +14,7 @@ export type {
 
 export interface TopicFilesButtonProps {
 	className?: string
+	title?: string
 	attachments?: AttachmentItem[]
 	setUserSelectDetail?: (detail: any) => void
 	onFileClick?: (fileItem: any) => void
@@ -51,6 +52,7 @@ const TopicFilesButton = forwardRef<TopicFilesButtonRef, TopicFilesButtonProps>(
 	function TopicFilesButton(
 		{
 			className,
+			title,
 			attachments = [],
 			setUserSelectDetail,
 			onFileClick,
@@ -97,6 +99,7 @@ const TopicFilesButton = forwardRef<TopicFilesButtonRef, TopicFilesButtonProps>(
 				<TopicFilesPanel
 					ref={panelRef}
 					className={className}
+					title={title}
 					attachments={attachments}
 					setUserSelectDetail={setUserSelectDetail}
 					onFileClick={onFileClick}

@@ -2,10 +2,8 @@ import type { NodeProps } from "../../../types"
 import { useStyle } from "./styles"
 import { Flex } from "antd"
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from "react"
-import {
-	downloadFileContent,
-	getTemporaryDownloadUrl,
-} from "@/pages/superMagic/utils/api"
+import { useToggleWithScrollPreserve } from "../../../shared/hooks/useToggleWithScrollPreserve"
+import { downloadFileContent, getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { ChevronUp, ChevronRight, MonitorPlay } from "lucide-react"
 import { getLanguageFromFileName } from "../ReadFiles"
 import { superMagicStore } from "@/pages/superMagic/stores"
@@ -38,7 +36,7 @@ function WriteFile(props: NodeProps) {
 
 	const { styles, cx } = useStyle()
 
-	const [open, setOpen] = useState(defaultOpen)
+	const [open, toggle] = useToggleWithScrollPreserve(defaultOpen)
 	const [content, setContent] = useState(fileData?.content || "")
 
 	const { tooltipProps, renderTooltip } = useToolTooltip({
@@ -103,7 +101,7 @@ function WriteFile(props: NodeProps) {
 		return (
 			<div
 				className={cx(styles.button, "mr-[6px]")}
-				onClick={() => setOpen((o) => !o)}
+				onClick={toggle}
 				onMouseEnter={() => loadTextEditor()}
 			>
 				{open ? (

@@ -13,6 +13,7 @@ interface ResolveHtmlCodeBlockPreviewScaleOptions {
 	containerHeight?: number
 	contentHeight?: number
 	fitHeightWhenBounded?: boolean
+	preferWidthFit?: boolean
 	minReadableScale?: number
 }
 
@@ -23,6 +24,7 @@ interface ResolveHtmlCodeBlockPreviewViewportHeightOptions {
 	previewScale: number
 	fitHeightWhenBounded?: boolean
 	shrinkThreshold?: number
+	viewportHeightToWidthRatio?: number | null
 }
 
 // 解析预览缩放比例，优先保证内容可见，并保留最低可读缩放。
@@ -33,6 +35,7 @@ export function resolveHtmlCodeBlockPreviewScale(options: ResolveHtmlCodeBlockPr
 		containerHeight = 0,
 		contentHeight = 0,
 		fitHeightWhenBounded = false,
+		preferWidthFit = false,
 		minReadableScale = HTML_CODE_BLOCK_PREVIEW_MIN_READABLE_SCALE,
 	} = options
 
@@ -42,6 +45,7 @@ export function resolveHtmlCodeBlockPreviewScale(options: ResolveHtmlCodeBlockPr
 	const fitPreviewScale = Math.min(1, containerWidth / contentWidth)
 
 	if (
+		!preferWidthFit &&
 		fitHeightWhenBounded &&
 		containerHeight > 0 &&
 		contentHeight > 0 &&
@@ -69,15 +73,17 @@ export function resolveHtmlCodeBlockPreviewViewportHeight(
 		previewScale,
 		fitHeightWhenBounded = false,
 		shrinkThreshold = HTML_CODE_BLOCK_PREVIEW_HEIGHT_SHRINK_THRESHOLD,
+		viewportHeightToWidthRatio = HTML_CODE_BLOCK_PREVIEW_HEIGHT_TO_WIDTH_RATIO,
 	} = options
 
-	// 基础高度沿用默认值，窄容器里按比例缩小。
-	const baseViewportHeight = !containerWidth
-		? HTML_CODE_BLOCK_PREVIEW_DESKTOP_HEIGHT
-		: Math.min(
-				HTML_CODE_BLOCK_PREVIEW_DESKTOP_HEIGHT,
-				Math.round(containerWidth * HTML_CODE_BLOCK_PREVIEW_HEIGHT_TO_WIDTH_RATIO),
-			)
+	// 默认沿用原有最大高度；仅在明确给出比例时，才按宽度等比推导基线高度。
+	const baseViewportHeight =
+		!containerWidth || viewportHeightToWidthRatio === null
+			? HTML_CODE_BLOCK_PREVIEW_DESKTOP_HEIGHT
+			: Math.min(
+					HTML_CODE_BLOCK_PREVIEW_DESKTOP_HEIGHT,
+					Math.round(containerWidth * viewportHeightToWidthRatio),
+				)
 
 	// 不按内容高度收缩时，直接返回基础高度。
 	if (!fitHeightWhenBounded || !contentHeight || !previewScale) return baseViewportHeight
@@ -96,30 +102,80 @@ export function useHtmlCodeBlockPreviewScale(
 		contentHeight?: number
 		fitHeightWhenBounded?: boolean
 		containerWidthOverride?: number
+		initialContainerWidthOverride?: number
+		/** 实际内容宽度。desktop 用于放大横向滚动范围，phone 用于直接采用真实逻辑宽。 */
+		extrinsicContentWidth?: number | null
+		/** 固定 1:1 渲染，仅用于明确不希望随宿主宽度缩放的预览。 */
+		unitScale?: boolean
+		minReadableScale?: number
+		preferWidthFit?: boolean
+		viewportHeightToWidthRatio?: number | null
 	},
 ) {
 	const [previewHostElement, setPreviewHostElement] = useState<HTMLDivElement | null>(null)
 	const [previewScale, setPreviewScale] = useState(1)
 	const [previewHostWidth, setPreviewHostWidth] = useState(0)
-	const { contentHeight, fitHeightWhenBounded = false, containerWidthOverride } = options ?? {}
+	const {
+		contentHeight,
+		fitHeightWhenBounded = false,
+		containerWidthOverride,
+		initialContainerWidthOverride,
+		unitScale = false,
+		extrinsicContentWidth = null,
+		minReadableScale,
+		preferWidthFit = false,
+		viewportHeightToWidthRatio = HTML_CODE_BLOCK_PREVIEW_HEIGHT_TO_WIDTH_RATIO,
+	} = options ?? {}
+
+	const logicalCanvasWidth = useMemo(
+		() => Math.max(canvasWidth, extrinsicContentWidth ?? 0),
+		[canvasWidth, extrinsicContentWidth],
+	)
 
 	useLayoutEffect(() => {
+		if (unitScale) {
+			if (!previewHostElement || typeof ResizeObserver === "undefined") return
+
+			const updatePhoneLayout = (availableWidth: number) => {
+				if (!availableWidth) return
+
+				setPreviewHostWidth(availableWidth)
+				setPreviewScale(1)
+			}
+
+			updatePhoneLayout(previewHostElement.clientWidth)
+
+			const resizeObserver = new ResizeObserver((entries) => {
+				updatePhoneLayout(entries[0]?.contentRect.width ?? previewHostElement.clientWidth)
+			})
+
+			resizeObserver.observe(previewHostElement)
+
+			return () => {
+				resizeObserver.disconnect()
+			}
+		}
+
 		// 宿主宽度变化时，重新推导缩放和视口高度。
-		function updatePreviewScale(availableWidth: number) {
+		const updatePreviewScale = (availableWidth: number) => {
 			if (!availableWidth) return
 
 			setPreviewHostWidth(availableWidth)
-
-			const nextPreviewViewportHeight = Math.min(
-				HTML_CODE_BLOCK_PREVIEW_DESKTOP_HEIGHT,
-				Math.round(availableWidth * HTML_CODE_BLOCK_PREVIEW_HEIGHT_TO_WIDTH_RATIO),
-			)
+			const nextPreviewViewportHeight =
+				viewportHeightToWidthRatio === null
+					? HTML_CODE_BLOCK_PREVIEW_DESKTOP_HEIGHT
+					: Math.min(
+							HTML_CODE_BLOCK_PREVIEW_DESKTOP_HEIGHT,
+							Math.round(availableWidth * viewportHeightToWidthRatio),
+						)
 			const nextPreviewScale = resolveHtmlCodeBlockPreviewScale({
 				containerWidth: availableWidth,
 				contentWidth: canvasWidth,
 				containerHeight: nextPreviewViewportHeight,
 				contentHeight,
 				fitHeightWhenBounded,
+				preferWidthFit,
+				minReadableScale,
 			})
 
 			setPreviewScale((previousScale) =>
@@ -132,6 +188,10 @@ export function useHtmlCodeBlockPreviewScale(
 		if (containerWidthOverride && containerWidthOverride > 0) {
 			updatePreviewScale(containerWidthOverride)
 			return
+		}
+
+		if (initialContainerWidthOverride && initialContainerWidthOverride > 0) {
+			updatePreviewScale(initialContainerWidthOverride)
 		}
 
 		if (!previewHostElement || typeof ResizeObserver === "undefined") return
@@ -152,18 +212,32 @@ export function useHtmlCodeBlockPreviewScale(
 		containerWidthOverride,
 		contentHeight,
 		fitHeightWhenBounded,
+		initialContainerWidthOverride,
+		minReadableScale,
 		previewHostElement,
+		preferWidthFit,
+		unitScale,
+		viewportHeightToWidthRatio,
 	])
 
 	const previewViewportHeight = useMemo(
 		() =>
 			resolveHtmlCodeBlockPreviewViewportHeight({
-				containerWidth: previewHostWidth,
+				containerWidth: unitScale ? logicalCanvasWidth : previewHostWidth,
 				contentHeight,
 				previewScale,
 				fitHeightWhenBounded,
+				viewportHeightToWidthRatio,
 			}),
-		[contentHeight, fitHeightWhenBounded, previewHostWidth, previewScale],
+		[
+			contentHeight,
+			fitHeightWhenBounded,
+			logicalCanvasWidth,
+			previewHostWidth,
+			previewScale,
+			unitScale,
+			viewportHeightToWidthRatio,
+		],
 	)
 
 	const previewCanvasStyle = useMemo(
@@ -176,8 +250,8 @@ export function useHtmlCodeBlockPreviewScale(
 	)
 
 	const previewScaledCanvasWidth = useMemo(
-		() => Math.round(canvasWidth * previewScale),
-		[canvasWidth, previewScale],
+		() => Math.round(logicalCanvasWidth * previewScale),
+		[logicalCanvasWidth, previewScale],
 	)
 
 	return {
@@ -187,5 +261,6 @@ export function useHtmlCodeBlockPreviewScale(
 		previewViewportHeight,
 		previewScaledCanvasWidth,
 		previewScale,
+		logicalCanvasWidth,
 	}
 }

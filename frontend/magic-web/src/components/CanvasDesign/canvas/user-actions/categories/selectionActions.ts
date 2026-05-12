@@ -8,8 +8,6 @@ export const selectionActions: UserAction[] = [
 		id: "selection.select-all",
 		category: "selection",
 		canExecute: (canvas) => {
-			// 非只读模式且有元素可选
-			if (canvas.readonly) return false
 			const allElements = canvas.elementManager.getAllElements()
 			return allElements.length > 0
 		},

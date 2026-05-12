@@ -1,6 +1,7 @@
 import * as React from "react"
 import { IMAGE_LOADING_CONFIG } from "../constants"
 import { calculateBackoffDelay, isAbsoluteUrl } from "../utils/url-utils"
+import { convertHeicUrlToBlob, isHeicUrl } from "../utils/heic-utils"
 import { isTempPath } from "../temp-path-utils"
 import { useMemoizedFn, useWhyDidYouUpdate } from "ahooks"
 
@@ -52,8 +53,6 @@ export function useImageLoader(options: UseImageLoaderOptions): UseImageLoaderRe
 		[retryConfig],
 	)
 
-	useWhyDidYouUpdate("useImageLoader", { src, shouldLoad, retryTrigger, config })
-
 	React.useEffect(() => {
 		if (!shouldLoad || !src || isTempPath(src)) return
 
@@ -70,8 +69,11 @@ export function useImageLoader(options: UseImageLoaderOptions): UseImageLoaderRe
 				// If src is already a direct URL, use it immediately
 				if (isAbsoluteUrl(src)) {
 					if (!aborted) {
-						setImageUrl(src)
-						loadedSrcRef.current = src
+						const resolvedUrl = isHeicUrl(src) ? await convertHeicUrlToBlob(src) : src
+						if (!aborted) {
+							setImageUrl(resolvedUrl)
+							loadedSrcRef.current = src
+						}
 					}
 					return
 				}
@@ -114,8 +116,11 @@ export function useImageLoader(options: UseImageLoaderOptions): UseImageLoaderRe
 
 						// Successfully got URL
 						if (!aborted) {
-							setImageUrl(url)
-							loadedSrcRef.current = src
+							const finalUrl = isHeicUrl(url) ? await convertHeicUrlToBlob(url) : url
+							if (!aborted) {
+								setImageUrl(finalUrl)
+								loadedSrcRef.current = src
+							}
 						}
 						return
 					} catch (err) {

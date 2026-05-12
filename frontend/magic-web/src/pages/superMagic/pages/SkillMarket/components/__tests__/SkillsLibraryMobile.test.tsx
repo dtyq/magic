@@ -18,6 +18,10 @@ vi.mock("react-i18next", () => ({
 					return `Updated ${params?.dateTime ?? ""}`.trim()
 				case "skillsLibrary.official":
 					return "Official"
+				case "employeeCard.officialBuiltin":
+					return "Official Built-in"
+				case "skillsLibrary.featured":
+					return "Featured"
 				case "skillsLibrary.authorFallback":
 					return "Unknown"
 				default:
@@ -32,6 +36,10 @@ vi.mock("@/pages/superMagic/components/SkillThumbnail", () => ({
 	SkillThumbnail: ({ alt }: { alt: string }) => <div data-testid="skill-thumbnail">{alt}</div>,
 }))
 
+vi.mock("@/pages/superMagic/components/SkillDetailDialog", () => ({
+	SkillDetailDialog: () => null,
+}))
+
 function createSkill(overrides: Partial<StoreSkillView> = {}) {
 	return observable({
 		id: "skill-1",
@@ -41,10 +49,11 @@ function createSkill(overrides: Partial<StoreSkillView> = {}) {
 		name: "Skill Name",
 		description: "Skill description",
 		thumbnail: undefined,
+		isFeatured: false,
 		latestVersion: "v1.0.0",
 		status: "not-added",
-		authorType: "official",
 		authorName: undefined,
+		publisherType: "OFFICIAL",
 		needUpgrade: false,
 		updatedAt: "2026-03-22 10:00",
 		...overrides,
@@ -52,6 +61,17 @@ function createSkill(overrides: Partial<StoreSkillView> = {}) {
 }
 
 describe("StoreSkillCardMobile", () => {
+	it("opens detail when the card body is clicked", () => {
+		const skill = createSkill()
+		const onOpenDetail = vi.fn()
+
+		render(<StoreSkillCardMobile skill={skill} language="en_US" onOpenDetail={onOpenDetail} />)
+
+		screen.getByTestId("skills-library-mobile-card").click()
+
+		expect(onOpenDetail).toHaveBeenCalledWith(skill)
+	})
+
 	it("updates the action label after the observable skill becomes added", () => {
 		const skill = createSkill()
 
@@ -81,5 +101,35 @@ describe("StoreSkillCardMobile", () => {
 
 		expect(screen.getByTestId("skills-library-mobile-card-action")).toHaveTextContent("Upgrade")
 		expect(screen.getByTestId("skills-library-mobile-card-action")).not.toBeDisabled()
+	})
+
+	it("does not open detail when action button is clicked", () => {
+		const skill = createSkill()
+		const onOpenDetail = vi.fn()
+		const onAdd = vi.fn()
+
+		render(
+			<StoreSkillCardMobile
+				skill={skill}
+				language="en_US"
+				onOpenDetail={onOpenDetail}
+				onAdd={onAdd}
+			/>,
+		)
+
+		screen.getByTestId("skills-library-mobile-card-action").click()
+
+		expect(onAdd).toHaveBeenCalledWith("skill-1")
+		expect(onOpenDetail).not.toHaveBeenCalled()
+	})
+
+	it("shows official built-in when publisher type matches", () => {
+		const skill = createSkill({
+			publisherType: "OFFICIAL_BUILTIN",
+		})
+
+		render(<StoreSkillCardMobile skill={skill} language="en_US" />)
+
+		expect(screen.getByText("Official Built-in")).toBeInTheDocument()
 	})
 })

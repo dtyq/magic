@@ -18,6 +18,7 @@ import { Popup, SafeArea } from "antd-mobile"
 import { useDebounceFn, useMemoizedFn } from "ahooks"
 import { isEmpty } from "lodash-es"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import useFullscreenMode from "@/hooks/useFullscreenMode"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import MessageList from "../MessageList"
 import { MessageStatus, TaskStatus, type TaskData } from "@/pages/superMagic/pages/Workspace/types"
@@ -58,12 +59,16 @@ function Topic({
 	isFileShare,
 	fileId,
 	defaultOpenFileId,
+	enableImmersiveShareChrome,
+	isImmersiveFullscreen,
 	topicId,
 	projectId,
 	showAllProjectFiles,
 	viewFileList,
 	showCreatedByBadge,
 	allowDownloadProjectFile,
+	onPreviewFileChange,
+	onPreviewFullscreenChange,
 }: {
 	data: any
 	resource_name: string
@@ -73,6 +78,8 @@ function Topic({
 	isFileShare?: boolean
 	fileId?: string
 	defaultOpenFileId?: string
+	enableImmersiveShareChrome?: boolean
+	isImmersiveFullscreen?: boolean
 	topicId?: string
 	projectId?: string
 	showAllProjectFiles?: boolean
@@ -80,8 +87,11 @@ function Topic({
 	viewFileList?: boolean
 	showCreatedByBadge?: boolean
 	allowDownloadProjectFile?: boolean
+	onPreviewFileChange?: (fileId: string | null) => void
+	onPreviewFullscreenChange?: (isFullscreen: boolean) => void
 }) {
 	const { t } = useTranslation("super")
+	const isFullscreenMode = useFullscreenMode()
 
 	const [taskData, setTaskData] = useState<TaskData | null>(null)
 	const previewDetailPopupRef = useRef(null) as any
@@ -102,6 +112,7 @@ function Topic({
 	const [showBackToLatest, setShowBackToLatest] = useState(false)
 	// Add activeFileId state management same as workspace
 	const [activeFileId, setActiveFileId] = useState<string | null>(null)
+	const [primaryPreviewFileId, setPrimaryPreviewFileId] = useState<string | null>(null)
 
 	const { handleDownloadAll, allLoading } = useDownloadAll({ projectId })
 
@@ -172,6 +183,7 @@ function Topic({
 	// }
 
 	const handlePreviewDetail = useMemoizedFn((item: any) => {
+		setPrimaryPreviewFileId(item?.currentFileId || null)
 		previewDetailPopupRef.current?.open(item, attachments.tree, attachments.list)
 	})
 
@@ -328,7 +340,7 @@ function Topic({
 	}, [messagesWithoutRevoked])
 
 	const play = useCallback(() => {
-		pubsub.publish("super_magic_playback_start")
+		pubsub.publish(PubSubEvents.Playback_Start)
 		setIsBottom(false)
 		// 确保清除任何现有的定时器
 		if (timerRef.current.timer) {
@@ -369,7 +381,7 @@ function Topic({
 
 	// 处理开始显示消息
 	const startShowingMessages = useCallback(() => {
-		pubsub.publish("super_magic_playback_start")
+		pubsub.publish(PubSubEvents.Playback_Start)
 		setMessageList([])
 		setHasStarted(true)
 		play()
@@ -417,25 +429,68 @@ function Topic({
 		}
 	}, [messageList, hasStarted])
 
-	// Add pubsub event listeners same as workspace
+	// 分享话题里的消息预览也要复用统一打开文件事件；桌面走 Detail，移动端走预览弹层。
 	useEffect(() => {
-		pubsub.subscribe(PubSubEvents.Open_File_Tab, (openFileTabData: any) => {
-			// 使用setTimeout确保DOM更新后再打开tab
+		const handleOpenFileTab = (openFileTabData: { fileId?: string; fileData?: any }) => {
+			const filePayload = openFileTabData?.fileData || {
+				file_id: openFileTabData?.fileId || "",
+			}
+
+			// 使用 setTimeout 确保 DOM 更新后再打开预览，和工作台保持同一时序。
 			setTimeout(() => {
-				detailRef.current?.openFileTab?.(openFileTabData)
+				if (isMobile) {
+					const currentFileId =
+						filePayload?.file_id || filePayload?.id || filePayload?.currentFileId || ""
+					const fileName =
+						filePayload?.display_filename ||
+						filePayload?.file_name ||
+						filePayload?.filename ||
+						filePayload?.name ||
+						""
+					const contentTypeConfig = detectContentTypeRender(filePayload)
+					const type =
+						contentTypeConfig?.detailType ||
+						getFileType(filePayload?.file_extension || "")
+
+					if (!currentFileId || !type || type === "notSupport") return
+
+					handlePreviewDetail({
+						type,
+						data: contentTypeConfig?.dataTransformer
+							? {
+									...filePayload,
+									file_id: currentFileId,
+									file_name: fileName,
+									...contentTypeConfig.dataTransformer(filePayload),
+								}
+							: {
+									...filePayload,
+									file_id: currentFileId,
+									file_name: fileName,
+								},
+						currentFileId,
+					})
+					return
+				}
+
+				detailRef.current?.openFileTab?.(filePayload)
 			}, 100)
-		})
-		pubsub.subscribe(PubSubEvents.Open_Playback_Tab, (toolData: any) => {
+		}
+
+		const handleOpenPlaybackTab = (toolData: any) => {
 			// 打开playback tab，用户主动点击时应该强制激活
 			setTimeout(() => {
 				detailRef.current?.openPlaybackTab?.({ toolData, forceActivate: true })
 			}, 100)
-		})
-		return () => {
-			pubsub?.unsubscribe(PubSubEvents.Open_File_Tab)
-			pubsub?.unsubscribe(PubSubEvents.Open_Playback_Tab)
 		}
-	}, [])
+
+		pubsub?.subscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
+		pubsub?.subscribe(PubSubEvents.Open_Playback_Tab, handleOpenPlaybackTab)
+		return () => {
+			pubsub.unsubscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
+			pubsub.unsubscribe(PubSubEvents.Open_Playback_Tab, handleOpenPlaybackTab)
+		}
+	}, [handlePreviewDetail, isMobile])
 
 	// 分享场景初始化时自动打开playback tab
 	useEffect(() => {
@@ -536,7 +591,7 @@ function Topic({
 							(step: any) => step?.status === "finished" || step?.status === "error",
 						)
 					) {
-						pubsub.publish("super_magic_playback_end", newTaskData)
+						pubsub.publish(PubSubEvents.Playback_End, newTaskData)
 					}
 					foundTaskData = true
 					break
@@ -571,7 +626,7 @@ function Topic({
 
 	// 直接显示结果的处理：立即加载所有消息，停止倒计时
 	const handleShowResult = useMemoizedFn(() => {
-		pubsub.publish("super_magic_playback_start")
+		pubsub.publish(PubSubEvents.Playback_Start)
 		setUserDetail(null)
 		setHasStarted(true)
 		// 查找所有消息中带有详情的最后一条
@@ -664,8 +719,11 @@ function Topic({
 				let fileToOpen = targetFile
 
 				// 如果是文件夹且有 metadata.type，获取入口文件
-				if (isFolder && targetFile.metadata?.type) {
-					const entryFile = getAppEntryFile(targetFile.children || [])
+				if (isFolder && targetFile.display_config?.type) {
+					const entryFile = getAppEntryFile(
+						targetFile.children || [],
+						targetFile.display_config,
+					)
 					if (entryFile) {
 						fileToOpen = entryFile
 					}
@@ -682,7 +740,7 @@ function Topic({
 					file_extension: fileToOpen.file_extension,
 					file_size: fileToOpen.file_size,
 					file_id: fileToOpen.file_id || fileToOpen.id,
-					metadata: fileToOpen?.metadata,
+					display_config: fileToOpen?.display_config,
 				}
 
 				if (contentTypeConfig) {
@@ -719,7 +777,7 @@ function Topic({
 							}, 100)
 						} else {
 							setUserDetail(fileDetail)
-							pubsub.publish("super_magic_maximize_file")
+							pubsub.publish(PubSubEvents.Maximize_File)
 						}
 					}
 				} else {
@@ -772,11 +830,11 @@ function Topic({
 	}, [play])
 
 	useEffect(() => {
-		pubsub.subscribe("super_magic_folder_click", () => {
+		pubsub.subscribe(PubSubEvents.Folder_Click, () => {
 			setAttachmentVisible(true)
 		})
 		return () => {
-			pubsub.unsubscribe("super_magic_folder_click")
+			pubsub.unsubscribe(PubSubEvents.Folder_Click)
 		}
 	}, [])
 
@@ -837,6 +895,9 @@ function Topic({
 							}}
 							isFileShare={isFileShare}
 							onOpenNewPopup={(detail, attachmentTree, attachmentList) => {
+								if (isImmersiveFullscreen)
+									pubsub.publish(PubSubEvents.Exit_Fullscreen)
+
 								// 打开新弹层用于显示链接文件
 								manualFilePopupRef.current?.open(
 									detail,
@@ -846,6 +907,13 @@ function Topic({
 							}}
 							projectId={projectId}
 							allowDownload={allowDownloadProjectFile}
+							enableImmersiveShareChrome={enableImmersiveShareChrome}
+							isImmersiveFullscreen={isImmersiveFullscreen}
+							onPreviewFileChange={(fileId) => {
+								setPrimaryPreviewFileId(fileId)
+								onPreviewFileChange?.(fileId)
+							}}
+							onPreviewFullscreenChange={onPreviewFullscreenChange}
 						/>
 						{/* 独立的文件预览 Popup，用于手动选择文件 */}
 						{isFileShare && (
@@ -859,10 +927,13 @@ function Topic({
 									)
 								}}
 								onClose={() => {
-									// 关闭时不做任何操作，保持原有分享文件的渲染
+									onPreviewFileChange?.(primaryPreviewFileId)
+									onPreviewFullscreenChange?.(false)
 								}}
 								isFileShare={false}
 								allowDownload={allowDownloadProjectFile}
+								onPreviewFileChange={onPreviewFileChange}
+								onPreviewFullscreenChange={onPreviewFullscreenChange}
 							/>
 						)}
 					</>
@@ -919,7 +990,13 @@ function Topic({
 							!showAllProjectFiles &&
 							!isFileShare) ||
 						isMobile ? null : (
-							<div className="my-2 flex-1 overflow-y-hidden rounded-lg border border-border bg-card transition-all duration-300 ease-in-out">
+							<div
+								className={cn(
+									"mr-2 flex-1 overflow-y-hidden rounded-lg transition-all duration-300 ease-in-out",
+									!isFullscreenMode && "my-2 border border-border bg-card",
+									!shouldShowProjectSider && "m-0 border-none bg-transparent",
+								)}
+							>
 								<Detail
 									ref={detailRef}
 									disPlayDetail={isEmpty(userDetail) ? autoDetail : userDetail}
@@ -959,7 +1036,7 @@ function Topic({
 						<div className={cn("p-2", isMobile ? "w-full" : "")}>
 							<div
 								className={cn(
-									"duration-[0.8s] relative h-full max-w-full overflow-x-hidden overflow-y-hidden rounded-lg border border-border bg-white transition-[width] ease-in-out dark:bg-card",
+									"relative h-full max-w-full overflow-x-hidden overflow-y-hidden rounded-lg border border-border bg-white transition-[width] ease-in-out [transition-duration:800ms] dark:bg-card",
 									"max-md:w-full max-md:min-w-0",
 									((!showAllProjectFiles &&
 										isEmpty(autoDetail) &&
@@ -1048,7 +1125,7 @@ function Topic({
 									</MagicTooltip>
 								</div>
 							)}
-							<div className="mr-[30px] flex-1 max-md:absolute max-md:-top-[18px] max-md:left-0 max-md:right-0 max-md:z-10 max-md:mr-0 max-md:h-[26px]">
+							<div className="mr-[30px] flex-1 max-md:absolute max-md:-top-[0] max-md:left-0 max-md:right-0 max-md:z-10 max-md:mr-0 max-md:h-[26px]">
 								<Slider
 									min={0}
 									max={messagesWithoutRevoked?.length || 0}
@@ -1133,7 +1210,7 @@ function Topic({
 							</div>
 							<div
 								className={cn(
-									"duration-[0.8s] relative h-full max-h-[500px] overflow-x-hidden overflow-y-hidden rounded-lg bg-background px-[90px] pt-7 transition-all ease-in-out dark:bg-card max-md:max-h-[335px] max-md:min-w-0 max-md:max-w-[calc(100%-40px)] max-md:p-0",
+									"relative h-full max-h-[500px] overflow-x-hidden overflow-y-hidden rounded-lg bg-background px-[90px] py-7 transition-all ease-in-out [mask-image:linear-gradient(to_bottom,transparent,black_28px,black_calc(100%-28px),transparent)] [transition-duration:800ms] dark:bg-card max-md:max-h-[335px] max-md:min-w-0 max-md:max-w-[calc(100%-40px)] max-md:p-0 max-md:[mask-image:none]",
 									((!showAllProjectFiles &&
 										isEmpty(autoDetail) &&
 										isEmpty(userDetail)) ||

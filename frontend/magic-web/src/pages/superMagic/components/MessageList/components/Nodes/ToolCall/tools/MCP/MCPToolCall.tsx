@@ -1,4 +1,4 @@
-import { Suspense, lazy, memo, useState, type ClipboardEvent } from "react"
+import { Suspense, lazy, memo, type ClipboardEvent } from "react"
 import { observer } from "mobx-react-lite"
 import type { NodeProps } from "../../../types"
 import { superMagicStore } from "@/pages/superMagic/stores"
@@ -7,6 +7,7 @@ import { ChevronUp, ChevronRight } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
 import { defaultOpen } from "../../config"
+import { useToggleWithScrollPreserve } from "../../../shared/hooks/useToggleWithScrollPreserve"
 import { ToolIconBadge } from "@/pages/superMagic/components/MessageList/components/shared/ToolIconConfig"
 import { customTheme, syntaxCustomStyle, syntaxLineNumberStyle } from "./syntaxConfig"
 
@@ -76,7 +77,7 @@ function MCPToolCallNode(props: NodeProps) {
 	const formattedResult = parseExecutionResult(tool?.detail?.data?.execution_result?.content)
 
 	const { t } = useTranslation("component")
-	const [open, setOpen] = useState(defaultOpen)
+	const [open, toggle] = useToggleWithScrollPreserve(defaultOpen)
 
 	const preloadSyntax = useMemoizedFn(() => {
 		void loadSyntaxHighlighter()
@@ -137,7 +138,7 @@ function MCPToolCallNode(props: NodeProps) {
 					</div>
 					<div
 						className={cn(mcpToggleButton, "mr-1.5")}
-						onClick={() => setOpen((o) => !o)}
+						onClick={toggle}
 						onMouseEnter={preloadSyntax}
 					>
 						{open ? (

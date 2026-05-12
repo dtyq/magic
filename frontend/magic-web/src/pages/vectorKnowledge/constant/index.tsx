@@ -239,6 +239,10 @@ export enum RetrievalMethod {
 export enum DataSourceType {
 	/** 本地文件 */
 	Local = 1,
+	/** 自定义内容 */
+	CustomContent = 2,
+	/** 项目文件 */
+	ProjectFile = 3,
 	/** 企业知识库 */
-	Enterprise = 1001,
+	Enterprise = 4,
 }

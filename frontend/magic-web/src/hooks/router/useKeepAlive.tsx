@@ -83,11 +83,11 @@ export const useKeepAlive = ({
 						...(isActive
 							? {}
 							: {
-								position: "absolute",
-								top: -9999,
-								left: -9999,
-								visibility: "hidden",
-							}),
+									position: "absolute",
+									top: -9999,
+									left: -9999,
+									visibility: "hidden",
+								}),
 					}}
 					data-keepalive-id={`keepalive-${path}`}
 				>

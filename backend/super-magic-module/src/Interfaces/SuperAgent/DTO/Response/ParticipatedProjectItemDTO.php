@@ -37,6 +37,8 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
         public readonly bool $isPinned = false,
         public readonly string $organizationCode = '',
         public readonly ?string $lastActiveAt = null, // 用户在该项目中的最后活跃时间
+        public readonly bool $isBindWorkspace = false,
+        public readonly string $bindWorkspaceId = '',
     ) {
         parent::__construct(
             $id,
@@ -106,6 +108,8 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
             isPinned: (bool) ($data['is_pinned'] ?? false),
             organizationCode: $data['organization_code'] ?? '',
             lastActiveAt: $data['last_active_at'] ?? null,
+            isBindWorkspace: (bool) ($data['is_bind_workspace'] ?? false),
+            bindWorkspaceId: (string) ($data['bind_workspace_id'] ?? ''),
         );
     }
 
@@ -119,6 +123,8 @@ class ParticipatedProjectItemDTO extends ProjectItemDTO
             'is_pinned' => $this->isPinned,
             'organization_code' => $this->organizationCode,
             'last_active_at' => $this->lastActiveAt,
+            'is_bind_workspace' => $this->isBindWorkspace,
+            'bind_workspace_id' => $this->bindWorkspaceId,
         ]);
     }
 

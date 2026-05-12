@@ -5,6 +5,23 @@ import MenuItem from "../index"
 import type { MentionItem } from "../../../types"
 import { MentionItemType } from "../../../types"
 
+vi.mock("../../../renderers/context", () => ({
+	useMentionItemRenderer: (type: string) => ({
+		renderIcon: ({ item }: { item: MentionItem }) => {
+			if (typeof item.icon === "string") {
+				if (item.icon === "folder") return <span>📁</span>
+				if (item.icon === "file") return <span>📄</span>
+				return <span>{item.icon}</span>
+			}
+
+			return item.icon ?? null
+		},
+		renderDescription: ({ item }: { item: MentionItem }) => item.description ?? null,
+		renderTitleSuffix: () => null,
+		getTypeDescription: type === MentionItemType.SKILL ? () => "Skill" : undefined,
+	}),
+}))
+
 // Mock the styles hook
 vi.mock("../../../styles", () => ({
 	useStyles: () => ({

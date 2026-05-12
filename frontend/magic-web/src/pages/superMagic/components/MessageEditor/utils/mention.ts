@@ -4,21 +4,23 @@ import {
 	MentionItemType,
 	UploadFileMentionData,
 	ProjectFileMentionData,
-	AgentMentionData,
-	McpMentionData,
-	SkillMentionData,
-	ToolMentionData,
 	DirectoryMentionData,
 	CanvasMarkerMentionData,
 	DataService,
-	TransformedCanvasMarkerMentionData,
-	MentionData,
 } from "@/components/business/MentionPanel/types"
+import {
+	getCanvasMarkerMentionImagePath,
+	normalizeCanvasMarkerMentionData,
+} from "@/components/business/MentionPanel/utils/canvasMarkerMention"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
+import { resolveDesignProjectBasePathFromAttachments } from "@/pages/superMagic/components/Detail/contents/Design/utils/utils"
+import { resolveDesignDslPathToWorkspaceRelative } from "@/pages/superMagic/components/Detail/contents/Design/utils/designDslPathUtils"
+import { validateMentionWithDataService } from "@/components/business/MentionPanel/utils/dataService"
 import { DraftData, FileData } from "../types"
 import { keyBy } from "lodash-es"
 import { JSONContent } from "@tiptap/core"
 import { SaveUploadFileToProjectResponse } from "../../../utils/api"
-import { MarkerTypeEnum, type MarkerArea } from "@/components/CanvasDesign/canvas/types"
 
 /**
  * Extract file extension from filename
@@ -214,6 +216,108 @@ export function transformMentionItemsToProjectFiles(
 	}
 }
 
+function mapAttachmentsToFileItems(attachments: AttachmentItem[]): FileItem[] {
+	return attachments
+		.filter((item): item is AttachmentItem & { file_id: string } => Boolean(item.file_id))
+		.map((item) => ({
+			file_id: item.file_id,
+			file_name: item.file_name ?? item.name ?? item.filename ?? "",
+			display_filename: item.display_filename,
+			filename: item.filename,
+			file_extension: item.file_extension,
+			relative_file_path: item.relative_file_path,
+			is_directory: item.is_directory,
+			parent_id: item.parent_id ?? undefined,
+			source: item.source,
+		}))
+}
+
+/**
+ * 发送前将 marker 的 image 统一转换为工作区路径（`画布/images/x.png`），
+ * 避免后端拿到 design 内部相对路径（`images/x.png`）。
+ */
+export function transformMarkerImagePathsToWorkspaceAbsolute(
+	content: JSONContent,
+	attachments: AttachmentItem[],
+): JSONContent {
+	if (!attachments.length) return content
+
+	const flatAttachments = mapAttachmentsToFileItems(attachments)
+	if (!flatAttachments.length) return content
+
+	const basePathCache = new Map<string, string | undefined>()
+
+	const getBasePathByDesignProjectId = (designProjectId?: string) => {
+		if (!designProjectId) return undefined
+		if (!basePathCache.has(designProjectId)) {
+			basePathCache.set(
+				designProjectId,
+				resolveDesignProjectBasePathFromAttachments({
+					currentFile: { id: designProjectId },
+					flatAttachments,
+				}),
+			)
+		}
+		return basePathCache.get(designProjectId)
+	}
+
+	const transformNode = (node: JSONContent): JSONContent => {
+		if (!node) return node
+
+		let transformedNode = node
+
+		if (node.type === "mention" && node.attrs) {
+			const mentionAttrs = node.attrs as TiptapMentionAttributes
+			if (mentionAttrs.type === MentionItemType.DESIGN_MARKER && mentionAttrs.data) {
+				// 发送前把历史旧结构也归一成轻量结构，消息体里不再持久化完整 Marker。
+				const markerData = normalizeCanvasMarkerMentionData(mentionAttrs.data)
+				if (!markerData) return transformedNode
+
+				const imagePath = getCanvasMarkerMentionImagePath(markerData)
+				const workspaceImagePath = resolveDesignDslPathToWorkspaceRelative(
+					imagePath,
+					getBasePathByDesignProjectId(markerData.design_project_id),
+				)
+
+				// Agent/后端只需要工作区路径；原始相对路径保留在 image_relative 里，供缩略图兜底。
+				const nextMarkerData: CanvasMarkerMentionData = {
+					...markerData,
+					...(workspaceImagePath && workspaceImagePath !== markerData.image
+						? {
+								image: workspaceImagePath,
+								image_relative: markerData.image_relative || markerData.image,
+							}
+						: {}),
+				}
+
+				if (nextMarkerData !== mentionAttrs.data) {
+					transformedNode = {
+						...transformedNode,
+						attrs: {
+							...mentionAttrs,
+							data: nextMarkerData,
+						},
+					}
+				}
+			}
+		}
+
+		if (node.content && Array.isArray(node.content)) {
+			const transformedChildren = node.content.map(transformNode)
+			if (transformedChildren.some((child, index) => child !== node.content?.[index])) {
+				transformedNode = {
+					...transformedNode,
+					content: transformedChildren,
+				}
+			}
+		}
+
+		return transformedNode
+	}
+
+	return transformNode(content)
+}
+
 /**
  * Get upload file mention data from mention items
  * @param mentionItems - Array of mention items
@@ -225,36 +329,153 @@ export function getUploadFileMentionData(mentionItems: MentionListItem[]): Uploa
 	)
 }
 
-export const isAllowedMention = (attrs: TiptapMentionAttributes, dataService: DataService) => {
-	const { type, data } = attrs
-	if (!data) return false
+export type ProjectReferenceMentionData = ProjectFileMentionData | DirectoryMentionData
 
-	if (type === MentionItemType.PROJECT_FILE) {
-		const fileId = (data as ProjectFileMentionData).file_id
-		const hasProjectFile = dataService.hasProjectFile(fileId)
-		return hasProjectFile
+export function getProjectReferenceSourceId(attrs: TiptapMentionAttributes): string | undefined {
+	if (attrs.type === MentionItemType.PROJECT_FILE) {
+		const data = attrs.data as ProjectFileMentionData | undefined
+		return data?.source_file_id || data?.file_id
 	}
 
-	switch (type) {
-		case MentionItemType.AGENT:
-			return dataService.hasAgent((data as AgentMentionData).agent_id)
-		case MentionItemType.MCP:
-			return dataService.hasMcp((data as McpMentionData).id)
-		case MentionItemType.SKILL:
-			return dataService.hasSkill((data as SkillMentionData).id)
-		case MentionItemType.TOOL:
-			return dataService.hasTool((data as ToolMentionData).id)
-		case MentionItemType.UPLOAD_FILE:
-			// Always allow UPLOAD_FILE mentions to be inserted
-			// They are temporary and will be replaced with PROJECT_FILE after upload completes
-			return true
-		case MentionItemType.FOLDER:
-			return dataService.hasFolder((data as DirectoryMentionData).directory_id)
-		case MentionItemType.DESIGN_MARKER:
-			return true
-		default:
-			return false
+	if (attrs.type === MentionItemType.FOLDER) {
+		const data = attrs.data as DirectoryMentionData | undefined
+		return data?.source_directory_id || data?.directory_id
 	}
+
+	return undefined
+}
+
+export function isPendingProjectReferenceMention(attrs: TiptapMentionAttributes): boolean {
+	if (attrs.type === MentionItemType.PROJECT_FILE) {
+		const data = attrs.data as ProjectFileMentionData | undefined
+		return Boolean(data?.pending_project_copy && data.source_project_id && data.source_file_id)
+	}
+
+	if (attrs.type === MentionItemType.FOLDER) {
+		const data = attrs.data as DirectoryMentionData | undefined
+		return Boolean(
+			data?.pending_project_copy && data.source_project_id && data.source_directory_id,
+		)
+	}
+
+	return false
+}
+
+export const isPendingProjectFileMention = isPendingProjectReferenceMention
+
+export function markProjectReferenceMentionForCopy(
+	attrs: TiptapMentionAttributes,
+	sourceProjectId?: string,
+): TiptapMentionAttributes | null {
+	if (!sourceProjectId) return null
+
+	if (attrs.type === MentionItemType.PROJECT_FILE) {
+		const data = attrs.data as ProjectFileMentionData | undefined
+		if (!data?.file_id) return null
+
+		return {
+			...attrs,
+			data: {
+				...data,
+				source_project_id: data.source_project_id || sourceProjectId,
+				source_file_id: data.source_file_id || data.file_id,
+				pending_project_copy: true,
+			},
+		}
+	}
+
+	if (attrs.type === MentionItemType.FOLDER) {
+		const data = attrs.data as DirectoryMentionData | undefined
+		if (!data?.directory_id) return null
+
+		return {
+			...attrs,
+			data: {
+				...data,
+				source_project_id: data.source_project_id || sourceProjectId,
+				source_directory_id: data.source_directory_id || data.directory_id,
+				pending_project_copy: true,
+			},
+		}
+	}
+
+	return null
+}
+
+export const markProjectFileMentionForCopy = markProjectReferenceMentionForCopy
+
+export interface CopiedProjectReferenceMentionData {
+	sourceId: string
+	attrs: TiptapMentionAttributes
+}
+
+export type CopiedProjectFileMentionData = CopiedProjectReferenceMentionData
+
+export function transformPendingProjectReferenceMentions(
+	content: JSONContent,
+	mentionItems: MentionListItem[],
+	copiedReferences: CopiedProjectReferenceMentionData[],
+): { mentionItems: MentionListItem[]; content: JSONContent } {
+	const copiedReferenceMap = keyBy(copiedReferences, "sourceId")
+
+	const transformAttrs = (attrs: TiptapMentionAttributes): TiptapMentionAttributes => {
+		if (!isPendingProjectReferenceMention(attrs)) return attrs
+
+		const sourceId = getProjectReferenceSourceId(attrs)
+		const copiedReference = sourceId ? copiedReferenceMap[sourceId] : undefined
+		if (!copiedReference) return attrs
+
+		return copiedReference.attrs
+	}
+
+	const transformContent = (node: JSONContent): JSONContent => {
+		if (!node) return node
+
+		let transformedNode = node
+		if (node.type === "mention" && node.attrs) {
+			const nextAttrs = transformAttrs(node.attrs as TiptapMentionAttributes)
+			if (nextAttrs !== node.attrs) {
+				transformedNode = {
+					...node,
+					attrs: nextAttrs,
+				}
+			}
+		}
+
+		if (node.content && Array.isArray(node.content)) {
+			const transformedChildren = node.content.map(transformContent)
+			if (transformedChildren.some((child, index) => child !== node.content?.[index])) {
+				transformedNode = {
+					...transformedNode,
+					content: transformedChildren,
+				}
+			}
+		}
+
+		return transformedNode
+	}
+
+	return {
+		mentionItems: mentionItems.map((item) => ({
+			...item,
+			attrs: transformAttrs(item.attrs),
+		})),
+		content: transformContent(content),
+	}
+}
+
+export const transformPendingProjectFileMentions = transformPendingProjectReferenceMentions
+
+export const isAllowedMention = (
+	attrs: TiptapMentionAttributes,
+	dataService?: DataService | null,
+) => {
+	if (isPendingProjectReferenceMention(attrs)) return true
+
+	return validateMentionWithDataService(dataService, {
+		type: attrs.type as MentionItemType,
+		data: attrs.data,
+	})
 }
 
 /**
@@ -313,8 +534,8 @@ export function filterUploadFileMentionsFromMentionItems(
 export function hasLoadingMarkerInMentionItems(items: MentionListItem[]): boolean {
 	return items.some((item) => {
 		if (item.attrs.type === MentionItemType.DESIGN_MARKER && item.attrs.data) {
-			const markerData = item.attrs.data as CanvasMarkerMentionData
-			return markerData.loading === true
+			const markerData = normalizeCanvasMarkerMentionData(item.attrs.data)
+			return markerData?.loading === true
 		}
 		return false
 	})
@@ -330,8 +551,8 @@ export function hasLoadingMarkerInContent(content: JSONContent | undefined): boo
 	if (content.type === "mention" && content.attrs) {
 		const attrs = content.attrs as TiptapMentionAttributes
 		if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
-			const markerData = attrs.data as CanvasMarkerMentionData
-			if (markerData.loading === true) return true
+			const markerData = normalizeCanvasMarkerMentionData(attrs.data)
+			if (markerData?.loading === true) return true
 		}
 	}
 
@@ -365,9 +586,9 @@ export function filterStaleMarkersFromContent(
 				if (child.type === "mention" && child.attrs) {
 					const attrs = child.attrs as TiptapMentionAttributes
 					if (attrs.type === MentionItemType.DESIGN_MARKER) {
-						const markerData = attrs.data as CanvasMarkerMentionData
+						const markerData = normalizeCanvasMarkerMentionData(attrs.data)
 						const designProjectId = markerData?.design_project_id ?? ""
-						const markId = markerData?.data?.id ?? ""
+						const markId = markerData?.marker_id ?? ""
 						if (!designProjectId || !markId) return false
 						const existent = getExistentMarkIds([{ designProjectId, markId }])
 						return existent.has(markId)
@@ -396,10 +617,8 @@ function collectMarkersFromContent(
 			if (child.type === "mention" && child.attrs) {
 				const attrs = child.attrs as TiptapMentionAttributes
 				if (attrs.type === MentionItemType.DESIGN_MARKER && attrs.data) {
-					const data = attrs.data as CanvasMarkerMentionData
-					if (data.design_project_id && data.data?.id) {
-						result.push(data)
-					}
+					const data = normalizeCanvasMarkerMentionData(attrs.data)
+					if (data?.design_project_id && data.marker_id) result.push(data)
 				}
 			}
 			collectMarkersFromContent(child, result)
@@ -416,7 +635,7 @@ export function syncDraftMarkersToManager(
 ): void {
 	const seen = new Set<string>()
 	const processMarker = (data: CanvasMarkerMentionData) => {
-		const key = `${data.design_project_id}:${data.data?.id}`
+		const key = `${data.design_project_id}:${data.marker_id}`
 		if (!key || key === ":" || seen.has(key)) return
 		seen.add(key)
 		sync(data)
@@ -424,7 +643,8 @@ export function syncDraftMarkersToManager(
 
 	for (const item of draft.mentionItems ?? []) {
 		if (item.attrs.type === MentionItemType.DESIGN_MARKER && item.attrs.data) {
-			processMarker(item.attrs.data as CanvasMarkerMentionData)
+			const markerData = normalizeCanvasMarkerMentionData(item.attrs.data)
+			if (markerData) processMarker(markerData)
 		}
 	}
 	const fromContent: CanvasMarkerMentionData[] = []
@@ -460,61 +680,21 @@ export function validateMentionItems(mentionItems: MentionListItem[]): {
 	return { validItems, invalidItems }
 }
 
-function transformCanvasMarkerMentionData(mentionItem: MentionListItem): MentionListItem {
-	const markerData = mentionItem.attrs.data as CanvasMarkerMentionData
-	const selectedSuggestionIndex = markerData.data?.selectedSuggestionIndex || 0
-	const suggestion = markerData.data?.result?.suggestions?.[selectedSuggestionIndex]
-	if (suggestion && markerData.data) {
-		const marker = markerData.data
-		const transformedData: TransformedCanvasMarkerMentionData = {
-			image: markerData.image_path || "",
-			...suggestion,
-			mark:
-				marker.type === MarkerTypeEnum.Mark
-					? [marker.relativeX, marker.relativeY]
-					: undefined,
-			mark_number: markerData.mark_number || 1,
-			mark_type: marker.type,
-			area:
-				marker.type === MarkerTypeEnum.Area &&
-					markerData.element_width &&
-					markerData.element_height
-					? (() => {
-						const areaMarker = marker as MarkerArea
-						return [
-							areaMarker.relativeX,
-							areaMarker.relativeY,
-							areaMarker.areaWidth * markerData.element_width,
-							areaMarker.areaHeight * markerData.element_height,
-						]
-					})()
-					: undefined,
-		}
-		return {
-			...mentionItem,
-			attrs: {
-				type: MentionItemType.DESIGN_MARKER,
-				data: transformedData as unknown as MentionData,
-			},
-		}
-	}
-	return mentionItem
-}
-
 /**
  * Transform mention items for sending to agent
- * Customize the mention data structure before sending to the backend
- * Currently handles CanvasMarkerMentionData transformation, but can be extended for other types
+ * Filter out mentions that should stay in editor content only.
  * @param mentionItems - Array of mention items to transform
- * @returns Array of transformed mention items with customized data
+ * @returns Array of transformed mention items with send-safe data
  */
-export function transformMentions(mentionItems: MentionListItem[]): MentionListItem[] {
-	return mentionItems.map((item) => {
-		switch (item.attrs.type) {
-			case MentionItemType.DESIGN_MARKER:
-				return transformCanvasMarkerMentionData(item)
-			default:
-				return item
-		}
-	})
+export function transformMentions(_mentionItems: MentionListItem[]): MentionListItem[] {
+	void _mentionItems
+	// return mentionItems.map((item) => {
+	// 	switch (item.attrs.type) {
+	// 		case MentionItemType.DESIGN_MARKER:
+	// 			return transformCanvasMarkerMentionData(item)
+	// 		default:
+	// 			return item
+	// 	}
+	// })
+	return []
 }

@@ -64,7 +64,7 @@ function UserInfoCard({ collapsed }: UserInfoCardProps) {
 				>
 					<UserAvatarRender className="rounded-lg" userInfo={userInfo} size={32} />
 					<div className="flex min-h-px min-w-0 grow basis-0 flex-col items-start justify-center gap-0.5 overflow-hidden">
-						<div className="w-full truncate text-sm font-semibold leading-5">
+						<div className="w-full truncate text-sm font-semibold leading-5 text-sidebar-foreground dark:text-white">
 							{userInfo?.nickname || t("footer.defaultUser")}
 						</div>
 						<UserPlanInfo />

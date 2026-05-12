@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import {
+	deleteNextTextCharAfterMention,
+	deleteMentionBeforeCaretGuard,
+	mentionDeletionInputKey,
+} from "../MentionExtension"
 import { getMentionUniqueId, getMentionDisplayName } from "../types"
 import { MentionItemType } from "../../types"
 import type { UserService } from "@/opensource/services/user/UserService"
@@ -32,7 +37,7 @@ vi.mock("@/opensource/services/index", () => ({
 	},
 }))
 
-vi.mock("@/opensource/components/business/MentionPanel/store", () => ({
+vi.mock("@/opensource/components/business/MentionPanel/builtin-store", () => ({
 	default: {
 		setUploadFiles: vi.fn(),
 	},
@@ -236,6 +241,84 @@ describe("MentionExtension Integration Tests", () => {
 
 		it("should support MCP mention type", () => {
 			expect(MentionItemType.MCP).toBe("mcp")
+		})
+	})
+
+	describe("Mention delete shortcuts", () => {
+		it("should delete mention together with trailing caret guard on backspace", () => {
+			const dispatch = vi.fn()
+			const deleteMock = vi.fn().mockReturnThis()
+			const setMetaMock = vi.fn().mockReturnThis()
+			const editor = {
+				state: {
+					selection: {
+						empty: true,
+						from: 5,
+						$from: {
+							nodeBefore: {
+								text: "\u200b",
+							},
+						},
+					},
+					doc: {
+						nodeAt: vi.fn((pos: number) =>
+							pos === 3
+								? {
+										type: { name: "mention" },
+									}
+								: null,
+						),
+					},
+					tr: {
+						delete: deleteMock,
+						setMeta: setMetaMock,
+					},
+				},
+				view: {
+					dispatch,
+				},
+			} as any
+
+			expect(deleteMentionBeforeCaretGuard(editor, "backspace")).toBe(true)
+			expect(deleteMock).toHaveBeenCalledWith(3, 5)
+			expect(setMetaMock).toHaveBeenCalledWith(mentionDeletionInputKey, "backspace")
+			expect(dispatch).toHaveBeenCalledWith(editor.state.tr)
+		})
+
+		it("should delete mention together with leading caret guard on delete", () => {
+			const dispatch = vi.fn()
+			const deleteMock = vi.fn().mockReturnThis()
+			const setMetaMock = vi.fn().mockReturnThis()
+			const editor = {
+				state: {
+					selection: {
+						empty: true,
+						from: 4,
+						$from: {
+							nodeBefore: {
+								nodeSize: 1,
+								type: { name: "mention" },
+							},
+							nodeAfter: {
+								isText: true,
+								text: "\u200brest",
+							},
+						},
+					},
+					tr: {
+						delete: deleteMock,
+						setMeta: setMetaMock,
+					},
+				},
+				view: {
+					dispatch,
+				},
+			} as any
+
+			expect(deleteNextTextCharAfterMention(editor, "forward-delete")).toBe(true)
+			expect(deleteMock).toHaveBeenCalledWith(3, 5)
+			expect(setMetaMock).toHaveBeenCalledWith(mentionDeletionInputKey, "forward-delete")
+			expect(dispatch).toHaveBeenCalledWith(editor.state.tr)
 		})
 	})
 })

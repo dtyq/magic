@@ -118,7 +118,7 @@ function IdentityLocalizeDialogInner({
 		}))
 	}
 
-	function handleConfirm() {
+	async function handleConfirm() {
 		const prevName = identity.name_i18n
 		const prevRole = identity.role_i18n
 		const prevDescription = identity.description_i18n
@@ -146,10 +146,20 @@ function IdentityLocalizeDialogInner({
 		if (draft.description.en_US.trim()) descriptionI18n.en_US = draft.description.en_US
 		if (draft.description.zh_CN.trim()) descriptionI18n.zh_CN = draft.description.zh_CN
 
-		void identity.setI18nFields({
-			name_i18n: nameI18n,
-			role_i18n: roleI18n,
-			description_i18n: descriptionI18n,
+		const [isIdentitySaved, isRoleSaved] = await Promise.all([
+			identity.saveNameAndDescriptionToIdentityMarkdown({
+				name: nameI18n.default ?? "",
+				description: descriptionI18n.default ?? "",
+			}),
+			identity.saveRoleI18n(roleI18n),
+		])
+
+		if (!isIdentitySaved || !isRoleSaved) return
+
+		setDraft({
+			name: extractI18nText(identity.name_i18n),
+			role: extractI18nArrayText(identity.role_i18n),
+			description: extractI18nText(identity.description_i18n),
 		})
 		onOpenChange(false)
 	}

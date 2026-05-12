@@ -12,6 +12,8 @@ interface MarkerMentionChipProps {
 	imageUrl?: string | null
 	className?: string
 	iconSize?: number
+	maxWidthClassName?: string
+	contentDrivenWidth?: boolean
 	selected?: boolean
 	showArrow?: boolean
 	onClick?: (event: MouseEvent) => void
@@ -25,6 +27,8 @@ function MarkerMentionChip({
 	imageUrl,
 	className,
 	iconSize,
+	maxWidthClassName,
+	contentDrivenWidth = false,
 	selected = false,
 	showArrow = true,
 	onClick,
@@ -35,23 +39,25 @@ function MarkerMentionChip({
 
 	const styleConfig = getMarkerMentionStyleConfig({ size: "small", isMobile, iconSize })
 
+	// 预览层叠在删除按钮之上；opacity-0 仍会拦截点击，需配合 pointer-events 才能把事件交给删除按钮
 	const removeClassName = onRemove
 		? isMobile
-			? "opacity-100"
-			: "opacity-0 group-hover:opacity-100"
+			? "pointer-events-auto opacity-100"
+			: "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100"
 		: "pointer-events-none opacity-0"
 
 	const previewClassName = onRemove
 		? isMobile
-			? "opacity-0"
-			: "opacity-100 group-hover:opacity-0"
+			? "pointer-events-none opacity-0"
+			: "opacity-100 group-hover:pointer-events-none group-hover:opacity-0"
 		: "opacity-100"
 
 	return (
 		<div
 			className={cn(
-				"group relative inline-flex h-[22px] min-w-[30px] shrink-0 cursor-pointer items-center gap-1 overflow-hidden rounded-md border border-[#D5D5D5] px-1 align-bottom transition-colors",
-				styleConfig.maxWidthClassName,
+				"group relative inline-flex h-[22px] min-w-[30px] cursor-pointer items-center gap-1 overflow-hidden rounded-md border border-[#D5D5D5] px-1 align-bottom transition-colors",
+				contentDrivenWidth ? "w-fit max-w-full" : "shrink-0",
+				maxWidthClassName ?? styleConfig.maxWidthClassName,
 				selected && "border-primary bg-primary/5",
 				className,
 			)}
@@ -89,13 +95,9 @@ function MarkerMentionChip({
 					</div>
 				)}
 			</div>
-			<span
-				className={cn(
-					"flex min-w-0 flex-none items-center text-xs leading-4 text-foreground",
-				)}
-			>
+			<span className={cn("flex min-w-0 items-center text-xs leading-4 text-foreground")}>
 				<MarkerNamePrefix data={markerData || undefined} />
-				<span className="overflow-hidden whitespace-nowrap">{displayName}</span>
+				<span className="block max-w-full truncate">{displayName}</span>
 			</span>
 			{showArrow && (
 				<div className="flex size-[14px] flex-none shrink-0 items-center justify-center">
