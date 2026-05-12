@@ -220,7 +220,7 @@ use App\Domain\SuperAgent\Service\UsageCalculator\UsageCalculatorInterface;
 use App\Domain\Token\Item\MagicTokenExtra;
 use App\Domain\Token\Repository\Facade\MagicTokenExtraInterface;
 use App\Domain\Token\Repository\Facade\MagicTokenRepositoryInterface;
-use App\Domain\Token\Repository\Persistence\MagicMagicTokenRepository;
+use App\Domain\Token\Repository\Persistence\MagicTokenRepository;
 use App\Infrastructure\Audit\Permission\PermissionLabelProvider;
 use App\Infrastructure\Audit\Repository\AdminOperationLogRepository;
 use App\Infrastructure\Core\Broadcast\Publisher\AmqpPublisher;
@@ -329,7 +329,7 @@ $dependencies = [
     // domain 通过这个工厂接口拿到 adapter，保持依赖方向正确。
     VideoGenerationProviderAdapterFactoryInterface::class => VideoGenerateFactory::class,
     DashScopeTransportInterface::class => ApiKeyDashScopeTransport::class,
-    MagicTokenRepositoryInterface::class => MagicMagicTokenRepository::class,
+    MagicTokenRepositoryInterface::class => MagicTokenRepository::class,
     TemplateInterface::class => Template::class,
 
     // core

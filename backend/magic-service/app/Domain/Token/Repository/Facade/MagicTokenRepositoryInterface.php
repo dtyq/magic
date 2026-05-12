@@ -34,9 +34,32 @@ interface MagicTokenRepositoryInterface
     public function getTokenByTypeAndRelationValue(MagicTokenType $type, string $relationValue): ?MagicTokenEntity;
 
     /**
+     * 按 type + relationValue 列出 token（通常用于同一个业务维度下的 token 收敛/清理）。
+     *
+     * @param MagicTokenType $type Token 类型
+     * @param string $relationValue 关联值（如 user_id、resource_id 等）
+     * @param bool $checkExpired 是否检查过期：true=只返回未过期的（有效）; false=返回所有（包含过期）
+     * @param int $limit 返回条数限制
+     * @return MagicTokenEntity[]
+     */
+    public function listTokenEntitiesByTypeAndRelationValue(
+        MagicTokenType $type,
+        string $relationValue,
+        bool $checkExpired = true,
+        int $limit = 50
+    ): array;
+
+    /**
      * 刷新指定 token 的过期时间.
      */
     public function refreshTokenExpiration(MagicTokenEntity $tokenDTO): void;
+
+    /**
+     * 批量更新 token 过期时间。
+     *
+     * @param int[] $ids
+     */
+    public function batchUpdateTokenExpiration(array $ids, string $expiredAt): int;
 
     public function deleteToken(MagicTokenEntity $tokenDTO): void;
 

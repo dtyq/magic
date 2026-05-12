@@ -28,4 +28,14 @@ enum AuthenticationErrorCode: int
 
     #[ErrorMessage(message: 'authentication.personal_access_token_already_exists')]
     case PersonalAccessTokenAlreadyExists = 33006;
+
+    // model gateway token / refresh token (33010-33019)
+    #[ErrorMessage(message: 'authentication.model_gateway_unauthorized')]
+    case ModelGatewayUnauthorized = 33010;
+
+    #[ErrorMessage(message: 'authentication.model_gateway_refresh_token_invalid')]
+    case ModelGatewayRefreshTokenInvalid = 33011;
+
+    #[ErrorMessage(message: 'authentication.model_gateway_refresh_token_mismatch')]
+    case ModelGatewayRefreshTokenMismatch = 33012;
 }

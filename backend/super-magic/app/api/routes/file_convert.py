@@ -399,7 +399,11 @@ async def _perform_conversion_async(request: FileConvertRequest, convert_type: s
             pdf_service.update_agent_activity("PDF转换任务启动")
 
             result = await pdf_service.convert_file_keys_to_pdf(
-                file_keys=file_keys_dict, task_key=task_key, sts_credential=sts_credential_dict, aigc_params=aigc_params
+                file_keys=file_keys_dict,
+                task_key=task_key,
+                sts_credential=sts_credential_dict,
+                aigc_params=aigc_params,
+                options=request.options,
             )
         elif convert_type == "pptx":
             pptx_service = PptxConvertService()
