@@ -310,6 +310,9 @@ class TaskInitializationConsumer extends ConsumerMessage
             sandboxId: (string) $topicEntity->getId(),
             memories: $memories
         );
+        if ($agentContext->getInitContext() !== null && $taskContext->getAgentMode() !== '') {
+            $agentContext->getInitContext()->setAgentMode($taskContext->getAgentMode());
+        }
 
         $sandboxId = $this->agentDomainService->ensureSandboxInitialized(
             $dataIsolation,
