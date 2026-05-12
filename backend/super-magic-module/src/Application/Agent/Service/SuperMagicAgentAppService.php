@@ -1202,14 +1202,20 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
 
-        $authToken = $this->agentDomainService->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
+        $this->agentDomainService->ensureSandboxRunning(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode(),
+            $sandboxId,
+            (string) $projectId,
+            $fullWorkdir
+        );
 
         return $this->superMagicAgentDomainService->exportAgentFromSandbox(
             $dataIsolation,
             $code,
             $projectId,
-            $fullWorkdir,
-            authorization: $authToken
+            $fullWorkdir
         );
     }
 
@@ -1782,15 +1788,21 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
 
-        $authToken = $this->agentDomainService->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
+        $this->agentDomainService->ensureSandboxRunning(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode(),
+            $sandboxId,
+            (string) $projectId,
+            $fullWorkdir
+        );
 
         return $this->superMagicAgentDomainService->exportAgentFromSandbox(
             $dataIsolation,
             $code,
             $projectId,
             $fullWorkdir,
-            $sourcePath,
-            $authToken
+            $sourcePath
         );
     }
 

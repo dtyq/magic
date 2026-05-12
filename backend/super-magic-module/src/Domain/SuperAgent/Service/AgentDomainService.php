@@ -56,6 +56,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentRes
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
@@ -1154,6 +1155,101 @@ class AgentDomainService
     }
 
     /**
+     * Ensure sandbox container is running (without agent initialization).
+     * Used for export/utility scenarios that only need the sandbox container running.
+     *
+     * @param string $userId User ID
+     * @param string $orgCode Organization code
+     * @param string $sandboxId Sandbox ID
+     * @param string $projectId Project ID
+     * @param string $workDir Working directory
+     * @return string The actual sandbox ID
+     * @throws SandboxOperationException When sandbox cannot be started
+     */
+    public function ensureSandboxRunning(
+        string $userId,
+        string $orgCode,
+        string $sandboxId,
+        string $projectId,
+        string $workDir
+    ): string {
+        $this->logger->debug('[Sandbox][Domain] Ensuring sandbox container is running', [
+            'sandbox_id' => $sandboxId,
+            'project_id' => $projectId,
+            'user_id' => $userId,
+        ]);
+
+        // Check if sandbox already running
+        $statusResult = $this->getSandboxStatus($sandboxId);
+        if ($statusResult->isSuccess() && $statusResult->getCode() === ResponseCode::SUCCESS) {
+            if (SandboxStatus::isAvailable($statusResult->getStatus())) {
+                $this->logger->debug('[Sandbox][Domain] Sandbox container is already running', [
+                    'sandbox_id' => $sandboxId,
+                ]);
+                return $sandboxId;
+            }
+
+            // If Pending, wait for it to become Running
+            if ($statusResult->getStatus() === SandboxStatus::PENDING) {
+                $this->logger->debug('[Sandbox][Domain] Sandbox container is pending, waiting for it to become running', [
+                    'sandbox_id' => $sandboxId,
+                ]);
+                try {
+                    return $this->waitForSandboxContainerRunning($sandboxId, 'existing');
+                } catch (SandboxOperationException $e) {
+                    $this->logger->warning('[Sandbox][Domain] Failed to wait for existing sandbox container, will recreate', [
+                        'sandbox_id' => $sandboxId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        // Get root file ID for sandbox creation
+        $projectSpaceRootFileId = '';
+        try {
+            $rootDir = $this->taskFileRepository->findRootDirectoryByProjectId((int) $projectId);
+            if ($rootDir !== null) {
+                $projectSpaceRootFileId = (string) $rootDir->getFileId();
+            }
+        } catch (Throwable $e) {
+            $this->logger->warning('[Sandbox][Domain] Failed to get project space root file id', [
+                'project_id' => $projectId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Create sandbox container
+        $authorization = $this->getAuthorizationByUserId($userId);
+        $this->gateway->setUserContext($userId, $orgCode);
+        $createResult = $this->gateway->createSandbox($projectId, $sandboxId, $workDir, $projectSpaceRootFileId, '', $authorization);
+
+        if (! $createResult->isSuccess()) {
+            $this->logger->error('[Sandbox][Domain] Failed to create sandbox container', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'code' => $createResult->getCode(),
+                'message' => $createResult->getMessage(),
+            ]);
+            throw new SandboxOperationException('Create sandbox', $createResult->getMessage(), $createResult->getCode());
+        }
+
+        $newSandboxId = $createResult->getDataValue('sandbox_id');
+        if (empty($newSandboxId)) {
+            $this->logger->error('[Sandbox][Domain] Failed to get sandbox_id from create result', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+            ]);
+            throw new SandboxOperationException('Get sandbox_id from create result', 'Failed to get sandbox_id from create result', 2001);
+        }
+
+        $this->logger->debug('[Sandbox][Domain] Sandbox container created, waiting for it to become running', [
+            'sandbox_id' => $newSandboxId,
+        ]);
+        return $this->waitForSandboxContainerRunning($newSandboxId, 'new');
+    }
+
+    /**
      * 根据用户ID获取 Authorization.
      * - 先以用户级别 token（MagicTokenType::User）为准，支持一个账号多个组织
      * - 若 token 已存在但剩余有效期不足 30 天，则刷新至 30 天后.
@@ -1193,6 +1289,58 @@ class AgentDomainService
             ]);
             return '';
         }
+    }
+
+    /**
+     * Wait for sandbox container to become running.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @param string $type Type for logging ('existing' or 'new')
+     * @return string Sandbox ID on success
+     * @throws SandboxOperationException When timeout or sandbox exits unexpectedly
+     */
+    private function waitForSandboxContainerRunning(string $sandboxId, string $type): string
+    {
+        $maxRetries = 15;
+        $retryDelay = 2;
+
+        $this->logger->debug(sprintf('[Sandbox][Domain] Waiting for %s sandbox container to become running', $type), [
+            'sandbox_id' => $sandboxId,
+            'max_retries' => $maxRetries,
+            'retry_delay' => $retryDelay,
+        ]);
+
+        for ($i = 0; $i < $maxRetries; ++$i) {
+            $statusResult = $this->getSandboxStatus($sandboxId);
+
+            if ($statusResult->isSuccess() && SandboxStatus::isAvailable($statusResult->getStatus())) {
+                $this->logger->debug(sprintf('[Sandbox][Domain] %s sandbox container is now running', ucfirst($type)), [
+                    'sandbox_id' => $sandboxId,
+                    'attempts' => $i + 1,
+                ]);
+                return $sandboxId;
+            }
+
+            if ($type === 'existing' && $statusResult->getStatus() === SandboxStatus::EXITED) {
+                $this->logger->debug('[Sandbox][Domain] Existing sandbox container exited while waiting', [
+                    'sandbox_id' => $sandboxId,
+                    'current_status' => $statusResult->getStatus(),
+                ]);
+                throw new SandboxOperationException('Wait for existing sandbox', 'Existing sandbox exited while waiting', 2002);
+            }
+
+            $this->logger->debug(sprintf('[Sandbox][Domain] Waiting for %s sandbox container...', $type), [
+                'sandbox_id' => $sandboxId,
+                'current_status' => $statusResult->getStatus(),
+                'attempt' => $i + 1,
+            ]);
+            sleep($retryDelay);
+        }
+
+        $this->logger->error(sprintf('[Sandbox][Domain] Timeout waiting for %s sandbox container to become running', $type), [
+            'sandbox_id' => $sandboxId,
+        ]);
+        throw new SandboxOperationException('Wait for sandbox ready', sprintf('Timeout waiting for %s sandbox to become running', $type), 2003);
     }
 
     /**

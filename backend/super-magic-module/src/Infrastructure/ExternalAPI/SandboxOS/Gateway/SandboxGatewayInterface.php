@@ -89,24 +89,6 @@ interface SandboxGatewayInterface
         array $headers = []
     ): GatewayResult;
 
-    /**
-     * 确保沙箱存在并且可用.
-     *
-     * @param string $sandboxId Sandbox ID
-     * @param string $projectId Project ID
-     * @param string $workDir Working directory
-     * @param string $rootFileId Root directory file ID, empty string means not provided
-     * @param string $authorization User authorization token, empty string means not provided
-     * @return string 实际使用的沙箱ID
-     */
-    public function ensureSandboxAvailable(
-        string $sandboxId,
-        string $projectId,
-        string $workDir,
-        string $rootFileId = '',
-        string $authorization = ''
-    ): string;
-
     public function uploadFile(string $sandboxId, array $filePaths, string $projectId, string $organizationCode, string $taskId): GatewayResult;
 
     /**
