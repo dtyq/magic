@@ -38,6 +38,22 @@ logger = get_logger(__name__)
 # ChatHistory 类
 # ==============================================================================
 
+# === 内容安全阈值 ===
+
+# 单条 assistant 消息 content 的 token 安全上限
+# 模型正常 max_output_tokens 约 8K-64K；超过此值视为退化输出，保留头尾后截断
+_MSG_CONTENT_TOKEN_LIMIT = 100_000
+
+# 截断时保留的头部 token 数（展示原始意图）
+_TRUNCATION_HEAD_TOKENS = 500
+
+# 截断时保留的尾部 token 数（展示退化模式，帮助模型避免再犯）
+_TRUNCATION_TAIL_TOKENS = 200
+
+# 流式积累的字符数安全上限
+# 模型单次输出不可能超过 ~50K tokens ≈ 200K chars，超过即退化
+_STREAM_CONTENT_MAX_CHARS = 200_000
+
 # Horizon 注入消息的安全上限；超过此值说明历史中存在异常膨胀的 diff bomb，
 # 需要在 load 时自动修复以避免后续每轮都把垃圾内容发给 LLM
 _HORIZON_MSG_CONTENT_MAX_CHARS = 32 * 1024  # 32 KB
@@ -95,6 +111,65 @@ class RuleResult:
     """单条序列修复规则的执行结果。"""
     name: str
     fixes: int
+
+
+def _truncate_head_by_tokens(text: str, max_tokens: int) -> str:
+    """从头部按 token 估算截取指定长度。"""
+    token_count = 0.0
+    for i, char in enumerate(text):
+        token_count += 1 / 1.5 if '\u4e00' <= char <= '\u9fff' else 1 / 4
+        if int(token_count) >= max_tokens:
+            return text[:i]
+    return text
+
+
+def _truncate_tail_by_tokens(text: str, max_tokens: int) -> str:
+    """从尾部按 token 估算截取指定长度。"""
+    token_count = 0.0
+    for i in range(len(text) - 1, -1, -1):
+        char = text[i]
+        token_count += 1 / 1.5 if '\u4e00' <= char <= '\u9fff' else 1 / 4
+        if int(token_count) >= max_tokens:
+            return text[i:]
+    return text
+
+
+def _sanitize_degenerate_content(content: str, token_limit: int = _MSG_CONTENT_TOKEN_LIMIT) -> str:
+    """处理模型退化输出：保留头尾，中间用系统标记隔开。
+
+    设计原则（站在模型视角）：
+    - 头部（~_TRUNCATION_HEAD_TOKENS tokens）：模型"之前在做什么"——原始意图、分析开头
+    - 系统标记：用 <system_content_truncation> 包裹，和项目已有的
+      <system_injected_context> 风格一致，模型能识别这是基础设施注入而非内容本身
+    - 尾部（~_TRUNCATION_TAIL_TOKENS tokens）：退化输出长什么样——让模型看到重复模式，从而避免再犯
+    """
+    original_chars = len(content)
+    original_tokens = num_tokens_from_string(content)
+
+    logger.warning(
+        f"消息 content 异常过长 ({original_chars:,} chars, ~{original_tokens:,} tokens)，"
+        f"超过 {token_limit:,} token 安全阈值，保留头尾并插入系统标记"
+    )
+
+    head = _truncate_head_by_tokens(content, _TRUNCATION_HEAD_TOKENS)
+    tail = _truncate_tail_by_tokens(content, _TRUNCATION_TAIL_TOKENS)
+
+    return (
+        f"{head}\n\n"
+        f"<system_content_truncation>\n"
+        f"SYSTEM NOTICE: This message was automatically truncated.\n"
+        f"Original length: {original_chars:,} characters (~{original_tokens:,} tokens).\n"
+        f"Cause: The model produced degenerate/looping output that exceeded the "
+        f"{token_limit:,} token safety limit.\n"
+        f"The content above (before this notice) is the ORIGINAL beginning of the output.\n"
+        f"The content below (after this notice) is the ORIGINAL ending, "
+        f"showing the repetition pattern.\n"
+        f"Everything in between has been removed to protect the context window.\n"
+        f"Action: Do NOT attempt to reproduce or continue the truncated content. "
+        f"Resume the task with a fresh, concise approach.\n"
+        f"</system_content_truncation>\n\n"
+        f"{tail}"
+    )
 
 
 class ChatHistory:
@@ -757,27 +832,34 @@ class ChatHistory:
         )
 
     def _sanitize_oversized_messages(self) -> int:
-        """Load 时自动修复历史中异常膨胀的 horizon 注入消息。
+        """Load 时自动修复历史中异常膨胀的消息。
 
-        之前的 diff bug 可能导致 5MB+ 的内容被持久化到 source="horizon" 的 UserMessage 中，
-        后续每轮 LLM 调用都会带上这些垃圾内容，直接撑爆上下文。
-        修复后下次 save() 会自动落盘。
+        覆盖两类问题：
+        1. Horizon 注入消息：diff bug 导致 5MB+ 内容持久化 → 直接丢弃
+        2. AssistantMessage 退化输出：模型死循环产生数 MB content → 截断保留头尾
         """
         sanitized_messages: List[ChatMessage] = []
         fixes = 0
         for idx, msg in enumerate(self.messages):
-            if not isinstance(msg, UserMessage):
-                sanitized_messages.append(msg)
-                continue
-            if getattr(msg, "source", None) != "horizon":
-                sanitized_messages.append(msg)
-                continue
-            content_len = len(msg.content)
-            if content_len <= _HORIZON_MSG_CONTENT_MAX_CHARS:
-                sanitized_messages.append(msg)
-                continue
-            fixes += 1
-            self._log_removed_oversized_horizon_message(msg, idx, content_len)
+            # 规则 1：超大 horizon user 消息 → 丢弃
+            if isinstance(msg, UserMessage) and getattr(msg, "source", None) == "horizon":
+                content_len = len(msg.content)
+                if content_len > _HORIZON_MSG_CONTENT_MAX_CHARS:
+                    fixes += 1
+                    self._log_removed_oversized_horizon_message(msg, idx, content_len)
+                    continue
+
+            # 规则 2：超大 assistant content → 截断保留头尾
+            if isinstance(msg, AssistantMessage) and msg.content:
+                if num_tokens_from_string(msg.content) > _MSG_CONTENT_TOKEN_LIMIT:
+                    fixes += 1
+                    logger.warning(
+                        f"[ChatHistory] load 修复: msg[{idx}] assistant content 过长 "
+                        f"({len(msg.content):,} chars)，执行截断"
+                    )
+                    msg.content = _sanitize_degenerate_content(msg.content)
+
+            sanitized_messages.append(msg)
 
         if fixes > 0:
             self.messages = sanitized_messages
@@ -1262,6 +1344,13 @@ class ChatHistory:
                 # 如果成功处理，添加到列表
                 if tool_call_obj:
                     processed_tool_calls.append(tool_call_obj)
+
+        # 兜底：模型输出退化（如死循环重复）时 content 可能膨胀到数百万字符，
+        # 原样存储会污染后续所有请求的上下文，且无法通过 LLM compact 恢复
+        # （compact 本身也要发请求，同样会被超长 content 打爆）。
+        # 保留头尾帮助模型理解"之前在做什么"和"退化长什么样"，中间用系统标记隔开。
+        if content and num_tokens_from_string(content) > _MSG_CONTENT_TOKEN_LIMIT:
+            content = _sanitize_degenerate_content(content)
 
         message = AssistantMessage(
             content=content,
