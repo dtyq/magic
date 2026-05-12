@@ -67,6 +67,8 @@ class TaskFileEntity extends AbstractEntity
 
     protected int $metadataVersion = 1;
 
+    protected string $spaceType = '';
+
     public function getFileId(): int
     {
         return $this->fileId;
@@ -348,6 +350,16 @@ class TaskFileEntity extends AbstractEntity
         $this->metadataVersion = $metadataVersion;
     }
 
+    public function getSpaceType(): string
+    {
+        return $this->spaceType;
+    }
+
+    public function setSpaceType(string $spaceType): void
+    {
+        $this->spaceType = $spaceType;
+    }
+
     public function toArray(): array
     {
         return [
@@ -378,6 +390,7 @@ class TaskFileEntity extends AbstractEntity
             'latest_modified_task_id' => $this->latestModifiedTaskId,
             'latest_version' => $this->latestVersion,
             'metadata_version' => $this->metadataVersion,
+            'space_type' => $this->spaceType,
         ];
     }
 }

@@ -58,7 +58,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         string $projectId,
         string $sandboxId,
         string $workDir,
-        string $rootFileId = '',
+        string $projectSpaceRootFileId = '',
+        string $userSpaceRootFileId = '',
         string $authorization = ''
     ): GatewayResult {
         // In local debugging mode, return mock success result
@@ -67,7 +68,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'sandbox_id' => $sandboxId,
                 'project_id' => $projectId,
                 'work_dir' => $workDir,
-                'root_file_id' => $rootFileId,
+                'project_space_root_file_id' => $projectSpaceRootFileId,
+                'user_space_root_file_id' => $userSpaceRootFileId,
                 'authorization_provided' => $authorization !== '',
             ]);
             return GatewayResult::success([
@@ -79,7 +81,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             'project_id' => $projectId,
             'sandbox_id' => $sandboxId,
             'project_oss_path' => $workDir,
-            'root_file_id' => $rootFileId,
+            'project_space_root_file_id' => $projectSpaceRootFileId,
+            'user_space_root_file_id' => $userSpaceRootFileId,
             'authorization' => $authorization,
         ];
 
@@ -88,7 +91,8 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
                 'project_id' => $projectId,
                 'sandbox_id' => $sandboxId,
                 'project_oss_path' => $workDir,
-                'root_file_id' => $rootFileId,
+                'project_space_root_file_id' => $projectSpaceRootFileId,
+                'user_space_root_file_id' => $userSpaceRootFileId,
                 'authorization_provided' => $authorization !== '',
             ],
             'max_retries' => 5,
@@ -675,7 +679,7 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
             }
 
             // 创建新沙箱
-            $createResult = $this->createSandbox($projectId, $sandboxId, $workDir, $rootFileId, $authorization);
+            $createResult = $this->createSandbox($projectId, $sandboxId, $workDir, $rootFileId, '', $authorization);
 
             if (! $createResult->isSuccess()) {
                 $this->logger->error('ensureSandboxAvailable Failed to create sandbox', [

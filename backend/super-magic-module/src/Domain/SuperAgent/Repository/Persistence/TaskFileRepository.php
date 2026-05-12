@@ -1500,6 +1500,29 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     }
 
     /**
+     * 查找用户空间的根目录.
+     * 通过 user_id + organization_code + space_type='user' + parent_id IS NULL 定位.
+     */
+    public function findUserSpaceRootDirectory(string $userId, string $organizationCode): ?TaskFileEntity
+    {
+        $model = $this->model::query()
+            ->where('user_id', $userId)
+            ->where('organization_code', $organizationCode)
+            ->where('space_type', 'user')
+            ->whereNull('parent_id')
+            ->where('file_name', '/')
+            ->where('is_directory', true)
+            ->orderBy('file_id', 'asc')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileEntity($model->toArray());
+    }
+
+    /**
      * Batch update is_hidden field for given file IDs.
      */
     public function batchUpdateIsHidden(array $fileIds, bool $isHidden): int

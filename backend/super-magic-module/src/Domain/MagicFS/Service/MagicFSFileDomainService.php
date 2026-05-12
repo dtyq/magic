@@ -101,7 +101,7 @@ class MagicFSFileDomainService
      *                                 以保证外链引用的 file_id 在撤回/取消撤回前后保持稳定
      * @return TaskFileEntity 创建的文件实体
      */
-    public function createFile(string $name, string $parentId, bool $isDirectory, ?string $superMagicTaskId = null, ?int $sortValue = null, ?FileType $fileType = null, ?TaskFileSource $source = null, ?array $fileMetadata = null, bool $reuseDeletedFileId = false, int $topicId = 0): TaskFileEntity
+    public function createFile(string $name, string $parentId, bool $isDirectory, ?string $superMagicTaskId = null, ?int $sortValue = null, ?FileType $fileType = null, ?TaskFileSource $source = null, ?array $fileMetadata = null, bool $reuseDeletedFileId = false, int $topicId = 0, string $spaceType = ''): TaskFileEntity
     {
         // 1. 获取 project_id、user_id 和 organization_code（从父文件或认证信息）
         $parentInfo = $this->getParentFileInfo($parentId);
@@ -205,6 +205,11 @@ class MagicFSFileDomainService
         $entity->setSource($source ?? TaskFileSource::AGENT);
         $entity->setLatestVersion(1);
         $entity->setMetadataVersion(1);
+
+        // 设置空间类型（如 project、user）
+        if ($spaceType !== '') {
+            $entity->setSpaceType($spaceType);
+        }
 
         // 设置排序值（如果提供了 sortValue）
         if ($sortValue !== null) {

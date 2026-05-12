@@ -454,6 +454,13 @@ interface TaskFileRepositoryInterface
     public function findRootDirectoryByProjectId(int $projectId): ?TaskFileEntity;
 
     /**
+     * Find user-space root directory by user_id, organization_code and space_type.
+     * Root directory is identified by: parent_id IS NULL AND file_name = '/' AND is_directory = true
+     * AND space_type = 'user' AND user_id = ? AND organization_code = ?.
+     */
+    public function findUserSpaceRootDirectory(string $userId, string $organizationCode): ?TaskFileEntity;
+
+    /**
      * Batch update is_hidden field for given file IDs.
      *
      * @param int[] $fileIds File IDs to update

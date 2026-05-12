@@ -62,6 +62,7 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxS
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Codec\Json;
+use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Server\Exception\ServerException;
 use Psr\Log\LoggerInterface;
@@ -275,16 +276,30 @@ class AgentDomainService
                 ]);
             }
 
-            // Step 2: Get root file ID for sandbox initialization
-            $rootFileId = '';
+            // Step 2: Get root file IDs for sandbox initialization
+            $projectSpaceRootFileId = '';
+            $userSpaceRootFileId = '';
             try {
                 $projectId = $agentContext->getProjectEntity()->getId();
                 $rootDir = $this->taskFileRepository->findRootDirectoryByProjectId($projectId);
                 if ($rootDir !== null) {
-                    $rootFileId = (string) $rootDir->getFileId();
+                    $projectSpaceRootFileId = (string) $rootDir->getFileId();
                 }
             } catch (Throwable $e) {
-                $this->logger->warning('[Sandbox][Domain] Failed to get root file id for sandbox initialization', [
+                $this->logger->warning('[Sandbox][Domain] Failed to get project space root file id for sandbox initialization', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Step 2.1: Get or create user space root directory
+            try {
+                $taskFileDomainService = ApplicationContext::getContainer()->get(TaskFileDomainService::class);
+                $userSpaceRootFileId = (string) $taskFileDomainService->findOrCreateUserRootDirectory(
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode()
+                );
+            } catch (Throwable $e) {
+                $this->logger->warning('[Sandbox][Domain] Failed to get user space root file id for sandbox initialization', [
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -295,7 +310,8 @@ class AgentDomainService
                 projectId: (string) $agentContext->getProjectEntity()->getId(),
                 sandboxID: $agentContext->getSandboxId(),
                 workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
-                rootFileId: $rootFileId
+                projectSpaceRootFileId: $projectSpaceRootFileId,
+                userSpaceRootFileId: $userSpaceRootFileId
             );
 
             if ($interruptChecker !== null && $interruptChecker()) {
@@ -356,7 +372,7 @@ class AgentDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $rootFileId = ''): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = ''): string
     {
         // 获取用户 authorization token，用于沙箱创建时的身份验证
         $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
@@ -365,12 +381,13 @@ class AgentDomainService
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
             'project_oss_path' => $workDir,
-            'root_file_id' => $rootFileId,
+            'project_space_root_file_id' => $projectSpaceRootFileId,
+            'user_space_root_file_id' => $userSpaceRootFileId,
             'authorization_provided' => $authorization !== '',
         ]);
 
         $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $rootFileId, $authorization);
+        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId, $authorization);
 
         // 添加详细的调试日志，检查 result 对象
         $this->logger->debug('[Sandbox][App] Gateway result analysis', [

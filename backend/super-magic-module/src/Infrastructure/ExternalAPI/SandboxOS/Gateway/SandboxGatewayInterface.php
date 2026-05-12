@@ -40,11 +40,12 @@ interface SandboxGatewayInterface
      * @param string $projectId Project ID
      * @param string $sandboxId Sandbox ID
      * @param string $workDir Sandbox working directory
-     * @param string $rootFileId Root directory file ID, empty string means not provided
+     * @param string $projectSpaceRootFileId Project space root directory file ID
+     * @param string $userSpaceRootFileId User space root directory file ID
      * @param string $authorization User authorization token, empty string means not provided
      * @return GatewayResult 创建结果，成功时data包含sandbox_id
      */
-    public function createSandbox(string $projectId, string $sandboxId, string $workDir, string $rootFileId = '', string $authorization = ''): GatewayResult;
+    public function createSandbox(string $projectId, string $sandboxId, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', string $authorization = ''): GatewayResult;
 
     /**
      * 删除（停止）沙箱.

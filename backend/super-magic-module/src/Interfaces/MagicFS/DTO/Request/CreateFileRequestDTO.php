@@ -49,6 +49,12 @@ class CreateFileRequestDTO
     /** @var array<string, mixed> Per-request context (user/trace/authorization/...) */
     public array $message_metadata = [];
 
+    /**
+     * 文件所属空间类型（如 "project"、"user"），创建时记录，后续不可变。
+     * 对应 Go 侧 CreateFileRequest.SpaceType。
+     */
+    public string $space_type = '';
+
     /** @var array<string, string> Per-file persisted flags (e.g. local_shadow=1) */
     public array $file_metadata = [];
 
@@ -61,6 +67,7 @@ class CreateFileRequestDTO
         $dto->parent_id = trim((string) ($data['parent_id'] ?? ''));
         $dto->is_directory = (bool) ($data['is_directory'] ?? false);
         $dto->reuse_deleted_file_id = (bool) ($data['reuse_deleted_file_id'] ?? false);
+        $dto->space_type = trim((string) ($data['space_type'] ?? ''));
         $dto->message_metadata = $data['message_metadata'] ?? [];
         $dto->file_metadata = self::normalizeFileMetadata($data['file_metadata'] ?? []);
 
@@ -69,6 +76,14 @@ class CreateFileRequestDTO
             ExceptionBuilder::throw(
                 MagicFSErrorCode::INVALID_FILE_NAME,
                 'magicfs.name_is_required'
+            );
+        }
+
+        // space_type 必填：标识文件所属空间
+        if ($dto->space_type === '') {
+            ExceptionBuilder::throw(
+                MagicFSErrorCode::INVALID_SPACE_TYPE,
+                'magicfs.space_type_is_required'
             );
         }
 
@@ -108,6 +123,14 @@ class CreateFileRequestDTO
     public function getFileMetadata(): array
     {
         return $this->file_metadata;
+    }
+
+    /**
+     * 获取空间类型.
+     */
+    public function getSpaceType(): string
+    {
+        return $this->space_type;
     }
 
     /**
