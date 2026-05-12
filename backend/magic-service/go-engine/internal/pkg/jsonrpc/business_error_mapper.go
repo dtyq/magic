@@ -2,6 +2,7 @@ package jrpc
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 
 	documentapp "magic/internal/application/knowledge/document/service"
@@ -14,11 +15,12 @@ import (
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
+	"magic/internal/pkg/i18n"
 	"magic/internal/pkg/thirdplatform"
 )
 
-// MapBusinessError 将应用/领域错误统一映射为对外业务错误码。
-func MapBusinessError(err error) error {
+// MapBusinessErrorWithLanguage 将应用/领域错误统一映射为指定语言的对外业务错误码。
+func MapBusinessErrorWithLanguage(err error, language string) error {
 	if err == nil {
 		return nil
 	}
@@ -35,6 +37,10 @@ func MapBusinessError(err error) error {
 		return NewBusinessErrorWithMessage(ErrCodeConflict, err.Error(), nil)
 	case isEmbeddingError(err):
 		return NewBusinessErrorWithMessage(ErrCodeEmbeddingFailed, buildEmbeddingErrorMessage(err), nil)
+	case isResourceLimitError(err):
+		return NewBusinessErrorWithMessage(ErrCodeInvalidParams, buildResourceLimitErrorMessage(err, language), nil)
+	case isDocumentSourcePrecheckError(err):
+		return NewBusinessErrorWithMessage(ErrCodeSyncFailed, i18n.Translate(i18n.KnowledgeDocumentSourcePrecheckFailed, language), nil)
 	case hasExecutionUserMessage(err):
 		return NewBusinessErrorWithMessage(ErrCodeSyncFailed, executionErrorMessage(err), nil)
 	case isExecutionError(err):
@@ -52,6 +58,61 @@ func MapBusinessError(err error) error {
 	default:
 		return NewBusinessError(ErrCodeInternalError, nil)
 	}
+}
+
+func isResourceLimitError(err error) bool {
+	return errors.Is(err, documentdomain.ErrDocumentResourceLimitExceeded)
+}
+
+func buildResourceLimitErrorMessage(err error, language string) string {
+	var limitErr *documentdomain.ResourceLimitError
+	if !errors.As(err, &limitErr) || limitErr == nil {
+		return i18n.Translate(i18n.KnowledgeDocumentResourceLimitGeneric, language)
+	}
+
+	key := resourceLimitMessageKey(limitErr.LimitName)
+	if key == i18n.KnowledgeDocumentResourceLimitGeneric {
+		return i18n.Translate(key, language)
+	}
+	return i18n.Translatef(
+		key,
+		language,
+		strconv.FormatInt(limitErr.ObservedValue, 10),
+		strconv.FormatInt(limitErr.LimitValue, 10),
+	)
+}
+
+func resourceLimitMessageKey(limitName string) i18n.MessageKey {
+	switch limitName {
+	case documentdomain.ResourceLimitMaxSourceBytes:
+		return i18n.KnowledgeDocumentResourceLimitSourceBytes
+	case documentdomain.ResourceLimitMaxTabularRows:
+		return i18n.KnowledgeDocumentResourceLimitTabularRows
+	case documentdomain.ResourceLimitMaxTabularCells:
+		return i18n.KnowledgeDocumentResourceLimitTabularCells
+	case documentdomain.ResourceLimitMaxPlainTextChars:
+		return i18n.KnowledgeDocumentResourceLimitPlainTextChars
+	case documentdomain.ResourceLimitMaxParsedBlocks:
+		return i18n.KnowledgeDocumentResourceLimitParsedBlocks
+	case documentdomain.ResourceLimitMaxFragmentsPerDocument:
+		return i18n.KnowledgeDocumentResourceLimitFragments
+	case documentdomain.ResourceLimitMaxPDFPages:
+		return i18n.KnowledgeDocumentResourceLimitPDFPages
+	case documentdomain.ResourceLimitMaxArchiveUncompressedBytes:
+		return i18n.KnowledgeDocumentResourceLimitArchiveUncompressedBytes
+	case documentdomain.ResourceLimitMaxArchiveEntryBytes:
+		return i18n.KnowledgeDocumentResourceLimitArchiveEntryBytes
+	case documentdomain.ResourceLimitMaxEmbeddedAssetBytes:
+		return i18n.KnowledgeDocumentResourceLimitEmbeddedAssetBytes
+	case documentdomain.ResourceLimitMaxPresentationSlides:
+		return i18n.KnowledgeDocumentResourceLimitPresentationSlides
+	default:
+		return i18n.KnowledgeDocumentResourceLimitGeneric
+	}
+}
+
+func isDocumentSourcePrecheckError(err error) bool {
+	return errors.Is(err, documentapp.ErrDocumentSourcePrecheckFailed) || documentapp.IsDocumentSourcePrecheckError(err)
 }
 
 type executionUserMessageProvider interface {
@@ -115,7 +176,7 @@ func isEmbeddingTimeoutError(err error) bool {
 }
 
 func isExecutionError(err error) bool {
-	if errors.Is(err, documentapp.ErrDocumentSourcePrecheckFailed) || documentapp.IsDocumentSourcePrecheckError(err) {
+	if isDocumentSourcePrecheckError(err) {
 		return true
 	}
 

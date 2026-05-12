@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -37,8 +38,8 @@ func newSuccessPassthroughResponse(data any, acceptEncoding string) (*dto.HTTPPa
 	}, acceptEncoding)
 }
 
-func newErrorPassthroughResponse(err error, acceptEncoding string) (*dto.HTTPPassthroughResponse, error) {
-	mapped := mapBusinessError(err)
+func newErrorPassthroughResponse(ctx context.Context, err error, acceptEncoding string) (*dto.HTTPPassthroughResponse, error) {
+	mapped := mapBusinessError(ctx, err)
 	var bizErr *jsonrpc.BusinessError
 	if !errors.As(mapped, &bizErr) {
 		bizErr = jsonrpc.NewBusinessError(jsonrpc.ErrCodeInternalError, nil)

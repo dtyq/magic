@@ -656,12 +656,18 @@ class JsonRpcRuntimeClient
      */
     private function buildRequestContext(): array
     {
+        $context = [];
         $requestId = CoContext::getRequestId();
-        if ($requestId === '') {
-            return [];
+        if ($requestId !== '') {
+            $context['request_id'] = $requestId;
         }
 
-        return ['request_id' => $requestId];
+        $language = CoContext::getLanguage();
+        if ($language !== '') {
+            $context['language'] = $language;
+        }
+
+        return $context;
     }
 
     private function rememberError(string $type, Throwable $throwable): void

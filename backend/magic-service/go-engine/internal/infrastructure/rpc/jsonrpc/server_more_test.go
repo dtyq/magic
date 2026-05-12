@@ -94,6 +94,12 @@ func TestSessionHelpersAndRouting(t *testing.T) {
 	if got := jsonrpc.RequestIDFromRawJSONForTest(json.RawMessage(`{"request_id":"req-1"}`)); got != "req-1" {
 		t.Fatalf("RequestIDFromRawJSONForTest() = %q", got)
 	}
+	if got := jsonrpc.LanguageFromRawJSONForTest(json.RawMessage(`{"language":"en_US"}`)); got != "en_US" {
+		t.Fatalf("LanguageFromRawJSONForTest() = %q", got)
+	}
+	if got := jsonrpc.LanguageFromRawJSONForTest(json.RawMessage(`{"language":123}`)); got != "123" {
+		t.Fatalf("LanguageFromRawJSONForTest() numeric = %q", got)
+	}
 	if got := jsonrpc.ReadLegacyHandshakeCodeForTest(json.RawMessage(`{"auth_token":123}`)); got != "123" {
 		t.Fatalf("ReadLegacyHandshakeCodeForTest() = %q", got)
 	}
@@ -102,8 +108,13 @@ func TestSessionHelpersAndRouting(t *testing.T) {
 	}
 
 	requestCtx := ctxmeta.WithRequestID(context.Background(), "req-ctx")
-	if got := string(jsonrpc.BuildOutboundRequestContextForTest(requestCtx)); got == "" {
-		t.Fatal("BuildOutboundRequestContextForTest() should encode request_id")
+	requestCtx = ctxmeta.WithLanguage(requestCtx, "en_US")
+	gotContext := string(jsonrpc.BuildOutboundRequestContextForTest(requestCtx))
+	if gotContext == "" {
+		t.Fatal("BuildOutboundRequestContextForTest() should encode metadata")
+	}
+	if !strings.Contains(gotContext, `"request_id":"req-ctx"`) || !strings.Contains(gotContext, `"language":"en_US"`) {
+		t.Fatalf("BuildOutboundRequestContextForTest() = %s", gotContext)
 	}
 
 	key, ok := jsonrpc.PendingKeyForTest(9)

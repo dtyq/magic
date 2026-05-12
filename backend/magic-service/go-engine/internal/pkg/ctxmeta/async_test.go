@@ -12,6 +12,7 @@ func TestDetachKeepsMetadataAndIgnoresParentCancel(t *testing.T) {
 
 	parent, cancel := context.WithCancel(context.Background())
 	parent = ctxmeta.WithRequestID(parent, "req-detach-1")
+	parent = ctxmeta.WithLanguage(parent, "en_US")
 	parent = ctxmeta.WithBusinessParams(parent, &ctxmeta.BusinessParams{
 		OrganizationCode: "ORG-1",
 		UserID:           "U-1",
@@ -26,6 +27,9 @@ func TestDetachKeepsMetadataAndIgnoresParentCancel(t *testing.T) {
 	}
 	if requestID, ok := ctxmeta.RequestIDFromContext(detached); !ok || requestID != "req-detach-1" {
 		t.Fatalf("unexpected detached request_id: %q ok=%v", requestID, ok)
+	}
+	if language, ok := ctxmeta.LanguageFromContext(detached); !ok || language != "en_US" {
+		t.Fatalf("unexpected detached language: %q ok=%v", language, ok)
 	}
 	businessParams, ok := ctxmeta.BusinessParamsFromContext(detached)
 	if !ok || businessParams == nil {
