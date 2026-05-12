@@ -1989,6 +1989,13 @@ class TaskFileDomainService
 
             $rootDirEntity = $this->insertOrUpdate($rootDirEntity);
 
+            $this->logger->info('User space root directory created', [
+                'user_id' => $userId,
+                'organization_code' => $organizationCode,
+                'file_id' => $rootDirEntity->getFileId(),
+                'file_key' => $fileKey,
+            ]);
+
             return $rootDirEntity->getFileId();
         } finally {
             if (! $this->locker->release($lockKey, $lockOwner)) {
