@@ -32,6 +32,7 @@ class ProviderCodeTest extends TestCase
 
         $this->assertTrue(ProviderCode::Qwen->isInProviderControlAllowlist(Category::VLM));
         $this->assertTrue(ProviderCode::VolcengineArk->isInProviderControlAllowlist(Category::VLM));
+        $this->assertTrue(ProviderCode::DashScope->isInProviderControlAllowlist(Category::VGM));
         $this->assertTrue(ProviderCode::VolcengineArk->isInProviderControlAllowlist(Category::VGM));
         $this->assertFalse(ProviderCode::OpenRouter->isInProviderControlAllowlist(Category::VLM));
     }

@@ -72,7 +72,7 @@ class CloudswaySeedanceVideoAdapterTest extends TestCase
             status: VideoOperationStatus::QUEUED,
             seq: 1,
             rawRequest: [
-                'prompt' => 'a detective enters a room',
+                'prompt' => '{{image_1}} 让侦探走进房间',
                 'inputs' => [
                     'reference_images' => [
                         ['uri' => 'https://example.com/ref.png'],
@@ -93,6 +93,7 @@ class CloudswaySeedanceVideoAdapterTest extends TestCase
         $payload = $adapter->buildProviderPayload($operation);
 
         $this->assertSame('doubao-seedance-1-5-pro-251215', $payload['model']);
+        $this->assertStringContainsString('@图片1 让侦探走进房间', $payload['content'][0]['text']);
         $this->assertStringContainsString('--ratio 16:9', $payload['content'][0]['text']);
         $this->assertStringContainsString('--dur 5', $payload['content'][0]['text']);
         $this->assertSame('https://example.com/ref.png', $payload['content'][1]['image_url']['url']);
@@ -205,7 +206,7 @@ class CloudswaySeedanceVideoAdapterTest extends TestCase
         $httpClient->expects($this->once())
             ->method('get')
             ->with(
-                'https://genaiapi.cloudsway.net/v1/ai/' . self::ENDPOINT_ID . '/seedance/contents/generations/tasks/task-123',
+                'https://localhost/v1/ai/' . self::ENDPOINT_ID . '/seedance/contents/generations/tasks/task-123',
                 [
                     'headers' => [
                         'Authorization' => 'Bearer secret',
@@ -243,7 +244,7 @@ class CloudswaySeedanceVideoAdapterTest extends TestCase
                 createdAt: date(DATE_ATOM),
                 heartbeatAt: date(DATE_ATOM),
             ),
-            new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20),
+            new QueueExecutorConfig('https://localhost', 'secret', 3, 20),
             'task-123',
         );
 

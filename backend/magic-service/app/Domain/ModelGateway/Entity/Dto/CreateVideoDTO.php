@@ -7,14 +7,13 @@ declare(strict_types=1);
 
 namespace App\Domain\ModelGateway\Entity\Dto;
 
+use App\Domain\ModelGateway\Entity\ValueObject\VideoTaskType;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use JsonException;
 
 class CreateVideoDTO extends AbstractRequestDTO
 {
-    private const array SUPPORTED_TASKS = ['generate', 'extend', 'edit', 'upscale'];
-
     private const array TOP_LEVEL_ARRAY_FIELDS = ['inputs', 'generation', 'callbacks', 'execution', 'extensions'];
 
     protected string $task = '';
@@ -43,6 +42,7 @@ class CreateVideoDTO extends AbstractRequestDTO
 
         parent::__construct($hydrateData);
         $this->callMethod = 'create_video';
+        $this->setTask($this->task);
     }
 
     public function setPrompt(mixed $prompt): void
@@ -72,7 +72,7 @@ class CreateVideoDTO extends AbstractRequestDTO
     public function setTask(mixed $task): void
     {
         $normalized = is_string($task) ? trim($task) : '';
-        $this->task = $normalized === '' ? self::SUPPORTED_TASKS[0] : $normalized;
+        $this->task = $normalized === '' ? VideoTaskType::Generate->value : $normalized;
     }
 
     public function getTask(): string
@@ -146,7 +146,7 @@ class CreateVideoDTO extends AbstractRequestDTO
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
         }
 
-        if (! in_array($this->task, self::SUPPORTED_TASKS, true)) {
+        if (! VideoTaskType::isValid($this->task)) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'task is invalid');
         }
 

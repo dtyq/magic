@@ -18,6 +18,7 @@ use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskInitializationMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ClientMessageAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\VideoModelConfigResolver;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
@@ -234,6 +235,7 @@ class TaskInitializationConsumer extends ConsumerMessage
                 $taskContext = $taskContext->setDynamicConfig($dynamicConfig);
             }
         }
+        $taskContext = $this->appendVideoModelDynamicConfig($taskContext, $extra);
 
         // Add MCP config
         $mcpDataIsolation = MCPDataIsolation::create(
@@ -258,6 +260,28 @@ class TaskInitializationConsumer extends ConsumerMessage
             'task_id' => $taskEntity->getId(),
             'sandbox_id' => $sandboxId,
         ]);
+    }
+
+    private function appendVideoModelDynamicConfig(TaskContext $taskContext, ?SuperAgentExtra $extra): TaskContext
+    {
+        if ($extra === null) {
+            return $taskContext;
+        }
+
+        $videoModel = di(VideoModelConfigResolver::class)->resolve($extra->getVideoModel(), $taskContext->getDataIsolation());
+        if ($videoModel === null) {
+            return $taskContext;
+        }
+
+        $dynamicConfig = $taskContext->getDynamicConfig();
+        $dynamicConfig['video_model'] = array_filter([
+            'model_id' => $videoModel['model_id'] ?? null,
+            'video_generation_config' => is_array($videoModel['video_generation_config'] ?? null)
+                ? $videoModel['video_generation_config']
+                : null,
+        ], static fn (mixed $value): bool => $value !== null);
+
+        return $taskContext->setDynamicConfig($dynamicConfig);
     }
 
     /**
