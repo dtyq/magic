@@ -67,7 +67,7 @@ class TaskFileEntity extends AbstractEntity
 
     protected int $metadataVersion = 1;
 
-    protected string $spaceType = '';
+    protected string $spaceType = 'project';
 
     public function getFileId(): int
     {
