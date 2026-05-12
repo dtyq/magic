@@ -18,17 +18,26 @@ import (
 type PDFHybridParser struct {
 	ocrClient           documentdomain.OCRClient
 	maxOCRPerFile       int
+	resourceLimits      documentdomain.ResourceLimits
 	nativeTextExtractor func(string) (string, error)
 }
 
 const errPDFParseAndOCRUnavailable = "PDF parsing failed and OCR recognition is unavailable"
 
 // NewPDFHybridParserWithLimit 创建带单文件 OCR 限额的 PDF 混合解析器。
-func NewPDFHybridParserWithLimit(ocrClient documentdomain.OCRClient, maxOCRPerFile int) *PDFHybridParser {
+func NewPDFHybridParserWithLimit(
+	ocrClient documentdomain.OCRClient,
+	maxOCRPerFile int,
+	resourceLimits ...documentdomain.ResourceLimits,
+) *PDFHybridParser {
+	limits := documentdomain.DefaultResourceLimits()
+	if len(resourceLimits) > 0 {
+		limits = resourceLimits[0]
+	}
 	return &PDFHybridParser{
-		ocrClient:           ocrClient,
-		maxOCRPerFile:       documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
-		nativeTextExtractor: extractNativePDFText,
+		ocrClient:      ocrClient,
+		maxOCRPerFile:  documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		resourceLimits: documentdomain.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -82,13 +91,17 @@ func (p *PDFHybridParser) ParseDocumentWithOptions(
 	defer func() { _ = os.Remove(tmpPath) }()
 	defer func() { _ = tmpFile.Close() }()
 
-	if _, err := io.Copy(tmpFile, file); err != nil {
+	limitedReader := documentdomain.NewSourceSizeLimitedReader(file, p.limits())
+	if _, err := io.Copy(tmpFile, limitedReader); err != nil {
 		return nil, fmt.Errorf("write temp pdf failed: %w", err)
 	}
 	_ = tmpFile.Close()
 
 	textContent, err := p.extractNativeText(tmpPath)
 	if err != nil {
+		if errors.Is(err, documentdomain.ErrDocumentResourceLimitExceeded) {
+			return nil, err
+		}
 		if !p.canFallbackToDocumentOCR(fileURL, options) {
 			return nil, err
 		}
@@ -145,6 +158,13 @@ func (p *PDFHybridParser) NeedsResolvedURL() bool {
 	return true
 }
 
+func (p *PDFHybridParser) limits() documentdomain.ResourceLimits {
+	if p == nil {
+		return documentdomain.DefaultResourceLimits()
+	}
+	return documentdomain.NormalizeResourceLimits(p.resourceLimits)
+}
+
 func extractNativePDFText(pdfPath string) (string, error) {
 	file, reader, err := pdf.Open(filepath.Clean(pdfPath))
 	if err != nil {
@@ -167,7 +187,22 @@ func (p *PDFHybridParser) extractNativeText(pdfPath string) (string, error) {
 	if p != nil && p.nativeTextExtractor != nil {
 		return p.nativeTextExtractor(pdfPath)
 	}
+	if err := p.checkPDFPageCount(pdfPath); err != nil {
+		return "", err
+	}
 	return extractNativePDFText(pdfPath)
+}
+
+func (p *PDFHybridParser) checkPDFPageCount(pdfPath string) error {
+	file, reader, err := pdf.Open(filepath.Clean(pdfPath))
+	if err != nil {
+		return fmt.Errorf("open pdf failed: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+	if err := documentdomain.CheckPDFPageCount(reader.NumPage(), p.limits()); err != nil {
+		return fmt.Errorf("check pdf page count: %w", err)
+	}
+	return nil
 }
 
 func (p *PDFHybridParser) parseDocumentByOCRFallback(

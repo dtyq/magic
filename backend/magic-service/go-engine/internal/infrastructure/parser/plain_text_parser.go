@@ -9,11 +9,17 @@ import (
 )
 
 // PlainTextParser 解析纯文本文件。
-type PlainTextParser struct{}
+type PlainTextParser struct {
+	limits documentdomain.ResourceLimits
+}
 
 // NewPlainTextParser 创建纯文本解析器。
-func NewPlainTextParser() *PlainTextParser {
-	return &PlainTextParser{}
+func NewPlainTextParser(resourceLimits ...documentdomain.ResourceLimits) *PlainTextParser {
+	limits := documentdomain.DefaultResourceLimits()
+	if len(resourceLimits) > 0 {
+		limits = resourceLimits[0]
+	}
+	return &PlainTextParser{limits: documentdomain.NormalizeResourceLimits(limits)}
 }
 
 // Parse 解析纯文本文件。
@@ -63,7 +69,7 @@ func (p *PlainTextParser) ParseDocumentWithOptions(
 	fileType string,
 	_ documentdomain.ParseOptions,
 ) (*documentdomain.ParsedDocument, error) {
-	content, err := readAndNormalizeParserSource(fileReader, fileType)
+	content, err := readAndNormalizeParserSourceWithLimits(fileReader, fileType, p.limits, "parse_plain_text")
 	if err != nil {
 		return nil, err
 	}

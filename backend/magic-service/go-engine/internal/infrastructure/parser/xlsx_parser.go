@@ -1,6 +1,8 @@
 package docparser
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -78,7 +80,21 @@ func (p *XlsxParser) ParseDocumentWithOptions(
 	fileType string,
 	options document.ParseOptions,
 ) (*document.ParsedDocument, error) {
-	f, err := excelize.OpenReader(file)
+	source, err := io.ReadAll(document.NewSourceSizeLimitedReader(file, p.limits))
+	if err != nil {
+		return nil, fmt.Errorf("read xlsx source failed: %w", err)
+	}
+	zipReader, err := zip.NewReader(bytes.NewReader(source), int64(len(source)))
+	if err != nil {
+		return nil, fmt.Errorf("open xlsx zip failed: %w", err)
+	}
+	if err := checkOfficeZipArchiveLimits(zipReader.File, p.limits); err != nil {
+		return nil, fmt.Errorf("check xlsx archive limits: %w", err)
+	}
+	f, err := excelize.OpenReader(bytes.NewReader(source), excelize.Options{
+		UnzipSizeLimit:    p.limits.MaxArchiveUncompressedBytes,
+		UnzipXMLSizeLimit: p.limits.MaxArchiveEntryBytes,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("open xlsx failed: %w", err)
 	}
@@ -96,25 +112,21 @@ func (p *XlsxParser) ParseDocumentWithOptions(
 	var totalRows int64
 	var totalCells int64
 	for _, sheet := range f.GetSheetList() {
-		rows, err := f.GetRows(sheet)
+		rows, err := readExcelSheetRowsWithLimits(f, sheet, &totalRows, &totalCells, p.limits)
 		if err != nil {
 			return nil, fmt.Errorf("get rows failed for sheet %s: %w", sheet, err)
-		}
-		sheetRows, sheetCells := countRawTabularRowsCells(rows)
-		totalRows += sheetRows
-		totalCells += sheetCells
-		if err := document.CheckTabularSize(totalRows, totalCells, p.limits, "parse_xlsx_rows"); err != nil {
-			return nil, fmt.Errorf("check xlsx table size: %w", err)
 		}
 		visible, visibleErr := f.GetSheetVisible(sheet)
 		if visibleErr != nil {
 			visible = true
 		}
-		matrix, matrixErr := buildExcelMatrix(f, sheet, rows)
+		matrix, matrixErr := buildExcelMatrix(f, sheet, rows, p.limits)
 		if matrixErr != nil {
 			return nil, fmt.Errorf("build excel matrix for sheet %s failed: %w", sheet, matrixErr)
 		}
-		applySheetImageOCRToMatrix(ctx, f, sheet, matrix, ocrHelper)
+		if err := applySheetImageOCRToMatrix(ctx, f, sheet, matrix, ocrHelper, p.limits); err != nil {
+			return nil, err
+		}
 		sheetTables := buildTablesFromMatrix(resolveTabularFileName(fileURL), strings.ToLower(fileType), sheet, !visible, matrix)
 		tables = append(tables, sheetTables...)
 	}
@@ -152,15 +164,9 @@ func buildPlainTextSpreadsheetDocument(
 	var totalRows int64
 	var totalCells int64
 	for _, sheet := range f.GetSheetList() {
-		rows, err := f.GetRows(sheet)
+		rows, err := readExcelSheetRowsWithLimits(f, sheet, &totalRows, &totalCells, limits)
 		if err != nil {
-			continue
-		}
-		sheetRows, sheetCells := countRawTabularRowsCells(rows)
-		totalRows += sheetRows
-		totalCells += sheetCells
-		if err := document.CheckTabularSize(totalRows, totalCells, limits, "parse_xlsx_rows"); err != nil {
-			return nil, fmt.Errorf("check xlsx table size: %w", err)
+			return nil, fmt.Errorf("get rows failed for sheet %s: %w", sheet, err)
 		}
 		lines := make([]string, 0, len(rows)+1)
 		lines = append(lines, "Sheet: "+sheet)
@@ -186,13 +192,53 @@ func buildPlainTextSpreadsheetDocument(
 	return document.NewPlainTextParsedDocument(fileType, strings.Join(sections, "\n\n")), nil
 }
 
-func buildExcelMatrix(f *excelize.File, sheet string, rows [][]string) ([][]tabularCell, error) {
+func readExcelSheetRowsWithLimits(
+	f *excelize.File,
+	sheet string,
+	totalRows *int64,
+	totalCells *int64,
+	limits document.ResourceLimits,
+) ([][]string, error) {
+	rowIterator, err := f.Rows(sheet)
+	if err != nil {
+		return nil, fmt.Errorf("open sheet rows: %w", err)
+	}
+	defer func() { _ = rowIterator.Close() }()
+
+	rows := make([][]string, 0)
+	for rowIterator.Next() {
+		row, err := rowIterator.Columns()
+		if err != nil {
+			return nil, fmt.Errorf("read row columns: %w", err)
+		}
+		*totalRows++
+		*totalCells += int64(len(row))
+		if err := document.CheckTabularSize(*totalRows, *totalCells, limits, "parse_xlsx_rows"); err != nil {
+			return nil, fmt.Errorf("check xlsx table size: %w", err)
+		}
+		rows = append(rows, row)
+	}
+	if err := rowIterator.Error(); err != nil {
+		return nil, fmt.Errorf("read rows: %w", err)
+	}
+	return rows, nil
+}
+
+func buildExcelMatrix(
+	f *excelize.File,
+	sheet string,
+	rows [][]string,
+	limits document.ResourceLimits,
+) ([][]tabularCell, error) {
 	mergeCells, err := f.GetMergeCells(sheet, true)
 	if err != nil {
 		return nil, fmt.Errorf("get merge cells failed: %w", err)
 	}
 	maxCols, err := resolveExcelMatrixMaxCols(rows, mergeCells)
 	if err != nil {
+		return nil, err
+	}
+	if err := checkExcelMatrixExpandedSize(len(rows), maxCols, limits); err != nil {
 		return nil, err
 	}
 	matrix, err := initializeExcelMatrix(f, sheet, rows, maxCols)
@@ -222,6 +268,17 @@ func resolveExcelMatrixMaxCols(rows [][]string, mergeCells []excelize.MergeCell)
 		maxCols = max(maxCols, startCol, endCol)
 	}
 	return maxCols, nil
+}
+
+func checkExcelMatrixExpandedSize(rowCount, maxCols int, limits document.ResourceLimits) error {
+	if rowCount <= 0 || maxCols <= 0 {
+		return nil
+	}
+	expandedCells := int64(rowCount) * int64(maxCols)
+	if err := document.CheckTabularSize(int64(rowCount), expandedCells, limits, "parse_xlsx_matrix"); err != nil {
+		return fmt.Errorf("check xlsx matrix size: %w", err)
+	}
+	return nil
 }
 
 func initializeExcelMatrix(f *excelize.File, sheet string, rows [][]string, maxCols int) ([][]tabularCell, error) {
@@ -338,9 +395,10 @@ func applySheetImageOCRToMatrix(
 	sheet string,
 	matrix [][]tabularCell,
 	ocrHelper *embeddedImageOCRHelper,
-) {
+	limits document.ResourceLimits,
+) error {
 	if len(matrix) == 0 || file == nil || ocrHelper == nil {
-		return
+		return nil
 	}
 	for rowIndex := range matrix {
 		for colIndex := range matrix[rowIndex] {
@@ -351,6 +409,9 @@ func applySheetImageOCRToMatrix(
 			}
 			parts := make([]string, 0, len(pictures))
 			for _, picture := range pictures {
+				if err := document.CheckEmbeddedAssetSize(int64(len(picture.File)), limits); err != nil {
+					return fmt.Errorf("check xlsx embedded image size: %w", err)
+				}
 				text := ocrHelper.recognizeBytes(ctx, picture.File, picture.Extension)
 				if text == "" {
 					continue
@@ -363,6 +424,7 @@ func applySheetImageOCRToMatrix(
 			cell.Value = mergeStructuredFieldValue(cell.Value, strings.Join(parts, "\n"))
 		}
 	}
+	return nil
 }
 
 func mergeStructuredFieldValue(current, imageText string) string {

@@ -267,7 +267,7 @@ func (h *KnowledgeBaseRPCService) CreateRPC(ctx context.Context, req *dto.Create
 	result, err := h.createCommand.Create(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to create knowledge base", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewKnowledgeBaseResponse(result, h.lookupDocumentCount(ctx, input.OrganizationCode, result.Code)), nil
@@ -307,7 +307,7 @@ func (h *KnowledgeBaseRPCService) UpdateRPC(ctx context.Context, req *dto.Update
 	result, err := h.updateCommand.Update(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to update knowledge base", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewKnowledgeBaseResponse(result, h.lookupDocumentCount(ctx, input.OrganizationCode, result.Code)), nil
@@ -323,7 +323,7 @@ func (h *KnowledgeBaseRPCService) ShowRPC(ctx context.Context, req *dto.ShowKnow
 		req.DataIsolation.UserID,
 	)
 	if err != nil {
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewKnowledgeBaseResponse(result, h.lookupDocumentCount(ctx, req.DataIsolation.ResolveOrganizationCode(), result.Code)), nil
@@ -343,7 +343,7 @@ func (h *KnowledgeBaseRPCService) SaveProcessRPC(ctx context.Context, req *dto.S
 	result, err := h.saveProcessQuery.SaveProcess(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to update knowledge base progress", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewKnowledgeBaseResponse(result, h.lookupDocumentCount(ctx, input.OrganizationCode, result.Code)), nil
@@ -373,7 +373,7 @@ func (h *KnowledgeBaseRPCService) ListRPC(ctx context.Context, req *dto.ListKnow
 	result, err := h.listQuery.List(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to list knowledge bases", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	knowledgeBases, ok := result.List.([]*kbdto.KnowledgeBaseDTO)
@@ -382,7 +382,7 @@ func (h *KnowledgeBaseRPCService) ListRPC(ctx context.Context, req *dto.ListKnow
 		ok = true
 	}
 	if !ok {
-		return nil, mapBusinessError(fmt.Errorf("%w: %T", errUnexpectedKnowledgeBaseListResultType, result.List))
+		return nil, mapBusinessError(ctx, fmt.Errorf("%w: %T", errUnexpectedKnowledgeBaseListResultType, result.List))
 	}
 
 	documentCounts := h.lookupDocumentCounts(ctx, input.OrganizationCode, knowledgeBases)
@@ -413,7 +413,7 @@ func (h *KnowledgeBaseRPCService) TeamshareStartVectorRPC(
 	})
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to start teamshare vector", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return &dto.TeamshareStartVectorResponse{ID: strings.TrimSpace(result.KnowledgeCode)}, nil
@@ -434,7 +434,7 @@ func (h *KnowledgeBaseRPCService) TeamshareManageableRPC(
 	})
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to list teamshare manageable knowledge bases", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewTeamshareKnowledgeListResponse(items), nil
@@ -456,7 +456,7 @@ func (h *KnowledgeBaseRPCService) TeamshareManageableProgressRPC(
 	})
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to query teamshare manageable progress", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewTeamshareKnowledgeListResponse(items), nil
@@ -479,7 +479,7 @@ func (h *KnowledgeBaseRPCService) ListSourceBindingNodesRPC(
 		Limit:            req.Limit,
 	})
 	if err != nil {
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	response := &dto.ListSourceBindingNodesResponse{
@@ -511,7 +511,7 @@ func (h *KnowledgeBaseRPCService) DestroyRPC(ctx context.Context, req *dto.Destr
 		req.DataIsolation.UserID,
 	); err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to destroy knowledge base", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return &map[string]bool{"success": true}, nil
@@ -536,7 +536,7 @@ func (h *KnowledgeBaseRPCService) RebuildPermissionsRPC(
 	})
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to rebuild knowledge base permissions", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return &dto.RebuildKnowledgeBasePermissionsResponse{
@@ -595,14 +595,14 @@ func (h *KnowledgeBaseRPCService) RebuildRPC(
 		"retry", normalized.Retry,
 	)
 	if err := h.prepareKnowledgeRebuild(ctx, req, scope); err != nil {
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	h.logger.InfoContext(ctx, "Knowledge rebuild trigger started", fields...)
 	triggerResult, err := h.rebuildTrigger.Trigger(ctx, opts)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to trigger knowledge rebuild", appendBackgroundErrorField(fields, err)...)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	runID := normalized.ResumeRunID
 	status := ""
@@ -847,7 +847,7 @@ func (h *KnowledgeBaseRPCService) RebuildCleanupRPC(
 	})
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to cleanup rebuild collections", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	return cleanupResultToRPCResponse(result), nil
 }

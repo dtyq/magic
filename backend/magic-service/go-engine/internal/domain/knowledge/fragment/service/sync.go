@@ -11,6 +11,19 @@ import (
 	fragretrieval "magic/internal/domain/knowledge/fragment/retrieval"
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/pkg/ctxmeta"
+	"magic/internal/pkg/memoryguard"
+	"magic/internal/pkg/memoryprobe"
+)
+
+const (
+	defaultSyncFragmentBatchSize              = 64
+	fragmentBatchMemoryGuardLogKeyword        = "knowledge_document_memory_guard"
+	fragmentBatchMemoryGuardCgroupRatio       = 0.50
+	fragmentBatchMemoryGuardCgroupResumeRatio = 0.45
+	fragmentBatchMemoryGuardSoftResumeRatio   = 0.90
+	fragmentBatchMemoryGuardPollInterval      = time.Second
+	fragmentBatchMemoryAdmissionStage         = "sync_fragment_batch_admission"
+	fragmentBatchLogFieldCount                = 22
 )
 
 type batchVectorWrite struct {
@@ -18,6 +31,20 @@ type batchVectorWrite struct {
 	denseVectors [][]float64
 	sparseInputs []*fragmodel.SparseInput
 	payloads     []fragmodel.FragmentPayload
+}
+
+type fragmentBatchLogMeta struct {
+	batchIndex    int
+	batchSize     int
+	fragmentCount int
+	documentCode  string
+}
+
+type fragmentBatchSyncRuntime struct {
+	collectionName string
+	model          string
+	sparseBackend  string
+	businessParams *ctxmeta.BusinessParams
 }
 
 // SyncFragment 同步片段到向量库（核心逻辑）
@@ -98,24 +125,62 @@ func (s *FragmentDomainService) SyncFragmentBatch(
 			"collection_name", collectionName,
 			"model", model,
 			"fragment_count", len(fragments),
+			"batch_size", s.effectiveSyncFragmentBatchSize(),
+			"batch_count", fragmentBatchCount(len(fragments), s.effectiveSyncFragmentBatchSize()),
 		)
 	}()
 
-	s.markFragmentsSyncingWithTrace(ctx, trace, collectionName, fragments)
+	batchSize := s.effectiveSyncFragmentBatchSize()
+	runtime := fragmentBatchSyncRuntime{
+		collectionName: collectionName,
+		model:          model,
+		sparseBackend:  resolvedRoute.SparseBackend,
+		businessParams: businessParams,
+	}
+	for batchStart, batchIndex := 0, 1; batchStart < len(fragments); batchStart, batchIndex = batchStart+batchSize, batchIndex+1 {
+		batchEnd := min(batchStart+batchSize, len(fragments))
+		batchFragments := fragments[batchStart:batchEnd]
+		meta := newFragmentBatchLogMeta(batchIndex, batchFragments, len(fragments))
+		if batchIndex > 1 {
+			if err = s.waitFragmentBatchMemoryAdmission(ctx, meta); err != nil {
+				return err
+			}
+		}
+		if err = s.syncFragmentBatchChunk(ctx, trace, runtime, batchFragments, meta); err != nil {
+			return err
+		}
+	}
 
-	if _, err = s.populateBatchEmbeddingsWithTrace(ctx, trace, collectionName, model, fragments, businessParams); err != nil {
+	s.logger.InfoContext(
+		ctx,
+		"Batch fragments synced",
+		"count", len(fragments),
+		"batch_size", batchSize,
+		"batch_count", fragmentBatchCount(len(fragments), batchSize),
+	)
+	return nil
+}
+
+func (s *FragmentDomainService) syncFragmentBatchChunk(
+	ctx context.Context,
+	trace *batchSyncTracer,
+	runtime fragmentBatchSyncRuntime,
+	fragments []*fragmodel.KnowledgeBaseFragment,
+	meta fragmentBatchLogMeta,
+) error {
+	s.markFragmentsSyncingWithTrace(ctx, trace, runtime.collectionName, fragments, meta)
+
+	if _, err := s.populateBatchEmbeddingsWithTrace(ctx, trace, runtime, fragments, meta); err != nil {
 		s.markFragmentsFailed(ctx, fragments, err.Error())
 		return err
 	}
-	batch := s.buildBatchStorePayloadsWithTrace(ctx, trace, collectionName, fragments, resolvedRoute.SparseBackend)
+	batch := s.buildBatchStorePayloadsWithTrace(ctx, trace, runtime, fragments, meta)
 
-	if err = s.storeBatchPointsWithTrace(ctx, trace, collectionName, model, fragments, batch); err != nil {
+	if err := s.storeBatchPointsWithTrace(ctx, trace, runtime, fragments, batch, meta); err != nil {
 		s.markFragmentsFailed(ctx, fragments, err.Error())
 		return err
 	}
-	s.markFragmentsSyncedWithTrace(ctx, trace, collectionName, fragments)
-
-	s.logger.InfoContext(ctx, "Batch fragments synced", "count", len(fragments))
+	s.markFragmentsSyncedWithTrace(ctx, trace, runtime.collectionName, fragments, meta)
 	return nil
 }
 
@@ -158,6 +223,7 @@ func (s *FragmentDomainService) markFragmentsSyncingWithTrace(
 	trace *batchSyncTracer,
 	collectionName string,
 	fragments []*fragmodel.KnowledgeBaseFragment,
+	meta fragmentBatchLogMeta,
 ) {
 	startedAt := time.Now()
 	s.markFragmentsSyncing(ctx, fragments)
@@ -166,30 +232,39 @@ func (s *FragmentDomainService) markFragmentsSyncingWithTrace(
 		"mark_fragments_syncing",
 		startedAt,
 		nil,
-		"collection_name", collectionName,
-		"fragment_count", len(fragments),
+		s.fragmentBatchLogFields(ctx, "mark_fragments_syncing", meta,
+			"collection_name", collectionName,
+		)...,
 	)
 }
 
 func (s *FragmentDomainService) populateBatchEmbeddingsWithTrace(
 	ctx context.Context,
 	trace *batchSyncTracer,
-	collectionName string,
-	model string,
+	runtime fragmentBatchSyncRuntime,
 	fragments []*fragmodel.KnowledgeBaseFragment,
-	businessParams *ctxmeta.BusinessParams,
+	meta fragmentBatchLogMeta,
 ) (int, error) {
+	trace.logStart(
+		ctx,
+		"populate_batch_embeddings",
+		s.fragmentBatchLogFields(ctx, "populate_batch_embeddings", meta,
+			"collection_name", runtime.collectionName,
+			"model", runtime.model,
+		)...,
+	)
 	startedAt := time.Now()
-	embeddedCount, err := s.populateBatchEmbeddings(ctx, model, fragments, businessParams)
+	embeddedCount, err := s.populateBatchEmbeddings(ctx, runtime.model, fragments, runtime.businessParams)
 	trace.log(
 		ctx,
 		"populate_batch_embeddings",
 		startedAt,
 		err,
-		"collection_name", collectionName,
-		"model", model,
-		"embedding_count", embeddedCount,
-		"fragment_count", len(fragments),
+		s.fragmentBatchLogFields(ctx, "populate_batch_embeddings", meta,
+			"collection_name", runtime.collectionName,
+			"model", runtime.model,
+			"embedding_count", embeddedCount,
+		)...,
 	)
 	return embeddedCount, err
 }
@@ -197,19 +272,27 @@ func (s *FragmentDomainService) populateBatchEmbeddingsWithTrace(
 func (s *FragmentDomainService) buildBatchStorePayloadsWithTrace(
 	ctx context.Context,
 	trace *batchSyncTracer,
-	collectionName string,
+	runtime fragmentBatchSyncRuntime,
 	fragments []*fragmodel.KnowledgeBaseFragment,
-	sparseBackend string,
+	meta fragmentBatchLogMeta,
 ) batchVectorWrite {
+	trace.logStart(
+		ctx,
+		"build_batch_store_payloads",
+		s.fragmentBatchLogFields(ctx, "build_batch_store_payloads", meta,
+			"collection_name", runtime.collectionName,
+		)...,
+	)
 	startedAt := time.Now()
-	batch := s.buildBatchStorePayloads(fragments, sparseBackend)
+	batch := s.buildBatchStorePayloads(fragments, runtime.sparseBackend)
 	trace.log(
 		ctx,
 		"build_batch_store_payloads",
 		startedAt,
 		nil,
-		"collection_name", collectionName,
-		"fragment_count", len(batch.pointIDs),
+		s.fragmentBatchLogFields(ctx, "build_batch_store_payloads", meta,
+			"collection_name", runtime.collectionName,
+		)...,
 	)
 	return batch
 }
@@ -217,20 +300,30 @@ func (s *FragmentDomainService) buildBatchStorePayloadsWithTrace(
 func (s *FragmentDomainService) storeBatchPointsWithTrace(
 	ctx context.Context,
 	trace *batchSyncTracer,
-	collectionName string,
-	model string,
+	runtime fragmentBatchSyncRuntime,
 	fragments []*fragmodel.KnowledgeBaseFragment,
 	batch batchVectorWrite,
+	meta fragmentBatchLogMeta,
 ) error {
+	trace.logStart(
+		ctx,
+		"store_batch_points",
+		s.fragmentBatchLogFields(ctx, "store_batch_points", meta,
+			"collection_name", runtime.collectionName,
+			"model", runtime.model,
+		)...,
+	)
 	startedAt := time.Now()
-	err := s.storeBatchPoints(ctx, model, fragments, collectionName, batch)
+	err := s.storeBatchPoints(ctx, runtime.model, fragments, runtime.collectionName, batch)
 	trace.log(
 		ctx,
 		"store_batch_points",
 		startedAt,
 		err,
-		"collection_name", collectionName,
-		"fragment_count", len(batch.pointIDs),
+		s.fragmentBatchLogFields(ctx, "store_batch_points", meta,
+			"collection_name", runtime.collectionName,
+			"model", runtime.model,
+		)...,
 	)
 	return err
 }
@@ -240,6 +333,7 @@ func (s *FragmentDomainService) markFragmentsSyncedWithTrace(
 	trace *batchSyncTracer,
 	collectionName string,
 	fragments []*fragmodel.KnowledgeBaseFragment,
+	meta fragmentBatchLogMeta,
 ) {
 	startedAt := time.Now()
 	s.markFragmentsSynced(ctx, fragments)
@@ -248,8 +342,9 @@ func (s *FragmentDomainService) markFragmentsSyncedWithTrace(
 		"mark_fragments_synced",
 		startedAt,
 		nil,
-		"collection_name", collectionName,
-		"fragment_count", len(fragments),
+		s.fragmentBatchLogFields(ctx, "mark_fragments_synced", meta,
+			"collection_name", collectionName,
+		)...,
 	)
 }
 
@@ -270,6 +365,270 @@ func (s *FragmentDomainService) buildBatchStorePayloads(fragments []*fragmodel.K
 		sparseInputs: sparseInputs,
 		payloads:     payloads,
 	}
+}
+
+func normalizeSyncFragmentBatchSize(size int) int {
+	if size <= 0 {
+		return defaultSyncFragmentBatchSize
+	}
+	return size
+}
+
+func normalizeFragmentBatchMemoryPollInterval(interval time.Duration) time.Duration {
+	if interval <= 0 {
+		return fragmentBatchMemoryGuardPollInterval
+	}
+	return interval
+}
+
+func (s *FragmentDomainService) effectiveSyncFragmentBatchSize() int {
+	if s == nil {
+		return defaultSyncFragmentBatchSize
+	}
+	return normalizeSyncFragmentBatchSize(s.syncFragmentBatchSize)
+}
+
+func fragmentBatchCount(fragmentCount, batchSize int) int {
+	if fragmentCount <= 0 {
+		return 0
+	}
+	batchSize = normalizeSyncFragmentBatchSize(batchSize)
+	return (fragmentCount + batchSize - 1) / batchSize
+}
+
+func newFragmentBatchLogMeta(
+	batchIndex int,
+	fragments []*fragmodel.KnowledgeBaseFragment,
+	fragmentCount int,
+) fragmentBatchLogMeta {
+	return fragmentBatchLogMeta{
+		batchIndex:    batchIndex,
+		batchSize:     len(fragments),
+		fragmentCount: fragmentCount,
+		documentCode:  resolveBatchDocumentCode(fragments),
+	}
+}
+
+func resolveBatchDocumentCode(fragments []*fragmodel.KnowledgeBaseFragment) string {
+	for _, fragment := range fragments {
+		if fragment == nil {
+			continue
+		}
+		if fragment.DocumentCode != "" {
+			return fragment.DocumentCode
+		}
+	}
+	return ""
+}
+
+func (s *FragmentDomainService) waitFragmentBatchMemoryAdmission(
+	ctx context.Context,
+	meta fragmentBatchLogMeta,
+) error {
+	if s == nil {
+		return nil
+	}
+	guard := s.newFragmentBatchMemoryGuard()
+	snapshot, err := guard.Check(ctx, fragmentBatchMemoryAdmissionStage)
+	if shouldFailOpenFragmentBatchMemoryGuard(snapshot, err) {
+		s.logFragmentBatchMemoryGuardFailOpen(ctx, meta, snapshot, err)
+		return nil
+	}
+	if err == nil {
+		return nil
+	}
+
+	s.logFragmentBatchMemoryGuardPaused(ctx, meta, snapshot, err)
+	for {
+		if err := sleepFragmentBatchMemoryGuard(ctx, s.memoryPollInterval); err != nil {
+			return fmt.Errorf("wait fragment batch memory admission: %w", err)
+		}
+		snapshot, err = guard.Check(ctx, fragmentBatchMemoryAdmissionStage)
+		if shouldFailOpenFragmentBatchMemoryGuard(snapshot, err) {
+			s.logFragmentBatchMemoryGuardFailOpen(ctx, meta, snapshot, err)
+			return nil
+		}
+		if s.fragmentBatchMemoryBelowResumeWaterline(snapshot) {
+			s.logFragmentBatchMemoryGuardResumed(ctx, meta, snapshot)
+			return nil
+		}
+	}
+}
+
+func (s *FragmentDomainService) newFragmentBatchMemoryGuard() *memoryguard.Guard {
+	config := memoryguard.Config{
+		SoftLimitBytes:             s.syncMemorySoftLimit,
+		CgroupPressureRatio:        fragmentBatchMemoryGuardCgroupRatio,
+		DisableCgroupPressureRatio: s.syncMemorySoftLimit > 0,
+	}
+	if s.memoryReader != nil {
+		return memoryguard.NewGuardWithReader(config, s.memoryReader)
+	}
+	return memoryguard.NewGuard(config)
+}
+
+func shouldFailOpenFragmentBatchMemoryGuard(snapshot memoryguard.Snapshot, err error) bool {
+	if err != nil {
+		return !errors.Is(err, memoryguard.ErrMemoryPressure)
+	}
+	return !snapshot.CgroupAvailable
+}
+
+func (s *FragmentDomainService) fragmentBatchMemoryBelowResumeWaterline(snapshot memoryguard.Snapshot) bool {
+	if snapshot.CurrentBytes <= 0 {
+		return true
+	}
+	if snapshot.SoftLimitBytes > 0 {
+		return snapshot.CurrentBytes <= int64(float64(snapshot.SoftLimitBytes)*fragmentBatchMemoryGuardSoftResumeRatio)
+	}
+	if snapshot.LimitBytes > 0 {
+		return snapshot.CurrentBytes <= int64(float64(snapshot.LimitBytes)*fragmentBatchMemoryGuardCgroupResumeRatio)
+	}
+	return true
+}
+
+func sleepFragmentBatchMemoryGuard(ctx context.Context, interval time.Duration) error {
+	timer := time.NewTimer(normalizeFragmentBatchMemoryPollInterval(interval))
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("sleep fragment batch memory guard: %w", ctx.Err())
+	}
+}
+
+func (s *FragmentDomainService) logFragmentBatchMemoryGuardPaused(
+	ctx context.Context,
+	meta fragmentBatchLogMeta,
+	snapshot memoryguard.Snapshot,
+	cause error,
+) {
+	if s == nil || s.logger == nil {
+		return
+	}
+	fields := appendFragmentBatchMemoryGuardAdmissionFields(meta, snapshot,
+		"error", cause,
+	)
+	s.logger.KnowledgeWarnContext(ctx, memoryprobe.DocumentSyncKeyword+" "+fragmentBatchMemoryGuardLogKeyword+" pause fragment batch sync admission", fields...)
+}
+
+func (s *FragmentDomainService) logFragmentBatchMemoryGuardResumed(
+	ctx context.Context,
+	meta fragmentBatchLogMeta,
+	snapshot memoryguard.Snapshot,
+) {
+	if s == nil || s.logger == nil {
+		return
+	}
+	s.logger.InfoContext(
+		ctx,
+		memoryprobe.DocumentSyncKeyword+" "+fragmentBatchMemoryGuardLogKeyword+" fragment batch sync admission resumed",
+		appendFragmentBatchMemoryGuardAdmissionFields(meta, snapshot)...,
+	)
+}
+
+func (s *FragmentDomainService) logFragmentBatchMemoryGuardFailOpen(
+	ctx context.Context,
+	meta fragmentBatchLogMeta,
+	snapshot memoryguard.Snapshot,
+	cause error,
+) {
+	if s == nil || s.logger == nil {
+		return
+	}
+	fields := appendFragmentBatchMemoryGuardAdmissionFields(meta, snapshot)
+	if cause != nil {
+		fields = append(fields, "error", cause)
+	}
+	s.logger.DebugContext(ctx, memoryprobe.DocumentSyncKeyword+" "+fragmentBatchMemoryGuardLogKeyword+" fragment batch sync memory cgroup unavailable, fail open", fields...)
+}
+
+func (s *FragmentDomainService) fragmentBatchLogFields(
+	ctx context.Context,
+	stage string,
+	meta fragmentBatchLogMeta,
+	fields ...any,
+) []any {
+	config := memoryguard.Config{
+		SoftLimitBytes:             s.syncMemorySoftLimit,
+		CgroupPressureRatio:        fragmentBatchMemoryGuardCgroupRatio,
+		DisableCgroupPressureRatio: s.syncMemorySoftLimit > 0,
+	}
+	sample := memoryprobe.Capture(ctx, stage, config)
+	s.logFragmentBatchLargeMemoryIfNeeded(ctx, meta, sample)
+	return appendFragmentBatchMemoryGuardFieldsFromSample(meta, sample, fields...)
+}
+
+func (s *FragmentDomainService) logFragmentBatchLargeMemoryIfNeeded(
+	ctx context.Context,
+	meta fragmentBatchLogMeta,
+	sample memoryprobe.Sample,
+) {
+	peak, warn := memoryprobe.Observe(ctx, sample)
+	if !warn || s == nil || s.logger == nil {
+		return
+	}
+	fields := memoryprobe.ExceededFields(sample, peak)
+	fields = append(fields,
+		"document_code", meta.documentCode,
+		"batch_index", meta.batchIndex,
+		"batch_size", meta.batchSize,
+		"fragment_count", meta.fragmentCount,
+	)
+	s.logger.KnowledgeWarnContext(ctx, memoryprobe.DocumentSyncKeyword+" fragment batch memory exceeded threshold", fields...)
+}
+
+func appendFragmentBatchMemoryGuardAdmissionFields(
+	meta fragmentBatchLogMeta,
+	snapshot memoryguard.Snapshot,
+	fields ...any,
+) []any {
+	return appendFragmentBatchMemoryGuardFields(meta, snapshot, append([]any{"stage", snapshot.Stage}, fields...)...)
+}
+
+func appendFragmentBatchMemoryGuardFields(
+	meta fragmentBatchLogMeta,
+	snapshot memoryguard.Snapshot,
+	fields ...any,
+) []any {
+	output := make([]any, 0, len(fields)+fragmentBatchLogFieldCount)
+	output = append(output,
+		"memory_probe_keyword", memoryprobe.DocumentSyncKeyword,
+		"memory_guard_keyword", fragmentBatchMemoryGuardLogKeyword,
+		"document_code", meta.documentCode,
+		"batch_index", meta.batchIndex,
+		"batch_size", meta.batchSize,
+		"fragment_count", meta.fragmentCount,
+		"current_bytes", snapshot.CurrentBytes,
+		"limit_bytes", snapshot.LimitBytes,
+		"usage_ratio", snapshot.UsageRatio,
+		"soft_limit_bytes", snapshot.SoftLimitBytes,
+		"limit_name", snapshot.LimitName,
+		"limit_value", snapshot.LimitValue,
+		"observed_value", snapshot.ObservedValue,
+	)
+	output = append(output, fields...)
+	return output
+}
+
+func appendFragmentBatchMemoryGuardFieldsFromSample(
+	meta fragmentBatchLogMeta,
+	sample memoryprobe.Sample,
+	fields ...any,
+) []any {
+	output := make([]any, 0, len(fields)+fragmentBatchLogFieldCount)
+	output = append(output,
+		"memory_guard_keyword", fragmentBatchMemoryGuardLogKeyword,
+		"document_code", meta.documentCode,
+		"batch_index", meta.batchIndex,
+		"batch_size", meta.batchSize,
+		"fragment_count", meta.fragmentCount,
+	)
+	output = append(output, memoryprobe.SampleFields(sample)...)
+	output = append(output, fields...)
+	return output
 }
 
 func (s *FragmentDomainService) storeBatchPoints(

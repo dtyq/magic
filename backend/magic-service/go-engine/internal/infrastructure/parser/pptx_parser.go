@@ -22,6 +22,7 @@ import (
 type PptxParser struct {
 	ocrClient     documentdomain.OCRClient
 	maxOCRPerFile int
+	limits        documentdomain.ResourceLimits
 }
 
 type pptxRelationships struct {
@@ -49,10 +50,19 @@ const (
 )
 
 // NewPptxParserWithLimit 创建带单文件 OCR 限额的 PPTX 解析器。
-func NewPptxParserWithLimit(ocrClient documentdomain.OCRClient, maxOCRPerFile int) *PptxParser {
+func NewPptxParserWithLimit(
+	ocrClient documentdomain.OCRClient,
+	maxOCRPerFile int,
+	resourceLimits ...documentdomain.ResourceLimits,
+) *PptxParser {
+	limits := documentdomain.DefaultResourceLimits()
+	if len(resourceLimits) > 0 {
+		limits = resourceLimits[0]
+	}
 	return &PptxParser{
 		ocrClient:     ocrClient,
 		maxOCRPerFile: documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		limits:        documentdomain.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -106,7 +116,7 @@ func (p *PptxParser) ParseDocumentWithOptions(
 	defer func() { _ = os.Remove(tmpPath) }()
 	defer func() { _ = tmpFile.Close() }()
 
-	if _, err := io.Copy(tmpFile, file); err != nil {
+	if _, err := io.Copy(tmpFile, documentdomain.NewSourceSizeLimitedReader(file, p.limits)); err != nil {
 		return nil, fmt.Errorf("write temp file failed: %w", err)
 	}
 	_ = tmpFile.Close()
@@ -116,19 +126,25 @@ func (p *PptxParser) ParseDocumentWithOptions(
 		return nil, fmt.Errorf("open pptx zip failed: %w", err)
 	}
 	defer func() { _ = reader.Close() }()
+	if err := checkOfficeZipArchiveLimits(reader.File, p.limits); err != nil {
+		return nil, fmt.Errorf("check pptx archive limits: %w", err)
+	}
 
 	slidePaths := resolvePPTXSlidePaths(reader.File)
+	if err := documentdomain.CheckPresentationSlideCount(len(slidePaths), p.limits); err != nil {
+		return nil, fmt.Errorf("check pptx slide count: %w", err)
+	}
 	var ocrHelper *embeddedImageOCRHelper
 	if options.ImageExtraction && options.ImageOCR {
 		ocrHelper = newEmbeddedImageOCRHelper(p.ocrClient, p.maxOCRPerFile)
 	}
 	blocks := make([]string, 0, len(slidePaths))
 	for _, slidePath := range slidePaths {
-		imageAssets, err := buildPPTXImageAssets(reader.File, slidePath)
+		imageAssets, err := buildPPTXImageAssets(reader.File, slidePath, p.limits)
 		if err != nil {
 			return nil, fmt.Errorf("load slide images failed: %w", err)
 		}
-		slideContent, err := extractPPTXSlideContent(ctx, reader.File, slidePath, imageAssets, ocrHelper)
+		slideContent, err := extractPPTXSlideContent(ctx, reader.File, slidePath, imageAssets, ocrHelper, p.limits)
 		if err != nil {
 			return nil, fmt.Errorf("extract slide content failed: %w", err)
 		}
@@ -183,9 +199,13 @@ func resolvePPTXSlideNumber(slidePath string) int {
 	return number
 }
 
-func buildPPTXImageAssets(files []*zip.File, slidePath string) (map[string]pptxImageAsset, error) {
+func buildPPTXImageAssets(
+	files []*zip.File,
+	slidePath string,
+	limits documentdomain.ResourceLimits,
+) (map[string]pptxImageAsset, error) {
 	relsPath := path.Join(path.Dir(slidePath), "_rels", path.Base(slidePath)+".rels")
-	raw, err := readZipEntry(files, relsPath)
+	raw, err := readZipEntryWithArchiveLimit(files, relsPath, limits)
 	if err != nil {
 		if errors.Is(err, errZipEntryNotFound) {
 			return map[string]pptxImageAsset{}, nil
@@ -209,7 +229,7 @@ func buildPPTXImageAssets(files []*zip.File, slidePath string) (map[string]pptxI
 			continue
 		}
 		entryPath := path.Clean(path.Join(path.Dir(slidePath), target))
-		data, readErr := readZipEntry(files, entryPath)
+		data, readErr := readZipEntryWithEmbeddedAssetLimit(files, entryPath, limits)
 		if readErr != nil {
 			return nil, fmt.Errorf("read pptx image %s: %w", entryPath, readErr)
 		}
@@ -227,8 +247,9 @@ func extractPPTXSlideContent(
 	slidePath string,
 	imageAssets map[string]pptxImageAsset,
 	ocrHelper *embeddedImageOCRHelper,
+	limits documentdomain.ResourceLimits,
 ) (string, error) {
-	raw, err := readZipEntry(files, slidePath)
+	raw, err := readZipEntryWithArchiveLimit(files, slidePath, limits)
 	if err != nil {
 		return "", err
 	}
@@ -328,26 +349,6 @@ func resolveXMLAttrValue(attrs []xml.Attr, localName string) string {
 		}
 	}
 	return ""
-}
-
-func readZipEntry(files []*zip.File, entryPath string) ([]byte, error) {
-	cleanEntryPath := path.Clean(strings.TrimSpace(entryPath))
-	for _, file := range files {
-		if path.Clean(file.Name) != cleanEntryPath {
-			continue
-		}
-		handle, err := file.Open()
-		if err != nil {
-			return nil, fmt.Errorf("open zip entry: %w", err)
-		}
-		defer func() { _ = handle.Close() }()
-		data, err := io.ReadAll(handle)
-		if err != nil {
-			return nil, fmt.Errorf("read zip entry: %w", err)
-		}
-		return data, nil
-	}
-	return nil, fmt.Errorf("%w: %s", errZipEntryNotFound, cleanEntryPath)
 }
 
 func normalizeStructuredMultilineText(raw string) string {

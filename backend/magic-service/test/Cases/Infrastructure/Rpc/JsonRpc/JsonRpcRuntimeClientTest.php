@@ -14,6 +14,7 @@ use App\Infrastructure\Rpc\Protocol\Contract\DataFormatterInterface;
 use App\Infrastructure\Rpc\Protocol\JsonDataFormatter;
 use App\Infrastructure\Transport\Ipc\Contract\FramedTransportInterface;
 use App\Infrastructure\Transport\Ipc\Uds\DecodedFrameResult;
+use App\Infrastructure\Util\Context\CoContext;
 use Hyperf\Codec\Json;
 use Hyperf\Coroutine\Coroutine;
 use PHPUnit\Framework\TestCase;
@@ -67,6 +68,25 @@ class JsonRpcRuntimeClientTest extends TestCase
         $this->assertInstanceOf(BusinessException::class, $exception);
         $this->assertSame(5000, $exception->getCode());
         $this->assertSame('内部错误', $exception->getMessage());
+    }
+
+    public function testBuildRequestContextShouldIncludeRequestIdAndLanguage(): void
+    {
+        $client = $this->newClient();
+        CoContext::setRequestId('req-rpc-i18n');
+        CoContext::setLanguage('en_US');
+
+        try {
+            $context = self::invokePrivate($client, 'buildRequestContext', []);
+        } finally {
+            CoContext::setRequestId(null);
+            CoContext::setLanguage('zh_CN');
+        }
+
+        $this->assertSame([
+            'request_id' => 'req-rpc-i18n',
+            'language' => 'en_US',
+        ], $context);
     }
 
     public function testEncodePayloadShouldKeepFullJsonWhenWithinLimit(): void

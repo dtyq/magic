@@ -16,6 +16,7 @@ type PreviewSegmentConfig struct {
 	ChunkOverlap       int
 	Separator          string
 	TextPreprocessRule []int
+	MaxChunks          int
 }
 
 // TokenChunk 表示切片策略产出的标准 chunk。
@@ -52,6 +53,7 @@ type AutoSplitPipelineInput struct {
 	Model               string
 	TokenizerService    *tokenizer.Service
 	Logger              *logging.SugaredLogger
+	MaxChunks           int
 }
 
 // ParsedDocumentChunkInput 表示解析文档切片 pipeline 输入。
@@ -64,6 +66,7 @@ type ParsedDocumentChunkInput struct {
 	Model            string
 	TokenizerService *tokenizer.Service
 	Logger           *logging.SugaredLogger
+	MaxChunks        int
 }
 
 // PreviewSplitter 定义预览切片能力。
@@ -101,6 +104,7 @@ func SplitContentWithEffectiveModePipeline(
 		Model:               input.Model,
 		TokenizerService:    input.TokenizerService,
 		Logger:              input.Logger,
+		MaxChunks:           input.MaxChunks,
 	})
 	if err != nil {
 		return nil, SplitModeResolution{}, err
@@ -122,6 +126,7 @@ func SplitParsedDocumentToChunks(
 		Model:            input.Model,
 		TokenizerService: input.TokenizerService,
 		Logger:           input.Logger,
+		MaxChunks:        input.MaxChunks,
 	})
 	if err != nil {
 		return nil, "", err
@@ -149,6 +154,7 @@ func toPreviewSegmentConfig(cfg PreviewSegmentConfig) previewSegmentConfig {
 		ChunkOverlap:       cfg.ChunkOverlap,
 		Separator:          cfg.Separator,
 		TextPreprocessRule: append([]int(nil), cfg.TextPreprocessRule...),
+		MaxChunks:          cfg.MaxChunks,
 	}
 }
 

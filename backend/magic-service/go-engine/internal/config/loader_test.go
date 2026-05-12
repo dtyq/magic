@@ -206,6 +206,75 @@ func TestNew_RedisDBEnvOverride_IntParsing(t *testing.T) {
 	}
 }
 
+func TestNew_DocumentResyncConsumerConcurrencyDefaultAndEnvOverride(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := []byte("rabbitmq:\n  documentResync:\n    consumerConcurrency: ${DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY:=4}\n")
+	if err := os.WriteFile(cfgPath, content, 0o600); err != nil {
+		t.Fatalf("write temp config: %v", err)
+	}
+
+	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY", "")
+	cfg := config.New()
+	if cfg.RabbitMQ.DocumentResync.ConsumerConcurrency != 4 {
+		t.Fatalf("expected default document resync concurrency 4, got %d", cfg.RabbitMQ.DocumentResync.ConsumerConcurrency)
+	}
+
+	t.Setenv("DOCUMENT_RESYNC_MQ_CONSUMER_CONCURRENCY", "6")
+	cfg = config.New()
+	if cfg.RabbitMQ.DocumentResync.ConsumerConcurrency != 6 {
+		t.Fatalf("expected env document resync concurrency 6, got %d", cfg.RabbitMQ.DocumentResync.ConsumerConcurrency)
+	}
+}
+
+func TestNew_DocumentResourceLimitDefaultsAndEnvOverride(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := []byte(strings.Join([]string{
+		"documentResourceLimits:",
+		"  maxArchiveUncompressedBytes: ${DOCUMENT_RESOURCE_MAX_ARCHIVE_UNCOMPRESSED_BYTES:=268435456}",
+		"  maxArchiveEntryBytes: ${DOCUMENT_RESOURCE_MAX_ARCHIVE_ENTRY_BYTES:=67108864}",
+		"  maxEmbeddedAssetBytes: ${DOCUMENT_RESOURCE_MAX_EMBEDDED_ASSET_BYTES:=31457280}",
+		"  maxPresentationSlides: ${DOCUMENT_RESOURCE_MAX_PRESENTATION_SLIDES:=300}",
+		"",
+	}, "\n"))
+	if err := os.WriteFile(cfgPath, content, 0o600); err != nil {
+		t.Fatalf("write temp config: %v", err)
+	}
+
+	t.Setenv("CONFIG_FILE", cfgPath)
+	t.Setenv("DOCUMENT_RESOURCE_MAX_ARCHIVE_UNCOMPRESSED_BYTES", "")
+	t.Setenv("DOCUMENT_RESOURCE_MAX_ARCHIVE_ENTRY_BYTES", "")
+	t.Setenv("DOCUMENT_RESOURCE_MAX_EMBEDDED_ASSET_BYTES", "")
+	t.Setenv("DOCUMENT_RESOURCE_MAX_PRESENTATION_SLIDES", "")
+	cfg := config.New()
+	if cfg.DocumentResourceLimits.MaxArchiveUncompressedBytes != 268435456 {
+		t.Fatalf("expected default archive uncompressed bytes, got %d", cfg.DocumentResourceLimits.MaxArchiveUncompressedBytes)
+	}
+	if cfg.DocumentResourceLimits.MaxArchiveEntryBytes != 67108864 {
+		t.Fatalf("expected default archive entry bytes, got %d", cfg.DocumentResourceLimits.MaxArchiveEntryBytes)
+	}
+	if cfg.DocumentResourceLimits.MaxEmbeddedAssetBytes != 31457280 {
+		t.Fatalf("expected default embedded asset bytes, got %d", cfg.DocumentResourceLimits.MaxEmbeddedAssetBytes)
+	}
+	if cfg.DocumentResourceLimits.MaxPresentationSlides != 300 {
+		t.Fatalf("expected default presentation slides, got %d", cfg.DocumentResourceLimits.MaxPresentationSlides)
+	}
+
+	t.Setenv("DOCUMENT_RESOURCE_MAX_ARCHIVE_UNCOMPRESSED_BYTES", "1024")
+	t.Setenv("DOCUMENT_RESOURCE_MAX_ARCHIVE_ENTRY_BYTES", "512")
+	t.Setenv("DOCUMENT_RESOURCE_MAX_EMBEDDED_ASSET_BYTES", "256")
+	t.Setenv("DOCUMENT_RESOURCE_MAX_PRESENTATION_SLIDES", "9")
+	cfg = config.New()
+	if cfg.DocumentResourceLimits.MaxArchiveUncompressedBytes != 1024 ||
+		cfg.DocumentResourceLimits.MaxArchiveEntryBytes != 512 ||
+		cfg.DocumentResourceLimits.MaxEmbeddedAssetBytes != 256 ||
+		cfg.DocumentResourceLimits.MaxPresentationSlides != 9 {
+		t.Fatalf("expected env document resource limits, got %#v", cfg.DocumentResourceLimits)
+	}
+}
+
 func TestNew_ServerEnabled_DefaultFalseWhenMissing(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")

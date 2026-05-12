@@ -30,6 +30,7 @@ type parsedDocumentChunkInput struct {
 	Model            string
 	TokenizerService *tokenizer.Service
 	Logger           *logging.SugaredLogger
+	MaxChunks        int
 }
 
 func splitParsedDocumentToChunks(ctx context.Context, input parsedDocumentChunkInput) ([]tokenChunk, string, error) {
@@ -47,11 +48,15 @@ func splitParsedDocumentToChunks(ctx context.Context, input parsedDocumentChunkI
 			Model:               input.Model,
 			TokenizerService:    input.TokenizerService,
 			Logger:              input.Logger,
+			MaxChunks:           input.MaxChunks,
 		})
 		return chunks, splitVersionGoTokenV2, err
 	}
 
-	chunks := splitTabularBlocks(input.Parsed.Blocks, input.SegmentConfig, input.Model, input.TokenizerService)
+	chunks, err := splitTabularBlocks(input.Parsed.Blocks, input.SegmentConfig, input.Model, input.TokenizerService, input.MaxChunks)
+	if err != nil {
+		return nil, "", err
+	}
 	return chunks, splitVersionGoTabularV3, nil
 }
 
@@ -60,22 +65,41 @@ func splitTabularBlocks(
 	segmentConfig previewSegmentConfig,
 	model string,
 	tokenizerService *tokenizer.Service,
-) []tokenChunk {
+	maxChunks int,
+) ([]tokenChunk, error) {
 	chunks := make([]tokenChunk, 0, len(blocks))
 	limit := normalizeSegmentChunkSize(segmentConfig.ChunkSize)
 	for _, block := range blocks {
 		if block.Type == parseddocument.BlockTypeTableSummary && isExcelLikeTabularSource(metadataString(block.Metadata, parseddocument.MetaSourceFormat)) {
 			continue
 		}
+		if err := ensureChunkLimitHasRoom(maxChunks, len(chunks)); err != nil {
+			return nil, err
+		}
 		switch block.Type {
 		case parseddocument.BlockTypeTableRow:
-			rowChunks := splitTabularRowBlock(block, limit, model, tokenizerService)
-			chunks = append(chunks, rowChunks...)
+			rowChunks, err := splitTabularRowBlock(
+				block,
+				limit,
+				model,
+				tokenizerService,
+				remainingChunkLimit(maxChunks, len(chunks)),
+			)
+			if err != nil {
+				return nil, err
+			}
+			for _, chunk := range rowChunks {
+				if err := appendTokenChunkWithLimit(&chunks, chunk, maxChunks); err != nil {
+					return nil, err
+				}
+			}
 		default:
-			chunks = append(chunks, buildGenericTabularChunk(block, model, tokenizerService))
+			if err := appendTokenChunkWithLimit(&chunks, buildGenericTabularChunk(block, model, tokenizerService), maxChunks); err != nil {
+				return nil, err
+			}
 		}
 	}
-	return chunks
+	return chunks, nil
 }
 
 func buildGenericTabularChunk(block parseddocument.ParsedBlock, model string, tokenizerService *tokenizer.Service) tokenChunk {
@@ -100,15 +124,19 @@ func splitTabularRowBlock(
 	limit int,
 	model string,
 	tokenizerService *tokenizer.Service,
-) []tokenChunk {
+	maxChunks int,
+) ([]tokenChunk, error) {
 	metadata := cloneChunkMetadata(block.Metadata)
 	fields := extractTabularFieldEntries(metadata[parseddocument.MetaFields])
 	if len(fields) == 0 {
-		return []tokenChunk{buildGenericTabularChunk(block, model, tokenizerService)}
+		return []tokenChunk{buildGenericTabularChunk(block, model, tokenizerService)}, nil
 	}
 
 	prefix := buildTabularRowPrefix(metadata)
-	fieldGroups := groupTabularFields(prefix, fields, limit, model, tokenizerService)
+	fieldGroups, err := groupTabularFields(prefix, fields, limit, model, tokenizerService, maxChunks)
+	if err != nil {
+		return nil, err
+	}
 	chunks := make([]tokenChunk, 0, len(fieldGroups))
 	for index, group := range fieldGroups {
 		chunkMetadata := cloneChunkMetadata(metadata)
@@ -118,7 +146,7 @@ func splitTabularRowBlock(
 		chunkMetadata[parseddocument.MetaCellRefs] = collectTabularFieldCellRefs(group.fields)
 
 		content := prefix + buildTabularRowBody(group.fields)
-		chunks = append(chunks, tokenChunk{
+		if err := appendTokenChunkWithLimit(&chunks, tokenChunk{
 			Content:            strings.TrimSpace(content),
 			TokenCount:         countTextTokens(content, model, tokenizerService),
 			SectionPath:        buildTabularSectionPath(chunkMetadata),
@@ -127,9 +155,11 @@ func splitTabularRowBlock(
 			SectionChunkIndex:  index,
 			EffectiveSplitMode: splitModeTableStructured,
 			Metadata:           chunkMetadata,
-		})
+		}, maxChunks); err != nil {
+			return nil, err
+		}
 	}
-	return chunks
+	return chunks, nil
 }
 
 type tabularFieldGroup struct {
@@ -143,9 +173,10 @@ func groupTabularFields(
 	limit int,
 	model string,
 	tokenizerService *tokenizer.Service,
-) []tabularFieldGroup {
+	maxGroups int,
+) ([]tabularFieldGroup, error) {
 	if len(fields) == 0 {
-		return nil
+		return nil, nil
 	}
 	groups := make([]tabularFieldGroup, 0, len(fields))
 	current := tabularFieldGroup{
@@ -156,7 +187,9 @@ func groupTabularFields(
 		candidateFields := append(append([]tabularFieldEntry(nil), current.fields...), field)
 		candidateContent := prefix + buildTabularRowBody(candidateFields)
 		if len(current.lines) > 0 && countTextTokens(candidateContent, model, tokenizerService) > limit {
-			groups = append(groups, current)
+			if err := appendTabularFieldGroupWithLimit(&groups, current, maxGroups); err != nil {
+				return nil, err
+			}
 			current = tabularFieldGroup{
 				fields: make([]tabularFieldEntry, 0, len(fields)),
 				lines:  make([]string, 0, len(fields)),
@@ -166,9 +199,19 @@ func groupTabularFields(
 		current.lines = append(current.lines, formatTabularFieldLine(field))
 	}
 	if len(current.lines) > 0 {
-		groups = append(groups, current)
+		if err := appendTabularFieldGroupWithLimit(&groups, current, maxGroups); err != nil {
+			return nil, err
+		}
 	}
-	return groups
+	return groups, nil
+}
+
+func appendTabularFieldGroupWithLimit(groups *[]tabularFieldGroup, group tabularFieldGroup, maxGroups int) error {
+	if maxGroups > 0 && len(*groups)+1 > maxGroups {
+		return newMaxChunksResourceLimitError(maxGroups, len(*groups)+1)
+	}
+	*groups = append(*groups, group)
+	return nil
 }
 
 func buildTabularRowPrefix(metadata map[string]any) string {

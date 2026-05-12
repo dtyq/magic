@@ -2,11 +2,12 @@ package splitter
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"magic/internal/infrastructure/logging"
-	"magic/internal/pkg/splitter"
+	textsplitter "magic/internal/pkg/splitter"
 	"magic/internal/pkg/tokenizer"
 )
 
@@ -22,6 +23,7 @@ type previewSegmentConfig struct {
 	ChunkOverlap       int
 	Separator          string
 	TextPreprocessRule []int
+	MaxChunks          int
 }
 
 type tokenChunk struct {
@@ -51,15 +53,19 @@ func splitContentByTokenPipeline(
 	preRules, needPostReplaceWhitespace := SplitPreviewPreprocessRules(segmentConfig.TextPreprocessRule)
 	preprocessedContent := ApplyPreviewPreprocess(content, preRules)
 
-	tokenSplitter := splitter.NewTokenTextSplitter(
+	tokenSplitter := textsplitter.NewTokenTextSplitter(
 		tokenizerService,
 		model,
 		segmentConfig.ChunkSize,
 		segmentConfig.ChunkOverlap,
 		segmentConfig.Separator,
 	)
+	tokenSplitter.MaxChunks = segmentConfig.MaxChunks
 	splitResult, err := tokenSplitter.SplitText(preprocessedContent)
 	if err != nil {
+		if limitErr := mapTokenChunkLimitError(err); limitErr != nil {
+			return nil, limitErr
+		}
 		return nil, fmt.Errorf("split content with token pipeline: %w", err)
 	}
 
@@ -99,6 +105,14 @@ func splitContentByTokenPipeline(
 		})
 	}
 	return chunks, nil
+}
+
+func mapTokenChunkLimitError(err error) error {
+	var limitErr *textsplitter.ChunkLimitError
+	if !errors.As(err, &limitErr) || limitErr == nil {
+		return nil
+	}
+	return newMaxChunksResourceLimitError(limitErr.Limit, limitErr.Observed)
 }
 
 func normalizeSegmentChunkSize(chunkSize int) int {

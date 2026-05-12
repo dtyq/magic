@@ -11,6 +11,8 @@ import (
 	document "magic/internal/domain/knowledge/document/service"
 	"magic/internal/domain/knowledge/shared/parseddocument"
 	"magic/internal/pkg/ctxmeta"
+	"magic/internal/pkg/memoryguard"
+	"magic/internal/pkg/memoryprobe"
 	"magic/internal/pkg/thirdplatform"
 )
 
@@ -332,6 +334,11 @@ type documentSyncTracer struct {
 	mode    string
 }
 
+const (
+	documentSyncMemoryProbeStage    = "document_sync_memory_probe"
+	documentSyncMemoryProbeInterval = 200 * time.Millisecond
+)
+
 func newDocumentSyncTracer(service *DocumentAppService, mode string) *documentSyncTracer {
 	return &documentSyncTracer{
 		service: service,
@@ -344,6 +351,27 @@ func (t *documentSyncTracer) withDocument(doc *docentity.KnowledgeBaseDocument) 
 		return
 	}
 	t.doc = doc
+}
+
+func (t *documentSyncTracer) startLargeMemoryProbe(ctx context.Context) context.CancelFunc {
+	if t == nil || t.service == nil || t.service.logger == nil {
+		return func() {}
+	}
+	probeCtx, cancel := context.WithCancel(ctx)
+	go func() {
+		t.logLargeMemoryIfNeeded(probeCtx, documentSyncStageMemorySample(probeCtx, documentSyncMemoryProbeStage))
+		ticker := time.NewTicker(documentSyncMemoryProbeInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-probeCtx.Done():
+				return
+			case <-ticker.C:
+				t.logLargeMemoryIfNeeded(probeCtx, documentSyncStageMemorySample(probeCtx, documentSyncMemoryProbeStage))
+			}
+		}
+	}()
+	return cancel
 }
 
 func (t *documentSyncTracer) log(ctx context.Context, stage string, startedAt time.Time, err error, fields ...any) {
@@ -362,6 +390,8 @@ func (t *documentSyncTracer) log(ctx context.Context, stage string, startedAt ti
 			"document_code", t.doc.Code,
 			"knowledge_base_code", t.doc.KnowledgeBaseCode,
 			"organization_code", t.doc.OrganizationCode,
+			"file_name", documentFileNameForLog(t.doc),
+			"file_type", documentFileTypeForLog(t.doc),
 		)
 	}
 	if err != nil {
@@ -369,6 +399,37 @@ func (t *documentSyncTracer) log(ctx context.Context, stage string, startedAt ti
 	} else {
 		attrs = append(attrs, "status", "ok")
 	}
+	sample := documentSyncStageMemorySample(ctx, stage)
+	attrs = append(attrs, "memory_guard_keyword", documentMemoryGuardLogKeyword)
+	attrs = append(attrs, memoryprobe.SampleFields(sample)...)
 	attrs = append(attrs, fields...)
 	t.service.logger.DebugContext(ctx, "Document sync stage completed", attrs...)
+	t.logLargeMemoryIfNeeded(ctx, sample)
+}
+
+func (t *documentSyncTracer) logLargeMemoryIfNeeded(ctx context.Context, sample memoryprobe.Sample) {
+	peak, warn := memoryprobe.Observe(ctx, sample)
+	if !warn || t == nil || t.service == nil || t.service.logger == nil {
+		return
+	}
+	fields := memoryprobe.ExceededFields(sample, peak)
+	if t.mode != "" {
+		fields = append(fields, "sync_mode", t.mode)
+	}
+	if t.doc != nil {
+		fields = append(fields,
+			"document_code", t.doc.Code,
+			"knowledge_base_code", t.doc.KnowledgeBaseCode,
+			"organization_code", t.doc.OrganizationCode,
+			"file_name", documentFileNameForLog(t.doc),
+			"file_type", documentFileTypeForLog(t.doc),
+		)
+	}
+	t.service.logger.KnowledgeWarnContext(ctx, memoryprobe.DocumentSyncKeyword+" document sync memory exceeded threshold", fields...)
+}
+
+func documentSyncStageMemorySample(ctx context.Context, stage string) memoryprobe.Sample {
+	return memoryprobe.Capture(ctx, stage, memoryguard.Config{
+		CgroupPressureRatio: documentMemoryGuardCgroupRatio,
+	})
 }

@@ -36,20 +36,24 @@ func (s *DocumentAppService) buildFragments(
 ) ([]*fragmodel.KnowledgeBaseFragment, error) {
 	kbSnapshot := knowledgeBaseSnapshotFromDomain(kb)
 	splitPlan := document.ResolveEffectiveSyncSplitPlan(doc, kbSnapshot, shouldForceAutoSplitForKnowledgeBase(kb))
+	resourceLimits := s.ResourceLimits()
+	segmentConfig := toSplitterSegmentConfig(splitPlan.SegmentConfig)
+	segmentConfig.MaxChunks = int(resourceLimits.MaxFragmentsPerDocument)
 	chunks, splitVersion, err := documentsplitter.SplitParsedDocumentToChunks(ctx, documentsplitter.ParsedDocumentChunkInput{
 		Parsed:           parsed,
 		SourceFileType:   normalizeDocumentSourceFileType(doc),
 		RequestedMode:    splitPlan.RequestedMode,
 		FragmentConfig:   splitPlan.FragmentConfig,
-		SegmentConfig:    toSplitterSegmentConfig(splitPlan.SegmentConfig),
+		SegmentConfig:    segmentConfig,
 		Model:            model,
 		TokenizerService: s.tokenizer,
 		Logger:           s.logger,
+		MaxChunks:        int(resourceLimits.MaxFragmentsPerDocument),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("split parsed document to chunks: %w", err)
 	}
-	if err := document.CheckFragmentCount(len(chunks), s.ResourceLimits()); err != nil {
+	if err := document.CheckFragmentCount(len(chunks), resourceLimits); err != nil {
 		return nil, fmt.Errorf("check document chunk count: %w", err)
 	}
 
@@ -61,7 +65,7 @@ func (s *DocumentAppService) buildFragments(
 	if err != nil {
 		return nil, fmt.Errorf("build document fragments: %w", err)
 	}
-	if err := document.CheckFragmentCount(len(fragments), s.ResourceLimits()); err != nil {
+	if err := document.CheckFragmentCount(len(fragments), resourceLimits); err != nil {
 		return nil, fmt.Errorf("check document fragment count: %w", err)
 	}
 	return fragments, nil
@@ -496,7 +500,11 @@ func (s *DocumentAppService) cleanupFragmentsByDocument(ctx context.Context, doc
 }
 
 func (s *DocumentAppService) finishSync(ctx context.Context, doc *docentity.KnowledgeBaseDocument, content string) error {
-	if err := s.domainService.MarkSynced(ctx, doc, document.CountSyncContentWordCount(content)); err != nil {
+	return s.finishSyncWithWordCount(ctx, doc, document.CountSyncContentWordCount(content))
+}
+
+func (s *DocumentAppService) finishSyncWithWordCount(ctx context.Context, doc *docentity.KnowledgeBaseDocument, wordCount int) error {
+	if err := s.domainService.MarkSynced(ctx, doc, wordCount); err != nil {
 		return fmt.Errorf("failed to mark document synced: %w", err)
 	}
 	return nil

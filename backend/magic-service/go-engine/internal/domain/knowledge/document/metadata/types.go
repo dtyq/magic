@@ -256,6 +256,67 @@ func NormalizeResourceLimits(limits ResourceLimits) ResourceLimits {
 	return documentservice.NormalizeResourceLimits(limits)
 }
 
+// CheckPDFPageCount 校验 PDF 页数。
+func CheckPDFPageCount(pageCount int, limits ResourceLimits) error {
+	if err := documentservice.CheckPDFPageCount(pageCount, limits); err != nil {
+		return fmt.Errorf("check pdf page count: %w", err)
+	}
+	return nil
+}
+
+// CheckArchiveUncompressedSize 校验压缩包总解压大小。
+func CheckArchiveUncompressedSize(size int64, limits ResourceLimits) error {
+	if err := documentservice.CheckArchiveUncompressedSize(size, limits); err != nil {
+		return fmt.Errorf("check archive uncompressed size: %w", err)
+	}
+	return nil
+}
+
+// CheckArchiveEntrySize 校验压缩包单 entry 解压大小。
+func CheckArchiveEntrySize(size int64, limits ResourceLimits) error {
+	if err := documentservice.CheckArchiveEntrySize(size, limits); err != nil {
+		return fmt.Errorf("check archive entry size: %w", err)
+	}
+	return nil
+}
+
+// CheckEmbeddedAssetSize 校验单个内嵌或外链资源大小。
+func CheckEmbeddedAssetSize(size int64, limits ResourceLimits) error {
+	if err := documentservice.CheckEmbeddedAssetSize(size, limits); err != nil {
+		return fmt.Errorf("check embedded asset size: %w", err)
+	}
+	return nil
+}
+
+// CheckPresentationSlideCount 校验 PPTX 幻灯片页数。
+func CheckPresentationSlideCount(slideCount int, limits ResourceLimits) error {
+	if err := documentservice.CheckPresentationSlideCount(slideCount, limits); err != nil {
+		return fmt.Errorf("check presentation slide count: %w", err)
+	}
+	return nil
+}
+
+// CheckPlainTextBytes 校验文本大小。
+func CheckPlainTextBytes(content []byte, limits ResourceLimits, stage string) error {
+	if err := documentservice.CheckPlainTextBytes(content, limits, stage); err != nil {
+		return fmt.Errorf("check plain text size: %w", err)
+	}
+	return nil
+}
+
+// CheckParsedBlockCount 校验解析结构节点或块数量。
+func CheckParsedBlockCount(blocks int64, limits ResourceLimits, stage string) error {
+	if err := documentservice.CheckParsedBlockCount(blocks, limits, stage); err != nil {
+		return fmt.Errorf("check parsed block count: %w", err)
+	}
+	return nil
+}
+
+// NewSourceSizeLimitedReader 包装 reader，在读取超过 max_source_bytes 时返回资源限制错误。
+func NewSourceSizeLimitedReader(reader io.Reader, limits ResourceLimits) io.Reader {
+	return documentservice.NewSourceSizeLimitedReader(reader, limits)
+}
+
 // CheckTabularSize 校验表格行数和单元格数量。
 func CheckTabularSize(rows, cells int64, limits ResourceLimits, stage string) error {
 	if err := documentservice.CheckTabularSize(rows, cells, limits, stage); err != nil {

@@ -24,8 +24,9 @@ var (
 
 // Config 描述内存水位策略。
 type Config struct {
-	SoftLimitBytes      int64
-	CgroupPressureRatio float64
+	SoftLimitBytes             int64
+	CgroupPressureRatio        float64
+	DisableCgroupPressureRatio bool
 }
 
 // Snapshot 描述一次内存读取结果。
@@ -122,7 +123,7 @@ func (g *Guard) Check(_ context.Context, stage string) (Snapshot, error) {
 		snapshot.ObservedValue = current
 		return snapshot, &PressureError{Snapshot: snapshot}
 	}
-	if limit > 0 && snapshot.UsageRatio >= config.CgroupPressureRatio {
+	if !config.DisableCgroupPressureRatio && limit > 0 && snapshot.UsageRatio >= config.CgroupPressureRatio {
 		snapshot.LimitName = "cgroup_memory_ratio"
 		snapshot.LimitValue = int64(float64(limit) * config.CgroupPressureRatio)
 		snapshot.ObservedValue = current

@@ -441,6 +441,7 @@ func ProvideDocumentSyncRuntime(
 	}
 
 	mqDefaults := documentsync.DefaultRabbitMQSchedulerConfig()
+	resourceLimits := documentSyncResourceLimitsFromConfig(cfg)
 	mqScheduler := documentsync.NewRabbitMQScheduler(
 		runtime,
 		documentsync.RabbitMQSchedulerDeps{
@@ -448,9 +449,12 @@ func ProvideDocumentSyncRuntime(
 			Broker:          rabbitMQBroker,
 			TerminalHandler: runtime,
 			RetryStore:      documentsync.NewRedisRetryStore(redisClient),
+			AttemptStore:    documentsync.NewRedisDeliveryAttemptStore(redisClient),
 			AdmissionGate: documentsync.NewMemoryAdmissionGate(
 				memoryguard.NewGuard(memoryguard.Config{
-					SoftLimitBytes: documentSyncResourceLimitsFromConfig(cfg).SyncMemorySoftLimitBytes,
+					SoftLimitBytes:             resourceLimits.SyncMemorySoftLimitBytes,
+					CgroupPressureRatio:        documentsync.DocumentSyncCgroupPressureRatio,
+					DisableCgroupPressureRatio: resourceLimits.SyncMemorySoftLimitBytes > 0,
 				}),
 				logger.Named("knowledge.documentsync.admission"),
 				documentsync.MemoryAdmissionGateConfig{},
@@ -475,9 +479,15 @@ func newDocumentResyncRabbitMQSchedulerConfig(
 	defaults documentsync.RabbitMQSchedulerConfig,
 ) documentsync.RabbitMQSchedulerConfig {
 	return documentsync.RabbitMQSchedulerConfig{
-		QueueName:           strings.TrimSpace(cfg.RabbitMQ.Queues.DocumentResync),
-		ConsumerPrefetch:    cfg.RabbitMQ.DocumentResync.ConsumerPrefetch,
-		ConsumerConcurrency: cfg.RabbitMQ.DocumentResync.ConsumerConcurrency,
+		QueueName: strings.TrimSpace(cfg.RabbitMQ.Queues.DocumentResync),
+		ConsumerPrefetch: intOrDefault(
+			cfg.RabbitMQ.DocumentResync.ConsumerPrefetch,
+			defaults.ConsumerPrefetch,
+		),
+		ConsumerConcurrency: intOrDefault(
+			cfg.RabbitMQ.DocumentResync.ConsumerConcurrency,
+			defaults.ConsumerConcurrency,
+		),
 		MQPublishTimeout: millisDurationOrDefault(
 			cfg.RabbitMQ.DocumentResync.MQPublishTimeoutMillis,
 			defaults.MQPublishTimeout,
@@ -495,13 +505,19 @@ func documentSyncResourceLimitsFromConfig(cfg *autoloadcfg.Config) documentdomai
 	}
 	limits := cfg.DocumentResourceLimits
 	return documentdomain.NormalizeResourceLimits(documentdomain.ResourceLimits{
-		MaxSourceBytes:           limits.MaxSourceBytes,
-		MaxTabularRows:           limits.MaxTabularRows,
-		MaxTabularCells:          limits.MaxTabularCells,
-		MaxPlainTextChars:        limits.MaxPlainTextChars,
-		MaxParsedBlocks:          limits.MaxParsedBlocks,
-		MaxFragmentsPerDocument:  limits.MaxFragmentsPerDocument,
-		SyncMemorySoftLimitBytes: limits.SyncMemorySoftLimitBytes,
+		MaxSourceBytes:              limits.MaxSourceBytes,
+		MaxTabularRows:              limits.MaxTabularRows,
+		MaxTabularCells:             limits.MaxTabularCells,
+		MaxPlainTextChars:           limits.MaxPlainTextChars,
+		MaxParsedBlocks:             limits.MaxParsedBlocks,
+		MaxFragmentsPerDocument:     limits.MaxFragmentsPerDocument,
+		MaxPDFPages:                 limits.MaxPDFPages,
+		MaxArchiveUncompressedBytes: limits.MaxArchiveUncompressedBytes,
+		MaxArchiveEntryBytes:        limits.MaxArchiveEntryBytes,
+		MaxEmbeddedAssetBytes:       limits.MaxEmbeddedAssetBytes,
+		MaxPresentationSlides:       limits.MaxPresentationSlides,
+		SyncFragmentBatchSize:       limits.SyncFragmentBatchSize,
+		SyncMemorySoftLimitBytes:    limits.SyncMemorySoftLimitBytes,
 	})
 }
 
@@ -600,6 +616,7 @@ func (a documentSyncSchedulerAdapter) Schedule(ctx context.Context, input *docum
 
 	a.scheduler.Schedule(ctx, &documentsync.Task{
 		Kind:              documentsync.TaskKindDocumentSync,
+		OrganizationCode:  cloned.OrganizationCode,
 		KnowledgeBaseCode: cloned.KnowledgeBaseCode,
 		Code:              cloned.Code,
 		Mode:              cloned.Mode,
@@ -614,6 +631,7 @@ func decodeSyncTask(task *documentsync.Task) (*documentdomain.SyncDocumentInput,
 	}
 	if len(task.Payload) == 0 {
 		return &documentdomain.SyncDocumentInput{
+			OrganizationCode:  task.OrganizationCode,
 			KnowledgeBaseCode: task.KnowledgeBaseCode,
 			Code:              task.Code,
 			Mode:              task.Mode,

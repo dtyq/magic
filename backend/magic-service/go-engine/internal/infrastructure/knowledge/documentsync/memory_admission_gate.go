@@ -2,6 +2,7 @@ package documentsync
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -13,9 +14,16 @@ import (
 const (
 	defaultMemoryAdmissionPollInterval      = time.Second
 	defaultMemoryAdmissionSoftResumeRatio   = 0.90
-	defaultMemoryAdmissionCgroupResumeRatio = 0.70
+	defaultMemoryAdmissionCgroupResumeRatio = 0.45
 	memoryAdmissionStage                    = "document_sync_admission"
 	memoryAdmissionBaseLogFieldCount        = 24
+)
+
+const (
+	// DocumentMemoryGuardLogKeyword is the stable keyword used to grep document-sync memory guard logs.
+	DocumentMemoryGuardLogKeyword = "knowledge_document_memory_guard"
+	// DocumentSyncCgroupPressureRatio pauses new document-sync work when cgroup memory reaches 50%.
+	DocumentSyncCgroupPressureRatio = 0.50
 )
 
 // MemoryAdmissionGate controls whether a delivered task may start execution.
@@ -165,7 +173,7 @@ func (g *CgroupMemoryAdmissionGate) logAdmissionPaused(
 		"resume_threshold", g.activeResumeThreshold(snapshot),
 		"error", cause,
 	)
-	g.logger.KnowledgeWarnContext(ctx, "memory pressure pause document sync admission", fields...)
+	g.logger.KnowledgeWarnContext(ctx, DocumentMemoryGuardLogKeyword+" pause document sync admission", fields...)
 }
 
 func (g *CgroupMemoryAdmissionGate) logAdmissionResumed(
@@ -179,7 +187,7 @@ func (g *CgroupMemoryAdmissionGate) logAdmissionResumed(
 	fields := appendMemoryAdmissionFields(task, snapshot,
 		"resume_threshold", g.activeResumeThreshold(snapshot),
 	)
-	g.logger.InfoContext(ctx, "Document sync admission resumed after memory pressure", fields...)
+	g.logger.InfoContext(ctx, DocumentMemoryGuardLogKeyword+" document sync admission resumed", fields...)
 }
 
 func (g *CgroupMemoryAdmissionGate) logAdmissionFailOpen(
@@ -195,13 +203,15 @@ func (g *CgroupMemoryAdmissionGate) logAdmissionFailOpen(
 	if cause != nil {
 		fields = append(fields, "error", cause)
 	}
-	g.logger.DebugContext(ctx, "Document sync admission memory cgroup unavailable, fail open", fields...)
+	g.logger.DebugContext(ctx, DocumentMemoryGuardLogKeyword+" document sync admission memory cgroup unavailable, fail open", fields...)
 }
 
 func appendMemoryAdmissionFields(task *Task, snapshot memoryguard.Snapshot, fields ...any) []any {
 	output := make([]any, 0, len(fields)+memoryAdmissionBaseLogFieldCount)
 	output = append(output,
+		"memory_guard_keyword", DocumentMemoryGuardLogKeyword,
 		"task_kind", taskKindForLog(task),
+		"organization_code", taskOrganizationCodeForLog(task),
 		"document_code", taskDocumentCodeForLog(task),
 		"knowledge_base_code", taskKnowledgeBaseCodeForLog(task),
 		"mode", taskModeForLog(task),
@@ -224,6 +234,22 @@ func taskKindForLog(task *Task) string {
 		return ""
 	}
 	return task.Kind
+}
+
+func taskOrganizationCodeForLog(task *Task) string {
+	if task == nil {
+		return ""
+	}
+	if task.OrganizationCode != "" {
+		return task.OrganizationCode
+	}
+	var payload struct {
+		OrganizationCode string `json:"organization_code"`
+	}
+	if err := json.Unmarshal(task.Payload, &payload); err != nil {
+		return ""
+	}
+	return payload.OrganizationCode
 }
 
 func taskDocumentCodeForLog(task *Task) string {

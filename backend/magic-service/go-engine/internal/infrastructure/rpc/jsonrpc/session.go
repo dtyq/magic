@@ -53,6 +53,10 @@ type requestIDEnvelope struct {
 	RequestID json.RawMessage `json:"request_id"`
 }
 
+type languageEnvelope struct {
+	Language json.RawMessage `json:"language"`
+}
+
 type clientInfo struct {
 	PID             int
 	ProtocolVersion int
@@ -374,6 +378,10 @@ func (s *Session) handleRequest(ctx context.Context, req *common.Request, frameS
 	requestID := requestIDFromRequestContext(req)
 	if requestID != "" {
 		ctx = ctxmeta.WithRequestID(ctx, requestID)
+	}
+	language := languageFromRequestContext(req)
+	if language != "" {
+		ctx = ctxmeta.WithLanguage(ctx, language)
 	}
 
 	startTime := time.Now()
@@ -1247,6 +1255,18 @@ func requestIDFromRequestContext(req *common.Request) string {
 	return requestIDFromRawJSON(req.Params)
 }
 
+func languageFromRequestContext(req *common.Request) string {
+	if req == nil {
+		return ""
+	}
+
+	if language := languageFromRawJSON(req.Context); language != "" {
+		return language
+	}
+
+	return languageFromRawJSON(req.Params)
+}
+
 func requestIDFromRawJSON(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""
@@ -1257,16 +1277,33 @@ func requestIDFromRawJSON(raw json.RawMessage) string {
 		return ""
 	}
 
-	if len(envelope.RequestID) == 0 || bytes.Equal(bytes.TrimSpace(envelope.RequestID), []byte("null")) {
+	return rawJSONScalarString(envelope.RequestID)
+}
+
+func languageFromRawJSON(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+
+	var envelope languageEnvelope
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return ""
+	}
+
+	return rawJSONScalarString(envelope.Language)
+}
+
+func rawJSONScalarString(raw json.RawMessage) string {
+	if len(raw) == 0 || bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 		return ""
 	}
 
 	var stringID string
-	if err := json.Unmarshal(envelope.RequestID, &stringID); err == nil {
+	if err := json.Unmarshal(raw, &stringID); err == nil {
 		return stringID
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(envelope.RequestID))
+	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	var numberID json.Number
 	if err := decoder.Decode(&numberID); err == nil {
@@ -1274,21 +1311,25 @@ func requestIDFromRawJSON(raw json.RawMessage) string {
 	}
 
 	var genericID any
-	if err := json.Unmarshal(envelope.RequestID, &genericID); err != nil {
+	if err := json.Unmarshal(raw, &genericID); err != nil {
 		return ""
 	}
 	return fmt.Sprintf("%v", genericID)
 }
 
 func buildOutboundRequestContext(ctx context.Context) json.RawMessage {
-	requestID, ok := ctxmeta.RequestIDFromContext(ctx)
-	if !ok || requestID == "" {
+	contextData := make(map[string]string, 2)
+	if requestID, ok := ctxmeta.RequestIDFromContext(ctx); ok && requestID != "" {
+		contextData[logkey.RequestID] = requestID
+	}
+	if language, ok := ctxmeta.LanguageFromContext(ctx); ok && language != "" {
+		contextData["language"] = language
+	}
+	if len(contextData) == 0 {
 		return nil
 	}
 
-	data, err := json.Marshal(map[string]string{
-		logkey.RequestID: requestID,
-	})
+	data, err := json.Marshal(contextData)
 	if err != nil {
 		return nil
 	}

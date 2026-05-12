@@ -1,6 +1,7 @@
 package splitter_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -175,5 +176,24 @@ func TestTokenTextSplitterLongChineseSegmentPreservesTextWithoutOverlap(t *testi
 	}
 	if rebuilt.String() != text {
 		t.Fatalf("expected rebuilt text to equal source text")
+	}
+}
+
+func TestTokenTextSplitterReturnsChunkLimitError(t *testing.T) {
+	t.Parallel()
+
+	s := splitter.NewTokenTextSplitter(tokenizer.NewService(), "text-embedding-3-small", 5, 0, "\n")
+	s.MaxChunks = 2
+
+	_, err := s.SplitText(strings.Repeat("alpha ", 40))
+	if !errors.Is(err, splitter.ErrChunkLimitExceeded) {
+		t.Fatalf("expected chunk limit error, got %v", err)
+	}
+	var limitErr *splitter.ChunkLimitError
+	if !errors.As(err, &limitErr) {
+		t.Fatalf("expected structured chunk limit error, got %v", err)
+	}
+	if limitErr.Limit != 2 || limitErr.Observed != 3 {
+		t.Fatalf("unexpected limit error context: %#v", limitErr)
 	}
 }

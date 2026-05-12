@@ -21,6 +21,13 @@ type BaseDomainConfig struct {
 	Qdrant                autoloadcfg.QdrantConfig
 }
 
+// FragmentDomainConfig 聚合片段领域服务运行参数。
+type FragmentDomainConfig struct {
+	DefaultEmbeddingModel string
+	SyncFragmentBatchSize int
+	SyncMemorySoftLimit   int64
+}
+
 // FragmentVectorDBDataRepository 表示片段向量数据仓储契约。
 type FragmentVectorDBDataRepository interface {
 	fragmodel.VectorDBDataRepository[fragmodel.FragmentPayload]
@@ -44,6 +51,19 @@ func ProvideKnowledgeBaseDomainConfig(
 	return BaseDomainConfig{
 		DefaultEmbeddingModel: defaultEmbeddingModel,
 		Qdrant:                qdrantCfg,
+	}
+}
+
+// ProvideFragmentDomainConfig 聚合片段领域服务所需的配置快照。
+func ProvideFragmentDomainConfig(
+	defaultEmbeddingModel autoloadcfg.EmbeddingDefaultModel,
+	cfg *autoloadcfg.Config,
+) FragmentDomainConfig {
+	limits := documentSyncResourceLimitsFromConfig(cfg)
+	return FragmentDomainConfig{
+		DefaultEmbeddingModel: string(defaultEmbeddingModel),
+		SyncFragmentBatchSize: limits.SyncFragmentBatchSize,
+		SyncMemorySoftLimit:   limits.SyncMemorySoftLimitBytes,
 	}
 }
 
@@ -84,7 +104,7 @@ func ProvideFragmentDomainInfra(
 	vectorMgmtRepo fragmodel.VectorDBManagementRepository,
 	vectorDataRepo FragmentVectorDBDataRepository,
 	metaReader sharedroute.CollectionMetaReader,
-	defaultEmbeddingModel autoloadcfg.EmbeddingDefaultModel,
+	cfg FragmentDomainConfig,
 	segmenterProvider *fragretrieval.SegmenterProvider,
 	logger *logging.SugaredLogger,
 ) fragdomain.FragmentDomainInfra {
@@ -92,9 +112,11 @@ func ProvideFragmentDomainInfra(
 		VectorMgmtRepo:        vectorMgmtRepo,
 		VectorDataRepo:        vectorDataRepo,
 		MetaReader:            metaReader,
-		DefaultEmbeddingModel: string(defaultEmbeddingModel),
+		DefaultEmbeddingModel: cfg.DefaultEmbeddingModel,
 		SegmenterProvider:     segmenterProvider,
 		Logger:                logger,
+		SyncFragmentBatchSize: cfg.SyncFragmentBatchSize,
+		SyncMemorySoftLimit:   cfg.SyncMemorySoftLimit,
 	}
 }
 
