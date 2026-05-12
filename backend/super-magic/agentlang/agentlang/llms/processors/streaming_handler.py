@@ -315,6 +315,16 @@ class StreamResponseHandler(StreamResponseHandlerBase):
                                     state.content_text += temp_text
                                     has_content = len(temp_text) > 0
 
+                                # ===== 流式退化检测：content 超过安全上限时提前终止 =====
+                                if state.is_content_degenerate():
+                                    logger.warning(
+                                        f"[{request_id}] 流式 content 超过 "
+                                        f"{state.STREAM_CONTENT_MAX_CHARS:,} chars 安全上限，"
+                                        f"疑似退化输出，提前终止"
+                                    )
+                                    finish_reason = "length"
+                                    break
+
                                 # ===== 处理 reasoning_content（第一个非空 chunk）=====
                                 if has_reasoning_content and not state.reasoning_reply_started:
                                     # 1. 触发 BEFORE_AGENT_THINK（内部会检查是否已在思考中）
