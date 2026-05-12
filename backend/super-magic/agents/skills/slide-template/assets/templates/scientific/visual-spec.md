@@ -252,7 +252,7 @@ series: [{ type: 'scatter', symbolSize: 10, data: [[2.3,4.5],[3.1,6.2],[4.8,5.9]
 - Prefer scientific illustrations with white backgrounds, clean lines, and labels
 - Avoid photorealistic styles; prefer textbook-level illustrations
 
-**generate_image Example Prompt:**
+**generate_images Example Prompt:**
 ```
 clean scientific illustration of [具体主题], textbook diagram style, white background, labeled components, precise line art, academic figure quality, teal and blue color scheme, arrows showing flow direction, educational infographic aesthetic, no gradients, vector style
 ```

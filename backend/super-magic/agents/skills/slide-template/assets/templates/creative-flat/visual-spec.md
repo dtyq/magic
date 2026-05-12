@@ -259,7 +259,7 @@ option = {
 ## 8. AI Illustration Generation Specifications
 
 ### Style Keywords
-When using `generate_image`, add the following style modifiers to the prompt:
+When using `generate_images`, add the following style modifiers to the prompt:
 ```
 flat design illustration, bold geometric shapes, vibrant orange and purple color palette,
 no shadows no gradients, clean vector art style, modern graphic design,

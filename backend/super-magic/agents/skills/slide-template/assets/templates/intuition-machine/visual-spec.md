@@ -379,7 +379,7 @@ JS:`function toggleAccordion(id){ document.getElementById(id).classList.toggle('
 - Prefer flat 2D technical diagrams with leader lines and labels
 - Avoid 3D rendering and photorealistic styles
 
-**generate_image Example Prompt**:
+**generate_images Example Prompt**:
 ```
 clean 2D technical infographic illustration of [具体主题], isometric or flat style, teal #2F7373 and warm brown palette, aged cream paper background #F5F0E6, dark outline on all elements, bilingual label style, retro technical print aesthetic, no gradients, precise line art, educational diagram quality
 ```

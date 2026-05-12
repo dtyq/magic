@@ -361,7 +361,7 @@ series: [
 - Prefer vintage illustrations with warm brown tones and hand-drawn engraving styles
 - Avoid modern digital aesthetics; prefer historical document/explorer journal styles
 
-**generate_image example prompt**:
+**generate_images example prompt**:
 
 ```
 vintage illustration of [specific subject], aged parchment paper background, sepia and warm brown tones, antique engraving style, hand-drawn details, explorer journal aesthetic, forest green and navy blue accents, gold highlights, no modern elements, historical document feel

@@ -262,7 +262,7 @@ series: [{ type: 'pie', radius: ['35%','65%'], center: ['50%','55%'],
 - prioritize soft colors / hand-drawn texture / illustrations with characters or magical elements
 - avoid photorealistic images and hard-edged geometric styles
 
-**generate_image Example Prompt**: 
+**generate_images Example Prompt**: 
 ```
 whimsical hand-drawn animation style illustration of [具体主题], Studio Ghibli inspired aesthetic, soft watercolor texture, warm pastel colors (sky blue #E8F4FC, warm cream #FFF8E7, forest green #2D5A3D, gold #F4D03F), charming friendly characters, magical sparkles and stars, storybook composition, gentle shadows, no sharp edges, cozy and enchanting atmosphere
 ```

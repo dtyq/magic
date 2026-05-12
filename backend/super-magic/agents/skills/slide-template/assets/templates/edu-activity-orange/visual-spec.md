@@ -388,7 +388,7 @@ Global Config:
   - One-week startup: `startup pitch presentation students`
 - Closing page: `teamwork success celebration learning growth`
 
-### generate_image Example Prompt
+### generate_images Example Prompt
 ```
 flat vector illustration of [specific activity scene, e.g. students doing blindfold tower building exercise], warm orange and navy blue color palette, clean white background, modern educational illustration style, simple geometric characters, friendly and collaborative atmosphere, no text
 ```

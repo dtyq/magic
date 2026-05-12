@@ -673,7 +673,7 @@ const artEduChartBase = {
 - Chinese ink painting pages: search `Chinese ink painting traditional art`
 - Music pages: search `classical music concert symphony orchestra`
 
-### generate_image Example Prompts
+### generate_images Example Prompts
 
 **Cover / artwork, realistic and not stylized:**
 

@@ -304,7 +304,7 @@ series: [{
 - Avoid gradient backgrounds, 3D effects, and soft-toned images
 - Prefer high-contrast, strongly geometric illustrations or object photos with black outlines
 
-### generate_image Example Prompt
+### generate_images Example Prompt
 ```
 Neo-brutalism style flat illustration, bold black 4px outline on all elements, 
 offset drop shadow in solid black, primary colors (red #D92D20, yellow #FFD700, black, white), 
