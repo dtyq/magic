@@ -14,11 +14,9 @@ use App\Domain\Contact\Service\MagicDepartmentDomainService;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
-use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
 use App\Domain\Permission\Service\OperationPermissionDomainService;
-use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
@@ -129,7 +127,6 @@ class SkillAppService extends AbstractSkillAppService
         protected LockerInterface $locker,
         protected Redis $redis,
         protected ProjectAppService $projectAppService,
-        protected ResourceVisibilityDomainService $resourceVisibilityDomainService,
         protected OperationPermissionDomainService $operationPermissionDomainService,
         protected ProjectDomainService $projectDomainService,
         protected TaskFileDomainService $taskFileDomainService,
@@ -1139,11 +1136,12 @@ class SkillAppService extends AbstractSkillAppService
      */
     protected function getAccessibleSkillCodes(SkillDataIsolation $dataIsolation): array
     {
-        $skillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
-            $this->createPermissionDataIsolation($dataIsolation),
-            $dataIsolation->getCurrentUserId(),
-            ResourceVisibilityResourceType::SKILL,
-        );
+        /** @var array<string> $skillCodes */
+        $skillCodes = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::Skill,
+            ResourceVisibilityResourceType::SKILL
+        )['all_codes'] ?? [];
 
         return $this->mergeBuiltinSkillCodes($skillCodes);
     }
@@ -1901,8 +1899,8 @@ class SkillAppService extends AbstractSkillAppService
         array $userIds = [],
         array $departmentIds = []
     ): void {
-        $this->resourceVisibilityDomainService->saveVisibilityByPrincipals(
-            $this->createPermissionDataIsolation($dataIsolation),
+        $this->resourceAccessPolicyService->saveReadableScope(
+            $dataIsolation,
             ResourceVisibilityResourceType::SKILL,
             $code,
             $visibilityType,
@@ -2122,16 +2120,10 @@ class SkillAppService extends AbstractSkillAppService
      */
     private function appendSkillVisibilityUsers(SkillDataIsolation $dataIsolation, string $code, array $userIds): void
     {
-        $userIds = array_values(array_unique(array_filter($userIds)));
-        if ($userIds === []) {
-            return;
-        }
-
-        $this->resourceVisibilityDomainService->addResourceVisibilityByPrincipalsIfMissing(
-            $this->createPermissionDataIsolation($dataIsolation),
+        $this->resourceAccessPolicyService->appendReadableUsers(
+            $dataIsolation,
             ResourceVisibilityResourceType::SKILL,
             $code,
-            PrincipalType::USER,
             $userIds
         );
     }
@@ -2146,16 +2138,10 @@ class SkillAppService extends AbstractSkillAppService
      */
     private function removeSkillVisibilityUsers(SkillDataIsolation $dataIsolation, string $code, array $userIds): void
     {
-        $userIds = array_values(array_unique(array_filter($userIds)));
-        if ($userIds === []) {
-            return;
-        }
-
-        $this->resourceVisibilityDomainService->deleteResourceVisibilityByPrincipals(
-            $this->createPermissionDataIsolation($dataIsolation),
+        $this->resourceAccessPolicyService->removeReadableUsers(
+            $dataIsolation,
             ResourceVisibilityResourceType::SKILL,
             $code,
-            PrincipalType::USER,
             $userIds
         );
     }
