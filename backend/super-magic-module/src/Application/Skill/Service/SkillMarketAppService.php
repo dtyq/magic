@@ -9,7 +9,6 @@ namespace Dtyq\SuperMagic\Application\Skill\Service;
 
 use App\Domain\Contact\Entity\MagicUserEntity;
 use App\Domain\Contact\Service\MagicUserDomainService;
-use App\Domain\File\Service\FileDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\Context\RequestContext;
@@ -17,7 +16,6 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillQuery;
-use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
@@ -29,13 +27,10 @@ use Dtyq\SuperMagic\ErrorCode\SkillErrorCode;
 class SkillMarketAppService extends AbstractSkillAppService
 {
     public function __construct(
-        FileDomainService $fileDomainService,
-        protected SkillDomainService $skillDomainService,
         protected SkillMarketDomainService $skillMarketDomainService,
         protected MagicUserDomainService $magicUserDomainService,
         protected TaskFileDomainService $taskFileDomainService
     ) {
-        parent::__construct($fileDomainService);
     }
 
     /**
@@ -60,7 +55,7 @@ class SkillMarketAppService extends AbstractSkillAppService
             ExceptionBuilder::throw(SkillErrorCode::STORE_SKILL_NOT_FOUND, 'skill.store_skill_not_found');
         }
 
-        $skillVersion = $this->skillDomainService->findSkillVersionByIdWithoutOrganizationFilter(
+        $skillVersion = $this->skillVersionDomainService->findSkillVersionByIdWithoutOrganizationFilter(
             $skillMarket->getSkillVersionId()
         );
         if ($skillVersion === null) {
@@ -136,7 +131,7 @@ class SkillMarketAppService extends AbstractSkillAppService
         // 查询用户已添加的技能（用于判断 is_added）
         $skillCodes = array_map(fn ($entity) => $entity->getSkillCode(), $skillMarketEntities);
         $userSkillsMap = $this->skillDomainService->findByVersionCodes($dataIsolation, $skillCodes);
-        $skillVersionMap = $this->skillDomainService->findSkillCurrentOrLatestByCodes($dataIsolation, $skillCodes);
+        $skillVersionMap = $this->skillVersionDomainService->findSkillCurrentOrLatestByCodes($dataIsolation, $skillCodes);
 
         $this->updateSkillVersionAssetUrls($dataIsolation, array_values($skillVersionMap));
 

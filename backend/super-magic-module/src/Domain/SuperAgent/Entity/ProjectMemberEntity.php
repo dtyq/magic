@@ -115,9 +115,13 @@ class ProjectMemberEntity extends AbstractEntity
         return $this->role;
     }
 
-    public function setRole(MemberRole $role): void
+    public function setRole(MemberRole|string $role): void
     {
-        $this->role = $role;
+        if (is_string($role)) {
+            $this->setRoleFromString($role);
+        } else {
+            $this->role = $role;
+        }
     }
 
     /**

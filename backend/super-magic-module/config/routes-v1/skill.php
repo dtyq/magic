@@ -7,6 +7,7 @@ declare(strict_types=1);
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
 use App\Interfaces\Middleware\Auth\UserAuthMiddleware;
 use Dtyq\SuperMagic\Interfaces\Skill\Facade\SkillApi;
+use Dtyq\SuperMagic\Interfaces\Skill\Facade\SkillCollaboratorApi;
 use Dtyq\SuperMagic\Interfaces\Skill\Facade\SkillMarketApi;
 use Hyperf\HttpServer\Router\Router;
 
@@ -71,5 +72,17 @@ Router::addGroup('/api/v1', static function () {
 
         // 批量查询当前用户技能的最新已发布当前版本
         Router::post('/last-versions/queries', [SkillApi::class, 'queryLatestPublishedVersions']);
+
+        // 获取技能协作者列表
+        Router::get('/{code}/collaborators', [SkillCollaboratorApi::class, 'index']);
+
+        // 新增技能协作者
+        Router::post('/{code}/collaborators', [SkillCollaboratorApi::class, 'store']);
+
+        // 更新技能协作者角色
+        Router::put('/{code}/collaborators', [SkillCollaboratorApi::class, 'update']);
+
+        // 删除技能协作者
+        Router::delete('/{code}/collaborators', [SkillCollaboratorApi::class, 'destroy']);
     });
 }, ['middleware' => [RequestContextMiddleware::class, UserAuthMiddleware::class]]);

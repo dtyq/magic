@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
@@ -124,6 +125,12 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $savedEntity->setModifier($userId);
             $savedEntity->setUpdatedAt(new DateTime());
             $this->superMagicAgentDomainService->saveDirectly($dataIsolation, $savedEntity);
+            $this->operationPermissionDomainService->accessOwner(
+                $this->createPermissionDataIsolation($dataIsolation),
+                ResourceType::CustomAgent,
+                $agentCode,
+                $savedEntity->getCreator()
+            );
 
             // 6. Auto-publish (skip sandbox export — reuse the already-uploaded ZIP as file_key)
             // Inherit publish_target_type and publish_target_value from the latest version;
@@ -137,7 +144,7 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $versionEntity->setVersion($this->resolveNextVersion($latestVersion));
             $versionEntity->setPublishTargetType($inheritedTargetType);
             $versionEntity->setPublishTargetValue($inheritedTargetValue);
-            $this->superMagicAgentDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
+            $this->superMagicAgentVersionDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
 
             // 7. Sync resource visibility: ORGANIZATION publish means the agent is visible to all org members.
             //    The application-layer publishAgent (SuperMagicAgentAppService) normally calls syncPublishedAgentScope

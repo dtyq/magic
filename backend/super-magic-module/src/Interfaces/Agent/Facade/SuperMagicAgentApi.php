@@ -172,12 +172,13 @@ class SuperMagicAgentApi extends AbstractApi
         }
 
         $responseDTO = SuperMagicAgentAssembler::createDetailResponseDTO(
-            $agent,
-            $result['skills'],
-            $result['is_store_offline'],
-            false,
-            $result['publish_type'],
-            $result['allowed_publish_target_types']
+            agent: $agent,
+            skills: $result['skills'],
+            isStoreOffline: $result['is_store_offline'],
+            withFileUrl: false,
+            publishType: $result['publish_type'],
+            allowedPublishTargetTypes: $result['allowed_publish_target_types'],
+            operation: $result['operation'] ?? null
         );
 
         // 返回数组格式
@@ -216,14 +217,14 @@ class SuperMagicAgentApi extends AbstractApi
         // 调用应用服务层处理业务逻辑
         $result = $this->superMagicAgentAppService->queries($authorization, $requestDTO);
         $responseDTO = SuperMagicAgentAssembler::createMyAgentsResponseDTO(
-            $result['agents'],
-            $result['playbooks_map'],
-            $result['agent_market_map'],
-            $result['latest_versions_map'],
-            $result['user_agents_map'] ?? [],
-            $requestDTO->getPage(),
-            $requestDTO->getPageSize(),
-            $result['total']
+            agents: $result['agents'],
+            playbooksMap: $result['playbooks_map'],
+            storeAgentsMap: $result['agent_market_map'],
+            latestVersionsMap: $result['latest_versions_map'],
+            userAgentsMap: $result['user_agents_map'] ?? [],
+            page: $requestDTO->getPage(),
+            pageSize: $requestDTO->getPageSize(),
+            total: $result['total']
         );
 
         // 返回数组格式
@@ -240,14 +241,14 @@ class SuperMagicAgentApi extends AbstractApi
 
         $result = $this->superMagicAgentAppService->queriesCreated($authorization, $requestDTO);
         $responseDTO = SuperMagicAgentAssembler::createMyAgentsResponseDTO(
-            $result['agents'],
-            $result['playbooks_map'],
-            $result['agent_market_map'],
-            $result['latest_versions_map'],
-            $result['user_agents_map'] ?? [],
-            $requestDTO->getPage(),
-            $requestDTO->getPageSize(),
-            $result['total']
+            agents: $result['agents'],
+            playbooksMap: $result['playbooks_map'],
+            storeAgentsMap: $result['agent_market_map'],
+            latestVersionsMap: $result['latest_versions_map'],
+            userAgentsMap: $result['user_agents_map'] ?? [],
+            page: $requestDTO->getPage(),
+            pageSize: $requestDTO->getPageSize(),
+            total: $result['total']
         );
 
         return $responseDTO->toArray();
@@ -262,18 +263,20 @@ class SuperMagicAgentApi extends AbstractApi
         $requestDTO = QueryAgentsRequestDTO::fromRequest($this->request);
 
         $result = $this->superMagicAgentAppService->queriesTeamShared($authorization, $requestDTO);
+
         $responseDTO = SuperMagicAgentAssembler::createExternalAgentsResponseDTO(
-            $result['agents'],
-            $result['playbooks_map'],
-            $result['agent_market_map'],
-            $result['latest_versions_map'],
-            $result['user_agents_map'] ?? [],
-            $authorization->getId(),
-            $requestDTO->getPage(),
-            $requestDTO->getPageSize(),
-            $result['total'],
-            $result['publisher_user_map'] ?? [],
-            $result['publisher_user_map'] ?? []
+            agents: $result['agents'],
+            playbooksMap: $result['playbooks_map'],
+            storeAgentsMap: $result['agent_market_map'],
+            latestVersionsMap: $result['latest_versions_map'],
+            userAgentsMap: $result['user_agents_map'] ?? [],
+            agentOperations: $result['agent_operations'] ?? [],
+            currentUserId: $authorization->getId(),
+            page: $requestDTO->getPage(),
+            pageSize: $requestDTO->getPageSize(),
+            total: $result['total'],
+            publisherUserMap: $result['publisher_user_map'] ?? [],
+            creatorUserMap: $result['publisher_user_map'] ?? []
         );
 
         return $responseDTO->toArray();
@@ -289,16 +292,17 @@ class SuperMagicAgentApi extends AbstractApi
 
         $result = $this->superMagicAgentAppService->queriesMarketInstalled($authorization, $requestDTO);
         $responseDTO = SuperMagicAgentAssembler::createExternalAgentsResponseDTO(
-            $result['agents'],
-            $result['playbooks_map'],
-            $result['agent_market_map'],
-            $result['latest_versions_map'],
-            $result['user_agents_map'] ?? [],
-            $authorization->getId(),
-            $requestDTO->getPage(),
-            $requestDTO->getPageSize(),
-            $result['total'],
-            $result['publisher_user_map'] ?? []
+            agents: $result['agents'],
+            playbooksMap: $result['playbooks_map'],
+            storeAgentsMap: $result['agent_market_map'],
+            latestVersionsMap: $result['latest_versions_map'],
+            userAgentsMap: $result['user_agents_map'] ?? [],
+            agentOperations: [],
+            currentUserId: $authorization->getId(),
+            page: $requestDTO->getPage(),
+            pageSize: $requestDTO->getPageSize(),
+            total: $result['total'],
+            publisherUserMap: $result['publisher_user_map'] ?? []
         );
 
         return $responseDTO->toArray();
@@ -329,16 +333,17 @@ class SuperMagicAgentApi extends AbstractApi
         $requestDTO = QueryAgentsRequestDTO::fromRequest($this->request);
         $result = $this->superMagicAgentAppService->externalQueries($authorization, $requestDTO);
         $responseDTO = SuperMagicAgentAssembler::createExternalAgentsResponseDTO(
-            $result['agents'],
-            $result['playbooks_map'],
-            $result['agent_market_map'],
-            $result['latest_versions_map'],
-            $result['user_agents_map'] ?? [],
-            $authorization->getId(),
-            $requestDTO->getPage(),
-            $requestDTO->getPageSize(),
-            $result['total'],
-            $result['publisher_user_map'] ?? []
+            agents: $result['agents'],
+            playbooksMap: $result['playbooks_map'],
+            storeAgentsMap: $result['agent_market_map'],
+            latestVersionsMap: $result['latest_versions_map'],
+            userAgentsMap: $result['user_agents_map'] ?? [],
+            agentOperations: [],
+            currentUserId: $authorization->getId(),
+            page: $requestDTO->getPage(),
+            pageSize: $requestDTO->getPageSize(),
+            total: $result['total'],
+            publisherUserMap: $result['publisher_user_map'] ?? []
         );
 
         return $responseDTO->toArray();
@@ -429,12 +434,12 @@ class SuperMagicAgentApi extends AbstractApi
         $result = $this->superMagicAgentAppService->queryVersions($authorization, $code, $requestDTO);
 
         return SuperMagicAgentAssembler::createQueryAgentVersionsResponseDTO(
-            $result['list'],
-            $result['userMap'],
-            $result['page'],
-            $result['page_size'],
-            $result['total'],
-            $result['memberDepartmentMap'],
+            versions: $result['list'],
+            userMap: $result['userMap'],
+            page: $result['page'],
+            pageSize: $result['page_size'],
+            total: $result['total'],
+            memberDepartmentMap: $result['memberDepartmentMap'],
         )->toArray();
     }
 

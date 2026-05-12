@@ -21,6 +21,10 @@ use Qbhy\HyperfAuth\Authenticatable;
 
 /**
  * Agent Playbook 应用服务.
+ *
+ * 所有写操作统一通过协作权限模型判定（editor 以上方可操作），
+ * 读操作统一通过可读权限判定（viewer 及以上均可查看），
+ * 不再依赖 creator_id 的 owner-only 校验逻辑。
  */
 class SuperMagicAgentPlaybookAppService extends AbstractSuperMagicAppService
 {
@@ -32,15 +36,21 @@ class SuperMagicAgentPlaybookAppService extends AbstractSuperMagicAppService
 
     /**
      * 创建员工 Playbook.
+     *
+     * 要求当前用户对所属 Agent 具备编辑权限（editor / admin / owner）。
      */
-    public function createPlaybook(Authenticatable $authorization, string $code, CreatePlaybookRequestDTO $requestDTO): AgentPlaybookEntity
+    public function createPlaybook(Authenticatable $authorization, string $agentCode, CreatePlaybookRequestDTO $requestDTO): AgentPlaybookEntity
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        // 1. 查询 Agent 记录（校验归属组织和当前用户）
-        $agent = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
+        // 写操作：校验当前用户对 Agent 的编辑权限
+        $this->assertAgentEditable($dataIsolation, $agentCode);
 
-        // 2. 创建 Playbook Entity
+        // 权限断言通过后，关闭组织过滤以读取协作者可能非本人创建的 Agent
+        $dataIsolation->disabled();
+        $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $agentCode);
+
+        // 构建 Playbook 实体
         $entity = new AgentPlaybookEntity();
         $entity->setAgentId($agent->getId());
         $entity->setAgentCode($agent->getCode());
@@ -55,27 +65,32 @@ class SuperMagicAgentPlaybookAppService extends AbstractSuperMagicAppService
             $entity->setIcon($requestDTO->getIcon());
         }
 
-        // 3. 保存 Playbook
         return $this->superMagicAgentPlaybookDomainService->createPlaybook($dataIsolation, $entity);
     }
 
     /**
      * 更新员工 Playbook.
+     *
+     * 要求当前用户对所属 Agent 具备编辑权限（editor / admin / owner）。
      */
-    public function updatePlaybook(Authenticatable $authorization, string $code, int $playbookId, UpdatePlaybookRequestDTO $requestDTO): AgentPlaybookEntity
+    public function updatePlaybook(Authenticatable $authorization, string $agentCode, int $playbookId, UpdatePlaybookRequestDTO $requestDTO): AgentPlaybookEntity
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        // 1. 查询 Agent 记录（校验归属组织和当前用户）
-        $agent = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
+        // 写操作：校验当前用户对 Agent 的编辑权限
+        $this->assertAgentEditable($dataIsolation, $agentCode);
 
-        // 2. 校验 Playbook 归属该员工
+        // 权限断言通过后，关闭组织过滤以读取协作者可能非本人创建的 Agent
+        $dataIsolation->disabled();
+        $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $agentCode);
+
+        // 校验 Playbook 归属于该 Agent
         $playbook = $this->superMagicAgentPlaybookDomainService->getPlaybookById($dataIsolation, $playbookId);
         if ($playbook->getAgentId() !== $agent->getId()) {
             ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $playbookId]);
         }
 
-        // 3. 构建更新 Entity（只设置提供的字段，null 表示不更新）
+        // 构建更新实体（仅设置提供的字段，null 表示不更新）
         $updateEntity = new AgentPlaybookEntity();
         $updateEntity->setNameI18n($requestDTO->getNameI18n());
         $updateEntity->setDescriptionI18n($requestDTO->getDescriptionI18n());
@@ -85,70 +100,86 @@ class SuperMagicAgentPlaybookAppService extends AbstractSuperMagicAppService
         $updateEntity->setSortOrder($requestDTO->getSortOrder());
         $updateEntity->setConfig($requestDTO->getConfig());
 
-        // 4. 更新 Playbook
         return $this->superMagicAgentPlaybookDomainService->updatePlaybook($dataIsolation, $playbookId, $updateEntity);
     }
 
     /**
      * 删除员工 Playbook.
+     *
+     * 要求当前用户对所属 Agent 具备编辑权限（editor / admin / owner）。
      */
     public function deletePlaybook(Authenticatable $authorization, string $agentCode, int $playbookId): void
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        // 1. 查询 Agent 记录（校验归属组织和当前用户）
-        $agent = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $agentCode);
+        // 写操作：校验当前用户对 Agent 的编辑权限
+        $this->assertAgentEditable($dataIsolation, $agentCode);
 
-        // 2. 校验 Playbook 归属该员工
+        // 权限断言通过后，关闭组织过滤以读取协作者可能非本人创建的 Agent
+        $dataIsolation->disabled();
+        $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $agentCode);
+
+        // 校验 Playbook 归属于该 Agent
         $playbook = $this->superMagicAgentPlaybookDomainService->getPlaybookById($dataIsolation, $playbookId);
         if ($playbook->getAgentId() !== $agent->getId()) {
             ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $playbookId]);
         }
 
-        // 3. 删除 Playbook（软删除）
+        // 软删除 Playbook
         $this->superMagicAgentPlaybookDomainService->deletePlaybook($dataIsolation, $playbookId);
     }
 
     /**
      * 切换员工 Playbook 启用/禁用状态.
+     *
+     * 要求当前用户对所属 Agent 具备编辑权限（editor / admin / owner）。
      */
-    public function togglePlaybookEnabled(Authenticatable $authorization, string $code, int $playbookId, bool $enabled): void
+    public function togglePlaybookEnabled(Authenticatable $authorization, string $agentCode, int $playbookId, bool $enabled): void
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        // 1. 查询 Agent 记录（校验归属组织）
-        $agent = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $code);
+        // 写操作：校验当前用户对 Agent 的编辑权限
+        $this->assertAgentEditable($dataIsolation, $agentCode);
 
-        // 2. 校验 Playbook 归属该员工
+        // 权限断言通过后，关闭组织过滤以读取协作者可能非本人创建的 Agent
+        $dataIsolation->disabled();
+        $agent = $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $agentCode);
+
+        // 校验 Playbook 归属于该 Agent
         $playbook = $this->superMagicAgentPlaybookDomainService->getPlaybookById($dataIsolation, $playbookId);
         if ($playbook->getAgentId() !== $agent->getId()) {
             ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => (string) $playbookId]);
         }
 
-        // 3. 构建更新 Entity（只更新启用状态）
+        // 构建仅更新启用状态的实体
         $updateEntity = new AgentPlaybookEntity();
         $updateEntity->setIsEnabled($enabled);
 
-        // 4. 更新 Playbook 启用状态
         $this->superMagicAgentPlaybookDomainService->updatePlaybook($dataIsolation, $playbookId, $updateEntity);
     }
 
     /**
      * 批量重排序员工 Playbook.
+     *
+     * 要求当前用户对所属 Agent 具备编辑权限（editor / admin / owner）。
      */
     public function reorderPlaybooks(Authenticatable $authorization, string $agentCode, ReorderPlaybooksRequestDTO $requestDTO): void
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        // 1. 查询 Agent 记录（校验归属组织和当前用户）
-        $agent = $this->superMagicAgentDomainService->getByCodeWithUserCheck($dataIsolation, $agentCode);
+        // 写操作：校验当前用户对 Agent 的编辑权限
+        $this->assertAgentEditable($dataIsolation, $agentCode);
 
-        // 2. 批量重排序 Playbook
+        // 权限断言通过后，关闭组织过滤以读取协作者可能非本人创建的 Agent
+        $dataIsolation->disabled();
+
         $this->superMagicAgentPlaybookDomainService->reorderPlaybooks($dataIsolation, $agentCode, $requestDTO->getIds());
     }
 
     /**
-     * 获取员工的场景列表.
+     * 获取员工的 Playbook 列表.
+     *
+     * 要求当前用户对所属 Agent 具备读取权限（viewer / editor / admin / owner）。
      *
      * @return PlaybookListItemDTO[]
      */
@@ -156,10 +187,12 @@ class SuperMagicAgentPlaybookAppService extends AbstractSuperMagicAppService
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
-        // 1. 查询 Agent 记录（校验归属组织）
-        $this->superMagicAgentDomainService->getByCodeWithException($dataIsolation, $agentCode);
+        // 读操作：校验当前用户对 Agent 的读取权限（协作模型：viewer 及以上）
+        $this->assertAgentReadable($dataIsolation, $agentCode);
 
-        // 2. 查询 Playbook 列表
+        // 权限断言通过后，关闭组织过滤以读取协作者可能非本人创建的 Agent
+        $dataIsolation->disabled();
+
         $playbooks = $this->superMagicAgentPlaybookDomainService->getByAgentCodeForCurrentVersion($dataIsolation, $agentCode, $enabled);
 
         // 3. 转换为 DTO
@@ -186,17 +219,20 @@ class SuperMagicAgentPlaybookAppService extends AbstractSuperMagicAppService
 
     /**
      * 根据 ID 获取 Playbook 详情.
+     *
+     * 先读取 Playbook 获取所属 Agent code，再校验当前用户对该 Agent 具备读取权限。
      */
     public function getPlaybookById(Authenticatable $authorization, int $playbookId): PlaybookListItemDTO
     {
         $dataIsolation = $this->createSuperMagicDataIsolation($authorization);
 
+        // 关闭组织过滤以直接按 ID 读取 Playbook（权限校验在后续步骤完成）
         $dataIsolation->disabled();
-
-        // 1. 查询 Playbook 详情
         $playbook = $this->superMagicAgentPlaybookDomainService->getPlaybookById($dataIsolation, $playbookId);
 
-        // 2. 转换为 DTO
+        // 读取 Playbook 所属 Agent code 后，校验当前用户对该 Agent 具备读取权限
+        $this->assertAgentReadable($dataIsolation, $playbook->getAgentCode());
+
         return new PlaybookListItemDTO(
             $playbook->getId() ?? 0,
             $playbook->getAgentId(),

@@ -106,4 +106,32 @@ enum Operation: int
         }
         return array_search($this, $level) < array_search($operation, $level);
     }
+
+    /**
+     * 将协作侧角色别名（与 MemberRole 取值一致）解析为权限域操作类型。
+     */
+    public static function fromAlias(string $alias): self
+    {
+        return match (strtolower($alias)) {
+            'owner' => self::Owner,
+            'manage' => self::Admin,
+            'editor' => self::Edit,
+            'viewer' => self::Read,
+            default => ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'common.invalid', ['label' => 'operation']),
+        };
+    }
+
+    /**
+     * 将权限域操作类型转换为协作侧角色别名（与 MemberRole 取值一致）。
+     */
+    public function toAlias(): string
+    {
+        return match ($this) {
+            self::Owner => 'owner',
+            self::Admin => 'manage',
+            self::Edit => 'editor',
+            self::Read => 'viewer',
+            default => ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'common.invalid', ['label' => 'operation']),
+        };
+    }
 }

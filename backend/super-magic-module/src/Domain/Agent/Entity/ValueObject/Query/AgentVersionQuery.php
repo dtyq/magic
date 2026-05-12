@@ -38,9 +38,10 @@ class AgentVersionQuery extends AbstractQuery
         return $this->keyword;
     }
 
-    public function setKeyword(?string $keyword): void
+    public function setKeyword(?string $keyword): self
     {
         $this->keyword = $keyword;
+        return $this;
     }
 
     public function getLanguageCode(): ?string
@@ -74,9 +75,10 @@ class AgentVersionQuery extends AbstractQuery
     /**
      * @param null|array<int, string> $codes
      */
-    public function setCodes(?array $codes): void
+    public function setCodes(?array $codes): self
     {
         $this->codes = $codes;
+        return $this;
     }
 
     public function getPublishedOnly(): ?bool
@@ -84,8 +86,9 @@ class AgentVersionQuery extends AbstractQuery
         return $this->publishedOnly;
     }
 
-    public function setPublishedOnly(?bool $publishedOnly): void
+    public function setPublishedOnly(?bool $publishedOnly): self
     {
         $this->publishedOnly = $publishedOnly;
+        return $this;
     }
 }

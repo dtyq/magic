@@ -201,6 +201,15 @@ interface ProjectMemberRepositoryInterface
     public function getMembersByIds(int $projectId, array $memberIds): array;
 
     /**
+     * 根据项目ID和目标列表获取成员列表.
+     *
+     * @param int $projectId 项目ID
+     * @param array<int, array{target_type: string, target_id: string}> $targets 目标列表
+     * @return ProjectMemberEntity[] 项目成员实体数组
+     */
+    public function getMembersByTargets(int $projectId, array $targets): array;
+
+    /**
      * 根据项目ID和部门ID数组获取项目成员列表.
      *
      * @param int $projectId 项目ID
@@ -226,6 +235,15 @@ interface ProjectMemberRepositoryInterface
      * @return int 删除的记录数
      */
     public function deleteMembersByIds(int $projectId, array $memberIds): int;
+
+    /**
+     * 按目标列表删除成员（硬删除）.
+     *
+     * @param int $projectId 项目ID
+     * @param array<int, array{target_type: string, target_id: string}> $targets 目标列表
+     * @return int 删除的记录数
+     */
+    public function deleteMembersByTargets(int $projectId, array $targets): int;
 
     /**
      * 通过协作者目标ID获取项目Id列表（排除OWNER角色）.
