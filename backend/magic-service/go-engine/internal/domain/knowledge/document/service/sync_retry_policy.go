@@ -58,7 +58,12 @@ func isTerminalResourceLimitError(err error) bool {
 		ResourceLimitMaxTabularCells,
 		ResourceLimitMaxPlainTextChars,
 		ResourceLimitMaxParsedBlocks,
-		ResourceLimitMaxFragmentsPerDocument:
+		ResourceLimitMaxFragmentsPerDocument,
+		ResourceLimitMaxPDFPages,
+		ResourceLimitMaxArchiveUncompressedBytes,
+		ResourceLimitMaxArchiveEntryBytes,
+		ResourceLimitMaxEmbeddedAssetBytes,
+		ResourceLimitMaxPresentationSlides:
 		return true
 	default:
 		return false

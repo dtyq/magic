@@ -138,6 +138,31 @@ func TestPDFHybridParser_ParseDocumentWithOptionsSkipsOCRWhenDisabled(t *testing
 	}
 }
 
+func TestPDFHybridParser_ParseDocumentRejectsSourceOverLimit(t *testing.T) {
+	t.Parallel()
+
+	limits := documentdomain.ResourceLimits{MaxSourceBytes: 5}
+	_, err := parser.NewPDFHybridParserWithLimit(nil, 20, limits).
+		ParseDocument(context.Background(), "https://example.com/large.pdf", bytes.NewReader([]byte("123456")), "pdf")
+	if !errors.Is(err, documentdomain.ErrDocumentResourceLimitExceeded) {
+		t.Fatalf("expected resource limit error, got %v", err)
+	}
+}
+
+func TestPDFHybridParser_ParseDocumentRejectsPDFPagesOverLimit(t *testing.T) {
+	t.Parallel()
+
+	limits := documentdomain.ResourceLimits{
+		MaxSourceBytes: 1024 * 1024,
+		MaxPDFPages:    1,
+	}
+	_, err := parser.NewPDFHybridParserWithLimit(nil, 20, limits).
+		ParseDocument(context.Background(), "https://example.com/large.pdf", bytes.NewReader(buildTestPDFWithPageCount(2)), "pdf")
+	if !errors.Is(err, documentdomain.ErrDocumentResourceLimitExceeded) {
+		t.Fatalf("expected resource limit error, got %v", err)
+	}
+}
+
 func TestPDFHybridParser_ParseDocumentFallsBackToWholeDocumentOCRWhenNativeParseFails(t *testing.T) {
 	t.Parallel()
 
@@ -225,18 +250,60 @@ func TestPDFHybridParser_ParseDocumentDoesNotFallbackToWholeDocumentOCRWhenDisab
 }
 
 func buildTestPDF(text string) []byte {
-	stream := "BT /F1 24 Tf 72 720 Td (" + escapePDFText(text) + ") Tj ET"
-	if text == "" {
-		stream = ""
-	}
-	objects := []string{
-		"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-		"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-		"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n",
-		fmt.Sprintf("4 0 obj\n<< /Length %d >>\nstream\n%s\nendstream\nendobj\n", len(stream), stream),
-		"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-	}
+	return buildTestPDFWithPageTexts([]string{text})
+}
 
+func buildTestPDFWithPageCount(pageCount int) []byte {
+	texts := make([]string, pageCount)
+	for index := range texts {
+		texts[index] = fmt.Sprintf("page-%d", index+1)
+	}
+	return buildTestPDFWithPageTexts(texts)
+}
+
+func buildTestPDFWithPageTexts(texts []string) []byte {
+	if len(texts) == 0 {
+		texts = []string{""}
+	}
+	pageKids := make([]string, 0, len(texts))
+	objects := make([]string, 0, 2+2*len(texts)+1)
+	objects = append(objects, "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n")
+	pageRootIndex := len(objects)
+	objects = append(objects, "")
+
+	nextObjectID := 3
+	fontObjectID := 3 + len(texts)*2
+	for _, text := range texts {
+		pageObjectID := nextObjectID
+		contentObjectID := nextObjectID + 1
+		nextObjectID += 2
+		pageKids = append(pageKids, fmt.Sprintf("%d 0 R", pageObjectID))
+
+		stream := "BT /F1 24 Tf 72 720 Td (" + escapePDFText(text) + ") Tj ET"
+		if text == "" {
+			stream = ""
+		}
+		objects = append(objects,
+			fmt.Sprintf(
+				"%d 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 %d 0 R >> >> /Contents %d 0 R >>\nendobj\n",
+				pageObjectID,
+				fontObjectID,
+				contentObjectID,
+			),
+			fmt.Sprintf("%d 0 obj\n<< /Length %d >>\nstream\n%s\nendstream\nendobj\n", contentObjectID, len(stream), stream),
+		)
+	}
+	objects[pageRootIndex] = fmt.Sprintf(
+		"2 0 obj\n<< /Type /Pages /Kids [%s] /Count %d >>\nendobj\n",
+		strings.Join(pageKids, " "),
+		len(texts),
+	)
+	objects = append(objects, fmt.Sprintf("%d 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n", fontObjectID))
+
+	return buildPDFObjects(objects)
+}
+
+func buildPDFObjects(objects []string) []byte {
 	var buffer bytes.Buffer
 	buffer.WriteString("%PDF-1.4\n")
 	buffer.Write([]byte("%\xE2\xE3\xCF\xD3\n"))

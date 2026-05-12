@@ -682,15 +682,15 @@ func ProvideDocumentParsers(
 	return []documentdomain.Parser{
 		parser.NewCSVParserWithLimits(resourceLimits),
 		parser.NewXlsxParserWithOCRAndLimits(ocrClient, maxOCRPerFile, resourceLimits),
-		parser.NewDocxParserWithLimit(ocrClient, maxOCRPerFile),
-		parser.NewPptxParserWithLimit(ocrClient, maxOCRPerFile),
-		parser.NewPDFHybridParserWithLimit(ocrClient, maxOCRPerFile),
+		parser.NewDocxParserWithLimit(ocrClient, maxOCRPerFile, resourceLimits),
+		parser.NewPptxParserWithLimit(ocrClient, maxOCRPerFile, resourceLimits),
+		parser.NewPDFHybridParserWithLimit(ocrClient, maxOCRPerFile, resourceLimits),
 		parser.NewOCRParser(ocrClient),
-		parser.NewPlainTextParser(),
-		parser.NewMarkdownParserWithAssets(fileFetcher, ocrClient, maxOCRPerFile),
-		parser.NewHTMLParserWithAssets(fileFetcher, ocrClient, maxOCRPerFile),
-		parser.NewXMLParser(),
-		parser.NewJSONParser(),
+		parser.NewPlainTextParser(resourceLimits),
+		parser.NewMarkdownParserWithAssets(fileFetcher, ocrClient, maxOCRPerFile, resourceLimits),
+		parser.NewHTMLParserWithAssets(fileFetcher, ocrClient, maxOCRPerFile, resourceLimits),
+		parser.NewXMLParser(resourceLimits),
+		parser.NewJSONParser(resourceLimits),
 	}
 }
 
@@ -715,13 +715,18 @@ func documentResourceLimitsFromConfig(cfg *autoloadcfg.Config) documentdomain.Re
 	}
 	limits := cfg.DocumentResourceLimits
 	return documentdomain.NormalizeResourceLimits(documentdomain.ResourceLimits{
-		MaxSourceBytes:           limits.MaxSourceBytes,
-		MaxTabularRows:           limits.MaxTabularRows,
-		MaxTabularCells:          limits.MaxTabularCells,
-		MaxPlainTextChars:        limits.MaxPlainTextChars,
-		MaxParsedBlocks:          limits.MaxParsedBlocks,
-		MaxFragmentsPerDocument:  limits.MaxFragmentsPerDocument,
-		SyncFragmentBatchSize:    limits.SyncFragmentBatchSize,
-		SyncMemorySoftLimitBytes: limits.SyncMemorySoftLimitBytes,
+		MaxSourceBytes:              limits.MaxSourceBytes,
+		MaxTabularRows:              limits.MaxTabularRows,
+		MaxTabularCells:             limits.MaxTabularCells,
+		MaxPlainTextChars:           limits.MaxPlainTextChars,
+		MaxParsedBlocks:             limits.MaxParsedBlocks,
+		MaxFragmentsPerDocument:     limits.MaxFragmentsPerDocument,
+		MaxPDFPages:                 limits.MaxPDFPages,
+		MaxArchiveUncompressedBytes: limits.MaxArchiveUncompressedBytes,
+		MaxArchiveEntryBytes:        limits.MaxArchiveEntryBytes,
+		MaxEmbeddedAssetBytes:       limits.MaxEmbeddedAssetBytes,
+		MaxPresentationSlides:       limits.MaxPresentationSlides,
+		SyncFragmentBatchSize:       limits.SyncFragmentBatchSize,
+		SyncMemorySoftLimitBytes:    limits.SyncMemorySoftLimitBytes,
 	})
 }

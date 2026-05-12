@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"mime"
 	neturl "net/url"
 	"path"
@@ -21,10 +20,18 @@ var (
 
 type richTextAssetLoader struct {
 	fileFetcher documentdomain.FileFetcher
+	limits      documentdomain.ResourceLimits
 }
 
-func newRichTextAssetLoader(fileFetcher documentdomain.FileFetcher) richTextAssetLoader {
-	return richTextAssetLoader{fileFetcher: fileFetcher}
+func newRichTextAssetLoader(fileFetcher documentdomain.FileFetcher, resourceLimits ...documentdomain.ResourceLimits) richTextAssetLoader {
+	limits := documentdomain.DefaultResourceLimits()
+	if len(resourceLimits) > 0 {
+		limits = resourceLimits[0]
+	}
+	return richTextAssetLoader{
+		fileFetcher: fileFetcher,
+		limits:      documentdomain.NormalizeResourceLimits(limits),
+	}
 }
 
 func (l richTextAssetLoader) resolveReferencedImageText(
@@ -49,7 +56,7 @@ func (l richTextAssetLoader) fetchReferencedImage(ctx context.Context, baseSourc
 		return nil, "", nil
 	}
 	if strings.HasPrefix(strings.ToLower(ref), "data:") {
-		return decodeDataURIImage(ref)
+		return decodeDataURIImage(ref, l.limits)
 	}
 	if l.fileFetcher == nil {
 		return nil, "", nil
@@ -65,7 +72,7 @@ func (l richTextAssetLoader) fetchReferencedImage(ctx context.Context, baseSourc
 	}
 	defer func() { _ = reader.Close() }()
 
-	data, err := io.ReadAll(reader)
+	data, err := readAllWithEmbeddedAssetLimit(reader, l.limits)
 	if err != nil {
 		return nil, "", fmt.Errorf("read referenced image %s: %w", target, err)
 	}
@@ -104,7 +111,7 @@ func resolveReferencedAssetLocation(baseSource, rawRef string) string {
 	return path.Clean(path.Join(path.Dir(base), ref))
 }
 
-func decodeDataURIImage(raw string) ([]byte, string, error) {
+func decodeDataURIImage(raw string, limits documentdomain.ResourceLimits) ([]byte, string, error) {
 	parts := strings.SplitN(raw, ",", 2)
 	if len(parts) != 2 {
 		return nil, "", errInvalidDataURI
@@ -114,9 +121,15 @@ func decodeDataURIImage(raw string) ([]byte, string, error) {
 	if !strings.Contains(metadata, ";base64") {
 		return nil, "", errUnsupportedDataURIEncoding
 	}
+	if err := documentdomain.CheckEmbeddedAssetSize(int64(base64.StdEncoding.DecodedLen(len(payload))), limits); err != nil {
+		return nil, "", fmt.Errorf("check data uri image decoded size: %w", err)
+	}
 	data, err := base64.StdEncoding.DecodeString(payload)
 	if err != nil {
 		return nil, "", fmt.Errorf("decode data uri: %w", err)
+	}
+	if err := documentdomain.CheckEmbeddedAssetSize(int64(len(data)), limits); err != nil {
+		return nil, "", fmt.Errorf("check data uri image size: %w", err)
 	}
 	return data, inferDataURIImageFormat(metadata), nil
 }

@@ -93,20 +93,20 @@ func TestDocumentResyncRabbitMQSchedulerConfigDefaultConsumerConcurrency(t *test
 	t.Parallel()
 
 	defaults := documentsync.DefaultRabbitMQSchedulerConfig()
-	if defaults.ConsumerConcurrency != 1 {
-		t.Fatalf("expected default consumer concurrency 1, got %d", defaults.ConsumerConcurrency)
+	if defaults.ConsumerConcurrency != 4 {
+		t.Fatalf("expected default consumer concurrency 4, got %d", defaults.ConsumerConcurrency)
 	}
 
 	cfg := &autoloadcfg.Config{}
 	got := newDocumentResyncRabbitMQSchedulerConfig(cfg, defaults)
-	if got.ConsumerConcurrency != 1 {
-		t.Fatalf("expected empty config to use default consumer concurrency 1, got %d", got.ConsumerConcurrency)
+	if got.ConsumerConcurrency != 4 {
+		t.Fatalf("expected empty config to use default consumer concurrency 4, got %d", got.ConsumerConcurrency)
 	}
 
-	cfg.RabbitMQ.DocumentResync.ConsumerConcurrency = 4
+	cfg.RabbitMQ.DocumentResync.ConsumerConcurrency = 6
 	got = newDocumentResyncRabbitMQSchedulerConfig(cfg, defaults)
-	if got.ConsumerConcurrency != 1 {
-		t.Fatalf("expected configured consumer concurrency to clamp to 1, got %d", got.ConsumerConcurrency)
+	if got.ConsumerConcurrency != 6 {
+		t.Fatalf("expected configured consumer concurrency 6, got %d", got.ConsumerConcurrency)
 	}
 }
 

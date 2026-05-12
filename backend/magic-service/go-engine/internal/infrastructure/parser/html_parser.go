@@ -17,6 +17,7 @@ type HTMLParser struct {
 	htmlRenderer  htmlTextRenderer
 	ocrClient     documentdomain.OCRClient
 	maxOCRPerFile int
+	limits        documentdomain.ResourceLimits
 }
 
 // NewHTMLParser 创建 HTML 解析器。
@@ -29,13 +30,19 @@ func NewHTMLParserWithAssets(
 	fileFetcher documentdomain.FileFetcher,
 	ocrClient documentdomain.OCRClient,
 	maxOCRPerFile int,
+	resourceLimits ...documentdomain.ResourceLimits,
 ) *HTMLParser {
-	assetLoader := newRichTextAssetLoader(fileFetcher)
+	limits := documentdomain.DefaultResourceLimits()
+	if len(resourceLimits) > 0 {
+		limits = resourceLimits[0]
+	}
+	assetLoader := newRichTextAssetLoader(fileFetcher, limits)
 	return &HTMLParser{
 		assetLoader:   assetLoader,
 		htmlRenderer:  newHTMLTextRenderer(assetLoader),
 		ocrClient:     ocrClient,
 		maxOCRPerFile: documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		limits:        documentdomain.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -86,7 +93,7 @@ func (p *HTMLParser) ParseDocumentWithOptions(
 	fileType string,
 	options documentdomain.ParseOptions,
 ) (*documentdomain.ParsedDocument, error) {
-	content, err := readAndNormalizeParserSource(fileReader, fileType)
+	content, err := readAndNormalizeParserSourceWithLimits(fileReader, fileType, p.limits, "parse_html_text")
 	if err != nil {
 		return nil, err
 	}

@@ -22,9 +22,10 @@ const (
 	defaultRabbitMQConsumerReconnectDelay = time.Second
 	rabbitMQSerialConsumerPrefetch        = 1
 	defaultRabbitMQPrefetch               = 1
-	defaultRabbitMQConsumerConcurrency    = 1
+	defaultRabbitMQConsumerConcurrency    = 4
 	defaultMQPublishTimeout               = 5 * time.Second
 	defaultRabbitMQMaxRequeueAttempts     = 20
+	defaultRabbitMQMaxDeliveryAttempts    = 10
 )
 
 var (
@@ -129,9 +130,6 @@ func normalizeRabbitMQSchedulerConfig(config RabbitMQSchedulerConfig) RabbitMQSc
 	}
 	if config.ConsumerConcurrency <= 0 {
 		config.ConsumerConcurrency = defaults.ConsumerConcurrency
-	}
-	if config.ConsumerConcurrency > defaultRabbitMQConsumerConcurrency {
-		config.ConsumerConcurrency = defaultRabbitMQConsumerConcurrency
 	}
 	if config.MQPublishTimeout <= 0 {
 		config.MQPublishTimeout = defaults.MQPublishTimeout
@@ -410,6 +408,9 @@ func (s *RabbitMQScheduler) handleDelivery(ctx context.Context, delivery RabbitM
 
 	handleCtx := withTaskContext(ctx, task)
 	attempt := s.recordDeliveryAttempt(handleCtx, task, delivery.Redelivered())
+	if s.shouldAckExceededDeliveryAttempt(handleCtx, delivery, task, attempt) {
+		return
+	}
 	if s.logger != nil {
 		fields := []any{
 			"knowledge_base_code", task.KnowledgeBaseCode,
@@ -435,6 +436,36 @@ func (s *RabbitMQScheduler) handleDelivery(ctx context.Context, delivery RabbitM
 	if err := delivery.Ack(false); err != nil {
 		s.logDeliveryAckError(handleCtx, task, err)
 	}
+}
+
+func (s *RabbitMQScheduler) shouldAckExceededDeliveryAttempt(
+	ctx context.Context,
+	delivery RabbitMQDelivery,
+	task *Task,
+	attempt deliveryAttemptLogState,
+) bool {
+	if attempt.attempt <= defaultRabbitMQMaxDeliveryAttempts {
+		return false
+	}
+	if s != nil && s.logger != nil && task != nil {
+		fields := []any{
+			"task_kind", task.Kind,
+			"knowledge_base_code", task.KnowledgeBaseCode,
+			"document_code", task.Code,
+			"mode", task.Mode,
+			"task_key", task.Key,
+			"redelivered", attempt.redelivered,
+			"max_delivery_attempts", defaultRabbitMQMaxDeliveryAttempts,
+		}
+		fields = appendDeliveryAttemptLogFields(fields, attempt)
+		s.logger.KnowledgeWarnContext(ctx, "Ack rabbitmq document sync task after delivery attempt limit exceeded", fields...)
+	}
+	s.resetTaskRetry(ctx, task)
+	s.resetDeliveryAttempt(ctx, task)
+	if err := delivery.Ack(false); err != nil {
+		s.logDeliveryAckError(ctx, task, err)
+	}
+	return true
 }
 
 func (s *RabbitMQScheduler) waitTaskAdmission(

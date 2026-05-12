@@ -12,7 +12,9 @@ import (
 )
 
 // JSONParser 解析 JSON 文档。
-type JSONParser struct{}
+type JSONParser struct {
+	limits documentdomain.ResourceLimits
+}
 
 var (
 	errEmptyJSONDocument       = errors.New("empty json document")
@@ -26,8 +28,12 @@ var (
 )
 
 // NewJSONParser 创建 JSON 解析器。
-func NewJSONParser() *JSONParser {
-	return &JSONParser{}
+func NewJSONParser(resourceLimits ...documentdomain.ResourceLimits) *JSONParser {
+	limits := documentdomain.DefaultResourceLimits()
+	if len(resourceLimits) > 0 {
+		limits = resourceLimits[0]
+	}
+	return &JSONParser{limits: documentdomain.NormalizeResourceLimits(limits)}
 }
 
 // Parse 解析 JSON 文件。
@@ -77,14 +83,14 @@ func (p *JSONParser) ParseDocumentWithOptions(
 	fileType string,
 	_ documentdomain.ParseOptions,
 ) (*documentdomain.ParsedDocument, error) {
-	content, err := readAndNormalizeParserSource(fileReader, fileType)
+	content, err := readAndNormalizeParserSourceWithLimits(fileReader, fileType, p.limits, "parse_json_text")
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(string(content)) == "" {
 		return documentdomain.NewPlainTextParsedDocument(fileType, ""), nil
 	}
-	root, err := parseJSONDocument(content)
+	root, err := parseJSONDocument(content, p.limits)
 	if err != nil {
 		if errors.Is(err, errEmptyJSONDocument) {
 			return documentdomain.NewPlainTextParsedDocument(fileType, ""), nil
@@ -126,11 +132,12 @@ type parsedJSONValue struct {
 	Items   []*parsedJSONValue
 }
 
-func parseJSONDocument(content []byte) (*parsedJSONValue, error) {
+func parseJSONDocument(content []byte, limits documentdomain.ResourceLimits) (*parsedJSONValue, error) {
 	decoder := json.NewDecoder(strings.NewReader(string(content)))
 	decoder.UseNumber()
 
-	root, err := parseJSONValue(decoder)
+	counter := newStructuredParseCounter(limits, "parse_json_document")
+	root, err := parseJSONValue(decoder, counter)
 	if err != nil {
 		if errors.Is(err, io.EOF) {
 			return nil, errEmptyJSONDocument
@@ -146,7 +153,10 @@ func parseJSONDocument(content []byte) (*parsedJSONValue, error) {
 	return nil, errUnexpectedJSONTrailing
 }
 
-func parseJSONValue(decoder *json.Decoder) (*parsedJSONValue, error) {
+func parseJSONValue(decoder *json.Decoder, counter *structuredParseCounter) (*parsedJSONValue, error) {
+	if err := counter.observe(); err != nil {
+		return nil, err
+	}
 	token, err := decoder.Token()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errReadJSONToken, err)
@@ -154,7 +164,7 @@ func parseJSONValue(decoder *json.Decoder) (*parsedJSONValue, error) {
 
 	switch typed := token.(type) {
 	case json.Delim:
-		return parseJSONDelimitedValue(decoder, typed)
+		return parseJSONDelimitedValue(decoder, typed, counter)
 	case string:
 		return &parsedJSONValue{Kind: parsedJSONValueScalar, Scalar: typed}, nil
 	case json.Number:
@@ -171,25 +181,25 @@ func parseJSONValue(decoder *json.Decoder) (*parsedJSONValue, error) {
 	}
 }
 
-func parseJSONDelimitedValue(decoder *json.Decoder, delimiter json.Delim) (*parsedJSONValue, error) {
+func parseJSONDelimitedValue(decoder *json.Decoder, delimiter json.Delim, counter *structuredParseCounter) (*parsedJSONValue, error) {
 	switch delimiter {
 	case '{':
-		return parseJSONObject(decoder)
+		return parseJSONObject(decoder, counter)
 	case '[':
-		return parseJSONArray(decoder)
+		return parseJSONArray(decoder, counter)
 	default:
 		return nil, fmt.Errorf("%w: %q", errUnexpectedJSONDelimiter, delimiter)
 	}
 }
 
-func parseJSONObject(decoder *json.Decoder) (*parsedJSONValue, error) {
+func parseJSONObject(decoder *json.Decoder, counter *structuredParseCounter) (*parsedJSONValue, error) {
 	members := make([]parsedJSONMember, 0, defaultStructuredParserCapacity)
 	for decoder.More() {
 		key, err := readJSONObjectKey(decoder)
 		if err != nil {
 			return nil, err
 		}
-		value, err := parseJSONValue(decoder)
+		value, err := parseJSONValue(decoder, counter)
 		if err != nil {
 			return nil, err
 		}
@@ -201,10 +211,10 @@ func parseJSONObject(decoder *json.Decoder) (*parsedJSONValue, error) {
 	return &parsedJSONValue{Kind: parsedJSONValueObject, Members: members}, nil
 }
 
-func parseJSONArray(decoder *json.Decoder) (*parsedJSONValue, error) {
+func parseJSONArray(decoder *json.Decoder, counter *structuredParseCounter) (*parsedJSONValue, error) {
 	items := make([]*parsedJSONValue, 0, defaultStructuredParserCapacity)
 	for decoder.More() {
-		value, err := parseJSONValue(decoder)
+		value, err := parseJSONValue(decoder, counter)
 		if err != nil {
 			return nil, err
 		}

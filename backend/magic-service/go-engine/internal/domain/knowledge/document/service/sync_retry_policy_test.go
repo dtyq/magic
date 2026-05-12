@@ -60,67 +60,26 @@ func TestIsNonRetryableDocumentSyncErrorPermanentResourceLimits(t *testing.T) {
 	t.Parallel()
 
 	runNonRetryableErrorCases(t, []nonRetryableErrorCase{
-		{
-			name: "source too large",
-			err: newTestResourceLimitError(
-				documentdomain.ResourceLimitMaxSourceBytes,
-				500,
-				501,
-				"read_source",
-			),
-			want: true,
-		},
-		{
-			name: "too many table rows",
-			err: newTestResourceLimitError(
-				documentdomain.ResourceLimitMaxTabularRows,
-				200_000,
-				200_001,
-				"parsed_document",
-			),
-			want: true,
-		},
-		{
-			name: "too many table cells",
-			err: newTestResourceLimitError(
-				documentdomain.ResourceLimitMaxTabularCells,
-				2_000_000,
-				2_000_001,
-				"parsed_document",
-			),
-			want: true,
-		},
-		{
-			name: "plain text too large",
-			err: newTestResourceLimitError(
-				documentdomain.ResourceLimitMaxPlainTextChars,
-				20_000_000,
-				20_000_001,
-				"parsed_document",
-			),
-			want: true,
-		},
-		{
-			name: "too many parsed blocks",
-			err: newTestResourceLimitError(
-				documentdomain.ResourceLimitMaxParsedBlocks,
-				250_000,
-				250_001,
-				"parsed_document",
-			),
-			want: true,
-		},
-		{
-			name: "too many fragments",
-			err: newTestResourceLimitError(
-				documentdomain.ResourceLimitMaxFragmentsPerDocument,
-				2_000,
-				2_001,
-				"build_fragments",
-			),
-			want: true,
-		},
+		nonRetryableResourceLimitCase("source too large", documentdomain.ResourceLimitMaxSourceBytes, 500, 501, "read_source"),
+		nonRetryableResourceLimitCase("too many table rows", documentdomain.ResourceLimitMaxTabularRows, 200_000, 200_001, "parsed_document"),
+		nonRetryableResourceLimitCase("too many table cells", documentdomain.ResourceLimitMaxTabularCells, 2_000_000, 2_000_001, "parsed_document"),
+		nonRetryableResourceLimitCase("plain text too large", documentdomain.ResourceLimitMaxPlainTextChars, 20_000_000, 20_000_001, "parsed_document"),
+		nonRetryableResourceLimitCase("too many parsed blocks", documentdomain.ResourceLimitMaxParsedBlocks, 250_000, 250_001, "parsed_document"),
+		nonRetryableResourceLimitCase("too many fragments", documentdomain.ResourceLimitMaxFragmentsPerDocument, 2_000, 2_001, "build_fragments"),
+		nonRetryableResourceLimitCase("too many pdf pages", documentdomain.ResourceLimitMaxPDFPages, 300, 301, "pdf_preflight"),
+		nonRetryableResourceLimitCase("archive uncompressed too large", documentdomain.ResourceLimitMaxArchiveUncompressedBytes, 256*1024*1024, 256*1024*1024+1, "archive_preflight"),
+		nonRetryableResourceLimitCase("archive entry too large", documentdomain.ResourceLimitMaxArchiveEntryBytes, 64*1024*1024, 64*1024*1024+1, "archive_entry"),
+		nonRetryableResourceLimitCase("embedded asset too large", documentdomain.ResourceLimitMaxEmbeddedAssetBytes, 30*1024*1024, 30*1024*1024+1, "embedded_asset"),
+		nonRetryableResourceLimitCase("too many presentation slides", documentdomain.ResourceLimitMaxPresentationSlides, 300, 301, "presentation_preflight"),
 	})
+}
+
+func nonRetryableResourceLimitCase(name, limitName string, limitValue, observedValue int64, stage string) nonRetryableErrorCase {
+	return nonRetryableErrorCase{
+		name: name,
+		err:  newTestResourceLimitError(limitName, limitValue, observedValue, stage),
+		want: true,
+	}
 }
 
 func runNonRetryableErrorCases(t *testing.T, testCases []nonRetryableErrorCase) {

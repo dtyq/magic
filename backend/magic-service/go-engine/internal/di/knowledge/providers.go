@@ -478,18 +478,16 @@ func newDocumentResyncRabbitMQSchedulerConfig(
 	cfg *autoloadcfg.Config,
 	defaults documentsync.RabbitMQSchedulerConfig,
 ) documentsync.RabbitMQSchedulerConfig {
-	consumerConcurrency := intOrDefault(
-		cfg.RabbitMQ.DocumentResync.ConsumerConcurrency,
-		defaults.ConsumerConcurrency,
-	)
-	consumerConcurrency = min(consumerConcurrency, defaults.ConsumerConcurrency)
 	return documentsync.RabbitMQSchedulerConfig{
 		QueueName: strings.TrimSpace(cfg.RabbitMQ.Queues.DocumentResync),
 		ConsumerPrefetch: intOrDefault(
 			cfg.RabbitMQ.DocumentResync.ConsumerPrefetch,
 			defaults.ConsumerPrefetch,
 		),
-		ConsumerConcurrency: consumerConcurrency,
+		ConsumerConcurrency: intOrDefault(
+			cfg.RabbitMQ.DocumentResync.ConsumerConcurrency,
+			defaults.ConsumerConcurrency,
+		),
 		MQPublishTimeout: millisDurationOrDefault(
 			cfg.RabbitMQ.DocumentResync.MQPublishTimeoutMillis,
 			defaults.MQPublishTimeout,
@@ -507,14 +505,19 @@ func documentSyncResourceLimitsFromConfig(cfg *autoloadcfg.Config) documentdomai
 	}
 	limits := cfg.DocumentResourceLimits
 	return documentdomain.NormalizeResourceLimits(documentdomain.ResourceLimits{
-		MaxSourceBytes:           limits.MaxSourceBytes,
-		MaxTabularRows:           limits.MaxTabularRows,
-		MaxTabularCells:          limits.MaxTabularCells,
-		MaxPlainTextChars:        limits.MaxPlainTextChars,
-		MaxParsedBlocks:          limits.MaxParsedBlocks,
-		MaxFragmentsPerDocument:  limits.MaxFragmentsPerDocument,
-		SyncFragmentBatchSize:    limits.SyncFragmentBatchSize,
-		SyncMemorySoftLimitBytes: limits.SyncMemorySoftLimitBytes,
+		MaxSourceBytes:              limits.MaxSourceBytes,
+		MaxTabularRows:              limits.MaxTabularRows,
+		MaxTabularCells:             limits.MaxTabularCells,
+		MaxPlainTextChars:           limits.MaxPlainTextChars,
+		MaxParsedBlocks:             limits.MaxParsedBlocks,
+		MaxFragmentsPerDocument:     limits.MaxFragmentsPerDocument,
+		MaxPDFPages:                 limits.MaxPDFPages,
+		MaxArchiveUncompressedBytes: limits.MaxArchiveUncompressedBytes,
+		MaxArchiveEntryBytes:        limits.MaxArchiveEntryBytes,
+		MaxEmbeddedAssetBytes:       limits.MaxEmbeddedAssetBytes,
+		MaxPresentationSlides:       limits.MaxPresentationSlides,
+		SyncFragmentBatchSize:       limits.SyncFragmentBatchSize,
+		SyncMemorySoftLimitBytes:    limits.SyncMemorySoftLimitBytes,
 	})
 }
 

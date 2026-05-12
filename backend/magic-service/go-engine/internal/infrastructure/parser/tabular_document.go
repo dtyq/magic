@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -102,13 +103,9 @@ func parseCSVDocument(
 	reader.FieldsPerRecord = -1
 	reader.TrimLeadingSpace = true
 
-	records, err := reader.ReadAll()
+	records, err := readCSVRecordsWithLimits(reader, limits)
 	if err != nil {
 		return nil, fmt.Errorf("read csv records failed: %w", err)
-	}
-	rows, cells := countRawTabularRowsCells(records)
-	if err := document.CheckTabularSize(rows, cells, limits, "parse_csv_records"); err != nil {
-		return nil, fmt.Errorf("check csv table size: %w", err)
 	}
 	matrix := make([][]tabularCell, 0, len(records))
 	for rowIndex, record := range records {
@@ -131,14 +128,26 @@ func parseCSVDocument(
 	return buildTabularParsedDocument(fileType, tables), nil
 }
 
-func countRawTabularRowsCells(rows [][]string) (int64, int64) {
-	var rowCount int64
-	var cellCount int64
-	for _, row := range rows {
-		rowCount++
-		cellCount += int64(len(row))
+func readCSVRecordsWithLimits(reader *csv.Reader, limits document.ResourceLimits) ([][]string, error) {
+	records := make([][]string, 0)
+	var rows int64
+	var cells int64
+	for {
+		record, err := reader.Read()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("read csv record: %w", err)
+		}
+		rows++
+		cells += int64(len(record))
+		if err := document.CheckTabularSize(rows, cells, limits, "parse_csv_records"); err != nil {
+			return nil, fmt.Errorf("check csv table size: %w", err)
+		}
+		records = append(records, record)
 	}
-	return rowCount, cellCount
+	return records, nil
 }
 
 func buildTablesFromMatrix(fileName, sourceFormat, sheetName string, sheetHidden bool, matrix [][]tabularCell) []tabularTable {

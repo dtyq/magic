@@ -16,7 +16,6 @@ import (
 const (
 	rabbitTestKnowledgeBaseCode = "KB-1"
 	rabbitTestDocumentCode      = "DOC-1"
-	rabbitTestMaxRequeue        = 20
 )
 
 var (
@@ -600,12 +599,17 @@ func TestRabbitMQSchedulerHandleDeliveryRunnerFailureRequeuesUntilLimit(t *testi
 		runner,
 		broker,
 		terminal,
-		rabbitSchedulerTestOptions{attemptStore: attemptStore},
+		rabbitSchedulerTestOptions{
+			attemptStore: attemptStore,
+			mutateConfig: func(cfg *documentsync.RabbitMQSchedulerConfig) {
+				cfg.MaxRequeueAttempts = 2
+			},
+		},
 	)
 	task := newRabbitMQDocumentSyncTask(t)
 	task.Key = "TASK-EXHAUST"
 
-	for attempt := 1; attempt <= rabbitTestMaxRequeue; attempt++ {
+	for attempt := 1; attempt <= 2; attempt++ {
 		delivery := newRabbitTaskDelivery(t, task)
 		scheduler.HandleDeliveryForTest(context.Background(), delivery)
 
@@ -639,6 +643,47 @@ func TestRabbitMQSchedulerHandleDeliveryRunnerFailureRequeuesUntilLimit(t *testi
 	}
 	if got := attemptStore.Count(task.Key); got != 0 {
 		t.Fatalf("expected delivery attempt counter to reset after retry exhausted, got %d", got)
+	}
+}
+
+func TestRabbitMQSchedulerHandleDeliveryAcksAfterDeliveryAttemptLimit(t *testing.T) {
+	t.Parallel()
+
+	runner := &rabbitRecordingRunner{err: errRabbitRunnerFailed}
+	terminal := &rabbitTerminalHandler{}
+	attemptStore := newRabbitMemoryRetryStore()
+	scheduler := newRabbitMQSchedulerForTestWithOptions(
+		t,
+		runner,
+		&rabbitFakeBroker{enabled: true},
+		terminal,
+		rabbitSchedulerTestOptions{attemptStore: attemptStore},
+	)
+	task := newRabbitMQDocumentSyncTask(t)
+	task.Key = "TASK-DELIVERY-LIMIT"
+
+	for attempt := 1; attempt <= 10; attempt++ {
+		delivery := newRabbitTaskDelivery(t, task)
+		scheduler.HandleDeliveryForTest(context.Background(), delivery)
+		if delivery.acked || !delivery.nacked || !delivery.nackRequeue {
+			t.Fatalf("attempt %d: expected task to requeue before delivery limit, got ack=%v nack=%v requeue=%v", attempt, delivery.acked, delivery.nacked, delivery.nackRequeue)
+		}
+	}
+
+	delivery := newRabbitTaskDelivery(t, task)
+	scheduler.HandleDeliveryForTest(context.Background(), delivery)
+	if !delivery.acked || delivery.nacked {
+		t.Fatalf("expected delivery beyond limit to ack without nack, got ack=%v nack=%v", delivery.acked, delivery.nacked)
+	}
+	if got := len(runner.Executed()); got != 10 {
+		t.Fatalf("expected runner to execute only first 10 deliveries, got %d", got)
+	}
+	tasks, causes := terminal.Calls()
+	if len(tasks) != 0 || len(causes) != 0 {
+		t.Fatalf("expected no terminal call for delivery limit drop, got tasks=%d causes=%d", len(tasks), len(causes))
+	}
+	if got := attemptStore.Count(task.Key); got != 0 {
+		t.Fatalf("expected delivery attempt counter reset after delivery limit, got %d", got)
 	}
 }
 

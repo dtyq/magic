@@ -28,6 +28,7 @@ import (
 type DocxParser struct {
 	ocrClient     documentdomain.OCRClient
 	maxOCRPerFile int
+	limits        documentdomain.ResourceLimits
 }
 
 type docxEmbeddedImageAsset struct {
@@ -59,10 +60,19 @@ func NewDocxParser(ocrClient documentdomain.OCRClient) *DocxParser {
 }
 
 // NewDocxParserWithLimit 创建带单文件 OCR 限额的 Word 解析器。
-func NewDocxParserWithLimit(ocrClient documentdomain.OCRClient, maxOCRPerFile int) *DocxParser {
+func NewDocxParserWithLimit(
+	ocrClient documentdomain.OCRClient,
+	maxOCRPerFile int,
+	resourceLimits ...documentdomain.ResourceLimits,
+) *DocxParser {
+	limits := documentdomain.DefaultResourceLimits()
+	if len(resourceLimits) > 0 {
+		limits = resourceLimits[0]
+	}
 	return &DocxParser{
 		ocrClient:     ocrClient,
 		maxOCRPerFile: documentdomain.NormalizeEmbeddedImageOCRLimit(maxOCRPerFile),
+		limits:        documentdomain.NormalizeResourceLimits(limits),
 	}
 }
 
@@ -123,19 +133,22 @@ func (p *DocxParser) ParseDocumentWithOptions(
 	defer func(path string) { _ = os.Remove(path) }(tmpPath)
 	defer func() { _ = tmpFile.Close() }()
 
-	if _, err := io.Copy(tmpFile, file); err != nil {
+	if _, err := io.Copy(tmpFile, documentdomain.NewSourceSizeLimitedReader(file, p.limits)); err != nil {
 		return nil, fmt.Errorf("write temp file failed: %w", err)
 	}
 
 	_ = tmpFile.Close()
 
+	if err := checkDocxArchiveLimits(tmpPath, p.limits); err != nil {
+		return nil, err
+	}
 	doc, err := document.Open(tmpPath)
 	if err != nil {
 		return nil, fmt.Errorf("read docx failed: %w", err)
 	}
 	defer cleanupDocxTempDir(doc)
 
-	imageAssetByRelID, err := buildDocxImageAssetByRelID(tmpPath)
+	imageAssetByRelID, err := buildDocxImageAssetByRelID(tmpPath, p.limits)
 	if err != nil {
 		return nil, fmt.Errorf("load docx image assets failed: %w", err)
 	}
@@ -363,8 +376,8 @@ func (p *DocxParser) extractDocxGraphicOCRText(
 	return ocrHelper.recognizeBytes(ctx, imageAsset.data, imageAsset.format)
 }
 
-func buildDocxImageAssetByRelID(docxPath string) (map[string]docxEmbeddedImageAsset, error) {
-	raw, err := readDocxZipEntry(docxPath, "word/_rels/document.xml.rels")
+func buildDocxImageAssetByRelID(docxPath string, limits documentdomain.ResourceLimits) (map[string]docxEmbeddedImageAsset, error) {
+	raw, err := readDocxZipEntry(docxPath, "word/_rels/document.xml.rels", limits, parserSizeLimitArchiveEntry)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +398,7 @@ func buildDocxImageAssetByRelID(docxPath string) (map[string]docxEmbeddedImageAs
 			continue
 		}
 		entryPath := pathpkg.Clean(pathpkg.Join("word", target))
-		data, readErr := readDocxZipEntry(docxPath, entryPath)
+		data, readErr := readDocxZipEntry(docxPath, entryPath, limits, parserSizeLimitEmbeddedAsset)
 		if readErr != nil {
 			return nil, fmt.Errorf("read docx image %s: %w", entryPath, readErr)
 		}
@@ -397,30 +410,38 @@ func buildDocxImageAssetByRelID(docxPath string) (map[string]docxEmbeddedImageAs
 	return imageAssetByRelID, nil
 }
 
-func readDocxZipEntry(docxPath, entryPath string) ([]byte, error) {
+func checkDocxArchiveLimits(docxPath string, limits documentdomain.ResourceLimits) error {
+	reader, err := zip.OpenReader(filepath.Clean(docxPath))
+	if err != nil {
+		return fmt.Errorf("open docx zip: %w", err)
+	}
+	defer func() { _ = reader.Close() }()
+	if err := checkOfficeZipArchiveLimits(reader.File, limits); err != nil {
+		return fmt.Errorf("check docx archive limits: %w", err)
+	}
+	return nil
+}
+
+func readDocxZipEntry(
+	docxPath string,
+	entryPath string,
+	limits documentdomain.ResourceLimits,
+	limitKind parserSizeLimitKind,
+) ([]byte, error) {
 	reader, err := zip.OpenReader(filepath.Clean(docxPath))
 	if err != nil {
 		return nil, fmt.Errorf("open docx zip: %w", err)
 	}
 	defer func() { _ = reader.Close() }()
 
-	cleanEntryPath := pathpkg.Clean(strings.TrimSpace(entryPath))
-	for _, file := range reader.File {
-		if pathpkg.Clean(file.Name) != cleanEntryPath {
-			continue
+	data, err := readZipEntryWithSizeLimit(reader.File, entryPath, limits, limitKind)
+	if err != nil {
+		if errors.Is(err, errZipEntryNotFound) {
+			return nil, fmt.Errorf("%w: %s", errDocxZipEntryNotFound, pathpkg.Clean(strings.TrimSpace(entryPath)))
 		}
-		handle, openErr := file.Open()
-		if openErr != nil {
-			return nil, fmt.Errorf("open zip entry: %w", openErr)
-		}
-		defer func() { _ = handle.Close() }()
-		data, readErr := io.ReadAll(handle)
-		if readErr != nil {
-			return nil, fmt.Errorf("read zip entry: %w", readErr)
-		}
-		return data, nil
+		return nil, err
 	}
-	return nil, fmt.Errorf("%w: %s", errDocxZipEntryNotFound, cleanEntryPath)
+	return data, nil
 }
 
 func extractDocxImageRelID(graphic *dml.Graphic) (string, bool) {

@@ -11,14 +11,19 @@ import (
 )
 
 const (
-	defaultMaxSourceBytes           int64 = 500 * 1024 * 1024
-	defaultMaxTabularRows           int64 = 200_000
-	defaultMaxTabularCells          int64 = 2_000_000
-	defaultMaxPlainTextChars        int64 = 20_000_000
-	defaultMaxParsedBlocks          int64 = 250_000
-	defaultMaxFragmentsPerDocument  int64 = 2_000
-	defaultSyncFragmentBatchSize          = 64
-	defaultSyncMemorySoftLimitBytes int64 = 0
+	defaultMaxSourceBytes              int64 = 60 * 1024 * 1024
+	defaultMaxTabularRows              int64 = 200_000
+	defaultMaxTabularCells             int64 = 2_000_000
+	defaultMaxPlainTextChars           int64 = 20_000_000
+	defaultMaxParsedBlocks             int64 = 250_000
+	defaultMaxFragmentsPerDocument     int64 = 2_000
+	defaultMaxPDFPages                 int64 = 300
+	defaultMaxArchiveUncompressedBytes int64 = 256 * 1024 * 1024
+	defaultMaxArchiveEntryBytes        int64 = 64 * 1024 * 1024
+	defaultMaxEmbeddedAssetBytes       int64 = 30 * 1024 * 1024
+	defaultMaxPresentationSlides       int64 = 300
+	defaultSyncFragmentBatchSize             = 64
+	defaultSyncMemorySoftLimitBytes    int64 = 0
 )
 
 const (
@@ -34,15 +39,30 @@ const (
 	ResourceLimitMaxParsedBlocks = "max_parsed_blocks"
 	// ResourceLimitMaxFragmentsPerDocument 表示单文档片段数量限制。
 	ResourceLimitMaxFragmentsPerDocument = "max_fragments_per_document"
+	// ResourceLimitMaxPDFPages 表示 PDF 页数限制。
+	ResourceLimitMaxPDFPages = "max_pdf_pages"
+	// ResourceLimitMaxArchiveUncompressedBytes 表示压缩包总解压大小限制。
+	ResourceLimitMaxArchiveUncompressedBytes = "max_archive_uncompressed_bytes"
+	// ResourceLimitMaxArchiveEntryBytes 表示压缩包单 entry 解压大小限制。
+	ResourceLimitMaxArchiveEntryBytes = "max_archive_entry_bytes"
+	// ResourceLimitMaxEmbeddedAssetBytes 表示单个内嵌或外链资源大小限制。
+	ResourceLimitMaxEmbeddedAssetBytes = "max_embedded_asset_bytes"
+	// ResourceLimitMaxPresentationSlides 表示 PPTX 幻灯片页数限制。
+	ResourceLimitMaxPresentationSlides = "max_presentation_slides"
 	// ResourceLimitSyncMemorySoftLimitBytes 表示同步内存软水位限制。
 	ResourceLimitSyncMemorySoftLimitBytes = "sync_memory_soft_limit_bytes"
 )
 
 const (
-	resourceLimitStageReadSource      = "read_source"
-	resourceLimitStageParsedDocument  = "parsed_document"
-	resourceLimitStageBuildFragments  = "build_fragments"
-	resourceLimitTableTooLargeMessage = "document table is too large: rows or cells exceed limit"
+	resourceLimitStageReadSource            = "read_source"
+	resourceLimitStageParsedDocument        = "parsed_document"
+	resourceLimitStageBuildFragments        = "build_fragments"
+	resourceLimitStagePDFPreflight          = "pdf_preflight"
+	resourceLimitStageArchivePreflight      = "archive_preflight"
+	resourceLimitStageArchiveEntry          = "archive_entry"
+	resourceLimitStageEmbeddedAsset         = "embedded_asset"
+	resourceLimitStagePresentationPreflight = "presentation_preflight"
+	resourceLimitTableTooLargeMessage       = "document table is too large: rows or cells exceed limit"
 )
 
 // ErrDocumentResourceLimitExceeded 表示文档同步命中资源限制。
@@ -50,14 +70,19 @@ var ErrDocumentResourceLimitExceeded = errors.New("document resource limit excee
 
 // ResourceLimits 描述文档同步的资源限制。
 type ResourceLimits struct {
-	MaxSourceBytes           int64
-	MaxTabularRows           int64
-	MaxTabularCells          int64
-	MaxPlainTextChars        int64
-	MaxParsedBlocks          int64
-	MaxFragmentsPerDocument  int64
-	SyncFragmentBatchSize    int
-	SyncMemorySoftLimitBytes int64
+	MaxSourceBytes              int64
+	MaxTabularRows              int64
+	MaxTabularCells             int64
+	MaxPlainTextChars           int64
+	MaxParsedBlocks             int64
+	MaxFragmentsPerDocument     int64
+	MaxPDFPages                 int64
+	MaxArchiveUncompressedBytes int64
+	MaxArchiveEntryBytes        int64
+	MaxEmbeddedAssetBytes       int64
+	MaxPresentationSlides       int64
+	SyncFragmentBatchSize       int
+	SyncMemorySoftLimitBytes    int64
 }
 
 // ResourceLimitError 携带资源限制失败的结构化上下文。
@@ -93,14 +118,19 @@ func (e *ResourceLimitError) Unwrap() error {
 // DefaultResourceLimits 返回默认文档同步资源限制。
 func DefaultResourceLimits() ResourceLimits {
 	return ResourceLimits{
-		MaxSourceBytes:           defaultMaxSourceBytes,
-		MaxTabularRows:           defaultMaxTabularRows,
-		MaxTabularCells:          defaultMaxTabularCells,
-		MaxPlainTextChars:        defaultMaxPlainTextChars,
-		MaxParsedBlocks:          defaultMaxParsedBlocks,
-		MaxFragmentsPerDocument:  defaultMaxFragmentsPerDocument,
-		SyncFragmentBatchSize:    defaultSyncFragmentBatchSize,
-		SyncMemorySoftLimitBytes: defaultSyncMemorySoftLimitBytes,
+		MaxSourceBytes:              defaultMaxSourceBytes,
+		MaxTabularRows:              defaultMaxTabularRows,
+		MaxTabularCells:             defaultMaxTabularCells,
+		MaxPlainTextChars:           defaultMaxPlainTextChars,
+		MaxParsedBlocks:             defaultMaxParsedBlocks,
+		MaxFragmentsPerDocument:     defaultMaxFragmentsPerDocument,
+		MaxPDFPages:                 defaultMaxPDFPages,
+		MaxArchiveUncompressedBytes: defaultMaxArchiveUncompressedBytes,
+		MaxArchiveEntryBytes:        defaultMaxArchiveEntryBytes,
+		MaxEmbeddedAssetBytes:       defaultMaxEmbeddedAssetBytes,
+		MaxPresentationSlides:       defaultMaxPresentationSlides,
+		SyncFragmentBatchSize:       defaultSyncFragmentBatchSize,
+		SyncMemorySoftLimitBytes:    defaultSyncMemorySoftLimitBytes,
 	}
 }
 
@@ -124,6 +154,21 @@ func NormalizeResourceLimits(limits ResourceLimits) ResourceLimits {
 	}
 	if limits.MaxFragmentsPerDocument <= 0 {
 		limits.MaxFragmentsPerDocument = defaults.MaxFragmentsPerDocument
+	}
+	if limits.MaxPDFPages <= 0 {
+		limits.MaxPDFPages = defaults.MaxPDFPages
+	}
+	if limits.MaxArchiveUncompressedBytes <= 0 {
+		limits.MaxArchiveUncompressedBytes = defaults.MaxArchiveUncompressedBytes
+	}
+	if limits.MaxArchiveEntryBytes <= 0 {
+		limits.MaxArchiveEntryBytes = defaults.MaxArchiveEntryBytes
+	}
+	if limits.MaxEmbeddedAssetBytes <= 0 {
+		limits.MaxEmbeddedAssetBytes = defaults.MaxEmbeddedAssetBytes
+	}
+	if limits.MaxPresentationSlides <= 0 {
+		limits.MaxPresentationSlides = defaults.MaxPresentationSlides
 	}
 	if limits.SyncFragmentBatchSize <= 0 {
 		limits.SyncFragmentBatchSize = defaults.SyncFragmentBatchSize
@@ -184,26 +229,49 @@ func CheckParsedResourceLimits(parsed *parseddocument.ParsedDocument, limits Res
 		return nil
 	}
 	limits = NormalizeResourceLimits(limits)
-	if chars := int64(utf8.RuneCountInString(parsed.PlainText)); chars > limits.MaxPlainTextChars {
-		return NewResourceLimitError(
-			ResourceLimitMaxPlainTextChars,
-			limits.MaxPlainTextChars,
-			chars,
-			resourceLimitStageParsedDocument,
-			"",
-		)
+	if err := CheckPlainTextChars(int64(utf8.RuneCountInString(parsed.PlainText)), limits, resourceLimitStageParsedDocument); err != nil {
+		return err
 	}
-	if blocks := int64(len(parsed.Blocks)); blocks > limits.MaxParsedBlocks {
-		return NewResourceLimitError(
-			ResourceLimitMaxParsedBlocks,
-			limits.MaxParsedBlocks,
-			blocks,
-			resourceLimitStageParsedDocument,
-			"",
-		)
+	if err := CheckParsedBlockCount(int64(len(parsed.Blocks)), limits, resourceLimitStageParsedDocument); err != nil {
+		return err
 	}
 	rows, cells := countParsedTabularRowsCells(parsed)
 	return CheckTabularSize(rows, cells, limits, resourceLimitStageParsedDocument)
+}
+
+// CheckPlainTextBytes 校验解析前或解析后文本大小。
+func CheckPlainTextBytes(content []byte, limits ResourceLimits, stage string) error {
+	return CheckPlainTextChars(int64(utf8.RuneCount(content)), limits, stage)
+}
+
+// CheckPlainTextChars 校验文本字符数。
+func CheckPlainTextChars(chars int64, limits ResourceLimits, stage string) error {
+	limits = NormalizeResourceLimits(limits)
+	if chars <= limits.MaxPlainTextChars {
+		return nil
+	}
+	return NewResourceLimitError(
+		ResourceLimitMaxPlainTextChars,
+		limits.MaxPlainTextChars,
+		chars,
+		stage,
+		"",
+	)
+}
+
+// CheckParsedBlockCount 校验解析结构节点或块数量。
+func CheckParsedBlockCount(blocks int64, limits ResourceLimits, stage string) error {
+	limits = NormalizeResourceLimits(limits)
+	if blocks <= limits.MaxParsedBlocks {
+		return nil
+	}
+	return NewResourceLimitError(
+		ResourceLimitMaxParsedBlocks,
+		limits.MaxParsedBlocks,
+		blocks,
+		stage,
+		"",
+	)
 }
 
 // CheckFragmentCount 校验单文档片段数。
@@ -219,6 +287,83 @@ func CheckFragmentCount(fragmentCount int, limits ResourceLimits) error {
 		observed,
 		resourceLimitStageBuildFragments,
 		"",
+	)
+}
+
+// CheckPDFPageCount 校验 PDF 页数。
+func CheckPDFPageCount(pageCount int, limits ResourceLimits) error {
+	limits = NormalizeResourceLimits(limits)
+	observed := int64(pageCount)
+	if observed <= 0 || observed <= limits.MaxPDFPages {
+		return nil
+	}
+	return NewResourceLimitError(
+		ResourceLimitMaxPDFPages,
+		limits.MaxPDFPages,
+		observed,
+		resourceLimitStagePDFPreflight,
+		"pdf page count too large",
+	)
+}
+
+// CheckArchiveUncompressedSize 校验压缩包总解压大小。
+func CheckArchiveUncompressedSize(size int64, limits ResourceLimits) error {
+	limits = NormalizeResourceLimits(limits)
+	if size <= limits.MaxArchiveUncompressedBytes {
+		return nil
+	}
+	return NewResourceLimitError(
+		ResourceLimitMaxArchiveUncompressedBytes,
+		limits.MaxArchiveUncompressedBytes,
+		size,
+		resourceLimitStageArchivePreflight,
+		"document archive uncompressed size too large",
+	)
+}
+
+// CheckArchiveEntrySize 校验压缩包单 entry 解压大小。
+func CheckArchiveEntrySize(size int64, limits ResourceLimits) error {
+	limits = NormalizeResourceLimits(limits)
+	if size <= limits.MaxArchiveEntryBytes {
+		return nil
+	}
+	return NewResourceLimitError(
+		ResourceLimitMaxArchiveEntryBytes,
+		limits.MaxArchiveEntryBytes,
+		size,
+		resourceLimitStageArchiveEntry,
+		"document archive entry too large",
+	)
+}
+
+// CheckEmbeddedAssetSize 校验单个内嵌或外链资源大小。
+func CheckEmbeddedAssetSize(size int64, limits ResourceLimits) error {
+	limits = NormalizeResourceLimits(limits)
+	if size <= limits.MaxEmbeddedAssetBytes {
+		return nil
+	}
+	return NewResourceLimitError(
+		ResourceLimitMaxEmbeddedAssetBytes,
+		limits.MaxEmbeddedAssetBytes,
+		size,
+		resourceLimitStageEmbeddedAsset,
+		"document embedded asset too large",
+	)
+}
+
+// CheckPresentationSlideCount 校验 PPTX 幻灯片页数。
+func CheckPresentationSlideCount(slideCount int, limits ResourceLimits) error {
+	limits = NormalizeResourceLimits(limits)
+	observed := int64(slideCount)
+	if observed <= limits.MaxPresentationSlides {
+		return nil
+	}
+	return NewResourceLimitError(
+		ResourceLimitMaxPresentationSlides,
+		limits.MaxPresentationSlides,
+		observed,
+		resourceLimitStagePresentationPreflight,
+		"presentation slide count too large",
 	)
 }
 
