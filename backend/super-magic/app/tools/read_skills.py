@@ -11,6 +11,7 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.core.skill_manager import get_global_skill_manager, find_skill
 
@@ -127,6 +128,8 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
                         "skill_name": skill_name,
                         "success": True,
                         "content": skill_content,
+                        "location": str(location) if location else None,
+                        "skill_dir": str(skill_dir) if skill_dir else None,
                         "skill_dir_path": actual_skill_dir,
                     })
                     success_count += 1
@@ -202,7 +205,12 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
             return ToolResult(
                 ok=True,
                 content=content,
-                extra_info={"success_count": success_count, "failure_count": failure_count},
+                extra_info={
+                    "success_count": success_count,
+                    "failure_count": failure_count,
+                    "skill_names": params.skill_names,
+                    "md_content": _format_result_md(results, len(params.skill_names), success_count, failure_count),
+                },
             )
 
         except Exception as e:
@@ -252,6 +260,26 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
             )
 
         return i18n.translate("read_skills.success", category="tool.messages")
+
+    async def get_tool_detail(
+        self,
+        tool_context: ToolContext,
+        result: ToolResult,
+        arguments: Dict[str, Any] = None,
+    ) -> Optional[ToolDetail]:
+        extra = result.extra_info or {}
+        md_content = extra.get("md_content")
+        if not md_content:
+            return None
+        skill_names = extra.get("skill_names", [])
+        file_name = f"read_skills_{_safe_file_name('_'.join(skill_names) or 'all')}.md"
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(
+                file_name=file_name,
+                content=md_content,
+            ),
+        )
 
     async def get_after_tool_call_friendly_action_and_remark(
         self,
@@ -345,3 +373,50 @@ class ReadSkills(BaseTool[ReadSkillsParams]):
             )
         except Exception as e:
             logger.warning(f"版本更新检查失败: {e}")
+
+
+# ── Markdown 展示格式（供 get_tool_detail 渲染，与给模型的 XML 完全独立） ────────
+
+
+def _format_result_md(results: List[Dict[str, Any]], total_count: int, success_count: int, failure_count: int) -> str:
+    lines: List[str] = []
+
+    if total_count == 1 and success_count == 1:
+        lines.append("已读取 **1** 个 Skill\n")
+    else:
+        lines.append(f"共请求 **{total_count}** 个 Skill，成功 **{success_count}** 个，失败 **{failure_count}** 个\n")
+
+    failed_results = [r for r in results if not r.get("success")]
+    if failed_results:
+        lines.append("---\n\n### 读取失败\n")
+        for result in failed_results:
+            lines.append(f"- **{result.get('skill_name', '')}**：{result.get('error', '')}")
+        lines.append("")
+
+    success_results = [r for r in results if r.get("success")]
+    for index, result in enumerate(success_results):
+        if index > 0 or failed_results:
+            lines.append("---\n")
+
+        skill_name = result.get("skill_name", "")
+        lines.append(f"## {skill_name}\n")
+
+        location = result.get("location")
+        skill_dir = result.get("skill_dir")
+        meta_lines = []
+        if location:
+            meta_lines.append(f"- 位置：`{location}`")
+        if skill_dir and skill_dir != location:
+            meta_lines.append(f"- 目录：`{skill_dir}`")
+        if meta_lines:
+            lines.extend(meta_lines)
+            lines.append("")
+
+        lines.append("已成功读取。")
+        lines.append("")
+
+    return "\n".join(lines).strip()
+
+
+def _safe_file_name(name: str) -> str:
+    return "".join(c if c.isalnum() or c in "._-" else "_" for c in name)
