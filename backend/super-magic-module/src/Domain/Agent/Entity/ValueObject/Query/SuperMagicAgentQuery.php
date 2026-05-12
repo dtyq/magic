@@ -53,9 +53,10 @@ class SuperMagicAgentQuery extends AbstractQuery
         return $this->codes;
     }
 
-    public function setCodes(?array $codes): void
+    public function setCodes(?array $codes): self
     {
         $this->codes = $codes;
+        return $this;
     }
 
     public function getCreatorId(): ?string

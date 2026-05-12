@@ -64,6 +64,51 @@ readonly class OperationPermissionDomainService
     }
 
     /**
+     * 增量写入单个资源权限。
+     *
+     * 适用于协作者新增或角色变更场景，不会影响当前资源上的其他协作者记录。
+     */
+    public function upsertResourceOperation(
+        PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceId,
+        OperationPermissionEntity $operationPermission
+    ): OperationPermissionEntity {
+        // 增量写入单个协作者权限，避免 resourceAccess() 的“全量覆盖”语义误删其他协作者。
+        if ($operationPermission->getOperation()->isOwner()) {
+            return $this->accessOwner($dataIsolation, $resourceType, $resourceId, $operationPermission->getTargetId());
+        }
+
+        $operationPermission->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
+        $operationPermission->setResourceType($resourceType);
+        $operationPermission->setResourceId($resourceId);
+        $operationPermission->setCreator($dataIsolation->getCurrentUserId());
+        $operationPermission->setModifier($dataIsolation->getCurrentUserId());
+        $operationPermission->prepareForSave();
+
+        return $this->operationPermissionRepository->save($dataIsolation, $operationPermission);
+    }
+
+    /**
+     * 批量增量写入资源权限。
+     *
+     * 用于协作者批量新增或批量改权场景，逐条复用单条 upsert 语义。
+     *
+     * @param array<OperationPermissionEntity> $operationPermissions
+     */
+    public function batchUpsertResourceOperations(
+        PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceId,
+        array $operationPermissions
+    ): void {
+        // 当前阶段优先保证语义正确，批量场景逐条 upsert，便于复用现有 save 逻辑。
+        foreach ($operationPermissions as $operationPermission) {
+            $this->upsertResourceOperation($dataIsolation, $resourceType, $resourceId, $operationPermission);
+        }
+    }
+
+    /**
      * Delete all operation permissions for a resource.
      */
     public function deleteByResource(PermissionDataIsolation $dataIsolation, ResourceType $resourceType, string $resourceId): void
@@ -74,6 +119,49 @@ readonly class OperationPermissionDomainService
         }
 
         $this->operationPermissionRepository->beachDelete($dataIsolation, array_values($operationPermissions));
+    }
+
+    /**
+     * 按目标列表删除资源上的协作者权限。
+     *
+     * 只删除命中的非所有者权限记录，不影响当前资源上的其他协作者。
+     *
+     * @param array<int, array{target_type: string, target_id: string}> $targets
+     */
+    public function deleteResourceOperationsByTargets(
+        PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceId,
+        array $targets
+    ): void {
+        // 精准按 target_type + target_id 删除，且显式保护所有者权限不被协作接口误删。
+        $historyPermissions = $this->operationPermissionRepository->listByResource($dataIsolation, $resourceType, $resourceId);
+        if ($historyPermissions === [] || $targets === []) {
+            return;
+        }
+
+        $deletes = [];
+        foreach ($targets as $target) {
+            $targetType = match ($target['target_type']) {
+                'User' => TargetType::UserId,
+                'Department' => TargetType::DepartmentId,
+                'Group' => TargetType::GroupId,
+                default => null,
+            };
+            if ($targetType === null) {
+                continue;
+            }
+
+            $key = $targetType->value . '_' . $target['target_id'];
+            $historyPermission = $historyPermissions[$key] ?? null;
+            if ($historyPermission === null || $historyPermission->getOperation()->isOwner()) {
+                continue;
+            }
+
+            $deletes[] = $historyPermission;
+        }
+
+        $this->operationPermissionRepository->beachDelete($dataIsolation, $deletes);
     }
 
     /**
@@ -188,8 +276,10 @@ readonly class OperationPermissionDomainService
             'string' => Operation::class,
         ],
     ])]
-    public function getResourceOperationByUserIds(PermissionDataIsolation $dataIsolation, ResourceType $resourceType, array $userIds, array $resourceIds = []): array
+    public function getResourceOperationByUserIds(PermissionDataIsolation $dataIsolation, ResourceType $resourceType, array $userIds, ?array $resourceIds = []): array
     {
+        $resourceIds = $resourceIds ?? [];
+
         $contactDataIsolation = ContactDataIsolation::simpleMake($dataIsolation->getCurrentOrganizationCode(), $dataIsolation->getCurrentUserId());
         // 获取用户所在部门、群组添加到 target 中查找
         $userDepartmentList = $this->departmentUserRepository->getDepartmentIdsByUserIds($contactDataIsolation, $userIds, true);

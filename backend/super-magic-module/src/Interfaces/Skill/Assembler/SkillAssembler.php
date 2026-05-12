@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\Skill\Assembler;
 
 use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
@@ -40,7 +41,8 @@ class SkillAssembler
     public static function createListItemDTO(
         SkillEntity $entity,
         ?MagicUserEntity $creator = null,
-        string $latestVersion = ''
+        ?SkillVersionEntity $latestVersionEntity = null,
+        ?Operation $operation = null
     ): SkillListItemDTO {
         $language = CoContext::getLanguage();
         $nameI18n = $entity->getNameI18n() ?? [];
@@ -69,9 +71,10 @@ class SkillAssembler
             updatedAt: $entity->getUpdatedAt() ?? '',
             createdAt: $entity->getCreatedAt() ?? '',
             latestPublishedAt: $entity->getLatestPublishedAt(),
-            latestVersion: $latestVersion,
+            latestVersion: $latestVersionEntity?->getVersion() ?? $entity->getVersionCode(),
             packageName: $entity->getPackageName(),
-            creatorInfo: $creatorInfo
+            creatorInfo: $creatorInfo,
+            userRole: $operation?->toAlias(),
         );
     }
 
@@ -79,7 +82,7 @@ class SkillAssembler
         SkillVersionEntity $entity,
         ?string $sourceType = null,
         ?MagicUserEntity $creator = null,
-        ?string $latestVersion = null,
+        ?SkillVersionEntity $latestVersionEntity = null,
         ?string $publisherType = null,
         ?array $publisher = null
     ): SkillListItemDTO {
@@ -110,7 +113,7 @@ class SkillAssembler
             updatedAt: $entity->getUpdatedAt() ?? '',
             createdAt: $entity->getCreatedAt() ?? '',
             latestPublishedAt: $entity->getPublishedAt(),
-            latestVersion: $latestVersion ?? $entity->getVersion(),
+            latestVersion: $latestVersionEntity?->getVersion() ?? $entity->getVersion(),
             packageName: $entity->getPackageName(),
             creatorInfo: $creatorInfo,
             publisherType: $publisherType,
@@ -205,9 +208,7 @@ class SkillAssembler
     /**
      * 创建技能列表响应 DTO.
      *
-     * @param SkillEntity[] $skillEntities 技能实体数组
      * @param int $page 当前页码
-     * @param int $pageSize 每页数量
      * @param int $total 总记录数
      * @return SkillListResponseDTO 技能列表响应 DTO
      */
@@ -217,14 +218,16 @@ class SkillAssembler
         int $pageSize,
         int $total,
         array $creatorUserMap = [],
-        array $latestVersionMap = []
+        array $latestVersionMap = [],
+        array $skillOperations = [],
     ): SkillListResponseDTO {
         $listItems = [];
         foreach ($skillEntities as $entity) {
             $listItems[] = self::createListItemDTO(
                 $entity,
                 $creatorUserMap[$entity->getCreatorId()] ?? null,
-                $latestVersionMap[$entity->getCode()] ?? ''
+                $latestVersionMap[$entity->getCode()] ?? null,
+                $skillOperations[$entity->getCode()] ?? null,
             );
         }
 
@@ -236,9 +239,6 @@ class SkillAssembler
         );
     }
 
-    /**
-     * @param SkillVersionEntity[] $skillVersionEntities
-     */
     public static function createListResponseDTOFromVersions(
         array $skillVersionEntities,
         int $page,
@@ -269,7 +269,7 @@ class SkillAssembler
                 $entity,
                 self::resolveListSourceType($entity, $marketEntity, $sourceType),
                 $creatorUserMap[$entity->getCreatorId()] ?? null,
-                $latestVersionMap[$entity->getCode()] ?? $entity->getVersion(),
+                $latestVersionMap[$entity->getCode()] ?? null,
                 $publisherType,
                 $publisher
             );
@@ -337,8 +337,6 @@ class SkillAssembler
     }
 
     /**
-     * @param array<string, MagicUserEntity> $userMap key 为 userId，同时用于发布者和 MEMBER 类型成员名称展示
-     * @param array<string, MagicDepartmentEntity> $memberDepartmentMap key 为 departmentId，用于 MEMBER 类型的部门名称展示
      * @param SkillVersionEntity[] $versions
      */
     public static function createQuerySkillVersionsResponseDTO(

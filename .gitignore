@@ -3,6 +3,7 @@
 /debug
 .env
 bin/splitsh-lite
+/.worktrees/
 /backend/magic-service/go-engine/bin/
 /backend/magic-service/bin/magic-go-engine
 .vscode
