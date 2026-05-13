@@ -2302,6 +2302,59 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         }
         $this->assertNotNull($organizationVersion);
         $this->assertSame('组织审核通过', $organizationVersion['review_remark']);
+
+        $invalidatedVersionId = IdGenerator::getSnowId();
+        AgentVersionModel::query()->create([
+            'id' => $invalidatedVersionId,
+            'code' => $agentCode,
+            'organization_code' => $organizationCode,
+            'version' => '1.0.99',
+            'name' => 'Invalidated Agent',
+            'description' => 'Invalidated organization review agent',
+            'icon' => [
+                'type' => 'IconAccessibleFilled',
+                'url' => '',
+                'color' => '#4F46E5',
+            ],
+            'icon_type' => 1,
+            'type' => 2,
+            'enabled' => true,
+            'prompt' => [],
+            'tools' => [],
+            'creator' => $creatorId,
+            'modifier' => $creatorId,
+            'name_i18n' => [
+                'zh_CN' => '无效员工版本',
+                'en_US' => 'Invalidated Agent Version',
+            ],
+            'role_i18n' => [
+                'zh_CN' => ['测试角色'],
+                'en_US' => ['Tester'],
+            ],
+            'description_i18n' => [
+                'zh_CN' => '无效员工版本描述',
+                'en_US' => 'Invalidated agent version description',
+            ],
+            'publish_status' => 'UNPUBLISHED',
+            'review_status' => 'INVALIDATED',
+            'publish_target_type' => 'ORGANIZATION',
+            'publisher_user_id' => $creatorId,
+            'is_current_version' => false,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $organizationAdminListResponse = $this->post(
+            '/api/v1/organization/admin/super-magic/agents/versions/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'review_status' => 'INVALIDATED',
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $organizationAdminListResponse['code'], $organizationAdminListResponse['message'] ?? '');
+        $this->assertEmpty($organizationAdminListResponse['data']['list']);
     }
 
     public function testPublishAgentMemberRequiresTargets(): void

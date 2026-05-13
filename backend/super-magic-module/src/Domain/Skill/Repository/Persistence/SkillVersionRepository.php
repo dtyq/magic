@@ -495,7 +495,8 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
-        Page $page
+        Page $page,
+        ?array $excludeReviewStatuses = null
     ): array {
         $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query())
             ->whereNull('deleted_at');
@@ -507,6 +508,10 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
 
         if ($reviewStatus !== null && $reviewStatus !== '') {
             $builder->where('review_status', $reviewStatus);
+        }
+
+        if (! empty($excludeReviewStatuses)) {
+            $builder->whereNotIn('review_status', $excludeReviewStatuses);
         }
 
         if ($publishStatus !== null && $publishStatus !== '') {

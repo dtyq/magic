@@ -143,7 +143,8 @@ class SuperMagicAgentVersionDomainService
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
-        Page $page
+        Page $page,
+        ?array $excludeReviewStatuses = null
     ): array {
         return $this->agentVersionRepository->queryVersions(
             $dataIsolation,
@@ -156,7 +157,8 @@ class SuperMagicAgentVersionDomainService
             $startTime,
             $endTime,
             $orderBy,
-            $page
+            $page,
+            $excludeReviewStatuses
         );
     }
 

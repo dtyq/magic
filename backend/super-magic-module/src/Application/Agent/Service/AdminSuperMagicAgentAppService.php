@@ -137,7 +137,8 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             $requestDTO->getStartTime(),
             $requestDTO->getEndTime(),
             $requestDTO->getOrderBy(),
-            $page
+            $page,
+            [ReviewStatus::INVALIDATED->value]
         );
 
         return $this->adminSuperMagicAgentAssembler->createQueryVersionsResponseDTO(

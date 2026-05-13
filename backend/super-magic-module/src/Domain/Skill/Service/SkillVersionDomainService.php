@@ -342,7 +342,8 @@ class SkillVersionDomainService
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
-        Page $page
+        Page $page,
+        ?array $excludeReviewStatuses = null
     ): array {
         return $this->skillVersionRepository->queryVersions(
             $dataIsolation,
@@ -357,7 +358,8 @@ class SkillVersionDomainService
             $startTime,
             $endTime,
             $orderBy,
-            $page
+            $page,
+            $excludeReviewStatuses
         );
     }
 

@@ -136,7 +136,8 @@ class AdminSkillAppService extends AbstractSkillAppService
             $requestDTO->getStartTime(),
             $requestDTO->getEndTime(),
             $requestDTO->getOrderBy(),
-            $page
+            $page,
+            [ReviewStatus::INVALIDATED->value]
         );
 
         return $this->adminSkillAssembler->createQueryVersionsResponseDTO(

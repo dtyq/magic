@@ -1211,6 +1211,53 @@ class UserSkillApiTest extends AbstractApiTest
         sort($expectedMemberVisibilityUserIds);
         $this->assertSame($expectedMemberVisibilityUserIds, $memberVisibilityUserIds);
 
+        $invalidatedVersionId = IdGenerator::getSnowId();
+        SkillVersionModel::query()->create([
+            'id' => $invalidatedVersionId,
+            'code' => $skillCode,
+            'organization_code' => $organizationCode,
+            'creator_id' => $creatorId,
+            'package_name' => 'invalidated-organization-skill',
+            'package_description' => 'Invalidated organization review skill',
+            'version' => '1.0.99',
+            'name_i18n' => [
+                'zh_CN' => '无效 Skill 版本',
+                'en_US' => 'Invalidated Skill Version',
+            ],
+            'description_i18n' => [
+                'zh_CN' => '无效 Skill 版本描述',
+                'en_US' => 'Invalidated skill version description',
+            ],
+            'search_text' => 'invalidated skill version',
+            'logo' => '',
+            'file_key' => 'temp/skills/' . strtolower(IdGenerator::getUniqueId32()) . '.zip',
+            'skill_file_key' => 'temp/skills/' . strtolower(IdGenerator::getUniqueId32()) . '/SKILL.md',
+            'publish_status' => 'UNPUBLISHED',
+            'review_status' => 'INVALIDATED',
+            'publish_target_type' => 'MEMBER',
+            'version_description_i18n' => [
+                'zh_CN' => '无效版本说明',
+                'en_US' => 'Invalidated version description',
+            ],
+            'publisher_user_id' => $creatorId,
+            'is_current_version' => false,
+            'source_type' => 'LOCAL_UPLOAD',
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $organizationAdminListResponse = $this->post(
+            '/api/v1/organization/admin/skills/versions/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'review_status' => 'INVALIDATED',
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $organizationAdminListResponse['code'], $organizationAdminListResponse['message'] ?? '');
+        $this->assertEmpty($organizationAdminListResponse['data']['list']);
+
         $detailResponse = $this->get(
             self::BASE_URI . '/' . $skillCode,
             [],

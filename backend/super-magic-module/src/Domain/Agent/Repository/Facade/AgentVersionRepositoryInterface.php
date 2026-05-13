@@ -148,6 +148,7 @@ interface AgentVersionRepositoryInterface
         ?string $startTime,
         ?string $endTime,
         string $orderBy,
-        Page $page
+        Page $page,
+        ?array $excludeReviewStatuses = null
     ): array;
 }
