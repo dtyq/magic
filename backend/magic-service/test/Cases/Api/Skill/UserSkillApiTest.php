@@ -2240,6 +2240,7 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertArrayHasKey('version', $item);
         $this->assertArrayHasKey('publish_status', $item);
         $this->assertArrayHasKey('review_status', $item);
+        $this->assertArrayHasKey('review_remark', $item);
         $this->assertArrayHasKey('publish_target_type', $item);
         $this->assertArrayHasKey('publisher', $item);
         $this->assertArrayHasKey('published_at', $item);
