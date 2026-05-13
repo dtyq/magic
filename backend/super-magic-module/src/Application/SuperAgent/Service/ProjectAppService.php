@@ -370,10 +370,10 @@ class ProjectAppService extends AbstractAppService
                 }
             }
 
-            // 4. 获取或创建 default 工作区
+            // 4. 获取或创建 UserSpecial 工作区
             $workspaceEntity = $this->workspaceDomainService->getOrCreateWorkspaceByType(
                 $dataIsolation,
-                WorkspaceType::Default
+                WorkspaceType::UserSpecial
             );
 
             // 5. 创建项目
