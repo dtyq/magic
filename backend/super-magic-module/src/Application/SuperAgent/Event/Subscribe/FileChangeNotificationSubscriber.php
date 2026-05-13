@@ -12,6 +12,7 @@ use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\ProjectFileRpcClient;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
@@ -23,6 +24,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -326,7 +328,8 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             try {
                 $fileEntity = $this->taskFileDomainService->getById($fileId);
                 if ($fileEntity) {
-                    $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $projectEntity->getWorkDir());
+                    $relativeFilePath = $this->buildRelativeFilePathForEntity($fileEntity, $projectId);
+                    $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $projectEntity->getWorkDir(), $relativeFilePath);
                     $changes[] = [
                         'operation' => 'update',
                         'file_id' => (string) $fileId,
@@ -407,7 +410,8 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         string $conversationId = '',
         string $topicId = ''
     ): array {
-        $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $workDir);
+        $relativeFilePath = $this->buildRelativeFilePathForEntity($fileEntity, (int) $projectId);
+        $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $workDir, $relativeFilePath);
 
         $changes = [
             [
@@ -458,6 +462,34 @@ class FileChangeNotificationSubscriber implements ListenerInterface
                 ],
             ],
         ];
+    }
+
+    /**
+     * Build relative file path based on parent_id chain, consistent with createFile response.
+     */
+    private function buildRelativeFilePathForEntity(TaskFileEntity $fileEntity, int $projectId): ?string
+    {
+        try {
+            $parentId = $fileEntity->getParentId();
+            $filesWithParents = [];
+            if ($parentId > 0) {
+                // Query from parent to avoid losing path when the changed file has been soft-deleted.
+                $filesWithParents = $this->taskFileDomainService->getFilesWithParentsByIds([$parentId], $projectId);
+            }
+
+            $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
+            $fileMap[$fileEntity->getFileId()] = $fileEntity;
+
+            return RelativeFilePathUtil::buildPathByParentChain($fileEntity, $fileMap);
+        } catch (Throwable $throwable) {
+            $this->logger->warning('Failed to build relative file path for notification', [
+                'file_id' => $fileEntity->getFileId(),
+                'project_id' => $projectId,
+                'error' => $throwable->getMessage(),
+            ]);
+
+            return null;
+        }
     }
 
     private function notifyKnowledgeProjectFileChange(int $projectFileId): void
