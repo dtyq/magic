@@ -588,8 +588,7 @@ class SkillVersionDomainService
         SkillDataIsolation $dataIsolation,
         SkillVersionEntity $skillVersion,
         ?string $reviewRemark = null
-    ): void
-    {
+    ): void {
         $skillVersion->setReviewStatus(ReviewStatus::REJECTED);
         $skillVersion->setReviewRemark($reviewRemark);
         $this->saveSkillVersion($dataIsolation, $skillVersion);

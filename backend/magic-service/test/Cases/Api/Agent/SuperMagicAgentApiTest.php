@@ -2232,6 +2232,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             '/api/v1/organization/admin/super-magic/agents/versions/' . $organizationResponse['data']['version_id'] . '/review',
             [
                 'action' => 'APPROVED',
+                'review_remark' => '组织审核通过',
             ],
             $headers
         );
@@ -2285,6 +2286,22 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             'principal_type' => PrincipalType::USER->value,
             'principal_id' => $creatorId,
         ]], $privateVisibility);
+
+        $versionListResponse = $this->get(
+            self::BASE_URI . '/' . $agentCode . '/versions',
+            ['page' => 1, 'page_size' => 20],
+            $headers
+        );
+        $this->assertEquals(1000, $versionListResponse['code'], $versionListResponse['message'] ?? '');
+        $organizationVersion = null;
+        foreach ($versionListResponse['data']['list'] as $versionItem) {
+            if ((string) $versionItem['id'] === (string) $organizationResponse['data']['version_id']) {
+                $organizationVersion = $versionItem;
+                break;
+            }
+        }
+        $this->assertNotNull($organizationVersion);
+        $this->assertSame('组织审核通过', $organizationVersion['review_remark']);
     }
 
     public function testPublishAgentMemberRequiresTargets(): void
