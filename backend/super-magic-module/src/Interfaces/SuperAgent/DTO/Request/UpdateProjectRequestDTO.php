@@ -22,6 +22,9 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
 
     /**
      * Workspace ID.
+     *
+     * @deprecated Workspace changes in update project are ignored. Use target_workspace_id temporarily,
+     *             and migrate callers to the project move API.
      */
     public ?string $workspaceId = null;
 
@@ -48,6 +51,8 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
 
     /**
      * Target workspace ID for workspace change.
+     * TODO: Remove this field after callers migrate to the project move API.
+     *
      * Null means no change.
      * Empty string "" means detach from workspace (workspace_id will be set to null).
      * Numeric string means move to that workspace.

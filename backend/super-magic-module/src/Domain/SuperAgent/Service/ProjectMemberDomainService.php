@@ -281,6 +281,31 @@ class ProjectMemberDomainService
     }
 
     /**
+     * Sync owner workspace binding after the owner moves projects.
+     */
+    public function syncOwnerProjectWorkspaceBindings(
+        string $userId,
+        array $projectIds,
+        ?int $workspaceId,
+        string $organizationCode
+    ): int {
+        if (empty($projectIds)) {
+            return 0;
+        }
+
+        if ($workspaceId === null) {
+            return $this->projectMemberSettingRepository->batchCancelProjectShortcuts($userId, $projectIds);
+        }
+
+        $bindings = [];
+        foreach ($projectIds as $projectId) {
+            $bindings[(int) $projectId] = $workspaceId;
+        }
+
+        return $this->projectMemberSettingRepository->batchSetProjectShortcuts($userId, $bindings, $organizationCode);
+    }
+
+    /**
      * 检查项目是否已设置快捷方式.
      *
      * @param string $userId 用户ID

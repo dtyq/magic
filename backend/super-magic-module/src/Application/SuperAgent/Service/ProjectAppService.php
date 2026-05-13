@@ -452,14 +452,6 @@ class ProjectAppService extends AbstractAppService
         if (! is_null($requestDTO->getProjectDescription())) {
             $projectEntity->setProjectDescription($requestDTO->getProjectDescription());
         }
-        if (! is_null($requestDTO->getWorkspaceId())) {
-            // 检查话题是否存在
-            $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($requestDTO->getWorkspaceId());
-            if (empty($workspaceEntity)) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
-            }
-            $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
-        }
         if (! is_null($requestDTO->getIsCollaborationEnabled())) {
             $projectEntity->setIsCollaborationEnabled($requestDTO->getIsCollaborationEnabled());
         }
@@ -476,7 +468,8 @@ class ProjectAppService extends AbstractAppService
             $projectEntity->setProjectMode($newMode);
         }
 
-        // Handle workspace change / detach (cascades workspace_id to topics and tasks)
+        // TODO: Remove workspace changes from updateProject; clients should use the move API instead.
+        // Handle target_workspace_id only during the transition period.
         if ($requestDTO->hasTargetWorkspaceId()) {
             $targetWorkspaceId = $requestDTO->getTargetWorkspaceId();
 
@@ -1377,7 +1370,7 @@ class ProjectAppService extends AbstractAppService
 
         if (! empty($validProjectIds)) {
             try {
-                $successResults = Db::transaction(function () use ($validProjectIds, $targetWorkspaceId, $now) {
+                $successResults = Db::transaction(function () use ($validProjectIds, $targetWorkspaceId, $now, $userId, $organizationCode) {
                     // Step 4.1: Batch update projects (1 query)
                     $updatedCount = $this->projectRepository->batchUpdateWorkspace(
                         $validProjectIds,
@@ -1400,7 +1393,19 @@ class ProjectAppService extends AbstractAppService
                         'updated_count' => $topicUpdatedCount,
                     ]);
 
-                    // Step 4.3: Build success results
+                    // Step 4.3: Sync owner's personal workspace binding.
+                    $settingUpdatedCount = $this->projectMemberDomainService->syncOwnerProjectWorkspaceBindings(
+                        $userId,
+                        $validProjectIds,
+                        $targetWorkspaceId,
+                        $organizationCode
+                    );
+
+                    $this->logger->info('Batch synced owner project workspace bindings', [
+                        'updated_count' => $settingUpdatedCount,
+                    ]);
+
+                    // Step 4.4: Build success results
                     $results = [];
                     foreach ($validProjectIds as $projectId) {
                         $projectIdStr = (string) $projectId;
