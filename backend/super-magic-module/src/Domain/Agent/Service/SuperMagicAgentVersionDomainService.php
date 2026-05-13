@@ -19,6 +19,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionAdminQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -134,31 +135,13 @@ class SuperMagicAgentVersionDomainService
      */
     public function queryVersions(
         SuperMagicAgentDataIsolation $dataIsolation,
-        ?string $reviewStatus,
-        ?string $publishStatus,
-        ?array $publishTargetTypes,
-        ?string $version,
-        ?string $organizationCode,
-        ?string $nameI18n,
-        ?string $startTime,
-        ?string $endTime,
-        string $orderBy,
-        Page $page,
-        ?array $excludeReviewStatuses = null
+        AgentVersionAdminQuery $query,
+        Page $page
     ): array {
         return $this->agentVersionRepository->queryVersions(
             $dataIsolation,
-            $reviewStatus,
-            $publishStatus,
-            $publishTargetTypes,
-            $version,
-            $organizationCode,
-            $nameI18n,
-            $startTime,
-            $endTime,
-            $orderBy,
-            $page,
-            $excludeReviewStatuses
+            $query,
+            $page
         );
     }
 

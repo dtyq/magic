@@ -16,6 +16,7 @@ use Dtyq\SuperMagic\Application\Agent\Assembler\AdminSuperMagicAgentAssembler;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionAdminQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentMarketDomainService;
@@ -59,17 +60,14 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
         $dataIsolation->disabled();
 
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $query = $this->buildAgentVersionAdminQuery(
+            $requestDTO,
+            PublishTargetType::filterValues($requestDTO->getPublishTargetType()),
+            $requestDTO->getOrganizationCode()
+        );
         $result = $this->superMagicAgentVersionDomainService->queryVersions(
             $dataIsolation,
-            $requestDTO->getReviewStatus(),
-            $requestDTO->getPublishStatus(),
-            PublishTargetType::filterValues($requestDTO->getPublishTargetType()),
-            $requestDTO->getVersion(),
-            $requestDTO->getOrganizationCode(),
-            $requestDTO->getNameI18n(),
-            $requestDTO->getStartTime(),
-            $requestDTO->getEndTime(),
-            $requestDTO->getOrderBy(),
+            $query,
             $page
         );
 
@@ -126,19 +124,16 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             return $this->adminSuperMagicAgentAssembler->createQueryVersionsResponseDTO([], $page, 0);
         }
 
+        $query = $this->buildAgentVersionAdminQuery(
+            $requestDTO,
+            $publishTargetTypes,
+            $dataIsolation->getCurrentOrganizationCode(),
+            [ReviewStatus::INVALIDATED->value]
+        );
         $result = $this->superMagicAgentVersionDomainService->queryVersions(
             $dataIsolation,
-            $requestDTO->getReviewStatus(),
-            $requestDTO->getPublishStatus(),
-            $publishTargetTypes,
-            $requestDTO->getVersion(),
-            $dataIsolation->getCurrentOrganizationCode(),
-            $requestDTO->getNameI18n(),
-            $requestDTO->getStartTime(),
-            $requestDTO->getEndTime(),
-            $requestDTO->getOrderBy(),
-            $page,
-            [ReviewStatus::INVALIDATED->value]
+            $query,
+            $page
         );
 
         return $this->adminSuperMagicAgentAssembler->createQueryVersionsResponseDTO(
@@ -305,6 +300,33 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
             createdAt: $agent->getCreatedAt(),
             updatedAt: $agent->getUpdatedAt()
         );
+    }
+
+    /**
+     * 将接口请求参数转换为领域查询条件。
+     *
+     * @param null|array<int, string> $publishTargetTypes
+     * @param null|array<int, string> $excludeReviewStatuses
+     */
+    private function buildAgentVersionAdminQuery(
+        QueryAgentVersionsRequestAdminDTO $requestDTO,
+        ?array $publishTargetTypes,
+        ?string $organizationCode,
+        ?array $excludeReviewStatuses = null
+    ): AgentVersionAdminQuery {
+        $query = new AgentVersionAdminQuery();
+        $query->setReviewStatus($requestDTO->getReviewStatus());
+        $query->setPublishStatus($requestDTO->getPublishStatus());
+        $query->setPublishTargetTypes($publishTargetTypes);
+        $query->setVersion($requestDTO->getVersion());
+        $query->setOrganizationCode($organizationCode);
+        $query->setNameI18n($requestDTO->getNameI18n());
+        $query->setStartTime($requestDTO->getStartTime());
+        $query->setEndTime($requestDTO->getEndTime());
+        $query->setOrderBy($requestDTO->getOrderBy());
+        $query->setExcludeReviewStatuses($excludeReviewStatuses);
+
+        return $query;
     }
 
     /**

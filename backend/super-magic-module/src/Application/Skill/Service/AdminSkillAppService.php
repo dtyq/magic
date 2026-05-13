@@ -18,6 +18,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillVersionAdminQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
@@ -56,19 +57,14 @@ class AdminSkillAppService extends AbstractSkillAppService
         $dataIsolation->disabled();
 
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $query = $this->buildSkillVersionAdminQuery(
+            $requestDTO,
+            PublishTargetType::filterValues($requestDTO->getPublishTargetType()),
+            $requestDTO->getOrganizationCode()
+        );
         $result = $this->skillVersionDomainService->queryVersions(
             $dataIsolation,
-            $requestDTO->getReviewStatus(),
-            $requestDTO->getPublishStatus(),
-            PublishTargetType::filterValues($requestDTO->getPublishTargetType()),
-            $requestDTO->getSourceType(),
-            $requestDTO->getVersion(),
-            $requestDTO->getPackageName(),
-            $requestDTO->getSkillName(),
-            $requestDTO->getOrganizationCode(),
-            $requestDTO->getStartTime(),
-            $requestDTO->getEndTime(),
-            $requestDTO->getOrderBy(),
+            $query,
             $page
         );
 
@@ -123,21 +119,16 @@ class AdminSkillAppService extends AbstractSkillAppService
             return $this->adminSkillAssembler->createQueryVersionsResponseDTO([], $page, 0);
         }
 
+        $query = $this->buildSkillVersionAdminQuery(
+            $requestDTO,
+            $publishTargetTypes,
+            $dataIsolation->getCurrentOrganizationCode(),
+            [ReviewStatus::INVALIDATED->value]
+        );
         $result = $this->skillVersionDomainService->queryVersions(
             $dataIsolation,
-            $requestDTO->getReviewStatus(),
-            $requestDTO->getPublishStatus(),
-            $publishTargetTypes,
-            $requestDTO->getSourceType(),
-            $requestDTO->getVersion(),
-            $requestDTO->getPackageName(),
-            $requestDTO->getSkillName(),
-            $dataIsolation->getCurrentOrganizationCode(),
-            $requestDTO->getStartTime(),
-            $requestDTO->getEndTime(),
-            $requestDTO->getOrderBy(),
-            $page,
-            [ReviewStatus::INVALIDATED->value]
+            $query,
+            $page
         );
 
         return $this->adminSkillAssembler->createQueryVersionsResponseDTO(
@@ -287,6 +278,35 @@ class AdminSkillAppService extends AbstractSkillAppService
             $requestDTO->getPublisherType(),
             $requestDTO->getReviewRemark()
         );
+    }
+
+    /**
+     * 将接口请求参数转换为领域查询条件。
+     *
+     * @param null|array<int, string> $publishTargetTypes
+     * @param null|array<int, string> $excludeReviewStatuses
+     */
+    private function buildSkillVersionAdminQuery(
+        QuerySkillVersionsRequestAdminDTO $requestDTO,
+        ?array $publishTargetTypes,
+        ?string $organizationCode,
+        ?array $excludeReviewStatuses = null
+    ): SkillVersionAdminQuery {
+        $query = new SkillVersionAdminQuery();
+        $query->setReviewStatus($requestDTO->getReviewStatus());
+        $query->setPublishStatus($requestDTO->getPublishStatus());
+        $query->setPublishTargetTypes($publishTargetTypes);
+        $query->setSourceType($requestDTO->getSourceType());
+        $query->setVersion($requestDTO->getVersion());
+        $query->setPackageName($requestDTO->getPackageName());
+        $query->setSkillName($requestDTO->getSkillName());
+        $query->setOrganizationCode($organizationCode);
+        $query->setStartTime($requestDTO->getStartTime());
+        $query->setEndTime($requestDTO->getEndTime());
+        $query->setOrderBy($requestDTO->getOrderBy());
+        $query->setExcludeReviewStatuses($excludeReviewStatuses);
+
+        return $query;
     }
 
     /**

@@ -19,6 +19,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillVersionAdminQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Facade\SkillRepositoryInterface;
@@ -331,35 +332,13 @@ class SkillVersionDomainService
      */
     public function queryVersions(
         SkillDataIsolation $dataIsolation,
-        ?string $reviewStatus,
-        ?string $publishStatus,
-        ?array $publishTargetTypes,
-        ?string $sourceType,
-        ?string $version,
-        ?string $packageName,
-        ?string $skillName,
-        ?string $organizationCode,
-        ?string $startTime,
-        ?string $endTime,
-        string $orderBy,
-        Page $page,
-        ?array $excludeReviewStatuses = null
+        SkillVersionAdminQuery $query,
+        Page $page
     ): array {
         return $this->skillVersionRepository->queryVersions(
             $dataIsolation,
-            $reviewStatus,
-            $publishStatus,
-            $publishTargetTypes,
-            $sourceType,
-            $version,
-            $packageName,
-            $skillName,
-            $organizationCode,
-            $startTime,
-            $endTime,
-            $orderBy,
-            $page,
-            $excludeReviewStatuses
+            $query,
+            $page
         );
     }
 

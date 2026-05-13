@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetValue;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionAdminQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -378,47 +379,38 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
 
     public function queryVersions(
         SuperMagicAgentDataIsolation $dataIsolation,
-        ?string $reviewStatus,
-        ?string $publishStatus,
-        ?array $publishTargetTypes,
-        ?string $version,
-        ?string $organizationCode,
-        ?string $nameI18n,
-        ?string $startTime,
-        ?string $endTime,
-        string $orderBy,
-        Page $page,
-        ?array $excludeReviewStatuses = null
+        AgentVersionAdminQuery $query,
+        Page $page
     ): array {
         $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query())
             ->whereNull('deleted_at');
 
-        if ($reviewStatus !== null && $reviewStatus !== '') {
-            $builder->where('review_status', $reviewStatus);
+        if ($query->getReviewStatus() !== null && $query->getReviewStatus() !== '') {
+            $builder->where('review_status', $query->getReviewStatus());
         }
 
-        if (! empty($excludeReviewStatuses)) {
-            $builder->whereNotIn('review_status', $excludeReviewStatuses);
+        if (! empty($query->getExcludeReviewStatuses())) {
+            $builder->whereNotIn('review_status', $query->getExcludeReviewStatuses());
         }
 
-        if ($publishStatus !== null && $publishStatus !== '') {
-            $builder->where('publish_status', $publishStatus);
+        if ($query->getPublishStatus() !== null && $query->getPublishStatus() !== '') {
+            $builder->where('publish_status', $query->getPublishStatus());
         }
 
-        if (! empty($publishTargetTypes)) {
-            $builder->whereIn('publish_target_type', $publishTargetTypes);
+        if (! empty($query->getPublishTargetTypes())) {
+            $builder->whereIn('publish_target_type', $query->getPublishTargetTypes());
         }
 
-        if ($version !== null && $version !== '') {
-            $builder->where('version', $version);
+        if ($query->getVersion() !== null && $query->getVersion() !== '') {
+            $builder->where('version', $query->getVersion());
         }
 
-        $organizationCode = trim((string) $organizationCode);
+        $organizationCode = trim((string) $query->getOrganizationCode());
         if ($organizationCode !== '') {
             $builder->where('organization_code', $organizationCode);
         }
 
-        $nameI18n = trim((string) $nameI18n);
+        $nameI18n = trim((string) $query->getNameI18n());
         if ($nameI18n !== '') {
             $like = '%' . $nameI18n . '%';
             $localeKeys = LanguageEnum::getAllLanguageCodes();
@@ -437,15 +429,15 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             });
         }
 
-        if ($startTime !== null && $startTime !== '') {
-            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
+        if ($query->getStartTime() !== null && $query->getStartTime() !== '') {
+            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($query->getStartTime()));
         }
 
-        if ($endTime !== null && $endTime !== '') {
-            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
+        if ($query->getEndTime() !== null && $query->getEndTime() !== '') {
+            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($query->getEndTime()));
         }
 
-        $builder->orderBy('created_at', strtolower($orderBy) === 'desc' ? 'desc' : 'asc');
+        $builder->orderBy('created_at', strtolower($query->getOrderBy()) === 'desc' ? 'desc' : 'asc');
 
         $result = $this->getByPage($builder, $page);
         $list = [];

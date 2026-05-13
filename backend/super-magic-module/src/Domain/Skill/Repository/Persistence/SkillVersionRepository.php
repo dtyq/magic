@@ -13,6 +13,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillVersionAdminQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
@@ -484,66 +485,60 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
 
     public function queryVersions(
         SkillDataIsolation $dataIsolation,
-        ?string $reviewStatus,
-        ?string $publishStatus,
-        ?array $publishTargetTypes,
-        ?string $sourceType,
-        ?string $version,
-        ?string $packageName,
-        ?string $skillName,
-        ?string $organizationCode,
-        ?string $startTime,
-        ?string $endTime,
-        string $orderBy,
-        Page $page,
-        ?array $excludeReviewStatuses = null
+        SkillVersionAdminQuery $query,
+        Page $page
     ): array {
         $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query())
             ->whereNull('deleted_at');
 
-        $organizationCodeTrimmed = trim((string) $organizationCode);
+        $organizationCodeTrimmed = trim((string) $query->getOrganizationCode());
         if ($organizationCodeTrimmed !== '') {
             $builder->where('organization_code', $organizationCodeTrimmed);
         }
 
-        if ($reviewStatus !== null && $reviewStatus !== '') {
-            $builder->where('review_status', $reviewStatus);
+        if ($query->getReviewStatus() !== null && $query->getReviewStatus() !== '') {
+            $builder->where('review_status', $query->getReviewStatus());
         }
 
-        if (! empty($excludeReviewStatuses)) {
-            $builder->whereNotIn('review_status', $excludeReviewStatuses);
+        if (! empty($query->getExcludeReviewStatuses())) {
+            $builder->whereNotIn('review_status', $query->getExcludeReviewStatuses());
         }
 
-        if ($publishStatus !== null && $publishStatus !== '') {
-            $builder->where('publish_status', $publishStatus);
+        if ($query->getPublishStatus() !== null && $query->getPublishStatus() !== '') {
+            $builder->where('publish_status', $query->getPublishStatus());
         }
 
-        if (! empty($publishTargetTypes)) {
-            $builder->whereIn('publish_target_type', $publishTargetTypes);
+        if (! empty($query->getPublishTargetTypes())) {
+            $builder->whereIn('publish_target_type', $query->getPublishTargetTypes());
         }
 
-        if ($sourceType !== null && $sourceType !== '') {
-            $builder->where('source_type', $sourceType);
+        if ($query->getSourceType() !== null && $query->getSourceType() !== '') {
+            $builder->where('source_type', $query->getSourceType());
         }
 
-        if ($version !== null && $version !== '') {
-            $builder->where('version', $version);
+        if ($query->getVersion() !== null && $query->getVersion() !== '') {
+            $builder->where('version', $query->getVersion());
         }
 
-        $skillNameTrimmed = trim((string) $skillName);
+        $packageNameTrimmed = trim((string) $query->getPackageName());
+        if ($packageNameTrimmed !== '') {
+            $builder->where('package_name', 'LIKE', '%' . $packageNameTrimmed . '%');
+        }
+
+        $skillNameTrimmed = trim((string) $query->getSkillName());
         if ($skillNameTrimmed !== '') {
             $builder->where('search_text', 'LIKE', '%' . mb_strtolower($skillNameTrimmed, 'UTF-8') . '%');
         }
 
-        if ($startTime !== null && $startTime !== '') {
-            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
+        if ($query->getStartTime() !== null && $query->getStartTime() !== '') {
+            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($query->getStartTime()));
         }
 
-        if ($endTime !== null && $endTime !== '') {
-            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
+        if ($query->getEndTime() !== null && $query->getEndTime() !== '') {
+            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($query->getEndTime()));
         }
 
-        $builder->orderBy('created_at', strtolower($orderBy) === 'desc' ? 'desc' : 'asc');
+        $builder->orderBy('created_at', strtolower($query->getOrderBy()) === 'desc' ? 'desc' : 'asc');
 
         $result = $this->getByPage($builder, $page);
         $list = [];
