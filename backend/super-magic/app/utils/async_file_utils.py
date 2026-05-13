@@ -205,7 +205,6 @@ async def async_unlink(path: Union[str, Path]) -> None:
         path: 要删除的文件路径
 
     Raises:
-        FileNotFoundError: 文件不存在
         IsADirectoryError: 路径是目录
         PermissionError: 权限不足
     """
@@ -220,6 +219,9 @@ async def async_unlink(path: Union[str, Path]) -> None:
         else:
             logger.debug(f"文件不存在，跳过删除: {path_str}")
 
+    except FileNotFoundError:
+        # 文件在 exists 检查之后、remove 执行之前被其他操作删除，属于正常竞争情况，不做报错
+        logger.warning(f"删除文件时文件已不存在（竞争条件），跳过: {path_str}")
     except Exception as e:
         logger.error(f"异步删除文件失败 {path_str}: {e}")
         raise
