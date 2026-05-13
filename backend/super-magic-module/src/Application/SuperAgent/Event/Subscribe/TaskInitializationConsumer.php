@@ -22,6 +22,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\VideoModelConfigResolver;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -194,15 +195,25 @@ class TaskInitializationConsumer extends ConsumerMessage
             $messageDTO->getAgentUserId()
         );
 
-        // Resolve agent_mode with fallback chain:
+        // Resolve request-level agent config with fallback chain:
         //   1) topic_pattern from the current message extra (request-level override)
         //   2) topic entity's persisted topic_mode (legacy / IM-driven flow)
-        $extraTopicPattern = $extra?->getTopicPattern();
-        $agentMode = ! empty($extraTopicPattern) ? $extraTopicPattern : $topicEntity->getTopicMode();
+        // Normalization is done here so open-api requests can take effect without
+        // changing broader topic persistence behavior.
+        [$agentMode, $agentCode, $extraTopicPattern] = $this->resolveRequestedAgentConfig($topicEntity, $extra);
 
         // Resolve model_id with fallback chain (extra > extraData)
         $extraModelId = $extra?->getModelId() ?? '';
         $modelId = $extraModelId !== '' ? $extraModelId : (string) ($extraData['model_id'] ?? '');
+
+        $this->logger->info('Resolved task initialization agent config', [
+            'task_id' => $taskEntity->getId(),
+            'topic_id' => $topicEntity->getId(),
+            'requested_topic_pattern' => $extraTopicPattern,
+            'topic_mode' => $topicEntity->getTopicMode(),
+            'resolved_agent_mode' => $agentMode,
+            'resolved_agent_code' => $agentCode,
+        ]);
 
         // Build task context with all fields populated.
         // Bridge model_id and agent_mode so that they reach the sandbox via
@@ -220,7 +231,8 @@ class TaskInitializationConsumer extends ConsumerMessage
             agentMode: $agentMode,
             modelId: $modelId,
             isFirstTask: empty($topicEntity->getSandboxId()),
-            extra: $extra
+            extra: $extra,
+            agentCode: $agentCode,
         );
         if (is_array($extraData)) {
             $videoModel = array_filter([
@@ -341,6 +353,32 @@ class TaskInitializationConsumer extends ConsumerMessage
         ]);
 
         return $sandboxId;
+    }
+
+    /**
+     * Resolve the effective agent mode/code for the current initialization request.
+     *
+     * Returns:
+     *   0 => resolved agent_mode passed to sandbox
+     *   1 => resolved agent_code passed via chat dynamic_config when needed
+     *   2 => raw request-level topic_pattern for observability
+     *
+     * This keeps the fix localized in the consumer:
+     * - open-api request-level topic_pattern wins over persisted topic_mode
+     * - SMA-* is normalized to custom_agent + agent_code before later layers run
+     */
+    private function resolveRequestedAgentConfig(TopicEntity $topicEntity, ?SuperAgentExtra $extra): array
+    {
+        $extraTopicPattern = trim((string) ($extra?->getTopicPattern() ?? ''));
+        $agentMode = $extraTopicPattern !== '' ? $extraTopicPattern : trim((string) $topicEntity->getTopicMode());
+        $agentCode = trim((string) $topicEntity->getAgentCode());
+
+        if ($agentMode !== '' && str_starts_with($agentMode, 'SMA-')) {
+            $agentCode = $agentMode;
+            $agentMode = ProjectMode::CUSTOM_AGENT->value;
+        }
+
+        return [$agentMode, $agentCode, $extraTopicPattern];
     }
 
     /**
