@@ -58,8 +58,8 @@ enum MagicResourceEnum: string
     case PLATFORM_SETTING_APPLICATION = 'platform.setting.application'; # 平台管理 - 系统设置 - 应用菜单
     case PLATFORM_ORGANIZATION_LIST = 'platform.organization.list'; # 平台管理 - 组织管理 - 组织列表
     case PLATFORM_USER_LIST = 'platform.organization.user_list'; # 平台管理 - 组织管理 - 平台用户列表
-    case WORKSPACE_ADMIN_AI_AGENT = 'admin.ai.agent_management'; # AI管理-数字员工
-    case WORKSPACE_ADMIN_AI_SKILL = 'admin.ai.skill_management'; # AI管理-Skill
+    case WORKSPACE_ADMIN_AI_AGENT = 'workspace.ai.agent_management'; # AI管理-数字员工
+    case WORKSPACE_ADMIN_AI_SKILL = 'workspace.ai.skill_management'; # AI管理-Skill
 
     /**
      * 对应 i18n key.
