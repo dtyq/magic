@@ -309,8 +309,12 @@ class AgentDispatcher(Base):
             return self.agents[agent_type]
 
         logger.info(f"首次创建主 Agent: {agent_type}")
-        self.agents[agent_type] = await self.agent_service.create_agent(agent_type, self.agent_context)
-        return self.agents[agent_type]
+        agent = await self.agent_service.create_agent(agent_type, self.agent_context)
+        if agent is None:
+            raise RuntimeError(f"failed to create agent: {agent_type}")
+
+        self.agents[agent_type] = agent
+        return agent
 
     async def run_agent(self, agent: Agent):
         """
@@ -583,7 +587,6 @@ class AgentDispatcher(Base):
                 if self.agent_context:
                     final_task_state = build_final_task_state(
                         FinalTaskStateCode.INTERNAL_DISPATCH_FAILED,
-                        vendor_message=str(e),
                     )
                     self.agent_context.set_final_task_state(final_task_state)
                     await self.agent_context.dispatch_event(
