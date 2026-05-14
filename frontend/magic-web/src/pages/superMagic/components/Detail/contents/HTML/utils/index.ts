@@ -523,6 +523,101 @@ export function rewriteHtmlCdnWithHost(content: string, cdnHost: string): Docume
 		},
 	}
 
+	const GOOGLE_FONT_HOSTS: ReadonlySet<string> = new Set([
+		"fonts.googleapis.com",
+		"fonts.googlefonts.cn",
+	])
+
+	function parseHref(href: string): URL | null {
+		let urlStr = href
+		if (urlStr.startsWith("//")) urlStr = "https:" + urlStr
+		if (!urlStr.startsWith("http")) urlStr = "https://" + urlStr
+		try {
+			return new URL(urlStr)
+		} catch (_) {
+			return null
+		}
+	}
+
+	function parseFontFamilies(parsed: URL): string[] {
+		const rawEntries =
+			parsed.pathname === "/css2"
+				? parsed.searchParams.getAll("family")
+				: (parsed.searchParams.get("family") || "").split("|")
+
+		return rawEntries
+			.map((entry) => entry.split(":")[0].replace(/\+/g, " ").trim())
+			.filter(Boolean)
+	}
+
+	function toSafeFontName(familyName: string): string {
+		return familyName.replace(/\s+/g, "_")
+	}
+
+	// 谷歌资源重写规则
+	const googleRewriteRules: {
+		match: (parsed: URL) => boolean
+		rewrite: (href: string, parsed: URL) => string | string[]
+	}[] = [
+		{
+			// "https://fonts.googleapis.com/icon?family=Material+Icons"
+			match: (parsed) =>
+				GOOGLE_FONT_HOSTS.has(parsed.hostname) && parsed.pathname === "/icon",
+			rewrite: () => cdnHost + "/googleapis/icon/v145/index.css",
+		},
+		{
+			// "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
+			// "https://fonts.googlefonts.cn/css2?family=Ma+Shan+Zheng&display=swap"
+			// "https://fonts.googleapis.com/css?family=Open+Sans:400,700|Lato:300"
+			// "https://fonts.googlefonts.cn/css?family=Open+Sans:400,700|Lato:300"
+			match: (parsed) =>
+				GOOGLE_FONT_HOSTS.has(parsed.hostname) &&
+				(parsed.pathname === "/css2" || parsed.pathname === "/css"),
+			rewrite: (href, parsed) => {
+				const families = parseFontFamilies(parsed)
+				if (families.length === 0) return href.replace(parsed.hostname, "fonts.loli.net")
+				return families.map(
+					(f) => cdnHost + "/google-fonts/css/woff2/" + toSafeFontName(f) + "_woff2.css",
+				)
+			},
+		},
+		{
+			// "https://fonts.googleapis.com/earlyaccess/notosanssc.css"
+			match: (parsed) => GOOGLE_FONT_HOSTS.has(parsed.hostname),
+			rewrite: (href, parsed) => href.replace(parsed.hostname, "fonts.loli.net"),
+		},
+		{
+			// "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+			match: (parsed) => parsed.hostname === "ajax.googleapis.com",
+			rewrite: (href) => href.replace("ajax.googleapis.com", "ajax.loli.net"),
+		},
+	]
+
+	function applyGoogleRewrite(link: Element, href: string, doc: Document): void {
+		const parsed = parseHref(href)
+		if (!parsed) return
+
+		const rule = googleRewriteRules.find((r) => r.match(parsed))
+		if (!rule) return
+
+		link.setAttribute("data-original-href", href)
+		const result = rule.rewrite(href, parsed)
+
+		if (typeof result === "string") {
+			link.setAttribute("href", result)
+			return
+		}
+
+		link.setAttribute("href", result[0])
+		for (let i = result.length - 1; i >= 1; i--) {
+			const newLink = doc.createElement("link")
+			newLink.setAttribute("rel", "stylesheet")
+			newLink.setAttribute("data-original-href", href)
+			newLink.setAttribute("href", result[i])
+			link.parentNode?.insertBefore(newLink, link.nextSibling)
+		}
+	}
+
 	const parser = new DOMParser()
 	const htmlDoc = parser.parseFromString(content, "text/html")
 
@@ -552,43 +647,9 @@ export function rewriteHtmlCdnWithHost(content: string, cdnHost: string): Docume
 			link.setAttribute("href", linkSrc)
 		}
 
-		/** google 资源替换 */
-		let isGoogleSpecificReplaced = false // 是否已经精确替换
-		const googleSpecificReplacements = [
-			{
-				from: "fonts.googleapis.com/icon",
-				to: `${cdnHost}/googleapis/icon/v145/index.css`,
-			},
-			{
-				from: "fonts.googleapis.com/css2",
-				to: `${cdnHost}/googleapis/fonts/index.css`,
-			},
-		]
-		// 精准替换
-		googleSpecificReplacements.forEach(({ from, to }) => {
-			if (href?.includes(from)) {
-				// 保存原始URL
-				link.setAttribute("data-original-href", href)
-				link.setAttribute("href", to)
-				isGoogleSpecificReplaced = true
-			}
-		})
-		// 模糊替换
-		if (!isGoogleSpecificReplaced) {
-			const domainReplacements = [
-				{ from: "fonts.googlefonts.cn", to: "fonts.loli.net" },
-				{ from: "fonts.googleapis.com", to: "fonts.loli.net" },
-				{ from: "ajax.googleapis.com", to: "ajax.loli.net" },
-			]
-			domainReplacements.forEach(({ from, to }) => {
-				if (href?.includes(from)) {
-					// 保存原始URL
-					link.setAttribute("data-original-href", href)
-					const linkSrc = href.replace(from, to)
-					link.setAttribute("href", linkSrc)
-				}
-			})
-		}
+		// 谷歌资源重写
+		if (href) applyGoogleRewrite(link, href, htmlDoc)
+
 		if (href?.includes("qrcode") && href?.includes("1.0.0")) {
 			// 保存原始URL
 			link.setAttribute("data-original-href", href)
