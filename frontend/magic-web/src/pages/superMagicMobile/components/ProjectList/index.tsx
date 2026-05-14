@@ -1,5 +1,6 @@
 import { observer } from "mobx-react-lite"
-import { ProjectListItem, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import IconWorkspaceProjectStar from "@/enhance/tabler/icons-react/icons/IconWorkspaceProjectStar"
 import { useTranslation } from "react-i18next"
 import { IconPlus } from "@tabler/icons-react"

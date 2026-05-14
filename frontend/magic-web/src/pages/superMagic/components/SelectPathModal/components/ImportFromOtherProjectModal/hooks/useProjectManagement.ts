@@ -7,8 +7,8 @@ import type {
 	ProjectListItem,
 	CollaborationProjectListItem,
 	ProjectStatus,
-	TopicMode,
 } from "../../../../../pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { SHARE_WORKSPACE_ID, MY_CLAW_WORKSPACE_ID } from "../../../../../constants"
 
 interface UseProjectManagementOptions {

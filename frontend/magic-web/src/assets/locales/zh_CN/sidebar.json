@@ -12,6 +12,9 @@
 	"crewMarket": {
 		"title": "数字员工"
 	},
+	"docAssistant": {
+		"title": "公文写作助手"
+	},
 	"footer": {
 		"defaultUser": "用户",
 		"feedback": "使用反馈",

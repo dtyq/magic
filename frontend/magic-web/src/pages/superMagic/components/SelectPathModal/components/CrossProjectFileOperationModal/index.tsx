@@ -38,7 +38,8 @@ import type {
 	ProjectListItem,
 	CollaborationProjectListItem,
 } from "../../../../pages/Workspace/types"
-import { ProjectStatus, TopicMode } from "../../../../pages/Workspace/types"
+import { ProjectStatus } from "../../../../pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import {
 	SHARE_WORKSPACE_ID,
 	SHARE_WORKSPACE_DATA,

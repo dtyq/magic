@@ -1,7 +1,7 @@
 import { useCallback } from "react"
 import { useMount } from "ahooks"
 import { observer } from "mobx-react-lite"
-import { TopicMode } from "../../../pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll"
 import { Button } from "@/components/shadcn-ui/button"
 import { Skeleton } from "@/components/shadcn-ui/skeleton"

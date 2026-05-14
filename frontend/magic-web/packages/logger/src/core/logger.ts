@@ -71,6 +71,10 @@ class Logger implements ILogger {
 		return this.provider?.report(value)
 	}
 
+	track(event: any) {
+		return this.provider?.report(event)
+	}
+
 	private async loadProvider(type: ProviderType): Promise<new () => IProvider> {
 		switch (type) {
 			case "Volcengine":

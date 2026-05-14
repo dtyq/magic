@@ -1,4 +1,5 @@
 import type { Canvas } from "../Canvas"
+import { createLeadingRafThrottle } from "../utils/leadingRafThrottle"
 import canvasBackgroundSvg from "../../assets/svg/canvas-background.svg"
 
 /**
@@ -17,8 +18,7 @@ export class BackgroundManager {
 	// SVG 图案尺寸（与 SVG 文件中的 viewBox 一致）
 	private readonly PATTERN_SIZE = 16
 
-	// RAF ID，用于节流样式更新
-	private rafId: number | null = null
+	private readonly backgroundUpdateThrottle: ReturnType<typeof createLeadingRafThrottle<null>>
 	private unsubscribers: Array<() => void> = []
 	private lastBackgroundPosition = ""
 	private lastBackgroundSize = ""
@@ -27,6 +27,14 @@ export class BackgroundManager {
 	constructor(options: { canvas: Canvas }) {
 		const { canvas } = options
 		this.canvas = canvas
+
+		this.backgroundUpdateThrottle = createLeadingRafThrottle<null>(
+			(value: null) => {
+				void value
+				this.applyBackgroundStyles()
+			},
+			{ enabled: true, leading: true },
+		)
 
 		this.setupEventListeners()
 		this.scheduleBackgroundUpdate()
@@ -101,17 +109,10 @@ export class BackgroundManager {
 	}
 
 	/**
-	 * 使用 requestAnimationFrame 节流背景样式更新。
+	 * 背景样式更新：与 ViewportController 相同，使用 leadingRafThrottle（leading + RAF 尾随合并）。
 	 */
 	private scheduleBackgroundUpdate = (): void => {
-		if (this.rafId !== null) {
-			return
-		}
-
-		this.rafId = requestAnimationFrame(() => {
-			this.applyBackgroundStyles()
-			this.rafId = null
-		})
+		this.backgroundUpdateThrottle.processEvent(null)
 	}
 
 	/**
@@ -141,10 +142,7 @@ export class BackgroundManager {
 	 * 销毁管理器
 	 */
 	public destroy(): void {
-		if (this.rafId !== null) {
-			cancelAnimationFrame(this.rafId)
-			this.rafId = null
-		}
+		this.backgroundUpdateThrottle.destroy()
 
 		this.unsubscribers.forEach((unsubscribe) => unsubscribe())
 		this.unsubscribers = []

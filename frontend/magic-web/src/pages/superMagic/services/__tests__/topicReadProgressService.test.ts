@@ -5,7 +5,6 @@ import { TaskStatus, type Topic } from "@/pages/superMagic/pages/Workspace/types
 import topicStore, { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import topicReadProgressService, {
 	createTopicReadProgressService,
-	syncTopicStatusPatch,
 } from "../topicReadProgressService"
 
 vi.mock("@/apis", () => ({
@@ -53,34 +52,6 @@ describe("topicReadProgressService", () => {
 
 	afterEach(() => {
 		topicStore.reset()
-	})
-
-	it("syncTopicStatusPatch writes unread patch into injected store", async () => {
-		const scopedTopicStore = new TopicStore()
-		const topic = createTopicPatch({
-			id: "topic-sync",
-			taskStatus: TaskStatus.RUNNING,
-			hasUnread: false,
-		})
-		scopedTopicStore.setTopics([topic])
-		scopedTopicStore.setSelectedTopic(topic)
-		vi.mocked(SuperMagicApi.getTopicsStatus).mockResolvedValue({
-			list: [
-				{
-					id: "topic-sync",
-					status: "finished",
-					has_unread: true,
-				},
-			],
-		})
-
-		await syncTopicStatusPatch({
-			topicStore: scopedTopicStore,
-			topicId: "topic-sync",
-		})
-
-		expect(scopedTopicStore.selectedTopic?.task_status).toBe("finished")
-		expect(scopedTopicStore.selectedTopic?.has_unread).toBe(true)
 	})
 
 	it("created service flushes and merges read progress into injected store", async () => {
@@ -295,6 +266,36 @@ describe("topicReadProgressService", () => {
 		})
 
 		expect(SuperMagicApi.markTopicReadProgress).toHaveBeenCalledTimes(0)
+	})
+
+	it("终态消息到达补记可绕过本地无未读判断执行上报", async () => {
+		const readTopic = createTopicPatch({
+			id: "topic-terminal-read",
+			taskStatus: TaskStatus.FINISHED,
+			hasUnread: false,
+		})
+		topicStore.setTopics([readTopic])
+		topicStore.setSelectedTopic(readTopic)
+
+		vi.mocked(SuperMagicApi.markTopicReadProgress).mockResolvedValue({
+			topic_id: "topic-terminal-read",
+			last_read_at: "2026-04-16 11:00:00",
+			last_read_message_id: "msg-9",
+			has_unread: false,
+		})
+
+		topicReadProgressService.markTopicReadProgress({
+			topicId: "topic-terminal-read",
+			lastReadAt: "2026-04-16 11:00:00",
+			lastReadMessageId: "msg-9",
+			reason: "message-change",
+			immediate: true,
+			allowWithoutUnreadCheck: true,
+		})
+
+		await waitFor(() => {
+			expect(SuperMagicApi.markTopicReadProgress).toHaveBeenCalledTimes(1)
+		})
 	})
 
 	it("运行中已写入 latest 的同游标在终态后可用 immediate 触发上报", async () => {

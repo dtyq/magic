@@ -15,7 +15,8 @@ import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
 import { resolveMessageSendContext } from "@/pages/superMagic/services/messageSendPreparation"
 import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import { messageSendService } from "@/pages/superMagic/services/messageSendFlowService"
-import { TopicMode, type ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { type ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "../../Workspace/TopicMode"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { userStore } from "@/models/user"
 import type {
@@ -35,6 +36,7 @@ import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelS
 import useTopicModel from "@/pages/superMagic/components/MessageEditor/hooks/useTopicModel"
 import { useRefreshTopicDetailOnTaskComplete } from "@/pages/superMagic/hooks/useRefreshTopicDetailOnTaskComplete"
 import { useScopedTopicReadProgress } from "@/pages/superMagic/hooks/useScopedTopicReadProgress"
+import { applyOptimisticTopicRunningState } from "@/pages/superMagic/services/topicStatusSyncService"
 
 interface ConversationPanelProps {
 	selectedProject: ProjectListItem | null
@@ -176,6 +178,15 @@ function ConversationPanel({
 			projectFilesStore,
 			layoutConfig: DEFAULT_LAYOUT_CONFIG,
 			showLoading,
+			onSendComplete: ({ success, currentProject, currentTopic }) => {
+				if (!success) return
+
+				applyOptimisticTopicRunningState({
+					topicStore,
+					topic: currentTopic ?? topicStore.selectedTopic,
+					project: currentProject ?? selectedProject,
+				})
+			},
 			mergeSendParams: ({ defaultParams }) => {
 				const mergedParams = merge(defaultParams, {
 					topicMode: TopicMode.SkillCreator,

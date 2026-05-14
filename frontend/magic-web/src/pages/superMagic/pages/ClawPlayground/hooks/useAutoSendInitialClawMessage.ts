@@ -3,7 +3,7 @@ import { useEffect, useRef, useSyncExternalStore } from "react"
 import chatWebSocket from "@/apis/clients/chatWebSocket"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
 import type { SendMessageOptions } from "@/pages/superMagic/components/MessagePanel/types"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "../../Workspace/TopicMode"
 
 function subscribeChatWebSocketReady(onStoreChange: () => void) {
 	const handleOpen = () => onStoreChange()

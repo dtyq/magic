@@ -63,10 +63,11 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 		actionConfig,
 		getPopupContainer,
 		onLocateFile,
+		extraMoreMenuItems,
 	} = props
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
-	const { hideShareFile } = useFileActionVisibility()
+	const { hideShareFile, hideFullscreen } = useFileActionVisibility()
 	const headerContainerRef = useRef<HTMLDivElement>(null)
 	const rightActionsContainerRef = useRef<HTMLDivElement>(null)
 	const showButtonText = useContainerShowButtonText(rightActionsContainerRef)
@@ -148,16 +149,18 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 		})
 
 	const mergedActionConfig = useMemo(() => {
-		if (!hideShareFile) return actionConfig
-
 		const hideDefaults = new Set(actionConfig?.hideDefaults || [])
-		hideDefaults.add("share")
+
+		if (hideShareFile) hideDefaults.add("share")
+		if (hideFullscreen) hideDefaults.add("fullscreen")
+
+		if (hideDefaults.size === 0) return actionConfig
 
 		return {
 			...actionConfig,
 			hideDefaults: Array.from(hideDefaults),
 		}
-	}, [actionConfig, hideShareFile])
+	}, [actionConfig, hideShareFile, hideFullscreen])
 
 	const actionContext = useMemo(
 		() => ({
@@ -294,8 +297,17 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 				onClick: handleLocateFile,
 			},
 			...(isShareRoute ? [] : [historyItem]),
+			...(extraMoreMenuItems ?? []),
 		]
-	}, [fileVersionsList, fileVersion, handleChangeFileVersion, handleLocateFile, isShareRoute, t])
+	}, [
+		fileVersionsList,
+		fileVersion,
+		handleChangeFileVersion,
+		handleLocateFile,
+		isShareRoute,
+		t,
+		extraMoreMenuItems,
+	])
 
 	const renderBuiltinAction = useCallback(
 		(action: BuiltinComposedAction) => {

@@ -1,5 +1,6 @@
 import { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
-import { TopicMode, Workspace, type ProjectListItem, type Topic } from "../../pages/Workspace/types"
+import { Workspace, type ProjectListItem, type Topic } from "../../pages/Workspace/types"
+import { TopicMode } from "../../pages/Workspace/TopicMode"
 import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import { MessageEditorSize, MessageEditorLayoutConfig } from "../MessageEditor/types"
 import { AttachmentItem } from "../TopicFilesButton/hooks"

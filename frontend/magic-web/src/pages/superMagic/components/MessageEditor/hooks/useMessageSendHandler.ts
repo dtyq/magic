@@ -7,6 +7,7 @@ import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import projectFilesStore from "@/stores/projectFiles"
 import { logger as Logger } from "@/utils/log"
 import { replaceSuperPlaceholderToString } from "../extensions/super-placeholder/utils"
+import { serializeInspectorContent } from "../extensions/inspector-detail"
 import type { MessageEditorStore } from "../stores"
 import { ModelStatusEnum, type MessageEditorProps } from "../types"
 import { isEmptyJSONContent } from "../utils"
@@ -78,11 +79,20 @@ export default function useMessageSendHandler({
 		let content
 		try {
 			content = store.editorStore.value
-				? transformMarkerImagePathsToWorkspaceAbsolute(
-						replaceSuperPlaceholderToString(store.editorStore.value, {
-							validate: true,
-						}),
-						projectFilesStore.workspaceFilesList,
+				? serializeInspectorContent(
+						transformMarkerImagePathsToWorkspaceAbsolute(
+							replaceSuperPlaceholderToString(store.editorStore.value, {
+								validate: true,
+							}),
+							projectFilesStore.workspaceFilesList,
+						),
+						{
+							title: t("stylePanel.inspector.agentPromptTitle"),
+							selector: t("stylePanel.inspector.selector"),
+							size: t("stylePanel.inspector.size"),
+							computedStyles: t("stylePanel.inspector.computedStyles"),
+							textContent: t("stylePanel.inspector.textContent"),
+						},
 					)
 				: undefined
 		} catch (error: unknown) {

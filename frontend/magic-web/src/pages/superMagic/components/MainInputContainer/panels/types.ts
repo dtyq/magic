@@ -40,6 +40,8 @@ export interface FieldItem {
 	updated_at?: string
 	// instruction template appended to user messages via preset value
 	preset_content?: LocaleText
+	// custom placeholder text for the select trigger
+	placeholder?: LocaleText
 }
 
 /**

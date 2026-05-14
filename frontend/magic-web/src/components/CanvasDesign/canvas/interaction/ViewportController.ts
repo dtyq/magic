@@ -1201,6 +1201,7 @@ export class ViewportController {
 			duration,
 			easing,
 			allowBelowMinScale: true,
+			ensureFullyVisible: false,
 		})
 	}
 

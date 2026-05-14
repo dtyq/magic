@@ -4,7 +4,7 @@ import TopicService from "./topicService"
 import routeManageService from "./routeManageService"
 import { workspaceStore, projectStore, topicStore } from "../stores/core"
 import type { ProjectListItem, Topic, Workspace, CreatedProject } from "../pages/Workspace/types"
-import { TopicMode } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import type { HandleCreateProjectParams } from "./projectService"
 import {
 	isOtherCollaborationProject,
@@ -1051,11 +1051,17 @@ class SuperMagicService {
 		targetProject,
 		onError,
 		onSuccess,
+		onNavigated,
+		topicMode,
 	}: {
 		selectedProject: ProjectListItem | null | undefined
 		targetProject?: ProjectListItem
 		onError?: (error: unknown) => void
 		onSuccess?: (topic: Topic) => Promise<void> | void
+		/** Called after navigateToState — safe moment to insert content into the new topic's editor */
+		onNavigated?: (topic: Topic) => void
+		/** Mode to set on the new topic (only applied if mode is available in the current project) */
+		topicMode?: import("../pages/Workspace/types").TopicMode
 	}): Promise<Topic | null> {
 		const project = targetProject ?? selectedProject
 
@@ -1067,6 +1073,7 @@ class SuperMagicService {
 			const newTopic = await this.topic.createTopic({
 				projectId: project.id,
 				topicName: "",
+				topicMode,
 			})
 
 			if (newTopic) {
@@ -1083,6 +1090,12 @@ class SuperMagicService {
 				this.route.navigateToState({
 					topicId: newTopic.id || null,
 				})
+
+				if (onNavigated) {
+					setTimeout(() => {
+						onNavigated(newTopic)
+					}, 500)
+				}
 			}
 
 			return newTopic

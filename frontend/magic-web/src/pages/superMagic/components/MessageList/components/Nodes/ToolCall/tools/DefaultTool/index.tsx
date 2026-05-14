@@ -24,6 +24,7 @@ export interface ToolDataLike {
 	action?: string | ReactNode
 	remark?: string
 	status?: string
+	rawArguments?: string
 	detail?: {
 		data?: Record<string, unknown>
 	}

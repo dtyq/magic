@@ -1,10 +1,12 @@
 import { observer } from "mobx-react-lite"
+import type { ReactNode } from "react"
 import CurrentSceneBadge from "@/pages/superMagic/components/MainInputContainer/components/SelectedSkillBadge"
 import type { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import { SCENE_INPUT_IDS } from "@/pages/superMagic/components/MainInputContainer/constants"
 import { sceneStateStore } from "@/pages/superMagic/components/MainInputContainer/stores"
 import SceneSwitcher from "@/pages/superMagic/components/MainInputContainer/components/SceneSwitcher"
-import type { ProjectListItem, Topic, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import type { SceneItem } from "@/pages/superMagic/types/skill"
 import MobileComposerModeSelector from "./MobileComposerModeSelector"
 
@@ -16,6 +18,7 @@ interface MobileComposerHeaderProps {
 	agentCode?: string | null
 	selectorVariant?: "default" | "claw"
 	messagesLength?: number
+	sceneControlNode?: ReactNode
 	onModeChange?: SceneEditorContext["setTopicMode"]
 }
 
@@ -27,11 +30,13 @@ function MobileComposerHeaderComponent({
 	agentCode,
 	selectorVariant = "default",
 	messagesLength,
+	sceneControlNode,
 	onModeChange,
 }: MobileComposerHeaderProps) {
 	const selectedScene = sceneStateStore.currentScene
 	const shouldShowSelector = selectorVariant !== "claw"
-	const hasSceneContent = Boolean(selectedScene) || Boolean(scenes?.length)
+	const hasSceneContent =
+		Boolean(sceneControlNode) || Boolean(selectedScene) || Boolean(scenes?.length)
 
 	if (!shouldShowSelector && !hasSceneContent) return null
 
@@ -52,7 +57,9 @@ function MobileComposerHeaderComponent({
 			) : null}
 
 			<div className="relative flex h-8 min-w-0 flex-1 items-center overflow-hidden">
-				{selectedScene ? (
+				{sceneControlNode ? (
+					sceneControlNode
+				) : selectedScene ? (
 					<CurrentSceneBadge
 						scene={selectedScene}
 						variant="outlineButton"

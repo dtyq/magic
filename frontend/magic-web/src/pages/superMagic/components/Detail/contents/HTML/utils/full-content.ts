@@ -6,6 +6,7 @@ import {
 	MAGIC_FETCH_POST_MESSAGE_TARGET_HELPER,
 } from "./fetchInterceptor"
 import { getNestedIframeInterceptorScript } from "./nested-iframe-content"
+import { getIframeRuntimeScript } from "../iframe-bridge/utils/iframe-script"
 import { configStore } from "@/models/config"
 import { normalizeLocale } from "@/utils/locale"
 
@@ -596,295 +597,6 @@ const getDOMContentLoadedScript = (disableParentClickBridge = false) => {
 			})`
 			}
 		});
-	`
-}
-
-// MAGIC 方法集脚本 - 提供安全的页面操作方法
-const getMagicMethodsScript = () => {
-	const lang = configStore.i18n.language
-	return `
-		// 初始化 window.Magic 方法集
-		if (typeof window.Magic === 'undefined') {
-			window.Magic = {};
-		}
-		
-		// 添加 reload 方法，通过 postMessage 通知父窗口重新加载内容
-		window.Magic.reload = function() {
-			window.parent.postMessage({
-				type: "MAGIC_RELOAD_REQUEST",
-				timestamp: Date.now()
-			}, "*");
-		};
-		
-		// 添加 setInputMessage 方法，通过 postMessage 通知父窗口设置输入框文本
-		window.Magic.setInputMessage = function(message) {
-			if (typeof message !== 'string') {
-				console.error('window.Magic.setInputMessage: message must be a string');
-				return;
-			}
-			window.parent.postMessage({
-				type: "MAGIC_SET_INPUT_MESSAGE",
-				message: message,
-				timestamp: Date.now()
-			}, "*");
-		};
-
-		(function setupMagicI18nSubscription() {
-			const i18nSubscribers = new Set();
-
-			if (!window.Magic.i18n || typeof window.Magic.i18n !== "object") {
-				window.Magic.i18n = {};
-			}
-
-			window.Magic.i18n.lang = "${normalizeLocale(lang)}";
-
-			// 统一监听父窗口下发的语言变更消息，订阅后会持续回调
-			const onI18nMessage = function(event) {
-				if (!event.data || event.data.type !== "MAGIC_I18N_LANG_SUBSCRIBE") return;
-				if (!event.data.success) return;
-
-				const results = event.data.results || {};
-				const nextLang = typeof results.lang === "string" ? results.lang : "";
-				if (nextLang) {
-					window.Magic.i18n.lang = nextLang;
-				}
-
-				i18nSubscribers.forEach(function(subscriber) {
-					try {
-						subscriber(results);
-					} catch (error) {
-						console.error("window.Magic.i18n.subscribe callback error:", error);
-					}
-				});
-			};
-
-			window.addEventListener("message", onI18nMessage);
-
-			// 订阅语言变化事件，返回取消订阅函数
-			window.Magic.i18n.subscribe = function(callback) {
-				if (typeof callback !== "function") {
-					console.error("window.Magic.i18n.subscribe: callback must be a function");
-					return function() {};
-				}
-
-				i18nSubscribers.add(callback);
-				const requestId = "i18n_subscribe_" + Date.now() + "_" + Math.random().toString(36).slice(2, 11);
-				window.parent.postMessage({
-					type: "MAGIC_I18N_LANG_SUBSCRIBE",
-					requestId: requestId,
-					timestamp: Date.now()
-				}, "*");
-
-				return function unsubscribe() {
-					i18nSubscribers.delete(callback);
-				};
-			};
-
-			window.Magic.i18n.unsubscribe = function(callback) {
-				if (typeof callback !== "function") return;
-				i18nSubscribers.delete(callback);
-			};
-		})();
-		
-		// 添加 uploadFiles 方法，通过 postMessage 通知父窗口上传文件
-		window.Magic.uploadFiles = function(files) {
-			return new Promise((resolve, reject) => {
-				// 验证参数格式
-				if (!Array.isArray(files)) {
-					reject(new Error('window.Magic.uploadFiles: files must be an array'));
-					return;
-				}
-				
-				if (files.length === 0) {
-					reject(new Error('window.Magic.uploadFiles: files array cannot be empty'));
-					return;
-				}
-				
-				// 验证每个元素格式
-				for (let i = 0; i < files.length; i++) {
-					const item = files[i];
-					if (!item || typeof item !== 'object') {
-						reject(new Error(\`window.Magic.uploadFiles: files[\${i}] must be an object\`));
-						return;
-					}
-					if (!(item.file instanceof File)) {
-						reject(new Error(\`window.Magic.uploadFiles: files[\${i}].file must be a File object\`));
-						return;
-					}
-					if (typeof item.path !== 'string') {
-						reject(new Error(\`window.Magic.uploadFiles: files[\${i}].path must be a string\`));
-						return;
-					}
-					if (typeof item.filename !== 'string') {
-						reject(new Error(\`window.Magic.uploadFiles: files[\${i}].filename must be a string\`));
-						return;
-					}
-				}
-				
-				// 生成请求ID用于匹配响应
-				const requestId = 'upload_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-				
-				// 转换文件为base64
-				const filePromises = files.map((item) => {
-					return new Promise((resolveFile, rejectFile) => {
-						const reader = new FileReader();
-						reader.onload = () => {
-							resolveFile({
-								base64: reader.result,
-								filename: item.filename,
-								path: item.path,
-								fileSize: item.file.size,
-								fileType: item.file.type
-							});
-						};
-						reader.onerror = () => {
-							rejectFile(new Error('Failed to read file: ' + item.filename));
-						};
-						reader.readAsDataURL(item.file);
-					});
-				});
-				
-				// 等待所有文件转换完成
-				Promise.all(filePromises)
-					.then((fileData) => {
-						// 发送上传请求到父窗口
-						window.parent.postMessage({
-							type: "MAGIC_UPLOAD_FILES_REQUEST",
-							requestId: requestId,
-							files: fileData
-						}, "*");
-						
-						// 监听响应
-						const messageHandler = (event) => {
-							if (event.data && 
-								event.data.type === "MAGIC_UPLOAD_FILES_RESPONSE" && 
-								event.data.requestId === requestId) {
-								window.removeEventListener('message', messageHandler);
-								
-								if (event.data.success) {
-									resolve(event.data.results);
-								} else {
-									reject(new Error(event.data.error || 'Upload failed'));
-								}
-							}
-						};
-						
-						window.addEventListener('message', messageHandler);
-					})
-					.catch((error) => {
-						reject(error);
-					});
-			});
-		};
-		
-		// 添加 addFilesToMessage 方法，通过 postMessage 通知父窗口将文件添加到消息对话框
-		window.Magic.addFilesToMessage = function(filePaths, agentMode) {
-			return new Promise((resolve, reject) => {
-				// 验证参数格式
-				if (!Array.isArray(filePaths)) {
-					reject(new Error('window.Magic.addFilesToMessage: filePaths must be an array'));
-					return;
-				}
-				
-				if (filePaths.length === 0) {
-					reject(new Error('window.Magic.addFilesToMessage: filePaths array cannot be empty'));
-					return;
-				}
-				
-				// 验证每个路径都是字符串
-				for (let i = 0; i < filePaths.length; i++) {
-					if (typeof filePaths[i] !== 'string') {
-						reject(new Error(\`window.Magic.addFilesToMessage: filePaths[\${i}] must be a string\`));
-						return;
-					}
-				}
-				
-				// 验证 agentMode（如果提供）
-				if (agentMode !== undefined && typeof agentMode !== 'string') {
-					reject(new Error('window.Magic.addFilesToMessage: agentMode must be a string'));
-					return;
-				}
-				
-				// 生成请求ID用于匹配响应
-				const requestId = 'add_files_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-				
-				// 发送请求到父窗口
-				window.parent.postMessage({
-					type: "MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
-					requestId: requestId,
-					filePaths: filePaths,
-					agentMode: agentMode
-				}, "*");
-				
-				// 监听响应
-				const messageHandler = (event) => {
-					if (event.data && 
-						event.data.type === "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE" && 
-						event.data.requestId === requestId) {
-						window.removeEventListener('message', messageHandler);
-						
-						if (event.data.success) {
-							resolve(event.data.result);
-						} else {
-							reject(new Error(event.data.error || 'Add files to message failed'));
-						}
-					}
-				};
-				
-				window.addEventListener('message', messageHandler);
-			});
-		};
-		
-		// 添加 downloadFiles 方法，通过 postMessage 通知父窗口下载文件
-		window.Magic.downloadFiles = function(filePaths) {
-			return new Promise((resolve, reject) => {
-				// 验证参数格式
-				if (!Array.isArray(filePaths)) {
-					reject(new Error('window.Magic.downloadFiles: filePaths must be an array'));
-					return;
-				}
-				
-				if (filePaths.length === 0) {
-					reject(new Error('window.Magic.downloadFiles: filePaths array cannot be empty'));
-					return;
-				}
-				
-				// 验证每个路径都是字符串
-				for (let i = 0; i < filePaths.length; i++) {
-					if (typeof filePaths[i] !== 'string') {
-						reject(new Error(\`window.Magic.downloadFiles: filePaths[\${i}] must be a string\`));
-						return;
-					}
-				}
-				
-				// 生成请求ID用于匹配响应
-				const requestId = 'download_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-				
-				// 发送请求到父窗口
-				window.parent.postMessage({
-					type: "MAGIC_DOWNLOAD_FILES_REQUEST",
-					requestId: requestId,
-					filePaths: filePaths
-				}, "*");
-				
-				// 监听响应
-				const messageHandler = (event) => {
-					if (event.data && 
-						event.data.type === "MAGIC_DOWNLOAD_FILES_RESPONSE" && 
-						event.data.requestId === requestId) {
-						window.removeEventListener('message', messageHandler);
-						
-						if (event.data.success) {
-							resolve(event.data.result);
-						} else {
-							reject(new Error(event.data.error || 'Download files failed'));
-						}
-					}
-				};
-				
-				window.addEventListener('message', messageHandler);
-			});
-		};
 	`
 }
 
@@ -1834,9 +1546,11 @@ export const getFullContent = (
 	// 创建注入脚本
 	const scriptElement = doc.createElement("script")
 	scriptElement.setAttribute("data-injected", "true")
+	// 注入初始语言变量，供 iframe-runtime 中 MagicI18nApi 在安装时读取
+	const initialLang = normalizeLocale(configStore.i18n.language)
 	scriptElement.textContent = `
+		window.__MAGIC_INITIAL_LANG__ = "${initialLang}";
 		${getPostMessageTargetBootstrapScript(postMessageTargetStrategy)}
-		${getMagicMethodsScript()}
 		${getCookieMockScript()}
 		${getStorageMockScript(markerId)}
 		${getIndexedDBMockScript()}
@@ -1847,6 +1561,13 @@ export const getFullContent = (
 		${getDynamicResourceInterceptorScript(dynamicInterceptionOptions)}
 	`
 	doc.head.appendChild(scriptElement)
+
+	// 注入 iframe-runtime.js：Phase 1 立即安装 window.Magic.fs / llm；
+	// Phase 2 在收到 { type: "activateEditorRuntime" } 消息后激活编辑器。
+	const runtimeScriptElement = doc.createElement("script")
+	runtimeScriptElement.setAttribute("data-injected", "true")
+	runtimeScriptElement.textContent = getIframeRuntimeScript()
+	doc.head.appendChild(runtimeScriptElement)
 
 	// 在html标签上添加translate="no"属性
 	doc.documentElement.setAttribute("translate", "no")

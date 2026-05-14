@@ -18,7 +18,7 @@ import {
 import { Spinner } from "@/components/shadcn-ui/spinner"
 import { Switch } from "@/components/shadcn-ui/switch"
 import { Textarea } from "@/components/shadcn-ui/textarea"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "../../Workspace/TopicMode"
 import { useModalStyles } from "@/components/business/AccountSetting/pages/ScheduledTasks/styles"
 import ModelSwitchContainer from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/ModelSwitchContainer"
 import {

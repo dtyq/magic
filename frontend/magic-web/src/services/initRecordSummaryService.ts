@@ -1,6 +1,5 @@
 import { logger as Logger } from "@/utils/log"
 import { shouldSkipRecordingSessionRestoreOnCurrentRoute } from "./recordSummary/recordingRestoreRouteGuard"
-import { preloadRecordSummaryFloatPanel } from "./recordSummary/utils/preloadService"
 
 const logger = Logger.createLogger("initRecordSummaryService")
 
@@ -33,6 +32,8 @@ export async function tryRestorePreviousRecordSummarySession({
 	try {
 		const { initializeService } = await import("./recordSummary/serviceInstance")
 
+		const { preloadRecordSummaryFloatPanel } =
+			await import("./recordSummary/utils/preloadService")
 		// 预加载浮动面板
 		preloadRecordSummaryFloatPanel()
 

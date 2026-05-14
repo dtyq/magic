@@ -2,7 +2,11 @@
 	"compilerOptions": {
 		"noEmit": true
 	},
-	"exclude": ["dist/**/*", "node_modules/**/*"],
+	"exclude": [
+		"dist/**/*",
+		"node_modules/**/*",
+		"src/pages/superMagic/components/Detail/contents/HTML/templates/**/*"
+	],
 	"extends": "./tsconfig.json",
 	"include": [
 		"src/**/*.ts",

@@ -411,6 +411,7 @@ export class SuperMagicStore {
 
 		// 针对客户端的工具调用消息直接过滤
 		if (nextMessage?.type === "user_tool_call") {
+			persistMessageToStorage(topicId, message, true)
 			return
 		}
 
@@ -453,6 +454,10 @@ export class SuperMagicStore {
 						cache.tool_calls = []
 						this.messageMap.set(correlationId, cache)
 					}
+
+					// IM 消息到达时立即同步 tool 字段到 messageMap，
+					// 避免 content 流式阶段工具状态无法更新
+					this.syncToolCallsToolField(correlationId, messageNode)
 
 					this.startStreamRendering(topicId, correlationId)
 				} else {
@@ -626,6 +631,18 @@ export class SuperMagicStore {
 					this.handleTopicSuspended(topicId)
 				}
 
+				// 立即更新 toolResponseMap，不受 timer 守卫约束。
+				// 这只是纯数据写入，不会产生新卡片或视觉抖动，
+				// 让组件能即时读到 tool 响应的最终状态（status/detail 等）。
+				const toolResponseMap = this.toolResponseMap.get(topicId) || new Map()
+				if (messageNode?.tool?.id) {
+					toolResponseMap.set(messageNode?.tool?.id || "", {
+						...messageNode?.tool,
+					})
+				}
+				this.toolResponseMap.set(topicId, toolResponseMap)
+
+				// timer 守卫仅延迟"卡片创建 + 事件触发"，避免流式动画期间出现新卡片跳动
 				const topicMeta = this.getTopicMetadata(topicId)
 				if (topicMeta.timer) {
 					console.log(
@@ -637,13 +654,6 @@ export class SuperMagicStore {
 					buffer.isProcessing = false
 					return
 				}
-				const toolResponseMap = this.toolResponseMap.get(topicId) || new Map()
-				if (messageNode?.tool?.id) {
-					toolResponseMap.set(messageNode?.tool?.id || "", {
-						...messageNode?.tool,
-					})
-				}
-				this.toolResponseMap.set(topicId, toolResponseMap)
 
 				console.log(
 					"%c 【DEBUG】 消费队列 - 工具",
@@ -768,12 +778,8 @@ export class SuperMagicStore {
 			}
 		}
 		if (!progressed && !streamState.isFinalMessageReceived) {
-			// 流式无新数据且未收到最终消息 → 定时器停止
-			// 但 buffer 中可能有等待处理的消息（如 suspended），需要排空
-			const buffer = this.getTopicBuffer(topicId)
-			if (buffer.messages.length > 0) {
-				this.processMessageBuffer(topicId)
-			}
+			// 流式无新数据且未收到最终消息 → 暂停定时器，等待下一个 chunk
+			// 到达后由 receiveChunk → startStreamRendering 重启渲染
 			return
 		}
 

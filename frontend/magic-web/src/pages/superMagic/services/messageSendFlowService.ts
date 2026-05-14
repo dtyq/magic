@@ -30,11 +30,11 @@ import type { ModelItem } from "../components/MessageEditor/types"
 import type { SendMessageOptions } from "../components/MessagePanel/types"
 import {
 	MessageStatus,
-	TopicMode,
 	type Workspace,
 	type ProjectListItem,
 	type Topic,
 } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import { superMagicStore } from "../stores"
 import { smartRenameTopicIfUnnamed } from "./topicRename"
 import { shouldClearEditorAfterSend } from "./messageSendEditorPolicy"

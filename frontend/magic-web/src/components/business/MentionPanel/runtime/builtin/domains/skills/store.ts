@@ -1,6 +1,6 @@
 import { makeAutoObservable } from "mobx"
 import { CrewApi } from "@/apis"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { MentionItemType, type MentionItem, type SkillMentionData } from "../../../../types"
 import type { SkillDomainItem, SkillQueryContextOptions } from "./types"
 

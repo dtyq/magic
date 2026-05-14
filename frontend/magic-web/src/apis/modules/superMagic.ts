@@ -14,10 +14,10 @@ import type {
 	ModeItem,
 	ProjectListItem,
 	Topic,
-	TopicMode,
 	WithPage,
 	Workspace,
 } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import type { FileItem } from "@/pages/superMagic/components/SelectPathModal"
 import type { UploadSource } from "@/pages/superMagic/components/MessageEditor/hooks/useFileUpload"
 import type { SaveUploadFileToProjectResponse } from "@/pages/superMagic/utils/api"
@@ -1617,6 +1617,17 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 	 */
 	getProjectDetail({ id }: { id: string }, options?: Omit<RequestConfig, "url">) {
 		return fetch.get<ProjectListItem>(`/api/v1/super-agent/projects/${id}`, options)
+	},
+
+	/**
+	 * @description 获取特殊项目（不存在时自动创建）
+	 * @param key 项目标识
+	 */
+	getSpecialProject({ key }: { key: string }) {
+		return fetch.post<{ project: ProjectListItem; is_existing: boolean }>(
+			"/api/v1/super-agent/user/special-projects",
+			{ key },
+		)
 	},
 
 	/**

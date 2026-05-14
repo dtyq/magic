@@ -1,7 +1,7 @@
 import { memo, useMemo } from "react"
 import { computed } from "mobx"
 import { useTranslation } from "react-i18next"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import IconComponent from "@/pages/superMagic/components/IconViewComponent"
 import MagicIcon from "@/components/base/MagicIcon"

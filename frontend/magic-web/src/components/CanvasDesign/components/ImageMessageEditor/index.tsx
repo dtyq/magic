@@ -12,11 +12,33 @@ import { ImageElement as ImageElementClass } from "../../canvas/element/elements
 export default function ImageMessageEditor() {
 	const { selectedElements, isSelecting, isDragging, subElementTooltip } = useCanvasSelectionUI()
 	const { croppingElementId, extendingElementId, erasingElementId } = useCanvasModeUI()
+	const [retryEditingElementId, setRetryEditingElementId] = useState<string | null>(null)
+
 	const [targetElement] = selectedElements
 	const imageElement =
 		selectedElements.length === 1 && targetElement?.type === ElementTypeEnum.Image
 			? targetElement
 			: null
+
+	// 必须在父级订阅：useCanvasEvent 在 useEffect 注册，未选中时 ActiveImageMessageEditor 未挂载会漏掉同一次点击内的 emit
+	useCanvasEvent(
+		"element:image:retryClick",
+		({ data }) => {
+			setRetryEditingElementId(data.elementId)
+		},
+		[],
+	)
+
+	useEffect(() => {
+		const selectedId = imageElement?.id
+		if (selectedId == null) {
+			setRetryEditingElementId(null)
+			return
+		}
+		if (retryEditingElementId && retryEditingElementId !== selectedId) {
+			setRetryEditingElementId(null)
+		}
+	}, [imageElement?.id, retryEditingElementId])
 
 	// 如果没有图片元素或正在选择元素或图片元素被锁定，则不显示图片编辑器, 或者正在裁剪、扩展、橡皮擦元素
 	if (
@@ -30,18 +52,28 @@ export default function ImageMessageEditor() {
 	)
 		return null
 
-	return <ActiveImageMessageEditor imageElement={imageElement} isDragging={isDragging} />
+	return (
+		<ActiveImageMessageEditor
+			imageElement={imageElement}
+			isDragging={isDragging}
+			retryEditingElementId={retryEditingElementId}
+		/>
+	)
 }
 
 interface ActiveImageMessageEditorProps {
 	imageElement: ImageElement
 	isDragging: boolean
+	retryEditingElementId: string | null
 }
 
-function ActiveImageMessageEditor({ imageElement, isDragging }: ActiveImageMessageEditorProps) {
+function ActiveImageMessageEditor({
+	imageElement,
+	isDragging,
+	retryEditingElementId,
+}: ActiveImageMessageEditorProps) {
 	const { canvas } = useCanvas()
 	const [hiddenAfterSubmit, setHiddenAfterSubmit] = useState(false)
-	const [retryEditingElementId, setRetryEditingElementId] = useState<string | null>(null)
 
 	const hasGenerateImageRequest = !!imageElement.generateImageRequest
 	const hasResultImage = !!imageElement.src
@@ -74,12 +106,6 @@ function ActiveImageMessageEditor({ imageElement, isDragging }: ActiveImageMessa
 		setHiddenAfterSubmit(false)
 	}, [imageElement.id])
 
-	useEffect(() => {
-		if (retryEditingElementId && retryEditingElementId !== imageElement.id) {
-			setRetryEditingElementId(null)
-		}
-	}, [imageElement.id, retryEditingElementId])
-
 	useCanvasEvent(
 		"element:image:generate-submit-started",
 		({ data }) => {
@@ -103,10 +129,9 @@ function ActiveImageMessageEditor({ imageElement, isDragging }: ActiveImageMessa
 	useCanvasEvent(
 		"element:image:retryClick",
 		({ data }) => {
-			setHiddenAfterSubmit(false)
-			setRetryEditingElementId(data.elementId)
+			if (data.elementId === imageElement.id) setHiddenAfterSubmit(false)
 		},
-		[],
+		[imageElement.id],
 	)
 
 	if (
@@ -129,6 +154,8 @@ function ActiveImageMessageEditor({ imageElement, isDragging }: ActiveImageMessa
 			<ImageMessageEditorRender
 				key={`${imageElement.id}-${isRetryEditing ? "retry" : "create"}`}
 				imageElement={imageElement}
+				autoFocus={isRetryEditing}
+				autoFocusAtDocumentEnd={isRetryEditing}
 			/>
 		)
 	}

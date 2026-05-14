@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import SmartTooltip from "@/components/other/SmartTooltip"
 import { useStyles } from "./styles"
 import type { ExampleItem, TopicExamplesProps } from "./types"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { SupportLocales } from "@/constants/locale"
 import { Collapse } from "antd"
 import { Editor } from "@tiptap/core"
@@ -215,7 +215,7 @@ const TopicExamples = ({
 						onClick={() =>
 							handleSetExampleContent(
 								item.content[
-								i18n.language as SupportLocales.zhCN | SupportLocales.enUS
+									i18n.language as SupportLocales.zhCN | SupportLocales.enUS
 								],
 							)
 						}
@@ -226,7 +226,7 @@ const TopicExamples = ({
 						<div className={styles.exampleItemContent}>
 							{getExampleContent(
 								item.content[
-								i18n.language as SupportLocales.zhCN | SupportLocales.enUS
+									i18n.language as SupportLocales.zhCN | SupportLocales.enUS
 								],
 							)}
 						</div>

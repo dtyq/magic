@@ -186,7 +186,11 @@ export function useDetailActions({
 	}
 
 	// 处理下载文件
-	const handleDownload = (fileId?: string, fileVersion?: number, mode?: DownloadImageMode) => {
+	const handleDownload = (
+		fileId?: string,
+		fileVersion?: number,
+		mode = "download" as DownloadImageMode,
+	) => {
 		if (fileId) {
 			getTemporaryDownloadUrl({
 				file_ids: [fileId],

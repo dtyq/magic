@@ -35,6 +35,7 @@ import { RouteName } from "@/routes/constants"
 import { SuperMagicApi } from "@/apis"
 import { crewService } from "@/services/crew/CrewService"
 import { useDefaultModeModelListRefreshOnMount } from "@/pages/superMagic/hooks"
+import { useCreateTopicListener } from "@/pages/superMagic/components/TopicMode"
 import { CrewEditStoreProvider, useCrewEditStore } from "./context"
 import { useCrewEditErrorToasts } from "./hooks/useCrewEditErrorToasts"
 import { useIdentityMarkdownSync } from "./hooks/useIdentityMarkdownSync"
@@ -229,6 +230,10 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 		isReady: !store.initLoading && !store.initError,
 	})
 	useDefaultModeModelListRefreshOnMount()
+	useCreateTopicListener({
+		selectedProject,
+		topicStore: conversation.topicStore,
+	})
 
 	const routePanel = useMemo(() => getPanelFromSearch(location.search), [location.search])
 	const currentRoutePanel: CrewEditRoutePanel =

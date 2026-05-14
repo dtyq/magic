@@ -12,12 +12,8 @@ import DefaultMessageEditorContainer from "@/pages/superMagic/components/MainInp
 import type { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
 import { useTaskData } from "@/pages/superMagic/hooks/useTaskData"
-import {
-	ProjectListItem,
-	Topic,
-	TopicMode,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"

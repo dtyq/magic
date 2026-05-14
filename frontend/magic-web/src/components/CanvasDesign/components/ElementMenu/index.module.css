@@ -18,6 +18,7 @@
 	overflow: hidden;
 	color: var(--base-popover-foreground, #0a0a0a);
 	font-size: var(--text-sm-font-size, 14px);
+	text-align: left;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }

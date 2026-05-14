@@ -5,7 +5,7 @@ import { AgentCommonModal } from "@/components/Agent/AgentCommonModal"
 const AgentSettingsLazy = lazy(() => import("@/components/Agent/MCP/AgentSettings"))
 import CurrentSceneBadge from "../components/SelectedSkillBadge"
 import { SCENE_INPUT_IDS, INPUT_CONTAINER_MIN_HEIGHT, SCENE_PANEL_MIN_HEIGHT } from "../constants"
-import { TopicMode } from "../../../pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { observer } from "mobx-react-lite"
 import { defaultMCPStore } from "@/components/Agent/MCP/store/mcp-store"

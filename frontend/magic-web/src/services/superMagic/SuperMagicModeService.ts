@@ -2,11 +2,8 @@ import { BUSINESS_API_ERROR_CODE } from "@/constants/api"
 import { MODEL_TYPE_IMAGE, MODEL_TYPE_LLM } from "@/apis/modules/org-ai-model-provider"
 import { userStore } from "@/models/user"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
-import {
-	ModeItem,
-	ModeModelGroupItemResponse,
-	TopicMode,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { ModeItem, ModeModelGroupItemResponse } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import superMagicCustomModelService from "./SuperMagicCustomModelService"
 import superMagicModeListRepository, {
 	LEGACY_MODE_LIST_LS_PREFIX,

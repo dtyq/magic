@@ -34,10 +34,12 @@ import {
 interface ImageMessageEditorRenderProps {
 	imageElement: ImageElement
 	autoFocus?: boolean
+	/** 与 autoFocus 联用：挂载后将光标置于提示词末尾 */
+	autoFocusAtDocumentEnd?: boolean
 }
 
 export default function ImageMessageEditorRender(props: ImageMessageEditorRenderProps) {
-	const { imageElement, autoFocus = false } = props
+	const { imageElement, autoFocus = false, autoFocusAtDocumentEnd = false } = props
 
 	const { t } = useCanvasDesignI18n()
 	const { selectedElements } = useCanvasSelectionUI()
@@ -338,6 +340,7 @@ export default function ImageMessageEditorRender(props: ImageMessageEditorRender
 			<MessageEditor
 				ref={editorRef}
 				autoFocus={autoFocus}
+				autoFocusAtDocumentEnd={autoFocusAtDocumentEnd}
 				fullWidth
 				selectionPersistenceKey={`image-generate:${imageElement.id}`}
 				placeholder={t("imageEditor.placeholder", "请输入您的创作需求")}

@@ -10,12 +10,8 @@ import { userStore } from "@/models/user"
 import { AudioSourceConfig, RecordingSession, RecordingStatus } from "@/types/recordSummary"
 import { formatDuration } from "@/services/recordSummary/utils/format"
 import { nanoid } from "nanoid"
-import {
-	ProjectListItem,
-	Topic,
-	TopicMode,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 

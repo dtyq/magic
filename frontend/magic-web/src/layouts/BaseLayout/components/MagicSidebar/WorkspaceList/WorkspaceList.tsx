@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, RefreshCw } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { sidebarStore } from "@/stores/layout"
 import workspaceStore from "@/pages/superMagic/stores/core/workspace"
@@ -16,10 +16,12 @@ import {
 	SidebarGroupLabel,
 	SidebarMenu,
 } from "@/components/shadcn-ui/sidebar"
+import statusPollingService from "@/pages/superMagic/services/statusPollingService"
 
 function WorkspaceList() {
 	const { t } = useTranslation()
 	const [isCreatingWorkspace, setIsCreatingWorkspace] = useState(false)
+	const [isRefreshing, setIsRefreshing] = useState(false)
 	const workspaces = workspaceStore.workspaces
 	const hasRequestedInitialLoadRef = useRef(false)
 	const isInitialWorkspaceListLoading =
@@ -37,6 +39,16 @@ function WorkspaceList() {
 
 	function handleWorkspaceCreated() {
 		setIsCreatingWorkspace(false)
+	}
+
+	async function handleRefresh() {
+		if (isRefreshing) return
+		setIsRefreshing(true)
+		try {
+			await statusPollingService.refreshResourceStatus()
+		} finally {
+			setIsRefreshing(false)
+		}
 	}
 
 	useEffect(() => {
@@ -94,6 +106,19 @@ function WorkspaceList() {
 						data-testid="sidebar-workspace-list-loading"
 					/>
 				)}
+				<button
+					type="button"
+					aria-label={t("sidebar:workspace.refresh")}
+					data-testid="sidebar-workspace-list-refresh"
+					disabled={isRefreshing}
+					className={cn(
+						"outline-hidden relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md p-0 text-sidebar-foreground ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4",
+						"after:absolute after:-inset-2 md:after:hidden",
+					)}
+					onClick={() => void handleRefresh()}
+				>
+					<RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
+				</button>
 				<button
 					type="button"
 					aria-label={t("sidebar:workspace.add")}

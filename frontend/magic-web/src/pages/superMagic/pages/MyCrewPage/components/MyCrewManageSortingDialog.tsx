@@ -32,7 +32,7 @@ import { SuperMagicApi } from "@/apis"
 import { refreshFeaturedModeList } from "@/pages/superMagic/hooks/useFeaturedModeListRefresh"
 import CrewFallbackAvatar from "@/pages/superMagic/components/CrewFallbackAvatar"
 import { roleStore } from "@/pages/superMagic/stores"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "../../Workspace/TopicMode"
 import type {
 	SuperMagicAgentFeaturedSortListItem,
 	SuperMagicAgentOrderItem,

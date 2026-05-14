@@ -4,11 +4,11 @@ import { InputRef } from "antd"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import {
-	TopicMode,
 	ProjectListItem,
 	Workspace,
 	CreatedProject,
 } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { SuperMagicApi } from "@/apis"
 
 interface UseProjectCreationOptions {

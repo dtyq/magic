@@ -118,7 +118,8 @@ const MessageNode = observer(function MessageNode(props: NodeProps) {
 		<div
 			className={cn(
 				"flex w-full flex-col gap-2",
-				hasAssistantContent && "rounded-lg pr-6 transition-colors group-hover:bg-muted",
+				hasAssistantContent &&
+					"rounded-lg transition-[background-color,box-shadow] group-hover:bg-muted group-hover:shadow-[-2px_0_0_5px_rgb(var(--muted-rgb))]",
 			)}
 		>
 			{hasReasoningContent && (

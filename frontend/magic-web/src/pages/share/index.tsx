@@ -36,6 +36,7 @@ import useLegacyTopicShareData from "./hooks/useLegacyTopicShareData"
 import useNewFileShareData from "./hooks/useNewFileShareData"
 import useNewTopicShareData from "./hooks/useNewTopicShareData"
 import { userStore } from "@/models/user"
+import { useUserInfo } from "@/models/user/hooks"
 import { MagicAvatar } from "@/components/base"
 import useBackHandler from "@/utils/historyStackManager/hooks"
 import { useSharePermission } from "./hooks/useSharePermission"
@@ -46,6 +47,7 @@ import {
 } from "@/pages/superMagic/components/Share/FileSelector/utils"
 import { getAppEntryFile } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
+import SuperMagicService from "@/pages/superMagic/services"
 // import { fixJsonPropertyNames } from "../flow/components/FlowAssistant/utils/streamUtils"
 
 const topicContainerBase =
@@ -101,9 +103,51 @@ function resolveImmersiveEntryFileId(params: {
 	return getAttachmentNodeId(previewEntryNode)
 }
 
+function toStringId(id: unknown): string {
+	if (id === null || id === undefined) return ""
+	return String(id)
+}
+
+function getShareProjectCreatorUserId(shareData: ShareDataLike): string {
+	return (
+		toStringId(shareData?.data?.user_id) ||
+		toStringId(shareData?.data?.created_uid) ||
+		toStringId(shareData?.data?.creator?.user_id) ||
+		toStringId(shareData?.data?.extended?.creator?.user_id) ||
+		toStringId(shareData?.data?.data?.user_id) ||
+		toStringId(shareData?.data?.data?.created_uid) ||
+		toStringId(shareData?.creator?.user_id)
+	)
+}
+
+function getShareProjectWorkspaceId(shareData: ShareDataLike): string {
+	return toStringId(shareData?.data?.workspace_id || shareData?.data?.data?.workspace_id)
+}
+
+interface ShareCreatorLike {
+	user_id?: unknown
+}
+
+interface ShareProjectLike {
+	user_id?: unknown
+	created_uid?: unknown
+	workspace_id?: unknown
+	creator?: ShareCreatorLike
+	extended?: {
+		creator?: ShareCreatorLike
+	}
+	data?: ShareProjectLike
+}
+
+interface ShareDataLike {
+	data?: ShareProjectLike
+	creator?: ShareCreatorLike
+}
+
 function Share() {
 	const navigate = useNavigate()
 	const { t } = useTranslation("super")
+	const { userInfo } = useUserInfo()
 	const { setMeta } = useRoutesMetaSet()
 	// const [shareId, setShareId] = useState<string>("")
 	const [isLogined, setIsLogined] = useState(false)
@@ -506,6 +550,7 @@ function Share() {
 	useEffect(() => {
 		pubsub.subscribe(PubSubEvents.Playback_End, (taskData) => {
 			const lastTaskStatus = taskData?.process?.[taskData?.process?.length - 1]?.status
+			if (!lastTaskStatus) return
 			setTaskStatus(lastTaskStatus)
 		})
 		pubsub.subscribe(PubSubEvents.Playback_Start, () => {
@@ -522,6 +567,15 @@ function Share() {
 		if (isFileShare && isMobile && isLogined) return true
 		return !isMobile && isLogined
 	}, [isFileShare, isMobile, isLogined])
+
+	const shouldEnterSharedProject = useMemo(() => {
+		const currentUserId = toStringId(userInfo?.user_id)
+		const creatorUserId = getShareProjectCreatorUserId(data)
+
+		return Boolean(
+			isProjectShare && projectId && currentUserId && creatorUserId === currentUserId,
+		)
+	}, [data, isProjectShare, projectId, userInfo?.user_id])
 
 	// 是否显示复制项目按钮：旧文件分享 或 allowCopyProjectFiles 为 true 时显示，且用户已登录
 	const showCopyProjectButton = useMemo(() => {
@@ -557,6 +611,34 @@ function Share() {
 		// @ts-ignore
 		window.topic_id = ""
 	})
+
+	const handleWorkspaceButtonClick = useMemoizedFn(async () => {
+		clearWindowData()
+
+		if (!shouldEnterSharedProject) {
+			history.push({ name: RouteName.Super })
+			return
+		}
+
+		const workspaceId = getShareProjectWorkspaceId(data)
+
+		try {
+			await SuperMagicService.initializeState({
+				workspaceId,
+				projectId,
+			})
+		} catch (error) {
+			console.error("initialize shared project state failed:", error)
+		}
+
+		navigate({
+			name: RouteName.SuperWorkspaceProjectState,
+			params: {
+				projectId,
+			},
+		})
+	})
+
 	useEffect(() => {
 		return () => {
 			clearWindowData()
@@ -782,10 +864,12 @@ function Share() {
 						)}
 						{showWorkspaceButton ? (
 							<WorkspaceButton
-								onClick={() => {
-									clearWindowData()
-									history.push({ name: RouteName.Super })
-								}}
+								label={
+									shouldEnterSharedProject
+										? t("share.enterProject")
+										: t("share.workspace")
+								}
+								onClick={handleWorkspaceButtonClick}
 							/>
 						) : null}
 						{!isLogined ? (

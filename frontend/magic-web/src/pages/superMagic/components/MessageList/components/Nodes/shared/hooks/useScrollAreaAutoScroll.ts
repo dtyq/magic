@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 const BOTTOM_THRESHOLD = 8
 
@@ -9,13 +9,13 @@ interface UseScrollAreaAutoScrollOptions {
 /**
  * Lightweight auto-scroll for inner ScrollArea containers during streaming.
  *
- * Returns a ref to pass as `viewportRef` on <ScrollArea>.
+ * Returns a callback ref to pass as `viewportRef` on <ScrollArea>.
  * While streaming, new content auto-scrolls to the bottom.
  * If the user scrolls up, auto-follow pauses.
  * If the user scrolls back to the bottom, auto-follow resumes.
  */
 export function useScrollAreaAutoScroll({ isStreaming }: UseScrollAreaAutoScrollOptions) {
-	const viewportRef = useRef<HTMLDivElement>(null)
+	const [viewport, setViewport] = useState<HTMLDivElement | null>(null)
 	const autoFollowRef = useRef(true)
 	const isResizeScrollingRef = useRef(false)
 	const resizeTimerRef = useRef<number>(0)
@@ -31,7 +31,6 @@ export function useScrollAreaAutoScroll({ isStreaming }: UseScrollAreaAutoScroll
 	}, [isStreaming])
 
 	useEffect(() => {
-		const viewport = viewportRef.current
 		if (!viewport) return
 
 		const contentWrapper = viewport.firstElementChild as HTMLElement | null
@@ -51,15 +50,14 @@ export function useScrollAreaAutoScroll({ isStreaming }: UseScrollAreaAutoScroll
 		observer.observe(contentWrapper)
 
 		return () => observer.disconnect()
-	}, [])
+	}, [viewport])
 
 	useEffect(() => {
-		const el = viewportRef.current
-		if (!el) return
+		if (!viewport) return
 
 		const handleScroll = () => {
 			if (isResizeScrollingRef.current) return
-			autoFollowRef.current = isAtBottom(el)
+			autoFollowRef.current = isAtBottom(viewport)
 		}
 
 		const handleWheel = (e: WheelEvent) => {
@@ -72,14 +70,14 @@ export function useScrollAreaAutoScroll({ isStreaming }: UseScrollAreaAutoScroll
 			}
 		}
 
-		el.addEventListener("scroll", handleScroll, { passive: true })
-		el.addEventListener("wheel", handleWheel, { passive: true })
+		viewport.addEventListener("scroll", handleScroll, { passive: true })
+		viewport.addEventListener("wheel", handleWheel, { passive: true })
 
 		return () => {
-			el.removeEventListener("scroll", handleScroll)
-			el.removeEventListener("wheel", handleWheel)
+			viewport.removeEventListener("scroll", handleScroll)
+			viewport.removeEventListener("wheel", handleWheel)
 		}
-	}, [isAtBottom])
+	}, [viewport, isAtBottom])
 
 	useEffect(
 		() => () => {
@@ -87,6 +85,10 @@ export function useScrollAreaAutoScroll({ isStreaming }: UseScrollAreaAutoScroll
 		},
 		[],
 	)
+
+	const viewportRef = useCallback((node: HTMLDivElement | null) => {
+		setViewport(node)
+	}, [])
 
 	return { viewportRef }
 }

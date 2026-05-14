@@ -7,6 +7,7 @@ import { getAccountSettingMenuItems, type AccountSettingMenuItem } from "./confi
 import type { AccountSettingPage } from "./types"
 
 const i18n = getI18n()
+const ACCOUNT_SETTING_NAMESPACE = "accountSetting"
 
 export interface OpenAccountSettingOptions {
 	defaultActiveKey?: AccountSettingPage
@@ -15,9 +16,12 @@ export interface OpenAccountSettingOptions {
 	height?: number | string
 }
 
-export function openAccountSetting(options: OpenAccountSettingOptions = {}) {
+export async function openAccountSetting(options: OpenAccountSettingOptions = {}) {
 	const { defaultActiveKey, onClose, width, height } = options
-	const t = (key: string) => i18n.t(key, { ns: "accountSetting" })
+
+	await i18n.loadNamespaces(ACCOUNT_SETTING_NAMESPACE)
+
+	const t = (key: string) => i18n.t(key, { ns: ACCOUNT_SETTING_NAMESPACE })
 	const menuItems = getAccountSettingMenuItems(t)
 
 	const loadingFallback = (

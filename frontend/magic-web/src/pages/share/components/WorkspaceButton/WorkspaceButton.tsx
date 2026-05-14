@@ -6,12 +6,14 @@ import { useIsMobile } from "@/hooks/useIsMobile"
 
 interface WorkspaceButtonProps {
 	onClick: () => void
+	label?: string
 }
 
-export default function WorkspaceButton({ onClick }: WorkspaceButtonProps) {
+export default function WorkspaceButton({ onClick, label }: WorkspaceButtonProps) {
 	const { userInfo } = useUserInfo()
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
+	const actionLabel = label || t("share.workspace")
 
 	return (
 		<Button
@@ -19,6 +21,7 @@ export default function WorkspaceButton({ onClick }: WorkspaceButtonProps) {
 			size="sm"
 			className="h-8 gap-2.5 rounded-lg border-black/[0.08] px-1.5 py-1.5 dark:border-white/[0.08]"
 			onClick={onClick}
+			data-testid="share-workspace-button"
 		>
 			<div className="flex items-center gap-1">
 				<div className="flex size-6 items-center justify-center rounded-[6px] bg-[#DDE7FF] p-[1.5px] dark:bg-blue-500/20">
@@ -36,7 +39,7 @@ export default function WorkspaceButton({ onClick }: WorkspaceButtonProps) {
 			</div>
 			<div className="h-3 w-0 border-l border-border" />
 			<span className="text-sm font-normal leading-[1.43] text-foreground">
-				{t("share.workspace")}
+				{actionLabel}
 			</span>
 		</Button>
 	)

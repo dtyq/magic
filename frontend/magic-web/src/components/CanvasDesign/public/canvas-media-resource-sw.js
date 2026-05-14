@@ -10,7 +10,8 @@
  *    避免 Strict Mode / 路由切换销毁 Canvas 后仍在飞行的换链退回 OSS 直链、与虚拟 URL 策略不一致。
  */
 const DB_NAME = "canvas-media-resource-offline-cache"
-const DB_VERSION = 1
+const DB_VERSION = 2
+const LOOKUP_PATH_INDEX = "lookupPath"
 const STORE_NAME = "resources"
 const CACHE_NAME = "canvas-media-resources-v1"
 const DEFAULT_MAX_BYTES = 1024 * 1024 * 1024
@@ -45,10 +46,38 @@ function requestToPromise(request) {
 function openDb() {
 	return new Promise((resolve, reject) => {
 		const request = indexedDB.open(DB_NAME, DB_VERSION)
-		request.onupgradeneeded = () => {
+		request.onupgradeneeded = (event) => {
 			const db = request.result
+			const tx = event.target.transaction
+			let store
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
-				db.createObjectStore(STORE_NAME, { keyPath: "id" })
+				store = db.createObjectStore(STORE_NAME, { keyPath: "id" })
+			} else {
+				store = tx.objectStore(STORE_NAME)
+			}
+
+			if (event.oldVersion < 2) {
+				if (event.oldVersion >= 1) {
+					const migrateRequest = store.openCursor()
+					migrateRequest.onsuccess = () => {
+						const cursor = migrateRequest.result
+						if (cursor) {
+							const value = cursor.value
+							const lookupPath = normalizeResourcePathForLookup(value.path)
+							if (value.lookupPath !== lookupPath) {
+								cursor.update({ ...value, lookupPath })
+							}
+							cursor.continue()
+						} else if (!store.indexNames.contains(LOOKUP_PATH_INDEX)) {
+							store.createIndex(LOOKUP_PATH_INDEX, LOOKUP_PATH_INDEX, {
+								unique: false,
+							})
+						}
+					}
+					migrateRequest.onerror = () => reject(migrateRequest.error)
+				} else if (!store.indexNames.contains(LOOKUP_PATH_INDEX)) {
+					store.createIndex(LOOKUP_PATH_INDEX, LOOKUP_PATH_INDEX, { unique: false })
+				}
 			}
 		}
 		request.onsuccess = () => resolve(request.result)
@@ -128,6 +157,7 @@ async function saveEntry(entry) {
 		store.put({
 			...existing,
 			...entry,
+			lookupPath: normalizeResourcePathForLookup(entry.path),
 			etag: entry.etag ?? existing?.etag,
 			lastModified: entry.lastModified ?? existing?.lastModified,
 			contentLength: entry.contentLength ?? existing?.contentLength,
@@ -147,8 +177,19 @@ async function getAllEntries() {
 
 async function getEntryByPath(resourcePath) {
 	const needle = normalizeResourcePathForLookup(resourcePath)
-	const entries = await getAllEntries()
-	return entries.find((entry) => normalizeResourcePathForLookup(entry.path) === needle) || null
+	if (!needle) return null
+	const db = await openDb()
+	const transaction = db.transaction(STORE_NAME, "readonly")
+	const store = transaction.objectStore(STORE_NAME)
+	if (!store.indexNames.contains(LOOKUP_PATH_INDEX)) {
+		const entries = await requestToPromise(store.getAll())
+		return (
+			entries.find((entry) => normalizeResourcePathForLookup(entry.path) === needle) || null
+		)
+	}
+	const index = store.index(LOOKUP_PATH_INDEX)
+	const matches = await requestToPromise(index.getAll(needle))
+	return matches[0] || null
 }
 
 async function deleteEntry(entry) {

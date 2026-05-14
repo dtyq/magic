@@ -25,10 +25,7 @@ import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { useShowButtonText } from "@/hooks/useShowButtonText"
 import RotateIcon from "@/pages/superMagic/assets/svg/rotate_2.svg"
-import {
-	DownloadImageMode,
-	FileHistoryVersion,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { DownloadImageMode, FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
 import { useDownloadImageMenu } from "../../contents/Image/hooks/useDownloadImageMenu"
 import { AttachmentSource } from "../../../TopicFilesButton/hooks/types"
 import { observer } from "mobx-react-lite"
@@ -201,12 +198,12 @@ function ActionButtons(props: ActionButtonsProps) {
 			type &&
 			(type === DetailType.Pdf ||
 				type === DetailType.Docx ||
+				type === DetailType.Doc ||
 				type === DetailType.Html ||
 				type === DetailType.Md ||
 				type === DetailType.Text ||
 				type === DetailType.Code ||
 				type === DetailType.Excel ||
-				type === DetailType.Docx ||
 				type === DetailType.PowerPoint ||
 				type === DetailType.Image ||
 				type === DetailType.Video ||
@@ -242,8 +239,8 @@ function ActionButtons(props: ActionButtonsProps) {
 		return (
 			type === DetailType.Pdf ||
 			type === DetailType.Docx ||
+			type === DetailType.Doc ||
 			type === DetailType.Excel ||
-			type === DetailType.Docx ||
 			type === DetailType.PowerPoint ||
 			type === DetailType.Md ||
 			type === DetailType.Html ||

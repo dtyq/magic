@@ -1,4 +1,5 @@
 import { defineConfig, mergeConfig, type PluginOption, type UserConfig } from "vite"
+import babel from "@rolldown/plugin-babel"
 import react from "@vitejs/plugin-react"
 import { resolve } from "path"
 import mkcert from "vite-plugin-mkcert"
@@ -7,13 +8,16 @@ import http2Proxy from "@cpsoinos/vite-plugin-http2-proxy"
 import vitePluginImp from "vite-plugin-imp"
 // import { VitePWA } from "vite-plugin-pwa"
 import { visualizer } from "rollup-plugin-visualizer"
-import viteBabel from "vite-plugin-babel"
 import keepConsole from "vite-plugin-keep-console"
 import babelPluginAntdStyle from "babel-plugin-antd-style"
 import { viteExternalsPlugin } from "vite-plugin-externals"
+import { mockKitVitePlugin } from "./packages/mock-kit/src/vite"
+import createCanvasDesignPublicAssetsPlugin from "./plugins/vite-plugin-canvas-design-public-assets"
 import vitePluginTransformBaseImports from "./plugins/vite-plugin-transform-base-imports"
 import vitePluginCriticalFontPreload from "./plugins/vite-plugin-font-preload"
+import vitePluginAgentDebugLog from "./plugins/vite-plugin-agent-debug-log"
 import { getViteEditionConfig } from "./vite/edition"
+import { createCodeSplittingGroups } from "./vite/code-splitting-groups"
 import Inspect from "vite-plugin-inspect"
 import { codeInspectorPlugin } from "code-inspector-plugin"
 
@@ -26,27 +30,44 @@ const isDev = process.env.NODE_ENV === "development"
 /** 是否开启依赖分析 */
 const isVisualizer = process.env.VISUALIZER === "true"
 
+const isEnableDevtools = process.env.DEVTOOLS === "true"
+
 /** 是否开启sourcemap */
 const isEnableSourceMap = process.env.SOURCE_MAP === "true"
 
 /** 是否开启inspect */
 const isEnableInspect = process.env.INSPECT === "true"
 
+function formatLucideComponentImportName(componentName: string): string {
+	return `${componentName
+		.replace(/Icon$/, "")
+		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+		.replace(/([A-Z])([A-Z][a-z])/g, "$1-$2")
+		.replace(/([a-zA-Z])(\d)/g, "$1-$2")
+		.replace(/(\d)([a-zA-Z])/g, "$1-$2")
+		.toLowerCase()}.js`
+}
+
 function getBaseViteConfig(): UserConfig {
 	return {
-		esbuild: {
-			// 彻底移除所有注释，包括许可证注释
-			legalComments: "none",
+		devtools: {
+			enabled: isEnableDevtools,
 		},
 		build: {
 			outDir: resolve(__dirname, "dist"),
+			// Enterprise uses root `enterprise/`; outDir is repo `dist/` (outside root).
+			emptyOutDir: true,
 			reportCompressedSize: false,
 			sourcemap: isEnableSourceMap,
-			target: "es2020",
-			rollupOptions: {
+			target: "es2015",
+			// Lightning CSS currently rejects some existing Tailwind arbitrary values.
+			cssMinify: "esbuild",
+			rolldownOptions: {
 				// 只在生产环境将 React、React-DOM、Lodash 和 Tabler Icons 设置为外部依赖
 				external: isDev ? [] : ["react", "react-dom", "lodash-es"],
 				output: {
+					// Keep production bundles comment-free after moving to Rolldown/Oxc.
+					comments: false,
 					// Configure output paths for different entry points
 					// 为不同的入口点配置输出路径
 					entryFileNames: (chunkInfo) => {
@@ -58,32 +79,9 @@ function getBaseViteConfig(): UserConfig {
 						return "assets/[name]-[hash].js"
 					},
 					assetFileNames: "assets/[name]-[hash][extname]",
-					manualChunks: isDev
-						? undefined
-						: (id) => {
-							const normalizedId = id.replace(/\\/g, "/")
-
-							// 🎨 Ant Design 相关包分离处理，避免循环依赖
-							if (normalizedId.includes("node_modules/@ant-design/colors")) {
-								return "antd-colors" // 颜色包单独分离
-							}
-
-							// 将 Mermaid 按需加载逻辑抽出单独 chunk，避免被 shared 入口复用后触发 React 重挂载
-							if (normalizedId.includes("/src/library/mermaid/")) {
-								return "mermaid-loader"
-							}
-
-							// 🎯 保留原有的 Monaco Editor 处理
-							if (
-								normalizedId.includes("monaco-editor") &&
-								!normalizedId.includes("@monaco-editor/react")
-							) {
-								return "monacoEditor"
-							}
-							if (normalizedId.includes("@monaco-editor/react")) {
-								return "monacoEditorReact"
-							}
-						},
+					codeSplitting: {
+						groups: createCodeSplittingGroups(),
+					},
 				},
 			},
 		},
@@ -95,19 +93,7 @@ function getBaseViteConfig(): UserConfig {
 			include: [
 				"antd",
 				"dayjs",
-				"dayjs/plugin/duration",
-				"dayjs/plugin/weekday",
-				"dayjs/plugin/localeData",
-				"dayjs/plugin/weekOfYear",
-				"dayjs/plugin/isoWeek",
-				"dayjs/plugin/isBetween",
-				"dayjs/plugin/isSameOrBefore",
-				"dayjs/plugin/isSameOrAfter",
-				"dayjs/plugin/minMax",
-				"dayjs/plugin/timezone",
-				"dayjs/plugin/updateLocale",
-				"dayjs/plugin/utc",
-				"dayjs/plugin/relativeTime",
+				"dayjs/**/*",
 				"lunar-typescript",
 				"@fullcalendar/core",
 				"@fullcalendar/react",
@@ -131,10 +117,15 @@ function getBaseViteConfig(): UserConfig {
 				"monaco-editor",
 				"@monaco-editor/react",
 				"jszip",
-				// 开发环境包含这些依赖
-				...(isDev ? ["lodash-es", "@tabler/icons-react"] : []),
+				"lodash-es",
+				"@tabler/icons-react",
+				"lucide-react/dynamic",
+				"@radix-ui/*",
+				"@dtyq/*",
+				"@tiptap/*",
+				"@univerjs/*",
 			],
-			exclude: ["antd/locale"],
+			exclude: ["antd/locale", "lucide-react"],
 		},
 		define: {
 			global: "globalThis",
@@ -144,6 +135,8 @@ function getBaseViteConfig(): UserConfig {
 		},
 		assetsInclude: ["**/*.md", "**/*.mdx", "**/*.mov", "**/*.webm", "**/*.png"],
 		resolve: {
+			// magic-flow lists react as a dep; force one React for hooks
+			dedupe: ["react", "react-dom"],
 			alias: [
 				{
 					find: "@",
@@ -153,62 +146,60 @@ function getBaseViteConfig(): UserConfig {
 					find: "@enterprise",
 					replacement: resolve(__dirname, "enterprise/src"),
 				},
-				...(isDev
-					? [
-						{
-							find: "@tabler/icons-react",
-							replacement: resolve(
-								__dirname,
-								"scripts/cdn/tabler-icons-react.min.js",
-							),
-						},
-					]
-					: []),
 			],
 		},
 		plugins: [
+			createCanvasDesignPublicAssetsPlugin(),
+			isDev && vitePluginAgentDebugLog({ projectRoot: __dirname }),
 			// Transform named imports from @/components/base to default imports
 			// 将 @/components/base 的命名导入转换为默认导入
 			vitePluginTransformBaseImports({
 				paths: [
 					"@/components/base",
 					{ base: "@/enhance/tabler/icons-react", subDirectory: "icons" },
+					{
+						base: "lucide-react",
+						subDirectory: "dist/esm/icons",
+						componentNameFormatter: formatLucideComponentImportName,
+					},
 				],
 			}),
 			keepConsole(),
 			isEnableInspect &&
-			Inspect({
-				build: true,
-				outputDir: ".vite-inspect",
-			}),
+				Inspect({
+					build: true,
+					outputDir: ".vite-inspect",
+				}),
 			// 构建分析插件
 			isVisualizer &&
-			(visualizer({
-				filename: "dist/stats.html",
-				gzipSize: true,
-				brotliSize: true,
-				// 生成的可视化文件的路径和名称
-				// 可视化的类型，可选值有 'sunburst'、'treemap'、'network' 等
-				template: "treemap",
-				// 是否打开生成的可视化文件
-				open: true,
-			}) as PluginOption),
-			viteBabel({
-				babelConfig: {
-					plugins: [
-						"antd-style",
-						// [
-						// 	// 等待magic-flow包升级完才能使用
-						// 	"babel-plugin-import",
-						// 	{
-						// 		libraryName: "@tabler/icons-react",
-						// 		libraryDirectory: "dist/esm/icons",
-						// 		camel2DashComponentName: false,
-						// 	},
-						// 	"tabler",
-						// ],
-					],
-				},
+				(visualizer({
+					filename: "dist/stats.html",
+					gzipSize: true,
+					brotliSize: true,
+					// 生成的可视化文件的路径和名称
+					// 可视化的类型，可选值有 'sunburst'、'treemap'、'network' 等
+					template: "treemap",
+					// 是否打开生成的可视化文件
+					open: true,
+				}) as PluginOption),
+			codeInspectorPlugin({
+				bundler: "vite", // Automatically detect development or production environment
+				editor: "code",
+			}),
+			react(),
+			babel({
+				plugins: [
+					babelPluginAntdStyle,
+					// [
+					// 	"babel-plugin-import",
+					// 	{
+					// 		libraryName: "@tabler/icons-react",
+					// 		libraryDirectory: "dist/esm/icons",
+					// 		camel2DashComponentName: false,
+					// 	},
+					// 	"tabler",
+					// ],
+				],
 			}),
 			// VitePWA({
 			// 	// disable: true,
@@ -235,24 +226,15 @@ function getBaseViteConfig(): UserConfig {
 			// 		navigateFallback: "index.html",
 			// 	},
 			// }),
-			react({
-				babel: {
-					plugins: [[babelPluginAntdStyle]],
-				},
-			}),
 			// Critical font preload plugin for LCP optimization
 			!isDev && vitePluginCriticalFontPreload(),
 			!isDev &&
-			viteExternalsPlugin({
-				// 模块名: 全局变量名
-				react: "React",
-				"react-dom": "ReactDOM",
-				"lodash-es": "_",
-			}),
-			codeInspectorPlugin({
-				bundler: "vite", // Automatically detect development or production environment
-				editor: "cursor",
-			}),
+				viteExternalsPlugin({
+					// 模块名: 全局变量名
+					react: "React",
+					"react-dom": "ReactDOM",
+					"lodash-es": "_",
+				}),
 			vitePluginImp({
 				libList: [
 					{
@@ -263,14 +245,12 @@ function getBaseViteConfig(): UserConfig {
 			// 用于本地生成HTTPS证书
 			...(isDev
 				? [
-					mkcert({
-						// 本地配置该地址的 host, 满足文件私有桶上传
-						hosts: [
-							"magic.com"
-						],
-					}),
-					http2Proxy({ quiet: true }),
-				]
+						mkcert({
+							// 本地配置该地址的 host, 满足文件私有桶上传
+							hosts: ["magic.com"],
+						}),
+						// http2Proxy({ quiet: true }),
+					]
 				: []), // optional -- suppress error logging],
 			// 浏览器兼容
 			// legacy({

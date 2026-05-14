@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { ProjectListItem, Topic, TopicMode } from "../pages/Workspace/types"
+import { ProjectListItem, Topic } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import { useDeepCompareEffect, useMemoizedFn } from "ahooks"
 import ProjectTopicService from "@/services/superMagic/ProjectTopicService"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -14,11 +15,11 @@ function useTopicMode({
 	const isMobile = useIsMobile()
 	const [topicMode, setTopicMode] = useState<TopicMode>(
 		selectedTopic?.topic_mode ||
-		ProjectTopicService.getProjectDefaultTopicMode(
-			selectedProject?.workspace_id || "",
-			selectedProject?.id || "",
-		) ||
-		TopicMode.General,
+			ProjectTopicService.getProjectDefaultTopicMode(
+				selectedProject?.workspace_id || "",
+				selectedProject?.id || "",
+			) ||
+			TopicMode.General,
 	)
 
 	useEffect(() => {
@@ -33,11 +34,11 @@ function useTopicMode({
 	useDeepCompareEffect(() => {
 		setTopicMode(
 			selectedTopic?.topic_mode ||
-			ProjectTopicService.getProjectDefaultTopicMode(
-				selectedProject?.workspace_id || "",
-				selectedProject?.id || "",
-			) ||
-			TopicMode.General,
+				ProjectTopicService.getProjectDefaultTopicMode(
+					selectedProject?.workspace_id || "",
+					selectedProject?.id || "",
+				) ||
+				TopicMode.General,
 		)
 	}, [selectedTopic, selectedProject])
 

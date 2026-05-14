@@ -80,6 +80,7 @@ export class PPTIncrementalUpdateService {
 
 	/**
 	 * Detect updated files (by comparing updated_at timestamps)
+	 * Also detects newly added files that weren't in the previous list
 	 */
 	detectUpdatedFiles(
 		previousList: AttachmentItem[] | undefined,
@@ -87,15 +88,31 @@ export class PPTIncrementalUpdateService {
 	): Set<string> {
 		const updatedFileIds = new Set<string>()
 
-		if (!previousList || !newList || !Array.isArray(previousList) || !Array.isArray(newList)) {
+		if (!newList || !Array.isArray(newList)) {
+			return updatedFileIds
+		}
+
+		// If no previous list, all files in new list are considered "new"
+		if (!previousList || !Array.isArray(previousList)) {
 			return updatedFileIds
 		}
 
 		const previousMap = new Map(previousList.map((item) => [item.file_id, item]))
 
 		newList.forEach((newItem) => {
+			if (!newItem.file_id) return
 			const prevItem = previousMap.get(newItem.file_id)
-			if (prevItem && prevItem.updated_at !== newItem.updated_at && newItem.file_id) {
+			if (!prevItem) {
+				// Newly added file - treat as updated so slides can recover
+				updatedFileIds.add(newItem.file_id)
+				this.logger.debug("检测到新增文件", {
+					operation: "detectUpdatedFiles",
+					metadata: {
+						fileId: newItem.file_id,
+						fileName: newItem.file_name,
+					},
+				})
+			} else if (prevItem.updated_at !== newItem.updated_at) {
 				updatedFileIds.add(newItem.file_id)
 				this.logger.debug("检测到文件更新", {
 					operation: "detectUpdatedFiles",

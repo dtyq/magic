@@ -1,4 +1,4 @@
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 
 export interface ExampleItem {
 	id: number

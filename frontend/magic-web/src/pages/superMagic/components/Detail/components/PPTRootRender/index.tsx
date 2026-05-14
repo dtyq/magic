@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from "react"
+import { memo, useCallback, useEffect, useMemo, useState } from "react"
 import { useDeepCompareEffect, useMemoizedFn } from "ahooks"
 import { Flex } from "antd"
 import PPTRender from "../PPTRender"
@@ -57,6 +57,19 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 	const [currentAttachmentList, setCurrentAttachmentList] = useState<any>([])
 	// 标记是否至少完成过一次内容解析，避免路径计算中误展示空态
 	const [hasProcessedContent, setHasProcessedContent] = useState(false)
+
+	// 同步派生 slidePaths：优先使用 displayConfig.slides（无需等待 async processContent）
+	// 这消除了 displayConfig 变化到 slidePaths 更新之间的异步延迟
+	const derivedSlidePaths = useMemo(() => {
+		if (
+			displayConfig?.slides &&
+			Array.isArray(displayConfig.slides) &&
+			displayConfig.slides.length > 0
+		) {
+			return displayConfig.slides
+		}
+		return originalSlidesPaths
+	}, [displayConfig?.slides, originalSlidesPaths])
 
 	const { fileData: htmlFileData, loading } = useFileData({
 		file_id: displayData?.file_id || "",
@@ -196,8 +209,13 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 	)
 
 	// 仅在“文件加载完成 + 内容解析完成（或确实无内容可解析）”后渲染 PPTRender
+	// 当 displayConfig.slides 已就绪时，可以立即渲染（无需等待异步 processContent）
+	const hasSlidesFromConfig = displayConfig?.slides?.length > 0
 	const isReadyToRender =
-		!loading && (hasProcessedContent || (!attachmentList?.length && !entryFileData?.content))
+		!loading &&
+		(hasSlidesFromConfig ||
+			hasProcessedContent ||
+			(!attachmentList?.length && !entryFileData?.content))
 
 	return (
 		<div className={cn("h-full w-full", className)}>
@@ -208,7 +226,7 @@ export default memo(function PPTRootRender(props: PPTRootRenderProps) {
 			) : (
 				<PPTRender
 					key={`ppt-${renderKey}`}
-					slidePaths={originalSlidesPaths}
+					slidePaths={derivedSlidePaths}
 					attachments={attachments}
 					attachmentList={attachmentList}
 					projectId={projectId}

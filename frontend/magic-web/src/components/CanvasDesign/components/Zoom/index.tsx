@@ -10,6 +10,11 @@ import { formatShortcut, getShortcutDisplay } from "../../lib/index"
 import { useCanvasDesignI18n } from "../../context/I18nContext"
 import { fromAbsolutePercent, getZoomView } from "../../canvas/interaction/viewport-zoom"
 
+interface ZoomProps {
+	/** 与 CanvasDesignProps.shareHostBottomChrome 一致，由宿主注入 */
+	shareHostBottomChrome?: boolean
+}
+
 type ZoomOption = {
 	value: string
 	label: string
@@ -17,7 +22,7 @@ type ZoomOption = {
 	onSelect: () => void
 }
 
-export default function Zoom() {
+export default function Zoom({ shareHostBottomChrome = false }: ZoomProps) {
 	const { t } = useCanvasDesignI18n()
 	const { canvas } = useCanvas()
 
@@ -131,7 +136,12 @@ export default function Zoom() {
 	)
 
 	return (
-		<div className={styles.zoom} data-canvas-ui-component>
+		<div
+			className={
+				shareHostBottomChrome ? `${styles.zoom} ${styles.zoomShareHost}` : styles.zoom
+			}
+			data-canvas-ui-component
+		>
 			<IconButton className={styles.zoomOut} onClick={handleZoomOut}>
 				<Minus size={16} />
 			</IconButton>

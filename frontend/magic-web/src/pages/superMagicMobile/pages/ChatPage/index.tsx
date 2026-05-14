@@ -6,7 +6,8 @@ import SloganSection from "./components/SloganSection"
 import ChatDrawer from "./components/ChatDrawer"
 import type { HierarchicalWorkspacePopupRef } from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup/types"
 import { useMemoizedFn, useMount } from "ahooks"
-import { TaskStatus, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { roleStore } from "@/pages/superMagic/stores/RoleStore"
 import MobileInputContainer, {
 	type MobileInputContainerRef,
@@ -21,8 +22,8 @@ import { useTaskInterrupt } from "@/pages/superMagic/hooks/useTaskInterrupt"
 import useAgentCodeModeFromSearch from "@/pages/superMagic/hooks/useAgentCodeModeFromSearch"
 import useTopicMode from "@/pages/superMagic/hooks/useTopicMode"
 import { refreshFeaturedModeList } from "@/pages/superMagic/hooks/useFeaturedModeListRefresh"
+import { applyOptimisticTopicRunningState } from "@/pages/superMagic/services/topicStatusSyncService"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
-import { interfaceStore } from "@/stores/interface"
 import { useLocation } from "react-router"
 import { MobileTabParam } from "@/pages/mobileTabs/constants"
 import { routesPathMatch } from "@/routes/history/helpers"
@@ -155,6 +156,16 @@ const ChatPage = observer(() => {
 			stopEventLoading,
 			isChatPageHomepage: isOnHomepage,
 			handleInterrupt,
+			onSendComplete: ({ success, currentProject, currentTopic }) => {
+				if (!success) return
+
+				applyOptimisticTopicRunningState({
+					topicStore,
+					topic: currentTopic ?? topicStore.selectedTopic,
+					project: currentProject ?? projectStore.selectedProject,
+					workspace: selectedWorkspace,
+				})
+			},
 			onSendSuccess: ({ currentProject, currentTopic }) => {
 				if (!selectedWorkspace || !currentProject || !currentTopic) return
 				mobileInputContainerRef.current?.closeRealInput()

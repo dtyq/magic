@@ -3,7 +3,8 @@ import { renderHook } from "@testing-library/react"
 import useTopicModel from "../useTopicModel"
 import { superMagicTopicModelService } from "@/services/superMagic/topicModel"
 import { ModelStatusEnum, type ModelItem } from "../../types"
-import type { ProjectListItem, Topic, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 
 // Mock dependencies
 vi.mock("@/services/superMagic/topicModel", () => ({

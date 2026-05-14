@@ -10,7 +10,6 @@ import {
 	ImageActionPayload,
 } from "../iframe-bridge/types/messages"
 import type { HTMLEditorV2Ref } from "../iframe-bridge/types/props"
-import { getIframeRuntimeScript } from "../iframe-bridge/utils/iframe-script"
 import { filterInjectedTags } from "../utils"
 import { env } from "@/utils/env"
 
@@ -690,19 +689,18 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 							"*",
 						)
 					} else {
-						// 兼容同域旧逻辑：直接注入运行时代码
-						const editScriptV2 = getIframeRuntimeScript()
+						// iframe-runtime.js 已经通过 getFullContent 内联在 HTML 中，
+						// 只需发送激活消息即可。
 						iframeRef.current.contentWindow.postMessage(
 							{
-								type: "injectEditScriptV2",
-								scriptContent: editScriptV2,
-								scaleRatio: scaleRatio || 1, // 传递初始缩放比例
+								type: "activateEditorRuntime",
+								scaleRatio: scaleRatio || 1,
 							},
 							"*",
 						)
 					}
 					hasInjectedScriptRef.current = true
-					console.log("[useHTMLEditorV2] 已注入 iframe-runtime 脚本")
+					console.log("[useHTMLEditorV2] 已发送编辑器激活消息")
 				}
 			} catch (error) {
 				console.error("处理编辑模式变化时出错:", error)

@@ -26,7 +26,15 @@ interface EmscriptenFileSystem {
 	readdir(path: string): string[]
 	readFile(path: string, options?: { encoding: "binary" }): BlobPart
 	writeFile(path: string, data: Uint8Array | string): void
+	unlink(path: string): void
 }
+
+/** x2t AVS 格式常量（与 office-onlyoffice-comp x2t.worker AvsFileType 对齐） */
+const X2T_AVS = {
+	DOCUMENT_DOCX: 0x0041,
+	DOCUMENT_DOC: 0x0042,
+	TEAMLAB_DOCY: 0x1001,
+} as const
 
 interface EmscriptenModule {
 	FS: EmscriptenFileSystem
@@ -450,14 +458,22 @@ class X2TConverter {
 		fromPath: string,
 		toPath: string,
 		additionalParams = "",
+		avsFormats?: { formatFrom: number; formatTo: number },
 	): string {
+		const formatXml =
+			avsFormats != null
+				? `  <m_nFormatFrom>${avsFormats.formatFrom}</m_nFormatFrom>
+  <m_nFormatTo>${avsFormats.formatTo}</m_nFormatTo>
+`
+				: ""
 		return `<?xml version="1.0" encoding="utf-8"?>
 <TaskQueueDataConvert xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <m_sFileFrom>${fromPath}</m_sFileFrom>
   <m_sThemeDir>/working/themes</m_sThemeDir>
   <m_sFileTo>${toPath}</m_sFileTo>
+  <m_sFontDir>/working/fonts/</m_sFontDir>
   <m_bIsNoBase64>false</m_bIsNoBase64>
-  ${additionalParams}
+${formatXml}${additionalParams}
 </TaskQueueDataConvert>`
 	}
 
@@ -776,9 +792,7 @@ class X2TConverter {
 			}
 
 			// 转换为 XLSX 二进制格式
-			console.log("onlyoffice: Writing XLSX file...")
 			const xlsxBuffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" })
-			console.log("onlyoffice: XLSX conversion complete, size:", xlsxBuffer.length, "bytes")
 
 			// 创建 File 对象
 			const xlsxFileName = fileName.replace(/\.csv$/i, ".xlsx")
@@ -859,6 +873,60 @@ class X2TConverter {
 	}
 
 	/**
+	 * 将用户选择的 .doc 转为标准 .docx {@link File}（ZIP 误命名仅换扩展名与 MIME；OLE 经 x2t 单步转 OOXML）。
+	 * 之后可与直接打开的 .docx 一样交给 {@link convertDocument}。
+	 */
+	async convertDocFileToDocxFile(file: File): Promise<File> {
+		await this.initialize()
+		const data = new Uint8Array(await file.arrayBuffer())
+		if (data.length === 0) {
+			throw new Error("DOC file is empty")
+		}
+
+		const docxName = this.sanitizeFileName(file.name.replace(/\.doc$/i, ".docx"))
+		const docxMime = this.getMimeTypeFromExtension("docx")
+
+		const isZipOoxml =
+			data.length >= 4 &&
+			data[0] === 0x50 &&
+			data[1] === 0x4b &&
+			data[2] === 0x03 &&
+			data[3] === 0x04
+		if (isZipOoxml) {
+			return new File([data], docxName, { type: docxMime })
+		}
+
+		const sanitizedName = this.sanitizeFileName(file.name)
+		const inputPath = `/working/${sanitizedName}`
+		const stem = sanitizedName.replace(/\.[^./\\]+$/i, "") || "document"
+		const viaPath = `/working/${stem}.docx`
+
+		this.x2tModule!.FS.writeFile(inputPath, data)
+		const params = this.createConversionParams(inputPath, viaPath, "", {
+			formatFrom: X2T_AVS.DOCUMENT_DOC,
+			formatTo: X2T_AVS.DOCUMENT_DOCX,
+		})
+		this.x2tModule!.FS.writeFile("/working/params.xml", params)
+		this.executeConversion("/working/params.xml")
+
+		const raw = this.x2tModule!.FS.readFile(viaPath)
+		const out = raw instanceof Uint8Array ? raw : new Uint8Array(raw as ArrayBuffer)
+
+		try {
+			this.x2tModule!.FS.unlink(inputPath)
+		} catch {
+			/* ignore */
+		}
+		try {
+			this.x2tModule!.FS.unlink(viaPath)
+		} catch {
+			/* ignore */
+		}
+
+		return new File([out], docxName, { type: docxMime })
+	}
+
+	/**
 	 * 将文档转换为 bin 格式
 	 */
 	async convertDocument(file: File): Promise<ConversionResult> {
@@ -869,6 +937,10 @@ class X2TConverter {
 		const documentType = this.getDocumentType(fileExt)
 
 		try {
+			if (fileExt.toLowerCase() === "doc") {
+				return this.convertDocument(await this.convertDocFileToDocxFile(file))
+			}
+
 			// 读取文件内容
 			const arrayBuffer = await file.arrayBuffer()
 			const data = new Uint8Array(arrayBuffer)
@@ -957,9 +1029,8 @@ class X2TConverter {
 				} catch (conversionError: any) {
 					// 如果转换失败，提供有用的错误信息
 					throw new Error(
-						`Failed to convert CSV file: ${
-							conversionError?.message || "Unknown error"
-						}. ` + "Please ensure your CSV file is properly formatted and try again.",
+						`Failed to convert CSV file: ${conversionError?.message || "Unknown error"}. ` +
+							"Please ensure your CSV file is properly formatted and try again.",
 					)
 				}
 			}
@@ -991,9 +1062,7 @@ class X2TConverter {
 			}
 		} catch (error) {
 			throw new Error(
-				`Document conversion failed: ${
-					error instanceof Error ? error.message : "Unknown error"
-				}`,
+				`Document conversion failed: ${error instanceof Error ? error.message : "Unknown error"}`,
 			)
 		}
 	}
@@ -1045,11 +1114,8 @@ class X2TConverter {
 			// 写入 bin 文件
 			this.x2tModule!.FS.writeFile(`/working/${binFileName}`, bin)
 
-			// 创建转换参数
-			let additionalParams = "<m_sMediaDir>/working/media/</m_sMediaDir>"
-			if (targetExt === "PDF") {
-				additionalParams += "<m_sFontDir>/working/fonts/</m_sFontDir>"
-			}
+			// 创建转换参数（m_sFontDir 已由 createConversionParams 写入）
+			const additionalParams = "<m_sMediaDir>/working/media/</m_sMediaDir>"
 
 			const params = this.createConversionParams(
 				`/working/${binFileName}`,
@@ -1075,9 +1141,7 @@ class X2TConverter {
 			}
 		} catch (error) {
 			throw new Error(
-				`Bin to document conversion failed: ${
-					error instanceof Error ? error.message : "Unknown error"
-				}`,
+				`Bin to document conversion failed: ${error instanceof Error ? error.message : "Unknown error"}`,
 			)
 		}
 	}
@@ -1254,6 +1318,8 @@ export const loadScript = (): Promise<void> => x2tConverter.loadScript()
 export const initX2T = (): Promise<EmscriptenModule> => x2tConverter.initialize()
 export const convertDocument = (file: File): Promise<ConversionResult> =>
 	x2tConverter.convertDocument(file)
+export const convertDocFileToDocxFile = (file: File): Promise<File> =>
+	x2tConverter.convertDocFileToDocxFile(file)
 export const convertBinToDocument = (
 	bin: Uint8Array,
 	fileName: string,
@@ -1475,7 +1541,10 @@ function createOnSaveHandler(manager: EditorManager) {
 
 			// 通过 eventbus 通知，包含实例ID
 			onlyofficeEventbus.emit(ONLYOFFICE_EVENT_KEYS.SAVE_DOCUMENT, result)
-
+			manager.get()?.sendCommand({
+				command: "asc_onSaveCallback",
+				data: { err_code: 0 },
+			})
 			return result
 		}
 
@@ -1563,9 +1632,7 @@ function createWriteFileHandler(manager: EditorManager) {
 			})
 
 			console.log(
-				`✅ [WriteFile ${manager.getInstanceId()}] Processed image: ${fileName}, total media: ${
-					Object.keys(managerMedia).length
-				}`,
+				`✅ [WriteFile ${manager.getInstanceId()}] Processed image: ${fileName}, total media: ${Object.keys(managerMedia).length}`,
 			)
 		} catch (error: any) {
 			console.error(`[WriteFile ${manager.getInstanceId()}] Error handling writeFile:`, error)
@@ -1651,9 +1718,7 @@ export function createEditorInstance(config: {
 			media[key] = initialMedia[key]
 		})
 		console.log(
-			`📷 [CreateEditor ${manager.getInstanceId()}] Initialized with ${
-				Object.keys(initialMedia).length
-			} media files`,
+			`📷 [CreateEditor ${manager.getInstanceId()}] Initialized with ${Object.keys(initialMedia).length} media files`,
 		)
 	}
 
@@ -1758,9 +1823,7 @@ export function createEditorInstance(config: {
 				const instanceMedia = initialMedia || {}
 				if (Object.keys(instanceMedia).length > 0) {
 					console.log(
-						`📷 [OnAppReady ${manager.getInstanceId()}] Setting ${
-							Object.keys(instanceMedia).length
-						} media files`,
+						`📷 [OnAppReady ${manager.getInstanceId()}] Setting ${Object.keys(instanceMedia).length} media files`,
 					)
 					editor.sendCommand({
 						command: "asc_setImageUrls",
@@ -1822,7 +1885,12 @@ export async function createEditorView(options: {
 			containerId,
 			editorManager: providedManager,
 		} = options
-		const fileType = getExtensions(file?.type || "")[0] || fileName.split(".").pop() || ""
+		const rawExt = (
+			getExtensions(file?.type || "")[0] ||
+			fileName.split(".").pop() ||
+			""
+		).toLowerCase()
+		let fileType = rawExt
 
 		// 获取文档内容
 		let documentData: {
@@ -1840,13 +1908,21 @@ export async function createEditorView(options: {
 		} else {
 			// 打开现有文档需要转换
 			if (!file) throw new Error("无效的文件对象")
+			// .doc 先在 File 层转为 .docx，再走与原生 docx 完全相同的 convertDocument 路径
+			let workFile = file
+			if (rawExt === "doc") {
+				workFile = await x2tConverter.convertDocFileToDocxFile(file)
+				fileType = "docx"
+			}
 			// @ts-expect-error convertDocument handles the file type conversion
-			documentData = await convertDocument(file)
+			documentData = await convertDocument(workFile)
 		}
+
+		const editorFileName = rawExt === "doc" ? fileName.replace(/\.doc$/i, ".docx") : fileName
 
 		// 创建编辑器实例
 		const manager = createEditorInstance({
-			fileName,
+			fileName: editorFileName,
 			fileType,
 			binData: documentData.bin,
 			media: documentData.media,

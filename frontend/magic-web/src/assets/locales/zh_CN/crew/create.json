@@ -631,6 +631,8 @@
 					"noOption": "未配置选项",
 					"optionLabel": "选项 {{number}}",
 					"optional": "可选项",
+					"placeholder": "占位文本",
+					"placeholderHint": "未填写时默认显示\"自动\"",
 					"presetContent": "预设内容",
 					"presetContentPlaceholder": "输入将追加到用户消息的指令（通过预设值）",
 					"presetValue": "预设值",

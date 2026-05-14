@@ -11,14 +11,6 @@ import type {
 	RecordingSessionIdentity,
 } from "./editorPanel/types"
 
-export function preloadWebRecordSummaryFloatPanel() {
-	import("@/services/recordSummary/utils/preloadService").then(
-		({ preloadRecordSummaryFloatPanel }) => {
-			preloadRecordSummaryFloatPanel()
-		},
-	)
-}
-
 export function useWebRecordingSessionIdentity(): RecordingSessionIdentity {
 	const {
 		businessData: { workspace, project, topic },

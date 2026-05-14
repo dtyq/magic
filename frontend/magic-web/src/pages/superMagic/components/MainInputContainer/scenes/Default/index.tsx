@@ -13,7 +13,9 @@ import { useIsMobile } from "@/hooks/useIsMobile"
 interface DefaultInputContainerProps extends ScenePanelComponentBaseProps {}
 
 function DefaultInputContainer({ editorContext, editorNodes }: DefaultInputContainerProps) {
-	const { placeholder, panels, isLoading } = useCurrentSceneConfig()
+	const { placeholder, panels, isLoading } = useCurrentSceneConfig({
+		topicMode: editorContext?.topicMode,
+	})
 	const isMobile = useIsMobile()
 
 	const editorPortalTarget = usePortalTarget({

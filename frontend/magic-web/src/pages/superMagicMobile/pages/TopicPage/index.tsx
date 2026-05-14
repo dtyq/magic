@@ -25,6 +25,7 @@ import { useInterruptAndUndoMessage } from "@/pages/superMagic/hooks/useInterrup
 import { isCollaborationWorkspace } from "@/pages/superMagic/constants"
 import { useNoPermissionCollaborationProject } from "@/pages/superMagic/hooks/useNoPermissionCollaborationProject"
 import { useScopedTopicReadProgress } from "@/pages/superMagic/hooks/useScopedTopicReadProgress"
+import { applyOptimisticTopicRunningState } from "@/pages/superMagic/services/topicStatusSyncService"
 import ChatHeader from "./components/ChatHeader"
 import { useTopicListActions } from "../ProjectPage/ProjectPageMain/hooks"
 import PreviewDetailPopup, {
@@ -253,6 +254,27 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 			openShareModal(selectedTopic, selectedProject)
 		}
 	})
+
+	const handleEditorSendComplete = useMemoizedFn(
+		({
+			success,
+			currentProject,
+			currentTopic,
+		}: {
+			success: boolean
+			currentProject: typeof selectedProject | null
+			currentTopic: typeof selectedTopic | null
+		}) => {
+			if (!success) return
+
+			applyOptimisticTopicRunningState({
+				topicStore,
+				topic: currentTopic ?? topicStore.selectedTopic,
+				project: currentProject ?? projectStore.selectedProject,
+				workspace: selectedWorkspace,
+			})
+		},
+	)
 
 	const { hasMemoryUpdateMessage } = useMessageChanges(messages)
 
@@ -511,6 +533,7 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 						attachments={attachments}
 						isShowLoadingInit={isShowLoadingInit}
 						enableReEditMessageFromPubSub
+						onSendComplete={handleEditorSendComplete}
 						topicModeLogic={{
 							topicMode,
 							setTopicMode,

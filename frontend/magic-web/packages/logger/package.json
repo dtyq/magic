@@ -33,13 +33,13 @@
 		"LICENSE"
 	],
 	"scripts": {
-		"build": "vite build && tsc --emitDeclarationOnly",
+		"build": "pnpm exec vite build && tsc -p ./tsconfig.json --emitDeclarationOnly",
 		"dev": "vite",
 		"lint": "eslint src --ext .ts,.tsx",
 		"prepublishOnly": "pnpm run build && pnpm run test",
-		"test": "vitest",
-		"test:coverage": "vitest --coverage",
-		"typecheck": "tsc --noEmit"
+		"test": "pnpm exec vitest run --config ./vitest.config.ts",
+		"test:coverage": "pnpm exec vitest run --config ./vitest.config.ts --coverage",
+		"typecheck": "tsc -p ./tsconfig.json --noEmit"
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
@@ -47,9 +47,9 @@
 		"@typescript-eslint/parser": "^6.0.0",
 		"eslint": "^8.0.0",
 		"typescript": "^5.0.0",
-		"vite": "^5.0.0",
+		"vite": "^8.0.3",
 		"vite-plugin-dts": "^3.0.0",
-		"vitest": "^1.0.0"
+		"vitest": "^3.2.4"
 	},
 	"peerDependencies": {
 		"@apmplus/web": "^1.0.0",

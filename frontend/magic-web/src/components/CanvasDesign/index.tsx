@@ -32,7 +32,16 @@ import ElementRenameOverlay from "./components/ElementRenameOverlay"
 import styles from "./index.module.css"
 
 const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((props, ref) => {
-	const { id, readonly = false, data = {}, marker = {}, viewport = {}, getIsMobile, t } = props
+	const {
+		id,
+		readonly = false,
+		data = {},
+		marker = {},
+		viewport = {},
+		getIsMobile,
+		t,
+		shareHostBottomChrome = false,
+	} = props
 
 	const { defaultData, onCanvasDesignDataChange } = data
 
@@ -187,7 +196,7 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 			<Layers />
 			{!readonly && <Tools />}
 			{!readonly && <CanvasTips />}
-			<Zoom />
+			<Zoom shareHostBottomChrome={shareHostBottomChrome} />
 		</FloatingUIProvider>
 	)
 })

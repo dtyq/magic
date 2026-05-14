@@ -11,8 +11,12 @@ import type {
 } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import { MessageEditorStoreProvider } from "@/pages/superMagic/components/MessageEditor/stores"
 import SuperMagicVoiceInput from "@/pages/superMagic/components/MessageEditor/components/VoiceInput"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import type { SceneItem } from "@/pages/superMagic/types/skill"
+import { useSceneSelection } from "@/pages/superMagic/components/MainInputContainer/hooks"
+import { useCurrentSceneConfig } from "@/pages/superMagic/components/MainInputContainer/hooks/useCurrentSceneConfig"
+import { sceneStateStore } from "@/pages/superMagic/components/MainInputContainer/stores"
+import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import MobileComposerAddSheet from "./MobileComposerAddSheet"
 import MobileComposerAttachments from "./MobileComposerAttachments"
 import MobileComposerHeader from "./MobileComposerHeader"
@@ -57,6 +61,23 @@ function MobileComposerComponent({
 		enableReEditMessageFromPubSub,
 	})
 	const isRecordSummaryMode = editorContext.topicMode === TopicMode.RecordSummary
+	const effectiveScenes =
+		scenes ??
+		superMagicModeService.getModeConfigWithLegacy(
+			logic.effectiveTopicMode,
+			undefined,
+			false,
+			editorContext.agentCode ?? logic.selectedTopic?.agent_code,
+		)?.mode.playbooks
+	const { hasOnlyScene } = useSceneSelection({
+		scenes: effectiveScenes,
+		sceneStateStore,
+	})
+	const { panels: currentScenePanels, isLoading: isScenePanelLoading } = useCurrentSceneConfig({
+		topicMode: editorContext.topicMode,
+	})
+	const hasScenePanels = isScenePanelLoading || currentScenePanels.length > 0
+	const shouldRenderPanelsInHeader = hasOnlyScene || (!effectiveScenes?.length && hasScenePanels)
 
 	const files = logic.store.fileUploadStore.files
 	const shouldShowInterrupt = logic.isTaskRunning
@@ -98,6 +119,9 @@ function MobileComposerComponent({
 			{editorNodes?.messageQueueNode}
 		</div>
 	)
+	const headerScenePanelsNode = shouldRenderPanelsInHeader ? (
+		<MobileScenePanels editorContext={editorContext} compact />
+	) : null
 
 	const composerInnerContent = (
 		<>
@@ -209,13 +233,14 @@ function MobileComposerComponent({
 			{taskAndQueueNodes}
 
 			<MobileComposerHeader
-				scenes={scenes}
+				scenes={effectiveScenes}
 				selectedTopic={logic.selectedTopic}
 				selectedProject={logic.selectedProject}
 				topicMode={logic.effectiveTopicMode}
 				agentCode={editorContext.agentCode ?? logic.selectedTopic?.agent_code}
 				selectorVariant={editorContext.mobileModeSelectorVariant}
 				messagesLength={editorContext.messagesLength}
+				sceneControlNode={headerScenePanelsNode}
 				onModeChange={editorContext.setTopicMode}
 			/>
 
@@ -227,7 +252,9 @@ function MobileComposerComponent({
 				data-testid="mobile-composer-card"
 			>
 				<div className="border-b border-border px-3 pb-2 pt-2 [&:empty]:hidden">
-					<MobileScenePanels editorContext={editorContext} />
+					{shouldRenderPanelsInHeader ? null : (
+						<MobileScenePanels editorContext={editorContext} />
+					)}
 				</div>
 				{composerInnerContent}
 			</div>

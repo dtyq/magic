@@ -582,6 +582,7 @@ export class Canvas {
 		// 监听 Shift 键（宽高比锁定修饰键，影响 Transformer、裁剪框等）
 		this.eventEmitter.on("keyboard:shift:down", () => {
 			this.setKeepRatioModifier(true)
+			this.elementManager.updateAllElementsDraggable()
 			this.transformManager.setKeepRatio()
 			this.cropManager.setKeepRatio()
 			this.extendManager.setKeepRatio()
@@ -589,6 +590,7 @@ export class Canvas {
 
 		this.eventEmitter.on("keyboard:shift:up", () => {
 			this.setKeepRatioModifier(false)
+			this.elementManager.updateAllElementsDraggable()
 			this.transformManager.setKeepRatio()
 			this.cropManager.setKeepRatio()
 			this.extendManager.setKeepRatio()
@@ -597,6 +599,7 @@ export class Canvas {
 		// 监听 Meta/Command 键（宽高比锁定修饰键）
 		this.eventEmitter.on("keyboard:meta:down", () => {
 			this.setKeepRatioModifier(true)
+			this.elementManager.updateAllElementsDraggable()
 			this.transformManager.setKeepRatio()
 			this.cropManager.setKeepRatio()
 			this.extendManager.setKeepRatio()
@@ -604,9 +607,19 @@ export class Canvas {
 
 		this.eventEmitter.on("keyboard:meta:up", () => {
 			this.setKeepRatioModifier(false)
+			this.elementManager.updateAllElementsDraggable()
 			this.transformManager.setKeepRatio()
 			this.cropManager.setKeepRatio()
 			this.extendManager.setKeepRatio()
+		})
+
+		// 修饰键按下期间，选区变化后需要实时刷新拖拽能力：
+		// 仅允许“已选中元素”可拖拽，未选中元素不可直接按下拖动
+		this.eventEmitter.on("element:select", () => {
+			this.elementManager.updateAllElementsDraggable()
+		})
+		this.eventEmitter.on("element:deselect", () => {
+			this.elementManager.updateAllElementsDraggable()
 		})
 
 		// 监听全选快捷键

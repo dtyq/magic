@@ -45,18 +45,6 @@ interface ToolCallProps {
 	onMouseLeave?: (evt: MouseEvent) => void
 }
 
-function parseToolArguments(argumentsText: string): Record<string, unknown> {
-	if (!argumentsText) return {}
-
-	try {
-		const parsed = JSON.parse(argumentsText) as Record<string, unknown>
-		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed
-		return { value: parsed }
-	} catch {
-		return { value: argumentsText }
-	}
-}
-
 export const ToolCall = observer(function ToolCall(props: ToolCallProps) {
 	const {
 		topicId,
@@ -73,15 +61,9 @@ export const ToolCall = observer(function ToolCall(props: ToolCallProps) {
 
 	const toolResponse = superMagicStore.toolResponseMap.get(topicId)?.get(toolCall?.id)
 	const effectiveResponse = toolResponse || toolCall?.tool
-	const streamState = superMagicStore.getStreamState(topicId, correlationId)
-	const isStreamActive = !!streamState
-	const isToolLoading = !effectiveResponse && isStreamActive
-	const toolData = useMemo(() => {
-		const parsedArguments = parseToolArguments(toolCall?.function?.arguments || "")
-		const originalDetail = effectiveResponse?.detail
-		const toolDetail = (originalDetail || {}) as Record<string, unknown>
-		const detailData = (toolDetail?.data || {}) as Record<string, unknown>
+	const isToolLoading = !effectiveResponse?.status || effectiveResponse?.status === "running"
 
+	const toolData = useMemo(() => {
 		return {
 			id: toolCall?.id,
 			name: toolCall?.function?.name,
@@ -89,18 +71,8 @@ export const ToolCall = observer(function ToolCall(props: ToolCallProps) {
 			remark: effectiveResponse?.remark || toolCall?.tool?.remark,
 			status: effectiveResponse?.status,
 			attachments: effectiveResponse?.attachments || [],
-			detail: originalDetail
-				? {
-						...toolDetail,
-						data: {
-							...detailData,
-							...parsedArguments,
-							arguments: toolCall?.function?.arguments,
-						},
-					}
-				: toolCall?.function?.arguments
-					? { data: { ...parsedArguments, arguments: toolCall.function.arguments } }
-					: undefined,
+			rawArguments: toolCall?.function?.arguments,
+			detail: effectiveResponse?.detail as { data?: Record<string, unknown> } | undefined,
 		}
 	}, [
 		toolCall?.id,

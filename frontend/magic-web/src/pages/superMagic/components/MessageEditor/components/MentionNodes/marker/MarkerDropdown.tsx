@@ -1,6 +1,7 @@
 import { PopoverContent } from "@/components/shadcn-ui/popover"
 import { CanvasMarkerMentionData } from "@/components/business/MentionPanel/types"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/shadcn-ui/hover-card"
 import { Input } from "@/components/shadcn-ui/input"
 import { cn } from "@/lib/utils"
 import { useDebounceFn } from "ahooks"
@@ -8,6 +9,8 @@ import type { ComponentProps } from "react"
 import { memo, useCallback, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import MarkerIcon from "./marker.svg"
+import { getMarkerBboxCropLayout } from "./marker-bbox-crop-layout"
+import MarkerSuggestionBboxHoverPreview from "./MarkerSuggestionBboxHoverPreview"
 import { useMarkerImageUrl } from "./useMarkerImageUrl"
 import {
 	getCanvasMarkerMentionImagePath,
@@ -46,97 +49,6 @@ function MarkerDropdown({
 		markerData.design_project_id,
 	)
 	const imageUrl = imageUrlProp !== undefined ? imageUrlProp : imageUrlFromHook
-
-	const getCropStyle = (
-		bbox?: { x: number; y: number; width: number; height: number },
-		aspectRatio?: number | null,
-	) => {
-		if (!bbox || bbox.width === 0 || bbox.height === 0) {
-			return {
-				outerContainerStyle: {
-					width: THUMBNAIL_SIZE,
-					height: THUMBNAIL_SIZE,
-					border: "1px solid rgb(229, 229, 229)",
-					borderRadius: "8px",
-				},
-				cropContainerStyle: {
-					width: THUMBNAIL_SIZE,
-					height: THUMBNAIL_SIZE,
-					overflow: "hidden" as const,
-				},
-				imageStyle: {
-					width: THUMBNAIL_SIZE,
-					height: THUMBNAIL_SIZE,
-					objectFit: "cover" as const,
-				},
-			}
-		}
-
-		const bboxAspectRatio = bbox.width / bbox.height
-
-		let cropContainerWidth: number
-		let cropContainerHeight: number
-
-		if (bboxAspectRatio >= 1) {
-			cropContainerWidth = THUMBNAIL_SIZE
-			cropContainerHeight = THUMBNAIL_SIZE / bboxAspectRatio
-		} else {
-			cropContainerHeight = THUMBNAIL_SIZE
-			cropContainerWidth = THUMBNAIL_SIZE * bboxAspectRatio
-		}
-
-		const centerX = bbox.x + bbox.width / 2
-		const centerY = bbox.y + bbox.height / 2
-
-		let scaledWidth: number
-		let scaledHeight: number
-
-		if (aspectRatio && aspectRatio > 0) {
-			const scaleX = cropContainerWidth / bbox.width
-			const scaleY = cropContainerHeight / bbox.height
-			const scaledHeightFromX = scaleX / aspectRatio
-			const meetsY = scaledHeightFromX * bbox.height >= cropContainerHeight
-
-			if (meetsY) {
-				scaledWidth = scaleX
-				scaledHeight = scaledHeightFromX
-			} else {
-				scaledHeight = scaleY
-				scaledWidth = scaledHeight * aspectRatio
-			}
-		} else {
-			const scaleX = cropContainerWidth / bbox.width
-			const scaleY = cropContainerHeight / bbox.height
-			const scale = Math.max(scaleX, scaleY)
-			scaledWidth = scale
-			scaledHeight = scale
-		}
-
-		const offsetX = cropContainerWidth / 2 - centerX * scaledWidth
-		const offsetY = cropContainerHeight / 2 - centerY * scaledHeight
-
-		return {
-			outerContainerStyle: {
-				width: THUMBNAIL_SIZE,
-				height: THUMBNAIL_SIZE,
-				border: "1px solid rgb(229, 229, 229)",
-				borderRadius: "8px",
-				overflow: "hidden" as const,
-			},
-			cropContainerStyle: {
-				width: cropContainerWidth,
-				height: cropContainerHeight,
-			},
-			imageStyle: {
-				maxWidth: "unset !important",
-				maxHeight: "unset !important",
-				width: scaledWidth,
-				height: scaledHeight,
-				transform: `translate(${offsetX}px, ${offsetY}px)`,
-				transformOrigin: "top left",
-			},
-		}
-	}
 
 	const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
 		const img = e.currentTarget
@@ -195,7 +107,13 @@ function MarkerDropdown({
 					.map((suggestion, index) => {
 						const isSelected = index === selectedIndex
 						const isHovered = hoveredIndex === index
-						const cropStyle = getCropStyle(suggestion.bbox, imageAspectRatio)
+						const cropStyle = getMarkerBboxCropLayout({
+							bbox: suggestion.bbox,
+							containerSize: THUMBNAIL_SIZE,
+							imageAspectRatio,
+							elementWidth: markerData.element_width,
+							elementHeight: markerData.element_height,
+						})
 						return (
 							<div
 								key={index}
@@ -209,22 +127,41 @@ function MarkerDropdown({
 								onClick={() => onSelect?.(index)}
 							>
 								{imageUrl ? (
-									<div
-										className="relative flex flex-none shrink-0 items-center justify-center"
-										style={cropStyle.outerContainerStyle}
-									>
-										<div
-											className="rounded-md"
-											style={cropStyle.cropContainerStyle}
+									<HoverCard openDelay={200} closeDelay={80}>
+										<HoverCardTrigger asChild>
+											<div
+												className="relative flex flex-none shrink-0 items-center justify-center"
+												style={cropStyle.outerContainerStyle}
+											>
+												<div
+													className="rounded-md"
+													style={cropStyle.cropContainerStyle}
+												>
+													<img
+														src={imageUrl}
+														alt={suggestion.label}
+														style={cropStyle.imageStyle}
+														onLoad={handleImageLoad}
+													/>
+												</div>
+											</div>
+										</HoverCardTrigger>
+										<HoverCardContent
+											side="left"
+											align="start"
+											sideOffset={8}
+											className="z-[1200] w-auto min-w-0 border border-border bg-popover p-0 shadow-md"
 										>
-											<img
-												src={imageUrl}
-												alt={suggestion.label}
-												style={cropStyle.imageStyle}
-												onLoad={handleImageLoad}
+											<MarkerSuggestionBboxHoverPreview
+												imageUrl={imageUrl}
+												label={suggestion.label}
+												bbox={suggestion.bbox}
+												imageAspectRatio={imageAspectRatio}
+												elementWidth={markerData.element_width}
+												elementHeight={markerData.element_height}
 											/>
-										</div>
-									</div>
+										</HoverCardContent>
+									</HoverCard>
 								) : (
 									<div className="h-6 w-6 shrink-0 rounded-md bg-muted" />
 								)}

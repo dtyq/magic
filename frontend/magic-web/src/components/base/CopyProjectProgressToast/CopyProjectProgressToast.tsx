@@ -6,6 +6,35 @@ import type { CopyProjectProgressToastProps } from "./types"
 import { useMemoizedFn } from "ahooks"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
+import SuperMagicService from "@/pages/superMagic/services"
+
+interface EnterCopiedProjectParams {
+	workspaceId: string
+	projectId: string
+	navigate: ReturnType<typeof useNavigate>
+}
+
+async function enterCopiedProjectAndNavigate({
+	workspaceId,
+	projectId,
+	navigate,
+}: EnterCopiedProjectParams) {
+	try {
+		await SuperMagicService.initializeState({
+			workspaceId,
+			projectId,
+		})
+	} catch (error) {
+		console.error("initializeState before enter project failed:", error)
+	}
+
+	navigate({
+		name: RouteName.SuperWorkspaceProjectState,
+		params: {
+			projectId,
+		},
+	})
+}
 
 function CopyProjectProgressToast({
 	projectId,
@@ -37,16 +66,17 @@ function CopyProjectProgressToast({
 		}
 	}
 
-	// 处理进入项目
+	// 处理进入项目：先按 URL/业务约定拉齐 Super MobX，再跳转（分享页等非 Super 路由下 fixRouteParams 不会改址）
 	const handleEnterProject = useCallback(() => {
-		if (projectInfo?.project_id) {
-			navigate({
-				name: RouteName.SuperWorkspaceProjectState,
-				params: {
-					projectId: projectInfo.project_id,
-				},
-			})
-		}
+		if (!projectInfo?.project_id) return
+
+		const { project_id: targetProjectId, workspace_id: workspaceId } = projectInfo
+
+		void enterCopiedProjectAndNavigate({
+			workspaceId,
+			projectId: targetProjectId,
+			navigate,
+		})
 	}, [navigate, projectInfo])
 
 	// 处理关闭
@@ -168,18 +198,18 @@ function CopyProjectProgressToast({
 	// 准备操作按钮
 	const actions = showCompleted
 		? [
-			{
-				text: t("share.enterProject"),
-				type: "link" as const,
-				onClick: handleEnterProject,
-			},
-			{
-				text: t("share.close"),
-				type: "text" as const,
-				style: { color: "red" },
-				onClick: handleClose,
-			},
-		]
+				{
+					text: t("share.enterProject"),
+					type: "link" as const,
+					onClick: handleEnterProject,
+				},
+				{
+					text: t("share.close"),
+					type: "text" as const,
+					style: { color: "red" },
+					onClick: handleClose,
+				},
+			]
 		: []
 
 	return (

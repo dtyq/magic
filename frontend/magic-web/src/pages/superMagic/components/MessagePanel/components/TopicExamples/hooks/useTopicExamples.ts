@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { useMemoizedFn } from "ahooks"
 import type { ExampleItem, TopicExamplesList } from "../types"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { env, isDev } from "@/utils/env"
 
 // Global cache for all examples (singleton pattern)

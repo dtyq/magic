@@ -1,11 +1,8 @@
 import type { createMessageSendService } from "@/pages/superMagic/services/messageSendFlowService"
 import { resolveMessageSendContext } from "@/pages/superMagic/services/messageSendPreparation"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import {
-	type ProjectListItem,
-	type Topic,
-	TopicMode,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { type ProjectListItem, type Topic } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "../../Workspace/TopicMode"
 import type { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
 import type { ClawPlaygroundRootStore } from "../store/root-store"
 import { CLAW_NEW_CHAT_SLASH_COMMAND } from "../claw-playground-constants"

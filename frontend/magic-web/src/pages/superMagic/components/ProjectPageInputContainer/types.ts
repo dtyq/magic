@@ -57,4 +57,9 @@ export interface ProjectPageInputContainerProps {
 	showTopicModeExamplePortal?: boolean
 	/** 仅允许特定页面消费“撤回消息重新编辑”事件，避免移动端保活页面重复弹层 */
 	enableReEditMessageFromPubSub?: boolean
+	onSendComplete?: (params: {
+		success: boolean
+		currentProject: ProjectListItem | null
+		currentTopic: Topic | null
+	}) => void
 }

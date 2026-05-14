@@ -8,11 +8,8 @@ import type { GetSettingsGlobalDataResponse } from "@/apis/types"
 import type { GetUserAvailableAgentListResponse } from "@/types/bot"
 import type { GetAvailableMCPListResponse, UseableToolSet, WithPage } from "@/types/flow"
 import type { SkillDomainItem } from "../domains/skills/types"
-import {
-	type ProjectListItem,
-	ProjectStatus,
-	TopicMode,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { type ProjectListItem, ProjectStatus } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { AttachmentSource } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 
 interface TestWorkspaceEntry {

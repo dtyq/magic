@@ -46,7 +46,7 @@ export function createLeadingRafThrottle<T>(
 	let leadingAllowed = true
 	let leadingRafId: number | null = null
 	let scheduleRafId: number | null = null
-	let scheduleTimeoutId: ReturnType<typeof setTimeout> | null = null
+	let scheduleTimeoutId: ReturnType<typeof setTimeout> | null | number = null
 	let lastApplyAt = 0
 
 	function clearTrailingSchedule(): void {

@@ -12,7 +12,8 @@ import { useTranslation, Trans } from "react-i18next"
 import { isString } from "lodash-es"
 import { useMemoizedFn } from "ahooks"
 import { Check, ChevronsUpDown, MessageCirclePlus } from "lucide-react"
-import { CrewItem, TopicMode } from "../../pages/Workspace/types"
+import { CrewItem } from "../../pages/Workspace/types"
+import { TopicMode } from "../../pages/Workspace/TopicMode"
 import { useFeaturedModeListRefreshOnFirstOpen } from "@/pages/superMagic/hooks/useFeaturedModeListRefresh"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { MagicIcon } from "@/components/base"
@@ -107,9 +108,7 @@ function ModeToggle({
 	const isCompactList = isMobile || !allowChangeMode
 
 	const resolveModeText = useMemoizedFn((text?: string, fallback?: string) => {
-		if (!text) return fallback
-		const translated = t(text)
-		return translated === text ? text : translated
+		return text || fallback
 	})
 
 	const resetConfirmPopover = useMemoizedFn(() => {

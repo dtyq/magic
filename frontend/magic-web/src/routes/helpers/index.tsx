@@ -1,6 +1,8 @@
 import type { RouteObject } from "react-router"
 import { RouteName } from "@/routes/constants"
+import { i18nStore } from "@/models/config/stores/i18n.store"
 import { lazy } from "react"
+import type { ComponentType } from "react"
 
 /** 默认集群编码 */
 export const defaultClusterCode = "global"
@@ -12,6 +14,18 @@ export const defaultClusterCode = "global"
 export const openNewTab = (url?: string, base?: string) => {
 	if (!url) return
 	window.open(base ? `${base}${url}` : url, "_blank")
+}
+
+/** Preload flow namespaces before evaluating flow modules. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function withFlowNamespaces<T extends ComponentType<any>>(
+	importer: () => Promise<{ default: T }>,
+) {
+	return lazy(async () => {
+		await i18nStore.waitForI18nCoreReady()
+		await i18nStore.i18n.instance.loadNamespaces(["flow", "magicFlow"])
+		return importer()
+	})
 }
 
 /**

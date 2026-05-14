@@ -47,9 +47,12 @@ import CodeVersionCompareDialog from "../../components/versioning/CodeVersionCom
 import VersionCompareDialog from "../../components/versioning/VersionCompareDialog"
 import { getFileContentById } from "@/pages/superMagic/utils/api"
 import { useTranslation } from "react-i18next"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, Terminal } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { env } from "@/utils/env"
+import magicToast from "@/components/base/MagicToaster/utils"
+import { exportHtmlToPdf, exportHtmlToImage } from "../../../../../../../packages/pdf-export/src"
+import type { ImageExportFormat } from "../../../../../../../packages/pdf-export/src"
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -60,6 +63,9 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/shadcn-ui/alert-dialog"
+
+/** 跨组件重挂载持久化调试面板开关状态（按文件 ID 存储） */
+const devConsoleStateMap = new Map<string, boolean>()
 
 interface HTMLProps {
 	data: string | any
@@ -124,13 +130,15 @@ interface HTMLProps {
 
 interface HtmlExportActionProps {
 	handleExportSource: () => void
-	handleExportPDF: () => void
+	handleExportPDF: (pagination: "slice" | "none") => void
 	handleExportPPT: () => void
 	handleExportPptx: () => void
+	handleExportImage?: (format: ImageExportFormat) => void
 	isExporting?: boolean
 	supportPPT: boolean
 	showButtonText: boolean
 	showExportPptx?: boolean
+	showExportImage?: boolean
 }
 
 const HtmlExportAction = memo(function HtmlExportAction({
@@ -138,20 +146,24 @@ const HtmlExportAction = memo(function HtmlExportAction({
 	handleExportPDF,
 	handleExportPPT,
 	handleExportPptx,
+	handleExportImage,
 	isExporting,
 	supportPPT,
 	showButtonText,
 	showExportPptx,
+	showExportImage,
 }: HtmlExportActionProps) {
 	const { ExportDropdownButton } = useExportMenuItems({
 		handleExportSource,
 		handleExportPDF,
 		handleExportPPT,
 		handleExportPptx,
+		handleExportImage,
 		isExporting,
 		showButtonText,
 		supportPPT,
 		showExportPptx,
+		showExportImage,
 	})
 
 	return ExportDropdownButton
@@ -220,6 +232,7 @@ export default memo(function HTML(props: HTMLProps) {
 	/** 是否正处于编辑后的状态 */
 	const [isEditingAfter, setIsEditingAfter] = useState(false)
 	const [serverUpdatedContent, setServerUpdatedContent] = useState<string>()
+	const [isExportingPdf, setIsExportingPdf] = useState(false)
 	const editSessionUpdatedAtRef = useRef<string | undefined>(undefined)
 	const serverUpdateRequestIdRef = useRef(0)
 	const editSessionBaselineContentRef = useRef<string | null>(null)
@@ -303,6 +316,11 @@ export default memo(function HTML(props: HTMLProps) {
 		}
 	})
 
+	const handleDevConsoleToggle = useMemoizedFn(() => {
+		htmlRendererRef.current?.toggleDevConsole()
+		setDevConsoleEnabled((prev) => !prev)
+	})
+
 	useEffect(() => {
 		pubsub.subscribe(PubSubEvents.Super_Magic_Detail_Refresh, handleDetailHeaderRefresh)
 		return () => {
@@ -375,6 +393,23 @@ export default memo(function HTML(props: HTMLProps) {
 
 	// IsolatedHTMLRenderer 的 ref，用于获取拦截回调函数
 	const htmlRendererRef = useRef<IsolatedHTMLRendererRef>(null)
+	const fileId = displayData?.file_id as string | undefined
+	// 从模块级 Map 恢复上次的调试面板状态（组件重挂载后仍能保持开启）
+	const [devConsoleEnabled, setDevConsoleEnabled] = useState(() =>
+		fileId ? (devConsoleStateMap.get(fileId) ?? false) : false,
+	)
+	// 当 devConsoleEnabled 变化时同步到模块级 Map
+	useEffect(() => {
+		if (fileId) devConsoleStateMap.set(fileId, devConsoleEnabled)
+	}, [fileId, devConsoleEnabled])
+	// 组件挂载后，若调试面板应处于开启状态，则通知 IsolatedHTMLRenderer 开启
+	useEffect(() => {
+		if (devConsoleEnabled) {
+			htmlRendererRef.current?.toggleDevConsole()
+		}
+		// 仅在首次挂载时执行
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [])
 
 	const getCurrentEditingContent = useMemoizedFn(async () => {
 		if (viewMode === "code") return editingCodeContent || data?.content || ""
@@ -870,8 +905,53 @@ export default memo(function HTML(props: HTMLProps) {
 		exportFile?.(displayData?.file_id, htmlFileVersion)
 	})
 
-	const handleExportPDF = useMemoizedFn(() => {
-		exportPdf?.(displayData?.file_id)
+	const handleExportPDF = useMemoizedFn(async (pagination: "slice" | "none" = "slice") => {
+		const content = processedContent || editingCodeContent || displayData?.content || ""
+		const fileId = displayData?.file_id
+		if (!content) {
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+			return
+		}
+
+		const toastKey = `pdf-export-${fileId || Date.now()}`
+		setIsExportingPdf(true)
+		magicToast.loading({
+			key: toastKey,
+			content: t("topicFiles.exporting"),
+			duration: 0,
+		})
+
+		try {
+			await exportHtmlToPdf({
+				pages: [content],
+				pagination,
+				fileName:
+					(displayData?.file_name || data?.file_name || "export").replace(
+						/\.html?$/i,
+						"",
+					) + ".pdf",
+				output: "download",
+				onProgress: ({ phase, current, total }) => {
+					if (phase !== "capture" || total <= 1) return
+					magicToast.loading({
+						key: toastKey,
+						content: `${t("topicFiles.exporting")} (${current}/${total})`,
+						duration: 0,
+					})
+				},
+			}).promise
+			magicToast.success({
+				key: toastKey,
+				content: t("topicFiles.exportSuccess"),
+				duration: 1000,
+			})
+		} catch (error) {
+			console.error("[pdf-export] HTML export failed:", error)
+			magicToast.destroy(toastKey)
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+		} finally {
+			setIsExportingPdf(false)
+		}
 	})
 
 	const handleExportPPT = useMemoizedFn(() => {
@@ -880,6 +960,53 @@ export default memo(function HTML(props: HTMLProps) {
 
 	const handleExportPptx = useMemoizedFn(() => {
 		exportPptx?.(displayData?.file_id)
+	})
+
+	const handleExportImage = useMemoizedFn(async (format: ImageExportFormat = "png") => {
+		const content = processedContent || editingCodeContent || displayData?.content || ""
+		const fileId = displayData?.file_id
+		if (!content) {
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+			return
+		}
+
+		const toastKey = `image-export-${fileId || Date.now()}`
+		setIsExportingPdf(true)
+		magicToast.loading({
+			key: toastKey,
+			content: t("topicFiles.exporting"),
+			duration: 0,
+		})
+
+		try {
+			await exportHtmlToImage({
+				pages: [content],
+				format,
+				fileName: (displayData?.file_name || data?.file_name || "export").replace(
+					/\.html?$/i,
+					"",
+				),
+				onProgress: ({ phase, current, total }) => {
+					if (phase !== "capture" || total <= 1) return
+					magicToast.loading({
+						key: toastKey,
+						content: `${t("topicFiles.exporting")} (${current}/${total})`,
+						duration: 0,
+					})
+				},
+			}).promise
+			magicToast.success({
+				key: toastKey,
+				content: t("topicFiles.exportSuccess"),
+				duration: 1000,
+			})
+		} catch (error) {
+			console.error("[image-export] HTML export failed:", error)
+			magicToast.destroy(toastKey)
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+		} finally {
+			setIsExportingPdf(false)
+		}
 	})
 
 	const relative_file_path = useMemo(() => {
@@ -1010,6 +1137,9 @@ export default memo(function HTML(props: HTMLProps) {
 									showButtonText
 									attachmentList={attachmentList}
 									fileId={displayData?.file_id}
+									onStartInspector={() => {
+										htmlRendererRef.current?.startInspector()
+									}}
 								/>
 							)}
 							{showFileEditButton && (
@@ -1037,10 +1167,12 @@ export default memo(function HTML(props: HTMLProps) {
 							handleExportPDF={handleExportPDF}
 							handleExportPPT={handleExportPPT}
 							handleExportPptx={handleExportPptx}
-							isExporting={isExporting}
+							handleExportImage={handleExportImage}
+							isExporting={isExporting || isExportingPdf}
 							supportPPT={isInPPTMode}
 							showButtonText={context.showButtonText}
 							showExportPptx={isConvertibleFile(displayData, ["html"])}
+							showExportImage={isConvertibleFile(displayData, ["html"])}
 						/>
 					),
 				},
@@ -1054,6 +1186,7 @@ export default memo(function HTML(props: HTMLProps) {
 			handleExportPDF,
 			handleExportPPT,
 			handleExportPptx,
+			handleExportImage,
 			handleExportSource,
 			handleSave,
 			handleSaveAndExit,
@@ -1098,6 +1231,25 @@ export default memo(function HTML(props: HTMLProps) {
 		allowEdit,
 		attachments,
 		actionConfig: headerActionConfig,
+		extraMoreMenuItems:
+			!isDataAnalysis && !isCodeViewMode
+				? [
+						{
+							key: "dev-console-toggle",
+							label: (
+								<div className="flex items-center gap-1.5 text-sm">
+									<Terminal size={16} />
+									<span>
+										{devConsoleEnabled
+											? t("stylePanel.closeDevConsole")
+											: t("stylePanel.openDevConsole")}
+									</span>
+								</div>
+							),
+							onClick: handleDevConsoleToggle,
+						},
+					]
+				: [],
 	}
 
 	return (
@@ -1166,6 +1318,7 @@ export default memo(function HTML(props: HTMLProps) {
 								ref={htmlRendererRef}
 								key={`html-${renderKey}`}
 								content={processedContent}
+								rawSourceCode={data?.content}
 								sandboxType="iframe"
 								isPptRender={isInPPTMode}
 								isFullscreen={isFullscreen}
@@ -1179,6 +1332,7 @@ export default memo(function HTML(props: HTMLProps) {
 								selectedProject={selectedProject}
 								attachmentList={attachmentList}
 								isPlaybackMode={isPlaybackMode}
+								onDevConsoleClose={() => setDevConsoleEnabled(false)}
 							/>
 						)}
 					</div>

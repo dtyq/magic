@@ -681,6 +681,7 @@ function DesignViewer(props: DesignViewerProps) {
 								}}
 								t={canvasDesignTAdapter}
 								getIsMobile={getIsMobile}
+								shareHostBottomChrome={isShareRoute}
 							/>
 							{/* 撤回/恢复遮罩层 */}
 							{isProcessingRevoke && (

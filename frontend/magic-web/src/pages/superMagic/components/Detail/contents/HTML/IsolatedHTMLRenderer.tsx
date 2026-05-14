@@ -18,6 +18,7 @@ import { useUpload } from "@/hooks/useUploadFiles"
 import { useTranslation } from "react-i18next"
 import { addContentToChat } from "@/pages/superMagic/components/Detail/components/AIOptimization/utils"
 import { decodeHTMLEntities, getFullContent } from "./utils/full-content"
+import { extractStaticDependencies } from "./utils/extractDependencies"
 import { getHTMLMessengerContent } from "./utils/messenger-content"
 import { useMediaScenario } from "./media/useMediaScenario"
 import { handleMediaImageUrlRequest, MEDIA_MESSAGE_TYPES } from "./media/utils"
@@ -35,7 +36,13 @@ import { useZoomControls } from "./hooks/useZoomControls"
 import { StylePanelStoreProvider } from "./iframe-bridge/contexts/StylePanelContext"
 import { TAILWIND_Z_INDEX_CLASSES } from "./constants/z-index"
 import { LogPanel } from "./components/LogPanel"
-
+import { DevConsolePanel } from "./components/DevConsole"
+import { useDevConsole } from "./hooks/useDevConsole"
+import { useInspectorToolbarMode } from "./hooks/useInspectorToolbarMode"
+import {
+	useElementInspector,
+	ElementInspectorOverlay,
+} from "@/components/business/ElementInspector"
 export interface IsolatedHTMLRendererRef {
 	getIframeElement: () => HTMLIFrameElement | null
 	getEditorRef: () => React.RefObject<HTMLEditorV2Ref> | null
@@ -48,6 +55,9 @@ export interface IsolatedHTMLRendererRef {
 	) => void
 	getContent: () => Promise<string | null>
 	getFetchInterceptedCallback: () => OnFetchIntercepted | undefined
+	toggleDevConsole: () => void
+	/** Start element inspector in toolbar mode (no info card; selection creates new topic) */
+	startInspector: () => void
 }
 //HTML预览增强组件 iframe里面的内容尺寸，用于计算缩放比例
 export interface IsolatedHTMLRendererContentMetrics {
@@ -59,24 +69,22 @@ export interface IsolatedHTMLRendererContentMetrics {
 	verticalScrollbarWidth?: number
 }
 import magicToast from "@/components/base/MagicToaster/utils"
-import { base64ToFile } from "@/pages/superMagic/components/MessageEditor/utils/fileConverter"
 import { resolveUploadPath, cleanPath } from "./utils/file-utils"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
-import { addMultipleFilesToCurrentChat } from "@/pages/superMagic/utils/topics"
-import { SuperMagicApi } from "@/apis"
-import SuperMagicService from "@/pages/superMagic/services"
-import { topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
-import { runInAction } from "mobx"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
-import { downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
 import { logger as Logger } from "@/utils/log"
 import { useFetchInterceptionCache } from "./hooks/useFetchInterceptionCache"
 import { POST_MESSAGE_TARGET_STRATEGIES, type OnFetchIntercepted } from "./utils/fetchInterceptor"
+import { useIframeFS } from "./iframe-api/hooks/useIframeFS"
+import { useIframeLLM } from "./iframe-api/hooks/useIframeLLM"
+import { useMagicFiles } from "./iframe-api/hooks/useMagicFiles"
+import { saveIframeFileContent, createIframeFile } from "./iframe-api/iframeApi"
 
 import { env } from "@/utils/env"
+import { userStore } from "@/models/user"
 
 interface IsolatedHTMLRendererProps {
 	content: string
+	/** API 返回的最原始 HTML 内容（未经 processHtmlContent 处理） */
+	rawSourceCode?: string
 	sandboxType?: "iframe" | "shadow-dom"
 	className?: string
 	isPptRender?: boolean
@@ -116,33 +124,8 @@ interface IsolatedHTMLRendererProps {
 	onRenderReady?: () => void //控制HTML预览组件的skeleton结束时机
 	onContentMetrics?: (metrics: IsolatedHTMLRendererContentMetrics) => void //计算HTML预览组件内部内容尺寸
 	onInterrupt?: () => void //新增：中断回调
-}
-
-interface MagicUploadFileData {
-	base64: string
-	filename: string
-	path: string
-	fileSize: number
-	fileType: string
-}
-
-interface MagicUploadFilesRequest {
-	type: "MAGIC_UPLOAD_FILES_REQUEST"
-	requestId: string
-	files: MagicUploadFileData[]
-}
-
-interface MagicAddFilesToMessageRequest {
-	type: "MAGIC_ADD_FILES_TO_MESSAGE_REQUEST"
-	requestId: string
-	filePaths: string[]
-	agentMode?: string
-}
-
-interface MagicDownloadFilesRequest {
-	type: "MAGIC_DOWNLOAD_FILES_REQUEST"
-	requestId: string
-	filePaths: string[]
+	/** 调试控制台关闭时回调（用于同步父组件状态）*/
+	onDevConsoleClose?: () => void
 }
 
 interface MagicI18nLangSubscribeRequest {
@@ -199,6 +182,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 	(props, ref) => {
 		const {
 			content,
+			rawSourceCode,
 			sandboxType = "iframe",
 			className,
 			isPptRender,
@@ -227,6 +211,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			disableIframeDocumentClickBridge = false,
 			onRenderReady,
 			onContentMetrics,
+			onDevConsoleClose,
 		} = props
 		const renderSiteUrl = useMemo(() => env("MAGIC_HTML_SANDBOX_URL"), [])
 		const renderSiteOrigin = useMemo(() => {
@@ -262,6 +247,9 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 
 		const [iframeLoaded, setIframeLoaded] = useState(false)
 		const [contentInjected, setContentInjected] = useState(false) // 标记内容是否已注入到 iframe
+		const [processedSourceCode, setProcessedSourceCode] = useState<string | undefined>(
+			undefined,
+		) // 预处理后的 HTML 源码（供 DevConsole Sources 面板展示）
 		const hasRenderedOnceRef = useRef(false) // 跟踪 iframe 是否至少已渲染一次
 		const hasNotifiedRenderReadyRef = useRef(false)
 		const hasIframeI18nSubscriberRef = useRef(false)
@@ -368,6 +356,42 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		})
 
 		const { t, i18n } = useTranslation("super")
+
+		// DevTools console — resolve the full file path (with filename) for the current HTML file
+		const devConsoleFilePath = useMemo(
+			() =>
+				(
+					attachmentList as
+						| Array<{ file_id: string; relative_file_path?: string }>
+						| undefined
+				)?.find((item) => item.file_id === fileId)?.relative_file_path ??
+				relative_file_path,
+			[attachmentList, fileId, relative_file_path],
+		)
+		const devConsole = useDevConsole({
+			iframeRef,
+			fileId,
+			relativeFilePath: devConsoleFilePath,
+		})
+
+		// Element inspector (independent, can be triggered from DevConsole or elsewhere)
+		const elementInspector = useElementInspector({ iframeRef })
+		const inspectorFileInfo = useMemo(() => {
+			if (!fileId) return undefined
+			const file = (
+				attachmentList as
+					| Array<{ file_id: string; file_name?: string; relative_file_path?: string }>
+					| undefined
+			)?.find((item) => item.file_id === fileId)
+			if (!file?.file_name) return undefined
+			return { fileId, fileName: file.file_name, filePath: file.relative_file_path ?? "" }
+		}, [fileId, attachmentList])
+		const { hideInfoCard: inspectorHideInfoCard, startInToolbarMode } = useInspectorToolbarMode(
+			elementInspector,
+			t,
+			inspectorFileInfo,
+		)
+
 		const { upload } = useUpload<any>({
 			url: superMagicUploadTokenService.getUploadTokenUrl,
 			body: {
@@ -397,32 +421,48 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		})
 
 		const uploadImageFileToProject = useMemoizedFn(
-			async ({ file, path, fileSize }: { file: File; path: string; fileSize?: number }) => {
+			async ({
+				file,
+				path,
+				fileSize,
+				parentId,
+			}: {
+				file: File
+				path: string
+				fileSize?: number
+				parentId?: string
+			}) => {
 				if (!selectedProject?.id) {
 					throw new Error("No project selected")
 				}
 
 				const resolvedPath = resolveUploadPath(path, relative_file_path)
 				const cleanPathValue = cleanPath(resolvedPath)
+
 				const token = await superMagicUploadTokenService.getUploadToken(
 					selectedProject.id,
 					cleanPathValue || "",
 				)
-				const dir = token?.temporary_credential?.dir ?? ""
 				const newFiles = Array.from([file]).map(genFileData)
 				const { fullfilled } = await upload(newFiles, token)
 				if (fullfilled.length === 0) {
 					throw new Error("Upload failed")
 				}
 
+				// 使用上传 SDK 返回的真实 OSS 路径（雪花 ID key），而非拼接的 dir + file.name，
+				// 避免 file_key 与 OSS 实际对象路径不一致导致后端访问 404。
+				const uploadedKey = fullfilled[0].value.key
+
 				const saveRes = await superMagicUploadTokenService.saveFileToProject({
 					project_id: selectedProject.id,
-					file_key: `${dir}${file.name}`,
+					parent_id: parentId,
+					file_key: uploadedKey,
 					file_name: file.name,
 					file_size: fileSize || file.size,
 					file_type: "user_upload",
 					source: 2,
 					storage_type: "workspace",
+					relative_file_path: resolvedPath,
 				})
 
 				if (!saveRes?.relative_file_path) {
@@ -436,50 +476,57 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			},
 		)
 
-		// 从 attachmentList 中查找文件（递归查找，支持嵌套的 children）
-		const findFileInAttachments = useMemoizedFn(
-			(attachments: any[], targetPath: string): any | null => {
-				if (!attachments || attachments.length === 0) {
-					return null
-				}
-
-				// 标准化目标路径用于比较
-				const normalizePath = (path: string) => {
-					return path.replace(/^\/+/, "").replace(/\/+$/, "")
-				}
-
-				const normalizedTarget = normalizePath(targetPath)
-
-				for (const item of attachments) {
-					// 递归查找子节点
-					if (item.children && item.children.length > 0) {
-						const found = findFileInAttachments(item.children, targetPath)
-						if (found) return found
-					}
-
-					// 检查 relative_file_path
-					if (item.relative_file_path) {
-						const normalizedItemPath = normalizePath(item.relative_file_path)
-						if (normalizedItemPath === normalizedTarget) {
-							return item
-						}
-					}
-
-					// 检查 file_path
-					if (item.file_path) {
-						const normalizedItemPath = normalizePath(item.file_path)
-						if (normalizedItemPath === normalizedTarget) {
-							return item
-						}
-					}
-				}
-
-				return null
-			},
-		)
-
 		// 消息列表预览这类只依赖预处理结果的场景，不需要再启用运行时相对路径拦截，
 		// 避免把不在附件树里的原始相对路径也带进通用业务拦截链。
+		// 扁平化 attachmentList，供 IframeFS 使用
+		const flatFileList = useMemo(() => {
+			const seen = new Set<string>()
+			const result: { file_id: string; relative_file_path: string; updated_at?: string }[] =
+				[]
+			const flatten = (items: any[]) => {
+				for (const item of items) {
+					if (item.file_id && item.relative_file_path) {
+						const key = item.relative_file_path.replace(/^\/+/, "")
+						if (!seen.has(key)) {
+							seen.add(key)
+							result.push(item)
+						}
+					}
+					if (item.children?.length) flatten(item.children)
+				}
+			}
+			if (attachmentList?.length) flatten(attachmentList)
+			return result
+		}, [attachmentList])
+
+		const { handleFSMessage } = useIframeFS({
+			iframeRef,
+			entryPath: relative_file_path || "",
+			fileList: flatFileList,
+			appConfig: null,
+			uploadFn: uploadImageFileToProject,
+			saveContentFn: ({ file_id, content }) => saveIframeFileContent([{ file_id, content }]),
+			mkdirFn: useMemoizedFn(async ({ name, parentId }) => {
+				if (!selectedProject?.id) throw new Error("No project selected")
+				const res = await createIframeFile({
+					project_id: selectedProject.id,
+					parent_id: parentId,
+					file_name: name,
+					is_directory: true,
+				})
+				const fileId = res?.file_id
+				if (!fileId) throw new Error(`Failed to create directory: ${name}`)
+				return { file_id: fileId }
+			}),
+		})
+
+		const { handleLLMMessage } = useIframeLLM({
+			iframeRef,
+			baseUrl: (env("MAGIC_SERVICE_BASE_URL") as string) || "",
+			getAuthorization: () => userStore.user.authorization?.trim() || "",
+			getOrganizationCode: () => userStore.user.organizationCode?.trim() || "",
+		})
+
 		const isDynamicInterceptionEnabled = !disableDynamicResourceInterception
 		const dynamicResourceInterceptionConfig = useMemo(() => {
 			return {
@@ -489,412 +536,14 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			}
 		}, [fileId, isDynamicInterceptionEnabled, postMessageTargetStrategy])
 
-		// 处理 window.Magic.uploadFiles 请求
-		const handleMagicUploadFiles = useMemoizedFn(async (data: MagicUploadFilesRequest) => {
-			const { requestId, files } = data
-
-			if (!requestId || !Array.isArray(files) || files.length === 0) {
-				iframeRef.current?.contentWindow?.postMessage(
-					{
-						type: "MAGIC_UPLOAD_FILES_RESPONSE",
-						requestId: requestId,
-						success: false,
-						error: "Invalid request data",
-					},
-					"*",
-				)
-				return
-			}
-
-			if (!selectedProject?.id) {
-				iframeRef.current?.contentWindow?.postMessage(
-					{
-						type: "MAGIC_UPLOAD_FILES_RESPONSE",
-						requestId: requestId,
-						success: false,
-						error: "No project selected",
-					},
-					"*",
-				)
-				return
-			}
-
-			try {
-				magicToast.loading({
-					content: t("topicFiles.fileUploading"),
-					duration: 0,
-				})
-
-				const results = []
-
-				// 逐个处理文件上传
-				for (const fileData of files) {
-					try {
-						const { base64, filename, path, fileSize } = fileData
-						const file = base64ToFile(base64, filename)
-						const uploadResult = await uploadImageFileToProject({
-							file,
-							path,
-							fileSize,
-						})
-
-						results.push({
-							filename,
-							path,
-							success: true,
-							relative_file_path: uploadResult.uploadedRelativeFilePath,
-						})
-					} catch (error) {
-						results.push({
-							filename: fileData.filename,
-							path: fileData.path,
-							success: false,
-							error: error instanceof Error ? error.message : "Unknown error",
-						})
-					}
-				}
-
-				// 发送成功响应
-				iframeRef.current?.contentWindow?.postMessage(
-					{
-						type: "MAGIC_UPLOAD_FILES_RESPONSE",
-						requestId: requestId,
-						success: true,
-						results: results,
-					},
-					"*",
-				)
-
-				// 触发附件列表更新
-				pubsub.publish(PubSubEvents.Update_Attachments, () => {
-					magicToast.destroy()
-					magicToast.success(t("topicFiles.fileUploadSuccess"))
-				})
-			} catch (error) {
-				iframeRef.current?.contentWindow?.postMessage(
-					{
-						type: "MAGIC_UPLOAD_FILES_RESPONSE",
-						requestId: requestId,
-						success: false,
-						error: error instanceof Error ? error.message : "Unknown error",
-					},
-					"*",
-				)
-				magicToast.destroy()
-				magicToast.error(t("topicFiles.fileUploadError", "文件上传失败"))
-			}
-		})
-
-		// 处理 window.Magic.addFilesToMessage 请求
-		const handleMagicAddFilesToMessage = useMemoizedFn(
-			async (data: MagicAddFilesToMessageRequest) => {
-				const { requestId, filePaths, agentMode } = data
-
-				if (!requestId || !Array.isArray(filePaths) || filePaths.length === 0) {
-					iframeRef.current?.contentWindow?.postMessage(
-						{
-							type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
-							requestId: requestId,
-							success: false,
-							error: "Invalid request data",
-						},
-						"*",
-					)
-					return
-				}
-
-				if (!selectedProject?.id) {
-					iframeRef.current?.contentWindow?.postMessage(
-						{
-							type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
-							requestId: requestId,
-							success: false,
-							error: "No project selected",
-						},
-						"*",
-					)
-					return
-				}
-
-				try {
-					// 1. 解析文件路径并查找文件
-					const foundFiles: any[] = []
-					const notFoundPaths: string[] = []
-
-					for (const filePath of filePaths) {
-						// 解析路径（相对路径或绝对路径）
-						const resolvedPath = resolveUploadPath(filePath, relative_file_path)
-
-						// 从 attachmentList 中查找文件
-						const fileItem = attachmentList
-							? findFileInAttachments(attachmentList, resolvedPath)
-							: null
-
-						if (fileItem) {
-							foundFiles.push(fileItem)
-						} else {
-							notFoundPaths.push(filePath)
-						}
-					}
-
-					if (foundFiles.length === 0) {
-						iframeRef.current?.contentWindow?.postMessage(
-							{
-								type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
-								requestId: requestId,
-								success: false,
-								error: "No files found",
-								notFoundPaths: notFoundPaths,
-							},
-							"*",
-						)
-						return
-					}
-
-					// 2. 创建新话题（如果没传 agentMode，默认使用通用模式）
-					const finalAgentMode = agentMode || TopicMode.General
-
-					try {
-						// 验证 agentMode 是否为有效的 TopicMode
-						const validModes = Object.values(TopicMode)
-						if (!validModes.includes(finalAgentMode as TopicMode)) {
-							throw new Error(`Invalid agentMode: ${finalAgentMode}`)
-						}
-
-						const workspaceId =
-							selectedProject.workspace_id ||
-							workspaceStore.selectedWorkspace?.id ||
-							""
-
-						if (!workspaceId) {
-							throw new Error("Workspace ID not found")
-						}
-
-						// 创建新话题
-						const newTopic = await SuperMagicApi.createTopic({
-							// workspace_id: workspaceId,
-							project_id: selectedProject.id,
-							topic_name: "",
-							project_mode: finalAgentMode as TopicMode,
-						})
-
-						if (newTopic?.id) {
-							// 确保话题的模式设置正确
-							const topicWithMode: any = {
-								...newTopic,
-								topic_mode: finalAgentMode as TopicMode,
-							}
-
-							// 更新 store
-							runInAction(() => {
-								topicStore.setSelectedTopic(topicWithMode)
-							})
-
-							// 发布模式变化事件
-							pubsub.publish(PubSubEvents.Super_Magic_Topic_Mode_Changed, {
-								mode: finalAgentMode as TopicMode,
-								workspaceId: workspaceId,
-								projectId: selectedProject.id,
-							})
-
-							// 导航到新话题
-							SuperMagicService.route.navigateToState({
-								topicId: newTopic.id || null,
-							})
-
-							// 等待导航完成后再添加文件
-							setTimeout(() => {
-								// 添加文件到消息对话框
-								addMultipleFilesToCurrentChat({
-									fileItems: foundFiles,
-									autoFocus: true,
-								})
-
-								// 发送成功响应
-								iframeRef.current?.contentWindow?.postMessage(
-									{
-										type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
-										requestId: requestId,
-										success: true,
-										result: {
-											foundCount: foundFiles.length,
-											notFoundPaths: notFoundPaths,
-										},
-									},
-									"*",
-								)
-							}, 500)
-						} else {
-							throw new Error("Failed to create topic")
-						}
-					} catch (error) {
-						iframeRef.current?.contentWindow?.postMessage(
-							{
-								type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
-								requestId: requestId,
-								success: false,
-								error:
-									error instanceof Error
-										? error.message
-										: "Failed to create topic",
-							},
-							"*",
-						)
-					}
-				} catch (error) {
-					iframeRef.current?.contentWindow?.postMessage(
-						{
-							type: "MAGIC_ADD_FILES_TO_MESSAGE_RESPONSE",
-							requestId: requestId,
-							success: false,
-							error: error instanceof Error ? error.message : "Unknown error",
-						},
-						"*",
-					)
-				}
-			},
-		)
-
-		// 处理 window.Magic.downloadFiles 请求
-		const handleMagicDownloadFiles = useMemoizedFn(async (data: MagicDownloadFilesRequest) => {
-			const { requestId, filePaths } = data
-
-			if (!requestId || !Array.isArray(filePaths) || filePaths.length === 0) {
-				iframeRef.current?.contentWindow?.postMessage(
-					{
-						type: "MAGIC_DOWNLOAD_FILES_RESPONSE",
-						requestId: requestId,
-						success: false,
-						error: "Invalid request data",
-					},
-					"*",
-				)
-				return
-			}
-
-			try {
-				// 1. 解析文件路径并查找文件
-				const foundFiles: Array<{
-					fileItem: any
-					originalPath: string
-					resolvedPath: string
-				}> = []
-				const notFoundPaths: string[] = []
-
-				for (const filePath of filePaths) {
-					// 解析路径（相对路径或绝对路径）
-					const resolvedPath = resolveUploadPath(filePath, relative_file_path)
-
-					// 从 attachmentList 中查找文件
-					const fileItem = attachmentList
-						? findFileInAttachments(attachmentList, resolvedPath)
-						: null
-
-					if (fileItem && fileItem.file_id) {
-						foundFiles.push({
-							fileItem,
-							originalPath: filePath,
-							resolvedPath,
-						})
-					} else {
-						notFoundPaths.push(filePath)
-					}
-				}
-
-				if (foundFiles.length === 0) {
-					iframeRef.current?.contentWindow?.postMessage(
-						{
-							type: "MAGIC_DOWNLOAD_FILES_RESPONSE",
-							requestId: requestId,
-							success: false,
-							error: "No files found",
-							notFoundPaths: notFoundPaths,
-						},
-						"*",
-					)
-					return
-				}
-
-				// 2. 获取下载 URL 并下载文件
-				const downloadResults: Array<{
-					path: string
-					success: boolean
-					error?: string
-				}> = []
-
-				// 并行获取所有文件的下载 URL
-				const downloadUrlPromises = foundFiles.map(async ({ fileItem, originalPath }) => {
-					try {
-						// 获取下载 URL
-						const downloadUrls = await getTemporaryDownloadUrl({
-							file_ids: [fileItem.file_id],
-						})
-
-						if (!downloadUrls || !downloadUrls[0]?.url) {
-							downloadResults.push({
-								path: originalPath,
-								success: false,
-								error: "Failed to get download URL",
-							})
-							return
-						}
-
-						// 获取文件名
-						const fileName =
-							fileItem.file_name ||
-							fileItem.display_filename ||
-							fileItem.filename ||
-							undefined
-
-						// 下载文件
-						await downloadFileWithAnchor(downloadUrls[0].url, fileName)
-
-						downloadResults.push({
-							path: originalPath,
-							success: true,
-						})
-					} catch (error) {
-						downloadResults.push({
-							path: originalPath,
-							success: false,
-							error: error instanceof Error ? error.message : "Unknown error",
-						})
-					}
-				})
-
-				// 等待所有下载完成
-				await Promise.allSettled(downloadUrlPromises)
-
-				// 3. 返回结果
-				const successCount = downloadResults.filter((r) => r.success).length
-				const failedResults = downloadResults.filter((r) => !r.success)
-
-				iframeRef.current?.contentWindow?.postMessage(
-					{
-						type: "MAGIC_DOWNLOAD_FILES_RESPONSE",
-						requestId: requestId,
-						success: successCount > 0,
-						result: {
-							successCount,
-							failedCount: failedResults.length,
-							notFoundPaths: notFoundPaths,
-							failedResults: failedResults,
-						},
-					},
-					"*",
-				)
-			} catch (error) {
-				iframeRef.current?.contentWindow?.postMessage(
-					{
-						type: "MAGIC_DOWNLOAD_FILES_RESPONSE",
-						requestId: requestId,
-						success: false,
-						error: error instanceof Error ? error.message : "Unknown error",
-					},
-					"*",
-				)
-			}
-		})
+		const { handleMagicUploadFiles, handleMagicAddFilesToMessage, handleMagicDownloadFiles } =
+			useMagicFiles({
+				iframeRef,
+				selectedProject,
+				attachmentList,
+				relative_file_path,
+				uploadImageFileToProject,
+			})
 
 		// 初始化 iframe 内容
 		const initializeIframe = () => {
@@ -1006,6 +655,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 						},
 						"*",
 					)
+					setProcessedSourceCode(fullContent)
 				} else {
 					console.error("iframe或contentWindow不可用")
 				}
@@ -1015,7 +665,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 		})
 
 		// 使用 fetch 拦截缓存 hook（必须在 refreshIframeContent 定义之后）
-		const { handleFetchIntercepted } = useFetchInterceptionCache({
+		const { handleFetchIntercepted, dynamicDependencyEntries } = useFetchInterceptionCache({
 			attachmentList,
 			sandboxType,
 			isEditMode,
@@ -1024,6 +674,29 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			refreshIframeContent,
 			setContentInjected,
 		})
+
+		// Combine static + dynamic dependency entries for the DevConsole
+		const staticDependencyEntries = useMemo(() => extractStaticDependencies(content), [content])
+		const allDependencyEntries = useMemo(
+			() => [...staticDependencyEntries, ...dynamicDependencyEntries],
+			[staticDependencyEntries, dynamicDependencyEntries],
+		)
+
+		// Enrich network entries with originalUrl/resolvedUrl from dependency mapping
+		const enrichedNetworkEntries = useMemo(() => {
+			if (allDependencyEntries.length === 0) return devConsole.networkEntries
+			const urlMap = new Map<string, string>()
+			for (const dep of allDependencyEntries) {
+				if (dep.originalUrl !== dep.resolvedUrl) {
+					urlMap.set(dep.originalUrl, dep.resolvedUrl)
+				}
+			}
+			if (urlMap.size === 0) return devConsole.networkEntries
+			return devConsole.networkEntries.map((entry) => {
+				const resolvedUrl = urlMap.get(entry.url)
+				return resolvedUrl ? { ...entry, originalUrl: entry.url, resolvedUrl } : entry
+			})
+		}, [devConsole.networkEntries, allDependencyEntries])
 
 		// Expose iframe element and editor ref via ref
 		useImperativeHandle(
@@ -1124,6 +797,10 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					return null
 				},
 				getFetchInterceptedCallback: () => handleFetchIntercepted,
+				toggleDevConsole: devConsole.toggle,
+				startInspector: () => {
+					startInToolbarMode()
+				},
 			}),
 			[
 				containIframeOverscroll,
@@ -1138,6 +815,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				editorRef,
 				handleFetchIntercepted,
 				postMessageTargetStrategy,
+				devConsole.toggle,
 			],
 		)
 
@@ -1587,6 +1265,12 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				) {
 					// 处理marked.js图片路径解析请求
 					await handleMediaImageUrlRequest(event, attachmentList || [], fileId || "")
+				} else if (event.data?.type?.startsWith("MAGIC_FS_")) {
+					// 处理 window.Magic.fs.* 请求
+					await handleFSMessage(event.data.type, event.data)
+				} else if (event.data?.type?.startsWith("MAGIC_LLM_")) {
+					// 处理 window.Magic.llm.* 请求
+					await handleLLMMessage(event.data.type, event.data)
 				} else if (event.data && event.data.type === "MAGIC_RELOAD_REQUEST") {
 					// 处理 window.Magic.reload() 请求
 					reloadIframeContent()
@@ -1787,7 +1471,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					{/* 内容包装器，使用 flex 居中 iframe */}
 					<div
 						ref={contentWrapperRef}
-						className="relative h-full min-h-0 w-full"
+						className="relative min-h-0 w-full flex-1"
 						style={getContentWrapperStyle()}
 					>
 						{sandboxType === "iframe" ? (
@@ -1824,11 +1508,62 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 								{isEditMode && process.env.NODE_ENV === "development" && (
 									<LogPanel iframeRef={iframeRef} />
 								)}
+								{/* 元素检查覆盖层 - 独立于编辑模式 */}
+								<ElementInspectorOverlay
+									active={elementInspector.active}
+									iframeRef={iframeRef}
+									hoveredElement={elementInspector.hoveredElement}
+									selectedElement={elementInspector.selectedElement}
+									onClearSelection={elementInspector.clearSelection}
+									onInsertToConsole={(code) => {
+										devConsole.executeCode(code)
+									}}
+									onSendToAgent={(content) => {
+										pubsub.publish(PubSubEvents.Set_Input_Message, content)
+									}}
+									hideInfoCard={inspectorHideInfoCard}
+									scaleRatio={scaleRatio}
+								/>
 							</>
 						) : (
 							<div className={styles.shadowHost} translate="no" />
 						)}
 					</div>
+					{/* DevTools 调试台 - 与 iframe 上下并排 */}
+					{sandboxType === "iframe" && devConsole.enabled && (
+						<DevConsolePanel
+							consoleEntries={devConsole.consoleEntries}
+							networkEntries={enrichedNetworkEntries}
+							apiCallEntries={devConsole.apiCallEntries}
+							messageEntries={devConsole.messageEntries}
+							storageSnapshot={devConsole.storageSnapshot}
+							storageLoading={devConsole.storageLoading}
+							sourceCode={content}
+							rawSourceCode={rawSourceCode}
+							processedSourceCode={processedSourceCode}
+							dependencyEntries={allDependencyEntries}
+							activeTab={devConsole.activeTab}
+							onTabChange={devConsole.setActiveTab}
+							onClearConsole={devConsole.clearConsole}
+							onClearNetwork={devConsole.clearNetwork}
+							onClearApiCalls={devConsole.clearApiCalls}
+							onClearMessages={devConsole.clearMessages}
+							onSendErrorToAgent={devConsole.sendErrorToAgent}
+							onExecuteCode={devConsole.executeCode}
+							onRequestCompletions={devConsole.requestCompletions}
+							onRequestStorageSnapshot={devConsole.requestStorageSnapshot}
+							onRefreshHtml={reloadIframeContent}
+							consoleErrorCount={devConsole.consoleErrorCount}
+							networkErrorCount={devConsole.networkErrorCount}
+							apiCallErrorCount={devConsole.apiCallErrorCount}
+							onClose={() => {
+								devConsole.toggle()
+								onDevConsoleClose?.()
+							}}
+							inspectorActive={elementInspector.active}
+							onToggleInspector={elementInspector.toggle}
+						/>
+					)}
 				</div>
 			</div>
 		)

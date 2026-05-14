@@ -81,8 +81,9 @@ interface RemoveCachedResourceParams {
 }
 
 const DB_NAME = "canvas-media-resource-offline-cache"
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE_NAME = "resources"
+const LOOKUP_PATH_INDEX = "lookupPath"
 const CACHE_NAME = "canvas-media-resources-v1"
 const DEFAULT_MAX_BYTES = 1024 * 1024 * 1024
 const DEFAULT_SW_FILE = "canvas-media-resource-sw.js"
@@ -144,6 +145,18 @@ function coerceToPathString(value: unknown): string {
 	if (typeof value === "string") return value
 	if (value == null) return ""
 	return String(value)
+}
+
+/** 与 `canvas-media-resource-sw.js` 中 `normalizeResourcePathForLookup` 保持一致，供 IDB `lookupPath` 索引使用。 */
+function normalizeResourcePathForLookup(path: string | null | undefined): string {
+	if (path == null || path === "") return ""
+	let p = String(path).replace(/^\/+/g, "")
+	try {
+		p = decodeURIComponent(p)
+	} catch {
+		// 非法转义序列时保留原串
+	}
+	return p
 }
 
 /**
@@ -559,10 +572,49 @@ export class MediaResourceOfflineCacheManager {
 
 		this.dbPromise = new Promise((resolve, reject) => {
 			const request = indexedDB.open(DB_NAME, DB_VERSION)
-			request.onupgradeneeded = () => {
+			request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
 				const db = request.result
+				const tx = request.transaction
+				if (!tx) {
+					reject(new Error("IndexedDB upgrade missing transaction"))
+					return
+				}
+				let store: IDBObjectStore
 				if (!db.objectStoreNames.contains(STORE_NAME)) {
-					db.createObjectStore(STORE_NAME, { keyPath: "id" })
+					store = db.createObjectStore(STORE_NAME, { keyPath: "id" })
+				} else {
+					store = tx.objectStore(STORE_NAME)
+				}
+
+				if (event.oldVersion < 2) {
+					if (event.oldVersion >= 1) {
+						const migrateRequest = store.openCursor()
+						migrateRequest.onerror = () =>
+							reject(
+								migrateRequest.error ??
+									new Error("IndexedDB migrate cursor failed"),
+							)
+						migrateRequest.onsuccess = () => {
+							const cursor = migrateRequest.result
+							if (cursor) {
+								const value = cursor.value as CachedMediaResource & {
+									id: string
+									lookupPath?: string
+								}
+								const lookupPath = normalizeResourcePathForLookup(value.path)
+								if (value.lookupPath !== lookupPath) {
+									cursor.update({ ...value, lookupPath })
+								}
+								cursor.continue()
+							} else if (!store.indexNames.contains(LOOKUP_PATH_INDEX)) {
+								store.createIndex(LOOKUP_PATH_INDEX, LOOKUP_PATH_INDEX, {
+									unique: false,
+								})
+							}
+						}
+					} else if (!store.indexNames.contains(LOOKUP_PATH_INDEX)) {
+						store.createIndex(LOOKUP_PATH_INDEX, LOOKUP_PATH_INDEX, { unique: false })
+					}
 				}
 			}
 			request.onsuccess = () => resolve(request.result)
@@ -579,6 +631,7 @@ export class MediaResourceOfflineCacheManager {
 			store.put({
 				...entry,
 				id: buildResourceId(entry.mediaType, entry.path),
+				lookupPath: normalizeResourcePathForLookup(entry.path),
 			}),
 		)
 	}

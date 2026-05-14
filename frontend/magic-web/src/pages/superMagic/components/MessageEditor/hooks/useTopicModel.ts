@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react"
-import { ProjectListItem, Topic, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { useMount } from "ahooks"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { superMagicTopicModelService } from "@/services/superMagic/topicModel"

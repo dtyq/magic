@@ -22,6 +22,7 @@ import usePPTStoreOptional from "./usePPTStoreOptional"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { pptFontResolver } from "@/pages/superMagic/services/pptFontService"
 import { exportPPTX } from "../../../../../../../packages/html2pptx/src"
+import { exportHtmlToPdf, exportHtmlToImage } from "../../../../../../../packages/pdf-export/src"
 import { pptxExternalLogger, reportPptxExportError } from "@/pages/superMagic/utils/pptxLogger"
 import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
 
@@ -102,6 +103,8 @@ interface EditToolbarProps {
 	showDownload?: boolean
 	/** 项目ID（分享页面等 projectStore 不可用时的 fallback） */
 	projectId?: string
+	/** 触发元素选取检查器（仅 HTML 场景下传入）*/
+	onStartInspector?: () => void
 }
 
 function EditToolbar({
@@ -140,6 +143,7 @@ function EditToolbar({
 	showDownload = true,
 	style,
 	projectId,
+	onStartInspector,
 }: EditToolbarProps) {
 	const { t } = useTranslation("super")
 	const { emitFullscreenToggle } = usePPTEventBus()
@@ -175,6 +179,198 @@ function EditToolbar({
 		projectId: resolvedProjectId,
 		t,
 	})
+
+	function exportPdfByPaths(input: { slidePaths?: string[] }) {
+		if (!pptStore) {
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+			return
+		}
+
+		const { slidePaths } = input
+		const storeConfig = pptStore.getConfigForExport()
+		const defaultName = storeConfig?.attachments?.[0]?.file_name || "slides"
+
+		const targetSlides = slidePaths?.length
+			? pptStore.slides.filter((slide) => slidePaths.includes(slide.path))
+			: pptStore.slides
+
+		if (!targetSlides.length) {
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+			return
+		}
+
+		const htmlSlides = targetSlides.map((slide) => slide.content ?? "")
+		const toastId = createRandomUuidV4()
+		let pdfHandle: ReturnType<typeof exportHtmlToPdf> | null = null
+
+		function getPdfExportToastContent(progressText: string) {
+			return (
+				<div className="flex items-center gap-2">
+					<span>{progressText}</span>
+					<Button
+						type="button"
+						variant="secondary"
+						size="sm"
+						className="h-6 bg-destructive-custom px-2 text-xs text-destructive hover:opacity-90"
+						onClick={() => pdfHandle?.cancel()}
+					>
+						{t("topicFiles.exportCancel")}
+					</Button>
+				</div>
+			)
+		}
+
+		magicToast.loading({
+			key: toastId,
+			content: getPdfExportToastContent(t("topicFiles.exporting")),
+			duration: 0,
+		})
+
+		pdfHandle = exportHtmlToPdf({
+			pages: htmlSlides,
+			pagination: "none",
+			fileName: defaultName.replace(/\.html?$/i, "") + ".pdf",
+			onProgress: ({ phase, current, total }) => {
+				if (phase === "capture" && total > 0) {
+					const progress = total > 1 ? ` (${current}/${total})` : ""
+					magicToast.loading({
+						key: toastId,
+						content: getPdfExportToastContent(
+							`${t("topicFiles.exporting")}${progress}`,
+						),
+						duration: 0,
+					})
+				}
+			},
+		})
+
+		setIsEditableExporting(true)
+
+		pdfHandle.promise
+			.then(() => {
+				magicToast.success({
+					key: toastId,
+					content: t("topicFiles.exportSuccess"),
+					duration: 1000,
+				})
+			})
+			.catch((error: unknown) => {
+				const isAbort = (error as { name?: string } | null)?.name === "AbortError"
+				if (isAbort) {
+					magicToast.info({
+						key: toastId,
+						content: t("topicFiles.exportCancel"),
+						duration: 1000,
+					})
+				} else {
+					magicToast.error({
+						key: toastId,
+						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+						duration: 1000,
+					})
+					console.error("[exportHtmlToPdf] failed:", error)
+				}
+			})
+			.finally(() => {
+				setIsEditableExporting(false)
+			})
+	}
+
+	function exportImageByPaths(input: { slidePaths?: string[]; imageFormat: "png" | "jpeg" }) {
+		if (!pptStore) {
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+			return
+		}
+
+		const { slidePaths, imageFormat } = input
+		const storeConfig = pptStore.getConfigForExport()
+		const defaultName = storeConfig?.attachments?.[0]?.file_name || "slides"
+
+		const targetSlides = slidePaths?.length
+			? pptStore.slides.filter((slide) => slidePaths.includes(slide.path))
+			: pptStore.slides
+
+		if (!targetSlides.length) {
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+			return
+		}
+
+		const htmlSlides = targetSlides.map((slide) => slide.content ?? "")
+		const toastId = createRandomUuidV4()
+		let imageHandle: ReturnType<typeof exportHtmlToImage> | null = null
+
+		function getImageExportToastContent(progressText: string) {
+			return (
+				<div className="flex items-center gap-2">
+					<span>{progressText}</span>
+					<Button
+						type="button"
+						variant="secondary"
+						size="sm"
+						className="h-6 bg-destructive-custom px-2 text-xs text-destructive hover:opacity-90"
+						onClick={() => imageHandle?.cancel()}
+					>
+						{t("topicFiles.exportCancel")}
+					</Button>
+				</div>
+			)
+		}
+
+		magicToast.loading({
+			key: toastId,
+			content: getImageExportToastContent(t("topicFiles.exporting")),
+			duration: 0,
+		})
+
+		imageHandle = exportHtmlToImage({
+			pages: htmlSlides,
+			format: imageFormat,
+			fileName: defaultName.replace(/\.html?$/i, ""),
+			onProgress: ({ phase, current, total }) => {
+				if (phase === "capture" && total > 0) {
+					const progress = total > 1 ? ` (${current}/${total})` : ""
+					magicToast.loading({
+						key: toastId,
+						content: getImageExportToastContent(
+							`${t("topicFiles.exporting")}${progress}`,
+						),
+						duration: 0,
+					})
+				}
+			},
+		})
+
+		setIsEditableExporting(true)
+
+		imageHandle.promise
+			.then(() => {
+				magicToast.success({
+					key: toastId,
+					content: t("topicFiles.exportSuccess"),
+					duration: 1000,
+				})
+			})
+			.catch((error: unknown) => {
+				const isAbort = (error as { name?: string } | null)?.name === "AbortError"
+				if (isAbort) {
+					magicToast.info({
+						key: toastId,
+						content: t("topicFiles.exportCancel"),
+						duration: 1000,
+					})
+				} else {
+					magicToast.error({
+						key: toastId,
+						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+						duration: 1000,
+					})
+					console.error("[exportHtmlToImage] failed:", error)
+				}
+			})
+			.finally(() => {
+				setIsEditableExporting(false)
+			})
+	}
 
 	function exportEditablePptByPaths(input: { slidePaths?: string[] }) {
 		if (!pptStore) {
@@ -366,6 +562,7 @@ function EditToolbar({
 							showButtonText={shouldShowButtonText}
 							attachmentList={attachmentList}
 							fileId={fileId}
+							onStartInspector={onStartInspector}
 						/>
 					)}
 
@@ -463,7 +660,13 @@ function EditToolbar({
 								// 默认下载当前文件
 								exportFile([mainFileId])
 							}}
-							onExportPDF={() => exportPdf([mainFileId || ""])}
+							onExportPDF={() => {
+								if (pptStore) {
+									exportPdfByPaths({})
+								} else {
+									exportPdf([mainFileId || ""])
+								}
+							}}
 							onExportPPT={() => exportPpt([mainFileId || ""])}
 							onExportEditablePPT={() => exportEditablePptByPaths({})}
 							onExportCurrentSource={() => {
@@ -474,7 +677,12 @@ function EditToolbar({
 									)
 							}}
 							onExportCurrentPDF={() => {
-								if (fileId) exportPdf([fileId])
+								const currentSlide = pptStore?.slides[currentPageIndex || 0]
+								if (currentSlide?.path) {
+									exportPdfByPaths({ slidePaths: [currentSlide.path] })
+								} else if (fileId) {
+									exportPdf([fileId])
+								}
 							}}
 							onExportCurrentPPT={() => {
 								if (fileId) exportPpt([fileId])
@@ -488,9 +696,32 @@ function EditToolbar({
 							}}
 							onExportSpecificPages={(
 								filePaths: string[],
-								format: "source" | "pdf" | "ppt" | "pptx",
+								format:
+									| "source"
+									| "pdf"
+									| "ppt"
+									| "pptx"
+									| "image_png"
+									| "image_jpeg",
 							) => {
 								if (!filePaths.length) return
+
+								// PDF 和 PPTX 使用纯前端多页导出（直接拿 slide content）
+								if (format === "pdf") {
+									exportPdfByPaths({ slidePaths: filePaths })
+									return
+								}
+								if (format === "pptx") {
+									exportEditablePptByPaths({ slidePaths: filePaths })
+									return
+								}
+								if (format === "image_png" || format === "image_jpeg") {
+									exportImageByPaths({
+										slidePaths: filePaths,
+										imageFormat: format === "image_png" ? "png" : "jpeg",
+									})
+									return
+								}
 
 								const fileIds =
 									filePaths
@@ -503,9 +734,7 @@ function EditToolbar({
 
 								const exportHandlers = {
 									source: () => exportFile(fileIds),
-									pdf: () => exportPdf(fileIds),
 									ppt: () => exportPpt(fileIds),
-									pptx: () => exportEditablePptByPaths({ slidePaths: filePaths }),
 								}
 
 								exportHandlers[format]?.()

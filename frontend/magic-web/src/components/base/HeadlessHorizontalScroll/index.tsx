@@ -67,11 +67,11 @@ function defaultRenderLeftControl({ scroll }: HeadlessHorizontalScrollRenderProp
 	return (
 		<div
 			className={cn(
-				"pointer-events-none absolute left-0 top-0 z-10 h-full overflow-hidden",
+				"pointer-events-none absolute left-0 top-0 z-10 h-full overflow-hidden rounded-l-full ",
 				CONTROL_OVERLAY_WIDTH_CLASS,
 			)}
 		>
-			<div className={cn("absolute inset-0", LEFT_CONTROL_GRADIENT_CLASS)} />
+			<div className={cn("absolute inset-0 rounded-l-full", LEFT_CONTROL_GRADIENT_CLASS)} />
 			<div className="relative flex h-full items-center justify-start pl-2">
 				<Button
 					variant="outline"
@@ -90,11 +90,11 @@ function defaultRenderRightControl({ scroll }: HeadlessHorizontalScrollRenderPro
 	return (
 		<div
 			className={cn(
-				"pointer-events-none absolute right-0 top-0 z-10 h-full overflow-hidden",
+				"pointer-events-none absolute right-0 top-0 z-10 h-full overflow-hidden rounded-r-full ",
 				CONTROL_OVERLAY_WIDTH_CLASS,
 			)}
 		>
-			<div className={cn("absolute inset-0", RIGHT_CONTROL_GRADIENT_CLASS)} />
+			<div className={cn("absolute inset-0 rounded-r-full", RIGHT_CONTROL_GRADIENT_CLASS)} />
 			<div className="relative flex h-full items-center justify-end pr-2">
 				<Button
 					variant="outline"
@@ -228,7 +228,7 @@ function HeadlessHorizontalScroll({
 
 	return (
 		<div
-			className={cn("relative", className)}
+			className={cn("relative overflow-hidden rounded-full", className)}
 			style={
 				{
 					"--control-background": controlBackground,

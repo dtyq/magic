@@ -1,6 +1,6 @@
 import { makeAutoObservable } from "mobx"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
-import type { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { DEFAULT_TOPIC_ID } from "@/services/superMagic/topicModel/constants"
 
 /**

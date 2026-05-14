@@ -5,7 +5,7 @@ import { useMemoizedFn } from "ahooks"
 import usePortalTarget from "@/hooks/usePortalTarget"
 import { PORTAL_IDS } from "@/constants/portal"
 import TopicExampleCards from "../components/MessageList/components/MessageListFallback/TopicExampleCards"
-import { TopicMode } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import type { MessageEditorRef } from "../components/MessageEditor/MessageEditor"
 
 interface UseTopicExamplesPortalParams {

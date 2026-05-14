@@ -1,4 +1,4 @@
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { Suspense, useRef } from "react"
 import { EDITOR_ICON_SIZE_MAP } from "../../../MessageEditor/constants/constant"
 import RecordSummaryEditorPanelSkeleton from "../../../MessagePanel/components/RecordSummaryEditorPanelSkeleton"

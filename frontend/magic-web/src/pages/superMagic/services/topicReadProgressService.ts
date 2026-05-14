@@ -20,6 +20,11 @@ export interface TopicReadProgressPayload {
 	reason: TopicReadProgressReason
 	/** 为 true 时仅跳过相对 `latestCursor` 的入站去重，仍受 `lastAckCursor` 与 `canReportReadProgress` 约束 */
 	immediate?: boolean
+	/**
+	 * 为 true 时允许在终态下绕过 `has_unread === true` 的本地判断，
+	 * 仅用于消息到达终态后的即时已读补记，避免后端 unread 补丁延迟导致漏上报。
+	 */
+	allowWithoutUnreadCheck?: boolean
 }
 
 export interface TopicReadProgressCursorPayload {
@@ -37,6 +42,7 @@ interface NormalizedCursor {
 	lastReadAt: string
 	lastReadMessageId: string | null
 	lastReadAtMs: number
+	allowWithoutUnreadCheck: boolean
 }
 
 interface TopicReadProgressState {
@@ -122,6 +128,7 @@ function normalizeCursor(payload: TopicReadProgressPayload): NormalizedCursor | 
 		lastReadAt: normalizedReadAt,
 		lastReadMessageId: payload.lastReadMessageId || null,
 		lastReadAtMs: toCursorTimestamp(normalizedReadAt),
+		allowWithoutUnreadCheck: payload.allowWithoutUnreadCheck === true,
 	}
 }
 
@@ -170,27 +177,6 @@ export function resolveReadProgressPayloadFromMessages(
 				? latestMessage.app_message_id
 				: undefined,
 	}
-}
-
-/** 将后端最新 topic 状态补丁合并回指定 store，保证 scoped store 与 UI 同步。 */
-export async function syncTopicStatusPatch({
-	topicStore,
-	topicId,
-}: {
-	topicStore: TopicStore
-	topicId: string
-}) {
-	if (!topicId) return
-
-	const statusResponse = await SuperMagicApi.getTopicsStatus({ topic_ids: [topicId] })
-	const statusItem = statusResponse.topics?.[0] || statusResponse.list?.[0]
-	if (!statusItem) return
-
-	topicStore.mergeTopic(topicId, {
-		task_status: statusItem.status,
-		status: statusItem.status,
-		has_unread: statusItem.has_unread,
-	})
 }
 
 class TopicReadProgressService {
@@ -247,7 +233,7 @@ class TopicReadProgressService {
 		const targetCursor = state.latestCursor
 		if (!targetCursor) return
 		if (state.inFlight) return
-		if (!this.canReportReadProgress(topicId)) return
+		if (!this.canReportReadProgress(topicId, targetCursor)) return
 		if (!shouldSendCursorUpdate(state.lastAckCursor, targetCursor)) return
 		const cursorKey = getCursorKey(targetCursor)
 		if (state.lastSentCursorKey === cursorKey) return
@@ -289,7 +275,7 @@ class TopicReadProgressService {
 			if (
 				hasNewCursor &&
 				latestCursor &&
-				this.canReportReadProgress(topicId) &&
+				this.canReportReadProgress(topicId, latestCursor) &&
 				shouldSendCursorUpdate(state.lastAckCursor, latestCursor)
 			)
 				void this.executeFlush(topicId, reason)
@@ -312,18 +298,22 @@ class TopicReadProgressService {
 	}
 
 	/** 仅当当前 store 中的目标话题满足终态且有未读时，才允许真正上报。 */
-	private canReportReadProgress(topicId: string): boolean {
+	private canReportReadProgress(topicId: string, targetCursor?: NormalizedCursor): boolean {
+		const allowWithoutUnreadCheck = targetCursor?.allowWithoutUnreadCheck === true
 		const selectedTopic = this.topicStore.selectedTopic
 		if (selectedTopic?.id === topicId)
 			return (
 				isTopicTerminalTaskStatus(selectedTopic.task_status) &&
-				selectedTopic.has_unread === true
+				(selectedTopic.has_unread === true || allowWithoutUnreadCheck)
 			)
 
 		const targetTopic = this.topicStore.topics.find((topic) => topic.id === topicId)
 		if (!targetTopic) return false
 
-		return isTopicTerminalTaskStatus(targetTopic.task_status) && targetTopic.has_unread === true
+		return (
+			isTopicTerminalTaskStatus(targetTopic.task_status) &&
+			(targetTopic.has_unread === true || allowWithoutUnreadCheck)
+		)
 	}
 }
 

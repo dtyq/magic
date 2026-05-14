@@ -12,6 +12,7 @@
 		"close": "关闭抽屉"
 	},
 	"select": {
+		"auto": "自动",
 		"clear": "清空选择",
 		"empty": "暂无选项",
 		"placeholder": "请选择"

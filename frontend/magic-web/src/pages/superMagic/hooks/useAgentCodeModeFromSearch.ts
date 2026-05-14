@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { useLocation } from "react-router"
-import { TopicMode } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 
 interface UseAgentCodeModeFromSearchOptions {

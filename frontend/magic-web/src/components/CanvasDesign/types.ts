@@ -325,4 +325,9 @@ export interface CanvasDesignProps {
 	t?: TFunction
 	/** 是否移动端 */
 	getIsMobile?: () => boolean
+	/**
+	 * 宿主底部存在 fixed 层（如分享页「由超级麦吉创建」徽标）时置为 true，
+	 * 缩放控件上移避免被遮挡；由宿主判断场景后传入，CanvasDesign 不依赖业务路由。
+	 */
+	shareHostBottomChrome?: boolean
 }

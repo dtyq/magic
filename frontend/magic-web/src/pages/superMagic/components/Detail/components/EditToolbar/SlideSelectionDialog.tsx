@@ -19,7 +19,9 @@ import { observer } from "mobx-react-lite"
 import { TSIcon } from "@/components/base"
 import FileSlicesIcon from "./FileSlicesIcon"
 
-export type ExportFormat = "source" | "pdf" | "ppt" | "pptx"
+import { Image as ImageIcon } from "lucide-react"
+
+export type ExportFormat = "source" | "pdf" | "ppt" | "pptx" | "image_png" | "image_jpeg"
 
 interface SlideSelectionDialogProps {
 	/** 是否打开对话框 */
@@ -298,6 +300,26 @@ function SlideSelectionDialog({
 							>
 								<FileSlicesIcon size={16} />
 								{t("topicFiles.source")}
+							</Label>
+						</div>
+						<div className="flex items-center space-x-2">
+							<RadioGroupItem value="image_png" id="format-image-png" />
+							<Label
+								htmlFor="format-image-png"
+								className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+							>
+								<ImageIcon size={16} />
+								{t("topicFiles.exportImagePng")}
+							</Label>
+						</div>
+						<div className="flex items-center space-x-2">
+							<RadioGroupItem value="image_jpeg" id="format-image-jpeg" />
+							<Label
+								htmlFor="format-image-jpeg"
+								className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+							>
+								<ImageIcon size={16} />
+								{t("topicFiles.exportImageJpeg")}
 							</Label>
 						</div>
 					</RadioGroup>

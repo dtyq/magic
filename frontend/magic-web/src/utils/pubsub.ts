@@ -74,6 +74,13 @@ class TypedPubSub<TMap extends object> {
 	}
 
 	/**
+	 * 检查某个事件是否有订阅者
+	 */
+	hasListeners<E extends keyof TMap & string>(event: E): boolean {
+		return (this.events[event]?.length ?? 0) > 0
+	}
+
+	/**
 	 * 清除所有事件订阅
 	 */
 	clear(): void {

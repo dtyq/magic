@@ -10,6 +10,7 @@ import {
 	SuperPlaceholderExtension,
 	PlaceholderExtension,
 	CopyMessageExtension,
+	InspectorDetailExtension,
 } from "../extensions"
 import MentionExtension, {
 	Language,
@@ -20,7 +21,8 @@ import MentionExtension, {
 import { useTranslation } from "react-i18next"
 import AiCompletionService from "@/services/chat/editor/AiCompletionService"
 import { useMemoizedFn, useUpdateEffect } from "ahooks"
-import { Topic, type TopicMode } from "../../../pages/Workspace/types"
+import { Topic } from "../../../pages/Workspace/types"
+import { type TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { ChatApi } from "@/apis"
 import { isEmptyJSONContent } from "../utils"
 import { UndoRedo } from "@tiptap/extensions"
@@ -279,6 +281,7 @@ export const useMessageEditor = ({
 			SuperPlaceholderExtension.configure({
 				size: size || "default",
 			}),
+			InspectorDetailExtension,
 			PlaceholderExtension.configure({
 				placeholder,
 			}),
@@ -410,9 +413,18 @@ export const useMessageEditor = ({
 
 	// Handle dynamic size updates for SuperPlaceholderExtension
 	useEffect(() => {
-		if (tiptapEditor && size) {
-			tiptapEditor.commands.updateSuperPlaceholderSize(size)
-		}
+		if (!tiptapEditor || !size) return
+		// Defer past the current React commit so that all ReactNodeViewRenderer
+		// mounts (which dispatch ProseMirror transactions) have settled before we
+		// attempt to dispatch our own transaction. Without this deferral, ProseMirror
+		// throws "Applying a mismatched transaction" because our `tr` was created
+		// from a stale state snapshot.
+		const raf = requestAnimationFrame(() => {
+			if (!tiptapEditor.isDestroyed) {
+				tiptapEditor.commands.updateSuperPlaceholderSize(size)
+			}
+		})
+		return () => cancelAnimationFrame(raf)
 	}, [tiptapEditor, size])
 
 	// Handle dynamic enabled state for MentionExtension

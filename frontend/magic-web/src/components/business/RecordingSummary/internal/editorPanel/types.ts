@@ -2,12 +2,8 @@ import type { ComponentType, ReactNode } from "react"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import type { MessageEditorSize } from "@/pages/superMagic/components/MessageEditor/types"
-import type {
-	ProjectListItem,
-	Topic,
-	TopicMode,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import type { AudioSourceType } from "@/services/recordSummary/MediaRecorderService/types/RecorderTypes"
 import type { GetRecordingSummaryResultResponse } from "@/apis/modules/superMagic/recordSummary"
 

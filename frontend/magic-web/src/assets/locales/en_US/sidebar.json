@@ -12,6 +12,9 @@
 	"crewMarket": {
 		"title": "Digital Crew"
 	},
+	"docAssistant": {
+		"title": "Document Writing Assistant"
+	},
 	"footer": {
 		"defaultUser": "User",
 		"feedback": "Feedback",

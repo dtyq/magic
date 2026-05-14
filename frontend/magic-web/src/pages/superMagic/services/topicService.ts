@@ -2,6 +2,7 @@ import { SuperMagicApi } from "@/apis"
 import { runInAction } from "mobx"
 import type { TopicStore } from "../stores/core/topic"
 import type { Topic, TaskStatus, ProjectListItem } from "../pages/Workspace/types"
+import type { TopicMode } from "../pages/Workspace/TopicMode"
 import { RequestConfig } from "@/apis/core/HttpClient"
 import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory"
 
@@ -20,6 +21,8 @@ export interface UpdateTopicStatusParams {
 export interface CreateTopicParams {
 	projectId: string
 	topicName: string
+	/** Optional mode to set on the new topic */
+	topicMode?: TopicMode
 }
 
 export interface MarkTopicReadProgressParams {
@@ -163,11 +166,16 @@ class TopicService {
 		return SuperMagicApi.getTopicDetail({ id: topicId }, options)
 	}
 
-	async createTopic({ projectId, topicName }: CreateTopicParams): Promise<Topic | null> {
+	async createTopic({
+		projectId,
+		topicName,
+		topicMode,
+	}: CreateTopicParams): Promise<Topic | null> {
 		try {
 			const newTopic = await SuperMagicApi.createTopic({
 				topic_name: topicName,
 				project_id: projectId,
+				...(topicMode ? { project_mode: topicMode } : {}),
 			})
 
 			// Fetch latest topics list

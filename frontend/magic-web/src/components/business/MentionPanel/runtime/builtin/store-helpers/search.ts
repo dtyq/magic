@@ -1,5 +1,6 @@
 import { MentionItemType, type MentionItem, type ProjectFileMentionData } from "../../../types"
 import type { MentionPanelPluginHost } from "../registry-types"
+import { mentionPanelSearchPlugins } from "../registry"
 
 export function fuzzyMatch(target: string, query: string): boolean {
 	const targetLower = target.toLowerCase()
@@ -30,7 +31,6 @@ export async function searchBuiltinMentionItems(params: {
 	const { query, pluginHost } = params
 	if (!query || query.trim() === "") return []
 
-	const { mentionPanelSearchPlugins } = await import("../registry")
 	const normalizedQuery = query.toLowerCase().trim()
 	const results = (
 		await Promise.all(
