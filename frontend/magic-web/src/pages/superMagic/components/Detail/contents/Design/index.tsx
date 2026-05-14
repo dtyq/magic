@@ -210,19 +210,6 @@ function DesignViewer(props: DesignViewerProps) {
 	// 这样可以避免 attachments 数组引用变化导致的重复加载
 	const hasLoadedRef = useRef(false)
 
-	// 当 designProjectBasePath 变化时强制刷新 CanvasDesign，避免内部路径缓存沿用旧基准路径
-	useEffect(() => {
-		if (prevDesignProjectBasePathRef.current === undefined) {
-			prevDesignProjectBasePathRef.current = designProjectBasePath
-			return
-		}
-
-		if (prevDesignProjectBasePathRef.current !== designProjectBasePath) {
-			prevDesignProjectBasePathRef.current = designProjectBasePath
-			refreshCanvasDesign()
-		}
-	}, [designProjectBasePath, refreshCanvasDesign])
-
 	// magic.project.js 与 designData 集中管理器（含 autoSave、远端更新监听、版本管理）
 	const designProjectManager = useDesignProjectManager({
 		currentFile,
@@ -297,6 +284,19 @@ function DesignViewer(props: DesignViewerProps) {
 	} = designProjectManager
 
 	const { isProcessingRevoke, revokeType } = designProjectManager
+
+	// 当 designProjectBasePath 变化（目录改名）时，重新从远端加载 DSL（修复旧路径引用），再重挂载画布
+	useEffect(() => {
+		if (prevDesignProjectBasePathRef.current === undefined) {
+			prevDesignProjectBasePathRef.current = designProjectBasePath
+			return
+		}
+
+		if (prevDesignProjectBasePathRef.current !== designProjectBasePath) {
+			prevDesignProjectBasePathRef.current = designProjectBasePath
+			resetAndReload().then(() => refreshCanvasDesign())
+		}
+	}, [designProjectBasePath, refreshCanvasDesign, resetAndReload])
 
 	// 设计容器 ref
 	const containerRef = useRef<HTMLDivElement>(null)
