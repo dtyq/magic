@@ -831,7 +831,7 @@ func newInlineUpdateKnowledgeBaseReaderForTest() *knowledgeBaseReaderStub {
 	}
 }
 
-func TestDocumentAppServiceUpdateSchedulesSingleDocumentThirdPlatformResyncWithSourceOverride(t *testing.T) {
+func TestDocumentAppServiceUpdateSchedulesThirdPlatformResyncForBroadcastRedirect(t *testing.T) {
 	t.Parallel()
 
 	existing := &docentity.KnowledgeBaseDocument{
@@ -840,6 +840,7 @@ func TestDocumentAppServiceUpdateSchedulesSingleDocumentThirdPlatformResyncWithS
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		ThirdPlatformType: "teamshare",
 		ThirdFileID:       "FILE-1",
+		UpdatedUID:        "DOC-USER",
 		DocumentFile: &docentity.File{
 			Type:       "third_platform",
 			ThirdID:    "FILE-1",
@@ -849,13 +850,6 @@ func TestDocumentAppServiceUpdateSchedulesSingleDocumentThirdPlatformResyncWithS
 	domain := &documentDomainServiceStub{showByCodeAndKBResult: existing}
 	scheduler := &documentSyncSchedulerStub{}
 	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler)
-	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
-		result: newThirdPlatformRawContentResolveResult("latest source content"),
-	})
-	svc.SetParseServiceForTest(&documentParseServiceStub{})
-	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
-		platformType: "teamshare",
-	}))
 
 	_, err := svc.Update(context.Background(), &docdto.UpdateDocumentInput{
 		OrganizationCode:  "ORG1",
@@ -873,16 +867,44 @@ func TestDocumentAppServiceUpdateSchedulesSingleDocumentThirdPlatformResyncWithS
 		t.Fatalf("Update returned error: %v", err)
 	}
 	if scheduler.scheduleCalls != 1 {
-		t.Fatalf("expected single-document third-platform resync, got %#v", scheduler.inputs)
+		t.Fatalf("expected document update resync schedule, got %#v", scheduler.inputs)
 	}
 	if scheduler.inputs[0].Code != testDocumentCode || scheduler.inputs[0].KnowledgeBaseCode != testKnowledgeBaseCode {
 		t.Fatalf("unexpected scheduled target: %#v", scheduler.inputs[0])
 	}
-	if scheduler.inputs[0].SourceOverride == nil || scheduler.inputs[0].SourceOverride.Content != "latest source content" {
-		t.Fatalf("expected scheduled source override, got %#v", scheduler.inputs[0])
+	if scheduler.inputs[0].SourceOverride != nil {
+		t.Fatalf("expected document update not to pre-resolve source override, got %#v", scheduler.inputs[0].SourceOverride)
 	}
 	if scheduler.inputs[0].SingleDocumentThirdPlatformResync {
-		t.Fatalf("expected direct source override scheduling without redirect fallback, got %#v", scheduler.inputs[0])
+		t.Fatalf("expected document update to allow third-file broadcast redirect, got %#v", scheduler.inputs[0])
+	}
+	if scheduler.inputs[0].RevectorizeSource != documentdomain.RevectorizeSourceDocumentUpdate {
+		t.Fatalf("expected document update revectorize source, got %#v", scheduler.inputs[0])
+	}
+
+	initial := *scheduler.inputs[0]
+	other := newThirdFileMappedDocument("DOC2", "DOC2-USER")
+	other.KnowledgeBaseCode = "KB2"
+	domain.listRealtimeByThirdFileInOrgResult = []*docentity.KnowledgeBaseDocument{existing, other}
+	scheduler.inputs = nil
+	scheduler.scheduleCalls = 0
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+
+	if err := svc.Sync(context.Background(), &initial); err != nil {
+		t.Fatalf("expected document update resync to redirect to third-file broadcast, got %v", err)
+	}
+	if scheduler.scheduleCalls != 2 {
+		t.Fatalf("expected document update redirect to fan out same third-file documents, got %#v", scheduler.inputs)
+	}
+	for _, input := range scheduler.inputs {
+		if input.SourceOverride != nil {
+			t.Fatalf("expected fan-out task not to carry source override, got %#v", input.SourceOverride)
+		}
+		if input.RevectorizeSource != documentdomain.RevectorizeSourceThirdFileBroadcast || !input.SingleDocumentThirdPlatformResync {
+			t.Fatalf("expected fan-out task to be fixed third-file document sync, got %#v", input)
+		}
 	}
 }
 
@@ -2145,6 +2167,83 @@ func TestDocumentAppServiceSyncSingleDocumentManualDoesNotFanoutByThirdFile(t *t
 	}
 	if doc2.DocumentFile != nil {
 		t.Fatalf("expected sibling mapped document to stay untouched, got %#v", doc2.DocumentFile)
+	}
+}
+
+func TestDocumentAppServiceDocumentUpdateClearsThirdFileSourceCacheBeforeFanout(t *testing.T) {
+	t.Parallel()
+
+	doc := newThirdFileMappedDocument(testDocumentCode, "U1")
+	domain := &documentDomainServiceStub{
+		showByCodeAndKBResult: doc,
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	fragmentSvc := &fragmentDestroyServiceStub{}
+	resolver := &thirdPlatformResolverStub{
+		result: newThirdPlatformRawContentResolveResult("old cached content"),
+	}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{routeCollection: "collection"},
+		scheduler,
+		fragmentSvc,
+	)
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
+	svc.SetParseServiceForTest(&documentParseServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+
+	if err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:                  "ORG1",
+		KnowledgeBaseCode:                 testKnowledgeBaseCode,
+		Code:                              testDocumentCode,
+		Mode:                              documentdomain.SyncModeResync,
+		RevectorizeSource:                 documentdomain.RevectorizeSourceThirdFileBroadcast,
+		SingleDocumentThirdPlatformResync: true,
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: "ORG1",
+			UserID:           "U1",
+			BusinessID:       testKnowledgeBaseCode,
+		},
+	}); err != nil {
+		t.Fatalf("expected initial third-file sync to cache source, got %v", err)
+	}
+	if resolver.resolveCalls != 1 {
+		t.Fatalf("expected initial sync to resolve latest source once, got %d", resolver.resolveCalls)
+	}
+
+	resolver.result = newThirdPlatformRawContentResolveResult("fresh third-file content")
+	domain.listRealtimeByThirdFileInOrgResult = []*docentity.KnowledgeBaseDocument{domain.showByCodeAndKBResult}
+	scheduler.inputs = nil
+	scheduler.scheduleCalls = 0
+
+	if err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		Code:              testDocumentCode,
+		Mode:              documentdomain.SyncModeResync,
+		RevectorizeSource: documentdomain.RevectorizeSourceDocumentUpdate,
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: "ORG1",
+			UserID:           "U1",
+			BusinessID:       testKnowledgeBaseCode,
+		},
+	}); err != nil {
+		t.Fatalf("expected document update sync to redirect to third-file fan-out, got %v", err)
+	}
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected one fan-out task after document update, got %#v", scheduler.inputs)
+	}
+	if err := svc.Sync(context.Background(), scheduler.inputs[0]); err != nil {
+		t.Fatalf("expected fan-out sync to use fresh source, got %v", err)
+	}
+	if resolver.resolveCalls != 2 {
+		t.Fatalf("expected document update redirect to clear source cache and resolve again, got %d", resolver.resolveCalls)
+	}
+	if len(fragmentSvc.lastSyncedFragments) == 0 || !strings.Contains(fragmentSvc.lastSyncedFragments[0].Content, "fresh third-file content") {
+		t.Fatalf("expected latest content fragments after document update, got %#v", fragmentSvc.lastSyncedFragments)
 	}
 }
 
@@ -4436,6 +4535,7 @@ type fragmentDestroyServiceStub struct {
 	destroyCalls                int
 	destroyBatchCalls           int
 	syncFragmentBatchCalls      int
+	lastSyncedFragments         []*fragmodel.KnowledgeBaseFragment
 	lastCollectionName          string
 	lastKnowledgeCode           string
 	lastDocumentCode            string
@@ -4479,8 +4579,14 @@ func (*fragmentDestroyServiceStub) ListExistingPointIDs(context.Context, string,
 	return map[string]struct{}{}, nil
 }
 
-func (s *fragmentDestroyServiceStub) SyncFragmentBatch(context.Context, *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, []*fragmodel.KnowledgeBaseFragment, *ctxmeta.BusinessParams) error {
+func (s *fragmentDestroyServiceStub) SyncFragmentBatch(
+	_ context.Context,
+	_ *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
+	fragments []*fragmodel.KnowledgeBaseFragment,
+	_ *ctxmeta.BusinessParams,
+) error {
 	s.syncFragmentBatchCalls++
+	s.lastSyncedFragments = slices.Clone(fragments)
 	return nil
 }
 
@@ -4799,14 +4905,18 @@ type thirdPlatformResolverStub struct {
 	nodeErr       error
 	lastInput     *thirdplatform.DocumentResolveInput
 	lastNodeInput *thirdplatform.NodeResolveInput
+	resolveCalls  int
+	nodeCalls     int
 }
 
 func (s *thirdPlatformResolverStub) Resolve(_ context.Context, input thirdplatform.DocumentResolveInput) (*thirdplatform.DocumentResolveResult, error) {
+	s.resolveCalls++
 	s.lastInput = &input
 	return s.result, s.err
 }
 
 func (s *thirdPlatformResolverStub) ResolveNode(_ context.Context, input thirdplatform.NodeResolveInput) (*thirdplatform.NodeResolveResult, error) {
+	s.nodeCalls++
 	s.lastNodeInput = &input
 	return s.nodeResult, s.nodeErr
 }

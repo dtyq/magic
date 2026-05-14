@@ -18,7 +18,7 @@ func (s *DocumentAppService) scheduleDocumentUpdateResync(
 	doc *docentity.KnowledgeBaseDocument,
 	userID string,
 ) {
-	request := s.buildDocumentUpdateResyncRequest(ctx, doc, userID)
+	request := s.buildDocumentUpdateResyncRequest(doc, userID)
 	if request == nil {
 		return
 	}
@@ -26,7 +26,6 @@ func (s *DocumentAppService) scheduleDocumentUpdateResync(
 }
 
 func (s *DocumentAppService) buildDocumentUpdateResyncRequest(
-	ctx context.Context,
 	doc *docentity.KnowledgeBaseDocument,
 	userID string,
 ) *documentdomain.SyncDocumentInput {
@@ -47,29 +46,9 @@ func (s *DocumentAppService) buildDocumentUpdateResyncRequest(
 		Async:             true,
 		BusinessParams:    texthelper.BuildCreateBusinessParams(doc.OrganizationCode, resolvedUserID, doc.KnowledgeBaseCode),
 	}
-	if !documentdomain.ShouldResolveThirdPlatformDocument(doc) {
-		return request
+	if documentdomain.ShouldResolveThirdPlatformDocument(doc) {
+		request.RevectorizeSource = documentdomain.RevectorizeSourceDocumentUpdate
 	}
-
-	override, found, err := s.resolveDocumentUpdateSourceOverride(ctx, doc, request.BusinessParams)
-	if err != nil && s.logger != nil {
-		s.logger.KnowledgeWarnContext(
-			ctx,
-			"Resolve latest third-platform source override for document update failed, fallback to single-document resync",
-			"organization_code", doc.OrganizationCode,
-			"knowledge_base_code", doc.KnowledgeBaseCode,
-			"document_code", doc.Code,
-			"third_platform_type", doc.ThirdPlatformType,
-			"third_file_id", doc.ThirdFileID,
-			"error", err,
-		)
-	}
-	if found {
-		request.SourceOverride = override
-		return request
-	}
-
-	request.SingleDocumentThirdPlatformResync = true
 	return request
 }
 

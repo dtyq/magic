@@ -51,6 +51,13 @@ func (s *DocumentAppService) storeResolvedSource(cacheKey string, cached *cached
 	s.sourceResolveCache.Store(cacheKey, cached)
 }
 
+func (s *DocumentAppService) deleteResolvedSource(cacheKey string) {
+	if s == nil || cacheKey == "" {
+		return
+	}
+	s.sourceResolveCache.Delete(cacheKey)
+}
+
 func (s *DocumentAppService) resolveProjectFileSourceOverride(
 	ctx context.Context,
 	projectFileID int64,

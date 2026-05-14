@@ -356,10 +356,39 @@ func (s *DocumentAppService) redirectThirdPlatformResync(
 		ThirdPlatformType: decision.Input.ThirdPlatformType,
 		ThirdFileID:       decision.Input.ThirdFileID,
 	}
+	s.clearDocumentUpdateThirdFileSourceCache(ctx, source, doc, decision.Input)
 	if err := s.ReVectorizedByThirdFileID(ctx, redirectInput); err != nil {
 		return true, err
 	}
 	return true, nil
+}
+
+func (s *DocumentAppService) clearDocumentUpdateThirdFileSourceCache(
+	ctx context.Context,
+	source string,
+	doc *docentity.KnowledgeBaseDocument,
+	input *document.ThirdFileRevectorizeInput,
+) {
+	if s == nil || doc == nil || input == nil || source != document.RevectorizeSourceDocumentUpdate {
+		return
+	}
+	seed, err := document.BuildThirdFileRevectorizeSeed(input, []*docentity.KnowledgeBaseDocument{doc})
+	if err != nil {
+		if s.logger != nil {
+			s.logger.KnowledgeWarnContext(
+				ctx,
+				"Clear third-file source cache for document update failed",
+				"organization_code", input.OrganizationCode,
+				"knowledge_base_code", doc.KnowledgeBaseCode,
+				"document_code", doc.Code,
+				"third_platform_type", input.ThirdPlatformType,
+				"third_file_id", input.ThirdFileID,
+				"error", err,
+			)
+		}
+		return
+	}
+	s.deleteResolvedSource(seed.SourceCacheKey)
 }
 
 func redirectUserID(input *document.SyncDocumentInput) string {

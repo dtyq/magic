@@ -19,6 +19,8 @@ const (
 	RevectorizeSourceProjectFileNotify = "project_file_notify"
 	// RevectorizeSourceTeamshareKnowledgeStartVector 表示 Teamshare 单知识库批量重向量化。
 	RevectorizeSourceTeamshareKnowledgeStartVector = "teamshare_knowledge_start_vector"
+	// RevectorizeSourceDocumentUpdate 表示文档配置更新触发的重向量化。
+	RevectorizeSourceDocumentUpdate = "document_update"
 )
 
 // CreateManagedDocumentInput 表示跨应用编排创建文档时的最小领域输入。
@@ -97,7 +99,8 @@ func NormalizeRevectorizeSource(source string) string {
 func RevectorizeSourceAllowsThirdFileBroadcast(source string) bool {
 	switch NormalizeRevectorizeSource(source) {
 	case "",
-		RevectorizeSourceThirdFileBroadcast:
+		RevectorizeSourceThirdFileBroadcast,
+		RevectorizeSourceDocumentUpdate:
 		return true
 	default:
 		return false
