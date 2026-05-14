@@ -380,6 +380,7 @@ class MagicFSFileDomainService
                 );
             }
             $updateData['file_name'] = $newName;
+            $updateData['file_extension'] = $file->getIsDirectory() ? '' : pathinfo($newName, PATHINFO_EXTENSION);
         }
 
         // 处理移动（修改 parent_id）
@@ -458,6 +459,9 @@ class MagicFSFileDomainService
         // 应用更新到实体
         if (isset($updateData['file_name'])) {
             $file->setFileName($updateData['file_name']);
+        }
+        if (isset($updateData['file_extension'])) {
+            $file->setFileExtension($updateData['file_extension']);
         }
         if (isset($updateData['parent_id'])) {
             $file->setParentId($updateData['parent_id']);
