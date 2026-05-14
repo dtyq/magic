@@ -2,8 +2,6 @@ import { defineConfig, mergeConfig, type PluginOption, type UserConfig } from "v
 import babel from "@rolldown/plugin-babel"
 import react from "@vitejs/plugin-react"
 import { resolve } from "path"
-import mkcert from "vite-plugin-mkcert"
-import http2Proxy from "@cpsoinos/vite-plugin-http2-proxy"
 // import legacy from "@vitejs/plugin-legacy"
 import vitePluginImp from "vite-plugin-imp"
 // import { VitePWA } from "vite-plugin-pwa"
@@ -239,16 +237,6 @@ function getBaseViteConfig(): UserConfig {
 					},
 				],
 			}),
-			// 用于本地生成HTTPS证书
-			...(isDev
-				? [
-						mkcert({
-							// 本地配置该地址的 host, 满足文件私有桶上传
-							hosts: ["magic.com"],
-						}),
-						// http2Proxy({ quiet: true }),
-					]
-				: []), // optional -- suppress error logging],
 			// 浏览器兼容
 			// legacy({
 			// 	targets: [
