@@ -51,7 +51,6 @@ function getBaseViteConfig(): UserConfig {
 		},
 		build: {
 			outDir: resolve(__dirname, "dist"),
-			// Enterprise uses root `enterprise/`; outDir is repo `dist/` (outside root).
 			emptyOutDir: true,
 			reportCompressedSize: false,
 			sourcemap: isEnableSourceMap,
@@ -137,10 +136,6 @@ function getBaseViteConfig(): UserConfig {
 				{
 					find: "@",
 					replacement: resolve(__dirname, "src"),
-				},
-				{
-					find: "@enterprise",
-					replacement: resolve(__dirname, "enterprise/src"),
 				},
 			],
 		},
