@@ -1,31 +1,81 @@
 import type { Canvas } from "../Canvas"
-import type { LayerElement, ImageElement } from "../types"
+import type { LayerElement, ImageElement, VideoElement, CanvasFileElement } from "../types"
 import { ElementTypeEnum } from "../types"
-import { GenerationStatus } from "../../types.magic"
+import { GenerationStatus, type UploadFileResponse } from "../../types.magic"
 import { toast } from "sonner"
 import {
 	getMediaDimensions,
 	calculateHorizontalImageLayout,
 	calculateElementsRect,
 	calculateNodesRect,
-	type ElementClipboardMetadata,
-	type CanvasClipboardData,
 	isVideoFile,
+	validateFile,
 } from "../utils/utils"
-import { validateFile } from "../utils/utils"
-import { ImageElement as ImageElementClass } from "../element/elements/ImageElement"
 import {
 	getAllExistingNames,
 	regenerateIdsWithUniqueNames,
 	filterRedundantElements,
 	getCanvasCenter,
-	withHistoryManagerAsync,
 } from "../utils/elementUtils"
-import { parseClipboardContent, type ParseClipboardOptions } from "../utils/clipboard"
+import {
+	CanvasElementClipboard,
+	type CanvasElementClipboardBrowserOptions,
+	type CanvasElementClipboardFile,
+	type CanvasElementClipboardNativeExposure,
+	type CanvasElementClipboardOperation,
+	type CanvasElementClipboardPasteSource,
+	type CanvasElementClipboardWriteFile,
+	type CanvasElementClipboardPayload,
+	type CanvasElementClipboardFileMetadata,
+} from "../utils/CanvasElementClipboard"
+import { logCanvasElementClipboard } from "../utils/CanvasElementClipboardLogger"
 import canvasSize from "canvas-size"
 
 const PNG_MIME_TYPE = "image/png"
 const PNG_EXTENSION = ".png"
+const DEFAULT_IMAGE_MIME_TYPE = "image/png"
+const DEFAULT_VIDEO_MIME_TYPE = "video/mp4"
+
+interface CopyToastHandle {
+	success: () => void
+	dismiss: () => void
+}
+
+interface CanvasFileBlobData {
+	blob: Blob
+	element: CanvasFileElement
+	filename: string
+	mimeType: string
+	fileSize: number
+	sourceRef?: CanvasElementClipboardFileMetadata["sourceRef"]
+}
+
+interface CanvasFileMetadataData {
+	element: CanvasFileElement
+	filename: string
+	mimeType: string
+	fileSize: number
+	sourceRef?: CanvasElementClipboardFileMetadata["sourceRef"]
+}
+
+interface OriginalFileBlobData {
+	blob: Blob
+	filename: string
+	mimeType: string
+	fileSize: number
+	sourceRef?: CanvasElementClipboardFileMetadata["sourceRef"]
+}
+
+interface NativeClipboardFile {
+	metadata: CanvasElementClipboardFileMetadata
+	native: CanvasElementClipboardNativeExposure
+}
+
+interface CollectedClipboardFiles {
+	metadata: CanvasElementClipboardFileMetadata[]
+	files: CanvasElementClipboardWriteFile[]
+	native?: CanvasElementClipboardNativeExposure
+}
 
 /**
  * ClipboardManager
@@ -96,46 +146,39 @@ export class ClipboardManager {
 		return clipboardCanvasId === currentCanvasId
 	}
 
-	private async readClipboardText(): Promise<string> {
-		const clipboard = this.canvas.magicConfigManager.config?.methods?.clipboard
-		const readText =
-			clipboard?.readText ??
-			(navigator.clipboard?.readText
-				? navigator.clipboard.readText.bind(navigator.clipboard)
-				: undefined)
-		if (!readText) {
-			return ""
-		}
-		try {
-			return await readText()
-		} catch {
-			return ""
-		}
-	}
-
-	private looksLikeClipboardFileNameOnlyText(text: string): boolean {
-		const trimmed = text.trim()
-		if (!trimmed || trimmed.startsWith("{") || trimmed.startsWith("[")) {
-			return false
-		}
-		return /\.(jpg|jpeg|png|gif|webp|bmp|svg|ico|mp4|mov|webm|avi|mkv)$/i.test(trimmed)
-	}
-
-	private async showPasteShortcutHintIfNeeded(): Promise<boolean> {
-		const clipboardText = await this.readClipboardText()
-		if (!this.looksLikeClipboardFileNameOnlyText(clipboardText)) {
-			return false
-		}
-
-		this.showUnreadableClipboardHint()
-		return true
-	}
-
 	private showUnreadableClipboardHint(): void {
 		toast(
 			this.canvas.t?.("menu.pasteUseShortcutHint", "系统文件请使用 Ctrl/Cmd+V 粘贴") ||
 				"系统文件请使用 Ctrl/Cmd+V 粘贴",
 		)
+	}
+
+	private showClipboardSourceUnavailableHint(): void {
+		toast(
+			this.canvas.t?.(
+				"menu.clipboardSourceUnavailable",
+				"原文件链接已失效或无法访问，请重新复制后再粘贴",
+			) || "原文件链接已失效或无法访问，请重新复制后再粘贴",
+		)
+	}
+
+	/**
+	 * 复制链路需要异步获取图片 / 视频来源信息，耗时期间给用户明确反馈。
+	 * 这里统一使用 toast.loading，不再走宿主弹窗，避免复制动作阻塞当前画布交互。
+	 */
+	private showCopyLoadingToast(): CopyToastHandle {
+		const content =
+			this.canvas.t?.("menu.copyLoadingDescription", "正在准备媒体文件，请稍候...") ||
+			"正在准备媒体文件，请稍候..."
+		const toastId = toast.loading(content)
+		return {
+			success: () => {
+				toast.success(this.canvas.t?.("menu.copySuccess", "复制成功") || "复制成功", {
+					id: toastId,
+				})
+			},
+			dismiss: () => toast.dismiss(toastId),
+		}
 	}
 
 	/**
@@ -144,19 +187,33 @@ export class ClipboardManager {
 	 * @returns Promise<boolean> - 复制是否成功
 	 */
 	public async copyElementsAsPNG(elementIds: string[]): Promise<boolean> {
+		const copyToast = this.showCopyLoadingToast()
+		let success = false
 		try {
 			const exportResult = await this.exportElementsAsPNG(elementIds)
 			if (!exportResult) {
 				return false
 			}
+			const sourceElements = elementIds
+				.map((id) => this.canvas.elementManager.getElementData(id))
+				.filter((element): element is LayerElement => Boolean(element))
 
-			return await this.writePngToClipboard(
+			success = await this.writePngToClipboard(
 				exportResult.blob,
 				exportResult.filename,
-				exportResult.metadata,
+				exportResult.sourceFile,
+				sourceElements,
 			)
+			if (success) {
+				copyToast.success()
+			}
+			return success
 		} catch (error) {
 			return false
+		} finally {
+			if (!success) {
+				copyToast.dismiss()
+			}
 		}
 	}
 
@@ -184,6 +241,109 @@ export class ClipboardManager {
 		return filename.toLowerCase().endsWith(PNG_EXTENSION)
 			? filename
 			: filename.replace(/\.[^/.]+$/, "") + PNG_EXTENSION
+	}
+
+	private getMimeTypeFromFilename(filename: string, fallback: string): string {
+		const extension = filename.split("?")[0].split(".").pop()?.toLowerCase()
+		const extensionMimeTypeMap: Record<string, string> = {
+			png: "image/png",
+			jpg: "image/jpeg",
+			jpeg: "image/jpeg",
+			gif: "image/gif",
+			webp: "image/webp",
+			bmp: "image/bmp",
+			svg: "image/svg+xml",
+			ico: "image/x-icon",
+			mp4: "video/mp4",
+			mov: "video/quicktime",
+			webm: "video/webm",
+			avi: "video/x-msvideo",
+			mkv: "video/x-matroska",
+		}
+
+		return extension ? (extensionMimeTypeMap[extension] ?? fallback) : fallback
+	}
+
+	/**
+	 * 获取原始未压缩资源信息。
+	 *
+	 * 图片展示链路会通过 useImageProcess=true 换取带 format/压缩参数的 URL；
+	 * 复制元素只需要 sourceRef，避免为了画布协议提前下载大文件 Blob。
+	 */
+	private async fetchOriginalFileMetadata(options: {
+		src: string
+		fallbackFilename: string
+		fallbackMimeType: string
+	}): Promise<{
+		filename: string
+		mimeType: string
+		fileSize: number
+		sourceRef: CanvasElementClipboardFileMetadata["sourceRef"]
+	} | null> {
+		const getFileInfo = this.canvas.magicConfigManager.config?.methods?.getFileInfo
+		if (!getFileInfo) {
+			return null
+		}
+
+		try {
+			const fileInfo = await getFileInfo(options.src, { useImageProcess: false })
+			if (!fileInfo?.src) {
+				return null
+			}
+
+			const filename =
+				fileInfo.fileName || this.getFilenameFromPath(options.src, options.fallbackFilename)
+			const mimeType = this.getMimeTypeFromFilename(filename, options.fallbackMimeType)
+
+			return {
+				filename,
+				mimeType,
+				fileSize: 0,
+				sourceRef: {
+					src: options.src,
+					ossUrl: fileInfo.src,
+					expiresAt: fileInfo.expires_at,
+				},
+			}
+		} catch {
+			return null
+		}
+	}
+
+	/**
+	 * 获取原始未压缩资源 Blob。
+	 *
+	 * 仅在明确需要 native clipboard Blob（外部应用粘贴）或复制为 PNG 时调用。
+	 */
+	private async fetchOriginalFileBlob(options: {
+		src: string
+		fallbackFilename: string
+		fallbackMimeType: string
+	}): Promise<OriginalFileBlobData | null> {
+		const metadata = await this.fetchOriginalFileMetadata(options)
+		if (!metadata?.sourceRef?.ossUrl) {
+			return null
+		}
+
+		try {
+			const response = await fetch(metadata.sourceRef.ossUrl, { cache: "default" })
+			if (!response.ok) {
+				return null
+			}
+
+			const blob = await response.blob()
+			const mimeType = blob.type || metadata.mimeType || options.fallbackMimeType
+
+			return {
+				blob,
+				filename: metadata.filename,
+				mimeType,
+				fileSize: blob.size,
+				sourceRef: metadata.sourceRef,
+			}
+		} catch {
+			return null
+		}
 	}
 
 	/**
@@ -217,7 +377,7 @@ export class ClipboardManager {
 	private async exportElementsAsPNG(elementIds: string[]): Promise<{
 		blob: Blob
 		filename: string
-		metadata?: ElementClipboardMetadata
+		sourceFile?: CanvasFileBlobData
 	} | null> {
 		if (elementIds.length === 0) {
 			return null
@@ -300,7 +460,14 @@ export class ClipboardManager {
 					return {
 						blob: pngBlob,
 						filename: this.getPngFilename(result.metadata.filename),
-						metadata: result.metadata,
+						sourceFile: {
+							blob: pngBlob,
+							element: result.element,
+							filename: this.getPngFilename(result.metadata.filename),
+							mimeType: PNG_MIME_TYPE,
+							fileSize: pngBlob.size,
+							sourceRef: result.metadata.sourceRef,
+						},
 					}
 				}
 			}
@@ -429,65 +596,140 @@ export class ClipboardManager {
 	}
 
 	/**
-	 * 创建包含元数据的 ClipboardItem
+	 * Get the browser clipboard adapter options for CanvasDesign.
+	 *
+	 * ClipboardManager only forwards host-provided methods. Browser API
+	 * fallback, error propagation, MIME rules, and parsing stay in utilities.
 	 */
-	private createClipboardItemWithMetadata(
-		file: File,
-		metadata: ElementClipboardMetadata,
-	): ClipboardItem {
-		const metadataJSON = JSON.stringify(metadata)
-		const htmlWithMetadata = `<!-- CANVAS_METADATA:${metadataJSON} -->`
+	private getClipboardBrowserOptions(): CanvasElementClipboardBrowserOptions | undefined {
+		const clipboard = this.canvas.magicConfigManager.config?.methods?.clipboard
+		if (!clipboard) return undefined
+		return clipboard
+	}
 
-		return new ClipboardItem({
-			[PNG_MIME_TYPE]: file,
-			"text/html": new Blob([htmlWithMetadata], {
-				type: "text/html",
-			}),
+	private getNativeClipboardExposure(options: {
+		operation: CanvasElementClipboardOperation
+		files: CanvasElementClipboardWriteFile[]
+		native?: CanvasElementClipboardNativeExposure
+	}): CanvasElementClipboardNativeExposure | undefined {
+		const { operation, files, native } = options
+		if (native && CanvasElementClipboard.supportsNativeMimeType(native.mimeType)) {
+			return native
+		}
+
+		if (files.length !== 1) {
+			return undefined
+		}
+
+		const [file] = files
+		if (!file || !CanvasElementClipboard.supportsNativeMimeType(file.metadata.mimeType)) {
+			return undefined
+		}
+
+		if (operation === "copy-as-png") {
+			return {
+				mimeType: file.metadata.mimeType,
+				blob: file.blob,
+			}
+		}
+
+		return undefined
+	}
+
+	private async writeCanvasElementClipboardWithLog(options: {
+		operation: CanvasElementClipboardOperation
+		payload: CanvasElementClipboardPayload
+		files: CanvasElementClipboardWriteFile[]
+		native?: CanvasElementClipboardNativeExposure
+	}): Promise<void> {
+		const { operation, payload, files } = options
+		const native = this.getNativeClipboardExposure({
+			operation,
+			files,
+			native: options.native,
 		})
+		logCanvasElementClipboard("clipboard-protocol-write:start", {
+			operation,
+			payload,
+			hasNativeExposure: Boolean(native),
+			nativeMimeType: native?.mimeType,
+			files: files.map((file) => ({
+				metadata: file.metadata,
+				blobContent: file.blob,
+			})),
+		})
+
+		try {
+			await CanvasElementClipboard.write({
+				payload,
+				files,
+				native,
+				clipboard: this.getClipboardBrowserOptions(),
+			})
+			logCanvasElementClipboard("clipboard-protocol-write:success", {
+				operation,
+				payload,
+				hasNativeExposure: Boolean(native),
+				nativeMimeType: native?.mimeType,
+				files: files.map((file) => ({
+					metadata: file.metadata,
+					blobContent: file.blob,
+				})),
+			})
+		} catch (error) {
+			logCanvasElementClipboard("clipboard-protocol-write:error", {
+				operation,
+				message: error instanceof Error ? error.message : String(error),
+				error,
+				payload,
+				hasNativeExposure: Boolean(native),
+				nativeMimeType: native?.mimeType,
+				files: files.map((file) => ({
+					metadata: file.metadata,
+					blobContent: file.blob,
+				})),
+			})
+			throw error
+		}
 	}
 
 	/**
-	 * 获取剪贴板写入方法（优先使用注入的 clipboard，否则降级到 navigator.clipboard）
-	 */
-	private getClipboardWrite() {
-		const clipboard = this.canvas.magicConfigManager.config?.methods?.clipboard
-		if (clipboard) {
-			return { writeText: clipboard.writeText, write: clipboard.write }
-		}
-		return {
-			writeText: navigator.clipboard.writeText.bind(navigator.clipboard),
-			write: navigator.clipboard.write.bind(navigator.clipboard),
-		}
-	}
-
-	/**
-	 * 获取剪贴板解析选项（用于 paste 时读取）
-	 */
-	private getParseClipboardOptions(): ParseClipboardOptions | undefined {
-		const clipboard = this.canvas.magicConfigManager.config?.methods?.clipboard
-		if (!clipboard?.read && !clipboard?.readText) return undefined
-		return {
-			read: clipboard.read,
-			readText: clipboard.readText,
-		}
-	}
-
-	/**
-	 * 将 PNG Blob 写入剪贴板
+	 * 将 PNG Blob 写入剪贴板。
+	 *
+	 * 复制为 PNG 也是 CanvasDesign 产出的文件，统一通过 CanvasElementClipboard
+	 * 写入私有 payload + PNG Blob。读取时会按普通图片文件粘贴，而不是恢复源元素。
 	 */
 	private async writePngToClipboard(
 		blob: Blob,
 		filename: string,
-		metadata?: ElementClipboardMetadata,
+		sourceFile?: CanvasFileBlobData,
+		sourceElements: LayerElement[] = sourceFile ? [sourceFile.element] : [],
 	): Promise<boolean> {
 		try {
 			const file = new File([blob], filename, { type: PNG_MIME_TYPE })
-			const clipboardItem = metadata
-				? this.createClipboardItemWithMetadata(file, metadata)
-				: new ClipboardItem({ [PNG_MIME_TYPE]: file })
-			const { write } = this.getClipboardWrite()
-			await write([clipboardItem])
-			toast.success(this.canvas.t?.("menu.copySuccess", "复制成功") || "复制成功")
+			const fileId = sourceFile
+				? `${sourceFile.element.id}:png-export`
+				: `canvas-png:${Date.now()}`
+			const metadata = CanvasElementClipboard.createCanvasExportFileMetadata({
+				fileId,
+				filename,
+				mimeType: PNG_MIME_TYPE,
+				fileSize: file.size,
+				sourceElements,
+				sourceRef: sourceFile?.sourceRef,
+			})
+			const files: CanvasElementClipboardWriteFile[] = [{ blob: file, metadata }]
+			const payload = CanvasElementClipboard.createPayload({
+				elements: [],
+				canvasId: this.canvas.id,
+				files: [metadata],
+				operation: "copy-as-png",
+			})
+			await this.writeCanvasElementClipboardWithLog({
+				operation: "copy-as-png",
+				payload,
+				files,
+			})
 			return true
 		} catch (error) {
 			void error
@@ -502,95 +744,186 @@ export class ClipboardManager {
 	 */
 	private async getImageBlobAndMetadata(element: ImageElement): Promise<{
 		blob: Blob
-		metadata: ElementClipboardMetadata
+		element: ImageElement
+		metadata: {
+			filename: string
+			mimeType: string
+			fileSize: number
+			sourceRef?: CanvasElementClipboardFileMetadata["sourceRef"]
+		}
 	} | null> {
-		try {
-			// 获取 ImageElement 实例
-			const elementInstance = this.canvas.elementManager.getElementInstance(
-				element.id,
-			) as ImageElementClass | null
+		if (!element.src) {
+			return null
+		}
 
-			if (!elementInstance) {
+		const originalFile = await this.fetchOriginalFileBlob({
+			src: element.src,
+			fallbackFilename: `${element.name || "image"}.png`,
+			fallbackMimeType: DEFAULT_IMAGE_MIME_TYPE,
+		})
+		if (!originalFile) {
+			return null
+		}
+
+		const metadata = {
+			filename: originalFile.filename,
+			mimeType: originalFile.mimeType,
+			fileSize: originalFile.fileSize,
+			sourceRef: originalFile.sourceRef,
+		}
+
+		return { blob: originalFile.blob, element, metadata }
+	}
+
+	private getFilenameFromPath(path: string, fallback: string): string {
+		const cleanPath = path.split("?")[0]
+		const filename = cleanPath.split("/").pop()
+		return filename || fallback
+	}
+
+	private async getImageMetadata(element: ImageElement): Promise<CanvasFileMetadataData | null> {
+		if (!element.src) {
+			return null
+		}
+
+		const metadata = await this.fetchOriginalFileMetadata({
+			src: element.src,
+			fallbackFilename: `${element.name || "image"}.png`,
+			fallbackMimeType: DEFAULT_IMAGE_MIME_TYPE,
+		})
+
+		return metadata ? { element, ...metadata } : null
+	}
+
+	private async getVideoMetadata(element: VideoElement): Promise<CanvasFileMetadataData | null> {
+		if (!element.src) {
+			return null
+		}
+
+		const metadata = await this.fetchOriginalFileMetadata({
+			src: element.src,
+			fallbackFilename: `${element.name || "video"}.mp4`,
+			fallbackMimeType: DEFAULT_VIDEO_MIME_TYPE,
+		})
+
+		return metadata ? { element, ...metadata } : null
+	}
+
+	private async getCanvasFileMetadata(
+		element: CanvasFileElement,
+	): Promise<CanvasFileMetadataData | null> {
+		if (element.type === ElementTypeEnum.Image) {
+			return this.getImageMetadata(element)
+		}
+
+		return this.getVideoMetadata(element)
+	}
+
+	private shouldExposeNativeFileForElementCopy(options: {
+		elementCount: number
+		metadata: CanvasElementClipboardFileMetadata
+	}): boolean {
+		if (options.elementCount !== 1) {
+			return false
+		}
+
+		return CanvasElementClipboard.supportsNativeMimeType(options.metadata.mimeType)
+	}
+
+	private async fetchNativeClipboardFile(
+		metadata: CanvasElementClipboardFileMetadata,
+	): Promise<NativeClipboardFile | null> {
+		if (!metadata.sourceRef?.ossUrl) {
+			return null
+		}
+
+		try {
+			const response = await fetch(metadata.sourceRef.ossUrl, { cache: "default" })
+			if (!response.ok) {
+				logCanvasElementClipboard("copy:native-fetch-failed", {
+					elementId: metadata.elementId,
+					filename: metadata.filename,
+					mimeType: metadata.mimeType,
+					status: response.status,
+					statusText: response.statusText,
+					sourceRef: metadata.sourceRef,
+				})
 				return null
 			}
 
-			// 获取资源并从 ossSrc fetch blob（利用浏览器 HTTP 缓存）
-			let blob: Blob | null = null
-			let imageInfo = null
-			if (element.src) {
-				const resource = await this.canvas.imageResourceManager.getResource(element.src)
-				if (resource) {
-					imageInfo = resource.imageInfo
-					if (element.crop) {
-						blob = await this.renderImageElementToBlob(element, elementInstance)
-					} else {
-						try {
-							const response = await fetch(resource.ossSrc, { cache: "default" })
-							if (response.ok) {
-								blob = await response.blob()
-							}
-						} catch {
-							// 忽略 fetch 错误
-						}
-					}
+			const blob = await response.blob()
+			const mimeType = blob.type || metadata.mimeType
+			if (!CanvasElementClipboard.supportsNativeMimeType(mimeType)) {
+				return null
+			}
+
+			const fileMetadata = {
+				...metadata,
+				mimeType,
+				fileSize: blob.size,
+			}
+
+			return {
+				metadata: fileMetadata,
+				native: {
+					mimeType,
+					blob,
+				},
+			}
+		} catch (error) {
+			logCanvasElementClipboard("copy:native-fetch-error", {
+				elementId: metadata.elementId,
+				filename: metadata.filename,
+				mimeType: metadata.mimeType,
+				message: error instanceof Error ? error.message : String(error),
+				sourceRef: metadata.sourceRef,
+			})
+			return null
+		}
+	}
+
+	private async collectClipboardFiles(
+		elements: LayerElement[],
+	): Promise<CollectedClipboardFiles> {
+		const mediaElements = elements.filter(CanvasElementClipboard.isCanvasFileElement)
+		const metadataList: CanvasElementClipboardFileMetadata[] = []
+		const files: CanvasElementClipboardWriteFile[] = []
+		let native: CanvasElementClipboardNativeExposure | undefined
+
+		for (let i = 0; i < mediaElements.length; i++) {
+			const element = mediaElements[i]
+			const result = await this.getCanvasFileMetadata(element)
+			if (!result) {
+				continue
+			}
+
+			const metadata = CanvasElementClipboard.createFileMetadata({
+				element,
+				fileId: `${element.id}:${i}`,
+				filename: result.filename,
+				mimeType: result.mimeType,
+				fileSize: result.fileSize,
+				sourceRef: result.sourceRef,
+			})
+			metadataList.push(metadata)
+
+			if (
+				this.shouldExposeNativeFileForElementCopy({
+					elementCount: elements.length,
+					metadata,
+				})
+			) {
+				const nativeFile = await this.fetchNativeClipboardFile(metadata)
+				if (nativeFile) {
+					metadataList[metadataList.length - 1] = nativeFile.metadata
+					native = nativeFile.native
 				}
 			}
-
-			if (!blob || !imageInfo) {
-				return null
-			}
-
-			// 创建元数据
-			const metadata: ElementClipboardMetadata = {
-				data: element,
-				filename: imageInfo.filename,
-				mimeType: imageInfo.mimeType,
-				fileSize: imageInfo.fileSize,
-				renderMode: element.crop ? "cropped" : "original",
-			}
-
-			return { blob, metadata }
-		} catch (error) {
-			return null
 		}
+
+		return { metadata: metadataList, files, native }
 	}
 
-	/**
-	 * 渲染图片元素到 Blob
-	 * @param element - 图片元素数据
-	 * @param elementInstance - 图片元素实例
-	 * @returns Blob 或 null（如果渲染失败）
-	 */
-	private async renderImageElementToBlob(
-		element: ImageElement,
-		elementInstance: ImageElementClass,
-	): Promise<Blob | null> {
-		const width = Math.max(1, Math.round(element.width ?? 0))
-		const height = Math.max(1, Math.round(element.height ?? 0))
-		const canvas = document.createElement("canvas")
-		canvas.width = width
-		canvas.height = height
-
-		const ctx = canvas.getContext("2d")
-		if (!ctx) {
-			return null
-		}
-
-		const rendered = await elementInstance.renderToCanvas(ctx, 0, 0, {
-			width,
-			height,
-			shouldDrawBorder: false,
-		})
-		if (!rendered) {
-			return null
-		}
-
-		return new Promise<Blob | null>((resolve) => {
-			canvas.toBlob((blob) => {
-				resolve(blob || null)
-			}, PNG_MIME_TYPE)
-		})
-	}
 	/**
 	 * 复制元素到剪贴板
 	 * @param elementId - 元素ID（可选，如果不传则复制所有选中的元素）
@@ -621,17 +954,30 @@ export class ClipboardManager {
 				}
 			}
 
-			// 创建 CanvasClipboardData 格式的数据
-			const clipboardData: CanvasClipboardData = {
-				elements,
-				id: this.canvas.id,
+			// 复制元素时会异步获取媒体 sourceRef，先展示 loading 避免用户误以为未响应。
+			const copyToast = this.showCopyLoadingToast()
+			let success = false
+			try {
+				const { metadata, files, native } = await this.collectClipboardFiles(elements)
+				const payload = CanvasElementClipboard.createPayload({
+					elements,
+					canvasId: this.canvas.id,
+					files: metadata,
+					operation: "copy-elements",
+				})
+				await this.writeCanvasElementClipboardWithLog({
+					operation: "copy-elements",
+					payload,
+					files,
+					native,
+				})
+				success = true
+				copyToast.success()
+			} finally {
+				if (!success) {
+					copyToast.dismiss()
+				}
 			}
-
-			// 序列化为 JSON 并写入剪贴板
-			const jsonText = JSON.stringify(clipboardData)
-			const { writeText } = this.getClipboardWrite()
-			await writeText(jsonText)
-			toast.success(this.canvas.t?.("menu.copySuccess", "复制成功") || "复制成功")
 		} catch (error) {
 			// 复制失败，静默处理
 			throw new Error(error instanceof Error ? error.message : "复制失败")
@@ -651,20 +997,47 @@ export class ClipboardManager {
 	}
 
 	/**
-	 * 从剪贴板粘贴元素或图片文件
-	 * @param clipboardEvent 可选的 ClipboardEvent，如果提供则优先从中获取文件
+	 * 从剪贴板粘贴元素或图片文件。
+	 *
+	 * 调用来源：
+	 * - Ctrl/Cmd+V：传入 ClipboardEvent，可在 CanvasElementClipboard 中读取同步文件字节。
+	 * - 菜单粘贴：不传 ClipboardEvent，只传 position，只能依赖 Clipboard API read()。
+	 *
+	 * @param clipboardEvent 可选的 ClipboardEvent，如果提供则可用于补齐文件
 	 * @param position 可选的位置参数，如果提供则在该位置粘贴（元素中心对齐到该位置），否则在画布中心粘贴
+	 * @param pasteSource 粘贴入口来源，用于日志和问题追踪
 	 */
 	public async paste(
 		clipboardEvent?: ClipboardEvent,
 		position?: { x: number; y: number },
+		pasteSource: CanvasElementClipboardPasteSource = clipboardEvent ? "keyboard" : "menu",
 	): Promise<void> {
 		try {
-			// 解析剪贴板内容（传入注入的 read/readText 以支持 HTTP 兼容）
-			const parseResult = await parseClipboardContent(
-				clipboardEvent,
-				this.getParseClipboardOptions(),
-			)
+			logCanvasElementClipboard("paste:start", {
+				pasteSource,
+				hasClipboardEvent: Boolean(clipboardEvent),
+				hasPosition: Boolean(position),
+				position,
+			})
+			// 解析细节统一收敛在 CanvasElementClipboard：
+			// Ctrl/Cmd+V 会传 clipboardEvent；菜单粘贴传 undefined。
+			const parseResult = await CanvasElementClipboard.parseClipboardContent(clipboardEvent, {
+				...this.getClipboardBrowserOptions(),
+				pasteSource,
+			})
+			logCanvasElementClipboard("paste:parse-result", {
+				pasteSource,
+				type: parseResult.type,
+				elementCount:
+					parseResult.type === "canvas-elements" ? parseResult.elements.length : 0,
+				fileCount:
+					parseResult.type === "canvas-elements"
+						? parseResult.files.length
+						: parseResult.type === "files"
+							? parseResult.files.length
+							: 0,
+				reason: parseResult.type === "invalid" ? parseResult.reason : undefined,
+			})
 
 			// 根据解析结果执行相应操作
 			if (parseResult.type === "empty" || parseResult.type === "invalid") {
@@ -676,34 +1049,457 @@ export class ClipboardManager {
 					this.showUnreadableClipboardHint()
 					return
 				}
-				if (!clipboardEvent) {
-					await this.showPasteShortcutHintIfNeeded()
+				if (
+					!clipboardEvent &&
+					parseResult.type === "invalid" &&
+					parseResult.reason === "clipboard-filename-text-only"
+				) {
+					this.showUnreadableClipboardHint()
 				}
 				return
 			}
 
-			// 检查跨画布粘贴：如果剪贴板数据和当前画布都有 id，则必须匹配
-			if (
-				parseResult.type === "elements" &&
-				!this.canPasteFromClipboardCanvas(parseResult.canvasId)
-			) {
-				return
-			}
-
-			if (parseResult.type === "files") {
-				await this.pasteFilesFromClipboard(
+			if (parseResult.type === "canvas-elements") {
+				logCanvasElementClipboard("paste:canvas-elements:start", {
+					pasteSource,
+					elementCount: parseResult.elements.length,
+					fileCount: parseResult.files.length,
+					canvasId: parseResult.canvasId,
+					targetPosition: position,
+					elementIds: parseResult.elements.map((element) => element.id),
+					fileElementIds: parseResult.files.map(({ metadata }) => metadata.elementId),
+					fileMimeTypes: parseResult.files.map(({ file }) => file.type),
+				})
+				await this.pasteCanvasElementsFromRichClipboard(
+					parseResult.elements,
 					parseResult.files,
-					parseResult.metadata,
+					parseResult.fileMetadata,
+					parseResult.canvasId,
 					position,
 				)
 				return
 			}
 
-			if (parseResult.type === "elements") {
-				await this.pasteElementsFromClipboard(parseResult.elements, position)
+			if (parseResult.type === "files") {
+				logCanvasElementClipboard("paste:files:start", {
+					pasteSource,
+					fileCount: parseResult.files.length,
+					fileNames: parseResult.files.map((file) => file.name),
+					fileMimeTypes: parseResult.files.map((file) => file.type),
+					targetPosition: position,
+				})
+				await this.pasteFilesFromClipboard(parseResult.files, position)
+				return
 			}
 		} catch (error) {
-			// 粘贴失败，静默处理
+			logCanvasElementClipboard("paste:error", {
+				pasteSource,
+				message: error instanceof Error ? error.message : String(error),
+				error,
+			})
+		}
+	}
+
+	private getFileElementInitialData(
+		element: CanvasFileElement,
+		finalElement: LayerElement,
+	): Partial<ImageElement> | Partial<VideoElement> {
+		const commonData = {
+			name: finalElement.name,
+			x: finalElement.x,
+			y: finalElement.y,
+			width: finalElement.width,
+			height: finalElement.height,
+			zIndex: finalElement.zIndex,
+			visible: finalElement.visible,
+			locked: finalElement.locked,
+			opacity: finalElement.opacity,
+			scaleX: finalElement.scaleX,
+			scaleY: finalElement.scaleY,
+			interactionConfig: finalElement.interactionConfig,
+		}
+
+		if (element.type === ElementTypeEnum.Image) {
+			return {
+				...commonData,
+				crop: element.crop,
+			}
+		}
+
+		return commonData
+	}
+
+	private getFileElementDataWithUploadResult(
+		finalElement: CanvasFileElement,
+		uploadResult: UploadFileResponse,
+	): CanvasFileElement {
+		return {
+			...finalElement,
+			src: uploadResult.path,
+			status: GenerationStatus.Completed,
+		}
+	}
+
+	private primeFileElementResourceCache(
+		element: CanvasFileElement,
+		uploadResult: UploadFileResponse,
+	): void {
+		if (!uploadResult.src) {
+			return
+		}
+
+		if (element.type === ElementTypeEnum.Image) {
+			this.canvas.imageResourceManager.primeCache(uploadResult.path, {
+				src: uploadResult.src,
+				expires_at: uploadResult.expires_at,
+			})
+			return
+		}
+
+		this.canvas.videoResourceManager.primeCache(uploadResult.path, {
+			src: uploadResult.src,
+			expires_at: uploadResult.expires_at,
+		})
+	}
+
+	private async pasteCanvasElementsFromRichClipboard(
+		elements: LayerElement[],
+		files: CanvasElementClipboardFile[],
+		fileMetadata: CanvasElementClipboardFileMetadata[],
+		canvasId: string | undefined,
+		position?: { x: number; y: number },
+	): Promise<void> {
+		const sortedElements = [...elements].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
+		const fileByElementId = new Map(files.map((item) => [item.metadata.elementId, item.file]))
+		const metadataByElementId = new Map(
+			fileMetadata.map((metadata) => [metadata.elementId, metadata]),
+		)
+		const currentNames = new Set(getAllExistingNames(this.canvas.elementManager))
+		const maxZIndex = this.canvas.elementManager.getMaxZIndexInLevel()
+		const targetPosition = this.getTargetPosition(position)
+		const { offsetX, offsetY } =
+			sortedElements.length === 1
+				? this.getElementCenterOffset(sortedElements[0], targetPosition)
+				: this.getElementsCenterOffset(sortedElements, targetPosition)
+		const canReuseElementSrc = this.canPasteFromClipboardCanvas(canvasId)
+		const createdElementIds: string[] = []
+		let sourceReferenceFailureCount = 0
+		let hasShownSourceUnavailableHint = false
+		let hasPendingFileUploadElements = false
+
+		logCanvasElementClipboard("paste-canvas-elements:start", {
+			sourceCanvasId: canvasId,
+			currentCanvasId: this.canvas.id,
+			elementCount: sortedElements.length,
+			fileCount: files.length,
+			fileMetadataCount: fileMetadata.length,
+			canReuseElementSrc,
+			targetPosition,
+			offsetX,
+			offsetY,
+			elements: sortedElements.map((element) => ({
+				id: element.id,
+				type: element.type,
+				name: element.name,
+				x: element.x,
+				y: element.y,
+				width: element.width,
+				height: element.height,
+				zIndex: element.zIndex,
+			})),
+			files: files.map(({ metadata, file }) => ({
+				metadata,
+				fileName: file.name,
+				fileType: file.type,
+				fileSize: file.size,
+			})),
+			referenceFiles: fileMetadata
+				.filter((metadata) => metadata.sourceRef)
+				.map((metadata) => ({
+					elementId: metadata.elementId,
+					sourceRef: metadata.sourceRef,
+				})),
+		})
+
+		this.canvas.historyManager.disable()
+
+		try {
+			const { pendingBatchId } = await this.canvas.canvasFileUploadManager.withLock(
+				async () => {
+					const pendingBatchId =
+						this.canvas.canvasFileUploadManager.getCurrentPendingBatchId()
+					let nextZIndex = maxZIndex + 1
+
+					for (const element of sortedElements) {
+						const elementWithNewIds = regenerateIdsWithUniqueNames(
+							element,
+							currentNames,
+						)
+						const finalElement = {
+							...elementWithNewIds,
+							x: (element.x ?? 0) + offsetX,
+							y: (element.y ?? 0) + offsetY,
+							zIndex: nextZIndex++,
+						}
+
+						if (CanvasElementClipboard.isCanvasFileElement(element)) {
+							// 同画布复制粘贴是元素实例复制，不是资源迁移：直接复用原 src，避免下载/上传。
+							if (canReuseElementSrc) {
+								this.canvas.elementManager.create(finalElement)
+								createdElementIds.push(finalElement.id)
+								logCanvasElementClipboard(
+									"paste-canvas-elements:create-same-canvas-file",
+									{
+										sourceElementId: element.id,
+										createdElementId: finalElement.id,
+										elementType: finalElement.type,
+										reusedSrc: true,
+									},
+								)
+								continue
+							}
+
+							const metadata = metadataByElementId.get(element.id)
+							if (metadata) {
+								const completedTransfer =
+									this.canvas.canvasFileUploadManager.getCompletedRemoteResourceTransfer(
+										{
+											sourceCanvasId: canvasId,
+											metadata,
+										},
+									)
+								if (completedTransfer) {
+									const cachedFileElement =
+										this.getFileElementDataWithUploadResult(
+											finalElement as CanvasFileElement,
+											completedTransfer,
+										)
+									// 解决场景：多 tab / 多窗口命中持久化迁移结果后，直接复用目标资源并预热缓存，避免再换链。
+									this.primeFileElementResourceCache(
+										cachedFileElement,
+										completedTransfer,
+									)
+									this.canvas.elementManager.create(cachedFileElement)
+									createdElementIds.push(cachedFileElement.id)
+									logCanvasElementClipboard(
+										"paste-canvas-elements:create-cached-file",
+										{
+											sourceElementId: element.id,
+											createdElementId: cachedFileElement.id,
+											elementType: cachedFileElement.type,
+											result: {
+												path: completedTransfer.path,
+												fileName: completedTransfer.fileName,
+												expiresAt: completedTransfer.expires_at,
+												source: completedTransfer.source,
+												hasSrc: Boolean(completedTransfer.src),
+											},
+										},
+									)
+									continue
+								}
+							}
+
+							const file = fileByElementId.get(element.id)
+							if (file) {
+								logCanvasElementClipboard("paste-canvas-elements:upload-start", {
+									sourceElementId: element.id,
+									sourceElementType: element.type,
+									targetElementId: finalElement.id,
+									fileName: file.name,
+									fileType: file.type,
+									fileSize: file.size,
+									position: {
+										x: (finalElement.x ?? 0) + (finalElement.width ?? 0) / 2,
+										y: (finalElement.y ?? 0) + (finalElement.height ?? 0) / 2,
+									},
+									elementData: this.getFileElementInitialData(
+										element,
+										finalElement,
+									),
+								})
+								const elementId =
+									await this.canvas.canvasFileUploadManager.uploadFileElement({
+										file,
+										position: {
+											x:
+												(finalElement.x ?? 0) +
+												(finalElement.width ?? 0) / 2,
+											y:
+												(finalElement.y ?? 0) +
+												(finalElement.height ?? 0) / 2,
+										},
+										elementData: this.getFileElementInitialData(
+											element,
+											finalElement,
+										),
+										manageHistory: false,
+									})
+								if (elementId) {
+									hasPendingFileUploadElements = true
+									createdElementIds.push(elementId)
+									logCanvasElementClipboard(
+										"paste-canvas-elements:upload-created",
+										{
+											sourceElementId: element.id,
+											createdElementId: elementId,
+											fileName: file.name,
+											fileType: file.type,
+											fileSize: file.size,
+										},
+									)
+								} else {
+									logCanvasElementClipboard(
+										"paste-canvas-elements:upload-create-failed",
+										{
+											sourceElementId: element.id,
+											targetElementId: finalElement.id,
+											fileName: file.name,
+											fileType: file.type,
+											fileSize: file.size,
+										},
+									)
+								}
+								continue
+							}
+
+							if (metadata?.sourceRef?.ossUrl) {
+								logCanvasElementClipboard(
+									"paste-canvas-elements:remote-upload-create",
+									{
+										sourceElementId: element.id,
+										sourceElementType: element.type,
+										targetElementId: finalElement.id,
+										metadata,
+										position: {
+											x:
+												(finalElement.x ?? 0) +
+												(finalElement.width ?? 0) / 2,
+											y:
+												(finalElement.y ?? 0) +
+												(finalElement.height ?? 0) / 2,
+										},
+										elementData: this.getFileElementInitialData(
+											element,
+											finalElement,
+										),
+									},
+								)
+								const elementId =
+									await this.canvas.canvasFileUploadManager.uploadRemoteFileElement(
+										{
+											metadata,
+											sourceCanvasId: canvasId,
+											elementType: element.type,
+											position: {
+												x:
+													(finalElement.x ?? 0) +
+													(finalElement.width ?? 0) / 2,
+												y:
+													(finalElement.y ?? 0) +
+													(finalElement.height ?? 0) / 2,
+											},
+											elementData: this.getFileElementInitialData(
+												element,
+												finalElement,
+											),
+											manageHistory: false,
+											onDownloadFailed: () => {
+												if (!hasShownSourceUnavailableHint) {
+													hasShownSourceUnavailableHint = true
+													this.showClipboardSourceUnavailableHint()
+												}
+											},
+										},
+									)
+								if (elementId) {
+									hasPendingFileUploadElements = true
+									createdElementIds.push(elementId)
+									logCanvasElementClipboard(
+										"paste-canvas-elements:remote-upload-created",
+										{
+											sourceElementId: element.id,
+											createdElementId: elementId,
+											metadata,
+										},
+									)
+								} else {
+									sourceReferenceFailureCount += 1
+									logCanvasElementClipboard(
+										"paste-canvas-elements:remote-upload-create-failed",
+										{
+											sourceElementId: element.id,
+											targetElementId: finalElement.id,
+											metadata,
+										},
+									)
+								}
+								continue
+							}
+
+							if (!canReuseElementSrc) {
+								logCanvasElementClipboard(
+									"paste-canvas-elements:skip-file-element",
+									{
+										sourceElementId: element.id,
+										sourceElementType: element.type,
+										reason: "missing-file-and-cross-canvas-src-reuse-disabled",
+										hasSourceRef: Boolean(
+											metadataByElementId.get(element.id)?.sourceRef?.ossUrl,
+										),
+									},
+								)
+								continue
+							}
+						}
+
+						this.canvas.elementManager.create(finalElement)
+						createdElementIds.push(finalElement.id)
+						logCanvasElementClipboard("paste-canvas-elements:create-direct", {
+							sourceElementId: element.id,
+							createdElementId: finalElement.id,
+							elementType: finalElement.type,
+							reusedSrc: CanvasElementClipboard.isCanvasFileElement(element),
+						})
+					}
+
+					return { pendingBatchId }
+				},
+			)
+
+			this.canvas.historyManager.enable()
+			if (createdElementIds.length > 0) {
+				this.canvas.selectionManager.selectMultiple(createdElementIds)
+				this.focusOnElements(createdElementIds)
+				this.canvas.historyManager.recordHistoryImmediate()
+			}
+			if (sourceReferenceFailureCount > 0) {
+				this.showClipboardSourceUnavailableHint()
+			}
+			if (
+				!hasPendingFileUploadElements &&
+				pendingBatchId &&
+				this.canvas.canvasFileUploadManager.hasPendingUploadBatch(pendingBatchId)
+			) {
+				this.canvas.canvasFileUploadManager.commitPendingUploadBatch(pendingBatchId)
+			}
+			logCanvasElementClipboard("paste-canvas-elements:done", {
+				createdElementIds,
+				pendingBatchId,
+				sourceReferenceFailureCount,
+				hasPendingFileUploadElements,
+				hasPendingUploadBatch: pendingBatchId
+					? this.canvas.canvasFileUploadManager.hasPendingUploadBatch(pendingBatchId)
+					: false,
+			})
+		} catch (error) {
+			this.canvas.historyManager.enable()
+			logCanvasElementClipboard("paste-canvas-elements:error", {
+				message: error instanceof Error ? error.message : String(error),
+				error,
+				createdElementIds,
+			})
+			throw error
 		}
 	}
 
@@ -712,14 +1508,14 @@ export class ClipboardManager {
 	 */
 	private async pasteFilesFromClipboard(
 		files: File[],
-		metadataList?: ElementClipboardMetadata[],
 		position?: { x: number; y: number },
 	): Promise<void> {
-		if (metadataList && metadataList.length > 0) {
-			await this.pasteImagesWithMetadata(files, metadataList, position)
-			return
-		}
-
+		logCanvasElementClipboard("paste-files:dispatch", {
+			fileCount: files.length,
+			fileNames: files.map((file) => file.name),
+			fileMimeTypes: files.map((file) => file.type),
+			position,
+		})
 		if (files.length === 1) {
 			await this.pasteCanvasFile(files[0], position)
 			return
@@ -727,124 +1523,6 @@ export class ClipboardManager {
 
 		const targetPosition = this.getTargetPosition(position)
 		await this.pasteMultipleCanvasFiles(files, targetPosition)
-	}
-
-	/**
-	 * 从剪贴板粘贴图片（带元数据）
-	 */
-	private async pasteImagesWithMetadata(
-		files: File[],
-		metadataList: ElementClipboardMetadata[],
-		position?: { x: number; y: number },
-	): Promise<void> {
-		await withHistoryManagerAsync(this.canvas.historyManager, async () => {
-			const createdElementIds: string[] = []
-			const existingNames = getAllExistingNames(this.canvas.elementManager)
-			const currentNames = new Set(existingNames)
-			const targetPosition = this.getTargetPosition(position)
-
-			for (let i = 0; i < files.length; i++) {
-				const file = files[i]
-				const metadata = metadataList[i]
-
-				if (metadata && metadata.data.type === ElementTypeEnum.Image) {
-					const elementId = await this.pasteImageFromMetadata(
-						file,
-						metadata,
-						targetPosition,
-						currentNames,
-						i,
-					)
-					if (elementId) {
-						createdElementIds.push(elementId)
-					}
-					continue
-				}
-
-				const elementId = await this.pasteCanvasFile(file, position, { skipFocus: true })
-				if (elementId) {
-					createdElementIds.push(elementId)
-				}
-			}
-
-			// 在上传完成之前就聚焦到所有新创建的元素（此时元素可能处于 processing 状态）
-			if (createdElementIds.length > 0) {
-				this.focusOnElements(createdElementIds)
-			}
-		})
-	}
-
-	/**
-	 * 从剪贴板粘贴图片（带元数据）
-	 */
-	private async pasteImageFromMetadata(
-		file: File,
-		metadata: ElementClipboardMetadata,
-		targetPosition: { x: number; y: number },
-		currentNames: Set<string>,
-		index: number,
-	): Promise<string | null> {
-		const imageElementData = metadata.data as ImageElement
-		const elementWithNewIds = regenerateIdsWithUniqueNames(
-			imageElementData,
-			currentNames,
-		) as ImageElement
-		const { offsetX, offsetY } = this.getElementCenterOffset(imageElementData, targetPosition)
-		const maxZIndex = this.canvas.elementManager.getMaxZIndexInLevel()
-
-		// 判断是否可以复用原始资源（避免重复上传）
-		// 条件：1. 元素在当前画布中存在  2. 有 src  3. MIME 类型一致  4. 文件名一致
-		const originalElementExists = this.canvas.elementManager.getElementData(imageElementData.id)
-		const canReuseOriginal =
-			originalElementExists &&
-			imageElementData.src &&
-			(metadata.renderMode === "cropped" ||
-				(metadata.mimeType === file.type && metadata.filename === file.name))
-		const nextCrop =
-			metadata.renderMode === "cropped" && !canReuseOriginal
-				? undefined
-				: imageElementData.crop
-
-		const commonFinalElement = {
-			id: elementWithNewIds.id,
-			name: elementWithNewIds.name,
-			x: (imageElementData.x ?? 0) + offsetX,
-			y: (imageElementData.y ?? 0) + offsetY,
-			width: imageElementData.width,
-			height: imageElementData.height,
-			zIndex: maxZIndex + 1 + index,
-			visible: imageElementData.visible,
-			locked: imageElementData.locked,
-			opacity: imageElementData.opacity,
-			scaleX: imageElementData.scaleX,
-			scaleY: imageElementData.scaleY,
-			crop: nextCrop,
-		}
-
-		if (canReuseOriginal) {
-			const finalElement: ImageElement = {
-				type: ElementTypeEnum.Image,
-				src: imageElementData.src,
-				status: GenerationStatus.Completed,
-				...commonFinalElement,
-			}
-
-			this.canvas.elementManager.create(finalElement)
-			return finalElement.id
-		}
-
-		// 使用画布文件上传管理器上传
-		const position = {
-			x: (imageElementData.x ?? 0) + offsetX + (imageElementData.width ?? 0) / 2,
-			y: (imageElementData.y ?? 0) + offsetY + (imageElementData.height ?? 0) / 2,
-		}
-
-		return await this.canvas.canvasFileUploadManager.uploadImageElement({
-			file,
-			position,
-			elementData: commonFinalElement,
-			manageHistory: false, // 在批量操作中，由外层的 withHistoryManagerAsync 管理历史记录
-		})
 	}
 
 	/**
@@ -859,6 +1537,14 @@ export class ClipboardManager {
 		anchorPosition: { x: number; y: number },
 		options?: { skipFocus?: boolean },
 	): Promise<string[]> {
+		logCanvasElementClipboard("paste-multiple-files:start", {
+			fileCount: files.length,
+			fileNames: files.map((file) => file.name),
+			fileMimeTypes: files.map((file) => file.type),
+			fileSizes: files.map((file) => file.size),
+			anchorPosition,
+			skipFocus: options?.skipFocus,
+		})
 		this.canvas.historyManager.disable()
 
 		try {
@@ -880,6 +1566,13 @@ export class ClipboardManager {
 						const file = files[i]
 						const position = positions[i]
 
+						logCanvasElementClipboard("paste-multiple-files:upload-start", {
+							index: i,
+							fileName: file.name,
+							fileType: file.type,
+							fileSize: file.size,
+							position,
+						})
 						const elementId =
 							await this.canvas.canvasFileUploadManager.uploadFileElement({
 								file,
@@ -888,6 +1581,20 @@ export class ClipboardManager {
 							})
 						if (elementId) {
 							createdElementIds.push(elementId)
+							logCanvasElementClipboard("paste-multiple-files:upload-created", {
+								index: i,
+								elementId,
+								fileName: file.name,
+								fileType: file.type,
+								fileSize: file.size,
+							})
+						} else {
+							logCanvasElementClipboard("paste-multiple-files:upload-create-failed", {
+								index: i,
+								fileName: file.name,
+								fileType: file.type,
+								fileSize: file.size,
+							})
 						}
 					}
 
@@ -913,6 +1620,13 @@ export class ClipboardManager {
 			)
 		} catch (error) {
 			this.canvas.historyManager.enable()
+			logCanvasElementClipboard("paste-multiple-files:error", {
+				message: error instanceof Error ? error.message : String(error),
+				error,
+				fileCount: files.length,
+				fileNames: files.map((file) => file.name),
+				fileMimeTypes: files.map((file) => file.type),
+			})
 			throw error
 		}
 	}
@@ -929,99 +1643,46 @@ export class ClipboardManager {
 		position?: { x: number; y: number },
 		options?: { skipFocus?: boolean },
 	): Promise<string | null> {
+		logCanvasElementClipboard("paste-file:start", {
+			fileName: file.name,
+			fileType: file.type,
+			fileSize: file.size,
+			position,
+			skipFocus: options?.skipFocus,
+			readonly: this.canvas.readonly,
+		})
 		if (this.canvas.readonly) {
+			logCanvasElementClipboard("paste-file:skip", {
+				reason: "readonly",
+				fileName: file.name,
+				fileType: file.type,
+				fileSize: file.size,
+			})
 			return null
 		}
 
 		const validation = validateFile(file)
 		if (!validation.valid) {
+			logCanvasElementClipboard("paste-file:skip", {
+				reason: "invalid-file",
+				fileName: file.name,
+				fileType: file.type,
+				fileSize: file.size,
+				validation,
+			})
 			return null
 		}
 
 		const targetPosition = this.getTargetPosition(position)
 		const elementIds = await this.pasteMultipleCanvasFiles([file], targetPosition, options)
 
-		return elementIds.length > 0 ? elementIds[0] : null
-	}
-
-	/**
-	 * 从剪贴板粘贴元素
-	 */
-	private async pasteElementsFromClipboard(
-		elements: LayerElement[],
-		position?: { x: number; y: number },
-	): Promise<void> {
-		const existingNames = getAllExistingNames(this.canvas.elementManager)
-
-		await withHistoryManagerAsync(this.canvas.historyManager, async () => {
-			if (elements.length === 1) {
-				this.pasteSingleElementFromClipboard(elements[0], position, existingNames)
-				return
-			}
-
-			this.pasteMultipleElementsFromClipboard(elements, position, existingNames)
+		logCanvasElementClipboard("paste-file:done", {
+			fileName: file.name,
+			fileType: file.type,
+			fileSize: file.size,
+			elementIds,
 		})
-	}
-
-	/**
-	 * 从剪贴板粘贴单个元素
-	 */
-	private pasteSingleElementFromClipboard(
-		elementData: LayerElement,
-		position: { x: number; y: number } | undefined,
-		existingNames: Set<string>,
-	): void {
-		const currentNames = new Set(existingNames)
-		const elementWithNewIds = regenerateIdsWithUniqueNames(elementData, currentNames)
-		const maxZIndex = this.canvas.elementManager.getMaxZIndexInLevel()
-		const targetPosition = this.getTargetPosition(position)
-		const { offsetX, offsetY } = this.getElementCenterOffset(elementData, targetPosition)
-
-		const finalElement = {
-			...elementWithNewIds,
-			x: (elementData.x ?? 0) + offsetX,
-			y: (elementData.y ?? 0) + offsetY,
-			zIndex: maxZIndex + 1,
-		}
-
-		this.canvas.elementManager.create(finalElement)
-		this.canvas.selectionManager.select(finalElement.id)
-		this.focusOnElements([finalElement.id])
-	}
-
-	/**
-	 * 从剪贴板粘贴多个元素
-	 */
-	private pasteMultipleElementsFromClipboard(
-		elements: LayerElement[],
-		position: { x: number; y: number } | undefined,
-		existingNames: Set<string>,
-	): void {
-		const sortedElements = [...elements].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0))
-		const maxZIndex = this.canvas.elementManager.getMaxZIndexInLevel()
-		let nextZIndex = maxZIndex + 1
-		const targetPosition = this.getTargetPosition(position)
-		const { offsetX, offsetY } = this.getElementsCenterOffset(sortedElements, targetPosition)
-
-		const newElementIds: string[] = []
-		const currentNames = new Set(existingNames)
-		for (const element of sortedElements) {
-			const elementWithNewIds = regenerateIdsWithUniqueNames(element, currentNames)
-			const finalElement = {
-				...elementWithNewIds,
-				x: (element.x ?? 0) + offsetX,
-				y: (element.y ?? 0) + offsetY,
-				zIndex: nextZIndex++,
-			}
-
-			this.canvas.elementManager.create(finalElement)
-			newElementIds.push(finalElement.id)
-		}
-
-		if (newElementIds.length > 0) {
-			this.canvas.selectionManager.selectMultiple(newElementIds)
-			this.focusOnElements(newElementIds)
-		}
+		return elementIds.length > 0 ? elementIds[0] : null
 	}
 
 	/**

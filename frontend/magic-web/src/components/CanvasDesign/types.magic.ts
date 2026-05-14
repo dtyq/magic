@@ -1079,14 +1079,12 @@ export interface CanvasDesignRootStorageData {
  * 未注入时 CanvasDesign 内部降级使用 navigator.clipboard
  */
 export interface CanvasDesignClipboard {
-	/** 写入纯文本 */
-	writeText: (text: string) => Promise<void>
 	/** 写入 ClipboardItem 列表（支持富格式、图片等） */
 	write: (items: ClipboardItem[]) => Promise<void>
-	/** 读取纯文本（可选，未提供时使用 navigator.clipboard.readText） */
-	readText?: () => Promise<string>
 	/** 读取 ClipboardItem 列表（可选，未提供时使用 navigator.clipboard.read） */
 	read?: () => Promise<ClipboardItem[]>
+	/** 读取纯文本（可选，未提供时使用 navigator.clipboard.readText） */
+	readText?: () => Promise<string>
 }
 
 /**

@@ -637,9 +637,13 @@ export class Canvas {
 			this.userActionRegistry.execute("edit.copy-png")
 		})
 
-		// 监听粘贴快捷键
+		// Ctrl/Cmd+V 路径：KeyboardManager 会把原始 ClipboardEvent 传进来。
+		// 与菜单粘贴不同，这条路径可在后续解析中读取 clipboardData.files/items。
 		this.eventEmitter.on("keyboard:paste", async (event) => {
-			await this.userActionRegistry.execute("edit.paste", { clipboardEvent: event.data })
+			await this.userActionRegistry.execute("edit.paste", {
+				clipboardEvent: event.data,
+				pasteSource: "keyboard",
+			})
 		})
 
 		// 监听画框快捷键
