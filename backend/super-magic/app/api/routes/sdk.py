@@ -22,7 +22,13 @@ from app.service.agent_dispatcher import AgentDispatcher
 from app.service.sdk_call_registry import SdkCallRegistry, SdkCallEntry
 from app.tools.core.tool_call_executor import tool_call_executor
 from agentlang.chat_history.chat_history_models import ToolCall, FunctionCall
-from app.mcp.manager import get_global_mcp_manager
+from app.mcp.config.models import MCPConfigSource, MCPServerConfig
+from app.mcp.manager import (
+    ensure_server_connected,
+    get_global_mcp_manager,
+    get_or_create_manager,
+)
+from app.mcp.store import get_chat_mcp_store
 
 router = APIRouter(prefix="/sdk", tags=["SDK"])
 
@@ -192,25 +198,37 @@ async def sdk_mcp_call(request: SdkMcpCallRequest):
             data={"ok": False, "content": error_msg},
         )
 
-    manager = get_global_mcp_manager()
-    if not manager:
-        return create_error_response(
-            message="MCP manager is not initialized.",
-            data={"ok": False, "content": "MCP manager is not initialized."},
-        )
+    manager = get_or_create_manager()
+    server_name = request.server_name
+    if server_name not in manager.server_configs:
+        # 运行期 manager 未持有该配置时，尝试从 ChatMcpStore 拉回并装载
+        store = get_chat_mcp_store()
+        stored_config = await store.get(server_name)
+        if stored_config is None:
+            return create_error_response(
+                message=f"Unknown MCP server: {server_name}",
+                data={
+                    "ok": False,
+                    "content": f"Unknown MCP server: {server_name}",
+                },
+            )
+        await manager.add_server(stored_config)
 
-    full_tool_name = manager.get_full_tool_name(request.server_name, request.tool_name)
-    if not full_tool_name:
+    ensure_result = await ensure_server_connected(server_name)
+    if ensure_result.status != "success":
         return create_error_response(
-            message=f"Tool not found: {request.server_name}.{request.tool_name}",
-            data={"ok": False, "content": f"Tool not found: {request.server_name}.{request.tool_name}"},
+            message=f"Failed to connect MCP server: {server_name}",
+            data={
+                "ok": False,
+                "content": ensure_result.error or f"Failed to connect MCP server: {server_name}",
+            },
         )
 
     tool_call_id = request.tool_call_id or f"call_{uuid.uuid4().hex[:24]}"
 
     agent_label = agent_context.get_agent_session_label()
     logger.info(
-        f"SDK MCP call: {full_tool_name} (server: {request.server_name}, original: {request.tool_name}), "
+        f"SDK MCP call: {request.server_name}.{request.tool_name}, "
         f"params: {request.tool_params}, tool_call_id: {tool_call_id}, agent: {agent_label}, agent_context_id: {request.agent_context_id}"
     )
 
@@ -227,45 +245,33 @@ async def sdk_mcp_call(request: SdkMcpCallRequest):
         ))
 
     try:
-        tool_call = ToolCall(
-            id=tool_call_id,
-            type="function",
-            function=FunctionCall(
-                name=full_tool_name,
-                arguments=json.dumps(request.tool_params, ensure_ascii=False),
-            ),
+        result = await manager.call_tool(
+            request.server_name,
+            request.tool_name,
+            request.tool_params,
+        )
+        logger.debug(
+            f"MCP 工具调用完成: {request.server_name}.{request.tool_name}, ok: {result.ok}"
         )
 
-        results = await tool_call_executor.execute(
-            tool_calls=[tool_call],
-            agent_context=agent_context,
-        )
+        result_dict = {
+            "ok": result.ok,
+            "content": result.content,
+            "tool_call_id": tool_call_id,
+            "execution_time": result.execution_time,
+            "name": f"{request.server_name}.{request.tool_name}",
+            "data": result.data,
+        }
 
-        if results:
-            result = results[0]
-            logger.debug(f"MCP 工具调用完成: {full_tool_name}, ok: {result.ok}")
-
-            result_dict = {
-                "ok": result.ok,
-                "content": result.content,
-                "tool_call_id": result.tool_call_id,
-                "execution_time": result.execution_time,
-                "name": result.name,
-                "data": result.data,
-            }
-
-            return create_success_response(
-                message="MCP tool call succeeded" if result.ok else "MCP tool call failed",
-                data=result_dict,
-            )
-
-        return create_error_response(
-            message="Tool execution returned no result.",
-            data={"ok": False, "content": "Tool execution returned no result."},
+        return create_success_response(
+            message="MCP tool call succeeded" if result.ok else "MCP tool call failed",
+            data=result_dict,
         )
 
     except asyncio.CancelledError:
-        logger.info(f"SDK MCP call cancelled: {full_tool_name}, tool_call_id: {tool_call_id}")
+        logger.info(
+            f"SDK MCP call cancelled: {request.server_name}.{request.tool_name}, tool_call_id: {tool_call_id}"
+        )
         return create_error_response(
             message="MCP tool call cancelled by interruption",
             data={"ok": False, "content": "MCP tool call cancelled by interruption"},
@@ -444,32 +450,36 @@ async def sdk_list_contexts():
 @router.get("/mcp/servers", response_model=BaseResponse)
 async def sdk_mcp_servers():
     """
-    获取 MCP 服务器列表
+    获取当前 chat 维度的 MCP 服务器列表
+
+    返回全量配置（按需连接模式下包含未连接的服务器），
+    及其当前连接状态。
     """
     try:
+        store = get_chat_mcp_store()
+        entries = await store.list_all()
+
         manager = get_global_mcp_manager()
-        if not manager:
-            return create_success_response(
-                message="MCP 管理器未初始化",
-                data={"servers": []},
-            )
+        connected_names = set(manager.get_connected_servers()) if manager else set()
 
         servers = []
-
-        for server_name in manager.get_connected_servers():
-            server_tools = manager.get_server_tools(server_name)
+        for name, config in entries.items():
             label_name = ""
-            config = manager.get_server_config(server_name)
-            if config and config.server_options and isinstance(config.server_options, dict):
+            if config.server_options and isinstance(config.server_options, dict):
                 label_name = config.server_options.get("label_name", "")
+
+            is_connected = name in connected_names
+            tools = manager.get_server_tools(name) if (manager and is_connected) else []
 
             servers.append(
                 {
-                    "name": server_name,
+                    "name": name,
                     "label_name": label_name,
-                    "status": "success",
-                    "tool_count": len(server_tools),
-                    "tools": server_tools,
+                    "description": config.description or "",
+                    "source": config.source.value if hasattr(config.source, "value") else str(config.source),
+                    "status": "connected" if is_connected else "disconnected",
+                    "tool_count": len(tools),
+                    "tools": tools,
                     "error": None,
                 }
             )
@@ -492,18 +502,40 @@ async def sdk_mcp_tools(server_name: Optional[str] = None):
     """
     获取 MCP 工具列表
 
-    Args:
-        server_name: 可选，指定服务器名称过滤
+    - 指定 server_name：按需连接后返回该服务器的工具列表
+    - 不指定 server_name：仅返回当前已连接服务器的工具，不主动建连
     """
     try:
-        manager = get_global_mcp_manager()
-        if not manager:
-            return create_success_response(
-                message="MCP 管理器未初始化",
-                data={"tools": []},
-            )
+        if server_name:
+            manager = get_or_create_manager()
+            if server_name not in manager.server_configs:
+                store = get_chat_mcp_store()
+                stored_config = await store.get(server_name)
+                if stored_config is None:
+                    return create_error_response(
+                        message=f"Unknown MCP server: {server_name}",
+                        data={"tools": []},
+                    )
+                await manager.add_server(stored_config)
 
-        all_tools = await manager.get_all_tools()
+            ensure_result = await ensure_server_connected(server_name)
+            if ensure_result.status != "success":
+                return create_error_response(
+                    message=f"Failed to connect MCP server: {server_name}",
+                    data={
+                        "tools": [],
+                        "error": ensure_result.error,
+                    },
+                )
+            all_tools = manager.get_all_tools()
+        else:
+            manager = get_global_mcp_manager()
+            if not manager:
+                return create_success_response(
+                    message="No MCP server is connected",
+                    data={"tools": []},
+                )
+            all_tools = manager.get_all_tools()
 
         tools = []
         for tool_name, tool_info in all_tools.items():
@@ -512,8 +544,7 @@ async def sdk_mcp_tools(server_name: Optional[str] = None):
 
             tools.append(
                 {
-                    "name": tool_name,
-                    "original_name": tool_info.original_name,
+                    "name": tool_info.original_name,
                     "server_name": tool_info.server_name,
                     "description": tool_info.description,
                     "input_schema": tool_info.inputSchema,
@@ -552,13 +583,12 @@ class McpAddServerRequest(BaseModel):
 @router.post("/mcp/add-server", response_model=BaseResponse)
 async def sdk_mcp_add_server(request: McpAddServerRequest):
     """
-    动态添加 MCP 服务器
+    添加 / 更新 chat 维度的 MCP 服务器配置
 
-    运行时将新服务器加入全局 MCP 管理器，同名服务器会先断开旧连接再重建。
+    按需连接模式下：仅将配置写入 ChatMcpStore 与运行期 manager，不会立即建连。
+    调用方（通常是 using-mcp skill）再通过 /mcp/tools 或 /mcp/call 触发按需连接。
     """
     try:
-        from app.mcp.manager import initialize_global_mcp_manager
-
         server_type = request.type.lower()
         if server_type not in ("stdio", "http"):
             return create_error_response(
@@ -578,52 +608,47 @@ async def sdk_mcp_add_server(request: McpAddServerRequest):
                 data={"ok": False, "error": "http 类型服务器必须提供 url 参数"},
             )
 
-        server_config: Dict[str, Any] = {
+        raw_config: Dict[str, Any] = {
             "name": request.name,
             "type": server_type,
-            "source": "client_config",
+            "source": MCPConfigSource.CLIENT_CONFIG.value,
         }
         if request.command:
-            server_config["command"] = request.command
+            raw_config["command"] = request.command
         if request.args:
-            server_config["args"] = request.args
+            raw_config["args"] = request.args
         if request.url:
-            server_config["url"] = request.url
+            raw_config["url"] = request.url
         if request.env:
-            server_config["env"] = request.env
+            raw_config["env"] = request.env
         if request.label_name:
-            server_config["server_options"] = {"label_name": request.label_name}
+            raw_config["server_options"] = {"label_name": request.label_name}
 
-        logger.info(f"动态添加 MCP 服务器: {request.name} (type={server_type})")
-
-        success = await initialize_global_mcp_manager(
-            mcp_servers=[server_config],
-            append_mode=True,
-        )
-
-        if not success:
+        try:
+            config = MCPServerConfig(**raw_config)
+        except Exception as e:
+            logger.warning(f"MCP 服务器配置无效: {request.name} - {e}")
             return create_error_response(
-                message=f"添加 MCP 服务器失败: {request.name}",
-                data={"ok": False, "error": f"服务器 {request.name} 连接失败，请检查配置"},
+                message=f"MCP 服务器配置无效: {request.name}",
+                data={"ok": False, "error": str(e)},
             )
 
-        manager = get_global_mcp_manager()
-        tools: List[str] = []
-        if manager and manager.has_server(request.name):
-            tools = manager.get_server_tools(request.name)
-        elif manager and request.name in manager.failed_servers:
-            return create_error_response(
-                message=f"MCP 服务器 {request.name} 连接失败",
-                data={"ok": False, "error": f"服务器 {request.name} 连接失败，请检查配置和网络"},
-            )
+        logger.info(f"持久化 MCP 服务器配置: {request.name} (type={server_type})")
+
+        store = get_chat_mcp_store()
+        await store.upsert_many([config], source=MCPConfigSource.CLIENT_CONFIG)
+
+        manager = get_or_create_manager()
+        await manager.add_server(config)
 
         return create_success_response(
-            message=f"MCP 服务器 {request.name} 添加成功，共 {len(tools)} 个工具",
+            message=f"MCP 服务器 {request.name} 配置已保存，未主动连接",
             data={
                 "ok": True,
                 "name": request.name,
-                "tool_count": len(tools),
-                "tools": tools,
+                "status": "disconnected",
+                "tool_count": 0,
+                "tools": [],
             },
         )
 
@@ -635,30 +660,143 @@ async def sdk_mcp_add_server(request: McpAddServerRequest):
         )
 
 
+class McpConnectRequest(BaseModel):
+    """连接指定 MCP 服务器的请求"""
+
+    server_name: str = Field(..., description="待连接的 MCP 服务器名称")
+
+
+@router.post("/mcp/connect", response_model=BaseResponse)
+async def sdk_mcp_connect(request: McpConnectRequest):
+    """显式连接指定 MCP 服务器并返回实际拉到的工具列表。
+
+    工作流程：
+    - server_name 不在运行期 manager 时，先从 ChatMcpStore 取配置注入 manager
+    - 调用 ensure_server_connected 触发实际连接与工具发现
+    - 成功后回复 manager 中该服务器的工具清单
+    """
+    server_name = request.server_name.strip()
+    if not server_name:
+        return create_error_response(
+            message="server_name 不能为空",
+            data={"ok": False, "error": "server_name 不能为空"},
+        )
+
+    try:
+        manager = get_or_create_manager()
+        if server_name not in manager.server_configs:
+            store = get_chat_mcp_store()
+            stored_config = await store.get(server_name)
+            if stored_config is None:
+                return create_error_response(
+                    message=f"Unknown MCP server: {server_name}",
+                    data={
+                        "ok": False,
+                        "name": server_name,
+                        "status": "disconnected",
+                        "tool_count": 0,
+                        "tools": [],
+                        "error": f"Unknown MCP server: {server_name}",
+                    },
+                )
+            await manager.add_server(stored_config)
+
+        ensure_result = await ensure_server_connected(server_name)
+        if ensure_result.status != "success":
+            return create_error_response(
+                message=f"Failed to connect MCP server: {server_name}",
+                data={
+                    "ok": False,
+                    "name": server_name,
+                    "status": ensure_result.status or "failed",
+                    "tool_count": ensure_result.tool_count,
+                    "tools": list(ensure_result.tools or []),
+                    "error": ensure_result.error or "connect failed",
+                    "duration": ensure_result.duration,
+                },
+            )
+
+        tools: List[Dict[str, Any]] = []
+        all_tools = manager.get_all_tools()
+        for _full_name, tool_info in all_tools.items():
+            if tool_info.server_name != server_name:
+                continue
+            tools.append(
+                {
+                    "name": tool_info.original_name,
+                    "server_name": tool_info.server_name,
+                    "description": tool_info.description,
+                }
+            )
+
+        return create_success_response(
+            message=f"MCP 服务器 {server_name} 已连接，共发现 {len(tools)} 个工具",
+            data={
+                "ok": True,
+                "name": server_name,
+                "status": "connected",
+                "tool_count": len(tools),
+                "tools": tools,
+                "duration": ensure_result.duration,
+                "error": None,
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"连接 MCP 服务器时发生异常: {e}", exc_info=True)
+        return create_error_response(
+            message=f"连接 MCP 服务器失败: {str(e)}",
+            data={
+                "ok": False,
+                "name": server_name,
+                "status": "failed",
+                "tool_count": 0,
+                "tools": [],
+                "error": str(e),
+            },
+        )
+
+
 @router.get("/mcp/tool-schema", response_model=BaseResponse)
 async def sdk_mcp_tool_schema(server_name: str, tool_name: str):
     """
     获取 MCP 工具 Schema（支持单个或多个工具）
+
+    按需连接模式下：若服务器尚未连接，会先触发连接再查询 schema。
 
     Args:
         server_name: 服务器名称
         tool_name: 工具名称（原始名称），支持逗号分隔多个工具名
     """
     try:
-        manager = get_global_mcp_manager()
-        if not manager:
+        manager = get_or_create_manager()
+        if server_name not in manager.server_configs:
+            store = get_chat_mcp_store()
+            stored_config = await store.get(server_name)
+            if stored_config is None:
+                return create_error_response(
+                    message=f"Unknown MCP server: {server_name}",
+                    data={"results": []},
+                )
+            await manager.add_server(stored_config)
+
+        ensure_result = await ensure_server_connected(server_name)
+        if ensure_result.status != "success":
             return create_error_response(
-                message="MCP 管理器未初始化",
-                data={"results": []},
+                message=f"Failed to connect MCP server: {server_name}",
+                data={
+                    "results": [],
+                    "error": ensure_result.error,
+                },
             )
 
         tool_names = [name.strip() for name in tool_name.split(",")]
-        all_tools = await manager.get_all_tools()
+        all_tools = manager.get_all_tools()
 
         results = []
         for t_name in tool_names:
             found = False
-            for full_name, t_info in all_tools.items():
+            for _full_name, t_info in all_tools.items():
                 if t_info.server_name == server_name and t_info.original_name == t_name:
                     results.append(
                         {

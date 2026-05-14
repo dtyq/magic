@@ -14,8 +14,6 @@ import anyio
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 
-from app.tools.core.tool_factory import tool_factory
-
 from ..config.models import MCPServerConfig
 from ..tool.models import MCPServerResult, MCPToolInfo
 from .client import MCPClient
@@ -169,10 +167,6 @@ class MCPServerManager:
                 if info.server_name == server_name
             ]
             for tool_name in tools_to_remove:
-                try:
-                    tool_factory.unregister_tool(tool_name)
-                except Exception as e:
-                    logger.warning(f"从 tool_factory 移除工具 {tool_name} 失败: {e}")
                 self.tools.pop(tool_name, None)
 
             client = self.clients.pop(server_name, None)
@@ -277,9 +271,6 @@ class MCPServerManager:
 
             discovery_results.append(result)
 
-        # 阶段 3：将新工具注册到 tool_factory
-        self._register_tools_to_factory()
-
         total = len(self.server_configs)
         rate = len(self.clients) / total * 100 if total > 0 else 0
         logger.info(
@@ -291,14 +282,8 @@ class MCPServerManager:
         return discovery_results
 
     async def shutdown(self) -> None:
-        """关闭所有 MCP 连接并清理注册的工具"""
+        """关闭所有 MCP 连接并清理内部工具索引"""
         logger.debug("开始关闭 MCP 服务器管理器")
-
-        for tool_name in self.tools.keys():
-            try:
-                tool_factory.unregister_tool(tool_name)
-            except Exception as e:
-                logger.warning(f"移除 MCP 工具 {tool_name} 时出错: {e}")
 
         for server_name, client in self.clients.items():
             try:
@@ -314,36 +299,161 @@ class MCPServerManager:
         logger.debug("所有 MCP 连接已关闭，工具已清理")
 
     # ------------------------------------------------------------------ #
-    # 工具调用                                                              #
+    # 按需连接 / 断开 / 调用                                                 #
     # ------------------------------------------------------------------ #
 
-    async def call_mcp_tool(self, tool_name: str, arguments: Dict[str, Any]) -> ToolResult:
-        """调用 MCP 工具
+    async def ensure_server_connected(self, server_name: str) -> MCPServerResult:
+        """按需连接指定 MCP 服务器。
 
-        Args:
-            tool_name: 完整工具名称（格式: mcp_{letter}_{original_name}）
-            arguments: 工具参数
+        - 若已连接，直接返回成功结果（tools 为当前已注册工具的 original name）
+        - 若配置不存在，返回 failed 结果
+        - 若配置存在但未连接，尝试建立连接并注册 tools 到 self.tools
+          （不再向 tool_factory 挂载，挂载入口已下线）
 
-        Returns:
-            ToolResult: 工具执行结果
+        失败信息写入 MCPServerResult.error，调用方据此回显给模型。
         """
-        if not tool_name.startswith("mcp_"):
-            return ToolResult.error(f"无效的 MCP 工具名称格式: {tool_name}")  # type: ignore
+        label_name = self._get_label_name(server_name)
 
-        tool_info = self.tools.get(tool_name)
-        if not tool_info:
-            return ToolResult.error(f"未找到 MCP 工具: {tool_name}")  # type: ignore
+        if server_name not in self.server_configs:
+            return MCPServerResult(
+                name=server_name,
+                status="failed",
+                duration=0.0,
+                tools=[],
+                tool_count=0,
+                error=f"Unknown MCP server: {server_name}",
+                label_name=label_name,
+            )
 
-        client = self.clients.get(tool_info.server_name)
+        if self.has_server(server_name):
+            tool_names = [
+                info.original_name
+                for info in self.tools.values()
+                if info.server_name == server_name
+            ]
+            return MCPServerResult(
+                name=server_name,
+                status="success",
+                duration=0.0,
+                tools=tool_names,
+                tool_count=len(tool_names),
+                error=None,
+                label_name=label_name,
+            )
+
+        # 允许重试：按需连接场景不应被历史失败状态永久拦住
+        self.failed_servers.discard(server_name)
+
+        config = self.server_configs[server_name]
+        conn_results: List[ConnectionResult] = []
+        try:
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(self._connect_server_task, config, conn_results)
+        except Exception as e:
+            logger.warning(
+                f"ensure_server_connected 任务组异常 server={server_name}: {type(e).__name__}: {e}"
+            )
+
+        if not conn_results:
+            self.failed_servers.add(server_name)
+            return MCPServerResult(
+                name=server_name,
+                status="failed",
+                duration=0.0,
+                tools=[],
+                tool_count=0,
+                error="Connection task did not produce a result",
+                label_name=label_name,
+            )
+
+        conn = conn_results[0]
+        result = MCPServerResult(
+            name=conn.config.name,
+            status=conn.status,
+            duration=conn.duration,
+            tools=[],
+            tool_count=0,
+            error=conn.error,
+            label_name=conn.label_name or label_name,
+        )
+
+        if conn.client and conn.tools:
+            session_index = self.session_index_manager.allocate(conn.config.name)
+            self.clients[conn.config.name] = conn.client
+            tool_names = self._register_tools_to_manager(
+                conn.config, conn.tools, session_index
+            )
+            result.tools = tool_names
+            result.tool_count = len(tool_names)
+        else:
+            self.failed_servers.add(conn.config.name)
+            logger.debug(
+                f"按需连接 MCP 服务器 '{conn.config.name}' 失败: {conn.error}"
+            )
+
+        return result
+
+    async def disconnect_server(self, server_name: str) -> bool:
+        """断开指定 MCP 服务器的连接，保留配置。
+
+        清理该服务器在 self.tools 中的条目并释放 session letter。
+        已处于未连接状态时返回 False。
+        """
+        if not self.has_server(server_name):
+            return False
+
+        tools_to_remove = [
+            name for name, info in self.tools.items()
+            if info.server_name == server_name
+        ]
+        for tool_name in tools_to_remove:
+            self.tools.pop(tool_name, None)
+
+        client = self.clients.pop(server_name, None)
+        if client:
+            try:
+                await client.disconnect()
+            except Exception as e:
+                logger.warning(f"断开服务器 {server_name} 连接失败: {e}")
+
+        self.session_index_manager.release(server_name)
+        logger.info(
+            f"已断开 MCP 服务器 '{server_name}' 连接（保留配置），清理 {len(tools_to_remove)} 个工具"
+        )
+        return True
+
+    async def call_tool(
+        self,
+        server_name: str,
+        original_tool_name: str,
+        arguments: Dict[str, Any],
+    ) -> ToolResult:
+        """通过 server_name + original_tool_name 直连调用 MCP 工具。
+
+        不再依赖 mcp_{letter}_ 前缀与 tool_factory 挂载。
+        未建立连接时返回 error，由调用方（通常是 /api/sdk/mcp/call）
+        自行决定是否先触发 ensure_server_connected。
+        """
+        client = self.clients.get(server_name)
         if not client:
-            return ToolResult.error(f"MCP 服务器 '{tool_info.server_name}' 不可用")  # type: ignore
+            return ToolResult.error(
+                f"MCP server '{server_name}' is not connected"
+            )  # type: ignore
 
         try:
-            result = await client.call_tool(tool_info.original_name, arguments)
-            return self._parse_tool_result(result)
+            raw = await client.call_tool(original_tool_name, arguments)
+            return self._parse_tool_result(raw)
         except Exception as e:
-            logger.warning(f"调用 MCP 工具 '{tool_name}' 失败: {e}")
+            logger.warning(
+                f"调用 MCP 工具 '{server_name}.{original_tool_name}' 失败: {e}"
+            )
             return ToolResult.error(f"MCP 工具调用失败: {e}")  # type: ignore
+
+    def _get_label_name(self, server_name: str) -> str:
+        config = self.server_configs.get(server_name)
+        if config and config.server_options and isinstance(config.server_options, dict):
+            return config.server_options.get("label_name", "")
+        return ""
 
     # ------------------------------------------------------------------ #
     # 内部：工具注册                                                        #
@@ -394,24 +504,6 @@ class MCPServerManager:
             f"跳过 {len(skipped)} 个不可用工具: {skipped}"
         )
         return available
-
-    def _register_tools_to_factory(self) -> None:
-        """将 self.tools 中未注册的工具注册到 tool_factory"""
-        registered = 0
-        skipped = 0
-
-        for tool_name, tool_info in self.tools.items():
-            if tool_factory.get_tool(tool_name) is not None:
-                skipped += 1
-                continue
-            mcp_tool = self._build_mcp_tool(tool_info)
-            tool_factory.register_tool_instance(tool_name, mcp_tool)
-            registered += 1
-
-        if registered > 0:
-            logger.info(f"已将 {registered} 个新 MCP 工具注册到 tool_factory")
-        if skipped > 0:
-            logger.debug(f"跳过 {skipped} 个已注册的 MCP 工具")
 
     # ------------------------------------------------------------------ #
     # 内部：连接任务                                                        #

@@ -667,12 +667,12 @@ class AgentDispatcher(Base):
         # 使用 agent_mode 进行 agent 选择
         agent = await self.switch_agent(message.agent_mode, agent_code=agent_code)
 
-        # 初始化 MCP 配置
-        logger.info("正在初始化 MCP 配置...")
-        await MCPService.initialize_from_config(message.mcp_config, self.agent_context)
+        # 摄取客户端 MCP 配置：仅增量持久化到 ChatMcpStore，不建连
+        logger.info("正在摄取客户端 MCP 配置...")
+        await MCPService.ingest_from_message(message.mcp_config, self.agent_context)
 
         # 保存当前模型配置（在 MCP 初始化之后，以便保存正确的 MCP 服务器信息）
-        self._save_session_config(message, agent)
+        await self._save_session_config(message, agent)
 
         await self.run_agent(agent=agent)
 
@@ -695,7 +695,7 @@ class AgentDispatcher(Base):
         """
         return self.init_event_dispatched
 
-    def _save_session_config(self, message: ChatClientMessage, agent: Agent):
+    async def _save_session_config(self, message: ChatClientMessage, agent: Agent):
         """
         保存当前会话配置到聊天历史中（包括模型、图片模型、MCP服务器等）
 
@@ -726,16 +726,16 @@ class AgentDispatcher(Base):
                     current_video_model_id = video_model_config.get("model_id")
                     current_video_generation_config = video_model_config.get("video_generation_config")
 
-            # 获取当前 MCP 服务器信息（仅在加载了 using-mcp skill 时）
+            # 获取当前 chat 维度的 MCP 服务器配置（仅在加载了 using-mcp skill 时）
+            # 按需连接模式下不再依赖连接态 manager，直接读 store 里的配置清单；
+            # tools 字段仅作为 session 配置快照保留，不在此处触发连接。
             agent_context = agent.agent_context
             if agent_context and agent_context.has_skill("using-mcp"):
-                from app.mcp.manager import get_global_mcp_manager
-                manager = get_global_mcp_manager()
-                if manager:
-                    current_mcp_servers = {}
-                    for server_name in manager.get_connected_servers():
-                        tools = manager.get_server_tools(server_name)
-                        current_mcp_servers[server_name] = tools
+                from app.mcp.store import get_chat_mcp_store
+                store = get_chat_mcp_store()
+                entries = await store.list_all()
+                if entries:
+                    current_mcp_servers = {name: [] for name in entries.keys()}
 
             current_agent_mode = None
             msg_agent_mode = message.agent_mode

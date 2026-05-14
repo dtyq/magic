@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-动态添加 MCP 服务器
+动态添加 / 更新 MCP 服务器配置
 
 参数：
     --name:    必填，服务器名称
@@ -11,10 +11,11 @@
     --env:     可选，环境变量，格式为 KEY=VALUE，支持多个
     --label:   可选，服务器显示名称
 
-注意：添加的服务器仅在当前运行期间有效，重启后失效。
+语义：仅把配置写入当前 chat 的持久化 store（按需连接模式），不会立即建连。
+首次调用该服务器的工具（get_tools / get_tool_schema / mcp.call）时才会真正连接。
 
 输出格式：JSON
-成功字段：ok, name, tool_count, tools
+成功字段：ok, name, status (始终为 "disconnected"), tool_count (0), tools ([])
 失败字段：ok, error
 """
 import json

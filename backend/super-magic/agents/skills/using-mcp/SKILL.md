@@ -23,16 +23,18 @@ Query MCP server information, tool lists, and schemas through scripts, and call 
 
 <!--zh
 - 查询 MCP 服务器列表和状态
-- 列出所有可用的 MCP 工具
+- 显式按需连接指定服务器并一次拿到完整工具清单
+- 列出指定服务器的工具（按需触发连接）
 - 获取工具的 JSON Schema 定义
 - 调用 MCP 工具并获取结果
-- 动态添加新的 MCP 服务器（运行时生效，可选持久化）
+- 会话维度添加 / 更新 MCP 服务器配置（持久化保存，按需连接）
 -->
-- Query MCP server list and status
-- List all available MCP tools
+- Query the MCP server list and their connection status
+- Explicitly connect a server on demand and fetch its full tool list in one call
+- List tools of a specific server (connection is established on demand)
 - Get JSON Schema definitions of tools
 - Call MCP tools and get results
-- Dynamically add new MCP servers (effective at runtime, optionally persisted)
+- Add / update MCP server configs per chat (persisted to store, connected on demand)
 
 <!--zh
 ## 重要规则
@@ -139,6 +141,11 @@ In Agent environment, use `shell_exec` tool to execute scripts:
 # 获取服务器列表
 shell_exec(
     command="python scripts/get_servers.py"
+)
+
+# 显式连接指定服务器（首次使用未连接的服务器时必须）
+shell_exec(
+    command="python scripts/connect_server.py --server-name <服务器名称>"
 )
 
 # 获取指定服务器的工具列表
@@ -269,44 +276,48 @@ else:
 
 ```
 [如需添加新服务器]
-A. 添加 MCP 服务器 (add_server.py) - 可选
-   ↓ 服务器添加成功后立即可用，输出中包含工具列表，可跳过步骤 0 和 1
+A. 添加 MCP 服务器配置 (add_server.py) - 可选
+   ↓ 仅持久化到当前 chat，不立即建连
 
 [调用已有服务器的工具]
 0. [可选] 获取服务器列表 (get_servers.py)
-   ↓ 如果不确定有哪些服务器，可以先查询
-1. 查看工具列表 (get_tools.py) - 必须
-   ↓ 确认工具存在于该服务器
-2. 获取工具 Schema (get_tool_schema.py) - 必须
+   ↓ 查看全量配置与连接状态（connected / disconnected）
+1. 显式连接服务器 (connect_server.py) - 首次使用时必须
+   ↓ 一次性拿到该服务器的完整工具清单（name / description），
+     避免凭想象拼工具名
+2. [可选] 按服务器查工具列表 (get_tools.py) - 作为其它场景的完备入口
+3. 获取工具 Schema (get_tool_schema.py) - 必须
    ↓ 了解必填参数和参数类型
-3. 验证参数 - 必须
+4. 验证参数 - 必须
    ↓ 确保所有必填参数都已提供且类型正确
-4. 调用工具 (mcp.call) - 必须
+5. 调用工具 (mcp.call) - 必须
 ```
 
-**警告**：跳过工具列表和 Schema 查询步骤直接调用工具，将会因为工具不存在或参数错误而失败。
+**警告**：跳过 connect/工具列表/Schema 查询直接调用工具，将因为工具不存在或参数错误而失败。
 -->
 **MUST follow** this workflow:
 
 ```
 [If you need to add a new server first]
-A. Add MCP server (add_server.py) - Optional
-   ↓ Server is immediately available after success; output includes tool list,
-     so you can skip steps 0 and 1
+A. Add MCP server config (add_server.py) - Optional
+   ↓ Only persists the config to the current chat; no live connection is made.
 
 [To call tools on an existing server]
 0. [Optional] Get server list (get_servers.py)
-   ↓ Query if unsure which servers are available
-1. View tool list (get_tools.py) - REQUIRED
-   ↓ Confirm tool exists on that server
-2. Get tool schema (get_tool_schema.py) - REQUIRED
+   ↓ Inspect the full config set and their status (connected / disconnected)
+1. Explicitly connect the server (connect_server.py) - REQUIRED on first use
+   ↓ Triggers the actual connection and returns the server's real tool list
+     (name / description). Use this to confirm what tools exist before calling,
+     instead of guessing tool names.
+2. [Optional] Get tool list (get_tools.py) - Fallback query entry for other cases
+3. Get tool schema (get_tool_schema.py) - REQUIRED
    ↓ Understand required parameters and types
-3. Validate parameters - REQUIRED
+4. Validate parameters - REQUIRED
    ↓ Ensure all required parameters are provided with correct types
-4. Call tool (mcp.call) - REQUIRED
+5. Call tool (mcp.call) - REQUIRED
 ```
 
-**WARNING**: Skipping tool list and schema query steps and calling tools directly will fail due to non-existent tools or incorrect parameters.
+**WARNING**: Skipping connect / tool list / schema query and calling tools directly will fail because the tool may not exist or the parameters may be wrong.
 
 <!--zh
 ## 可用脚本
@@ -314,14 +325,14 @@ A. Add MCP server (add_server.py) - Optional
 ## Available Scripts
 
 <!--zh
-### add_server.py - 动态添加 MCP 服务器
+### add_server.py - 添加 / 更新 MCP 服务器配置
 -->
-### add_server.py - Add MCP Server Dynamically
+### add_server.py - Add or Update MCP Server Config
 
 <!--zh
-动态将新 MCP 服务器加入运行中的系统，立即生效。仅在当前运行期间有效，重启后失效。
+将一个 MCP 服务器配置写入当前 chat 的持久化 store。按需连接模式下不会立即建连。
 -->
-Dynamically add a new MCP server to the running system, effective immediately. Only valid for the current runtime session.
+Persist an MCP server config to the current chat's store. In the lazy-connect model, no live connection is established at this point.
 
 **SYNOPSIS**
 ```bash
@@ -332,11 +343,11 @@ python scripts/add_server.py --name <name> --type stdio|http [OPTIONS]
 
 <!--zh
 支持 stdio（命令行进程）和 http（URL）两种类型的 MCP 服务器。
-同名服务器会先断开旧连接再重建。添加的服务器仅在当前运行期间有效，重启后失效。
+同名配置会被覆盖。配置会持久化保存到当前 chat；首次调用该服务器的工具时才会触发连接。
 -->
 Supports both stdio (command-line process) and http (URL) MCP server types.
-An existing server with the same name will be disconnected and replaced.
-Added servers only exist for the current runtime session and do not survive restarts.
+An existing config with the same name will be overwritten. The config is persisted to
+the current chat; the first tool call on this server triggers the actual connection.
 
 **OPTIONS**
 
@@ -370,18 +381,20 @@ Added servers only exist for the current runtime session and do not survive rest
 |------|------|------|
 | `ok` | boolean | 是否成功 |
 | `name` | string | 服务器名称 |
-| `tool_count` | number | 注册的工具数量 |
-| `tools` | array | 工具名称列表 |
+| `status` | string | 连接状态，此接口始终返回 `disconnected`（未触发连接） |
+| `tool_count` | number | 已发现的工具数量，未连接时始终为 0 |
+| `tools` | array | 已发现的工具名称列表，未连接时始终为空 |
 | `error` | string | 失败时的错误信息 |
 -->
 Returns a JSON object containing:
 
 | Field | Type | Description |
 |------|------|------|
-| `ok` | boolean | Whether succeeded |
+| `ok` | boolean | Whether the config was saved |
 | `name` | string | Server name |
-| `tool_count` | number | Number of registered tools |
-| `tools` | array | Tool name list |
+| `status` | string | Connection status; this endpoint always returns `disconnected` because no connection is made yet |
+| `tool_count` | number | Number of discovered tools; always `0` before the server is connected |
+| `tools` | array | Discovered tool names; always empty before the server is connected |
 | `error` | string | Error message on failure |
 
 **EXAMPLES**
@@ -453,14 +466,128 @@ python scripts/add_server.py \
 ---
 
 <!--zh
-### get_servers.py - 获取 MCP 服务器列表
+### connect_server.py - 显式连接 MCP 服务器
 -->
-### get_servers.py - Get MCP Server List
+### connect_server.py - Explicitly Connect an MCP Server
 
 <!--zh
-获取所有 MCP 服务器的列表和状态。
+触发指定 MCP 服务器的实际连接与工具发现，并一次性返回该服务器的真实工具清单。
+首次使用一个尚未连接的服务器时，**必须**先调用此脚本，以避免凭想象拼凑工具名。
 -->
-Get the list and status of all MCP servers.
+Trigger an actual connection and tool discovery for a specific MCP server, returning
+the server's real tool list in a single call. On the first use of a disconnected server
+you **MUST** call this script before calling its tools, instead of guessing tool names.
+
+**SYNOPSIS**
+```bash
+python scripts/connect_server.py --server-name <name>
+```
+
+**DESCRIPTION**
+
+<!--zh
+前置要求：该服务器配置已经存在于当前 chat 的 MCP store（由用户配置或通过 add_server.py 注入）。
+在按需连接模型下，以前的连接是隐式的（get_tools / get_tool_schema / mcp.call 触发）；
+这里的 connect_server 是显式入口，用于“先连接、拿到工具清单、再调用工具”的稳定工作流。
+-->
+Preconditions: the server config already exists in the current chat's MCP store (either
+through user configuration or via `add_server.py`).
+Under the lazy-connect model, connections were previously implicit (triggered by
+`get_tools` / `get_tool_schema` / `mcp.call`). `connect_server.py` is the explicit entry
+point for a stable "connect first, read the real tool list, then call" workflow.
+
+**OPTIONS**
+
+<!--zh
+| 选项 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `--server-name <name>` | string | 是 | 待连接的 MCP 服务器名称 |
+-->
+| Option | Type | Required | Description |
+|------|------|------|------|
+| `--server-name <name>` | string | Yes | MCP server name to connect |
+
+**OUTPUT**
+
+<!--zh
+返回 JSON 对象，包含：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `ok` | boolean | 是否连接成功 |
+| `name` | string | 服务器名称 |
+| `status` | string | 成功时为 `connected`，失败时为 `failed` |
+| `tool_count` | number | 发现的工具数量 |
+| `tools` | array | 工具列表，每个元素包含 `name`、`server_name`、`description` |
+| `duration` | number | 连接耗时（秒） |
+| `error` | string | 失败时的错误信息，成功时为 null |
+-->
+Returns a JSON object containing:
+
+| Field | Type | Description |
+|------|------|------|
+| `ok` | boolean | Whether the connection succeeded |
+| `name` | string | Server name |
+| `status` | string | `connected` on success, `failed` on error |
+| `tool_count` | number | Number of discovered tools |
+| `tools` | array | Tool list; each element has `name`, `server_name`, `description` |
+| `duration` | number | Connection duration in seconds |
+| `error` | string | Error message on failure, null on success |
+
+**EXAMPLES**
+
+<!--zh
+连接一个已配置的服务器：
+```bash
+python scripts/connect_server.py --server-name my-fs-server
+```
+
+返回示例：
+```json
+{
+  "ok": true,
+  "name": "my-fs-server",
+  "status": "connected",
+  "tool_count": 5,
+  "tools": [
+    {"name": "read_file", "server_name": "my-fs-server", "description": "Read a file"}
+  ],
+  "duration": 0.42,
+  "error": null
+}
+```
+-->
+Connect a server that is already configured:
+```bash
+python scripts/connect_server.py --server-name my-fs-server
+```
+
+Sample response:
+```json
+{
+  "ok": true,
+  "name": "my-fs-server",
+  "status": "connected",
+  "tool_count": 5,
+  "tools": [
+    {"name": "read_file", "server_name": "my-fs-server", "description": "Read a file"}
+  ],
+  "duration": 0.42,
+  "error": null
+}
+```
+
+---
+
+<!--zh
+### get_servers.py - 获取当前 chat 的 MCP 服务器列表
+-->
+### get_servers.py - Get MCP Server List of the Current Chat
+
+<!--zh
+返回当前 chat 下全量的 MCP 服务器配置及其当前连接状态，包括尚未连接的服务器。
+-->
+Return all MCP server configs persisted for the current chat along with their current connection status, including servers that have not been connected yet.
 
 **SYNOPSIS**
 ```bash
@@ -470,9 +597,9 @@ python scripts/get_servers.py
 **DESCRIPTION**
 
 <!--zh
-查询所有已注册的 MCP 服务器，返回服务器名称、状态、工具数量等信息。
+查询当前 chat 下所有已注册的 MCP 服务器，返回名称、显示名、描述、配置来源、连接状态、已发现的工具数量等信息。
 -->
-Query all registered MCP servers and return server name, status, tool count, and other information.
+Query all registered MCP servers for the current chat and return their name, display label, description, config source, connection status, and discovered tool information.
 
 **OPTIONS**
 
@@ -490,9 +617,13 @@ No parameters.
 |------|------|------|
 | `name` | string | 服务器内部名称 |
 | `label_name` | string | 服务器显示名称 |
-| `status` | string | 状态：`success`（成功）、`failed`（失败）、`timeout`（超时）|
-| `tool_count` | number | 工具数量 |
-| `tools` | array | 工具名称列表 |
+| `description` | string | 服务器用途描述，用于判断是否需要调用该服务器 |
+| `source` | string | 配置来源：`global_config` 或 `client_config` |
+| `status` | string | 连接状态：`connected`（已连接） 或 `disconnected`（尚未触发连接） |
+| `tool_count` | number | 已发现的工具数量，未连接时为 0 |
+| `tools` | array | 已发现的工具名称列表，未连接时为空 |
+| `error` | string | 错误信息（正常时为 null） |
+| `next_action` | string | 面向 agent 的下一步提示：`disconnected` 提示 `connect_server.py`；`connected` 提示直接走 `get_tool_schema` / `mcp.call` |
 -->
 Returns a JSON array, each element contains:
 
@@ -500,9 +631,13 @@ Returns a JSON array, each element contains:
 |------|------|------|
 | `name` | string | Server internal name |
 | `label_name` | string | Server display name |
-| `status` | string | Status: `success`, `failed`, `timeout` |
-| `tool_count` | number | Tool count |
-| `tools` | array | Tool name list |
+| `description` | string | Server purpose description; use it to decide whether this server is worth calling |
+| `source` | string | Config source: `global_config` or `client_config` |
+| `status` | string | Connection status: `connected` or `disconnected` (not yet connected) |
+| `tool_count` | number | Number of discovered tools; `0` before connection |
+| `tools` | array | Discovered tool name list; empty before connection |
+| `error` | string | Error message (null when healthy) |
+| `next_action` | string | Next-step hint for the agent: `disconnected` entries hint to run `connect_server.py`; `connected` entries hint to go straight to `get_tool_schema` / `mcp.call` |
 
 **EXAMPLES**
 
@@ -788,7 +923,8 @@ else:
 shell_exec(
     command="python scripts/get_servers.py"
 )
-# 从输出中选择一个状态为 success 的服务器
+# 从输出中根据 name / description / source 选一个需要用的服务器；
+# status 只表示当前是否已连接，disconnected 的服务器可以直接使用（后续步骤会按需连接）
 
 # Step 1: [必须] 获取工具列表（通过 shell_exec）
 shell_exec(
@@ -833,15 +969,15 @@ else:
 ## 注意事项
 
 1. **服务器确认**: 如果不确定服务器是否可用，可以先执行 `get_servers.py` 检查服务器状态
-2. **工具确认**: 调用工具前**必须**先执行 `get_tools.py` 确认工具存在于该服务器
+2. **显式连接**: 首次使用一个尚未连接的服务器（`status=disconnected`）时，**必须**先执行 `connect_server.py` 拿到真实工具清单，禁止凭经验直接似写工具名
 3. **Schema 验证**: 调用工具前**必须**先执行 `get_tool_schema.py` 获取 Schema 验证必填参数
 4. **参数格式**: 确保 `tool_params` 符合工具的 JSON Schema 定义
 5. **禁止臆想**: **严格禁止**臆想或猜测工具名称、参数名称，必须以查询结果为准
 -->
 ## Notes
 
-1. **Server Confirmation**: If unsure whether server is available, run `get_servers.py` to check server status first
-2. **Tool Confirmation**: **MUST** run `get_tools.py` to confirm tool exists on that server before calling
-3. **Schema Validation**: **MUST** run `get_tool_schema.py` to get Schema and validate required parameters before calling tools
+1. **Server Confirmation**: If unsure whether a server is available, run `get_servers.py` first to check server status
+2. **Explicit Connect**: On the first use of a disconnected server (`status=disconnected`), you **MUST** run `connect_server.py` to obtain the real tool list before calling any tool; never fabricate tool names from experience
+3. **Schema Validation**: **MUST** run `get_tool_schema.py` to get the Schema and validate required parameters before calling tools
 4. **Parameter Format**: Ensure `tool_params` conforms to the tool's JSON Schema definition
 5. **No Imagination**: **STRICTLY FORBIDDEN** to imagine or guess tool names or parameter names; must follow query results

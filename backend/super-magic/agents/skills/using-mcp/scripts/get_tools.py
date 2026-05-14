@@ -21,12 +21,13 @@ try:
     # 直接调用 MCP SDK
     tools = mcp.get_tools(server_name=args.server_name)
 
-    # 移除 input_schema 字段，只保留基本信息
+    # 仅保留基本信息字段：name（原始工具名）、server_name、description
+    # HTTP 层（/api/sdk/mcp/tools）已将 tool_info.original_name 映射为 name，这里直接透出
     tools_basic = [
         {
-            "name": tool["original_name"],  # 使用原始工具名称
+            "name": tool["name"],
             "server_name": tool["server_name"],
-            "description": tool["description"]
+            "description": tool["description"],
         }
         for tool in tools
     ]
