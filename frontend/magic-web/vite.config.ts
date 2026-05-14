@@ -2,6 +2,8 @@ import { defineConfig, mergeConfig, type PluginOption, type UserConfig } from "v
 import babel from "@rolldown/plugin-babel"
 import react from "@vitejs/plugin-react"
 import { resolve } from "path"
+import mkcert from "vite-plugin-mkcert"
+import http2Proxy from "@cpsoinos/vite-plugin-http2-proxy"
 // import legacy from "@vitejs/plugin-legacy"
 import vitePluginImp from "vite-plugin-imp"
 // import { VitePWA } from "vite-plugin-pwa"
@@ -22,6 +24,12 @@ const ENV_PREFIX = "MAGIC_"
 
 /** 是否为开发环境 */
 const isDev = process.env.NODE_ENV === "development"
+
+/** 本地开发 HTTPS hosts，支持逗号分隔多个，默认 magic.t.teamshare.cn */
+const devHosts = (process.env.DEV_HOSTS ?? "magic.com")
+	.split(",")
+	.map((h) => h.trim())
+	.filter(Boolean)
 
 /** 是否开启依赖分析 */
 const isVisualizer = process.env.VISUALIZER === "true"
@@ -232,6 +240,17 @@ function getBaseViteConfig(): UserConfig {
 					},
 				],
 			}),
+			// 用于本地生成HTTPS证书
+			...(isDev
+				? [
+						mkcert({
+							// 本地配置该地址的 host, 满足文件私有桶上传
+							// 可通过环境变量 DEV_HOSTS 覆盖，多个 host 用逗号分隔
+							hosts: devHosts,
+						}),
+						// http2Proxy({ quiet: true }),
+					]
+				: []), // optional -- suppress error logging],
 			// 浏览器兼容
 			// legacy({
 			// 	targets: [
