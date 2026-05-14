@@ -305,7 +305,7 @@ function DesignViewer(props: DesignViewerProps) {
 	const displayName = directoryInfo.name || designData.name
 
 	// 设计项目 ID
-	const designProjectId = directoryInfo.id || currentFile?.id
+	const designProjectId = directoryInfo.id || currentFile?.id || ""
 
 	const downloadPolicy = useDesignDownloadPolicy()
 	const { isFreeTrialVersion } = useAiWatermarkPreference()
@@ -649,7 +649,7 @@ function DesignViewer(props: DesignViewerProps) {
 						)}
 						<div className={styles.designCanvasContainer}>
 							<CanvasDesign
-								key={canvasDesignKey}
+								key={`${designProjectId}:${canvasDesignKey}`}
 								id={designProjectId}
 								ref={canvasDesignRef}
 								readonly={isReadOnlyState}
