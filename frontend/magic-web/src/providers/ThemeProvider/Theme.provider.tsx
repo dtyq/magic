@@ -9,6 +9,7 @@ import { genPalettesConfigs } from "./utils"
 import type { NewToken } from "../../../../types/theme"
 import { message } from "antd"
 import { debounce } from "lodash-es"
+import { themeStore } from "@/models/config/stores/theme.store"
 
 message.config({
 	duration: 3,
@@ -16,11 +17,14 @@ message.config({
 	rtl: false,
 })
 
-interface ThemeProviderProps extends Partial<NewToken> { }
+interface ThemeProviderProps extends Partial<NewToken> {}
 
 function ThemeProvider({ children, ...tokens }: PropsWithChildren<ThemeProviderProps>) {
 	const { theme, prefersColorScheme, setTheme } = useTheme()
 	const { fontScale } = useFontScale()
+
+	const resolvedColorScheme = prefersColorScheme
+	const resolvedThemeMode = theme
 
 	useLayoutEffect(() => {
 		const unSubscribe = magic?.theme?.subscribe?.((themeConfig) => {
@@ -42,13 +46,13 @@ function ThemeProvider({ children, ...tokens }: PropsWithChildren<ThemeProviderP
 		}
 	}, [])
 
-	// Sync Tailwind dark class with the resolved color scheme
-	useEffect(() => {
-		document.documentElement.classList.toggle("dark", prefersColorScheme === "dark")
-	}, [prefersColorScheme])
+	// 与 `ThemeStore.syncDocumentDarkClass` 同源，layout 阶段避免首帧浅色闪屏
+	useLayoutEffect(() => {
+		themeStore.syncDocumentDarkClass()
+	}, [resolvedColorScheme])
 
 	const themeConfig = useCallback(() => {
-		const config = genPalettesConfigs(prefersColorScheme, fontScale)
+		const config = genPalettesConfigs(resolvedColorScheme, fontScale)
 		return {
 			cssVar: {
 				prefix: CLASSNAME_PREFIX,
@@ -57,7 +61,7 @@ function ThemeProvider({ children, ...tokens }: PropsWithChildren<ThemeProviderP
 				...genTokenMap(
 					config.magicColorScales,
 					config.magicColorUsages,
-					prefersColorScheme,
+					resolvedColorScheme,
 				),
 				// titleBarHeight: 48,
 				titleBarHeight: 48,
@@ -74,16 +78,16 @@ function ThemeProvider({ children, ...tokens }: PropsWithChildren<ThemeProviderP
 			components: genComponentTokenMap(
 				config.magicColorScales,
 				config.magicColorUsages,
-				prefersColorScheme,
+				resolvedColorScheme,
 			),
 		}
-	}, [tokens, fontScale, prefersColorScheme])
+	}, [tokens, fontScale, resolvedColorScheme])
 
 	return (
 		<AntdThemeProvider<NewToken>
 			prefixCls={CLASSNAME_PREFIX}
-			appearance={prefersColorScheme}
-			themeMode={theme}
+			appearance={resolvedColorScheme}
+			themeMode={resolvedThemeMode}
 			theme={themeConfig}
 		>
 			<GlobalStyle />

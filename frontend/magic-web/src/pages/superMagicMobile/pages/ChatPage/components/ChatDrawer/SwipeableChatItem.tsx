@@ -6,36 +6,51 @@ import { useSwipeActions } from "./hooks/useSwipeActions"
 import { SwipeActionButtons } from "./SwipeActionButtons"
 import type { SwipeActionButtonConfig } from "./SwipeActionButtons"
 import { useMemoizedFn } from "ahooks"
+import PinnedTag from "@/pages/superMagic/components/EmptyWorkspacePanel/components/ProjectItem/components/PinnedTag"
 
 export default function SwipeableChatItem({
 	item,
-	isActive,
+	isSwiped = false,
+	onSwipeChange,
 	onSwipeStart,
+	onClick,
 	onMore,
 	onPin,
 	onDelete,
 }: SwipeableChatItemProps) {
 	const { t } = useTranslation("super")
 
-	const { offsetX, isDragging, touchHandlers } = useSwipeActions({
-		// isActive=false 时自动收起（其他 item 被激活时互斥）
-		syncOpen: isActive,
-		// 手指触碰时立即通知父组件，用于收起其他已展开的 item
+	const { offsetX, isDragging, touchHandlers, close } = useSwipeActions({
+		syncOpen: isSwiped,
+		onSwipeChange,
 		onDragStart: () => onSwipeStart(item.id),
+	})
+
+	const handleOpenChat = useMemoizedFn(() => {
+		if (offsetX < 0) {
+			close()
+			onSwipeChange?.(false)
+			return
+		}
+
+		onClick(item.id)
 	})
 
 	const handleMore = useMemoizedFn((e: React.MouseEvent) => {
 		e.stopPropagation()
+		onSwipeChange?.(false)
 		onMore(item.id)
 	})
 
 	const handlePin = useMemoizedFn((e: React.MouseEvent) => {
 		e.stopPropagation()
+		onSwipeChange?.(false)
 		onPin(item.id)
 	})
 
 	const handleDelete = useMemoizedFn((e: React.MouseEvent) => {
 		e.stopPropagation()
+		onSwipeChange?.(false)
 		onDelete(item.id)
 	})
 
@@ -44,33 +59,38 @@ export default function SwipeableChatItem({
 		SwipeActionButtonConfig,
 		SwipeActionButtonConfig,
 	] = [
-			{
-				label: t("common.moreActions"),
-				icon: <Ellipsis size={16} className="text-white" />,
-				bgClassName: "bg-[#9ca3af]",
-				labelClassName: "text-white",
-				onClick: handleMore,
-			},
-			{
-				label: t("hierarchicalWorkspacePopup.pinProject"),
-				icon: <Pin size={16} className="text-primary-foreground" />,
-				bgClassName: "bg-primary",
-				labelClassName: "text-primary-foreground",
-				onClick: handlePin,
-			},
-			{
-				label: t("common.delete"),
-				icon: <Trash2 size={16} className="text-destructive-foreground" />,
-				bgClassName: "bg-destructive",
-				labelClassName: "text-destructive-foreground",
-				onClick: handleDelete,
-			},
-		]
+		{
+			label: t("common.moreActions"),
+			icon: <Ellipsis size={16} className="text-white" />,
+			bgClassName: "bg-[#9ca3af]",
+			labelClassName: "text-white",
+			onClick: handleMore,
+		},
+		{
+			label: item.isPinned
+				? t("hierarchicalWorkspacePopup.unpinProject")
+				: t("hierarchicalWorkspacePopup.pinProject"),
+			icon: <Pin size={16} className="text-primary-foreground" />,
+			bgClassName: "bg-primary",
+			labelClassName: "text-primary-foreground",
+			onClick: handlePin,
+		},
+		{
+			label: t("common.delete"),
+			icon: <Trash2 size={16} className="text-destructive-foreground" />,
+			bgClassName: "bg-destructive",
+			labelClassName: "text-destructive-foreground",
+			onClick: handleDelete,
+		},
+	]
 
 	const snapTransition = isDragging ? "none" : "transform 0.32s cubic-bezier(0.34, 1.2, 0.64, 1)"
 
 	return (
-		<div className="relative flex w-full shrink-0 items-center overflow-hidden">
+		<div
+			className="relative flex w-full shrink-0 items-center overflow-hidden"
+			data-testid="chat-drawer-chat-item-row"
+		>
 			<SwipeActionButtons offsetX={offsetX} isDragging={isDragging} buttons={actionButtons} />
 
 			{/* 主内容层 */}
@@ -86,16 +106,21 @@ export default function SwipeableChatItem({
 				onTouchStart={touchHandlers.onTouchStart}
 				onTouchMove={touchHandlers.onTouchMove}
 				onTouchEnd={touchHandlers.onTouchEnd}
+				onClick={handleOpenChat}
+				data-testid="chat-drawer-chat-item-trigger"
 			>
 				{/* 图标容器 */}
-				<div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-foreground">
+				<div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-foreground">
 					<MessageCircle size={24} className="text-white" />
 				</div>
 
 				{/* 信息容器 */}
 				<div className="flex min-w-0 flex-1 flex-col">
-					<div className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium leading-5 text-foreground">
-						{item.title}
+					<div className="flex h-6 items-center gap-1">
+						{item.isPinned && <PinnedTag className="shrink-0" showText={false} />}
+						<div className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-foreground">
+							{item.title}
+						</div>
 					</div>
 					<div className="overflow-hidden text-ellipsis whitespace-nowrap text-xs font-light leading-4 text-muted-foreground">
 						{item.subtitle}

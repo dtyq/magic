@@ -38,6 +38,13 @@ class WorkspaceStore {
 		this.workspaces = workspaces
 	}
 
+	/**
+	 * 追加工作区到列表末尾，用于分页加载后续页时逐步扩充数据，不影响已有项的引用。
+	 */
+	appendWorkspaces(workspaces: Workspace[]) {
+		this.workspaces = [...this.workspaces, ...workspaces]
+	}
+
 	setSelectedWorkspace(workspace: Workspace | null) {
 		this.selectedWorkspace = workspace
 	}

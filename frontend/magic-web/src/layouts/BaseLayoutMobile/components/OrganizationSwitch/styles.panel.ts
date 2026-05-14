@@ -7,8 +7,6 @@ export const useOrganizationSwitchPanelStyles = createStyles(({ token, css }) =>
 			flex-direction: column;
 			justify-content: space-between;
 			height: 80vh;
-			// Set higher z-index to appear above GlobalSidebar
-			--adm-popup-z-index: 1020;
 			overflow: hidden;
 		`,
 

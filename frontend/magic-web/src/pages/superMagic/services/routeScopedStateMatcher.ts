@@ -1,9 +1,9 @@
-import { MobileTabParam } from "@/pages/mobileTabs/constants"
 import { RouteName } from "@/routes/constants"
 
 const superWorkspaceRouteNames = new Set<RouteName>([
 	RouteName.Super,
 	RouteName.SuperWorkspaceState,
+	RouteName.SuperChatProjectState,
 	RouteName.SuperWorkspaceProjectState,
 	RouteName.SuperWorkspaceProjectTopicState,
 ])
@@ -17,7 +17,6 @@ export function isSuperWorkspaceRouteName(
 	if (routeName !== RouteName.MobileTabs) return false
 
 	const searchParams = new URLSearchParams(search || "")
-	const activeTab = searchParams.get("tab")
 
 	if (
 		searchParams.has("workspaceId") ||
@@ -27,5 +26,6 @@ export function isSuperWorkspaceRouteName(
 		return true
 	}
 
-	return activeTab === MobileTabParam.Super
+	// 纯 `mobile-tabs?tab=super` 现在代表“直接开聊首页”，不再视为 workspace route。
+	return false
 }

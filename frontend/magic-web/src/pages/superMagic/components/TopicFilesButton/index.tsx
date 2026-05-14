@@ -32,6 +32,7 @@ export interface TopicFilesButtonProps {
 	isInProject?: boolean
 	// 多选模式变化回调
 	onMultiSelectModeChange?: (isMultiSelectMode: boolean) => void
+	showMobileActions?: boolean
 	// 自定义菜单项过滤器
 	filterMenuItems?: (menuItems: any[]) => any[]
 	// 自定义批量下载菜单过滤器
@@ -39,6 +40,8 @@ export interface TopicFilesButtonProps {
 	// 是否允许下载（用于分享页面权限控制）
 	allowDownload?: boolean
 	resolveTopicFileRowDecoration?: TopicFileRowDecorationResolver
+	mobileViewVariant?: "default" | "project-detail" | "chat-sheet"
+	refreshAttachments?: () => Promise<void> | void
 }
 
 export interface TopicFilesButtonRef {
@@ -46,6 +49,7 @@ export interface TopicFilesButtonRef {
 	addFolder: () => void
 	uploadFile: () => void
 	uploadFolder: () => void
+	openBatchMoveByFileIds: (fileIds: string[]) => void
 }
 
 const TopicFilesButton = forwardRef<TopicFilesButtonRef, TopicFilesButtonProps>(
@@ -67,10 +71,13 @@ const TopicFilesButton = forwardRef<TopicFilesButtonRef, TopicFilesButtonProps>(
 			workspaces = [],
 			isInProject = false,
 			onMultiSelectModeChange,
+			showMobileActions = false,
 			filterMenuItems,
 			filterBatchDownloadLayerMenuItems,
 			allowDownload,
 			resolveTopicFileRowDecoration,
+			mobileViewVariant = "default",
+			refreshAttachments,
 		},
 		ref,
 	) {
@@ -90,6 +97,9 @@ const TopicFilesButton = forwardRef<TopicFilesButtonRef, TopicFilesButtonProps>(
 			},
 			uploadFolder: () => {
 				panelRef.current?.uploadFolder()
+			},
+			openBatchMoveByFileIds: (fileIds: string[]) => {
+				panelRef.current?.openBatchMoveByFileIds(fileIds)
 			},
 		}))
 
@@ -114,10 +124,13 @@ const TopicFilesButton = forwardRef<TopicFilesButtonRef, TopicFilesButtonProps>(
 					workspaces={workspaces}
 					isInProject={isInProject}
 					onMultiSelectModeChange={onMultiSelectModeChange}
+					showMobileActions={showMobileActions}
 					filterMenuItems={filterMenuItems}
 					filterBatchDownloadLayerMenuItems={filterBatchDownloadLayerMenuItems}
 					allowDownload={allowDownload}
 					resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
+					mobileViewVariant={mobileViewVariant}
+					refreshAttachments={refreshAttachments}
 				/>
 			</div>
 		)

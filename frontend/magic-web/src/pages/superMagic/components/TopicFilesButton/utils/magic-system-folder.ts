@@ -61,3 +61,37 @@ export function hasMagicSystemFolderInDeletionSelection(
 	}
 	return walk(items)
 }
+
+interface SingleDeleteConfirmContentKeyParams {
+	isFolder: boolean
+	isMagicFolder: boolean
+}
+
+/**
+ * 统一单文件/文件夹删除的正文 key 选择，避免移动端 sheet 与桌面 modal 分叉后漏掉 `.magic` 特殊提示。
+ */
+export function resolveSingleDeleteConfirmContentKey({
+	isFolder,
+	isMagicFolder,
+}: SingleDeleteConfirmContentKeyParams) {
+	if (isMagicFolder) return "topicFiles.contextMenu.deleteMagicFolderContent"
+	if (isFolder) return "topicFiles.contextMenu.deleteFolderContent"
+	return "topicFiles.contextMenu.deleteFileDescription"
+}
+
+interface BatchDeleteConfirmContentKeyParams {
+	containsFolders: boolean
+	touchesMagicFolder: boolean
+}
+
+/**
+ * 批量删除优先提示 `.magic` 风险，其次再回退到通用文件夹/文件文案。
+ */
+export function resolveBatchDeleteConfirmContentKey({
+	containsFolders,
+	touchesMagicFolder,
+}: BatchDeleteConfirmContentKeyParams) {
+	if (touchesMagicFolder) return "topicFiles.contextMenu.confirmBatchDeleteWithMagicSystemFolder"
+	if (containsFolders) return "topicFiles.contextMenu.confirmBatchDeleteWithFolders"
+	return "topicFiles.contextMenu.confirmBatchDelete"
+}

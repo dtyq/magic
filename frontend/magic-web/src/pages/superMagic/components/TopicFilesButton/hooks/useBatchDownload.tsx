@@ -3,7 +3,10 @@ import type { AttachmentItem } from "./types"
 import { MenuProps } from "antd"
 import { collectFileIds } from "../utils/collectFileIds"
 import { collectSelectedItemIds } from "../utils/collectSelectedItemIds"
-import { hasMagicSystemFolderInDeletionSelection } from "../utils/magic-system-folder"
+import {
+	hasMagicSystemFolderInDeletionSelection,
+	resolveBatchDeleteConfirmContentKey,
+} from "../utils/magic-system-folder"
 import {
 	IconDownload,
 	IconFileTypePdf,
@@ -26,6 +29,7 @@ import useShareRoute from "../../../hooks/useShareRoute"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
 import { normalizeMenuItems } from "../utils/menu-items"
+import { useMobileDeleteConfirmSheet } from "./useMobileDeleteConfirmSheet"
 
 interface UseBatchDownloadOptions {
 	projectId?: string
@@ -97,6 +101,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	const [batchLoading, setBatchLoading] = useState(false)
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
+	const { deleteConfirmNode, openDeleteConfirm } = useMobileDeleteConfirmSheet()
 	const { isShareRoute, isFileShare } = useShareRoute()
 	const { hideCopyTo, hideMoveTo, hideShareFile } = useFileActionVisibility()
 
@@ -157,7 +162,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 		return selectedItems.size > 0
 	}, [selectedItems])
 
-	// 移动端批量删除（使用 Modal 确认）
+	// 移动端批量删除统一走底部确认 sheet，并补齐 `.magic` 的风险提示。
 	const handleMobileBatchDelete = async () => {
 		const containsFolders = hasSelectedFolders()
 		const touchesMagicFolder = hasMagicSystemFolderInDeletionSelection(
@@ -165,24 +170,19 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 			selectedItems,
 			getItemId,
 		)
+		const contentKey = resolveBatchDeleteConfirmContentKey({
+			containsFolders,
+			touchesMagicFolder,
+		})
 
-		MagicModal.confirm({
+		openDeleteConfirm({
 			title: t("topicFiles.contextMenu.deleteTip"),
-			content: touchesMagicFolder
-				? t("topicFiles.contextMenu.confirmBatchDeleteWithMagicSystemFolder")
-				: containsFolders
-					? t("topicFiles.contextMenu.confirmBatchDeleteWithFolders", {
-							count: selectedItems.size,
-						})
-					: t("topicFiles.contextMenu.confirmBatchDelete", {
-							count: selectedItems.size,
-						}),
-			variant: "destructive",
-			showIcon: true,
-			icon: touchesMagicFolder ? <MagicSystemFolderIcon size={24} /> : undefined,
-			okText: t("topicFiles.contextMenu.delete"),
-			cancelText: t("topicFiles.contextMenu.cancel"),
-			onOk: handleBatchDelete,
+			emphasisText: t(contentKey, {
+				count: selectedItems.size,
+			}),
+			descriptionText: "",
+			onConfirm: handleBatchDelete,
+			testIdPrefix: "topic-files-batch-delete-confirm",
 		})
 	}
 
@@ -194,18 +194,16 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 			selectedItems,
 			getItemId,
 		)
+		const contentKey = resolveBatchDeleteConfirmContentKey({
+			containsFolders,
+			touchesMagicFolder,
+		})
 
 		MagicModal.confirm({
 			title: t("topicFiles.contextMenu.deleteTip"),
-			content: touchesMagicFolder
-				? t("topicFiles.contextMenu.confirmBatchDeleteWithMagicSystemFolder")
-				: containsFolders
-					? t("topicFiles.contextMenu.confirmBatchDeleteWithFolders", {
-							count: selectedItems.size,
-						})
-					: t("topicFiles.contextMenu.confirmBatchDelete", {
-							count: selectedItems.size,
-						}),
+			content: t(contentKey, {
+				count: selectedItems.size,
+			}),
 			variant: "destructive",
 			showIcon: true,
 			icon: touchesMagicFolder ? <MagicSystemFolderIcon size={24} /> : undefined,
@@ -664,5 +662,6 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 
 		// 下拉菜单项配置
 		batchMenuItems,
+		deleteConfirmNode,
 	}
 }

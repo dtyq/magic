@@ -87,6 +87,24 @@ const config = {
 					foreground: rgbColor("--muted-foreground"),
 				},
 				info: rgbColor("--info"),
+				"info-foreground": rgbColor("--info-foreground"),
+				warning: {
+					DEFAULT: rgbColor("--warning"),
+					foreground: rgbColor("--warning-foreground"),
+				},
+				success: {
+					DEFAULT: rgbColor("--success"),
+					foreground: rgbColor("--success-foreground"),
+				},
+				"icon-workspace": rgbColor("--icon-workspace"),
+				"icon-project": rgbColor("--icon-project"),
+				"icon-topic": rgbColor("--icon-topic"),
+				"icon-chat": rgbColor("--icon-chat"),
+				"icon-recording": rgbColor("--icon-recording"),
+				"icon-app-knowledge": rgbColor("--icon-app-knowledge"),
+				"icon-app-cloud": rgbColor("--icon-app-cloud"),
+				"icon-app-approval": rgbColor("--icon-app-approval"),
+				"icon-app-bookmarks": rgbColor("--icon-app-bookmarks"),
 				accent: {
 					DEFAULT: rgbColor("--accent"),
 					foreground: rgbColor("--accent-foreground"),
@@ -128,6 +146,8 @@ const config = {
 				sm: "var(--radius-sm)",
 				xl: "var(--radius-xl)",
 				xs: "var(--radius-xs, 0.125rem)", // 2px
+				// 4xl: prototype scale beyond Tailwind's built-in 3xl (1.5rem); 2xl/3xl left to Tailwind defaults to avoid overriding PC usage
+				"4xl": "var(--radius-4xl)",
 			},
 			keyframes: {
 				"slide-in-from-left": {

@@ -6,14 +6,11 @@ import projectFilesStore from "@/stores/projectFiles"
 import { AttachmentDataProcessor } from "@/pages/superMagic/utils/attachmentDataProcessor"
 import {
 	releaseAttachmentsRefreshWaitersWithoutFetch,
-	resolveAttachmentsRefreshWaitersForProject,
 	withAttachmentsRefreshWaitersResolved,
 } from "@/pages/superMagic/services/attachmentsTopicSync"
 
 export function useAttachments() {
-	const { workspaceFileTree: attachments, setWorkspaceFileTree: setAttachments } =
-		projectFilesStore
-	const attachmentList = projectFilesStore.workspaceFilesList
+	const { setWorkspaceFileTree: setAttachments } = projectFilesStore
 	const [currentProjectId, setCurrentProjectId] = useState<string>()
 
 	const { handleDownloadAll, allLoading } = useDownloadAll({
@@ -23,39 +20,38 @@ export function useAttachments() {
 	const updateAttachments = useCallback(
 		(selectedProject: ProjectListItem, callback?: () => void) => {
 			const projectId = selectedProject?.id
+
 			if (!projectId) {
 				setCurrentProjectId(undefined)
 				projectFilesStore.setWorkspaceFileTree([])
+				callback?.()
 				releaseAttachmentsRefreshWaitersWithoutFetch()
 				return
 			}
 
 			setCurrentProjectId(projectId)
 
-			try {
-				withAttachmentsRefreshWaitersResolved(
+			void withAttachmentsRefreshWaitersResolved(
+				projectId,
+				SuperMagicApi.getAttachmentsByProjectId({
 					projectId,
-					SuperMagicApi.getAttachmentsByProjectId({
-						projectId,
-						// @ts-ignore 使用window添加临时的token
-						temporaryToken: window.temporary_token || "",
+					// @ts-ignore 使用window添加临时的token
+					temporaryToken: window.temporary_token || "",
+				})
+					.then((res: any) => {
+						// 统一处理 metadata，包括 index.html 文件的特殊逻辑，内部自闭环处理验证和返回逻辑
+						const processedData = AttachmentDataProcessor.processAttachmentData(res)
+						// 同步更新 projectFilesStore
+						projectFilesStore.setWorkspaceFileTree(processedData.tree)
 					})
-						.then((res: any) => {
-							// 统一处理 metadata，包括 index.html 文件的特殊逻辑，内部自闭环处理验证和返回逻辑
-							const processedData = AttachmentDataProcessor.processAttachmentData(res)
-							// 同步更新 projectFilesStore
-							projectFilesStore.setWorkspaceFileTree(processedData.tree)
-						})
-						.finally(() => {
-							callback?.()
-						}),
-				)
-			} catch (error) {
-				console.error("Failed to fetch attachments:", error)
-				projectFilesStore.setWorkspaceFileTree([])
-				resolveAttachmentsRefreshWaitersForProject(projectId)
-				callback?.()
-			}
+					.catch((error) => {
+						console.error("Failed to fetch attachments:", error)
+						projectFilesStore.setWorkspaceFileTree([])
+					})
+					.finally(() => {
+						callback?.()
+					}),
+			)
 		},
 		[],
 	)
@@ -66,11 +62,14 @@ export function useAttachments() {
 	}, [])
 
 	// 包装 setAttachments，使其在更新本地状态时也同步更新 projectFilesStore
-	const setAttachmentsWithStoreSync = useCallback((tree: any[]) => {
-		setAttachments(tree)
-		// 同步更新 projectFilesStore
-		projectFilesStore.setWorkspaceFileTree(tree)
-	}, [])
+	const setAttachmentsWithStoreSync = useCallback(
+		(tree: any[]) => {
+			setAttachments(tree)
+			// 同步更新 projectFilesStore
+			projectFilesStore.setWorkspaceFileTree(tree)
+		},
+		[setAttachments],
+	)
 
 	// // 包装 setAttachmentList，保持一致性（虽然通常不需要单独更新 list）
 	// const setAttachmentListWithStoreSync = useCallback((list: any[]) => {
@@ -90,8 +89,6 @@ export function useAttachments() {
 	// }, [])
 
 	return {
-		attachments,
-		attachmentList,
 		setAttachments: setAttachmentsWithStoreSync,
 		currentProjectId,
 		handleDownloadAll,

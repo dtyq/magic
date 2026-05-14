@@ -158,6 +158,42 @@
 		--muted-foreground-rgb: 115 115 115;
 		--info: 0.623 0.188 259.814;
 		--info-rgb: 59 130 246;
+		--info-foreground: 1 0 0;
+		--info-foreground-rgb: 255 255 255;
+		/* Semantic status colors — used by mobile components for warning/success banners and badges */
+		--warning: 0.71 0.19 55;
+		--warning-rgb: 242 126 0;
+		--warning-foreground: 0.25 0 0;
+		--warning-foreground-rgb: 34 34 34;
+		--success: 0.62 0.16 155;
+		--success-rgb: 0 160 91;
+		--success-foreground: 1 0 0;
+		--success-foreground-rgb: 255 255 255;
+		/* Extra radius steps matching the prototype scale (2xl/3xl/4xl); 4xl also registered in tailwind.config.js */
+		--radius-2xl: calc(var(--radius) * 1.8);
+		--radius-3xl: calc(var(--radius) * 2.2);
+		--radius-4xl: calc(var(--radius) * 2.6);
+		/* Workspace / project icons use dedicated semantic colors so mobile list cards can match the prototype. */
+		--icon-workspace: 0.7 0.14 172;
+		--icon-workspace-rgb: 0 185 149;
+		--icon-project: 0.78 0.16 58;
+		--icon-project-rgb: 255 156 71;
+		/* 话题列表图标：与移动端原型 ProjectDetailScreen 中 icon-topic 语义一致 */
+		--icon-topic: 0.68 0.14 232;
+		--icon-topic-rgb: 0 166 222;
+		/* App-level icon semantic colors matching the prototype's icon set */
+		--icon-chat: 0.70 0.19 290;
+		--icon-chat-rgb: 159 136 255;
+		--icon-recording: 0.66 0.20 25;
+		--icon-recording-rgb: 244 81 79;
+		--icon-app-knowledge: 0.62 0.17 280;
+		--icon-app-knowledge-rgb: 117 117 233;
+		--icon-app-cloud: 0.62 0.14 240;
+		--icon-app-cloud-rgb: 10 143 209;
+		--icon-app-approval: 0.62 0.17 38;
+		--icon-app-approval-rgb: 216 88 46;
+		--icon-app-bookmarks: 0.72 0.15 80;
+		--icon-app-bookmarks-rgb: 213 152 0;
 		--accent: 0.97 0 0;
 		--accent-rgb: 245 245 245;
 		--accent-foreground: 0.205 0 0;
@@ -296,6 +332,37 @@
 		--muted-foreground-rgb: 161 161 161;
 		--info: 0.623 0.188 259.814;
 		--info-rgb: 59 130 246;
+		--info-foreground: 0.15 0 0;
+		--info-foreground-rgb: 11 11 11;
+		/* Semantic status colors — dark variants */
+		--warning: 0.80 0.15 76;
+		--warning-rgb: 244 175 56;
+		--warning-foreground: 0.15 0 0;
+		--warning-foreground-rgb: 11 11 11;
+		--success: 0.72 0.13 155;
+		--success-rgb: 87 188 128;
+		--success-foreground: 0.15 0 0;
+		--success-foreground-rgb: 11 11 11;
+		/* Dark theme keeps the same semantic icon roles but nudges luminance to match the prototype contrast. */
+		--icon-workspace: 0.71 0.14 172;
+		--icon-workspace-rgb: 0 189 152;
+		--icon-project: 0.82 0.15 60;
+		--icon-project-rgb: 255 176 110;
+		--icon-topic: 0.72 0.12 232;
+		--icon-topic-rgb: 70 177 227;
+		/* App-level icon semantic colors — dark variants */
+		--icon-chat: 0.74 0.18 290;
+		--icon-chat-rgb: 170 153 255;
+		--icon-recording: 0.72 0.18 25;
+		--icon-recording-rgb: 255 113 107;
+		--icon-app-knowledge: 0.72 0.16 278;
+		--icon-app-knowledge-rgb: 144 153 255;
+		--icon-app-cloud: 0.72 0.13 238;
+		--icon-app-cloud-rgb: 70 175 236;
+		--icon-app-approval: 0.72 0.15 42;
+		--icon-app-approval-rgb: 241 129 84;
+		--icon-app-bookmarks: 0.78 0.14 82;
+		--icon-app-bookmarks-rgb: 228 173 60;
 		--accent: 0.269 0 0;
 		--accent-rgb: 38 38 38;
 		--accent-foreground: 0.985 0 0;

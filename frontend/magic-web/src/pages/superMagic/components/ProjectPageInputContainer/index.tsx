@@ -57,6 +57,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	editorLayoutConfig,
 	showTopicModeExamplePortal = true,
 	enableReEditMessageFromPubSub = false,
+	onSendSuccess,
 	onSendComplete,
 }) => {
 	const isMobile = useIsMobile()
@@ -226,6 +227,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 				finishEditQueueItem: messageQueue.finishEditQueueItem,
 			},
 			showTopicExamplesPortal: showTopicModeExamplePortal,
+			onSendSuccess,
 		}
 	}, [
 		selectedTopic,
@@ -254,6 +256,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		messageQueue.addToQueue,
 		messageQueue.finishEditQueueItem,
 		showTopicModeExamplePortal,
+		onSendSuccess,
 		onEditorFocus,
 		onEditorBlur,
 		onSendComplete,

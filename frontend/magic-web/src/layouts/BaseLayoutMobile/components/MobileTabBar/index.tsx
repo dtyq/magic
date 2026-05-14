@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import useChatUnreadCount from "./hooks/useChatUnreadCount"
 import { userStore } from "@/models/user"
 import { mobileTabStore } from "@/stores/mobileTab"
-import { RoutePathMobile } from "@/constants/routes"
+import { RoutePath, RoutePathMobile } from "@/constants/routes"
 import { configStore } from "@/models/config"
 import { defaultClusterCode } from "@/routes/helpers"
 import { FUNCTION_PERMISSION_CODE } from "@/apis"
@@ -57,8 +57,6 @@ function MobileTabBar() {
 				mobileTabStore.setActiveTab(MobileTabBarKey.Chat)
 			} else if (pathname.includes("/approval")) {
 				mobileTabStore.setActiveTab(MobileTabBarKey.Approval)
-			} else if (pathname.includes("/magi-claw")) {
-				mobileTabStore.setActiveTab(MobileTabBarKey.MagiClaw)
 			} else if (pathname.includes("/contacts")) {
 				mobileTabStore.setActiveTab(MobileTabBarKey.Contacts)
 			} else if (pathname.includes("/super")) {
@@ -134,6 +132,14 @@ function MobileTabBar() {
 			// 不在 mobile-tabs 路由下，导航到 mobile-tabs 并设置查询参数
 			// 使用全局配置的集群编码，而不是从路径解析（避免回退时错误注入集群编码）
 			const clusterCode = configStore.cluster.clusterCode || defaultClusterCode
+
+			/**
+			 * MagiClaw 已迁出旧 tabs 容器；即便从遗留交互里触发，也直接进入独立页。
+			 */
+			if (targetKey === MobileTabBarKey.MagiClaw) {
+				reactRouterNavigate(`/${clusterCode}${RoutePath.MagiClaw}`)
+				return
+			}
 
 			const tabValue = ROUTE_NAME_TO_TAB_PARAM[targetKey]
 

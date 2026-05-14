@@ -1,21 +1,12 @@
 import { memo, useCallback, useMemo, useState } from "react"
+import { Eye, EyeOff } from "lucide-react"
 import { clipboard } from "@/utils/clipboard-helpers"
 import { useTranslation } from "react-i18next"
 import { Switch } from "@/components/shadcn-ui/switch"
-import { Label } from "@/components/shadcn-ui/label"
-import { Separator } from "@/components/shadcn-ui/separator"
-import { Button } from "@/components/shadcn-ui/button"
-import { Input } from "@/components/shadcn-ui/input"
-import { Copy } from "lucide-react"
 import type { ShareExtraData } from "./types"
-import { ShareType, ResourceType, ShareMode } from "./types"
+import { ShareType, ResourceType } from "./types"
 import { SuperMagicApi } from "@/apis"
 import { generateSharePassword } from "./utils"
-import {
-	ShareAdvancedSettings,
-	SharePasswordField,
-	type ShareAdvancedSettingsData,
-} from "./ShareFields"
 import { useUpdateEffect } from "ahooks"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { generateShareUrl } from "@/pages/superMagic/components/ShareManagement/utils/shareTypeHelpers"
@@ -38,10 +29,64 @@ interface MobileTopicShareProps {
 	onClose?: () => void
 }
 
+/**
+ * 统一渲染分组标题，保持移动端分享卡片的层级和留白一致。
+ */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+	return <div className="px-0.5 text-sm leading-5 text-muted-foreground">{children}</div>
+}
+
+/**
+ * 提供白色圆角卡片容器，避免每个区块重复声明相同的外观样式。
+ */
+function CardGroup({ children, testId }: { children: React.ReactNode; testId?: string }) {
+	return (
+		<div className="overflow-hidden rounded-2xl bg-white" data-testid={testId}>
+			{children}
+		</div>
+	)
+}
+
+/**
+ * 将移动端开关项扩展成整行可点击区域，减少用户必须精确点击开关按钮的成本。
+ */
+function TopicSettingsRow({
+	label,
+	checked,
+	onCheckedChange,
+	testId,
+}: {
+	label: string
+	checked: boolean
+	onCheckedChange: (value: boolean) => void
+	testId: string
+}) {
+	return (
+		<div
+			role="button"
+			tabIndex={0}
+			onClick={() => onCheckedChange(!checked)}
+			// 保持整行可点击，减少移动端误触开关本体的成本。
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault()
+					onCheckedChange(!checked)
+				}
+			}}
+			className="flex h-12 w-full items-center gap-3 px-3.5 active:opacity-70"
+			data-testid={testId}
+		>
+			<div className="flex-1 text-left text-base leading-5 text-foreground">{label}</div>
+			<Switch checked={checked} className="pointer-events-none shrink-0" />
+		</div>
+	)
+}
+
 export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
-	const { shareContext, extraData, setExtraData, type, onSaveSuccess, onClose } = props
+	const { shareContext, extraData, setExtraData, type, onSaveSuccess } = props
 
 	const { t } = useTranslation("super")
+	const [isPasswordVisible, setIsPasswordVisible] = useState(false)
 
 	// 分享开关状态
 	const [shareEnabled, setShareEnabled] = useState(() => {
@@ -54,15 +99,12 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 
 	// 分享链接
 	const shareUrl = useMemo(() => {
-		// 优先从 extraData 获取
 		if (extraData?.shareUrl) {
 			return extraData.shareUrl
 		}
-		// 其次从 shareContext 获取
 		if (shareContext?.share_url) {
 			return shareContext.share_url
 		}
-		// 最后使用 generateShareUrl 构建
 		if (shareContext?.resource_id) {
 			const password = extraData?.passwordEnabled ? extraData?.password : undefined
 			return generateShareUrl(shareContext.resource_id, password, "topic")
@@ -76,20 +118,60 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 		extraData?.passwordEnabled,
 	])
 
-	// 获取 resourceId
 	const resourceId = shareContext?.resource_id
-
-	// 密码开关状态 - 默认开启密码保护
 	const passwordEnabled = extraData?.passwordEnabled ?? true
 
-	// 处理分享开关变化
+	const sanitizedShareUrl = useMemo(() => {
+		if (!shareUrl) {
+			return ""
+		}
+
+		try {
+			const url = new URL(shareUrl)
+			url.searchParams.delete("password")
+			return url.toString()
+		} catch {
+			return shareUrl
+				.replace(/([?&])password=[^&]+&?/i, (_match, prefix) =>
+					prefix === "?" ? "" : prefix,
+				)
+				.replace(/[?&]$/, "")
+		}
+	}, [shareUrl])
+
+	const copyContent = useMemo(() => {
+		if (!shareUrl && !sanitizedShareUrl) {
+			return ""
+		}
+
+		// 开启密码保护时复制完整访问链接，关闭时复制脱敏后的展示链接。
+		if (passwordEnabled && shareUrl) {
+			return shareUrl
+		}
+
+		return sanitizedShareUrl
+	}, [passwordEnabled, sanitizedShareUrl, shareUrl])
+
+	/**
+	 * 统一把本地 extraData 映射为后端 extra 字段，避免多个保存入口出现字段不一致。
+	 */
+	const buildShareExtraPayload = useCallback((data?: ShareExtraData) => {
+		return {
+			allow_copy_project_files: data?.allowCopy ?? true,
+			show_original_info: data?.showOriginalInfo ?? true,
+			view_file_list: data?.view_file_list ?? true,
+			hide_created_by_super_magic: data?.hideCreatorInfo ?? false,
+		}
+	}, [])
+
+	/**
+	 * 主开关保留即时保存语义，避免交互变更影响现有保存时机。
+	 */
 	const handleShareToggle = useCallback(
 		async (checked: boolean) => {
 			setShareEnabled(checked)
 
 			if (checked) {
-				// 开启分享 - 根据密码开关状态确定 share_type
-				// 如果 extraData 为空，初始化默认值（密码保护开启）
 				const isPasswordProtected = extraData?.passwordEnabled ?? true
 				const newShareType = isPasswordProtected
 					? ShareType.PasswordProtected
@@ -102,25 +184,23 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 					setExtraData({
 						...(extraData || {}),
 						passwordEnabled: isPasswordProtected,
-						password: password,
+						password,
 					})
 				}
 
-				// 如果有 resourceId，调用 API 创建分享
 				if (resourceId) {
 					try {
 						await SuperMagicApi.createOrUpdateShareResource({
 							resource_id: resourceId,
 							resource_type: ResourceType.Topic,
 							share_type: newShareType,
-							password: password,
+							password,
 							topic_id: resourceId,
-							extra: {
-								allow_copy_project_files: extraData?.allowCopy ?? true,
-								show_original_info: extraData?.showOriginalInfo ?? true,
-								view_file_list: extraData?.view_file_list ?? true,
-								hide_created_by_super_magic: extraData?.hideCreatorInfo ?? false,
-							},
+							extra: buildShareExtraPayload({
+								...(extraData || {}),
+								passwordEnabled: isPasswordProtected,
+								password,
+							}),
 						})
 						onSaveSuccess?.()
 					} catch (error) {
@@ -129,251 +209,161 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 						setShareEnabled(false)
 					}
 				}
-			} else {
-				// 关闭分享 - 取消分享
-				if (resourceId) {
-					try {
-						await SuperMagicApi.cancelShareResource({ resourceId })
-						magicToast.success(t("shareManagement.cancelShareSuccess"))
-						onSaveSuccess?.()
-						onClose?.()
-					} catch (error) {
-						console.error("Failed to cancel share:", error)
-						magicToast.error(t("shareManagement.cancelShareFailed"))
-						setShareEnabled(true)
-					}
+				return
+			}
+
+			if (resourceId) {
+				try {
+					await SuperMagicApi.cancelShareResource({ resourceId })
+					magicToast.success(t("shareManagement.cancelShareSuccess"))
+					onSaveSuccess?.()
+				} catch (error) {
+					console.error("Failed to cancel share:", error)
+					magicToast.error(t("shareManagement.cancelShareFailed"))
+					setShareEnabled(true)
 				}
 			}
 		},
-		[extraData, setExtraData, resourceId, onSaveSuccess, t, onClose],
+		[buildShareExtraPayload, extraData, onSaveSuccess, resourceId, setExtraData, t],
 	)
 
-	// 处理密码开关变化
+	/**
+	 * 密码保护切换只调整分享类型与密码字段，不改动其它高级设置的保存契约。
+	 */
 	const handlePasswordToggle = useCallback(
 		async (checked: boolean) => {
-			// 根据密码开关状态确定新的 share_type
 			const newShareType = checked ? ShareType.PasswordProtected : ShareType.Public
+			const nextExtraData = {
+				...(extraData || {}),
+				passwordEnabled: checked,
+				password: checked
+					? extraData?.password || generateSharePassword()
+					: extraData?.password,
+			}
 
-			if (setExtraData) {
-				const newExtraData = {
-					...(extraData || {}),
-					passwordEnabled: checked,
-					password: checked
-						? extraData?.password || generateSharePassword()
-						: extraData?.password,
-				}
-				setExtraData(newExtraData)
+			setExtraData?.(nextExtraData)
 
-				// 保存到服务器
-				if (resourceId) {
-					try {
-						await SuperMagicApi.createOrUpdateShareResource({
-							resource_id: resourceId,
-							resource_type: ResourceType.Topic,
-							share_type: newShareType,
-							password: checked
-								? newExtraData.password || generateSharePassword()
-								: undefined,
-							topic_id: resourceId,
-							extra: {
-								allow_copy_project_files: newExtraData.allowCopy ?? true,
-								show_original_info: newExtraData.showOriginalInfo ?? true,
-								view_file_list: newExtraData.view_file_list ?? true,
-								hide_created_by_super_magic: newExtraData.hideCreatorInfo ?? false,
-							},
-						})
-						onSaveSuccess?.()
-					} catch (error) {
-						console.error("Failed to update password setting:", error)
-						magicToast.error(t("share.createFailed"))
-					}
+			if (resourceId) {
+				try {
+					await SuperMagicApi.createOrUpdateShareResource({
+						resource_id: resourceId,
+						resource_type: ResourceType.Topic,
+						share_type: newShareType,
+						password: checked ? nextExtraData.password : undefined,
+						topic_id: resourceId,
+						extra: buildShareExtraPayload(nextExtraData),
+					})
+					onSaveSuccess?.()
+				} catch (error) {
+					console.error("Failed to update password setting:", error)
+					magicToast.error(t("share.createFailed"))
 				}
 			}
 		},
-		[extraData, setExtraData, resourceId, onSaveSuccess, t],
+		[buildShareExtraPayload, extraData, onSaveSuccess, resourceId, setExtraData, t],
 	)
 
-	// 复制分享链接
 	const handleCopyShareUrl = useCallback(() => {
-		if (shareUrl) {
-			clipboard.writeText(shareUrl)
+		if (copyContent) {
+			clipboard.writeText(copyContent)
 			magicToast.success(t("share.copyLinkSuccess"))
 		}
-	}, [shareUrl, t])
+	}, [copyContent, t])
 
-	// 复制密码
-	const handleCopyPassword = useCallback(() => {
-		if (extraData?.password) {
-			clipboard.writeText(extraData.password)
-			magicToast.success(t("share.copyPasswordSuccess"))
-		}
-	}, [extraData?.password, t])
-
-	// 重置密码
-	const handleResetPassword = useCallback(async () => {
-		if (setExtraData && resourceId) {
-			try {
-				const newPassword = generateSharePassword()
-				const newExtraData = {
-					...(extraData || {}),
-					password: newPassword,
-				}
-				setExtraData(newExtraData)
-
-				// 保存到服务器
-				await SuperMagicApi.createOrUpdateShareResource({
-					resource_id: resourceId,
-					resource_type: ResourceType.Topic,
-					share_type: type,
-					password: newPassword,
-					topic_id: resourceId,
-					extra: {
-						allow_copy_project_files: newExtraData.allowCopy ?? true,
-						show_original_info: newExtraData.showOriginalInfo ?? true,
-						view_file_list: newExtraData.view_file_list ?? true,
-						hide_created_by_super_magic: newExtraData.hideCreatorInfo ?? false,
-					},
-				})
-				magicToast.success(t("share.resetPasswordSuccess"))
-				onSaveSuccess?.()
-			} catch (error) {
-				console.error("Failed to reset password:", error)
-				magicToast.error(t("share.resetPasswordFailed"))
-			}
-		}
-	}, [extraData, setExtraData, resourceId, type, onSaveSuccess, t])
-
-	// 高级设置变化
-	const handleAdvancedSettingsChange = useCallback(
-		async (settings: ShareAdvancedSettingsData) => {
-			if (setExtraData) {
-				const newExtraData = {
-					...(extraData || {}),
-					showOriginalInfo: settings.showOriginalInfo,
-					view_file_list: settings.view_file_list,
-					hideCreatorInfo: settings.hideCreatorInfo,
-				}
-				setExtraData(newExtraData)
-
-				// 保存到服务器
-				if (resourceId) {
-					try {
-						// 根据当前密码状态确定 share_type
-						const currentShareType = extraData?.passwordEnabled
-							? ShareType.PasswordProtected
-							: ShareType.Public
-
-						await SuperMagicApi.createOrUpdateShareResource({
-							resource_id: resourceId,
-							resource_type: ResourceType.Topic,
-							share_type: currentShareType,
-							password: extraData?.passwordEnabled ? extraData.password : undefined,
-							topic_id: resourceId,
-							extra: {
-								allow_copy_project_files: newExtraData.allowCopy ?? true,
-								show_original_info: newExtraData.showOriginalInfo ?? true,
-								view_file_list: newExtraData.view_file_list ?? true,
-								hide_created_by_super_magic: newExtraData.hideCreatorInfo ?? false,
-							},
-						})
-						onSaveSuccess?.()
-					} catch (error) {
-						console.error("Failed to update advanced settings:", error)
-						magicToast.error(t("share.createFailed"))
-					}
-				}
-			}
-		},
-		[extraData, setExtraData, resourceId, onSaveSuccess, t],
-	)
-
-	// 准备给 ShareAdvancedSettings 的设置数据
-	const advancedSettings = useMemo<ShareAdvancedSettingsData>(
-		() => ({
-			showOriginalInfo: extraData?.showOriginalInfo,
-			view_file_list: extraData?.view_file_list,
-			hideCreatorInfo: extraData?.hideCreatorInfo,
-		}),
-		[extraData?.showOriginalInfo, extraData?.view_file_list, extraData?.hideCreatorInfo],
-	)
+	const passwordText = isPasswordVisible ? extraData?.password || "" : "• • • • • •"
 
 	return (
-		<div className="flex flex-col gap-3 p-3">
-			{/* 开启分享开关 */}
-			<div className="flex items-start gap-3">
-				<Switch
-					checked={shareEnabled}
-					onCheckedChange={handleShareToggle}
-					className="mt-0.5"
-				/>
-				<div className="flex flex-1 flex-col gap-2">
-					<Label className="text-sm font-medium leading-none text-foreground">
-						{t("share.enableShare")}
-					</Label>
-					<p className="text-sm leading-normal text-muted-foreground">
-						{t("share.enableShareDescription")}
-					</p>
+		<div className="flex flex-col gap-2.5 bg-muted/30 px-3.5 py-2.5">
+			<CardGroup testId="mobile-topic-share-toggle-card">
+				<div
+					role="button"
+					tabIndex={0}
+					onClick={() => void handleShareToggle(!shareEnabled)}
+					// 通过整行点击承载主开关，减少触控时对开关热区的依赖。
+					onKeyDown={(event) => {
+						if (event.key === "Enter" || event.key === " ") {
+							event.preventDefault()
+							void handleShareToggle(!shareEnabled)
+						}
+					}}
+					className="flex h-12 items-center gap-3 px-3.5 active:opacity-70"
+					data-testid="mobile-topic-share-toggle-row"
+				>
+					<div className="flex-1 text-base leading-5 text-foreground">
+						{t("share.enableShareLink")}
+					</div>
+					<Switch checked={shareEnabled} className="pointer-events-none shrink-0" />
 				</div>
-			</div>
+			</CardGroup>
 
-			{/* 开启分享后显示的内容 */}
-			{shareEnabled && (
-				<>
-					<Separator />
+			{shareEnabled ? (
+				<div className="space-y-2.5">
+					<div className="space-y-2">
+						<SectionLabel>{t("share.conversationLink")}</SectionLabel>
+						<CardGroup testId="mobile-topic-share-link-card">
+							<div className="flex min-h-12 items-center px-3.5 py-3.5">
+								<div
+									className="min-w-0 break-all text-base leading-6 text-foreground"
+									data-testid="mobile-topic-share-link-value"
+								>
+									{sanitizedShareUrl}
+								</div>
+							</div>
+						</CardGroup>
+					</div>
 
-					{/* 分享链接 */}
-					<div className="flex flex-col gap-2">
-						<Label className="text-sm font-medium leading-none text-foreground">
-							{t("share.shareLink")}
-						</Label>
-						<div className="flex items-center gap-[-1px]">
-							<Input
-								value={shareUrl}
-								readOnly
-								className="flex-1 cursor-pointer rounded-r-none border-r-0"
-								onClick={() => {
-									if (shareUrl) {
-										window.open(shareUrl, "_blank", "noopener,noreferrer")
-									}
-								}}
+					<div className="space-y-2">
+						<CardGroup>
+							<TopicSettingsRow
+								label={t("share.passwordProtection")}
+								checked={passwordEnabled}
+								onCheckedChange={(value) => void handlePasswordToggle(value)}
+								testId="mobile-topic-share-password-toggle-row"
 							/>
-							<Button
-								variant="outline"
-								size="icon"
-								className="rounded-l-none"
-								onClick={handleCopyShareUrl}
-							>
-								<Copy className="h-4 w-4" />
-							</Button>
-						</div>
+							{passwordEnabled ? (
+								<>
+									{/* 将密码展示保留在同一容器内，避免切换时出现断层。 */}
+									<div className="h-px w-full bg-border" />
+									<div
+										className="flex h-12 items-center gap-2 px-3.5"
+										data-testid="mobile-topic-share-password-card"
+									>
+										<div className="min-w-0 flex-1 font-mono text-base leading-5 text-muted-foreground">
+											{passwordText}
+										</div>
+										<button
+											type="button"
+											className="shrink-0 p-1 text-muted-foreground active:opacity-60"
+											onClick={() => setIsPasswordVisible((value) => !value)}
+											aria-label={
+												isPasswordVisible
+													? t("share.hidePassword")
+													: t("share.showPassword")
+											}
+											data-testid="mobile-topic-share-password-visibility-button"
+										>
+											{isPasswordVisible ? (
+												<EyeOff className="h-4 w-4" />
+											) : (
+												<Eye className="h-4 w-4" />
+											)}
+										</button>
+									</div>
+								</>
+							) : null}
+						</CardGroup>
 					</div>
 
-					{/* 访问密码开关 */}
-					<div className="flex items-center gap-3">
-						<Switch checked={passwordEnabled} onCheckedChange={handlePasswordToggle} />
-						<Label className="text-sm font-medium leading-none text-foreground">
-							{t("share.accessPassword")}
-						</Label>
-					</div>
-
-					{/* 密码输入框 - 开启密码后显示 */}
-					{passwordEnabled && (
-						<SharePasswordField
-							password={extraData?.password || ""}
-							onCopy={handleCopyPassword}
-							onReset={handleResetPassword}
-							showLabel={false}
-						/>
-					)}
-
-					{/* 高级选项 */}
-					<ShareAdvancedSettings
-						settings={advancedSettings}
-						onChange={handleAdvancedSettingsChange}
-						mode={ShareMode.Topic}
-					/>
-				</>
-			)}
+					<button
+						type="button"
+						onClick={handleCopyShareUrl}
+						className="flex h-12 w-full items-center justify-center rounded-lg bg-foreground px-3.5 text-base font-medium text-background active:opacity-70"
+						data-testid="mobile-topic-share-copy-link-button"
+					>
+						{t("share.copyLinkAction")}
+					</button>
+				</div>
+			) : null}
 		</div>
 	)
 })

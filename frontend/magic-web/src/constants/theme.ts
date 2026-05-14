@@ -4,6 +4,5 @@ import type { ThemeMode } from "antd-style"
 export const IS_DARK_MODE_DISABLED = true
 
 export function normalizeThemeMode(theme: ThemeMode): ThemeMode {
-	if (!IS_DARK_MODE_DISABLED) return theme
-	return "light"
+	return theme
 }

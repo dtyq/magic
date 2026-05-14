@@ -3,11 +3,8 @@ import { useMemo, useState } from "react"
 import { ActionsPopup } from "../../../../components/ActionsPopup/types"
 import { useTranslation } from "react-i18next"
 import { useTopicActions } from "../../../../components/HierarchicalWorkspacePopup/hooks"
-import {
-	ProjectListItem,
-	Topic,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { SuperMagicApi } from "@/apis"
+import { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import MagicModal from "@/components/base/MagicModal"
 import { Input } from "@/components/shadcn-ui/input"
 import ShareModel from "@/pages/superMagic/components/Share/Modal"
@@ -18,6 +15,10 @@ import { workspaceStore, projectStore, topicStore } from "@/pages/superMagic/sto
 import SuperMagicService from "@/pages/superMagic/services"
 import recordSummaryStore from "@/stores/recordingSummary"
 import magicToast from "@/components/base/MagicToaster/utils"
+import MagicPopup from "@/components/base-mobile/MagicPopup"
+import { X, Check } from "lucide-react"
+import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory"
+import { sortTopicsWithPinnedFirst } from "./topicPinSort"
 
 /**
  * Use topic list actions hook
@@ -31,7 +32,6 @@ export function useTopicListActions() {
 	const currentTopics = topicStore.topics
 	const selectedTopic = topicStore.selectedTopic
 	const selectedProject = projectStore.selectedProject
-	const selectedWorkspace = workspaceStore.selectedWorkspace
 
 	// Store methods
 	const setTopics = topicStore.setTopics
@@ -49,9 +49,8 @@ export function useTopicListActions() {
 	})
 
 	const handleCreateTopic = useMemoizedFn(async () => {
-		if (!selectedProject || !selectedWorkspace) return null
+		if (!selectedProject) return null
 		SuperMagicService.handleCreateTopic({
-			selectedWorkspace,
 			selectedProject,
 			targetProject: selectedProject,
 		})
@@ -176,6 +175,47 @@ export function useTopicListActions() {
 		)
 	})
 
+	/**
+	 * 左滑直接删除话题：跳过确认弹层，直接调 handleDeleteTopic。
+	 * 录音中的话题不允许删除（与操作菜单里的删除行为一致）。
+	 */
+	const deleteTopicDirect = useMemoizedFn(
+		(topic: Topic, project: ProjectListItem | null | undefined) => {
+			if (!topic?.id || !project) return
+
+			// 录音中的话题不可删除，给出提示并中止
+			if (recordSummaryStore.isRecordingTopic(topic.id)) {
+				magicToast.error(t("messageHeader.cannotDeleteCurrentTopicInRecording"))
+				return
+			}
+
+			topicHandlers.handleDeleteTopic(project.workspace_id, topic.id, selectedTopic?.id)
+		},
+	)
+
+	/**
+	 * 话题置顶切换先以服务端返回为准，再在本地按置顶优先重排，避免 UI 只改标记不改顺序。
+	 */
+	const toggleTopicPin = useMemoizedFn(async (topic: Topic | null | undefined) => {
+		if (!topic?.id) return
+
+		const response = topic.is_pinned
+			? await SuperMagicApi.unpinTopic(topic.id)
+			: await SuperMagicApi.pinTopic(topic.id)
+		const normalizedTopic = normalizeTopicHistoryItem(response.topic)
+		const reorderedTopics = sortTopicsWithPinnedFirst(
+			topicStore.topics.map((item) =>
+				item.id === topic.id ? { ...item, ...normalizedTopic } : item,
+			),
+		)
+
+		setTopics(reorderedTopics)
+
+		if (topicStore.selectedTopic?.id === topic.id) {
+			setSelectedTopic({ ...topicStore.selectedTopic, ...normalizedTopic })
+		}
+	})
+
 	const handleRename = useMemoizedFn(() => {
 		if (currentActionItem?.topic && currentActionItem.workspace && currentActionItem.project) {
 			topicHandlers.handleRenameTopic(
@@ -227,9 +267,9 @@ export function useTopicListActions() {
 							...pre,
 							topic: pre.topic
 								? {
-									...pre.topic,
-									topic_name: val.target.value,
-								}
+										...pre.topic,
+										topic_name: val.target.value,
+									}
 								: null,
 						}))
 					}}
@@ -237,21 +277,34 @@ export function useTopicListActions() {
 				/>
 			</MagicModal>
 
-			<MagicModal
-				title={t("hierarchicalWorkspacePopup.deleteTopic")}
-				onCancel={() => setDeleteModalVisible(false)}
-				onOk={handleDeleteConfirm}
-				open={deleteModalVisible}
-				okButtonProps={{ danger: true }}
+			<MagicPopup
+				visible={deleteModalVisible}
+				onClose={() => setDeleteModalVisible(false)}
+				position="bottom"
+				headerVariant="actionHeader"
+				headerTitle={t("ui.deleteTopicConfirmTitle")}
+				headerLeadingAction={{
+					icon: <X className="size-[22px] text-foreground" />,
+					ariaLabel: t("common.cancel"),
+					onClick: () => setDeleteModalVisible(false),
+				}}
+				headerTrailingAction={{
+					icon: <Check className="size-[22px] text-white" strokeWidth={2.5} />,
+					ariaLabel: t("common.confirm"),
+					onClick: handleDeleteConfirm,
+					tone: "destructive",
+				}}
+				bodyClassName="max-h-[80vh] p-0"
 				zIndex={1021}
-				centered
 			>
-				<div className="mb-4 px-4">
-					{t("ui.deleteTopicConfirm", {
-						name: currentActionItem?.topic?.topic_name || t("topic.unnamedTopic"),
-					})}
+				<div className="scrollbar-y-thin flex min-h-0 flex-col overflow-y-auto px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
+					<p className="mx-auto max-w-[680px] text-left text-[16px] leading-6 text-muted-foreground">
+						{t("ui.deleteTopicDescription", {
+							name: currentActionItem?.topic?.topic_name || t("topic.unnamedTopic"),
+						})}
+					</p>
 				</div>
-			</MagicModal>
+			</MagicPopup>
 
 			<ShareModel
 				open={shareModalVisible}
@@ -269,6 +322,8 @@ export function useTopicListActions() {
 	return {
 		...topicHandlers,
 		handleDeleteConfirm,
+		deleteTopicDirect,
+		toggleTopicPin,
 		handleRename,
 		handleShareSave,
 		handleCreateTopic,

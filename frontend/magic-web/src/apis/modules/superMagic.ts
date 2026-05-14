@@ -1993,18 +1993,22 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 	 * 移动项目到新的工作区
 	 * @param source_project_id 项目id
 	 * @param target_workspace_id 目标工作区id
+	 * @param target_project_name 目标项目名称（后端若支持则在移动时同步改名）
 	 * @returns 移动项目结果
 	 */
 	moveProjectToNewWorkspace({
 		source_project_id,
 		target_workspace_id,
+		target_project_name,
 	}: {
 		source_project_id: string
 		target_workspace_id: string
+		target_project_name?: string
 	}) {
 		return fetch.post("/api/v1/super-agent/projects/move", {
 			source_project_id,
 			target_workspace_id,
+			target_project_name,
 		})
 	},
 
@@ -2433,5 +2437,13 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 			signal: options?.signal,
 			enableRequestUnion: true,
 		})
+	},
+
+	/**
+	 * @description 获取对话的特殊 workspace
+	 * @returns 特殊 workspace
+	 */
+	getChatWorkspace() {
+		return fetch.get<Workspace>("/api/v1/super-agent/workspaces/app/chat")
 	},
 })

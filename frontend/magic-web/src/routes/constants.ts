@@ -20,10 +20,18 @@ export enum RouteName {
 	SuperDashboard = "SuperDashboard",
 	/** 超级麦吉 - 首页 */
 	Super = "Super",
+	/** 超级麦吉 - 移动端直接开聊首页 */
+	MobileHome = "MobileHome",
+	/** 超级麦吉 - 对话列表（移动端一级页） */
+	SuperChatsList = "SuperChatsList",
+	/** 超级麦吉 - 应用目录（移动端首期独立页） */
+	SuperApps = "SuperApps",
 	/**  */
 	SuperWorkspaceState = "SuperWorkspaceState",
 	/**  */
 	SuperWorkspaceProjectState = "SuperWorkspaceProjectState",
+	/**  */
+	SuperChatProjectState = "SuperChatProjectState",
 	/**  */
 	SuperWorkspaceProjectTopicState = "SuperWorkspaceProjectTopicState",
 	/** 协作邀请 */
@@ -56,6 +64,14 @@ export enum RouteName {
 	MobileTabsSuperTopic = "MobileTabsSuperTopic",
 	/** 移动端 Tabs - AI 录音总结 */
 	MobileTabsRecording = "MobileTabsRecording",
+	/** 超级麦吉移动端 Shell 临时演示页 */
+	SuperShellDemo = "SuperShellDemo",
+	/** 超级麦吉移动端 - 工作空间列表 */
+	SuperWorkspacesList = "SuperWorkspacesList",
+	/** 超级麦吉移动端 - 共享工作区 */
+	SuperSharedWorkspace = "SuperSharedWorkspace",
+	/** 超级麦吉移动端 - 工作区项目列表 */
+	SuperWorkspaceProjects = "SuperWorkspaceProjects",
 	SuperMagicNavigate = "SuperMagicNavigate",
 	SuperAssistant = "SuperAssistant",
 	/** Crew Market - 员工市场（入口，重定向到 Crew 子页） */

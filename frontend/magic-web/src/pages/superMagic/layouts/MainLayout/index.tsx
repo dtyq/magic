@@ -56,6 +56,8 @@ function MainLayout() {
 
 					if (seg1 === "workspace") {
 						newWorkspaceId = seg2
+					} else if (seg1 === "chat") {
+						newProjectId = seg2
 					} else {
 						newProjectId = seg1
 						newTopicId = seg2

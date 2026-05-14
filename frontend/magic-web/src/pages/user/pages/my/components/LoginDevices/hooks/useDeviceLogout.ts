@@ -55,9 +55,11 @@ export function useDeviceLogout(devices: any[], mutate: (data: any) => void) {
 		UserApi.logoutDevices(code, state.currentDeviceId)
 			.then(() => {
 				magicToast.success(t("setting.loginDevices.logoutSuccess"))
-				// Update devices list by filtering out the logged out device
+				// 退出接口使用列表项 id，前端同步删除时同时兼容历史 device_id 比对，避免不同入口状态不一致。
 				const updatedDevices = devices?.filter(
-					(item) => item.device_id !== state.currentDeviceId,
+					(item) =>
+						item.id !== state.currentDeviceId &&
+						item.device_id !== state.currentDeviceId,
 				)
 				mutate(updatedDevices)
 			})

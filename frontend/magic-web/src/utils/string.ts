@@ -105,7 +105,7 @@ export const formatTime = (
 export const formatRelativeTime = (lang?: string) => {
 	const currentDay = dayjs().format("YYYY-MM-DD")
 
-	return (time: number | Date | dayjs.Dayjs | null | undefined) => {
+	return (time: number | Date | dayjs.Dayjs | string | null | undefined) => {
 		if (!time) return ""
 
 		if (isNumber(time)) {

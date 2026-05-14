@@ -17,7 +17,7 @@ import type {
 	MessageEditorSize,
 } from "@/pages/superMagic/components/MessageEditor/types"
 import type { HandleSendParams } from "@/pages/superMagic/services/messageSendFlowService"
-import type { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import type { CreatedProject, ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import type { QueuedMessage } from "@/pages/superMagic/components/MessagePanel/hooks/useMessageQueue"
 import { TopicStore } from "@/pages/superMagic/stores/core/topic"
@@ -70,6 +70,11 @@ export interface SceneEditorContext {
 	projectFilesStore?: ProjectFilesStore
 	topicModelStore?: ReturnType<typeof createSuperMagicTopicModelStore>
 	selectedModel?: ModelItem | null
+	createProject?: (params: {
+		projectMode: TopicMode
+		workdir?: string
+	}) => Promise<CreatedProject | null>
+	createTopic?: (params: { selectedProject?: ProjectListItem | null }) => Promise<Topic | null>
 	onSendSuccess?: (params: {
 		currentProject: ProjectListItem | null
 		currentTopic: Topic | null

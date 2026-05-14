@@ -284,10 +284,13 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 
 	// 分享模态框状态
 	const [shareModalVisible, setShareModalVisible] = useState(false)
+	// 打开文件分享弹层时携带的上下文：预选文件、资源 id、以及树/列表中默认展开定位的文件 id
 	const [shareFileInfo, setShareFileInfo] = useState<{
 		projectName?: string
 		fileIds: string[]
 		resourceId?: string
+		/** 与 createShareHandler / useShareFile 对齐：弹层内默认展开或高亮的文件 id */
+		defaultOpenFileId?: string
 	} | null>(null)
 
 	// 文件导出loading状态

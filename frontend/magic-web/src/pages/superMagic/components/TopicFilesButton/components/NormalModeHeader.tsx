@@ -21,6 +21,7 @@ interface NormalModeHeaderProps {
 	isShareRoute: boolean
 	refreshLoading: boolean
 	allowEdit: boolean
+	showMobileActions?: boolean
 	onRefresh: () => void
 	onSearch?: () => void
 	onAddFile?: (extraType?: PresetFileType) => void
@@ -38,6 +39,7 @@ function NormalModeHeader({
 	isShareRoute,
 	refreshLoading,
 	allowEdit,
+	showMobileActions = false,
 	onRefresh,
 	onSearch,
 	onAddFile,
@@ -71,7 +73,7 @@ function NormalModeHeader({
 						</button>
 					</MagicTooltip>
 				)}
-				{allowEdit && onAddFile && !isMobile && (
+				{allowEdit && onAddFile && (!isMobile || showMobileActions) && (
 					<FileMenuDropdown onAddFile={onAddFile} onAddDesign={onAddDesign}>
 						<span>
 							<MagicTooltip title={t("topicFiles.addFile")}>
@@ -87,7 +89,7 @@ function NormalModeHeader({
 						</span>
 					</FileMenuDropdown>
 				)}
-				{allowEdit && onAddFolder && !isMobile && (
+				{allowEdit && onAddFolder && (!isMobile || showMobileActions) && (
 					<MagicTooltip title={t("topicFiles.addFolder")}>
 						<button
 							className="flex h-6 w-6 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-accent"
@@ -100,26 +102,28 @@ function NormalModeHeader({
 						</button>
 					</MagicTooltip>
 				)}
-				{allowEdit && (onUploadFile || onUploadFolder) && !isMobile && (
-					<UploadMenuDropdown
-						onUploadFile={onUploadFile}
-						onUploadFolder={onUploadFolder}
-						onImportFromOtherProject={onImportFromOtherProject}
-					>
-						<span>
-							<MagicTooltip title={t("topicFiles.upload")}>
-								<button
-									className="flex h-6 w-6 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-accent"
-									type="button"
-									data-testid="file-header-upload-button"
-									aria-label={t("topicFiles.upload")}
-								>
-									<Upload size={16} className="text-foreground" />
-								</button>
-							</MagicTooltip>
-						</span>
-					</UploadMenuDropdown>
-				)}
+				{allowEdit &&
+					(onUploadFile || onUploadFolder) &&
+					(!isMobile || showMobileActions) && (
+						<UploadMenuDropdown
+							onUploadFile={onUploadFile}
+							onUploadFolder={onUploadFolder}
+							onImportFromOtherProject={onImportFromOtherProject}
+						>
+							<span>
+								<MagicTooltip title={t("topicFiles.upload")}>
+									<button
+										className="flex h-6 w-6 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-accent"
+										type="button"
+										data-testid="file-header-upload-button"
+										aria-label={t("topicFiles.upload")}
+									>
+										<Upload size={16} className="text-foreground" />
+									</button>
+								</MagicTooltip>
+							</span>
+						</UploadMenuDropdown>
+					)}
 				{!isShareRoute && (
 					<MagicTooltip title={t("topicFiles.refreshList")}>
 						<button

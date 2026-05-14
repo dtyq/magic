@@ -6,6 +6,7 @@ import { getTimezones } from "@dtyq/timezone"
 import type { Timezone } from "@dtyq/timezone"
 import { MagicUserApi } from "@/apis"
 import { useUserInfo } from "@/models/user/hooks/useUserInfo"
+import { snapshotUserInfoForRollback } from "@/models/user/utils/userInfoSnapshot"
 import type { StructureUserItem } from "@/types/organization"
 import { getPreferredTimezone } from "./utils"
 
@@ -24,11 +25,25 @@ export function useTimezone() {
 	const setTimezone = useMemoizedFn(async (tz: Timezone.TimezoneCode) => {
 		if (tz === userInfo?.timezone) return
 
+		if (!userInfo) {
+			try {
+				const response = await MagicUserApi.updateUserInfo({ timezone: tz })
+				setUserInfo(response as StructureUserItem)
+			} catch (error) {
+				console.error("Failed to update timezone:", error)
+			}
+			return
+		}
+
+		const rollbackSnapshot = snapshotUserInfoForRollback(userInfo)
+		setUserInfo({ ...userInfo, timezone: tz })
+
 		try {
 			const response = await MagicUserApi.updateUserInfo({ timezone: tz })
 			setUserInfo(response as StructureUserItem)
 		} catch (error) {
 			console.error("Failed to update timezone:", error)
+			setUserInfo(rollbackSnapshot)
 		}
 	})
 

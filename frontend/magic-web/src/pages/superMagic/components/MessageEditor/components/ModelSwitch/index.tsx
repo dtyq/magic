@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
+import { useTranslation } from "react-i18next"
 import { userStore } from "@/models/user"
 import { ModelSwitchProps, type ModelListKey, type ModelTabType } from "./types"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
@@ -63,13 +64,14 @@ export const ModelSwitch = observer(function ModelSwitch({
 	const [addMenuOpen, setAddMenuOpen] = useState(false)
 	const dropdownJustClosedRef = useRef(false)
 	const openAddMenuTimerRef = useRef<number | null>(null)
+	// 将 t 保持在当前组件作用域内，便于 i18n Ally 正确识别默认命名空间 super。
+	const { t } = useTranslation("super")
 
 	const {
 		isOpen,
 		searchKeyword,
 		setSearchKeyword,
 		isMobile,
-		t,
 		selectedItemRef,
 		desktopScrollContainerRef,
 		mobileScrollContainerRef,
@@ -365,7 +367,7 @@ export const ModelSwitch = observer(function ModelSwitch({
 										type="button"
 										onClick={() => setSearchKeyword("")}
 										className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted-foreground text-background transition active:opacity-80"
-										aria-label={t("common.auth.cancel")}
+										aria-label={t("common.cancel")}
 										data-testid="mobile-model-switch-search-clear-button"
 									>
 										<X className="h-3 w-3" />

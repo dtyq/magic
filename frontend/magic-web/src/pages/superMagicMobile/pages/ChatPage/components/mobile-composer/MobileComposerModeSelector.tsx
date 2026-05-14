@@ -217,7 +217,8 @@ function MobileComposerModeSelectorComponent({
 
 		setTimeout(() => {
 			document.body.style.removeProperty("pointer-events")
-			pubsub.publish(PubSubEvents.Create_New_Topic)
+			// 携带目标专家模式，对话页（单话题 Chat）会用它创建新对话而非兄弟话题
+			pubsub.publish(PubSubEvents.Create_New_Topic, { topicMode: targetMode })
 			onModeChange?.(targetMode)
 		}, 0)
 	})
@@ -558,7 +559,7 @@ function MobileComposerModeSelectorComponent({
 										type="button"
 										onClick={() => setModelSearchKeyword("")}
 										className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted-foreground text-background transition active:opacity-80"
-										aria-label={tSuper("common.auth.cancel")}
+										aria-label={tSuper("common.cancel")}
 										data-testid="mobile-composer-mode-selector-model-search-clear-button"
 									>
 										<X className="h-3 w-3" />

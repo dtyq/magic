@@ -4,48 +4,17 @@ import { useRequest } from "ahooks"
 import { MagicDropdown } from "@/components/base"
 import { sidebarStore } from "@/stores/layout"
 import { GlobalApi } from "@/apis"
-import { AppMenuOpenMethod, AppMenuIconType, AppMenuStatus } from "@/apis/types"
+import { AppMenuIconType } from "@/apis/types"
 import type { AppMenuItem } from "@/apis/types"
-import { baseHistory } from "@/routes/history/baseHistory"
-import { normalizeLocale } from "@/utils/locale"
-import { SupportLocales } from "@/constants/locale"
 import IconComponent from "@/pages/superMagic/components/IconViewComponent"
-import { routesMatch } from "@/routes/history/helpers"
-import { configStore } from "@/models/config"
-import { defaultClusterCode } from "@/routes/helpers"
+import { getVisibleAppMenuItems, openAppMenuItem, resolveAppMenuName } from "@/utils/appMenu"
 
 type AppsSubMenuProps = {
 	children: ReactNode
 	visible?: boolean
 }
 
-/**
- * 对以 / 开头的内部路径，精确检查是否存在 "/:clusterCode${path}" 路由定义。
- * 若精确匹配，则在路径前补充当前 clusterCode；否则按原始路径处理。
- */
-function resolveMenuPath(path: string): string {
-	if (!path.startsWith("/")) return path
-
-	const clusterCode = configStore.cluster.clusterCode || defaultClusterCode
-	const pathWithCluster = `/${clusterCode}${path}`
-
-	const match = routesMatch(pathWithCluster)
-	const routePath = match?.route.path ?? ""
-	if (routePath === `/:clusterCode${path}`) {
-		return pathWithCluster
-	}
-
-	return path
-}
-
-/** 按当前语言取 name_i18n，依次降级：当前语言 → zh_CN → en_US → 任意有值的语言 */
-function resolveMenuName(name_i18n: Record<string, string>, language: string): string {
-	const locale = normalizeLocale(language)
-	return (
-		name_i18n[locale] ?? name_i18n[SupportLocales.zhCN] ?? name_i18n[SupportLocales.enUS] ?? ""
-	)
-}
-
+/** 侧栏子菜单图标沿用现有 Icon / 图片双形态渲染，保证桌面与移动端目录来源一致。 */
 function AppMenuIcon({ item, displayName }: { item: AppMenuItem; displayName: string }) {
 	if (item.icon_type === AppMenuIconType.Image) {
 		return (
@@ -61,6 +30,7 @@ function AppMenuIcon({ item, displayName }: { item: AppMenuItem; displayName: st
 	return <IconComponent selectedIcon={item.icon} size={16} />
 }
 
+/** 桌面侧栏 Apps 子菜单继续复用统一 app-menu helper，避免与独立 Apps 页面行为分叉。 */
 function AppsSubMenu({ children, visible = true }: AppsSubMenuProps) {
 	const [open, setOpen] = useState(false)
 	const { i18n } = useTranslation()
@@ -69,18 +39,11 @@ function AppsSubMenu({ children, visible = true }: AppsSubMenuProps) {
 		refreshDeps: [],
 	})
 
-	const activeMenuItems = menuItems.filter((item) => item.status === AppMenuStatus.Normal)
+	const activeMenuItems = getVisibleAppMenuItems(menuItems)
 
+	/** 侧栏子菜单与 Apps 页面共享同一跳转语义，避免窗口打开方式出现分叉。 */
 	const handleMenuItemClick = (item: AppMenuItem) => {
-		if (item.open_method === AppMenuOpenMethod.NewWindow) {
-			const resolvedPath = resolveMenuPath(item.path)
-			const url = resolvedPath.startsWith("/")
-				? `${window.location.origin}${resolvedPath}`
-				: resolvedPath
-			window.open(url, "_blank", "noopener,noreferrer")
-		} else {
-			baseHistory.push(resolveMenuPath(item.path))
-		}
+		openAppMenuItem(item)
 		setOpen(false)
 		sidebarStore.collapseIfNarrow()
 	}
@@ -116,7 +79,7 @@ function AppsSubMenu({ children, visible = true }: AppsSubMenuProps) {
 			)}
 			{!loading &&
 				activeMenuItems.map((item) => {
-					const displayName = resolveMenuName(item.name_i18n, i18n.language)
+					const displayName = resolveAppMenuName(item.name_i18n, i18n.language)
 					return (
 						<div
 							key={item.id}

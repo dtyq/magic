@@ -10,6 +10,7 @@ import CollaborationProjectTag from "@/pages/superMagic/components/Collaboration
 import { isCollaborationProject } from "@/pages/superMagic/constants"
 import SuperMagicService from "@/pages/superMagic/services"
 import projectStore from "@/pages/superMagic/stores/core/project"
+import workspaceStore from "@/pages/superMagic/stores/core/workspace"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { useSwipeActions } from "./hooks/useSwipeActions"
 import { SwipeActionButtons } from "./SwipeActionButtons"
@@ -24,6 +25,7 @@ export const enum SortType {
 interface ProjectItemMobileProps {
 	project: ProjectListItem
 	workspaceId: string
+	isChatWorkspace?: boolean
 	sortType?: SortType
 	isSwiped?: boolean
 	onSwipeChange?: (isSwiped: boolean) => void
@@ -39,6 +41,7 @@ interface ProjectItemMobileProps {
 export default function ProjectItemMobile({
 	project,
 	workspaceId,
+	isChatWorkspace = false,
 	sortType,
 	isSwiped = false,
 	onSwipeChange,
@@ -56,7 +59,7 @@ export default function ProjectItemMobile({
 		onDragStart,
 	})
 
-	const handleOpenProject = useMemoizedFn(() => {
+	const handleOpenProject = useMemoizedFn(async () => {
 		// 已展开操作按钮时，点击主内容先收起
 		if (offsetX < 0) {
 			close()
@@ -64,7 +67,14 @@ export default function ProjectItemMobile({
 			return
 		}
 		onDrawerClose()
-		SuperMagicService.switchProjectById(project.id)
+		if (isChatWorkspace) {
+			const workspace = workspaceStore.getWorkspaceById(workspaceId)
+			if (workspace) workspaceStore.setSelectedWorkspace(workspace)
+			await SuperMagicService.switchChatProject(project)
+			return
+		}
+
+		await SuperMagicService.switchProjectById(project.id)
 	})
 
 	const handleMore = useMemoizedFn((e: React.MouseEvent) => {
@@ -136,31 +146,31 @@ export default function ProjectItemMobile({
 		SwipeActionButtonConfig,
 		SwipeActionButtonConfig,
 	] = [
-			{
-				label: t("common.moreActions"),
-				icon: <Ellipsis size={16} className="text-white" />,
-				bgClassName: "bg-[#9ca3af]",
-				labelClassName: "text-white",
-				onClick: handleMore,
-			},
-			{
-				label: project.is_pinned
-					? t("hierarchicalWorkspacePopup.unpinProject")
-					: t("hierarchicalWorkspacePopup.pinProject"),
-				icon: <Pin size={16} className="text-primary-foreground" />,
-				bgClassName: "bg-primary",
-				labelClassName: "text-primary-foreground",
-				onClick: handlePin,
-			},
-			{
-				label: t("common.delete"),
-				icon: <Trash2 size={16} className="text-destructive-foreground" />,
-				bgClassName: "bg-destructive",
-				labelClassName: "text-destructive-foreground",
-				onClick: handleDelete,
-				disabled: disableDelete,
-			},
-		]
+		{
+			label: t("common.moreActions"),
+			icon: <Ellipsis size={16} className="text-white" />,
+			bgClassName: "bg-[#9ca3af]",
+			labelClassName: "text-white",
+			onClick: handleMore,
+		},
+		{
+			label: project.is_pinned
+				? t("hierarchicalWorkspacePopup.unpinProject")
+				: t("hierarchicalWorkspacePopup.pinProject"),
+			icon: <Pin size={16} className="text-primary-foreground" />,
+			bgClassName: "bg-primary",
+			labelClassName: "text-primary-foreground",
+			onClick: handlePin,
+		},
+		{
+			label: t("common.delete"),
+			icon: <Trash2 size={16} className="text-destructive-foreground" />,
+			bgClassName: "bg-destructive",
+			labelClassName: "text-destructive-foreground",
+			onClick: handleDelete,
+			disabled: disableDelete,
+		},
+	]
 
 	const snapTransition = isDragging ? "none" : "transform 0.32s cubic-bezier(0.34, 1.2, 0.64, 1)"
 

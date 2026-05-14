@@ -1,5 +1,4 @@
 import { memo, useState, useCallback } from "react"
-import type { CSSProperties } from "react"
 import { ChevronDown } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"

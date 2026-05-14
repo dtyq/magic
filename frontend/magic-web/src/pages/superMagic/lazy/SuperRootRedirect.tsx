@@ -5,7 +5,7 @@ import { userStore } from "@/models/user"
 import { RouteName } from "@/routes/constants"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { baseHistory } from "@/routes/history"
-import { RoutePathMobile } from "@/constants/routes"
+import { RoutePath } from "@/constants/routes"
 import { configStore } from "@/models/config"
 import { defaultClusterCode } from "@/routes/helpers"
 import SuperMagicService from "../services"
@@ -22,14 +22,14 @@ export default function SuperRootRedirect() {
 	const { projectId, topicId } = useParams()
 
 	useEffect(() => {
-		// Mobile: /{cluster}/super -> mobile-tabs?tab=super
+		// Mobile: /{cluster}/super -> /mobile-home
 		if (isMobile) {
 			if (!projectId && !topicId) {
 				const currentPath = baseHistory.location.pathname
 				const isSuperRootPath = /^\/[^/]+\/super\/?$/.test(currentPath)
 				if (isSuperRootPath && !currentPath.includes("/mobile-tabs")) {
 					const clusterCode = configStore.cluster.clusterCode || defaultClusterCode
-					const targetPath = `/${clusterCode}${RoutePathMobile.MobileTabs}?tab=super`
+					const targetPath = `/${clusterCode}${RoutePath.MobileHome}`
 					baseHistory.replace(targetPath)
 				}
 			}

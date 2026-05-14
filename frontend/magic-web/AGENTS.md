@@ -49,9 +49,18 @@ Guidance for autonomous or semi-autonomous coding agents contributing to the Mag
   - Tailwind config: `tailwind.config.ts`, CSS variables in `src/index.css`
   - shadcn/ui config: `components.json` with aliases pointing to `@/opensource/`
 - All user-visible strings must use i18n keys. Update both `zh_CN` and `en_US` dictionaries together.
+- **i18n — React**: After `const { t } = useTranslation("namespace")`, only use **literal** keys, e.g. `t("common.confirm")`. Do not pass `t` as props or helper args typed as generic `string` keys—static tools lose track. Long copy: same file, inline right after `useTranslation`, or a `use*` hook that calls `useTranslation` itself.
+- **i18n — keys**: Keys must be **static full strings** (`t("a.b.c")`). Avoid building keys from variables, `+`, or template literals—tooling cannot see those. Use dynamic keys **only** when there is no workable literal-based design; add a short comment explaining why.
+- **i18n — elsewhere**: In plain functions, stores, or post-init module code (no hooks), use **`i18next.t("key", { ns: "…" })`** or **`i18next.getFixedT(i18next.language, "ns")`** with literal keys; call only after i18n has initialized. Language-sensitive UI still belongs in components with `useTranslation`.
 - Honour existing project aliases (`@/`) and barrel exports. Add exports to `index.ts` files when exposing new modules.
+- **Mobile detection**: Use `@/hooks/useIsMobile` as the default source of truth for mobile viewport checks. Do not introduce new business usage of `@/hooks/use-mobile`; treat it as a compatibility entry only unless a task explicitly requires otherwise.
 - When touching MobX stores, ensure actions remain pure and derivations are memoized where necessary.
 - Keep business logic out of presentation components—place it in services or hooks.
+- **Commentary**: All code contributions must include guiding comments for:
+  - **Complex Logic**: Explain *why* a specific approach was taken, especially for edge cases or defensive code.
+  - **Layout & CSS**: For non-obvious styling (e.g., specific `z-index`, `overflow` hacks, or mobile-specific positioning), describe the intended visual behavior.
+  - **Hooks & Context**: Annotate the purpose and source of injected data (e.g., `useOutletContext`) to help future maintainers understand component dependencies.
+
 
 ## Workflow for Agents
 1. **Orient**: Read the user request, repo instructions (`README.md`, `CLAUDE.local.md`, this file), and any task-specific files.

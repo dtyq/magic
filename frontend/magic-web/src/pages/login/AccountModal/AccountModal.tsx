@@ -27,10 +27,11 @@ interface AccountModalProps {
 	clusterCode?: string
 	onClusterChange?: (code: string) => void
 	open?: boolean
+	zIndex?: number
 }
 
 function AccountModal(props: AccountModalProps) {
-	const { onClose, onClusterChange, open: openProp = true } = props
+	const { onClose, onClusterChange, open: openProp = true, zIndex } = props
 
 	const { styles: loginFormOverrideStyles } = useLoginFormOverrideStyles()
 	const {
@@ -165,6 +166,8 @@ function AccountModal(props: AccountModalProps) {
 			<DialogContent
 				className="w-[460px] !max-w-[460px] gap-0 border-none p-0"
 				overlayClassName="bg-black/80"
+				// DialogContent 会把 style.zIndex 同步到 overlay，保证嵌套弹窗整体位于调用方浮层之上。
+				style={{ zIndex }}
 				data-testid="account-modal-content"
 			>
 				<DialogHeader className="flex items-center px-6 pb-0 pt-5">

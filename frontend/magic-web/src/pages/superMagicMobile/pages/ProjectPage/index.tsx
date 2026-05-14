@@ -1,12 +1,10 @@
 import { observer } from "mobx-react-lite"
-import { lazy, Suspense, useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { isReadOnlyProject, canManageProject } from "@/pages/superMagic/utils/permission"
+import { canManageProject, isOwner, isReadOnlyProject } from "@/pages/superMagic/utils/permission"
 import { workspaceStore, projectStore, topicStore } from "@/pages/superMagic/stores/core"
-import SuperMagicService from "@/pages/superMagic/services"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
-import ChatActions from "./ProjectPageMain/components/ChatActions"
 import PreviewDetailPopup, {
 	PreviewDetailPopupRef,
 } from "@/pages/superMagicMobile/components/PreviewDetailPopup"
@@ -14,34 +12,60 @@ import {
 	useTopicListActions,
 	useProjectAttachments,
 } from "@/pages/superMagicMobile/pages/ProjectPage/ProjectPageMain/hooks"
-import { useFileOperations } from "./hooks"
 import TopicsPopup from "./ProjectPageMain/components/TopicsPopup"
-import TopicPopup from "@/pages/superMagicMobile/components/TopicPopup"
-import ProjectSider from "@/pages/superMagic/components/ProjectSider"
-import { Brain, Files, Timer, CirclePlus } from "lucide-react"
+import { Ellipsis, Share2 } from "lucide-react"
 import TopicFilesButton, {
 	type TopicFilesButtonRef,
 } from "@/pages/superMagic/components/TopicFilesButton"
-import SiderTask from "@/pages/superMagic/components/SiderTask"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { cn } from "@/lib/utils"
 import { useFileOpen } from "@/pages/superMagic/components/TopicFilesButton/hooks/useFileOpen"
 import { useCreateTopicListener } from "@/pages/superMagic/components/TopicMode/useCreateTopicListener"
 import { PORTAL_IDS } from "@/constants"
 import usePortalTarget from "@/hooks/usePortalTarget"
-import MobileFileMenuDropdown from "@/pages/superMagic/components/TopicFilesButton/components/MobileFileMenuDropdown"
-import { useIsMobile } from "@/hooks/use-mobile"
-import IconShareCog from "@/enhance/tabler/icons-react/icons/iconShareCog"
-import ShareManagementPanel from "@/pages/superMagic/components/ShareManagement/ShareManagementPanel"
-import { LongTremMemorySider } from "@/pages/superMagic/components/LongTremMemory/components/MemorySider"
 import ProjectPageInputContainer from "@/pages/superMagic/components/ProjectPageInputContainer"
+import { Button } from "@/components/shadcn-ui/button"
+import { SmoothTabs, type Tab } from "@/components/shadcn-ui/smooth-tabs"
+import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
+import projectFilesStore from "@/stores/projectFiles"
+import ProjectPageMain from "./ProjectPageMain"
+import useNavigate from "@/routes/hooks/useNavigate"
+import { RouteName } from "@/routes/constants"
+import { isCollaborationProject } from "@/pages/superMagic/constants"
+import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
 
-const WithCollaborators = lazy(() => import("@/pages/superMagic/components/WithCollaborators"))
+type ProjectDetailTab = "topics" | "topicFiles"
 
 function ProjectPage() {
+	return <ObservedLegacyProjectPage />
+}
+
+/**
+ * 项目详情（移动端）：承接 store、附件与话题弹层，壳层视觉与主题 background 对齐壳层与头部。
+ */
+function LegacyProjectPage() {
 	const { t } = useTranslation("super")
-	const { t: tLongMemory } = useTranslation("super/longMemory")
-	const isMobile = useIsMobile()
+	const navigate = useNavigate()
+
+	// 首页只保留“话题 / 文件”两个 tab，先完成项目详情 UI 收敛。
+	const [activeSiderTab, setActiveSiderTab] = useState<ProjectDetailTab>("topics")
+
+	/** 项目详情 tab 配置：复用 SmoothTabs 的滑块测量能力，并保留稳定测试选择器。 */
+	const projectDetailTabs = useMemo<Tab<ProjectDetailTab>[]>(
+		() => [
+			{
+				value: "topics",
+				label: t("projectDetail.tabTopics"),
+				testId: "project-detail-topics-tab",
+			},
+			{
+				value: "topicFiles",
+				label: t("projectDetail.tabFiles"),
+				testId: "project-detail-files-tab",
+			},
+		],
+		[t],
+	)
 
 	// Get state from stores
 	const selectedProject = projectStore.selectedProject
@@ -53,20 +77,20 @@ function ProjectPage() {
 	const topicFilesButtonRef = useRef<TopicFilesButtonRef>(null)
 
 	const isReadonly = isReadOnlyProject(selectedProject?.user_role)
-	const canManageProjectPermission = canManageProject(selectedProject?.user_role)
+	const canManageCollaboration =
+		(isCollaborationProject(selectedProject) && canManageProject(selectedProject?.user_role)) ||
+		isOwner(selectedProject?.user_role)
 
 	// Portal target elements
-	const collaborationPortalTarget = usePortalTarget({
+	const sharePortalTarget = usePortalTarget({
 		portalId: PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_COLLABORATION_BUTTON,
+		enabled: canManageCollaboration,
 	})
 
-	const createButtonPortalTarget = usePortalTarget({
-		portalId: PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_CREATE_BUTTON,
-		enabled: isMobile,
+	const morePortalTarget = usePortalTarget({
+		portalId: PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_MORE_BUTTON,
+		enabled: true,
 	})
-
-	// Active tab state for ProjectSider
-	const [activeSiderTab, setActiveSiderTab] = useState("topicFiles")
 
 	const setUserSelectDetail = useMemoizedFn(
 		(detail: Parameters<PreviewDetailPopupRef["open"]>[0] | null) => {
@@ -77,16 +101,24 @@ function ProjectPage() {
 	)
 
 	// Project attachments management
-	const { updateAttachments, setAttachments, attachments, attachmentList } =
-		useProjectAttachments({
-			selectedProject,
-			selectedWorkspace,
-			selectedTopic,
-			currentTopics: topicStore.topics,
-			projects: projectStore.projects,
-			workspaces: workspaceStore.workspaces,
-			setUserSelectDetail,
-		})
+	const { updateAttachments, setAttachments } = useProjectAttachments({
+		selectedProject,
+		selectedWorkspace,
+		selectedTopic,
+		currentTopics: topicStore.topics,
+		projects: projectStore.projects,
+		workspaces: workspaceStore.workspaces,
+		setUserSelectDetail,
+	})
+
+	/**
+	 * 项目详情文件页统一以 projectFilesStore 中的最新附件树作为渲染源，
+	 * 避免在 hook 返回值与 observer 订阅之间再多出一层可能失配的中转状态。
+	 */
+	const attachmentTree = projectFilesStore.workspaceFileTree
+	const attachmentFlatList = projectFilesStore.workspaceFilesList
+
+	const [projectShareSheetOpen, setProjectShareSheetOpen] = useState(false)
 
 	useEffect(() => {
 		if (selectedProject?.id) {
@@ -95,76 +127,64 @@ function ProjectPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [selectedProject?.id])
 
+	/**
+	 * 项目详情文件页统一通过服务端最新附件树回写列表，避免在 View 层维护第二份本地树状态。
+	 */
+	const refreshProjectAttachments = useMemoizedFn(async () => {
+		if (!selectedProject) return
+		await updateAttachments(selectedProject)
+	})
+
 	// Use topic list actions hook
-	const { handleCreateTopic, openActionsPopup, topicActionComponents } = useTopicListActions()
+	const {
+		handleCreateTopic,
+		openActionsPopup,
+		deleteTopicDirect,
+		toggleTopicPin,
+		topicActionComponents,
+	} = useTopicListActions()
+	const { openActionsPopup: openProjectActionsPopup, projectActionComponents } =
+		useProjectListActions({
+			actionContext: "project-detail",
+			deleteSelectedProjectBehavior: "navigate-home",
+		})
 
 	// Sending is handled by MessagePanel service now.
 
 	const [topicsPopupOpen, setTopicsPopupOpen] = useState(false)
-	const [topicPopupOpen, setTopicPopupOpen] = useState(false)
-
-	/**
-	 * Fetch topics list for current project (non-blocking)
-	 * Runs in background without blocking UI
-	 */
-	const fetchTopicsForCurrentProject = useMemoizedFn(() => {
-		if (!selectedProject?.id) return
-
-		SuperMagicService.topic
-			.fetchTopics({
-				projectId: selectedProject.id,
-				isAutoSelect: false,
-				page: 1,
-			})
-			.catch((error) => {
-				console.error("Failed to fetch topics:", error)
-			})
-	})
-
-	const showTopicsPopup = useMemoizedFn(() => {
-		// Fetch latest data in background
-		fetchTopicsForCurrentProject()
-		// Open popup immediately (non-blocking)
-		setTopicsPopupOpen(true)
-	})
-
-	// Monitor selectedTopic changes and auto-open topic popup
-	useEffect(() => {
-		if (selectedTopic?.id) {
-			setTopicPopupOpen(true)
-		}
-	}, [selectedTopic?.id])
-
-	// Close topic popup and clear selected topic
-	const handleTopicPopupClose = useMemoizedFn(() => {
-		setTopicPopupOpen(false)
-		topicStore.setSelectedTopic(null)
-	})
-
-	// Handle history click from topic popup: close topic popup and open topics popup
-	const handleHistoryClickFromTopicPopup = useMemoizedFn(() => {
-		topicStore.setSelectedTopic(null)
-		setTopicPopupOpen(false)
-		// Fetch latest data in background
-		fetchTopicsForCurrentProject()
-		// Open popup immediately (non-blocking)
-		setTopicsPopupOpen(true)
-	})
 
 	// Listen for Create_New_Topic event and handle topic creation
 	useCreateTopicListener()
 
-	// Handle file operations with automatic tab switching
-	const { handleAddFile, handleAddFolder, handleUploadFile } = useFileOperations({
-		topicFilesButtonRef,
-		setActiveSiderTab,
-	})
+	/**
+	 * 项目入口页发送成功后固定切到新话题子页，避免继续停留在入口页内混合承载会话。
+	 */
+	const handleProjectPageSendSuccess = useMemoizedFn(
+		({
+			currentProject,
+			currentTopic,
+		}: {
+			currentProject: typeof selectedProject
+			currentTopic: typeof selectedTopic
+		}) => {
+			if (!currentProject?.id || !currentTopic?.id) return
+
+			navigate({
+				name: RouteName.SuperWorkspaceProjectTopicState,
+				params: {
+					projectId: currentProject.id,
+					topicId: currentTopic.id,
+				},
+			})
+		},
+	)
 
 	// 当前活跃的文件ID，用于同步文件列表和文件查看器的选中状态
 	const [activeFileId, setActiveFileId] = useState<string | null>(null)
 
 	// 多选模式状态
 	const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
+	const shouldShowComposer = !isReadonly && activeSiderTab === "topics" && !isMultiSelectMode
 
 	// 订阅 activeFileId 更新事件
 	useEffect(() => {
@@ -182,13 +202,13 @@ function ProjectPage() {
 
 	const { handleOpenFile } = useFileOpen({
 		setUserSelectDetail: (detail) => {
-			previewDetailPopupRef.current?.open(detail, attachments, attachmentList)
+			previewDetailPopupRef.current?.open(detail, attachmentTree, attachmentFlatList)
 		},
-		attachments,
+		attachments: attachmentTree,
 	})
 
 	const onFileClick = useMemoizedFn((fileId: string) => {
-		const targetFile = attachmentList.find((item) => item.file_id === fileId)
+		const targetFile = attachmentFlatList.find((item) => item.file_id === fileId)
 		if (targetFile) {
 			handleOpenFile(targetFile)
 		}
@@ -198,146 +218,150 @@ function ProjectPage() {
 	 * Handle file click event
 	 * Opens the file in the detail panel and updates active file state
 	 */
-	const handleFileClick = useMemoizedFn((fileItem?: any) => {
-		const fileId = fileItem?.file_id
+	const handleFileClick = useMemoizedFn((fileItem?: { file_id?: string | null }) => {
+		const fileId = fileItem?.file_id ?? null
 		setUserSelectDetail(null)
 		setActiveFileId(fileId)
 
 		setTimeout(() => {
-			onFileClick(fileId)
+			if (fileId) onFileClick(fileId)
 		}, 100)
+	})
+
+	/**
+	 * 头部按钮进入移动端专用项目分享 Sheet，协作者管理继续只保留在 More 菜单内。
+	 */
+	const handleOpenProjectShare = useMemoizedFn(() => {
+		setProjectShareSheetOpen(true)
 	})
 
 	return (
 		<>
-			{/* Render header actions via portal */}
-			{canManageProjectPermission &&
-				collaborationPortalTarget &&
+			{sharePortalTarget &&
+				canManageCollaboration &&
 				createPortal(
-					<Suspense fallback={null}>
-						<WithCollaborators selectedProject={selectedProject} />
-					</Suspense>,
-					collaborationPortalTarget,
-				)}
-			{/* Render file creation button via portal only for files tab */}
-			{!isReadonly &&
-				isMobile &&
-				activeSiderTab === "topicFiles" &&
-				createButtonPortalTarget &&
-				createPortal(
-					<MobileFileMenuDropdown
-						onAddFile={handleAddFile}
-						onUploadFile={handleUploadFile}
-						onAddFolder={handleAddFolder}
-						enabled={isMobile}
+					<Button
+						type="button"
+						variant="ghost"
+						className="h-12 w-12 shrink-0 rounded-full p-0 text-foreground hover:bg-transparent active:opacity-70"
+						onClick={handleOpenProjectShare}
+						aria-label={t("share.share")}
+						data-testid="project-detail-header-share-button"
 					>
-						<button className="rounded-lg p-1.5 text-foreground hover:bg-accent hover:opacity-90 active:opacity-80">
-							<CirclePlus size={20} />
-						</button>
-					</MobileFileMenuDropdown>,
-					createButtonPortalTarget,
+						<Share2 className="h-[22px] w-[22px]" strokeWidth={2} />
+					</Button>,
+					sharePortalTarget,
 				)}
-			<div className={cn("relative flex h-full flex-auto flex-col items-center")}>
-				<ProjectSider
-					width="100%"
-					value={activeSiderTab}
-					onValueChange={setActiveSiderTab}
-					items={[
-						{
-							key: "topicFiles",
-							title: t("topicFiles.title"),
-							icon: <Files size={16} />,
-							content: (
-								<TopicFilesButton
-									ref={topicFilesButtonRef}
-									attachments={attachments}
-									setUserSelectDetail={setUserSelectDetail}
-									onFileClick={handleFileClick}
-									projectId={selectedProject?.id}
-									activeFileId={activeFileId}
-									selectedTopic={selectedTopic}
-									onAttachmentsChange={setAttachments}
-									allowEdit={!isReadonly}
-									selectedWorkspace={selectedWorkspace}
-									selectedProject={selectedProject}
-									projects={projectStore.projects}
-									workspaces={workspaceStore.workspaces}
-									isInProject
-									onMultiSelectModeChange={setIsMultiSelectMode}
-								/>
-							),
-						},
-						{
-							key: "task",
-							title: t("scheduleTask.title"),
-							icon: <Timer size={16} />,
-							content: (
-								<SiderTask
-									selectWorkspaceId={selectedWorkspace?.id}
-									selectProjectId={selectedProject?.id}
-									selectTopicId={selectedTopic?.id}
-								/>
-							),
-							visible: !isReadonly,
-						},
-						{
-							key: "longMemory",
-							title: tLongMemory("longMemory"),
-							icon: <Brain size={16} />,
-							content: <LongTremMemorySider projectId={selectedProject?.id} />,
-						},
-						{
-							key: "share",
-							title: t("shareManagement.title"),
-							icon: <IconShareCog size={16} />,
-							content: <ShareManagementPanel projectId={selectedProject?.id} />,
-						},
-					]}
-					className="w-full flex-1 overflow-y-auto"
-				/>
-				{/* Hide bottom actions when in multi-select mode */}
-				{!isReadonly && (
-					<div
-						style={{
-							transition:
-								"max-height 400ms cubic-bezier(0.4, 0, 0.2, 1), opacity 350ms cubic-bezier(0.4, 0, 0.2, 1), padding 400ms cubic-bezier(0.4, 0, 0.2, 1)",
+			{morePortalTarget &&
+				createPortal(
+					<Button
+						type="button"
+						variant="ghost"
+						className="h-12 w-12 shrink-0 rounded-full p-0 text-foreground hover:bg-transparent active:opacity-70"
+						onClick={() => {
+							if (!selectedProject) return
+							openProjectActionsPopup(selectedProject)
 						}}
-						className={cn(
-							"flex w-full flex-shrink-0 flex-col gap-2 overflow-hidden",
-							isMultiSelectMode
-								? "pointer-events-none max-h-0 opacity-0"
-								: "pointer-events-auto max-h-[500px] pt-1.5 opacity-100",
-							"pb-[max(var(--safe-area-inset-bottom),10px)]",
-						)}
+						aria-label={t("projectDetail.moreAria")}
+						data-testid="project-detail-header-more-button"
 					>
-						<ChatActions
-							onNewTopicClick={handleCreateTopic}
-							onHistoryTopicsClick={showTopicsPopup}
-						/>
-						{/* Show message panel if project is not readonly */}
-						<ProjectPageInputContainer
-							className="mx-auto max-w-3xl rounded-2xl"
-							selectedProject={selectedProject}
-							selectedTopic={selectedTopic}
-							setSelectedTopic={topicStore.setSelectedTopic}
-							onFileClick={onFileClick}
-							selectedWorkspace={selectedWorkspace}
-							attachments={attachments}
-						/>
-						<TopicsPopup
-							open={topicsPopupOpen}
-							onOpenChange={setTopicsPopupOpen}
-							onCreateTopic={handleCreateTopic}
-							onOpenActionsPopup={openActionsPopup}
-						/>
-						<TopicPopup
-							open={topicPopupOpen}
-							onClose={handleTopicPopupClose}
-							onHistoryClick={handleHistoryClickFromTopicPopup}
-						/>
-					</div>
+						<Ellipsis className="h-[22px] w-[22px]" strokeWidth={2} />
+					</Button>,
+					morePortalTarget,
 				)}
+			{/* 与 MobileShell 面板、ProjectDetailHeader 及原型一致：整页使用主题 background，避免头部与内容区硬编码暖色分层 */}
+			<div className={cn("relative flex h-full min-h-0 flex-auto flex-col overflow-hidden")}>
+				{/* 与原型一致：tab 条单独 shrink-0 + px-3 pt-4，主内容区 flex-1 再各自 px-3，避免整块同一列 padding 与原型分层不一致 */}
+				<div className="flex shrink-0 justify-start px-3 pt-4">
+					<SmoothTabs
+						tabs={projectDetailTabs}
+						value={activeSiderTab}
+						onChange={setActiveSiderTab}
+						variant="background"
+						showTooltip={false}
+						className="h-9 w-max max-w-full rounded-full bg-muted p-[3px]"
+						buttonClassName="h-[30px] flex-none rounded-full px-4 text-[14px] leading-5 data-[state=active]:font-medium data-[state=active]:text-foreground data-[state=inactive]:font-normal data-[state=inactive]:text-muted-foreground"
+						indicatorClassName="inset-y-[3px] rounded-full border-0 bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
+						data-testid="project-detail-hero"
+					/>
+				</div>
+				<div className="relative min-h-0 flex-1 overflow-hidden">
+					{activeSiderTab === "topicFiles" ? (
+						<div
+							className="flex h-full min-h-0 flex-col overflow-hidden px-3 pb-2"
+							data-testid="project-detail-files-panel"
+						>
+							<TopicFilesButton
+								ref={topicFilesButtonRef}
+								className="h-full"
+								title={t("topicFiles.title")}
+								mobileViewVariant="project-detail"
+								attachments={attachmentTree}
+								setUserSelectDetail={setUserSelectDetail}
+								onFileClick={handleFileClick}
+								projectId={selectedProject?.id}
+								activeFileId={activeFileId}
+								selectedTopic={selectedTopic}
+								onAttachmentsChange={setAttachments}
+								refreshAttachments={refreshProjectAttachments}
+								allowEdit={!isReadonly}
+								selectedWorkspace={selectedWorkspace}
+								selectedProject={selectedProject}
+								projects={projectStore.projects}
+								workspaces={workspaceStore.workspaces}
+								isInProject
+								onMultiSelectModeChange={setIsMultiSelectMode}
+								showMobileActions
+							/>
+						</div>
+					) : (
+						<div
+							className="flex h-full min-h-0 flex-col overflow-hidden px-3 pb-2"
+							data-testid="project-detail-topics-panel"
+						>
+							<ProjectPageMain
+								className="min-h-0 flex-1"
+								onTopicMore={(topic) => openActionsPopup(topic, selectedProject)}
+								onTopicPin={(topic) => {
+									void toggleTopicPin(topic)
+								}}
+								onTopicDelete={(topic) => deleteTopicDirect(topic, selectedProject)}
+							/>
+						</div>
+					)}
+				</div>
+				<div
+					style={{
+						transition:
+							"max-height 400ms cubic-bezier(0.4, 0, 0.2, 1), opacity 350ms cubic-bezier(0.4, 0, 0.2, 1), padding 400ms cubic-bezier(0.4, 0, 0.2, 1)",
+					}}
+					className={cn(
+						"flex w-full flex-shrink-0 flex-col gap-2 overflow-hidden",
+						shouldShowComposer
+							? "pointer-events-auto max-h-[500px] pb-[max(var(--safe-area-inset-bottom),4px)] opacity-100"
+							: "pointer-events-none max-h-0 py-0 opacity-0",
+					)}
+					aria-hidden={!shouldShowComposer}
+				>
+					{/* 保持输入区常驻挂载，避免 tab 切换时销毁内部输入态和上传态。 */}
+					<ProjectPageInputContainer
+						className="mx-auto max-w-3xl rounded-2xl"
+						selectedProject={selectedProject}
+						selectedTopic={selectedTopic}
+						setSelectedTopic={topicStore.setSelectedTopic}
+						onFileClick={onFileClick}
+						selectedWorkspace={selectedWorkspace}
+						attachments={attachmentTree}
+						onSendSuccess={handleProjectPageSendSuccess}
+					/>
+				</div>
 			</div>
+			<TopicsPopup
+				open={topicsPopupOpen}
+				onOpenChange={setTopicsPopupOpen}
+				onCreateTopic={handleCreateTopic}
+				onOpenActionsPopup={openActionsPopup}
+			/>
 			<PreviewDetailPopup
 				selectedTopic={selectedTopic}
 				selectedProject={selectedProject}
@@ -360,9 +384,20 @@ function ProjectPage() {
 					// Close link popup without any action
 				}}
 			/>
+			<ProjectShareSheet
+				open={projectShareSheetOpen}
+				onClose={() => setProjectShareSheetOpen(false)}
+				projectName={selectedProject?.project_name}
+				projectId={selectedProject?.id}
+				attachments={attachmentTree}
+				attachmentList={attachmentFlatList}
+			/>
 			{!isReadonly && topicActionComponents}
+			{projectActionComponents}
 		</>
 	)
 }
 
-export default observer(ProjectPage)
+const ObservedLegacyProjectPage = observer(LegacyProjectPage)
+
+export default ProjectPage

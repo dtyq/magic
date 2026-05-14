@@ -1,32 +1,27 @@
-import { memo, useEffect, useState } from "react"
-import { ArrowUpCircle, CircleArrowUp, Ellipsis, Settings2, ShieldCheck } from "lucide-react"
+import { memo } from "react"
+import { Ellipsis, MessageCircle, Settings2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { Button } from "@/components/shadcn-ui/button"
-import SmartTooltip from "@/components/other/SmartTooltip"
-import { Separator } from "@/components/shadcn-ui/separator"
-import { cn } from "@/lib/utils"
-import { CardFooterBadge } from "@/pages/superMagic/components/CardFooterBadge"
-import { CardFooterLabel } from "@/pages/superMagic/components/CardFooterLabel"
-import CrewFallbackAvatar from "@/pages/superMagic/components/CrewFallbackAvatar"
-import { isOfficialPublisherType } from "@/pages/superMagic/pages/CrewMarket/employee-market/components/employee-card-shared"
 import type { MyCrewView } from "@/services/crew/CrewService"
 import type { MyCrewCrewTypeTab } from "../tab-state"
+import MyCrewAvatar from "./MyCrewAvatar"
+import { resolveMyCrewPresentationSource } from "./my-crew-mobile-shared"
 import {
-	formatVersionBadge,
 	resolveMyCrewDisableActionDisabled,
 	resolveMyCrewDisableActionLabel,
-	resolveMyCrewCreatedFooterBadgeLabel,
 	resolveMyCrewHiredActionKind,
-	resolveMyCrewPublisherLabel,
 	resolveTeamSharedCrewPermissions,
 } from "./my-crew-card-shared"
+import { preventMyCrewCardInteractiveClick } from "./my-crew-card-interaction"
 
-interface MyCrewCardMobileBaseProps {
+interface MyCrewCardMobileProps {
 	employee: MyCrewView
-	listVariant: MyCrewCrewTypeTab
+	listVariant: MyCrewCrewTypeTab | "all"
 	href: string
 	onNavigate?: (event: React.MouseEvent<HTMLAnchorElement>) => void
+	onCardClick?: (agentCode: string) => void
+	onChat?: (agentCode: string) => void
 	onEdit?: (agentCode: string) => void
 	onMoreClick?: (employee: MyCrewView) => void
 	onUpgrade?: (agentCode: string) => void
@@ -34,13 +29,39 @@ interface MyCrewCardMobileBaseProps {
 	onDismiss?: (agentCode: string) => void
 	onDisable?: (agentCode: string) => void
 }
-type MyCrewCardMobileProps = MyCrewCardMobileBaseProps
 
+/** 共享/市场来源在聚合列表里必须可见，因此保留轻量角标以避免来源语义丢失。 */
+function SourceBadge(props: { source: "teamShared" | "market" }) {
+	const { source } = props
+	const { t } = useTranslation("crew/market")
+	const label =
+		source === "teamShared"
+			? t("myCrewPage.detailSheet.source.team")
+			: t("myCrewPage.detailSheet.source.market")
+	const className =
+		source === "teamShared"
+			? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600"
+			: "border-indigo-500/20 bg-indigo-500/10 text-indigo-500"
+
+	return (
+		<span
+			className={`inline-flex h-5 max-w-[72px] items-center rounded-full border px-2 text-[10px] font-medium leading-none ${className}`}
+			data-testid={`my-crew-card-mobile-source-${source}`}
+			title={label}
+		>
+			<span className="block truncate">{label}</span>
+		</span>
+	)
+}
+
+/** 卡片只保留一个稳定的聊天主 CTA，避免详情/编辑链路和主操作竞争注意力。 */
 function MyCrewCardMobile({
 	employee,
 	listVariant,
 	href,
 	onNavigate,
+	onCardClick,
+	onChat,
 	onEdit,
 	onMoreClick,
 	onUpgrade,
@@ -48,26 +69,18 @@ function MyCrewCardMobile({
 	onDismiss,
 	onDisable,
 }: MyCrewCardMobileProps) {
-	const removeFromCrew = employee.allowDelete ? (onDelete ?? onDismiss) : undefined
 	const { t } = useTranslation("crew/market")
 	const { t: tCrewCreate } = useTranslation("crew/create")
-	const rawName = employee.name?.trim() || ""
-	const displayName = rawName || tCrewCreate("untitledCrew")
+	const displayName = employee.name?.trim() || tCrewCreate("untitledCrew")
 	const displayRole = employee.role?.trim() || ""
 	const displayDescription = employee.description?.trim() || t("interface:appList.noDescription")
-	const avatarUrl = typeof employee.icon === "string" ? employee.icon.trim() : ""
-	const [avatarLoadFailed, setAvatarLoadFailed] = useState(false)
-	const showRemoteAvatar = Boolean(avatarUrl) && !avatarLoadFailed
-
-	const isHiredList = listVariant === "hired"
+	const normalizedListVariant = listVariant === "all" ? undefined : listVariant
+	const presentationSource = resolveMyCrewPresentationSource(employee, normalizedListVariant)
 	const isCreatedList = listVariant === "created"
+	const isHiredList = listVariant === "hired"
 	const isTeamSharedList = listVariant === "team-shared"
-	const { canDelete, canEdit, canPublish } = resolveTeamSharedCrewPermissions(employee.userRole)
-	const canEditTeamShared = isTeamSharedList && canEdit
-	const canNavigateByCardClick = !isTeamSharedList || canEdit
-	const canOpenTeamSharedMoreActions =
-		isTeamSharedList && onMoreClick && (canPublish || canDelete)
 	const hiredActionKind = resolveMyCrewHiredActionKind(employee.sourceType)
+	const removeFromCrew = employee.allowDelete ? (onDelete ?? onDismiss) : undefined
 	const disableActionLabel = resolveMyCrewDisableActionLabel(
 		employee.allowDelete,
 		employee.publisherType,
@@ -77,76 +90,27 @@ function MyCrewCardMobile({
 		employee.allowDelete,
 		employee.enabled,
 	)
-	const versionBadgeLabel = formatVersionBadge(employee.latestVersionCode) ?? ""
-	const isOfficialPublisher = isOfficialPublisherType(employee.publisherType ?? "")
-	const publisherLabel = resolveMyCrewPublisherLabel(
-		employee.publisherType,
-		employee.publisherName,
-		t,
-	)
-	const footerPoweredByText = publisherLabel
-		? t("interface:appList.powerBy", {
-				company: publisherLabel,
-			})
-		: null
-	const trimmedCreatorName = employee.creatorName?.trim() ?? ""
-	const teamSharedCreatorLabel =
-		isTeamSharedList && trimmedCreatorName
-			? t("myCrewPage.teamSharedCreatedBy", { name: trimmedCreatorName })
-			: null
-	const createdFooterBadgeLabel = employee.needUpgrade
-		? t("skillsLibrary.upgrade")
-		: formatVersionBadge(employee.latestVersionCode) ||
-			resolveMyCrewCreatedFooterBadgeLabel(employee.sourceType, t, tCrewCreate)
+	const { canDelete, canEdit, canPublish } = resolveTeamSharedCrewPermissions(employee.userRole)
+	const canNavigateByCardClick = !isTeamSharedList || canEdit
+	const canShowMoreActions = isCreatedList || (isTeamSharedList && (canPublish || canDelete))
+	const editButtonLabel = isTeamSharedList && !canEdit ? t("details") : t("myCrewPage.edit")
 
-	useEffect(() => {
-		setAvatarLoadFailed(false)
-	}, [avatarUrl])
-
-	function preventCardNavigation(event: React.MouseEvent<HTMLElement>) {
-		event.preventDefault()
-		event.stopPropagation()
-	}
-
+	/** 根点击沿用语义化 anchor，但只读协作者不能从卡片根部误入编辑链路。 */
 	function handleCardNavigate(event: React.MouseEvent<HTMLAnchorElement>) {
+		event.preventDefault()
+
 		if (!canNavigateByCardClick) {
-			event.preventDefault()
 			return
 		}
+
 		onNavigate?.(event)
+		onCardClick?.(employee.agentCode)
 	}
 
-	function renderFooterBadge() {
-		if (isHiredList) {
-			if (employee.needUpgrade)
-				return (
-					<CardFooterBadge
-						label={t("myCrewPage.badgeUpdated")}
-						icon={<CircleArrowUp className="size-3 shrink-0" aria-hidden />}
-						className="gap-1 border-indigo-500 bg-background/90 px-2 py-0.5 text-xs font-normal text-indigo-600 dark:border-indigo-400 dark:text-indigo-400"
-						labelClassName="text-xs font-normal leading-4"
-						data-testid="my-crew-card-mobile-footer-updated-badge"
-					/>
-				)
-			if (!versionBadgeLabel) return null
-
-			return (
-				<CardFooterBadge
-					label={versionBadgeLabel}
-					className="px-2 py-0.5 text-xs font-semibold"
-					data-testid="my-crew-card-mobile-footer-version-badge"
-				/>
-			)
-		}
-
-		return (
-			<CardFooterBadge
-				label={createdFooterBadgeLabel}
-				className="px-2 py-0.5 text-xs font-semibold"
-				labelClassName="text-xs font-semibold leading-4"
-				data-testid="my-crew-card-mobile-footer-badge"
-			/>
-		)
+	/** 聊天 CTA 保持为显式按钮，并阻止冒泡以避免误触卡片根点击。 */
+	function handleChatClick(event: React.MouseEvent<HTMLButtonElement>) {
+		preventMyCrewCardInteractiveClick(event)
+		onChat?.(employee.agentCode)
 	}
 
 	return (
@@ -156,235 +120,161 @@ function MyCrewCardMobile({
 			className="relative flex h-full min-h-0 w-full min-w-0 flex-col pt-8 text-current no-underline"
 			data-testid="my-crew-card-mobile"
 		>
-			<div className="relative flex min-h-0 w-full flex-1 flex-col overflow-visible rounded-md border border-border bg-popover shadow-xs">
-				<div
-					className={cn(
-						"pointer-events-none absolute left-1/2 top-0 z-10 size-16 -translate-x-1/2 -translate-y-1/2",
-						"overflow-hidden rounded-full border-[3px] border-popover bg-muted shadow-sm",
-					)}
-					data-testid="my-crew-card-mobile-avatar-wrap"
-				>
-					{showRemoteAvatar ? (
-						<img
-							src={avatarUrl}
-							alt=""
-							className="size-full object-cover"
-							loading="lazy"
-							decoding="async"
-							onError={() => setAvatarLoadFailed(true)}
-						/>
-					) : (
-						<div className="flex size-full items-center justify-center bg-muted text-foreground">
-							<CrewFallbackAvatar />
-						</div>
-					)}
-				</div>
+			<div className="relative flex h-full min-h-0 flex-col rounded-2xl bg-card px-3 pb-3 pt-10 shadow-[0px_2px_12px_0px_rgba(0,0,0,0.08)] transition-opacity active:opacity-70">
+				<MyCrewAvatar
+					employee={employee}
+					sizeClassName="h-16 w-16"
+					fallbackTextClassName="text-[18px] font-semibold text-white"
+					className="absolute left-1/2 top-0 z-10 h-16 w-16 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-full border-[3px] border-background shadow-[0px_8px_24px_0px_rgba(0,0,0,0.20)]"
+					testId="my-crew-card-mobile-avatar-wrap"
+				/>
 
-				<div className="flex min-h-0 flex-1 flex-col items-center px-2 pb-2.5 pt-10">
-					<SmartTooltip
-						elementType="div"
-						className="w-full text-center text-sm font-semibold leading-6 text-foreground"
-						content={displayName}
-						sideOffset={4}
+				{presentationSource !== "custom" ? (
+					<div className="absolute left-3 top-3">
+						<SourceBadge source={presentationSource} />
+					</div>
+				) : null}
+
+				{employee.needUpgrade ? (
+					<Badge
+						variant="outline"
+						className="absolute right-3 top-3 rounded-full border-primary/20 bg-primary/10 px-2 py-0 text-[10px] font-medium leading-4 text-primary"
+						data-testid="my-crew-card-mobile-upgrade-badge"
 					>
+						{t("myCrewPage.badgeUpdated")}
+					</Badge>
+				) : null}
+
+				<div className="flex min-h-0 flex-1 flex-col items-center gap-2">
+					<p className="w-full truncate text-center text-[15px] font-semibold leading-tight text-foreground">
 						{displayName}
-					</SmartTooltip>
+					</p>
 
 					{displayRole ? (
 						<Badge
 							variant="outline"
-							className="mt-2 max-w-full justify-center overflow-hidden rounded-md px-2 py-0.5 text-xs font-normal"
+							className="max-w-full justify-center overflow-hidden rounded-md px-2 py-0.5 text-xs font-normal"
 							data-testid="my-crew-card-mobile-role"
 						>
-							<SmartTooltip
-								elementType="span"
-								className="block min-w-0 max-w-full text-xs font-normal leading-4"
-								content={displayRole}
-								sideOffset={4}
-							>
-								{displayRole}
-							</SmartTooltip>
+							<span className="block truncate">{displayRole}</span>
 						</Badge>
 					) : null}
 
-					<SmartTooltip
-						elementType="div"
-						className="mt-2 w-full text-center text-xs leading-4 text-muted-foreground"
-						content={displayDescription}
-						maxLines={3}
-						sideOffset={4}
-					>
+					<p className="h-[36px] overflow-hidden px-1 text-center text-[12px] leading-[1.5] text-muted-foreground [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box]">
 						{displayDescription}
-					</SmartTooltip>
+					</p>
 
-					<div className="mt-auto flex w-full flex-col gap-2 pt-2">
-						{!isHiredList && employee.needUpgrade ? (
-							<button
+					{employee.needUpgrade && !isHiredList ? (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="h-8 min-h-8 w-full text-xs font-medium"
+							data-testid="my-crew-card-mobile-upgrade-button"
+							onClick={(event) => {
+								preventMyCrewCardInteractiveClick(event)
+								onUpgrade?.(employee.agentCode)
+							}}
+						>
+							{t("myCrewPage.upgradeAvailable")}
+						</Button>
+					) : null}
+
+					{isHiredList ? (
+						<div className="flex w-full flex-col gap-1">
+							<Button
 								type="button"
-								className={cn(
-									"pointer-events-auto flex w-full cursor-pointer items-center justify-center gap-1 rounded-md px-2 py-1.5",
-									"text-xs text-amber-700 transition-colors hover:bg-amber-100/80",
-									"bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 dark:hover:bg-amber-950/50",
-								)}
+								variant="outline"
+								size="sm"
+								className="h-8 min-h-8 w-full px-3 text-xs font-medium shadow-xs"
 								onClick={(event) => {
-									preventCardNavigation(event)
-									onUpgrade?.(employee.agentCode)
+									preventMyCrewCardInteractiveClick(event)
+									onEdit?.(employee.agentCode)
 								}}
-								data-testid="my-crew-card-mobile-upgrade-notice"
+								data-testid="my-crew-card-mobile-details-button"
 							>
-								<ArrowUpCircle className="size-3.5 shrink-0" aria-hidden />
-								{t("myCrewPage.upgradeAvailable")}
-							</button>
-						) : null}
-
-						{isHiredList ? (
-							<div className="pointer-events-auto flex w-full flex-col gap-1">
+								{t("details")}
+							</Button>
+							{hiredActionKind === "dismiss" && removeFromCrew ? (
 								<Button
 									type="button"
 									variant="outline"
+									size="sm"
+									className="h-8 min-h-8 w-full border-destructive/20 text-xs font-medium text-destructive shadow-xs"
+									onClick={(event) => {
+										preventMyCrewCardInteractiveClick(event)
+										removeFromCrew(employee.agentCode)
+									}}
+									data-testid="my-crew-card-mobile-dismiss-button"
+								>
+									{t("dismiss")}
+								</Button>
+							) : null}
+							{hiredActionKind === "disable" ? (
+								<Button
+									type="button"
+									variant="secondary"
 									size="sm"
 									className="h-8 min-h-8 w-full px-3 text-xs font-medium shadow-xs"
 									onClick={(event) => {
-										preventCardNavigation(event)
-										onEdit?.(employee.agentCode)
+										preventMyCrewCardInteractiveClick(event)
+										onDisable?.(employee.agentCode)
 									}}
-									data-testid="my-crew-card-mobile-details-button"
+									disabled={isDisableActionDisabled}
+									data-testid="my-crew-card-mobile-disable-button"
 								>
-									{t("details")}
+									{disableActionLabel}
 								</Button>
-								{hiredActionKind === "dismiss" && removeFromCrew ? (
-									<button
-										type="button"
-										className={cn(
-											"flex h-8 w-full items-center justify-center rounded-md px-3 py-2 shadow-xs",
-											"text-xs font-medium leading-4 transition-opacity",
-											"hover:opacity-90",
-										)}
-										style={{
-											color: "rgb(239 68 68)",
-											backgroundImage:
-												"linear-gradient(0deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), linear-gradient(0deg, rgb(239, 68, 68), rgb(239, 68, 68))",
-										}}
-										onClick={(event) => {
-											preventCardNavigation(event)
-											removeFromCrew(employee.agentCode)
-										}}
-										data-testid="my-crew-card-mobile-dismiss-button"
-									>
-										{t("dismiss")}
-									</button>
-								) : null}
-								{hiredActionKind === "disable" ? (
-									<Button
-										type="button"
-										variant="secondary"
-										size="sm"
-										className="h-8 min-h-8 w-full px-3 text-xs font-medium shadow-xs"
-										onClick={(event) => {
-											preventCardNavigation(event)
-											onDisable?.(employee.agentCode)
-										}}
-										disabled={isDisableActionDisabled}
-										data-testid="my-crew-card-mobile-disable-button"
-									>
-										{disableActionLabel}
-									</Button>
-								) : null}
-							</div>
-						) : (
-							<div className="pointer-events-auto flex w-full gap-1">
+							) : null}
+						</div>
+					) : (
+						<div className="flex w-full gap-1">
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="h-8 min-h-8 flex-1 gap-2 px-3 text-xs font-medium shadow-xs"
+								onClick={(event) => {
+									preventMyCrewCardInteractiveClick(event)
+									onEdit?.(employee.agentCode)
+								}}
+								data-testid="my-crew-card-mobile-edit-button"
+							>
+								<Settings2 className="h-4 w-4 shrink-0" aria-hidden />
+								{editButtonLabel}
+							</Button>
+
+							{canShowMoreActions ? (
 								<Button
 									type="button"
 									variant="outline"
-									size="sm"
-									className="h-8 min-h-8 flex-1 gap-2 px-3 text-xs font-medium shadow-xs"
+									size="icon"
+									className="size-8 min-h-8 shrink-0 shadow-xs"
 									onClick={(event) => {
-										preventCardNavigation(event)
-										onEdit?.(employee.agentCode)
+										preventMyCrewCardInteractiveClick(event)
+										onMoreClick?.(employee)
 									}}
-									data-testid="my-crew-card-mobile-edit-button"
+									aria-label={t("myCrewPage.moreActionsAria")}
+									data-testid="my-crew-card-mobile-more-trigger"
 								>
-									<Settings2 className="size-4 shrink-0" aria-hidden />
-									{isTeamSharedList && !canEditTeamShared
-										? t("details")
-										: t("myCrewPage.edit")}
+									<Ellipsis className="h-4 w-4" aria-hidden />
 								</Button>
-
-								{isCreatedList || canOpenTeamSharedMoreActions ? (
-									<Button
-										type="button"
-										variant="outline"
-										size="icon"
-										className="size-8 min-h-8 shrink-0 shadow-xs"
-										onClick={(event) => {
-											preventCardNavigation(event)
-											onMoreClick?.(employee)
-										}}
-										aria-label={t("myCrewPage.moreActionsAria")}
-										data-testid="my-crew-card-mobile-more-trigger"
-									>
-										<Ellipsis className="size-4" aria-hidden />
-									</Button>
-								) : null}
-							</div>
-						)}
-					</div>
-				</div>
-
-				<Separator className="shrink-0 bg-border" />
-
-				<div
-					className={cn(
-						"pointer-events-none flex min-w-0 shrink-0 items-center gap-1 bg-sidebar px-2 py-2",
-						isHiredList ? "flex-nowrap gap-2" : "flex-wrap",
+							) : null}
+						</div>
 					)}
-				>
-					<div
-						className={cn(
-							"flex min-w-0 flex-1 items-center",
-							isHiredList
-								? "gap-0.5 text-xs leading-4"
-								: "flex-wrap gap-x-1 gap-y-0.5 text-[10px] leading-snug",
-						)}
+
+					<Button
+						type="button"
+						variant="outline"
+						className="mt-auto flex h-9 w-full items-center justify-center gap-1.5 rounded-xl"
+						data-testid="my-crew-card-mobile-chat-button"
+						onClick={handleChatClick}
 					>
-						{teamSharedCreatorLabel ? (
-							<CardFooterLabel
-								label={teamSharedCreatorLabel}
-								className="text-xs leading-4"
-								truncate
-								withTooltip
-								dataTestId="my-crew-card-mobile-team-shared-creator"
-							/>
-						) : isHiredList ? (
-							isOfficialPublisher ? (
-								<>
-									<ShieldCheck className="size-4 shrink-0 text-muted-foreground" />
-									<span
-										className="min-w-0 truncate text-xs leading-4 text-muted-foreground"
-										data-testid="my-crew-card-mobile-official-publisher"
-									>
-										{publisherLabel}
-									</span>
-								</>
-							) : footerPoweredByText ? (
-								<CardFooterLabel
-									label={footerPoweredByText}
-									className="text-xs leading-4"
-									truncate
-									withTooltip
-									dataTestId="my-crew-card-mobile-footer-powered-by"
-								/>
-							) : null
-						) : listVariant === "created" ? (
-							<CardFooterLabel
-								label={t("myCrewPage.crewType.createdByMe")}
-								className="text-[10px] leading-snug"
-								withTooltip
-								dataTestId="my-crew-card-mobile-footer-created-by"
-							/>
-						) : null}
-					</div>
-					{renderFooterBadge()}
+						<MessageCircle className="h-4 w-4 text-foreground" aria-hidden />
+						<span className="text-[13px] font-medium leading-none text-foreground">
+							{t("myCrewPage.openConversation")}
+						</span>
+					</Button>
 				</div>
 			</div>
 		</a>

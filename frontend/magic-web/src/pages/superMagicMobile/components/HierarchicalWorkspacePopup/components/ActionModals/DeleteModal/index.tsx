@@ -1,5 +1,5 @@
-import { ActionDrawer } from "@/components/shadcn-composed/action-drawer"
-import { Button } from "@/components/shadcn-ui/button"
+import MagicPopup from "@/components/base-mobile/MagicPopup"
+import { Check, X } from "lucide-react"
 import { memo } from "react"
 import type { DeleteModalProps } from "./types"
 
@@ -10,14 +10,14 @@ function DeleteModal({
 	onOk,
 	translations,
 }: DeleteModalProps) {
-	const getTitle = () => {
+	const getHeaderTitle = () => {
 		switch (currentActionItem?.type) {
 			case "workspace":
-				return translations.deleteWorkspace
+				return translations.deleteWorkspaceConfirmTitle || ""
 			case "project":
-				return translations.deleteProject
+				return translations.deleteProjectConfirmTitle || ""
 			case "topic":
-				return translations.deleteTopic
+				return translations.deleteTopicConfirmTitle || ""
 			default:
 				return ""
 		}
@@ -26,15 +26,15 @@ function DeleteModal({
 	const getContent = () => {
 		switch (currentActionItem?.type) {
 			case "workspace":
-				return translations.deleteWorkspaceConfirm(
+				return translations.deleteWorkspaceDescription(
 					currentActionItem?.workspace?.name || translations.unnamedWorkspace,
 				)
 			case "project":
-				return translations.deleteProjectConfirm(
+				return translations.deleteProjectDescription(
 					currentActionItem?.project?.project_name || translations.unnamedProject,
 				)
 			case "topic":
-				return translations.deleteTopicConfirm(
+				return translations.deleteTopicDescription(
 					currentActionItem?.topic?.topic_name || translations.unnamedTopic,
 				)
 			default:
@@ -43,26 +43,31 @@ function DeleteModal({
 	}
 
 	return (
-		<ActionDrawer
-			open={visible}
-			onOpenChange={(open) => !open && onCancel()}
-			title={getTitle()}
-			showCancel={false}
+		<MagicPopup
+			visible={visible}
+			onClose={onCancel}
+			position="bottom"
+			headerVariant="actionHeader"
+			headerTitle={getHeaderTitle()}
+			headerLeadingAction={{
+				icon: <X className="size-[22px] text-foreground" />,
+				ariaLabel: translations.cancel,
+				onClick: onCancel,
+			}}
+			headerTrailingAction={{
+				icon: <Check className="size-[22px] text-white" strokeWidth={2.5} />,
+				ariaLabel: translations.confirm,
+				onClick: onOk,
+				tone: "destructive",
+			}}
+			bodyClassName="max-h-[80vh] p-0"
 		>
-			<div className="text-sm text-foreground">{getContent()}</div>
-			<div className="flex gap-1.5 pt-1">
-				<Button
-					variant="outline"
-					className="h-9 shrink-0 rounded-lg px-8"
-					onClick={onCancel}
-				>
-					{translations.cancel}
-				</Button>
-				<Button variant="destructive" className="h-9 flex-1 rounded-lg" onClick={onOk}>
-					{translations.confirm}
-				</Button>
+			<div className="scrollbar-y-thin flex min-h-0 flex-col overflow-y-auto px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
+				<p className="mx-auto max-w-[680px] text-left text-[16px] leading-6 text-muted-foreground">
+					{getContent()}
+				</p>
 			</div>
-		</ActionDrawer>
+		</MagicPopup>
 	)
 }
 

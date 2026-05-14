@@ -3,6 +3,8 @@ import type { AttachmentItem } from "../../hooks/types"
 import {
 	hasMagicSystemFolderInDeletionSelection,
 	isMagicSystemFolder,
+	resolveBatchDeleteConfirmContentKey,
+	resolveSingleDeleteConfirmContentKey,
 } from "../magic-system-folder"
 
 describe("isMagicSystemFolder", () => {
@@ -98,5 +100,63 @@ describe("hasMagicSystemFolderInDeletionSelection", () => {
 			},
 		]
 		expect(hasMagicSystemFolderInDeletionSelection(tree, new Set(["other"]), id)).toBe(false)
+	})
+})
+
+describe("resolveSingleDeleteConfirmContentKey", () => {
+	test("prefers magic-folder warning over generic folder delete copy", () => {
+		expect(
+			resolveSingleDeleteConfirmContentKey({
+				isFolder: true,
+				isMagicFolder: true,
+			}),
+		).toBe("topicFiles.contextMenu.deleteMagicFolderContent")
+	})
+
+	test("uses folder copy for non-magic folders", () => {
+		expect(
+			resolveSingleDeleteConfirmContentKey({
+				isFolder: true,
+				isMagicFolder: false,
+			}),
+		).toBe("topicFiles.contextMenu.deleteFolderContent")
+	})
+
+	test("uses file copy for files", () => {
+		expect(
+			resolveSingleDeleteConfirmContentKey({
+				isFolder: false,
+				isMagicFolder: false,
+			}),
+		).toBe("topicFiles.contextMenu.deleteFileDescription")
+	})
+})
+
+describe("resolveBatchDeleteConfirmContentKey", () => {
+	test("prefers magic-folder warning over generic batch copy", () => {
+		expect(
+			resolveBatchDeleteConfirmContentKey({
+				containsFolders: true,
+				touchesMagicFolder: true,
+			}),
+		).toBe("topicFiles.contextMenu.confirmBatchDeleteWithMagicSystemFolder")
+	})
+
+	test("uses folder batch copy when selection contains folders", () => {
+		expect(
+			resolveBatchDeleteConfirmContentKey({
+				containsFolders: true,
+				touchesMagicFolder: false,
+			}),
+		).toBe("topicFiles.contextMenu.confirmBatchDeleteWithFolders")
+	})
+
+	test("uses generic batch copy for file-only selection", () => {
+		expect(
+			resolveBatchDeleteConfirmContentKey({
+				containsFolders: false,
+				touchesMagicFolder: false,
+			}),
+		).toBe("topicFiles.contextMenu.confirmBatchDelete")
 	})
 })

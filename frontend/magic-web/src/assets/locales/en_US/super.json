@@ -234,15 +234,51 @@
 		"workspaceSwitcherRefresh": "Refresh Workspace List"
 	},
 	"chat": {
+		"confirmSaveAsProject": "Confirm Save as Project",
+		"deleteChat": "Delete Chat",
+		"deleteChatConfirm": "Are you sure to delete chat: \"{{name}}\"?",
+		"deleteChatDescription": "will be permanently deleted. This action cannot be undone.",
+		"deleteChatSuccess": "Delete chat successfully",
 		"friend": "My friend",
 		"greet": "Hi! {{name}}",
+		"inputChatName": "Please enter chat name",
+		"noChats": "No chats yet",
+		"noPreview": "No conversation preview yet",
+		"pinChat": "Pin Chat",
+		"pinChatFailed": "Chat pin failed",
+		"pinChatSuccess": "Chat pinned successfully",
+		"projectNameFieldLabel": "Project Name",
+		"renameChat": "Rename Chat",
+		"renameChatSuccess": "Rename chat successfully",
+		"saveAsNewProjectTitle": "Save as New Project",
+		"saveAsProject": "Save as Project",
+		"saveAsProjectSuccess": "Chat saved as a project",
+		"saveAsProjectTo": "Save as project to...",
+		"unnamedChat": "Unnamed Chat",
+		"unpinChat": "Unpin Chat",
+		"unpinChatFailed": "Chat unpin failed",
+		"unpinChatSuccess": "Chat unpinned successfully",
 		"viewHistoryConversations": "History",
-		"whatCanIHelpYou": "What can I help you?"
+		"whatCanIHelpYou": "What can I help you?",
+		"workspaceLabel": "Workspace",
+		"workspaceSelectTitle": "Select Workspace"
 	},
 	"chatActions": {
 		"historyTopics": "History Topics",
 		"newTopic": "New Topic",
 		"projectFiles": "Project Files"
+	},
+	"chatList": {
+		"emptyDescription": "New conversations will appear here",
+		"emptyTitle": "No conversations yet",
+		"minutesAgo": "{{count}} minutes ago",
+		"newChat": "New chat",
+		"searchPlaceholder": "Search",
+		"swipeDelete": "Delete",
+		"swipeMore": "More",
+		"swipePin": "Pin",
+		"swipeUnpin": "Unpin",
+		"title": "Chats"
 	},
 	"clawPlayground": {
 		"stopTaskBeforeToolbarAction": "Stop the current task before using this",
@@ -377,6 +413,7 @@
 		"caseTitle": "100x Productivity Cases",
 		"chatMode": "Chat",
 		"chats": "Chats",
+		"close": "Close",
 		"confirm": "Confirm",
 		"confirmDelete": "Delete Confirmation",
 		"continue": "Continue",
@@ -1094,7 +1131,8 @@
 		"inputProjectName": "Please enter project name",
 		"inputTopicName": "Please enter topic name",
 		"inputWorkspaceName": "Please enter workspace name",
-		"moveProjectTo": "Move Project To",
+		"moveProjectTo": "Move To",
+		"moveToWorkspace": "Move to Workspace",
 		"name": "Name",
 		"newName": "New Name",
 		"noProjectData": "No project data",
@@ -1123,6 +1161,14 @@
 		"workspaceNameRequired": "Workspace name cannot be empty",
 		"workspaceProjects": "Workspace Projects",
 		"workspaceRename": "Rename Workspace"
+	},
+	"home": {
+		"header": {
+			"menuAria": "Open menu",
+			"newChatAria": "New chat"
+		},
+		"sloganSubtitle": "Your dedicated AI team is ready",
+		"sloganTitle": "What do you need help with today?"
 	},
 	"messageEditor": {
 		"addAttachment": "Add Attachment",
@@ -1334,6 +1380,15 @@
 		"updateSuccess": "Queue message updated successfully"
 	},
 	"mobile": {
+		"apps": {
+			"emptyDescription": "No application entry is available for the current organization yet.",
+			"emptyTitle": "No apps yet",
+			"errorDescription": "Failed to load the apps directory. Please try again later.",
+			"errorTitle": "Unable to load apps",
+			"openHint": "Open app",
+			"openInNewWindowHint": "Open app in a new window",
+			"retry": "Reload"
+		},
 		"my": {
 			"aboutUs": "About Us",
 			"available": "Available",
@@ -1369,7 +1424,12 @@
 				"permanentDelete": "Delete Permanently",
 				"restore": "Restore",
 				"selectAll": "Select All",
+				"selectAllVisible": "Select all in list ({{count}})",
 				"title": "Bulk Actions"
+			},
+			"confirmRestore": {
+				"confirmButton": "Confirm restore",
+				"subtitle": "We will check original locations and restore; you may be asked to pick a destination if a move is required."
 			},
 			"deleteSuccess": {
 				"content": "Permanently deleted {{count}} items."
@@ -1378,9 +1438,19 @@
 				"description": "No deleted data yet",
 				"title": "Your Trash Is Empty"
 			},
+			"filterSheet": {
+				"category": "Type",
+				"newToOld": "New to old",
+				"oldToNew": "Old to new",
+				"openAria": "Open filters and sort",
+				"order": "Order",
+				"title": "Filter"
+			},
 			"item": {
 				"deletedBy": "{{username}} deleted",
 				"more": "More actions",
+				"remainingShort": "{{days}} days left",
+				"selectRow": "Select this item",
 				"type": {
 					"file": "File",
 					"project": "Project",
@@ -1392,6 +1462,12 @@
 			"loader": {
 				"noMoreData": "You've seen everything!"
 			},
+			"orphanMixed": {
+				"choosePath": "Choose a new location",
+				"description": "Some selected items can be restored directly; others need to be moved to a valid location first.",
+				"restoreDirectOnly": "Restore only the direct-restore items",
+				"title": "Some items need a new location"
+			},
 			"restoreFileTip": "Please restore files on PC.",
 			"restoreNeedPc": "Some items need to be restored on PC.",
 			"restoreSuccess": {
@@ -1401,7 +1477,11 @@
 			"search": {
 				"cancel": "Cancel",
 				"open": "Search",
-				"placeholder": "Search"
+				"placeholder": "Search by name"
+			},
+			"searchEmpty": {
+				"description": "Try another keyword or clear search",
+				"title": "No results found"
 			},
 			"selectPath": {
 				"filePlaceholder": "Please select the path to restore."
@@ -1412,6 +1492,10 @@
 				"noProject": "No projects in this workspace",
 				"noWorkspace": "No workspace available"
 			},
+			"tabEmpty": {
+				"description": "Switch to All or another type",
+				"title": "Nothing in this category"
+			},
 			"tabs": {
 				"all": "All ({{count}})",
 				"files": "Files ({{count}})",
@@ -1420,6 +1504,23 @@
 				"workspaces": "Workspaces ({{count}})"
 			},
 			"title": "Trash"
+		},
+		"shell": {
+			"brandGoHome": "Go to home",
+			"brandName": "MagiCrew",
+			"closeSidebar": "Close sidebar",
+			"currentPage": "Current page",
+			"menuAria": "Open menu",
+			"navApps": "Apps",
+			"navChats": "Chats",
+			"navMagiClaw": "MagiClaw",
+			"navMyCrew": "My Crew",
+			"navRecording": "Recordings & summaries",
+			"navSuper": "Home",
+			"navTrash": "Trash",
+			"navWorkspaces": "Workspaces",
+			"recentlyUsed": "Recently used",
+			"upgrade": "Upgrade"
 		}
 	},
 	"modeToggle": {
@@ -1596,9 +1697,112 @@
 		"searchProject": "Search Project",
 		"shortcutNavigateToWorkspace": "Navigate to Workspace",
 		"transfer": "Transfer Project",
+		"transferMobileUnsupported": "Please transfer projects on desktop",
 		"unnamedProject": "Unnamed Project",
 		"unpin": "Unpin",
 		"workspaceProjects": "Workspace Projects"
+	},
+	"projectDetail": {
+		"addTitle": "New",
+		"backAria": "Back to projects",
+		"clearSearch": "Clear search",
+		"createFileFailed": "Failed to create file",
+		"createFileNameLabel": "File name",
+		"createFileNamePlaceholder": "Enter file name",
+		"createFolderFailed": "Failed to create folder",
+		"createFolderNameLabel": "Folder name",
+		"createFolderNamePlaceholder": "Enter folder name",
+		"createSection": "Create document",
+		"emptyFolder": "Empty folder",
+		"fabFilesAria": "Add file or folder",
+		"fileItems": "{{count}} items",
+		"fileType": {
+			"archive": "Archive",
+			"audio": "Audio",
+			"css": "CSS",
+			"custom": "Custom format",
+			"design": "Design",
+			"file": "File",
+			"go": "Golang",
+			"html": "HTML",
+			"image": "Image",
+			"java": "Java",
+			"javascript": "JavaScript",
+			"json": "JSON",
+			"link": "Link",
+			"markdown": "Markdown",
+			"pdf": "PDF",
+			"php": "PHP",
+			"powerpoint": "PPT",
+			"python": "Python",
+			"shell": "Shell",
+			"spreadsheet": "Spreadsheet",
+			"text": "Text",
+			"typescript": "TypeScript",
+			"video": "Video",
+			"wiki": "Wiki",
+			"word": "Document",
+			"xml": "XML"
+		},
+		"filesTab": "Files",
+		"importSection": "Import",
+		"inputPlaceholder": "Ask MagiCrew…",
+		"moreAria": "More options",
+		"organizeSection": "Organize",
+		"searchPlaceholder": "Search files",
+		"swipe": {
+			"delete": "Delete",
+			"more": "More",
+			"pin": "Pin"
+		},
+		"tabFiles": "Files",
+		"tabTopics": "Topics",
+		"topicTab": "Topics"
+	},
+	"projectList": {
+		"swipeDelete": "Delete",
+		"swipeMore": "More",
+		"swipePin": "Pin",
+		"swipeUnpin": "Unpin"
+	},
+	"projectShare": {
+		"advancedSettings": "Advanced settings",
+		"copyLink": "Copy link",
+		"createLink": "Create share link",
+		"createTitle": "Project Share",
+		"deleteConfirmDescription": "People with this link will no longer be able to access the share after it is canceled.",
+		"deleteConfirmMessage": "Cancel \"{{name}}\"? People with this link will no longer be able to access the share.",
+		"deleteConfirmTitle": "Cancel shared link",
+		"deleteLink": "Delete link",
+		"detailUnavailable": "Shared link unavailable",
+		"empty": "No shared links yet",
+		"expiresPermanent": "Permanent",
+		"expiryDays": "{{days}} days",
+		"expiryLabel": "Expiry",
+		"expiryTitle": "Expiry",
+		"fileCount": "{{count}} files",
+		"fileModeCreateTitle": "File Share",
+		"linkDetailTitle": "Share details",
+		"linkLabel": "Link",
+		"linkNameLabel": "Link name (optional)",
+		"linkNamePlaceholder": "For example: client demo, partner review...",
+		"manageOrganizationSummary": "Organization members can access",
+		"managePasswordSummary": "Password required",
+		"managePermanent": "Permanent",
+		"managePublicSummary": "Anyone with the link can access",
+		"manageTitle": "Manage shared links",
+		"organizationMembersLabel": "Organization members",
+		"selectMembers": "Select members or departments",
+		"selectedFilesCount": "{{count}} files",
+		"selectedFilesLabel": "Selected files",
+		"selectedMembersCount": "{{count}} selected",
+		"typeLabel": "Share type",
+		"typeOrganization": "Organization",
+		"typeOrganizationDescription": "Only selected organization members can access",
+		"typePassword": "Password",
+		"typePasswordDescription": "A password is required to access this shared link",
+		"typePublic": "Public",
+		"typePublicDescription": "Anyone with the link can access directly"
 	},
 	"recordingSummary": {
 		"actions": {
@@ -2190,11 +2394,13 @@
 		"clickToSelectFiles": "Click to select the files you want to share",
 		"close": "Close",
 		"confirmReset": "Confirm Reset",
+		"conversationLink": "Conversation Link",
 		"copy": "Copy",
 		"copyCount": "copies",
 		"copyLink": "Copy",
-		"copyLinkAndPassword": "Copy",
+		"copyLinkAction": "Copy Link",
 		"copyLinkSuccess": "Link copied",
+		"copyPassword": "Copy password",
 		"copyPasswordSuccess": "Password copied",
 		"copyProject": "Copy Project",
 		"copyProjectCompleted": "Project copied completed",
@@ -2254,6 +2460,7 @@
 		"enableFileShareConfirm": "The current file is about to enable internet sharing. After enabling, anyone can access the file through the link or link and password",
 		"enableShare": "Enable Sharing",
 		"enableShareDescription": "When enabled, visitors can preview topic replay via link",
+		"enableShareLink": "Enable Share Link",
 		"enableTopicShareConfirm": "The current topic replay is about to enable internet sharing. After enabling, anyone can access the topic replay through the link or link and password",
 		"enterNewProjectName": "Please enter new project name",
 		"enterProject": "Enter Project",
@@ -2281,6 +2488,7 @@
 		"generateShareLink": "Generate Share Link",
 		"hideCreatorInfo": "Hide \"Created by $t(common:platform.name)\"",
 		"hideCreatorInfoDescription": "When enabled, the floating watermark at the bottom right corner of the page will be hidden",
+		"hidePassword": "Hide password",
 		"includedFiles": "Included Files",
 		"internetFileShare": "Internet accessible",
 		"internetFileShareDescription": "Anyone who obtains the link can access the file",
@@ -2312,6 +2520,7 @@
 		"originalProject": "Original Project",
 		"passwordProtected": "Password Protected",
 		"passwordProtectedDescription": "Requires password to access",
+		"passwordProtection": "Password Protection",
 		"passwordVerification": {
 			"fileDescription": "Please enter password to view share",
 			"fileTitle": "Password verification is enabled for this share",
@@ -2342,6 +2551,7 @@
 		"selectedCount": "{{folders}} Folders Selected, {{files}} Files Selected",
 		"setAsDefaultOpenFile": "Set as default",
 		"settingsSaved": "Share settings saved",
+		"shareConversation": "Share Conversation",
 		"shareExpiry": "Expiry",
 		"shareFile": "Share Project Files",
 		"shareInfo": "Share Information",
@@ -2384,6 +2594,7 @@
 		"showOriginalInfo": "Original information",
 		"showOriginalInfoDescription": "When enabled, your avatar and nickname will be displayed on the sharing page",
 		"showOriginalInfoTip": "When enabled, your avatar and nickname will be displayed on the sharing page",
+		"showPassword": "Show password",
 		"singleFileShareName": "File Share_{{fileName}}",
 		"successModalTitle": "Share Information",
 		"switchOrganizationFailed": "Failed to switch organization, please try again",
@@ -2519,6 +2730,26 @@
 			"fileProcessFailed": "File processing failed, please try again",
 			"processFailed": "Data processing failed"
 		}
+	},
+	"sharedProjects": {
+		"emptyDescription": "Projects shared with you or shared by you will appear here",
+		"emptySearchDescription": "Adjust the search or filters and try again",
+		"emptyTitle": "No shared projects",
+		"filter": {
+			"addCreator": "Add sharer",
+			"addMoreCreators": "Add more sharers",
+			"creatorLabel": "Sharer",
+			"removeCreator": "Remove {{name}}",
+			"reset": "Reset",
+			"title": "Filter"
+		},
+		"searchPlaceholder": "Search",
+		"sharedWith": "Shared with {{count}} people",
+		"tabSharedByMe": "Shared by me",
+		"tabSharedWithMe": "Shared with me",
+		"title": "Shared Workspace",
+		"unknownCreator": "Unknown sharer",
+		"unknownTime": "Unknown time"
 	},
 	"shortcut": {
 		"addToConversation": "Add to Conversation",
@@ -2778,7 +3009,10 @@
 		],
 		"actionTitle": "If you want to actively intervene",
 		"mainText": "Task execution is taking too long, which may be due to the following reasons:",
-		"reasonList": ["AI is processing complex tasks", "Network connection is unstable"],
+		"reasonList": [
+			"AI is processing complex tasks",
+			"Network connection is unstable"
+		],
 		"statusText": "If you don't take any action, AI will continue trying"
 	},
 	"tool": {
@@ -2881,7 +3115,11 @@
 		"allTopics": "All Topics",
 		"createNewTopic": "New Topic",
 		"deleteTopicTip": "Confirm to delete topic \"{{topicName}}\"?",
+		"feedbackConversation": "Give feedback on this conversation",
 		"history": "History",
+		"moreAria": "More actions",
+		"noTopicData": "No topic data",
+		"pinTopic": "Pin topic",
 		"pleaseSelectWorkspaceAndProject": "Please select workspace or project",
 		"projectTopics": "Project Topics",
 		"renameTopicSuccess": "Rename topic successfully",
@@ -2950,17 +3188,25 @@
 			},
 			"createUploadTaskFailed": "Failed to create upload task",
 			"delete": "Delete",
+			"deleteBatchDescription": "will be permanently deleted. This action cannot be undone.",
+			"deleteBatchSubject": "{{count}} selected item(s)",
+			"deleteBatchTipMobile": "Delete Selection?",
+			"deleteBatchWithFoldersDescription": "will be permanently deleted, including folder contents and unselected subfiles. This action cannot be undone.",
 			"deleteContent": "Confirm to delete {{name}} ?",
+			"deleteFileDescription": "will be permanently deleted. This action cannot be undone.",
 			"deleteFileFailed": "Failed to delete file",
 			"deleteFileFailedWithName": "Failed to delete file \"{{name}}\"",
 			"deleteFileSuccess": "File deleted successfully",
 			"deleteFileSuccessWithName": "File \"{{name}}\" deleted successfully",
+			"deleteFileTipMobile": "Delete File?",
 			"deleteFolderContent": "Delete folder \"{{name}}\"?\nSubfiles not selected will also be deleted",
+			"deleteFolderDescription": "will be permanently deleted, and unselected subfiles will also be removed. This action cannot be undone.",
 			"deleteFolderFailed": "Failed to delete folder",
 			"deleteFolderFailedWithName": "Failed to delete folder \"{{name}}\"",
 			"deleteFolderSuccess": "Folder deleted successfully",
 			"deleteFolderSuccessWithName": "Folder \"{{name}}\" deleted successfully",
 			"deleteFolderTip": "Delete Folder Confirmation",
+			"deleteFolderTipMobile": "Delete Folder?",
 			"deleteMagicFolderContent": "The .magic folder holds files required for core features. After deletion, some capabilities may stop working and this cannot be undone. Proceed with caution.",
 			"deleteTip": "Confirmation of deletion operation",
 			"download": "Download File",
@@ -3149,7 +3395,7 @@
 			"overwriteSingleContent": "A file named \"{{name}}\" already exists in the target directory. Moving will overwrite the existing file. Continue?",
 			"overwriteTitle": "Overwrite Reminder",
 			"tips": "",
-			"title": "Move to..."
+			"title": "Move File"
 		},
 		"moving": "Files Moving...",
 		"noFiles": "No Project files",
@@ -3173,6 +3419,12 @@
 		"upload": "Upload",
 		"waiting": "Please wait"
 	},
+	"topicList": {
+		"swipeDelete": "Delete",
+		"swipeMore": "More",
+		"swipePin": "Pin",
+		"swipeUnpin": "Unpin"
+	},
 	"transferModal": {
 		"actions": {
 			"cancel": "Cancel",
@@ -3189,7 +3441,8 @@
 			"noProjects": "No projects available to transfer",
 			"noWorkspaces": "No workspaces available to transfer",
 			"selectReceiver": "Please select a receiver",
-			"success": "Transfer successful"
+			"success": "Transfer successful",
+			"userOnly": "The transfer receiver must be a user"
 		},
 		"permission": {
 			"edit": "Editable",
@@ -3221,6 +3474,15 @@
 		"title": {
 			"project": "Transfer Project",
 			"workspace": "Transfer Workspace"
+		},
+		"transferConfirmSheet": {
+			"description": "\"{{entityName}}\" will be transferred to {{memberName}}. After the transfer, you will lose all management rights. This action cannot be undone.",
+			"entityLabel": {
+				"project": "Project",
+				"workspace": "Workspace"
+			},
+			"title": "Confirm Transfer",
+			"transferTo": "Transfer to"
 		}
 	},
 	"ui": {
@@ -3236,8 +3498,14 @@
 		"usedVideoModel": "Video Model: ",
 		"copyTopic": "Create a new topic from here",
 		"deleteProjectConfirm": "Are you sure to delete project: \"{{name}}\"?",
+		"deleteProjectConfirmTitle": "Delete Project?",
+		"deleteProjectDescription": "\"{{name}}\" will be permanently deleted, including all topics and files. This action cannot be undone.",
 		"deleteTopicConfirm": "Are you sure to delete topic: \"{{name}}\"?",
+		"deleteTopicConfirmTitle": "Delete Conversation?",
+		"deleteTopicDescription": "\"{{name}}\" will be permanently deleted. This action cannot be undone.",
 		"deleteWorkspaceConfirm": "Are you sure to delete workspace: \"{{name}}\"?",
+		"deleteWorkspaceConfirmTitle": "Delete Workspace?",
+		"deleteWorkspaceDescription": "\"{{name}}\" will be permanently deleted, including all projects, topics and files. This action cannot be undone.",
 		"expandAllFiles": "Expand All Files",
 		"expandUserMessage": "Expand",
 		"filePreviewNotSupported": "File preview not supported, please download the file",
@@ -3348,12 +3616,15 @@
 		"addWorkspace": "New Workspace",
 		"allWorkspaceTitle": "All Workspace",
 		"collaborationProjectsDesc": "View projects shared with you by other members, and manage projects you have shared",
+		"collaborationProjectsDescV2": "Projects shared with you",
 		"collaborationProjectsTitle": "Collaboration Workspace",
 		"confirmDeleteThread": "Are you sure to delete the conversation \"{name}\"?",
 		"confirmDeleteWorkspace": "Are you sure to delete the workspace \"{name}\"?",
 		"createWorkspace": "New Workspace",
+		"createWorkspaceSheetTitle": "New Workspace",
 		"createWorkspaceSuccess": "Create workspace successfully",
 		"createWorkspaceTip": "Please enter workspace name",
+		"deleteWorkspace": "Delete Workspace",
 		"deleteWorkspaceSuccess": "Delete workspace successfully",
 		"deleteWorkspaceTip": "Confirm to delete workspace \"{{workspaceName}}\"?",
 		"externalSharedWithMe": "External Shared",
@@ -3363,9 +3634,11 @@
 		"newWorkspace": "New Workspace",
 		"noOtherWorkspace": "No other workspaces available",
 		"noWorkspaces": "No workspaces",
+		"projectCount": "{{count}} Projects",
 		"projects": "Projects",
 		"rename": "Rename",
 		"renameWorkspaceSuccess": "Rename workspace successfully",
+		"searchNoResults": "No results found for \"{{keyword}}\"",
 		"searchTopic": "Search Topic",
 		"searchWorkspace": "Search Workspace",
 		"selectWorkspaceForStorage": "Select a workspace to store",
@@ -3387,7 +3660,12 @@
 		"workspace": "Workspace",
 		"workspaceList": "Workspace List",
 		"workspaceName": "Workspace Name",
+		"workspaceNameLabel": "Workspace Name",
 		"workspaceNotFound": "Workspace not found",
 		"workspaces": "Workspaces"
+	},
+	"workspaceList": {
+		"swipeDelete": "Delete",
+		"swipeMore": "More"
 	}
 }

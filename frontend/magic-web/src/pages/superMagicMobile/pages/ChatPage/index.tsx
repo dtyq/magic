@@ -1,9 +1,9 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { observer } from "mobx-react-lite"
-import { Box, ChevronsUpDown } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell"
 import ChatPageHeader from "./components/ChatPageHeader"
 import SloganSection from "./components/SloganSection"
-import ChatDrawer from "./components/ChatDrawer"
 import type { HierarchicalWorkspacePopupRef } from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup/types"
 import { useMemoizedFn, useMount } from "ahooks"
 import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
@@ -13,12 +13,15 @@ import MobileInputContainer, {
 	type MobileInputContainerRef,
 } from "./components/MobileInputContainer"
 import { MOBILE_LAYOUT_CONFIG } from "@/pages/superMagic/components/MainInputContainer/components/editors/constant"
+import { INPUT_CONTAINER_MIN_HEIGHT } from "@/pages/superMagic/components/MainInputContainer/constants"
 import { topicStore, projectStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
-import { useTranslation } from "react-i18next"
 import { userStore } from "@/models/user"
 import { useTaskInterrupt } from "@/pages/superMagic/hooks/useTaskInterrupt"
+import { useChatWorkspace } from "@/pages/superMagic/hooks/useChatWorkspace"
+import magicToast from "@/components/base/MagicToaster/utils"
+import SuperMagicService from "@/pages/superMagic/services"
 import useAgentCodeModeFromSearch from "@/pages/superMagic/hooks/useAgentCodeModeFromSearch"
 import useTopicMode from "@/pages/superMagic/hooks/useTopicMode"
 import { refreshFeaturedModeList } from "@/pages/superMagic/hooks/useFeaturedModeListRefresh"
@@ -28,16 +31,21 @@ import { useLocation } from "react-router"
 import { MobileTabParam } from "@/pages/mobileTabs/constants"
 import { routesPathMatch } from "@/routes/history/helpers"
 import { RouteName } from "@/routes/constants"
+import { interfaceStore } from "@/stores/interface"
 
 const HierarchicalWorkspacePopup = lazy(
 	() => import("@/pages/superMagicMobile/components/HierarchicalWorkspacePopup"),
 )
 
-const ChatPage = observer(() => {
+/**
+ * 首页面板继续复用既有欢迎区与输入区逻辑，但顶部菜单入口改由共享 MobileShell 注入。
+ */
+const ChatPagePanel = observer(function ChatPagePanel() {
 	const { t } = useTranslation(["super", "sidebar"])
 	const location = useLocation()
-	const [drawerOpen, setDrawerOpen] = useState(false)
+	const { openSidebar } = useSuperMobileShellOutlet()
 	const [stopEventLoading, setStopEventLoading] = useState(false)
+	const [isCreatingEmptyChat, setIsCreatingEmptyChat] = useState(false)
 	const [isHierarchicalWorkspacePopupInitialized, setIsHierarchicalWorkspacePopupInitialized] =
 		useState(false)
 	const hierarchicalWorkspacePopupRef = useRef<HierarchicalWorkspacePopupRef>(null)
@@ -47,6 +55,13 @@ const ChatPage = observer(() => {
 	const isOnHomepage =
 		routesPathMatch(RouteName.MobileTabs, location.pathname) &&
 		activeTab === MobileTabParam.Super
+	// 记录挂载状态，避免创建完成后跳转离开页面时再回写本页 loading 状态。
+	const isMountedRef = useRef(true)
+	// 额外使用 ref 做同步门闩，避免按钮状态尚未刷新时发生连点重复创建。
+	const isCreatingEmptyChatRef = useRef(false)
+	const { chatWorkspace, createProjectInChatWorkspace } = useChatWorkspace({
+		projectPageSize: 100,
+	})
 
 	const currentRole = roleStore.currentRole
 
@@ -54,9 +69,41 @@ const ChatPage = observer(() => {
 		setIsHierarchicalWorkspacePopupInitialized((initialized) => initialized || true)
 	})
 
-	const handleOpenDrawer = useMemoizedFn(() => {
-		initializeHierarchicalWorkspacePopup()
-		setDrawerOpen(true)
+	useEffect(() => {
+		return () => {
+			isMountedRef.current = false
+		}
+	}, [])
+
+	/**
+	 * 首页右上入口只负责“创建并进入空白对话”，沿用抽屉页同一条创建后切换链路。
+	 */
+	const handleCreateEmptyChat = useMemoizedFn(async () => {
+		if (isCreatingEmptyChatRef.current) return
+
+		isCreatingEmptyChatRef.current = true
+		setIsCreatingEmptyChat(true)
+
+		try {
+			const createdProject = await createProjectInChatWorkspace({
+				projectMode: currentRole || TopicMode.General,
+			})
+
+			if (!createdProject?.project || !createdProject.topic) {
+				magicToast.error(t("super:hierarchicalWorkspacePopup.createProjectFailed"))
+				return
+			}
+
+			// 这里显式传入 project + topic，确保进入动态 ChatProjectState 的空白对话页。
+			await SuperMagicService.switchChatProject(createdProject.project, createdProject.topic)
+		} catch {
+			magicToast.error(t("super:hierarchicalWorkspacePopup.createProjectFailed"))
+		} finally {
+			isCreatingEmptyChatRef.current = false
+			if (isMountedRef.current) {
+				setIsCreatingEmptyChat(false)
+			}
+		}
 	})
 
 	useMount(() => {
@@ -124,11 +171,13 @@ const ChatPage = observer(() => {
 	const chatTopicId = selectedTopic?.chat_topic_id
 	const threadMessageCount =
 		chatTopicId != null ? (superMagicStore.messages?.get(chatTopicId) ?? []).length : 0
-	const selectedWorkspace = workspaceStore.selectedWorkspace ?? workspaceStore.firstWorkspace
-	const displayWorkspaceName = selectedWorkspace?.name || t("super:workspace.unnamedWorkspace")
 	const userId = userStore.user.userInfo?.user_id
 	const isTaskRunning = selectedTopic?.task_status === TaskStatus.RUNNING
-	const sloganBottomPadding = "5rem"
+	const mobileInputBottomOffset = interfaceStore.mobileTabBarVisible
+		? "calc(max(var(--safe-area-inset-bottom), 12px) + var(--mobile-tabbar-height, 60px) + 8px)"
+		: "max(var(--safe-area-inset-bottom), 12px)"
+	// 欢迎区与真实输入区共享同一套底部留白来源，避免出现固定像素的视觉断层。
+	const welcomeSectionBottomSpacing = `calc(${mobileInputBottomOffset} + ${INPUT_CONTAINER_MIN_HEIGHT.HomePage}px)`
 
 	const { handleInterrupt } = useTaskInterrupt({
 		selectedTopic,
@@ -142,9 +191,11 @@ const ChatPage = observer(() => {
 		() => ({
 			selectedTopic,
 			selectedProject,
-			selectedWorkspace,
+			selectedWorkspace: chatWorkspace,
 			setSelectedTopic: topicStore.setSelectedTopic,
 			setSelectedProject: projectStore.setSelectedProject,
+			setSelectedWorkspace: workspaceStore.setSelectedWorkspace,
+			createProject: createProjectInChatWorkspace,
 			topicMode,
 			agentCode: selectedTopic?.agent_code,
 			setTopicMode,
@@ -163,27 +214,24 @@ const ChatPage = observer(() => {
 					topicStore,
 					topic: currentTopic ?? topicStore.selectedTopic,
 					project: currentProject ?? projectStore.selectedProject,
-					workspace: selectedWorkspace,
+					workspace: chatWorkspace,
 				})
 			},
 			onSendSuccess: ({ currentProject, currentTopic }) => {
-				if (!selectedWorkspace || !currentProject || !currentTopic) return
+				if (!chatWorkspace || !currentProject || !currentTopic) return
 				mobileInputContainerRef.current?.closeRealInput()
-				void import("@/pages/superMagic/services/index").then(
-					({ default: superMagicService }) => {
-						superMagicService.switchTopic(currentTopic)
-					},
-				)
+				void SuperMagicService.switchChatProject(currentProject, currentTopic)
 			},
 			autoFocus: true,
 		}),
 		[
+			chatWorkspace,
+			createProjectInChatWorkspace,
+			selectedTopic,
+			selectedProject,
 			topicMode,
 			setTopicMode,
 			currentRole,
-			selectedTopic,
-			selectedProject,
-			selectedWorkspace,
 			threadMessageCount,
 			isTaskRunning,
 			stopEventLoading,
@@ -194,48 +242,35 @@ const ChatPage = observer(() => {
 
 	return (
 		<>
-			<div className="relative flex size-full flex-col items-start overflow-hidden bg-sidebar">
-				{/* 头部 */}
-				<ChatPageHeader onMenuClick={handleOpenDrawer} />
+			<div className="relative flex size-full flex-col overflow-hidden bg-sidebar pb-safe-bottom">
+				<ChatPageHeader
+					onMenuClick={openSidebar}
+					onPrimaryAction={handleCreateEmptyChat}
+					isPrimaryActionLoading={isCreatingEmptyChat}
+				/>
 
-				{/* 主内容区域 */}
-				<div className="relative flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden pt-20">
-					<button
-						type="button"
-						className="absolute left-2.5 top-2.5 z-10 flex h-8 max-w-[calc(100%-20px)] items-center gap-2 rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-accent active:bg-accent/80"
-						onClick={handleOpenDrawer}
-						aria-label={`${t("super:workspace.workspaces")} / ${displayWorkspaceName}`}
-						data-testid="chat-page-workspace-button"
-					>
-						<Box size={16} strokeWidth={1.5} className="shrink-0" />
-						<span className="truncate">
-							{t("super:workspace.workspaces")} / {displayWorkspaceName}
-						</span>
-						<ChevronsUpDown size={16} strokeWidth={1.5} className="shrink-0" />
-					</button>
+				<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+					{/* 中部欢迎区沿用原型的居中节奏，底部预留真实输入区高度，避免视觉重心被输入条打断。 */}
 					<div
-						className="flex min-h-0 w-full flex-1 items-center justify-center px-4"
-						style={{ paddingBottom: sloganBottomPadding }}
+						className="flex min-h-0 flex-1 items-center justify-center px-4"
+						style={{ paddingBottom: welcomeSectionBottomSpacing }}
 					>
-						{/* 标语区域 */}
 						<SloganSection />
 					</div>
-				</div>
-				{/* 输入框 */}
-				<div className="w-full shrink-0 pb-2">
-					<MobileInputContainer
-						ref={mobileInputContainerRef}
-						editorContext={editorContext}
-					/>
+					{/* 底部真实输入区继续复用现有 MobileInputContainer，不额外造首页输入状态。 */}
+					<div
+						className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
+						style={{ bottom: mobileInputBottomOffset }}
+					>
+						<div className="pointer-events-auto">
+							<MobileInputContainer
+								ref={mobileInputContainerRef}
+								editorContext={editorContext}
+							/>
+						</div>
+					</div>
 				</div>
 			</div>
-
-			{/* 侧边栏 */}
-			<ChatDrawer
-				open={drawerOpen}
-				onClose={() => setDrawerOpen(false)}
-				hierarchicalWorkspacePopupRef={hierarchicalWorkspacePopupRef}
-			/>
 
 			{/* 工作区/项目选择弹窗 */}
 			{isHierarchicalWorkspacePopupInitialized && (
@@ -247,4 +282,4 @@ const ChatPage = observer(() => {
 	)
 })
 
-export default ChatPage
+export default ChatPagePanel

@@ -25,7 +25,7 @@ class InterfaceStore {
 	/**
 	 * 移动端底部导航栏是否显示
 	 */
-	mobileTabBarVisible = true
+	mobileTabBarVisible = false
 
 	/**
 	 * 是否启用全局安全区域

@@ -55,8 +55,8 @@ function ActionSheet({
 		>
 			<div className="flex w-full flex-col">
 				{/* Header */}
-				<div className="flex h-12 items-center gap-1.5 px-3">
-					<h3 className="flex-1 text-sm font-medium leading-none text-foreground">
+				<div className="flex min-h-12 items-start gap-1.5 px-3 py-2">
+					<h3 className="flex-1 whitespace-pre-line text-sm font-medium leading-snug text-foreground">
 						{title}
 					</h3>
 					<Button
@@ -95,7 +95,7 @@ function ActionSheet({
 												? "text-destructive hover:bg-destructive/5 active:bg-destructive/10"
 												: "text-foreground hover:bg-muted active:bg-muted/80",
 											action.disabled &&
-											"cursor-not-allowed opacity-50 hover:bg-transparent",
+												"cursor-not-allowed opacity-50 hover:bg-transparent",
 										)}
 									>
 										{action.label}

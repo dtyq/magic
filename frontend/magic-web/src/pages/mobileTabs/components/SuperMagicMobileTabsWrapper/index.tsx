@@ -1,14 +1,13 @@
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { useMount } from "ahooks"
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useLocation } from "react-router"
 import SuperMagicService from "@/pages/superMagic/services"
+import { initializeSuperMagicIfNeeded } from "@/pages/superMagic/services/utils"
 import { baseHistory } from "@/routes/history"
 import { useProjectTitle } from "@/pages/superMagic/hooks/useTopicTitle"
 import { observer } from "mobx-react-lite"
-import { userStore } from "@/models/user"
-import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
-import { INIT_DOMAINS } from "@/models/user/stores/initialization.store"
+import { projectStore, topicStore } from "@/pages/superMagic/stores/core"
 import { createPortal } from "react-dom"
 import EditionActivityModal from "@/components/business/EditionActivity/Modal"
 import { isPrivateDeployment } from "@/utils/env"
@@ -37,38 +36,30 @@ const SuperMagicMobileLayoutContent = observer(function SuperMagicMobileLayoutCo
 function SuperMagicMobileTabsWrapper({ children }: SuperMagicMobileTabsWrapperProps) {
 	const isMobile = useIsMobile()
 	const location = useLocation()
-	const searchParams = new URLSearchParams(location.search)
-	const workspaceId = searchParams.get("workspaceId") || undefined
+	const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
 	const projectId = searchParams.get("projectId") || undefined
 	const topicId = searchParams.get("topicId") || undefined
 
 	useProjectTitle()
 
+	useEffect(() => {
+		if (!location.pathname.includes("/mobile-tabs")) return
+		if (!searchParams.has("workspaceId")) return
+
+		const nextSearchParams = new URLSearchParams(location.search)
+		nextSearchParams.delete("workspaceId")
+		const nextSearch = nextSearchParams.toString()
+		const nextUrl = `${location.pathname}${nextSearch ? `?${nextSearch}` : ""}`
+
+		baseHistory.replace(nextUrl)
+	}, [location.pathname, location.search, searchParams])
+
 	useMount(() => {
-		// 如果当前用户没有初始化，进行初始化
-		if (
-			!userStore.initialization.isInitialized({
-				magicId: userStore.user.userInfo?.magic_id,
-				organizationCode: userStore.user.userInfo?.organization_code,
-				domain: INIT_DOMAINS.super,
-			})
-		) {
-			const hasRouteParams = !!(workspaceId || projectId || topicId)
-			if (isMobile && hasRouteParams) {
-				SuperMagicService.refreshState({
-					workspaceId: workspaceId || undefined,
-					projectId,
-					topicId,
-				})
-			} else {
-				// 初始化超级麦吉状态
-				SuperMagicService.initializeState({
-					workspaceId: workspaceId || undefined,
-					projectId,
-					topicId,
-				})
-			}
-		}
+		initializeSuperMagicIfNeeded({
+			isMobile,
+			projectId,
+			topicId,
+		})
 	})
 
 	// // 监听组织切换，重置 SuperMagic 状态, 仅在移动端生效
@@ -100,10 +91,8 @@ function SuperMagicMobileTabsWrapper({ children }: SuperMagicMobileTabsWrapperPr
 					// POP 导航离开了 mobile-tabs（如回退到了项目详情页路由），
 					// 立即 replace 回 ChatPage，阻止用户左滑回退到项目页
 					const clusterCode = configStore.cluster.clusterCode || defaultClusterCode
-					const wsId = workspaceStore.selectedWorkspace?.id
 					const params = new URLSearchParams()
 					params.set("tab", MobileTabParam.Super)
-					if (wsId) params.set("workspaceId", wsId)
 					baseHistory.replace(
 						`/${clusterCode}${RoutePathMobile.MobileTabs}?${params.toString()}`,
 					)
@@ -112,11 +101,11 @@ function SuperMagicMobileTabsWrapper({ children }: SuperMagicMobileTabsWrapperPr
 
 				// Get route params from location
 				const searchParams = new URLSearchParams(location.search)
-				const newWorkspaceId = searchParams.get("workspaceId")
+				const currentTab = searchParams.get("tab") || MobileTabParam.Super
 				const newProjectId = searchParams.get("projectId")
 				const newTopicId = searchParams.get("topicId")
 
-				if (newWorkspaceId || newProjectId || newTopicId) {
+				if (newProjectId || newTopicId) {
 					// 立即根据路由参数更新 selectedProject，避免闪烁
 					// 如果没有 projectId，立即清空选中的项目，这样 UI 会立即显示工作区名称
 					if (!newProjectId) {
@@ -128,10 +117,11 @@ function SuperMagicMobileTabsWrapper({ children }: SuperMagicMobileTabsWrapperPr
 					}
 
 					SuperMagicService.refreshState({
-						workspaceId: newWorkspaceId || undefined,
 						projectId: newProjectId || undefined,
 						topicId: newTopicId || undefined,
 					})
+				} else if (currentTab === MobileTabParam.Super) {
+					SuperMagicService.initializeMobileHomeState()
 				}
 			}
 		})

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useMemoizedFn } from "ahooks"
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { useTranslation } from "react-i18next"
 import { useModelSwitchSelection } from "./useModelSwitchSelection"
 import type { ModelItem } from "../types"
 
@@ -17,7 +16,6 @@ export function useModelSwitchLogic({ onModelClick, onBeforeOpen }: UseModelSwit
 	const [isOpen, setIsOpen] = useState(false)
 	const [searchKeyword, setSearchKeyword] = useState("")
 	const isMobile = useIsMobile()
-	const { t } = useTranslation("super")
 	const selectedItemRef = useRef<HTMLDivElement>(null)
 	const desktopScrollContainerRef = useRef<HTMLDivElement>(null)
 	const mobileScrollContainerRef = useRef<HTMLDivElement>(null)
@@ -93,7 +91,6 @@ export function useModelSwitchLogic({ onModelClick, onBeforeOpen }: UseModelSwit
 		setSearchKeyword,
 		isOpeningModal,
 		isMobile,
-		t,
 		selectedItemRef,
 		desktopScrollContainerRef,
 		mobileScrollContainerRef,

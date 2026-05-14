@@ -12,6 +12,12 @@ export interface DeleteModalProps {
 		deleteWorkspaceConfirm: (name: string) => string
 		deleteProjectConfirm: (name: string) => string
 		deleteTopicConfirm: (name: string) => string
+		deleteTopicConfirmTitle?: string
+		deleteWorkspaceConfirmTitle?: string
+		deleteProjectConfirmTitle?: string
+		deleteTopicDescription: (name: string) => string
+		deleteWorkspaceDescription: (name: string) => string
+		deleteProjectDescription: (name: string) => string
 		unnamedWorkspace: string
 		unnamedProject: string
 		unnamedTopic: string

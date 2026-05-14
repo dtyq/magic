@@ -178,6 +178,17 @@ export function useMoveFile(options: UseMoveFileOptions = {}) {
 		showBatchMoveSelector(ids)
 	}, [allFiles, getItemId, selectedItems, showBatchMoveSelector])
 
+	/**
+	 * 供新移动端 UI 直接复用旧的目录选择器，不重新拼装移动链路。
+	 */
+	const openBatchMoveByFileIds = useCallback(
+		(fileIds: string[]) => {
+			if (fileIds.length === 0) return
+			showBatchMoveSelector(fileIds)
+		},
+		[showBatchMoveSelector],
+	)
+
 	// 隐藏移动选择器
 	const hideMoveSelector = useCallback(() => {
 		setVisible(false)
@@ -551,6 +562,7 @@ export function useMoveFile(options: UseMoveFileOptions = {}) {
 		showMoveSelector,
 		showBatchMoveSelector,
 		openBatchMove,
+		openBatchMoveByFileIds,
 		hideMoveSelector,
 		confirmMove,
 		batchMoveFiles, // 暴露批量移动方法

@@ -1,113 +1,202 @@
-import { memo, useMemo } from "react"
-import { IconDots, IconChevronRight } from "@tabler/icons-react"
+import { memo, useMemo, useState } from "react"
+import { ChevronRight, Ellipsis, Loader, MessageCircle, Pin, PinOff, Trash2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
-import { useStyles } from "./styles"
 import type { TopicListProps } from "./types"
 import ModeTag from "../../../components/HierarchicalWorkspacePopup/components/ModeTag"
 import { Topic } from "@/pages/superMagic/pages/Workspace/types"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { useTranslation } from "react-i18next"
-import StatusIcon from "@/pages/superMagic/components/MessageHeader/components/StatusIcon"
 import { useMemoizedFn } from "ahooks"
 import { projectStore, topicStore } from "@/pages/superMagic/stores/core"
-import { isReadOnlyProject } from "@/pages/superMagic/utils/permission"
 import TopicItemSkeleton from "./components/TopicItemSkeleton"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import SuperMagicService from "@/pages/superMagic/services"
+import { formatRelativeTime } from "@/utils/string"
+import { cn } from "@/lib/utils"
+import useNavigate from "@/routes/hooks/useNavigate"
+import { RouteName } from "@/routes/constants"
+import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/SwipeActionRow"
+import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
+import { sortTopicsWithPinnedFirst } from "./hooks/topicPinSort"
 
+type TopicWithPinnedState = Topic & {
+	is_pinned?: boolean | 0 | 1
+	pinned?: boolean | 0 | 1
+}
+
+function isPinnedTopic(topic: Topic) {
+	const topicWithPinnedState = topic as TopicWithPinnedState
+	const isPinned = topicWithPinnedState.is_pinned as boolean | 0 | 1 | undefined
+	const pinned = topicWithPinnedState.pinned as boolean | 0 | 1 | undefined
+
+	return isPinned === true || isPinned === 1 || pinned === true || pinned === 1
+}
+
+function isRunningLikeTopicStatus(status: Topic["task_status"] | string | undefined) {
+	return status === "running" || status === "waiting_for_user"
+}
+
+/**
+ * 单条话题行：支持左滑展示"更多"和"删除"操作按钮。
+ * SwipeActionRow 负责手势逻辑与互斥展开，本组件只组装 actions 和行内容。
+ */
 const TopicItemComponent = memo(
 	({
 		item,
 		setSelectedTopic,
-		openActionsPopup,
+		timeLabel,
+		isSwipeOpen,
+		onSwipeOpen,
+		onSwipeClose,
+		onMore,
+		onPin,
+		onDelete,
 	}: {
 		item: Topic
 		setSelectedTopic?: (topic: Topic) => void
-		openActionsPopup: (topic: Topic) => void
+		timeLabel: string
+		isSwipeOpen: boolean
+		onSwipeOpen: () => void
+		onSwipeClose: () => void
+		onMore: (topic: Topic) => void
+		onPin: (topic: Topic) => void
+		onDelete: (topic: Topic) => void
 	}) => {
-		const { styles } = useStyles()
-		const { t } = useTranslation("super")
+		const { t } = useTranslation(["super", "interface"])
+		const isTaskRunning = isRunningLikeTopicStatus(item.task_status)
+		const isPinned = isPinnedTopic(item)
+		const runningAriaLabel = t("accountPanel.timedTasks.running", { ns: "interface" })
 
-		const handleOpenActionsPopup = (e: React.MouseEvent<HTMLDivElement>) => {
-			e.stopPropagation()
-			openActionsPopup(item)
-		}
+		const actions: SwipeAction[] = [
+			{
+				id: "more",
+				label: t("topicList.swipeMore", { ns: "super" }),
+				icon: <Ellipsis className="size-4 text-secondary-foreground" />,
+				className: "bg-secondary",
+				labelClassName: "text-secondary-foreground",
+				onClick: () => onMore(item),
+			},
+			{
+				id: "pin",
+				label: isPinned
+					? t("topicList.swipeUnpin", { ns: "super" })
+					: t("topicList.swipePin", { ns: "super" }),
+				icon: isPinned ? (
+					<PinOff className="size-4 text-primary-foreground" />
+				) : (
+					<Pin className="size-4 text-primary-foreground" />
+				),
+				className: "bg-primary",
+				labelClassName: "text-primary-foreground",
+				onClick: () => onPin(item),
+			},
+			{
+				id: "delete",
+				label: t("topicList.swipeDelete", { ns: "super" }),
+				icon: <Trash2 className="size-4 text-white" />,
+				className: "bg-destructive",
+				labelClassName: "text-white",
+				onClick: () => onDelete(item),
+			},
+		]
 
 		return (
-			<div
-				className={styles.topicItem}
-				onClick={() => {
-					setSelectedTopic?.(item)
-				}}
+			<SwipeActionRow
+				actions={actions}
+				isOpen={isSwipeOpen}
+				onOpen={onSwipeOpen}
+				onClose={onSwipeClose}
+				onRowClick={() => setSelectedTopic?.(item)}
+				data-testid={`topic-item-${item.id}`}
 			>
-				<div className={styles.leftContent}>
-					<StatusIcon status={item.task_status} />
-					<ModeTag
-						mode={item.topic_mode || TopicMode.General}
-						agentCode={item.agent_code}
-					/>
-					<div className={styles.topicTitle}>
-						{item.topic_name || t("topic.unnamedTopic")}
+				{/* 行内容区：h-16 与 SwipeActionRow 外壳高度保持一致 */}
+				<div className="flex h-16 w-full items-center gap-2 rounded-lg px-3 py-[10px]">
+					{/* 图标容器与标题行间距按原型固定，确保运行中 Loader 与置顶 badge 都不会挤压行高。 */}
+					<div
+						className="bg-icon-topic/8 flex size-9 shrink-0 flex-col items-center justify-center overflow-hidden rounded-[10px]"
+						aria-label={isTaskRunning ? runningAriaLabel : undefined}
+						aria-busy={isTaskRunning}
+					>
+						{isTaskRunning ? (
+							<Loader
+								className="h-[22px] w-[22px] shrink-0 animate-spin text-icon-topic"
+								aria-hidden
+							/>
+						) : (
+							<MessageCircle
+								className="size-6 shrink-0 text-icon-topic"
+								aria-hidden
+							/>
+						)}
 					</div>
+					<div className="flex min-w-0 flex-1 flex-col items-start">
+						<div className="flex h-6 w-full min-w-0 items-center gap-1">
+							<p className="min-w-0 shrink truncate text-[16px] font-medium leading-6 text-foreground">
+								{item.topic_name || t("topic.unnamedTopic")}
+							</p>
+							{isPinned ? <MobilePinBadge /> : null}
+						</div>
+						<p className="w-full truncate text-[12px] font-light leading-4 text-muted-foreground">
+							{timeLabel}
+						</p>
+					</div>
+					<ChevronRight className="size-4 shrink-0 text-foreground" aria-hidden />
 				</div>
-				<div className={styles.rightActions}>
-					<div className={styles.actionButton} onClick={handleOpenActionsPopup}>
-						<IconDots size={18} />
-					</div>
-					<div className={styles.actionButton}>
-						<IconChevronRight size={18} />
-					</div>
-				</div>
-			</div>
+			</SwipeActionRow>
 		)
 	},
 )
 
 const ProjectPageMain = observer(function ProjectPageMain({
 	className,
-	topicFilesCore,
-	openActionsPopup,
-}: TopicListProps) {
-	const { styles, cx } = useStyles()
-	const { t } = useTranslation("super")
+	onTopicMore,
+	onTopicPin,
+	onTopicDelete,
+}: TopicListProps & {
+	onTopicMore?: (topic: Topic) => void
+	onTopicPin?: (topic: Topic) => void
+	onTopicDelete?: (topic: Topic) => void
+}) {
+	const { t, i18n } = useTranslation("super")
 
-	// Get state from stores
 	const selectedProject = projectStore.selectedProject
 	const setSelectedTopic = topicStore.setSelectedTopic
-	const processedTopics = topicStore.topics
+	const processedTopics = useMemo(
+		() => sortTopicsWithPinnedFirst(topicStore.topics),
+		[topicStore.topics],
+	)
+	const navigate = useNavigate()
 
-	const isReadonly = isReadOnlyProject(selectedProject?.user_role)
-
-	const groupedTopics = useMemo(() => {
-		const today = new Date()
-		today.setHours(0, 0, 0, 0)
-		const todayTimestamp = today.getTime()
-
-		return processedTopics.reduce(
-			(acc, topic) => {
-				// Get updated_at timestamp, fallback to created_at or current time
-				const topicTime = topic.updated_at
-					? new Date(topic.updated_at).getTime()
-					: Date.now()
-				const isToday = topicTime >= todayTimestamp
-				const category = isToday ? "today" : "history"
-				acc[category] = acc[category] || []
-				acc[category].push({ ...topic })
-				return acc
-			},
-			{} as Record<"today" | "history", Topic[]>,
-		)
-	}, [processedTopics])
+	/** 同时只允许一行处于左滑展开状态 */
+	const [openItemId, setOpenItemId] = useState<string | null>(null)
 
 	const onSwitchSuperMagicChat = useMemoizedFn((topic: Topic) => {
-		// Mobile: Only update selected topic state, popup will handle display
-		// Desktop: Navigate to topic route (handled by routeManageService)
 		setSelectedTopic(topic)
+
+		if (!selectedProject?.id || !topic.id) return
+
+		// 先用 store 预热当前话题，再切到显式子路由承接完整消息页。
+		navigate({
+			name: RouteName.SuperWorkspaceProjectTopicState,
+			params: {
+				projectId: selectedProject.id,
+				topicId: topic.id,
+			},
+		})
 	})
 
 	const loading = topicStore.isFetchList
 
-	// 刷新话题列表
+	/**
+	 * 话题列表时间收口到项目现有相对时间工具，避免移动端页面继续各自维护展示规则。
+	 */
+	const formatTopicTimeLabel = useMemoizedFn((topic: Topic) => {
+		const rawTime = topic.updated_at
+		if (!rawTime) return ""
+
+		return formatRelativeTime(i18n.language)(rawTime)
+	})
+
+	/** 下拉刷新话题列表，与桌面端数据来源一致 */
 	const handleRefreshTopics = useMemoizedFn(async () => {
 		if (!selectedProject?.id) return
 		await SuperMagicService.topic.fetchTopics({
@@ -115,69 +204,54 @@ const ProjectPageMain = observer(function ProjectPageMain({
 		})
 	})
 
-	if (isReadonly) {
-		return topicFilesCore
-	}
+	const handleTopicMore = useMemoizedFn((topic: Topic) => {
+		onTopicMore?.(topic)
+	})
+
+	const handleTopicPin = useMemoizedFn((topic: Topic) => {
+		onTopicPin?.(topic)
+	})
+
+	const handleTopicDelete = useMemoizedFn((topic: Topic) => {
+		onTopicDelete?.(topic)
+	})
 
 	return (
-		<>
-			<MagicPullToRefresh onRefresh={handleRefreshTopics} showSuccessMessage={false}>
-				<div className={cx(styles.container, className)}>
-					<p className={styles.sectionTitle}>{t("topic.projectTopics")}</p>
-					<div className={styles.itemsContainer}>
-						{loading ? (
-							<>
-								<div className={styles.groupTitle}>{t("topic.today")}</div>
-								<TopicItemSkeleton />
-								<TopicItemSkeleton />
-								<div className={styles.groupTitle}>{t("topic.history")}</div>
-								<TopicItemSkeleton />
-								<TopicItemSkeleton />
-								<TopicItemSkeleton />
-							</>
-						) : (
-							<>
-								{/* Today's topics */}
-								{groupedTopics.today && groupedTopics.today.length > 0 && (
-									<>
-										<div className={styles.groupTitle}>{t("topic.today")}</div>
-										{groupedTopics.today.map((item) => (
-											<TopicItemComponent
-												key={item.id}
-												item={item}
-												setSelectedTopic={onSwitchSuperMagicChat}
-												openActionsPopup={(topic) =>
-													openActionsPopup(topic, selectedProject)
-												}
-											/>
-										))}
-									</>
-								)}
-
-								{/* Historical topics */}
-								{groupedTopics.history && groupedTopics.history.length > 0 && (
-									<>
-										<div className={styles.groupTitle}>
-											{t("topic.history")}
-										</div>
-										{groupedTopics.history.map((item) => (
-											<TopicItemComponent
-												key={item.id}
-												item={item}
-												setSelectedTopic={onSwitchSuperMagicChat}
-												openActionsPopup={(topic) =>
-													openActionsPopup(topic, selectedProject)
-												}
-											/>
-										))}
-									</>
-								)}
-							</>
-						)}
-					</div>
+		<MagicPullToRefresh onRefresh={handleRefreshTopics} showSuccessMessage={false}>
+			<div
+				className={cn("flex h-full min-h-0 flex-col gap-1 overflow-y-auto pt-0", className)}
+			>
+				<div className="flex w-full flex-col gap-1">
+					{loading ? (
+						<>
+							<TopicItemSkeleton />
+							<TopicItemSkeleton />
+							<TopicItemSkeleton />
+							<TopicItemSkeleton />
+						</>
+					) : processedTopics.length === 0 ? (
+						<div className="mt-4 flex min-h-[160px] flex-1 items-center justify-center rounded-2xl bg-muted/50 px-3 text-sm text-muted-foreground">
+							{t("topic.noTopicData")}
+						</div>
+					) : (
+						processedTopics.map((item) => (
+							<TopicItemComponent
+								key={item.id}
+								item={item}
+								setSelectedTopic={onSwitchSuperMagicChat}
+								timeLabel={formatTopicTimeLabel(item)}
+								isSwipeOpen={openItemId === item.id}
+								onSwipeOpen={() => setOpenItemId(item.id)}
+								onSwipeClose={() => setOpenItemId(null)}
+								onMore={handleTopicMore}
+								onPin={handleTopicPin}
+								onDelete={handleTopicDelete}
+							/>
+						))
+					)}
 				</div>
-			</MagicPullToRefresh>
-		</>
+			</div>
+		</MagicPullToRefresh>
 	)
 })
 

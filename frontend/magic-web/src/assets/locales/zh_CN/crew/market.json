@@ -134,6 +134,20 @@
 	},
 	"myCrew": "我的员工",
 	"myCrewPage": {
+		"addSheet": {
+			"closeAria": "关闭新增入口",
+			"custom": {
+				"action": "前往桌面端",
+				"description": "移动端暂不支持直接创建员工，可前往桌面端完成创建与编辑。",
+				"title": "自建员工"
+			},
+			"market": {
+				"action": "去员工市场",
+				"description": "从员工市场挑选并雇佣现成员工，稍后可在这里统一管理。",
+				"title": "从员工市场添加"
+			},
+			"title": "添加员工"
+		},
 		"badgeUpdated": "待更新",
 		"crewType": {
 			"ariaLabel": "员工类型",
@@ -146,6 +160,28 @@
 			"confirm": "删除",
 			"description": "删除后将无法恢复该数字员工，请谨慎操作。",
 			"title": "删除「{{name}}」"
+		},
+		"detailSheet": {
+			"about": "简介",
+			"capabilities": "能力标签",
+			"closeAria": "关闭详情",
+			"info": {
+				"addedAt": "加入时间",
+				"createdAt": "创建时间",
+				"createdBy": "创建者",
+				"label": "信息",
+				"publisher": "发布方",
+				"sharedBy": "共享者",
+				"updatedAt": "更新时间",
+				"you": "你"
+			},
+			"source": {
+				"custom": "自建",
+				"market": "市场",
+				"team": "团队共享"
+			},
+			"startChat": "开始对话",
+			"title": "员工详情"
 		},
 		"disable": "禁用",
 		"disableConfirm": {
@@ -160,6 +196,23 @@
 		},
 		"edit": "编辑",
 		"empty": "暂无员工，快来创建你的第一个员工吧。",
+		"filterSheet": {
+			"closeAria": "关闭筛选",
+			"resetAria": "重置筛选",
+			"sort": {
+				"createdAt": "创建时间",
+				"recentUsed": "最近使用",
+				"updatedAt": "更新时间"
+			},
+			"sortLabel": "排序",
+			"title": "筛选",
+			"type": {
+				"created": "我创建的",
+				"fromMarket": "市场的",
+				"teamShared": "团队共享的"
+			},
+			"typeLabel": "类型"
+		},
 		"footerPoweredByBrand": "MagiCrew",
 		"footerPoweredByLead": "由 ",
 		"footerPoweredByTail": " 提供",

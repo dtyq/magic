@@ -31,6 +31,12 @@
 	"home": {
 		"title": "首页"
 	},
+	"mobileShell": {
+		"themeToggle": {
+			"switchToDark": "切换到深色模式",
+			"switchToLight": "切换到浅色模式"
+		}
+	},
 	"mySkills": {
 		"title": "技能库"
 	},
@@ -46,6 +52,43 @@
 		"empty": "暂无项目",
 		"enterName": "输入新项目名称",
 		"loading": "加载中..."
+	},
+	"shellDemo": {
+		"accountName": "Demo User",
+		"appName": "MagiCrew",
+		"cardSubtitle": "用于验证通用壳层下的列表密度、圆角和滚动表现。",
+		"cardTags": {
+			"collaboration": "协作",
+			"demo": "DEMO",
+			"priority": "优先"
+		},
+		"closeSidebar": "关闭侧栏",
+		"home": {
+			"description": "这是一个临时演示页，用来验证抽屉侧栏、主面板位移、统一头部和底部输入容器的整体效果。",
+			"eyebrow": "你的专属 AI 团队已就绪",
+			"title": "今天需要我帮你做些什么？"
+		},
+		"inputPlaceholder": "与 MagiCrew 聊天",
+		"listSummary": "当前演示页：{{view}}。这里使用占位卡片验证列表页与通用 shell 的组合效果。",
+		"nav": {
+			"apps": "应用",
+			"chats": "对话",
+			"magiClaw": "MagiClaw",
+			"myCrew": "我的 Crew",
+			"recording": "录音与纪要",
+			"trash": "回收站",
+			"workspaces": "工作空间"
+		},
+		"newChat": "新建对话",
+		"openSidebar": "打开侧栏",
+		"previewBadge": "Shell DEMO",
+		"quickActions": {
+			"design": "设计",
+			"recording": "录音总结",
+			"slides": "创建幻灯片"
+		},
+		"recentlyUsed": "最近使用",
+		"upgrade": "升级"
 	},
 	"skillsLibrary": {
 		"title": "技能库"
@@ -150,6 +193,8 @@
 		"getStarted": "开始使用",
 		"heroLead": "超级",
 		"mobile": {
+			"createdByMe": "我创建的",
+			"editInfo": "编辑信息",
 			"moreActions": "更多操作",
 			"mySuperClaw": "我的 {{clawBrand}}"
 		},

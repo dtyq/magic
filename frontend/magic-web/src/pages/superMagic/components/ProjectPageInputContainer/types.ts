@@ -62,4 +62,9 @@ export interface ProjectPageInputContainerProps {
 		currentProject: ProjectListItem | null
 		currentTopic: Topic | null
 	}) => void
+	/** 发送成功后把当前项目/话题透传给外层容器，用于项目入口页跳转到新建话题。 */
+	onSendSuccess?: (params: {
+		currentProject: ProjectListItem | null
+		currentTopic: Topic | null
+	}) => void
 }

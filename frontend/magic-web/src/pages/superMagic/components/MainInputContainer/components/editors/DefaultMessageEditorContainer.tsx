@@ -289,6 +289,8 @@ export default function DefaultMessageEditorContainer(props: DefaultMessageEdito
 					setSelectedWorkspace: editorContext?.setSelectedWorkspace,
 					// 与 _topicStore 回退一致，保证 smartRename 写入 topicStore.topics（历史列表合并依赖）。
 					topicStore: _topicStore,
+					createProject: editorContext?.createProject,
+					createTopic: editorContext?.createTopic,
 				},
 				tabPattern: effectiveTopicMode,
 				editorRef: tiptapEditorRef.current,

@@ -24,6 +24,8 @@ export enum MobileTabBarKey {
 	Chat = RouteName.Chat,
 	Super = RouteName.Super,
 	Approval = RouteName.MagicApproval,
+	// TODO(mobile-refactor-cleanup): MagiClaw 已迁出旧 MobileTabs 信息架构，当前保留该 key
+	// 仅用于历史 URL / 原生 tab 同步兼容，后续应从旧 tab 语义中彻底移除。
 	MagiClaw = RouteName.MagiClaw,
 	Contacts = RouteName.Contacts,
 	Profile = RouteName.Profile,

@@ -10,7 +10,7 @@ vi.mock("react-i18next", () => ({
 	}),
 	initReactI18next: {
 		type: "3rdParty",
-		init: () => { },
+		init: () => {},
 	},
 }))
 
@@ -161,7 +161,7 @@ vi.mock("@/pages/superMagic/assets/svg/file-folder.svg", () => ({
 // Mock @dtyq/upload-sdk
 vi.mock("@dtyq/upload-sdk", () => ({
 	Upload: class MockUpload {
-		constructor() { }
+		constructor() {}
 		upload() {
 			return Promise.resolve({ url: "mock-url" })
 		}
@@ -310,10 +310,6 @@ vi.mock("@/broadcastChannel", () => ({
 
 vi.mock("@/services/file/KnowledgeFile", () => ({
 	initKnowledgeFileService: vi.fn(),
-}))
-
-vi.mock("@/components/business/PaidPackage", () => ({
-	checkSubscriptionModal: vi.fn(),
 }))
 
 // Mock antd-style

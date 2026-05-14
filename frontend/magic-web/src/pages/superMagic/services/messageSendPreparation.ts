@@ -15,6 +15,7 @@ import {
 	superMagicTopicModelService,
 } from "@/services/superMagic/topicModel"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
+import { shouldCreateFreshTopicForProject } from "./topicProjectConsistency"
 import TopicService from "./topicService"
 import SuperMagicService from "./index"
 import type { CreatedProject, ProjectListItem, Topic, Workspace } from "../pages/Workspace/types"
@@ -186,6 +187,11 @@ export async function preparePanelSend({
 
 	if (!currentProject?.id) {
 		return null
+	}
+
+	// 移动端 chat 项目页可能暂时挂着旧项目的话题，这里在发送前统一兜底，避免消息写入错误会话。
+	if (shouldCreateFreshTopicForProject(currentProject, currentTopic)) {
+		currentTopic = null
 	}
 
 	if (!currentTopic?.id) {

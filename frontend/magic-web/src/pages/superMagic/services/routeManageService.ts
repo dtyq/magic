@@ -6,7 +6,7 @@ import { ProjectListItem } from "../pages/Workspace/types"
 import { isOtherCollaborationProject, SHARE_WORKSPACE_ID } from "../constants"
 import { userStore } from "@/models/user"
 import { routesMatch } from "@/routes/history/helpers"
-import { baseHistory } from "@/routes/history"
+import { baseHistory, history } from "@/routes/history"
 import { projectStore, workspaceStore, topicStore } from "../stores/core"
 import { interfaceStore } from "@/stores/interface"
 import {
@@ -17,7 +17,7 @@ import {
 import { RoutePathMobile } from "@/constants/routes"
 import { configStore } from "@/models/config"
 import { defaultClusterCode } from "@/routes/helpers"
-import useNavigate from "@/routes/hooks/useNavigate"
+import useNavigate, { type MagicNavigateParams } from "@/routes/hooks/useNavigate"
 import { mobileTabStore } from "@/stores/mobileTab"
 import { ROUTE_NAME_TO_TAB_PARAM, MobileTabParam } from "@/pages/mobileTabs/constants"
 
@@ -31,12 +31,51 @@ export interface NavigateToStateParams {
 class RouteManageService {
 	private navigate: ReturnType<typeof useNavigate> | null = null
 
+	private getCurrentMatchedRouteName(): RouteName | undefined {
+		return routesMatch(baseHistory.location.pathname)?.route.name as RouteName | undefined
+	}
+
 	setNavigate(navigate: ReturnType<typeof useNavigate> | null) {
 		this.navigate = navigate
 	}
 
 	/**
+	 * 路由 hook 在布局重挂载时会短暂置空；这里回退到 history，避免移动端点击项目后丢跳转。
+	 */
+	private safeNavigate(params: MagicNavigateParams) {
+		if (this.navigate) {
+			this.navigate(params)
+			return
+		}
+
+		console.warn("RouteManageService: navigate function not set")
+
+		if (params.delta) {
+			history.go(params.delta)
+			return
+		}
+
+		if (!params.name) return
+
+		const nextLocation = {
+			name: params.name,
+			params: params.params,
+			query: params.query,
+			state: params.state,
+		}
+
+		if (params.replace) {
+			history.replace(nextLocation)
+			return
+		}
+
+		history.push(nextLocation)
+	}
+
+	/**
 	 * 检测当前是否在 MobileTabs 路由下
+	 * TODO(mobile-refactor): 当前移动端已切到独立页面路由，这里仅用于兼容历史链路。
+	 * 等本轮重构稳定并确认无线上的 mobile-tabs 回退依赖后，应移除此类判断和相关分支。
 	 */
 	private isInMobileTabs(): boolean {
 		try {
@@ -59,6 +98,7 @@ class RouteManageService {
 
 	/**
 	 * 根据当前路由上下文获取正确的路由名称
+	 * TODO(mobile-refactor): 独立路由完全收口后，删除 mobile-tabs 兼容重写逻辑，直接返回目标业务路由。
 	 */
 	private getRouteName(baseRoute: RouteName): RouteName {
 		// 检测是否在 MobileTabs 路由下
@@ -109,7 +149,6 @@ class RouteManageService {
 			try {
 				const searchParams = new URLSearchParams(baseHistory.location.search)
 				return {
-					workspaceId: searchParams.get("workspaceId") || undefined,
 					projectId: searchParams.get("projectId") || undefined,
 					topicId: searchParams.get("topicId") || undefined,
 				}
@@ -137,17 +176,29 @@ class RouteManageService {
 		}
 	}
 
+	isCurrentChatProjectRoute(): boolean {
+		return this.getCurrentMatchedRouteName() === RouteName.SuperChatProjectState
+	}
+
+	isCurrentMobileHomeRoute(
+		location: { pathname: string; search: string } = baseHistory.location,
+	): boolean {
+		if (!location.pathname.includes("/mobile-tabs")) return false
+
+		const searchParams = new URLSearchParams(location.search)
+		const currentTab = searchParams.get("tab") || MobileTabParam.Super
+		const hasRouteParams =
+			Boolean(searchParams.get("projectId")) || Boolean(searchParams.get("topicId"))
+
+		return currentTab === MobileTabParam.Super && !hasRouteParams
+	}
+
 	navigateToState = ({
 		workspaceId,
 		projectId,
 		topicId,
 		viewTransition = false,
 	}: NavigateToStateParams) => {
-		if (!this.navigate) {
-			console.warn("RouteManageService: navigate function not set")
-			return
-		}
-
 		if (isUndefined(workspaceId) && isUndefined(projectId) && isUndefined(topicId)) return
 
 		// 1. 获取当前路由参数
@@ -204,7 +255,7 @@ class RouteManageService {
 			// 移动端，话题通过 popup 显示，不需要跳转，更新 store 即可
 			if (!interfaceStore.isMobile) {
 				// 5.1.2 更新路由参数
-				this.navigate({
+				this.safeNavigate({
 					name: this.getRouteName(RouteName.SuperWorkspaceProjectTopicState),
 					params: {
 						projectId: superMagicWorkspaceState.projectId,
@@ -219,7 +270,7 @@ class RouteManageService {
 
 			// 5.2 工作区存在，项目存在，话题不存在
 		} else if (superMagicWorkspaceState.workspaceId && superMagicWorkspaceState.projectId) {
-			this.navigate({
+			this.safeNavigate({
 				name: this.getRouteName(RouteName.SuperWorkspaceProjectState),
 				params: {
 					projectId: superMagicWorkspaceState.projectId,
@@ -230,17 +281,16 @@ class RouteManageService {
 			// 5.3 工作区存在，项目和话题不存在
 		} else if (superMagicWorkspaceState.workspaceId) {
 			if (interfaceStore.isMobile) {
-				this.navigate({
+				this.safeNavigate({
 					name: RouteName.MobileTabs,
 					query: {
 						tab: MobileTabParam.Super,
-						workspaceId: superMagicWorkspaceState.workspaceId,
 					},
 					viewTransition,
 					replace: false,
 				})
 			} else {
-				this.navigate({
+				this.safeNavigate({
 					name: this.getRouteName(RouteName.SuperWorkspaceState),
 					params: {
 						workspaceId: superMagicWorkspaceState.workspaceId,
@@ -253,14 +303,14 @@ class RouteManageService {
 			// 5.4 工作区、项目和话题都不存在，跳转到首页
 		} else {
 			if (interfaceStore.isMobile) {
-				this.navigate({
+				this.safeNavigate({
 					name: RouteName.MobileTabs,
 					query: {
 						tab: MobileTabParam.Super,
 					},
 				})
 			} else {
-				this.navigate({
+				this.safeNavigate({
 					name: this.getRouteName(RouteName.Super),
 					viewTransition,
 					replace: false,
@@ -297,11 +347,6 @@ class RouteManageService {
 	}
 
 	navigateToHome(replace?: boolean) {
-		if (!this.navigate) {
-			console.warn("RouteManageService: navigate function not set")
-			return
-		}
-
 		// 更新缓存：清空所有状态
 		const userInfo = userStore.user.userInfo
 		WorkspaceStateCache.set(userInfo, {
@@ -313,14 +358,13 @@ class RouteManageService {
 
 		const isInMobileTabs = this.isInMobileTabs()
 		if (isInMobileTabs) {
-			const targetPath = this.buildMobileTabsUrl({})
-			if (replace) {
-				baseHistory.replace(targetPath)
-			} else {
-				baseHistory.push(targetPath)
-			}
+			this.safeNavigate({
+				name: RouteName.MobileHome,
+				viewTransition: false,
+				replace,
+			})
 		} else {
-			this.navigate({
+			this.safeNavigate({
 				name: this.getRouteName(RouteName.Super),
 				viewTransition: false,
 				replace,
@@ -329,16 +373,15 @@ class RouteManageService {
 	}
 
 	resetToSuper() {
-		if (!this.navigate) {
-			console.warn("RouteManageService: navigate function not set")
-			return
-		}
 		const isInMobileTabs = this.isInMobileTabs()
 		if (isInMobileTabs) {
-			const targetPath = this.buildMobileTabsUrl({})
-			baseHistory.replace(targetPath)
+			this.safeNavigate({
+				name: RouteName.MobileHome,
+				viewTransition: false,
+				replace: true,
+			})
 		} else {
-			this.navigate({
+			this.safeNavigate({
 				name: this.getRouteName(RouteName.Super),
 				viewTransition: false,
 				replace: true,
@@ -348,9 +391,9 @@ class RouteManageService {
 
 	/**
 	 * 在 mobile-tabs 下构建 URL（使用 query 参数）
+	 * TODO(mobile-refactor): 该方法只服务历史 mobile-tabs 兼容路径；确认无需回退后应整体删除。
 	 */
 	private buildMobileTabsUrl(params: {
-		workspaceId?: string | null
 		projectId?: string | null
 		topicId?: string | null
 	}): string {
@@ -360,13 +403,9 @@ class RouteManageService {
 			searchParams.set("tab", MobileTabParam.Super)
 		}
 
-		// 设置或删除参数
-		if (params.workspaceId) {
-			searchParams.set("workspaceId", params.workspaceId)
-		} else {
-			searchParams.delete("workspaceId")
-		}
+		searchParams.delete("workspaceId")
 
+		// 设置或删除参数
 		if (params.projectId) {
 			searchParams.set("projectId", params.projectId)
 		} else {
@@ -390,11 +429,6 @@ class RouteManageService {
 	 * @param workspaceId Workspace ID
 	 */
 	navigateToWorkspace(workspaceId: string, replace?: boolean) {
-		if (!this.navigate) {
-			console.warn("RouteManageService: navigate function not set")
-			return
-		}
-
 		const { workspaceId: param_workspaceId, projectId: param_projectId } =
 			this.getCurrentRouteParams()
 
@@ -422,17 +456,16 @@ class RouteManageService {
 				? ROUTE_NAME_TO_TAB_PARAM[mobileTabStore.activeTab] || MobileTabParam.Super
 				: MobileTabParam.Super
 
-			this.navigate({
+			this.safeNavigate({
 				name: RouteName.MobileTabs,
 				query: {
 					tab: currentTab,
-					workspaceId,
 				},
 				viewTransition,
 				replace,
 			})
 		} else {
-			this.navigate({
+			this.safeNavigate({
 				name: this.getRouteName(RouteName.SuperWorkspaceState),
 				params: {
 					workspaceId,
@@ -444,11 +477,6 @@ class RouteManageService {
 	}
 
 	backToProject(project: ProjectListItem) {
-		if (!this.navigate) {
-			console.warn("RouteManageService: navigate function not set")
-			return
-		}
-
 		// 更新缓存：工作区 + 项目
 		const userInfo = userStore.user.userInfo
 		WorkspaceStateCache.set(userInfo, {
@@ -461,12 +489,11 @@ class RouteManageService {
 		const isInMobileTabs = this.isInMobileTabs()
 		if (isInMobileTabs) {
 			const targetPath = this.buildMobileTabsUrl({
-				workspaceId: project.workspace_id,
 				projectId: project.id,
 			})
 			baseHistory.replace(targetPath)
 		} else {
-			this.navigate({
+			this.safeNavigate({
 				name: this.getRouteName(RouteName.SuperWorkspaceProjectState),
 				params: {
 					projectId: project.id,
@@ -480,11 +507,6 @@ class RouteManageService {
 	}
 
 	navigateToProject(project: ProjectListItem, replace?: boolean) {
-		if (!this.navigate) {
-			console.warn("RouteManageService: navigate function not set")
-			return
-		}
-
 		const { workspaceId: param_workspaceId, projectId: param_projectId } =
 			this.getCurrentRouteParams()
 
@@ -532,7 +554,7 @@ class RouteManageService {
 		// 		replace,
 		// 	})
 		// }
-		this.navigate({
+		this.safeNavigate({
 			name: this.getRouteName(RouteName.SuperWorkspaceProjectState),
 			params: {
 				projectId: project.id,
@@ -542,12 +564,46 @@ class RouteManageService {
 		})
 	}
 
-	navigateToCollaborationProject(project: ProjectListItem, replace?: boolean) {
-		if (!this.navigate) {
-			console.warn("RouteManageService: navigate function not set")
+	navigateToChatProject(project: ProjectListItem, topicId?: string, replace?: boolean) {
+		if (!interfaceStore.isMobile) {
+			this.navigateToProject(project, replace)
 			return
 		}
 
+		const { projectId: param_projectId } = this.getCurrentRouteParams()
+
+		let viewTransition: boolean | ViewTransitionConfig = {
+			direction: "left",
+		}
+		if (param_projectId && interfaceStore.isMobile) {
+			viewTransition = false
+		}
+
+		const workspaceId = isOtherCollaborationProject(project)
+			? SHARE_WORKSPACE_ID
+			: project.workspace_id
+
+		const userInfo = userStore.user.userInfo
+		WorkspaceStateCache.set(userInfo, {
+			workspaceId,
+			projectId: project.id,
+			topicId: topicId || null,
+		})
+		UserWorkspaceMapCache.set(userInfo, workspaceId)
+		if (topicId) ProjectTopicMapCache.set(userInfo, project.id, topicId)
+
+		this.safeNavigate({
+			name: this.getRouteName(RouteName.SuperChatProjectState),
+			params: {
+				projectId: project.id,
+				topicId,
+			},
+			viewTransition,
+			replace,
+		})
+	}
+
+	navigateToCollaborationProject(project: ProjectListItem, replace?: boolean) {
 		const {
 			workspaceId: param_workspaceId,
 			projectId: param_projectId,
@@ -573,7 +629,7 @@ class RouteManageService {
 		})
 		UserWorkspaceMapCache.set(userInfo, SHARE_WORKSPACE_ID)
 
-		this.navigate({
+		this.safeNavigate({
 			name: this.getRouteName(RouteName.SuperWorkspaceProjectState),
 			params: {
 				projectId: project.id,
@@ -599,11 +655,6 @@ class RouteManageService {
 		topicId: string
 		replace?: boolean
 	}) {
-		if (!this.navigate) {
-			console.warn("RouteManageService: navigate function not set")
-			return
-		}
-
 		// 更新缓存：完整状态（工作区 + 项目 + 话题）
 		const userInfo = userStore.user.userInfo
 		WorkspaceStateCache.set(userInfo, {
@@ -640,14 +691,16 @@ class RouteManageService {
 		if (interfaceStore.isMobile) {
 			const isInProjectPage =
 				routesMatch(baseHistory.location.pathname)?.route.name ===
-				RouteName.SuperWorkspaceProjectState
+					RouteName.SuperWorkspaceProjectState ||
+				routesMatch(baseHistory.location.pathname)?.route.name ===
+					RouteName.SuperChatProjectState
 
 			// 如果移动端当前在项目页，则不需要进行导航
 			if (isInProjectPage) {
 				return
 			}
 
-			this.navigate({
+			this.safeNavigate({
 				name: this.getRouteName(RouteName.SuperWorkspaceProjectState),
 				params: {
 					projectId,
@@ -655,7 +708,7 @@ class RouteManageService {
 				replace,
 			})
 		} else {
-			this.navigate({
+			this.safeNavigate({
 				name: this.getRouteName(RouteName.SuperWorkspaceProjectTopicState),
 				params: {
 					projectId,
@@ -677,12 +730,15 @@ class RouteManageService {
 		// Only fix route params when on a super workspace route to avoid
 		// redirecting away from non-workspace routes (e.g. /market/crew).
 		if (!this.isSuperRoute()) return
+		if (interfaceStore.isMobile && this.isCurrentMobileHomeRoute()) return
 
 		const currentWorkspace = workspaceStore.selectedWorkspace
 		const currentProject = projectStore.selectedProject
 		const currentTopic = topicStore.selectedTopic
 
-		if (currentWorkspace && currentProject && currentTopic) {
+		if (interfaceStore.isMobile && this.isCurrentChatProjectRoute() && currentProject) {
+			this.navigateToChatProject(currentProject, currentTopic?.id, true)
+		} else if (currentWorkspace && currentProject && currentTopic) {
 			this.navigateToTopic({
 				workspaceId: currentWorkspace.id,
 				projectId: currentProject.id,
@@ -711,6 +767,7 @@ class RouteManageService {
 		return (
 			match?.route.name === RouteName.Super ||
 			match?.route.name === RouteName.SuperWorkspaceState ||
+			match?.route.name === RouteName.SuperChatProjectState ||
 			match?.route.name === RouteName.SuperWorkspaceProjectState ||
 			match?.route.name === RouteName.SuperWorkspaceProjectTopicState
 		)

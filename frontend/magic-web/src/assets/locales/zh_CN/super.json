@@ -233,15 +233,51 @@
 		"workspaceSwitcherRefresh": "刷新工作区列表"
 	},
 	"chat": {
+		"confirmSaveAsProject": "确认另存为项目",
+		"deleteChat": "删除会话",
+		"deleteChatConfirm": "确定要删除会话: \"{{name}}\" 吗？",
+		"deleteChatDescription": "将被永久删除，此操作无法撤销。",
+		"deleteChatSuccess": "删除会话成功",
 		"friend": "朋友",
 		"greet": "嗨, {{name}}",
+		"inputChatName": "请输入会话名称",
+		"noChats": "暂无会话",
+		"noPreview": "暂无会话预览",
+		"pinChat": "置顶会话",
+		"pinChatFailed": "会话置顶失败",
+		"pinChatSuccess": "会话已置顶",
+		"projectNameFieldLabel": "项目名称",
+		"renameChat": "重命名会话",
+		"renameChatSuccess": "重命名会话成功",
+		"saveAsNewProjectTitle": "另存为新项目",
+		"saveAsProject": "另存为项目",
+		"saveAsProjectSuccess": "会话已另存为项目",
+		"saveAsProjectTo": "另存为项目至...",
+		"unnamedChat": "未命名会话",
+		"unpinChat": "取消置顶",
+		"unpinChatFailed": "会话取消置顶失败",
+		"unpinChatSuccess": "会话已取消置顶",
 		"viewHistoryConversations": "查看历史会话",
-		"whatCanIHelpYou": "有什么$t(common:platform.name)可以帮你吗？"
+		"whatCanIHelpYou": "有什么$t(common:platform.name)可以帮你吗？",
+		"workspaceLabel": "工作区",
+		"workspaceSelectTitle": "选择工作区"
 	},
 	"chatActions": {
 		"historyTopics": "历史话题",
 		"newTopic": "新话题",
 		"projectFiles": "项目文件"
+	},
+	"chatList": {
+		"emptyDescription": "新的对话会出现在这里",
+		"emptyTitle": "暂无对话",
+		"minutesAgo": "{{count}} 分钟前",
+		"newChat": "新建对话",
+		"searchPlaceholder": "搜索",
+		"swipeDelete": "删除",
+		"swipeMore": "更多",
+		"swipePin": "置顶",
+		"swipeUnpin": "取消置顶",
+		"title": "对话"
 	},
 	"clawPlayground": {
 		"stopTaskBeforeToolbarAction": "请先停止当前任务后再操作",
@@ -378,6 +414,7 @@
 		"caseTitle": "百倍生产力案例",
 		"chatMode": "聊天模式",
 		"chats": "会话",
+		"close": "关闭",
 		"confirm": "确定",
 		"confirmDelete": "确认删除",
 		"continue": "继续",
@@ -1095,7 +1132,8 @@
 		"inputProjectName": "请输入项目名称",
 		"inputTopicName": "请输入话题名称",
 		"inputWorkspaceName": "请输入工作区名称",
-		"moveProjectTo": "移动项目至",
+		"moveProjectTo": "移动至",
+		"moveToWorkspace": "移动至工作空间",
 		"name": "名称",
 		"newName": "新名称",
 		"noProjectData": "项目暂无数据",
@@ -1124,6 +1162,14 @@
 		"workspaceNameRequired": "工作区名称不能为空",
 		"workspaceProjects": "工作区项目",
 		"workspaceRename": "工作区重命名"
+	},
+	"home": {
+		"header": {
+			"menuAria": "打开菜单",
+			"newChatAria": "新建对话"
+		},
+		"sloganSubtitle": "你的专属 AI 团队已就绪",
+		"sloganTitle": "今天需要我帮你做些什么？"
 	},
 	"messageEditor": {
 		"addAttachment": "添加附件",
@@ -1334,6 +1380,15 @@
 		"updateSuccess": "队列消息已更新"
 	},
 	"mobile": {
+		"apps": {
+			"emptyDescription": "当前组织下暂无可访问的应用入口。",
+			"emptyTitle": "暂无应用",
+			"errorDescription": "应用目录加载失败，请稍后重试。",
+			"errorTitle": "加载失败",
+			"openHint": "打开应用",
+			"openInNewWindowHint": "在新窗口打开应用",
+			"retry": "重新加载"
+		},
 		"my": {
 			"aboutUs": "关于我们",
 			"available": "可用",
@@ -1369,7 +1424,12 @@
 				"permanentDelete": "永久删除",
 				"restore": "恢复",
 				"selectAll": "全选",
+				"selectAllVisible": "全选当前列表（{{count}}）",
 				"title": "批量操作"
+			},
+			"confirmRestore": {
+				"confirmButton": "确认还原",
+				"subtitle": "将检测原位置并执行恢复；若需移动会先引导你选择目标。"
 			},
 			"deleteSuccess": {
 				"content": "已彻底删除 {{count}} 个资源"
@@ -1378,9 +1438,19 @@
 				"description": "暂无已删除的数据",
 				"title": "回收站为空"
 			},
+			"filterSheet": {
+				"category": "类型",
+				"newToOld": "新到旧",
+				"oldToNew": "旧到新",
+				"openAria": "打开筛选与排序",
+				"order": "顺序",
+				"title": "筛选"
+			},
 			"item": {
 				"deletedBy": "{{username}} 删除",
 				"more": "更多操作",
+				"remainingShort": "剩 {{days}} 天",
+				"selectRow": "选择此项",
 				"type": {
 					"file": "文件",
 					"project": "项目",
@@ -1392,6 +1462,12 @@
 			"loader": {
 				"noMoreData": "没有更多数据了"
 			},
+			"orphanMixed": {
+				"choosePath": "去选择新位置",
+				"description": "选中项中一部分可直接还原，另一部分需先移动到可用位置。",
+				"restoreDirectOnly": "仅还原可直接还原的项",
+				"title": "部分内容需先选择位置"
+			},
 			"restoreFileTip": "请使用 PC 端恢复文件",
 			"restoreNeedPc": "部分资源需在 PC 端选择恢复位置",
 			"restoreSuccess": {
@@ -1401,7 +1477,11 @@
 			"search": {
 				"cancel": "取消",
 				"open": "搜索",
-				"placeholder": "搜索"
+				"placeholder": "按名称搜索"
+			},
+			"searchEmpty": {
+				"description": "试试其他关键词或清空搜索",
+				"title": "未找到相关结果"
 			},
 			"selectPath": {
 				"filePlaceholder": "请选择要恢复的路径"
@@ -1412,6 +1492,10 @@
 				"noProject": "该工作区下暂无项目",
 				"noWorkspace": "暂无可用工作区"
 			},
+			"tabEmpty": {
+				"description": "切换到「全部」或其他类型查看",
+				"title": "当前类型下暂无内容"
+			},
 			"tabs": {
 				"all": "全部 ({{count}})",
 				"files": "文件 ({{count}})",
@@ -1420,6 +1504,23 @@
 				"workspaces": "工作区 ({{count}})"
 			},
 			"title": "回收站"
+		},
+		"shell": {
+			"brandGoHome": "返回首页",
+			"brandName": "MagiCrew",
+			"closeSidebar": "关闭侧栏",
+			"currentPage": "当前页面",
+			"menuAria": "打开菜单",
+			"navApps": "应用",
+			"navChats": "对话",
+			"navMagiClaw": "MagiClaw",
+			"navMyCrew": "我的 Crew",
+			"navRecording": "录音与纪要",
+			"navSuper": "首页",
+			"navTrash": "回收站",
+			"navWorkspaces": "工作空间",
+			"recentlyUsed": "最近使用",
+			"upgrade": "升级"
 		}
 	},
 	"modeToggle": {
@@ -1598,9 +1699,112 @@
 		"searchProject": "搜索项目",
 		"shortcutNavigateToWorkspace": "打开所在工作区",
 		"transfer": "转让项目",
+		"transferMobileUnsupported": "请前往桌面端转让项目",
 		"unnamedProject": "未命名项目",
 		"unpin": "取消置顶",
 		"workspaceProjects": "工作区项目"
+	},
+	"projectDetail": {
+		"addTitle": "新建",
+		"backAria": "返回项目列表",
+		"clearSearch": "清空搜索",
+		"createFileFailed": "创建文件失败",
+		"createFileNameLabel": "文件名",
+		"createFileNamePlaceholder": "输入文件名",
+		"createFolderFailed": "创建文件夹失败",
+		"createFolderNameLabel": "文件夹名",
+		"createFolderNamePlaceholder": "输入文件夹名",
+		"createSection": "新建文档",
+		"emptyFolder": "空文件夹",
+		"fabFilesAria": "添加文件或文件夹",
+		"fileItems": "{{count}} 个项目",
+		"fileType": {
+			"archive": "压缩包",
+			"audio": "音频",
+			"css": "CSS",
+			"custom": "自定义格式",
+			"design": "画布",
+			"file": "文件",
+			"go": "Golang",
+			"html": "HTML",
+			"image": "图片",
+			"java": "Java",
+			"javascript": "JavaScript",
+			"json": "JSON",
+			"link": "链接",
+			"markdown": "Markdown",
+			"pdf": "PDF",
+			"php": "PHP",
+			"powerpoint": "PPT",
+			"python": "Python",
+			"shell": "Shell",
+			"spreadsheet": "表格",
+			"text": "文本",
+			"typescript": "TypeScript",
+			"video": "视频",
+			"wiki": "Wiki",
+			"word": "文档",
+			"xml": "XML"
+		},
+		"filesTab": "文件",
+		"importSection": "导入",
+		"inputPlaceholder": "向 MagiCrew 提问…",
+		"moreAria": "更多选项",
+		"organizeSection": "整理",
+		"searchPlaceholder": "搜索文件",
+		"swipe": {
+			"delete": "删除",
+			"more": "更多",
+			"pin": "置顶"
+		},
+		"tabFiles": "文件",
+		"tabTopics": "话题",
+		"topicTab": "话题"
+	},
+	"projectList": {
+		"swipeDelete": "删除",
+		"swipeMore": "更多",
+		"swipePin": "置顶",
+		"swipeUnpin": "取消置顶"
+	},
+	"projectShare": {
+		"advancedSettings": "高级设置",
+		"copyLink": "复制链接",
+		"createLink": "生成分享链接",
+		"createTitle": "项目分享",
+		"deleteConfirmDescription": "取消后，已获得链接的人将无法继续访问该分享。",
+		"deleteConfirmMessage": "确定取消「{{name}}」吗？取消后，已获得链接的人将无法继续访问该分享。",
+		"deleteConfirmTitle": "取消分享链接",
+		"deleteLink": "删除链接",
+		"detailUnavailable": "分享链接不可用",
+		"empty": "暂无分享链接",
+		"expiresPermanent": "永久有效",
+		"expiryDays": "{{days}} 天",
+		"expiryLabel": "有效期",
+		"expiryTitle": "有效期",
+		"fileCount": "{{count}} 个文件",
+		"fileModeCreateTitle": "文件分享",
+		"linkDetailTitle": "分享详情",
+		"linkLabel": "链接",
+		"linkNameLabel": "链接名称（选填）",
+		"linkNamePlaceholder": "如：客户演示、合作方评审...",
+		"manageOrganizationSummary": "组织成员可访问",
+		"managePasswordSummary": "需要密码访问",
+		"managePermanent": "永久有效",
+		"managePublicSummary": "获得链接的人可访问",
+		"manageTitle": "管理分享链接",
+		"organizationMembersLabel": "组织成员",
+		"selectMembers": "选择成员或部门",
+		"selectedFilesCount": "已选 {{count}} 个文件",
+		"selectedFilesLabel": "已选文件",
+		"selectedMembersCount": "已选择 {{count}} 项",
+		"typeLabel": "分享类型",
+		"typeOrganization": "组织内",
+		"typeOrganizationDescription": "仅指定组织成员可访问",
+		"typePassword": "密码",
+		"typePasswordDescription": "需要密码访问的分享链接",
+		"typePublic": "公开",
+		"typePublicDescription": "获得链接的人可直接访问"
 	},
 	"recordingSummary": {
 		"actions": {
@@ -2192,11 +2396,13 @@
 		"clickToSelectFiles": "点击选择您需要分享的文件",
 		"close": "关闭",
 		"confirmReset": "确定重置",
+		"conversationLink": "对话链接",
 		"copy": "复制",
 		"copyCount": "次复制项目",
 		"copyLink": "复制链接",
-		"copyLinkAndPassword": "复制链接和密码",
+		"copyLinkAction": "复制链接",
 		"copyLinkSuccess": "链接已复制",
+		"copyPassword": "复制密码",
 		"copyPasswordSuccess": "密码已复制",
 		"copyProject": "复制项目",
 		"copyProjectCompleted": "项目复制完成",
@@ -2256,6 +2462,7 @@
 		"enableFileShareConfirm": "当前文件即将开启互联网分享，开启后，任何人均可通过链接或链接及密码访问该文件",
 		"enableShare": "开启分享",
 		"enableShareDescription": "开启后，访问者可通过链接预览话题回访",
+		"enableShareLink": "开启分享链接",
 		"enableTopicShareConfirm": "当前话题回放即将开启互联网分享，开启后，任何人均可通过链接或链接及密码访问话题回放",
 		"enterNewProjectName": "请输入新项目名称",
 		"enterProject": "进入项目",
@@ -2283,6 +2490,7 @@
 		"generateShareLink": "生成分享链接",
 		"hideCreatorInfo": "隐藏\"由$t(common:platform.name)创造\"字样",
 		"hideCreatorInfoDescription": "开启后，将隐藏页面右下角悬浮水印",
+		"hidePassword": "隐藏密码",
 		"includedFiles": "包含文件",
 		"internetFileShare": "互联网可访问",
 		"internetFileShareDescription": "任何获得链接的人可访问文件",
@@ -2314,6 +2522,7 @@
 		"originalProject": "原项目",
 		"passwordProtected": "密码保护",
 		"passwordProtectedDescription": "需要输入密码才能访问",
+		"passwordProtection": "密码保护",
 		"passwordVerification": {
 			"fileDescription": "请输入密码查看分享",
 			"fileTitle": "该分享已开启密码验证",
@@ -2344,6 +2553,7 @@
 		"selectedCount": "已选择 {{folders}} 个文件夹、{{files}} 个文件",
 		"setAsDefaultOpenFile": "设为默认打开的文件",
 		"settingsSaved": "分享设置已保存",
+		"shareConversation": "分享对话",
 		"shareExpiry": "分享有效期",
 		"shareFile": "分享项目文件",
 		"shareInfo": "分享信息",
@@ -2386,6 +2596,7 @@
 		"showOriginalInfo": "显示原创信息",
 		"showOriginalInfoDescription": "开启后，将会在分享页面中显示您的头像及昵称",
 		"showOriginalInfoTip": "开启后，将会在分享页面中显示您的头像及昵称",
+		"showPassword": "显示密码",
 		"singleFileShareName": "文件分享_{{fileName}}",
 		"successModalTitle": "分享信息",
 		"switchOrganizationFailed": "切换组织失败，请重试",
@@ -2521,6 +2732,26 @@
 			"fileProcessFailed": "文件处理失败，请重试",
 			"processFailed": "数据处理失败"
 		}
+	},
+	"sharedProjects": {
+		"emptyDescription": "这里会显示他人共享给你或你共享出去的项目",
+		"emptySearchDescription": "请调整搜索或筛选条件后重试",
+		"emptyTitle": "暂无共享项目",
+		"filter": {
+			"addCreator": "添加分享人",
+			"addMoreCreators": "添加更多分享人",
+			"creatorLabel": "分享人",
+			"removeCreator": "移除 {{name}}",
+			"reset": "重置",
+			"title": "筛选"
+		},
+		"searchPlaceholder": "搜索",
+		"sharedWith": "已共享给 {{count}} 人",
+		"tabSharedByMe": "我共享的",
+		"tabSharedWithMe": "他人共享的",
+		"title": "共享工作区",
+		"unknownCreator": "未知分享人",
+		"unknownTime": "未知时间"
 	},
 	"shortcut": {
 		"addToConversation": "内容添加到对话",
@@ -2781,7 +3012,10 @@
 		],
 		"actionTitle": "若您希望主动干预",
 		"mainText": "任务执行时间过长，可能是如下原因导致：",
-		"reasonList": ["AI 处理复杂任务中", "网络连接不稳定"],
+		"reasonList": [
+			"AI 处理复杂任务中",
+			"网络连接不稳定"
+		],
 		"statusText": "若您暂不操作，AI 会继续尝试"
 	},
 	"tool": {
@@ -2894,7 +3128,11 @@
 		"allTopics": "全部话题",
 		"createNewTopic": "新建话题",
 		"deleteTopicTip": "确定要删除话题 \"{{topicName}}\" 吗？",
+		"feedbackConversation": "反馈本次对话",
 		"history": "历史",
+		"moreAria": "更多操作",
+		"noTopicData": "暂无数据",
+		"pinTopic": "置顶话题",
 		"pleaseSelectWorkspaceAndProject": "请先选择工作区或项目",
 		"projectTopics": "项目话题",
 		"renameTopicSuccess": "重命名话题成功",
@@ -2963,17 +3201,25 @@
 			},
 			"createUploadTaskFailed": "创建上传任务失败",
 			"delete": "删除",
+			"deleteBatchDescription": "将被永久删除，此操作无法撤销。",
+			"deleteBatchSubject": "选中的 {{count}} 项",
+			"deleteBatchTipMobile": "删除操作确认",
+			"deleteBatchWithFoldersDescription": "将被永久删除，包含文件夹内容和子级未选中文件，此操作无法撤销。",
 			"deleteContent": "确认删除 {{name}} ?",
+			"deleteFileDescription": "将被永久删除，此操作无法撤销。",
 			"deleteFileFailed": "删除文件失败",
 			"deleteFileFailedWithName": "文件 \"{{name}}\" 删除失败",
 			"deleteFileSuccess": "删除文件成功",
 			"deleteFileSuccessWithName": "文件 \"{{name}}\" 删除成功",
+			"deleteFileTipMobile": "删除文件？",
 			"deleteFolderContent": "确认删除文件夹 \"{{name}}\"？\n子级未选中文件也将被删除",
+			"deleteFolderDescription": "将被永久删除，子级未选中文件也将被删除，此操作无法撤销。",
 			"deleteFolderFailed": "删除文件夹失败",
 			"deleteFolderFailedWithName": "文件夹 \"{{name}}\" 删除失败",
 			"deleteFolderSuccess": "删除文件夹成功",
 			"deleteFolderSuccessWithName": "文件夹 \"{{name}}\" 删除成功",
 			"deleteFolderTip": "删除文件夹确认",
+			"deleteFolderTipMobile": "删除文件夹？",
 			"deleteMagicFolderContent": ".magic 文件夹包含系统运行的关键文件。删除后，部分功能及能力可能无法正常使用，且此操作不可撤销，请谨慎操作。",
 			"deleteTip": "删除操作确认",
 			"download": "下载文件",
@@ -3161,7 +3407,7 @@
 			"overwriteSingleContent": "目标目录中已存在名为 \"{{name}}\" 的文件，移动后将会覆盖现有文件。是否继续？",
 			"overwriteTitle": "覆盖提醒",
 			"tips": "",
-			"title": "移动至..."
+			"title": "移动文件"
 		},
 		"moving": "移动文件中",
 		"noFiles": "暂无项目文件",
@@ -3185,6 +3431,12 @@
 		"upload": "上传",
 		"waiting": "请稍后"
 	},
+	"topicList": {
+		"swipeDelete": "删除",
+		"swipeMore": "更多",
+		"swipePin": "置顶",
+		"swipeUnpin": "取消置顶"
+	},
 	"transferModal": {
 		"actions": {
 			"cancel": "取消",
@@ -3201,7 +3453,8 @@
 			"noProjects": "没有可转让的项目",
 			"noWorkspaces": "没有可转让的工作区",
 			"selectReceiver": "请选择接收方",
-			"success": "转让成功"
+			"success": "转让成功",
+			"userOnly": "转让接收方只能选择用户"
 		},
 		"permission": {
 			"edit": "可编辑",
@@ -3233,6 +3486,15 @@
 		"title": {
 			"project": "转让项目",
 			"workspace": "转让工作区"
+		},
+		"transferConfirmSheet": {
+			"description": "「{{entityName}}」将被转让给 {{memberName}}。转让后，您将失去所有管理权限，此操作无法撤销。",
+			"entityLabel": {
+				"project": "项目",
+				"workspace": "工作区"
+			},
+			"title": "确认转让",
+			"transferTo": "转让给"
 		}
 	},
 	"ui": {
@@ -3248,8 +3510,14 @@
 		"usedVideoModel": "视频模型：",
 		"copyTopic": "从此处创建新话题",
 		"deleteProjectConfirm": "确定要删除项目: \"{{name}}\" 吗？",
+		"deleteProjectConfirmTitle": "删除项目?",
+		"deleteProjectDescription": "「{{name}}」将被永久删除，包含其中所有话题和文件，此操作无法撤销。",
 		"deleteTopicConfirm": "确定要删除话题: \"{{name}}\" 吗？",
+		"deleteTopicConfirmTitle": "删除对话?",
+		"deleteTopicDescription": "「{{name}}」将被永久删除，此操作无法撤销。",
 		"deleteWorkspaceConfirm": "确定要删除工作区: \"{{name}}\" 吗？",
+		"deleteWorkspaceConfirmTitle": "删除工作区?",
+		"deleteWorkspaceDescription": "「{{name}}」将被永久删除，包含其中所有项目、话题和文件，此操作无法撤销。",
 		"expandAllFiles": "展开全部文件",
 		"expandUserMessage": "展开",
 		"filePreviewNotSupported": "暂不支持预览该文件,请下载该文件",
@@ -3360,14 +3628,17 @@
 		"addWorkspace": "新增工作区",
 		"allWorkspaceTitle": "全部工作区",
 		"collaborationProjectsDesc": "共享工作区中查看他人与你共享的项目，也可对你共享的项目进行管理",
+		"collaborationProjectsDescV2": "他人共享的项目",
 		"collaborationProjectsTitle": "共享工作区",
 		"confirmDeleteThread": "确定要删除对话 \"{name}\" 吗？",
 		"confirmDeleteWorkspace": "确定要删除工作区 \"{name}\" 吗？",
 		"createWorkspace": "新建工作区",
+		"createWorkspaceSheetTitle": "新建工作空间",
 		"createWorkspaceSuccess": "创建工作区成功",
 		"createWorkspaceTip": "请输入工作区名称",
 		"createdByMe": "我创建的",
 		"createdByOthers": "他人创建的",
+		"deleteWorkspace": "删除工作区",
 		"deleteWorkspaceSuccess": "删除工作区成功",
 		"deleteWorkspaceTip": "确定要删除工作区 “{{workspaceName}}” 吗？",
 		"externalSharedWithMe": "外部共享的",
@@ -3377,9 +3648,11 @@
 		"newWorkspace": "新建工作区",
 		"noOtherWorkspace": "暂无其它可用工作区",
 		"noWorkspaces": "暂无工作空间",
+		"projectCount": "{{count}} 个项目",
 		"projects": "项目",
 		"rename": "重命名",
 		"renameWorkspaceSuccess": "重命名工作区成功",
+		"searchNoResults": "未找到与 \"{{keyword}}\" 相关的结果",
 		"searchTopic": "搜索话题",
 		"searchWorkspace": "搜索工作区",
 		"selectWorkspaceForStorage": "选择储存的工作区",
@@ -3401,7 +3674,12 @@
 		"workspace": "工作空间",
 		"workspaceList": "工作区列表",
 		"workspaceName": "工作区名称",
+		"workspaceNameLabel": "工作空间名称",
 		"workspaceNotFound": "工作区不存在",
 		"workspaces": "工作区"
+	},
+	"workspaceList": {
+		"swipeDelete": "删除",
+		"swipeMore": "更多"
 	}
 }

@@ -37,6 +37,7 @@ export interface HandleCreateProjectParams {
 	isAutoSelect?: boolean
 	isEditProject?: boolean
 	workdir?: string
+	projectName?: string
 }
 
 // Request deduplication key generator
@@ -125,7 +126,7 @@ class ProjectService {
 						? await SuperMagicApi.getCollaborationProjects(
 								{
 									page,
-									page_size: 99,
+									page_size: 100,
 									type: collaborationTabKey,
 								},
 								options,
@@ -134,7 +135,7 @@ class ProjectService {
 								{
 									workspace_id: workspaceId,
 									page,
-									page_size: 99,
+									page_size: 100,
 								},
 								options,
 							)
@@ -342,11 +343,13 @@ class ProjectService {
 		projectId: string,
 		targetWorkspaceId: string,
 		sourceWorkspaceId: string,
+		targetProjectName?: string,
 	): Promise<boolean> => {
 		const operationId = `move_${projectId}_${Date.now()}`
 		const requestKey = this.getRequestKey("moveProject", {
 			projectId,
 			targetWorkspaceId,
+			targetProjectName,
 		})
 
 		// Optimistic update: remove project from list immediately
@@ -361,6 +364,7 @@ class ProjectService {
 				const res = await SuperMagicApi.moveProjectToNewWorkspace({
 					source_project_id: projectId,
 					target_workspace_id: targetWorkspaceId,
+					target_project_name: targetProjectName?.trim() || undefined,
 				})
 
 				if (res) {

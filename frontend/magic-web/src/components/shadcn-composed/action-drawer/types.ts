@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import type { OverlayZIndexScope } from "@/utils/overlayZIndex/overlayStackManager"
 
 export interface ActionDrawerProps {
 	open: boolean
@@ -11,8 +12,12 @@ export interface ActionDrawerProps {
 	/** When provided, a confirm button is rendered alongside the cancel button */
 	onConfirm?: () => void
 	confirmText?: string
+	overlayClassName?: string
 	className?: string
 	contentClassName?: string
+	zIndex?: number
+	zIndexScope?: OverlayZIndexScope
+	zIndexManaged?: boolean
 }
 
 export interface ActionGroupProps {

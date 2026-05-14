@@ -295,6 +295,15 @@ function HierarchicalWorkspacePopup(
 						t("ui.deleteWorkspaceConfirm", { name }),
 					deleteProjectConfirm: (name: string) => t("ui.deleteProjectConfirm", { name }),
 					deleteTopicConfirm: (name: string) => t("ui.deleteTopicConfirm", { name }),
+					deleteTopicConfirmTitle: t("ui.deleteTopicConfirmTitle"),
+					deleteWorkspaceConfirmTitle: t("ui.deleteWorkspaceConfirmTitle"),
+					deleteProjectConfirmTitle: t("ui.deleteProjectConfirmTitle"),
+					deleteTopicDescription: (name: string) =>
+						t("ui.deleteTopicDescription", { name }),
+					deleteWorkspaceDescription: (name: string) =>
+						t("ui.deleteWorkspaceDescription", { name }),
+					deleteProjectDescription: (name: string) =>
+						t("ui.deleteProjectDescription", { name }),
 					unnamedWorkspace: t("workspace.unnamedWorkspace"),
 					unnamedProject: t("project.unnamedProject"),
 					unnamedTopic: t("topic.unnamedTopic"),

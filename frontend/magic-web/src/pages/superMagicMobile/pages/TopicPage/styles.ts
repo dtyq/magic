@@ -13,13 +13,11 @@ export const useStyles = createStyles(() => {
 			overflowX: "hidden",
 			display: "flex",
 			flexDirection: "column",
-			backgroundColor: "white",
 		},
 		list: {},
 		item: {},
 		footer: {
-			backgroundColor: "white",
-			paddingBottom: "max(var(--safe-area-inset-bottom), 10px)",
+			paddingBottom: "max(var(--safe-area-inset-bottom), 4px)",
 		},
 		emptyMessageWelcome: {
 			height: "auto",

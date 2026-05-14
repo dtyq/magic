@@ -67,6 +67,12 @@ import { collectMentionItemsFromContent } from "@/pages/superMagic/components/Me
 import { transformMentions } from "@/pages/superMagic/components/MessageEditor/utils/mention"
 import { useFileOpen } from "@/pages/superMagic/components/TopicFilesButton/hooks/useFileOpen"
 import { useDefaultModeModelListRefreshOnMount } from "@/pages/superMagic/hooks"
+import { toast } from "sonner"
+import { MagicClawApi } from "@/apis"
+import { MAGIC_CLAW_STATUS } from "@/apis/modules/magicClawStatus"
+import { ClawMobileMoreSheet } from "./components/ClawMobileMoreSheet"
+import { MagiClawEditDialog } from "../MagiClawPage/MagiClawEditDialog"
+import type { MagiClawEditPayload } from "../MagiClawPage/useMagiClawMobilePage"
 
 interface ClawMobileConversationPanelRef {
 	sendSkillInstallPrompt: (content: JSONContent) => void
@@ -457,6 +463,69 @@ function ClawPlaygroundMobile() {
 
 	const [filesDrawerOpen, setFilesDrawerOpen] = useState(false)
 	const [skillsDrawerOpen, setSkillsDrawerOpen] = useState(false)
+	const [moreSheetOpen, setMoreSheetOpen] = useState(false)
+	const [editDialogOpen, setEditDialogOpen] = useState(false)
+	const [isUpdating, setIsUpdating] = useState(false)
+
+	const handleUpdateClaw = useMemoizedFn(async (payload: MagiClawEditPayload) => {
+		const editingClaw = store.magicClaw
+		if (!editingClaw?.code) return
+
+		setIsUpdating(true)
+		try {
+			const updatedClaw = await MagicClawApi.updateMagicClaw(
+				{
+					code: editingClaw.code,
+					name: payload.name.trim(),
+					icon: payload.icon ?? null,
+				},
+				{ enableErrorMessagePrompt: false },
+			)
+			toast.success(tSuper("superLobster.editDialog.updateSuccess", clawBrandValues))
+			setEditDialogOpen(false)
+			store.setMagicClaw(updatedClaw)
+		} catch {
+			toast.error(tSuper("superLobster.editDialog.updateFailed", clawBrandValues))
+		} finally {
+			setIsUpdating(false)
+		}
+	})
+
+	const handleRestart = useMemoizedFn(async () => {
+		const topicId = selectedTopic?.id
+		if (!topicId || !store.magicClaw) return
+
+		try {
+			await MagicClawApi.restartMagicClawSandbox({ topic_id: topicId })
+			toast.success(t("superLobster.created.restartSuccess", clawBrandValues))
+		} catch (error) {
+			toast.error(t("superLobster.created.restartFailed", clawBrandValues))
+		}
+	})
+
+	const handleToggleRun = useMemoizedFn(async () => {
+		const topicId = selectedTopic?.id
+		if (!topicId || !store.magicClaw) return
+
+		const isRunning = store.magicClaw.status === MAGIC_CLAW_STATUS.RUNNING
+		try {
+			if (isRunning) {
+				await MagicClawApi.stopMagicClawSandbox({ topic_id: topicId })
+				toast.success(t("superLobster.created.stopSuccess", clawBrandValues))
+			} else {
+				await MagicClawApi.startMagicClawSandbox(
+					{ topic_id: topicId },
+					{ enableErrorMessagePrompt: false },
+				)
+			}
+		} catch (error) {
+			if (isRunning) {
+				toast.error(t("superLobster.created.stopFailed", clawBrandValues))
+			} else {
+				toast.error(t("superLobster.created.startFailed", clawBrandValues))
+			}
+		}
+	})
 
 	const selectedWorkspace = store.selectedWorkspace
 	const selectedTopic = store.selectedTopic
@@ -639,11 +708,8 @@ function ClawPlaygroundMobile() {
 			{dialog}
 			<ClawMobileHeader
 				magicClaw={store.magicClaw}
-				sandboxLatestVersion={store.sandboxLatestVersion}
-				isUpdatingSandbox={store.isUpgradingSandbox}
 				onBack={handleBack}
-				onUpgradeSandbox={handleConfirmUpgradeSandbox}
-				onFilesClick={() => setFilesDrawerOpen(true)}
+				onOpenMoreSheet={() => setMoreSheetOpen(true)}
 			/>
 
 			<div className="min-h-0 flex-1 overflow-hidden">
@@ -659,8 +725,33 @@ function ClawPlaygroundMobile() {
 			<ClawMobileFilesDrawer
 				open={filesDrawerOpen}
 				onClose={() => setFilesDrawerOpen(false)}
+				clawName={store.magicClaw?.name}
 				topicFilesProps={topicFilesPropsWithPanel}
 				resolveTopicFileRowDecoration={resolveTopicFileRowDecoration}
+			/>
+
+			<ClawMobileMoreSheet
+				magicClaw={store.magicClaw}
+				open={moreSheetOpen}
+				isUpgradingSandbox={store.isUpgradingSandbox}
+				onOpenChange={setMoreSheetOpen}
+				onViewFiles={() => setFilesDrawerOpen(true)}
+				onEditInfo={() => setEditDialogOpen(true)}
+				onRestart={handleRestart}
+				onToggleRun={handleToggleRun}
+				onUpgradeSandbox={() => {
+					if (store.magicClaw) {
+						handleConfirmUpgradeSandbox(store.magicClaw)
+					}
+				}}
+			/>
+
+			<MagiClawEditDialog
+				claw={store.magicClaw}
+				open={editDialogOpen}
+				onOpenChange={setEditDialogOpen}
+				isSubmitting={isUpdating}
+				onSubmit={handleUpdateClaw}
 			/>
 
 			<ClawMobileSkillsDrawer

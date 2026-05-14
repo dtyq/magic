@@ -11,17 +11,17 @@ const shimmer = keyframes`
 
 export const useStyles = createStyles(({ token, css }) => ({
 	projectItem: css`
-		padding: 4px 8px 4px 4px;
+		height: 64px;
+		padding: 10px 12px;
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		border-radius: 8px;
-		border: 1px solid ${token.magicColorUsages.border};
 	`,
 	projectIcon: css`
-		width: 40px;
-		height: 40px;
-		border-radius: 4px;
+		width: 36px;
+		height: 36px;
+		border-radius: 10px;
 		background: linear-gradient(
 			90deg,
 			${token.colorFillTertiary} 25%,
@@ -33,7 +33,7 @@ export const useStyles = createStyles(({ token, css }) => ({
 	`,
 	projectNameSkeleton: css`
 		height: 20px;
-		width: 120px;
+		width: 144px;
 		border-radius: 4px;
 		background: linear-gradient(
 			90deg,
@@ -45,8 +45,8 @@ export const useStyles = createStyles(({ token, css }) => ({
 		animation: ${shimmer} 1.5s infinite;
 	`,
 	projectUpdatedAtSkeleton: css`
-		height: 13px;
-		width: 80px;
+		height: 16px;
+		width: 112px;
 		border-radius: 4px;
 		background: linear-gradient(
 			90deg,
@@ -60,12 +60,11 @@ export const useStyles = createStyles(({ token, css }) => ({
 	projectActions: css`
 		height: 100%;
 		display: flex;
-		align-items: stretch;
-		gap: 8px;
+		align-items: center;
 	`,
-	projectActionSkeleton: css`
-		width: 18px;
-		height: 18px;
+	projectChevronSkeleton: css`
+		width: 16px;
+		height: 16px;
 		border-radius: 4px;
 		background: linear-gradient(
 			90deg,

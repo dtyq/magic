@@ -54,6 +54,7 @@ import SimilarSharesDialog from "../Share/SimilarSharesDialog"
 import SimilarSharesDrawer from "../Share/SimilarSharesDrawer"
 import { generateShareUrl } from "../ShareManagement/utils/shareTypeHelpers"
 import { ShareMode, ShareType } from "../Share/types"
+import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
 import { findTreeNodeByKey, type TreeNodeData } from "./utils/treeDataConverter"
 import { DuplicateFileModal } from "./components/DuplicateFileModal"
 import { CustomFolderMagicIcon } from "./components/CustomFolderMagicIcon"
@@ -146,6 +147,7 @@ export interface TopicFilesCoreRef {
 	handleUploadFile: (item?: any) => void
 	handleUploadFolder: (item?: any) => void
 	handleImportFromOtherProject: (item?: any) => void
+	openBatchMoveByFileIds: (fileIds: string[]) => void
 	resetAllStates: () => void
 }
 
@@ -686,7 +688,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		handleAddMultipleFilesToCurrentChat,
 	})
 
-	const { getMenuItems, getBatchDownloadLayerMenuItems } = useContextMenu({
+	const { getMenuItems, getBatchDownloadLayerMenuItems, deleteConfirmNode } = useContextMenu({
 		handleUploadFile,
 		handleUploadFolder,
 		handleImportFromOtherProject,
@@ -752,6 +754,9 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		handleUploadFile,
 		handleUploadFolder,
 		handleImportFromOtherProject,
+		openBatchMoveByFileIds: (fileIds: string[]) => {
+			moveFileHook.openBatchMoveByFileIds(fileIds)
+		},
 		resetAllStates,
 	}))
 
@@ -1530,7 +1535,12 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		)
 	})
 
-	const { batchLoading, showBatchDownload, batchMenuItems } = useBatchDownload({
+	const {
+		batchLoading,
+		showBatchDownload,
+		batchMenuItems,
+		deleteConfirmNode: batchDeleteConfirmNode,
+	} = useBatchDownload({
 		projectId,
 		getItemId,
 		selectedItems,
@@ -1616,6 +1626,8 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 			{/* 右键菜单内容 */}
 			{(allowEdit || filterMenuItems) && dropdownContent}
 			{allowEdit && batchDownloadDropdownContent}
+			{deleteConfirmNode}
+			{batchDeleteConfirmNode}
 			{/* Content area */}
 			{/* <div className={styles.contentArea}> */}
 			{/* File tree */}
@@ -1766,46 +1778,74 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 				)} */}
 			</div>
 			{/* 文件分享模态框 */}
-			{shareFileInfo && (
-				<ShareModal
-					open={shareModalVisible}
-					onCancel={() => {
+			{isMobile ? (
+				<ProjectShareSheet
+					open={Boolean(shareFileInfo && shareModalVisible) || Boolean(shareSuccessInfo)}
+					onClose={() => {
 						setShareModalVisible(false)
 						setShareFileInfo(null)
+						closeSuccessModal()
 					}}
-					shareMode={ShareMode.File}
-					types={[ShareType.PasswordProtected, ShareType.Public, ShareType.Organization]}
+					mode="file"
 					attachments={attachments}
-					resourceId={
-						shareFileInfo.resourceId || shareSuccessInfo?.shareInfo?.resource_id
-					}
-					defaultSelectedFileIds={shareFileInfo.fileIds}
-					projectName={shareFileInfo.projectName}
+					projectName={shareFileInfo?.projectName || selectedProject?.project_name}
 					projectId={projectId}
+					defaultSelectedFileIds={
+						shareFileInfo?.fileIds || shareSuccessInfo?.shareInfo?.file_ids
+					}
+					defaultOpenFileId={shareFileInfo?.defaultOpenFileId}
+					initialSelectedShare={shareSuccessInfo?.shareInfo || null}
 				/>
-			)}
-			{/* 文件分享成功Modal - 用于已存在的分享 */}
-			{shareSuccessInfo && (
-				<ShareSuccessModal
-					open={true}
-					onClose={closeSuccessModal}
-					onCancelShare={handleCancelShare}
-					onEditShare={handleEditShare}
-					shareName={shareSuccessInfo.shareInfo.resource_name || ""}
-					projectName={shareSuccessInfo.shareInfo.project_name}
-					fileCount={shareSuccessInfo.shareInfo?.extend?.file_count || 1}
-					mainFileName={shareSuccessInfo.shareInfo.main_file_name || t("share.untitled")}
-					shareUrl={generateShareUrl(
-						shareSuccessInfo.shareInfo.resource_id,
-						shareSuccessInfo.shareInfo.password,
-						"files",
+			) : (
+				<>
+					{shareFileInfo && (
+						<ShareModal
+							open={shareModalVisible}
+							onCancel={() => {
+								setShareModalVisible(false)
+								setShareFileInfo(null)
+							}}
+							shareMode={ShareMode.File}
+							types={[
+								ShareType.PasswordProtected,
+								ShareType.Public,
+								ShareType.Organization,
+							]}
+							attachments={attachments}
+							resourceId={
+								shareFileInfo.resourceId || shareSuccessInfo?.shareInfo?.resource_id
+							}
+							defaultSelectedFileIds={shareFileInfo.fileIds}
+							projectName={shareFileInfo.projectName}
+							projectId={projectId}
+						/>
 					)}
-					password={shareSuccessInfo.shareInfo.password}
-					expire_at={shareSuccessInfo.shareInfo.expire_at}
-					shareType={shareSuccessInfo.shareInfo.share_type}
-					shareProject={shareSuccessInfo.shareInfo.share_project}
-					fileIds={shareSuccessInfo.shareInfo.file_ids}
-				/>
+					{/* 文件分享成功Modal - 用于已存在的分享 */}
+					{shareSuccessInfo && (
+						<ShareSuccessModal
+							open={true}
+							onClose={closeSuccessModal}
+							onCancelShare={handleCancelShare}
+							onEditShare={handleEditShare}
+							shareName={shareSuccessInfo.shareInfo.resource_name || ""}
+							projectName={shareSuccessInfo.shareInfo.project_name}
+							fileCount={shareSuccessInfo.shareInfo?.extend?.file_count || 1}
+							mainFileName={
+								shareSuccessInfo.shareInfo.main_file_name || t("share.untitled")
+							}
+							shareUrl={generateShareUrl(
+								shareSuccessInfo.shareInfo.resource_id,
+								shareSuccessInfo.shareInfo.password,
+								"files",
+							)}
+							password={shareSuccessInfo.shareInfo.password}
+							expire_at={shareSuccessInfo.shareInfo.expire_at}
+							shareType={shareSuccessInfo.shareInfo.share_type}
+							shareProject={shareSuccessInfo.shareInfo.share_project}
+							fileIds={shareSuccessInfo.shareInfo.file_ids}
+						/>
+					)}
+				</>
 			)}
 			{/* 相似分享Dialog/Drawer */}
 			{similarSharesInfo &&

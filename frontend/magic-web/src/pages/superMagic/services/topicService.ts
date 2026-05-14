@@ -7,6 +7,7 @@ import type { Topic, TaskStatus, ProjectListItem } from "../pages/Workspace/type
 import { TopicMode } from "../pages/Workspace/TopicMode"
 import { RequestConfig } from "@/apis/core/HttpClient"
 import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory"
+import { interfaceStore } from "@/stores/interface"
 
 export interface FetchTopicsParams {
 	projectId: string
@@ -14,6 +15,9 @@ export interface FetchTopicsParams {
 	isSelectLast?: boolean
 	page?: number
 }
+
+const SIDEBAR_TOPICS_PAGE_SIZE = 100
+const PROJECT_TOPICS_PAGE_SIZE = 99
 
 export interface UpdateTopicStatusParams {
 	topicId?: string
@@ -173,6 +177,22 @@ class TopicService {
 
 		return requestPromise
 	}
+
+	private async getTopicsForCurrentInterface(
+		projectId: string,
+		page = 1,
+	): Promise<TopicsApiResponse> {
+		if (interfaceStore.isMobile) {
+			return this.getSidebarTopicsByProjectId({
+				projectId,
+				page,
+				pageSize: SIDEBAR_TOPICS_PAGE_SIZE,
+			})
+		}
+
+		return this.getTopicsByProjectId(projectId, page, PROJECT_TOPICS_PAGE_SIZE)
+	}
+
 	async fetchTopics({
 		projectId,
 		isAutoSelect = true,
@@ -180,7 +200,7 @@ class TopicService {
 		page = 1,
 	}: FetchTopicsParams): Promise<Topic[]> {
 		try {
-			const res = await this.getTopicsByProjectId(projectId, page, 99)
+			const res = await this.getTopicsForCurrentInterface(projectId, page)
 			const updatedTopics = Array.isArray(res.list) ? res.list : []
 
 			runInAction(() => {
@@ -233,12 +253,8 @@ class TopicService {
 				project_id: projectId,
 			})
 
-			// Fetch latest topics list
-			const topicsRes = await SuperMagicApi.getTopicsByProjectId({
-				id: projectId,
-				page: 1,
-				page_size: 999,
-			})
+			// 创建后按当前端形态重新拉取项目话题列表，避免移动端被旧接口结果覆盖。
+			const topicsRes = await this.getTopicsForCurrentInterface(projectId, 1)
 			const updatedTopics = Array.isArray(topicsRes?.list) ? topicsRes?.list : []
 			const targetTopic = updatedTopics.find((topic: Topic) => topic?.id === newTopic?.id)
 			const backendTopic = targetTopic ?? newTopic ?? null
@@ -539,7 +555,7 @@ class TopicService {
 		projectTopicMapLocalStorageKey: string,
 	): Promise<Topic | null> {
 		try {
-			const res = await this.getTopicsByProjectId(project.id, 1, 99)
+			const res = await this.getTopicsForCurrentInterface(project.id, 1)
 			const updatedTopics = Array.isArray(res.list) ? res.list : []
 
 			runInAction(() => {

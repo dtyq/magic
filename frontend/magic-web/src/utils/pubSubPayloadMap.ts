@@ -143,7 +143,7 @@ export interface PubSubTypedPayloadMap {
 	[PubSubEvents.Super_Magic_Update_Auto_Detail]: SuperMagicUpdateAutoDetailArgs
 	/** 新消息到达：传入当前订阅方依赖的最小消息结构。 */
 	[PubSubEvents.Super_Magic_New_Message_V2]: SuperMagicNewMessageArgs
-	/** 创建新话题：可选带创建后插入的内容。 */
+	/** 创建新话题：可选携带目标模式和创建后插入内容。 */
 	[PubSubEvents.Create_New_Topic]: [payload?: SuperMagicCreateNewTopicPayload]
 	/** 接收录音总结音频文件：传入标准音频 mention payload。 */
 	[PubSubEvents.Receive_RecordSummary_Audio_File]: SuperMagicReceiveRecordSummaryAudioFileArgs

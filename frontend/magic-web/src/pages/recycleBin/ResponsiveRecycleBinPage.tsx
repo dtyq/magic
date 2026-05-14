@@ -1,28 +1,27 @@
 import { lazy, memo, Suspense } from "react"
+
 import { useIsMobile } from "@/hooks/useIsMobile"
 
-// PC端回收站组件
 const PCRecycleBinPage = lazy(() => import("./index"))
-
-// 移动端回收站组件
-const MobileRecycleBinPage = lazy(
-	() => import("@/pages/superMagicMobile/pages/recycle-bin"),
+const MobileRecycleBinPanel = lazy(
+	() => import("@/pages/superMagicMobile/pages/recycle-bin/v2/MobileRecycleBinPanel"),
 )
 
+/** 桌面/移动端分流入口：移动端统一复用 Super 共享壳层。 */
 function ResponsiveRecycleBinPage() {
 	const isMobile = useIsMobile()
 
-	if (isMobile) {
+	if (!isMobile) {
 		return (
-			<Suspense fallback={<div>Loading...</div>}>
-				<MobileRecycleBinPage />
+			<Suspense fallback={<div />}>
+				<PCRecycleBinPage />
 			</Suspense>
 		)
 	}
 
 	return (
-		<Suspense fallback={<div />}>
-			<PCRecycleBinPage />
+		<Suspense fallback={null}>
+			<MobileRecycleBinPanel />
 		</Suspense>
 	)
 }

@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo } from "react"
 import { XIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import { useOverlayZIndex } from "@/hooks/useOverlayZIndex"
 import { cn } from "@/lib/utils"
 
 import { Drawer as DrawerPrimitive } from "vaul"
@@ -34,9 +35,19 @@ function ActionDrawerComponent(props: ActionDrawerProps) {
 		onCancel,
 		onConfirm,
 		confirmText = t("shadcn-ui:actionDrawer.confirm"),
+		overlayClassName,
 		className,
 		contentClassName,
+		zIndex,
+		zIndexScope = "global",
+		zIndexManaged = true,
 	} = props
+	const overlayLayer = useOverlayZIndex({
+		open,
+		zIndex,
+		zIndexScope,
+		zIndexManaged,
+	})
 
 	// Handle cancel action
 	const handleCancel = useCallback(() => {
@@ -83,10 +94,20 @@ function ActionDrawerComponent(props: ActionDrawerProps) {
 		)
 	}, [showCancel, cancelText, handleCancel, onConfirm, confirmText, handleConfirm])
 
+	/** 在 Drawer 内容退场动画完成后再释放层级，避免多层操作抽屉在过渡期间复用旧层级。 */
+	const handleContentAnimationEnd: React.AnimationEventHandler<HTMLDivElement> = (event) => {
+		if (event.target === event.currentTarget && !open) {
+			overlayLayer.releaseOverlayZIndex()
+		}
+	}
+
 	return (
 		<Drawer open={open} onOpenChange={onOpenChange}>
 			<DrawerPortal data-slot="drawer-portal">
-				<DrawerOverlay className="z-drawer bg-[rgba(22,22,26,0.6)]" />
+				<DrawerOverlay
+					className={cn("z-drawer bg-[rgba(22,22,26,0.6)]", overlayClassName)}
+					style={{ zIndex: overlayLayer.overlayZIndex }}
+				/>
 				<DrawerPrimitive.Content
 					data-slot="drawer-content"
 					className={cn(
@@ -102,6 +123,8 @@ function ActionDrawerComponent(props: ActionDrawerProps) {
 						"after:h-[calc(env(safe-area-inset-bottom)+34px)] after:translate-y-full",
 						className,
 					)}
+					style={{ zIndex: overlayLayer.contentZIndex }}
+					onAnimationEnd={handleContentAnimationEnd}
 				>
 					<div className="mx-auto mt-4 hidden h-2 w-[100px] shrink-0 rounded-full bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
 					{/* Header */}

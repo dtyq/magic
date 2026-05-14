@@ -7,6 +7,8 @@ import { IconType } from "../../components/AgentSelector/types"
 import type { SceneItem } from "../../types/skill"
 import { TopicMode } from "./TopicMode"
 
+export { TopicMode } from "./TopicMode"
+
 export interface WithPage<T> {
 	list: T[]
 	total: number
@@ -153,6 +155,7 @@ export interface Workspace {
 	workspace_status: WorkspaceStatus
 	project_count: number
 	status?: "waiting" | "running" | "finished" | "error" // 其实没有这个字段，但是为了兼容旧数据，所以加了这个字段
+	workspace_type: "chat" | "default"
 }
 
 // 话题
@@ -287,6 +290,10 @@ export interface ProjectListItem {
 	user_role?: CollaboratorPermission
 	is_bind_workspace?: boolean // 协作项目才有
 	bind_workspace_id?: string // 协作项目才有
+	/** 是否开启了协作功能（即他人可通过链接加入），接口按需返回 */
+	is_collaboration_enabled?: boolean
+	/** 默认加入权限，与 is_collaboration_enabled 配套 */
+	default_join_permission?: CollaboratorPermission
 }
 
 // 创建新项目的响应数据

@@ -52,11 +52,29 @@ export function initializeSuperMagicIfNeeded({
 					return
 				}
 
-				// Desktop or mobile without workspace: full initialization
-				await SuperMagicService.initializeState({
-					workspaceId: workspaceId || undefined,
-					projectId,
-					topicId,
+				if (isMobile && !hasRouteParams) {
+					SuperMagicService.initializeMobileHomeState()
+				} else if (isMobile && hasRouteParams) {
+					// Mobile with route params: use refresh to keep cached data
+					await SuperMagicService.refreshState({
+						workspaceId: workspaceId || undefined,
+						projectId,
+						topicId,
+					})
+				} else {
+					// Desktop: full initialization
+					await SuperMagicService.initializeState({
+						workspaceId: workspaceId || undefined,
+						projectId,
+						topicId,
+					})
+				}
+
+				// 标记为已初始化
+				userStore.initialization.markInitialized({
+					magicId: userStore.user.userInfo?.magic_id,
+					organizationCode: userStore.user.userInfo?.organization_code,
+					domain: INIT_DOMAINS.super,
 				})
 			},
 		)

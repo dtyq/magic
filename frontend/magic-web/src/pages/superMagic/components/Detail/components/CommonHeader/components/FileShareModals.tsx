@@ -6,6 +6,7 @@ import SimilarSharesDrawer from "@/pages/superMagic/components/Share/SimilarShar
 import { ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
 import type { AttachmentItem } from "../../../../TopicFilesButton/hooks/types"
 import { projectStore } from "@/pages/superMagic/stores/core"
+import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
 
 interface FileShareModalsProps {
 	/** Share modal visibility */
@@ -81,40 +82,65 @@ function FileShareModals({
 
 	return (
 		<>
-			{/* Share Modal */}
-			<ShareModal
-				open={shareModalVisible}
-				onCancel={onCloseShareModal}
-				shareMode={ShareMode.File}
-				types={[ShareType.PasswordProtected, ShareType.Public, ShareType.Organization]}
-				attachments={attachments}
-				resourceId={existingShareInfo?.resource_id}
-				defaultSelectedFileIds={shareFileId ? [shareFileId] : undefined}
-				defaultOpenFileId={shareFileId || currentFile?.id}
-				projectName={projectName}
-				projectId={projectId}
-			/>
-
-			{/* Share Success Modal - for existing shares */}
-			{showSuccessModal && existingShareInfo && currentFile && (
-				<ShareSuccessModal
-					open={showSuccessModal}
-					onClose={onCloseSuccessModal}
-					onCancelShare={onCancelShare}
-					onEditShare={onEditShare}
-					shareName={existingShareInfo.resource_name || currentFile.name}
-					projectName={existingShareInfo.project_name}
-					fileCount={1}
-					mainFileName={currentFile.name}
-					shareUrl={`${window.location.origin}/share/files/${existingShareInfo.resource_id}${
-						existingShareInfo.password ? `?password=${existingShareInfo.password}` : ""
-					}`}
-					password={existingShareInfo.password}
-					expire_at={existingShareInfo.expire_at}
-					shareType={existingShareInfo.share_type}
-					shareProject={existingShareInfo.share_project}
-					fileIds={existingShareInfo.file_ids}
+			{isMobile ? (
+				<ProjectShareSheet
+					open={shareModalVisible || (showSuccessModal && Boolean(existingShareInfo))}
+					onClose={() => {
+						onCloseShareModal()
+						onCloseSuccessModal()
+					}}
+					mode="file"
+					attachments={attachments || []}
+					projectName={projectName}
+					projectId={projectId}
+					defaultSelectedFileIds={shareFileId ? [shareFileId] : undefined}
+					defaultOpenFileId={shareFileId || currentFile?.id}
+					initialSelectedShare={showSuccessModal ? existingShareInfo : null}
 				/>
+			) : (
+				<>
+					{/* Share Modal */}
+					<ShareModal
+						open={shareModalVisible}
+						onCancel={onCloseShareModal}
+						shareMode={ShareMode.File}
+						types={[
+							ShareType.PasswordProtected,
+							ShareType.Public,
+							ShareType.Organization,
+						]}
+						attachments={attachments}
+						resourceId={existingShareInfo?.resource_id}
+						defaultSelectedFileIds={shareFileId ? [shareFileId] : undefined}
+						defaultOpenFileId={shareFileId || currentFile?.id}
+						projectName={projectName}
+						projectId={projectId}
+					/>
+
+					{/* Share Success Modal - for existing shares */}
+					{showSuccessModal && existingShareInfo && currentFile && (
+						<ShareSuccessModal
+							open={showSuccessModal}
+							onClose={onCloseSuccessModal}
+							onCancelShare={onCancelShare}
+							onEditShare={onEditShare}
+							shareName={existingShareInfo.resource_name || currentFile.name}
+							projectName={existingShareInfo.project_name}
+							fileCount={1}
+							mainFileName={currentFile.name}
+							shareUrl={`${window.location.origin}/share/files/${existingShareInfo.resource_id}${
+								existingShareInfo.password
+									? `?password=${existingShareInfo.password}`
+									: ""
+							}`}
+							password={existingShareInfo.password}
+							expire_at={existingShareInfo.expire_at}
+							shareType={existingShareInfo.share_type}
+							shareProject={existingShareInfo.share_project}
+							fileIds={existingShareInfo.file_ids}
+						/>
+					)}
+				</>
 			)}
 
 			{/* Similar Shares Dialog/Drawer */}

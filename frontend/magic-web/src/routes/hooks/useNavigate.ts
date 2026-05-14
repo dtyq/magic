@@ -1,9 +1,6 @@
 import { useCallback } from "react"
 import { useViewTransition } from "@/hooks/use-view-transition"
-import type {
-	EnhancedNavigateOptions,
-	ViewTransitionConfig,
-} from "@/types/viewTransition"
+import type { EnhancedNavigateOptions, ViewTransitionConfig } from "@/types/viewTransition"
 import { useIsMobile } from "../../hooks/useIsMobile"
 import type { RouteParams } from "@/routes/history/types"
 import { history } from "@/routes/history"
@@ -37,7 +34,7 @@ export const useNavigate = ({ fallbackRoute }: { fallbackRoute?: MagicNavigatePa
 	const isMobile = useIsMobile()
 
 	// Get default route name based on device type
-	const defaultRouteName = isMobile ? RouteName.MobileTabs : RouteName.Super
+	const defaultRouteName = isMobile ? RouteName.MobileHome : RouteName.Super
 
 	return useCallback(
 		(props: MagicNavigateParams) => {

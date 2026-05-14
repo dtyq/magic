@@ -59,6 +59,7 @@ function getSuperTabConfig(superIconComponent: MobileTabBarIconComponent): Mobil
 	}
 }
 
+/** MagiClaw 是移动端旧 TabBar 的独立入口，保留配置函数便于按组织或灰度开关隐藏。 */
 function getMagiClawTabConfig(): MobileTabBarConfig {
 	return {
 		key: MobileTabBarKey.MagiClaw,
@@ -114,6 +115,13 @@ export function getOrganizationAppsChildrenConfigs(params: {
 }): MobileTabBarConfig[] {
 	if (params.isPersonalOrganization) return []
 	return [getChatTabConfig(), getApprovalTabConfig()]
+}
+
+/**
+ * 统一判断旧线上 Apps 是否应该展示，避免壳层入口和独立页兜底各自维护一份条件。
+ */
+export function hasOrganizationAppsShortcuts(params: { isPersonalOrganization: boolean }): boolean {
+	return getOrganizationAppsChildrenConfigs(params).length > 0
 }
 
 function getTabBadgeCount(params: {

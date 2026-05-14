@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
+import type { OverlayZIndexScope } from "@/utils/overlayZIndex/overlayStackManager"
 
 // Type for option item in antd style
 interface OptionType {
@@ -67,6 +68,14 @@ interface MagicSelectProps extends Omit<
 	prefix?: ReactNode
 	// Dropdown control props
 	popupClassName?: string
+	/** 兼容旧调用方；移动端会作为 MagicPopup 的 requested base 进入自动层级管理。 */
+	popupZIndex?: number
+	/** 移动端下拉的浮层基准层级；桌面路径保持原有 SelectContent 行为。 */
+	zIndex?: number
+	/** 移动端下拉转成 MagicPopup 后使用的自动层级 scope；桌面路径不消费该字段。 */
+	zIndexScope?: OverlayZIndexScope
+	/** 移动端下拉是否进入自动层级管理；桌面路径不消费该字段。 */
+	zIndexManaged?: boolean
 	placement?: "bottomLeft" | "bottomRight" | "topLeft" | "topRight"
 	variant?: "outlined" | "borderless" | "filled" | "underlined"
 	// Event props
@@ -102,6 +111,10 @@ const MagicSelect = memo(
 		optionRender,
 		prefix,
 		popupClassName,
+		popupZIndex,
+		zIndex,
+		zIndexScope,
+		zIndexManaged,
 		placement,
 		variant,
 		onClick,
@@ -316,6 +329,9 @@ const MagicSelect = memo(
 					title={placeholder?.toString() || "Select"}
 					className={classNames?.popup?.root}
 					bodyStyle={styles?.popup?.root}
+					zIndex={popupZIndex ?? zIndex}
+					zIndexScope={zIndexScope}
+					zIndexManaged={zIndexManaged}
 				>
 					{popupRender ? popupRender() : mobileContent}
 				</MagicPopup>

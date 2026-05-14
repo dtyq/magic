@@ -8,6 +8,8 @@ interface PhoneStateCodeSelectProps {
 	onChange: (value: string) => void
 	className?: string
 	disabled?: boolean
+	/** 移动端区号选择抽屉可能嵌在高层级 Sheet 内，允许调用方指定 Portal 层级。 */
+	popupZIndex?: number
 	dataTestId?: string
 }
 
@@ -16,6 +18,7 @@ function PhoneStateCodeSelect({
 	onChange,
 	className,
 	disabled,
+	popupZIndex,
 	dataTestId,
 }: PhoneStateCodeSelectProps) {
 	const { areaCodes } = useAreaCodes()
@@ -54,6 +57,7 @@ function PhoneStateCodeSelect({
 			)}
 			popupMatchSelectWidth={false}
 			disabled={disabled}
+			popupZIndex={popupZIndex}
 			dataTestId={dataTestId}
 		/>
 	)

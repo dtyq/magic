@@ -1,83 +1,67 @@
 import { useEffect } from "react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { SuperMagicApi } from "@/apis"
+import type { SuperMagicCreateNewTopicPayload } from "@/pages/superMagic/events/message"
 import SuperMagicService from "../../services"
-import { workspaceStore, projectStore, topicStore } from "../../stores/core"
-import type { SuperMagicCreateNewTopicPayload } from "../../events/message"
-import type { ProjectListItem } from "../../pages/Workspace/types"
-import type { TopicStore } from "../../stores/core/topic"
+import { projectStore } from "../../stores/core"
 
-export interface UseCreateTopicListenerOptions {
-	/**
-	 * Override the project used for topic creation.
-	 * When provided, uses this instead of the global projectStore.
-	 */
-	selectedProject?: ProjectListItem | null
-	/**
-	 * Override the topic store for selecting the newly created topic.
-	 * When provided, creates the topic via API and switches in-place
-	 * instead of navigating to the main topic page.
-	 */
-	topicStore?: TopicStore
+interface UseCreateTopicListenerOptions {
+	enabled?: boolean
+	selectedProject?: Parameters<typeof SuperMagicService.handleCreateTopic>[0]["selectedProject"]
+	topicStore?: {
+		setSelectedTopic?: (topic: unknown) => void
+	}
+}
+
+function normalizeCreateTopicPayload(payload?: SuperMagicCreateNewTopicPayload) {
+	if (payload == null) {
+		return {
+			topicMode: undefined as Parameters<typeof SuperMagicService.handleCreateTopic>[0]["topicMode"],
+			afterCreate: undefined as SuperMagicCreateNewTopicPayload["afterCreate"],
+		}
+	}
+
+	return {
+		topicMode: payload.topicMode,
+		afterCreate: payload.afterCreate,
+	}
 }
 
 /**
- * Hook to listen for Create_New_Topic event and handle topic creation.
- *
- * Default (no options): uses global stores and navigates to the new topic page.
- * With options (crew/skill): creates a topic in the given project and
- * switches the provided topicStore in-place without page navigation.
+ * Hook to listen for Create_New_Topic event and handle topic creation
+ * @description Listens for PubSubEvents.Create_New_Topic and calls SuperMagicService.handleCreateTopic.
+ * Uses object payload contract ({ topicMode, afterCreate }) for all callers.
  */
-export function useCreateTopicListener(options?: UseCreateTopicListenerOptions) {
-	const globalSelectedWorkspace = workspaceStore.selectedWorkspace
-	const globalSelectedProject = projectStore.selectedProject
-
-	const selectedProject = options?.selectedProject ?? globalSelectedProject
-	const localTopicStore = options?.topicStore
+export function useCreateTopicListener(
+	options: UseCreateTopicListenerOptions = {},
+) {
+	const { enabled = true, selectedProject: selectedProjectFromOptions, topicStore } = options
+	const selectedProject = projectStore.selectedProject
 
 	useEffect(() => {
+		if (!enabled) return
+
 		const handleCreateTopic = (payload?: SuperMagicCreateNewTopicPayload) => {
-			if (localTopicStore) {
-				// In-place mode: create topic via API + switch topicStore (crew/skill)
-				const projectId = selectedProject?.id
-				if (!projectId) return
+			const { topicMode, afterCreate } = normalizeCreateTopicPayload(payload)
 
-				SuperMagicApi.createTopic({
-					project_id: projectId,
-					topic_name: "",
-				}).then((newTopic) => {
-					if (!newTopic) return
-					localTopicStore.setSelectedTopic(newTopic)
-
-					if (payload?.afterCreate) {
-						setTimeout(() => {
-							pubsub.publish(PubSubEvents.Add_Content_To_Chat, {
-								content: payload.afterCreate!.content,
-								extraData: payload.afterCreate!.extraData,
-							})
-						}, 500)
-					}
-				})
-			} else {
-				// 普通项目新建话题不把员工/mode 写入创建接口；
-				// 触发当下读取当前话题，交给 TopicService 在前端选中态中继承员工。
-				SuperMagicService.handleCreateTopic({
-					selectedProject,
-					sourceTopic: topicStore.selectedTopic,
-					onNavigated: payload?.afterCreate
-						? () => {
-								pubsub.publish(PubSubEvents.Add_Content_To_Chat, {
-									content: payload.afterCreate!.content,
-									extraData: payload.afterCreate!.extraData,
-								})
-							}
-						: undefined,
-				})
-			}
+			SuperMagicService.handleCreateTopic({
+				selectedProject: selectedProjectFromOptions ?? selectedProject,
+				onSuccess: (topic) => {
+					topicStore?.setSelectedTopic?.(topic)
+				},
+				onNavigated: () => {
+					if (!afterCreate?.content) return
+					pubsub.publish(PubSubEvents.Add_Content_To_Chat, {
+						content: afterCreate.content,
+						extraData: afterCreate.extraData,
+					})
+				},
+				topicMode,
+			})
 		}
+
 		pubsub.subscribe(PubSubEvents.Create_New_Topic, handleCreateTopic)
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Create_New_Topic, handleCreateTopic)
 		}
-	}, [selectedProject, globalSelectedWorkspace, localTopicStore])
+	}, [enabled, selectedProject, selectedProjectFromOptions, topicStore])
 }

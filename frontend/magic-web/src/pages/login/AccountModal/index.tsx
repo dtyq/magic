@@ -18,6 +18,8 @@ export interface AccountModalParams {
 	clusterCode?: string
 	/** 订阅集群编码更新 */
 	onClusterChange?: (code: string) => void
+	/** 嵌套浮层场景可显式抬高账号弹窗层级，避免被调用方弹层遮挡。 */
+	zIndex?: number
 }
 
 let activeModal: ClusterLoginSession | null = null
@@ -43,6 +45,7 @@ const Account = withLoginService(
 									open={open}
 									clusterCode={props?.clusterCode}
 									onClusterChange={props?.onClusterChange}
+									zIndex={props?.zIndex}
 								/>
 							</AntdApp>
 						</GlobalErrorBoundary>
@@ -83,6 +86,7 @@ export default function openAccountModal(params?: AccountModalParams): ClusterLo
 				onClose={onClose}
 				onClusterChange={params?.onClusterChange}
 				clusterCode={params?.clusterCode}
+				zIndex={params?.zIndex}
 			/>
 		</BrowserProvider>,
 	)

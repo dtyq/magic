@@ -24,7 +24,7 @@ import { LongMemory } from "@/types/longMemory"
 import { RouteName } from "@/routes/constants"
 import { MobileTabParam } from "@/pages/mobileTabs/constants"
 import { baseHistory } from "@/routes/history"
-import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
+import { workspaceStore, projectStore, topicStore } from "@/pages/superMagic/stores/core"
 
 export class MagicPlatformService implements PlatformServiceInterface {
 	PlatformType: Platform = Platform.Magic
@@ -190,7 +190,6 @@ export class MagicPlatformService implements PlatformServiceInterface {
 
 		return (
 			activeTab === MobileTabParam.Super ||
-			searchParams.has("workspaceId") ||
 			searchParams.has("projectId") ||
 			searchParams.has("topicId")
 		)
@@ -199,12 +198,10 @@ export class MagicPlatformService implements PlatformServiceInterface {
 	private syncMobileTabsSuperQueryState() {
 		const currentSearchParams = new URLSearchParams(window.location.search)
 		const nextSearchParams = new URLSearchParams(currentSearchParams)
-		const selectedWorkspaceId = workspaceStore.selectedWorkspace?.id || null
 		const selectedProjectId = projectStore.selectedProject?.id || null
 		const selectedTopicId = topicStore.selectedTopic?.id || null
 
-		if (selectedWorkspaceId) nextSearchParams.set("workspaceId", selectedWorkspaceId)
-		else nextSearchParams.delete("workspaceId")
+		nextSearchParams.delete("workspaceId")
 
 		if (selectedProjectId) nextSearchParams.set("projectId", selectedProjectId)
 		else nextSearchParams.delete("projectId")

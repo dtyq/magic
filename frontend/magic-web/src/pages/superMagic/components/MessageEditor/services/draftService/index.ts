@@ -51,34 +51,29 @@ export class DraftManager {
 		// Use a unique versionId to avoid overwriting time-based keys
 		const versionTimestamp = Date.now()
 		const uniqueVersionId = `${genDraftVersionId(versionTimestamp)}/sent`
+		// 与 prepareSavePayload 一致：编辑器 value 可能含 MobX 代理或不可结构化克隆的嵌套对象，IndexedDB put 前必须落成纯 JSON 树
+		const sentSnapshotPayload = cloneDeep({
+			workspaceId: data.workspaceId,
+			projectId: data.projectId,
+			topicId: data.topicId,
+			mentionItems: data.mentionItems || [],
+			value: data.value || undefined,
+			isAutoSaved: false,
+			versionId: uniqueVersionId,
+			versionTimestamp,
+		})
+		const clearedEditorPayload = cloneDeep({
+			workspaceId: data.workspaceId,
+			projectId: data.projectId,
+			topicId: data.topicId,
+			mentionItems: [],
+			value: undefined,
+		})
 		entry.inFlight = Promise.all([
 			// 发送出去的内容保存一个版本
-			this.storage.saveDraftVersion(
-				draftKey,
-				{
-					workspaceId: data.workspaceId,
-					projectId: data.projectId,
-					topicId: data.topicId,
-					mentionItems: data.mentionItems || [],
-					value: data.value || undefined,
-					isAutoSaved: false,
-					versionId: uniqueVersionId,
-					versionTimestamp,
-				},
-				true,
-			),
+			this.storage.saveDraftVersion(draftKey, sentSnapshotPayload, true),
 			// 把最新版本设置为空
-			this.storage.saveDraftVersion(
-				draftKey,
-				{
-					workspaceId: data.workspaceId,
-					projectId: data.projectId,
-					topicId: data.topicId,
-					mentionItems: [],
-					value: undefined,
-				},
-				true,
-			),
+			this.storage.saveDraftVersion(draftKey, clearedEditorPayload, true),
 		]).finally(() => {
 			entry.inFlight = null
 		})

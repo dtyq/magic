@@ -12,6 +12,11 @@ export const USER_MESSAGE_STICKY_OVERLAY_CLASS = cn(
 	"after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-4 after:bg-gradient-to-b after:from-[var(--sticky-message-mask-fade-from)] after:to-transparent after:content-['']",
 )
 
+/**
+ * 移动端移除 .after:bg-gradient-to-b:after 这个样式，只覆盖该属性，保留其他 after 样式
+ */
+export const USER_MESSAGE_STICKY_OVERLAY_CLASS_MOBILE = cn("before:bg-[#fafafa]", "after:bg-none")
+
 export function getUserMessageStickyTopClass(isMobile: boolean): "top-[10px]" | "top-[40px]" {
 	return isMobile ? "top-[10px]" : "top-[40px]"
 }
@@ -87,6 +92,7 @@ function MessageTurnGroupListInner({
 							data-sticky-message-id={stickyNodeKey}
 							className={cn(
 								USER_MESSAGE_STICKY_OVERLAY_CLASS,
+								isMobile && USER_MESSAGE_STICKY_OVERLAY_CLASS_MOBILE,
 								userMessageStickyTopClass,
 								stickyMessageClassName,
 								"mb-2",

@@ -147,6 +147,7 @@ function WorkspaceItemMobile({
 								key={project.id}
 								project={project}
 								workspaceId={workspace.id}
+								isChatWorkspace={workspace.workspace_type === "chat"}
 								isSwiped={swipedProjectId === project.id}
 								onSwipeChange={(isSwiped) =>
 									handleProjectSwipe(project.id, isSwiped)

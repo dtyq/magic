@@ -7,69 +7,12 @@ import { AttachmentSource, type AttachmentItem } from "./types"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { validateFilename } from "@/utils/filename-validator"
 import { checkDuplicateFileName } from "../utils/checkDuplicateFileName"
+import type { PresetFileType } from "../constant"
+import { PRESET_FILE_EXTENSION_MAP, PRESET_FILE_INITIAL_CONTENT } from "../filePresetTemplates"
 
-// 文件类型映射
-const FILE_TYPE_MAP = {
-	txt: "txt",
-	md: "md",
-	html: "html",
-	py: "py",
-	go: "go",
-	php: "php",
-	design: "design",
-	customFile: "",
-}
-
-// 文件内容模板
-const FILE_TEMPLATES = {
-	txt: " ",
-	md: "# 新建文档\n\n在这里开始编写您的 Markdown 内容...\n",
-	html: `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>新建页面</title>
-</head>
-<body>
-    <h1>欢迎使用</h1>
-    <p>在这里开始编写您的 HTML 内容...</p>
-</body>
-</html>`,
-	py: `#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-新建 Python 文件
-"""
-
-def main():
-    """主函数"""
-    print("Hello, World!")
-
-if __name__ == "__main__":
-    main()
-`,
-	go: `package main
-
-import "fmt"
-
-func main() {
-    fmt.Println("Hello, World!")
-}
-`,
-	php: `<?php
 /**
- * 新建 PHP 文件
+ * 根据扩展名推断虚拟 File 的 MIME，供浏览器 File 构造使用。
  */
-
-echo "Hello, World!";
-?>
-`,
-	design: "{}",
-	customFile: " ",
-}
-
-// 获取 MIME 类型
 const getMimeType = (extension: string): string => {
 	const mimeTypes: Record<string, string> = {
 		txt: "text/plain",
@@ -86,7 +29,7 @@ const getMimeType = (extension: string): string => {
 interface VirtualFileItem {
 	id: string
 	name: string
-	type: keyof typeof FILE_TYPE_MAP
+	type: PresetFileType
 	parentPath?: string
 	isVirtual: true
 }
@@ -219,11 +162,7 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 	}, [errorMessage])
 
 	// 创建虚拟文件
-	const createVirtualFile = (
-		type: keyof typeof FILE_TYPE_MAP,
-		key?: string,
-		parentPath?: string,
-	) => {
+	const createVirtualFile = (type: PresetFileType, key?: string, parentPath?: string) => {
 		// 如果已经有虚拟文件在编辑中，不允许创建新的虚拟文件
 		if (editingVirtualId || virtualFile) {
 			return
@@ -234,7 +173,7 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 			setExpandedKeys([...expandedKeys, key])
 		}
 
-		const fileExtension = FILE_TYPE_MAP[type]
+		const fileExtension = PRESET_FILE_EXTENSION_MAP[type]
 		const defaultName = t("topicFiles.contextMenu.newFile.defaultName")
 		const fullName = fileExtension ? `${defaultName}.${fileExtension}` : defaultName
 
@@ -285,9 +224,9 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 		}
 
 		try {
-			// 获取文件内容模板
-			const extension = FILE_TYPE_MAP[virtualFile.type]
-			const content = FILE_TEMPLATES[virtualFile.type]
+			// 获取文件内容模板（与移动端项目详情创建共用单一数据源）
+			const extension = PRESET_FILE_EXTENSION_MAP[virtualFile.type]
+			const content = PRESET_FILE_INITIAL_CONTENT[virtualFile.type]
 
 			// 创建 File 对象
 			const file = new File([content], trimmedName, {
@@ -396,7 +335,7 @@ export function useVirtualFile(options: UseVirtualFileOptions) {
 		const virtualAttachment: AttachmentItem = {
 			file_id: virtualFile.id,
 			file_name: virtualFile.name,
-			file_extension: FILE_TYPE_MAP[virtualFile.type],
+			file_extension: PRESET_FILE_EXTENSION_MAP[virtualFile.type],
 			is_directory: false,
 			isVirtual: true,
 		} as AttachmentItem & { isVirtual: boolean }

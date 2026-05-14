@@ -31,6 +31,12 @@
 	"home": {
 		"title": "Home"
 	},
+	"mobileShell": {
+		"themeToggle": {
+			"switchToDark": "Switch to dark mode",
+			"switchToLight": "Switch to light mode"
+		}
+	},
 	"mySkills": {
 		"title": "Skill Library"
 	},
@@ -46,6 +52,43 @@
 		"empty": "No projects",
 		"enterName": "Enter new project name",
 		"loading": "Loading..."
+	},
+	"shellDemo": {
+		"accountName": "Demo User",
+		"appName": "MagiCrew",
+		"cardSubtitle": "Use this placeholder content to validate list density, rounded corners, and scroll behavior inside the shared shell.",
+		"cardTags": {
+			"collaboration": "Collab",
+			"demo": "DEMO",
+			"priority": "Priority"
+		},
+		"closeSidebar": "Close sidebar",
+		"home": {
+			"description": "This temporary page helps verify the drawer sidebar, panel translation, shared header, and bottom composer container as one shell experience.",
+			"eyebrow": "Your AI crew is ready",
+			"title": "What would you like me to help with today?"
+		},
+		"inputPlaceholder": "Chat with MagiCrew",
+		"listSummary": "Current demo page: {{view}}. These cards are placeholders to validate how list screens compose with the shared shell.",
+		"nav": {
+			"apps": "Apps",
+			"chats": "Chats",
+			"magiClaw": "MagiClaw",
+			"myCrew": "My Crew",
+			"recording": "Recording",
+			"trash": "Recycle Bin",
+			"workspaces": "Workspaces"
+		},
+		"newChat": "New chat",
+		"openSidebar": "Open sidebar",
+		"previewBadge": "Shell DEMO",
+		"quickActions": {
+			"design": "Design",
+			"recording": "Recording Summary",
+			"slides": "Create Slides"
+		},
+		"recentlyUsed": "Recently Used",
+		"upgrade": "Upgrade"
 	},
 	"skillsLibrary": {
 		"title": "Skills Library"
@@ -150,6 +193,8 @@
 		"getStarted": "Get Started",
 		"heroLead": "{{clawLead}}",
 		"mobile": {
+			"createdByMe": "Created by Me",
+			"editInfo": "Edit info",
 			"moreActions": "More options",
 			"mySuperClaw": "My {{clawBrand}}"
 		},

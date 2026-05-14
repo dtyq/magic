@@ -135,6 +135,20 @@
 	},
 	"myCrew": "My Crew",
 	"myCrewPage": {
+		"addSheet": {
+			"closeAria": "Close add crew options",
+			"custom": {
+				"action": "Use desktop",
+				"description": "Creating crew on mobile is not available yet. Please switch to the desktop app to create or edit crew.",
+				"title": "Build your own crew"
+			},
+			"market": {
+				"action": "Open crew market",
+				"description": "Pick and hire existing crew from the market, then manage them here later.",
+				"title": "Add from crew market"
+			},
+			"title": "Add Crew"
+		},
 		"badgeUpdated": "Updated",
 		"crewType": {
 			"ariaLabel": "Crew type",
@@ -147,6 +161,28 @@
 			"confirm": "Delete",
 			"description": "Once a Digital Crew member is deleted, it cannot be recovered. Please proceed with caution.",
 			"title": "Delete \"{{name}}\""
+		},
+		"detailSheet": {
+			"about": "About",
+			"capabilities": "Capabilities",
+			"closeAria": "Close details",
+			"info": {
+				"addedAt": "Added at",
+				"createdAt": "Created at",
+				"createdBy": "Created by",
+				"label": "Info",
+				"publisher": "Publisher",
+				"sharedBy": "Shared by",
+				"updatedAt": "Updated at",
+				"you": "You"
+			},
+			"source": {
+				"custom": "Custom",
+				"market": "Market",
+				"team": "Team shared"
+			},
+			"startChat": "Start chat",
+			"title": "Crew Details"
 		},
 		"disable": "Disable",
 		"disableConfirm": {
@@ -161,6 +197,23 @@
 		},
 		"edit": "Edit",
 		"empty": "No crew yet. Create your first Crew now.",
+		"filterSheet": {
+			"closeAria": "Close filters",
+			"resetAria": "Reset filters",
+			"sort": {
+				"createdAt": "Created time",
+				"recentUsed": "Recently used",
+				"updatedAt": "Updated time"
+			},
+			"sortLabel": "Sort",
+			"title": "Filter",
+			"type": {
+				"created": "Created by Me",
+				"fromMarket": "From Market",
+				"teamShared": "Shared by Team"
+			},
+			"typeLabel": "Type"
+		},
 		"footerPoweredByBrand": "MagiCrew",
 		"footerPoweredByLead": "Powered by",
 		"footerPoweredByTail": "",

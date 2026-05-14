@@ -1,67 +1,121 @@
-import { IconWorkspaceProjectFolderIcon } from "@/enhance/tabler/icons-react/icons/IconWorkspaceProjectFolder"
+import { ChevronRight, Ellipsis, LibraryBig, Loader, Pin, PinOff, Trash2 } from "lucide-react"
 import { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
-import { IconDots, IconChevronRight } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
+import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/SwipeActionRow"
 import CollaborationProjectTag from "@/pages/superMagic/components/CollaborationProjectTag"
-import { isCollaborationProject } from "@/pages/superMagic/constants"
-import PinnedTag from "@/pages/superMagic/components/EmptyWorkspacePanel/components/ProjectItem/components/PinnedTag"
-import { cn } from "@/lib/utils"
+import { isCollaborationProject, isWorkspaceShortcutProject } from "@/pages/superMagic/constants"
+import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
 
+function isRunningLikeStatus(status: string | undefined) {
+	return status === "running" || status === "waiting_for_user"
+}
+
+/**
+ * 单个项目行，支持左滑展示"更多 / 置顶 / 删除"操作按钮。
+ * SwipeActionRow 负责手势逻辑与互斥展开，本组件只组装 actions 和行内容。
+ */
 function ProjectItem({
 	project,
 	onOpen,
-	onMoreClick,
+	updatedAtLabel,
+	isSwipeOpen,
+	onSwipeOpen,
+	onSwipeClose,
+	onMore,
+	onPin,
+	onDelete,
 }: {
 	project: ProjectListItem
 	onOpen: (project: ProjectListItem) => void
-	onMoreClick: (e: React.MouseEvent<HTMLDivElement>, project: ProjectListItem) => void
+	updatedAtLabel?: string
+	isSwipeOpen: boolean
+	onSwipeOpen: () => void
+	onSwipeClose: () => void
+	onMore: (project: ProjectListItem) => void
+	onPin: (project: ProjectListItem) => void
+	onDelete: (project: ProjectListItem) => void
 }) {
 	const { t } = useTranslation("super")
+	const isRunning =
+		isRunningLikeStatus(project.current_topic_status) ||
+		isRunningLikeStatus(project.project_status)
+	const showCollaborationTag =
+		isWorkspaceShortcutProject(project) || isCollaborationProject(project)
+
+	const actions: SwipeAction[] = [
+		{
+			id: "more",
+			label: t("projectList.swipeMore"),
+			icon: <Ellipsis className="size-4 text-secondary-foreground" />,
+			className: "bg-secondary",
+			labelClassName: "text-secondary-foreground",
+			onClick: () => onMore(project),
+		},
+		{
+			id: "pin",
+			label: project.is_pinned ? t("projectList.swipeUnpin") : t("projectList.swipePin"),
+			icon: project.is_pinned ? (
+				<PinOff className="size-4 text-primary-foreground" />
+			) : (
+				<Pin className="size-4 text-primary-foreground" />
+			),
+			className: "bg-primary",
+			labelClassName: "text-primary-foreground",
+			onClick: () => onPin(project),
+		},
+		{
+			id: "delete",
+			label: t("projectList.swipeDelete"),
+			icon: <Trash2 className="size-4 text-white" />,
+			className: "bg-destructive",
+			labelClassName: "text-white",
+			onClick: () => onDelete(project),
+		},
+	]
 
 	return (
-		<div
-			className={cn(
-				"flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-white py-1 pl-1 pr-2 transition-colors",
-				"active:bg-accent",
-				"transition-transform",
-				"active:scale-[0.98]",
-			)}
-			key={project.id}
-			onClick={() => onOpen(project)}
+		<SwipeActionRow
+			actions={actions}
+			isOpen={isSwipeOpen}
+			onOpen={onSwipeOpen}
+			onClose={onSwipeClose}
+			onRowClick={() => onOpen(project)}
+			data-testid={`workspace-project-row-${project.id}`}
 		>
-			<div className="flex h-10 w-10 items-center justify-center rounded">
-				<IconWorkspaceProjectFolderIcon size={30} />
+			{/* 行内容区：固定 h-16 对齐 SwipeActionRow 外壳高度 */}
+			<div className="flex h-16 w-full items-center gap-2 rounded-lg px-3 py-[10px] text-left">
+				{/* 项目图标维持原型的 36x36 视觉节奏，并在运行中切换为加载态。 */}
+				<div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-icon-project/[0.08] text-icon-project">
+					{isRunning ? (
+						<Loader className="h-6 w-6 animate-spin" aria-hidden />
+					) : (
+						<LibraryBig className="h-6 w-6" aria-hidden />
+					)}
+				</div>
+
+				<div className="flex min-w-0 flex-1 flex-col items-start">
+					<div className="flex h-6 w-full min-w-0 items-center gap-1">
+						<p className="min-w-0 shrink truncate text-[16px] font-medium leading-6 text-foreground">
+							{project.project_name || t("project.unnamedProject")}
+						</p>
+						{project.is_pinned ? <MobilePinBadge /> : null}
+						{/* 项目行协作图标与 PC 端保持同口径，且放在标题后侧以对齐当前移动端原型。 */}
+						{showCollaborationTag ? (
+							<CollaborationProjectTag
+								visible={showCollaborationTag}
+								project={project}
+								showText={false}
+							/>
+						) : null}
+					</div>
+					<div className="w-full truncate text-[12px] font-light leading-4 text-muted-foreground">
+						{updatedAtLabel || t("project.unnamedProject")}
+					</div>
+				</div>
+
+				<ChevronRight className="h-4 w-4 shrink-0 text-foreground" />
 			</div>
-			<div className="flex flex-1 flex-col gap-1" style={{ maxWidth: "calc(100% - 100px)" }}>
-				<div className="flex items-center gap-1">
-					{project.is_pinned && <PinnedTag showText={false} />}
-					<CollaborationProjectTag
-						visible={isCollaborationProject(project)}
-						project={project}
-						showText={false}
-					/>
-					<span className="max-w-full flex-1 truncate text-xs font-semibold leading-5 text-foreground">
-						{project.project_name || t("project.unnamedProject")}
-					</span>
-				</div>
-				<div className="text-[10px] font-normal leading-[13px] text-muted-foreground">
-					{t("common.lastUpdatedAt", {
-						time: (project.last_active_at || project.updated_at).replaceAll("-", "/"),
-					})}
-				</div>
-			</div>
-			<div className="flex h-full items-stretch gap-2">
-				<div
-					className="flex items-center justify-center"
-					onClick={(e) => onMoreClick(e, project)}
-				>
-					<IconDots size={18} />
-				</div>
-				<div className="flex items-center justify-center">
-					<IconChevronRight size={18} />
-				</div>
-			</div>
-		</div>
+		</SwipeActionRow>
 	)
 }
 export default ProjectItem

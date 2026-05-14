@@ -22,15 +22,8 @@ export function useProjectAttachments({ selectedProject }: UseProjectAttachments
 		useBoolean(false)
 
 	// Attachments management
-	const {
-		attachments,
-		attachmentList,
-		handleDownloadAll,
-		allLoading,
-		updateAttachments,
-		clearAttachments,
-		setAttachments,
-	} = useAttachments()
+	const { handleDownloadAll, allLoading, updateAttachments, clearAttachments, setAttachments } =
+		useAttachments()
 
 	useEffect(() => {
 		const handleUpdateAttachments = (callback: any) => {
@@ -72,9 +65,7 @@ export function useProjectAttachments({ selectedProject }: UseProjectAttachments
 	})
 
 	return {
-		attachments,
 		attachmentVisible,
-		attachmentList,
 		openAttachmentPopup,
 		closeAttachmentPopup,
 		handleDownloadAll,

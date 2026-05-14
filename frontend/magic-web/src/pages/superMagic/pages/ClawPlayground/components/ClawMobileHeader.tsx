@@ -1,103 +1,52 @@
-import { CircleArrowUp, ChevronLeft, Files, Loader2 } from "lucide-react"
+import { Ellipsis, ChevronLeft } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { MagicClawItem } from "@/apis"
-import { Button } from "@/components/shadcn-ui/button"
-import { cn } from "@/lib/utils"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
-import { MagiClawTemplateAvatar } from "../../MagiClawPage/MagiClawTemplateAvatar"
 
 interface ClawMobileHeaderProps {
 	magicClaw: MagicClawItem | null
-	sandboxLatestVersion?: string | null
-	isUpdatingSandbox?: boolean
 	onBack: () => void
-	onUpgradeSandbox: () => void
-	onFilesClick: () => void
+	onOpenMoreSheet: () => void
 }
 
-export function ClawMobileHeader({
-	magicClaw,
-	sandboxLatestVersion,
-	isUpdatingSandbox = false,
-	onBack,
-	onUpgradeSandbox,
-	onFilesClick,
-}: ClawMobileHeaderProps) {
+export function ClawMobileHeader({ magicClaw, onBack, onOpenMoreSheet }: ClawMobileHeaderProps) {
 	const { t } = useTranslation("sidebar")
 	const clawBrandValues = getClawBrandTranslationValues()
-	const shouldShowUpgradeButton = Boolean(magicClaw?.need_upgrade || isUpdatingSandbox)
-
-	function buildUpgradeTitle() {
-		if (sandboxLatestVersion) {
-			return t("superLobster.workspace.updateTooltip", {
-				...clawBrandValues,
-				version: sandboxLatestVersion,
-			})
-		}
-
-		return t("superLobster.workspace.upgradeAvailable", clawBrandValues)
-	}
 
 	return (
 		<header
-			className="z-[25] flex h-12 shrink-0 items-center gap-2 rounded-b-xl bg-background px-2.5 shadow-xs"
+			className="relative z-[25] flex h-14 shrink-0 items-center gap-2 rounded-b-2xl bg-transparent px-3"
 			data-testid="claw-mobile-header"
 		>
-			<Button
+			<button
 				type="button"
-				variant="ghost"
-				size="icon"
-				className="size-8 shrink-0"
+				className="flex size-12 shrink-0 items-center justify-center rounded-full bg-card shadow-sm"
 				data-testid="claw-mobile-back-button"
 				onClick={onBack}
 			>
-				<ChevronLeft className="size-6" />
-			</Button>
+				<ChevronLeft className="size-6 text-foreground" />
+			</button>
 
-			<MagiClawTemplateAvatar
-				templateCode={magicClaw?.template_code}
-				src={magicClaw?.icon_file_url}
-				className="size-7 shrink-0 rounded-full border border-border"
-			/>
+			<div className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
+				<p className="w-full truncate text-center text-lg font-medium leading-6 text-foreground">
+					{magicClaw?.name ||
+						t("superLobster.workspace.untitledProject", clawBrandValues)}
+				</p>
+				<p className="w-full truncate text-center text-xs leading-4 text-muted-foreground">
+					{t("superLobster.title", clawBrandValues) || "MagiClaw"}
+				</p>
+			</div>
 
-			<p className="min-w-0 flex-1 truncate text-sm font-medium text-sidebar-foreground">
-				{magicClaw?.name || t("superLobster.workspace.untitledProject", clawBrandValues)}
-			</p>
-
-			{shouldShowUpgradeButton ? (
+			<div className="flex h-12 shrink-0 items-center rounded-full bg-card shadow-sm">
 				<button
 					type="button"
-					className={cn(
-						"inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-transparent bg-indigo-50 px-2 text-xs font-normal text-indigo-500 transition-colors hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-70",
-					)}
-					data-testid="claw-mobile-update-button"
-					title={buildUpgradeTitle()}
-					disabled={isUpdatingSandbox}
-					onClick={onUpgradeSandbox}
+					className="flex size-12 items-center justify-center rounded-full"
+					data-testid="claw-mobile-more-button"
+					onClick={onOpenMoreSheet}
 				>
-					{isUpdatingSandbox ? (
-						<Loader2 className="size-3 animate-spin" aria-hidden />
-					) : (
-						<CircleArrowUp className="size-3" aria-hidden />
-					)}
-					<span>
-						{isUpdatingSandbox
-							? t("superLobster.workspace.updating", clawBrandValues)
-							: t("superLobster.workspace.update", clawBrandValues)}
-					</span>
+					<Ellipsis className="size-6 text-foreground" />
 				</button>
-			) : null}
-
-			<Button
-				type="button"
-				variant="ghost"
-				size="icon"
-				className="size-8 shrink-0"
-				data-testid="claw-mobile-files-button"
-				onClick={onFilesClick}
-			>
-				<Files className="size-4" />
-			</Button>
+			</div>
 		</header>
 	)
 }

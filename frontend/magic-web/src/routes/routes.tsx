@@ -81,6 +81,8 @@ const NotAuthPage = lazy(() => import("@/pages/exception/forbidden"))
 const SuperMagicCommonLayout = lazy(() => import("@/pages/superMagic/layouts/MainLayout"))
 /** 超级麦吉 - 项目跳转页面 */
 const ProjectPage = lazy(() => import("@/pages/superMagic/lazy/ProjectPage"))
+/** 超级麦吉 - 会话详情页面 */
+const ChatProjectPage = lazy(() => import("@/pages/superMagic/lazy/ChatProjectPage"))
 /** 移动端 - 个人中心 */
 const Profile = lazy(() => import("@/pages/user/pages/my/lazy/Profile"))
 /** 移动端 - 个人中心 - 个人信息 */
@@ -101,11 +103,28 @@ const ProfileSettingsTimezone = lazy(
 const ProfileAccountSecurity = lazy(
 	() => import("@/pages/user/pages/my/components/AccountSecurity"),
 )
+/** 超级麦吉移动端 Shell 临时演示页（父级挂 Shell，子路由仅面板） */
+// TODO(mobile-refactor-cleanup): remove this temporary demo route after WP01 shell verification.
+const ShellDemoAppRouteLayout = lazy(
+	() => import("@/pages/superMagicMobile/pages/ShellDemo/ShellDemoAppRouteLayout"),
+)
+const ShellDemoPanel = lazy(() => import("@/pages/superMagicMobile/pages/ShellDemo/ShellDemoPanel"))
+const SuperMobileShellAppRouteLayout = lazy(
+	() => import("@/pages/superMagicMobile/components/MobileShell/SuperMobileShellAppRouteLayout"),
+)
+/** 回收站（桌面/移动统一入口） */
+const ResponsiveRecycleBin = lazy(() => import("@/pages/recycleBin/ResponsiveRecycleBinPage"))
+const ChatsPage = lazy(() => import("@/pages/superMagicMobile/pages/ChatsPage"))
+const MobileHomePage = lazy(() => import("@/pages/superMagicMobile/pages/ChatPage"))
+const SuperAppsPage = lazy(() => import("@/pages/superMagic/pages/AppsPage"))
 const SuperMagicNavigate = lazy(() => import("@/pages/superMagic/lazy/SuperMagicNavigate"))
 const SuperRootRedirect = lazy(() => import("@/pages/superMagic/lazy/SuperRootRedirect"))
 const WorkspacePage = lazy(() => import("@/pages/superMagic/lazy/WorkspacePage"))
 const TopicPage = lazy(() => import("@/pages/superMagic/lazy/TopicPage"))
 const MobileTabs = lazy(() => import("@/pages/mobileTabs"))
+const WorkspacesPage = lazy(() => import("@/pages/superMagicMobile/pages/WorkspacesPage"))
+const SharedWorkspacePage = lazy(() => import("@/pages/superMagicMobile/pages/SharedWorkspacePage"))
+const WorkspaceProjectsPage = lazy(() => import("@/pages/superMagicMobile/pages/WorkspacePage"))
 
 const SuperMagicShare = lazy(() => import("@/pages/share"))
 
@@ -334,6 +353,78 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 				element: <Explore />,
 			},
 			{
+				element: <SuperMobileShellAppRouteLayout />,
+				children: [
+					{
+						name: RouteName.RecycleBin,
+						path: `/:clusterCode${RoutePath.RecycleBin}`,
+						element: <ResponsiveRecycleBin />,
+						meta: {
+							title: "routes.recycleBin",
+						},
+					},
+					{
+						name: RouteName.MobileHome,
+						path: `/:clusterCode${RoutePath.MobileHome}`,
+						element: <MobileHomePage />,
+						meta: {
+							title: "routes.super",
+						},
+					},
+					{
+						name: RouteName.SuperChatsList,
+						path: `/:clusterCode${RoutePath.SuperChatsList}`,
+						element: <ChatsPage />,
+						meta: {
+							title: "routes.superChats",
+						},
+					},
+					{
+						name: RouteName.SuperApps,
+						path: `/:clusterCode${RoutePath.SuperApps}`,
+						element: <SuperAppsPage />,
+						meta: {
+							title: "routes.application",
+						},
+					},
+					{
+						name: RouteName.SuperWorkspacesList,
+						path: `/:clusterCode${RoutePath.SuperWorkspacesList}`,
+						element: <WorkspacesPage />,
+						meta: {
+							title: "routes.workspace",
+						},
+					},
+					{
+						name: RouteName.SuperSharedWorkspace,
+						path: `/:clusterCode${RoutePath.SuperSharedWorkspace}`,
+						element: <SharedWorkspacePage />,
+						meta: {
+							title: "routes.workspace",
+						},
+					},
+					{
+						name: RouteName.SuperWorkspaceProjects,
+						path: `/:clusterCode${RoutePath.SuperWorkspaceProjects}`,
+						element: <WorkspaceProjectsPage />,
+						meta: {
+							title: "routes.workspace",
+						},
+					},
+				],
+			},
+			{
+				name: RouteName.SuperShellDemo,
+				path: "/:clusterCode/dev/mobile-shell-demo",
+				element: <ShellDemoAppRouteLayout />,
+				children: [
+					{
+						index: true,
+						element: <ShellDemoPanel />,
+					},
+				],
+			},
+			{
 				name: RouteName.Super,
 				path: `/:clusterCode${RoutePath.Super}`,
 				element: <SuperMagicCommonLayout />,
@@ -346,6 +437,11 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 						name: RouteName.SuperWorkspaceState,
 						path: `/:clusterCode${RoutePath.SuperWorkspaceState}`,
 						element: <WorkspacePage />,
+					},
+					{
+						name: RouteName.SuperChatProjectState,
+						path: `/:clusterCode${RoutePath.SuperChatProjectState}`,
+						element: <ChatProjectPage />,
 					},
 					{
 						name: RouteName.SuperWorkspaceProjectState,

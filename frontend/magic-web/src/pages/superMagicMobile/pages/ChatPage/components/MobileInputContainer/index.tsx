@@ -61,6 +61,8 @@ function MobileInputRouteRenderer({
 	)
 }
 
+type SendSuccessParams = Parameters<NonNullable<SceneEditorContext["onSendSuccess"]>>[0]
+
 const MobileInputContainer = observer(
 	forwardRef<MobileInputContainerRef, MobileInputContainerProps>(function MobileInputContainer(
 		{ editorContext, editorNodes, enableReEditMessageFromPubSub },
@@ -93,7 +95,6 @@ const MobileInputContainer = observer(
 			if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
 		})
 
-		type SendSuccessParams = Parameters<NonNullable<SceneEditorContext["onSendSuccess"]>>[0]
 		const handleSendSuccess = useMemoizedFn((params: SendSuccessParams) => {
 			handleCloseRealInput()
 			editorContext.onSendSuccess?.(params)

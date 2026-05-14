@@ -1,5 +1,4 @@
 import { Topic, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
-import { ReactNode } from "react"
 
 export interface TopicItem {
 	id: string
@@ -32,6 +31,5 @@ export interface TopicMode {
 
 export interface TopicListProps {
 	className?: string
-	topicFilesCore: ReactNode
-	openActionsPopup: (topic: Topic, project: ProjectListItem | null | undefined) => void
+	openActionsPopup?: (topic: Topic, project: ProjectListItem | null | undefined) => void
 }

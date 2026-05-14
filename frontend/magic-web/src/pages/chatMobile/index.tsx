@@ -137,7 +137,7 @@ const ChatMobile = observer(() => {
 			<ChatItem
 				key={item.id}
 				data={item}
-				className={cn(index === chatList.length - 1 && "pb-safe-bottom-with-tabbar")}
+				className={cn(index === chatList.length - 1 && "pb-safe-bottom")}
 				onClick={() => handleChatItemClick(item.id)}
 				onMoreClick={() => handleActionClick(Action.More, item.id)}
 				onPinClick={() => handleActionClick(Action.Pin, item.id)}

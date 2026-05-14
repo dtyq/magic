@@ -19,7 +19,11 @@ function DrawerFooter({
 
 	if (activeTab === "chats") {
 		return (
-			<Button className="h-9 w-full gap-2 rounded-lg shadow-xs" onClick={onNewChat}>
+			<Button
+				className="h-9 w-full gap-2 rounded-lg shadow-xs"
+				onClick={onNewChat}
+				data-testid="chat-drawer-new-chat-button"
+			>
 				<MessageCirclePlus size={16} />
 				<span className="text-sm font-medium leading-5">{t("common.newChat")}</span>
 			</Button>

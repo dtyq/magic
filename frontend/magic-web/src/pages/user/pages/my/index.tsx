@@ -48,17 +48,16 @@ function SuperMagicMobileMy() {
 		})
 	})
 
-	const handleScroll = useMemoizedFn(() => {
-		const scrollContainer = scrollContainerRef.current
-		if (!scrollContainer) return
-		const scrollTop = scrollContainer.scrollTop
-		setIsScrolled(scrollTop > 50)
-	})
-
 	// 监听滚动事件
 	useEffect(() => {
 		const scrollContainer = scrollContainerRef.current
 		if (!scrollContainer) return
+
+		// 将滚动处理器收敛在 effect 内，确保监听与清理使用同一个函数引用。
+		const handleScroll = () => {
+			const scrollTop = scrollContainer.scrollTop
+			setIsScrolled(scrollTop > 50)
+		}
 
 		scrollContainer.addEventListener("scroll", handleScroll)
 		return () => {
@@ -119,7 +118,7 @@ function SuperMagicMobileMy() {
 				ref={scrollContainerRef}
 				className={cn(
 					"h-full w-full overflow-y-auto bg-sidebar [&::-webkit-scrollbar]:hidden",
-					`pb-4 pt-safe-top`,
+					`pb-safe-bottom pt-safe-top`,
 				)}
 			>
 				<div className="flex w-full flex-col justify-end gap-3.5 p-3.5">

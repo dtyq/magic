@@ -6,7 +6,7 @@ import { isMobile } from "@/utils/devices"
 // 获取登录后跳转的首页
 export const getHomeURL = async () => {
 	const { clusterCode } = configStore.cluster
-	const defaultRouteName = isMobile ? RouteName.MobileTabs : RouteName.Super
+	const defaultRouteName = isMobile ? RouteName.MobileHome : RouteName.Super
 
 	try {
 		const location = window.location.pathname

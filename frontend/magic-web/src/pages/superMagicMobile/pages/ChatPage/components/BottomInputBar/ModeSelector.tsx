@@ -85,7 +85,7 @@ export default observer(function ModeSelector({
 		setShowNewTopicModal({ visible: false, mode: null })
 		setTimeout(() => {
 			document.body.style.removeProperty("pointer-events")
-			pubsub.publish(PubSubEvents.Create_New_Topic)
+			pubsub.publish(PubSubEvents.Create_New_Topic, { topicMode: targetMode })
 			applyTopicMode(targetMode)
 		}, 0)
 	})

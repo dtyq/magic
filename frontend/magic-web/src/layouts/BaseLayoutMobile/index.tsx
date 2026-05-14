@@ -59,10 +59,9 @@ const BaseLayoutMobile = () => {
 
 	// Check if current route should show tab bar
 	const shouldShowTabBar = useMemo(() => {
-		// 添加 MobileTabs 路由到 TabBar 显示列表
+		// 只在仍属于旧移动端 tab 信息架构的页面上显示底部 TabBar。
 		return [
 			RouteName.MobileTabs,
-			RouteName.MagiClaw,
 			RouteName.Super,
 			RouteName.SuperWorkspaceState,
 			RouteName.Chat,

@@ -34,6 +34,13 @@ class ProjectStore {
 		this.projects = projects
 	}
 
+	/**
+	 * 追加项目到列表末尾，用于分页加载后续页时逐步扩充数据，不影响已有项的引用。
+	 */
+	appendProjects(projects: ProjectListItem[]) {
+		this.projects = [...this.projects, ...projects]
+	}
+
 	setSelectedProject(project: ProjectListItem | null) {
 		this.selectedProject = project
 		projectFilesStore.setSelectedProject(project)

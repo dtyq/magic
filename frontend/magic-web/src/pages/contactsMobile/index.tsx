@@ -79,7 +79,7 @@ const ContactsMobilePage = observer(() => {
 
 	return (
 		<>
-			<div className={cn(styles.container, "pb-safe-bottom-with-tabbar")}>
+			<div className={cn(styles.container, "pb-safe-bottom")}>
 				<UserHeader
 					center={<div className={styles.title}>{t("sider.mobileTabBar.contacts")}</div>}
 				/>

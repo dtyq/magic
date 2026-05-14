@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
+import { InfiniteScroll } from "antd-mobile"
 import { IconMessageCirclePlus } from "@tabler/icons-react"
 import { Loader2 } from "lucide-react"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
@@ -15,11 +16,13 @@ function TopicsPopup({ open, onOpenChange, onCreateTopic, onOpenActionsPopup }: 
 	const selectedProject = projectStore.selectedProject
 	const selectedTopic = topicStore.selectedTopic
 
-	const { displayTopics, total, isLoading, hasMore, currentPage, onScroll, reload, reset } =
+	const { displayTopics, total, isLoading, hasMore, loadMore, reload, reset } =
 		usePaginatedTopics({
 			projectId: selectedProject?.id || "",
 			selectedTopicId: selectedTopic?.id,
 			storeTopics: topicStore.topics,
+			// 话题列表 popup 用 100 条分页，不影响桌面端使用的默认 999 全量加载
+			pageSize: 100,
 		})
 
 	useEffect(() => {
@@ -46,11 +49,8 @@ function TopicsPopup({ open, onOpenChange, onCreateTopic, onOpenActionsPopup }: 
 					</div>
 				</div>
 
-				<div
-					className="flex-1 overflow-y-auto px-4"
-					onScroll={(e) => onScroll(e.currentTarget)}
-				>
-					{displayTopics.length === 0 && isLoading && currentPage === 1 && (
+				<div className="flex-1 overflow-y-auto px-4">
+					{displayTopics.length === 0 && isLoading && (
 						<div className="flex items-center justify-center py-8">
 							<Loader2 className="size-5 animate-spin text-muted-foreground" />
 						</div>
@@ -69,17 +69,8 @@ function TopicsPopup({ open, onOpenChange, onCreateTopic, onOpenActionsPopup }: 
 						))}
 					</div>
 
-					{isLoading && currentPage > 1 && (
-						<div className="flex items-center justify-center py-3">
-							<Loader2 className="size-4 animate-spin text-muted-foreground" />
-						</div>
-					)}
-
-					{!hasMore && displayTopics.length > 0 && !isLoading && (
-						<div className="flex items-center justify-center py-3 text-xs text-muted-foreground">
-							{t("messageHeader.allTopicsLoaded", { defaultValue: "" })}
-						</div>
-					)}
+					{/* InfiniteScroll 放在列表末尾，向上滑动到底部时自动加载下一页 */}
+					<InfiniteScroll hasMore={hasMore} loadMore={loadMore} />
 				</div>
 
 				<div className="p-4">

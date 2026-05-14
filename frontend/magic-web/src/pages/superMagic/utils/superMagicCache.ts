@@ -72,6 +72,45 @@ export const WorkspaceStateCache = {
 }
 
 /**
+ * chat workspace ID 缓存管理（SessionStorage）
+ * 仅持久化 ID，供轻量判断“某项目是否属于 chat workspace”时复用，避免重复请求 getChatWorkspace。
+ */
+export const ChatWorkspaceIdCache = {
+	getKey(userInfo: UserInfo | null): string {
+		const userId = userInfo?.user_id || "unknown"
+		return platformKey(`super_magic/chat_workspace_id/${userId}/${userInfo?.organization_code}`)
+	},
+
+	get(userInfo: UserInfo | null): string | null {
+		try {
+			const key = this.getKey(userInfo)
+			return sessionStorage.getItem(key) || null
+		} catch (error) {
+			console.error("Failed to get chat workspace ID from sessionStorage:", error)
+			return null
+		}
+	},
+
+	set(userInfo: UserInfo | null, workspaceId: string): void {
+		try {
+			const key = this.getKey(userInfo)
+			sessionStorage.setItem(key, workspaceId)
+		} catch (error) {
+			console.error("Failed to set chat workspace ID to sessionStorage:", error)
+		}
+	},
+
+	clear(userInfo: UserInfo | null): void {
+		try {
+			const key = this.getKey(userInfo)
+			sessionStorage.removeItem(key)
+		} catch (error) {
+			console.error("Failed to clear chat workspace ID from sessionStorage:", error)
+		}
+	},
+}
+
+/**
  * 用户工作区映射缓存管理（LocalStorage）
  * 存储格式：{ "userId/orgCode": "workspaceId" }
  */

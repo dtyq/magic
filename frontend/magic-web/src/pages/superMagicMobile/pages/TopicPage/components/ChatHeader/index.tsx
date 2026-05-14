@@ -1,7 +1,7 @@
 import { Button } from "@/components/shadcn-ui/button"
 import StatusIcon from "@/pages/superMagic/components/MessageHeader/components/StatusIcon"
 import { Topic } from "@/pages/superMagic/pages/Workspace/types"
-import { History, MessageCirclePlus, MoreHorizontal, Share2 } from "lucide-react"
+import { Files, History, MessageCirclePlus, MoreHorizontal, Share2 } from "lucide-react"
 import { useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
@@ -9,8 +9,9 @@ import { observer } from "mobx-react-lite"
 interface ChatHeaderProps {
 	selectedTopic: Topic | null
 	openActionsPopup: (topic: Topic) => void
-	onNewTopicClick: () => void
+	onNewTopicClick?: () => void
 	onHistoryClick?: () => void
+	onFilesClick?: () => void
 	onShareClick?: () => void
 }
 
@@ -19,6 +20,7 @@ function ChatHeader({
 	openActionsPopup,
 	onNewTopicClick,
 	onHistoryClick,
+	onFilesClick,
 	onShareClick,
 }: ChatHeaderProps) {
 	const { t } = useTranslation("super")
@@ -53,15 +55,17 @@ function ChatHeader({
 
 				{/* Right: Action Buttons */}
 				<div className="flex shrink-0 items-center gap-1">
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						onClick={onNewTopicClick}
-						className="size-7 p-1.5"
-						aria-label="New topic"
-					>
-						<MessageCirclePlus className="size-4" />
-					</Button>
+					{onNewTopicClick ? (
+						<Button
+							variant="ghost"
+							size="icon-sm"
+							onClick={onNewTopicClick}
+							className="size-7 p-1.5"
+							aria-label="New topic"
+						>
+							<MessageCirclePlus className="size-4" />
+						</Button>
+					) : null}
 
 					<Button
 						variant="ghost"
@@ -71,6 +75,16 @@ function ChatHeader({
 						aria-label="History"
 					>
 						<History className="size-4" />
+					</Button>
+
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={onFilesClick}
+						className="size-7 p-1.5"
+						aria-label={t("topicFiles.title")}
+					>
+						<Files className="size-4" />
 					</Button>
 
 					<Button

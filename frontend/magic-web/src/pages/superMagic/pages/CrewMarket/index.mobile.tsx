@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { reaction } from "mobx"
 import { configStore } from "@/models/config"
-import { Check, ChevronLeft, Loader2, Search, UserRoundCog } from "lucide-react"
+import { Check, Loader2, Menu, Search, UserRoundCog } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
@@ -26,9 +26,14 @@ import CategoryFilter from "./employee-market/components/CategoryFilter"
 import EmployeeCardMobile from "./employee-market/components/EmployeeCardMobile"
 import { StoreCrewStore } from "./employee-market/stores/store-crew"
 import { crewService, type StoreAgentView } from "@/services/crew/CrewService"
+import {
+	SuperMobileShellRouteLayout,
+	useSuperMobileShellOutlet,
+} from "@/pages/superMagicMobile/components/MobileShell"
 
 const SKELETON_CARD_COUNT = 6
 
+/** 占位骨架保持现有数据请求节奏不变，仅负责在首屏加载时兜住两列卡片布局。 */
 function CrewMarketMobileSkeleton() {
 	return (
 		<div className="flex flex-col gap-4" data-testid="crew-market-mobile-skeleton">
@@ -60,8 +65,10 @@ function CrewMarketMobileSkeleton() {
 	)
 }
 
-function CrewMarketMobilePage() {
+/** 市场页面板只关心业务内容，侧栏开关由外层 `SuperMobileShellRouteLayout` 注入。 */
+function CrewMarketMobilePanelBase() {
 	const { t } = useTranslation("crew/market")
+	const { openSidebar } = useSuperMobileShellOutlet()
 	const navigate = useNavigate()
 	const storeRef = useRef(new StoreCrewStore())
 	const store = storeRef.current
@@ -86,16 +93,19 @@ function CrewMarketMobilePage() {
 		)
 	}, [store])
 
+	// 打开搜索抽屉时回填当前关键字，避免用户重复输入。
 	function handleSearchOpenChange(open: boolean) {
 		setSearchOpen(open)
 		if (open) setQueryDraft(store.keyword)
 	}
 
+	// 搜索只在确认后落库，避免输入过程频繁触发请求。
 	function handleApplySearch() {
 		void store.fetchAgents({ keyword: queryDraft.trim(), page: 1 })
 		setSearchOpen(false)
 	}
 
+	// 雇佣入口沿用原有 store/service，当前改造只替换移动端外壳与视觉结构。
 	const handleHire = useCallback(
 		(id: string) => {
 			store.hireAgent(id)
@@ -103,6 +113,7 @@ function CrewMarketMobilePage() {
 		[store],
 	)
 
+	// 删除确认继续复用既有危险操作弹窗，避免移动端重构时改动业务规则。
 	const handleDismiss = useCallback(
 		(id: string) => {
 			const target = store.list.find((item) => item.id === id)
@@ -125,12 +136,14 @@ function CrewMarketMobilePage() {
 		[confirm, selectedAgent?.id, store, t],
 	)
 
+	// 对话页仍按当前工作区兜底跳转，保证市场卡片“开始对话”不依赖新路由能力。
 	function resolveFallbackWorkspaceId() {
 		const userInfo = userStore.user.userInfo
 		const cachedWorkspaceState = WorkspaceStateCache.get(userInfo)
 		return cachedWorkspaceState.workspaceId || UserWorkspaceMapCache.get(userInfo)
 	}
 
+	// 市场里的“开始对话”保持原有 pin + 跳转逻辑，仅借壳层承接新的移动端导航样式。
 	const handleOpenConversation = useCallback(
 		async (agentCode: string) => {
 			await crewService.pinFeaturedFrequentForConversation(agentCode)
@@ -150,6 +163,7 @@ function CrewMarketMobilePage() {
 		[navigate],
 	)
 
+	// 点击卡片时优先打开详情，避免在市场列表里直接触发副作用操作。
 	const handleOpenMarketDetail = useCallback(
 		(id: string) => {
 			const target = store.list.find((item) => item.id === id)
@@ -159,6 +173,7 @@ function CrewMarketMobilePage() {
 		[store],
 	)
 
+	// 已雇佣的员工从详情按钮直接进入会话，未雇佣时仍打开详情面板。
 	const handleDetails = useCallback(
 		(id: string) => {
 			const target = store.list.find((item) => item.id === id)
@@ -174,6 +189,7 @@ function CrewMarketMobilePage() {
 
 	const activeCategoryId = store.categoryId ?? "all"
 
+	// 分类切换只在值变化时触发请求，避免横向筛选条重复点击导致无效刷新。
 	const handleCategoryChange = useCallback(
 		(categoryId: string) => {
 			if (categoryId === activeCategoryId) return
@@ -213,46 +229,48 @@ function CrewMarketMobilePage() {
 			/>
 			{dialog}
 			<div
-				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border border-t-0 border-border bg-background shadow-xs"
+				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background"
 				data-testid="crew-market-page-mobile"
 			>
-				<header className="flex shrink-0 items-center gap-2 rounded-b-xl bg-background px-2.5 py-2 shadow-xs">
+				<header
+					className="relative z-10 flex shrink-0 items-center gap-1 px-4 pb-3 pt-2"
+					data-testid="crew-market-mobile-header"
+				>
 					<Button
+						type="button"
 						variant="ghost"
 						size="icon"
-						className="size-8 shrink-0 rounded-lg"
-						onClick={() =>
-							navigate({
-								delta: -1,
-								viewTransition: {
-									type: "slide",
-									direction: "right",
-									duration: 300,
-								},
-							})
-						}
-						aria-label={t("back")}
-						data-testid="crew-market-mobile-back"
+						className="h-11 w-11 shrink-0 rounded-full border border-border/10 bg-background shadow-[0px_4px_12px_rgba(0,0,0,0.06)] transition-transform active:scale-95"
+						onClick={openSidebar}
+						aria-label={t("super:mobile.shell.menuAria")}
+						data-testid="crew-market-mobile-menu-button"
 					>
-						<ChevronLeft className="size-6" aria-hidden />
+						<Menu className="size-6 text-foreground" strokeWidth={2.25} aria-hidden />
 					</Button>
-					<h1 className="min-w-0 flex-1 truncate text-left text-base font-medium leading-6 text-foreground">
-						{t("title")}
-					</h1>
+					<div
+						className="min-w-0 flex-1 px-2 text-center"
+						data-testid="crew-market-mobile-title"
+					>
+						<h1 className="truncate font-poppins text-[19px] font-semibold tracking-tight text-foreground">
+							{t("title")}
+						</h1>
+					</div>
 					<div className="flex shrink-0 items-center gap-1">
 						<Button
+							type="button"
 							variant="ghost"
 							size="icon"
-							className="size-8 rounded-md"
+							className="h-11 w-11 rounded-full border border-border/10 bg-background shadow-[0px_4px_12px_rgba(0,0,0,0.06)] transition-transform active:scale-95"
 							onClick={() => handleSearchOpenChange(true)}
 							aria-label={t("mobile.searchSheetTitle")}
 							data-testid="crew-market-mobile-search-open"
 						>
-							<Search className="size-4" aria-hidden />
+							<Search className="size-5" aria-hidden />
 						</Button>
 						<Button
+							type="button"
 							variant="ghost"
-							className="h-8 shrink-0 gap-1 rounded-md px-2 text-xs font-medium text-foreground"
+							className="h-11 shrink-0 gap-1 rounded-full border border-border/10 bg-background px-3 text-xs font-medium text-foreground shadow-[0px_4px_12px_rgba(0,0,0,0.06)] transition-transform active:scale-95"
 							onClick={() => navigate({ name: RouteName.MyCrew })}
 							data-testid="crew-market-mobile-my-crew"
 						>
@@ -263,7 +281,12 @@ function CrewMarketMobilePage() {
 				</header>
 
 				<Sheet open={searchOpen} onOpenChange={handleSearchOpenChange}>
-					<SheetContent side="bottom" className="rounded-t-xl px-4 pb-6">
+					<SheetContent
+						side="bottom"
+						aria-describedby={undefined}
+						className="rounded-t-xl px-4 pb-6"
+						data-testid="crew-market-mobile-search-sheet"
+					>
 						<SheetHeader className="text-left">
 							<SheetTitle>{t("mobile.searchSheetTitle")}</SheetTitle>
 						</SheetHeader>
@@ -366,4 +389,19 @@ function CrewMarketMobilePage() {
 	)
 }
 
-export default observer(CrewMarketMobilePage)
+const CrewMarketMobilePanel = observer(CrewMarketMobilePanelBase)
+
+/** 市场页通过统一移动端壳层承接主题同步、侧栏导航与全屏圆角裁切。 */
+export default function CrewMarketMobilePage() {
+	const { t } = useTranslation("super")
+
+	return (
+		<SuperMobileShellRouteLayout
+			activeView="myCrew"
+			closeSidebarAriaLabel={t("mobile.shell.closeSidebar")}
+			testIdPrefix="crew-market-shell"
+		>
+			<CrewMarketMobilePanel />
+		</SuperMobileShellRouteLayout>
+	)
+}

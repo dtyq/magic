@@ -1,5 +1,8 @@
 import { createStyles } from "antd-style"
 
+/**
+ * 占位：话题列表视觉已迁至 `index.tsx` 的 Tailwind。
+ */
 export const useStyles = createStyles(({ token }) => {
 	return {
 		container: {

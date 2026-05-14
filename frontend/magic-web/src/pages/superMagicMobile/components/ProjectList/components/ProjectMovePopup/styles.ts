@@ -9,6 +9,9 @@ export const useStyles = createStyles(({ css, token }) => {
 			flex-direction: column;
 			justify-content: space-between;
 		`,
+		saveAsContainer: css`
+			justify-content: flex-start;
+		`,
 		header: css`
 			padding: 10px 16px;
 			display: flex;
@@ -34,12 +37,30 @@ export const useStyles = createStyles(({ css, token }) => {
 				background-color: ${token.magicColorUsages.fill[1]};
 			}
 		`,
+		headerAction: css`
+			width: 30px;
+			height: 30px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			cursor: pointer;
+			border-radius: 6px;
+			color: ${token.magicColorUsages.primary.default};
+
+			&:hover {
+				background-color: ${token.magicColorUsages.fill[1]};
+			}
+
+			&[data-disabled="true"] {
+				cursor: not-allowed;
+				color: ${token.magicColorUsages.text[3]};
+			}
+		`,
 		content: css`
 			flex: 1;
-			padding: 10px;
+			padding: 10px 14px 12px;
 			display: flex;
 			flex-direction: column;
-			gap: 6px;
 			overflow-y: auto;
 
 			&::-webkit-scrollbar {
@@ -53,46 +74,132 @@ export const useStyles = createStyles(({ css, token }) => {
 				background-color: transparent;
 			}
 		`,
-		contentItem: css`
-			padding: 8px 10px;
+		saveAsContent: css`
+			flex: 1;
+			padding: 12px 14px 16px;
+			display: flex;
+			flex-direction: column;
+			gap: 12px;
+			overflow-y: auto;
+		`,
+		sectionLabel: css`
+			font-size: 14px;
+			line-height: 20px;
+			color: ${token.magicColorUsages.text[2]};
+		`,
+		formCard: css`
+			border-radius: 12px;
+			background-color: ${token.magicColorUsages.bg[1]};
+			border: 1px solid ${token.magicColorUsages.border};
+			overflow: hidden;
+		`,
+		nameInput: css`
+			height: 48px;
+			border: none;
+			border-radius: 0;
+			padding: 0 14px;
+			background-color: transparent;
+			font-size: 16px;
+			line-height: 22px;
+			color: ${token.magicColorUsages.text[0]};
+
+			&:focus,
+			&:focus-within,
+			&:hover {
+				border: none;
+				box-shadow: none;
+			}
+
+			input {
+				font-size: 16px;
+				line-height: 22px;
+			}
+		`,
+		selectRow: css`
+			width: 100%;
+			height: 48px;
+			padding: 0 14px;
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
 			gap: 10px;
-			border-radius: 8px;
-			border: 1px solid transparent;
-		`,
-		contentItemSelected: css`
-			background-color: ${token.magicColorUsages.primaryLight.default};
-			border: 1px solid ${token.magicColorUsages.primary.default};
-		`,
-		contentItemName: css`
-			flex: 1;
-			display: flex;
-			align-items: center;
-			gap: 10px;
-			font-size: 14px;
-			line-height: 20px;
+			border: none;
+			background: transparent;
 			color: ${token.magicColorUsages.text[0]};
-			overflow: hidden;
 		`,
-		contentItemIcon: css`
-			width: 24px;
-			height: 24px;
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			border-radius: 4px;
-			background-color: ${token.magicColorUsages.fill[0]};
-		`,
-		contentItemNameText: css`
+		selectRowValue: css`
 			flex: 1;
+			text-align: left;
+			font-size: 16px;
+			line-height: 22px;
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
 		`,
-		contentItemCheck: css`
-			color: ${token.magicColorUsages.primary.default};
+		selectChevron: css`
+			color: ${token.magicColorUsages.text[2]};
+			flex-shrink: 0;
+		`,
+		cardDivider: css`
+			height: 1px;
+			background-color: ${token.magicColorUsages.border};
+		`,
+		/**
+		 * 工作区列表外层：与原型 ChatMoreSheet 的 content 区一致（水平 14px），
+		 * 让白卡片与弹层边缘留出呼吸间距。
+		 */
+		workspaceListOuter: css`
+			width: 100%;
+			flex-shrink: 0;
+		`,
+		/**
+		 * 单块圆角卡片承载整列工作区，对应原型 MenuGroup（bg-card + rounded-lg + overflow-hidden）。
+		 * bg-muted 底色下无需 border，圆角对齐 rounded-lg（8px）。
+		 */
+		workspaceListCard: css`
+			width: 100%;
+			border-radius: 8px;
+			overflow: hidden;
+			background-color: ${token.magicColorUsages.bg[1]};
+		`,
+		/**
+		 * 单行工作区：48px 触控高度、左右 14px 内边距，与原型 h-12 + px-[14px] 对齐。
+		 */
+		workspaceRow: css`
+			width: 100%;
+			min-height: 48px;
+			padding: 0 14px;
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 10px;
+			border: none;
+			background: transparent;
+			cursor: pointer;
+			text-align: left;
+			color: ${token.magicColorUsages.text[0]};
+
+			&:active {
+				opacity: 0.65;
+			}
+		`,
+		workspaceRowLabel: css`
+			flex: 1;
+			min-width: 0;
+			font-size: 16px;
+			line-height: 20px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		`,
+		workspaceRowDivider: css`
+			height: 1px;
+			width: 100%;
+			background-color: ${token.magicColorUsages.border};
+		`,
+		workspaceRowCheck: css`
+			flex-shrink: 0;
+			color: ${token.magicColorUsages.text[0]};
 		`,
 		contentItemInput: css`
 			min-width: 220px;
@@ -133,6 +240,15 @@ export const useStyles = createStyles(({ css, token }) => {
 		contentItemInputRequired: css`
 			padding-left: 4px;
 			color: ${token.magicColorUsages.danger.default};
+		`,
+		emptyState: css`
+			flex: 1;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			padding: 40px 0;
 		`,
 	}
 })

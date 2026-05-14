@@ -7,8 +7,12 @@ describe("isSuperWorkspaceRouteName", () => {
 		expect(isSuperWorkspaceRouteName(RouteName.SuperWorkspaceProjectTopicState)).toBe(true)
 	})
 
-	it("returns true for mobile tabs super routes", () => {
-		expect(isSuperWorkspaceRouteName(RouteName.MobileTabs, "?tab=super")).toBe(true)
+	it("keeps mobile chat project route in super route scope", () => {
+		expect(isSuperWorkspaceRouteName(RouteName.SuperChatProjectState)).toBe(true)
+	})
+
+	it("returns false for mobile tabs super home route", () => {
+		expect(isSuperWorkspaceRouteName(RouteName.MobileTabs, "?tab=super")).toBe(false)
 	})
 
 	it("returns true for mobile tabs routes carrying super state", () => {

@@ -1,6 +1,9 @@
 import { useStyles } from "./styles"
 import FlexBox from "@/components/base/FlexBox"
 
+/**
+ * 项目骨架屏沿用原型行列表的高度与左右结构，避免加载完成前后出现布局跳变。
+ */
 function ProjectItemSkeleton() {
 	const { styles } = useStyles()
 
@@ -14,8 +17,7 @@ function ProjectItemSkeleton() {
 				<div className={styles.projectUpdatedAtSkeleton} />
 			</FlexBox>
 			<div className={styles.projectActions}>
-				<div className={styles.projectActionSkeleton} />
-				<div className={styles.projectActionSkeleton} />
+				<div className={styles.projectChevronSkeleton} />
 			</div>
 		</div>
 	)

@@ -19,6 +19,10 @@ function DrawerClose({ ...props }: React.ComponentProps<typeof DrawerPrimitive.C
 	return <DrawerPrimitive.Close data-slot="drawer-close" {...props} />
 }
 
+function DrawerHandle({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Handle>) {
+	return <DrawerPrimitive.Handle data-slot="drawer-handle" {...props} />
+}
+
 const DrawerOverlay = React.forwardRef<
 	React.ElementRef<typeof DrawerPrimitive.Overlay>,
 	React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
@@ -46,6 +50,7 @@ function DrawerContent({
 			<DrawerOverlay />
 			<DrawerPrimitive.Content
 				data-slot="drawer-content"
+				aria-describedby={undefined}
 				className={cn(
 					"group/drawer-content fixed z-50 flex h-auto flex-col bg-background",
 					"data-[vaul-drawer-direction=top]:inset-x-0 data-[vaul-drawer-direction=top]:top-0 data-[vaul-drawer-direction=top]:mb-24 data-[vaul-drawer-direction=top]:max-h-[80dvh] data-[vaul-drawer-direction=top]:rounded-b-lg data-[vaul-drawer-direction=top]:border-b",
@@ -113,6 +118,7 @@ export {
 	Drawer,
 	DrawerPortal,
 	DrawerOverlay,
+	DrawerHandle,
 	DrawerTrigger,
 	DrawerClose,
 	DrawerContent,

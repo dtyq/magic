@@ -1,608 +1,206 @@
-import { useEffect, useMemo, useState } from "react"
-import { useRequest } from "ahooks"
-import {
-	CirclePlus,
-	Cloudy,
-	Ellipsis,
-	Loader2,
-	MessageCircle,
-	MessageCircleMore,
-	RefreshCw,
-} from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { FUNCTION_PERMISSION_CODE, type MagicClawItem, MagicClawApi } from "@/apis"
 import { MAGIC_CLAW_STATUS } from "@/apis/modules/magicClawStatus"
-import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
-import { Button } from "@/components/shadcn-ui/button"
-import { MagiClaw } from "@/enhance/lucide-react"
-import heroLeft from "@/assets/resources/magi-claw/hero-left.webp"
-import heroRight from "@/assets/resources/magi-claw/hero-right.webp"
-import ActionsPopup, {
-	type ActionButtonConfig,
-} from "@/pages/superMagicMobile/components/ActionsPopup"
-import { RouteName } from "@/routes/constants"
-import { usePoppinsFont } from "@/styles/font"
-import useGeistFont from "@/styles/fonts/geist"
-import { MagiClawCreateDialog, type MagiClawCreatePayload } from "./MagiClawCreateDialog"
-import { EMPTY_MAGIC_CLAW_LIST, MAGI_CLAW_LIST_POLLING_INTERVAL } from "./constants"
-import useNavigate from "@/routes/hooks/useNavigate"
-import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
-import { useNamedPageTitle } from "@/pages/superMagic/hooks/useNamedPageTitle"
-import { MagiClawStatusBadge } from "./MagiClawStatusBadge"
-import { MagiClawTemplateAvatar } from "./MagiClawTemplateAvatar"
-import { MagiClawUpgradeBadge, shouldShowMagiClawUpgradeBadge } from "./MagiClawUpgradeBadge"
-import { getMagiClawMenuActionSequence } from "./magiClawMenuActions"
-import { useMagiClawCreatedSectionActions } from "./useMagiClawCreatedSectionActions"
-import { DefaultMagiClawAvatar } from "./components/DefaultMagiClawAvatar"
-import { confirmMagiClawSandboxUpgrade } from "./magiClawSandboxUpgradeConfirm"
-import { isPrivateDeployment } from "@/utils/env"
-import { cn } from "@/lib/utils"
-import { useFunctionPermission } from "@/hooks/useFunctionPermission"
+import {
+	SuperMobileShellRouteLayout,
+	useSuperMobileShellOutlet,
+} from "@/pages/superMagicMobile/components/MobileShell"
+import { MagiClawCreateDialog } from "./MagiClawCreateDialog"
+import { MagiClawDeleteConfirmSheet } from "./MagiClawDeleteConfirmSheet"
+import { MagiClawEditDialog } from "./MagiClawEditDialog"
+import { MagiClawMobileContextMenu } from "./MagiClawMobileContextMenu"
+import { MagiClawMobileFeatureList } from "./MagiClawMobileFeatureList"
+import { MagiClawMobileHeader } from "./MagiClawMobileHeader"
+import { MagiClawMobileList } from "./MagiClawMobileList"
+import { useMagiClawMobilePage } from "./useMagiClawMobilePage"
 
-const HERO_GRADIENT =
-	"linear-gradient(90.87deg, rgb(255, 247, 247) 6.65%, rgb(238, 245, 255) 97.64%)"
-
-function clawRowTestId(claw: MagicClawItem) {
-	return claw.code || claw.id
-}
-
-export default function MagiClawMobilePage() {
+/** 页面面板只负责把移动端壳层、列表视图和页面级浮层状态接起来。 */
+function MagiClawMobilePanel() {
 	const { t } = useTranslation("sidebar")
-	const clawBrandValues = getClawBrandTranslationValues()
-	const navigate = useNavigate()
-	const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-	const [isCreating, setIsCreating] = useState(false)
-	const [selectedClaw, setSelectedClaw] = useState<MagicClawItem | null>(null)
-	const [isActionsPopupOpen, setIsActionsPopupOpen] = useState(false)
-	const [dismissedUpgradeBadgeByClawKey, setDismissedUpgradeBadgeByClawKey] = useState<
-		Record<string, boolean>
-	>({})
-	const { confirm, dialog } = useConfirmDialog()
-	const { isAllowed: canCreateMagicClaw } = useFunctionPermission(
-		FUNCTION_PERMISSION_CODE.MagicClawCreate,
-	)
-	usePoppinsFont()
-	useGeistFont()
-	useNamedPageTitle({
-		pageTitle: t("superLobster.title", clawBrandValues),
-	})
-
-	const {
-		data: listPayload,
-		loading: listLoading,
-		error: listError,
-		refresh: refreshClawList,
-		refreshAsync: refreshClawListAsync,
-	} = useRequest(
-		() =>
-			MagicClawApi.queryMagicClawList(
-				{ page: 1, page_size: 100 },
-				{ enableErrorMessagePrompt: false },
-			),
-		{
-			refreshDeps: [],
-			pollingInterval: MAGI_CLAW_LIST_POLLING_INTERVAL,
-			pollingWhenHidden: false,
-		},
-	)
-
-	const hasLoadedClawList = typeof listPayload !== "undefined"
-	const visibleListLoading = listLoading && !hasLoadedClawList
-	const visibleListError = hasLoadedClawList ? undefined : listError
-	const claws = useMemo(() => listPayload?.list ?? EMPTY_MAGIC_CLAW_LIST, [listPayload])
-	const hasClaws = claws.length > 0
-
-	useEffect(() => {
-		setDismissedUpgradeBadgeByClawKey((prev) => {
-			const next = { ...prev }
-			let changed = false
-			for (const claw of claws) {
-				const key = clawRowTestId(claw)
-				if (!claw.need_upgrade && next[key]) {
-					delete next[key]
-					changed = true
-				}
-			}
-			return changed ? next : prev
-		})
-	}, [claws])
-
-	function handleOpenClawPlayground(clawCode: string) {
-		if (!clawCode) return
-		navigate({
-			name: RouteName.ClawPlayground,
-			params: { code: clawCode },
-		})
-	}
-
+	const { openSidebar } = useSuperMobileShellOutlet()
 	const {
 		activeActionClawCode,
+		canCreateMagicClaw,
+		clawBrandValues,
+		claws,
+		contextMenuState,
+		createButtonLabel,
+		deletingClaw,
+		dialog,
+		dismissedUpgradeBadgeByClawKey,
+		editingClaw,
 		getDisplayedClawStatus,
-		handleDeleteClaw,
+		handleConfirmDelete,
+		handleConfirmUpgradeClaw,
+		handleCreateClaw,
+		handleOpenCreate,
+		handleOpenClawPlaygroundWithPreWarm,
+		handleOpenEditClaw,
+		handleRequestDelete,
 		handleRestartClaw,
-		handleUpgradeClaw,
 		handleStartClaw,
 		handleStopClaw,
-	} = useMagiClawCreatedSectionActions({
-		claws,
-		onRefreshList: refreshClawListAsync,
-		onOpenClawPlayground: handleOpenClawPlayground,
-		t,
-		clawBrandValues,
-	})
-
-	function handleConfirmUpgradeClaw(claw: MagicClawItem) {
-		const rowId = clawRowTestId(claw)
-		confirmMagiClawSandboxUpgrade(confirm, {
-			claw,
-			t,
-			clawBrandValues,
-			onConfirm: () => {
-				setDismissedUpgradeBadgeByClawKey((prev) => ({ ...prev, [rowId]: true }))
-				const status = getDisplayedClawStatus(claw)
-				if (status === MAGIC_CLAW_STATUS.RUNNING) {
-					void handleUpgradeClaw(claw)
-					return
-				}
-				void handleStartClaw(claw)
-			},
-		})
-	}
-
-	async function handleCreateClaw({ name, icon, template_code }: MagiClawCreatePayload) {
-		setIsCreating(true)
-		try {
-			const created = await MagicClawApi.createMagicClaw({
-				name,
-				template_code,
-				...(icon ? { icon } : {}),
-			})
-			if (!created.code) {
-				toast.error(t("superLobster.created.createFailed", clawBrandValues))
-				return
-			}
-			setIsCreateDialogOpen(false)
-			void refreshClawList()
-			handleOpenClawPlayground(created.code)
-		} catch {
-			// toast.error(t("superLobster.created.createFailed", clawBrandValues))
-		} finally {
-			setIsCreating(false)
-		}
-	}
-
-	function handleOpenCreate() {
-		if (!canCreateMagicClaw) return
-		setIsCreateDialogOpen(true)
-	}
-
-	function buildClawDisplayName(claw: MagicClawItem) {
-		return claw.name || t("superLobster.workspace.untitledProject", clawBrandValues)
-	}
-
-	function closeActionsPopup() {
-		setIsActionsPopupOpen(false)
-		setSelectedClaw(null)
-	}
-
-	function handleOpenActionsPopup(claw: MagicClawItem) {
-		setSelectedClaw(claw)
-		setIsActionsPopupOpen(true)
-	}
-
-	function handleConfirmDelete(claw: MagicClawItem) {
-		closeActionsPopup()
-		confirm({
-			title: t("superLobster.created.deleteConfirmTitle", {
-				...clawBrandValues,
-				name: buildClawDisplayName(claw),
-			}),
-			description: t("superLobster.created.deleteConfirmDescription", clawBrandValues),
-			confirmText: t("superLobster.created.delete", clawBrandValues),
-			variant: "destructive",
-			destructivePresentation: "soft",
-			dialogSize: "sm",
-			onConfirm: () => {
-				void handleDeleteClaw(claw)
-			},
-		})
-	}
-
-	function runSelectedClawAction(action: () => void) {
-		closeActionsPopup()
-		action()
-	}
-
-	function buildActionButtonList(claw: MagicClawItem): ActionButtonConfig[] {
-		const rowId = clawRowTestId(claw)
-		const displayStatus = getDisplayedClawStatus(claw)
-		const isActionLoading = activeActionClawCode === claw.code
-
-		return getMagiClawMenuActionSequence(displayStatus)
-			.filter((action) => action !== "divider")
-			.map((action) => {
-				switch (action) {
-					case "restart":
-						return {
-							key: "restart",
-							label: t("superLobster.created.restart", clawBrandValues),
-							disabled: isActionLoading,
-							"data-testid": `magi-claw-mobile-item-restart-${rowId}`,
-							onClick: () => {
-								runSelectedClawAction(() => {
-									void handleRestartClaw(claw)
-								})
-							},
-						}
-					case "stop":
-						return {
-							key: "stop",
-							label: t("superLobster.created.stop", clawBrandValues),
-							disabled: isActionLoading,
-							"data-testid": `magi-claw-mobile-item-stop-${rowId}`,
-							onClick: () => {
-								runSelectedClawAction(() => {
-									void handleStopClaw(claw)
-								})
-							},
-						}
-					case "start":
-						return {
-							key: "start",
-							label: t("superLobster.created.start", clawBrandValues),
-							disabled: !claw.code || isActionLoading,
-							"data-testid": `magi-claw-mobile-item-start-${rowId}`,
-							onClick: () => {
-								runSelectedClawAction(() => {
-									void handleStartClaw(claw)
-								})
-							},
-						}
-					case "delete":
-						return {
-							key: "delete",
-							label: t("superLobster.created.delete", clawBrandValues),
-							variant: "danger" as const,
-							disabled: isActionLoading,
-							"data-testid": `magi-claw-mobile-item-delete-${rowId}`,
-							onClick: () => handleConfirmDelete(claw),
-						}
-				}
-			})
-	}
-
-	const actionButtonList: ActionButtonConfig[] = selectedClaw
-		? buildActionButtonList(selectedClaw)
-		: []
-	const createButtonLabel = canCreateMagicClaw
-		? t("superLobster.created.create", clawBrandValues)
-		: t("superLobster.created.noCreatePermission")
-
-	const featureItems = [
-		{
-			key: "customization",
-			icon: <MagiClaw className="size-5 shrink-0 text-foreground" aria-hidden />,
-			title: t("superLobster.features.customization.title"),
-			description: t("superLobster.features.customization.description", clawBrandValues),
-		},
-		{
-			key: "deployment",
-			icon: (
-				<Cloudy
-					className="size-5 shrink-0 text-foreground"
-					strokeWidth={1.75}
-					aria-hidden
-				/>
-			),
-			title: t("superLobster.features.deployment.title"),
-			description: t("superLobster.features.deployment.description", clawBrandValues),
-		},
-		{
-			key: "connect",
-			icon: (
-				<MessageCircleMore
-					className="size-5 shrink-0 text-foreground"
-					strokeWidth={1.75}
-					aria-hidden
-				/>
-			),
-			title: t("superLobster.features.connect.title"),
-			description: t("superLobster.features.connect.description", clawBrandValues),
-		},
-	]
-
-	const listStateClassName =
-		"flex min-h-[120px] flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card py-8 text-center"
+		handleUpdateClaw,
+		isCreateDialogOpen,
+		isCreating,
+		isUpdating,
+		openContextMenu,
+		refreshClawListAsync,
+		scrollViewportRef,
+		setDeletingClaw,
+		setEditingClaw,
+		setIsCreateDialogOpen,
+		showBottomMask,
+		showTopMask,
+		t: tSidebar,
+		updateScrollMasks,
+		visibleListError,
+		visibleListLoading,
+		closeContextMenu,
+	} = useMagiClawMobilePage()
+	const contextMenuClaw = contextMenuState?.claw ?? null
+	const contextMenuStatus = contextMenuClaw ? getDisplayedClawStatus(contextMenuClaw) : null
 
 	return (
 		<>
 			{dialog}
 			<div
-				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background pt-safe-top"
+				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background"
 				data-testid="magi-claw-page-mobile"
 			>
-				<div
-					className={cn(
-						"flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2 pt-2",
-						isPrivateDeployment() && "pt-4",
-					)}
-				>
-					{!isPrivateDeployment() && (
-						<div
-							className="relative h-20 w-full shrink-0 overflow-hidden rounded-lg"
-							style={{ backgroundImage: HERO_GRADIENT }}
-							data-testid="magi-claw-mobile-hero"
-						>
-							<div
-								className="pointer-events-none absolute -left-12 -top-2 flex h-[135px] w-[148px] items-center justify-center"
-								aria-hidden
-							>
-								<div className="flex-none rotate-[170.87deg] -scale-y-100">
-									<div className="relative h-[116px] w-[132px]">
-										<img
-											src={heroLeft}
-											alt=""
-											className="pointer-events-none absolute inset-0 size-full max-w-none object-cover brightness-[1.2]"
-										/>
-									</div>
-								</div>
-							</div>
-							<div
-								className="pointer-events-none absolute -right-[93px] -top-[65px] flex size-[227px] items-center justify-center"
-								aria-hidden
-							>
-								<div className="flex-none rotate-[-33.64deg]">
-									<div className="relative size-[164px]">
-										<img
-											src={heroRight}
-											alt=""
-											className="pointer-events-none absolute inset-0 size-full max-w-none object-cover brightness-[1.1]"
-										/>
-									</div>
-								</div>
-							</div>
-							<div className="relative z-10 flex h-full flex-col items-center justify-center gap-0.5 px-4 text-center">
-								<div className="flex items-center gap-0.5 whitespace-nowrap text-xl tracking-[-0.4px]">
-									<span className="font-['Poppins'] font-semibold text-foreground">
-										{t("superLobster.heroLead", clawBrandValues)}
-									</span>
-									<span className="font-['Poppins'] font-black text-red-500">
-										{t("superLobster.titleAccent", clawBrandValues)}
-									</span>
-								</div>
-								<p className="text-xs leading-4 text-muted-foreground">
-									{t("superLobster.description", clawBrandValues)}
-								</p>
-							</div>
-						</div>
-					)}
+				<MagiClawMobileHeader
+					title={tSidebar("superLobster.title", clawBrandValues)}
+					menuAriaLabel={t("super:mobile.shell.menuAria")}
+					createAriaLabel={createButtonLabel}
+					disableCreateTrigger={!canCreateMagicClaw}
+					onOpenSidebar={openSidebar}
+					onOpenCreate={handleOpenCreate}
+				/>
 
-					{visibleListLoading ? (
-						<div
-							className={listStateClassName}
-							data-testid="magi-claw-mobile-list-loading"
-						>
-							<Loader2
-								className="size-5 animate-spin text-muted-foreground"
-								aria-hidden
+				<div className="relative min-h-0 flex-1">
+					<div
+						ref={scrollViewportRef}
+						className="absolute inset-0 overflow-y-auto px-4 pb-4 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+						data-testid="magi-claw-mobile-scroll-content"
+						onScroll={() => {
+							closeContextMenu()
+							updateScrollMasks()
+						}}
+					>
+						<div className="flex flex-col gap-12">
+							<MagiClawMobileList
+								claws={claws}
+								clawBrandValues={clawBrandValues}
+								t={tSidebar}
+								visibleListLoading={visibleListLoading}
+								visibleListError={visibleListError}
+								activeActionClawCode={activeActionClawCode}
+								dismissedUpgradeBadgeByClawKey={dismissedUpgradeBadgeByClawKey}
+								getDisplayedClawStatus={getDisplayedClawStatus}
+								canCreateMagicClaw={canCreateMagicClaw}
+								createButtonLabel={createButtonLabel}
+								onOpenCreate={handleOpenCreate}
+								onRetry={() => {
+									void refreshClawListAsync()
+								}}
+								onOpenMenu={openContextMenu}
+								onOpenChat={(claw) => {
+									void handleOpenClawPlaygroundWithPreWarm(claw)
+								}}
+								onUpgradeClaw={handleConfirmUpgradeClaw}
 							/>
-							<p className="text-sm text-muted-foreground">
-								{t("superLobster.created.listLoading", clawBrandValues)}
-							</p>
+							<MagiClawMobileFeatureList />
 						</div>
-					) : visibleListError ? (
-						<div
-							className={listStateClassName}
-							data-testid="magi-claw-mobile-list-error"
-						>
-							<p className="text-sm text-muted-foreground">
-								{t("superLobster.created.listLoadFailed", clawBrandValues)}
-							</p>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="w-fit"
-								data-testid="magi-claw-mobile-list-retry"
-								onClick={() => void refreshClawList()}
-							>
-								{t("superLobster.created.listRetry", clawBrandValues)}
-							</Button>
-						</div>
-					) : hasClaws ? (
-						<div
-							className="flex w-full flex-col gap-2"
-							data-testid="magi-claw-mobile-list-section"
-						>
-							<div className="flex w-full items-center justify-between gap-2">
-								<p className="text-base font-medium leading-6 text-foreground">
-									{t("superLobster.mobile.mySuperClaw", clawBrandValues)}
-								</p>
-								<div className="flex items-center gap-2">
-									<Button
-										type="button"
-										variant="outline"
-										size="icon"
-										className="size-8 rounded-md shadow-xs"
-										aria-label={t(
-											"superLobster.created.refresh",
-											clawBrandValues,
-										)}
-										data-testid="magi-claw-mobile-section-refresh"
-										disabled={listLoading}
-										onClick={() => void refreshClawList()}
-									>
-										<RefreshCw
-											className={
-												listLoading ? "size-4 animate-spin" : "size-4"
-											}
-											aria-hidden
-										/>
-									</Button>
-									<Button
-										type="button"
-										className="h-8 gap-2 rounded-md px-3 text-xs font-medium shadow-xs"
-										onClick={handleOpenCreate}
-										disabled={!canCreateMagicClaw}
-										data-testid="magi-claw-mobile-section-create"
-									>
-										<CirclePlus className="size-4" aria-hidden />
-										{createButtonLabel}
-									</Button>
-								</div>
-							</div>
-							<div
-								className="flex flex-col gap-2"
-								data-testid="magi-claw-mobile-created-list"
-							>
-								{claws.map((claw) => {
-									const rowId = clawRowTestId(claw)
-									const displayName = buildClawDisplayName(claw)
-									const showUpgradeBadge =
-										shouldShowMagiClawUpgradeBadge(claw.need_upgrade) &&
-										!dismissedUpgradeBadgeByClawKey[rowId]
-
-									return (
-										<div
-											key={rowId}
-											className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3"
-											data-testid={`magi-claw-mobile-item-${rowId}`}
-										>
-											<MagiClawTemplateAvatar
-												templateCode={claw.template_code}
-												src={claw.icon_file_url}
-												className="size-8 shrink-0 rounded-full border border-border"
-											/>
-											<div className="min-w-0 flex-1">
-												<p className="truncate text-sm font-medium leading-none text-foreground">
-													{displayName}
-												</p>
-												<div className="mt-2 flex flex-wrap items-center gap-2">
-													<MagiClawStatusBadge
-														status={getDisplayedClawStatus(claw)}
-														data-testid={`magi-claw-mobile-item-status-${rowId}`}
-													/>
-													{showUpgradeBadge ? (
-														<MagiClawUpgradeBadge
-															data-testid={`magi-claw-mobile-item-upgrade-${rowId}`}
-															disabled={
-																activeActionClawCode ===
-																	claw.code || !claw.code
-															}
-															onClick={() => {
-																handleConfirmUpgradeClaw(claw)
-															}}
-														/>
-													) : null}
-												</div>
-											</div>
-											<div className="flex shrink-0 items-center gap-2">
-												<Button
-													type="button"
-													variant="outline"
-													size="icon"
-													className="size-8 rounded-md shadow-xs"
-													aria-label={t(
-														"superLobster.mobile.moreActions",
-														clawBrandValues,
-													)}
-													data-testid={`magi-claw-mobile-item-more-${rowId}`}
-													onClick={() => handleOpenActionsPopup(claw)}
-												>
-													<Ellipsis className="size-4" aria-hidden />
-												</Button>
-												<Button
-													type="button"
-													variant="outline"
-													className="h-8 gap-2 rounded-md px-3 text-xs font-medium shadow-xs"
-													data-testid={`magi-claw-mobile-item-chat-${rowId}`}
-													disabled={!claw.code}
-													onClick={() => {
-														if (claw.code)
-															handleOpenClawPlayground(claw.code)
-													}}
-												>
-													<MessageCircle className="size-4" aria-hidden />
-													{t(
-														"superLobster.created.chat",
-														clawBrandValues,
-													)}
-												</Button>
-											</div>
-										</div>
-									)
-								})}
-							</div>
-						</div>
-					) : (
-						<div className="flex w-full flex-col gap-1">
-							<div className="flex w-full items-center justify-between">
-								<p className="text-base font-medium leading-6 text-foreground">
-									{t("superLobster.getStarted")}
-								</p>
-							</div>
-
-							<div
-								className="flex w-full flex-col items-center gap-3 overflow-hidden rounded-lg border border-border bg-card p-4"
-								data-testid="magi-claw-mobile-get-started-card"
-							>
-								<DefaultMagiClawAvatar />
-								<div className="flex w-full flex-col gap-2 text-center text-sm leading-none">
-									<p className="font-medium text-foreground">
-										{t("superLobster.card.title", clawBrandValues)}
-									</p>
-									<p className="font-normal text-muted-foreground">
-										{t("superLobster.card.description", clawBrandValues)}
-									</p>
-								</div>
-								<Button
-									className="h-9 w-full gap-2 shadow-xs"
-									onClick={handleOpenCreate}
-									disabled={!canCreateMagicClaw}
-									data-testid="magi-claw-mobile-create-cta"
-								>
-									<CirclePlus className="size-4" aria-hidden />
-									{createButtonLabel}
-								</Button>
-							</div>
-						</div>
-					)}
-
-					<div className="flex w-full flex-col gap-4 px-2.5 pb-8 pt-2.5">
-						{featureItems.map((item) => (
-							<div
-								key={item.key}
-								className="flex gap-2"
-								data-testid={`magi-claw-mobile-feature-${item.key}`}
-							>
-								{item.icon}
-								<div className="flex min-w-0 flex-1 flex-col gap-1">
-									<h2 className="text-sm font-medium leading-5 text-foreground">
-										{item.title}
-									</h2>
-									<p className="text-xs leading-4 text-muted-foreground">
-										{item.description}
-									</p>
-								</div>
-							</div>
-						))}
 					</div>
+
+					{/* 渐隐遮罩让页面维持原型里的壳层滚动感，而不是普通 H5 长页。 */}
+					<div
+						className="pointer-events-none absolute left-0 right-0 top-0 h-10 transition-opacity duration-200"
+						style={{
+							background:
+								"linear-gradient(to bottom, rgb(var(--background-rgb)) 0%, transparent 100%)",
+							opacity: showTopMask ? 1 : 0,
+						}}
+					/>
+					<div
+						className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 transition-opacity duration-200"
+						style={{
+							background:
+								"linear-gradient(to top, rgb(var(--background-rgb)) 0%, transparent 100%)",
+							opacity: showBottomMask ? 1 : 0,
+						}}
+					/>
 				</div>
 			</div>
 
-			<ActionsPopup
-				visible={isActionsPopupOpen}
-				title={t("superLobster.mobile.moreActions", clawBrandValues)}
-				actions={actionButtonList}
-				onClose={closeActionsPopup}
-			/>
+			{contextMenuClaw && contextMenuState ? (
+				<MagiClawMobileContextMenu
+					claw={contextMenuClaw}
+					anchorRect={contextMenuState.anchorRect}
+					editLabel={tSidebar("superLobster.mobile.editInfo")}
+					restartLabel={tSidebar("superLobster.created.restart", clawBrandValues)}
+					toggleRunLabel={
+						contextMenuStatus === MAGIC_CLAW_STATUS.RUNNING
+							? tSidebar("superLobster.created.stop", clawBrandValues)
+							: tSidebar("superLobster.created.start", clawBrandValues)
+					}
+					deleteLabel={tSidebar("superLobster.created.delete", clawBrandValues)}
+					onClose={closeContextMenu}
+					onEdit={() => handleOpenEditClaw(contextMenuClaw)}
+					onRestart={() => {
+						void handleRestartClaw(contextMenuClaw)
+					}}
+					onToggleRun={() => {
+						if (contextMenuStatus === MAGIC_CLAW_STATUS.RUNNING) {
+							void handleStopClaw(contextMenuClaw)
+							return
+						}
+
+						void handleStartClaw(contextMenuClaw)
+					}}
+					onDelete={() => handleRequestDelete(contextMenuClaw)}
+				/>
+			) : null}
+
 			<MagiClawCreateDialog
 				open={isCreateDialogOpen}
 				onOpenChange={setIsCreateDialogOpen}
 				onCreate={(payload) => void handleCreateClaw(payload)}
 				isSubmitting={isCreating}
 			/>
+
+			<MagiClawEditDialog
+				open={Boolean(editingClaw)}
+				claw={editingClaw}
+				isSubmitting={isUpdating}
+				onOpenChange={(open) => {
+					if (!open) setEditingClaw(null)
+				}}
+				onSubmit={(payload) => void handleUpdateClaw(payload)}
+			/>
+
+			<MagiClawDeleteConfirmSheet
+				open={Boolean(deletingClaw)}
+				claw={deletingClaw}
+				clawBrandValues={clawBrandValues}
+				t={tSidebar}
+				onClose={() => setDeletingClaw(null)}
+				onConfirm={() => void handleConfirmDelete()}
+			/>
 		</>
+	)
+}
+
+/** 页面入口只负责接入统一移动端壳层，业务逻辑由容器 hook 承担。 */
+export default function MagiClawMobilePage() {
+	const { t } = useTranslation("super")
+
+	return (
+		<SuperMobileShellRouteLayout
+			activeView="magiClaw"
+			closeSidebarAriaLabel={t("mobile.shell.closeSidebar")}
+			testIdPrefix="magi-claw-shell"
+		>
+			<MagiClawMobilePanel />
+		</SuperMobileShellRouteLayout>
 	)
 }

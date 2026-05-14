@@ -4,15 +4,15 @@ import { userStore } from "@/models/user"
 import { service } from "@/services"
 import type { UserService } from "@/services/user/UserService"
 import { useMemoizedFn } from "ahooks"
-import { userTransformer } from "@/models/user/transformers"
-import type { StructureUserItem } from "@/types/organization"
+import { userTransformer, type UserInfoTransformerInput } from "@/models/user/transformers"
+import type { User } from "@/types/user"
 import { trackLogger } from "@/utils/log/trackLogger"
 
 /**
  * 获取当前用户信息
  */
 export function useUserInfo() {
-	const [userInfo, setUserInfo] = useState(userStore.user.userInfo)
+	const [userInfo, setUserInfo] = useState<User.UserInfo | null>(userStore.user.userInfo)
 
 	useEffect(() => {
 		return reaction(
@@ -20,14 +20,17 @@ export function useUserInfo() {
 			(info) => {
 				setUserInfo(info)
 				trackLogger.setConfig({
-					userId: info?.magic_id,
+					userId: info?.magic_id ?? "",
 				})
 			},
 		)
 	}, [])
 
-	const set = useMemoizedFn((info: StructureUserItem | null) => {
-		service.get<UserService>("userService").setUserInfo(info ? userTransformer(info) : null)
+	/** 与 store 合并后再写入，避免 PATCH 返回体缺少头像等字段时把展示态清空。 */
+	const set = useMemoizedFn((info: UserInfoTransformerInput | null) => {
+		service
+			.get<UserService>("userService")
+			.setUserInfo(info ? userTransformer(info, userStore.user.userInfo) : null)
 	})
 
 	return { userInfo, setUserInfo: set }

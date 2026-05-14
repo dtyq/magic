@@ -1,89 +1,72 @@
-import { Menu, Trash, Bot } from "lucide-react"
-import { Skills } from "@/enhance/lucide-react"
+import { Loader2, Menu, MessageCirclePlus } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { globalConfigStore } from "@/stores/globalConfig"
-import { SupportLocales } from "@/constants/locale"
-import { useNavigate } from "@/routes/hooks/useNavigate"
-import { RouteName } from "@/routes/constants"
+import { usePoppinsFont } from "@/styles/font"
 
 interface ChatPageHeaderProps {
 	onMenuClick: () => void
+	onPrimaryAction?: () => void
+	isPrimaryActionLoading?: boolean
 }
 
-export default function ChatPageHeader({ onMenuClick }: ChatPageHeaderProps) {
-	const { i18n, t } = useTranslation("sidebar")
-	const globalConfig = globalConfigStore.globalConfig
-	const navigate = useNavigate()
-
-	function handleSkillsLibraryClick() {
-		navigate({ name: RouteName.CrewMarketSkills })
-	}
-
-	function handleCrewMarketClick() {
-		navigate({ name: RouteName.CrewMarket })
-	}
-
-	function handleRecycleBinClick() {
-		navigate({ name: RouteName.RecycleBin })
-	}
+export default function ChatPageHeader({
+	onMenuClick,
+	onPrimaryAction,
+	isPrimaryActionLoading = false,
+}: ChatPageHeaderProps) {
+	const { t } = useTranslation("super")
+	// 标题沿用原型里的 Poppins 字体节奏，避免首页品牌感与欢迎区不一致。
+	usePoppinsFont([400])
+	const isPrimaryActionDisabled = onPrimaryAction == null || isPrimaryActionLoading
+	// 顶部安全区沿用移动端一级页的统一补偿方式，避免刘海屏下 header 视觉过重或按钮贴边。
 
 	return (
-		<div className="w-full shrink-0 rounded-b-xl bg-background px-2.5 pt-safe-top shadow-xs">
-			<div className="flex h-12 w-full items-center gap-2">
-				{globalConfig?.minimal_logo && (
-					<img
-						className="rounded-lg"
-						src={globalConfig?.minimal_logo}
-						alt={globalConfig?.name_i18n?.[i18n.language as SupportLocales]}
-						width={32}
-						draggable={false}
-					/>
-				)}
+		<div
+			className="relative z-10 flex h-[calc(56px+var(--safe-area-inset-top))] shrink-0 items-center gap-2 rounded-b-[14px] px-[10px] pb-0 pt-[4px+calc(var(--safe-area-inset-top))]"
+			data-testid="chat-page-header-root"
+		>
+			<button
+				type="button"
+				className="flex size-12 shrink-0 items-center justify-center rounded-full bg-card transition-transform active:scale-95"
+				style={{ boxShadow: "0px 8px 25px 0px rgba(0,0,0,0.10)" }}
+				onClick={onMenuClick}
+				aria-label={t("mobile.shell.menuAria")}
+				data-testid="chat-page-header-menu-button"
+			>
+				<Menu className="size-[22px] text-foreground" strokeWidth={2.25} />
+			</button>
 
-				{/* 标题 */}
-				<div className="min-w-0 flex-1 truncate text-lg font-medium text-foreground">
-					{globalConfig?.name_i18n?.[i18n.language as SupportLocales]}
-				</div>
+			{/* 标题改为绝对居中，避免右侧 loading 与禁用态切换时品牌名左右跳动。 */}
+			<h1 className="pointer-events-none absolute inset-x-0 truncate px-[114px] text-center font-poppins text-[18px] font-medium leading-6 text-foreground">
+				{t("mobile.shell.brandName")}
+			</h1>
 
-				{/* 右侧按钮组 */}
-				<div className="flex shrink-0 items-center gap-1">
-					<button
-						type="button"
-						className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent active:bg-accent/80"
-						onClick={handleCrewMarketClick}
-						aria-label={t("crewMarket.title")}
-						data-testid="chat-page-header-crew-market-button"
-					>
-						<Bot size={20} />
-					</button>
-					<button
-						type="button"
-						className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent active:bg-accent/80"
-						onClick={handleSkillsLibraryClick}
-						aria-label={t("skillsLibrary.title")}
-						data-testid="chat-page-header-skills-library-button"
-					>
-						<Skills size={20} />
-					</button>
-					<button
-						type="button"
-						className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent active:bg-accent/80"
-						onClick={onMenuClick}
-						aria-label={t("appsMenu.more")}
-						data-testid="chat-page-header-more-button"
-					>
-						<Menu size={20} />
-					</button>
-					<button
-						type="button"
-						className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-accent active:bg-accent/80"
-						onClick={handleRecycleBinClick}
-						aria-label={t("footer.recycleBin")}
-						data-testid="chat-page-header-recycle-bin-button"
-					>
-						<Trash size={20} />
-					</button>
-				</div>
+			<div
+				className="ml-auto flex h-12 shrink-0 items-center rounded-full bg-card"
+				style={{ boxShadow: "0px 8px 25px 0px rgba(0,0,0,0.10)" }}
+				data-testid="chat-page-header-primary-action-shell"
+			>
+				<button
+					type="button"
+					className="flex size-12 shrink-0 items-center justify-center rounded-full transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+					onClick={onPrimaryAction}
+					disabled={isPrimaryActionDisabled}
+					aria-disabled={isPrimaryActionDisabled}
+					aria-busy={isPrimaryActionLoading}
+					aria-label={t("home.header.newChatAria")}
+					data-testid="chat-page-header-primary-button"
+				>
+					{isPrimaryActionLoading ? (
+						<Loader2
+							className="size-[22px] animate-spin text-foreground"
+							strokeWidth={2.25}
+						/>
+					) : (
+						<MessageCirclePlus
+							className="size-[22px] text-foreground"
+							strokeWidth={2.25}
+						/>
+					)}
+				</button>
 			</div>
 		</div>
 	)

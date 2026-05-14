@@ -1,3 +1,4 @@
+import { useIsMobile } from "@/hooks/useIsMobile"
 import { cn } from "@/lib/tiptap-utils"
 import { INPUT_CONTAINER_MIN_HEIGHT } from "@/pages/superMagic/components/MainInputContainer/constants"
 import MessageList, { MessageListProvider } from "@/pages/superMagic/components/MessageList"
@@ -103,6 +104,8 @@ function ConversationPanelScaffold({
 	backToLatestButtonClassName,
 	editorNodes,
 }: ConversationPanelScaffoldProps) {
+	/** 与全局移动端判定一致，用于在窄屏下去掉根容器多余底边距，避免与全屏输入区叠出双份留白 */
+	const isMobile = useIsMobile()
 	const [measuredBottomPanelHeightPx, setMeasuredBottomPanelHeightPx] = useState(0)
 
 	const hasMessages = messages.length > 0
@@ -282,7 +285,7 @@ function ConversationPanelScaffold({
 			className={cn(
 				"relative z-10 flex h-full flex-col items-center overflow-hidden transition-all duration-300",
 				!isConversationPanelCollapsed && "rounded-lg",
-				isConversationPanelCollapsed ? "px-0 pb-0" : "pb-2",
+				isConversationPanelCollapsed ? "px-0 pb-0" : !isMobile && "pb-2",
 				className,
 			)}
 			data-testid={rootTestId || `${scope}-panel`}

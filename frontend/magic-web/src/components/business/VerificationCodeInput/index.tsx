@@ -32,6 +32,14 @@ interface VerificationCodeInputProps {
 	 */
 	showError?: boolean
 	/**
+	 * Custom class for the OTP input container
+	 */
+	containerClassName?: string
+	/**
+	 * Custom class for every OTP slot
+	 */
+	slotClassName?: string
+	/**
 	 * Input complete callback
 	 */
 	onInputComplete?: (value: string) => void
@@ -63,6 +71,8 @@ const VerificationCodeInput = forwardRef<VerificationCodeInputRef, VerificationC
 			disabled = false,
 			autoFocus = true,
 			showError = false,
+			containerClassName,
+			slotClassName,
 			onInputComplete,
 		} = props
 
@@ -118,7 +128,7 @@ const VerificationCodeInput = forwardRef<VerificationCodeInputRef, VerificationC
 					value={internalValue}
 					onChange={handleChange}
 					disabled={disabled}
-					containerClassName="gap-2"
+					containerClassName={cn("gap-2", containerClassName)}
 					aria-invalid={showError}
 					aria-label={t("verification.codeInput")}
 					autoFocus={autoFocus}
@@ -134,8 +144,9 @@ const VerificationCodeInput = forwardRef<VerificationCodeInputRef, VerificationC
 									"sm:h-14 sm:w-12 sm:text-xl",
 									"transition-all duration-200",
 									showError &&
-									"border-red-500 data-[active=true]:border-red-500 data-[active=true]:ring-red-500/20",
+										"border-red-500 data-[active=true]:border-red-500 data-[active=true]:ring-red-500/20",
 									disabled && "cursor-not-allowed opacity-50",
+									slotClassName,
 								)}
 							/>
 						</InputOTPGroup>

@@ -6,55 +6,12 @@ import MyCrewCardMobile from "../MyCrewCardMobile"
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string, params?: { company?: string; name?: string }) => {
-			if (key === "interface:appList.powerBy")
-				return `powerBy ${params?.company ?? ""}`.trim()
-			if (key === "myCrewPage.footerPoweredByBrand") return "MagiCrew"
-			if (key === "myCrewPage.teamSharedCreatedBy")
-				return `createdBy ${params?.name ?? ""}`.trim()
-			return key
-		},
+		t: (key: string) => key,
 	}),
 }))
 
 vi.mock("@/components/other/SmartTooltip", () => ({
 	default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}))
-
-vi.mock("@/pages/superMagic/components/CardFooterBadge", () => ({
-	CardFooterBadge: ({
-		label,
-		className,
-		"data-testid": dataTestId,
-	}: {
-		label: string
-		className?: string
-		"data-testid"?: string
-	}) => (
-		<div className={className} data-testid={dataTestId}>
-			{label}
-		</div>
-	),
-}))
-
-vi.mock("@/pages/superMagic/components/CardFooterLabel", () => ({
-	CardFooterLabel: ({
-		label,
-		className,
-		dataTestId,
-	}: {
-		label: string
-		className?: string
-		dataTestId?: string
-	}) => (
-		<div className={className} data-testid={dataTestId}>
-			{label}
-		</div>
-	),
-}))
-
-vi.mock("@/pages/superMagic/components/CrewFallbackAvatar", () => ({
-	default: () => <div data-testid="crew-fallback-avatar" />,
 }))
 
 function createEmployee(overrides: Partial<MyCrewView> = {}) {
@@ -80,9 +37,9 @@ function createEmployee(overrides: Partial<MyCrewView> = {}) {
 }
 
 describe("MyCrewCardMobile", () => {
-	it("opens more actions without triggering card navigation", () => {
-		const onMoreClick = vi.fn()
+	it("opens details when tapping the card body", () => {
 		const onNavigate = vi.fn()
+		const onCardClick = vi.fn()
 		const employee = createEmployee()
 
 		render(
@@ -91,207 +48,105 @@ describe("MyCrewCardMobile", () => {
 				listVariant="created"
 				href="/crew/agent-1"
 				onNavigate={onNavigate}
-				onMoreClick={onMoreClick}
+				onCardClick={onCardClick}
 			/>,
 		)
 
-		fireEvent.click(screen.getByTestId("my-crew-card-mobile-more-trigger"))
+		fireEvent.click(screen.getByTestId("my-crew-card-mobile"))
 
-		expect(onMoreClick).toHaveBeenCalledWith(employee)
-		expect(onNavigate).not.toHaveBeenCalled()
+		expect(onNavigate).toHaveBeenCalled()
+		expect(onCardClick).toHaveBeenCalledWith(employee.agentCode)
 	})
 
-	it("uses desktop footer labels for created cards (unpublished)", () => {
+	it("does not trigger card details when tapping the chat button", () => {
+		const onCardClick = vi.fn()
+		const onChat = vi.fn()
+
 		render(
 			<MyCrewCardMobile
-				employee={createEmployee({
-					sourceType: "LOCAL_CREATE",
-					needUpgrade: false,
-					latestVersionCode: null,
-				})}
+				employee={createEmployee()}
+				listVariant="created"
+				href="/crew/agent-1"
+				onCardClick={onCardClick}
+				onChat={onChat}
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("my-crew-card-mobile-chat-button"))
+
+		expect(onChat).toHaveBeenCalledWith("agent-1")
+		expect(onCardClick).not.toHaveBeenCalled()
+	})
+
+	it("renders the simplified prototype content structure", () => {
+		render(
+			<MyCrewCardMobile
+				employee={createEmployee()}
+				listVariant="hired"
+				href="/crew/agent-1"
+			/>,
+		)
+
+		expect(screen.getByText("Crew Name")).toBeInTheDocument()
+		expect(screen.getByTestId("my-crew-card-mobile-role")).toHaveTextContent("Analyst")
+		expect(screen.getByText("Crew description")).toBeInTheDocument()
+		expect(screen.getByTestId("my-crew-card-mobile-chat-button")).toHaveTextContent(
+			"myCrewPage.openConversation",
+		)
+	})
+
+	it("shows generated initials when the remote avatar is unavailable", () => {
+		render(
+			<MyCrewCardMobile
+				employee={createEmployee({ icon: "" })}
 				listVariant="created"
 				href="/crew/agent-1"
 			/>,
 		)
 
-		expect(screen.getByTestId("my-crew-card-mobile-footer-created-by")).toHaveTextContent(
-			"myCrewPage.crewType.createdByMe",
+		expect(screen.getByTestId("my-crew-card-mobile-avatar-wrap")).toHaveTextContent("CN")
+	})
+
+	it("shows the market source badge for hired market cards", () => {
+		render(
+			<MyCrewCardMobile
+				employee={createEmployee({ sourceType: "MARKET", creatorName: null })}
+				listVariant="hired"
+				href="/my-crew"
+			/>,
 		)
-		expect(screen.getByTestId("my-crew-card-mobile-footer-badge")).toHaveTextContent(
-			"status.unpublished",
+
+		expect(screen.getByTestId("my-crew-card-mobile-source-market")).toHaveTextContent(
+			"myCrewPage.detailSheet.source.market",
 		)
 	})
 
-	it("uses version badge for created cards (published)", () => {
+	it("shows the team shared source badge for team-shared cards", () => {
 		render(
 			<MyCrewCardMobile
-				employee={createEmployee({
-					sourceType: "LOCAL_CREATE",
-					needUpgrade: false,
-					latestVersionCode: "v1.0.0",
-				})}
+				employee={createEmployee({ sourceType: "MARKET", creatorName: "Alice" })}
+				listVariant="team-shared"
+				href="/my-crew"
+			/>,
+		)
+
+		expect(screen.getByTestId("my-crew-card-mobile-source-teamShared")).toHaveTextContent(
+			"myCrewPage.detailSheet.source.team",
+		)
+	})
+
+	it("shows the upgrade badge when an employee needs an update", () => {
+		render(
+			<MyCrewCardMobile
+				employee={createEmployee({ needUpgrade: true })}
 				listVariant="created"
 				href="/crew/agent-1"
 			/>,
 		)
 
-		expect(screen.getByTestId("my-crew-card-mobile-footer-created-by")).toHaveTextContent(
-			"myCrewPage.crewType.createdByMe",
+		expect(screen.getByTestId("my-crew-card-mobile-upgrade-badge")).toHaveTextContent(
+			"myCrewPage.badgeUpdated",
 		)
-		expect(screen.getByTestId("my-crew-card-mobile-footer-badge")).toHaveTextContent("v1.0.0")
-	})
-
-	it("uses desktop footer labels for hired cards", () => {
-		render(
-			<MyCrewCardMobile
-				employee={createEmployee({
-					sourceType: "MARKET",
-					latestVersionCode: "v2.0.0",
-					publisherType: "USER",
-					publisherName: "Alice",
-				})}
-				listVariant="hired"
-				href="/crew/agent-1"
-			/>,
-		)
-
-		expect(screen.getByTestId("my-crew-card-mobile-footer-powered-by")).toHaveTextContent(
-			"powerBy Alice",
-		)
-		expect(screen.getByTestId("my-crew-card-mobile-footer-version-badge")).toHaveTextContent(
-			"v2.0.0",
-		)
-	})
-
-	it("does not show powered by fallback without publisher info", () => {
-		render(
-			<MyCrewCardMobile
-				employee={createEmployee({
-					sourceType: "MARKET",
-					latestVersionCode: "v2.0.0",
-					publisherType: null,
-					publisherName: null,
-				})}
-				listVariant="hired"
-				href="/crew/agent-1"
-			/>,
-		)
-
-		expect(
-			screen.queryByTestId("my-crew-card-mobile-footer-powered-by"),
-		).not.toBeInTheDocument()
-		expect(screen.queryByText(/powerBy/i)).not.toBeInTheDocument()
-	})
-
-	it("shows official builtin publisher in hired footer", () => {
-		render(
-			<MyCrewCardMobile
-				employee={createEmployee({
-					sourceType: "LOCAL_CREATE",
-					publisherType: "OFFICIAL_BUILTIN",
-					publisherName: null,
-				})}
-				listVariant="hired"
-				href="/crew/agent-1"
-			/>,
-		)
-
-		expect(screen.getByTestId("my-crew-card-mobile-official-publisher")).toHaveTextContent(
-			"employeeCard.officialBuiltin",
-		)
-		expect(screen.getByTestId("my-crew-card-mobile-disable-button")).toHaveTextContent(
-			"employeeCard.officialBuiltin",
-		)
-	})
-
-	it("shows official builtin label for official publisher actions", () => {
-		render(
-			<MyCrewCardMobile
-				employee={createEmployee({
-					sourceType: "LOCAL_CREATE",
-					publisherType: "OFFICIAL",
-					publisherName: null,
-					allowDelete: false,
-					enabled: true,
-				})}
-				listVariant="hired"
-				href="/crew/agent-1"
-			/>,
-		)
-
-		expect(screen.getByTestId("my-crew-card-mobile-disable-button")).toHaveTextContent(
-			"employeeCard.officialBuiltin",
-		)
-		expect(screen.getByTestId("my-crew-card-mobile-disable-button")).toBeDisabled()
-	})
-
-	it("renders disable action for non-store hired cards", () => {
-		render(
-			<MyCrewCardMobile
-				employee={createEmployee({
-					sourceType: "LOCAL_CREATE",
-					allowDelete: true,
-					enabled: false,
-				})}
-				listVariant="hired"
-				href="/crew/agent-1"
-			/>,
-		)
-
-		expect(screen.getByTestId("my-crew-card-mobile-disable-button")).toHaveTextContent(
-			"myCrewPage.disable",
-		)
-		expect(screen.getByTestId("my-crew-card-mobile-disable-button")).toBeDisabled()
-	})
-
-	it("shows team shared creator label for team-shared list", () => {
-		render(
-			<MyCrewCardMobile
-				employee={createEmployee({ creatorName: "Alice" })}
-				listVariant="team-shared"
-				href="/crew/agent-1"
-			/>,
-		)
-
-		expect(screen.getByTestId("my-crew-card-mobile-team-shared-creator")).toHaveTextContent(
-			"createdBy Alice",
-		)
-	})
-
-	it("omits team shared creator and created-by fallback when creator name is absent", () => {
-		render(
-			<MyCrewCardMobile
-				employee={createEmployee({ creatorName: null })}
-				listVariant="team-shared"
-				href="/crew/agent-1"
-			/>,
-		)
-
-		expect(
-			screen.queryByTestId("my-crew-card-mobile-team-shared-creator"),
-		).not.toBeInTheDocument()
-		expect(
-			screen.queryByTestId("my-crew-card-mobile-footer-created-by"),
-		).not.toBeInTheDocument()
-	})
-
-	it("uses team shared label for shared hired cards", () => {
-		render(
-			<MyCrewCardMobile
-				employee={createEmployee({
-					sourceType: "LOCAL_CREATE",
-					allowDelete: false,
-					enabled: true,
-				})}
-				listVariant="hired"
-				href="/crew/agent-1"
-			/>,
-		)
-
-		expect(screen.getByTestId("my-crew-card-mobile-disable-button")).toHaveTextContent(
-			"myCrewPage.sharedByTeamAction",
-		)
-		expect(screen.getByTestId("my-crew-card-mobile-disable-button")).toBeDisabled()
 	})
 
 	it("shows edit entry for team-shared editors", () => {

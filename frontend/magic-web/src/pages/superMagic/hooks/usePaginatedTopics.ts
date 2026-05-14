@@ -29,6 +29,12 @@ interface UsePaginatedTopicsResult {
 	total: number
 	isLoading: boolean
 	isReloading: boolean
+	/** 是否还有更多话题可加载 */
+	hasMore: boolean
+	/** 当前已加载到第几页 */
+	currentPage: number
+	/** 加载下一页话题，供 InfiniteScroll 调用 */
+	loadMore: () => Promise<void>
 	reload: () => void
 	reset: () => void
 }
@@ -134,6 +140,10 @@ function usePaginatedTopics({
 	)
 	const [isReloading, setIsReloading] = useState(false)
 	const [reloadSeed, setReloadSeed] = useState(0)
+	// 当前已成功加载到第几页（1 为初始页）
+	const [currentPage, setCurrentPage] = useState(1)
+	// 是否正在加载更多（加载页 2+），避免与初始加载的 isLoading 混淆
+	const [isLoadingMore, setIsLoadingMore] = useState(false)
 
 	const getService = useCallback(() => topicServiceRef.current || SuperMagicService.topic, [])
 
@@ -289,6 +299,8 @@ function usePaginatedTopics({
 
 	const reload = useCallback(() => {
 		setIsReloading(true)
+		// 重置到第 1 页后触发重新加载
+		setCurrentPage(1)
 		setReloadSeed((previousValue) => previousValue + 1)
 	}, [])
 
@@ -296,13 +308,50 @@ function usePaginatedTopics({
 		injectedTopicIdsRef.current.clear()
 		setRemoteTopics([])
 		setTotal(0)
+		setCurrentPage(1)
 	}, [])
+
+	/**
+	 * 加载下一页话题并追加到现有列表，供 InfiniteScroll 回调使用。
+	 * 搜索态下禁止加载更多，保持一次性全量搜索行为。
+	 */
+	const loadMore = useCallback(async () => {
+		if (!projectId || isLoading || isLoadingMore || searchKeyword.trim()) return
+		const nextPage = currentPage + 1
+		setIsLoadingMore(true)
+
+		try {
+			const service = getService()
+			const response = await service.getSidebarTopicsByProjectId({
+				projectId,
+				page: nextPage,
+				pageSize,
+				searchKeyword: "",
+			})
+			const newTopics = (Array.isArray(response.list) ? response.list : []).map(
+				normalizeTopicHistoryItem,
+			)
+			setRemoteTopics((prev) => [...prev, ...newTopics])
+			setTotal(response.total)
+			setCurrentPage(nextPage)
+		} catch (error) {
+			console.error("加载更多话题失败:", error)
+		} finally {
+			setIsLoadingMore(false)
+		}
+	}, [projectId, isLoading, isLoadingMore, searchKeyword, currentPage, pageSize, getService])
+
+	// 是否还有更多话题：远端 total 大于当前已加载的 remoteTopics 数量
+	const hasMore = !searchKeyword.trim() && remoteTopics.length < resolvedTotal
 
 	return {
 		displayTopics,
 		total: resolvedTotal,
 		isLoading,
 		isReloading,
+		hasMore,
+		currentPage,
+		loadMore,
 		reload,
 		reset,
 	}

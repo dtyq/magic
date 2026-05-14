@@ -16,6 +16,8 @@ interface Tab<T = string> {
 	/** Tooltip 提示文本 */
 	tooltip?: string
 	"data-testid"?: string
+	/** 兼容一下两个写法 */
+	testId?: string
 }
 
 type IndicatorVariant = "underline" | "background"
@@ -25,6 +27,8 @@ interface SmoothTabsProps<T = string> {
 	value: T
 	onChange: (value: T) => void
 	className?: string
+	/** 根节点测试选择器，便于页面级 E2E 定位整个 tab 组 */
+	"data-testid"?: string
 	/** 指示器样式变体，默认为 underline（底部边框） */
 	variant?: IndicatorVariant
 	/** 自定义指示器类名 */
@@ -40,6 +44,7 @@ function SmoothTabsComponent<T = string>({
 	value,
 	onChange,
 	className,
+	"data-testid": dataTestId,
 	variant = "underline",
 	indicatorClassName,
 	buttonClassName,
@@ -124,7 +129,8 @@ function SmoothTabsComponent<T = string>({
 					onClick={() => handleTabClick(tab.value)}
 					onMouseEnter={() => handleMouseEnter(index)}
 					onMouseLeave={handleMouseLeave}
-					data-testid={tab["data-testid"]}
+					data-state={isActive ? "active" : "inactive"}
+					data-testid={tab["data-testid"] ?? tab.testId}
 					className={cn(
 						"relative z-10 flex h-full flex-1 cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg px-3.5 py-1 text-sm font-medium transition-colors",
 						"focus-visible:outline-none",
@@ -211,6 +217,7 @@ function SmoothTabsComponent<T = string>({
 	return (
 		<div
 			ref={containerRef}
+			data-testid={dataTestId}
 			className={cn("relative inline-flex h-10 items-center rounded-[10px] p-0", className)}
 		>
 			{indicatorStyle.initialized && (

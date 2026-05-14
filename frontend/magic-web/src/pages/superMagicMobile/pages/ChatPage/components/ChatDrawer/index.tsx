@@ -4,24 +4,27 @@ import { Sheet, SheetContent, SheetHeader } from "@/components/shadcn-ui/sheet"
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
 import workspaceStore from "@/pages/superMagic/stores/core/workspace"
 import { useTranslation } from "react-i18next"
+import { useMemoizedFn } from "ahooks"
+import { ActionDrawer } from "@/components/shadcn-composed/action-drawer"
+import { Button } from "@/components/shadcn-ui/button"
+import DeleteDangerModal from "@/components/business/DeleteDangerModal"
+import magicToast from "@/components/base/MagicToaster/utils"
+import SuperMagicService from "@/pages/superMagic/services"
+import projectStore from "@/pages/superMagic/stores/core/project"
+import { roleStore } from "@/pages/superMagic/stores"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import type { Workspace, ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
+import { useSharedWorkspace } from "@/pages/superMagic/hooks/useSharedWorkspace"
+import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
+import ActionsPopupComponent from "@/pages/superMagicMobile/components/ActionsPopup"
+import type { ActionButtonConfig } from "@/pages/superMagicMobile/components/ActionsPopup/types"
+import RenameModal from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup/components/ActionModals/RenameModal"
 import type { ChatDrawerProps } from "./types"
-import { MOCK_CHATS } from "./constants"
 import SwipeableChatItem from "./SwipeableChatItem"
 import WorkspaceItemMobile from "./WorkspaceItemMobile"
 import DrawerFooter from "./DrawerFooter"
-import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
-import { useMemoizedFn } from "ahooks"
-import ActionsPopupComponent from "@/pages/superMagicMobile/components/ActionsPopup"
-import RenameModal from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup/components/ActionModals/RenameModal"
-import type { Workspace, ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
-import DeleteDangerModal from "@/components/business/DeleteDangerModal"
-import SuperMagicService from "@/pages/superMagic/services"
-import magicToast from "@/components/base/MagicToaster/utils"
-import type { ActionButtonConfig } from "@/pages/superMagicMobile/components/ActionsPopup/types"
-import { ActionDrawer } from "@/components/shadcn-composed/action-drawer"
-import { Button } from "@/components/shadcn-ui/button"
-import { useSharedWorkspace } from "@/pages/superMagic/hooks/useSharedWorkspace"
-import projectStore from "@/pages/superMagic/stores/core/project"
+import MagicPopup from "@/components/base-mobile/MagicPopup"
+import { X, Check } from "lucide-react"
 
 enum ChatDrawerTab {
 	Chats = "chats",
@@ -35,66 +38,107 @@ interface ActionItem {
 	project?: ProjectListItem
 }
 
-const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: ChatDrawerProps) => {
+function ChatDrawer({
+	open,
+	onClose,
+	hierarchicalWorkspacePopupRef,
+	chatWorkspace,
+	chatProjects,
+	isLoadingChatWorkspace = false,
+	isLoadingChatProjects = false,
+	refreshChatProjects,
+	createProjectInChatWorkspace,
+}: ChatDrawerProps) {
 	const { t } = useTranslation("super")
 
 	const workspaces = workspaceStore.workspaces
 	const selectedWorkspace = workspaceStore.selectedWorkspace
+	const currentRole = roleStore.currentRole
 
-	const { projectActionComponents, openActionsPopup } = useProjectListActions()
 	const { getSharedWorkspaceData } = useSharedWorkspace()
 
-	const [activeTab, setActiveTab] = useState(ChatDrawerTab.Workspaces)
-	const [activeItemId, setActiveItemId] = useState<string | null>(null)
+	const [activeTab, setActiveTab] = useState(ChatDrawerTab.Chats)
+	const [swipedChatId, setSwipedChatId] = useState<string | null>(null)
 	const [expandedWorkspaceId, setExpandedWorkspaceId] = useState<string | null>(null)
-	/** 全局唯一左滑展开的项目 ID，统一在此层管理以支持跨组件互斥收起 */
 	const [swipedProjectId, setSwipedProjectId] = useState<string | null>(null)
-
-	/**
-	 * 记录"touchStart 触发时是否存在左滑项"。
-	 *
-	 * 问题根源：handleProjectDragStart 在 touchStart 时就调用 setSwipedProjectId(null)，
-	 * 导致 click 事件到达时 swipedProjectId 已经是 null，onClickCapture 拦截条件失效。
-	 * 通过 ref 在 touchStart 时同步保存快照，使 click 阶段仍能感知到"曾有左滑项"。
-	 */
-	const hadSwipeOnTouchStartRef = useRef(false)
-
-	// 抽屉关闭时重置所有左滑状态
-	useEffect(() => {
-		if (!open) {
-			setSwipedProjectId(null)
-			hadSwipeOnTouchStartRef.current = false
-		}
-	}, [open])
-
-	/**
-	 * 由 WorkspaceItemMobile 在某个项目 touchStart 时同步调用（在 setSwipedProjectId 之前）。
-	 * 此时 swipedProjectId 闭包值仍为旧的非 null 值，可以正确设置快照。
-	 */
-	const handleGlobalProjectDragStart = useMemoizedFn(() => {
-		hadSwipeOnTouchStartRef.current = swipedProjectId !== null
-	})
-
-	/**
-	 * 捕获阶段拦截点击事件：检查 swipedProjectId 状态或 hadSwipeOnTouchStartRef 快照，
-	 * 首次点击仅收起操作按钮并消费该点击，不执行任何子元素的 onClick。
-	 */
-	const handleContentClickCapture = useMemoizedFn((e: React.MouseEvent) => {
-		const hadSwipe = swipedProjectId !== null || hadSwipeOnTouchStartRef.current
-		hadSwipeOnTouchStartRef.current = false
-		if (hadSwipe) {
-			// 操作按钮本身的点击不拦截，允许正常执行
-			const target = e.target as HTMLElement
-			if (target.closest("[data-swipe-actions]")) return
-			setSwipedProjectId(null)
-			e.stopPropagation()
-		}
-	})
 	const [workspaceActionsPopupVisible, setWorkspaceActionsPopupVisible] = useState(false)
 	const [renameModalVisible, setRenameModalVisible] = useState(false)
 	const [currentActionItem, setCurrentActionItem] = useState<ActionItem | null>(null)
 	const [projectDeleteModalVisible, setProjectDeleteModalVisible] = useState(false)
 	const [workspaceDeleteModalVisible, setWorkspaceDeleteModalVisible] = useState(false)
+	const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState(false)
+
+	const hadSwipeOnTouchStartRef = useRef(false)
+
+	const chatItems = chatProjects.map((project) => ({
+		id: project.id,
+		title: project.project_name || t("chat.unnamedChat"),
+		subtitle: project.updated_at || project.created_at,
+		isPinned: project.is_pinned,
+	}))
+
+	const isChatProjectsLoading = isLoadingChatProjects || isLoadingChatWorkspace
+
+	useEffect(() => {
+		if (!open) {
+			setSwipedChatId(null)
+			setSwipedProjectId(null)
+			hadSwipeOnTouchStartRef.current = false
+		}
+	}, [open])
+
+	const ensureWorkspacesLoaded = useMemoizedFn(async () => {
+		if (workspaceStore.workspaces.length > 0) return workspaceStore.workspaces
+
+		setIsLoadingWorkspaces(true)
+		try {
+			return await SuperMagicService.workspace.fetchWorkspaces(
+				{
+					isAutoSelect: false,
+					isSelectLast: false,
+					page: 1,
+				},
+				{ enableErrorMessagePrompt: false },
+			)
+		} finally {
+			setIsLoadingWorkspaces(false)
+		}
+	})
+
+	const {
+		projectActionComponents: chatProjectActionComponents,
+		openActionsPopup: openChatActionsPopup,
+	} = useProjectListActions({
+		mode: "chat",
+		onProjectChanged: refreshChatProjects,
+	})
+
+	const { projectActionComponents, openActionsPopup } = useProjectListActions()
+
+	useEffect(() => {
+		if (!open || activeTab !== ChatDrawerTab.Workspaces) return
+		if (workspaceStore.workspaces.length > 0) return
+
+		void ensureWorkspacesLoaded()
+	}, [open, activeTab, ensureWorkspacesLoaded])
+
+	const handleGlobalSwipeDragStart = useMemoizedFn(() => {
+		hadSwipeOnTouchStartRef.current = swipedProjectId !== null || swipedChatId !== null
+	})
+
+	const handleContentClickCapture = useMemoizedFn((e: React.MouseEvent) => {
+		const hadSwipe =
+			swipedChatId !== null || swipedProjectId !== null || hadSwipeOnTouchStartRef.current
+		hadSwipeOnTouchStartRef.current = false
+		if (!hadSwipe) return
+
+		const target = e.target as HTMLElement
+		if (target.closest("[data-swipe-actions]")) return
+
+		setSwipedChatId(null)
+		setSwipedProjectId(null)
+		e.stopPropagation()
+	})
 
 	const closeActionsPopup = useMemoizedFn(() => {
 		setWorkspaceActionsPopupVisible(false)
@@ -104,35 +148,90 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 		setWorkspaceActionsPopupVisible(false)
 	})
 
-	function handleSwipeStart(id: string) {
-		setActiveItemId(id)
+	function handleChatSwipe(id: string, isSwiped: boolean) {
+		setSwipedChatId(isSwiped ? id : null)
 	}
 
-	const handleChatActions = useMemoizedFn((id: string) => {
-		console.log("More:", id)
+	function handleChatDragStart(id: string) {
+		handleGlobalSwipeDragStart()
+
+		if (swipedProjectId !== null) {
+			setSwipedProjectId(null)
+		}
+
+		if (swipedChatId !== null && swipedChatId !== id) {
+			setSwipedChatId(null)
+		}
+	}
+
+	const handleOpenChat = useMemoizedFn(async (id: string) => {
+		const project = chatProjects.find((item) => item.id === id)
+		if (!project) return
+
+		onClose()
+		if (chatWorkspace) workspaceStore.setSelectedWorkspace(chatWorkspace)
+
+		await SuperMagicService.switchChatProject(project)
 	})
 
-	const handleChatPin = useMemoizedFn((id: string) => {
-		console.log("Pin:", id)
+	const handleChatActions = useMemoizedFn((id: string) => {
+		const project = chatProjects.find((item) => item.id === id)
+		if (!project) return
+
+		openChatActionsPopup(project)
+	})
+
+	const handleChatPin = useMemoizedFn(async (id: string) => {
+		const project = chatProjects.find((item) => item.id === id)
+		if (!project || !chatWorkspace?.id) return
+
+		const isPin = !project.is_pinned
+
+		try {
+			await SuperMagicService.project.pinProject(project, isPin)
+			await refreshChatProjects()
+			magicToast.success(isPin ? t("chat.pinChatSuccess") : t("chat.unpinChatSuccess"))
+		} catch {
+			magicToast.error(isPin ? t("chat.pinChatFailed") : t("chat.unpinChatFailed"))
+		}
 	})
 
 	const handleChatDelete = useMemoizedFn((id: string) => {
-		console.log("Delete:", id)
+		const project = chatProjects.find((item) => item.id === id)
+		if (!project) return
+
+		setCurrentActionItem({ type: "project", project })
+		setSwipedChatId(null)
+		setProjectDeleteModalVisible(true)
 	})
 
-	const handleNewChat = useMemoizedFn(() => {
-		console.log("New Chat clicked")
-		// TODO: 实现新建对话逻辑
+	const handleNewChat = useMemoizedFn(async () => {
+		try {
+			const createdProject = await createProjectInChatWorkspace({
+				projectMode: currentRole || TopicMode.General,
+			})
+
+			if (!createdProject?.project || !createdProject.topic) {
+				magicToast.error(t("hierarchicalWorkspacePopup.createProjectFailed"))
+				return
+			}
+
+			if (chatWorkspace?.id) {
+				workspaceStore.setSelectedWorkspace(chatWorkspace)
+				void refreshChatProjects()
+			}
+
+			onClose()
+			await SuperMagicService.switchChatProject(createdProject.project, createdProject.topic)
+		} catch {
+			magicToast.error(t("hierarchicalWorkspacePopup.createProjectFailed"))
+		}
 	})
 
 	const handleSharedWorkspace = useMemoizedFn(() => {
-		// 获取共享工作区数据
 		const sharedWorkspace = getSharedWorkspaceData()
-
-		// 关闭当前抽屉
 		onClose()
 
-		// 打开 HierarchicalWorkspacePopup 并导航到共享工作区（隐藏返回按钮）
 		if (hierarchicalWorkspacePopupRef?.current?.showAndNavigateToWorkspace) {
 			hierarchicalWorkspacePopupRef.current.showAndNavigateToWorkspace(sharedWorkspace, {
 				hideBackButton: true,
@@ -141,7 +240,6 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 	})
 
 	const handleNewWorkspace = useMemoizedFn(() => {
-		// 打开创建工作区弹窗
 		if (hierarchicalWorkspacePopupRef?.current?.openCreateWorkspaceModal) {
 			hierarchicalWorkspacePopupRef.current.openCreateWorkspaceModal()
 		}
@@ -150,36 +248,35 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 	const handleNewProject = useMemoizedFn(async (workspace: Workspace) => {
 		try {
 			onClose()
-
 			await SuperMagicService.createProjectAndActivateInMobile(workspace.id)
-
-			projectStore.loadProjectsForWorkspace(workspace.id, true, true)
-
+			void projectStore.loadProjectsForWorkspace(workspace.id, true, true)
 			magicToast.success(t("hierarchicalWorkspacePopup.createProjectSuccess"))
-		} catch (error) {
+		} catch {
 			magicToast.error(t("hierarchicalWorkspacePopup.createProjectFailed"))
 		}
 	})
 
 	const handleRenameInputChange = useMemoizedFn((val: string) => {
-		if (currentActionItem?.type === "workspace") {
-			setCurrentActionItem((pre) => {
-				if (!pre || pre.type !== "workspace" || !pre.workspace) return pre
-				return {
-					...pre,
-					workspace: {
-						...pre.workspace,
-						name: val,
-					},
-				} as typeof pre
-			})
-		}
+		if (currentActionItem?.type !== "workspace" || !currentActionItem.workspace) return
+
+		setCurrentActionItem((prev) => {
+			if (!prev || prev.type !== "workspace" || !prev.workspace) return prev
+
+			return {
+				...prev,
+				workspace: {
+					...prev.workspace,
+					name: val,
+				},
+			}
+		})
 	})
 
-	// 处理工作区重命名
 	const handleRenameWorkspace = useMemoizedFn(async () => {
 		if (!currentActionItem?.workspace?.id) return
+
 		const workspace = currentActionItem.workspace
+
 		try {
 			await SuperMagicService.workspace.renameWorkspaceWithRefresh(
 				workspace.id,
@@ -194,9 +291,9 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 		}
 	})
 
-	// 处理工作区删除
 	const handleDeleteWorkspaceConfirm = useMemoizedFn((workspace?: Workspace) => {
 		if (!workspace) return
+
 		closeActionsPopup()
 		setWorkspaceDeleteModalVisible(true)
 	})
@@ -204,37 +301,36 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 	const handleDeleteWorkspaceSubmit = useMemoizedFn(async () => {
 		const workspace = currentActionItem?.workspace
 		if (!workspace) return
+
 		await SuperMagicService.deleteWorkspace(workspace.id)
 	})
 
-	// 处理项目删除
 	const handleProjectDelete = useMemoizedFn((project?: ProjectListItem) => {
 		if (!project) return
+
 		setCurrentActionItem({ type: "project", project })
 		setProjectDeleteModalVisible(true)
 	})
 
-	// 处理项目删除
 	const handleDeleteProjectConfirm = useMemoizedFn(async () => {
 		const project = currentActionItem?.project
 		if (!project) return
+
 		await SuperMagicService.deleteProject(project)
-		magicToast.success(t("hierarchicalWorkspacePopup.deleteProjectSuccess"))
+		await refreshChatProjects()
+		magicToast.success(t("chat.deleteChatSuccess"))
 		setProjectDeleteModalVisible(false)
 	})
 
-	// 处理工作区展开/折叠
 	const handleWorkspaceToggle = useMemoizedFn((workspaceId: string) => {
 		setExpandedWorkspaceId((prev) => (prev === workspaceId ? null : workspaceId))
 	})
 
-	// 处理工作区操作
 	const handleWorkspaceActions = useMemoizedFn((workspace: Workspace) => {
 		setCurrentActionItem({ type: "workspace", workspace })
 		setWorkspaceActionsPopupVisible(true)
 	})
 
-	// 处理项目操作
 	const handleProjectActions = useMemoizedFn((project: ProjectListItem) => {
 		openActionsPopup(project)
 	})
@@ -270,23 +366,27 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 					className="z-drawer w-80 gap-0 px-0 !pb-safe-bottom pt-safe-top"
 					showClose={false}
 					overlayClassName="z-drawer backdrop-blur-sm"
+					data-testid="chat-drawer-content"
 				>
 					<SheetHeader className="shrink-0 px-3 pb-2">
 						<Tabs
 							value={activeTab}
 							onValueChange={(value) => setActiveTab(value as ChatDrawerTab)}
 							className="w-full"
+							data-testid="chat-drawer-tabs"
 						>
 							<TabsList className="h-9 w-full cursor-pointer gap-0 bg-muted p-[3px]">
-								{/* <TabsTrigger
+								<TabsTrigger
 									value={ChatDrawerTab.Chats}
 									className="flex-1 text-sm font-medium"
+									data-testid="chat-drawer-chats-tab"
 								>
 									{t("common.chats")}
-								</TabsTrigger> */}
+								</TabsTrigger>
 								<TabsTrigger
 									value={ChatDrawerTab.Workspaces}
 									className="flex-1 text-sm font-medium"
+									data-testid="chat-drawer-workspaces-tab"
 								>
 									{t("workspace.workspaces")}
 								</TabsTrigger>
@@ -294,52 +394,85 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 						</Tabs>
 					</SheetHeader>
 
-					{/* 主内容区域：onClickCapture 在捕获阶段拦截点击，收起左滑操作按钮 */}
 					<div
 						className="flex min-h-0 flex-1 flex-col overflow-y-auto"
 						onClickCapture={handleContentClickCapture}
 					>
-						{activeTab === ChatDrawerTab.Chats &&
-							MOCK_CHATS.map((item) => (
-								<SwipeableChatItem
-									key={item.id}
-									item={item}
-									isActive={activeItemId === item.id}
-									onSwipeStart={handleSwipeStart}
-									onMore={handleChatActions}
-									onPin={handleChatPin}
-									onDelete={handleChatDelete}
-								/>
-							))}
+						{activeTab === ChatDrawerTab.Chats && (
+							<div
+								className="flex w-full flex-col"
+								data-testid="chat-drawer-chats-list"
+							>
+								{isChatProjectsLoading ? (
+									<div
+										className="flex items-center justify-center py-20 text-sm text-muted-foreground"
+										data-testid="chat-drawer-chats-loading"
+									>
+										{t("common.loading")}
+									</div>
+								) : chatItems.length > 0 ? (
+									chatItems.map((item) => (
+										<SwipeableChatItem
+											key={item.id}
+											item={item}
+											isSwiped={swipedChatId === item.id}
+											onSwipeChange={(isSwiped) =>
+												handleChatSwipe(item.id, isSwiped)
+											}
+											onSwipeStart={handleChatDragStart}
+											onClick={handleOpenChat}
+											onMore={handleChatActions}
+											onPin={handleChatPin}
+											onDelete={handleChatDelete}
+										/>
+									))
+								) : (
+									<div
+										className="flex items-center justify-center py-20 text-sm text-muted-foreground"
+										data-testid="chat-drawer-chats-empty"
+									>
+										{t("chat.noChats")}
+									</div>
+								)}
+							</div>
+						)}
 
 						{activeTab === ChatDrawerTab.Workspaces && (
-							<>
-								{workspaces.length > 0 ? (
-									<>
-										{workspaces.map((workspace) => (
-											<WorkspaceItemMobile
-												key={workspace.id}
-												workspace={workspace}
-												isActive={selectedWorkspace?.id === workspace.id}
-												isExpanded={expandedWorkspaceId === workspace.id}
-												swipedProjectId={swipedProjectId}
-												onProjectSwipeChange={setSwipedProjectId}
-												onProjectDragStart={handleGlobalProjectDragStart}
-												onToggle={() => handleWorkspaceToggle(workspace.id)}
-												onWorkspaceActions={handleWorkspaceActions}
-												onProjectActions={handleProjectActions}
-												onProjectDelete={handleProjectDelete}
-												onNewProject={handleNewProject}
-												onDrawerClose={onClose}
-											/>
-										))}
-									</>
+							<div data-testid="chat-drawer-workspaces-list">
+								{isLoadingWorkspaces ? (
+									<div
+										className="flex items-center justify-center py-20 text-sm text-muted-foreground"
+										data-testid="chat-drawer-workspaces-loading"
+									>
+										{t("common.loading")}
+									</div>
+								) : workspaces.length > 0 ? (
+									workspaces.map((workspace) => (
+										<WorkspaceItemMobile
+											key={workspace.id}
+											workspace={workspace}
+											isActive={selectedWorkspace?.id === workspace.id}
+											isExpanded={expandedWorkspaceId === workspace.id}
+											swipedProjectId={swipedProjectId}
+											onProjectSwipeChange={setSwipedProjectId}
+											onProjectDragStart={handleGlobalSwipeDragStart}
+											onToggle={() => handleWorkspaceToggle(workspace.id)}
+											onWorkspaceActions={handleWorkspaceActions}
+											onProjectActions={handleProjectActions}
+											onProjectDelete={handleProjectDelete}
+											onNewProject={handleNewProject}
+											onDrawerClose={onClose}
+										/>
+									))
 								) : (
-									<div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
+									<div
+										className="flex items-center justify-center py-20 text-sm text-muted-foreground"
+										data-testid="chat-drawer-workspaces-empty"
+									>
 										{t("workspace.noWorkspaces")}
 									</div>
 								)}
-							</>
+							</div>
 						)}
 					</div>
 
@@ -381,35 +514,33 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 				}}
 			/>
 
-			<ActionDrawer
-				open={projectDeleteModalVisible}
-				onOpenChange={(open) => setProjectDeleteModalVisible(open)}
-				title={t("hierarchicalWorkspacePopup.deleteProject")}
-				showCancel={false}
+			<MagicPopup
+				visible={projectDeleteModalVisible}
+				onClose={() => setProjectDeleteModalVisible(false)}
+				position="bottom"
+				headerVariant="actionHeader"
+				headerTitle={t("ui.deleteProjectConfirmTitle")}
+				headerLeadingAction={{
+					icon: <X className="size-[22px] text-foreground" />,
+					ariaLabel: t("common.cancel"),
+					onClick: () => setProjectDeleteModalVisible(false),
+				}}
+				headerTrailingAction={{
+					icon: <Check className="size-[22px] text-white" strokeWidth={2.5} />,
+					ariaLabel: t("common.confirm"),
+					onClick: handleDeleteProjectConfirm,
+					tone: "destructive",
+				}}
+				bodyClassName="max-h-[80vh] p-0"
 			>
-				<div className="text-sm text-foreground">
-					{t("ui.deleteProjectConfirm", {
-						name:
-							currentActionItem?.project?.project_name || t("project.unnamedProject"),
-					})}
+				<div className="scrollbar-y-thin flex min-h-0 flex-col overflow-y-auto px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
+					<p className="mx-auto max-w-[680px] text-left text-[16px] leading-6 text-muted-foreground">
+						{t("ui.deleteProjectDescription", {
+							name: currentActionItem?.project?.project_name || t("chat.unnamedChat"),
+						})}
+					</p>
 				</div>
-				<div className="flex gap-1.5 pt-1">
-					<Button
-						variant="outline"
-						className="h-9 shrink-0 rounded-lg px-8"
-						onClick={() => setProjectDeleteModalVisible(false)}
-					>
-						{t("common.cancel")}
-					</Button>
-					<Button
-						variant="destructive"
-						className="h-9 flex-1 rounded-lg"
-						onClick={handleDeleteProjectConfirm}
-					>
-						{t("common.confirm")}
-					</Button>
-				</div>
-			</ActionDrawer>
+			</MagicPopup>
 
 			{workspaceDeleteModalVisible && currentActionItem?.workspace && (
 				<DeleteDangerModal
@@ -420,9 +551,10 @@ const ChatDrawer = observer(({ open, onClose, hierarchicalWorkspacePopupRef }: C
 				/>
 			)}
 
+			{chatProjectActionComponents}
 			{projectActionComponents}
 		</>
 	)
-})
+}
 
-export default ChatDrawer
+export default observer(ChatDrawer)
