@@ -11,19 +11,9 @@ use App\Application\Kernel\AbstractKernelAppService;
 use App\Domain\Chat\DTO\Message\Common\MessageExtra\SuperAgent\SuperAgentExtra;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
-use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfigCandidate;
-use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
-use App\Domain\Provider\Entity\ProviderConfigEntity;
-use App\Domain\Provider\Entity\ProviderModelEntity;
-use App\Domain\Provider\Entity\ValueObject\ProviderCode;
-use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
-use App\Domain\Provider\Entity\ValueObject\Status;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
-use App\Domain\Provider\Service\ProviderConfigDomainService;
-use App\Domain\Provider\Service\ProviderModelDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
-use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
@@ -31,8 +21,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectMemberDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
-use Hyperf\Logger\LoggerFactory;
-use Throwable;
 
 class AbstractAppService extends AbstractKernelAppService
 {
@@ -101,45 +89,22 @@ class AbstractAppService extends AbstractKernelAppService
     /**
      * @return null|array<string, mixed>
      */
-    protected function resolveVideoModelConfig(?array $videoModel): ?array
+    protected function resolveVideoModelConfig(?array $videoModel, ?DataIsolation $dataIsolation = null): ?array
     {
-        if ($videoModel === null) {
-            return null;
-        }
-
-        $modelId = $this->extractVideoModelId($videoModel);
-        if ($modelId === '') {
-            return $videoModel;
-        }
-
-        if (is_array($videoModel['video_generation_config'] ?? null)) {
-            $videoModel['model_id'] = $modelId;
-            return $videoModel;
-        }
-
-        $videoGenerationConfig = $this->findVideoGenerationConfig($modelId);
-        if ($videoGenerationConfig === null) {
-            $videoModel['model_id'] = $modelId;
-            return $videoModel;
-        }
-
-        return [
-            'model_id' => $modelId,
-            'video_generation_config' => $videoGenerationConfig,
-        ];
+        return di(VideoModelConfigResolver::class)->resolve($videoModel, $dataIsolation);
     }
 
     /**
      * @param null|array<string, mixed> $extraData
      * @return null|array<string, mixed>
      */
-    protected function appendVideoModelExtraData(?array $extraData, ?SuperAgentExtra $extra): ?array
+    protected function appendVideoModelExtraData(?array $extraData, ?SuperAgentExtra $extra, ?DataIsolation $dataIsolation = null): ?array
     {
         if ($extra === null) {
             return $extraData;
         }
 
-        $videoModel = $this->resolveVideoModelConfig($extra->getVideoModel());
+        $videoModel = $this->resolveVideoModelConfig($extra->getVideoModel(), $dataIsolation);
         if ($videoModel === null) {
             return $extraData;
         }
@@ -161,7 +126,7 @@ class AbstractAppService extends AbstractKernelAppService
             return $taskContext;
         }
 
-        $videoModel = $this->resolveVideoModelConfig($extra->getVideoModel());
+        $videoModel = $this->resolveVideoModelConfig($extra->getVideoModel(), $taskContext->getDataIsolation());
         if ($videoModel === null) {
             return $taskContext;
         }
@@ -247,110 +212,5 @@ class AbstractAppService extends AbstractKernelAppService
             }
         }
         ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_ACCESS_DENIED);
-    }
-
-    /**
-     * @return null|array<string, mixed>
-     */
-    private function findVideoGenerationConfig(string $modelId): ?array
-    {
-        try {
-            $candidates = $this->buildVideoGenerationConfigCandidates($modelId);
-            if ($candidates === []) {
-                return null;
-            }
-
-            $videoGenerationConfigDomainService = di(VideoGenerationConfigDomainService::class);
-            $featuredConfigs = $videoGenerationConfigDomainService->resolveFeatured($candidates);
-            return $featuredConfigs[$modelId]?->toArray() ?? null;
-        } catch (Throwable $throwable) {
-            di(LoggerFactory::class)->get(static::class)->warning('Failed to resolve video generation config, fallback to model_id only', [
-                'model_id' => $modelId,
-                'error' => $throwable->getMessage(),
-                'exception' => $throwable::class,
-            ]);
-            return null;
-        }
-    }
-
-    /**
-     * @return list<VideoGenerationConfigCandidate>
-     */
-    private function buildVideoGenerationConfigCandidates(string $modelId): array
-    {
-        $providerDataIsolation = new ProviderDataIsolation(OfficialOrganizationUtil::getOfficialOrganizationCode());
-        $providerModelDomainService = di(ProviderModelDomainService::class);
-        $groupedModels = $providerModelDomainService->getModelsByModelIds($providerDataIsolation, [$modelId]);
-        $providerModels = $groupedModels[$modelId] ?? [];
-        if ($providerModels === []) {
-            return [];
-        }
-
-        $providerConfigs = $this->getProviderConfigs($providerDataIsolation, $providerModels);
-        $candidates = [];
-        foreach ($providerModels as $providerModel) {
-            if (! $this->isProviderModelAvailable($providerModel, $providerConfigs)) {
-                continue;
-            }
-
-            $providerConfig = $providerConfigs[$providerModel->getServiceProviderConfigId()] ?? null;
-            $providerCode = $providerConfig?->getProviderCode();
-            if (! $providerCode instanceof ProviderCode) {
-                continue;
-            }
-
-            $candidates[] = new VideoGenerationConfigCandidate(
-                modelId: $modelId,
-                modelVersion: $providerModel->getModelVersion(),
-                providerCode: $providerCode,
-            );
-        }
-
-        return $candidates;
-    }
-
-    /**
-     * @param list<ProviderModelEntity> $providerModels
-     * @return array<int, ProviderConfigEntity>
-     */
-    private function getProviderConfigs(ProviderDataIsolation $dataIsolation, array $providerModels): array
-    {
-        $configIds = [];
-        foreach ($providerModels as $providerModel) {
-            $configIds[] = $providerModel->getServiceProviderConfigId();
-        }
-
-        if ($configIds === []) {
-            return [];
-        }
-
-        $providerConfigDomainService = di(ProviderConfigDomainService::class);
-        return $providerConfigDomainService->getByIds(
-            $dataIsolation,
-            array_values(array_unique($configIds)),
-        );
-    }
-
-    /**
-     * @param array<int, ProviderConfigEntity> $providerConfigs
-     */
-    private function isProviderModelAvailable(ProviderModelEntity $providerModel, array $providerConfigs): bool
-    {
-        if ($providerModel->getStatus() !== Status::Enabled) {
-            return false;
-        }
-
-        if ($providerModel->isDynamicModel()) {
-            return true;
-        }
-
-        $providerStatus = $providerConfigs[$providerModel->getServiceProviderConfigId()]?->getStatus() ?? Status::Disabled;
-        return $providerStatus === Status::Enabled;
-    }
-
-    private function extractVideoModelId(array $videoModel): string
-    {
-        $modelId = $videoModel['model_id'] ?? '';
-        return is_string($modelId) ? trim($modelId) : '';
     }
 }

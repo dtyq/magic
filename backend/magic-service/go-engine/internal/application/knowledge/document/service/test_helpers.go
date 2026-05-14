@@ -100,6 +100,7 @@ type PreviewSegmentConfigForTest struct {
 	ChunkOverlap       int
 	Separator          string
 	TextPreprocessRule []int
+	MaxChunks          int
 }
 
 // TokenChunkForTest 暴露给测试的切片结果。
@@ -134,6 +135,7 @@ type SplitContentWithEffectiveModePipelineForTestInput struct {
 	FragmentConfig *shared.FragmentConfig
 	SegmentConfig  PreviewSegmentConfigForTest
 	Model          string
+	MaxChunks      int
 }
 
 // SplitParsedDocumentToChunksForTestInput 描述解析文档切片测试输入。
@@ -144,6 +146,7 @@ type SplitParsedDocumentToChunksForTestInput struct {
 	FragmentConfig *shared.FragmentConfig
 	SegmentConfig  PreviewSegmentConfigForTest
 	Model          string
+	MaxChunks      int
 }
 
 type legacyDocumentWriteService interface {
@@ -629,6 +632,7 @@ func SplitContentWithEffectiveModePipelineWithSourceTypeAndTokenizerForTest(
 		NormalSegmentConfig: previewSegmentConfigForTestToDomain(input.SegmentConfig),
 		Model:               model,
 		TokenizerService:    ensureTokenizerServiceForTest(tokenizerService),
+		MaxChunks:           input.MaxChunks,
 	})
 	if err != nil {
 		return nil, "", "", fmt.Errorf("split content with effective mode pipeline for test: %w", err)
@@ -655,6 +659,7 @@ func SplitParsedDocumentToChunksWithTokenizerForTest(
 		SegmentConfig:    previewSegmentConfigForTestToDomain(input.SegmentConfig),
 		Model:            model,
 		TokenizerService: ensureTokenizerServiceForTest(tokenizerService),
+		MaxChunks:        input.MaxChunks,
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("split parsed document to chunks for test: %w", err)
@@ -710,5 +715,6 @@ func previewSegmentConfigForTestToDomain(cfg PreviewSegmentConfigForTest) docume
 		ChunkOverlap:       cfg.ChunkOverlap,
 		Separator:          cfg.Separator,
 		TextPreprocessRule: append([]int(nil), cfg.TextPreprocessRule...),
+		MaxChunks:          cfg.MaxChunks,
 	}
 }

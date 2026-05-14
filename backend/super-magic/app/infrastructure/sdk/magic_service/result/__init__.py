@@ -15,6 +15,7 @@ from .latest_published_skill_versions_result import LatestPublishedSkillVersions
 from .ingest_third_party_message_result import IngestThirdPartyMessageResult
 from .scan_wav_result import ScanWavResult  # TEMP: scan-wav workaround, remove when MagicFS auto-refreshes
 from .search_knowledge_result import SearchKnowledgeResult
+from .update_file_source_result import UpdateFileSourceResult
 
 __all__ = [
     'AgentDetailsResult',
@@ -35,4 +36,5 @@ __all__ = [
     'IngestThirdPartyMessageResult',
     'ScanWavResult',
     'SearchKnowledgeResult',
+    'UpdateFileSourceResult',
 ]

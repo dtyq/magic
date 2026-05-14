@@ -337,8 +337,8 @@ readonly class AgentAppService
             throw new BusinessException('Access denied for topic ID: ' . $topicId);
         }
 
-        // 确保沙箱已初始化并获取沙箱ID
-        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+        // Checkpoint operations may reattach to an existing sandbox; keep recovery init silent.
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId, skipInitMessages: true);
 
         // 调用沙箱网关开始回滚
         $sandboxResponse = $this->agentDomainService->rollbackCheckpointStart($sandboxId, $targetMessageId);
@@ -387,8 +387,8 @@ readonly class AgentAppService
             throw new BusinessException('Access denied for topic ID: ' . $topicId);
         }
 
-        // 确保沙箱已初始化并获取沙箱ID
-        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+        // Checkpoint operations may reattach to an existing sandbox; keep recovery init silent.
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId, skipInitMessages: true);
 
         // 调用沙箱网关提交回滚
         $sandboxResponse = $this->agentDomainService->rollbackCheckpointCommit($sandboxId);
@@ -445,8 +445,8 @@ readonly class AgentAppService
             throw new BusinessException('Access denied for topic ID: ' . $topicId);
         }
 
-        // 确保沙箱已初始化并获取沙箱ID
-        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+        // Checkpoint operations may reattach to an existing sandbox; keep recovery init silent.
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId, skipInitMessages: true);
 
         // 调用沙箱网关撤销回滚
         $sandboxResponse = $this->agentDomainService->rollbackCheckpointUndo($sandboxId);
@@ -505,8 +505,8 @@ readonly class AgentAppService
             throw new BusinessException('Access denied for topic ID: ' . $topicId);
         }
 
-        // 确保沙箱已初始化并获取沙箱ID
-        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+        // Checkpoint operations may reattach to an existing sandbox; keep recovery init silent.
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId, skipInitMessages: true);
 
         // 调用领域服务检查回滚可行性
         $response = $this->agentDomainService->rollbackCheckpointCheck($sandboxId, $targetMessageId);

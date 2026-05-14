@@ -103,6 +103,7 @@ func TestPHPEmbeddingRPCClientBatchEmbeddingsWithoutAccessToken(t *testing.T) {
 			t.Fatalf("access_token should be omitted when provider fails: %#v", params)
 		}
 		assertHelloInput(t, params)
+		assertBusinessParams(t, params, "org-1", "user-1", "biz-1")
 		called = true
 		setEmbeddingComputeSuccess(t, out, []float64{1})
 		return nil
@@ -306,5 +307,26 @@ func assertHelloInput(t *testing.T, params map[string]any) {
 	got := requireSingleInput(t, params)
 	if got != "hello" {
 		t.Fatalf("input mismatch: got %q want %q", got, "hello")
+	}
+}
+
+func assertBusinessParams(t *testing.T, params map[string]any, wantOrganizationCode, wantUserID, wantBusinessID string) {
+	t.Helper()
+
+	got, ok := params["business_params"].(client.BusinessParams)
+	if !ok {
+		t.Fatalf("expected business_params to be client.BusinessParams, got %#v", params["business_params"])
+	}
+	if got.OrganizationCode != wantOrganizationCode {
+		t.Fatalf("organization_code mismatch: got %q want %q", got.OrganizationCode, wantOrganizationCode)
+	}
+	if got.OrganizationID != wantOrganizationCode {
+		t.Fatalf("organization_id mismatch: got %q want %q", got.OrganizationID, wantOrganizationCode)
+	}
+	if got.UserID != wantUserID {
+		t.Fatalf("user_id mismatch: got %q want %q", got.UserID, wantUserID)
+	}
+	if got.BusinessID != wantBusinessID {
+		t.Fatalf("business_id mismatch: got %q want %q", got.BusinessID, wantBusinessID)
 	}
 }

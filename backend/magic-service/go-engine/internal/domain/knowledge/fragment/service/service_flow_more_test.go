@@ -3,7 +3,9 @@ package fragdomain_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
+	"time"
 
 	fragmodel "magic/internal/domain/knowledge/fragment/model"
 	fragmentdomain "magic/internal/domain/knowledge/fragment/service"
@@ -12,6 +14,7 @@ import (
 	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/infrastructure/logging"
 	"magic/internal/pkg/ctxmeta"
+	"magic/internal/pkg/memoryguard"
 )
 
 var (
@@ -304,6 +307,129 @@ func TestFragmentDomainServiceSyncFragmentBatch(t *testing.T) {
 	}
 }
 
+func TestFragmentDomainServiceSyncFragmentBatchChunksLargeDocument(t *testing.T) {
+	t.Parallel()
+
+	const (
+		fragmentCount  = 2000
+		batchSize      = 64
+		wantBatchCalls = 32
+	)
+
+	fragments := makeFlowFragments(fragmentCount)
+	repo := &flowFragmentRepoStub{}
+	vectorData := &flowVectorDataRepoStub{}
+	embeddingSvc := &flowEmbeddingServiceStub{
+		computeBatchEmbeddings: func(_ context.Context, texts []string, _ string, _ *ctxmeta.BusinessParams) ([][]float64, error) {
+			embeddings := make([][]float64, len(texts))
+			for i := range embeddings {
+				embeddings[i] = []float64{float64(i), 1}
+			}
+			return embeddings, nil
+		},
+	}
+	svc := newFlowFragmentDomainService(repo, embeddingSvc, fragmentdomain.FragmentDomainInfra{
+		VectorDataRepo:        vectorData,
+		SyncFragmentBatchSize: batchSize,
+	})
+
+	if err := svc.SyncFragmentBatch(context.Background(), &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
+		Code:  "KB1",
+		Model: "text-embedding-3-small",
+	}, fragments, nil); err != nil {
+		t.Fatalf("sync fragment batch failed: %v", err)
+	}
+
+	if len(embeddingSvc.batchEmbeddingCallSizes) != wantBatchCalls {
+		t.Fatalf("expected %d embedding calls, got %#v", wantBatchCalls, embeddingSvc.batchEmbeddingCallSizes)
+	}
+	if len(vectorData.batchPointIDCalls) != wantBatchCalls {
+		t.Fatalf("expected %d vector store calls, got %d", wantBatchCalls, len(vectorData.batchPointIDCalls))
+	}
+	if len(vectorData.batchPayloadSizes) != wantBatchCalls {
+		t.Fatalf("expected %d payload batches, got %#v", wantBatchCalls, vectorData.batchPayloadSizes)
+	}
+	for i, callSize := range embeddingSvc.batchEmbeddingCallSizes {
+		if callSize > batchSize {
+			t.Fatalf("embedding call %d used %d fragments, want <= %d", i, callSize, batchSize)
+		}
+	}
+	for i, call := range vectorData.batchPointIDCalls {
+		if len(call) > batchSize {
+			t.Fatalf("vector store call %d used %d fragments, want <= %d", i, len(call), batchSize)
+		}
+	}
+	if got := len(vectorData.batchPointIDCalls[wantBatchCalls-1]); got != 16 {
+		t.Fatalf("expected final vector batch size 16, got %d", got)
+	}
+	if got := repo.statusBatchSizes[0]; got != batchSize {
+		t.Fatalf("expected first status batch size %d, got %d", batchSize, got)
+	}
+}
+
+func TestFragmentDomainServiceSyncFragmentBatchWaitsBetweenBatchesOnMemoryPressure(t *testing.T) {
+	t.Parallel()
+
+	reader := &flowMemoryReaderStub{
+		snapshots: []flowMemorySnapshot{
+			{current: 60, limit: 100},
+			{current: 40, limit: 100},
+		},
+	}
+	vectorData := &flowVectorDataRepoStub{}
+	svc := newFlowFragmentDomainService(&flowFragmentRepoStub{}, &flowEmbeddingServiceStub{}, fragmentdomain.FragmentDomainInfra{
+		VectorDataRepo:        vectorData,
+		SyncFragmentBatchSize: 1,
+		MemoryReader:          reader,
+		MemoryPollInterval:    time.Nanosecond,
+	})
+
+	if err := svc.SyncFragmentBatch(context.Background(), &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
+		Code:  "KB1",
+		Model: "text-embedding-3-small",
+	}, makeFlowFragments(2), nil); err != nil {
+		t.Fatalf("sync fragment batch failed: %v", err)
+	}
+	if reader.calls != 2 {
+		t.Fatalf("expected memory admission to wait for high then low waterline, got %d reads", reader.calls)
+	}
+	if len(vectorData.batchPointIDCalls) != 2 {
+		t.Fatalf("expected both batches to sync after memory resumes, got %d calls", len(vectorData.batchPointIDCalls))
+	}
+}
+
+func TestFragmentDomainServiceSyncFragmentBatchStopsAfterFailedBatch(t *testing.T) {
+	t.Parallel()
+
+	repo := &flowFragmentRepoStub{}
+	vectorData := &flowVectorDataRepoStub{storeHybridPointsErrOnCall: 2}
+	svc := newFlowFragmentDomainService(repo, &flowEmbeddingServiceStub{}, fragmentdomain.FragmentDomainInfra{
+		VectorDataRepo:        vectorData,
+		SyncFragmentBatchSize: 2,
+	})
+	fragments := makeFlowFragments(5)
+
+	err := svc.SyncFragmentBatch(context.Background(), &sharedsnapshot.KnowledgeBaseRuntimeSnapshot{
+		Code:  "KB1",
+		Model: "text-embedding-3-small",
+	}, fragments, nil)
+	if !errors.Is(err, errVectorStoreBoom) {
+		t.Fatalf("expected vector store error, got %v", err)
+	}
+	if len(vectorData.batchPointIDCalls) != 2 {
+		t.Fatalf("expected sync to stop after second batch failure, got %d store calls", len(vectorData.batchPointIDCalls))
+	}
+	if fragments[0].SyncStatus != sharedentity.SyncStatusSynced || fragments[1].SyncStatus != sharedentity.SyncStatusSynced {
+		t.Fatalf("expected first batch synced, got %v %v", fragments[0].SyncStatus, fragments[1].SyncStatus)
+	}
+	if fragments[2].SyncStatus != sharedentity.SyncStatusSyncFailed || fragments[3].SyncStatus != sharedentity.SyncStatusSyncFailed {
+		t.Fatalf("expected failed batch marked failed, got %v %v", fragments[2].SyncStatus, fragments[3].SyncStatus)
+	}
+	if fragments[4].SyncStatus != sharedentity.SyncStatusPending {
+		t.Fatalf("expected later batch untouched, got %v", fragments[4].SyncStatus)
+	}
+}
+
 func newFlowFragmentDomainService(
 	repo fragmodel.KnowledgeBaseFragmentRepository,
 	embeddingSvc fragmentdomain.EmbeddingService,
@@ -317,9 +443,26 @@ func newFlowFragmentDomainService(
 	return fragmentdomain.NewFragmentDomainService(repo, embeddingSvc, infra)
 }
 
+func makeFlowFragments(count int) []*fragmodel.KnowledgeBaseFragment {
+	fragments := make([]*fragmodel.KnowledgeBaseFragment, count)
+	for i := range count {
+		id := int64(i + 1)
+		fragments[i] = &fragmodel.KnowledgeBaseFragment{
+			ID:            id,
+			PointID:       "P" + strconv.Itoa(i+1),
+			KnowledgeCode: "KB1",
+			DocumentCode:  "DOC1",
+			Content:       "content",
+			Metadata:      map[string]any{},
+		}
+	}
+	return fragments
+}
+
 type flowEmbeddingServiceStub struct {
-	computeEmbedding       func(context.Context, string, string, *ctxmeta.BusinessParams) ([]float64, error)
-	computeBatchEmbeddings func(context.Context, []string, string, *ctxmeta.BusinessParams) ([][]float64, error)
+	computeEmbedding        func(context.Context, string, string, *ctxmeta.BusinessParams) ([]float64, error)
+	computeBatchEmbeddings  func(context.Context, []string, string, *ctxmeta.BusinessParams) ([][]float64, error)
+	batchEmbeddingCallSizes []int
 }
 
 func (s *flowEmbeddingServiceStub) GetEmbedding(ctx context.Context, text, model string, businessParams *ctxmeta.BusinessParams) ([]float64, error) {
@@ -330,6 +473,7 @@ func (s *flowEmbeddingServiceStub) GetEmbedding(ctx context.Context, text, model
 }
 
 func (s *flowEmbeddingServiceStub) GetEmbeddings(ctx context.Context, texts []string, model string, businessParams *ctxmeta.BusinessParams) ([][]float64, error) {
+	s.batchEmbeddingCallSizes = append(s.batchEmbeddingCallSizes, len(texts))
 	if s.computeBatchEmbeddings == nil {
 		return make([][]float64, len(texts)), nil
 	}
@@ -369,6 +513,7 @@ type flowFragmentRepoStub struct {
 	updateSyncCalls        int
 	updateBatchCalls       int
 	updatedStatusBatch     []*fragmodel.KnowledgeBaseFragment
+	statusBatchSizes       []int
 }
 
 func (*flowFragmentRepoStub) Save(context.Context, *fragmodel.KnowledgeBaseFragment) error {
@@ -476,6 +621,7 @@ func (s *flowFragmentRepoStub) ListMissingDocumentCode(context.Context, fragmode
 
 func (s *flowFragmentRepoStub) UpdateSyncStatusBatch(_ context.Context, fragments []*fragmodel.KnowledgeBaseFragment) error {
 	s.updatedStatusBatch = append([]*fragmodel.KnowledgeBaseFragment(nil), fragments...)
+	s.statusBatchSizes = append(s.statusBatchSizes, len(fragments))
 	return nil
 }
 
@@ -544,11 +690,14 @@ func (s *flowVectorMgmtRepoStub) DeletePointsByFilter(_ context.Context, collect
 }
 
 type flowVectorDataRepoStub struct {
-	lastCollection       string
-	lastPointID          string
-	lastBatchPointIDs    []string
-	storeHybridPointErr  error
-	storeHybridPointsErr error
+	lastCollection             string
+	lastPointID                string
+	lastBatchPointIDs          []string
+	batchPointIDCalls          [][]string
+	batchPayloadSizes          []int
+	storeHybridPointErr        error
+	storeHybridPointsErr       error
+	storeHybridPointsErrOnCall int
 }
 
 func (*flowVectorDataRepoStub) StorePoint(context.Context, string, string, []float64, fragmodel.FragmentPayload) error {
@@ -565,9 +714,14 @@ func (*flowVectorDataRepoStub) StorePoints(context.Context, string, []string, []
 	return nil
 }
 
-func (s *flowVectorDataRepoStub) StoreHybridPoints(_ context.Context, collection string, pointIDs []string, _ [][]float64, _ []*fragmodel.SparseInput, _ []fragmodel.FragmentPayload) error {
+func (s *flowVectorDataRepoStub) StoreHybridPoints(_ context.Context, collection string, pointIDs []string, _ [][]float64, _ []*fragmodel.SparseInput, payloads []fragmodel.FragmentPayload) error {
 	s.lastCollection = collection
 	s.lastBatchPointIDs = append([]string(nil), pointIDs...)
+	s.batchPointIDCalls = append(s.batchPointIDCalls, append([]string(nil), pointIDs...))
+	s.batchPayloadSizes = append(s.batchPayloadSizes, len(payloads))
+	if s.storeHybridPointsErrOnCall > 0 && len(s.batchPointIDCalls) == s.storeHybridPointsErrOnCall {
+		return errVectorStoreBoom
+	}
 	return s.storeHybridPointsErr
 }
 
@@ -593,4 +747,28 @@ func (*flowVectorDataRepoStub) SearchDenseWithFilter(context.Context, fragmodel.
 
 func (*flowVectorDataRepoStub) SearchSparseWithFilter(context.Context, fragmodel.SparseSearchRequest) ([]*fragmodel.VectorSearchResult[fragmodel.FragmentPayload], error) {
 	return nil, nil
+}
+
+type flowMemorySnapshot struct {
+	current int64
+	limit   int64
+	err     error
+}
+
+type flowMemoryReaderStub struct {
+	snapshots []flowMemorySnapshot
+	calls     int
+}
+
+func (s *flowMemoryReaderStub) Read() (int64, int64, error) {
+	if len(s.snapshots) == 0 {
+		return 0, 0, memoryguard.ErrMemoryPressure
+	}
+	index := s.calls
+	if index >= len(s.snapshots) {
+		index = len(s.snapshots) - 1
+	}
+	s.calls++
+	snapshot := s.snapshots[index]
+	return snapshot.current, snapshot.limit, snapshot.err
 }

@@ -36,6 +36,12 @@ enum WorkspaceType: string
     case Chat = 'chat';
 
     /**
+     * UserSpecial workspace type for special projects.
+     * Used by storeSpecial API to isolate special projects from default workspace.
+     */
+    case UserSpecial = 'user_special';
+
+    /**
      * Get all available workspace types (including internal types).
      *
      * @return array<string>
@@ -47,6 +53,7 @@ enum WorkspaceType: string
             self::Finance->value,
             self::Audio->value,
             self::Chat->value,
+            self::UserSpecial->value,
         ];
     }
 

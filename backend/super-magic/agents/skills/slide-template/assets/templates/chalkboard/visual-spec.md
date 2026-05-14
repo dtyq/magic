@@ -257,7 +257,7 @@ series: [{ type: 'pie', radius: ['35%','65%'], center: ['50%','55%'],
 - Prioritize illustrations with dark backgrounds and white or colored chalk styles
 - Avoid photorealistic styles; prioritize a hand-drawn sketch feel
 
-**generate_image example prompt**：
+**generate_images example prompt**：
 ```
 chalk drawing illustration of [具体主题] on dark blackboard background, white and yellow chalk lines, hand-drawn sketch style, rough imperfect strokes, educational doodle aesthetic, visible chalk texture, no gradients, flat chalk art
 ```

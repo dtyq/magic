@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 
 import aiofiles
 import aiohttp
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from agentlang.config.dynamic_config import dynamic_config
 from agentlang.context.tool_context import ToolContext
@@ -42,7 +42,12 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_exists, async_mkdir
+from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
+from app.infrastructure.sdk.magic_service.parameter.update_file_source_parameter import (
+    FileSource,
+    UpdateFileSourceParameter,
+)
+from app.utils.async_file_utils import async_exists, async_mkdir, get_file_id_from_xattr
 from app.utils.video_logger import get_video_logger
 
 logger = get_video_logger(__name__)
@@ -61,11 +66,27 @@ VIDEO_POLL_TIMEOUT_BUFFER_SECONDS = 20
 DEFAULT_VIDEO_PROGRESS_ESTIMATE_SECONDS = 600
 MAX_VIDEO_DOWNLOAD_BYTES = 500 * 1024 * 1024
 VIDEO_PROGRESS_TOOL_NAME = "video_generation_progress"
+LLM_VISIBLE_MAGIC_SERVICE_ERROR_CODES = {"4018"}
 TERMINAL_VIDEO_STATUSES = {"succeeded", "failed", "canceled"}
 LOCAL_INPUT_ERROR_PREFIXES = (
     "本地文件不存在:",
     "无法将本地文件转换为可访问 URL:",
 )
+VIDEO_TASK_ALIASES = {
+    "generater": "generate",
+    "generator": "generate",
+}
+VIDEO_INPUT_MODE_ALIASES = {
+    "video_editing": "video_edit",
+}
+
+
+class MagicServiceVideoError(ValueError):
+    """magic-service 视频接口返回的结构化错误。"""
+
+    def __init__(self, message: str, code: Any = None):
+        super().__init__(message)
+        self.code = str(code).strip() if code not in (None, "") else ""
 
 
 def _format_tool_context_for_log(tool_context: Optional[ToolContext]) -> str:
@@ -78,6 +99,22 @@ def _format_tool_context_for_log(tool_context: Optional[ToolContext]) -> str:
         f"tool_name={getattr(tool_context, 'tool_name', '') or ''} "
         f"tool_call_id={getattr(tool_context, 'tool_call_id', '') or ''}"
     )
+
+
+def normalize_video_task_value(value: Any, default: str = "generate") -> str:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return default
+    normalized = normalized.lower()
+    return VIDEO_TASK_ALIASES.get(normalized, normalized)
+
+
+def normalize_video_input_mode_value(value: Any) -> str:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return ""
+    normalized = normalized.lower()
+    return VIDEO_INPUT_MODE_ALIASES.get(normalized, normalized)
 
 
 def _build_video_tool_action_and_remark(tool_name: str, result: ToolResult) -> Dict[str, str]:
@@ -110,6 +147,8 @@ def _summarize_video_request_payload(payload: Optional[Dict[str, Any]]) -> Optio
     generation = payload.get("generation") if isinstance(payload.get("generation"), dict) else {}
     business_params = payload.get("business_params") if isinstance(payload.get("business_params"), dict) else {}
     reference_images = inputs.get("reference_images")
+    reference_videos = inputs.get("reference_videos")
+    reference_audios = inputs.get("reference_audios")
 
     return {
         "keys": sorted(payload.keys()),
@@ -118,6 +157,8 @@ def _summarize_video_request_payload(payload: Optional[Dict[str, Any]]) -> Optio
         "prompt_length": len(payload["prompt"]) if isinstance(payload.get("prompt"), str) else None,
         "inputs_keys": sorted(inputs.keys()),
         "reference_image_count": len(reference_images) if isinstance(reference_images, list) else 0,
+        "reference_video_count": len(reference_videos) if isinstance(reference_videos, list) else 0,
+        "reference_audio_count": len(reference_audios) if isinstance(reference_audios, list) else 0,
         "has_frame_start": any(isinstance(frame, dict) and frame.get("role") == "start" for frame in inputs.get("frames", [])),
         "has_frame_end": any(isinstance(frame, dict) and frame.get("role") == "end" for frame in inputs.get("frames", [])),
         "generation": generation,
@@ -158,6 +199,16 @@ Video generation prompt. Clearly describe the subject, motion, camera language, 
 Video model. If empty, use: 1. dynamic_config.video_model.model_id; 2. default model {DEFAULT_VIDEO_MODEL}.
 This intentionally follows the same runtime model path as generate_image instead of sandbox init top-level fields."""
     )
+    input_mode: str = Field(
+        "",
+        description="""<!--zh: 视频输入模式，可选。必须使用模型上下文 <mode name="..."> 中声明的精确值，例如 video_edit。不要使用 inputMode，也不要写 video_editing。-->
+Video input mode, optional. Use the exact value declared by <mode name="..."> in model context, e.g. video_edit. Do not use inputMode or video_editing."""
+    )
+    task: str = Field(
+        "generate",
+        description="""<!--zh: 视频任务类型，默认 generate。视频编辑模式必须传 edit；不要写 generater。-->
+Video task type, default generate. Use edit for video_edit mode. Do not use generater."""
+    )
     video_name: str = Field(
         "",
         description="""<!--zh: 输出视频文件名（不含扩展名），为空时会根据 prompt 自动生成-->
@@ -170,8 +221,18 @@ Output directory relative to workspace root. Default: videos"""
     )
     reference_image_paths: List[str] = Field(
         default_factory=list,
-        description="""<!--zh: 参考图片路径或 URL 列表。相对路径会先转 Base64 data URL，再传给 magic-service-->
-Reference image paths or URLs. Relative paths are converted to Base64 data URLs before calling magic-service"""
+        description="""<!--zh: 参考图片路径或 URL 列表。相对路径会优先转成临时可访问 URL，再传给 magic-service；失败时才回退为 Base64 data URL。-->
+Reference image paths or URLs. Relative paths are converted to temporary accessible URLs before calling magic-service, with Base64 data URL fallback."""
+    )
+    reference_video_paths: List[str] = Field(
+        default_factory=list,
+        description="""<!--zh: 参考视频路径或 URL 列表。相对路径会优先转成临时可访问 URL，再传给 magic-service；失败时才回退为 Base64 data URL。-->
+Reference video paths or URLs. Relative paths are converted to temporary accessible URLs before calling magic-service, with Base64 data URL fallback."""
+    )
+    reference_audio_paths: List[str] = Field(
+        default_factory=list,
+        description="""<!--zh: 参考音频路径或 URL 列表。相对路径会优先转成临时可访问 URL，再传给 magic-service；失败时才回退为 Base64 data URL。-->
+Reference audio paths or URLs. Relative paths are converted to temporary accessible URLs before calling magic-service, with Base64 data URL fallback."""
     )
     frame_start_path: str = Field(
         "",
@@ -185,26 +246,30 @@ End frame image path or URL, optional"""
     )
     size: str = Field(
         "",
-        description="""<!--zh: 生成尺寸，可选。优先使用 featured generation.sizes.value 中声明的值，例如 1920x1080。
-如果提供该值，工具会基于当前模型能力自动推导 aspect_ratio / resolution，并校验是否受支持。-->
-Generation size, optional. Prefer values declared in featured generation.sizes.value, e.g. 1920x1080.
-When provided, the tool infers aspect_ratio / resolution from the current model capability config and validates support."""
+        description="""<!--zh: 生成视频的真实尺寸，可选。例如 1280x720、1920x1080、2160x3840。若用户明确要求具体生成尺寸，优先使用 size。若已传 size，通常不要再传与它比例冲突的 aspect_ratio 或 width/height。-->
+Generated video's real dimensions, optional, e.g. 1280x720, 1920x1080, 2160x3840. If the user explicitly asks for exact generation dimensions, prefer size. If size is provided, usually avoid conflicting aspect_ratio or width/height."""
     )
     width: Optional[int] = Field(
         default=None,
-        description="""<!--zh: 目标生成宽度，可选。若未显式传 size，且 width/height 与 featured generation.sizes 中某个尺寸完全匹配，
-工具会自动推导对应的 size / aspect_ratio / resolution。-->
-Target generation width, optional. If size is omitted and width/height exactly matches an entry in featured generation.sizes,
-the tool infers size / aspect_ratio / resolution automatically."""
+        description="""<!--zh: 目标生成宽度，可选。仅在没有明确 size 时，用于和 height 一起从 featured generation.sizes 自动匹配生成尺寸。若用户已经给了 1280x720 这类明确尺寸，优先使用 size。-->
+Target generation width, optional. Use it with height to auto-match a generation size from featured generation.sizes only when size is not explicitly provided. If the user gives exact dimensions like 1280x720, prefer size."""
     )
     height: Optional[int] = Field(
         default=None,
-        description="""<!--zh: 目标生成高度，可选。仅与 width 一起使用，用于从 featured generation.sizes 自动匹配生成尺寸。-->
-Target generation height, optional. Use together with width to auto-match a generation size from featured generation.sizes."""
+        description="""<!--zh: 目标生成高度，可选。仅在没有明确 size 时，与 width 一起用于自动匹配生成尺寸。若用户已经给了 1280x720 这类明确尺寸，优先使用 size。-->
+Target generation height, optional. Use it with width to auto-match a generation size only when size is not explicitly provided. If the user gives exact dimensions like 1280x720, prefer size."""
     )
-    aspect_ratio: str = Field("", description="<!--zh: 视频宽高比，可选，例如 16:9 / 9:16 / 1:1-->Video aspect ratio, optional")
+    aspect_ratio: str = Field(
+        "",
+        description="""<!--zh: 生成视频宽高比，可选，例如 16:9、9:16、1:1。若 size 已经明确表达尺寸，除非用户明确要求，否则可以不传 aspect_ratio，避免比例冲突。-->
+Generated video aspect ratio, optional, e.g. 16:9, 9:16, 1:1. If size already defines dimensions, omit aspect_ratio unless the user explicitly asks for it to avoid ratio conflicts."""
+    )
     duration_seconds: Optional[int] = Field(default=None, description="<!--zh: 视频时长（秒），可选-->Video duration in seconds, optional")
-    resolution: str = Field("", description="<!--zh: 视频分辨率，可选，例如 1280x720-->Video resolution, optional")
+    resolution: str = Field(
+        "",
+        description="""<!--zh: 视频清晰度档位，可选，例如 720p、1080p、4k。不要把 1280x720 这种尺寸传到 resolution；尺寸请用 size。-->
+Video quality/resolution tier, optional, e.g. 720p, 1080p, 4k. Do not pass dimensions like 1280x720 here; use size for dimensions."""
+    )
     fps: Optional[int] = Field(default=None, description="<!--zh: 帧率，可选-->Frames per second, optional")
     seed: Optional[int] = Field(default=None, description="<!--zh: 随机种子，可选-->Random seed, optional")
     watermark: Optional[bool] = Field(default=None, description="<!--zh: 是否保留水印，可选-->Whether to keep watermark, optional")
@@ -222,6 +287,16 @@ Extension config object passed through to /v1/videos, optional"""
         DEFAULT_POLL_TIMEOUT_SECONDS,
         description="<!--zh: 轮询超时时间（秒）。超过后停止等待并返回超时结果-->Polling timeout in seconds. Stops waiting and returns a timeout result when exceeded",
     )
+
+    @field_validator("input_mode", mode="before")
+    @classmethod
+    def normalize_input_mode(cls, value: Any) -> str:
+        return normalize_video_input_mode_value(value)
+
+    @field_validator("task", mode="before")
+    @classmethod
+    def normalize_task(cls, value: Any) -> str:
+        return normalize_video_task_value(value)
 
 
 class QueryVideoGenerationParams(BaseToolParams):
@@ -257,10 +332,11 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
     用于根据文本提示词、参考图或首尾帧生成视频，自动处理任务创建、轮询查询、文件下载和结果元数据保存。
 
-    支持三种常见模式：
+    支持四种常见模式：
     1. 纯文本生视频：仅提供 prompt，生成完整视频内容
     2. 参考图引导生成：提供 reference_image_paths，约束主体风格、构图或视觉元素
-    3. 首尾帧控制生成：提供 frame_start_path / frame_end_path，生成带有明确镜头过渡的视频
+    3. 多素材参考生成：提供 reference_video_paths / reference_audio_paths，与 prompt 中的素材引用一起使用
+    4. 首尾帧控制生成：提供 frame_start_path / frame_end_path，生成带有明确镜头过渡的视频
 
     关键用法：
     - 文生视频：prompt="黄昏海边，镜头缓慢推进，电影感光影"
@@ -278,10 +354,11 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
     Used to generate videos from text prompts, reference images, or start/end frames, automatically handling job creation, polling, file download, and result metadata persistence.
 
-    Supports three common modes:
+    Supports four common modes:
     1. Text-to-video: Provide prompt only to generate a full video
     2. Reference-guided generation: Provide reference_image_paths to constrain style, composition, or visual elements
-    3. Start/end frame controlled generation: Provide frame_start_path / frame_end_path to create videos with explicit transition control
+    3. Multi-reference generation: Provide reference_video_paths / reference_audio_paths for motion or audio-guided prompts
+    4. Start/end frame controlled generation: Provide frame_start_path / frame_end_path to create videos with explicit transition control
 
     Key usage:
     - Text-to-video: prompt="Sunset by the sea, slow push-in camera movement, cinematic lighting"
@@ -409,11 +486,20 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                         "error_type": local_input_error_type,
                     },
                 )
+            extra_info = {"error": raw_error}
+            if isinstance(e, MagicServiceVideoError) and e.code:
+                extra_info["error_code"] = e.code
+            if self._is_llm_visible_magic_service_error(e):
+                extra_info["raw_error"] = raw_error
+                content = raw_error
+            else:
+                content = i18n.translate("generate_video.error", category="tool.messages", error=raw_error)
+
             return VideoToolResult(
                 ok=False,
-                content=i18n.translate("generate_video.error", category="tool.messages", error=raw_error),
+                content=content,
                 videos=[],
-                extra_info={"error": raw_error},
+                extra_info=extra_info,
             )
 
     @staticmethod
@@ -426,6 +512,10 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         if any(normalized_error.startswith(prefix) for prefix in LOCAL_INPUT_ERROR_PREFIXES):
             return "video.local_input_error"
         return ""
+
+    @staticmethod
+    def _is_llm_visible_magic_service_error(error: Any) -> bool:
+        return isinstance(error, MagicServiceVideoError) and error.code in LLM_VISIBLE_MAGIC_SERVICE_ERROR_CODES
 
     @staticmethod
     def _resolve_model(requested_model: str) -> str:
@@ -499,6 +589,18 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                 for path in params.reference_image_paths
             ]
 
+        if params.reference_video_paths:
+            inputs["reference_videos"] = [
+                {"uri": await self._resolve_input_uri(path)}
+                for path in params.reference_video_paths
+            ]
+
+        if params.reference_audio_paths:
+            inputs["reference_audios"] = [
+                {"uri": await self._resolve_input_uri(path)}
+                for path in params.reference_audio_paths
+            ]
+
         frames = []
         if params.frame_start_path:
             frames.append({"role": "start", "uri": await self._resolve_input_uri(params.frame_start_path)})
@@ -511,9 +613,11 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
         payload: Dict[str, Any] = {
             "model_id": model_id,
-            "task": "generate",
+            "task": params.task or "generate",
             "prompt": params.prompt,
         }
+        if params.input_mode:
+            payload["input_mode"] = params.input_mode
         if inputs:
             payload["inputs"] = inputs
         if generation:
@@ -554,6 +658,13 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
     def _get_magic_service_config(self) -> MagicServiceConfig:
         if self._magic_service_config is None:
             self._magic_service_config = MagicServiceConfigLoader.load_with_fallback()
+            api_base_url = os.getenv("MAGIC_API_SERVICE_BASE_URL")
+            if api_base_url and api_base_url.strip():
+                logger.info(
+                    "视频接口使用环境变量 MAGIC_API_SERVICE_BASE_URL 覆盖 init_client_message host: "
+                    f"configured={self._magic_service_config.api_base_url} override={api_base_url.strip()}"
+                )
+                self._magic_service_config.api_base_url = api_base_url.strip()
         return self._magic_service_config
 
     async def _request_json(
@@ -592,15 +703,15 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                     f"status={response.status} summary={json.dumps(_summarize_video_response(response_text, response_json), ensure_ascii=False)}"
                 )
                 if response.status != 200:
-                    error_message = self._extract_magic_service_error_message(response_json)
-                    if error_message:
-                        raise ValueError(error_message)
+                    error = self._build_magic_service_error(response_json)
+                    if error:
+                        raise error
                     raise ValueError(f"视频接口调用失败，状态码: {response.status}，响应: {response_text}")
                 if response_json is None:
                     raise ValueError(f"视频接口响应不是合法 JSON: {decode_error}") from decode_error
-                error_message = self._extract_magic_service_error_message(response_json)
-                if error_message:
-                    raise ValueError(error_message)
+                error = self._build_magic_service_error(response_json)
+                if error:
+                    raise error
 
                 return response_json
 
@@ -1080,6 +1191,21 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
                     # magicfs 已实现文件同步与索引，该通知方法已废弃。
 
+        try:
+            file_id_str = await get_file_id_from_xattr(str(save_path))
+            if file_id_str:
+                sdk = get_magic_service_sdk()
+                param = UpdateFileSourceParameter(
+                    file_id=int(file_id_str),
+                    source=FileSource.AI_VIDEO_GENERATION,
+                )
+                await sdk.file.update_file_source_async(param)
+                logger.info(f"Updated file source: file_id={file_id_str}, source={FileSource.AI_VIDEO_GENERATION}")
+            else:
+                logger.warning(f"No file_id found in xattr, skipping update_file_source: {save_path}")
+        except Exception as e:
+            logger.warning(f"Failed to update file source: {e}")
+
         relative_path = self._relative_to_workspace(save_path)
         return str(save_path), relative_path
 
@@ -1111,7 +1237,11 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
     @staticmethod
     def _build_api_headers(request_id: str = "") -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
-        MetadataUtil.add_magic_and_user_authorization_headers(headers)
+        video_api_key = os.getenv("VIDEO_GENERATION_API_KEY", "").strip()
+        if video_api_key:
+            headers["api-key"] = video_api_key
+        else:
+            MetadataUtil.add_magic_and_user_authorization_headers(headers)
         if request_id:
             headers["request-id"] = request_id
 
@@ -1163,6 +1293,8 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
         return {
             "model_id": model_id,
+            "task": params.task or "generate",
+            "input_mode": params.input_mode or None,
             "prompt": params.prompt,
             "video_id": video_id,
             "operation_id": operation_id,
@@ -1177,6 +1309,8 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             "seed": applied_generation.get("seed"),
             "watermark": applied_generation.get("watermark"),
             "reference_images": params.reference_image_paths,
+            "reference_videos": params.reference_video_paths,
+            "reference_audios": params.reference_audio_paths,
             "frames": frames,
             "file_dir": params.output_path or DEFAULT_VIDEO_OUTPUT_DIR,
             "extensions": params.extensions,
@@ -1501,17 +1635,34 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
 
     @staticmethod
     def _extract_magic_service_error_message(response_json: Any) -> str:
-        if not isinstance(response_json, dict):
+        error_payload = GenerateVideo._extract_magic_service_error_payload(response_json)
+        if not error_payload:
             return ""
+        return GenerateVideo._format_magic_service_error_detail(error_payload)
 
+    @staticmethod
+    def _extract_magic_service_error_payload(response_json: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(response_json, dict):
+            return None
         if "id" in response_json or "status" in response_json:
-            return ""
+            return None
 
         error_payload = response_json.get("error")
         if isinstance(error_payload, dict):
-            return GenerateVideo._format_magic_service_error_detail(error_payload)
+            return error_payload
 
-        return GenerateVideo._format_magic_service_error_detail(response_json)
+        return response_json
+
+    @staticmethod
+    def _build_magic_service_error(response_json: Any) -> Optional[MagicServiceVideoError]:
+        error_payload = GenerateVideo._extract_magic_service_error_payload(response_json)
+        if not error_payload:
+            return None
+
+        message = GenerateVideo._format_magic_service_error_detail(error_payload)
+        if not message:
+            return None
+        return MagicServiceVideoError(message, code=error_payload.get("code"))
 
     @staticmethod
     def _format_magic_service_error_detail(payload: Dict[str, Any]) -> str:

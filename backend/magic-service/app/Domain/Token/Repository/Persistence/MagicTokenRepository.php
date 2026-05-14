@@ -10,6 +10,7 @@ namespace App\Domain\Token\Repository\Persistence;
 use App\Domain\Token\Entity\MagicTokenEntity;
 use App\Domain\Token\Entity\ValueObject\MagicTokenType;
 use App\Domain\Token\Repository\Facade\MagicTokenRepositoryInterface;
+use App\Domain\Token\Repository\Persistence\Factory\MagicTokenExtraFactory;
 use App\Domain\Token\Repository\Persistence\Model\MagicToken;
 use App\ErrorCode\TokenErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -18,11 +19,15 @@ use Carbon\Carbon;
 use Hyperf\Codec\Json;
 use Hyperf\DbConnection\Db;
 
-class MagicMagicTokenRepository implements MagicTokenRepositoryInterface
+class MagicTokenRepository implements MagicTokenRepositoryInterface
 {
+    private MagicTokenExtraFactory $tokenExtraFactory;
+
     public function __construct(
-        protected MagicToken $token
+        protected MagicToken $token,
+        ?MagicTokenExtraFactory $tokenExtraFactory = null
     ) {
+        $this->tokenExtraFactory = $tokenExtraFactory ?? new MagicTokenExtraFactory();
     }
 
     /**
@@ -109,6 +114,52 @@ class MagicMagicTokenRepository implements MagicTokenRepositoryInterface
         return $this->findValidToken($query);
     }
 
+    /**
+     * 按 type + relationValue 列出 token（通常用于同一个业务维度下的 token 收敛/清理）。
+     *
+     * @param MagicTokenType $type Token 类型
+     * @param string $relationValue 关联值（如 user_id、resource_id 等）
+     * @param bool $checkExpired 是否检查过期：true=只返回未过期的（有效）; false=返回所有（包含过期）
+     * @param int $limit 返回条数限制
+     * @return MagicTokenEntity[]
+     */
+    public function listTokenEntitiesByTypeAndRelationValue(
+        MagicTokenType $type,
+        string $relationValue,
+        bool $checkExpired = true,
+        int $limit = 50
+    ): array {
+        $limit = max(1, min(200, $limit));
+
+        $query = $this->token::query()
+            ->where('type', $type->value)
+            ->where('type_relation_value', $relationValue);
+
+        if ($checkExpired) {
+            $query->where('expired_at', '>', date('Y-m-d H:i:s'));
+        }
+
+        // 最新且最久不过期的排在最前面：expired_at desc, id desc
+        $query->orderBy('expired_at', 'desc')
+            ->orderBy('id', 'desc')
+            ->limit($limit);
+
+        $rows = Db::select($query->toSql(), $query->getBindings());
+        if (empty($rows)) {
+            return [];
+        }
+
+        $entities = [];
+        foreach ($rows as $row) {
+            $row = (array) $row;
+            if (empty($row) || empty($row['type_relation_value'])) {
+                continue;
+            }
+            $entities[] = new MagicTokenEntity($row);
+        }
+        return $entities;
+    }
+
     public function refreshTokenExpiration(MagicTokenEntity $tokenDTO): void
     {
         $updatedAt = $tokenDTO->getUpdatedAt() ?? date('Y-m-d H:i:s');
@@ -117,6 +168,19 @@ class MagicMagicTokenRepository implements MagicTokenRepositoryInterface
             ->update([
                 'expired_at' => $tokenDTO->getExpiredAt(),
                 'updated_at' => $updatedAt,
+            ]);
+    }
+
+    public function batchUpdateTokenExpiration(array $ids, string $expiredAt): int
+    {
+        if (empty($ids)) {
+            return 0;
+        }
+        return $this->token::query()
+            ->whereIn('id', $ids)
+            ->update([
+                'expired_at' => $expiredAt,
+                'updated_at' => date('Y-m-d H:i:s'),
             ]);
     }
 
@@ -161,6 +225,14 @@ class MagicMagicTokenRepository implements MagicTokenRepositoryInterface
             return null;
         }
 
-        return new MagicTokenEntity($token);
+        $entity = new MagicTokenEntity($token);
+
+        // 通过工厂统一管理 type -> extra 的映射；未配置映射的类型保持原样。
+        $typedExtra = $this->tokenExtraFactory->create($entity->getType(), $token['extra'] ?? null);
+        if ($typedExtra !== null) {
+            $entity->setExtra($typedExtra);
+        }
+
+        return $entity;
     }
 }

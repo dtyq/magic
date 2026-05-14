@@ -410,6 +410,28 @@ class ProjectMemberSettingRepository implements ProjectMemberSettingRepositoryIn
     }
 
     /**
+     * Batch cancel project shortcuts for a user across multiple projects.
+     */
+    public function batchCancelProjectShortcuts(string $userId, array $projectIds): int
+    {
+        if (empty($projectIds)) {
+            return 0;
+        }
+
+        $now = date('Y-m-d H:i:s');
+
+        return $this->model::query()
+            ->where('user_id', $userId)
+            ->whereIn('project_id', $projectIds)
+            ->update([
+                'is_bind_workspace' => 0,
+                'bind_workspace_id' => 0,
+                'last_active_at' => $now,
+                'updated_at' => $now,
+            ]);
+    }
+
+    /**
      * Batch delete settings for a user across multiple projects.
      *
      * @param string $userId User ID

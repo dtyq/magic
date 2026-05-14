@@ -89,6 +89,27 @@ func TestDocumentResyncRabbitMQSchedulerConfigMaxRequeueAttempts(t *testing.T) {
 	}
 }
 
+func TestDocumentResyncRabbitMQSchedulerConfigDefaultConsumerConcurrency(t *testing.T) {
+	t.Parallel()
+
+	defaults := documentsync.DefaultRabbitMQSchedulerConfig()
+	if defaults.ConsumerConcurrency != 4 {
+		t.Fatalf("expected default consumer concurrency 4, got %d", defaults.ConsumerConcurrency)
+	}
+
+	cfg := &autoloadcfg.Config{}
+	got := newDocumentResyncRabbitMQSchedulerConfig(cfg, defaults)
+	if got.ConsumerConcurrency != 4 {
+		t.Fatalf("expected empty config to use default consumer concurrency 4, got %d", got.ConsumerConcurrency)
+	}
+
+	cfg.RabbitMQ.DocumentResync.ConsumerConcurrency = 6
+	got = newDocumentResyncRabbitMQSchedulerConfig(cfg, defaults)
+	if got.ConsumerConcurrency != 6 {
+		t.Fatalf("expected configured consumer concurrency 6, got %d", got.ConsumerConcurrency)
+	}
+}
+
 func TestDocumentSyncSchedulerAdapterForcesAsync(t *testing.T) {
 	t.Parallel()
 

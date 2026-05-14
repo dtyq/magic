@@ -9,6 +9,9 @@ return [
     'password_error' => 'Password error',
     'user_not_found' => 'User not found',
     'personal_access_token_already_exists' => 'Personal access token already exists, please use reset to regenerate',
+    'model_gateway_unauthorized' => 'Model gateway authentication failed',
+    'model_gateway_refresh_token_invalid' => 'Model gateway refresh token is invalid or expired',
+    'model_gateway_refresh_token_mismatch' => 'Model gateway refresh token does not match metadata',
     'fields' => [
         'organization_code' => 'Organization Code',
         'rel_code' => 'Relation Code',

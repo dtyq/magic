@@ -142,6 +142,11 @@ func RequestIDFromRawJSONForTest(raw json.RawMessage) string {
 	return requestIDFromRawJSON(raw)
 }
 
+// LanguageFromRawJSONForTest 暴露 language 原始解析逻辑供测试使用。
+func LanguageFromRawJSONForTest(raw json.RawMessage) string {
+	return languageFromRawJSON(raw)
+}
+
 // BuildOutboundRequestContextForTest 暴露出站请求上下文编码逻辑。
 func BuildOutboundRequestContextForTest(ctx context.Context) json.RawMessage {
 	return buildOutboundRequestContext(ctx)

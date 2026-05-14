@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileVersionAppService;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateFileVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetFileTreeRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ScanWavFilesRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateFileSourceRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\AbstractApi;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
@@ -66,5 +67,17 @@ class FileApi extends AbstractApi
         $requestDTO = ScanWavFilesRequestDTO::fromRequest($this->request);
 
         return $this->fileManagementAppService->scanWavFiles($requestContext, $requestDTO);
+    }
+
+    /**
+     * Update the source of a task file.
+     *
+     * @return array Updated file info
+     */
+    public function updateFileSource(): array
+    {
+        $requestDTO = UpdateFileSourceRequestDTO::fromRequest($this->request);
+
+        return $this->fileManagementAppService->updateFileSource($requestDTO);
     }
 }

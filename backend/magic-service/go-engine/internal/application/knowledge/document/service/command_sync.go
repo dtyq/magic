@@ -9,6 +9,7 @@ import (
 	docentity "magic/internal/domain/knowledge/document/entity"
 	document "magic/internal/domain/knowledge/document/service"
 	"magic/internal/pkg/knowledgeroute"
+	"magic/internal/pkg/memoryprobe"
 )
 
 // DocumentSyncAppService 负责文档同步命令流。
@@ -45,6 +46,7 @@ func (s *DocumentAppService) executeSync(ctx context.Context, input *document.Sy
 		ctx = knowledgeroute.WithRebuildOverride(ctx, input.RebuildOverride)
 	}
 	mode := document.ResolveSyncMode(input.Mode)
+	ctx = memoryprobe.WithProbe(ctx, memoryprobe.NewDocumentSyncProbe())
 	startedAt := time.Now()
 	trace := newDocumentSyncTracer(s, mode)
 	defer func() {
@@ -59,6 +61,8 @@ func (s *DocumentAppService) executeSync(ctx context.Context, input *document.Sy
 		return err
 	}
 	trace.withDocument(doc)
+	stopMemoryProbe := trace.startLargeMemoryProbe(ctx)
+	defer stopMemoryProbe()
 	if err := s.validateDocumentOrg(doc, input.OrganizationCode); err != nil {
 		return err
 	}
@@ -91,6 +95,9 @@ func (s *DocumentAppService) executeSyncDocument(
 	trace *documentSyncTracer,
 	doc *docentity.KnowledgeBaseDocument,
 ) error {
+	if err := s.waitDocumentSyncMemoryAdmission(ctx, doc); err != nil {
+		return err
+	}
 	runtimeKB, err := s.loadRuntimeKnowledgeBaseForSync(ctx, doc)
 	if err != nil {
 		return err
@@ -112,33 +119,45 @@ func (s *DocumentAppService) executeSyncDocument(
 		return err
 	}
 
-	parseStartedAt := time.Now()
-	parsedDocument, content, err := s.parseDocumentContent(ctx, doc, input.BusinessParams, override)
-	trace.log(ctx, "parse_document_content", parseStartedAt, err)
-	if err != nil {
-		return s.failSync(ctx, doc, document.SyncFailureParsing, err)
-	}
-	document.MergeParsedDocumentMeta(doc, parsedDocument)
+	var syncContentWordCount int
+	var fragmentCount int
+	var syncReq documentFragmentSyncRequest
+	{
+		parseStartedAt := time.Now()
+		parsedDocument, content, err := s.parseDocumentContent(ctx, doc, input.BusinessParams, override)
+		trace.log(ctx, "parse_document_content", parseStartedAt, err)
+		if err != nil {
+			return s.failSync(ctx, doc, document.SyncFailureParsing, err)
+		}
+		document.MergeParsedDocumentMeta(doc, parsedDocument)
 
-	buildStartedAt := time.Now()
-	fragments, err := s.buildFragments(ctx, doc, runtimeKB, parsedDocument, runtimeKB.Model)
-	trace.log(ctx, "build_fragments", buildStartedAt, err, "fragment_count", len(fragments))
-	if err != nil {
-		return s.failSync(ctx, doc, document.SyncFailureSplitFragments, err)
+		buildStartedAt := time.Now()
+		fragments, err := s.buildFragments(ctx, doc, runtimeKB, parsedDocument, runtimeKB.Model)
+		trace.log(ctx, "build_fragments", buildStartedAt, err, "fragment_count", len(fragments))
+		if err != nil {
+			return s.failSync(ctx, doc, document.SyncFailureSplitFragments, err)
+		}
+		syncContentWordCount = document.CountSyncContentWordCount(content)
+		fragmentCount = len(fragments)
+		syncReq = documentFragmentSyncRequest{
+			doc:            doc,
+			kb:             runtimeKB,
+			kbSnapshot:     knowledgeBaseSnapshotFromDomain(runtimeKB),
+			collectionName: runtimeKB.ResolvedRoute.VectorCollectionName,
+			fragments:      fragments,
+			businessParams: input.BusinessParams,
+		}
+	}
+	s.releaseDocumentSyncBuildMemory(ctx, trace, fragmentCount)
+	if err := s.waitDocumentSyncMemoryAdmissionForStage(ctx, doc, documentMemoryGuardPostBuildAdmissionStage); err != nil {
+		return err
 	}
 
-	if err := s.syncDocumentFragments(ctx, trace, documentFragmentSyncRequest{
-		doc:            doc,
-		kb:             runtimeKB,
-		kbSnapshot:     knowledgeBaseSnapshotFromDomain(runtimeKB),
-		collectionName: runtimeKB.ResolvedRoute.VectorCollectionName,
-		fragments:      fragments,
-		businessParams: input.BusinessParams,
-	}); err != nil {
+	if err := s.syncDocumentFragments(ctx, trace, syncReq); err != nil {
 		return s.failSync(ctx, doc, document.SyncFailureSyncVector, err)
 	}
 
-	return s.finishSync(ctx, doc, content)
+	return s.finishSyncWithWordCount(ctx, doc, syncContentWordCount)
 }
 
 func (s *DocumentAppService) persistSourceOverride(

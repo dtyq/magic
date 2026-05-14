@@ -80,6 +80,30 @@ func TestXlsxParser_ParseDocumentRejectsTooManyCells(t *testing.T) {
 	}
 }
 
+func TestXlsxParser_ParseDocumentRejectsExpandedMergeMatrixCells(t *testing.T) {
+	t.Parallel()
+
+	f := excelize.NewFile()
+	_ = f.SetCellValue("Sheet1", "A1", "title")
+	_ = f.SetCellValue("Sheet1", "A2", "value")
+	if err := f.MergeCell("Sheet1", "A1", "Z1"); err != nil {
+		t.Fatalf("merge cell: %v", err)
+	}
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		t.Fatalf("write buffer: %v", err)
+	}
+
+	p := parser.NewXlsxParserWithOCRAndLimits(nil, document.DefaultEmbeddedImageOCRLimit(), document.ResourceLimits{
+		MaxTabularRows:  100,
+		MaxTabularCells: 10,
+	})
+	_, err = p.ParseDocument(context.Background(), "wide-merge.xlsx", bytes.NewReader(buf.Bytes()), "xlsx")
+	if !errors.Is(err, document.ErrDocumentResourceLimitExceeded) {
+		t.Fatalf("expected resource limit error, got %v", err)
+	}
+}
+
 func TestXlsxParser_ParseDocumentMergesImageOCRIntoHeaderField(t *testing.T) {
 	t.Parallel()
 

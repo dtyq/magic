@@ -435,7 +435,7 @@ abstract data visualization background, dark navy, glowing blue grid lines, floa
 
 ### Notes
 
-- For dark templates, **strongly prefer** using `generate_image` for backgrounds, because search engines rarely surface dark background images that perfectly match the palette
+- For dark templates, **strongly prefer** using `generate_images` for backgrounds, because search engines rarely surface dark background images that perfectly match the palette
 - For people photos, use `image_search` to find real photos, but add a dark overlay (`rgba(11,15,26,0.6)`) in the slide to blend them into the dark theme
 - Avoid images with white/light backgrounds; if they must be used, blend them in CSS with `mix-blend-mode: luminosity` or a dark gradient overlay
 

@@ -93,7 +93,7 @@ class MagicUserAuthorization extends AbstractAuthorization
     /**
      * 支持两种鉴权模式：
      * 1. Web场景：authorization（账号级别token）+ organizationCode
-     * 2. 个人级别token（沙箱场景）：authorization（个人级别token），无 organizationCode.
+     * 2. 个人级别token（模型网关/沙箱/个人场景）：authorization（个人级别token），无 organizationCode.
      * @param mixed $key
      */
     public static function retrieveById($key): ?Authenticatable
@@ -188,7 +188,7 @@ class MagicUserAuthorization extends AbstractAuthorization
         return $this->avatar;
     }
 
-    public function setAvatar(string $avatar): MagicUserAuthorization
+    public function setAvatar(string $avatar): static
     {
         $this->avatar = $avatar;
         return $this;
@@ -199,7 +199,7 @@ class MagicUserAuthorization extends AbstractAuthorization
         return $this->realName;
     }
 
-    public function setRealName(string $realName): MagicUserAuthorization
+    public function setRealName(string $realName): static
     {
         $this->realName = $realName;
         return $this;
@@ -210,7 +210,7 @@ class MagicUserAuthorization extends AbstractAuthorization
         return $this->organizationCode;
     }
 
-    public function setOrganizationCode(string $organizationCode): MagicUserAuthorization
+    public function setOrganizationCode(string $organizationCode): static
     {
         $this->organizationCode = $organizationCode;
         return $this;
@@ -221,7 +221,7 @@ class MagicUserAuthorization extends AbstractAuthorization
         return $this->applicationCode ?: AppCodeEnum::SUPER_MAGIC->value;
     }
 
-    public function setApplicationCode(string $applicationCode): MagicUserAuthorization
+    public function setApplicationCode(string $applicationCode): static
     {
         $this->applicationCode = $applicationCode;
         return $this;
@@ -242,7 +242,7 @@ class MagicUserAuthorization extends AbstractAuthorization
         return $this->id;
     }
 
-    public function setId(string $id): MagicUserAuthorization
+    public function setId(string $id): static
     {
         $this->id = $id;
         return $this;
@@ -253,7 +253,7 @@ class MagicUserAuthorization extends AbstractAuthorization
         return $this->nickname;
     }
 
-    public function setNickname(string $nickname): MagicUserAuthorization
+    public function setNickname(string $nickname): static
     {
         $this->nickname = $nickname;
         return $this;
@@ -314,9 +314,9 @@ class MagicUserAuthorization extends AbstractAuthorization
         return $this;
     }
 
-    public static function fromUserEntity(MagicUserEntity $userEntity): MagicUserAuthorization
+    public static function fromUserEntity(MagicUserEntity $userEntity): self
     {
-        $authorization = new MagicUserAuthorization();
+        $authorization = new self();
         $authorization->setId($userEntity->getUserId());
         $authorization->setMagicId($userEntity->getMagicId());
         $authorization->setOrganizationCode($userEntity->getOrganizationCode());
@@ -408,6 +408,12 @@ class MagicUserAuthorization extends AbstractAuthorization
     private static function tryRenewToken(MagicTokenEntity $tokenEntity): void
     {
         try {
+            $tokenType = $tokenEntity->getType();
+            // 短效凭证与刷新凭证不参与自动续期，避免干扰模型网关 token 生命周期设计。
+            if ($tokenType === MagicTokenType::RefreshToken || $tokenType === MagicTokenType::ModelGatewayUser) {
+                return;
+            }
+
             $expiredAt = Carbon::parse($tokenEntity->getExpiredAt());
             $now = Carbon::now();
 

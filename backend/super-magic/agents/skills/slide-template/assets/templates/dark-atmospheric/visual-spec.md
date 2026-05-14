@@ -368,7 +368,7 @@ option = {
 - Prioritize illustrations with dark backgrounds, neon glow, and high contrast
 - Avoid bright backgrounds and soft tones
 
-**generate_image example prompt**：
+**generate_images example prompt**：
 ```
 dark atmospheric illustration of [具体主题], deep purple-black background #0A0A18, electric purple #9D6FFF and ice cyan #22D3EE neon glow effects, cinematic volumetric lighting, particle effects, mysterious and sophisticated atmosphere, high contrast, glowing outlines, dark mode aesthetic, no bright backgrounds, dramatic shadows, film noir mood
 ```

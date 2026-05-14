@@ -175,18 +175,47 @@ async def resolve_size_from_references(
     return best_size
 
 
-async def resolve_safe_save_path(save_dir: Path, filename_stem: str) -> Path:
+async def detect_image_file_extension(file_path: str) -> str:
+    """根据图片真实内容推断保存扩展名，失败时回退到文件后缀。"""
+    import asyncio
+    from PIL import Image
+
+    extension_map = {
+        "JPEG": ".jpg",
+        "PNG": ".png",
+        "WEBP": ".webp",
+        "GIF": ".gif",
+        "BMP": ".bmp",
+    }
+
+    try:
+        def _detect(path: str) -> Optional[str]:
+            with Image.open(path) as img:
+                return extension_map.get((img.format or "").upper())
+
+        detected = await asyncio.to_thread(_detect, file_path)
+        if detected:
+            return detected
+    except Exception as e:
+        logger.warning(f"检测生成图片格式失败 {file_path}: {e}")
+
+    suffix = Path(file_path).suffix.lower()
+    return suffix if suffix else ".jpg"
+
+
+async def resolve_safe_save_path(save_dir: Path, filename_stem: str, extension: str = ".jpg") -> Path:
     """
     确定不冲突的保存路径，同名文件自动追加数字序号。
     调用方需已确保 save_dir 存在。
     """
-    candidate = save_dir / f"{filename_stem}.jpg"
+    normalized_extension = extension if extension.startswith(".") else f".{extension}"
+    candidate = save_dir / f"{filename_stem}{normalized_extension}"
     if not await async_exists(candidate):
         return candidate
 
     counter = 1
     while True:
-        candidate = save_dir / f"{filename_stem}_{counter}.jpg"
+        candidate = save_dir / f"{filename_stem}_{counter}{normalized_extension}"
         if not await async_exists(candidate):
             return candidate
         counter += 1

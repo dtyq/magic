@@ -83,7 +83,7 @@ func (h *FragmentRPCService) CreateRPC(ctx context.Context, req *dto.CreateFragm
 	result, err := h.appService.Create(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to create fragment", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewFragmentResponse(result), nil
@@ -109,7 +109,7 @@ func (h *FragmentRPCService) RuntimeCreateRPC(ctx context.Context, req *dto.Runt
 	})
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to runtime create fragment", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	return dto.NewFragmentResponse(result), nil
 }
@@ -125,7 +125,7 @@ func (h *FragmentRPCService) ShowRPC(ctx context.Context, req *dto.ShowFragmentR
 		req.DocumentCode,
 	)
 	if err != nil {
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewFragmentResponse(result), nil
@@ -148,7 +148,7 @@ func (h *FragmentRPCService) ListRPC(ctx context.Context, req *dto.ListFragmentR
 	result, err := h.appService.ListV2(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to list fragments", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	result.Page = resolveListPage(req)
 	return dto.NewFragmentPageResponse(result), nil
@@ -171,7 +171,7 @@ func (h *FragmentRPCService) ListHTTPRPC(ctx context.Context, req *dto.ListFragm
 	result, err := h.appService.ListV2(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to list fragments for passthrough", "error", err)
-		return newErrorPassthroughResponse(err, req.AcceptEncoding)
+		return newErrorPassthroughResponse(ctx, err, req.AcceptEncoding)
 	}
 	result.Page = resolveListPage(req)
 
@@ -189,7 +189,7 @@ func (h *FragmentRPCService) DestroyRPC(ctx context.Context, req *dto.DestroyFra
 		req.DataIsolation.ResolveOrganizationCode(),
 	); err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to destroy fragment", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return &map[string]bool{"success": true}, nil
@@ -207,7 +207,7 @@ func (h *FragmentRPCService) RuntimeDestroyByBusinessIDRPC(
 		BusinessID:       req.BusinessID,
 	}); err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to runtime destroy fragment by business id", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	return &map[string]bool{"success": true}, nil
 }
@@ -224,14 +224,14 @@ func (h *FragmentRPCService) RuntimeDestroyByMetadataFilterRPC(
 		MetadataFilter:   map[string]any(req.MetadataFilter),
 	}); err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to runtime destroy fragment by metadata filter", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	return &map[string]bool{"success": true}, nil
 }
 
 // SyncRPC 同步片段到向量库（RPC 版本）
-func (h *FragmentRPCService) SyncRPC(_ context.Context, _ *dto.SyncFragmentRequest) (*dto.FragmentResponse, error) {
-	return nil, mapBusinessError(fragmentapp.ErrFragmentWriteDisabled)
+func (h *FragmentRPCService) SyncRPC(ctx context.Context, _ *dto.SyncFragmentRequest) (*dto.FragmentResponse, error) {
+	return nil, mapBusinessError(ctx, fragmentapp.ErrFragmentWriteDisabled)
 }
 
 // SimilarityRPC 相似度搜索（RPC 版本）
@@ -257,7 +257,7 @@ func (h *FragmentRPCService) SimilarityRPC(ctx context.Context, req *dto.Similar
 	results, err := h.appService.Similarity(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to search similarity", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	return dto.NewSimilarityPageResponse(results), nil
 }
@@ -283,7 +283,7 @@ func (h *FragmentRPCService) SimilarityHTTPRPC(ctx context.Context, req *dto.Sim
 	results, err := h.appService.Similarity(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to search similarity for passthrough", "error", err)
-		return newErrorPassthroughResponse(err, req.AcceptEncoding)
+		return newErrorPassthroughResponse(ctx, err, req.AcceptEncoding)
 	}
 
 	return newSuccessPassthroughResponse(dto.NewSimilarityPageResponse(results), req.AcceptEncoding)
@@ -312,7 +312,7 @@ func (h *FragmentRPCService) RuntimeSimilarityRPC(
 	})
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to runtime search similarity", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	return dto.NewSimilarityPageResponse(results), nil
 }
@@ -335,7 +335,7 @@ func (h *FragmentRPCService) SimilarityByAgentRPC(
 	})
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to search employee knowledge similarity", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	return dto.NewAgentSimilarityResponse(result), nil
 }
@@ -375,7 +375,7 @@ func (h *FragmentRPCService) PreviewRPC(ctx context.Context, req *dto.PreviewFra
 	result, err := h.appService.PreviewV2(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to preview fragments", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	return dto.NewFragmentPageResponse(result), nil
 }
@@ -395,7 +395,7 @@ func (h *FragmentRPCService) PreviewHTTPRPC(ctx context.Context, req *dto.Previe
 	result, err := h.appService.PreviewV2(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to preview fragments for passthrough", "error", err)
-		return newErrorPassthroughResponse(err, req.AcceptEncoding)
+		return newErrorPassthroughResponse(ctx, err, req.AcceptEncoding)
 	}
 
 	return newSuccessPassthroughResponse(dto.NewFragmentPageResponse(result), req.AcceptEncoding)

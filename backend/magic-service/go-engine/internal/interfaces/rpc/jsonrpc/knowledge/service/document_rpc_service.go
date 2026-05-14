@@ -160,7 +160,7 @@ func (h *DocumentRPCService) CreateRPC(ctx context.Context, req *dto.CreateDocum
 	result, err := h.createService.Create(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to create document", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewDocumentResponse(result), nil
@@ -193,7 +193,7 @@ func (h *DocumentRPCService) UpdateRPC(ctx context.Context, req *dto.UpdateDocum
 	result, err := h.updateService.Update(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to update document", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewDocumentResponse(result), nil
@@ -210,7 +210,7 @@ func (h *DocumentRPCService) ShowRPC(ctx context.Context, req *dto.ShowDocumentR
 		req.DataIsolation.UserID,
 	)
 	if err != nil {
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewDocumentResponse(result), nil
@@ -230,7 +230,7 @@ func (h *DocumentRPCService) GetOriginalFileLinkRPC(
 		req.DataIsolation.UserID,
 	)
 	if err != nil {
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return &dto.OriginalFileLinkResponse{
@@ -265,7 +265,7 @@ func (h *DocumentRPCService) ListRPC(ctx context.Context, req *dto.ListDocumentR
 	result, err := h.queryService.List(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to list documents", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	documents, ok := result.List.([]*docdto.DocumentDTO)
@@ -274,7 +274,7 @@ func (h *DocumentRPCService) ListRPC(ctx context.Context, req *dto.ListDocumentR
 		ok = true
 	}
 	if !ok {
-		return nil, mapBusinessError(fmt.Errorf("%w: %T", errUnexpectedDocumentListResultType, result.List))
+		return nil, mapBusinessError(ctx, fmt.Errorf("%w: %T", errUnexpectedDocumentListResultType, result.List))
 	}
 
 	return dto.NewDocumentPageResponse(
@@ -297,7 +297,7 @@ func (h *DocumentRPCService) GetByThirdFileIdRPC(
 	})
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to get documents by third file id", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return dto.NewDocumentResponses(results), nil
@@ -308,7 +308,7 @@ func (h *DocumentRPCService) CountByKnowledgeBaseCodesRPC(ctx context.Context, r
 	result, err := h.queryService.CountByKnowledgeBaseCodes(ctx, req.DataIsolation.ResolveOrganizationCode(), req.KnowledgeBaseCodes)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to count documents by knowledge base codes", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return result, nil
@@ -325,7 +325,7 @@ func (h *DocumentRPCService) DestroyRPC(ctx context.Context, req *dto.DestroyDoc
 		req.DataIsolation.UserID,
 	); err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to destroy document", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return &map[string]bool{"success": true}, nil
@@ -370,7 +370,7 @@ func (h *DocumentRPCService) ReVectorizedByThirdFileIdRPC(
 
 	if err := h.thirdFileRevectorize.ReVectorizedByThirdFileID(ctx, input); err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to re-vectorize document by third file id", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return &map[string]bool{"success": true}, nil
@@ -388,7 +388,7 @@ func (h *DocumentRPCService) NotifyProjectFileChangeRPC(
 		Status:           req.Status,
 	}); err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to notify project file change", "project_file_id", req.ProjectFileID, "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 	return &map[string]bool{"success": true}, nil
 }

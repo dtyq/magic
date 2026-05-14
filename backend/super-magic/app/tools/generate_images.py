@@ -25,14 +25,17 @@ from agentlang.tools.tool_result import ToolResult
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.core.entity.tool.tool_result_types import ImageToolResult
 from app.i18n import i18n
-from app.service.media_generation_service import (
-    AI_IMAGE_GENERATION_SOURCE,
-    notify_generated_media_file,
+from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
+from app.infrastructure.sdk.magic_service.parameter.update_file_source_parameter import (
+    FileSource,
+    UpdateFileSourceParameter,
 )
+from app.service.media_generation_service import AI_IMAGE_GENERATION_SOURCE
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.image_utils import (
     cleanup_temp_files,
+    detect_image_file_extension,
     resolve_image_model,
     resolve_reference_images_to_urls,
     resolve_safe_save_path,
@@ -48,7 +51,7 @@ from app.tools.media_generator import (
 )
 from app.tools.media_generator.base import ImageGenerationProviderError
 from app.tools.workspace_tool import WorkspaceTool
-from app.utils.async_file_utils import async_copy2, async_exists, async_mkdir, async_stat, async_unlink
+from app.utils.async_file_utils import async_copy2, async_exists, async_mkdir, async_stat, async_unlink, get_file_id_from_xattr
 
 logger = get_logger(__name__)
 
@@ -476,7 +479,8 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
         tool_context: ToolContext,
     ) -> str:
         """将单张生成图片的临时文件拷贝到最终目标路径，触发文件版本事件和媒体通知。"""
-        save_path = await resolve_safe_save_path(save_dir, filename_stem)
+        extension = await detect_image_file_extension(image.temp_file_path)
+        save_path = await resolve_safe_save_path(save_dir, filename_stem, extension)
 
         async with self._file_versioning_context(
             tool_context, save_path, update_timestamp=False
@@ -488,16 +492,20 @@ class GenerateImages(AbstractFileTool[GenerateImagesParams], WorkspaceTool[Gener
         except Exception as e:
             logger.warning(f"清理临时文件失败: {image.temp_file_path}, 错误: {e}")
 
-        # TODO: temporarily disabled - file notification via generate_images (link 2)
-        # try:
-        #     await notify_generated_media_file(
-        #         file_path=str(save_path),
-        #         base_dir=self.base_dir,
-        #         file_existed=file_existed,
-        #         source=AI_IMAGE_GENERATION_SOURCE,
-        #     )
-        # except Exception as e:
-        #     logger.warning(f"发送文件通知失败: {e}")
+        try:
+            file_id_str = await get_file_id_from_xattr(str(save_path))
+            if file_id_str:
+                sdk = get_magic_service_sdk()
+                param = UpdateFileSourceParameter(
+                    file_id=int(file_id_str),
+                    source=FileSource.AI_IMAGE_GENERATION,
+                )
+                await sdk.file.update_file_source_async(param)
+                logger.info(f"Updated file source: file_id={file_id_str}, source={FileSource.AI_IMAGE_GENERATION}")
+            else:
+                logger.warning(f"No file_id found in xattr, skipping update_file_source: {save_path}")
+        except Exception as e:
+            logger.warning(f"Failed to update file source: {e}")
 
         return str(save_path)
 

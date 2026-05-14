@@ -19,6 +19,7 @@ use Dtyq\SuperMagic\Application\Skill\Assembler\AdminSkillAssembler;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
+use Dtyq\SuperMagic\Domain\Skill\Service\SkillVersionDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestAdminDTO;
@@ -36,6 +37,7 @@ class AdminSkillAppService extends AbstractSkillAppService
 {
     public function __construct(
         protected SkillDomainService $skillDomainService,
+        protected SkillVersionDomainService $skillVersionDomainService,
         protected SkillMarketDomainService $skillMarketDomainService,
         private readonly ResourceVisibilityDomainService $resourceVisibilityDomainService,
         private readonly AdminSkillAssembler $adminSkillAssembler,
@@ -50,7 +52,7 @@ class AdminSkillAppService extends AbstractSkillAppService
         $dataIsolation->disabled();
 
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
-        $result = $this->skillDomainService->queryVersions(
+        $result = $this->skillVersionDomainService->queryVersions(
             $dataIsolation,
             $requestDTO->getReviewStatus(),
             $requestDTO->getPublishStatus(),
@@ -177,7 +179,7 @@ class AdminSkillAppService extends AbstractSkillAppService
         $dataIsolation = $this->createSkillDataIsolation($requestContext->getUserAuthorization());
 
         // 调用领域服务处理业务逻辑
-        $this->skillDomainService->reviewSkillVersion(
+        $this->skillVersionDomainService->reviewSkillVersion(
             $dataIsolation,
             $id,
             $requestDTO->getAction(),

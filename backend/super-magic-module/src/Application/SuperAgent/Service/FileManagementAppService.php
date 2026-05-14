@@ -67,6 +67,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ReplaceFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveProjectFileRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ScanWavFilesRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\TopicUploadTokenRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateFileSourceRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\FileBatchOperationStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\GetFileTreeResponseDTO;
@@ -2182,6 +2183,25 @@ class FileManagementAppService extends AbstractAppService
             'scanned' => count($wavFileList),
             'inserted' => count($newWavFiles),
             'message' => 'WAV files scanned and saved successfully',
+        ];
+    }
+
+    /**
+     * Update the source of a task file.
+     *
+     * @param UpdateFileSourceRequestDTO $requestDTO Request DTO containing file_id and source
+     * @return array Updated file info
+     */
+    public function updateFileSource(UpdateFileSourceRequestDTO $requestDTO): array
+    {
+        $fileId = $requestDTO->getFileId();
+        $source = TaskFileSource::fromValue($requestDTO->getSource());
+
+        $fileEntity = $this->taskFileDomainService->updateFileSource($fileId, $source);
+
+        return [
+            'file_id' => $fileEntity->getFileId(),
+            'source' => $fileEntity->getSource()->value,
         ];
     }
 

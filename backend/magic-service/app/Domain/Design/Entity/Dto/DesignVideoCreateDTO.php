@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Design\Entity\Dto;
 
+use App\Domain\ModelGateway\Entity\ValueObject\VideoInputMode;
+use App\Domain\ModelGateway\Entity\ValueObject\VideoTaskType;
 use App\ErrorCode\MagicApiErrorCode;
 use App\Infrastructure\Core\AbstractDTO;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -14,19 +16,9 @@ use Hyperf\Codec\Json;
 
 class DesignVideoCreateDTO extends AbstractDTO
 {
-    public const string DEFAULT_TASK = 'generate';
-
-    public const array SUPPORTED_TASKS = ['generate', 'extend', 'edit', 'upscale'];
-
     public const array FRAME_ROLES = ['start', 'end'];
 
     public const array AUDIO_ROLES = ['reference'];
-
-    // standard: 普通文生视频；
-    // image_reference: 参考图模式，使用 reference_images[] 传入图片参考；
-    // omni_reference: 全能参考模式，使用 reference_images[] / reference_videos[] / reference_audios[]；
-    // keyframe_guided: 首尾帧引导生成，继续使用 frames[] 传入首帧/尾帧。
-    public const array INPUT_MODES = ['standard', 'image_reference', 'omni_reference', 'keyframe_guided'];
 
     public const array REFERENCE_IMAGE_TYPES = ['asset', 'style'];
 
@@ -97,7 +89,7 @@ class DesignVideoCreateDTO extends AbstractDTO
 
     protected string $taskId = '';
 
-    protected string $task = self::DEFAULT_TASK;
+    protected string $task = '';
 
     protected string $prompt = '';
 
@@ -121,6 +113,23 @@ class DesignVideoCreateDTO extends AbstractDTO
     {
         $this->rawData = is_array($data) ? $data : [];
         $this->hydrate($this->rawData);
+        $this->setTask($this->task);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function supportedTasks(): array
+    {
+        return VideoTaskType::values();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function inputModes(): array
+    {
+        return VideoInputMode::requestValues();
     }
 
     public function getProjectId(): int
@@ -193,7 +202,7 @@ class DesignVideoCreateDTO extends AbstractDTO
     public function setTask(mixed $task): void
     {
         $normalized = is_string($task) ? trim($task) : '';
-        $this->task = $normalized === '' ? self::DEFAULT_TASK : $normalized;
+        $this->task = $normalized === '' ? VideoTaskType::Generate->value : $normalized;
     }
 
     public function getPrompt(): string
@@ -234,22 +243,22 @@ class DesignVideoCreateDTO extends AbstractDTO
 
     public function getInputMode(): string
     {
-        if (in_array($this->inputMode, self::INPUT_MODES, true)) {
+        if (VideoInputMode::isRequestValid($this->inputMode)) {
             return $this->inputMode;
         }
 
         // 旧调用不传 input_mode 时，仍按输入形态推断，避免 reference_images / frames 被误判。
         if ($this->getFrames() !== []) {
-            return 'keyframe_guided';
+            return VideoInputMode::KeyframeGuided->value;
         }
         if ($this->getReferenceVideos() !== [] || $this->getReferenceAudios() !== []) {
-            return 'omni_reference';
+            return VideoInputMode::OmniReference->value;
         }
         if ($this->getReferenceImages() !== []) {
-            return 'image_reference';
+            return VideoInputMode::ImageReference->value;
         }
 
-        return '';
+        return VideoInputMode::Standard->value;
     }
 
     public function setInputs(mixed $inputs): void
@@ -383,7 +392,7 @@ class DesignVideoCreateDTO extends AbstractDTO
         if ($this->modelId === '') {
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
         }
-        if (! in_array($this->task, self::SUPPORTED_TASKS, true)) {
+        if (! VideoTaskType::isValid($this->task)) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'task is invalid');
         }
         if ($this->prompt === '') {
@@ -416,7 +425,7 @@ class DesignVideoCreateDTO extends AbstractDTO
         if ($this->modelId === '') {
             ExceptionBuilder::throw(MagicApiErrorCode::MODEL_NOT_SUPPORT);
         }
-        if (! in_array($this->task, self::SUPPORTED_TASKS, true)) {
+        if (! VideoTaskType::isValid($this->task)) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'task is invalid');
         }
 
@@ -542,7 +551,7 @@ class DesignVideoCreateDTO extends AbstractDTO
             }
         }
 
-        if ($this->inputMode !== '' && ! in_array($this->getInputMode(), self::INPUT_MODES, true)) {
+        if ($this->inputMode !== '' && ! VideoInputMode::isRequestValid($this->getInputMode())) {
             ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'input_mode is invalid');
         }
 

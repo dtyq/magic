@@ -16,7 +16,6 @@ import (
 const (
 	rabbitTestKnowledgeBaseCode = "KB-1"
 	rabbitTestDocumentCode      = "DOC-1"
-	rabbitTestMaxRequeue        = 20
 )
 
 var (
@@ -190,6 +189,7 @@ func (b *rabbitFakeBroker) ConsumerCalls() []rabbitConsumerCall {
 
 type rabbitFakeDelivery struct {
 	body        []byte
+	redelivered bool
 	acked       bool
 	nacked      bool
 	nackRequeue bool
@@ -197,6 +197,10 @@ type rabbitFakeDelivery struct {
 
 func (d *rabbitFakeDelivery) Body() []byte {
 	return d.body
+}
+
+func (d *rabbitFakeDelivery) Redelivered() bool {
+	return d.redelivered
 }
 
 func (d *rabbitFakeDelivery) Ack(bool) error {
@@ -273,7 +277,7 @@ func TestRabbitMQSchedulerSchedulePublishesSelfContainedDocumentSyncTask(t *test
 	t.Parallel()
 
 	broker := &rabbitFakeBroker{enabled: true}
-	scheduler := newRabbitMQSchedulerForTest(t, &rabbitRecordingRunner{}, broker, nil)
+	scheduler := newRabbitMQSchedulerForTest(t, &rabbitRecordingRunner{}, broker)
 
 	task := newRabbitMQDocumentSyncTask(t)
 	scheduler.Schedule(context.Background(), task)
@@ -305,7 +309,7 @@ func TestRabbitMQSchedulerScheduleLogsPublishFailureWithoutFallback(t *testing.T
 
 	broker := &rabbitFakeBroker{enabled: true, publishErr: errRabbitPublishFailed}
 	runner := &rabbitRecordingRunner{}
-	scheduler := newRabbitMQSchedulerForTest(t, runner, broker, nil)
+	scheduler := newRabbitMQSchedulerForTest(t, runner, broker)
 
 	scheduler.Schedule(context.Background(), newRabbitMQDocumentSyncTask(t))
 
@@ -319,7 +323,7 @@ func TestRabbitMQSchedulerScheduleSkipsUnsupportedTaskWithoutFallback(t *testing
 
 	broker := &rabbitFakeBroker{enabled: true}
 	runner := &rabbitRecordingRunner{}
-	scheduler := newRabbitMQSchedulerForTest(t, runner, broker, nil)
+	scheduler := newRabbitMQSchedulerForTest(t, runner, broker)
 
 	scheduler.Schedule(context.Background(), &documentsync.Task{
 		Kind:              "project_file_change",
@@ -343,16 +347,18 @@ func TestRabbitMQSchedulerHandleDeliveryRunsTaskAndAcks(t *testing.T) {
 
 	runner := &rabbitRecordingRunner{}
 	retryStore := newRabbitMemoryRetryStore()
+	attemptStore := newRabbitMemoryRetryStore()
 	scheduler := newRabbitMQSchedulerForTestWithOptions(
 		t,
 		runner,
 		&rabbitFakeBroker{enabled: true},
 		nil,
-		rabbitSchedulerTestOptions{retryStore: retryStore},
+		rabbitSchedulerTestOptions{retryStore: retryStore, attemptStore: attemptStore},
 	)
 	task := newRabbitMQDocumentSyncTask(t)
 	task.Key = "TASK-SUCCESS"
 	_, _ = retryStore.Increment(context.Background(), task.Key)
+	_, _ = attemptStore.Increment(context.Background(), task.Key)
 	delivery := newRabbitTaskDelivery(t, task)
 
 	scheduler.HandleDeliveryForTest(context.Background(), delivery)
@@ -372,6 +378,78 @@ func TestRabbitMQSchedulerHandleDeliveryRunsTaskAndAcks(t *testing.T) {
 	}
 	if got := retryStore.ResetCalls(); len(got) != 1 || got[0] != task.Key {
 		t.Fatalf("expected retry reset for %q, got %#v", task.Key, got)
+	}
+	if got := attemptStore.Count(task.Key); got != 0 {
+		t.Fatalf("expected delivery attempt counter to be reset, got %d", got)
+	}
+	if got := attemptStore.ResetCalls(); len(got) != 1 || got[0] != task.Key {
+		t.Fatalf("expected delivery attempt reset for %q, got %#v", task.Key, got)
+	}
+}
+
+func TestRabbitMQSchedulerHandleDeliveryTracksDeliveryAttempts(t *testing.T) {
+	t.Parallel()
+
+	retryStore := newRabbitMemoryRetryStore()
+	attemptStore := newRabbitMemoryRetryStore()
+	scheduler := newRabbitMQSchedulerForTestWithOptions(
+		t,
+		&rabbitRecordingRunner{err: errRabbitRunnerFailed},
+		&rabbitFakeBroker{enabled: true},
+		nil,
+		rabbitSchedulerTestOptions{retryStore: retryStore, attemptStore: attemptStore},
+	)
+	task := newRabbitMQDocumentSyncTask(t)
+	task.Key = "TASK-ATTEMPT"
+
+	first := newRabbitTaskDelivery(t, task)
+	scheduler.HandleDeliveryForTest(context.Background(), first)
+	if first.acked || !first.nacked || !first.nackRequeue {
+		t.Fatalf("expected first delivery to requeue, got ack=%v nack=%v requeue=%v", first.acked, first.nacked, first.nackRequeue)
+	}
+	if got := attemptStore.Count(task.Key); got != 1 {
+		t.Fatalf("expected first delivery attempt count 1, got %d", got)
+	}
+
+	second := newRabbitTaskDelivery(t, task)
+	second.redelivered = true
+	scheduler.HandleDeliveryForTest(context.Background(), second)
+	if second.acked || !second.nacked || !second.nackRequeue {
+		t.Fatalf("expected second delivery to requeue, got ack=%v nack=%v requeue=%v", second.acked, second.nacked, second.nackRequeue)
+	}
+	if got := attemptStore.Count(task.Key); got != 2 {
+		t.Fatalf("expected second delivery attempt count 2, got %d", got)
+	}
+	if got := retryStore.Count(task.Key); got != 2 {
+		t.Fatalf("expected failure retry count 2, got %d", got)
+	}
+}
+
+func TestRabbitMQSchedulerHandleDeliveryKeepsDeliveryAttemptOnRequeue(t *testing.T) {
+	t.Parallel()
+
+	attemptStore := newRabbitMemoryRetryStore()
+	scheduler := newRabbitMQSchedulerForTestWithOptions(
+		t,
+		&rabbitRecordingRunner{err: errRabbitRunnerFailed},
+		&rabbitFakeBroker{enabled: true},
+		nil,
+		rabbitSchedulerTestOptions{attemptStore: attemptStore},
+	)
+	task := newRabbitMQDocumentSyncTask(t)
+	task.Key = "TASK-REQUEUE-ATTEMPT"
+	delivery := newRabbitTaskDelivery(t, task)
+
+	scheduler.HandleDeliveryForTest(context.Background(), delivery)
+
+	if delivery.acked || !delivery.nacked || !delivery.nackRequeue {
+		t.Fatalf("expected delivery to requeue, got ack=%v nack=%v requeue=%v", delivery.acked, delivery.nacked, delivery.nackRequeue)
+	}
+	if got := attemptStore.Count(task.Key); got != 1 {
+		t.Fatalf("expected delivery attempt counter to remain for requeue, got %d", got)
+	}
+	if got := attemptStore.ResetCalls(); len(got) != 0 {
+		t.Fatalf("expected no delivery attempt reset on requeue, got %#v", got)
 	}
 }
 
@@ -491,7 +569,7 @@ func TestRabbitMQSchedulerHandleDeliverySkipsInvalidAndLegacyMessages(t *testing
 
 			runner := &rabbitRecordingRunner{}
 			broker := &rabbitFakeBroker{enabled: true}
-			scheduler := newRabbitMQSchedulerForTest(t, runner, broker, nil)
+			scheduler := newRabbitMQSchedulerForTest(t, runner, broker)
 			delivery := &rabbitFakeDelivery{body: body}
 
 			scheduler.HandleDeliveryForTest(context.Background(), delivery)
@@ -515,10 +593,23 @@ func TestRabbitMQSchedulerHandleDeliveryRunnerFailureRequeuesUntilLimit(t *testi
 	runner := &rabbitRecordingRunner{err: errRabbitRunnerFailed}
 	terminal := &rabbitTerminalHandler{}
 	broker := &rabbitFakeBroker{enabled: true}
-	scheduler := newRabbitMQSchedulerForTest(t, runner, broker, terminal)
+	attemptStore := newRabbitMemoryRetryStore()
+	scheduler := newRabbitMQSchedulerForTestWithOptions(
+		t,
+		runner,
+		broker,
+		terminal,
+		rabbitSchedulerTestOptions{
+			attemptStore: attemptStore,
+			mutateConfig: func(cfg *documentsync.RabbitMQSchedulerConfig) {
+				cfg.MaxRequeueAttempts = 2
+			},
+		},
+	)
 	task := newRabbitMQDocumentSyncTask(t)
+	task.Key = "TASK-EXHAUST"
 
-	for attempt := 1; attempt <= rabbitTestMaxRequeue; attempt++ {
+	for attempt := 1; attempt <= 2; attempt++ {
 		delivery := newRabbitTaskDelivery(t, task)
 		scheduler.HandleDeliveryForTest(context.Background(), delivery)
 
@@ -549,6 +640,50 @@ func TestRabbitMQSchedulerHandleDeliveryRunnerFailureRequeuesUntilLimit(t *testi
 	}
 	if !errors.Is(causes[0], errRabbitRunnerFailed) {
 		t.Fatalf("expected terminal cause to wrap runner error, got %v", causes[0])
+	}
+	if got := attemptStore.Count(task.Key); got != 0 {
+		t.Fatalf("expected delivery attempt counter to reset after retry exhausted, got %d", got)
+	}
+}
+
+func TestRabbitMQSchedulerHandleDeliveryAcksAfterDeliveryAttemptLimit(t *testing.T) {
+	t.Parallel()
+
+	runner := &rabbitRecordingRunner{err: errRabbitRunnerFailed}
+	terminal := &rabbitTerminalHandler{}
+	attemptStore := newRabbitMemoryRetryStore()
+	scheduler := newRabbitMQSchedulerForTestWithOptions(
+		t,
+		runner,
+		&rabbitFakeBroker{enabled: true},
+		terminal,
+		rabbitSchedulerTestOptions{attemptStore: attemptStore},
+	)
+	task := newRabbitMQDocumentSyncTask(t)
+	task.Key = "TASK-DELIVERY-LIMIT"
+
+	for attempt := 1; attempt <= 10; attempt++ {
+		delivery := newRabbitTaskDelivery(t, task)
+		scheduler.HandleDeliveryForTest(context.Background(), delivery)
+		if delivery.acked || !delivery.nacked || !delivery.nackRequeue {
+			t.Fatalf("attempt %d: expected task to requeue before delivery limit, got ack=%v nack=%v requeue=%v", attempt, delivery.acked, delivery.nacked, delivery.nackRequeue)
+		}
+	}
+
+	delivery := newRabbitTaskDelivery(t, task)
+	scheduler.HandleDeliveryForTest(context.Background(), delivery)
+	if !delivery.acked || delivery.nacked {
+		t.Fatalf("expected delivery beyond limit to ack without nack, got ack=%v nack=%v", delivery.acked, delivery.nacked)
+	}
+	if got := len(runner.Executed()); got != 10 {
+		t.Fatalf("expected runner to execute only first 10 deliveries, got %d", got)
+	}
+	tasks, causes := terminal.Calls()
+	if len(tasks) != 0 || len(causes) != 0 {
+		t.Fatalf("expected no terminal call for delivery limit drop, got tasks=%d causes=%d", len(tasks), len(causes))
+	}
+	if got := attemptStore.Count(task.Key); got != 0 {
+		t.Fatalf("expected delivery attempt counter reset after delivery limit, got %d", got)
 	}
 }
 
@@ -757,7 +892,7 @@ func TestRabbitMQSchedulerStartDoesNotPublishRecoveryMessages(t *testing.T) {
 			return consumer, nil
 		},
 	}
-	scheduler := newRabbitMQSchedulerForTest(t, &rabbitRecordingRunner{}, broker, nil)
+	scheduler := newRabbitMQSchedulerForTest(t, &rabbitRecordingRunner{}, broker)
 
 	runCtx, cancelRun := context.WithCancel(context.Background())
 	startDone := make(chan error, 1)
@@ -845,7 +980,7 @@ func TestRabbitMQSchedulerStartWaitsReadinessBeforeConsume(t *testing.T) {
 			return consumer, nil
 		},
 	}
-	scheduler := newRabbitMQSchedulerForTest(t, &rabbitRecordingRunner{}, broker, nil)
+	scheduler := newRabbitMQSchedulerForTest(t, &rabbitRecordingRunner{}, broker)
 
 	ready := make(chan struct{})
 	gate := &rabbitBlockingReadinessGate{
@@ -883,10 +1018,9 @@ func newRabbitMQSchedulerForTest(
 	t *testing.T,
 	runner documentsync.Runner,
 	broker *rabbitFakeBroker,
-	terminal documentsync.TerminalHandler,
 ) *documentsync.RabbitMQScheduler {
 	t.Helper()
-	return newRabbitMQSchedulerForTestWithConfig(t, runner, broker, terminal, nil)
+	return newRabbitMQSchedulerForTestWithConfig(t, runner, broker, nil, nil)
 }
 
 func newRabbitMQSchedulerForTestWithConfig(
@@ -902,6 +1036,7 @@ func newRabbitMQSchedulerForTestWithConfig(
 
 type rabbitSchedulerTestOptions struct {
 	retryStore        documentsync.RetryStore
+	attemptStore      documentsync.DeliveryAttemptStore
 	admissionGate     documentsync.MemoryAdmissionGate
 	nonRetryableError func(error) bool
 	mutateConfig      func(*documentsync.RabbitMQSchedulerConfig)
@@ -922,6 +1057,9 @@ func newRabbitMQSchedulerForTestWithOptions(
 	if options.retryStore == nil {
 		options.retryStore = newRabbitMemoryRetryStore()
 	}
+	if options.attemptStore == nil {
+		options.attemptStore = newRabbitMemoryRetryStore()
+	}
 	if options.timeout <= 0 {
 		options.timeout = 200 * time.Millisecond
 	}
@@ -939,6 +1077,7 @@ func newRabbitMQSchedulerForTestWithOptions(
 			Broker:            broker,
 			TerminalHandler:   terminal,
 			RetryStore:        options.retryStore,
+			AttemptStore:      options.attemptStore,
 			AdmissionGate:     options.admissionGate,
 			NonRetryableError: options.nonRetryableError,
 		},

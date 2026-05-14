@@ -348,6 +348,16 @@ class StreamResponseHandlerV2(StreamResponseHandlerBase):
                                 elif chunk_result.text_type == "content":
                                     state.content_text += chunk_result.text
 
+                                # ===== 流式退化检测：content 超过安全上限时提前终止 =====
+                                if state.is_content_degenerate():
+                                    logger.warning(
+                                        f"[{request_id}] 流式 content 超过 "
+                                        f"{state.STREAM_CONTENT_MAX_CHARS:,} chars 安全上限，"
+                                        f"疑似退化输出，提前终止"
+                                    )
+                                    finish_reason = "length"
+                                    break
+
                                 has_new_content = has_content or has_reasoning or has_tool_call or finish_reason is not None
                                 if has_new_content:
                                     state.record_valid_content(time.time())

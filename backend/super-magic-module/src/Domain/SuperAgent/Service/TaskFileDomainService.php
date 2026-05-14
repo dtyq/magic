@@ -494,6 +494,32 @@ class TaskFileDomainService
     }
 
     /**
+     * Update only the source field of a task file.
+     * Only `source` and `updated_at` are written; all other fields are left untouched.
+     *
+     * @param int $fileId File ID
+     * @param TaskFileSource $source New source value
+     * @return TaskFileEntity Updated file entity
+     * @throws BusinessException When the file is not found
+     */
+    public function updateFileSource(int $fileId, TaskFileSource $source): TaskFileEntity
+    {
+        $fileEntity = $this->getById($fileId);
+        if ($fileEntity === null) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND);
+        }
+
+        $this->taskFileRepository->updateFileByCondition(
+            ['file_id' => $fileId],
+            ['source' => $source->value, 'updated_at' => date('Y-m-d H:i:s')]
+        );
+
+        $fileEntity->setSource($source);
+
+        return $fileEntity;
+    }
+
+    /**
      * Refresh file metadata from cloud storage after content change.
      * Update file_size and updated_at fields.
      *

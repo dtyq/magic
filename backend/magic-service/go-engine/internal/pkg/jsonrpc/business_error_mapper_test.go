@@ -14,6 +14,7 @@ import (
 	kbentity "magic/internal/domain/knowledge/knowledgebase/entity"
 	"magic/internal/domain/knowledge/shared"
 	ipcclient "magic/internal/infrastructure/rpc/jsonrpc/client"
+	"magic/internal/pkg/i18n"
 	jsonrpc "magic/internal/pkg/jsonrpc"
 	"magic/internal/pkg/thirdplatform"
 )
@@ -56,6 +57,7 @@ func (e *executionUserMessageStubError) ExecutionUserMessage() string {
 type businessErrorCase struct {
 	name          string
 	err           error
+	language      string
 	wantCode      int
 	wantMessage   string
 	wantUseRawMsg bool
@@ -63,6 +65,7 @@ type businessErrorCase struct {
 
 func TestMapBusinessError(t *testing.T) {
 	t.Parallel()
+	i18n.Init()
 
 	for _, tc := range businessErrorCases() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -84,10 +87,10 @@ func businessErrorCases() []businessErrorCase {
 func executionErrorCases() []businessErrorCase {
 	return []businessErrorCase{
 		{
-			name:          "document source precheck failed -> execute failed",
-			err:           errors.Join(documentapp.ErrDocumentSourcePrecheckFailed, errTestBucketNotFound),
-			wantCode:      jsonrpc.ErrCodeSyncFailed,
-			wantUseRawMsg: true,
+			name:        "document source precheck failed -> execute failed",
+			err:         errors.Join(documentapp.ErrDocumentSourcePrecheckFailed, errTestBucketNotFound),
+			wantCode:    jsonrpc.ErrCodeSyncFailed,
+			wantMessage: "文档源预检测失败，请检查文件是否存在或可访问",
 		},
 		{
 			name: "vector dimension mismatch -> execute failed",
@@ -136,6 +139,7 @@ func executionErrorCases() []businessErrorCase {
 func validationErrorCases() []businessErrorCase {
 	cases := make([]businessErrorCase, 0, 14)
 	cases = append(cases, genericValidationErrorCases()...)
+	cases = append(cases, resourceLimitValidationErrorCases()...)
 	cases = append(cases, knowledgeBaseValidationErrorCases()...)
 	cases = append(cases, permissionValidationErrorCases()...)
 	return cases
@@ -174,10 +178,65 @@ func genericValidationErrorCases() []businessErrorCase {
 			wantUseRawMsg: true,
 		},
 		{
+			name:        "document source precheck failed with en_US -> execute failed",
+			err:         errors.Join(documentapp.ErrDocumentSourcePrecheckFailed, errTestBucketNotFound),
+			language:    "en_US",
+			wantCode:    jsonrpc.ErrCodeSyncFailed,
+			wantMessage: "Document source precheck failed. Please check whether the file exists and is accessible.",
+		},
+		{
 			name:          "third platform identity missing -> validate failed",
 			err:           thirdplatform.ErrIdentityMissing,
 			wantCode:      jsonrpc.ErrCodeInvalidParams,
 			wantUseRawMsg: true,
+		},
+	}
+}
+
+func resourceLimitValidationErrorCases() []businessErrorCase {
+	return []businessErrorCase{
+		{
+			name: "wrapped pdf resource limit -> validate failed",
+			err: fmt.Errorf("failed to parse document: %w", fmt.Errorf(
+				"parser failed: %w",
+				documentdomain.NewResourceLimitError(
+					documentdomain.ResourceLimitMaxPDFPages,
+					300,
+					301,
+					"pdf_preflight",
+					"pdf page count too large",
+				),
+			)),
+			wantCode:    jsonrpc.ErrCodeInvalidParams,
+			wantMessage: "PDF页数超过限制，当前301页，最多支持300页",
+		},
+		{
+			name: "wrapped pdf resource limit with en_US -> validate failed",
+			err: fmt.Errorf("failed to parse document: %w", fmt.Errorf(
+				"parser failed: %w",
+				documentdomain.NewResourceLimitError(
+					documentdomain.ResourceLimitMaxPDFPages,
+					300,
+					301,
+					"pdf_preflight",
+					"pdf page count too large",
+				),
+			)),
+			language:    "en_US",
+			wantCode:    jsonrpc.ErrCodeInvalidParams,
+			wantMessage: "PDF page count exceeds the limit. Current: 301 pages, maximum: 300 pages.",
+		},
+		{
+			name: "wrapped generic resource limit -> validate failed",
+			err: fmt.Errorf("check parsed document: %w", documentdomain.NewResourceLimitError(
+				documentdomain.ResourceLimitMaxParsedBlocks,
+				250000,
+				250001,
+				"parsed_document",
+				"",
+			)),
+			wantCode:    jsonrpc.ErrCodeInvalidParams,
+			wantMessage: "文档结构块数量超过限制，当前250001个，最多支持250000个",
 		},
 	}
 }
@@ -350,7 +409,7 @@ func passthroughErrorCases() []businessErrorCase {
 func assertBusinessErrorMapping(t *testing.T, tc businessErrorCase) {
 	t.Helper()
 
-	mapped := jsonrpc.MapBusinessError(tc.err)
+	mapped := jsonrpc.MapBusinessErrorWithLanguage(tc.err, tc.language)
 
 	var bizErr *jsonrpc.BusinessError
 	if !errors.As(mapped, &bizErr) {

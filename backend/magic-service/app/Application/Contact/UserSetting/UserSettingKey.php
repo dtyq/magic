@@ -33,7 +33,7 @@ enum UserSettingKey: string
     case SuperMagicAgentSort = 'SuperMagicAgentSort';
 
     // 特殊项目配置
-    case SuperMagicSpecialProject = 'SuperMagicSpecialProject';
+    case SuperMagicSpecialProject = 'SuperSpecialProject';
 
     /**
      * 个人偏好（一条记录内可放多项，字段名见 {@see PersonalPreferencesKeys}）.

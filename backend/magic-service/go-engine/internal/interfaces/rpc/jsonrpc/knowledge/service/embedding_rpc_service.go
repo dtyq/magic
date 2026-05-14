@@ -87,7 +87,7 @@ func (h *EmbeddingRPCService) ComputeRPC(ctx context.Context, req *dto.ComputeEm
 	result, err := h.appService.Compute(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to compute embedding", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return result, nil
@@ -108,7 +108,7 @@ func (h *EmbeddingRPCService) ComputeBatchRPC(ctx context.Context, req *dto.Comp
 	result, err := h.appService.ComputeBatch(ctx, input)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to compute batch embeddings", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return result, nil
@@ -125,7 +125,7 @@ func (h *EmbeddingRPCService) ListProvidersRPC(ctx context.Context, req *dto.Lis
 	providers, err := h.appService.ListProviders(ctx, businessParams)
 	if err != nil {
 		h.logger.KnowledgeErrorContext(ctx, "Failed to list embedding providers", "error", err)
-		return nil, mapBusinessError(err)
+		return nil, mapBusinessError(ctx, err)
 	}
 
 	return providers, nil

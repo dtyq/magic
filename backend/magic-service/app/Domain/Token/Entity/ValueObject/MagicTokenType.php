@@ -33,16 +33,20 @@ enum MagicTokenType: int
     // 个人访问令牌,type_relation_value为用户id
     case PersonalAccessToken = 6;
 
+    // 沙箱短效 token，type_relation_value为沙箱id
+    case Sandbox = 7;
+
+    // 通用 refresh token（type_relation_value 根据业务场景绑定：如 user_id 等）
+    case RefreshToken = 8;
+
+    // 模型网关用户 token，type_relation_value为用户id，必须搭配 RefreshToken 使用
+    case ModelGatewayUser = 9;
+
     /**
      * 通过枚举值名称的字符串获取枚举值.
      */
-    public static function getCaseFromName(string $typeName): ?MagicTokenType
+    public static function getCaseFromName(string $typeName): ?self
     {
-        foreach (self::cases() as $userType) {
-            if ($userType->name === $typeName) {
-                return $userType;
-            }
-        }
-        return null;
+        return array_find(self::cases(), fn ($userType) => $userType->name === $typeName);
     }
 }

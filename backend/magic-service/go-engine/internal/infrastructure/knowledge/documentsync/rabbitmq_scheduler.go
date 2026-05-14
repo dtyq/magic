@@ -22,8 +22,10 @@ const (
 	defaultRabbitMQConsumerReconnectDelay = time.Second
 	rabbitMQSerialConsumerPrefetch        = 1
 	defaultRabbitMQPrefetch               = 1
+	defaultRabbitMQConsumerConcurrency    = 4
 	defaultMQPublishTimeout               = 5 * time.Second
 	defaultRabbitMQMaxRequeueAttempts     = 20
+	defaultRabbitMQMaxDeliveryAttempts    = 10
 )
 
 var (
@@ -55,6 +57,7 @@ type RabbitMQSchedulerDeps struct {
 	TerminalHandler   TerminalHandler
 	ReadinessGate     ReadinessGate
 	RetryStore        RetryStore
+	AttemptStore      DeliveryAttemptStore
 	AdmissionGate     MemoryAdmissionGate
 	NonRetryableError func(error) bool
 }
@@ -63,7 +66,7 @@ type RabbitMQSchedulerDeps struct {
 func DefaultRabbitMQSchedulerConfig() RabbitMQSchedulerConfig {
 	return RabbitMQSchedulerConfig{
 		ConsumerPrefetch:    defaultRabbitMQPrefetch,
-		ConsumerConcurrency: 1,
+		ConsumerConcurrency: defaultRabbitMQConsumerConcurrency,
 		MQPublishTimeout:    defaultMQPublishTimeout,
 		MaxRequeueAttempts:  defaultRabbitMQMaxRequeueAttempts,
 	}
@@ -79,6 +82,7 @@ type RabbitMQScheduler struct {
 	terminalHandler TerminalHandler
 	readinessGate   ReadinessGate
 	retryStore      RetryStore
+	attemptStore    DeliveryAttemptStore
 	admissionGate   MemoryAdmissionGate
 	nonRetryableErr func(error) bool
 
@@ -107,9 +111,16 @@ func NewRabbitMQScheduler(
 		terminalHandler: deps.TerminalHandler,
 		readinessGate:   deps.ReadinessGate,
 		retryStore:      deps.RetryStore,
+		attemptStore:    deps.AttemptStore,
 		admissionGate:   deps.AdmissionGate,
 		nonRetryableErr: deps.NonRetryableError,
 	}
+}
+
+type deliveryAttemptLogState struct {
+	attempt     int
+	retryCount  int
+	redelivered bool
 }
 
 func normalizeRabbitMQSchedulerConfig(config RabbitMQSchedulerConfig) RabbitMQSchedulerConfig {
@@ -396,28 +407,65 @@ func (s *RabbitMQScheduler) handleDelivery(ctx context.Context, delivery RabbitM
 	ensureRabbitMQTaskRetryKey(s.config.QueueName, task)
 
 	handleCtx := withTaskContext(ctx, task)
+	attempt := s.recordDeliveryAttempt(handleCtx, task, delivery.Redelivered())
+	if s.shouldAckExceededDeliveryAttempt(handleCtx, delivery, task, attempt) {
+		return
+	}
 	if s.logger != nil {
-		s.logger.InfoContext(
-			handleCtx,
-			"knowledge_async_message received rabbitmq document sync task",
+		fields := []any{
 			"knowledge_base_code", task.KnowledgeBaseCode,
 			"document_code", task.Code,
 			"task_kind", task.Kind,
 			"mode", task.Mode,
-		)
+			"task_key", task.Key,
+			"redelivered", attempt.redelivered,
+		}
+		fields = appendDeliveryAttemptLogFields(fields, attempt)
+		s.logger.InfoContext(handleCtx, "knowledge_async_message received rabbitmq document sync task", fields...)
 	}
 
 	if err := s.waitTaskAdmission(handleCtx, delivery, task); err != nil {
 		return
 	}
-	if err := s.runTask(handleCtx, task); err != nil {
-		s.handleTaskFailure(handleCtx, delivery, task, err)
+	if err := s.runTask(handleCtx, task, attempt); err != nil {
+		s.handleTaskFailure(handleCtx, delivery, task, err, attempt)
 		return
 	}
 	s.resetTaskRetry(handleCtx, task)
+	s.resetDeliveryAttempt(handleCtx, task)
 	if err := delivery.Ack(false); err != nil {
 		s.logDeliveryAckError(handleCtx, task, err)
 	}
+}
+
+func (s *RabbitMQScheduler) shouldAckExceededDeliveryAttempt(
+	ctx context.Context,
+	delivery RabbitMQDelivery,
+	task *Task,
+	attempt deliveryAttemptLogState,
+) bool {
+	if attempt.attempt <= defaultRabbitMQMaxDeliveryAttempts {
+		return false
+	}
+	if s != nil && s.logger != nil && task != nil {
+		fields := []any{
+			"task_kind", task.Kind,
+			"knowledge_base_code", task.KnowledgeBaseCode,
+			"document_code", task.Code,
+			"mode", task.Mode,
+			"task_key", task.Key,
+			"redelivered", attempt.redelivered,
+			"max_delivery_attempts", defaultRabbitMQMaxDeliveryAttempts,
+		}
+		fields = appendDeliveryAttemptLogFields(fields, attempt)
+		s.logger.KnowledgeWarnContext(ctx, "Ack rabbitmq document sync task after delivery attempt limit exceeded", fields...)
+	}
+	s.resetTaskRetry(ctx, task)
+	s.resetDeliveryAttempt(ctx, task)
+	if err := delivery.Ack(false); err != nil {
+		s.logDeliveryAckError(ctx, task, err)
+	}
+	return true
 }
 
 func (s *RabbitMQScheduler) waitTaskAdmission(
@@ -466,6 +514,7 @@ func decodeRabbitMQTaskDelivery(body []byte) (*Task, string) {
 
 	task := &Task{
 		Kind:              strings.TrimSpace(message.Kind),
+		OrganizationCode:  strings.TrimSpace(message.OrganizationCode),
 		KnowledgeBaseCode: strings.TrimSpace(message.KnowledgeBaseCode),
 		Code:              strings.TrimSpace(message.DocumentCode),
 		Mode:              strings.TrimSpace(message.Mode),
@@ -542,7 +591,7 @@ func (s *RabbitMQScheduler) logSkippedTask(ctx context.Context, task *Task, reas
 	)
 }
 
-func (s *RabbitMQScheduler) runTask(ctx context.Context, task *Task) error {
+func (s *RabbitMQScheduler) runTask(ctx context.Context, task *Task, attempt deliveryAttemptLogState) error {
 	runCtx, cancel := context.WithTimeout(withTaskContext(ctx, task), s.timeout)
 	defer cancel()
 
@@ -573,15 +622,7 @@ func (s *RabbitMQScheduler) runTask(ctx context.Context, task *Task) error {
 	}
 
 	if err != nil && s.logger != nil {
-		s.logger.KnowledgeErrorContext(
-			runCtx,
-			"Document sync execution failed",
-			"task_kind", task.Kind,
-			"document_code", task.Code,
-			"knowledge_base_code", task.KnowledgeBaseCode,
-			"mode", task.Mode,
-			"error", err,
-		)
+		s.logTaskExecutionFailed(runCtx, task, err, attempt)
 	}
 	return err
 }
@@ -620,8 +661,14 @@ func rabbitMQTaskPanicFields(task *Task) []any {
 	)
 }
 
-func (s *RabbitMQScheduler) handleTaskFailure(ctx context.Context, delivery RabbitMQDelivery, task *Task, cause error) {
-	if s.shouldRequeueFailedTask(ctx, task, cause) {
+func (s *RabbitMQScheduler) handleTaskFailure(
+	ctx context.Context,
+	delivery RabbitMQDelivery,
+	task *Task,
+	cause error,
+	attempt deliveryAttemptLogState,
+) {
+	if s.shouldRequeueFailedTask(ctx, task, cause, attempt) {
 		if err := delivery.Nack(false, true); err != nil {
 			s.logDeliveryNackError(ctx, task, err)
 		}
@@ -629,12 +676,18 @@ func (s *RabbitMQScheduler) handleTaskFailure(ctx context.Context, delivery Rabb
 	}
 	s.handleTerminalTaskFailure(ctx, task, cause)
 	s.resetTaskRetry(ctx, task)
+	s.resetDeliveryAttempt(ctx, task)
 	if err := delivery.Ack(false); err != nil {
 		s.logDeliveryAckError(ctx, task, err)
 	}
 }
 
-func (s *RabbitMQScheduler) shouldRequeueFailedTask(ctx context.Context, task *Task, cause error) bool {
+func (s *RabbitMQScheduler) shouldRequeueFailedTask(
+	ctx context.Context,
+	task *Task,
+	cause error,
+	attempt deliveryAttemptLogState,
+) bool {
 	if task == nil {
 		return false
 	}
@@ -653,10 +706,10 @@ func (s *RabbitMQScheduler) shouldRequeueFailedTask(ctx context.Context, task *T
 		return true
 	}
 	if retryCount <= s.config.MaxRequeueAttempts {
-		s.logTaskRequeue(ctx, task, cause, retryCount)
+		s.logTaskRequeue(ctx, task, cause, retryCount, attempt)
 		return true
 	}
-	s.logTaskRetryExhausted(ctx, task, cause, retryCount)
+	s.logTaskRetryExhausted(ctx, task, cause, retryCount, attempt)
 	return false
 }
 
@@ -694,6 +747,36 @@ func (s *RabbitMQScheduler) resetTaskRetry(ctx context.Context, task *Task) {
 	}
 }
 
+func (s *RabbitMQScheduler) recordDeliveryAttempt(
+	ctx context.Context,
+	task *Task,
+	redelivered bool,
+) deliveryAttemptLogState {
+	state := deliveryAttemptLogState{redelivered: redelivered}
+	if s == nil || s.attemptStore == nil || task == nil || strings.TrimSpace(task.Key) == "" {
+		return state
+	}
+	attempt, err := s.attemptStore.Increment(ctx, task.Key)
+	if err != nil {
+		s.logDeliveryAttemptStoreError(ctx, task, "Increment rabbitmq document sync delivery attempt counter failed", err)
+		return state
+	}
+	state.attempt = attempt
+	if attempt > 0 {
+		state.retryCount = attempt - 1
+	}
+	return state
+}
+
+func (s *RabbitMQScheduler) resetDeliveryAttempt(ctx context.Context, task *Task) {
+	if s == nil || s.attemptStore == nil || task == nil || strings.TrimSpace(task.Key) == "" {
+		return
+	}
+	if err := s.attemptStore.Reset(ctx, task.Key); err != nil && s.logger != nil {
+		s.logDeliveryAttemptStoreError(ctx, task, "Reset rabbitmq document sync delivery attempt counter failed", err)
+	}
+}
+
 func (s *RabbitMQScheduler) handleTerminalTaskFailure(ctx context.Context, task *Task, cause error) {
 	if s == nil || s.terminalHandler == nil || task == nil || strings.TrimSpace(task.Kind) != TaskKindDocumentSync {
 		return
@@ -713,40 +796,54 @@ func (s *RabbitMQScheduler) handleTerminalTaskFailure(ctx context.Context, task 
 	}
 }
 
-func (s *RabbitMQScheduler) logTaskRequeue(ctx context.Context, task *Task, cause error, retryCount int) {
+func (s *RabbitMQScheduler) logTaskRequeue(
+	ctx context.Context,
+	task *Task,
+	cause error,
+	retryCount int,
+	attempt deliveryAttemptLogState,
+) {
 	if s == nil || s.logger == nil || task == nil {
 		return
 	}
-	s.logger.KnowledgeWarnContext(
-		ctx,
-		"Requeue rabbitmq document sync task after failure",
+	fields := []any{
 		"task_kind", task.Kind,
 		"knowledge_base_code", task.KnowledgeBaseCode,
 		"document_code", task.Code,
 		"mode", task.Mode,
 		"task_key", task.Key,
 		"retry_count", retryCount,
+		"failure_retry_count", retryCount,
 		"max_requeue_attempts", s.config.MaxRequeueAttempts,
 		"error", cause,
-	)
+	}
+	fields = appendDeliveryAttemptLogFields(fields, attempt)
+	s.logger.KnowledgeWarnContext(ctx, "Requeue rabbitmq document sync task after failure", fields...)
 }
 
-func (s *RabbitMQScheduler) logTaskRetryExhausted(ctx context.Context, task *Task, cause error, retryCount int) {
+func (s *RabbitMQScheduler) logTaskRetryExhausted(
+	ctx context.Context,
+	task *Task,
+	cause error,
+	retryCount int,
+	attempt deliveryAttemptLogState,
+) {
 	if s == nil || s.logger == nil || task == nil {
 		return
 	}
-	s.logger.KnowledgeWarnContext(
-		ctx,
-		"Rabbitmq document sync task retry exhausted",
+	fields := []any{
 		"task_kind", task.Kind,
 		"knowledge_base_code", task.KnowledgeBaseCode,
 		"document_code", task.Code,
 		"mode", task.Mode,
 		"task_key", task.Key,
 		"retry_count", retryCount,
+		"failure_retry_count", retryCount,
 		"max_requeue_attempts", s.config.MaxRequeueAttempts,
 		"error", cause,
-	)
+	}
+	fields = appendDeliveryAttemptLogFields(fields, attempt)
+	s.logger.KnowledgeWarnContext(ctx, "Rabbitmq document sync task retry exhausted", fields...)
 }
 
 func (s *RabbitMQScheduler) logRetryStoreError(ctx context.Context, task *Task, cause error, message string, err error) {
@@ -860,6 +957,53 @@ func (s *RabbitMQScheduler) logScheduleError(ctx context.Context, task *Task, me
 		"knowledge_base_code", task.KnowledgeBaseCode,
 		"mode", task.Mode,
 		"error", err,
+	)
+}
+
+func (s *RabbitMQScheduler) logTaskExecutionFailed(
+	ctx context.Context,
+	task *Task,
+	err error,
+	attempt deliveryAttemptLogState,
+) {
+	if s == nil || s.logger == nil || task == nil {
+		return
+	}
+	fields := []any{
+		"task_kind", task.Kind,
+		"document_code", task.Code,
+		"knowledge_base_code", task.KnowledgeBaseCode,
+		"mode", task.Mode,
+		"task_key", task.Key,
+		"error", err,
+	}
+	fields = appendDeliveryAttemptLogFields(fields, attempt)
+	s.logger.KnowledgeErrorContext(ctx, "Document sync execution failed", fields...)
+}
+
+func (s *RabbitMQScheduler) logDeliveryAttemptStoreError(ctx context.Context, task *Task, message string, err error) {
+	if s == nil || s.logger == nil || task == nil {
+		return
+	}
+	s.logger.KnowledgeWarnContext(
+		ctx,
+		message,
+		"task_kind", task.Kind,
+		"knowledge_base_code", task.KnowledgeBaseCode,
+		"document_code", task.Code,
+		"mode", task.Mode,
+		"task_key", task.Key,
+		"error", err,
+	)
+}
+
+func appendDeliveryAttemptLogFields(fields []any, attempt deliveryAttemptLogState) []any {
+	if attempt.attempt <= 0 {
+		return fields
+	}
+	return append(fields,
+		"delivery_attempt", attempt.attempt,
+		"delivery_retry_count", attempt.retryCount,
 	)
 }
 

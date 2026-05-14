@@ -9,6 +9,7 @@ namespace HyperfTest\Cases\Api\Agent;
 
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType;
+use App\Domain\Permission\Repository\Persistence\Model\MagicOperationPermissionModel;
 use App\Domain\Permission\Repository\Persistence\Model\ResourceVisibilityModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
@@ -21,6 +22,7 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\SuperMagicAgentMod
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\UserAgentModel;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillModel;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillVersionModel;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
 use HyperfTest\Cases\Api\SuperAgent\AbstractApiTest;
 
 /**
@@ -246,6 +248,154 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         );
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
         $this->assertArrayHasKey('data', $response);
+    }
+
+    /**
+     * 测试 Agent 协作者新增、改权、删除的最小场景。
+     */
+    public function testAgentCollaboratorsSimple(): void
+    {
+        $targetUserId = $this->switchUserTest2();
+
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $agentCode = $this->createTestAgent();
+        $findMemberByUserId = static function (array $members, string $userId): ?array {
+            foreach ($members as $member) {
+                if (($member['user_id'] ?? null) === $userId) {
+                    return $member;
+                }
+            }
+
+            return null;
+        };
+
+        $storeResponse = $this->post(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [
+                'members' => [
+                    [
+                        'target_type' => 'User',
+                        'target_id' => $targetUserId,
+                        'role' => 'editor',
+                    ],
+                ],
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $storeResponse['code'], $storeResponse['message'] ?? '');
+        $this->assertIsArray($storeResponse['data']);
+        $this->assertArrayHasKey('members', $storeResponse['data']);
+
+        $agent = SuperMagicAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('code', $agentCode)
+            ->first();
+        $this->assertNotNull($agent, '应能查询到测试 Agent');
+        $this->assertGreaterThan(0, (int) $agent->project_id, 'Agent 应已绑定项目');
+
+        $listResponse = $this->get(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $listResponse['code'], $listResponse['message'] ?? '');
+        $this->assertIsArray($listResponse['data']);
+        $this->assertArrayHasKey('members', $listResponse['data']);
+        $targetMember = $findMemberByUserId($listResponse['data']['members'], $targetUserId);
+        $this->assertNotNull($targetMember, '应能查询到刚添加的 Agent 协作者');
+        $this->assertSame('editor', $targetMember['role']);
+
+        $operationPermission = MagicOperationPermissionModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('resource_id', $agentCode)
+            ->where('target_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+        $this->assertNotNull($operationPermission, '应写入协作权限表');
+
+        $projectMember = ProjectMemberModel::query()
+            ->where('project_id', $agent->project_id)
+            ->where('target_type', 'User')
+            ->where('target_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+        $this->assertNotNull($projectMember, '应同步写入项目成员表');
+        $this->assertSame('editor', $projectMember->role);
+
+        $updateResponse = $this->put(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [
+                'members' => [
+                    [
+                        'target_type' => 'User',
+                        'target_id' => $targetUserId,
+                        'role' => 'viewer',
+                    ],
+                ],
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $updateResponse['code'], $updateResponse['message'] ?? '');
+
+        $updatedListResponse = $this->get(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $updatedListResponse['code'], $updatedListResponse['message'] ?? '');
+        $this->assertArrayHasKey('members', $updatedListResponse['data']);
+        $updatedMember = $findMemberByUserId($updatedListResponse['data']['members'], $targetUserId);
+        $this->assertNotNull($updatedMember, '改权后应仍能查询到协作者');
+        $this->assertSame('viewer', $updatedMember['role']);
+
+        $projectMember = ProjectMemberModel::query()
+            ->where('project_id', $agent->project_id)
+            ->where('target_type', 'User')
+            ->where('target_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+        $this->assertNotNull($projectMember, '改权后项目成员记录应仍存在');
+        $this->assertSame('viewer', $projectMember->role);
+
+        $deleteResponse = $this->delete(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [
+                'members' => [
+                    [
+                        'target_type' => 'User',
+                        'target_id' => $targetUserId,
+                    ],
+                ],
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $deleteResponse['code'], $deleteResponse['message'] ?? '');
+
+        $deletedListResponse = $this->get(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $deletedListResponse['code'], $deletedListResponse['message'] ?? '');
+        $this->assertArrayHasKey('members', $deletedListResponse['data']);
+        $this->assertNull($findMemberByUserId($deletedListResponse['data']['members'], $targetUserId), '删除后不应再返回该协作者');
+
+        $operationPermission = MagicOperationPermissionModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('resource_id', $agentCode)
+            ->where('target_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+        $this->assertNull($operationPermission, '删除后应清理协作权限表记录');
+
+        $projectMember = ProjectMemberModel::query()
+            ->where('project_id', $agent->project_id)
+            ->where('target_type', 'User')
+            ->where('target_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+        $this->assertNull($projectMember, '删除后应清理项目成员表记录');
     }
 
     public function testQueryAgentsOnlyReturnsLocalCreateAgents(): void

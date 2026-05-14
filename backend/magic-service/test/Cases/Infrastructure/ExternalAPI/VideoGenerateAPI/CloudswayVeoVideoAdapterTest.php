@@ -361,7 +361,7 @@ class CloudswayVeoVideoAdapterTest extends TestCase
         $httpClient->expects($this->once())
             ->method('post')
             ->with(
-                'https://genaiapi.cloudsway.net/v1/ai/' . self::ENDPOINT_ID . '/veo/videos/task',
+                'https://localhost/v1/ai/' . self::ENDPOINT_ID . '/veo/videos/task',
                 [
                     'headers' => [
                         'Authorization' => 'Bearer secret',
@@ -403,7 +403,7 @@ class CloudswayVeoVideoAdapterTest extends TestCase
                 createdAt: date(DATE_ATOM),
                 heartbeatAt: date(DATE_ATOM),
             ),
-            new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20),
+            new QueueExecutorConfig('https://localhost', 'secret', 3, 20),
             'operation-123',
         );
 
@@ -434,7 +434,7 @@ class CloudswayVeoVideoAdapterTest extends TestCase
                 createdAt: date(DATE_ATOM),
                 heartbeatAt: date(DATE_ATOM),
             ),
-            new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20),
+            new QueueExecutorConfig('https://localhost', 'secret', 3, 20),
             'operation-missing-model-version',
         );
     }

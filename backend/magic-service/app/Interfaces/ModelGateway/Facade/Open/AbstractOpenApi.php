@@ -23,7 +23,7 @@ abstract class AbstractOpenApi
     protected function getAccessToken(): string
     {
         // 0. 优先从协程上下文获取（中间件验证通过后设置的有效 token）
-        // SandboxUserAuthMiddleware 或 ApiKeyMiddleware 验证成功后会设置此值
+        // ApiKeyMiddleware 验证成功后会设置此值
         if (RequestCoContext::hasApiKey()) {
             return RequestCoContext::getApiKey();
         }
@@ -220,7 +220,7 @@ abstract class AbstractOpenApi
         ];
         foreach ($mapping as $headerKey => $paramKey) {
             $value = $headers[$headerKey] ?? '';
-            if ($value !== '') {
+            if ($value !== '' && ($businessParams[$paramKey] ?? '') === '') {
                 $businessParams[$paramKey] = $value;
             }
         }

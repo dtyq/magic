@@ -10,6 +10,7 @@ namespace App\Infrastructure\ExternalAPI\VideoGenerateAPI;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Prompt\AtStylePromptReferenceFormatter;
 use Hyperf\Contract\TranslatorInterface;
 
 /** @noinspection SpellCheckingInspection */
@@ -262,7 +263,7 @@ readonly class CloudswaySeedanceVideoAdapter extends AbstractCloudswayVideoAdapt
      */
     private function buildSeedancePrompt(array $request, array $generation, array &$acceptedParams, array &$ignoredParams): string
     {
-        $prompt = trim((string) ($request['prompt'] ?? ''));
+        $prompt = (new AtStylePromptReferenceFormatter())->format(trim((string) ($request['prompt'] ?? '')));
         $suffixes = [];
         if (array_key_exists('aspect_ratio', $generation)) {
             if (in_array((string) $generation['aspect_ratio'], self::SUPPORTED_ASPECT_RATIOS, true)) {

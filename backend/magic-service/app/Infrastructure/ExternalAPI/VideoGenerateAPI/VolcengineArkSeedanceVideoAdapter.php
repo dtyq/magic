@@ -11,6 +11,7 @@ use App\Domain\ModelGateway\Contract\VideoGenerationProviderAdapterInterface;
 use App\Domain\ModelGateway\Entity\ValueObject\QueueExecutorConfig;
 use App\Domain\ModelGateway\Entity\ValueObject\VideoGenerationConfig;
 use App\Domain\ModelGateway\Entity\VideoQueueOperationEntity;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Prompt\AtStylePromptReferenceFormatter;
 use Hyperf\Contract\TranslatorInterface;
 
 readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProviderAdapterInterface
@@ -472,7 +473,7 @@ readonly class VolcengineArkSeedanceVideoAdapter implements VideoGenerationProvi
      */
     private function buildPrompt(array $request): string
     {
-        return trim((string) ($request['prompt'] ?? ''));
+        return (new AtStylePromptReferenceFormatter())->format(trim((string) ($request['prompt'] ?? '')));
     }
 
     /**

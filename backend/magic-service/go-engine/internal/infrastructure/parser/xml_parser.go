@@ -13,13 +13,19 @@ import (
 )
 
 // XMLParser 解析 XML 文档。
-type XMLParser struct{}
+type XMLParser struct {
+	limits documentdomain.ResourceLimits
+}
 
 const defaultStructuredParserCapacity = 8
 
 // NewXMLParser 创建 XML 解析器。
-func NewXMLParser() *XMLParser {
-	return &XMLParser{}
+func NewXMLParser(resourceLimits ...documentdomain.ResourceLimits) *XMLParser {
+	limits := documentdomain.DefaultResourceLimits()
+	if len(resourceLimits) > 0 {
+		limits = resourceLimits[0]
+	}
+	return &XMLParser{limits: documentdomain.NormalizeResourceLimits(limits)}
 }
 
 // Parse 解析 XML 文件。
@@ -69,14 +75,14 @@ func (p *XMLParser) ParseDocumentWithOptions(
 	fileType string,
 	_ documentdomain.ParseOptions,
 ) (*documentdomain.ParsedDocument, error) {
-	content, err := readAndNormalizeParserSource(fileReader, fileType)
+	content, err := readAndNormalizeParserSourceWithLimits(fileReader, fileType, p.limits, "parse_xml_text")
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(string(content)) == "" {
 		return documentdomain.NewPlainTextParsedDocument(fileType, ""), nil
 	}
-	root, err := parseXMLDocument(content)
+	root, err := parseXMLDocument(content, p.limits)
 	if err != nil {
 		return nil, fmt.Errorf("parse xml failed: %w", err)
 	}
@@ -107,10 +113,11 @@ type parsedXMLNode struct {
 	TextFragments []string
 }
 
-func parseXMLDocument(content []byte) (*parsedXMLNode, error) {
+func parseXMLDocument(content []byte, limits documentdomain.ResourceLimits) (*parsedXMLNode, error) {
 	decoder := xml.NewDecoder(bytes.NewReader(content))
 	stack := make([]*parsedXMLNode, 0, defaultStructuredParserCapacity)
 	var root *parsedXMLNode
+	counter := newStructuredParseCounter(limits, "parse_xml_document")
 
 	for {
 		token, err := decoder.Token()
@@ -123,6 +130,9 @@ func parseXMLDocument(content []byte) (*parsedXMLNode, error) {
 
 		switch typed := token.(type) {
 		case xml.StartElement:
+			if err := counter.observe(); err != nil {
+				return nil, err
+			}
 			node := &parsedXMLNode{
 				Name:       xmlTokenName(typed.Name),
 				Attributes: buildXMLAttributes(typed.Attr),

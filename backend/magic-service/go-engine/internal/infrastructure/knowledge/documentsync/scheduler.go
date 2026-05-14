@@ -24,6 +24,7 @@ var ErrTerminalHandlerNotRegistered = errors.New("documentsync terminal handler 
 // Task 定义通用的文档同步调度任务。
 type Task struct {
 	Kind              string
+	OrganizationCode  string
 	KnowledgeBaseCode string
 	Code              string
 	Mode              string

@@ -256,7 +256,7 @@ series: [{ type: 'pie', radius: ['35%','65%'], center: ['50%','55%'],
 - Prefer watercolor illustrations with soft tones, visible brush strokes, and organic forms
 - Avoid digitally precise aesthetics; prefer hand-painted watercolor textures
 
-**generate_image example prompt**:
+**generate_images example prompt**:
 ```
 soft watercolor illustration of [具体主题], warm pastel colors, visible brush strokes, organic flowing shapes, botanical leaf accents, cozy lifestyle aesthetic, coral and sage green palette, gentle color bleeding at edges, hand-painted texture, white paper background, no sharp edges
 ```

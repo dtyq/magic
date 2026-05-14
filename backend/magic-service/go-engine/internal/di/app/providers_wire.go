@@ -17,6 +17,7 @@ var ProviderSet = wire.NewSet(
 	diknowledge.ProvideKnowledgeBaseDomainConfig,
 	diknowledge.ProvideKnowledgeBaseDomainService,
 	diknowledge.ProvideFragmentRetrievalSegmenterProvider,
+	diknowledge.ProvideFragmentDomainConfig,
 	diknowledge.ProvideFragmentDomainInfra,
 	diknowledge.ProvideFragmentDomainService,
 	diknowledge.ProvideDocumentDomainService,

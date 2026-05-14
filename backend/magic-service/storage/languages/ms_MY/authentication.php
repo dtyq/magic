@@ -6,6 +6,9 @@ declare(strict_types=1);
  */
 return [
     'personal_access_token_already_exists' => 'Token akses peribadi sudah wujud, sila gunakan tetapan semula untuk menjana semula',
+    'model_gateway_unauthorized' => 'Pengesahan model gateway gagal',
+    'model_gateway_refresh_token_invalid' => 'Refresh token model gateway tidak sah atau telah tamat tempoh',
+    'model_gateway_refresh_token_mismatch' => 'Refresh token model gateway tidak sepadan dengan metadata',
     'fields' => [
         'organization_code' => 'Kod Organisasi',
         'rel_code' => 'Kod Perhubungan',

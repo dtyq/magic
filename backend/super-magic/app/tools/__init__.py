@@ -28,7 +28,6 @@ from app.tools.file_search import FileSearch
 from app.tools.get_js_cdn_address import GetJsCdnAddress
 from app.tools.grep_search import GrepSearch
 
-from app.tools.generate_image import GenerateImage
 from app.tools.generate_images import GenerateImages
 from app.tools.generate_video import GenerateVideo, QueryVideoGeneration
 from app.tools.image_search import ImageSearch
@@ -159,7 +158,6 @@ __all__ = [
     "GetJsCdnAddress",
     "GrepSearch",
     "ImageSearch",
-    "GenerateImage",
     "GenerateImages",
     "GenerateVideo",
     "QueryVideoGeneration",

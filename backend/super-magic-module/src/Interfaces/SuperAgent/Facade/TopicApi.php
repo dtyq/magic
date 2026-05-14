@@ -223,7 +223,7 @@ class TopicApi extends AbstractApi
 
         $dataIsolation = $this->buildDataIsolation();
 
-        $sandboxId = $this->agentAppService->ensureSandboxInitialized($dataIsolation, (int) $topicId);
+        $sandboxId = $this->agentAppService->ensureSandboxInitialized($dataIsolation, (int) $topicId, skipInitMessages: true);
 
         $result = $this->agentAppService->rollbackCheckpoint($sandboxId, $targetMessageId);
 

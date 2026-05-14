@@ -27,6 +27,31 @@ enum TargetType: int
      */
     case GroupId = 3;
 
+    /**
+     * 将别名转换为权限域目标类型。
+     */
+    public static function fromAlias(string $alias): self
+    {
+        return match (strtolower($alias)) {
+            'user' => self::UserId,
+            'department' => self::DepartmentId,
+            'group' => self::GroupId,
+            default => ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'common.invalid', ['label' => 'target_type']),
+        };
+    }
+
+    /**
+     * 将权限域目标类型转换为别名。
+     */
+    public function toAlias(): string
+    {
+        return match ($this) {
+            self::UserId => 'User',
+            self::DepartmentId => 'Department',
+            self::GroupId => 'Group',
+        };
+    }
+
     public static function make(mixed $type): TargetType
     {
         if (! is_int($type)) {
@@ -37,5 +62,20 @@ enum TargetType: int
             ExceptionBuilder::throw(PermissionErrorCode::ValidateFailed, 'common.invalid', ['label' => 'target_type']);
         }
         return $type;
+    }
+
+    public function isUser(): bool
+    {
+        return $this === self::UserId;
+    }
+
+    public function isDepartment(): bool
+    {
+        return $this === self::DepartmentId;
+    }
+
+    public function isGroup(): bool
+    {
+        return $this === self::GroupId;
     }
 }

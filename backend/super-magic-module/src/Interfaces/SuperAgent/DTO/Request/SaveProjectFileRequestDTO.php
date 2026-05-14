@@ -106,7 +106,7 @@ class SaveProjectFileRequestDTO implements JsonSerializable
         $instance->isDirectory = (bool) ($data['is_directory'] ?? false);
         $instance->sort = (int) ($data['sort'] ?? 0);
         $instance->parentId = isset($data['parent_id']) ? $data['parent_id'] : '';
-        $instance->storageType = $data['storage_type'] ?? StorageType::WORKSPACE;
+        $instance->storageType = $data['storage_type'] ?? StorageType::WORKSPACE->value;
         $instance->preFileId = $data['pre_file_id'] ?? '-1';
         $instance->isHidden = (bool) ($data['is_hidden'] ?? false);
 

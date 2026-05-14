@@ -31,6 +31,7 @@ class LLMErrorClassifier:
         "exceeds the maximum number of tokens allowed",
         "your input exceeds the context window of this model",
         "please reduce the length of the messages or completion",
+        "range of input length should be",  # DeepSeek 输入长度超限
     )
     CONTEXT_WINDOW_SOFT_MARKERS = (
         "too many tokens",

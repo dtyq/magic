@@ -157,6 +157,36 @@ class ProcessExecutor:
         return shlex.join(new_parts)
 
     @staticmethod
+    def _rewrite_single_pip_command(command: str) -> str:
+        """
+        改写单个不含链式操作符的 pip 命令。
+
+        在 PyInstaller 环境下将 `pip install ...` 改写为
+        `/venv/bin/pip install ...`，确保包安装到 venv 的 site-packages，
+        使 script_runner 能通过注入的 sys.path 找到这些包。
+
+        Args:
+            command: 单条命令（不含 &&、||、; 等操作符）
+
+        Returns:
+            str: 改写后的命令，无需改写则返回原命令
+        """
+        try:
+            parts = shlex.split(command)
+        except ValueError:
+            return command
+
+        if not parts or parts[0] not in ('pip', 'pip3', 'pip2'):
+            return command
+
+        venv_pip = Path('/venv/bin/pip')
+        if not venv_pip.exists():
+            return command
+
+        new_parts = [str(venv_pip)] + parts[1:]
+        return shlex.join(new_parts)
+
+    @staticmethod
     def _rewrite_python_command(
         command: str,
         cwd: Optional[Path] = None,
@@ -192,6 +222,7 @@ class ProcessExecutor:
         if len(segments) <= 1:
             # 无链式操作符，单命令处理
             rewritten = ProcessExecutor._rewrite_single_python_command(command, cwd)
+            rewritten = ProcessExecutor._rewrite_single_pip_command(rewritten)
             if rewritten != command:
                 logger.info(f"命令改写: {command} -> {rewritten}")
             return rewritten
@@ -225,8 +256,9 @@ class ProcessExecutor:
             except ValueError:
                 pass
 
-            # 尝试改写 python 命令
+            # 尝试改写 python / pip 命令
             rewritten = ProcessExecutor._rewrite_single_python_command(stripped, current_cwd)
+            rewritten = ProcessExecutor._rewrite_single_pip_command(rewritten)
             result_parts.append(rewritten)
 
         rewritten_command = ''.join(result_parts)

@@ -2,7 +2,10 @@
 
 新增命令特殊处理只需：
 1. 继承 ShellCommandHandler 并实现 matches / handle
-2. 将实例追加到 shell_exec.py 的 _COMMAND_HANDLERS 列表
+2. 将实例追加到 dispatcher.py 的 DISPATCHER 列表
+
+dispatcher 以 pipeline 模式运行：所有匹配的 handler 都会被执行，结果按字段合并。
+仅当某个 handler 返回 intercepted 时才终止 pipeline。
 """
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field

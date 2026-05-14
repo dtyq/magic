@@ -103,9 +103,10 @@ class SystemSkillsProvider(SkillProvider):
             for f in ("name", "description", "name_cn", "description_cn", "dir_name")
         )
 
-    async def search(self, keyword: str, limit: int = 10) -> list[SkillCandidate]:
+    async def search(self, keyword: str, limit: int | None = 10) -> list[SkillCandidate]:
         all_skills = await self._load_all()
         matched = [s for s in all_skills if self._matches(s, keyword)]
+        effective = matched if limit is None else matched[:limit]
         return [
             SkillCandidate(
                 provider=self.id,
@@ -119,7 +120,7 @@ class SystemSkillsProvider(SkillProvider):
                     "description_cn": s["description_cn"],
                 },
             )
-            for s in matched[:limit]
+            for s in effective
         ]
 
     async def fetch(

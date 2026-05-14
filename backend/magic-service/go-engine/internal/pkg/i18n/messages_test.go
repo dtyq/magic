@@ -79,3 +79,47 @@ func TestTranslate(t *testing.T) {
 		})
 	}
 }
+
+func TestTranslateKnowledgeDocumentMessages(t *testing.T) {
+	t.Parallel()
+	i18n.Init()
+
+	tests := []struct {
+		name     string
+		key      i18n.MessageKey
+		hint     string
+		args     []any
+		expected string
+	}{
+		{
+			name:     "zh pdf pages",
+			key:      i18n.KnowledgeDocumentResourceLimitPDFPages,
+			hint:     "zh_CN",
+			args:     []any{"301", "300"},
+			expected: "PDF页数超过限制，当前301页，最多支持300页",
+		},
+		{
+			name:     "en pdf pages",
+			key:      i18n.KnowledgeDocumentResourceLimitPDFPages,
+			hint:     "en_US",
+			args:     []any{"301", "300"},
+			expected: "PDF page count exceeds the limit. Current: 301 pages, maximum: 300 pages.",
+		},
+		{
+			name:     "en source precheck",
+			key:      i18n.KnowledgeDocumentSourcePrecheckFailed,
+			hint:     "en_US",
+			expected: "Document source precheck failed. Please check whether the file exists and is accessible.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := i18n.Translatef(tt.key, tt.hint, tt.args...)
+			if got != tt.expected {
+				t.Fatalf("Translatef() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

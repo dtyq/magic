@@ -21,6 +21,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use Carbon\Carbon;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\VideoModelConfigResolver;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\MagicClawRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
@@ -544,9 +545,20 @@ class AgentDomainService
 
             $videoModelId = $extra->getVideoModelId();
             if (! empty($videoModelId)) {
-                $taskDynamicConfig['video_model'] = [
-                    'model_id' => $videoModelId,
-                ];
+                try {
+                    $videoModel = di(VideoModelConfigResolver::class)->resolve($extra->getVideoModel(), $taskContext->getDataIsolation());
+                    $taskDynamicConfig['video_model'] = [
+                        'model_id' => $videoModelId,
+                        'video_generation_config' => is_array($videoModel) ? $videoModel['video_generation_config'] : null,
+                    ];
+                } catch (Throwable $throwable) {
+                    $this->logger->warning('[Sandbox][App] get video model config failed', [
+                        'error_message' => $throwable->getMessage(),
+                    ]);
+                    $taskDynamicConfig['video_model'] = [
+                        'model_id' => $videoModelId,
+                    ];
+                }
             }
         }
 

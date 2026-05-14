@@ -5,7 +5,9 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
+use App\Interfaces\Authentication\Facade\ModelGatewayTokenApi;
 use App\Interfaces\Middleware\Auth\ApiKeyMiddleware;
+use App\Interfaces\Middleware\Auth\UserAuthMiddleware;
 use App\Interfaces\ModelGateway\Facade\Open\ImageProxyApi;
 use App\Interfaces\ModelGateway\Facade\Open\OpenAIProxyApi;
 use App\Interfaces\ModelGateway\Facade\Open\VideoApi;
@@ -47,3 +49,18 @@ Router::addGroup('/api/v1', static function () {
     // 超级麦吉显示模型
     Router::get('/super-magic-models', [ServiceProviderApi::class, 'getSuperMagicDisplayModels']);
 }, ['middleware' => [RequestContextMiddleware::class]]);
+
+// 模型网关 access-token（签发/刷新）接口
+Router::addGroup('/api/v1/model-gateway', static function () {
+    // 首发签发（登录态用户，鉴权由 UserAuthMiddleware 处理）
+    Router::addGroup('/tokens', static function () {
+        Router::post('', [ModelGatewayTokenApi::class, 'issueModelGatewayToken']);
+    });
+}, ['middleware' => [UserAuthMiddleware::class]]);
+
+Router::addGroup('/api/v1/model-gateway', static function () {
+    // refresh token 双旋转（无登录态，PUT body 仅允许 refresh_token）
+    Router::addGroup('/tokens', static function () {
+        Router::put('', [ModelGatewayTokenApi::class, 'refreshModelGatewayToken']);
+    });
+});

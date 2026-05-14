@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Interfaces\Share\Facade\ShareApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\FileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\SandboxApi as InternalSandboxApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\InternalApi\TaskApi as InternalTaskApi;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenFileApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenMessageScheduleApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenProjectApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenTaskApi;
@@ -64,6 +65,8 @@ Router::addGroup(
             Router::post('/tree', [FileApi::class, 'getFileTree']);
             // 扫描对象存储目录下的 .wav 文件并持久化到 task file 表
             Router::post('/scan-wav', [FileApi::class, 'scanWavFiles']);
+            // 更新文件来源
+            Router::patch('/source', [FileApi::class, 'updateFileSource']);
         });
 
         // 超级助理内部消息相关
@@ -158,10 +161,28 @@ Router::addGroup(
             Router::get('/list', [OpenWorkspaceApi::class, 'getWorkspaceList']);
         });
 
+        Router::addGroup('/file', static function () {
+            // 获取项目文件上传 STS Token
+            Router::get('/project-upload-token', [OpenFileApi::class, 'getProjectUploadToken']);
+            // 批量获取文件 URL
+            Router::post('/get-urls', [OpenFileApi::class, 'getFileUrls']);
+            // 保存项目附件关系
+            Router::post('/project/save', [OpenFileApi::class, 'saveProjectFile']);
+        });
+
         // 项目相关
         Router::addGroup('/project', static function () {
             // 创建项目
             Router::post('', [OpenProjectApi::class, 'createProject']);
+        });
+
+        Router::addGroup('/projects', static function () {
+            // 获取项目列表
+            Router::get('/queries', [OpenProjectApi::class, 'index']);
+            // 获取项目基本信息
+            Router::get('/{id}', [OpenProjectApi::class, 'show']);
+            // 获取项目附件列表
+            Router::post('/{id}/attachments', [OpenProjectApi::class, 'getProjectAttachments']);
         });
 
         // 消息定时任务
@@ -174,16 +195,4 @@ Router::addGroup(
         });
     },
     ['middleware' => [ApiKeyMiddleware::class]]
-);
-
-// 无登录态校验
-Router::addGroup(
-    '/api/v1/open-api/super-magic',
-    static function () {
-        // 项目相关 - 公开接口
-        Router::addGroup('/projects', static function () {
-            // 获取项目基本信息（项目名称等）- 无需登录
-            Router::get('/{id}', [OpenProjectApi::class, 'show']);
-        });
-    },
 );

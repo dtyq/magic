@@ -67,6 +67,9 @@ func (p *CSVParser) ParseDocumentWithOptions(
 		if err != nil {
 			return nil, fmt.Errorf("read csv failed: %w", err)
 		}
+		if err := document.CheckPlainTextBytes(content, p.limits, "parse_csv_text"); err != nil {
+			return nil, fmt.Errorf("check csv text size: %w", err)
+		}
 		return document.NewPlainTextParsedDocument(fileType, strings.TrimSpace(string(content))), nil
 	}
 	parsed, err := parseCSVDocument(file, fileURL, fileType, p.limits)

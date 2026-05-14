@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	documentapp "magic/internal/application/knowledge/document/service"
 	fragdto "magic/internal/application/knowledge/fragment/dto"
 	fragmentapp "magic/internal/application/knowledge/fragment/service"
 	confighelper "magic/internal/application/knowledge/helper/config"
@@ -18,10 +19,14 @@ import (
 	"magic/internal/infrastructure/logging"
 	"magic/internal/interfaces/rpc/jsonrpc/knowledge/dto"
 	knowledgesvc "magic/internal/interfaces/rpc/jsonrpc/knowledge/service"
+	"magic/internal/pkg/ctxmeta"
+	"magic/internal/pkg/i18n"
 	jsonrpc "magic/internal/pkg/jsonrpc"
 )
 
 const testFragmentKBCode = "KB1"
+
+var errTestBucketNotFound = errors.New("bucket not found")
 
 type mockFragmentAppService struct {
 	lastCreateInput       *fragdto.CreateFragmentInput
@@ -1067,6 +1072,37 @@ func TestFragmentPreviewHTTPRPCKeepsLargeBodyPlainWhenGzipNotAccepted(t *testing
 	}
 	if !strings.Contains(string(raw), `"code":1000`) {
 		t.Fatalf("unexpected plain body")
+	}
+}
+
+func TestFragmentPreviewHTTPRPCMapsSourcePrecheckErrorToLowCodeBody(t *testing.T) {
+	t.Parallel()
+	i18n.Init()
+
+	appSvc := &mockFragmentAppService{
+		previewErr: errors.Join(documentapp.ErrDocumentSourcePrecheckFailed, errTestBucketNotFound),
+	}
+	handler := knowledgesvc.NewFragmentRPCServiceWithDependencies(appSvc, logging.New())
+
+	ctx := ctxmeta.WithLanguage(context.Background(), "en_US")
+	result, err := handler.PreviewHTTPRPC(ctx, &dto.PreviewFragmentRequest{
+		DataIsolation: dto.DataIsolation{OrganizationCode: "ORG1", UserID: "U1"},
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected passthrough result")
+	}
+
+	raw, err := base64.StdEncoding.DecodeString(result.BodyBase64)
+	if err != nil {
+		t.Fatalf("decode base64: %v", err)
+	}
+	body := string(raw)
+	if !strings.Contains(body, `"code":31005`) ||
+		!strings.Contains(body, `"message":"Document source precheck failed. Please check whether the file exists and is accessible."`) {
+		t.Fatalf("expected source precheck business error body, got %s", body)
 	}
 }
 
