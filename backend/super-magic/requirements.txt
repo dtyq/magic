@@ -52,7 +52,7 @@ aiohttp_retry>=2.9.1  # aiohttp 重试功能库
 
 # AI与LLM相关
 openai~=2.31.0
-mcp==1.9.4
+mcp==1.23.0
 
 # 前端与界面相关
 html2text~=2024.2.26  # Word 文档插件和企业模块的网页内容转换

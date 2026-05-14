@@ -51,7 +51,6 @@ class MCPToolParams(BaseToolParams):
         required = schema.get("required", [])
 
         fields: Dict[str, Any] = {}
-        annotations: Dict[str, Any] = {}
 
         for field_name, field_info in properties.items():
             description = field_info.get("description", "")
@@ -59,17 +58,14 @@ class MCPToolParams(BaseToolParams):
             python_type = cls._map_json_type_to_python(json_type)
 
             if field_name in required:
-                annotations[field_name] = python_type
-                fields[field_name] = Field(description=description)
+                fields[field_name] = (python_type, Field(description=description))
             else:
-                annotations[field_name] = Optional[python_type]
-                fields[field_name] = Field(default=None, description=description)
+                fields[field_name] = (Optional[python_type], Field(default=None, description=description))
 
         return create_model(
             "MCPToolParams",
             __base__=cls,
             __module__=cls.__module__,
-            __annotations__=annotations,
             **fields
         )
 

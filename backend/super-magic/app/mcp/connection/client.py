@@ -24,6 +24,42 @@ logger = get_logger(__name__)
 # 清理操作最长等待时间（秒）
 CONNECTION_CLEANUP_TIMEOUT = 2.0
 
+# 是否已安装 cancel scope 异常过滤器
+_cancel_scope_filter_installed = False
+
+def _ensure_cancel_scope_error_filter() -> None:
+    """安装事件循环异常过滤器，抑制 MCP 传输层 GC 清理时产生的噪音日志。
+
+    当跨 task 的 cancel scope 冲突导致无法正常调用 __aexit__ 时，
+    丢弃传输层引用后 GC 会自动清理 async generator 并产生一个
+    'Task exception was never retrieved' 的 ERROR 日志。
+    该过滤器仅抑制这一类特定的 RuntimeError，不影响其他异常。
+    """
+    global _cancel_scope_filter_installed
+    if _cancel_scope_filter_installed:
+        return
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    _cancel_scope_filter_installed = True
+    original_handler = loop.get_exception_handler()
+
+    def _filtered_handler(loop_ref, context):
+        exc = context.get("exception")
+        if (isinstance(exc, RuntimeError)
+                and "Attempted to exit cancel scope in a different task" in str(exc)):
+            logger.debug(f"已过滤 MCP 传输层清理时的 cancel scope 异常")
+            return
+        if original_handler:
+            original_handler(loop_ref, context)
+        else:
+            loop_ref.default_exception_handler(context)
+
+    loop.set_exception_handler(_filtered_handler)
+
 
 class MCPClient:
     """基于官方 SDK 的 MCP 客户端封装
@@ -113,15 +149,19 @@ class MCPClient:
                 except asyncio.CancelledError:
                     logger.debug(f"MCP 会话关闭被取消: {self.config.name}")
                 except Exception as e:
-                    logger.warning(f"关闭 MCP 会话时出错: {self.config.name}: {e}")
                     if "cancel scope" in str(e).lower():
                         cancel_scope_conflict = True
+                        logger.debug(f"关闭 MCP 会话时遇到 cancel scope 冲突: {self.config.name}")
+                    else:
+                        logger.warning(f"关闭 MCP 会话时出错: {self.config.name}: {e}")
                 finally:
                     self.session = None
 
             if cancel_scope_conflict:
                 # 跨 task 调用 __aexit__ 触发 anyio cancel scope 冲突时，
-                # 直接丢弃引用，zombie 后台 task 会自行超时结束
+                # 直接丢弃引用，zombie 后台 task 会自行超时结束。
+                # 安装异常过滤器避免 GC 清理 async generator 时产生噪音 ERROR 日志。
+                _ensure_cancel_scope_error_filter()
                 self._transport_context = None
                 self._read_stream = None
                 self._write_stream = None
