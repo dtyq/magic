@@ -895,6 +895,14 @@ export interface UploadFile {
 }
 
 /**
+ * 上传交互选项
+ */
+export interface UploadFilesOptions {
+	/** 是否显示成功提示，默认 true；画布内拖拽/粘贴等场景通常由元素状态承载反馈，可关闭 */
+	showSuccessToast?: boolean
+}
+
+/**
  * 上传私有文件请求参数
  */
 export interface UploadPrivateFile extends Omit<UploadFile, "overwrite" | "uploadSubDir"> {
@@ -1198,11 +1206,13 @@ export interface CanvasDesignMethods {
 	 * 上传文件
 	 * @param uploadFiles 待上传文件数组
 	 * @param duplicateCheckList 用于检查重复的文件路径列表
+	 * @param options 上传交互选项
 	 * @returns Promise<上传文件响应数组，包含文件信息与路径>
 	 */
 	uploadFiles: (
 		uploadFiles: UploadFile[],
 		duplicateCheckList?: string[],
+		options?: UploadFilesOptions,
 	) => Promise<UploadFileResponse[]>
 	/**
 	 * 获取上传文件信息

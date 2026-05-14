@@ -439,7 +439,9 @@ export class CanvasFileUploadManager {
 					},
 				},
 			]
-			await uploadFilesMethod(uploadFiles, this.currentReferenceImages)
+			await uploadFilesMethod(uploadFiles, this.currentReferenceImages, {
+				showSuccessToast: false,
+			})
 		} catch (error) {
 			// 上传失败，通知回调
 			const uploadError = error instanceof Error ? error : new Error("Upload failed")
@@ -534,7 +536,9 @@ export class CanvasFileUploadManager {
 			try {
 				// 一次性批量上传所有文件
 				// 外部实现会在每个文件上传完成时立即调用对应的回调
-				await uploadFilesMethod(uploadFiles, this.currentReferenceImages)
+				await uploadFilesMethod(uploadFiles, this.currentReferenceImages, {
+					showSuccessToast: false,
+				})
 			} catch (error) {
 				// 上传失败，所有请求都标记为失败
 				const errorMessage = error instanceof Error ? error.message : "Upload failed"
@@ -1103,6 +1107,9 @@ export class CanvasFileUploadManager {
 				},
 			],
 			this.currentReferenceImages,
+			{
+				showSuccessToast: false,
+			},
 		)
 		if (!uploadResults?.[0]) {
 			throw new Error("Upload failed: no result returned")
