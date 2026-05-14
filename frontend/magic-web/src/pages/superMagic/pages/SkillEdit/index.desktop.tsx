@@ -452,6 +452,7 @@ function SkillEditWorkspace({ skillCode }: { skillCode: string }) {
 				projectId: store.project?.id,
 				getWorkspaceFilesList: () => store.projectFilesStore.workspaceFilesList,
 				getWorkspaceFileTree: () => store.projectFilesStore.workspaceFileTree,
+				getSkillName: () => store.skill?.name,
 				t,
 			})
 			if (!ensured) return

@@ -29,9 +29,10 @@ import {
 	updateIdentityMarkdownContent,
 } from "../utils/identity-markdown"
 import { type CrewCodeController, resolveCrewEditError } from "./shared"
+import { SuperMagicApiErrorCode } from "@/pages/superMagic/constants/apiErrorCodes"
 
 const MAGIC_FOLDER_NAME = MAGIC_ROOT_DIRECTORY_NAME
-const DUPLICATE_REMOTE_FILE_CODE = 51168
+const DUPLICATE_REMOTE_FILE_CODE = SuperMagicApiErrorCode.DuplicateFile
 const MAGIC_FOLDER_RESOLVE_RETRY_MS = 200
 const MAGIC_FOLDER_RESOLVE_MAX_RETRIES = 8
 

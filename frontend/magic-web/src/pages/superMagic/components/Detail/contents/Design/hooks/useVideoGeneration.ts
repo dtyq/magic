@@ -1,5 +1,6 @@
 import { useCallback } from "react"
 import { SuperMagicApi } from "@/apis"
+import { SuperMagicApiErrorCode } from "@/pages/superMagic/constants/apiErrorCodes"
 import type {
 	EstimateVideoPointsResponse as ApiEstimateVideoPointsResponse,
 	GetVideoGenerationResultParams as ApiGetVideoGenerationResultParams,
@@ -273,7 +274,7 @@ async function buildDesignVideoRequestParams(
 					updateAttachments()
 				} catch (error: unknown) {
 					const errorObj = error as { code?: number }
-					if (errorObj.code === 51168) updateAttachments()
+					if (errorObj.code === SuperMagicApiErrorCode.DuplicateFile) updateAttachments()
 				}
 			}
 
