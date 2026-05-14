@@ -35,6 +35,14 @@ from app.core.base_service import Base
 logger = get_logger(__name__)
 
 
+class AgentLoadFailedError(RuntimeError):
+    """Raised when a user-selected employee agent cannot be loaded."""
+
+    def __init__(self, agent_code: str):
+        self.agent_code = agent_code
+        super().__init__(f"failed to load employee agent: {agent_code}")
+
+
 class AgentDispatcher(Base):
     SERVICE_TYPE = "dispatcher"
     TRACE_EXCLUDE_METHODS = {"get_instance"}
@@ -311,6 +319,8 @@ class AgentDispatcher(Base):
         logger.info(f"首次创建主 Agent: {agent_type}")
         agent = await self.agent_service.create_agent(agent_type, self.agent_context)
         if agent is None:
+            if agent_code and agent_type == agent_code.strip():
+                raise AgentLoadFailedError(agent_code.strip())
             raise RuntimeError(f"failed to create agent: {agent_type}")
 
         self.agents[agent_type] = agent
@@ -463,6 +473,8 @@ class AgentDispatcher(Base):
                 await self._prepare_claw_agent(agent_code)
         except Exception as e:
             logger.error(f"Agent preparation failed (mode={agent_mode}, code={agent_code}): {e}")
+            if agent_code:
+                raise AgentLoadFailedError(agent_code) from e
             logger.info("Falling back to default agent profile")
 
     @staticmethod
@@ -577,6 +589,24 @@ class AgentDispatcher(Base):
             await self.dispatch_message(message)
         except asyncio.CancelledError:
             raise
+        except AgentLoadFailedError as e:
+            logger.error(f"[AgentDispatcher] agent load failed: {e}")
+            try:
+                if self.agent_context:
+                    final_task_state = build_final_task_state(
+                        FinalTaskStateCode.AGENT_LOAD_FAILED,
+                        i18n_params={"agent_code": e.agent_code},
+                    )
+                    self.agent_context.set_final_task_state(final_task_state)
+                    await self.agent_context.dispatch_event(
+                        EventType.ERROR,
+                        ErrorEventData(
+                            agent_context=self.agent_context,
+                            final_task_state=final_task_state,
+                        ),
+                    )
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"[AgentDispatcher] dispatch task failed: {e}")
             import traceback
