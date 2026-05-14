@@ -60,6 +60,15 @@ export interface UseProjectImageExtensionsOptions {
 	 * Custom success handler
 	 */
 	onSuccess?: (relativePath: string) => void
+
+	/**
+	 * Async callback to resolve or create the images folder and return its file_id.
+	 * Called before each upload to ensure the image is saved in the correct directory.
+	 * If not provided or returns undefined, the file will be saved without a parent (root level).
+	 * @param folderPath - The calculated folder path (e.g. "docs/images")
+	 * @returns The file_id of the images folder, or undefined to fall back to root
+	 */
+	resolveImagesFolderParentId?: (folderPath: string) => Promise<string | undefined>
 }
 
 /**
@@ -88,6 +97,7 @@ export function useProjectImageExtensions(
 		onError: customOnError,
 		onStorageUnavailable: customOnStorageUnavailable,
 		onSuccess: customOnSuccess,
+		resolveImagesFolderParentId,
 	} = options
 
 	const { t } = useTranslation("tiptap")
@@ -106,6 +116,7 @@ export function useProjectImageExtensions(
 				documentPath,
 				folderPath,
 				maxSize,
+				resolveImagesFolderParentId,
 				onError: (error) => {
 					// Allow custom error handler to override default behavior
 					if (customOnError) {
@@ -206,6 +217,7 @@ export function useProjectImageExtensions(
 		customOnError,
 		customOnStorageUnavailable,
 		customOnSuccess,
+		resolveImagesFolderParentId,
 		t,
 	])
 

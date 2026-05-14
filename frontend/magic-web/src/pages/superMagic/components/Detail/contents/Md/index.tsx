@@ -31,6 +31,9 @@ import useShareButtonVisibility from "../../hooks/useShareButtonVisibility"
 import type { HeaderActionConfig } from "../../components/CommonHeaderV2/types"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { exportMarkdownToPdf } from "@/utils/markdownPdfExport"
+import { SuperMagicApi } from "@/apis"
+import { SuperMagicApiErrorCode } from "@/pages/superMagic/constants/apiErrorCodes"
+import pubsub, { PubSubEvents } from "@/utils/pubsub"
 
 interface TextEditorProps {
 	data?: any
@@ -262,14 +265,92 @@ export default memo(function TextEditor(props: TextEditorProps) {
 	}, [data?.file_name, data?.title])
 
 	const relativeFilePath = useMemo(() => {
-		return attachmentList?.find((item) => item.file_id === displayData?.file_id)
-			?.relative_file_path
-	}, [displayData?.file_id, attachmentList])
+		// Primary: look up in the visible attachment list
+		const fromList = attachmentList?.find(
+			(item) => item.file_id === displayData?.file_id,
+		)?.relative_file_path
+		if (fromList) return fromList
+		// Fallback: use relative_file_path directly from the file data (handles hidden files)
+		return displayData?.relative_file_path as string | undefined
+	}, [displayData?.file_id, displayData?.relative_file_path, attachmentList])
 
 	// Use the image URL resolver hook
 	const { imageUrlMap, setImageUrlMap, urlResolver } = useImageUrlResolver({
 		attachments,
 		relativeFilePath,
+	})
+
+	/**
+	 * Strip leading/trailing slashes from a path for comparison.
+	 */
+	const normalizeMdPath = (path: string) => path.replace(/^\/+|\/+$/g, "")
+
+	/**
+	 * Resolve or create the images folder before an image upload.
+	 * - Searches attachmentList for an existing directory matching folderPath.
+	 * - If found, returns its file_id directly.
+	 * - If not found, resolves the parent dir file_id, calls createFile, and returns the new id.
+	 * - On DuplicateFile error, re-searches attachmentList for the existing folder.
+	 * - Returns undefined on any unrecoverable failure (graceful degradation → root).
+	 */
+	const resolveImagesFolderParentId = useMemoizedFn(async (folderPath: string) => {
+		if (!selectedProject?.id) return undefined
+
+		const flatList = (attachmentList as AttachmentItem[] | undefined) ?? []
+		const normalizedFolderPath = normalizeMdPath(folderPath)
+
+		// Step 1: Check if the images folder already exists
+		const existingFolder = flatList.find(
+			(item) =>
+				item.is_directory &&
+				normalizeMdPath(item.relative_file_path || "") === normalizedFolderPath,
+		)
+		if (existingFolder?.file_id) {
+			return existingFolder.file_id
+		}
+
+		// Step 2: Find the parent directory's file_id
+		const lastSlash = normalizedFolderPath.lastIndexOf("/")
+		const parentPath = lastSlash > 0 ? normalizedFolderPath.substring(0, lastSlash) : ""
+		const folderName =
+			lastSlash > 0 ? normalizedFolderPath.substring(lastSlash + 1) : normalizedFolderPath
+
+		let parentDirId: string | undefined
+		if (parentPath) {
+			const parentDir = flatList.find(
+				(item) =>
+					item.is_directory &&
+					normalizeMdPath(item.relative_file_path || "") === parentPath,
+			)
+			parentDirId = parentDir?.file_id
+		}
+
+		// Step 3: Create the images folder
+		try {
+			const result = await SuperMagicApi.createFile({
+				project_id: selectedProject.id,
+				parent_id: parentDirId || "",
+				file_name: folderName,
+				is_directory: true,
+			})
+			pubsub.publish(PubSubEvents.Update_Attachments)
+			return (result as any)?.file_id as string | undefined
+		} catch (error: unknown) {
+			const errorObj = error as { code?: number }
+			if (errorObj.code === SuperMagicApiErrorCode.DuplicateFile) {
+				// Folder already exists — refresh and search again
+				pubsub.publish(PubSubEvents.Update_Attachments)
+				const existing = flatList.find(
+					(item) =>
+						item.is_directory &&
+						normalizeMdPath(item.relative_file_path || "") === normalizedFolderPath,
+				)
+				return existing?.file_id
+			}
+			// Other errors: graceful degradation (save to root)
+			console.error("[MdEditor] Failed to create images folder:", error)
+			return undefined
+		}
 	})
 	// 当数据加载完成（loading 为 false）且内容处理完成（isLoading 为 false）后，才同步 viewMode
 	useEffect(() => {
@@ -644,6 +725,7 @@ export default memo(function TextEditor(props: TextEditorProps) {
 								attachments={attachments}
 								onOpenFile={openFileTab}
 								placeholder={t("fileViewer.placeholder.content")}
+								resolveImagesFolderParentId={resolveImagesFolderParentId}
 							/>
 						</div>
 					</div>
