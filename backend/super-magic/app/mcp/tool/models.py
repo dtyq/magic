@@ -28,19 +28,34 @@ class MCPServerResult:
 
 @dataclass
 class MCPToolInfo:
-    """MCP 工具信息
+    """从 MCP 服务器发现的单个工具信息
 
-    描述从 MCP 服务器发现的单个工具，包含注册到框架所需的全部元数据。
+    包含注册到框架所需的全部元数据。
     不包含工厂方法（to_mcp_tool 已移至 MCPServerManager._build_mcp_tool），
     保持为纯数据对象。
     """
-    name: str                              # 完整工具名称，带前缀（如 mcp_a_tool1）
-    original_name: str                     # 原始工具名称，不带前缀
+    name: str                              # 工具名称（原始名称）
+    original_name: str                     # 原始工具名称
     description: str
     inputSchema: Dict[str, Any]
     server_name: str                       # 所属服务器名称
-    session_letter: str                    # 会话字母标识（a/b/c...）
     server_options: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class UnavailableToolInfo:
+    """不可用的 MCP 工具信息
+
+    记录因 schema 验证失败等原因无法注册的工具，
+    便于查询或调用时返回明确的错误信息。
+    """
+    name: str                # 工具原始名称
+    server_name: str         # 所属服务器名称
+    description: str         # 工具描述
+    error: str               # 不可用原因
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

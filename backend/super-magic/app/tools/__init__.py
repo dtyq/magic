@@ -111,6 +111,16 @@ from app.tools.read_skills import ReadSkills
 from app.tools.run_sdk_snippet import RunSdkSnippet
 from app.tools.search_knowledge import SearchKnowledge
 
+# MCP 工具集（code_mode_only=True，只允许通过 sdk.tool.call 调用）
+from app.tools.mcp import (
+    McpAddServer,
+    McpCallTool,
+    McpConnectServer,
+    McpGetToolSchema,
+    McpListServers,
+    McpListTools,
+)
+
 # Import design package modules to ensure they are available in encrypted environment
 import app.tools.design.manager
 import app.tools.design.utils
@@ -229,4 +239,12 @@ __all__ = [
     "GenerateCanvasVideos",
     "SearchCanvasImages",
     "SearchImagePrompts",
+
+    # MCP 工具集
+    "McpAddServer",
+    "McpCallTool",
+    "McpConnectServer",
+    "McpGetToolSchema",
+    "McpListServers",
+    "McpListTools",
 ]

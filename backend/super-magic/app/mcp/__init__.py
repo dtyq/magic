@@ -11,10 +11,8 @@ from .config.models import MCPServerConfig, MCPServerType
 from .connection.client import MCPClient
 from .connection.server_manager import MCPServerManager
 from .manager import (
-    disconnect_server,
     ensure_server_connected,
     get_global_mcp_manager,
-    get_global_mcp_tools,
     get_or_create_manager,
     shutdown_global_mcp_manager,
 )
@@ -26,8 +24,6 @@ __all__ = [
     "MCPServerManager",
     "get_or_create_manager",
     "ensure_server_connected",
-    "disconnect_server",
     "get_global_mcp_manager",
-    "get_global_mcp_tools",
     "shutdown_global_mcp_manager",
 ]

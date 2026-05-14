@@ -1,12 +1,11 @@
-"""MCP 配置加载与合并
+"""MCP 配置加载
 
-负责从文件系统加载 mcp.json 配置、合并多来源配置、以及追加模式下的差量比对。
+负责从文件系统加载 config/mcp.json 全局配置。
 所有函数以 MCPServerConfig 对象为操作单元，不再使用裸 Dict。
 所有文件 I/O 使用异步方式。
 """
 
-import json
-from typing import Dict, List
+from typing import List
 
 from agentlang.logger import get_logger
 
@@ -72,84 +71,3 @@ async def load_global_mcp_config() -> List[MCPServerConfig]:
     except Exception as e:
         logger.warning(f"加载全局 MCP 配置文件失败: {e}")
         return []
-
-
-def merge_mcp_configurations(
-    new_servers: List[MCPServerConfig],
-    existing_servers: List[MCPServerConfig],
-) -> List[MCPServerConfig]:
-    """合并 MCP 服务器配置，新配置优先（同名时覆盖旧配置）
-
-    Args:
-        new_servers: 新传入的服务器配置列表（优先级高）
-        existing_servers: 现有的服务器配置列表（优先级低）
-
-    Returns:
-        List[MCPServerConfig]: 合并后的去重列表
-    """
-    merged: Dict[str, MCPServerConfig] = {}
-
-    for server in existing_servers:
-        merged[server.name] = server
-        logger.debug(f"恢复现有 MCP 服务器配置: {server.name} (来源: {server.source})")
-
-    for server in new_servers:
-        if server.name in merged:
-            old_source = merged[server.name].source
-            logger.debug(f"新配置覆盖现有 MCP 服务器配置: {server.name} ({server.source} -> {old_source})")
-        else:
-            logger.debug(f"添加新 MCP 服务器配置: {server.name} (来源: {server.source})")
-        merged[server.name] = server
-
-    result = list(merged.values())
-    logger.debug(f"配置合并完成，共 {len(result)} 个 MCP 服务器")
-    return result
-
-
-def filter_changed_servers(
-    valid_servers: List[MCPServerConfig],
-    existing_configs: Dict[str, MCPServerConfig],
-) -> List[MCPServerConfig]:
-    """过滤出新增或配置已变更的服务器（追加模式使用）
-
-    Args:
-        valid_servers: 待检查的服务器配置列表
-        existing_configs: 现有的 MCPServerConfig 字典（server_name -> config）
-
-    Returns:
-        List[MCPServerConfig]: 仅包含新增或已变更的服务器配置
-    """
-    logger.info(f"追加模式：比对 {len(valid_servers)} 个配置与现有配置")
-    filtered: List[MCPServerConfig] = []
-
-    for server in valid_servers:
-        if server.name not in existing_configs:
-            logger.info(f"追加模式-新增服务器: {server.name}")
-            filtered.append(server)
-        elif _is_config_changed(existing_configs[server.name], server):
-            logger.info(f"追加模式-服务器配置已变更: {server.name}")
-            filtered.append(server)
-        else:
-            logger.debug(f"追加模式-服务器配置未变化，跳过: {server.name}")
-
-    logger.info(f"追加模式：过滤后需要处理 {len(filtered)} 个服务器")
-    return filtered
-
-
-def _is_config_changed(existing: MCPServerConfig, new: MCPServerConfig) -> bool:
-    """比对两个 MCPServerConfig 的关键字段是否有差异
-
-    Args:
-        existing: 现有的服务器配置
-        new: 新传入的服务器配置
-
-    Returns:
-        bool: 配置是否发生变化
-    """
-    for field in ('type', 'command', 'args', 'env', 'url', 'server_options'):
-        existing_val = getattr(existing, field, None)
-        new_val = getattr(new, field, None)
-        if existing_val != new_val:
-            logger.debug(f"配置字段 '{field}' 发生变化: {existing_val} -> {new_val}")
-            return True
-    return False

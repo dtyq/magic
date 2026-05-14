@@ -10,12 +10,12 @@
 - `is_mcp_tool` / `_MCP_TOOL_PATTERN`（`mcp_{letter}_` 工具挂载链路已下线）
 """
 
-from typing import Dict, Optional
+from typing import Optional
 
 from agentlang.logger import get_logger
 
 from .connection.server_manager import MCPServerManager
-from .tool.models import MCPServerResult, MCPToolInfo
+from .tool.models import MCPServerResult
 
 logger = get_logger(__name__)
 
@@ -31,7 +31,7 @@ def get_or_create_manager() -> MCPServerManager:
     """
     global _global_manager
     if _global_manager is None:
-        _global_manager = MCPServerManager({})
+        _global_manager = MCPServerManager()
         logger.debug("已创建全局 MCP 管理器（空配置）")
     return _global_manager
 
@@ -41,29 +41,15 @@ def get_global_mcp_manager() -> Optional[MCPServerManager]:
     return _global_manager
 
 
-def get_global_mcp_tools() -> Dict[str, MCPToolInfo]:
-    """获取全局已连接的 MCP 工具字典（未连接时返回空）。"""
-    if _global_manager:
-        return _global_manager.get_all_tools()
-    return {}
-
-
 async def ensure_server_connected(server_name: str) -> MCPServerResult:
     """按需连接指定 MCP 服务器（必要时先创建全局管理器）。
 
     未在管理器配置中的 server_name 会直接返回 failed 结果，
-    由调用方（通常是 using-mcp skill / /api/sdk/mcp/call 路由）
+    由调用方（通常是 using-mcp skill 通过 app/tools/mcp/* 工具）
     在更高层决定是否从 ChatMcpStore 注入配置后再重试。
     """
     manager = get_or_create_manager()
     return await manager.ensure_server_connected(server_name)
-
-
-async def disconnect_server(server_name: str) -> bool:
-    """按需断开指定 MCP 服务器（保留配置）。"""
-    if _global_manager is None:
-        return False
-    return await _global_manager.disconnect_server(server_name)
 
 
 async def shutdown_global_mcp_manager() -> None:

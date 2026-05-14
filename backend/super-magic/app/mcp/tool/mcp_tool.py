@@ -44,7 +44,7 @@ class MCPTool(BaseTool):
         self.tool_info = tool_info
         self.manager = manager
         self._original_schema = tool_info.get("inputSchema", {})
-        self._is_schema_valid = validate_mcp_schema(self._original_schema, tool_info.get("name", ""))
+        self._is_schema_valid, self._schema_error = validate_mcp_schema(self._original_schema, tool_info.get("name", ""))
         self._dynamic_params_class = MCPToolParams.create_from_schema(self._original_schema)
         self.label_name = self._parse_label_name()
 
@@ -56,8 +56,12 @@ class MCPTool(BaseTool):
         )
 
     def is_available(self) -> bool:
-        """schema 验证通过时工具才可用"""
+        """返回工具是否可用"""
         return self._is_schema_valid
+
+    def get_unavailable_reason(self) -> Optional[str]:
+        """返回工具不可用的原因，可用时返回 None"""
+        return self._schema_error
 
     def get_params_class(self) -> Type[BaseToolParams]:
         return self._dynamic_params_class

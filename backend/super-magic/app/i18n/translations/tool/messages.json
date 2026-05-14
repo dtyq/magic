@@ -1630,5 +1630,77 @@
     "search_knowledge.error": {
         "zh_CN": "检索失败：{{query}}",
         "en_US": "Search failed: {{query}}"
+    },
+    "mcp.list_servers.listing": {
+        "zh_CN": "正在查看有哪些服务可以用",
+        "en_US": "Checking available services"
+    },
+    "mcp.list_servers.listed": {
+        "zh_CN": "已查看服务列表",
+        "en_US": "Service list ready"
+    },
+    "mcp.list_tools.listing": {
+        "zh_CN": "正在查看有哪些工具可以用",
+        "en_US": "Checking available tools"
+    },
+    "mcp.list_tools.listing_server": {
+        "zh_CN": "正在查看「{{server_name}}」提供了哪些能力",
+        "en_US": "Checking what \"{{server_name}}\" can do"
+    },
+    "mcp.list_tools.listed": {
+        "zh_CN": "已查看工具列表",
+        "en_US": "Tool list ready"
+    },
+    "mcp.list_tools.listed_server": {
+        "zh_CN": "已查看「{{server_name}}」工具列表",
+        "en_US": "Tool list of \"{{server_name}}\" ready"
+    },
+    "mcp.connect_server.connecting": {
+        "zh_CN": "正在连接「{{server_name}}」",
+        "en_US": "Connecting to \"{{server_name}}\""
+    },
+    "mcp.connect_server.connected": {
+        "zh_CN": "「{{server_name}}」已连接就绪",
+        "en_US": "\"{{server_name}}\" is ready"
+    },
+    "mcp.connect_server.failed": {
+        "zh_CN": "连接「{{server_name}}」失败",
+        "en_US": "Failed to connect \"{{server_name}}\""
+    },
+    "mcp.get_tool_schema.querying": {
+        "zh_CN": "正在了解 {{tool_name}} 的使用方式",
+        "en_US": "Learning how to use {{tool_name}}"
+    },
+    "mcp.get_tool_schema.resolved": {
+        "zh_CN": "已了解 {{tool_name}} 的用法",
+        "en_US": "Learned how to use {{tool_name}}"
+    },
+    "mcp.call_tool.calling": {
+        "zh_CN": "正在使用「{{server_name}}」的 {{tool_name}}",
+        "en_US": "Using {{tool_name}} from \"{{server_name}}\""
+    },
+    "mcp.call_tool.called": {
+        "zh_CN": "已完成「{{server_name}}」的 {{tool_name}} 调用",
+        "en_US": "Done using {{tool_name}} from \"{{server_name}}\""
+    },
+    "mcp.call_tool.failed": {
+        "zh_CN": "「{{server_name}}」的 {{tool_name}} 调用失败",
+        "en_US": "Failed to use {{tool_name}} from \"{{server_name}}\""
+    },
+    "mcp.add_server.adding": {
+        "zh_CN": "正在添加新服务「{{name}}」",
+        "en_US": "Adding new service \"{{name}}\""
+    },
+    "mcp.add_server.added": {
+        "zh_CN": "新服务「{{name}}」已添加",
+        "en_US": "New service \"{{name}}\" added"
+    },
+    "mcp.remove_server.removing": {
+        "zh_CN": "正在移除服务「{{server_name}}」",
+        "en_US": "Removing service \"{{server_name}}\""
+    },
+    "mcp.remove_server.removed": {
+        "zh_CN": "服务「{{server_name}}」已移除",
+        "en_US": "Service \"{{server_name}}\" removed"
     }
 }

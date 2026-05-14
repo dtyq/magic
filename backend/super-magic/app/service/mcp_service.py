@@ -1,11 +1,11 @@
 """MCP 服务模块
 
 仅负责 MCP 配置的"摄取"与"种子注入"，不建连、不 discover。连接生命周期由
-`using-mcp` Skill 按需触发（见 `/api/sdk/mcp/*` 路由与 `MCPServerManager`）。
+`using-mcp` Skill 按需触发（见 `app/tools/mcp/*` 工具与 `MCPServerManager`）。
 
 职责边界：
 - `ingest_from_message`：消息链路唯一入口，解析 client 侧 mcp_config → upsert 到 ChatMcpStore。
-  不再向模型注入任何沉淀提醒，using-mcp skill 在需要时主动查询 store 并显式连接。
+  配置有新增或变更时，通过 horizon 推送通知让模型感知可用服务变化。
 - `seed_from_global_config`：启动期入口，把 config/mcp.json 合并进 ChatMcpStore
 """
 
@@ -30,11 +30,11 @@ class MCPService:
         mcp_config: Optional[Dict[str, Any]],
         agent_context: Optional[AgentContext],
     ) -> None:
-        """消息到达时的唯一入口：增量持久化配置，不建连、不注入任何提醒。
+        """消息到达时的唯一入口：增量持久化配置，有变更时通过 horizon 通知模型。
 
         Args:
             mcp_config: 客户端消息携带的 `mcp_config`，形如 `{"mcpServers": {...}}`
-            agent_context: 当前 agent 上下文（保留参数以与调用点兑齐，当前未使用）；允许为 None
+            agent_context: 当前 agent 上下文，用于访问 horizon 推送通知
         """
         if not mcp_config:
             return
@@ -45,17 +45,39 @@ class MCPService:
 
             store = get_chat_mcp_store()
             diff = await store.upsert_many(valid_configs, source=MCPConfigSource.CLIENT_CONFIG)
-            added = sum(1 for v in diff.values() if v == UpsertChangeType.ADDED)
-            changed = sum(1 for v in diff.values() if v == UpsertChangeType.CHANGED)
+            added_names = [name for name, v in diff.items() if v == UpsertChangeType.ADDED]
+            changed_names = [name for name, v in diff.items() if v == UpsertChangeType.CHANGED]
             logger.info(
                 f"已摄取客户端 MCP 配置：upsert {len(valid_configs)} 项，"
-                f"added={added}, changed={changed}"
+                f"added={len(added_names)}, changed={len(changed_names)}"
             )
+
+            # 有新增或变更时，通过 horizon 通知模型
+            if (added_names or changed_names) and agent_context and agent_context.has_skill("using-mcp"):
+                MCPService._push_change_notification(agent_context, added_names, changed_names)
 
         except Exception as e:
             logger.error(f"摄取客户端 MCP 配置失败: {e}")
             logger.error(f"错误详情: {traceback.format_exc()}")
             # 不抛异常，不影响聊天主流程
+
+    @staticmethod
+    def _push_change_notification(
+        agent_context: AgentContext,
+        added_names: List[str],
+        changed_names: List[str],
+    ) -> None:
+        """通过 horizon 通知模型 MCP 服务器配置发生了变化。"""
+        parts: List[str] = []
+        if added_names:
+            parts.append(f"New MCP server(s) available: {', '.join(added_names)}.")
+        if changed_names:
+            parts.append(f"MCP server configuration updated: {', '.join(changed_names)}.")
+        parts.append("You can use read_skills('using-mcp') to learn how to work with MCP servers.")
+        try:
+            agent_context.horizon.push_notification("mcp_service", " ".join(parts))
+        except Exception as e:
+            logger.warning(f"推送 MCP 变更通知到 horizon 失败: {e}")
 
     @staticmethod
     async def seed_from_global_config() -> None:

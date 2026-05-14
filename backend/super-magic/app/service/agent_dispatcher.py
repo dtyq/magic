@@ -667,11 +667,11 @@ class AgentDispatcher(Base):
         # 使用 agent_mode 进行 agent 选择
         agent = await self.switch_agent(message.agent_mode, agent_code=agent_code)
 
-        # 摄取客户端 MCP 配置：仅增量持久化到 ChatMcpStore，不建连
+        # 摄取客户端 MCP 配置：增量持久化到 ChatMcpStore，有变更时通过 horizon 通知模型
         logger.info("正在摄取客户端 MCP 配置...")
         await MCPService.ingest_from_message(message.mcp_config, self.agent_context)
 
-        # 保存当前模型配置（在 MCP 初始化之后，以便保存正确的 MCP 服务器信息）
+        # 保存当前模型配置
         await self._save_session_config(message, agent)
 
         await self.run_agent(agent=agent)
@@ -713,8 +713,6 @@ class AgentDispatcher(Base):
             current_image_model_sizes = None
             current_video_model_id = None
             current_video_generation_config = None
-            current_mcp_servers = None
-
             if message.dynamic_config:
                 image_model_config = message.dynamic_config.get("image_model")
                 if image_model_config and isinstance(image_model_config, dict):
@@ -726,16 +724,7 @@ class AgentDispatcher(Base):
                     current_video_model_id = video_model_config.get("model_id")
                     current_video_generation_config = video_model_config.get("video_generation_config")
 
-            # 获取当前 chat 维度的 MCP 服务器配置（仅在加载了 using-mcp skill 时）
-            # 按需连接模式下不再依赖连接态 manager，直接读 store 里的配置清单；
-            # tools 字段仅作为 session 配置快照保留，不在此处触发连接。
             agent_context = agent.agent_context
-            if agent_context and agent_context.has_skill("using-mcp"):
-                from app.mcp.store import get_chat_mcp_store
-                store = get_chat_mcp_store()
-                entries = await store.list_all()
-                if entries:
-                    current_mcp_servers = {name: [] for name in entries.keys()}
 
             current_agent_mode = None
             msg_agent_mode = message.agent_mode
@@ -760,7 +749,6 @@ class AgentDispatcher(Base):
                 current_image_model_sizes,
                 current_video_model_id,
                 current_video_generation_config,
-                current_mcp_servers,
                 message_version=agent_context.get_message_version() if agent_context else None,
                 agent_mode=current_agent_mode,
                 agent_code=current_agent_code,
