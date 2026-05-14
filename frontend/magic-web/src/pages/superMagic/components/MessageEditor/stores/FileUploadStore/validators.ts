@@ -9,7 +9,7 @@ interface LoggerLike {
 interface DuplicateValidationParams {
 	newFiles: File[]
 	existingFiles: FileData[]
-	targetSuffixDir: string
+	targetParentId: string | undefined
 	needFilterSameFile: boolean
 	t: TFunction
 	logger: LoggerLike
@@ -33,7 +33,7 @@ interface CountValidationParams {
 export function validateDuplicateFiles({
 	newFiles,
 	existingFiles,
-	targetSuffixDir,
+	targetParentId,
 	needFilterSameFile,
 	t,
 	logger,
@@ -48,7 +48,7 @@ export function validateDuplicateFiles({
 				existingFile.file.name === newFile.name &&
 				existingFile.file.size === newFile.size &&
 				existingFile.file.lastModified === newFile.lastModified &&
-				existingFile.suffixDir === targetSuffixDir
+				existingFile.parentId === targetParentId
 			)
 		})
 		return !isDuplicate
@@ -62,7 +62,7 @@ export function validateDuplicateFiles({
 		)
 		logger.warn("duplicate files filtered", {
 			count: duplicateCount,
-			suffixDir: targetSuffixDir,
+			parentId: targetParentId,
 		})
 	}
 

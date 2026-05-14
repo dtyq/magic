@@ -95,6 +95,7 @@ export function createUploadHandlers(context: UploadHandlersContext): UploadHand
 				saveRes = await superMagicUploadTokenService.saveFileToProject({
 					project_id: projectId,
 					topic_id: context.getTopicId(),
+					parent_id: file.parentId,
 					file_key: response.key,
 					file_name: response.name,
 					file_size: response.size,
