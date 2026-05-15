@@ -645,6 +645,7 @@ class ModelGatewayMapper extends ModelMapper
                     ],
                 ]),
             ),
+            extra: $providerModelEntity->getExtraArray(),
         );
     }
 

@@ -35,6 +35,10 @@
         "zh_CN": "智能体尚未初始化，请先初始化工作区后再试。",
         "en_US": "The agent has not been initialized yet. Please initialize the workspace first."
     },
+    "messages.agent_load_failed": {
+        "zh_CN": "当前员工加载失败，请确认员工「{agent_code}」存在，并且当前账号有使用权限。",
+        "en_US": "Failed to load employee agent \"{agent_code}\". Check that it exists and that your account has permission to use it."
+    },
     "messages.internal_dispatch_failed": {
         "zh_CN": "当前请求处理失败，请联系系统管理员。",
         "en_US": "Failed to dispatch the request internally. Please contact the system administrator."

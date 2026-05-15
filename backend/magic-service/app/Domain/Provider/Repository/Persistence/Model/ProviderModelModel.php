@@ -36,6 +36,7 @@ use Hyperf\Snowflake\Concern\Snowflake;
  * @property int $super_magic_display_state
  * @property string $type
  * @property array $aggregate_config
+ * @property null|string $extra
  * @property DateTime $created_at
  * @property DateTime $updated_at
  * @property DateTime $deleted_at
@@ -50,7 +51,7 @@ class ProviderModelModel extends AbstractModel
         'id', 'service_provider_config_id', 'name', 'model_version', 'category', 'model_id',
         'model_type', 'config', 'description', 'sort', 'icon', 'organization_code',
         'status', 'disabled_by', 'translate', 'model_parent_id', 'visible_organizations', 'visible_applications', 'visible_packages',
-        'load_balancing_weight', 'is_office', 'super_magic_display_state', 'type', 'aggregate_config', 'created_at', 'updated_at', 'deleted_at',
+        'load_balancing_weight', 'is_office', 'super_magic_display_state', 'type', 'aggregate_config', 'extra', 'created_at', 'updated_at', 'deleted_at',
     ];
 
     protected array $casts = [
@@ -78,6 +79,7 @@ class ProviderModelModel extends AbstractModel
         'super_magic_display_state' => 'integer',
         'type' => 'string',
         'aggregate_config' => 'array',
+        'extra' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
