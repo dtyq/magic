@@ -26,8 +26,7 @@ import { createMessageSendService } from "@/pages/superMagic/services/messageSen
 import { useTopicDetailPanelController } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicDetailPanelController"
 import { useTopicFiles } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicFiles"
 import { isReadOnlyProject } from "@/pages/superMagic/utils/permission"
-import { type TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
-import { TopicMode } from "../Workspace/TopicMode"
+import { TopicMode, type TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
 import useTopicModel from "@/pages/superMagic/components/MessageEditor/hooks/useTopicModel"
 import { createMessageEditorDraftKey } from "@/pages/superMagic/components/MessageEditor/utils/draftKey"
 import { userStore } from "@/models/user"
@@ -558,6 +557,7 @@ function ClawPlaygroundMobile() {
 		setActiveFileId,
 		handleFileClick,
 		topicFilesProps,
+		attachmentList,
 	})
 
 	const resolveTopicFileRowDecoration = useMemoizedFn(

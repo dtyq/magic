@@ -33,7 +33,8 @@ import PreviewDetailPopup, {
 	PreviewDetailPopupRef,
 } from "../../components/PreviewDetailPopup"
 import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
-import { getFileType } from "@/pages/superMagic/utils/handleFIle"
+import { getFileType, downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
+import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { LongMemory } from "@/types/longMemory"
 import { cn } from "@/lib/utils"
 import ProjectPageInputContainer from "@/pages/superMagic/components/ProjectPageInputContainer"
@@ -481,10 +482,42 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 
 		pubsub.subscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
 
+		const handleOpenFileTabByPath = (data: unknown) => {
+			const payload = data as {
+				filePath: string
+				fileName: string
+				action?: "open" | "download"
+			}
+			const normPath = (p: string) => p.replace(/^\//, "")
+			const targetPath = normPath(payload.filePath)
+			const matched = attachmentList.find(
+				(item) =>
+					!item.is_directory && normPath(item.relative_file_path || "") === targetPath,
+			)
+			if (!matched?.file_id) return
+
+			if (payload.action === "download") {
+				getTemporaryDownloadUrl({
+					file_ids: [matched.file_id],
+					is_download: true,
+				}).then((res: any) => {
+					downloadFileWithAnchor(res[0]?.url)
+				})
+			} else {
+				onFileClick({
+					file_id: matched.file_id,
+					file_name: matched.file_name || payload.fileName,
+				})
+			}
+		}
+
+		pubsub.subscribe(PubSubEvents.Open_File_Tab_By_Path, handleOpenFileTabByPath)
+
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
+			pubsub.unsubscribe(PubSubEvents.Open_File_Tab_By_Path, handleOpenFileTabByPath)
 		}
-	}, [onFileClick, setUserSelectDetail])
+	}, [onFileClick, setUserSelectDetail, attachmentList])
 
 	return (
 		<div className={cn(styles.container, className)}>

@@ -2,6 +2,9 @@ import { useMemoizedFn } from "ahooks"
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import type { DetailRef } from "../../../components/Detail"
+import type { AttachmentItem } from "../../../components/TopicFilesButton/hooks/types"
+import { getTemporaryDownloadUrl } from "../../../utils/api"
+import { downloadFileWithAnchor } from "../../../utils/handleFIle"
 
 type DetailTabType = "playback" | "file" | null
 
@@ -15,6 +18,8 @@ interface UseTopicDetailPanelControllerOptions {
 		onFileClick?: (fileItem?: unknown) => void
 		[key: string]: unknown
 	}
+	/** 附件列表，用于 Open_File_Tab_By_Path 事件中按路径查找文件 */
+	attachmentList?: AttachmentItem[]
 }
 
 interface UseTopicDetailPanelControllerReturn {
@@ -38,6 +43,7 @@ export function useTopicDetailPanelController({
 	setActiveFileId,
 	handleFileClick,
 	topicFilesProps,
+	attachmentList = [],
 }: UseTopicDetailPanelControllerOptions): UseTopicDetailPanelControllerReturn {
 	const [activeDetailTabType, setActiveDetailTabType] = useState<DetailTabType>(null)
 	const fileOpenFallbackTimerRef = useRef<number | null>(null)
@@ -95,12 +101,11 @@ export function useTopicDetailPanelController({
 	)
 
 	useEffect(() => {
-		const handleOpenFileTab = (data: { fileId: string; fileData?: any }) => {
-			// setActiveFileId(null)
-			// setActiveDetailTabType("file")
+		const handleOpenFileTab = (data: unknown) => {
+			const payload = data as { fileId: string; fileData?: unknown }
 			window.setTimeout(() => {
 				// 允许消息区直接传入临时 fileData，复用右侧详情区打开逻辑。
-				detailRef.current?.openFileTab?.({ file_id: data.fileId })
+				detailRef.current?.openFileTab?.({ file_id: payload.fileId })
 			}, DETAIL_OPEN_DELAY_MS)
 			scheduleFileOpenFallback()
 		}
@@ -113,14 +118,45 @@ export function useTopicDetailPanelController({
 			}, DETAIL_OPEN_DELAY_MS)
 		}
 
+		const handleOpenFileTabByPath = (data: unknown) => {
+			// 在 attachmentList 中按 relative_file_path 查找对应文件
+			const payload = data as {
+				filePath: string
+				fileName: string
+				action?: "open" | "download"
+			}
+			const normPath = (p: string) => p.replace(/^\//, "")
+			const targetPath = normPath(payload.filePath)
+			const matched = attachmentList.find(
+				(item) => normPath(item.relative_file_path || "") === targetPath,
+			)
+			if (matched?.file_id) {
+				if (payload.action === "download") {
+					getTemporaryDownloadUrl({
+						file_ids: [matched.file_id],
+						is_download: true,
+					}).then((res: any) => {
+						downloadFileWithAnchor(res[0]?.url)
+					})
+				} else {
+					window.setTimeout(() => {
+						detailRef.current?.openFileTab?.({ file_id: matched.file_id })
+					}, DETAIL_OPEN_DELAY_MS)
+					scheduleFileOpenFallback()
+				}
+			}
+		}
+
 		pubsub.subscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
 		pubsub.subscribe(PubSubEvents.Open_Playback_Tab, handleOpenPlaybackTab)
+		pubsub.subscribe(PubSubEvents.Open_File_Tab_By_Path, handleOpenFileTabByPath)
 
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
 			pubsub.unsubscribe(PubSubEvents.Open_Playback_Tab, handleOpenPlaybackTab)
+			pubsub.unsubscribe(PubSubEvents.Open_File_Tab_By_Path, handleOpenFileTabByPath)
 		}
-	}, [detailRef, scheduleFileOpenFallback, setActiveFileId])
+	}, [detailRef, scheduleFileOpenFallback, setActiveFileId, attachmentList])
 
 	const handleActiveDetailTabChange = useMemoizedFn((tabType: DetailTabType) => {
 		setActiveDetailTabType(tabType)
