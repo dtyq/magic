@@ -8,12 +8,24 @@ interface MockCommonPopupProps {
 	children: ReactNode
 	popupProps?: {
 		visible?: boolean
+		className?: string
+		bodyStyle?: {
+			background?: string
+		}
 	}
 }
 
 vi.mock("@/pages/superMagicMobile/components/CommonPopup", () => ({
 	default: ({ children, popupProps }: MockCommonPopupProps) =>
-		popupProps?.visible ? <div>{children}</div> : null,
+		popupProps?.visible ? (
+			<div
+				data-testid="mock-common-popup"
+				data-popup-classname={popupProps.className}
+				data-popup-background={popupProps.bodyStyle?.background}
+			>
+				{children}
+			</div>
+		) : null,
 }))
 
 vi.mock("@/pages/superMagic/components/Share/Modal", () => ({
@@ -126,6 +138,14 @@ describe("ProjectShareSheet", () => {
 		)
 
 		expect(screen.getByTestId("project-share-sheet-root")).toBeInTheDocument()
+		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
+			"data-popup-classname",
+			expect.stringContaining("bg-[#F7F7F6]"),
+		)
+		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
+			"data-popup-background",
+			"#F7F7F6",
+		)
 		expect(screen.getByTestId("project-share-sheet-manage-empty")).toHaveTextContent(
 			"暂无分享链接",
 		)

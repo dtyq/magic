@@ -28,6 +28,8 @@ export default function ProjectShareSheet(props: ProjectShareSheetProps) {
 					onMaskClick: controller.close,
 					showCloseButton: false,
 					withSafeBottom: false,
+					// 默认手柄位于 MagicPopup 外层内容壳内；这里同步外层底色，避免头部上方露出白底造成分层。
+					className: "rounded-t-[14px] border-0 bg-[#F7F7F6]",
 					bodyStyle: {
 						background: "#F7F7F6",
 						borderRadius: "14px 14px 0 0",
