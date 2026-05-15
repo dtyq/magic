@@ -32,8 +32,8 @@ const (
 	fragmentSecondaryScopeBusinessID
 )
 
-var errUnsupportedFragmentListMode = errors.New("unsupported fragment list mode")
 var (
+	errUnsupportedFragmentListMode            = errors.New("unsupported fragment list mode")
 	errInvalidDocumentSecondaryFragmentRows   = errors.New("invalid document secondary fragment rows type")
 	errInvalidBusinessIDSecondaryFragmentRows = errors.New("invalid business id secondary fragment rows type")
 )

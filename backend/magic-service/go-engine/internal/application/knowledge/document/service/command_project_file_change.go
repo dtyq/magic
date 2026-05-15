@@ -2,9 +2,11 @@ package docapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	docdto "magic/internal/application/knowledge/document/dto"
 	texthelper "magic/internal/application/knowledge/helper/text"
@@ -14,6 +16,8 @@ import (
 	sourcebindingrepository "magic/internal/domain/knowledge/sourcebinding/repository"
 	"magic/internal/pkg/projectfile"
 )
+
+const projectDirectoryDeleteConcurrency = 4
 
 // ProjectFileChangeAppService 负责项目文件变更命令流。
 //
@@ -35,6 +39,13 @@ func (s *ProjectFileChangeAppService) NotifyProjectFileChange(
 ) error {
 	if s == nil || s.support == nil || input == nil || input.ProjectFileID <= 0 || s.support.projectFileMetadataReader == nil {
 		return nil
+	}
+	meta, err := s.support.loadProjectFileChangeMeta(ctx, input)
+	if err != nil {
+		return err
+	}
+	if isDeletedProjectDirectory(meta) {
+		return s.RunProjectFileChange(ctx, input)
 	}
 	decision, err := s.shouldScheduleProjectFileChange(ctx, input)
 	if err != nil {
@@ -69,7 +80,14 @@ func (s *ProjectFileChangeAppService) RunProjectFileChange(
 		return nil
 	}
 	defer release()
+	if isDeletedProjectDirectory(meta) {
+		return s.handleProjectDirectoryDeleted(ctx, meta)
+	}
 	return s.handleProjectFileChange(ctx, input.ProjectFileID, meta)
+}
+
+func isDeletedProjectDirectory(meta *projectfile.Meta) bool {
+	return meta != nil && meta.IsDirectory && projectfile.IsDeletedResolveStatus(meta.Status)
 }
 
 func (s *ProjectFileChangeAppService) handleProjectFileChange(
@@ -138,6 +156,89 @@ func (s *ProjectFileChangeAppService) handleProjectFileChange(
 		return err
 	}
 	return s.executeGroup(ctx, plan.Enterprise, enterpriseSource)
+}
+
+func (s *ProjectFileChangeAppService) handleProjectDirectoryDeleted(
+	ctx context.Context,
+	meta *projectfile.Meta,
+) error {
+	if s == nil || s.support == nil || meta == nil || meta.ProjectFileID <= 0 || meta.ProjectID <= 0 {
+		return nil
+	}
+	descendantReader, ok := s.support.projectFileMetadataReader.(documentdomain.ProjectFileDescendantReader)
+	if !ok {
+		return errProjectFileDescendantReaderRequired
+	}
+	descendants, err := descendantReader.ListDescendants(ctx, meta.ProjectID, meta.ProjectFileID)
+	if err != nil {
+		return fmt.Errorf("list project directory descendants: %w", err)
+	}
+	fileIDs := documentdomain.ProjectDirectoryDeleteFileIDs(descendants)
+	if len(fileIDs) == 0 {
+		return nil
+	}
+
+	bindings, err := s.support.listRealtimeProjectBindings(ctx, meta.OrganizationCode, meta.ProjectID)
+	if err != nil {
+		return err
+	}
+	if len(bindings) == 0 {
+		return nil
+	}
+	ancestorRefs, err := s.support.loadProjectFileAncestorFolderRefs(ctx, meta)
+	if err != nil {
+		return err
+	}
+	bindingRefs := documentdomain.FilterProjectDirectoryDeleteBindingRefs(
+		buildProjectFileBindingRefs(bindings),
+		meta.ProjectFileID,
+		ancestorRefs,
+		descendants,
+	)
+	if len(bindingRefs) == 0 {
+		return nil
+	}
+	enabledCodes, err := s.support.enabledKnowledgeBaseCodeSet(
+		ctx,
+		meta.OrganizationCode,
+		documentdomain.CollectProjectFileKnowledgeBaseCodes(bindingRefs, nil),
+	)
+	if err != nil {
+		return err
+	}
+	bindingRefs = filterProjectFileBindingRefsByEnabledKnowledgeBases(bindingRefs, enabledCodes)
+	if len(bindingRefs) == 0 {
+		return nil
+	}
+
+	docs, err := s.support.listRealtimeProjectFileDocumentsBySourceBindings(
+		ctx,
+		meta.OrganizationCode,
+		fileIDs,
+		collectProjectFileBindingIDs(bindingRefs),
+	)
+	if err != nil {
+		return err
+	}
+	docs = filterDocumentsByEnabledKnowledgeBases(docs, enabledCodes)
+	if len(docs) == 0 {
+		return nil
+	}
+
+	if s.support.logger != nil {
+		s.support.logger.InfoContext(
+			ctx,
+			"Destroy project directory descendant documents",
+			"organization_code", meta.OrganizationCode,
+			"project_id", meta.ProjectID,
+			"project_file_id", meta.ProjectFileID,
+			"revectorize_source", documentdomain.RevectorizeSourceProjectFileNotify,
+			"target_scope", "project_directory_deleted",
+			"descendant_file_count", len(fileIDs),
+			"target_count", len(docs),
+		)
+	}
+	return s.destroyDocumentsConcurrently(ctx, docs, projectDirectoryDeleteConcurrency)
 }
 
 type projectFileChangeInputs struct {
@@ -248,6 +349,77 @@ func (s *ProjectFileChangeAppService) destroyDocuments(
 		}
 	}
 	return nil
+}
+
+func (s *ProjectFileChangeAppService) destroyDocumentsConcurrently(
+	ctx context.Context,
+	docs []*docentity.KnowledgeBaseDocument,
+	concurrency int,
+) error {
+	docs = dedupeDocumentsForDestroy(docs)
+	if len(docs) == 0 {
+		return nil
+	}
+	if concurrency <= 1 || len(docs) == 1 {
+		return s.destroyDocuments(ctx, docs)
+	}
+
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	errs := make([]error, 0)
+	for _, doc := range docs {
+		if doc == nil {
+			continue
+		}
+		sem <- struct{}{}
+		wg.Add(1)
+		go func(doc *docentity.KnowledgeBaseDocument) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			if err := s.support.destroyDocument(ctx, doc); err != nil {
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("destroy project document %s: %w", doc.Code, err))
+				mu.Unlock()
+			}
+		}(doc)
+	}
+	wg.Wait()
+	return errors.Join(errs...)
+}
+
+func dedupeDocumentsForDestroy(docs []*docentity.KnowledgeBaseDocument) []*docentity.KnowledgeBaseDocument {
+	result := make([]*docentity.KnowledgeBaseDocument, 0, len(docs))
+	seen := make(map[int64]struct{}, len(docs))
+	for _, doc := range docs {
+		if doc == nil {
+			continue
+		}
+		if doc.ID > 0 {
+			if _, exists := seen[doc.ID]; exists {
+				continue
+			}
+			seen[doc.ID] = struct{}{}
+		}
+		result = append(result, doc)
+	}
+	return result
+}
+
+func collectProjectFileBindingIDs(bindings []documentdomain.ProjectFileBindingRef) []int64 {
+	ids := make([]int64, 0, len(bindings))
+	seen := make(map[int64]struct{}, len(bindings))
+	for _, binding := range bindings {
+		if binding.ID <= 0 {
+			continue
+		}
+		if _, exists := seen[binding.ID]; exists {
+			continue
+		}
+		seen[binding.ID] = struct{}{}
+		ids = append(ids, binding.ID)
+	}
+	return ids
 }
 
 func (s *ProjectFileChangeAppService) resolveEnterpriseSource(

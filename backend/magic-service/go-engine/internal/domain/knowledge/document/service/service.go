@@ -250,6 +250,25 @@ func (s *DomainService) ListRealtimeByProjectFileInOrg(
 	return docs, nil
 }
 
+// ListRealtimeByProjectFilesAndSourceBindingsInOrg 按组织、项目文件集合和绑定集合列出实时文档。
+func (s *DomainService) ListRealtimeByProjectFilesAndSourceBindingsInOrg(
+	ctx context.Context,
+	organizationCode string,
+	projectFileIDs []int64,
+	sourceBindingIDs []int64,
+) ([]*docentity.KnowledgeBaseDocument, error) {
+	docs, err := s.repo.ListRealtimeByProjectFilesAndSourceBindingsInOrg(
+		ctx,
+		organizationCode,
+		projectFileIDs,
+		sourceBindingIDs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list realtime documents by project files and source bindings in org: %w", err)
+	}
+	return docs, nil
+}
+
 // HasRealtimeProjectFileDocumentInOrg 判断组织内项目文件是否已有 enabled + realtime 绑定下的文档。
 func (s *DomainService) HasRealtimeProjectFileDocumentInOrg(
 	ctx context.Context,

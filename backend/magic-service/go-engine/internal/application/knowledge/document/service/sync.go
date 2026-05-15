@@ -194,6 +194,9 @@ func (s *DocumentAppService) completeDocumentSyncBusinessContext(
 	if strings.TrimSpace(params.BusinessID) == "" {
 		params.BusinessID = strings.TrimSpace(input.KnowledgeBaseCode)
 	}
+	if strings.TrimSpace(params.SourceID) == "" {
+		params.SourceID = ctxmeta.SourceIDFragmentSaved
+	}
 	if strings.TrimSpace(params.UserID) == "" {
 		userID, err := s.resolveDocumentSyncUserID(ctx, input, doc)
 		if err != nil {

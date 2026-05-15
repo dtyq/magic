@@ -10,6 +10,14 @@ import (
 	"magic/internal/pkg/thirdplatform"
 )
 
+const (
+	testRPCUserID                   = "user-1"
+	testRPCThirdPlatformUserID      = "teamshare-user-1"
+	testRPCThirdPlatformOrgID       = "teamshare-org-1"
+	testRPCThirdPlatformDocumentID  = "file-1"
+	testRPCThirdPlatformKnowledgeID = "kb-1"
+)
+
 func TestPHPThirdPlatformDocumentRPCClientResolveMapsUnavailableCode(t *testing.T) {
 	t.Parallel()
 
@@ -115,9 +123,9 @@ func TestPHPThirdPlatformDocumentRPCClientListKnowledgeBasesMapsPermissionError(
 
 	_, err := client.ListKnowledgeBases(context.Background(), thirdplatform.KnowledgeBaseListInput{
 		OrganizationCode:              "org-1",
-		UserID:                        "user-1",
-		ThirdPlatformUserID:           "teamshare-user-1",
-		ThirdPlatformOrganizationCode: "teamshare-org-1",
+		UserID:                        testRPCUserID,
+		ThirdPlatformUserID:           testRPCThirdPlatformUserID,
+		ThirdPlatformOrganizationCode: testRPCThirdPlatformOrgID,
 	})
 	if !errors.Is(err, thirdplatform.ErrPermissionDenied) {
 		t.Fatalf("expected ErrPermissionDenied, got %v", err)
@@ -144,13 +152,13 @@ func TestPHPThirdPlatformDocumentRPCClientResolveForwardsThirdPlatformIdentity(t
 
 	_, err := client.Resolve(context.Background(), thirdplatform.DocumentResolveInput{
 		OrganizationCode:              "org-1",
-		UserID:                        "user-1",
-		ThirdPlatformUserID:           "teamshare-user-1",
+		UserID:                        testRPCUserID,
+		ThirdPlatformUserID:           testRPCThirdPlatformUserID,
 		ThirdPlatformOrganizationCode: "000",
-		KnowledgeBaseCode:             "kb-1",
+		KnowledgeBaseCode:             testRPCThirdPlatformKnowledgeID,
 		ThirdPlatformType:             "teamshare",
-		ThirdFileID:                   "file-1",
-		DocumentFile:                  map[string]any{"third_file_id": "file-1"},
+		ThirdFileID:                   testRPCThirdPlatformDocumentID,
+		DocumentFile:                  map[string]any{"third_file_id": testRPCThirdPlatformDocumentID},
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -159,9 +167,97 @@ func TestPHPThirdPlatformDocumentRPCClientResolveForwardsThirdPlatformIdentity(t
 	if !ok {
 		t.Fatalf("expected data_isolation map, got %#v", captured["data_isolation"])
 	}
-	if dataIsolation["user_id"] != "user-1" ||
-		dataIsolation["third_platform_user_id"] != "teamshare-user-1" ||
+	if dataIsolation["user_id"] != testRPCUserID ||
+		dataIsolation["third_platform_user_id"] != testRPCThirdPlatformUserID ||
 		dataIsolation["third_platform_organization_code"] != "000" {
+		t.Fatalf("unexpected data_isolation: %#v", dataIsolation)
+	}
+}
+
+func TestPHPThirdPlatformDocumentRPCClientResolveNodeAllowsMissingThirdPlatformUserID(t *testing.T) {
+	t.Parallel()
+
+	client := NewPHPThirdPlatformDocumentRPCClient(unixsocket.NewServerForTest(nil, logging.New()), logging.New(), nil)
+	client.isClientReady = func() bool { return true }
+
+	var captured map[string]any
+	client.callResolveNodeRPC = func(
+		_ context.Context,
+		_ *unixsocket.Server,
+		params map[string]any,
+		out *thirdPlatformNodeResolveResponse,
+	) error {
+		captured = params
+		out.Code = 0
+		out.Data = &thirdplatform.NodeResolveResult{TreeNode: thirdplatform.TreeNode{ThirdFileID: testRPCThirdPlatformDocumentID}}
+		return nil
+	}
+
+	_, err := client.ResolveNode(context.Background(), thirdplatform.NodeResolveInput{
+		OrganizationCode:              "org-1",
+		UserID:                        testRPCUserID,
+		ThirdPlatformOrganizationCode: testRPCThirdPlatformOrgID,
+		ThirdPlatformType:             "teamshare",
+		ThirdFileID:                   testRPCThirdPlatformDocumentID,
+		KnowledgeBaseID:               testRPCThirdPlatformKnowledgeID,
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	dataIsolation, ok := captured["data_isolation"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected data_isolation map, got %#v", captured["data_isolation"])
+	}
+	if _, exists := dataIsolation["third_platform_user_id"]; exists {
+		t.Fatalf("expected empty third_platform_user_id to be omitted, got %#v", dataIsolation)
+	}
+	if dataIsolation["organization_code"] != "org-1" ||
+		dataIsolation["user_id"] != testRPCUserID ||
+		dataIsolation["third_platform_organization_code"] != testRPCThirdPlatformOrgID ||
+		captured["third_platform_type"] != "teamshare" ||
+		captured["third_file_id"] != testRPCThirdPlatformDocumentID ||
+		captured["third_knowledge_id"] != testRPCThirdPlatformKnowledgeID {
+		t.Fatalf("unexpected resolve node params: %#v", captured)
+	}
+}
+
+func TestPHPThirdPlatformDocumentRPCClientResolveNodeForwardsThirdPlatformIdentity(t *testing.T) {
+	t.Parallel()
+
+	client := NewPHPThirdPlatformDocumentRPCClient(unixsocket.NewServerForTest(nil, logging.New()), logging.New(), nil)
+	client.isClientReady = func() bool { return true }
+
+	var captured map[string]any
+	client.callResolveNodeRPC = func(
+		_ context.Context,
+		_ *unixsocket.Server,
+		params map[string]any,
+		out *thirdPlatformNodeResolveResponse,
+	) error {
+		captured = params
+		out.Code = 0
+		out.Data = &thirdplatform.NodeResolveResult{TreeNode: thirdplatform.TreeNode{ThirdFileID: testRPCThirdPlatformDocumentID}}
+		return nil
+	}
+
+	_, err := client.ResolveNode(context.Background(), thirdplatform.NodeResolveInput{
+		OrganizationCode:              "org-1",
+		UserID:                        testRPCUserID,
+		ThirdPlatformUserID:           testRPCThirdPlatformUserID,
+		ThirdPlatformOrganizationCode: testRPCThirdPlatformOrgID,
+		ThirdPlatformType:             "teamshare",
+		ThirdFileID:                   testRPCThirdPlatformDocumentID,
+		KnowledgeBaseID:               testRPCThirdPlatformKnowledgeID,
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	dataIsolation, ok := captured["data_isolation"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected data_isolation map, got %#v", captured["data_isolation"])
+	}
+	if dataIsolation["third_platform_user_id"] != testRPCThirdPlatformUserID ||
+		dataIsolation["third_platform_organization_code"] != testRPCThirdPlatformOrgID {
 		t.Fatalf("unexpected data_isolation: %#v", dataIsolation)
 	}
 }
@@ -186,11 +282,11 @@ func TestPHPThirdPlatformDocumentRPCClientListTreeNodesForwardsThirdPlatformIden
 
 	_, err := client.ListTreeNodes(context.Background(), thirdplatform.TreeNodeListInput{
 		OrganizationCode:              "org-1",
-		UserID:                        "user-1",
-		ThirdPlatformUserID:           "teamshare-user-1",
-		ThirdPlatformOrganizationCode: "teamshare-org-1",
+		UserID:                        testRPCUserID,
+		ThirdPlatformUserID:           testRPCThirdPlatformUserID,
+		ThirdPlatformOrganizationCode: testRPCThirdPlatformOrgID,
 		ParentType:                    "knowledge_base",
-		ParentRef:                     "kb-1",
+		ParentRef:                     testRPCThirdPlatformKnowledgeID,
 	})
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
@@ -200,11 +296,11 @@ func TestPHPThirdPlatformDocumentRPCClientListTreeNodesForwardsThirdPlatformIden
 		t.Fatalf("expected data_isolation map, got %#v", captured["data_isolation"])
 	}
 	if dataIsolation["organization_code"] != "org-1" ||
-		dataIsolation["user_id"] != "user-1" ||
-		dataIsolation["third_platform_user_id"] != "teamshare-user-1" ||
-		dataIsolation["third_platform_organization_code"] != "teamshare-org-1" ||
+		dataIsolation["user_id"] != testRPCUserID ||
+		dataIsolation["third_platform_user_id"] != testRPCThirdPlatformUserID ||
+		dataIsolation["third_platform_organization_code"] != testRPCThirdPlatformOrgID ||
 		captured["parent_type"] != "knowledge_base" ||
-		captured["parent_ref"] != "kb-1" {
+		captured["parent_ref"] != testRPCThirdPlatformKnowledgeID {
 		t.Fatalf("unexpected tree node params: %#v", captured)
 	}
 }
@@ -217,9 +313,9 @@ func TestPHPThirdPlatformDocumentRPCClientListTreeNodesReturnsIdentityMissing(t 
 
 	_, err := client.ListTreeNodes(context.Background(), thirdplatform.TreeNodeListInput{
 		OrganizationCode: "org-1",
-		UserID:           "user-1",
+		UserID:           testRPCUserID,
 		ParentType:       "knowledge_base",
-		ParentRef:        "kb-1",
+		ParentRef:        testRPCThirdPlatformKnowledgeID,
 	})
 	if !errors.Is(err, ErrThirdPlatformIdentityMissing) {
 		t.Fatalf("expected ErrThirdPlatformIdentityMissing, got %v", err)

@@ -17,14 +17,18 @@ var (
 	ErrBusinessIDRequired     = errors.New("business_id is required")
 )
 
+// SourceIDFragmentSaved 标识知识库切片入库产生的 embedding 调用。
+const SourceIDFragmentSaved = "fragment_saved"
+
 // BusinessParams 携带跨服务请求的业务上下文元数据。
 // 包含计费与数据隔离所需的业务标识。
 type BusinessParams struct {
 	OrganizationCode string `json:"organization_code"` // 组织编码
 	// OrganizationID 兼容旧字段，优先级低于 OrganizationCode。
 	OrganizationID                string `json:"organization_id,omitempty"`
-	UserID                        string `json:"user_id"`     // 用户标识
-	BusinessID                    string `json:"business_id"` // 业务/事务标识
+	UserID                        string `json:"user_id"`             // 用户标识
+	BusinessID                    string `json:"business_id"`         // 业务/事务标识
+	SourceID                      string `json:"source_id,omitempty"` // 业务来源标识
 	ThirdPlatformUserID           string `json:"third_platform_user_id,omitempty"`
 	ThirdPlatformOrganizationCode string `json:"third_platform_organization_code,omitempty"`
 }
@@ -33,17 +37,21 @@ type BusinessParams struct {
 // 可用于构建请求负载或过滤条件
 func (bp BusinessParams) ToMap() map[string]string {
 	orgCode := bp.GetOrganizationCode()
-	return map[string]string{
+	params := map[string]string{
 		constants.OrgIDField:       orgCode,
 		constants.LegacyOrgIDField: orgCode,
 		constants.UserIDField:      bp.UserID,
 		constants.BusinessIDField:  bp.BusinessID,
 	}
+	if bp.SourceID != "" {
+		params[constants.SourceIDField] = bp.SourceID
+	}
+	return params
 }
 
 // IsEmpty 判断是否所有字段为空
 func (bp BusinessParams) IsEmpty() bool {
-	return bp.GetOrganizationCode() == "" && bp.UserID == "" && bp.BusinessID == ""
+	return bp.GetOrganizationCode() == "" && bp.UserID == "" && bp.BusinessID == "" && bp.SourceID == ""
 }
 
 // GetOrganizationCode 返回标准化组织编码。

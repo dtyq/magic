@@ -103,7 +103,7 @@ func TestPHPEmbeddingRPCClientBatchEmbeddingsWithoutAccessToken(t *testing.T) {
 			t.Fatalf("access_token should be omitted when provider fails: %#v", params)
 		}
 		assertHelloInput(t, params)
-		assertBusinessParams(t, params, "org-1", "user-1", "biz-1")
+		assertBusinessParams(t, params, "org-1", "user-1", "biz-1", ctxmeta.SourceIDFragmentSaved)
 		called = true
 		setEmbeddingComputeSuccess(t, out, []float64{1})
 		return nil
@@ -113,6 +113,7 @@ func TestPHPEmbeddingRPCClientBatchEmbeddingsWithoutAccessToken(t *testing.T) {
 		OrganizationCode: "org-1",
 		UserID:           "user-1",
 		BusinessID:       "biz-1",
+		SourceID:         ctxmeta.SourceIDFragmentSaved,
 	}
 	embeddings, err := embeddingClient.GetBatchEmbeddings(context.Background(), []string{"hello"}, "m", &businessParams)
 	if err != nil {
@@ -310,7 +311,7 @@ func assertHelloInput(t *testing.T, params map[string]any) {
 	}
 }
 
-func assertBusinessParams(t *testing.T, params map[string]any, wantOrganizationCode, wantUserID, wantBusinessID string) {
+func assertBusinessParams(t *testing.T, params map[string]any, wantOrganizationCode, wantUserID, wantBusinessID, wantSourceID string) {
 	t.Helper()
 
 	got, ok := params["business_params"].(client.BusinessParams)
@@ -328,5 +329,8 @@ func assertBusinessParams(t *testing.T, params map[string]any, wantOrganizationC
 	}
 	if got.BusinessID != wantBusinessID {
 		t.Fatalf("business_id mismatch: got %q want %q", got.BusinessID, wantBusinessID)
+	}
+	if got.SourceID != wantSourceID {
+		t.Fatalf("source_id mismatch: got %q want %q", got.SourceID, wantSourceID)
 	}
 }

@@ -19,7 +19,10 @@ var (
 	errNegativeInt64Value               = errors.New("int64 value cannot be negative")
 )
 
-const maxTaskFileAncestorDepth = 64
+const (
+	maxTaskFileAncestorDepth          = 64
+	taskFileDescendantParentBatchSize = 500
+)
 
 // Repository 提供项目文件轻量元数据读取能力。
 type Repository struct {
@@ -113,6 +116,83 @@ func (r *Repository) ListAncestorFolderIDs(ctx context.Context, projectFileID in
 		parentID = nextParentID
 	}
 	return ids, nil
+}
+
+// ListDescendants 按项目目录读取全部后代节点。
+func (r *Repository) ListDescendants(ctx context.Context, projectID, directoryID int64) ([]projectfile.TreeNode, error) {
+	if r == nil || r.client == nil {
+		return nil, errProjectFileMetadataRepositoryNil
+	}
+	if projectID <= 0 || directoryID <= 0 {
+		return nil, nil
+	}
+	projectIDUint64, err := positiveInt64ToUint64(projectID, "project_id")
+	if err != nil {
+		return nil, fmt.Errorf("convert project id: %w", err)
+	}
+	directoryIDUint64, err := positiveInt64ToUint64(directoryID, "directory_id")
+	if err != nil {
+		return nil, fmt.Errorf("convert directory id: %w", err)
+	}
+
+	queue := []uint64{directoryIDUint64}
+	seenNodes := map[uint64]struct{}{directoryIDUint64: {}}
+	seenParentIDs := map[uint64]struct{}{directoryIDUint64: {}}
+	descendants := make([]projectfile.TreeNode, 0)
+	for len(queue) > 0 {
+		batchSize := min(taskFileDescendantParentBatchSize, len(queue))
+		parentIDs := queue[:batchSize]
+		queue = queue[batchSize:]
+
+		rows, err := r.queries.ListTaskFileChildLinksByParentIDs(ctx, mysqlsqlc.ListTaskFileChildLinksByParentIDsParams{
+			ProjectID: projectIDUint64,
+			ParentIds: taskFileParentIDParams(parentIDs),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list task file child links by parent ids: %w", err)
+		}
+		for _, row := range rows {
+			if _, exists := seenNodes[row.FileID]; exists {
+				continue
+			}
+			seenNodes[row.FileID] = struct{}{}
+			descendants = append(descendants, mapTaskFileChildLinkRowToTreeNode(row))
+			if !row.IsDirectory {
+				continue
+			}
+			if _, exists := seenParentIDs[row.FileID]; exists {
+				continue
+			}
+			seenParentIDs[row.FileID] = struct{}{}
+			queue = append(queue, row.FileID)
+		}
+	}
+	return descendants, nil
+}
+
+func taskFileParentIDParams(parentIDs []uint64) []sql.NullInt64 {
+	params := make([]sql.NullInt64, 0, len(parentIDs))
+	for _, parentID := range parentIDs {
+		params = append(params, sql.NullInt64{Int64: convert.ClampToInt64(parentID), Valid: true})
+	}
+	return params
+}
+
+func mapTaskFileChildLinkRowToTreeNode(row mysqlsqlc.ListTaskFileChildLinksByParentIDsRow) projectfile.TreeNode {
+	updatedAt := ""
+	if !row.UpdatedAt.IsZero() {
+		updatedAt = row.UpdatedAt.Format("2006-01-02 15:04:05")
+	}
+	return projectfile.TreeNode{
+		ProjectID:        convert.ClampToInt64(row.ProjectID),
+		ProjectFileID:    convert.ClampToInt64(row.FileID),
+		ParentID:         nullInt64OrZero(row.ParentID),
+		FileName:         row.FileName,
+		FileExtension:    projectfile.NormalizeExtension(row.FileName, row.FileExtension),
+		RelativeFilePath: projectfile.InferRelativeFilePath(row.FileKey),
+		IsDirectory:      row.IsDirectory,
+		UpdatedAt:        updatedAt,
+	}
 }
 
 func (r *Repository) findByIDFromTaskFiles(ctx context.Context, projectFileID int64) (*projectfile.Meta, error) {

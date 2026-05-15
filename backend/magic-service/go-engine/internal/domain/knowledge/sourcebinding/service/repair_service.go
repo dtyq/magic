@@ -19,10 +19,11 @@ var (
 
 // RepairKnowledgeBase 表示 repair 生命周期所需的知识库快照。
 type RepairKnowledgeBase struct {
-	Code             string
-	OrganizationCode string
-	CreatedUID       string
-	UpdatedUID       string
+	Code              string
+	OrganizationCode  string
+	KnowledgeBaseType string
+	CreatedUID        string
+	UpdatedUID        string
 }
 
 // RepairKnowledgeBaseLoader 定义 repair 生命周期所需的知识库加载能力。
@@ -323,6 +324,7 @@ func (s *RepairService) persistBindings(
 		return nil, errRepairKnowledgeBaseRequired
 	}
 	knowledgeBaseCode := knowledgeBase.Code
+	newBindings = NormalizeBindingsForKnowledgeBaseType(knowledgeBase.KnowledgeBaseType, newBindings)
 
 	if len(existingBindings) == 0 {
 		savedBindings, err := s.repo.ReplaceBindings(ctx, knowledgeBaseCode, newBindings)

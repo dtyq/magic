@@ -1405,6 +1405,62 @@ func (q *Queries) ListSourceItemLookupsByIDs(ctx context.Context, ids []int64) (
 	return items, nil
 }
 
+const listTeamshareSourceBindingsCoreByKnowledgeBase = `-- name: ListTeamshareSourceBindingsCoreByKnowledgeBase :many
+SELECT knowledge_source_bindings.id, knowledge_source_bindings.organization_code, knowledge_source_bindings.knowledge_base_code, knowledge_source_bindings.provider, knowledge_source_bindings.root_type, knowledge_source_bindings.root_ref, knowledge_source_bindings.sync_mode, knowledge_source_bindings.sync_config, knowledge_source_bindings.enabled, knowledge_source_bindings.created_uid, knowledge_source_bindings.updated_uid, knowledge_source_bindings.created_at, knowledge_source_bindings.updated_at
+FROM knowledge_source_bindings
+WHERE organization_code = ?
+  AND provider = ?
+  AND root_type = 'knowledge_base'
+  AND root_ref = ?
+  AND enabled = TRUE
+ORDER BY id ASC
+`
+
+type ListTeamshareSourceBindingsCoreByKnowledgeBaseParams struct {
+	OrganizationCode string `json:"organization_code"`
+	Provider         string `json:"provider"`
+	RootRef          string `json:"root_ref"`
+}
+
+// 这个查询用于 third-file 回调的历史修正候选收集，故意不加 sync_mode='realtime'；
+// 真正是否能被修正为 realtime 要看 knowledge_base_type，不能把数字员工 manual 误改。
+func (q *Queries) ListTeamshareSourceBindingsCoreByKnowledgeBase(ctx context.Context, arg ListTeamshareSourceBindingsCoreByKnowledgeBaseParams) ([]KnowledgeSourceBinding, error) {
+	rows, err := q.db.QueryContext(ctx, listTeamshareSourceBindingsCoreByKnowledgeBase, arg.OrganizationCode, arg.Provider, arg.RootRef)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []KnowledgeSourceBinding{}
+	for rows.Next() {
+		var i KnowledgeSourceBinding
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationCode,
+			&i.KnowledgeBaseCode,
+			&i.Provider,
+			&i.RootType,
+			&i.RootRef,
+			&i.SyncMode,
+			&i.SyncConfig,
+			&i.Enabled,
+			&i.CreatedUid,
+			&i.UpdatedUid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateKnowledgeSourceBindingByID = `-- name: UpdateKnowledgeSourceBindingByID :execrows
 UPDATE knowledge_source_bindings
 SET provider = ?,
@@ -1442,6 +1498,41 @@ func (q *Queries) UpdateKnowledgeSourceBindingByID(ctx context.Context, arg Upda
 		arg.UpdatedAt,
 		arg.ID,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateKnowledgeSourceBindingsSyncModeRealtimeByIDs = `-- name: UpdateKnowledgeSourceBindingsSyncModeRealtimeByIDs :execrows
+UPDATE knowledge_source_bindings
+SET sync_mode = 'realtime',
+    updated_at = ?
+WHERE id IN (/*SLICE:ids*/?)
+  AND enabled = TRUE
+  AND sync_mode <> 'realtime'
+`
+
+type UpdateKnowledgeSourceBindingsSyncModeRealtimeByIDsParams struct {
+	UpdatedAt time.Time `json:"updated_at"`
+	Ids       []int64   `json:"ids"`
+}
+
+// flow 向量知识库没有实时同步开关；third-file 回调会先筛出本次涉及的 flow Teamshare 历史 manual binding，
+// 再用这个 SQL 批量修成 realtime。筛选产品线在 Go 领域策略里完成，这里只按 id 做简单更新。
+func (q *Queries) UpdateKnowledgeSourceBindingsSyncModeRealtimeByIDs(ctx context.Context, arg UpdateKnowledgeSourceBindingsSyncModeRealtimeByIDsParams) (int64, error) {
+	query := updateKnowledgeSourceBindingsSyncModeRealtimeByIDs
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.UpdatedAt)
+	if len(arg.Ids) > 0 {
+		for _, v := range arg.Ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(arg.Ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	result, err := q.db.ExecContext(ctx, query, queryParams...)
 	if err != nil {
 		return 0, err
 	}

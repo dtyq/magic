@@ -52,6 +52,7 @@ type internalDocumentDomainServiceStub struct {
 	increaseVersionErr    error
 	deleteCalls           int
 	deletedID             int64
+	thirdFileDocs         []*docentity.KnowledgeBaseDocument
 }
 
 func (s *internalDocumentDomainServiceStub) Save(context.Context, *docentity.KnowledgeBaseDocument) error {
@@ -100,11 +101,11 @@ func (s *internalDocumentDomainServiceStub) ResolveRealtimeThirdFileDocumentPlan
 }
 
 func (s *internalDocumentDomainServiceStub) ListByThirdFileInOrg(context.Context, string, string, string) ([]*docentity.KnowledgeBaseDocument, error) {
-	return nil, nil
+	return s.thirdFileDocs, nil
 }
 
 func (s *internalDocumentDomainServiceStub) ListRealtimeByThirdFileInOrg(context.Context, string, string, string) ([]*docentity.KnowledgeBaseDocument, error) {
-	return nil, nil
+	return s.thirdFileDocs, nil
 }
 
 func (s *internalDocumentDomainServiceStub) HasRealtimeThirdFileDocumentInOrg(context.Context, string, string, string) (bool, error) {
@@ -116,6 +117,15 @@ func (s *internalDocumentDomainServiceStub) ListByProjectFileInOrg(context.Conte
 }
 
 func (s *internalDocumentDomainServiceStub) ListRealtimeByProjectFileInOrg(context.Context, string, int64) ([]*docentity.KnowledgeBaseDocument, error) {
+	return nil, nil
+}
+
+func (s *internalDocumentDomainServiceStub) ListRealtimeByProjectFilesAndSourceBindingsInOrg(
+	context.Context,
+	string,
+	[]int64,
+	[]int64,
+) ([]*docentity.KnowledgeBaseDocument, error) {
 	return nil, nil
 }
 
@@ -570,9 +580,11 @@ func (s *internalKnowledgeBaseReaderStub) List(_ context.Context, query *kbrepos
 		results := make([]*kbentity.KnowledgeBase, 0, len(query.Codes))
 		for _, code := range query.Codes {
 			results = append(results, &kbentity.KnowledgeBase{
-				Code:    strings.TrimSpace(code),
-				Enabled: true,
-				Model:   "text-embedding-3-small",
+				Code:       strings.TrimSpace(code),
+				Enabled:    true,
+				Model:      "text-embedding-3-small",
+				CreatedUID: "usi_kb_creator",
+				UpdatedUID: "usi_kb_updater",
 			})
 		}
 		return results, int64(len(results)), nil

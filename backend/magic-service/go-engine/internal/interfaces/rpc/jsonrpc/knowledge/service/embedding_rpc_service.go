@@ -81,6 +81,7 @@ func (h *EmbeddingRPCService) ComputeRPC(ctx context.Context, req *dto.ComputeEm
 			OrganizationCode: req.BusinessParams.ResolveOrganizationCode(),
 			UserID:           req.BusinessParams.UserID,
 			BusinessID:       req.BusinessParams.BusinessID,
+			SourceID:         req.BusinessParams.SourceID,
 		},
 	}
 
@@ -102,6 +103,7 @@ func (h *EmbeddingRPCService) ComputeBatchRPC(ctx context.Context, req *dto.Comp
 			OrganizationCode: req.BusinessParams.ResolveOrganizationCode(),
 			UserID:           req.BusinessParams.UserID,
 			BusinessID:       req.BusinessParams.BusinessID,
+			SourceID:         req.BusinessParams.SourceID,
 		},
 	}
 
@@ -120,6 +122,7 @@ func (h *EmbeddingRPCService) ListProvidersRPC(ctx context.Context, req *dto.Lis
 		OrganizationCode: req.BusinessParams.ResolveOrganizationCode(),
 		UserID:           req.BusinessParams.UserID,
 		BusinessID:       req.BusinessParams.BusinessID,
+		SourceID:         req.BusinessParams.SourceID,
 	}
 
 	providers, err := h.appService.ListProviders(ctx, businessParams)

@@ -385,19 +385,24 @@ func (c *PHPThirdPlatformDocumentRPCClient) ResolveNode(
 	ctx context.Context,
 	input thirdplatform.NodeResolveInput,
 ) (*thirdplatform.NodeResolveResult, error) {
-	if strings.TrimSpace(input.ThirdPlatformUserID) == "" {
-		return nil, ErrThirdPlatformIdentityMissing
-	}
 	if c == nil || c.server == nil || c.isClientReady == nil || !c.isClientReady() {
 		return nil, ErrNoClientConnected
 	}
+	// 天书 open callback 可能只有应用/租户身份，没有 third_platform_user_id。
+	// ResolveNode 是回调 create/resync/delete plan 的前置元信息读取，不能在 Go 侧按 third user 提前拒绝，
+	// 否则会跳过自动创建和删除计划；具体读取身份由 PHP/企业包按可用身份继续解析。
+	dataIsolation := map[string]any{
+		"organization_code": input.OrganizationCode,
+		"user_id":           input.UserID,
+	}
+	if strings.TrimSpace(input.ThirdPlatformUserID) != "" {
+		dataIsolation["third_platform_user_id"] = input.ThirdPlatformUserID
+	}
+	if strings.TrimSpace(input.ThirdPlatformOrganizationCode) != "" {
+		dataIsolation["third_platform_organization_code"] = input.ThirdPlatformOrganizationCode
+	}
 	params := map[string]any{
-		"data_isolation": map[string]any{
-			"organization_code":                input.OrganizationCode,
-			"user_id":                          input.UserID,
-			"third_platform_user_id":           input.ThirdPlatformUserID,
-			"third_platform_organization_code": input.ThirdPlatformOrganizationCode,
-		},
+		"data_isolation":      dataIsolation,
 		"third_platform_type": input.ThirdPlatformType,
 		"third_file_id":       input.ThirdFileID,
 		"third_knowledge_id":  input.KnowledgeBaseID,

@@ -14,8 +14,8 @@ func TestDefaultResourceLimitsMaxFragmentsPerDocument(t *testing.T) {
 	if limits.MaxSourceBytes != 60*1024*1024 {
 		t.Fatalf("expected default max source bytes 60MiB, got %d", limits.MaxSourceBytes)
 	}
-	if limits.MaxFragmentsPerDocument != 2_000 {
-		t.Fatalf("expected default max fragments 2000, got %d", limits.MaxFragmentsPerDocument)
+	if limits.MaxFragmentsPerDocument != 3_000 {
+		t.Fatalf("expected default max fragments 3000, got %d", limits.MaxFragmentsPerDocument)
 	}
 	if limits.MaxPDFPages != 300 {
 		t.Fatalf("expected default max pdf pages 300, got %d", limits.MaxPDFPages)
@@ -35,10 +35,10 @@ func TestDefaultResourceLimitsMaxFragmentsPerDocument(t *testing.T) {
 	if limits.SyncFragmentBatchSize != 64 {
 		t.Fatalf("expected default sync fragment batch size 64, got %d", limits.SyncFragmentBatchSize)
 	}
-	if err := documentdomain.CheckFragmentCount(2_000, limits); err != nil {
-		t.Fatalf("expected 2000 fragments to pass, got %v", err)
+	if err := documentdomain.CheckFragmentCount(3_000, limits); err != nil {
+		t.Fatalf("expected 3000 fragments to pass, got %v", err)
 	}
-	err := documentdomain.CheckFragmentCount(2_001, limits)
+	err := documentdomain.CheckFragmentCount(3_001, limits)
 	if !errors.Is(err, documentdomain.ErrDocumentResourceLimitExceeded) {
 		t.Fatalf("expected resource limit error, got %v", err)
 	}

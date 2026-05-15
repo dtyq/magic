@@ -31,6 +31,46 @@ func sqlContains(fragment string) string {
 	return regexp.QuoteMeta(strings.TrimSpace(fragment))
 }
 
+const fragmentListSelectColumnsForTest = `SELECT id, knowledge_code, document_code, parent_fragment_id, version, content, metadata, business_id, sync_status, sync_times, sync_status_message, point_id, vector, word_count, created_uid, updated_uid, created_at, updated_at, deleted_at`
+
+const fragmentDocumentOrderByForTest = `ORDER BY
+  CASE WHEN JSON_EXTRACT(metadata, '$.chunk_index') IS NULL THEN 1 ELSE 0 END ASC,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.chunk_index')) AS UNSIGNED) ASC,
+  id ASC`
+
+func listFragmentsByDocumentSQLForTest() string {
+	return fragmentListSelectColumnsForTest + `
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = ?
+  AND document_code = ?
+` + fragmentDocumentOrderByForTest + `
+LIMIT ? OFFSET ?`
+}
+
+func listFragmentsByDocumentFilteredSQLForTest() string {
+	return fragmentListSelectColumnsForTest + `
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = ?
+  AND document_code = ?
+  AND content LIKE ?
+  AND sync_status IN (?)
+` + fragmentDocumentOrderByForTest + `
+LIMIT ? OFFSET ?`
+}
+
+func listFragmentsByDocumentAfterIDSQLForTest() string {
+	return fragmentListSelectColumnsForTest + `
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = ?
+  AND document_code = ?
+  AND id > ?
+ORDER BY id ASC
+LIMIT ?`
+}
+
 func TestFragmentRepositorySaveUpdateAndDeleteFlows(t *testing.T) {
 	t.Parallel()
 
@@ -104,12 +144,12 @@ func TestFragmentRepositoryFindListAndPendingFlows(t *testing.T) {
 		DocumentCode:  "DOC1",
 		Content:       "hello",
 		SyncStatus:    new(shared.SyncStatusSynced),
-		Offset:        1,
+		Offset:        0,
 		Limit:         10,
 	}); err != nil || total != 1 || len(fragments) != 1 {
 		t.Fatalf("unexpected List fragments=%#v total=%d err=%v", fragments, total, err)
 	}
-	if fragments, _, err := repo.ListByDocument(context.Background(), "KB1", "DOC1", 1, 10); err != nil || len(fragments) != 1 {
+	if fragments, _, err := repo.ListByDocument(context.Background(), "KB1", "DOC1", 0, 10); err != nil || len(fragments) != 1 {
 		t.Fatalf("unexpected ListByDocument fragments=%#v err=%v", fragments, err)
 	}
 	if fragments, _, err := repo.ListByKnowledgeBase(context.Background(), "KB1", 1, 10); err != nil || len(fragments) != 1 {
@@ -223,13 +263,58 @@ func TestFragmentRepositoryListByDocumentAfterID(t *testing.T) {
 	repo, mock := testCtx.repo, testCtx.mock
 	rowValues := sampleFragmentRowValues(t)
 
-	mock.ExpectQuery(sqlContains("ListFragmentsByKnowledgeAndDocumentAfterID")).
+	mock.ExpectQuery(sqlPattern(listFragmentsByDocumentAfterIDSQLForTest())).
 		WithArgs("KB1", "DOC1", int64(10), mustInt32Repo(t, 5)).
 		WillReturnRows(sqlmock.NewRows(fragmentRowColumns()).AddRow(rowValues...))
 
 	fragments, err := repo.ListByDocumentAfterID(context.Background(), "KB1", "DOC1", 10, 5)
 	if err != nil || len(fragments) != 1 {
 		t.Fatalf("unexpected ListByDocumentAfterID fragments=%#v err=%v", fragments, err)
+	}
+
+	assertFragmentMockExpectations(t, mock)
+}
+
+func TestFragmentRepositoryListByDocumentOrdersByChunkIndex(t *testing.T) {
+	t.Parallel()
+
+	testCtx := newFragmentRepositoryTestContext(t)
+	repo, mock := testCtx.repo, testCtx.mock
+
+	oldMiddleMetadata := mustFragmentMetadataJSON(t, map[string]any{
+		"chunk_index": 421,
+	})
+	newFirstMetadata := mustFragmentMetadataJSON(t, map[string]any{
+		"chunk_index": 0,
+	})
+	oldMiddleRow := fragmentRowValuesWith(t, 100, "行号: 423\n收入成本会计：陈婉静", oldMiddleMetadata)
+	newFirstRow := fragmentRowValuesWith(t, 200, "行号: 2\n哈哈哈哈会计：陈容满", newFirstMetadata)
+
+	mock.ExpectQuery(sqlPattern(`SELECT COUNT(*)
+FROM magic_flow_knowledge_fragment
+WHERE deleted_at IS NULL
+  AND knowledge_code = ?
+  AND document_code = ?`)).
+		WithArgs("KB1", "DOC1").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	mock.ExpectQuery(sqlPattern(listFragmentsByDocumentSQLForTest())).
+		WithArgs("KB1", "DOC1", mustInt32Repo(t, 2), mustInt32Repo(t, 0)).
+		WillReturnRows(sqlmock.NewRows(fragmentRowColumns()).
+			AddRow(newFirstRow...).
+			AddRow(oldMiddleRow...))
+
+	fragments, total, err := repo.ListByDocument(context.Background(), "KB1", "DOC1", 0, 2)
+	if err != nil {
+		t.Fatalf("ListByDocument returned error: %v", err)
+	}
+	if total != 2 || len(fragments) != 2 {
+		t.Fatalf("unexpected page total=%d fragments=%#v", total, fragments)
+	}
+	if fragments[0].ID != 200 {
+		t.Fatalf("expected chunk_index=0 fragment first, got id=%d", fragments[0].ID)
+	}
+	if !strings.Contains(fragments[0].Content, "哈哈哈哈") {
+		t.Fatalf("expected first fragment to contain latest content, got %q", fragments[0].Content)
 	}
 
 	assertFragmentMockExpectations(t, mock)
@@ -399,13 +484,10 @@ func sampleFragmentRowValues(t *testing.T) []driver.Value {
 	t.Helper()
 
 	now := time.Date(2026, 3, 11, 11, 0, 0, 0, time.Local)
-	metadata, err := json.Marshal(map[string]any{
+	metadata := mustFragmentMetadataJSON(t, map[string]any{
 		"document_name": "demo.md",
 		"section_title": "Intro",
 	})
-	if err != nil {
-		t.Fatalf("marshal fragment metadata: %v", err)
-	}
 	return []driver.Value{
 		int64(1), "KB1", "DOC1",
 		sql.NullInt64{},
@@ -417,6 +499,26 @@ func sampleFragmentRowValues(t *testing.T) []driver.Value {
 		"U1", "U1", now, now,
 		sql.NullTime{},
 	}
+}
+
+func fragmentRowValuesWith(t *testing.T, id int64, content string, metadata []byte) []driver.Value {
+	t.Helper()
+
+	values := sampleFragmentRowValues(t)
+	values[0] = id
+	values[5] = content
+	values[6] = metadata
+	return values
+}
+
+func mustFragmentMetadataJSON(t *testing.T, metadata map[string]any) []byte {
+	t.Helper()
+
+	payload, err := json.Marshal(metadata)
+	if err != nil {
+		t.Fatalf("marshal fragment metadata: %v", err)
+	}
+	return payload
 }
 
 func expectFragmentQuery(mock sqlmock.Sqlmock, queryName string, args, rowValues []driver.Value) {
@@ -542,9 +644,11 @@ func expectFragmentListWithFilters(t *testing.T, mock sqlmock.Sqlmock, rowValues
 	t.Helper()
 
 	mock.ExpectQuery(sqlContains("CountFragmentsByKnowledgeAndDocumentFiltered")).
+		WithArgs("KB1", "DOC1", "%hello%", mustInt32Repo(t, int(shared.SyncStatusSynced))).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-	mock.ExpectQuery(sqlContains("ListFragmentsByKnowledgeAndDocumentFiltered")).
+	mock.ExpectQuery(sqlPattern(listFragmentsByDocumentFilteredSQLForTest())).
+		WithArgs("KB1", "DOC1", "%hello%", mustInt32Repo(t, int(shared.SyncStatusSynced)), mustInt32Repo(t, 10), mustInt32Repo(t, 0)).
 		WillReturnRows(sqlmock.NewRows(fragmentRowColumns()).AddRow(rowValues...))
 }
 
@@ -559,8 +663,8 @@ WHERE deleted_at IS NULL
 		WithArgs("KB1", "DOC1").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 
-	mock.ExpectQuery(sqlContains("ListFragmentsByKnowledgeAndDocument")).
-		WithArgs("KB1", "DOC1", mustInt32Repo(t, 10), mustInt32Repo(t, 1)).
+	mock.ExpectQuery(sqlPattern(listFragmentsByDocumentSQLForTest())).
+		WithArgs("KB1", "DOC1", mustInt32Repo(t, 10), mustInt32Repo(t, 0)).
 		WillReturnRows(sqlmock.NewRows(fragmentRowColumns()).AddRow(rowValues...))
 }
 

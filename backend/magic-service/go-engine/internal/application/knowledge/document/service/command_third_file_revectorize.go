@@ -57,6 +57,11 @@ func (s *ThirdFileRevectorizeAppService) ReVectorizedByThirdFileID(
 		return shared.ErrDocumentNotFound
 	}
 
+	// flow 向量知识库没有实时同步开关，历史 Teamshare binding 若是 manual 会被后续 realtime 查询误过滤。
+	// 这里先按产品线修正本次回调相关的 flow binding，再做资格判断；数字员工 manual 不会被修改。
+	if err := s.repairFlowTeamshareRealtimeForCallback(ctx, taskInput); err != nil {
+		return err
+	}
 	decision, err := s.shouldScheduleThirdFileRevectorize(ctx, taskInput)
 	if err != nil {
 		return err
@@ -105,6 +110,11 @@ func (s *ThirdFileRevectorizeAppService) runThirdFileRevectorize(
 	if task == nil || task.OrganizationCode == "" || task.ThirdPlatformType == "" || task.ThirdFileID == "" {
 		return shared.ErrDocumentNotFound
 	}
+	// 队列任务/直接执行也可能绕过入口方法，执行前再修一次，确保 fan-out 用到的是修正后的 binding。
+	if err := s.repairFlowTeamshareRealtimeForCallback(ctx, task); err != nil {
+		return err
+	}
+	sourceCacheVersion, skipSourceCache := s.prepareThirdFileSourceCacheVersion(ctx, task)
 	docs, err := s.support.domainService.ListRealtimeByThirdFileInOrg(
 		ctx,
 		task.OrganizationCode,
@@ -139,11 +149,44 @@ func (s *ThirdFileRevectorizeAppService) runThirdFileRevectorize(
 		return nil
 	}
 
-	requests, err := s.buildThirdFileChangeSyncRequests(ctx, task, current, plan)
+	requests, err := s.buildThirdFileChangeSyncRequests(ctx, task, current, plan, sourceCacheVersion, skipSourceCache)
 	if err != nil {
 		return err
 	}
 	return s.scheduleThirdFileChangeRequests(ctx, task, requests)
+}
+
+func (s *ThirdFileRevectorizeAppService) prepareThirdFileSourceCacheVersion(
+	ctx context.Context,
+	task *documentdomain.ThirdFileRevectorizeInput,
+) (string, bool) {
+	if s == nil || s.support == nil || task == nil {
+		return "", true
+	}
+	sourceKey := documentdomain.BuildThirdFileSourceCacheKey(task.OrganizationCode, task.ThirdPlatformType, task.ThirdFileID)
+	if s.support.thirdFileSourceVersionStore == nil {
+		s.logThirdFileSourceCacheVersionBypass(ctx, task, sourceKey, "version_store_missing", nil)
+		return "", true
+	}
+	version, err := s.support.thirdFileSourceVersionStore.Bump(ctx, sourceKey)
+	if err != nil {
+		// Redis version 是跨 pod 避免旧进程缓存的保护线。
+		// bump 失败时不能继续复用本地 cache，只能让 consumer 每次直接解析最新内容。
+		s.logThirdFileSourceCacheVersionBypass(ctx, task, sourceKey, "version_bump_failed", err)
+		return "", true
+	}
+	if s.support.logger != nil {
+		s.support.logger.InfoContext(
+			ctx,
+			"Bumped third-file source cache version before fan-out",
+			"organization_code", task.OrganizationCode,
+			"third_platform_type", task.ThirdPlatformType,
+			"third_file_id", task.ThirdFileID,
+			"source_cache_key", sourceKey,
+			"source_cache_version", version,
+		)
+	}
+	return strings.TrimSpace(version), false
 }
 
 func (s *ThirdFileRevectorizeAppService) prepareThirdFileCurrentSource(
@@ -151,37 +194,30 @@ func (s *ThirdFileRevectorizeAppService) prepareThirdFileCurrentSource(
 	task *documentdomain.ThirdFileRevectorizeInput,
 	docs []*docentity.KnowledgeBaseDocument,
 ) (thirdFileCurrentSource, bool, error) {
-	node, err := s.resolveThirdFileNode(ctx, task)
+	node, err := s.resolveThirdFileNode(ctx, task, docs)
 	if err != nil {
-		if errors.Is(err, errThirdFileNodeResolverUnavailable) {
-			return thirdFileCurrentSource{}, true, s.scheduleExistingThirdFileDocuments(ctx, task, docs)
-		}
 		if errors.Is(err, thirdplatform.ErrDocumentUnavailable) {
 			return thirdFileCurrentSource{}, true, s.destroyThirdFileDocuments(ctx, docs)
 		}
-		if len(docs) == 0 {
-			s.logSkippedThirdFileRevectorize(ctx, task)
-			return thirdFileCurrentSource{}, true, nil
-		}
+		// third_platform_user_id 只是读取凭证，不是回调业务分支条件。
+		// create/resync/delete plan 必须依赖当前 node 元信息；缺身份、解析器缺失或临时错误都要返回给 MQ 重试，
+		// 不能降级成“只重同步已有文档”，否则文件移动/新增/移出绑定范围时会漏掉自动创建和删除。
 		return thirdFileCurrentSource{}, true, fmt.Errorf("resolve third-file node meta: %w", err)
 	}
 	if node == nil {
-		return thirdFileCurrentSource{}, true, s.scheduleExistingThirdFileDocuments(ctx, task, docs)
+		return thirdFileCurrentSource{}, true, fmt.Errorf("resolve third-file node meta: %w", errThirdFileNodeMissing)
 	}
 	current := buildThirdFileCurrentSource(task, node)
 	if current.DocumentFile == nil || strings.TrimSpace(current.DocumentFile.ThirdID) == "" {
-		if len(docs) == 0 {
-			s.logSkippedThirdFileRevectorize(ctx, task)
-			return thirdFileCurrentSource{}, true, nil
-		}
-		return thirdFileCurrentSource{}, true, s.scheduleExistingThirdFileDocuments(ctx, task, docs)
+		return thirdFileCurrentSource{}, true, fmt.Errorf("resolve third-file node meta: %w", errThirdFileDocumentFileMissing)
 	}
 	if !current.Processable {
+		// 平台已经明确返回当前文件不是可向量化文档时，才清理已有映射，避免保留失效数据。
 		return thirdFileCurrentSource{}, true, s.destroyThirdFileDocuments(ctx, docs)
 	}
 	if current.KnowledgeBaseID == "" {
 		s.logSkippedThirdFileRootMissing(ctx, task, len(docs))
-		return thirdFileCurrentSource{}, true, s.destroyThirdFileDocuments(ctx, docs)
+		return thirdFileCurrentSource{}, true, fmt.Errorf("resolve third-file node meta: %w", errThirdFileKnowledgeBaseMissing)
 	}
 	return current, false, nil
 }
@@ -206,8 +242,10 @@ func (s *ThirdFileRevectorizeAppService) buildThirdFileChangeSyncRequests(
 	task *documentdomain.ThirdFileRevectorizeInput,
 	current thirdFileCurrentSource,
 	plan documentdomain.ThirdFileChangePlan,
+	sourceCacheVersion string,
+	skipSourceCache bool,
 ) ([]*documentdomain.SyncDocumentInput, error) {
-	requests, err := s.buildThirdFileDocumentSyncRequests(ctx, task, plan.ResyncDocuments)
+	requests, err := s.buildThirdFileDocumentSyncRequests(ctx, task, plan.ResyncDocuments, sourceCacheVersion, skipSourceCache)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +254,7 @@ func (s *ThirdFileRevectorizeAppService) buildThirdFileChangeSyncRequests(
 		if err != nil {
 			return nil, err
 		}
-		requests = append(requests, thirdFileCreateSyncRequest(task, target, documentCode))
+		requests = append(requests, thirdFileCreateSyncRequest(task, target, documentCode, sourceCacheVersion, skipSourceCache))
 	}
 	return requests, nil
 }
@@ -247,32 +285,6 @@ func (s *ThirdFileRevectorizeAppService) scheduleThirdFileChangeRequests(
 	return nil
 }
 
-func (s *ThirdFileRevectorizeAppService) scheduleExistingThirdFileDocuments(
-	ctx context.Context,
-	task *documentdomain.ThirdFileRevectorizeInput,
-	docs []*docentity.KnowledgeBaseDocument,
-) error {
-	if len(docs) == 0 {
-		s.logSkippedThirdFileRevectorize(ctx, task)
-		return nil
-	}
-	plan, err := s.filterThirdFilePlanByEnabledKnowledgeBases(ctx, task, documentdomain.ThirdFileDocumentPlan{Documents: docs})
-	if err != nil {
-		return err
-	}
-	if len(plan.Documents) == 0 {
-		return nil
-	}
-	requests, err := s.buildThirdFileDocumentSyncRequests(ctx, task, plan.Documents)
-	if err != nil {
-		return err
-	}
-	for _, request := range requests {
-		s.support.ScheduleSync(ctx, request)
-	}
-	return nil
-}
-
 func (s *ThirdFileRevectorizeAppService) destroyThirdFileDocuments(
 	ctx context.Context,
 	docs []*docentity.KnowledgeBaseDocument,
@@ -286,59 +298,6 @@ func (s *ThirdFileRevectorizeAppService) destroyThirdFileDocuments(
 		}
 	}
 	return nil
-}
-
-func (s *ThirdFileRevectorizeAppService) filterThirdFilePlanByEnabledKnowledgeBases(
-	ctx context.Context,
-	task *documentdomain.ThirdFileRevectorizeInput,
-	plan documentdomain.ThirdFileDocumentPlan,
-) (documentdomain.ThirdFileDocumentPlan, error) {
-	if len(plan.Documents) == 0 {
-		return plan, nil
-	}
-	codes := make([]string, 0, len(plan.Documents))
-	for _, doc := range plan.Documents {
-		if doc == nil {
-			continue
-		}
-		codes = append(codes, doc.KnowledgeBaseCode)
-	}
-	enabledCodes, err := s.support.enabledKnowledgeBaseCodeSet(ctx, task.OrganizationCode, codes)
-	if err != nil {
-		return documentdomain.ThirdFileDocumentPlan{}, err
-	}
-	filteredDocs := filterDocumentsByEnabledKnowledgeBases(plan.Documents, enabledCodes)
-	if len(filteredDocs) == 0 {
-		return documentdomain.ThirdFileDocumentPlan{Documents: []*docentity.KnowledgeBaseDocument{}}, nil
-	}
-	seed, err := documentdomain.BuildThirdFileRevectorizeSeed(task, filteredDocs)
-	if err != nil {
-		return documentdomain.ThirdFileDocumentPlan{}, fmt.Errorf("build third-file revectorize seed: %w", err)
-	}
-	return documentdomain.ThirdFileDocumentPlan{
-		Documents: filteredDocs,
-		Seed:      seed,
-	}, nil
-}
-
-func (s *ThirdFileRevectorizeAppService) logSkippedThirdFileRevectorize(
-	ctx context.Context,
-	task *documentdomain.ThirdFileRevectorizeInput,
-) {
-	if s == nil || s.support == nil || s.support.logger == nil || task == nil {
-		return
-	}
-
-	s.support.logger.InfoContext(
-		ctx,
-		"Skip third-file revectorize because no mapped document remains",
-		"organization_code", task.OrganizationCode,
-		"third_platform_type", task.ThirdPlatformType,
-		"third_file_id", task.ThirdFileID,
-		"task_kind", thirdFileRevectorizeTaskKind,
-		"skip_reason", "no_mapped_document",
-		"mode", documentdomain.SyncModeResync,
-	)
 }
 
 func (s *ThirdFileRevectorizeAppService) logSkippedThirdFileRootMissing(
@@ -363,10 +322,37 @@ func (s *ThirdFileRevectorizeAppService) logSkippedThirdFileRootMissing(
 	)
 }
 
+func (s *ThirdFileRevectorizeAppService) logThirdFileSourceCacheVersionBypass(
+	ctx context.Context,
+	task *documentdomain.ThirdFileRevectorizeInput,
+	sourceKey string,
+	reason string,
+	cause error,
+) {
+	if s == nil || s.support == nil || s.support.logger == nil || task == nil {
+		return
+	}
+	fields := []any{
+		"organization_code", task.OrganizationCode,
+		"third_platform_type", task.ThirdPlatformType,
+		"third_file_id", task.ThirdFileID,
+		"source_cache_key", sourceKey,
+		"skip_reason", reason,
+		"task_kind", thirdFileRevectorizeTaskKind,
+		"mode", documentdomain.SyncModeResync,
+	}
+	if cause != nil {
+		fields = append(fields, "error", cause)
+	}
+	s.support.logger.WarnContext(ctx, "Skip third-file source local cache for fan-out tasks", fields...)
+}
+
 func (s *ThirdFileRevectorizeAppService) buildThirdFileDocumentSyncRequests(
 	ctx context.Context,
 	task *documentdomain.ThirdFileRevectorizeInput,
 	docs []*docentity.KnowledgeBaseDocument,
+	sourceCacheVersion string,
+	skipSourceCache bool,
 ) ([]*documentdomain.SyncDocumentInput, error) {
 	if err := s.support.ensureThirdPlatformProvider(task.ThirdPlatformType); err != nil {
 		return nil, fmt.Errorf("ensure third-file provider: %w", err)
@@ -396,11 +382,14 @@ func (s *ThirdFileRevectorizeAppService) buildThirdFileDocumentSyncRequests(
 				OrganizationCode:              task.OrganizationCode,
 				UserID:                        readUserID,
 				BusinessID:                    doc.KnowledgeBaseCode,
+				SourceID:                      ctxmeta.SourceIDFragmentSaved,
 				ThirdPlatformUserID:           task.ThirdPlatformUserID,
 				ThirdPlatformOrganizationCode: task.ThirdPlatformOrganizationCode,
 			},
 			RevectorizeSource:                 documentdomain.RevectorizeSourceThirdFileBroadcast,
 			SingleDocumentThirdPlatformResync: true,
+			ThirdFileSourceCacheVersion:       strings.TrimSpace(sourceCacheVersion),
+			SkipThirdFileSourceCache:          skipSourceCache,
 		})
 	}
 	return requests, nil

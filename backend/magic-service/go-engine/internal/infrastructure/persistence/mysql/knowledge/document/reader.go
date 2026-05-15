@@ -286,6 +286,48 @@ func (repo *DocumentRepository) ListRealtimeByProjectFileInOrg(
 	return repo.recordsToDocuments(ctx, records)
 }
 
+// ListRealtimeByProjectFilesAndSourceBindingsInOrg 按组织、项目文件集合和绑定集合列出实时文档。
+func (repo *DocumentRepository) ListRealtimeByProjectFilesAndSourceBindingsInOrg(
+	ctx context.Context,
+	organizationCode string,
+	projectFileIDs []int64,
+	sourceBindingIDs []int64,
+) ([]*docentity.KnowledgeBaseDocument, error) {
+	organizationCode = strings.TrimSpace(organizationCode)
+	projectFileIDs = compactPositiveInt64s(projectFileIDs)
+	sourceBindingIDs = compactPositiveInt64s(sourceBindingIDs)
+	if organizationCode == "" || len(projectFileIDs) == 0 || len(sourceBindingIDs) == 0 {
+		return []*docentity.KnowledgeBaseDocument{}, nil
+	}
+
+	itemIDs, err := repo.listProjectSourceItemIDsByItemRefs(ctx, organizationCode, projectFileItemRefs(projectFileIDs))
+	if err != nil {
+		return nil, fmt.Errorf("list realtime project-file documents source items by refs in org: %w", err)
+	}
+	if len(itemIDs) == 0 {
+		return []*docentity.KnowledgeBaseDocument{}, nil
+	}
+	rows, err := repo.queries.ListDocumentsByOrganizationAndSourceBindingAndSourceItems(ctx,
+		mysqlsqlc.ListDocumentsByOrganizationAndSourceBindingAndSourceItemsParams{
+			OrganizationCode: strings.TrimSpace(organizationCode),
+			SourceBindingIds: sourceBindingIDs,
+			SourceItemIds:    itemIDs,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list documents by org, source bindings and source items: %w", err)
+	}
+	records := make([]documentRecord, 0, len(rows))
+	for _, row := range rows {
+		record, err := documentRecordFromListByOrganizationAndSourceBindingAndSourceItemsRow(row)
+		if err != nil {
+			return nil, fmt.Errorf("map documents by org, source bindings and source items: %w", err)
+		}
+		records = append(records, record)
+	}
+	return repo.recordsToDocuments(ctx, records)
+}
+
 func (repo *DocumentRepository) listRealtimeProjectFileDocumentRecordsInOrg(
 	ctx context.Context,
 	organizationCode string,
@@ -308,6 +350,67 @@ func (repo *DocumentRepository) listRealtimeProjectFileDocumentRecordsInOrg(
 		return nil, fmt.Errorf("list realtime project-file document candidates in org: %w", err)
 	}
 	return repo.filterRealtimeDocumentRecordsByProvider(ctx, records, organizationCode, "project")
+}
+
+func (repo *DocumentRepository) listProjectSourceItemIDsByItemRefs(
+	ctx context.Context,
+	organizationCode string,
+	itemRefs []string,
+) ([]int64, error) {
+	if len(itemRefs) == 0 {
+		return nil, nil
+	}
+	rows, err := repo.queries.ListKnowledgeSourceItemsByOrganizationAndProviderAndItemRefs(
+		ctx,
+		mysqlsqlc.ListKnowledgeSourceItemsByOrganizationAndProviderAndItemRefsParams{
+			OrganizationCode: strings.TrimSpace(organizationCode),
+			Provider:         "project",
+			ItemRefs:         itemRefs,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query project source items by item refs: %w", err)
+	}
+	ids := make([]int64, 0, len(rows))
+	seen := make(map[int64]struct{}, len(rows))
+	for _, row := range rows {
+		if row.ID <= 0 {
+			continue
+		}
+		if _, exists := seen[row.ID]; exists {
+			continue
+		}
+		seen[row.ID] = struct{}{}
+		ids = append(ids, row.ID)
+	}
+	return ids, nil
+}
+
+func projectFileItemRefs(projectFileIDs []int64) []string {
+	refs := make([]string, 0, len(projectFileIDs))
+	for _, id := range projectFileIDs {
+		if id <= 0 {
+			continue
+		}
+		refs = append(refs, strconv.FormatInt(id, 10))
+	}
+	return refs
+}
+
+func compactPositiveInt64s(values []int64) []int64 {
+	result := make([]int64, 0, len(values))
+	seen := make(map[int64]struct{}, len(values))
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 // List 按查询条件列出文档并返回总数。
