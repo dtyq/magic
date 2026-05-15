@@ -49,3 +49,10 @@ SELECT file_id, parent_id, is_directory
 FROM magic_super_agent_task_files
 WHERE project_id = ?
   AND deleted_at IS NULL;
+
+-- name: ListTaskFileChildLinksByParentIDs :many
+SELECT file_id, project_id, parent_id, file_name, file_extension, file_key, is_directory, updated_at
+FROM magic_super_agent_task_files
+WHERE project_id = sqlc.arg(project_id)
+  AND parent_id IN (sqlc.slice(parent_ids))
+ORDER BY parent_id ASC, file_id ASC;

@@ -217,6 +217,23 @@ func (s *documentRepoStub) ListRealtimeByProjectFileInOrg(ctx context.Context, o
 	return s.ListByProjectFileInOrg(ctx, organizationCode, projectFileID)
 }
 
+func (s *documentRepoStub) ListRealtimeByProjectFilesAndSourceBindingsInOrg(
+	ctx context.Context,
+	organizationCode string,
+	projectFileIDs []int64,
+	_ []int64,
+) ([]*docentity.KnowledgeBaseDocument, error) {
+	docs := make([]*docentity.KnowledgeBaseDocument, 0)
+	for _, projectFileID := range projectFileIDs {
+		list, err := s.ListByProjectFileInOrg(ctx, organizationCode, projectFileID)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, list...)
+	}
+	return docs, nil
+}
+
 func (s *documentRepoStub) HasRealtimeProjectFileDocumentInOrg(ctx context.Context, organizationCode string, projectFileID int64) (bool, error) {
 	docs, err := s.ListRealtimeByProjectFileInOrg(ctx, organizationCode, projectFileID)
 	return len(docs) > 0, err

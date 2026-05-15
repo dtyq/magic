@@ -55,13 +55,13 @@ func (s *DocumentAppService) buildDocumentUpdateResyncRequest(
 func (s *DocumentAppService) resolveDocumentUpdateSourceOverride(
 	ctx context.Context,
 	doc *docentity.KnowledgeBaseDocument,
-	businessParams *ctxmeta.BusinessParams,
+	syncInput *documentdomain.SyncDocumentInput,
 ) (*documentdomain.SourceOverride, bool, error) {
 	if s == nil || doc == nil {
 		return nil, false, nil
 	}
 
-	if override, found, err := s.resolveDocumentUpdateSourceOverrideWithSnapshot(ctx, doc, businessParams); found || err != nil {
+	if override, found, err := s.resolveDocumentUpdateSourceOverrideWithSnapshot(ctx, doc, syncInput); found || err != nil {
 		return override, found, err
 	}
 	return nil, false, nil
@@ -70,17 +70,19 @@ func (s *DocumentAppService) resolveDocumentUpdateSourceOverride(
 func (s *DocumentAppService) resolveDocumentUpdateSourceOverrideWithSnapshot(
 	ctx context.Context,
 	doc *docentity.KnowledgeBaseDocument,
-	businessParams *ctxmeta.BusinessParams,
+	syncInput *documentdomain.SyncDocumentInput,
 ) (*documentdomain.SourceOverride, bool, error) {
 	if s == nil || doc == nil {
 		return nil, false, nil
 	}
 
 	input := documentdomain.NormalizeThirdFileRevectorizeInput(&documentdomain.ThirdFileRevectorizeInput{
-		OrganizationCode:  doc.OrganizationCode,
-		UserID:            businessParamsUserID(businessParams),
-		ThirdPlatformType: doc.ThirdPlatformType,
-		ThirdFileID:       doc.ThirdFileID,
+		OrganizationCode:              doc.OrganizationCode,
+		UserID:                        businessParamsUserID(syncBusinessParams(syncInput)),
+		ThirdPlatformUserID:           businessParamsThirdPlatformUserID(syncBusinessParams(syncInput)),
+		ThirdPlatformOrganizationCode: businessParamsThirdPlatformOrganizationCode(syncBusinessParams(syncInput)),
+		ThirdPlatformType:             doc.ThirdPlatformType,
+		ThirdFileID:                   doc.ThirdFileID,
 	})
 	if input == nil || input.OrganizationCode == "" || input.ThirdPlatformType == "" || input.ThirdFileID == "" {
 		return nil, false, nil
@@ -93,7 +95,7 @@ func (s *DocumentAppService) resolveDocumentUpdateSourceOverrideWithSnapshot(
 	if err != nil {
 		return nil, false, fmt.Errorf("build third-platform revectorize seed: %w", err)
 	}
-	snapshot, err := s.resolveThirdPlatformSourceSnapshot(ctx, input, seed)
+	snapshot, err := s.resolveThirdPlatformSourceSnapshot(ctx, input, seed, syncInput)
 	if err != nil {
 		return nil, false, err
 	}
@@ -124,6 +126,13 @@ func sourceSnapshotToOverride(snapshot *documentdomain.ResolvedSourceSnapshot) *
 	}
 }
 
+func syncBusinessParams(input *documentdomain.SyncDocumentInput) *ctxmeta.BusinessParams {
+	if input == nil {
+		return nil
+	}
+	return input.BusinessParams
+}
+
 func shouldPrepareSingleDocumentThirdPlatformResync(input *documentdomain.SyncDocumentInput) bool {
 	if input == nil {
 		return false
@@ -143,7 +152,7 @@ func (s *DocumentAppService) prepareSingleDocumentThirdPlatformResync(
 		return false, nil
 	}
 
-	override, found, err := s.resolveDocumentUpdateSourceOverride(ctx, doc, input.BusinessParams)
+	override, found, err := s.resolveDocumentUpdateSourceOverride(ctx, doc, input)
 	if err != nil {
 		return s.handleSingleDocumentThirdPlatformResyncSourceResolveError(ctx, doc, input, err)
 	}

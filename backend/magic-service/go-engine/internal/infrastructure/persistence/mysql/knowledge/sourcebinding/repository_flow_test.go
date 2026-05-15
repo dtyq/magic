@@ -179,6 +179,80 @@ func TestRepositoryListRealtimeTeamshareBindingsByKnowledgeBaseLoadsTargets(t *t
 	}
 }
 
+func TestRepositoryListTeamshareBindingsByKnowledgeBaseIncludesManualBindings(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	repo := sourcebindingrepo.NewRepository(mysqlclient.NewSQLCClientWithDB(db, nil, false))
+	now := time.Date(2026, 4, 20, 15, 40, 0, 0, time.Local)
+
+	mock.ExpectQuery(regexp.QuoteMeta("-- name: ListTeamshareSourceBindingsCoreByKnowledgeBase :many")).
+		WithArgs("ORG1", "teamshare", "KB-TS").
+		WillReturnRows(sqlmock.NewRows(sourceBindingRowColumns()).AddRow(
+			int64(4),
+			"ORG1",
+			"KB1",
+			"teamshare",
+			"knowledge_base",
+			"KB-TS",
+			"manual",
+			nil,
+			true,
+			"U1",
+			"U1",
+			now,
+			now,
+		))
+	mock.ExpectQuery(regexp.QuoteMeta("-- name: ListKnowledgeSourceBindingTargetsByBindingIDs :many")).
+		WithArgs(int64(4)).
+		WillReturnRows(sqlmock.NewRows(sourceBindingTargetRowColumns()))
+
+	bindings, err := repo.ListTeamshareBindingsByKnowledgeBase(context.Background(), "ORG1", "teamshare", "KB-TS")
+	if err != nil {
+		t.Fatalf("ListTeamshareBindingsByKnowledgeBase returned error: %v", err)
+	}
+	if len(bindings) != 1 || bindings[0].SyncMode != sourcebindingentity.SyncModeManual {
+		t.Fatalf("expected manual binding to be returned for repair, got %#v", bindings)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
+func TestRepositoryMarkSourceBindingsRealtimeByIDs(t *testing.T) {
+	t.Parallel()
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	repo := sourcebindingrepo.NewRepository(mysqlclient.NewSQLCClientWithDB(db, nil, false))
+	mock.ExpectQuery(regexp.QuoteMeta("-- name: ListSourceBindingOrganizationsByIDs :many")).
+		WithArgs(int64(10), int64(11)).
+		WillReturnRows(sqlmock.NewRows([]string{"organization_code"}).AddRow("ORG1"))
+	mock.ExpectExec(regexp.QuoteMeta("-- name: UpdateKnowledgeSourceBindingsSyncModeRealtimeByIDs :execrows")).
+		WithArgs(sqlmock.AnyArg(), int64(10), int64(11)).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+
+	affected, err := repo.MarkSourceBindingsRealtimeByIDs(context.Background(), []int64{10, 11, 10, 0})
+	if err != nil {
+		t.Fatalf("MarkSourceBindingsRealtimeByIDs returned error: %v", err)
+	}
+	if affected != 2 {
+		t.Fatalf("expected 2 affected rows, got %d", affected)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet expectations: %v", err)
+	}
+}
+
 func TestRepositoryHasRealtimeProjectBindingForFileCalculatesTargetsInGo(t *testing.T) {
 	t.Parallel()
 

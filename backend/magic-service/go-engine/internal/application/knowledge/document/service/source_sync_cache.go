@@ -3,6 +3,7 @@ package docapp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	documentdomain "magic/internal/domain/knowledge/document/service"
@@ -11,7 +12,10 @@ import (
 )
 
 const (
-	sourceResolveCacheTTL = 2 * time.Minute
+	sourceResolveCacheTTL              = 2 * time.Minute
+	sourceResolveCacheSweepInterval    = time.Minute
+	sourceResolveCacheThirdFilePrefix  = "third_file:"
+	sourceResolveCacheVersionDelimiter = ":v:"
 )
 
 type cachedResolvedSource struct {
@@ -25,7 +29,7 @@ type cachedResolvedSource struct {
 }
 
 func (s *DocumentAppService) loadCachedResolvedSource(cacheKey string) (*cachedResolvedSource, bool) {
-	if s == nil || cacheKey == "" {
+	if s == nil || !isVersionedThirdFileSourceCacheKey(cacheKey) {
 		return nil, false
 	}
 	raw, ok := s.sourceResolveCache.Load(cacheKey)
@@ -45,17 +49,134 @@ func (s *DocumentAppService) loadCachedResolvedSource(cacheKey string) (*cachedR
 }
 
 func (s *DocumentAppService) storeResolvedSource(cacheKey string, cached *cachedResolvedSource) {
-	if s == nil || cacheKey == "" || cached == nil {
+	if s == nil || !isVersionedThirdFileSourceCacheKey(cacheKey) || cached == nil {
 		return
 	}
+	s.sweepExpiredResolvedSources(time.Now())
 	s.sourceResolveCache.Store(cacheKey, cached)
 }
 
-func (s *DocumentAppService) deleteResolvedSource(cacheKey string) {
-	if s == nil || cacheKey == "" {
+func (s *DocumentAppService) resolveThirdFileSourceCacheKey(
+	ctx context.Context,
+	sourceKey string,
+	syncInput *documentdomain.SyncDocumentInput,
+) (string, bool) {
+	sourceKey = strings.TrimSpace(sourceKey)
+	if s == nil || sourceKey == "" {
+		return "", false
+	}
+	if syncInput == nil ||
+		documentdomain.NormalizeRevectorizeSource(syncInput.RevectorizeSource) != documentdomain.RevectorizeSourceThirdFileBroadcast {
+		// sourceResolveCache 只允许保存带 Redis version 的 third-file fan-out 大对象。
+		// 单文档手动、start-vector、document_update 单文档阶段都没有跨文档复用诉求，
+		// 直接绕过本地缓存，避免 2 分钟进程缓存把旧内容带进重同步。
+		return "", false
+	}
+	if syncInput.SkipThirdFileSourceCache {
+		s.logThirdFileSourceCacheBypass(ctx, sourceKey, syncInput, "producer_requested_skip", nil)
+		return "", false
+	}
+	if s.thirdFileSourceVersionStore == nil {
+		s.logThirdFileSourceCacheBypass(ctx, sourceKey, syncInput, "version_store_missing", nil)
+		return "", false
+	}
+	version, found, err := s.thirdFileSourceVersionStore.Get(ctx, sourceKey)
+	if err != nil {
+		s.logThirdFileSourceCacheBypass(ctx, sourceKey, syncInput, "version_read_failed", err)
+		return "", false
+	}
+	version = strings.TrimSpace(version)
+	if !found || version == "" {
+		// Redis version 是跨 pod 判断“这批 fan-out 应该用哪份本地大对象缓存”的唯一依据。
+		// 读不到 version 时直接绕过本地 cache，宁可重复拉最新内容，也不能复用旧进程缓存。
+		s.logThirdFileSourceCacheBypass(ctx, sourceKey, syncInput, "version_missing", nil)
+		return "", false
+	}
+	if requested := strings.TrimSpace(syncInput.ThirdFileSourceCacheVersion); requested != "" && requested != version {
+		s.logThirdFileSourceCacheVersionMismatch(ctx, sourceKey, requested, version, syncInput)
+	}
+	return buildVersionedThirdFileSourceCacheKey(sourceKey, version), true
+}
+
+func buildVersionedThirdFileSourceCacheKey(sourceKey, version string) string {
+	sourceKey = strings.TrimSpace(sourceKey)
+	version = strings.TrimSpace(version)
+	if sourceKey == "" || version == "" {
+		return ""
+	}
+	return sourceKey + sourceResolveCacheVersionDelimiter + version
+}
+
+func isVersionedThirdFileSourceCacheKey(cacheKey string) bool {
+	cacheKey = strings.TrimSpace(cacheKey)
+	// sourceResolveCache 只能存 third-file fan-out 的 versioned key。
+	// 未带 Redis version 的裸 key 一律拒绝，避免以后新增路径时误复用进程内旧源内容。
+	return strings.HasPrefix(cacheKey, sourceResolveCacheThirdFilePrefix) &&
+		strings.Contains(cacheKey, sourceResolveCacheVersionDelimiter)
+}
+
+func (s *DocumentAppService) sweepExpiredResolvedSources(now time.Time) {
+	if s == nil {
 		return
 	}
-	s.sourceResolveCache.Delete(cacheKey)
+	s.sourceResolveCacheSweepMu.Lock()
+	defer s.sourceResolveCacheSweepMu.Unlock()
+	if !s.sourceResolveCacheSweptAt.IsZero() && now.Sub(s.sourceResolveCacheSweptAt) < sourceResolveCacheSweepInterval {
+		return
+	}
+	s.sourceResolveCacheSweptAt = now
+	s.sourceResolveCache.Range(func(key, value any) bool {
+		cached, ok := value.(*cachedResolvedSource)
+		if !ok || cached == nil || now.Sub(cached.ResolvedAt) > sourceResolveCacheTTL {
+			s.sourceResolveCache.Delete(key)
+		}
+		return true
+	})
+}
+
+func (s *DocumentAppService) logThirdFileSourceCacheBypass(
+	ctx context.Context,
+	sourceKey string,
+	input *documentdomain.SyncDocumentInput,
+	reason string,
+	err error,
+) {
+	if s == nil || s.logger == nil || input == nil {
+		return
+	}
+	fields := []any{
+		"source_cache_key", sourceKey,
+		"knowledge_base_code", input.KnowledgeBaseCode,
+		"document_code", input.Code,
+		"revectorize_source", input.RevectorizeSource,
+		"skip_reason", reason,
+	}
+	if err != nil {
+		fields = append(fields, "error", err)
+	}
+	s.logger.KnowledgeWarnContext(ctx, "Bypass third-file source cache", fields...)
+}
+
+func (s *DocumentAppService) logThirdFileSourceCacheVersionMismatch(
+	ctx context.Context,
+	sourceKey string,
+	requestedVersion string,
+	currentVersion string,
+	input *documentdomain.SyncDocumentInput,
+) {
+	if s == nil || s.logger == nil || input == nil {
+		return
+	}
+	s.logger.KnowledgeWarnContext(
+		ctx,
+		"Use current Redis third-file source cache version instead of task payload version",
+		"source_cache_key", sourceKey,
+		"task_source_cache_version", requestedVersion,
+		"redis_source_cache_version", currentVersion,
+		"knowledge_base_code", input.KnowledgeBaseCode,
+		"document_code", input.Code,
+		"revectorize_source", input.RevectorizeSource,
+	)
 }
 
 func (s *DocumentAppService) resolveProjectFileSourceOverride(
@@ -75,26 +196,9 @@ func (s *DocumentAppService) resolveProjectFileSourceOverride(
 	if err != nil {
 		return nil, nil, fmt.Errorf("resolve project file source override: %w", err)
 	}
-	if override != nil {
-		s.prepareProjectFileResolvedSource(resolved)
-	}
+	// project-file notify 已经通过 SourceOverride 把稳定源内容传给同步任务。
+	// 这里不再写入 sourceResolveCache；没有 Redis version 治理的裸 project key 容易被后续误用。
 	return resolved, override, nil
-}
-
-func (s *DocumentAppService) prepareProjectFileResolvedSource(
-	resolved *projectfile.ResolveResult,
-) *documentdomain.SourceOverride {
-	if s == nil || resolved == nil {
-		return nil
-	}
-
-	plan := documentdomain.BuildProjectResolvedSourcePlan(resolved, time.Now())
-	if plan.SourceOverride == nil || plan.Snapshot == nil {
-		return nil
-	}
-
-	s.storeResolvedSource(plan.CacheKey, newCachedResolvedSource(plan.Snapshot))
-	return plan.SourceOverride
 }
 
 func cachedResolvedSourceToSnapshot(cached *cachedResolvedSource) *documentdomain.ResolvedSourceSnapshot {

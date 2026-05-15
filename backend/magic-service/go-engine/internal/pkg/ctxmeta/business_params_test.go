@@ -14,6 +14,7 @@ func TestBusinessParams_ToMap(t *testing.T) {
 		OrganizationCode: "org",
 		UserID:           "user",
 		BusinessID:       "biz",
+		SourceID:         ctxmeta.SourceIDFragmentSaved,
 	}
 	m := bp.ToMap()
 	if m[constants.OrgIDField] != "org" {
@@ -28,6 +29,9 @@ func TestBusinessParams_ToMap(t *testing.T) {
 	if m[constants.BusinessIDField] != "biz" {
 		t.Fatalf("expected business id, got %q", m[constants.BusinessIDField])
 	}
+	if m[constants.SourceIDField] != ctxmeta.SourceIDFragmentSaved {
+		t.Fatalf("expected source id, got %q", m[constants.SourceIDField])
+	}
 }
 
 func TestBusinessParams_IsEmpty(t *testing.T) {
@@ -37,6 +41,9 @@ func TestBusinessParams_IsEmpty(t *testing.T) {
 	}
 	if (ctxmeta.BusinessParams{OrganizationCode: "org"}).IsEmpty() {
 		t.Fatalf("expected non-empty params to be non-empty")
+	}
+	if (ctxmeta.BusinessParams{SourceID: ctxmeta.SourceIDFragmentSaved}).IsEmpty() {
+		t.Fatalf("expected source id params to be non-empty")
 	}
 }
 

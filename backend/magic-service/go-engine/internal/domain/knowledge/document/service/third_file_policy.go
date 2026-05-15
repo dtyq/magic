@@ -69,7 +69,7 @@ func BuildThirdFileRevectorizeSeed(
 		return nil, shared.ErrDocumentNotFound
 	}
 	return &ThirdFileRevectorizeSeed{
-		SourceCacheKey: buildThirdFileSourceCacheKey(input.OrganizationCode, input.ThirdPlatformType, input.ThirdFileID),
+		SourceCacheKey: BuildThirdFileSourceCacheKey(input.OrganizationCode, input.ThirdPlatformType, input.ThirdFileID),
 		SeedDocument:   seedDoc,
 	}, nil
 }
@@ -194,6 +194,7 @@ func buildSyncBusinessParams(
 		OrganizationCode:              strings.TrimSpace(organizationCode),
 		UserID:                        strings.TrimSpace(userID),
 		BusinessID:                    strings.TrimSpace(businessID),
+		SourceID:                      ctxmeta.SourceIDFragmentSaved,
 		ThirdPlatformUserID:           strings.TrimSpace(thirdPlatformUserID),
 		ThirdPlatformOrganizationCode: strings.TrimSpace(thirdPlatformOrganizationCode),
 	}
@@ -208,9 +209,11 @@ func cloneDocumentFilePayload(src map[string]any) map[string]any {
 	return dst
 }
 
-func buildThirdFileSourceCacheKey(organizationCode, thirdPlatformType, thirdFileID string) string {
+// BuildThirdFileSourceCacheKey 构造第三方文件源内容缓存 key。
+// key 必须带 organization_code，避免不同组织下相同 third_file_id 的内容互相污染。
+func BuildThirdFileSourceCacheKey(organizationCode, thirdPlatformType, thirdFileID string) string {
 	return strings.Join([]string{
-		"teamshare",
+		"third_file",
 		strings.TrimSpace(organizationCode),
 		strings.ToLower(strings.TrimSpace(thirdPlatformType)),
 		strings.TrimSpace(thirdFileID),

@@ -21,6 +21,7 @@ type documentUIDCandidate struct {
 const (
 	documentReadUserCandidateMultiplier = 4
 	documentReadUserCandidateCapacity   = 6
+	magicUserIDPrefix                   = "usi_"
 )
 
 func (s *DocumentAppService) requireActiveUser(
@@ -113,6 +114,154 @@ func (s *DocumentAppService) resolveDocumentsReadUsersWithPolicy(
 		return nil, err
 	}
 	return s.applyResolvedDocumentReadUsers(ctx, docs, candidatesByDoc, directUsers, usersByMagicID, failOnMissing)
+}
+
+func (s *DocumentAppService) resolveThirdFileNodeReadUser(
+	ctx context.Context,
+	task *documentdomain.ThirdFileRevectorizeInput,
+	docs []*docentity.KnowledgeBaseDocument,
+) (string, error) {
+	if s == nil || task == nil {
+		return "", errDocumentUserNotFound
+	}
+	candidates, err := s.thirdFileKnowledgeBaseUIDCandidates(ctx, docs)
+	if err != nil {
+		return "", err
+	}
+	if len(candidates) == 0 && len(docs) == 0 {
+		// 没有已物化文档时，无法从本地 Magic 知识库拿 updated_uid。
+		// 这类场景只允许内部用户态入口传入真实 usi_，不能把 open callback 的 app_id 当用户传给天书。
+		candidates = append(candidates, documentUIDCandidate{
+			value:  strings.TrimSpace(task.UserID),
+			source: "third_file_input.user_id",
+		})
+	}
+	if s.userService == nil {
+		for _, candidate := range candidates {
+			if isMagicUserID(candidate.value) {
+				return strings.TrimSpace(candidate.value), nil
+			}
+		}
+		s.logThirdFileNodeReadUserMissing(ctx, task, candidates)
+		return "", errDocumentUserNotFound
+	}
+	if userID, err := s.resolveThirdFileNodeDirectUser(ctx, task, candidates); err != nil || userID != "" {
+		return userID, err
+	}
+	userID, err := s.resolveThirdFileNodeMagicIDUser(ctx, task, candidates)
+	if err != nil || userID != "" {
+		return userID, err
+	}
+	s.logThirdFileNodeReadUserMissing(ctx, task, candidates)
+	return "", fmt.Errorf(
+		"%w: organization_code=%s third_platform_type=%s third_file_id=%s",
+		errDocumentUserNotFound,
+		strings.TrimSpace(task.OrganizationCode),
+		strings.TrimSpace(task.ThirdPlatformType),
+		strings.TrimSpace(task.ThirdFileID),
+	)
+}
+
+func (s *DocumentAppService) thirdFileKnowledgeBaseUIDCandidates(
+	ctx context.Context,
+	docs []*docentity.KnowledgeBaseDocument,
+) ([]documentUIDCandidate, error) {
+	if len(docs) == 0 {
+		return nil, nil
+	}
+	knowledgeByCode, err := s.listKnowledgeBasesForReadUser(ctx, docs)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]documentUIDCandidate, 0, len(knowledgeByCode)*2)
+	seenKnowledgeBases := make(map[string]struct{}, len(knowledgeByCode))
+	for _, doc := range docs {
+		if doc == nil {
+			continue
+		}
+		knowledgeBaseCode := strings.TrimSpace(doc.KnowledgeBaseCode)
+		if knowledgeBaseCode == "" {
+			continue
+		}
+		if _, ok := seenKnowledgeBases[knowledgeBaseCode]; ok {
+			continue
+		}
+		seenKnowledgeBases[knowledgeBaseCode] = struct{}{}
+		kb, ok := knowledgeByCode[knowledgeBaseCode]
+		if !ok {
+			continue
+		}
+		// Teamshare getFilesByIds 必须使用真实 Magic 用户。这里优先使用 Magic 知识库最后更新人，
+		// 再使用创建人；历史 app_id 脏值不能透传给 PHP，只能后续按 magic_id 尝试修正。
+		candidates = appendThirdFileNodeReadUserCandidate(candidates, kb.updated, "knowledge_base.updated_uid")
+		candidates = appendThirdFileNodeReadUserCandidate(candidates, kb.created, "knowledge_base.created_uid")
+	}
+	return dedupeDocumentUIDCandidates(candidates), nil
+}
+
+func (s *DocumentAppService) resolveThirdFileNodeDirectUser(
+	ctx context.Context,
+	task *documentdomain.ThirdFileRevectorizeInput,
+	candidates []documentUIDCandidate,
+) (string, error) {
+	userIDs := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if isMagicUserID(candidate.value) {
+			userIDs = append(userIDs, strings.TrimSpace(candidate.value))
+		}
+	}
+	if len(userIDs) == 0 {
+		return "", nil
+	}
+	activeUsers, err := s.userService.ListActiveUserIDs(ctx, strings.TrimSpace(task.OrganizationCode), userIDs)
+	if err != nil {
+		return "", fmt.Errorf("list active third-file node read users: %w", err)
+	}
+	for _, candidate := range candidates {
+		userID := strings.TrimSpace(candidate.value)
+		if !isMagicUserID(userID) {
+			continue
+		}
+		if _, ok := activeUsers[userID]; ok {
+			return userID, nil
+		}
+	}
+	return "", nil
+}
+
+func (s *DocumentAppService) resolveThirdFileNodeMagicIDUser(
+	ctx context.Context,
+	task *documentdomain.ThirdFileRevectorizeInput,
+	candidates []documentUIDCandidate,
+) (string, error) {
+	magicIDs := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		value := strings.TrimSpace(candidate.value)
+		if value == "" || isMagicUserID(value) {
+			continue
+		}
+		magicIDs = append(magicIDs, value)
+	}
+	if len(magicIDs) == 0 {
+		return "", nil
+	}
+	usersByMagicID, err := s.userService.ListActiveUsersByMagicIDs(ctx, strings.TrimSpace(task.OrganizationCode), magicIDs)
+	if err != nil {
+		return "", fmt.Errorf("list third-file node read users by magic id: %w", err)
+	}
+	for _, candidate := range candidates {
+		value := strings.TrimSpace(candidate.value)
+		if value == "" || isMagicUserID(value) {
+			continue
+		}
+		for _, user := range usersByMagicID[value] {
+			userID := strings.TrimSpace(user.UserID)
+			if isMagicUserID(userID) {
+				return userID, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 func fallbackDocumentReadUsers(docs []*docentity.KnowledgeBaseDocument) map[string]string {
@@ -381,6 +530,66 @@ func (s *DocumentAppService) logSkippedDocumentReadUserMissing(ctx context.Conte
 	)
 }
 
+func (s *DocumentAppService) logThirdFileNodeReadUserMissing(
+	ctx context.Context,
+	task *documentdomain.ThirdFileRevectorizeInput,
+	candidates []documentUIDCandidate,
+) {
+	if s == nil || s.logger == nil || task == nil {
+		return
+	}
+	values := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		value := strings.TrimSpace(candidate.value)
+		if value == "" {
+			continue
+		}
+		values = append(values, candidate.source+"="+value)
+	}
+	s.logger.KnowledgeErrorContext(
+		ctx,
+		"Third-file node read user missing",
+		"organization_code", task.OrganizationCode,
+		"third_platform_type", task.ThirdPlatformType,
+		"third_file_id", task.ThirdFileID,
+		"third_knowledge_id", task.ThirdKnowledgeID,
+		"candidate_uids", values,
+		"skip_reason", "third_file_node_read_user_missing",
+	)
+}
+
+func appendThirdFileNodeReadUserCandidate(
+	candidates []documentUIDCandidate,
+	value string,
+	source string,
+) []documentUIDCandidate {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return candidates
+	}
+	return append(candidates, documentUIDCandidate{value: value, source: source})
+}
+
+func dedupeDocumentUIDCandidates(candidates []documentUIDCandidate) []documentUIDCandidate {
+	if len(candidates) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(candidates))
+	result := make([]documentUIDCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		value := strings.TrimSpace(candidate.value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, documentUIDCandidate{value: value, source: candidate.source})
+	}
+	return result
+}
+
 func firstDocumentOrganizationCode(docs []*docentity.KnowledgeBaseDocument) string {
 	for _, doc := range docs {
 		if doc == nil {
@@ -408,6 +617,10 @@ func sharedDocumentReadUserError(doc *docentity.KnowledgeBaseDocument) error {
 
 func isDocumentReadUserMissingError(err error) bool {
 	return errors.Is(err, errDocumentUserNotFound)
+}
+
+func isMagicUserID(userID string) bool {
+	return strings.HasPrefix(strings.TrimSpace(userID), magicUserIDPrefix)
 }
 
 func dedupeDocumentStrings(values []string) []string {

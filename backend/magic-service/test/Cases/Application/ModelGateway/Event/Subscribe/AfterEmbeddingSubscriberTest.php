@@ -9,6 +9,7 @@ namespace HyperfTest\Cases\Application\ModelGateway\Event\Subscribe;
 
 use App\Application\ModelGateway\Event\ModelUsageEvent;
 use App\Application\ModelGateway\Event\Subscribe\AfterEmbeddingSubscriber;
+use App\Domain\ModelGateway\Entity\ValueObject\SourceId;
 use GuzzleHttp\Psr7\Response as PsrResponse;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Odin\Api\Request\EmbeddingRequest;
@@ -67,6 +68,7 @@ class AfterEmbeddingSubscriberTest extends TestCase
             'organization_code' => 'ORG001',
             'user_id' => 'USER001',
             'business_id' => 'KB001',
+            'source_id' => SourceId::FRAGMENT_SAVED,
         ]));
 
         $usageEvent = $this->assertSingleModelUsageEvent();
@@ -77,6 +79,7 @@ class AfterEmbeddingSubscriberTest extends TestCase
         $this->assertSame('ORG001', $usageEvent->getBusinessParam('organization_id'));
         $this->assertSame('USER001', $usageEvent->getBusinessParam('user_id'));
         $this->assertSame('KB001', $usageEvent->getBusinessParam('business_id'));
+        $this->assertSame(SourceId::FRAGMENT_SAVED, $usageEvent->getBusinessParam('source_id'));
     }
 
     public function testProcessShouldPreferOrganizationIdAndPreserveUserId(): void

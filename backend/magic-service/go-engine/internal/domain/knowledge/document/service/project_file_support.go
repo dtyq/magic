@@ -21,6 +21,11 @@ type ProjectFileMetadataReader interface {
 	FindByID(ctx context.Context, projectFileID int64) (*projectfile.Meta, error)
 }
 
+// ProjectFileDescendantReader 定义项目文件目录后代读取能力。
+type ProjectFileDescendantReader interface {
+	ListDescendants(ctx context.Context, projectID, directoryID int64) ([]projectfile.TreeNode, error)
+}
+
 // ProjectFileContentAccessor 定义项目文件内容访问能力。
 type ProjectFileContentAccessor interface {
 	GetLink(ctx context.Context, projectFileID int64, expire time.Duration) (string, error)
