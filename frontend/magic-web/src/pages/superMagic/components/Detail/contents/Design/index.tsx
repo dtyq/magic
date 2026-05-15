@@ -19,6 +19,7 @@ import {
 	getDesignDirectoryInfo,
 	fileItemsToProjectAttachmentMentionTree,
 	normalizeMentionFolderId,
+	resolveActualDesignCurrentFile,
 	resolveDesignProjectBasePathFromAttachments,
 } from "./utils/utils"
 import { FlexBox } from "@/components/base"
@@ -37,7 +38,6 @@ import { MentionExtension } from "@/components/business/MentionPanel/tiptap-plug
 import { useDesignDownloadPolicy } from "./hooks/useDesignDownloadPolicy"
 import { HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX } from "@/pages/superMagic/components/Detail/components/CommonHeader/components/HistoryVersionBanner"
 import { useAiWatermarkPreference } from "@/hooks/useAiWatermarkPreference"
-import { getDesignProjectCurrentFileByProjectPath } from "./utils/toolDesignProjectInfo"
 import type { DesignRemoteUpdateListenerMode } from "./managers/types"
 import { useCanvasResourceRefresh } from "./hooks/useCanvasResourceRefresh"
 import { waitForNextAttachmentsRefreshForProject } from "@/pages/superMagic/services/attachmentsTopicSync"
@@ -129,6 +129,12 @@ function DesignViewer(props: DesignViewerProps) {
 		allowDownload,
 	} = props
 
+	// 文件列表更新处理
+	const { flatAttachments, attachmentIndex, updateAttachments } = useAttachments({
+		attachments,
+		attachmentList,
+	})
+
 	const propsElements = props.data?.elements
 
 	const { styles } = useStyles()
@@ -142,16 +148,18 @@ function DesignViewer(props: DesignViewerProps) {
 	const projectId = selectedTopic?.project_id
 
 	const currentFile = useMemo(() => {
-		const projectPath = props.data?.project_path
-		if (isPlaybackMode && projectPath) {
-			const designProjectFile = getDesignProjectCurrentFileByProjectPath({
-				projectPath,
-				attachments,
-			})
-			if (designProjectFile) return designProjectFile
+		const actualCurrentFile = resolveActualDesignCurrentFile({
+			currentFile: currentFileProps,
+			flatAttachments,
+			attachments,
+			projectPath: props.data?.project_path,
+		})
+		if (!actualCurrentFile) return currentFileProps
+		return {
+			...(currentFileProps ?? {}),
+			...actualCurrentFile,
 		}
-		return currentFileProps
-	}, [attachments, currentFileProps, isPlaybackMode, props.data?.project_path])
+	}, [attachments, currentFileProps, flatAttachments, props.data?.project_path])
 
 	// 从 store 获取 selectedWorkspace（参考文件列表的实现）
 	const selectedWorkspace = workspaceStore.selectedWorkspace
@@ -172,12 +180,6 @@ function DesignViewer(props: DesignViewerProps) {
 
 	const prevDesignProjectBasePathRef = useRef<string | undefined>(undefined)
 	const basePathSwitchTaskIdRef = useRef(0)
-
-	// 文件列表更新处理
-	const { flatAttachments, attachmentIndex, updateAttachments } = useAttachments({
-		attachments,
-		attachmentList,
-	})
 
 	// 获取目录信息
 	const directoryInfo = useMemo(() => {
@@ -586,6 +588,10 @@ function DesignViewer(props: DesignViewerProps) {
 			return
 		}
 
+		if (!currentFile?.id || !currentFile?.name) {
+			return
+		}
+
 		// attachments 有数据后，执行加载
 		hasLoadedRef.current = true
 
@@ -611,7 +617,15 @@ function DesignViewer(props: DesignViewerProps) {
 				}, 100)
 			}
 		})
-	}, [attachments, isMobile, isPlaybackMode, loadFromRemote, propsElements])
+	}, [
+		attachments,
+		currentFile?.id,
+		currentFile?.name,
+		isMobile,
+		isPlaybackMode,
+		loadFromRemote,
+		propsElements,
+	])
 
 	// 监听 allowEdit、isPlaybackMode、isShareRoute 和 isMobile 变化，更新只读状态
 	// 如果当前不在查看历史版本，则根据 allowEdit、isPlaybackMode、isShareRoute 或 isMobile 更新只读状态
