@@ -40,6 +40,7 @@ import { useAiWatermarkPreference } from "@/hooks/useAiWatermarkPreference"
 import { getDesignProjectCurrentFileByProjectPath } from "./utils/toolDesignProjectInfo"
 import type { DesignRemoteUpdateListenerMode } from "./managers/types"
 import { useCanvasResourceRefresh } from "./hooks/useCanvasResourceRefresh"
+import { waitForNextAttachmentsRefreshForProject } from "@/pages/superMagic/services/attachmentsTopicSync"
 
 // 懒加载协议弹窗
 const loadWaterMarkFreeModal = async () => {
@@ -163,12 +164,14 @@ function DesignViewer(props: DesignViewerProps) {
 
 	// 用于强制重新挂载 CanvasDesign 的 key
 	const [canvasDesignKey, setCanvasDesignKey] = useState(0)
+	const [isBasePathSwitching, setIsBasePathSwitching] = useState(false)
 
 	const refreshCanvasDesign = useCallback(() => {
 		setCanvasDesignKey((prev) => prev + 1)
 	}, [])
 
 	const prevDesignProjectBasePathRef = useRef<string | undefined>(undefined)
+	const basePathSwitchTaskIdRef = useRef(0)
 
 	// 文件列表更新处理
 	const { flatAttachments, attachmentIndex, updateAttachments } = useAttachments({
@@ -294,9 +297,29 @@ function DesignViewer(props: DesignViewerProps) {
 
 		if (prevDesignProjectBasePathRef.current !== designProjectBasePath) {
 			prevDesignProjectBasePathRef.current = designProjectBasePath
-			resetAndReload().then(() => refreshCanvasDesign())
+			const taskId = basePathSwitchTaskIdRef.current + 1
+			basePathSwitchTaskIdRef.current = taskId
+			setIsBasePathSwitching(true)
+
+			void (async () => {
+				try {
+					await waitForNextAttachmentsRefreshForProject(projectId, {
+						timeoutMs: 15_000,
+					})
+					if (basePathSwitchTaskIdRef.current !== taskId) return
+
+					await resetAndReload()
+					if (basePathSwitchTaskIdRef.current !== taskId) return
+
+					refreshCanvasDesign()
+				} finally {
+					if (basePathSwitchTaskIdRef.current === taskId) {
+						setIsBasePathSwitching(false)
+					}
+				}
+			})()
 		}
-	}, [designProjectBasePath, refreshCanvasDesign, resetAndReload])
+	}, [designProjectBasePath, projectId, refreshCanvasDesign, resetAndReload])
 
 	// 设计容器 ref
 	const containerRef = useRef<HTMLDivElement>(null)
@@ -601,6 +624,7 @@ function DesignViewer(props: DesignViewerProps) {
 
 	// 显示历史版本 banner 时预留顶部空间，避免遮挡画布（与 HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX 一致）
 	const showVersionBanner = !isNewestVersion && !isMobile && !!fileVersionsList?.length
+	const shouldShowInitialLoading = isInitialLoading || isBasePathSwitching
 
 	return (
 		<>
@@ -613,7 +637,7 @@ function DesignViewer(props: DesignViewerProps) {
 						: undefined
 				}
 			>
-				{isInitialLoading ? (
+				{shouldShowInitialLoading ? (
 					<FlexBox justify="center" align="center" style={{ height: "100%" }}>
 						<MagicSpin spinning />
 					</FlexBox>
@@ -649,7 +673,7 @@ function DesignViewer(props: DesignViewerProps) {
 						)}
 						<div className={styles.designCanvasContainer}>
 							<CanvasDesign
-								key={`${designProjectId}:${canvasDesignKey}`}
+								key={`${designProjectId}:${canvasDesignKey}:${designProjectBasePath}`}
 								id={designProjectId}
 								ref={canvasDesignRef}
 								readonly={isReadOnlyState}
