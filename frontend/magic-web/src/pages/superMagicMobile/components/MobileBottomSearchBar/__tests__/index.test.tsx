@@ -74,4 +74,38 @@ describe("MobileBottomSearchBar", () => {
 
 		expect(handleValueChange).toHaveBeenCalledWith("")
 	})
+
+	it("uses safe area bottom padding by default for refactored mobile pages", () => {
+		render(
+			<MobileBottomSearchBar
+				value=""
+				placeholder="Search workspace"
+				clearAriaLabel="Cancel search"
+				onValueChange={vi.fn()}
+				testIdPrefix="safe-area-search"
+			/>,
+		)
+
+		expect(screen.getByTestId("safe-area-search-root").className).toContain(
+			"pb-[max(var(--safe-area-inset-bottom),12px)]",
+		)
+	})
+
+	it("allows opting out of safe area bottom padding for embedded usage", () => {
+		render(
+			<MobileBottomSearchBar
+				value=""
+				placeholder="Search workspace"
+				clearAriaLabel="Cancel search"
+				onValueChange={vi.fn()}
+				testIdPrefix="plain-search"
+				includeSafeAreaBottom={false}
+			/>,
+		)
+
+		expect(screen.getByTestId("plain-search-root").className).toContain("pb-3")
+		expect(screen.getByTestId("plain-search-root").className).not.toContain(
+			"pb-[max(var(--safe-area-inset-bottom),12px)]",
+		)
+	})
 })

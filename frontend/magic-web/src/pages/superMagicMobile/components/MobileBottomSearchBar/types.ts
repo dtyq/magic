@@ -5,6 +5,7 @@ export interface MobileBottomSearchBarProps {
 	onValueChange: (value: string) => void
 	testIdPrefix: string
 	clearButtonVisibility?: "focus-or-value" | "value-only"
+	includeSafeAreaBottom?: boolean
 	className?: string
 	disabled?: boolean
 }

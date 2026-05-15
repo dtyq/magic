@@ -226,7 +226,7 @@ export const ChatProjectMessagePanel = observer(function ChatProjectMessagePanel
 						isEmptyStatus ? "pointer-events-none opacity-0" : undefined
 					}
 					bodyClassName={isEmptyStatus ? "bg-transparent" : undefined}
-					footerClassName={isEmptyStatus ? "bg-transparent pb-safe-bottom" : undefined}
+					footerClassName={isEmptyStatus ? "bg-transparent" : undefined}
 					footerInnerClassName={
 						isEmptyStatus ? "pointer-events-auto mt-auto gap-3" : undefined
 					}

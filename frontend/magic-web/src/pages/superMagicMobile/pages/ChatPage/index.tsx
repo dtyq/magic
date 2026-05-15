@@ -242,7 +242,7 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 
 	return (
 		<>
-			<div className="relative flex size-full flex-col overflow-hidden bg-sidebar pb-safe-bottom">
+			<div className="relative flex size-full flex-col overflow-hidden bg-sidebar">
 				<ChatPageHeader
 					onMenuClick={openSidebar}
 					onPrimaryAction={handleCreateEmptyChat}
