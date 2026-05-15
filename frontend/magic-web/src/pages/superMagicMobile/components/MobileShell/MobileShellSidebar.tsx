@@ -18,6 +18,8 @@ export interface MobileShellSidebarProps {
 	testIdPrefix?: string
 }
 
+const PRIMARY_NAV_KEYS = new Set(["chats", "workspaces"])
+
 /** 统一计算侧栏导航行样式，避免各页面复制相同的选中态与主题态。 */
 function navRowClass(isActive: boolean) {
 	return cn(
@@ -113,8 +115,14 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 	const displayName = userStore.user.userInfo?.nickname?.trim() || tSidebar("footer.defaultUser")
 	const avatarUrl = userStore.user.userInfo?.avatar?.trim() || ""
 	const initial = displayName.charAt(0).toUpperCase() || "?"
-	const primaryNavItems = useMemo(() => navItems.slice(0, 3), [navItems])
-	const secondaryNavItems = useMemo(() => navItems.slice(3), [navItems])
+	const primaryNavItems = useMemo(
+		() => navItems.filter(({ key }) => PRIMARY_NAV_KEYS.has(key)),
+		[navItems],
+	)
+	const secondaryNavItems = useMemo(
+		() => navItems.filter(({ key }) => !PRIMARY_NAV_KEYS.has(key)),
+		[navItems],
+	)
 	const { openSettings } = useMobileSettingsController()
 	const visibleActionKeys = useMobileShellVisibleActionKeys()
 	const { openActionsPopup, projectActionComponents } = useProjectListActions({

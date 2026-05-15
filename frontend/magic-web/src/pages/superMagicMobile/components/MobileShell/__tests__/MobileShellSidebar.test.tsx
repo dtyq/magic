@@ -3,6 +3,10 @@ import { describe, expect, it, vi, beforeEach } from "vitest"
 import MobileShellSidebar from "../MobileShellSidebar"
 import { MobileShellMenuProvider, type MobileShellMenuContextValue } from "../MobileShellMenuContext"
 
+function TestIcon(props: React.SVGProps<SVGSVGElement>) {
+	return <svg {...props} />
+}
+
 const defaultOpenActionsPopup = vi.fn()
 const chatOpenActionsPopup = vi.fn()
 const useProjectListActionsMock = vi.fn()
@@ -116,5 +120,31 @@ describe("MobileShellSidebar", () => {
 
 		expect(chatOpenActionsPopup).toHaveBeenCalledWith(project)
 		expect(defaultOpenActionsPopup).not.toHaveBeenCalled()
+	})
+
+	it("keeps my crew in the secondary menu group instead of the chats and workspaces group", () => {
+		renderSidebar({
+			activeView: "chats",
+			navItems: [
+				{ key: "chats", icon: TestIcon, label: "对话" },
+				{ key: "workspaces", icon: TestIcon, label: "工作空间" },
+				{ key: "myCrew", icon: TestIcon, label: "我的 Crew" },
+				{ key: "magiClaw", icon: TestIcon, label: "MagiClaw" },
+				{ key: "apps", icon: TestIcon, label: "应用" },
+				{ key: "trash", icon: TestIcon, label: "回收站" },
+			],
+			recentItems: [],
+			onNavigate: vi.fn(),
+			onGoHome: vi.fn(),
+			onRecentNavigate: vi.fn(),
+			reloadRecentItems: vi.fn(),
+		})
+
+		const chatsButton = screen.getByTestId("mobile-super-shell-nav-chats")
+		const workspacesButton = screen.getByTestId("mobile-super-shell-nav-workspaces")
+		const myCrewButton = screen.getByTestId("mobile-super-shell-nav-myCrew")
+
+		expect(chatsButton.parentElement).toBe(workspacesButton.parentElement)
+		expect(myCrewButton.parentElement).not.toBe(chatsButton.parentElement)
 	})
 })
