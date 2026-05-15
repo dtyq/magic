@@ -121,6 +121,12 @@ from app.tools.mcp import (
     McpListTools,
 )
 
+# Remote 工具集（将 magic-service mention 中的 tool / agent 以本地工具形态转发）
+from app.tools.remote import (
+    CallSimpleAgent,
+    CallSimpleTool,
+)
+
 # Import design package modules to ensure they are available in encrypted environment
 import app.tools.design.manager
 import app.tools.design.utils
@@ -247,4 +253,8 @@ __all__ = [
     "McpGetToolSchema",
     "McpListServers",
     "McpListTools",
+
+    # Remote 工具集
+    "CallSimpleAgent",
+    "CallSimpleTool",
 ]

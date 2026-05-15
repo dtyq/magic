@@ -72,6 +72,13 @@ class SuperMagicAgentSandboxApi extends AbstractSuperMagicSandboxApi
         return $this->superMagicAgentOldAppService->executeTool($authorization, $params);
     }
 
+    public function executeAgent()
+    {
+        $authorization = $this->getAuthorization();
+        $params = $this->request->all();
+        return $this->superMagicAgentOldAppService->executeAgent($authorization, $params);
+    }
+
     /**
      * 更新员工基本信息.
      */

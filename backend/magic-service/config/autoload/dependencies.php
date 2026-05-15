@@ -32,8 +32,6 @@ use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\GraphSimilari
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\HybridSimilaritySearchInterface;
 use App\Application\KnowledgeBase\VectorDatabase\Similarity\Driver\SemanticSimilaritySearchInterface;
 use App\Application\MCP\Packer\SerializePacker;
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCP;
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentSkill;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentSkillInterface;
 use App\Application\MCP\Utils\MCPExecutor\ExternalHttpExecutor;
@@ -416,7 +414,6 @@ $dependencies = [
     MCPServerToolRepositoryInterface::class => MCPServerToolRepository::class,
     AuthenticatorInterface::class => ApiKeyProviderAuthenticator::class,
     MCPUserSettingRepositoryInterface::class => MCPUserSettingRepository::class,
-    SupperMagicAgentMCPInterface::class => SupperMagicAgentMCP::class,
     SupperMagicAgentSkillInterface::class => SupperMagicAgentSkill::class,
     ExternalStdioExecutorInterface::class => ExternalStdioExecutor::class,
     ExternalHttpExecutorInterface::class => ExternalHttpExecutor::class,

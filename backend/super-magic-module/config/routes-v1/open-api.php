@@ -20,18 +20,6 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\OpenApi\OpenWorkspaceApi;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\Facade\SandboxApi;
 use Hyperf\HttpServer\Router\Router;
 
-// 沙箱开放接口 命名不规范，需要废弃
-Router::addGroup(
-    '/api/v1/sandbox-openapi',
-    static function () {
-        Router::addGroup('/agents', static function () {
-            Router::get('/{code}', [SuperMagicAgentSandboxApi::class, 'show']);
-            Router::post('/tool-execute', [SuperMagicAgentSandboxApi::class, 'executeTool']);
-        });
-    },
-    ['middleware' => [SandboxUserAuthMiddleware::class]]
-);
-
 // 沙箱内部API路由分组 - 专门给沙箱调用超级麦吉使用，命名不规范，需要废弃
 Router::addGroup(
     '/open/internal-api',
@@ -96,6 +84,7 @@ Router::addGroup(
     static function () {
         Router::addGroup('/agents', static function () {
             Router::post('/tool-execute', [SuperMagicAgentSandboxApi::class, 'executeTool']);
+            Router::post('/agent-execute', [SuperMagicAgentSandboxApi::class, 'executeAgent']);
             Router::get('/{code}/latest-version', [SuperMagicAgentSandboxApi::class, 'showLatestVersion']);
             Router::get('/{code}', [SuperMagicAgentSandboxApi::class, 'show']);
             Router::put('/{code}', [SuperMagicAgentSandboxApi::class, 'update']);

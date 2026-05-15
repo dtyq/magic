@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\Agent\Service\Old;
 use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Application\Flow\ExecuteManager\NodeRunner\LLM\ToolsExecutor;
 use App\Application\Flow\Service\MagicFlowExecuteAppService;
+use App\Domain\Agent\Service\MagicAgentDomainService;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Domain\Mode\Entity\ModeEntity;
@@ -37,6 +38,9 @@ class SuperMagicAgentOldAppService extends AbstractSuperMagicAppService
 {
     #[Inject]
     protected MagicUserSettingDomainService $magicUserSettingDomainService;
+
+    #[Inject]
+    protected MagicAgentDomainService $magicAgentDomainService;
 
     #[Inject]
     protected ModeDomainService $modeDomainService;
@@ -219,6 +223,40 @@ class SuperMagicAgentOldAppService extends AbstractSuperMagicAppService
             $apiChatDTO,
             'super_magic_tool_call'
         );
+    }
+
+    /**
+     * 开放接口：调用指定 agent 进行一轮对话，复用 apiChatByMCPTool 逻辑。
+     *
+     * @param array{agent_id: string, message: string, conversation_id?: string, instruction?: array, attachments?: array} $params
+     * @return array{messages: array, conversation_id: string}
+     */
+    public function executeAgent(Authenticatable $authorization, array $params): array
+    {
+        $agentId = (string) ($params['agent_id'] ?? '');
+        $message = (string) ($params['message'] ?? '');
+        if ($agentId === '') {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'agent_id']);
+        }
+        if ($message === '') {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.empty', ['label' => 'message']);
+        }
+
+        $agent = $this->magicAgentDomainService->getAgentById($agentId);
+        if (! $agent || empty($agent->getFlowCode())) {
+            ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.not_found', ['label' => $agentId]);
+        }
+
+        $flowDataIsolation = $this->createFlowDataIsolation($authorization);
+
+        $apiChatDTO = new MagicFlowApiChatDTO();
+        $apiChatDTO->setFlowCode($agent->getFlowCode());
+        $apiChatDTO->setMessage($message);
+        $apiChatDTO->setConversationId((string) ($params['conversation_id'] ?? ''));
+        $apiChatDTO->setInstruction($params['instruction'] ?? []);
+        $apiChatDTO->setAttachments($params['attachments'] ?? []);
+
+        return di(MagicFlowExecuteAppService::class)->apiChatByMCPTool($flowDataIsolation, $apiChatDTO);
     }
 
     /**
