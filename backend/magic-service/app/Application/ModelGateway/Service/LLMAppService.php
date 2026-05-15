@@ -1454,6 +1454,7 @@ class LLMAppService extends AbstractLLMAppService
                     default => null
                 };
                 if ($model instanceof ModelEntry) {
+                    $proxyModelRequest->setExtra($model->getExtra());
                     $modelAttributes = $model->getAttributes();
                     $impl = $model->getModel();
                     $model = $impl instanceof OdinModel ? $impl->getModel() : $impl;
@@ -1467,6 +1468,7 @@ class LLMAppService extends AbstractLLMAppService
                         default => null
                     };
                     if ($model instanceof ModelEntry) {
+                        $proxyModelRequest->setExtra($model->getExtra());
                         $modelAttributes = $model->getAttributes();
                         $impl = $model->getModel();
                         $model = $impl instanceof OdinModel ? $impl->getModel() : $impl;
@@ -2214,6 +2216,7 @@ class LLMAppService extends AbstractLLMAppService
         $chatRequest->setPresencePenalty($sendMsgDTO->getPresencePenalty());
         $chatRequest->setBusinessParams($sendMsgDTO->getBusinessParams());
         $chatRequest->setThinking($sendMsgDTO->getThinking());
+        $chatRequest->setExtra($sendMsgDTO->getExtra() ?? []);
 
         return match ($sendMsgDTO->getCallMethod()) {
             AbstractRequestDTO::METHOD_COMPLETIONS => $odinModel->completions(

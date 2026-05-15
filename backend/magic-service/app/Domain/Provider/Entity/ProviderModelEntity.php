@@ -19,6 +19,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\OfficialOrganizationUtil;
 use DateTime;
 use Hyperf\Codec\Json;
+use Throwable;
 
 use function Hyperf\Translation\__;
 
@@ -511,6 +512,43 @@ class ProviderModelEntity extends AbstractEntity
     public function getExtra(): ?string
     {
         return $this->extra;
+    }
+
+    public function getExtraArray(): ?array
+    {
+        if (! $this->extra) {
+            return null;
+        }
+        try {
+            $extra = json_decode($this->extra, true);
+            if (! is_array($extra)) {
+                return null;
+            }
+            $data = [];
+            if (! empty($extra['extra_body'] ?? [])) {
+                $extraBody = $extra['extra_body'];
+                if (is_string($extraBody)) {
+                    $decoded = json_decode($extraBody, true);
+                    $extraBody = is_array($decoded) ? $decoded : null;
+                }
+                if (! empty($extraBody)) {
+                    $data['extra_body'] = $extraBody;
+                }
+            }
+            if (! empty($extra['extra_header'] ?? [])) {
+                $extraHeader = $extra['extra_header'];
+                if (is_string($extraHeader)) {
+                    $decoded = json_decode($extraHeader, true);
+                    $extraHeader = is_array($decoded) ? $decoded : null;
+                }
+                if (! empty($extraHeader)) {
+                    $data['extra_header'] = $extraHeader;
+                }
+            }
+            return $data;
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     public function setExtra(mixed $extra): self
