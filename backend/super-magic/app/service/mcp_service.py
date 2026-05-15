@@ -17,6 +17,7 @@ from agentlang.logger import get_logger
 from app.core.context.agent_context import AgentContext
 from app.mcp.config.loader import load_global_mcp_config
 from app.mcp.config.models import MCPConfigSource, MCPServerConfig, MCPServerType
+from app.mcp.manager import get_global_mcp_manager
 from app.mcp.store import UpsertChangeType, get_chat_mcp_store
 
 logger = get_logger(__name__)
@@ -52,6 +53,17 @@ class MCPService:
                 f"added={len(added_names)}, changed={len(changed_names)}"
             )
 
+            # 配置有变更时，同步更新运行时 manager（断开旧连接、写入新配置，不立即建连）
+            if changed_names:
+                manager = get_global_mcp_manager()
+                if manager:
+                    config_map = {cfg.name: cfg for cfg in valid_configs}
+                    for name in changed_names:
+                        cfg = config_map.get(name)
+                        if cfg:
+                            await manager.add_server(cfg, connect=False)
+                    logger.info(f"已同步更新运行时 manager 中的变更配置: {changed_names}")
+
             # 有新增或变更时，通过 horizon 通知模型
             if (added_names or changed_names) and agent_context and agent_context.has_skill("using-mcp"):
                 MCPService._push_change_notification(agent_context, added_names, changed_names)
@@ -72,7 +84,10 @@ class MCPService:
         if added_names:
             parts.append(f"New MCP server(s) available: {', '.join(added_names)}.")
         if changed_names:
-            parts.append(f"MCP server configuration updated: {', '.join(changed_names)}.")
+            parts.append(
+                f"MCP server configuration updated: {', '.join(changed_names)}. "
+                f"Previous connections have been closed; you must reconnect before calling their tools."
+            )
         parts.append("You can use read_skills('using-mcp') to learn how to work with MCP servers.")
         try:
             agent_context.horizon.push_notification("mcp_service", " ".join(parts))

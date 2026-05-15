@@ -178,6 +178,7 @@ class MCPServerManager:
         try:
             connected = await asyncio.wait_for(client.connect(), timeout=timeout)
             if not connected:
+                error_detail = client.last_error or "Connection failed"
                 await client.disconnect()
                 return MCPServerResult(
                     name=server_name,
@@ -185,7 +186,7 @@ class MCPServerManager:
                     duration=time.time() - start_time,
                     tools=[],
                     tool_count=0,
-                    error="Connection failed",
+                    error=f"Connection failed: {error_detail}",
                     label_name=label_name,
                 )
 
@@ -199,6 +200,21 @@ class MCPServerManager:
                 tools=[],
                 tool_count=0,
                 error=f"Connection timeout ({timeout}s)",
+                label_name=label_name,
+            )
+        except asyncio.CancelledError:
+            error_detail = client.last_error or "connection was cancelled"
+            try:
+                await client.disconnect()
+            except (Exception, asyncio.CancelledError):
+                pass
+            return MCPServerResult(
+                name=server_name,
+                status="failed",
+                duration=time.time() - start_time,
+                tools=[],
+                tool_count=0,
+                error=f"CancelledError: {error_detail}",
                 label_name=label_name,
             )
         except Exception as e:
