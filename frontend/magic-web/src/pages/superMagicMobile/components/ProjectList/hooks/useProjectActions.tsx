@@ -22,6 +22,7 @@ import {
 	shouldShowProjectCollaboratorAction,
 	shouldShowProjectTransferAction,
 } from "@/pages/superMagicMobile/utils/projectActionVisibility"
+import { buildSharedProjectActionPolicy } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
 
 interface UseProjectListActionsOptions {
 	onProjectChanged?: () => Promise<void> | void
@@ -221,6 +222,7 @@ export function useProjectListActions({
 
 	const isWorkspaceShortcutProjectStatus = isWorkspaceShortcutProject(currentActionItem)
 	const isCollaborationProjectStatus = isCollaborationProject(currentActionItem)
+	const sharedProjectActionPolicy = buildSharedProjectActionPolicy(currentActionItem)
 
 	const projectActions = useMemo(() => {
 		const actions = [
@@ -340,8 +342,14 @@ export function useProjectListActions({
 			key: ProjectActionKey
 		})[]
 		const visibleActionKeySet = visibleActionKeys ? new Set(visibleActionKeys) : null
+		const simplifiedActionKeySet = sharedProjectActionPolicy.useSimplifiedSharedProjectActions
+			? new Set(sharedProjectActionPolicy.visibleActionKeys)
+			: null
 		return actions.filter((action) => {
 			if (!action.visible) return false
+			if (simplifiedActionKeySet) {
+				return simplifiedActionKeySet.has(action.key)
+			}
 			if (!visibleActionKeySet) return true
 			return visibleActionKeySet.has(action.key)
 		})
@@ -362,6 +370,7 @@ export function useProjectListActions({
 		isChatMode,
 		shouldShowSaveAsProject,
 		visibleActionKeys,
+		sharedProjectActionPolicy,
 		isProjectDetailActionContext,
 	])
 

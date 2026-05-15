@@ -15,6 +15,7 @@ import {
 import {
 	shouldShowHierarchicalCollaboratorAction,
 } from "@/pages/superMagicMobile/utils/projectActionVisibility"
+import { buildSharedProjectActionPolicy } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
 
 interface ActionItem {
 	type: "workspace" | "topic" | "project"
@@ -85,6 +86,9 @@ export function useActionButtons({
 				},
 			] as ActionsPopup.ActionButtonConfig[]
 		} else if (currentActionItem.type === "project") {
+			const sharedProjectActionPolicy = buildSharedProjectActionPolicy(
+				currentActionItem.project,
+			)
 			const isOtherCollaborationProjectStatus = isOtherCollaborationProject(
 				currentActionItem.project,
 			)
@@ -205,8 +209,18 @@ export function useActionButtons({
 				},
 			] as (ActionsPopup.ActionButtonConfig & { visible: boolean })[]
 
+			const simplifiedActionKeySet = sharedProjectActionPolicy.useSimplifiedSharedProjectActions
+				? new Set(sharedProjectActionPolicy.visibleActionKeys)
+				: null
+
 			return allActions
-				.filter((action) => action.visible)
+				.filter((action) => {
+					if (!action.visible) return false
+					if (simplifiedActionKeySet) {
+						return simplifiedActionKeySet.has(action.key)
+					}
+					return true
+				})
 				.map((action) => {
 					// eslint-disable-next-line @typescript-eslint/no-unused-vars
 					const { visible, ...actionWithoutVisible } = action

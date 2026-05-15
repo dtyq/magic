@@ -33,6 +33,7 @@ import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import { isCollaborationProject } from "@/pages/superMagic/constants"
 import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
+import { buildSharedProjectActionPolicy } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
 
 type ProjectDetailTab = "topics" | "topicFiles"
 
@@ -77,6 +78,10 @@ function LegacyProjectPage() {
 	const topicFilesButtonRef = useRef<TopicFilesButtonRef>(null)
 
 	const isReadonly = isReadOnlyProject(selectedProject?.user_role)
+	const sharedProjectActionPolicy = useMemo(
+		() => buildSharedProjectActionPolicy(selectedProject),
+		[selectedProject],
+	)
 	const canManageCollaboration =
 		(isCollaborationProject(selectedProject) && canManageProject(selectedProject?.user_role)) ||
 		isOwner(selectedProject?.user_role)
@@ -84,12 +89,12 @@ function LegacyProjectPage() {
 	// Portal target elements
 	const sharePortalTarget = usePortalTarget({
 		portalId: PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_COLLABORATION_BUTTON,
-		enabled: canManageCollaboration,
+		enabled: sharedProjectActionPolicy.showShareButton,
 	})
 
 	const morePortalTarget = usePortalTarget({
 		portalId: PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_MORE_BUTTON,
-		enabled: true,
+		enabled: sharedProjectActionPolicy.showMoreButton,
 	})
 
 	const setUserSelectDetail = useMemoizedFn(
@@ -147,6 +152,7 @@ function LegacyProjectPage() {
 		useProjectListActions({
 			actionContext: "project-detail",
 			deleteSelectedProjectBehavior: "navigate-home",
+			visibleActionKeys: sharedProjectActionPolicy.visibleActionKeys,
 		})
 
 	// Sending is handled by MessagePanel service now.
@@ -238,7 +244,7 @@ function LegacyProjectPage() {
 	return (
 		<>
 			{sharePortalTarget &&
-				canManageCollaboration &&
+				sharedProjectActionPolicy.showShareButton &&
 				createPortal(
 					<Button
 						type="button"
@@ -253,6 +259,7 @@ function LegacyProjectPage() {
 					sharePortalTarget,
 				)}
 			{morePortalTarget &&
+				sharedProjectActionPolicy.showMoreButton &&
 				createPortal(
 					<Button
 						type="button"
