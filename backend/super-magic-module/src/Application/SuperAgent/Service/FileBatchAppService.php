@@ -456,9 +456,16 @@ class FileBatchAppService extends AbstractAppService
 
             $authorization = $this->agentDomainService->getAuthorizationByUserId($userId);
             $stsTemporaryCredential = $this->getStsCredential($organizationCode, $projectWorkDir);
+            $actualSandboxId = $this->agentDomainService->ensureSandboxRunning(
+                $userId,
+                $organizationCode,
+                $sandboxId,
+                (string) $projectEntity->getId(),
+                $fullBaseWorkDir
+            );
 
             $request = new FileConverterRequest(
-                $sandboxId,
+                $actualSandboxId,
                 'pack',
                 $packManifest['pack_entries'],
                 $stsTemporaryCredential,
@@ -475,7 +482,7 @@ class FileBatchAppService extends AbstractAppService
             $response = $this->batchDownloadPackDomainService->submitPackTask(
                 $userId,
                 $organizationCode,
-                $sandboxId,
+                $actualSandboxId,
                 (string) $projectEntity->getId(),
                 $request,
                 $fullBaseWorkDir
@@ -490,7 +497,7 @@ class FileBatchAppService extends AbstractAppService
 
             $this->logger->info('Batch pack task submitted to sandbox', [
                 'batch_key' => $batchKey,
-                'sandbox_id' => $sandboxId,
+                'sandbox_id' => $actualSandboxId,
                 'project_id' => $projectEntity->getId(),
                 'file_count' => count($packManifest['pack_entries']),
                 'target_name' => $targetName,
