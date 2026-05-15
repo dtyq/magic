@@ -343,7 +343,7 @@ function WorkspaceListViewInner({
 			{/* 底部搜索条抽成通用 UI 组件后，列表页只保留搜索值和文案等业务输入。 */}
 			<MobileBottomSearchBar
 				value={searchValue}
-				placeholder={t("workspace.searchWorkspace")}
+				placeholder={t("searchPlaceholder")}
 				clearAriaLabel={t("common.cancel")}
 				onValueChange={setSearchValue}
 				clearButtonVisibility="focus-or-value"

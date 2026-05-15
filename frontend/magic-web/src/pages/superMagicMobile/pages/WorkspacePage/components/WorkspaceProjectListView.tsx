@@ -222,7 +222,7 @@ export function WorkspaceProjectListView({
 			{/* 通用底部搜索条统一承接浮动样式，项目页只指定占位文案和清除按钮策略。 */}
 			<MobileBottomSearchBar
 				value={searchValue}
-				placeholder={t("project.searchProject")}
+				placeholder={t("searchPlaceholder")}
 				clearAriaLabel={t("common.cancel")}
 				onValueChange={setSearchValue}
 				clearButtonVisibility="value-only"
