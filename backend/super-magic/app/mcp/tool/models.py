@@ -30,9 +30,7 @@ class MCPServerResult:
 class MCPToolInfo:
     """从 MCP 服务器发现的单个工具信息
 
-    包含注册到框架所需的全部元数据。
-    不包含工厂方法（to_mcp_tool 已移至 MCPServerManager._build_mcp_tool），
-    保持为纯数据对象。
+    纯数据对象，包含注册到框架所需的全部元数据。
     """
     name: str                              # 工具名称（原始名称）
     original_name: str                     # 原始工具名称

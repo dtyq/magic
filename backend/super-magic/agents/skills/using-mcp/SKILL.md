@@ -63,7 +63,10 @@ When the user wants to register a brand-new MCP server, run `mcp_add_server` fir
 
 ## End-to-end example
 
-User asks: "Search for sushi places near Tokyo Station using the maps MCP."
+User asks to call a tool on some MCP server. The flow below uses angle-
+bracket placeholders (`<server_name>`, `<tool_name>`, `<workspace_dir>`,
+etc.); replace every `<...>` with the real value from your context or from
+the previous step before running the snippet.
 
 ```python
 run_sdk_snippet(python_code="""
@@ -72,26 +75,79 @@ from sdk.tool import tool
 # 1. Discover servers
 servers = tool.call('mcp_list_servers', {})
 print(servers.content)
-# Parse server name from content, e.g. "高德地图 (name=高德地图, status=connected, 15 tool(s))"
+# Parse the server name from content, e.g. "<server_name> (status=connected, N tool(s))"
 
 # 2. Connect if needed
-connect = tool.call('mcp_connect_server', {'server_name': '高德地图'})
+connect = tool.call('mcp_connect_server', {'server_name': '<server_name>'})
 if not connect.ok:
     raise SystemExit(f'Connect failed: {connect.content}')
 print(connect.content)
 
 # 3. Inspect schema
 schema = tool.call('mcp_get_tool_schema', {
-    'server_name': '高德地图',
-    'tool_name': 'maps_text_search',
+    'server_name': '<server_name>',
+    'tool_name': '<tool_name>',
 })
 print(schema.content)
 
-# 4. Call the tool (tool_params is a JSON string)
+# 4. Call the tool (tool_params is a JSON string matching the schema)
 result = tool.call('mcp_call_tool', {
-    'server_name': '高德地图',
-    'tool_name': 'maps_text_search',
-    'tool_params': '{"keywords": "sushi", "city": "Tokyo Station"}',
+    'server_name': '<server_name>',
+    'tool_name': '<tool_name>',
+    'tool_params': '{"key": "value"}',
+})
+print(result.content)
+""")
+```
+
+## Saving the call result to a file (`output_file_path`)
+
+`mcp_call_tool` accepts an optional `output_file_path` to persist the result
+as a JSON file in the workspace, instead of consuming it only in your
+reasoning context.
+
+When to set it:
+
+- The result is likely to be large (for example a SQL query without WHERE or
+  LIMIT that may return thousands of rows, fetching a full article body, or
+  exporting a long list).
+- The user expects a concrete file deliverable (a report, dataset dump,
+  attachment-like artifact).
+- A downstream step needs a stable on-disk path to open later.
+
+When to leave it empty:
+
+- You only need the data for your own reasoning. Small results are returned
+  inline; oversized results are auto-persisted in the background to avoid
+  flooding the context, so you do not need to manage that yourself.
+
+Rules:
+
+1. The path MUST be absolute. Relative paths are rejected and the call
+   silently falls back to the runtime directory.
+2. Prefer a location inside the current workspace so the file is easy for
+   the user to inspect and accept as a deliverable. The workspace path is
+   already available in your context — just prepend it directly, e.g.
+   `<workspace_dir>/data/<server>/<tool>.json`. Do not rebuild it from
+   `os.getcwd()` or hard-code a path from another machine.
+3. The file MUST be JSON. Pick a meaningful filename and a tidy directory
+   layout, for example `reports/<topic>/<name>.json` or
+   `data/<server>/<tool>.json`.
+
+Example — deliver the call result as a workspace file. Replace every
+`<...>` with real values: `<workspace_dir>` is the workspace path already
+visible in your context, and `<server_name>` / `<tool_name>` come from the
+previous discovery steps:
+
+```python
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
+
+result = tool.call('mcp_call_tool', {
+    'server_name': '<server_name>',
+    'tool_name': '<tool_name>',
+    'tool_params': '{"key": "value"}',
+    'output_file_path': '<workspace_dir>/data/<server_name>/<tool_name>.json',
 })
 print(result.content)
 """)
@@ -134,3 +190,4 @@ After `mcp_add_server`, the server status is `disconnected`. Run `mcp_connect_se
 - Passing `args` to `mcp_add_server` as a single string like `'-y @pkg /tmp'`. It MUST be a list of strings.
 - Treating `mcp_list_tools` without `server_name` as a way to "discover" tools on disconnected servers. It only returns tools from already-connected servers; use `mcp_list_servers` + `mcp_connect_server` to see disconnected ones.
 - Trying to call `mcp_call_tool` directly as a tool call (without `run_sdk_snippet`). It will be rejected because these tools are Code Mode only.
+- Passing `output_file_path` as a relative path like `'reports/data.json'`. It is rejected and the call silently falls back to the runtime directory, so the user never sees the file. Always build an absolute path, and prefer placing it under the current workspace.

@@ -7,17 +7,15 @@
 import asyncio
 import json
 import time
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
 
 from ..config.models import MCPServerConfig
 from ..tool.models import MCPServerResult, MCPToolInfo, UnavailableToolInfo
+from ..tool.schema_validator import validate_mcp_schema
 from .client import MCPClient
-
-if TYPE_CHECKING:
-    from ..tool.mcp_tool import MCPTool
 
 logger = get_logger(__name__)
 
@@ -296,11 +294,6 @@ class MCPServerManager:
     # 内部：工具注册                                                        #
     # ------------------------------------------------------------------ #
 
-    def _build_mcp_tool(self, tool_info: MCPToolInfo) -> "MCPTool":
-        """构建 MCPTool 实例（打断 tool/models.py 与 connection 层的循环依赖）"""
-        from ..tool.mcp_tool import MCPTool
-        return MCPTool(tool_info.to_dict(), self)
-
     def _register_tools_to_manager(
         self,
         config: MCPServerConfig,
@@ -314,29 +307,30 @@ class MCPServerManager:
         unavailable: List[UnavailableToolInfo] = []
 
         for tool in tools:
-            tool_info = MCPToolInfo(
-                name=tool["name"],
-                original_name=tool["name"],
-                description=desc_prefix + tool["description"],
-                inputSchema=tool["inputSchema"],
-                server_name=config.name,
-                server_options=config.server_options,
-            )
-
-            mcp_tool = self._build_mcp_tool(tool_info)
-            if not mcp_tool.is_available():
-                reason = mcp_tool.get_unavailable_reason() or "Schema validation failed"
-                logger.warning(f"跳过不可用的 MCP 工具: {config.name}/{tool['name']} ({reason})")
+            tool_name = tool["name"]
+            input_schema = tool.get("inputSchema", {})
+            is_valid, error = validate_mcp_schema(input_schema, tool_name)
+            if not is_valid:
+                reason = error or "Schema validation failed"
+                logger.warning(f"跳过不可用的 MCP 工具: {config.name}/{tool_name} ({reason})")
                 unavailable.append(UnavailableToolInfo(
-                    name=tool["name"],
+                    name=tool_name,
                     server_name=config.name,
                     description=tool.get("description", ""),
                     error=reason,
                 ))
                 continue
 
+            tool_info = MCPToolInfo(
+                name=tool_name,
+                original_name=tool_name,
+                description=desc_prefix + tool["description"],
+                inputSchema=input_schema,
+                server_name=config.name,
+                server_options=config.server_options,
+            )
             registered.append(tool_info)
-            available.append(tool["name"])
+            available.append(tool_name)
 
         self.tools[config.name] = registered
         self.unavailable_tools[config.name] = unavailable
