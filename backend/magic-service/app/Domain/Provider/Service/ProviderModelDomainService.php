@@ -441,5 +441,6 @@ readonly class ProviderModelDomainService
         empty($providerModelDTO->getIcon()) && $providerModelDTO->setIcon($oldModelEntity->getIcon());
         empty($providerModelDTO->getDescription()) && $providerModelDTO->setDescription($oldModelEntity->getDescription());
         empty($providerModelDTO->getModelType()) && $providerModelDTO->setModelType($oldModelEntity->getModelType());
+        $providerModelDTO->getExtra() === null && $providerModelDTO->setExtra($oldModelEntity->getExtra());
     }
 }

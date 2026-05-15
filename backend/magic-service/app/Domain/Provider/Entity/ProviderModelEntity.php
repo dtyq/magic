@@ -78,6 +78,8 @@ class ProviderModelEntity extends AbstractEntity
 
     protected ?array $aggregateConfig = null;
 
+    protected ?string $extra = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -502,6 +504,23 @@ class ProviderModelEntity extends AbstractEntity
             $this->aggregateConfig = is_array($decoded) ? $decoded : null;
         } else {
             $this->aggregateConfig = $aggregateConfig;
+        }
+        return $this;
+    }
+
+    public function getExtra(): ?string
+    {
+        return $this->extra;
+    }
+
+    public function setExtra(mixed $extra): self
+    {
+        if ($extra === null) {
+            $this->extra = null;
+        } elseif (is_array($extra)) {
+            $this->extra = Json::encode($extra, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } else {
+            $this->extra = (string) $extra;
         }
         return $this;
     }
