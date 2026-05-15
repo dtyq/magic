@@ -69,8 +69,8 @@ importers:
         specifier: ~0.0.9
         version: 0.0.9
       '@dtyq/user-selector':
-        specifier: ^0.1.9
-        version: 0.1.9(ff204a7ea2f4d06f758195691344a4bd)
+        specifier: ^0.1.10
+        version: 0.1.10(ff204a7ea2f4d06f758195691344a4bd)
       '@emotion/css':
         specifier: ^11.11.2
         version: 11.13.5
@@ -2041,8 +2041,8 @@ packages:
     resolution: {integrity: sha512-gXw3+2xSxOp9QDlejND1EV1sjxmoSSWEexSwt8qQuX4pOFpFP8e5ABwb3oaCM9rHRGEHuZLK8Z3RAE+iPcIfdQ==}
     engines: {node: '>=18.0.0'}
 
-  '@dtyq/user-selector@0.1.9':
-    resolution: {integrity: sha512-NV9wG6Hw4LhNzacqoZtLGDOlTkK2DkXydx3NJcvCgx6m4m4GeP79wy95odqakMnGadGYGfJbkJbtVZs/K9ckyA==}
+  '@dtyq/user-selector@0.1.10':
+    resolution: {integrity: sha512-gXMEhuEYDKHA06fdj4krtUwORgjt8kE7s91FVWaYAFUVOIpbiaTCVYb36FTdnrEuMU6qkVRz8UgKV2liUthMpQ==}
     engines: {node: '>=18.18.0', pnpm: '>=9'}
     peerDependencies:
       '@radix-ui/react-avatar': '>=1 <2'
@@ -17378,7 +17378,7 @@ snapshots:
       - aws-crt
       - debug
 
-  '@dtyq/user-selector@0.1.9(ff204a7ea2f4d06f758195691344a4bd)':
+  '@dtyq/user-selector@0.1.10(ff204a7ea2f4d06f758195691344a4bd)':
     dependencies:
       '@radix-ui/react-avatar': 1.1.11(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-checkbox': 1.3.3(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
