@@ -226,7 +226,8 @@ export function ChatConversationListView({
 				placeholder={searchPlaceholder}
 				clearAriaLabel={clearSearchAriaLabel}
 				onValueChange={onSearchValueChange}
-				clearButtonVisibility="value-only"
+				// 与其他移动端底部搜索条统一：聚焦后立即展示清除入口，减少页面间的行为切换成本。
+				clearButtonVisibility="focus-or-value"
 				testIdPrefix="mobile-chats-page-search"
 			/>
 		</div>

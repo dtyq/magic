@@ -225,7 +225,8 @@ export function WorkspaceProjectListView({
 				placeholder={t("chatList.searchPlaceholder")}
 				clearAriaLabel={t("common.cancel")}
 				onValueChange={setSearchValue}
-				clearButtonVisibility="value-only"
+				// 工作区列表与工作区详情保持同一搜索交互：聚焦后立即给出清除入口。
+				clearButtonVisibility="focus-or-value"
 				testIdPrefix="workspace-project-page-search"
 			/>
 		</div>

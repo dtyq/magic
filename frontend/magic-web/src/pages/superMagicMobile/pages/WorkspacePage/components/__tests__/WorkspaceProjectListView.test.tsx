@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
 import { WorkspaceProjectListView } from "../WorkspaceProjectListView"
@@ -66,5 +66,35 @@ describe("WorkspaceProjectListView", () => {
 
 		expect(screen.getByPlaceholderText("搜索")).not.toBeNull()
 		expect(screen.queryByPlaceholderText("搜索项目")).toBeNull()
+	})
+
+	it("shows the clear button when the search input receives focus", () => {
+		render(
+			<WorkspaceProjectListView
+				selectedWorkspace={null}
+				projects={[]}
+				isLoading={false}
+				searchValue=""
+				debouncedSearchValue=""
+				setSearchValue={vi.fn()}
+				projectTimeLabels={{}}
+				isProjectEmpty={true}
+				isSearchEmpty={false}
+				hasMore={false}
+				onBack={vi.fn()}
+				onOpenMoreSheet={vi.fn()}
+				onRefresh={vi.fn(async () => {})}
+				onOpenCreateProjectSheet={vi.fn()}
+				onOpenProject={vi.fn()}
+				onMoreProject={vi.fn()}
+				onPinProject={vi.fn()}
+				onDeleteProject={vi.fn()}
+				loadMore={vi.fn(async () => {})}
+			/>,
+		)
+
+		fireEvent.focus(screen.getByPlaceholderText("搜索"))
+
+		expect(screen.getByTestId("workspace-project-page-search-clear")).not.toBeNull()
 	})
 })
