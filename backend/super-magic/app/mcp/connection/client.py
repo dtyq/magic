@@ -413,11 +413,20 @@ class MCPClient:
         return headers
 
     def _should_try_sse_fallback(self, error: BaseException) -> bool:
-        """判断是否应尝试 SSE 协议回退（仅当服务器明确返回 405 时）"""
+        """判断是否应尝试 SSE 协议回退。
+
+        以下情况说明服务器不支持 Streamable HTTP，需要降级到 SSE：
+        - HTTP 405 Method Not Allowed
+        - McpError: Session terminated（服务器立即关闭了 Streamable HTTP 会话）
+        """
         if self.config.type != MCPServerType.HTTP:
             return False
         error_str = str(error)
-        return "405" in error_str or "method not allowed" in error_str.lower()
+        return (
+            "405" in error_str
+            or "method not allowed" in error_str.lower()
+            or "session terminated" in error_str.lower()
+        )
 
     def _is_retryable_error(self, error: Exception) -> bool:
         """判断错误是否可重试"""
