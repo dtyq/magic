@@ -61,6 +61,8 @@ class SaveProviderModelDTO extends AbstractDTO
 
     protected ?array $aggregateConfig;
 
+    protected ?string $extra;
+
     public function __construct(?array $data = null)
     {
         parent::__construct($data);
@@ -401,6 +403,22 @@ class SaveProviderModelDTO extends AbstractDTO
             $this->aggregateConfig = is_array($decoded) ? $decoded : null;
         } else {
             $this->aggregateConfig = $aggregateConfig;
+        }
+    }
+
+    public function getExtra(): ?string
+    {
+        return $this->extra ?? null;
+    }
+
+    public function setExtra(mixed $extra): void
+    {
+        if ($extra === null) {
+            $this->extra = null;
+        } elseif (is_array($extra)) {
+            $this->extra = json_encode($extra, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        } else {
+            $this->extra = (string) $extra;
         }
     }
 }
