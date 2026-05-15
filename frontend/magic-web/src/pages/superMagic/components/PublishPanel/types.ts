@@ -35,6 +35,7 @@ export interface PublishHistoryRecord {
 	internalTarget?: PublishInternalTarget
 	publisherName: string
 	publishedAt: string
+	reviewRemark?: string
 	specificMembers?: PublishSpecificMember[]
 	skillsLibraryReview?: PublishReviewProgress
 }

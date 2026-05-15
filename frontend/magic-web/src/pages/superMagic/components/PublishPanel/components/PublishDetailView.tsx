@@ -74,6 +74,12 @@ export default observer(function PublishDetailView({ onClose }: PublishDetailVie
 						testId="skill-publish-detail-details-input"
 					/>
 
+					<ReadonlyTextField
+						label={t("skillEditPage.publishPanel.detail.reviewRemark")}
+						value={record.reviewRemark ?? ""}
+						testId="skill-publish-detail-review-remark"
+					/>
+
 					<div className="flex flex-col gap-2">
 						<div className="flex items-center justify-between gap-3">
 							<p className="text-base font-medium text-foreground">
@@ -118,7 +124,10 @@ function ReadonlyTextField({
 	return (
 		<div className="flex flex-col gap-1.5">
 			<p className="text-base font-medium text-foreground">{label}</p>
-			<p className="min-h-9 text-sm leading-5 text-foreground" data-testid={testId}>
+			<p
+				className="min-h-9 whitespace-pre-wrap break-words text-sm leading-5 text-foreground"
+				data-testid={testId}
+			>
 				{displayValue}
 			</p>
 		</div>
