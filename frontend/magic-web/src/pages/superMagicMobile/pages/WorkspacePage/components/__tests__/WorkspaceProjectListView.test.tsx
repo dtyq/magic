@@ -10,7 +10,7 @@ vi.mock("react-i18next", async (importOriginal) => {
 		...actual,
 		useTranslation: () => ({
 			t: (key: string, options?: { keyword?: string }) => {
-				if (key === "searchPlaceholder") return "搜索"
+				if (key === "chatList.searchPlaceholder") return "搜索"
 				if (key === "project.searchProject") return "搜索项目"
 				if (key === "common.cancel") return "取消"
 				if (key === "workspace.unnamedWorkspace") return "未命名工作区"
@@ -64,7 +64,7 @@ describe("WorkspaceProjectListView", () => {
 			/>,
 		)
 
-		expect(screen.getByPlaceholderText("搜索")).toBeInTheDocument()
-		expect(screen.queryByPlaceholderText("搜索项目")).not.toBeInTheDocument()
+		expect(screen.getByPlaceholderText("搜索")).not.toBeNull()
+		expect(screen.queryByPlaceholderText("搜索项目")).toBeNull()
 	})
 })
