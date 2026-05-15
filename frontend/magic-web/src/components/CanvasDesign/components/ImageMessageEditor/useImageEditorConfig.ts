@@ -17,6 +17,7 @@ import {
 	encodePromptMentionsToPlaceholders,
 	type PromptPlaceholderReference,
 } from "../MessageEditor/reference-assets/promptPlaceholderCodec"
+import { appendMentionToString } from "../MessageEditor/tiptap/contentUtils"
 import {
 	decodePromptPlaceholdersWithLabels,
 	createPromptPlaceholderTokenFactory,
@@ -28,7 +29,6 @@ interface UseImageEditorConfigOptions {
 	imageElement: ImageElement
 	protectedReferenceImageIndex?: number
 	originalImageSrc?: string
-	includeOriginalImageAsReference?: boolean
 	originalImageName?: string
 	/** 编辑器 focus 的 ref，上传完成后用于聚焦 */
 	editorFocusRef?: React.RefObject<{ focus: () => void } | null>
@@ -154,7 +154,6 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		imageElement,
 		protectedReferenceImageIndex,
 		originalImageSrc,
-		includeOriginalImageAsReference = true,
 		originalImageName,
 		editorFocusRef,
 	} = options
@@ -163,9 +162,6 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 	const { t } = useCanvasDesignI18n()
 	const referenceResourceType: ReferenceResourceType = "image"
 	const fileInputAccept = "image/*"
-	const shouldIncludeOriginalImageAsReference = Boolean(
-		originalImageSrc && includeOriginalImageAsReference,
-	)
 
 	// 本地 state 管理配置
 	const [selectedModelId, setSelectedModelId] = useState<string>("")
@@ -356,6 +352,18 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		})
 	}, [modelOptions, t])
 
+	const getModelMaxReferenceImages = useCallback((model?: ImageModelItem) => {
+		return model?.image_size_config?.max_reference_images
+	}, [])
+
+	const supportsReferenceImages = useCallback(
+		(model?: ImageModelItem) => {
+			const maxReferenceImages = getModelMaxReferenceImages(model)
+			return maxReferenceImages !== undefined && maxReferenceImages > 0
+		},
+		[getModelMaxReferenceImages],
+	)
+
 	// 当前选中的模型选项
 	const selectedModelOption = useMemo(() => {
 		return modelOptions.find((opt) => opt.value === selectedModelId)
@@ -464,107 +472,72 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		selectedScale,
 	])
 
-	// 确保原图在参考图列表的第一个位置
-	const ensureOriginalImageFirst = useCallback(async () => {
-		if (!shouldIncludeOriginalImageAsReference || !originalImageSrc || !canvas) return
+	const applyQuickEditReferencePreset = useCallback(
+		(modelId: string | undefined) => {
+			if (!canvas) return
 
-		const elementInstance = canvas.elementManager.getElementInstance(imageElement.id)
-		if (!(elementInstance instanceof ImageElementClass)) return
+			const elementInstance = canvas.elementManager.getElementInstance(imageElement.id)
+			if (!(elementInstance instanceof ImageElementClass)) return
 
-		// 请求原图 Resource（确保 ossSrc 可用）
-		const resource = await canvas.imageResourceManager.getResource(originalImageSrc)
-		const ossSrc = resource?.ossSrc ?? undefined
+			const selectedModel = imageModelList.find((model) => model.model_id === modelId)
+			if (!originalImageSrc || !supportsReferenceImages(selectedModel)) {
+				elementInstance.clearReferenceImageInfos()
+				syncFromElement()
+				return
+			}
 
-		const infos = elementInstance.getReferenceImageInfos()
-		const paths = infos.map((info) => info.path)
+			const currentOriginalInfo = elementInstance
+				.getReferenceImageInfos()
+				.find((info) => info.path === originalImageSrc)
 
-		// 如果第一个不是原图，需要调整
-		if (paths.length === 0 || paths[0] !== originalImageSrc) {
-			// 如果原图不在列表中，需要添加
-			if (!paths.includes(originalImageSrc)) {
-				// 创建原图的参考图信息（使用 ossSrc 作为 src，path 作为标识）
-				const originalInfo: UploadFileResponse = {
+			elementInstance.setReferenceImageInfos([
+				{
+					...currentOriginalInfo,
 					path: originalImageSrc,
-					src: ossSrc || originalImageSrc,
-					fileName: originalImageName || t("imageEditor.originalImage", "原图"),
-				}
-				// 将原图插入到第一个位置
-				const newInfos = [originalInfo, ...infos]
-				elementInstance.saveReferenceImageInfos(newInfos)
-			} else {
-				// 原图在列表中，需要移到第一个位置并更新 src
-				const originalIndex = paths.indexOf(originalImageSrc)
-				const existingInfo = infos[originalIndex]
-				const updatedInfo: UploadFileResponse = {
-					...existingInfo,
-					src: ossSrc || existingInfo.src,
-					fileName: originalImageName || existingInfo.fileName,
-				}
-				const newInfos = [
-					updatedInfo,
-					...infos.filter((_, index) => index !== originalIndex),
-				]
-				elementInstance.saveReferenceImageInfos(newInfos)
+					src: currentOriginalInfo?.src || originalImageSrc,
+					fileName:
+						originalImageName ||
+						currentOriginalInfo?.fileName ||
+						t("imageEditor.originalImage", "原图"),
+				},
+			])
+			syncFromElement()
+		},
+		[
+			canvas,
+			imageElement.id,
+			imageModelList,
+			originalImageName,
+			originalImageSrc,
+			supportsReferenceImages,
+			syncFromElement,
+			t,
+		],
+	)
+
+	const resolveQuickEditModelId = useCallback(
+		(sourceRequest?: GenerateImageRequest) => {
+			if (imageModelList.length === 0) return undefined
+
+			const currentModel = sourceRequest?.model_id
+				? imageModelList.find((model) => model.model_id === sourceRequest.model_id)
+				: undefined
+
+			if (currentModel && supportsReferenceImages(currentModel)) {
+				return currentModel.model_id
 			}
-		} else {
-			// 原图已经在第一个位置，更新其 src 为 ossSrc
-			const existingInfo = infos[0]
-			if (existingInfo && (ossSrc || originalImageName)) {
-				const updatedInfo: UploadFileResponse = {
-					...existingInfo,
-					src: ossSrc || existingInfo.src,
-					fileName: originalImageName || existingInfo.fileName,
-				}
-				const newInfos = [updatedInfo, ...infos.slice(1)]
-				elementInstance.saveReferenceImageInfos(newInfos)
+
+			const preferredReferenceModel = imageModelList.find((model) =>
+				supportsReferenceImages(model),
+			)
+			if (preferredReferenceModel) {
+				return preferredReferenceModel.model_id
 			}
-		}
 
-		// 同步到 referenceImagesState
-		syncFromElement()
-	}, [
-		shouldIncludeOriginalImageAsReference,
-		originalImageSrc,
-		originalImageName,
-		canvas,
-		imageElement.id,
-		t,
-		syncFromElement,
-	])
-
-	const setOriginalImageAsOnlyReference = useCallback(async () => {
-		if (!shouldIncludeOriginalImageAsReference || !originalImageSrc || !canvas) return
-
-		const elementInstance = canvas.elementManager.getElementInstance(imageElement.id)
-		if (!(elementInstance instanceof ImageElementClass)) return
-
-		const resource = await canvas.imageResourceManager.getResource(originalImageSrc)
-		const ossSrc = resource?.ossSrc ?? undefined
-		const currentOriginalInfo = elementInstance
-			.getReferenceImageInfos()
-			.find((info) => info.path === originalImageSrc)
-
-		elementInstance.setReferenceImageInfos([
-			{
-				...currentOriginalInfo,
-				path: originalImageSrc,
-				src: ossSrc || currentOriginalInfo?.src || originalImageSrc,
-				fileName:
-					originalImageName ||
-					currentOriginalInfo?.fileName ||
-					t("imageEditor.originalImage", "原图"),
-			},
-		])
-		syncFromElement()
-	}, [
-		shouldIncludeOriginalImageAsReference,
-		originalImageSrc,
-		originalImageName,
-		canvas,
-		imageElement.id,
-		t,
-		syncFromElement,
-	])
+			return currentModel?.model_id || imageModelList[0]?.model_id
+		},
+		[imageModelList, supportsReferenceImages],
+	)
 
 	// 跟踪待添加到 prompt 的文件名（用于等待 matchableItems 更新）
 	const pendingFileNameRef = useRef<string | null>(null)
@@ -610,18 +583,13 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 					// syncFromElement 会立即更新 referenceFileInfos，从而更新 matchableItems
 					syncFromElement()
 
-					// 确保原图在第一个位置（SecondEdit 模式）
-					if (shouldIncludeOriginalImageAsReference) {
-						ensureOriginalImageFirst()
-					}
-
 					// 记录待添加的文件名，等待 matchableItems 更新后再添加到 prompt
 					const fileName = result.fileName || result.path?.split("/").pop() || ""
 					if (fileName) {
 						pendingFileNameRef.current = fileName
 					}
 				},
-				[syncFromElement, shouldIncludeOriginalImageAsReference, ensureOriginalImageFirst],
+				[syncFromElement],
 			),
 		})
 
@@ -879,30 +847,17 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 
 	// 构建请求参数的公共方法
 	const buildRequestParams = useCallback((): Partial<GenerateImageRequest> => {
-		// 对于 SecondEdit，原图应该始终作为参考图（即使模型不支持参考图）
-		const isSecondEdit = shouldIncludeOriginalImageAsReference
 		const shouldIncludeReferenceFiles =
 			maxReferenceFiles !== undefined &&
 			maxReferenceFiles > 0 &&
 			currentReferenceFiles.length > 0
 
-		// 如果是 SecondEdit 且有原图，确保原图在参考图列表中
-		let referenceImages: string[] | undefined
-		if (isSecondEdit && originalImageSrc) {
-			// SecondEdit 模式：原图应该始终作为参考图
-			referenceImages =
-				currentReferenceFiles.length > 0 ? currentReferenceFiles : [originalImageSrc]
-		} else if (shouldIncludeReferenceFiles) {
-			// 普通模式：只有当模型支持参考图时才包含
-			referenceImages = currentReferenceFiles
-		} else {
-			referenceImages = undefined
-		}
+		const referenceImages = shouldIncludeReferenceFiles ? currentReferenceFiles : undefined
 
 		const referenceImageOptions =
-			isSecondEdit && imageElement.crop
+			imageElement.crop && originalImageSrc && referenceImages?.[0] === originalImageSrc
 				? buildReferenceImageOptions({
-						filePath: referenceImages?.[0] || originalImageSrc,
+						filePath: originalImageSrc,
 						crop: imageElement.crop,
 					})
 				: undefined
@@ -935,7 +890,6 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		currentReferenceFiles,
 		maxReferenceFiles,
 		originalImageSrc,
-		shouldIncludeOriginalImageAsReference,
 		resolvePromptReferencesByPaths,
 		buildImagePromptPlaceholderToken,
 	])
@@ -993,45 +947,74 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 	)
 
 	const restoreQuickEditConfigToUi = useCallback(() => {
-		if (!canvas || !originalImageSrc) return
+		if (!canvas) return
 
 		cancelPendingDraftPersistence()
 		setPrompt("")
-		void setOriginalImageAsOnlyReference()
 
 		if (imageModelList.length === 0) return
 
 		const sourceRequest = imageElement.generateImageRequest
-		if (!sourceRequest?.model_id) return
-
-		const restoredModelId = imageModelList.some((m) => m.model_id === sourceRequest.model_id)
-			? sourceRequest.model_id
-			: imageModelList[0]?.model_id
+		const restoredModelId = resolveQuickEditModelId(sourceRequest)
 
 		if (!restoredModelId) return
 
-		setSelectedModelId(restoredModelId)
-
 		const restoredModel = imageModelList.find((m) => m.model_id === restoredModelId)
-		const sizes = restoredModel?.image_size_config?.sizes
-		const imageSettings = getImageGenerationSettings(restoredModel)
-		setSelectedImageGenerationConfig(
-			restoreImageGenerationConfig(imageSettings, sourceRequest.image_generation_config),
+		const shouldSeedQuickEditReference = Boolean(
+			originalImageSrc && supportsReferenceImages(restoredModel),
+		)
+		const quickEditReferenceName =
+			originalImageName || originalImageSrc?.split("/").pop() || undefined
+
+		setSelectedModelId(restoredModelId)
+		applyQuickEditReferencePreset(restoredModelId)
+		setPrompt(
+			shouldSeedQuickEditReference
+				? appendMentionToString("", originalImageSrc || "", quickEditReferenceName)
+				: "",
 		)
 
+		const imageSettings = getImageGenerationSettings(restoredModel)
+		const isSameModelAsSavedRequest = sourceRequest?.model_id === restoredModelId
+		setSelectedImageGenerationConfig(
+			isSameModelAsSavedRequest
+				? restoreImageGenerationConfig(
+						imageSettings,
+						sourceRequest?.image_generation_config,
+					)
+				: buildDefaultImageGenerationConfig(imageSettings),
+		)
+
+		const sizes = restoredModel?.image_size_config?.sizes
 		if (sizes?.length) {
-			const matchedSize = sourceRequest.size
-				? sizes.find(
-						(size) =>
-							size.value === sourceRequest.size &&
-							(size.scale || undefined) === (sourceRequest.resolution || undefined),
+			const scaleSet = new Set(sizes.map((size) => size.scale).filter(Boolean))
+			const availableScales = Array.from(scaleSet)
+			const nextResolution = availableScales.length
+				? getDefaultResolutionForModel(
+						restoredModel,
+						isSameModelAsSavedRequest ? sourceRequest?.resolution : undefined,
 					)
 				: undefined
-
+			const matchedSize = isSameModelAsSavedRequest
+				? sourceRequest?.size
+					? sizes.find(
+							(size) =>
+								size.value === sourceRequest.size &&
+								(size.scale || undefined) ===
+									(sourceRequest.resolution || undefined),
+						)
+					: undefined
+				: undefined
 			const targetSize =
 				matchedSize ||
-				(sourceRequest.size
-					? sizes.find((s) => s.value === sourceRequest.size)
+				findBestSizeForResolution(
+					sizes,
+					nextResolution,
+					undefined,
+					originalImageSrc ? currentImageVisibleAspectRatio : undefined,
+				) ||
+				(isSameModelAsSavedRequest && sourceRequest?.size
+					? sizes.find((size) => size.value === sourceRequest.size)
 					: undefined) ||
 				sizes[0]
 
@@ -1039,14 +1022,8 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 			setSelectedSize(targetSize.value)
 			setSelectedScale(targetSize.scale || undefined)
 
-			const scaleSet = new Set(sizes.map((size) => size.scale).filter(Boolean))
-			const availableScales = Array.from(scaleSet)
 			if (availableScales.length) {
-				const matchedResolution = getDefaultResolutionForModel(
-					restoredModel,
-					sourceRequest.resolution || targetSize.scale,
-				)
-				setSelectedResolution(matchedResolution)
+				setSelectedResolution(nextResolution || targetSize.scale || undefined)
 			} else {
 				setSelectedResolution(undefined)
 			}
@@ -1061,8 +1038,13 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		cancelPendingDraftPersistence,
 		imageElement.generateImageRequest,
 		imageModelList,
+		resolveQuickEditModelId,
+		applyQuickEditReferencePreset,
+		findBestSizeForResolution,
+		currentImageVisibleAspectRatio,
+		originalImageName,
 		originalImageSrc,
-		setOriginalImageAsOnlyReference,
+		supportsReferenceImages,
 	])
 
 	// 恢复配置的辅助函数
@@ -1132,7 +1114,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 						}
 					})
 				elementInstance.setReferenceImageInfos(referenceFileInfos)
-			} else if (!shouldIncludeOriginalImageAsReference) {
+			} else {
 				elementInstance.clearReferenceImageInfos()
 			}
 
@@ -1304,13 +1286,12 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		imageModelList,
 		resolvePromptReferencesByPaths,
 		promptPlaceholderTokenConfig,
-		shouldIncludeOriginalImageAsReference,
 		findBestSizeForResolution,
 	])
 
 	/** 清除草稿后按已落库的 generateImageRequest 完整回填编辑器（与「快捷编辑」仅恢复模型配置区分） */
 	const restoreOriginalGenerateImageRequestToUi = useCallback(() => {
-		if (!canvas || !originalImageSrc) return
+		if (!canvas) return
 		if (isApplyingRestoreRef.current) return
 		if (imageModelList.length === 0) return
 		const source = imageElement.generateImageRequest
@@ -1324,30 +1305,19 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		lastPersistedDraftRef.current = ""
 		hasRestoredRef.current = false
 		restoreConfig()
-		if (shouldIncludeOriginalImageAsReference) {
-			void ensureOriginalImageFirst()
-		}
 	}, [
 		canvas,
-		originalImageSrc,
 		imageModelList.length,
 		imageElement.generateImageRequest,
 		imageElement.id,
 		cancelPendingDraftPersistence,
 		restoreConfig,
-		shouldIncludeOriginalImageAsReference,
-		ensureOriginalImageFirst,
 	])
 
 	// 初始化：从 Element 同步参考图信息
 	useMount(() => {
 		// 同步参考图状态
 		syncFromElement()
-
-		// 确保原图在第一个位置（SecondEdit 模式）
-		if (shouldIncludeOriginalImageAsReference) {
-			ensureOriginalImageFirst()
-		}
 	})
 
 	// 从 tempRequest 恢复之前填写的内容（等待模型列表加载完成后执行）
