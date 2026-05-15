@@ -4,7 +4,7 @@ import type { CropConfig, ImageElement } from "../../canvas/types"
 import { useCanvas } from "../../context/CanvasContext"
 import { useMagic } from "../../context/MagicContext"
 import { useCanvasDesignI18n } from "../../context/I18nContext"
-import type { GenerateImageRequest, UploadFileResponse, ImageModelItem } from "../../types.magic"
+import type { GenerateImageRequest, UploadFileResponse } from "../../types.magic"
 import { ImageElement as ImageElementClass } from "../../canvas/element/elements/ImageElement"
 import { useFileInput } from "../MessageEditor/useFileInput"
 import { useReferenceImagesState } from "./useReferenceImagesState"
@@ -24,6 +24,26 @@ import {
 	resolvePromptPlaceholderDecodeLabels,
 	resolvePromptPlaceholderTokenConfig,
 } from "../MessageEditor/reference-assets/promptPlaceholderTokenConfig"
+import {
+	buildDefaultImageGenerationConfig,
+	buildImageModelOptionGroups,
+	buildImageModelOptions,
+	buildImageSelectValue,
+	buildSupportedAspectRatioOptions,
+	buildSupportedResolutionOptions,
+	findBestSizeForResolution,
+	getDefaultResolutionForModel,
+	getImageGenerationSettings,
+	getSerializableImageGenerationConfig,
+	parseImageSelectValue,
+	restoreImageGenerationConfig,
+	supportsReferenceImages,
+	type ImageGenerationSettingConfig,
+	type ImageModelOption,
+	type ImageModelOptionGroup,
+	type SupportedAspectRatioOption,
+	type SupportedResolutionOption,
+} from "./image-editor-config.utils"
 
 interface UseImageEditorConfigOptions {
 	imageElement: ImageElement
@@ -32,34 +52,6 @@ interface UseImageEditorConfigOptions {
 	originalImageName?: string
 	/** 编辑器 focus 的 ref，上传完成后用于聚焦 */
 	editorFocusRef?: React.RefObject<{ focus: () => void } | null>
-}
-
-interface ImageModelOption {
-	label: string
-	value: string
-	model: ImageModelItem
-}
-
-interface ImageModelOptionGroup {
-	id: string
-	label: string
-	icon?: string
-	sort: number
-	source: "official" | "custom"
-	options: ImageModelOption[]
-}
-
-export interface ImageGenerationSettingOption {
-	label: string
-	value: string
-}
-
-export interface ImageGenerationSettingConfig {
-	key: string
-	label: string
-	requestKey: string
-	default?: string
-	options: ImageGenerationSettingOption[]
 }
 
 export interface ImageEditorConfig {
@@ -79,22 +71,8 @@ export interface ImageEditorConfig {
 	maxReferenceFiles: number | undefined
 	isReferenceFileLimitReached: boolean
 	isUploading: boolean
-	supportedAspectRatioOptions: Array<{
-		value: string
-		label: string
-		width: number
-		height: number
-		iconWidth: number
-		iconHeight: number
-		originalLabel: string
-		originalValue: string
-		originalScale?: string
-	}>
-	supportedResolutionOptions: Array<{
-		label: string
-		value: string
-		data: { label: string; value: string; scale: string }
-	}>
+	supportedAspectRatioOptions: SupportedAspectRatioOption[]
+	supportedResolutionOptions: SupportedResolutionOption[]
 	supportedImageSettingOptions: ImageGenerationSettingConfig[]
 	currentSelectValue: string | undefined
 	ratioOption:
@@ -211,32 +189,6 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		syncFromElement,
 	} = referenceFilesState
 
-	// 辅助函数：构建包含 label、value、scale 的唯一 value（用于 select）
-	const buildSelectValue = useCallback((label: string, value: string, scale?: string) => {
-		return JSON.stringify([label, value, scale || null])
-	}, [])
-
-	// 辅助函数：从 select value 中解析出 label、value 和 scale
-	const parseSelectValue = useCallback((value: string) => {
-		const parsed = JSON.parse(value)
-		if (Array.isArray(parsed) && parsed.length >= 2) {
-			return {
-				label: parsed[0],
-				value: parsed[1],
-				scale: parsed[2] || undefined,
-			}
-		}
-		return { label: "", value: "", scale: undefined }
-	}, [])
-
-	const parseAspectRatioFromSize = useCallback((sizeValue: string) => {
-		const [width, height] = sizeValue.split("x").map(Number)
-		if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-			return undefined
-		}
-		return width / height
-	}, [])
-
 	const currentImageVisibleAspectRatio = useMemo(() => {
 		const width = imageElement.width ?? imageElement.crop?.displayWidth ?? 0
 		const height = imageElement.height ?? imageElement.crop?.displayHeight ?? 0
@@ -251,118 +203,14 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		imageElement.crop?.displayHeight,
 	])
 
-	// 辅助函数：根据分辨率和当前label匹配最佳size；匹配失败时可按目标比例兜底
-	const findBestSizeForResolution = useCallback(
-		(
-			allSizes: Array<{ label: string; value: string; scale?: string }>,
-			targetResolution: string | undefined,
-			currentLabel: string | undefined,
-			fallbackAspectRatio?: number,
-		) => {
-			const sizesForResolution = targetResolution
-				? allSizes.filter((size) => size.scale === targetResolution)
-				: allSizes
-
-			if (sizesForResolution.length === 0) {
-				return null
-			}
-
-			let targetSize = sizesForResolution.find((size) => size.label === currentLabel)
-
-			if (
-				!targetSize &&
-				Number.isFinite(fallbackAspectRatio) &&
-				fallbackAspectRatio &&
-				fallbackAspectRatio > 0
-			) {
-				targetSize = sizesForResolution.reduce<
-					{ label: string; value: string; scale?: string } | undefined
-				>((bestSize, size) => {
-					const sizeAspectRatio = parseAspectRatioFromSize(size.value)
-					if (!sizeAspectRatio) {
-						return bestSize
-					}
-					if (!bestSize) {
-						return size
-					}
-					const bestAspectRatio = parseAspectRatioFromSize(bestSize.value)
-					if (!bestAspectRatio) {
-						return size
-					}
-					const currentDistance = Math.abs(
-						Math.log(sizeAspectRatio / fallbackAspectRatio),
-					)
-					const bestDistance = Math.abs(Math.log(bestAspectRatio / fallbackAspectRatio))
-					return currentDistance < bestDistance ? size : bestSize
-				}, undefined)
-			}
-
-			if (!targetSize) {
-				targetSize = sizesForResolution[0]
-			}
-
-			return targetSize
-		},
-		[parseAspectRatioFromSize],
-	)
-
 	// 将模型列表转换为 Select 组件需要的格式
 	const modelOptions = useMemo<ImageModelOption[]>(() => {
-		return imageModelList.map((model) => ({
-			label: model.model_name,
-			value: model.model_id,
-			model,
-		}))
+		return buildImageModelOptions(imageModelList)
 	}, [imageModelList])
 
 	const modelOptionGroups = useMemo<ImageModelOptionGroup[]>(() => {
-		const groupMap = new Map<string, ImageModelOptionGroup>()
-
-		modelOptions.forEach((option) => {
-			const groupId =
-				option.model.model_group?.id || option.model.group_id || option.model.model_id
-			const groupLabel = option.model.model_group?.name || t("imageEditor.model", "模型")
-			const groupSource =
-				option.model.model_group?.source || option.model.model_source || "official"
-
-			if (!groupMap.has(groupId)) {
-				groupMap.set(groupId, {
-					id: groupId,
-					label: groupLabel,
-					icon: option.model.model_group?.icon,
-					sort: option.model.model_group?.sort ?? Number.MAX_SAFE_INTEGER,
-					source: groupSource,
-					options: [],
-				})
-			}
-
-			groupMap.get(groupId)?.options.push(option)
-		})
-
-		return Array.from(groupMap.values()).sort((groupA, groupB) => {
-			if (groupA.source !== groupB.source) {
-				return groupA.source === "custom" ? -1 : 1
-			}
-
-			if (groupA.sort !== groupB.sort) {
-				return groupA.sort - groupB.sort
-			}
-
-			return groupA.label.localeCompare(groupB.label)
-		})
+		return buildImageModelOptionGroups(modelOptions, t)
 	}, [modelOptions, t])
-
-	const getModelMaxReferenceImages = useCallback((model?: ImageModelItem) => {
-		return model?.image_size_config?.max_reference_images
-	}, [])
-
-	const supportsReferenceImages = useCallback(
-		(model?: ImageModelItem) => {
-			const maxReferenceImages = getModelMaxReferenceImages(model)
-			return maxReferenceImages !== undefined && maxReferenceImages > 0
-		},
-		[getModelMaxReferenceImages],
-	)
 
 	// 当前选中的模型选项
 	const selectedModelOption = useMemo(() => {
@@ -375,84 +223,23 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 
 	// 从 image_size_config 转换为宽高比选项格式（根据选中的分辨率筛选）
 	const supportedAspectRatioOptions = useMemo(() => {
-		if (!selectedModelOption?.model?.image_size_config?.sizes) {
-			return []
-		}
-		const filteredSizes = selectedModelOption.model.image_size_config.sizes.filter((size) => {
-			if (!selectedResolution) {
-				return true
-			}
-			return size.scale === selectedResolution
-		})
-
-		return filteredSizes
-			.map((size) => {
-				const [width, height] = size.value.split("x").map(Number)
-				const baseSize = 16
-				const aspectRatio = width / height
-				let iconWidth: number
-				let iconHeight: number
-				if (aspectRatio >= 1) {
-					iconWidth = baseSize
-					iconHeight = Math.round(baseSize / aspectRatio)
-				} else {
-					iconHeight = baseSize
-					iconWidth = Math.round(baseSize * aspectRatio)
-				}
-				const value = buildSelectValue(size.label, size.value, size.scale)
-				return {
-					value,
-					label: size.label,
-					width,
-					height,
-					iconWidth,
-					iconHeight,
-					originalLabel: size.label,
-					originalValue: size.value,
-					originalScale: size.scale,
-				}
-			})
-			.sort((a, b) => {
-				const parseNFromLabel = (label: string): number => {
-					const match = label.match(/^(\d+):(\d+)/)
-					if (match) {
-						return parseInt(match[1], 10)
-					}
-					return Infinity
-				}
-				const nA = parseNFromLabel(a.originalLabel)
-				const nB = parseNFromLabel(b.originalLabel)
-				return nA - nB
-			})
-	}, [selectedModelOption, buildSelectValue, selectedResolution])
+		return buildSupportedAspectRatioOptions(
+			selectedModelOption?.model,
+			buildImageSelectValue,
+			selectedResolution,
+		)
+	}, [selectedModelOption?.model, selectedResolution])
 
 	// 当前模型支持的分辨率选项（从 image_size_config.sizes.scale 聚合）
 	const supportedResolutionOptions = useMemo(() => {
-		if (!selectedModelOption?.model?.image_size_config?.sizes) {
-			return []
-		}
-		const scaleMap = new Map<string, { label: string; value: string; scale: string }>()
-		selectedModelOption.model.image_size_config.sizes.forEach((size) => {
-			if (size.scale && !scaleMap.has(size.scale)) {
-				scaleMap.set(size.scale, {
-					label: size.label,
-					value: size.value,
-					scale: size.scale,
-				})
-			}
-		})
-		return Array.from(scaleMap.entries()).map(([scale, sizeData]) => ({
-			label: scale,
-			value: scale,
-			data: sizeData,
-		}))
-	}, [selectedModelOption?.model?.image_size_config?.sizes])
+		return buildSupportedResolutionOptions(selectedModelOption?.model)
+	}, [selectedModelOption?.model])
 
 	// 构建当前选中的 select value（用于匹配选项）
 	const currentSelectValue = useMemo(() => {
 		if (!selectedLabel || !selectedSize) return undefined
-		return buildSelectValue(selectedLabel, selectedSize, selectedScale)
-	}, [selectedLabel, selectedSize, selectedScale, buildSelectValue])
+		return buildImageSelectValue(selectedLabel, selectedSize, selectedScale)
+	}, [selectedLabel, selectedSize, selectedScale])
 
 	// 当前选中的宽高比选项
 	const ratioOption = useMemo(() => {
@@ -509,7 +296,6 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 			imageModelList,
 			originalImageName,
 			originalImageSrc,
-			supportsReferenceImages,
 			syncFromElement,
 			t,
 		],
@@ -536,7 +322,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 
 			return currentModel?.model_id || imageModelList[0]?.model_id
 		},
-		[imageModelList, supportsReferenceImages],
+		[imageModelList],
 	)
 
 	// 跟踪待添加到 prompt 的文件名（用于等待 matchableItems 更新）
@@ -725,7 +511,6 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 			referenceFileInfos,
 			canvas,
 			imageElement,
-			findBestSizeForResolution,
 			selectedLabel,
 			currentImageVisibleAspectRatio,
 			originalImageSrc,
@@ -738,7 +523,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 	// 处理尺寸选择变化
 	const handleRatioChange = useCallback(
 		(value: string) => {
-			const parsed = parseSelectValue(value)
+			const parsed = parseImageSelectValue(value)
 			setSelectedLabel(parsed.label)
 			setSelectedSize(parsed.value)
 			setSelectedScale(parsed.scale)
@@ -751,7 +536,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 				})
 			}
 		},
-		[canvas, imageElement, supportedAspectRatioOptions, parseSelectValue, originalImageSrc],
+		[canvas, imageElement, supportedAspectRatioOptions, originalImageSrc],
 	)
 
 	// 处理分辨率选择变化
@@ -778,14 +563,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 				}
 			}
 		},
-		[
-			selectedModelOption,
-			selectedLabel,
-			imageElement,
-			canvas,
-			findBestSizeForResolution,
-			originalImageSrc,
-		],
+		[selectedModelOption, selectedLabel, imageElement, canvas, originalImageSrc],
 	)
 
 	const handleImageSettingChange = useCallback((key: string, value: string) => {
@@ -1040,11 +818,9 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		imageModelList,
 		resolveQuickEditModelId,
 		applyQuickEditReferencePreset,
-		findBestSizeForResolution,
 		currentImageVisibleAspectRatio,
 		originalImageName,
 		originalImageSrc,
-		supportsReferenceImages,
 	])
 
 	// 恢复配置的辅助函数
@@ -1286,7 +1062,6 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		imageModelList,
 		resolvePromptReferencesByPaths,
 		promptPlaceholderTokenConfig,
-		findBestSizeForResolution,
 	])
 
 	/** 清除草稿后按已落库的 generateImageRequest 完整回填编辑器（与「快捷编辑」仅恢复模型配置区分） */
@@ -1402,80 +1177,4 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		},
 		fileInputRef,
 	}
-}
-
-function getImageGenerationSettings(model?: ImageModelItem): ImageGenerationSettingConfig[] {
-	const settings = model?.image_size_config?.image_settings
-	if (!settings?.length) return []
-
-	return settings
-		.map((setting) => ({
-			key: setting.key,
-			label: setting.label,
-			requestKey: getImageGenerationRequestKey(setting.key),
-			default: setting.default,
-			options: setting.options?.filter((option) => option.value) ?? [],
-		}))
-		.filter((setting) => setting.requestKey && setting.options.length > 0)
-}
-
-function getImageGenerationRequestKey(key: string): string {
-	const prefix = "image_generation_config."
-	if (key.startsWith(prefix)) return key.slice(prefix.length)
-	return key
-}
-
-function buildDefaultImageGenerationConfig(
-	settings: ImageGenerationSettingConfig[],
-): Record<string, string> {
-	return settings.reduce<Record<string, string>>((config, setting) => {
-		const defaultOption = setting.options.find((option) => option.value === setting.default)
-		config[setting.requestKey] = defaultOption?.value ?? setting.options[0]?.value ?? ""
-		return config
-	}, {})
-}
-
-function restoreImageGenerationConfig(
-	settings: ImageGenerationSettingConfig[],
-	sourceConfig?: GenerateImageRequest["image_generation_config"],
-): Record<string, string> {
-	const defaultConfig = buildDefaultImageGenerationConfig(settings)
-	if (!sourceConfig) return defaultConfig
-
-	return settings.reduce<Record<string, string>>((config, setting) => {
-		const restoredValue = sourceConfig[setting.requestKey]
-		if (restoredValue && setting.options.some((option) => option.value === restoredValue)) {
-			config[setting.requestKey] = restoredValue
-		}
-		return config
-	}, defaultConfig)
-}
-
-function getSerializableImageGenerationConfig(
-	config: Record<string, string>,
-	settings: ImageGenerationSettingConfig[],
-): GenerateImageRequest["image_generation_config"] {
-	const supportedKeys = new Set(settings.map((setting) => setting.requestKey))
-	const entries = Object.entries(config).filter(([key, value]) => supportedKeys.has(key) && value)
-	if (entries.length === 0) return undefined
-	return Object.fromEntries(entries)
-}
-
-function getDefaultResolutionForModel(
-	model?: ImageModelItem,
-	preferredResolution?: string,
-): string | undefined {
-	const sizes = model?.image_size_config?.sizes
-	if (!sizes?.length) return undefined
-
-	const availableScales = Array.from(new Set(sizes.map((size) => size.scale).filter(Boolean)))
-	if (availableScales.length === 0) return undefined
-	if (preferredResolution && availableScales.includes(preferredResolution))
-		return preferredResolution
-	if (
-		model?.image_size_config?.default_scale &&
-		availableScales.includes(model.image_size_config.default_scale)
-	)
-		return model.image_size_config.default_scale
-	return availableScales[0]
 }
