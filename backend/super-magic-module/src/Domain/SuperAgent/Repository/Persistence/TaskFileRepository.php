@@ -1205,6 +1205,20 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     }
 
     /**
+     * 更新指定文件的最新内容版本号.
+     */
+    public function updateLatestVersionById(int $fileId, int $latestVersion): void
+    {
+        $this->model::query()
+            ->where('file_id', $fileId)
+            ->whereNull('deleted_at')
+            ->update([
+                'latest_version' => $latestVersion,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
+    /**
      * 批量获取文件版本号.
      */
     public function getVersionsByIds(array $fileIds): array

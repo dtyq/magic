@@ -3435,7 +3435,6 @@ class TaskFileDomainService
         $originalFile->setFileExtension(pathinfo($finalFileName, PATHINFO_EXTENSION));
         $originalFile->setFileSize($newFileInfo['size'] ?? 0);
         $originalFile->setUpdatedAt(date('Y-m-d H:i:s'));
-        $originalFile->setLatestVersion($originalFile->getLatestVersion() + 1);
 
         $updatedFile = $this->taskFileRepository->updateById($originalFile);
 

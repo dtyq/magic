@@ -369,6 +369,14 @@ interface TaskFileRepositoryInterface
     public function incrementVersionById(int $fileId): int;
 
     /**
+     * 更新指定文件的最新内容版本号.
+     *
+     * @param int $fileId 文件ID
+     * @param int $latestVersion 最新版本号
+     */
+    public function updateLatestVersionById(int $fileId, int $latestVersion): void;
+
+    /**
      * 批量获取文件版本号.
      *
      * @param array $fileIds 文件ID数组
