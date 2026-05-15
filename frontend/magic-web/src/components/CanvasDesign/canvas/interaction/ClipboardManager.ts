@@ -36,6 +36,18 @@ const PNG_EXTENSION = ".png"
 const DEFAULT_IMAGE_MIME_TYPE = "image/png"
 const DEFAULT_VIDEO_MIME_TYPE = "video/mp4"
 
+function cloneSerializable<T>(value: T): T {
+	return JSON.parse(JSON.stringify(value)) as T
+}
+
+function omitKeys<T extends object, K extends keyof T>(value: T, keys: readonly K[]): Omit<T, K> {
+	const result: Omit<T, K> & Partial<Pick<T, K>> = { ...value }
+	for (const key of keys) {
+		delete result[key]
+	}
+	return result
+}
+
 interface CopyToastHandle {
 	success: () => void
 	dismiss: () => void
@@ -1104,6 +1116,26 @@ export class ClipboardManager {
 		element: CanvasFileElement,
 		finalElement: LayerElement,
 	): Partial<ImageElement> | Partial<VideoElement> {
+		const persistedElementData = omitKeys(cloneSerializable(element), [
+			"id",
+			"type",
+			"src",
+			"status",
+			"errorMessage",
+			"name",
+			"x",
+			"y",
+			"width",
+			"height",
+			"zIndex",
+			"visible",
+			"locked",
+			"opacity",
+			"scaleX",
+			"scaleY",
+			"interactionConfig",
+		] as const)
+
 		const commonData = {
 			name: finalElement.name,
 			x: finalElement.x,
@@ -1119,14 +1151,10 @@ export class ClipboardManager {
 			interactionConfig: finalElement.interactionConfig,
 		}
 
-		if (element.type === ElementTypeEnum.Image) {
-			return {
-				...commonData,
-				crop: element.crop,
-			}
+		return {
+			...persistedElementData,
+			...commonData,
 		}
-
-		return commonData
 	}
 
 	private getFileElementDataWithUploadResult(
