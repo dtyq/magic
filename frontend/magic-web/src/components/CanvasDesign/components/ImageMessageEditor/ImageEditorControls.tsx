@@ -1,9 +1,11 @@
 import {
+	forwardRef,
 	useCallback,
 	useEffect,
 	useMemo,
 	useState,
 	type CSSProperties,
+	type ForwardedRef,
 	type ReactNode,
 } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../ui/select"
@@ -45,7 +47,10 @@ interface ImageEditorReferenceSlotPopoverProps {
 	slotRootRef?: SourceListRenderItemParams["slotRootRef"]
 }
 
-function ImageEditorReferenceSlotPopover(props: ImageEditorReferenceSlotPopoverProps) {
+const ImageEditorReferenceSlotPopover = forwardRef<
+	HTMLDivElement,
+	ImageEditorReferenceSlotPopoverProps
+>(function ImageEditorReferenceSlotPopover(props, forwardedRef) {
 	const {
 		className,
 		style,
@@ -65,13 +70,21 @@ function ImageEditorReferenceSlotPopover(props: ImageEditorReferenceSlotPopoverP
 		slotRootRef,
 	} = props
 
+	const handleSlotRootRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			slotRootRef?.(node)
+			assignForwardedRef(forwardedRef, node)
+		},
+		[forwardedRef, slotRootRef],
+	)
+
 	return (
 		<ReferenceResourceSlotPopover
 			className={className}
 			style={style}
 			content={content}
 			slotKey={slotKey}
-			slotRootRef={slotRootRef}
+			slotRootRef={handleSlotRootRef}
 			isPopoverOpen={isPopoverOpen}
 			selectedSlotKey={selectedSlotKey}
 			onActivateSlot={() => onSelectSlot(slotKey)}
@@ -87,6 +100,15 @@ function ImageEditorReferenceSlotPopover(props: ImageEditorReferenceSlotPopoverP
 			onProjectSelect={onProjectSelect}
 		/>
 	)
+})
+
+function assignForwardedRef<T>(ref: ForwardedRef<T>, value: T | null) {
+	if (!ref) return
+	if (typeof ref === "function") {
+		ref(value)
+		return
+	}
+	ref.current = value
 }
 
 interface ImageEditorControlsProps {
