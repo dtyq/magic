@@ -12,7 +12,9 @@ import {
 	isWorkspaceShortcutProject,
 	isCollaborationWorkspace,
 } from "@/pages/superMagic/constants"
-import { canManageProject } from "@/pages/superMagic/utils/permission"
+import {
+	shouldShowHierarchicalCollaboratorAction,
+} from "@/pages/superMagicMobile/utils/projectActionVisibility"
 
 interface ActionItem {
 	type: "workspace" | "topic" | "project"
@@ -30,6 +32,7 @@ interface UseActionButtonsParams {
 	handlePinProject: (project?: ProjectListItem) => void
 	handleCopyCollaborationLink: (project?: ProjectListItem) => void
 	openManageModal: () => void
+	canManageCollaborators: boolean
 	onAddWorkspaceShortcut?: (project: ProjectListItem) => void
 	shortcutNavigateToWorkspace: (project: ProjectListItem) => void
 	cancelWorkspaceShortcut: (project: ProjectListItem) => void
@@ -46,6 +49,7 @@ export function useActionButtons({
 	handlePinProject,
 	handleCopyCollaborationLink,
 	openManageModal,
+	canManageCollaborators,
 	onAddWorkspaceShortcut,
 	shortcutNavigateToWorkspace,
 	cancelWorkspaceShortcut,
@@ -116,13 +120,16 @@ export function useActionButtons({
 				},
 				{
 					key: "setCollaborators",
-					label: t("hierarchicalWorkspacePopup.setCollaborators"),
+					label: t("project.addCollaborators"),
 					onClick: () => {
 						openManageModal()
 						closeActionsPopup()
 					},
 					variant: "default",
-					visible: canManageProject(currentActionItem.project?.user_role),
+					visible: shouldShowHierarchicalCollaboratorAction({
+						userRole: currentActionItem.project?.user_role,
+						canManageCollaborators,
+					}),
 				},
 				{
 					key: "addWorkspaceShortcut",
@@ -220,6 +227,7 @@ export function useActionButtons({
 		handlePinProject,
 		handleCopyCollaborationLink,
 		openManageModal,
+		canManageCollaborators,
 		shortcutNavigateToWorkspace,
 		cancelWorkspaceShortcut,
 		setDeleteModalVisible,

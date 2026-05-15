@@ -332,9 +332,10 @@ export function useHierarchicalWorkspacePopup(
 		}
 	})
 
-	const { openManageModal, CollaboratorUpdatePanel } = useCollaboratorUpdatePanel({
+	const { openManageModal, CollaboratorUpdatePanel, canManageCollaborators } =
+		useCollaboratorUpdatePanel({
 		selectedProject: currentActionItem?.project || null,
-	})
+		})
 
 	// 操作按钮配置（使用新的 useActionButtons hook）
 	const actionButtonList = useActionButtons({
@@ -346,6 +347,7 @@ export function useHierarchicalWorkspacePopup(
 		handlePinProject,
 		handleCopyCollaborationLink,
 		openManageModal,
+		canManageCollaborators,
 		onAddWorkspaceShortcut,
 		shortcutNavigateToWorkspace,
 		cancelWorkspaceShortcut,

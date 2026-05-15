@@ -11,6 +11,7 @@ import { useProjectListActions } from "@/pages/superMagicMobile/components/Proje
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
 import { type MobileShellMenuNavIcon, useMobileShellMenu } from "./MobileShellMenuContext"
 import { useMobileShellUpgradeAction } from "./useMobileShellUpgradeAction"
+import { useMobileShellVisibleActionKeys } from "./hooks/useMobileShellVisibleActionKeys"
 
 export interface MobileShellSidebarProps {
 	/** 复用壳层前缀，保证不同页面的 `data-testid` 不冲突。 */
@@ -115,10 +116,17 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 	const primaryNavItems = useMemo(() => navItems.slice(0, 3), [navItems])
 	const secondaryNavItems = useMemo(() => navItems.slice(3), [navItems])
 	const { openSettings } = useMobileSettingsController()
+	const visibleActionKeys = useMobileShellVisibleActionKeys()
 	const { openActionsPopup, projectActionComponents } = useProjectListActions({
 		onProjectChanged: reloadRecentItems,
-		// Match prototype: rename / move to / add collaborators / transfer / delete (no pin in this menu).
-		visibleActionKeys: ["rename", "move", "setCollaborators", "transfer", "delete"],
+		visibleActionKeys,
+	})
+	const {
+		openActionsPopup: openChatActionsPopup,
+		projectActionComponents: chatProjectActionComponents,
+	} = useProjectListActions({
+		mode: "chat",
+		onProjectChanged: reloadRecentItems,
 	})
 	const {
 		isVisible: isUpgradeVisible,
@@ -246,6 +254,11 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 											disabled={!item.project}
 											onClick={() => {
 												if (!item.project) return
+												if (item.isChatProject) {
+													openChatActionsPopup(item.project)
+													return
+												}
+
 												openActionsPopup(item.project)
 											}}
 											data-testid={`${testIdPrefix}-recent-actions-${item.id}`}
@@ -316,6 +329,7 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 				)}
 			</div>
 			{projectActionComponents}
+			{chatProjectActionComponents}
 		</div>
 	)
 })

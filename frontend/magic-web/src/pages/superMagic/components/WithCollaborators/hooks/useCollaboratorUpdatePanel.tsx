@@ -1,8 +1,7 @@
 import type { Collaborator, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 
 /**
- * Open-source stub: collaboration panel is enterprise-only.
- * Returns no-op values so callers do not break.
+ * 默认实现保持空协作者面板，调用方通过能力位决定是否展示入口。
  */
 function useCollaboratorUpdatePanel({
 	selectedProject: _selectedProject,
@@ -22,6 +21,7 @@ function useCollaboratorUpdatePanel({
 	return {
 		collaborators,
 		collaborationInfo,
+		canManageCollaborators: false,
 		openManageModal,
 		CollaboratorUpdatePanel,
 	}

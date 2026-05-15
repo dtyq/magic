@@ -18,6 +18,10 @@ import { IconX } from "@tabler/icons-react"
 import { Check } from "lucide-react"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
+import {
+	shouldShowProjectCollaboratorAction,
+	shouldShowProjectTransferAction,
+} from "@/pages/superMagicMobile/utils/projectActionVisibility"
 
 interface UseProjectListActionsOptions {
 	onProjectChanged?: () => Promise<void> | void
@@ -28,7 +32,7 @@ interface UseProjectListActionsOptions {
 	visibleActionKeys?: ProjectActionKey[]
 }
 
-type ProjectActionKey =
+export type ProjectActionKey =
 	| "pinProject"
 	| "rename"
 	| "move"
@@ -68,12 +72,14 @@ export function useProjectListActions({
 	/** 是否移动项目中 */
 	const [isMoveProjectLoading, setIsMoveProjectLoading] = useState(false)
 
-	const { openManageModal, CollaboratorUpdatePanel } = useCollaboratorUpdatePanel({
+	const { openManageModal, CollaboratorUpdatePanel, canManageCollaborators } =
+		useCollaboratorUpdatePanel({
 		selectedProject: currentActionItem,
-	})
+		})
 
-	// Transfer project: enterprise overlay provides the actual modal; open-source is a no-op stub.
-	const { openTransferModal, TransferModalComponent } = useProjectTransferModal(currentActionItem)
+	// 转让弹层由 hook 决定是否提供真实交互，列表层只消费稳定接口。
+	const { openTransferModal, TransferModalComponent, canTransferProject } =
+		useProjectTransferModal(currentActionItem)
 
 	const openActionsPopup = useMemoizedFn((project: ProjectListItem) => {
 		updateCurrentActionItem(project)
@@ -278,21 +284,18 @@ export function useProjectListActions({
 			},
 			{
 				key: "setCollaborators",
-				label: t(
-					isProjectDetailActionContext
-						? "project.addCollaborators"
-						: "hierarchicalWorkspacePopup.setCollaborators",
-				),
+				label: t("project.addCollaborators"),
 				onClick: () => {
 					openManageModal()
 					closeActionsPopup()
 				},
 				variant: "default",
-				visible:
-					mode !== "chat" &&
-					((isCollaborationProjectStatus &&
-						canManageProject(currentActionItem?.user_role)) ||
-						isOwner(currentActionItem?.user_role)),
+				visible: shouldShowProjectCollaboratorAction({
+					mode,
+					isCollaborationProject: isCollaborationProjectStatus,
+					userRole: currentActionItem?.user_role,
+					canManageCollaborators,
+				}),
 				"data-testid": "project-actions-set-collaborators",
 			},
 			{
@@ -314,11 +317,12 @@ export function useProjectListActions({
 					closeActionsPopup()
 				},
 				variant: "default",
-				// Transfer is only available to project owners, matching PC-side behavior.
-				visible:
-					mode !== "chat" &&
-					isOwner(currentActionItem?.user_role) &&
-					!isWorkspaceShortcutProjectStatus,
+				visible: shouldShowProjectTransferAction({
+					mode,
+					userRole: currentActionItem?.user_role,
+					isWorkspaceShortcutProject: isWorkspaceShortcutProjectStatus,
+					canTransferProject,
+				}),
 				"data-testid": "project-actions-transfer-project",
 			},
 			{
@@ -350,8 +354,10 @@ export function useProjectListActions({
 		closeActionsPopup,
 		handleCopyCollaborationLink,
 		openManageModal,
+		canManageCollaborators,
 		cancelWorkspaceShortcut,
 		openTransferModal,
+		canTransferProject,
 		mode,
 		isChatMode,
 		shouldShowSaveAsProject,

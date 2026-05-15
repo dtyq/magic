@@ -1,11 +1,11 @@
 import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 
 /**
- * Open-source stub: project transfer is enterprise-only.
- * Returns no-op values so callers do not break in the open-source build.
+ * 默认实现保持空转让弹层，调用方通过能力位决定是否展示入口。
  */
 function useProjectTransferModal(_project: ProjectListItem | null) {
 	return {
+		canTransferProject: false,
 		openTransferModal: () => {},
 		TransferModalComponent: null as React.ReactNode,
 	}
