@@ -113,7 +113,6 @@ function assignForwardedRef<T>(ref: ForwardedRef<T>, value: T | null) {
 
 interface ImageEditorControlsProps {
 	config: ImageEditorConfig
-	protectedReferenceFileIndex?: number
 	onSelectSource: (source: ReferenceResourceSourceType) => void
 	onProjectSelect?: (item: ReferenceResourcePanelItem) => void
 	/** 参考文件删除回调，传入时优先使用（用于同步到 TipTap） */
@@ -122,14 +121,8 @@ interface ImageEditorControlsProps {
 }
 
 export default function ImageEditorControls(props: ImageEditorControlsProps) {
-	const {
-		config,
-		protectedReferenceFileIndex,
-		onSelectSource,
-		onProjectSelect,
-		onReferenceFileRemove,
-		renderSendButton,
-	} = props
+	const { config, onSelectSource, onProjectSelect, onReferenceFileRemove, renderSendButton } =
+		props
 	const { t } = useCanvasDesignI18n()
 
 	const {
@@ -167,9 +160,6 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 		}
 
 		const options: SourceListOption[] = referenceFileInfos.map((info, index) => {
-			const isProtected =
-				protectedReferenceFileIndex !== undefined && index === protectedReferenceFileIndex
-
 			return {
 				kind: "slot",
 				label: t("imageEditor.referenceImage", "参考图"),
@@ -177,19 +167,10 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 				slotIndex: index,
 				resourcePath: info.path,
 				resourceFileName: info.fileName,
-				...(isProtected
-					? {}
-					: {
-							removeResourceAriaLabel: t(
-								"imageEditor.removeReferenceResource",
-								"移除该参考资源",
-							),
-							onRemoveResource: () => {
-								;(onReferenceFileRemove ?? handlers.handleReferenceFileRemove)(
-									info.path,
-								)
-							},
-						}),
+				removeResourceAriaLabel: t("imageEditor.removeReferenceResource", "移除该参考资源"),
+				onRemoveResource: () => {
+					;(onReferenceFileRemove ?? handlers.handleReferenceFileRemove)(info.path)
+				},
 			}
 		})
 
@@ -210,7 +191,6 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 	}, [
 		maxReferenceFiles,
 		referenceFileInfos,
-		protectedReferenceFileIndex,
 		t,
 		onReferenceFileRemove,
 		handlers.handleReferenceFileRemove,
@@ -239,18 +219,6 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 	const renderReferenceSourceListItem = useCallback(
 		(params: SourceListRenderItemParams) => {
 			const { option, className, style, content, slotRootRef } = params
-			const isProtected =
-				protectedReferenceFileIndex !== undefined &&
-				option.slotIndex === protectedReferenceFileIndex
-
-			if (isProtected) {
-				return (
-					<div ref={slotRootRef} className={className} style={style}>
-						{content}
-					</div>
-				)
-			}
-
 			const referencePopoverState = resolveReferencePopoverState(option)
 			return (
 				<ImageEditorReferenceSlotPopover
@@ -275,7 +243,6 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 		},
 		[
 			resolveReferencePopoverState,
-			protectedReferenceFileIndex,
 			isPopoverOpen,
 			selectedReferenceSlotKey,
 			handlers.setPopoverOpen,

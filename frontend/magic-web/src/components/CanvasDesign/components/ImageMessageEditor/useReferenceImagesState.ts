@@ -13,8 +13,6 @@ interface UseReferenceImagesStateOptions {
 	imageElementId: string
 	/** 最大参考文件数量限制 */
 	maxReferenceFiles?: number
-	/** 受保护的参考文件索引（不能删除） */
-	protectedReferenceFileIndex?: number
 }
 
 function isSamePaths(prev: string[], next: string[]): boolean {
@@ -50,7 +48,7 @@ function isSameReferenceInfos(
  * 4. → matchableItems (派生，供 TipTap 渲染)
  */
 export function useReferenceImagesState(options: UseReferenceImagesStateOptions) {
-	const { canvas, imageElementId, maxReferenceFiles, protectedReferenceFileIndex } = options
+	const { canvas, imageElementId, maxReferenceFiles } = options
 
 	// 核心状态：参考文件路径列表（单一数据源）
 	const [referenceFilePaths, setReferenceFilePaths] = useState<string[]>([])
@@ -271,20 +269,9 @@ export function useReferenceImagesState(options: UseReferenceImagesStateOptions)
 	)
 
 	// 移除参考文件
-	const removeReferenceFile = useCallback(
-		(path: string) => {
-			// 检查是否是受保护的参考文件
-			if (protectedReferenceFileIndex !== undefined) {
-				const index = referenceFilePaths.indexOf(path)
-				if (index === protectedReferenceFileIndex) {
-					return // 不能删除受保护的参考文件
-				}
-			}
-
-			setReferenceFilePaths((prev) => prev.filter((p) => p !== path))
-		},
-		[protectedReferenceFileIndex, referenceFilePaths],
-	)
+	const removeReferenceFile = useCallback((path: string) => {
+		setReferenceFilePaths((prev) => prev.filter((p) => p !== path))
+	}, [])
 
 	// 清空所有参考文件
 	const clearReferenceFiles = useCallback(() => {

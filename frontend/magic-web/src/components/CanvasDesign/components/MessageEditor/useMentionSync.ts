@@ -10,7 +10,6 @@ interface UseMentionSyncOptions {
 	/** 中性命名：目标元素 id（图片/视频通用） */
 	elementId: string
 	matchableItems: MatchableMentionItem[]
-	protectedReferenceFileIndex?: number
 	maxReferenceFiles?: number
 	isReferenceFileLimitReached?: boolean
 	syncFromElement: () => void
@@ -33,7 +32,6 @@ export function useMentionSync(options: UseMentionSyncOptions) {
 		canvas,
 		elementId,
 		matchableItems,
-		protectedReferenceFileIndex,
 		maxReferenceFiles,
 		isReferenceFileLimitReached = false,
 		syncFromElement,
@@ -89,11 +87,7 @@ export function useMentionSync(options: UseMentionSyncOptions) {
 			const version = ++syncVersionRef.current
 
 			// 同步更新 Element（无异步边界）
-			const firstReferencePath = currentInfos[0]?.path
 			pathsToRemove.forEach((path) => {
-				if (protectedReferenceFileIndex !== undefined && path === firstReferencePath) {
-					return
-				}
 				elementInstance.removeReferenceImageInfo(path)
 			})
 
@@ -129,7 +123,6 @@ export function useMentionSync(options: UseMentionSyncOptions) {
 			canvas,
 			elementId,
 			matchableItems,
-			protectedReferenceFileIndex,
 			maxReferenceFiles,
 			isReferenceFileLimitReached,
 			syncFromElement,

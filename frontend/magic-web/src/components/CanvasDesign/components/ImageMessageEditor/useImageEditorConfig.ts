@@ -47,7 +47,6 @@ import {
 
 interface UseImageEditorConfigOptions {
 	imageElement: ImageElement
-	protectedReferenceImageIndex?: number
 	originalImageSrc?: string
 	originalImageName?: string
 	/** 编辑器 focus 的 ref，上传完成后用于聚焦 */
@@ -128,13 +127,7 @@ export interface ImageEditorConfig {
 }
 
 export function useImageEditorConfig(options: UseImageEditorConfigOptions): ImageEditorConfig {
-	const {
-		imageElement,
-		protectedReferenceImageIndex,
-		originalImageSrc,
-		originalImageName,
-		editorFocusRef,
-	} = options
+	const { imageElement, originalImageSrc, originalImageName, editorFocusRef } = options
 	const { imageModelList, methods } = useMagic()
 	const { canvas } = useCanvas()
 	const { t } = useCanvasDesignI18n()
@@ -177,7 +170,6 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		canvas,
 		imageElementId: imageElement.id,
 		maxReferenceFiles,
-		protectedReferenceFileIndex: protectedReferenceImageIndex,
 	})
 
 	const {

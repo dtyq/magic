@@ -45,7 +45,6 @@ interface ImageEditorSurfaceProps {
 	autoFocus?: boolean
 	autoFocusAtDocumentEnd?: boolean
 	isDropEnabled?: boolean
-	protectedReferenceFileIndex?: number
 	className?: string
 	style?: CSSProperties
 }
@@ -64,7 +63,6 @@ export default function ImageEditorSurface(props: ImageEditorSurfaceProps) {
 		autoFocus,
 		autoFocusAtDocumentEnd,
 		isDropEnabled = true,
-		protectedReferenceFileIndex,
 		className,
 		style,
 	} = props
@@ -93,7 +91,6 @@ export default function ImageEditorSurface(props: ImageEditorSurfaceProps) {
 		canvas,
 		elementId: imageElement.id,
 		matchableItems,
-		protectedReferenceFileIndex,
 		maxReferenceFiles,
 		isReferenceFileLimitReached,
 		syncFromElement: config.handlers.syncReferenceFilesFromElement,
@@ -281,7 +278,6 @@ export default function ImageEditorSurface(props: ImageEditorSurfaceProps) {
 			/>
 			<ImageEditorControls
 				config={config}
-				protectedReferenceFileIndex={protectedReferenceFileIndex}
 				onSelectSource={handleSelectSource}
 				onProjectSelect={handleProjectSelect}
 				onReferenceFileRemove={handleReferenceFileRemoveFromPopover}
