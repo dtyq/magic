@@ -1,4 +1,4 @@
-import { memo } from "react"
+import { memo, useEffect } from "react"
 import {
 	type TreeNode,
 	UserSelector,
@@ -8,6 +8,7 @@ import {
 	MobileUserSelector,
 	type LocaleType,
 } from "@dtyq/user-selector"
+import { useOverlayZIndex } from "@/hooks/useOverlayZIndex"
 import { useGlobalLanguage, useTheme } from "@/models/config/hooks"
 import { useMemberDepartmentSelector } from "./hooks/useSelector"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -67,6 +68,13 @@ const MemberDepartmentSelector = ({
 	const { prefersColorScheme: theme } = useTheme()
 	const language = useGlobalLanguage(false)
 	const isMobile = useIsMobile()
+	const overlayLayer = useOverlayZIndex({ open: Boolean(props.open), zIndex })
+
+	useEffect(() => {
+		if (!props.open) {
+			overlayLayer.releaseOverlayZIndex()
+		}
+	}, [overlayLayer, props.open])
 
 	const {
 		ref,
@@ -112,7 +120,8 @@ const MemberDepartmentSelector = ({
 					onSearchChange={onSearchChange}
 					selectedPath={selectedPath}
 					bodyClassName="max-h-[85vh]"
-					style={{ zIndex, ...style }}
+					zIndex={overlayLayer.overlayZIndex}
+					style={style}
 					{...omit(props, ["title", "getContainer", "centered"])}
 				/>
 			</AppearanceProvider>

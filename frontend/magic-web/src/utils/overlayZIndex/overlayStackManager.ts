@@ -19,7 +19,7 @@ interface OverlayScopeState {
 
 const OVERLAY_Z_INDEX_STEP = 10
 const OVERLAY_SCOPE_BASE_Z_INDEX: Record<OverlayZIndexScope, number> = {
-	global: 500,
+	global: 1000,
 	fullscreen: 9000,
 }
 
