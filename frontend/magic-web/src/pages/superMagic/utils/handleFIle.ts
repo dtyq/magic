@@ -249,30 +249,7 @@ const getFilenameFromUrl = (url: string): string | undefined => {
  * @param filename - 下载的文件名
  * @param target - 可选的 target 属性（如 _blank）
  */
-const triggerDownload = async (href: string, filename?: string, target?: string) => {
-	// For cross-origin URLs with a custom filename, fetch as blob to ensure
-	// the download attribute is respected (browsers ignore it for cross-origin).
-	if (filename && href.startsWith("http") && !href.startsWith(window.location.origin)) {
-		try {
-			const response = await fetch(href)
-			if (!response.ok) throw new Error(`HTTP ${response.status}`)
-			const blob = await response.blob()
-			const blobUrl = URL.createObjectURL(blob)
-			const link = document.createElement("a")
-			link.href = blobUrl
-			link.download = filename
-			if (target) link.target = target
-			document.body.appendChild(link)
-			link.click()
-			document.body.removeChild(link)
-			// Delay revoke to give the browser time to start the download
-			setTimeout(() => URL.revokeObjectURL(blobUrl), 10000)
-			return
-		} catch {
-			// Fallback to direct link if fetch fails (e.g. CORS)
-		}
-	}
-
+const triggerDownload = (href: string, filename?: string, target?: string) => {
 	const link = document.createElement("a")
 	link.href = href
 	link.download = filename || ""
@@ -285,14 +262,14 @@ const triggerDownload = async (href: string, filename?: string, target?: string)
 	document.body.removeChild(link)
 }
 
-const downloadFn = async (url: string, filename?: string, target?: string) => {
+const downloadFn = (url: string, filename?: string, target?: string) => {
 	// APP 环境、钉钉环境、微信/企业微信环境直接打开新窗口
 	if (isInApp() || isDingTalk() || isWechat()) {
 		window.open(url, "_blank")
 		return
 	}
 
-	await triggerDownload(url, filename, target)
+	triggerDownload(url, filename, target)
 }
 
 export const downloadFileWithAnchor = async (url: string, filename?: string, target?: string) => {
