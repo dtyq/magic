@@ -1301,6 +1301,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			mode?: DownloadImageMode,
 			fileExtension?: string,
 			isFolder?: boolean,
+			downloadName?: string,
 		) => {
 			const fileIds = Array.isArray(file_id) ? file_id : [file_id]
 
@@ -1348,7 +1349,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 					})
 						.then((data) => {
 							if (data.status === "ready" && data.download_url) {
-								downloadFileWithAnchor(data.download_url)
+								downloadFileWithAnchor(data.download_url, downloadName)
 								resolve()
 								return
 							}
@@ -1368,7 +1369,10 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 											checkData.status === "ready" &&
 											checkData.download_url
 										) {
-											downloadFileWithAnchor(checkData.download_url)
+											downloadFileWithAnchor(
+												checkData.download_url,
+												downloadName,
+											)
 											resolve()
 										}
 										if (checkData?.status === "failed") {
