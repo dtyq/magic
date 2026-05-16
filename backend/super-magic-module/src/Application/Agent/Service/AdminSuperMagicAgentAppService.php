@@ -62,7 +62,7 @@ class AdminSuperMagicAgentAppService extends AbstractSuperMagicAppService
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
         $query = $this->buildAgentVersionAdminQuery(
             $requestDTO,
-            PublishTargetType::filterValues($requestDTO->getPublishTargetType()),
+            PublishTargetType::filterValues(PublishTargetType::MARKET->value),
             $requestDTO->getOrganizationCode()
         );
         $result = $this->superMagicAgentVersionDomainService->queryVersions(

@@ -59,7 +59,7 @@ class AdminSkillAppService extends AbstractSkillAppService
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
         $query = $this->buildSkillVersionAdminQuery(
             $requestDTO,
-            PublishTargetType::filterValues($requestDTO->getPublishTargetType()),
+            PublishTargetType::filterValues(PublishTargetType::MARKET->value),
             $requestDTO->getOrganizationCode()
         );
         $result = $this->skillVersionDomainService->queryVersions(
