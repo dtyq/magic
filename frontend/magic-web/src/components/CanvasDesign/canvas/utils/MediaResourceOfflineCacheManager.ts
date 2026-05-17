@@ -1,7 +1,7 @@
 import { resolveCanonicalResourcePath, normalizePathLocal } from "./pathUtils"
 
 /**
- * 画布媒体离线缓存（主线程 IndexedDB + `canvas-media-resource-sw.js`）。
+ * 画布媒体离线缓存（主线程 IndexedDB + `/canvas-design-media/sw.js`）。
  *
  * 与 SW 配合时的根因备忘：
  * - 虚拟 URL 命中 SW 后，IDB 查找键须与 SW 内 `normalizeResourcePathForLookup` 一致（见 SW 文件头注释：fetch
@@ -15,7 +15,7 @@ export type MediaResourceOfflineCacheMediaType = "image" | "video"
 export interface MediaResourceOfflineCacheOptions {
 	/** 离线缓存总容量上限，默认 1GB */
 	maxBytes?: number
-	/** 自定义 Service Worker 地址；默认使用 Vite public 下的 canvas-media-resource-sw.js */
+	/** 自定义 Service Worker 地址；默认使用 /canvas-design-media/sw.js */
 	serviceWorkerUrl?: string
 }
 
@@ -36,7 +36,7 @@ export interface MediaResourceOfflineCacheUnregisterOptions {
 	clearCache?: boolean
 	/** 同时清理 IndexedDB 中的媒体资源索引 */
 	clearDatabase?: boolean
-	/** 自定义 Service Worker 地址；默认清理 canvas-media-resource-sw.js */
+	/** 自定义 Service Worker 地址；默认清理 /canvas-design-media/sw.js */
 	serviceWorkerUrl?: string
 }
 
@@ -115,16 +115,12 @@ const CACHE_BASE_NAME = "canvas-media-resources"
 const CACHE_NAME = `${CACHE_BASE_NAME}-v${OFFLINE_CACHE_VERSION}`
 const HEALTH_STORAGE_KEY = `${CACHE_BASE_NAME}-health-v${OFFLINE_CACHE_VERSION}`
 const DEFAULT_MAX_BYTES = 1024 * 1024 * 1024
-const DEFAULT_SW_FILE = "canvas-media-resource-sw.js"
+const DEFAULT_SW_FILE = "canvas-design-media/sw.js"
 const DEFAULT_RESOURCE_NAMESPACE = "__global__"
-/** Treat the virtual-resource channel as unhealthy only after repeated failures, not a single flaky request. */
-const VIRTUAL_RESOURCE_FAILURE_THRESHOLD = 3
-/** Count virtual-resource failures inside this rolling window before tripping the in-page circuit breaker. */
 const VIRTUAL_RESOURCE_FAILURE_WINDOW_MS = 10_000
-/** Persisted cooldown: page reloads should bypass a known-bad SW instead of failing once again before fallback. */
+const VIRTUAL_RESOURCE_FAILURE_THRESHOLD = 3
 const VIRTUAL_RESOURCE_FALLBACK_COOLDOWN_MS = 60_000
-/** Repair throttle: clearing IDB/CacheStorage and updating SW should not happen repeatedly during network flaps. */
-const VIRTUAL_RESOURCE_REPAIR_THROTTLE_MS = 5 * 60_000
+const VIRTUAL_RESOURCE_REPAIR_THROTTLE_MS = 30_000
 
 /** 读取当前 controlling worker，避免 TS 在 `await` 之后仍把 `navigator.serviceWorker.controller` 窄成 `null`。 */
 function readServiceWorkerController(): ServiceWorker | null {
@@ -229,14 +225,15 @@ function getDeprecatedStorageNames(baseName: string, currentVersion: number): st
 function getVirtualResourceUrlForResourcePath(
 	resourcePath: string,
 	mediaType: MediaResourceOfflineCacheMediaType,
-	scopePath?: string,
+	namespacePath?: string,
+	swUrl = getDefaultServiceWorkerUrl(),
 ): string {
 	return joinUrlPathSegments(
 		window.location.origin,
-		getServiceWorkerScope(getDefaultServiceWorkerUrl()),
+		getServiceWorkerScope(swUrl),
 		VIRTUAL_RESOURCE_ROUTE_PREFIX,
 		VIRTUAL_RESOURCE_PATH_SEGMENT,
-		scopePath || window.location.pathname,
+		namespacePath || window.location.pathname,
 		mediaType,
 		VIRTUAL_RESOURCE_DESIGN_RESOURCE_SEGMENT,
 		resourcePath,
@@ -274,6 +271,14 @@ function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
 	return new Promise((resolve, reject) => {
 		request.onsuccess = () => resolve(request.result)
 		request.onerror = () => reject(request.error)
+	})
+}
+
+function transactionToPromise(transaction: IDBTransaction): Promise<void> {
+	return new Promise((resolve, reject) => {
+		transaction.oncomplete = () => resolve()
+		transaction.onerror = () => reject(transaction.error)
+		transaction.onabort = () => reject(transaction.error)
 	})
 }
 
@@ -322,6 +327,10 @@ export class MediaResourceOfflineCacheManager {
 		return normalizeResourceNamespace(this.getVirtualResourceScope?.())
 	}
 
+	private getServiceWorkerUrl(): string {
+		return this.options?.serviceWorkerUrl || getDefaultServiceWorkerUrl()
+	}
+
 	private getVirtualResourceUrl(
 		resourcePath: string,
 		mediaType: MediaResourceOfflineCacheMediaType,
@@ -330,6 +339,7 @@ export class MediaResourceOfflineCacheManager {
 			resourcePath,
 			mediaType,
 			this.getResourceNamespace(),
+			this.getServiceWorkerUrl(),
 		)
 	}
 
@@ -342,6 +352,7 @@ export class MediaResourceOfflineCacheManager {
 			resourcePath,
 			mediaType,
 			normalizeResourceNamespace(namespace),
+			this.getServiceWorkerUrl(),
 		)
 	}
 
@@ -629,7 +640,7 @@ export class MediaResourceOfflineCacheManager {
 	private async ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
 		if (!this.isOfflineCacheFeatureOn()) return null
 
-		const swUrl = this.options?.serviceWorkerUrl || getDefaultServiceWorkerUrl()
+		const swUrl = this.getServiceWorkerUrl()
 		const absoluteSwUrl = getAbsoluteServiceWorkerUrl(swUrl)
 		const existingPromise =
 			MediaResourceOfflineCacheManager.registrationPromises.get(absoluteSwUrl)
@@ -782,6 +793,7 @@ export class MediaResourceOfflineCacheManager {
 			...(cacheKey !== derivedCacheKey ? { cacheKey } : {}),
 		}
 		await requestToPromise(store.put(storedEntry))
+		await transactionToPromise(transaction)
 	}
 
 	private async getEntry(

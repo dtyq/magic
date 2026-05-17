@@ -24,6 +24,7 @@ const CACHE_NAME = `${CACHE_BASE_NAME}-v${OFFLINE_CACHE_VERSION}`
 const DEFAULT_MAX_BYTES = 1024 * 1024 * 1024
 const DEFAULT_RESOURCE_NAMESPACE = "__global__"
 const VIRTUAL_RESOURCE_PATH_SEGMENT = "/canvas-design-media/"
+const VIRTUAL_RESOURCE_ROUTE_MARKER = `/sw${VIRTUAL_RESOURCE_PATH_SEGMENT}`
 const VIRTUAL_RESOURCE_DESIGN_RESOURCE_SEGMENT = "/design-resource/"
 const VIRTUAL_RESOURCE_MEDIA_TYPES = new Set(["image", "video"])
 
@@ -170,12 +171,13 @@ function hasResourceChanged(previousEntry, metadata) {
 /** 从虚拟媒体 URL 解析出资源路径；解析结果须经 `normalizeResourcePathForLookup` 再参与 IDB 查找。 */
 function parseVirtualResourceRequest(url) {
 	const parsedUrl = new URL(url)
-	const segmentIndex = parsedUrl.pathname.indexOf(VIRTUAL_RESOURCE_PATH_SEGMENT)
+	// Anchor on the route marker to skip the SW scope prefix (/canvas-design-media/).
+	const segmentIndex = parsedUrl.pathname.indexOf(VIRTUAL_RESOURCE_ROUTE_MARKER)
 	if (segmentIndex < 0) return null
 
 	const resourceSegmentIndex = parsedUrl.pathname.indexOf(
 		VIRTUAL_RESOURCE_DESIGN_RESOURCE_SEGMENT,
-		segmentIndex + VIRTUAL_RESOURCE_PATH_SEGMENT.length,
+		segmentIndex + VIRTUAL_RESOURCE_ROUTE_MARKER.length,
 	)
 	if (resourceSegmentIndex < 0) return null
 
@@ -185,7 +187,7 @@ function parseVirtualResourceRequest(url) {
 	if (!rawResourcePath) return null
 
 	const rawNamespaceWithMediaType = parsedUrl.pathname.slice(
-		segmentIndex + VIRTUAL_RESOURCE_PATH_SEGMENT.length,
+		segmentIndex + VIRTUAL_RESOURCE_ROUTE_MARKER.length,
 		resourceSegmentIndex,
 	)
 	const rawNamespaceSegments = rawNamespaceWithMediaType.replace(/^\/+|\/+$/g, "").split("/")

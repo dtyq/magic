@@ -12,6 +12,7 @@ import keepConsole from "vite-plugin-keep-console"
 import babelPluginAntdStyle from "babel-plugin-antd-style"
 import { viteExternalsPlugin } from "vite-plugin-externals"
 import createCanvasDesignPublicAssetsPlugin from "./plugins/vite-plugin-canvas-design-public-assets"
+import createAppServiceWorkerPlugin from "./plugins/vite-plugin-app-service-worker"
 import vitePluginTransformBaseImports from "./plugins/vite-plugin-transform-base-imports"
 import vitePluginCriticalFontPreload from "./plugins/vite-plugin-font-preload"
 import { getViteEditionConfig } from "./vite/edition"
@@ -181,6 +182,7 @@ function getBaseViteConfig(): UserConfig {
 			],
 		},
 		plugins: [
+			createAppServiceWorkerPlugin(),
 			createCanvasDesignPublicAssetsPlugin(),
 			// Transform named imports from @/components/base to default imports
 			// 将 @/components/base 的命名导入转换为默认导入
