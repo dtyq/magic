@@ -2731,6 +2731,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
 
         $headers = $this->getCommonHeaders();
         $organizationCode = $headers['organization-code'];
+        $originalPublisherUserId = env('TEST2_USER_ID');
         $agent = SuperMagicAgentModel::query()
             ->where('code', $agentCode)
             ->where('organization_code', $organizationCode)
@@ -2759,7 +2760,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             'publish_status' => 'UNPUBLISHED',
             'review_status' => 'UNDER_REVIEW',
             'publish_target_type' => 'MARKET',
-            'publisher_user_id' => $headers['user-id'],
+            'publisher_user_id' => $originalPublisherUserId,
             'project_id' => 111,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
@@ -2797,6 +2798,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertEquals('111', (string) $version['project_id']);
         $this->assertTrue((bool) $version['is_current_version']);
         $this->assertNotEmpty($version['published_at']);
+        $this->assertEquals($originalPublisherUserId, $version['publisher_user_id']);
 
         $agent->refresh();
         $this->assertEquals($version['published_at'], $agent->latest_published_at?->format('Y-m-d H:i:s'));

@@ -521,7 +521,6 @@ class SkillVersionDomainService
         $skillVersion->setReviewRemark($reviewRemark);
         $skillVersion->setPublishTargetType(PublishTargetType::MARKET);
         $skillVersion->setPublishedAt(date('Y-m-d H:i:s'));
-        $skillVersion->setPublisherUserId($skillVersion->getCreatorId());
         $skillVersion->setIsCurrentVersion(true);
         $this->saveSkillVersion($dataIsolation, $skillVersion);
 

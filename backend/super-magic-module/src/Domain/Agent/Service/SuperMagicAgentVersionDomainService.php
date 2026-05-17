@@ -352,7 +352,6 @@ class SuperMagicAgentVersionDomainService
             $versionEntity->setPublishTargetType(PublishTargetType::MARKET);
             $versionEntity->setIsCurrentVersion(true);
             $versionEntity->setPublishedAt(date('Y-m-d H:i:s'));
-            $versionEntity->setPublisherUserId($versionEntity->getCreator());
             $versionEntity->setReviewStatus(ReviewStatus::APPROVED);
             $versionEntity->setPublishStatus(PublishStatus::PUBLISHED);
             $versionEntity->setReviewRemark($reviewRemark);

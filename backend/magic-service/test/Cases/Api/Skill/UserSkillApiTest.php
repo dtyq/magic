@@ -1358,6 +1358,10 @@ class UserSkillApiTest extends AbstractApiTest
         $organizationCode = $headers['organization-code'];
         $versionId = $publishResponse['data']['version_id'] ?? null;
         $this->assertNotNull($versionId, '应该创建了技能版本');
+        $originalPublisherUserId = env('TEST2_USER_ID');
+        SkillVersionModel::query()
+            ->where('id', $versionId)
+            ->update(['publisher_user_id' => $originalPublisherUserId]);
 
         // 测试审核通过
         $approveData = [
@@ -1381,6 +1385,7 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertNotNull($version);
         $this->assertEquals('PUBLISHED', $version['publish_status']);
         $this->assertEquals('APPROVED', $version['review_status']);
+        $this->assertEquals($originalPublisherUserId, $version['publisher_user_id']);
 
         $detailAfterApprove = $this->get(
             self::BASE_URI . '/' . $skillCode,
