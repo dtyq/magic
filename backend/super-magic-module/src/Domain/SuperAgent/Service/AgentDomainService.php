@@ -42,6 +42,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Exception\WorkspaceReadyTimeoutException;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\AskUserResponseMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
@@ -90,7 +91,7 @@ class AgentDomainService
         private readonly SuperMagicAgentRepositoryInterface $superMagicAgentRepository,
         private readonly MagicTokenRepositoryInterface $magicTokenRepository,
         private readonly LockerInterface $locker,
-        private readonly TopicDomainService $topicDomainService,
+        private readonly TopicRepositoryInterface $topicRepository,
         private readonly TaskMessageRepositoryInterface $taskMessageRepository,
         private readonly TaskFileRepositoryInterface $taskFileRepository,
     ) {
@@ -312,7 +313,8 @@ class AgentDomainService
                 sandboxID: $agentContext->getSandboxId(),
                 workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
                 projectSpaceRootFileId: $projectSpaceRootFileId,
-                userSpaceRootFileId: $userSpaceRootFileId
+                userSpaceRootFileId: $userSpaceRootFileId,
+                topicId: $topicEntity->getId()
             );
 
             if ($interruptChecker !== null && $interruptChecker()) {
@@ -373,7 +375,7 @@ class AgentDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = ''): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', ?int $topicId = null): string
     {
         // 获取用户 authorization token，用于沙箱创建时的身份验证
         $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
@@ -422,9 +424,23 @@ class AgentDomainService
             'agent_image' => $agentImage,
         ]);
 
-        // sandbox_id 即 topic_id，创建成功后立即持久化 agent 镜像版本
-        if (! empty($agentImage) && ! empty($returnedSandboxId)) {
-            $this->topicDomainService->updateTopicAgentImage($dataIsolation, (int) $returnedSandboxId, $agentImage);
+        // 创建成功后立即持久化 sandbox id 与 agent 镜像版本。优先使用调用方传入的 topic id，
+        // 避免自定义 sandbox_id 场景把 sandbox_id 误当成 topic_id。
+        $topicUpdateId = $topicId ?? ((string) (int) $returnedSandboxId === (string) $returnedSandboxId ? (int) $returnedSandboxId : 0);
+        if ($topicUpdateId > 0) {
+            $topicUpdateData = [
+                'updated_uid' => $dataIsolation->getCurrentUserId(),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+            if (! empty($returnedSandboxId)) {
+                $topicUpdateData['sandbox_id'] = (string) $returnedSandboxId;
+            }
+            if (! empty($agentImage)) {
+                $topicUpdateData['agent_image'] = $agentImage;
+            }
+            if (isset($topicUpdateData['sandbox_id']) || isset($topicUpdateData['agent_image'])) {
+                $this->topicRepository->updateTopicByCondition(['id' => $topicUpdateId], $topicUpdateData);
+            }
         }
 
         return $returnedSandboxId;
