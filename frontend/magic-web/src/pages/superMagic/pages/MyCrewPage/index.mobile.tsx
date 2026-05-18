@@ -408,7 +408,6 @@ function MyCrewPageMobilePanelBase() {
 				open={addSheetOpen}
 				onOpenChange={setAddSheetOpen}
 				onOpenMarket={handleOpenCrewMarket}
-				onCreateCustom={showPcOnlyNotice}
 			/>
 			<MyCrewFilterSheet
 				open={filterSheetOpen}
