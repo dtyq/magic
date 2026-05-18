@@ -88,7 +88,8 @@ export function useAutoOpenFile() {
 
 			const isTaskFinished =
 				lastMessageNode?.status === TaskStatus.FINISHED ||
-				lastMessageNode?.status === TaskStatus.ERROR
+				lastMessageNode?.status === TaskStatus.ERROR ||
+                lastMessageNode?.status === TaskStatus.SUSPENDED
 
 			if (!isTaskFinished) return
 
