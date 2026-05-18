@@ -43,6 +43,8 @@ class MagicFSFileDTO
 
     public int $version = 1;
 
+    public int $latest_version = 1;
+
     /**
      * @var array<MagicFSFileDTO>
      */
@@ -108,6 +110,7 @@ class MagicFSFileDTO
         $dto->updated_at = $entity->getUpdatedAt();
         // 改为使用 metadata_version，用于 MagicFS 缓存失效检测
         $dto->version = $entity->getMetadataVersion();
+        $dto->latest_version = $entity->getLatestVersion();
 
         return $dto;
     }
@@ -131,6 +134,7 @@ class MagicFSFileDTO
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'version' => $this->version,
+            'latest_version' => $this->latest_version,
         ];
 
         // 如果有子节点，则包含 children 字段
