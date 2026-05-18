@@ -46,6 +46,17 @@ export function CollapsibleDescription({
 	const ToggleIcon = isExpanded ? ChevronUp : ChevronDown
 	const toggleLabel = isExpanded ? collapseLabel : expandLabel
 
+	function handleToggleClick(event: React.MouseEvent<HTMLButtonElement>) {
+		event.preventDefault()
+		event.stopPropagation()
+		onToggle(event)
+	}
+
+	function handleTogglePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
+		event.preventDefault()
+		event.stopPropagation()
+	}
+
 	return (
 		<div
 			className={cn(
@@ -70,7 +81,8 @@ export function CollapsibleDescription({
 					aria-label={toggleLabel}
 					title={toggleLabel}
 					aria-expanded={isExpanded}
-					onClick={onToggle}
+					onPointerDown={handleTogglePointerDown}
+					onClick={handleToggleClick}
 					onKeyDown={(event) => event.stopPropagation()}
 					data-testid="collapsible-description-toggle"
 				>
