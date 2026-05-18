@@ -2322,6 +2322,7 @@
 		"shareMessageDashboard": "I've shared a data analytics dashboard with you:",
 		"shareMessageDesign": "I've shared a canvas with you:",
 		"shareMessageMultipleFiles": "I've shared some files with you ({{count}} files in total):",
+		"shareMessageMultipleFilesFile": "📄 File: {{shareName}}",
 		"shareMessageMultipleFilesLink": "🔗 Access link: {{shareUrl}}",
 		"shareMessageMultipleFilesTip": "💡 Click the link to view the files directly.",
 		"shareMessageProject": "I've shared a project with you:",

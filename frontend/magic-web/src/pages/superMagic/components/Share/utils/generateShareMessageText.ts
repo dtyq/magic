@@ -4,6 +4,7 @@ import { userStore } from "@/models/user"
 interface GenerateShareMessageTextParams {
 	fileCount: number
 	mainFileName: string
+	shareName: string
 	projectName?: string
 	shareProject?: boolean
 	shareUrl: string
@@ -16,8 +17,18 @@ interface GenerateShareMessageTextParams {
  * 与 ShareSuccessModal 中的逻辑保持一致
  */
 export function generateShareMessageText(params: GenerateShareMessageTextParams): string {
-	const { fileCount, mainFileName, projectName, shareProject, shareUrl, fileDisplayConfig, t } =
-		params
+	const {
+		fileCount,
+		mainFileName,
+		shareName,
+		projectName,
+		shareProject,
+		shareUrl,
+		fileDisplayConfig,
+		t,
+	} = params
+
+    console.log("shareName",shareName)
 
 	const lines: string[] = []
 
@@ -63,6 +74,7 @@ export function generateShareMessageText(params: GenerateShareMessageTextParams)
 	} else {
 		// 多个文件分享
 		lines.push(t("share.shareMessageMultipleFiles", { count: fileCount }))
+		lines.push(t("share.shareMessageMultipleFilesFile", { shareName }))
 		lines.push(t("share.shareMessageMultipleFilesLink", { shareUrl }))
 		lines.push(t("share.shareMessageMultipleFilesTip"))
 	}

@@ -2324,6 +2324,7 @@
 		"shareMessageDashboard": "我分享了一个数据分析仪表板给你:",
 		"shareMessageDesign": "我分享了一个画布给你:",
 		"shareMessageMultipleFiles": "我分享了一些文件给你 (共 {{count}} 个文件):",
+		"shareMessageMultipleFilesFile": "📄 文件：{{shareName}}",
 		"shareMessageMultipleFilesLink": "🔗 访问链接: {{shareUrl}}",
 		"shareMessageMultipleFilesTip": "💡 点击链接即可直接查看文件内容。",
 		"shareMessageProject": "我分享了一个项目给你：",
