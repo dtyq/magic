@@ -1,25 +1,24 @@
 import { ChevronDown, ChevronUp } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
-import type React from "react"
 
-interface ModelDescriptionProps {
+interface CollapsibleDescriptionProps {
 	description?: string
-	isDisabled: boolean
+	isDisabled?: boolean
 	isExpanded: boolean
 	expandLabel: string
 	collapseLabel: string
 	onToggle: (event: React.MouseEvent<HTMLButtonElement>) => void
 }
 
-export function ModelDescription({
+export function CollapsibleDescription({
 	description,
 	isDisabled,
 	isExpanded,
 	expandLabel,
 	collapseLabel,
 	onToggle,
-}: ModelDescriptionProps) {
+}: CollapsibleDescriptionProps) {
 	const descriptionRef = useRef<HTMLDivElement>(null)
 	const [canToggle, setCanToggle] = useState(false)
 
@@ -73,7 +72,7 @@ export function ModelDescription({
 					aria-expanded={isExpanded}
 					onClick={onToggle}
 					onKeyDown={(event) => event.stopPropagation()}
-					data-testid="model-description-toggle"
+					data-testid="collapsible-description-toggle"
 				>
 					<ToggleIcon className="size-3" strokeWidth={2} />
 				</button>

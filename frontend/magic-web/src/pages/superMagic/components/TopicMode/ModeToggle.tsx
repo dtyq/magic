@@ -35,6 +35,7 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MessageEditorSize } from "../MessageEditor/types"
+import { CollapsibleDescription } from "../MessageEditor/components/ModelSwitch/components/CollapsibleDescription"
 import { DrawerTitle } from "@/components/shadcn-ui/drawer"
 import ModeAvatar from "../ModeAvatar"
 
@@ -97,6 +98,9 @@ function ModeToggle({
 	const modeList = superMagicModeService.modeList
 	const popoverTargetRef = useRef<HTMLElement | null>(null)
 	const modeListScrollRef = useRef<HTMLDivElement | null>(null)
+	const [expandedModeDescriptions, setExpandedModeDescriptions] = useState<Record<string, boolean>>(
+		{},
+	)
 
 	useFeaturedModeListRefreshOnFirstOpen(open)
 
@@ -236,6 +240,17 @@ function ModeToggle({
 		)
 	})
 
+	function toggleModeDescription(
+		modeIdentifier: string,
+		event: ReactMouseEvent<HTMLButtonElement>,
+	) {
+		event.stopPropagation()
+		setExpandedModeDescriptions((prev) => ({
+			...prev,
+			[modeIdentifier]: !prev[modeIdentifier],
+		}))
+	}
+
 	const renderModeItemInner = useMemoizedFn(
 		(tab: CrewItem, isSelected: boolean, compact: boolean) => {
 			const modeLabel = resolveModeText(tab.mode.name, tCrewCreate("untitledCrew"))
@@ -260,9 +275,15 @@ function ModeToggle({
 								{modeLabel}
 							</div>
 							{!compact && modeDescription ? (
-								<div className="text-xs leading-4 text-muted-foreground">
-									{modeDescription}
-								</div>
+								<CollapsibleDescription
+									description={modeDescription}
+									isExpanded={!!expandedModeDescriptions[tab.mode.identifier]}
+									expandLabel={t("messageEditor.modelSwitch.expandDescription")}
+									collapseLabel={t("messageEditor.modelSwitch.collapseDescription")}
+									onToggle={(event) =>
+										toggleModeDescription(tab.mode.identifier, event)
+									}
+								/>
 							) : null}
 						</div>
 					</div>

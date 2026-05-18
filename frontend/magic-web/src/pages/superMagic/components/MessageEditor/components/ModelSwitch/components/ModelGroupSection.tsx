@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import type React from "react"
 import type { ModelItem, ModelListGroup, MessageEditorSize } from "../types"
 import { isModelDisabled } from "../utils"
-import { ModelDescription } from "./ModelDescription"
+import { CollapsibleDescription } from "./CollapsibleDescription"
 import ModelIcon from "./ModelIcon"
 import ModelName from "./ModelName"
 import ModelTags from "./ModelTags"
@@ -99,7 +99,7 @@ export function ModelGroupSection({
 										/>
 										<ModelTags model={model} />
 									</FlexBox>
-									<ModelDescription
+									<CollapsibleDescription
 										description={description}
 										isDisabled={isDisabled}
 										isExpanded={!!expandedDescriptions[model.model_id]}
