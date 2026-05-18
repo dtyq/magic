@@ -67,6 +67,8 @@ const EMOJIS_SCOPE_PREFIX = "/emojis/"
 
 // Built-in fallback hosts for third-party vendor assets when runtime config provides none.
 const DEFAULT_VENDOR_CACHEABLE_HOSTS = ["cdn.jsdelivr.net"]
+const DEFAULT_WORKBOX_RUNTIME_URL =
+	"https://cdn.jsdelivr.net/npm/workbox-sw@7.4.1/build/workbox-sw.js"
 
 /**
  * 解析本次 SW 注册透传的 Workbox 地址。
@@ -177,10 +179,15 @@ function isCacheableVendorAsset({ request, url }: WorkboxRouteContext): boolean 
 }
 
 const configuredWorkboxRuntimeUrl = getConfiguredWorkboxRuntimeUrl()
+const resolvedWorkboxRuntimeUrl = configuredWorkboxRuntimeUrl || DEFAULT_WORKBOX_RUNTIME_URL
 
 if (!configuredWorkboxRuntimeUrl) {
-	console.error("[sw] Missing workboxCdnUrl in service worker registration URL")
-} else if (loadWorkboxRuntime(configuredWorkboxRuntimeUrl)) {
+	console.warn(
+		"[sw] Missing workboxCdnUrl in service worker registration URL, fallback to default runtime URL",
+	)
+}
+
+if (loadWorkboxRuntime(resolvedWorkboxRuntimeUrl)) {
 	workbox.setConfig?.({ debug: false })
 
 	const { registerRoute } = workbox.routing
@@ -300,7 +307,10 @@ if (!configuredWorkboxRuntimeUrl) {
 		}),
 	)
 } else {
-	console.error("[sw] Failed to load Workbox runtime from configured URL")
+	console.error("[sw] Failed to load Workbox runtime", {
+		attemptedUrl: resolvedWorkboxRuntimeUrl,
+		configuredUrl: configuredWorkboxRuntimeUrl,
+	})
 }
 
 sw.addEventListener("message", (event) => {

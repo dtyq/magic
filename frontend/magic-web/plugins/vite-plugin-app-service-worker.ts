@@ -47,6 +47,9 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 
 				res.statusCode = 200
 				res.setHeader("Content-Type", "application/javascript; charset=utf-8")
+				res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+				res.setHeader("Pragma", "no-cache")
+				res.setHeader("Expires", "0")
 				res.setHeader("Service-Worker-Allowed", "/")
 				res.end(transformedSource)
 			})

@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
 	activateWaitingServiceWorkerAndReload,
-	isCanvasMediaPath,
 	markServiceWorkerCacheableResourceUrl,
 	registerAppServiceWorker,
 } from "../register"
@@ -13,11 +12,6 @@ async function flushMicrotasks(times = 4): Promise<void> {
 }
 
 describe("service worker path guards", () => {
-	it("skips canvas media virtual resources", () => {
-		expect(isCanvasMediaPath("/canvas-design-media/image/a")).toBe(true)
-		expect(isCanvasMediaPath("/api/user")).toBe(false)
-	})
-
 	it("marks explicit cacheable resources with sw cache query", () => {
 		expect(markServiceWorkerCacheableResourceUrl("/dotlottie/dotlottie-player.wasm")).toBe(
 			"/dotlottie/dotlottie-player.wasm?swCache=runtime",
@@ -117,5 +111,116 @@ describe("registerAppServiceWorker", () => {
 			"public-cdn.example.com,assets.example.com,cdn.jsdelivr.net",
 		)
 		expect(options).toEqual({ scope: "/" })
+	})
+
+	it("still registers in development when force enable flag is true", async () => {
+		const register = vi.fn().mockResolvedValue({})
+		vi.stubEnv("MAGIC_MOCK", "false")
+		vi.stubEnv("MAGIC_FORCE_ENABLE_SW_IN_DEV", "true")
+
+		Object.defineProperty(document, "readyState", {
+			configurable: true,
+			value: "complete",
+		})
+
+		Object.defineProperty(navigator, "serviceWorker", {
+			configurable: true,
+			value: {
+				register,
+				getRegistrations: vi.fn().mockResolvedValue([]),
+			},
+		})
+
+		registerAppServiceWorker()
+		await flushMicrotasks()
+
+		expect(register).toHaveBeenCalledTimes(1)
+	})
+
+	it("auto activates waiting worker on browser reload", async () => {
+		const postMessage = vi.fn()
+		const register = vi.fn().mockResolvedValue({
+			waiting: { postMessage },
+			addEventListener: vi.fn(),
+			installing: null,
+		})
+
+		vi.spyOn(window.performance, "getEntriesByType").mockImplementation((entryType: string) => {
+			if (entryType === "navigation") {
+				return [{ type: "reload" }] as PerformanceEntry[]
+			}
+			return []
+		})
+
+		Object.defineProperty(document, "readyState", {
+			configurable: true,
+			value: "complete",
+		})
+
+		Object.defineProperty(navigator, "serviceWorker", {
+			configurable: true,
+			value: {
+				register,
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+			},
+		})
+
+		registerAppServiceWorker()
+		await flushMicrotasks()
+
+		expect(postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" })
+	})
+
+	it("auto activates waiting worker when installing transitions to installed on reload", async () => {
+		const postMessage = vi.fn()
+		let installingStateChangeHandler: (() => void) | null = null
+		const installingWorker = {
+			state: "installing",
+			addEventListener: vi.fn((eventName: string, callback: () => void) => {
+				if (eventName === "statechange") {
+					installingStateChangeHandler = callback
+				}
+			}),
+			removeEventListener: vi.fn(),
+		} as unknown as ServiceWorker
+
+		const registration = {
+			waiting: null,
+			installing: installingWorker,
+			addEventListener: vi.fn(),
+		} as unknown as ServiceWorkerRegistration
+
+		const register = vi.fn().mockResolvedValue(registration)
+
+		vi.spyOn(window.performance, "getEntriesByType").mockImplementation((entryType: string) => {
+			if (entryType === "navigation") {
+				return [{ type: "reload" }] as PerformanceEntry[]
+			}
+			return []
+		})
+
+		Object.defineProperty(document, "readyState", {
+			configurable: true,
+			value: "complete",
+		})
+
+		Object.defineProperty(navigator, "serviceWorker", {
+			configurable: true,
+			value: {
+				register,
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+			},
+		})
+
+		registerAppServiceWorker()
+		await flushMicrotasks()
+
+		Object.assign(installingWorker, { state: "installed" })
+		Object.assign(registration, { waiting: { postMessage } })
+		installingStateChangeHandler?.()
+
+		expect(postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" })
 	})
 })

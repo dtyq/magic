@@ -1,24 +1,38 @@
+
+import { env } from "@/utils/env"
+
 const APP_SERVICE_WORKER_URL = "/sw.js"
 const APP_SERVICE_WORKER_SCOPE = "/"
+// Query params passed to /sw.js at registration time so the worker can read runtime config.
 const WORKBOX_CDN_QUERY_PARAM = "workboxCdnUrl"
 const VENDOR_CACHEABLE_HOSTS_QUERY_PARAM = "vendorCacheHosts"
 const RESOURCE_CACHE_MARK_QUERY_PARAM = "swCache"
 const RESOURCE_CACHE_VERSION_QUERY_PARAM = "swv"
 const MARKED_RUNTIME_RESOURCE_CACHE_VALUE = "runtime"
-// TODO: 后续替换为自己的 CDN 地址（使用 MAGIC_CDNHOST 或 packages 发布链路）
+// TODO: Replace with first-party CDN URL derived from runtime config.
 const WORKBOX_JSDELIVR_FALLBACK_URL = "https://cdn.jsdelivr.net/npm/workbox-sw@7.4.1/build/workbox-sw.js"
-const CANVAS_MEDIA_SCOPE_PREFIX = "/canvas-design-media/"
+// Wait briefly for controllerchange after posting SKIP_WAITING; then fallback to a plain reload.
 const WAITING_ACTIVATION_TIMEOUT_MS = 1500
 const DEFAULT_VENDOR_CACHEABLE_HOSTS = ["cdn.jsdelivr.net"]
 
+// Keep the latest app SW registration so update prompts can reuse it.
 let appServiceWorkerRegistration: ServiceWorkerRegistration | null = null
+
+interface ReloadActivationContext {
+	// One-shot guard for a single register() lifecycle to avoid repeated auto-activation attempts.
+	triggered: boolean
+}
 
 function isDevelopmentMode(): boolean {
 	return import.meta.env.DEV
 }
 
 function isLocalMockEnabled(): boolean {
-	return import.meta.env.MAGIC_MOCK === "true"
+	return env("MAGIC_MOCK") === "true"
+}
+
+function isForceEnableServiceWorkerInDevelopment(): boolean {
+	return env("MAGIC_FORCE_ENABLE_SW_IN_DEV") === "true"
 }
 
 function isAppServiceWorkerWorker(
@@ -54,14 +68,8 @@ async function unregisterAppServiceWorkers(): Promise<void> {
 }
 
 /**
- * 判断路径是否属于 Canvas 媒体虚拟资源。
- */
-export function isCanvasMediaPath(pathname: string): boolean {
-	return pathname.startsWith(CANVAS_MEDIA_SCOPE_PREFIX)
-}
-
-/**
- * 为缺少稳定命名特征的同源资源显式打上 SW 缓存标记。
+	* Mark fixed-name same-origin resources so the SW can cache them via explicit route rules.
+	* This is used for assets like wasm/worker files that do not have hashed filenames.
  */
 export function markServiceWorkerCacheableResourceUrl(
 	resourceUrl: string,
@@ -92,17 +100,19 @@ export function markServiceWorkerCacheableResourceUrl(
 }
 
 /**
- * 获取最近一次主 SW 注册结果，供更新提示入口复用。
+	* Return the most recent app SW registration instance.
+	* Update notification UIs call this to activate waiting workers on user action.
  */
 export function getAppServiceWorkerRegistration(): ServiceWorkerRegistration | null {
 	return appServiceWorkerRegistration
 }
 
 /**
- * 从 MAGIC_CDNHOST 推导 Workbox 地址，统一复用 packages 资源发布链路。
+	* Resolve the Workbox runtime URL used by /sw.js.
+	* Kept as a function so we can switch to environment-driven CDN mapping later.
  */
 function getConfiguredWorkboxCdnUrl(): string {
-	// TODO: 后续改为从 MAGIC_CDNHOST 推导自己的 CDN 地址
+	// TODO: Derive from MAGIC_CDNHOST after CDN rollout is finalized.
 	return WORKBOX_JSDELIVR_FALLBACK_URL
 }
 
@@ -117,8 +127,70 @@ function getHostnameFromUrl(rawUrl: string | undefined): string | null {
 	}
 }
 
+function isReloadNavigation(): boolean {
+	if (typeof window === "undefined") return false
+	if (typeof performance.getEntriesByType !== "function") return false
+
+	// We only auto-activate waiting workers when the user explicitly reloads the page.
+	const [navigationEntry] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[]
+	return navigationEntry?.type === "reload"
+}
+
+function tryAutoActivateWaitingServiceWorkerOnReload(
+	registration: ServiceWorkerRegistration,
+	context: ReloadActivationContext,
+): void {
+	// Keep regular in-app navigation non-intrusive; only act on hard reload.
+	if (!isReloadNavigation()) return
+	// One-shot guard for this registration attempt.
+	if (context.triggered) return
+	// Nothing to activate yet.
+	if (!registration.waiting) return
+
+	context.triggered = true
+	// Trigger waiting -> active transition and reload once control is switched.
+	void activateWaitingServiceWorkerAndReload(registration)
+}
+
+function watchInstallingWorkerForReloadActivation(
+	registration: ServiceWorkerRegistration,
+	context: ReloadActivationContext,
+): void {
+	if (!isReloadNavigation()) return
+
+	// A registration can expose multiple installing workers across update cycles.
+	// Keep listeners idempotent to avoid duplicate SKIP_WAITING posts.
+	const watchedWorkers = new WeakSet<ServiceWorker>()
+
+	const watchInstallingWorker = (worker: ServiceWorker | null): void => {
+		if (!worker || watchedWorkers.has(worker)) return
+		watchedWorkers.add(worker)
+
+		const handleStateChange = () => {
+			// "installed" means a candidate worker may now be in registration.waiting.
+			if (worker.state === "installed") {
+				tryAutoActivateWaitingServiceWorkerOnReload(registration, context)
+			}
+
+			// Remove listeners once this worker is done evolving.
+			if (worker.state === "installed" || worker.state === "redundant") {
+				worker.removeEventListener("statechange", handleStateChange)
+			}
+		}
+
+		worker.addEventListener("statechange", handleStateChange)
+	}
+
+	watchInstallingWorker(registration.installing)
+	// Future update cycles on the same registration may create new installing workers.
+	registration.addEventListener("updatefound", () => {
+		watchInstallingWorker(registration.installing)
+	})
+}
+
 /**
- * 从运行时配置推导允许进入 vendor 桶的 host 列表，避免在 SW 中写死环境相关域名。
+	* Build allowlisted vendor hosts from runtime config.
+	* This avoids hardcoding environment-specific CDN domains in worker code.
  */
 function getConfiguredVendorCacheHosts(): string[] {
 	const configuredHosts: string[] = []
@@ -133,7 +205,8 @@ function getConfiguredVendorCacheHosts(): string[] {
 }
 
 /**
- * 生成主 SW 注册地址，并在 query 中携带 Workbox CDN 配置。
+	* Build the /sw.js registration URL with runtime query params.
+	* The worker reads these params from self.location.href.
  */
 function getAppServiceWorkerUrl(): string {
 	const workboxCdnUrl = getConfiguredWorkboxCdnUrl()
@@ -148,18 +221,24 @@ function getAppServiceWorkerUrl(): string {
 }
 
 /**
- * 在页面 load 后注册主 SW，避免阻塞首屏渲染。
+	* Register the app service worker after page load to avoid first-render contention.
+	* On reload navigation, opportunistically activate waiting workers to make updates
+	* effective on this refresh cycle whenever possible.
  */
 export function registerAppServiceWorker(): void {
 	if (typeof window === "undefined" || !("serviceWorker" in navigator)) return
-	if (isDevelopmentMode() && !isLocalMockEnabled()) {
+	if (
+		isDevelopmentMode()
+		&& !isLocalMockEnabled()
+		&& !isForceEnableServiceWorkerInDevelopment()
+	) {
 		void unregisterAppServiceWorkers()
 		return
 	}
 
-	/**
-	 * 执行真实注册并缓存 registration，供后续 waiting 激活复用。
-	 */
+	// Scope auto-activation deduplication to one register() execution path.
+	const reloadActivationContext: ReloadActivationContext = { triggered: false }
+
 	async function handleRegister() {
 		try {
 			appServiceWorkerRegistration = await navigator.serviceWorker.register(
@@ -167,6 +246,17 @@ export function registerAppServiceWorker(): void {
 				{
 					scope: APP_SERVICE_WORKER_SCOPE,
 				},
+			)
+
+			// Cover timing gap: register() may return before waiting is available.
+			// We listen for installing/updatefound and also perform an immediate waiting check.
+			watchInstallingWorkerForReloadActivation(
+				appServiceWorkerRegistration,
+				reloadActivationContext,
+			)
+			tryAutoActivateWaitingServiceWorkerOnReload(
+				appServiceWorkerRegistration,
+				reloadActivationContext,
 			)
 		} catch {
 			appServiceWorkerRegistration = null
@@ -188,7 +278,9 @@ export function registerAppServiceWorker(): void {
 }
 
 /**
- * 用户确认刷新后，优先激活 waiting SW；若激活事件迟迟未到，则退回一次普通刷新。
+	* Activate a waiting SW and then reload.
+	* If controllerchange does not arrive in time, fallback to a plain reload so the
+	* user is never blocked by update orchestration.
  */
 export async function activateWaitingServiceWorkerAndReload(
 	registration: ServiceWorkerRegistration | null,
@@ -207,17 +299,13 @@ export async function activateWaitingServiceWorkerAndReload(
 	await new Promise<void>((resolve) => {
 		let finished = false
 
-		/**
-		 * 清理本次 waiting 激活的监听器和超时句柄，避免重复刷新。
-		 */
+		// Remove temporary listeners/timers to prevent duplicate reloads.
 		function cleanup(timeoutId: number, handleControllerChange: () => void): void {
 			window.clearTimeout(timeoutId)
 			navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange)
 		}
 
-		/**
-		 * 在 controllerchange 或超时兜底时执行一次刷新，并结束等待。
-		 */
+		// Complete exactly once on success signal or timeout fallback.
 		function finish(timeoutId: number, handleControllerChange: () => void): void {
 			if (finished) return
 			finished = true
@@ -226,13 +314,12 @@ export async function activateWaitingServiceWorkerAndReload(
 			resolve()
 		}
 
-		/**
-		 * 新 SW 接管当前页面后刷新，确保页面被最新控制器管理。
-		 */
+		// Controller switched: refresh under the new active SW.
 		function handleControllerChange(): void {
 			finish(timeoutId, handleControllerChange)
 		}
 
+		// If no controllerchange arrives, still reload once as a safe fallback path.
 		const timeoutId = window.setTimeout(() => {
 			finish(timeoutId, handleControllerChange)
 		}, WAITING_ACTIVATION_TIMEOUT_MS)

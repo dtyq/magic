@@ -66,6 +66,8 @@ interface ImportMetaEnv {
 	readonly MAGIC_APM?: string
 	/** 开发环境是否启用 MSW mock（需配合 .env 中 MAGIC_MOCK=true） */
 	readonly MAGIC_MOCK?: string
+	/** 开发环境下是否强制启用 App Service Worker（用于 SW 调试） */
+	readonly MAGIC_FORCE_ENABLE_SW_IN_DEV?: string
 }
 
 interface ImportMeta {
