@@ -59,7 +59,9 @@ const CACHE_TTL_60_DAYS = SECONDS_PER_DAY * 60
 // so the character class must cover [A-Za-z0-9_-] to avoid missing ~20% of files.
 const HASHED_ASSET_PATTERN = /\/assets\/.+-[A-Za-z0-9_-]{6,}\.(js|css)$/
 const HASHED_IMAGE_ASSET_PATTERN = /\/assets\/.+-[A-Za-z0-9_-]{6,}\.(png|jpe?g|webp|gif|svg|avif)$/
-const CANVAS_MEDIA_SCOPE_PREFIX = "/canvas-design-media/"
+// Virtual canvas media URLs are built as /sw/canvas-design-media/{namespace}/{mediaType}/design-resource/{path}.
+// The prefix must include the leading /sw/ segment to match what MediaResourceOfflineCacheManager generates.
+const CANVAS_MEDIA_SCOPE_PREFIX = "/sw/canvas-design-media/"
 const PACKAGES_SCOPE_PREFIX = "/packages/"
 const EMOJIS_SCOPE_PREFIX = "/emojis/"
 
