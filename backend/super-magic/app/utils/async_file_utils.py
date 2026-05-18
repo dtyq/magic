@@ -969,6 +969,35 @@ async def get_metadata_version_from_xattr(filepath: Union[str, Path]) -> Optiona
     return await asyncio.to_thread(_read_magicfs_metadata_version, str(filepath))
 
 
+def _read_magicfs_content_version(filepath: str) -> Optional[str]:
+    """Synchronous xattr read for content_version, intended to run in a thread pool."""
+    try:
+        raw = os.getxattr(filepath, "user.magicfs.content_version")  # type: ignore[attr-defined]
+        return raw.decode("utf-8").strip("\"'")
+    except (OSError, AttributeError):
+        return None
+
+
+async def get_content_version_from_xattr(filepath: Union[str, Path]) -> Optional[str]:
+    """
+    Read the magicfs content version from extended attributes (user.magicfs.content_version).
+
+    Runs in a thread pool via ``asyncio.to_thread`` because magicfs is a
+    FUSE-based filesystem where xattr reads involve user-space IPC and can
+    block the event loop for a non-trivial amount of time.
+
+    Only available on Linux; returns None silently on other platforms or when
+    the attribute is absent.
+
+    Args:
+        filepath: path to the file or directory
+
+    Returns:
+        Optional[str]: the content version string, or None when unavailable
+    """
+    return await asyncio.to_thread(_read_magicfs_content_version, str(filepath))
+
+
 async def async_iterdir(path: Union[str, Path]) -> list[Path]:
     """
     异步遍历目录内容，返回 Path 对象列表
