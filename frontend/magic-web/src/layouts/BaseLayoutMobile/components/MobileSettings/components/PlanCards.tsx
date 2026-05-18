@@ -1,19 +1,20 @@
 import { ChevronRight, Sparkles } from "lucide-react"
+import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 
 import { userStore } from "@/models/user"
 
-/** 免费版卡片按原型保留“升级能力”视觉，突出单一 CTA。 */
-export function MobileSettingsFreePlanCard(props: { onUpgrade: () => void }) {
+/** 免费版卡片按原型保留"升级能力"视觉，突出单一 CTA。 */
+export const MobileSettingsFreePlanCard = observer(function MobileSettingsFreePlanCard(props: {
+	onUpgrade: () => void
+}) {
 	const { onUpgrade } = props
 	const { t } = useTranslation("interface")
+	const { isAdmin, isPersonalOrganization } = userStore.user
+	const canOperate = isAdmin || isPersonalOrganization
 
 	return (
-		<button
-			type="button"
-			onClick={onUpgrade}
-			className="relative my-1 w-full rounded-xl border border-primary/20 bg-card px-4 py-3.5 text-left shadow-sm ring-1 ring-primary/10 transition-opacity active:opacity-90"
-		>
+		<div className="relative my-1 w-full rounded-xl border border-primary/20 bg-card px-4 py-3.5 text-left shadow-sm ring-1 ring-primary/10">
 			<Sparkles className="absolute right-5 top-5 h-5 w-5 text-foreground/70" />
 			<div className="pr-10">
 				<div className="text-sm font-semibold leading-5 text-foreground">
@@ -23,27 +24,33 @@ export function MobileSettingsFreePlanCard(props: { onUpgrade: () => void }) {
 					{t("setting.planCard.freeDescription")}
 				</div>
 			</div>
-			<div className="mt-3 flex h-9 items-center justify-center rounded-full bg-foreground text-sm font-medium text-background">
-				{t("setting.planCard.upgradeNow")}
-			</div>
-		</button>
+			{canOperate && (
+				<button
+					type="button"
+					onClick={onUpgrade}
+					className="mt-3 flex h-9 w-full items-center justify-center rounded-full bg-foreground text-sm font-medium text-background transition-opacity active:opacity-90"
+				>
+					{t("setting.planCard.upgradeNow")}
+				</button>
+			)}
+		</div>
 	)
-}
+})
 
 /** 付费版卡片展示当前套餐与续费信息，样式对齐原型的深色订阅卡。 */
-export function MobileSettingsPaidPlanCard(props: { onUpgrade: () => void }) {
+export const MobileSettingsPaidPlanCard = observer(function MobileSettingsPaidPlanCard(props: {
+	onUpgrade: () => void
+}) {
 	const { onUpgrade } = props
 	const { t } = useTranslation("interface")
 	const subscriptionInfo = userStore.user.organizationSubscriptionInfo
+	const { isAdmin, isPersonalOrganization } = userStore.user
+	const canOperate = isAdmin || isPersonalOrganization
 	const planName = subscriptionInfo?.name || t("bonusPointsModal.personalVersion")
 	const renewalDate = subscriptionInfo?.end_date
 
 	return (
-		<button
-			type="button"
-			onClick={onUpgrade}
-			className="relative w-full rounded-xl bg-zinc-950 px-4 py-3.5 text-left text-white shadow-lg shadow-black/10 transition-opacity active:opacity-90"
-		>
+		<div className="relative w-full rounded-xl bg-zinc-950 px-4 py-3.5 text-left text-white shadow-lg shadow-black/10">
 			<svg
 				viewBox="0 0 400 160"
 				preserveAspectRatio="none"
@@ -82,11 +89,17 @@ export function MobileSettingsPaidPlanCard(props: { onUpgrade: () => void }) {
 							: ""}
 					</div>
 				</div>
-				<div className="mt-0.5 flex shrink-0 items-center gap-1 text-sm font-medium">
-					<span>{t("setting.planCard.manage")}</span>
-					<ChevronRight className="h-4 w-4" />
-				</div>
+				{canOperate && (
+					<button
+						type="button"
+						onClick={onUpgrade}
+						className="mt-0.5 flex shrink-0 items-center gap-1 text-sm font-medium transition-opacity active:opacity-90"
+					>
+						<span>{t("setting.planCard.manage")}</span>
+						<ChevronRight className="h-4 w-4" />
+					</button>
+				)}
 			</div>
-		</button>
+		</div>
 	)
-}
+})

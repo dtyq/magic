@@ -8,6 +8,8 @@ import { Button } from "@/components/shadcn-ui/button"
 import { userStore } from "@/models/user"
 import { useTimezone } from "@/providers/TimezoneProvider/hooks"
 import { cn } from "@/lib/utils"
+import { isPrivateDeployment } from "@/utils/env"
+import MagicModal from "@/components/base/MagicModal"
 import {
 	MOBILE_SETTINGS_CARD_CLASSNAME,
 	MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
@@ -32,9 +34,25 @@ export function MobileSettingsPointsSheet(props: { open: boolean; onClose: () =>
 	const { open, onClose } = props
 	const { t } = useTranslation("interface")
 	const { points, canRecharge } = getMobileSettingsPointsPurchaseState()
+	const { isAdmin, isPersonalOrganization } = userStore.user
+	const canOperate = isAdmin || isPersonalOrganization
+	const privateDeploy = isPrivateDeployment()
 
 	/** 充值按钮统一委托给能力注入层，缺少实现时回退到占位提示。 */
 	const handleOpenRecharge = useMemoizedFn(() => {
+		if (!canOperate) {
+			const modal = MagicModal.info({
+				icon: null,
+				closable: false,
+				title: t("bonusPointsModal.contactAdmin"),
+				content: t("bonusPointsModal.contactAdminContent"),
+				centered: true,
+				onOk: () => modal.destroy(),
+				okText: t("common.confirm"),
+			})
+			return
+		}
+
 		openMobileSettingsPointsRecharge(() => {
 			toast.info(t("setting.comingSoon"))
 		})
@@ -53,25 +71,27 @@ export function MobileSettingsPointsSheet(props: { open: boolean; onClose: () =>
 			dataTestId="mobile-settings-points-sheet"
 		>
 			<div className="flex flex-col gap-4">
-				<div className={MOBILE_SETTINGS_CARD_CLASSNAME}>
-					<div className="text-sm font-medium text-foreground">
-						{canRecharge
-							? t("bonusPointsModal.availablePointsPackage")
-							: t("setting.pointsPurchase.lockedTitle")}
+				{!privateDeploy && (
+					<div className={MOBILE_SETTINGS_CARD_CLASSNAME}>
+						<div className="text-sm font-medium text-foreground">
+							{canRecharge
+								? t("bonusPointsModal.availablePointsPackage")
+								: t("setting.pointsPurchase.lockedTitle")}
+						</div>
+						<div className="mt-1 text-sm text-muted-foreground">
+							{canRecharge
+								? t("bonusPointsModal.purchasePointsTip")
+								: t("setting.pointsPurchase.lockedDescription")}
+						</div>
+						<Button
+							type="button"
+							className="mt-3 rounded-full px-4"
+							onClick={handleOpenRecharge}
+						>
+							{t("bonusPointsModal.goToRecharge")}
+						</Button>
 					</div>
-					<div className="mt-1 text-sm text-muted-foreground">
-						{canRecharge
-							? t("bonusPointsModal.purchasePointsTip")
-							: t("setting.pointsPurchase.lockedDescription")}
-					</div>
-					<Button
-						type="button"
-						className="mt-3 rounded-full px-4"
-						onClick={handleOpenRecharge}
-					>
-						{t("bonusPointsModal.goToRecharge")}
-					</Button>
-				</div>
+				)}
 
 				<div className={MOBILE_SETTINGS_CARD_CLASSNAME}>
 					<div className="flex items-center gap-2 text-sm text-muted-foreground">

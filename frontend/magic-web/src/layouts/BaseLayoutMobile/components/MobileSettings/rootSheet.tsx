@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMemoizedFn } from "ahooks"
+import { observer } from "mobx-react-lite"
 import {
 	ArrowLeftRight,
 	BarChart3,
 	Building2,
 	CircleUserRound,
+	Gift,
 	Info,
 	Laptop,
 	LogOut,
@@ -28,7 +30,7 @@ import { cn } from "@/lib/utils"
 import { isMagicApp } from "@/utils/devices"
 import { toAboutUs } from "@/layouts/BaseLayoutMobile/utils/url"
 import GlobalSidebarStore from "@/stores/display/GlobalSidebarStore"
-import { mobileSettingsConfig } from "./config"
+import { getMobileSettingsConfig } from "./config"
 import { MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME } from "./constants"
 import { MobileSettingsInfoPopover } from "./components/InfoPopover"
 import { MobileSettingsMenuSection } from "./components/MenuSection"
@@ -42,6 +44,7 @@ import type {
 	MobileSettingsRootItemKey,
 } from "./types"
 import { openMobileSettingsSubscriptionUpgrade } from "./utils"
+import { isPrivateDeployment } from "@/utils/env"
 
 /**
  * 根菜单 item key 统一解析到共享行为类型，入口文件只消费解析结果做状态调度。
@@ -66,6 +69,8 @@ export function getMobileSettingsRootItemAction(
 			return { type: "panel", panel: "appSettings" }
 		case "feedback":
 			return { type: "panel", panel: "feedback" }
+		case "shareIncentive":
+			return { type: "effect", effect: "shareIncentive" }
 		case "logout":
 			return { type: "effect", effect: "logout" }
 	}
@@ -142,6 +147,13 @@ function buildMenuItemConfig(params: {
 				onClick: handleClick,
 				dataTestId: "mobile-settings-menu-feedback",
 			}
+		case "shareIncentive":
+			return {
+				icon: <Gift className="h-5 w-5" />,
+				label: t("setting.shareIncentive"),
+				onClick: handleClick,
+				dataTestId: "mobile-settings-menu-share-incentive",
+			}
 		case "logout":
 			return {
 				icon: <LogOut className="h-5 w-5" />,
@@ -164,7 +176,7 @@ function buildMenuSections(params: {
 }): MobileSettingsMenuSectionConfig[] {
 	const { onSelectItem, pointsValue, t } = params
 
-	return mobileSettingsConfig.sections.map((section) => ({
+	return getMobileSettingsConfig().sections.map((section) => ({
 		key: section.key,
 		items: section.items.map((itemKey) =>
 			buildMenuItemConfig({
@@ -178,7 +190,7 @@ function buildMenuSections(params: {
 }
 
 /** 设置主浮层承接一级菜单，只负责把配置声明渲染成真实菜单。 */
-export function MobileSettingsRootSheet(props: {
+export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet(props: {
 	open: boolean
 	onClose: () => void
 	onSelectItem: (itemKey: MobileSettingsRootItemKey) => void
@@ -199,6 +211,7 @@ export function MobileSettingsRootSheet(props: {
 	const isPaidPlan = Boolean(subscriptionInfo?.is_paid_plan)
 	const currentOrganization = userStore.user.getOrganization()
 	const isPersonalOrganization = userStore.user.isPersonalOrganization
+	const isAdmin = userStore.user.isAdmin
 
 	/** 购买入口缺少实现时统一回退到占位提示，避免调用方再关心细节。 */
 	const handleComingSoon = useMemoizedFn(() => {
@@ -250,7 +263,9 @@ export function MobileSettingsRootSheet(props: {
 				pointsValue,
 				t,
 			}),
-		[onSelectItem, pointsValue, t],
+		// isAdmin and isPersonalOrganization drive dynamic config (enterprise overlay conditionally includes menu items)
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[onSelectItem, pointsValue, t, isAdmin, isPersonalOrganization],
 	)
 
 	return (
@@ -329,11 +344,12 @@ export function MobileSettingsRootSheet(props: {
 					</button>
 				</div>
 
-				{isPaidPlan ? (
-					<MobileSettingsPaidPlanCard onUpgrade={handleUpgrade} />
-				) : (
-					<MobileSettingsFreePlanCard onUpgrade={handleUpgrade} />
-				)}
+				{!isPrivateDeployment() &&
+					(isPaidPlan ? (
+						<MobileSettingsPaidPlanCard onUpgrade={handleUpgrade} />
+					) : (
+						<MobileSettingsFreePlanCard onUpgrade={handleUpgrade} />
+					))}
 
 				{menuSections.map((section) => (
 					<MobileSettingsMenuSection key={section.key} items={section.items} />
@@ -349,4 +365,4 @@ export function MobileSettingsRootSheet(props: {
 			) : null}
 		</>
 	)
-}
+})
