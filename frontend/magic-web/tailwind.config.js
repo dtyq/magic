@@ -266,6 +266,7 @@ const config = {
 				blink: "blink 1s steps(1, end) infinite",
 				scan: "scan 2s linear infinite",
 				"gradient-flow": "gradient-flow 20s linear infinite",
+				"spin-slow": "spin 1.5s linear infinite",
 			},
 			fontFamily: {
 				poppins: ["Poppins", "sans-serif"],

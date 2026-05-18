@@ -23,7 +23,7 @@ function StatusIcon({ status, size = 16, className, customFill = false }: Status
 				<Loader
 					size={size}
 					strokeWidth={strokeWidth}
-					className={cn(baseIcon, "animate-spin opacity-90", className)}
+					className={cn(baseIcon, "animate-spin-slow opacity-90", className)}
 					aria-hidden
 				/>
 			)
