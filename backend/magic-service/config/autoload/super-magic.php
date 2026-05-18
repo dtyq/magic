@@ -47,4 +47,12 @@ return [
         // Organization codes to exclude from statistics
         'organization_whitelist' => array_filter(explode(',', \Hyperf\Support\env('STATISTICS_ORGANIZATION_WHITELIST', ''))),
     ],
+    'warm_pool' => [
+        'enabled' => (bool) \Hyperf\Support\env('SUPER_MAGIC_WARM_POOL_ENABLED', true),
+        'target_size' => (int) \Hyperf\Support\env('SUPER_MAGIC_WARM_POOL_TARGET_SIZE', 10),
+        // When false, sandbox-gateway skips the agfs-server readiness probe
+        // and returns immediately after the pod is created. Useful for local
+        // dev where the host can't reach pod-CIDR IPs (e.g. kind on macOS).
+        'enable_readiness' => (bool) \Hyperf\Support\env('SUPER_MAGIC_WARM_POOL_ENABLE_READINESS', true),
+    ],
 ];

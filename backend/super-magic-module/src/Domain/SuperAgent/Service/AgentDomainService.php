@@ -211,12 +211,26 @@ class AgentDomainService
     ): string {
         $topicEntity = $agentContext->getTopicEntity();
 
-        $sandboxId = $agentContext->getSandboxId() ?? (string) $topicEntity->getId();
+        // Resolution order for the sandbox id used by the pre-create workspace
+        // status check:
+        //   1) explicit id from the AgentContext (reconnect / pinned)
+        //   2) the topic's own persisted sandbox_id (set by an earlier
+        //      cold-create or warm-pool mount)
+        //   3) topic_id stringified — legacy fallback kept so callers that
+        //      pre-date the explicit binding still work
+        $contextSandboxId = $agentContext->getSandboxId();
+        $persistedSandboxId = (string) $topicEntity->getSandboxId();
+        $sandboxId = ! empty($contextSandboxId)
+            ? $contextSandboxId
+            : (! empty($persistedSandboxId)
+                ? $persistedSandboxId
+                : (string) $topicEntity->getId());
 
         $this->logger->info('[Sandbox][Domain] Ensuring sandbox is initialized', [
             'topic_id' => $topicEntity->getId(),
             'sandbox_id' => $sandboxId,
-            'is_custom_sandbox_id' => $agentContext->getSandboxId(),
+            'is_custom_sandbox_id' => $contextSandboxId,
+            'persisted_sandbox_id' => $persistedSandboxId,
             'has_interrupt_checker' => $interruptChecker !== null,
         ]);
 
@@ -289,14 +303,28 @@ class AgentDomainService
                 ]);
             }
 
-            // Step 3: Create sandbox container
-            $sandboxId = $this->createSandbox(
-                dataIsolation: $dataIsolation,
-                projectId: (string) $agentContext->getProjectEntity()->getId(),
-                sandboxID: $agentContext->getSandboxId(),
-                workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
-                rootFileId: $rootFileId
+            // Step 2.5: Warm pool fast path.
+            // Only attempt when the caller didn't ask for a specific sandbox id
+            // (those are typically reconnects to an existing pod) AND we have
+            // a project-space root file id to mount.  On any failure we fall
+            // through to the cold path so the user-facing call never breaks.
+            $warmSandboxId = $this->tryWarmPoolFastPath(
+                $dataIsolation,
+                $agentContext,
+                $rootFileId
             );
+            if ($warmSandboxId !== null) {
+                $sandboxId = $warmSandboxId;
+            } else {
+                // Step 3: Create sandbox container (cold path)
+                $sandboxId = $this->createSandbox(
+                    dataIsolation: $dataIsolation,
+                    projectId: (string) $agentContext->getProjectEntity()->getId(),
+                    sandboxID: $agentContext->getSandboxId(),
+                    workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
+                    rootFileId: $rootFileId
+                );
+            }
 
             if ($interruptChecker !== null && $interruptChecker()) {
                 $this->logger->info('[Sandbox][Domain] Interrupted after sandbox creation', [
@@ -1176,6 +1204,124 @@ class AgentDomainService
             ]);
             return '';
         }
+    }
+
+    /**
+     * Try to fulfil the sandbox request from the warm pool. Returns the
+     * bound sandbox_id on success, or null when the warm path is not
+     * applicable / unavailable so the caller falls back to cold create.
+     *
+     * Topic side-effects (sandbox_id + agent_image columns) are persisted
+     * here so that the caller doesn't need to know whether the warm or
+     * cold path was taken.
+     */
+    private function tryWarmPoolFastPath(
+        DataIsolation $dataIsolation,
+        AgentContext $agentContext,
+        string $rootFileId
+    ): ?string {
+        $topicEntity = $agentContext->getTopicEntity();
+
+        // The warm path is opt-in via config until it has soaked in prod.
+        if (! (bool) config('super-magic.warm_pool.enabled', false)) {
+            return null;
+        }
+
+        // If the caller pinned a specific sandbox id (e.g. reconnect into an
+        // already-existing pod) we must respect that — the warm pool only
+        // serves the "create me anything that runs the latest image" case.
+        if (! empty($agentContext->getSandboxId())) {
+            return null;
+        }
+
+        // The warm sandbox mount endpoint requires a project-space root.
+        if ($rootFileId === '') {
+            $this->logger->info('[Sandbox][WarmPath] Skipping warm pool: missing project root_file_id', [
+                'topic_id' => $topicEntity->getId(),
+                'project_id' => $agentContext->getProjectEntity()->getId(),
+            ]);
+            return null;
+        }
+
+        $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+        if ($authorization === '') {
+            $this->logger->warning('[Sandbox][WarmPath] Skipping warm pool: no authorization for user', [
+                'user_id' => $dataIsolation->getCurrentUserId(),
+                'topic_id' => $topicEntity->getId(),
+            ]);
+            return null;
+        }
+
+        try {
+            $sandboxId = $this->getWarmPoolSandboxDomainService()->tryAcquireAndMount(
+                userId: $dataIsolation->getCurrentUserId(),
+                projectId: (string) $agentContext->getProjectEntity()->getId(),
+                projectSpaceRootFileId: $rootFileId,
+                userSpaceRootFileId: '',
+                authorization: $authorization
+            );
+        } catch (Throwable $e) {
+            // Fall back to the cold path on any unexpected error.
+            $this->logger->error('[Sandbox][WarmPath] Warm pool acquire/mount threw, falling back to cold path', [
+                'topic_id' => $topicEntity->getId(),
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+
+        if ($sandboxId === null) {
+            return null;
+        }
+
+        // Persist sandbox_id binding on the topic. The agent_image side is
+        // best-effort: we ask the gateway, but if it fails we don't roll
+        // back the bound sandbox.
+        try {
+            $this->topicDomainService->updateTopicSandboxId(
+                $dataIsolation,
+                (int) $topicEntity->getId(),
+                $sandboxId
+            );
+            $latestImage = $this->gateway->getLatestAgentImage();
+            if ($latestImage !== '') {
+                $this->topicDomainService->updateTopicAgentImage(
+                    $dataIsolation,
+                    (int) $topicEntity->getId(),
+                    $latestImage
+                );
+            }
+        } catch (Throwable $e) {
+            $this->logger->warning('[Sandbox][WarmPath] Failed to stamp topic with warm sandbox metadata', [
+                'topic_id' => $topicEntity->getId(),
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->logger->info('[Sandbox][WarmPath] Warm pool fast path succeeded', [
+            'topic_id' => $topicEntity->getId(),
+            'sandbox_id' => $sandboxId,
+        ]);
+
+        return $sandboxId;
+    }
+
+    /**
+     * Lazily resolve {@see WarmPoolSandboxDomainService} via the container
+     * instead of constructor-injecting it.
+     *
+     * - Avoids growing this already-large ctor dependency graph and any
+     *   construct-time cycle risk if the warm-pool service later picks up
+     *   a dep that transitively touches AgentDomainService.
+     * - Keeps warm-pool wiring fully unpaid when the feature flag is off
+     *   ({@see tryWarmPoolFastPath} early-returns before reaching here).
+     *
+     * The explicit return type also keeps PHPStan / IDE-level static
+     * analysis sharp on the resulting {@see ::tryAcquireAndMount()} call.
+     */
+    private function getWarmPoolSandboxDomainService(): WarmPoolSandboxDomainService
+    {
+        return di(WarmPoolSandboxDomainService::class);
     }
 
     /**

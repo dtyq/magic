@@ -926,6 +926,165 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         }
     }
 
+    public function createWarmPoolSandbox(): GatewayResult
+    {
+        if (! $this->isEnabledSandbox()) {
+            // Local debugging: fabricate a deterministic response so refill
+            // crontabs can be exercised without touching k8s.
+            $fakeId = 'warm-local-' . substr((string) IdGenerator::getUniqueId32(), 0, 8);
+            return GatewayResult::success([
+                'sandbox_id' => $fakeId,
+                'sandbox_name' => $fakeId,
+                'agent_image' => 'local/agent:debug',
+                'status' => 'running',
+            ], 'Warm-pool sandbox creation skipped (local debugging mode)');
+        }
+
+        $this->logger->debug('[Sandbox][Gateway] Creating warm-pool sandbox');
+        // Allow ops/dev to bypass the gateway-side agfs-server readiness probe.
+        // Required for local kind setups where the host can't route to pod CIDRs
+        // and the probe would otherwise time out, leaving DB empty + orphan pods.
+        $enableReadiness = (bool) config('super-magic.warm_pool.enable_readiness', true);
+        $payload = ['enable_readiness' => $enableReadiness];
+        try {
+            return retry(3, function () use ($payload) {
+                try {
+                    $response = $this->getClient()->post(
+                        $this->buildApiPath('api/v1/warm-pool-sandboxes'),
+                        [
+                            'headers' => $this->getCommonHeaders(),
+                            'json' => $payload,
+                            // Pod creation + agfs-server health probe upper bound.
+                            // sandbox-gateway gives the pod up to 5min to reach Running.
+                            'timeout' => 360,
+                        ]
+                    );
+
+                    $body = $response->getBody()->getContents();
+                    $responseData = Json::decode($body);
+                    $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+                    if ($result->isSuccess()) {
+                        $this->logger->info('[Sandbox][Gateway] Warm-pool sandbox created', [
+                            'sandbox_id' => $result->getDataValue('sandbox_id'),
+                            'sandbox_name' => $result->getDataValue('sandbox_name'),
+                            'agent_image' => $result->getDataValue('agent_image'),
+                        ]);
+                    } else {
+                        $this->logger->error('[Sandbox][Gateway] Failed to create warm-pool sandbox', [
+                            'code' => $result->getCode(),
+                            'message' => $result->getMessage(),
+                        ]);
+                    }
+                    return $result;
+                } catch (GuzzleException $e) {
+                    if (! $this->isRetryableError($e)) {
+                        return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
+                    }
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when creating warm-pool sandbox', [
+                        'error' => $e->getMessage(),
+                    ]);
+                    return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+                }
+            }, 5000);
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for warm-pool sandbox creation', [
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('HTTP request failed after retries: ' . $e->getMessage());
+        }
+    }
+
+    public function mountWarmPoolSandbox(
+        string $sandboxId,
+        string $projectId,
+        string $projectSpaceRootFileID,
+        string $userSpaceRootFileID,
+        string $authorization
+    ): GatewayResult {
+        if (! $this->isEnabledSandbox()) {
+            $this->logger->debug('[Sandbox][Gateway] Local debugging mode: skipping warm-pool sandbox mount', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+            ]);
+            return GatewayResult::success(['sandbox_id' => $sandboxId], 'Warm-pool sandbox mount skipped (local debugging mode)');
+        }
+
+        // Note: project_space_root_file_id is required by sandbox-gateway,
+        // so callers are expected to resolve it before invoking this method.
+        $payload = [
+            'project_id' => $projectId,
+            'project_space_root_file_id' => $projectSpaceRootFileID,
+            'user_space_root_file_id' => $userSpaceRootFileID,
+            'authorization' => $authorization,
+        ];
+
+        $this->logger->debug('[Sandbox][Gateway] Mounting warm-pool sandbox', [
+            'sandbox_id' => $sandboxId,
+            'project_id' => $projectId,
+            'project_space_root_file_id' => $projectSpaceRootFileID,
+            'has_user_space_root' => $userSpaceRootFileID !== '',
+            'authorization_provided' => $authorization !== '',
+        ]);
+
+        try {
+            // Mount is NOT idempotent on the gateway side (it stamps pod labels
+            // and refuses to re-mount to a different project), so a generic
+            // retry-on-any-failure policy would be dangerous. We restrict
+            // retries to transient HTTP errors via isRetryableError.
+            return retry(3, function () use ($sandboxId, $payload) {
+                try {
+                    $response = $this->getClient()->post(
+                        $this->buildApiPath(sprintf('api/v1/warm-pool-sandboxes/%s/mount', $sandboxId)),
+                        [
+                            'headers' => $this->getCommonHeaders(),
+                            'json' => $payload,
+                            // wait_ready=1 inside the gateway blocks on the
+                            // versionTree initial load; keep ample timeout.
+                            'timeout' => 180,
+                        ]
+                    );
+
+                    $body = $response->getBody()->getContents();
+                    $responseData = Json::decode($body);
+                    $result = GatewayResult::fromApiResponse($responseData ?? []);
+
+                    if ($result->isSuccess()) {
+                        $this->logger->info('[Sandbox][Gateway] Warm-pool sandbox mounted', [
+                            'sandbox_id' => $sandboxId,
+                        ]);
+                    } else {
+                        $this->logger->error('[Sandbox][Gateway] Failed to mount warm-pool sandbox', [
+                            'sandbox_id' => $sandboxId,
+                            'code' => $result->getCode(),
+                            'message' => $result->getMessage(),
+                        ]);
+                    }
+                    return $result;
+                } catch (GuzzleException $e) {
+                    if (! $this->isRetryableError($e)) {
+                        return GatewayResult::error('HTTP request failed: ' . $e->getMessage());
+                    }
+                    throw $e;
+                } catch (Exception $e) {
+                    $this->logger->error('[Sandbox][Gateway] Unexpected error when mounting warm-pool sandbox', [
+                        'sandbox_id' => $sandboxId,
+                        'error' => $e->getMessage(),
+                    ]);
+                    return GatewayResult::error('Unexpected error: ' . $e->getMessage());
+                }
+            }, 2000);
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][Gateway] All retry attempts failed for warm-pool sandbox mount', [
+                'sandbox_id' => $sandboxId,
+                'error' => $e->getMessage(),
+            ]);
+            return GatewayResult::error('HTTP request failed after retries: ' . $e->getMessage());
+        }
+    }
+
     protected function getCommonHeaders(): array
     {
         $requestId = CoContext::getRequestId() ?: (string) IdGenerator::getSnowId();

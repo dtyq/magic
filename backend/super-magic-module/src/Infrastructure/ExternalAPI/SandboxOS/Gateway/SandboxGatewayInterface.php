@@ -131,4 +131,28 @@ interface SandboxGatewayInterface
      * @return string 最新 Agent 镜像全名（如 registry.example.com/agent:v1.2.3），失败时返回空字符串
      */
     public function getLatestAgentImage(): string;
+
+    /**
+     * 在 warm pool 中创建一个未绑定项目的沙箱.
+     * data 字段包含: sandbox_id (warm-<uuid>) / sandbox_name / agent_image / status.
+     */
+    public function createWarmPoolSandbox(): GatewayResult;
+
+    /**
+     * 把一个 warm pool 沙箱绑定到指定项目，触发 agfs-server `/api/v1/mount`
+     * 并等待 versionTree 初始首次同步完成（gateway 内部会 wait_ready=1）.
+     *
+     * @param string $sandboxId warm-<uuid>
+     * @param string $projectId 实际项目 ID
+     * @param string $projectSpaceRootFileID 项目空间 root file id（来自 task_file 表）
+     * @param string $userSpaceRootFileID 用户空间 root file id（可空）
+     * @param string $authorization 用户 MagicToken
+     */
+    public function mountWarmPoolSandbox(
+        string $sandboxId,
+        string $projectId,
+        string $projectSpaceRootFileID,
+        string $userSpaceRootFileID,
+        string $authorization
+    ): GatewayResult;
 }
