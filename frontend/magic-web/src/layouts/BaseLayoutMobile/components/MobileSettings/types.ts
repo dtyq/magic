@@ -31,7 +31,6 @@ export type MobileSettingsRootItemKey =
 	| "loginDevices"
 	| "appSettings"
 	| "feedback"
-	| "shareIncentive"
 	| "logout"
 
 export type MobileSettingsPanelKey =
@@ -77,4 +76,4 @@ export interface MobileSettingsMenuSectionConfig {
 export type MobileSettingsRootItemAction =
 	| { type: "panel"; panel: MobileSettingsPanelKey }
 	| { type: "route"; routeName: RouteName }
-	| { type: "effect"; effect: "logout" | "shareIncentive" }
+	| { type: "effect"; effect: "logout" }

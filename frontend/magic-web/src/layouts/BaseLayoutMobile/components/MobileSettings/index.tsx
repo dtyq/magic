@@ -26,7 +26,6 @@ import {
 	MobileSettingsRootSheet,
 } from "./renderers"
 import type { MobileSettingsPanelKey, MobileSettingsRootItemKey } from "./types"
-import { openMobileSettingsShareIncentive } from "./utils"
 
 /** 设置面板入口只维护 root 开关与 panel 栈，具体菜单与面板渲染都下沉到共享渲染层。 */
 function MobileSettingsPanelComponent(props: {
@@ -82,8 +81,6 @@ function MobileSettingsPanelComponent(props: {
 			case "effect":
 				if (action.effect === "logout") {
 					logout()
-				} else if (action.effect === "shareIncentive") {
-					openMobileSettingsShareIncentive()
 				}
 				return
 		}

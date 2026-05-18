@@ -74,9 +74,3 @@ export async function submitMobileSettingsFeedback(params: MobileSettingsFeedbac
 	return false
 }
 
-/**
- * 分享激励入口默认无操作，企业覆盖层补齐后再启用。
- */
-export function openMobileSettingsShareIncentive() {
-	// noop in open-source baseline
-}

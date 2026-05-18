@@ -6,7 +6,6 @@ import {
 	BarChart3,
 	Building2,
 	CircleUserRound,
-	Gift,
 	Info,
 	Laptop,
 	LogOut,
@@ -69,8 +68,6 @@ export function getMobileSettingsRootItemAction(
 			return { type: "panel", panel: "appSettings" }
 		case "feedback":
 			return { type: "panel", panel: "feedback" }
-		case "shareIncentive":
-			return { type: "effect", effect: "shareIncentive" }
 		case "logout":
 			return { type: "effect", effect: "logout" }
 	}
@@ -146,13 +143,6 @@ function buildMenuItemConfig(params: {
 				label: t("setting.feedback"),
 				onClick: handleClick,
 				dataTestId: "mobile-settings-menu-feedback",
-			}
-		case "shareIncentive":
-			return {
-				icon: <Gift className="h-5 w-5" />,
-				label: t("setting.shareIncentive"),
-				onClick: handleClick,
-				dataTestId: "mobile-settings-menu-share-incentive",
 			}
 		case "logout":
 			return {
