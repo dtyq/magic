@@ -205,6 +205,47 @@ const isPdfUrl = (url: string): boolean => {
  * @param url - 文件 URL
  * @returns 提取的文件名，如果无法提取则返回 undefined
  */
+const normalizeFilename = (filename?: string | null): string | undefined => {
+	if (!filename || !filename.includes(".")) return undefined
+
+	try {
+		return decodeURIComponent(filename)
+	} catch {
+		return filename
+	}
+}
+
+const trimContentDispositionValue = (value?: string): string | undefined => {
+	if (!value) return undefined
+
+	return value.trim().replace(/^"(.*)"$/, "$1")
+}
+
+const getFilenameFromContentDisposition = (disposition?: string | null): string | undefined => {
+	if (!disposition) return undefined
+
+	const filenameStarValue = trimContentDispositionValue(
+		disposition.match(/(?:^|;)\s*filename\*\s*=\s*([^;]+)/i)?.[1],
+	)
+	const encodedFilename = filenameStarValue?.includes("''")
+		? filenameStarValue.split("'").slice(2).join("'")
+		: filenameStarValue
+	const filenameFromStar = normalizeFilename(encodedFilename)
+	if (filenameFromStar) return filenameFromStar
+
+	const filenameValue = trimContentDispositionValue(
+		disposition.match(/(?:^|;)\s*filename\s*=\s*([^;]+)/i)?.[1],
+	)
+	return normalizeFilename(filenameValue)
+}
+
+const getFilenameFromSearchParams = (searchParams: URLSearchParams): string | undefined => {
+	const filenameFromQuery = normalizeFilename(searchParams.get("filename"))
+	if (filenameFromQuery) return filenameFromQuery
+
+	return getFilenameFromContentDisposition(searchParams.get("response-content-disposition"))
+}
+
 const getFilenameFromUrl = (url: string): string | undefined => {
 	try {
 		const urlObj = new URL(decodeURIComponent(url))
@@ -215,30 +256,23 @@ const getFilenameFromUrl = (url: string): string | undefined => {
 		let filename = segments[segments.length - 1]
 
 		// 如果提取到的文件名有效（非空且包含文件扩展名）
-		if (filename && filename.includes(".")) {
-			// 尝试解码 URL 编码的文件名（例如：%E4%B8%AD%E6%96%87 -> 中文）
-			try {
-				filename = decodeURIComponent(filename)
-			} catch {
-				// 如果解码失败，使用原始文件名
-			}
-			return filename
-		}
+		const filenameFromPath = normalizeFilename(filename)
+		if (filenameFromPath) return filenameFromPath
+
+		const filenameFromQuery = getFilenameFromSearchParams(urlObj.searchParams)
+		if (filenameFromQuery) return filenameFromQuery
 	} catch {
 		// 如果不是有效的完整 URL，尝试手动解析
 		const urlWithoutParams = url.split("?")[0].split("#")[0]
 		const segments = urlWithoutParams.split("/")
 		let filename = segments[segments.length - 1]
 
-		if (filename && filename.includes(".")) {
-			// 尝试解码 URL 编码的文件名
-			try {
-				filename = decodeURIComponent(filename)
-			} catch {
-				// 如果解码失败，使用原始文件名
-			}
-			return filename
-		}
+		const filenameFromPath = normalizeFilename(filename)
+		if (filenameFromPath) return filenameFromPath
+
+		const queryString = url.split("?")[1]?.split("#")[0]
+		const filenameFromQuery = getFilenameFromSearchParams(new URLSearchParams(queryString))
+		if (filenameFromQuery) return filenameFromQuery
 	}
 	return undefined
 }
