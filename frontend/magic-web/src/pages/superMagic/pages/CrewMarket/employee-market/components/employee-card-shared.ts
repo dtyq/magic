@@ -24,7 +24,8 @@ export function resolveEmployeeMarketPrimaryActionLabel(
 ): string {
 	if (isOfficialBuiltinPublisherType(employee.publisherType))
 		return t("employeeCard.officialBuiltin")
-	if (isSelfCreatedStoreAgent(employee)) return t("employeeCard.createdByYouNoHiringNeeded")
+	// Self-created agents can be opened for chat directly
+	if (isSelfCreatedStoreAgent(employee)) return t("chat")
 	if (employee.allowDelete) return t("dismiss")
 	return t("hire")
 }
@@ -37,6 +38,22 @@ export function isEmployeeMarketPrimaryActionDisabled(
 	return (
 		isSelfCreatedStoreAgent(employee) || isOfficialBuiltinPublisherType(employee.publisherType)
 	)
+}
+
+/** Detail dialog only supports hire/dismiss; chat entry is handled by separate conversation actions. */
+export function canShowEmployeeMarketDetailPrimaryAction(
+	employee: StoreAgentActionState & { publisherType: string },
+): boolean {
+	if (employee.allowDelete) return true
+	return !employee.isAdded && !isOfficialBuiltinPublisherType(employee.publisherType)
+}
+
+/** Label for market detail primary action: hire (not added) or dismiss (allowDelete). */
+export function resolveEmployeeMarketDetailPrimaryActionLabel(
+	employee: StoreAgentActionState,
+	t: (key: string) => string,
+): string {
+	return employee.allowDelete ? t("dismiss") : t("hire")
 }
 
 export function resolvePublisherLabel(

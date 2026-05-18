@@ -8,13 +8,59 @@ import { normalizeLocale } from "@/utils/locale"
 import MyCrewAvatar from "./MyCrewAvatar"
 import { resolveMyCrewPresentationSource } from "./my-crew-mobile-shared"
 import type { MyCrewCrewTypeTab } from "../tab-state"
+import type { MyCrewPresentationSource } from "./my-crew-mobile-shared"
+
+/**
+ * 提炼出详情 sheet 的最小字段集，使市场 Agent（StoreAgentView）与我的成员（MyCrewView）
+ * 都能直接传入，不需要额外映射。可选字段在对应来源分支不可达时安全降级。
+ */
+export interface CrewDetailSheetEmployee {
+	agentCode: string
+	name: string | null
+	role: string | null
+	description: string | null
+	icon: string | null
+	playbooks: { name: string; themeColor?: string | null }[]
+	publisherName?: string | null
+	updatedAt: string
+	/** 最新发布时间；缺失时由 updatedAt 兜底（StoreAgentView 暂无此字段）。 */
+	latestPublishedAt?: string | null
+	/** 创建者名称；仅 teamShared 来源展示，StoreAgentView 不含此字段不影响市场分支。 */
+	creatorName?: string | null
+}
+
+/** 自定义 footer 操作按钮描述。 */
+export interface CrewDetailSheetAction {
+	label: string
+	onClick: () => void
+	/** 操作图标，显示在文字左侧。 */
+	icon?: React.ReactNode
+	testId?: string
+}
 
 interface MyCrewDetailSheetProps {
-	employee: MyCrewView | null
+	employee: CrewDetailSheetEmployee | null
 	listVariant?: MyCrewCrewTypeTab | "all" | null
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	onChat: (agentCode: string) => void
+	/**
+	 * 强制指定展示来源，绕过 resolveMyCrewPresentationSource 的自动推断。
+	 * 来自 Crew 市场的调用方应传入 "market"，来自我的成员的调用方可省略由内部计算。
+	 */
+	presentationSource?: MyCrewPresentationSource
+	/**
+	 * 自定义主操作按钮（如"雇佣"、"开始聊天"）。
+	 * 传入时替换默认的固定"开始聊天"按钮；不传时维持原有默认行为。
+	 * 当调用方同时传入了 presentationSource（即接管了 footer 控制权），
+	 * 不传 primaryAction 等同于"无操作"——footer 整体隐藏，与桌面端对齐。
+	 */
+	primaryAction?: CrewDetailSheetAction
+	/**
+	 * 可选的次要操作按钮（如"解雇"），显示在主操作左侧，宽度收缩。
+	 * 仅在同时存在 primaryAction 时才有意义。
+	 */
+	secondaryAction?: CrewDetailSheetAction
 }
 
 /** 信息区标题统一封装，避免详情页分段样式在多个模块重复漂移。 */
@@ -87,7 +133,7 @@ function formatMyCrewDate(
 
 /** 详情页根据来源类型拼出信息区，避免页面容器里混入大量来源分支 JSX。 */
 function MyCrewInfoSection(props: {
-	employee: MyCrewView
+	employee: CrewDetailSheetEmployee
 	source: "teamShared" | "market" | "custom"
 	language: string
 	timezone: string
@@ -132,7 +178,7 @@ function MyCrewInfoSection(props: {
 				<InfoRow
 					icon={<Building2 className="h-4 w-4" />}
 					label={t("myCrewPage.detailSheet.info.sharedBy")}
-					value={employee.creatorName.trim()}
+					value={employee.creatorName?.trim() || fallbackValue}
 				/>
 				<InfoRow
 					icon={<RefreshCw className="h-4 w-4" />}
@@ -178,13 +224,16 @@ export default function MyCrewDetailSheet({
 	open,
 	onOpenChange,
 	onChat,
+	presentationSource: presentationSourceProp,
+	primaryAction,
+	secondaryAction,
 }: MyCrewDetailSheetProps) {
 	const { t, i18n } = useTranslation("crew/market")
 	const { timezone } = useTimezone()
 	const scrollRef = useRef<HTMLDivElement | null>(null)
 	const [showTopMask, setShowTopMask] = useState(false)
 	const [showBottomMask, setShowBottomMask] = useState(false)
-	const lastEmployeeRef = useRef<MyCrewView | null>(null)
+	const lastEmployeeRef = useRef<CrewDetailSheetEmployee | null>(null)
 	const displayEmployee = employee ?? lastEmployeeRef.current
 
 	if (employee) {
@@ -193,10 +242,15 @@ export default function MyCrewDetailSheet({
 
 	const presentationSource = useMemo(
 		() =>
-			displayEmployee
-				? resolveMyCrewPresentationSource(displayEmployee, listVariant)
-				: "custom",
-		[displayEmployee, listVariant],
+			// 调用方显式指定来源时（如 Crew 市场）直接使用，跳过内部字段推断
+			presentationSourceProp ??
+			(displayEmployee
+				? resolveMyCrewPresentationSource(
+						displayEmployee as Pick<MyCrewView, "sourceType" | "creatorName">,
+						listVariant,
+					)
+				: "custom"),
+		[displayEmployee, listVariant, presentationSourceProp],
 	)
 
 	const sourceLabel = useMemo(() => {
@@ -322,14 +376,19 @@ export default function MyCrewDetailSheet({
 										</SectionLabel>
 										<div className="rounded-lg bg-card px-[14px] py-3">
 											<div className="flex flex-wrap gap-2">
-												{displayEmployee.playbooks.map((playbook) => (
-													<span
-														key={playbook.name}
-														className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-[13px] font-medium leading-none text-primary"
-													>
-														{playbook.name}
-													</span>
-												))}
+												{displayEmployee.playbooks.map((playbook, i) => {
+													// 优先使用服务端下发的主题色，降级至 indigo (#6366f1)，与 EmployeeCardMobile CapChip 保持一致
+													const chipColor = playbook.themeColor ?? "#6366f1"
+													return (
+														<span
+															key={`${playbook.name}-${i}`}
+															className="inline-flex items-center rounded-full px-3 py-1 text-[13px] font-medium leading-none"
+															style={{ color: chipColor, backgroundColor: `${chipColor}1a` }}
+														>
+															{playbook.name}
+														</span>
+													)
+												})}
 											</div>
 										</div>
 									</div>
@@ -374,17 +433,52 @@ export default function MyCrewDetailSheet({
 					className="shrink-0 px-[10px] pt-2"
 					style={{ paddingBottom: "max(var(--safe-area-inset-bottom), 16px)" }}
 				>
-					<button
-						type="button"
-						onClick={handleChat}
-						className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary transition-opacity active:opacity-80"
-						data-testid="my-crew-detail-sheet-chat-button"
-					>
-						<MessageCircle className="h-5 w-5 text-white" />
-						<span className="text-[16px] font-semibold text-white">
-							{t("myCrewPage.detailSheet.startChat")}
-						</span>
-					</button>
+					{primaryAction ? (
+						// 调用方提供自定义操作（如"雇佣"、"开始聊天"），支持次要按钮（如"解雇"）并排
+						// key 绑定 testId：状态切换（如已雇→未雇）时强制重挂载，避免 iOS Safari 按钮文字残留
+						<div key={primaryAction.testId ?? primaryAction.label} className="flex gap-2">
+							{secondaryAction ? (
+								<button
+									type="button"
+									onClick={secondaryAction.onClick}
+									className="flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-destructive/10 px-5 text-[15px] font-semibold text-destructive transition-opacity active:opacity-80"
+									data-testid={secondaryAction.testId}
+								>
+									{secondaryAction.icon}
+									{secondaryAction.label}
+								</button>
+							) : null}
+							<button
+								type="button"
+								onClick={primaryAction.onClick}
+								className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary transition-opacity active:opacity-80"
+								data-testid={primaryAction.testId}
+							>
+								{primaryAction.icon}
+								<span className="text-[16px] font-semibold text-white">
+									{primaryAction.label}
+								</span>
+							</button>
+						</div>
+					) : presentationSourceProp ? (
+						// 调用方接管了 footer 控制权（即传入了 presentationSource），但未提供
+						// primaryAction，说明当前状态无可用操作（如 OFFICIAL_BUILTIN 未雇用）。
+						// 与桌面端 canShowEmployeeMarketDetailPrimaryAction=false 的行为对齐：不渲染任何按钮。
+						null
+					) : (
+						// 默认行为：开始聊天，兼容原有的 My Crew 详情入口
+						<button
+							type="button"
+							onClick={handleChat}
+							className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary transition-opacity active:opacity-80"
+							data-testid="my-crew-detail-sheet-chat-button"
+						>
+							<MessageCircle className="h-5 w-5 text-white" />
+							<span className="text-[16px] font-semibold text-white">
+								{t("myCrewPage.detailSheet.startChat")}
+							</span>
+						</button>
+					)}
 				</div>
 			</SheetContent>
 		</Sheet>

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest"
 import {
+	canShowEmployeeMarketDetailPrimaryAction,
 	isEmployeeMarketPrimaryActionDisabled,
 	isOfficialBuiltinPublisherType,
 	isOfficialPublisherType,
+	resolveEmployeeMarketDetailPrimaryActionLabel,
 	resolveEmployeeMarketPrimaryActionLabel,
 	resolvePublisherLabel,
 } from "./employee-card-shared"
@@ -99,6 +101,47 @@ describe("isEmployeeMarketPrimaryActionDisabled", () => {
 		expect(
 			isEmployeeMarketPrimaryActionDisabled(
 				agent({ publisherType: "OFFICIAL_BUILTIN", allowDelete: true }),
+			),
+		).toBe(false)
+	})
+})
+
+describe("market detail primary action", () => {
+	const agent = (overrides: Record<string, unknown>) =>
+		({
+			publisherType: "USER",
+			isAdded: false,
+			allowDelete: false,
+			...overrides,
+		}) as import("@/services/crew/CrewService").StoreAgentView
+
+	it("shows action for hireable market agent", () => {
+		expect(canShowEmployeeMarketDetailPrimaryAction(agent({}))).toBe(true)
+		expect(resolveEmployeeMarketDetailPrimaryActionLabel(agent({}), createT())).toBe("hire")
+	})
+
+	it("shows dismiss action for removable agent", () => {
+		expect(canShowEmployeeMarketDetailPrimaryAction(agent({ isAdded: true, allowDelete: true }))).toBe(
+			true,
+		)
+		expect(
+			resolveEmployeeMarketDetailPrimaryActionLabel(
+				agent({ isAdded: true, allowDelete: true }),
+				createT(),
+			),
+		).toBe("dismiss")
+	})
+
+	it("hides action for self-created chat-only agent", () => {
+		expect(
+			canShowEmployeeMarketDetailPrimaryAction(agent({ isAdded: true, allowDelete: false })),
+		).toBe(false)
+	})
+
+	it("hides action for official builtin in market detail", () => {
+		expect(
+			canShowEmployeeMarketDetailPrimaryAction(
+				agent({ publisherType: "OFFICIAL_BUILTIN", isAdded: false, allowDelete: false }),
 			),
 		).toBe(false)
 	})

@@ -130,6 +130,7 @@
 		"usingDefault": "Using default"
 	},
 	"mobile": {
+		"clearSearch": "Clear search",
 		"runSearch": "Search",
 		"searchSheetTitle": "Search crew"
 	},
@@ -511,5 +512,6 @@
 			"updateFailed": "Failed to update skill. Please try again later."
 		},
 		"title": "Update Skill"
-	}
+	},
+	"chat": "Chat"
 }

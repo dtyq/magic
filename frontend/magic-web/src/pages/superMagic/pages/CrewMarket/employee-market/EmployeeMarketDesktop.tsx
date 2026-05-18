@@ -21,8 +21,8 @@ import {
 } from "@/pages/superMagic/utils/superMagicCache"
 import SearchBar from "@/pages/superMagic/pages/CrewMarket/components/SearchBar"
 import {
-	isEmployeeMarketPrimaryActionDisabled,
-	resolveEmployeeMarketPrimaryActionLabel,
+	canShowEmployeeMarketDetailPrimaryAction,
+	resolveEmployeeMarketDetailPrimaryActionLabel,
 } from "./components/employee-card-shared"
 import CategoryFilter from "./components/CategoryFilter"
 import EmployeeCard from "./components/EmployeeCard"
@@ -209,16 +209,16 @@ function EmployeeMarketDesktop({ scrollViewportRef }: EmployeeMarketDesktopProps
 				versionCode={selectedAgent?.latestVersionCode}
 				avatarUrl={selectedAgent?.icon}
 				primaryAction={
-					selectedAgent
+					selectedAgent && canShowEmployeeMarketDetailPrimaryAction(selectedAgent)
 						? {
-								label: resolveEmployeeMarketPrimaryActionLabel(selectedAgent, t),
+								label: resolveEmployeeMarketDetailPrimaryActionLabel(selectedAgent, t),
 								variant: selectedAgent.allowDelete ? "destructive" : "default",
-								disabled: isEmployeeMarketPrimaryActionDisabled(selectedAgent),
+								disabled: false,
 								testId: "crew-market-detail-action-button",
 								onClick: () =>
 									selectedAgent.allowDelete
 										? handleDismiss(selectedAgent.id)
-										: store.hireAgent(selectedAgent.id),
+										: handleHire(selectedAgent.id),
 							}
 						: undefined
 				}

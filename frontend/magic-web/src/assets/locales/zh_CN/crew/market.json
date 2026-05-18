@@ -129,6 +129,7 @@
 		"usingDefault": "使用默认"
 	},
 	"mobile": {
+		"clearSearch": "清除搜索",
 		"runSearch": "搜索",
 		"searchSheetTitle": "搜索员工"
 	},
@@ -510,5 +511,6 @@
 			"updateFailed": "更新技能失败，请稍后重试。"
 		},
 		"title": "更新技能"
-	}
+	},
+	"chat": "聊天"
 }
