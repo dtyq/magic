@@ -1,10 +1,13 @@
 import { Check } from "lucide-react"
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import FlexBox from "@/components/base/FlexBox"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { cn } from "@/lib/utils"
 import type React from "react"
 import type { ModelItem, ModelListGroup, MessageEditorSize } from "../types"
 import { isModelDisabled } from "../utils"
+import { ModelDescription } from "./ModelDescription"
 import ModelIcon from "./ModelIcon"
 import ModelName from "./ModelName"
 import ModelTags from "./ModelTags"
@@ -31,8 +34,18 @@ export function ModelGroupSection({
 	selectedItemRef,
 	getModelDescription,
 }: ModelGroupSectionProps) {
+	const { t } = useTranslation("super")
 	const isMobile = size === "mobile"
 	const iconSize = size === "small" ? 24 : 28
+	const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({})
+
+	function toggleDescription(modelId: string, event: React.MouseEvent<HTMLButtonElement>) {
+		event.stopPropagation()
+		setExpandedDescriptions((prev) => ({
+			...prev,
+			[modelId]: !prev[modelId],
+		}))
+	}
 
 	return (
 		<FlexBox gap={4} vertical className="last:border-b-0 last:pb-0">
@@ -86,15 +99,14 @@ export function ModelGroupSection({
 										/>
 										<ModelTags model={model} />
 									</FlexBox>
-									<div
-										className={cn(
-											"text-xs font-normal leading-4 text-muted-foreground",
-											"empty:hidden",
-											isDisabled && "opacity-50",
-										)}
-									>
-										{description}
-									</div>
+									<ModelDescription
+										description={description}
+										isDisabled={isDisabled}
+										isExpanded={!!expandedDescriptions[model.model_id]}
+										expandLabel={t("messageEditor.modelSwitch.expandDescription")}
+										collapseLabel={t("messageEditor.modelSwitch.collapseDescription")}
+										onToggle={(event) => toggleDescription(model.model_id, event)}
+									/>
 								</FlexBox>
 								<Checkbox
 									checked={isSelected}
