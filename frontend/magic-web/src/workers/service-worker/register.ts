@@ -37,6 +37,7 @@ function isAppServiceWorkerWorker(
 
 async function unregisterAppServiceWorkers(): Promise<void> {
 	if (typeof window === "undefined" || !("serviceWorker" in navigator)) return
+	if (typeof navigator.serviceWorker.getRegistrations !== "function") return
 
 	const appServiceWorkerPathname = new URL(APP_SERVICE_WORKER_URL, window.location.origin).pathname
 	const registrations = await navigator.serviceWorker.getRegistrations()

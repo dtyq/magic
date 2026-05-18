@@ -1,19 +1,18 @@
 /**
- * 画布媒体离线缓存 Service Worker。
+ * Canvas 媒体缓存共享逻辑。
  *
- * 根因备忘（曾导致虚拟资源 404）：
- * 1) 路径形态不一致：主线程 postMessage / IndexedDB 写入的 `entry.path` 为 Unicode 明文（及前导 `/`），
- *    而 fetch 事件里的 `request.url` 在部分环境（如 Worker 内 fetch）下 `pathname` 中 `design-resource/` 之后
- *    仍为 percent-encoded（如 `%E6%96%B0%E5%BB%BA...`）。若 `getEntryByPath` 用原始字符串做 `===`，会永远
- *    匹配不到条目 → SW 返回 404。因此统一经 `normalizeResourcePathForLookup` 再比对。
- * 2) 主线程换链须用 `MediaResourceOfflineCacheManager` 的 `isOfflineCacheFeatureOn`（与 `isActiveConsumer` 解耦），
- *    避免 Strict Mode / 路由切换销毁 Canvas 后仍在飞行的换链退回 OSS 直链、与虚拟 URL 策略不一致。
+ * 这个模块只保留原始 Canvas SW 的缓存核心能力：
+ * - 虚拟 URL 解析
+ * - IndexedDB 元数据维护
+ * - CacheStorage 二进制缓存
+ * - 按 sourceUrl 回源
+ *
+ * 它不负责 install / activate / fetch / message 事件注册，
+ * 这些生命周期与入口行为统一由主 SW `src/sw.ts` 驱动。
  */
-/**
- * Keep this in sync with MediaResourceOfflineCacheManager.ts.
- * Bump both when the virtual URL shape, resource id, namespace/scope rules,
- * path normalization, IndexedDB schema, or CacheStorage key semantics change.
- */
+
+export const CANVAS_MEDIA_CACHE_NAME = "canvas-media-resources-v1"
+
 const OFFLINE_CACHE_VERSION = 1
 const DB_BASE_NAME = "canvas-media-resource-offline-cache"
 const DB_VERSION = OFFLINE_CACHE_VERSION
@@ -28,45 +27,61 @@ const VIRTUAL_RESOURCE_ROUTE_MARKER = `/sw${VIRTUAL_RESOURCE_PATH_SEGMENT}`
 const VIRTUAL_RESOURCE_DESIGN_RESOURCE_SEGMENT = "/design-resource/"
 const VIRTUAL_RESOURCE_MEDIA_TYPES = new Set(["image", "video"])
 
+type CanvasMediaEntry = {
+	id?: string
+	namespace?: string
+	path?: string
+	mediaType?: "image" | "video"
+	url?: string
+	cacheKey?: string
+	sourceUrl?: string
+	originalUrl?: string
+	expiresAt?: number | null
+	size?: number
+	etag?: string | null
+	lastModified?: string | null
+	contentLength?: number | null
+	contentType?: string | null
+	lastAccessedAt?: number
+	updatedAt?: number
+}
+
+type CanvasMediaRefreshResult = {
+	refreshed: boolean
+	changed: boolean
+	metadata?: ReturnType<typeof getResponseMetadata>
+}
+
 let maxBytes = DEFAULT_MAX_BYTES
-const inflightResourceMap = new Map()
+const inflightResourceMap = new Map<string, Promise<Awaited<ReturnType<typeof fetchResourceBlobOnce>>>>()
 
 /**
  * 将 `design-resource/` 之后的资源路径规范成与主线程 IndexedDB `entry.path` 可比较的键。
- * 去掉前导 `/`，并对整段做 `decodeURIComponent`（含中文路径、空格 `%20` 等），避免与明文 Unicode 存储不一致。
  */
-function normalizeResourcePathForLookup(path) {
+export function normalizeResourcePathForLookup(path: string | null | undefined): string {
 	if (path == null || path === "") return ""
-	let p = String(path).replace(/^\/+/g, "")
+	let normalizedPath = String(path).replace(/^\/+/g, "")
 	try {
-		p = decodeURIComponent(p)
+		normalizedPath = decodeURIComponent(normalizedPath)
 	} catch {
 		// 非法转义序列时保留原串
 	}
-	return p
+	return normalizedPath
 }
 
-function normalizeResourceNamespace(namespace) {
+/** 规范化命名空间，保证空值收敛到统一全局命名空间。 */
+export function normalizeResourceNamespace(namespace: string | null | undefined): string {
 	const normalized = normalizeResourcePathForLookup(namespace)
 	return normalized || DEFAULT_RESOURCE_NAMESPACE
 }
 
-function getDeprecatedStorageNames(baseName, currentVersion) {
-	const names = new Set([baseName])
-	if (currentVersion > 1) {
-		names.add(`${baseName}-v${currentVersion - 1}`)
-	}
-	names.delete(`${baseName}-v${currentVersion}`)
-	return [...names]
-}
-
-function stripPathEdgeSlashes(path) {
+function stripPathEdgeSlashes(path: string | null | undefined): string {
 	return String(path || "")
 		.replace(/\\/g, "/")
 		.replace(/^\/+|\/+$/g, "")
 }
 
-function joinUrlPathSegments(...segments) {
+function joinUrlPathSegments(...segments: Array<string | null | undefined>): string {
 	return segments
 		.map((segment, index) => {
 			const normalized = String(segment || "").replace(/\\/g, "/")
@@ -77,11 +92,14 @@ function joinUrlPathSegments(...segments) {
 		.join("/")
 }
 
-function buildVirtualResourceUrl(namespace, mediaType, resourcePath) {
-	const scopePath = new URL(self.registration.scope).pathname
+/** 使用固定虚拟资源协议构造缓存键，保持与历史方案兼容。 */
+function buildVirtualResourceUrl(
+	namespace: string | null | undefined,
+	mediaType: "image" | "video" | null | undefined,
+	resourcePath: string | null | undefined,
+): string {
 	return joinUrlPathSegments(
 		self.location.origin,
-		scopePath,
 		"sw",
 		"canvas-design-media",
 		stripPathEdgeSlashes(normalizeResourceNamespace(namespace)),
@@ -91,26 +109,17 @@ function buildVirtualResourceUrl(namespace, mediaType, resourcePath) {
 	)
 }
 
-function requestToPromise(request) {
+function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
 	return new Promise((resolve, reject) => {
 		request.onsuccess = () => resolve(request.result)
 		request.onerror = () => reject(request.error)
 	})
 }
 
-function deleteDatabase(databaseName) {
-	return new Promise((resolve, reject) => {
-		const request = indexedDB.deleteDatabase(databaseName)
-		request.onsuccess = () => resolve()
-		request.onerror = () => reject(request.error)
-		request.onblocked = () => resolve()
-	})
-}
-
-function openDb() {
+function openDb(): Promise<IDBDatabase> {
 	return new Promise((resolve, reject) => {
 		const request = indexedDB.open(DB_NAME, DB_VERSION)
-		request.onupgradeneeded = (event) => {
+		request.onupgradeneeded = () => {
 			const db = request.result
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
 				db.createObjectStore(STORE_NAME, { keyPath: "id" })
@@ -121,7 +130,7 @@ function openDb() {
 	})
 }
 
-function getResourceId(entry) {
+function getResourceId(entry: CanvasMediaEntry): string {
 	return joinUrlPathSegments(
 		normalizeResourceNamespace(entry.namespace),
 		entry.mediaType,
@@ -129,7 +138,8 @@ function getResourceId(entry) {
 	)
 }
 
-function getCacheKey(entry) {
+/** 根据条目生成稳定 cache key，保持与历史虚拟 URL 方案一致。 */
+export function getCacheKey(entry: CanvasMediaEntry): string {
 	return (
 		entry.cacheKey ||
 		entry.url ||
@@ -137,11 +147,11 @@ function getCacheKey(entry) {
 	)
 }
 
-function getSourceUrl(entry) {
+function getSourceUrl(entry: CanvasMediaEntry): string | undefined {
 	return entry.sourceUrl || entry.originalUrl || entry.url
 }
 
-function getResponseMetadata(response, blobSize) {
+function getResponseMetadata(response: Response, blobSize: number) {
 	const contentLengthText = response.headers.get("Content-Length")
 	const contentLength = Number(contentLengthText)
 	return {
@@ -152,7 +162,10 @@ function getResponseMetadata(response, blobSize) {
 	}
 }
 
-function hasResourceChanged(previousEntry, metadata) {
+function hasResourceChanged(
+	previousEntry: CanvasMediaEntry | null,
+	metadata: ReturnType<typeof getResponseMetadata>,
+): boolean {
 	if (!previousEntry) return true
 	if (previousEntry.etag && metadata.etag) return previousEntry.etag !== metadata.etag
 	if (previousEntry.lastModified && metadata.lastModified) {
@@ -168,10 +181,11 @@ function hasResourceChanged(previousEntry, metadata) {
 	return true
 }
 
-/** 从虚拟媒体 URL 解析出资源路径；解析结果须经 `normalizeResourcePathForLookup` 再参与 IDB 查找。 */
-function parseVirtualResourceRequest(url) {
+/** 从虚拟媒体 URL 解析资源定位信息。 */
+export function parseVirtualResourceRequest(
+	url: string,
+): { namespace: string; mediaType: "image" | "video"; resourcePath: string } | null {
 	const parsedUrl = new URL(url)
-	// Anchor on the route marker to skip the SW scope prefix (/canvas-design-media/).
 	const segmentIndex = parsedUrl.pathname.indexOf(VIRTUAL_RESOURCE_ROUTE_MARKER)
 	if (segmentIndex < 0) return null
 
@@ -193,6 +207,7 @@ function parseVirtualResourceRequest(url) {
 	const rawNamespaceSegments = rawNamespaceWithMediaType.replace(/^\/+|\/+$/g, "").split("/")
 	const mediaType = rawNamespaceSegments.pop()
 	if (!mediaType || !VIRTUAL_RESOURCE_MEDIA_TYPES.has(mediaType)) return null
+
 	const rawNamespace = rawNamespaceSegments.join("/")
 	const namespace = normalizeResourceNamespace(rawNamespace)
 	const resourcePath = normalizeResourcePathForLookup(rawResourcePath)
@@ -201,13 +216,14 @@ function parseVirtualResourceRequest(url) {
 	return { namespace, mediaType, resourcePath }
 }
 
-async function saveEntry(entry) {
+async function saveEntry(entry: CanvasMediaEntry): Promise<void> {
 	const db = await openDb()
 	const transaction = db.transaction(STORE_NAME, "readwrite")
 	const store = transaction.objectStore(STORE_NAME)
 	const namespace = normalizeResourceNamespace(entry.namespace)
 	const id = getResourceId(entry)
-	const existing = await requestToPromise(store.get(id))
+	const existing = await requestToPromise<CanvasMediaEntry | undefined>(store.get(id))
+
 	await requestToPromise(
 		store.put({
 			id,
@@ -228,33 +244,42 @@ async function saveEntry(entry) {
 	)
 }
 
-async function getAllEntries() {
+async function getAllEntries(): Promise<CanvasMediaEntry[]> {
 	const db = await openDb()
 	const transaction = db.transaction(STORE_NAME, "readonly")
 	const store = transaction.objectStore(STORE_NAME)
 	return requestToPromise(store.getAll())
 }
 
-async function getEntryByPath(resourcePath, namespace, mediaType) {
-	const needle = normalizeResourcePathForLookup(resourcePath)
-	if (!needle) return null
+async function getEntryByPath(
+	resourcePath: string,
+	namespace: string,
+	mediaType: "image" | "video",
+): Promise<CanvasMediaEntry | null> {
+	const normalizedPath = normalizeResourcePathForLookup(resourcePath)
+	if (!normalizedPath) return null
+
 	const normalizedNamespace = normalizeResourceNamespace(namespace)
 	const db = await openDb()
 	const transaction = db.transaction(STORE_NAME, "readonly")
 	const store = transaction.objectStore(STORE_NAME)
-	return requestToPromise(store.get(joinUrlPathSegments(normalizedNamespace, mediaType, needle)))
+	return (
+		(await requestToPromise(
+			store.get(joinUrlPathSegments(normalizedNamespace, mediaType, normalizedPath)),
+		)) || null
+	)
 }
 
-async function deleteEntry(entry) {
+async function deleteEntry(entry: CanvasMediaEntry): Promise<void> {
 	const db = await openDb()
 	const transaction = db.transaction(STORE_NAME, "readwrite")
 	const store = transaction.objectStore(STORE_NAME)
-	await requestToPromise(store.delete(entry.id))
+	await requestToPromise(store.delete(entry.id as string))
 	const cache = await caches.open(CACHE_NAME)
 	await cache.delete(getCacheKey(entry))
 }
 
-async function touchEntry(entry, updates = {}) {
+async function touchEntry(entry: CanvasMediaEntry, updates: Partial<CanvasMediaEntry> = {}): Promise<void> {
 	await saveEntry({
 		...entry,
 		...updates,
@@ -262,7 +287,10 @@ async function touchEntry(entry, updates = {}) {
 	})
 }
 
-async function enforceMaxBytes(bytesToReserve = 0, protectedResourceId = null) {
+async function enforceMaxBytes(
+	bytesToReserve = 0,
+	protectedResourceId: string | null = null,
+): Promise<void> {
 	const entries = await getAllEntries()
 	let total = entries.reduce((sum, entry) => {
 		if (entry.id === protectedResourceId) return sum
@@ -272,7 +300,7 @@ async function enforceMaxBytes(bytesToReserve = 0, protectedResourceId = null) {
 
 	const removableEntries = entries
 		.filter((entry) => (entry.size || 0) > 0 && entry.id !== protectedResourceId)
-		.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt)
+		.sort((a, b) => (a.lastAccessedAt || 0) - (b.lastAccessedAt || 0))
 
 	for (const entry of removableEntries) {
 		if (total + bytesToReserve <= maxBytes) break
@@ -281,7 +309,7 @@ async function enforceMaxBytes(bytesToReserve = 0, protectedResourceId = null) {
 	}
 }
 
-function parseRange(rangeHeader, size) {
+function parseRange(rangeHeader: string | null, size: number) {
 	const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader || "")
 	if (!match) return null
 
@@ -312,7 +340,20 @@ function parseRange(rangeHeader, size) {
 	}
 }
 
-async function buildRangeResponse(response, request) {
+function createResponseFromBlobResult(result: {
+	blob: Blob
+	status: number
+	statusText: string
+	headers: Headers
+}) {
+	return new Response(result.blob, {
+		status: result.status,
+		statusText: result.statusText,
+		headers: new Headers(result.headers),
+	})
+}
+
+async function buildRangeResponse(response: Response, request: Request): Promise<Response> {
 	const range = request.headers.get("range")
 	if (!range) return response
 
@@ -340,11 +381,16 @@ async function buildRangeResponse(response, request) {
 	})
 }
 
-async function putResponseInCache(response, entry, metadata) {
+async function putResponseInCache(
+	response: Response,
+	entry: CanvasMediaEntry,
+	metadata: ReturnType<typeof getResponseMetadata>,
+): Promise<void> {
 	if (!response.ok) return
 	const responseForSize = response.clone()
 	const blob = await responseForSize.blob()
 	if (blob.size > maxBytes) return
+
 	await enforceMaxBytes(blob.size, getResourceId(entry))
 	const cache = await caches.open(CACHE_NAME)
 	await cache.put(getCacheKey(entry), response.clone())
@@ -356,15 +402,7 @@ async function putResponseInCache(response, entry, metadata) {
 	await enforceMaxBytes()
 }
 
-function createResponseFromBlobResult(result) {
-	return new Response(result.blob, {
-		status: result.status,
-		statusText: result.statusText,
-		headers: new Headers(result.headers),
-	})
-}
-
-async function fetchResourceBlobOnce(entry) {
+async function fetchResourceBlobOnce(entry: CanvasMediaEntry) {
 	const cacheKey = getCacheKey(entry)
 	const existingPromise = inflightResourceMap.get(cacheKey)
 	if (existingPromise) return existingPromise
@@ -401,15 +439,16 @@ async function fetchResourceBlobOnce(entry) {
 	return promise
 }
 
-async function refreshResource(entry) {
+/** 刷新单条 Canvas 资源缓存，并返回“是否刷新/是否内容变化”的结果。 */
+export async function refreshCanvasMediaResource(entry: CanvasMediaEntry): Promise<CanvasMediaRefreshResult> {
 	const previousEntry = await getEntryByPath(
-		entry.path.replace(/^\/+/, ""),
+		String(entry.path || "").replace(/^\/+/, ""),
 		normalizeResourceNamespace(entry.namespace),
-		entry.mediaType,
+		entry.mediaType as "image" | "video",
 	)
 	await saveEntry(entry)
 	const result = await fetchResourceBlobOnce(entry)
-	if (!result.blob) {
+	if (!("blob" in result) || !result.blob) {
 		return {
 			refreshed: false,
 			changed: false,
@@ -423,47 +462,55 @@ async function refreshResource(entry) {
 	}
 }
 
-function respondToMessage(event, data) {
-	const port = event.ports?.[0]
-	if (!port) return
-	port.postMessage(data)
+/** 处理 Canvas 虚拟资源请求，保持与历史独立 SW 相同的缓存/回源行为。 */
+export async function handleCanvasMediaRequest(request: Request): Promise<Response | null> {
+	const virtualRequest = parseVirtualResourceRequest(request.url)
+	if (!virtualRequest) return null
+	if (request.method !== "GET") return null
+
+	try {
+		const entry = await getEntryByPath(
+			virtualRequest.resourcePath,
+			virtualRequest.namespace,
+			virtualRequest.mediaType,
+		)
+		if (!entry) {
+			return new Response(null, { status: 404 })
+		}
+
+		const cache = await caches.open(CACHE_NAME)
+		const cachedResponse = await cache.match(getCacheKey(entry))
+		if (cachedResponse) {
+			await touchEntry(entry)
+			return buildRangeResponse(cachedResponse, request)
+		}
+
+		const result = await fetchResourceBlobOnce(entry)
+		if ("blob" in result && result.blob) {
+			return buildRangeResponse(createResponseFromBlobResult(result), request)
+		}
+
+		return buildRangeResponse(result.response, request)
+	} catch {
+		const entry = await getEntryByPath(
+			virtualRequest.resourcePath,
+			virtualRequest.namespace,
+			virtualRequest.mediaType,
+		)
+		if (!entry) {
+			return new Response(null, { status: 404 })
+		}
+		const cache = await caches.open(CACHE_NAME)
+		const cachedResponse = await cache.match(getCacheKey(entry))
+		if (cachedResponse) {
+			return buildRangeResponse(cachedResponse, request)
+		}
+		return Response.error()
+	}
 }
 
-self.addEventListener("install", (event) => {
-	event.waitUntil(self.skipWaiting())
-})
-
-self.addEventListener("activate", (event) => {
-	event.waitUntil(
-		(async () => {
-			const deprecatedDbNames = getDeprecatedStorageNames(DB_BASE_NAME, OFFLINE_CACHE_VERSION)
-			const deprecatedCacheNames = new Set(
-				getDeprecatedStorageNames(CACHE_BASE_NAME, OFFLINE_CACHE_VERSION),
-			)
-
-			await Promise.all([
-				self.clients.claim(),
-				Promise.all(
-					deprecatedDbNames.map((databaseName) =>
-						deleteDatabase(databaseName).catch(() => undefined),
-					),
-				),
-				caches
-					.keys()
-					.then((names) =>
-						Promise.all(
-							names
-								.filter((cacheName) => deprecatedCacheNames.has(cacheName))
-								.map((cacheName) => caches.delete(cacheName)),
-						),
-					)
-					.catch(() => undefined),
-			])
-		})(),
-	)
-})
-
-self.addEventListener("message", (event) => {
+/** 主 SW 收到 Canvas 消息后的统一处理入口。 */
+export function handleCanvasMediaMessage(event: ExtendableMessageEvent): boolean {
 	const data = event.data || {}
 	if (data.maxBytes && Number.isFinite(data.maxBytes)) {
 		maxBytes = data.maxBytes
@@ -471,78 +518,35 @@ self.addEventListener("message", (event) => {
 
 	if (data.type === "CANVAS_MEDIA_CACHE_REGISTER" && data.entry) {
 		event.waitUntil(saveEntry(data.entry))
-		return
+		return true
 	}
 
 	if (data.type === "CANVAS_MEDIA_CACHE_REFRESH" && data.entry) {
 		event.waitUntil(
-			refreshResource(data.entry)
+			refreshCanvasMediaResource(data.entry)
 				.then((result) => {
-					respondToMessage(event, {
+					const port = event.ports?.[0]
+					port?.postMessage({
 						type: "CANVAS_MEDIA_CACHE_REFRESH_RESULT",
 						...result,
 					})
 				})
 				.catch(() => {
-					respondToMessage(event, {
+					const port = event.ports?.[0]
+					port?.postMessage({
 						type: "CANVAS_MEDIA_CACHE_REFRESH_RESULT",
 						refreshed: false,
 						changed: false,
 					})
 				}),
 		)
-		return
+		return true
 	}
 
 	if (data.type === "CANVAS_MEDIA_CACHE_ENFORCE_LIMIT") {
 		event.waitUntil(enforceMaxBytes())
+		return true
 	}
-})
 
-self.addEventListener("fetch", (event) => {
-	const request = event.request
-	const virtualRequest = parseVirtualResourceRequest(request.url)
-	if (!virtualRequest) return
-	if (request.method !== "GET") return
-
-	event.respondWith(
-		(async () => {
-			const entry = await getEntryByPath(
-				virtualRequest.resourcePath,
-				virtualRequest.namespace,
-				virtualRequest.mediaType,
-			)
-			if (!entry) {
-				return new Response(null, { status: 404 })
-			}
-
-			const cache = await caches.open(CACHE_NAME)
-			const cachedResponse = await cache.match(getCacheKey(entry))
-			if (cachedResponse) {
-				await touchEntry(entry)
-				return buildRangeResponse(cachedResponse, request)
-			}
-
-			const result = await fetchResourceBlobOnce(entry)
-			if (result.blob) {
-				return buildRangeResponse(createResponseFromBlobResult(result), request)
-			}
-			return buildRangeResponse(result.response, request)
-		})().catch(async () => {
-			const entry = await getEntryByPath(
-				virtualRequest.resourcePath,
-				virtualRequest.namespace,
-				virtualRequest.mediaType,
-			)
-			if (!entry) {
-				return new Response(null, { status: 404 })
-			}
-			const cache = await caches.open(CACHE_NAME)
-			const cachedResponse = await cache.match(getCacheKey(entry))
-			if (cachedResponse) {
-				return buildRangeResponse(cachedResponse, request)
-			}
-			return Response.error()
-		}),
-	)
-})
+	return false
+}

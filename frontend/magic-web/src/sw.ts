@@ -1,5 +1,10 @@
 /// <reference lib="webworker" />
 
+import {
+	handleCanvasMediaMessage,
+	handleCanvasMediaRequest,
+} from "./workers/service-worker/canvasMediaShared"
+
 const sw = globalThis as unknown as ServiceWorkerGlobalScope
 
 interface WorkboxRouteContext {
@@ -297,8 +302,22 @@ if (!configuredWorkboxRuntimeUrl) {
 }
 
 sw.addEventListener("message", (event) => {
-	if (event.data?.type !== "SKIP_WAITING") return
-	void sw.skipWaiting()
+	if (event.data?.type === "SKIP_WAITING") {
+		void sw.skipWaiting()
+		return
+	}
+
+	handleCanvasMediaMessage(event)
+})
+
+sw.addEventListener("fetch", (event) => {
+	const requestUrl = new URL(event.request.url)
+	if (event.request.method !== "GET") return
+	if (!requestUrl.pathname.startsWith(CANVAS_MEDIA_SCOPE_PREFIX)) return
+
+	event.respondWith(
+		handleCanvasMediaRequest(event.request).then((response) => response ?? fetch(event.request)),
+	)
 })
 
 sw.addEventListener("activate", (event) => {

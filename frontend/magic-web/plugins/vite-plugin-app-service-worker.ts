@@ -1,28 +1,33 @@
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { resolve } from "path"
-import { transformSync } from "esbuild"
+import { build } from "esbuild"
 import type { PluginOption } from "vite"
 
 const APP_SERVICE_WORKER_FILE_NAME = "sw.js"
 const APP_SERVICE_WORKER_ROUTE_PATH = `/${APP_SERVICE_WORKER_FILE_NAME}`
 const APP_SERVICE_WORKER_SOURCE_PATH = resolve(__dirname, "../src/sw.ts")
 
-function buildAppServiceWorkerSource(): string | null {
+async function buildAppServiceWorkerSource(): Promise<string | null> {
 	if (!existsSync(APP_SERVICE_WORKER_SOURCE_PATH)) return null
 
-	const source = readFileSync(APP_SERVICE_WORKER_SOURCE_PATH, "utf-8")
-	return transformSync(source, {
-		loader: "ts",
+	const result = await build({
+		entryPoints: [APP_SERVICE_WORKER_SOURCE_PATH],
+		bundle: true,
+		write: false,
 		format: "iife",
 		target: "es2018",
-	}).code
+		platform: "browser",
+	})
+
+	const outputFile = result.outputFiles?.[0]
+	return outputFile?.text ?? null
 }
 
 export default function createAppServiceWorkerPlugin(): PluginOption {
 	return {
 		name: "vite-plugin-app-service-worker",
 		configureServer(server) {
-			server.middlewares.use((req, res, next) => {
+			server.middlewares.use(async (req, res, next) => {
 				if (!req.url) {
 					next()
 					return
@@ -34,7 +39,7 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 					return
 				}
 
-				const transformedSource = buildAppServiceWorkerSource()
+				const transformedSource = await buildAppServiceWorkerSource()
 				if (!transformedSource) {
 					next()
 					return
@@ -46,8 +51,8 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 				res.end(transformedSource)
 			})
 		},
-		generateBundle() {
-			const transformedSource = buildAppServiceWorkerSource()
+		async generateBundle() {
+			const transformedSource = await buildAppServiceWorkerSource()
 			if (!transformedSource) return
 
 			this.emitFile({

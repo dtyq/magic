@@ -1,10 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
 	activateWaitingServiceWorkerAndReload,
 	isCanvasMediaPath,
 	markServiceWorkerCacheableResourceUrl,
 	registerAppServiceWorker,
 } from "../register"
+
+async function flushMicrotasks(times = 4): Promise<void> {
+	for (let index = 0; index < times; index += 1) {
+		await Promise.resolve()
+	}
+}
 
 describe("service worker path guards", () => {
 	it("skips canvas media virtual resources", () => {
@@ -65,6 +71,11 @@ describe("activateWaitingServiceWorkerAndReload", () => {
 describe("registerAppServiceWorker", () => {
 	beforeEach(() => {
 		vi.restoreAllMocks()
+		vi.stubEnv("MAGIC_MOCK", "true")
+	})
+
+	afterEach(() => {
+		vi.unstubAllEnvs()
 	})
 
 	it("passes workbox cdn url and vendor cache hosts in registration url", async () => {
@@ -91,7 +102,7 @@ describe("registerAppServiceWorker", () => {
 		})
 
 		registerAppServiceWorker()
-		await Promise.resolve()
+		await flushMicrotasks()
 
 		expect(register).toHaveBeenCalledTimes(1)
 
@@ -100,7 +111,7 @@ describe("registerAppServiceWorker", () => {
 
 		expect(resolvedUrl.pathname).toBe("/sw.js")
 		expect(resolvedUrl.searchParams.get("workboxCdnUrl")).toBe(
-			"https://public-cdn.example.com/workbox/6.4.1/workbox-sw.js",
+			"https://cdn.jsdelivr.net/npm/workbox-sw@7.4.1/build/workbox-sw.js",
 		)
 		expect(resolvedUrl.searchParams.get("vendorCacheHosts")).toBe(
 			"public-cdn.example.com,assets.example.com,cdn.jsdelivr.net",
