@@ -41,10 +41,29 @@ await window.Magic.fs.writeFile("data/users.json", JSON.stringify(updated, null,
 
 // 写入纯文本（使用 ./ 前缀明确表示相对路径，效果相同）
 await window.Magic.fs.writeFile("./output/report.md", markdownContent)
+
+// 写入大文件：直接传 Blob 或 ArrayBuffer（无需转字符串，支持二进制，上限 500 MB）
+const response = await fetch("https://example.com/large-data.bin")
+const blob = await response.blob()
+await window.Magic.fs.writeFile("data/large-data.bin", blob)
+
+// 使用 ArrayBuffer
+const buffer = await response.arrayBuffer()
+await window.Magic.fs.writeFile("data/large-data.bin", buffer)
 ```
 
-**参数**：`path: string` — 相对于应用根目录的路径（支持 `"dir/file.txt"` 或 `"./dir/file.txt"` 两种写法，效果等同）；`content: string` — 文件内容字符串。  
+**参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `path` | `string` | 相对于应用根目录的路径（支持 `"dir/file.txt"` 或 `"./dir/file.txt"`） |
+| `content` | `string \| Blob \| ArrayBuffer` | 文件内容 |
+
 **返回**：`Promise<void>`。  
+**限制**：
+
+- `string` 内容：最大 5 MB
+- `Blob` / `ArrayBuffer` 内容：最大 500 MB（通过 postMessage 结构化克隆直接传输，无额外编码开销）
+
 **说明**：文件已存在时覆盖；路径中的目录无需提前创建；禁止 `../` 穿越到应用根目录之外。
 
 ---
@@ -207,15 +226,39 @@ window.Magic.reload()
 
 ### 3.3 上传文件到工作区 `uploadFiles(files)`
 
+> **推荐**：对于应用根目录内的文件写入，优先使用 `window.Magic.fs.writeFile(path, blob)`。
+> 它更简洁（无需构造数组）、支持 500 MB、且自动创建目录。
+> `uploadFiles` 适用于需要批量上传多个文件、或需要自定义目标路径的场景。
+
 ```javascript
-// 将 File 对象上传到 workspace
+// ✅ 推荐：直接用 writeFile 写入单个文件
 const input = document.createElement("input")
 input.type = "file"
 input.onchange = async () => {
-	await window.Magic.uploadFiles(Array.from(input.files))
+	const file = input.files[0]
+	await window.Magic.fs.writeFile(file.name, file)
 }
 input.click()
+
+// 批量上传多个文件时使用 uploadFiles
+const input2 = document.createElement("input")
+input2.type = "file"
+input2.multiple = true
+input2.onchange = async () => {
+	await window.Magic.uploadFiles(
+		Array.from(input2.files).map((f) => ({
+			file: f,
+			path: `./${f.name}`,
+			filename: f.name,
+		})),
+	)
+}
+input2.click()
 ```
+
+**参数**：`files: Array<{ file: File, path: string, filename: string }>` — 每项包含 File 对象、目标路径和文件名。  
+**返回**：`Promise<unknown>`。  
+**限制**：单文件最大 500 MB。
 
 ### 3.4 下载 workspace 文件 `downloadFiles(paths)`
 
@@ -223,6 +266,89 @@ input.click()
 // 下载 workspace 中指定路径的文件到本地
 await window.Magic.downloadFiles(["output/report.pdf", "data/export.csv"])
 ```
+
+### 3.5 获取员工列表 `getAgents()`
+
+获取当前可用的 Agent（员工）列表。
+
+```javascript
+const agents = await window.Magic.getAgents()
+// → [
+//   { id: "general", name: "通用助手", icon: "https://...", color: "#4A90D9", type: "official" },
+//   { id: "data_analysis", name: "数据分析师", icon: "https://...", color: "#52C41A", type: "official" },
+//   { id: "my_custom_agent", name: "我的自定义员工", icon: "https://...", color: "#FF6B6B", type: "custom" },
+// ]
+
+// 展示可选员工列表
+agents.forEach((agent) => {
+	console.log(`${agent.name} (${agent.type}) - ${agent.id}`)
+})
+```
+
+**返回**：`Promise<Array<{ id: string; name: string; icon: string; color: string; type: "official" | "custom" | "public" }>>` — 当前可用的员工列表。
+
+| 字段    | 类型     | 说明                                               |
+| ------- | -------- | -------------------------------------------------- |
+| `id`    | `string` | Agent 唯一标识（mode.identifier）                  |
+| `name`  | `string` | Agent 名称                                         |
+| `icon`  | `string` | Agent 图标 URL                                     |
+| `color` | `string` | Agent 图标颜色                                     |
+| `type`  | `string` | Agent 类型：`"official"` / `"custom"` / `"public"` |
+
+---
+
+### 3.6 新建话题并发送消息 `createTopicAndSend(message, options?)`
+
+创建一个新话题，并在该话题中发送指定消息，可选指定员工和模型。
+
+```javascript
+// 基础用法：创建新话题并发送消息
+const { topicId } = await window.Magic.createTopicAndSend("请帮我分析这组数据")
+
+// 指定员工发送
+const { topicId: tid2 } = await window.Magic.createTopicAndSend("请用 Python 写一个爬虫脚本", {
+	agentId: "general",
+})
+
+// 指定员工 + 模型
+const { topicId: tid3 } = await window.Magic.createTopicAndSend("请为我生成一份报告", {
+	agentId: "data_analysis",
+	model: "gpt-4o",
+})
+```
+
+**参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `message` | `string` | 要发送的消息内容（不能为空） |
+| `options.agentId` | `string?` | 指定 Agent ID（从 `getAgents()` 获取） |
+| `options.model` | `string?` | 指定模型 ID |
+
+**返回**：`Promise<{ topicId: string }>` — 新创建的话题 ID。  
+**超时**：30 秒无响应自动 reject。
+
+---
+
+### 3.7 在当前话题发送消息 `sendMessage(message, options?)`
+
+在当前激活的话题中直接发送一条消息，可选指定模型。
+
+```javascript
+// 基础用法：直接发送消息
+await window.Magic.sendMessage("请继续分析第二部分数据")
+
+// 指定模型发送
+await window.Magic.sendMessage("请用更详细的方式解释", { model: "gpt-4o" })
+```
+
+**参数**：
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `message` | `string` | 要发送的消息内容（不能为空） |
+| `options.model` | `string?` | 指定模型 ID |
+
+**返回**：`Promise<void>`。  
+**超时**：15 秒无响应自动 reject。
 
 ---
 
@@ -425,17 +551,20 @@ window.Magic.llm.stream(messages, (delta, done) => {
 
 ## 六、API 速查表
 
-| API                                             | 说明               | 返回                     |
-| ----------------------------------------------- | ------------------ | ------------------------ |
-| `window.Magic.fs.readFile(path)`                | 读取文件文本       | `Promise<string>`        |
-| `window.Magic.fs.writeFile(path, content)`      | 写入/创建文件      | `Promise<void>`          |
-| `window.Magic.fs.listFiles(dir?)`               | 列出目录文件       | `Promise<string[]>`      |
-| `window.Magic.fs.watchFile(path, cb)`           | 监听文件变更       | `() => void`（取消函数） |
-| `window.Magic.llm.getModels()`                  | 获取可用模型       | `Promise<Model[]>`       |
-| `window.Magic.llm.chat(msgs, opts?)`            | 单次对话           | `Promise<string>`        |
-| `window.Magic.llm.stream(msgs, onChunk, opts?)` | 流式对话           | `() => void`（取消函数） |
-| `window.Magic.setInputMessage(msg)`             | 向 Agent 发消息    | `void`                   |
-| `window.Magic.reload()`                         | 触发 Agent 刷新    | `void`                   |
-| `window.Magic.uploadFiles(files)`               | 上传文件到工作区   | `Promise<unknown>`       |
-| `window.Magic.downloadFiles(paths)`             | 下载工作区文件     | `Promise<unknown>`       |
-| `window.Magic.addFilesToMessage(files)`         | 将文件附加到输入框 | `void`                   |
+| API                                             | 说明                                                              | 返回                     |
+| ----------------------------------------------- | ----------------------------------------------------------------- | ------------------------ |
+| `window.Magic.fs.readFile(path)`                | 读取文件文本                                                      | `Promise<string>`        |
+| `window.Magic.fs.writeFile(path, content)`      | 写入/创建文件（content 支持 string/Blob/ArrayBuffer，上限 500MB） | `Promise<void>`          |
+| `window.Magic.fs.listFiles(dir?)`               | 列出目录文件                                                      | `Promise<string[]>`      |
+| `window.Magic.fs.watchFile(path, cb)`           | 监听文件变更                                                      | `() => void`（取消函数） |
+| `window.Magic.llm.getModels()`                  | 获取可用模型                                                      | `Promise<Model[]>`       |
+| `window.Magic.llm.chat(msgs, opts?)`            | 单次对话                                                          | `Promise<string>`        |
+| `window.Magic.llm.stream(msgs, onChunk, opts?)` | 流式对话                                                          | `() => void`（取消函数） |
+| `window.Magic.setInputMessage(msg)`             | 向 Agent 发消息                                                   | `void`                   |
+| `window.Magic.reload()`                         | 触发 Agent 刷新                                                   | `void`                   |
+| `window.Magic.uploadFiles(files)`               | 上传文件到工作区                                                  | `Promise<unknown>`       |
+| `window.Magic.downloadFiles(paths)`             | 下载工作区文件                                                    | `Promise<unknown>`       |
+| `window.Magic.addFilesToMessage(files)`         | 将文件附加到输入框                                                | `void`                   |
+| `window.Magic.getAgents()`                      | 获取可用员工列表                                                  | `Promise<AgentInfo[]>`   |
+| `window.Magic.createTopicAndSend(msg, opts?)`   | 新建话题并发送消息                                                | `Promise<{ topicId }>`   |
+| `window.Magic.sendMessage(msg, opts?)`          | 当前话题发送消息                                                  | `Promise<void>`          |

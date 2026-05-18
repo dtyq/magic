@@ -11,6 +11,7 @@ import { MagicReloadApi } from "./MagicReloadApi"
 import { MagicInputApi } from "./MagicInputApi"
 import { MagicI18nApi } from "./MagicI18nApi"
 import { MagicFilesApi } from "./MagicFilesApi"
+import { MagicAgentApi } from "./MagicAgentApi"
 
 export function installMagicAPI(): void {
 	if (typeof window === "undefined") return
@@ -20,4 +21,5 @@ export function installMagicAPI(): void {
 	new MagicInputApi().install()
 	new MagicI18nApi().install()
 	new MagicFilesApi().install()
+	new MagicAgentApi().install()
 }

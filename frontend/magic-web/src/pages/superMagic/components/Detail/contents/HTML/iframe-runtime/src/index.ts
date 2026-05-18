@@ -306,7 +306,7 @@ function activateEditorRuntime(scaleRatio: number): void {
 	if (typeof window !== "undefined") {
 		if ((window as unknown as Record<string, unknown>).__elementSelectorV2__) {
 			try {
-				;(
+				; (
 					(window as unknown as Record<string, unknown>).__elementSelectorV2__ as {
 						destroy?: () => void
 					}
@@ -470,6 +470,23 @@ declare global {
 			uploadFiles?: (files: unknown[]) => Promise<unknown>
 			downloadFiles?: (filePaths: string[]) => Promise<unknown>
 			addFilesToMessage?: (files: unknown[]) => void
+			getAgents?: () => Promise<
+				Array<{
+					id: string
+					name: string
+					icon: string
+					color: string
+					type: "official" | "custom" | "public"
+				}>
+			>
+			createTopicAndSend?: (
+				message: string,
+				options?: { agentId?: string; model?: string },
+			) => Promise<{ topicId: string }>
+			sendMessage?: (
+				message: string,
+				options?: { model?: string },
+			) => Promise<void>
 			i18n?: {
 				lang: string
 				subscribe: (callback: (result: { lang: string }) => void) => () => void

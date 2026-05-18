@@ -24,13 +24,34 @@ export class MagicFSApi extends MagicBaseApi {
 				return this.request<string>("MAGIC_FS_READ_REQUEST", { path })
 			},
 
-			writeFile: (path: string, content: string): Promise<void> => {
+			writeFile: (path: string, content: string | Blob | ArrayBuffer): Promise<void> => {
 				if (typeof path !== "string") {
 					return Promise.reject(new Error("writeFile: path must be a string"))
 				}
-				if (typeof content !== "string") {
-					return Promise.reject(new Error("writeFile: content must be a string"))
+				if (
+					typeof content !== "string" &&
+					!(content instanceof Blob) &&
+					!(content instanceof ArrayBuffer)
+				) {
+					return Promise.reject(
+						new Error("writeFile: content must be a string, Blob, or ArrayBuffer"),
+					)
 				}
+
+				// For Blob / ArrayBuffer, use the blob write protocol (supports up to 100MB)
+				if (content instanceof Blob || content instanceof ArrayBuffer) {
+					const blob =
+						content instanceof ArrayBuffer
+							? new Blob([content])
+							: content
+					return this.request<void>(
+						"MAGIC_FS_WRITE_BLOB_REQUEST",
+						{ path, blob },
+						60000, // 60s timeout for large files
+					)
+				}
+
+				// For string content, use the standard write protocol (up to 5MB)
 				return this.request<void>("MAGIC_FS_WRITE_REQUEST", { path, content })
 			},
 

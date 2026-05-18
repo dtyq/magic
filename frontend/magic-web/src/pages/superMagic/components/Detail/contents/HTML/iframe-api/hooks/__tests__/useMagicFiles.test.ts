@@ -18,7 +18,9 @@ vi.mock("@/components/base/MagicToaster/utils", () => ({
 }))
 
 vi.mock("@/pages/superMagic/components/MessageEditor/utils/fileConverter", () => ({
-	base64ToFile: vi.fn((base64: string, filename: string) => new File([base64], filename)),
+	base64ToFile: vi.fn((base64: string, filename: string) =>
+		Promise.resolve(new File([base64], filename)),
+	),
 }))
 
 vi.mock("@/pages/superMagic/components/Detail/contents/HTML/utils/file-utils", () => ({

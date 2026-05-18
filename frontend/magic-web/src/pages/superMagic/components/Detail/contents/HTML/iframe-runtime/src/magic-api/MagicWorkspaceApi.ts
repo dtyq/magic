@@ -24,7 +24,7 @@ interface UploadFileItem {
 }
 
 interface FileData {
-	base64: string | ArrayBuffer | null
+	file: File
 	filename: string
 	path: string
 	fileSize: number
@@ -87,36 +87,19 @@ export class MagicWorkspaceApi extends MagicBaseApi {
 				}
 			}
 
-			const filePromises = (files as UploadFileItem[]).map((item) => {
-				return new Promise<FileData>((res, rej) => {
-					const reader = new FileReader()
-					reader.onload = () => {
-						res({
-							base64: reader.result,
-							filename: item.filename,
-							path: item.path,
-							fileSize: item.file.size,
-							fileType: item.file.type,
-						})
-					}
-					reader.onerror = () => {
-						MagicApiLogger.error("MagicWorkspaceApi", "uploadFiles:file-read-failed", {
-							filename: item.filename,
-							path: item.path,
-						})
-						rej(new Error(`Failed to read file: ${item.filename}`))
-					}
-					reader.readAsDataURL(item.file)
-				})
-			})
+			const fileData: FileData[] = (files as UploadFileItem[]).map((item) => ({
+				file: item.file,
+				filename: item.filename,
+				path: item.path,
+				fileSize: item.file.size,
+				fileType: item.file.type,
+			}))
 
-			return Promise.all(filePromises).then((fileData) =>
-				this.request<unknown>(
-					"MAGIC_UPLOAD_FILES_REQUEST",
-					{ files: fileData },
-					30000,
-					(data) => data["results"],
-				),
+			return this.request<unknown>(
+				"MAGIC_UPLOAD_FILES_REQUEST",
+				{ files: fileData },
+				60000, // 60s timeout for large files
+				(data) => data["results"],
 			)
 		}
 	}
