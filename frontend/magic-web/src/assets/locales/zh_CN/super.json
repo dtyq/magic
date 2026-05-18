@@ -537,6 +537,10 @@
 			"markerNeedDesignMode": "标记需切换至「设计模式」，创建新话题即可进行标记",
 			"packingDownloading": "正在打包下载 {{count}} 张图片..."
 		},
+		"offlineNotice": {
+			"description": "网络恢复后可继续编辑并保存画布内容",
+			"title": "网络已断开，画布已切换为只读"
+		},
 		"saved": "保存成功",
 		"saving": "正在保存"
 	},

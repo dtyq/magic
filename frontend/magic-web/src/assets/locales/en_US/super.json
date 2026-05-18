@@ -536,6 +536,10 @@
 			"markerNeedDesignMode": "Markers need to switch to \"Design Mode\". Create a new topic to add markers",
 			"packingDownloading": "Packing and downloading {{count}} images..."
 		},
+		"offlineNotice": {
+			"description": "You can continue editing and saving the canvas after the network reconnects.",
+			"title": "Network disconnected. Canvas is read-only"
+		},
 		"saved": "Saved",
 		"saving": "Saving"
 	},
