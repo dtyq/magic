@@ -11,7 +11,7 @@ import { observer } from "mobx-react-lite"
 import { useTranslation, Trans } from "react-i18next"
 import { isString } from "lodash-es"
 import { useMemoizedFn } from "ahooks"
-import { Check, ChevronsUpDown, MessageCirclePlus } from "lucide-react"
+import { Check, ChevronsUpDown, MessageCirclePlus, Search } from "lucide-react"
 import { CrewItem } from "../../pages/Workspace/types"
 import { TopicMode } from "../../pages/Workspace/TopicMode"
 import { useFeaturedModeListRefreshOnFirstOpen } from "@/pages/superMagic/hooks/useFeaturedModeListRefresh"
@@ -20,17 +20,12 @@ import { MagicIcon } from "@/components/base"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import BlackPurpleButton from "@/components/other/BlackPurpleButton"
 import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "@/components/shadcn-ui/dropdown-menu"
-import {
 	Popover,
 	PopoverAnchor,
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/shadcn-ui/popover"
+import { Input } from "@/components/shadcn-ui/input"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -75,6 +70,12 @@ function modeMatchesTopic(
 	return modeIdentifier === topicMode
 }
 
+function isDescriptionToggleTarget(target: EventTarget | null) {
+	return target instanceof HTMLElement
+		? !!target.closest("[data-collapsible-description-toggle='true']")
+		: false
+}
+
 function ModeToggle({
 	topicMode,
 	agentCode,
@@ -95,12 +96,13 @@ function ModeToggle({
 	})
 	const [popoverOpen, setPopoverOpen] = useState(false)
 	const [popoverTarget, setPopoverTarget] = useState<HTMLElement | null>(null)
+	const [searchKeyword, setSearchKeyword] = useState("")
 	const modeList = superMagicModeService.modeList
 	const popoverTargetRef = useRef<HTMLElement | null>(null)
 	const modeListScrollRef = useRef<HTMLDivElement | null>(null)
-	const [expandedModeDescriptions, setExpandedModeDescriptions] = useState<Record<string, boolean>>(
-		{},
-	)
+	const [expandedModeDescriptions, setExpandedModeDescriptions] = useState<
+		Record<string, boolean>
+	>({})
 
 	useFeaturedModeListRefreshOnFirstOpen(open)
 
@@ -109,7 +111,7 @@ function ModeToggle({
 		return superMagicModeService.getModeConfigWithLegacy(topicMode, t, false, agentCode)
 	}, [topicMode, t, agentCode])
 
-	const isCompactList = isMobile || !allowChangeMode
+	const isCompactList = isMobile
 
 	const resolveModeText = useMemoizedFn((text?: string, fallback?: string) => {
 		return text || fallback
@@ -121,11 +123,34 @@ function ModeToggle({
 		popoverTargetRef.current = null
 	})
 
+	const resetSearchKeyword = useMemoizedFn(() => {
+		setSearchKeyword("")
+	})
+
 	const closeAllPanels = useMemoizedFn(() => {
 		setOpen(false)
 		resetConfirmPopover()
+		resetSearchKeyword()
 		setShowNewTopicModal({ visible: false, mode: null })
 	})
+
+	const filteredModeList = useMemo(() => {
+		const normalizedKeyword = searchKeyword.trim().toLocaleLowerCase()
+
+		if (!normalizedKeyword) return modeList
+
+		return modeList?.filter((tab) => {
+			const modeLabel = resolveModeText(tab.mode.name, tCrewCreate("untitledCrew"))
+			const modeWithDescription = tab.mode as CrewItem["mode"]
+			const modeDescription = resolveModeText(
+				"description" in modeWithDescription ? modeWithDescription.description : undefined,
+			)
+
+			return [modeLabel, modeDescription].some((value) =>
+				value?.toLocaleLowerCase().includes(normalizedKeyword),
+			)
+		})
+	}, [modeList, resolveModeText, searchKeyword, tCrewCreate])
 
 	const scrollToSelectedMode = useMemoizedFn(() => {
 		const container = modeListScrollRef.current
@@ -153,7 +178,7 @@ function ModeToggle({
 	}, [open, scrollToSelectedMode, topicMode, agentCode])
 
 	const handleModeChange = useMemoizedFn(
-		(mode: CrewItem["mode"], event?: ReactMouseEvent<HTMLElement>) => {
+		(mode: CrewItem["mode"], anchorElement?: HTMLElement | null) => {
 			if (allowChangeMode) {
 				onModeChange?.(mode.identifier as TopicMode)
 				setOpen(false)
@@ -186,9 +211,9 @@ function ModeToggle({
 			}
 
 			setShowNewTopicModal({ visible: true, mode })
-			if (event?.currentTarget) {
-				popoverTargetRef.current = event.currentTarget
-				setPopoverTarget(event.currentTarget)
+			if (anchorElement) {
+				popoverTargetRef.current = anchorElement
+				setPopoverTarget(anchorElement)
 				setPopoverOpen(true)
 			}
 		},
@@ -279,7 +304,9 @@ function ModeToggle({
 									description={modeDescription}
 									isExpanded={!!expandedModeDescriptions[tab.mode.identifier]}
 									expandLabel={t("messageEditor.modelSwitch.expandDescription")}
-									collapseLabel={t("messageEditor.modelSwitch.collapseDescription")}
+									collapseLabel={t(
+										"messageEditor.modelSwitch.collapseDescription",
+									)}
 									onToggle={(event) =>
 										toggleModeDescription(tab.mode.identifier, event)
 									}
@@ -296,51 +323,15 @@ function ModeToggle({
 		},
 	)
 
-	const renderDropdownModeItem = useCallback(
-		(tab: CrewItem) => {
-			const isSelected = modeMatchesTopic(tab.mode.identifier, topicMode, agentCode)
-
-			return (
-				<DropdownMenuItem
-					key={tab.mode.identifier}
-					className={cn(
-						"group min-w-0 cursor-pointer rounded-md px-2.5 py-2 text-foreground outline-none ring-0 ring-offset-0",
-						isCompactList ? "flex items-center gap-2" : "flex items-start gap-2",
-						"focus:bg-transparent focus:text-foreground focus:outline-none focus:ring-0 focus:ring-offset-0",
-						"focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
-						"data-[highlighted]:bg-sidebar-accent data-[highlighted]:text-foreground",
-					)}
-					onClick={(event) => {
-						event.stopPropagation()
-						handleModeChange(tab.mode, event)
-					}}
-					data-testid="super-message-editor-mode-toggle-item"
-					data-mode={tab.mode.identifier}
-					data-mode-name={resolveModeText(tab.mode.name)}
-					data-selected={isSelected}
-				>
-					{renderModeItemInner(tab, isSelected, isCompactList)}
-				</DropdownMenuItem>
-			)
-		},
-		[
-			agentCode,
-			handleModeChange,
-			isCompactList,
-			renderModeItemInner,
-			resolveModeText,
-			topicMode,
-		],
-	)
-
 	const renderStaticModeItem = useCallback(
 		(tab: CrewItem) => {
 			const isSelected = modeMatchesTopic(tab.mode.identifier, topicMode, agentCode)
 
 			return (
-				<button
+				<div
 					key={tab.mode.identifier}
-					type="button"
+					role="button"
+					tabIndex={0}
 					className={cn(
 						"group flex w-full min-w-0 rounded-md px-2.5 py-2 text-left text-foreground transition-colors",
 						isCompactList ? "items-center gap-2" : "items-start gap-2",
@@ -349,8 +340,16 @@ function ModeToggle({
 						"focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0",
 					)}
 					onClick={(event) => {
+						if (isDescriptionToggleTarget(event.target)) {
+							return
+						}
 						event.stopPropagation()
-						handleModeChange(tab.mode, event)
+						handleModeChange(tab.mode, event.currentTarget)
+					}}
+					onKeyDown={(event) => {
+						if (event.key !== "Enter" && event.key !== " ") return
+						event.preventDefault()
+						handleModeChange(tab.mode, event.currentTarget)
 					}}
 					data-testid="super-message-editor-mode-toggle-item"
 					data-mode={tab.mode.identifier}
@@ -358,7 +357,7 @@ function ModeToggle({
 					data-selected={isSelected}
 				>
 					{renderModeItemInner(tab, isSelected, isCompactList)}
-				</button>
+				</div>
 			)
 		},
 		[
@@ -370,8 +369,6 @@ function ModeToggle({
 			topicMode,
 		],
 	)
-
-	const shouldUseDropdownModeItem = allowChangeMode && !isMobile
 
 	const modeListContent = useMemo(() => {
 		return (
@@ -385,6 +382,16 @@ function ModeToggle({
 				<div className="text-sm font-semibold leading-5 text-foreground">
 					{t("modeToggle.selectCrew")}
 				</div>
+				<div className="relative">
+					<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+					<Input
+						value={searchKeyword}
+						onChange={(event) => setSearchKeyword(event.target.value)}
+						placeholder={t("modeToggle.searchPlaceholder")}
+						className="h-9 bg-background pl-9"
+						data-testid="super-message-editor-mode-toggle-search-input"
+					/>
+				</div>
 				<div
 					ref={modeListScrollRef}
 					className={cn(
@@ -392,21 +399,24 @@ function ModeToggle({
 						isCompactList ? "max-h-[236px]" : "max-h-[340px]",
 					)}
 				>
-					{modeList?.map((tab) =>
-						shouldUseDropdownModeItem
-							? renderDropdownModeItem(tab)
-							: renderStaticModeItem(tab),
+					{filteredModeList?.length ? (
+						filteredModeList.map((tab) => renderStaticModeItem(tab))
+					) : (
+						<div className="px-2.5 py-6 text-center text-sm text-muted-foreground">
+							{t("modeToggle.emptySearchResult")}
+						</div>
 					)}
 				</div>
 			</div>
 		)
 	}, [
+		expandedModeDescriptions,
+		filteredModeList,
 		isCompactList,
 		isMobile,
-		modeList,
-		renderDropdownModeItem,
 		renderStaticModeItem,
-		shouldUseDropdownModeItem,
+		searchKeyword,
+		setSearchKeyword,
 		t,
 	])
 
@@ -448,8 +458,11 @@ function ModeToggle({
 		if (!currentMode) return null
 
 		return (
-			<div
+			<button
+				type="button"
 				className={cn(MODE_TOGGLE_TRIGGER_CLASS, TRIGGER_SIZE_MAP[size])}
+				aria-expanded={open}
+				aria-haspopup="dialog"
 				data-testid="mode-toggle-button"
 				data-mode={topicMode}
 				data-disabled={!allowChangeMode}
@@ -470,9 +483,9 @@ function ModeToggle({
 						size === "small" ? "size-3" : "size-4",
 					)}
 				/>
-			</div>
+			</button>
 		)
-	}, [allowChangeMode, currentMode, renderModeIcon, resolveModeText, size, topicMode])
+	}, [allowChangeMode, currentMode, open, renderModeIcon, resolveModeText, size, topicMode])
 
 	if (!topicMode && !isString(topicMode)) {
 		return null
@@ -491,9 +504,10 @@ function ModeToggle({
 					visible={open}
 					onClose={() => {
 						setOpen(false)
+						resetSearchKeyword()
 						resetConfirmPopover()
 					}}
-					position="bottom"
+					position="top"
 					className="z-popup"
 					title={t("modeToggle.selectCrew")}
 				>
@@ -506,7 +520,7 @@ function ModeToggle({
 						onClose={() => {
 							setShowNewTopicModal({ visible: false, mode: null })
 						}}
-						position="bottom"
+						position="top"
 						title={t("modeToggle.selectCrew")}
 					>
 						<div className="flex flex-col gap-4 p-4">{confirmPopoverContent}</div>
@@ -522,23 +536,25 @@ function ModeToggle({
 				className={cn("relative w-fit min-w-0")}
 				data-testid="super-message-editor-mode-toggle-root"
 			>
-				<DropdownMenu
+				<Popover
 					open={open}
 					onOpenChange={(nextOpen) => {
 						setOpen(nextOpen)
 						if (!nextOpen) {
+							resetSearchKeyword()
 							resetConfirmPopover()
 						}
 					}}
 				>
-					<DropdownMenuTrigger asChild>{currentModeItem}</DropdownMenuTrigger>
-					<DropdownMenuContent
+					<PopoverTrigger asChild>{currentModeItem}</PopoverTrigger>
+					<PopoverContent
+						side="top"
 						align="start"
 						className="z-dropdown w-auto overflow-hidden p-2.5 outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
 					>
 						{modeListContent}
-					</DropdownMenuContent>
-				</DropdownMenu>
+					</PopoverContent>
+				</Popover>
 			</div>
 		)
 	}
@@ -550,6 +566,7 @@ function ModeToggle({
 				onOpenChange={(nextOpen) => {
 					setOpen(nextOpen)
 					if (!nextOpen) {
+						resetSearchKeyword()
 						resetConfirmPopover()
 						setShowNewTopicModal({ visible: false, mode: null })
 					}
@@ -557,7 +574,7 @@ function ModeToggle({
 			>
 				<PopoverTrigger asChild>{currentModeItem}</PopoverTrigger>
 				<PopoverContent
-					side="bottom"
+					side="top"
 					align="start"
 					className="z-dropdown w-auto overflow-hidden p-2.5 outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
 					onInteractOutside={(event) => {

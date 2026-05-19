@@ -8,11 +8,10 @@ const useOffset = (imageRef: React.RefObject<HTMLElement>) => {
 	const lastOffset = useRef({ x: 0, y: 0 })
 
 	const handlePointerDown = useMemoizedFn((e: PointerEvent) => {
-		// 防止拖拽svg元素
-		if (e.target instanceof SVGSVGElement || e.target instanceof SVGPathElement) return
-
 		// 右键点击，不进行拖拽
 		if (e.button === 2) return
+
+		e.preventDefault()
 
 		isDragging.current = true
 		startPos.current = { x: e.clientX, y: e.clientY }

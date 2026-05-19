@@ -1417,6 +1417,8 @@
 	"modeToggle": {
 		"cannotSwitchModeMessage": "Current crew cannot be switched. Create a new topic to enable \"<strong>{{modeName}}</strong>\".",
 		"createNewTopic": "Create New Topic",
+		"emptySearchResult": "No matching crew found",
+		"searchPlaceholder": "Search crew",
 		"selectCrew": "Select Crew",
 		"selectMode": "Select Mode"
 	},

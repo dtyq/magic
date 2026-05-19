@@ -81,6 +81,7 @@ export function CollapsibleDescription({
 					aria-label={toggleLabel}
 					title={toggleLabel}
 					aria-expanded={isExpanded}
+					data-collapsible-description-toggle="true"
 					onPointerDown={handleTogglePointerDown}
 					onClick={handleToggleClick}
 					onKeyDown={(event) => event.stopPropagation()}
