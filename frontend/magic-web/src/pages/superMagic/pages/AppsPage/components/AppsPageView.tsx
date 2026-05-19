@@ -160,17 +160,11 @@ export function AppsPageView(props: AppsPageViewProps) {
 			className="absolute inset-0 flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background"
 			data-testid="super-apps-page-mobile"
 		>
-			<header
-				className="relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-[10px]"
-				data-testid="super-apps-top-bar"
-			>
+			<header className="mobile-page-header" data-testid="super-apps-top-bar">
 				<button
 					type="button"
 					onClick={onOpenSidebar}
-					className={cn(
-						"flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card",
-						"shadow-[0px_8px_25px_rgba(0,0,0,0.10)] dark:shadow-[0px_8px_25px_rgba(0,0,0,0.32)]",
-					)}
+					className="mobile-page-header-btn transition-transform active:scale-95"
 					aria-label={menuAriaLabel}
 					data-testid="super-apps-menu-button"
 				>
@@ -182,13 +176,8 @@ export function AppsPageView(props: AppsPageViewProps) {
 				>
 					{title}
 				</p>
-				<div
-					className={cn(
-						"pointer-events-none flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card opacity-0",
-						"shadow-[0px_8px_25px_rgba(0,0,0,0.10)] dark:shadow-[0px_8px_25px_rgba(0,0,0,0.32)]",
-					)}
-					aria-hidden
-				/>
+				{/* 右侧占位符保持与左侧按钮等宽，让标题在视觉上保持居中 */}
+				<div className="mobile-page-header-btn pointer-events-none opacity-0" aria-hidden />
 			</header>
 
 			<div className="relative min-h-0 flex-1">

@@ -84,6 +84,39 @@
 			rgba(255, 255, 255, 0.08) 100%
 		);
 	}
+
+	/* ─── Mobile floating-style page header ──────────────────────────────────
+	 *
+	 * Three reusable classes for the "浮起型" mobile page header pattern:
+	 * transparent background, h-14, bottom-14px radius, floating round buttons.
+	 *
+	 * Usage:
+	 *   <div className="mobile-page-header">
+	 *     <button className="mobile-page-header-btn transition-transform active:scale-95">…</button>
+	 *     <h1 className="mobile-page-header-title">…</h1>
+	 *   </div>
+	 * ─────────────────────────────────────────────────────────────────────── */
+
+	/* Container: transparent bg floats over page content, h-56px, bottom radius */
+	.mobile-page-header {
+		@apply relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-2.5;
+	}
+
+	/* Round shadow button (48×48, bg-card). Add interaction classes per usage site
+	 * e.g.: className="mobile-page-header-btn transition-transform active:scale-95" */
+	.mobile-page-header-btn {
+		@apply flex size-12 shrink-0 items-center justify-center rounded-full bg-card text-foreground;
+		box-shadow: 0px 8px 25px 0px rgba(0, 0, 0, 0.1);
+	}
+
+	.dark .mobile-page-header-btn {
+		box-shadow: 0px 8px 25px 0px rgba(0, 0, 0, 0.32);
+	}
+
+	/* Absolute-centered Poppins title. px-28 (112px) keeps text clear of 48px buttons on each side. */
+	.mobile-page-header-title {
+		@apply pointer-events-none absolute inset-x-0 truncate px-28 text-center font-poppins text-[18px] font-medium leading-6 text-foreground;
+	}
 }
 
 @layer base {

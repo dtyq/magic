@@ -40,11 +40,7 @@ interface SharedProjectRowProps {
 	onOpen: (project: SharedWorkspaceProject) => void
 }
 
-const HEADER_SHADOW = "0px 8px 25px 0px rgba(0,0,0,0.10)"
-
 /**
- * 共享项目时间展示统一复用全局相对时间工具，避免本页面维护另一套日期文案。
- */
 function formatSharedProjectTime(
 	value: string | null | undefined,
 	language: string,
@@ -232,30 +228,24 @@ export function SharedProjectsView({
 			className="flex h-full min-h-0 flex-col bg-background"
 			data-testid="shared-projects-page"
 		>
-			<div
-				className="relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-[10px]"
-			>
+			<div className="mobile-page-header">
 				<button
 					type="button"
 					onClick={onBack}
-					className="flex size-12 shrink-0 items-center justify-center rounded-full bg-card"
-					style={{ boxShadow: HEADER_SHADOW }}
+					className="mobile-page-header-btn transition-transform active:scale-95"
 					aria-label={t("common.back")}
 					data-testid="shared-projects-back-button"
 				>
 					<ChevronLeft className="size-[22px] text-foreground" strokeWidth={2} />
 				</button>
 
-				<p className="pointer-events-none absolute inset-x-0 truncate px-[72px] text-center text-[18px] font-medium leading-6 text-foreground">
-					{t("sharedProjects.title")}
-				</p>
+				<p className="mobile-page-header-title">{t("sharedProjects.title")}</p>
 
 				{canShowFilter ? (
 					<button
 						type="button"
 						onClick={onOpenFilter}
-						className="ml-auto flex size-12 shrink-0 items-center justify-center rounded-full bg-card"
-						style={{ boxShadow: HEADER_SHADOW }}
+						className="mobile-page-header-btn ml-auto transition-transform active:scale-95"
 						aria-label={t("sharedProjects.filter.title")}
 						data-testid="shared-projects-filter-trigger"
 					>

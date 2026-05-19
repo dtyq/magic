@@ -1,7 +1,6 @@
 import { ChevronLeft } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { PORTAL_IDS } from "@/constants"
-import { cn } from "@/lib/utils"
 
 interface ProjectDetailHeaderProps {
 	title?: string | null
@@ -45,19 +44,12 @@ export function ProjectDetailHeader({
 	const { t } = useTranslation("super")
 
 	return (
-		<div
-			className={cn(
-				"relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-[10px]",
-				"pb-0 pt-3",
-			)}
-			data-testid="project-detail-header-root"
-		>
+		<div className="mobile-page-header pb-0 pt-3" data-testid="project-detail-header-root">
 			<button
 				type="button"
 				onClick={onBackClick}
-				className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card text-foreground transition-colors"
+				className="mobile-page-header-btn transition-colors"
 				aria-label={t("projectDetail.backAria")}
-				style={{ boxShadow: "0px 8px 25px 0px rgba(0,0,0,0.10)" }}
 				data-testid="project-detail-header-back-button"
 			>
 				<ChevronLeft size={22} strokeWidth={2} />
@@ -76,10 +68,9 @@ export function ProjectDetailHeader({
 				) : null}
 			</div>
 			{showActions && actionsLayout === "project-entry" ? (
-				// 项目入口页路由使用胶囊容器，暴露“协作管理 + 更多”两个头部动作槽位。
+				// 项目入口页路由使用胶囊容器，暴露"协作管理 + 更多"两个头部动作槽位。
 				<div
-					className="ml-auto flex h-12 shrink-0 items-stretch overflow-hidden rounded-full bg-card text-foreground"
-					style={{ boxShadow: "0px 8px 25px 0px rgba(0,0,0,0.10)" }}
+					className="ml-auto flex h-12 shrink-0 items-stretch overflow-hidden rounded-full bg-card text-foreground shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)] dark:shadow-[0px_8px_25px_0px_rgba(0,0,0,0.32)]"
 					data-testid="project-detail-header-actions"
 				>
 					<div
@@ -93,10 +84,9 @@ export function ProjectDetailHeader({
 				</div>
 			) : null}
 			{showActions && actionsLayout === "project-topic" ? (
-				// 项目话题子页路由只暴露一个圆形“更多”槽位，避免空协作槽占位。
+				// 项目话题子页路由只暴露一个圆形"更多"槽位，避免空协作槽占位。
 				<div
-					className="ml-auto flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-card text-foreground"
-					style={{ boxShadow: "0px 8px 25px 0px rgba(0,0,0,0.10)" }}
+					className="mobile-page-header-btn ml-auto overflow-hidden"
 					data-testid="project-detail-header-actions"
 					id={PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_MORE_BUTTON}
 				/>

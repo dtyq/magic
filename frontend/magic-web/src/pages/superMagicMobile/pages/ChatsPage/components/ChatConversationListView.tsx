@@ -103,27 +103,23 @@ export function ChatConversationListView({
 			data-testid="mobile-chats-page-root"
 		>
 			{/* 顶部用绝对居中的标题布局，避免左右操作按钮变化时标题发生肉眼可见的偏移。 */}
-			<div
-				className="relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-[10px]"
-			>
+			<div className="mobile-page-header">
 				<button
 					type="button"
 					onClick={onOpenSidebar}
-					className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
+					className="mobile-page-header-btn transition-transform active:scale-95"
 					aria-label={menuAriaLabel}
 					data-testid="mobile-chats-page-menu-button"
 				>
 					<Menu className="size-[22px] text-foreground" strokeWidth={2.25} />
 				</button>
 
-				<p className="pointer-events-none absolute inset-x-0 truncate px-[114px] text-center font-poppins text-[18px] font-medium leading-6 text-foreground">
-					{title}
-				</p>
+				<p className="mobile-page-header-title">{title}</p>
 
 				<button
 					type="button"
 					onClick={onCreateChat}
-					className="ml-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
+					className="mobile-page-header-btn ml-auto transition-transform active:scale-95"
 					aria-label={newChatAriaLabel}
 					data-testid="mobile-chats-page-create-button"
 				>

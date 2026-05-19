@@ -189,9 +189,7 @@ function WorkspaceListViewInner({
 	return (
 		<div className="flex h-full min-h-0 flex-col bg-background">
 			{/* Header */}
-			<div
-				className="relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-[10px]"
-			>
+			<div className="mobile-page-header">
 				<MobileShellIconButton
 					label={t("mobile.shell.menuAria")}
 					onClick={onOpenSidebar}

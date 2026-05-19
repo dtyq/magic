@@ -94,24 +94,22 @@ export function WorkspaceProjectListView({
 			data-testid="workspace-project-page-root"
 		>
 			{/* 顶栏采用原型的左右操作胶囊布局，让标题保持绝对居中。 */}
-			<div
-				className="relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-[10px]"
-			>
+			<div className="mobile-page-header">
 				<button
 					type="button"
 					onClick={onBack}
-					className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
+					className="mobile-page-header-btn transition-transform active:scale-95"
 					aria-label={t("common.back")}
 					data-testid="workspace-project-page-back-button"
 				>
 					<ChevronLeft className="h-[22px] w-[22px] text-foreground" strokeWidth={2} />
 				</button>
 
-				<p className="pointer-events-none absolute inset-x-0 truncate px-[114px] text-center text-[18px] font-medium leading-6 text-foreground">
+				<p className="mobile-page-header-title">
 					{selectedWorkspace?.name || t("workspace.unnamedWorkspace")}
 				</p>
 
-				<div className="ml-auto flex h-12 shrink-0 items-center overflow-hidden rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]">
+				<div className="ml-auto flex h-12 shrink-0 items-center overflow-hidden rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)] dark:shadow-[0px_8px_25px_0px_rgba(0,0,0,0.32)]">
 					<button
 						type="button"
 						onClick={() => {
