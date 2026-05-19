@@ -181,6 +181,7 @@ export function MobileSettingsPointsDetailSheet(props: { open: boolean; onClose:
 				onOpenChange={(nextOpen) => {
 					if (!nextOpen) onClose()
 				}}
+				sheetClassName="h-[90dvh]"
 				dataTestId="mobile-settings-points-detail-sheet"
 			>
 				<div className="flex flex-col gap-2.5 px-[14px] pt-2">

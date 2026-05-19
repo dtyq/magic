@@ -83,6 +83,7 @@ export function MobileSettingsLoginDevicesSheet({
 				onOpenChange={(nextOpen) => {
 					if (!nextOpen) onClose()
 				}}
+				sheetClassName="h-[90dvh]"
 				contentClassName="gap-3 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 				dataTestId="mobile-settings-login-devices-sheet"
 			>
