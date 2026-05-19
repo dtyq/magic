@@ -32,6 +32,8 @@ import { MobileTabParam } from "@/pages/mobileTabs/constants"
 import { routesPathMatch } from "@/routes/history/helpers"
 import { RouteName } from "@/routes/constants"
 import { interfaceStore } from "@/stores/interface"
+import { shouldClearResolvedAgentCodeFromUrl } from "./agentCodeRoutePolicy"
+import { resolveHomepageDisplayTopicMode } from "./homepageModeState"
 
 const HierarchicalWorkspacePopup = lazy(
 	() => import("@/pages/superMagicMobile/components/HierarchicalWorkspacePopup"),
@@ -48,13 +50,18 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 	const [isCreatingEmptyChat, setIsCreatingEmptyChat] = useState(false)
 	const [isHierarchicalWorkspacePopupInitialized, setIsHierarchicalWorkspacePopupInitialized] =
 		useState(false)
+	const [homepageModeOverride, setHomepageModeOverride] = useState<TopicMode | null>(null)
 	const hierarchicalWorkspacePopupRef = useRef<HierarchicalWorkspacePopupRef>(null)
 	const mobileInputContainerRef = useRef<MobileInputContainerRef>(null)
 	const wasOnHomepageRef = useRef(false)
 	const activeTab = new URLSearchParams(location.search).get("tab") ?? MobileTabParam.Super
+	const isMobileHomeRoute = routesPathMatch(RouteName.MobileHome, location.pathname)
+	// MobileTabs（/mobile-tabs?tab=super）和 MobileHome（/mobile-home）都应视为首页，
+	// 以便 useAgentCodeModeFromSearch 在两条入口路径下均能读取 agentCode 并选中对应数字员工。
 	const isOnHomepage =
-		routesPathMatch(RouteName.MobileTabs, location.pathname) &&
-		activeTab === MobileTabParam.Super
+		(routesPathMatch(RouteName.MobileTabs, location.pathname) &&
+			activeTab === MobileTabParam.Super) ||
+		isMobileHomeRoute
 	// 记录挂载状态，避免创建完成后跳转离开页面时再回写本页 loading 状态。
 	const isMountedRef = useRef(true)
 	// 额外使用 ref 做同步门闩，避免按钮状态尚未刷新时发生连点重复创建。
@@ -129,12 +136,29 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 		selectedTopic: selectedTopic ?? null,
 		selectedProject: selectedProject ?? null,
 	})
+	const displayTopicMode = resolveHomepageDisplayTopicMode({
+		topicMode,
+		homepageModeOverride,
+		selectedProject: selectedProject ?? null,
+		selectedTopic: selectedTopic ?? null,
+	})
+
+	useEffect(() => {
+		// 一旦进入具体项目/话题，后续模式应完全由真实上下文驱动，避免首页 override 泄漏到对话页。
+		if (!selectedProject && !selectedTopic) return
+		setHomepageModeOverride(null)
+	}, [selectedProject, selectedTopic])
 
 	/**
 	 * 与 ProjectPageInputContainer 内 SceneEditorContext 一致：useTopicMode 的 setTopicMode；
 	 * 额外同步 roleStore，供首页与其它依赖全局角色的逻辑使用。
 	 */
 	const setTopicMode = useMemoizedFn((mode: TopicMode) => {
+		// 首页空态没有真实 topic/project 承载模式，所以额外保留一个本地 override
+		// 来抵御初始化期间的 store 清空回写。
+		if (!selectedProject && !selectedTopic) {
+			setHomepageModeOverride(mode)
+		}
 		setTopicModeFromHook(mode)
 		roleStore.setCurrentRole(mode)
 	})
@@ -144,26 +168,34 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 		if (!nextModeList?.length) return
 
 		const currentAgentCode = selectedTopic?.agent_code ?? null
-		if (superMagicModeService.isModeValid(topicMode, currentAgentCode)) return
+		if (superMagicModeService.isModeValid(displayTopicMode, currentAgentCode)) return
 
 		const fallbackMode = nextModeList[0]?.mode?.identifier as TopicMode | undefined
-		if (!fallbackMode || fallbackMode === topicMode) return
+		if (!fallbackMode || fallbackMode === displayTopicMode) return
 
 		setTopicMode(fallbackMode)
 	})
 
 	useEffect(() => {
 		const wasOnHomepage = wasOnHomepageRef.current
+		// When agentCode is present, we must refresh even if already on homepage.
+		// Without this, wasOnHomepage=true short-circuits the refresh, leaving fetchPromise=null.
+		// useAgentCodeModeFromSearch then sees no pending fetch and prematurely clears the URL
+		// before the modeList can include the newly-pinned employee.
+		const hasAgentCode = new URLSearchParams(location.search).has("agentCode")
 
 		wasOnHomepageRef.current = isOnHomepage
-		if (!isOnHomepage || wasOnHomepage) return
+		if (!isOnHomepage || (wasOnHomepage && !hasAgentCode)) return
 
 		void refreshHomepageModeList()
 	}, [activeTab, isOnHomepage, location.pathname, location.search, refreshHomepageModeList])
 
 	useAgentCodeModeFromSearch({
-		clearAgentCodeFromUrl: true,
-		currentMode: topicMode,
+		// /mobile-home 需要把 agentCode 留在 URL 里，刷新后才能再次还原首页选中的数字员工。
+		clearAgentCodeFromUrl: shouldClearResolvedAgentCodeFromUrl(
+			isMobileHomeRoute ? RouteName.MobileHome : RouteName.MobileTabs,
+		),
+		currentMode: displayTopicMode,
 		enabled: isOnHomepage,
 		onModeResolved: setTopicMode,
 	})
@@ -196,7 +228,7 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 			setSelectedProject: projectStore.setSelectedProject,
 			setSelectedWorkspace: workspaceStore.setSelectedWorkspace,
 			createProject: createProjectInChatWorkspace,
-			topicMode,
+			topicMode: displayTopicMode,
 			agentCode: selectedTopic?.agent_code,
 			setTopicMode,
 			topicExamplesMode: currentRole,
@@ -229,7 +261,7 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 			createProjectInChatWorkspace,
 			selectedTopic,
 			selectedProject,
-			topicMode,
+			displayTopicMode,
 			setTopicMode,
 			currentRole,
 			threadMessageCount,

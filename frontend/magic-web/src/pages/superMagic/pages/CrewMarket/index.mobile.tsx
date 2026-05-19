@@ -3,10 +3,11 @@ import { useDebounce } from "ahooks"
 import { InfiniteScroll } from "antd-mobile"
 import { reaction } from "mobx"
 import { configStore } from "@/models/config"
-import { ChevronLeft, MessageCircle, Trash2 } from "lucide-react"
+import { ChevronLeft, Check, MessageCircle, Trash2 } from "lucide-react"
+import { IconX } from "@tabler/icons-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
-import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
+import MagicPopup from "@/components/base-mobile/MagicPopup"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import { Skeleton } from "@/components/shadcn-ui/skeleton"
 import { userStore } from "@/models/user"
@@ -17,9 +18,7 @@ import {
 	UserWorkspaceMapCache,
 	WorkspaceStateCache,
 } from "@/pages/superMagic/utils/superMagicCache"
-import {
-	isOfficialBuiltinPublisherType,
-} from "./employee-market/components/employee-card-shared"
+import { isOfficialBuiltinPublisherType } from "./employee-market/components/employee-card-shared"
 import CategoryFilterMobile from "./components/CategoryFilterMobile"
 import EmployeeCardMobile from "./employee-market/components/EmployeeCardMobile"
 import { StoreCrewStore } from "./employee-market/stores/store-crew"
@@ -34,11 +33,11 @@ function CrewMarketMobilePanelBase() {
 	const navigate = useNavigate()
 	const storeRef = useRef(new StoreCrewStore())
 	const store = storeRef.current
-	const { confirm, dialog } = useConfirmDialog()
-
 	const [searchKeyword, setSearchKeyword] = useState("")
 	const debouncedKeyword = useDebounce(searchKeyword, { wait: 400 })
 	const [selectedAgent, setSelectedAgent] = useState<StoreAgentView | null>(null)
+	// 解雇二次确认弹窗的目标 agent，非 null 时弹窗可见
+	const [dismissConfirmAgent, setDismissConfirmAgent] = useState<StoreAgentView | null>(null)
 
 	useEffect(() => {
 		store.fetchCategories()
@@ -73,25 +72,15 @@ function CrewMarketMobilePanelBase() {
 	)
 
 	const handleDismiss = useCallback(
-		(id: string) => {
-			const target = store.list.find((item) => item.id === id)
-			if (!target?.allowDelete) return
-			const displayName =
-				target.name?.trim() || t("crew/create:untitledCrew") || target.agentCode
-			confirm({
-				title: t("myCrewPage.dismissConfirm.title", { name: displayName }),
-				description: t("myCrewPage.dismissConfirm.description"),
-				confirmText: t("myCrewPage.dismissConfirm.confirm"),
-				variant: "destructive",
-				destructivePresentation: "soft",
-				dialogSize: "sm",
-				onConfirm: () => {
-					if (selectedAgent?.id === id) setSelectedAgent(null)
-					store.dismissAgent(id)
-				},
-			})
+		// 接受完整 agent 对象而非 id，避免点击时再次查询 store.list——
+		// detail sheet 打开后 store.list 可能因搜索/分类切换被重置，
+		// 导致 find 失败或拿到过期的 allowDelete=false，使按钮静默失效。
+		(agent: StoreAgentView) => {
+			if (!agent.allowDelete) return
+			// 打开 MagicPopup 二次确认弹窗，层级通过 overlayZIndex 自动高于底部 Sheet
+			setDismissConfirmAgent(agent)
 		},
-		[confirm, selectedAgent?.id, store, t],
+		[],
 	)
 
 	function resolveFallbackWorkspaceId() {
@@ -174,7 +163,11 @@ function CrewMarketMobilePanelBase() {
 									label: t("chat"),
 									icon: <MessageCircle className="h-5 w-5 text-white" />,
 									testId: "crew-market-mobile-detail-chat-button",
-									onClick: () => handleOpenConversation(selectedAgent.agentCode),
+									// 先关闭 sheet，再导航；custom primaryAction 不会自动触发 onOpenChange(false)
+									onClick: () => {
+										setSelectedAgent(null)
+										handleOpenConversation(selectedAgent.agentCode)
+									},
 								}
 							: isOfficialBuiltinPublisherType(selectedAgent.publisherType)
 								? undefined
@@ -191,12 +184,58 @@ function CrewMarketMobilePanelBase() {
 								label: t("dismiss"),
 								icon: <Trash2 className="h-4 w-4" />,
 								testId: "crew-market-mobile-detail-dismiss-button",
-								onClick: () => handleDismiss(selectedAgent.id),
+								onClick: () => handleDismiss(selectedAgent),
 							}
 						: undefined
 				}
 			/>
-			{dialog}
+			{/* 解雇二次确认弹窗 — 使用 MagicPopup 渲染，层级由 useOverlayZIndex 自动高于底部 Sheet */}
+			{dismissConfirmAgent && (
+				<MagicPopup
+					visible={dismissConfirmAgent != null}
+					onClose={() => setDismissConfirmAgent(null)}
+					position="bottom"
+					title={t("myCrewPage.dismissConfirm.title", {
+						name:
+							dismissConfirmAgent.name?.trim() ||
+							t("crew/create:untitledCrew") ||
+							dismissConfirmAgent.agentCode,
+					})}
+					headerVariant="actionHeader"
+					headerTitle={t("myCrewPage.dismissConfirm.title", {
+						name:
+							dismissConfirmAgent.name?.trim() ||
+							t("crew/create:untitledCrew") ||
+							dismissConfirmAgent.agentCode,
+					})}
+					headerLeadingAction={{
+						icon: <IconX className="size-5" />,
+						ariaLabel: t("cancel"),
+						onClick: () => setDismissConfirmAgent(null),
+						testId: "crew-dismiss-confirm-cancel",
+					}}
+					headerTrailingAction={{
+						icon: <Check className="size-[22px]" strokeWidth={2.5} />,
+						ariaLabel: t("myCrewPage.dismissConfirm.confirm"),
+						tone: "destructive",
+						onClick: () => {
+							const agent = dismissConfirmAgent
+							setDismissConfirmAgent(null)
+							// 关闭详情 Sheet，再执行解雇
+							if (selectedAgent?.id === agent.id) setSelectedAgent(null)
+							store.dismissAgent(agent.id)
+						},
+						testId: "crew-dismiss-confirm-submit",
+					}}
+					bodyClassName="p-0"
+				>
+					<div className="px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
+						<p className="text-[16px] leading-6 text-muted-foreground">
+							{t("myCrewPage.dismissConfirm.description")}
+						</p>
+					</div>
+				</MagicPopup>
+			)}
 
 			<div
 				className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background"
@@ -273,13 +312,15 @@ function CrewMarketMobilePanelBase() {
 							) : null}
 
 							{!store.loading && store.list.length > 0 ? (
-								<div className="flex flex-col gap-3" data-testid="employee-card-list">
+								<div
+									className="flex flex-col gap-3"
+									data-testid="employee-card-list"
+								>
 									{store.list.map((employee) => (
 										<EmployeeCardMobile
 											key={employee.id}
 											employee={employee}
 											onHire={handleHire}
-											onDismiss={handleDismiss}
 											onDetails={handleDetails}
 											onOpenMarketDetail={handleOpenMarketDetail}
 										/>

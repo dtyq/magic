@@ -65,19 +65,19 @@ export default function MyCrewAvatar({
 	}, [avatarUrl])
 
 	return (
-		<div className={className} style={style} data-testid={testId}>
+		<div className={`flex items-center justify-center ${className ?? ""}`} style={style} data-testid={testId}>
 			{showRemoteAvatar ? (
 				<img
 					src={avatarUrl}
 					alt={displayName}
-					className={`${sizeClassName} object-cover`}
+					className="h-full w-full object-cover"
 					loading="lazy"
 					decoding="async"
 					onError={() => setAvatarLoadFailed(true)}
 				/>
 			) : (
 				<div
-					className={`flex items-center justify-center ${sizeClassName}`}
+					className="flex h-full w-full items-center justify-center"
 					style={{ backgroundColor: fallbackBackground }}
 				>
 					<span className={fallbackTextClassName}>{fallbackInitials}</span>

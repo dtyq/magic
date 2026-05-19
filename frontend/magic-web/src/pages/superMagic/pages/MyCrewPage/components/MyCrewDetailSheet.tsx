@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
 import { useTimezone } from "@/providers/TimezoneProvider/hooks"
 import type { MyCrewView } from "@/services/crew/CrewService"
 import { normalizeLocale } from "@/utils/locale"
+import { resolvePublisherLabel } from "@/pages/superMagic/pages/CrewMarket/employee-market/components/employee-card-shared"
 import MyCrewAvatar from "./MyCrewAvatar"
 import { resolveMyCrewPresentationSource } from "./my-crew-mobile-shared"
 import type { MyCrewCrewTypeTab } from "../tab-state"
@@ -27,6 +28,8 @@ export interface CrewDetailSheetEmployee {
 	latestPublishedAt?: string | null
 	/** 创建者名称；仅 teamShared 来源展示，StoreAgentView 不含此字段不影响市场分支。 */
 	creatorName?: string | null
+	/** 发布方类型枚举；用于 resolvePublisherLabel 将原始枚举值映射为可读名称。 */
+	publisherType?: string | null
 }
 
 /** 自定义 footer 操作按钮描述。 */
@@ -150,12 +153,17 @@ function MyCrewInfoSection(props: {
 	)
 
 	if (source === "market") {
+		const publisherDisplayName = resolvePublisherLabel(
+			employee.publisherType ?? "",
+			employee.publisherName,
+			t,
+		)
 		return (
 			<>
 				<InfoRow
 					icon={<Building2 className="h-4 w-4" />}
 					label={t("myCrewPage.detailSheet.info.publisher")}
-					value={employee.publisherName?.trim() || fallbackValue}
+					value={publisherDisplayName}
 				/>
 				<InfoRow
 					icon={<RefreshCw className="h-4 w-4" />}
@@ -234,7 +242,7 @@ export default function MyCrewDetailSheet({
 	const [showTopMask, setShowTopMask] = useState(false)
 	const [showBottomMask, setShowBottomMask] = useState(false)
 	const lastEmployeeRef = useRef<CrewDetailSheetEmployee | null>(null)
-	const displayEmployee = employee ?? lastEmployeeRef.current
+	const displayEmployee = employee ?? lastEmployeeRef.current!
 
 	if (employee) {
 		lastEmployeeRef.current = employee
@@ -345,15 +353,16 @@ export default function MyCrewDetailSheet({
 
 									<div className="flex flex-col items-center gap-2">
 										<p
-											className="text-center text-[20px] font-bold leading-tight text-foreground"
+
+											className="line-clamp-2 text-center text-[20px] font-bold leading-tight text-foreground"
 											data-testid="my-crew-detail-sheet-title"
 										>
 											{displayEmployee.name?.trim() ||
 												t("detailDialog.emptyName")}
 										</p>
 										{displayEmployee.role?.trim() ? (
-											<span className="inline-flex h-5 items-center rounded-full bg-primary/10 px-2 text-[11px] font-medium leading-none text-primary">
-												{displayEmployee.role.trim()}
+											<span className="inline-flex h-5 max-w-[80%] items-center overflow-hidden rounded-full bg-primary/10 px-2 text-[11px] font-medium leading-none text-primary">
+												<span className="truncate">{displayEmployee.role.trim()}</span>
 											</span>
 										) : null}
 									</div>
@@ -455,7 +464,7 @@ export default function MyCrewDetailSheet({
 								data-testid={primaryAction.testId}
 							>
 								{primaryAction.icon}
-								<span className="text-[16px] font-semibold text-white">
+								<span className="truncate text-[16px] font-semibold text-white">
 									{primaryAction.label}
 								</span>
 							</button>
@@ -474,7 +483,7 @@ export default function MyCrewDetailSheet({
 							data-testid="my-crew-detail-sheet-chat-button"
 						>
 							<MessageCircle className="h-5 w-5 text-white" />
-							<span className="text-[16px] font-semibold text-white">
+							<span className="truncate text-[16px] font-semibold text-white">
 								{t("myCrewPage.detailSheet.startChat")}
 							</span>
 						</button>

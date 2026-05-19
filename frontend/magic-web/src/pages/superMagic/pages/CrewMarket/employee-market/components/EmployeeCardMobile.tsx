@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react"
+import {
+	memo,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+	type MouseEvent,
+} from "react"
 import { Building2, MessageCircle, ShieldCheck, UserPlus } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import CrewFallbackAvatar from "@/pages/superMagic/components/CrewFallbackAvatar"
@@ -13,7 +21,6 @@ import {
 interface EmployeeCardMobileProps {
 	employee: StoreAgentView
 	onHire?: (id: string) => void
-	onDismiss?: (id: string) => void
 	onDetails?: (id: string) => void
 	onOpenMarketDetail?: (id: string) => void
 }
@@ -25,7 +32,7 @@ function CapChip({ name, themeColor }: { name: string; themeColor: string | null
 	const color = themeColor ?? "#6366f1"
 	return (
 		<span
-			className="inline-flex h-6 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[12px] font-medium leading-none shrink-0"
+			className="inline-flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[12px] font-medium leading-none"
 			style={{ color, backgroundColor: `${color}1a` }}
 		>
 			{name}
@@ -63,7 +70,7 @@ function CapabilitiesRow({ playbooks }: { playbooks: StoreAgentView["playbooks"]
 				ref={scrollRef}
 				onScroll={updateMasks}
 				// overscroll-x-contain 阻止水平滚动冒泡到父级页面，防止 iOS Safari 意外触发页面后退
-				className="flex flex-row gap-1.5 overflow-x-auto overflow-y-visible no-scrollbar w-full px-4 touch-pan-x overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+				className="no-scrollbar flex w-full touch-pan-x flex-row gap-1.5 overflow-x-auto overflow-y-visible overscroll-x-contain px-4 [-webkit-overflow-scrolling:touch]"
 			>
 				{playbooks.map((p, i) => (
 					<CapChip key={`${p.name}-${i}`} name={p.name} themeColor={p.themeColor} />
@@ -127,7 +134,7 @@ function EmployeeCardMobile({
 
 	return (
 		<div
-			className="bg-card rounded-2xl p-4 flex flex-col gap-3"
+			className="flex flex-col gap-3 rounded-2xl bg-card p-4"
 			style={{ boxShadow: "0px 2px 12px 0px rgba(0,0,0,0.07)" }}
 			data-testid="employee-card-mobile"
 		>
@@ -135,18 +142,22 @@ function EmployeeCardMobile({
 			<button
 				type="button"
 				onClick={handleInfoClick}
-				className="flex flex-col gap-3 text-left active:opacity-75 transition-opacity"
+				className="flex flex-col gap-3 text-left transition-opacity active:opacity-75"
 				data-testid="employee-card-mobile-info-area"
 			>
 				{/* Avatar + name/role/publisher row */}
-				<div className="flex gap-3 items-start w-full">
+				<div className="flex w-full items-start gap-3">
 					<div
-						className="size-12 rounded-full overflow-hidden border-2 border-background shrink-0"
+						className="size-12 shrink-0 overflow-hidden rounded-full border-2 border-background"
 						style={{ boxShadow: "0px 4px 12px 0px rgba(0,0,0,0.12)" }}
 						data-testid="employee-card-mobile-avatar-wrap"
 					>
 						{avatarSrc ? (
-							<img src={avatarSrc} alt={displayName} className="size-full object-cover" />
+							<img
+								src={avatarSrc}
+								alt={displayName}
+								className="size-full object-cover"
+							/>
 						) : (
 							<div className="flex size-full items-center justify-center rounded-full bg-muted text-foreground">
 								<CrewFallbackAvatar />
@@ -154,32 +165,32 @@ function EmployeeCardMobile({
 						)}
 					</div>
 
-					<div className="flex flex-col flex-1 min-w-0 gap-1">
-						<div className="flex items-center gap-2 min-w-0">
+					<div className="flex min-w-0 flex-1 flex-col gap-1">
+						<div className="flex min-w-0 items-center gap-2">
 							<p
-								className="flex-1 min-w-0 text-[16px] font-semibold leading-tight text-foreground truncate"
+								className="min-w-0 flex-1 truncate text-[16px] font-semibold leading-tight text-foreground"
 								data-testid="employee-card-mobile-name"
 							>
 								{displayName}
 							</p>
 							{roleLine ? (
 								<span
-									className="ml-auto inline-flex items-center h-[18px] px-1.5 rounded-full border border-primary/30 text-muted-foreground/80 text-[10px] font-medium leading-none shrink-0"
+									className="ml-auto inline-flex h-[18px] max-w-[45%] shrink-0 items-center overflow-hidden rounded-full border border-primary/30 px-1.5 text-[10px] font-medium leading-none text-muted-foreground/80"
 									data-testid="employee-card-mobile-role-badge"
 								>
-									{roleLine}
+									<span className="truncate">{roleLine}</span>
 								</span>
 							) : null}
 						</div>
 
-						<div className="flex items-center gap-1 min-w-0 text-muted-foreground">
+						<div className="flex min-w-0 items-center gap-1 text-muted-foreground">
 							{isOfficial ? (
 								<ShieldCheck className="size-3 shrink-0" strokeWidth={2} />
 							) : (
 								<Building2 className="size-3 shrink-0" strokeWidth={2} />
 							)}
 							<p
-								className="text-[12px] leading-4 truncate"
+								className="truncate text-[12px] leading-4"
 								data-testid="employee-card-mobile-publisher"
 							>
 								{publisherLabel}
@@ -190,7 +201,7 @@ function EmployeeCardMobile({
 
 				{/* Description */}
 				<p
-					className="text-[13px] leading-[1.55] text-muted-foreground line-clamp-2"
+					className="line-clamp-2 text-[13px] leading-[1.55] text-muted-foreground"
 					data-testid="employee-card-mobile-description"
 				>
 					{displayDescription}
@@ -208,7 +219,7 @@ function EmployeeCardMobile({
 				onClick={handleActionClick}
 				disabled={actionDisabled}
 				className={cn(
-					"w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-xl text-[14px] font-semibold leading-none active:opacity-75 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed",
+					"inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-[14px] font-semibold leading-none transition-opacity active:opacity-75 disabled:cursor-not-allowed disabled:opacity-50",
 					actionIsChat
 						? "border border-border bg-card text-primary"
 						: "bg-primary text-primary-foreground",

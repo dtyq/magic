@@ -168,19 +168,19 @@
 			"capabilities": "Capabilities",
 			"closeAria": "Close details",
 			"info": {
-				"addedAt": "Added at",
-				"createdAt": "Created at",
+				"addedAt": "Added",
+				"createdAt": "Created",
 				"createdBy": "Created by",
 				"label": "Info",
 				"publisher": "Publisher",
 				"sharedBy": "Shared by",
-				"updatedAt": "Updated at",
+				"updatedAt": "Updated",
 				"you": "You"
 			},
 			"source": {
-				"custom": "Custom",
+				"custom": "My Creation",
 				"market": "Market",
-				"team": "Team shared"
+				"team": "Team"
 			},
 			"startChat": "Start chat",
 			"title": "Crew Details"

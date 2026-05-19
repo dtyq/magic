@@ -167,18 +167,18 @@
 			"capabilities": "能力标签",
 			"closeAria": "关闭详情",
 			"info": {
-				"addedAt": "加入时间",
-				"createdAt": "创建时间",
+				"addedAt": "添加于",
+				"createdAt": "创建于",
 				"createdBy": "创建者",
 				"label": "信息",
-				"publisher": "发布方",
+				"publisher": "发布者",
 				"sharedBy": "共享者",
-				"updatedAt": "更新时间",
-				"you": "你"
+				"updatedAt": "更新于",
+				"you": "我"
 			},
 			"source": {
-				"custom": "自建",
-				"market": "市场",
+				"custom": "我创建的",
+				"market": "来自市场",
 				"team": "团队共享"
 			},
 			"startChat": "开始对话",
