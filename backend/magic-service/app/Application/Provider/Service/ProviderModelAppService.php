@@ -165,22 +165,4 @@ class ProviderModelAppService extends AbstractProviderAppService
     {
         return di(UserModelAccessAppService::class);
     }
-
-    private function buildBillingTiersFromConfig(ModelConfigItem $config, BillingType $billingType): ?array
-    {
-        if (! $billingType->isTokens()) {
-            return null;
-        }
-
-        return $config->getBillingTiers()?->toArray();
-    }
-
-    private function buildBillingTiersFromConfigVersion(ProviderModelConfigVersionEntity $configVersion, string $billingType): ?array
-    {
-        if ($billingType !== BillingType::Tokens->value) {
-            return null;
-        }
-
-        return $configVersion->getBillingTiers()?->toArray();
-    }
 }
