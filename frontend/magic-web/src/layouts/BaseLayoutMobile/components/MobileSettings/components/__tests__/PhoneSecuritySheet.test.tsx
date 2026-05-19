@@ -179,7 +179,10 @@ describe("MobileSettingsPhoneSecuritySheet", () => {
 				popupZIndex: undefined,
 			})
 		})
-		expect(screen.getByTestId("mobile-settings-phone-security-sheet").style.zIndex).toBe("1011")
+		// MagicPopup 将 z-index 应用在 DrawerPrimitive.Content（[data-slot="drawer-content"]）上
+		const sheetEl = screen.getByTestId("mobile-settings-phone-security-sheet")
+		const drawerContent = sheetEl.closest('[data-slot="drawer-content"]') as HTMLElement
+		expect(drawerContent?.style.zIndex).toBe("1011")
 	})
 
 	test("新手机号输入层点击确认后发送验证码并进入验证码层", async () => {

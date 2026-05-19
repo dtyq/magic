@@ -2,15 +2,11 @@ import { Check, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/shadcn-ui/button"
-import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
-import { useOverlayZIndex } from "@/hooks/useOverlayZIndex"
+import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { cn } from "@/lib/utils"
 import type { OverlayZIndexScope } from "@/utils/overlayZIndex/overlayStackManager"
 
-import {
-	MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
-	MOBILE_SETTINGS_SHEET_CLASSNAME,
-} from "../constants"
+import { MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME } from "../constants"
 
 /** 统一设置浮层头部的圆形图标按钮，避免关闭与确认入口重复维护定位、尺寸和阴影。 */
 function MobileSettingsHeaderIconButton(props: {
@@ -42,7 +38,11 @@ function MobileSettingsHeaderIconButton(props: {
 	)
 }
 
-/** 统一渲染设置主浮层和二级浮层的底部 Sheet 外壳，减少重复的头部与拖拽区代码。 */
+/**
+ * 统一渲染设置主浮层和二级浮层的底部 Sheet 外壳。
+ * 内部使用 MagicPopup（vaul Drawer）替代 shadcn Sheet，
+ * 获得更好的移动端拖拽手势、iOS 滚动锁定和统一的弹层层级管理。
+ */
 export function MobileSettingsSheetContainer(props: {
 	open: boolean
 	title: string
@@ -59,6 +59,11 @@ export function MobileSettingsSheetContainer(props: {
 	zIndexScope?: OverlayZIndexScope
 	zIndexManaged?: boolean
 	contentClassName?: string
+	/**
+	 * 兼容保留：vaul Drawer 的遮罩点击已基于 z-index 分层处理，
+	 * 高层级 Portal（如付费弹窗）不会触发底层 Drawer 的关闭，
+	 * 因此该属性在 MagicPopup 下通常无需额外处理。
+	 */
 	ignoreOutsideInteractContainerId?: string
 	children: React.ReactNode
 	dataTestId: string
@@ -79,49 +84,28 @@ export function MobileSettingsSheetContainer(props: {
 		zIndexScope,
 		zIndexManaged,
 		contentClassName,
-		ignoreOutsideInteractContainerId,
 		children,
 		dataTestId,
 	} = props
 	const { t } = useTranslation("interface")
-	const overlayLayer = useOverlayZIndex({
-		open,
-		zIndex,
-		zIndexScope,
-		zIndexManaged,
-	})
-
-	/** 仅在 Sheet 内容退场动画真正结束后释放层级，避免父子 Sheet 关闭交错时复用旧层级。 */
-	function handleContentAnimationEnd(event: React.AnimationEvent<HTMLDivElement>) {
-		if (event.target === event.currentTarget && !open) {
-			overlayLayer.releaseOverlayZIndex()
-		}
-	}
 
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent
-				side="bottom"
-				showClose={false}
-				aria-describedby={undefined}
-				overlayClassName={cn("bg-black/20 backdrop-blur-sm", overlayClassName)}
-				overlayStyle={{ zIndex: overlayLayer.overlayZIndex }}
-				className={cn(MOBILE_SETTINGS_SHEET_CLASSNAME, sheetClassName)}
-				style={{ zIndex: overlayLayer.contentZIndex }}
-				onAnimationEnd={handleContentAnimationEnd}
-				onInteractOutside={(event) => {
-					if (
-						isEventTargetInsideContainer(event.target, ignoreOutsideInteractContainerId)
-					) {
-						event.preventDefault()
-					}
-				}}
-				data-testid={dataTestId}
-			>
-				<div className="flex w-full shrink-0 flex-col items-center py-1.5">
-					<div className="h-1 w-20 rounded-full bg-muted-foreground/70" aria-hidden />
-				</div>
-
+		<MagicPopup
+			visible={open}
+			onClose={() => onOpenChange(false)}
+			/* 不传 title 给 MagicPopup，避免 sr-only DrawerTitle 与下方可见标题文字重复。 */
+			/* 覆盖 MagicPopup 默认的圆角和背景色，保持设置浮层原有的视觉风格。 */
+			className={cn("rounded-t-2xl bg-muted shadow-2xl shadow-black/10", sheetClassName)}
+			overlayClassName={cn("bg-black/20 backdrop-blur-sm", overlayClassName)}
+			/* 关闭 body 区域自身的滚动，改由内部 content 区域独立控制滚动行为。 */
+			bodyClassName="flex max-h-none min-h-0 flex-1 flex-col overflow-hidden p-0"
+			zIndex={zIndex}
+			zIndexScope={zIndexScope}
+			zIndexManaged={zIndexManaged}
+			/* 底部安全区由各页面 content 自行处理，避免与 MagicPopup 默认的 pb-safe-bottom 叠加。 */
+			withSafeBottom={false}
+		>
+			<div className="flex min-h-0 flex-1 flex-col" data-testid={dataTestId}>
 				<div className="relative flex h-12 w-full shrink-0 items-center justify-center px-16">
 					{hideCloseButton ? null : (
 						<MobileSettingsHeaderIconButton
@@ -133,9 +117,9 @@ export function MobileSettingsSheetContainer(props: {
 						</MobileSettingsHeaderIconButton>
 					)}
 
-					<SheetTitle className="max-w-56 truncate text-center text-lg font-semibold leading-6 text-foreground">
+					<span className="max-w-56 truncate text-center text-lg font-semibold leading-6 text-foreground">
 						{title}
-					</SheetTitle>
+					</span>
 
 					{headerAction ? (
 						headerAction
@@ -160,15 +144,7 @@ export function MobileSettingsSheetContainer(props: {
 				>
 					{children}
 				</div>
-			</SheetContent>
-		</Sheet>
+			</div>
+		</MagicPopup>
 	)
-}
-
-/** 外部 Portal 内的点击不应被当前 Sheet 当作遮罩点击，否则会误关闭父级设置浮层。 */
-function isEventTargetInsideContainer(target: EventTarget | null, containerId?: string) {
-	if (!containerId) return false
-	if (!(target instanceof Node)) return false
-
-	return Boolean(document.getElementById(containerId)?.contains(target))
 }
