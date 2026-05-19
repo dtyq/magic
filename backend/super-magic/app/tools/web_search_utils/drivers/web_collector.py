@@ -17,6 +17,7 @@ class WebCollectorSearchDriver(SearchDriverInterface):
 
     def __init__(self):
         self.base_url = config.get("web_collector.base_url", "")
+        self.api_token = config.get("web_collector.api_token", "")
 
     def is_available(self) -> bool:
         return bool(self.base_url)
@@ -50,6 +51,8 @@ class WebCollectorSearchDriver(SearchDriverInterface):
         headers = {
             "Accept": "application/json",
         }
+        if self.api_token:
+            headers["Authorization"] = f"Bearer {self.api_token}"
 
         try:
             async with aiohttp.ClientSession() as session:

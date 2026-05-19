@@ -12,6 +12,7 @@ class WebCollectorWebScrapeDriver(WebScrapeDriverInterface):
 
     def __init__(self):
         self.base_url = config.get("web_collector.base_url", "")
+        self.api_token = config.get("web_collector.api_token", "")
         self.timeout = config.get("web_scraping.search_api.timeout", 30)
         self.mode = config.get("web_scraping.search_api.mode", "quality")
 
@@ -42,6 +43,8 @@ class WebCollectorWebScrapeDriver(WebScrapeDriverInterface):
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        if self.api_token:
+            headers["Authorization"] = f"Bearer {self.api_token}"
 
         payload = {
             "url": url,
