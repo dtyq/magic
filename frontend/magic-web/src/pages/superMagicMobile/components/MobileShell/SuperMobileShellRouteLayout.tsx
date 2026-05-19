@@ -1,18 +1,19 @@
 import type { ReactNode } from "react"
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
-import { Bot, Box, LayoutGrid, MessageCircle, Trash2 } from "lucide-react"
+import { Bot, Box, LayoutGrid, MessageCircle, Mic, Trash2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 
 import { hasOrganizationAppsShortcuts } from "@/layouts/BaseLayoutMobile/components/MobileTabBar/constants/tabsConfig.shared"
 import { userStore } from "@/models/user"
 import SuperMagicService from "@/pages/superMagic/services"
+import { getNativePort } from "@/platform/native"
 import { MagiClawNavIcon } from "@/pages/superMagicMobile/components/icons/MagiClawNavIcon"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
-import { MobileTabParam } from "@/pages/mobileTabs/constants"
 import { MobileSettingsPanel } from "@/layouts/BaseLayoutMobile/components/MobileSettings"
 import { MobileSettingsProvider } from "@/layouts/BaseLayoutMobileV2/MobileSettingsContext"
+import { isMagicApp } from "@/utils/devices"
 
 import { MobileShellAppLayout } from "./MobileShellAppLayout"
 import MobileShellSidebar from "./MobileShellSidebar"
@@ -24,6 +25,13 @@ export interface SuperMobileShellOutletContext {
 }
 
 const SuperMobileShellOutletContext = createContext<SuperMobileShellOutletContext | null>(null)
+
+function openNativeRecordingPage() {
+	void getNativePort().navigation.changeBottomTab({
+		tab: "ai_recording",
+		bottomTabHeight: 0,
+	})
+}
 
 export function useSuperMobileShellOutlet(): SuperMobileShellOutletContext {
 	const ctx = useContext(SuperMobileShellOutletContext)
@@ -88,7 +96,9 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 		() => [
 			{ key: "chats", icon: MessageCircle, label: t("mobile.shell.navChats") },
 			{ key: "workspaces", icon: Box, label: t("mobile.shell.navWorkspaces") },
-			// { key: "recording", icon: Mic, label: t("mobile.shell.navRecording") },
+			...(isMagicApp
+				? [{ key: "recording", icon: Mic, label: t("mobile.shell.navRecording") }]
+				: []),
 			{ key: "myCrew", icon: Bot, label: t("mobile.shell.navMyCrew") },
 			{
 				key: "magiClaw",
@@ -116,7 +126,7 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 				return
 			}
 			if (key === "recording") {
-				navigate({ name: RouteName.MobileTabs, query: { tab: MobileTabParam.Recording } })
+				openNativeRecordingPage()
 				return
 			}
 			if (key === "magiClaw") {
