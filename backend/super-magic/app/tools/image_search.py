@@ -1017,7 +1017,10 @@ Keyword Diversification Principles:
 
 ## 重要提醒
 - 由于你总是错误地判断清晰度，因此就算额外分析要求中包含清晰度分析，也不要在分析中包含任何关于图片清晰度的描述。
-- 如果图片包含明显的水印、版权标识等不适合使用的技术问题，请在分析结果中添加特殊标记：flag{{REJECT_IMAGE}}，避免在后续流程中造成额外的二次决策成本。注意：将标记放在分析结果的结尾，系统会自动清理掉这个标记，不会影响最终展示给用户的内容。
+- 关于 flag{{REJECT_IMAGE}} 标记的使用规则（请严格遵守）：
+  - 仅当你**明确观察到**图片中存在水印文字、可见 logo、版权署名等无法用于商用配图的技术问题时，才在分析结果末尾**单独一行**输出 flag{{REJECT_IMAGE}}。
+  - 在以下任何情况下，**绝对不要**输出 flag{{REJECT_IMAGE}}：未观察到水印或版权标识、不确定是否存在、你在描述中已经写出"无水印""无版权标识""未见水印"等否定性结论。
+  - 不要解释这个标记，也不要在正文中提及它。
 - 为提高信息密度，请用最少的文字表达最多的有效信息，避免空话、套话、重复表达。
 - {output_language_rule}
 - {length_rule}
@@ -1056,14 +1059,31 @@ Keyword Diversification Principles:
                 elif isinstance(result, str):
                     # Check if analysis result is empty
                     if not result.strip():
-                        logger.debug(f"图片视觉分析结果为空，跳过: {img.name}")
+                        logger.info(f"图片视觉分析结果为空，跳过: {img.name}")
                         continue
 
                     # Check for REJECT_IMAGE marker
                     reject_pattern = 'flag{REJECT_IMAGE}'
                     if reject_pattern in result:
-                        logger.debug(f"图片被视觉分析拒绝: {img.name}")
-                        continue  # Skip this image
+                        # Self-consistency check: if the model itself states there is no
+                        # watermark/copyright issue, treat the marker as a hallucinated
+                        # tail and keep the image instead of dropping it silently.
+                        # Covers Chinese & English negation phrasings commonly produced
+                        # by lightweight vision models (e.g. qwen-flash).
+                        result_without_marker = result.replace(reject_pattern, '')
+                        negation_pattern = re.compile(
+                            r'(无水印|没有水印|未见水印|不含水印|无版权(标识|信息)?|没有版权(标识|信息)?|未见版权(标识|信息)?|不含版权(标识|信息)?'
+                            r'|no\s+watermark|without\s+watermark|no\s+copyright)',
+                            re.IGNORECASE,
+                        )
+                        if negation_pattern.search(result_without_marker):
+                            logger.warning(
+                                f"视觉分析输出了 REJECT 标记但同时声明无水印/版权问题，判定为模型误标，保留图片: {img.name}"
+                            )
+                            # fall through and keep the image
+                        else:
+                            logger.info(f"图片被视觉分析拒绝: {img.name}")
+                            continue  # Skip this image
 
                     # Remove any REJECT_IMAGE markers and clean up
                     analysis = result.replace(reject_pattern, '').strip()
@@ -1071,7 +1091,7 @@ Keyword Diversification Principles:
 
                     # Skip if analysis is empty after cleanup
                     if not analysis:
-                        logger.debug(f"图片视觉分析清理后为空，跳过: {img.name}")
+                        logger.info(f"图片视觉分析清理后为空，跳过: {img.name}")
                         continue
 
                     img.visual_analysis = analysis
