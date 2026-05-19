@@ -785,6 +785,10 @@ metaso:
   api_endpoint: "${METASO_API_ENDPOINT:-https://metaso.cn}"
   search_endpoint: "${METASO_SEARCH_ENDPOINT:-/api/v1/search}"
 
+web_collector:
+  api_token: "${WEB_COLLECTOR_API_TOKEN}"
+  base_url: "${WEB_COLLECTOR_BASE_URL}"
+
 # SerpApi 配置（用于 Google 搜索）
 serpapi:
   api_key: "${SERPAPI_API_KEY}"
