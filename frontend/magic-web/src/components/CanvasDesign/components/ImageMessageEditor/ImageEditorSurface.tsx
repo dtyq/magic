@@ -68,6 +68,7 @@ export default function ImageEditorSurface(props: ImageEditorSurfaceProps) {
 	} = props
 	const { canvas } = useCanvas()
 	const [hasScrollbar, setHasScrollbar] = useState(false)
+	const [hoveredMentionPath, setHoveredMentionPath] = useState<string | null>(null)
 	const {
 		prompt,
 		handlers,
@@ -94,6 +95,7 @@ export default function ImageEditorSurface(props: ImageEditorSurfaceProps) {
 		maxReferenceFiles,
 		isReferenceFileLimitReached,
 		syncFromElement: config.handlers.syncReferenceFilesFromElement,
+		protectedReferencePaths: config.protectedReferencePaths,
 	})
 
 	const { containerRef } = useElementPositionEffect({
@@ -224,9 +226,10 @@ export default function ImageEditorSurface(props: ImageEditorSurfaceProps) {
 
 	const handleMentionChange = useCallback(
 		(paths: string[], currentPrompt: string) => {
+			config.handlers.handlePromptReferencePathsChange(paths)
 			syncMentionPaths(paths, currentPrompt)
 		},
-		[syncMentionPaths],
+		[config.handlers, syncMentionPaths],
 	)
 
 	const handleReferenceFileRemoveFromPopover = useCallback(
@@ -273,11 +276,13 @@ export default function ImageEditorSurface(props: ImageEditorSurfaceProps) {
 				mentionDataService={mentionDataService}
 				mentionExtension={mentionExtension}
 				onMentionChange={handleMentionChange}
+				onMentionItemHoverChange={setHoveredMentionPath}
 				mentionEnabled={mentionEnabled}
 				onPaste={handlePaste}
 			/>
 			<ImageEditorControls
 				config={config}
+				hoveredMentionPath={hoveredMentionPath}
 				onSelectSource={handleSelectSource}
 				onProjectSelect={handleProjectSelect}
 				onReferenceFileRemove={handleReferenceFileRemoveFromPopover}

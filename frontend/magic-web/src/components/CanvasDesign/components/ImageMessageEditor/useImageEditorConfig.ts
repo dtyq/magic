@@ -44,6 +44,13 @@ import {
 	type SupportedAspectRatioOption,
 	type SupportedResolutionOption,
 } from "./image-editor-config.utils"
+import {
+	areOrderedPathsEqual,
+	pruneProtectedReferencePaths,
+	resolveReferenceBindingState,
+	unprotectPromptBoundReferencePaths,
+	type ReferenceBindingMode,
+} from "../MessageEditor/reference-assets/referenceBinding"
 
 interface UseImageEditorConfigOptions {
 	imageElement: ImageElement
@@ -62,6 +69,8 @@ export interface ImageEditorConfig {
 	selectedScale?: string
 	selectedImageGenerationConfig: Record<string, string>
 	currentReferenceFiles: string[]
+	protectedReferencePaths: string[]
+	referenceBindingMode: ReferenceBindingMode
 	referenceFileInfos: ReferenceResourceFileInfo[]
 	matchableItems: Array<{ name: string; path?: string; disabled?: boolean }>
 	modelOptions: ImageModelOption[]
@@ -122,6 +131,8 @@ export interface ImageEditorConfig {
 		handleFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void
 		/** 从 elementInstance 同步参考文件状态到 config，用于 @ 面板添加后的闭环 */
 		syncReferenceFilesFromElement: () => void
+		/** prompt 中一旦出现显式图片绑定，就把对应 legacy 保护引用升级为普通 prompt 绑定。 */
+		handlePromptReferencePathsChange: (paths: string[]) => void
 	}
 	fileInputRef: React.MutableRefObject<HTMLInputElement | null>
 }
@@ -145,6 +156,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		Record<string, string>
 	>({})
 	const [isPopoverOpen, setIsPopoverOpen] = useState<boolean>(false)
+	const [protectedReferencePaths, setProtectedReferencePaths] = useState<string[]>([])
 
 	// 标记是否已经恢复过临时数据
 	const hasRestoredRef = useRef<boolean>(false)
@@ -328,6 +340,33 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 			),
 		[promptPlaceholderTokenConfig],
 	)
+
+	const updateProtectedReferencePaths = useCallback((nextPaths: string[]) => {
+		setProtectedReferencePaths((prev) => {
+			return areOrderedPathsEqual(prev, nextPaths) ? prev : nextPaths
+		})
+	}, [])
+
+	const applyBindingStateFromPromptAndReferences = useCallback(
+		(nextPrompt: string, nextReferenceFileInfos: ReferenceResourceFileInfo[]) => {
+			const bindingState = resolveReferenceBindingState({
+				prompt: nextPrompt,
+				referenceFileInfos: nextReferenceFileInfos,
+				tokenConfig: promptPlaceholderTokenConfig,
+			})
+			updateProtectedReferencePaths(bindingState.protectedReferencePaths)
+			return bindingState
+		},
+		[promptPlaceholderTokenConfig, updateProtectedReferencePaths],
+	)
+
+	const referenceBindingMode = useMemo<ReferenceBindingMode>(() => {
+		const protectedCount = protectedReferencePaths.length
+		const referenceCount = currentReferenceFiles.length
+		if (protectedCount === 0) return "prompt-linked"
+		if (protectedCount >= referenceCount) return "detached-legacy"
+		return "mixed"
+	}, [currentReferenceFiles.length, protectedReferencePaths.length])
 
 	const resolvePromptReferencesByPaths = useCallback(
 		(paths: string[] | undefined): PromptPlaceholderReference[] => {
@@ -578,18 +617,30 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 				popoverCloseTimeoutRef.current = null
 			}
 			removeReferenceFile(path)
+			updateProtectedReferencePaths(
+				protectedReferencePaths.filter((protectedPath) => protectedPath !== path),
+			)
 			// 延迟清除删除标记，确保删除操作完成后再允许关闭
 			setTimeout(() => {
 				isRemovingReferenceImageRef.current = false
 			}, 200)
 		},
-		[removeReferenceFile],
+		[protectedReferencePaths, removeReferenceFile, updateProtectedReferencePaths],
 	)
 
 	// 从 elementInstance 同步参考文件状态，用于 @ 面板添加后的数据闭环
 	const syncReferenceFilesFromElement = useCallback(() => {
 		syncFromElement()
 	}, [syncFromElement])
+
+	const handlePromptReferencePathsChange = useCallback(
+		(paths: string[]) => {
+			updateProtectedReferencePaths(
+				unprotectPromptBoundReferencePaths(protectedReferencePaths, paths),
+			)
+		},
+		[protectedReferencePaths, updateProtectedReferencePaths],
+	)
 
 	// 处理 Popover 鼠标进入
 	const handlePopoverMouseEnter = useCallback(() => {
@@ -738,6 +789,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 
 		setSelectedModelId(restoredModelId)
 		applyQuickEditReferencePreset(restoredModelId)
+		updateProtectedReferencePaths([])
 		setPrompt(
 			shouldSeedQuickEditReference
 				? appendMentionToString("", originalImageSrc || "", quickEditReferenceName)
@@ -813,6 +865,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		currentImageVisibleAspectRatio,
 		originalImageName,
 		originalImageSrc,
+		updateProtectedReferencePaths,
 	])
 
 	// 恢复配置的辅助函数
@@ -870,20 +923,24 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 					requestToRestore.image_generation_config,
 				),
 			)
-			// 恢复参考文件：将 tempRequest.reference_images 的 paths 恢复到 Element 存储的文件 infos
+			// 恢复参考文件：将 reference_images 还原为元素上的引用列表，并同时建立本次编辑会话的绑定策略。
 			if (requestToRestore.reference_images && requestToRestore.reference_images.length > 0) {
-				const referenceFileInfos: UploadFileResponse[] =
+				const restoredReferenceFileInfos: ReferenceResourceFileInfo[] =
 					requestToRestore.reference_images.map((path) => {
 						const fileName = path.split("/").pop() || path
 						return {
 							path,
-							src: path, // 先用 path，Resource 加载后会更新
+							src: path,
 							fileName,
 						}
 					})
-				elementInstance.setReferenceImageInfos(referenceFileInfos)
+				elementInstance.setReferenceImageInfos(
+					restoredReferenceFileInfos as UploadFileResponse[],
+				)
+				applyBindingStateFromPromptAndReferences(restoredPrompt, restoredReferenceFileInfos)
 			} else {
 				elementInstance.clearReferenceImageInfos()
+				updateProtectedReferencePaths([])
 			}
 
 			// 恢复尺寸配置
@@ -932,6 +989,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 			const defaultConfig = rootStorage?.defaultGenerateImageConfig
 
 			if (defaultConfig) {
+				updateProtectedReferencePaths([])
 				// 从 rootStorage 恢复配置
 				const restoredModelId =
 					defaultConfig.model_id &&
@@ -1000,6 +1058,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 					setSelectedResolution(undefined)
 				}
 			} else {
+				updateProtectedReferencePaths([])
 				// rootStorage 也没有，使用模型列表第一个作为默认配置
 				const defaultModel = imageModelList[0]
 				if (defaultModel) {
@@ -1054,6 +1113,8 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		imageModelList,
 		resolvePromptReferencesByPaths,
 		promptPlaceholderTokenConfig,
+		applyBindingStateFromPromptAndReferences,
+		updateProtectedReferencePaths,
 	])
 
 	/** 清除草稿后按已落库的 generateImageRequest 完整回填编辑器（与「快捷编辑」仅恢复模型配置区分） */
@@ -1099,6 +1160,12 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		restoreConfig()
 	}, [canvas, imageModelList, restoreConfig])
 
+	useEffect(() => {
+		updateProtectedReferencePaths(
+			pruneProtectedReferencePaths(currentReferenceFiles, protectedReferencePaths),
+		)
+	}, [currentReferenceFiles, protectedReferencePaths, updateProtectedReferencePaths])
+
 	// 当用户填写的内容变化时，防抖写入 tempRequest（使用 useUpdateEffect 避免首次挂载时触发）
 	useUpdateEffect(() => {
 		if (isRestoringRef.current) return
@@ -1123,6 +1190,8 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		selectedImageGenerationConfig,
 		referenceSourceCrop: imageElement.crop,
 		currentReferenceFiles,
+		protectedReferencePaths,
+		referenceBindingMode,
 		referenceFileInfos,
 		matchableItems,
 		modelOptions,
@@ -1166,6 +1235,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 			uploadFiles,
 			handleFileChange,
 			syncReferenceFilesFromElement,
+			handlePromptReferencePathsChange,
 		},
 		fileInputRef,
 	}
