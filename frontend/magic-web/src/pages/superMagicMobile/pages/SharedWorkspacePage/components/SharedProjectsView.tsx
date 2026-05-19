@@ -40,7 +40,6 @@ interface SharedProjectRowProps {
 	onOpen: (project: SharedWorkspaceProject) => void
 }
 
-/**
 function formatSharedProjectTime(
 	value: string | null | undefined,
 	language: string,
