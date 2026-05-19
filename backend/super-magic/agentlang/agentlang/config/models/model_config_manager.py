@@ -76,7 +76,8 @@ class ModelConfigManager:
 
         self._models = merged
         self._sync_pricing()
-        logger.info(f"ModelConfigManager initialized with {len(self._models)} models")
+        model_ids = list(self._models.keys())
+        logger.info(f"ModelConfigManager initialized with {len(self._models)} models: {model_ids}")
 
     async def refresh_provider(self, provider: ModelProvider) -> None:
         """重新加载单个服务商并将结果合并进当前注册表
@@ -102,9 +103,10 @@ class ModelConfigManager:
 
         self._mark_loaded(provider)
         self._sync_pricing()
+        model_ids = list(self._models.keys())
         logger.info(
             f"Provider '{provider.provider_type}' refreshed: {updated} models updated, "
-            f"total {len(self._models)} models in manager"
+            f"total {len(self._models)} models in manager: {model_ids}"
         )
 
     def is_provider_loaded(self, provider_type: str) -> bool:
