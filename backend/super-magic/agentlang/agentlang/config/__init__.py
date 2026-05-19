@@ -3,6 +3,6 @@
 """
 
 from agentlang.config.config import config
-from agentlang.config.model_config import model_config_utils, ModelConfig
+from agentlang.config.models.model_config import model_config_utils, ModelConfig
 
 __all__ = ["config", "model_config_utils", "ModelConfig"]
