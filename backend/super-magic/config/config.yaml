@@ -818,6 +818,11 @@ web_scrape:
   # 默认网页抓取驱动: browser 或 web_collector
   default_engine: "${WEB_SCRAPE_DEFAULT_ENGINE:-browser}"
 
+# 截图驱动选择
+screenshot:
+  # 默认截图驱动: browser 或 web_collector
+  default_engine: "${SCREENSHOT_DEFAULT_ENGINE:-browser}"
+
 filebase:
   embedding_model_id: "${FILEBASE_EMBEDDING_MODEL_ID:-magic-embedding}"
   collection_prefix: "${FILEBASE_COLLECTION_PREFIX:-SUPERMAGIC-FILEBASE}"
