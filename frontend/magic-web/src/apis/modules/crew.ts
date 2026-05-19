@@ -251,6 +251,45 @@ export interface GetHiredAgentsResponse extends GetCreatedAgentsResponse {}
 /** Response for team-shared user agents list */
 export interface GetTeamSharedAgentsResponse extends GetCreatedAgentsResponse {}
 
+// ======================== Unified Agent List (API: POST /api/v2/super-magic/agents/queries) ========================
+
+/** Scope filter for unified agent list query */
+export type UnifiedAgentScope = "all" | "created" | "team_shared" | "market_installed"
+
+/** Sort field for unified agent list query */
+export type UnifiedAgentSort = "updated_at" | "created_at"
+
+/** Request body for unified agent list query */
+export interface GetUnifiedAgentListParams {
+	page?: number
+	page_size?: number
+	keyword?: string
+	scope?: UnifiedAgentScope
+	sort?: UnifiedAgentSort
+}
+
+/** Organization info attached to each unified agent item */
+export interface AgentOrganizationInfo {
+	name: string
+}
+
+/**
+ * Unified list item extends base AgentItem with scope and organization info.
+ * The `scope` field identifies the origin category of this item in the current query.
+ */
+export interface UnifiedAgentItem extends AgentItem {
+	scope: "created" | "team_shared" | "market_installed"
+	organization_info: AgentOrganizationInfo
+}
+
+/** Paginated response for unified agent list query */
+export interface GetUnifiedAgentListResponse {
+	list: UnifiedAgentItem[]
+	page: number
+	page_size: number
+	total: number
+}
+
 // ======================== Create Agent (API 4) ========================
 
 /** Request body for creating a new agent */
@@ -912,6 +951,20 @@ export const generateCrewApi = (fetch: HttpClient) => ({
 		return fetch.put<[]>(
 			genRequestUrl("/api/v2/super-magic/agents/${code}/playbooks/reorder", { code }),
 			params,
+		)
+	},
+
+	/**
+	 * Get unified agent list (all scopes in one query).
+	 * Endpoint: POST /api/v2/super-magic/agents/queries
+	 * Replaces separate created/hired/team-shared endpoints for mobile.
+	 * @param params Request body with scope, sort, pagination
+	 */
+	getUnifiedAgentList(params: GetUnifiedAgentListParams = {}) {
+		const { page = 1, page_size = 20, keyword, scope = "all", sort = "updated_at" } = params
+		return fetch.post<GetUnifiedAgentListResponse>(
+			genRequestUrl("/api/v2/super-magic/agents/queries"),
+			{ page, page_size, keyword, scope, sort },
 		)
 	},
 })

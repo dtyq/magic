@@ -15,6 +15,7 @@ import {
 	type GetAgentVersionsResponse,
 	type GetPlaybooksParams,
 	type GetStoreAgentsParams,
+	type GetUnifiedAgentListParams,
 	type CreateAgentParams,
 	type PublishAgentParams,
 	type PublishAgentPrefillResponse,
@@ -29,6 +30,7 @@ import {
 	type StoreAgentItem,
 	type StoreAgentMarketDetailResponse,
 	type AgentItem,
+	type UnifiedAgentItem,
 	type AgentDetailResponse,
 	type PlaybookItem,
 	type PlaybookConfig,
@@ -85,6 +87,10 @@ export interface MyCrewView {
 	updatedAt: string
 	/** From team-shared API `creator_info.name` */
 	creatorName: string | null
+	/** Unified API scope: identifies the origin category. Undefined when using legacy endpoints. */
+	scope?: "created" | "team_shared" | "market_installed"
+	/** Organization name from unified API's organization_info field */
+	organizationName?: string | null
 }
 
 export interface AgentDetailView {
@@ -224,6 +230,19 @@ export class CrewService {
 		const data = await CrewApi.getTeamSharedAgents(params)
 		return {
 			list: data.list.map((item) => this.mapMyAgent(item)),
+			page: data.page,
+			pageSize: data.page_size,
+			total: data.total,
+		}
+	}
+
+	/** Fetch agents via unified endpoint (mobile). Returns flat list regardless of scope. */
+	async getUnifiedAgents(
+		params: GetUnifiedAgentListParams = {},
+	): Promise<PagedResult<MyCrewView>> {
+		const data = await CrewApi.getUnifiedAgentList(params)
+		return {
+			list: data.list.map((item) => this.mapUnifiedAgent(item)),
 			page: data.page,
 			pageSize: data.page_size,
 			total: data.total,
@@ -428,6 +447,16 @@ export class CrewService {
 			pinnedAt: item.pinned_at,
 			updatedAt: item.updated_at,
 			creatorName: item.creator_info?.name?.trim() || null,
+		}
+	}
+
+	/** Extends base mapMyAgent with unified-API-only fields (scope, organizationName). */
+	private mapUnifiedAgent(item: UnifiedAgentItem): MyCrewView {
+		const base = this.mapMyAgent(item)
+		return {
+			...base,
+			scope: item.scope,
+			organizationName: item.organization_info?.name ?? null,
 		}
 	}
 

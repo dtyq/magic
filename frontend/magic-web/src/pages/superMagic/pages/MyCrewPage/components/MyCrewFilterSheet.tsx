@@ -5,6 +5,8 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
 import {
 	MY_CREW_MOBILE_FILTER_DEFAULT,
 	type MyCrewMobileFilterState,
+	type MyCrewMobileFilterType,
+	type MyCrewMobileSortType,
 } from "./my-crew-mobile-shared"
 
 interface MyCrewFilterSheetProps {
@@ -12,10 +14,11 @@ interface MyCrewFilterSheetProps {
 	onOpenChange: (open: boolean) => void
 	filter: MyCrewMobileFilterState
 	onChange: (nextFilter: MyCrewMobileFilterState) => void
+	/** Hide "Team Shared" option for personal organizations */
 	includeTeamShared: boolean
 }
 
-/** 单选菜单行统一收敛交互和视觉，避免筛选 sheet 中的选中态样式分散。 */
+/** Single-select row with check indicator. */
 function SelectRow(props: {
 	label: string
 	selected: boolean
@@ -39,7 +42,11 @@ function SelectRow(props: {
 	)
 }
 
-/** `MyCrew` 筛选 sheet 对齐原型结构，但类型筛选仍映射到主仓真实列表能力。 */
+/**
+ * Filter + sort sheet for mobile My Crew page.
+ * Type section: tap to select, tap again to deselect (returns to "all").
+ * Sort section: two exclusive options.
+ */
 export default function MyCrewFilterSheet({
 	open,
 	onOpenChange,
@@ -49,14 +56,21 @@ export default function MyCrewFilterSheet({
 }: MyCrewFilterSheetProps) {
 	const { t } = useTranslation("crew/market")
 
-	// Reset 仅回到默认分类；若当前已是默认值，保持按钮可见但点击后不产生变化。
 	function handleReset() {
 		onChange(MY_CREW_MOBILE_FILTER_DEFAULT)
 	}
 
-	// 类型切换始终映射到一个真实列表分类，不再额外承载 `all` 或排序能力。
-	function handleTypeChange(nextType: MyCrewMobileFilterState["type"]) {
-		onChange({ type: nextType })
+	/** Toggle type selection: re-tapping the active type resets to "all". */
+	function handleTypeChange(nextType: MyCrewMobileFilterType) {
+		if (nextType === filter.type) {
+			onChange({ ...filter, type: "all" })
+		} else {
+			onChange({ ...filter, type: nextType })
+		}
+	}
+
+	function handleSortChange(nextSort: MyCrewMobileSortType) {
+		onChange({ ...filter, sort: nextSort })
 	}
 
 	return (
@@ -69,10 +83,12 @@ export default function MyCrewFilterSheet({
 				style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
 				data-testid="my-crew-filter-sheet"
 			>
+				{/* Drag handle */}
 				<div className="flex w-full shrink-0 flex-col items-center py-[6px]">
 					<div className="h-1 w-20 rounded-full bg-muted-foreground" aria-hidden />
 				</div>
 
+				{/* Header: close + title + reset */}
 				<div className="relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
 					<Button
 						type="button"
@@ -103,7 +119,9 @@ export default function MyCrewFilterSheet({
 					</Button>
 				</div>
 
+				{/* Body: type section + sort section */}
 				<div className="no-scrollbar flex flex-1 flex-col gap-2.5 overflow-y-auto px-[10px] pb-5 pt-2">
+					{/* Type filter section */}
 					<div className="flex flex-col gap-2">
 						<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
 							{t("myCrewPage.filterSheet.typeLabel")}
@@ -115,14 +133,16 @@ export default function MyCrewFilterSheet({
 								onSelect={() => handleTypeChange("created")}
 								dataTestId="my-crew-filter-type-created"
 							/>
-							{includeTeamShared ? <div className="h-px w-full bg-border" /> : null}
 							{includeTeamShared ? (
-								<SelectRow
-									label={t("myCrewPage.filterSheet.type.teamShared")}
-									selected={filter.type === "teamShared"}
-									onSelect={() => handleTypeChange("teamShared")}
-									dataTestId="my-crew-filter-type-team-shared"
-								/>
+								<>
+									<div className="h-px w-full bg-border" />
+									<SelectRow
+										label={t("myCrewPage.filterSheet.type.teamShared")}
+										selected={filter.type === "teamShared"}
+										onSelect={() => handleTypeChange("teamShared")}
+										dataTestId="my-crew-filter-type-team-shared"
+									/>
+								</>
 							) : null}
 							<div className="h-px w-full bg-border" />
 							<SelectRow
@@ -130,6 +150,28 @@ export default function MyCrewFilterSheet({
 								selected={filter.type === "fromMarket"}
 								onSelect={() => handleTypeChange("fromMarket")}
 								dataTestId="my-crew-filter-type-from-market"
+							/>
+						</div>
+					</div>
+
+					{/* Sort section */}
+					<div className="flex flex-col gap-2">
+						<p className="px-[14px] text-[14px] leading-5 text-muted-foreground">
+							{t("myCrewPage.filterSheet.sortLabel")}
+						</p>
+						<div className="w-full overflow-hidden rounded-lg bg-card">
+							<SelectRow
+								label={t("myCrewPage.filterSheet.sort.updatedAt")}
+								selected={filter.sort === "updated_at"}
+								onSelect={() => handleSortChange("updated_at")}
+								dataTestId="my-crew-filter-sort-updated-at"
+							/>
+							<div className="h-px w-full bg-border" />
+							<SelectRow
+								label={t("myCrewPage.filterSheet.sort.createdAt")}
+								selected={filter.sort === "created_at"}
+								onSelect={() => handleSortChange("created_at")}
+								dataTestId="my-crew-filter-sort-created-at"
 							/>
 						</div>
 					</div>

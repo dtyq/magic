@@ -3,13 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
 import { useTimezone } from "@/providers/TimezoneProvider/hooks"
-import type { MyCrewView } from "@/services/crew/CrewService"
 import { normalizeLocale } from "@/utils/locale"
 import { resolvePublisherLabel } from "@/pages/superMagic/pages/CrewMarket/employee-market/components/employee-card-shared"
 import MyCrewAvatar from "./MyCrewAvatar"
-import { resolveMyCrewPresentationSource } from "./my-crew-mobile-shared"
-import type { MyCrewCrewTypeTab } from "../tab-state"
-import type { MyCrewPresentationSource } from "./my-crew-mobile-shared"
+
+/** Presentation source for rendering detail sheet content sections. */
+type MyCrewPresentationSource = "custom" | "teamShared" | "market"
 
 /**
  * 提炼出详情 sheet 的最小字段集，使市场 Agent（StoreAgentView）与我的成员（MyCrewView）
@@ -30,6 +29,12 @@ export interface CrewDetailSheetEmployee {
 	creatorName?: string | null
 	/** 发布方类型枚举；用于 resolvePublisherLabel 将原始枚举值映射为可读名称。 */
 	publisherType?: string | null
+	/** Unified API scope. Used to determine presentation source without listVariant. */
+	scope?: "created" | "team_shared" | "market_installed"
+	/** Organization name for team-shared agents (from unified API organization_info). */
+	organizationName?: string | null
+	/** Whether the agent can be dismissed/deleted */
+	allowDelete?: boolean
 }
 
 /** 自定义 footer 操作按钮描述。 */
@@ -41,15 +46,24 @@ export interface CrewDetailSheetAction {
 	testId?: string
 }
 
+/** Resolve presentation source from unified API scope field. Falls back to "custom". */
+function resolvePresentationSourceFromScope(
+	employee: Pick<CrewDetailSheetEmployee, "scope">,
+): MyCrewPresentationSource {
+	if (employee.scope === "team_shared") return "teamShared"
+	if (employee.scope === "market_installed") return "market"
+	return "custom"
+}
+
 interface MyCrewDetailSheetProps {
 	employee: CrewDetailSheetEmployee | null
-	listVariant?: MyCrewCrewTypeTab | "all" | null
+	/** @deprecated Use employee.scope for source detection. Kept for backward compat with CrewMarket. */
+	listVariant?: string | null
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	onChat: (agentCode: string) => void
 	/**
-	 * 强制指定展示来源，绕过 resolveMyCrewPresentationSource 的自动推断。
-	 * 来自 Crew 市场的调用方应传入 "market"，来自我的成员的调用方可省略由内部计算。
+	 * Override presentation source. Crew Market passes "market" to skip scope-based inference.
 	 */
 	presentationSource?: MyCrewPresentationSource
 	/**
@@ -183,8 +197,15 @@ function MyCrewInfoSection(props: {
 	if (source === "teamShared") {
 		return (
 			<>
+				{employee.organizationName ? (
+					<InfoRow
+						icon={<Building2 className="h-4 w-4" />}
+						label={t("myCrewPage.detailSheet.info.sharedFrom")}
+						value={employee.organizationName}
+					/>
+				) : null}
 				<InfoRow
-					icon={<Building2 className="h-4 w-4" />}
+					icon={<User className="h-4 w-4" />}
 					label={t("myCrewPage.detailSheet.info.sharedBy")}
 					value={employee.creatorName?.trim() || fallbackValue}
 				/>
@@ -195,7 +216,7 @@ function MyCrewInfoSection(props: {
 				/>
 				<InfoRow
 					icon={<CalendarDays className="h-4 w-4" />}
-					label={t("myCrewPage.detailSheet.info.addedAt")}
+					label={t("myCrewPage.detailSheet.info.createdAt")}
 					value={createdAtText}
 					isLast
 				/>
@@ -228,7 +249,8 @@ function MyCrewInfoSection(props: {
 /** `MyCrew` 详情 sheet 用原型的底部抽屉结构承接现有列表数据，先替换旧桌面弹窗语义。 */
 export default function MyCrewDetailSheet({
 	employee,
-	listVariant,
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	listVariant: _listVariant,
 	open,
 	onOpenChange,
 	onChat,
@@ -242,6 +264,7 @@ export default function MyCrewDetailSheet({
 	const [showTopMask, setShowTopMask] = useState(false)
 	const [showBottomMask, setShowBottomMask] = useState(false)
 	const lastEmployeeRef = useRef<CrewDetailSheetEmployee | null>(null)
+	// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 	const displayEmployee = employee ?? lastEmployeeRef.current!
 
 	if (employee) {
@@ -250,15 +273,9 @@ export default function MyCrewDetailSheet({
 
 	const presentationSource = useMemo(
 		() =>
-			// 调用方显式指定来源时（如 Crew 市场）直接使用，跳过内部字段推断
 			presentationSourceProp ??
-			(displayEmployee
-				? resolveMyCrewPresentationSource(
-						displayEmployee as Pick<MyCrewView, "sourceType" | "creatorName">,
-						listVariant,
-					)
-				: "custom"),
-		[displayEmployee, listVariant, presentationSourceProp],
+			(displayEmployee ? resolvePresentationSourceFromScope(displayEmployee) : "custom"),
+		[displayEmployee, presentationSourceProp],
 	)
 
 	const sourceLabel = useMemo(() => {
@@ -353,7 +370,6 @@ export default function MyCrewDetailSheet({
 
 									<div className="flex flex-col items-center gap-2">
 										<p
-
 											className="line-clamp-2 text-center text-[20px] font-bold leading-tight text-foreground"
 											data-testid="my-crew-detail-sheet-title"
 										>
@@ -362,7 +378,9 @@ export default function MyCrewDetailSheet({
 										</p>
 										{displayEmployee.role?.trim() ? (
 											<span className="inline-flex h-5 max-w-[80%] items-center overflow-hidden rounded-full bg-primary/10 px-2 text-[11px] font-medium leading-none text-primary">
-												<span className="truncate">{displayEmployee.role.trim()}</span>
+												<span className="truncate">
+													{displayEmployee.role.trim()}
+												</span>
 											</span>
 										) : null}
 									</div>
@@ -387,12 +405,16 @@ export default function MyCrewDetailSheet({
 											<div className="flex flex-wrap gap-2">
 												{displayEmployee.playbooks.map((playbook, i) => {
 													// 优先使用服务端下发的主题色，降级至 indigo (#6366f1)，与 EmployeeCardMobile CapChip 保持一致
-													const chipColor = playbook.themeColor ?? "#6366f1"
+													const chipColor =
+														playbook.themeColor ?? "#6366f1"
 													return (
 														<span
 															key={`${playbook.name}-${i}`}
 															className="inline-flex items-center rounded-full px-3 py-1 text-[13px] font-medium leading-none"
-															style={{ color: chipColor, backgroundColor: `${chipColor}1a` }}
+															style={{
+																color: chipColor,
+																backgroundColor: `${chipColor}1a`,
+															}}
 														>
 															{playbook.name}
 														</span>
@@ -445,7 +467,10 @@ export default function MyCrewDetailSheet({
 					{primaryAction ? (
 						// 调用方提供自定义操作（如"雇佣"、"开始聊天"），支持次要按钮（如"解雇"）并排
 						// key 绑定 testId：状态切换（如已雇→未雇）时强制重挂载，避免 iOS Safari 按钮文字残留
-						<div key={primaryAction.testId ?? primaryAction.label} className="flex gap-2">
+						<div
+							key={primaryAction.testId ?? primaryAction.label}
+							className="flex gap-2"
+						>
 							{secondaryAction ? (
 								<button
 									type="button"
@@ -469,12 +494,7 @@ export default function MyCrewDetailSheet({
 								</span>
 							</button>
 						</div>
-					) : presentationSourceProp ? (
-						// 调用方接管了 footer 控制权（即传入了 presentationSource），但未提供
-						// primaryAction，说明当前状态无可用操作（如 OFFICIAL_BUILTIN 未雇用）。
-						// 与桌面端 canShowEmployeeMarketDetailPrimaryAction=false 的行为对齐：不渲染任何按钮。
-						null
-					) : (
+					) : presentationSourceProp ? null : ( // 与桌面端 canShowEmployeeMarketDetailPrimaryAction=false 的行为对齐：不渲染任何按钮。 // primaryAction，说明当前状态无可用操作（如 OFFICIAL_BUILTIN 未雇用）。 // 调用方接管了 footer 控制权（即传入了 presentationSource），但未提供
 						// 默认行为：开始聊天，兼容原有的 My Crew 详情入口
 						<button
 							type="button"
