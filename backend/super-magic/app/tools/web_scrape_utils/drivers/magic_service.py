@@ -5,6 +5,7 @@ import httpx
 from agentlang.config.config import config
 from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
+from app.tools.driver_log_utils import redact_headers, to_log_text
 from app.tools.web_scrape_utils.drivers.base import WebScrapeDriverInterface, WebScrapeResultItem
 
 logger = get_logger(__name__)
@@ -34,18 +35,25 @@ class MagicServiceWebScrapeDriver(WebScrapeDriverInterface):
         MetadataUtil.add_magic_and_user_authorization_headers(headers)
 
         async with httpx.AsyncClient() as client:
+            payload = {
+                "url": url,
+                "formats": ["MARKDOWN"],
+                "mode": self.mode,
+            }
+            logger.info(
+                f"[MagicServiceWebScrapeDriver] request POST {self.endpoint} "
+                f"json={to_log_text(payload)} headers={to_log_text(redact_headers(headers))}"
+            )
             response = await client.post(
                 self.endpoint,
                 headers=headers,
-                json={
-                    "url": url,
-                    "formats": ["MARKDOWN"],
-                    "mode": self.mode,
-                },
+                json=payload,
                 timeout=self.timeout,
             )
+            logger.info(f"[MagicServiceWebScrapeDriver] response status={response.status_code}")
             response.raise_for_status()
             response_data = response.json()
+            logger.info(f"[MagicServiceWebScrapeDriver] response body={to_log_text(response_data)}")
 
             if not response_data.get("success"):
                 raise ValueError(f"API 返回失败: {response_data.get('message', '未知错误')}")

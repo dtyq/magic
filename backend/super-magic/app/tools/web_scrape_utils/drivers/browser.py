@@ -1,4 +1,5 @@
 from agentlang.logger import get_logger
+from app.tools.driver_log_utils import to_log_text
 from magic_use.magic_browser import MagicBrowser
 from app.tools.webview_utils import goto_external_website_with_referer
 from app.tools.web_scrape_utils.drivers.base import WebScrapeDriverInterface, WebScrapeResultItem
@@ -17,6 +18,7 @@ class BrowserWebScrapeDriver(WebScrapeDriverInterface):
 
     async def scrape(self, url: str) -> WebScrapeResultItem:
         """使用浏览器抓取网页"""
+        logger.info(f"[BrowserWebScrapeDriver] request scrape url={to_log_text(url)}")
         browser = await MagicBrowser.create_for_scraping()
         try:
             # 导航
@@ -33,6 +35,12 @@ class BrowserWebScrapeDriver(WebScrapeDriverInterface):
             read_result = await browser.read_as_markdown(page_id, scope="all")
             if not read_result.success:
                 raise RuntimeError(f"读取页面内容失败: {read_result.error}")
+
+            logger.info(
+                "[BrowserWebScrapeDriver] response "
+                f"title={to_log_text(read_result.title or '')} "
+                f"markdown={to_log_text(read_result.markdown or '')}"
+            )
 
             return WebScrapeResultItem(
                 markdown=read_result.markdown or "",

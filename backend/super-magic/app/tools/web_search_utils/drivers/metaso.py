@@ -6,6 +6,7 @@ import aiohttp
 from agentlang.config.config import config
 from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
+from app.tools.driver_log_utils import redact_headers, to_log_text
 from app.tools.web_search_utils.drivers.base import SearchDriverInterface, SearchResultItem
 
 logger = get_logger(__name__)
@@ -68,15 +69,26 @@ class MetasoSearchDriver(SearchDriverInterface):
             "conciseSnippet": False,
         }
 
+        logger.info(
+            f"[MetasoSearchDriver] request POST {self.search_url} "
+            f"json={to_log_text(data)} headers={to_log_text(redact_headers(headers))}"
+        )
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(self.search_url, headers=headers, json=data) as response:
+                    logger.info(f"[MetasoSearchDriver] response status={response.status}")
                     if response.status != 200:
                         error_detail = await response.text()
+                        logger.error(
+                            f"[MetasoSearchDriver] response error status={response.status} "
+                            f"body={to_log_text(error_detail)}"
+                        )
                         logger.error(f"Metaso Search API 请求失败: {response.status} {error_detail}")
                         return []
 
                     response_data = await response.json()
+                    logger.info(f"[MetasoSearchDriver] response body={to_log_text(response_data)}")
 
             if not response_data or not response_data.get("webpages"):
                 return []

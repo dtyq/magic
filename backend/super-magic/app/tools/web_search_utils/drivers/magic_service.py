@@ -7,6 +7,7 @@ import aiohttp
 from agentlang.config.config import config
 from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
+from app.tools.driver_log_utils import redact_headers, to_log_text
 from app.tools.web_search_utils.drivers.base import SearchDriverInterface, SearchResultItem
 
 logger = get_logger(__name__)
@@ -73,15 +74,26 @@ class MagicServiceSearchDriver(SearchDriverInterface):
             if time_period in freshness_map:
                 params["freshness"] = freshness_map[time_period]
 
+        logger.info(
+            f"[MagicServiceSearchDriver] request GET {self.search_url} "
+            f"params={to_log_text(params)} headers={to_log_text(redact_headers(headers))}"
+        )
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(self.search_url, headers=headers, params=params) as response:
+                    logger.info(f"[MagicServiceSearchDriver] response status={response.status}")
                     if response.status != 200:
                         error_detail = await response.text()
+                        logger.error(
+                            f"[MagicServiceSearchDriver] response error status={response.status} "
+                            f"body={to_log_text(error_detail)}"
+                        )
                         logger.error(f"Magic Search API 请求失败: {response.status} {error_detail}")
                         return []
 
                     data = await response.json()
+                    logger.info(f"[MagicServiceSearchDriver] response body={to_log_text(data)}")
 
                     if "web_pages" not in data or "value" not in data["web_pages"]:
                         return []

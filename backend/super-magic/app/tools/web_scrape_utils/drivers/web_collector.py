@@ -2,6 +2,7 @@ import aiohttp
 
 from agentlang.config.config import config
 from agentlang.logger import get_logger
+from app.tools.driver_log_utils import redact_headers, to_log_text
 from app.tools.web_scrape_utils.drivers.base import WebScrapeDriverInterface, WebScrapeResultItem
 
 logger = get_logger(__name__)
@@ -55,13 +56,24 @@ class WebCollectorWebScrapeDriver(WebScrapeDriverInterface):
         if driver:
             payload["driver"] = driver
 
+        logger.info(
+            f"[WebCollectorWebScrapeDriver] request POST {scrape_url} "
+            f"json={to_log_text(payload)} headers={to_log_text(redact_headers(headers))}"
+        )
+
         async with aiohttp.ClientSession() as session:
             async with session.post(scrape_url, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=self.timeout)) as response:
+                logger.info(f"[WebCollectorWebScrapeDriver] response status={response.status}")
                 if response.status != 200:
                     error_detail = await response.text()
+                    logger.error(
+                        f"[WebCollectorWebScrapeDriver] response error status={response.status} "
+                        f"body={to_log_text(error_detail)}"
+                    )
                     raise ValueError(f"Web Collector Scrape 请求失败: {response.status} {error_detail}")
 
                 response_data = await response.json()
+                logger.info(f"[WebCollectorWebScrapeDriver] response body={to_log_text(response_data)}")
 
                 if not response_data.get("success"):
                     raise ValueError(f"API 返回失败: {response_data.get('message', '未知错误')}")

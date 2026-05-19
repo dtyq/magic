@@ -4,6 +4,7 @@ import aiohttp
 
 from agentlang.config.config import config
 from agentlang.logger import get_logger
+from app.tools.driver_log_utils import redact_headers, to_log_text
 from app.tools.image_search_utils.drivers.base import ImageSearchDriverInterface, ImageSearchResultItem
 
 logger = get_logger(__name__)
@@ -39,15 +40,26 @@ class WebCollectorImageSearchDriver(ImageSearchDriverInterface):
         if self.api_token:
             headers["Authorization"] = f"Bearer {self.api_token}"
 
+        logger.info(
+            f"[WebCollectorImageSearchDriver] request GET {search_url} "
+            f"params={to_log_text(params)} headers={to_log_text(redact_headers(headers))}"
+        )
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(search_url, headers=headers, params=params) as response:
+                    logger.info(f"[WebCollectorImageSearchDriver] response status={response.status}")
                     if response.status != 200:
                         error_detail = await response.text()
+                        logger.error(
+                            f"[WebCollectorImageSearchDriver] response error status={response.status} "
+                            f"body={to_log_text(error_detail)}"
+                        )
                         logger.error(f"Web Collector Image Search 请求失败: {response.status} {error_detail}")
                         return []
 
                     data = await response.json()
+                    logger.info(f"[WebCollectorImageSearchDriver] response body={to_log_text(data)}")
 
                     images = data.get("images", {})
                     image_values = images.get("value", [])

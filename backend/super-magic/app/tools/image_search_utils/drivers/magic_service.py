@@ -5,6 +5,7 @@ import aiohttp
 
 from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
+from app.tools.driver_log_utils import redact_headers, to_log_text
 from app.tools.image_search_utils.drivers.base import ImageSearchDriverInterface, ImageSearchResultItem
 
 logger = get_logger(__name__)
@@ -36,11 +37,18 @@ class MagicImageSearchDriver(ImageSearchDriverInterface):
         params = {"q": query, "count": count, "offset": offset}
         results: List[ImageSearchResultItem] = []
 
+        logger.info(
+            f"[MagicImageSearchDriver] request GET {self.endpoint} "
+            f"params={to_log_text(params)} headers={to_log_text(redact_headers(headers))}"
+        )
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(self.endpoint, headers=headers, params=params) as response:
+                    logger.info(f"[MagicImageSearchDriver] response status={response.status}")
                     response.raise_for_status()
                     data = await response.json()
+                    logger.info(f"[MagicImageSearchDriver] response body={to_log_text(data)}")
 
             images = data.get("images", {})
             image_values = images.get("value", [])

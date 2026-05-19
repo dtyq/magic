@@ -5,6 +5,7 @@ import aiohttp
 from agentlang.config.config import config
 from agentlang.logger import get_logger
 from agentlang.utils.metadata import MetadataUtil
+from app.tools.driver_log_utils import redact_headers, to_log_text
 from app.tools.image_search_utils.drivers.base import ImageSearchDriverInterface, ImageSearchResultItem
 
 logger = get_logger(__name__)
@@ -34,11 +35,18 @@ class BingImageSearchDriver(ImageSearchDriverInterface):
         params = {"q": query, "count": count, "offset": offset}
         results: List[ImageSearchResultItem] = []
 
+        logger.info(
+            f"[BingImageSearchDriver] request GET {image_search_url} "
+            f"params={to_log_text(params)} headers={to_log_text(redact_headers(headers))}"
+        )
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(image_search_url, headers=headers, params=params) as response:
+                    logger.info(f"[BingImageSearchDriver] response status={response.status}")
                     response.raise_for_status()
                     data = await response.json()
+                    logger.info(f"[BingImageSearchDriver] response body={to_log_text(data)}")
 
             image_values = data.get("value", [])
 
