@@ -345,9 +345,12 @@ const { topicId: tid4 } = await window.Magic.project.createTopicAndSend({
 					type: "mention",
 					attrs: {
 						type: "project_file",
-						name: "report.csv",
-						path: "data/report.csv",
-						file_id: "file_abc123",
+						data: {
+							file_id: "file_abc123",
+							file_name: "report.csv",
+							file_path: "data/report.csv",
+							file_extension: "csv",
+						},
 					},
 				},
 				{ type: "text", text: " 生成可视化图表" },
@@ -393,9 +396,12 @@ await window.Magic.project.sendMessage({
 					type: "mention",
 					attrs: {
 						type: "project_file",
-						name: "sales.csv",
-						path: "data/sales.csv",
-						file_id: "file_xyz789",
+						data: {
+							file_id: "file_xyz789",
+							file_name: "sales.csv",
+							file_path: "data/sales.csv",
+							file_extension: "csv",
+						},
 					},
 				},
 				{ type: "text", text: " 中的趋势" },
@@ -433,14 +439,43 @@ interface TiptapJSONContent {
 
 #### Mention 节点格式
 
+支持两种 mention 类型：`project_file`（文件）和 `project_directory`（目录）。
+
+**文件 mention（`project_file`）：**
+
 ```javascript
 {
   type: "mention",
   attrs: {
-    type: "project_file",     // mention 类型，当前仅支持 "project_file"
-    name: "report.csv",       // 文件名（显示名称）
-    path: "data/report.csv",  // 文件的相对路径
-    file_id: "file_abc123",   // 文件 ID（从 listFiles 或其他途径获取）
+    type: "project_file",
+    data: {
+      file_id: "file_abc123",       // 文件唯一标识
+      file_name: "report.csv",      // 文件名（含扩展名）
+      file_path: "data/report.csv", // 相对路径（相对于工作区根目录）
+      file_extension: "csv",        // 文件扩展名
+      file_size: 1024,              // 可选，文件大小（字节）
+    }
+  }
+}
+```
+
+**目录 mention（`project_directory`）：**
+
+```javascript
+{
+  type: "mention",
+  attrs: {
+    type: "project_directory",
+    data: {
+      directory_id: "dir_456",      // 目录唯一标识
+      directory_name: "docs",       // 目录名称
+      directory_path: "docs",       // 相对路径（相对于工作区根目录）
+      directory_metadata: {         // 目录元数据
+        version: "1",
+        type: "folder",
+        name: "docs",
+      }
+    }
   }
 }
 ```
@@ -448,7 +483,7 @@ interface TiptapJSONContent {
 #### 完整消息示例
 
 ```javascript
-// 包含多个 @文件引用 的消息
+// 包含 @文件 和 @目录 引用的消息
 await window.Magic.project.sendMessage({
 	type: "doc",
 	content: [
@@ -460,36 +495,54 @@ await window.Magic.project.sendMessage({
 					type: "mention",
 					attrs: {
 						type: "project_file",
-						name: "sales_2024.csv",
-						path: "data/sales_2024.csv",
-						file_id: "file_001",
+						data: {
+							file_id: "file_001",
+							file_name: "sales_2024.csv",
+							file_path: "data/sales_2024.csv",
+							file_extension: "csv",
+						},
 					},
 				},
 				{ type: "text", text: " 和 " },
 				{
 					type: "mention",
 					attrs: {
-						type: "project_file",
-						name: "sales_2025.csv",
-						path: "data/sales_2025.csv",
-						file_id: "file_002",
+						type: "project_directory",
+						data: {
+							directory_id: "dir_002",
+							directory_name: "reports",
+							directory_path: "output/reports",
+							directory_metadata: { type: "folder", name: "reports" },
+						},
 					},
 				},
-				{ type: "text", text: " 的数据差异" },
+				{ type: "text", text: " 中的数据差异" },
 			],
 		},
 	],
 })
 ```
 
-| 字段            | 类型             | 说明                                   |
-| --------------- | ---------------- | -------------------------------------- |
-| `attrs.type`    | `"project_file"` | mention 类型，目前仅支持引用工作区文件 |
-| `attrs.name`    | `string`         | 文件显示名称                           |
-| `attrs.path`    | `string`         | 文件的相对路径（相对于工作区根目录）   |
-| `attrs.file_id` | `string`         | 文件唯一标识                           |
+#### attrs 字段说明
 
----
+**`project_file` data 字段：**
+
+| 字段             | 类型     | 必填 | 说明                           |
+| ---------------- | -------- | ---- | ------------------------------ |
+| `file_id`        | `string` | 是   | 文件唯一标识                   |
+| `file_name`      | `string` | 是   | 文件名（含扩展名）             |
+| `file_path`      | `string` | 是   | 相对路径（相对于工作区根目录） |
+| `file_extension` | `string` | 是   | 文件扩展名（不含 `.`）         |
+| `file_size`      | `number` | 否   | 文件大小（字节）               |
+
+**`project_directory` data 字段：**
+
+| 字段                 | 类型     | 必填 | 说明                                          |
+| -------------------- | -------- | ---- | --------------------------------------------- |
+| `directory_id`       | `string` | 是   | 目录唯一标识                                  |
+| `directory_name`     | `string` | 是   | 目录名称                                      |
+| `directory_path`     | `string` | 是   | 相对路径（相对于工作区根目录）                |
+| `directory_metadata` | `object` | 是   | 目录元数据（含 `version?`, `type?`, `name?`） |
 
 ## 六、向后兼容说明
 
