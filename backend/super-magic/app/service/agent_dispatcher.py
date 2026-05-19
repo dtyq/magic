@@ -175,6 +175,14 @@ class AgentDispatcher(Base):
         from app.utils.init_client_message_util import InitClientMessageUtil
         await InitClientMessageUtil.save_init_client_message(init_message)
 
+        # 阶段二：init_client_message.json 已就绪，触发 magic-service 模型列表加载
+        try:
+            from agentlang.config.models.model_config_manager import model_config_manager
+            from app.core.model_providers.magic_service_provider import MagicServiceProvider
+            await model_config_manager.refresh_provider(MagicServiceProvider())
+        except Exception as e:
+            logger.error(f"MagicServiceProvider refresh failed, continuing without it: {e}")
+
         # 从 init_message.metadata 提取并设置关键字段
         if init_message.metadata:
             # 设置 task_id
@@ -655,6 +663,16 @@ class AgentDispatcher(Base):
                 )
                 return
 
+        # 确保 magic-service 模型列表已加载（兜底：防止未经 initialize_workspace 路径就发起 chat）
+        # 若已加载则跳过；未加载则同步触发一次，之后按 RefreshPolicy 策略在后台定期刷新。
+        try:
+            from agentlang.config.models.model_config_manager import model_config_manager
+            from app.core.model_providers.magic_service_provider import MagicServiceProvider
+            provider = MagicServiceProvider()
+            await model_config_manager.ensure_provider_loaded(provider)
+            model_config_manager.maybe_refresh_in_background(provider.provider_type)
+        except Exception as e:
+            logger.warning(f"dispatch_message: model provider check failed, continuing: {e}")
 
         await self._fill_from_last_dispatch_message(message)
 
