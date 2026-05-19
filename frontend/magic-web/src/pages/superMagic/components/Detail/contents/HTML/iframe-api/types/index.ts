@@ -226,6 +226,18 @@ export interface AgentInfo {
 	type: "official" | "custom" | "public"
 }
 
+/**
+ * Tiptap JSON 文档结构（简化版）。
+ * 当 message 为此类型时，直接作为 jsonContent 发送，mention 节点已内联在文档中。
+ */
+export interface TiptapJSONContent {
+	type: string
+	attrs?: Record<string, unknown>
+	content?: TiptapJSONContent[]
+	text?: string
+	[key: string]: unknown
+}
+
 export interface AgentGetAgentsRequest {
 	type: typeof AGENT_MESSAGE_TYPES.GET_AGENTS_REQUEST
 	requestId: string
@@ -242,7 +254,8 @@ export interface AgentGetAgentsResponse {
 export interface AgentCreateTopicAndSendRequest {
 	type: typeof AGENT_MESSAGE_TYPES.CREATE_TOPIC_AND_SEND_REQUEST
 	requestId: string
-	message: string
+	/** 纯文本消息或完整的 tiptap JSON 文档（可包含 mention 节点） */
+	message: string | TiptapJSONContent
 	agentId?: string
 	model?: string
 }
@@ -258,7 +271,8 @@ export interface AgentCreateTopicAndSendResponse {
 export interface AgentSendMessageRequest {
 	type: typeof AGENT_MESSAGE_TYPES.SEND_MESSAGE_REQUEST
 	requestId: string
-	message: string
+	/** 纯文本消息或完整的 tiptap JSON 文档（可包含 mention 节点） */
+	message: string | TiptapJSONContent
 	model?: string
 }
 

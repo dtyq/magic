@@ -224,55 +224,16 @@ window.Magic.setInputMessage("数据分析已完成，请根据 output/analysis.
 window.Magic.reload()
 ```
 
-### 3.3 上传文件到工作区 `uploadFiles(files)`
+---
 
-> **推荐**：对于应用根目录内的文件写入，优先使用 `window.Magic.fs.writeFile(path, blob)`。
-> 它更简洁（无需构造数组）、支持 500 MB、且自动创建目录。
-> `uploadFiles` 适用于需要批量上传多个文件、或需要自定义目标路径的场景。
+## 四、Agent 命名空间（`window.Magic.agent`）
 
-```javascript
-// ✅ 推荐：直接用 writeFile 写入单个文件
-const input = document.createElement("input")
-input.type = "file"
-input.onchange = async () => {
-	const file = input.files[0]
-	await window.Magic.fs.writeFile(file.name, file)
-}
-input.click()
-
-// 批量上传多个文件时使用 uploadFiles
-const input2 = document.createElement("input")
-input2.type = "file"
-input2.multiple = true
-input2.onchange = async () => {
-	await window.Magic.uploadFiles(
-		Array.from(input2.files).map((f) => ({
-			file: f,
-			path: `./${f.name}`,
-			filename: f.name,
-		})),
-	)
-}
-input2.click()
-```
-
-**参数**：`files: Array<{ file: File, path: string, filename: string }>` — 每项包含 File 对象、目标路径和文件名。  
-**返回**：`Promise<unknown>`。  
-**限制**：单文件最大 500 MB。
-
-### 3.4 下载 workspace 文件 `downloadFiles(paths)`
-
-```javascript
-// 下载 workspace 中指定路径的文件到本地
-await window.Magic.downloadFiles(["output/report.pdf", "data/export.csv"])
-```
-
-### 3.5 获取员工列表 `getAgents()`
+### 4.1 获取员工列表 `getAgents()`
 
 获取当前可用的 Agent（员工）列表。
 
 ```javascript
-const agents = await window.Magic.getAgents()
+const agents = await window.Magic.agent.getAgents()
 // → [
 //   { id: "general", name: "通用助手", icon: "https://...", color: "#4A90D9", type: "official" },
 //   { id: "data_analysis", name: "数据分析师", icon: "https://...", color: "#52C41A", type: "official" },
@@ -297,30 +258,109 @@ agents.forEach((agent) => {
 
 ---
 
-### 3.6 新建话题并发送消息 `createTopicAndSend(message, options?)`
+## 五、项目命名空间（`window.Magic.project`）
 
-创建一个新话题，并在该话题中发送指定消息，可选指定员工和模型。
+### 5.1 上传文件到工作区 `uploadFiles(files)`
+
+> **推荐**：对于应用根目录内的文件写入，优先使用 `window.Magic.fs.writeFile(path, blob)`。
+> 它更简洁（无需构造数组）、支持 500 MB、且自动创建目录。
+> `uploadFiles` 适用于需要批量上传多个文件、或需要自定义目标路径的场景。
 
 ```javascript
-// 基础用法：创建新话题并发送消息
-const { topicId } = await window.Magic.createTopicAndSend("请帮我分析这组数据")
+// ✅ 推荐：直接用 writeFile 写入单个文件
+const input = document.createElement("input")
+input.type = "file"
+input.onchange = async () => {
+	const file = input.files[0]
+	await window.Magic.fs.writeFile(file.name, file)
+}
+input.click()
+
+// 批量上传多个文件时使用 uploadFiles
+const input2 = document.createElement("input")
+input2.type = "file"
+input2.multiple = true
+input2.onchange = async () => {
+	await window.Magic.project.uploadFiles(
+		Array.from(input2.files).map((f) => ({
+			file: f,
+			path: `./${f.name}`,
+			filename: f.name,
+		})),
+	)
+}
+input2.click()
+```
+
+**参数**：`files: Array<{ file: File, path: string, filename: string }>` — 每项包含 File 对象、目标路径和文件名。  
+**返回**：`Promise<unknown>`。  
+**限制**：单文件最大 500 MB。
+
+### 5.2 下载 workspace 文件 `downloadFiles(paths)`
+
+```javascript
+// 下载 workspace 中指定路径的文件到本地
+await window.Magic.project.downloadFiles(["output/report.pdf", "data/export.csv"])
+```
+
+### 5.3 将文件附加到消息输入框 `addFilesToMessage(filePaths, agentMode?)`
+
+```javascript
+// 将工作区文件附加到输入框
+await window.Magic.project.addFilesToMessage(["data/report.csv", "output/chart.png"])
+```
+
+### 5.4 新建话题并发送消息 `createTopicAndSend(message, options?)`
+
+创建一个新话题，并在该话题中发送指定消息，可选指定员工和模型。
+`message` 支持纯文本字符串或 tiptap JSON 文档结构（可内联 `@` mention 等富文本节点）。
+
+```javascript
+// 基础用法：创建新话题并发送纯文本消息
+const { topicId } = await window.Magic.project.createTopicAndSend("请帮我分析这组数据")
 
 // 指定员工发送
-const { topicId: tid2 } = await window.Magic.createTopicAndSend("请用 Python 写一个爬虫脚本", {
-	agentId: "general",
-})
+const { topicId: tid2 } = await window.Magic.project.createTopicAndSend(
+	"请用 Python 写一个爬虫脚本",
+	{
+		agentId: "general",
+	},
+)
 
 // 指定员工 + 模型
-const { topicId: tid3 } = await window.Magic.createTopicAndSend("请为我生成一份报告", {
+const { topicId: tid3 } = await window.Magic.project.createTopicAndSend("请为我生成一份报告", {
 	agentId: "data_analysis",
 	model: "gpt-4o",
+})
+
+// 发送带 @文件引用 的富文本消息（tiptap JSON）
+const { topicId: tid4 } = await window.Magic.project.createTopicAndSend({
+	type: "doc",
+	content: [
+		{
+			type: "paragraph",
+			content: [
+				{ type: "text", text: "请根据 " },
+				{
+					type: "mention",
+					attrs: {
+						type: "project_file",
+						name: "report.csv",
+						path: "data/report.csv",
+						file_id: "file_abc123",
+					},
+				},
+				{ type: "text", text: " 生成可视化图表" },
+			],
+		},
+	],
 })
 ```
 
 **参数**：
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `message` | `string` | 要发送的消息内容（不能为空） |
+| `message` | `string \| TiptapJSONContent` | 纯文本消息或 tiptap JSON 文档（可包含 mention 节点） |
 | `options.agentId` | `string?` | 指定 Agent ID（从 `getAgents()` 获取） |
 | `options.model` | `string?` | 指定模型 ID |
 
@@ -329,22 +369,46 @@ const { topicId: tid3 } = await window.Magic.createTopicAndSend("请为我生成
 
 ---
 
-### 3.7 在当前话题发送消息 `sendMessage(message, options?)`
+### 5.5 在当前话题发送消息 `sendMessage(message, options?)`
 
 在当前激活的话题中直接发送一条消息，可选指定模型。
+`message` 支持纯文本字符串或 tiptap JSON 文档结构（可内联 `@` mention 等富文本节点）。
 
 ```javascript
-// 基础用法：直接发送消息
-await window.Magic.sendMessage("请继续分析第二部分数据")
+// 基础用法：直接发送纯文本消息
+await window.Magic.project.sendMessage("请继续分析第二部分数据")
 
 // 指定模型发送
-await window.Magic.sendMessage("请用更详细的方式解释", { model: "gpt-4o" })
+await window.Magic.project.sendMessage("请用更详细的方式解释", { model: "gpt-4o" })
+
+// 发送带 @文件引用 的富文本消息
+await window.Magic.project.sendMessage({
+	type: "doc",
+	content: [
+		{
+			type: "paragraph",
+			content: [
+				{ type: "text", text: "请分析 " },
+				{
+					type: "mention",
+					attrs: {
+						type: "project_file",
+						name: "sales.csv",
+						path: "data/sales.csv",
+						file_id: "file_xyz789",
+					},
+				},
+				{ type: "text", text: " 中的趋势" },
+			],
+		},
+	],
+})
 ```
 
 **参数**：
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `message` | `string` | 要发送的消息内容（不能为空） |
+| `message` | `string \| TiptapJSONContent` | 纯文本消息或 tiptap JSON 文档（可包含 mention 节点） |
 | `options.model` | `string?` | 指定模型 ID |
 
 **返回**：`Promise<void>`。  
@@ -352,7 +416,97 @@ await window.Magic.sendMessage("请用更详细的方式解释", { model: "gpt-4
 
 ---
 
-## 四、完整示例
+### 5.6 TiptapJSONContent 数据结构说明
+
+`createTopicAndSend` 和 `sendMessage` 的 `message` 参数支持 tiptap JSON 格式，可内联 `@` mention 节点引用工作区文件。
+
+#### 基本结构
+
+```typescript
+interface TiptapJSONContent {
+	type: string // 节点类型，如 "doc", "paragraph", "text", "mention"
+	attrs?: Record<string, unknown> // 节点属性
+	content?: TiptapJSONContent[] // 子节点
+	text?: string // 文本节点内容
+}
+```
+
+#### Mention 节点格式
+
+```javascript
+{
+  type: "mention",
+  attrs: {
+    type: "project_file",     // mention 类型，当前仅支持 "project_file"
+    name: "report.csv",       // 文件名（显示名称）
+    path: "data/report.csv",  // 文件的相对路径
+    file_id: "file_abc123",   // 文件 ID（从 listFiles 或其他途径获取）
+  }
+}
+```
+
+#### 完整消息示例
+
+```javascript
+// 包含多个 @文件引用 的消息
+await window.Magic.project.sendMessage({
+	type: "doc",
+	content: [
+		{
+			type: "paragraph",
+			content: [
+				{ type: "text", text: "请对比 " },
+				{
+					type: "mention",
+					attrs: {
+						type: "project_file",
+						name: "sales_2024.csv",
+						path: "data/sales_2024.csv",
+						file_id: "file_001",
+					},
+				},
+				{ type: "text", text: " 和 " },
+				{
+					type: "mention",
+					attrs: {
+						type: "project_file",
+						name: "sales_2025.csv",
+						path: "data/sales_2025.csv",
+						file_id: "file_002",
+					},
+				},
+				{ type: "text", text: " 的数据差异" },
+			],
+		},
+	],
+})
+```
+
+| 字段            | 类型             | 说明                                   |
+| --------------- | ---------------- | -------------------------------------- |
+| `attrs.type`    | `"project_file"` | mention 类型，目前仅支持引用工作区文件 |
+| `attrs.name`    | `string`         | 文件显示名称                           |
+| `attrs.path`    | `string`         | 文件的相对路径（相对于工作区根目录）   |
+| `attrs.file_id` | `string`         | 文件唯一标识                           |
+
+---
+
+## 六、向后兼容说明
+
+以下旧路径仍然可用，但建议迁移到新的命名空间：
+
+| 旧路径（deprecated）                          | 新路径                                                |
+| --------------------------------------------- | ----------------------------------------------------- |
+| `window.Magic.getAgents()`                    | `window.Magic.agent.getAgents()`                      |
+| `window.Magic.uploadFiles(files)`             | `window.Magic.project.uploadFiles(files)`             |
+| `window.Magic.downloadFiles(paths)`           | `window.Magic.project.downloadFiles(paths)`           |
+| `window.Magic.addFilesToMessage(files)`       | `window.Magic.project.addFilesToMessage(files)`       |
+| `window.Magic.createTopicAndSend(msg, opts?)` | `window.Magic.project.createTopicAndSend(msg, opts?)` |
+| `window.Magic.sendMessage(msg, opts?)`        | `window.Magic.project.sendMessage(msg, opts?)`        |
+
+---
+
+## 七、完整示例
 
 ### 示例 A：读数据 → LLM 分析 → 写回结果 → 通知 Agent
 
@@ -512,7 +666,7 @@ await window.Magic.sendMessage("请用更详细的方式解释", { model: "gpt-4
 
 ---
 
-## 五、错误处理最佳实践
+## 八、错误处理最佳实践
 
 ```javascript
 // fs 错误处理
@@ -549,22 +703,22 @@ window.Magic.llm.stream(messages, (delta, done) => {
 
 ---
 
-## 六、API 速查表
+## 九、API 速查表
 
-| API                                             | 说明                                                              | 返回                     |
-| ----------------------------------------------- | ----------------------------------------------------------------- | ------------------------ |
-| `window.Magic.fs.readFile(path)`                | 读取文件文本                                                      | `Promise<string>`        |
-| `window.Magic.fs.writeFile(path, content)`      | 写入/创建文件（content 支持 string/Blob/ArrayBuffer，上限 500MB） | `Promise<void>`          |
-| `window.Magic.fs.listFiles(dir?)`               | 列出目录文件                                                      | `Promise<string[]>`      |
-| `window.Magic.fs.watchFile(path, cb)`           | 监听文件变更                                                      | `() => void`（取消函数） |
-| `window.Magic.llm.getModels()`                  | 获取可用模型                                                      | `Promise<Model[]>`       |
-| `window.Magic.llm.chat(msgs, opts?)`            | 单次对话                                                          | `Promise<string>`        |
-| `window.Magic.llm.stream(msgs, onChunk, opts?)` | 流式对话                                                          | `() => void`（取消函数） |
-| `window.Magic.setInputMessage(msg)`             | 向 Agent 发消息                                                   | `void`                   |
-| `window.Magic.reload()`                         | 触发 Agent 刷新                                                   | `void`                   |
-| `window.Magic.uploadFiles(files)`               | 上传文件到工作区                                                  | `Promise<unknown>`       |
-| `window.Magic.downloadFiles(paths)`             | 下载工作区文件                                                    | `Promise<unknown>`       |
-| `window.Magic.addFilesToMessage(files)`         | 将文件附加到输入框                                                | `void`                   |
-| `window.Magic.getAgents()`                      | 获取可用员工列表                                                  | `Promise<AgentInfo[]>`   |
-| `window.Magic.createTopicAndSend(msg, opts?)`   | 新建话题并发送消息                                                | `Promise<{ topicId }>`   |
-| `window.Magic.sendMessage(msg, opts?)`          | 当前话题发送消息                                                  | `Promise<void>`          |
+| API                                                   | 说明                                                              | 返回                     |
+| ----------------------------------------------------- | ----------------------------------------------------------------- | ------------------------ |
+| `window.Magic.fs.readFile(path)`                      | 读取文件文本                                                      | `Promise<string>`        |
+| `window.Magic.fs.writeFile(path, content)`            | 写入/创建文件（content 支持 string/Blob/ArrayBuffer，上限 500MB） | `Promise<void>`          |
+| `window.Magic.fs.listFiles(dir?)`                     | 列出目录文件                                                      | `Promise<string[]>`      |
+| `window.Magic.fs.watchFile(path, cb)`                 | 监听文件变更                                                      | `() => void`（取消函数） |
+| `window.Magic.llm.getModels()`                        | 获取可用模型                                                      | `Promise<Model[]>`       |
+| `window.Magic.llm.chat(msgs, opts?)`                  | 单次对话                                                          | `Promise<string>`        |
+| `window.Magic.llm.stream(msgs, onChunk, opts?)`       | 流式对话                                                          | `() => void`（取消函数） |
+| `window.Magic.setInputMessage(msg)`                   | 向 Agent 发消息                                                   | `void`                   |
+| `window.Magic.reload()`                               | 触发 Agent 刷新                                                   | `void`                   |
+| `window.Magic.agent.getAgents()`                      | 获取可用员工列表                                                  | `Promise<AgentInfo[]>`   |
+| `window.Magic.project.uploadFiles(files)`             | 上传文件到工作区                                                  | `Promise<unknown>`       |
+| `window.Magic.project.downloadFiles(paths)`           | 下载工作区文件                                                    | `Promise<unknown>`       |
+| `window.Magic.project.addFilesToMessage(files)`       | 将文件附加到输入框                                                | `Promise<unknown>`       |
+| `window.Magic.project.createTopicAndSend(msg, opts?)` | 新建话题并发送消息（msg 支持 string 或 tiptap JSON）              | `Promise<{ topicId }>`   |
+| `window.Magic.project.sendMessage(msg, opts?)`        | 当前话题发送消息（msg 支持 string 或 tiptap JSON）                | `Promise<void>`          |

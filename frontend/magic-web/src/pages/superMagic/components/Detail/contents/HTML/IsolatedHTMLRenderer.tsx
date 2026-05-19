@@ -77,13 +77,8 @@ import { useIframeFS } from "./iframe-api/hooks/useIframeFS"
 import { useIframeLLM } from "./iframe-api/hooks/useIframeLLM"
 import { useIframeAgent } from "./iframe-api/hooks/useIframeAgent"
 import { useMagicFiles } from "./iframe-api/hooks/useMagicFiles"
+import { useIframeAgentActions } from "./hooks/useIframeAgentActions"
 import { saveIframeFileContent, createIframeFile } from "./iframe-api/iframeApi"
-import type { AgentInfo } from "./iframe-api/types"
-import { AgentType } from "@/pages/superMagic/pages/Workspace/types"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
-import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
-import { SuperMagicApi } from "@/apis"
-import { topicStore, projectStore } from "@/pages/superMagic/stores/core"
 
 import { env } from "@/utils/env"
 import { userStore } from "@/models/user"
@@ -534,122 +529,13 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			getOrganizationCode: () => userStore.user.organizationCode?.trim() || "",
 		})
 
-		const getAgentList = useMemoizedFn((): AgentInfo[] => {
-			return superMagicModeService._modeList.map((item) => ({
-				id: item.mode.identifier,
-				name: item.mode.name,
-				icon: item.mode.icon_url || item.mode.icon,
-				color: item.mode.color,
-				type:
-					item.agent.type === AgentType.Official
-						? "official"
-						: item.agent.type === AgentType.Custom
-							? "custom"
-							: "public",
-			}))
-		})
-
-		const iframeCreateTopicAndSend = useMemoizedFn(
-			async (params: {
-				message: string
-				agentId?: string
-				model?: string
-			}): Promise<{ topicId: string }> => {
-				const project = projectStore.selectedProject
-				if (!project?.id) throw new Error("No project selected")
-
-				// Look up the agent to determine if it's built-in or custom
-				let isCustomAgent = false
-				if (params.agentId) {
-					const agentMode = superMagicModeService._modeList.find(
-						(item) => item.mode.identifier === params.agentId,
-					)
-					if (agentMode) {
-						isCustomAgent = agentMode.agent.type !== AgentType.Official
-					}
-				}
-
-				// Determine project_mode for topic creation
-				// Built-in: use the agent identifier directly (e.g., "general", "deep_research")
-				// Custom: use TopicMode.CustomAgent ("custom_agent")
-				const projectMode = params.agentId
-					? isCustomAgent
-						? TopicMode.CustomAgent
-						: (params.agentId as TopicMode)
-					: undefined
-
-				const newTopic = await SuperMagicApi.createTopic({
-					project_id: project.id,
-					topic_name: "",
-					...(projectMode ? { project_mode: projectMode } : {}),
-				})
-				if (!newTopic?.id) throw new Error("Failed to create topic")
-
-				// Set topic with agent_code for custom agents
-				const topicWithAgent =
-					isCustomAgent && params.agentId
-						? { ...newTopic, agent_code: params.agentId }
-						: newTopic
-				topicStore.setSelectedTopic(topicWithAgent)
-
-				// Build pubsub payload
-				const jsonContent = {
-					type: "doc" as const,
-					content: [
-						{ type: "paragraph", content: [{ type: "text", text: params.message }] },
-					],
-				}
-
-				// Delay slightly to allow topic switch to complete
-				await new Promise((resolve) => setTimeout(resolve, 300))
-
-				// Build extra: agent_code for custom agents, model override via super_agent.model
-				const extra: Record<string, unknown> = {}
-				if (isCustomAgent && params.agentId) {
-					extra.agent_code = params.agentId
-				}
-				if (params.model) {
-					extra.super_agent = { model: { model_id: params.model } }
-				}
-
-				pubsub.publish(PubSubEvents.Send_Message_by_Content, {
-					jsonContent,
-					...(params.agentId
-						? {
-								topicMode: isCustomAgent
-									? TopicMode.CustomAgent
-									: (params.agentId as TopicMode),
-							}
-						: {}),
-					...(Object.keys(extra).length > 0 ? { extra } : {}),
-				})
-
-				return { topicId: newTopic.id }
-			},
-		)
-
-		const iframeSendMessage = useMemoizedFn(
-			async (params: { message: string; model?: string }): Promise<void> => {
-				const jsonContent = {
-					type: "doc" as const,
-					content: [
-						{ type: "paragraph", content: [{ type: "text", text: params.message }] },
-					],
-				}
-				pubsub.publish(PubSubEvents.Send_Message_by_Content, {
-					jsonContent,
-					...(params.model
-						? { extra: { super_agent: { model: { model_id: params.model } } } }
-						: {}),
-				})
-			},
-		)
+		const { getAgentList, createTopicAndSend, sendMessage } = useIframeAgentActions()
 
 		const { handleAgentMessage } = useIframeAgent({
 			iframeRef,
 			getAgentList,
-			createTopicAndSend: iframeCreateTopicAndSend,
-			sendMessage: iframeSendMessage,
+			createTopicAndSend,
+			sendMessage,
 		})
 
 		const isDynamicInterceptionEnabled = !disableDynamicResourceInterception

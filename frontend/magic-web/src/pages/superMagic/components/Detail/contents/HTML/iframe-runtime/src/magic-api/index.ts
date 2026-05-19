@@ -10,16 +10,16 @@ import { MagicLLMApi } from "./MagicLLMApi"
 import { MagicReloadApi } from "./MagicReloadApi"
 import { MagicInputApi } from "./MagicInputApi"
 import { MagicI18nApi } from "./MagicI18nApi"
-import { MagicFilesApi } from "./MagicFilesApi"
 import { MagicAgentApi } from "./MagicAgentApi"
+import { MagicWorkspaceApi } from "./MagicWorkspaceApi"
 
-export function installMagicAPI(): void {
+export function installMagicAPIs(): void {
 	if (typeof window === "undefined") return
 	new MagicFSApi().install()
 	new MagicLLMApi().install()
 	new MagicReloadApi().install()
 	new MagicInputApi().install()
 	new MagicI18nApi().install()
-	new MagicFilesApi().install()
+	new MagicWorkspaceApi().install()
 	new MagicAgentApi().install()
 }

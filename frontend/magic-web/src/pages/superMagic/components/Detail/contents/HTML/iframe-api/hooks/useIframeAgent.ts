@@ -8,7 +8,7 @@
 import { useRef, useEffect } from "react"
 import { useMemoizedFn } from "ahooks"
 import { IframeAgentService, type IframeAgentConfig } from "../services/IframeAgentService"
-import type { AgentInfo } from "../types"
+import type { AgentInfo, TiptapJSONContent } from "../types"
 
 export interface UseIframeAgentOptions {
     /** iframe ref，用于构造 postToIframe */
@@ -17,12 +17,12 @@ export interface UseIframeAgentOptions {
     getAgentList: () => AgentInfo[]
     /** 创建话题并发送消息 */
     createTopicAndSend: (params: {
-        message: string
+        message: string | TiptapJSONContent
         agentId?: string
         model?: string
     }) => Promise<{ topicId: string }>
     /** 在当前话题发送消息 */
-    sendMessage: (params: { message: string; model?: string }) => Promise<void>
+    sendMessage: (params: { message: string | TiptapJSONContent; model?: string }) => Promise<void>
 }
 
 export interface UseIframeAgentReturn {

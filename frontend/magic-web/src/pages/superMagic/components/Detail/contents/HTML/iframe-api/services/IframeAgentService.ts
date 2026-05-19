@@ -12,6 +12,7 @@ import {
     type AgentCreateTopicAndSendRequest,
     type AgentSendMessageRequest,
     type AgentInfo,
+    type TiptapJSONContent,
 } from "../types"
 
 export interface IframeAgentConfig {
@@ -21,12 +22,12 @@ export interface IframeAgentConfig {
     getAgentList: () => AgentInfo[]
     /** 创建话题并发送消息 */
     createTopicAndSend: (params: {
-        message: string
+        message: string | TiptapJSONContent
         agentId?: string
         model?: string
     }) => Promise<{ topicId: string }>
     /** 在当前话题发送消息 */
-    sendMessage: (params: { message: string; model?: string }) => Promise<void>
+    sendMessage: (params: { message: string | TiptapJSONContent; model?: string }) => Promise<void>
 }
 
 export class IframeAgentService {
