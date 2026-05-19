@@ -21,7 +21,7 @@ export default function ChatPageHeader({
 
 	return (
 		<div
-			className="relative z-10 flex h-[calc(56px+var(--safe-area-inset-top))] shrink-0 items-center gap-2 rounded-b-[14px] px-[10px] pb-0 pt-[4px+calc(var(--safe-area-inset-top))]"
+			className="relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-[10px] pb-0"
 			data-testid="chat-page-header-root"
 		>
 			<button

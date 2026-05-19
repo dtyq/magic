@@ -27,7 +27,7 @@ function RecycleBinHeader(props: RecycleBinHeaderProps) {
 
 	return (
 		<div
-			className="relative z-10 flex h-[calc(56px+var(--safe-area-inset-top))] shrink-0 items-center gap-1 px-4 pb-3 pt-[calc(var(--safe-area-inset-top)+8px)]"
+			className="relative z-10 flex h-14 shrink-0 items-center gap-1 rounded-b-[14px] px-4 pb-3"
 			data-testid="mobile-recycle-bin-header"
 		>
 			<Button

@@ -3,21 +3,23 @@ import { describe, expect, it, vi } from "vitest"
 
 import RecycleBinHeader from "../RecycleBinHeader"
 
-vi.mock("react-i18next", () => ({
-	useTranslation: () => ({
-		t: (key: string) => key,
-	}),
-}))
+vi.mock("react-i18next", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("react-i18next")>()
+	return {
+		...actual,
+		useTranslation: () => ({
+			t: (key: string) => key,
+		}),
+	}
+})
 
 describe("RecycleBinHeader", () => {
-	it("applies top safe-area spacing after global safe area is disabled", () => {
+	it("使用固定 h-14 高度，不再依赖 safe-area token（由 GlobalSafeArea spacer 统一处理）", () => {
 		render(<RecycleBinHeader onMenuClick={vi.fn()} onFilterClick={vi.fn()} />)
 
-		expect(screen.getByTestId("mobile-recycle-bin-header").className).toContain(
-			"h-[calc(56px+var(--safe-area-inset-top))]",
-		)
-		expect(screen.getByTestId("mobile-recycle-bin-header").className).toContain(
-			"pt-[calc(var(--safe-area-inset-top)+8px)]",
+		expect(screen.getByTestId("mobile-recycle-bin-header").className).toContain("h-14")
+		expect(screen.getByTestId("mobile-recycle-bin-header").className).not.toContain(
+			"safe-area-inset-top",
 		)
 	})
 })

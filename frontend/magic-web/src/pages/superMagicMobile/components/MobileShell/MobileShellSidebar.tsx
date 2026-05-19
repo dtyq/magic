@@ -145,11 +145,7 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 
 	return (
 		<div className="flex h-full min-h-0 flex-col bg-muted dark:bg-neutral-800">
-			{/* 顶部品牌区与 prototype 头部对齐，统一由共享侧栏维护。 */}
-			<div
-				className="flex shrink-0 items-center justify-between px-2 pb-2"
-				style={{ paddingTop: "calc(var(--safe-area-inset-top, 0px) + 8px)" }}
-			>
+			<div className="flex shrink-0 items-center justify-between px-2 pb-2 pt-2">
 				<button
 					type="button"
 					className="flex h-9 items-center gap-1 text-left"
@@ -158,7 +154,6 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 					data-testid={`${testIdPrefix}-brand-button`}
 				>
 					<div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-						{/* 头部品牌位使用原型中的真实 Logo，避免与菜单内的 MagiClaw 功能图标混淆。 */}
 						<MobileBrandLogoIcon className="h-9 w-9 shrink-0" />
 					</div>
 					<span className="text-[20px] font-medium leading-none text-foreground">
@@ -286,10 +281,7 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 				</div>
 			</div>
 
-			<div
-				className="dark:border-white/12 flex shrink-0 items-center justify-between gap-2 px-3 pt-3"
-				style={{ paddingBottom: "calc(var(--safe-area-inset-bottom, 0px) + 12px)" }}
-			>
+			<div className="dark:border-white/12 flex shrink-0 items-center justify-between gap-2 px-3 pb-3 pt-3">
 				<div className="flex min-w-0 items-center gap-2">
 					<button
 						type="button"

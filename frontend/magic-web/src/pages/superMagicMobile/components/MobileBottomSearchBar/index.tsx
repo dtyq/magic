@@ -31,7 +31,6 @@ const MobileBottomSearchBar = memo(function MobileBottomSearchBar({
 	onValueChange,
 	testIdPrefix,
 	clearButtonVisibility = "focus-or-value",
-	includeSafeAreaBottom = true,
 	className,
 	disabled = false,
 }: MobileBottomSearchBarProps) {
@@ -75,11 +74,7 @@ const MobileBottomSearchBar = memo(function MobileBottomSearchBar({
 
 	return (
 		<div
-			className={cn(
-				"shrink-0 px-[10px] pt-2",
-				includeSafeAreaBottom ? "pb-[max(var(--safe-area-inset-bottom),12px)]" : "pb-3",
-				className,
-			)}
+			className={cn("shrink-0 px-[10px] pb-3 pt-2", className)}
 			data-testid={`${testIdPrefix}-root`}
 		>
 			<div className="flex items-center gap-2">

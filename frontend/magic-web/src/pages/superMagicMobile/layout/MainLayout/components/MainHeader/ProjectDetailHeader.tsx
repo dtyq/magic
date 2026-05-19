@@ -47,8 +47,8 @@ export function ProjectDetailHeader({
 	return (
 		<div
 			className={cn(
-				"relative z-10 flex h-[calc(56px+var(--safe-area-inset-top))] shrink-0 items-center gap-2 rounded-b-[14px] px-[10px]",
-				"pb-0 pt-[calc(0.75rem+var(--safe-area-inset-top))]",
+				"relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-[10px]",
+				"pb-0 pt-3",
 			)}
 			data-testid="project-detail-header-root"
 		>

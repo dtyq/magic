@@ -116,7 +116,7 @@ function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
 	}
 
 	return (
-		<div className="flex h-[calc(50px+var(--safe-area-inset-top))] items-center gap-2 rounded-b-xl border-b bg-background p-2.5 pt-[calc(0.65rem+var(--safe-area-inset-top))]">
+		<div className="flex h-[50px] items-center gap-2 rounded-b-xl border-b bg-background p-2.5">
 			{onProjectPage ? (
 				<ChevronLeft
 					size={32}

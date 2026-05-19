@@ -4,8 +4,9 @@ import { MobileTabParam } from "@/pages/mobileTabs/constants"
 
 /**
  * 不使用全局安全边距的路由名称列表
- * superMagicMobile 重构页的头部、底栏和输入区会各自消费 safe area，
- * 这里仅为仍依赖旧壳层兜底的页面保留全局占位。
+ * 这些路由使用旧移动端页面结构（非 MobileShellScaffold），由各自页面组件自行处理安全区。
+ * superMagicMobile 重构路由（MobileHome、SuperChatsList 等）已通过将 MobileShellScaffold
+ * 改为 relative h-full，由 BaseLayoutMobileV2 的 GlobalSafeArea spacer 统一处理，不在此列。
  */
 export const NO_GLOBAL_SAFE_AREA_ROUTES_NAMES: string[] = [
 	RouteName.Chat,
@@ -13,16 +14,6 @@ export const NO_GLOBAL_SAFE_AREA_ROUTES_NAMES: string[] = [
 	RouteName.ChatConversation,
 	RouteName.Profile,
 	RouteName.Super,
-	RouteName.MobileHome,
-	RouteName.SuperChatsList,
-	RouteName.SuperWorkspacesList,
-	RouteName.SuperSharedWorkspace,
-	RouteName.SuperWorkspaceProjects,
-	RouteName.RecycleBin,
-	RouteName.SuperWorkspaceState,
-	RouteName.SuperChatProjectState,
-	RouteName.SuperWorkspaceProjectState,
-	RouteName.SuperWorkspaceProjectTopicState,
 	RouteName.MobileTabs,
 	RouteName.ProfileSettingsTimezone,
 ]

@@ -96,7 +96,6 @@ export function WorkspaceProjectListView({
 			{/* 顶栏采用原型的左右操作胶囊布局，让标题保持绝对居中。 */}
 			<div
 				className="relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-[10px]"
-				style={{ paddingTop: "calc(var(--safe-area-inset-top, 0px) + 4px)" }}
 			>
 				<button
 					type="button"

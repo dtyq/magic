@@ -345,7 +345,7 @@ function LegacyProjectPage() {
 					className={cn(
 						"flex w-full flex-shrink-0 flex-col gap-2 overflow-hidden",
 						shouldShowComposer
-							? "pointer-events-auto max-h-[500px] pb-[max(var(--safe-area-inset-bottom),4px)] opacity-100"
+							? "pointer-events-auto max-h-[500px] pb-1 opacity-100"
 							: "pointer-events-none max-h-0 py-0 opacity-0",
 					)}
 					aria-hidden={!shouldShowComposer}

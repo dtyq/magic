@@ -206,8 +206,8 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 	const userId = userStore.user.userInfo?.user_id
 	const isTaskRunning = selectedTopic?.task_status === TaskStatus.RUNNING
 	const mobileInputBottomOffset = interfaceStore.mobileTabBarVisible
-		? "calc(max(var(--safe-area-inset-bottom), 12px) + var(--mobile-tabbar-height, 60px) + 8px)"
-		: "max(var(--safe-area-inset-bottom), 12px)"
+		? "calc(12px + var(--mobile-tabbar-height, 60px) + 8px)"
+		: "12px"
 	// 欢迎区与真实输入区共享同一套底部留白来源，避免出现固定像素的视觉断层。
 	const welcomeSectionBottomSpacing = `calc(${mobileInputBottomOffset} + ${INPUT_CONTAINER_MIN_HEIGHT.HomePage}px)`
 

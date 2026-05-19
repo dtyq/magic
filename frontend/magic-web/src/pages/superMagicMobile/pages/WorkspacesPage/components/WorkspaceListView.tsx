@@ -191,7 +191,6 @@ function WorkspaceListViewInner({
 			{/* Header */}
 			<div
 				className="relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-[10px]"
-				style={{ paddingTop: "calc(var(--safe-area-inset-top, 0px) + 4px)" }}
 			>
 				<MobileShellIconButton
 					label={t("mobile.shell.menuAria")}

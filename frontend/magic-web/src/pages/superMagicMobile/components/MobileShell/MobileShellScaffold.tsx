@@ -71,7 +71,7 @@ export default function MobileShellScaffold({
 			ref={rootRef}
 			data-sidebar-open={isSidebarOpen}
 			className={cn(
-				"fixed inset-0 h-screen w-screen overflow-hidden [--mobile-shell-sidebar-width:80vw]",
+				"relative h-full w-full overflow-hidden [--mobile-shell-sidebar-width:80vw]",
 				"[--mobile-shell-bg-closed:#fafafa] [--mobile-shell-bg-open:#f5f5f5]",
 				"dark:[--mobile-shell-bg-closed:#0a0a0a] dark:[--mobile-shell-bg-open:#171717]",
 				"bg-[var(--mobile-shell-bg-closed)] data-[sidebar-open=true]:bg-[var(--mobile-shell-bg-open)]",

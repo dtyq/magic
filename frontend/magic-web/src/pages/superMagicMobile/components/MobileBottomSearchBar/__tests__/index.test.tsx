@@ -75,7 +75,7 @@ describe("MobileBottomSearchBar", () => {
 		expect(handleValueChange).toHaveBeenCalledWith("")
 	})
 
-	it("uses safe area bottom padding by default for refactored mobile pages", () => {
+	it("始终使用固定 pb-3，由 GlobalSafeArea spacer 统一处理底部安全区", () => {
 		render(
 			<MobileBottomSearchBar
 				value=""
@@ -86,12 +86,13 @@ describe("MobileBottomSearchBar", () => {
 			/>,
 		)
 
-		expect(screen.getByTestId("safe-area-search-root").className).toContain(
-			"pb-[max(var(--safe-area-inset-bottom),12px)]",
+		expect(screen.getByTestId("safe-area-search-root").className).toContain("pb-3")
+		expect(screen.getByTestId("safe-area-search-root").className).not.toContain(
+			"safe-area-inset-bottom",
 		)
 	})
 
-	it("allows opting out of safe area bottom padding for embedded usage", () => {
+	it("className prop 可叠加在根节点", () => {
 		render(
 			<MobileBottomSearchBar
 				value=""
@@ -99,13 +100,11 @@ describe("MobileBottomSearchBar", () => {
 				clearAriaLabel="Cancel search"
 				onValueChange={vi.fn()}
 				testIdPrefix="plain-search"
-				includeSafeAreaBottom={false}
+				className="mt-2"
 			/>,
 		)
 
 		expect(screen.getByTestId("plain-search-root").className).toContain("pb-3")
-		expect(screen.getByTestId("plain-search-root").className).not.toContain(
-			"pb-[max(var(--safe-area-inset-bottom),12px)]",
-		)
+		expect(screen.getByTestId("plain-search-root").className).toContain("mt-2")
 	})
 })

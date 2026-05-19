@@ -48,7 +48,7 @@ function TrashSelectionBar(props: TrashSelectionBarProps) {
 
 	return (
 		<div
-			className="shrink-0 px-[10px] pb-[max(var(--safe-area-inset-bottom),12px)] pt-2"
+			className="shrink-0 px-[10px] pb-3 pt-2"
 			data-testid="mobile-recycle-bin-trash-selection-bar"
 		>
 			<div className="flex h-[44px] items-center gap-2">

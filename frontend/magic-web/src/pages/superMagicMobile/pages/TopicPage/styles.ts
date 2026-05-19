@@ -17,7 +17,7 @@ export const useStyles = createStyles(() => {
 		list: {},
 		item: {},
 		footer: {
-			paddingBottom: "max(var(--safe-area-inset-bottom), 4px)",
+			paddingBottom: "4px",
 		},
 		emptyMessageWelcome: {
 			height: "auto",
