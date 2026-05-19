@@ -80,6 +80,7 @@ export class PPTIncrementalUpdateService {
 
 	/**
 	 * Detect updated files (by comparing updated_at timestamps)
+	 * Also detects newly added files that weren't in the previous list
 	 */
 	detectUpdatedFiles(
 		previousList: AttachmentItem[] | undefined,
@@ -87,15 +88,31 @@ export class PPTIncrementalUpdateService {
 	): Set<string> {
 		const updatedFileIds = new Set<string>()
 
-		if (!previousList || !newList || !Array.isArray(previousList) || !Array.isArray(newList)) {
+		if (!newList || !Array.isArray(newList)) {
+			return updatedFileIds
+		}
+
+		// If no previous list, all files in new list are considered "new"
+		if (!previousList || !Array.isArray(previousList)) {
 			return updatedFileIds
 		}
 
 		const previousMap = new Map(previousList.map((item) => [item.file_id, item]))
 
 		newList.forEach((newItem) => {
+			if (!newItem.file_id) return
 			const prevItem = previousMap.get(newItem.file_id)
-			if (prevItem && prevItem.updated_at !== newItem.updated_at && newItem.file_id) {
+			if (!prevItem) {
+				// Newly added file - treat as updated so slides can recover
+				updatedFileIds.add(newItem.file_id)
+				this.logger.debug("检测到新增文件", {
+					operation: "detectUpdatedFiles",
+					metadata: {
+						fileId: newItem.file_id,
+						fileName: newItem.file_name,
+					},
+				})
+			} else if (prevItem.updated_at !== newItem.updated_at) {
 				updatedFileIds.add(newItem.file_id)
 				this.logger.debug("检测到文件更新", {
 					operation: "detectUpdatedFiles",
@@ -314,22 +331,25 @@ export class PPTIncrementalUpdateService {
 		const affectedSlideIndices: number[] = []
 		const fileIdsToFetch: string[] = []
 		const manuallySavedFileIds: Set<string> = new Set()
-		const editingSlides: Array<{ fileId: string; index: number }> = []
+		const editingSlides: Array<{ fileId: string; index: number; isManuallySaved: boolean }> = []
 
 		context.slides.forEach((slide, index) => {
 			const fileId = this.pathMappingService.getFileIdByPath(slide.path)
 			if (fileId && updatedFileIds.has(fileId)) {
-				// Check if this slide was manually saved - if so, skip reload entirely
-				if (context.isSlideManuallySaved?.(fileId)) {
+				const isManuallySaved = context.isSlideManuallySaved?.(fileId) || false
+				const isEditing = context.getSlideEditingState?.(fileId) || false
+
+				// For slides that stay in edit mode after save, inspect the new content
+				// so only the save echo is ignored and real remote updates still surface.
+				if (isEditing) {
+					editingSlides.push({ fileId, index, isManuallySaved })
+					this.logger.info("检测到正在编辑的幻灯片有更新，通知用户而非自动重新加载", {
+						operation: "handleFileUpdates",
+						metadata: { fileId, index, isManuallySaved },
+					})
+				} else if (isManuallySaved) {
 					manuallySavedFileIds.add(fileId)
 					this.logger.info("检测到手动保存的幻灯片，跳过重新加载", {
-						operation: "handleFileUpdates",
-						metadata: { fileId, index },
-					})
-				} else if (context.getSlideEditingState?.(fileId)) {
-					// Slide is being edited - notify instead of reloading
-					editingSlides.push({ fileId, index })
-					this.logger.info("检测到正在编辑的幻灯片有更新，通知用户而非自动重新加载", {
 						operation: "handleFileUpdates",
 						metadata: { fileId, index },
 					})
@@ -350,7 +370,7 @@ export class PPTIncrementalUpdateService {
 		const urlMap = await this.pathMappingService.fetchUrlsForFileIds(allFileIdsToFetch)
 
 		// Handle editing slides - load content silently without affecting UI state
-		for (const { fileId, index } of editingSlides) {
+		for (const { fileId, index, isManuallySaved } of editingSlides) {
 			const slide = context.slides[index]
 			const newUrl = urlMap.get(fileId)
 			if (newUrl && slide) {
@@ -358,6 +378,27 @@ export class PPTIncrementalUpdateService {
 					// Use silent loading method to avoid triggering UI updates
 					const loadMethod = context.loadSlideContentSilently || context.loadSlideContent
 					const newContent = await loadMethod(newUrl, index)
+					const isManualSaveEcho =
+						isManuallySaved &&
+						typeof newContent === "string" &&
+						!!newContent &&
+						(newContent === slide.content || newContent === slide.rawContent)
+
+					if (isManuallySaved) {
+						context.clearManualSaveMark?.(fileId)
+						this.logger.info("编辑态更新后清除手动保存标记", {
+							operation: "handleFileUpdates",
+							metadata: { fileId, index, isManualSaveEcho },
+						})
+					}
+
+					if (isManualSaveEcho) {
+						this.logger.info("检测到编辑态手动保存回流，忽略冲突提示", {
+							operation: "handleFileUpdates",
+							metadata: { fileId, index },
+						})
+						continue
+					}
 
 					// Notify the slide component about server update
 					if (context.notifyServerUpdate && newContent) {

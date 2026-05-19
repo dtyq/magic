@@ -8,6 +8,7 @@ import { default as ProjectArchive } from "./ProjectArchive"
 import { default as Chat } from "./Chat"
 import { default as Reminder } from "./Reminder"
 import { default as AgentThink } from "./AgentThink"
+import { default as MessageNode } from "./MessageNode"
 import { memo, type CSSProperties } from "react"
 import { SuperMagicMessageType } from "@/pages/superMagic/components/MessageList/type"
 import { observer } from "mobx-react-lite"
@@ -40,8 +41,17 @@ const nodeEntryVariantMap: Partial<Record<SuperMagicMessageType, EntryAnimationV
 }
 
 function NodeContent(props: WithNodeProps) {
-	const node = superMagicStore.getMessageNode(props?.node?.app_message_id)
-	const AssistantNode = NodeMap?.[node?.type as SuperMagicMessageType] || (() => <div />)
+	const node = superMagicStore.getMessageNode(props?.node?.app_message_id) as
+		| Record<string, unknown>
+		| undefined
+	const textContent = typeof node?.content === "string" ? node.content : undefined
+	const hasCopyableTextContent = Boolean(textContent?.trim())
+	const isAssistantMessage = props?.node?.role === "assistant" || node?.role === "assistant"
+	const enableCopyMessage =
+		hasCopyableTextContent &&
+		(node?.type === SuperMagicMessageType.AgentReply || (!node?.type && isAssistantMessage))
+	const resolvedNodeType = node?.type as SuperMagicMessageType
+	const AssistantNode = NodeMap?.[resolvedNodeType] || (() => <div />)
 	const shouldAnimateEntry = Boolean(props.isNewlyInserted)
 	const entryDelay = Math.min((props.entryAnimationOrder || 0) * 24, 96)
 	const nodeType = (node?.type || props?.node?.type) as SuperMagicMessageType
@@ -68,8 +78,8 @@ function NodeContent(props: WithNodeProps) {
 	const { handleMouseEnter, handleMouseLeave, renderTooltip, renderCopyButton } = useTimeTooltip({
 		timestamp: props?.node?.send_time,
 		shouldShow: true,
-		textContent: node?.content,
-		enableCopyMessage: node?.type === SuperMagicMessageType.AgentReply,
+		textContent,
+		enableCopyMessage,
 	})
 
 	if (["rich_text"].includes(props?.node?.type)) {
@@ -80,9 +90,25 @@ function NodeContent(props: WithNodeProps) {
 		)
 	}
 
+	if (!node?.type) {
+		return (
+			<>
+				<div className={cn(entryClassName, "group relative")} style={entryStyle}>
+					<MessageNode
+						{...props}
+						onMouseEnter={handleMouseEnter}
+						onMouseLeave={handleMouseLeave}
+					/>
+					{renderCopyButton()}
+				</div>
+				{renderTooltip()}
+			</>
+		)
+	}
+
 	return (
 		<>
-			<div className={cn(entryClassName, "group/message relative")} style={entryStyle}>
+			<div className={cn(entryClassName, "group relative")} style={entryStyle}>
 				<AssistantNode
 					{...props}
 					onMouseEnter={handleMouseEnter}
@@ -95,11 +121,6 @@ function NodeContent(props: WithNodeProps) {
 	)
 }
 
-export const Node = memo(withNode(observer(NodeContent)), (prevProps, nextProps) => {
-	return (
-		prevProps.node.app_message_id === nextProps.node.app_message_id &&
-		prevProps.node.childMessages?.length === nextProps.node.childMessages?.length
-	)
-})
+export const Node = memo(withNode(observer(NodeContent)))
 
 export { RichText, Init, Thinking, AgentReply, ToolCall, TaskUpdate, ProjectArchive, Chat }

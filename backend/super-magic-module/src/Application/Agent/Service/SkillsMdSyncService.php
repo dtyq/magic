@@ -16,7 +16,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Infrastructure\Utils\FrontmatterParser;
-use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Throwable;
@@ -39,9 +38,9 @@ class SkillsMdSyncService
 
     private const TEMP_DIR_BASE = BASE_PATH . '/runtime/skills_md_sync/';
 
-    private const SKILLS_MD_PATH = '.magic/SKILLS.md';
-
     private const SKILLS_KEY = 'skills';
+
+    private const SYSTEM_SKILLS_KEY = 'system_skills';
 
     private LoggerInterface $logger;
 
@@ -58,6 +57,7 @@ class SkillsMdSyncService
      *
      * @param string[] $skillNames skill package names to add or remove (ignored for 'sync')
      * @param string $operation one of 'add', 'remove', 'sync'
+     * @param string[] $systemSkillNames system builtin skill package names to add or remove
      */
     public function syncSkillsMd(
         int $projectId,
@@ -65,10 +65,11 @@ class SkillsMdSyncService
         string $organizationCode,
         string $projectOrgCode,
         array $skillNames = [],
-        string $operation = self::OPERATION_SYNC
+        string $operation = self::OPERATION_SYNC,
+        array $systemSkillNames = []
     ): void {
         try {
-            $this->doSync($projectId, $projectEntity, $organizationCode, $projectOrgCode, $skillNames, $operation);
+            $this->doSync($projectId, $projectEntity, $organizationCode, $projectOrgCode, $skillNames, $operation, $systemSkillNames);
         } catch (Throwable $e) {
             $this->logger->error('[SkillsMdSyncService] Failed to sync SKILLS.md', [
                 'project_id' => $projectId,
@@ -97,40 +98,70 @@ class SkillsMdSyncService
 
     /**
      * Add skill names to the SKILLS.md content. Duplicates are ignored.
+     *
+     * @param string[] $skillNames regular skill package names
+     * @param string[] $systemSkillNames system builtin skill package names
      */
-    public function addSkills(string $content, array $skillNames): string
+    public function addSkills(string $content, array $skillNames, array $systemSkillNames = []): string
     {
-        if (empty($skillNames)) {
+        if (empty($skillNames) && empty($systemSkillNames)) {
             return $content;
         }
 
         $parsed = FrontmatterParser::parse($content);
-        $existing = $this->extractSkillsList($parsed['data']);
 
-        $merged = array_unique(array_merge($existing, $skillNames));
-        sort($merged);
+        if (! empty($skillNames)) {
+            $existing = $this->extractSkillsList($parsed['data']);
+            $merged = array_unique(array_merge($existing, $skillNames));
+            sort($merged);
+            $parsed['data'][self::SKILLS_KEY] = $merged;
+        }
 
-        $parsed['data'][self::SKILLS_KEY] = $merged;
+        if (! empty($systemSkillNames)) {
+            $existingSystem = $this->extractSystemSkillsList($parsed['data']);
+            $mergedSystem = array_unique(array_merge($existingSystem, $systemSkillNames));
+            sort($mergedSystem);
+            $parsed['data'][self::SYSTEM_SKILLS_KEY] = $mergedSystem;
+        }
 
         return FrontmatterParser::dump($parsed['data'], $parsed['body']);
     }
 
     /**
      * Remove skill names from the SKILLS.md content.
+     *
+     * @param string[] $skillNames regular skill package names
+     * @param string[] $systemSkillNames system builtin skill package names
      */
-    public function removeSkills(string $content, array $skillNames): string
+    public function removeSkills(string $content, array $skillNames, array $systemSkillNames = []): string
     {
-        if (empty($skillNames)) {
+        if (empty($skillNames) && empty($systemSkillNames)) {
             return $content;
         }
 
         $parsed = FrontmatterParser::parse($content);
-        $existing = $this->extractSkillsList($parsed['data']);
 
-        $remaining = array_values(array_diff($existing, $skillNames));
-        sort($remaining);
+        if (! empty($skillNames)) {
+            $existing = $this->extractSkillsList($parsed['data']);
+            $remaining = array_values(array_diff($existing, $skillNames));
+            sort($remaining);
+            if (empty($remaining)) {
+                unset($parsed['data'][self::SKILLS_KEY]);
+            } else {
+                $parsed['data'][self::SKILLS_KEY] = $remaining;
+            }
+        }
 
-        $parsed['data'][self::SKILLS_KEY] = $remaining;
+        if (! empty($systemSkillNames)) {
+            $existingSystem = $this->extractSystemSkillsList($parsed['data']);
+            $remainingSystem = array_values(array_diff($existingSystem, $systemSkillNames));
+            sort($remainingSystem);
+            if (empty($remainingSystem)) {
+                unset($parsed['data'][self::SYSTEM_SKILLS_KEY]);
+            } else {
+                $parsed['data'][self::SYSTEM_SKILLS_KEY] = $remainingSystem;
+            }
+        }
 
         return FrontmatterParser::dump($parsed['data'], $parsed['body']);
     }
@@ -141,6 +172,7 @@ class SkillsMdSyncService
 
     /**
      * @param string[] $skillNames
+     * @param string[] $systemSkillNames
      */
     private function doSync(
         int $projectId,
@@ -148,47 +180,58 @@ class SkillsMdSyncService
         string $organizationCode,
         string $projectOrgCode,
         array $skillNames,
-        string $operation
+        string $operation,
+        array $systemSkillNames = []
     ): void {
-        $workDir = $projectEntity->getWorkDir();
-        if (empty($workDir)) {
+        // Locate .magic directory via tree navigation.
+        $magicDir = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic');
+        if ($magicDir === null) {
+            if ($operation === self::OPERATION_ADD && ! empty($skillNames)) {
+                $this->createSkillsMd($projectId, $projectEntity, $organizationCode, $skillNames);
+            } else {
+                $this->logger->info('[SkillsMdSyncService] .magic directory not found, skipping', [
+                    'project_id' => $projectId,
+                    'operation' => $operation,
+                ]);
+            }
             return;
         }
 
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectOrgCode);
-        $fileKey = ltrim(
-            WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, self::SKILLS_MD_PATH),
-            '/'
+        // Locate SKILLS.md via tree navigation: find file named SKILLS.md under .magic.
+        $entity = $this->taskFileDomainService->getByProjectParentAndName(
+            $projectId,
+            $magicDir->getFileId(),
+            'SKILLS.md'
         );
 
-        $entity = $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $fileKey);
-
         if ($entity === null) {
-            if ($operation === self::OPERATION_ADD && ! empty($skillNames)) {
-                $this->createSkillsMd($projectId, $projectEntity, $organizationCode, $skillNames);
+            if ($operation === self::OPERATION_ADD && (! empty($skillNames) || ! empty($systemSkillNames))) {
+                $this->createSkillsMd($projectId, $projectEntity, $organizationCode, $skillNames, $systemSkillNames);
                 return;
             }
 
             $this->logger->info('[SkillsMdSyncService] SKILLS.md not found, skipping', [
                 'project_id' => $projectId,
-                'file_key' => $fileKey,
                 'operation' => $operation,
             ]);
             return;
         }
 
-        $currentContent = $this->downloadFileContent($projectOrgCode, $fileKey);
+        // Use the entity's actual file_key (from object storage) for content operations.
+        $verifiedFileKey = $entity->getFileKey();
+
+        $currentContent = $this->downloadFileContent($projectOrgCode, $verifiedFileKey);
         if ($currentContent === null) {
             $this->logger->warning('[SkillsMdSyncService] Failed to download SKILLS.md content', [
                 'project_id' => $projectId,
-                'file_key' => $fileKey,
+                'file_key' => $verifiedFileKey,
             ]);
             return;
         }
 
         $newContent = match ($operation) {
-            self::OPERATION_ADD => $this->addSkills($currentContent, $skillNames),
-            self::OPERATION_REMOVE => $this->removeSkills($currentContent, $skillNames),
+            self::OPERATION_ADD => $this->addSkills($currentContent, $skillNames, $systemSkillNames),
+            self::OPERATION_REMOVE => $this->removeSkills($currentContent, $skillNames, $systemSkillNames),
             default => $this->rebuildFromInstalledSkills($currentContent, $projectId),
         };
 
@@ -200,7 +243,7 @@ class SkillsMdSyncService
             return;
         }
 
-        $this->taskFileDomainService->overwriteProjectFileContent($projectEntity, $fileKey, $newContent);
+        $this->taskFileDomainService->overwriteProjectFileContent($projectEntity, $verifiedFileKey, $newContent);
 
         $this->logger->info('[SkillsMdSyncService] SKILLS.md synced', [
             'project_id' => $projectId,
@@ -213,12 +256,14 @@ class SkillsMdSyncService
      * Create a new .magic/SKILLS.md file with the given skill names.
      *
      * @param string[] $skillNames
+     * @param string[] $systemSkillNames
      */
     private function createSkillsMd(
         int $projectId,
         ProjectEntity $projectEntity,
         string $organizationCode,
-        array $skillNames
+        array $skillNames,
+        array $systemSkillNames = []
     ): void {
         $magicDir = $this->taskFileDomainService->findDirectoryByPath($projectId, '.magic');
         if ($magicDir === null) {
@@ -229,10 +274,17 @@ class SkillsMdSyncService
         }
 
         sort($skillNames);
-        $content = FrontmatterParser::dump([
+        $data = [
             'inherit_defaults' => true,
             self::SKILLS_KEY => $skillNames,
-        ]);
+        ];
+
+        if (! empty($systemSkillNames)) {
+            sort($systemSkillNames);
+            $data[self::SYSTEM_SKILLS_KEY] = $systemSkillNames;
+        }
+
+        $content = FrontmatterParser::dump($data);
 
         $dataIsolation = DataIsolation::simpleMake($organizationCode, $projectEntity->getUserId());
 
@@ -329,6 +381,21 @@ class SkillsMdSyncService
     private function extractSkillsList(array $data): array
     {
         $skills = $data[self::SKILLS_KEY] ?? [];
+
+        if (! is_array($skills)) {
+            return [];
+        }
+
+        return array_values(array_filter($skills, 'is_string'));
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return string[]
+     */
+    private function extractSystemSkillsList(array $data): array
+    {
+        $skills = $data[self::SYSTEM_SKILLS_KEY] ?? [];
 
         if (! is_array($skills)) {
             return [];

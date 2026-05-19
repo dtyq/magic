@@ -49,6 +49,8 @@ class TaskFileEntity extends AbstractEntity
 
     protected ?string $metadata = null;
 
+    protected ?string $displayConfig = null;
+
     protected TaskFileSource $source;
 
     protected string $createdAt = '';
@@ -60,6 +62,12 @@ class TaskFileEntity extends AbstractEntity
     protected ?int $latestModifiedTopicId = null;
 
     protected ?int $latestModifiedTaskId = null;
+
+    protected int $latestVersion = 1;
+
+    protected int $metadataVersion = 1;
+
+    protected string $spaceType = 'project';
 
     public function getFileId(): int
     {
@@ -248,6 +256,16 @@ class TaskFileEntity extends AbstractEntity
         $this->metadata = $metadata;
     }
 
+    public function getDisplayConfig(): ?string
+    {
+        return $this->displayConfig;
+    }
+
+    public function setDisplayConfig(?string $displayConfig): void
+    {
+        $this->displayConfig = $displayConfig;
+    }
+
     public function getSource(): TaskFileSource
     {
         return $this->source;
@@ -312,6 +330,36 @@ class TaskFileEntity extends AbstractEntity
         $this->latestModifiedTaskId = $latestModifiedTaskId;
     }
 
+    public function getLatestVersion(): int
+    {
+        return $this->latestVersion;
+    }
+
+    public function setLatestVersion(int $latestVersion): void
+    {
+        $this->latestVersion = $latestVersion;
+    }
+
+    public function getMetadataVersion(): int
+    {
+        return $this->metadataVersion;
+    }
+
+    public function setMetadataVersion(int $metadataVersion): void
+    {
+        $this->metadataVersion = $metadataVersion;
+    }
+
+    public function getSpaceType(): string
+    {
+        return $this->spaceType;
+    }
+
+    public function setSpaceType(string $spaceType): void
+    {
+        $this->spaceType = $spaceType;
+    }
+
     public function toArray(): array
     {
         return [
@@ -333,12 +381,16 @@ class TaskFileEntity extends AbstractEntity
             'sort' => $this->sort,
             'parent_id' => $this->parentId,
             'metadata' => $this->metadata,
+            'display_config' => $this->displayConfig,
             'source' => $this->source->value,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'deleted_at' => $this->deletedAt,
             'latest_modified_topic_id' => $this->latestModifiedTopicId,
             'latest_modified_task_id' => $this->latestModifiedTaskId,
+            'latest_version' => $this->latestVersion,
+            'metadata_version' => $this->metadataVersion,
+            'space_type' => $this->spaceType,
         ];
     }
 }

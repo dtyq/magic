@@ -180,20 +180,7 @@ export class MarkerTool extends BaseTool {
 	protected onTaskComplete(): void {
 		if (!this.canvas.toolManager) return
 
-		// 使用 setTimeout 延迟切换工具，避免以下时序问题：
-		// 1. mouseup 事件触发 → 创建 marker → 调用此方法切换工具
-		// 2. 工具切换后，currentTool 变为 Select
-		// 3. 原始 mouseup 事件继续冒泡 → 触发 stage 的 click 事件
-		// 4. MarkerManager 的 stage click handler 检测到：
-		//    - currentTool 是 Select（条件通过）
-		//    - 点击目标不是 marker 节点（是图片元素）
-		//    - 有 selectedMarkerId（刚创建的 marker）
-		//    → 执行 deselectMarker()，导致新创建的 marker 被立即取消选中
-		//
-		// 通过 setTimeout(fn, 0) 将工具切换推迟到下一个事件循环：
-		// - 让当前的 mouseup/click 事件完全处理完毕
-		// - 然后再切换工具，避免 stage click handler 误判
-		// - 确保新创建的 marker 保持选中状态（视觉上完全不透明）
+		// 使用 setTimeout 延迟切换工具，避免 mouseup/click 与工具切换在同一轮事件里交错
 		setTimeout(() => {
 			// 添加标记后立即切换到选择工具
 			this.canvas.toolManager.switchToSelection()

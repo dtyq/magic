@@ -103,12 +103,12 @@ const useStyles = createStyles(({ css, token }, { isMobile }: { isMobile?: boole
 			}
 
 			/* 恢复自动补全提醒样式 */
-			p[data-suggestion] {
+			p[data-suggestion]:not([data-suggestion=""]) {
 				position: relative;
 				overflow: visible;
 			}
 
-			p[data-suggestion]::after {
+			p[data-suggestion]:not([data-suggestion=""])::after {
 				display: ${isMobile ? "none" : "inline-block"};
 				color: ${token.colorTextQuaternary};
 				content: attr(data-suggestion);

@@ -5,12 +5,8 @@ import { useResponsive } from "ahooks"
 import { Dropdown } from "antd"
 import { Button } from "@/components/shadcn-ui/button"
 import ModeTag from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup/components/ModeTag"
-import { TopicMode } from "../../../pages/Workspace/types"
-import {
-	ActionDrawer,
-	ActionGroup,
-	ActionItem,
-} from "@/components/shadcn-composed/action-drawer"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import { ActionDrawer, ActionGroup, ActionItem } from "@/components/shadcn-composed/action-drawer"
 import type { TopicShareItem } from "../types"
 import ProjectNameBadge from "./ProjectNameBadge"
 import MagicEllipseWithTooltip from "@/components/base/MagicEllipseWithTooltip/MagicEllipseWithTooltip"
@@ -75,7 +71,10 @@ function MobileTopicShareItem({
 			>
 				{/* 话题模式图标 */}
 				<div className="flex h-5 w-5 flex-shrink-0 items-center justify-center">
-					<ModeTag mode={item.topic_mode || TopicMode.General} />
+					<ModeTag
+						mode={item.topic_mode || TopicMode.General}
+						agentCode={item.agent_code}
+					/>
 				</div>
 
 				{/* 内容区域 */}

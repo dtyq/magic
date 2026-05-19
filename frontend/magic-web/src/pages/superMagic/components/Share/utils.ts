@@ -1,6 +1,9 @@
 import { ShareType } from "./types"
 import { findFileInTree, calculateActualFileCount } from "./FileSelector/utils"
 
+export { generateShareMessageText } from "./utils/generateShareMessageText"
+export { generateTopicShareMessageText } from "./utils/generateTopicShareMessageText"
+
 interface HandleShareTypeChangeOptions {
 	currentType: ShareType
 	newType: ShareType

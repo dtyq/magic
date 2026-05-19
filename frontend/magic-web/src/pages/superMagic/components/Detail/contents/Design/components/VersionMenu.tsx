@@ -118,95 +118,95 @@ export function VersionMenu(props: VersionMenuProps) {
 			...(isShareRoute
 				? []
 				: [
-					{
-						label: (
-							<div className={styles.fileVersionsDropdownItem}>
-								<IconHistory size={16} />
-								<div className={styles.fileVersionsDropdownItemTitle}>
-									{t("common.historyVersion")}
+						{
+							label: (
+								<div className={styles.fileVersionsDropdownItem}>
+									<IconHistory size={16} />
+									<div className={styles.fileVersionsDropdownItemTitle}>
+										{t("common.historyVersion")}
+									</div>
 								</div>
-							</div>
-						),
-						key: "historyVersion",
-						trigger: ["click"],
-						children: [
-							...(fileVersionsList || []).map((item, index) => {
-								return {
-									key: item.created_at,
-									label: (
-										<div
-											key={item.version}
-											className={cx(
-												styles.versionItem,
-												(item.version === fileVersion ||
-													(!fileVersion && index === 0)) &&
-												styles.checkedVersionItem,
-											)}
-											onClick={() =>
-												onChangeVersion(item.version, index === 0)
-											}
-										>
-											<Flex vertical gap={2}>
-												<Flex align="center" gap={4}>
-													<div>
-														{index === 0
-															? t("common.latestVersion")
-															: t("common.historyVersion")}
-													</div>
-													<div className={styles.version}>
-														v{item.version}
-													</div>
-													<div className={styles.version}>
-														{item.edit_type === 1
-															? t("common.onlineEdit")
-															: t("common.aiEdit")}
-													</div>
-												</Flex>
-												<div className={styles.createdAt}>
-													{item.created_at}
-												</div>
-											</Flex>
-											{item.version === fileVersion && (
-												<div className={styles.checkedIcon}>
-													<IconCheck size={20} stroke={2} />
-												</div>
-											)}
-										</div>
-									),
-								}
-							}),
-							...((fileVersionsList?.length || 0) > 9
-								? [
-									{
-										key: "loadMoreHint",
-										label: (
-											<div className={styles.loadMoreHint}>
-												{t("common.versionsLimitHint")}
-											</div>
-										),
-									},
-								]
-								: []),
-							...(!fileVersionsList || fileVersionsList.length === 0
-								? [
-									{
-										key: "noHistoryVersion",
+							),
+							key: "historyVersion",
+							trigger: ["click"],
+							children: [
+								...(fileVersionsList || []).map((item, index) => {
+									return {
+										key: item.created_at,
 										label: (
 											<div
+												key={item.version}
 												className={cx(
-													styles.loadMoreHint,
-													styles.noHistoryVersionHint,
+													styles.versionItem,
+													(item.version === fileVersion ||
+														(!fileVersion && index === 0)) &&
+														styles.checkedVersionItem,
 												)}
+												onClick={() =>
+													onChangeVersion(item.version, index === 0)
+												}
 											>
-												{t("common.noHistoryVersionHint")}
+												<Flex vertical gap={2}>
+													<Flex align="center" gap={4}>
+														<div>
+															{index === 0
+																? t("common.latestVersion")
+																: t("common.historyVersion")}
+														</div>
+														<div className={styles.version}>
+															v{item.version}
+														</div>
+														<div className={styles.version}>
+															{item.edit_type === 1
+																? t("common.onlineEdit")
+																: t("common.aiEdit")}
+														</div>
+													</Flex>
+													<div className={styles.createdAt}>
+														{item.created_at}
+													</div>
+												</Flex>
+												{item.version === fileVersion && (
+													<div className={styles.checkedIcon}>
+														<IconCheck size={20} stroke={2} />
+													</div>
+												)}
 											</div>
 										),
-									},
-								]
-								: []),
-						],
-					},
-				]),
+									}
+								}),
+								...((fileVersionsList?.length || 0) > 9
+									? [
+											{
+												key: "loadMoreHint",
+												label: (
+													<div className={styles.loadMoreHint}>
+														{t("common.versionsLimitHint")}
+													</div>
+												),
+											},
+										]
+									: []),
+								...(!fileVersionsList || fileVersionsList.length === 0
+									? [
+											{
+												key: "noHistoryVersion",
+												label: (
+													<div
+														className={cx(
+															styles.loadMoreHint,
+															styles.noHistoryVersionHint,
+														)}
+													>
+														{t("common.noHistoryVersionHint")}
+													</div>
+												),
+											},
+										]
+									: []),
+							],
+						},
+					]),
 		]
 
 		return items

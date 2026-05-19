@@ -35,14 +35,19 @@ export class SelectionHighlightManager {
 			this.updateHighlightStrokeWidth()
 		})
 
-		// 监听选中事件，多选时显示边框
+		// 监听选中事件：多选显示边框；单选时若无 Transformer（不可变换），也用边框提示选中
 		this.canvas.eventEmitter.on("element:select", ({ data }) => {
 			const { elementIds } = data
-			// 只在多选时（2个或以上）显示边框
 			if (elementIds.length >= 2) {
 				this.updateHighlights(elementIds)
+			} else if (elementIds.length === 1) {
+				const elementData = this.canvas.elementManager.getElementData(elementIds[0])
+				if (!this.canvas.permissionManager.canTransform(elementData)) {
+					this.updateHighlights(elementIds)
+				} else {
+					this.clearAllHighlights()
+				}
 			} else {
-				// 单选时清除边框
 				this.clearAllHighlights()
 			}
 		})

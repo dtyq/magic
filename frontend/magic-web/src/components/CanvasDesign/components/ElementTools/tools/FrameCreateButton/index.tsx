@@ -1,6 +1,6 @@
 import IconButton from "../../../ui/custom/IconButton/index"
 import styles from "./index.module.css"
-import { Frame } from "../../../ui/icons/index"
+import { Frame } from "lucide-react"
 import { useCanvas } from "../../../../context/CanvasContext"
 
 export default function FrameCreateButton() {

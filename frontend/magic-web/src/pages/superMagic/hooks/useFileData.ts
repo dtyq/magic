@@ -1,16 +1,14 @@
-import {
-	downloadFileContent,
-	getTemporaryDownloadUrl,
-} from "@/pages/superMagic/utils/api"
+import { downloadFileContent, getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useDebounceEffect, useMemoizedFn } from "ahooks"
-import { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
+import { FileHistoryVersion, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { useTranslation } from "react-i18next"
 import useShareRoute from "./useShareRoute"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { SuperMagicApi } from "@/apis"
 import { isNil } from "lodash-es"
+import { superMagicStore } from "@/pages/superMagic/stores"
 
 interface FileUrlCache {
 	url: string
@@ -276,10 +274,27 @@ export const useFileData = ({
 			// 清空 URL 缓存
 			fileUrlCacheRef.current = {}
 		})
+
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Change_Preview_File)
 		}
 	}, [])
+
+	// 由于后端的文件版本生成机制，是在每一轮对话结束时生成，
+	// 因此这里需要监听对话任务完成事件，当对话任务完成时，获取文件的最新版本列表。
+	useEffect(() => {
+		const unregister = superMagicStore.registerDomainEventListener({
+			matcher: (payload) => payload.type === "task_completed" && activeFileId === file_id,
+			callback: (payload) => {
+				if (payload.type !== "task_completed" || activeFileId !== file_id) return
+				getFileVersion(file_id)
+			},
+		})
+
+		return () => {
+			unregister()
+		}
+	}, [activeFileId])
 
 	return {
 		loading,

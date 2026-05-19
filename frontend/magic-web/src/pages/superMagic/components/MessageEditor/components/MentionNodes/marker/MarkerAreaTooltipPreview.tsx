@@ -6,6 +6,10 @@ import { createStyles } from "antd-style"
 import { AREA_MARKER_STYLES } from "@/components/CanvasDesign/canvas/interaction/markers/markerStyles"
 import { MarkerTypeEnum } from "@/components/CanvasDesign/canvas/types"
 import { useMarkerImageUrl } from "./useMarkerImageUrl"
+import {
+	getCanvasMarkerMentionImagePath,
+	getSelectedCanvasMarkerMentionSuggestion,
+} from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 
 interface MarkerAreaTooltipPreviewProps {
 	markerData: CanvasMarkerMentionData
@@ -83,11 +87,11 @@ function MarkerAreaTooltipPreview({
 	const { styles, cx } = useStyles()
 	const isMobile = useIsMobile()
 	const imageRef = useRef<HTMLImageElement>(null)
-	const selectedIndex = markerData.data?.selectedSuggestionIndex || 0
-	const suggestion = markerData.data?.result?.suggestions?.[selectedIndex]
+	const suggestion = getSelectedCanvasMarkerMentionSuggestion(markerData)
 
 	const { imageUrl: imageUrlFromHook } = useMarkerImageUrl(
-		imageUrlProp !== undefined ? undefined : markerData.image_path,
+		imageUrlProp !== undefined ? undefined : getCanvasMarkerMentionImagePath(markerData),
+		markerData.design_project_id,
 	)
 	const imageUrl = imageUrlProp !== undefined ? imageUrlProp : imageUrlFromHook
 
@@ -103,15 +107,9 @@ function MarkerAreaTooltipPreview({
 		const width = imageWidth * imageScale
 		const height = imageHeight * imageScale
 
-		const marker = markerData.data
-		if (!marker || marker.type !== MarkerTypeEnum.Area) return null
-		const areaMarker = marker
-		const relativeX = areaMarker.relativeX || 0
-		const relativeY = areaMarker.relativeY || 0
-		const areaWidth = areaMarker.areaWidth || 0
-		const areaHeight = areaMarker.areaHeight || 0
-		const pixelAreaWidth = areaWidth * imageWidth
-		const pixelAreaHeight = areaHeight * imageHeight
+		if (markerData.mark_type !== MarkerTypeEnum.Area || !markerData.area) return null
+		const [relativeX = 0, relativeY = 0, pixelAreaWidth = 0, pixelAreaHeight = 0] =
+			markerData.area
 		const areaCenterX = relativeX + pixelAreaWidth / imageWidth / 2
 		const areaCenterY = relativeY + pixelAreaHeight / imageHeight / 2
 
@@ -139,23 +137,16 @@ function MarkerAreaTooltipPreview({
 				transform: `translate(${offsetX}px, ${offsetY}px)`,
 			},
 		}
-	}, [markerData.element_width, markerData.element_height, markerData.data])
+	}, [markerData.element_width, markerData.element_height, markerData.mark_type, markerData.area])
 
 	const areaMarkerStyle = useMemo(() => {
-		const marker = markerData.data
-		if (!marker || marker.type !== MarkerTypeEnum.Area || !imageStyle) {
+		if (markerData.mark_type !== MarkerTypeEnum.Area || !markerData.area || !imageStyle) {
 			return null
 		}
-		const areaMarker = marker
-		const relativeX = areaMarker.relativeX || 0
-		const relativeY = areaMarker.relativeY || 0
-		const areaWidth = areaMarker.areaWidth || 0
-		const areaHeight = areaMarker.areaHeight || 0
-
 		const imageWidth = markerData.element_width || 0
 		const imageHeight = markerData.element_height || 0
-		const pixelAreaWidth = areaWidth * imageWidth
-		const pixelAreaHeight = areaHeight * imageHeight
+		const [relativeX = 0, relativeY = 0, pixelAreaWidth = 0, pixelAreaHeight = 0] =
+			markerData.area
 		const scaledAreaWidth = (pixelAreaWidth / imageWidth) * imageStyle.width
 		const scaledAreaHeight = (pixelAreaHeight / imageHeight) * imageStyle.height
 
@@ -165,7 +156,13 @@ function MarkerAreaTooltipPreview({
 			left: imageStyle.offsetX + imageStyle.width * relativeX,
 			top: imageStyle.offsetY + imageStyle.height * relativeY,
 		}
-	}, [markerData.data, markerData.element_width, markerData.element_height, imageStyle])
+	}, [
+		markerData.mark_type,
+		markerData.area,
+		markerData.element_width,
+		markerData.element_height,
+		imageStyle,
+	])
 
 	if (!imageUrl) {
 		return <span className={cx(styles.previewFileName, className)}>{suggestion?.label}</span>

@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scientific Diagram — Template Preview</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="theme.css" />
+  <style>
+    html,
+    body {
+      width: auto;
+      height: auto;
+      min-height: 100%;
+      overflow: visible;
+    }
+
+    body {
+      background: #E8ECF0;
+      font-family: 'Noto Sans SC', sans-serif;
+      padding: 40px;
+      color: #1E293B;
+      margin: 0;
+    }
+
+    .page-title {
+      font-family: 'Lora', serif;
+      font-size: 28px;
+      color: #0D9488;
+      margin-bottom: 8px;
+    }
+
+    .page-meta {
+      font-size: 15px;
+      color: #64748B;
+      margin-bottom: 40px;
+    }
+
+    section {
+      margin-bottom: 40px;
+    }
+
+    .sec-heading {
+      font-family: 'Noto Sans SC', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748B;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      border-left: 0;
+      padding-left: 0;
+      margin: 40px 0 16px;
+    }
+
+    /* Color swatches */
+    .swatches {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .swatch {
+      width: 80px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .swatch-color {
+      order: 1;
+      width: 80px;
+      height: 52px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .swatch-name {
+      order: 2;
+      font-size: 11px;
+      color: #475569;
+      font-weight: 600;
+    }
+
+    .swatch-hex {
+      order: 3;
+      font-size: 11px;
+      color: #94A3B8;
+      font-family: monospace;
+    }
+
+    /* Layout thumbnails */
+    .layouts {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .layout-thumb {
+      aspect-ratio: 16/9;
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid #E2E8F0;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      cursor: pointer;
+      transition: transform .2s, box-shadow .2s;
+    }
+
+    .layout-thumb:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.13);
+    }
+
+    .slide-label {
+      position: absolute;
+      bottom: 8px;
+      left: 0;
+      right: 0;
+      background: rgba(30, 41, 59, 0.88);
+      color: #F8FAFC;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 3px 0;
+      text-align: center;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    /* Component gallery */
+    .components {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .comp-box {
+      background: #fff;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      padding: 28px;
+      box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+    }
+
+    .comp-title {
+      font-size: 11px;
+      color: #94A3B8;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+      font-weight: 700;
+    }
+
+    .comp-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="page-title">Scientific Diagram Style</div>
+  <p class="page-meta">Off-white base · authoritative serif type · scientific pathway colors · precise annotation-driven
+    layouts · 25 dedicated components</p>
+
+  <!-- Color swatches -->
+  <section>
+    <div class="sec-heading">Color Swatches</div>
+    <div class="swatches">
+      <div class="swatch">
+        <div class="swatch-color" style="background:#FAFAFA;border:1px solid #ddd;"></div>
+        <div class="swatch-hex">#FAFAFA</div>
+        <div class="swatch-name">Off-White Base</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#F0F4F8;"></div>
+        <div class="swatch-hex">#F0F4F8</div>
+        <div class="swatch-name">Secondary Background</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#1E293B;"></div>
+        <div class="swatch-hex">#1E293B</div>
+        <div class="swatch-name">Dark Slate</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#0D9488;"></div>
+        <div class="swatch-hex">#0D9488</div>
+        <div class="swatch-name">Pathway Teal</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#3B82F6;"></div>
+        <div class="swatch-hex">#3B82F6</div>
+        <div class="swatch-name">Pathway Blue</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#8B5CF6;"></div>
+        <div class="swatch-hex">#8B5CF6</div>
+        <div class="swatch-name">Pathway Purple</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#F59E0B;"></div>
+        <div class="swatch-hex">#F59E0B</div>
+        <div class="swatch-name">Membrane Amber</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#EF4444;"></div>
+        <div class="swatch-hex">#EF4444</div>
+        <div class="swatch-name">Alert Red</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#22C55E;"></div>
+        <div class="swatch-hex">#22C55E</div>
+        <div class="swatch-name">Product Green</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#475569;"></div>
+        <div class="swatch-hex">#475569</div>
+        <div class="swatch-name">Mid-Gray Text</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#94A3B8;"></div>
+        <div class="swatch-hex">#94A3B8</div>
+        <div class="swatch-name">Caption Gray</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#E2E8F0;"></div>
+        <div class="swatch-hex">#E2E8F0</div>
+        <div class="swatch-name">Light Border</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 dedicated layout types -->
+  <section>
+    <div class="sec-heading">8 Dedicated Layout Types</div>
+    <div class="layouts">
+
+      <!-- 1. Cover -->
+      <div class="layout-thumb">
+        <div
+          style="width:100%;height:100%;background:#1E293B;display:flex;flex-direction:column;justify-content:center;padding:16px 20px;gap:8px;position:relative;overflow:hidden;">
+          <div
+            style="position:absolute;inset:0;background-image:linear-gradient(rgba(13,148,136,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(13,148,136,0.07) 1px,transparent 1px);background-size:32px 32px;">
+          </div>
+          <div style="font-size:8px;color:#0D9488;letter-spacing:.14em;text-transform:uppercase;z-index:1;">Research
+            Paper · 2024</div>
+          <div style="font-family:Lora,serif;font-size:20px;font-weight:700;color:#F8FAFC;line-height:1.3;z-index:1;">
+            神经可塑性<br />科学图解风演示</div>
+          <div style="width:48px;height:2px;background:#0D9488;z-index:1;"></div>
+          <div style="font-size:9px;color:rgba(248,250,252,0.5);z-index:1;">作者姓名 · 研究机构 · 2024</div>
+        </div>
+        <div class="slide-label">Cover</div>
+      </div>
+
+      <!-- 2. Pathway -->
+      <div class="layout-thumb">
+        <div style="width:100%;height:100%;background:#FAFAFA;padding:12px;display:flex;flex-direction:column;gap:8px;">
+          <div
+            style="font-family:Lora,serif;font-size:13px;color:#1E293B;border-left:3px solid #0D9488;padding-left:7px;">
+            信号通路图解</div>
+          <div style="display:flex;align-items:center;gap:0;flex:1;justify-content:center;padding:0 8px;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <div
+                style="width:38px;height:38px;border-radius:50%;background:#0D9488;display:flex;align-items:center;justify-content:center;font-size:9px;color:white;font-weight:700;">
+                受体</div>
+              <div style="font-size:7px;color:#475569;text-align:center;">配体结合</div>
+            </div>
+            <div
+              style="flex:1;height:2px;background:linear-gradient(90deg,#0D9488,#3B82F6);position:relative;margin-bottom:14px;">
+              <div
+                style="position:absolute;right:-5px;top:-4px;border-left:9px solid #3B82F6;border-top:5px solid transparent;border-bottom:5px solid transparent;">
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <div
+                style="width:38px;height:38px;border-radius:50%;background:#3B82F6;display:flex;align-items:center;justify-content:center;font-size:9px;color:white;font-weight:700;">
+                激酶</div>
+              <div style="font-size:7px;color:#475569;text-align:center;">磷酸化</div>
+            </div>
+            <div
+              style="flex:1;height:2px;background:linear-gradient(90deg,#3B82F6,#8B5CF6);position:relative;margin-bottom:14px;">
+              <div
+                style="position:absolute;right:-5px;top:-4px;border-left:9px solid #8B5CF6;border-top:5px solid transparent;border-bottom:5px solid transparent;">
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <div
+                style="width:38px;height:38px;border-radius:50%;background:#8B5CF6;display:flex;align-items:center;justify-content:center;font-size:9px;color:white;font-weight:700;">
+                转录</div>
+              <div style="font-size:7px;color:#475569;text-align:center;">基因表达</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:center;">
+            <span style="font-size:7px;color:#0D9488;font-weight:600;">● 通路 I</span>
+            <span style="font-size:7px;color:#3B82F6;font-weight:600;">● 通路 II</span>
+            <span style="font-size:7px;color:#8B5CF6;font-weight:600;">● 通路 III</span>
+          </div>
+        </div>
+        <div class="slide-label">Pathway</div>
+      </div>
+
+      <!-- 3. Process -->
+      <div class="layout-thumb">
+        <div style="width:100%;height:100%;background:#FAFAFA;padding:12px;display:flex;flex-direction:column;gap:0;">
+          <div style="font-family:Lora,serif;font-size:13px;color:#1E293B;margin-bottom:8px;">实验流程</div>
+          <div style="display:flex;align-items:flex-start;gap:7px;padding:5px 0;border-bottom:1px solid #E2E8F0;">
+            <div
+              style="width:22px;height:22px;border-radius:50%;background:#0D9488;display:flex;align-items:center;justify-content:center;font-size:9px;color:white;font-weight:700;flex-shrink:0;">
+              1</div>
+            <div>
+              <div style="font-size:9px;font-weight:600;color:#1E293B;">样品制备</div>
+              <div style="font-size:8px;color:#475569;margin-top:1px;">4°C 离心 10 min</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:7px;padding:5px 0;border-bottom:1px solid #E2E8F0;">
+            <div
+              style="width:22px;height:22px;border-radius:50%;background:#3B82F6;display:flex;align-items:center;justify-content:center;font-size:9px;color:white;font-weight:700;flex-shrink:0;">
+              2</div>
+            <div>
+              <div style="font-size:9px;font-weight:600;color:#1E293B;">荧光标记</div>
+              <div style="font-size:8px;color:#475569;margin-top:1px;">FITC 抗体孵育</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:7px;padding:5px 0;">
+            <div
+              style="width:22px;height:22px;border-radius:50%;background:#8B5CF6;display:flex;align-items:center;justify-content:center;font-size:9px;color:white;font-weight:700;flex-shrink:0;">
+              3</div>
+            <div>
+              <div style="font-size:9px;font-weight:600;color:#1E293B;">数据分析</div>
+              <div style="font-size:8px;color:#475569;margin-top:1px;">统计显著性验证</div>
+            </div>
+          </div>
+        </div>
+        <div class="slide-label">Process</div>
+      </div>
+
+      <!-- 4. Compare -->
+      <div class="layout-thumb">
+        <div style="width:100%;height:100%;background:#FAFAFA;padding:12px;display:flex;flex-direction:column;gap:6px;">
+          <div style="font-family:Lora,serif;font-size:13px;color:#1E293B;margin-bottom:4px;">对比分析</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;">
+            <div
+              style="background:rgba(13,148,136,0.05);border:1px solid rgba(13,148,136,0.25);border-radius:4px;padding:7px;">
+              <div
+                style="font-size:8px;font-weight:700;color:#0D9488;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em;">
+                实验组</div>
+              <div style="font-size:7px;color:#475569;line-height:1.7;">· 活性：高<br />· 表达：显著上调<br />· p &lt; 0.001</div>
+            </div>
+            <div
+              style="background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.25);border-radius:4px;padding:7px;">
+              <div
+                style="font-size:8px;font-weight:700;color:#3B82F6;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em;">
+                对照组</div>
+              <div style="font-size:7px;color:#475569;line-height:1.7;">· 活性：基线<br />· 表达：无差异<br />· p = 0.43</div>
+            </div>
+          </div>
+          <div style="font-size:7px;color:#94A3B8;font-style:italic;border-top:1px solid #E2E8F0;padding-top:4px;">
+            结论：实验组效果显著优于对照组（n=120）</div>
+        </div>
+        <div class="slide-label">Compare</div>
+      </div>
+
+      <!-- 5. Data -->
+      <div class="layout-thumb">
+        <div style="width:100%;height:100%;background:#FAFAFA;padding:12px;display:flex;flex-direction:column;gap:6px;">
+          <div style="font-family:Lora,serif;font-size:13px;color:#1E293B;">数据图表</div>
+          <div style="display:flex;gap:8px;flex:1;">
+            <div
+              style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;border-bottom:1px solid #CBD5E1;border-left:1px solid #CBD5E1;padding:4px 4px 0;">
+              <div style="display:flex;align-items:flex-end;gap:3px;height:100%;">
+                <div style="flex:1;background:#0D9488;height:55%;border-radius:2px 2px 0 0;opacity:0.85;"></div>
+                <div style="flex:1;background:#3B82F6;height:80%;border-radius:2px 2px 0 0;opacity:0.85;"></div>
+                <div style="flex:1;background:#8B5CF6;height:65%;border-radius:2px 2px 0 0;opacity:0.85;"></div>
+                <div style="flex:1;background:#F59E0B;height:45%;border-radius:2px 2px 0 0;opacity:0.85;"></div>
+                <div style="flex:1;background:#22C55E;height:70%;border-radius:2px 2px 0 0;opacity:0.85;"></div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;justify-content:center;gap:4px;">
+              <div
+                style="background:rgba(13,148,136,0.08);border:1px solid rgba(13,148,136,0.3);border-radius:3px;padding:3px 6px;">
+                <div style="font-size:14px;font-weight:700;color:#0D9488;font-family:Lora,serif;">94.2%</div>
+                <div style="font-size:6px;color:#94A3B8;">准确率</div>
+              </div>
+              <div
+                style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:3px;padding:3px 6px;">
+                <div style="font-size:14px;font-weight:700;color:#3B82F6;font-family:Lora,serif;">0.03</div>
+                <div style="font-size:6px;color:#94A3B8;">p-value</div>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:7px;color:#94A3B8;font-style:italic;">Fig. 1 — 实验数据对比 (n=120, p&lt;0.05)</div>
+        </div>
+        <div class="slide-label">Data</div>
+      </div>
+
+      <!-- 6. Diagram -->
+      <div class="layout-thumb">
+        <div style="width:100%;height:100%;background:#FAFAFA;padding:12px;display:flex;flex-direction:column;gap:6px;">
+          <div style="font-family:Lora,serif;font-size:13px;color:#1E293B;">结构图示</div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;position:relative;">
+            <!-- Center circle -->
+            <div
+              style="width:56px;height:56px;border-radius:50%;background:rgba(13,148,136,0.12);border:2.5px solid #0D9488;display:flex;align-items:center;justify-content:center;font-size:8px;color:#0D9488;font-weight:700;text-align:center;line-height:1.3;z-index:2;">
+              细胞核<br />核心</div>
+            <!-- Annotations -->
+            <div
+              style="position:absolute;top:4px;right:12px;font-size:7px;color:#3B82F6;border:1px solid #3B82F6;padding:2px 5px;border-radius:2px;background:rgba(59,130,246,0.06);">
+              受体蛋白</div>
+            <div
+              style="position:absolute;bottom:6px;right:12px;font-size:7px;color:#8B5CF6;border:1px solid #8B5CF6;padding:2px 5px;border-radius:2px;background:rgba(139,92,246,0.06);">
+              信号分子</div>
+            <div
+              style="position:absolute;bottom:6px;left:12px;font-size:7px;color:#F59E0B;border:1px solid #F59E0B;padding:2px 5px;border-radius:2px;background:rgba(245,158,11,0.06);">
+              细胞膜</div>
+            <div
+              style="position:absolute;top:4px;left:12px;font-size:7px;color:#22C55E;border:1px solid #22C55E;padding:2px 5px;border-radius:2px;background:rgba(34,197,94,0.06);">
+              产物</div>
+          </div>
+          <div style="display:flex;gap:8px;justify-content:center;">
+            <span style="font-size:6px;color:#0D9488;">● 核心</span>
+            <span style="font-size:6px;color:#3B82F6;">● 受体</span>
+            <span style="font-size:6px;color:#F59E0B;">● 膜</span>
+          </div>
+        </div>
+        <div class="slide-label">Diagram</div>
+      </div>
+
+      <!-- 7. Section -->
+      <div class="layout-thumb">
+        <div
+          style="width:100%;height:100%;background:#1E293B;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;position:relative;overflow:hidden;">
+          <div
+            style="position:absolute;font-family:Lora,serif;font-size:72px;font-weight:700;color:rgba(255,255,255,0.05);line-height:1;user-select:none;">
+            II</div>
+          <div style="width:32px;height:2px;background:#0D9488;margin-bottom:10px;z-index:1;"></div>
+          <div
+            style="font-size:8px;color:#0D9488;letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px;z-index:1;">
+            Chapter Two</div>
+          <div
+            style="font-family:Lora,serif;font-size:17px;font-weight:700;color:#F8FAFC;text-align:center;z-index:1;line-height:1.4;">
+            研究方法<br />与实验设计</div>
+          <div
+            style="font-size:8px;color:rgba(248,250,252,0.45);margin-top:8px;font-style:italic;z-index:1;text-align:center;">
+            核心问题：如何验证假设？</div>
+        </div>
+        <div class="slide-label">Section</div>
+      </div>
+
+      <!-- 8. Closing -->
+      <div class="layout-thumb">
+        <div style="width:100%;height:100%;background:#FAFAFA;display:flex;flex-direction:column;padding:14px;gap:7px;">
+          <div
+            style="font-family:Lora,serif;font-size:15px;font-weight:700;color:#1E293B;border-bottom:2px solid #0D9488;padding-bottom:6px;">
+            结论与致谢</div>
+          <div style="font-size:8px;color:#475569;line-height:1.7;flex:1;">本研究验证了神经可塑性在学习记忆中的核心机制，BDNF
+            通路在突触重塑中发挥关键调控作用，为相关疾病治疗提供了新靶点。</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+            <span
+              style="font-size:7px;background:rgba(13,148,136,0.1);color:#0D9488;border:1px solid rgba(13,148,136,0.3);border-radius:10px;padding:2px 7px;font-weight:600;">神经科学</span>
+            <span
+              style="font-size:7px;background:rgba(59,130,246,0.1);color:#3B82F6;border:1px solid rgba(59,130,246,0.3);border-radius:10px;padding:2px 7px;font-weight:600;">突触可塑</span>
+          </div>
+          <div style="font-size:6px;color:#94A3B8;font-style:italic;border-top:1px solid #E2E8F0;padding-top:4px;">[1]
+            Smith et al., Nature 2023 · [2] Zhang et al., Cell 2024</div>
+        </div>
+        <div class="slide-label">Closing</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Core component gallery -->
+  <section>
+    <div class="sec-heading">Core Component Gallery</div>
+    <div class="components">
+
+      <!-- Pathway boxes and badges -->
+      <div class="comp-box">
+        <div class="comp-title">Pathway Box</div>
+        <div class="comp-row">
+          <span class="pathway-box p1">主要通路</span>
+          <span class="pathway-box p2">次要通路</span>
+          <span class="pathway-box p3">第三通路</span>
+          <span class="pathway-box pm">膜结构</span>
+          <span class="pathway-box pa">警示</span>
+          <span class="pathway-box pp">产物</span>
+        </div>
+        <div class="comp-title" style="margin-top:16px;">Badge</div>
+        <div class="comp-row">
+          <span class="sci-badge teal">神经科学</span>
+          <span class="sci-badge blue">分子生物</span>
+          <span class="sci-badge purple">遗传学</span>
+          <span class="sci-badge amber">细胞膜</span>
+          <span class="sci-badge red">关键分子</span>
+          <span class="sci-badge green">产物</span>
+          <span class="sci-badge dark">2024</span>
+        </div>
+        <div class="comp-title" style="margin-top:16px;">Sci Card</div>
+        <div class="sci-card sci-card-teal" style="padding:14px 18px;margin-bottom:10px;">
+          <div style="font-family:Lora,serif;font-size:16px;font-weight:600;color:#1E293B;">BDNF 信号传导机制</div>
+          <div style="font-size:13px;color:#475569;margin-top:4px;">通过 TrkB 受体激活 MAPK/ERK 通路，调控突触可塑性</div>
+        </div>
+        <div class="sci-card sci-card-blue" style="padding:14px 18px;">
+          <div style="font-family:Lora,serif;font-size:16px;font-weight:600;color:#1E293B;">LTP 长时程增强</div>
+          <div style="font-size:13px;color:#475569;margin-top:4px;">NMDA 受体依赖的突触强度持久增强现象</div>
+        </div>
+      </div>
+
+      <!-- KPI and progress bars -->
+      <div class="comp-box">
+        <div class="comp-title">Sci KPI</div>
+        <div style="display:flex;gap:14px;margin-bottom:18px;">
+          <div class="sci-kpi" style="flex:1;">
+            <span class="sci-kpi-number" style="font-size:42px;">94.2<span class="sci-kpi-unit"
+                style="font-size:18px;">%</span></span>
+            <span class="sci-kpi-label">突触激活率</span>
+          </div>
+          <div class="sci-kpi" style="flex:1;">
+            <span class="sci-kpi-number blue" style="font-size:42px;">3.2<span class="sci-kpi-unit"
+                style="font-size:16px;">×</span></span>
+            <span class="sci-kpi-label">效果倍增</span>
+          </div>
+          <div class="sci-kpi" style="flex:1;">
+            <span class="sci-kpi-number purple" style="font-size:42px;">0.03<span class="sci-kpi-unit"
+                style="font-size:14px;">p</span></span>
+            <span class="sci-kpi-label">显著性</span>
+          </div>
+        </div>
+        <div class="comp-title">Progress</div>
+        <div class="sci-progress">
+          <div class="sci-progress-label"><span>通路 A 活性</span><span style="color:#0D9488;font-weight:600;">78%</span>
+          </div>
+          <div class="sci-progress-track">
+            <div class="sci-progress-fill" style="width:78%;"></div>
+          </div>
+        </div>
+        <div class="sci-progress">
+          <div class="sci-progress-label"><span>通路 B 活性</span><span style="color:#3B82F6;font-weight:600;">52%</span>
+          </div>
+          <div class="sci-progress-track">
+            <div class="sci-progress-fill blue" style="width:52%;"></div>
+          </div>
+        </div>
+        <div class="sci-progress">
+          <div class="sci-progress-label"><span>通路 C 活性</span><span style="color:#8B5CF6;font-weight:600;">35%</span>
+          </div>
+          <div class="sci-progress-track">
+            <div class="sci-progress-fill purple" style="width:35%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step flow and legend -->
+      <div class="comp-box">
+        <div class="comp-title">Sci Step</div>
+        <div class="sci-step">
+          <div class="sci-step-num">1</div>
+          <div class="sci-step-content">
+            <div class="sci-step-title">样品制备与处理</div>
+            <div class="sci-step-desc">4°C 离心 10 min，收集上清液备用</div>
+          </div>
+        </div>
+        <div class="sci-step">
+          <div class="sci-step-num blue">2</div>
+          <div class="sci-step-content">
+            <div class="sci-step-title">荧光标记检测</div>
+            <div class="sci-step-desc">FITC 标记，流式细胞仪分析</div>
+          </div>
+        </div>
+        <div class="sci-step">
+          <div class="sci-step-num purple">3</div>
+          <div class="sci-step-content">
+            <div class="sci-step-title">统计分析验证</div>
+            <div class="sci-step-desc">双尾 t 检验，p &lt; 0.05 为显著</div>
+          </div>
+        </div>
+        <div class="comp-title" style="margin-top:18px;">Legend</div>
+        <div class="sci-legend">
+          <div class="sci-legend-item">
+            <div class="sci-legend-dot" style="background:#0D9488;"></div>通路 A
+          </div>
+          <div class="sci-legend-item">
+            <div class="sci-legend-dot" style="background:#3B82F6;"></div>通路 B
+          </div>
+          <div class="sci-legend-item">
+            <div class="sci-legend-dot" style="background:#8B5CF6;"></div>通路 C
+          </div>
+          <div class="sci-legend-item">
+            <div class="sci-legend-dot" style="background:#F59E0B;"></div>膜结构
+          </div>
+        </div>
+      </div>
+
+      <!-- Quote, callout, and info box -->
+      <div class="comp-box">
+        <div class="comp-title">Quote</div>
+        <div class="sci-quote" style="margin-bottom:14px;">
+          <div class="sci-quote-text">"突触可塑性是学习与记忆的神经生物学基础，也是大脑适应环境的核心机制。"</div>
+          <div class="sci-quote-source">— Kandel, E.R. (2000). Nobel Lecture</div>
+        </div>
+        <div class="comp-title">Callout</div>
+        <div class="sci-callout" style="margin-bottom:10px;">
+          <div class="sci-callout-icon">🔬</div>
+          <div class="sci-callout-body">
+            <div class="sci-callout-title">核心发现</div>
+            <div class="sci-callout-text">BDNF 浓度升高 3.2 倍时，LTP 维持时间显著延长（p &lt; 0.001）。</div>
+          </div>
+        </div>
+        <div class="sci-callout red">
+          <div class="sci-callout-icon">⚠️</div>
+          <div class="sci-callout-body">
+            <div class="sci-callout-title">注意事项</div>
+            <div class="sci-callout-text">样本量有限（n=48），需更大规模临床验证。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="comp-box">
+        <div class="comp-title">Timeline</div>
+        <div class="sci-timeline">
+          <div class="sci-timeline-item">
+            <div class="sci-timeline-dot filled">49</div>
+            <div class="sci-timeline-content">
+              <div class="sci-timeline-year">1949</div>
+              <div class="sci-timeline-title">Hebb 学习规则</div>
+              <div class="sci-timeline-desc">提出突触可塑性的细胞机制理论基础</div>
+            </div>
+          </div>
+          <div class="sci-timeline-item">
+            <div class="sci-timeline-dot filled blue">73</div>
+            <div class="sci-timeline-content">
+              <div class="sci-timeline-year" style="color:#3B82F6;">1973</div>
+              <div class="sci-timeline-title">LTP 发现</div>
+              <div class="sci-timeline-desc">Bliss & Lømo 首次记录长时程增强现象</div>
+            </div>
+          </div>
+          <div class="sci-timeline-item">
+            <div class="sci-timeline-dot filled purple">00</div>
+            <div class="sci-timeline-content">
+              <div class="sci-timeline-year" style="color:#8B5CF6;">2000</div>
+              <div class="sci-timeline-title">诺贝尔奖</div>
+              <div class="sci-timeline-desc">Kandel 因突触可塑性研究获诺贝尔生理学奖</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info box, section label, and table -->
+      <div class="comp-box">
+        <div class="comp-title">Info Box</div>
+        <div class="sci-section-label">SECTION 01 — 研究背景</div>
+        <div class="sci-info-box" style="margin-bottom:10px;">
+          <div class="sci-info-title">核心发现</div>
+          <div style="font-size:14px;color:#475569;">通路 A 激活显著提升细胞存活率，效果优于对照组 3.2 倍（p &lt; 0.01）。</div>
+        </div>
+        <div class="sci-info-box blue" style="margin-bottom:16px;">
+          <div class="sci-info-title blue">研究局限</div>
+          <div style="font-size:14px;color:#475569;">样本量有限，需更大规模临床验证研究。</div>
+        </div>
+        <div class="comp-title">Table</div>
+        <table class="sci-table">
+          <thead>
+            <tr>
+              <th>指标</th>
+              <th>实验组</th>
+              <th>对照组</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>活性率</td>
+              <td class="highlight">94.2%</td>
+              <td>31.5%</td>
+            </tr>
+            <tr>
+              <td>p-value</td>
+              <td class="highlight">&lt;0.001</td>
+              <td>0.43</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </section>
+
+</body>
+
+</html>

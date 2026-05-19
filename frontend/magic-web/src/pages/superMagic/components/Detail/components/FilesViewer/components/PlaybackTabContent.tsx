@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef } from "react"
+import { memo, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { isEmpty } from "lodash-es"
 import { Flex, Tooltip } from "antd"
@@ -13,11 +13,7 @@ import useToolSteps from "../../../hooks/useToolSteps"
 import useDetailState from "../../../hooks/useDetailState"
 import useToolStepState from "../../../hooks/useToolStepState"
 import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
-import type {
-	TaskStatus,
-	Topic,
-	ProjectListItem,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { TaskStatus, Topic, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import BreathingLight from "../resource/breathingLight"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -84,6 +80,9 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 	// 用于引用父元素（保留 ref 用于其他可能的用途）
 	const renderContainerRef = useRef<HTMLDivElement>(null)
 
+	// portal 挂载点：Md 组件会通过 createPortal 将工具栏按钮渲染到此元素内
+	const [mdToolbarEl, setMdToolbarEl] = useState<HTMLDivElement | null>(null)
+
 	// 使用 useToolSteps hook 处理工具步骤逻辑
 	const {
 		toolSteps,
@@ -127,8 +126,10 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 	// 修正 disPlayDetail 的类型：如果 metadata.type 是 design 但 type 是 notSupport，需要修正
 	// 这个修正逻辑在源头（工具调用生成 detail 时）无法处理，因为 detail 可能来自后端
 	const correctedDisPlayDetail = useMemo(() => {
-		return correctDetailType(disPlayDetail)
-	}, [disPlayDetail])
+		return correctDetailType(disPlayDetail, {
+			attachmentList,
+		})
+	}, [attachmentList, disPlayDetail])
 
 	// 获取当前文件的视图模式
 	const { mode: currentFileViewMode, id: detailId } = useMemo(() => {
@@ -174,7 +175,11 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 		<div className="flex h-full flex-col overflow-hidden p-[14px]">
 			{/* 虚拟机头部 */}
 			{!isFileShare && (
-				<Flex justify="space-between" className="mb-[14px] flex h-6 items-center gap-1">
+				<Flex
+					justify="space-between"
+					className="mb-[14px] flex h-6 items-center gap-1"
+					align="center"
+				>
 					<Flex align="center" gap={4}>
 						<StatusIcon status={currentTopicStatus} className="shrink-0" />
 						<span className="shrink-0 text-[18px] font-medium leading-6 text-foreground">
@@ -197,7 +202,7 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 											className={cn(
 												"max-w-[300px] shrink overflow-hidden text-ellipsis whitespace-nowrap text-xs font-normal leading-[18px] text-foreground",
 												currentTopicStatus === "running" &&
-												"animate-skeleton bg-[linear-gradient(90deg,#eef3fd_0%,#315cec_17.79%,#d3dffb_50%,#315cec_82.21%,#eef3fd_100%)] bg-[length:200%_100%] bg-clip-text text-transparent dark:bg-[linear-gradient(90deg,rgba(59,130,246,0.2)_0%,rgba(96,165,250,0.8)_17.79%,rgba(59,130,246,0.4)_50%,rgba(96,165,250,0.8)_82.21%,rgba(59,130,246,0.2)_100%)]",
+													"animate-skeleton bg-[linear-gradient(90deg,#eef3fd_0%,#315cec_17.79%,#d3dffb_50%,#315cec_82.21%,#eef3fd_100%)] bg-[length:200%_100%] bg-clip-text text-transparent dark:bg-[linear-gradient(90deg,rgba(59,130,246,0.2)_0%,rgba(96,165,250,0.8)_17.79%,rgba(59,130,246,0.4)_50%,rgba(96,165,250,0.8)_82.21%,rgba(59,130,246,0.2)_100%)]",
 											)}
 										>
 											{currentToolStep.action}
@@ -213,9 +218,11 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 								</div>
 							)}
 					</Flex>
-					{shouldShowOpenSourceFileButton && (
-						<Flex align="center" gap={4}>
-							{/* 打开原文件按钮 */}
+					<Flex align="center" gap={4}>
+						{/* Md 工具栏 portal 挂载点，Md 组件会渲染渲染/原文/复制按钮到此处 */}
+						<div ref={setMdToolbarEl} />
+						{/* 打开原文件按钮 */}
+						{shouldShowOpenSourceFileButton && (
 							<ActionButton
 								icon={IconExternalLink}
 								text={t("playbackControl.openSourceFile")}
@@ -225,20 +232,21 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 								showText={true}
 								title={t("playbackControl.openSourceFile")}
 							/>
-						</Flex>
-					)}
+						)}
+					</Flex>
 				</Flex>
 			)}
 
 			<div
 				ref={renderContainerRef}
 				className={cn(
-					"relative h-full overflow-hidden rounded-t-lg border border-border",
+					"relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-t-lg border border-border",
 					isShareRoute && "rounded-lg",
 					isFileShare && "border-none",
 				)}
 			>
 				<Render
+					mdToolbarContainer={mdToolbarEl}
 					type={(correctedDisPlayDetail as any)?.type}
 					data={(correctedDisPlayDetail as any)?.data}
 					attachments={attachments}
@@ -260,7 +268,7 @@ function PlaybackTabContent(props: PlaybackTabContentProps) {
 					isFullscreen={isFullscreen}
 					attachmentList={attachmentList}
 					viewMode={currentFileViewMode}
-					metadata={meta?.metadata}
+					displayConfig={meta?.display_config}
 					onViewModeChange={(mode: "code" | "desktop" | "phone") => {
 						if (detailId && handleViewModeChange) handleViewModeChange(detailId, mode)
 					}}

@@ -3,7 +3,22 @@ import { useCanvasUI } from "../../../../context/CanvasUIContext"
 import { useCanvas } from "../../../../context/CanvasContext"
 import SizeInput from "./SizeInput"
 
-export default function Size() {
+export type SizeControlledState = {
+	width: number
+	height: number
+	aspectRatioLocked: boolean
+	onWidthChange: (value: number) => void
+	onHeightChange: (value: number) => void
+	onToggleLock: () => void
+}
+
+type SizeProps = {
+	controlled?: SizeControlledState
+	/** 与 controlled 联用：宽高输入区在横向上等分铺满容器 */
+	fullWidth?: boolean
+}
+
+export default function Size({ controlled, fullWidth }: SizeProps) {
 	const { selectedElements } = useCanvasUI()
 	const { canvas } = useCanvas()
 
@@ -70,6 +85,21 @@ export default function Size() {
 			},
 		})
 	}, [selectedElement, isLocked, canvas])
+
+	if (controlled) {
+		return (
+			<SizeInput
+				width={controlled.width}
+				height={controlled.height}
+				isLocked={controlled.aspectRatioLocked}
+				isAutoFill={fullWidth}
+				onWidthChange={controlled.onWidthChange}
+				onHeightChange={controlled.onHeightChange}
+				onToggleLock={controlled.onToggleLock}
+				commitOnInput
+			/>
+		)
+	}
 
 	return (
 		<SizeInput

@@ -12,6 +12,7 @@ use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\ImageGenerateRequest
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Request\OfficialProxyRequest;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\ImageGenerateResponse;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Response\OpenAIFormatResponse;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\MagicUriTool;
 use Exception;
 use GuzzleHttp\Client;
@@ -26,6 +27,8 @@ use Throwable;
  */
 class OfficialProxyModel extends AbstractImageGenerate
 {
+    use ImagePayloadLogSanitizerTrait;
+
     protected string $url;
 
     protected string $apiKey;
@@ -54,7 +57,7 @@ class OfficialProxyModel extends AbstractImageGenerate
 
             $this->logger->info('官方代理：发送图片生成请求', [
                 'url' => $fullUrl,
-                'data' => $data,
+                'data' => $this->sanitizePayloadForLog($data),
             ]);
 
             $response = $this->httpClient->post($fullUrl, [

@@ -9,8 +9,6 @@ interface UseCanvasEventListenersOptions {
 	readonly?: boolean
 	/** Magic 方法 */
 	methods?: CanvasDesignMethods
-	/** marker 选中状态变化回调 */
-	onMarkerSelectChange?: (markerId: string | null) => void
 	/** 创建 marker 前的回调 */
 	beforeMarkerCreate?: (marker: Marker) => void
 	/** marker 创建回调 */
@@ -31,7 +29,6 @@ export function useCanvasEventListeners(options: UseCanvasEventListenersOptions)
 	const {
 		readonly,
 		methods,
-		onMarkerSelectChange,
 		beforeMarkerCreate,
 		onMarkerCreated,
 		onMarkerDeleted,
@@ -42,7 +39,6 @@ export function useCanvasEventListeners(options: UseCanvasEventListenersOptions)
 	const { canvas } = useCanvas()
 
 	// 使用 useLatest 保存回调函数引用，避免重复订阅
-	const onMarkerSelectChangeRef = useLatest(onMarkerSelectChange)
 	const beforeMarkerCreateRef = useLatest(beforeMarkerCreate)
 	const onMarkerCreatedRef = useLatest(onMarkerCreated)
 	const onMarkerDeletedRef = useLatest(onMarkerDeleted)
@@ -67,17 +63,6 @@ export function useCanvasEventListeners(options: UseCanvasEventListenersOptions)
 			}
 		},
 		{ wait: 300 },
-	)
-
-	// 监听 marker 选中状态变化
-	useCanvasEvents(
-		["marker:select"] as const,
-		(event) => {
-			if (onMarkerSelectChangeRef.current) {
-				onMarkerSelectChangeRef.current(event.data.id)
-			}
-		},
-		[canvas],
 	)
 
 	// 监听 marker 创建前事件

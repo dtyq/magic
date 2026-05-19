@@ -1,21 +1,23 @@
 import animate from "tailwindcss-animate"
 import colors from "tailwindcss/colors"
 
-function oklchColor(colorVar, alphaValue = "1") {
-	return `oklch(var(${colorVar}) / calc(${alphaValue} * <alpha-value>))`
+function rgbColor(colorVar, alphaValue = "1") {
+	return `rgb(var(${colorVar}-rgb) / calc(${alphaValue} * <alpha-value>))`
 }
 
 const config = {
 	darkMode: ["class"],
-	content: [
-		"./index.html",
-		"./shared.html",
-		"./search.html",
-		"./dingtalk.html",
-		"./src/**/*.{ts,tsx,js,jsx}",
-		"./enterprise/src/**/*.{ts,tsx,js,jsx}",
-		"./node_modules/@dtyq/user-selector/dist/**/*.js",
-	],
+	content: {
+		relative: true,
+		files: [
+			"./index.html",
+			"./shared.html",
+			"./search.html",
+			"./dingtalk.html",
+			"./src/**/*.{ts,tsx,jsx}",
+			"!./src/**/node_modules/**",
+		],
+	},
 	theme: {
 		container: {
 			center: true,
@@ -26,6 +28,7 @@ const config = {
 		},
 		extend: {
 			zIndex: {
+				"detail-fullscreen": "var(--z-index-detail-fullscreen)",
 				popup: "var(--z-index-popup)",
 				dialog: "var(--z-index-dialog)",
 				dropdown: "var(--z-index-dropdown)",
@@ -33,6 +36,7 @@ const config = {
 				tooltip: "var(--z-index-tooltip)",
 				modal: "var(--z-index-modal)",
 				select: "var(--z-index-select)",
+				sheet: "var(--z-index-sheet)",
 			},
 			height: {
 				"mobile-tabbar": "var(--mobile-tabbar-height, 60px)",
@@ -52,63 +56,64 @@ const config = {
 				"safe-right": "var(--safe-area-inset-right, env(safe-area-inset-right))",
 			},
 			colors: {
-				border: oklchColor("--border", "var(--border-alpha)"),
-				input: oklchColor("--input", "var(--input-alpha)"),
-				ring: oklchColor("--ring"),
-				background: oklchColor("--background"),
-				fill: oklchColor("--fill"),
-				"fill-secondary": oklchColor("--fill-secondary", "var(--fill-secondary-alpha)"),
+				border: rgbColor("--border", "var(--border-alpha)"),
+				input: rgbColor("--input", "var(--input-alpha)"),
+				ring: rgbColor("--ring"),
+				background: rgbColor("--background"),
+				fill: rgbColor("--fill"),
+				"fill-secondary": rgbColor("--fill-secondary", "var(--fill-secondary-alpha)"),
 				foreground: {
-					DEFAULT: oklchColor("--foreground"),
+					DEFAULT: rgbColor("--foreground"),
 					blue: colors.blue[500],
 					indigo: colors.indigo[500],
 				},
 				primary: {
-					DEFAULT: oklchColor("--primary"),
-					foreground: oklchColor("--primary-foreground"),
+					DEFAULT: rgbColor("--primary"),
+					foreground: rgbColor("--primary-foreground"),
 					10: "var(--custom-primary-10-dark-primary-20)",
 				},
 				secondary: {
-					DEFAULT: oklchColor("--secondary"),
-					foreground: oklchColor("--secondary-foreground"),
+					DEFAULT: rgbColor("--secondary"),
+					foreground: rgbColor("--secondary-foreground"),
 				},
 				destructive: {
-					DEFAULT: oklchColor("--destructive"),
-					foreground: oklchColor("--destructive-foreground"),
+					DEFAULT: rgbColor("--destructive"),
+					foreground: rgbColor("--destructive-foreground"),
 					custom: "var(--custom-destructive-60)",
 				},
 				muted: {
-					DEFAULT: oklchColor("--muted"),
-					foreground: oklchColor("--muted-foreground"),
+					DEFAULT: rgbColor("--muted"),
+					foreground: rgbColor("--muted-foreground"),
 				},
+				info: rgbColor("--info"),
 				accent: {
-					DEFAULT: oklchColor("--accent"),
-					foreground: oklchColor("--accent-foreground"),
+					DEFAULT: rgbColor("--accent"),
+					foreground: rgbColor("--accent-foreground"),
 				},
 				popover: {
-					DEFAULT: oklchColor("--popover"),
-					foreground: oklchColor("--popover-foreground"),
+					DEFAULT: rgbColor("--popover"),
+					foreground: rgbColor("--popover-foreground"),
 				},
 				card: {
-					DEFAULT: oklchColor("--card"),
-					foreground: oklchColor("--card-foreground"),
+					DEFAULT: rgbColor("--card"),
+					foreground: rgbColor("--card-foreground"),
 				},
 				chart: {
-					1: oklchColor("--chart-1"),
-					2: oklchColor("--chart-2"),
-					3: oklchColor("--chart-3"),
-					4: oklchColor("--chart-4"),
-					5: oklchColor("--chart-5"),
+					1: rgbColor("--chart-1"),
+					2: rgbColor("--chart-2"),
+					3: rgbColor("--chart-3"),
+					4: rgbColor("--chart-4"),
+					5: rgbColor("--chart-5"),
 				},
 				sidebar: {
-					DEFAULT: oklchColor("--sidebar"),
-					foreground: oklchColor("--sidebar-foreground"),
-					primary: oklchColor("--sidebar-primary"),
-					"primary-foreground": oklchColor("--sidebar-primary-foreground"),
-					accent: oklchColor("--sidebar-accent"),
-					"accent-foreground": oklchColor("--sidebar-accent-foreground"),
-					border: oklchColor("--sidebar-border", "var(--sidebar-border-alpha)"),
-					ring: oklchColor("--sidebar-ring"),
+					DEFAULT: rgbColor("--sidebar"),
+					foreground: rgbColor("--sidebar-foreground"),
+					primary: rgbColor("--sidebar-primary"),
+					"primary-foreground": rgbColor("--sidebar-primary-foreground"),
+					accent: rgbColor("--sidebar-accent"),
+					"accent-foreground": rgbColor("--sidebar-accent-foreground"),
+					border: rgbColor("--sidebar-border", "var(--sidebar-border-alpha)"),
+					ring: rgbColor("--sidebar-ring"),
 				},
 			},
 			boxShadow: {
@@ -143,6 +148,10 @@ const config = {
 				fadeInUp: {
 					from: { transform: "translateY(20px)", opacity: "0" },
 					to: { transform: "translateY(0)", opacity: "1" },
+				},
+				scaleIn: {
+					from: { transform: "scale(0.6)", opacity: "0" },
+					to: { transform: "scale(1)", opacity: "1" },
 				},
 				"super-magic-message-enter-subtle": {
 					"0%": {

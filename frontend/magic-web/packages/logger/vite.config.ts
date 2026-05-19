@@ -11,7 +11,7 @@ export default defineConfig({
 			},
 			formats: ["es", "cjs"],
 		},
-		rollupOptions: {
+		rolldownOptions: {
 			external: ["@apmplus/web", "@arms/rum-browser"],
 		},
 	},

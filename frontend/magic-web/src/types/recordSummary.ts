@@ -4,11 +4,7 @@
  */
 
 import { VoiceResultUtterance } from "@/components/business/VoiceInput/services/VoiceClient/types"
-import {
-	ProjectListItem,
-	Topic,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { StoredAudioChunk } from "@/services/recordSummary/MediaRecorderService/AudioChunkDB"
 import { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 
@@ -180,6 +176,19 @@ export interface AudioSourceConfig {
 	source: AudioSourceType // Audio source type
 	microphoneGain?: number // Microphone gain (0-1), default 1.0
 	systemGain?: number // System audio gain (0-1), default 1.0
+	/**
+	 * Optional constraints for the microphone track.
+	 * `deviceId` can be a specific device ID string (to target a particular
+	 * microphone) or left undefined to follow the OS default.
+	 */
+	microphoneConstraints?: {
+		echoCancellation?: boolean
+		noiseSuppression?: boolean
+		autoGainControl?: boolean
+		sampleRate?: number
+		channelCount?: number
+		deviceId?: string | { ideal?: string; exact?: string }
+	}
 }
 
 // Media recorder configuration (using recorder-core for WAV recording)
@@ -244,6 +253,7 @@ export interface RecordingConfig {
 export interface RecordingDirectory {
 	directory_path: string
 	directory_id: string
+	parent_id: string
 	hidden: boolean
 	type: "asr_hidden_dir" | "asr_display_dir"
 }
@@ -258,6 +268,7 @@ export interface PresetFile {
 	file_id: string
 	file_name: string
 	file_path: string
+	parent_id: string
 }
 
 export interface PresetFiles {

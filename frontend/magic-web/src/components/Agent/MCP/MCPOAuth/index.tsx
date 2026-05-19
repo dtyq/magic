@@ -10,6 +10,7 @@ import { useMemoizedFn, useRequest, useThrottleEffect } from "ahooks"
 import { FlowApi } from "@/apis"
 import { MCPOAuthService } from "../service/MCPOAuthService"
 import { generateCallbackUrl } from "../helpers"
+import { renderMarkdownLinks } from "../renderMarkdownLinks"
 import { trim, isString } from "lodash-es"
 import MagicImage from "@/components/base/MagicImage"
 import { useTranslation } from "react-i18next"
@@ -60,7 +61,7 @@ export default function MCPOAuth(props: MCPEditor) {
 				} else {
 					const fieldNames = details.require_fields.map((i) => i.field_name)
 
-					const formData = data.require_fields.reduce<Record<string, any>>(
+					const formData = data.require_fields.reduce<Record<string, unknown>>(
 						(res, item) => {
 							res[item.field_name] = item.field_value
 							return res
@@ -160,7 +161,10 @@ export default function MCPOAuth(props: MCPEditor) {
 					<Flex vertical>
 						<span className={styles.title}>{mcpInfo?.name}</span>
 						<span className={styles.desc}>
-							{mcpInfo?.description || t("mcp.card.desc")}
+							{renderMarkdownLinks(mcpInfo?.description || t("mcp.card.desc"), {
+								linkClassName: styles.descLink,
+								linkTestId: "agent-mcp-oauth-description-link",
+							})}
 						</span>
 					</Flex>
 				</Flex>

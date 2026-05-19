@@ -43,7 +43,7 @@ export class MessageEditorStore {
 		this.fileUploadStore = new FileUploadStore({
 			projectFilesStore: options.projectFilesStore,
 		})
-		this.topicModelStore = createSuperMagicTopicModelStore()
+		this.topicModelStore = options.topicModelStore ?? createSuperMagicTopicModelStore()
 		// Note: config parameter will be added in Phase 2 for fileUploadStore
 		if (options.mentionPanelStore) {
 			this.draftStore.setMentionPanelStore(options.mentionPanelStore)
@@ -124,4 +124,5 @@ interface SetValueOptions {
 interface MessageEditorStoreOptions {
 	mentionPanelStore?: DataService
 	projectFilesStore?: ProjectFilesStore
+	topicModelStore?: ReturnType<typeof createSuperMagicTopicModelStore>
 }

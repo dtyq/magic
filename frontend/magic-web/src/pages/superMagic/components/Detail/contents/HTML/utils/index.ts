@@ -1,5 +1,119 @@
 import { env } from "@/utils/env"
+import { normalizeConflictingBackgroundDeclarations } from "./background-style"
 import { getEditingScript } from "./editing-script"
+
+interface ShouldPromptForServerUpdateOptions {
+	latestContent: string
+	sessionBaselineContent?: string | null
+	lastLocalSavedContent?: string | null
+}
+
+interface ResolveServerUpdateStateResult {
+	shouldPrompt: boolean
+	nextLastLocalSavedContent: string | null
+}
+
+interface AttemptHtmlSaveFlowOptions {
+	shouldExitAfterSave?: boolean
+	refreshServerUpdateState: () => Promise<boolean>
+	showConflictDialog: () => void
+	checkServerUpdateBeforeSave: () => boolean
+	performSave: () => Promise<void>
+	exitEditMode?: () => void
+	onRefreshServerUpdateError?: (error: unknown) => void
+}
+
+interface AttemptHtmlSaveFlowResult {
+	didSave: boolean
+	isAwaitingConflictConfirmation: boolean
+}
+
+interface ConfirmHtmlConflictSaveOptions {
+	shouldExitAfterSave?: boolean
+	performSave: () => Promise<void>
+	exitEditMode?: () => void
+}
+
+export function shouldPromptForServerUpdate({
+	latestContent,
+	sessionBaselineContent,
+	lastLocalSavedContent,
+}: ShouldPromptForServerUpdateOptions) {
+	// No prompt is needed when the latest server payload still matches the baseline
+	// that this edit session is built on.
+	if (latestContent === sessionBaselineContent) return false
+	// Ignore the refresh caused by the user's own successful save, even if the editor keeps extra markers locally.
+	if (lastLocalSavedContent && latestContent === lastLocalSavedContent) return false
+
+	return true
+}
+
+export function resolveServerUpdateState({
+	latestContent,
+	sessionBaselineContent,
+	lastLocalSavedContent,
+}: ShouldPromptForServerUpdateOptions): ResolveServerUpdateStateResult {
+	const matchedLastLocalSave =
+		lastLocalSavedContent !== null &&
+		lastLocalSavedContent !== undefined &&
+		latestContent === lastLocalSavedContent
+
+	return {
+		shouldPrompt: shouldPromptForServerUpdate({
+			latestContent,
+			sessionBaselineContent,
+			lastLocalSavedContent,
+		}),
+		// Clear the local-save marker once it has been consumed by a matching server refresh.
+		nextLastLocalSavedContent: matchedLastLocalSave ? null : (lastLocalSavedContent ?? null),
+	}
+}
+
+export async function attemptHtmlSaveFlow({
+	shouldExitAfterSave = false,
+	refreshServerUpdateState,
+	showConflictDialog,
+	checkServerUpdateBeforeSave,
+	performSave,
+	exitEditMode,
+	onRefreshServerUpdateError,
+}: AttemptHtmlSaveFlowOptions): Promise<AttemptHtmlSaveFlowResult> {
+	try {
+		const hasLatestConflict = await refreshServerUpdateState()
+		if (hasLatestConflict) {
+			showConflictDialog()
+			return {
+				didSave: false,
+				isAwaitingConflictConfirmation: true,
+			}
+		}
+	} catch (error) {
+		onRefreshServerUpdateError?.(error)
+		if (!checkServerUpdateBeforeSave()) {
+			return {
+				didSave: false,
+				isAwaitingConflictConfirmation: true,
+			}
+		}
+	}
+
+	await performSave()
+	if (shouldExitAfterSave) exitEditMode?.()
+
+	return {
+		didSave: true,
+		isAwaitingConflictConfirmation: false,
+	}
+}
+
+export async function confirmHtmlConflictSave({
+	shouldExitAfterSave = false,
+	performSave,
+	exitEditMode,
+}: ConfirmHtmlConflictSaveOptions) {
+	await performSave()
+	if (shouldExitAfterSave) exitEditMode?.()
+}
 
 // 外部资源URL
 // const TAILWIND_CSS_URL = "https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.0/tailwind.min.css"
@@ -174,7 +288,7 @@ export function processSlidesArray(data: {
 	urlMap: Map<string, any>
 	slidesMap: Map<string, string>
 	htmlRelativeFolderPath: string
-	metadata?: any
+	displayConfig?: any
 }): void {
 	const {
 		htmlDoc,
@@ -183,9 +297,9 @@ export function processSlidesArray(data: {
 		urlMap,
 		slidesMap,
 		htmlRelativeFolderPath,
-		metadata,
+		displayConfig,
 	} = data
-	const slides = metadata?.slides || []
+	const slides = displayConfig?.slides || []
 	//新的ppt模式
 	if (slides.length > 0) {
 		slides.forEach((slidePath: string) => {
@@ -367,49 +481,151 @@ export function getContentTypeFromExtension(filePath: string): string {
 	}
 }
 
-export const handleHtCdnUrl = (content: string) => {
-	if (!env("MAGIC_CDNHOST")) {
-		return content
+/**
+ * 将常见公网 CDN 外链改写为 MAGIC_CDNHOST 下的镜像地址。
+ *
+ * `fetchInterceptor` 会把本函数 `toString()` 注入 iframe：实现必须只依赖参数与函数体内局部变量，
+ * 不要引用 env 等模块级绑定，否则压缩后子页面会 ReferenceError（如 `i is not defined`）。
+ */
+export function rewriteHtmlCdnWithHost(content: string, cdnHost: string): Document {
+	if (!cdnHost) {
+		const parser = new DOMParser()
+		return parser.parseFromString(content, "text/html")
 	}
+
 	/** 替换的静态资源包映射 */
 	const packages = {
 		tailwindcss: {
-			"2.2.0": `${env("MAGIC_CDNHOST")}/tailwindcss/2.2.0/tailwind.min.css`,
-			"3.4.17": `${env("MAGIC_CDNHOST")}/tailwindcss/3.4.17/tailwind.min.js`,
+			"2.2.0": `${cdnHost}/tailwindcss/2.2.0/tailwind.min.css`,
+			"3.4.17": `${cdnHost}/tailwindcss/3.4.17/tailwind.min.js`,
 		},
-		fontAwesome: `${env("MAGIC_CDNHOST")}/font-awesome/6.7.2/css/all.min.css`,
+		fontAwesome: `${cdnHost}/font-awesome/6.7.2/css/all.min.css`,
 		marked: {
-			"11.1.1": `${env("MAGIC_CDNHOST")}/marked/11.1.1/marked.min.js`,
+			"11.1.1": `${cdnHost}/marked/11.1.1/marked.min.js`,
 		},
 		simpleMindMap: {
 			"0.10.2": {
-				js: `${env("MAGIC_CDNHOST")}/simple-mind-map/0.10.2/simpleMindMap.umd.min.js`,
-				css: `${env("MAGIC_CDNHOST")}/simple-mind-map/0.10.2/simpleMindMap.esm.css`,
+				js: `${cdnHost}/simple-mind-map/0.10.2/simpleMindMap.umd.min.js`,
+				css: `${cdnHost}/simple-mind-map/0.10.2/simpleMindMap.esm.css`,
 			},
 		},
 		"countup.js": {
 			"2.8.0": {
-				js: `${env("MAGIC_CDNHOST")}/countup.js/2.8.0/countUp.umd.js`,
+				js: `${cdnHost}/countup.js/2.8.0/countUp.umd.js`,
 			},
 		},
 		echarts: {
-			["5.6.0"]: `${env("MAGIC_CDNHOST")}/echarts/5.6.0/echarts.min.js`,
-			["6.0.0"]: `${env("MAGIC_CDNHOST")}/echarts/6.0.0/echarts.min.js`,
+			["5.6.0"]: `${cdnHost}/echarts/5.6.0/echarts.min.js`,
+			["6.0.0"]: `${cdnHost}/echarts/6.0.0/echarts.min.js`,
 		},
 		qrcode: {
-			["1.0.0"]: `${env("MAGIC_CDNHOST")}/qrcodejs/1.0.0/qrcode.min.js`,
+			["1.0.0"]: `${cdnHost}/qrcodejs/1.0.0/qrcode.min.js`,
 		},
+	}
+
+	const GOOGLE_FONT_HOSTS: ReadonlySet<string> = new Set([
+		"fonts.googleapis.com",
+		"fonts.googlefonts.cn",
+	])
+
+	function parseHref(href: string): URL | null {
+		let urlStr = href
+		if (urlStr.startsWith("//")) urlStr = "https:" + urlStr
+		if (!urlStr.startsWith("http")) urlStr = "https://" + urlStr
+		try {
+			return new URL(urlStr)
+		} catch (_) {
+			return null
+		}
+	}
+
+	function parseFontFamilies(parsed: URL): string[] {
+		const rawEntries =
+			parsed.pathname === "/css2"
+				? parsed.searchParams.getAll("family")
+				: (parsed.searchParams.get("family") || "").split("|")
+
+		return rawEntries
+			.map((entry) => entry.split(":")[0].replace(/\+/g, " ").trim())
+			.filter(Boolean)
+	}
+
+	function toSafeFontName(familyName: string): string {
+		return familyName.replace(/\s+/g, "_")
+	}
+
+	// 谷歌资源重写规则
+	const googleRewriteRules: {
+		match: (parsed: URL) => boolean
+		rewrite: (href: string, parsed: URL) => string | string[]
+	}[] = [
+		{
+			// "https://fonts.googleapis.com/icon?family=Material+Icons"
+			match: (parsed) =>
+				GOOGLE_FONT_HOSTS.has(parsed.hostname) && parsed.pathname === "/icon",
+			rewrite: () => cdnHost + "/googleapis/icon/v145/index.css",
+		},
+		{
+			// "https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap"
+			// "https://fonts.googlefonts.cn/css2?family=Ma+Shan+Zheng&display=swap"
+			// "https://fonts.googleapis.com/css?family=Open+Sans:400,700|Lato:300"
+			// "https://fonts.googlefonts.cn/css?family=Open+Sans:400,700|Lato:300"
+			match: (parsed) =>
+				GOOGLE_FONT_HOSTS.has(parsed.hostname) &&
+				(parsed.pathname === "/css2" || parsed.pathname === "/css"),
+			rewrite: (href, parsed) => {
+				const families = parseFontFamilies(parsed)
+				if (families.length === 0) return href.replace(parsed.hostname, "fonts.loli.net")
+				return families.map(
+					(f) => cdnHost + "/google-fonts/css/woff2/" + toSafeFontName(f) + "_woff2.css",
+				)
+			},
+		},
+		{
+			// "https://fonts.googleapis.com/earlyaccess/notosanssc.css"
+			match: (parsed) => GOOGLE_FONT_HOSTS.has(parsed.hostname),
+			rewrite: (href, parsed) => href.replace(parsed.hostname, "fonts.loli.net"),
+		},
+		{
+			// "https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+			match: (parsed) => parsed.hostname === "ajax.googleapis.com",
+			rewrite: (href) => href.replace("ajax.googleapis.com", "ajax.loli.net"),
+		},
+	]
+
+	function applyGoogleRewrite(link: Element, href: string, doc: Document): void {
+		const parsed = parseHref(href)
+		if (!parsed) return
+
+		const rule = googleRewriteRules.find((r) => r.match(parsed))
+		if (!rule) return
+
+		link.setAttribute("data-original-href", href)
+		const result = rule.rewrite(href, parsed)
+
+		if (typeof result === "string") {
+			link.setAttribute("href", result)
+			return
+		}
+
+		link.setAttribute("href", result[0])
+		for (let i = result.length - 1; i >= 1; i--) {
+			const newLink = doc.createElement("link")
+			newLink.setAttribute("rel", "stylesheet")
+			newLink.setAttribute("data-original-href", href)
+			newLink.setAttribute("href", result[i])
+			link.parentNode?.insertBefore(newLink, link.nextSibling)
+		}
 	}
 
 	const parser = new DOMParser()
 	const htmlDoc = parser.parseFromString(content, "text/html")
 
-	// // 移除tailwindcss的link标签和echarts的script标签
 	const linkElements = htmlDoc.getElementsByTagName("link")
 	const scriptElements = htmlDoc.getElementsByTagName("script")
 	// 从后向前遍历以避免因移除元素导致的索引问题
-	for (let i = linkElements.length - 1; i >= 0; i--) {
-		const link = linkElements[i]
+	for (let li = linkElements.length - 1; li >= 0; li--) {
+		const link = linkElements[li]
 		const href = link.getAttribute("href")
 		if (href && href.includes("tailwind")) {
 			// 保存原始URL
@@ -431,43 +647,9 @@ export const handleHtCdnUrl = (content: string) => {
 			link.setAttribute("href", linkSrc)
 		}
 
-		/** google 资源替换 */
-		let isGoogleSpecificReplaced = false // 是否已经精确替换
-		const googleSpecificReplacements = [
-			{
-				from: "fonts.googleapis.com/icon",
-				to: `${env("MAGIC_CDNHOST")}/googleapis/icon/v145/index.css`,
-			},
-			{
-				from: "fonts.googleapis.com/css2",
-				to: `${env("MAGIC_CDNHOST")}/googleapis/fonts/index.css`,
-			},
-		]
-		// 精准替换
-		googleSpecificReplacements.forEach(({ from, to }) => {
-			if (href?.includes(from)) {
-				// 保存原始URL
-				link.setAttribute("data-original-href", href)
-				link.setAttribute("href", to)
-				isGoogleSpecificReplaced = true
-			}
-		})
-		// 模糊替换
-		if (!isGoogleSpecificReplaced) {
-			const domainReplacements = [
-				{ from: "fonts.googlefonts.cn", to: "fonts.loli.net" },
-				{ from: "fonts.googleapis.com", to: "fonts.loli.net" },
-				{ from: "ajax.googleapis.com", to: "ajax.loli.net" },
-			]
-			domainReplacements.forEach(({ from, to }) => {
-				if (href?.includes(from)) {
-					// 保存原始URL
-					link.setAttribute("data-original-href", href)
-					const linkSrc = href.replace(from, to)
-					link.setAttribute("href", linkSrc)
-				}
-			})
-		}
+		// 谷歌资源重写
+		if (href) applyGoogleRewrite(link, href, htmlDoc)
+
 		if (href?.includes("qrcode") && href?.includes("1.0.0")) {
 			// 保存原始URL
 			link.setAttribute("data-original-href", href)
@@ -476,8 +658,8 @@ export const handleHtCdnUrl = (content: string) => {
 		}
 	}
 
-	for (let i = scriptElements.length - 1; i >= 0; i--) {
-		const script = scriptElements[i]
+	for (let si = scriptElements.length - 1; si >= 0; si--) {
+		const script = scriptElements[si]
 		const src = script.getAttribute("src")
 
 		// Remove invalid script tags that cause loading errors
@@ -504,7 +686,7 @@ export const handleHtCdnUrl = (content: string) => {
 			const simpleMindMapSrc = packages.simpleMindMap["0.10.2"].js
 			script.setAttribute("src", simpleMindMapSrc)
 		}
-		if (src?.includes("countup.js") && src?.includes("2.8.0")) {
+		if (src?.includes("countup") && src?.includes("2.8.0")) {
 			// 保存原始URL
 			script.setAttribute("data-original-src", src)
 			const countupJSSrc = packages["countup.js"]["2.8.0"].js
@@ -527,7 +709,54 @@ export const handleHtCdnUrl = (content: string) => {
 			script.setAttribute("src", qrcodeSrc)
 		}
 	}
+
 	return htmlDoc
+}
+
+export const handleHtCdnUrl = (content: string) =>
+	rewriteHtmlCdnWithHost(content, env("MAGIC_CDNHOST") || "")
+
+function restoreSerializedEntitiesForCdnRewrite(html: string): string {
+	const ENTITY_PATTERN = /&(?:[a-z0-9]+|#\d+|#x[0-9a-f]+);/gi
+	const el = document.createElement("div")
+	return html.replace(ENTITY_PATTERN, (entity) => {
+		el.innerHTML = entity
+		return el.textContent ?? entity
+	})
+}
+
+function serializeCdnRewrittenDocument(doc: Document): string {
+	return restoreSerializedEntitiesForCdnRewrite(new XMLSerializer().serializeToString(doc))
+}
+
+const REWRITE_HTML_WITH_MAGIC_CDN_CACHE_MAX = 64
+const rewriteHtmlWithMagicCdnCache = new Map<string, string>()
+
+/**
+ * 仅对 HTML 做麦吉 CDN 外链替换（handleHtCdnUrl：script / link 等），
+ * 不处理附件、相对路径。用于消息列表 HTML 预览等无附件场景。
+ * 序列化方式与 htmlProcessor 内 serializeDocToHtml 一致。
+ * 对相同输入字符串做有界缓存，避免在电脑/移动端预览间切换时重复执行 handleHtCdnUrl。
+ */
+export function rewriteHtmlWithMagicCdn(html: string): string {
+	if (!html || typeof html !== "string") return html
+
+	const cached = rewriteHtmlWithMagicCdnCache.get(html)
+	if (cached !== undefined) return cached
+
+	try {
+		const htmlDoc = handleHtCdnUrl(html)
+		const result = serializeCdnRewrittenDocument(htmlDoc)
+		rewriteHtmlWithMagicCdnCache.set(html, result)
+		if (rewriteHtmlWithMagicCdnCache.size > REWRITE_HTML_WITH_MAGIC_CDN_CACHE_MAX) {
+			const oldestKey = rewriteHtmlWithMagicCdnCache.keys().next().value
+			if (oldestKey !== undefined) rewriteHtmlWithMagicCdnCache.delete(oldestKey)
+		}
+		return result
+	} catch (error) {
+		console.error("rewriteHtmlWithMagicCdn failed:", error)
+		return html
+	}
 }
 
 export function escapeHTML(html: string): string {
@@ -556,12 +785,20 @@ export function filterInjectedTags(htmlString: string, filePathMapping: Map<stri
 	}
 
 	try {
+		const removableInjectedValues = new Set([
+			"true",
+			"at-polyfill",
+			"fetch-interceptor",
+			"media-interceptor",
+			"iframe-chain",
+		])
+
 		// 使用DOMParser解析HTML字符串
 		const parser = new DOMParser()
 		const doc = parser.parseFromString(htmlString, "text/html")
 
-		// 移除所有带有 data-injected 属性的元素
-		const injectedElements = doc.querySelectorAll("[data-injected]")
+		// 移除所有带有 data-injected 或历史 data-runtime 标记的元素
+		const injectedElements = doc.querySelectorAll("[data-injected], [data-runtime]")
 		injectedElements.forEach((element) => {
 			// 移除注入的 script、style、link、meta 元素
 			if (
@@ -570,23 +807,23 @@ export function filterInjectedTags(htmlString: string, filePathMapping: Map<stri
 				element.tagName === "LINK" ||
 				element.tagName === "META"
 			) {
-				// 检查是否是注入的元素（通过 data-injected 属性值判断）
+				// 兼容旧的 data-runtime 标记和当前的 data-injected 标记
 				const injectedValue = element.getAttribute("data-injected")
+				const runtimeValue = element.getAttribute("data-runtime")
 				if (
-					injectedValue === "true" ||
-					injectedValue === "at-polyfill" ||
-					injectedValue === "fetch-interceptor" ||
-					injectedValue === "media-interceptor" ||
-					injectedValue === "iframe-chain"
+					(runtimeValue === "true" && element.tagName === "SCRIPT") ||
+					(injectedValue && removableInjectedValues.has(injectedValue))
 				) {
 					element.parentNode?.removeChild(element)
 				} else {
 					// 其他情况只移除属性
 					element.removeAttribute("data-injected")
+					element.removeAttribute("data-runtime")
 				}
 			} else {
-				// 对于其他元素，只移除 data-injected 属性
+				// 对于其他元素，只移除编辑器注入标记
 				element.removeAttribute("data-injected")
+				element.removeAttribute("data-runtime")
 			}
 		})
 
@@ -767,7 +1004,10 @@ export function filterInjectedTags(htmlString: string, filePathMapping: Map<stri
 					/\/\*__ORIGINAL_URL__:(.*?)__\*\/url\(['"].*?['"]\)/g,
 					"url('$1')",
 				)
-				element.setAttribute("style", restoredStyle)
+				element.setAttribute(
+					"style",
+					normalizeConflictingBackgroundDeclarations(restoredStyle),
+				)
 			}
 		})
 
@@ -860,16 +1100,17 @@ ${bodyContent}
  * @returns 过滤后的HTML字符串
  */
 function filterInjectedTagsWithRegex(htmlString: string): string {
-	// 匹配带有 data-injected 属性的标签（包括自闭合标签和配对标签）
-	// 处理所有 data-injected 属性的值：true、at-polyfill、fetch-interceptor、media-interceptor 等
+	// 匹配带有 data-injected 或历史 data-runtime 属性的标签（包括自闭合标签和配对标签）
+	// 处理所有编辑器已知的注入标记值
 	const injectedTagRegex =
-		/<([a-zA-Z][a-zA-Z0-9]*)[^>]*\s+data-injected\s*=\s*["'](?:true|at-polyfill|fetch-interceptor|media-interceptor)["'][^>]*>(?:[\s\S]*?<\/\1>)?/gi
+		/<([a-zA-Z][a-zA-Z0-9]*)[^>]*(?:\s+data-injected\s*=\s*["'](?:true|at-polyfill|fetch-interceptor|media-interceptor|iframe-chain)["']|\s+data-runtime\s*=\s*["']true["'])[^>]*>(?:[\s\S]*?<\/\1>)?/gi
 
 	// 移除匹配的标签
 	let result = htmlString.replace(injectedTagRegex, "")
 
-	// 移除所有剩余的 data-injected 属性（不管值是什么）
+	// 移除所有剩余的 data-injected / data-runtime 属性（不管值是什么）
 	result = result.replace(/\s+data-injected\s*=\s*["'][^"']*["']/gi, "")
+	result = result.replace(/\s+data-runtime\s*=\s*["'][^"']*["']/gi, "")
 
 	// 移除编辑相关的UI元素（通过属性匹配）
 	const toolbarElementRegex =

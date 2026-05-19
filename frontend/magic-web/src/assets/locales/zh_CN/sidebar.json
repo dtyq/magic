@@ -12,6 +12,9 @@
 	"crewMarket": {
 		"title": "数字员工"
 	},
+	"docAssistant": {
+		"title": "公文写作"
+	},
 	"footer": {
 		"defaultUser": "用户",
 		"feedback": "使用反馈",
@@ -55,13 +58,29 @@
 		},
 		"createDialog": {
 			"avatarLabel": "头像",
+			"basicInformationLabel": "基础信息",
 			"nameLabel": "名称",
 			"namePlaceholder": "输入 {{clawBrand}} 名称",
 			"removeUploadedAvatar": "删除已上传头像",
+			"submitButton": "立即创建",
 			"submitting": "创建中…",
-			"subtitle": "一键云部署，全天候在线",
+			"subtitle": "一键云端部署，7×24在线",
+			"templateLabel": "使用模板",
+			"templates": {
+				"magiShock": {
+					"defaultName": "麦吉侠客",
+					"description": "仗义、自来熟、像白磷一样随时会燃起来的赛博兄弟。",
+					"title": "麦吉侠客"
+				},
+				"openClaw": {
+					"defaultName": "原味虾",
+					"description": "采用 OpenClaw 初始化默认配置",
+					"title": "原味虾"
+				}
+			},
 			"title": "创建",
-			"uploadAvatarFailed": "头像上传失败，请重试"
+			"uploadAvatarFailed": "头像上传失败，请重试",
+			"uploadButton": "上传头像"
 		},
 		"created": {
 			"chat": "对话",
@@ -76,10 +95,44 @@
 			"listLoadFailed": "列表加载失败，请稍后重试",
 			"listLoading": "加载中…",
 			"listRetry": "重试",
-			"title": "已创建的 超级龙虾",
+			"noCreatePermission": "无创建权限",
+			"refresh": "刷新列表",
+			"restart": "重启",
+			"restartFailed": "重启失败，请稍后重试",
+			"restartSuccess": "重启成功",
+			"start": "启动",
+			"startFailed": "启动失败，请稍后重试",
+			"status": {
+				"notFound": "已停止",
+				"restarting": "重启中",
+				"running": "运行中",
+				"starting": "启动中",
+				"stopped": "已停止",
+				"unknown": "已停止"
+			},
+			"stop": "停止",
+			"stopFailed": "停止失败，请稍后重试",
+			"stopSuccess": "停止成功",
+			"title": "我的超级龙虾",
+			"upgradeAvailable": "有新版本可用",
 			"userGuide": "使用指南"
 		},
 		"description": "你的 7×24 专属 AI 助手",
+		"editDialog": {
+			"avatarHint": "你可以上传自定义头像，或继续使用模板头像。",
+			"avatarLabel": "头像",
+			"description": "修改「{{name}}」的名称和头像。",
+			"nameLabel": "名称",
+			"namePlaceholder": "输入 {{clawBrand}} 名称",
+			"removeAvatar": "移除头像",
+			"submitButton": "保存",
+			"submitting": "保存中…",
+			"title": "编辑 {{clawBrand}}",
+			"updateFailed": "更新失败，请稍后重试",
+			"updateSuccess": "更新成功",
+			"uploadAvatarFailed": "头像上传失败，请重试",
+			"uploadButton": "上传头像"
+		},
 		"features": {
 			"connect": {
 				"description": "无缝接入飞书、微信、钉钉等主流平台，打破应用边界，让超级龙虾随时随地都在你身边。",
@@ -104,6 +157,7 @@
 		"titleAccent": "龙虾",
 		"workspace": {
 			"back": "返回",
+			"conversationPanelTitle": "对话",
 			"emptyHeroAccent": "龙虾",
 			"emptyHeroLead": "超级",
 			"emptyHeroSubtitle": "描述你的想法，我会帮你把它变成现实",
@@ -111,11 +165,20 @@
 			"emptyTitle": "开始构建吧",
 			"loadFailed": "{{clawBrand}} 工作区加载失败。",
 			"skillInstallPromptPrefix": "帮我安装这个 skill ",
-			"untitledProject": "未命名 {{clawBrand}}"
+			"untitledProject": "未命名 {{clawBrand}}",
+			"update": "更新",
+			"updateTooltip": "检测到新版本 {{version}}，点击更新",
+			"updating": "更新中…",
+			"upgradeAvailable": "有新版本可用",
+			"upgradeConfirmDescription": "检测到新版本，更新后将重启当前沙箱，请确认继续。",
+			"upgradeConfirmTitle": "确认更新？",
+			"upgradeFailed": "更新失败，请稍后重试",
+			"upgradeSuccess": "更新成功"
 		}
 	},
 	"workspace": {
 		"add": "新建工作区",
+		"refresh": "刷新工作区与项目列表",
 		"title": "工作空间"
 	}
 }

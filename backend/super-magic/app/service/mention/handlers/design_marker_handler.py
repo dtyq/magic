@@ -1,6 +1,9 @@
 """Design marker mention handler"""
-from typing import Dict, List, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from app.service.mention.base import BaseMentionHandler, logger
+
+if TYPE_CHECKING:
+    from app.core.context.agent_context import AgentContext
 
 
 class DesignMarkerHandler(BaseMentionHandler):
@@ -15,13 +18,13 @@ class DesignMarkerHandler(BaseMentionHandler):
     def get_type(self) -> str:
         return "design_marker"
 
-    async def get_tip(self, mention: Dict[str, Any]) -> str:
+    async def get_tip(self, mention: Dict[str, Any], agent_context: Optional["AgentContext"] = None) -> str:
         return (
             "User marked a specific area on a Canvas image for modification. "
             "Use canvas project skill or tools to process the image based on the design marker."
         )
 
-    async def handle(self, mention: Dict[str, Any], index: int) -> List[str]:
+    async def handle(self, mention: Dict[str, Any], index: int, agent_context: Optional["AgentContext"] = None) -> List[str]:
         image_path = self.normalize_path(mention.get("image", ""))
         label = mention.get("label", "")
         bbox = mention.get("bbox")

@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace App\Application\Speech\Service;
 
-use App\Application\Speech\Assembler\AsrAssembler;
 use App\Application\Speech\DTO\AsrTaskStatusDTO;
 use App\Domain\Asr\Constants\AsrConfig;
 use App\ErrorCode\AsrErrorCode;
@@ -83,7 +82,7 @@ class AsrSandboxResponseHandler extends AbstractAppService
                 $this->handleEmptyNoteFile($taskStatus);
                 return;
             }
-            // 通过 file_key 查找最新的笔记文件 ID（目录可能被重命名）
+            // 在显示目录下按文件名定位最新的笔记文件 ID
             $this->getNoteFileId($taskStatus, $noteFile);
         } else {
             // 笔记文件为空或不存在，删除预设的笔记文件记录
@@ -106,7 +105,7 @@ class AsrSandboxResponseHandler extends AbstractAppService
                 ]);
                 $this->handleEmptyMarkerFile($taskStatus);
             } else {
-                // 通过 file_key 查找最新的标记文件 ID
+                // 在隐藏目录下按文件名定位最新的标记文件 ID
                 $this->getMarkerFileId($taskStatus, $markerFile);
             }
         } else {
@@ -162,10 +161,15 @@ class AsrSandboxResponseHandler extends AbstractAppService
         }
 
         try {
-            $fileEntity = $this->findFileByPathWithPolling(
-                $taskStatus,
-                $relativePath,
-                '音频文件'
+            // 沙箱合并完成的音频文件被写入到「显示目录」下（如 `录音纪要_xxx/录音.wav`），
+            // 显示目录在 ASR 启动录音时已经创建并把 file_id 持久化到 Redis（displayDirectoryId）。
+            // 因此这里直接拿 displayDirectoryId + 文件名定位即可，无需依赖 file_key 路径串。
+            $fileEntity = $this->findFileWithPolling(
+                taskStatus: $taskStatus,
+                parentId: $taskStatus->displayDirectoryId,
+                fileName: basename($relativePath),
+                fileTypeName: '音频文件',
+                relativePath: $relativePath,
             );
 
             if ($fileEntity !== null) {
@@ -211,11 +215,15 @@ class AsrSandboxResponseHandler extends AbstractAppService
         }
 
         try {
-            $fileEntity = $this->findFileByPathWithPolling(
-                $taskStatus,
-                $relativePath,
-                '笔记文件',
-                false // 笔记文件查询失败不抛异常
+            // 笔记文件与音频文件同在「显示目录」下（如 `录音纪要_xxx/笔记.md`），
+            // 直接用 displayDirectoryId + 文件名定位。
+            $fileEntity = $this->findFileWithPolling(
+                taskStatus: $taskStatus,
+                parentId: $taskStatus->displayDirectoryId,
+                fileName: basename($relativePath),
+                fileTypeName: '笔记文件',
+                relativePath: $relativePath,
+                throwOnTimeout: false,
             );
 
             if ($fileEntity !== null) {
@@ -250,53 +258,76 @@ class AsrSandboxResponseHandler extends AbstractAppService
     }
 
     /**
-     * 通过文件路径轮询查询文件记录（通用方法）.
+     * 在指定父目录下按文件名轮询查询文件记录.
+     *
+     * 设计要点：
+     * - 沙箱合并/写入文件走 MagicFS API（POST /api/v1/open-api/magicfs/files），写入时
+     *   `parent_id` 是真实父目录 file_id，`file_key` 是基于 file_id 的 opaque s3 key，
+     *   不再带路径语义，因此**禁止**再用 `file_key` 字符串去查文件。
+     * - ASR 在录音启动时已经创建了显示目录与隐藏目录，并把它们的 `file_id` 持久化到
+     *   Redis（`displayDirectoryId` / `tempHiddenDirectoryId`）。调用方根据文件类型
+     *   传入对应的 `$parentId`，本方法只负责按 (project_id, parent_id, file_name) 轮询。
+     * - `$relativePath` 仅用于日志，便于排查；不再参与查询。
      *
      * @param AsrTaskStatusDTO $taskStatus 任务状态
-     * @param string $relativePath 文件相对路径
+     * @param null|int $parentId 文件所在目录的 file_id（来自 ASR 自己创建目录时记录的 id）
+     * @param string $fileName 文件名（取自沙箱响应路径的 basename）
      * @param string $fileTypeName 文件类型名称（用于日志）
+     * @param string $relativePath 沙箱上报的工作区相对路径（仅用于日志）
      * @param bool $throwOnTimeout 超时是否抛出异常
-     * @return null|TaskFileEntity 文件实体，未找到返回null
+     * @return null|TaskFileEntity 文件实体，未找到返回 null
      * @throws Throwable
      */
-    private function findFileByPathWithPolling(
+    private function findFileWithPolling(
         AsrTaskStatusDTO $taskStatus,
-        string $relativePath,
+        ?int $parentId,
+        string $fileName,
         string $fileTypeName,
-        bool $throwOnTimeout = true
+        string $relativePath,
+        bool $throwOnTimeout = true,
     ): ?TaskFileEntity {
-        // 检查必要的任务状态字段
+        $logContext = [
+            'task_key' => $taskStatus->taskKey,
+            'file_type' => $fileTypeName,
+            'project_id' => $taskStatus->projectId,
+            'parent_id' => $parentId,
+            'file_name' => $fileName,
+            'relative_path' => $relativePath,
+        ];
+
+        // 1. 任务状态完整性 + 校验 ASR 自己已经把目标目录的 file_id 备好
         if (empty($taskStatus->projectId) || empty($taskStatus->userId) || empty($taskStatus->organizationCode)) {
-            $this->logger->error('任务状态信息不完整，无法查询文件记录', [
-                'task_key' => $taskStatus->taskKey,
-                'file_type' => $fileTypeName,
-                'project_id' => $taskStatus->projectId,
+            $this->logger->error('任务状态信息不完整，无法查询文件记录', $logContext + [
                 'user_id' => $taskStatus->userId,
                 'organization_code' => $taskStatus->organizationCode,
             ]);
             ExceptionBuilder::throw(AsrErrorCode::CreateAudioFileFailed, '', ['error' => '任务状态信息不完整']);
         }
 
-        // 获取项目信息并构建 file_key
-        $projectEntity = $this->getAccessibleProjectWithEditor(
+        if ($parentId === null || $parentId <= 0 || $fileName === '') {
+            $this->logger->warning(sprintf('%s 父目录或文件名缺失，跳过查询', $fileTypeName), $logContext);
+            if ($throwOnTimeout) {
+                ExceptionBuilder::throw(
+                    AsrErrorCode::CreateAudioFileFailed,
+                    '',
+                    ['error' => sprintf('%s 父目录或文件名缺失', $fileTypeName)]
+                );
+            }
+            return null;
+        }
+
+        // 2. 项目访问鉴权（保持原有行为）
+        $this->getAccessibleProjectWithEditor(
             (int) $taskStatus->projectId,
             $taskStatus->userId,
             $taskStatus->organizationCode
         );
-        $workDir = $projectEntity->getWorkDir();
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($taskStatus->organizationCode);
-        $fileKey = AsrAssembler::buildFileKey($fullPrefix, $workDir, $relativePath);
 
-        $this->logger->info(sprintf('开始轮询查询%s记录', $fileTypeName), [
-            'task_key' => $taskStatus->taskKey,
-            'file_type' => $fileTypeName,
-            'relative_path' => $relativePath,
-            'file_key' => $fileKey,
-            'project_id' => $taskStatus->projectId,
+        // 3. 按 (project_id, parent_id, file_name) 轮询
+        $this->logger->info(sprintf('开始轮询查询%s记录', $fileTypeName), $logContext + [
             'max_wait_seconds' => AsrConfig::FILE_RECORD_QUERY_TIMEOUT,
         ]);
 
-        // 轮询查询文件记录
         $timeoutSeconds = AsrConfig::FILE_RECORD_QUERY_TIMEOUT;
         $pollingInterval = AsrConfig::POLLING_INTERVAL;
         $startTime = microtime(true);
@@ -306,62 +337,45 @@ class AsrSandboxResponseHandler extends AbstractAppService
             ++$attempt;
             $elapsedSeconds = (int) (microtime(true) - $startTime);
 
-            // 查询文件记录
-            $existingFile = $this->taskFileDomainService->getByProjectIdAndFileKey(
+            $existingFile = $this->taskFileDomainService->getByProjectParentAndName(
                 (int) $taskStatus->projectId,
-                $fileKey
+                $parentId,
+                $fileName
             );
 
             if ($existingFile !== null) {
-                $this->logger->info(sprintf('成功找到%s记录', $fileTypeName), [
-                    'task_key' => $taskStatus->taskKey,
-                    'file_type' => $fileTypeName,
+                $this->logger->info(sprintf('成功找到%s记录', $fileTypeName), $logContext + [
                     'file_id' => $existingFile->getFileId(),
-                    'file_name' => $existingFile->getFileName(),
-                    'file_key' => $fileKey,
                     'attempt' => $attempt,
                     'elapsed_seconds' => $elapsedSeconds,
                 ]);
                 return $existingFile;
             }
 
-            // 检查是否超时
             if ($elapsedSeconds >= $timeoutSeconds) {
                 break;
             }
 
-            // 记录轮询进度
             if ($attempt % AsrConfig::FILE_RECORD_QUERY_LOG_FREQUENCY === 0 || $attempt === 1) {
-                $remainingSeconds = max(0, $timeoutSeconds - $elapsedSeconds);
-                $this->logger->info(sprintf('等待沙箱同步%s到数据库', $fileTypeName), [
-                    'task_key' => $taskStatus->taskKey,
-                    'file_type' => $fileTypeName,
-                    'file_key' => $fileKey,
+                $this->logger->info(sprintf('等待沙箱同步%s到数据库', $fileTypeName), $logContext + [
                     'attempt' => $attempt,
                     'elapsed_seconds' => $elapsedSeconds,
-                    'remaining_seconds' => $remainingSeconds,
+                    'remaining_seconds' => max(0, $timeoutSeconds - $elapsedSeconds),
                 ]);
             }
 
-            // 等待下一次轮询
             sleep($pollingInterval);
         }
 
-        // 轮询超时，仍未找到文件记录
+        // 4. 轮询超时
         $totalElapsedTime = (int) (microtime(true) - $startTime);
-        $this->logger->warning(sprintf('轮询超时，未找到%s记录', $fileTypeName), [
-            'task_key' => $taskStatus->taskKey,
-            'file_type' => $fileTypeName,
-            'file_key' => $fileKey,
-            'relative_path' => $relativePath,
-            'project_id' => $taskStatus->projectId,
+        $this->logger->warning(sprintf('轮询超时，未找到%s记录', $fileTypeName), $logContext + [
             'total_attempts' => $attempt,
             'total_elapsed_seconds' => $totalElapsedTime,
             'timeout_seconds' => $timeoutSeconds,
         ]);
 
         if ($throwOnTimeout) {
-            // 抛出异常
             ExceptionBuilder::throw(
                 AsrErrorCode::CreateAudioFileFailed,
                 '',
@@ -428,11 +442,15 @@ class AsrSandboxResponseHandler extends AbstractAppService
         }
 
         try {
-            $fileEntity = $this->findFileByPathWithPolling(
-                $taskStatus,
-                $relativePath,
-                '标记文件',
-                false // 标记文件查询失败不抛异常
+            // 标记文件与音频分片同在「隐藏目录」下（如 `.asr_recordings/session_xxx/marker.json`），
+            // 直接用 tempHiddenDirectoryId + 文件名定位。
+            $fileEntity = $this->findFileWithPolling(
+                taskStatus: $taskStatus,
+                parentId: $taskStatus->tempHiddenDirectoryId,
+                fileName: basename($relativePath),
+                fileTypeName: '标记文件',
+                relativePath: $relativePath,
+                throwOnTimeout: false,
             );
 
             if ($fileEntity !== null) {

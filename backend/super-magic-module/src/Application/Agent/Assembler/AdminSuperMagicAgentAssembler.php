@@ -211,6 +211,7 @@ class AdminSuperMagicAgentAssembler
             version: $entity->getVersion(),
             publishStatus: $entity->getPublishStatus()->value,
             reviewStatus: $entity->getReviewStatus()->value,
+            reviewRemark: $entity->getReviewRemark(),
             publishTargetType: $entity->getPublishTargetType()->value,
             type: $entity->getType(),
             isCurrentVersion: $entity->isCurrentVersion(),

@@ -121,17 +121,18 @@ class UploadTokenService {
 	/**
 	 * 获取上传凭证
 	 * @param projectId
+	 * @param _parentId 父目录ID（保留用于向后兼容，未使用）
 	 * @returns
 	 */
-	async getUploadToken(projectId: string, suffixDir: string = "uploads", force: boolean = false) {
+	async getUploadToken(projectId: string, _parentId?: string, force: boolean = false) {
 		const token = this.uploadTokenMap.get(projectId)
 		if (token && !this.isExpired(projectId) && !force) {
-			return this.changeDir(token.customCredentials, suffixDir)
+			return token.customCredentials
 		}
 
 		try {
 			const newToken = await this.fetchUploadToken(projectId)
-			return this.changeDir(newToken, suffixDir)
+			return newToken
 		} catch (error) {
 			this.logger.error("getUploadToken failed", { projectId, error })
 			throw error
@@ -200,12 +201,14 @@ class UploadTokenService {
 		project_id: string
 		topic_id?: string
 		task_id?: string
+		parent_id?: string
 		file_key: string
 		file_name: string
 		file_size: number
 		file_type?: string
 		storage_type: "workspace" | "topic"
 		source: UploadSource
+		relative_file_path?: string
 	}) {
 		return SuperMagicApi.saveUploadFileToProject(data)
 	}

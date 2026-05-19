@@ -39,6 +39,7 @@ export default function Text(props: any) {
 		showFileHeader = true,
 		isPlaybackMode,
 		allowDownload,
+		attachments,
 	} = props
 
 	const { file_id } = data
@@ -229,6 +230,7 @@ export default function Text(props: any) {
 		quitEditMode,
 		allowEdit,
 		actionConfig: headerActionConfig,
+		attachments,
 	}
 
 	return (

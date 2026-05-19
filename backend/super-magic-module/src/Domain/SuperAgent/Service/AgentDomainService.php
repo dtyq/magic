@@ -12,14 +12,16 @@ use App\Application\File\Service\FileAppService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
-use App\Domain\Kernel\Service\PlatformSettingsDomainService;
 use App\Domain\Token\Entity\MagicTokenEntity;
 use App\Domain\Token\Entity\ValueObject\MagicTokenType;
 use App\Domain\Token\Repository\Facade\MagicTokenRepositoryInterface;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\ImageGenerateAPI\SizeManager;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use Carbon\Carbon;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\VideoModelConfigResolver;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\MagicClawRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
@@ -29,8 +31,6 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AgentContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AgentInitContext;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AgentProfileValueObject;
-use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\AgentRoleValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DynamicConfig\DynamicConfigManager;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\InitializationMetadataDTO;
@@ -40,7 +40,11 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Exception\WorkspaceReadyTimeoutException;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\AskUserResponseMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCheckRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackCommitRequest;
@@ -48,17 +52,19 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\Checkpoin
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackStartRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\CheckpointRollbackUndoRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\InterruptRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\UserToolCallFeedbackRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
-use Dtyq\SuperMagic\Infrastructure\Utils\SandboxInitSingleFlight;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Codec\Json;
+use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Server\Exception\ServerException;
 use Psr\Log\LoggerInterface;
@@ -84,8 +90,10 @@ class AgentDomainService
         private readonly MagicClawRepositoryInterface $magicClawRepository,
         private readonly SuperMagicAgentRepositoryInterface $superMagicAgentRepository,
         private readonly MagicTokenRepositoryInterface $magicTokenRepository,
-        private readonly TopicDomainService $topicDomainService,
-        private readonly SandboxInitSingleFlight $singleFlight,
+        private readonly LockerInterface $locker,
+        private readonly TopicRepositoryInterface $topicRepository,
+        private readonly TaskMessageRepositoryInterface $taskMessageRepository,
+        private readonly TaskFileRepositoryInterface $taskFileRepository,
     ) {
         $this->logger = $loggerFactory->get('sandbox');
     }
@@ -168,26 +176,15 @@ class AgentDomainService
         $fullWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
         $agentInitContext->setChatHistoryDir($fullChatWorkDir);
         $agentInitContext->setWorkDir($fullWorkDir);
-        // 设置是否需要拉取聊天记录
-        if (! empty($topicEntity->getCurrentTaskId())) {
-            $agentInitContext->setFetchHistory(true);
-        } else {
-            $agentInitContext->setFetchHistory(false);
+        // 设置是否需要拉取聊天记录：通过话题消息表判断是否已有历史消息
+        $topicId = (int) $topicEntity->getId();
+        $topicHasHistory = $topicId > 0 && $this->taskMessageRepository->hasMessagesByTopicId($topicId);
+        $agentInitContext->setFetchHistory($topicHasHistory);
+        // 将话题的 dynamic_params 作为 dynamic_config 下发，使 sandbox 在 init 阶段即可获取 message_version 等配置
+        $dynamicParams = $topicEntity->getDynamicParams();
+        if (! empty($dynamicParams)) {
+            $agentInitContext->setDynamicConfig($dynamicParams);
         }
-        // 设置站点角色与 agent profile
-        $language = $dataIsolation->getLanguage() ?? 'zh_CN';
-        $agentRoleName = di(PlatformSettingsDomainService::class)->getAgentRoleName($language);
-        $agentRoleDescription = di(PlatformSettingsDomainService::class)->getAgentRoleDescription($language);
-        $agentMode = $topicEntity->getTopicMode();
-        $agentCode = $topicEntity->getAgentCode();
-        $profile = $this->buildAgentProfile($dataIsolation, $agentMode, $agentCode);
-        $agentRole = new AgentRoleValueObject(
-            name: $agentRoleName,
-            description: $agentRoleDescription,
-            type: $agentCode !== '' ? $agentMode : '',
-            profile: $profile,
-        );
-        $agentInitContext->setAgent($agentRole->toArray());
 
         return new AgentContext(
             sandboxId: $sandboxId,
@@ -201,14 +198,14 @@ class AgentDomainService
 
     /**
      * Ensure sandbox is initialized and workspace is ready.
-     * Uses SingleFlight pattern: only one request executes initialization per topic,
-     * concurrent requests wait for and reuse the result.
+     * Uses distributed lock to prevent concurrent sandbox creation.
+     * Supports interrupt checking at each step for early termination.
      *
      * @param DataIsolation $dataIsolation Data isolation context
      * @param AgentContext $agentContext Agent context with initialization data
      * @param null|callable $interruptChecker Optional callable that returns true to interrupt initialization
      * @return string Sandbox ID (always valid, even if interrupted after sandbox creation)
-     * @throws ServerException If initialization fails or times out
+     * @throws ServerException If metadata is incomplete or lock acquisition fails
      */
     public function ensureSandboxInitialized(
         DataIsolation $dataIsolation,
@@ -216,79 +213,184 @@ class AgentDomainService
         ?callable $interruptChecker = null
     ): string {
         $topicEntity = $agentContext->getTopicEntity();
-        $topicId = $topicEntity->getId();
-        $sandboxId = $agentContext->getSandboxId() ?? (string) $topicId;
 
-        $this->logger->info('[Sandbox][SingleFlight] Ensuring sandbox is initialized', [
-            'topic_id' => $topicId,
+        $sandboxId = $agentContext->getSandboxId() ?? (string) $topicEntity->getId();
+
+        $this->logger->info('[Sandbox][Domain] Ensuring sandbox is initialized', [
+            'topic_id' => $topicEntity->getId(),
             'sandbox_id' => $sandboxId,
+            'is_custom_sandbox_id' => $agentContext->getSandboxId(),
             'has_interrupt_checker' => $interruptChecker !== null,
         ]);
 
-        // Phase 1: Check cached result
-        $cached = $this->singleFlight->getResult($topicId);
-        if ($this->singleFlight->isReady($cached)) {
-            if ($this->isWorkspaceStillReady($cached['sandbox_id'])) {
-                $this->logger->info('[Sandbox][SingleFlight] Reusing cached ready result', [
-                    'topic_id' => $topicId,
-                    'sandbox_id' => $cached['sandbox_id'],
-                ]);
-                return $cached['sandbox_id'];
-            }
-            // Workspace no longer ready, clear stale cache
-            $this->singleFlight->clearResult($topicId);
-        } elseif ($this->singleFlight->isFailed($cached)) {
-            // Previous failure expired or is stale, clear and retry
-            $this->singleFlight->clearResult($topicId);
-        }
-
-        // Phase 2: Check if another request is already running
-        if ($this->singleFlight->isRunning($topicId)) {
-            return $this->handleFollowerWait($topicId, $sandboxId, $interruptChecker);
-        }
-
-        // Phase 3: Try to become owner
-        $requestId = $this->singleFlight->tryClaim($topicId);
-        if ($requestId === null) {
-            // Another request just claimed, wait as follower
-            return $this->handleFollowerWait($topicId, $sandboxId, $interruptChecker);
-        }
-
-        // Phase 4: I am owner, execute initialization
-        $this->singleFlight->markRunning($topicId, $requestId);
+        $lockKey = sprintf('super_agent:sandbox:init:%s', $topicEntity->getId());
+        $lockOwner = uniqid('sandbox_init_', true);
+        $lockAcquired = false;
 
         try {
-            $sandboxId = $this->doSandboxInitialize($dataIsolation, $agentContext, $sandboxId, $topicId, $interruptChecker);
-            $this->singleFlight->saveReadyResult($topicId, $sandboxId);
+            $this->logger->info('[Sandbox][Domain] Attempting to acquire lock for sandbox initialization', [
+                'topic_id' => $topicEntity->getId(),
+                'lock_key' => $lockKey,
+                'lock_owner' => $lockOwner,
+                'timeout_seconds' => 60,
+            ]);
 
-            $this->logger->info('[Sandbox][SingleFlight] Owner completed initialization successfully', [
-                'topic_id' => $topicId,
+            $lockAcquired = $this->locker->spinLock($lockKey, $lockOwner, 120, 360);
+
+            if (! $lockAcquired) {
+                $this->logger->error('[Sandbox][Domain] Failed to acquire lock for sandbox initialization', [
+                    'topic_id' => $topicEntity->getId(),
+                    'lock_key' => $lockKey,
+                ]);
+                throw new ServerException('Failed to acquire lock for sandbox initialization, please try again');
+            }
+
+            $this->logger->info('[Sandbox][Domain] Lock acquired successfully for sandbox initialization', [
+                'topic_id' => $topicEntity->getId(),
+                'lock_key' => $lockKey,
+                'lock_owner' => $lockOwner,
+            ]);
+
+            // Step 1: Check workspace status (quick-returns if sandbox already ready)
+            try {
+                $response = $this->getWorkspaceStatus($sandboxId);
+                $status = $response->getDataValue('status');
+
+                if (WorkspaceStatus::isReady($status)) {
+                    $this->logger->info('[Sandbox][Domain] Workspace already ready', [
+                        'sandbox_id' => $sandboxId,
+                        'workspace_status' => $status,
+                    ]);
+                    return $sandboxId;
+                }
+
+                $this->logger->info('[Sandbox][Domain] Workspace not ready, will reinitialize', [
+                    'sandbox_id' => $sandboxId,
+                    'workspace_status' => $status,
+                ]);
+            } catch (SandboxOperationException $e) {
+                $isNotFound = $e->getCode() === ResponseCode::NOT_FOUND;
+                $logLevel = $isNotFound ? 'info' : 'warning';
+                $this->logger->{$logLevel}('[Sandbox][Domain] Failed to check workspace status, will create sandbox', [
+                    'sandbox_id' => $sandboxId,
+                    'error' => $e->getMessage(),
+                    'is_not_found' => $isNotFound,
+                ]);
+            }
+
+            // Step 2: Get root file IDs for sandbox initialization
+            $projectSpaceRootFileId = '';
+            $userSpaceRootFileId = '';
+            try {
+                $projectId = $agentContext->getProjectEntity()->getId();
+                $rootDir = $this->taskFileRepository->findRootDirectoryByProjectId($projectId);
+                if ($rootDir !== null) {
+                    $projectSpaceRootFileId = (string) $rootDir->getFileId();
+                }
+            } catch (Throwable $e) {
+                $this->logger->warning('[Sandbox][Domain] Failed to get project space root file id for sandbox initialization', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Step 2.1: Get or create user space root directory
+            try {
+                $taskFileDomainService = ApplicationContext::getContainer()->get(TaskFileDomainService::class);
+                $userSpaceRootFileId = (string) $taskFileDomainService->findOrCreateUserRootDirectory(
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode()
+                );
+            } catch (Throwable $e) {
+                $this->logger->warning('[Sandbox][Domain] Failed to get user space root file id for sandbox initialization', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Step 3: Create sandbox container
+            $sandboxId = $this->createSandbox(
+                dataIsolation: $dataIsolation,
+                projectId: (string) $agentContext->getProjectEntity()->getId(),
+                sandboxID: $agentContext->getSandboxId(),
+                workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
+                projectSpaceRootFileId: $projectSpaceRootFileId,
+                userSpaceRootFileId: $userSpaceRootFileId,
+                topicId: $topicEntity->getId()
+            );
+
+            if ($interruptChecker !== null && $interruptChecker()) {
+                $this->logger->info('[Sandbox][Domain] Interrupted after sandbox creation', [
+                    'sandbox_id' => $sandboxId,
+                    'topic_id' => $topicEntity->getId(),
+                ]);
+                return $sandboxId;
+            }
+
+            // Step 3: Initialize agent
+            $result = $this->agent->initAgent($sandboxId, $agentContext->getInitContext()->toArray());
+            if (! $result->isSuccess()) {
+                $this->logger->error('[Sandbox][Domain] Failed to initialize agent', [
+                    'sandbox_id' => $sandboxId,
+                    'error' => $result->getMessage(),
+                    'code' => $result->getCode(),
+                ]);
+                throw new SandboxOperationException('Initialize agent', $result->getMessage(), $result->getCode());
+            }
+
+            if ($interruptChecker !== null && $interruptChecker()) {
+                $this->logger->info('[Sandbox][Domain] Interrupted after agent initialization', [
+                    'sandbox_id' => $sandboxId,
+                    'topic_id' => $topicEntity->getId(),
+                ]);
+                return $sandboxId;
+            }
+
+            // Step 4: Wait for workspace ready (with interrupt support)
+            $isReady = $this->waitForWorkspaceReady($sandboxId, interruptChecker: $interruptChecker);
+            if (! $isReady) {
+                $this->logger->info('[Sandbox][Domain] Interrupted during workspace ready wait', [
+                    'sandbox_id' => $sandboxId,
+                    'topic_id' => $topicEntity->getId(),
+                ]);
+                return $sandboxId;
+            }
+
+            $this->logger->info('[Sandbox][Domain] Sandbox initialized successfully', [
                 'sandbox_id' => $sandboxId,
+                'topic_id' => $topicEntity->getId(),
             ]);
 
             return $sandboxId;
-        } catch (Throwable $e) {
-            $this->singleFlight->saveFailedResult($topicId, $sandboxId, $e->getMessage());
-            throw $e;
         } finally {
-            $this->singleFlight->clearRunning($topicId);
-            $this->singleFlight->releaseClaim($topicId, $requestId);
+            if ($lockAcquired) {
+                $released = $this->locker->release($lockKey, $lockOwner);
+                $this->logger->info('[Sandbox][Domain] Lock released for sandbox initialization', [
+                    'topic_id' => $topicEntity->getId(),
+                    'lock_owner' => $lockOwner,
+                    'released' => $released,
+                ]);
+            }
         }
     }
 
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', ?int $topicId = null): string
     {
+        // 获取用户 authorization token，用于沙箱创建时的身份验证
+        $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+
         $this->logger->debug('[Sandbox][App] Creating sandbox', [
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
             'project_oss_path' => $workDir,
+            'project_space_root_file_id' => $projectSpaceRootFileId,
+            'user_space_root_file_id' => $userSpaceRootFileId,
+            'authorization_provided' => $authorization !== '',
         ]);
 
         $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir);
+        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId, $authorization);
 
         // 添加详细的调试日志，检查 result 对象
         $this->logger->debug('[Sandbox][App] Gateway result analysis', [
@@ -322,9 +424,23 @@ class AgentDomainService
             'agent_image' => $agentImage,
         ]);
 
-        // sandbox_id 即 topic_id，创建成功后立即持久化 agent 镜像版本
-        if (! empty($agentImage) && ! empty($returnedSandboxId)) {
-            $this->topicDomainService->updateTopicAgentImage($dataIsolation, (int) $returnedSandboxId, $agentImage);
+        // 创建成功后立即持久化 sandbox id 与 agent 镜像版本。优先使用调用方传入的 topic id，
+        // 避免自定义 sandbox_id 场景把 sandbox_id 误当成 topic_id。
+        $topicUpdateId = $topicId ?? ((string) (int) $returnedSandboxId === (string) $returnedSandboxId ? (int) $returnedSandboxId : 0);
+        if ($topicUpdateId > 0) {
+            $topicUpdateData = [
+                'updated_uid' => $dataIsolation->getCurrentUserId(),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+            if (! empty($returnedSandboxId)) {
+                $topicUpdateData['sandbox_id'] = (string) $returnedSandboxId;
+            }
+            if (! empty($agentImage)) {
+                $topicUpdateData['agent_image'] = $agentImage;
+            }
+            if (isset($topicUpdateData['sandbox_id']) || isset($topicUpdateData['agent_image'])) {
+                $this->topicRepository->updateTopicByCondition(['id' => $topicUpdateId], $topicUpdateData);
+            }
         }
 
         return $returnedSandboxId;
@@ -443,9 +559,9 @@ class AgentDomainService
             }
         }
 
-        // 图片模型不走 init 顶层字段，而是跟现有生图链路保持一致，
-        // 在发送聊天消息时桥接到 dynamic_config。视频模型由应用层提前写入
-        // TaskContext.dynamicConfig，领域层这里不再从 extra 派生，避免重复桥接。
+        // 图片/视频模型都不走 init 顶层字段，而是跟现有生图链路保持一致，
+        // 在发送聊天消息时桥接到 dynamic_config。这样沙箱内的工具只需要读取
+        // dynamic_config.image_model / dynamic_config.video_model，就能和用户本轮选择保持一致。
         $extra = $taskContext->getExtra();
         if ($extra !== null) {
             $imageModelId = $extra->getImageModelId();
@@ -460,6 +576,30 @@ class AgentDomainService
                     'sizes' => $sizes,
                 ];
             }
+
+            $videoModelId = $extra->getVideoModelId();
+            if (! empty($videoModelId)) {
+                try {
+                    $videoModel = di(VideoModelConfigResolver::class)->resolve($extra->getVideoModel(), $taskContext->getDataIsolation());
+                    $taskDynamicConfig['video_model'] = [
+                        'model_id' => $videoModelId,
+                        'video_generation_config' => is_array($videoModel) ? $videoModel['video_generation_config'] : null,
+                    ];
+                } catch (Throwable $throwable) {
+                    $this->logger->warning('[Sandbox][App] get video model config failed', [
+                        'error_message' => $throwable->getMessage(),
+                    ]);
+                    $taskDynamicConfig['video_model'] = [
+                        'model_id' => $videoModelId,
+                    ];
+                }
+            }
+        }
+
+        $agentMode = $taskContext->getAgentMode();
+        if (str_starts_with($taskContext->getAgentMode(), 'SMA-')) {
+            $agentMode = ProjectMode::CUSTOM_AGENT->value;
+            $taskDynamicConfig['agent_code'] = $taskContext->getAgentMode();
         }
 
         $agentMode = $taskContext->getAgentMode();
@@ -467,6 +607,10 @@ class AgentDomainService
         if (! empty($agentCode)) {
             $taskDynamicConfig['agent_code'] = $agentCode;
         }
+
+        // Build agent profile for chat message (ensures Python side always gets agent info, even for reused sandbox)
+        $language = $dataIsolation->getLanguage() ?? 'zh_CN';
+        $agentProfile = $this->buildAgentProfile($dataIsolation, $agentMode, $taskContext->getAgentCode(), $language);
 
         $this->logger->debug('[Sandbox][App] Sending chat message to agent', [
             'sandbox_id' => $taskContext->getSandboxId(),
@@ -478,6 +622,7 @@ class AgentDomainService
             'mcp_config' => $taskContext->getMcpConfig(),
             'model_id' => $taskContext->getModelId(),
             'dynamic_config' => $taskDynamicConfig,
+            'agent' => $agentProfile,
         ]);
         $mentionsJsonStruct = $this->buildMentionsJsonStruct($taskContext->getTask()->getMentions());
 
@@ -511,6 +656,7 @@ class AgentDomainService
             modelId: $taskContext->getModelId(),
             dynamicConfig: $taskDynamicConfig,
             metadata: $messageMetadata->toArray(),
+            agent: ! empty($agentProfile) ? $agentProfile : null,
         );
 
         $result = $this->agent->sendChatMessage($taskContext->getSandboxId(), $chatMessage);
@@ -523,6 +669,106 @@ class AgentDomainService
             ]);
             throw new SandboxOperationException('Send chat message', $result->getMessage(), $result->getCode());
         }
+    }
+
+    /**
+     * 发送 ask_user 答复给沙盒（Human-in-the-Loop 回调）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param string $sandboxId 沙箱ID
+     * @param string $taskId 任务ID
+     * @param string $questionId 问题ID
+     * @param string $responseStatus 答复状态（'answered' | 'skipped'）
+     * @param string $answer 用户答复内容
+     */
+    public function sendAskUserFeedback(
+        DataIsolation $dataIsolation,
+        string $sandboxId,
+        string $taskId,
+        string $questionId,
+        string $responseStatus,
+        string $answer
+    ): void {
+        $this->logger->debug('[Sandbox][Domain] Sending ask_user feedback to sandbox', [
+            'sandbox_id' => $sandboxId,
+            'task_id' => $taskId,
+            'question_id' => $questionId,
+            'response_status' => $responseStatus,
+        ]);
+
+        $request = AskUserResponseMessageRequest::createResponse(
+            userId: $dataIsolation->getCurrentUserId(),
+            taskId: $taskId,
+            questionId: $questionId,
+            responseStatus: $responseStatus,
+            answer: $answer,
+        );
+
+        $result = $this->agent->sendChatMessage($sandboxId, $request);
+
+        if (! $result->isSuccess()) {
+            $this->logger->error('[Sandbox][Domain] Failed to send ask_user feedback', [
+                'sandbox_id' => $sandboxId,
+                'task_id' => $taskId,
+                'question_id' => $questionId,
+                'error' => $result->getMessage(),
+            ]);
+            throw new SandboxOperationException('Send ask_user feedback', $result->getMessage(), $result->getCode());
+        }
+
+        $this->logger->debug('[Sandbox][Domain] Ask_user feedback sent successfully', [
+            'sandbox_id' => $sandboxId,
+            'task_id' => $taskId,
+            'question_id' => $questionId,
+        ]);
+    }
+
+    /**
+     * 发送用户工具调用回传给沙盒（Human-in-the-Loop 回调）.
+     *
+     * @param DataIsolation $dataIsolation 数据隔离上下文
+     * @param string $sandboxId 沙箱ID
+     * @param string $name 工具名称（如 ask_user）
+     * @param string $toolCallId 工具调用ID
+     * @param array $detail 工具特定的回复数据，结构由各工具自行约定
+     */
+    public function sendUserToolCallFeedback(
+        DataIsolation $dataIsolation,
+        string $sandboxId,
+        string $name,
+        string $toolCallId,
+        array $detail
+    ): void {
+        $this->logger->debug('[Sandbox][Domain] Sending user_tool_call feedback to sandbox', [
+            'sandbox_id' => $sandboxId,
+            'name' => $name,
+            'tool_call_id' => $toolCallId,
+        ]);
+
+        $request = UserToolCallFeedbackRequest::createFeedback(
+            userId: $dataIsolation->getCurrentUserId(),
+            name: $name,
+            toolCallId: $toolCallId,
+            detail: $detail,
+        );
+
+        $result = $this->agent->sendChatMessage($sandboxId, $request);
+
+        if (! $result->isSuccess()) {
+            $this->logger->error('[Sandbox][Domain] Failed to send user_tool_call feedback', [
+                'sandbox_id' => $sandboxId,
+                'name' => $name,
+                'tool_call_id' => $toolCallId,
+                'error' => $result->getMessage(),
+            ]);
+            throw new SandboxOperationException('Send user_tool_call feedback', $result->getMessage(), $result->getCode());
+        }
+
+        $this->logger->debug('[Sandbox][Domain] user_tool_call feedback sent successfully', [
+            'sandbox_id' => $sandboxId,
+            'name' => $name,
+            'tool_call_id' => $toolCallId,
+        ]);
     }
 
     /**
@@ -618,8 +864,7 @@ class AgentDomainService
      * @param string $sandboxId Sandbox ID
      * @param null|callable $interruptChecker Interrupt checker closure, return true to interrupt
      * @param int $maxWaitSeconds Maximum wait time in seconds (default 5 minutes)
-     * @param int $checkIntervalSeconds Check interval in seconds (default 2 seconds)
-     * @param null|int $topicIdForSingleFlight When provided, refreshes SingleFlight running TTL each loop
+     * @param int $checkIntervalMs Check interval in milliseconds (default 100ms)
      * @return bool True if workspace is ready, false if interrupted
      * @throws WorkspaceReadyTimeoutException When timeout occurs
      * @throws SandboxOperationException When initialization fails or error occurs
@@ -627,25 +872,19 @@ class AgentDomainService
     public function waitForWorkspaceReady(
         string $sandboxId,
         int $maxWaitSeconds = 300,
-        int $checkIntervalSeconds = 2,
-        ?callable $interruptChecker = null,
-        ?int $topicIdForSingleFlight = null
+        int $checkIntervalMs = 100,
+        ?callable $interruptChecker = null
     ): bool {
         $this->logger->debug('[Sandbox][App] Waiting for workspace to be ready', [
             'sandbox_id' => $sandboxId,
             'max_wait_seconds' => $maxWaitSeconds,
-            'check_interval_seconds' => $checkIntervalSeconds,
+            'check_interval_ms' => $checkIntervalMs,
             'has_interrupt_checker' => $interruptChecker !== null,
         ]);
 
         $startTime = time();
 
         while (true) {
-            // Refresh SingleFlight running TTL to prevent stale detection during long polling
-            if ($topicIdForSingleFlight !== null) {
-                $this->singleFlight->refreshRunning($topicIdForSingleFlight);
-            }
-
             // 1. First check if interrupted (closure check)
             if ($interruptChecker !== null && $interruptChecker()) {
                 $this->logger->info('[Sandbox][App] Workspace ready wait interrupted by checker', [
@@ -716,7 +955,9 @@ class AgentDomainService
             }
 
             // 4. Wait before retry
-            sleep($checkIntervalSeconds);
+            if ($checkIntervalMs > 0) {
+                usleep($checkIntervalMs * 1000);
+            }
         }
     }
 
@@ -930,140 +1171,192 @@ class AgentDomainService
     }
 
     /**
-     * Handle follower waiting logic: wait for owner's result, then act on it.
+     * Ensure sandbox container is running (without agent initialization).
+     * Used for export/utility scenarios that only need the sandbox container running.
+     *
+     * @param string $userId User ID
+     * @param string $orgCode Organization code
+     * @param string $sandboxId Sandbox ID
+     * @param string $projectId Project ID
+     * @param string $workDir Working directory
+     * @return string The actual sandbox ID
+     * @throws SandboxOperationException When sandbox cannot be started
      */
-    private function handleFollowerWait(int $topicId, string $fallbackSandboxId, ?callable $interruptChecker): string
-    {
-        $this->logger->info('[Sandbox][SingleFlight] Entering follower wait', [
-            'topic_id' => $topicId,
-        ]);
-
-        $result = $this->singleFlight->waitForResult($topicId, $interruptChecker);
-
-        // Interrupted
-        if ($result === null && $interruptChecker !== null && $interruptChecker()) {
-            return $fallbackSandboxId;
-        }
-
-        // Owner succeeded
-        if ($this->singleFlight->isReady($result)) {
-            return $result['sandbox_id'];
-        }
-
-        // Owner failed — log internal error details, return generic message to caller
-        if ($this->singleFlight->isFailed($result)) {
-            $this->logger->error('[Sandbox][SingleFlight] Owner initialization failed', [
-                'topic_id' => $topicId,
-                'error' => $result['error'] ?? 'unknown',
-            ]);
-            throw new ServerException(trans('agent.sandbox_init_failed'));
-        }
-
-        // Owner disappeared (crashed) or timed out — no result, no running.
-        // Clean up stale state so subsequent requests can attempt fresh initialization.
-        $this->singleFlight->clearResult($topicId);
-        $this->logger->warning('[Sandbox][SingleFlight] Owner disappeared, cleaned up stale state', [
-            'topic_id' => $topicId,
-        ]);
-        throw new ServerException(trans('agent.sandbox_init_timeout'));
-    }
-
-    /**
-     * Execute the actual sandbox initialization steps (called by owner only, outside of lock).
-     */
-    private function doSandboxInitialize(
-        DataIsolation $dataIsolation,
-        AgentContext $agentContext,
+    public function ensureSandboxRunning(
+        string $userId,
+        string $orgCode,
         string $sandboxId,
-        int $topicId,
-        ?callable $interruptChecker
+        string $projectId,
+        string $workDir
     ): string {
-        // Step 1: Check workspace status (quick-return if already ready)
-        $this->singleFlight->refreshRunning($topicId);
-        try {
-            $response = $this->getWorkspaceStatus($sandboxId);
-            $status = $response->getDataValue('status');
+        $this->logger->debug('[Sandbox][Domain] Ensuring sandbox container is running', [
+            'sandbox_id' => $sandboxId,
+            'project_id' => $projectId,
+            'user_id' => $userId,
+        ]);
 
-            if (WorkspaceStatus::isReady($status)) {
-                $this->logger->info('[Sandbox][SingleFlight] Workspace already ready', [
+        // Check if sandbox already running
+        $statusResult = $this->getSandboxStatus($sandboxId);
+        if ($statusResult->isSuccess() && $statusResult->getCode() === ResponseCode::SUCCESS) {
+            if (SandboxStatus::isAvailable($statusResult->getStatus())) {
+                $this->logger->debug('[Sandbox][Domain] Sandbox container is already running', [
                     'sandbox_id' => $sandboxId,
                 ]);
                 return $sandboxId;
             }
 
-            $this->logger->info('[Sandbox][SingleFlight] Workspace not ready, will reinitialize', [
-                'sandbox_id' => $sandboxId,
-                'workspace_status' => $status,
-            ]);
-        } catch (SandboxOperationException $e) {
-            $isNotFound = $e->getCode() === ResponseCode::NOT_FOUND;
-            $logLevel = $isNotFound ? 'info' : 'warning';
-            $this->logger->{$logLevel}('[Sandbox][SingleFlight] Workspace status check failed, will create sandbox', [
-                'sandbox_id' => $sandboxId,
+            // If Pending, wait for it to become Running
+            if ($statusResult->getStatus() === SandboxStatus::PENDING) {
+                $this->logger->debug('[Sandbox][Domain] Sandbox container is pending, waiting for it to become running', [
+                    'sandbox_id' => $sandboxId,
+                ]);
+                try {
+                    return $this->waitForSandboxContainerRunning($sandboxId, 'existing');
+                } catch (SandboxOperationException $e) {
+                    $this->logger->warning('[Sandbox][Domain] Failed to wait for existing sandbox container, will recreate', [
+                        'sandbox_id' => $sandboxId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        // Get root file ID for sandbox creation
+        $projectSpaceRootFileId = '';
+        try {
+            $rootDir = $this->taskFileRepository->findRootDirectoryByProjectId((int) $projectId);
+            if ($rootDir !== null) {
+                $projectSpaceRootFileId = (string) $rootDir->getFileId();
+            }
+        } catch (Throwable $e) {
+            $this->logger->warning('[Sandbox][Domain] Failed to get project space root file id', [
+                'project_id' => $projectId,
                 'error' => $e->getMessage(),
-                'is_not_found' => $isNotFound,
             ]);
         }
 
-        // Step 2: Create sandbox container
-        $this->singleFlight->refreshRunning($topicId);
-        $sandboxId = $this->createSandbox(
-            dataIsolation: $dataIsolation,
-            projectId: (string) $agentContext->getProjectEntity()->getId(),
-            sandboxID: $agentContext->getSandboxId(),
-            workDir: $agentContext?->getInitContext()->getWorkDir() ?? ''
-        );
+        // Create sandbox container
+        $authorization = $this->getAuthorizationByUserId($userId);
+        $this->gateway->setUserContext($userId, $orgCode);
+        $createResult = $this->gateway->createSandbox($projectId, $sandboxId, $workDir, $projectSpaceRootFileId, '', $authorization);
 
-        if ($interruptChecker !== null && $interruptChecker()) {
-            $this->logger->info('[Sandbox][SingleFlight] Interrupted after sandbox creation', [
+        if (! $createResult->isSuccess()) {
+            $this->logger->error('[Sandbox][Domain] Failed to create sandbox container', [
                 'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'code' => $createResult->getCode(),
+                'message' => $createResult->getMessage(),
             ]);
-            return $sandboxId;
+            throw new SandboxOperationException('Create sandbox', $createResult->getMessage(), $createResult->getCode());
         }
 
-        // Step 3: Initialize agent
-        $this->singleFlight->refreshRunning($topicId);
-        $result = $this->agent->initAgent($sandboxId, $agentContext->getInitContext()->toArray());
-        if (! $result->isSuccess()) {
-            $this->logger->error('[Sandbox][SingleFlight] Failed to initialize agent', [
+        $newSandboxId = $createResult->getDataValue('sandbox_id');
+        if (empty($newSandboxId)) {
+            $this->logger->error('[Sandbox][Domain] Failed to get sandbox_id from create result', [
                 'sandbox_id' => $sandboxId,
-                'error' => $result->getMessage(),
-                'code' => $result->getCode(),
+                'project_id' => $projectId,
             ]);
-            throw new SandboxOperationException('Initialize agent', $result->getMessage(), $result->getCode());
+            throw new SandboxOperationException('Get sandbox_id from create result', 'Failed to get sandbox_id from create result', 2001);
         }
 
-        if ($interruptChecker !== null && $interruptChecker()) {
-            $this->logger->info('[Sandbox][SingleFlight] Interrupted after agent initialization', [
-                'sandbox_id' => $sandboxId,
-            ]);
-            return $sandboxId;
-        }
-
-        // Step 4: Wait for workspace ready (with TTL refresh and interrupt support)
-        $this->singleFlight->refreshRunning($topicId);
-        $isReady = $this->waitForWorkspaceReady($sandboxId, interruptChecker: $interruptChecker, topicIdForSingleFlight: $topicId);
-        if (! $isReady) {
-            $this->logger->info('[Sandbox][SingleFlight] Interrupted during workspace ready wait', [
-                'sandbox_id' => $sandboxId,
-            ]);
-            return $sandboxId;
-        }
-
-        return $sandboxId;
+        $this->logger->debug('[Sandbox][Domain] Sandbox container created, waiting for it to become running', [
+            'sandbox_id' => $newSandboxId,
+        ]);
+        return $this->waitForSandboxContainerRunning($newSandboxId, 'new');
     }
 
     /**
-     * Check if a workspace is still in ready state.
+     * 根据用户ID获取 Authorization.
+     * - 先以用户级别 token（MagicTokenType::User）为准，支持一个账号多个组织
+     * - 若 token 已存在但剩余有效期不足 30 天，则刷新至 30 天后.
+     *
+     * @param string $userId 用户ID
+     * @return string Authorization 字符串，如果不存在则返回空字符串
      */
-    private function isWorkspaceStillReady(string $sandboxId): bool
+    public function getAuthorizationByUserId(string $userId): string
     {
-        try {
-            $response = $this->getWorkspaceStatus($sandboxId);
-            return WorkspaceStatus::isReady($response->getDataValue('status'));
-        } catch (Throwable) {
-            return false;
+        // 先按 MagicTokenType::User + userId 查询是否有可用的 token
+        $tokenEntity = $this->magicTokenRepository->getTokenByTypeAndRelationValue(MagicTokenType::User, $userId);
+
+        // 如果已存在可用的 token，根据有效期情况刷新后返回
+        if ($tokenEntity !== null) {
+            $this->refreshTokenExpirationIfNeeded($tokenEntity);
+            return $tokenEntity->getToken();
         }
+
+        // 如果没有可用的 token，创建一个新的 token（有效期一个月）
+        try {
+            $newToken = IdGenerator::getUniqueIdSha256();
+            $magicTokenEntity = new MagicTokenEntity();
+            $magicTokenEntity->setType(MagicTokenType::User);
+            $magicTokenEntity->setTypeRelationValue($userId);
+            $magicTokenEntity->setToken($newToken);
+            // 设置有效期为30天
+            $expiredAt = Carbon::now()->addDays(30)->toDateTimeString();
+            $magicTokenEntity->setExpiredAt($expiredAt);
+
+            $this->magicTokenRepository->createToken($magicTokenEntity);
+
+            return $newToken;
+        } catch (Throwable $e) {
+            $this->logger->error('[Sandbox][App] Failed to create user token', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+            return '';
+        }
+    }
+
+    /**
+     * Wait for sandbox container to become running.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @param string $type Type for logging ('existing' or 'new')
+     * @return string Sandbox ID on success
+     * @throws SandboxOperationException When timeout or sandbox exits unexpectedly
+     */
+    private function waitForSandboxContainerRunning(string $sandboxId, string $type): string
+    {
+        $maxRetries = 15;
+        $retryDelay = 2;
+
+        $this->logger->debug(sprintf('[Sandbox][Domain] Waiting for %s sandbox container to become running', $type), [
+            'sandbox_id' => $sandboxId,
+            'max_retries' => $maxRetries,
+            'retry_delay' => $retryDelay,
+        ]);
+
+        for ($i = 0; $i < $maxRetries; ++$i) {
+            $statusResult = $this->getSandboxStatus($sandboxId);
+
+            if ($statusResult->isSuccess() && SandboxStatus::isAvailable($statusResult->getStatus())) {
+                $this->logger->debug(sprintf('[Sandbox][Domain] %s sandbox container is now running', ucfirst($type)), [
+                    'sandbox_id' => $sandboxId,
+                    'attempts' => $i + 1,
+                ]);
+                return $sandboxId;
+            }
+
+            if ($type === 'existing' && $statusResult->getStatus() === SandboxStatus::EXITED) {
+                $this->logger->debug('[Sandbox][Domain] Existing sandbox container exited while waiting', [
+                    'sandbox_id' => $sandboxId,
+                    'current_status' => $statusResult->getStatus(),
+                ]);
+                throw new SandboxOperationException('Wait for existing sandbox', 'Existing sandbox exited while waiting', 2002);
+            }
+
+            $this->logger->debug(sprintf('[Sandbox][Domain] Waiting for %s sandbox container...', $type), [
+                'sandbox_id' => $sandboxId,
+                'current_status' => $statusResult->getStatus(),
+                'attempt' => $i + 1,
+            ]);
+            sleep($retryDelay);
+        }
+
+        $this->logger->error(sprintf('[Sandbox][Domain] Timeout waiting for %s sandbox container to become running', $type), [
+            'sandbox_id' => $sandboxId,
+        ]);
+        throw new SandboxOperationException('Wait for sandbox ready', sprintf('Timeout waiting for %s sandbox to become running', $type), 2003);
     }
 
     /**
@@ -1139,24 +1432,25 @@ class AgentDomainService
     /**
      * Build agent profile based on agent mode and code.
      * Dispatches to specific profile builders per mode type.
+     * Returns array format: {type, profile: {code, name, description, [role], [template_code]}}.
      */
-    private function buildAgentProfile(DataIsolation $dataIsolation, string $agentMode, string $agentCode): ?AgentProfileValueObject
+    private function buildAgentProfile(DataIsolation $dataIsolation, string $agentMode, string $agentCode, string $language): array
     {
-        if (empty($agentCode)) {
-            return null;
+        if (empty($agentMode)) {
+            return [];
         }
 
         return match ($agentMode) {
             ProjectMode::MAGICLAW->value => $this->buildMagicClawProfile($dataIsolation, $agentCode),
-            ProjectMode::CUSTOM_AGENT->value => $this->buildCustomAgentProfile($dataIsolation, $agentCode),
-            default => null,
+            ProjectMode::CUSTOM_AGENT->value => $this->buildCustomAgentProfile($dataIsolation, $agentCode, $language),
+            default => $this->buildOfficialAgentProfile($agentMode, $language),
         };
     }
 
     /**
      * Build profile from magic_super_magic_claw table.
      */
-    private function buildMagicClawProfile(DataIsolation $dataIsolation, string $agentCode): ?AgentProfileValueObject
+    private function buildMagicClawProfile(DataIsolation $dataIsolation, string $agentCode): array
     {
         $entity = $this->magicClawRepository->findByCode(
             $agentCode,
@@ -1165,21 +1459,51 @@ class AgentDomainService
         );
 
         if ($entity === null) {
-            return null;
+            return [];
         }
 
-        return new AgentProfileValueObject(
-            code: $entity->getCode(),
-            name: $entity->getName(),
-            description: $entity->getDescription(),
-            templateCode: $entity->getTemplateCode(),
-        );
+        return [
+            'type' => ProjectMode::MAGICLAW->value,
+            'profile' => [
+                'code' => $entity->getCode(),
+                'name' => $entity->getName(),
+                'description' => $entity->getDescription(),
+                'template_code' => $entity->getTemplateCode(),
+            ],
+        ];
+    }
+
+    /**
+     * Build profile from magic_super_magic_agents table using official organization code as default fallback.
+     */
+    private function buildOfficialAgentProfile(string $agentCode, string $language): array
+    {
+        $officialOrgCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
+        if (empty($officialOrgCode)) {
+            return [];
+        }
+
+        $agentDataIsolation = SuperMagicAgentDataIsolation::create($officialOrgCode);
+        $entity = $this->superMagicAgentRepository->getByCode($agentDataIsolation, $agentCode);
+
+        if ($entity === null) {
+            return [];
+        }
+
+        return [
+            'type' => 'official',
+            'profile' => [
+                'code' => $entity->getCode(),
+                'name' => $entity->getI18nName($language),
+                'description' => $entity->getI18nDescription($language),
+            ],
+        ];
     }
 
     /**
      * Build profile from magic_super_magic_agents table.
      */
-    private function buildCustomAgentProfile(DataIsolation $dataIsolation, string $agentCode): ?AgentProfileValueObject
+    private function buildCustomAgentProfile(DataIsolation $dataIsolation, string $agentCode, string $language): array
     {
         $agentDataIsolation = SuperMagicAgentDataIsolation::create(
             $dataIsolation->getCurrentOrganizationCode(),
@@ -1189,14 +1513,18 @@ class AgentDomainService
         $entity = $this->superMagicAgentRepository->getByCode($agentDataIsolation, $agentCode);
 
         if ($entity === null) {
-            return null;
+            return [];
         }
 
-        return new AgentProfileValueObject(
-            code: $entity->getCode(),
-            name: $entity->getName(),
-            description: $entity->getDescription(),
-        );
+        return [
+            'type' => ProjectMode::CUSTOM_AGENT->value,
+            'profile' => [
+                'code' => $entity->getCode(),
+                'name' => $entity->getI18nName($language),
+                'description' => $entity->getI18nDescription($language),
+                'role' => $entity->getI18nRole($language),
+            ],
+        ];
     }
 
     /**
@@ -1226,48 +1554,6 @@ class AgentDomainService
         }
 
         return empty($constraints) ? '' : implode('', $constraints);
-    }
-
-    /**
-     * 根据用户ID获取 Authorization.
-     * - 先以用户级别 token（MagicTokenType::User）为准，支持一个账号多个组织
-     * - 若 token 已存在但剩余有效期不足 30 天，则刷新至 30 天后.
-     *
-     * @param string $userId 用户ID
-     * @return string Authorization 字符串，如果不存在则返回空字符串
-     */
-    private function getAuthorizationByUserId(string $userId): string
-    {
-        // 先按 MagicTokenType::User + userId 查询是否有可用的 token
-        $tokenEntity = $this->magicTokenRepository->getTokenByTypeAndRelationValue(MagicTokenType::User, $userId);
-
-        // 如果已存在可用的 token，根据有效期情况刷新后返回
-        if ($tokenEntity !== null) {
-            $this->refreshTokenExpirationIfNeeded($tokenEntity);
-            return $tokenEntity->getToken();
-        }
-
-        // 如果没有可用的 token，创建一个新的 token（有效期一个月）
-        try {
-            $newToken = IdGenerator::getUniqueIdSha256();
-            $magicTokenEntity = new MagicTokenEntity();
-            $magicTokenEntity->setType(MagicTokenType::User);
-            $magicTokenEntity->setTypeRelationValue($userId);
-            $magicTokenEntity->setToken($newToken);
-            // 设置有效期为30天
-            $expiredAt = Carbon::now()->addDays(30)->toDateTimeString();
-            $magicTokenEntity->setExpiredAt($expiredAt);
-
-            $this->magicTokenRepository->createToken($magicTokenEntity);
-
-            return $newToken;
-        } catch (Throwable $e) {
-            $this->logger->error('[Sandbox][App] Failed to create user token', [
-                'user_id' => $userId,
-                'error' => $e->getMessage(),
-            ]);
-            return '';
-        }
     }
 
     /**

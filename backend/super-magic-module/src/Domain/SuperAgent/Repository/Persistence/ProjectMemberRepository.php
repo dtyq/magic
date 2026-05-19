@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
 use Hyperf\DbConnection\Db;
@@ -531,6 +532,9 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             $query->where('p.is_hidden', 0);
         }
 
+        // 过滤特定项目模式（音频、agent/skill 创建器、magiclaw 等）
+        $query->whereNotIn('p.project_mode', ProjectMode::getQueryFilterModes());
+
         // 获取总数
         $totalQuery = clone $query;
         $total = $totalQuery->select('p.id')->distinct()->count();
@@ -625,6 +629,40 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
     }
 
     /**
+     * 根据目标列表精确查询项目成员。
+     *
+     * 该方法用于协作流程双写时判断哪些成员已存在，避免整表扫描和误命中。
+     *
+     * @param array<int, array{target_type: string, target_id: string}> $targets
+     * @return ProjectMemberEntity[]
+     */
+    public function getMembersByTargets(int $projectId, array $targets): array
+    {
+        if (empty($targets)) {
+            return [];
+        }
+
+        // 协作流程同步时按“类型 + ID”精准命中，避免用户 ID 与部门 ID 撞值时串删或串改。
+        $query = $this->projectMemberModel::query()->where('project_id', $projectId);
+        $query->where(static function ($builder) use ($targets) {
+            foreach ($targets as $target) {
+                $builder->orWhere(static function ($subQuery) use ($target) {
+                    $subQuery->where('target_type', $target['target_type'])
+                        ->where('target_id', $target['target_id']);
+                });
+            }
+        });
+
+        $membersData = $query->get();
+        $entities = [];
+        foreach ($membersData as $memberData) {
+            $entities[] = $this->toEntity($memberData->toArray());
+        }
+
+        return $entities;
+    }
+
+    /**
      * 根据项目ID和部门ID数组获取项目成员列表.
      */
     public function getMembersByProjectAndDepartmentIds(int $projectId, array $departmentIds): array
@@ -691,6 +729,33 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         return $this->projectMemberModel::withTrashed()
             ->where('project_id', $projectId)
             ->whereIn('target_id', $memberIds)
+            ->forceDelete();
+    }
+
+    /**
+     * 根据目标列表精确删除项目成员。
+     *
+     * 该方法用于协作者移除场景，删除维度为 target_type + target_id。
+     *
+     * @param array<int, array{target_type: string, target_id: string}> $targets
+     */
+    public function deleteMembersByTargets(int $projectId, array $targets): int
+    {
+        if (empty($targets)) {
+            return 0;
+        }
+
+        // 删除协作者时不能只按 target_id 处理，否则不同类型目标会被误删。
+        return $this->projectMemberModel::withTrashed()
+            ->where('project_id', $projectId)
+            ->where(static function ($builder) use ($targets) {
+                foreach ($targets as $target) {
+                    $builder->orWhere(static function ($subQuery) use ($target) {
+                        $subQuery->where('target_type', $target['target_type'])
+                            ->where('target_id', $target['target_id']);
+                    });
+                }
+            })
             ->forceDelete();
     }
 

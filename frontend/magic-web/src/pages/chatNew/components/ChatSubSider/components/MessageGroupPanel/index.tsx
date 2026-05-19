@@ -80,42 +80,42 @@ function MessageGroupPanel({
 		return [
 			topGroupList.length
 				? {
-					label: (
-						<span className={styles.collapseLabel}>
-							{titleWithCount(t("chat.subSider.pinned"), topGroupList.length)}
-						</span>
-					),
-					children: childrenMap[MessageGroupKey.Pinned],
-					key: MessageGroupKey.Pinned,
-				}
+						label: (
+							<span className={styles.collapseLabel}>
+								{titleWithCount(t("chat.subSider.pinned"), topGroupList.length)}
+							</span>
+						),
+						children: childrenMap[MessageGroupKey.Pinned],
+						key: MessageGroupKey.Pinned,
+					}
 				: undefined,
 			singleGroupList.length
 				? {
-					label: (
-						<span className={styles.collapseLabel}>
-							{titleWithCount(
-								t("chat.subSider.conversation"),
-								singleGroupList.length,
-							)}
-						</span>
-					),
-					children: childrenMap[MessageGroupKey.Single],
-					key: MessageGroupKey.Single,
-				}
+						label: (
+							<span className={styles.collapseLabel}>
+								{titleWithCount(
+									t("chat.subSider.conversation"),
+									singleGroupList.length,
+								)}
+							</span>
+						),
+						children: childrenMap[MessageGroupKey.Single],
+						key: MessageGroupKey.Single,
+					}
 				: undefined,
 			groupGroupList.length
 				? {
-					label: (
-						<span className={styles.collapseLabel}>
-							{titleWithCount(
-								t("chat.subSider.groupConversation"),
-								groupGroupList.length,
-							)}
-						</span>
-					),
-					children: childrenMap[MessageGroupKey.Group],
-					key: MessageGroupKey.Group,
-				}
+						label: (
+							<span className={styles.collapseLabel}>
+								{titleWithCount(
+									t("chat.subSider.groupConversation"),
+									groupGroupList.length,
+								)}
+							</span>
+						),
+						children: childrenMap[MessageGroupKey.Group],
+						key: MessageGroupKey.Group,
+					}
 				: undefined,
 		].filter(Boolean) as CollapseProps["items"]
 	}, [

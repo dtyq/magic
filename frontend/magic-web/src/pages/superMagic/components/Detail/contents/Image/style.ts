@@ -35,18 +35,5 @@ export const useStyles = createStyles(({ token }) => {
 			width: "18px",
 			height: "18px",
 		},
-		pdfViewerContainer: {
-			width: "100%",
-			position: "fixed",
-			bottom: "0px",
-			display: "flex",
-			gap: "18px",
-			alignItems: "center",
-			justifyContent: "center",
-			padding: "18px",
-			borderRadius: "4px",
-			zIndex: 1000,
-			cursor: "pointer",
-		},
 	}
 })

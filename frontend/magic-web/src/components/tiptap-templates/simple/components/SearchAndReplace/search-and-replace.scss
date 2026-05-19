@@ -1,0 +1,322 @@
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
+
+// Search result highlight decorations (applied by the ProseMirror plugin)
+@include scope.content {
+	.search-result {
+		background-color: rgba(255, 200, 0, 0.4);
+		border-radius: 2px;
+	}
+
+	.search-result-current {
+		background-color: rgba(255, 140, 0, 0.6);
+		border-radius: 2px;
+		outline: 1px solid rgba(255, 140, 0, 0.8);
+	}
+}
+
+// Dark mode search result highlights
+@include scope.dark-content {
+	.search-result {
+		background-color: rgba(255, 200, 0, 0.3);
+	}
+
+	.search-result-current {
+		background-color: rgba(255, 140, 0, 0.5);
+		outline-color: rgba(255, 140, 0, 0.7);
+	}
+}
+
+// Search and Replace Panel
+.search-and-replace-panel {
+	position: absolute;
+	top: 0.5rem;
+	right: 1rem;
+	z-index: 20;
+	display: flex;
+	flex-direction: row;
+	align-items: flex-start;
+	gap: 0.25rem;
+	padding: 0.375rem 0.5rem;
+	background-color: var(--tt-gray-light-50);
+	border: 1px solid var(--tt-gray-light-200);
+	border-radius: 0.375rem;
+	box-shadow:
+		0 2px 8px rgba(0, 0, 0, 0.08),
+		0 1px 2px rgba(0, 0, 0, 0.06);
+	font-family: "Inter", sans-serif;
+	font-size: 0.8125rem;
+	min-width: 20rem;
+
+	// Animation
+	animation: search-panel-slide-in 0.15s ease-out;
+}
+
+@keyframes search-panel-slide-in {
+	from {
+		opacity: 0;
+		transform: translateY(-0.5rem);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+// Dark mode panel
+.simple-editor-wrapper.dark,
+.dark .simple-editor-wrapper {
+	.search-and-replace-panel {
+		background-color: var(--tt-gray-dark-50);
+		border-color: var(--tt-gray-dark-200);
+		box-shadow:
+			0 2px 8px rgba(0, 0, 0, 0.24),
+			0 1px 2px rgba(0, 0, 0, 0.16);
+	}
+}
+
+// Toggle column (expand/collapse chevron)
+.search-panel-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	padding-top: 0.25rem;
+}
+
+.search-panel-toggle-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.25rem;
+	height: 1.25rem;
+	padding: 0;
+	border: none;
+	border-radius: 0.25rem;
+	background: transparent;
+	color: var(--tt-gray-light-500);
+	cursor: pointer;
+	transition: all 0.15s ease;
+
+	&:hover {
+		background-color: var(--tt-gray-light-200);
+		color: var(--tt-gray-light-900);
+	}
+
+	svg {
+		width: 0.875rem;
+		height: 0.875rem;
+		transition: transform 0.15s ease;
+	}
+
+	&[data-expanded="true"] svg {
+		transform: rotate(90deg);
+	}
+}
+
+.simple-editor-wrapper.dark,
+.dark .simple-editor-wrapper {
+	.search-panel-toggle-btn {
+		color: var(--tt-gray-dark-500);
+
+		&:hover {
+			background-color: var(--tt-gray-dark-200);
+			color: var(--tt-gray-dark-900);
+		}
+	}
+}
+
+// Right content area with search/replace rows
+.search-panel-content {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	flex: 1;
+	min-width: 0;
+}
+
+// Each row (search / replace)
+.search-panel-row {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+}
+
+// Input wrapper with inline toggle buttons
+.search-panel-input-wrapper {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	min-width: 0;
+	height: 1.625rem;
+	padding: 0 0.25rem 0 0.375rem;
+	background-color: var(--tt-gray-light-100);
+	border: 1px solid var(--tt-gray-light-200);
+	border-radius: 0.25rem;
+	transition: border-color 0.15s ease;
+
+	&:focus-within {
+		border-color: var(--tt-brand-color-500);
+	}
+}
+
+.simple-editor-wrapper.dark,
+.dark .simple-editor-wrapper {
+	.search-panel-input-wrapper {
+		background-color: var(--tt-gray-dark-100);
+		border-color: var(--tt-gray-dark-200);
+
+		&:focus-within {
+			border-color: var(--tt-brand-color-400);
+		}
+	}
+}
+
+// Input field
+.search-panel-input {
+	flex: 1;
+	min-width: 0;
+	height: 100%;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: var(--tt-gray-light-900);
+	font-size: 0.8125rem;
+	font-family: "Inter", sans-serif;
+	outline: none;
+
+	&::placeholder {
+		color: var(--tt-gray-light-a-400);
+	}
+}
+
+.simple-editor-wrapper.dark,
+.dark .simple-editor-wrapper {
+	.search-panel-input {
+		color: var(--tt-gray-dark-900);
+
+		&::placeholder {
+			color: var(--tt-gray-dark-a-400);
+		}
+	}
+}
+
+// Inline toggle buttons (case sensitive, regex)
+.search-panel-inline-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.25rem;
+	height: 1.25rem;
+	padding: 0;
+	border: 1px solid transparent;
+	border-radius: 0.1875rem;
+	background: transparent;
+	color: var(--tt-gray-light-500);
+	cursor: pointer;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	font-family: "Inter", sans-serif;
+	transition: all 0.15s ease;
+	flex-shrink: 0;
+
+	&:hover {
+		background-color: var(--tt-gray-light-200);
+		color: var(--tt-gray-light-800);
+	}
+
+	&[data-active="true"] {
+		background-color: var(--tt-brand-color-100);
+		color: var(--tt-brand-color-600);
+		border-color: var(--tt-brand-color-300);
+	}
+}
+
+.simple-editor-wrapper.dark,
+.dark .simple-editor-wrapper {
+	.search-panel-inline-btn {
+		color: var(--tt-gray-dark-500);
+
+		&:hover {
+			background-color: var(--tt-gray-dark-200);
+			color: var(--tt-gray-dark-800);
+		}
+
+		&[data-active="true"] {
+			background-color: rgba(49, 92, 236, 0.2);
+			color: var(--tt-brand-color-300);
+			border-color: rgba(49, 92, 236, 0.4);
+		}
+	}
+}
+
+// Result count badge
+.search-panel-count {
+	flex-shrink: 0;
+	font-size: 0.6875rem;
+	color: var(--tt-gray-light-500);
+	white-space: nowrap;
+	padding: 0 0.25rem;
+	min-width: 3.5rem;
+	text-align: center;
+}
+
+.simple-editor-wrapper.dark,
+.dark .simple-editor-wrapper {
+	.search-panel-count {
+		color: var(--tt-gray-dark-500);
+	}
+}
+
+// Action buttons (prev, next, close, replace, replace all)
+.search-panel-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.375rem;
+	height: 1.375rem;
+	padding: 0;
+	border: none;
+	border-radius: 0.25rem;
+	background: transparent;
+	color: var(--tt-gray-light-600);
+	cursor: pointer;
+	transition: all 0.15s ease;
+	flex-shrink: 0;
+
+	&:hover {
+		background-color: var(--tt-gray-light-200);
+		color: var(--tt-gray-light-900);
+	}
+
+	&:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+
+		&:hover {
+			background: transparent;
+			color: var(--tt-gray-light-600);
+		}
+	}
+
+	svg {
+		width: 0.875rem;
+		height: 0.875rem;
+	}
+}
+
+.simple-editor-wrapper.dark,
+.dark .simple-editor-wrapper {
+	.search-panel-btn {
+		color: var(--tt-gray-dark-600);
+
+		&:hover {
+			background-color: var(--tt-gray-dark-200);
+			color: var(--tt-gray-dark-900);
+		}
+
+		&:disabled:hover {
+			background: transparent;
+			color: var(--tt-gray-dark-600);
+		}
+	}
+}

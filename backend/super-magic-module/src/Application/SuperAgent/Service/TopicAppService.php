@@ -28,9 +28,12 @@ use Dtyq\SuperMagic\Domain\RecycleBin\Service\RecycleBinDomainService;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Constant\TopicDuplicateConstant;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\CreationSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\DeleteDataType;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\HiddenType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\StopRunningTaskEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicCreatedEvent;
@@ -40,6 +43,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Event\TopicUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WorkspaceDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
@@ -47,18 +51,27 @@ use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskStatusValidator;
 use Dtyq\SuperMagic\Infrastructure\Utils\TaskTerminationUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchTopicStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DeleteTopicRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\DuplicateTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetResourceStatusRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetTopicAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\SaveTopicRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateTopicReadProgressRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\DeleteTopicResultDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\MessageItemDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ResourceStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SaveTopicResultDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SidebarTopicItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TerminateTaskResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicReadProgressResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicStatusItemDTO;
 use Exception;
 use Hyperf\Amqp\Producer;
 use Hyperf\DbConnection\Db;
@@ -82,6 +95,7 @@ class TopicAppService extends AbstractAppService
 
     public function __construct(
         protected TaskDomainService $taskDomainService,
+        protected TaskFileDomainService $taskFileDomainService,
         protected WorkspaceDomainService $workspaceDomainService,
         protected ProjectDomainService $projectDomainService,
         protected TopicDomainService $topicDomainService,
@@ -124,6 +138,86 @@ class TopicAppService extends AbstractAppService
         return TopicItemDTO::fromEntity($topicEntity);
     }
 
+    public function getTopicStatuses(RequestContext $requestContext, BatchTopicStatusRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $result = $this->topicDomainService->getTopicStatuses($requestDTO->getTopicIds(), $userAuthorization->getId());
+
+        return [
+            'topics' => array_map(
+                static fn (array $item) => TopicStatusItemDTO::fromArray($item)->toArray(),
+                $result
+            ),
+        ];
+    }
+
+    public function getResourceStatus(RequestContext $requestContext, GetResourceStatusRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $result = $this->topicDomainService->getResourceStatus(
+            $requestDTO->getWorkspaceIds(),
+            $requestDTO->getProjectIds(),
+            $userAuthorization->getId()
+        );
+
+        return ResourceStatusResponseDTO::fromArray($result)->toArray();
+    }
+
+    public function updateReadProgress(RequestContext $requestContext, UpdateTopicReadProgressRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $result = $this->topicDomainService->updateReadProgress(
+            $dataIsolation,
+            $requestDTO->getTopicId(),
+            $requestDTO->getLastReadAt(),
+            $requestDTO->getLastReadMessageId()
+        );
+
+        return TopicReadProgressResponseDTO::fromArray($result)->toArray();
+    }
+
+    public function pinTopic(RequestContext $requestContext, int $topicId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        return $this->buildSidebarTopicResponse(
+            $this->topicDomainService->pinTopic($dataIsolation, $topicId)
+        );
+    }
+
+    public function unpinTopic(RequestContext $requestContext, int $topicId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        return $this->buildSidebarTopicResponse(
+            $this->topicDomainService->unpinTopic($dataIsolation, $topicId)
+        );
+    }
+
+    public function archiveTopic(RequestContext $requestContext, int $topicId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        return $this->buildSidebarTopicResponse(
+            $this->topicDomainService->archiveTopic($dataIsolation, $topicId)
+        );
+    }
+
+    public function unarchiveTopic(RequestContext $requestContext, int $topicId): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        return $this->buildSidebarTopicResponse(
+            $this->topicDomainService->unarchiveTopic($dataIsolation, $topicId)
+        );
+    }
+
     public function getTopicById(int $id): TopicItemDTO
     {
         // 获取话题内容
@@ -144,6 +238,24 @@ class TopicAppService extends AbstractAppService
 
         $projectEntity = $this->getAccessibleProjectWithEditor((int) $requestDTO->getProjectId(), $userAuthorization->getId(), $userAuthorization->getOrganizationCode());
 
+        // 用户创建普通话题时，优先复用该项目下已预热的隐藏话题
+        if (! $requestDTO->isHidden()) {
+            $preWarmedTopic = $this->topicDomainService->findHiddenTopicByProjectUserAndType(
+                (int) $requestDTO->getProjectId(),
+                $userAuthorization->getId(),
+                HiddenType::PRE_WARM->value
+            );
+
+            if ($preWarmedTopic !== null) {
+                $this->logger->info(sprintf(
+                    '发现项目预热隐藏话题，将复用, projectId=%s, topicId=%d',
+                    $requestDTO->getProjectId(),
+                    $preWarmedTopic->getId()
+                ));
+                return $this->reuseHiddenTopic($dataIsolation, $userAuthorization, $preWarmedTopic, $requestDTO, $projectEntity);
+            }
+        }
+
         // 创建新话题，使用事务确保原子性
         Db::beginTransaction();
         try {
@@ -151,6 +263,7 @@ class TopicAppService extends AbstractAppService
             [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
 
             // 2. 创建话题
+            $dynamicParams = $this->buildDynamicParams($requestDTO);
             $topicEntity = $this->topicDomainService->createTopic(
                 $dataIsolation,
                 $projectEntity->getWorkspaceId(),
@@ -162,7 +275,9 @@ class TopicAppService extends AbstractAppService
                 $requestDTO->getTopicMode(),
                 CreationSource::USER_CREATED->value,
                 '',
-                $requestDTO->isHidden()
+                $requestDTO->isHidden(),
+                null,
+                $dynamicParams
             );
 
             // 3. 如果传入了 project_mode，更新项目的模式
@@ -205,6 +320,7 @@ class TopicAppService extends AbstractAppService
             [$chatConversationId, $chatConversationTopicId] = $this->chatAppService->initMagicChatConversation($dataIsolation);
 
             // 2. 创建话题
+            $dynamicParams = $this->buildDynamicParams($requestDTO);
             $topicEntity = $this->topicDomainService->createTopic(
                 $dataIsolation,
                 (int) $requestDTO->getWorkspaceId(),
@@ -216,7 +332,9 @@ class TopicAppService extends AbstractAppService
                 $requestDTO->getTopicMode(),
                 CreationSource::USER_CREATED->value,
                 '',
-                $requestDTO->isHidden()
+                $requestDTO->isHidden(),
+                null,
+                $dynamicParams
             );
 
             // 3. 如果传入了 project_mode，更新项目的模式
@@ -440,12 +558,31 @@ class TopicAppService extends AbstractAppService
             $requestDto->getFileType()
         );
 
-        // 处理文件 URL
+        // 处理文件列表
         $list = [];
-        $projectOrganizationCode = $projectEntity->getUserOrganizationCode();
+        $fileKeySet = [];
+        $filteredEntities = [];
+
+        foreach ($result['list'] as $entity) {
+            /**
+             * @var TaskFileEntity $entity
+             */
+            $fileKey = $entity->getFileKey();
+            // Skip duplicate file keys and root directory entries (same as getProjectAttachmentList)
+            if (isset($fileKeySet[$fileKey]) || empty($entity->getParentId())) {
+                continue;
+            }
+            $fileKeySet[$fileKey] = true;
+            $filteredEntities[] = $entity;
+        }
+
+        $relativePathMap = $this->buildRelativePathsByParentIds($filteredEntities, $topicEntity->getProjectId());
 
         // 遍历附件列表，使用TaskFileItemDTO处理
-        foreach ($result['list'] as $entity) {
+        foreach ($filteredEntities as $entity) {
+            /**
+             * @var TaskFileEntity $entity
+             */
             // 创建DTO
             $dto = new TaskFileItemDTO();
             $dto->fileId = (string) $entity->getFileId();
@@ -456,35 +593,22 @@ class TopicAppService extends AbstractAppService
             $dto->fileKey = $entity->getFileKey();
             $dto->fileSize = $entity->getFileSize();
             $dto->isHidden = $entity->getIsHidden();
+            $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
-
-            // Calculate relative file path by removing workDir from fileKey
-            $fileKey = $entity->getFileKey();
-            $workDirPos = strpos($fileKey, $workDir);
-            if ($workDirPos !== false) {
-                $dto->relativeFilePath = substr($fileKey, $workDirPos + strlen($workDir));
-            } else {
-                $dto->relativeFilePath = $fileKey; // If workDir not found, use original fileKey
-            }
-
-            // 添加 file_url 字段
-            $fileKey = $entity->getFileKey();
-            if (! empty($fileKey)) {
-                $fileLink = $this->fileAppService->getLink($projectOrganizationCode, $fileKey, StorageBucketType::SandBox);
-                if ($fileLink) {
-                    $dto->fileUrl = $fileLink->getUrl();
-                } else {
-                    $dto->fileUrl = '';
-                }
-            } else {
-                $dto->fileUrl = '';
-            }
+            $dto->relativeFilePath = $relativePathMap[$entity->getFileId()]
+                ?? WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
+            $dto->isDirectory = $entity->getIsDirectory();
+            $dto->projectId = (string) $entity->getProjectId();
+            $dto->sort = $entity->getSort();
+            $dto->parentId = (string) $entity->getParentId();
+            $dto->source = $entity->getSource();
+            $dto->fileUrl = '';
 
             $list[] = $dto->toArray();
         }
 
-        // 构建树状结构
-        $tree = FileTreeUtil::assembleFilesTree($list);
+        // Build tree structure with VS Code-style sorting (always use zh_CN for pinyin sorting)
+        $tree = FileTreeUtil::assembleFilesTreeByParentId($list, 'zh_CN');
 
         return [
             'list' => $list,
@@ -549,6 +673,54 @@ class TopicAppService extends AbstractAppService
             'list' => $messages,
             'total' => $result['total'],
         ];
+    }
+
+    /**
+     * Get topic name by topic ID, for share scenarios.
+     *
+     * @param int $topicId Topic ID
+     * @return string Topic name, or empty string if not found
+     */
+    public function getTopicDetail(int $topicId): string
+    {
+        $topicEntity = $this->workspaceDomainService->getTopicById($topicId);
+        if (empty($topicEntity)) {
+            return '';
+        }
+        return $topicEntity->getTopicName();
+    }
+
+    /**
+     * Get topic messages with project info, for share scenarios.
+     *
+     * @param int $topicId Topic ID
+     * @param int $page Page number
+     * @param int $pageSize Page size
+     * @param string $sortDirection Sort direction
+     * @return array Message list with total count and project info
+     */
+    public function getMessagesByTopicId(int $topicId, int $page = 1, int $pageSize = 20, string $sortDirection = 'asc'): array
+    {
+        $result = $this->taskDomainService->getMessagesByTopicId($topicId, $page, $pageSize, true, $sortDirection);
+
+        $messages = [];
+        foreach ($result['list'] as $message) {
+            $messages[] = new MessageItemDTO($message->toArray());
+        }
+
+        $data = [
+            'list' => $messages,
+            'total' => $result['total'],
+        ];
+
+        $topicEntity = $this->topicDomainService->getTopicWithDeleted($topicId);
+        if ($topicEntity !== null) {
+            $data['project_id'] = (string) $topicEntity->getProjectId();
+            $projectEntity = $this->getAccessibleProject($topicEntity->getProjectId(), $topicEntity->getUserId(), $topicEntity->getUserOrganizationCode());
+            $data['project_name'] = $projectEntity->getProjectName();
+        }
+
+        return $data;
     }
 
     /**
@@ -1203,5 +1375,104 @@ class TopicAppService extends AbstractAppService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Build relative paths based on parent_id chain instead of file_key.
+     *
+     * @param TaskFileEntity[] $entities
+     * @return array<int, string> [file_id => relative_path]
+     */
+    private function buildRelativePathsByParentIds(array $entities, int $projectId): array
+    {
+        if (empty($entities)) {
+            return [];
+        }
+
+        $fileIds = array_values(array_unique(array_map(
+            static fn (TaskFileEntity $entity): int => $entity->getFileId(),
+            $entities
+        )));
+
+        $filesWithParents = $this->taskFileDomainService->getFilesWithParentsByIds($fileIds, $projectId);
+        $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
+        return RelativeFilePathUtil::buildPathMapByParentChain($entities, $fileMap);
+    }
+
+    /**
+     * 复用预热隐藏话题（取消隐藏并应用用户提供的名称）.
+     * 参考 ProjectAppService::reuseHiddenProject 的实现模式.
+     */
+    private function reuseHiddenTopic(
+        DataIsolation $dataIsolation,
+        MagicUserAuthorization $userAuthorization,
+        TopicEntity $hiddenTopic,
+        SaveTopicRequestDTO $requestDTO,
+        ProjectEntity $projectEntity
+    ): TopicItemDTO {
+        $this->logger->info(sprintf('开始复用预热隐藏话题, topicId=%d', $hiddenTopic->getId()));
+
+        Db::beginTransaction();
+        try {
+            // 取消隐藏，并设置用户提供的名称
+            $hiddenTopic->setTopicName($requestDTO->getTopicName());
+            $hiddenTopic->setIsHidden(false);
+            $hiddenTopic->setHiddenType(null);
+            $hiddenTopic->setUpdatedUid($dataIsolation->getCurrentUserId());
+            $hiddenTopic->setUpdatedAt(date('Y-m-d H:i:s'));
+            // 更新动态参数（使用当前请求传入的配置覆盖预热话题的旧配置）
+            $dynamicParams = $this->buildDynamicParams($requestDTO);
+            if ($dynamicParams !== null) {
+                $hiddenTopic->setDynamicParams($dynamicParams);
+            }
+
+            $this->topicDomainService->saveTopicEntity($hiddenTopic);
+
+            // 如果传入了 project_mode，更新项目的模式
+            if (! empty($requestDTO->getProjectMode())) {
+                $projectEntity->setProjectMode($requestDTO->getProjectMode());
+                $projectEntity->setUpdatedAt(date('Y-m-d H:i:s'));
+                $this->projectDomainService->saveProjectEntity($projectEntity);
+            }
+
+            Db::commit();
+        } catch (Throwable $e) {
+            Db::rollBack();
+            $this->logger->error(sprintf(
+                '复用预热隐藏话题失败, topicId=%d: %s',
+                $hiddenTopic->getId(),
+                $e->getMessage()
+            ));
+            throw $e;
+        }
+
+        $this->logger->info(sprintf(
+            '预热隐藏话题复用成功, topicId=%d, topicName=%s, sandboxId=%s',
+            $hiddenTopic->getId(),
+            $hiddenTopic->getTopicName(),
+            $hiddenTopic->getSandboxId()
+        ));
+
+        // 发布话题已创建事件（与正常创建流程保持一致）
+        $this->eventDispatcher->dispatch(new TopicCreatedEvent($hiddenTopic, $userAuthorization));
+
+        return TopicItemDTO::fromEntity($hiddenTopic);
+    }
+
+    /**
+     * 从请求 DTO 中构建动态参数数组.
+     * 直接使用前端传入的 dynamic_params 对象.
+     */
+    private function buildDynamicParams(SaveTopicRequestDTO $requestDTO): ?array
+    {
+        $params = $requestDTO->getDynamicParams();
+        return empty($params) ? null : $params;
+    }
+
+    private function buildSidebarTopicResponse(array $topic): array
+    {
+        return [
+            'topic' => SidebarTopicItemDTO::fromArray($topic)->toArray(),
+        ];
     }
 }

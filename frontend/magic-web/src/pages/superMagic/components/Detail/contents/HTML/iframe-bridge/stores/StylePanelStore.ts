@@ -20,6 +20,14 @@ export interface SelectedElementInfo {
 	selector: string
 	/** 元素标签名 */
 	tagName: string
+	/** 是否为图片元素 */
+	isImageElement?: boolean
+	/** 图片原始宽度 */
+	intrinsicWidth?: number
+	/** 图片原始高度 */
+	intrinsicHeight?: number
+	/** 图片原始宽高比 */
+	intrinsicAspectRatio?: number
 	/** 是否为文本元素 */
 	isTextElement?: boolean
 	/** 计算后的样式 */

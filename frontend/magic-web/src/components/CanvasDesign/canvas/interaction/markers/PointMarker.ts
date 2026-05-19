@@ -15,6 +15,52 @@ export class PointMarker extends BaseMarker {
 		super(options)
 	}
 
+	protected getDeleteInteractionNode(): Konva.Node | null {
+		return this.group?.findOne(".marker-badge-group") ?? null
+	}
+
+	protected getDeleteLabelNode(): Konva.Text | null {
+		return (this.group?.findOne(".marker-label") as Konva.Text | null) ?? null
+	}
+
+	protected getDeleteBackgroundNode(): Konva.Shape | null {
+		return (this.group?.findOne(".marker-badge") as Konva.Shape | null) ?? null
+	}
+
+	protected getDeleteBackgroundColorConfig(): {
+		hoverColor: string
+		activeColor: string
+	} {
+		return {
+			hoverColor: POINT_MARKER_STYLES.DELETE_BACKGROUND_HOVER_COLOR,
+			activeColor: POINT_MARKER_STYLES.DELETE_BACKGROUND_ACTIVE_COLOR,
+		}
+	}
+
+	protected updateDeleteHoverState(isHovering: boolean): void {
+		if (!this.group) return
+
+		const droplet = this.group.findOne(".marker-badge") as Konva.Path | null
+		const text = this.getDeleteLabelNode()
+		if (!droplet || !text) return
+
+		droplet.fill(
+			isHovering
+				? POINT_MARKER_STYLES.DELETE_BACKGROUND_HOVER_COLOR
+				: POINT_MARKER_STYLES.FILL_COLOR,
+		)
+		droplet.opacity(1)
+		text.text(isHovering ? "×" : String(this.sequence))
+		text.fontSize(
+			isHovering
+				? POINT_MARKER_STYLES.DELETE_TEXT_FONT_SIZE
+				: POINT_MARKER_STYLES.TEXT_FONT_SIZE,
+		)
+		text.opacity(1)
+		text.offsetX(text.width() / 2)
+		text.offsetY(text.height() / 2)
+	}
+
 	/**
 	 * 创建水滴形状（使用 SVG 路径）
 	 */
@@ -36,6 +82,7 @@ export class PointMarker extends BaseMarker {
 
 		return new Konva.Path({
 			data: svgPath,
+			name: "marker-badge",
 			// 偏移使中心点对齐
 			offsetX: svgCenterX,
 			offsetY: svgHeight, // 底部尖角对齐到原点
@@ -59,6 +106,10 @@ export class PointMarker extends BaseMarker {
 			name: "marker",
 		})
 
+		const badgeGroup = new Konva.Group({
+			name: "marker-badge-group",
+		})
+
 		// 创建水滴形状背景
 		// 使用 SVG 路径，尖角已通过 offsetY 对齐到原点
 		const droplet = this.createDropletShape()
@@ -68,6 +119,7 @@ export class PointMarker extends BaseMarker {
 
 		// 创建序号文本
 		const text = new Konva.Text({
+			name: "marker-label",
 			text: String(this.sequence),
 			fontSize: POINT_MARKER_STYLES.TEXT_FONT_SIZE,
 			fontFamily: POINT_MARKER_STYLES.TEXT_FONT_FAMILY,
@@ -82,11 +134,11 @@ export class PointMarker extends BaseMarker {
 		text.offsetY(text.height() / 2)
 		text.y(-POINT_MARKER_STYLES.HEIGHT * 0.55) // 文字位置：在水滴的视觉中心（圆形部分），稍微向下
 
-		this.group.add(droplet)
-		this.group.add(text)
+		badgeGroup.add(droplet)
+		badgeGroup.add(text)
+		this.group.add(badgeGroup)
 
-		// 设置默认透明度
-		this.group.opacity(this.selectedMarkerId === this.marker.id ? 1 : 0.6)
+		this.group.opacity(1)
 
 		// 设置反向缩放（保持固定大小）
 		this.updateScale()

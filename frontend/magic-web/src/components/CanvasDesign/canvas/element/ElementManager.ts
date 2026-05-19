@@ -1,7 +1,6 @@
 import Konva from "konva"
-import type { LayerElement, CanvasDocument } from "../types"
+import type { LayerElement, CanvasDocument, ImageElement } from "../types"
 import { ElementTypeEnum } from "../types"
-import { GenerationStatus } from "../../types.magic"
 import { type CanvasEventMap } from "../EventEmitter"
 import { ElementFactory } from "./ElementFactory"
 import { BaseElement } from "./BaseElement"
@@ -10,7 +9,11 @@ import { ZIndexManager } from "./ZIndexManager"
 import type { Canvas } from "../Canvas"
 import { FrameElement } from "./elements/FrameElement"
 import { ImageElement as ImageElementClass } from "./elements/ImageElement"
+import { VideoElement as VideoElementClass } from "./elements/VideoElement"
+import { exportCanvasDocument } from "../utils/exportDocument"
+import { syncCropConfigOnResize } from "../utils/imageCropUtils"
 import { normalizeSize } from "../utils/normalizeUtils"
+import { sanitizeCanvasDocument } from "../utils/temporaryElementUtils"
 
 /**
  * 更新模式
@@ -29,6 +32,8 @@ export interface ElementOperationOptions {
 	batch?: boolean
 	/** 更新模式：控制更新哪些层（默认 'full'） */
 	mode?: UpdateMode
+	/** 跳过图片尺寸变化时的 crop 同步，适用于 transform 实时阶段 */
+	skipImageCropResizeSync?: boolean
 }
 
 /**
@@ -44,6 +49,9 @@ export class ElementManager {
 
 	private elements: Map<string, BaseElement> = new Map()
 	private batchMode = false
+	private isBatchDeleting = false
+	private pendingBatchDeleteChangeIds: Set<string> = new Set()
+	private isContentLayerDrawDeferred = false
 	private pendingEvents: Array<{
 		type: keyof CanvasEventMap
 		data: CanvasEventMap[keyof CanvasEventMap]
@@ -114,13 +122,16 @@ export class ElementManager {
 		// 使用全局上传管理器上传文件
 		const { uploadFiles, onUploadComplete, onUploadFailed } = uploadContext
 		if (uploadFiles.length > 0) {
-			this.canvas.imageUploadManager.queueUpload({
+			this.canvas.canvasFileUploadManager.queueUpload({
 				elementId: elementData.id,
 				file: uploadFiles[0],
 				onUploadComplete: (result) => {
 					// 存储上传结果到元素实例（用于后续处理）
 					const element = this.elements.get(elementData.id)
-					if (element instanceof ImageElementClass) {
+					if (
+						element instanceof ImageElementClass ||
+						element instanceof VideoElementClass
+					) {
 						element.uploadResult = result
 					}
 					// 触发原始回调
@@ -184,7 +195,7 @@ export class ElementManager {
 		const mode = options?.mode || "full"
 
 		// 规范化数据（所有模式都需要）
-		const normalizedUpdates = this.normalizeUpdates(element, updates)
+		const normalizedUpdates = this.normalizeUpdates(element, updates, options)
 
 		// 根据模式决定更新什么
 		switch (mode) {
@@ -285,14 +296,12 @@ export class ElementManager {
 	 * @param elementIds - 要删除的元素 ID 数组
 	 */
 	public batchDelete(elementIds: string[]): void {
-		// 先禁用批量模式，因为 doDelete 内部会触发事件
-		// 我们需要手动控制事件触发时机
-		const originalBatchMode = this.batchMode
-		this.batchMode = false
-
 		// 临时禁用历史记录，避免每次删除都记录
 		const historyManager = this.canvas.historyManager
 		historyManager?.disable()
+		this.isBatchDeleting = true
+		this.pendingBatchDeleteChangeIds.clear()
+		this.isContentLayerDrawDeferred = false
 
 		try {
 			elementIds.forEach((id) => {
@@ -300,6 +309,8 @@ export class ElementManager {
 					this.doDelete(id)
 				}
 			})
+
+			this.flushDeferredBatchDeleteEffects()
 
 			// 重新启用历史记录并立即记录一次
 			if (historyManager) {
@@ -313,7 +324,9 @@ export class ElementManager {
 				data: { elementIds },
 			})
 		} finally {
-			this.batchMode = originalBatchMode
+			this.isBatchDeleting = false
+			this.pendingBatchDeleteChangeIds.clear()
+			this.isContentLayerDrawDeferred = false
 			// 确保异常情况下也能重新启用历史记录
 			historyManager?.enable()
 		}
@@ -371,11 +384,23 @@ export class ElementManager {
 	 */
 	public flush(): void {
 		if (this.pendingEvents.length > 0) {
-			// 只触发一次 element:change 事件
-			this.canvas.eventEmitter.emit({ type: "element:change", data: undefined })
+			// 只触发一次 element:change 事件，并尽量带上受影响的元素 id
+			this.emitElementChange(this.collectPendingChangedElementIds())
 			this.pendingEvents = []
 		}
 		this.canvas.contentLayer.batchDraw()
+	}
+
+	private invalidateGeometryForElement(elementId: string): void {
+		const invalidIds = new Set<string>([elementId])
+		let currentParent = this.findParentElement(elementId)
+
+		while (currentParent) {
+			invalidIds.add(currentParent.getData().id)
+			currentParent = this.findParentElement(currentParent.getData().id)
+		}
+
+		this.canvas.geometryCacheManager.invalidateElements(invalidIds)
 	}
 
 	// ==================== 私有实现方法 ====================
@@ -386,14 +411,16 @@ export class ElementManager {
 	private normalizeUpdates(
 		element: BaseElement,
 		updates: Partial<LayerElement>,
+		options?: ElementOperationOptions,
 	): Partial<LayerElement> {
 		const normalizedUpdates = { ...updates }
+		const currentData = element.getData()
 
 		// 如果更新中包含 width 或 height，将它们规范化
 		if (normalizedUpdates.width !== undefined || normalizedUpdates.height !== undefined) {
 			const normalizedSize = normalizeSize(
-				normalizedUpdates.width ?? element.getData().width ?? 0,
-				normalizedUpdates.height ?? element.getData().height ?? 0,
+				normalizedUpdates.width ?? currentData.width ?? 0,
+				normalizedUpdates.height ?? currentData.height ?? 0,
 				{
 					precision: "integer",
 				},
@@ -403,6 +430,45 @@ export class ElementManager {
 			}
 			if (normalizedUpdates.height !== undefined) {
 				normalizedUpdates.height = normalizedSize.height
+			}
+
+			const imageData =
+				currentData.type === ElementTypeEnum.Image
+					? (currentData as ImageElement)
+					: undefined
+			const normalizedImageUpdates = normalizedUpdates as Partial<ImageElement>
+			const hasExplicitCropField = Object.prototype.hasOwnProperty.call(
+				normalizedImageUpdates,
+				"crop",
+			)
+			const shouldSyncCropOnResize =
+				!!imageData?.crop && !hasExplicitCropField && !options?.skipImageCropResizeSync
+
+			if (shouldSyncCropOnResize && imageData && imageData.crop) {
+				const imageInfo =
+					element instanceof ImageElementClass ? element.getImageInfo() : undefined
+				const sourceDimensions = imageInfo
+					? {
+							width: imageInfo.naturalWidth ?? imageData.width ?? 0,
+							height: imageInfo.naturalHeight ?? imageData.height ?? 0,
+						}
+					: {
+							width: imageData.width ?? 0,
+							height: imageData.height ?? 0,
+						}
+
+				normalizedImageUpdates.crop = syncCropConfigOnResize({
+					crop: imageData.crop,
+					prevElementSize: {
+						width: imageData.width ?? 0,
+						height: imageData.height ?? 0,
+					},
+					nextElementSize: {
+						width: normalizedUpdates.width ?? imageData.width ?? 0,
+						height: normalizedUpdates.height ?? imageData.height ?? 0,
+					},
+					sourceDimensions,
+				})
 			}
 		}
 
@@ -439,6 +505,8 @@ export class ElementManager {
 		if (options?.forceRerender) {
 			node.getLayer()?.batchDraw()
 		}
+
+		this.invalidateGeometryForElement(element.getId())
 	}
 
 	/**
@@ -455,6 +523,7 @@ export class ElementManager {
 
 		// 更新元素的内部数据（不触发 node 更新）
 		element.update(newData)
+		this.invalidateGeometryForElement(element.getId())
 
 		// 触发事件（如果不是 silent 模式）
 		if (!options?.silent) {
@@ -462,7 +531,10 @@ export class ElementManager {
 				type: "element:updated",
 				data: { elementId: element.getId(), data: newData },
 			})
-			this.emitEvent({ type: "element:change", data: undefined })
+			this.emitElementChange([element.getId()])
+		} else {
+			// silent 仍通知 UI：内存数据已变（如变换拖拽中的字号/尺寸），但不发 element:updated，避免写入历史
+			this.emitElementChange([element.getId()])
 		}
 	}
 
@@ -496,16 +568,16 @@ export class ElementManager {
 			// 递归处理子元素
 			this.renderChildren(node, finalElementData, element)
 
-			if (!options.batch) {
-				this.canvas.contentLayer.batchDraw()
-			}
+			this.invalidateGeometryForElement(finalElementData.id)
+
+			this.scheduleContentLayerDraw(options)
 
 			if (!options.silent) {
 				this.emitEvent({
 					type: "element:created",
 					data: { elementId: finalElementData.id },
 				})
-				this.emitEvent({ type: "element:change", data: undefined })
+				this.emitElementChange([finalElementData.id])
 			}
 		}
 	}
@@ -566,6 +638,8 @@ export class ElementManager {
 			element.rerender()
 		}
 
+		this.invalidateGeometryForElement(elementId)
+
 		// 如果 zIndex 改变了，需要重新排列节点顺序
 		if (zIndexChanged) {
 			// 检查元素是否有父元素
@@ -578,16 +652,14 @@ export class ElementManager {
 			}
 		}
 
-		if (!options.batch) {
-			this.canvas.contentLayer.batchDraw()
-		}
+		this.scheduleContentLayerDraw(options)
 
 		if (!options.silent) {
 			this.emitEvent({
 				type: "element:updated",
 				data: { elementId, data: newData },
 			})
-			this.emitEvent({ type: "element:change", data: undefined })
+			this.emitElementChange([elementId])
 		}
 	}
 
@@ -634,7 +706,14 @@ export class ElementManager {
 				elementData.children.forEach((child: LayerElement) => this.doDelete(child.id))
 
 				// 清空 Frame 的 children，避免删除时递归删除子元素
-				this.doUpdate(elementId, { children: [] }, { batch: this.batchMode, silent: false })
+				this.doUpdate(
+					elementId,
+					{ children: [] },
+					{
+						batch: this.batchMode || this.isBatchDeleting,
+						silent: this.isBatchDeleting,
+					},
+				)
 			} else {
 				// 对于非 Frame 元素，递归删除子元素
 				if (
@@ -694,7 +773,10 @@ export class ElementManager {
 				this.doUpdate(
 					parentElement.getData().id,
 					{ children: updatedChildren },
-					{ silent: false },
+					{
+						batch: this.batchMode || this.isBatchDeleting,
+						silent: this.isBatchDeleting,
+					},
 				)
 			}
 		}
@@ -702,10 +784,11 @@ export class ElementManager {
 		// 销毁元素实例
 		element.destroy()
 		this.elements.delete(elementId)
+		this.invalidateGeometryForElement(elementId)
 
-		this.canvas.contentLayer.batchDraw()
+		this.scheduleContentLayerDraw()
 		this.canvas.eventEmitter.emit({ type: "element:deleted", data: { elementId } })
-		this.canvas.eventEmitter.emit({ type: "element:change", data: undefined })
+		this.emitElementChange([elementId])
 	}
 
 	/**
@@ -727,6 +810,93 @@ export class ElementManager {
 		} else {
 			this.canvas.eventEmitter.emit(event)
 		}
+	}
+
+	private emitElementChange(elementIds?: string[]): void {
+		if (this.isBatchDeleting) {
+			elementIds?.forEach((elementId) => {
+				this.pendingBatchDeleteChangeIds.add(elementId)
+			})
+			return
+		}
+
+		this.emitEvent({
+			type: "element:change",
+			data: elementIds && elementIds.length > 0 ? { elementIds } : undefined,
+		})
+	}
+
+	private scheduleContentLayerDraw(options?: Pick<ElementOperationOptions, "batch">): void {
+		if (options?.batch || this.isBatchDeleting) {
+			this.isContentLayerDrawDeferred = true
+			return
+		}
+
+		this.canvas.contentLayer.batchDraw()
+	}
+
+	private flushDeferredBatchDeleteEffects(): void {
+		if (this.pendingBatchDeleteChangeIds.size > 0) {
+			this.canvas.eventEmitter.emit({
+				type: "element:change",
+				data: { elementIds: [...this.pendingBatchDeleteChangeIds] },
+			})
+		}
+
+		if (this.isContentLayerDrawDeferred) {
+			this.canvas.contentLayer.batchDraw()
+		}
+	}
+
+	private collectPendingChangedElementIds(): string[] | undefined {
+		const elementIds = new Set<string>()
+
+		for (const event of this.pendingEvents) {
+			switch (event.type) {
+				case "element:created":
+				case "element:updated":
+				case "element:deleted":
+				case "element:rerendered":
+				case "element:temporary:converted":
+				case "element:temporary:deleted":
+				case "element:image:infoButtonClick":
+				case "element:image:retryClick":
+				case "element:image:generate-submit-started":
+				case "element:image:generate-submit-failed":
+				case "element:video:infoButtonClick":
+				case "element:video:retryClick":
+				case "element:video:generate-submit-started":
+				case "element:video:generate-submit-failed":
+				case "element:video:fullscreenClick":
+				case "element:image:resultUpdated":
+				case "element:image:loaded":
+				case "element:image:ossSrcReady":
+				case "element:dragstart":
+				case "element:dragmove":
+				case "element:dragend": {
+					const eventData = event.data as { elementId?: string }
+					if (eventData.elementId) {
+						elementIds.add(eventData.elementId)
+					}
+					break
+				}
+				case "element:batchdeleted":
+				case "elements:transform:dragstart":
+				case "elements:transform:dragmove":
+				case "elements:transform:dragend":
+				case "elements:transform:anchorDragStart":
+				case "elements:transform:anchorDragmove":
+				case "elements:transform:anchorDragend": {
+					const eventData = event.data as { elementIds?: string[] }
+					eventData.elementIds?.forEach((elementId) => {
+						elementIds.add(elementId)
+					})
+					break
+				}
+			}
+		}
+
+		return elementIds.size > 0 ? [...elementIds] : undefined
 	}
 
 	/**
@@ -807,6 +977,21 @@ export class ElementManager {
 	public getElementData(elementId: string): LayerElement | undefined {
 		const element = this.elements.get(elementId)
 		return element?.getData()
+	}
+
+	/**
+	 * 元素在数据树上是否视为可见：`visible === false` 的节点及其子树不参与适配范围等计算。
+	 */
+	public isElementVisibleInDataTree(elementId: string): boolean {
+		let currentId: string | undefined = elementId
+		while (currentId) {
+			const data = this.getElementData(currentId)
+			if (!data) return false
+			if (data.visible === false) return false
+			const parent = this.findParentElement(currentId)
+			currentId = parent?.getId()
+		}
+		return true
 	}
 
 	/**
@@ -901,8 +1086,22 @@ export class ElementManager {
 	public loadDocument(doc: CanvasDocument): void {
 		this.clear()
 		// 深拷贝传入的数据，确保内部数据独立，不受外部状态管理工具影响
-		const docCopy = JSON.parse(JSON.stringify(doc)) as CanvasDocument
+		const docCopy = sanitizeCanvasDocument(JSON.parse(JSON.stringify(doc)) as CanvasDocument)
 		this.replaceAll(docCopy.elements || [])
+	}
+
+	/**
+	 * 将快照中的元素规范为可与当前数据安全合并的形态。
+	 * 导出时「无 crop」不会写出 crop 字段，若合并时缺少该键，{ ...current, ...snapshot } 会错误保留旧 crop（撤销裁剪不生效）。
+	 */
+	private normalizeLayerElementFromSnapshot(data: LayerElement): LayerElement {
+		if (data.type !== ElementTypeEnum.Image) {
+			return data
+		}
+		if (!Object.prototype.hasOwnProperty.call(data, "crop")) {
+			return { ...(data as ImageElement), crop: undefined }
+		}
+		return data
 	}
 
 	/**
@@ -912,49 +1111,31 @@ export class ElementManager {
 	 */
 	public loadDocumentSmart(doc: CanvasDocument): void {
 		// 深拷贝传入的数据，确保内部数据独立，不受外部状态管理工具影响
-		const docCopy = JSON.parse(JSON.stringify(doc)) as CanvasDocument
-		let newElements = docCopy.elements || []
+		const docCopy = sanitizeCanvasDocument(JSON.parse(JSON.stringify(doc)) as CanvasDocument)
+		const newElements = docCopy.elements || []
 
-		// 过滤掉临时元素（status: Processing 的图片）
-		// 因为撤销/恢复时，临时元素的上传任务已经丢失，无法恢复
-		const filterTemporaryElements = (elements: LayerElement[]): LayerElement[] => {
-			return elements
-				.filter((item) => {
-					// 过滤掉上传中的图片元素
-					if (item.type === "image" && item.status === GenerationStatus.Processing) {
-						return false
-					}
-					return true
-				})
-				.map((item) => {
-					// 递归过滤子元素
-					if ("children" in item && item.children && Array.isArray(item.children)) {
-						return {
-							...item,
-							children: filterTemporaryElements(item.children),
-						}
-					}
-					return item
-				})
-		}
-
-		newElements = filterTemporaryElements(newElements)
-
-		// 获取当前所有元素（包括子元素）
-		const currentElementsDict = this.getElementsDict()
-		// 将新文档的所有元素（包括子元素）展开为扁平数组，用于比较
-		const flattenElements = (elements: LayerElement[]): LayerElement[] => {
+		const flattenElements = (
+			elements: LayerElement[],
+			parentId: string | null,
+			parentMap: Map<string, string | null>,
+		): LayerElement[] => {
 			const result: LayerElement[] = []
 			elements.forEach((el) => {
+				parentMap.set(el.id, parentId)
 				result.push(el)
 				if ("children" in el && el.children && Array.isArray(el.children)) {
-					result.push(...flattenElements(el.children))
+					result.push(...flattenElements(el.children, el.id, parentMap))
 				}
 			})
 			return result
 		}
-		const newElementsFlat = flattenElements(newElements)
 
+		const currentParentMap = new Map<string, string | null>()
+		flattenElements(this.getAllElements(), null, currentParentMap)
+		const newElementsFlat = flattenElements(newElements, null, new Map<string, string | null>())
+
+		// 获取当前所有元素（包括子元素）
+		const currentElementsDict = this.getElementsDict()
 		const currentElementMap = new Map(Object.entries(currentElementsDict))
 		const newElementMap = new Map(newElementsFlat.map((el) => [el.id, el]))
 
@@ -966,14 +1147,29 @@ export class ElementManager {
 			}
 		})
 
-		// 收集需要创建的元素（在新文档中存在但当前不存在）
-		// 注意：只收集顶层元素，子元素会由 doCreate 递归创建
+		const getCurrentDepth = (elementId: string): number => {
+			let depth = 0
+			let parentId = currentParentMap.get(elementId)
+			while (parentId) {
+				depth += 1
+				parentId = currentParentMap.get(parentId)
+			}
+			return depth
+		}
+
+		toDelete.sort((a, b) => getCurrentDepth(b) - getCurrentDepth(a))
+
+		// 收集需要创建的顶层元素，嵌套新增元素由父容器树同步负责创建
 		const toCreate: LayerElement[] = []
 		newElements.forEach((element) => {
 			if (!currentElementMap.has(element.id)) {
 				toCreate.push(element)
 			}
 		})
+
+		const toMoveTopLevel = newElements
+			.filter((element) => currentElementMap.has(element.id))
+			.filter((element) => currentParentMap.get(element.id) !== null)
 
 		// 收集需要更新的元素（都存在但数据不同）
 		// 包括所有元素（顶层和子元素）
@@ -997,20 +1193,107 @@ export class ElementManager {
 				this.doCreate(elementData, { batch: true })
 			})
 
+			// 既有元素从容器移到顶层时，需要同步 Konva 节点父级
+			toMoveTopLevel.forEach((elementData) => {
+				this.moveElementToContentLayer(elementData.id)
+			})
+
 			// 更新变化的元素
 			toUpdate.forEach(({ id, data }) => {
-				this.doUpdate(id, data, { batch: true })
+				this.doUpdate(id, this.normalizeLayerElementFromSnapshot(data), { batch: true })
 			})
+
+			// 同步容器子树，覆盖嵌套新增、父子关系变化与子节点排序
+			newElements.forEach((elementData) => {
+				this.syncElementTreeFromDocument(elementData)
+			})
+
+			this.reorderTopLevelElements()
 		} finally {
 			this.batchMode = false
 			this.flush()
 
 			// 触发文档恢复事件，通知所有管理器更新（如 name labels、hover 等）
 			// 因为批量模式不会触发 element:updated 事件，需要手动通知
-			if (toUpdate.length > 0 || toCreate.length > 0 || toDelete.length > 0) {
+			if (
+				toUpdate.length > 0 ||
+				toCreate.length > 0 ||
+				toDelete.length > 0 ||
+				toMoveTopLevel.length > 0
+			) {
 				this.canvas.eventEmitter.emit({ type: "document:restored", data: undefined })
 			}
 		}
+	}
+
+	private moveElementToContentLayer(elementId: string): void {
+		const element = this.elements.get(elementId)
+		const node = element?.getNode()
+		if (!node) return
+		if (node.getParent() === this.canvas.contentLayer) return
+
+		node.remove()
+		this.canvas.contentLayer.add(node as Konva.Shape | Konva.Group)
+		this.invalidateGeometryForElement(elementId)
+	}
+
+	private syncElementTreeFromDocument(elementData: LayerElement): void {
+		const element = this.elements.get(elementData.id)
+		const node = element?.getNode()
+		if (!element || !(node instanceof Konva.Group)) return
+		if (
+			!("children" in elementData) ||
+			!elementData.children ||
+			!Array.isArray(elementData.children)
+		)
+			return
+
+		const sortedChildren = [...elementData.children].sort(
+			(a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0),
+		)
+
+		sortedChildren.forEach((childData) => {
+			this.ensureChildElementInParent(node, childData)
+			this.syncElementTreeFromDocument(childData)
+		})
+
+		sortedChildren.forEach((childData) => {
+			this.elements.get(childData.id)?.getNode()?.moveToTop()
+		})
+
+		if (element instanceof FrameElement) {
+			element.ensureBorderOnTop()
+		}
+	}
+
+	private ensureChildElementInParent(parentNode: Konva.Group, childData: LayerElement): void {
+		const existingElement = this.elements.get(childData.id)
+		const existingNode = existingElement?.getNode()
+		if (existingElement && existingNode) {
+			if (existingNode.getParent() !== parentNode) {
+				existingNode.remove()
+				parentNode.add(existingNode as Konva.Shape | Konva.Group)
+				this.invalidateGeometryForElement(childData.id)
+			}
+			return
+		}
+
+		const childElement = this.createElementInstance(childData)
+		if (!childElement) return
+
+		const childNode = childElement.render()
+		if (!childNode) return
+
+		parentNode.add(childNode as Konva.Shape | Konva.Group)
+		this.elements.set(childData.id, childElement)
+		childElement.onMounted()
+		this.invalidateGeometryForElement(childData.id)
+
+		this.emitEvent({
+			type: "element:created",
+			data: { elementId: childData.id },
+		})
+		this.emitElementChange([childData.id])
 	}
 
 	/**
@@ -1035,8 +1318,8 @@ export class ElementManager {
 			? allElements
 			: allElements.filter((element) => !this.temporaryElements.has(element.id))
 
-		// 在导出边界统一做深拷贝，确保外部获得的是独立副本
-		return JSON.parse(JSON.stringify({ elements })) as CanvasDocument
+		// 在导出边界按声明白名单导出，既隔离内部引用，也避免透出运行时附加字段
+		return exportCanvasDocument(elements)
 	}
 
 	/**
@@ -1064,13 +1347,17 @@ export class ElementManager {
 		}
 
 		this.canvas.contentLayer.batchDraw()
+		this.canvas.geometryCacheManager.invalidateAll()
 
 		// 为每个元素触发删除事件
 		elementIds.forEach((elementId) => {
 			this.canvas.eventEmitter.emit({ type: "element:deleted", data: { elementId } })
 		})
 
-		this.canvas.eventEmitter.emit({ type: "element:change", data: undefined })
+		this.canvas.eventEmitter.emit({
+			type: "element:change",
+			data: elementIds.length > 0 ? { elementIds } : undefined,
+		})
 	}
 
 	/**
@@ -1124,6 +1411,7 @@ export class ElementManager {
 						parentNode.add(existingNode)
 						// 更新元素数据（坐标等可能需要更新）
 						existingElement.update(childData)
+						this.invalidateGeometryForElement(childData.id)
 					}
 					return
 				}
@@ -1140,6 +1428,7 @@ export class ElementManager {
 				if (childNode) {
 					parentNode.add(childNode as Konva.Shape | Konva.Group)
 					this.elements.set(childData.id, childElement)
+					this.invalidateGeometryForElement(childData.id)
 
 					// 发出元素创建事件
 					this.canvas.eventEmitter.emit({
@@ -1325,7 +1614,10 @@ export class ElementManager {
 		this.elements.forEach((element) => {
 			const elementData = element.getData()
 			// 使用 PermissionManager 判断
-			const canDrag = this.canvas.permissionManager?.canTransform(elementData) ?? true
+			const canDrag =
+				(this.canvas.permissionManager?.canTransform(elementData) ?? true) &&
+				(!this.canvas.isKeepRatioModifierPressed() ||
+					this.canvas.selectionManager.isSelected(elementData.id))
 			element.setDraggable(canDrag)
 			element.setListening(true)
 		})
@@ -1338,9 +1630,25 @@ export class ElementManager {
 		this.elements.forEach((element) => {
 			const elementData = element.getData()
 			// 使用 PermissionManager 判断
-			const canDrag = this.canvas.permissionManager?.canTransform(elementData) ?? true
+			const canDrag =
+				(this.canvas.permissionManager?.canTransform(elementData) ?? true) &&
+				(!this.canvas.isKeepRatioModifierPressed() ||
+					this.canvas.selectionManager.isSelected(elementData.id))
 			element.setDraggable(canDrag)
 		})
+	}
+
+	/**
+	 * 界面语言切换后重绘各元素 Konva 节点，使占位/状态等文案走新的 `canvas.t`
+	 * 跳过 Frame、Group：rerender 会销毁容器子树，子元素由各自 rerender 更新即可
+	 */
+	public rerenderAllElementsForLocale(): void {
+		for (const element of this.elements.values()) {
+			const type = element.getData().type
+			if (type === ElementTypeEnum.Frame || type === ElementTypeEnum.Group) continue
+			element.rerender()
+		}
+		this.canvas.contentLayer.batchDraw()
 	}
 
 	/**

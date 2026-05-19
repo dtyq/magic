@@ -24,6 +24,7 @@ import {
 	resolvePublishAvailability,
 	sanitizeDraftForSubmission,
 } from "@/pages/superMagic/components/PublishPanel/publishAvailability"
+import { resolveLocalizedText } from "@/utils/locale"
 import type { SkillEditSkillInfo } from "./store/types"
 
 const defaultSkillPublishTo = ["INTERNAL", "MARKET"] as const
@@ -33,11 +34,15 @@ export function createSkillEditPublishPanelData({
 	skill,
 	versions,
 	currentPublisherName,
+	canPublishPrivate = true,
+	canPublishTeam = true,
 	t,
 }: {
 	skill: SkillEditSkillInfo | null
 	versions: SkillVersionItem[]
 	currentPublisherName: string
+	canPublishPrivate?: boolean
+	canPublishTeam?: boolean
 	t: TFunction<"crew/market">
 }): PublishPanelData {
 	const historyRecords = versions.map((item) => mapVersionToHistoryRecord(item, t))
@@ -47,6 +52,8 @@ export function createSkillEditPublishPanelData({
 		allowedPublishTargetTypes: skill?.allowedPublishTargetTypes,
 		fallbackPublishTo: [...defaultSkillPublishTo],
 		fallbackInternalTargets: [...defaultSkillInternalTargets],
+		canPublishPrivate,
+		canPublishTeam,
 	})
 
 	return {
@@ -212,7 +219,7 @@ function deriveMarketReviewProgress(item: SkillVersionItem): PublishReviewProgre
 	const rs = item.review_status
 	const ps = item.publish_status
 
-	if (rs === "REJECTED") {
+	if (rs === "REJECTED" || rs === "INVALIDATED") {
 		return {
 			submit: "done",
 			review: "done",
@@ -254,6 +261,7 @@ function deriveMarketReviewProgress(item: SkillVersionItem): PublishReviewProgre
 
 function mapApiToRecordStatus(reviewStatus: string, publishStatus: string): PublishRecordStatus {
 	if (reviewStatus === "REJECTED") return "rejected"
+	if (reviewStatus === "INVALIDATED") return "invalidated"
 	if (reviewStatus === "PENDING" || reviewStatus === "UNDER_REVIEW") return "under_review"
 	if (publishStatus === "PUBLISHED" || reviewStatus === "APPROVED") return "published"
 	return "under_review"
@@ -274,19 +282,7 @@ function mapApiTargetToInternalTarget(
 }
 
 function pickVersionDescription(text: SkillVersionItem["version_description_i18n"]): string {
-	if (!text) return ""
-	const i18nMap = text as Record<string, string>
-	const language = i18n.language?.toLowerCase() ?? "en"
-	const preferredKeys = language.startsWith("zh")
-		? ["zh_CN", "zh", "en_US", "en"]
-		: ["en_US", "en", "zh_CN", "zh"]
-
-	for (const key of preferredKeys) {
-		const value = i18nMap[key]
-		if (value) return value
-	}
-
-	return Object.values(i18nMap).find(Boolean) ?? ""
+	return resolveLocalizedText(text as Record<string, string>, i18n.language)
 }
 
 export function formatVersionLabel(version: string) {

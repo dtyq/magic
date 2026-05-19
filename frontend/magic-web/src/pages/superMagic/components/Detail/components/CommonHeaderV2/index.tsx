@@ -32,6 +32,7 @@ import { DetailType } from "../../types"
 import { MagicDropdown } from "@/components/base"
 import { IconShare3 } from "@tabler/icons-react"
 import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
+import useFullscreenMode from "@/hooks/useFullscreenMode"
 
 export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 	const {
@@ -62,15 +63,17 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 		actionConfig,
 		getPopupContainer,
 		onLocateFile,
+		extraMoreMenuItems,
 	} = props
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
-	const { hideShare } = useFileActionVisibility()
+	const { hideShareFile, hideFullscreen } = useFileActionVisibility()
 	const headerContainerRef = useRef<HTMLDivElement>(null)
 	const rightActionsContainerRef = useRef<HTMLDivElement>(null)
 	const showButtonText = useContainerShowButtonText(rightActionsContainerRef)
 
 	const { isShareRoute } = useShareRoute()
+	const isFullscreenMode = useFullscreenMode()
 
 	const handleRefresh = useCallback(() => {
 		pubsub.publish(PubSubEvents.Super_Magic_Detail_Refresh)
@@ -146,16 +149,18 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 		})
 
 	const mergedActionConfig = useMemo(() => {
-		if (!hideShare) return actionConfig
-
 		const hideDefaults = new Set(actionConfig?.hideDefaults || [])
-		hideDefaults.add("share")
+
+		if (hideShareFile) hideDefaults.add("share")
+		if (hideFullscreen) hideDefaults.add("fullscreen")
+
+		if (hideDefaults.size === 0) return actionConfig
 
 		return {
 			...actionConfig,
 			hideDefaults: Array.from(hideDefaults),
 		}
-	}, [actionConfig, hideShare])
+	}, [actionConfig, hideShareFile, hideFullscreen])
 
 	const actionContext = useMemo(
 		() => ({
@@ -166,6 +171,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 			isShareRoute,
 			isFromNode,
 			isFullscreen,
+			isFullscreenMode,
 			isEditMode,
 			detailMode,
 			showDownload,
@@ -291,8 +297,17 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 				onClick: handleLocateFile,
 			},
 			...(isShareRoute ? [] : [historyItem]),
+			...(extraMoreMenuItems ?? []),
 		]
-	}, [fileVersionsList, fileVersion, handleChangeFileVersion, handleLocateFile, isShareRoute, t])
+	}, [
+		fileVersionsList,
+		fileVersion,
+		handleChangeFileVersion,
+		handleLocateFile,
+		isShareRoute,
+		t,
+		extraMoreMenuItems,
+	])
 
 	const renderBuiltinAction = useCallback(
 		(action: BuiltinComposedAction) => {
@@ -368,6 +383,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 								? () => actionContext.getPopupContainer?.() ?? document.body
 								: undefined
 						}
+						overlayStyle={{ zIndex: 1050 }}
 					>
 						<div data-testid="detail-header-action-more">
 							<ActionButton
@@ -406,6 +422,7 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 								? () => actionContext.getPopupContainer?.() ?? document.body
 								: undefined
 						}
+						overlayStyle={{ zIndex: 1050 }}
 					>
 						<div data-testid="detail-header-action-download-dropdown">
 							<ActionButton

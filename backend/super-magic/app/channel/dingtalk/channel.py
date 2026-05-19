@@ -101,7 +101,7 @@ class DingTalkChannel(BaseChannel):
         )
         self._connect_task = asyncio.create_task(self._run_client())
         keepalive_registry = KeepaliveRegistry.get_instance()
-        keepalive_registry.restore_message_time(self.key, self._last_message_at_ms)
+        keepalive_registry.restore_activity_time(self.key, self._last_message_at_ms)
         if self._connect_ready_task and not self._connect_ready_task.done():
             self._connect_ready_task.cancel()
         self._connect_ready_task = asyncio.create_task(self._wait_until_connected())
@@ -234,7 +234,7 @@ class DingTalkChannel(BaseChannel):
 
         current_message_at_ms = now_ms()
         self._last_message_at_ms = current_message_at_ms
-        KeepaliveRegistry.get_instance().notify_message(self.key, current_message_at_ms)
+        KeepaliveRegistry.get_instance().notify_activity(self.key, current_message_at_ms)
         # senderStaffId 是企业内部用户 ID，senderId 是钉钉平台 ID（与 TS 逻辑一致）
         user_id = incoming_message.sender_staff_id or incoming_message.sender_id or "dingtalk_user"
         ctx = dispatcher.agent_context

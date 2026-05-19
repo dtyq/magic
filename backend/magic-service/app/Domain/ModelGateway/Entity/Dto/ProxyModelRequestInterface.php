@@ -30,4 +30,8 @@ interface ProxyModelRequestInterface
     public function isEnableHighAvailability(): bool;
 
     public function setEnableHighAvailability(bool $enableHighAvailability): void;
+
+    public function getExtra(): ?array;
+
+    public function setExtra(?array $extra): void;
 }

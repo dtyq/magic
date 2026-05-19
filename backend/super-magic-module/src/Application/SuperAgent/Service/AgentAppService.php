@@ -119,7 +119,7 @@ readonly class AgentAppService
         ]);
 
         // 检查当前沙箱镜像与最新 agent 镜像是否一致，一致则无需升级
-        $versionInfo = $this->sandboxVersionDomainService->checkSandboxVersion($topicId);
+        $versionInfo = $this->sandboxVersionDomainService->checkSandboxVersion($topicId, false);
         if (! $versionInfo['needs_update']) {
             $this->logger->info('[Sandbox][App] Sandbox image is already up-to-date, skipping upgrade', [
                 'topic_id' => $topicId,
@@ -149,9 +149,9 @@ readonly class AgentAppService
      * @param int $topicId 话题ID
      * @return array{current_version: string, latest_version: string, needs_update: bool}
      */
-    public function checkSandboxVersion(int $topicId): array
+    public function checkSandboxVersion(int $topicId, bool $useCache = true): array
     {
-        return $this->sandboxVersionDomainService->checkSandboxVersion($topicId);
+        return $this->sandboxVersionDomainService->checkSandboxVersion($topicId, $useCache);
     }
 
     /**
@@ -160,9 +160,9 @@ readonly class AgentAppService
      * @param int[] $topicIds
      * @return array<int, bool> topicId => needUpgrade
      */
-    public function checkSandboxVersionsByTopicIds(array $topicIds): array
+    public function checkSandboxVersionsByTopicIds(array $topicIds, bool $useCache = true): array
     {
-        return $this->sandboxVersionDomainService->checkNeedUpgradeByTopicIds($topicIds);
+        return $this->sandboxVersionDomainService->checkNeedUpgradeByTopicIds($topicIds, $useCache);
     }
 
     /**
@@ -337,8 +337,8 @@ readonly class AgentAppService
             throw new BusinessException('Access denied for topic ID: ' . $topicId);
         }
 
-        // 确保沙箱已初始化并获取沙箱ID
-        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+        // Checkpoint operations may reattach to an existing sandbox; keep recovery init silent.
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId, skipInitMessages: true);
 
         // 调用沙箱网关开始回滚
         $sandboxResponse = $this->agentDomainService->rollbackCheckpointStart($sandboxId, $targetMessageId);
@@ -387,8 +387,8 @@ readonly class AgentAppService
             throw new BusinessException('Access denied for topic ID: ' . $topicId);
         }
 
-        // 确保沙箱已初始化并获取沙箱ID
-        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+        // Checkpoint operations may reattach to an existing sandbox; keep recovery init silent.
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId, skipInitMessages: true);
 
         // 调用沙箱网关提交回滚
         $sandboxResponse = $this->agentDomainService->rollbackCheckpointCommit($sandboxId);
@@ -445,8 +445,8 @@ readonly class AgentAppService
             throw new BusinessException('Access denied for topic ID: ' . $topicId);
         }
 
-        // 确保沙箱已初始化并获取沙箱ID
-        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+        // Checkpoint operations may reattach to an existing sandbox; keep recovery init silent.
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId, skipInitMessages: true);
 
         // 调用沙箱网关撤销回滚
         $sandboxResponse = $this->agentDomainService->rollbackCheckpointUndo($sandboxId);
@@ -505,8 +505,8 @@ readonly class AgentAppService
             throw new BusinessException('Access denied for topic ID: ' . $topicId);
         }
 
-        // 确保沙箱已初始化并获取沙箱ID
-        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId);
+        // Checkpoint operations may reattach to an existing sandbox; keep recovery init silent.
+        $sandboxId = $this->ensureSandboxInitialized($dataIsolation, $topicId, skipInitMessages: true);
 
         // 调用领域服务检查回滚可行性
         $response = $this->agentDomainService->rollbackCheckpointCheck($sandboxId, $targetMessageId);

@@ -1,7 +1,6 @@
 import { createStyles, cx } from "antd-style"
 import type React from "react"
 import { memo, useEffect, useState } from "react"
-import otherSVG from "./assets/other.svg"
 import FileTypeIcon from "../FileTypeIcon"
 
 const iconModules = import.meta.glob<string>("./assets/*.svg", { import: "default" })
@@ -31,6 +30,7 @@ const iconNameMap: Record<string, string> = {
 	ogg: "audio",
 	flac: "audio",
 	aac: "audio",
+	audio: "audio-project",
 	mp4: "video",
 	avi: "video",
 	mov: "video",
@@ -86,6 +86,9 @@ const iconNameMap: Record<string, string> = {
 	design: "design",
 	replay: "replay",
 	playback: "replay",
+	custom: "custom",
+	customFile: "custom",
+	"self-media": "self-media",
 }
 
 function normalizeExtension(fileExtension?: string): string | null {
@@ -93,9 +96,9 @@ function normalizeExtension(fileExtension?: string): string | null {
 	return fileExtension.replace(/^\./, "").toLocaleLowerCase()
 }
 
-function getIconName(caseType?: string | null): string | null {
-	if (!caseType) return null
-	return iconNameMap[caseType] ?? null
+function getIconName(caseType?: string | null): string {
+	if (!caseType) return "other"
+	return iconNameMap[caseType] ?? "other"
 }
 
 /**
@@ -105,10 +108,7 @@ function getIconName(caseType?: string | null): string | null {
  */
 export function getFileIconByType(fileExtension?: string): string {
 	const caseType = normalizeExtension(fileExtension)
-	if (!caseType) return otherSVG
-
 	const iconName = getIconName(caseType)
-	if (!iconName) return ""
 
 	if (iconCache[iconName]) return iconCache[iconName]
 
@@ -121,7 +121,7 @@ export function getFileIconByType(fileExtension?: string): string {
 				iconCache[iconName] = src
 			})
 			.catch(() => {
-				iconCache[iconName] = otherSVG
+				console.error(`Failed to load icon for ${iconName}`)
 			})
 
 	return ""
@@ -129,10 +129,7 @@ export function getFileIconByType(fileExtension?: string): string {
 
 export async function loadFileIconByType(fileExtension?: string): Promise<string | null> {
 	const caseType = normalizeExtension(fileExtension)
-	if (!caseType) return otherSVG
-
 	const iconName = getIconName(caseType)
-	if (!iconName) return null
 
 	if (iconCache[iconName]) return iconCache[iconName]
 
@@ -155,6 +152,8 @@ interface MagicFileIconProps {
 	size?: number
 	className?: string
 	style?: React.CSSProperties
+	/** 例如 custom 文件夹 icon 解析后的临时 URL；加载失败时回退内置类型图标 */
+	remoteIconUrl?: string
 }
 
 const useStyles = createStyles(() => ({
@@ -176,10 +175,16 @@ export default memo(function MagicFileIcon({
 	size = 24,
 	className,
 	style,
+	remoteIconUrl,
 }: MagicFileIconProps) {
 	const { styles } = useStyles()
 
 	const [icon, setIcon] = useState<string | null>(() => getFileIconByType(type) || null)
+	const [remoteFailed, setRemoteFailed] = useState(false)
+
+	useEffect(() => {
+		setRemoteFailed(false)
+	}, [remoteIconUrl])
 
 	useEffect(() => {
 		let isMounted = true
@@ -197,6 +202,23 @@ export default memo(function MagicFileIcon({
 			isMounted = false
 		}
 	}, [type])
+
+	if (remoteIconUrl && !remoteFailed) {
+		return (
+			<div
+				className={cx(styles.fileIcon, className)}
+				style={{ width: size, height: size, ...style }}
+			>
+				<img
+					src={remoteIconUrl}
+					draggable={false}
+					alt={type}
+					className={styles.image}
+					onError={() => setRemoteFailed(true)}
+				/>
+			</div>
+		)
+	}
 
 	if (!icon) {
 		return <FileTypeIcon type={type} size={size} className={className} style={style} />

@@ -1,5 +1,5 @@
 import { IconChevronUp } from "@tabler/icons-react"
-import { Check, CodeXml, Copy, Monitor } from "lucide-react"
+import { Check, CodeXml, Copy, Fullscreen, Monitor, Smartphone } from "lucide-react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn-ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -10,15 +10,20 @@ interface HtmlCodeBlockPreviewHeaderProps {
 	htmlIconId: string
 	htmlSnippetLabel: string
 	codeModeLabel: string
-	previewModeLabel: string
+	desktopModeLabel: string
+	phoneModeLabel: string
 	copyLabel: string
 	copySuccessLabel: string
 	viewMode: HtmlCodeBlockPreviewMode
 	isExpanded: boolean
 	isCopied: boolean
+	fullscreenLabel: string
 	shouldRenderCopyButton: boolean
+	shouldRenderFullscreenButton: boolean
 	shouldRenderViewModeSwitcher: boolean
+	shouldRenderDesktopModeButton?: boolean
 	onCopy: () => void
+	onOpenFullscreen: () => void
 	onToggleExpanded: () => void
 	onViewModeChange: (mode: string) => void
 }
@@ -28,15 +33,20 @@ export function HtmlCodeBlockPreviewHeader(props: HtmlCodeBlockPreviewHeaderProp
 		htmlIconId,
 		htmlSnippetLabel,
 		codeModeLabel,
-		previewModeLabel,
+		desktopModeLabel,
+		phoneModeLabel,
 		copyLabel,
 		copySuccessLabel,
 		viewMode,
 		isExpanded,
 		isCopied,
+		fullscreenLabel,
 		shouldRenderCopyButton,
+		shouldRenderFullscreenButton,
 		shouldRenderViewModeSwitcher,
+		shouldRenderDesktopModeButton = true,
 		onCopy,
+		onOpenFullscreen,
 		onToggleExpanded,
 		onViewModeChange,
 	} = props
@@ -54,7 +64,10 @@ export function HtmlCodeBlockPreviewHeader(props: HtmlCodeBlockPreviewHeaderProp
 			<div className="ml-auto flex shrink-0 items-center gap-1.5">
 				{shouldRenderViewModeSwitcher && (
 					<div
-						className="flex h-6 w-[68px] flex-row items-center rounded-[8px] bg-muted p-[2px]"
+						className={cn(
+							"flex h-6 flex-row items-center rounded-[8px] bg-muted p-[2px]",
+							shouldRenderDesktopModeButton ? "min-w-[100px]" : "min-w-[68px]",
+						)}
 						data-testid="html-code-block-preview-mode-tabs"
 						role="tablist"
 						aria-label={htmlSnippetLabel}
@@ -73,31 +86,67 @@ export function HtmlCodeBlockPreviewHeader(props: HtmlCodeBlockPreviewHeaderProp
 										data-testid="html-code-block-preview-tab-code"
 										onClick={() => onViewModeChange("code")}
 									>
-										<CodeXml />
+										<CodeXml
+											size={16}
+											strokeWidth={1.5}
+											className="stroke-foreground"
+										/>
 									</button>
 								</span>
 							</TooltipTrigger>
 							<TooltipContent side="top">{codeModeLabel}</TooltipContent>
 						</Tooltip>
+						{shouldRenderDesktopModeButton && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="inline-flex">
+										<button
+											type="button"
+											role="tab"
+											aria-selected={viewMode === "desktop"}
+											aria-label={desktopModeLabel}
+											title={desktopModeLabel}
+											data-state={
+												viewMode === "desktop" ? "active" : "inactive"
+											}
+											className="flex h-5 w-8 items-center justify-center rounded-[6px] border border-transparent px-0 py-0 text-muted-foreground shadow-none transition-colors data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm [&_svg]:size-4"
+											data-testid="html-code-block-preview-tab-desktop"
+											onClick={() => onViewModeChange("desktop")}
+										>
+											<Monitor
+												size={16}
+												strokeWidth={1.5}
+												className="stroke-foreground"
+											/>
+										</button>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="top">{desktopModeLabel}</TooltipContent>
+							</Tooltip>
+						)}
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<span className="inline-flex">
 									<button
 										type="button"
 										role="tab"
-										aria-selected={viewMode === "desktop"}
-										aria-label={previewModeLabel}
-										title={previewModeLabel}
-										data-state={viewMode === "desktop" ? "active" : "inactive"}
+										aria-selected={viewMode === "phone"}
+										aria-label={phoneModeLabel}
+										title={phoneModeLabel}
+										data-state={viewMode === "phone" ? "active" : "inactive"}
 										className="flex h-5 w-8 items-center justify-center rounded-[6px] border border-transparent px-0 py-0 text-muted-foreground shadow-none transition-colors data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm [&_svg]:size-4"
-										data-testid="html-code-block-preview-tab-desktop"
-										onClick={() => onViewModeChange("desktop")}
+										data-testid="html-code-block-preview-tab-phone"
+										onClick={() => onViewModeChange("phone")}
 									>
-										<Monitor />
+										<Smartphone
+											size={16}
+											strokeWidth={1.5}
+											className="stroke-foreground"
+										/>
 									</button>
 								</span>
 							</TooltipTrigger>
-							<TooltipContent side="top">{previewModeLabel}</TooltipContent>
+							<TooltipContent side="top">{phoneModeLabel}</TooltipContent>
 						</Tooltip>
 					</div>
 				)}
@@ -112,7 +161,7 @@ export function HtmlCodeBlockPreviewHeader(props: HtmlCodeBlockPreviewHeaderProp
 									onClick={onCopy}
 									aria-label={isCopied ? copySuccessLabel : copyLabel}
 									className={cn(
-										"h-6 w-6 rounded-sm text-muted-foreground hover:bg-transparent hover:text-foreground",
+										"h-6 w-6 rounded-sm text-foreground hover:bg-transparent hover:text-foreground",
 										isCopied && "text-emerald-600 hover:text-emerald-600",
 									)}
 								>
@@ -127,11 +176,37 @@ export function HtmlCodeBlockPreviewHeader(props: HtmlCodeBlockPreviewHeaderProp
 						<TooltipContent side="top">{copyLabel}</TooltipContent>
 					</Tooltip>
 				)}
+				{shouldRenderFullscreenButton && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span className="inline-flex">
+								<button
+									type="button"
+									// 鼠标点击后主动释放焦点，避免 ESC 退出右侧全屏时按钮残留浏览器默认 focus 边框。
+									onMouseUp={(event) => {
+										event.currentTarget.blur()
+									}}
+									onClick={onOpenFullscreen}
+									aria-label={fullscreenLabel}
+									data-testid="html-code-block-preview-fullscreen-button"
+									className="flex h-6 select-none items-center rounded-lg px-1.5 text-foreground transition-colors hover:bg-accent active:bg-accent/80"
+								>
+									<Fullscreen
+										size={16}
+										strokeWidth={1.5}
+										className="stroke-foreground"
+									/>
+								</button>
+							</span>
+						</TooltipTrigger>
+						<TooltipContent side="top">{fullscreenLabel}</TooltipContent>
+					</Tooltip>
+				)}
 			</div>
 			<button
 				type="button"
 				onClick={onToggleExpanded}
-				className="ml-0 flex size-6 shrink-0 items-center justify-center rounded-[6px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/80"
+				className="ml-0 flex size-6 shrink-0 items-center justify-center rounded-[6px] text-foreground transition-colors hover:bg-accent hover:text-foreground active:bg-accent/80"
 				aria-label={htmlSnippetLabel}
 				data-testid="html-code-block-preview-toggle"
 			>

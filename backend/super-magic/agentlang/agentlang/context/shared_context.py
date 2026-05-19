@@ -77,8 +77,7 @@ class AgentSharedContext:
         # 更新活动时间
         self.last_activity_time = current_time
 
-        # 打印详细的活动时间信息
-        logger.info(f"上次活动时间 {previous_activity_time}, 更新后活动时间 {current_time}，已空闲：{idle_duration}")
+        logger.debug(f"活动时间更新: {previous_activity_time} → {current_time}，已空闲: {idle_duration}")
 
     def get_idle_duration_seconds(self) -> float:
         """获取当前闲置时间（秒）

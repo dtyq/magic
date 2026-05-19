@@ -7,7 +7,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type, Union
 
 import aiofiles
 from pydantic import Field, create_model
@@ -90,10 +90,14 @@ class MCPToolParams(BaseToolParams):
         Returns:
             Type: 对应的 Python 类型
         """
-        type_mapping = {
+        type_mapping: Dict[str, Any] = {
             "string": str,
             "integer": int,
-            "number": float,
+            # "number" 在 JSON Schema 中同时覆盖整数和小数。
+            # 映射为 Union[int, float]：Pydantic v2 按顺序尝试，
+            # 整数值优先匹配 int（序列化为 0 而非 0.0），
+            # 有小数部分的值匹配 float，两者都不会被错误截断。
+            "number": Union[int, float],
             "boolean": bool,
             "array": list,
             "object": dict,

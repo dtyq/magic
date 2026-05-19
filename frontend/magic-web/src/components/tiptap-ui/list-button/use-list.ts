@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { type Editor } from "@tiptap/react"
-import { NodeSelection, TextSelection } from "@tiptap/pm/state"
+import { NodeSelection } from "@tiptap/pm/state"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
@@ -92,7 +92,8 @@ export function canToggleList(
 		const state = view.state
 		const selection = state.selection
 
-		if (selection.empty || selection instanceof TextSelection) {
+		// 仅折叠光标需要解析块位置；非空 TextSelection 必须保留整段选区以便多行一起列表化
+		if (selection.empty) {
 			const pos = findNodePosition({
 				editor,
 				node: state.selection.$anchor.node(1),
@@ -136,24 +137,28 @@ export function toggleList(editor: Editor | null, type: ListType): boolean {
 		let state = view.state
 		let tr = state.tr
 
-		// No selection, find the the cursor position
-		if (state.selection.empty || state.selection instanceof TextSelection) {
+		// 折叠光标：有内容的块用 NodeSelection 再 clearNodes，与原先行为一致
+		// 空块不要用该路径，否则 clearNodes 易把结构弄乱；多行选区不可改成单块 NodeSelection
+		if (state.selection.empty) {
 			const pos = findNodePosition({
 				editor,
 				node: state.selection.$anchor.node(1),
 			})?.pos
 			if (!isValidPosition(pos)) return false
 
-			tr = tr.setSelection(NodeSelection.create(state.doc, pos))
-			view.dispatch(tr)
-			state = view.state
+			const block = state.doc.nodeAt(pos)
+			if (block && block.content.size > 0) {
+				tr = tr.setSelection(NodeSelection.create(state.doc, pos))
+				view.dispatch(tr)
+				state = view.state
+			}
 		}
 
 		const selection = state.selection
 
 		let chain = editor.chain().focus()
 
-		// Handle NodeSelection
+		// Handle NodeSelection：取消列表时不要 clearNodes，否则会拆坏列表结构，第二次点同一列表无法正确取消且易出现空行
 		if (selection instanceof NodeSelection) {
 			const firstChild = selection.node.firstChild?.firstChild
 			const lastChild = selection.node.lastChild?.lastChild
@@ -162,32 +167,22 @@ export function toggleList(editor: Editor | null, type: ListType): boolean {
 
 			const to = lastChild ? selection.to - lastChild.nodeSize : selection.to - 1
 
-			chain = chain.setTextSelection({ from, to }).clearNodes()
-		}
-
-		if (editor.isActive(type)) {
-			// Unwrap list
-			chain
-				.liftListItem("listItem")
-				.lift("bulletList")
-				.lift("orderedList")
-				.lift("taskList")
-				.run()
-		} else {
-			// Wrap in specific list type
-			const toggleMap: Record<ListType, () => typeof chain> = {
-				bulletList: () => chain.toggleBulletList(),
-				orderedList: () => chain.toggleOrderedList(),
-				taskList: () => chain.toggleList("taskList", "taskItem"),
+			chain = chain.setTextSelection({ from, to })
+			if (!editor.isActive(type)) {
+				chain = chain.clearNodes()
 			}
-
-			const toggle = toggleMap[type]
-			if (!toggle) return false
-
-			toggle().run()
 		}
 
-		editor.chain().focus().selectTextblockEnd().run()
+		const toggleMap: Record<ListType, () => typeof chain> = {
+			bulletList: () => chain.toggleBulletList(),
+			orderedList: () => chain.toggleOrderedList(),
+			taskList: () => chain.toggleList("taskList", "taskItem"),
+		}
+
+		const toggle = toggleMap[type]
+		if (!toggle) return false
+
+		toggle().run()
 
 		return true
 	} catch {

@@ -7,11 +7,20 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases\Api\Agent;
 
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType;
+use App\Domain\Permission\Repository\Persistence\Model\MagicOperationPermissionModel;
 use App\Domain\Permission\Repository\Persistence\Model\ResourceVisibilityModel;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use Dtyq\SuperMagic\Application\Agent\Service\AbstractSuperMagicAppService;
+use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentMarketRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentPlaybookRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentSkillRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\AgentVersionRepositoryInterface;
+use Dtyq\SuperMagic\Domain\Agent\Repository\Facade\SuperMagicAgentRepositoryInterface;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentCategoryModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentMarketModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentPlaybookModel;
@@ -19,9 +28,22 @@ use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentSkillModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\AgentVersionModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\SuperMagicAgentModel;
 use Dtyq\SuperMagic\Domain\Agent\Repository\Persistence\Model\UserAgentModel;
+use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
+use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillModel;
 use Dtyq\SuperMagic\Domain\Skill\Repository\Persistence\Model\SkillVersionModel;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectModel;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\TaskFileModel;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Request\ExportWorkspaceRequest;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\Response\ExportWorkspaceResponse;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Workspace\WorkspaceExporterInterface;
+use Hyperf\Context\ApplicationContext;
 use HyperfTest\Cases\Api\SuperAgent\AbstractApiTest;
+use Mockery;
+use ReflectionProperty;
 
 /**
  * @internal
@@ -31,6 +53,8 @@ class SuperMagicAgentApiTest extends AbstractApiTest
 {
     private const BASE_URI = '/api/v2/super-magic/agents';
 
+    private ?SuperMagicAgentDomainService $originalSuperMagicAgentDomainService = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -38,6 +62,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
 
     protected function tearDown(): void
     {
+        $this->restoreSuperMagicAgentDomainService();
         parent::tearDown();
     }
 
@@ -246,6 +271,154 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         );
         $this->assertEquals(1000, $response['code'], $response['message'] ?? '');
         $this->assertArrayHasKey('data', $response);
+    }
+
+    /**
+     * 测试 Agent 协作者新增、改权、删除的最小场景。
+     */
+    public function testAgentCollaboratorsSimple(): void
+    {
+        $targetUserId = $this->switchUserTest2();
+
+        $this->switchUserTest1();
+        $headers = $this->getCommonHeaders();
+        $agentCode = $this->createTestAgent();
+        $findMemberByUserId = static function (array $members, string $userId): ?array {
+            foreach ($members as $member) {
+                if (($member['user_id'] ?? null) === $userId) {
+                    return $member;
+                }
+            }
+
+            return null;
+        };
+
+        $storeResponse = $this->post(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [
+                'members' => [
+                    [
+                        'target_type' => 'User',
+                        'target_id' => $targetUserId,
+                        'role' => 'editor',
+                    ],
+                ],
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $storeResponse['code'], $storeResponse['message'] ?? '');
+        $this->assertIsArray($storeResponse['data']);
+        $this->assertArrayHasKey('members', $storeResponse['data']);
+
+        $agent = SuperMagicAgentModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('code', $agentCode)
+            ->first();
+        $this->assertNotNull($agent, '应能查询到测试 Agent');
+        $this->assertGreaterThan(0, (int) $agent->project_id, 'Agent 应已绑定项目');
+
+        $listResponse = $this->get(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $listResponse['code'], $listResponse['message'] ?? '');
+        $this->assertIsArray($listResponse['data']);
+        $this->assertArrayHasKey('members', $listResponse['data']);
+        $targetMember = $findMemberByUserId($listResponse['data']['members'], $targetUserId);
+        $this->assertNotNull($targetMember, '应能查询到刚添加的 Agent 协作者');
+        $this->assertSame('editor', $targetMember['role']);
+
+        $operationPermission = MagicOperationPermissionModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('resource_id', $agentCode)
+            ->where('target_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+        $this->assertNotNull($operationPermission, '应写入协作权限表');
+
+        $projectMember = ProjectMemberModel::query()
+            ->where('project_id', $agent->project_id)
+            ->where('target_type', 'User')
+            ->where('target_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+        $this->assertNotNull($projectMember, '应同步写入项目成员表');
+        $this->assertSame('editor', $projectMember->role);
+
+        $updateResponse = $this->put(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [
+                'members' => [
+                    [
+                        'target_type' => 'User',
+                        'target_id' => $targetUserId,
+                        'role' => 'viewer',
+                    ],
+                ],
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $updateResponse['code'], $updateResponse['message'] ?? '');
+
+        $updatedListResponse = $this->get(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $updatedListResponse['code'], $updatedListResponse['message'] ?? '');
+        $this->assertArrayHasKey('members', $updatedListResponse['data']);
+        $updatedMember = $findMemberByUserId($updatedListResponse['data']['members'], $targetUserId);
+        $this->assertNotNull($updatedMember, '改权后应仍能查询到协作者');
+        $this->assertSame('viewer', $updatedMember['role']);
+
+        $projectMember = ProjectMemberModel::query()
+            ->where('project_id', $agent->project_id)
+            ->where('target_type', 'User')
+            ->where('target_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+        $this->assertNotNull($projectMember, '改权后项目成员记录应仍存在');
+        $this->assertSame('viewer', $projectMember->role);
+
+        $deleteResponse = $this->delete(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [
+                'members' => [
+                    [
+                        'target_type' => 'User',
+                        'target_id' => $targetUserId,
+                    ],
+                ],
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $deleteResponse['code'], $deleteResponse['message'] ?? '');
+
+        $deletedListResponse = $this->get(
+            self::BASE_URI . '/' . $agentCode . '/collaborators',
+            [],
+            $headers
+        );
+        $this->assertEquals(1000, $deletedListResponse['code'], $deletedListResponse['message'] ?? '');
+        $this->assertArrayHasKey('members', $deletedListResponse['data']);
+        $this->assertNull($findMemberByUserId($deletedListResponse['data']['members'], $targetUserId), '删除后不应再返回该协作者');
+
+        $operationPermission = MagicOperationPermissionModel::query()
+            ->where('organization_code', $headers['organization-code'])
+            ->where('resource_id', $agentCode)
+            ->where('target_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+        $this->assertNull($operationPermission, '删除后应清理协作权限表记录');
+
+        $projectMember = ProjectMemberModel::query()
+            ->where('project_id', $agent->project_id)
+            ->where('target_type', 'User')
+            ->where('target_id', $targetUserId)
+            ->whereNull('deleted_at')
+            ->first();
+        $this->assertNull($projectMember, '删除后应清理项目成员表记录');
     }
 
     public function testQueryAgentsOnlyReturnsLocalCreateAgents(): void
@@ -1894,8 +2067,10 @@ class SuperMagicAgentApiTest extends AbstractApiTest
     {
         $this->switchUserTest1();
 
-        $agentCode = $this->createTestAgent();
+        $agentCode = $this->createTestAgentRecord();
         SuperMagicAgentModel::query()->where('code', $agentCode)->update(['file_key' => 'agents/publish-scope.zip']);
+        $this->ensureAgentIdentityFileExists($agentCode);
+        $this->mockAgentWorkspaceExport();
 
         $headers = $this->getCommonHeaders();
         $organizationCode = $headers['organization-code'];
@@ -1920,9 +2095,18 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $headers
         );
         $this->assertEquals(1000, $memberResponse['code'], $memberResponse['message'] ?? '');
-        $this->assertEquals('PUBLISHED', $memberResponse['data']['publish_status']);
-        $this->assertEquals('APPROVED', $memberResponse['data']['review_status']);
+        $this->assertEquals('UNPUBLISHED', $memberResponse['data']['publish_status']);
+        $this->assertEquals('UNDER_REVIEW', $memberResponse['data']['review_status']);
         $this->assertEquals('MEMBER', $memberResponse['data']['publish_target_type']);
+
+        $memberApproveResponse = $this->put(
+            '/api/v1/organization/admin/super-magic/agents/versions/' . $memberResponse['data']['version_id'] . '/review',
+            [
+                'action' => 'APPROVED',
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $memberApproveResponse['code'], $memberApproveResponse['message'] ?? '');
 
         $memberVisibilityUserIds = ResourceVisibilityModel::query()
             ->where('organization_code', $organizationCode)
@@ -2016,7 +2200,43 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             $headers
         );
         $this->assertEquals(1000, $organizationResponse['code'], $organizationResponse['message'] ?? '');
+        $this->assertEquals('UNPUBLISHED', $organizationResponse['data']['publish_status']);
+        $this->assertEquals('UNDER_REVIEW', $organizationResponse['data']['review_status']);
         $this->assertEquals('ORGANIZATION', $organizationResponse['data']['publish_target_type']);
+
+        $organizationVisibility = ResourceVisibilityModel::query()
+            ->where('organization_code', $organizationCode)
+            ->where('resource_type', ResourceType::SUPER_MAGIC_AGENT->value)
+            ->where('resource_code', $agentCode)
+            ->get(['principal_type', 'principal_id'])
+            ->map(fn (ResourceVisibilityModel $model) => [
+                'principal_type' => $model->principal_type,
+                'principal_id' => $model->principal_id,
+            ])
+            ->all();
+        $organizationVisibilityUserIds = array_values(array_column(
+            array_filter($organizationVisibility, static fn (array $row): bool => (string) $row['principal_type'] === (string) PrincipalType::USER->value),
+            'principal_id'
+        ));
+        sort($organizationVisibilityUserIds);
+        $this->assertSame($expectedMemberVisibilityUserIds, $organizationVisibilityUserIds);
+
+        $organizationVisibilityDepartmentIds = array_values(array_column(
+            array_filter($organizationVisibility, static fn (array $row): bool => (string) $row['principal_type'] === (string) PrincipalType::DEPARTMENT->value),
+            'principal_id'
+        ));
+        sort($organizationVisibilityDepartmentIds);
+        $this->assertSame([$targetDepartmentId], $organizationVisibilityDepartmentIds);
+
+        $organizationApproveResponse = $this->put(
+            '/api/v1/organization/admin/super-magic/agents/versions/' . $organizationResponse['data']['version_id'] . '/review',
+            [
+                'action' => 'APPROVED',
+                'review_remark' => '组织审核通过',
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $organizationApproveResponse['code'], $organizationApproveResponse['message'] ?? '');
 
         $organizationVisibility = ResourceVisibilityModel::query()
             ->where('organization_code', $organizationCode)
@@ -2066,6 +2286,75 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             'principal_type' => PrincipalType::USER->value,
             'principal_id' => $creatorId,
         ]], $privateVisibility);
+
+        $versionListResponse = $this->get(
+            self::BASE_URI . '/' . $agentCode . '/versions',
+            ['page' => 1, 'page_size' => 20],
+            $headers
+        );
+        $this->assertEquals(1000, $versionListResponse['code'], $versionListResponse['message'] ?? '');
+        $organizationVersion = null;
+        foreach ($versionListResponse['data']['list'] as $versionItem) {
+            if ((string) $versionItem['id'] === (string) $organizationResponse['data']['version_id']) {
+                $organizationVersion = $versionItem;
+                break;
+            }
+        }
+        $this->assertNotNull($organizationVersion);
+        $this->assertSame('组织审核通过', $organizationVersion['review_remark']);
+
+        $invalidatedVersionId = IdGenerator::getSnowId();
+        AgentVersionModel::query()->create([
+            'id' => $invalidatedVersionId,
+            'code' => $agentCode,
+            'organization_code' => $organizationCode,
+            'version' => '1.0.99',
+            'name' => 'Invalidated Agent',
+            'description' => 'Invalidated organization review agent',
+            'icon' => [
+                'type' => 'IconAccessibleFilled',
+                'url' => '',
+                'color' => '#4F46E5',
+            ],
+            'icon_type' => 1,
+            'type' => 2,
+            'enabled' => true,
+            'prompt' => [],
+            'tools' => [],
+            'creator' => $creatorId,
+            'modifier' => $creatorId,
+            'name_i18n' => [
+                'zh_CN' => '无效员工版本',
+                'en_US' => 'Invalidated Agent Version',
+            ],
+            'role_i18n' => [
+                'zh_CN' => ['测试角色'],
+                'en_US' => ['Tester'],
+            ],
+            'description_i18n' => [
+                'zh_CN' => '无效员工版本描述',
+                'en_US' => 'Invalidated agent version description',
+            ],
+            'publish_status' => 'UNPUBLISHED',
+            'review_status' => 'INVALIDATED',
+            'publish_target_type' => 'ORGANIZATION',
+            'publisher_user_id' => $creatorId,
+            'is_current_version' => false,
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $organizationAdminListResponse = $this->post(
+            '/api/v1/organization/admin/super-magic/agents/versions/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'review_status' => 'INVALIDATED',
+            ],
+            $headers
+        );
+        $this->assertEquals(1000, $organizationAdminListResponse['code'], $organizationAdminListResponse['message'] ?? '');
+        $this->assertEmpty($organizationAdminListResponse['data']['list']);
     }
 
     public function testPublishAgentMemberRequiresTargets(): void
@@ -2442,6 +2731,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
 
         $headers = $this->getCommonHeaders();
         $organizationCode = $headers['organization-code'];
+        $originalPublisherUserId = env('TEST2_USER_ID');
         $agent = SuperMagicAgentModel::query()
             ->where('code', $agentCode)
             ->where('organization_code', $organizationCode)
@@ -2470,7 +2760,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
             'publish_status' => 'UNPUBLISHED',
             'review_status' => 'UNDER_REVIEW',
             'publish_target_type' => 'MARKET',
-            'publisher_user_id' => $headers['user-id'],
+            'publisher_user_id' => $originalPublisherUserId,
             'project_id' => 111,
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
@@ -2508,6 +2798,7 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertEquals('111', (string) $version['project_id']);
         $this->assertTrue((bool) $version['is_current_version']);
         $this->assertNotEmpty($version['published_at']);
+        $this->assertEquals($originalPublisherUserId, $version['publisher_user_id']);
 
         $agent->refresh();
         $this->assertEquals($version['published_at'], $agent->latest_published_at?->format('Y-m-d H:i:s'));
@@ -2744,6 +3035,307 @@ class SuperMagicAgentApiTest extends AbstractApiTest
         $this->assertNotNull($agentCode, 'agent_code 不应为空');
 
         return $agentCode;
+    }
+
+    private function ensureAgentIdentityFileExists(string $agentCode): void
+    {
+        $headers = $this->getCommonHeaders();
+        $agent = SuperMagicAgentModel::query()
+            ->where('code', $agentCode)
+            ->where('organization_code', $headers['organization-code'])
+            ->first();
+
+        $this->assertNotNull($agent, '应该存在员工记录');
+        $projectId = (int) $agent->project_id;
+        $this->assertGreaterThan(0, $projectId, '员工应绑定项目');
+
+        $root = TaskFileModel::query()
+            ->where('project_id', $projectId)
+            ->whereNull('parent_id')
+            ->where('is_directory', 1)
+            ->first();
+
+        if ($root === null) {
+            $rootFileId = IdGenerator::getSnowId();
+            TaskFileModel::query()->create($this->makeAgentTaskFileRow(
+                $projectId,
+                null,
+                '/',
+                true,
+                'agent-project-' . $projectId . '/',
+                '',
+                $rootFileId
+            ));
+        } else {
+            $rootFileId = (int) $root->file_id;
+        }
+
+        $magicDir = TaskFileModel::query()
+            ->where('project_id', $projectId)
+            ->where('parent_id', $rootFileId)
+            ->where('file_name', '.magic')
+            ->where('is_directory', 1)
+            ->first();
+
+        if ($magicDir === null) {
+            $magicDirFileId = IdGenerator::getSnowId();
+            TaskFileModel::query()->create($this->makeAgentTaskFileRow(
+                $projectId,
+                $rootFileId,
+                '.magic',
+                true,
+                'agent-project-' . $projectId . '/.magic/',
+                '',
+                $magicDirFileId
+            ));
+        } else {
+            $magicDirFileId = (int) $magicDir->file_id;
+        }
+
+        $identityFile = TaskFileModel::query()
+            ->where('project_id', $projectId)
+            ->where('parent_id', $magicDirFileId)
+            ->where('file_name', 'IDENTITY.md')
+            ->where('is_directory', 0)
+            ->first();
+
+        if ($identityFile !== null) {
+            return;
+        }
+
+        TaskFileModel::query()->create($this->makeAgentTaskFileRow(
+            $projectId,
+            $magicDirFileId,
+            'IDENTITY.md',
+            false,
+            'agent-project-' . $projectId . '/.magic/IDENTITY.md',
+            'md',
+            IdGenerator::getSnowId()
+        ));
+    }
+
+    private function mockAgentWorkspaceExport(): void
+    {
+        $container = ApplicationContext::getContainer();
+        $this->originalSuperMagicAgentDomainService ??= $container->get(SuperMagicAgentDomainService::class);
+
+        $sandboxGateway = Mockery::mock(SandboxGatewayInterface::class);
+        $sandboxGateway->shouldReceive('setUserContext')->andReturnSelf();
+        $sandboxGateway->shouldReceive('ensureSandboxAvailable')->andReturnUsing(
+            static fn (string $sandboxId): string => $sandboxId
+        );
+
+        $cloudFileRepository = Mockery::mock(CloudFileRepositoryInterface::class);
+        $cloudFileRepository->shouldReceive('getStsTemporaryCredential')->andReturn([
+            'access_key_id' => 'test-access-key',
+            'secret_access_key' => 'test-secret-key',
+            'session_token' => 'test-session-token',
+            'bucket' => 'test-bucket',
+            'dir' => '/agent_export',
+        ]);
+
+        $workspaceExporter = Mockery::mock(WorkspaceExporterInterface::class);
+        $workspaceExporter->shouldReceive('export')->andReturnUsing(
+            static fn (string $sandboxId, ExportWorkspaceRequest $request): ExportWorkspaceResponse => new ExportWorkspaceResponse(
+                true,
+                1000,
+                'OK',
+                'agents/test-export-' . $request->getCode() . '.zip',
+                [
+                    'sandbox_id' => $sandboxId,
+                    'source_path' => $request->getSourcePath(),
+                ]
+            )
+        );
+
+        $domainService = new SuperMagicAgentDomainService(
+            $container->get(SuperMagicAgentRepositoryInterface::class),
+            $container->get(AgentSkillRepositoryInterface::class),
+            $container->get(AgentPlaybookRepositoryInterface::class),
+            $container->get(AgentMarketRepositoryInterface::class),
+            $container->get(AgentVersionRepositoryInterface::class),
+            $container->get(UserAgentDomainService::class),
+            $cloudFileRepository,
+            $sandboxGateway,
+            $workspaceExporter,
+            $container->get(AgentMarketRepositoryInterface::class),
+            $container->get(TaskFileRepositoryInterface::class),
+        );
+
+        $container->set(SuperMagicAgentDomainService::class, $domainService);
+        $this->replaceAgentAppServiceDomainService($domainService);
+    }
+
+    private function restoreSuperMagicAgentDomainService(): void
+    {
+        if ($this->originalSuperMagicAgentDomainService === null) {
+            return;
+        }
+
+        ApplicationContext::getContainer()->set(
+            SuperMagicAgentDomainService::class,
+            $this->originalSuperMagicAgentDomainService
+        );
+        $this->replaceAgentAppServiceDomainService($this->originalSuperMagicAgentDomainService);
+        $this->originalSuperMagicAgentDomainService = null;
+    }
+
+    private function replaceAgentAppServiceDomainService(SuperMagicAgentDomainService $domainService): void
+    {
+        $appService = ApplicationContext::getContainer()->get(SuperMagicAgentAppService::class);
+        $property = new ReflectionProperty(AbstractSuperMagicAppService::class, 'superMagicAgentDomainService');
+        $property->setAccessible(true);
+        $property->setValue($appService, $domainService);
+    }
+
+    private function createTestAgentRecord(): string
+    {
+        $headers = $this->getCommonHeaders();
+        $organizationCode = $headers['organization-code'];
+        $userId = $headers['user-id'];
+        $now = date('Y-m-d H:i:s');
+        $agentCode = 'SMA-' . IdGenerator::getUniqueId32();
+        $projectId = IdGenerator::getSnowId();
+
+        ProjectModel::query()->create([
+            'id' => $projectId,
+            'user_id' => $userId,
+            'user_organization_code' => $organizationCode,
+            'workspace_id' => 0,
+            'project_name' => 'Test Agent',
+            'project_description' => '',
+            'work_dir' => '/project_' . $projectId . '/workspace',
+            'project_status' => 1,
+            'current_topic_id' => 0,
+            'current_topic_status' => '',
+            'is_collaboration_enabled' => 1,
+            'default_join_permission' => 'editor',
+            'project_mode' => 'agent_creator',
+            'source' => 1,
+            'is_hidden' => 1,
+            'hidden_type' => 2,
+            'created_uid' => $userId,
+            'updated_uid' => $userId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        SuperMagicAgentModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'organization_code' => $organizationCode,
+            'code' => $agentCode,
+            'name' => 'Test Agent',
+            'description' => 'This is a test agent',
+            'icon' => [
+                'type' => 'IconAccessibleFilled',
+                'url' => '',
+                'color' => '#4F46E5',
+            ],
+            'icon_type' => 1,
+            'tools' => [],
+            'prompt' => [],
+            'type' => 2,
+            'enabled' => 1,
+            'creator' => $userId,
+            'modifier' => $userId,
+            'name_i18n' => [
+                'zh_CN' => '测试员工',
+                'en_US' => 'Test Agent',
+            ],
+            'role_i18n' => [
+                'zh_CN' => ['市场分析师'],
+                'en_US' => ['Marketing Analyst'],
+            ],
+            'description_i18n' => [
+                'zh_CN' => '这是一个测试员工',
+                'en_US' => 'This is a test agent',
+            ],
+            'source_type' => 'LOCAL_CREATE',
+            'source_id' => null,
+            'version_id' => null,
+            'version_code' => null,
+            'pinned_at' => null,
+            'project_id' => $projectId,
+            'file_key' => 'agents/publish-scope.zip',
+            'latest_published_at' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        UserAgentModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'organization_code' => $organizationCode,
+            'user_id' => $userId,
+            'agent_code' => $agentCode,
+            'source_type' => 'LOCAL_CREATE',
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        MagicOperationPermissionModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'organization_code' => $organizationCode,
+            'resource_type' => 6,
+            'resource_id' => $agentCode,
+            'target_type' => 1,
+            'target_id' => $userId,
+            'operation' => 1,
+            'created_uid' => $userId,
+            'updated_uid' => $userId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        ResourceVisibilityModel::query()->create([
+            'id' => IdGenerator::getSnowId(),
+            'organization_code' => $organizationCode,
+            'principal_type' => PrincipalType::USER->value,
+            'principal_id' => $userId,
+            'resource_type' => ResourceType::SUPER_MAGIC_AGENT->value,
+            'resource_code' => $agentCode,
+            'creator' => $userId,
+            'modifier' => $userId,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return $agentCode;
+    }
+
+    private function makeAgentTaskFileRow(
+        int $projectId,
+        ?int $parentId,
+        string $fileName,
+        bool $isDirectory,
+        string $fileKey,
+        string $fileExtension = '',
+        ?int $fileId = null
+    ): array {
+        $headers = $this->getCommonHeaders();
+        $now = date('Y-m-d H:i:s');
+
+        return [
+            'file_id' => $fileId ?? IdGenerator::getSnowId(),
+            'user_id' => $headers['user-id'],
+            'organization_code' => $headers['organization-code'],
+            'project_id' => $projectId,
+            'topic_id' => 0,
+            'task_id' => 0,
+            'file_type' => $isDirectory ? 'directory' : 'file',
+            'file_name' => $fileName,
+            'file_extension' => $fileExtension,
+            'file_key' => $fileKey,
+            'file_size' => 0,
+            'external_url' => '',
+            'storage_type' => 'workspace',
+            'is_hidden' => $fileName === '.magic' ? 1 : 0,
+            'is_directory' => $isDirectory ? 1 : 0,
+            'sort' => 0,
+            'parent_id' => $parentId,
+            'source' => 3,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
     }
 
     /**

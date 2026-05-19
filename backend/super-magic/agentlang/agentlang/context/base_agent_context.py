@@ -463,3 +463,7 @@ class BaseAgentContext(BaseContext, AgentContextInterface):
         from agentlang.utils.timezone_utils import get_system_timezone
         tz = self.shared_context.get_field("user_timezone")
         return tz if tz else get_system_timezone()
+
+    def get_message_version(self) -> str:
+        """获取当前会话的消息版本号，默认返回 'v1'。"""
+        return "v1"

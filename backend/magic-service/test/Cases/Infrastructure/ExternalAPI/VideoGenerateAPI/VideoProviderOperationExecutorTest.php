@@ -16,8 +16,20 @@ use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswaySeedanceVideoAdapte
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVeoVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoAdapterRouter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Adapter\DashScopeVideoAdapterRouter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Adapter\Wan27VideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Capability\Wan27GenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\DashScopeTransportInterface;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingOmniVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingVideoAdapterRouter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingOmniGenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactory;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoProviderOperationExecutor;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkSeedanceVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VolcengineArkVideoClient;
 use GuzzleHttp\Client;
 use GuzzleHttp\Psr7\Response;
 use Hyperf\Guzzle\ClientFactory;
@@ -43,13 +55,13 @@ class VideoProviderOperationExecutorTest extends TestCase
                 ],
             ],
         );
-        $config = new QueueExecutorConfig('https://genaiapi.cloudsway.net', 'secret', 3, 20);
+        $config = new QueueExecutorConfig('https://localhost', 'secret', 3, 20);
 
         $httpClient = $this->createMock(Client::class);
         $httpClient->expects($this->once())
             ->method('post')
             ->with(
-                'https://genaiapi.cloudsway.net/v1/ai/LCnVzCkkMnVulyrz/veo/videos/generate',
+                'https://localhost/v1/ai/LCnVzCkkMnVulyrz/veo/videos/generate',
                 [
                     'headers' => [
                         'Authorization' => 'Bearer secret',
@@ -62,6 +74,7 @@ class VideoProviderOperationExecutorTest extends TestCase
                         'parameters' => [
                             'aspectRatio' => '16:9',
                             'resolution' => '1080p',
+                            'durationSeconds' => 8,
                         ],
                     ],
                 ],
@@ -78,6 +91,9 @@ class VideoProviderOperationExecutorTest extends TestCase
         $executor = new VideoProviderOperationExecutor(
             new VideoGenerateFactory(
                 $this->createCloudswayRouter($clientFactory),
+                $this->createKelingRouter($this->createMock(ClientFactory::class)),
+                new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class))),
+                $this->createDashScopeRouter(),
             ),
         );
 
@@ -89,6 +105,7 @@ class VideoProviderOperationExecutorTest extends TestCase
             'parameters' => [
                 'aspectRatio' => '16:9',
                 'resolution' => '1080p',
+                'durationSeconds' => 8,
             ],
         ], $operation->getProviderPayload());
     }
@@ -98,6 +115,9 @@ class VideoProviderOperationExecutorTest extends TestCase
         $executor = new VideoProviderOperationExecutor(
             new VideoGenerateFactory(
                 $this->createCloudswayRouter($this->createMock(ClientFactory::class)),
+                $this->createKelingRouter($this->createMock(ClientFactory::class)),
+                new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($this->createMock(ClientFactory::class))),
+                $this->createDashScopeRouter(),
             ),
         );
 
@@ -112,6 +132,145 @@ class VideoProviderOperationExecutorTest extends TestCase
             ),
             new QueueExecutorConfig('https://video-proxy.internal', 'secret', 3, 20),
         );
+    }
+
+    public function testExecutorRoutesVolcengineArkProviderUsingSeedanceAdapter(): void
+    {
+        $operation = $this->createOperation(
+            model: 'doubao-seedance-2-0-260128',
+            modelVersion: 'doubao-seedance-2-0-260128',
+            providerCode: ProviderCode::VolcengineArk->value,
+            rawRequest: [
+                'model_id' => 'doubao-seedance-2-0-260128',
+                'task' => 'edit',
+                'prompt' => 'replace the sky',
+                'inputs' => [
+                    'video' => ['uri' => 'https://example.com/source.mp4'],
+                    'mask' => ['uri' => 'https://example.com/mask.png'],
+                    'audio' => [
+                        ['role' => 'reference', 'uri' => 'https://example.com/voice.wav'],
+                    ],
+                ],
+                'generation' => [
+                    'aspect_ratio' => '16:9',
+                    'resolution' => '1080p',
+                    'duration_seconds' => 5,
+                    'watermark' => true,
+                    'return_last_frame' => true,
+                ],
+                'callbacks' => [
+                    'webhook_url' => 'https://callback.example.com/video',
+                ],
+                'execution' => [
+                    'service_tier' => 'flex',
+                    'expires_after_seconds' => 7200,
+                ],
+            ],
+        );
+        $config = new QueueExecutorConfig('https://ark.cn-beijing.volces.com/api/v3', 'secret', 3, 20);
+
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('post')
+            ->with(
+                'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks',
+                [
+                    'headers' => [
+                        'Authorization' => 'Bearer secret',
+                        'Content-Type' => 'application/json',
+                    ],
+                    'json' => [
+                        'model' => 'doubao-seedance-2-0-260128',
+                        'task' => 'edit',
+                        'content' => [
+                            ['type' => 'text', 'text' => 'replace the sky'],
+                            ['type' => 'video_url', 'video_url' => ['url' => 'https://example.com/source.mp4']],
+                            ['type' => 'audio_url', 'audio_url' => ['url' => 'https://example.com/voice.wav', 'role' => 'reference']],
+                            ['type' => 'mask_url', 'mask_url' => ['url' => 'https://example.com/mask.png']],
+                        ],
+                        'resolution' => '720p',
+                        'ratio' => '16:9',
+                        'duration' => 5,
+                        'watermark' => true,
+                        'callback_url' => 'https://callback.example.com/video',
+                        'execution_expires_after' => 7200,
+                        'return_last_frame' => true,
+                    ],
+                ],
+            )
+            ->willReturn(new Response(200, [], json_encode([
+                'id' => 'ark-task-123',
+            ], JSON_THROW_ON_ERROR)));
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->once())
+            ->method('create')
+            ->willReturn($httpClient);
+
+        $executor = new VideoProviderOperationExecutor(
+            new VideoGenerateFactory(
+                $this->createCloudswayRouter($this->createMock(ClientFactory::class)),
+                $this->createKelingRouter($this->createMock(ClientFactory::class)),
+                new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($clientFactory)),
+                $this->createDashScopeRouter(),
+            ),
+        );
+
+        $this->assertSame('ark-task-123', $executor->submit($operation, $config));
+        $this->assertSame('doubao-seedance-2-0-260128', $operation->getProviderPayload()['model']);
+        $this->assertSame('https://example.com/source.mp4', $operation->getProviderPayload()['content'][1]['video_url']['url']);
+    }
+
+    public function testExecutorQueriesVolcengineArkProviderUsingSeedanceAdapter(): void
+    {
+        $operation = $this->createOperation(
+            model: 'doubao-seedance-2-0-260128',
+            modelVersion: 'doubao-seedance-2-0-260128',
+            providerCode: ProviderCode::VolcengineArk->value,
+        );
+        $config = new QueueExecutorConfig('https://ark.cn-beijing.volces.com/api/v3', 'secret', 3, 20);
+
+        $httpClient = $this->createMock(Client::class);
+        $httpClient->expects($this->once())
+            ->method('get')
+            ->with(
+                'https://ark.cn-beijing.volces.com/api/v3/contents/generations/tasks/ark-task-123',
+                [
+                    'headers' => [
+                        'Authorization' => 'Bearer secret',
+                        'Content-Type' => 'application/json',
+                    ],
+                ],
+            )
+            ->willReturn(new Response(200, [], json_encode([
+                'status' => 'succeeded',
+                'content' => [
+                    'video_url' => 'https://example.com/ark-query.mp4',
+                    'last_frame_url' => 'https://example.com/ark-query-last-frame.png',
+                ],
+            ], JSON_THROW_ON_ERROR)));
+
+        $clientFactory = $this->createMock(ClientFactory::class);
+        $clientFactory->expects($this->once())
+            ->method('create')
+            ->willReturn($httpClient);
+
+        $executor = new VideoProviderOperationExecutor(
+            new VideoGenerateFactory(
+                $this->createCloudswayRouter($this->createMock(ClientFactory::class)),
+                $this->createKelingRouter($this->createMock(ClientFactory::class)),
+                new VolcengineArkSeedanceVideoAdapter(new VolcengineArkVideoClient($clientFactory)),
+                $this->createDashScopeRouter(),
+            ),
+        );
+
+        $result = $executor->query($operation, $config, 'ark-task-123');
+
+        $this->assertSame('succeeded', $result['status']);
+        $this->assertSame('https://example.com/ark-query.mp4', $result['output']['video_url']);
+        $this->assertSame('https://example.com/ark-query-last-frame.png', $result['output']['last_frame_url']);
+        $this->assertSame('ark-task-123', $result['output']['provider_task_id']);
+        $this->assertSame('https://ark.cn-beijing.volces.com/api/v3', $result['output']['provider_base_url']);
     }
 
     private function createOperation(
@@ -145,5 +304,27 @@ class VideoProviderOperationExecutorTest extends TestCase
             new CloudswaySeedanceVideoAdapter(new CloudswayVideoClient($clientFactory)),
             new CloudswayKelingVideoAdapter(new CloudswayVideoClient($clientFactory)),
         );
+    }
+
+    private function createKelingRouter(ClientFactory $clientFactory): KelingVideoAdapterRouter
+    {
+        return new KelingVideoAdapterRouter(
+            new KelingOmniVideoAdapter(
+                new KelingOmniGenerationCapabilityProvider(),
+                new KelingTransportFactory(
+                    new ApiKeyKelingTransport(
+                        new KelingVideoClient($clientFactory)
+                    )
+                )
+            )
+        );
+    }
+
+    private function createDashScopeRouter(): DashScopeVideoAdapterRouter
+    {
+        return new DashScopeVideoAdapterRouter(new Wan27VideoAdapter(
+            new Wan27GenerationCapabilityProvider(),
+            $this->createMock(DashScopeTransportInterface::class),
+        ));
     }
 }

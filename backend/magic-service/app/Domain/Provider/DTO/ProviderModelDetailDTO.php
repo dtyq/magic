@@ -62,6 +62,8 @@ class ProviderModelDetailDTO extends AbstractDTO
 
     protected array $visiblePackages = [];
 
+    protected mixed $extra = null;
+
     public function getDisabledBy(): ?DisabledByType
     {
         return $this->disabledBy;
@@ -384,6 +386,24 @@ class ProviderModelDetailDTO extends AbstractDTO
             $this->visiblePackages = is_array($decoded) ? $decoded : [];
         } else {
             $this->visiblePackages = $visiblePackages;
+        }
+    }
+
+    public function getExtra(): mixed
+    {
+        return $this->extra;
+    }
+
+    public function setExtra(mixed $extra): void
+    {
+        if ($extra === null) {
+            $this->extra = null;
+        } elseif (is_array($extra)) {
+            $this->extra = $extra;
+        } elseif (is_string($extra) && json_validate($extra)) {
+            $this->extra = json_decode($extra, true);
+        } else {
+            $this->extra = $extra;
         }
     }
 }

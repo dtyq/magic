@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { JSONContent } from "@tiptap/core"
 import { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { ModelItem } from "../../MessageEditor/types"
-import { TopicMode } from "../../../pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { useTranslation } from "react-i18next"
 import { RECORD_SUMMARY_EVENTS } from "@/services/recordSummary/const/events"
 import { SuperMagicApi } from "@/apis"
@@ -19,7 +19,9 @@ export interface QueuedMessage {
 	mentionItems: MentionListItem[]
 	selectedModel?: ModelItem
 	selectedImageModel?: ModelItem
+	selectedVideoModel?: ModelItem
 	topicMode?: TopicMode
+	agentCode?: string
 	timestamp: number
 	status: "pending" | "processing" | "failed"
 	isDeletingLoading?: boolean // 删除操作的loading状态
@@ -31,6 +33,7 @@ export interface QueuedMessage {
 export interface UseMessageQueueProps {
 	projectId?: string
 	topicId?: string
+	agentCode?: string
 	isTaskRunning?: boolean
 	isEmptyStatus?: boolean
 	isShowLoadingInit?: boolean
@@ -39,6 +42,7 @@ export interface UseMessageQueueProps {
 function useMessageQueue({
 	projectId,
 	topicId,
+	agentCode,
 	isTaskRunning,
 	isEmptyStatus,
 	isShowLoadingInit,
@@ -148,8 +152,10 @@ function useMessageQueue({
 				input_mode?: string
 				chat_mode?: string
 				topic_pattern?: string
+				agent_code?: string
 				model?: ModelItem
 				image_model?: ModelItem
+				video_model?: ModelItem
 			}
 		}
 		content: string
@@ -165,7 +171,9 @@ function useMessageQueue({
 			mentionItems: MentionListItem[]
 			selectedModel?: ModelItem
 			selectedImageModel?: ModelItem
+			selectedVideoModel?: ModelItem
 			topicMode?: TopicMode
+			agentCode?: string
 		} => {
 			try {
 				// 新格式：包含 instructs, extra, content 的对象
@@ -182,6 +190,8 @@ function useMessageQueue({
 					const mentions = messageContent.extra?.super_agent?.mentions || []
 					const model = messageContent.extra?.super_agent?.model
 					const imageModel = messageContent.extra?.super_agent?.image_model
+					const videoModel = messageContent.extra?.super_agent?.video_model
+					const agentCode = messageContent.extra?.super_agent?.agent_code
 					const topicPattern = messageContent.extra?.super_agent?.topic_pattern as
 						| TopicMode
 						| undefined
@@ -193,7 +203,11 @@ function useMessageQueue({
 						selectedImageModel: imageModel
 							? ({ model_id: imageModel.model_id } as ModelItem)
 							: undefined,
+						selectedVideoModel: videoModel
+							? ({ model_id: videoModel.model_id } as ModelItem)
+							: undefined,
 						topicMode: topicPattern,
+						agentCode,
 					}
 				}
 
@@ -275,7 +289,9 @@ function useMessageQueue({
 							mentionItems,
 							selectedModel,
 							selectedImageModel,
+							selectedVideoModel,
 							topicMode,
+							agentCode,
 						} = deserializeMessageContent(item.message_content)
 						return {
 							id: item.queue_id.toString(),
@@ -283,7 +299,9 @@ function useMessageQueue({
 							mentionItems,
 							selectedModel,
 							selectedImageModel,
+							selectedVideoModel,
 							topicMode,
+							agentCode,
 							timestamp: new Date(item.created_at).getTime(),
 							status: mapStatus(item.status),
 							isDeletingLoading: false,
@@ -419,24 +437,24 @@ function useMessageQueue({
 		let unsubscribe: (() => void) | undefined
 		let cancelled = false
 
-			; (async () => {
-				try {
-					const { initializeService } =
-						await import("@/services/recordSummary/serviceInstance")
+		;(async () => {
+			try {
+				const { initializeService } =
+					await import("@/services/recordSummary/serviceInstance")
 
-					const recordSummaryService = initializeService()
+				const recordSummaryService = initializeService()
 
-					if (cancelled || !recordSummaryService?.on) return
-					unsubscribe = recordSummaryService.on(
-						RECORD_SUMMARY_EVENTS.RECORDING_COMPLETE,
-						() => {
-							fetchQueueList?.()
-						},
-					)
-				} catch (error) {
-					console.error("Failed to bind recording complete listener", error)
-				}
-			})()
+				if (cancelled || !recordSummaryService?.on) return
+				unsubscribe = recordSummaryService.on(
+					RECORD_SUMMARY_EVENTS.RECORDING_COMPLETE,
+					() => {
+						fetchQueueList?.()
+					},
+				)
+			} catch (error) {
+				console.error("Failed to bind recording complete listener", error)
+			}
+		})()
 
 		return () => {
 			cancelled = true
@@ -450,19 +468,26 @@ function useMessageQueue({
 		mentionItems: MentionListItem[],
 		selectedModel?: ModelItem | null,
 		selectedImageModel?: ModelItem | null,
+		selectedVideoModel?: ModelItem | null,
 		topicMode?: TopicMode,
+		agentCode?: string,
 		inputMode?: string,
 	) => {
 		const modelObj = selectedModel
 			? {
-				model_id: selectedModel.model_id,
-			}
+					model_id: selectedModel.model_id,
+				}
 			: { model_id: "auto" }
 
 		const imageModelObj = selectedImageModel?.model_id
 			? {
-				model_id: selectedImageModel.model_id,
-			}
+					model_id: selectedImageModel.model_id,
+				}
+			: undefined
+		const videoModelObj = selectedVideoModel?.model_id
+			? {
+					model_id: selectedVideoModel.model_id,
+				}
 			: undefined
 
 		// 转换 mention items，自定义发送给 agent 的内容
@@ -481,8 +506,10 @@ function useMessageQueue({
 					input_mode: inputMode || "plan",
 					chat_mode: "normal",
 					topic_pattern: topicMode || "general",
+					...(agentCode && { agent_code: agentCode }),
 					model: modelObj,
 					...(imageModelObj && { image_model: imageModelObj }),
+					...(videoModelObj && { video_model: videoModelObj }),
 				},
 			},
 			content: JSON.stringify(content),
@@ -496,6 +523,7 @@ function useMessageQueue({
 			mentionItems: MentionListItem[]
 			selectedModel?: ModelItem | null
 			selectedImageModel?: ModelItem | null
+			selectedVideoModel?: ModelItem | null
 			topicMode?: TopicMode
 		}) => {
 			if (!projectId || !topicId) {
@@ -510,7 +538,9 @@ function useMessageQueue({
 					params.mentionItems,
 					params.selectedModel,
 					params.selectedImageModel,
+					params.selectedVideoModel,
 					params.topicMode,
+					agentCode,
 					"plan", // 默认input_mode
 				)
 
@@ -825,7 +855,9 @@ function useMessageQueue({
 				// 使用原有的模型和模式信息
 				const finalModel = editingQueueItem.selectedModel
 				const finalImageModel = editingQueueItem.selectedImageModel
+				const finalVideoModel = editingQueueItem.selectedVideoModel
 				const finalTopicMode = editingQueueItem.topicMode
+				const finalAgentCode = editingQueueItem.agentCode ?? agentCode
 
 				// 将完整的消息信息序列化为新的API格式
 				const messageContentData = serializeMessageContent(
@@ -833,7 +865,9 @@ function useMessageQueue({
 					finalMentions,
 					finalModel,
 					finalImageModel,
+					finalVideoModel,
 					finalTopicMode,
+					finalAgentCode,
 					"plan", // 默认input_mode
 				)
 

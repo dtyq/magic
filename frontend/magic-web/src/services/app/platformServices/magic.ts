@@ -18,9 +18,8 @@ import groupInfoService from "../../groupInfo"
 import userInfoService from "../../userInfo"
 import { Platform } from "../const/platform"
 import { GlobalApi } from "@/apis"
-import GlobalMentionPanelStore from "@/components/business/MentionPanel/store"
+import GlobalMentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 import { INIT_DOMAINS } from "@/models/user/stores/initialization.store"
-import superMagicModeService from "../../superMagic/SuperMagicModeService"
 import { LongMemory } from "@/types/longMemory"
 import { RouteName } from "@/routes/constants"
 import { MobileTabParam } from "@/pages/mobileTabs/constants"
@@ -67,7 +66,6 @@ export class MagicPlatformService implements PlatformServiceInterface {
 	/**
 	 * @description 切换用户后的初始化流程
 	 * @param magicUser 用户信息
-	 * @param showSwitchLoading 是否显示切换加载状态
 	 */
 	initUserData = async (magicUser: User.UserInfo) => {
 		try {
@@ -76,13 +74,13 @@ export class MagicPlatformService implements PlatformServiceInterface {
 
 			this.preloadGlobalData()
 
-			// 获取超级麦吉模式列表，开启更新定时器
-			superMagicModeService.startRefreshTimer()
-			superMagicModeService.fetchModeList()
-
 			this.logger.log("开始切换账户后的初始化流程", { magicId, userId })
-			interfaceStore.setIsSwitchingOrganization(true)
 			userStore.initialization.resetInitialized()
+
+			// Clear Super Magic sidebar state so other tabs do not show the previous org
+			workspaceStore.reset()
+			projectStore.reset()
+			topicStore.reset()
 
 			// Switch database based on magic_id
 			this.logger.log("切换数据库", { magicId })
@@ -149,8 +147,7 @@ export class MagicPlatformService implements PlatformServiceInterface {
 			this.logger.log("用户切换后的初始化流程完成", { magicId })
 
 			const { route, params } = routesMatch(window.location.pathname) ?? {}
-
-			if (
+			const isSuperRoute =
 				route?.name &&
 				[
 					RouteName.Super,
@@ -158,23 +155,30 @@ export class MagicPlatformService implements PlatformServiceInterface {
 					RouteName.SuperWorkspaceProjectState,
 					RouteName.SuperWorkspaceProjectTopicState,
 				].includes(route.name as RouteName)
-			) {
-				await this.initSuperMagicDataIfNeeded({
-					workspaceId: params?.workspaceId,
-					projectId: params?.projectId,
-					topicId: params?.topicId,
-				})
-			} else if (route?.name === RouteName.MobileTabs) {
+
+			if (route?.name === RouteName.MobileTabs) {
 				if (this.shouldInitializeMobileTabsSuperState()) {
 					await this.initMobileTabsSuperData()
+				} else if (this.shouldFetchWorkspacesForNonSuperSidebar()) {
+					this.refreshWorkspaceListForSidebar()
 				}
-			} else if (route?.name === RouteName.Chat) {
-				await this.initChatDataIfNeeded(magicUser)
+			} else {
+				if (route?.name === RouteName.Chat) {
+					await this.initChatDataIfNeeded(magicUser)
+				}
+
+				if (isSuperRoute) {
+					await this.initSuperMagicDataIfNeeded({
+						workspaceId: params?.workspaceId,
+						projectId: params?.projectId,
+						topicId: params?.topicId,
+					})
+				} else if (this.shouldFetchWorkspacesForNonSuperSidebar()) {
+					this.refreshWorkspaceListForSidebar()
+				}
 			}
 		} catch (error) {
 			this.logger.error("切换账户后的初始化流程失败", error)
-		} finally {
-			interfaceStore.setIsSwitchingOrganization(false)
 		}
 	}
 
@@ -217,26 +221,48 @@ export class MagicPlatformService implements PlatformServiceInterface {
 		}
 	}
 
-	private async initMobileTabsSuperData() {
+	/**
+	 * Non-Super routes only need workspace list when PC MagicSidebar is shown.
+	 * Mobile BaseLayout has no workspace sidebar; skip extra API calls.
+	 */
+	private shouldFetchWorkspacesForNonSuperSidebar() {
+		return !interfaceStore.isMobile
+	}
+
+	/** Reload sidebar workspace list for the current org (non-Super routes, PC). */
+	private async refreshWorkspaceListForSidebar() {
 		const { default: SuperMagicService } = await import("@/pages/superMagic/services/index")
-		const searchParams = new URLSearchParams(window.location.search)
-		const workspaceId = searchParams.get("workspaceId") || undefined
-		const projectId = searchParams.get("projectId") || undefined
-		const topicId = searchParams.get("topicId") || undefined
-
-		await SuperMagicService.initializeState({
-			workspaceId,
-			projectId,
-			topicId,
+		await SuperMagicService.workspace.fetchWorkspaces({
+			isAutoSelect: true,
+			isSelectLast: true,
+			page: 1,
 		})
+	}
 
-		this.syncMobileTabsSuperQueryState()
+	private async initMobileTabsSuperData() {
+		await userStore.initialization.runInitialization(
+			{
+				magicId: userStore.user.userInfo?.magic_id,
+				organizationCode: userStore.user.userInfo?.organization_code,
+				domain: INIT_DOMAINS.super,
+			},
+			async () => {
+				const { default: SuperMagicService } =
+					await import("@/pages/superMagic/services/index")
+				const searchParams = new URLSearchParams(window.location.search)
+				const workspaceId = searchParams.get("workspaceId") || undefined
+				const projectId = searchParams.get("projectId") || undefined
+				const topicId = searchParams.get("topicId") || undefined
 
-		userStore.initialization.markInitialized({
-			magicId: userStore.user.userInfo?.magic_id,
-			organizationCode: userStore.user.userInfo?.organization_code,
-			domain: INIT_DOMAINS.super,
-		})
+				await SuperMagicService.initializeState({
+					workspaceId,
+					projectId,
+					topicId,
+				})
+
+				this.syncMobileTabsSuperQueryState()
+			},
+		)
 	}
 
 	/**
@@ -253,23 +279,33 @@ export class MagicPlatformService implements PlatformServiceInterface {
 		projectId?: string
 		topicId?: string
 	}) => {
-		if (userStore.initialization.isInitialized({ domain: INIT_DOMAINS.super })) return
-		const { default: SuperMagicService } = await import("@/pages/superMagic/services/index")
-		const hasRouteParams = !!(workspaceId || projectId || topicId)
-		if (interfaceStore.isMobile && hasRouteParams) {
-			SuperMagicService.refreshState({
-				workspaceId: workspaceId || undefined,
-				projectId,
-				topicId,
-			})
-		} else {
-			// 初始化超级麦吉状态
-			SuperMagicService.initializeState({
-				workspaceId: workspaceId || undefined,
-				projectId,
-				topicId,
-			})
-		}
+		const u = userStore.user.userInfo
+		await userStore.initialization.runInitialization(
+			{
+				magicId: u?.magic_id,
+				organizationCode: u?.organization_code,
+				domain: INIT_DOMAINS.super,
+			},
+			async () => {
+				const { default: SuperMagicService } =
+					await import("@/pages/superMagic/services/index")
+				const hasRouteParams = !!(workspaceId || projectId || topicId)
+				if (interfaceStore.isMobile && hasRouteParams) {
+					await SuperMagicService.refreshState({
+						workspaceId: workspaceId || undefined,
+						projectId,
+						topicId,
+					})
+					return
+				}
+
+				await SuperMagicService.initializeState({
+					workspaceId: workspaceId || undefined,
+					projectId,
+					topicId,
+				})
+			},
+		)
 	}
 
 	/**

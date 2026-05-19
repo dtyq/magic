@@ -4,6 +4,11 @@ import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import { SuperMagicApi } from "@/apis"
 import projectFilesStore from "@/stores/projectFiles"
 import { AttachmentDataProcessor } from "@/pages/superMagic/utils/attachmentDataProcessor"
+import {
+	releaseAttachmentsRefreshWaitersWithoutFetch,
+	resolveAttachmentsRefreshWaitersForProject,
+	withAttachmentsRefreshWaitersResolved,
+} from "@/pages/superMagic/services/attachmentsTopicSync"
 
 export function useAttachments() {
 	const { workspaceFileTree: attachments, setWorkspaceFileTree: setAttachments } =
@@ -17,29 +22,38 @@ export function useAttachments() {
 
 	const updateAttachments = useCallback(
 		(selectedProject: ProjectListItem, callback?: () => void) => {
-			if (!selectedProject?.id) {
+			const projectId = selectedProject?.id
+			if (!projectId) {
 				setCurrentProjectId(undefined)
 				projectFilesStore.setWorkspaceFileTree([])
+				releaseAttachmentsRefreshWaitersWithoutFetch()
 				return
 			}
 
-			setCurrentProjectId(selectedProject.id)
+			setCurrentProjectId(projectId)
 
 			try {
-				SuperMagicApi.getAttachmentsByProjectId({
-					projectId: selectedProject?.id,
-					// @ts-ignore 使用window添加临时的token
-					temporaryToken: window.temporary_token || "",
-				}).then((res: any) => {
-					// 统一处理 metadata，包括 index.html 文件的特殊逻辑，内部自闭环处理验证和返回逻辑
-					const processedData = AttachmentDataProcessor.processAttachmentData(res)
-					// 同步更新 projectFilesStore
-					projectFilesStore.setWorkspaceFileTree(processedData.tree)
-				})
+				withAttachmentsRefreshWaitersResolved(
+					projectId,
+					SuperMagicApi.getAttachmentsByProjectId({
+						projectId,
+						// @ts-ignore 使用window添加临时的token
+						temporaryToken: window.temporary_token || "",
+					})
+						.then((res: any) => {
+							// 统一处理 metadata，包括 index.html 文件的特殊逻辑，内部自闭环处理验证和返回逻辑
+							const processedData = AttachmentDataProcessor.processAttachmentData(res)
+							// 同步更新 projectFilesStore
+							projectFilesStore.setWorkspaceFileTree(processedData.tree)
+						})
+						.finally(() => {
+							callback?.()
+						}),
+				)
 			} catch (error) {
 				console.error("Failed to fetch attachments:", error)
 				projectFilesStore.setWorkspaceFileTree([])
-			} finally {
+				resolveAttachmentsRefreshWaitersForProject(projectId)
 				callback?.()
 			}
 		},

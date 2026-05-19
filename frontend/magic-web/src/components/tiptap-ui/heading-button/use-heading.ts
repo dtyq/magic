@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { type Editor } from "@tiptap/react"
-import { NodeSelection, TextSelection } from "@tiptap/pm/state"
+import { NodeSelection } from "@tiptap/pm/state"
 
 // --- Hooks ---
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
@@ -82,7 +82,7 @@ export function canToggle(editor: Editor | null, level?: Level, turnInto: boolea
 		const state = view.state
 		const selection = state.selection
 
-		if (selection.empty || selection instanceof TextSelection) {
+		if (selection.empty) {
 			const pos = findNodePosition({
 				editor,
 				node: state.selection.$anchor.node(1),
@@ -125,23 +125,27 @@ export function toggleHeading(editor: Editor | null, level: Level | Level[]): bo
 		let state = view.state
 		let tr = state.tr
 
-		// No selection, find the cursor position
-		if (state.selection.empty || state.selection instanceof TextSelection) {
+		// 仅折叠光标扩成块选区；多行选区保留。空块不 NodeSelection，避免 clearNodes 破坏空段
+		if (state.selection.empty) {
 			const pos = findNodePosition({
 				editor,
 				node: state.selection.$anchor.node(1),
 			})?.pos
 			if (!isValidPosition(pos)) return false
 
-			tr = tr.setSelection(NodeSelection.create(state.doc, pos))
-			view.dispatch(tr)
-			state = view.state
+			const block = state.doc.nodeAt(pos)
+			if (block && block.content.size > 0) {
+				tr = tr.setSelection(NodeSelection.create(state.doc, pos))
+				view.dispatch(tr)
+				state = view.state
+			}
 		}
 
 		const selection = state.selection
 		let chain = editor.chain().focus()
 
-		// Handle NodeSelection
+		const headingActive = levels.some((l) => editor.isActive("heading", { level: l }))
+
 		if (selection instanceof NodeSelection) {
 			const firstChild = selection.node.firstChild?.firstChild
 			const lastChild = selection.node.lastChild?.lastChild
@@ -150,18 +154,17 @@ export function toggleHeading(editor: Editor | null, level: Level | Level[]): bo
 
 			const to = lastChild ? selection.to - lastChild.nodeSize : selection.to - 1
 
-			chain = chain.setTextSelection({ from, to }).clearNodes()
+			chain = chain.setTextSelection({ from, to })
+			if (!headingActive) {
+				chain = chain.clearNodes()
+			}
 		}
 
-		const isActive = levels.some((l) => editor.isActive("heading", { level: l }))
-
-		const toggle = isActive
+		const toggle = headingActive
 			? chain.setNode("paragraph")
 			: chain.setNode("heading", { level: toggleLevel })
 
 		toggle.run()
-
-		editor.chain().focus().selectTextblockEnd().run()
 
 		return true
 	} catch {

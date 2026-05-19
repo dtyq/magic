@@ -2,7 +2,7 @@ import { memo } from "react"
 import { IconDots } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import StatusIcon from "@/pages/superMagic/components/MessageHeader/components/StatusIcon"
 import ModeTag from "./components/ModeTag/index"
 import { topicStore } from "@/pages/superMagic/stores/core"
@@ -32,7 +32,7 @@ function TopicItem({ topic, onClose, onOpenActionsPopup }: TopicItemProps) {
 			<StatusIcon status={topic.task_status} size={16} className="shrink-0" />
 
 			{/* Mode Tag */}
-			<ModeTag mode={topic.topic_mode || TopicMode.General} />
+			<ModeTag mode={topic.topic_mode || TopicMode.General} agentCode={topic.agent_code} />
 
 			{/* Topic Title */}
 			<span className="flex-1 truncate text-sm font-normal leading-none text-sidebar-foreground">

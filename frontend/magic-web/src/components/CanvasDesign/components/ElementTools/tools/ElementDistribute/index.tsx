@@ -1,9 +1,5 @@
 import { useCallback, useMemo, useState } from "react"
-import {
-	LayoutGrid,
-	AlignHorizontalSpaceAround,
-	AlignVerticalSpaceAround,
-} from "../../../ui/icons/index"
+import { AlignHorizontalSpaceAround, AlignVerticalSpaceAround, LayoutGrid } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../../../ui/select"
 import styles from "./index.module.css"
 import { useCanvas } from "../../../../context/CanvasContext"

@@ -28,6 +28,8 @@ class ChatMessageRequest
         private string $modelId = '',
         private array $dynamicConfig = [],
         private array $metadata = [],
+        private ?array $agent = null,
+        private string $type = 'chat',
     ) {
     }
 
@@ -47,6 +49,7 @@ class ChatMessageRequest
         string $modelId = '',
         array $dynamicConfig = [],
         array $metadata = [],
+        ?array $agent = null,
     ): self {
         return new self(
             $messageId,
@@ -60,7 +63,8 @@ class ChatMessageRequest
             $mcpConfig,
             $modelId,
             $dynamicConfig,
-            $metadata
+            $metadata,
+            $agent
         );
     }
 
@@ -88,6 +92,23 @@ class ChatMessageRequest
     public function setPrompt(string $prompt): self
     {
         $this->prompt = $prompt;
+        return $this;
+    }
+
+    /**
+     * 获取消息类型.
+     */
+    public function getType(): string
+    {
+        return $this->type;
+    }
+
+    /**
+     * 设置消息类型.
+     */
+    public function setType(string $type): self
+    {
+        $this->type = $type;
         return $this;
     }
 
@@ -266,13 +287,24 @@ class ChatMessageRequest
      * 转换为API请求数组
      * 根据沙箱通信文档的聊天消息请求格式.
      */
+    public function getAgent(): ?array
+    {
+        return $this->agent;
+    }
+
+    public function setAgent(?array $agent): self
+    {
+        $this->agent = $agent;
+        return $this;
+    }
+
     public function toArray(): array
     {
         return [
             'message_id' => ! empty($this->messageId) ? $this->messageId : (string) IdGenerator::getSnowId(),
             'user_id' => $this->userId,
             'task_id' => $this->taskId,
-            'type' => 'chat',
+            'type' => $this->type,
             'prompt' => $this->prompt,
             'task_mode' => $this->taskMode,
             'agent_mode' => $this->agentMode,
@@ -282,6 +314,7 @@ class ChatMessageRequest
             'model_id' => $this->modelId,
             'dynamic_config' => $this->dynamicConfig,
             'metadata' => $this->metadata,
+            'agent' => $this->agent,
         ];
     }
 }

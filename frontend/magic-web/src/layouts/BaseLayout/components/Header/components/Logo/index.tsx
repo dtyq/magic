@@ -5,7 +5,7 @@ import { SupportLocales } from "@/constants/locale"
 import { globalConfigStore } from "@/stores/globalConfig"
 import { observer } from "mobx-react-lite"
 import { getAvatarUrl } from "@/utils/avatar"
-import LoadingOutlined from "@/components/icons/LoadingOutlined"
+import { Spinner } from "@/components/shadcn-ui/spinner"
 
 const useStyles = createStyles(({ css, token }) => {
 	return {
@@ -82,7 +82,7 @@ function Logo({
 		)
 	}
 
-	return <LoadingOutlined spin className={styles.logo} color="currentColor" />
+	return <Spinner className="h-4 w-4 animate-spin" />
 }
 
 export default observer(Logo)

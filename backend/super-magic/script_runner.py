@@ -9,9 +9,26 @@
     script_runner.py <script_path> [args...]
 """
 
+import glob
+import site
 import sys
 import runpy
 from pathlib import Path
+
+
+def _inject_site_packages():
+    """将 venv / 系统 Python 的 site-packages 加入 sys.path，
+    使通过 pip 安装的第三方包在 PyInstaller 打包环境中也可用。"""
+    patterns = [
+        '/venv/lib/python*/site-packages',
+        '/usr/lib/python*/dist-packages',
+        '/usr/local/lib/python*/site-packages',
+    ]
+    for pattern in patterns:
+        for path in sorted(glob.glob(pattern)):
+            if path not in sys.path:
+                site.addsitedir(path)
+
 
 def main():
     """主函数：执行指定的 Python 脚本"""
@@ -40,6 +57,9 @@ def main():
     script_dir = str(script_path_obj.parent)
     if script_dir not in sys.path:
         sys.path.insert(0, script_dir)
+
+    # 注入 venv / 系统 site-packages，使 pip 安装的包可见
+    _inject_site_packages()
 
     try:
         # 使用 runpy 执行脚本

@@ -1,12 +1,12 @@
 import type { LucideProps } from "lucide-react"
 
-export default function FrameDotted({ size = 15, color = "currentColor", ...props }: LucideProps) {
+export default function FrameDotted({ size = 16, color = "currentColor", ...props }: LucideProps) {
 	return (
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
 			width={size}
 			height={size}
-			viewBox="0 0 15 15"
+			viewBox="0 0 16 16"
 			fill="none"
 			{...props}
 		>

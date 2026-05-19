@@ -9,7 +9,17 @@ import type {
 	GenerateHightImageResponse,
 	GetConvertHightConfigResponse,
 } from "@/components/CanvasDesign/types.magic"
+import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
+import {
+	buildReferenceImageOptions,
+	getReferenceImageCrop,
+} from "@/components/CanvasDesign/canvas/utils/imageCropUtils"
 import { useTranslation } from "react-i18next"
+import {
+	createDesignWorkspacePathExists,
+	isRelativeDesignDslPath,
+	resolveDesignDslPathToWorkspaceAbsoluteByCandidates,
+} from "../utils/designDslPathUtils"
 
 interface UseHighImageGenerationOptions {
 	projectId?: string
@@ -17,7 +27,8 @@ interface UseHighImageGenerationOptions {
 		id: string
 		name: string
 	}
-	attachments?: unknown[]
+	designProjectBasePath?: string
+	flatAttachments?: FileItem[]
 }
 
 interface UseHighImageGenerationReturn {
@@ -34,7 +45,7 @@ interface UseHighImageGenerationReturn {
 export function useHighImageGeneration(
 	options: UseHighImageGenerationOptions,
 ): UseHighImageGenerationReturn {
-	const { projectId } = options
+	const { projectId, designProjectBasePath, flatAttachments } = options
 	const { t } = useTranslation("super")
 
 	/**
@@ -51,10 +62,17 @@ export function useHighImageGeneration(
 				throw new Error(t("design.errors.filePathNotExists"))
 			}
 
-			// 处理 file_path，确保以斜杠开头
-			const filePathWithSlash = params.file_path.startsWith("/")
-				? params.file_path
-				: `/${params.file_path}`
+			const pathExists = createDesignWorkspacePathExists(flatAttachments)
+			const filePathWithSlash = resolveDesignDslPathToWorkspaceAbsoluteByCandidates(
+				params.file_path,
+				designProjectBasePath,
+				{
+					pathExists,
+				},
+			)
+			if (isRelativeDesignDslPath(params.file_path) && !filePathWithSlash.startsWith("/")) {
+				throw new Error(t("design.errors.designResourcePathUnresolved"))
+			}
 
 			// 根据 file_path 生成 file_dir（提取目录部分）
 			let fileDir = params.file_dir || ""
@@ -67,12 +85,16 @@ export function useHighImageGeneration(
 					fileDir = "/"
 				}
 			} else {
-				// 如果提供了 file_dir，确保格式正确（以斜杠开头和结尾）
-				if (!fileDir.startsWith("/")) {
-					fileDir = `/${fileDir}`
-				}
-				if (!fileDir.endsWith("/")) {
-					fileDir = `${fileDir}/`
+				fileDir = resolveDesignDslPathToWorkspaceAbsoluteByCandidates(
+					fileDir,
+					designProjectBasePath,
+					{
+						ensureTrailingSlash: true,
+						pathExists,
+					},
+				)
+				if (isRelativeDesignDslPath(params.file_dir || "") && !fileDir.startsWith("/")) {
+					throw new Error(t("design.errors.designResourcePathUnresolved"))
 				}
 			}
 
@@ -83,12 +105,19 @@ export function useHighImageGeneration(
 				file_dir: fileDir,
 				file_path: filePathWithSlash,
 				size: params.size,
+				reference_image_options: buildReferenceImageOptions({
+					filePath: filePathWithSlash,
+					crop: getReferenceImageCrop({
+						filePath: params.file_path,
+						referenceImageOptions: params.reference_image_options,
+					}),
+				}),
 			}
 
 			const result = await SuperMagicApi.generateHighImage(requestParams)
 			return toCanvasGenerateHightImageResponse(result)
 		},
-		[projectId, t],
+		[projectId, designProjectBasePath, flatAttachments, t],
 	)
 
 	/**

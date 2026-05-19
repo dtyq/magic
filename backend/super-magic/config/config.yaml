@@ -51,15 +51,15 @@ llm:
   api_max_retries: ${LLM_API_MAX_RETRIES:-3}
   # 自定义API请求头配置 - 所有请求头都从环境变量读取
   custom_api_headers: ${LLM_CUSTOM_API_HEADERS:-None}
-  # 流式快速重试策略
-  # 首包窗口覆盖"请求发出到首个 chunk"的总时间（含等响应头），下标对应 retry_count
-  stream_first_chunk_timeout_schedule_seconds: [90, 120, 150]
-  # 收到首包后，后续每个 chunk 的等待上限
-  stream_chunk_timeout_seconds: 60
-  # 是否启用非流式 fallback；默认关闭，只保留代码路径便于后续按需重新打开
-  enable_non_stream_fallback: false
-  # 非流式 fallback 单独超时（当前默认关闭，仅在显式开启时生效）
-  non_stream_fallback_timeout_seconds: 330
+  # 两阶梯重试策略
+  # 第一阶梯：流式
+  # > 设 600s 等同于禁用 per-chunk 超时检测，由总超时兜底
+  # > 原因：Claude/AWS 渠道流式卡顿后仍可恢复，缩短此值会误杀正常请求 2026-04-12
+  stream_first_chunk_timeout_seconds: 600  # 首包超时
+  stream_chunk_timeout_seconds: 600        # chunk 间隔超时
+  # 第二阶梯：非流式退避重试
+  non_stream_timeout_seconds: 600          # 非流式请求超时
+  backoff_max_retries: 5                   # 最大退避重试次数
 
 # 当前活动的 Agent 模式 (可通过 ACTIVE_AGENT_MODE 环境变量覆盖)
 # 可选值: apex(至强模式), efficient(高性价比模式), flash(极速模式)
@@ -96,7 +96,7 @@ agent_modes:
 
 agent:
   # Allow LLM to call multiple tools in a single response
-  enable_multi_tool_calls: ${AGENT_ENABLE_MULTI_TOOL_CALLS:-false}
+  enable_multi_tool_calls: ${AGENT_ENABLE_MULTI_TOOL_CALLS:-true}
   # Execute multiple tool calls in parallel vs sequential (only applies when multi_tool_calls is enabled)
   enable_parallel_tool_calls: ${AGENT_ENABLE_PARALLEL_TOOL_CALLS:-false}
   # Timeout for parallel tool execution in seconds (None = no timeout)
@@ -133,7 +133,7 @@ models:
     type: "llm"
     supports_tool_use: true
     provider: "openai"
-    max_output_tokens: 8192
+    max_output_tokens: 64000
     max_context_tokens: 200000
     temperature: 0.7
     pricing:
@@ -150,7 +150,7 @@ models:
     type: "llm"
     supports_tool_use: true
     provider: "openai"
-    max_output_tokens: 8192
+    max_output_tokens: 64000
     max_context_tokens: 200000
     temperature: 0.7
     pricing:
@@ -255,6 +255,24 @@ models:
       input_price: 0.002
       output_price: 0.008
       cache_write_price: 0.0005
+      currency: "USD"
+
+  gpt-5.2:
+    api_key: "${MAGIC_API_KEY}"
+    api_base_url: "${MAGIC_API_BASE_URL}"
+    name: "${GPT_5_2_MODEL:-gpt-5.2}"
+    type: "llm"
+    supports_tool_use: true
+    provider: "openai"
+    max_output_tokens: 64000
+    max_context_tokens: 128000
+    temperature: 1.0
+    top_p: 1.0
+    pricing:
+      input_price: 0.003
+      output_price: 0.015
+      cache_write_price: 0.00375
+      cache_hit_price: 0.0003
       currency: "USD"
 
   gpt-4.1-mini:
@@ -825,6 +843,8 @@ storage:
 sandbox:
   id: "${SANDBOX_ID:-}"
   app_env: "${APP_ENV:-dev}"
+  # 是否为中国大陆部署，与 app_env 正交。默认 false 即海外；中国大陆集群设置 MAINLAND=true。
+  mainland: "${MAINLAND:-false}"
   magic_authorization: "${MAGIC_AUTHORIZATION}"
   fetch_workspace: "${FETCH_WORKSPACE:-True}"
   agent_idle_timeout: "${AGENT_IDLE_TIMEOUT:-1200}"
@@ -845,6 +865,11 @@ asr:
 magic_space:
   api_key: "${MAGIC_SPACE_API_KEY}"
   api_base_url: "${MAGIC_SPACE_API_BASE_URL}"
+
+# MDE 配置
+mde:
+  api_key: "${MDE_API_KEY}"
+  api_base_url: "${MDE_API_BASE_URL}"
 
 # PDF 理解服务配置
 pdf_understanding:

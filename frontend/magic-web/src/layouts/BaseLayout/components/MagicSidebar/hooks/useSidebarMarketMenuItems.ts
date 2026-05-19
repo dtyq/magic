@@ -1,30 +1,18 @@
 import { useMemo } from "react"
-import { Bot } from "lucide-react"
-import { MagiClaw, Skills } from "@/enhance/lucide-react"
+import { FUNCTION_PERMISSION_CODE } from "@/apis"
+import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import { RouteName } from "@/routes/constants"
 import type { SidebarMarketMenuItem } from "@/layouts/BaseLayout/components/MagicSidebar/hooks/useSidebarMarketMenuItems.types"
+import { BASE_MARKET_MENU_ITEMS } from "./baseMarketMenuItems"
 
 export function useSidebarMarketMenuItems() {
+	const { isAllowed: canAccessMagicClaw } = useFunctionPermission(
+		FUNCTION_PERMISSION_CODE.MagicClawAccess,
+	)
+
 	return useMemo<SidebarMarketMenuItem[]>(() => {
-		return [
-			{
-				titleKey: "sidebar:crewMarket.title",
-				routeName: RouteName.CrewMarket,
-				testId: "sidebar-content-crew-market-button",
-				Icon: Bot,
-			},
-			{
-				titleKey: "sidebar:superLobster.title",
-				routeName: RouteName.MagiClaw,
-				testId: "sidebar-content-magic-claw-button",
-				Icon: MagiClaw,
-			},
-			{
-				titleKey: "sidebar:skillsLibrary.title",
-				routeName: RouteName.CrewMarketSkills,
-				testId: "sidebar-content-skills-library-button",
-				Icon: Skills,
-			},
-		]
-	}, [])
+		return BASE_MARKET_MENU_ITEMS.filter(
+			(item) => item.routeName !== RouteName.MagiClaw || canAccessMagicClaw,
+		)
+	}, [canAccessMagicClaw])
 }

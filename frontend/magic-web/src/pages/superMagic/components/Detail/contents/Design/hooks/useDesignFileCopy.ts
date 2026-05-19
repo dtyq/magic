@@ -1,5 +1,6 @@
 import { useCallback } from "react"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
+import type { DesignAttachmentIndex } from "../utils/designAttachmentIndex"
 import {
 	DRAG_TYPE,
 	type TabDragData,
@@ -9,7 +10,18 @@ import {
 import { SuperMagicApi } from "@/apis"
 import { calculateUploadDirectory } from "../utils/calculateUploadDirectory"
 import { normalizePath, findFileBySrc } from "../utils/utils"
-import { validateImageFilePath } from "@/components/CanvasDesign/canvas/utils/utils"
+import type { GetOrCreateImagesDirFn } from "./useGetOrCreateImagesDir"
+import { waitForNextAttachmentsRefreshForProject } from "@/pages/superMagic/services/attachmentsTopicSync"
+import {
+	normalizeDesignAttachmentPathForCanvas,
+	resolveDesignDslPathCandidatesToWorkspaceRelative,
+} from "../utils/designDslPathUtils"
+import {
+	SUPPORTED_AUDIO_EXTENSIONS,
+	SUPPORTED_VIDEO_EXTENSIONS,
+	validateCanvasFilePath,
+} from "@/components/CanvasDesign/canvas/utils/utils"
+import { UploadSubDir, type UploadSubDirType } from "@/components/CanvasDesign/types.magic"
 
 interface UseDesignFileCopyOptions {
 	projectId?: string
@@ -19,55 +31,162 @@ interface UseDesignFileCopyOptions {
 	}
 	/** 已扁平化的附件列表 */
 	flatAttachments?: FileItem[]
+	attachmentIndex?: DesignAttachmentIndex | null
+	/** 画布目录路径段，解析相对路径与附件路径对齐（`images/...` 或 `./images/...`） */
+	designProjectBasePath?: string
 	/** 文件列表更新 */
 	updateAttachments: () => void
+	/** 获取或创建 images 目录的函数（从顶层传入） */
+	getOrCreateImagesDir?: GetOrCreateImagesDirFn
 }
 
 interface UseDesignFileCopyReturn {
 	/**
-	 * 复制文件到 images 目录
-	 * @param filePath 文件路径
-	 * @param imagesDirPath images 目录路径
-	 * @param imagesDirItem images 目录项
-	 * @returns 复制后的新路径，如果复制失败则返回原路径
+	 * 复制文件到设计资源子目录（images / videos / audios）
 	 */
-	copyFileToImagesDirectory: (
+	copyFileToDesignAssetDirectory: (
 		filePath: string,
-		imagesDirPath: string,
-		imagesDirItem: FileItem,
+		assetDirPath: string,
+		assetDirItem: FileItem,
 	) => Promise<string>
 	/**
 	 * 从 DataTransfer 获取文件路径信息
 	 * 支持从 Tab、文件列表等拖拽的数据中提取文件路径
-	 * 如果文件不在设计项目的 images 目录下，会自动复制到 images 目录
+	 * 若文件不在对应子目录下，会自动复制到 images（图片）、videos（视频）或 audios（音频）
 	 */
 	getDataTransferFileInfo: (dataTransfer: DataTransfer) => Promise<string[]>
 }
 
+interface BatchOperationResult {
+	status?: "success" | "processing" | "completed" | "failed"
+	batch_key?: string
+	message?: string
+}
+
+const BATCH_OPERATION_POLL_INTERVAL = 1000
+const BATCH_OPERATION_MAX_ATTEMPTS = 30
+const ATTACHMENT_WAIT_TIMEOUT_MS = 15_000
+
+function isDesignAssetVideoPath(filePath: string): boolean {
+	const lower = filePath.toLowerCase()
+	return SUPPORTED_VIDEO_EXTENSIONS.some((ext) => lower.endsWith(ext))
+}
+
+function isDesignAssetAudioPath(filePath: string): boolean {
+	const lower = filePath.toLowerCase()
+	return SUPPORTED_AUDIO_EXTENSIONS.some((ext) => lower.endsWith(ext))
+}
+
 /**
  * 设计文件复制 Hook
- * 职责：处理文件复制到 images 目录的逻辑
- * - 提供 copyFileToImagesDirectory 函数用于复制文件到 images 目录
- * - 提供 getDataTransferFileInfo 函数用于从拖拽数据中提取文件路径并自动复制
+ * 职责：将画布可用资源复制到设计项目的 images / videos / audios 子目录
+ * - 提供 getDataTransferFileInfo 用于拖拽落画布前的路径解析与复制
  */
 export function useDesignFileCopy(options: UseDesignFileCopyOptions): UseDesignFileCopyReturn {
-	const { projectId, currentFile, flatAttachments, updateAttachments } = options
+	const {
+		projectId,
+		currentFile,
+		flatAttachments,
+		attachmentIndex,
+		designProjectBasePath,
+		updateAttachments,
+	} = options
 
-	/**
-	 * 复制文件到 images 目录
-	 * @param filePath 文件路径
-	 * @param imagesDirPath images 目录路径
-	 * @param imagesDirItem images 目录项
-	 * @returns 复制后的新路径，如果复制失败则返回原路径
-	 */
-	const copyFileToImagesDirectory = useCallback(
-		async (
-			filePath: string,
-			imagesDirPath: string,
-			imagesDirItem: FileItem,
-		): Promise<string> => {
-			// 从 flatAttachments 中查找文件
-			const fileItem = findFileBySrc(filePath, flatAttachments || [])
+	const sleep = useCallback((ms: number) => {
+		return new Promise<void>((resolve) => {
+			window.setTimeout(resolve, ms)
+		})
+	}, [])
+
+	const getProjectAttachments = useCallback(
+		async (targetProjectId: string): Promise<FileItem[]> => {
+			const result = await SuperMagicApi.getAttachmentsByProjectId({
+				projectId: targetProjectId,
+				temporaryToken: "",
+			})
+			return (result.list || []) as FileItem[]
+		},
+		[],
+	)
+
+	const waitForBatchOperation = useCallback(
+		async (result: BatchOperationResult): Promise<void> => {
+			if (result.status === "failed") {
+				throw new Error(result.message || "Project file copy failed")
+			}
+
+			if (result.status !== "processing" || !result.batch_key) {
+				return
+			}
+
+			for (let attempt = 0; attempt < BATCH_OPERATION_MAX_ATTEMPTS; attempt += 1) {
+				await sleep(BATCH_OPERATION_POLL_INTERVAL)
+				const checkResult = (await SuperMagicApi.checkBatchOperationStatus(
+					result.batch_key,
+				)) as BatchOperationResult
+
+				if (checkResult.status === "failed") {
+					throw new Error(checkResult.message || "Project file copy failed")
+				}
+				if (checkResult.status !== "processing") {
+					return
+				}
+			}
+
+			throw new Error("Project file copy timed out")
+		},
+		[projectId, sleep],
+	)
+
+	const waitForAttachmentVisible = useCallback(
+		async (path: string): Promise<void> => {
+			if (!projectId) {
+				return
+			}
+
+			const normalizedCandidates = resolveDesignDslPathCandidatesToWorkspaceRelative(
+				path,
+				designProjectBasePath,
+			).map((candidate) => normalizePath(candidate))
+
+			const maxAttempts = Math.max(1, Math.floor(ATTACHMENT_WAIT_TIMEOUT_MS / 1000))
+			for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+				updateAttachments()
+				try {
+					await waitForNextAttachmentsRefreshForProject(projectId, {
+						timeoutMs: BATCH_OPERATION_POLL_INTERVAL,
+					})
+				} catch (error) {
+					//
+				}
+
+				const latestAttachments = await getProjectAttachments(projectId)
+				const matchedAttachment = latestAttachments.find(
+					(item) =>
+						!item.is_directory &&
+						normalizedCandidates.includes(normalizePath(item.relative_file_path || "")),
+				)
+
+				if (matchedAttachment?.file_id) {
+					return
+				}
+
+				await sleep(BATCH_OPERATION_POLL_INTERVAL)
+			}
+
+			throw new Error(`Copied attachment not visible yet: ${path}`)
+		},
+		[projectId, designProjectBasePath, updateAttachments, getProjectAttachments, sleep],
+	)
+
+	const copyFileToDesignAssetDirectory = useCallback(
+		async (filePath: string, assetDirPath: string, assetDirItem: FileItem): Promise<string> => {
+			const fileItem = findFileBySrc(
+				filePath,
+				flatAttachments || [],
+				designProjectBasePath,
+				attachmentIndex,
+			)
 
 			if (!fileItem?.file_id) {
 				return filePath
@@ -77,59 +196,60 @@ export function useDesignFileCopy(options: UseDesignFileCopyOptions): UseDesignF
 				return filePath
 			}
 
-			// 检查目标目录是否已存在同名文件
 			const fileName = fileItem.file_name || filePath.split("/").pop() || ""
-			const expectedPathInImages = `/${imagesDirPath}/${fileName}`
-			const normalizedExpectedPath = normalizePath(expectedPathInImages)
-			const existingFileInImages = flatAttachments?.find(
+			const expectedPathInDir = `${assetDirPath}/${fileName}`
+			const normalizedExpectedPath = normalizePath(expectedPathInDir)
+			const existingFileInDir = flatAttachments?.find(
 				(item) =>
 					!item.is_directory &&
 					normalizePath(item.relative_file_path || "") === normalizedExpectedPath,
 			)
 
-			// 如果文件已存在，直接返回已存在的文件路径
-			if (existingFileInImages) {
-				return existingFileInImages.relative_file_path || expectedPathInImages
+			if (existingFileInDir) {
+				return normalizeDesignAttachmentPathForCanvas(
+					existingFileInDir.relative_file_path || expectedPathInDir,
+					designProjectBasePath,
+				)
 			}
 
 			try {
-				// 复制文件到 images 目录
-				const copyResult = await SuperMagicApi.copyFiles({
+				const copyResult = (await SuperMagicApi.copyFiles({
 					file_ids: [fileItem.file_id],
 					project_id: projectId,
-					target_parent_id: imagesDirItem.file_id,
+					target_parent_id: assetDirItem.file_id,
 					pre_file_id: "",
-				})
+				})) as BatchOperationResult
 
-				// 构造新路径
-				const newPath = `/${imagesDirPath}/${fileName}`
+				const newPath = normalizeDesignAttachmentPathForCanvas(
+					`${assetDirPath}/${fileName}`,
+					designProjectBasePath,
+				)
 
-				// 处理复制结果
-				if (copyResult.status === "success") {
-					// 复制成功
-					updateAttachments()
+				if (copyResult.status === "success" || copyResult.status === "completed") {
+					await waitForAttachmentVisible(newPath)
 					return newPath
-				} else if (copyResult.status === "processing" && copyResult.batch_key) {
-					// 复制任务正在处理中
-					updateAttachments()
-					return newPath
-				} else {
-					// 复制失败，返回原路径
-					return filePath
 				}
+				if (copyResult.status === "processing" && copyResult.batch_key) {
+					await waitForBatchOperation(copyResult)
+					await waitForAttachmentVisible(newPath)
+					return newPath
+				}
+				return filePath
 			} catch (error) {
-				// 复制过程中出错，返回原路径
 				return filePath
 			}
 		},
-		[projectId, flatAttachments, updateAttachments],
+		[
+			projectId,
+			currentFile,
+			flatAttachments,
+			attachmentIndex,
+			designProjectBasePath,
+			waitForAttachmentVisible,
+			waitForBatchOperation,
+		],
 	)
 
-	/**
-	 * 从 DataTransfer 获取文件路径信息
-	 * 支持从 Tab、文件列表等拖拽的数据中提取文件路径
-	 * 如果文件不在设计项目的 images 目录下，会自动复制到 images 目录
-	 */
 	const getDataTransferFileInfo = useCallback(
 		async (dataTransfer: DataTransfer): Promise<string[]> => {
 			const filePaths: string[] = []
@@ -198,7 +318,7 @@ export function useDesignFileCopy(options: UseDesignFileCopyOptions): UseDesignF
 			const invalidPaths: Array<{ path: string; reason: string }> = []
 
 			for (const filePath of uniquePaths) {
-				const validation = validateImageFilePath(filePath)
+				const validation = validateCanvasFilePath(filePath)
 				if (validation.valid) {
 					validatedPaths.push(filePath)
 				} else {
@@ -209,141 +329,177 @@ export function useDesignFileCopy(options: UseDesignFileCopyOptions): UseDesignF
 				}
 			}
 
-			// 如果没有有效文件或缺少必要参数，直接返回
 			if (validatedPaths.length === 0 || !projectId || !currentFile || !flatAttachments) {
 				return validatedPaths
 			}
 
-			// 计算 images 目录路径
-			const imagesDirPath = calculateUploadDirectory({
-				currentFile,
-				flatAttachments,
-			})
+			const ensureDesignAssetDirectory = async (
+				subDir: UploadSubDirType,
+			): Promise<{
+				assetDirPath: string
+				normalizedAssetDirPath: string
+				assetDirItem: FileItem
+			} | null> => {
+				const assetDirPath = calculateUploadDirectory(
+					{ currentFile, flatAttachments },
+					subDir,
+				)
+				if (!assetDirPath) {
+					return null
+				}
 
-			if (!imagesDirPath) {
-				return validatedPaths
-			}
-
-			// 标准化 images 目录路径用于比较
-			const normalizedImagesDirPath = normalizePath(imagesDirPath)
-
-			// 查找 images 目录的 ID
-			let imagesDirItem = flatAttachments.find(
-				(item) =>
-					item.is_directory &&
-					normalizePath(item.relative_file_path || "") === normalizedImagesDirPath,
-			)
-
-			// 如果 images 目录不存在，尝试创建它
-			if (!imagesDirItem?.file_id) {
-				// 计算父目录路径（去掉最后的 /images）
-				const parentDirPath = imagesDirPath.includes("/")
-					? imagesDirPath.substring(0, imagesDirPath.lastIndexOf("/"))
-					: ""
-				const normalizedParentDirPath = normalizePath(parentDirPath)
-
-				// 查找父目录
-				const parentDirItem = flatAttachments.find(
-					(item) =>
+				const normalizedAssetDirPath = normalizePath(assetDirPath)
+				let assetDirItem = flatAttachments.find(
+					(item: FileItem) =>
 						item.is_directory &&
-						normalizePath(item.relative_file_path || "") === normalizedParentDirPath,
+						normalizePath(item.relative_file_path || "") === normalizedAssetDirPath,
 				)
 
-				// 如果找不到父目录，尝试使用 currentFile 作为父目录
-				const parentDirId = parentDirItem?.file_id || currentFile?.id
+				if (!assetDirItem?.file_id) {
+					const parentDirPath = assetDirPath.includes("/")
+						? assetDirPath.substring(0, assetDirPath.lastIndexOf("/"))
+						: ""
+					const normalizedParentDirPath = normalizePath(parentDirPath)
+					const parentDirItem = flatAttachments.find(
+						(item: FileItem) =>
+							item.is_directory &&
+							normalizePath(item.relative_file_path || "") ===
+								normalizedParentDirPath,
+					)
+					const parentDirId = parentDirItem?.file_id || currentFile?.id
 
-				if (!parentDirId) {
-					return validatedPaths
-				}
+					if (!parentDirId) {
+						return null
+					}
 
-				try {
-					// 创建 images 目录
-					const createResponse = await SuperMagicApi.createFile({
-						project_id: projectId,
-						parent_id: parentDirId,
-						file_name: "images",
-						is_directory: true,
-					})
-
-					// 使用 API 返回的结果构造 imagesDirItem
-					if (createResponse?.file_id) {
-						imagesDirItem = {
-							file_id: createResponse.file_id,
-							file_name: "images",
-							relative_file_path: `/${imagesDirPath}`,
+					try {
+						const createResponse = await SuperMagicApi.createFile({
+							project_id: projectId,
+							parent_id: parentDirId,
+							file_name: subDir,
 							is_directory: true,
-						} as FileItem
+						})
 
-						// 触发文件列表更新（异步，不影响当前操作）
-						updateAttachments()
-					} else {
-						return validatedPaths
-					}
-				} catch (error: unknown) {
-					// 如果是"文件已存在"错误（code: 51168），说明目录已经存在，触发更新后重新查找
-					const errorObj = error as { code?: number; message?: string }
-					if (errorObj.code === 51168) {
-						// 触发文件列表更新，确保获取最新的文件列表
-						updateAttachments()
-
-						// 重新查找 images 目录
-						imagesDirItem = flatAttachments.find(
-							(item) =>
-								item.is_directory &&
-								normalizePath(item.relative_file_path || "") ===
-									normalizedImagesDirPath,
-						)
-
-						if (!imagesDirItem?.file_id) {
-							return validatedPaths
+						if (createResponse?.file_id) {
+							assetDirItem = {
+								file_id: createResponse.file_id,
+								file_name: subDir,
+								relative_file_path: assetDirPath,
+								is_directory: true,
+							} as FileItem
+							updateAttachments()
+						} else {
+							return null
 						}
-					} else {
-						return validatedPaths
+					} catch (error: unknown) {
+						const errorObj = error as { code?: number; message?: string }
+						if (errorObj.code === 51168) {
+							updateAttachments()
+							assetDirItem = flatAttachments.find(
+								(item: FileItem) =>
+									item.is_directory &&
+									normalizePath(item.relative_file_path || "") ===
+										normalizedAssetDirPath,
+							)
+							if (!assetDirItem?.file_id) {
+								return null
+							}
+						} else {
+							return null
+						}
 					}
 				}
+
+				return { assetDirPath, normalizedAssetDirPath, assetDirItem }
 			}
 
-			// 处理每个文件路径，检查是否需要复制
+			const dirContextBySubDir = new Map<
+				UploadSubDirType,
+				{ assetDirPath: string; normalizedAssetDirPath: string; assetDirItem: FileItem }
+			>()
+
+			const getOrEnsureAssetDir = async (subDir: UploadSubDirType) => {
+				const ctx = dirContextBySubDir.get(subDir)
+				if (ctx) {
+					return ctx
+				}
+				const ensured = await ensureDesignAssetDirectory(subDir)
+				if (!ensured) {
+					return null
+				}
+				dirContextBySubDir.set(subDir, ensured)
+				return ensured
+			}
+
 			const processedPaths: string[] = []
 
 			for (const filePath of validatedPaths) {
-				const normalizedFilePath = normalizePath(filePath)
+				const uploadSubDir = isDesignAssetVideoPath(filePath)
+					? UploadSubDir.Videos
+					: isDesignAssetAudioPath(filePath)
+						? UploadSubDir.Audios
+						: UploadSubDir.Images
+				const dirCtx = await getOrEnsureAssetDir(uploadSubDir)
+				if (!dirCtx) {
+					processedPaths.push(filePath)
+					continue
+				}
 
-				// 检查文件是否已经在 images 目录下
-				const isInImagesDir = normalizedFilePath.startsWith(normalizedImagesDirPath + "/")
-
-				// 检查文件是否真的存在于 images 目录中（通过 flatAttachments）
-				const fileName = filePath.split("/").pop() || ""
-				const expectedPathInImages = `/${imagesDirPath}/${fileName}`
-				const normalizedExpectedPath = normalizePath(expectedPathInImages)
-				const existingFileInImages = flatAttachments.find(
+				const { assetDirPath, normalizedAssetDirPath, assetDirItem } = dirCtx
+				const normalizedFilePathCandidates =
+					resolveDesignDslPathCandidatesToWorkspaceRelative(
+						filePath,
+						designProjectBasePath,
+					).map((candidate) => normalizePath(candidate))
+				const matchedFile = flatAttachments.find(
 					(item) =>
+						!item.is_directory &&
+						normalizedFilePathCandidates.includes(
+							normalizePath(item.relative_file_path || ""),
+						),
+				)
+				const matchedFilePath = normalizePath(matchedFile?.relative_file_path || "")
+				const isInAssetDir = matchedFilePath.startsWith(normalizedAssetDirPath + "/")
+
+				const fileName = filePath.split("/").pop() || ""
+				const expectedPathInAssetDir = `${assetDirPath}/${fileName}`
+				const normalizedExpectedPath = normalizePath(expectedPathInAssetDir)
+				const existingFileInAssetDir = flatAttachments.find(
+					(item: FileItem) =>
 						!item.is_directory &&
 						normalizePath(item.relative_file_path || "") === normalizedExpectedPath,
 				)
-				const fileExistsInImages = !!existingFileInImages
 
-				if (isInImagesDir || fileExistsInImages) {
-					// 文件已在 images 目录下，使用 images 目录中的路径（如果找到）或原路径
-					const finalPath = existingFileInImages?.relative_file_path || filePath
-					processedPaths.push(finalPath)
+				if (isInAssetDir || existingFileInAssetDir) {
+					processedPaths.push(
+						normalizeDesignAttachmentPathForCanvas(
+							existingFileInAssetDir?.relative_file_path || filePath,
+							designProjectBasePath,
+						),
+					)
 				} else {
-					// 文件不在 images 目录下，需要复制
-					const newPath = await copyFileToImagesDirectory(
+					const newPath = await copyFileToDesignAssetDirectory(
 						filePath,
-						imagesDirPath,
-						imagesDirItem,
+						assetDirPath,
+						assetDirItem,
 					)
 					processedPaths.push(newPath)
 				}
 			}
 			return processedPaths
 		},
-		[projectId, currentFile, flatAttachments, updateAttachments, copyFileToImagesDirectory],
+		[
+			projectId,
+			currentFile,
+			flatAttachments,
+			designProjectBasePath,
+			updateAttachments,
+			copyFileToDesignAssetDirectory,
+		],
 	)
 
 	return {
-		copyFileToImagesDirectory,
+		copyFileToDesignAssetDirectory,
 		getDataTransferFileInfo,
 	}
 }

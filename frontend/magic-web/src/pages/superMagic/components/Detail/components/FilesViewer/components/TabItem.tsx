@@ -3,11 +3,11 @@ import { Tooltip } from "antd"
 import { IconX, IconLock } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { cn } from "@/lib/utils"
-import MagicFileIcon from "@/components/base/MagicFileIcon"
 import MagicIcon from "@/components/base/MagicIcon"
-import { getAttachmentExtension } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
+import { isMagicProjectConfigFile } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
 import { calculateCalvedRelativePath } from "../utils/tabUtils"
-import type { TabItem as TabItemType } from "../types"
+import type { FileItem, TabItem as TabItemType } from "../types"
+import { FileTabMagicIcon } from "./FileTabMagicIcon"
 import type { TabContextMenuState } from "../hooks/useTabContextMenu"
 import {
 	handleTabDragEnd as handleTabDragEndMessageEditor,
@@ -24,6 +24,8 @@ interface TabItemProps {
 	dragDirection?: "left" | "right"
 	isPlayback: boolean
 	contextMenuState?: TabContextMenuState
+	/** 用于解析 custom icon（入口文件需父目录子树） */
+	attachments?: FileItem[]
 	onSwitchToTab: (tabId: string) => void
 	onCloseTab: (tabId: string) => void
 	onDragStart?: (e: React.DragEvent, tab: TabItemType) => void
@@ -69,6 +71,7 @@ const TabItem = memo<TabItemProps>(
 		dragDirection,
 		isPlayback,
 		contextMenuState,
+		attachments,
 		onSwitchToTab,
 		onCloseTab,
 		onDragStart,
@@ -77,6 +80,9 @@ const TabItem = memo<TabItemProps>(
 		onDrop,
 	}) => {
 		const { t } = useTranslation("super")
+		const displayConfig = (
+			tab?.fileData as { display_config?: Record<string, unknown> } | undefined
+		)?.display_config
 		const isDeleted = tab.isDeleted
 
 		// 当右键菜单显示且是当前 tab 时，隐藏 Tooltip
@@ -89,7 +95,14 @@ const TabItem = memo<TabItemProps>(
 
 		// 获取当前标签页显示的文件名（与渲染逻辑保持一致）
 		const getDisplayFileName = (tabItem: TabItemType) => {
-			return tabItem.title || tabItem.name || tabItem?.fileData?.metadata?.name
+			const fileName =
+				tabItem?.fileData?.file_name ||
+				tabItem?.fileData?.display_filename ||
+				tabItem?.fileData?.filename
+			if (isMagicProjectConfigFile(fileName)) {
+				return fileName
+			}
+			return tabItem.title || tabItem.name || tabItem?.fileData?.display_config?.name
 		}
 
 		// 使用 useMemo 缓存相对路径计算，只有在依赖项变化时才重新计算
@@ -185,14 +198,14 @@ const TabItem = memo<TabItemProps>(
 						isPlayback ? "cursor-pointer" : "cursor-grab",
 						!isPlayback && "hover:bg-black/5",
 						isActive && "bg-background shadow-sm shadow-black/10 hover:bg-background",
-						isDragging && !isPlayback && "z-[1000] scale-95 cursor-grabbing opacity-60",
+						isDragging && !isPlayback && "z-10 scale-95 cursor-grabbing opacity-60",
 						isDragOver && "bg-primary-10",
 						isDragOver &&
-						dragDirection === "left" &&
-						"translate-x-[2px] border-l-[3px] border-l-primary",
+							dragDirection === "left" &&
+							"translate-x-[2px] border-l-[3px] border-l-primary",
 						isDragOver &&
-						dragDirection === "right" &&
-						"-translate-x-[2px] border-r-[3px] border-r-primary",
+							dragDirection === "right" &&
+							"-translate-x-[2px] border-r-[3px] border-r-primary",
 					)}
 					onClick={handleClick}
 					data-tab-id={tab.id}
@@ -202,16 +215,12 @@ const TabItem = memo<TabItemProps>(
 					onDragOver={handleDragOver}
 					onDrop={handleDrop}
 				>
-					<MagicFileIcon
-						type={
-							isPlayback
-								? "replay"
-								: getAttachmentExtension(tab?.fileData?.metadata) ||
-								tab.fileData?.file_extension ||
-								""
-						}
-						className="size-4 shrink-0 rounded-[2px] object-cover"
+					<FileTabMagicIcon
+						tab={tab}
+						attachments={attachments}
+						isPlayback={isPlayback}
 						size={16}
+						className="size-4 shrink-0 rounded-[2px] object-cover"
 					/>
 					<span
 						className={cn(
@@ -219,7 +228,7 @@ const TabItem = memo<TabItemProps>(
 							isDeleted && "text-destructive line-through",
 						)}
 					>
-						{tab.title || tab.name || tab?.fileData?.metadata?.name}
+						{getDisplayFileName(tab)}
 					</span>
 					<span
 						className={cn(

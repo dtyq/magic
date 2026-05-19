@@ -5,7 +5,10 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 use App\Infrastructure\Util\Middleware\RequestContextMiddleware;
+use App\Interfaces\Authentication\Facade\ModelGatewayTokenApi;
 use App\Interfaces\Middleware\Auth\ApiKeyMiddleware;
+use App\Interfaces\Middleware\Auth\UserAuthMiddleware;
+use App\Interfaces\ModelGateway\Facade\Open\ImageProxyApi;
 use App\Interfaces\ModelGateway\Facade\Open\OpenAIProxyApi;
 use App\Interfaces\ModelGateway\Facade\Open\VideoApi;
 use App\Interfaces\Provider\Facade\ServiceProviderApi;
@@ -25,13 +28,19 @@ Router::addGroup('/v1', function () {
 }, ['middleware' => [ApiKeyMiddleware::class]]);
 
 Router::addGroup('/v2', function () {
+    // Image generation endpoint - creates images from text prompts
     Router::post('/images/generations', [OpenAIProxyApi::class, 'textGenerateImageV2']);
+    // Image edit endpoint - edits images with prompts and optional masks
     Router::post('/images/edits', [OpenAIProxyApi::class, 'imageEditV2']);
-    Router::post('/images/convert-high', [OpenAIProxyApi::class, 'imageConvertHigh']);
+    // Image convert-high endpoint - upscales or enhances input images
+    Router::post('/images/convert-high', [ImageProxyApi::class, 'imageConvertHigh']);
+    // Image remove-background endpoint - removes backgrounds from input images
+    Router::post('/images/remove-background', [ImageProxyApi::class, 'imageRemoveBackground']);
     // Unified search endpoint - supports multiple search engines (bing, google, tavily, duckduckgo, jina)
     Router::get('/search', [OpenAIProxyApi::class, 'unifiedSearch']);
     // Image search endpoint - supports multiple providers (bing, google via serpapi)
     Router::get('/image-search', [OpenAIProxyApi::class, 'imageSearch']);
+    // Web scrape endpoint - fetches and extracts content from target web pages
     Router::post('/web-scrape', [OpenAIProxyApi::class, 'webScrape']);
 }, ['middleware' => [ApiKeyMiddleware::class]]);
 
@@ -40,3 +49,18 @@ Router::addGroup('/api/v1', static function () {
     // 超级麦吉显示模型
     Router::get('/super-magic-models', [ServiceProviderApi::class, 'getSuperMagicDisplayModels']);
 }, ['middleware' => [RequestContextMiddleware::class]]);
+
+// 模型网关 access-token（签发/刷新）接口
+Router::addGroup('/api/v1/model-gateway', static function () {
+    // 首发签发（登录态用户，鉴权由 UserAuthMiddleware 处理）
+    Router::addGroup('/tokens', static function () {
+        Router::post('', [ModelGatewayTokenApi::class, 'issueModelGatewayToken']);
+    });
+}, ['middleware' => [UserAuthMiddleware::class]]);
+
+Router::addGroup('/api/v1/model-gateway', static function () {
+    // refresh token 双旋转（无登录态，PUT body 仅允许 refresh_token）
+    Router::addGroup('/tokens', static function () {
+        Router::put('', [ModelGatewayTokenApi::class, 'refreshModelGatewayToken']);
+    });
+});

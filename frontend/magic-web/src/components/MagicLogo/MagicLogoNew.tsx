@@ -7,7 +7,6 @@ const MagicLogoNew = observer(function MagicLogoNew({ className }: { className?:
 	const { i18n } = useTranslation()
 
 	const globalConfig = globalConfigStore.globalConfig
-
 	if (!globalConfig?.minimal_logo) return null
 
 	return (

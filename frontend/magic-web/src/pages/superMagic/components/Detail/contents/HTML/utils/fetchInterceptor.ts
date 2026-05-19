@@ -13,13 +13,21 @@
 
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { env } from "@/utils/env"
-import { handleHtCdnUrl } from "./index"
+import { rewriteHtmlCdnWithHost } from "./index"
 
 // 消息类型常量，使用 MAGIC_FETCH_ 前缀避免冲突
 export const FETCH_MESSAGE_TYPES = {
 	REQUEST: "MAGIC_FETCH_URL_REQUEST",
 	RESPONSE: "MAGIC_FETCH_URL_RESPONSE",
 } as const
+
+/** 注入 iframe 的 `isRelativePath`（与 getDynamicResourceInterceptorScript 共用，单处维护） */
+export const injectedIsRelativePathFunctionSource = `
+			function isRelativePath(url) {
+				if (!url) return false;
+				return !/^(https?:\\/\\/|\\/\\/|data:|blob:|mailto:|tel:|javascript:|about:)/i.test(url);
+			}
+`
 
 // 键盘快捷键消息类型常量，使用 MAGIC_KEYBOARD_ 前缀
 export const KEYBOARD_MESSAGE_TYPES = {
@@ -28,6 +36,14 @@ export const KEYBOARD_MESSAGE_TYPES = {
 	CANCEL: "MAGIC_KEYBOARD_CANCEL",
 	SOURCE: "magic-html-iframe",
 } as const
+
+export const POST_MESSAGE_TARGET_STRATEGIES = {
+	SAME_ORIGIN_ANCESTOR: "same-origin-ancestor",
+	CROSS_ORIGIN_PARENT: "cross-origin-parent",
+} as const
+
+export type PostMessageTargetStrategy =
+	(typeof POST_MESSAGE_TARGET_STRATEGIES)[keyof typeof POST_MESSAGE_TARGET_STRATEGIES]
 
 export interface FileItem {
 	file_id: string
@@ -77,6 +93,39 @@ export interface FetchInterceptorConfig {
 	enableRelativePathInterception?: boolean
 	/** 文件ID，用于验证请求来源 */
 	fileId?: string
+	/** postMessage 目标窗口选择策略 */
+	postMessageTargetStrategy?: PostMessageTargetStrategy
+}
+
+/**
+ * 注入到 iframe 运行时：沿 parent 链向上找到消息目标窗口。
+ * 默认返回「最后一个仍与当前文档同源的窗口」，避免被第三方 iframe 嵌套时误发到 window.top 外站。
+ * 若开启 cross-origin-parent 策略，则在遇到首个跨域边界时直接返回该父窗口，
+ * 以支持 render-site 跨域沙箱 iframe 向外层 React 页面请求资源解析。
+ */
+export const MAGIC_FETCH_POST_MESSAGE_TARGET_HELPER = `
+function __magicGetFetchPostMessageTarget() {
+	var strategy = window.__MAGIC_POST_MESSAGE_TARGET_STRATEGY__ || '${POST_MESSAGE_TARGET_STRATEGIES.SAME_ORIGIN_ANCESTOR}';
+	var w = window;
+	while (true) {
+		var p = w.parent;
+		if (p === w) {
+			return w;
+		}
+		try {
+			void p.location.href;
+			w = p;
+		} catch (e) {
+			return strategy === '${POST_MESSAGE_TARGET_STRATEGIES.CROSS_ORIGIN_PARENT}' ? p : w;
+		}
+	}
+}
+`.trim()
+
+export function getPostMessageTargetBootstrapScript(
+	strategy: PostMessageTargetStrategy = POST_MESSAGE_TARGET_STRATEGIES.SAME_ORIGIN_ANCESTOR,
+): string {
+	return `window.__MAGIC_POST_MESSAGE_TARGET_STRATEGY__='${strategy}';`
 }
 
 /**
@@ -93,7 +142,10 @@ export interface FetchInterceptorConfig {
  * @returns 拦截器脚本字符串
  */
 export function generateFetchInterceptorScript(config: FetchInterceptorConfig = {}): string {
-	const { fileId = "" } = config
+	const {
+		fileId = "",
+		postMessageTargetStrategy = POST_MESSAGE_TARGET_STRATEGIES.SAME_ORIGIN_ANCESTOR,
+	} = config
 
 	if (!env("MAGIC_CDNHOST")) {
 		return ""
@@ -101,31 +153,15 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 
 	const cdnHost = env("MAGIC_CDNHOST")
 
-	// 将 handleHtCdnUrl 函数转换为字符串
-	let handleHtCdnUrlString = handleHtCdnUrl.toString()
-
-	// 智能识别编译后的函数名称
-	// 匹配模式：functionName("MAGIC_CDNHOST") 或 ${functionName("MAGIC_CDNHOST")}
-	const envFunctionMatch = handleHtCdnUrlString.match(/(\w+)\(["']MAGIC_CDNHOST["']\)/)
-	const compiledFunctionName = envFunctionMatch ? envFunctionMatch[1] : "env"
-
-	// 直接将所有 env("MAGIC_CDNHOST") 调用替换为实际的 CDN 地址
-	handleHtCdnUrlString = handleHtCdnUrlString
-		// 替换模板字符串中的 ${compiledFunctionName("MAGIC_CDNHOST")}
-		.replace(
-			new RegExp(`\\$\\{${compiledFunctionName}\\(["']MAGIC_CDNHOST["']\\)\\}`, "g"),
-			cdnHost,
-		)
-		// 替换普通调用 compiledFunctionName("MAGIC_CDNHOST")
-		.replace(
-			new RegExp(`${compiledFunctionName}\\(["']MAGIC_CDNHOST["']\\)`, "g"),
-			`"${cdnHost}"`,
-		)
+	// 必须使用零依赖的 rewriteHtmlCdnWithHost：对打包后的 handleHtCdnUrl.toString() 会带上 env 等闭包，
+	// 注入 iframe 后运行会变成 ReferenceError（如 `i is not defined`）。
+	const rewriteHtmlCdnWithHostFn = rewriteHtmlCdnWithHost.toString()
 
 	return `
 (function() {
 	// 设置文件ID，用于验证请求来源
 	window.__MAGIC_FILE_ID__ = '${fileId}';
+	${getPostMessageTargetBootstrapScript(postMessageTargetStrategy)}
 	
 	// 保存原始的fetch函数
 	const originalFetch = window.fetch;
@@ -135,10 +171,7 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 	// 正在进行的请求缓存，避免同时发起多个相同的请求
 	const pendingRequests = new Map();
 	
-	// 检查是否为相对路径
-	function isRelativePath(url) {
-		return !/^(https?:\\/\\/|\\/\\/|data:|blob:)/.test(url);
-	}
+	${injectedIsRelativePathFunctionSource}
 	
 	// 生成唯一的请求ID
 	function generateRequestId() {
@@ -151,13 +184,15 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 		return cleanUrl.toLowerCase().endsWith('.html') || cleanUrl.toLowerCase().endsWith('.htm');
 	}
 	
-	// 注入 CDN 处理函数
-	const handleHtCdnUrl = ${handleHtCdnUrlString};
+	const __MAGIC_CDN_HOST__ = ${JSON.stringify(cdnHost)};
+	const rewriteHtmlCdnWithHost = ${rewriteHtmlCdnWithHostFn};
+
+	${MAGIC_FETCH_POST_MESSAGE_TARGET_HELPER}
 	
 	// 处理 HTML 内容 - 注入所有必要的脚本和替换CDN资源
 	function processHtmlContent(htmlContent) {
 		try {
-			const htmlDoc = handleHtCdnUrl(htmlContent);
+			const htmlDoc = rewriteHtmlCdnWithHost(htmlContent, __MAGIC_CDN_HOST__);
 			return htmlDoc.documentElement.outerHTML;
 		} catch (error) {
 			console.error('处理 HTML CDN 替换失败:', error);
@@ -204,8 +239,8 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
 			
 			window.addEventListener('message', messageHandler);
 			
-		// 向顶层容器发送请求，支持多层 iframe
-		(window.top || window.parent).postMessage({
+		// 向挂载了 createParentMessageHandler 的同源祖先窗口发送（避免被第三方 iframe 嵌套时误发到 window.top 外站）
+		__magicGetFetchPostMessageTarget().postMessage({
 			type: '${FETCH_MESSAGE_TYPES.REQUEST}',
 			requestId: requestId,
 			relativePath: relativePath,
@@ -446,6 +481,7 @@ export function generateFetchInterceptorScript(config: FetchInterceptorConfig = 
  */
 export const defaultFetchInterceptorConfig: FetchInterceptorConfig = {
 	enableRelativePathInterception: true,
+	postMessageTargetStrategy: POST_MESSAGE_TARGET_STRATEGIES.SAME_ORIGIN_ANCESTOR,
 }
 
 /**
@@ -460,6 +496,7 @@ export type OnFetchIntercepted = (
 	fileId: string,
 	updatedAt: string | undefined,
 	expiresAt: string | undefined,
+	resolvedUrl?: string,
 ) => void
 
 /**
@@ -508,7 +545,13 @@ export function createParentMessageHandler(
 
 					// 记录拦截信息
 					if (onFetchIntercepted) {
-						onFetchIntercepted(relativePath, matchedFile.file_id, updatedAt, expiresAt)
+						onFetchIntercepted(
+							relativePath,
+							matchedFile.file_id,
+							updatedAt,
+							expiresAt,
+							ossUrl,
+						)
 					}
 
 					// 发送成功响应，包含 expires_at

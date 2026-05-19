@@ -15,6 +15,8 @@ use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\BaseMessa
 use App\Application\Flow\ExecuteManager\NodeRunner\ReplyMessage\Struct\MessageAttachmentHandlerInterface;
 use App\Application\Kernel\Contract\MagicPermissionInterface;
 use App\Application\Kernel\MagicPermission;
+use App\Application\KnowledgeBase\Port\EmbeddingProviderPort;
+use App\Application\KnowledgeBase\Port\FragmentHttpPassthroughPort;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\ExternalFileDocumentFileStrategyDriver;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ExternalFileDocumentFileStrategyInterface;
 use App\Application\KnowledgeBase\Service\Strategy\DocumentFile\Driver\Interfaces\ThirdPlatformDocumentFileStrategyInterface;
@@ -40,6 +42,8 @@ use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutor;
 use App\Application\MCP\Utils\MCPExecutor\ExternalStdioExecutorInterface;
 use App\Application\ModelGateway\Component\Points\PointComponent;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
+use App\Application\Provider\Policy\DefaultProviderControlPolicy;
+use App\Application\Provider\Policy\ProviderControlPolicyInterface;
 use App\Domain\Admin\Repository\Facade\AdminGlobalSettingsRepositoryInterface;
 use App\Domain\Admin\Repository\Persistence\AdminGlobalSettingsRepository;
 use App\Domain\Agent\Repository\Facade\AgentRepositoryInterface;
@@ -52,6 +56,8 @@ use App\Domain\AppMenu\Repository\Facade\AppMenuRepositoryInterface;
 use App\Domain\AppMenu\Repository\Persistence\AppMenuRepository;
 use App\Domain\Audit\Contract\PermissionLabelProviderInterface;
 use App\Domain\Audit\Contract\PermissionLabelServiceInterface;
+use App\Domain\Audit\ModelCall\Repository\Facade\AuditLogRepositoryInterface;
+use App\Domain\Audit\ModelCall\Repository\Persistence\AuditLogRepository;
 use App\Domain\Audit\Repository\Facade\AdminOperationLogRepositoryInterface;
 use App\Domain\Authentication\Repository\ApiKeyProviderRepository;
 use App\Domain\Authentication\Repository\Facade\ApiKeyProviderRepositoryInterface;
@@ -94,6 +100,11 @@ use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
 use App\Domain\Contact\Repository\Persistence\MagicUserSettingRepository;
 use App\Domain\Contact\Service\Facade\MagicUserDomainExtendInterface;
 use App\Domain\Contact\Service\MagicUserDomainExtendService;
+use App\Domain\Design\Contract\VideoGatewayPayloadBuilderInterface;
+use App\Domain\Design\Repository\Facade\DesignGenerationTaskRepositoryInterface;
+use App\Domain\Design\Repository\Facade\ImageGenerationRepositoryInterface;
+use App\Domain\Design\Repository\Persistence\DesignGenerationTaskRepository;
+use App\Domain\Design\Repository\Persistence\ImageGenerationRepository;
 use App\Domain\File\Repository\Persistence\CloudFileRepository;
 use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\Domain\Flow\Repository\Facade\MagicFlowAIModelRepositoryInterface;
@@ -131,6 +142,9 @@ use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ExternalDocumentFil
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ExternalDocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\ThirdPlatformDocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\ThirdPlatformDocumentFile;
+use App\Domain\KnowledgeBase\Port\DocumentGateway;
+use App\Domain\KnowledgeBase\Port\FragmentGateway;
+use App\Domain\KnowledgeBase\Port\KnowledgeBaseGateway;
 use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseDocumentRepositoryInterface;
 use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseFragmentRepositoryInterface;
 use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseRepositoryInterface;
@@ -206,7 +220,7 @@ use App\Domain\SuperAgent\Service\UsageCalculator\UsageCalculatorInterface;
 use App\Domain\Token\Item\MagicTokenExtra;
 use App\Domain\Token\Repository\Facade\MagicTokenExtraInterface;
 use App\Domain\Token\Repository\Facade\MagicTokenRepositoryInterface;
-use App\Domain\Token\Repository\Persistence\MagicMagicTokenRepository;
+use App\Domain\Token\Repository\Persistence\MagicTokenRepository;
 use App\Infrastructure\Audit\Permission\PermissionLabelProvider;
 use App\Infrastructure\Audit\Repository\AdminOperationLogRepository;
 use App\Infrastructure\Core\Broadcast\Publisher\AmqpPublisher;
@@ -245,12 +259,17 @@ use App\Infrastructure\Core\HighAvailability\Service\ModelGatewayEndpointProvide
 use App\Infrastructure\Core\TempAuth\RedisTempAuth;
 use App\Infrastructure\Core\TempAuth\TempAuthInterface;
 use App\Infrastructure\Database\CustomMigrator;
+use App\Infrastructure\Design\Contract\VideoGatewayClientInterface;
+use App\Infrastructure\Design\ModelGatewayVideoGatewayClient;
+use App\Infrastructure\Design\VideoGatewayPayloadBuilder;
 use App\Infrastructure\ExternalAPI\Proxy\EmptyProxyConfigResolverInterface;
 use App\Infrastructure\ExternalAPI\Proxy\ProxyConfigResolverInterface;
 use App\Infrastructure\ExternalAPI\Sms\SmsInterface;
 use App\Infrastructure\ExternalAPI\Sms\TemplateInterface;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\Template;
 use App\Infrastructure\ExternalAPI\Sms\Volcengine\VolceApiClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\DashScopeTransportInterface;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\DashScope\Transport\ApiKeyDashScopeTransport;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoGenerateFactory;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\VideoProviderOperationExecutor;
 use App\Infrastructure\ImageGenerate\DefaultFontProvider;
@@ -263,6 +282,12 @@ use App\Infrastructure\ModelGateway\Queue\RedisQueueCoreRepository;
 use App\Infrastructure\ModelGateway\Queue\RedisVideoQueueOperationRepository;
 use App\Infrastructure\ModelGateway\QueueExecutorConfigRepository;
 use App\Infrastructure\Repository\LongTermMemory\MySQLLongTermMemoryRepository;
+use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\DocumentRpcClient;
+use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\FragmentRpcClient;
+use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\KnowledgeBaseRpcClient;
+use App\Infrastructure\Rpc\JsonRpc\Client\ModelGateway\EmbeddingRpcClient;
+use App\Infrastructure\Rpc\Protocol\Contract\DataFormatterInterface;
+use App\Infrastructure\Rpc\Protocol\JsonDataFormatter;
 use App\Infrastructure\Util\Auth\Permission\Permission;
 use App\Infrastructure\Util\Auth\Permission\PermissionInterface;
 use App\Infrastructure\Util\Client\SimpleClientFactory;
@@ -303,7 +328,8 @@ $dependencies = [
     // 统一视频参数的能力来源由各 provider adapter 自行声明，
     // domain 通过这个工厂接口拿到 adapter，保持依赖方向正确。
     VideoGenerationProviderAdapterFactoryInterface::class => VideoGenerateFactory::class,
-    MagicTokenRepositoryInterface::class => MagicMagicTokenRepository::class,
+    DashScopeTransportInterface::class => ApiKeyDashScopeTransport::class,
+    MagicTokenRepositoryInterface::class => MagicTokenRepository::class,
     TemplateInterface::class => Template::class,
 
     // core
@@ -356,6 +382,11 @@ $dependencies = [
 
     // knowledge-base
     KnowledgeBaseRepositoryInterface::class => KnowledgeBaseBaseRepository::class,
+    KnowledgeBaseGateway::class => KnowledgeBaseRpcClient::class,
+    DocumentGateway::class => DocumentRpcClient::class,
+    FragmentGateway::class => FragmentRpcClient::class,
+    FragmentHttpPassthroughPort::class => FragmentRpcClient::class,
+    EmbeddingProviderPort::class => EmbeddingRpcClient::class,
     KnowledgeBaseDocumentRepositoryInterface::class => KnowledgeBaseDocumentRepository::class,
     KnowledgeBaseFragmentRepositoryInterface::class => KnowledgeBaseFragmentRepository::class,
 
@@ -416,6 +447,7 @@ $dependencies = [
 
     // audit (操作日志)
     AdminOperationLogRepositoryInterface::class => AdminOperationLogRepository::class,
+    AuditLogRepositoryInterface::class => AuditLogRepository::class,
     PermissionLabelProviderInterface::class => PermissionLabelProvider::class,
     PermissionLabelServiceInterface::class => PermissionLabelService::class,
 
@@ -453,6 +485,9 @@ $dependencies = [
     // 登录校验
     SessionInterface::class => SessionAppService::class,
 
+    // ipc
+    DataFormatterInterface::class => JsonDataFormatter::class,
+
     // token 扩展字段
     MagicTokenExtraInterface::class => MagicTokenExtra::class,
     // 助理执行事件
@@ -474,6 +509,12 @@ $dependencies = [
     ThirdPlatformDocumentFileStrategyInterface::class => ThirdPlatformDocumentFileStrategyDriver::class,
     ExternalDocumentFileInterface::class => ExternalDocumentFile::class,
     ThirdPlatformDocumentFileInterface::class => ThirdPlatformDocumentFile::class,
+
+    // design
+    ImageGenerationRepositoryInterface::class => ImageGenerationRepository::class,
+    DesignGenerationTaskRepositoryInterface::class => DesignGenerationTaskRepository::class,
+    VideoGatewayClientInterface::class => ModelGatewayVideoGatewayClient::class,
+    VideoGatewayPayloadBuilderInterface::class => VideoGatewayPayloadBuilder::class,
 
     // admin
     AdminGlobalSettingsRepositoryInterface::class => AdminGlobalSettingsRepository::class,
@@ -513,6 +554,7 @@ $dependencies = [
     ModeGroupRelationRepositoryInterface::class => ModeGroupRelationRepository::class,
 
     OrganizationBasedModelFilterInterface::class => DefaultOrganizationModelFilter::class,
+    ProviderControlPolicyInterface::class => DefaultProviderControlPolicy::class,
 
     // proxy
     ProxyConfigResolverInterface::class => EmptyProxyConfigResolverInterface::class,

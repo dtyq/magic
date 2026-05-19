@@ -1,29 +1,34 @@
 import type { PropsWithChildren } from "react"
 import { createContext, useMemo } from "react"
-import type { ConfigService } from "@/services/config/ConfigService"
 import { LoginDeployment } from "@/pages/login/constants"
-import { useClusterCode } from "@/providers/ClusterProvider"
-import { useImmer } from "use-immer"
-import { useDeepCompareEffect, useMemoizedFn, useMount } from "ahooks"
-import { configStore } from "@/models/config"
 import type { ServiceContainer } from "@/services/ServiceContainer"
+import { useLoginClusterSession } from "./useLoginClusterSession"
 
 interface LoginServiceStore extends LoginServiceProviderProps {
 	deployment: LoginDeployment
-	setDeployment: (deployment: LoginDeployment) => void
 	clusterCode: string
-	setDeployCode: (clusterCode: string) => void
+	/** 展示公网登录 / Show public deployment login */
+	showPublicDeployment: () => void
+	/** 展示私有化登录 / Show private deployment login */
+	showPrivateDeployment: () => void
+	/** 设置私有码 / Set cached and login-scoped private cluster code */
+	setPrivateClusterCode: (clusterCode: string) => void
 }
 
 interface LoginServiceProviderProps {
 	service: ServiceContainer
 }
 
+function noop() {
+	return undefined
+}
+
 export const LoginServiceContext = createContext<LoginServiceStore>({
 	deployment: LoginDeployment.PublicDeploymentLogin,
-	setDeployment: () => { },
 	clusterCode: "",
-	setDeployCode: () => { },
+	showPublicDeployment: noop,
+	showPrivateDeployment: noop,
+	setPrivateClusterCode: noop,
 	service: {} as ServiceContainer,
 })
 
@@ -32,41 +37,31 @@ export const LoginServiceContext = createContext<LoginServiceStore>({
  */
 export const LoginServiceProvider = (props: PropsWithChildren<LoginServiceProviderProps>) => {
 	const { service } = props
-	const { clusterCode, setClusterCode } = useClusterCode()
-
-	// 私有化部署环境名称
-	const [deployment, setDeployment] = useImmer(LoginDeployment.PublicDeploymentLogin)
-
-	const setDeployCode = useMemoizedFn((code: string) => {
-		setClusterCode(code)
-		if (code) {
-			service.get<ConfigService>("configService")?.setClusterCodeCache(code)
-		}
-	})
-
-	useMount(() => {
-		if (configStore.cluster.clusterCode) {
-			setDeployment(LoginDeployment.PrivateDeploymentLogin)
-		}
-	})
-
-	useDeepCompareEffect(() => {
-		if (deployment === LoginDeployment.PublicDeploymentLogin) {
-			setClusterCode("")
-		} else {
-			setClusterCode(configStore.cluster.clusterCodeCache ?? "")
-		}
-	}, [deployment, setClusterCode])
+	const {
+		clusterCode,
+		deployment,
+		showPrivateDeployment,
+		showPublicDeployment,
+		setPrivateClusterCode,
+	} = useLoginClusterSession({ service })
 
 	const store = useMemo(() => {
 		return {
 			service,
 			deployment,
-			setDeployment,
 			clusterCode,
-			setDeployCode,
+			showPrivateDeployment,
+			showPublicDeployment,
+			setPrivateClusterCode,
 		}
-	}, [clusterCode, deployment, setDeployCode, setDeployment, service])
+	}, [
+		clusterCode,
+		deployment,
+		service,
+		setPrivateClusterCode,
+		showPrivateDeployment,
+		showPublicDeployment,
+	])
 
 	return (
 		<LoginServiceContext.Provider value={store}>{props?.children}</LoginServiceContext.Provider>

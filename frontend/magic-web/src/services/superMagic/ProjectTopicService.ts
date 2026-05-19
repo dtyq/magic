@@ -1,5 +1,5 @@
 import { userStore } from "@/models/user"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { platformKey } from "@/utils/storage"
 import superMagicModeService from "./SuperMagicModeService"
 import DefaultTopicModeStorageService from "./DefaultTopicModeStorageService"
@@ -43,9 +43,9 @@ class ProjectTopicService {
 		return `${workspaceId}/${projectId}`
 	}
 
-	isTopicModeValid(mode: TopicMode) {
+	isTopicModeValid(mode: TopicMode, agentCode?: string | null) {
 		if (!mode) return false
-		return superMagicModeService.isModeValid(mode)
+		return superMagicModeService.isModeValid(mode, agentCode)
 	}
 
 	/**

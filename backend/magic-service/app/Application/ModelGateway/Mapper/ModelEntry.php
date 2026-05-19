@@ -18,6 +18,7 @@ readonly class ModelEntry
     public function __construct(
         private ModelAttributes $attributes,
         private ImageModel|OdinModel|VideoModel $model,
+        private ?array $extra = null,
     ) {
     }
 
@@ -59,5 +60,10 @@ readonly class ModelEntry
     public function getVideoModel(): ?VideoModel
     {
         return $this->model instanceof VideoModel ? $this->model : null;
+    }
+
+    public function getExtra(): ?array
+    {
+        return $this->extra;
     }
 }

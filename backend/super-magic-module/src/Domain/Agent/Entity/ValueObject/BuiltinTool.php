@@ -23,6 +23,7 @@ enum BuiltinTool: string
 
     // 搜索提取 (SearchExtraction)
     case WebSearch = 'web_search';
+    case SearchKnowledge = 'search_knowledge';
     case ImageSearch = 'image_search';
     case ReadWebpagesAsMarkdown = 'read_webpages_as_markdown';
     case DownloadFromUrls = 'download_from_urls';
@@ -30,6 +31,7 @@ enum BuiltinTool: string
 
     // 内容处理 (ContentProcessing)
     case VisualUnderstanding = 'visual_understanding';
+    case VideoUnderstanding = 'video_understanding';
     case GenerateImage = 'generate_image';
     case ConvertToMarkdown = 'convert_to_markdown';
 
@@ -73,11 +75,11 @@ enum BuiltinTool: string
             self::DeleteFile, self::FileSearch, self::GrepSearch => BuiltinToolCategory::FileOperations,
 
             // 搜索提取
-            self::WebSearch, self::ImageSearch, self::ReadWebpagesAsMarkdown,
+            self::WebSearch, self::SearchKnowledge, self::ImageSearch, self::ReadWebpagesAsMarkdown,
             self::DownloadFromUrls, self::DownloadFromMarkdown => BuiltinToolCategory::SearchExtraction,
 
             // 内容处理
-            self::VisualUnderstanding, self::GenerateImage, self::ConvertToMarkdown => BuiltinToolCategory::ContentProcessing,
+            self::VisualUnderstanding, self::VideoUnderstanding, self::GenerateImage, self::ConvertToMarkdown => BuiltinToolCategory::ContentProcessing,
 
             // 系统执行
             self::ShellExec, self::RunPythonSnippet => BuiltinToolCategory::SystemExecution,
@@ -114,9 +116,29 @@ enum BuiltinTool: string
             self::ReadWebpagesAsMarkdown,
             // 视觉理解
             self::VisualUnderstanding,
+            // 视频理解
+            self::VideoUnderstanding,
             // 命令行执行
             self::ShellExec,
         ];
+    }
+
+    /**
+     * 获取指定 Agent 类型默认内置工具。
+     *
+     * @return array<BuiltinTool>
+     */
+    public static function getDefaultToolsForAgentType(SuperMagicAgentType $agentType): array
+    {
+        $tools = [];
+        foreach (self::getRequiredTools() as $tool) {
+            $tools[] = $tool;
+            if ($tool === self::WebSearch && $agentType->isCustom()) {
+                $tools[] = self::SearchKnowledge;
+            }
+        }
+
+        return $tools;
     }
 
     public static function isValidTool(string $tool): bool

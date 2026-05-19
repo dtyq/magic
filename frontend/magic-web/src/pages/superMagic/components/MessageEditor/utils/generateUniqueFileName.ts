@@ -57,7 +57,7 @@ export const generateNextFileName = (fileName: string, existingNames: string[]) 
  * @param fileName - Original filename
  * @param existingFiles - Array of existing files
  * @param additionalNames - Additional existing names to check against
- * @param targetSuffixDir - Target directory for upload (to check conflicts only within same directory)
+ * @param targetParentId - Target parent directory ID (to check conflicts only within same directory)
  * @returns Unique filename
  */
 
@@ -65,10 +65,10 @@ export function generateUniqueFileName(
 	fileName: string,
 	existingFiles: FileData[],
 	additionalNames: string[] = [],
-	targetSuffixDir?: string,
+	targetParentId?: string,
 ): string {
-	// Get existing file names from current files with same suffix directory and additional names
-	const existingFilesInSameDir = existingFiles.filter((f) => f.suffixDir === targetSuffixDir)
+	// Get existing file names from current files with same parent ID and additional names
+	const existingFilesInSameDir = existingFiles.filter((f) => f.parentId === targetParentId)
 	const existingNames = [...existingFilesInSameDir.map((f) => f.name), ...additionalNames]
 
 	// If filename doesn't exist, return it directly

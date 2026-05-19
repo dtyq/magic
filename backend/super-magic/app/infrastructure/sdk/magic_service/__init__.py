@@ -19,6 +19,7 @@ from .api.share_api import ShareApi
 # Parameter classes
 from .parameter.get_agent_details_parameter import GetAgentDetailsParameter
 from .parameter.tool_execute_parameter import ToolExecuteParameter
+from .parameter.search_knowledge_parameter import SearchKnowledgeParameter
 from .parameter.message_schedule_parameter import (
     MessageScheduleParameter,
     TimeConfig,
@@ -39,6 +40,7 @@ from .result.agent_details_result import (
     Tool
 )
 from .result.tool_execute_result import ToolExecuteResult
+from .result.search_knowledge_result import SearchKnowledgeResult
 from .result.message_schedule_result import (
     MessageScheduleResult,
     MessageScheduleListResult,
@@ -82,6 +84,7 @@ __all__ = [
     # Parameter classes
     'GetAgentDetailsParameter',
     'ToolExecuteParameter',
+    'SearchKnowledgeParameter',
     'MessageScheduleParameter',
     'TimeConfig',
     'QueryMessageSchedulesParameter',
@@ -98,6 +101,7 @@ __all__ = [
     # Result classes
     'AgentDetailsResult',
     'ToolExecuteResult',
+    'SearchKnowledgeResult',
     'Tool',
     'MessageScheduleResult',
     'MessageScheduleListResult',

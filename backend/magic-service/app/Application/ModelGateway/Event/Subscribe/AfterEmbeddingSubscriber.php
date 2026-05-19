@@ -42,14 +42,23 @@ class AfterEmbeddingSubscriber implements ListenerInterface
         $modelVersion = $embeddingRequest->getModel();
         $businessParams = $embeddingRequest->getBusinessParams();
         $modelId = empty($businessParams['model_id']) ? $modelVersion : $businessParams['model_id'];
+        $organizationCode = (string) ($businessParams['organization_id'] ?? '');
+        if ($organizationCode === '') {
+            $organizationCode = (string) ($businessParams['organization_code'] ?? '');
+        }
+        if ($organizationCode !== '') {
+            $businessParams['organization_id'] = $organizationCode;
+            $businessParams['organization_code'] = $organizationCode;
+        }
+        $userId = (string) ($businessParams['user_id'] ?? '');
 
         $chatUsageEvent = new ModelUsageEvent(
             modelType: ModelType::EMBEDDING,
             modelId: $modelId,
             modelVersion: $modelVersion,
             usage: $usage,
-            organizationCode: $businessParams['organization_id'] ?? '',
-            userId: $businessParams['user_id'] ?? '',
+            organizationCode: $organizationCode,
+            userId: $userId,
             appId: $businessParams['app_id'] ?? '',
             serviceProviderModelId: $businessParams['service_provider_model_id'] ?? '',
             businessParams: $businessParams,

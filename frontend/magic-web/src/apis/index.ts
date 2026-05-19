@@ -22,6 +22,7 @@ import { generateOrgAiModelProviderApi } from "./modules/org-ai-model-provider"
 import { generateRecycleBinApi } from "./modules/recycle-bin"
 import { generateInitializationApi } from "./modules/initialization"
 import { generateMagicClawApi } from "./modules/magicClaw"
+import { generateFunctionPermissionApi } from "./modules/function-permission"
 
 /** 重置服务 */
 export const UserApi = generateUserApi(magicClient)
@@ -58,13 +59,22 @@ export const InitializationApi = generateInitializationApi(magicClient)
 
 /** Magic Claw (Magi Claw) sandbox APIs */
 export const MagicClawApi = generateMagicClawApi(magicClient)
+/** Function permissions */
+export const FunctionPermissionApi = generateFunctionPermissionApi(magicClient)
+
+export { MAGIC_CLAW_STATUS } from "./modules/magicClaw"
+export { FUNCTION_PERMISSION_CODE } from "./modules/function-permission"
 
 export type {
-	MagicClawExtra,
 	MagicClawItem,
 	MagicClawListData,
-	MagicClawProjectExtra,
-	MagicClawTopicExtra,
+	MagicClawStatus,
+	MagicClawTemplateCode,
 	CreateMagicClawBody,
+	MagicClawSandboxBody,
+	MagicClawSandboxStatusData,
+	MagicClawSandboxVersionCheckData,
 	UpdateMagicClawBody,
 } from "./modules/magicClaw"
+
+export type { FunctionPermissionCode, FunctionPermissionMap } from "./modules/function-permission"

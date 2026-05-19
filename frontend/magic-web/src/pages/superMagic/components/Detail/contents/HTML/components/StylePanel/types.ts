@@ -1,3 +1,4 @@
+import type { Ref } from "react"
 import type { HTMLEditorV2Ref } from "../../iframe-bridge/types/props"
 
 /**
@@ -8,6 +9,14 @@ export interface SelectedElementInfo {
 	selector: string
 	/** 元素标签名 */
 	tagName: string
+	/** 是否为图片元素 */
+	isImageElement?: boolean
+	/** 图片原始宽度 */
+	intrinsicWidth?: number
+	/** 图片原始高度 */
+	intrinsicHeight?: number
+	/** 图片原始宽高比 */
+	intrinsicAspectRatio?: number
 	/** 计算后的样式 */
 	computedStyles: {
 		// 文字样式
@@ -83,6 +92,15 @@ export interface StylePanelProps {
 
 	/** 类名 */
 	className?: string
+
+	/** Mount node for portaled toolbar actions (e.g. save), shown at far right */
+	toolbarEndRef?: Ref<HTMLDivElement | null>
+
+	/** Whether the element inspector is currently active */
+	inspectorActive?: boolean
+
+	/** Called when user clicks the inspector button to toggle inspector mode */
+	onStartInspector?: () => void
 }
 
 /**

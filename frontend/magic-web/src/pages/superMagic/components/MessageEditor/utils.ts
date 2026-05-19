@@ -4,7 +4,7 @@ import { JSONContent, generateText } from "@tiptap/core"
 import { Document } from "@tiptap/extension-document"
 import { Paragraph } from "@tiptap/extension-paragraph"
 import { Text } from "@tiptap/extension-text"
-import { HardBlock, SuperPlaceholderExtension } from "./extensions"
+import { HardBlock, SuperPlaceholderExtension, InspectorDetailExtension } from "./extensions"
 import MentionExtension from "@/components/business/MentionPanel/tiptap-plugin"
 import { TFunction } from "i18next"
 
@@ -66,6 +66,7 @@ export const generateTextFromJSONContent = (value: JSONContent | undefined) => {
 		HardBlock,
 		MentionExtension,
 		SuperPlaceholderExtension,
+		InspectorDetailExtension,
 	]
 
 	return generateText(value, extensions)
@@ -73,4 +74,19 @@ export const generateTextFromJSONContent = (value: JSONContent | undefined) => {
 
 export const isEmptyJSONContent = (value: JSONContent | undefined) => {
 	return generateTextFromJSONContent(value).trim() === ""
+}
+
+/** TipTap doc from plain text; blank lines split paragraphs */
+export function buildPlainTextJSONContent(text: string): JSONContent {
+	const paragraphs = text
+		.split(/\n{2,}/)
+		.filter((paragraph) => paragraph.trim())
+		.map((paragraph) => ({
+			type: "paragraph",
+			content: [{ type: "text", text: paragraph }],
+		}))
+
+	if (paragraphs.length === 0) return { type: "doc", content: [] }
+
+	return { type: "doc", content: paragraphs }
 }

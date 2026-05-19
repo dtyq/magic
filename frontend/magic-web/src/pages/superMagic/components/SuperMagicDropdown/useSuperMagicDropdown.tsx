@@ -6,6 +6,7 @@ import {
 	observeDropdownMenu,
 	adjustPositionForBoundary,
 	getViewportSize,
+	selectBestPlacement,
 	type Position,
 	type DropdownSizeConfig,
 } from "./utils"
@@ -13,6 +14,30 @@ import { type SuperMagicDropdownProps, type UseSuperMagicDropdownReturn } from "
 import { MenuProps } from "antd"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+
+type DropdownPlacement = "bottom-left" | "bottom-right" | "top-left" | "top-right"
+
+function calculatePositionFromAnchorRect(
+	anchorRect: DOMRect,
+	size: { width: number; height: number },
+	placement: DropdownPlacement,
+): Position {
+	switch (placement) {
+		case "bottom-left":
+			return { top: anchorRect.bottom, left: anchorRect.left }
+		case "bottom-right":
+			return { top: anchorRect.bottom, left: anchorRect.right - size.width }
+		case "top-left":
+			return { top: anchorRect.top - size.height, left: anchorRect.right }
+		case "top-right":
+			return {
+				top: anchorRect.top - size.height,
+				left: anchorRect.left - size.width,
+			}
+		default:
+			return { top: anchorRect.bottom, left: anchorRect.left }
+	}
+}
 
 // 检查事件是否来自输入框或编辑元素
 const isFromEditableElement = (event: React.MouseEvent<HTMLElement>): boolean => {
@@ -45,7 +70,7 @@ const isFromEditableElement = (event: React.MouseEvent<HTMLElement>): boolean =>
 	return false
 }
 
-export default function useSuperMagicDropdown<T = any>({
+export default function useSuperMagicDropdown<T = unknown>({
 	width,
 	getMenuItems,
 	autoAdjustPlacement = true, // 新增配置项，默认启用智能 placement
@@ -70,15 +95,21 @@ export default function useSuperMagicDropdown<T = any>({
 	const observerCleanupRef = useRef<(() => void) | null>(null)
 	const initialPositionRef = useRef<Position>({ top: 0, left: 0 })
 	const currentItemDataRef = useRef<T | null>(null)
+	const anchorRectRef = useRef<DOMRect | null>(null)
+	const currentPlacementRef = useRef<DropdownPlacement>("bottom-left")
 
 	// 处理菜单尺寸变化并调整位置
 	const handleMenuSizeChange = useCallback((size: { width: number; height: number }) => {
 		const viewport = getViewportSize()
-		const adjustedPosition = adjustPositionForBoundary(
-			initialPositionRef.current,
-			size,
-			viewport,
-		)
+		const measuredAnchorPosition =
+			anchorRectRef.current != null
+				? calculatePositionFromAnchorRect(
+						anchorRectRef.current,
+						size,
+						currentPlacementRef.current,
+					)
+				: initialPositionRef.current
+		const adjustedPosition = adjustPositionForBoundary(measuredAnchorPosition, size, viewport)
 
 		// 只有当位置需要调整时才更新
 		setDropdownPosition((currentPosition) => {
@@ -154,6 +185,8 @@ export default function useSuperMagicDropdown<T = any>({
 			setOpen(false)
 			setRenderMenuItems(undefined)
 			stopObservingMenuSize()
+			anchorRectRef.current = null
+			currentPlacementRef.current = "bottom-left"
 
 			// 调用外部回调
 			onOpenChangeCallback?.(false, null)
@@ -187,10 +220,10 @@ export default function useSuperMagicDropdown<T = any>({
 			overlayStyle={
 				fixedWidth
 					? {
-						width: `${width}px`,
-						minWidth: `${width}px`,
-						maxWidth: `${width}px`,
-					}
+							width: `${width}px`,
+							minWidth: `${width}px`,
+							maxWidth: `${width}px`,
+						}
 					: { width }
 			}
 			placement="bottomLeft"
@@ -198,10 +231,10 @@ export default function useSuperMagicDropdown<T = any>({
 				items: renderMenuItems,
 				style: fixedWidth
 					? {
-						width: `${width}px`,
-						minWidth: `${width}px`,
-						maxWidth: `${width}px`,
-					}
+							width: `${width}px`,
+							minWidth: `${width}px`,
+							maxWidth: `${width}px`,
+						}
 					: undefined, // 也给 menu 设置宽度
 			}}
 			onOpenChange={handleOpenChange}
@@ -228,13 +261,21 @@ export default function useSuperMagicDropdown<T = any>({
 				width,
 				menuItems: getMenuItems ? getMenuItems(itemData) : undefined,
 			}
+			const bestPlacement: DropdownPlacement = autoAdjustPlacement
+				? selectBestPlacement(event.currentTarget, dynamicSizeConfig, {
+						preferredPlacements,
+						fallbackToAnyPlacement,
+					})
+				: "bottom-left"
+			anchorRectRef.current = event.currentTarget.getBoundingClientRect()
+			currentPlacementRef.current = bestPlacement
 
 			// 创建动态事件处理器
 			const dynamicEventHandlers = autoAdjustPlacement
 				? createSmartEventHandler<T>(handlePositionUpdate, dynamicSizeConfig, {
-					preferredPlacements,
-					fallbackToAnyPlacement,
-				})
+						preferredPlacements,
+						fallbackToAnyPlacement,
+					})
 				: createEventHandler<T>(handlePositionUpdate, dynamicSizeConfig)
 
 			dynamicEventHandlers.handleElementClick(event, "bottom-left", itemData)
@@ -265,9 +306,9 @@ export default function useSuperMagicDropdown<T = any>({
 			// 创建动态事件处理器
 			const dynamicEventHandlers = autoAdjustPlacement
 				? createSmartEventHandler<T>(handlePositionUpdate, dynamicSizeConfig, {
-					preferredPlacements,
-					fallbackToAnyPlacement,
-				})
+						preferredPlacements,
+						fallbackToAnyPlacement,
+					})
 				: createEventHandler<T>(handlePositionUpdate, dynamicSizeConfig)
 
 			dynamicEventHandlers.handleContextMenu(event, itemData)

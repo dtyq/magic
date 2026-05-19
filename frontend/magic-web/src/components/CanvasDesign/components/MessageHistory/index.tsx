@@ -1,25 +1,64 @@
-import { useMemo } from "react"
-import MessageHistoryRender from "./MessageHistoryRender"
-import { useCanvasUI } from "../../context/CanvasUIContext"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import ImageMessageHistoryRender from "./ImageMessageHistoryRender"
+import VideoMessageHistoryRender from "./VideoMessageHistoryRender"
+import { useCanvasPanelUI } from "../../context/CanvasUIContext"
 import { useCanvasElement } from "../../hooks/useCanvasElement"
-import { ElementTypeEnum, type ImageElement } from "../../canvas/types"
+import { ElementTypeEnum, type ImageElement, type VideoElement } from "../../canvas/types"
+import MediaResourceFullscreenPreview, {
+	type MediaResourceFullscreenPreviewItem,
+} from "../MediaResourceFullscreenPreview"
 
 export default function MessageHistory() {
-	const { messageHistoryElementId } = useCanvasUI()
+	const { messageHistoryElementId } = useCanvasPanelUI()
+	const [previewingMediaResource, setPreviewingMediaResource] =
+		useState<MediaResourceFullscreenPreviewItem | null>(null)
 
-	// 根据 messageHistoryElementId 获取元素数据
+	const handleCloseMediaPreview = useCallback(() => {
+		setPreviewingMediaResource(null)
+	}, [])
+
 	const element = useCanvasElement(messageHistoryElementId)
 
-	// 验证元素类型和是否有生成请求
-	const imageElement = useMemo(() => {
+	useEffect(() => {
+		setPreviewingMediaResource(null)
+	}, [messageHistoryElementId])
+
+	const panel = useMemo(() => {
 		if (!messageHistoryElementId || !element) return null
 		if (element.id !== messageHistoryElementId) return null
-		if (element.type !== ElementTypeEnum.Image) return null
-		if (!element.generateImageRequest) return null
-		return element as ImageElement
+
+		if (element.type === ElementTypeEnum.Image && element.generateImageRequest) {
+			return (
+				<ImageMessageHistoryRender
+					key={element.id}
+					imageElement={element as ImageElement}
+					onPreviewMediaResource={setPreviewingMediaResource}
+				/>
+			)
+		}
+
+		if (element.type === ElementTypeEnum.Video && element.generateVideoRequest) {
+			return (
+				<VideoMessageHistoryRender
+					key={element.id}
+					videoElement={element as VideoElement}
+					onPreviewMediaResource={setPreviewingMediaResource}
+				/>
+			)
+		}
+
+		return null
 	}, [messageHistoryElementId, element])
 
-	if (!imageElement) return null
+	if (!panel) return null
 
-	return <MessageHistoryRender imageElement={imageElement} />
+	return (
+		<>
+			{panel}
+			<MediaResourceFullscreenPreview
+				resource={previewingMediaResource}
+				onClose={handleCloseMediaPreview}
+			/>
+		</>
+	)
 }

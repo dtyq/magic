@@ -8,7 +8,8 @@ export const useStyles = createStyles(({ token, css, prefixCls }) => ({
 		display: "flex",
 		flexDirection: "column",
 		// paddingTop: token.safeAreaInsetTop,
-		paddingBottom: `calc(${token.safeAreaInsetBottom} + 30px)`,
+		// paddingBottom: `calc(${token.safeAreaInsetBottom} + 30px)`,
+		paddingBottom: "16px",
 	},
 	chatContentContainer: css`
 		height: 100%;

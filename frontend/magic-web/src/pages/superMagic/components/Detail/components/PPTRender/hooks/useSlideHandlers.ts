@@ -10,6 +10,7 @@ interface UseSlideHandlers {
 interface UseSlideHandlersReturn {
 	handleEditModeChange: (fileId: string, isEditing: boolean) => void
 	handleRefreshSlide: (index: number) => Promise<void>
+	handleRefreshAllSlides: () => Promise<void>
 	handleRegenerateScreenshot: (index: number) => Promise<void>
 	handleSidebarCollapsedChange: (collapsed: boolean) => void
 }
@@ -51,6 +52,61 @@ export function useSlideHandlers({
 		}
 	})
 
+	const handleRefreshAllSlides = useMemoizedFn(async () => {
+		if (store.isTransitioning) return
+
+		// Phase 1: Refresh slides that have a known fileId
+		const fileIds = [
+			...Array.from(
+				new Set(
+					store.slides
+						.map((slide) => store.getFileIdByPath(slide.path))
+						.filter((id): id is string => Boolean(id)),
+				),
+			),
+		]
+
+		await Promise.all(
+			fileIds.map(async (fileId) => {
+				try {
+					await store.refreshSlideByFileId(fileId)
+				} catch (error) {
+					console.error("Failed to refresh slide content:", fileId, error)
+				}
+			}),
+		)
+
+		// Phase 2: Retry slides that are in error/idle state (file may have been generated since)
+		const pendingSlides = store.slides.filter(
+			(slide) =>
+				(slide.loadingState === "error" || slide.loadingState === "idle") && !slide.content,
+		)
+
+		if (pendingSlides.length > 0) {
+			// Force re-extraction of fileIds from paths using latest attachmentList
+			for (const slide of pendingSlides) {
+				const fileId = store.getFileIdByPath(slide.path)
+				if (!fileId) {
+					// Try to extract fileId freshly (attachmentList may have updated)
+					store.tryExtractAndMapFileId(slide.path)
+				}
+			}
+
+			// Now try to refresh those that got a fileId
+			await Promise.all(
+				pendingSlides.map(async (slide) => {
+					const fileId = store.getFileIdByPath(slide.path)
+					if (!fileId) return
+					try {
+						await store.refreshSlideByFileId(fileId)
+					} catch (error) {
+						// Silently ignore - file may still not be ready
+					}
+				}),
+			)
+		}
+	})
+
 	const handleRegenerateScreenshot = useMemoizedFn(async (index: number) => {
 		const slide = store.slides[index]
 		if (!slide) {
@@ -75,6 +131,7 @@ export function useSlideHandlers({
 	return {
 		handleEditModeChange,
 		handleRefreshSlide,
+		handleRefreshAllSlides,
 		handleRegenerateScreenshot,
 		handleSidebarCollapsedChange,
 	}

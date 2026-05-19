@@ -49,6 +49,11 @@ class GlobalConfigApiTest extends AbstractHttpTest
             'maintenance_description' => '',
             'need_initial' => true,
         ], $data, '默认全局配置结构不符', false, true);
+        $this->assertArrayHasKey('footer', $data);
+        $this->assertSame(
+            'Copyright @ 2023 广东灯塔引擎科技有限公司 All Rights Reserved.',
+            $data['footer']['copyright_i18n']['zh_CN'] ?? null
+        );
     }
 
     public function testGetGlobalConfigReturnsFreshNeedInitial(): void
@@ -127,6 +132,15 @@ class GlobalConfigApiTest extends AbstractHttpTest
                 'zh_CN' => '测试平台',
                 'en_US' => 'Test Platform',
             ],
+            'footer' => [
+                'copyright_i18n' => [
+                    'zh_CN' => 'Copyright @ 2026 某某科技有限公司 All Rights Reserved.',
+                ],
+                'filing' => [
+                    'enabled' => true,
+                    'number' => '粤ICP备2026000001号',
+                ],
+            ],
         ];
 
         // 通过平台设置接口设置
@@ -147,18 +161,19 @@ class GlobalConfigApiTest extends AbstractHttpTest
         $this->assertArrayHasKey('logo', $data);
         $this->assertArrayHasKey('favicon', $data);
         $this->assertArrayHasKey('default_language', $data);
+        $this->assertArrayHasKey('footer', $data);
 
         // 验证平台设置的值
-        if (isset($data['logo']['zh_CN']['url'])) {
-            $this->assertSame('https://example.com/logo_zh.png', $data['logo']['zh_CN']['url']);
-        }
-        if (isset($data['logo']['en_US']['url'])) {
-            $this->assertSame('https://example.com/logo_en.png', $data['logo']['en_US']['url']);
-        }
-        if (isset($data['favicon']['url'])) {
-            $this->assertSame('https://example.com/favicon.ico', $data['favicon']['url']);
-        }
+        $this->assertSame('https://example.com/logo_zh.png', $data['logo']['zh_CN']);
+        $this->assertSame('https://example.com/logo_en.png', $data['logo']['en_US']);
+        $this->assertSame('https://example.com/favicon.ico', $data['favicon']);
         $this->assertSame('zh_CN', $data['default_language']);
+        $this->assertSame(
+            'Copyright @ 2026 某某科技有限公司 All Rights Reserved.',
+            $data['footer']['copyright_i18n']['zh_CN'] ?? null
+        );
+        $this->assertTrue($data['footer']['filing']['enabled']);
+        $this->assertSame('粤ICP备2026000001号', $data['footer']['filing']['number']);
     }
 
     public function testGetGlobalConfigResponseStructure(): void
@@ -184,10 +199,15 @@ class GlobalConfigApiTest extends AbstractHttpTest
             $this->assertIsArray($data['logo']);
         }
         if (isset($data['favicon'])) {
-            $this->assertIsArray($data['favicon']);
+            $this->assertTrue(is_string($data['favicon']) || is_null($data['favicon']));
         }
         if (isset($data['default_language'])) {
             $this->assertIsString($data['default_language']);
+        }
+        if (isset($data['footer'])) {
+            $this->assertIsArray($data['footer']);
+            $this->assertArrayHasKey('copyright_i18n', $data['footer']);
+            $this->assertArrayHasKey('filing', $data['footer']);
         }
     }
 

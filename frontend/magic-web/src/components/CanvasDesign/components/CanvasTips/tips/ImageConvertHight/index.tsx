@@ -1,8 +1,10 @@
 import { useCallback, useEffect } from "react"
-import styles from "./index.module.css"
+import { useCanvasDesignI18n } from "../../../../context/I18nContext"
 import { useCanvasUI } from "../../../../context/CanvasUIContext"
+import { TipBarEscHint } from "../TipBarEscHint"
 
 export default function ImageConvertHight() {
+	const { t } = useCanvasDesignI18n()
 	const { setSubElementTooltip } = useCanvasUI()
 
 	const handleEsc = useCallback(() => {
@@ -24,10 +26,9 @@ export default function ImageConvertHight() {
 	}, [handleEsc])
 
 	return (
-		<div className={styles.imageConvertHight}>
-			<span>选择放大倍数</span>
-			<span className={styles.esc}>Esc</span>
-			<span>退出</span>
-		</div>
+		<TipBarEscHint
+			tip={t("elementTools.imageConvertHight.tip", "选择放大倍数")}
+			escHintSuffix={t("elementTools.imageConvertHight.exitHint", "退出")}
+		/>
 	)
 }

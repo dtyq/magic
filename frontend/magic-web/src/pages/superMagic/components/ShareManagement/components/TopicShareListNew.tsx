@@ -9,7 +9,7 @@ import type { TopicShareItem } from "../types"
 import ProjectNameBadge from "./ProjectNameBadge"
 import TopicSharePopover from "../../TopicSharePopover"
 import { cn } from "@/lib/utils"
-import { TopicMode } from "../../../pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { convertTopicShareItemToShareItem } from "../utils/shareTypeHelpers"
 import { useShareItemActions } from "../hooks/useShareItemActions"
 import { useTopicSharePopover } from "../hooks/useTopicSharePopover"
@@ -112,7 +112,10 @@ function TopicShareListNew({ data, loading, onCancelShare, onRefresh }: TopicSha
 						>
 							{/* 话题模式图标 */}
 							<div className="flex h-5 w-5 flex-shrink-0 items-center justify-center">
-								<ModeTag mode={item.topic_mode || TopicMode.General} />
+								<ModeTag
+									mode={item.topic_mode || TopicMode.General}
+									agentCode={item.agent_code}
+								/>
 							</div>
 
 							{/* 内容区域 */}

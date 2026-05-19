@@ -134,14 +134,14 @@ export interface ILogger {
 	error(...error: any[]): void
 	/** 上报埋点方法 */
 	report(value: any): void
+	/** 追踪事件 */
+	track(event: ICustomEvent): void
 	/** 设置配置 */
 	setConfig(config: Record<string, string>): void
 	/** 获取当前 Provider */
 	getProvider(): IProvider | null
 	// /** 设置用户信息 */
 	// setUser(user: IUserInfo): void
-	// /** 追踪事件 */
-	// track(event: ICustomEvent): void
 	// /** 捕获错误 */
 	// captureError(error: Error | IErrorInfo): void
 	// /** 设置配置 */

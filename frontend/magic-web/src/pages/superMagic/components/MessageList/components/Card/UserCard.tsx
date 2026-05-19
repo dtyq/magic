@@ -1,4 +1,4 @@
-import { useMemo, useState, memo, ComponentType } from "react"
+import { useMemo, useRef, useState, memo, ComponentType } from "react"
 import { useTranslation } from "react-i18next"
 import { getSuperIdState } from "@/pages/superMagic/utils/query"
 import { projectStore } from "@/pages/superMagic/stores/core"
@@ -6,7 +6,7 @@ import { useMessageListContext } from "@/pages/superMagic/components/MessageList
 import { useScheduledTasksModifyModal } from "@/components/business/AccountSetting/pages/ScheduledTasks/hooks/useScheduledTasksModifyModal"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { IconClockPlus, IconCopy } from "@tabler/icons-react"
-import { useMemoizedFn } from "ahooks"
+import { useDebounceFn, useMemoizedFn } from "ahooks"
 import { ScheduledTask } from "@/types/scheduledTask"
 import { ScheduledTaskApi, SuperMagicApi } from "@/apis"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
@@ -42,6 +42,8 @@ const enum MenuKey {
 const undoButtonBase =
 	"!flex h-6 flex-none cursor-pointer items-center gap-1.5 rounded-md border border-border px-2 text-xs font-normal leading-4 !bg-white shadow-sm !text-foreground dark:!bg-card hover:!bg-fill"
 
+const UNDO_BUTTON_DEBOUNCE_MS = 300
+
 export function withUserNode<
 	T extends {
 		node: any
@@ -60,6 +62,7 @@ export function withUserNode<
 		const { openCreateModal, content } = useScheduledTasksModifyModal()
 
 		const [isCheckUndoLoading, setIsCheckUndoLoading] = useState(false)
+		const undoClickLockRef = useRef(false)
 
 		const items = useMemo(() => {
 			return [
@@ -148,6 +151,8 @@ export function withUserNode<
 							mentions: allMentions,
 							type: messageNode?.type,
 							messageId: messageNode?.id,
+							sourceProjectId:
+								superIdState?.projectId ?? projectStore.selectedProject?.id,
 						})
 
 						magicToast.success(t("common.copySuccess"))
@@ -171,12 +176,14 @@ export function withUserNode<
 		})
 
 		/** 撤销操作 - 点击确认撤销按钮 */
-		const handleMessageUndoConfirm = useMemoizedFn(async (e) => {
+		const handleMessageUndoConfirmCore = useMemoizedFn(async (e) => {
 			if (!selectedTopic?.id || !node?.seq_id) return
+			if (isCheckUndoLoading || undoClickLockRef.current) return
 			e.stopPropagation()
 			e.preventDefault()
 
 			try {
+				undoClickLockRef.current = true
 				setIsCheckUndoLoading(true)
 				const res = await SuperMagicApi.checkCanUndoMessage({
 					topic_id: selectedTopic.id,
@@ -205,7 +212,13 @@ export function withUserNode<
 				console.error("handleMessageUndoConfirm error:", error)
 			} finally {
 				setIsCheckUndoLoading(false)
+				undoClickLockRef.current = false
 			}
+		})
+		const { run: handleMessageUndoConfirm } = useDebounceFn(handleMessageUndoConfirmCore, {
+			wait: UNDO_BUTTON_DEBOUNCE_MS,
+			leading: true,
+			trailing: false,
 		})
 
 		/** 是否显示撤销按钮
@@ -235,7 +248,7 @@ export function withUserNode<
 		const hasAttachments = attachments.length > 0
 
 		return (
-			<div className={cn("mb-1.5", className)} data-id={node?.app_message_id}>
+			<div className={cn("mb-1.5 w-full", className)} data-id={node?.app_message_id}>
 				<WrapperComponent {...props} />
 				<div
 					className={cn(
@@ -251,6 +264,7 @@ export function withUserNode<
 						{showUndo && (
 							<Button
 								className={cn(undoButtonBase, "w-fit")}
+								disabled={isCheckUndoLoading}
 								onClick={handleMessageUndoConfirm}
 							>
 								{isCheckUndoLoading ? (

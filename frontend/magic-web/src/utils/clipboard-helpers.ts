@@ -18,15 +18,24 @@
  * HTTP 环境或权限被拒绝时自动降级到 execCommand
  */
 async function _writeText(text: string): Promise<void> {
+	let nativeWriteTextError: unknown
 	if (navigator.clipboard?.writeText) {
 		try {
 			await navigator.clipboard.writeText(text)
 			return
-		} catch {
-			// 降级到 execCommand
+		} catch (error) {
+			nativeWriteTextError = error
 		}
 	}
-	fallbackWriteText(text)
+
+	try {
+		fallbackWriteText(text)
+	} catch (error) {
+		if (nativeWriteTextError) {
+			throw nativeWriteTextError
+		}
+		throw error
+	}
 }
 
 /**
@@ -34,12 +43,13 @@ async function _writeText(text: string): Promise<void> {
  * 降级时依次尝试从 text/plain、text/html 提取内容
  */
 async function _write(items: ClipboardItem[]): Promise<void> {
+	let nativeWriteError: unknown
 	if (navigator.clipboard?.write) {
 		try {
 			await navigator.clipboard.write(items)
 			return
-		} catch {
-			// 降级到 execCommand
+		} catch (error) {
+			nativeWriteError = error
 		}
 	}
 
@@ -47,15 +57,35 @@ async function _write(items: ClipboardItem[]): Promise<void> {
 	for (const item of items) {
 		if (item.types.includes("text/plain")) {
 			const blob = await item.getType("text/plain")
-			fallbackWriteText(await blob.text())
+			try {
+				fallbackWriteText(await blob.text())
+			} catch (error) {
+				if (nativeWriteError) {
+					throw nativeWriteError
+				}
+				throw error
+			}
 			return
 		}
 		if (item.types.includes("text/html")) {
 			const blob = await item.getType("text/html")
-			fallbackWriteHtml(await blob.text())
+			try {
+				fallbackWriteHtml(await blob.text())
+			} catch (error) {
+				if (nativeWriteError) {
+					throw nativeWriteError
+				}
+				throw error
+			}
 			return
 		}
 	}
+
+	if (nativeWriteError) {
+		throw nativeWriteError
+	}
+
+	throw new Error("Clipboard write is unavailable and no text fallback format was provided")
 }
 
 /**
@@ -74,10 +104,16 @@ function fallbackWriteText(text: string): void {
 	textarea.style.cssText = "position:fixed;top:0;left:0;opacity:0;pointer-events:none"
 	textarea.setAttribute("readonly", "")
 	document.body.appendChild(textarea)
-	textarea.select()
-	textarea.setSelectionRange(0, text.length)
-	document.execCommand("copy")
-	document.body.removeChild(textarea)
+	try {
+		textarea.select()
+		textarea.setSelectionRange(0, text.length)
+		const success = document.execCommand("copy")
+		if (!success) {
+			throw new Error("Clipboard text fallback failed: execCommand returned false")
+		}
+	} finally {
+		document.body.removeChild(textarea)
+	}
 }
 
 /** HTML 富文本 execCommand 降级方案（保留富文本格式） */
@@ -108,7 +144,10 @@ function fallbackWriteHtml(html: string): void {
 	document.addEventListener("copy", onCopy)
 
 	try {
-		document.execCommand("copy")
+		const success = document.execCommand("copy")
+		if (!success && !handled) {
+			throw new Error("Clipboard HTML fallback failed: execCommand returned false")
+		}
 	} finally {
 		selection?.removeAllRanges()
 		document.removeEventListener("copy", onCopy)
@@ -124,6 +163,7 @@ export interface MagicClipboardMetadata {
 	mentions?: unknown[]
 	type?: string
 	messageId?: string
+	sourceProjectId?: string
 	[key: string]: unknown
 }
 
@@ -195,7 +235,7 @@ export function copyWithMetadata(
 	plainText: string,
 	metadata: MagicClipboardMetadata,
 	htmlContent?: string,
-): void {
+): Promise<void> {
 	// 构建包含元数据的HTML
 	const metadataBase64 = btoa(encodeURIComponent(JSON.stringify(metadata)))
 
@@ -213,20 +253,18 @@ export function copyWithMetadata(
 			"text/html": new Blob([htmlWithMetadata], { type: "text/html" }),
 		}
 
-		navigator.clipboard
-			.write([new ClipboardItem(items)])
-			.then(() => {
-				console.log("✅ Clipboard API copy success")
-			})
-			.catch((err) => {
-				console.warn("⚠️ Clipboard API failed, fallback to execCommand:", err)
-				// 降级到传统方案
+		return navigator.clipboard.write([new ClipboardItem(items)]).catch((error) => {
+			try {
 				fallbackCopyWithExecCommand(plainText, htmlWithMetadata, metadata)
-			})
-	} else {
-		// 方案2: 降级到传统 execCommand 方案
-		fallbackCopyWithExecCommand(plainText, htmlWithMetadata, metadata)
+			} catch {
+				throw error
+			}
+		})
 	}
+
+	// 方案2: 降级到传统 execCommand 方案
+	fallbackCopyWithExecCommand(plainText, htmlWithMetadata, metadata)
+	return Promise.resolve()
 }
 
 /**

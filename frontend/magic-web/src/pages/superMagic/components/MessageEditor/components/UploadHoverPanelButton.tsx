@@ -1,11 +1,7 @@
 import { IconFileUpload, IconX } from "@tabler/icons-react"
 import { observer } from "mobx-react-lite"
 import { Upload } from "lucide-react"
-import {
-	HoverCard,
-	HoverCardContent,
-	HoverCardTrigger,
-} from "@/components/shadcn-ui/hover-card"
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/shadcn-ui/hover-card"
 import { Badge } from "@/components/shadcn-ui/badge"
 import MagicIcon from "@/components/base/MagicIcon"
 import UploadAction from "@/components/base/UploadAction"
@@ -34,7 +30,7 @@ function UploadHoverPanelButtonComponent({
 	t,
 	className,
 }: UploadHoverPanelButtonProps) {
-	const uploadLabel = t("common.uploadFile", { ns: "flow" })
+	const uploadLabel = t("topicFiles.emptyState.uploadFile", { ns: "super" })
 	const files = fileUploadStore.files
 	const fileCount = files.length
 

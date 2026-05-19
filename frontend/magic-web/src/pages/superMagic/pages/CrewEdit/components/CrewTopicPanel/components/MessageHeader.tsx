@@ -37,6 +37,7 @@ import { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import { smartRenameTopic } from "@/pages/superMagic/services/topicRename"
 import usePaginatedTopics from "@/pages/superMagic/hooks/usePaginatedTopics"
 import TopicService from "@/pages/superMagic/services/topicService"
+import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
 
 interface MessageHeaderProps {
 	isConversationPanelCollapsed?: boolean
@@ -53,6 +54,10 @@ const headerIconButtonClassName = "!size-6 !min-h-6 !min-w-6 !rounded-md !p-0"
 const renameInputClassName =
 	"h-6 min-w-0 flex-1 rounded-lg border-border bg-background px-3 text-sm leading-5 text-foreground placeholder:text-muted-foreground"
 
+interface TopicMutationSuccessOptions {
+	onSuccess?: () => Promise<void> | void
+}
+
 function MessageHeader({
 	isConversationPanelCollapsed = false,
 	onToggleConversationPanel,
@@ -63,8 +68,11 @@ function MessageHeader({
 	hideTopicListModeIcon = false,
 }: MessageHeaderProps) {
 	const { t } = useTranslation("super")
+	const { hideCreateNewTopic } = useFileActionVisibility()
+	const shouldHideTopicEntry = hideCreateNewTopic
 
 	const selectedTopic = topicStore.selectedTopic
+	const topicService = useMemo(() => new TopicService({ store: topicStore }), [topicStore])
 
 	const {
 		displayTopics: topics,
@@ -74,7 +82,7 @@ function MessageHeader({
 		projectId: selectedProject?.id || "",
 		selectedTopicId: selectedTopic?.id,
 		storeTopics: topicStore.topics,
-		topicService: new TopicService({ store: topicStore }),
+		topicService,
 	})
 
 	const messages = useMemo(
@@ -91,7 +99,6 @@ function MessageHeader({
 
 	const [isRenaming, setIsRenaming] = useState(false)
 	const [renamingValue, setRenamingValue] = useState("")
-	const [sharePopoverVisible, setSharePopoverVisible] = useState(false)
 	const [topicMenuOpen, setTopicMenuOpen] = useState(false)
 	const [topicHistoryOpen, setTopicHistoryOpen] = useState(false)
 	const [editingTopicId, setEditingTopicId] = useState<string | null>(null)
@@ -146,25 +153,23 @@ function MessageHeader({
 		setRenamingValue("")
 	}, [])
 
-	const handleAiRename = useMemoizedFn((topicId?: string) => {
-		const targetTopic = topicId ? topics.find((t) => t.id === topicId) : selectedTopic
+	const handleAiRename = useMemoizedFn(async (topic?: Topic) => {
+		const targetTopic = topic ?? selectedTopic
 		if (!targetTopic || !selectedProject?.id) return
 
 		const userMessage = messages.find((msg) => msg.is_self)
-		const userQuestion = userMessage?.content || targetTopic.topic_name || ""
+		const userQuestion =
+			typeof userMessage?.content === "string"
+				? userMessage.content
+				: targetTopic.topic_name || ""
 
-		void smartRenameTopic({
+		const topicName = await smartRenameTopic({
 			topicId: targetTopic.id,
 			userQuestion,
 			updateTopicName: topicStore.updateTopicName,
 		})
-			.then((topicName) => {
-				if (!topicName) return
-				magicToast.success(t("messageHeader.renameTopicSuccess"))
-			})
-			.catch((err: unknown) => {
-				console.error("Failed to AI rename topic:", err)
-			})
+		if (!topicName) return
+		magicToast.success(t("messageHeader.renameTopicSuccess"))
 	})
 
 	// const isAllowShare = useMemo(() => {
@@ -181,7 +186,7 @@ function MessageHeader({
 
 	// Handle delete topic with confirmation
 	const handleDeleteTopic = useCallback(
-		(topicId: string, topicName: string) => {
+		(topicId: string, topicName: string, options?: TopicMutationSuccessOptions) => {
 			if (topics.length === 1) {
 				magicToast.error(t("messageHeader.cannotDeleteLastTopic"))
 				return
@@ -190,20 +195,27 @@ function MessageHeader({
 				title: t("messageHeader.confirmDeleteTopic"),
 				content: t("messageHeader.confirmDeleteTopicContent", { name: topicName }),
 				okText: t("button.confirm", { ns: "interface" }),
-				onOk: () => {
-					SuperMagicApi.deleteTopic({
-						id: topicId,
-					})
-						.then(() => {
-							topicStore.removeTopic(topicId)
+				onOk: async () => {
+					try {
+						await SuperMagicApi.deleteTopic({
+							id: topicId,
 						})
-						.catch((err) => {
-							console.error(t("messageHeader.deleteTopicFailed"), err)
-						})
+						topicStore.removeTopic(topicId)
+
+						if (selectedTopic?.id === topicId) {
+							const remainingTopics = topics.filter((topic) => topic.id !== topicId)
+							topicStore.setSelectedTopic(remainingTopics[0] || null)
+						}
+
+						await options?.onSuccess?.()
+					} catch (err) {
+						console.error(t("messageHeader.deleteTopicFailed"), err)
+						throw err
+					}
 				},
 			})
 		},
-		[t, topics, topicStore],
+		[selectedTopic?.id, t, topicStore, topics],
 	)
 
 	// Handle edit topic in history list
@@ -235,7 +247,6 @@ function MessageHeader({
 					project_id: selectedProject.id,
 				})
 					.then(() => {
-						// Update store after successful API call
 						topicStore.updateTopicName(topicId, trimmedName)
 						setEditingTopicId(null)
 						setEditingValue("")
@@ -253,7 +264,7 @@ function MessageHeader({
 				magicToast.error(t("messageHeader.editTopicFailed"))
 			}
 		},
-		[editingValue, topics, selectedProject?.id, topicStore, t],
+		[editingValue, selectedProject?.id, t, topicStore, topics],
 	)
 
 	const handleEditCancel = useCallback(() => {
@@ -277,6 +288,7 @@ function MessageHeader({
 	}, [selectedTopic?.id])
 
 	const handleCreateTopic = useMemoizedFn(() => {
+		if (shouldHideTopicEntry) return
 		if (isConversationPanelCollapsed) {
 			onExpandConversationPanel?.()
 		}
@@ -284,8 +296,25 @@ function MessageHeader({
 			project_id: selectedProject?.id || "",
 			topic_name: "",
 		}).then((res) => {
+			if (!res) return
 			topicStore.setSelectedTopic(res)
 		})
+	})
+
+	const handlePinTopic = useMemoizedFn(async (topicId: string) => {
+		await topicService.pinTopic(topicId)
+	})
+
+	const handleUnpinTopic = useMemoizedFn(async (topicId: string) => {
+		await topicService.unpinTopic(topicId)
+	})
+
+	const handleArchiveTopic = useMemoizedFn(async (topicId: string) => {
+		await topicService.archiveTopic(topicId)
+	})
+
+	const handleUnarchiveTopic = useMemoizedFn(async (topicId: string) => {
+		await topicService.unarchiveTopic(topicId)
 	})
 
 	const handleToggleConversationPanel = useMemoizedFn(() => {
@@ -344,69 +373,81 @@ function MessageHeader({
 									</span>
 								</MagicTooltip>
 
-								<div className="w-6 border-t border-border" />
+								{!shouldHideTopicEntry ? (
+									<div className="w-6 border-t border-border" />
+								) : null}
 							</>
 						)}
 
-						<MagicTooltip title={t("messageHeader.newTopic")}>
-							<span>
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									className={headerIconButtonClassName}
-									data-testid="message-header-new-topic-button"
-									onClick={handleCreateTopic}
-								>
-									<MessageCirclePlus
-										size={16}
-										className="shrink-0 text-foreground"
-									/>
-								</Button>
-							</span>
-						</MagicTooltip>
-
-						<TopicHistoryDropdown
-							topics={topics}
-							projectId={selectedProject?.id || ""}
-							selectedTopicId={selectedTopic?.id}
-							editingTopicId={editingTopicId}
-							editingValue={editingValue}
-							onEditingValueChange={setEditingValue}
-							onEditSubmit={handleEditSubmit}
-							onEditCancel={handleEditCancel}
-							onEditTopic={handleEditTopic}
-							onAiRenameTopic={handleAiRename}
-							onDeleteTopic={handleDeleteTopic}
-							onSelectTopic={(topic) => {
-								topicStore.setSelectedTopic(topic)
-							}}
-							canDeleteTopic={topics.length > 1}
-							onCreateTopic={handleCreateTopic}
-							placement="bottomRight"
-							onDropdownOpenChange={handleTopicHistoryDropdownOpenChange}
-							hideTopicListModeIcon={hideTopicListModeIcon}
-						>
-							<span>
-								<MagicTooltip title={t("messageHeader.historyTopics")}>
+						{!shouldHideTopicEntry ? (
+							<>
+								<MagicTooltip title={t("messageHeader.newTopic")}>
 									<span>
 										<Button
 											variant="ghost"
 											size="icon-sm"
-											className={cn(
-												headerIconButtonClassName,
-												topicHistoryOpen && "bg-accent",
-											)}
-											data-testid="message-header-history-button"
+											className={headerIconButtonClassName}
+											data-testid="message-header-new-topic-button"
+											onClick={handleCreateTopic}
 										>
-											<History
+											<MessageCirclePlus
 												size={16}
 												className="shrink-0 text-foreground"
 											/>
 										</Button>
 									</span>
 								</MagicTooltip>
-							</span>
-						</TopicHistoryDropdown>
+
+								<TopicHistoryDropdown
+									topics={topics}
+									projectId={selectedProject?.id || ""}
+									selectedTopicId={selectedTopic?.id}
+									editingTopicId={editingTopicId}
+									editingValue={editingValue}
+									onEditingValueChange={setEditingValue}
+									onEditSubmit={handleEditSubmit}
+									onEditCancel={handleEditCancel}
+									onEditTopic={handleEditTopic}
+									onAiRenameTopic={handleAiRename}
+									onDeleteTopic={handleDeleteTopic}
+									onPinTopic={handlePinTopic}
+									onUnpinTopic={handleUnpinTopic}
+									onArchiveTopic={handleArchiveTopic}
+									onUnarchiveTopic={handleUnarchiveTopic}
+									onSelectTopic={(topic) => {
+										topicStore.setSelectedTopic(topic)
+									}}
+									canDeleteTopic={topics.length > 1}
+									onCreateTopic={handleCreateTopic}
+									placement="bottomRight"
+									onDropdownOpenChange={handleTopicHistoryDropdownOpenChange}
+									hideTopicListModeIcon={hideTopicListModeIcon}
+									hideCreateTopicButton={shouldHideTopicEntry}
+									hideDeleteTopicButton={shouldHideTopicEntry}
+								>
+									<span>
+										<MagicTooltip title={t("messageHeader.historyTopics")}>
+											<span>
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													className={cn(
+														headerIconButtonClassName,
+														topicHistoryOpen && "bg-accent",
+													)}
+													data-testid="message-header-history-button"
+												>
+													<History
+														size={16}
+														className="shrink-0 text-foreground"
+													/>
+												</Button>
+											</span>
+										</MagicTooltip>
+									</span>
+								</TopicHistoryDropdown>
+							</>
+						) : null}
 					</div>
 				) : (
 					<>
@@ -469,73 +510,83 @@ function MessageHeader({
 							className="flex items-center gap-1"
 							data-testid="message-header-action-buttons"
 						>
-							<div
-								className="flex items-center gap-1"
-								id={GuideTourElementId.MessageHeaderTopicGroup}
-								data-testid="message-header-topic-group"
-							>
-								<MagicTooltip title={t("messageHeader.newTopic")}>
-									<span>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											data-testid="message-header-new-topic-button"
-											onClick={handleCreateTopic}
-											className={headerIconButtonClassName}
-										>
-											<MessageCirclePlus
-												size={16}
-												className="shrink-0 text-foreground"
-											/>
-										</Button>
-									</span>
-								</MagicTooltip>
-
-								<TopicHistoryDropdown
-									topics={topics}
-									projectId={selectedProject?.id || ""}
-									selectedTopicId={selectedTopic?.id}
-									editingTopicId={editingTopicId}
-									editingValue={editingValue}
-									onEditingValueChange={setEditingValue}
-									onEditSubmit={handleEditSubmit}
-									onEditCancel={handleEditCancel}
-									onEditTopic={handleEditTopic}
-									onAiRenameTopic={handleAiRename}
-									onDeleteTopic={handleDeleteTopic}
-									onSelectTopic={(topic) => {
-										topicStore.setSelectedTopic(topic)
-									}}
-									canDeleteTopic={topics.length > 1}
-									onCreateTopic={handleCreateTopic}
-									placement={
-										isConversationPanelCollapsed ? "leftBottom" : "bottomRight"
-									}
-									onDropdownOpenChange={handleTopicHistoryDropdownOpenChange}
-									hideTopicListModeIcon={hideTopicListModeIcon}
+							{!shouldHideTopicEntry ? (
+								<div
+									className="flex items-center gap-1"
+									id={GuideTourElementId.MessageHeaderTopicGroup}
+									data-testid="message-header-topic-group"
 								>
-									<span>
-										<MagicTooltip title={t("messageHeader.historyTopics")}>
-											<span>
-												<Button
-													variant="ghost"
-													size="icon-sm"
-													data-testid="message-header-history-button"
-													className={cn(
-														headerIconButtonClassName,
-														topicHistoryOpen && "bg-accent",
-													)}
-												>
-													<History
-														size={16}
-														className="shrink-0 text-foreground"
-													/>
-												</Button>
-											</span>
-										</MagicTooltip>
-									</span>
-								</TopicHistoryDropdown>
-							</div>
+									<MagicTooltip title={t("messageHeader.newTopic")}>
+										<span>
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												data-testid="message-header-new-topic-button"
+												onClick={handleCreateTopic}
+												className={headerIconButtonClassName}
+											>
+												<MessageCirclePlus
+													size={16}
+													className="shrink-0 text-foreground"
+												/>
+											</Button>
+										</span>
+									</MagicTooltip>
+
+									<TopicHistoryDropdown
+										topics={topics}
+										projectId={selectedProject?.id || ""}
+										selectedTopicId={selectedTopic?.id}
+										editingTopicId={editingTopicId}
+										editingValue={editingValue}
+										onEditingValueChange={setEditingValue}
+										onEditSubmit={handleEditSubmit}
+										onEditCancel={handleEditCancel}
+										onEditTopic={handleEditTopic}
+										onAiRenameTopic={handleAiRename}
+										onDeleteTopic={handleDeleteTopic}
+										onPinTopic={handlePinTopic}
+										onUnpinTopic={handleUnpinTopic}
+										onArchiveTopic={handleArchiveTopic}
+										onUnarchiveTopic={handleUnarchiveTopic}
+										onSelectTopic={(topic) => {
+											topicStore.setSelectedTopic(topic)
+										}}
+										canDeleteTopic={topics.length > 1}
+										onCreateTopic={handleCreateTopic}
+										placement={
+											isConversationPanelCollapsed
+												? "leftBottom"
+												: "bottomRight"
+										}
+										onDropdownOpenChange={handleTopicHistoryDropdownOpenChange}
+										hideTopicListModeIcon={hideTopicListModeIcon}
+										hideCreateTopicButton={shouldHideTopicEntry}
+										hideDeleteTopicButton={shouldHideTopicEntry}
+									>
+										<span>
+											<MagicTooltip title={t("messageHeader.historyTopics")}>
+												<span>
+													<Button
+														variant="ghost"
+														size="icon-sm"
+														data-testid="message-header-history-button"
+														className={cn(
+															headerIconButtonClassName,
+															topicHistoryOpen && "bg-accent",
+														)}
+													>
+														<History
+															size={16}
+															className="shrink-0 text-foreground"
+														/>
+													</Button>
+												</span>
+											</MagicTooltip>
+										</span>
+									</TopicHistoryDropdown>
+								</div>
+							) : null}
 							<DropdownMenu onOpenChange={setTopicMenuOpen}>
 								<DropdownMenuTrigger asChild>
 									<span>
@@ -568,21 +619,25 @@ function MessageHeader({
 										<WandSparkles size={16} className="text-muted-foreground" />
 										{t("messageHeader.aiRename")}
 									</DropdownMenuItem>
-									<DropdownMenuSeparator />
-									<DropdownMenuItem
-										variant="destructive"
-										onClick={() =>
-											selectedTopic &&
-											handleDeleteTopic(
-												selectedTopic.id,
-												selectedTopic.topic_name ||
-													t("messageHeader.untitledTopic"),
-											)
-										}
-									>
-										<Trash2 size={16} />
-										{t("messageHeader.deleteTopic")}
-									</DropdownMenuItem>
+									{!shouldHideTopicEntry ? (
+										<>
+											<DropdownMenuSeparator />
+											<DropdownMenuItem
+												variant="destructive"
+												onClick={() =>
+													selectedTopic &&
+													handleDeleteTopic(
+														selectedTopic.id,
+														selectedTopic.topic_name ||
+															t("messageHeader.untitledTopic"),
+													)
+												}
+											>
+												<Trash2 size={16} />
+												{t("messageHeader.deleteTopic")}
+											</DropdownMenuItem>
+										</>
+									) : null}
 								</DropdownMenuContent>
 							</DropdownMenu>
 						</div>

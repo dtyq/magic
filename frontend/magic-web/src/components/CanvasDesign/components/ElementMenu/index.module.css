@@ -18,6 +18,7 @@
 	overflow: hidden;
 	color: var(--base-popover-foreground, #0a0a0a);
 	font-size: var(--text-sm-font-size, 14px);
+	text-align: left;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 }
@@ -50,4 +51,10 @@
 .menu-item-delete .menu-item-icon,
 .menu-item-delete .menu-item-label {
 	color: var(--base-destructive, #dc2626);
+}
+
+/* 二级子菜单：避免 label 上 flex:1 把行拉满触发列宽，造成 VIP 右侧大块留白 */
+.subMenuContent .menu-item-label {
+	flex: 0 1 auto;
+	min-width: 0;
 }

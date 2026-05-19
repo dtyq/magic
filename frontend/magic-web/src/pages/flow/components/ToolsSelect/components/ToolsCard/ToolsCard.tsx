@@ -8,6 +8,7 @@ import ToolsCardBaseInfo from "./components/ToolsCardBaseInfo/ToolsCardBaseInfo"
 import useStyles from "./style"
 import React, { memo } from "react"
 import { ToolSelectedItem } from "../../types"
+import { formatFlowCardCreatedAt } from "@/pages/flow/utils/formatCreatedAt"
 
 // 使用React.lazy懒加载ToolsList组件
 const ToolsList = React.lazy(() => import("./components/ToolsList"))
@@ -18,7 +19,7 @@ type ToolsCardProps = {
 }
 
 function ToolsCard({ toolSet, selectedTools }: ToolsCardProps) {
-	const { t: interfaceT } = useTranslation("interface")
+	const { t: interfaceT, i18n } = useTranslation("interface")
 	const { t } = useTranslation()
 
 	const [cardOpen, { toggle }] = useBoolean(true)
@@ -29,10 +30,7 @@ function ToolsCard({ toolSet, selectedTools }: ToolsCardProps) {
 		<Flex vertical className={styles.toolsetWrap}>
 			<Flex vertical className={cx(styles.cardWrapper)} gap={8} onClick={toggle}>
 				<ToolsCardBaseInfo toolSet={toolSet} lineCount={1} height={9} />
-				<div>{`${interfaceT("agent.createTo")} ${toolSet.created_at?.replace(
-					/-/g,
-					"/",
-				)}`}</div>
+				<div>{`${interfaceT("agent.createTo")} ${formatFlowCardCreatedAt(toolSet.created_at, i18n.language)}`}</div>
 
 				<Divider className={styles.divider} />
 				<Flex

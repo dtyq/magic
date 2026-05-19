@@ -26,6 +26,7 @@ interface PublishHistoryViewProps {
 const statusClassNameMap: Record<PublishRecordStatus, string> = {
 	under_review: "bg-indigo-500 text-primary-foreground",
 	rejected: "bg-destructive text-primary-foreground",
+	invalidated: "bg-amber-500 text-primary-foreground",
 	published: "bg-secondary text-secondary-foreground",
 }
 
@@ -197,7 +198,9 @@ const PublishHistoryRow = observer(function PublishHistoryRow({
 					)}
 				>
 					{t(`skillEditPage.publishPanel.statuses.${record.status}`)}
-					{record.status === "rejected" ? <Info className="size-3" /> : null}
+					{/* {record.status === "rejected" || record.status === "invalidated" ? (
+						<Info className="size-3" />
+					) : null} */}
 				</Badge>
 			</TableCell>
 			<TableCell className="px-2 py-3 text-sm text-foreground">

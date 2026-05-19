@@ -55,7 +55,7 @@ async function main() {
     await runCommand('node', ['scripts/icons/gen-tabler-icon-tags.cjs'])
     log('Icon tags generated successfully', 'green')
 
-    // Start concurrently with both dev servers
+    // Start concurrently with main app and iframe runtime watch
     log('Starting dev servers...', 'cyan')
     await runCommand(
       'concurrently',

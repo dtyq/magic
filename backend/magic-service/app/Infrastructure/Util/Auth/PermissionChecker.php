@@ -12,6 +12,7 @@ use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Repository\Facade\MagicUserRepositoryInterface;
 use App\Domain\Contact\Service\MagicUserDomainService;
 use App\Domain\Permission\Service\OrganizationAdminDomainService;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 
 class PermissionChecker
 {
@@ -108,6 +109,20 @@ class PermissionChecker
         }
 
         return false;
+    }
+
+    public static function isOfficialOrganizationAdmin(string $mobile): bool
+    {
+        if (empty($mobile)) {
+            return false;
+        }
+
+        $officialOrganizationCode = OfficialOrganizationUtil::getOfficialOrganizationCode();
+        if (empty($officialOrganizationCode)) {
+            return false;
+        }
+
+        return self::isOrganizationAdmin($officialOrganizationCode, $mobile);
     }
 
     /**

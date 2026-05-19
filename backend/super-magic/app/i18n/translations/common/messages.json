@@ -24,8 +24,8 @@
         "en_US": "The concurrent task limit has been reached. Please try again later."
     },
     "messages.user_interrupted": {
-        "zh_CN": "任务已中断。",
-        "en_US": "The task has been interrupted."
+        "zh_CN": "任务已中断",
+        "en_US": "The task has been interrupted"
     },
     "messages.session_restore_failed": {
         "zh_CN": "恢复会话状态失败，请重新发送消息。",
@@ -35,29 +35,37 @@
         "zh_CN": "智能体尚未初始化，请先初始化工作区后再试。",
         "en_US": "The agent has not been initialized yet. Please initialize the workspace first."
     },
+    "messages.agent_load_failed": {
+        "zh_CN": "当前员工加载失败，请确认员工「{agent_code}」存在，并且当前账号有使用权限。",
+        "en_US": "Failed to load employee agent \"{agent_code}\". Check that it exists and that your account has permission to use it."
+    },
     "messages.internal_dispatch_failed": {
-        "zh_CN": "当前请求处理失败，请联系管理员。",
-        "en_US": "Failed to dispatch the request internally. Please contact the administrator."
+        "zh_CN": "当前请求处理失败，请联系系统管理员。",
+        "en_US": "Failed to dispatch the request internally. Please contact the system administrator."
     },
     "messages.message_processing_failed": {
         "zh_CN": "任务执行异常，请稍后再试。",
         "en_US": "Task execution failed. Please try again later."
     },
     "messages.llm_provider_timeout": {
-        "zh_CN": "模型供应商响应超时，请稍后重试。",
-        "en_US": "The model provider response timed out. Please try again."
+        "zh_CN": "AI 模型服务当前负载较高，响应已超时，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service is under high load and timed out. Please try again later, or try switching to a different model."
     },
     "messages.llm_provider_connection_failed": {
-        "zh_CN": "模型供应商连接失败，请稍后重试。",
-        "en_US": "Failed to connect to the model provider. Please try again later."
+        "zh_CN": "AI 模型服务当前负载较高，连接暂时中断，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service is under high load and the connection was interrupted. Please try again later, or try switching to a different model."
     },
     "messages.llm_provider_rate_limited": {
-        "zh_CN": "模型供应商请求频率受限，请稍后重试。",
-        "en_US": "The model provider is rate-limiting requests. Please try again later."
+        "zh_CN": "当前使用人数过多，AI 模型服务负载较高，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service is at capacity due to high user demand. Please try again later, or try switching to a different model."
     },
     "messages.llm_provider_error": {
-        "zh_CN": "模型供应商服务异常，请稍后重试。",
-        "en_US": "The model provider encountered an error. Please try again later."
+        "zh_CN": "AI 模型服务当前负载较高，处理请求时出现异常，请稍后重试，或尝试切换其他模型后重试。",
+        "en_US": "The AI model service encountered an error while processing your request. Please try again later, or try switching to a different model."
+    },
+    "messages.llm_provider_config_error": {
+        "zh_CN": "AI 模型配置出现异常。请稍后重试或切换其他模型。如仍无法解决，请联系系统管理员。",
+        "en_US": "AI model configuration error. Please try again later or switch to another model. If the issue persists, contact the system administrator."
     },
     "agent_profile.desc_with_role": {
         "zh_CN": "你叫{name}，是一名{role}。{description}",

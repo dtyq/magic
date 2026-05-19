@@ -22,14 +22,14 @@ class AbstractApiTest extends AbstractHttpTest
     {
         $this->userId = env('TEST1_USER_ID');
         $this->authorization = env('TEST1_TOKEN');
-        return '';
+        return $this->userId;
     }
 
     protected function switchUserTest2(): string
     {
         $this->userId = env('TEST2_USER_ID');
         $this->authorization = env('TEST2_TOKEN');
-        return '';
+        return $this->userId;
     }
 
     protected function getCommonHeaders(): array

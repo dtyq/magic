@@ -46,10 +46,8 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
 	disconnect: vi.fn(),
 }))
 
-// 添加对antd的模拟
-vi.mock("antd", async () => {
-	const actual = await vi.importActual("antd")
-
+// 添加对 antd 的最小模拟，避免在测试启动时加载完整 antd 依赖链
+vi.mock("antd", () => {
 	// 创建一个模拟的消息API
 	const mockMessage = {
 		success: vi.fn(),
@@ -59,20 +57,47 @@ vi.mock("antd", async () => {
 		loading: vi.fn(),
 	}
 
+	mockMessage.useMessage = vi.fn(() => [mockMessage, React.createElement(React.Fragment)])
+
+	const mockNotification = {
+		success: vi.fn(),
+		error: vi.fn(),
+		info: vi.fn(),
+		warning: vi.fn(),
+		open: vi.fn(),
+		destroy: vi.fn(),
+	}
+
+	mockNotification.useNotification = vi.fn(() => [
+		mockNotification,
+		React.createElement(React.Fragment),
+	])
+
+	const mockModalApi = {
+		info: vi.fn(),
+		success: vi.fn(),
+		error: vi.fn(),
+		warning: vi.fn(),
+		confirm: vi.fn(),
+		destroyAll: vi.fn(),
+	}
+
+	mockModalApi.useModal = vi.fn(() => [mockModalApi, React.createElement(React.Fragment)])
+
 	// 创建一个模拟的useApp钩子
 	const mockUseApp = vi.fn().mockReturnValue({
 		message: mockMessage,
+		modal: mockModalApi,
+		notification: mockNotification,
 	})
 
-	// 创建一个模拟的App组件，使用React.createElement而不是JSX
-	const App = ({ children }: { children: ReactNode }) =>
-		React.createElement("div", { "data-testid": "antd-app" }, children)
+	// 创建一个模拟的App组件
+	const App = createMockComponent("App")
 
 	// 添加useApp方法
 	App.useApp = mockUseApp
 
 	return {
-		...(actual as object),
 		App,
 	}
 })

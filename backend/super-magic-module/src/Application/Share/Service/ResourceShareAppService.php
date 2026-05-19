@@ -53,6 +53,7 @@ use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\PasswordCrypt;
+use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\Share\Assembler\ShareAssembler;
 use Dtyq\SuperMagic\Interfaces\Share\DTO\Request\BatchCancelShareRequestDTO;
@@ -287,13 +288,6 @@ class ResourceShareAppService extends AbstractShareAppService
         if (! empty($dto->getExtra())) {
             $extra = $dto->getExtra();
             $isVip = $this->packageFilter->isPaidSubscription($organizationCode);
-
-            // 检查"显示原创信息"配置：设置为false时需要VIP
-            if (isset($extra[CreateShareRequestDTO::EXTRA_FIELD_SHOW_ORIGINAL_INFO]) && $extra[CreateShareRequestDTO::EXTRA_FIELD_SHOW_ORIGINAL_INFO] === false) {
-                if (! $isVip) {
-                    ExceptionBuilder::throw(ShareErrorCode::VIP_REQUIRED_FOR_SHOW_ORIGINAL_INFO, 'share.vip_required_for_show_original_info', []);
-                }
-            }
 
             // 检查"隐藏由超级麦吉创造字样"配置：设置为true时需要VIP
             if (isset($extra[CreateShareRequestDTO::EXTRA_FIELD_HIDE_CREATED_BY_SUPER_MAGIC]) && $extra[CreateShareRequestDTO::EXTRA_FIELD_HIDE_CREATED_BY_SUPER_MAGIC] === true) {
@@ -896,7 +890,10 @@ class ResourceShareAppService extends AbstractShareAppService
                     'total' => 0,
                 ];
             }
-            return $this->getFilesFromProject($projectId, $organizationCode, $dataIsolation, $dto);
+            // Get project's workDir for correct relative_file_path calculation (same as getProjectAttachments)
+            $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
+            $workDir = $projectEntity ? ($projectEntity->getWorkDir() ?? '') : '';
+            return $this->getFilesFromProject($projectId, $organizationCode, $dataIsolation, $dto, $workDir);
         }
 
         if ($resourceType === ResourceType::FileCollection) {
@@ -2054,23 +2051,21 @@ class ResourceShareAppService extends AbstractShareAppService
                 $childFileIds = $this->taskFileDomainService->getAllChildrenFileIdsByDirectoryIds([$fileId], $projectId);
 
                 if (! empty($childFileIds)) {
-                    // 获取所有子文件实体
-                    $childEntities = $this->taskFileDomainService->getFilesByIds($childFileIds, $projectId);
-
-                    // 合并目录本身和所有子文件（包含父级路径，确保树结构正确）
+                    // Merge directory itself and all children (with parent paths for correct tree structure)
                     $allEntities = $this->taskFileDomainService->getFilesWithParentsByIds(array_merge([$fileId], $childFileIds), $projectId);
 
-                    // 处理分页（只针对子文件，不包括目录本身）
+                    // 过滤系统目录（如 .magic 及其子文件）
+                    $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
+
+                    // Convert all entities to DTO list once to avoid duplicate relative_file_path calculation
+                    // Both list and tree share the same pre-computed array elements, ensuring consistency
+                    $allList = $this->convertEntitiesToDtoList($allEntities, $organizationCode);
+
+                    // Paginate from the already-converted DTO list
                     $page = $dto->getPage();
                     $pageSize = $dto->getPageSize();
                     $offset = ($page - 1) * $pageSize;
-                    $pagedEntities = array_slice($allEntities, $offset, $pageSize);
-
-                    // 转换为TaskFileItemDTO格式（分页列表）
-                    $list = $this->convertEntitiesToDtoList($pagedEntities, $organizationCode);
-
-                    // 转换为TaskFileItemDTO格式（完整列表，用于构建树结构）
-                    $allList = $this->convertEntitiesToDtoList($allEntities, $organizationCode);
+                    $list = array_slice($allList, $offset, $pageSize);
 
                     // Build file tree structure
                     $tree = FileTreeUtil::assembleFilesTreeByParentId($allList, 'zh_CN');
@@ -2078,7 +2073,7 @@ class ResourceShareAppService extends AbstractShareAppService
                     return [
                         'list' => $list,
                         'tree' => $tree,
-                        'total' => count($allEntities),
+                        'total' => count($allList),
                     ];
                 }
             }
@@ -2092,6 +2087,17 @@ class ResourceShareAppService extends AbstractShareAppService
             // 如果 getFilesWithParentsByIds 返回空，直接使用原始实体
             if (empty($folderEntities)) {
                 $folderEntities = [$fileEntity];
+            }
+
+            // 过滤系统目录（如 .magic 及其子文件）
+            $folderEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($folderEntities, ['.magic']);
+
+            if (empty($folderEntities)) {
+                return [
+                    'list' => [],
+                    'tree' => [],
+                    'total' => 0,
+                ];
             }
 
             // 转换为TaskFileItemDTO格式
@@ -2111,9 +2117,11 @@ class ResourceShareAppService extends AbstractShareAppService
                 $taskFileDto->isHidden = $fileEntity->getIsHidden();
                 $taskFileDto->updatedAt = $fileEntity->getUpdatedAt();
                 $taskFileDto->topicId = (string) $fileEntity->getTopicId();
-                $taskFileDto->relativeFilePath = $fileEntity->getFileKey();
+                $relativePathMap = $this->buildRelativePathsByParentIds([$fileEntity]);
+                $taskFileDto->relativeFilePath = $relativePathMap[$fileEntity->getFileId()] ?? $fileEntity->getFileKey();
                 $taskFileDto->isDirectory = $fileEntity->getIsDirectory();
-                $taskFileDto->metadata = FileMetadataUtil::getMetadataObject($fileEntity->getMetadata());
+                $taskFileDto->displayConfig = FileMetadataUtil::decodeJsonObject($fileEntity->getDisplayConfig());
+                $taskFileDto->metadata = $taskFileDto->displayConfig;
                 $taskFileDto->projectId = (string) $fileEntity->getProjectId();
                 $taskFileDto->sort = $fileEntity->getSort();
                 $taskFileDto->fileUrl = '';
@@ -2139,6 +2147,16 @@ class ResourceShareAppService extends AbstractShareAppService
         }
 
         // 普通文件的情况：只返回文件本身
+        // 过滤系统目录（如 .magic 及其子文件）
+        $entities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames([$fileEntity], ['.magic']);
+        if (empty($entities)) {
+            return [
+                'list' => [],
+                'tree' => [],
+                'total' => 0,
+            ];
+        }
+
         // 转换为TaskFileItemDTO格式
         $list = $this->convertEntitiesToDtoList([$fileEntity], $organizationCode);
 
@@ -2196,26 +2214,33 @@ class ResourceShareAppService extends AbstractShareAppService
             ];
         }
 
+        // 过滤系统目录（如 .magic 及其子文件）
+        $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
+
+        if (empty($allEntities)) {
+            return [
+                'list' => [],
+                'tree' => [],
+                'total' => 0,
+            ];
+        }
+
         $fileIdSet = array_flip($originalFileIds);
 
-        // 从完整文件列表中筛选出原始文件集中的文件（用于分页）
-        $taskFileEntities = array_filter($allEntities, function ($entity) use ($fileIdSet) {
-            return isset($fileIdSet[$entity->getFileId()]);
-        });
-        $taskFileEntities = array_values($taskFileEntities);
+        // Convert all entities to DTO list once to avoid duplicate relative_file_path calculation
+        // Both list and tree share the same pre-computed array elements, ensuring consistency
+        $allList = $this->convertEntitiesToDtoList($allEntities, $organizationCode);
 
-        // 处理分页（只针对原始文件集中的文件）
-        $total = count($taskFileEntities);
+        // Filter allList to get only original file collection items (for pagination)
+        // Use the already-converted DTOs instead of converting entities again
+        $taskFileDtos = array_values(array_filter($allList, fn ($item) => isset($fileIdSet[(int) $item['file_id']])));
+        $total = count($taskFileDtos);
+
+        // Paginate from the already-converted DTO list
         $page = $dto->getPage();
         $pageSize = $dto->getPageSize();
         $offset = ($page - 1) * $pageSize;
-        $pagedEntities = array_slice($taskFileEntities, $offset, $pageSize);
-
-        // 转换为TaskFileItemDTO格式（分页列表）
-        $list = $this->convertEntitiesToDtoList($pagedEntities, $organizationCode);
-
-        // 转换为TaskFileItemDTO格式（完整列表，用于构建树结构）
-        $allList = $this->convertEntitiesToDtoList($allEntities, $organizationCode);
+        $list = array_slice($taskFileDtos, $offset, $pageSize);
 
         // Build file tree structure with VS Code-style sorting (default to zh_CN for share context)
         $tree = FileTreeUtil::assembleFilesTreeByParentId($allList, 'zh_CN');
@@ -2238,21 +2263,32 @@ class ResourceShareAppService extends AbstractShareAppService
     private function convertEntitiesToDtoList(array $entities, string $organizationCode, string $workDir = ''): array
     {
         $list = [];
-        $fileKeys = [];
+        $fileKeySet = [];
+        $filteredEntities = [];
 
         foreach ($entities as $entity) {
             /**
              * @var TaskFileEntity $entity
              */
             $fileKey = $entity->getFileKey();
-            if (in_array($fileKey, $fileKeys)) {
+            if (isset($fileKeySet[$fileKey])) {
                 continue;
             }
             // 只过滤项目根目录，不过滤其他 parent_id 为空的文件（可能是第一级文件夹）
             if ($entity->getIsDirectory() && $entity->getFileName() === '/' && empty($entity->getParentId())) {
                 continue;
             }
-            $fileKeys[] = $fileKey;
+            $fileKeySet[$fileKey] = true;
+            $filteredEntities[] = $entity;
+        }
+
+        $relativePathMap = $this->buildRelativePathsByParentIds($filteredEntities);
+
+        foreach ($filteredEntities as $entity) {
+            /**
+             * @var TaskFileEntity $entity
+             */
+            $fileKey = $entity->getFileKey();
 
             $taskFileDto = new TaskFileItemDTO();
             $taskFileDto->fileId = (string) $entity->getFileId();
@@ -2266,14 +2302,19 @@ class ResourceShareAppService extends AbstractShareAppService
             $taskFileDto->updatedAt = $entity->getUpdatedAt();
             $taskFileDto->topicId = (string) $entity->getTopicId();
 
-            // 使用 workDir 计算相对路径（如果提供了 workDir，则使用它；否则使用 fileKey）
-            // 这是修复话题分享层级目录的关键
-            $taskFileDto->relativeFilePath = ! empty($workDir)
-                ? WorkDirectoryUtil::getRelativeFilePath($fileKey, $workDir)
-                : $fileKey;
+            // 优先使用 parent_id 父链构建相对路径，保证路径层级与文件树一致。
+            $relativePath = $relativePathMap[$entity->getFileId()] ?? '';
+            if ($relativePath === '') {
+                // 兼容兜底：父链缺失时沿用旧逻辑，避免返回空路径。
+                $relativePath = ! empty($workDir)
+                    ? WorkDirectoryUtil::getRelativeFilePath($fileKey, $workDir)
+                    : $fileKey;
+            }
+            $taskFileDto->relativeFilePath = $relativePath;
 
             $taskFileDto->isDirectory = $entity->getIsDirectory();
-            $taskFileDto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
+            $taskFileDto->displayConfig = FileMetadataUtil::decodeJsonObject($entity->getDisplayConfig());
+            $taskFileDto->metadata = $taskFileDto->displayConfig;
             $taskFileDto->projectId = (string) $entity->getProjectId();
             $taskFileDto->sort = $entity->getSort();
             $taskFileDto->fileUrl = '';
@@ -2289,6 +2330,22 @@ class ResourceShareAppService extends AbstractShareAppService
         }
 
         return $list;
+    }
+
+    /**
+     * Build relative paths based on parent_id chain instead of file_key.
+     *
+     * @param TaskFileEntity[] $entities
+     * @return array<int, string> [file_id => relative_path]
+     */
+    private function buildRelativePathsByParentIds(array $entities): array
+    {
+        if (empty($entities)) {
+            return [];
+        }
+
+        $fileMap = RelativeFilePathUtil::indexByFileId($entities);
+        return RelativeFilePathUtil::buildPathMapByParentChain($entities, $fileMap);
     }
 
     /**
@@ -2364,6 +2421,9 @@ class ResourceShareAppService extends AbstractShareAppService
         $allEntities = ! empty($fileIds)
             ? $this->taskFileDomainService->getFilesWithParentsByIds($fileIds, $projectId)
             : [];
+
+        // 过滤系统目录（如 .magic 及其子文件）
+        $allEntities = $this->taskFileDomainService->filterOutDescendantsByDirectoryNames($allEntities, ['.magic']);
 
         // 转换为DTO列表（会自动过滤根目录）
         $allList = $this->convertEntitiesToDtoList($allEntities, $organizationCode, $workDir);

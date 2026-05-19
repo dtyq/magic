@@ -5,11 +5,17 @@ const useStyles = createStyles(({ css, prefixCls, token, isDarkMode }) => ({
 		pointer-events: none;
 	`,
 	resizableContainer: css`
-		width: 100%;
+		display: flex;
+		overflow: hidden;
 	`,
 	imagePreview: css`
+		width: 100%;
 		height: 100%;
 		position: relative;
+	`,
+	dropdownRoot: css`
+		width: 100%;
+		height: 100%;
 	`,
 	svg: css`
 		width: 100%;
@@ -37,6 +43,7 @@ const useStyles = createStyles(({ css, prefixCls, token, isDarkMode }) => ({
     padding: 0px;
     --${prefixCls}-modal-content-bg: ${token.colorBgContainer};
 		max-height: 80vh;
+		overflow: hidden;
 		background-color: #f5f5f5;
 		background-color: ${token.magicColorUsages.bg[1]};
 	`,

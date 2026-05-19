@@ -1,0 +1,22 @@
+$simple-editor-wrapper-selector: ".simple-editor-wrapper" !default;
+$simple-editor-content-selector:
+  "#{$simple-editor-wrapper-selector} .tiptap.ProseMirror.simple-editor" !default;
+
+@mixin wrapper {
+  #{$simple-editor-wrapper-selector} {
+    @content;
+  }
+}
+
+@mixin content {
+  #{$simple-editor-content-selector} {
+    @content;
+  }
+}
+
+@mixin dark-content {
+  #{$simple-editor-wrapper-selector}.dark .tiptap.ProseMirror.simple-editor,
+  .dark #{$simple-editor-wrapper-selector} .tiptap.ProseMirror.simple-editor {
+    @content;
+  }
+}

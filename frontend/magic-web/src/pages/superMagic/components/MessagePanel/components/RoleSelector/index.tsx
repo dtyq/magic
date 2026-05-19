@@ -1,6 +1,8 @@
 import { useMemo } from "react"
+import { observer } from "mobx-react-lite"
 import { Check, ChevronsUpDown } from "lucide-react"
-import { TopicMode, type CrewItem } from "@/pages/superMagic/pages/Workspace/types"
+import { type CrewItem } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { IconType } from "@/pages/superMagic/components/AgentSelector/types"
 import IconComponent from "@/pages/superMagic/components/IconViewComponent"
 import { cn } from "@/lib/utils"
@@ -11,7 +13,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/shadcn-ui/dropdown-menu"
-import { useModeList } from "../../hooks/usePatternTabs"
+import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 
 interface RoleSelectorProps {
 	role: TopicMode
@@ -21,7 +23,7 @@ interface RoleSelectorProps {
 const ICON_SIZE = 16
 
 function RoleSelector({ role, onActionClick }: RoleSelectorProps) {
-	const { modeList } = useModeList({ includeGeneral: true, includeChat: false })
+	const modeList = superMagicModeService.modeList
 
 	const currentMode = useMemo(
 		() => modeList.find((modeItem) => modeItem.mode.identifier === role) ?? modeList[0],
@@ -89,4 +91,4 @@ function RoleSelector({ role, onActionClick }: RoleSelectorProps) {
 	)
 }
 
-export default RoleSelector
+export default observer(RoleSelector)

@@ -1,20 +1,38 @@
 import Konva from "konva"
 import { hasModKey } from "./shortcuts/modifierUtils"
 import type { Canvas } from "../Canvas"
-import type { PaddingConfig, PaddingValue } from "../types"
+import type {
+	PaddingInsetConfig,
+	PaddingInsetValue,
+	ViewportPaddingAlignment,
+	ViewportPaddingInsets,
+} from "../types"
+import {
+	getViewportSnapshot,
+	zoomByFactorAtAnchor,
+	zoomToScaleAtAnchor,
+	zoomByWheelDeltaAtAnchor,
+	type ZoomPending,
+	type ViewportPoint,
+	type ViewportSnapshot,
+} from "./viewport/ViewportZoomEngine"
+import {
+	WEBKIT_GESTURE_EVENTS,
+	createWebKitGesturePinchState,
+	getContainerRelativePoint,
+	getTouchCenter,
+	getTouchDistance,
+	getWebKitGestureScaleFactor,
+	offsetPanPosition,
+	type WebKitGestureEventLike,
+	type WebKitGesturePinchState,
+} from "./viewport/ViewportInputAdapters"
 import { createLeadingRafThrottle } from "../utils/leadingRafThrottle"
 import { normalizePosition } from "../utils/normalizeUtils"
-import type { LeadingRafThrottleConfig } from "../utils/leadingRafThrottle"
+import { getNextZoomScale } from "./viewport-zoom"
 
-type ZoomPending = { scale: number; position: { x: number; y: number } }
 type PanPending = { x: number; y: number }
-
-const defaultPadding: PaddingConfig = {
-	top: 50,
-	right: 50,
-	bottom: 50,
-	left: 50,
-}
+type ViewportBoundingRect = { x: number; y: number; width: number; height: number }
 
 /**
  * 触摸事件处理器集合
@@ -32,16 +50,233 @@ interface TouchEventHandlers {
 export class ViewportController {
 	private canvas: Canvas
 
-	private defaultViewportOffset?: { left: number; right: number; top: number; bottom: number }
+	private defaultViewportPadding: PaddingInsetConfig = {
+		top: 50,
+		right: 50,
+		bottom: 50,
+		left: 50,
+	}
+
+	/** 将预留值解析为像素（支持数字或百分比字符串） */
+	private resolveInsetValue(value: PaddingInsetValue | undefined, reference: number): number {
+		if (value === undefined) return 0
+		if (typeof value === "string" && value.endsWith("%")) {
+			const percentage = parseFloat(value)
+			return (reference * percentage) / 100
+		}
+		return value as number
+	}
+
+	/**
+	 * 单边预留约束：优先级 max > min > normal（冲突时 max 优先）。
+	 * 先以 normal 为基准，再应用 min 下限，最后应用 max 上限。
+	 */
+	private clampInset(
+		normal: number,
+		minVal: number | undefined,
+		maxVal: number | undefined,
+	): number {
+		if (maxVal !== undefined && minVal !== undefined && minVal > maxVal) {
+			return maxVal
+		}
+		const afterMin = minVal !== undefined ? Math.max(normal, minVal) : normal
+		return maxVal !== undefined ? Math.min(afterMin, maxVal) : afterMin
+	}
+
+	private addOptionalInset(
+		base: number | undefined,
+		extra: number | undefined,
+	): number | undefined {
+		if (base === undefined && extra === undefined) {
+			return undefined
+		}
+
+		return (base ?? 0) + (extra ?? 0)
+	}
+
+	private resolvePaddingSource(
+		padding: PaddingInsetConfig | undefined,
+		stageWidth: number,
+		stageHeight: number,
+	): {
+		left?: number
+		right?: number
+		top?: number
+		bottom?: number
+		minLeft?: number
+		minRight?: number
+		minTop?: number
+		minBottom?: number
+		maxLeft?: number
+		maxRight?: number
+		maxTop?: number
+		maxBottom?: number
+	} {
+		if (!padding) {
+			return {}
+		}
+
+		return {
+			left:
+				padding.left !== undefined
+					? this.resolveInsetValue(padding.left, stageWidth)
+					: undefined,
+			right:
+				padding.right !== undefined
+					? this.resolveInsetValue(padding.right, stageWidth)
+					: undefined,
+			top:
+				padding.top !== undefined
+					? this.resolveInsetValue(padding.top, stageHeight)
+					: undefined,
+			bottom:
+				padding.bottom !== undefined
+					? this.resolveInsetValue(padding.bottom, stageHeight)
+					: undefined,
+			minLeft:
+				padding.minLeft !== undefined
+					? this.resolveInsetValue(padding.minLeft, stageWidth)
+					: undefined,
+			minRight:
+				padding.minRight !== undefined
+					? this.resolveInsetValue(padding.minRight, stageWidth)
+					: undefined,
+			minTop:
+				padding.minTop !== undefined
+					? this.resolveInsetValue(padding.minTop, stageHeight)
+					: undefined,
+			minBottom:
+				padding.minBottom !== undefined
+					? this.resolveInsetValue(padding.minBottom, stageHeight)
+					: undefined,
+			maxLeft:
+				padding.maxLeft !== undefined
+					? this.resolveInsetValue(padding.maxLeft, stageWidth)
+					: undefined,
+			maxRight:
+				padding.maxRight !== undefined
+					? this.resolveInsetValue(padding.maxRight, stageWidth)
+					: undefined,
+			maxTop:
+				padding.maxTop !== undefined
+					? this.resolveInsetValue(padding.maxTop, stageHeight)
+					: undefined,
+			maxBottom:
+				padding.maxBottom !== undefined
+					? this.resolveInsetValue(padding.maxBottom, stageHeight)
+					: undefined,
+		}
+	}
+
+	/**
+	 * 解析 viewportPadding：默认占位与调用方 padding 统一叠加，再应用 min/max 约束。
+	 * @param stageWidth - 用于解析 left/right/minLeft/minRight/maxLeft/maxRight 的参考宽度
+	 * @param stageHeight - 用于解析 top/bottom/minTop/minBottom/maxTop/maxBottom 的参考高度
+	 */
+	private getEffectiveViewportPadding(
+		padding: PaddingInsetConfig | undefined,
+		stageWidth: number,
+		stageHeight: number,
+	): { left: number; right: number; top: number; bottom: number } {
+		const defaultInsets = this.resolvePaddingSource(
+			this.defaultViewportPadding,
+			stageWidth,
+			stageHeight,
+		)
+		const requestInsets = this.resolvePaddingSource(padding, stageWidth, stageHeight)
+
+		const leftVal = this.addOptionalInset(defaultInsets.left, requestInsets.left) ?? 0
+		const leftMin = this.addOptionalInset(defaultInsets.minLeft, requestInsets.minLeft)
+		const leftMax = this.addOptionalInset(defaultInsets.maxLeft, requestInsets.maxLeft)
+		const left = this.clampInset(leftVal, leftMin, leftMax)
+
+		const rightVal = this.addOptionalInset(defaultInsets.right, requestInsets.right) ?? 0
+		const rightMin = this.addOptionalInset(defaultInsets.minRight, requestInsets.minRight)
+		const rightMax = this.addOptionalInset(defaultInsets.maxRight, requestInsets.maxRight)
+		const right = this.clampInset(rightVal, rightMin, rightMax)
+
+		const topVal = this.addOptionalInset(defaultInsets.top, requestInsets.top) ?? 0
+		const topMin = this.addOptionalInset(defaultInsets.minTop, requestInsets.minTop)
+		const topMax = this.addOptionalInset(defaultInsets.maxTop, requestInsets.maxTop)
+		const top = this.clampInset(topVal, topMin, topMax)
+
+		const bottomVal = this.addOptionalInset(defaultInsets.bottom, requestInsets.bottom) ?? 0
+		const bottomMin = this.addOptionalInset(defaultInsets.minBottom, requestInsets.minBottom)
+		const bottomMax = this.addOptionalInset(defaultInsets.maxBottom, requestInsets.maxBottom)
+		const bottom = this.clampInset(bottomVal, bottomMin, bottomMax)
+
+		return { left, right, top, bottom }
+	}
+
+	private static hasHorizontalPaddingConfig(config: PaddingInsetConfig | undefined): boolean {
+		if (!config) return false
+		return [
+			config.left,
+			config.right,
+			config.minLeft,
+			config.minRight,
+			config.maxLeft,
+			config.maxRight,
+		].some((v) => v !== undefined)
+	}
+
+	private static hasVerticalPaddingConfig(config: PaddingInsetConfig | undefined): boolean {
+		if (!config) return false
+		return [
+			config.top,
+			config.bottom,
+			config.minTop,
+			config.minBottom,
+			config.maxTop,
+			config.maxBottom,
+		].some((v) => v !== undefined)
+	}
+
+	/**
+	 * 根据 padding 配置与解析后的 insets 返回智能对齐规则。
+	 * 当水平、垂直都有配置且传入 insets 时，根据两侧 inset 大小推导：inset 更小的一侧贴边，相等则居中。
+	 */
+	getPaddingAlignment(
+		padding: PaddingInsetConfig | undefined,
+		insets?: ViewportPaddingInsets,
+	): ViewportPaddingAlignment {
+		const hasH = ViewportController.hasHorizontalPaddingConfig(padding)
+		const hasV = ViewportController.hasVerticalPaddingConfig(padding)
+		if (hasH && hasV) {
+			if (insets) {
+				const horizontal: ViewportPaddingAlignment["horizontal"] =
+					insets.right < insets.left
+						? "right"
+						: insets.left < insets.right
+							? "left"
+							: "center"
+				const vertical: ViewportPaddingAlignment["vertical"] =
+					insets.bottom < insets.top
+						? "bottom"
+						: insets.top < insets.bottom
+							? "top"
+							: "center"
+				return { horizontal, vertical }
+			}
+			return { horizontal: "left", vertical: "top" }
+		}
+		if (hasH) return { horizontal: "left", vertical: "center" }
+		if (hasV) return { horizontal: "center", vertical: "top" }
+		return { horizontal: "center", vertical: "center" }
+	}
 
 	private scale = 1
-	private minScale = 0.01
+	private minScale = 0.001
 	private maxScale = 5
 	private scaleStep = 0.1
 
+	private getActiveMinScale(): number {
+		return Math.min(this.minScale, this.scale)
+	}
+
 	// 触摸缩放相关
-	private lastTouchDistance = 0
-	private isPinching = false
+	private lastTouchPinchDistance = 0
+	private isTouchPinching = false
 
 	// 触摸平移相关
 	private isTouchPanning = false
@@ -54,7 +289,12 @@ export class ViewportController {
 	private currentTween: Konva.Tween | null = null
 
 	// 触摸事件处理器引用
-	private touchHandlers: TouchEventHandlers | null = null
+	private touchEventHandlers: TouchEventHandlers | null = null
+
+	/** 桌面 WebKit 触控板捏合进行中时为非 null */
+	private activeWebKitGesturePinch: WebKitGesturePinchState | null = null
+
+	private webKitGestureHandler: ((e: Event) => void) | null = null
 
 	// 是否禁用 pan 和缩放
 	private isPanZoomDisabled = false
@@ -77,6 +317,68 @@ export class ViewportController {
 	 */
 	private roundPosition(position: { x: number; y: number }): { x: number; y: number } {
 		return normalizePosition(position.x, position.y, { precision: 2 })
+	}
+
+	private getZoomViewportSnapshot(): ViewportSnapshot {
+		return getViewportSnapshot(this.canvas.stage, this.zoomThrottle.getPending())
+	}
+
+	private getCurrentPanPosition(): PanPending {
+		const position = this.panThrottle.getPending() ?? this.canvas.stage.position()
+		return { x: position.x, y: position.y }
+	}
+
+	private queuePanPosition(position: PanPending): void {
+		this.panThrottle.processEvent(position)
+	}
+
+	private queueZoomUpdate(update: ZoomPending): void {
+		this.zoomThrottle.processEvent(update)
+	}
+
+	private zoomByFactorAt(anchor: ViewportPoint, scaleFactor: number): void {
+		this.queueZoomUpdate(
+			zoomByFactorAtAnchor(
+				this.getZoomViewportSnapshot(),
+				anchor,
+				scaleFactor,
+				this.getActiveMinScale(),
+				this.maxScale,
+			),
+		)
+	}
+
+	private zoomByWheelDelta(e: WheelEvent): void {
+		this.queueZoomUpdate(
+			zoomByWheelDeltaAtAnchor(
+				this.getZoomViewportSnapshot(),
+				getContainerRelativePoint(this.canvas.stage, e.clientX, e.clientY),
+				e.deltaY,
+				this.getActiveMinScale(),
+				this.maxScale,
+			),
+		)
+	}
+
+	private handleWheelInput(e: WheelEvent): void {
+		// 桌面 WebKit 捏合会同时产生无 ctrlKey 的 wheel，已由 gesture* 处理，此处避免当成平移
+		if (this.activeWebKitGesturePinch !== null) {
+			e.preventDefault()
+			return
+		}
+
+		if (this.isPanZoomDisabled) {
+			return
+		}
+
+		e.preventDefault()
+
+		if (hasModKey(e)) {
+			this.zoomByWheelDelta(e)
+			return
+		}
+
+		this.queuePanPosition(offsetPanPosition(this.getCurrentPanPosition(), e.deltaX, e.deltaY))
 	}
 
 	/**
@@ -112,19 +414,6 @@ export class ViewportController {
 	}
 
 	/**
-	 * 将 padding 值转换为实际像素
-	 * @param value - padding 值（数值或百分比）
-	 * @param reference - 参考尺寸（用于计算百分比）
-	 */
-	private resolvePaddingValue(value: PaddingValue, reference: number): number {
-		if (typeof value === "string" && value.endsWith("%")) {
-			const percentage = parseFloat(value)
-			return (reference * percentage) / 100
-		}
-		return value as number
-	}
-
-	/**
 	 * 应用视口变换（缩放和位置）到指定的边界框
 	 * @param boundingBox - 目标区域的边界框
 	 * @param options - 配置选项
@@ -133,24 +422,24 @@ export class ViewportController {
 	private applyViewportTransform(
 		boundingBox: { x: number; y: number; width: number; height: number },
 		options: {
-			padding: PaddingConfig
-			viewportOffset?: { left?: number; right?: number; top?: number; bottom?: number }
+			padding?: PaddingInsetConfig
 			animated: boolean
 			duration: number
 			easing: (t: number, b: number, c: number, d: number) => number
 			panOnly?: boolean
 			ensureFullyVisible?: boolean
+			allowBelowMinScale?: boolean
 		},
 		onComplete?: () => void,
 	): void {
 		const {
 			padding,
-			viewportOffset,
 			animated,
 			duration,
 			easing,
 			panOnly = false,
 			ensureFullyVisible = true,
+			allowBelowMinScale = false,
 		} = options
 
 		// 停止当前正在进行的动画
@@ -167,27 +456,17 @@ export class ViewportController {
 		const stageWidth = this.canvas.stage.width()
 		const stageHeight = this.canvas.stage.height()
 
-		// 解析 padding 值（百分比基于 stage 尺寸）
-		const paddingTop = this.resolvePaddingValue(padding.top, stageHeight)
-		const paddingRight = this.resolvePaddingValue(padding.right, stageWidth)
-		const paddingBottom = this.resolvePaddingValue(padding.bottom, stageHeight)
-		const paddingLeft = this.resolvePaddingValue(padding.left, stageWidth)
+		// 解析视口预留（数字或百分比），并应用 min* 下限
+		const {
+			left: insetLeft,
+			right: insetRight,
+			top: insetTop,
+			bottom: insetBottom,
+		} = this.getEffectiveViewportPadding(padding, stageWidth, stageHeight)
 
-		// 计算有效视口尺寸（减去UI遮挡区域）
-		const offsetLeft = viewportOffset?.left || 0
-		const offsetRight = viewportOffset?.right || 0
-		const offsetTop = viewportOffset?.top || 0
-		const offsetBottom = viewportOffset?.bottom || 0
-
-		// 确保有效尺寸为正数，避免在极端情况下（如小屏幕、UI遮挡过多）出现负数
-		const effectiveWidth = Math.max(
-			100,
-			stageWidth - offsetLeft - offsetRight - paddingLeft - paddingRight,
-		)
-		const effectiveHeight = Math.max(
-			100,
-			stageHeight - offsetTop - offsetBottom - paddingTop - paddingBottom,
-		)
+		// 确保有效尺寸为正数
+		const effectiveWidth = Math.max(100, stageWidth - insetLeft - insetRight)
+		const effectiveHeight = Math.max(100, stageHeight - insetTop - insetBottom)
 
 		// 计算在当前缩放级别下，元素在屏幕坐标系中的边界
 		const currentScale = this.scale
@@ -200,12 +479,12 @@ export class ViewportController {
 			bottom: (boundingBox.y + boundingBox.height) * currentScale + currentPosition.y,
 		}
 
-		// 计算可视区域边界（考虑 UI 遮挡和 padding）
+		// 可视区域边界（即视口预留后的区域）
 		const viewportBounds = {
-			left: offsetLeft + paddingLeft,
-			top: offsetTop + paddingTop,
-			right: stageWidth - offsetRight - paddingRight,
-			bottom: stageHeight - offsetBottom - paddingBottom,
+			left: insetLeft,
+			top: insetTop,
+			right: stageWidth - insetRight,
+			bottom: stageHeight - insetBottom,
 		}
 
 		// 检查元素是否在当前 viewport 内完全显示
@@ -220,7 +499,8 @@ export class ViewportController {
 			const scaleX = effectiveWidth / boundingBox.width
 			const scaleY = effectiveHeight / boundingBox.height
 			const newScale = Math.min(scaleX, scaleY)
-			return Math.max(this.minScale, Math.min(this.maxScale, newScale))
+			const minScale = allowBelowMinScale ? 0 : this.minScale
+			return Math.max(minScale, Math.min(this.maxScale, newScale))
 		}
 
 		// 确定最终的缩放级别
@@ -250,20 +530,32 @@ export class ViewportController {
 			}
 		}
 
-		// 在有效视口区域内居中显示
-		const availableWidth = stageWidth - offsetLeft - offsetRight
-		const availableHeight = stageHeight - offsetTop - offsetBottom
+		// 按智能对齐规则在有效视口区域内定位
+		const availableWidth = stageWidth - insetLeft - insetRight
+		const availableHeight = stageHeight - insetTop - insetBottom
+		const alignment = this.getPaddingAlignment(padding, {
+			left: insetLeft,
+			right: insetRight,
+			top: insetTop,
+			bottom: insetBottom,
+		})
 
 		const newX =
-			offsetLeft +
-			paddingLeft +
-			(availableWidth - paddingLeft - paddingRight - boundingBox.width * finalScale) / 2 -
-			boundingBox.x * finalScale
+			alignment.horizontal === "center"
+				? insetLeft +
+					(availableWidth - boundingBox.width * finalScale) / 2 -
+					boundingBox.x * finalScale
+				: alignment.horizontal === "right"
+					? stageWidth - insetRight - (boundingBox.x + boundingBox.width) * finalScale
+					: insetLeft - boundingBox.x * finalScale
 		const newY =
-			offsetTop +
-			paddingTop +
-			(availableHeight - paddingTop - paddingBottom - boundingBox.height * finalScale) / 2 -
-			boundingBox.y * finalScale
+			alignment.vertical === "center"
+				? insetTop +
+					(availableHeight - boundingBox.height * finalScale) / 2 -
+					boundingBox.y * finalScale
+				: alignment.vertical === "bottom"
+					? stageHeight - insetBottom - (boundingBox.y + boundingBox.height) * finalScale
+					: insetTop - boundingBox.y * finalScale
 
 		if (animated) {
 			const durationInSeconds = duration / 1000 // 转换为秒
@@ -349,27 +641,14 @@ export class ViewportController {
 		const { canvas } = options
 		this.canvas = canvas
 
-		const throttleConfig: { zoom: LeadingRafThrottleConfig; pan: LeadingRafThrottleConfig } = {
-			zoom: {
-				enabled: true,
-				leading: true,
-			},
-			pan: {
-				enabled: true,
-				leading: true,
-			},
-		}
-
-		const zoomConfig = throttleConfig?.zoom ?? {}
-		const panConfig = throttleConfig?.pan ?? {}
-
+		// 视口缩放/平移节流配置写死在本类（如需限频可在此增加 maxFps）
 		this.zoomThrottle = createLeadingRafThrottle<ZoomPending>((v) => this.applyZoomUpdate(v), {
-			enabled: zoomConfig.enabled ?? true,
-			leading: zoomConfig.leading ?? true,
+			enabled: true,
+			leading: true,
 		})
 		this.panThrottle = createLeadingRafThrottle<PanPending>((v) => this.applyPanUpdate(v), {
-			enabled: panConfig.enabled ?? true,
-			leading: panConfig.leading ?? true,
+			enabled: true,
+			leading: true,
 		})
 
 		this.setupNativeFeatures()
@@ -389,7 +668,64 @@ export class ViewportController {
 	 */
 	private setupEventListeners(): void {
 		this.setupWheelEvents()
+		this.setupWebKitGesturePinch()
 		this.setupTouchEvents()
+	}
+
+	/** 桌面 Safari 等：触控板捏合走 gesture 的 scale，需在非移动端单独处理 */
+	private setupWebKitGesturePinch(): void {
+		if (this.canvas.isMobileDevice) {
+			return
+		}
+
+		const container = this.canvas.stage.container()
+		this.webKitGestureHandler = (e: Event) => {
+			const gestureEvent = e as WebKitGestureEventLike
+
+			if (this.isPanZoomDisabled) {
+				return
+			}
+
+			if (e.type === "gesturestart") {
+				e.preventDefault()
+				this.activeWebKitGesturePinch = createWebKitGesturePinchState(
+					this.canvas.stage,
+					gestureEvent,
+					this.getZoomViewportSnapshot(),
+				)
+				return
+			}
+
+			if (!this.activeWebKitGesturePinch) {
+				e.preventDefault()
+				return
+			}
+
+			if (e.type === "gesturechange") {
+				e.preventDefault()
+				const pinch = this.activeWebKitGesturePinch
+				this.queueZoomUpdate(
+					zoomByFactorAtAnchor(
+						pinch.viewport,
+						pinch.anchor,
+						getWebKitGestureScaleFactor(gestureEvent, pinch),
+						this.getActiveMinScale(),
+						this.maxScale,
+					),
+				)
+				return
+			}
+
+			// gestureend / gesturecancel
+			e.preventDefault()
+			this.zoomThrottle.flush()
+			this.activeWebKitGesturePinch = null
+		}
+
+		const handler = this.webKitGestureHandler
+		for (const t of WEBKIT_GESTURE_EVENTS) {
+			container.addEventListener(t, handler, { passive: false })
+		}
 	}
 
 	/**
@@ -406,96 +742,7 @@ export class ViewportController {
 	 */
 	private setupWheelEvents(): void {
 		this.canvas.stage.on("wheel", (e) => {
-			// 如果禁用了 pan 和缩放，直接返回
-			if (this.isPanZoomDisabled) {
-				return
-			}
-
-			e.evt.preventDefault()
-
-			const deltaX = e.evt.deltaX
-			const deltaY = e.evt.deltaY
-
-			// Ctrl/Command + 滚轮：缩放
-			if (hasModKey(e.evt)) {
-				this.handleWheelZoom(e)
-			} else {
-				// 普通滚轮：平移（RAF 节流，与缩放一致）
-				const currentPos = this.panThrottle.getPending() ?? this.canvas.stage.position()
-				const newPos = {
-					x: currentPos.x - deltaX,
-					y: currentPos.y - deltaY,
-				}
-				this.panThrottle.processEvent(newPos)
-			}
-		})
-	}
-
-	/**
-	 * 处理滚轮缩放（RAF 节流）
-	 */
-	private handleWheelZoom(e: Konva.KonvaEventObject<WheelEvent>): void {
-		const pointer = this.canvas.stage.getPointerPosition()
-		if (!pointer) return
-
-		const oldScale = this.zoomThrottle.getPending()?.scale ?? this.canvas.stage.scaleX()
-		const mousePointTo = {
-			x: (pointer.x - this.canvas.stage.x()) / oldScale,
-			y: (pointer.y - this.canvas.stage.y()) / oldScale,
-		}
-
-		const delta = e.evt.deltaY
-		const absDelta = Math.abs(delta)
-		let scaleFactor: number
-		if (absDelta < 10) scaleFactor = 0.01
-		else if (absDelta < 50) scaleFactor = 0.005
-		else scaleFactor = 0.002
-
-		const scaleBy = Math.exp(-delta * scaleFactor)
-		const newScale = Math.max(this.minScale, Math.min(this.maxScale, oldScale * scaleBy))
-
-		this.zoomThrottle.processEvent({
-			scale: newScale,
-			position: {
-				x: pointer.x - mousePointTo.x * newScale,
-				y: pointer.y - mousePointTo.y * newScale,
-			},
-		})
-	}
-
-	/**
-	 * 处理原生 WheelEvent 的缩放（leading + RAF 节流）
-	 */
-	private handleWheelZoomFromNative(e: WheelEvent): void {
-		const container = this.canvas.stage.container()
-		const rect = container.getBoundingClientRect()
-		const pointer = {
-			x: e.clientX - rect.left,
-			y: e.clientY - rect.top,
-		}
-
-		const oldScale = this.zoomThrottle.getPending()?.scale ?? this.canvas.stage.scaleX()
-		const mousePointTo = {
-			x: (pointer.x - this.canvas.stage.x()) / oldScale,
-			y: (pointer.y - this.canvas.stage.y()) / oldScale,
-		}
-
-		const delta = e.deltaY
-		const absDelta = Math.abs(delta)
-		let scaleFactor: number
-		if (absDelta < 10) scaleFactor = 0.01
-		else if (absDelta < 50) scaleFactor = 0.005
-		else scaleFactor = 0.002
-
-		const scaleBy = Math.exp(-delta * scaleFactor)
-		const newScale = Math.max(this.minScale, Math.min(this.maxScale, oldScale * scaleBy))
-
-		this.zoomThrottle.processEvent({
-			scale: newScale,
-			position: {
-				x: pointer.x - mousePointTo.x * newScale,
-				y: pointer.y - mousePointTo.y * newScale,
-			},
+			this.handleWheelInput(e.evt)
 		})
 	}
 
@@ -504,35 +751,13 @@ export class ViewportController {
 	 * 公开方法，供 FloatingUIContext 调用
 	 */
 	public handleWheelFromFloating(e: WheelEvent): void {
-		// 如果禁用了 pan 和缩放，直接返回
-		if (this.isPanZoomDisabled) {
-			return
-		}
-
-		e.preventDefault()
-
-		const deltaX = e.deltaX
-		const deltaY = e.deltaY
-
-		// Ctrl/Command + 滚轮：缩放
-		if (hasModKey(e)) {
-			this.handleWheelZoomFromNative(e)
-		} else {
-			// 普通滚轮：平移（RAF 节流）
-			const currentPos = this.panThrottle.getPending() ?? this.canvas.stage.position()
-			const newPos = {
-				x: currentPos.x - deltaX,
-				y: currentPos.y - deltaY,
-			}
-			this.panThrottle.processEvent(newPos)
-		}
+		this.handleWheelInput(e)
 	}
 
 	/**
 	 * 设置触摸事件（包括单指平移和双指缩放）
 	 */
 	private setupTouchEvents(): void {
-		let touchStartDistance = 0
 		let hasMoved = false
 
 		// 使用原生事件监听器，支持 passive: false
@@ -562,13 +787,12 @@ export class ViewportController {
 				this.isTouchPanning = false
 				this.touchStartPosition = null
 				this.stageStartPosition = null
-				this.isPinching = true
+				this.isTouchPinching = true
 
 				const touch1 = touches[0]
 				const touch2 = touches[1]
 
-				touchStartDistance = this.getTouchDistance(touch1, touch2)
-				this.lastTouchDistance = touchStartDistance
+				this.lastTouchPinchDistance = getTouchDistance(touch1, touch2)
 			}
 		}
 
@@ -582,7 +806,7 @@ export class ViewportController {
 
 			if (
 				touches.length === 1 &&
-				!this.isPinching &&
+				!this.isTouchPinching &&
 				this.touchStartPosition &&
 				this.stageStartPosition &&
 				this.shouldEnableTouchPan()
@@ -615,9 +839,9 @@ export class ViewportController {
 						x: this.stageStartPosition.x + deltaX,
 						y: this.stageStartPosition.y + deltaY,
 					}
-					this.panThrottle.processEvent(newPos)
+					this.queuePanPosition(newPos)
 				}
-			} else if (touches.length === 2 && this.isPinching) {
+			} else if (touches.length === 2 && this.isTouchPinching) {
 				// 双指移动：处理缩放
 				if (e.cancelable) {
 					e.preventDefault()
@@ -625,15 +849,15 @@ export class ViewportController {
 
 				const touch1 = touches[0]
 				const touch2 = touches[1]
-				const currentDistance = this.getTouchDistance(touch1, touch2)
-				const currentCenter = this.getTouchCenter(touch1, touch2)
+				const currentDistance = getTouchDistance(touch1, touch2)
+				const currentCenter = getTouchCenter(this.canvas.stage, touch1, touch2)
 
-				if (this.lastTouchDistance > 0) {
-					const scale = currentDistance / this.lastTouchDistance
-					this.handlePinchZoom(scale, currentCenter)
+				if (this.lastTouchPinchDistance > 0) {
+					const scale = currentDistance / this.lastTouchPinchDistance
+					this.zoomByFactorAt(currentCenter, scale)
 				}
 
-				this.lastTouchDistance = currentDistance
+				this.lastTouchPinchDistance = currentDistance
 			}
 		}
 
@@ -653,15 +877,15 @@ export class ViewportController {
 				hasMoved = false
 
 				// 重置缩放状态，松手时立即应用待处理的 viewport 状态
-				if (this.isPinching) {
-					this.isPinching = false
-					this.lastTouchDistance = 0
+				if (this.isTouchPinching) {
+					this.isTouchPinching = false
+					this.lastTouchPinchDistance = 0
 					this.zoomThrottle.flush()
 				}
-			} else if (touches.length === 1 && this.isPinching) {
+			} else if (touches.length === 1 && this.isTouchPinching) {
 				// 从双指变为单指：结束缩放，立即应用待处理状态
-				this.isPinching = false
-				this.lastTouchDistance = 0
+				this.isTouchPinching = false
+				this.lastTouchPinchDistance = 0
 				this.zoomThrottle.flush()
 			}
 		}
@@ -673,11 +897,11 @@ export class ViewportController {
 			this.isTouchPanning = false
 			this.touchStartPosition = null
 			this.stageStartPosition = null
-			if (this.isPinching) {
+			if (this.isTouchPinching) {
 				this.zoomThrottle.flush()
 			}
-			this.isPinching = false
-			this.lastTouchDistance = 0
+			this.isTouchPinching = false
+			this.lastTouchPinchDistance = 0
 			hasMoved = false
 		}
 
@@ -688,7 +912,7 @@ export class ViewportController {
 		container.addEventListener("touchcancel", handleTouchCancel, { passive: false })
 
 		// 保存引用以便后续清理
-		this.touchHandlers = {
+		this.touchEventHandlers = {
 			handleTouchStart,
 			handleTouchMove,
 			handleTouchEnd,
@@ -697,51 +921,20 @@ export class ViewportController {
 	}
 
 	/**
-	 * 处理双指捏合缩放（RAF 节流）
-	 */
-	private handlePinchZoom(scale: number, center: { x: number; y: number }): void {
-		const oldScale = this.zoomThrottle.getPending()?.scale ?? this.canvas.stage.scaleX()
-		const mousePointTo = {
-			x: (center.x - this.canvas.stage.x()) / oldScale,
-			y: (center.y - this.canvas.stage.y()) / oldScale,
-		}
-
-		const newScale = Math.max(this.minScale, Math.min(this.maxScale, oldScale * scale))
-
-		this.zoomThrottle.processEvent({
-			scale: newScale,
-			position: {
-				x: center.x - mousePointTo.x * newScale,
-				y: center.y - mousePointTo.y * newScale,
-			},
-		})
-	}
-
-	/**
-	 * 计算两个触摸点之间的距离
-	 */
-	private getTouchDistance(touch1: Touch, touch2: Touch): number {
-		const dx = touch1.clientX - touch2.clientX
-		const dy = touch1.clientY - touch2.clientY
-		return Math.sqrt(dx * dx + dy * dy)
-	}
-
-	/**
-	 * 计算两个触摸点的中心位置（stage 坐标系）
-	 */
-	private getTouchCenter(touch1: Touch, touch2: Touch): { x: number; y: number } {
-		const stageRect = this.canvas.stage.container().getBoundingClientRect()
-		return {
-			x: (touch1.clientX + touch2.clientX) / 2 - stageRect.left,
-			y: (touch1.clientY + touch2.clientY) / 2 - stageRect.top,
-		}
-	}
-
-	/**
 	 * 放大
 	 */
 	public zoomIn(): void {
-		const newScale = Math.min(this.maxScale, this.scale + this.scaleStep)
+		const newScale = getNextZoomScale({
+			state: {
+				rawScale: this.scale,
+				fitScale: this.getFitToScreenScale(),
+				minScale: this.getActiveMinScale(),
+				maxScale: this.maxScale,
+			},
+			mode: "absolute-scale",
+			direction: 1,
+			scaleStep: this.scaleStep,
+		})
 		this.setScale(newScale)
 	}
 
@@ -749,7 +942,17 @@ export class ViewportController {
 	 * 缩小
 	 */
 	public zoomOut(): void {
-		const newScale = Math.max(this.minScale, this.scale - this.scaleStep)
+		const newScale = getNextZoomScale({
+			state: {
+				rawScale: this.scale,
+				fitScale: this.getFitToScreenScale(),
+				minScale: this.getActiveMinScale(),
+				maxScale: this.maxScale,
+			},
+			mode: "absolute-scale",
+			direction: -1,
+			scaleStep: this.scaleStep,
+		})
 		this.setScale(newScale)
 	}
 
@@ -779,10 +982,7 @@ export class ViewportController {
 		this.zoomThrottle.cancel()
 
 		// 限制缩放范围
-		const clampedScale = Math.max(this.minScale, Math.min(this.maxScale, scale))
-		this.scale = clampedScale
-
-		const oldScale = this.canvas.stage.scaleX()
+		const clampedScale = Math.max(this.getActiveMinScale(), Math.min(this.maxScale, scale))
 
 		// 如果没有指定中心点，使用画布中心
 		const centerPoint = center || {
@@ -790,22 +990,15 @@ export class ViewportController {
 			y: this.canvas.stage.height() / 2,
 		}
 
-		// 计算缩放中心相对于stage的坐标
-		const mousePointTo = {
-			x: (centerPoint.x - this.canvas.stage.x()) / oldScale,
-			y: (centerPoint.y - this.canvas.stage.y()) / oldScale,
-		}
+		const nextViewport = zoomToScaleAtAnchor(
+			getViewportSnapshot(this.canvas.stage, null),
+			centerPoint,
+			clampedScale,
+		)
 
-		// 设置新的缩放比例
+		this.scale = clampedScale
 		this.canvas.stage.scale({ x: clampedScale, y: clampedScale })
-
-		// 调整位置
-		const newPos = {
-			x: centerPoint.x - mousePointTo.x * clampedScale,
-			y: centerPoint.y - mousePointTo.y * clampedScale,
-		}
-
-		this.canvas.stage.position(newPos)
+		this.canvas.stage.position(nextViewport.position)
 		this.canvas.stage.batchDraw()
 
 		// 发送缩放变化事件（格式化精度）
@@ -865,6 +1058,56 @@ export class ViewportController {
 	}
 
 	/**
+	 * 获取当前内容层在画布坐标系中的边界。
+	 */
+	private getContentBoundingRect(): ViewportBoundingRect | null {
+		const rect = this.canvas.geometryCacheManager.getAllElementsBounds()
+		if (!rect || rect.width === 0 || rect.height === 0) {
+			return null
+		}
+
+		return rect
+	}
+
+	/**
+	 * 计算指定边界在当前视口下的适配缩放。
+	 */
+	private calculateFitScaleForRect(
+		boundingBox: ViewportBoundingRect,
+		padding?: PaddingInsetConfig,
+	): number {
+		const stageWidth = this.canvas.stage.width()
+		const stageHeight = this.canvas.stage.height()
+		const {
+			left: insetLeft,
+			right: insetRight,
+			top: insetTop,
+			bottom: insetBottom,
+		} = this.getEffectiveViewportPadding(padding, stageWidth, stageHeight)
+
+		const effectiveWidth = Math.max(100, stageWidth - insetLeft - insetRight)
+		const effectiveHeight = Math.max(100, stageHeight - insetTop - insetBottom)
+		const scaleX = effectiveWidth / boundingBox.width
+		const scaleY = effectiveHeight / boundingBox.height
+		const fitScale = Math.min(scaleX, scaleY)
+
+		return Math.max(this.minScale, Math.min(this.maxScale, fitScale))
+	}
+
+	/**
+	 * 获取当前内容适配到屏幕时的基准缩放
+	 * 无内容时返回 1，便于 UI 使用 100% 作为默认值
+	 */
+	public getFitToScreenScale(options?: { padding?: PaddingInsetConfig }): number {
+		const boundingBox = this.getContentBoundingRect()
+		if (!boundingBox) {
+			return 1
+		}
+
+		return this.calculateFitScaleForRect(boundingBox, options?.padding)
+	}
+
+	/**
 	 * 聚焦到指定元素（支持单个或多个元素）
 	 * @param elementIds - 要聚焦的元素 ID 数组
 	 * @param options - 配置选项
@@ -872,8 +1115,7 @@ export class ViewportController {
 	public focusOnElements(
 		elementIds: string[],
 		options?: {
-			padding?: PaddingConfig
-			viewportOffset?: { left?: number; right?: number; top?: number; bottom?: number }
+			padding?: PaddingInsetConfig
 			animated?: boolean
 			duration?: number
 			easing?: (t: number, b: number, c: number, d: number) => number
@@ -884,8 +1126,7 @@ export class ViewportController {
 		},
 	): void {
 		const {
-			padding = defaultPadding,
-			viewportOffset = this.defaultViewportOffset,
+			padding,
 			animated = false,
 			duration = 300,
 			easing = Konva.Easings.EaseInOut,
@@ -898,58 +1139,18 @@ export class ViewportController {
 			return
 		}
 
-		// 获取元素节点
-		const nodes = this.canvas.elementManager.getNodeAdapter().getNodesForFocus(elementIds)
-		if (nodes.length === 0) {
+		const boundingBox = this.canvas.elementManager
+			.getNodeAdapter()
+			.getElementsBounds(elementIds)
+		if (!boundingBox || boundingBox.width === 0 || boundingBox.height === 0) {
 			return
 		}
-
-		// 保存当前的 stage 变换状态
-		const currentScale = this.canvas.stage.scaleX()
-		const currentPosition = this.canvas.stage.position()
-
-		// 临时重置 stage 变换，以获取原始内容边界
-		this.canvas.stage.scale({ x: 1, y: 1 })
-		this.canvas.stage.position({ x: 0, y: 0 })
-
-		// 计算所有元素的包围盒
-		let minX = Infinity
-		let minY = Infinity
-		let maxX = -Infinity
-		let maxY = -Infinity
-
-		nodes.forEach((node) => {
-			const clientRect = node.getClientRect()
-			minX = Math.min(minX, clientRect.x)
-			minY = Math.min(minY, clientRect.y)
-			maxX = Math.max(maxX, clientRect.x + clientRect.width)
-			maxY = Math.max(maxY, clientRect.y + clientRect.height)
-		})
-
-		const boundingBox = {
-			x: minX,
-			y: minY,
-			width: maxX - minX,
-			height: maxY - minY,
-		}
-
-		if (boundingBox.width === 0 || boundingBox.height === 0) {
-			// 恢复之前的变换
-			this.canvas.stage.scale({ x: currentScale, y: currentScale })
-			this.canvas.stage.position(currentPosition)
-			return
-		}
-
-		// 恢复之前的变换状态，准备开始动画
-		this.canvas.stage.scale({ x: currentScale, y: currentScale })
-		this.canvas.stage.position(currentPosition)
 
 		// 应用视口变换
 		this.applyViewportTransform(
 			boundingBox,
 			{
 				padding,
-				viewportOffset,
 				animated,
 				duration,
 				easing,
@@ -976,63 +1177,31 @@ export class ViewportController {
 	 * @param options - 配置选项
 	 */
 	public fitToScreen(options?: {
-		padding?: PaddingConfig
-		viewportOffset?: { left?: number; right?: number; top?: number; bottom?: number }
+		padding?: PaddingInsetConfig
 		animated?: boolean
 		duration?: number
 		easing?: (t: number, b: number, c: number, d: number) => number
 	}): void {
 		const {
-			padding = defaultPadding,
-			viewportOffset = this.defaultViewportOffset,
+			padding,
 			animated = false,
 			duration = 300,
 			easing = Konva.Easings.EaseInOut,
 		} = options || {}
 
-		// 获取 contentLayer
-		const layer = this.canvas.contentLayer
-
-		// 保存当前的 stage 变换状态
-		const currentScale = this.canvas.stage.scaleX()
-		const currentPosition = this.canvas.stage.position()
-
-		// 临时重置 stage 变换，以获取原始内容边界
-		this.canvas.stage.scale({ x: 1, y: 1 })
-		this.canvas.stage.position({ x: 0, y: 0 })
-
-		// 临时隐藏背景，避免影响边界计算
-		const background = layer.findOne(".canvas-background")
-		const wasBackgroundVisible = background?.visible()
-		if (background) {
-			background.visible(false)
-		}
-
-		const clientRect = layer.getClientRect()
-
-		// 恢复背景可见性
-		if (background && wasBackgroundVisible) {
-			background.visible(true)
-		}
-
-		if (clientRect.width === 0 || clientRect.height === 0) {
-			// 恢复之前的变换
-			this.canvas.stage.scale({ x: currentScale, y: currentScale })
-			this.canvas.stage.position(currentPosition)
+		const boundingBox = this.getContentBoundingRect()
+		if (!boundingBox) {
 			return
 		}
 
-		// 恢复之前的变换状态，准备开始动画
-		this.canvas.stage.scale({ x: currentScale, y: currentScale })
-		this.canvas.stage.position(currentPosition)
-
 		// 应用视口变换
-		this.applyViewportTransform(clientRect, {
+		this.applyViewportTransform(boundingBox, {
 			padding,
-			viewportOffset,
 			animated,
 			duration,
 			easing,
+			allowBelowMinScale: true,
+			ensureFullyVisible: false,
 		})
 	}
 
@@ -1081,17 +1250,25 @@ export class ViewportController {
 
 		// 移除原生触摸事件监听器
 		const container = this.canvas.stage.container()
-		if (this.touchHandlers) {
-			container.removeEventListener("touchstart", this.touchHandlers.handleTouchStart)
-			container.removeEventListener("touchmove", this.touchHandlers.handleTouchMove)
-			container.removeEventListener("touchend", this.touchHandlers.handleTouchEnd)
-			container.removeEventListener("touchcancel", this.touchHandlers.handleTouchCancel)
-			this.touchHandlers = null
+		if (this.webKitGestureHandler) {
+			const handler = this.webKitGestureHandler
+			for (const t of WEBKIT_GESTURE_EVENTS) {
+				container.removeEventListener(t, handler)
+			}
+			this.webKitGestureHandler = null
+		}
+		this.activeWebKitGesturePinch = null
+		if (this.touchEventHandlers) {
+			container.removeEventListener("touchstart", this.touchEventHandlers.handleTouchStart)
+			container.removeEventListener("touchmove", this.touchEventHandlers.handleTouchMove)
+			container.removeEventListener("touchend", this.touchEventHandlers.handleTouchEnd)
+			container.removeEventListener("touchcancel", this.touchEventHandlers.handleTouchCancel)
+			this.touchEventHandlers = null
 		}
 
 		// 清理状态
-		this.isPinching = false
-		this.lastTouchDistance = 0
+		this.isTouchPinching = false
+		this.lastTouchPinchDistance = 0
 		this.isTouchPanning = false
 		this.touchStartPosition = null
 		this.stageStartPosition = null
@@ -1130,31 +1307,35 @@ export class ViewportController {
 	}
 
 	/**
-	 * 设置默认视口偏移量
-	 * @param offset - 视口偏移量
+	 * 设置默认视口预留（支持数字与百分比字符串）
 	 */
-	setDefaultViewportOffset(offset: {
-		left: number
-		right: number
-		top: number
-		bottom: number
-	}): void {
-		this.defaultViewportOffset = offset
+	setDefaultViewportPadding(padding: PaddingInsetConfig): void {
+		this.defaultViewportPadding = padding
 	}
 
 	/**
-	 * 获取默认视口偏移量
-	 * @returns 视口偏移量
+	 * 获取默认视口预留配置
 	 */
-	getDefaultViewportOffset():
-		| {
-				left: number
-				right: number
-				top: number
-				bottom: number
-		  }
-		| undefined {
-		return this.defaultViewportOffset
+	getDefaultViewportPadding(): PaddingInsetConfig | undefined {
+		return this.defaultViewportPadding
+	}
+
+	/**
+	 * 获取已解析为像素的默认视口预留（用于外部需要数值的场景）
+	 * @param width - 参考宽度（用于 left/right/minLeft/minRight/maxLeft/maxRight）
+	 * @param height - 参考高度（用于 top/bottom/minTop/minBottom/maxTop/maxBottom）
+	 */
+	getResolvedDefaultViewportPadding(
+		width: number,
+		height: number,
+	): { left: number; right: number; top: number; bottom: number } {
+		const resolved = this.resolvePaddingSource(this.defaultViewportPadding, width, height)
+		return {
+			left: this.clampInset(resolved.left ?? 0, resolved.minLeft, resolved.maxLeft),
+			right: this.clampInset(resolved.right ?? 0, resolved.minRight, resolved.maxRight),
+			top: this.clampInset(resolved.top ?? 0, resolved.minTop, resolved.maxTop),
+			bottom: this.clampInset(resolved.bottom ?? 0, resolved.minBottom, resolved.maxBottom),
+		}
 	}
 
 	/**
@@ -1165,62 +1346,22 @@ export class ViewportController {
 	 */
 	public isElementInViewport(
 		elementIds: string[],
-		options?: {
-			padding?: PaddingConfig
-			viewportOffset?: { left?: number; right?: number; top?: number; bottom?: number }
-		},
+		options?: { padding?: PaddingInsetConfig },
 	): boolean {
-		const { padding = defaultPadding, viewportOffset = this.defaultViewportOffset } =
-			options || {}
+		const { padding } = options || {}
 
 		if (elementIds.length === 0) {
 			return false
 		}
 
-		// 获取元素节点
-		const nodes = this.canvas.elementManager.getNodeAdapter().getNodesForFocus(elementIds)
-
-		if (nodes.length === 0) {
+		const adapter = this.canvas.elementManager.getNodeAdapter()
+		const elementBounds = adapter.getElementsBounds(elementIds)
+		if (!elementBounds || elementBounds.width === 0 || elementBounds.height === 0) {
 			return false
 		}
 
-		// 保存当前的 stage 变换状态
 		const currentScale = this.canvas.stage.scaleX()
 		const currentPosition = this.canvas.stage.position()
-
-		// 临时重置 stage 变换，以获取原始内容边界
-		this.canvas.stage.scale({ x: 1, y: 1 })
-		this.canvas.stage.position({ x: 0, y: 0 })
-
-		// 计算所有元素的包围盒（画布坐标系）
-		let minX = Infinity
-		let minY = Infinity
-		let maxX = -Infinity
-		let maxY = -Infinity
-
-		nodes.forEach((node) => {
-			const clientRect = node.getClientRect()
-			minX = Math.min(minX, clientRect.x)
-			minY = Math.min(minY, clientRect.y)
-			maxX = Math.max(maxX, clientRect.x + clientRect.width)
-			maxY = Math.max(maxY, clientRect.y + clientRect.height)
-		})
-
-		// 恢复之前的变换
-		this.canvas.stage.scale({ x: currentScale, y: currentScale })
-		this.canvas.stage.position(currentPosition)
-
-		// 元素边界（画布坐标系）
-		const elementBounds = {
-			x: minX,
-			y: minY,
-			width: maxX - minX,
-			height: maxY - minY,
-		}
-
-		if (elementBounds.width === 0 || elementBounds.height === 0) {
-			return false
-		}
 
 		// 将元素边界转换为屏幕坐标系
 		const elementScreenBounds = {
@@ -1230,27 +1371,21 @@ export class ViewportController {
 			bottom: (elementBounds.y + elementBounds.height) * currentScale + currentPosition.y,
 		}
 
-		// 获取 stage 尺寸
+		// 获取 stage 尺寸并解析视口预留
 		const stageWidth = this.canvas.stage.width()
 		const stageHeight = this.canvas.stage.height()
-
-		// 解析 padding 值
-		const paddingTop = this.resolvePaddingValue(padding.top, stageHeight)
-		const paddingRight = this.resolvePaddingValue(padding.right, stageWidth)
-		const paddingBottom = this.resolvePaddingValue(padding.bottom, stageHeight)
-		const paddingLeft = this.resolvePaddingValue(padding.left, stageWidth)
-
-		// 计算可视区域边界（考虑 UI 遮挡和 padding）
-		const offsetLeft = viewportOffset?.left || 0
-		const offsetRight = viewportOffset?.right || 0
-		const offsetTop = viewportOffset?.top || 0
-		const offsetBottom = viewportOffset?.bottom || 0
+		const {
+			left: insetLeft,
+			right: insetRight,
+			top: insetTop,
+			bottom: insetBottom,
+		} = this.getEffectiveViewportPadding(padding, stageWidth, stageHeight)
 
 		const viewportBounds = {
-			left: offsetLeft + paddingLeft,
-			top: offsetTop + paddingTop,
-			right: stageWidth - offsetRight - paddingRight,
-			bottom: stageHeight - offsetBottom - paddingBottom,
+			left: insetLeft,
+			top: insetTop,
+			right: stageWidth - insetRight,
+			bottom: stageHeight - insetBottom,
 		}
 
 		// 判断元素是否完全在可视区域内
@@ -1271,16 +1406,14 @@ export class ViewportController {
 	public moveElementToViewport(
 		elementIds: string[],
 		options?: {
-			padding?: PaddingConfig
-			viewportOffset?: { left?: number; right?: number; top?: number; bottom?: number }
+			padding?: PaddingInsetConfig
 			animated?: boolean
 			duration?: number
 			easing?: (t: number, b: number, c: number, d: number) => number
 		},
 	): void {
 		const {
-			padding = defaultPadding,
-			viewportOffset = this.defaultViewportOffset,
+			padding,
 			animated = true,
 			duration = 300,
 			easing = Konva.Easings.EaseInOut,
@@ -1290,74 +1423,27 @@ export class ViewportController {
 			return
 		}
 
-		// 获取元素节点
-		const nodes = this.canvas.elementManager.getNodeAdapter().getNodesForFocus(elementIds)
-		if (nodes.length === 0) {
+		const adapter = this.canvas.elementManager.getNodeAdapter()
+		const elementBounds = adapter.getElementsBounds(elementIds)
+		if (!elementBounds || elementBounds.width === 0 || elementBounds.height === 0) {
 			return
 		}
 
-		// 保存当前的 stage 变换状态
 		const currentScale = this.canvas.stage.scaleX()
 		const currentPosition = this.canvas.stage.position()
 
-		// 临时重置 stage 变换，以获取原始内容边界
-		this.canvas.stage.scale({ x: 1, y: 1 })
-		this.canvas.stage.position({ x: 0, y: 0 })
-
-		// 计算所有元素的包围盒（画布坐标系）
-		let minX = Infinity
-		let minY = Infinity
-		let maxX = -Infinity
-		let maxY = -Infinity
-
-		nodes.forEach((node) => {
-			const clientRect = node.getClientRect()
-			minX = Math.min(minX, clientRect.x)
-			minY = Math.min(minY, clientRect.y)
-			maxX = Math.max(maxX, clientRect.x + clientRect.width)
-			maxY = Math.max(maxY, clientRect.y + clientRect.height)
-		})
-
-		// 恢复之前的变换
-		this.canvas.stage.scale({ x: currentScale, y: currentScale })
-		this.canvas.stage.position(currentPosition)
-
-		// 元素边界（画布坐标系）
-		const elementBounds = {
-			x: minX,
-			y: minY,
-			width: maxX - minX,
-			height: maxY - minY,
-		}
-
-		if (elementBounds.width === 0 || elementBounds.height === 0) {
-			return
-		}
-
-		// 获取 stage 尺寸
+		// 获取 stage 尺寸并解析视口预留
 		const stageWidth = this.canvas.stage.width()
 		const stageHeight = this.canvas.stage.height()
+		const {
+			left: insetLeft,
+			right: insetRight,
+			top: insetTop,
+			bottom: insetBottom,
+		} = this.getEffectiveViewportPadding(padding, stageWidth, stageHeight)
 
-		// 解析 padding 值
-		const paddingTop = this.resolvePaddingValue(padding.top, stageHeight)
-		const paddingRight = this.resolvePaddingValue(padding.right, stageWidth)
-		const paddingBottom = this.resolvePaddingValue(padding.bottom, stageHeight)
-		const paddingLeft = this.resolvePaddingValue(padding.left, stageWidth)
-
-		// 计算有效视口尺寸（减去UI遮挡区域和 padding）
-		const offsetLeft = viewportOffset?.left || 0
-		const offsetRight = viewportOffset?.right || 0
-		const offsetTop = viewportOffset?.top || 0
-		const offsetBottom = viewportOffset?.bottom || 0
-
-		const effectiveWidth = Math.max(
-			100,
-			stageWidth - offsetLeft - offsetRight - paddingLeft - paddingRight,
-		)
-		const effectiveHeight = Math.max(
-			100,
-			stageHeight - offsetTop - offsetBottom - paddingTop - paddingBottom,
-		)
+		const effectiveWidth = Math.max(100, stageWidth - insetLeft - insetRight)
+		const effectiveHeight = Math.max(100, stageHeight - insetTop - insetBottom)
 
 		// 判断元素是否需要缩放才能完全显示
 		const scaleX = effectiveWidth / elementBounds.width
@@ -1366,10 +1452,8 @@ export class ViewportController {
 
 		// 如果元素太大，需要缩放+居中
 		if (requiredScale < currentScale) {
-			// 使用现有的 applyViewportTransform 方法进行缩放+居中
 			this.applyViewportTransform(elementBounds, {
 				padding,
-				viewportOffset,
 				animated,
 				duration,
 				easing,
@@ -1378,7 +1462,6 @@ export class ViewportController {
 		}
 
 		// 元素可以完全显示，执行最小移动
-		// 将元素边界转换为当前缩放下的屏幕坐标系
 		const elementScreenBounds = {
 			left: elementBounds.x * currentScale + currentPosition.x,
 			top: elementBounds.y * currentScale + currentPosition.y,
@@ -1386,12 +1469,11 @@ export class ViewportController {
 			bottom: (elementBounds.y + elementBounds.height) * currentScale + currentPosition.y,
 		}
 
-		// 计算可视区域边界
 		const viewportBounds = {
-			left: offsetLeft + paddingLeft,
-			top: offsetTop + paddingTop,
-			right: stageWidth - offsetRight - paddingRight,
-			bottom: stageHeight - offsetBottom - paddingBottom,
+			left: insetLeft,
+			top: insetTop,
+			right: stageWidth - insetRight,
+			bottom: stageHeight - insetBottom,
 		}
 
 		// 计算需要移动的距离

@@ -2,6 +2,7 @@
 llm: coder_llm
 tools:
   - shell_exec
+  - shell_await
   - list_dir
   - file_search
   - read_files
@@ -10,7 +11,6 @@ tools:
 skills:
   system_skills:
     - name: skill-vetter
-    - name: find-skill
     - name: using-mcp
   workspace_skills: "*"
 ---

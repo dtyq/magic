@@ -6,9 +6,7 @@ import TopicPageMobileSkeleton from "./skeleton/TopicPageMobileSkeleton"
 import TopicPageDesktopSkeleton from "./skeleton/TopicPageDesktopSkeleton"
 import { useIsMobile } from "@/hooks/useIsMobile"
 
-const TopicPageDesktop = lazy(
-	() => import("@/pages/superMagic/pages/TopicPage/index.desktop"),
-)
+const TopicPageDesktop = lazy(() => import("@/pages/superMagic/pages/TopicPage/index.desktop"))
 const TopicPageMobile = lazy(() => import("@/pages/superMagicMobile/pages/TopicPage"))
 
 function TopicPage() {

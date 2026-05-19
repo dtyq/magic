@@ -1,4 +1,4 @@
-import { IconUpload, IconFolderUp } from "@tabler/icons-react"
+import { IconUpload, IconFolderUp, IconFolderSymlink } from "@tabler/icons-react"
 import type { MenuProps } from "antd"
 import { useMemo } from "react"
 import MagicIcon from "@/components/base/MagicIcon"
@@ -7,15 +7,17 @@ import { useTranslation } from "react-i18next"
 interface UseUploadMenuItemsParams {
 	onUploadFile?: () => void
 	onUploadFolder?: () => void
+	onImportFromOtherProject?: () => void
 }
 
 /**
  * Hook for generating upload operation menu items
- * Includes upload file and upload folder options
+ * Includes upload file, upload folder, and import from other project options
  */
 function useUploadMenuItems({
 	onUploadFile,
 	onUploadFolder,
+	onImportFromOtherProject,
 }: UseUploadMenuItemsParams): MenuProps["items"] {
 	const { t } = useTranslation("super")
 
@@ -40,8 +42,25 @@ function useUploadMenuItems({
 			})
 		}
 
+		// 添加分隔线和导入选项
+		if (onImportFromOtherProject && (onUploadFile || onUploadFolder)) {
+			items.push({
+				type: "divider",
+				key: "divider",
+			})
+		}
+
+		if (onImportFromOtherProject) {
+			items.push({
+				key: "importFromOtherProject",
+				label: t("topicFiles.contextMenu.importFromOtherProject"),
+				icon: <MagicIcon component={IconFolderSymlink} stroke={2} size={18} />,
+				onClick: onImportFromOtherProject,
+			})
+		}
+
 		return items
-	}, [t, onUploadFile, onUploadFolder])
+	}, [t, onUploadFile, onUploadFolder, onImportFromOtherProject])
 
 	return uploadMenuItems
 }

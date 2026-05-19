@@ -4,7 +4,7 @@ import { usePoppinsFont } from "@/styles/font"
 
 function SloganContainer() {
 	const { t } = useTranslation("super/mainInput")
-	usePoppinsFont()
+	usePoppinsFont([300])
 
 	return (
 		<div className="flex flex-col items-center gap-3 text-foreground">

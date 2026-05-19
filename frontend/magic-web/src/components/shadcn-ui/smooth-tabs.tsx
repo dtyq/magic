@@ -15,6 +15,7 @@ interface Tab<T = string> {
 	icon?: React.ReactNode
 	/** Tooltip 提示文本 */
 	tooltip?: string
+	"data-testid"?: string
 }
 
 type IndicatorVariant = "underline" | "background"
@@ -123,6 +124,7 @@ function SmoothTabsComponent<T = string>({
 					onClick={() => handleTabClick(tab.value)}
 					onMouseEnter={() => handleMouseEnter(index)}
 					onMouseLeave={handleMouseLeave}
+					data-testid={tab["data-testid"]}
 					className={cn(
 						"relative z-10 flex h-full flex-1 cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-lg px-3.5 py-1 text-sm font-medium transition-colors",
 						"focus-visible:outline-none",
@@ -166,8 +168,8 @@ function SmoothTabsComponent<T = string>({
 							animate={
 								variant === "underline"
 									? {
-										opacity: isActive ? 1 : isHovered ? 0.85 : 0.7,
-									}
+											opacity: isActive ? 1 : isHovered ? 0.85 : 0.7,
+										}
 									: undefined
 							}
 						>
@@ -183,9 +185,9 @@ function SmoothTabsComponent<T = string>({
 							animate={
 								variant === "underline"
 									? {
-										opacity: isActive ? 1 : isHovered ? 0.85 : 0.7,
-										y: isActive ? 0 : 0,
-									}
+											opacity: isActive ? 1 : isHovered ? 0.85 : 0.7,
+											y: isActive ? 0 : 0,
+										}
 									: undefined
 							}
 						>
@@ -233,10 +235,10 @@ function SmoothTabsComponent<T = string>({
 							? { duration: 0 }
 							: variant === "background"
 								? {
-									type: "spring",
-									stiffness: 300,
-									damping: 30,
-								}
+										type: "spring",
+										stiffness: 300,
+										damping: 30,
+									}
 								: undefined
 					}
 				/>

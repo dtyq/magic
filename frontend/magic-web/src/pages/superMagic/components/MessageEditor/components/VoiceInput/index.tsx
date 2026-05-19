@@ -3,7 +3,7 @@ import { VoiceResultUtterance } from "@/components/business/VoiceInput/services/
 import { VoiceResult } from "@/components/business/VoiceInput/types"
 import AiCompletionService from "@/services/chat/editor/AiCompletionService"
 import { isMobile } from "@/utils/devices"
-import { ChainedCommands, Editor, JSONContent } from "@tiptap/core"
+import { Editor, JSONContent } from "@tiptap/core"
 import { logger as Logger } from "@/utils/log"
 import { useMemoizedFn } from "ahooks"
 import { forwardRef, Ref, useRef, useImperativeHandle, useEffect } from "react"
@@ -36,13 +36,7 @@ const config = {
 
 const SuperMagicVoiceInput = forwardRef<VoiceInputRef, SuperMagicVoiceInputProps>(
 	(
-		{
-			initValue,
-			tiptapEditor,
-			updateValue,
-			iconSize = 20,
-			className,
-		}: SuperMagicVoiceInputProps,
+		{ tiptapEditor, updateValue, iconSize = 20, className }: SuperMagicVoiceInputProps,
 		ref: Ref<VoiceInputRef>,
 	) => {
 		const voiceInputRef = useRef<VoiceInputRef>(null)
@@ -64,31 +58,16 @@ const SuperMagicVoiceInput = forwardRef<VoiceInputRef, SuperMagicVoiceInputProps
 				return
 			}
 
-			console.log("handleResult", result, response)
-
 			// Early return: only process when recording and editor is available
-			if (!voiceInputRef.current?.isRecording || !tiptapEditor) {
-				return
-			}
+			if (!voiceInputRef.current?.isRecording || !tiptapEditor) return
 
 			try {
-				const chain = tiptapEditor.chain()
-
 				if (!isMobile && !tiptapEditor.isFocused) {
-					chain.focus()
+					tiptapEditor.commands.focus()
 				}
 
 				// Process each utterance segment incrementally
-				processUtterances(response.utterances, chain, tiptapEditor)
-
-				// Auto-scroll if enabled
-				if (enableScrollIntoViewRef.current) {
-					isProgrammaticScrollRef.current = true
-					chain.scrollIntoView()
-				}
-
-				// Execute all commands in batch
-				chain.run()
+				processUtterances(response.utterances, tiptapEditor)
 
 				// Update value after DOM updates
 				requestAnimationFrame(() => {
@@ -102,11 +81,7 @@ const SuperMagicVoiceInput = forwardRef<VoiceInputRef, SuperMagicVoiceInputProps
 		})
 
 		// Helper: process utterances and update editor incrementally
-		function processUtterances(
-			utterances: VoiceResultUtterance[] | undefined,
-			chain: ChainedCommands,
-			editor: Editor,
-		) {
+		function processUtterances(utterances: VoiceResultUtterance[] | undefined, editor: Editor) {
 			if (!utterances) {
 				return
 			}
@@ -151,6 +126,8 @@ const SuperMagicVoiceInput = forwardRef<VoiceInputRef, SuperMagicVoiceInputProps
 					}
 				}
 
+				const chain = editor.chain()
+
 				// 如果上次有未确定性话语，则删除
 				if (lastDefinitePositionRef.current) {
 					const { start, end } = lastDefinitePositionRef.current
@@ -185,6 +162,11 @@ const SuperMagicVoiceInput = forwardRef<VoiceInputRef, SuperMagicVoiceInputProps
 				chain.setTextSelection(endPosition)
 				lastTextSelectionRef.current = endPosition
 
+				if (enableScrollIntoViewRef.current) {
+					isProgrammaticScrollRef.current = true
+					chain.scrollIntoView()
+				}
+
 				chain.run()
 			}
 		}
@@ -203,6 +185,7 @@ const SuperMagicVoiceInput = forwardRef<VoiceInputRef, SuperMagicVoiceInputProps
 			if (isRecording && tiptapEditor) {
 				enableScrollIntoViewRef.current = true
 				shouldIgnoreNonDefiniteRef.current = false
+				lastDefinitePositionRef.current = null
 				lastTextSelectionRef.current = null
 
 				// Calculate and save base insertion position
@@ -218,6 +201,8 @@ const SuperMagicVoiceInput = forwardRef<VoiceInputRef, SuperMagicVoiceInputProps
 					tiptapEditor.commands.focus()
 				}
 			} else if (!isRecording && tiptapEditor && !isMobile) {
+				lastDefinitePositionRef.current = null
+				shouldIgnoreNonDefiniteRef.current = false
 				// Fix cursor position at recording end
 				requestAnimationFrame(() => {
 					if (tiptapEditor.isDestroyed) return
@@ -229,7 +214,6 @@ const SuperMagicVoiceInput = forwardRef<VoiceInputRef, SuperMagicVoiceInputProps
 			}
 		})
 
-		// Monitor scroll events to manage auto-scroll behavior
 		useEffect(() => {
 			if (!tiptapEditor || tiptapEditor.isDestroyed) return
 
@@ -258,7 +242,7 @@ const SuperMagicVoiceInput = forwardRef<VoiceInputRef, SuperMagicVoiceInputProps
 				if (
 					scrollElement &&
 					scrollElement.scrollTop + scrollElement.clientHeight >=
-					scrollElement.scrollHeight
+						scrollElement.scrollHeight
 				) {
 					enableScrollIntoViewRef.current = true
 				}
@@ -279,7 +263,9 @@ const SuperMagicVoiceInput = forwardRef<VoiceInputRef, SuperMagicVoiceInputProps
 		useImperativeHandle(
 			ref,
 			() => ({
-				stopRecording: () => voiceInputRef.current?.stopRecording(),
+				stopRecording: () => {
+					voiceInputRef.current?.stopRecording()
+				},
 				isRecording: voiceInputRef.current?.isRecording ?? false,
 				status: voiceInputRef.current?.status ?? "idle",
 			}),

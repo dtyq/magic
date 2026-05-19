@@ -1,8 +1,7 @@
 import SuperMagicIcon from "@/enhance/tabler/icons-react/icons/IconSuperMagic"
 import { IconType } from "../AgentSelector/types"
 import { useTheme } from "antd-style"
-import { TablerIcon } from "@/utils/tablerIconLoader"
-import OfficialTablerIcons from "@/assets/tabler-icons/tabler-icons-tags.json"
+import { useTablerIcon } from "@/utils/tablerIconLoader"
 
 interface IconComponentProps {
 	selectedIcon?: string
@@ -49,16 +48,9 @@ export function convertRgbaOpacity(rgbaColor: string, opacity: number): string {
 
 /* 根据icon名称获取icon组件,兜底使用超级麦吉的icon */
 const IconComponent = (props: IconComponentProps) => {
-	const {
-		selectedIcon,
-		size = 24,
-		iconColor,
-		iconType,
-		iconUrl,
-		showBorder = false,
-		style = {},
-	} = props
+	const { selectedIcon, size = 24, iconColor, iconUrl, showBorder = false, style = {} } = props
 	const { magicColorUsages } = useTheme()
+	const ResolvedTablerIcon = useTablerIcon(selectedIcon)
 
 	const containerStyle = {
 		display: "inline-flex",
@@ -95,8 +87,7 @@ const IconComponent = (props: IconComponentProps) => {
 		)
 	}
 
-	const officialIcons = Object.keys(OfficialTablerIcons || {})
-	if (selectedIcon && officialIcons.includes(selectedIcon))
+	if (selectedIcon && ResolvedTablerIcon)
 		return (
 			<div
 				style={{
@@ -105,7 +96,7 @@ const IconComponent = (props: IconComponentProps) => {
 					...style,
 				}}
 			>
-				<TablerIcon name={selectedIcon} size={size} color={iconColor || "black"} />
+				<ResolvedTablerIcon size={size} color={iconColor || "black"} stroke={1.5} />
 			</div>
 		)
 

@@ -109,7 +109,7 @@ pnpm lh:view
 
 - 使用 **Tailwind CSS** + **shadcn/ui**
 - 组件位置：`src/components/shadcn-ui/`
-- 配置文件：`components.json`、`tailwind.config.js`
+- 配置文件：`components.json`、`tailwind.config.ts`
 - 样式变量：`src/index.css`
 
 **现有组件（维护模式）**：

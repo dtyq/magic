@@ -55,30 +55,63 @@ export function WorkspacePageMobileSkeleton() {
 				</div>
 			</div>
 
-			{/* 底部渐变遮罩 + 浮动输入框 */}
-			<div className="shrink-0 bg-gradient-to-t from-sidebar to-transparent px-2 pb-6 pt-10">
-				{/* 输入框容器：rounded-3xl，border，bg-background */}
-				<div className="flex h-12 w-full items-center gap-1 overflow-hidden rounded-[24px] border border-border bg-background px-1 shadow-xs">
-					{/* 左侧角色选择器：图标 + chevron */}
-					<div className="flex h-10 shrink-0 items-center gap-1 rounded-full px-2.5">
+			{/* 底部：对齐 MobileComposer（MobileComposerHeader + 圆角主卡片 + 编辑区 + 底栏） */}
+			<div className="shrink-0 bg-gradient-to-t from-sidebar to-transparent px-2 pb-[max(24px,env(safe-area-inset-bottom))] pt-6">
+				<div className="flex w-full flex-col gap-2 pt-2">
+					{/* MobileComposerHeader：模式选择器 + 场景/技能条 */}
+					<div className="flex min-h-8 items-center gap-2">
 						<Skeleton.Title
 							animated
-							style={{ width: 16, height: 16, borderRadius: 4 }}
+							style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0 }}
 						/>
 						<Skeleton.Title
 							animated
-							style={{ width: 16, height: 16, borderRadius: 4 }}
+							style={{ flex: 1, height: 32, borderRadius: 8, minWidth: 0 }}
 						/>
 					</div>
 
-					{/* 文本占位 */}
-					<Skeleton.Title animated style={{ width: 200, height: 16, borderRadius: 4 }} />
+					{/* mobile-composer-card：rounded-3xl + 投影，与真实输入卡片一致 */}
+					<div className="overflow-hidden rounded-3xl bg-background shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]">
+						{/* 编辑器区域（对应 EditorContent 外层的 px-4 pb-2 pt-3） */}
+						<div className="flex flex-col gap-2 px-4 pb-2 pt-3">
+							<Skeleton.Title
+								animated
+								style={{ width: "100%", height: 14, borderRadius: 4 }}
+							/>
+							<Skeleton.Title
+								animated
+								style={{ width: "92%", height: 14, borderRadius: 4 }}
+							/>
+						</div>
 
-					{/* 右侧 Mic 按钮 */}
-					{/* <Skeleton.Title
-						animated
-						style={{ width: 40, height: 40, borderRadius: 9999, flexShrink: 0 }}
-					/> */}
+						{/* 底栏：左侧「添加」+ 右侧 语音 + 发送 */}
+						<div className="flex items-center justify-between gap-2 px-1.5 py-1.5">
+							<Skeleton.Title
+								animated
+								style={{ width: 40, height: 40, borderRadius: 8, flexShrink: 0 }}
+							/>
+							<div className="flex items-center gap-1">
+								<Skeleton.Title
+									animated
+									style={{
+										width: 40,
+										height: 40,
+										borderRadius: 9999,
+										flexShrink: 0,
+									}}
+								/>
+								<Skeleton.Title
+									animated
+									style={{
+										width: 40,
+										height: 40,
+										borderRadius: 9999,
+										flexShrink: 0,
+									}}
+								/>
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>

@@ -1,6 +1,20 @@
 import type { PluginOption } from "vite"
+import {
+	createSourceFile,
+	isImportDeclaration,
+	isNamedImports,
+	isStringLiteral,
+	ScriptKind,
+	ScriptTarget,
+} from "typescript"
 
-type TargetPath = string | { base: string; subDirectory?: string }
+type TargetPath =
+	| string
+	| {
+			base: string
+			subDirectory?: string
+			componentNameFormatter?: (componentName: string) => string
+	  }
 
 interface TransformBaseImportsOptions {
 	paths?: TargetPath[]
@@ -20,16 +34,16 @@ interface TransformBaseImportsOptions {
  *   import FlexBox from "<configured-path>/FlexBox"
  *   import MagicButton from "<configured-path>/MagicButton"
  *   import FB from "<configured-path>/FlexBox"
+ *
+ * Optional componentNameFormatter can rewrite the target segment:
+ *   import { CircleCheckIcon } from "lucide-react"
+ * To:
+ *   import CircleCheckIcon from "lucide-react/dist/esm/icons/circle-check.js"
  */
 export default function vitePluginTransformBaseImports(
 	options: TransformBaseImportsOptions = {},
 ): PluginOption {
 	const targetPaths = normalizeTargetPaths(options.paths)
-
-	const escapedPaths = targetPaths.map((target) => escapeRegex(target.base)).join("|")
-	const importPattern = new RegExp(
-		`^(\\s*)import\\s+\\{([^}]+)\\}\\s+from\\s+["'](${escapedPaths})["'](?:\\s*;)?\\s*$`,
-	)
 
 	return {
 		name: "vite-plugin-transform-base-imports",
@@ -45,64 +59,68 @@ export default function vitePluginTransformBaseImports(
 				return null
 			}
 
-			// Match import statements from @/components/base
-			// Match complete import statements on a single line or multiple lines
-			// Pattern: import { ... } from "@/components/base"
-			const lines = code.split("\n")
-			const transformedLines: string[] = []
+			const sourceFile = createSourceFile(
+				id,
+				code,
+				ScriptTarget.Latest,
+				true,
+				getScriptKindFromId(id),
+			)
+
 			let hasChanges = false
+			const replacements: Array<{ start: number; end: number; text: string }> = []
 
-			for (let i = 0; i < lines.length; i++) {
-				const line = lines[i]
+			for (const statement of sourceFile.statements) {
+				if (!isImportDeclaration(statement)) continue
+				if (!statement.importClause || statement.importClause.isTypeOnly) continue
+				if (!isStringLiteral(statement.moduleSpecifier)) continue
 
-				// Check if this line contains the target import pattern
-				const importMatch = line.match(importPattern)
+				const importPath = statement.moduleSpecifier.text
+				const target = targetPaths.find((item) => item.base === importPath)
+				if (!target) continue
 
-				if (importMatch) {
-					const [, indent, namedImports, importPath] = importMatch
-					const target = targetPaths.find((item) => item.base === importPath)
-					if (!target) {
-						transformedLines.push(line)
-						continue
-					}
+				const namedBindings = statement.importClause.namedBindings
+				if (!namedBindings || !isNamedImports(namedBindings)) continue
 
-					// Parse named imports
-					const imports = namedImports
-						.split(",")
-						.map((imp: string) => imp.trim())
-						.filter((imp: string) => imp.length > 0)
+				const valueSpecifiers = namedBindings.elements.filter((element) => !element.isTypeOnly)
+				const typeSpecifiers = namedBindings.elements.filter((element) => element.isTypeOnly)
+				if (valueSpecifiers.length === 0) continue
 
-					if (imports.length > 0) {
-						hasChanges = true
+				hasChanges = true
 
-						// Transform each named import to a default import
-						const transformedImports = imports.map((imp: string) => {
-							// Handle aliased imports: import { FlexBox as FB } from "..."
-							// Match pattern: "ComponentName" or "ComponentName as Alias"
-							const aliasMatch = imp.match(/^(\w+)(?:\s+as\s+(\w+))?$/)
-							if (aliasMatch) {
-								const [, componentName, alias] = aliasMatch
-								const importName = alias || componentName
-								return `${indent}import ${importName} from "${buildImportPath({
-									base: importPath,
-									subDirectory: target.subDirectory,
-									componentName,
-								})}"`
-							}
-							// Fallback: treat the whole string as component name
-							return `${indent}import ${imp} from "${buildImportPath({
-								base: importPath,
-								subDirectory: target.subDirectory,
-								componentName: imp,
-							})}"`
-						})
-
-						transformedLines.push(...transformedImports)
-						continue
-					}
+				const nextImports: string[] = []
+				if (statement.importClause.name) {
+					nextImports.push(`import ${statement.importClause.name.text} from "${importPath}"`)
 				}
 
-				transformedLines.push(line)
+				if (typeSpecifiers.length > 0) {
+					nextImports.push(
+						`import type { ${typeSpecifiers
+							.map((specifier) => formatSpecifierText(specifier))
+							.join(", ")} } from "${importPath}"`,
+					)
+				}
+
+				for (const specifier of valueSpecifiers) {
+					const importedName = specifier.propertyName?.text ?? specifier.name.text
+					const localName = specifier.name.text
+
+					nextImports.push(
+						`import ${localName} from "${buildImportPath({
+							base: importPath,
+							subDirectory: target.subDirectory,
+							componentName: target.componentNameFormatter
+								? target.componentNameFormatter(importedName)
+								: importedName,
+						})}"`,
+					)
+				}
+
+				replacements.push({
+					start: statement.getStart(sourceFile),
+					end: statement.getEnd(),
+					text: nextImports.join("\n"),
+				})
 			}
 
 			if (!hasChanges) {
@@ -110,15 +128,11 @@ export default function vitePluginTransformBaseImports(
 			}
 
 			return {
-				code: transformedLines.join("\n"),
+				code: applyReplacements(code, replacements),
 				map: null, // Source map can be generated if needed
 			}
 		},
 	}
-}
-
-function escapeRegex(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
 function normalizeTargetPaths(paths?: TransformBaseImportsOptions["paths"]) {
@@ -130,7 +144,11 @@ function normalizeTargetPaths(paths?: TransformBaseImportsOptions["paths"]) {
 		if (typeof path === "string") {
 			return { base: path, subDirectory: "" }
 		}
-		return { base: path.base, subDirectory: path.subDirectory || "" }
+		return {
+			base: path.base,
+			subDirectory: path.subDirectory || "",
+			componentNameFormatter: path.componentNameFormatter,
+		}
 	})
 }
 
@@ -145,4 +163,34 @@ function buildImportPath({
 }): string {
 	const prefix = subDirectory ? `${subDirectory.replace(/\/$/, "")}/` : ""
 	return `${base}/${prefix}${componentName}`
+}
+
+function getScriptKindFromId(id: string): ScriptKind {
+	if (id.endsWith(".tsx")) return ScriptKind.TSX
+	if (id.endsWith(".jsx")) return ScriptKind.JSX
+	if (id.endsWith(".js")) return ScriptKind.JS
+	return ScriptKind.TS
+}
+
+function formatSpecifierText(specifier: {
+	propertyName?: { text: string }
+	name: { text: string }
+}): string {
+	const importedName = specifier.propertyName?.text ?? specifier.name.text
+	if (importedName === specifier.name.text) return importedName
+
+	return `${importedName} as ${specifier.name.text}`
+}
+
+function applyReplacements(
+	code: string,
+	replacements: Array<{ start: number; end: number; text: string }>,
+): string {
+	return replacements
+		.sort((a, b) => b.start - a.start)
+		.reduce(
+			(currentCode, replacement) =>
+				`${currentCode.slice(0, replacement.start)}${replacement.text}${currentCode.slice(replacement.end)}`,
+			code,
+		)
 }

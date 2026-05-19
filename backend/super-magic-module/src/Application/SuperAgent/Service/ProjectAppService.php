@@ -7,8 +7,11 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Application\Contact\UserSetting\UserSettingKey;
+use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
+use App\Domain\Contact\Service\MagicUserSettingDomainService;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\ErrorCode\GenericErrorCode;
@@ -16,6 +19,7 @@ use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\EventException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use DirectoryIterator;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\Chat\Service\ChatAppService;
@@ -28,6 +32,7 @@ use Dtyq\SuperMagic\Application\SuperAgent\DTO\Response\AudioProjectExtraDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\Response\AudioProjectListResponseDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\ProjectForkPublisher;
 use Dtyq\SuperMagic\Application\SuperAgent\Event\Publish\StopRunningTaskPublisher;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\RecycleBin\Enum\RecycleBinResourceType;
 use Dtyq\SuperMagic\Domain\RecycleBin\Service\RecycleBinDomainService;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
@@ -69,16 +74,19 @@ use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileMetadataUtil;
-use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeUtil;
+use Dtyq\SuperMagic\Infrastructure\Utils\FileTreeBuilder;
+use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\Share\DTO\Request\CreateShareRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchDeleteProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\BatchMoveProjectsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateProjectRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateSpecialProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\ForkProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectAttachmentsV2RequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetProjectListRequestDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\GetSidebarTopicsRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\MoveProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\UpdateProjectRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\BatchDeleteProjectsResponseDTO;
@@ -87,6 +95,7 @@ use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ForkProjectResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ForkStatusResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\ProjectListResponseDTO;
+use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\SidebarTopicListResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TopicItemDTO;
 use Hyperf\Amqp\Producer;
@@ -120,6 +129,7 @@ class ProjectAppService extends AbstractAppService
         private readonly TopicDomainService $topicDomainService,
         private readonly TaskDomainService $taskDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly MagicFSFileDomainService $magicFSFileDomainService,
         private readonly ChatAppService $chatAppService,
         private readonly ResourceShareDomainService $resourceShareDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
@@ -129,6 +139,9 @@ class ProjectAppService extends AbstractAppService
         private readonly PackageFilterInterface $packageFilterService,
         private readonly AudioProjectDomainService $audioProjectDomainService,
         private readonly RecycleBinDomainService $recycleBinDomainService,
+        private readonly FileTreeBuilder $fileTreeBuilder,
+        private readonly MagicUserSettingDomainService $magicUserSettingDomainService,
+        private readonly LockerInterface $locker,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -253,7 +266,8 @@ class ProjectAppService extends AbstractAppService
             $this->logger->info(sprintf('创建默认项目, projectId=%s', $projectEntity->getId()));
 
             // Standard initialization flow (steps 2-6 + 8)
-            $topicEntity = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity);
+            $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
+            $topicEntity = $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams);
 
             // 7. Initialize project root directory or bind files
             if ($requestDTO->getFiles()) {
@@ -291,6 +305,132 @@ class ProjectAppService extends AbstractAppService
     }
 
     /**
+     * 创建或获取特殊项目.
+     * 根据前端传入的 key 判断项目是否已存在，不存在则在 default 工作区下创建.
+     * 项目 ID 通过 MagicUserSettingDomainService 存储映射关系.
+     *
+     * @return array 返回格式：['key' => string, 'project' => array, 'is_existing' => bool]
+     */
+    public function createOrGetSpecialProject(
+        RequestContext $requestContext,
+        CreateSpecialProjectRequestDTO $requestDTO
+    ): array {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $specialKey = $requestDTO->getKey();
+        if (empty($specialKey)) {
+            ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'project.special_key_required');
+        }
+
+        $settingKey = UserSettingKey::genSuperMagicSpecialProject($specialKey);
+
+        // 1. 快速路径：无锁查询 UserSetting 是否已有 project_id
+        $setting = $this->magicUserSettingDomainService->get($dataIsolation, $settingKey);
+
+        if ($setting) {
+            $projectId = (int) ($setting->getValue()['project_id'] ?? 0);
+            if ($projectId > 0) {
+                // 校验项目是否真实存在
+                $projectEntity = $this->projectRepository->findById($projectId);
+                if ($projectEntity && $projectEntity->getUserId() === $dataIsolation->getCurrentUserId()) {
+                    $this->logger->info(sprintf('特殊项目已存在, key=%s, projectId=%d', $specialKey, $projectId));
+                    return [
+                        'key' => $specialKey,
+                        'project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(),
+                        'is_existing' => true,
+                    ];
+                }
+            }
+        }
+
+        // 2. 获取分布式锁，防止并发为同一 key 创建多个项目
+        $lockName = sprintf('special_project:create:%s:%s', $dataIsolation->getCurrentUserId(), $specialKey);
+        $lockOwner = uniqid('special_project_', true);
+
+        if (! $this->locker->mutexLock($lockName, $lockOwner, 10)) {
+            ExceptionBuilder::throw(GenericErrorCode::TooManyRequests, 'project.create_project_too_frequent');
+        }
+
+        try {
+            // 3. Double-check：获取锁后再次检查，防止并发请求重复创建
+            $setting = $this->magicUserSettingDomainService->get($dataIsolation, $settingKey);
+            if ($setting) {
+                $projectId = (int) ($setting->getValue()['project_id'] ?? 0);
+                if ($projectId > 0) {
+                    $projectEntity = $this->projectRepository->findById($projectId);
+                    if ($projectEntity && $projectEntity->getUserId() === $dataIsolation->getCurrentUserId()) {
+                        $this->logger->info(sprintf('特殊项目已存在(并发检查), key=%s, projectId=%d', $specialKey, $projectId));
+                        return [
+                            'key' => $specialKey,
+                            'project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(),
+                            'is_existing' => true,
+                        ];
+                    }
+                }
+            }
+
+            // 4. 获取或创建 UserSpecial 工作区
+            $workspaceEntity = $this->workspaceDomainService->getOrCreateWorkspaceByType(
+                $dataIsolation,
+                WorkspaceType::UserSpecial
+            );
+
+            // 5. 创建项目
+            Db::beginTransaction();
+            try {
+                $projectEntity = $this->projectDomainService->createProject(
+                    $workspaceEntity->getId(),
+                    $requestDTO->getProjectName(),
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode(),
+                    '',
+                    '',
+                    $requestDTO->getProjectMode() ?: null
+                );
+                $this->logger->info(sprintf('创建特殊项目, key=%s, projectId=%s', $specialKey, $projectEntity->getId()));
+
+                // 6. 初始化项目
+                $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
+                $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams, $requestDTO->getTopicMode());
+
+                // 7. 创建项目根目录
+                $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+                    projectId: $projectEntity->getId(),
+                    workDir: $projectEntity->getWorkDir(),
+                    userId: $dataIsolation->getCurrentUserId(),
+                    organizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                    projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+                );
+
+                // 8. 保存 key → project_id 映射到 UserSetting
+                $settingEntity = new MagicUserSettingEntity();
+                $settingEntity->setKey($settingKey);
+                $settingEntity->setValue(['project_id' => $projectEntity->getId()]);
+                $this->magicUserSettingDomainService->save($dataIsolation, $settingEntity);
+
+                Db::commit();
+
+                // 触发项目创建事件
+                $projectCreatedEvent = new ProjectCreatedEvent($projectEntity, $userAuthorization);
+                $this->eventDispatcher->dispatch($projectCreatedEvent);
+
+                return [
+                    'key' => $specialKey,
+                    'project' => ProjectItemDTO::fromEntity($projectEntity)->toArray(),
+                    'is_existing' => false,
+                ];
+            } catch (Throwable $e) {
+                Db::rollBack();
+                $this->logger->error('Create Special Project Failed, err: ' . $e->getMessage(), ['key' => $specialKey]);
+                ExceptionBuilder::throw(SuperAgentErrorCode::CREATE_PROJECT_FAILED, 'project.create_project_failed');
+            }
+        } finally {
+            $this->locker->release($lockName, $lockOwner);
+        }
+    }
+
+    /**
      * 更新项目.
      */
     public function updateProject(RequestContext $requestContext, UpdateProjectRequestDTO $requestDTO): array
@@ -301,8 +441,10 @@ class ProjectAppService extends AbstractAppService
         // Create data isolation object
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
+        $projectId = (int) $requestDTO->getId();
+
         // 获取项目信息
-        $projectEntity = $this->projectDomainService->getProject((int) $requestDTO->getId(), $dataIsolation->getCurrentUserId());
+        $projectEntity = $this->projectDomainService->getProject($projectId, $dataIsolation->getCurrentUserId());
 
         if (! is_null($requestDTO->getProjectName())) {
             $projectEntity->setProjectName($requestDTO->getProjectName());
@@ -310,19 +452,44 @@ class ProjectAppService extends AbstractAppService
         if (! is_null($requestDTO->getProjectDescription())) {
             $projectEntity->setProjectDescription($requestDTO->getProjectDescription());
         }
-        if (! is_null($requestDTO->getWorkspaceId())) {
-            // 检查话题是否存在
-            $workspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($requestDTO->getWorkspaceId());
-            if (empty($workspaceEntity)) {
-                ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
-            }
-            $projectEntity->setWorkspaceId($requestDTO->getWorkspaceId());
-        }
         if (! is_null($requestDTO->getIsCollaborationEnabled())) {
             $projectEntity->setIsCollaborationEnabled($requestDTO->getIsCollaborationEnabled());
         }
         if (! is_null($requestDTO->getDefaultJoinPermission())) {
             $projectEntity->setDefaultJoinPermission(MemberRole::validatePermissionLevel($requestDTO->getDefaultJoinPermission()));
+        }
+
+        // Handle project mode change
+        if (! is_null($requestDTO->getProjectMode())) {
+            $newMode = $requestDTO->getProjectMode();
+            if (ProjectMode::tryFrom($newMode) === null) {
+                ExceptionBuilder::throw(GenericErrorCode::ParameterValidationFailed, "Invalid project_mode: {$newMode}");
+            }
+            $projectEntity->setProjectMode($newMode);
+        }
+
+        // TODO: Remove workspace changes from updateProject; clients should use the move API instead.
+        // Handle target_workspace_id only during the transition period.
+        if ($requestDTO->hasTargetWorkspaceId()) {
+            $targetWorkspaceId = $requestDTO->getTargetWorkspaceId();
+
+            if (! $requestDTO->isDetachingWorkspace() && ! is_null($targetWorkspaceId)) {
+                // Moving to a specific workspace: validate access
+                $targetWorkspaceEntity = $this->workspaceDomainService->getWorkspaceDetail($targetWorkspaceId);
+                if (empty($targetWorkspaceEntity)) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_NOT_FOUND, 'workspace.workspace_not_found');
+                }
+                if ($targetWorkspaceEntity->getUserId() !== $userAuthorization->getId()) {
+                    ExceptionBuilder::throw(SuperAgentErrorCode::WORKSPACE_ACCESS_DENIED, 'workspace.access_denied');
+                }
+            }
+
+            // Cascade workspace_id to topics and tasks via domain service
+            $projectEntity = $this->projectDomainService->moveProject(
+                $projectId,
+                $targetWorkspaceId,
+                $userAuthorization->getId()
+            );
         }
 
         $this->projectDomainService->saveProjectEntity($projectEntity);
@@ -627,6 +794,28 @@ class ProjectAppService extends AbstractAppService
         ];
     }
 
+    public function getProjectSidebarTopics(RequestContext $requestContext, GetSidebarTopicsRequestDTO $requestDTO): array
+    {
+        $userAuthorization = $requestContext->getUserAuthorization();
+        $dataIsolation = $this->createDataIsolation($userAuthorization);
+
+        $this->getAccessibleProject(
+            $requestDTO->getProjectId(),
+            $userAuthorization->getId(),
+            $userAuthorization->getOrganizationCode()
+        );
+
+        $result = $this->topicDomainService->getProjectSidebarTopics(
+            $requestDTO->getProjectId(),
+            $dataIsolation->getCurrentUserId(),
+            $requestDTO->getQ(),
+            $requestDTO->getPage(),
+            $requestDTO->getPageSize()
+        );
+
+        return SidebarTopicListResponseDTO::fromResult($result)->toArray();
+    }
+
     public function checkFileListUpdate(RequestContext $requestContext, int $projectId, DataIsolation $dataIsolation): array
     {
         //        $userAuthorization = $requestContext->getUserAuthorization();
@@ -671,7 +860,12 @@ class ProjectAppService extends AbstractAppService
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
         // 获取附件列表（传入workDir用于相对路径计算）
-        return $this->getProjectAttachmentList($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
+        return $this->getProjectAttachmentList(
+            $dataIsolation,
+            $requestDTO,
+            $projectEntity->getWorkDir() ?? '',
+            $projectEntity
+        );
     }
 
     /**
@@ -703,7 +897,12 @@ class ProjectAppService extends AbstractAppService
         // 创建基于用户的数据隔离
         $dataIsolation = $this->createDataIsolation($userAuthorization);
 
-        return $this->getProjectAttachmentList($dataIsolation, $requestDTO, $projectEntity->getWorkDir() ?? '');
+        return $this->getProjectAttachmentList(
+            $dataIsolation,
+            $requestDTO,
+            $projectEntity->getWorkDir() ?? '',
+            $projectEntity
+        );
     }
 
     /**
@@ -748,13 +947,18 @@ class ProjectAppService extends AbstractAppService
                 ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
         }
 
+        $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $projectId);
+        if (empty($projectEntity)) {
+            ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND, 'project.project_not_found');
+        }
+        $workDir = $projectEntity->getWorkDir() ?: $workDir;
         $requestDto->setProjectId($projectId);
         $organizationCode = AccessTokenUtil::getOrganizationCode($token);
         // 创建DataIsolation
         $dataIsolation = DataIsolation::simpleMake($organizationCode, '');
 
         // 令牌模式不需要workDir处理，传空字符串
-        return $this->getProjectAttachmentList($dataIsolation, $requestDto, $workDir);
+        return $this->getProjectAttachmentList($dataIsolation, $requestDto, $workDir, $projectEntity);
     }
 
     /**
@@ -1166,7 +1370,7 @@ class ProjectAppService extends AbstractAppService
 
         if (! empty($validProjectIds)) {
             try {
-                $successResults = Db::transaction(function () use ($validProjectIds, $targetWorkspaceId, $now) {
+                $successResults = Db::transaction(function () use ($validProjectIds, $targetWorkspaceId, $now, $userId, $organizationCode) {
                     // Step 4.1: Batch update projects (1 query)
                     $updatedCount = $this->projectRepository->batchUpdateWorkspace(
                         $validProjectIds,
@@ -1189,7 +1393,19 @@ class ProjectAppService extends AbstractAppService
                         'updated_count' => $topicUpdatedCount,
                     ]);
 
-                    // Step 4.3: Build success results
+                    // Step 4.3: Sync owner's personal workspace binding.
+                    $settingUpdatedCount = $this->projectMemberDomainService->syncOwnerProjectWorkspaceBindings(
+                        $userId,
+                        $validProjectIds,
+                        $targetWorkspaceId,
+                        $organizationCode
+                    );
+
+                    $this->logger->info('Batch synced owner project workspace bindings', [
+                        'updated_count' => $settingUpdatedCount,
+                    ]);
+
+                    // Step 4.4: Build success results
                     $results = [];
                     foreach ($validProjectIds as $projectId) {
                         $projectIdStr = (string) $projectId;
@@ -1259,27 +1475,46 @@ class ProjectAppService extends AbstractAppService
     /**
      * 获取项目附件列表的核心逻辑.
      */
-    public function getProjectAttachmentList(DataIsolation $dataIsolation, GetProjectAttachmentsRequestDTO $requestDTO, string $workDir = ''): array
-    {
-        // 通过任务领域服务获取项目下的附件列表
-        $result = $this->taskDomainService->getTaskAttachmentsByProjectId(
-            (int) $requestDTO->getProjectId(),
-            $dataIsolation,
-            $requestDTO->getPage(),
-            $requestDTO->getPageSize(),
-            $requestDTO->getFileType(),
-            StorageType::WORKSPACE->value,
-        );
+    public function getProjectAttachmentList(
+        DataIsolation $dataIsolation,
+        GetProjectAttachmentsRequestDTO $requestDTO,
+        string $workDir = '',
+        ?ProjectEntity $projectEntity = null
+    ): array {
+        $parentId = $requestDTO->getParentId();
+        if ($parentId === null || $parentId === '') {
+            $parentId = $this->resolveRootDirectoryId($dataIsolation, $requestDTO, $projectEntity, $workDir);
+            if ($parentId !== '') {
+                $requestDTO->setParentId($parentId);
+            }
+        }
 
-        // 处理文件 URL
+        // After resolveRootDirectoryId, $parentId is always a string (possibly empty)
+        if ($parentId === '') {
+            return [
+                'total' => 0,
+                'list' => [],
+                'tree' => [],
+            ];
+        }
+
+        // Only return workspace-type files; filter at DB level to avoid loading snapshot/other files
+        $fileTree = $this->magicFSFileDomainService->getFileTree($parentId, -1, 0, StorageType::WORKSPACE->value);
+        /** @var TaskFileEntity[] $entities */
+        $entities = $fileTree['children'] ?? [];
+        $fileTypes = $requestDTO->getFileType();
+        if (! empty($fileTypes)) {
+            $entities = array_filter(
+                $entities,
+                static fn (TaskFileEntity $entity) => in_array($entity->getFileType(), $fileTypes, true)
+            );
+            $entities = array_values($entities);
+        }
+
         $list = [];
         $fileKeys = [];
-        // 遍历附件列表，使用TaskFileItemDTO处理
-        foreach ($result['list'] as $entity) {
-            /**
-             * @var TaskFileEntity $entity
-             */
-            // 创建DTO
+        $relativePathMap = $this->buildRelativePathsByParentIds($entities, (int) $requestDTO->getProjectId());
+        foreach ($entities as $entity) {
             $dto = new TaskFileItemDTO();
             $dto->fileId = (string) $entity->getFileId();
             $dto->taskId = (string) $entity->getTaskId();
@@ -1291,39 +1526,33 @@ class ProjectAppService extends AbstractAppService
             $dto->isHidden = $entity->getIsHidden();
             $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
-            $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
-            if ($this->shouldForceMagicVisible($dto->relativeFilePath, $dto->fileKey)) {
-                $dto->isHidden = false;
-            }
+            $dto->relativeFilePath = $relativePathMap[$entity->getFileId()] ?? WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
             $dto->isDirectory = $entity->getIsDirectory();
-            $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
-            // 添加 project_id 字段
+            $dto->displayConfig = FileMetadataUtil::decodeJsonObject($entity->getDisplayConfig());
+            $dto->metadata = $dto->displayConfig;
             $dto->projectId = (string) $entity->getProjectId();
-            // 设置排序字段
             $dto->sort = $entity->getSort();
             $dto->fileUrl = '';
             $dto->parentId = (string) $entity->getParentId();
             $dto->source = $entity->getSource();
-            // 添加 file_url 字段
+
             $fileKey = $entity->getFileKey();
-            // 判断file key是否重复，如果重复，则跳过
-            // 如果根目录，也跳过
-            if (in_array($fileKey, $fileKeys) || empty($entity->getParentId())) {
+            if (in_array($fileKey, $fileKeys, true)) {
                 continue;
             }
             $fileKeys[] = $fileKey;
             $list[] = $dto->toArray();
         }
 
-        // Build tree structure with VS Code-style sorting (always use zh_CN for pinyin sorting)
-        $tree = FileTreeUtil::assembleFilesTreeByParentId($list, 'zh_CN');
+        $tree = $this->fileTreeBuilder->buildTree($list, (int) $parentId, 'zh_CN');
+        $total = count($list);
 
-        if ($result['total'] > 3000) {
-            $this->logger->error(sprintf('Project attachment list is too large, project ID: %d, total: %d', $requestDTO->getProjectId(), $result['total']));
+        if ($total > 3000) {
+            $this->logger->error(sprintf('Project attachment list is too large, project ID: %d, total: %d', $requestDTO->getProjectId(), $total));
         }
 
         return [
-            'total' => $result['total'],
+            'total' => $total,
             'list' => $list,
             'tree' => $tree,
         ];
@@ -1348,6 +1577,7 @@ class ProjectAppService extends AbstractAppService
         // 处理文件 URL
         $list = [];
         $fileKeys = [];
+        $relativePathMap = $this->buildRelativePathsByParentIds($result['list'], (int) $requestDTO->getProjectId());
         // 遍历附件列表，使用TaskFileItemDTO处理
         foreach ($result['list'] as $entity) {
             /**
@@ -1365,12 +1595,10 @@ class ProjectAppService extends AbstractAppService
             $dto->isHidden = $entity->getIsHidden();
             $dto->updatedAt = $entity->getUpdatedAt();
             $dto->topicId = (string) $entity->getTopicId();
-            $dto->relativeFilePath = WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
-            if ($this->shouldForceMagicVisible($dto->relativeFilePath, $dto->fileKey)) {
-                $dto->isHidden = false;
-            }
+            $dto->relativeFilePath = $relativePathMap[$entity->getFileId()] ?? WorkDirectoryUtil::getRelativeFilePath($entity->getFileKey(), $workDir);
             $dto->isDirectory = $entity->getIsDirectory();
-            $dto->metadata = FileMetadataUtil::getMetadataObject($entity->getMetadata());
+            $dto->displayConfig = FileMetadataUtil::decodeJsonObject($entity->getDisplayConfig());
+            $dto->metadata = $dto->displayConfig;
             // 添加 project_id 字段
             $dto->projectId = (string) $entity->getProjectId();
             // 设置排序字段
@@ -2040,25 +2268,55 @@ class ProjectAppService extends AbstractAppService
         $this->projectDomainService->deleteProject($projectId, $project->getUserId());
     }
 
-    private function shouldForceMagicVisible(string $relativeFilePath, string $fileKey): bool
-    {
-        foreach ([$relativeFilePath, $fileKey] as $path) {
-            $normalizedPath = trim($path, '/');
-            if ($normalizedPath === '') {
-                continue;
-            }
-
-            if (
-                $normalizedPath === '.magic'
-                || str_starts_with($normalizedPath, '.magic/')
-                || str_contains($normalizedPath, '/.magic/')
-                || str_ends_with($normalizedPath, '/.magic')
-            ) {
-                return true;
-            }
+    /**
+     * Resolve the root directory id for a project if parent_id is missing.
+     */
+    private function resolveRootDirectoryId(
+        DataIsolation $dataIsolation,
+        GetProjectAttachmentsRequestDTO $requestDTO,
+        ?ProjectEntity $projectEntity,
+        string $workDir
+    ): string {
+        if ($projectEntity === null) {
+            return '';
         }
 
-        return false;
+        $userId = $dataIsolation->getCurrentUserId() ?? $projectEntity->getUserId();
+        $organizationCode = $dataIsolation->getCurrentOrganizationCode();
+        $projectOrganizationCode = $projectEntity->getUserOrganizationCode() ?: $organizationCode;
+
+        $rootId = $this->taskFileDomainService->findOrCreateProjectRootDirectory(
+            (int) $requestDTO->getProjectId(),
+            $workDir,
+            (string) $userId,
+            $organizationCode,
+            $projectOrganizationCode
+        );
+
+        return (string) $rootId;
+    }
+
+    /**
+     * Build relative paths based on parent_id chain instead of file_key.
+     *
+     * @param TaskFileEntity[] $entities
+     * @param int $projectId Project ID from request context
+     * @return array<int, string> [file_id => relative_path]
+     */
+    private function buildRelativePathsByParentIds(array $entities, int $projectId): array
+    {
+        if (empty($entities)) {
+            return [];
+        }
+
+        $fileIds = array_values(array_unique(array_map(
+            static fn (TaskFileEntity $entity): int => $entity->getFileId(),
+            $entities
+        )));
+
+        $filesWithParents = $this->taskFileDomainService->getFilesWithParentsByIds($fileIds, $projectId);
+        $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
+        return RelativeFilePathUtil::buildPathMapByParentChain($entities, $fileMap);
     }
 
     /**
@@ -2103,8 +2361,6 @@ class ProjectAppService extends AbstractAppService
                 projectId: $projectEntity->getId(),
                 parentId: $rootDirId,
                 dirName: '.magic',
-                relativePath: '.magic',
-                workDir: $projectEntity->getWorkDir(),
                 userId: $dataIsolation->getCurrentUserId(),
                 organizationCode: $dataIsolation->getCurrentOrganizationCode(),
                 projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
@@ -2251,6 +2507,10 @@ class ProjectAppService extends AbstractAppService
         $hiddenTopic->setHiddenType(null);
         $hiddenTopic->setUpdatedUid($dataIsolation->getCurrentUserId());
         $hiddenTopic->setUpdatedAt(date('Y-m-d H:i:s'));
+        // 将当前请求的动态参数写入话题
+        if (! empty($requestDTO->getDynamicParams())) {
+            $hiddenTopic->setDynamicParams($requestDTO->getDynamicParams());
+        }
 
         $this->topicDomainService->saveTopicEntity($hiddenTopic);
 
@@ -2289,7 +2549,9 @@ class ProjectAppService extends AbstractAppService
     private function initializeProject(
         DataIsolation $dataIsolation,
         ?WorkspaceEntity $workspaceEntity,
-        ProjectEntity $projectEntity
+        ProjectEntity $projectEntity,
+        ?array $dynamicParams = null,
+        string $topicMode = ''
     ): TopicEntity {
         // 2. Get project work directory
         $workDir = WorkDirectoryUtil::getWorkDir(
@@ -2310,7 +2572,13 @@ class ProjectAppService extends AbstractAppService
             $chatConversationId,
             $chatConversationTopicId,
             '',
-            $workDir
+            $workDir,
+            $topicMode,
+            CreationSource::USER_CREATED->value,
+            '',
+            false,
+            null,
+            $dynamicParams
         );
         $this->logger->info(sprintf('创建默认话题成功, topicId=%s', $topicEntity->getId()));
 

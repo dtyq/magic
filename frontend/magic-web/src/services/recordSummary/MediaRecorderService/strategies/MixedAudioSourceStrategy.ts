@@ -45,10 +45,21 @@ export class MixedAudioSourceStrategy implements AudioSourceStrategy {
 		try {
 			this.dependencies.logger.log("Initializing mixed audio source")
 
-			const micAudioConstraints = getMicrophoneConstraints(
-				"default",
-				this.config.audioSource?.microphoneConstraints,
-			)
+			// Build device constraint (same logic as MicrophoneSourceStrategy)
+			const explicitDeviceId = this.config.audioSource?.microphoneConstraints?.deviceId
+			const deviceIdConstraint =
+				explicitDeviceId && typeof explicitDeviceId === "string"
+					? { exact: explicitDeviceId }
+					: { ideal: "default" }
+
+			const micAudioConstraints = getMicrophoneConstraints("default", {
+				...this.config.audioSource?.microphoneConstraints,
+				deviceId: deviceIdConstraint,
+			})
+
+			this.dependencies.logger.log("Requesting microphone stream (mixed mode)", {
+				deviceId: deviceIdConstraint,
+			})
 
 			// Get microphone stream
 			this.micMediaStream = await this.dependencies.mediaDevices.getUserMedia({

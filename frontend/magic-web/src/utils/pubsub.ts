@@ -1,36 +1,54 @@
 /**
- * 简单的发布订阅系统
+ * 简单的发布订阅系统（强类型约束）
+ *
+ * 所有 publish/subscribe 的 event 必须在 PubSubTypedPayloadMap 中登记，
+ * 否则编译期报错。
+ * 映射值既可以是单 payload，也可以是参数元组（支持零参数 / 多参数事件）。
  */
+import type { PubSubTypedPayloadMap } from "./pubSubPayloadMap"
 
-type Listener = (...args: any[]) => void
+type Listener = (...args: unknown[]) => void
 
-class PubSub {
+type EventArgs<TMap, E extends keyof TMap> = TMap[E] extends unknown[]
+	? TMap[E]
+	: [payload: TMap[E]]
+
+class TypedPubSub<TMap extends object> {
 	private events: Record<string, Listener[]> = {}
 
 	/**
 	 * 订阅事件
-	 * @param event 事件名称
-	 * @param callback 回调函数
+	 * @param event 事件名称（必须已登记到 PubSubTypedPayloadMap）
+	 * @param callback 回调函数（参数类型由 map 自动推断）
 	 */
-	subscribe(event: string, callback: Listener): void {
+	subscribe<E extends keyof TMap & string>(
+		event: E,
+		callback: (...args: EventArgs<TMap, E>) => void,
+	): void {
 		if (!this.events[event]) {
 			this.events[event] = []
 		}
-		this.events[event].push(callback)
+		this.events[event].push(callback as Listener)
 	}
 
 	/**
-	 * 取消订阅事件
+	 * 取消订阅事件。
 	 * @param event 事件名称
-	 * @param callback 可选，特定的回调函数。如果不提供，将取消该事件的所有订阅
+	 * @param callback 指定要移除的回调函数。
+	 *   - 传入 callback：精确移除该引用，不影响同一事件的其他订阅者。
+	 *   - 不传 callback：**清除该事件的全部监听器**，包括其他组件的订阅，慎用。
+	 *     仅在确认整个应用中该事件只有当前一处订阅时才可省略。
 	 */
-	unsubscribe(event: string, callback?: Listener): void {
+	unsubscribe<E extends keyof TMap & string>(
+		event: E,
+		callback?: (...args: EventArgs<TMap, E>) => void,
+	): void {
 		if (!this.events[event]) {
 			return
 		}
 
 		if (callback) {
-			this.events[event] = this.events[event].filter((cb) => cb !== callback)
+			this.events[event] = this.events[event].filter((cb) => cb !== (callback as Listener))
 		} else {
 			delete this.events[event]
 		}
@@ -38,10 +56,10 @@ class PubSub {
 
 	/**
 	 * 发布事件
-	 * @param event 事件名称
-	 * @param args 传递给订阅者的参数
+	 * @param event 事件名称（必须已登记到 PubSubTypedPayloadMap）
+	 * @param args 传递给订阅者的参数（类型由 map 自动推断）
 	 */
-	publish(event: string, ...args: any[]): void {
+	publish<E extends keyof TMap & string>(event: E, ...args: EventArgs<TMap, E>): void {
 		if (!this.events[event]) {
 			return
 		}
@@ -56,6 +74,13 @@ class PubSub {
 	}
 
 	/**
+	 * 检查某个事件是否有订阅者
+	 */
+	hasListeners<E extends keyof TMap & string>(event: E): boolean {
+		return (this.events[event]?.length ?? 0) > 0
+	}
+
+	/**
 	 * 清除所有事件订阅
 	 */
 	clear(): void {
@@ -63,8 +88,8 @@ class PubSub {
 	}
 }
 
-// 创建并导出单例实例
-const pubsub = new PubSub()
+// 单例，携带全局事件类型映射
+const pubsub = new TypedPubSub<PubSubTypedPayloadMap>()
 export default pubsub
 
 export const PubSubEvents = {
@@ -98,6 +123,10 @@ export const PubSubEvents = {
 	SCHEDULED_TASK_UPDATED: "PubSub_Scheduled_Task_Updated",
 	/** 超级麦吉 - 消息列表滚动到底部 */
 	Message_Scroll_To_Bottom: "scroll_messages_to_bottom",
+	/** 超级麦吉 - 注册一次由外部组件触发的消息列表程序滚动 */
+	Message_Register_Programmatic_Scroll: "register_programmatic_message_scroll",
+	/** 超级麦吉 - 用户交互引起的内容高度变化，临时抑制自动滚底 */
+	Message_Suppress_Auto_Scroll: "suppress_message_auto_scroll",
 	/** 超级麦吉 - 更新活跃文件ID */
 	Update_Active_File_Id: "PubSub_Update_Active_File_Id",
 	/** 超级麦吉 - 定位到文件树中的文件 */
@@ -110,6 +139,8 @@ export const PubSubEvents = {
 	Open_Playback_Tab: "super_magic_open_playback_tab",
 	/** 订阅超麦消息队列更新 */
 	SuperMagicMessageQueueConsumed: "PubSub_Super_Magic_Message_Queue",
+	/** 超级麦吉 - WebSocket Intermediate 工程文件变更（订阅方自行处理） */
+	Super_Magic_File_Change_Intermediate: "PubSub_Super_Magic_File_Change_Intermediate",
 	/** 录音总结 - 接收外部消息内容，发送消息 */
 	Send_Message_by_Content: "send_message_by_content",
 	/** 超级麦吉 - 更新附件加载状态 */
@@ -125,7 +156,9 @@ export const PubSubEvents = {
 	/** 超级麦吉 - 更新自动详情 */
 	Super_Magic_Update_Auto_Detail: "super_magic_update_auto_detail",
 	/** 超级麦吉 - 新消息 */
-	Super_Magic_New_Message: "super_magic_new_message",
+	// Super_Magic_New_Message: "super_magic_new_message",
+	/** 超级麦吉 - 新消息V2 */
+	Super_Magic_New_Message_V2: "super_magic_new_message_v2",
 	/** 超级麦吉 - 创建新话题 */
 	Create_New_Topic: "create_new_topic",
 	/** 录音总结 - 接收音频文件 */
@@ -152,8 +185,6 @@ export const PubSubEvents = {
 	Super_Magic_Clear_Canvas_Markers: "super_magic_clear_canvas_markers",
 	/** 超级麦吉 - 画布 - 聚焦元素 */
 	Super_Magic_Focus_Canvas_Element: "super_magic_focus_canvas_element",
-	/** 超级麦吉 - 画布 - 选中标记并聚焦元素 */
-	Super_Magic_Select_Marker_And_Focus: "super_magic_select_marker_and_focus",
 	/** 超级麦吉 - 话题模式变化 */
 	Super_Magic_Topic_Mode_Changed: "super_magic_topic_mode_changed",
 	/** 超级麦吉 - 接收 app 分享的数据模式 */
@@ -165,8 +196,40 @@ export const PubSubEvents = {
 	/** 超级麦吉 - 详情页刷新 */
 	Super_Magic_Detail_Refresh: "super_magic_detail_refresh",
 
+	/** 超级麦吉 - 追加建议文本到输入框末尾 */
+	Append_Suggestion_To_Editor: "PubSub_Append_Suggestion_To_Editor",
 	/** 超级麦吉 - 设置内容当幻灯片添加时 */
 	Set_Content_When_Slide_Added: "set_content_when_slide_added",
 	/** 超级麦吉 - 设置 demo 文本到输入框 */
 	Set_Demo_Text_To_Input: "PubSub_Set_Demo_Text_To_Input",
-}
+	/** 超级麦吉 - 触发知识库列表轮询 */
+	Trigger_Knowledge_List_Polling: "PubSub_Trigger_Knowledge_List_Polling",
+	/** 超级麦吉 - 触发文档列表轮询 */
+	Trigger_Document_List_Polling: "PubSub_Trigger_Document_List_Polling",
+	/** 超级麦吉 - 添加文件到聊天输入框（活跃链路，由 MessageEditor 统一消费） */
+	Add_File_To_Chat: "super_magic_add_file_to_chat",
+	/** 超级麦吉 - 发送打断消息（可选回调，打断完成后执行） */
+	Send_Interrupt_Message: "send_interrupt_message",
+	/** 超级麦吉 - 触发创建新话题（超时警告卡片触发） */
+	Trigger_Create_Topic: "super_magic_create_create_topic",
+	/** 超级麦吉 - 添加话题到列表（新话题创建完成后） */
+	Add_Topic: "super_magic_add_topic",
+	/** 超级麦吉 - WebSocket 流式原始消息到达 */
+	Stream_Message: "super_magic_stream_message",
+	/** 超级麦吉 - 退出全屏 */
+	Exit_Fullscreen: "exit_fullscreen",
+	/** 超级麦吉 - 文件详情区最大化 */
+	Maximize_File: "super_magic_maximize_file",
+	/** 超级麦吉 - 切换详情面板模式（files / single，当前订阅侧已清除，publish 侧保留） */
+	Switch_Detail_Mode: "super_magic_switch_detail_mode",
+	/** 超级麦吉 - 刷新 Agent 列表 */
+	Update_Agents: "super_magic_update_agents",
+	/** 分享页 - 文件夹点击 */
+	Folder_Click: "super_magic_folder_click",
+	/** 分享页 - Playback 开始播放 */
+	Playback_Start: "super_magic_playback_start",
+	/** 分享页 - Playback 播放结束 */
+	Playback_End: "super_magic_playback_end",
+	/** 超级麦吉 - 向编辑器插入拖拽数据（当前由外部/原生层触发，无 TypeScript publish 侧） */
+	Insert_Drag_Data_To_Editor: "super_magic_insert_drag_data_to_editor",
+} as const

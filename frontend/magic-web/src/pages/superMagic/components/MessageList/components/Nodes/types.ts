@@ -23,4 +23,6 @@ export interface NodeProps {
 	isNewlyInserted?: boolean
 	/** Stagger order for newly inserted nodes */
 	entryAnimationOrder?: number
+	/** 是否为当前撤销消息列表中的第一个用户消息 */
+	isFirstRevokedUserMessage?: boolean
 }

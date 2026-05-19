@@ -1,16 +1,17 @@
 import type { ThemeMode } from "antd-style"
 import type { Common } from "@/types/common"
 import type * as apis from "@/apis"
+import type { RequestConfig } from "@/apis/core/HttpClient"
 import { ConfigRepository } from "@/models/config/repositories/ConfigRepository"
 import { ClusterRepository } from "@/models/config/repositories/ClusterRepository"
 import { configStore } from "@/models/config/stores"
 import { isString } from "lodash-es"
 import { BroadcastChannelSender } from "@/broadcastChannel"
 import { Config } from "@/models/config/types"
-import { getForcedLanguage, resolveLanguageSelection } from "@/models/config/languagePolicy"
 import { SupportLocales } from "@/constants/locale"
 import { env } from "@/utils/env"
 import { normalizeLocale } from "@/utils/locale"
+import { normalizeThemeMode } from "@/constants/theme"
 
 export class ConfigService {
 	private readonly commonApi: typeof apis.CommonApi
@@ -20,18 +21,45 @@ export class ConfigService {
 	}
 
 	/**
+	 * Align i18n with persisted locale before full config init (same source as init).
+	 * Uses getLocaleConfig (IDB + Storage fallback + native app). URL overrides win.
+	 */
+	async hydrateLanguageEarly() {
+		if (typeof window === "undefined") return
+
+		await configStore.i18n.waitForI18nCoreReady()
+
+		const temporaryLanguage = this.getTemporaryLanguageFromUrl()
+		if (temporaryLanguage) {
+			await configStore.i18n.setTemporaryLanguage(temporaryLanguage)
+		}
+
+		const config = new ConfigRepository()
+		const locale = await config.getLocaleConfig()
+		if (locale) {
+			await configStore.i18n.syncLanguage(locale)
+		}
+	}
+
+	/**
 	 * @description 初始化(持久化数据/内存状态)
 	 */
 	async init(options: Config.InitializeGlobalConfig) {
 		const config = new ConfigRepository()
 		const theme = await config.getThemeConfig()
 
-		// 主题初始化
+		// Theme init: coerce to light while dark mode is disabled
 		if (!theme) {
-			const defaultTheme = configStore.theme.theme
-			await config.setThemeConfig(options.initializeTheme || defaultTheme)
+			const defaultTheme = normalizeThemeMode(configStore.theme.theme)
+			const initial = options.initializeTheme
+				? normalizeThemeMode(options.initializeTheme)
+				: defaultTheme
+			await config.setThemeConfig(initial)
+			configStore.theme.setTheme(initial)
 		} else {
-			configStore.theme.setTheme(theme as ThemeMode)
+			const normalized = normalizeThemeMode(theme as ThemeMode)
+			configStore.theme.setTheme(normalized)
+			if (normalized !== theme) await config.setThemeConfig(normalized)
 		}
 
 		// 字体缩放初始化
@@ -44,31 +72,26 @@ export class ConfigService {
 		}
 
 		// 国际化语言初始化
+		await configStore.i18n.waitForI18nCoreReady()
+
 		const initialLanguage = configStore.i18n.language
 
 		const temporaryLanguage = this.getTemporaryLanguageFromUrl()
 		if (temporaryLanguage) {
 			// Apply URL language before any persisted sync.
-			configStore.i18n.setTemporaryLanguage(temporaryLanguage)
+			await configStore.i18n.setTemporaryLanguage(temporaryLanguage)
 		}
 
 		const locale = await config.getLocaleConfig()
-		const forcedLanguage = getForcedLanguage()
-		if (forcedLanguage) {
-			await config.setLocaleConfig(forcedLanguage as Config.LanguageValue)
-			// Keep the session override while syncing storage.
-			configStore.i18n.syncLanguage(forcedLanguage)
-			return
-		}
 
 		if (!locale) {
 			const defaultLocale = initialLanguage
 			await config.setLocaleConfig(
 				options.initializeI18n || (defaultLocale as Config.LanguageValue),
 			)
-			configStore.i18n.syncLanguage(options.initializeI18n || defaultLocale)
+			await configStore.i18n.syncLanguage(options.initializeI18n || defaultLocale)
 		} else {
-			configStore.i18n.syncLanguage(locale)
+			await configStore.i18n.syncLanguage(locale)
 		}
 	}
 
@@ -149,11 +172,13 @@ export class ConfigService {
 	}
 
 	/**
-	 * @description 远程同步配置
+	 * 加载语言列表，国际冠号等配置
+	 * @param options 请求配置
+	 * @returns 语言列表，国际冠号等配置
 	 */
-	loadConfig = async () => {
+	loadConfig = async (options?: Pick<RequestConfig, "skipAppInitWait">) => {
 		try {
-			const response = await this.commonApi.getInternationalizedSettings()
+			const response = await this.commonApi.getInternationalizedSettings(options)
 			if (response) {
 				configStore.i18n.setLanguages(response.languages)
 				configStore.i18n.setAreaCodes(response.phone_area_codes)
@@ -168,9 +193,10 @@ export class ConfigService {
 	 */
 	setThemeConfig(theme: ThemeMode) {
 		try {
+			const normalized = normalizeThemeMode(theme)
 			const config = new ConfigRepository()
-			config.setThemeConfig(theme)
-			configStore.theme.setTheme(theme)
+			config.setThemeConfig(normalized)
+			configStore.theme.setTheme(normalized)
 		} catch (error) {
 			console.error(error)
 		}
@@ -193,19 +219,18 @@ export class ConfigService {
 	 * @description 设置国际化语言
 	 */
 	setLanguage(lang: Config.LanguageValue) {
-		const targetLanguage = resolveLanguageSelection(lang) as Config.LanguageValue
 		const hasTemporaryLanguage = Boolean(configStore.i18n.temporaryLanguage)
 
-		if (!hasTemporaryLanguage && configStore.i18n.language === targetLanguage) {
+		if (!hasTemporaryLanguage && configStore.i18n.language === lang) {
 			return
 		}
 		const config = new ConfigRepository()
-		config.setLocaleConfig(targetLanguage).catch(console.error)
-		configStore.i18n.setLanguage(targetLanguage)
-		BroadcastChannelSender.switchLanguage(targetLanguage)
+		config.setLocaleConfig(lang).catch(console.error)
+		void configStore.i18n.setLanguage(lang)
+		BroadcastChannelSender.switchLanguage(lang)
 		import("@/lib/dayjs")
 			.then((module) => {
-				module.switchLanguage?.(targetLanguage)
+				module.switchLanguage?.(lang)
 			})
 			.catch(console.error)
 	}

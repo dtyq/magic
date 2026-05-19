@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next"
 import { logger as Logger } from "@/utils/log"
 import StreamChunkManager from "../services/streamChunkManager"
 import { base64ToFile, extractFileNameFromPath } from "../utils/fileConverter"
-import { TopicMode } from "../../../pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import magicToast from "@/components/base/MagicToaster/utils"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
@@ -40,10 +40,14 @@ function useSharedDataFromApp({ editor, addFiles, uploadEnabled }: UseSharedData
 				try {
 					if (
 						data.project_mode &&
-						superMagicModeService.isModeValid(data.project_mode as TopicMode)
+						superMagicModeService.isModeValid(
+							data.project_mode as TopicMode,
+							data.agent_code,
+						)
 					) {
 						pubsub.publish(PubSubEvents.Super_Magic_Receive_Shared_Project_Mode, {
 							mode: data.project_mode as TopicMode,
+							agent_code: data.agent_code,
 						})
 					}
 

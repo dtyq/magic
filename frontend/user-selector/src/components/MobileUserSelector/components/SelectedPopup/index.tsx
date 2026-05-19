@@ -1,6 +1,10 @@
 import { memo, useMemo, useRef, useState } from "react"
 import { useAppearance } from "@/context/AppearanceProvider"
-import { CheckboxOptions, TreeNode } from "@/components/UserSelector/types"
+import {
+	CheckboxOptions,
+	type RenderListItemRight,
+	TreeNode,
+} from "@/components/UserSelector/types"
 import SearchContainer from "@/components/SearchContainer"
 import CommonListPanel from "@/components/CommonListPanel"
 import { debounce } from "lodash-es"
@@ -25,12 +29,16 @@ export interface SelectedPopupProps {
 	onClose?: () => void
 	/** 抽屉位置 (antd-mobile API) */
 	position?: "bottom" | "top" | "left" | "right"
+	/* 抽屉层级 */
+	zIndex?: number
 	/** 自定义抽屉内容类名 */
 	bodyClassName?: string
 	/** 自定义抽屉内容类名 */
 	className?: string
 	/** 关闭时是否销毁内容 */
 	destroyOnClose?: boolean
+	/** 自定义渲染列表项右侧内容 */
+	renderItemRight?: RenderListItemRight
 }
 
 const SelectedPopup = ({
@@ -43,7 +51,9 @@ const SelectedPopup = ({
 	onOpenChange,
 	onClose,
 	position,
+	zIndex,
 	destroyOnClose,
+	renderItemRight,
 	onOk,
 }: SelectedPopupProps) => {
 	const { getLocale } = useAppearance()
@@ -81,6 +91,7 @@ const SelectedPopup = ({
 			onOpenChange={onOpenChange}
 			onClose={onClose}
 			position={position}
+			zIndex={zIndex}
 			destroyOnClose={destroyOnClose}
 			className="h-[80vh]"
 			bodyClassName={cn("w-full h-full max-h-[90vh] rounded-t-lg", bodyClassName)}
@@ -103,6 +114,7 @@ const SelectedPopup = ({
 					loading={loading}
 					placeholder={locale.searchDepartmentOrMember}
 					onSearchChange={onSearchChange}
+					renderItemRight={renderItemRight}
 					isMobile
 				>
 					<CommonListPanel<TreeNode>
@@ -110,6 +122,7 @@ const SelectedPopup = ({
 						loading={loading}
 						checkboxOptions={checkboxOptions}
 						isMobile
+						renderItemRight={renderItemRight}
 					/>
 				</SearchContainer>
 			</div>

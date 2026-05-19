@@ -1,8 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react"
-import {
-	downloadFileContent,
-	getTemporaryDownloadUrl,
-} from "@/pages/superMagic/utils/api"
+import { downloadFileContent, getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { downloadFileWithAnchor, getFileType } from "@/pages/superMagic/utils/handleFIle"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { FilesViewerRef } from "../components/FilesViewer"
@@ -146,7 +143,7 @@ export function useDetailActions({
 							file_extension: item.file_extension,
 							file_id: item.file_id,
 							file_size: item.file_size,
-							metadata: item?.metadata,
+							display_config: item?.display_config,
 						},
 						currentFileId: item.file_id,
 						// 保持与当前上下文相同的附件列表
@@ -189,7 +186,11 @@ export function useDetailActions({
 	}
 
 	// 处理下载文件
-	const handleDownload = (fileId?: string, fileVersion?: number, mode?: DownloadImageMode) => {
+	const handleDownload = (
+		fileId?: string,
+		fileVersion?: number,
+		mode = "download" as DownloadImageMode,
+	) => {
 		if (fileId) {
 			getTemporaryDownloadUrl({
 				file_ids: [fileId],
@@ -219,8 +220,8 @@ export function useDetailActions({
 		const handleExitFullscreen = () => {
 			setIsFullscreen(false)
 		}
-		pubsub.subscribe("super_magic_maximize_file", handleMaximizeFile)
-		pubsub.subscribe("exit_fullscreen", handleExitFullscreen)
+		pubsub.subscribe(PubSubEvents.Maximize_File, handleMaximizeFile)
+		pubsub.subscribe(PubSubEvents.Exit_Fullscreen, handleExitFullscreen)
 		pubsub.subscribe(PubSubEvents.Change_Preview_File_Version, (file_id, file_version) => {
 			const targetFile = allFiles.find((file) => file.file_id === file_id)
 			handleOpenFile(targetFile)
@@ -231,8 +232,8 @@ export function useDetailActions({
 			})
 		})
 		return () => {
-			pubsub.unsubscribe("super_magic_maximize_file", handleMaximizeFile)
-			pubsub.unsubscribe("exit_fullscreen", handleExitFullscreen)
+			pubsub.unsubscribe(PubSubEvents.Maximize_File, handleMaximizeFile)
+			pubsub.unsubscribe(PubSubEvents.Exit_Fullscreen, handleExitFullscreen)
 			pubsub.unsubscribe(PubSubEvents.Change_Preview_File_Version)
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -260,12 +261,12 @@ export function useDetailActions({
 				!isFileShare
 			) {
 				if (mode === "files" && isShareRoute) {
-					pubsub.publish("super_magic_switch_detail_mode", "single")
+					pubsub.publish(PubSubEvents.Switch_Detail_Mode, "single")
 					// 回到最新
 					setUserSelectDetail?.(null)
 				} else {
 					// 如果全屏退出全屏
-					pubsub.publish("super_magic_switch_detail_mode", "files")
+					pubsub.publish(PubSubEvents.Switch_Detail_Mode, "files")
 				}
 			}
 			if (event.key === "Escape" && isFullscreen) {

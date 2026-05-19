@@ -46,8 +46,8 @@ export const SHORTCUTS: ShortcutDefinition[] = [
 		key: "t",
 		modifiers: [],
 		category: "tool",
-		isTemporary: true,
-		description: "临时切换到文本工具",
+		isTemporary: false,
+		description: "切换到文本工具",
 	},
 	{
 		id: "tool.frame",

@@ -1,5 +1,5 @@
 {
-	"aiSearch": "AI Search",
+	"aiSearch": "Search",
 	"aiSearchPlaceholder": "Enter keywords or describe your needs to get the digital employee you want",
 	"back": "Back",
 	"categories": {
@@ -52,14 +52,15 @@
 		},
 		"placeholders": {
 			"description": "Enter skill description",
-			"name": "Enter skill name"
+			"name": "Enter skill name",
+			"source": "Enter skill source"
 		},
 		"title": "Edit Skill"
 	},
 	"employeeCard": {
 		"createdByYouNoHiringNeeded": "Created by you, no hiring needed",
 		"hired": "Hired",
-		"officialBuiltin": "Official built-in",
+		"officialBuiltin": "Official Built-In",
 		"publisherDefault": "Publisher",
 		"publisherOfficial": "MagiCrew",
 		"publisherPartner": "Partner",
@@ -94,6 +95,7 @@
 			"description": "Description",
 			"icon": "Icon",
 			"skillName": "Skill Name",
+			"source": "Source",
 			"upload": "Upload"
 		},
 		"processing": "Analyzing skill file...",
@@ -109,6 +111,8 @@
 		},
 		"title": "Import Skill"
 	},
+	"loadMore": "Load more",
+	"loadingMore": "Loading more",
 	"localizeIdentity": {
 		"cancel": "Cancel",
 		"confirm": "Confirm",
@@ -119,9 +123,10 @@
 		"tabs": {
 			"description": "Description",
 			"name": "Name",
-			"role": "Role"
+			"role": "Role",
+			"source": "Source"
 		},
-		"title": "Localize: Identity",
+		"title": "Internationalization Configuration",
 		"usingDefault": "Using default"
 	},
 	"mobile": {
@@ -134,7 +139,8 @@
 		"crewType": {
 			"ariaLabel": "Crew type",
 			"createdByMe": "Created by Me",
-			"hiredByMe": "Hired by Me"
+			"hiredByMe": "Hired by Me",
+			"teamShared": "Shared by Team"
 		},
 		"delete": "Delete",
 		"deleteConfirm": {
@@ -159,6 +165,7 @@
 		"footerPoweredByLead": "Powered by",
 		"footerPoweredByTail": "",
 		"footerPublisherHandle": "@MagiCrew",
+		"manageSorting": "Manage Sorting",
 		"moreActionsAria": "More actions",
 		"openConversation": "Chat",
 		"openPublish": "Publish",
@@ -168,10 +175,26 @@
 			"message": "Please create or edit on the desktop app.",
 			"title": "Editing unavailable on mobile"
 		},
+		"roleSwitcherPopover": {
+			"goToMyCrewAria": "Open My Crew",
+			"sorting": "Sorting"
+		},
 		"sharedByTeamAction": "Share within team",
+		"sortingDialog": {
+			"atLeastOneDisplayed": "At least one crew member must stay displayed on Home.",
+			"cancel": "Cancel",
+			"displayed": "Displayed ({{count}})",
+			"hidden": "Hidden ({{count}})",
+			"loadFailed": "Failed to load crew sorting. Please try again.",
+			"retry": "Retry",
+			"save": "Save",
+			"saveFailed": "Failed to save crew sorting. Please try again.",
+			"title": "Manage Sorting"
+		},
 		"sourceCustom": "Custom",
 		"sourceStore": "Store",
 		"subtitle": "Manage your own digital crew.",
+		"teamSharedCreatedBy": "Created by {{name}}",
 		"title": "My Crew",
 		"upgradeAvailable": "Upgrade available. Tap to update."
 	},
@@ -210,10 +233,22 @@
 		"update": "Update",
 		"updatedAt": "Updated on {{date}}"
 	},
-	"noMoreData": "No more data.",
+	"noMoreData": "You've seen everything!",
 	"noResults": "No results found.",
+	"skillDetailDialog": {
+		"collapse": "Collapse",
+		"emptyName": "Untitled Skill",
+		"expandAll": "Expand All",
+		"loadFailed": "Failed to load skill details. Please try again.",
+		"retry": "Retry",
+		"skillFileEmpty": "No SKILL.md content available.",
+		"skillFileTitle": "SKILL.md",
+		"source": "Source: {{source}}"
+	},
 	"skillEditPage": {
 		"actions": {
+			"collaborators": "Collaborating Developers",
+			"noPublishPermission": "No publish permission",
 			"publish": "Publish",
 			"settings": "Setting",
 			"unpublishedChanges": "Unpublished Changes"
@@ -341,6 +376,7 @@
 				}
 			},
 			"statuses": {
+				"invalidated": "Invalidated",
 				"published": "Published",
 				"rejected": "Rejected",
 				"under_review": "Under Review"
@@ -368,7 +404,10 @@
 				}
 			},
 			"toast": {
+				"ensureSkillConfigFailed": "Could not create skill_config.yaml. Please try again.",
+				"noValidSkillForPublish": "No valid skill found. Add .magic/skills/<name>/SKILL.md before publishing.",
 				"publishFailed": "Publish failed. Please try again.",
+				"publishNeedsProject": "No project workspace linked. Publishing is unavailable.",
 				"publishSuccess": "Published successfully"
 			}
 		},
@@ -389,8 +428,9 @@
 			"importSkillDesc": "Upload .Skill, .Zip or folder"
 		},
 		"createSkill": "Create Skill",
+		"featured": "Featured",
 		"mySkills": "My Skills",
-		"noMoreData": "No more data.",
+		"noMoreData": "You've seen everything!",
 		"official": "Official",
 		"removeFromMySkills": "Remove from My Skills",
 		"searchAria": "Search skills",

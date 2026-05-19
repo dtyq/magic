@@ -23,6 +23,8 @@ export const enum UserMenuKey {
 	UserAccount = "userAccount",
 	/** 偏好设置 */
 	Preferences = "preferences",
+	/** AI 生成水印设置 */
+	AiWatermarkSettings = "aiWatermarkSettings",
 	/** 分享管理 */
 	ShareManagement = "shareManagement",
 	/** 定时任务 */

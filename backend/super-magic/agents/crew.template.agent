@@ -2,31 +2,35 @@
 llm: main_llm
 tools:
   - web_search
+  - search_knowledge
   - read_webpages_as_markdown
   - visual_understanding
+  - video_understanding
   - convert_to_markdown
   - image_search
   - download_from_urls
-  - generate_image
+  - generate_images
   - list_dir
   - file_search
   - read_files
   - grep_search
   - run_python_snippet
   - shell_exec
+  - shell_await
   - write_file
   - edit_file
   - edit_file_range
   - multi_edit_file
   - multi_edit_file_range
   - delete_files
+  - ask_user
 skills:
   crew_skills: "*"
   system_skills:
-    - name: find-skill
     - name: using-mcp
     - name: using-llm
     - name: env-manager
+    - name: user-info
   workspace_skills: "*"
 ---
 

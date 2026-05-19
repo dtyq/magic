@@ -1,0 +1,5 @@
+export { tabsCatalogPlugin } from "./catalog"
+export { tabsRenderer } from "./renderer"
+export { MentionPanelTabsStore } from "./store"
+export { isPlaybackTab } from "./types"
+export type { MentionTabsStoreDependencies } from "./types"

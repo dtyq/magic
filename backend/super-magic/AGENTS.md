@@ -23,10 +23,36 @@
 - 不要混淆模型文案、日志文案、展示文案，也不要把 JSON 或程序内部结构直接塞进 `content`
 - **所有会进入模型上下文的内容一律使用英文**。判断标准：这段文字是代码生成的、最终会被 LLM 读到吗？是 → 英文。用户自己输入的内容不受此约束，只有代码生成的文案需要遵守。
 
+`ToolResult` 创建方式：
+
+```python
+return ToolResult(content="操作完成")                                    # 成功
+return ToolResult(content="操作完成", data={"key": "value"})             # 成功带数据
+return ToolResult.error("文件不存在")                                    # 失败
+return ToolResult.error("转换失败", extra_info={"path": "/tmp/file"})    # 失败带内部数据
+```
+
+合法字段：`content`（必填）、`ok`、`data`、`extra_info`、`system`、`execution_time`、`tool_call_id`、`name`、`use_custom_remark`。
+
+### 3.1 时间展示必须人类友好并带时区
+
+- 所有展示给用户或进入模型上下文的时间，都必须是人类友好的时间文本，并且明确带时区
+- 适用范围包括但不限于：`ToolResult.content`、`ToolDetail`、工具友好提示、摘要、报告、Markdown 详情页
+- 不要把裸 Unix timestamp、毫秒时间戳、无时区 ISO 字符串直接展示给用户或放进模型可读正文
+- `ToolResult.data` / `data_view` 面向程序消费，默认保留来源原始值即可；不要为了展示或模型阅读，在结构化数据里额外塞格式化时间副本，除非该字段本身就是稳定对外契约
+- 时间展示时优先使用数据来源明确给出的时区；如果来源没有可靠时区，使用 `UTC`，不要静默使用服务器本地时区
+- 面向特定区域且产品语义稳定的来源，可以使用该来源的产品时区；国际化或跨区域来源默认使用 `UTC`
+- 推荐格式：`YYYY-MM-DD HH:mm:ss UTC` 或 `YYYY-MM-DD HH:mm:ss UTC+08:00`
+- 同一个工具的一次输出中，时间格式、精度和时区口径必须一致
+- 如果原始时间字段可能是秒级或毫秒级时间戳，必须先规范化再展示，避免出现年份错误
+
 ## 4. 给你（当前这个助手）的规则
 
 - 给用户看的所有内容——对话回复、方案说明、计划文档、`docs/plans/` 下的 Markdown——使用用户当前使用的语言
 - 不要因为项目内部 prompt 要求英文，就把给用户看的方案文档也写成英文，这是两件事
+- 解释复杂问题时先说背景，再分清层次，然后说明为什么会发生、要怎么处理、为什么这种处理是对的。优先用用户能直接理解的业务语义和系统角色讲清楚，不要一上来堆实现细节、缩写和内部名词。
+- 当问题涉及多层语义时，先判断每一层分别服务谁、解决什么问题、依赖什么事实，再决定哪一层应该改、哪一层不应该改。解释和修复都要围绕这些边界展开，不要把某一层的规则混到另一层里。
+- 给用户说明方案时，默认使用“说人话版”：短句、常用词、少术语；必要术语必须先解释它在当前场景里扮演什么角色，再给出代码层面的名字。
 
 ## 5. 所有进入模型上下文的内容必须高质量
 
@@ -156,11 +182,37 @@
 - 英文要地道、准确，不能为了精简丢失关键信息。例如中文写"务必根据用户使用的语言命名"，英文不能只写"Name files appropriately"，应写"Must name according to the user's language"
 - 涉及语种的描述不要写死示例，改用条件式：用户使用中文时…、用户使用英文时…、用户使用日文时…
 
+### 5.7 提示词体积控制
+
+- 修复 Agent 误用时，先从全局结构优化，不要为每次错误追加一段特例提示词
+- 优先替换、合并或移动低频内容，尽量让主 Skill 体积小幅增加甚至不变
+- 主 Skill 只放高频决策原则和入口；字段细节、排障代码、低频能力放到 reference/schema
+- 新增提示词前先问：这句话能否举一反三？能否替换已有低效文字？是否只是在修一个单点错误？
+
+### 5.8 数据工具 Skill 编写原则
+
+- 数据 Skill 默认引导 Agent 阅读 `result.content`；`result.data`, `data_view` 只用于跨工具传递精确 ID 和结构化脚本
+- 主 Skill 不堆 data schema 字段清单；字段契约写进 reference/data-schema.md 或 reference/xxx-data-schema.md 中
+- schema 必须说明字段可能缺失、为空或类型随上游变化
+- schema 应提供结构查看方法：字段取不到时先打印 `data_view` 的 keys、类型和少量截断样例，不要将大量完整数据打印到 Agent 上下文中
+- 新增或修改数据工具时，验收必须覆盖三层：上游响应非空、formatter 后的 `data_view` 关键字段非空、`result.content` 对模型可读；不能只用 HTTP 200 或原始 payload 非空判断可用
+
+### 5.9 数据工具的用户展示与模型上下文要分开
+
+- `result.content` 是给 Agent 继续分析和传参用的，可以保留下一步工具需要的 id、cursor、offset、token 等字段
+- `ToolDetail` 是给用户看的，只展示用户能理解的内容；不要把内部技术字段直接放进去，头像、封面、图片、视频这类媒体不要直接展示一长串 URL；能渲染就渲染成图片或视频控件，视频可以保留下载链接
+- Markdown 里混用 HTML 时要生成块级结构，媒体块和列表、正文之间留空行，避免图片、视频、列表文字挤在同一段里
+- 不要把 raw dict、完整原始 payload 或 `result.content.splitlines()` 直接塞进详情页；哪怕是低频 Reference 工具，也要整理成人能读懂的摘要
+- 同一个字段在不同来源里可能不是同一个口径；不确定时宁可说明缺失或单独展示，不要悄悄覆盖已有字段
+- ToolDetail 中的图片必须使用 `<img>` 标签并通过 `style="max-height:Xpx"` 限制最大高度，避免大图撑满屏幕。不要用 `height` 属性（固定高度会导致非正方形图片变形）。标准写法：`<img src="URL" alt="描述" style="max-height:240px">`。各平台 `_base.py` 的 `markdown_image()` 已统一实现此规范，新增平台必须复用同一模式
+
 ## 6. 命名与展示文案要有产品感
 
 - 所有会展示给前端或用户的命名与文案，都不要使用生硬的接口腔、论文腔、实现腔表达
 - 优先使用贴近真实产品心智、任务流转和用户感知的表达
 - 先表达用户能理解的动作、状态和结果，再避免暴露底层 RPC 概念、内部对象名和实现细节
+- Skill 的 `description` 只写触发条件，用来帮助 Agent 判断何时加载 Skill；不要把原理、工作流等说明塞进 description
+- 高成本或低频能力要做成单独工具，并在 Skill 中提示“需要时再调用”；不要并入默认详情工具，避免每次普通分析都多花成本
 
 ## 7. 强类型优先，但不要为了类型而复杂化
 
@@ -183,19 +235,36 @@
 
 ## 10. 文件操作必须使用异步工具
 
-Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_utils.py`，不要直接用 `open()`、`os`、`shutil` 的同步接口。
+本项目运行在 asyncio 事件循环中。**任何** Python 代码中的文件操作都必须使用 `app/utils/async_file_utils.py` 提供的异步函数。
+
+禁止的写法（会阻塞事件循环）：
+
+- `open()` / `with open(...)` — 用 `async_read_text` / `async_write_text` / `async_read_json` 等替代
+- `os.path.exists()` / `Path.exists()` — 用 `async_exists` 替代
+- `os.stat()` / `Path.stat()` — 用 `async_stat` 替代
+- `os.rename()` / `Path.rename()` — 用 `async_rename` 替代
+- `os.mkdir()` / `Path.mkdir()` — 用 `async_mkdir` 替代
+- `os.remove()` / `os.unlink()` — 用 `async_unlink` 替代
+- `shutil.copy2()` / `shutil.copytree()` / `shutil.rmtree()` — 用 `async_copy2` / `async_copytree` / `async_rmtree` 替代
+- `json.load(open(...))` — 用 `async_read_json` / `async_try_read_json` 替代
+- `os.scandir()` / `Path.iterdir()` — 用 `async_scandir` / `async_iterdir` 替代
+
+这条规则没有例外。包括工具类、监听器、启动逻辑、辅助函数在内的所有 async 上下文中的文件操作，一律使用异步版本。
 
 可用函数：
 
 | 操作 | 函数 |
 |------|------|
 | 读文本 | `async_read_text` / `async_try_read_text`（不抛异常版） |
-| 写文本 | `async_write_text` |
+| 写文本 | `async_write_text` / `async_write_text_with_retry`（失败自动重试版） |
 | 读二进制 | `async_read_bytes` |
 | 写二进制 | `async_write_bytes` |
-| 读/写 JSON | `async_read_json` / `async_write_json` |
+| 读/写 JSON | `async_read_json` / `async_write_json` / `async_try_read_json`（不抛异常版） |
+| 读 Markdown | `async_read_markdown` / `async_try_read_markdown`（不抛异常版） |
+| 统计行数 | `async_count_text_lines` / `async_try_count_text_lines`（不抛异常版） |
 | 复制文件 | `async_copy2` |
 | 复制目录 | `async_copytree` |
+| 重命名/移动 | `async_rename` |
 | 删除文件 | `async_unlink` |
 | 删除目录 | `async_rmtree` / `async_rmdir` |
 | 创建目录 | `async_mkdir` |
@@ -230,7 +299,59 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 - `config/tool_definitions.json` 是缓存文件，不要手动编辑
 - 修改工具的真实来源应为 `app/tools/` 下的工具代码；缓存如有需要应走项目既有生成流程刷新
 
-## 15. 深度参考文档索引
+## 15. 工具失败时必须提供人类友好的错误展示
+
+工具执行失败时，用户看到的 `remark` 和 `ToolDetail` 必须有信息量，不能只显示"工具调用失败"这类空洞文案。
+
+规则：
+
+- `remark`：由 `task_message_factory` 统一设置，面向用户传达"AI 正在处理，不必焦虑"的信号，已通过 i18n key `tool.call_failed_remark` 统一管理，新增工具必须有更友好的多语言提示
+- `ToolDetail`：工具的 `get_tool_detail()` 在 `result.ok == False` 时，不应直接返回 `None`；应返回包含错误摘要的文本 detail，让用户能看到发生了什么
+- 错误信息应脱敏：不暴露上游供应商名称、内部 URL、API key、堆栈等技术细节；只展示用户能理解的错误描述（如"数据获取失败"、"服务暂时不可用"等）
+- `ToolResult.content` 面向模型，保留完整错误信息供模型推理和自行修复
+
+存量工具的 `get_tool_detail()` 大多在失败时返回 `None`，等后续统一治理。新增工具必须遵守此规范。
+
+## 16. 工作区文件转 URL 必须走统一入口
+
+`.workspace/` 下的本地文件转可访问 URL，统一调用：
+
+```python
+from app.service.file_service import FileService, WorkspaceFileURLError
+
+try:
+    url = await FileService().get_workspace_file_url(
+        file_path=resolved_local_path,   # 必须是绝对路径，由调用方完成路径解析
+        expires_in=3600,
+        options=None,                    # 仅图片缩放等场景按需传，例如 {"resize": 80}
+    )
+except FileNotFoundError:
+    ...    # 本地文件不存在
+except WorkspaceFileURLError:
+    ...    # xattr 缺失或对象存储后端未返回 URL
+```
+
+唯一合法的解析链路：
+
+`本地文件 → xattr user.magicfs.s3_key → FileService.get_download_url_by_file_key → presigned URL`
+
+不允许做的事：
+
+- 把工作区相对路径直接拼到对象存储 key 上（绕过 magicfs 真实 s3_key）
+- xattr 读不到时静默回落到"按相对路径猜 key"
+- 在通用 helper 里硬编码业务专属参数（例如图片缩放 `resize`）；图片场景由 `generate_image` 自己传 `{"resize": 80}`，视频/音频不传
+- 把"路径解析"塞进 `FileService.get_workspace_file_url`；候选路径、output_path 前缀拼接、模糊匹配等属于工具层职责，先解析出绝对路径再调本方法
+
+xattr 缺失说明文件尚未与对象存储同步完成，应直接抛错让上层感知，而不是回落到不可靠的路径。
+
+例外（语义不同，保留各自实现）：
+
+- `app/service/agent_event/file_storage_listener_service.py::_construct_file_key`
+  上传链路里读 `user.magicfs.s3_key` xattr 直出 `file_key`，没有 xattr 视为「magicfs 未接管」直接跳过、不上报 attachment——同样遵守"只走 xattr → 真实 key"这条主链路。
+- `app/api/routes/file.py::get_file_download_url`
+  对外 HTTP API，路径由外部调用方传入，不属于"本机本地文件 → URL"的范畴。
+
+## 17. 深度参考文档索引
 
 以下文档不需要常驻上下文，按需查阅：
 
@@ -242,7 +363,7 @@ Python 代码中凡是涉及文件操作，必须使用 `app/utils/async_file_ut
 | Skill 概念与加载链路 | `agents/guides/SKILLS_OVERVIEW.md` | 快速了解 Skill 是什么、加载方式、来源与模型使用规则时 |
 | Skill 开发指南 | `agents/guides/SKILLS_DEVELOPMENT_GUIDE.md` | 新建或修改 Skill、需要了解 SKILL.md 规范和最佳实践时 |
 
-## 16. 每次改动前自检
+## 18. 每次改动前自检
 
 - 这是在解决真实问题，还是在满足抽象冲动？
 - 这层包装有没有新增语义？

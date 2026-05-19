@@ -17,7 +17,6 @@ import type { ImperativePanelHandle } from "react-resizable-panels"
 import { sidebarStore } from "@/stores/layout"
 import MagicSidebar from "./components/MagicSidebar"
 import { cn } from "@/lib/utils"
-import { initializeSuperMagicIfNeeded } from "@/pages/superMagic/services/utils"
 import { useSidebarAnimation, useSidebarResponsive } from "./hooks"
 import { globalShareManagementStore } from "@/pages/superMagic/components/ShareManagement/stores"
 import { magic } from "@/enhance/magicElectron"
@@ -30,40 +29,6 @@ const ElectronHeader = lazy(() => import("./components/ElectronHeader"))
 const ShareManagementContainer = lazy(
 	() => import("@/pages/superMagic/components/ShareManagement/ShareManagementContainer"),
 )
-
-function getSuperRouteParams(pathname: string): {
-	workspaceId?: string
-	projectId?: string
-	topicId?: string
-} {
-	// 旧版本路由解析兼容
-	if (pathname.includes("/super/collaboration")) {
-		const pathParts = pathname.split("/").filter(Boolean)
-		const superIndex = pathParts.indexOf("super")
-		return {
-			workspaceId: undefined,
-			projectId: pathParts[superIndex + 2],
-			topicId: undefined,
-		}
-	}
-	if (pathname.includes("/super/workspace")) {
-		const pathParts = pathname.split("/").filter(Boolean)
-		const superIndex = pathParts.indexOf("super")
-		return {
-			workspaceId: pathParts[superIndex + 2] || undefined,
-			projectId: undefined,
-			topicId: undefined,
-		}
-	}
-	const pathParts = pathname.split("/").filter(Boolean)
-	const superIndex = pathParts.indexOf("super")
-	if (superIndex === -1) return {}
-	return {
-		workspaceId: undefined,
-		projectId: pathParts[superIndex + 1] || undefined,
-		topicId: pathParts[superIndex + 2] || undefined,
-	}
-}
 
 const BaseLayoutPc = observer(() => {
 	useMetaSet()
@@ -88,31 +53,24 @@ const BaseLayoutPc = observer(() => {
 
 	const handleClick = useMemoizedFn((e: React.MouseEvent<HTMLDivElement>) => {
 		const target = e.target as HTMLElement
-		if (target.closest(`.${MemberCardStore.domClassName}`)) {
-			const memberCard = target.closest(`.${MemberCardStore.domClassName}`)
+		const memberCard = target.closest(`.${MemberCardStore.domClassName}`)
+
+		if (memberCard) {
 			const uid = MemberCardStore.getUidFromElement(memberCard as HTMLElement)
 			if (uid) {
 				MemberCardStore.openCard(uid, { x: e.clientX, y: e.clientY })
 			}
+			return
 		}
+
 		// 点击卡片外其他区域，关闭成员卡片
-		else if (MemberCardStore.open) {
+		if (MemberCardStore.open) {
 			MemberCardStore.closeCard()
 		}
 	})
 
-	useMount(() => {
-		const routeParams = getSuperRouteParams(window.location.pathname)
-		initializeSuperMagicIfNeeded({
-			isMobile: false,
-			workspaceId: routeParams.workspaceId,
-			projectId: routeParams.projectId,
-			topicId: routeParams.topicId,
-		})
-	})
-
 	return (
-		<div className="flex h-screen w-full flex-col bg-sidebar" onClick={handleClick}>
+		<div className="flex h-full w-full flex-col bg-sidebar" onClick={handleClick}>
 			{isElectron && (
 				<Suspense fallback={null}>
 					<ElectronHeader />
@@ -168,7 +126,7 @@ const BaseLayoutPc = observer(() => {
 					<div className="flex h-full flex-col py-2 pl-0 pr-2">
 						{/* 白色容器，带圆角、边框、阴影 */}
 						<div className="flex h-full flex-col overflow-hidden">
-							<main className="flex-1 overflow-auto">{Content}</main>
+							<main className="flex-1 overflow-hidden">{Content}</main>
 						</div>
 					</div>
 				</ResizablePanel>

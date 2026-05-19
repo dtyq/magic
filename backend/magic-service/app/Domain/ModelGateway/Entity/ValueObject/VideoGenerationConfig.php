@@ -31,6 +31,11 @@ class VideoGenerationConfig extends AbstractValueObject
      */
     protected array $constraints = [];
 
+    /**
+     * @var array<string, mixed>
+     */
+    protected array $inputModes = [];
+
     public function __construct(?array $data = null)
     {
         parent::__construct($data === null ? null : [
@@ -38,6 +43,7 @@ class VideoGenerationConfig extends AbstractValueObject
             'reference_images' => is_array($data['reference_images'] ?? null) ? $data['reference_images'] : [],
             'generation' => is_array($data['generation'] ?? null) ? $data['generation'] : [],
             'constraints' => is_array($data['constraints'] ?? null) ? $data['constraints'] : [],
+            'input_modes' => is_array($data['input_modes'] ?? null) ? $data['input_modes'] : [],
         ]);
     }
 
@@ -48,6 +54,7 @@ class VideoGenerationConfig extends AbstractValueObject
             'reference_images' => $this->referenceImages,
             'generation' => $this->generation,
             'constraints' => $this->constraints,
+            'input_modes' => $this->inputModes,
         ];
     }
 

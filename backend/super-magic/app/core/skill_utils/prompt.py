@@ -11,6 +11,7 @@ from agentlang.skills.loader import SkillLoader
 from agentlang.agent.define import SkillsConfig
 from agentlang.logger import get_logger
 from agentlang.agent.syntax import SyntaxProcessor
+from agentlang.environment import Environment
 from app.utils.async_file_utils import async_exists, async_read_text, async_try_read_text
 from app.core.skill_utils.manager import GlobalSkillManager, get_global_skill_manager, find_skill
 from app.core.skill_utils.skill_directory_scan import discover_skills_in_directory, discover_skills_in_workspace
@@ -141,6 +142,14 @@ async def _do_generate(
             else:
                 logger.warning(f"Workspace skill 不存在: {entry.name}")
 
+    # ── 3a. 区域过滤（大陆环境屏蔽国际平台 skill）──
+    region_filtered_names: list[str] = []
+    if Environment.is_mainland():
+        region_filtered_names = [s.name for s in skills_metadata if s.region == "international"]
+        if region_filtered_names:
+            skills_metadata = [s for s in skills_metadata if s.region != "international"]
+            logger.info(f"大陆环境已屏蔽 {len(region_filtered_names)} 个国际平台 skill: {region_filtered_names}")
+
     # ── 3b. 过滤 excluded_skills（仅针对 system 来源，crew/workspace 不受影响）──
     excluded_names = set(skills_config.excluded_skills)
     if excluded_names:
@@ -185,25 +194,36 @@ async def _do_generate(
 
     skills_xml_parts = []
     total_chars = 0
+    degraded = False
     for meta in skills_metadata:
         # 已预加载内容的 skill 不再出现在 available_skills 列表中
         if meta.name in preload_map:
             continue
 
-        parts = [
-            "<skill>\n",
-            f"<name>{meta.name}</name>\n",
-            f"<description>{meta.description}</description>\n",
-        ]
-        location = meta.skill_file or meta.skill_dir
-        if location:
-            parts.append(f"<location>{location}</location>\n")
-        parts.append("</skill>")
-        skill_xml = "".join(parts)
+        if not degraded:
+            # 完整模式：包含 name + description + location
+            parts = [
+                "<skill>\n",
+                f"<name>{meta.name}</name>\n",
+                f"<description>{meta.description}</description>\n",
+            ]
+            location = meta.skill_file or meta.skill_dir
+            if location:
+                parts.append(f"<location>{location}</location>\n")
+            parts.append("</skill>")
+            skill_xml = "".join(parts)
 
-        if total_chars + len(skill_xml) > MAX_CHARS:
-            logger.warning(f"skills_content 超过字符限制，已截断，实际输出 {len(skills_xml_parts)} 个")
-            break
+            if total_chars + len(skill_xml) > MAX_CHARS:
+                # 切换到降级模式：仅输出 name
+                degraded = True
+                logger.warning(
+                    f"skills_content 达到字符限制 ({MAX_CHARS})，"
+                    f"已输出 {len(skills_xml_parts)} 个完整 skill，后续降级为仅 name"
+                )
+
+        if degraded:
+            # 降级模式：只保留 name，节省 token
+            skill_xml = f"<skill>\n<name>{meta.name}</name>\n</skill>"
 
         skills_xml_parts.append(skill_xml)
         total_chars += len(skill_xml)
@@ -246,6 +266,22 @@ async def _do_generate(
 
         skills_prompt = syntax_processor.process_dynamic_syntax(template_content)
         logger.info(f"成功生成 {len(skills_metadata)} 个 skills 的 prompt，总长度: {len(skills_prompt)} 字符")
+
+        # ── 6. 大陆 SaaS 环境：注入国际平台引导语 ──
+        if region_filtered_names:
+            from app.utils.deployment_util import is_saas_deployment, SAAS_INTERNATIONAL_SITE_URL
+            if is_saas_deployment():
+                filtered_list = ", ".join(region_filtered_names)
+                notice = (
+                    "\n\n<region_notice>\n"
+                    f"The following skills are only available in the international version and are not supported in the current environment: {filtered_list}\n"
+                    "When a user requests content from these platforms, politely explain that the current environment does not support them, "
+                    f"and suggest visiting the international site ({SAAS_INTERNATIONAL_SITE_URL}) to use these features.\n"
+                    "</region_notice>"
+                )
+                skills_prompt += notice
+                logger.info(f"已注入 SaaS 国际平台引导语，涉及 skill: {region_filtered_names}")
+
         return skills_prompt
 
     except Exception as e:

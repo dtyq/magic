@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Application\Contact\Service;
 
+use App\Application\Contact\UserSetting\PersonalPreferencesKeys;
 use App\Application\Contact\UserSetting\UserSettingKey;
 use App\Domain\Contact\Entity\MagicUserSettingEntity;
 use App\Domain\Contact\Entity\ValueObject\Query\MagicUserSettingQuery;
@@ -17,6 +18,7 @@ use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\DataIsolationTrait;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
+use DateTime;
 use Hyperf\Di\Annotation\Inject;
 use Qbhy\HyperfAuth\Authenticatable;
 
@@ -28,11 +30,11 @@ class MagicUserSettingAppService extends AbstractContactAppService
     protected MagicUserRepositoryInterface $magicUserRepository;
 
     public function __construct(
-        private readonly MagicUserSettingDomainService $magicUserSettingDomainService
+        private readonly MagicUserSettingDomainService $magicUserSettingDomainService,
     ) {
     }
 
-    public function saveProjectTopicModelConfig(Authenticatable $authorization, string $topicId, array $model, array $imageModel = [], array $extra = []): MagicUserSettingEntity
+    public function saveProjectTopicModelConfig(Authenticatable $authorization, string $topicId, array $model, array $imageModel = [], array $videoModel = [], array $extra = []): MagicUserSettingEntity
     {
         /* @phpstan-ignore-next-line */
         $dataIsolation = $this->createDataIsolation($authorization);
@@ -41,6 +43,7 @@ class MagicUserSettingAppService extends AbstractContactAppService
         $entity->setValue([
             'model' => $model,
             'image_model' => $imageModel,
+            'video_model' => $videoModel,
             'extra' => $extra,
         ]);
         return $this->magicUserSettingDomainService->save($dataIsolation, $entity);
@@ -102,6 +105,10 @@ class MagicUserSettingAppService extends AbstractContactAppService
             $setting = $key?->getValueHandler()?->generateDefault() ?? null;
         }
 
+        if ($key === UserSettingKey::PersonalPreferences) {
+            $setting = $this->mergePersonalPreferencesDefaults($setting);
+        }
+
         return $setting;
     }
 
@@ -142,5 +149,25 @@ class MagicUserSettingAppService extends AbstractContactAppService
     {
         $setting = $this->magicUserSettingDomainService->getByMagicId($magicId, UserSettingKey::CurrentOrganization->value);
         return $setting?->getValue();
+    }
+
+    /**
+     * personal_preferences：将已存储 value 与 {@see PersonalPreferencesKeys::defaultValues()} 合并；无记录时 new 仅含默认值的实体（不落库）.
+     */
+    private function mergePersonalPreferencesDefaults(?MagicUserSettingEntity $setting): MagicUserSettingEntity
+    {
+        if ($setting === null) {
+            $entity = new MagicUserSettingEntity();
+            $now = new DateTime();
+            $entity->setKey(UserSettingKey::PersonalPreferences->value);
+            $entity->setValue(PersonalPreferencesKeys::defaultValues());
+            $entity->setCreatedAt($now);
+            $entity->setUpdatedAt($now);
+            return $entity;
+        }
+
+        $setting->setValue(PersonalPreferencesKeys::mergeWithDefaults($setting->getValue()));
+
+        return $setting;
     }
 }

@@ -10,7 +10,7 @@ export const PRESET_FILE_TYPES = [
 	"py",
 	"go",
 	"php",
-	"custom",
+	"customFile",
 	"design",
 ] as const
 

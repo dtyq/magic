@@ -5,7 +5,6 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { VipSwitch, VipBadge } from "@/pages/superMagic/components/VipSwitch"
 import { ShareMode } from "../types"
 import type { ShareAdvancedSettingsProps, ShareAdvancedSettingsData } from "./types"
-import { userStore } from "@/models/user"
 
 /**
  * 开关配置项
@@ -24,9 +23,6 @@ export default memo(function ShareAdvancedSettings(props: ShareAdvancedSettingsP
 
 	const { t } = useTranslation("super")
 	const [isExpanded, setIsExpanded] = useState(true)
-
-	// Check if user is personal organization
-	const { isPersonalOrganization } = userStore.user
 
 	// Handle individual setting changes
 	const handleSettingChange = useCallback(
@@ -53,24 +49,24 @@ export default memo(function ShareAdvancedSettings(props: ShareAdvancedSettingsP
 				key: "showOriginalInfo",
 				labelKey: "share.showOriginalInfo",
 				descriptionKey: "share.showOriginalInfoDescription",
-				isVip: true,
-				defaultValue: isPersonalOrganization ? false : true,
+				isVip: false,
+				defaultValue: true,
 				modes: [ShareMode.File, ShareMode.Topic],
 			},
 			{
 				key: "showFileList",
 				labelKey: "share.viewFileList",
 				descriptionKey: "share.viewFileListDescription",
-				isVip: true,
-				defaultValue: isPersonalOrganization ? false : true,
+				isVip: false,
+				defaultValue: true,
 				modes: [ShareMode.File],
 			},
 			{
 				key: "allowDownloadProjectFile",
 				labelKey: "share.allowDownloadAndExport",
 				descriptionKey: "share.allowDownloadAndExportDescription",
-				isVip: true,
-				defaultValue: isPersonalOrganization ? false : true,
+				isVip: false,
+				defaultValue: true,
 				modes: [ShareMode.File],
 			},
 			{
@@ -85,12 +81,12 @@ export default memo(function ShareAdvancedSettings(props: ShareAdvancedSettingsP
 				key: "view_file_list",
 				labelKey: "share.viewFileList",
 				descriptionKey: "share.viewFileListDescription",
-				isVip: true,
-				defaultValue: isPersonalOrganization ? false : true,
+				isVip: false,
+				defaultValue: true,
 				modes: [ShareMode.Topic],
 			},
 		]
-	}, [isPersonalOrganization])
+	}, [])
 
 	// 根据当前模式筛选需要显示的开关配置
 	const visibleConfigs = SWITCH_CONFIGS.filter((config) => config.modes.includes(mode))

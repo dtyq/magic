@@ -1,14 +1,19 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Globe, Loader2, Upload, X } from "lucide-react"
+import { ChevronDown, ChevronRight, Loader2, Upload } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/shadcn-ui/collapsible"
+import {
 	Dialog,
-	DialogClose,
 	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from "@/components/shadcn-ui/dialog"
+import { Separator } from "@/components/shadcn-ui/separator"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { Label } from "@/components/shadcn-ui/label"
@@ -49,6 +54,9 @@ interface CrewIdentityDraft {
 interface EditCrewDialogProps {
 	open: boolean
 	onOpenChange: (open: boolean) => void
+	onSuccess?: () => void | Promise<void>
+	isPrePublishMode?: boolean
+	defaultNameRequiredMessage?: string
 }
 
 function createEmptyLocaleFieldDraft(): LocaleFieldDraft {
@@ -126,212 +134,51 @@ function buildRoleI18n(
 	}
 }
 
-function EditCrewLocalizeDialog({
+function EditCrewDialog({
 	open,
 	onOpenChange,
-	initialField,
-	draft,
-	onChange,
-	disabled,
-}: {
-	open: boolean
-	onOpenChange: (open: boolean) => void
-	initialField: LocalizeField
-	draft: CrewIdentityDraft
-	onChange: (field: LocalizeField, locale: keyof LocaleFieldDraft, value: string) => void
-	disabled: boolean
-}) {
-	const { t } = useTranslation("crew/create")
-	const [activeTab, setActiveTab] = useState<LocalizeField>(initialField)
-
-	useEffect(() => {
-		if (!open) return
-		setActiveTab(initialField)
-	}, [initialField, open])
-
-	const localeLabels = useMemo<Record<SupportedLocale, string>>(
-		() => ({
-			en_US: t("playbook.edit.basicInfo.localeDialog.localeLabels.en_US"),
-			zh_CN: t("playbook.edit.basicInfo.localeDialog.localeLabels.zh_CN"),
-		}),
-		[t],
-	)
-
-	function getFieldDraft(field: LocalizeField) {
-		return draft[field]
-	}
-
-	function getFieldPlaceholder(field: LocalizeField) {
-		if (field === "role") return t("card.enterRole")
-		if (field === "description") return t("card.enterDescription")
-		return t("card.enterName")
-	}
-
-	function renderLocaleFields(field: LocalizeField, multiline = false) {
-		const fieldDraft = getFieldDraft(field)
-		const placeholder = getFieldPlaceholder(field)
-		const defaultHint = fieldDraft.default
-			? t("playbook.edit.basicInfo.localeDialog.usingDefault", { value: fieldDraft.default })
-			: placeholder
-
-		return (
-			<div className="flex flex-col gap-2.5">
-				<div className="flex flex-col gap-2">
-					<label className="text-sm font-medium leading-none text-foreground">
-						{t("playbook.edit.basicInfo.localeDialog.original")}
-					</label>
-					{multiline ? (
-						<Textarea
-							value={fieldDraft.default}
-							onChange={(event) => onChange(field, "default", event.target.value)}
-							placeholder={placeholder}
-							className="min-h-[72px] resize-none shadow-xs"
-							data-testid={`edit-crew-localize-${field}-default`}
-							disabled={disabled}
-						/>
-					) : (
-						<Input
-							value={fieldDraft.default}
-							onChange={(event) => onChange(field, "default", event.target.value)}
-							placeholder={placeholder}
-							className="h-9 shadow-xs"
-							data-testid={`edit-crew-localize-${field}-default`}
-							disabled={disabled}
-						/>
-					)}
-				</div>
-				{SUPPORTED_LOCALES.map((locale) => (
-					<div key={locale} className="flex flex-col gap-2">
-						<label className="text-sm font-medium leading-none text-foreground">
-							{localeLabels[locale]}
-						</label>
-						{multiline ? (
-							<Textarea
-								value={fieldDraft[locale]}
-								onChange={(event) => onChange(field, locale, event.target.value)}
-								placeholder={defaultHint}
-								className="min-h-[72px] resize-none shadow-xs"
-								data-testid={`edit-crew-localize-${field}-${locale}`}
-								disabled={disabled}
-							/>
-						) : (
-							<Input
-								value={fieldDraft[locale]}
-								onChange={(event) => onChange(field, locale, event.target.value)}
-								placeholder={defaultHint}
-								className="h-9 shadow-xs"
-								data-testid={`edit-crew-localize-${field}-${locale}`}
-								disabled={disabled}
-							/>
-						)}
-					</div>
-				))}
-				<p className="text-sm text-muted-foreground">
-					{t("playbook.edit.basicInfo.localeDialog.fallbackHint")}
-				</p>
-			</div>
-		)
-	}
-
-	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent
-				showCloseButton={false}
-				className="!max-w-[480px] gap-0 overflow-hidden p-0 shadow-sm"
-				data-testid="edit-crew-localize-dialog"
-			>
-				<DialogHeader className="flex-row items-start border-b px-3 py-3">
-					<DialogTitle className="text-base font-semibold leading-6">
-						{t("card.localizeDialog.title")}
-					</DialogTitle>
-					<DialogClose
-						className="ml-auto rounded-xs text-muted-foreground transition-colors hover:text-foreground"
-						data-testid="edit-crew-localize-close"
-					>
-						<span className="sr-only">Close</span>
-						<X className="h-4 w-4" />
-					</DialogClose>
-				</DialogHeader>
-				<Tabs
-					value={activeTab}
-					onValueChange={(value) => setActiveTab(value as LocalizeField)}
-					className="gap-0"
-				>
-					<div className="px-4 pt-4">
-						<TabsList className="w-full">
-							<TabsTrigger
-								value="name"
-								className="flex-1"
-								data-testid="edit-crew-tab-name"
-							>
-								{t("card.localizeDialog.tabName")}
-							</TabsTrigger>
-							<TabsTrigger
-								value="role"
-								className="flex-1"
-								data-testid="edit-crew-tab-role"
-							>
-								{t("card.localizeDialog.tabRole")}
-							</TabsTrigger>
-							<TabsTrigger
-								value="description"
-								className="flex-1"
-								data-testid="edit-crew-tab-description"
-							>
-								{t("card.localizeDialog.tabDescription")}
-							</TabsTrigger>
-						</TabsList>
-					</div>
-					<div className="max-h-[60vh] overflow-y-auto p-4">
-						<TabsContent value="name">{renderLocaleFields("name")}</TabsContent>
-						<TabsContent value="role">{renderLocaleFields("role")}</TabsContent>
-						<TabsContent value="description">
-							{renderLocaleFields("description", true)}
-						</TabsContent>
-					</div>
-				</Tabs>
-				<DialogFooter className="border-t px-3 py-3">
-					<DialogClose asChild>
-						<Button
-							type="button"
-							variant="outline"
-							className="h-9 min-w-[82px] shadow-xs"
-							data-testid="edit-crew-localize-cancel"
-							disabled={disabled}
-						>
-							{t("playbook.edit.basicInfo.localeDialog.cancel")}
-						</Button>
-					</DialogClose>
-					<DialogClose asChild>
-						<Button
-							type="button"
-							className="h-9 min-w-[82px] shadow-xs"
-							data-testid="edit-crew-localize-confirm"
-							disabled={disabled}
-						>
-							{t("playbook.edit.basicInfo.localeDialog.confirm")}
-						</Button>
-					</DialogClose>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	)
-}
-
-function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
+	onSuccess,
+	isPrePublishMode = false,
+	defaultNameRequiredMessage,
+}: EditCrewDialogProps) {
 	const { t: marketT } = useTranslation("crew/market")
-	const { t: createT } = useTranslation("crew/create")
+	const { t: createT, i18n } = useTranslation("crew/create")
 	const store = useCrewEditStore()
 	const avatarInputRef = useRef<HTMLInputElement>(null)
 	const previewUrlRef = useRef<string | null>(null)
 	const [draft, setDraft] = useState<CrewIdentityDraft>(createEmptyCrewIdentityDraft())
 	const [isSubmitting, setIsSubmitting] = useState(false)
-	const [localizeField, setLocalizeField] = useState<LocalizeField>("name")
-	const [localizeOpen, setLocalizeOpen] = useState(false)
+	const [localeExpanded, setLocaleExpanded] = useState(false)
+	const [showDefaultNameError, setShowDefaultNameError] = useState(false)
 	const { upload } = useUpload({ storageType: "public" })
+
+	const sortedLocales = useMemo(() => {
+		const current = i18n.language as SupportedLocale
+		if (SUPPORTED_LOCALES.includes(current)) {
+			return [current, ...SUPPORTED_LOCALES.filter((l) => l !== current)] as SupportedLocale[]
+		}
+		return [...SUPPORTED_LOCALES]
+	}, [i18n.language])
+
+	const localeLabels = useMemo<Record<SupportedLocale, string>>(
+		() => ({
+			en_US: createT("playbook.edit.basicInfo.localeDialog.localeLabels.en_US"),
+			zh_CN: createT("playbook.edit.basicInfo.localeDialog.localeLabels.zh_CN"),
+		}),
+		[createT],
+	)
 
 	useEffect(() => {
 		if (!open) return
+
+		setShowDefaultNameError(false)
+		const hasValues = SUPPORTED_LOCALES.some(
+			(locale) =>
+				store.identity.name_i18n?.[locale] ||
+				store.identity.role_i18n?.[locale] ||
+				store.identity.description_i18n?.[locale],
+		)
+		setLocaleExpanded(hasValues)
 
 		setDraft(
 			createDraftFromStore({
@@ -355,7 +202,6 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 			URL.revokeObjectURL(previewUrlRef.current)
 			previewUrlRef.current = null
 		}
-		setLocalizeOpen(false)
 		onOpenChange(false)
 	}, [isSubmitting, onOpenChange])
 
@@ -364,13 +210,9 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 		avatarInputRef.current?.click()
 	}
 
-	function handleOpenLocalize(field: LocalizeField) {
-		if (isSubmitting) return
-		setLocalizeField(field)
-		setLocalizeOpen(true)
-	}
-
 	function updateField(field: LocalizeField, value: string) {
+		if (field === "name" && showDefaultNameError && value.trim()) setShowDefaultNameError(false)
+
 		setDraft((prev) => ({
 			...prev,
 			[field]: {
@@ -411,6 +253,10 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 
 	async function handleConfirm() {
 		if (!store.crewCode) return
+		if (isPrePublishMode && !draft.name.default.trim()) {
+			setShowDefaultNameError(true)
+			return
+		}
 
 		setIsSubmitting(true)
 		try {
@@ -440,8 +286,15 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 			})
 
 			await store.refreshAgentDetail()
+			const isMarkdownSynced = await store.identity.syncI18nFieldsToIdentityMarkdown({
+				name_i18n: nameI18n,
+				role_i18n: roleI18n,
+				description_i18n: descriptionI18n,
+			})
+			if (!isMarkdownSynced) magicToast.warning(createT("errors.syncIdentityMarkdownFailed"))
 
 			magicToast.success(marketT("editCrew.done"))
+			await onSuccess?.()
 			handleClose()
 		} catch {
 			magicToast.error(marketT("editCrew.errors.saveFailed"))
@@ -459,7 +312,9 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 				>
 					<DialogHeader className="border-b border-border px-3 py-3">
 						<DialogTitle className="text-base font-semibold">
-							{marketT("editCrew.title")}
+							{isPrePublishMode
+								? createT("publishNameDialog.title")
+								: marketT("editCrew.title")}
 						</DialogTitle>
 					</DialogHeader>
 
@@ -518,6 +373,14 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 								<div className="flex h-9 flex-1 items-center">
 									<Label className="w-[172px] shrink-0 text-base font-medium">
 										{createT("card.localizeDialog.tabName")}
+										{isPrePublishMode ? (
+											<span
+												className="ml-0.5 text-destructive"
+												aria-hidden="true"
+											>
+												*
+											</span>
+										) : null}
 									</Label>
 								</div>
 								<div className="flex w-[320px] shrink-0 flex-col gap-2">
@@ -529,18 +392,18 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 										placeholder={createT("card.enterName")}
 										data-testid="edit-crew-name-input"
 										disabled={isSubmitting}
+										aria-invalid={showDefaultNameError}
 									/>
+									{showDefaultNameError ? (
+										<p
+											className="text-sm text-destructive"
+											data-testid="edit-crew-name-error"
+										>
+											{defaultNameRequiredMessage ??
+												createT("publishNameDialog.required")}
+										</p>
+									) : null}
 								</div>
-								<Button
-									variant="outline"
-									size="icon"
-									className="size-9 shrink-0"
-									onClick={() => handleOpenLocalize("name")}
-									data-testid="edit-crew-name-localize-button"
-									disabled={isSubmitting}
-								>
-									<Globe className="size-4" />
-								</Button>
 							</div>
 
 							<div
@@ -563,20 +426,10 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 										disabled={isSubmitting}
 									/>
 								</div>
-								<Button
-									variant="outline"
-									size="icon"
-									className="size-9 shrink-0"
-									onClick={() => handleOpenLocalize("role")}
-									data-testid="edit-crew-role-localize-button"
-									disabled={isSubmitting}
-								>
-									<Globe className="size-4" />
-								</Button>
 							</div>
 
 							<div
-								className="mb-1 flex items-start gap-2"
+								className="flex items-start gap-2"
 								data-testid="edit-crew-description-field"
 							>
 								<div className="flex min-h-[96px] flex-1 items-start pt-2">
@@ -596,17 +449,148 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 										disabled={isSubmitting}
 									/>
 								</div>
-								<Button
-									variant="outline"
-									size="icon"
-									className="size-9 shrink-0"
-									onClick={() => handleOpenLocalize("description")}
-									data-testid="edit-crew-description-localize-button"
-									disabled={isSubmitting}
-								>
-									<Globe className="size-4" />
-								</Button>
 							</div>
+
+							<Separator />
+
+							<Collapsible
+								open={localeExpanded}
+								onOpenChange={setLocaleExpanded}
+								className="flex flex-col gap-3"
+							>
+								<CollapsibleTrigger className="group flex w-full items-center gap-1 text-left">
+									<ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:hidden" />
+									<ChevronDown className="hidden size-4 shrink-0 text-muted-foreground group-data-[state=open]:block" />
+									<p className="text-sm font-medium text-muted-foreground">
+										{createT("card.localizeDialog.title")}
+									</p>
+								</CollapsibleTrigger>
+								<CollapsibleContent className="flex flex-col gap-3">
+									<Tabs defaultValue={sortedLocales[0]}>
+										<TabsList className="w-full">
+											{sortedLocales.map((locale) => (
+												<TabsTrigger
+													key={locale}
+													value={locale}
+													className="flex-1"
+													disabled={isSubmitting}
+													data-testid={`edit-crew-locale-tab-${locale}`}
+												>
+													{localeLabels[locale]}
+												</TabsTrigger>
+											))}
+										</TabsList>
+										{sortedLocales.map((locale) => (
+											<TabsContent
+												key={locale}
+												value={locale}
+												className="mt-3 flex flex-col gap-3"
+											>
+												<div className="flex items-center gap-2">
+													<div className="flex h-9 flex-1 items-center">
+														<Label className="w-[172px] shrink-0 text-base font-medium">
+															{createT("card.localizeDialog.tabName")}
+														</Label>
+													</div>
+													<Input
+														value={draft.name[locale]}
+														onChange={(event) =>
+															updateLocalizedField(
+																"name",
+																locale,
+																event.target.value,
+															)
+														}
+														placeholder={
+															draft.name.default
+																? createT(
+																		"playbook.edit.basicInfo.localeDialog.usingDefault",
+																		{
+																			value: draft.name
+																				.default,
+																		},
+																	)
+																: createT("card.enterName")
+														}
+														className="w-[320px] shrink-0"
+														disabled={isSubmitting}
+														data-testid={`edit-crew-locale-name-${locale}`}
+													/>
+												</div>
+												<div className="flex items-center gap-2">
+													<div className="flex h-9 flex-1 items-center">
+														<Label className="w-[172px] shrink-0 text-base font-medium">
+															{createT("card.localizeDialog.tabRole")}
+														</Label>
+													</div>
+													<Input
+														value={draft.role[locale]}
+														onChange={(event) =>
+															updateLocalizedField(
+																"role",
+																locale,
+																event.target.value,
+															)
+														}
+														placeholder={
+															draft.role.default
+																? createT(
+																		"playbook.edit.basicInfo.localeDialog.usingDefault",
+																		{
+																			value: draft.role
+																				.default,
+																		},
+																	)
+																: createT("card.enterRole")
+														}
+														className="w-[320px] shrink-0"
+														disabled={isSubmitting}
+														data-testid={`edit-crew-locale-role-${locale}`}
+													/>
+												</div>
+												<div className="flex items-start gap-2">
+													<div className="flex min-h-[96px] flex-1 items-start pt-2">
+														<Label className="w-[172px] shrink-0 text-base font-medium">
+															{createT(
+																"card.localizeDialog.tabDescription",
+															)}
+														</Label>
+													</div>
+													<Textarea
+														value={draft.description[locale]}
+														onChange={(event) =>
+															updateLocalizedField(
+																"description",
+																locale,
+																event.target.value,
+															)
+														}
+														placeholder={
+															draft.description.default
+																? createT(
+																		"playbook.edit.basicInfo.localeDialog.usingDefault",
+																		{
+																			value: draft.description
+																				.default,
+																		},
+																	)
+																: createT("card.enterDescription")
+														}
+														className="min-h-[96px] w-[320px] shrink-0 resize-none"
+														disabled={isSubmitting}
+														data-testid={`edit-crew-locale-description-${locale}`}
+													/>
+												</div>
+												<p className="text-sm text-muted-foreground">
+													{createT(
+														"playbook.edit.basicInfo.localeDialog.fallbackHint",
+													)}
+												</p>
+											</TabsContent>
+										))}
+									</Tabs>
+								</CollapsibleContent>
+							</Collapsible>
 						</div>
 					</ScrollArea>
 
@@ -634,15 +618,6 @@ function EditCrewDialog({ open, onOpenChange }: EditCrewDialogProps) {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
-
-			<EditCrewLocalizeDialog
-				open={localizeOpen}
-				onOpenChange={setLocalizeOpen}
-				initialField={localizeField}
-				draft={draft}
-				onChange={updateLocalizedField}
-				disabled={isSubmitting}
-			/>
 		</>
 	)
 }

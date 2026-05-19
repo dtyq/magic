@@ -38,7 +38,7 @@ export interface TemporaryKnowledgeConfig {
 /** 分段配置 */
 export interface FragmentConfig {
 	mode: SegmentationMode
-	normal: {
+	normal?: {
 		text_preprocess_rule: TextPreprocessingRules[]
 		segment_rule: {
 			separator: string
@@ -46,18 +46,9 @@ export interface FragmentConfig {
 			chunk_overlap: number
 		}
 	}
-	parent_child: {
-		parent_mode: ParentBlockMode
-		separator: string
-		chunk_size: number
-		parent_segment_rule: {
-			separator: string
-			chunk_size: number
-		}
-		child_segment_rule: {
-			separator: string
-			chunk_size: number
-		}
+	hierarchy?: {
+		max_level: number
+		keep_hierarchy_info: boolean
 		text_preprocess_rule: TextPreprocessingRules[]
 	}
 }

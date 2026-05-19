@@ -6,7 +6,11 @@ import type {
 	ActionContext,
 } from "@/pages/superMagic/components/Detail/components/CommonHeaderV2/types"
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
-import type { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
+import {
+	type FileHistoryVersion,
+	DownloadImageMode,
+	type ProjectListItem,
+} from "@/pages/superMagic/pages/Workspace/types"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import { DetailType } from "@/pages/superMagic/components/Detail/types"
 import { AttachmentSource } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
@@ -20,6 +24,8 @@ import magicToast from "@/components/base/MagicToaster/utils"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import ActionButton from "@/pages/superMagic/components/Detail/components/CommonHeader/components/ActionButton"
 import { IconShare3 } from "@tabler/icons-react"
+import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
+import { useAiWatermarkPreference } from "@/hooks/useAiWatermarkPreference"
 
 interface UseDesignHeaderPropsOptions {
 	/** 定位到文件时使用的文件 ID，Design 场景下传 magic.project.js 的 fileId */
@@ -29,7 +35,11 @@ interface UseDesignHeaderPropsOptions {
 		name: string
 		type?: string
 		url?: string
+		projectId?: string
+		projectName?: string
 	}
+	projectId?: string
+	selectedProject?: ProjectListItem | null
 	attachments?: FileItem[]
 	fileVersion?: number
 	isNewestVersion?: boolean
@@ -47,6 +57,8 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 	const {
 		locateFileId,
 		currentFile,
+		projectId,
+		selectedProject,
 		attachments,
 		fileVersion,
 		isNewestVersion,
@@ -61,6 +73,8 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 	} = options
 
 	const { t } = useTranslation("super")
+	const { isShareRoute } = useShareRoute()
+	const { hasGlobalAgreement } = useAiWatermarkPreference()
 
 	// 全屏状态
 	const [isFullscreen, setIsFullscreen] = useState(false)
@@ -135,7 +149,12 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 		try {
 			// 使用共用函数获取 zip 文件名（与 useConversationAndDownload 保持一致）
 			const zipFileName = getZipFileNameFromFiles(imageFiles, attachments, currentFile)
-			const { successCount } = await packAndDownloadFiles(imageFiles, undefined, zipFileName)
+			const downloadMode = hasGlobalAgreement ? DownloadImageMode.HighQuality : undefined
+			const { successCount } = await packAndDownloadFiles(
+				imageFiles,
+				downloadMode,
+				zipFileName,
+			)
 
 			magicToast.success({
 				content: t("design.messages.downloadSuccess", { count: successCount }),
@@ -147,7 +166,7 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 				key: loadingKey,
 			})
 		}
-	}, [attachments, currentFile, t])
+	}, [attachments, currentFile, hasGlobalAgreement, t])
 
 	// 适配 CommonHeaderV2 的 changeFileVersion 接口
 	const handleChangeFileVersionForHeader = useCallback(
@@ -176,6 +195,8 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 				name: currentFile.name,
 				type: currentFile.type || "design",
 				url: currentFile.url,
+				projectId: currentFile.projectId || selectedProject?.id || projectId,
+				projectName: currentFile.projectName || selectedProject?.project_name,
 			}
 		: undefined
 
@@ -191,6 +212,7 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 			name: item.file_name,
 			path: item.relative_file_path,
 			parent_id: item.parent_id ? String(item.parent_id) : null,
+			project_id: item.project_id,
 			children: item.children
 				? item.children.map((child) => ({
 						file_id: child.file_id,
@@ -201,6 +223,7 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 						name: child.file_name,
 						path: child.relative_file_path,
 						parent_id: child.parent_id ? String(child.parent_id) : null,
+						project_id: child.project_id,
 						source: child.source || AttachmentSource.DEFAULT,
 					}))
 				: undefined,
@@ -334,7 +357,9 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 		onFullscreen: handleFullscreen,
 		getPopupContainer,
 		actionConfig: {
-			order: ["refresh", "share", "download", "fullscreen", "more"], // 按钮顺序：刷新、分享、下载、全屏、更多
+			order: isShareRoute
+				? ["refresh", "download", "fullscreen", "more"]
+				: ["refresh", "share", "download", "fullscreen", "more"], // 按钮顺序：刷新、分享、下载、全屏、更多
 			hideDefaults: ["copy", "openUrl", "refresh", "share", "fullscreen"], // 隐藏默认按钮，使用自定义按钮（download、more 使用默认但统一颜色）
 			gap: "var(--spacing-1, 4px)", // 按钮之间的间距
 			overrides: {
@@ -353,11 +378,15 @@ export function useDesignHeaderProps(options: UseDesignHeaderPropsOptions): Comm
 					zone: "secondary",
 					render: renderCustomRefresh,
 				},
-				{
-					key: "share",
-					zone: "secondary",
-					render: renderCustomShare,
-				},
+				...(!isShareRoute
+					? [
+							{
+								key: "share" as const,
+								zone: "secondary" as const,
+								render: renderCustomShare,
+							},
+						]
+					: []),
 				{
 					key: "fullscreen",
 					zone: "trailing",

@@ -21,7 +21,9 @@ enum AiAbilityCode: string
     case AudioFileRecognition = 'audio_file_recognition';  // 音频文件识别
     case AutoCompletion = 'auto_completion';               // 自动补全
     case ContentSummary = 'content_summary';               // 内容总结
+    case FollowUpQuestions = 'follow_up_questions';        // 追加提问
     case VisualUnderstanding = 'visual_understanding';     // 视觉理解
+    case VideoUnderstanding = 'video_understanding';         // 视频理解
     case SmartRename = 'smart_rename';                     // 智能重命名
     case AiOptimization = 'ai_optimization';               // AI 优化
     case DeepWrite = 'super_magic_deep_write';             // 深度写作 (超级麦吉)
@@ -31,6 +33,9 @@ enum AiAbilityCode: string
     case AnalysisAudio = 'super_magic_analysis_audio';     // 音频分析 (超级麦吉)
     case WebScrape = 'web_scrape';                         // 网页爬取
     case ImageConvertHigh = 'image_convert_high';          // 图片转高清
+    case ImageRemoveBackground = 'image_remove_background'; // 去背景
+    case ImageEraser = 'image_eraser';                     // 橡皮擦
+    case ImageExpand = 'image_expand';                     // 扩图
 
     /**
      * 获取能力名称.
@@ -45,7 +50,9 @@ enum AiAbilityCode: string
             self::AudioFileRecognition => '音频文件识别',
             self::AutoCompletion => '自动补全',
             self::ContentSummary => '内容总结',
+            self::FollowUpQuestions => '追加提问',
             self::VisualUnderstanding => '视觉理解',
+            self::VideoUnderstanding => '视频理解',
             self::SmartRename => '智能重命名',
             self::AiOptimization => 'AI 优化',
             self::DeepWrite => '超级麦吉 - 深度写作',
@@ -55,6 +62,9 @@ enum AiAbilityCode: string
             self::AnalysisAudio => '超级麦吉 - 音频分析',
             self::WebScrape => '网页爬取',
             self::ImageConvertHigh => '图片转高清',
+            self::ImageRemoveBackground => '去背景',
+            self::ImageEraser => '橡皮擦',
+            self::ImageExpand => '扩图',
             default => 'Unknown',
         };
     }
@@ -72,7 +82,9 @@ enum AiAbilityCode: string
             self::AudioFileRecognition => '本能力覆盖平台所有音频文件转文字的应用场景，精准识别说话人、音频文字等信息。',
             self::AutoCompletion => '本能力覆盖平台所有输入内容自动补全的应用场景，根据理解上下文为用户自动补全内容，由用户选择是否采纳。',
             self::ContentSummary => '本能力覆盖平台所有内容总结的应用场景，对长篇文档、报告或网页文章进行深度分析。',
+            self::FollowUpQuestions => '本能力覆盖对话场景中根据历史上下文生成后续追问建议的应用场景，用于引导用户继续深入探讨。',
             self::VisualUnderstanding => '本能力覆盖平台所有需要让大模型进行视觉理解的应用场景，精准理解各种图像中的内容以及复杂关系。',
+            self::VideoUnderstanding => '本能力覆盖平台所有需要让大模型进行视频理解的应用场景，精准理解视频画面、动作、场景及与时间线相关的内容与关系。',
             self::SmartRename => '本能力覆盖平台所有支持 AI 重命名的应用场景，根据理解上下文为用户自动进行内容标题的命名。',
             self::AiOptimization => '本能力覆盖平台所有支持 AI 优化内容的应用场景，根据理解上下文为用户自动对内容进行优化。',
             self::DeepWrite => '本能力覆盖超级麦吉所有深度写作的应用场景，基于多个参考文件生成高质量、有深度的专业文章、报告、营销文案和博客内容。',
@@ -82,6 +94,9 @@ enum AiAbilityCode: string
             self::AnalysisAudio => '本能力覆盖超级麦吉所有音频项目分析的应用场景，对音频内容进行深度分析，包括场景识别、主题提炼、摘要生成等。',
             self::WebScrape => '本能力覆盖平台所有网页内容爬取的应用场景，精准抓取并解析网页内容，支持多种格式输出。',
             self::ImageConvertHigh => '本能力覆盖平台所有图片转高清的应用场景，通过AI技术将低分辨率图片转换为高清图片，提升图片质量和清晰度。',
+            self::ImageRemoveBackground => '本能力覆盖平台所有图片去背景的应用场景，通过AI技术自动识别主体并去除图片背景，保留主体完整边缘。',
+            self::ImageEraser => '本能力覆盖平台所有图片橡皮擦的应用场景，通过AI技术根据标记区域擦除图片内容，并以自然背景无缝填充。',
+            self::ImageExpand => '本能力覆盖平台所有图片扩图的应用场景，通过AI技术将图片向外延伸，以符合原图风格、光照和透视的内容填充扩展区域。',
             default => 'Unknown',
         };
     }
@@ -96,6 +111,7 @@ enum AiAbilityCode: string
         return match ($this) {
             self::WebSearch => ['api_key'],
             self::ImageSearch => ['api_key'],
+            self::ImageRemoveBackground => ['api_key'],
             self::Ocr => ['access_key', 'secret_key'],
             self::AudioFileRecognition => ['app_key', 'access_key', 'cluster'],
             default => [],

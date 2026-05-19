@@ -207,12 +207,15 @@ export function ProjectImageNodeView(props: ProjectImageNodeViewProps) {
 		)
 	}
 
+	console.log("error", error)
+
 	return (
 		<>
 			<NodeViewWrapper
 				ref={containerRef}
-				className={`project-image-node ${selected && isEditable ? "project-image-node--selected" : ""
-					} ${isResizing ? "project-image-node--resizing" : ""} ${alignClass}`}
+				className={`project-image-node ${
+					selected && isEditable ? "project-image-node--selected" : ""
+				} ${isResizing ? "project-image-node--resizing" : ""} ${alignClass}`}
 			>
 				{/* Show loading or error placeholder */}
 				<ImagePlaceholder

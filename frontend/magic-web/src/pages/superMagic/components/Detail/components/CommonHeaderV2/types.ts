@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import type { MenuProps } from "antd"
 import type {
 	DownloadImageMode,
 	FileHistoryVersion,
@@ -29,6 +30,8 @@ export interface CurrentFileInfo {
 	type: string
 	url?: string
 	source?: AttachmentSource
+	projectId?: string
+	projectName?: string
 }
 
 export interface ActionContext {
@@ -39,6 +42,7 @@ export interface ActionContext {
 	isShareRoute: boolean
 	isFromNode: boolean
 	isFullscreen: boolean
+	isFullscreenMode: boolean
 	isEditMode: boolean
 	detailMode?: "single" | "files"
 	showDownload: boolean
@@ -150,4 +154,6 @@ export interface CommonHeaderV2Props {
 	getPopupContainer?: () => HTMLElement | null
 	/** 自定义「定位到文件」行为，未传时使用 currentFile.id */
 	onLocateFile?: () => void
+	/** 额外的「更多」菜单项，追加在默认菜单项之后 */
+	extraMoreMenuItems?: MenuProps["items"]
 }

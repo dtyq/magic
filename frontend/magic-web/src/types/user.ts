@@ -90,6 +90,36 @@ export namespace User {
 		phone?: string
 		email?: string
 		country_code?: string
+		timezone?: string | null
+		/** 用户偏好 */
+		preferences?: {
+			/** 是否开启追问建议 */
+			show_follow_up_suggestions: boolean
+			/** 是否保留历史的追问建议 */
+			keep_used_follow_up_suggestions: boolean
+		} | null
+	}
+
+	export interface ThirdPlatformUserInfo {
+		/** 用户ID */
+		id: string
+		/** 用户真实姓名 */
+		real_name: string
+		/** 用户头像 */
+		avatar: string
+		/** 用户所在组织 */
+		organization: string
+		/** 用户描述 */
+		description: string
+		nick_name: string
+		phone: string
+		platform_type: number
+		is_organization_admin: boolean
+		is_application_admin: boolean
+		identifications: Array<string>
+		shown_identification: string | null
+		timezone: string
+		state_code: string
 	}
 
 	/** 登录设备 */

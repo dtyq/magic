@@ -29,6 +29,10 @@ const generateRequestKey = (config: RequestConfig) => {
 			enableAuthorizationVerification,
 			enableRequestUnion,
 			body: body,
+			// Must differ when set; otherwise skip vs wait shares one Promise (init deadlock).
+			skipAppInitWait: config.skipAppInitWait === true,
+			// False disables auth header; merging with default-true would return wrong data.
+			enableAuthorization: config.enableAuthorization !== false,
 		})
 	} catch (error) {
 		logger.error("Generate a unique identifier key for the request", error)

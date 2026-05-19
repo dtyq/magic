@@ -40,6 +40,7 @@ export const useStyles = createStyles(({ css, token, isDarkMode }) => {
 		container: css`
 			width: 100%;
 			height: 100%;
+			overflow: auto;
 
 			& .simplebar-content {
 				padding: 0 18px 20px 18px !important;
@@ -47,19 +48,35 @@ export const useStyles = createStyles(({ css, token, isDarkMode }) => {
 		`,
 		loading: css`
 			width: 100%;
-			flex: auto;
+			flex: 1;
 			height: calc(100% - ${headerHeight}px);
 		`,
-		scroll: css`
+		loadingInner: css`
 			width: 100%;
-			overflow: hidden;
+			height: 100%;
+		`,
+		scroll: css`
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			width: 100%;
+			::-webkit-scrollbar {
+				display: none;
+			}
 		`,
 		card: css`
-			width: 50%;
-			float: left;
+			/* grid item - 必须设置 min-width: 0 防止内容撑开列宽 */
+			min-width: 0;
 		`,
 		emptyTips: css`
 			color: ${isDarkMode ? token.magicColorScales.grey[2] : token.magicColorUsages.text[3]};
+			padding: 20px 0;
+		`,
+		emptyContainer: css`
+			width: 100%;
+			height: 100%;
+			display: flex;
+			align-items: center;
+			justify-content: center;
 		`,
 	}
 })

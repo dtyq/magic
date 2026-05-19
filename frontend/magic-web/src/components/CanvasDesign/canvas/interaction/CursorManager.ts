@@ -1,10 +1,12 @@
 import type { Canvas } from "../Canvas"
+import { EraserCursorRenderer } from "./EraserCursorRenderer"
 
 /**
  * 光标类型
  */
 export type CursorType =
 	| "default"
+	| "eraser"
 	| "pointer"
 	| "crosshair"
 	| "grab"
@@ -29,6 +31,10 @@ export class CursorManager {
 	private canvas: Canvas
 	private currentCursor: CursorType = "default"
 	private toolCursor: CursorType = "default" // 当前工具的光标
+	private eraserModeActive = false
+
+	private eraserElementId: string | null = null
+	private eraserCursorRenderer: EraserCursorRenderer | null = null
 
 	constructor(options: { canvas: Canvas }) {
 		this.canvas = options.canvas
@@ -40,15 +46,20 @@ export class CursorManager {
 	 */
 	public setToolCursor(cursor: CursorType): void {
 		this.toolCursor = cursor
-		this.setCursor(cursor)
+		if (!this.eraserModeActive) {
+			this.setCursor(cursor)
+		}
 	}
 
 	/**
 	 * 恢复工具光标
 	 */
 	public restoreToolCursor(): void {
-		const cursor = this.toolCursor
-		this.setCursor(cursor)
+		if (this.eraserModeActive) {
+			this.setCursor("eraser")
+			return
+		}
+		this.setCursor(this.toolCursor)
 	}
 
 	/**
@@ -56,6 +67,7 @@ export class CursorManager {
 	 * @param cursor 光标类型
 	 */
 	public setTemporary(cursor: CursorType): void {
+		if (this.eraserModeActive) return
 		this.setCursor(cursor)
 	}
 
@@ -70,8 +82,78 @@ export class CursorManager {
 	 * 重置光标管理器
 	 */
 	public reset(): void {
+		this.exitEraserMode()
 		this.toolCursor = "default"
 		this.setCursor("default")
+	}
+
+	public enterEraserMode(options: { elementId: string; radius: number }): void {
+		const { elementId, radius } = options
+		const shouldRecreateCursor = this.eraserElementId !== elementId
+		this.eraserModeActive = true
+		this.eraserElementId = elementId
+		if (shouldRecreateCursor) {
+			this.destroyEraserCursor()
+		}
+		this.ensureEraserCursor(radius)
+		this.setCursor("eraser")
+		this.updateEraserCursorFromStagePointer()
+		this.eraserCursorRenderer?.show()
+	}
+
+	public exitEraserMode(): void {
+		this.eraserModeActive = false
+		this.hideEraserCursor()
+		this.destroyEraserCursor()
+		this.eraserElementId = null
+		this.restoreToolCursor()
+	}
+
+	public updateEraserCursorPosition(point: { x: number; y: number }): void {
+		if (!this.eraserElementId) return
+		this.ensureEraserCursor()
+		this.eraserCursorRenderer?.updatePosition(point)
+	}
+
+	public updateEraserCursorRadius(radius: number): void {
+		if (!this.eraserElementId) return
+		this.ensureEraserCursor(radius)
+		this.eraserCursorRenderer?.updateRadius(radius)
+	}
+
+	public syncEraserCursorTransform(): void {
+		this.eraserCursorRenderer?.syncTransform()
+	}
+
+	public showEraserCursor(): void {
+		if (!this.eraserModeActive || !this.eraserElementId) return
+		this.ensureEraserCursor()
+		this.eraserCursorRenderer?.show()
+		this.setCursor("eraser")
+	}
+
+	public hideEraserCursor(): void {
+		this.eraserCursorRenderer?.hide()
+	}
+
+	public updateEraserCursorFromStagePointer(): void {
+		this.eraserCursorRenderer?.updatePositionFromStagePointer()
+	}
+
+	private ensureEraserCursor(radius?: number): void {
+		if (!this.eraserElementId) return
+		if (!this.eraserCursorRenderer) {
+			this.eraserCursorRenderer = new EraserCursorRenderer({
+				canvas: this.canvas,
+				elementId: this.eraserElementId,
+			})
+		}
+		this.eraserCursorRenderer.ensure({ radius })
+	}
+
+	private destroyEraserCursor(): void {
+		this.eraserCursorRenderer?.destroy()
+		this.eraserCursorRenderer = null
 	}
 
 	/**
@@ -80,7 +162,7 @@ export class CursorManager {
 	private setCursor(cursor: CursorType): void {
 		const container = this.canvas.stage.container()
 		if (container) {
-			container.style.cursor = cursor
+			container.style.cursor = cursor === "eraser" ? "none" : cursor
 			this.currentCursor = cursor
 		}
 	}

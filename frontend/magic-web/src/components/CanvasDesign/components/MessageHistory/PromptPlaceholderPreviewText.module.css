@@ -1,0 +1,21 @@
+.placeholderButton {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0 4px;
+	color: rgb(37 99 235);
+	font-weight: 500;
+	font-size: inherit;
+	line-height: 20px;
+	vertical-align: baseline;
+	border: none;
+	border-radius: 0;
+	outline: none;
+	cursor: pointer;
+}
+
+/* .placeholderButton:hover {
+}
+
+.placeholderButton:focus-visible {
+} */

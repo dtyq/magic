@@ -5,8 +5,8 @@ import type { ThemeMode } from "antd-style"
  * @description 主题配置Store，负责内存状态管理
  */
 export class ThemeStore {
-	// 设置默认值
-	theme: ThemeMode = "auto"
+	// Default light while dark mode is disabled (see constants/theme.ts)
+	theme: ThemeMode = "light"
 
 	constructor() {
 		makeAutoObservable(this)

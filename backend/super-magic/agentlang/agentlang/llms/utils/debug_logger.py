@@ -23,6 +23,21 @@ ENABLE_LLM_SUCCESS_REQUEST_LOG = os.getenv(
 ).lower() in ("true", "1", "yes", "on")
 
 
+def _sanitize_for_filename(value: str) -> str:
+    """将输入字符串转换为可安全用于单个文件名片段的值。"""
+    if not value:
+        return "unknown"
+
+    sanitized = value.replace("/", "_").replace("\\", "_")
+
+    if os.sep and os.sep not in ("/", "\\"):
+        sanitized = sanitized.replace(os.sep, "_")
+    if os.altsep and os.altsep not in ("/", "\\"):
+        sanitized = sanitized.replace(os.altsep, "_")
+
+    return sanitized or "unknown"
+
+
 @dataclass
 class LLMDebugInfo:
     """LLM 调试日志所需的配置信息"""
@@ -77,7 +92,8 @@ async def save_llm_debug_log(
 
         # 生成调试日志文件名，包含耗时信息
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]  # 毫秒精度
-        filename = f"{debug_info.model_id}_{timestamp}_{duration_ms}_{status}.log"
+        safe_model_id = _sanitize_for_filename(debug_info.model_id)
+        filename = f"{safe_model_id}_{timestamp}_{duration_ms}_{status}.log"
         file_path = llm_request_dir / filename
 
         # 构建调试日志内容

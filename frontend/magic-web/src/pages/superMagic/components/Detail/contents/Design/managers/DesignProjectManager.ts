@@ -1,24 +1,25 @@
-import { SuperMagicApi } from "@/apis"
+import { cloneDeep } from "lodash-es"
 import type { DesignData } from "../types"
-import { getDataToCompare } from "./types"
 import type { DesignProjectStateBag, DesignProjectManagerOptions } from "./types"
-import {
+import { DesignRemoteListener } from "./DesignRemoteListener"
+import type {
+	ApplyRemoteDesignDataFn,
+	CheckRemoteUpdateFn,
 	DesignRemoteListenerOptions,
-	DesignRemoteListener,
+	FetchRemoteDesignDataFn,
 	LoadAndApplyRemoteFn,
-	WaitForAttachmentsUpdateFn,
 } from "./DesignRemoteListener"
 import { DesignLoadManager } from "./DesignLoadManager"
-import { DesignSaveManager } from "./DesignSaveManager"
+import { DesignSaveManager, type DesignSaveLifecycleHandlers } from "./DesignSaveManager"
 import { DesignVersionManager } from "./DesignVersionManager"
 import { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
+import { hashDesignDataComparable } from "../utils/designContentHash"
 
 export interface DesignProjectManagerFactoryParams {
 	stateBag: DesignProjectStateBag
 	options: DesignProjectManagerOptions
 	getFileVersionsList: () => FileHistoryVersion[]
 	getFileVersion: () => number | undefined
-	waitForAttachmentsUpdate: WaitForAttachmentsUpdateFn
 }
 
 export interface DesignProjectManagerAPI {
@@ -44,7 +45,11 @@ export interface DesignProjectManagerAPI {
 	loadWithVersion: (version: number) => Promise<DesignData | null>
 	loadLatest: () => Promise<{ data: DesignData | null; version: number | null }>
 
-	checkRemoteUpdate: () => Promise<{ hasUpdate: boolean; currentVersion: number | null }>
+	checkRemoteUpdate: () => Promise<{
+		hasUpdate: boolean
+		currentVersion: number | null
+		isCheckReliable: boolean
+	}>
 	updateLocalVersion: (version: number) => void
 
 	isReadOnly: boolean
@@ -84,6 +89,10 @@ export class DesignProjectManager implements DesignProjectManagerAPI {
 	private versionManager: DesignVersionManager
 	private remoteListener: DesignRemoteListener | null = null
 
+	private fetchRemoteDesignDataFn: FetchRemoteDesignDataFn
+	private applyRemoteDesignDataFn: ApplyRemoteDesignDataFn
+	private loadAndApplyRemoteFn: LoadAndApplyRemoteFn
+
 	private stateBag: DesignProjectStateBag
 	private options: DesignProjectManagerOptions
 	private getFileVersionsList: () => FileHistoryVersion[]
@@ -91,8 +100,7 @@ export class DesignProjectManager implements DesignProjectManagerAPI {
 	private getIsReadOnly: () => boolean
 
 	constructor(params: DesignProjectManagerFactoryParams) {
-		const { stateBag, options, getFileVersionsList, getFileVersion, waitForAttachmentsUpdate } =
-			params
+		const { stateBag, options, getFileVersionsList, getFileVersion } = params
 
 		this.stateBag = stateBag
 		this.options = options
@@ -107,8 +115,8 @@ export class DesignProjectManager implements DesignProjectManagerAPI {
 			version: "1.0.0",
 			canvas: { elements: [] },
 		}
-		this.updateDesignData = () => { }
-		this.updateDesignDataAndScheduleSave = () => { }
+		this.updateDesignData = noopDesignDataUpdater
+		this.updateDesignDataAndScheduleSave = noopDesignDataUpdater
 		this.isInitialLoading = true
 		this.isSaving = false
 		this.fileVersionsList = []
@@ -119,10 +127,21 @@ export class DesignProjectManager implements DesignProjectManagerAPI {
 		this.revokeType = null
 
 		this.loadManager = new DesignLoadManager(stateBag, options)
-		this.saveManager = new DesignSaveManager(stateBag, options, async () => {
-			// Will be set after versionManager is created
-			return []
-		})
+		const saveLifecycleHandlers: DesignSaveLifecycleHandlers = {
+			onSaveStart: () => this.remoteListener?.beginLocalSave() ?? null,
+			onSaveEnd: async (saveToken, didSave, savedUpdatedAt) => {
+				await this.remoteListener?.endLocalSave(saveToken, didSave, savedUpdatedAt)
+			},
+		}
+		this.saveManager = new DesignSaveManager(
+			stateBag,
+			options,
+			async () => {
+				// Will be set after versionManager is created
+				return []
+			},
+			saveLifecycleHandlers,
+		)
 		this.versionManager = new DesignVersionManager(
 			stateBag,
 			options,
@@ -132,35 +151,62 @@ export class DesignProjectManager implements DesignProjectManagerAPI {
 		)
 		this.saveManager.updateFetchAndSetVersions(() => this.versionManager.fetchFileVersions())
 
-		const loadAndApplyRemote: LoadAndApplyRemoteFn = async (
-			updateType: "message" | "revoke" | "restore" = "message",
-		) => {
+		const fetchRemoteDesignData: FetchRemoteDesignDataFn = async () => {
 			const fid = this.stateBag.getMagicProjectJsFileId()
-			if (!fid) return
+			if (!fid) return null
 
 			try {
 				const { data } = await this.versionManager.loadLatest()
-				if (data) {
-					const newData = JSON.parse(JSON.stringify(data)) as DesignData
-					const oldData = this.stateBag.getDesignData()
-					this.saveManager.cancelAutoSave()
-					this.stateBag.setters.setIsSaving(false)
-					this.stateBag.setters.setDesignData(newData)
-					this.stateBag.setPrevDesignDataStr(JSON.stringify(getDataToCompare(newData)))
-					this.options.onRemoteDesignDataUpdate?.(oldData, newData, updateType)
-				}
+				if (!data) return null
+
+				return cloneDeep(data) as DesignData
 			} catch {
-				// ignore
+				return null
 			}
 		}
+
+		const applyRemoteDesignData: ApplyRemoteDesignDataFn = (
+			newData: DesignData,
+			updateType: "message" | "revoke" | "restore",
+		) => {
+			try {
+				const oldData = this.stateBag.getDesignData()
+				this.saveManager.cancelAutoSave()
+				this.stateBag.setters.setIsSaving(false)
+				this.stateBag.setters.setDesignData(newData)
+				this.stateBag.setPrevDesignDataFingerprint(hashDesignDataComparable(newData))
+				this.options.onRemoteDesignDataUpdate?.(oldData, newData, updateType)
+				return true
+			} catch {
+				return false
+			}
+		}
+
+		const loadAndApplyRemote: LoadAndApplyRemoteFn = async (
+			updateType: "message" | "revoke" | "restore" = "message",
+		) => {
+			const newData = await fetchRemoteDesignData()
+			if (!newData) return false
+			return applyRemoteDesignData(newData, updateType)
+		}
+
+		this.fetchRemoteDesignDataFn = fetchRemoteDesignData
+		this.applyRemoteDesignDataFn = applyRemoteDesignData
+		this.loadAndApplyRemoteFn = loadAndApplyRemote
+
+		const checkRemoteUpdate: CheckRemoteUpdateFn = async () =>
+			this.saveManager.checkRemoteUpdate()
 
 		const listenerOptions: DesignRemoteListenerOptions = {
 			...options,
 			getMagicProjectJsFileId: () => this.stateBag.getMagicProjectJsFileId(),
+			getIsViewingHistory: () => this.getFileVersion() !== undefined,
 			getDesignDataName: () => this.stateBag.getDesignData().name,
 			fetchAndSetVersions: () => this.versionManager.fetchFileVersions(),
 			loadAndApplyRemote,
-			waitForAttachmentsUpdate,
+			fetchRemoteDesignData,
+			applyRemoteDesignData,
+			checkRemoteUpdate,
 			updateListenerDebounceMs: options.updateListenerDebounceMs ?? 200,
 			setIsProcessingRevoke: (v) => this.stateBag.setters.setIsProcessingRevoke(v),
 			setRevokeType: (v) => this.stateBag.setters.setRevokeType(v),
@@ -177,8 +223,13 @@ export class DesignProjectManager implements DesignProjectManagerAPI {
 		this.remoteListener?.updateOptions({
 			...options,
 			getMagicProjectJsFileId: () => this.stateBag.getMagicProjectJsFileId(),
+			getIsViewingHistory: () => this.getFileVersion() !== undefined,
 			getDesignDataName: () => this.stateBag.getDesignData().name,
 			fetchAndSetVersions: () => this.versionManager.fetchFileVersions(),
+			loadAndApplyRemote: this.loadAndApplyRemoteFn,
+			fetchRemoteDesignData: this.fetchRemoteDesignDataFn,
+			applyRemoteDesignData: this.applyRemoteDesignDataFn,
+			checkRemoteUpdate: async () => this.saveManager.checkRemoteUpdate(),
 		})
 	}
 
@@ -208,24 +259,8 @@ export class DesignProjectManager implements DesignProjectManagerAPI {
 
 	async saveToRemote(): Promise<void> {
 		if (this.getIsReadOnly()) return
-		const fid = this.stateBag.getMagicProjectJsFileId()
-		if (!fid) return
-
-		const content = this.saveManager.generateContent(this.stateBag.getDesignData())
-		if (!content?.trim()) return
-
-		await SuperMagicApi.saveFileContent([{ file_id: fid, content, enable_shadow: true }])
-
-		if (!this.options.isShareRoute) {
-			try {
-				const fileInfo = await SuperMagicApi.getFileInfo({ file_id: fid })
-				if (fileInfo?.version !== undefined) {
-					this.stateBag.setMagicProjectJsVersion(fileInfo.version)
-				}
-			} catch {
-				// ignore
-			}
-		}
+		this.stateBag.setters.setIsSaving(true)
+		await this.saveManager.commitSave()
 	}
 
 	generateContent(data?: DesignData): string {
@@ -240,7 +275,11 @@ export class DesignProjectManager implements DesignProjectManagerAPI {
 		return this.versionManager.loadLatest()
 	}
 
-	checkRemoteUpdate(): Promise<{ hasUpdate: boolean; currentVersion: number | null }> {
+	checkRemoteUpdate(): Promise<{
+		hasUpdate: boolean
+		currentVersion: number | null
+		isCheckReliable: boolean
+	}> {
 		return this.saveManager.checkRemoteUpdate()
 	}
 
@@ -279,4 +318,8 @@ export class DesignProjectManager implements DesignProjectManagerAPI {
 	getRemoteListener(): DesignRemoteListener | null {
 		return this.remoteListener
 	}
+}
+
+function noopDesignDataUpdater(_updater: (draft: DesignData) => void): void {
+	void _updater
 }

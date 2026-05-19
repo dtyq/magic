@@ -1,0 +1,337 @@
+/* ============================================================
+  Hand-Drawn-Edu Theme — macaron hand-drawn education style
+  Core: warm cream base #F5F0E8 + macaron color blocks + hand-drawn lines + doodle decorations
+  ============================================================ */
+
+/* ---------- CSS variables ---------- */
+:root {
+ --bg-primary:  #F5F0E8;
+ --bg-card:    #FFFFFF;
+ --bg-dark:    #2D2D2D;
+
+ --macaron-blue:    #A8D8EA;
+ --macaron-blue-bg:   #D6EEF8;
+ --macaron-mint:    #B5E5CF;
+ --macaron-mint-bg:   #D8F3E8;
+ --macaron-lavender:  #D5C6E0;
+ --macaron-lavender-bg: #EAE0F5;
+ --macaron-peach:    #FFD5C2;
+ --macaron-peach-bg:  #FFE8DC;
+ --macaron-yellow:   #FFF0A0;
+
+ --coral:    #E8655A;
+ --coral-dark: #C0392B;
+ --ink:     #2D2D2D;
+
+ --text-primary:  #2D2D2D;
+ --text-secondary: #4A4A4A;
+ --text-muted:   #6B6B6B;
+ --text-on-dark:  #F5F0E8;
+
+ --border-ink:  4px solid #2D2D2D;
+ --border-dashed: 2px dashed #2D2D2D;
+ --border-thin:  1.5px solid #2D2D2D;
+
+ --shadow-sketch: 4px 4px 0 rgba(45,45,45,0.15);
+ --shadow-card:  6px 6px 0 rgba(45,45,45,0.12);
+
+ --font-title: 'ZCOOL KuaiLe', 'Noto Sans SC', sans-serif;
+ --font-body: 'Noto Sans SC', sans-serif;
+}
+
+/* ---------- Base reset ---------- */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+ width: 1920px; height: 1080px;
+ font-family: var(--font-body);
+ color: var(--text-primary);
+ background-color: var(--bg-primary);
+ -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Slide container ---------- */
+.slide-container {
+ position: relative;
+ width: 1920px;
+ height: 1080px;
+ overflow: hidden;
+ background-color: var(--bg-primary);
+}
+.slide-container.dark {
+ background-color: var(--bg-dark);
+ color: var(--text-on-dark);
+}
+
+/* ---------- Macaron color-block cards ---------- */
+.macaron-card {
+ border: 4px solid var(--ink);
+ border-radius: 24px;
+ padding: 33px 39px;
+ box-shadow: var(--shadow-card);
+ position: relative;
+}
+.macaron-card.blue   { background: var(--macaron-blue-bg); }
+.macaron-card.mint   { background: var(--macaron-mint-bg); }
+.macaron-card.lavender { background: var(--macaron-lavender-bg); }
+.macaron-card.peach  { background: var(--macaron-peach-bg); }
+.macaron-card.yellow  { background: var(--macaron-yellow); }
+.macaron-card.white  { background: var(--bg-card); }
+
+.macaron-title {
+ font-size: 33px;
+ font-weight: 700;
+ color: var(--ink);
+ margin-bottom: 15px;
+ font-family: var(--font-title);
+ line-height: 1.3;
+}
+.macaron-body {
+ font-size: 26px;
+ color: var(--text-secondary);
+ line-height: 1.8;
+}
+
+/* ---------- Color-block title bars ---------- */
+.macaron-card .color-bar {
+ position: absolute;
+ top: 0; left: 30px; right: 30px;
+ height: 8px;
+ border-radius: 0 0 6px 6px;
+}
+.macaron-card.blue   .color-bar { background: var(--macaron-blue); }
+.macaron-card.mint   .color-bar { background: var(--macaron-mint); }
+.macaron-card.lavender .color-bar { background: var(--macaron-lavender); }
+.macaron-card.peach  .color-bar { background: var(--macaron-peach); }
+
+/* ---------- Highlighted text background ---------- */
+.hl-yellow { background: var(--macaron-yellow); padding: 0 9px; border-radius: 6px; font-weight: 700; }
+.hl-blue  { background: var(--macaron-blue-bg); padding: 0 9px; border-radius: 6px; font-weight: 700; }
+.hl-mint  { background: var(--macaron-mint-bg); padding: 0 9px; border-radius: 6px; font-weight: 700; }
+.hl-coral { background: rgba(232,101,90,0.18); color: var(--coral-dark); padding: 0 9px; border-radius: 6px; font-weight: 700; }
+
+/* ---------- Secondary dashed-border block ---------- */
+.dashed-box {
+ border: 2px dashed var(--ink);
+ border-radius: 18px;
+ padding: 24px 33px;
+ background: rgba(255,255,255,0.55);
+}
+
+/* ---------- Number badge ---------- */
+.num-badge {
+ width: 66px; height: 66px;
+ border-radius: 50%;
+ background: var(--ink);
+ color: var(--bg-primary);
+ font-size: 27px; font-weight: 800;
+ display: flex; align-items: center; justify-content: center;
+ flex-shrink: 0;
+ font-family: var(--font-title);
+ border: 2px solid var(--ink);
+}
+.num-badge.outline {
+ background: transparent;
+ color: var(--ink);
+}
+.num-badge.coral {
+ background: var(--coral);
+ color: #fff;
+}
+
+/* ---------- Doodle decorative tag ---------- */
+.doodle-tag {
+ display: inline-block;
+ background: var(--macaron-yellow);
+ border: 2px solid var(--ink);
+ border-radius: 30px;
+ padding: 6px 24px;
+ font-size: 21px; font-weight: 700;
+ color: var(--ink);
+ transform: rotate(-1.5deg);
+ box-shadow: 2px 2px 0 rgba(45,45,45,0.15);
+ font-family: var(--font-title);
+}
+.doodle-tag.blue  { background: var(--macaron-blue-bg); transform: rotate(1deg); }
+.doodle-tag.mint  { background: var(--macaron-mint-bg); transform: rotate(-2deg); }
+.doodle-tag.peach { background: var(--macaron-peach-bg); transform: rotate(1.5deg); }
+.doodle-tag.coral { background: var(--coral); color: #fff; transform: rotate(-1deg); }
+
+/* ---------- Bottom quote bar ---------- */
+.quote-bar {
+ background: var(--ink);
+ color: var(--text-on-dark);
+ border-radius: 18px;
+ padding: 21px 42px;
+ font-size: 28px; font-weight: 700;
+ font-family: var(--font-title);
+ text-align: center;
+ letter-spacing: 0.02em;
+}
+.quote-bar.yellow {
+ background: var(--macaron-yellow);
+ color: var(--ink);
+ border: 4px solid var(--ink);
+}
+.quote-bar.coral {
+ background: var(--coral);
+ color: #fff;
+}
+
+/* ---------- Hand-drawn arrow ---------- */
+.sketch-arrow {
+ font-size: 42px;
+ color: var(--ink);
+ font-family: var(--font-title);
+ display: inline-flex;
+ align-items: center;
+ justify-content: center;
+ flex-shrink: 0;
+}
+.sketch-arrow.rotate { transform: rotate(90deg); }
+.sketch-arrow.sm { font-size: 30px; }
+
+/* ---------- Large-number data display ---------- */
+.big-num {
+ font-size: 108px;
+ font-weight: 900;
+ color: var(--coral);
+ line-height: 1;
+ font-family: var(--font-title);
+ letter-spacing: -0.02em;
+}
+.big-num-label {
+ font-size: 27px;
+ color: var(--text-muted);
+ margin-top: 9px;
+}
+
+/* ---------- Step row ---------- */
+.step-row {
+ display: flex;
+ align-items: flex-start;
+ gap: 24px;
+}
+.step-content {
+ flex: 1;
+}
+.step-title {
+ font-size: 30px;
+ font-weight: 700;
+ color: var(--ink);
+ margin-bottom: 9px;
+ font-family: var(--font-title);
+}
+.step-desc {
+ font-size: 24px;
+ color: var(--text-secondary);
+ line-height: 1.7;
+}
+
+/* ---------- Knowledge point list ---------- */
+.knowledge-list {
+ list-style: none;
+ display: flex;
+ flex-direction: column;
+ gap: 15px;
+}
+.knowledge-list li {
+ display: flex;
+ align-items: flex-start;
+ gap: 15px;
+ font-size: 27px;
+ color: var(--text-secondary);
+ line-height: 1.6;
+}
+.knowledge-list li::before {
+ content: '✦';
+ color: var(--coral);
+ font-size: 21px;
+ margin-top: 6px;
+ flex-shrink: 0;
+}
+
+/* ---------- Image container (hand-drawn border feel)---------- */
+.sketch-img {
+ border: 4px solid var(--ink);
+ border-radius: 24px;
+ overflow: hidden;
+ box-shadow: 6px 6px 0 rgba(45,45,45,0.15);
+}
+
+/* ---------- Closing card ---------- */
+.closing-card {
+ background: var(--bg-card);
+ border: 4px solid var(--ink);
+ border-radius: 24px;
+ padding: 30px 36px;
+ box-shadow: var(--shadow-card);
+ text-align: center;
+}
+.closing-card .icon { font-size: 54px; margin-bottom: 15px; }
+.closing-card .title { font-size: 27px; font-weight: 700; color: var(--ink); font-family: var(--font-title); }
+.closing-card .value { font-size: 22px; color: var(--text-muted); margin-top: 6px; }
+
+/* ---------- Background doodle decorations (positioning)---------- */
+.doodle-star {
+ position: absolute;
+ font-size: 36px;
+ opacity: 0.25;
+ user-select: none;
+ pointer-events: none;
+}
+.doodle-circle {
+ position: absolute;
+ border: 2px dashed rgba(45,45,45,0.15);
+ border-radius: 50%;
+ pointer-events: none;
+}
+
+/* ---------- General layout utilities ---------- */
+.flex    { display: flex; }
+.flex-col  { display: flex; flex-direction: column; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.gap-2 { gap: 12px; }
+.gap-3 { gap: 18px; }
+.gap-4 { gap: 24px; }
+.gap-5 { gap: 30px; }
+.gap-6 { gap: 36px; }
+.gap-8 { gap: 48px; }
+.gap-10 { gap: 60px; }
+.flex-1 { flex: 1; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.p-8 { padding: 48px; }
+.p-10 { padding: 60px; }
+.p-12 { padding: 72px; }
+.px-12 { padding-left: 72px; padding-right: 72px; }
+.mt-2 { margin-top: 12px; }
+.mt-4 { margin-top: 24px; }
+.mt-6 { margin-top: 36px; }
+.mt-8 { margin-top: 48px; }
+.mb-4 { margin-bottom: 24px; }
+.mb-6 { margin-bottom: 36px; }
+.text-sm  { font-size: 22px; }
+.text-base { font-size: 27px; }
+.text-lg  { font-size: 33px; }
+.text-xl  { font-size: 42px; }
+.text-2xl { font-size: 54px; }
+.text-3xl { font-size: 66px; }
+.text-4xl { font-size: 84px; }
+.font-title { font-family: var(--font-title); }
+.font-bold  { font-weight: 700; }
+.font-black { font-weight: 900; }
+.text-ink  { color: var(--ink); }
+.text-coral { color: var(--coral); }
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+.text-white { color: #fff; }
+.text-center { text-align: center; }
+.bg-dark { background: var(--bg-dark); }
+.bg-card { background: var(--bg-card); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 21px; }

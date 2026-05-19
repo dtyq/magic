@@ -812,7 +812,7 @@ class MagicServiceClient:
                     headers=headers
                 ) as response:
                     response_text = await response.text()
-                    logger.info(f"File notification API response status: {response.status}")
+                    logger.debug(f"File notification API response status: {response.status}")
                     logger.debug(f"File notification API response: {response_text}")
 
                     if response.status == 200:
@@ -820,7 +820,7 @@ class MagicServiceClient:
                             result = json.loads(response_text)
                             if result.get("code") == 1000:
                                 data = result.get("data", {})
-                                logger.info(f"File notification sent successfully: {data}")
+                                logger.debug(f"File notification sent successfully: {data}")
                                 return result
                             else:
                                 error_code = result.get("code")

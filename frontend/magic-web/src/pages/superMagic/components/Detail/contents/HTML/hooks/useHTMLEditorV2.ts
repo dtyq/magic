@@ -7,10 +7,11 @@ import {
 	SelectionModeChangedPayload,
 	HistoryState,
 	IframeZoomRequestPayload,
+	ImageActionPayload,
 } from "../iframe-bridge/types/messages"
 import type { HTMLEditorV2Ref } from "../iframe-bridge/types/props"
-import { getIframeRuntimeScript } from "../iframe-bridge/utils/iframe-script"
 import { filterInjectedTags } from "../utils"
+import { env } from "@/utils/env"
 
 interface UseHTMLEditorV2Options {
 	/** iframe 元素引用 */
@@ -23,6 +24,8 @@ interface UseHTMLEditorV2Options {
 	iframeLoaded: boolean
 	/** 内容是否已注入 */
 	contentInjected: boolean
+	/** 渲染站地址 */
+	renderSiteUrl?: string
 	/** 缩放比例 */
 	scaleRatio?: number
 	/** 保存编辑内容的回调 */
@@ -56,6 +59,7 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 		sandboxType = "iframe",
 		iframeLoaded,
 		contentInjected,
+		renderSiteUrl,
 		scaleRatio,
 		saveEditContent,
 		fileId,
@@ -76,6 +80,8 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 	const onZoomRequestRef = useRef(onZoomRequest)
 	const editTransitionIdRef = useRef(0)
 	const editLifecycleRef = useRef<"idle" | "activating" | "active" | "deactivating">("idle")
+	const iframeRuntimeUrlRef = useRef(env("MAGIC_IFRAME_RUNTIME_URL"))
+	const isCrossDomain = Boolean(renderSiteUrl)
 
 	stylePanelStoreRef.current = stylePanelStore
 	onZoomRequestRef.current = onZoomRequest
@@ -174,6 +180,10 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 			store.selectElement({
 				selector: payload.selector,
 				tagName: payload.tagName,
+				isImageElement: payload.isImageElement,
+				intrinsicWidth: payload.intrinsicWidth,
+				intrinsicHeight: payload.intrinsicHeight,
+				intrinsicAspectRatio: payload.intrinsicAspectRatio,
 				isTextElement: payload.isTextElement,
 				computedStyles: payload.computedStyles,
 			})
@@ -564,6 +574,25 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 				)
 				console.log("[useHTMLEditorV2] Duplicate command sent")
 			},
+			runImageAction: async (payload: ImageActionPayload) => {
+				if (!messageBridgeRef.current) return
+
+				const actionDescriptionMap: Record<ImageActionPayload["action"], string> = {
+					"replace-element-image": "替换图片",
+					"set-element-background-image": "设置背景图",
+					"remove-element-background-image": "移除背景图",
+					"insert-floating-image": "新增图片",
+				}
+
+				await messageBridgeRef.current.sendCommand(
+					EditorMessageType.RUN_IMAGE_ACTION,
+					payload,
+					{
+						description: actionDescriptionMap[payload.action] || "执行图片动作",
+						canUndo: true,
+					},
+				)
+			},
 			applyTextStyle: async (
 				selector: string,
 				styles: {
@@ -609,10 +638,13 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 
 		// 当 contentInjected 从 false 变为 true 时，重置注入标记和 runtime 状态
 		// 这允许在内容更新后重新注入脚本（因为 setContent 会清除所有脚本）
-		if (contentInjected && !prevContentInjectedRef.current && hasInjectedScriptRef.current) {
-			hasInjectedScriptRef.current = false
-			// 重置 runtime 状态，因为脚本重新注入后 runtime 会重新初始化
-			setIsRuntimeReady(false)
+		if (contentInjected && !prevContentInjectedRef.current) {
+			if (isCrossDomain) {
+				setIsRuntimeReady(false)
+			} else if (hasInjectedScriptRef.current) {
+				hasInjectedScriptRef.current = false
+				setIsRuntimeReady(false)
+			}
 		}
 		// 更新 prevContentInjectedRef
 		prevContentInjectedRef.current = contentInjected
@@ -631,6 +663,10 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 			return
 		}
 
+		if (isCrossDomain) {
+			return
+		}
+
 		if (
 			sandboxType === "iframe" &&
 			iframeRef.current?.contentWindow &&
@@ -640,18 +676,31 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 			try {
 				// Only inject script once per iframe load
 				if (!hasInjectedScriptRef.current) {
-					// 优先使用 V2 编辑脚本
-					const editScriptV2 = getIframeRuntimeScript()
-					iframeRef.current.contentWindow.postMessage(
-						{
-							type: "injectEditScriptV2",
-							scriptContent: editScriptV2,
-							scaleRatio: scaleRatio || 1, // 传递初始缩放比例
-						},
-						"*",
-					)
+					const runtimeUrl = iframeRuntimeUrlRef.current
+
+					// 优先使用渲染站静态资源（跨域模式）
+					if (runtimeUrl) {
+						iframeRef.current.contentWindow.postMessage(
+							{
+								type: "loadEditRuntime",
+								runtimeUrl,
+								scaleRatio: scaleRatio || 1,
+							},
+							"*",
+						)
+					} else {
+						// iframe-runtime.js 已经通过 getFullContent 内联在 HTML 中，
+						// 只需发送激活消息即可。
+						iframeRef.current.contentWindow.postMessage(
+							{
+								type: "activateEditorRuntime",
+								scaleRatio: scaleRatio || 1,
+							},
+							"*",
+						)
+					}
 					hasInjectedScriptRef.current = true
-					console.log("[useHTMLEditorV2] 已注入 iframe-runtime 脚本")
+					console.log("[useHTMLEditorV2] 已发送编辑器激活消息")
 				}
 			} catch (error) {
 				console.error("处理编辑模式变化时出错:", error)
@@ -662,17 +711,24 @@ export function useHTMLEditorV2(options: UseHTMLEditorV2Options) {
 		sandboxType,
 		iframeLoaded,
 		contentInjected,
+		renderSiteUrl,
 		iframeRef,
 		scaleRatio,
 		runExitEditFlow,
 	])
 
-	// 当 runtime 就绪后，启用编辑模式和选择模式
+	// 当 runtime 就绪且内容已注入后，再启用编辑模式和选择模式，避免「选择元素」在 iframe 未加载完时执行
 	useEffect(() => {
-		if (!isEditMode || !isRuntimeReady || !messageBridgeRef.current?.isActive()) return
+		if (
+			!isEditMode ||
+			!contentInjected ||
+			!isRuntimeReady ||
+			!messageBridgeRef.current?.isActive()
+		)
+			return
 
 		const transitionId = ++editTransitionIdRef.current
 		editLifecycleRef.current = "activating"
 		void runEnterEditFlow(transitionId)
-	}, [isEditMode, isRuntimeReady, runEnterEditFlow])
+	}, [isEditMode, contentInjected, isRuntimeReady, runEnterEditFlow])
 }

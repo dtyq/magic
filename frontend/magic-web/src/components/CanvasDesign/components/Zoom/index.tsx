@@ -2,12 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import IconButton from "../ui/custom/IconButton"
 import { useCanvas } from "../../context/CanvasContext"
 import { useCanvasEvent } from "../../hooks/useCanvasEvent"
-import { Minus, Plus } from "../ui/icons/index"
+import { Minus, Plus } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger } from "../ui/select"
 import { Divider, type ShortcutDisplay } from "../../types"
 import styles from "./index.module.css"
 import { formatShortcut, getShortcutDisplay } from "../../lib/index"
 import { useCanvasDesignI18n } from "../../context/I18nContext"
+import { fromAbsolutePercent, getZoomView } from "../../canvas/interaction/viewport-zoom"
+
+interface ZoomProps {
+	/** 与 CanvasDesignProps.shareHostBottomChrome 一致，由宿主注入 */
+	shareHostBottomChrome?: boolean
+}
 
 type ZoomOption = {
 	value: string
@@ -16,24 +22,38 @@ type ZoomOption = {
 	onSelect: () => void
 }
 
-export default function Zoom() {
+export default function Zoom({ shareHostBottomChrome = false }: ZoomProps) {
 	const { t } = useCanvasDesignI18n()
 	const { canvas } = useCanvas()
 
 	const [displayZoom, setDisplayZoom] = useState(100)
 
-	// 订阅缩放事件，更新显示值
-	useCanvasEvent("viewport:scale", ({ data }) => {
-		setDisplayZoom(Math.round(data.scale * 100))
-	})
+	const syncDisplayZoom = useCallback(() => {
+		if (!canvas) {
+			setDisplayZoom(100)
+			return
+		}
+
+		const { absolutePercent } = getZoomView({
+			rawScale: canvas.viewportController.getScale(),
+			fitScale: canvas.viewportController.getFitToScreenScale(),
+		})
+		setDisplayZoom(absolutePercent)
+	}, [canvas])
+
+	useCanvasEvent(
+		"viewport:scale",
+		() => {
+			syncDisplayZoom()
+		},
+		[syncDisplayZoom],
+	)
 
 	// 当 canvas 初始化时，同步当前的 scale 值
 	// 解决刷新页面时，loadViewport 触发的事件在订阅之前就已经触发的问题
 	useEffect(() => {
-		if (!canvas) return
-		const currentScale = canvas.viewportController.getScale()
-		setDisplayZoom(Math.round(currentScale * 100))
-	}, [canvas])
+		syncDisplayZoom()
+	}, [syncDisplayZoom])
 
 	const handleZoomIn = useCallback(() => {
 		if (!canvas) return
@@ -50,10 +70,10 @@ export default function Zoom() {
 		canvas.userActionRegistry.execute("view.zoom-fit")
 	}, [canvas])
 
-	const handleZoomToScale = useCallback(
-		(scale: number) => {
+	const handleZoomToAbsoluteScale = useCallback(
+		(percent: number) => {
 			if (!canvas) return
-			canvas.viewportController.setScale(scale)
+			canvas.viewportController.setScale(fromAbsolutePercent(percent))
 		},
 		[canvas],
 	)
@@ -82,25 +102,25 @@ export default function Zoom() {
 			{
 				value: "50",
 				label: t("zoom.zoomTo", { percent: 50, defaultValue: "缩放至50%" }),
-				onSelect: () => handleZoomToScale(0.5),
+				onSelect: () => handleZoomToAbsoluteScale(50),
 			},
 			{
 				value: "75",
 				label: t("zoom.zoomTo", { percent: 75, defaultValue: "缩放至75%" }),
-				onSelect: () => handleZoomToScale(0.75),
+				onSelect: () => handleZoomToAbsoluteScale(75),
 			},
 			{
 				value: "100",
 				label: t("zoom.zoomTo", { percent: 100, defaultValue: "缩放至100%" }),
-				onSelect: () => handleZoomToScale(1),
+				onSelect: () => handleZoomToAbsoluteScale(100),
 			},
 			{
 				value: "200",
 				label: t("zoom.zoomTo", { percent: 200, defaultValue: "缩放至200%" }),
-				onSelect: () => handleZoomToScale(2),
+				onSelect: () => handleZoomToAbsoluteScale(200),
 			},
 		]
-	}, [t, handleZoomIn, handleZoomOut, handleZoomToFit, handleZoomToScale])
+	}, [t, handleZoomIn, handleZoomOut, handleZoomToFit, handleZoomToAbsoluteScale])
 
 	const handleValueChange = useCallback(
 		(value: string) => {
@@ -116,7 +136,12 @@ export default function Zoom() {
 	)
 
 	return (
-		<div className={styles.zoom} data-canvas-ui-component>
+		<div
+			className={
+				shareHostBottomChrome ? `${styles.zoom} ${styles.zoomShareHost}` : styles.zoom
+			}
+			data-canvas-ui-component
+		>
 			<IconButton className={styles.zoomOut} onClick={handleZoomOut}>
 				<Minus size={16} />
 			</IconButton>

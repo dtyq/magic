@@ -17,6 +17,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectForkRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberSettingRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskRepositoryInterface;
@@ -44,6 +45,7 @@ class ProjectDomainService
     public function __construct(
         private readonly ProjectRepositoryInterface $projectRepository,
         private readonly ProjectForkRepositoryInterface $projectForkRepository,
+        private readonly ProjectMemberSettingRepositoryInterface $projectMemberSettingRepository,
         private readonly TaskFileRepositoryInterface $taskFileRepository,
         private readonly TopicRepositoryInterface $topicRepository,
         private readonly TaskRepositoryInterface $taskRepository,
@@ -385,6 +387,8 @@ class ProjectDomainService
                 ]
             );
 
+            $this->syncOwnerWorkspaceBinding($sourceProject, $targetWorkspaceId);
+
             // Return updated project entity
             $updatedProject = $this->projectRepository->findById($sourceProjectId);
             if (! $updatedProject) {
@@ -612,6 +616,27 @@ class ProjectDomainService
     public function getProjectByTopicId(int $topicId): ?ProjectEntity
     {
         return $this->projectRepository->getProjectByTopicId($topicId);
+    }
+
+    /**
+     * Keep the project owner's personal workspace binding aligned with project moves.
+     */
+    private function syncOwnerWorkspaceBinding(ProjectEntity $project, ?int $targetWorkspaceId): void
+    {
+        if ($targetWorkspaceId === null) {
+            $this->projectMemberSettingRepository->cancelProjectShortcut(
+                $project->getUserId(),
+                $project->getId()
+            );
+            return;
+        }
+
+        $this->projectMemberSettingRepository->setProjectShortcut(
+            $project->getUserId(),
+            $project->getId(),
+            $targetWorkspaceId,
+            $project->getUserOrganizationCode()
+        );
     }
 
     /**

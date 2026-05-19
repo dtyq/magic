@@ -32,7 +32,11 @@ export const getFileType = (file_extension: string) => {
 		return "excel"
 	}
 
-	if (["docx"].includes(ext)) {
+	if (ext === "doc") {
+		return DetailType.Doc
+	}
+
+	if (ext === "docx") {
 		return DetailType.Docx
 	}
 

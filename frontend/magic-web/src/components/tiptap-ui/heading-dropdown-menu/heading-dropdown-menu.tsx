@@ -120,6 +120,4 @@ export const HeadingDropdownMenu = React.forwardRef<HTMLButtonElement, HeadingDr
 	},
 )
 
-HeadingDropdownMenu.displayName = "HeadingDropdownMenu"
-
 export default HeadingDropdownMenu

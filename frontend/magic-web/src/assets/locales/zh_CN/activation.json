@@ -89,6 +89,7 @@
 		"codeInvalid": "验证码错误，请重新输入",
 		"greeting": "，你好！",
 		"instruction": "请使用以下手机号获取验证码并加入企业",
+		"instructionEmail": "请使用以下邮箱获取验证码并加入企业",
 		"invitation": {
 			"member": "正在邀请您加入",
 			"partner": "正在邀请您成为合作伙伴"

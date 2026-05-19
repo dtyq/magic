@@ -1,55 +1,41 @@
 import { useIsMobile } from "@/hooks/useIsMobile"
-import { useMount } from "ahooks"
 import { lazy, Suspense, useEffect } from "react"
-import { useParams } from "react-router"
 import SuperMagicService from "../../services"
 import GuideTourWrapper from "../../components/LazyGuideTour"
 import { useProjectTitle } from "../../hooks/useTopicTitle"
 import { baseHistory } from "@/routes/history"
 import { useInterFont } from "@/styles/font"
-import { RoutePathMobile } from "@/constants/routes"
-import { configStore } from "@/models/config"
-import { defaultClusterCode } from "@/routes/helpers"
 import { isPrivateDeployment } from "@/utils/env"
 import SketchWithoutLayout from "@/layouts/BaseLayout/components/Sketch/withoutLayout"
-import { initializeSuperMagicIfNeeded } from "../../services/utils"
+import { useFeaturedModeListRefreshOnDocumentVisible } from "../../hooks/useFeaturedModeListRefresh"
 import EditionActivityModal from "@/components/business/EditionActivity/Modal"
+import { MobileImagePreviewProvider } from "@/pages/superMagic/components/MessageEditor/components/AtItem/components/MobileImagePreview"
 
 const MainLayoutDesktop = lazy(() => import("./index.desktop"))
 const MainLayoutMobile = lazy(() => import("@/pages/superMagicMobile/layout/MainLayout"))
 
 function MainLayout() {
 	useInterFont() // Load Inter font for font-weight 600/700 rendering
+	useFeaturedModeListRefreshOnDocumentVisible()
 
 	const isMobile = useIsMobile()
-	const { projectId, topicId } = useParams()
 
 	useProjectTitle()
 
-	// 移动端首次进入 /super 根路径时，自动跳转到 /mobile-tabs?tab=super （兼容处理，后续可能去掉）
-	useEffect(() => {
-		// 只在移动端且没有子路径参数时进行跳转
-		if (isMobile && !projectId && !topicId) {
-			const currentPath = baseHistory.location.pathname
-			// 检查当前路径是否是 /super 根路径（格式：/{clusterCode}/super 或 /{clusterCode}/super/）
-			const isSuperRootPath = /^\/[^/]+\/super\/?$/.test(currentPath)
-			// 检查是否已经在 mobile-tabs 路由下，避免循环跳转
-			if (isSuperRootPath && !currentPath.includes("/mobile-tabs")) {
-				// 使用全局配置的集群编码，而不是从路径解析（避免错误注入集群编码）
-				const clusterCode = configStore.cluster.clusterCode || defaultClusterCode
-				const targetPath = `/${clusterCode}${RoutePathMobile.MobileTabs}?tab=super`
-				baseHistory.replace(targetPath)
-			}
-		}
-	}, [isMobile, projectId, topicId])
-
-	useMount(() => {
-		initializeSuperMagicIfNeeded({
-			isMobile,
-			projectId,
-			topicId,
-		})
-	})
+	// 暂时注释掉，因为 appInitPromise 会在 app 初始化完成后自动触发
+	// 后续需要再恢复
+	// // Ensure Super state is ready on route entry.
+	// useMount(() => {
+	// 	if (!appStore.appInitPromise) return
+	// 	appStore.appInitPromise?.then(() => {
+	// 		initializeSuperMagicIfNeeded({
+	// 			isMobile,
+	// 			workspaceId,
+	// 			projectId,
+	// 			topicId,
+	// 		})
+	// 	})
+	// })
 
 	// Listen to browser back/forward navigation
 	useEffect(() => {
@@ -93,7 +79,7 @@ function MainLayout() {
 		return () => {
 			unsubscribe()
 		}
-	}, [])
+	}, [isMobile])
 
 	const Content = isMobile ? MainLayoutMobile : MainLayoutDesktop
 
@@ -102,6 +88,7 @@ function MainLayout() {
 			<Suspense fallback={<SketchWithoutLayout />}>
 				<Content />
 			</Suspense>
+			{isMobile && <MobileImagePreviewProvider />}
 			{/* 新人引导教程 */}
 			<GuideTourWrapper isMobile={isMobile} />
 			{/* 私有化部署不显示活动弹窗 */}

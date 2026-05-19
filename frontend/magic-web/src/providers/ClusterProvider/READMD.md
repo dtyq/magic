@@ -73,8 +73,26 @@ function MyComponent() {
 
 1. `ClusterProvider` 创建一个Mobx状态存储，用于管理集群代码
 2. 提供 `onClusterChange` 回调，当集群代码变更时触发
-3. `ClusterConfigSyncProvider` 在用户登录后自动同步集群配置
-4. 使用 `useClusterCode` Hook获取和设置当前集群代码
+3. `syncFromGlobalClusterCode` 控制是否将全局 active cluster 单向同步到当前 Provider
+4. `ClusterConfigSyncProvider` 在用户登录后自动同步集群配置
+5. 使用 `useClusterCode` Hook获取和设置当前集群代码
+
+## 关键术语
+
+- active cluster:
+  `configStore.cluster.clusterCode`
+  当前请求真正使用的全局 cluster。
+- cached private cluster:
+  `configStore.cluster.clusterCodeCache`
+  登录页用于恢复私有化 UI 的缓存私有码。
+- local cluster:
+  `ClusterProviderStore.clusterCode`
+  当前 Provider 内部维护的局部 cluster。
+
+## 同步开关
+
+- `syncFromGlobalClusterCode`
+  表示“是否从全局 active cluster 单向同步到当前 Provider”。
 
 ## 与登录流程的集成
 

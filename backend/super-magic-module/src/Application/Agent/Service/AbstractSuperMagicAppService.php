@@ -17,32 +17,43 @@ use App\Domain\Flow\Entity\ValueObject\FlowDataIsolation;
 use App\Domain\Mode\Entity\ModeEntity;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Mode\Service\ModeDomainService;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationPermissionResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Service\OperationPermissionDomainService;
 use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Domain\Provider\Service\AiAbilityDomainService;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
-use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
 use DateTime;
 use Dtyq\CloudFile\Kernel\Struct\FileLink;
+use Dtyq\SuperMagic\Application\Collaboration\Policy\ResourceAccessPolicyService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\AgentSourceType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentType;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentDomainService;
+use Dtyq\SuperMagic\Domain\Agent\Service\UserAgentDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
-use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\BuiltinSkill;
+use Hyperf\Di\Annotation\Inject;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
 use Qbhy\HyperfAuth\Authenticatable;
+use Throwable;
 
 abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
 {
     protected readonly LoggerInterface $logger;
+
+    #[Inject]
+    protected ResourceAccessPolicyService $resourceAccessPolicyService;
+
+    #[Inject]
+    protected UserAgentDomainService $userAgentDomainService;
 
     public function __construct(
         protected OperationPermissionDomainService $operationPermissionDomainService,
@@ -87,16 +98,55 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
         return $this->createContactDataIsolationByBase($superMagicDataIsolation);
     }
 
-    protected function checkPermission(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
+    /**
+     * 校验当前用户是否对 Agent 具备读取权限，返回当前用户的最高操作权限。
+     *
+     * 读权限采用「可见性 ∪ 操作权限」并集判定，适用于详情、版本列表、Playbook 列表等只读场景。
+     * 内置 Agent（与官方 Mode 绑定的 Agent）不在协作权限体系内，对所有用户直接放行。
+     *
+     * @return ?Operation 用户对该 Agent 拥有的最高操作权限；内置 Agent 场景返回 null
+     */
+    protected function assertAgentReadable(SuperMagicAgentDataIsolation $dataIsolation, string $code): ?Operation
     {
-        if (! $this->operationPermissionDomainService->isResourceOwner(
+        try {
+            return $this->resourceAccessPolicyService->assertReadable(
+                $dataIsolation,
+                OperationPermissionResourceType::CustomAgent,
+                ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
+                $code,
+            );
+        } catch (Throwable $throwable) {
+            if (in_array($code, $this->getOfficialAgentCodes($dataIsolation), true)) {
+                return null;
+            }
+            throw $throwable;
+        }
+    }
+
+    /**
+     * 校验当前用户是否对 Agent 具备编辑权限。
+     */
+    protected function assertAgentEditable(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
+    {
+        $this->resourceAccessPolicyService->assertEditable(
             $dataIsolation,
             OperationPermissionResourceType::CustomAgent,
-            $code,
-            $dataIsolation->getCurrentUserId()
-        )) {
-            ExceptionBuilder::throw(SuperMagicErrorCode::NotFound, 'common.not_found', ['label' => $code]);
-        }
+            $code
+        );
+    }
+
+    /**
+     * 校验当前用户是否对 Agent 具备删除权限。
+     *
+     * 仅 owner 及被授予管理权限的协作者可删除，与「可编辑」语义不同。
+     */
+    protected function assertAgentDeletable(SuperMagicAgentDataIsolation $dataIsolation, string $code): void
+    {
+        $this->resourceAccessPolicyService->assertDeletable(
+            $dataIsolation,
+            OperationPermissionResourceType::CustomAgent,
+            $code
+        );
     }
 
     /**
@@ -105,15 +155,18 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
      */
     protected function getAccessibleAgentCodes(SuperMagicAgentDataIsolation $dataIsolation, string $userId): array
     {
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        // 调用资源可见性领域服务获取可访问的智能体编码
-        $accessibleCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes($permissionDataIsolation, $userId, ResourceVisibilityResourceType::SUPER_MAGIC_AGENT);
-
+        /** @var array<string> $accessibleCodes */
+        $accessibleCodes = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::CustomAgent,
+            ResourceVisibilityResourceType::SUPER_MAGIC_AGENT
+        )['all_codes'] ?? [];
         // 查询用户自己创建的智能体编码（用户创建的必然可见）
+        /** @var array<string> $creatorCodes */
         $creatorCodes = $this->superMagicAgentDomainService->getCodesByCreator($dataIsolation, $userId);
 
         // 从 $accessibleCodes 从剔除 $creatorCodes
-        $accessibleCodes = array_diff($accessibleCodes, $creatorCodes);
+        $accessibleCodes = array_values(array_diff($accessibleCodes, $creatorCodes));
 
         // 合并并去重
         return [
@@ -121,6 +174,76 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
             'creator' => $creatorCodes,
             'codes' => array_values(array_unique(array_merge($creatorCodes, $accessibleCodes))),
         ];
+    }
+
+    /**
+     * 获取团队共享可用的 Agent 编码列表。
+     *
+     * 仅返回当前用户可见，且排除本人创建和市场安装后的编码列表。
+     *
+     * @return array{codes: array<string>, operations: array<string, Operation>}
+     */
+    protected function getTeamSharedReadableAgentCodes(SuperMagicAgentDataIsolation $dataIsolation): array
+    {
+        /** @var array{operations: array<string, Operation>, operation_codes: array<string>, visibility_codes: array<string>, all_codes: array<string>} $accessibleAgentResult */
+        $accessibleAgentResult = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::CustomAgent,
+            ResourceVisibilityResourceType::SUPER_MAGIC_AGENT
+        );
+        /** @var array<string> $accessibleCodes */
+        $accessibleCodes = $accessibleAgentResult['all_codes'] ?? [];
+        /** @var array<string> $creatorCodes */
+        $creatorCodes = $this->superMagicAgentDomainService->getCodesByCreator(
+            $dataIsolation,
+            $dataIsolation->getCurrentUserId()
+        );
+        $marketInstalledCodes = $this->getMarketInstalledAgentCodes($dataIsolation);
+
+        $excludedCodes = array_values(array_unique(array_merge($creatorCodes, $marketInstalledCodes)));
+
+        return [
+            'codes' => array_values(array_diff($accessibleCodes, $excludedCodes)),
+            'operations' => $accessibleAgentResult['operations'],
+        ];
+    }
+
+    /**
+     * 获取通过市场安装的 Agent 编码列表。
+     *
+     * @return array<string>
+     */
+    protected function getMarketInstalledAgentCodes(SuperMagicAgentDataIsolation $dataIsolation): array
+    {
+        /* @var array<string> $marketInstalledCodes */
+        return $this->userAgentDomainService->findAgentCodesBySourceTypes(
+            $dataIsolation,
+            [AgentSourceType::MARKET->value]
+        );
+    }
+
+    /**
+     * 获取用户可访问的技能代码，并兼容系统内置技能白名单。
+     *
+     * @param array<string> $skillCodes
+     * @return array<string>
+     */
+    protected function getAccessibleSkillCodesWithBuiltinFallback(
+        SuperMagicAgentDataIsolation $dataIsolation,
+        ?array $skillCodes = null
+    ): array {
+        /** @var array<string> $accessibleSkillCodes */
+        $accessibleSkillCodes = $this->resourceAccessPolicyService->getReadableResourceCodes(
+            $dataIsolation,
+            OperationPermissionResourceType::Skill,
+            ResourceVisibilityResourceType::SKILL,
+            $skillCodes
+        )['all_codes'] ?? [];
+
+        return array_values(array_unique(array_merge(
+            $accessibleSkillCodes,
+            array_values(array_intersect(BuiltinSkill::values(), $skillCodes ?? []))
+        )));
     }
 
     protected function createBuiltinAgentEntityByMode(SuperMagicAgentDataIsolation $superMagicAgentDataIsolation, ModeEntity $modeEntity): SuperMagicAgentEntity
@@ -442,7 +565,12 @@ abstract class AbstractSuperMagicAppService extends AbstractKernelAppService
         $agentEntity->setFileUrl($fileLink instanceof FileLink ? $fileLink->getUrl() : null);
     }
 
-    protected function getOfficialAgentCodes(Authenticatable $authorization): array
+    /**
+     * 获取所有内置 Agent（官方 Mode）的 code 列表。
+     *
+     * 接受 Authenticatable 或 BaseDataIsolation，兼容从用户授权对象和数据隔离对象两种调用场景。
+     */
+    protected function getOfficialAgentCodes(Authenticatable|BaseDataIsolation $authorization): array
     {
         $modeDataIsolation = $this->createModeDataIsolation($authorization);
         $modeDataIsolation->disabled();

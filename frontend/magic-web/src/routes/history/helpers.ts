@@ -52,8 +52,23 @@ export function fillRoute(path: string, params: Record<string, string>): string 
 		.replace(/\/$/, "") // 确保不出现多余的斜杠
 }
 
-const routes = registerRoutes({ isPersonalOrganization: false })
-const routesMap = keyBy(flattenRoutes(routes), "name")
+let routes: Array<RouteObject> | undefined
+let routesMap: Record<string, RouteObject> | undefined
+
+function getRoutes() {
+	if (!routes) {
+		routes = registerRoutes({ isPersonalOrganization: false })
+		routesMap = keyBy(flattenRoutes(routes), "name")
+	}
+	return routes
+}
+
+function getRoutesMap() {
+	if (!routesMap) {
+		getRoutes()
+	}
+	return routesMap!
+}
 
 /**
  * @description 获取路由链接
@@ -63,7 +78,7 @@ const routesMap = keyBy(flattenRoutes(routes), "name")
 export function getRoutePath(props: RouteParams): string | null {
 	const { name, query = {}, params = {} } = props
 	// 根据路由名称获取路由定义的 path，再根据 path 与 params 生成可用的路由，再拼接 query
-	const realPath = routesMap[name]?.path
+	const realPath = getRoutesMap()[name]?.path
 	if (realPath) {
 		/** 路径参数处理 */
 		const clusterCode = (params?.clusterCode ?? configStore.cluster.clusterCode) as string
@@ -101,7 +116,7 @@ export function routesMatch(pathname: string):
 			route: RouteObject
 	  }
 	| undefined {
-	const matches = matchRoutes(routes, pathname, "/")
+	const matches = matchRoutes(getRoutes(), pathname, "/")
 	if (matches?.[matches.length - 1]?.route?.index) {
 		return matches?.[matches.length - 2]
 	}
@@ -119,7 +134,7 @@ export function routesPathMatch(
 	pathname: string,
 	includeChildRoutes?: boolean,
 ): boolean {
-	const info = routesMap?.[routeName]
+	const info = getRoutesMap()?.[routeName]
 	// if (!info) {
 	// 	return false
 	// }

@@ -1,4 +1,10 @@
 {
+	"bootstrap": {
+		"initFailed": "Initialization Failed",
+		"initializing": "Initializing...",
+		"retry": "Retry",
+		"retryHint": "Please try again later"
+	},
 	"freePointsReward": {
 		"description": "Today's reward points expire at midnight. Come back tomorrow for more!",
 		"pointsCredited": "Points Credited",
@@ -147,10 +153,12 @@
 					"ios": "Settings → Privacy & Security → Microphone → Magic → Allow"
 				},
 				"browser": {
-					"chrome": "Click the lock icon on the left side of the address bar → Select \"Site Settings\" → Allow microphone permission",
+					"android": "Chrome Menu → Settings → Site Settings → Microphone → Allow this site",
+					"chrome": "Click the icon on the left side of the address bar → Select \"Site Settings\" → Allow microphone permission",
 					"default": "Please find privacy or permission settings in your browser settings and allow this site to access the microphone",
-					"edge": "Click the lock icon on the left side of the address bar → Select \"Permissions\" → Allow microphone permission",
+					"edge": "Click the icon on the left side of the address bar → Select \"Permissions\" → Allow microphone permission",
 					"firefox": "Click the shield or lock icon on the left side of the address bar → Select \"Permissions\" → Allow microphone permission",
+					"ios": "iOS Settings → Safari → Microphone → Allow this website",
 					"safari": "Safari Menu → Preferences → Websites → Microphone → Select this site and allow access"
 				}
 			},

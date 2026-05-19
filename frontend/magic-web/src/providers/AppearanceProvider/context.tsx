@@ -12,7 +12,6 @@ export const enum IMStyle {
 
 export interface AppearanceState {
 	theme: ThemeMode
-	timezone: string
 	imStyle: IMStyle
 	chatFontSize: number
 	aiCompletion: boolean
@@ -28,7 +27,6 @@ export const useAppearanceStore = create<AppearanceState>()(
 		immer<AppearanceState>(() => ({
 			theme: "light",
 			imStyle: IMStyle.Standard,
-			timezone: "Asia/Shanghai",
 			aiCompletion: true,
 			chatFontSize: DEFAULT_FONT_SIZE_BASE,
 			shortcutKey: {
@@ -40,7 +38,6 @@ export const useAppearanceStore = create<AppearanceState>()(
 			partialize: (state) => ({
 				theme: state.theme,
 				imStyle: state.imStyle,
-				timezone: state.timezone,
 				aiCompletion: state.aiCompletion,
 				chatFontSize: state.chatFontSize,
 				shortcutKey: state.shortcutKey,

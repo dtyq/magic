@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace App\Application\ModelGateway\Service;
 
 use App\Domain\ModelGateway\Entity\ValueObject\ModelGatewayDataIsolation;
+use App\Domain\Permission\Entity\ValueObject\ModelAccessContext;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\AggregateStrategy;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
@@ -15,7 +16,9 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
+use Psr\Log\LoggerInterface;
 
 use function Hyperf\Translation\__;
 
@@ -23,11 +26,15 @@ use function Hyperf\Translation\__;
  * 聚合模型解析服务.
  * 用于解析动态模型（聚合模型），根据策略返回真实模型ID.
  */
-readonly class AggregateModelResolverService
+class AggregateModelResolverService
 {
+    private LoggerInterface $logger;
+
     public function __construct(
-        private ProviderModelRepositoryInterface $providerModelRepository
+        private readonly ProviderModelRepositoryInterface $providerModelRepository,
+        LoggerFactory $loggerFactory,
     ) {
+        $this->logger = $loggerFactory->get(static::class);
     }
 
     /**
@@ -35,20 +42,22 @@ readonly class AggregateModelResolverService
      *
      * @param string $modelId 原始 model_id（可能是聚合模型）
      * @param ModelGatewayDataIsolation $dataIsolation 数据隔离对象
+     * @param null|ModelAccessContext $accessContext 当前用户最终模型访问上下文；传入后会在订阅权限之外额外叠加用户级模型权限校验
      * @return string 真实模型ID（如果是普通模型，直接返回原值）
      */
-    public function resolve(string $modelId, ModelGatewayDataIsolation $dataIsolation): string
-    {
-        $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
-        $providerDataIsolation->setContainOfficialOrganization(true);
-
-        $model = $this->providerModelRepository->getByModelId($providerDataIsolation, $modelId);
+    public function resolve(
+        string $modelId,
+        ModelGatewayDataIsolation $dataIsolation,
+        ?ModelAccessContext $accessContext = null
+    ): string {
+        $model = $this->getProviderModel($modelId, $dataIsolation);
 
         if (! $model || ! $model->isDynamicModel()) {
             return $modelId;
         }
 
-        $realModelId = $this->resolveModel($model, $dataIsolation);
+        $visitedModelIds = [];
+        $realModelId = $this->resolveModel($model, $dataIsolation, $accessContext, $visitedModelIds);
 
         if (! $realModelId) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.insufficient_permission_for_model'));
@@ -63,33 +72,117 @@ readonly class AggregateModelResolverService
      *
      * @param ProviderModelEntity $dynamicModel 已加载的动态模型实体
      * @param ModelGatewayDataIsolation $dataIsolation 数据隔离对象
+     * @param null|ModelAccessContext $accessContext 当前用户最终模型访问上下文；为空时仅按 subscription 语义筛选子模型
+     * @param array<string, true> $visitedModelIds 当前递归链路已访问的动态模型 ID 集合，用于防止动态模型互相引用造成死循环
+     * @param-out array<string, true> $visitedModelIds
      * @return null|string 解析出的真实模型 ID，null 表示无可用子模型
      */
-    public function resolveModel(ProviderModelEntity $dynamicModel, ModelGatewayDataIsolation $dataIsolation): ?string
-    {
+    public function resolveModel(
+        ProviderModelEntity $dynamicModel,
+        ModelGatewayDataIsolation $dataIsolation,
+        ?ModelAccessContext $accessContext = null,
+        array &$visitedModelIds = []
+    ): ?string {
+        $dynamicModelId = $dynamicModel->getModelId();
+
+        if ($dynamicModelId === '') {
+            $this->logger->warning('聚合模型解析：model_id 为空，跳过解析');
+            return null;
+        }
+
+        if (isset($visitedModelIds[$dynamicModelId])) {
+            $this->logger->warning('聚合模型解析：检测到循环引用，终止解析', [
+                'model_id' => $dynamicModelId,
+                'visited_chain' => array_keys($visitedModelIds),
+            ]);
+            return null;
+        }
+        $visitedModelIds[$dynamicModelId] = true;
+
         $config = $dynamicModel->getAggregateConfig();
         if (! $config) {
+            $this->logger->warning('聚合模型解析：聚合配置为空', ['model_id' => $dynamicModelId]);
             return null;
         }
 
         $models = $config['models'] ?? [];
         if (empty($models)) {
+            $this->logger->warning('聚合模型解析：候选子模型列表为空', ['model_id' => $dynamicModelId]);
             return null;
         }
 
         $strategy = $config['strategy'] ?? 'permission_fallback';
         $strategyConfig = $config['strategy_config'] ?? ['order' => 'asc'];
 
-        return $this->resolveByStrategy($strategy, $models, $strategyConfig, $dataIsolation, $dynamicModel->getModelType());
+        $this->logger->info('聚合模型解析：开始解析', [
+            'model_id' => $dynamicModelId,
+            'strategy' => $strategy,
+            'candidate_count' => count($models),
+        ]);
+
+        $resolved = $this->resolveByStrategy(
+            $strategy,
+            $models,
+            $strategyConfig,
+            $dataIsolation,
+            $dynamicModel->getModelType(),
+            $accessContext,
+            $visitedModelIds
+        );
+
+        if ($resolved !== null) {
+            $this->logger->info('聚合模型解析：解析成功', [
+                'dynamic_model_id' => $dynamicModelId,
+                'resolved_model_id' => $resolved,
+            ]);
+        } else {
+            $this->logger->warning('聚合模型解析：无可用子模型', [
+                'dynamic_model_id' => $dynamicModelId,
+                'strategy' => $strategy,
+            ]);
+        }
+
+        return $resolved;
+    }
+
+    protected function getProviderModel(string $modelId, ModelGatewayDataIsolation $dataIsolation): ?ProviderModelEntity
+    {
+        $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
+        $providerDataIsolation->setContainOfficialOrganization(true);
+
+        return $this->providerModelRepository->getByModelId($providerDataIsolation, $modelId);
     }
 
     /**
      * 根据策略解析真实模型ID.
+     *
+     * @param string $strategy 聚合模型配置的解析策略
+     * @param array $models 当前策略下的候选子模型列表
+     * @param array $strategyConfig 当前策略配置
+     * @param ModelGatewayDataIsolation $dataIsolation 数据隔离对象
+     * @param null|ModelType $modelType 模型类型，用于交给 subscription 做类型内可用性判断
+     * @param null|ModelAccessContext $accessContext 当前用户最终模型访问上下文；传入后会额外叠加用户级权限过滤
+     * @param array<string, true> $visitedModelIds 当前递归链路已访问的动态模型 ID 集合，用于防环
+     * @param-out array<string, true> $visitedModelIds
      */
-    private function resolveByStrategy(string $strategy, array $models, array $strategyConfig, ModelGatewayDataIsolation $dataIsolation, ?ModelType $modelType): ?string
-    {
+    private function resolveByStrategy(
+        string $strategy,
+        array $models,
+        array $strategyConfig,
+        ModelGatewayDataIsolation $dataIsolation,
+        ?ModelType $modelType,
+        ?ModelAccessContext $accessContext,
+        array &$visitedModelIds
+    ): ?string {
         return match ($strategy) {
-            AggregateStrategy::PERMISSION_FALLBACK->value => $this->resolveByPermissionFallback($models, $strategyConfig, $dataIsolation, $modelType),
+            AggregateStrategy::PERMISSION_FALLBACK->value => $this->resolveByPermissionFallback(
+                $models,
+                $strategyConfig,
+                $dataIsolation,
+                $modelType,
+                $accessContext,
+                $visitedModelIds
+            ),
             // 未来可扩展其他策略：'random', 'weighted', etc.
             default => throw new InvalidArgumentException("Unknown strategy: {$strategy}")
         };
@@ -98,25 +191,54 @@ readonly class AggregateModelResolverService
     /**
      * 按照权限降级策略解析真实模型ID.
      * 按照配置的模型顺序，找到第一个用户有权限使用的模型.
+     *
+     * @param array<string, true> $visitedModelIds 当前递归链路已访问的动态模型 ID 集合，用于防环
+     * @param-out array<string, true> $visitedModelIds
      */
-    private function resolveByPermissionFallback(array $models, array $strategyConfig, ModelGatewayDataIsolation $dataIsolation, ?ModelType $modelType): ?string
-    {
+    private function resolveByPermissionFallback(
+        array $models,
+        array $strategyConfig,
+        ModelGatewayDataIsolation $dataIsolation,
+        ?ModelType $modelType,
+        ?ModelAccessContext $accessContext,
+        array &$visitedModelIds
+    ): ?string {
         $order = $strategyConfig['order'] ?? 'asc';
 
-        // 根据顺序方向决定遍历顺序
         $modelsToCheck = $order === 'desc' ? array_reverse($models) : $models;
 
         foreach ($modelsToCheck as $modelItem) {
-            // 支持对象数组和字符串数组两种格式（向后兼容）
             $subModelId = $this->extractModelId($modelItem);
 
             if (! $subModelId) {
                 continue;
             }
 
-            // 检查用户是否有权限使用该模型
-            if ($dataIsolation->getSubscriptionManager()->isValidModelAvailable($subModelId, $modelType)) {
+            if (! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($subModelId, $modelType)) {
+                $this->logger->info('聚合模型解析：子模型订阅不可用，跳过', [
+                    'sub_model_id' => $subModelId,
+                ]);
+                continue;
+            }
+
+            if ($accessContext?->isRestricted() && ! $accessContext->canAccess($subModelId)) {
+                $this->logger->info('聚合模型解析：子模型无访问权限，跳过', [
+                    'sub_model_id' => $subModelId,
+                ]);
+                continue;
+            }
+
+            $subModel = $this->getProviderModel($subModelId, $dataIsolation);
+            if (! $subModel?->isDynamicModel()) {
+                $this->logger->info('聚合模型解析：命中真实子模型', [
+                    'sub_model_id' => $subModelId,
+                ]);
                 return $subModelId;
+            }
+
+            $resolvedModelId = $this->resolveModel($subModel, $dataIsolation, $accessContext, $visitedModelIds);
+            if ($resolvedModelId !== null) {
+                return $resolvedModelId;
             }
         }
 

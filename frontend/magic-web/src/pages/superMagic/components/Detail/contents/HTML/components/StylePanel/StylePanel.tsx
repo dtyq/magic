@@ -22,6 +22,7 @@ import {
 	ColorPicker,
 	StylePopoverButton,
 	ElementActions,
+	SizePopover,
 } from "./controls"
 import { useShowButtonText } from "@/hooks/useShowButtonText"
 
@@ -34,9 +35,10 @@ export const StylePanel = observer(function StylePanel({
 	onStyleChange,
 	disabled = false,
 	className,
+	toolbarEndRef,
 }: StylePanelProps) {
 	const { t } = useTranslation("super")
-	const { selectedElement, updateStyle } = useSelectedElement(editorRef)
+	const { selectedElement, updateStyle, updateBatchStyles } = useSelectedElement(editorRef)
 	const stylePanelStore = useStylePanelStore()
 
 	// Local state for quick access
@@ -167,6 +169,24 @@ export const StylePanel = observer(function StylePanel({
 	)
 
 	/**
+	 * Handle linked size updates so image ratio locking can commit width/height together.
+	 */
+	const handleBatchStyleChange = useCallback(
+		(styles: Record<string, string>) => {
+			updateBatchStyles(styles)
+
+			const selectors = stylePanelStore.getSelectedSelectors()
+			const primarySelector = selectors[0]
+			if (!primarySelector) return
+
+			Object.entries(styles).forEach(([property, value]) => {
+				onStyleChange?.(primarySelector, property, value)
+			})
+		},
+		[onStyleChange, stylePanelStore, updateBatchStyles],
+	)
+
+	/**
 	 * Handle font size adjustment for selected element(s) and their children
 	 * Adjusts font size relatively by a scale factor (10%)
 	 * Uses dedicated command to ensure atomic undo/redo
@@ -243,83 +263,107 @@ export const StylePanel = observer(function StylePanel({
 		<TooltipProvider delayDuration={300}>
 			<div
 				className={cn(
-					"flex flex-wrap items-center gap-1 border-b bg-card/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-card/60",
+					"border-b bg-card/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-card/60",
+					toolbarEndRef
+						? "flex w-full min-w-0 items-center gap-2"
+						: "flex flex-wrap items-center gap-1",
 					className,
 				)}
 			>
-				{/* History actions */}
-				<HistoryActions editorRef={editorRef} />
-
-				<Separator orientation="vertical" className="mx-1 !h-4" />
-
-				{/* Element actions (duplicate, delete) */}
-				<ElementActions editorRef={editorRef} disabled={isDisabled} />
-
-				<Separator orientation="vertical" className="mx-1 !h-4" />
-
-				{/* Font family selector */}
-				<FontFamilySelector
-					value={fontFamily}
-					onChange={handleFontFamilyChange}
-					disabled={isDisabled}
-				/>
-
-				{/* Font size selector */}
-				<FontSizeSelector
-					value={fontSize}
-					onChange={setFontSize}
-					onApply={handleFontSizeApply}
-					disabled={isDisabled}
-				/>
-
-				{/* Font size adjuster */}
-				<FontSizeAdjuster onAdjust={handleFontSizeAdjust} disabled={isDisabled} />
-
-				<Separator orientation="vertical" className="mx-1 !h-4" />
-
-				{/* Text formatting tools */}
-				<TextFormatTools
-					isBold={isBold}
-					isItalic={isItalic}
-					hasUnderline={hasUnderline}
-					hasLineThrough={hasLineThrough}
-					onFormat={handleFormat}
-					disabled={isDisabled}
-				/>
-
-				<Separator orientation="vertical" className="mx-1 !h-4" />
-
-				{/* Text alignment tools */}
-				<TextAlignTools textAlign={textAlign} onAlign={handleAlign} disabled={isDisabled} />
-
-				<Separator orientation="vertical" className="mx-1 !h-4" />
-
-				{/* Text color picker */}
-				<ColorPicker
-					value={currentColor}
-					onChangeComplete={(value) => handleStyleChange("color", value)}
-					disabled={isDisabled}
-				/>
-
-				<Separator orientation="vertical" className="mx-1 !h-4" />
-
-				{/* Layout settings */}
-				<StylePopoverButton
-					icon={<LayoutPanelTop className="h-4 w-4" />}
-					tooltip={t("stylePanel.layoutSettings")}
-					title={t("stylePanel.layout")}
-					disabled={isDisabled}
-					showLabel={showButtonLabel}
+				<div
+					className={cn(
+						"flex items-center gap-1",
+						toolbarEndRef ? "min-w-0 flex-1 flex-wrap" : "flex-wrap",
+					)}
 				>
-					<LayoutSection
-						selectedElement={selectedElement}
-						editorRef={editorRef}
-						onStyleChange={handleStyleChange}
-					/>
-				</StylePopoverButton>
+					{/* History actions */}
+					<HistoryActions editorRef={editorRef} />
 
-				{/* Flex/Grid layout settings */}
-				{/* <StylePopoverButton
+					<Separator orientation="vertical" className="mx-1 !h-4" />
+
+					{/* Element actions (duplicate, delete) */}
+					<ElementActions editorRef={editorRef} disabled={disabled} />
+
+					<Separator orientation="vertical" className="mx-1 !h-4" />
+
+					{/* Font family selector */}
+					<FontFamilySelector
+						value={fontFamily}
+						onChange={handleFontFamilyChange}
+						disabled={isDisabled}
+					/>
+
+					{/* Font size selector */}
+					<FontSizeSelector
+						value={fontSize}
+						onChange={setFontSize}
+						onApply={handleFontSizeApply}
+						disabled={isDisabled}
+					/>
+
+					{/* Font size adjuster */}
+					<FontSizeAdjuster onAdjust={handleFontSizeAdjust} disabled={isDisabled} />
+
+					<Separator orientation="vertical" className="mx-1 !h-4" />
+
+					{/* Text formatting tools */}
+					<TextFormatTools
+						isBold={isBold}
+						isItalic={isItalic}
+						hasUnderline={hasUnderline}
+						hasLineThrough={hasLineThrough}
+						onFormat={handleFormat}
+						disabled={isDisabled}
+					/>
+
+					<Separator orientation="vertical" className="mx-1 !h-4" />
+
+					{/* Text alignment tools */}
+					<TextAlignTools
+						textAlign={textAlign}
+						onAlign={handleAlign}
+						disabled={isDisabled}
+					/>
+
+					<Separator orientation="vertical" className="mx-1 !h-4" />
+
+					{/* Text color picker */}
+					<ColorPicker
+						value={currentColor}
+						onChangeComplete={(value) => handleStyleChange("color", value)}
+						disabled={isDisabled}
+					/>
+
+					<Separator orientation="vertical" className="mx-1 !h-4" />
+
+					{/* Size settings */}
+					<SizePopover
+						selectedElement={selectedElement}
+						disabled={isDisabled}
+						showLabel={showButtonLabel}
+						onStyleChange={(property, value) => handleStyleChange(property, value)}
+						onBatchStyleChange={handleBatchStyleChange}
+					/>
+
+					<Separator orientation="vertical" className="mx-1 !h-4" />
+
+					{/* Layout settings */}
+					<StylePopoverButton
+						icon={<LayoutPanelTop className="h-4 w-4" />}
+						tooltip={t("stylePanel.layoutSettings")}
+						title={t("stylePanel.layout")}
+						disabled={isDisabled}
+						showLabel={showButtonLabel}
+					>
+						<LayoutSection
+							selectedElement={selectedElement}
+							editorRef={editorRef}
+							onStyleChange={handleStyleChange}
+						/>
+					</StylePopoverButton>
+
+					{/* Flex/Grid layout settings */}
+					{/* <StylePopoverButton
 					icon={<LayoutGrid className="h-4 w-4" />}
 					tooltip={t("stylePanel.flexGridLayout")}
 					title={t("stylePanel.flexGrid")}
@@ -332,50 +376,58 @@ export const StylePanel = observer(function StylePanel({
 					/>
 				</StylePopoverButton> */}
 
-				{/* Background settings */}
-				<StylePopoverButton
-					icon={<Paintbrush className="h-4 w-4" />}
-					tooltip={t("stylePanel.backgroundSettings")}
-					title={t("stylePanel.background")}
-					disabled={isDisabled}
-					showLabel={showButtonLabel}
-				>
-					<BackgroundSection
-						selectedElement={selectedElement}
-						editorRef={editorRef}
-						onStyleChange={handleStyleChange}
-					/>
-				</StylePopoverButton>
+					{/* Background settings */}
+					<StylePopoverButton
+						icon={<Paintbrush className="h-4 w-4" />}
+						tooltip={t("stylePanel.backgroundSettings")}
+						title={t("stylePanel.background")}
+						disabled={isDisabled}
+						showLabel={showButtonLabel}
+					>
+						<BackgroundSection
+							selectedElement={selectedElement}
+							editorRef={editorRef}
+							onStyleChange={handleStyleChange}
+						/>
+					</StylePopoverButton>
 
-				{/* Border settings */}
-				<StylePopoverButton
-					icon={<RectangleHorizontal className="h-4 w-4" />}
-					tooltip={t("stylePanel.borderSettings")}
-					title={t("stylePanel.border")}
-					disabled={isDisabled}
-					showLabel={showButtonLabel}
-				>
-					<BorderSection
-						selectedElement={selectedElement}
-						editorRef={editorRef}
-						onStyleChange={handleStyleChange}
-					/>
-				</StylePopoverButton>
+					{/* Border settings */}
+					<StylePopoverButton
+						icon={<RectangleHorizontal className="h-4 w-4" />}
+						tooltip={t("stylePanel.borderSettings")}
+						title={t("stylePanel.border")}
+						disabled={isDisabled}
+						showLabel={showButtonLabel}
+					>
+						<BorderSection
+							selectedElement={selectedElement}
+							editorRef={editorRef}
+							onStyleChange={handleStyleChange}
+						/>
+					</StylePopoverButton>
 
-				{/* Shadow & effects */}
-				<StylePopoverButton
-					icon={<ScanEye className="h-4 w-4" />}
-					tooltip={t("stylePanel.shadowAndEffects")}
-					title={t("stylePanel.shadow")}
-					disabled={isDisabled}
-					showLabel={showButtonLabel}
-				>
-					<ShadowSection
-						selectedElement={selectedElement}
-						editorRef={editorRef}
-						onStyleChange={handleStyleChange}
-					/>
-				</StylePopoverButton>
+					{/* Shadow & effects */}
+					<StylePopoverButton
+						icon={<ScanEye className="h-4 w-4" />}
+						tooltip={t("stylePanel.shadowAndEffects")}
+						title={t("stylePanel.shadow")}
+						disabled={isDisabled}
+						showLabel={showButtonLabel}
+					>
+						<ShadowSection
+							selectedElement={selectedElement}
+							editorRef={editorRef}
+							onStyleChange={handleStyleChange}
+						/>
+					</StylePopoverButton>
+					{toolbarEndRef ? (
+						<div
+							ref={toolbarEndRef}
+							className="ml-auto flex shrink-0 items-center"
+							data-testid="html-style-panel-toolbar-end"
+						/>
+					) : null}
+				</div>
 			</div>
 		</TooltipProvider>
 	)

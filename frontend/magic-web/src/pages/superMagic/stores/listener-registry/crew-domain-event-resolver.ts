@@ -33,10 +33,10 @@ export function resolveCrewDomainEvent<TMessage, TMessageNode = unknown>(
 	const toolName = node?.tool?.name
 	const crewCode = resolveCrewCodeFromToolDetail(node?.tool?.detail)
 	const isCrewRefreshTool = Boolean(toolName && REFRESH_CREW_DETAIL_TOOL_NAMES.has(toolName))
-	const isToolFinished = node?.event === "after_tool_call" || node?.tool?.status === "finished"
+	const isToolFinished = node?.role === "tool" || node?.tool?.status === "finished"
 	const message = payload.message as { type?: string }
 
-	if (message.type !== "general_agent_card") return null
+	if (message.type !== "super_magic_message") return null
 	if (!isCrewRefreshTool || !isToolFinished || !crewCode || !toolName) return null
 
 	return {

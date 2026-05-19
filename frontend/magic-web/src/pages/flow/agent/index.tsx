@@ -11,7 +11,6 @@ import InfiniteScroll from "react-infinite-scroll-component"
 import useNavigate from "@/routes/hooks/useNavigate"
 import MagicIcon from "@/components/base/MagicIcon"
 import DeleteDangerModal from "@/components/business/DeleteDangerModal"
-import { openModal } from "@/utils/react"
 import useSWRInfinite from "swr/infinite"
 import { FlowRouteType } from "@/types/flow"
 import { BotApi } from "@/apis"
@@ -33,7 +32,7 @@ interface KeyProp {
 
 function AgentPage() {
 	const { t } = useTranslation("interface")
-	const { t: globalT } = useTranslation()
+	const { t: flowT } = useTranslation("flow")
 
 	const navigate = useNavigate()
 
@@ -50,6 +49,27 @@ function AgentPage() {
 
 	const [VersionModalOpen, { setTrue: openVersionModal, setFalse: closeVersionModal }] =
 		useBoolean(false)
+
+	const [deleteBotTarget, setDeleteBotTarget] = useState<Bot.BotItem | null>(null)
+
+	const closeDeleteBotModal = useMemoizedFn(() => setDeleteBotTarget(null))
+
+	const submitDeleteBot = useMemoizedFn(async () => {
+		const bot = deleteBotTarget
+		if (!bot) return
+
+		await BotApi.deleteBot(bot.id)
+		magicToast.success(flowT("common.deleteSuccess"))
+		mutate((currentData) => {
+			if (!currentData) return currentData
+			const updatedData = currentData?.map((page) => ({
+				...page,
+				list: page?.list.filter((item) => item.id !== bot.id),
+			}))
+			updatedData[0].total -= 1
+			return updatedData
+		}, false)
+	})
 
 	const scrollRef = useRef(null)
 	const scrollSize = useSize(scrollRef)
@@ -151,24 +171,18 @@ function AgentPage() {
 
 	/** 删除 */
 	const deleteItem = useMemoizedFn((bot: Bot.BotItem) => {
-		openModal(DeleteDangerModal, {
-			content: bot.robot_name,
-			needConfirm: false,
-			onSubmit: async () => {
-				await BotApi.deleteBot(bot.id)
-				magicToast.success(globalT("common.deleteSuccess", { ns: "flow" }))
-				mutate((currentData) => {
-					if (!currentData) return currentData
-					const updatedData = currentData?.map((page) => ({
-						...page,
-						list: page?.list.filter((item) => item.id !== bot.id),
-					}))
-					updatedData[0].total -= 1 // 更新总数
-					return updatedData
-				}, false)
-			},
-		})
+		setDeleteBotTarget(bot)
 	})
+
+	const deleteBotModal = deleteBotTarget ? (
+		<DeleteDangerModal
+			key={deleteBotTarget.id}
+			content={deleteBotTarget.robot_name}
+			needConfirm={false}
+			onSubmit={submitDeleteBot}
+			onClose={closeDeleteBotModal}
+		/>
+	) : null
 
 	const updateAgent = useMemoizedFn((bot: Bot.Detail["botEntity"]) => {
 		mutate((currentData) => {
@@ -177,11 +191,11 @@ function AgentPage() {
 				list: page?.list.map((item) =>
 					item.id === bot.id
 						? {
-							...item,
-							robot_name: bot.robot_name,
-							robot_description: bot.robot_description,
-							robot_avatar: bot.robot_avatar,
-						}
+								...item,
+								robot_name: bot.robot_name,
+								robot_description: bot.robot_description,
+								robot_avatar: bot.robot_avatar,
+							}
 						: item,
 				),
 			}))
@@ -222,6 +236,7 @@ function AgentPage() {
 
 	return (
 		<Flex vertical flex={1} className={styles.container}>
+			{deleteBotModal}
 			<Flex align="center" justify="space-between" className={styles.top}>
 				<div className={styles.leftTitle}>{`${t("common.agent", {
 					ns: "flow",

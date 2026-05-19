@@ -24,9 +24,12 @@ const SourceComponent = {
 
 export default function MemoryCreate({
 	editMemory,
+	initialSelectedProjectId,
+	closeOnCreateSuccess,
 	setBreadcrumbList,
 	setPage,
 	onClose,
+	onMemoryChanged,
 }: PageProps) {
 	const { styles } = useStyles()
 	const { t } = useTranslation("super/longMemory")
@@ -38,9 +41,20 @@ export default function MemoryCreate({
 	/** 创建/编辑的记忆内容 */
 	const [content, setContent] = useState<string>("")
 	/** 选中的项目ID */
-	const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>()
+	const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(
+		initialSelectedProjectId,
+	)
 	/** 确认 loading */
 	const [confirmLoading, setConfirmLoading] = useState(false)
+
+	const handleExit = useMemoizedFn(() => {
+		if (closeOnCreateSuccess) {
+			onClose()
+			return
+		}
+
+		handleBack()
+	})
 
 	const handleConfirm = useMemoizedFn(async () => {
 		if (!content || !content.trim() || confirmLoading) return
@@ -52,16 +66,18 @@ export default function MemoryCreate({
 			})
 			if (res.message) {
 				magicToast.success(res.message)
+				onMemoryChanged?.()
 				setContent("")
 				setSelectedProjectId(undefined)
-				handleBack()
+				handleExit()
 			}
 		} else {
 			const res = await LongMemoryApi.setMemory(editMemory.id, { content: content.trim() })
 			if (res.success) {
 				magicToast.success(res.message)
+				onMemoryChanged?.()
 				setContent("")
-				handleBack()
+				handleExit()
 			}
 		}
 		setConfirmLoading(false)
@@ -76,8 +92,9 @@ export default function MemoryCreate({
 		})
 		if (res.success) {
 			magicToast.success(res.message)
+			onMemoryChanged?.()
 			setContent("")
-			handleBack()
+			handleExit()
 		}
 		setConfirmLoading(false)
 	})
@@ -93,8 +110,9 @@ export default function MemoryCreate({
 			const acceptRes = await LongMemoryApi.batchAcceptMemories([editMemory.id], "accept")
 			if (acceptRes.success) {
 				magicToast.success(acceptRes.message)
+				onMemoryChanged?.()
 				setContent("")
-				handleBack()
+				handleExit()
 			}
 		}
 		setConfirmLoading(false)
@@ -148,30 +166,6 @@ export default function MemoryCreate({
 				</div>
 			)}
 			<div className={styles.wrapper}>
-				{/* <div className={styles.menu}>
-				<div className={styles.menuHeader}>{t("selectContentSource")}</div>
-				<div className={styles.menuWrapper}>
-					<div className={styles.menuCard} onClick={() => setSource(SourceType.Text)}>
-						<div className={styles.menuCardIcon}></div>
-						<span>{t("text")}</span>
-					</div>
-					<div className={styles.menuCard} onClick={() => setSource(SourceType.File)}>
-						<div className={styles.menuCardIcon}></div>
-						<span>本地文件</span>
-					</div>
-					<div
-						className={styles.menuCard}
-						onClick={() => setSource(SourceType.CloudDrive)}
-					>
-						<div className={styles.menuCardIcon}></div>
-						<span>企业文件</span>
-					</div>
-					<div className={styles.menuCard} onClick={() => setSource(SourceType.Link)}>
-						<div className={styles.menuCardIcon}></div>
-						<span>网页链接</span>
-					</div>
-				</div>
-			</div> */}
 				<div className={styles.body}>
 					{createElement(SourceComponent[source], {
 						editMemory,
@@ -186,15 +180,15 @@ export default function MemoryCreate({
 						className={styles.cancelButton}
 						color="default"
 						variant="outlined"
-						onClick={handleBack}
+						onClick={handleExit}
 					>
 						{t("cancel")}
 					</Button>
 					{editMemory &&
-						[
-							LongMemory.MemoryStatus.Pending,
-							LongMemory.MemoryStatus.PENDING_REVISION,
-						].includes(editMemory.status) ? (
+					[
+						LongMemory.MemoryStatus.Pending,
+						LongMemory.MemoryStatus.PENDING_REVISION,
+					].includes(editMemory.status) ? (
 						<>
 							<Button
 								className={styles.editButton}

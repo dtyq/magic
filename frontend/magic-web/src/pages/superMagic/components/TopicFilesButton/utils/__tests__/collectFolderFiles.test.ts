@@ -94,7 +94,7 @@ describe("findParentFolder", () => {
 					name: "index.html",
 					is_directory: false,
 					source: AttachmentSource.DEFAULT,
-					metadata: { type: "webapp" },
+					display_config: { type: "webapp" },
 				},
 				{
 					file_id: "file-2",
@@ -165,31 +165,31 @@ describe("findParentFolder", () => {
 })
 
 describe("isAppEntryFile", () => {
-	it("should return true for index.html with metadata.type", () => {
+	it("should return true for index.html with display_config.type", () => {
 		const file: AttachmentItem = {
 			file_id: "file-1",
 			name: "index.html",
 			is_directory: false,
 			source: AttachmentSource.DEFAULT,
-			metadata: { type: "webapp" },
+			display_config: { type: "webapp" },
 		}
 
 		expect(isAppEntryFile(file)).toBe(true)
 	})
 
-	it("should return true for index.html with file_name and metadata.type", () => {
+	it("should return true for index.html with file_name and display_config.type", () => {
 		const file: AttachmentItem = {
 			file_id: "file-1",
 			file_name: "index.html",
 			is_directory: false,
 			source: AttachmentSource.DEFAULT,
-			metadata: { type: "slide" },
+			display_config: { type: "slide" },
 		}
 
 		expect(isAppEntryFile(file)).toBe(true)
 	})
 
-	it("should return false for index.html without metadata", () => {
+	it("should return false for index.html without display_config", () => {
 		const file: AttachmentItem = {
 			file_id: "file-1",
 			name: "index.html",
@@ -200,13 +200,13 @@ describe("isAppEntryFile", () => {
 		expect(isAppEntryFile(file)).toBe(false)
 	})
 
-	it("should return false for index.html with empty metadata.type", () => {
+	it("should return false for index.html with empty display_config.type", () => {
 		const file: AttachmentItem = {
 			file_id: "file-1",
 			name: "index.html",
 			is_directory: false,
 			source: AttachmentSource.DEFAULT,
-			metadata: { type: "" },
+			display_config: { type: "" },
 		}
 
 		expect(isAppEntryFile(file)).toBe(false)
@@ -218,7 +218,7 @@ describe("isAppEntryFile", () => {
 			name: "app.html",
 			is_directory: false,
 			source: AttachmentSource.DEFAULT,
-			metadata: { type: "webapp" },
+			display_config: { type: "webapp" },
 		}
 
 		expect(isAppEntryFile(file)).toBe(false)
@@ -230,7 +230,7 @@ describe("isAppEntryFile", () => {
 			name: "index.html",
 			is_directory: true,
 			source: AttachmentSource.DEFAULT,
-			metadata: { type: "webapp" },
+			display_config: { type: "webapp" },
 		}
 
 		expect(isAppEntryFile(file)).toBe(false)

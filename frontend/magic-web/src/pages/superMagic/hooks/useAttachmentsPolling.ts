@@ -44,6 +44,8 @@ export function useAttachmentsPolling(options: UseAttachmentsPollingOptions = {}
 
 	const timerRef = useRef<NodeJS.Timeout | null>(null)
 	const isMountedRef = useRef(true)
+	// 每个实例独立跟踪 last_updated_at，避免共享缓存导致多实例间"吞掉"变更通知
+	const instanceLastUpdatedRef = useRef<string>("")
 
 	const checkAttachments = useCallback(async () => {
 		if (!projectId || !enabled) return
@@ -69,11 +71,12 @@ export function useAttachmentsPolling(options: UseAttachmentsPollingOptions = {}
 			}
 
 			const newLastUpdatedAt = res?.last_updated_at || ""
-			const cachedLastUpdatedAt = projectLastUpdatedCache.get(currentProjectId)
+			const cachedLastUpdatedAt = instanceLastUpdatedRef.current
 
 			// 如果last_updated_at发生变化或首次获取，触发回调
 			if (newLastUpdatedAt && newLastUpdatedAt !== cachedLastUpdatedAt) {
-				// 更新缓存
+				// 更新实例级缓存和共享缓存
+				instanceLastUpdatedRef.current = newLastUpdatedAt
 				projectLastUpdatedCache.set(currentProjectId, newLastUpdatedAt)
 				const attachmentRes: AttachmentsResponse =
 					await SuperMagicApi.getAttachmentsByProjectId({
@@ -144,6 +147,8 @@ export function useAttachmentsPolling(options: UseAttachmentsPollingOptions = {}
 
 	// 当projectId或enabled状态变化时，重新启动轮询
 	useEffect(() => {
+		// projectId 变化时重置实例级缓存
+		instanceLastUpdatedRef.current = ""
 		// // 清空文件状态
 		// onAttachmentsChange?.({
 		// 	tree: [],
@@ -184,6 +189,8 @@ export function useAttachmentsPolling(options: UseAttachmentsPollingOptions = {}
 		/** 清除指定项目的缓存 */
 		clearCache: useCallback(
 			(targetProjectId?: string) => {
+				// 清除实例级缓存
+				instanceLastUpdatedRef.current = ""
 				if (targetProjectId) {
 					projectLastUpdatedCache.delete(targetProjectId)
 				} else if (projectId) {
@@ -195,7 +202,10 @@ export function useAttachmentsPolling(options: UseAttachmentsPollingOptions = {}
 		/** 获取指定项目的缓存last_updated_at */
 		getCachedLastUpdatedAt: useCallback(
 			(targetProjectId?: string) => {
-				return projectLastUpdatedCache.get(targetProjectId || projectId || "")
+				return (
+					instanceLastUpdatedRef.current ||
+					projectLastUpdatedCache.get(targetProjectId || projectId || "")
+				)
 			},
 			[projectId],
 		),

@@ -8,7 +8,8 @@ from agentlang.context.tool_context import ToolContext
 from app.core.entity.message.server_message import ToolDetail, DisplayType, FileContent
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
-from app.tools.core import BaseTool, BaseToolParams, tool
+from app.tools.core import BaseToolParams, tool
+from app.tools.workspace_tool import WorkspaceTool
 from app.core.ai_abilities import get_visual_understanding_model_id
 
 # Import utilities from visual_understanding_utils
@@ -42,7 +43,7 @@ Question or analysis requirements about images, needs to be thorough and accurat
 
 
 @tool()
-class VisualUnderstanding(BaseTool[VisualUnderstandingParams]):
+class VisualUnderstanding(WorkspaceTool[VisualUnderstandingParams]):
     """<!--zh
     视觉理解工具：调用AI视觉专家来查看、读取、分析或解释图片内容。
     视觉专家无法得知你所知晓的上下文，因此需要提供必要且充足的背景与需求信息。
@@ -131,6 +132,11 @@ class VisualUnderstanding(BaseTool[VisualUnderstandingParams]):
         Returns:
             ToolResult: 包含视觉理解结果的工具结果
         """
+        import re
+        params.images = [
+            str(self.resolve_path(img)) if not re.match(r'^https?://', img) else img
+            for img in params.images
+        ]
         return await self.execute_purely(params)
 
     async def execute_purely(
@@ -322,6 +328,28 @@ class VisualUnderstanding(BaseTool[VisualUnderstandingParams]):
             return i18n.translate("visual_understanding.completed", category="tool.messages", image_name=image_source_name)
         else:
             return i18n.translate("visual_understanding.multiple_images", category="tool.messages", count=image_count)
+
+    async def get_before_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        arguments: Dict[str, Any] = None
+    ) -> Dict:
+        """获取工具调用前的友好动作和备注"""
+        action = i18n.translate("visual_understanding_ing", category="tool.actions")
+
+        images = arguments.get("images", []) if arguments else []
+        image_count = len(images) if isinstance(images, list) else 0
+
+        if image_count == 1:
+            image_source_name = extract_image_source_name(images[0])
+            remark = i18n.translate("visual_understanding.analyzing", category="tool.messages", image_name=image_source_name)
+        elif image_count > 1:
+            remark = i18n.translate("visual_understanding.analyzing_multiple", category="tool.messages", count=image_count)
+        else:
+            remark = ""
+
+        return {"action": action, "remark": remark}
 
     async def get_after_tool_call_friendly_action_and_remark(self, tool_name: str, tool_context: ToolContext, result: ToolResult, execution_time: float, arguments: Dict[str, Any] = None) -> Dict:
         """获取工具调用后的友好动作和备注"""

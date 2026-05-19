@@ -108,6 +108,7 @@ export function useShareData({
 							workspace_name: item.workspace_name || "",
 							shared_at: item.shared_at || item.created_at,
 							topic_mode: item.topic_mode,
+							agent_code: item.agent_code,
 						} as TopicShareItem
 
 					case SharedResourceType.File:

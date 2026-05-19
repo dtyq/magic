@@ -1,13 +1,10 @@
-import { memo, useEffect } from "react"
+import { memo } from "react"
 import Container from "../../components/MainInputContainer"
 import Header from "./components/Header"
-import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
+import { useFeaturedModeListRefreshOnAgentsPageMount } from "@/pages/superMagic/hooks/useFeaturedModeListRefresh"
 
 function AgentsPage() {
-	// Refresh crew list each time the home page is visited
-	useEffect(() => {
-		superMagicModeService.fetchModeList()
-	}, [])
+	useFeaturedModeListRefreshOnAgentsPageMount()
 
 	return (
 		<div className="flex flex-1 flex-col items-center overflow-hidden rounded-xl border border-border bg-background">

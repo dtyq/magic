@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useCanvas } from "../context/CanvasContext"
 import type { ImageElement } from "../canvas/types"
 import { useCanvasEvent } from "./useCanvasEvent"
-import { normalizePath } from "../canvas/utils/utils"
+import { resolveCanonicalResourcePath } from "../canvas/utils/pathUtils"
 
 /**
  * 检查图片元素的 ossSrc 是否已加载
@@ -14,16 +14,15 @@ export function useImageOssSrc(imageElement: ImageElement | null) {
 	const [ossSrc, setOssSrc] = useState<string | undefined>(undefined)
 
 	const path = imageElement?.src
-	const pathNormalized = path ? normalizePath(path) : ""
 
 	// 初始同步及 path 变化时通过 getResource 获取
 	const syncOssSrc = useCallback(async () => {
 		if (!canvas || !path) return
 		const resource = await canvas.imageResourceManager.getResource(path)
-		if (resource && normalizePath(path) === pathNormalized) {
+		if (resource) {
 			setOssSrc(resource.ossSrc)
 		}
-	}, [canvas, path, pathNormalized])
+	}, [canvas, path])
 
 	useEffect(() => {
 		if (!path || !canvas) {
@@ -46,11 +45,16 @@ export function useImageOssSrc(imageElement: ImageElement | null) {
 	useCanvasEvent(
 		"resource:image:loaded",
 		({ data }) => {
-			if (path && normalizePath(data.path) === pathNormalized) {
+			if (!canvas || !path) return
+			const resolveAbs = canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
+			if (
+				resolveCanonicalResourcePath(data.path, resolveAbs) ===
+				resolveCanonicalResourcePath(path, resolveAbs)
+			) {
 				setOssSrc(data.resource.ossSrc)
 			}
 		},
-		[path, pathNormalized],
+		[canvas, path],
 	)
 
 	return {

@@ -13,8 +13,11 @@ import { Popover, PopoverContent, PopoverAnchor } from "@/components/shadcn-ui/p
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { observer } from "mobx-react-lite"
 import { useUpdateEffect } from "ahooks"
-import type { Marker } from "@/components/CanvasDesign/canvas/types"
 import { createPortal } from "react-dom"
+import {
+	getCanvasMarkerMentionSuggestions,
+	mergeCanvasMarkerMentionRecognitionData,
+} from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 
 interface MarkerTooltipProps {
 	isInMessageList: boolean
@@ -44,6 +47,7 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 	const [dropdownOpen, setDropdownOpen] = useState(false)
 	const triggerRef = useRef<HTMLDivElement>(null)
 	const dropdownAnchorRef = useRef<HTMLDivElement>(null)
+	const suppressNextFocusOutsideRef = useRef(false)
 
 	const actualMarkerData = markerData
 
@@ -56,18 +60,31 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 		[dropdownOpen],
 	)
 
+	const openDropdown = useCallback(() => {
+		suppressNextFocusOutsideRef.current = true
+		setDropdownOpen(true)
+		setPreviewOpen(false)
+	}, [])
+
+	const closeDropdown = useCallback(() => {
+		suppressNextFocusOutsideRef.current = false
+		setDropdownOpen(false)
+	}, [])
+
 	const handleDropdownOpenChange = useCallback(
 		(open: boolean) => {
 			if (open && (loading || isInMessageList || !actualMarkerData)) {
 				return
 			}
 
-			setDropdownOpen(open)
 			if (open) {
-				setPreviewOpen(false)
+				openDropdown()
+				return
 			}
+
+			closeDropdown()
 		},
-		[actualMarkerData, isInMessageList, loading],
+		[actualMarkerData, isInMessageList, loading, openDropdown, closeDropdown],
 	)
 
 	const handleClickCapture = useCallback(
@@ -83,10 +100,9 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 				return
 			}
 
-			setDropdownOpen(true)
-			setPreviewOpen(false)
+			openDropdown()
 		},
-		[actualMarkerData, isInMessageList, loading],
+		[actualMarkerData, isInMessageList, loading, openDropdown],
 	)
 
 	const handleClick = useCallback(() => {
@@ -94,9 +110,8 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 			return
 		}
 
-		setDropdownOpen(true)
-		setPreviewOpen(false)
-	}, [actualMarkerData, isInMessageList, loading])
+		openDropdown()
+	}, [actualMarkerData, isInMessageList, loading, openDropdown])
 
 	const handleCustomLabelChange = useCallback(
 		(label: string) => {
@@ -104,49 +119,33 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 				return
 			}
 
-			const currentMarker = actualMarkerData.data
-			if (!currentMarker?.result) return
-
-			const suggestions = currentMarker.result.suggestions || []
+			const suggestions = getCanvasMarkerMentionSuggestions(actualMarkerData)
 			const existingCustomIndex = suggestions.findIndex(
 				(suggestion) => suggestion.kind === "custom",
 			)
 
-			let updatedMarker: Marker
+			let updatedSuggestions = suggestions
 
 			if (existingCustomIndex !== -1) {
-				const updatedSuggestions = [...suggestions]
+				updatedSuggestions = [...suggestions]
 				updatedSuggestions[existingCustomIndex] = {
 					...updatedSuggestions[existingCustomIndex],
 					label: label,
-				}
-				updatedMarker = {
-					...currentMarker,
-					result: {
-						...currentMarker.result,
-						suggestions: updatedSuggestions,
-					},
 				}
 			} else {
 				const customSuggestion = {
 					label: label,
 					kind: "custom" as const,
 				}
-				updatedMarker = {
-					...currentMarker,
-					result: {
-						...currentMarker.result,
-						suggestions: [...suggestions, customSuggestion],
-					},
-				}
+				updatedSuggestions = [...suggestions, customSuggestion]
 			}
 
-			if (currentMarker.id) {
+			if (actualMarkerData.marker_id) {
 				pubsub.publish(PubSubEvents.Super_Magic_Marker_Data_Updated, {
-					markerId: currentMarker.id,
+					markerId: actualMarkerData.marker_id,
 					designProjectId: actualMarkerData.design_project_id,
-					suggestions: updatedMarker.result?.suggestions,
-					selectedSuggestionIndex: updatedMarker.selectedSuggestionIndex,
+					suggestions: updatedSuggestions,
+					selectedSuggestionIndex: actualMarkerData.selected_suggestion_index,
 				})
 			}
 		},
@@ -162,13 +161,10 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 
 			onSuggestionSelect?.(index)
 
-			const currentMarker = actualMarkerData.data
-			if (!currentMarker?.result) return
-
-			const suggestions = currentMarker.result.suggestions || []
+			const suggestions = getCanvasMarkerMentionSuggestions(actualMarkerData)
 			const isCustomItem = index === suggestions.length
 
-			let updatedMarker: Marker
+			let updatedData = actualMarkerData
 
 			if (isCustomItem && customLabel) {
 				const existingCustomIndex = suggestions.findIndex(
@@ -181,42 +177,36 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 						...updatedSuggestions[existingCustomIndex],
 						label: customLabel,
 					}
-					updatedMarker = {
-						...currentMarker,
-						result: {
-							...currentMarker.result,
-							suggestions: updatedSuggestions,
-						},
+					updatedData = mergeCanvasMarkerMentionRecognitionData({
+						data: actualMarkerData,
+						suggestions: updatedSuggestions,
 						selectedSuggestionIndex: existingCustomIndex,
-					}
+					})
 				} else {
 					const customSuggestion = {
 						label: customLabel,
 						kind: "custom" as const,
 					}
 					const updatedSuggestions = [...suggestions, customSuggestion]
-					updatedMarker = {
-						...currentMarker,
-						result: {
-							...currentMarker.result,
-							suggestions: updatedSuggestions,
-						},
+					updatedData = mergeCanvasMarkerMentionRecognitionData({
+						data: actualMarkerData,
+						suggestions: updatedSuggestions,
 						selectedSuggestionIndex: updatedSuggestions.length - 1,
-					}
+					})
 				}
 			} else {
-				updatedMarker = {
-					...currentMarker,
+				updatedData = mergeCanvasMarkerMentionRecognitionData({
+					data: actualMarkerData,
 					selectedSuggestionIndex: index,
-				}
+				})
 			}
 
-			if (currentMarker.id) {
+			if (actualMarkerData.marker_id) {
 				pubsub.publish(PubSubEvents.Super_Magic_Marker_Data_Updated, {
-					markerId: currentMarker.id,
+					markerId: actualMarkerData.marker_id,
 					designProjectId: actualMarkerData.design_project_id,
-					suggestions: updatedMarker.result?.suggestions,
-					selectedSuggestionIndex: updatedMarker.selectedSuggestionIndex,
+					suggestions: updatedData.suggestions,
+					selectedSuggestionIndex: updatedData.selected_suggestion_index,
 				})
 			}
 		},
@@ -236,16 +226,16 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 	useUpdateEffect(() => {
 		if (parentPopoverOpen === false) {
 			setPreviewOpen(false)
-			setDropdownOpen(false)
+			closeDropdown()
 		}
-	}, [parentPopoverOpen])
+	}, [parentPopoverOpen, closeDropdown])
 
 	useUpdateEffect(() => {
 		if (!loading) return
 
 		setPreviewOpen(false)
-		setDropdownOpen(false)
-	}, [loading])
+		closeDropdown()
+	}, [loading, closeDropdown])
 
 	useEffect(() => {
 		if (!dropdownOpen || !triggerRef.current || !dropdownAnchorRef.current) {
@@ -340,6 +330,12 @@ function MarkerTooltip(props: PropsWithChildren<MarkerTooltipProps>) {
 						popoverClassName={popoverClassName}
 						side={side}
 						imageUrl={imageUrl}
+						onFocusOutside={(event) => {
+							if (suppressNextFocusOutsideRef.current) {
+								suppressNextFocusOutsideRef.current = false
+								event.preventDefault()
+							}
+						}}
 					/>
 				)}
 			</Popover>

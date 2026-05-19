@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useDeepCompareEffect, useMemoizedFn, useUnmount } from "ahooks"
 import { SuperMagicApi } from "@/apis"
-import mentionPanelStore from "@/components/business/MentionPanel/store"
+import mentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import type { AttachmentsResponse } from "@/pages/superMagic/hooks/useAttachmentsPolling"
 import type { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"

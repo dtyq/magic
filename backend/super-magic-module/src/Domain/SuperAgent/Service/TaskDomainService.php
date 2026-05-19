@@ -371,6 +371,35 @@ class TaskDomainService
     }
 
     /**
+     * Determine if a file should be hidden based on its relative path from project root.
+     * Builds relative path by querying parent chain in one query, then checks each segment
+     * against known hidden directory names.
+     */
+    public function determineIsHidden(string $fileName, ?int $parentId, int $projectId = 0): bool
+    {
+        // Quick check: if file name itself is a hidden directory
+        if (WorkFileUtil::isHiddenFileName($fileName)) {
+            return true;
+        }
+
+        if ($parentId === null || $parentId <= 0) {
+            return false;
+        }
+
+        // Get all ancestor entities in one query
+        $ancestorEntities = $this->taskFileRepository->getFilesWithParentsByIds([$parentId], $projectId);
+
+        // Check if any ancestor's name matches hidden directory
+        foreach ($ancestorEntities as $ancestor) {
+            if (WorkFileUtil::isHiddenFileName($ancestor->getFileName())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * insert or update task file entity by file key.
      */
     public function saveTaskFileByFileKey(
@@ -405,7 +434,7 @@ class TaskDomainService
             $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
             $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
             // Check and set whether it's a hidden file
-            $taskFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
+            $taskFileEntity->setIsHidden($this->determineIsHidden($fileData['display_filename'] ?? $fileData['filename'] ?? '', $parentId, $projectId));
             if ($parentId !== null) {
                 $taskFileEntity->setParentId($parentId);
             }
@@ -439,7 +468,7 @@ class TaskDomainService
         $taskFileEntity->setFileExtension($fileData['file_extension'] ?? '');
         $taskFileEntity->setFileSize($fileData['file_size'] ?? 0);
         // Check and set whether it's a hidden file
-        $taskFileEntity->setIsHidden(WorkFileUtil::isHiddenFile($fileKey));
+        $taskFileEntity->setIsHidden($this->determineIsHidden($fileData['display_filename'] ?? $fileData['filename'] ?? '', $parentId, $projectId));
         // Set storage type, default to workspace
         $taskFileEntity->setStorageType($storageType);
         $taskFileEntity->setSource($source);

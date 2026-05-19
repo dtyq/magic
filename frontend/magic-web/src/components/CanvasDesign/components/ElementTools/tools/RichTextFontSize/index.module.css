@@ -1,0 +1,67 @@
+.font-size-control {
+	display: flex;
+	align-items: center;
+	width: 76px;
+	height: 32px;
+	overflow: hidden;
+	border-radius: calc(var(--radius) - 2px);
+}
+
+.input {
+	height: 100% !important;
+	padding: 0 4px 0 8px !important;
+	text-align: left;
+	background: transparent !important;
+	border: none !important;
+	border-radius: 0 !important;
+	box-shadow: none !important;
+}
+
+.input:focus,
+.input:focus-visible {
+	box-shadow: none !important;
+}
+
+.trigger-button {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 100%;
+	padding: 0;
+	background: transparent;
+	border: none;
+	cursor: pointer;
+}
+
+.trigger-button svg {
+	opacity: 0.5;
+}
+
+.popover-content {
+	width: 80px !important;
+	padding: 4px !important;
+}
+
+.option-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.option-item {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 32px;
+	padding: 0 var(--spacing-2, 8px);
+	background: transparent;
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.label {
+	color: var(--base-popover-foreground, #0a0a0a);
+}

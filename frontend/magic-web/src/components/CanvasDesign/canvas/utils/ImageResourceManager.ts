@@ -1,4 +1,4 @@
-import { normalizePath } from "./utils"
+import { resolveCanonicalResourcePath, normalizePathLocal } from "./pathUtils"
 import { createImageSourceFromBlob, closeImageSource, type ImageSource } from "./imageSourceUtils"
 import { parseExpiresAt, isOssExpired } from "./ossExpiryUtils"
 import type { Canvas } from "../Canvas"
@@ -9,6 +9,12 @@ import type {
 	ImageResourceWorkerRequest,
 	ImageResourceWorkerResponse,
 } from "./imageResource.worker"
+import type { AttachmentSourceEnum } from "../../types.magic"
+import {
+	getFailureReasonFromGetFileInfoError,
+	getFailureReasonFromStatusCode,
+	type ResourceLoadFailureReason,
+} from "./resourceLoadFailure"
 
 export type { ImageSource }
 
@@ -46,6 +52,11 @@ export interface LoadedResource {
 	thumbnail: ThumbnailData
 }
 
+export interface ResolvedImageOssInfo {
+	ossSrc: string
+	expiresAt: number | null
+}
+
 /**
  * 图片资源接口
  */
@@ -61,17 +72,27 @@ interface ImageResource {
 /**
  * 资源条目接口（统一管理 src(path) 相关的所有状态）
  */
-interface ResourceEntry {
+export interface ImageResourceEntry {
 	/** 换取到的 ossSrc（可能为 null，表示换取失败或还未换取） */
 	ossSrc: string | null
+	/** getFileInfo 返回的真实源地址；当 SW 虚拟 URL 失效时用于主线程兜底 */
+	sourceUrl: string | null
 	/** ossSrc 过期时间戳（毫秒），null 表示永不过期 */
 	expiresAt: number | null
+	/** 换链 getFileInfo 返回的附件来源（与 GetFileInfoResponse.source 一致） */
+	source?: AttachmentSourceEnum
+	/** 换链 getFileInfo 返回的文件名（与 GetFileInfoResponse.fileName 一致） */
+	fileName?: string
 	/** 正在换取 ossSrc 的 Promise（避免重复请求） */
 	exchangePromise: Promise<string | null> | null
 	/** 正在加载图片的 Promise（避免重复请求） */
 	loadingPromise: Promise<LoadedResource | null> | null
+	/** 正在后台刷新的 Promise（避免重复刷新） */
+	backgroundRefreshPromise: Promise<void> | null
 	/** 已加载的资源（如果已加载完成） */
 	resource: ImageResource | null
+	/** 最近一次加载失败原因 */
+	lastFailureReason: ResourceLoadFailureReason | null
 }
 
 /**
@@ -83,8 +104,34 @@ interface ResourceEntry {
 export class ImageResourceManager {
 	private canvas: Canvas
 
+	/** normalizePathLocal(raw) / raw → canonicalResourcePath，供同步 getFailureReason 兜底 */
+	private pathAliasToCanonical = new Map<string, string>()
+
+	private getResolveAbsolutePath(): ((path: string) => string) | undefined {
+		return this.canvas.magicConfigManager.config?.methods?.resolveAbsolutePath
+	}
+
+	private rememberPathAlias(rawPath: string, canonical: string): void {
+		const weak = normalizePathLocal(rawPath)
+		this.pathAliasToCanonical.set(weak, canonical)
+		this.pathAliasToCanonical.set(canonical, canonical)
+	}
+
+	private canonicalResourcePath(path: string): string {
+		const canonical = resolveCanonicalResourcePath(path, this.getResolveAbsolutePath())
+		this.rememberPathAlias(path, canonical)
+		return canonical
+	}
+
+	private setFailureReason(
+		entry: ImageResourceEntry,
+		reason: ResourceLoadFailureReason | null,
+	): void {
+		entry.lastFailureReason = reason
+	}
+
 	// src(path) -> ResourceEntry 的统一映射缓存
-	private entries: Map<string, ResourceEntry> = new Map()
+	private entries: Map<string, ImageResourceEntry> = new Map()
 
 	// Worker 实例（延迟创建）
 	private worker: Worker | null = null
@@ -112,7 +159,11 @@ export class ImageResourceManager {
 	}
 
 	private readonly handleBatchDeleted = () => {
-		this.checkAndCleanupResources()
+		void this.checkAndCleanupResources()
+	}
+
+	private readonly handleCanvasClear = () => {
+		void this.checkAndCleanupResources()
 	}
 
 	private readonly handleReferenceImagesChanged = () => {
@@ -125,6 +176,8 @@ export class ImageResourceManager {
 		this.canvas.eventEmitter.on("element:deleted", this.handleElementDeleted)
 		// 监听批量删除完成事件，立即检查（批量删除时不需要防抖）
 		this.canvas.eventEmitter.on("element:batchdeleted", this.handleBatchDeleted)
+		// 监听画布清空，回收所有不再被元素引用的资源
+		this.canvas.eventEmitter.on("canvas:clear", this.handleCanvasClear)
 		// 监听参考图增删（编辑器 delete @ 提及等），触发资源回收
 		this.canvas.eventEmitter.on("referenceImages:changed", this.handleReferenceImagesChanged)
 	}
@@ -170,8 +223,9 @@ export class ImageResourceManager {
 	/**
 	 * 从 entry 构建 LoadedResource
 	 */
-	private buildLoadedResource(entry: ResourceEntry): LoadedResource | null {
+	private buildLoadedResource(entry: ImageResourceEntry): LoadedResource | null {
 		if (!entry.ossSrc || !entry.resource) return null
+		this.setFailureReason(entry, null)
 		return {
 			ossSrc: entry.ossSrc,
 			image: entry.resource.image,
@@ -188,28 +242,24 @@ export class ImageResourceManager {
 	private async loadImageInternal(path: string): Promise<LoadedResource | null> {
 		const getFileInfo = this.canvas.magicConfigManager.config?.methods?.getFileInfo
 
+		const normalizedSrc = this.canonicalResourcePath(path)
+
 		if (!getFileInfo) {
+			this.setFailureReason(this.getOrCreateEntry(normalizedSrc), "load-error")
 			return null
 		}
 
-		// 规范化路径
-		const normalizedSrc = normalizePath(path)
-
-		// 获取或创建资源条目
-		let entry = this.entries.get(normalizedSrc)
-		if (!entry) {
-			entry = {
-				ossSrc: null,
-				expiresAt: null,
-				exchangePromise: null,
-				loadingPromise: null,
-				resource: null,
-			}
-			this.entries.set(normalizedSrc, entry)
-		}
+		const entry = this.getOrCreateEntry(normalizedSrc)
 
 		// 检查 ossSrc 是否过期，过期则清除
 		this.clearExpiredOssSrc(entry)
+		this.applyVirtualResourceBypass(entry)
+
+		const cachedResource = await this.loadCachedImageResource(path, normalizedSrc, entry)
+		if (cachedResource) {
+			this.triggerBackgroundRefresh(path, normalizedSrc, entry)
+			return cachedResource
+		}
 
 		// 换取 ossSrc
 		let ossSrc: string | null = entry.ossSrc
@@ -218,7 +268,10 @@ export class ImageResourceManager {
 			if (!ossSrc) {
 				this.canvas.eventEmitter.emit({
 					type: "resource:image:load-failed",
-					data: { path: normalizedSrc },
+					data: {
+						path: normalizedSrc,
+						reason: entry.lastFailureReason ?? "not-found",
+					},
 				})
 				return null
 			}
@@ -226,6 +279,7 @@ export class ImageResourceManager {
 
 		// 检查缓存
 		if (entry.resource) {
+			this.setFailureReason(entry, null)
 			return this.buildLoadedResource(entry)
 		}
 
@@ -235,7 +289,10 @@ export class ImageResourceManager {
 			if (!result) {
 				this.canvas.eventEmitter.emit({
 					type: "resource:image:load-failed",
-					data: { path: normalizedSrc },
+					data: {
+						path: normalizedSrc,
+						reason: entry.lastFailureReason ?? "load-error",
+					},
 				})
 			}
 			return result
@@ -252,7 +309,10 @@ export class ImageResourceManager {
 			if (!result) {
 				this.canvas.eventEmitter.emit({
 					type: "resource:image:load-failed",
-					data: { path: normalizedSrc },
+					data: {
+						path: normalizedSrc,
+						reason: entry.lastFailureReason ?? "load-error",
+					},
 				})
 			}
 			return result
@@ -282,13 +342,257 @@ export class ImageResourceManager {
 	}
 
 	/**
-	 * 清除过期的 ossSrc（保留 resource，仅清除 URL 以便重新换取）
+	 * 读取指定 path 对应的资源条目（无缓存则 undefined）
 	 */
-	private clearExpiredOssSrc(entry: ResourceEntry): void {
-		if (entry.ossSrc && isOssExpired(entry.expiresAt)) {
+	public getEntry(path: string): Readonly<ImageResourceEntry> | undefined {
+		const canonical = this.canonicalResourcePath(path)
+		return this.entries.get(canonical)
+	}
+
+	public getFailureReason(path: string): ResourceLoadFailureReason | null {
+		const weak = normalizePathLocal(path)
+		const canonical = this.pathAliasToCanonical.get(weak) ?? weak
+		return (
+			this.entries.get(canonical)?.lastFailureReason ??
+			this.entries.get(weak)?.lastFailureReason ??
+			null
+		)
+	}
+
+	public async ensureFreshOssInfo(
+		path: string,
+		options?: { forceRefresh?: boolean },
+	): Promise<ResolvedImageOssInfo | null> {
+		const normalizedSrc = this.canonicalResourcePath(path)
+		const entry = this.getOrCreateEntry(normalizedSrc)
+
+		if (options?.forceRefresh) {
 			entry.ossSrc = null
 			entry.expiresAt = null
+		} else {
+			this.clearExpiredOssSrc(entry)
+			this.applyVirtualResourceBypass(entry)
 		}
+
+		if (entry.ossSrc) {
+			return {
+				ossSrc: entry.ossSrc,
+				expiresAt: entry.expiresAt,
+			}
+		}
+
+		const ossSrc = await this.exchangeOssSrc(path, entry)
+		if (!ossSrc) {
+			this.setFailureReason(entry, entry.lastFailureReason ?? "not-found")
+			if (this.canvas.mediaResourceOfflineCacheManager.shouldBypassVirtualResource()) {
+				return null
+			}
+			const cached = await this.canvas.mediaResourceOfflineCacheManager.getCachedResource(
+				path,
+				"image",
+			)
+			if (!cached?.url) {
+				return null
+			}
+			entry.ossSrc = cached.url
+			entry.expiresAt = cached.expiresAt ?? null
+			return {
+				ossSrc: cached.url,
+				expiresAt: entry.expiresAt,
+			}
+		}
+
+		return {
+			ossSrc,
+			expiresAt: entry.expiresAt,
+		}
+	}
+
+	public async ensureFreshOssSrc(path: string): Promise<string | null> {
+		return (await this.ensureFreshOssInfo(path))?.ossSrc ?? null
+	}
+
+	public async refreshResource(path: string): Promise<boolean> {
+		const normalizedSrc = this.canonicalResourcePath(path)
+		if (!normalizedSrc) return false
+
+		const entry = this.getOrCreateEntry(normalizedSrc)
+		if (entry.loadingPromise) {
+			await entry.loadingPromise.catch(() => null)
+		}
+		const previousResource = entry.resource
+		entry.ossSrc = null
+		entry.expiresAt = null
+		entry.resource = null
+
+		this.canvas.mediaResourceOfflineCacheManager.removeCachedResource({
+			path: normalizedSrc,
+			mediaType: "image",
+		})
+
+		const ossSrc = await this.exchangeOssSrc(path, entry, { forceRefresh: true })
+		if (!ossSrc) {
+			const reason = entry.lastFailureReason ?? "not-found"
+			// 附件已删除（同路径无文件）：禁止恢复旧位图，否则画布仍显示已删文件内容
+			if (reason === "not-found") {
+				if (previousResource) {
+					closeImageSource(previousResource.image)
+				}
+				entry.resource = null
+			} else {
+				entry.resource = previousResource
+			}
+			this.canvas.eventEmitter.emit({
+				type: "resource:image:load-failed",
+				data: {
+					path: normalizedSrc,
+					reason,
+				},
+			})
+			return false
+		}
+
+		const loaded = await this.loadImageResource(normalizedSrc, ossSrc, entry)
+		if (loaded) {
+			if (previousResource) closeImageSource(previousResource.image)
+			return true
+		}
+
+		entry.resource = previousResource
+		this.canvas.eventEmitter.emit({
+			type: "resource:image:load-failed",
+			data: {
+				path: normalizedSrc,
+				reason: entry.lastFailureReason ?? "load-error",
+			},
+		})
+		return false
+	}
+
+	private triggerBackgroundRefresh(
+		path: string,
+		normalizedSrc: string,
+		entry: ImageResourceEntry,
+	): void {
+		if (entry.backgroundRefreshPromise) return
+
+		entry.backgroundRefreshPromise = this.refreshImageResourceFromNetwork(
+			path,
+			normalizedSrc,
+			entry,
+		)
+			.then(() => undefined)
+			.catch(() => undefined)
+			.finally(() => {
+				entry.backgroundRefreshPromise = null
+			})
+	}
+
+	private async loadCachedImageResource(
+		path: string,
+		normalizedSrc: string,
+		entry: ImageResourceEntry,
+	): Promise<LoadedResource | null> {
+		try {
+			if (this.canvas.mediaResourceOfflineCacheManager.shouldBypassVirtualResource()) {
+				return null
+			}
+			const cached = await this.canvas.mediaResourceOfflineCacheManager.getCachedResource(
+				path,
+				"image",
+			)
+			if (!cached?.url) return null
+
+			entry.ossSrc = cached.url
+			entry.sourceUrl = cached.sourceUrl ?? null
+			entry.expiresAt = cached.expiresAt ?? null
+			if (entry.resource) {
+				return this.buildLoadedResource(entry)
+			}
+			if (entry.loadingPromise) {
+				return entry.loadingPromise
+			}
+
+			const promise = this.loadImageResource(normalizedSrc, cached.url, entry)
+			entry.loadingPromise = promise
+			try {
+				return await promise
+			} finally {
+				entry.loadingPromise = null
+			}
+		} catch {
+			this.setFailureReason(entry, "load-error")
+			return null
+		}
+	}
+
+	private async refreshImageResourceFromNetwork(
+		path: string,
+		normalizedSrc: string,
+		entry: ImageResourceEntry,
+	): Promise<void> {
+		const previousOssSrc = entry.ossSrc
+		entry.ossSrc = null
+		entry.expiresAt = null
+
+		const ossSrc = await this.exchangeOssSrc(path, entry)
+		if (!ossSrc) {
+			if (entry.lastFailureReason === "not-found") {
+				if (entry.resource) {
+					closeImageSource(entry.resource.image)
+					entry.resource = null
+				}
+				entry.ossSrc = null
+				entry.expiresAt = null
+				this.canvas.eventEmitter.emit({
+					type: "resource:image:load-failed",
+					data: { path: normalizedSrc, reason: "not-found" },
+				})
+			} else {
+				entry.ossSrc = previousOssSrc
+			}
+			return
+		}
+
+		const refreshed = await this.canvas.mediaResourceOfflineCacheManager.refreshCachedResource(
+			path,
+			"image",
+		)
+		if (!refreshed && ossSrc === previousOssSrc && entry.resource) {
+			return
+		}
+
+		const previousResource = entry.resource
+		entry.resource = null
+		const loaded = await this.loadImageResource(normalizedSrc, ossSrc, entry)
+		if (loaded) {
+			if (previousResource) closeImageSource(previousResource.image)
+			return
+		}
+		entry.resource = previousResource
+	}
+
+	/**
+	 * 清除过期的 ossSrc（保留 resource，仅清除 URL 以便重新换取）
+	 */
+	private clearExpiredOssSrc(entry: ImageResourceEntry): void {
+		if (entry.ossSrc && isOssExpired(entry.expiresAt)) {
+			entry.ossSrc = null
+			entry.sourceUrl = null
+			entry.expiresAt = null
+		}
+	}
+
+	private applyVirtualResourceBypass(entry: ImageResourceEntry): void {
+		if (
+			!entry.ossSrc ||
+			!this.canvas.mediaResourceOfflineCacheManager.shouldBypassVirtualResource() ||
+			!this.canvas.mediaResourceOfflineCacheManager.isVirtualResourceUrl(entry.ossSrc)
+		) {
+			return
+		}
+
+		entry.ossSrc = entry.sourceUrl && !isOssExpired(entry.expiresAt) ? entry.sourceUrl : null
 	}
 
 	/**
@@ -297,29 +601,63 @@ export class ImageResourceManager {
 	 * @param entry 资源条目
 	 * @returns Promise<string | null> ossSrc 或 null
 	 */
-	private async exchangeOssSrc(path: string, entry: ResourceEntry): Promise<string | null> {
+	private async exchangeOssSrc(
+		path: string,
+		entry: ImageResourceEntry,
+		options?: { forceRefresh?: boolean; bypassVirtualResource?: boolean },
+	): Promise<string | null> {
 		const getFileInfo = this.canvas.magicConfigManager.config?.methods?.getFileInfo
 
 		if (!getFileInfo) {
+			this.setFailureReason(entry, "load-error")
 			return null
 		}
 
 		// 检查是否正在换取中，避免重复请求
-		if (entry.exchangePromise) {
+		if (entry.exchangePromise && !options?.forceRefresh) {
 			return entry.exchangePromise
 		}
 
 		// 创建新的换取 Promise
 		const promise = (async () => {
 			try {
-				const fileInfo = await getFileInfo(path)
+				const fileInfo = await getFileInfo(path, {
+					useImageProcess: true,
+					forceRefresh: options?.forceRefresh,
+				})
 				if (fileInfo?.src) {
-					entry.ossSrc = fileInfo.src
+					this.setFailureReason(entry, null)
 					entry.expiresAt = parseExpiresAt(fileInfo.expires_at)
-					return fileInfo.src
+					entry.sourceUrl = fileInfo.src
+					entry.source = fileInfo.source
+					entry.fileName = fileInfo.fileName
+					const resourceUrl =
+						await this.canvas.mediaResourceOfflineCacheManager.resolveResourceUrl(
+							{
+								path,
+								url: fileInfo.src,
+								mediaType: "image",
+								expiresAt: entry.expiresAt,
+							},
+							{
+								bypassVirtualResource: options?.bypassVirtualResource,
+							},
+						)
+					entry.ossSrc = resourceUrl
+					return resourceUrl
 				}
+				this.setFailureReason(entry, "load-error")
 				return null
 			} catch (error) {
+				const reason = getFailureReasonFromGetFileInfoError(error)
+				this.setFailureReason(entry, reason)
+				if (reason === "not-found") {
+					const cachePath = this.canonicalResourcePath(path)
+					this.canvas.mediaResourceOfflineCacheManager.removeCachedResource({
+						path: cachePath,
+						mediaType: "image",
+					})
+				}
 				return null
 			}
 		})()
@@ -347,7 +685,8 @@ export class ImageResourceManager {
 	private async loadImageResource(
 		path: string,
 		ossSrc: string,
-		entry: ResourceEntry,
+		entry: ImageResourceEntry,
+		retryCount = 0,
 	): Promise<LoadedResource | null> {
 		const requestId = `img-${++this.requestIdCounter}-${Date.now()}`
 		try {
@@ -358,16 +697,35 @@ export class ImageResourceManager {
 
 			// 403/401 时重新换取 ossSrc 并重试
 			if (result?.needsReExchange) {
+				this.setFailureReason(entry, "load-error")
 				entry.ossSrc = null
 				entry.expiresAt = null
-				const newOssSrc = await this.exchangeOssSrc(path, entry)
+				const fallbackOssSrc = await this.resolveVirtualResourceFallbackOssSrc(
+					path,
+					ossSrc,
+					entry,
+					retryCount,
+				)
+				const newOssSrc =
+					fallbackOssSrc ??
+					(retryCount === 0 ? await this.exchangeOssSrc(path, entry) : null)
 				if (newOssSrc) {
-					return this.loadImageResource(path, newOssSrc, entry)
+					return this.loadImageResource(path, newOssSrc, entry, retryCount + 1)
 				}
 				return null
 			}
 
 			if (!result?.imageInfo || !result?.thumbnails) {
+				const fallbackOssSrc = await this.resolveVirtualResourceFallbackOssSrc(
+					path,
+					ossSrc,
+					entry,
+					retryCount,
+				)
+				if (fallbackOssSrc) {
+					return this.loadImageResource(path, fallbackOssSrc, entry, retryCount + 1)
+				}
+				this.setFailureReason(entry, getFailureReasonFromStatusCode(result?.statusCode))
 				return null
 			}
 
@@ -381,9 +739,11 @@ export class ImageResourceManager {
 				// 使用 createImageSourceFromBlob 创建 ImageSource（会优先尝试 ImageBitmap，失败则降级到 HTMLImageElement）
 				image = await createImageSourceFromBlob(result.blob)
 				if (!image) {
+					this.setFailureReason(entry, "load-error")
 					return null
 				}
 			} else {
+				this.setFailureReason(entry, getFailureReasonFromStatusCode(result?.statusCode))
 				return null
 			}
 
@@ -393,6 +753,8 @@ export class ImageResourceManager {
 				thumbnailData: result.thumbnails,
 			}
 			entry.resource = resource
+			this.setFailureReason(entry, null)
+			this.canvas.mediaResourceOfflineCacheManager.recordVirtualResourceLoadSuccess(ossSrc)
 
 			const loadedResource: LoadedResource = {
 				ossSrc,
@@ -408,8 +770,67 @@ export class ImageResourceManager {
 
 			return loadedResource
 		} catch (error) {
+			const fallbackOssSrc = await this.resolveVirtualResourceFallbackOssSrc(
+				path,
+				ossSrc,
+				entry,
+				retryCount,
+			)
+			if (fallbackOssSrc) {
+				return this.loadImageResource(path, fallbackOssSrc, entry, retryCount + 1)
+			}
+			this.setFailureReason(entry, "load-error")
 			return null
 		}
+	}
+
+	private async resolveVirtualResourceFallbackOssSrc(
+		path: string,
+		ossSrc: string,
+		entry: ImageResourceEntry,
+		retryCount: number,
+	): Promise<string | null> {
+		if (
+			retryCount > 0 ||
+			!this.canvas.mediaResourceOfflineCacheManager.isVirtualResourceUrl(ossSrc)
+		) {
+			return null
+		}
+
+		this.canvas.mediaResourceOfflineCacheManager.recordVirtualResourceLoadFailure(ossSrc)
+		if (entry.sourceUrl && !isOssExpired(entry.expiresAt)) {
+			entry.ossSrc = entry.sourceUrl
+			return entry.sourceUrl
+		}
+
+		entry.ossSrc = null
+		entry.expiresAt = null
+		return this.exchangeOssSrc(path, entry, {
+			forceRefresh: true,
+			bypassVirtualResource: true,
+		})
+	}
+
+	private createEntry(): ImageResourceEntry {
+		return {
+			ossSrc: null,
+			sourceUrl: null,
+			expiresAt: null,
+			exchangePromise: null,
+			loadingPromise: null,
+			backgroundRefreshPromise: null,
+			resource: null,
+			lastFailureReason: null,
+		}
+	}
+
+	private getOrCreateEntry(normalizedPath: string): ImageResourceEntry {
+		let entry = this.entries.get(normalizedPath)
+		if (!entry) {
+			entry = this.createEntry()
+			this.entries.set(normalizedPath, entry)
+		}
+		return entry
 	}
 
 	/**
@@ -418,19 +839,10 @@ export class ImageResourceManager {
 	 * @param fileInfo 文件信息
 	 */
 	public primeCache(path: string, fileInfo: { src: string; expires_at?: string }): void {
-		const normalizedSrc = normalizePath(path)
-		let entry = this.entries.get(normalizedSrc)
-		if (!entry) {
-			entry = {
-				ossSrc: null,
-				expiresAt: null,
-				exchangePromise: null,
-				loadingPromise: null,
-				resource: null,
-			}
-			this.entries.set(normalizedSrc, entry)
-		}
+		const normalizedSrc = this.canonicalResourcePath(path)
+		const entry = this.getOrCreateEntry(normalizedSrc)
 		entry.ossSrc = fileInfo.src
+		entry.sourceUrl = fileInfo.src
 		entry.expiresAt = parseExpiresAt(fileInfo.expires_at)
 	}
 
@@ -446,7 +858,7 @@ export class ImageResourceManager {
 
 		// 设置新的定时器
 		this.cleanupTimer = setTimeout(() => {
-			this.checkAndCleanupResources()
+			void this.checkAndCleanupResources()
 			this.cleanupTimer = null
 		}, this.CLEANUP_DEBOUNCE_DELAY)
 	}
@@ -455,7 +867,7 @@ export class ImageResourceManager {
 	 * 检查并清理未使用的资源
 	 * 遍历所有元素，收集所有使用的图片路径，然后检查资源是否仍在使用
 	 */
-	private checkAndCleanupResources(): void {
+	private async checkAndCleanupResources(): Promise<void> {
 		// 清除防抖定时器（如果存在）
 		if (this.cleanupTimer) {
 			clearTimeout(this.cleanupTimer)
@@ -473,7 +885,7 @@ export class ImageResourceManager {
 
 				// 添加主图片路径
 				if (imageElement.src) {
-					usedPaths.add(normalizePath(imageElement.src))
+					usedPaths.add(this.canonicalResourcePath(imageElement.src))
 				}
 
 				// 添加参考图路径
@@ -482,27 +894,34 @@ export class ImageResourceManager {
 				)
 				if (elementInstance && elementInstance instanceof ImageElement) {
 					const referenceImageInfos = elementInstance.getReferenceImageInfos()
-					referenceImageInfos.forEach((info) => {
-						usedPaths.add(normalizePath(info.path))
-					})
+					for (const info of referenceImageInfos) {
+						usedPaths.add(this.canonicalResourcePath(info.path))
+					}
 				}
 			}
 		}
 
 		// 遍历所有资源条目，检查是否仍在使用
 		this.entries.forEach((entry, src) => {
-			if (!entry.resource) {
-				return
-			}
+			if (usedPaths.has(src)) return
 
-			// 如果资源路径不在使用的路径集合中，则释放资源
-			if (!usedPaths.has(src)) {
+			if (entry.resource) {
 				closeImageSource(entry.resource.image)
 				entry.resource = null
 				this.canvas.eventEmitter.emit({
 					type: "resource:released",
 					data: { path: src },
 				})
+			}
+
+			entry.ossSrc = null
+			entry.expiresAt = null
+			this.canvas.mediaResourceOfflineCacheManager.removeCachedResource({
+				path: src,
+				mediaType: "image",
+			})
+			if (!entry.exchangePromise && !entry.loadingPromise) {
+				this.entries.delete(src)
 			}
 		})
 	}
@@ -530,6 +949,7 @@ export class ImageResourceManager {
 		}
 		this.canvas.eventEmitter.off("element:deleted", this.handleElementDeleted)
 		this.canvas.eventEmitter.off("element:batchdeleted", this.handleBatchDeleted)
+		this.canvas.eventEmitter.off("canvas:clear", this.handleCanvasClear)
 		this.canvas.eventEmitter.off("referenceImages:changed", this.handleReferenceImagesChanged)
 	}
 }

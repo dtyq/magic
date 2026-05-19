@@ -124,6 +124,7 @@ export function useConfigurationLogic(
 					await KnowledgeApi.revectorizeDocument({
 						knowledgeBaseCode: currentDocumentDetail.knowledge_base_code,
 						documentCode: currentDocumentDetail.code,
+						sync: true, // 立即同步，不等待滑动窗口
 					})
 				}
 				setIsSaving(false)

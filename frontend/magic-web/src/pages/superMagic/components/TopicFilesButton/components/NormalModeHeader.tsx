@@ -17,6 +17,7 @@ import { type PresetFileType } from "../constant"
 import { cn } from "@/lib/utils"
 
 interface NormalModeHeaderProps {
+	title?: string
 	isShareRoute: boolean
 	refreshLoading: boolean
 	allowEdit: boolean
@@ -27,11 +28,13 @@ interface NormalModeHeaderProps {
 	onAddFolder?: () => void
 	onUploadFile?: () => void
 	onUploadFolder?: () => void
+	onImportFromOtherProject?: () => void
 	onEnterSelectMode?: () => void
 	className?: string
 }
 
 function NormalModeHeader({
+	title,
 	isShareRoute,
 	refreshLoading,
 	allowEdit,
@@ -42,6 +45,7 @@ function NormalModeHeader({
 	onAddFolder,
 	onUploadFile,
 	onUploadFolder,
+	onImportFromOtherProject,
 	onEnterSelectMode,
 	className,
 }: NormalModeHeaderProps) {
@@ -50,8 +54,8 @@ function NormalModeHeader({
 
 	return (
 		<div className={cn("flex h-8 w-full items-center justify-between pl-4 pr-2", className)}>
-			<p className="whitespace-nowrap text-xs font-semibold leading-4 text-foreground">
-				{t("topicFiles.title")}
+			<p className="whitespace-nowrap text-sm font-semibold leading-4 text-foreground">
+				{title || t("topicFiles.title")}
 			</p>
 			<div className="flex items-center gap-1">
 				{allowEdit && onSearch && (
@@ -59,6 +63,7 @@ function NormalModeHeader({
 						<button
 							className="flex h-6 w-6 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-accent"
 							type="button"
+							data-testid="file-header-search-button"
 							onClick={onSearch}
 							aria-label={t("topicFiles.search")}
 						>
@@ -73,6 +78,7 @@ function NormalModeHeader({
 								<button
 									className="flex h-6 w-6 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-accent"
 									type="button"
+									data-testid="file-header-add-file-button"
 									aria-label={t("topicFiles.addFile")}
 								>
 									<FilePlus size={16} className="text-foreground" />
@@ -86,6 +92,7 @@ function NormalModeHeader({
 						<button
 							className="flex h-6 w-6 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-accent"
 							type="button"
+							data-testid="file-header-add-folder-button"
 							onClick={onAddFolder}
 							aria-label={t("topicFiles.addFolder")}
 						>
@@ -94,12 +101,17 @@ function NormalModeHeader({
 					</MagicTooltip>
 				)}
 				{allowEdit && (onUploadFile || onUploadFolder) && !isMobile && (
-					<UploadMenuDropdown onUploadFile={onUploadFile} onUploadFolder={onUploadFolder}>
+					<UploadMenuDropdown
+						onUploadFile={onUploadFile}
+						onUploadFolder={onUploadFolder}
+						onImportFromOtherProject={onImportFromOtherProject}
+					>
 						<span>
 							<MagicTooltip title={t("topicFiles.upload")}>
 								<button
 									className="flex h-6 w-6 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-accent"
 									type="button"
+									data-testid="file-header-upload-button"
 									aria-label={t("topicFiles.upload")}
 								>
 									<Upload size={16} className="text-foreground" />
@@ -113,6 +125,7 @@ function NormalModeHeader({
 						<button
 							className="flex h-6 w-6 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-accent"
 							type="button"
+							data-testid="file-header-refresh-button"
 							onClick={onRefresh}
 							aria-label={t("topicFiles.refreshList")}
 							disabled={refreshLoading}
@@ -130,6 +143,7 @@ function NormalModeHeader({
 						<button
 							className="flex h-6 w-6 items-center justify-center rounded-md bg-transparent transition-colors hover:bg-accent"
 							type="button"
+							data-testid="file-header-select-mode-button"
 							onClick={onEnterSelectMode}
 							aria-label={t("topicFiles.selectFiles")}
 						>

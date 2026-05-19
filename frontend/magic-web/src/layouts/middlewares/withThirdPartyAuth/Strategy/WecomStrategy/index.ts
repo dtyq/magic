@@ -12,7 +12,12 @@ export const WecomStrategy: ThirdPartyLoginStrategy = {
 	 * @description Lark login free, obtain temporary authorization code (return third-party temporary authorization code for third-party login)
 	 * @constructor
 	 */
-	getAuthCode: (): Promise<string> => {
+	getAuthCode: (
+		deployCode?: string,
+		options?: Pick<import("@/apis/core/HttpClient").RequestConfig, "skipAppInitWait">,
+	): Promise<string> => {
+		void deployCode
+		void options
 		/**
 		 * 鉴于企业微信获取临时授权码的特殊性，不能通过JS-SDK获取，而是构造授权地址后通过重定向携带零售授权码的方式注入，
 		 * 所以这里就不需要获取集群配置，直接获取query中的授权码，且 state === wecom 的情况下才生效。

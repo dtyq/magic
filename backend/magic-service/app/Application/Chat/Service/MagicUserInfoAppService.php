@@ -72,6 +72,8 @@ class MagicUserInfoAppService extends AbstractAppService
             'work_number' => $workNumber,
             'position' => $position,
             'departments' => $departments,
+            'email' => $accountEntity?->getEmail() ?? '',
+            'phone' => $accountEntity?->getPhone() ?? '',
         ];
     }
 
@@ -177,6 +179,8 @@ class MagicUserInfoAppService extends AbstractAppService
             'work_number' => '',
             'position' => '',
             'departments' => [],
+            'email' => '',
+            'phone' => '',
         ];
     }
 }

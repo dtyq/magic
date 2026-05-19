@@ -10,6 +10,10 @@ import { normalizeColor, normalizeTextAlign } from "../utils/css"
 interface ElementInfo {
 	selector: string
 	tagName: string
+	isImageElement?: boolean
+	intrinsicWidth?: number
+	intrinsicHeight?: number
+	intrinsicAspectRatio?: number
 	computedStyles: Record<string, string>
 	rect: {
 		top: number
@@ -87,10 +91,12 @@ export class ElementSelector {
 			const { rect, rotation } = this.getElementRectWithRotation(element)
 			const isText = this.isTextElement(element)
 			const textContent = element.textContent?.trim() || ""
+			const imageMetadata = this.getImageMetadata(element)
 
 			infos.push({
 				selector,
 				tagName: element.tagName.toLowerCase(),
+				...imageMetadata,
 				computedStyles: styles,
 				rect,
 				rotation,
@@ -230,6 +236,33 @@ export class ElementSelector {
 	}
 
 	/**
+	 * Collect intrinsic image metadata so parent-side image tools can share one ratio source.
+	 */
+	private getImageMetadata(element: HTMLElement): {
+		isImageElement: boolean
+		intrinsicWidth?: number
+		intrinsicHeight?: number
+		intrinsicAspectRatio?: number
+	} {
+		if (!(element instanceof HTMLImageElement))
+			return {
+				isImageElement: false,
+			}
+
+		const intrinsicWidth = element.naturalWidth || undefined
+		const intrinsicHeight = element.naturalHeight || undefined
+		const intrinsicAspectRatio =
+			intrinsicWidth && intrinsicHeight ? intrinsicWidth / intrinsicHeight : undefined
+
+		return {
+			isImageElement: true,
+			intrinsicWidth,
+			intrinsicHeight,
+			intrinsicAspectRatio,
+		}
+	}
+
+	/**
 	 * Find the actual selectable element (handle special containers like ECharts)
 	 * If element is inside a special container (e.g. ECharts), return the container
 	 */
@@ -365,11 +398,40 @@ export class ElementSelector {
 			const textContent = element.textContent?.trim() || ""
 			const hasSignificantText = textContent.length > 0
 
-			// Count child elements
-			const childElements = element.querySelectorAll("*").length
+			if (!hasSignificantText) {
+				return false
+			}
 
-			// If has text but few child elements (< 3), consider it a text element
-			if (hasSignificantText && childElements < 3) {
+			const allElements = Array.from(element.querySelectorAll("*"))
+
+			// Inline/decorative tags that shouldn't count against the "simple text container" limit
+			const inlineTags = [
+				"span",
+				"br",
+				"a",
+				"strong",
+				"b",
+				"em",
+				"i",
+				"mark",
+				"small",
+				"del",
+				"ins",
+				"sub",
+				"sup",
+				"code",
+				"font",
+				"svg",
+				"img",
+			]
+
+			// Filter out inline/decorative tags to count only complex/structural elements
+			const complexElements = allElements.filter(
+				(el) => !inlineTags.includes(el.tagName.toLowerCase()),
+			)
+
+			// If it has text and very few complex structural elements (< 3), consider it a text element
+			if (complexElements.length < 3) {
 				return true
 			}
 		}
@@ -571,10 +633,12 @@ export class ElementSelector {
 			const { rect, rotation } = this.getElementRectWithRotation(element)
 			const isText = this.isTextElement(element)
 			const textContent = element.textContent?.trim() || ""
+			const imageMetadata = this.getImageMetadata(element)
 
 			this.bridge.sendEvent("ELEMENT_SELECTED", {
 				selector,
 				tagName: element.tagName.toLowerCase(),
+				...imageMetadata,
 				computedStyles: styles,
 				rect,
 				rotation,

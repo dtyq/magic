@@ -29,6 +29,8 @@ export interface UseUploadFilesParams<F> {
 	onInit?: (file: F, tools: Pick<UploadCallBack, "cancel" | "pause" | "resume">) => void
 	/** 重命名文件 */
 	rewriteFileName?: boolean
+	/** 是否使用雪花ID作为OSS文件名，默认为false。设为true时使用雪花ID，false时使用原始文件名 */
+	useSnowflakeId?: boolean
 }
 export interface UploadResult {
 	fullfilled: PromiseFulfilledResult<UploadResponse>[]

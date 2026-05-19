@@ -2,7 +2,9 @@
 
 映射关系（逻辑名 -> 实际目录）：
 - system_skills    -> agents/skills/
-- workspace_skills -> .workspace/.magic/skills/
+- workspace_skills -> .workspace/.magic/skills/  （skillhub 安装目录）
+                     .workspace/.agents/skills/  （用户/外部扩展目录，按需扫描）
+                     ~/.agents/skills/            （用户 home 全局 skills，按需扫描）
 - crew_skills      -> agents/crew/{agent_code}/skills/
 """
 from __future__ import annotations
@@ -39,6 +41,17 @@ def get_workspace_skills_dir() -> Path:
     """返回 workspace skills 目录路径（.workspace/.magic/skills/）"""
     from app.path_manager import PathManager
     return PathManager.get_magic_dir() / "skills"
+
+
+def get_agents_workspace_skills_dir() -> Path:
+    """返回外部扩展 skills 目录路径（.workspace/.agents/skills/）"""
+    from app.path_manager import PathManager
+    return PathManager.get_agents_skills_dir()
+
+
+def get_home_skills_dir() -> Path:
+    """返回用户 home 全局 skills 目录路径（~/.agents/skills/）"""
+    return Path.home() / ".agents" / "skills"
 
 
 def get_crew_skills_dir(agent_code: str) -> Path:

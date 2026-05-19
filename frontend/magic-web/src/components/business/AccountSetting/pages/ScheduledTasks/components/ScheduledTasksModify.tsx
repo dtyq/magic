@@ -21,12 +21,12 @@ import { parseContent } from "@/pages/superMagic/components/MessageList/componen
 import {
 	type ProjectListItem,
 	type Topic,
-	TopicMode,
 	type Workspace,
 	ProjectStatus,
 	TaskStatus,
 	WorkspaceStatus,
 } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import MessageEditor, { type MessageEditorRef } from "./MessageEditor"

@@ -4,7 +4,7 @@ import { IconX } from "@tabler/icons-react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
 import { useStyles } from "../../styles"
-import { processSvgContent, isSvgContent } from "@/utils/svgProcessor"
+import { isInlineSvgContent, processSvgContent } from "@/utils/svgProcessor"
 import { ImagePreviewInfo } from "@/types/chat/preview"
 
 interface ImageViewerProps {
@@ -118,7 +118,7 @@ function ImageViewer({
 		const touch2 = touches[1]
 		return Math.sqrt(
 			Math.pow(touch2.clientX - touch1.clientX, 2) +
-			Math.pow(touch2.clientY - touch1.clientY, 2),
+				Math.pow(touch2.clientY - touch1.clientY, 2),
 		)
 	}, [])
 
@@ -385,14 +385,13 @@ function ImageViewer({
 	const ImageNode = useMemo(() => {
 		if (!src) return null
 
-		// Use enhanced SVG detection from utility
-		const fileExt = info?.ext?.ext
-		const isSvg = isSvgContent(src, fileExt)
+		const isInlineSvg = isInlineSvgContent(src)
 
 		const imageStyle = {
 			transform: swipeState.isSwipeToClose
-				? `translate3d(${transform.x}px, ${transform.y + (swipeState.currentY - swipeState.startY)
-				}px, 0) scale(${transform.scale})`
+				? `translate3d(${transform.x}px, ${
+						transform.y + (swipeState.currentY - swipeState.startY)
+					}px, 0) scale(${transform.scale})`
 				: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
 			transition: isTransitioning
 				? "transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)"
@@ -400,7 +399,7 @@ function ImageViewer({
 			transformOrigin: "center center",
 		}
 
-		if (isSvg) {
+		if (isInlineSvg) {
 			try {
 				const svgResult = processSvgContent(src)
 

@@ -1,36 +1,50 @@
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
+import { safeDecodeURIComponent } from "@/utils/encoding"
 
 /**
  * 标准化路径用于对比
  * 处理各种路径格式和编码
  */
 function normalizePathForComparison(path: string): string {
+	try {
+		if (!path) return ""
+
+		let normalized = path.trim()
+
+		// 尝试解码 URI，如果失败则使用原始值
+		try {
+			const decoded = decodeURI(normalized)
+			normalized = decoded
+		} catch {
+			// 解码失败时保持原样
+		}
+
+		// 移除开头的 ./
+		normalized = normalized.replace(/^\.\//, "/")
+
+		// 确保开头有 /
+		if (!normalized.startsWith("/")) {
+			normalized = `/${normalized}`
+		}
+
+		// 移除结尾的 / (除了根路径)
+		if (normalized.length > 1 && normalized.endsWith("/")) {
+			normalized = normalized.slice(0, -1)
+		}
+
+		return normalized
+	} catch {
+		return ""
+	}
+}
+
+/**
+ * XMarkdown 会把中文 URL 转义，这里还原成中文路径。
+ */
+export function decodePathForDisplay(path: string): string {
 	if (!path) return ""
 
-	let normalized = path.trim()
-
-	// 尝试解码 URI，如果失败则使用原始值
-	try {
-		const decoded = decodeURI(normalized)
-		normalized = decoded
-	} catch {
-		// 解码失败时保持原样
-	}
-
-	// 移除开头的 ./
-	normalized = normalized.replace(/^\.\//, "/")
-
-	// 确保开头有 /
-	if (!normalized.startsWith("/")) {
-		normalized = `/${normalized}`
-	}
-
-	// 移除结尾的 / (除了根路径)
-	if (normalized.length > 1 && normalized.endsWith("/")) {
-		normalized = normalized.slice(0, -1)
-	}
-
-	return normalized
+	return safeDecodeURIComponent(path)
 }
 
 /**

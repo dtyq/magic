@@ -17,6 +17,58 @@ export class AreaMarker extends BaseMarker {
 		}
 	}
 
+	protected getDeleteInteractionNode(): Konva.Node | null {
+		return this.group?.findOne(".marker-badge-group") ?? null
+	}
+
+	protected getDeleteLabelNode(): Konva.Text | null {
+		return (this.group?.findOne(".marker-label") as Konva.Text | null) ?? null
+	}
+
+	protected getDeleteBackgroundNode(): Konva.Shape | null {
+		return (this.group?.findOne(".marker-badge") as Konva.Shape | null) ?? null
+	}
+
+	protected getDeleteBackgroundColorConfig(): {
+		hoverColor: string
+		activeColor: string
+	} {
+		return {
+			hoverColor: AREA_MARKER_STYLES.DELETE_BACKGROUND_HOVER_COLOR,
+			activeColor: AREA_MARKER_STYLES.DELETE_BACKGROUND_ACTIVE_COLOR,
+		}
+	}
+
+	private getBadgeTextFontSize(fontSize: number): number {
+		const viewportScale = this.canvas.stage.scaleX()
+		const inverseScale = 1 / viewportScale
+		return fontSize * inverseScale
+	}
+
+	protected updateDeleteHoverState(isHovering: boolean): void {
+		if (!this.group) return
+
+		const circle = this.group.findOne(".marker-badge") as Konva.Circle | null
+		const text = this.getDeleteLabelNode()
+		if (!circle || !text) return
+
+		circle.fill(
+			isHovering
+				? AREA_MARKER_STYLES.DELETE_BACKGROUND_HOVER_COLOR
+				: AREA_MARKER_STYLES.FILL_COLOR,
+		)
+		circle.opacity(1)
+		text.text(isHovering ? "×" : String(this.sequence))
+		text.fontSize(
+			isHovering
+				? this.getBadgeTextFontSize(AREA_MARKER_STYLES.DELETE_TEXT_FONT_SIZE)
+				: this.getBadgeTextFontSize(AREA_MARKER_STYLES.TEXT_FONT_SIZE),
+		)
+		text.opacity(1)
+		text.x(-text.width() / 2)
+		text.y(-text.height() / 2)
+	}
+
 	/**
 	 * 获取区域尺寸（绝对像素值）
 	 */
@@ -76,7 +128,12 @@ export class AreaMarker extends BaseMarker {
 		rectGroup.add(rect)
 
 		// 创建左上角圆圈（圆心对齐左上角顶点）
+		const badgeGroup = new Konva.Group({
+			name: "marker-badge-group",
+		})
+
 		const circle = new Konva.Circle({
+			name: "marker-badge",
 			x: 0,
 			y: 0,
 			radius: AREA_MARKER_STYLES.CIRCLE_RADIUS,
@@ -87,6 +144,7 @@ export class AreaMarker extends BaseMarker {
 
 		// 创建序号文本
 		const text = new Konva.Text({
+			name: "marker-label",
 			text: String(this.sequence),
 			fontSize: AREA_MARKER_STYLES.TEXT_FONT_SIZE,
 			fontFamily: AREA_MARKER_STYLES.TEXT_FONT_FAMILY,
@@ -100,12 +158,14 @@ export class AreaMarker extends BaseMarker {
 		text.x(-text.width() / 2)
 		text.y(-text.height() / 2)
 
-		this.group.add(rectGroup)
-		this.group.add(circle)
-		this.group.add(text)
+		badgeGroup.add(circle)
+		badgeGroup.add(text)
 
-		// 设置默认透明度
-		this.setGroupOpacity()
+		this.group.add(rectGroup)
+		this.group.add(badgeGroup)
+
+		this.group.opacity(1)
+		rectGroup.clipFunc(null)
 
 		// 设置反向缩放（保持固定大小）
 		this.updateScale()
@@ -136,68 +196,6 @@ export class AreaMarker extends BaseMarker {
 				rect.width(areaSize.width)
 				rect.height(areaSize.height)
 			}
-		}
-	}
-
-	/**
-	 * 设置透明度
-	 */
-	private setGroupOpacity(): void {
-		if (!this.group) return
-		this.group.opacity(this.selectedMarkerId === this.marker.id ? 1 : 0.6)
-	}
-
-	/**
-	 * 更新选中状态（重写以同时更新裁剪）
-	 */
-	public updateSelection(selectedMarkerId: string | null): void {
-		this.selectedMarkerId = selectedMarkerId
-		if (!this.group) return
-
-		// 更新透明度
-		this.setGroupOpacity()
-
-		// 更新裁剪（根据选中状态决定是否应用）
-		this.updateRectClip()
-	}
-
-	/**
-	 * 更新矩形区域的裁剪（只在未选中时应用，避免透明时圆圈透视到矩形）
-	 */
-	private updateRectClip(): void {
-		if (!this.group) return
-
-		const rectGroup = this.group.findOne(".rect-group") as Konva.Group
-		if (!rectGroup) return
-
-		const isSelected = this.selectedMarkerId === this.marker.id
-
-		// 只在未选中时应用裁剪，提升性能
-		if (isSelected) {
-			// 选中时移除裁剪
-			rectGroup.clipFunc(null)
-		} else {
-			// 未选中时应用裁剪，避免圆圈透视到矩形
-			const areaSize = this.getAreaSize()
-			if (!areaSize) return
-
-			const viewportScale = this.canvas.stage.scaleX()
-			const inverseScale = 1 / viewportScale
-
-			// clipRadius = 圆圈半径 + 圆圈描边宽度 + 矩形描边宽度的一半 + 额外间隙
-			const circleRadius = AREA_MARKER_STYLES.CIRCLE_RADIUS * inverseScale
-			const strokeWidth = AREA_MARKER_STYLES.STROKE_WIDTH * 2 * inverseScale
-
-			rectGroup.clipFunc((ctx) => {
-				// 使用 evenodd 填充规则实现"挖洞"效果
-				ctx.arc(0, 0, circleRadius, 0, Math.PI * 2, true)
-				ctx.rect(
-					-1 * inverseScale * AREA_MARKER_STYLES.STROKE_WIDTH,
-					-1 * inverseScale * AREA_MARKER_STYLES.STROKE_WIDTH,
-					areaSize.width + strokeWidth,
-					areaSize.height + strokeWidth,
-				)
-			})
 		}
 	}
 
@@ -235,9 +233,6 @@ export class AreaMarker extends BaseMarker {
 			text.x(-text.width() / 2)
 			text.y(-text.height() / 2)
 		}
-
-		// 更新裁剪（根据选中状态决定是否应用）
-		this.updateRectClip()
 	}
 
 	/**

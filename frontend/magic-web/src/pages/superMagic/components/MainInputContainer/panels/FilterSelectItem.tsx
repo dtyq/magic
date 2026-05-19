@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react"
-import { ChevronDown, CircleX } from "lucide-react"
+import { ChevronDown, CircleX, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import {
@@ -10,7 +10,7 @@ import {
 	SelectValue,
 } from "@/components/shadcn-ui/select"
 import { Label } from "@/components/shadcn-ui/label"
-import { ActionDrawer } from "@/components/shadcn-composed/action-drawer"
+import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 import { cn } from "@/lib/utils"
 
@@ -18,32 +18,38 @@ import { useLocaleText } from "./hooks/useLocaleText"
 import type { FieldItem, OptionItem } from "./types"
 import { isOptionGroup, localeTextToDisplayString } from "./utils"
 import { ScenePanelVariant } from "../components/LazyScenePanel/types"
-import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { observer } from "mobx-react-lite"
 
 interface FilterSelectItemProps {
 	filter: FieldItem
 	onFilterChange?: (filterId: string, value: string) => void
 	variant?: ScenePanelVariant
+	compact?: boolean
 }
 
 /**
  * FilterSelectItem - renders a single filter field.
  * Desktop: shadcn Select dropdown.
- * Mobile: ActionDrawer with option list + Reset/Confirm buttons.
+ * Mobile: MagicPopup with option list.
  */
-function FilterSelectItem({ filter, onFilterChange, variant }: FilterSelectItemProps) {
-	const { t } = useTranslation()
+function FilterSelectItem({
+	filter,
+	onFilterChange,
+	variant,
+	compact = false,
+}: FilterSelectItemProps) {
+	const { t } = useTranslation("shadcn-ui")
 	const lt = useLocaleText()
-	const placeholder = t("shadcn-ui:select.placeholder")
-	const clearText = t("shadcn-ui:select.clear")
-	const emptyText = t("shadcn-ui:select.empty")
-	const cancelText = t("shadcn-ui:actionDrawer.cancel")
+	const autoText = t("select.placeholder")
+	const placeholder = lt(filter.placeholder) || autoText
+	const clearText = t("select.clear")
+	const emptyText = t("select.empty")
+	const cancelText = t("actionDrawer.cancel")
 
 	const isMobile = variant === ScenePanelVariant.Mobile
+	const isCompactMobile = compact && isMobile
 
 	const [drawerOpen, setDrawerOpen] = useState(false)
-	const [pendingValue, setPendingValue] = useState(filter.current_value ?? "")
 
 	const flatOptions = filter.options.filter((opt): opt is OptionItem => !isOptionGroup(opt))
 	const availableOptions = flatOptions
@@ -59,14 +65,16 @@ function FilterSelectItem({ filter, onFilterChange, variant }: FilterSelectItemP
 		null
 
 	const handleOpenDrawer = useCallback(() => {
-		setPendingValue(filter.current_value ?? "")
 		setDrawerOpen(true)
-	}, [filter.current_value])
+	}, [])
 
-	const handleConfirm = useCallback(() => {
-		onFilterChange?.(filter.data_key, pendingValue)
-		setDrawerOpen(false)
-	}, [filter.data_key, onFilterChange, pendingValue])
+	const handleSelectOption = useCallback(
+		(value: string) => {
+			onFilterChange?.(filter.data_key, value)
+			setDrawerOpen(false)
+		},
+		[filter.data_key, onFilterChange],
+	)
 
 	const handleClear = useCallback(() => {
 		onFilterChange?.(filter.data_key, "")
@@ -83,21 +91,27 @@ function FilterSelectItem({ filter, onFilterChange, variant }: FilterSelectItemP
 
 	if (isMobile) {
 		return (
-			<div className="flex flex-col items-start gap-1">
-				<Label
-					className="text-xs font-medium text-muted-foreground"
-					onClick={handleOpenDrawer}
-				>
-					{lt(filter.label)}
-				</Label>
+			<div className={cn("flex flex-col items-start gap-1", isCompactMobile && "block")}>
+				{isCompactMobile ? null : (
+					<Label
+						className="text-xs font-medium text-muted-foreground"
+						onClick={handleOpenDrawer}
+					>
+						{lt(filter.label)}
+					</Label>
+				)}
 
 				{/* Trigger button - styled like Select trigger */}
 				<button
 					type="button"
 					onClick={handleOpenDrawer}
 					className={cn(
-						"shadow-xs group flex h-8 items-center gap-1.5 rounded-full border border-input bg-background px-3 text-sm dark:bg-card",
+						"group flex h-8 items-center gap-1.5 rounded-full border border-input bg-background px-3 text-sm shadow-xs dark:bg-card",
+						isCompactMobile &&
+							"min-h-8 shrink-0 gap-1 border-border bg-card pl-2.5 pr-2 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:bg-card",
 					)}
+					aria-label={lt(filter.label)}
+					data-testid="mobile-scene-panel-filter-trigger"
 				>
 					{filter.has_leading_icon && filter.leading_icon && (
 						<LucideLazyIcon
@@ -106,26 +120,32 @@ function FilterSelectItem({ filter, onFilterChange, variant }: FilterSelectItemP
 							className="text-muted-foreground"
 						/>
 					)}
-					<span className={cn(!hasSelection && "text-muted-foreground")}>
-						{lt(selectedOption?.label) ??
-							lt(selectedOption?.value) ??
-							filter.current_value ??
-							placeholder}
-					</span>
+					{isCompactMobile ? (
+						<>
+							<span className="whitespace-nowrap text-[11px] text-muted-foreground">
+								{lt(filter.label)}
+							</span>
+							<span className="whitespace-nowrap text-[13px] font-medium text-foreground">
+								{lt(selectedOption?.label) ||
+									lt(selectedOption?.value) ||
+									filter.current_value ||
+									placeholder}
+							</span>
+						</>
+					) : (
+						<span className={cn(!hasSelection && "text-muted-foreground")}>
+							{lt(selectedOption?.label) ||
+								lt(selectedOption?.value) ||
+								filter.current_value ||
+								placeholder}
+						</span>
+					)}
 					<span className="relative inline-flex size-4 shrink-0 items-center justify-center">
-						<ChevronDown
-							className={cn(
-								"size-4 text-muted-foreground opacity-50 transition-opacity",
-								hasSelection &&
-								"group-focus-within:opacity-0 group-hover:opacity-0",
-							)}
-						/>
-						{hasSelection && (
+						{hasSelection && !isCompactMobile ? (
 							<span
 								role="button"
 								tabIndex={0}
 								aria-label={clearText}
-								className="absolute inset-0 inline-flex items-center justify-center text-muted-foreground/70 opacity-0 transition-opacity group-focus-within:opacity-90 group-hover:opacity-90"
 								onPointerDown={(event) => {
 									event.preventDefault()
 									event.stopPropagation()
@@ -136,56 +156,86 @@ function FilterSelectItem({ filter, onFilterChange, variant }: FilterSelectItemP
 									handleClear()
 								}}
 							>
-								<CircleX className="size-4" />
+								<CircleX className="size-4 text-muted-foreground opacity-50" />
 							</span>
+						) : (
+							<ChevronDown
+								className={cn("size-4 text-muted-foreground opacity-50")}
+							/>
 						)}
 					</span>
 				</button>
 
-				{/* Mobile drawer - matches Figma design */}
-				<ActionDrawer
-					open={drawerOpen}
-					onOpenChange={setDrawerOpen}
+				<MagicPopup
+					visible={drawerOpen}
+					onClose={handleCloseDrawer}
+					className="rounded-t-[14px] border-0 bg-muted"
+					bodyClassName="rounded-t-[14px] border-0 bg-muted p-0 overflow-hidden"
+					handlerClassName="bg-muted-foreground mb-1.5 h-1 w-20 rounded-full"
 					title={lt(filter.label)}
-					showCancel
-					cancelText={cancelText}
-					onCancel={handleCloseDrawer}
-					onConfirm={handleConfirm}
-					confirmText={t("shadcn-ui:actionDrawer.confirm")}
-					contentClassName="gap-0 p-0"
 				>
-					{/* Option list - white card per Figma */}
-					<div className="mx-3 mb-3 overflow-hidden rounded-md bg-popover">
-						{availableOptions.length > 0 ? (
-							availableOptions.map(({ option, optionValue }, index) => {
-								const isSelected = optionValue === pendingValue
-								const isLast = index === availableOptions.length - 1
-								return (
-									<button
-										key={optionValue}
-										type="button"
-										onClick={() => setPendingValue(optionValue)}
-										className={cn(
-											"flex h-10 w-full items-center gap-2 bg-transparent px-2",
-											"text-sm text-foreground transition-colors",
-											!isLast && "border-b border-border",
-											"hover:bg-accent active:bg-accent",
-										)}
-									>
-										<span className="flex-1 text-left">
-											{lt(option.label) ?? lt(option.value) ?? optionValue}
-										</span>
-										{isSelected && <Checkbox checked />}
-									</button>
-								)
-							})
-						) : (
-							<div className="flex min-h-24 items-center justify-center px-4 py-6 text-sm text-muted-foreground">
-								{emptyText}
+					<div
+						className="flex max-h-[min(520px,calc(100vh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-44px))] flex-col gap-2 overflow-hidden bg-muted"
+						data-testid="mobile-scene-panel-filter-popup"
+					>
+						<div className="relative flex h-14 shrink-0 flex-row items-center justify-center">
+							<button
+								type="button"
+								onClick={handleCloseDrawer}
+								className="absolute left-2 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-card"
+								style={{ boxShadow: "0px 8px 25px 0px rgba(0,0,0,0.10)" }}
+								aria-label={cancelText}
+								data-testid="mobile-scene-panel-filter-popup-close-button"
+							>
+								<X className="h-[22px] w-[22px] text-foreground" />
+							</button>
+							<div
+								className="max-w-[247px] truncate text-center text-lg font-semibold leading-none text-foreground"
+								data-testid="mobile-scene-panel-filter-popup-title"
+							>
+								{lt(filter.label)}
 							</div>
-						)}
+						</div>
+
+						<div className="overflow-y-auto px-3 pb-5">
+							<div className="flex flex-col gap-1">
+								{availableOptions.length > 0 ? (
+									availableOptions.map(({ option, optionValue }) => {
+										const isSelected = optionValue === filter.current_value
+										const optionLabel =
+											lt(option.label) ?? lt(option.value) ?? optionValue
+										return (
+											<button
+												key={optionValue}
+												type="button"
+												onClick={() => handleSelectOption(optionValue)}
+												className={cn(
+													"flex h-12 w-full items-center gap-3 rounded-full px-4",
+													"relative cursor-pointer text-left text-base font-medium text-foreground transition-all duration-200",
+													isSelected &&
+														"bg-card shadow-[0px_1px_3px_0px_rgba(0,0,0,0.1),0px_1px_2px_0px_rgba(0,0,0,0.1)]",
+													!isSelected &&
+														"[@media(hover:hover)_and_(pointer:fine)]:hover:bg-accent/60",
+												)}
+												data-testid="mobile-scene-panel-filter-popup-option"
+												data-selected={isSelected}
+												aria-label={optionLabel}
+											>
+												<span className="min-w-0 flex-1 truncate text-left">
+													{optionLabel}
+												</span>
+											</button>
+										)
+									})
+								) : (
+									<div className="flex min-h-24 items-center justify-center px-4 py-6 text-sm text-muted-foreground">
+										{emptyText}
+									</div>
+								)}
+							</div>
+						</div>
 					</div>
-				</ActionDrawer>
+				</MagicPopup>
 			</div>
 		)
 	}
@@ -197,7 +247,7 @@ function FilterSelectItem({ filter, onFilterChange, variant }: FilterSelectItemP
 				{lt(filter.label)}
 			</Label>
 			<Select
-				value={filter.current_value || undefined}
+				value={filter.current_value || ""}
 				onValueChange={(value) => onFilterChange?.(filter.data_key, value)}
 			>
 				<SelectTrigger

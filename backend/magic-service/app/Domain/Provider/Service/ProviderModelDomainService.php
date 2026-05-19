@@ -97,6 +97,10 @@ readonly class ProviderModelDomainService
     {
         $organizationCode = $dataIsolation->getCurrentOrganizationCode();
         $providerModelDTO->setOrganizationCode($organizationCode);
+
+        if ($providerModelDTO->getModelType() === null) {
+            $providerModelDTO->setModelType($providerModelDTO->getCategory()?->defaultModelType());
+        }
         if ($providerModelDTO->getModelType() === ModelType::EMBEDDING) {
             $providerModelDTO->getConfig()?->setSupportEmbedding(true);
         }
@@ -337,8 +341,9 @@ readonly class ProviderModelDomainService
         $newModel->setType(ProviderModelType::DYNAMIC);
         $newModel->setServiceProviderConfigId(0); // 动态模型不依附具体服务商
         $categoryEnum = $category ? Category::tryFrom($category) : Category::LLM;
-        $newModel->setCategory($categoryEnum ?: Category::LLM);
-        $newModel->setModelType(ModelType::LLM);
+        $categoryEnum ??= Category::LLM;
+        $newModel->setCategory($categoryEnum);
+        $newModel->setModelType($this->resolveAggregateModelType($categoryEnum));
         $newModel->setAggregateConfig($aggregateConfig);
         $newModel->setConfig(new ModelConfigItem());
         $newModel->setIcon(FileAssembler::formatPath($icon));
@@ -410,12 +415,23 @@ readonly class ProviderModelDomainService
             $categoryEnum = Category::tryFrom($category);
             if ($categoryEnum !== null) {
                 $existingModel->setCategory($categoryEnum);
+                $existingModel->setModelType($this->resolveAggregateModelType($categoryEnum));
             }
         }
 
         // 通过 Repository 的 saveModel 方法更新（需要转换为 DTO）
         $dto = new SaveProviderModelDTO($existingModel->toArray());
         return $this->providerModelRepository->saveModel($dataIsolation, $dto);
+    }
+
+    private function resolveAggregateModelType(Category $category): ModelType
+    {
+        return match ($category) {
+            Category::VLM => ModelType::IMAGE_TO_IMAGE,
+            Category::VGM => ModelType::TEXT_TO_VIDEO,
+            Category::EMBEDDING => ModelType::EMBEDDING,
+            default => ModelType::LLM,
+        };
     }
 
     /**
@@ -441,5 +457,6 @@ readonly class ProviderModelDomainService
         empty($providerModelDTO->getIcon()) && $providerModelDTO->setIcon($oldModelEntity->getIcon());
         empty($providerModelDTO->getDescription()) && $providerModelDTO->setDescription($oldModelEntity->getDescription());
         empty($providerModelDTO->getModelType()) && $providerModelDTO->setModelType($oldModelEntity->getModelType());
+        $providerModelDTO->getExtra() === null && $providerModelDTO->setExtra($oldModelEntity->getExtra());
     }
 }

@@ -4,11 +4,22 @@ import i18n from "i18next"
 import { SupportLocales } from "@/constants/locale"
 import type { SkillDetailResponse, SkillI18nText } from "@/apis/modules/skills"
 import { skillsService } from "@/services/skills/SkillsService"
+import { logger } from "@/utils/log"
+import { resolveLocalizedText } from "@/utils/locale"
+import { getFileContentById } from "@/pages/superMagic/utils/api"
 import { SkillConversationStore } from "./conversation-store"
-import type { SkillEditPublishStatus, SkillEditSkillInfo } from "./types"
+import type { SkillEditPublishStatus, SkillEditSkillInfo, SkillWorkspaceManifest } from "./types"
 import { ProjectFilesStore } from "@/stores/projectFiles"
 import { AttachmentItem } from "../../../components/TopicFilesButton/hooks"
-import { createMentionPanelStore } from "@/components/business/MentionPanel/store"
+import { createMentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
+import {
+	buildDefaultSlotUpdateParams,
+	findAttachmentByRelativePath,
+	parseSkillConfigYaml,
+	parseSkillMdFrontmatter,
+	SKILL_CONFIG_RELATIVE_PATH,
+	buildSkillMdRelativePath,
+} from "../utils/skill-workspace-manifest"
 
 export class SkillEditRootStore {
 	skill: SkillEditSkillInfo | null = null
@@ -27,6 +38,12 @@ export class SkillEditRootStore {
 	draftPrompt: string = ""
 	loading = false
 	error: string | null = null
+
+	skillWorkspaceManifest: SkillWorkspaceManifest | null = null
+	skillWorkspaceManifestLoading = false
+	skillWorkspaceManifestError: string | null = null
+	/** Latest API detail for default-slot PATCH checks */
+	lastFetchedSkillDetail: SkillDetailResponse | null = null
 
 	constructor() {
 		makeAutoObservable(this, { conversation: false }, { autoBind: true })
@@ -65,6 +82,9 @@ export class SkillEditRootStore {
 		this.loading = true
 		this.error = null
 		this.conversation.reset()
+		this.skillWorkspaceManifest = null
+		this.skillWorkspaceManifestError = null
+		this.lastFetchedSkillDetail = null
 
 		try {
 			const detail = await skillsService.getSkillDetail(code)
@@ -115,7 +135,96 @@ export class SkillEditRootStore {
 		)
 	}
 
+	async syncSkillWorkspaceManifest() {
+		const code = this.currentSkillCode
+		const list = this.projectFilesStore.workspaceFilesList
+
+		if (!code || !list.length) {
+			runInAction(() => {
+				if (!list.length) this.skillWorkspaceManifest = null
+				this.skillWorkspaceManifestLoading = false
+			})
+			return
+		}
+
+		runInAction(() => {
+			this.skillWorkspaceManifestLoading = true
+			this.skillWorkspaceManifestError = null
+		})
+
+		try {
+			const configItem = findAttachmentByRelativePath(list, SKILL_CONFIG_RELATIVE_PATH)
+			if (!configItem?.file_id) {
+				runInAction(() => {
+					this.skillWorkspaceManifest = null
+					this.skillWorkspaceManifestLoading = false
+				})
+				return
+			}
+
+			const configContent = (await getFileContentById(configItem.file_id, {
+				responseType: "text",
+			})) as string
+
+			const dir = parseSkillConfigYaml(configContent)
+			if (!dir) {
+				runInAction(() => {
+					this.skillWorkspaceManifest = null
+					this.skillWorkspaceManifestLoading = false
+				})
+				return
+			}
+
+			const skillMdPath = buildSkillMdRelativePath(dir)
+			const mdItem = findAttachmentByRelativePath(list, skillMdPath)
+			if (!mdItem?.file_id) {
+				runInAction(() => {
+					this.skillWorkspaceManifest = null
+					this.skillWorkspaceManifestLoading = false
+				})
+				return
+			}
+
+			const mdContent = (await getFileContentById(mdItem.file_id, {
+				responseType: "text",
+			})) as string
+
+			const manifest = parseSkillMdFrontmatter(mdContent)
+
+			runInAction(() => {
+				this.skillWorkspaceManifest = manifest
+				this.skillWorkspaceManifestLoading = false
+			})
+
+			const detail = this.lastFetchedSkillDetail
+			if (!detail) return
+
+			const params = buildDefaultSlotUpdateParams(detail, manifest)
+			if (!params) return
+
+			try {
+				await skillsService.updateSkillInfo(code, params)
+				await this.refreshSkillDetail()
+			} catch (error) {
+				logger.report({
+					namespace: "skill-edit-workspace-manifest",
+					data: ["updateSkillInfo failed", error],
+				})
+			}
+		} catch (error) {
+			runInAction(() => {
+				this.skillWorkspaceManifestError = "sync-failed"
+				this.skillWorkspaceManifestLoading = false
+			})
+			logger.report({
+				namespace: "skill-edit-workspace-manifest",
+				data: ["syncSkillWorkspaceManifest failed", error],
+			})
+		}
+	}
+
 	private hydrateSkillDetail(detail: SkillDetailResponse) {
+		this.lastFetchedSkillDetail = detail
 		this.skill = {
 			...this.skill,
 			id: detail.id,
@@ -178,19 +287,7 @@ function pickI18nText(
 	fallback = "",
 ) {
 	if (!text) return fallback
-
-	const i18nMap = text as Record<string, string>
-	const language = i18n.language?.toLowerCase() ?? "en"
-	const preferredKeys = language.startsWith("zh")
-		? ["zh_CN", "zh", "en_US", "en"]
-		: ["en_US", "en", "zh_CN", "zh"]
-
-	for (const key of preferredKeys) {
-		const value = i18nMap[key]
-		if (value) return value
-	}
-
-	return Object.values(i18nMap).find(Boolean) ?? fallback
+	return resolveLocalizedText(text as Record<string, string>, i18n.language) || fallback
 }
 
 function resolveSkillProjectId(detail: SkillDetailResponse) {

@@ -1,18 +1,13 @@
 /* =====================
      TABLE STYLES
      ===================== */
-.tiptap.ProseMirror {
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
+
+@include scope.content {
   --tt-table-border-color: var(--tt-gray-light-a-300);
   --tt-table-header-bg: var(--tt-gray-light-50);
   --tt-table-header-text: var(--tt-gray-light-900);
   --tt-table-selected-bg: var(--tt-selection-color);
-
-  .dark & {
-    --tt-table-border-color: var(--tt-gray-dark-a-300);
-    --tt-table-header-bg: var(--tt-gray-dark-a-50);
-    --tt-table-header-text: var(--tt-gray-dark-100);
-    --tt-table-selected-bg: var(--tt-selection-color);
-  }
 
   // Table wrapper - handles horizontal overflow
   .tableWrapper {
@@ -113,4 +108,11 @@
       }
     }
   }
+}
+
+@include scope.dark-content {
+  --tt-table-border-color: var(--tt-gray-dark-a-300);
+  --tt-table-header-bg: var(--tt-gray-dark-a-50);
+  --tt-table-header-text: var(--tt-gray-dark-100);
+  --tt-table-selected-bg: var(--tt-selection-color);
 }

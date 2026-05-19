@@ -1,36 +1,56 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useMount, useUnmount, useUpdateEffect } from "ahooks"
-import type { ImageElement } from "../../canvas/types"
+import type { CropConfig, ImageElement } from "../../canvas/types"
 import { useCanvas } from "../../context/CanvasContext"
 import { useMagic } from "../../context/MagicContext"
 import { useCanvasDesignI18n } from "../../context/I18nContext"
-import type { GenerateImageRequest, UploadImageResponse, ImageModelItem } from "../../types.magic"
+import type { GenerateImageRequest, UploadFileResponse } from "../../types.magic"
 import { ImageElement as ImageElementClass } from "../../canvas/element/elements/ImageElement"
-import { useFileInput } from "./useFileInput"
+import { useFileInput } from "../MessageEditor/useFileInput"
 import { useReferenceImagesState } from "./useReferenceImagesState"
+import type {
+	ReferenceResourceFileInfo,
+	ReferenceResourceType,
+} from "../MessageEditor/reference-assets/reference-resource.types"
+import { buildReferenceImageOptions } from "../../canvas/utils/imageCropUtils"
+import {
+	encodePromptMentionsToPlaceholders,
+	type PromptPlaceholderReference,
+} from "../MessageEditor/reference-assets/promptPlaceholderCodec"
+import { appendMentionToString } from "../MessageEditor/tiptap/contentUtils"
+import {
+	decodePromptPlaceholdersWithLabels,
+	createPromptPlaceholderTokenFactory,
+	resolvePromptPlaceholderDecodeLabels,
+	resolvePromptPlaceholderTokenConfig,
+} from "../MessageEditor/reference-assets/promptPlaceholderTokenConfig"
+import {
+	buildDefaultImageGenerationConfig,
+	buildImageModelOptionGroups,
+	buildImageModelOptions,
+	buildImageSelectValue,
+	buildSupportedAspectRatioOptions,
+	buildSupportedResolutionOptions,
+	findBestSizeForResolution,
+	getDefaultResolutionForModel,
+	getImageGenerationSettings,
+	getSerializableImageGenerationConfig,
+	parseImageSelectValue,
+	restoreImageGenerationConfig,
+	supportsReferenceImages,
+	type ImageGenerationSettingConfig,
+	type ImageModelOption,
+	type ImageModelOptionGroup,
+	type SupportedAspectRatioOption,
+	type SupportedResolutionOption,
+} from "./image-editor-config.utils"
 
 interface UseImageEditorConfigOptions {
 	imageElement: ImageElement
-	protectedReferenceImageIndex?: number
 	originalImageSrc?: string
 	originalImageName?: string
 	/** 编辑器 focus 的 ref，上传完成后用于聚焦 */
 	editorFocusRef?: React.RefObject<{ focus: () => void } | null>
-}
-
-interface ImageModelOption {
-	label: string
-	value: string
-	model: ImageModelItem
-}
-
-interface ImageModelOptionGroup {
-	id: string
-	label: string
-	icon?: string
-	sort: number
-	source: "official" | "custom"
-	options: ImageModelOption[]
 }
 
 export interface ImageEditorConfig {
@@ -40,31 +60,19 @@ export interface ImageEditorConfig {
 	selectedSize?: string
 	selectedLabel?: string
 	selectedScale?: string
-	currentReferenceImages: string[]
-	referenceImageInfos: Array<{ src: string; fileName: string; path: string }>
+	selectedImageGenerationConfig: Record<string, string>
+	currentReferenceFiles: string[]
+	referenceFileInfos: ReferenceResourceFileInfo[]
 	matchableItems: Array<{ name: string; path?: string; disabled?: boolean }>
 	modelOptions: ImageModelOption[]
 	modelOptionGroups: ImageModelOptionGroup[]
 	selectedModelOption: ImageModelOption | undefined
-	maxReferenceImages: number | undefined
-	isReferenceImageLimitReached: boolean
+	maxReferenceFiles: number | undefined
+	isReferenceFileLimitReached: boolean
 	isUploading: boolean
-	supportedAspectRatioOptions: Array<{
-		value: string
-		label: string
-		width: number
-		height: number
-		iconWidth: number
-		iconHeight: number
-		originalLabel: string
-		originalValue: string
-		originalScale?: string
-	}>
-	supportedResolutionOptions: Array<{
-		label: string
-		value: string
-		data: { label: string; value: string; scale: string }
-	}>
+	supportedAspectRatioOptions: SupportedAspectRatioOption[]
+	supportedResolutionOptions: SupportedResolutionOption[]
+	supportedImageSettingOptions: ImageGenerationSettingConfig[]
 	currentSelectValue: string | undefined
 	ratioOption:
 		| {
@@ -80,6 +88,10 @@ export interface ImageEditorConfig {
 		  }
 		| undefined
 	isPopoverOpen: boolean
+	referenceResourceType: ReferenceResourceType
+	fileInputAccept: string
+	/** 画布图片的源图裁剪，用于参考列表「当前图片」缩略图与画布可视区域一致 */
+	referenceSourceCrop: CropConfig | undefined
 	hasRestoredRef: React.RefObject<boolean>
 	isRestoringRef: React.RefObject<boolean>
 	handlers: {
@@ -89,32 +101,38 @@ export interface ImageEditorConfig {
 		setSelectedSize: (value: string | undefined) => void
 		setSelectedLabel: (value: string | undefined) => void
 		setSelectedScale: (value: string | undefined) => void
+		setSelectedImageGenerationConfig: (value: Record<string, string>) => void
 		handleModelChange: (modelId: string) => void
 		handleResolutionChange: (value: string) => void
 		handleRatioChange: (value: string) => void
-		handleReferenceImageRemove: (path: string) => void
+		handleImageSettingChange: (key: string, value: string) => void
+		handleReferenceFileRemove: (path: string) => void
+		setPopoverOpen: (open: boolean) => void
 		handlePopoverMouseEnter: () => void
 		handlePopoverMouseLeave: () => void
 		buildRequestParams: () => Partial<GenerateImageRequest>
+		saveDraftRequest: (request: Partial<GenerateImageRequest>) => void
+		cancelPendingDraftPersistence: () => void
+		/** 二次编辑「快捷编辑」：对齐生成配置，并仅保留当前图片作为参考图 */
+		restoreQuickEditConfigToUi: () => void
+		/** 二次编辑「重新生成」：清除临时草稿后，将 UI 完整恢复为元素上已保存的 generateImageRequest */
+		restoreOriginalGenerateImageRequestToUi: () => void
 		triggerFileSelect: () => void
+		uploadFiles: (files: File[]) => Promise<void>
 		handleFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void
-		/** 从 elementInstance 同步参考图状态到 config，用于 @ 面板添加后的闭环 */
-		syncReferenceImagesFromElement: () => void
+		/** 从 elementInstance 同步参考文件状态到 config，用于 @ 面板添加后的闭环 */
+		syncReferenceFilesFromElement: () => void
 	}
 	fileInputRef: React.MutableRefObject<HTMLInputElement | null>
 }
 
 export function useImageEditorConfig(options: UseImageEditorConfigOptions): ImageEditorConfig {
-	const {
-		imageElement,
-		protectedReferenceImageIndex,
-		originalImageSrc,
-		originalImageName,
-		editorFocusRef,
-	} = options
+	const { imageElement, originalImageSrc, originalImageName, editorFocusRef } = options
 	const { imageModelList, methods } = useMagic()
 	const { canvas } = useCanvas()
 	const { t } = useCanvasDesignI18n()
+	const referenceResourceType: ReferenceResourceType = "image"
+	const fileInputAccept = "image/*"
 
 	// 本地 state 管理配置
 	const [selectedModelId, setSelectedModelId] = useState<string>("")
@@ -123,6 +141,9 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 	const [selectedResolution, setSelectedResolution] = useState<string | undefined>(undefined)
 	const [selectedScale, setSelectedScale] = useState<string | undefined>(undefined)
 	const [selectedLabel, setSelectedLabel] = useState<string | undefined>(undefined)
+	const [selectedImageGenerationConfig, setSelectedImageGenerationConfig] = useState<
+		Record<string, string>
+	>({})
 	const [isPopoverOpen, setIsPopoverOpen] = useState<boolean>(false)
 
 	// 标记是否已经恢复过临时数据
@@ -131,120 +152,56 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 	const isRestoringRef = useRef<boolean>(false)
 	// Popover 关闭延迟的 timeout ID
 	const popoverCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const draftPersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const pendingDraftRequestRef = useRef<Partial<GenerateImageRequest> | null>(null)
+	const lastPersistedDraftRef = useRef("")
+	const isApplyingRestoreRef = useRef<boolean>(false)
 	// 标记是否正在删除参考图（用于防止删除时弹窗关闭）
 	const isRemovingReferenceImageRef = useRef<boolean>(false)
 
-	// 获取当前模型的最大参考图数量限制（需要提前计算，供 useReferenceImagesState 使用）
-	const maxReferenceImages = useMemo(() => {
+	// 获取当前模型的最大参考文件数量限制（需要提前计算，供 useReferenceImagesState 使用）
+	const maxReferenceFiles = useMemo(() => {
 		const selectedModel = imageModelList.find((model) => model.model_id === selectedModelId)
 		return selectedModel?.image_size_config?.max_reference_images
 	}, [imageModelList, selectedModelId])
 
-	// 使用新的参考图状态管理 hook
-	const referenceImagesState = useReferenceImagesState({
+	// 使用新的参考文件状态管理 hook
+	const referenceFilesState = useReferenceImagesState({
 		canvas,
 		imageElementId: imageElement.id,
-		maxReferenceImages,
-		protectedReferenceImageIndex,
+		maxReferenceFiles,
 	})
 
 	const {
-		referenceImages: currentReferenceImages,
-		referenceImageInfos,
+		referenceFilePaths: currentReferenceFiles,
+		referenceFileInfos,
 		matchableItems,
-		isReferenceImageLimitReached,
-		removeReferenceImage,
+		isReferenceFileLimitReached,
+		removeReferenceFile,
 		syncFromElement,
-	} = referenceImagesState
+	} = referenceFilesState
 
-	// 辅助函数：构建包含 label、value、scale 的唯一 value（用于 select）
-	const buildSelectValue = useCallback((label: string, value: string, scale?: string) => {
-		return JSON.stringify([label, value, scale || null])
-	}, [])
-
-	// 辅助函数：从 select value 中解析出 label、value 和 scale
-	const parseSelectValue = useCallback((value: string) => {
-		const parsed = JSON.parse(value)
-		if (Array.isArray(parsed) && parsed.length >= 2) {
-			return {
-				label: parsed[0],
-				value: parsed[1],
-				scale: parsed[2] || undefined,
-			}
+	const currentImageVisibleAspectRatio = useMemo(() => {
+		const width = imageElement.width ?? imageElement.crop?.displayWidth ?? 0
+		const height = imageElement.height ?? imageElement.crop?.displayHeight ?? 0
+		if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+			return undefined
 		}
-		return { label: "", value: "", scale: undefined }
-	}, [])
-
-	// 辅助函数：根据分辨率和当前label匹配最佳size
-	const findBestSizeForResolution = useCallback(
-		(
-			allSizes: Array<{ label: string; value: string; scale?: string }>,
-			targetResolution: string | undefined,
-			currentLabel: string | undefined,
-		) => {
-			const sizesForResolution = targetResolution
-				? allSizes.filter((size) => size.scale === targetResolution)
-				: allSizes
-
-			if (sizesForResolution.length === 0) {
-				return null
-			}
-
-			let targetSize = sizesForResolution.find((size) => size.label === currentLabel)
-
-			if (!targetSize) {
-				targetSize = sizesForResolution[0]
-			}
-
-			return targetSize
-		},
-		[],
-	)
+		return width / height
+	}, [
+		imageElement.width,
+		imageElement.height,
+		imageElement.crop?.displayWidth,
+		imageElement.crop?.displayHeight,
+	])
 
 	// 将模型列表转换为 Select 组件需要的格式
 	const modelOptions = useMemo<ImageModelOption[]>(() => {
-		return imageModelList.map((model) => ({
-			label: model.model_name,
-			value: model.model_id,
-			model,
-		}))
+		return buildImageModelOptions(imageModelList)
 	}, [imageModelList])
 
 	const modelOptionGroups = useMemo<ImageModelOptionGroup[]>(() => {
-		const groupMap = new Map<string, ImageModelOptionGroup>()
-
-		modelOptions.forEach((option) => {
-			const groupId =
-				option.model.model_group?.id || option.model.group_id || option.model.model_id
-			const groupLabel = option.model.model_group?.name || t("imageEditor.model", "模型")
-			const groupSource =
-				option.model.model_group?.source || option.model.model_source || "official"
-
-			if (!groupMap.has(groupId)) {
-				groupMap.set(groupId, {
-					id: groupId,
-					label: groupLabel,
-					icon: option.model.model_group?.icon,
-					sort: option.model.model_group?.sort ?? Number.MAX_SAFE_INTEGER,
-					source: groupSource,
-					options: [],
-				})
-			}
-
-			groupMap.get(groupId)?.options.push(option)
-		})
-
-		return Array.from(groupMap.values()).sort((groupA, groupB) => {
-			if (groupA.source !== groupB.source) {
-				return groupA.source === "custom" ? -1 : 1
-			}
-
-			if (groupA.sort !== groupB.sort) {
-				return groupA.sort - groupB.sort
-			}
-
-			return groupA.label.localeCompare(groupB.label)
-		})
+		return buildImageModelOptionGroups(modelOptions, t)
 	}, [modelOptions, t])
 
 	// 当前选中的模型选项
@@ -252,86 +209,29 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		return modelOptions.find((opt) => opt.value === selectedModelId)
 	}, [modelOptions, selectedModelId])
 
+	const supportedImageSettingOptions = useMemo<ImageGenerationSettingConfig[]>(() => {
+		return getImageGenerationSettings(selectedModelOption?.model)
+	}, [selectedModelOption?.model])
+
 	// 从 image_size_config 转换为宽高比选项格式（根据选中的分辨率筛选）
 	const supportedAspectRatioOptions = useMemo(() => {
-		if (!selectedModelOption?.model?.image_size_config?.sizes) {
-			return []
-		}
-		const filteredSizes = selectedModelOption.model.image_size_config.sizes.filter((size) => {
-			if (!selectedResolution) {
-				return true
-			}
-			return size.scale === selectedResolution
-		})
-
-		return filteredSizes
-			.map((size) => {
-				const [width, height] = size.value.split("x").map(Number)
-				const baseSize = 16
-				const aspectRatio = width / height
-				let iconWidth: number
-				let iconHeight: number
-				if (aspectRatio >= 1) {
-					iconWidth = baseSize
-					iconHeight = Math.round(baseSize / aspectRatio)
-				} else {
-					iconHeight = baseSize
-					iconWidth = Math.round(baseSize * aspectRatio)
-				}
-				const value = buildSelectValue(size.label, size.value, size.scale)
-				return {
-					value,
-					label: size.label,
-					width,
-					height,
-					iconWidth,
-					iconHeight,
-					originalLabel: size.label,
-					originalValue: size.value,
-					originalScale: size.scale,
-				}
-			})
-			.sort((a, b) => {
-				const parseNFromLabel = (label: string): number => {
-					const match = label.match(/^(\d+):(\d+)/)
-					if (match) {
-						return parseInt(match[1], 10)
-					}
-					return Infinity
-				}
-				const nA = parseNFromLabel(a.originalLabel)
-				const nB = parseNFromLabel(b.originalLabel)
-				return nA - nB
-			})
-	}, [selectedModelOption, buildSelectValue, selectedResolution])
+		return buildSupportedAspectRatioOptions(
+			selectedModelOption?.model,
+			buildImageSelectValue,
+			selectedResolution,
+		)
+	}, [selectedModelOption?.model, selectedResolution])
 
 	// 当前模型支持的分辨率选项（从 image_size_config.sizes.scale 聚合）
 	const supportedResolutionOptions = useMemo(() => {
-		if (!selectedModelOption?.model?.image_size_config?.sizes) {
-			return []
-		}
-		const scaleMap = new Map<string, { label: string; value: string; scale: string }>()
-		selectedModelOption.model.image_size_config.sizes.forEach((size) => {
-			if (size.scale && !scaleMap.has(size.scale)) {
-				scaleMap.set(size.scale, {
-					label: size.label,
-					value: size.value,
-					scale: size.scale,
-				})
-			}
-		})
-		return Array.from(scaleMap.entries()).map(([scale, sizeData]) => ({
-			label: scale,
-			value: scale,
-			data: sizeData,
-		}))
-	}, [selectedModelOption?.model?.image_size_config?.sizes])
+		return buildSupportedResolutionOptions(selectedModelOption?.model)
+	}, [selectedModelOption?.model])
 
 	// 构建当前选中的 select value（用于匹配选项）
 	const currentSelectValue = useMemo(() => {
 		if (!selectedLabel || !selectedSize) return undefined
-		return buildSelectValue(selectedLabel, selectedSize, selectedScale)
-	}, [selectedLabel, selectedSize, selectedScale, buildSelectValue])
+		return buildImageSelectValue(selectedLabel, selectedSize, selectedScale)
+	}, [selectedLabel, selectedSize, selectedScale])
 
 	// 当前选中的宽高比选项
 	const ratioOption = useMemo(() => {
@@ -351,96 +251,125 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		selectedScale,
 	])
 
-	// 确保原图在参考图列表的第一个位置
-	const ensureOriginalImageFirst = useCallback(async () => {
-		if (!originalImageSrc || !canvas) return
+	const applyQuickEditReferencePreset = useCallback(
+		(modelId: string | undefined) => {
+			if (!canvas) return
 
-		const elementInstance = canvas.elementManager.getElementInstance(imageElement.id)
-		if (!(elementInstance instanceof ImageElementClass)) return
+			const elementInstance = canvas.elementManager.getElementInstance(imageElement.id)
+			if (!(elementInstance instanceof ImageElementClass)) return
 
-		// 请求原图 Resource（确保 ossSrc 可用）
-		const resource = await canvas.imageResourceManager.getResource(originalImageSrc)
-		const ossSrc = resource?.ossSrc ?? undefined
+			const selectedModel = imageModelList.find((model) => model.model_id === modelId)
+			if (!originalImageSrc || !supportsReferenceImages(selectedModel)) {
+				elementInstance.clearReferenceImageInfos()
+				syncFromElement()
+				return
+			}
 
-		const infos = elementInstance.getReferenceImageInfos()
-		const paths = infos.map((info) => info.path)
+			const currentOriginalInfo = elementInstance
+				.getReferenceImageInfos()
+				.find((info) => info.path === originalImageSrc)
 
-		// 如果第一个不是原图，需要调整
-		if (paths.length === 0 || paths[0] !== originalImageSrc) {
-			// 如果原图不在列表中，需要添加
-			if (!paths.includes(originalImageSrc)) {
-				// 创建原图的参考图信息（使用 ossSrc 作为 src，path 作为标识）
-				const originalInfo: UploadImageResponse = {
+			elementInstance.setReferenceImageInfos([
+				{
+					...currentOriginalInfo,
 					path: originalImageSrc,
-					src: ossSrc || originalImageSrc,
-					fileName: originalImageName || t("imageEditor.originalImage", "原图"),
-				}
-				// 将原图插入到第一个位置
-				const newInfos = [originalInfo, ...infos]
-				elementInstance.saveReferenceImageInfos(newInfos)
-			} else {
-				// 原图在列表中，需要移到第一个位置并更新 src
-				const originalIndex = paths.indexOf(originalImageSrc)
-				const existingInfo = infos[originalIndex]
-				const updatedInfo: UploadImageResponse = {
-					...existingInfo,
-					src: ossSrc || existingInfo.src,
-					fileName: originalImageName || existingInfo.fileName,
-				}
-				const newInfos = [
-					updatedInfo,
-					...infos.filter((_, index) => index !== originalIndex),
-				]
-				elementInstance.saveReferenceImageInfos(newInfos)
-			}
-		} else {
-			// 原图已经在第一个位置，更新其 src 为 ossSrc
-			const existingInfo = infos[0]
-			if (existingInfo && (ossSrc || originalImageName)) {
-				const updatedInfo: UploadImageResponse = {
-					...existingInfo,
-					src: ossSrc || existingInfo.src,
-					fileName: originalImageName || existingInfo.fileName,
-				}
-				const newInfos = [updatedInfo, ...infos.slice(1)]
-				elementInstance.saveReferenceImageInfos(newInfos)
-			}
-		}
+					src: currentOriginalInfo?.src || originalImageSrc,
+					fileName:
+						originalImageName ||
+						currentOriginalInfo?.fileName ||
+						t("imageEditor.originalImage", "原图"),
+				},
+			])
+			syncFromElement()
+		},
+		[
+			canvas,
+			imageElement.id,
+			imageModelList,
+			originalImageName,
+			originalImageSrc,
+			syncFromElement,
+			t,
+		],
+	)
 
-		// 同步到 referenceImagesState
-		syncFromElement()
-	}, [originalImageSrc, originalImageName, canvas, imageElement.id, t, syncFromElement])
+	const resolveQuickEditModelId = useCallback(
+		(sourceRequest?: GenerateImageRequest) => {
+			if (imageModelList.length === 0) return undefined
+
+			const currentModel = sourceRequest?.model_id
+				? imageModelList.find((model) => model.model_id === sourceRequest.model_id)
+				: undefined
+
+			if (currentModel && supportsReferenceImages(currentModel)) {
+				return currentModel.model_id
+			}
+
+			const preferredReferenceModel = imageModelList.find((model) =>
+				supportsReferenceImages(model),
+			)
+			if (preferredReferenceModel) {
+				return preferredReferenceModel.model_id
+			}
+
+			return currentModel?.model_id || imageModelList[0]?.model_id
+		},
+		[imageModelList],
+	)
 
 	// 跟踪待添加到 prompt 的文件名（用于等待 matchableItems 更新）
 	const pendingFileNameRef = useRef<string | null>(null)
+	const promptPlaceholderTokenConfig = useMemo(() => resolvePromptPlaceholderTokenConfig(t), [t])
+	const buildImagePromptPlaceholderToken = useMemo(
+		() =>
+			createPromptPlaceholderTokenFactory(
+				promptPlaceholderTokenConfig.imageLabel,
+				promptPlaceholderTokenConfig,
+			),
+		[promptPlaceholderTokenConfig],
+	)
+
+	const resolvePromptReferencesByPaths = useCallback(
+		(paths: string[] | undefined): PromptPlaceholderReference[] => {
+			if (!paths || paths.length === 0) return []
+			const pathToFileName = new Map(
+				referenceFileInfos.map((info) => [info.path, info.fileName || ""]),
+			)
+			return paths
+				.map((path) => {
+					const fileName = pathToFileName.get(path) || path.split("/").pop() || ""
+					if (!fileName) return null
+					return { path, fileName }
+				})
+				.filter((item): item is PromptPlaceholderReference => Boolean(item))
+		},
+		[referenceFileInfos],
+	)
 
 	// 使用文件输入 hook
-	const { fileInputRef, triggerFileSelect, handleFileChange, isUploading } = useFileInput({
-		methods,
-		currentReferenceImages,
-		canvas: canvas || undefined,
-		imageElementId: imageElement.id,
-		maxReferenceImages,
-		onFileUploaded: useCallback(
-			(result: UploadImageResponse) => {
-				// 同步参考图状态（从 Element 读取最新数据，包含新上传的文件）
-				// syncFromElement 会立即更新 referenceImageInfos，从而更新 matchableItems
-				syncFromElement()
+	const { fileInputRef, triggerFileSelect, uploadFiles, handleFileChange, isUploading } =
+		useFileInput({
+			methods,
+			currentReferenceFiles,
+			canvas: canvas || undefined,
+			elementId: imageElement.id,
+			maxReferenceFiles,
+			accept: fileInputAccept,
+			onFileUploaded: useCallback(
+				(result: UploadFileResponse) => {
+					// 同步参考文件状态（从 Element 读取最新数据，包含新上传的文件）
+					// syncFromElement 会立即更新 referenceFileInfos，从而更新 matchableItems
+					syncFromElement()
 
-				// 确保原图在第一个位置（SecondEdit 模式）
-				if (originalImageSrc) {
-					ensureOriginalImageFirst()
-				}
-
-				// 记录待添加的文件名，等待 matchableItems 更新后再添加到 prompt
-				const fileName = result.fileName || result.path?.split("/").pop() || ""
-				if (fileName) {
-					pendingFileNameRef.current = fileName
-				}
-			},
-			[syncFromElement, originalImageSrc, ensureOriginalImageFirst],
-		),
-	})
+					// 记录待添加的文件名，等待 matchableItems 更新后再添加到 prompt
+					const fileName = result.fileName || result.path?.split("/").pop() || ""
+					if (fileName) {
+						pendingFileNameRef.current = fileName
+					}
+				},
+				[syncFromElement],
+			),
+		})
 
 	// 监听 matchableItems 的变化，当检测到新上传的文件时，自动追加到 prompt
 	useEffect(() => {
@@ -455,15 +384,6 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		if (matchedItem && !matchedItem.disabled) {
 			// matchableItems 已更新，可以安全地添加到 prompt
 			setPrompt((prev) => {
-				// 检查当前 prompt 中是否已经包含这个文件的 @ 提及，避免重复添加
-				const mentionPattern = new RegExp(
-					`@${pendingFileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
-					"i",
-				)
-				if (mentionPattern.test(prev)) {
-					// 已经包含，不重复添加
-					return prev
-				}
 				const trimmed = prev.trimEnd()
 				return trimmed + (trimmed ? " " : "") + `@${pendingFileName}`
 			})
@@ -484,14 +404,14 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 			// max_reference_images 场景：0=不支持参考图，undefined=未配置（不裁剪），>0=支持 N 张
 			const newMaxReferenceImages =
 				newModelOption?.model?.image_size_config?.max_reference_images
-			const effectiveMaxImages =
+			const effectiveMaxFiles =
 				newMaxReferenceImages === undefined ? Infinity : newMaxReferenceImages
 
 			// 从多到少：当前参考图数量超过新模型限制时裁剪
-			if (currentReferenceImages.length > effectiveMaxImages) {
-				const pathsToRemove = currentReferenceImages.slice(effectiveMaxImages)
+			if (currentReferenceFiles.length > effectiveMaxFiles) {
+				const pathsToRemove = currentReferenceFiles.slice(effectiveMaxFiles)
 				const pathToFileName = Object.fromEntries(
-					referenceImageInfos.map((info) => [info.path, info.fileName]),
+					referenceFileInfos.map((info) => [info.path, info.fileName]),
 				)
 
 				// 从元素实例中移除被裁剪的参考图（会触发资源释放，并自动同步到 referenceImagesState）
@@ -516,7 +436,8 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 					for (const path of pathsToRemove) {
 						const fileName = pathToFileName[path] || path.split("/").pop() || path
 						newPrompt = newPrompt.replace(
-							new RegExp(`@${escapeRegex(fileName)}`, "g"),
+							// 仅移除一次，避免同名不同路径被全部清空。
+							new RegExp(`@${escapeRegex(fileName)}`),
 							"",
 						)
 					}
@@ -528,28 +449,9 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 			if (newModelOption?.model?.image_size_config?.sizes) {
 				const sizes = newModelOption.model.image_size_config.sizes
 
-				// 先处理分辨率（从 sizes.scale 聚合）
-				const scaleSet = new Set<string>()
-				sizes.forEach((size) => {
-					if (size.scale) {
-						scaleSet.add(size.scale)
-					}
-				})
-				const availableScales = Array.from(scaleSet)
-				let targetResolution = selectedResolution
-
-				if (availableScales.length > 0) {
-					const currentResolution = availableScales.find(
-						(scale) => scale === selectedResolution,
-					)
-					if (!currentResolution) {
-						targetResolution = availableScales[0]
-						setSelectedResolution(targetResolution)
-					}
-				} else {
-					targetResolution = undefined
-					setSelectedResolution(undefined)
-				}
+				// 手动切换模型时使用模型下发的默认分辨率，未配置时再回退到首个档位
+				const targetResolution = getDefaultResolutionForModel(newModelOption.model)
+				setSelectedResolution(targetResolution)
 
 				// 再处理size（基于确定的分辨率）
 				if (sizes.length > 0) {
@@ -557,6 +459,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 						sizes,
 						targetResolution,
 						selectedLabel,
+						originalImageSrc ? currentImageVisibleAspectRatio : undefined,
 					)
 
 					if (targetSize) {
@@ -588,16 +491,20 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 				setSelectedScale(undefined)
 				setSelectedResolution(undefined)
 			}
+			setSelectedImageGenerationConfig(
+				buildDefaultImageGenerationConfig(
+					getImageGenerationSettings(newModelOption?.model),
+				),
+			)
 		},
 		[
 			modelOptions,
-			currentReferenceImages,
-			referenceImageInfos,
+			currentReferenceFiles,
+			referenceFileInfos,
 			canvas,
 			imageElement,
-			selectedResolution,
-			findBestSizeForResolution,
 			selectedLabel,
+			currentImageVisibleAspectRatio,
 			originalImageSrc,
 			prompt,
 			setPrompt,
@@ -608,7 +515,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 	// 处理尺寸选择变化
 	const handleRatioChange = useCallback(
 		(value: string) => {
-			const parsed = parseSelectValue(value)
+			const parsed = parseImageSelectValue(value)
 			setSelectedLabel(parsed.label)
 			setSelectedSize(parsed.value)
 			setSelectedScale(parsed.scale)
@@ -621,7 +528,7 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 				})
 			}
 		},
-		[canvas, imageElement, supportedAspectRatioOptions, parseSelectValue, originalImageSrc],
+		[canvas, imageElement, supportedAspectRatioOptions, originalImageSrc],
 	)
 
 	// 处理分辨率选择变化
@@ -648,18 +555,18 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 				}
 			}
 		},
-		[
-			selectedModelOption,
-			selectedLabel,
-			imageElement,
-			canvas,
-			findBestSizeForResolution,
-			originalImageSrc,
-		],
+		[selectedModelOption, selectedLabel, imageElement, canvas, originalImageSrc],
 	)
 
+	const handleImageSettingChange = useCallback((key: string, value: string) => {
+		setSelectedImageGenerationConfig((prev) => ({
+			...prev,
+			[key]: value,
+		}))
+	}, [])
+
 	// 处理参考图删除（通过 referenceImagesState 统一管理）
-	const handleReferenceImageRemove = useCallback(
+	const handleReferenceFileRemove = useCallback(
 		(path: string) => {
 			// 设置删除标记，防止弹窗关闭
 			isRemovingReferenceImageRef.current = true
@@ -670,17 +577,17 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 				clearTimeout(popoverCloseTimeoutRef.current)
 				popoverCloseTimeoutRef.current = null
 			}
-			removeReferenceImage(path)
+			removeReferenceFile(path)
 			// 延迟清除删除标记，确保删除操作完成后再允许关闭
 			setTimeout(() => {
 				isRemovingReferenceImageRef.current = false
 			}, 200)
 		},
-		[removeReferenceImage],
+		[removeReferenceFile],
 	)
 
-	// 从 elementInstance 同步参考图状态，用于 @ 面板添加后的数据闭环
-	const syncReferenceImagesFromElement = useCallback(() => {
+	// 从 elementInstance 同步参考文件状态，用于 @ 面板添加后的数据闭环
+	const syncReferenceFilesFromElement = useCallback(() => {
 		syncFromElement()
 	}, [syncFromElement])
 
@@ -710,40 +617,201 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 
 	// 构建请求参数的公共方法
 	const buildRequestParams = useCallback((): Partial<GenerateImageRequest> => {
-		// 对于 SecondEdit，原图应该始终作为参考图（即使模型不支持参考图）
-		const isSecondEdit = !!originalImageSrc
-		const shouldIncludeReferenceImages =
-			maxReferenceImages !== undefined &&
-			maxReferenceImages > 0 &&
-			currentReferenceImages.length > 0
+		const shouldIncludeReferenceFiles =
+			maxReferenceFiles !== undefined &&
+			maxReferenceFiles > 0 &&
+			currentReferenceFiles.length > 0
 
-		// 如果是 SecondEdit 且有原图，确保原图在参考图列表中
-		let referenceImages: string[] | undefined
-		if (isSecondEdit && originalImageSrc) {
-			// SecondEdit 模式：原图应该始终作为参考图
-			referenceImages =
-				currentReferenceImages.length > 0 ? currentReferenceImages : [originalImageSrc]
-		} else if (shouldIncludeReferenceImages) {
-			// 普通模式：只有当模型支持参考图时才包含
-			referenceImages = currentReferenceImages
-		} else {
-			referenceImages = undefined
-		}
+		const referenceImages = shouldIncludeReferenceFiles ? currentReferenceFiles : undefined
+
+		const referenceImageOptions =
+			imageElement.crop && originalImageSrc && referenceImages?.[0] === originalImageSrc
+				? buildReferenceImageOptions({
+						filePath: originalImageSrc,
+						crop: imageElement.crop,
+					})
+				: undefined
+		const imageGenerationConfig = getSerializableImageGenerationConfig(
+			selectedImageGenerationConfig,
+			supportedImageSettingOptions,
+		)
+		const promptReferences = resolvePromptReferencesByPaths(referenceImages)
+		const encodedPrompt = encodePromptMentionsToPlaceholders(prompt.trim(), promptReferences, {
+			buildToken: buildImagePromptPlaceholderToken,
+		})
 
 		return {
 			model_id: selectedModelId || undefined,
-			prompt: prompt.trim() || undefined,
+			prompt: encodedPrompt || undefined,
 			size: selectedSize,
 			resolution: selectedResolution || undefined,
 			reference_images: referenceImages,
+			reference_image_options: referenceImageOptions,
+			image_generation_config: imageGenerationConfig,
 		}
 	}, [
+		imageElement.crop,
 		selectedModelId,
 		prompt,
 		selectedSize,
 		selectedResolution,
-		currentReferenceImages,
-		maxReferenceImages,
+		selectedImageGenerationConfig,
+		supportedImageSettingOptions,
+		currentReferenceFiles,
+		maxReferenceFiles,
+		originalImageSrc,
+		resolvePromptReferencesByPaths,
+		buildImagePromptPlaceholderToken,
+	])
+
+	const saveDraftRequest = useCallback(
+		(request: Partial<GenerateImageRequest>) => {
+			if (isRestoringRef.current) {
+				pendingDraftRequestRef.current = null
+				return
+			}
+			if (!canvas) return
+			const elementInstance = canvas.elementManager.getElementInstance(imageElement.id)
+			if (!(elementInstance instanceof ImageElementClass)) return
+			const serializedRequest = JSON.stringify(request)
+			if (lastPersistedDraftRef.current === serializedRequest) {
+				pendingDraftRequestRef.current = null
+				return
+			}
+			elementInstance.saveTempGenerateImageRequest(request)
+			lastPersistedDraftRef.current = serializedRequest
+			pendingDraftRequestRef.current = null
+		},
+		[canvas, imageElement.id],
+	)
+
+	const cancelPendingDraftPersistence = useCallback(() => {
+		if (draftPersistTimeoutRef.current) {
+			clearTimeout(draftPersistTimeoutRef.current)
+			draftPersistTimeoutRef.current = null
+		}
+		pendingDraftRequestRef.current = null
+	}, [])
+
+	const scheduleDraftPersistence = useCallback(
+		(request: Partial<GenerateImageRequest>) => {
+			if (isRestoringRef.current) {
+				pendingDraftRequestRef.current = null
+				return
+			}
+			pendingDraftRequestRef.current = request
+			if (draftPersistTimeoutRef.current) {
+				clearTimeout(draftPersistTimeoutRef.current)
+			}
+			draftPersistTimeoutRef.current = setTimeout(() => {
+				draftPersistTimeoutRef.current = null
+				if (isRestoringRef.current) {
+					pendingDraftRequestRef.current = null
+					return
+				}
+				if (!pendingDraftRequestRef.current) return
+				saveDraftRequest(pendingDraftRequestRef.current)
+			}, 250)
+		},
+		[saveDraftRequest],
+	)
+
+	const restoreQuickEditConfigToUi = useCallback(() => {
+		if (!canvas) return
+
+		cancelPendingDraftPersistence()
+		setPrompt("")
+
+		if (imageModelList.length === 0) return
+
+		const sourceRequest = imageElement.generateImageRequest
+		const restoredModelId = resolveQuickEditModelId(sourceRequest)
+
+		if (!restoredModelId) return
+
+		const restoredModel = imageModelList.find((m) => m.model_id === restoredModelId)
+		const shouldSeedQuickEditReference = Boolean(
+			originalImageSrc && supportsReferenceImages(restoredModel),
+		)
+		const quickEditReferenceName =
+			originalImageName || originalImageSrc?.split("/").pop() || undefined
+
+		setSelectedModelId(restoredModelId)
+		applyQuickEditReferencePreset(restoredModelId)
+		setPrompt(
+			shouldSeedQuickEditReference
+				? appendMentionToString("", originalImageSrc || "", quickEditReferenceName)
+				: "",
+		)
+
+		const imageSettings = getImageGenerationSettings(restoredModel)
+		const isSameModelAsSavedRequest = sourceRequest?.model_id === restoredModelId
+		setSelectedImageGenerationConfig(
+			isSameModelAsSavedRequest
+				? restoreImageGenerationConfig(
+						imageSettings,
+						sourceRequest?.image_generation_config,
+					)
+				: buildDefaultImageGenerationConfig(imageSettings),
+		)
+
+		const sizes = restoredModel?.image_size_config?.sizes
+		if (sizes?.length) {
+			const scaleSet = new Set(sizes.map((size) => size.scale).filter(Boolean))
+			const availableScales = Array.from(scaleSet)
+			const nextResolution = availableScales.length
+				? getDefaultResolutionForModel(
+						restoredModel,
+						isSameModelAsSavedRequest ? sourceRequest?.resolution : undefined,
+					)
+				: undefined
+			const matchedSize = isSameModelAsSavedRequest
+				? sourceRequest?.size
+					? sizes.find(
+							(size) =>
+								size.value === sourceRequest.size &&
+								(size.scale || undefined) ===
+									(sourceRequest.resolution || undefined),
+						)
+					: undefined
+				: undefined
+			const targetSize =
+				matchedSize ||
+				findBestSizeForResolution(
+					sizes,
+					nextResolution,
+					undefined,
+					originalImageSrc ? currentImageVisibleAspectRatio : undefined,
+				) ||
+				(isSameModelAsSavedRequest && sourceRequest?.size
+					? sizes.find((size) => size.value === sourceRequest.size)
+					: undefined) ||
+				sizes[0]
+
+			setSelectedLabel(targetSize.label)
+			setSelectedSize(targetSize.value)
+			setSelectedScale(targetSize.scale || undefined)
+
+			if (availableScales.length) {
+				setSelectedResolution(nextResolution || targetSize.scale || undefined)
+			} else {
+				setSelectedResolution(undefined)
+			}
+		} else {
+			setSelectedLabel(undefined)
+			setSelectedSize(undefined)
+			setSelectedScale(undefined)
+			setSelectedResolution(undefined)
+		}
+	}, [
+		canvas,
+		cancelPendingDraftPersistence,
+		imageElement.generateImageRequest,
+		imageModelList,
+		resolveQuickEditModelId,
+		applyQuickEditReferencePreset,
+		currentImageVisibleAspectRatio,
+		originalImageName,
 		originalImageSrc,
 	])
 
@@ -753,19 +821,31 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 
 		const elementInstance = canvas.elementManager.getElementInstance(imageElement.id)
 		if (!(elementInstance instanceof ImageElementClass)) return
+		if (isApplyingRestoreRef.current) return
+		isApplyingRestoreRef.current = true
 
 		// 标记正在恢复配置
 		isRestoringRef.current = true
 
 		// 获取临时请求（统一使用 tempGenerateImageRequest）
 		const tempRequest = elementInstance.getTempGenerateImageRequest()
+		const currentRequest = imageElement.generateImageRequest
+		const requestToRestore = tempRequest
+			? {
+					...currentRequest,
+					...tempRequest,
+					prompt: tempRequest.prompt ?? currentRequest?.prompt,
+					reference_images:
+						tempRequest.reference_images ?? currentRequest?.reference_images,
+				}
+			: currentRequest
 
-		if (tempRequest) {
+		if (requestToRestore) {
 			// 恢复模型ID
 			const restoredModelId =
-				tempRequest.model_id &&
-				imageModelList.some((model) => model.model_id === tempRequest.model_id)
-					? tempRequest.model_id
+				requestToRestore.model_id &&
+				imageModelList.some((model) => model.model_id === requestToRestore.model_id)
+					? requestToRestore.model_id
 					: imageModelList[0]?.model_id
 
 			if (restoredModelId) {
@@ -774,33 +854,47 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 
 			const restoredModel = imageModelList.find((model) => model.model_id === restoredModelId)
 
-			// 恢复提示词
-			if (tempRequest.prompt) {
-				setPrompt(tempRequest.prompt)
-			}
-			// 恢复参考图：将 tempRequest.reference_images 的 paths 恢复到 Element 的 referenceImageInfos
-			if (tempRequest.reference_images && tempRequest.reference_images.length > 0) {
-				const referenceImageInfos: UploadImageResponse[] = tempRequest.reference_images.map(
-					(path) => {
+			// 恢复提示词：优先按参考图列表把占位符还原为 @ 文件名；无法匹配的占位符保持原文
+			const restoredReferencePaths = requestToRestore.reference_images || []
+			const restoredPromptReferences = resolvePromptReferencesByPaths(restoredReferencePaths)
+			const restoredPrompt = decodePromptPlaceholdersWithLabels(
+				requestToRestore.prompt || "",
+				restoredPromptReferences,
+				resolvePromptPlaceholderDecodeLabels("image", promptPlaceholderTokenConfig),
+				promptPlaceholderTokenConfig,
+			)
+			setPrompt(restoredPrompt)
+			setSelectedImageGenerationConfig(
+				restoreImageGenerationConfig(
+					getImageGenerationSettings(restoredModel),
+					requestToRestore.image_generation_config,
+				),
+			)
+			// 恢复参考文件：将 tempRequest.reference_images 的 paths 恢复到 Element 存储的文件 infos
+			if (requestToRestore.reference_images && requestToRestore.reference_images.length > 0) {
+				const referenceFileInfos: UploadFileResponse[] =
+					requestToRestore.reference_images.map((path) => {
 						const fileName = path.split("/").pop() || path
 						return {
 							path,
 							src: path, // 先用 path，Resource 加载后会更新
 							fileName,
 						}
-					},
-				)
-				elementInstance.setReferenceImageInfos(referenceImageInfos)
+					})
+				elementInstance.setReferenceImageInfos(referenceFileInfos)
+			} else {
+				elementInstance.clearReferenceImageInfos()
 			}
 
 			// 恢复尺寸配置
 			const sizes = restoredModel?.image_size_config?.sizes
 			if (sizes?.length) {
-				const matchedSize = tempRequest.size
+				const matchedSize = requestToRestore.size
 					? sizes.find(
 							(size) =>
-								size.value === tempRequest.size &&
-								(size.scale || undefined) === (tempRequest.resolution || undefined),
+								size.value === requestToRestore.size &&
+								(size.scale || undefined) ===
+									(requestToRestore.resolution || undefined),
 						)
 					: undefined
 
@@ -820,10 +914,10 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 				const availableScales = Array.from(scaleSet)
 
 				if (availableScales.length) {
-					const matchedResolution =
-						tempRequest.resolution && availableScales.includes(tempRequest.resolution)
-							? tempRequest.resolution
-							: availableScales[0]
+					const matchedResolution = getDefaultResolutionForModel(
+						restoredModel,
+						requestToRestore.resolution,
+					)
 					setSelectedResolution(matchedResolution)
 				} else {
 					setSelectedResolution(undefined)
@@ -852,10 +946,20 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 				const restoredModel = imageModelList.find(
 					(model) => model.model_id === restoredModelId,
 				)
+				setSelectedImageGenerationConfig(
+					restoreImageGenerationConfig(
+						getImageGenerationSettings(restoredModel),
+						defaultConfig.image_generation_config,
+					),
+				)
 
 				// 恢复尺寸配置
 				const sizes = restoredModel?.image_size_config?.sizes
 				if (sizes?.length) {
+					const targetResolution = getDefaultResolutionForModel(
+						restoredModel,
+						defaultConfig.resolution,
+					)
 					const matchedSize = defaultConfig.size
 						? sizes.find(
 								(size) =>
@@ -865,7 +969,10 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 							)
 						: undefined
 
-					const targetSize = matchedSize || sizes[0]
+					const targetSize =
+						matchedSize ||
+						findBestSizeForResolution(sizes, targetResolution, undefined) ||
+						sizes[0]
 					setSelectedLabel(targetSize.label)
 					setSelectedSize(targetSize.value)
 					setSelectedScale(targetSize.scale || undefined)
@@ -881,11 +988,10 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 					const availableScales = Array.from(scaleSet)
 
 					if (availableScales.length) {
-						const matchedResolution =
-							defaultConfig.resolution &&
-							availableScales.includes(defaultConfig.resolution)
-								? defaultConfig.resolution
-								: availableScales[0]
+						const matchedResolution = getDefaultResolutionForModel(
+							restoredModel,
+							defaultConfig.resolution,
+						)
 						setSelectedResolution(matchedResolution)
 					} else {
 						setSelectedResolution(undefined)
@@ -898,18 +1004,25 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 				const defaultModel = imageModelList[0]
 				if (defaultModel) {
 					setSelectedModelId(defaultModel.model_id)
+					const imageSettings = getImageGenerationSettings(defaultModel)
+					setSelectedImageGenerationConfig(
+						buildDefaultImageGenerationConfig(imageSettings),
+					)
 
 					const sizes = defaultModel?.image_size_config?.sizes
 					if (sizes?.length) {
-						const firstSize = sizes[0]
-						setSelectedLabel(firstSize.label)
-						setSelectedSize(firstSize.value)
-						setSelectedScale(firstSize.scale || undefined)
+						const targetResolution = getDefaultResolutionForModel(defaultModel)
+						const targetSize =
+							findBestSizeForResolution(sizes, targetResolution, undefined) ||
+							sizes[0]
+						setSelectedLabel(targetSize.label)
+						setSelectedSize(targetSize.value)
+						setSelectedScale(targetSize.scale || undefined)
 
 						const scaleSet = new Set(sizes.map((size) => size.scale).filter(Boolean))
 						const availableScales = Array.from(scaleSet)
 						if (availableScales.length) {
-							setSelectedResolution(availableScales[0])
+							setSelectedResolution(targetResolution)
 						} else {
 							setSelectedResolution(undefined)
 						}
@@ -924,45 +1037,77 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		}
 
 		hasRestoredRef.current = true
-		// 恢复完成，重置标记（使用 setTimeout 确保所有 state 更新完成后再重置）
+
+		// 同步参考文件状态（确保恢复的 Element 文件 infos 同步到 state）
+		syncFromElement()
+
+		// 恢复完成后统一释放恢复期标记，避免 restore/persist 交叉重入。
 		setTimeout(() => {
 			isRestoringRef.current = false
+			isApplyingRestoreRef.current = false
 		}, 0)
+	}, [
+		canvas,
+		imageElement.id,
+		imageElement.generateImageRequest,
+		syncFromElement,
+		imageModelList,
+		resolvePromptReferencesByPaths,
+		promptPlaceholderTokenConfig,
+	])
 
-		// 同步参考图状态（确保恢复的 referenceImageInfos 同步到 state）
-		syncFromElement()
-	}, [canvas, imageElement.id, imageModelList, syncFromElement])
+	/** 清除草稿后按已落库的 generateImageRequest 完整回填编辑器（与「快捷编辑」仅恢复模型配置区分） */
+	const restoreOriginalGenerateImageRequestToUi = useCallback(() => {
+		if (!canvas) return
+		if (isApplyingRestoreRef.current) return
+		if (imageModelList.length === 0) return
+		const source = imageElement.generateImageRequest
+		if (!source?.model_id) return
+
+		const elementInstance = canvas.elementManager.getElementInstance(imageElement.id)
+		if (!(elementInstance instanceof ImageElementClass)) return
+
+		cancelPendingDraftPersistence()
+		elementInstance.clearTempGenerateImageRequest()
+		lastPersistedDraftRef.current = ""
+		hasRestoredRef.current = false
+		restoreConfig()
+	}, [
+		canvas,
+		imageModelList.length,
+		imageElement.generateImageRequest,
+		imageElement.id,
+		cancelPendingDraftPersistence,
+		restoreConfig,
+	])
 
 	// 初始化：从 Element 同步参考图信息
 	useMount(() => {
 		// 同步参考图状态
 		syncFromElement()
-
-		// 确保原图在第一个位置（SecondEdit 模式）
-		if (originalImageSrc) {
-			ensureOriginalImageFirst()
-		}
 	})
 
 	// 从 tempRequest 恢复之前填写的内容（等待模型列表加载完成后执行）
 	useEffect(() => {
-		if (!canvas || hasRestoredRef.current || imageModelList.length === 0) return
+		if (
+			!canvas ||
+			hasRestoredRef.current ||
+			isRestoringRef.current ||
+			imageModelList.length === 0
+		)
+			return
 		restoreConfig()
 	}, [canvas, imageModelList, restoreConfig])
 
-	// 当用户填写的内容变化时，保存到 tempRequest（使用 useUpdateEffect 避免首次挂载时触发）
+	// 当用户填写的内容变化时，防抖写入 tempRequest（使用 useUpdateEffect 避免首次挂载时触发）
 	useUpdateEffect(() => {
-		if (!canvas) return
-		const elementInstance = canvas.elementManager.getElementInstance(imageElement.id)
-		if (elementInstance && elementInstance instanceof ImageElementClass) {
-			const tempRequest = buildRequestParams()
-			// 统一使用 tempGenerateImageRequest
-			elementInstance.saveTempGenerateImageRequest(tempRequest)
-		}
-	}, [canvas, imageElement.id, buildRequestParams])
+		if (isRestoringRef.current) return
+		scheduleDraftPersistence(buildRequestParams())
+	}, [buildRequestParams, scheduleDraftPersistence])
 
 	// 组件卸载时清理定时器
 	useUnmount(() => {
+		cancelPendingDraftPersistence()
 		if (popoverCloseTimeoutRef.current) {
 			clearTimeout(popoverCloseTimeoutRef.current)
 		}
@@ -975,20 +1120,25 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 		selectedSize,
 		selectedLabel,
 		selectedScale,
-		currentReferenceImages,
-		referenceImageInfos,
+		selectedImageGenerationConfig,
+		referenceSourceCrop: imageElement.crop,
+		currentReferenceFiles,
+		referenceFileInfos,
 		matchableItems,
 		modelOptions,
 		modelOptionGroups,
 		selectedModelOption,
-		maxReferenceImages,
-		isReferenceImageLimitReached,
+		maxReferenceFiles,
+		isReferenceFileLimitReached,
 		isUploading,
 		supportedAspectRatioOptions,
 		supportedResolutionOptions,
+		supportedImageSettingOptions,
 		currentSelectValue,
 		ratioOption,
 		isPopoverOpen,
+		referenceResourceType,
+		fileInputAccept,
 		hasRestoredRef,
 		isRestoringRef,
 		handlers: {
@@ -998,16 +1148,24 @@ export function useImageEditorConfig(options: UseImageEditorConfigOptions): Imag
 			setSelectedSize,
 			setSelectedLabel,
 			setSelectedScale,
+			setSelectedImageGenerationConfig,
 			handleModelChange,
 			handleResolutionChange,
 			handleRatioChange,
-			handleReferenceImageRemove,
+			handleImageSettingChange,
+			handleReferenceFileRemove,
+			setPopoverOpen: setIsPopoverOpen,
 			handlePopoverMouseEnter,
 			handlePopoverMouseLeave,
 			buildRequestParams,
+			saveDraftRequest,
+			cancelPendingDraftPersistence,
+			restoreQuickEditConfigToUi,
+			restoreOriginalGenerateImageRequestToUi,
 			triggerFileSelect,
+			uploadFiles,
 			handleFileChange,
-			syncReferenceImagesFromElement,
+			syncReferenceFilesFromElement,
 		},
 		fileInputRef,
 	}

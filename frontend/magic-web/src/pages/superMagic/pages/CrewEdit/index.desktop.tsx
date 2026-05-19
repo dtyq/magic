@@ -6,24 +6,39 @@ import { Loader2 } from "lucide-react"
 import { useDebounceFn, useDeepCompareEffect, useMemoizedFn } from "ahooks"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import useNavigate from "@/routes/hooks/useNavigate"
+import { useNamedPageTitle } from "@/pages/superMagic/hooks/useNamedPageTitle"
 import useResizablePanel from "@/pages/superMagic/hooks/useResizablePanel"
 import Detail, { type DetailRef } from "@/pages/superMagic/components/Detail"
+import { MessageHeaderTopicHistoryPanel } from "@/pages/superMagic/components/MessageHeader"
 import TopicFilesButton from "@/pages/superMagic/components/TopicFilesButton"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import { useCompositeDetailPanelController } from "@/pages/superMagic/hooks/useCompositeDetailPanelController"
+import { useDeferUntilFileTabsCacheLoaded } from "@/pages/superMagic/hooks/useDeferUntilFileTabsCacheLoaded"
+import { useScopedMessageHeaderTopicActions } from "@/pages/superMagic/hooks/useScopedMessageHeaderTopicActions"
 import { useAttachmentsPolling } from "@/pages/superMagic/hooks/useAttachmentsPolling"
 import { AttachmentDataProcessor } from "@/pages/superMagic/utils/attachmentDataProcessor"
+import {
+	releaseAttachmentsRefreshWaitersWithoutFetch,
+	withAttachmentsRefreshWaitersResolved,
+} from "@/pages/superMagic/services/attachmentsTopicSync"
 import { useTopicFiles } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicFiles"
 import {
+	TOPIC_HISTORY_PANEL_OPEN_STORAGE_KEYS,
+	useTopicHistoryLayoutState,
+} from "@/pages/superMagic/pages/TopicPage/hooks/useTopicHistoryLayoutState"
+import {
 	FileActionVisibilityProvider,
-	HIDE_COPY_MOVE_SHARE_FILE_ACTIONS,
+	HIDE_COPY_MOVE_SHARE_FILE_AND_TOPIC_ACTIONS,
 } from "@/pages/superMagic/providers/file-action-visibility-provider"
 import { convertSearchParams } from "@/routes/history/helpers"
 import { RouteName } from "@/routes/constants"
 import { SuperMagicApi } from "@/apis"
 import { crewService } from "@/services/crew/CrewService"
+import { useDefaultModeModelListRefreshOnMount } from "@/pages/superMagic/hooks"
+import { useCreateTopicListener } from "@/pages/superMagic/components/TopicMode"
 import { CrewEditStoreProvider, useCrewEditStore } from "./context"
 import { useCrewEditErrorToasts } from "./hooks/useCrewEditErrorToasts"
+import { useIdentityMarkdownSync } from "./hooks/useIdentityMarkdownSync"
 import { useCrewEditInitialization } from "./hooks/useCrewEditInitialization"
 import { useRefreshCrewDetailOnTopicMessage } from "./hooks/useRefreshCrewDetailOnTopicMessage"
 import CrewEditPanels from "./components/CrewEditPanels"
@@ -69,6 +84,27 @@ const CREW_EDIT_SIDEBAR_STORAGE_KEY = "MAGIC:crew-edit-sidebar-width"
 const CREW_EDIT_DETAIL_STORAGE_KEY = "MAGIC:crew-edit-detail-panel-width"
 const CREW_EDIT_PANEL_QUERY_KEY = "panel"
 
+/** 知识库详情 / 文档流程 URL 参数；从知识库切到附件预览时应清除 */
+const CREW_EDIT_KNOWLEDGE_ROUTE_QUERY_KEYS = ["code", "mode", "type", "docCode", "rebind"] as const
+
+function buildCrewEditQueryAfterLeavingKnowledgeDetail(search: string) {
+	const searchParams = new URLSearchParams(search)
+	for (const key of CREW_EDIT_KNOWLEDGE_ROUTE_QUERY_KEYS) {
+		searchParams.delete(key)
+	}
+	if (searchParams.get(CREW_EDIT_PANEL_QUERY_KEY) === CREW_EDIT_STEP.KnowledgeBase) {
+		searchParams.delete(CREW_EDIT_PANEL_QUERY_KEY)
+	}
+	const query = convertSearchParams(searchParams)
+	return Object.keys(query).length > 0 ? query : undefined
+}
+
+function isCrewEditKnowledgeDetailSearch(search: string) {
+	const sp = new URLSearchParams(search)
+	if (sp.get("code")) return true
+	return sp.get(CREW_EDIT_PANEL_QUERY_KEY) === CREW_EDIT_STEP.KnowledgeBase
+}
+
 type CrewEditRoutePanel = CrewEditStep | typeof CREW_SIDEBAR_TAB.Files | null
 
 interface CrewEditPanelRouteStore {
@@ -79,6 +115,7 @@ interface CrewEditPanelRouteStore {
 	openSkillsPanel: (tab?: CrewSkillsTab) => void
 	openPlaybook: () => void
 	openBuiltinSkills: () => void
+	applyKnowledgeRouteFromSearch: (search: string) => void
 }
 
 function getPanelFromSearch(search: string): CrewEditRoutePanel {
@@ -105,14 +142,20 @@ function buildCrewEditQuery({ search, panel }: { search: string; panel: CrewEdit
 function applyRoutePanelToStore({
 	panel,
 	store,
+	search,
 }: {
 	panel: CrewEditRoutePanel
 	store: CrewEditPanelRouteStore
+	search: string
 }) {
 	if (panel === CREW_SIDEBAR_TAB.Files) {
 		if (store.activeSidebarTab === CREW_SIDEBAR_TAB.Files) return
 		store.setActiveStep(null)
 		store.setActiveSidebarTab(CREW_SIDEBAR_TAB.Files)
+		return
+	}
+	if (panel === CREW_EDIT_STEP.KnowledgeBase) {
+		store.applyKnowledgeRouteFromSearch(search)
 		return
 	}
 	if (panel === store.activeDetailKey) return
@@ -136,6 +179,8 @@ function applyRoutePanelToStore({
 }
 
 function CrewEditInner({ crewId }: { crewId: string }) {
+	const { t: tCrewCreate } = useTranslation("crew/create")
+	const { t: tSuper } = useTranslation("super")
 	const store = useCrewEditStore()
 	const { layout, conversation, identity, playbook } = store
 	const navigate = useNavigate()
@@ -145,9 +190,16 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 	const previousRoutePanelRef = useRef<CrewEditRoutePanel | undefined>(undefined)
 	const previousRouteReadyRef = useRef<boolean | undefined>(undefined)
 	const [userSelectDetail, setUserSelectDetail] = useState<unknown>()
-	const [, setIsDetailPanelFullscreen] = useState(false)
+	const [isDetailPanelFullscreen, setIsDetailPanelFullscreen] = useState(false)
+	const [isInitialAttachmentsLoaded, setIsInitialAttachmentsLoaded] = useState(false)
 	const selectedProject = conversation.selectedProject
 	const selectedTopic = conversation.topicStore.selectedTopic
+	const topicActions = useScopedMessageHeaderTopicActions({
+		selectedProject,
+		selectedTopic,
+		topicStore: conversation.topicStore,
+	})
+	const crewDisplayName = identity.name_i18n.default?.trim() || tCrewCreate("untitledCrew")
 	const isRouteReady = store.crewCode === crewId && !store.initLoading
 	const attachments = store.projectFilesStore.workspaceFileTree
 	const attachmentList = store.projectFilesStore.workspaceFilesList
@@ -157,6 +209,8 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 	const setAttachments = useMemoizedFn((nextAttachments: AttachmentItem[]) => {
 		store.projectFilesStore.setWorkspaceFileTree(nextAttachments)
 	})
+	const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
+	const knowledgeCode = searchParams.get("code")
 
 	useCrewEditErrorToasts({
 		initError: store.initError,
@@ -165,6 +219,21 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 	})
 	useCrewEditInitialization({ store, crewId })
 	useRefreshCrewDetailOnTopicMessage({ store })
+	useIdentityMarkdownSync({
+		projectId: selectedProject?.id,
+		files: attachmentList,
+		identity,
+		isInitialAttachmentsLoaded,
+	})
+	useNamedPageTitle({
+		entityName: crewDisplayName,
+		isReady: !store.initLoading && !store.initError,
+	})
+	useDefaultModeModelListRefreshOnMount()
+	useCreateTopicListener({
+		selectedProject,
+		topicStore: conversation.topicStore,
+	})
 
 	const routePanel = useMemo(() => getPanelFromSearch(location.search), [location.search])
 	const currentRoutePanel: CrewEditRoutePanel =
@@ -174,37 +243,46 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 			: layout.activeDetailKey && isCrewStepEnabled(layout.activeDetailKey)
 				? layout.activeDetailKey
 				: null
+	const shouldShowKnowledgeDetailPanel =
+		layout.activeDetailKey === CREW_EDIT_STEP.KnowledgeBase && !!knowledgeCode
 	const shouldShowStepDetailPanel =
-		layout.activeSidebarTab === CREW_SIDEBAR_TAB.Advanced && layout.showDetailPanel
+		(layout.activeSidebarTab === CREW_SIDEBAR_TAB.Advanced && layout.showDetailPanel) ||
+		shouldShowKnowledgeDetailPanel
 	const updateAttachments = useDebounceFn(
-		(projectId?: string, callback?: () => void) => {
+		(projectId?: string, callback?: (didLoad: boolean) => void) => {
 			if (!projectId) {
 				store.projectFilesStore.setWorkspaceFileTree([])
-				callback?.()
+				releaseAttachmentsRefreshWaitersWithoutFetch()
+				callback?.(false)
 				return
 			}
 
 			const temporaryToken =
 				(window as Window & { temporary_token?: string }).temporary_token || ""
+			let didLoad = false
 
 			pubsub.publish(PubSubEvents.Update_Attachments_Loading, true)
-			SuperMagicApi.getAttachmentsByProjectId({
+			withAttachmentsRefreshWaitersResolved(
 				projectId,
-				temporaryToken,
-			})
-				.then((res) => {
-					const processedData = AttachmentDataProcessor.processAttachmentData(res)
-					store.projectFilesStore.setWorkspaceFileTree(processedData.tree)
-					store.mentionPanelStore.finishLoadAttachmentsPromise(projectId)
+				SuperMagicApi.getAttachmentsByProjectId({
+					projectId,
+					temporaryToken,
 				})
-				.catch((error) => {
-					console.error("Failed to fetch crew attachments:", error)
-					store.projectFilesStore.setWorkspaceFileTree([])
-				})
-				.finally(() => {
-					pubsub.publish(PubSubEvents.Update_Attachments_Loading, false)
-					callback?.()
-				})
+					.then((res) => {
+						const processedData = AttachmentDataProcessor.processAttachmentData(res)
+						store.projectFilesStore.setWorkspaceFileTree(processedData.tree)
+						store.mentionPanelStore.finishLoadAttachmentsPromise(projectId)
+						didLoad = true
+					})
+					.catch((error) => {
+						console.error("Failed to fetch crew attachments:", error)
+						store.projectFilesStore.setWorkspaceFileTree([])
+					})
+					.finally(() => {
+						pubsub.publish(PubSubEvents.Update_Attachments_Loading, false)
+						callback?.(didLoad)
+					}),
+			)
 		},
 		{ wait: 500 },
 	).run
@@ -222,13 +300,30 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 		isReadOnly: false,
 	})
 
+	/** 知识库详情占用了右侧 StepDetailPanel 时 Detail 未挂载，需先清 URL 再打开文件预览 */
+	const handleFileClickWithKnowledgeRouteReset = useMemoizedFn((fileItem?: unknown) => {
+		if (!isCrewEditKnowledgeDetailSearch(location.search)) {
+			handleFileClick(fileItem)
+			return
+		}
+		navigate({
+			name: RouteName.CrewEdit,
+			params: { id: crewId },
+			query: buildCrewEditQueryAfterLeavingKnowledgeDetail(location.search),
+			replace: true,
+		})
+		window.setTimeout(() => {
+			handleFileClick(fileItem)
+		}, 120)
+	})
+
 	const { shouldShowDetailPanel, topicFilesPropsWithPanel, handleActiveDetailTabChange } =
 		useCompositeDetailPanelController({
 			detailRef,
 			isReadOnly: false,
 			activeFileId,
 			setActiveFileId,
-			handleFileClick,
+			handleFileClick: handleFileClickWithKnowledgeRouteReset,
 			topicFilesProps,
 			extraPanelVisible: shouldShowStepDetailPanel,
 			resetDeps: [selectedProject?.id],
@@ -237,6 +332,8 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 				setIsDetailPanelFullscreen(false)
 			},
 		})
+
+	const { onFileTabsCacheLoaded } = useDeferUntilFileTabsCacheLoaded(selectedProject?.id)
 
 	const {
 		width: sidebarWidthPx,
@@ -282,8 +379,8 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 		if (routePanel !== null && routePanel !== currentRoutePanel) {
 			routeSyncTargetRef.current = routePanel
 		}
-		applyRoutePanelToStore({ panel: routePanel, store: layout })
-	}, [currentRoutePanel, isRouteReady, layout, routePanel])
+		applyRoutePanelToStore({ panel: routePanel, store: layout, search: location.search })
+	}, [currentRoutePanel, isRouteReady, layout, location.search, routePanel])
 
 	useEffect(() => {
 		store.projectFilesStore.setSelectedProject(selectedProject)
@@ -298,6 +395,7 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 			({ tree, list }: { tree: AttachmentItem[]; list: AttachmentItem[] }) => {
 				const processedData = AttachmentDataProcessor.processAttachmentData({ tree, list })
 				store.projectFilesStore.setWorkspaceFileTree(processedData.tree)
+				setIsInitialAttachmentsLoaded(true)
 			},
 			[store.projectFilesStore],
 		),
@@ -308,19 +406,35 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 
 	useDeepCompareEffect(() => {
 		const projectId = selectedProject?.id
-		if (!projectId) return
+		if (!projectId) {
+			setIsInitialAttachmentsLoaded(false)
+			return
+		}
+
+		let isActive = true
+		setIsInitialAttachmentsLoaded(false)
 
 		store.mentionPanelStore.initLoadAttachments(projectId)
-		updateAttachments(projectId)
+		updateAttachments(projectId, (didLoad) => {
+			if (!isActive || !didLoad) return
+			setIsInitialAttachmentsLoaded(true)
+		})
 
 		return () => {
+			isActive = false
 			store.mentionPanelStore.clearInitLoadAttachmentsPromise(projectId)
 		}
 	}, [selectedProject?.id])
 
 	useEffect(() => {
-		const handleUpdateAttachments = (callback: () => void) => {
-			updateAttachments(selectedProject?.id, callback)
+		const handleUpdateAttachments = (callback?: () => void) => {
+			const pid = selectedProject?.id
+			if (!pid) {
+				callback?.()
+				releaseAttachmentsRefreshWaitersWithoutFetch()
+				return
+			}
+			updateAttachments(pid, callback)
 		}
 
 		pubsub.subscribe(PubSubEvents.Update_Attachments, handleUpdateAttachments)
@@ -348,6 +462,16 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 	}, [crewId, currentRoutePanel, location.search, navigate, routePanel])
 
 	const shouldHideMessagePanel = shouldShowStepDetailPanel ? layout.isMessagePanelHidden : false
+
+	const {
+		isTopicHistoryPanelOpen,
+		openTopicHistoryPanel,
+		closeTopicHistoryPanel,
+		toggleTopicHistoryPanel,
+	} = useTopicHistoryLayoutState({
+		storageKey: TOPIC_HISTORY_PANEL_OPEN_STORAGE_KEYS.crewEdit,
+		isEnabled: !shouldHideMessagePanel,
+	})
 	const detailPanel = shouldShowStepDetailPanel ? (
 		<StepDetailPanel />
 	) : (
@@ -369,13 +493,14 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 			onActiveFileChange={setActiveFileId}
 			onActiveTabChange={handleActiveDetailTabChange}
 			onFullscreenChange={setIsDetailPanelFullscreen}
+			onFileTabsCacheLoaded={onFileTabsCacheLoaded}
 			projectId={selectedProject?.id}
 			showFallbackWhenEmpty
 		/>
 	)
 
 	function handleBack() {
-		navigate({ delta: -1 })
+		navigate({ name: RouteName.MyCrew })
 	}
 
 	if (store.initLoading) {
@@ -399,15 +524,39 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 	}
 
 	return (
-		<FileActionVisibilityProvider value={HIDE_COPY_MOVE_SHARE_FILE_ACTIONS}>
+		<FileActionVisibilityProvider value={HIDE_COPY_MOVE_SHARE_FILE_AND_TOPIC_ACTIONS}>
 			<div className="flex h-full w-full overflow-hidden" data-testid="crew-edit-page">
 				<CrewEditPanels
 					sidebarWidthPx={sidebarWidthPx}
 					detailPanelWidthPx={detailPanelWidthPx}
 					messagePanelWidthPx={MESSAGE_PANEL_WIDTH_PX}
 					showDetailPanel={shouldShowDetailPanel}
+					isDetailPanelFullscreen={isDetailPanelFullscreen}
 					isConversationPanelCollapsed={layout.isConversationPanelCollapsed}
 					hideMessagePanel={shouldHideMessagePanel}
+					keepDetailMountedWhenHidden
+					historyLayout={{
+						isOpen: isTopicHistoryPanelOpen,
+						onClose: closeTopicHistoryPanel,
+						onToggle: toggleTopicHistoryPanel,
+						renderPanel: ({
+							isConversationPanelCollapsed,
+							onExpandConversationPanel,
+							onClose,
+							closeButtonRef,
+						}) => (
+							<MessageHeaderTopicHistoryPanel
+								selectedProject={selectedProject}
+								topicStore={conversation.topicStore}
+								topicActions={topicActions}
+								isConversationPanelCollapsed={isConversationPanelCollapsed}
+								onExpandConversationPanel={onExpandConversationPanel}
+								hideTopicListModeIcon
+								onClose={onClose}
+								closeButtonRef={closeButtonRef}
+							/>
+						),
+					}}
 					onSidebarResizeStart={onSidebarResizeStart}
 					onDetailResizeStart={onDetailResizeStart}
 					isDraggingSidebar={isDraggingSidebar}
@@ -419,6 +568,7 @@ function CrewEditInner({ crewId }: { crewId: string }) {
 								<TopicFilesButton
 									{...topicFilesPropsWithPanel}
 									className="h-full"
+									title={tSuper("topicFiles.fileTitle")}
 								/>
 							}
 						/>

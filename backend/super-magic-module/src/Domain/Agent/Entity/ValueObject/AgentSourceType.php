@@ -23,6 +23,11 @@ enum AgentSourceType: string
     case MARKET = 'MARKET';
 
     /**
+     * 系统内置（平台初始化下发的官方 Agent）.
+     */
+    case SYSTEM = 'SYSTEM';
+
+    /**
      * 获取来源类型描述.
      */
     public function getDescription(): string
@@ -30,6 +35,7 @@ enum AgentSourceType: string
         return match ($this) {
             self::LOCAL_CREATE => '本地创建',
             self::MARKET => '商店添加',
+            self::SYSTEM => '系统内置',
         };
     }
 
@@ -47,6 +53,14 @@ enum AgentSourceType: string
     public function isMarket(): bool
     {
         return $this === self::MARKET;
+    }
+
+    /**
+     * 是否为系统内置.
+     */
+    public function isSystem(): bool
+    {
+        return $this === self::SYSTEM;
     }
 
     /**

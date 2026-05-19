@@ -155,6 +155,9 @@ async def async_rmtree(path: Union[str, Path]) -> None:
         else:
             logger.debug(f"目录不存在，跳过删除: {path_obj}")
 
+    except FileNotFoundError:
+        # 目录在 exists 检查之后、rmtree 执行之前被其他操作删除，属于正常竞争情况
+        logger.warning(f"删除目录时目录已不存在（竞争条件），跳过: {path_obj}")
     except Exception as e:
         logger.error(f"异步删除目录失败 {path_obj}: {e}")
         raise
@@ -205,7 +208,6 @@ async def async_unlink(path: Union[str, Path]) -> None:
         path: 要删除的文件路径
 
     Raises:
-        FileNotFoundError: 文件不存在
         IsADirectoryError: 路径是目录
         PermissionError: 权限不足
     """
@@ -220,9 +222,54 @@ async def async_unlink(path: Union[str, Path]) -> None:
         else:
             logger.debug(f"文件不存在，跳过删除: {path_str}")
 
+    except FileNotFoundError:
+        # 文件在 exists 检查之后、remove 执行之前被其他操作删除，属于正常竞争情况，不做报错
+        logger.warning(f"删除文件时文件已不存在（竞争条件），跳过: {path_str}")
     except Exception as e:
         logger.error(f"异步删除文件失败 {path_str}: {e}")
         raise
+
+
+async def async_mkstemp(
+    suffix: Optional[str] = None,
+    prefix: Optional[str] = None,
+    dir: Optional[Union[str, Path]] = None,
+) -> tuple[int, str]:
+    """
+    异步创建临时文件，是 tempfile.mkstemp 的异步封装。
+
+    Args:
+        suffix: 文件名后缀，例如 '.jpg'
+        prefix: 文件名前缀
+        dir: 临时文件所在目录，默认使用系统临时目录
+
+    Returns:
+        (fd, path): fd 是已打开的文件描述符，path 是临时文件的绝对路径。
+        调用方负责关闭 fd（可使用 async_close_fd）并在使用完毕后删除文件。
+    """
+    import tempfile
+
+    kwargs = {}
+    if suffix is not None:
+        kwargs["suffix"] = suffix
+    if prefix is not None:
+        kwargs["prefix"] = prefix
+    if dir is not None:
+        kwargs["dir"] = str(dir)
+
+    fd, path = await asyncio.to_thread(tempfile.mkstemp, **kwargs)
+    logger.debug(f"创建临时文件: {path}")
+    return fd, path
+
+
+async def async_close_fd(fd: int) -> None:
+    """
+    异步关闭文件描述符，是 os.close 的异步封装。
+
+    Args:
+        fd: 要关闭的文件描述符，通常由 async_mkstemp 返回
+    """
+    await asyncio.to_thread(os.close, fd)
 
 
 async def async_rename(src: Union[str, Path], dst: Union[str, Path]) -> None:
@@ -272,6 +319,9 @@ async def async_rmdir(path: Union[str, Path]) -> None:
         else:
             logger.debug(f"目录不存在，跳过删除: {path_str}")
 
+    except FileNotFoundError:
+        # 目录在 exists 检查之后、rmdir 执行之前被其他操作删除，属于正常竞争情况
+        logger.warning(f"删除空目录时目录已不存在（竞争条件），跳过: {path_str}")
     except Exception as e:
         logger.error(f"异步删除空目录失败 {path_str}: {e}")
         raise
@@ -767,6 +817,28 @@ async def async_try_read_text(file_path: Union[str, Path], encoding: str = 'utf-
         return None
 
 
+async def async_try_read_json(file_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
+    """安全读取 JSON 文件（不抛异常）。
+
+    文件不存在时静默返回 None；JSON 解析失败或其他 IO 错误才打 ERROR 日志。
+    适合读取"可能不存在"的可选配置/状态文件。
+
+    Returns:
+        Optional[Dict[str, Any]]: 解析后的 JSON 数据，文件不存在时返回 None
+    """
+    path_obj = Path(file_path)
+    try:
+        async with aiofiles.open(path_obj, 'r', encoding='utf-8') as f:
+            content = await f.read()
+        return await asyncio.to_thread(json.loads, content)
+    except FileNotFoundError:
+        logger.debug(f"JSON 文件不存在（忽略）: {path_obj}")
+        return None
+    except Exception as e:
+        logger.error(f"读取 JSON 文件失败 {path_obj}: {e}")
+        return None
+
+
 async def async_scandir(path: Union[str, Path]) -> list[os.DirEntry]:
     """
     异步扫描目录，返回 DirEntry 对象列表
@@ -806,6 +878,124 @@ async def async_scandir(path: Union[str, Path]) -> list[os.DirEntry]:
     except Exception as e:
         logger.error(f"异步扫描目录失败 {path_str}: {e}")
         raise
+
+
+def _read_magicfs_file_id(filepath: str) -> Optional[str]:
+    """Synchronous xattr read, intended to run in a thread pool."""
+    try:
+        raw = os.getxattr(filepath, "user.magicfs.file_id")  # type: ignore[attr-defined]
+        return raw.decode("utf-8").strip("\"'")
+    except (OSError, AttributeError):
+        return None
+
+
+async def get_file_id_from_xattr(filepath: Union[str, Path]) -> Optional[str]:
+    """
+    Read the magicfs file ID from extended attributes (user.magicfs.file_id).
+
+    Runs in a thread pool via ``asyncio.to_thread`` because magicfs is a
+    FUSE-based filesystem where xattr reads involve user-space IPC and can
+    block the event loop for a non-trivial amount of time.
+
+    Only available on Linux; returns None silently on other platforms or when
+    the attribute is absent.
+
+    Args:
+        filepath: path to the file or directory
+
+    Returns:
+        Optional[str]: the file ID (e.g. "877250661392134145"), or None
+    """
+    return await asyncio.to_thread(_read_magicfs_file_id, str(filepath))
+
+
+def _read_magicfs_s3_key(filepath: str) -> Optional[str]:
+    """Synchronous xattr read for s3_key, intended to run in a thread pool."""
+    try:
+        raw = os.getxattr(filepath, "user.magicfs.s3_key")  # type: ignore[attr-defined]
+        return raw.decode("utf-8").strip("\"'")
+    except (OSError, AttributeError):
+        return None
+
+
+async def get_s3_key_from_xattr(filepath: Union[str, Path]) -> Optional[str]:
+    """
+    Read the magicfs S3 object key from extended attributes (user.magicfs.s3_key).
+
+    Runs in a thread pool via ``asyncio.to_thread`` because magicfs is a
+    FUSE-based filesystem where xattr reads involve user-space IPC and can
+    block the event loop for a non-trivial amount of time.
+
+    Only available on Linux; returns None silently on other platforms or when
+    the attribute is absent.
+
+    Args:
+        filepath: path to the file or directory
+
+    Returns:
+        Optional[str]: the S3 object key
+            (e.g. "TGosRaFhvb/588417216353927169/project_xxx/workspace/877250661392134145"),
+            or None when unavailable
+    """
+    return await asyncio.to_thread(_read_magicfs_s3_key, str(filepath))
+
+
+def _read_magicfs_metadata_version(filepath: str) -> Optional[str]:
+    """Synchronous xattr read for metadata_version, intended to run in a thread pool."""
+    try:
+        raw = os.getxattr(filepath, "user.magicfs.metadata_version")  # type: ignore[attr-defined]
+        return raw.decode("utf-8").strip("\"'")
+    except (OSError, AttributeError):
+        return None
+
+
+async def get_metadata_version_from_xattr(filepath: Union[str, Path]) -> Optional[str]:
+    """
+    Read the magicfs metadata version from extended attributes (user.magicfs.metadata_version).
+
+    Runs in a thread pool via ``asyncio.to_thread`` because magicfs is a
+    FUSE-based filesystem where xattr reads involve user-space IPC and can
+    block the event loop for a non-trivial amount of time.
+
+    Only available on Linux; returns None silently on other platforms or when
+    the attribute is absent.
+
+    Args:
+        filepath: path to the file or directory
+
+    Returns:
+        Optional[str]: the metadata version string, or None when unavailable
+    """
+    return await asyncio.to_thread(_read_magicfs_metadata_version, str(filepath))
+
+
+def _read_magicfs_content_version(filepath: str) -> Optional[str]:
+    """Synchronous xattr read for content_version, intended to run in a thread pool."""
+    try:
+        raw = os.getxattr(filepath, "user.magicfs.content_version")  # type: ignore[attr-defined]
+        return raw.decode("utf-8").strip("\"'")
+    except (OSError, AttributeError):
+        return None
+
+
+async def get_content_version_from_xattr(filepath: Union[str, Path]) -> Optional[str]:
+    """
+    Read the magicfs content version from extended attributes (user.magicfs.content_version).
+
+    Runs in a thread pool via ``asyncio.to_thread`` because magicfs is a
+    FUSE-based filesystem where xattr reads involve user-space IPC and can
+    block the event loop for a non-trivial amount of time.
+
+    Only available on Linux; returns None silently on other platforms or when
+    the attribute is absent.
+
+    Args:
+        filepath: path to the file or directory
+
+    Returns:
+        Optional[str]: the content version string, or None when unavailable
+    """
+    return await asyncio.to_thread(_read_magicfs_content_version, str(filepath))
 
 
 async def async_iterdir(path: Union[str, Path]) -> list[Path]:

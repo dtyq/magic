@@ -16,15 +16,11 @@ import type { MessageEditorRef as BaseMessageEditorRef } from "@/pages/superMagi
 import { ToolbarButton } from "@/pages/superMagic/components/MessageEditor/types"
 import { ModeToggle } from "@/pages/superMagic/components/TopicMode"
 import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
-import type { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import type { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
-import type {
-	ProjectListItem,
-	Topic,
-	TopicMode,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
-import { TopicMode as TopicModeEnum } from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import { TopicMode as TopicModeEnum } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { collectMentionItemsFromContent } from "@/pages/superMagic/components/MessageEditor/services/uploadMentionService"
 import { cn } from "@/lib/utils"
 

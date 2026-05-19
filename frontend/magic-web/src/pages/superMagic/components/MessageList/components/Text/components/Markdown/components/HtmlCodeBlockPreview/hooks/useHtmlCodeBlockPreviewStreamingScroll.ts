@@ -1,5 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from "react"
-import type { MutableRefObject } from "react"
+import { useCallback, useLayoutEffect, useRef, type MutableRefObject } from "react"
 import type { HtmlCodeBlockPreviewStreamingScrollState } from "../types"
 
 // 流式 HTML 代码块滚动控制所需的输入。
@@ -8,7 +7,7 @@ interface HtmlCodeBlockPreviewStreamingScrollHookOptions {
 	isStreaming: boolean
 	hasCompletedFence: boolean
 	codeContent: string
-	streamingScrollStateRef?: MutableRefObject<HtmlCodeBlockPreviewStreamingScrollState>
+	streamingScrollStateRef: MutableRefObject<HtmlCodeBlockPreviewStreamingScrollState>
 }
 
 // 只要用户离底部超过这个阈值，就认为用户正在主动查看历史内容。
@@ -21,10 +20,6 @@ export function useHtmlCodeBlockPreviewStreamingScroll(
 ) {
 	const { isStreaming, hasCompletedFence, codeContent, streamingScrollStateRef } = options
 	const scrollAreaElementRef = useRef<HTMLDivElement | null>(null)
-	const localStreamingScrollStateRef = useRef<HtmlCodeBlockPreviewStreamingScrollState>({
-		hasUserInteracted: false,
-	})
-	const effectiveStreamingScrollStateRef = streamingScrollStateRef ?? localStreamingScrollStateRef
 	const isProgrammaticScrollRef = useRef(false)
 	const lastProgrammaticScrollTopRef = useRef<number | null>(null)
 	const animationFrameRef = useRef<number | null>(null)
@@ -55,7 +50,7 @@ export function useHtmlCodeBlockPreviewStreamingScroll(
 				return
 			}
 
-			effectiveStreamingScrollStateRef.current.hasUserInteracted =
+			streamingScrollStateRef.current.hasUserInteracted =
 				distanceToBottom > HTML_CODE_BLOCK_PREVIEW_STREAMING_SCROLL_BOTTOM_THRESHOLD
 		}
 
@@ -70,7 +65,7 @@ export function useHtmlCodeBlockPreviewStreamingScroll(
 			viewportElement.removeEventListener("pointerdown", markUserInteracted)
 			viewportElement.removeEventListener("scroll", markUserInteracted)
 		}
-	}, [effectiveStreamingScrollStateRef, isStreaming, hasCompletedFence, codeContent])
+	}, [streamingScrollStateRef, isStreaming, hasCompletedFence, codeContent])
 
 	const scheduleScrollToBottom = useCallback((viewportElement: HTMLElement) => {
 		const targetScrollTop = viewportElement.scrollHeight
@@ -90,7 +85,7 @@ export function useHtmlCodeBlockPreviewStreamingScroll(
 	useLayoutEffect(() => {
 		if (!isStreaming || hasCompletedFence) {
 			// 一旦流式结束，就重置交互状态，避免影响下一次新的流式内容。
-			effectiveStreamingScrollStateRef.current.hasUserInteracted = false
+			streamingScrollStateRef.current.hasUserInteracted = false
 			lastProgrammaticScrollTopRef.current = null
 
 			if (animationFrameRef.current) {
@@ -106,15 +101,15 @@ export function useHtmlCodeBlockPreviewStreamingScroll(
 		)
 
 		// 用户已经主动滚离底部时，不再强制把视图拉回去。
-		if (!viewportElement || effectiveStreamingScrollStateRef.current.hasUserInteracted) return
+		if (!viewportElement || streamingScrollStateRef.current.hasUserInteracted) return
 
 		scheduleScrollToBottom(viewportElement)
 	}, [
 		codeContent,
-		effectiveStreamingScrollStateRef,
 		hasCompletedFence,
 		isStreaming,
 		scheduleScrollToBottom,
+		streamingScrollStateRef,
 	])
 
 	useLayoutEffect(() => {

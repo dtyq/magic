@@ -1,37 +1,128 @@
 import {
-	Select,
-	SelectContent,
-	SelectGroup,
-	SelectItem,
-	SelectLabel,
-	SelectTrigger,
-} from "../ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover"
+	forwardRef,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+	type CSSProperties,
+	type ForwardedRef,
+	type ReactNode,
+} from "react"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "../ui/select"
 import styles from "./index.module.css"
-import IconButton from "../ui/custom/IconButton"
-import { ImagePlus, ChevronsUpDown, X, LoaderCircle } from "../ui/icons/index"
+import { ChevronsUpDown } from "lucide-react"
 import { useCanvasDesignI18n } from "../../context/I18nContext"
 import ResolutionSelect from "../ui/custom/ResolutionSelect"
-import ReferenceImageThumbnailImage from "./ReferenceImageThumbnailImage"
+import EditorModelSelect from "../GenerateEditor/EditorModelSelect"
 import type { ImageEditorConfig } from "./useImageEditorConfig"
+import ReferenceResourceSlotPopover from "../MessageEditor/reference-assets/ReferenceResourceSlotPopover"
+import type { ReferenceResourceSourceType } from "../MessageEditor/reference-assets/reference-resource.types"
+import type { ReferenceResourcePanelItem } from "../../types"
+import SizeIconPreview from "../ui/custom/SizeIconPreview"
+import SourceList, { type SourceListOption, type SourceListRenderItemParams } from "../SourceList"
+
+interface ImageEditorReferencePopoverState {
+	slotKey: string
+	currentFiles: string[]
+	maxReferenceFiles: number | undefined
+	isLimitReached: boolean
+}
+
+interface ImageEditorReferenceSlotPopoverProps {
+	className: string
+	style: CSSProperties
+	content: ReactNode
+	slotKey: string
+	isPopoverOpen: boolean
+	selectedSlotKey: string | null
+	onSelectSlot: (slotKey: string) => void
+	onPopoverOpenChange: (open: boolean) => void
+	onMouseEnter: () => void
+	onMouseLeave: () => void
+	onSelectSource: (source: ReferenceResourceSourceType) => void
+	referencePopoverState: ImageEditorReferencePopoverState
+	referenceResourceType: ImageEditorConfig["referenceResourceType"]
+	referenceFileInfos: ImageEditorConfig["referenceFileInfos"]
+	onProjectSelect?: (item: ReferenceResourcePanelItem) => void
+	slotRootRef?: SourceListRenderItemParams["slotRootRef"]
+}
+
+const ImageEditorReferenceSlotPopover = forwardRef<
+	HTMLDivElement,
+	ImageEditorReferenceSlotPopoverProps
+>(function ImageEditorReferenceSlotPopover(props, forwardedRef) {
+	const {
+		className,
+		style,
+		content,
+		slotKey,
+		isPopoverOpen,
+		selectedSlotKey,
+		onSelectSlot,
+		onPopoverOpenChange,
+		onMouseEnter,
+		onMouseLeave,
+		onSelectSource,
+		referencePopoverState,
+		referenceResourceType,
+		referenceFileInfos,
+		onProjectSelect,
+		slotRootRef,
+	} = props
+
+	const handleSlotRootRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			slotRootRef?.(node)
+			assignForwardedRef(forwardedRef, node)
+		},
+		[forwardedRef, slotRootRef],
+	)
+
+	return (
+		<ReferenceResourceSlotPopover
+			className={className}
+			style={style}
+			content={content}
+			slotKey={slotKey}
+			slotRootRef={handleSlotRootRef}
+			isPopoverOpen={isPopoverOpen}
+			selectedSlotKey={selectedSlotKey}
+			onActivateSlot={() => onSelectSlot(slotKey)}
+			onPopoverOpenChange={onPopoverOpenChange}
+			onMouseEnter={onMouseEnter}
+			onMouseLeave={onMouseLeave}
+			onSelectSource={onSelectSource}
+			maxReferenceFiles={referencePopoverState.maxReferenceFiles}
+			currentReferenceFiles={referencePopoverState.currentFiles}
+			isReferenceFileLimitReached={referencePopoverState.isLimitReached}
+			referenceResourceType={referenceResourceType}
+			referenceFileInfos={referenceFileInfos}
+			onProjectSelect={onProjectSelect}
+		/>
+	)
+})
+
+function assignForwardedRef<T>(ref: ForwardedRef<T>, value: T | null) {
+	if (!ref) return
+	if (typeof ref === "function") {
+		ref(value)
+		return
+	}
+	ref.current = value
+}
 
 interface ImageEditorControlsProps {
 	config: ImageEditorConfig
-	protectedReferenceImageIndex?: number
-	onUploadClick: () => void
-	/** 参考图删除回调，传入时优先使用（用于同步到 TipTap） */
-	onReferenceImageRemove?: (path: string) => void
+	onSelectSource: (source: ReferenceResourceSourceType) => void
+	onProjectSelect?: (item: ReferenceResourcePanelItem) => void
+	/** 参考文件删除回调，传入时优先使用（用于同步到 TipTap） */
+	onReferenceFileRemove?: (path: string) => void
 	renderSendButton?: () => React.ReactNode
 }
 
 export default function ImageEditorControls(props: ImageEditorControlsProps) {
-	const {
-		config,
-		protectedReferenceImageIndex,
-		onUploadClick,
-		onReferenceImageRemove,
-		renderSendButton,
-	} = props
+	const { config, onSelectSource, onProjectSelect, onReferenceFileRemove, renderSendButton } =
+		props
 	const { t } = useCanvasDesignI18n()
 
 	const {
@@ -39,298 +130,276 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 		modelOptions,
 		modelOptionGroups,
 		selectedModelOption,
-		maxReferenceImages,
-		isReferenceImageLimitReached,
-		isUploading,
-		currentReferenceImages,
-		referenceImageInfos,
+		maxReferenceFiles,
+		currentReferenceFiles,
+		referenceFileInfos,
 		supportedResolutionOptions,
+		supportedImageSettingOptions,
 		supportedAspectRatioOptions,
+		selectedImageGenerationConfig,
 		currentSelectValue,
 		ratioOption,
 		isPopoverOpen,
+		referenceResourceType,
 		handlers,
 	} = config
-	const shouldShowModelGroups = modelOptionGroups.length > 1
+	const [selectedReferenceSlotKey, setSelectedReferenceSlotKey] = useState<string | null>(null)
+
+	useEffect(() => {
+		if (!isPopoverOpen) {
+			setSelectedReferenceSlotKey(null)
+		}
+	}, [isPopoverOpen])
+
+	const canAddReferenceFile =
+		maxReferenceFiles === undefined || currentReferenceFiles.length < maxReferenceFiles
+
+	const referenceSourceListOptions = useMemo<SourceListOption[]>(() => {
+		if (!maxReferenceFiles || maxReferenceFiles <= 0) {
+			return []
+		}
+
+		const options: SourceListOption[] = referenceFileInfos.map((info, index) => {
+			return {
+				kind: "slot",
+				label: t("imageEditor.referenceImage", "参考图"),
+				value: `image-reference-${index}-${info.path}`,
+				slotIndex: index,
+				resourcePath: info.path,
+				resourceFileName: info.fileName,
+				removeResourceAriaLabel: t("imageEditor.removeReferenceResource", "移除该参考资源"),
+				onRemoveResource: () => {
+					;(onReferenceFileRemove ?? handlers.handleReferenceFileRemove)(info.path)
+				},
+			}
+		})
+
+		if (canAddReferenceFile) {
+			options.push({
+				kind: "slot",
+				label: t("imageEditor.referenceImage", "参考图"),
+				secondaryLabel:
+					maxReferenceFiles !== undefined && currentReferenceFiles.length > 0
+						? `(${currentReferenceFiles.length}/${maxReferenceFiles})`
+						: undefined,
+				value: `image-reference-empty-${currentReferenceFiles.length}`,
+				slotIndex: currentReferenceFiles.length,
+			})
+		}
+
+		return options
+	}, [
+		maxReferenceFiles,
+		referenceFileInfos,
+		t,
+		onReferenceFileRemove,
+		handlers.handleReferenceFileRemove,
+		canAddReferenceFile,
+		currentReferenceFiles.length,
+	])
+
+	const resolveReferencePopoverState = useCallback(
+		(option: { slotIndex: number; value: string }): ImageEditorReferencePopoverState => {
+			const slotPath = currentReferenceFiles[option.slotIndex]
+			const filesWithoutSlot = slotPath
+				? currentReferenceFiles.filter((path) => path !== slotPath)
+				: currentReferenceFiles
+
+			return {
+				slotKey: option.value,
+				currentFiles: filesWithoutSlot,
+				maxReferenceFiles,
+				isLimitReached:
+					maxReferenceFiles !== undefined && filesWithoutSlot.length >= maxReferenceFiles,
+			}
+		},
+		[currentReferenceFiles, maxReferenceFiles],
+	)
+
+	const renderReferenceSourceListItem = useCallback(
+		(params: SourceListRenderItemParams) => {
+			const { option, className, style, content, slotRootRef } = params
+			const referencePopoverState = resolveReferencePopoverState(option)
+			return (
+				<ImageEditorReferenceSlotPopover
+					className={className}
+					style={style}
+					content={content}
+					slotKey={referencePopoverState.slotKey}
+					isPopoverOpen={isPopoverOpen}
+					selectedSlotKey={selectedReferenceSlotKey}
+					onSelectSlot={setSelectedReferenceSlotKey}
+					onPopoverOpenChange={handlers.setPopoverOpen}
+					onMouseEnter={handlers.handlePopoverMouseEnter}
+					onMouseLeave={handlers.handlePopoverMouseLeave}
+					onSelectSource={onSelectSource}
+					referencePopoverState={referencePopoverState}
+					referenceResourceType={referenceResourceType}
+					referenceFileInfos={referenceFileInfos}
+					onProjectSelect={onProjectSelect}
+					slotRootRef={slotRootRef}
+				/>
+			)
+		},
+		[
+			resolveReferencePopoverState,
+			isPopoverOpen,
+			selectedReferenceSlotKey,
+			handlers.setPopoverOpen,
+			handlers.handlePopoverMouseEnter,
+			handlers.handlePopoverMouseLeave,
+			onSelectSource,
+			referenceResourceType,
+			referenceFileInfos,
+			onProjectSelect,
+		],
+	)
 
 	return (
 		<>
 			<div className={styles.controllers}>
-				<div className={styles.left}>
-					{modelOptions.length > 0 && selectedModelOption && (
-						<Select value={selectedModelId} onValueChange={handlers.handleModelChange}>
-							<SelectTrigger className={styles.selectTrigger}>
-								<div
-									className={styles.modelOptionItemContent}
-									style={{ maxWidth: 160 }}
+				{referenceSourceListOptions.length > 0 && (
+					<div className={styles.top}>
+						<div className={styles.sourceListScroller}>
+							<div className={styles.sourceListScrollerContent}>
+								<SourceList
+									options={referenceSourceListOptions}
+									renderItem={renderReferenceSourceListItem}
+								/>
+							</div>
+						</div>
+					</div>
+				)}
+				<div className={styles.bottom}>
+					<div className={styles.left}>
+						<EditorModelSelect
+							selectedModelId={selectedModelId}
+							modelOptions={modelOptions}
+							modelOptionGroups={modelOptionGroups}
+							selectedModelOption={selectedModelOption}
+							onModelChange={handlers.handleModelChange}
+						/>
+					</div>
+					<div className={styles.right}>
+						{supportedImageSettingOptions.map((setting) => {
+							const defaultOption = setting.options.find(
+								(option) => option.value === setting.default,
+							)
+							const selectedValue =
+								selectedImageGenerationConfig[setting.requestKey] ||
+								defaultOption?.value ||
+								setting.options[0]?.value ||
+								""
+							const selectedOption = setting.options.find(
+								(option) => option.value === selectedValue,
+							)
+							const testIdKey = getSettingTestIdKey(setting.requestKey)
+
+							return (
+								<Select
+									key={setting.key}
+									value={selectedValue}
+									onValueChange={(value) =>
+										handlers.handleImageSettingChange(setting.requestKey, value)
+									}
 								>
-									{selectedModelOption.model.model_icon && (
-										<div className={styles.icon}>
-											<img
-												src={selectedModelOption.model.model_icon}
-												alt={selectedModelOption.label}
-											/>
+									<SelectTrigger
+										className={styles.selectTrigger}
+										data-testid={`image-editor-${testIdKey}-setting-trigger`}
+									>
+										<span className={styles.selectTriggerText}>
+											{selectedOption?.label || selectedValue}
+										</span>
+										<ChevronsUpDown size={16} />
+									</SelectTrigger>
+									<SelectContent
+										className={styles.selectContent}
+										style={{ minWidth: 160 }}
+									>
+										<div className={styles.selectContentName}>
+											{setting.label}
 										</div>
-									)}
-									<div className={styles.label}>{selectedModelOption.label}</div>
-								</div>
-								<ChevronsUpDown size={16} />
-							</SelectTrigger>
-							<SelectContent className={styles.selectContent}>
-								{shouldShowModelGroups
-									? modelOptionGroups.map((group) => (
-											<SelectGroup key={group.id}>
-												<SelectLabel className={styles.selectGroupLabel}>
-													<div className={styles.selectGroupLabelContent}>
-														{group.icon && (
-															<img
-																src={group.icon}
-																alt={group.label}
-																className={
-																	styles.selectGroupLabelIcon
-																}
-															/>
-														)}
-														<span>{group.label}</span>
-													</div>
-												</SelectLabel>
-												{group.options.map((option) => (
-													<SelectItem
-														key={option.value}
-														value={option.value}
-														className={`${styles.selectOptionItem} ${styles.selectOptionItemIndented}`}
-													>
-														<div
-															className={
-																styles.modelOptionItemContent
-															}
-														>
-															<div className={styles.label}>
-																{option.label}
-															</div>
-														</div>
-													</SelectItem>
-												))}
-											</SelectGroup>
-										))
-									: modelOptions.map((option) => (
+										{setting.options.map((option) => (
+											<SelectItem
+												key={option.value}
+												value={option.value}
+												className={styles.selectOptionItem}
+												data-testid={`image-editor-${testIdKey}-setting-option`}
+											>
+												<span>{option.label}</span>
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							)
+						})}
+						{/* 分辨率选择 */}
+						<ResolutionSelect
+							options={supportedResolutionOptions}
+							value={config.selectedResolution}
+							onValueChange={handlers.handleResolutionChange}
+						/>
+						{/* 比例选择 */}
+						{supportedAspectRatioOptions.length > 0 && (
+							<Select
+								value={currentSelectValue || ""}
+								onValueChange={handlers.handleRatioChange}
+							>
+								<SelectTrigger className={styles.selectTrigger}>
+									<span className={styles.selectTriggerText}>
+										{ratioOption?.label || t("imageEditor.custom", "自定义")}
+									</span>
+									<ChevronsUpDown size={16} />
+								</SelectTrigger>
+								<SelectContent
+									className={styles.selectContent}
+									style={{ minWidth: 200 }}
+								>
+									<div className={styles.selectContentName}>
+										{t("imageEditor.size", "尺寸")}
+									</div>
+									{supportedAspectRatioOptions.map((option) => {
+										if (!option || !option.value) return null
+										return (
 											<SelectItem
 												key={option.value}
 												value={option.value}
 												className={styles.selectOptionItem}
 											>
-												<div className={styles.modelOptionItemContent}>
-													{option.model.model_icon && (
-														<div className={styles.icon}>
-															<img
-																src={option.model.model_icon}
-																alt={option.label}
-															/>
-														</div>
-													)}
-													<div className={styles.label}>
+												<div className={styles.ratioOptionItemContent}>
+													<SizeIconPreview
+														iconWidth={option.iconWidth}
+														iconHeight={option.iconHeight}
+														wrapperClassName={styles.icon}
+														iconClassName={styles.iconContent}
+													/>
+													<div
+														className={styles.label}
+														style={{ width: 60 }}
+													>
 														{option.label}
+													</div>
+													<div className={styles.size}>
+														{option.width}x{option.height}
 													</div>
 												</div>
 											</SelectItem>
-										))}
-							</SelectContent>
-						</Select>
-					)}
-					{maxReferenceImages !== undefined && maxReferenceImages > 0 && (
-						<Popover
-							open={isPopoverOpen}
-							onOpenChange={(open) => {
-								if (open) {
-									handlers.handlePopoverMouseEnter()
-								} else {
-									handlers.handlePopoverMouseLeave()
-								}
-							}}
-						>
-							<PopoverTrigger
-								className={styles.referenceImagePopoverTrigger}
-								onMouseEnter={handlers.handlePopoverMouseEnter}
-								onMouseLeave={handlers.handlePopoverMouseLeave}
-							>
-								<IconButton
-									className={styles.imageUploadButton}
-									onClick={onUploadClick}
-									selected={currentReferenceImages.length > 0}
-									disabled={isUploading || isReferenceImageLimitReached}
-									style={{
-										opacity:
-											isUploading || isReferenceImageLimitReached ? 0.5 : 1,
-										cursor:
-											isUploading || isReferenceImageLimitReached
-												? "not-allowed"
-												: "pointer",
-									}}
-									title={
-										isReferenceImageLimitReached &&
-										maxReferenceImages !== undefined
-											? t("imageEditor.maxReferenceImagesReached", {
-													defaultValue: `最多只能上传 ${maxReferenceImages} 张参考图`,
-													maxReferenceImages,
-												})
-											: undefined
-									}
-								>
-									{isUploading ? (
-										<LoaderCircle size={16} className="animate-spin" />
-									) : (
-										<ImagePlus size={16} />
-									)}
-									{currentReferenceImages.length > 0 && (
-										<span>{currentReferenceImages.length}</span>
-									)}
-								</IconButton>
-							</PopoverTrigger>
-							{!!referenceImageInfos.length && (
-								<PopoverContent
-									data-canvas-ui-component
-									align="start"
-									onMouseEnter={handlers.handlePopoverMouseEnter}
-									onMouseLeave={handlers.handlePopoverMouseLeave}
-									className={styles.referenceImagePopover}
-								>
-									<div className={styles.referenceImageContent}>
-										<div className={styles.referenceImageTitle}>
-											{t("imageEditor.referenceImage", "参考图")}
-										</div>
-										<div className={styles.referenceImageList}>
-											{referenceImageInfos.map((info, index) => {
-												const isProtected =
-													protectedReferenceImageIndex !== undefined &&
-													index === protectedReferenceImageIndex
-												const currentImageText = t(
-													"imageEditor.currentImage",
-													"(当前图片)",
-												)
-												return (
-													<div
-														key={info.path}
-														className={styles.referenceImageItem}
-													>
-														<ReferenceImageThumbnailImage
-															fileName={info.fileName}
-															path={info.path}
-														/>
-														<div
-															className={styles.referenceImageName}
-															title={
-																isProtected
-																	? `${info.fileName} ${currentImageText}`
-																	: info.fileName
-															}
-														>
-															{isProtected ? (
-																<>
-																	<span
-																		className={
-																			styles.referenceImageFileName
-																		}
-																	>
-																		{info.fileName}
-																	</span>
-																	<span
-																		className={
-																			styles.referenceImageCurrentTag
-																		}
-																	>
-																		{currentImageText}
-																	</span>
-																</>
-															) : (
-																info.fileName
-															)}
-														</div>
-														{!isProtected && (
-															<IconButton
-																className={
-																	styles.referenceImageDelete
-																}
-																onClick={(e) => {
-																	e.stopPropagation()
-																	;(
-																		onReferenceImageRemove ??
-																		handlers.handleReferenceImageRemove
-																	)(info.path)
-																}}
-															>
-																<X size={14} />
-															</IconButton>
-														)}
-													</div>
-												)
-											})}
-										</div>
-									</div>
-								</PopoverContent>
-							)}
-						</Popover>
-					)}
-				</div>
-				<div className={styles.right}>
-					{/* 分辨率选择 */}
-					<ResolutionSelect
-						options={supportedResolutionOptions}
-						value={config.selectedResolution}
-						onValueChange={handlers.handleResolutionChange}
-					/>
-					{/* 比例选择 */}
-					{supportedAspectRatioOptions.length > 0 && (
-						<Select
-							value={currentSelectValue || ""}
-							onValueChange={handlers.handleRatioChange}
-						>
-							<SelectTrigger className={styles.selectTrigger}>
-								<span className={styles.selectTriggerText}>
-									{ratioOption?.label || t("imageEditor.custom", "自定义")}
-								</span>
-								<ChevronsUpDown size={16} />
-							</SelectTrigger>
-							<SelectContent
-								className={styles.selectContent}
-								style={{ minWidth: 200 }}
-							>
-								<div className={styles.selectContentName}>
-									{t("imageEditor.size", "尺寸")}
-								</div>
-								{supportedAspectRatioOptions.map((option) => {
-									if (!option || !option.value) return null
-									return (
-										<SelectItem
-											key={option.value}
-											value={option.value}
-											className={styles.selectOptionItem}
-										>
-											<div className={styles.ratioOptionItemContent}>
-												<div className={styles.icon}>
-													<div
-														className={styles.iconContent}
-														style={{
-															width: `${option.iconWidth}px`,
-															height: `${option.iconHeight}px`,
-														}}
-													/>
-												</div>
-												<div className={styles.label} style={{ width: 60 }}>
-													{option.label}
-												</div>
-												<div className={styles.size}>
-													{option.width}x{option.height}
-												</div>
-											</div>
-										</SelectItem>
-									)
-								})}
-							</SelectContent>
-						</Select>
-					)}
-					{renderSendButton && renderSendButton()}
+										)
+									})}
+								</SelectContent>
+							</Select>
+						)}
+						{renderSendButton && renderSendButton()}
+					</div>
 				</div>
 			</div>
 		</>
 	)
+}
+
+function getSettingTestIdKey(key: string): string {
+	return key
+		.replace(/[^a-z0-9]+/gi, "-")
+		.replace(/^-|-$/g, "")
+		.toLowerCase()
 }

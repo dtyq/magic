@@ -176,4 +176,31 @@ class TaskFileVersionRepository implements TaskFileVersionRepositoryInterface
 
         return new TaskFileVersionEntity($model->toArray());
     }
+
+    /**
+     * 批量获取多个文件的最新版本号.
+     *
+     * @param array $fileIds 文件ID列表
+     * @return array<int, int> [file_id => latest_version]
+     */
+    public function batchGetLatestVersionNumbers(array $fileIds): array
+    {
+        if (empty($fileIds)) {
+            return [];
+        }
+
+        $rows = $this->model::query()
+            ->selectRaw('file_id, MAX(version) as latest_version')
+            ->whereIn('file_id', $fileIds)
+            ->whereNull('deleted_at')
+            ->groupBy('file_id')
+            ->get();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[(int) $row->file_id] = (int) $row->latest_version;
+        }
+
+        return $result;
+    }
 }

@@ -47,7 +47,7 @@ function shouldShowBuiltinAction(key: ActionKey, context: ActionContext): boolea
 		case "openUrl":
 			return context.type === DetailType.Browser && !context.isEditMode
 		case "fullscreen":
-			return !context.isMobile
+			return !context.isMobile && !context.isFullscreenMode
 		case "versionMenu":
 		case "more":
 			return canShowMore(context)

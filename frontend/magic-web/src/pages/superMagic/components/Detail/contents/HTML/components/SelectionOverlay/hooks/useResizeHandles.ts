@@ -179,15 +179,44 @@ export function useResizeHandles({
 			const deltaY = (event.clientY - resizeStartMouseRef.current.y) / scaleFactor
 			const minSize = 8
 			const startRect = resizeStartRectRef.current
+			const shouldLockImageRatio =
+				Boolean(event.shiftKey) &&
+				selectedInfoRef.current.isImageElement === true &&
+				Boolean(selectedInfoRef.current.intrinsicAspectRatio)
 
-			const nextWidth =
+			let nextWidth =
 				resizeHandleRef.current.directionX > 0
 					? Math.max(startRect.width + deltaX, minSize)
 					: startRect.width
-			const nextHeight =
+			let nextHeight =
 				resizeHandleRef.current.directionY > 0
 					? Math.max(startRect.height + deltaY, minSize)
 					: startRect.height
+
+			// Keep the original image ratio when users hold Shift during resize.
+			if (shouldLockImageRatio) {
+				const aspectRatio = selectedInfoRef.current.intrinsicAspectRatio || 1
+				const isWidthDriven =
+					resizeHandleRef.current.directionY === 0 ||
+					(resizeHandleRef.current.directionX > 0 &&
+						Math.abs(deltaX / startRect.width) >= Math.abs(deltaY / startRect.height))
+
+				if (isWidthDriven) {
+					nextWidth =
+						resizeHandleRef.current.directionX > 0
+							? Math.max(startRect.width + deltaX, minSize)
+							: startRect.width
+					nextHeight = Math.max(nextWidth / aspectRatio, minSize)
+					nextWidth = nextHeight * aspectRatio
+				} else {
+					nextHeight =
+						resizeHandleRef.current.directionY > 0
+							? Math.max(startRect.height + deltaY, minSize)
+							: startRect.height
+					nextWidth = Math.max(nextHeight * aspectRatio, minSize)
+					nextHeight = nextWidth / aspectRatio
+				}
+			}
 
 			// Immediately update UI for smooth feedback
 			setSelectedInfo((prev) => {

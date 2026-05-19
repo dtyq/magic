@@ -60,12 +60,33 @@ function getAllExistingFileNames(
 	// 添加 duplicateCheckList 中的文件名
 	if (duplicateCheckList && duplicateCheckList.length > 0) {
 		const duplicateFileNames = extractDuplicateFileNames(duplicateCheckList)
-		for (const fileName of duplicateFileNames) {
+		duplicateFileNames.forEach((fileName) => {
 			allExistingFileNames.add(fileName)
-		}
+		})
 	}
 
 	return allExistingFileNames
+}
+
+function getExistingFileSizesByName(
+	suffixDir: string,
+	attachments: FileItem[] | undefined,
+): Map<string, Set<number>> {
+	const existingFileSizesByName = new Map<string, Set<number>>()
+	const existingFilesInDirectory = attachments
+		? collectFilesInDirectory(attachments, suffixDir)
+		: []
+
+	for (const existingFile of existingFilesInDirectory) {
+		if (!existingFile.file_name || typeof existingFile.file_size !== "number") {
+			continue
+		}
+		const fileSizes = existingFileSizesByName.get(existingFile.file_name) ?? new Set<number>()
+		fileSizes.add(existingFile.file_size)
+		existingFileSizesByName.set(existingFile.file_name, fileSizes)
+	}
+
+	return existingFileSizesByName
 }
 
 /**
@@ -104,18 +125,25 @@ export function prepareFilesForUpload(
 
 	const filesToUpload: File[] = []
 	const usedNames = new Set<string>()
+	const seenOriginalNames = new Set<string>()
 	const fileNameToUploadFileMap = new Map<string, UploadFile>()
 
 	// 获取所有已存在的文件名
 	const allExistingFileNames = getAllExistingFileNames(suffixDir, attachments, duplicateCheckList)
+	const existingFileSizesByName = getExistingFileSizesByName(suffixDir, attachments)
 
 	for (const uploadFile of uploadFiles) {
 		const { file, overwrite } = uploadFile
 		let finalFile: File = file
+		const existingFileSizes = existingFileSizesByName.get(file.name)
+		const hasDifferentExistingFile =
+			existingFileSizes !== undefined && !existingFileSizes.has(file.size)
+		const hasSameBatchFileName = seenOriginalNames.has(file.name)
+		const shouldUseUniqueFileName =
+			!overwrite || hasDifferentExistingFile || hasSameBatchFileName
 
-		// 如果 overwrite 为 true，保持原文件名（不重命名）
-		// 如果 overwrite 为 false 或未设置，检查是否需要重命名
-		if (!overwrite) {
+		// 系统拖拽/粘贴可能出现同名不同内容文件；此时强制改名，避免覆盖或回调按文件名串线。
+		if (shouldUseUniqueFileName) {
 			const newFileName = generateUniqueFileName(file.name, usedNames, allExistingFileNames)
 
 			// 如果需要重命名，创建新的 File 对象
@@ -132,6 +160,7 @@ export function prepareFilesForUpload(
 			// overwrite 为 true，保持原文件名
 			usedNames.add(file.name)
 		}
+		seenOriginalNames.add(file.name)
 
 		filesToUpload.push(finalFile)
 		// 建立映射关系（使用最终文件名）

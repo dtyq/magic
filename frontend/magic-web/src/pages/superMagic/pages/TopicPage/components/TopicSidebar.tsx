@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react"
-import { Files, Timer } from "lucide-react"
+import { Brain, Files, Timer } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { LongTremMemorySider } from "../../../components/LongTremMemory/components/MemorySider"
 import IconShareCog from "@/enhance/tabler/icons-react/icons/iconShareCog"
 import ProjectCardContainer from "../../../components/ProjectCardContainer"
 import ProjectSider from "../../../components/ProjectSider"
@@ -25,6 +26,7 @@ function TopicSidebar({
 	topicFilesProps,
 }: TopicSidebarProps) {
 	const { t } = useTranslation("super")
+	const { t: tLongMemory } = useTranslation("super/longMemory")
 	const items = useMemo(
 		() => [
 			{
@@ -47,6 +49,12 @@ function TopicSidebar({
 				visible: !isReadOnly,
 			},
 			{
+				key: "longMemory",
+				title: tLongMemory("longMemory"),
+				icon: <Brain size={16} />,
+				content: <LongTremMemorySider projectId={selectedProject?.id} />,
+			},
+			{
 				key: "share",
 				title: t("shareManagement.title"),
 				icon: <IconShareCog size={16} color="currentColor" />,
@@ -59,6 +67,7 @@ function TopicSidebar({
 			selectedTopic?.id,
 			selectedWorkspace?.id,
 			t,
+			tLongMemory,
 			topicFilesProps,
 		],
 	)

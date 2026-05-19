@@ -8,20 +8,26 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Skill\Service;
 
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
-use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
-use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityUser;
 use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Application\Skill\Assembler\AdminSkillAssembler;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillVersionAdminQuery;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillDomainService;
 use Dtyq\SuperMagic\Domain\Skill\Service\SkillMarketDomainService;
+use Dtyq\SuperMagic\Domain\Skill\Service\SkillVersionDomainService;
 use Dtyq\SuperMagic\ErrorCode\SuperMagicErrorCode;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillMarketsRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\QuerySkillVersionsRequestAdminDTO;
+use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ReviewOrganizationSkillVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\ReviewSkillVersionRequestDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Request\UpdateSkillMarketRequestAdminDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\QuerySkillMarketsResponseAdminDTO;
@@ -36,6 +42,7 @@ class AdminSkillAppService extends AbstractSkillAppService
 {
     public function __construct(
         protected SkillDomainService $skillDomainService,
+        protected SkillVersionDomainService $skillVersionDomainService,
         protected SkillMarketDomainService $skillMarketDomainService,
         private readonly ResourceVisibilityDomainService $resourceVisibilityDomainService,
         private readonly AdminSkillAssembler $adminSkillAssembler,
@@ -50,19 +57,14 @@ class AdminSkillAppService extends AbstractSkillAppService
         $dataIsolation->disabled();
 
         $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
-        $result = $this->skillDomainService->queryVersions(
+        $query = $this->buildSkillVersionAdminQuery(
+            $requestDTO,
+            PublishTargetType::filterValues(PublishTargetType::MARKET->value),
+            $requestDTO->getOrganizationCode()
+        );
+        $result = $this->skillVersionDomainService->queryVersions(
             $dataIsolation,
-            $requestDTO->getReviewStatus(),
-            $requestDTO->getPublishStatus(),
-            $requestDTO->getPublishTargetType(),
-            $requestDTO->getSourceType(),
-            $requestDTO->getVersion(),
-            $requestDTO->getPackageName(),
-            $requestDTO->getSkillName(),
-            $requestDTO->getOrganizationCode(),
-            $requestDTO->getStartTime(),
-            $requestDTO->getEndTime(),
-            $requestDTO->getOrderBy(),
+            $query,
             $page
         );
 
@@ -98,6 +100,93 @@ class AdminSkillAppService extends AbstractSkillAppService
             $result['list'],
             $page,
             $result['total']
+        );
+    }
+
+    /**
+     * 查询当前组织内待审核/已审核的 Skill 版本。
+     * 仅包含发布到组织或指定成员范围的版本，不包含市场发布版本。
+     */
+    public function queryOrganizationVersions(
+        RequestContext $requestContext,
+        QuerySkillVersionsRequestAdminDTO $requestDTO
+    ): QuerySkillVersionsResponseAdminDTO {
+        $dataIsolation = $this->createSkillDataIsolation($requestContext->getUserAuthorization());
+        $page = new Page($requestDTO->getPage(), $requestDTO->getPageSize());
+        $publishTargetTypes = PublishTargetType::resolveOrganizationReviewFilterValues($requestDTO->getPublishTargetType());
+
+        if ($publishTargetTypes === []) {
+            return $this->adminSkillAssembler->createQueryVersionsResponseDTO([], $page, 0);
+        }
+
+        $query = $this->buildSkillVersionAdminQuery(
+            $requestDTO,
+            $publishTargetTypes,
+            $dataIsolation->getCurrentOrganizationCode(),
+            [ReviewStatus::INVALIDATED->value]
+        );
+        $result = $this->skillVersionDomainService->queryVersions(
+            $dataIsolation,
+            $query,
+            $page
+        );
+
+        return $this->adminSkillAssembler->createQueryVersionsResponseDTO(
+            $result['list'],
+            $page,
+            $result['total']
+        );
+    }
+
+    /**
+     * 组织后台审核 Skill 版本，按 action 分发通过或拒绝逻辑。
+     */
+    public function reviewOrganizationVersion(RequestContext $requestContext, int $id, ReviewOrganizationSkillVersionRequestDTO $requestDTO): void
+    {
+        if ($requestDTO->isApproved()) {
+            $this->approveOrganizationVersion($requestContext, $id, $requestDTO->getReviewRemark());
+            return;
+        }
+
+        $this->rejectOrganizationVersion($requestContext, $id, $requestDTO->getReviewRemark());
+    }
+
+    /**
+     * 组织后台审核通过 Skill 版本，并按发布目标同步组织内可见范围。
+     */
+    public function approveOrganizationVersion(RequestContext $requestContext, int $id, ?string $reviewRemark = null): void
+    {
+        $dataIsolation = $this->createSkillDataIsolation($requestContext->getUserAuthorization());
+
+        Db::beginTransaction();
+        try {
+            $versionEntity = $this->skillVersionDomainService->reviewOrganizationSkillVersion(
+                $dataIsolation,
+                $id,
+                ReviewStatus::APPROVED,
+                $reviewRemark
+            );
+            $skillEntity = $this->skillDomainService->findSkillByCode($dataIsolation, $versionEntity->getCode());
+            $this->syncOrganizationSkillScope($dataIsolation, $skillEntity, $versionEntity);
+            Db::commit();
+        } catch (Throwable $throwable) {
+            Db::rollBack();
+            throw $throwable;
+        }
+    }
+
+    /**
+     * 组织后台审核拒绝 Skill 版本，不改变当前生效版本和可见范围。
+     */
+    public function rejectOrganizationVersion(RequestContext $requestContext, int $id, ?string $reviewRemark = null): void
+    {
+        $dataIsolation = $this->createSkillDataIsolation($requestContext->getUserAuthorization());
+
+        $this->skillVersionDomainService->reviewOrganizationSkillVersion(
+            $dataIsolation,
+            $id,
+            ReviewStatus::REJECTED,
+            $reviewRemark
         );
     }
 
@@ -160,7 +249,12 @@ class AdminSkillAppService extends AbstractSkillAppService
 
             $this->skillDomainService->deleteUserSkillOwnershipsExceptUser($dataIsolation, $marketSkill->getSkillCode(), $creatorId);
 
-            $this->saveSkillVisibility($dataIsolation, $marketSkill->getSkillCode(), [$creatorId]);
+            $this->saveSkillVisibility(
+                $dataIsolation,
+                $marketSkill->getSkillCode(),
+                VisibilityType::SPECIFIC,
+                [$creatorId]
+            );
             Db::commit();
         } catch (Throwable $throwable) {
             Db::rollBack();
@@ -177,36 +271,98 @@ class AdminSkillAppService extends AbstractSkillAppService
         $dataIsolation = $this->createSkillDataIsolation($requestContext->getUserAuthorization());
 
         // 调用领域服务处理业务逻辑
-        $this->skillDomainService->reviewSkillVersion(
+        $this->skillVersionDomainService->reviewSkillVersion(
             $dataIsolation,
             $id,
             $requestDTO->getAction(),
-            $requestDTO->getPublisherType()
+            $requestDTO->getPublisherType(),
+            $requestDTO->getReviewRemark()
         );
     }
 
     /**
-     * 将 Skill 可见范围覆盖为指定用户.
+     * 将接口请求参数转换为领域查询条件。
      *
-     * @param array<string> $userIds
+     * @param null|array<int, string> $publishTargetTypes
+     * @param null|array<int, string> $excludeReviewStatuses
      */
-    private function saveSkillVisibility(SkillDataIsolation $dataIsolation, string $code, array $userIds): void
-    {
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        $visibilityConfig = new VisibilityConfig();
-        $visibilityConfig->setVisibilityType(VisibilityType::SPECIFIC);
+    private function buildSkillVersionAdminQuery(
+        QuerySkillVersionsRequestAdminDTO $requestDTO,
+        ?array $publishTargetTypes,
+        ?string $organizationCode,
+        ?array $excludeReviewStatuses = null
+    ): SkillVersionAdminQuery {
+        $query = new SkillVersionAdminQuery();
+        $query->setReviewStatus($requestDTO->getReviewStatus());
+        $query->setPublishStatus($requestDTO->getPublishStatus());
+        $query->setPublishTargetTypes($publishTargetTypes);
+        $query->setSourceType($requestDTO->getSourceType());
+        $query->setVersion($requestDTO->getVersion());
+        $query->setPackageName($requestDTO->getPackageName());
+        $query->setSkillName($requestDTO->getSkillName());
+        $query->setOrganizationCode($organizationCode);
+        $query->setStartTime($requestDTO->getStartTime());
+        $query->setEndTime($requestDTO->getEndTime());
+        $query->setOrderBy($requestDTO->getOrderBy());
+        $query->setExcludeReviewStatuses($excludeReviewStatuses);
 
-        foreach (array_values(array_unique($userIds)) as $userId) {
-            $visibilityUser = new VisibilityUser();
-            $visibilityUser->setId($userId);
-            $visibilityConfig->addUser($visibilityUser);
+        return $query;
+    }
+
+    /**
+     * 将审核通过的组织内发布范围同步到资源可见性表。
+     */
+    private function syncOrganizationSkillScope(
+        SkillDataIsolation $dataIsolation,
+        SkillEntity $skillEntity,
+        SkillVersionEntity $versionEntity
+    ): void {
+        $publishTargetType = $versionEntity->getPublishTargetType();
+
+        $this->skillDomainService->deleteUserSkillOwnershipsExceptUser(
+            $dataIsolation,
+            $skillEntity->getCode(),
+            $skillEntity->getCreatorId()
+        );
+        $this->skillMarketDomainService->updateAllPublishStatusBySkillCode(
+            $skillEntity->getCode(),
+            PublishStatus::OFFLINE->value
+        );
+
+        if ($publishTargetType === PublishTargetType::ORGANIZATION) {
+            $this->saveSkillVisibility($dataIsolation, $skillEntity->getCode(), VisibilityType::ALL);
+            return;
         }
 
-        $this->resourceVisibilityDomainService->saveVisibilityConfig(
-            $permissionDataIsolation,
+        $publishTargetValue = $versionEntity->getPublishTargetValue();
+        $userIds = array_values(array_unique(array_merge(
+            [$skillEntity->getCreatorId()],
+            $publishTargetValue?->getUserIds() ?? []
+        )));
+
+        $this->saveSkillVisibility(
+            $dataIsolation,
+            $skillEntity->getCode(),
+            VisibilityType::SPECIFIC,
+            $userIds,
+            $publishTargetValue?->getDepartmentIds() ?? []
+        );
+    }
+
+    private function saveSkillVisibility(
+        SkillDataIsolation $dataIsolation,
+        string $code,
+        VisibilityType $visibilityType,
+        array $userIds = [],
+        array $departmentIds = []
+    ): void {
+        $this->resourceVisibilityDomainService->saveVisibilityByPrincipals(
+            $this->createPermissionDataIsolation($dataIsolation),
             ResourceVisibilityResourceType::SKILL,
             $code,
-            $visibilityConfig
+            $visibilityType,
+            $userIds,
+            $departmentIds
         );
     }
 }

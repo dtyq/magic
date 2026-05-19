@@ -3,7 +3,6 @@
 支持查询所有卡片或指定卡片的信息，可自定义返回字段
 """
 
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from pydantic import Field, field_validator
@@ -193,22 +192,22 @@ class QueryDashboardCards(AbstractFileTool[QueryDashboardCardsParams], Workspace
             # 1. 获取项目路径
             project_path = self.resolve_path(params.project_path)
             if not project_path.exists():
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.project_not_exist", category="tool.messages", project_path=params.project_path)
+                return ToolResult.error(
+                    i18n.translate("dashboard_cards.project_not_exist", category="tool.messages", project_path=params.project_path)
                 )
             
             data_js_path = project_path / "data.js"
             if not data_js_path.exists():
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.data_js_not_exist", category="tool.messages", project_path=params.project_path)
+                return ToolResult.error(
+                    i18n.translate("dashboard_cards.data_js_not_exist", category="tool.messages", project_path=params.project_path)
                 )
             
             # 2. 解析卡片
             try:
                 cards, _ = parse_data_js(data_js_path)
             except CardParseError as e:
-                return ToolResult(
-                    error=i18n.translate("dashboard_cards.parse_error", category="tool.messages", error=str(e))
+                return ToolResult.error(
+                    i18n.translate("dashboard_cards.parse_error", category="tool.messages", error=str(e))
                 )
             
             # 3. 根据card_ids过滤卡片
@@ -267,23 +266,79 @@ class QueryDashboardCards(AbstractFileTool[QueryDashboardCardsParams], Workspace
             # 根据是否指定card_ids，添加不同的额外信息
             if params.card_ids is not None:
                 result_data['not_found'] = not_found_ids
+                result_data['summary'] = {
+                    'requested_count': len(params.card_ids),
+                    'queried_count': len(filtered_cards),
+                    'failed_count': len(not_found_ids),
+                }
+                if not filtered_cards:
+                    return ToolResult.error(
+                        self._build_all_failed_content(not_found_ids)
+                    )
             else:
                 result_data['total'] = len(filtered_cards)
+                result_data['summary'] = {
+                    'queried_count': len(filtered_cards),
+                    'failed_count': 0,
+                }
             
             return ToolResult(
-                content=json.dumps(result_data, ensure_ascii=False, indent=2),
+                content=self._build_success_content(
+                    queried_count=len(filtered_cards),
+                    not_found_ids=not_found_ids or [],
+                    queried_all=params.card_ids is None,
+                ),
+                data=result_data,
                 extra_info=result_data
             )
             
         except Exception as e:
             logger.error(f"Failed to query dashboard cards: {e}", exc_info=True)
-            return ToolResult(
-                error=i18n.translate("query_dashboard_cards.error", category="tool.messages", error=str(e))
+            return ToolResult.error(
+                i18n.translate("query_dashboard_cards.error", category="tool.messages", error=str(e))
             )
 
     def _get_remark_content(self, result: ToolResult, arguments: Dict[str, Any] = None) -> str:
         """获取备注内容"""
-        if result.extra_info:
-            found_count = len(result.extra_info.get('cards', []))
-            return i18n.translate("query_dashboard_cards.success", category="tool.messages", count=found_count)
-        return i18n.translate("query_dashboard_cards.success", category="tool.messages", count=0)
+        summary = result.data.get("summary", {}) if getattr(result, "data", None) else {}
+        queried_count = summary.get("queried_count")
+        failed_count = summary.get("failed_count", 0)
+
+        if queried_count is None and result.extra_info:
+            queried_count = len(result.extra_info.get('cards', []))
+
+        if queried_count is None:
+            queried_count = 0
+
+        if failed_count > 0:
+            return i18n.translate(
+                "query_dashboard_cards.partial_success",
+                category="tool.messages",
+                queried=queried_count,
+                failed=failed_count,
+            )
+
+        return i18n.translate("query_dashboard_cards.success", category="tool.messages", count=queried_count)
+
+    def _build_success_content(self, queried_count: int, not_found_ids: List[str], queried_all: bool) -> str:
+        """构建给调用agent读取的成功内容"""
+        if queried_all:
+            return f"Queried {queried_count} card(s)."
+
+        message = f"Queried {queried_count} requested card(s)."
+        if not_found_ids:
+            message += (
+                f" Failed to query {len(not_found_ids)} card(s) because the IDs were not found: "
+                f"{', '.join(not_found_ids)}."
+            )
+        return message
+
+    def _build_all_failed_content(self, not_found_ids: List[str]) -> str:
+        """构建全部失败时给调用agent读取的错误内容"""
+        if not not_found_ids:
+            return "Failed to query any requested cards."
+
+        return (
+            "Failed to query any requested cards. "
+            f"The following card IDs were not found: {', '.join(not_found_ids)}."
+        )

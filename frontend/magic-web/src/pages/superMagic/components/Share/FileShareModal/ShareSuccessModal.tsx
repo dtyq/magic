@@ -33,6 +33,7 @@ import { downloadFile } from "@/utils/file"
 import { userStore } from "@/models/user"
 import { downloadFileWithAnchor } from "../../../utils/handleFIle"
 import { useFileDisplayConfig } from "../hooks/useFileDisplayConfig"
+import { generateShareMessageText } from "../utils/generateShareMessageText"
 
 interface ShareSuccessModalProps {
 	open: boolean
@@ -259,62 +260,16 @@ export default memo(function ShareSuccessModal(props: ShareSuccessModalProps) {
 
 	// Generate share message text
 	const shareMessageText = useMemo(() => {
-		const lines = []
-
-		// 优先检查特殊项目类型（不受 fileCount 限制）
-		const fileType = fileDisplayConfig?.type
-		const isSpecialProject =
-			fileType === "audio" ||
-			fileType === "dashboard" ||
-			fileType === "design" ||
-			fileType === "slide"
-
-		if (shareProject) {
-			// 项目分享 - 优先使用 projectName，否则使用 shareName
-			const displayProjectName = projectName || t("common.untitledProject")
-			lines.push(t("share.shareMessageProject"))
-			lines.push(t("share.shareMessageProjectName", { projectName: displayProjectName }))
-			lines.push(t("share.shareMessageProjectLink", { shareUrl }))
-			lines.push(t("share.shareMessageProjectTip"))
-		} else if (isSpecialProject) {
-			// 特殊项目分享（audio/dashboard/design/slide）- 不限制文件数
-			if (fileType === "audio") {
-				lines.push(t("share.shareMessageAudio"))
-			} else if (fileType === "dashboard") {
-				lines.push(t("share.shareMessageDashboard"))
-			} else if (fileType === "design") {
-				lines.push(t("share.shareMessageDesign"))
-			} else if (fileType === "slide") {
-				lines.push(t("share.shareMessageSlide"))
-			}
-
-			lines.push(t("share.shareMessageSingleFileFile", { fileName: mainFileName }))
-			lines.push(t("share.shareMessageSingleFileLink", { shareUrl }))
-			lines.push(t("share.shareMessageSingleFileTip"))
-		} else if (fileCount === 1) {
-			// 单个普通文件分享
-			lines.push(t("share.shareMessageSingleFile"))
-			lines.push(t("share.shareMessageSingleFileFile", { fileName: mainFileName }))
-			lines.push(t("share.shareMessageSingleFileLink", { shareUrl }))
-			lines.push(t("share.shareMessageSingleFileTip"))
-		} else {
-			// 多个文件分享
-			lines.push(t("share.shareMessageMultipleFiles", { count: fileCount }))
-			lines.push(t("share.shareMessageMultipleFilesLink", { shareUrl }))
-			lines.push(t("share.shareMessageMultipleFilesTip"))
-		}
-
-		const displayName =
-			userStore.user.userInfo?.nickname || userStore.user.userInfo?.real_name || ""
-		lines.push(
-			t("share.createdBy.footerLine", {
-				brand: t("share.createdBy.brand"),
-				username: displayName,
-			}),
-		)
-
-		return lines.join("\n")
-	}, [fileCount, mainFileName, projectName, shareProject, shareUrl, t, fileDisplayConfig])
+		return generateShareMessageText({
+			fileCount,
+			mainFileName,
+			projectName,
+			shareProject,
+			shareUrl,
+			fileDisplayConfig,
+			t,
+		})
+	}, [fileCount, mainFileName, projectName, shareProject, shareUrl, fileDisplayConfig, t])
 
 	// Render share message with clickable links
 	const renderShareMessage = useCallback(() => {
@@ -473,21 +428,6 @@ export default memo(function ShareSuccessModal(props: ShareSuccessModalProps) {
 					}}
 				>
 					<div className={styles.mobileContainer}>
-						{/* Header with icon and message */}
-						<div className={styles.mobileHeader}>
-							<div className={styles.mobileIconWrapper}>
-								<IconShare3 size={28} strokeWidth={1} />
-							</div>
-							<div className={styles.mobileTitle}>
-								{shareProject
-									? t("share.projectShareGenerated")
-									: t("share.shareLinkGenerated")}
-							</div>
-							<div className={styles.mobileSubtitle}>
-								{t("share.fileReadyToShare")}
-							</div>
-						</div>
-
 						{/* Info Card */}
 						<div className={styles.mobileInfoCard}>
 							<div className={styles.mobileInfoRow}>
@@ -600,7 +540,7 @@ export default memo(function ShareSuccessModal(props: ShareSuccessModalProps) {
 				{/* Content */}
 				<div className="flex flex-col items-center gap-3 px-8 py-8">
 					{/* Success Icon */}
-					<div className="shadow-xs flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-background p-2">
+					<div className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-background p-2 shadow-xs">
 						<IconShare3 className="h-7 w-7 text-foreground" strokeWidth={1} />
 					</div>
 
@@ -671,12 +611,12 @@ export default memo(function ShareSuccessModal(props: ShareSuccessModalProps) {
 							>
 								{t("share.shareLink")}
 							</a>
-							<div className="shadow-xs h-[144px] w-[380px] overflow-y-auto whitespace-pre-wrap text-wrap break-words rounded-lg border border-border bg-background px-3 py-2 text-sm leading-normal text-foreground">
+							<div className="h-[144px] w-[380px] overflow-y-auto whitespace-pre-wrap text-wrap break-words rounded-lg border border-border bg-background px-3 py-2 text-sm leading-normal text-foreground shadow-xs">
 								{renderShareMessage()}
 							</div>
 							<Button
 								variant="outline"
-								className="shadow-xs w-full gap-2"
+								className="w-full gap-2 shadow-xs"
 								onClick={handleCopyShareLink}
 							>
 								<Copy className="h-4 w-4" />
@@ -691,7 +631,7 @@ export default memo(function ShareSuccessModal(props: ShareSuccessModalProps) {
 							</Label>
 							<div
 								ref={qrCodeRef}
-								className="shadow-xs flex h-[144px] w-[144px] items-center justify-center rounded-lg border border-border bg-background p-3"
+								className="flex h-[144px] w-[144px] items-center justify-center rounded-lg border border-border bg-background p-3 shadow-xs"
 							>
 								<QRCode
 									value={shareUrl}
@@ -702,7 +642,7 @@ export default memo(function ShareSuccessModal(props: ShareSuccessModalProps) {
 							</div>
 							<Button
 								variant="outline"
-								className="shadow-xs w-[144px] gap-2"
+								className="w-[144px] gap-2 shadow-xs"
 								onClick={handleDownloadQRCode}
 							>
 								<Download className="h-4 w-4" />

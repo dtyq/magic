@@ -65,6 +65,18 @@ export interface PlatformConfig {
 	title_i18n: Record<SupportLocales, string>
 	keywords_i18n: Record<SupportLocales, string>
 	description_i18n: Record<SupportLocales, string>
+	footer: {
+		/* 版权文案 */
+		copyright_i18n: Record<SupportLocales, string>
+		filing: {
+			/* 是否展示备案号 */
+			enabled: boolean
+			/* 备案号文案 */
+			number: string
+			/* 备案号链接 */
+			link: string
+		}
+	}
 }
 
 export interface SettingsAll {

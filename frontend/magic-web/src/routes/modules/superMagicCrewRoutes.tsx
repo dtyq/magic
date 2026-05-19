@@ -31,30 +31,48 @@ export const superMagicCrewRoutes = [
 		name: RouteName.CrewMarketCrew,
 		path: `/:clusterCode${RoutePath.CrewMarketCrew}`,
 		element: <CrewMarketPage />,
+		meta: {
+			title: "routes.crewMarket",
+		},
 	},
 	{
 		name: RouteName.CrewMarketSkills,
 		path: `/:clusterCode${RoutePath.CrewMarketSkills}`,
 		element: <SkillMarketPage />,
+		meta: {
+			title: "routes.skillsLibrary",
+		},
 	},
 	{
 		name: RouteName.CrewEdit,
 		path: `/:clusterCode${RoutePath.CrewEdit}`,
 		element: <CrewEditPage />,
+		meta: {
+			title: "routes.crewEdit",
+		},
 	},
 	{
 		name: RouteName.MySkills,
 		path: `/:clusterCode${RoutePath.MySkills}`,
 		element: <MySkillsPage />,
+		meta: {
+			title: "routes.mySkills",
+		},
 	},
 	{
 		name: RouteName.SkillEdit,
 		path: `/:clusterCode${RoutePath.SkillEdit}`,
 		element: <SkillEditPage />,
+		meta: {
+			title: "routes.skillEdit",
+		},
 	},
 	{
 		name: RouteName.MyCrew,
 		path: `/:clusterCode${RoutePath.MyCrew}`,
 		element: <MyCrewPage />,
+		meta: {
+			title: "routes.myCrew",
+		},
 	},
 ] as Array<RouteObject>

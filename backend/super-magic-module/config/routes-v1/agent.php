@@ -8,6 +8,7 @@ use App\Interfaces\Middleware\Auth\SandboxUserAuthMiddleware;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\MagicClawApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\Old\SuperMagicAgentOldApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentApi;
+use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentCollaboratorApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentMarketApi;
 use Dtyq\SuperMagic\Interfaces\Agent\Facade\SuperMagicAgentPlaybookApi;
 use Hyperf\HttpServer\Router\Router;
@@ -100,6 +101,15 @@ Router::addGroup('/api/v2/super-magic', static function () {
         Router::post('/{code}/skills', [SuperMagicAgentApi::class, 'addAgentSkills']);
         // 从智能体移除技能。
         Router::delete('/{code}/skills', [SuperMagicAgentApi::class, 'removeAgentSkills']);
+
+        // 获取智能体协作者列表。
+        Router::get('/{code}/collaborators', [SuperMagicAgentCollaboratorApi::class, 'index']);
+        // 新增智能体协作者。
+        Router::post('/{code}/collaborators', [SuperMagicAgentCollaboratorApi::class, 'store']);
+        // 更新智能体协作者角色。
+        Router::put('/{code}/collaborators', [SuperMagicAgentCollaboratorApi::class, 'update']);
+        // 删除智能体协作者。
+        Router::delete('/{code}/collaborators', [SuperMagicAgentCollaboratorApi::class, 'destroy']);
     });
 
     Router::addGroup('/agent-market', static function () {

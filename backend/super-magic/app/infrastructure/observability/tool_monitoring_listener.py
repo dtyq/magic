@@ -14,6 +14,7 @@ from agentlang.event.event import Event, EventType
 from agentlang.event.data import BeforeToolCallEventData, AfterToolCallEventData
 from agentlang.logger import get_logger
 from .tool_monitoring import get_tool_monitor
+from agentlang.tools.tool_result import TOOL_RESULT_SYSTEM_EARLY_AFTER
 
 logger = get_logger(__name__)
 
@@ -90,6 +91,11 @@ class ToolMonitoringListener:
             result = data.result
             execution_time = data.execution_time if hasattr(data, "execution_time") else 0.0
             tool_call_id = data.tool_call.id if hasattr(data.tool_call, "id") else None
+
+            # 仅用于保证消息顺序，不代表真实的工具执行完成，不应计入监控。
+            if getattr(result, "system", None) == TOOL_RESULT_SYSTEM_EARLY_AFTER:
+                logger.debug(f"Skipping early fake AFTER_TOOL_CALL for {tool_name} (EARLY_AFTER)")
+                return
 
             # Get current batch
             batch = _current_batch.get()

@@ -1,25 +1,18 @@
-.tiptap.ProseMirror {
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
+
+@include scope.content {
   --tt-checklist-bg-color: transparent;
   --tt-checklist-bg-active-color: var(--tt-brand-color-500);
   --tt-checklist-border-color: var(--tt-gray-light-a-400);
   --tt-checklist-border-active-color: var(--tt-brand-color-500);
   --tt-checklist-check-icon-color: var(--white);
   --tt-checklist-text-active: var(--tt-gray-light-a-500);
-
-  .dark & {
-    --tt-checklist-bg-color: transparent;
-    --tt-checklist-bg-active-color: var(--tt-brand-color-400);
-    --tt-checklist-border-color: var(--tt-gray-dark-a-400);
-    --tt-checklist-border-active-color: var(--tt-brand-color-400);
-    --tt-checklist-check-icon-color: var(--white);
-    --tt-checklist-text-active: var(--tt-gray-dark-a-500);
-  }
 }
 
 /* =====================
      LISTS (GitHub Markdown Style)
      ===================== */
-.tiptap.ProseMirror {
+@include scope.content {
   // Common list styles
   ol,
   ul {
@@ -199,4 +192,13 @@
       margin-top: 0.5em;
     }
   }
+}
+
+@include scope.dark-content {
+  --tt-checklist-bg-color: transparent;
+  --tt-checklist-bg-active-color: var(--tt-brand-color-400);
+  --tt-checklist-border-color: var(--tt-gray-dark-a-400);
+  --tt-checklist-border-active-color: var(--tt-brand-color-400);
+  --tt-checklist-check-icon-color: var(--white);
+  --tt-checklist-text-active: var(--tt-gray-dark-a-500);
 }

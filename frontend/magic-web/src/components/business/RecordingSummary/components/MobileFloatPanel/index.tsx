@@ -22,11 +22,11 @@ import RetrySection from "../RetrySection"
 import RetryButton from "../RetryButton"
 import { RecordingStatus } from "@/types/recordSummary"
 import PauseButton from "../PauseButton"
-import { SimpleEditorRef } from "@/components/tiptap-templates/simple/simple-editor"
+import type { SimpleEditorRef } from "@/components/tiptap-templates/simple/types"
 import MessageList from "../MessageList"
 import AiChat from "../AiChat"
 import { ProjectFilesStore } from "@/stores/projectFiles"
-import { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import EditorBody from "@/pages/superMagic/components/Detail/contents/Md/components/EditorBody"
 import { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
@@ -168,16 +168,17 @@ function MobileFloatPanel(props: MobileFloatPanelProps) {
 			{recordingStatus !== "init" && (
 				<div
 					ref={elementRef}
-					className={`${styles.container} collapsed ${expandDirection} ${isDragging ? "dragging" : ""
-						} ${isSnapping ? "snapping" : ""}`}
+					className={`${styles.container} collapsed ${expandDirection} ${
+						isDragging ? "dragging" : ""
+					} ${isSnapping ? "snapping" : ""}`}
 					onClick={!isExpanded ? onToggle : undefined}
 					onTouchStart={!isExpanded ? handleTouchDown : undefined}
 					style={
 						!isExpanded
 							? {
-								left: position.x,
-								top: position.y,
-							}
+									left: position.x,
+									top: position.y,
+								}
 							: {}
 					}
 				>
@@ -192,8 +193,14 @@ function MobileFloatPanel(props: MobileFloatPanelProps) {
 					)}
 				</div>
 			)}
-			<MagicPopup visible={recordingStatus !== "init" && isExpanded}>
-				<FlexBox vertical className={cx(styles.expandedContainer, "expanded")}>
+			<MagicPopup
+				visible={recordingStatus !== "init" && isExpanded}
+				onClose={onToggle}
+				// Avoid outer scroll: vaul blocks dismiss when any ancestor has scrollTop > 0
+				className={styles.popupFrame}
+				bodyClassName={styles.popupBody}
+			>
+				<FlexBox vertical className={cx(styles.expandedContainer, "expanded", "min-h-0")}>
 					{/* Header */}
 					<FlexBox
 						align="center"
@@ -334,7 +341,12 @@ function MobileFloatPanel(props: MobileFloatPanelProps) {
 				</FlexBox>
 			</MagicPopup>
 
-			<MagicPopup visible={editorPopup} onClose={() => setEditorPopup(false)}>
+			<MagicPopup
+				visible={editorPopup}
+				onClose={() => setEditorPopup(false)}
+				className={styles.popupFrame}
+				bodyClassName={styles.popupBody}
+			>
 				<div className={styles.popupContainer}>
 					<FlexBox
 						align="center"
@@ -387,6 +399,8 @@ function MobileFloatPanel(props: MobileFloatPanelProps) {
 				// 只有展开状态下才显示 AI 聊天弹窗
 				visible={isExpanded && expandedAiChat}
 				onClose={() => onToggleExpandedAiChat()}
+				className={styles.popupFrame}
+				bodyClassName={styles.popupBody}
 			>
 				<FlexBox
 					align="center"

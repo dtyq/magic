@@ -446,6 +446,95 @@ export class RecorderCoreAdapter {
 	}
 
 	/**
+	 * Switch the microphone device without changing the audio source type.
+	 * Works during "recording" or "paused" state using the same auto-pause strategy.
+	 * Only has effect when source is "microphone" or "both".
+	 * 切换麦克风设备，不改变音频源类型。
+	 */
+	async switchMicrophoneDevice(deviceId: string): Promise<void> {
+		const currentSource = this.config.audioSource?.source || "microphone"
+
+		// No microphone involved in system-only mode
+		if (currentSource === "system") {
+			this.dependencies.logger.warn(
+				"switchMicrophoneDevice: no-op for system-only audio source",
+			)
+			return
+		}
+
+		if (this.state !== "recording" && this.state !== "paused") {
+			throw new InvalidStateError(this.state, "switchMicrophoneDevice")
+		}
+
+		const wasRecording = this.state === "recording"
+		const previousDeviceId = this.config.audioSource?.microphoneConstraints?.deviceId
+
+		try {
+			this.dependencies.logger.log("Switching microphone device", {
+				previousDeviceId,
+				newDeviceId: deviceId,
+			})
+
+			// Step 1: Auto-pause if currently recording
+			if (wasRecording) {
+				this.pause()
+			}
+
+			this.setState("switching")
+
+			// Step 2: Update config with new deviceId
+			this.config.audioSource = {
+				...this.config.audioSource,
+				microphoneConstraints: {
+					...this.config.audioSource?.microphoneConstraints,
+					deviceId,
+				},
+			}
+
+			// Step 3: Re-initialize audio source strategy with new device
+			const oldStrategy = this.audioSourceStrategy
+			this.audioSourceStrategy = null
+			await this.initializeAudioSource(false)
+
+			// Step 4: Set up audio processing for the new device stream
+			await this.setupAudioProcessing()
+
+			// Step 5: Cleanup old strategy only after new one is set up
+			if (oldStrategy) {
+				await oldStrategy.cleanup()
+			}
+
+			this.dependencies.logger.log("Microphone device switched successfully", {
+				newDeviceId: deviceId,
+			})
+		} catch (error) {
+			this.dependencies.logger.error("Failed to switch microphone device", error)
+
+			// Rollback to previous deviceId
+			this.config.audioSource = {
+				...this.config.audioSource,
+				microphoneConstraints: {
+					...this.config.audioSource?.microphoneConstraints,
+					deviceId: previousDeviceId,
+				},
+			}
+
+			throw error
+		} finally {
+			// Step 5: Auto-resume if was recording before
+			if (wasRecording) {
+				if (this.audioRecorder) {
+					this.audioRecorder.isRecording = true
+					this.audioRecorder.isPaused = false
+				}
+				this.setState("recording")
+			} else {
+				this.setState("paused")
+			}
+		}
+	}
+
+	/**
 	 * Get recording status
 	 * 获取录制状态
 	 */

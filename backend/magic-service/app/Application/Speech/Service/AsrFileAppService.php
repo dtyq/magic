@@ -26,15 +26,18 @@ use App\Domain\Chat\Entity\ValueObject\MessageType\ChatMessageType;
 use App\Domain\Chat\Service\MagicChatDomainService;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicUserDomainService;
+use App\Domain\File\Repository\Persistence\Facade\CloudFileRepositoryInterface;
 use App\ErrorCode\AsrErrorCode;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\AbstractAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\AudioProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus as SuperAgentTaskStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\ProjectHiddenStatusUpdatedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AudioProjectDomainService;
@@ -84,6 +87,7 @@ class AsrFileAppService extends AbstractAppService
         private readonly AsrSandboxService $asrSandboxService,
         private readonly AsrPresetFileService $presetFileService,
         private readonly LockerInterface $locker,
+        private readonly CloudFileRepositoryInterface $cloudFileRepository,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get('AsrFileAppService');
@@ -395,10 +399,11 @@ class AsrFileAppService extends AbstractAppService
         string $projectId,
         string $userId,
         string $taskKey,
-        ?string $generatedTitle = null
+        ?string $generatedTitle = null,
+        int $topicId = 0
     ): array {
-        $hiddenDir = $this->directoryService->createHiddenDirectory($organizationCode, $projectId, $userId, $taskKey);
-        $displayDir = $this->directoryService->createDisplayDirectory($organizationCode, $projectId, $userId, $generatedTitle);
+        $hiddenDir = $this->directoryService->createHiddenDirectory($organizationCode, $projectId, $userId, $taskKey, $topicId);
+        $displayDir = $this->directoryService->createDisplayDirectory($organizationCode, $projectId, $userId, $generatedTitle, $topicId);
         return [$hiddenDir, $displayDir];
     }
 
@@ -427,7 +432,7 @@ class AsrFileAppService extends AbstractAppService
         $this->validationService->getAccessibleProjectWithEditor((int) $projectId, $userId, $organizationCode);
 
         // 准备录音目录
-        return $this->prepareRecordingDirectories($organizationCode, $projectId, $userId, $taskKey, $generatedTitle);
+        return $this->prepareRecordingDirectories($organizationCode, $projectId, $userId, $taskKey, $generatedTitle, (int) $topicId);
     }
 
     /**
@@ -1016,6 +1021,130 @@ class AsrFileAppService extends AbstractAppService
     }
 
     /**
+     * Recover a stuck merging task by reading the sandbox result file ({task_key}.json).
+     *
+     * This is the idempotent recovery path used by AsrMergingRecoveryMonitor when
+     * magic-service was restarted while the sandbox was still merging audio files.
+     *
+     * The sandbox writes its final result to `{task_key}.json` in the project workspace.
+     * We read that file and branch on task.status:
+     *   - "completed" → run the post-merge completion steps (80 % progress, metadata, phase done)
+     *   - "running"   → sandbox still working, nothing to do
+     *   - other       → treat as failed, re-throw so the caller can apply the retry counter
+     *
+     * @return bool true = recovery completed, false = sandbox still running (skip silently)
+     * @throws RuntimeException when the result file is missing or sandbox reported an error
+     */
+    public function recoverCompletedMerging(
+        int $projectId,
+        string $taskKey,
+        string $userId,
+        string $organizationCode
+    ): bool {
+        // ── 1. Load task status ───────────────────────────────────────────────
+        $taskStatus = $this->asrTaskDomainService->findTaskByKey($taskKey, $userId);
+        if ($taskStatus === null) {
+            $taskStatus = $this->asrTaskDomainService->rebuildFromDatabase($taskKey, $userId);
+        }
+        if ($taskStatus === null) {
+            throw new RuntimeException(
+                sprintf('Task status not found for task_key=%s user_id=%s', $taskKey, $userId)
+            );
+        }
+
+        // ── 2. Idempotent guard ───────────────────────────────────────────────
+        if ($taskStatus->currentPhase === AsrTaskStatusDTO::PHASE_MERGING
+            && $taskStatus->phaseStatus === AsrTaskStatusDTO::PHASE_STATUS_COMPLETED) {
+            $this->logger->info('recoverCompletedMerging: already completed, skipping', [
+                'task_key' => $taskKey,
+            ]);
+            return true;
+        }
+
+        // ── 3. Read sandbox result file ({task_key}.json) ─────────────────────
+        $resultFileName = $taskKey . '.json';
+        $fileEntity = $this->taskFileDomainService->getByProjectIdAndFileName($projectId, $resultFileName);
+        if ($fileEntity === null) {
+            throw new RuntimeException(
+                sprintf('Sandbox result file not found: project_id=%d file=%s', $projectId, $resultFileName)
+            );
+        }
+
+        $fileUrl = $this->getSandboxFileDownloadUrl($fileEntity);
+        if (empty($fileUrl)) {
+            throw new RuntimeException(
+                sprintf('Could not get download URL for sandbox result file: file_id=%d', $fileEntity->getFileId())
+            );
+        }
+
+        $rawContent = @file_get_contents($fileUrl);
+        if ($rawContent === false || empty(trim($rawContent))) {
+            throw new RuntimeException(
+                sprintf('Failed to download sandbox result file: file_id=%d', $fileEntity->getFileId())
+            );
+        }
+
+        $data = json_decode($rawContent, true);
+        if (! is_array($data)) {
+            throw new RuntimeException(
+                sprintf('Invalid JSON in sandbox result file: file_id=%d', $fileEntity->getFileId())
+            );
+        }
+
+        // ── 4. Branch on sandbox status ───────────────────────────────────────
+        $sandboxStatus = $data['task']['status'] ?? 'unknown';
+
+        $this->logger->info('recoverCompletedMerging: sandbox result read', [
+            'task_key' => $taskKey,
+            'sandbox_status' => $sandboxStatus,
+        ]);
+
+        if ($sandboxStatus === 'running') {
+            // Sandbox is still in progress; the pod restart caused us to lose the
+            // polling coroutine but the sandbox will keep running. Nothing to do.
+            return false;
+        }
+
+        if ($sandboxStatus !== 'completed') {
+            $this->logger->warning('recoverCompletedMerging: sandbox not completed, falling back to handleFinishRecording', [
+                'task_key' => $taskKey,
+                'sandbox_status' => $sandboxStatus,
+            ]);
+            $this->handleFinishRecording($taskKey, $userId, $organizationCode, null);
+            return true;
+        }
+
+        // ── 5. Complete the post-merge steps ──────────────────────────────────
+        $duration = isset($data['task']['duration']) ? (int) $data['task']['duration'] : null;
+        $fileSize = isset($data['task']['file_size']) ? (int) $data['task']['file_size'] : null;
+        $audioFileId = ! empty($taskStatus->audioFileId) ? (int) $taskStatus->audioFileId : null;
+
+        // 80 % progress (sandbox merge done, finalising metadata)
+        $this->asrTaskDomainService->updatePhaseProgress($taskStatus, 80);
+
+        // Update recording metadata from sandbox result
+        $this->audioProjectDomainService->updateRecordingMetadata(
+            $projectId,
+            $duration,
+            $fileSize,
+            'recorded',
+            $audioFileId
+        );
+
+        // Mark merging phase as fully completed
+        $this->asrTaskDomainService->completeMergingPhase($taskStatus);
+
+        $this->logger->info('recoverCompletedMerging: merging phase completed successfully', [
+            'task_key' => $taskKey,
+            'duration' => $duration,
+            'file_size' => $fileSize,
+            'audio_file_id' => $audioFileId,
+        ]);
+
+        return true;
+    }
+
+    /**
      * Batch query task progress (optimized with Redis Pipeline + Database IN query).
      *
      * Performance:
@@ -1126,6 +1255,21 @@ class AsrFileAppService extends AbstractAppService
         }
 
         return ['tasks' => $results];
+    }
+
+    /**
+     * Get presigned download URL for a sandbox-bucket file entity.
+     */
+    private function getSandboxFileDownloadUrl(TaskFileEntity $fileEntity): ?string
+    {
+        $organizationCode = $fileEntity->getOrganizationCode();
+        $filePath = $fileEntity->getFileKey();
+        $fileLink = $this->cloudFileRepository->getLinks(
+            $organizationCode,
+            [$filePath],
+            StorageBucketType::SandBox
+        )[$filePath] ?? null;
+        return $fileLink?->getUrl();
     }
 
     /**
@@ -1477,8 +1621,15 @@ class AsrFileAppService extends AbstractAppService
             // 构建标记文件数据（如果存在）
             $markerFileData = $this->buildMarkerFileDataFromTaskStatus($dto->taskStatus);
 
+            // 获取话题动态参数（如 message_version），用于透传给 super-magic
+            $topicDynamicParams = null;
+            if (! empty($dto->topicId)) {
+                $topicEntity = $this->superAgentTopicDomainService->getTopicById((int) $dto->topicId);
+                $topicDynamicParams = $topicEntity?->getDynamicParams();
+            }
+
             // 构建聊天消息（包含笔记文件和标记文件）
-            $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto, $audioFileData, $noteFileData, $markerFileData);
+            $chatRequest = $this->chatMessageAssembler->buildSummaryMessage($dto, $audioFileData, $noteFileData, $markerFileData, $topicDynamicParams);
 
             // 记录消息详细内容
             $messageData = $chatRequest->getData()->getMessage()->getMagicMessage();
@@ -1495,6 +1646,7 @@ class AsrFileAppService extends AbstractAppService
                 'marker_file_id' => $dto->taskStatus->markerFileId,
                 'has_marker_file' => $markerFileData !== null,
                 'message_content' => $messageData->toArray(),
+                'topic_dynamic_params' => $topicDynamicParams,
                 'is_queued' => $this->shouldQueueMessage($dto->topicId),
                 'language' => CoContext::getLanguage(),
             ]);
@@ -2004,7 +2156,7 @@ class AsrFileAppService extends AbstractAppService
         AudioProjectEntity $audioProject
     ): bool {
         return ! $audioProject->isAutoSummary()                                    // Manual mode
-            && $taskStatus->status === AsrTaskStatusEnum::AUDIO_PROCESSED          // Audio processed
+            && in_array($taskStatus->status, [AsrTaskStatusDTO::PHASE_MERGING, AsrTaskStatusEnum::AUDIO_PROCESSED])          // Audio processed
             && $taskStatus->recordingStatus === AsrRecordingStatusEnum::STOPPED->value
             && ! empty($taskStatus->audioFileId);                                  // Has audio file
     }

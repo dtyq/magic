@@ -11,6 +11,9 @@ interface StylePopoverButtonProps {
 	disabled?: boolean
 	showLabel?: boolean
 	children: ReactNode
+	triggerTestId?: string
+	contentTestId?: string
+	contentClassName?: string
 }
 
 /**
@@ -23,6 +26,9 @@ export function StylePopoverButton({
 	disabled,
 	showLabel = false,
 	children,
+	triggerTestId,
+	contentTestId,
+	contentClassName,
 }: StylePopoverButtonProps) {
 	return (
 		<Popover>
@@ -36,6 +42,7 @@ export function StylePopoverButton({
 									size={showLabel ? "sm" : "icon"}
 									className={showLabel ? "h-8 gap-1.5 px-2" : "h-8 w-8"}
 									disabled={disabled}
+									data-testid={triggerTestId}
 								>
 									{icon}
 									{showLabel && (
@@ -48,7 +55,11 @@ export function StylePopoverButton({
 				</PopoverTrigger>
 				{!showLabel && <TooltipContent>{tooltip}</TooltipContent>}
 			</TooltipPrimitive.Root>
-			<PopoverContent className="z-popup w-80" align="start">
+			<PopoverContent
+				className={`z-popup w-80 ${contentClassName || ""}`.trim()}
+				align="start"
+				data-testid={contentTestId}
+			>
 				<div className="space-y-3">
 					<h4 className="text-sm font-medium">{title}</h4>
 					{children}

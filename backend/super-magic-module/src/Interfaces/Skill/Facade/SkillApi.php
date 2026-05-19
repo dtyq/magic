@@ -150,12 +150,12 @@ class SkillApi extends AbstractApi
         $result = $this->userSkillAppService->queries($requestContext, $query, $page);
 
         return SkillAssembler::createListResponseDTO(
-            $result['list'],
-            $page->getPage(),
-            $page->getPageNum(),
-            $result['total'],
-            $result['creatorUserMap'] ?? [],
-            $result['latestVersionMap'] ?? []
+            skillEntities: $result['list'],
+            page: $page->getPage(),
+            pageSize: $page->getPageNum(),
+            total: $result['total'],
+            creatorUserMap: $result['creator_user_map'] ?? [],
+            latestVersionMap: $result['latest_version_map'] ?? []
         );
     }
 
@@ -173,12 +173,12 @@ class SkillApi extends AbstractApi
         $result = $this->userSkillAppService->queriesCreated($requestContext, $query, $page);
 
         return SkillAssembler::createListResponseDTO(
-            $result['list'],
-            $page->getPage(),
-            $page->getPageNum(),
-            $result['total'],
-            $result['creatorUserMap'] ?? [],
-            $result['latestVersionMap'] ?? []
+            skillEntities: $result['list'],
+            page: $page->getPage(),
+            pageSize: $page->getPageNum(),
+            total: $result['total'],
+            creatorUserMap: $result['creator_user_map'] ?? [],
+            latestVersionMap: $result['latest_version_map'] ?? []
         );
     }
 
@@ -195,14 +195,14 @@ class SkillApi extends AbstractApi
 
         $result = $this->userSkillAppService->queriesTeamShared($requestContext, $query, $page);
 
-        return SkillAssembler::createListResponseDTOFromVersions(
-            $result['list'],
-            $page->getPage(),
-            $page->getPageNum(),
-            $result['total'],
-            null,
-            $result['creatorUserMap'] ?? [],
-            $result['latestVersionMap'] ?? []
+        return SkillAssembler::createListResponseDTO(
+            skillEntities: $result['list'],
+            page: $page->getPage(),
+            pageSize: $page->getPageNum(),
+            total: $result['total'],
+            creatorUserMap: $result['creator_user_map'] ?? [],
+            latestVersionMap: $result['latest_version_map'] ?? [],
+            skillOperations: $result['skill_operations'] ?? []
         );
     }
 
@@ -220,15 +220,15 @@ class SkillApi extends AbstractApi
         $result = $this->userSkillAppService->queriesMarketInstalled($requestContext, $query, $page);
 
         return SkillAssembler::createListResponseDTOFromVersions(
-            $result['list'],
-            $page->getPage(),
-            $page->getPageNum(),
-            $result['total'],
-            SkillSourceType::MARKET->value,
-            $result['creatorUserMap'] ?? [],
-            $result['latestVersionMap'] ?? [],
-            $result['marketEntityMap'] ?? [],
-            $result['publisherUserMap'] ?? []
+            skillVersionEntities: $result['list'],
+            page: $page->getPage(),
+            pageSize: $page->getPageNum(),
+            total: $result['total'],
+            sourceType: SkillSourceType::MARKET->value,
+            creatorUserMap: $result['creator_user_map'] ?? [],
+            latestVersionMap: $result['latest_version_map'] ?? [],
+            marketEntityMap: $result['market_entity_map'] ?? [],
+            publisherUserMap: $result['publisher_user_map'] ?? []
         );
     }
 
@@ -291,7 +291,7 @@ class SkillApi extends AbstractApi
         $responseDTO = $this->userSkillAppService->getSkillDetail($requestContext, $code);
 
         // 如果项目ID为空，则创建并绑定项目（兼容历史数据）
-        if (empty($responseDTO->getProjectId()) && $responseDTO->getSourceType() !== SkillSourceType::MARKET->value) {
+        if (empty($responseDTO->getProjectId()) && $requestContext->getUserAuthorization()->getId() === ($responseDTO->getCreatorInfo()?->getId() ?? null)) {
             $projectInfo = $this->createAndBindProject($requestContext, $responseDTO->getPackageName(), $code);
             $responseDTO->setProjectId((int) ($projectInfo['project']['id'] ?? 0));
         }
@@ -341,12 +341,12 @@ class SkillApi extends AbstractApi
         $result = $this->userSkillAppService->queryVersions($requestContext, $code, $requestDTO);
 
         return SkillAssembler::createQuerySkillVersionsResponseDTO(
-            $result['list'],
-            $result['userMap'],
-            $result['page'],
-            $result['page_size'],
-            $result['total'],
-            $result['memberDepartmentMap'],
+            versions: $result['list'],
+            userMap: $result['user_map'] ?? [],
+            page: $result['page'],
+            pageSize: $result['page_size'],
+            total: $result['total'],
+            memberDepartmentMap: $result['member_department_map'] ?? [],
         )->toArray();
     }
 
@@ -420,7 +420,7 @@ class SkillApi extends AbstractApi
             $projectRequestDTO->setInitTemplateFiles(false);
 
             // 创建项目
-            $projectResult = $this->projectAppService->createAgentProject($requestContext, $projectRequestDTO, ProjectMode::CUSTOM_SKILL);
+            $projectResult = $this->projectAppService->createAgentProject($requestContext, $projectRequestDTO, ProjectMode::SKILL_CREATOR);
 
             $projectId = (int) ($projectResult['project']['id'] ?? 0);
             if ($projectId <= 0) {

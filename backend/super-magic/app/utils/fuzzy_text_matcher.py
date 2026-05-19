@@ -88,7 +88,7 @@ PUNCTUATION_MAP: dict[str, str] = {
 }
 
 # Unicode 特殊空白字符，统一映射为普通空格
-# 参考 openclaw apply-patch-update.ts normalizePunctuation 的覆盖范围
+# 参考 clawhub apply-patch-update.ts normalizePunctuation 的覆盖范围
 _UNICODE_SPACES: frozenset[str] = frozenset({
     '\u00A0',  # non-breaking space
     '\u2002',  # en space

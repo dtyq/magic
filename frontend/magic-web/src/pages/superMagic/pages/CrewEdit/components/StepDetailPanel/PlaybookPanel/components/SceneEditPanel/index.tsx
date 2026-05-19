@@ -10,6 +10,7 @@ import { BasicInfoPanel } from "./panels/BasicInfoPanel"
 import { PresetsPanel } from "./panels/PresetsPanel"
 import { QuickStartPanel } from "./panels/QuickStartPanel"
 import { InspirationPanel } from "./panels/InspirationPanel"
+import { ScenePreviewPanel } from "./components/ScenePreviewPanel"
 import { SceneEditStore, SceneEditStoreContext } from "./store"
 import { useSceneByPlaybookId } from "./hooks/useSceneByPlaybookId"
 import { resolveLocalText } from "./utils"
@@ -125,61 +126,68 @@ export function SceneEditPanel({ playbookId, onBack, onClose }: SceneEditPanelPr
 
 	return (
 		<SceneEditStoreContext.Provider value={store}>
-			<div
-				className="mr-2 flex h-full flex-col gap-3.5 overflow-hidden rounded-lg border border-border bg-background p-3.5"
-				data-testid="scene-edit-panel"
-			>
-				{/* Header */}
-				<div className="flex shrink-0 flex-col gap-3">
-					<div className="flex items-center gap-2">
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-9 shrink-0 gap-2 shadow-xs"
-							onClick={onBack}
-							data-testid="scene-edit-back-button"
-						>
-							<ChevronLeft className="h-4 w-4" />
-							{t("playbook.title")}
-						</Button>
-						<p className="min-w-0 flex-1 truncate text-base font-medium text-foreground">
-							{resolveLocalText(scene.name, i18n.language) ||
-								t("playbook.edit.createPlaybook")}
-						</p>
-						<Button
-							variant="ghost"
-							size="icon"
-							className="h-9 w-9 shrink-0 rounded-md"
-							onClick={onClose}
-							data-testid="scene-edit-close-button"
-						>
-							<X className="h-4 w-4" />
-						</Button>
+			<div className="flex h-full flex-col gap-3 overflow-hidden">
+				<div
+					className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-hidden rounded-lg border border-border bg-background p-3.5"
+					data-testid="scene-edit-panel"
+				>
+					{/* Header */}
+					<div className="flex shrink-0 flex-col gap-3">
+						<div className="flex items-center gap-2">
+							{/* <Button
+								variant="outline"
+								size="sm"
+								className="h-9 shrink-0 gap-2 shadow-xs"
+								onClick={onBack}
+								data-testid="scene-edit-back-button"
+							>
+								<ChevronLeft className="h-4 w-4" />
+								{t("playbook.title")}
+							</Button> */}
+							<p className="min-w-0 flex-1 truncate text-base font-medium text-foreground">
+								{t("playbook.title")}：
+								{resolveLocalText(scene.name, i18n.language) ||
+									t("playbook.edit.createPlaybook")}
+							</p>
+							<Button
+								variant="ghost"
+								size="icon"
+								className="h-9 w-9 shrink-0 rounded-md"
+								onClick={onClose}
+								data-testid="scene-edit-close-button"
+							>
+								<X className="h-4 w-4" />
+							</Button>
+						</div>
+						<Separator />
 					</div>
-					<Separator />
-				</div>
 
-				{/* Main content */}
-				<div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden">
-					<div className="shrink-0">
-						<SmoothTabs
-							tabs={navItems.map((item) => ({ value: item.id, label: item.label }))}
-							value={activeTab}
-							onChange={setActiveTab}
-							variant="background"
-							className="h-9 w-full bg-muted p-[3px]"
-							buttonClassName="h-[30px] rounded-md py-0 text-sm"
-							indicatorClassName="inset-y-[3px] h-[30px]"
-							showTooltip={false}
-						/>
-					</div>
-					<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-						{activeTab === "basicInfo" && <BasicInfoPanel />}
-						{activeTab === "presets" && <PresetsPanel />}
-						{activeTab === "quickStart" && <QuickStartPanel />}
-						{activeTab === "inspiration" && <InspirationPanel />}
+					{/* Main content */}
+					<div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden">
+						<div className="shrink-0">
+							<SmoothTabs
+								tabs={navItems.map((item) => ({
+									value: item.id,
+									label: item.label,
+								}))}
+								value={activeTab}
+								onChange={setActiveTab}
+								variant="background"
+								className="h-9 w-full bg-muted p-[3px]"
+								buttonClassName="h-[30px] rounded-md py-0 text-sm"
+								indicatorClassName="inset-y-[3px] h-[30px]"
+								showTooltip={false}
+							/>
+						</div>
+						<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+							{activeTab === "basicInfo" && <BasicInfoPanel />}
+							{activeTab === "presets" && <PresetsPanel />}
+							{activeTab === "quickStart" && <QuickStartPanel />}
+							{activeTab === "inspiration" && <InspirationPanel />}
+						</div>
 					</div>
 				</div>
+				<ScenePreviewPanel />
 			</div>
 		</SceneEditStoreContext.Provider>
 	)

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { renderHook, act } from "@testing-library/react"
 import { useMentionManager } from "../useMentionManager"
-import { MentionItemType } from "@/opensource/components/business/MentionPanel/types"
-import type { TiptapMentionAttributes } from "@/opensource/components/business/MentionPanel/tiptap-plugin"
+import { MentionItemType } from "@/components/business/MentionPanel/types"
+import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 
 // Mock the store
-vi.mock("@/opensource/components/business/MentionPanel/store", () => ({
+vi.mock("@/opensource/components/business/MentionPanel/builtin-store", () => ({
 	default: {
 		setUploadFiles: vi.fn(),
 	},

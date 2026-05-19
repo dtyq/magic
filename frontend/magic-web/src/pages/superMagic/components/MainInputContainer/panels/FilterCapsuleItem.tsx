@@ -1,24 +1,7 @@
-import { useState, useCallback } from "react"
-import { ChevronDown } from "lucide-react"
-import { useTranslation } from "react-i18next"
-
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/shadcn-ui/select"
-import { Label } from "@/components/shadcn-ui/label"
-import { ActionDrawer } from "@/components/shadcn-composed/action-drawer"
-import { LucideLazyIcon } from "@/utils/lucideIconLoader"
-import { cn } from "@/lib/utils"
-
 import { useLocaleText } from "./hooks/useLocaleText"
 import type { FieldItem, OptionItem } from "./types"
 import { isOptionGroup } from "./utils"
 import { ScenePanelVariant } from "../components/LazyScenePanel/types"
-import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { observer } from "mobx-react-lite"
 import CollapsiblePanel from "./CollapsiblePanel"
 import TemplateCapsule from "./capsule/TemplateCapsule"

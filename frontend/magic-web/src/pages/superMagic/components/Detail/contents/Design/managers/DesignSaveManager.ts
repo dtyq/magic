@@ -1,19 +1,36 @@
 import type { DesignData } from "../types"
-import { generateMagicProjectJsContent } from "../utils/utils"
+import {
+	generateMagicProjectJsContent,
+	resolveDesignDirectoryNameFromAttachments,
+	resolveDesignProjectBasePathFromAttachments,
+} from "../utils/utils"
+import { hashDesignDataComparable } from "../utils/designContentHash"
 import { SuperMagicApi } from "@/apis"
 import type { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
-import {
-	getDataToCompare,
-	type DesignProjectStateBag,
-	type DesignProjectManagerOptions,
-} from "./types"
+import { type DesignProjectStateBag, type DesignProjectManagerOptions } from "./types"
 
-const AUTO_SAVE_DEBOUNCE_MS = 2000
+const AUTO_SAVE_DEBOUNCE_MS = 500
+
+export interface RemoteUpdateCheckResult {
+	hasUpdate: boolean
+	currentVersion: number | null
+	isCheckReliable: boolean
+}
+
+export interface DesignSaveLifecycleHandlers {
+	onSaveStart?: () => number | null
+	onSaveEnd?: (
+		saveToken: number | null | undefined,
+		didSave: boolean,
+		savedUpdatedAt?: string | null,
+	) => Promise<void> | void
+}
 
 export class DesignSaveManager {
 	private stateBag: DesignProjectStateBag
 	private options: DesignProjectManagerOptions
 	private fetchAndSetVersions: () => Promise<FileHistoryVersion[]>
+	private saveLifecycleHandlers: DesignSaveLifecycleHandlers
 
 	private debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -21,10 +38,12 @@ export class DesignSaveManager {
 		stateBag: DesignProjectStateBag,
 		options: DesignProjectManagerOptions,
 		fetchAndSetVersions: () => Promise<FileHistoryVersion[]>,
+		saveLifecycleHandlers: DesignSaveLifecycleHandlers = {},
 	) {
 		this.stateBag = stateBag
 		this.options = options
 		this.fetchAndSetVersions = fetchAndSetVersions
+		this.saveLifecycleHandlers = saveLifecycleHandlers
 	}
 
 	updateOptions(options: DesignProjectManagerOptions) {
@@ -33,6 +52,23 @@ export class DesignSaveManager {
 
 	updateFetchAndSetVersions(fn: () => Promise<FileHistoryVersion[]>) {
 		this.fetchAndSetVersions = fn
+	}
+
+	private getProjectBasePathForDsl(): string | undefined {
+		return resolveDesignProjectBasePathFromAttachments(this.options)
+	}
+
+	private getDesignDataForSave(
+		designData: DesignData = this.stateBag.getDesignData(),
+	): DesignData {
+		const directoryName = resolveDesignDirectoryNameFromAttachments(this.options)
+		if (!directoryName || directoryName === designData.name) {
+			return designData
+		}
+		return {
+			...designData,
+			name: directoryName,
+		}
 	}
 
 	scheduleAutoSave(): void {
@@ -51,13 +87,10 @@ export class DesignSaveManager {
 		this.cancelAutoSave()
 		this.stateBag.setters.setIsSaving(true)
 		await this.commitSave()
-		this.stateBag.setPrevDesignDataStr(
-			JSON.stringify(getDataToCompare(this.stateBag.getDesignData())),
-		)
 	}
 
 	syncDesignData(newDesignData: DesignData): void {
-		this.stateBag.setPrevDesignDataStr(JSON.stringify(getDataToCompare(newDesignData)))
+		this.stateBag.setPrevDesignDataFingerprint(hashDesignDataComparable(newDesignData))
 	}
 
 	private runDebouncedSave(): void {
@@ -71,51 +104,65 @@ export class DesignSaveManager {
 		this.debounceTimer = setTimeout(() => {
 			this.debounceTimer = null
 			const currentData = this.stateBag.getDesignData()
-			const dataStr = JSON.stringify(getDataToCompare(currentData))
+			const fp = hashDesignDataComparable(currentData)
 
-			if (!this.stateBag.getPrevDesignDataStr()) {
-				this.stateBag.setPrevDesignDataStr(dataStr)
+			if (!this.stateBag.getPrevDesignDataFingerprint()) {
+				this.stateBag.setPrevDesignDataFingerprint(fp)
 				return
 			}
-			if (this.stateBag.getPrevDesignDataStr() === dataStr) {
+			if (this.stateBag.getPrevDesignDataFingerprint() === fp) {
 				this.stateBag.setters.setIsSaving(false)
 				return
 			}
 
-			this.stateBag.setPrevDesignDataStr(dataStr)
 			this.stateBag.setters.setIsSaving(true)
-			this.commitSave()
+			void this.commitSave()
 		}, AUTO_SAVE_DEBOUNCE_MS)
 	}
 
-	async commitSave(): Promise<void> {
+	async commitSave(): Promise<boolean> {
 		if (this.stateBag.getIsReadOnly()) {
 			this.stateBag.setters.setIsSaving(false)
-			return
+			return false
 		}
 		const magicProjectJsFileId = this.stateBag.getMagicProjectJsFileId()
 		if (!magicProjectJsFileId) {
 			this.stateBag.setters.setIsSaving(false)
-			return
+			return false
 		}
 
+		let saveToken: number | null | undefined
+		let didSave = false
+		let savedUpdatedAt: string | null = null
 		try {
+			saveToken = this.saveLifecycleHandlers.onSaveStart?.()
 			const { hasUpdate, currentVersion } = await this.checkRemoteUpdate()
 			if (hasUpdate) {
 				if (currentVersion !== null) this.updateLocalVersion(currentVersion)
 				this.stateBag.setters.setIsSaving(false)
-				return
+				return false
 			}
 
-			const content = generateMagicProjectJsContent(this.stateBag.getDesignData())
+			const currentDesignData = this.stateBag.getDesignData()
+			const designDataToSave = this.getDesignDataForSave(currentDesignData)
+			const fp = hashDesignDataComparable(designDataToSave)
+			const content = generateMagicProjectJsContent(designDataToSave, {
+				projectBasePath: this.getProjectBasePathForDsl(),
+			})
 			if (!content?.trim()) {
 				this.stateBag.setters.setIsSaving(false)
-				return
+				return false
 			}
 
-			await SuperMagicApi.saveFileContent([
+			const saveResponse = await SuperMagicApi.saveFileContent([
 				{ file_id: magicProjectJsFileId, content, enable_shadow: true },
 			])
+			didSave = true
+			savedUpdatedAt = saveResponse?.success_files?.[0]?.data?.updated_at ?? null
+			if (designDataToSave !== currentDesignData) {
+				this.stateBag.setters.setDesignData(designDataToSave)
+			}
+			this.stateBag.setPrevDesignDataFingerprint(fp)
 
 			if (!this.options.isShareRoute) {
 				try {
@@ -130,24 +177,26 @@ export class DesignSaveManager {
 				}
 				await this.fetchAndSetVersions()
 			}
+			return true
 		} finally {
+			await this.saveLifecycleHandlers.onSaveEnd?.(saveToken, didSave, savedUpdatedAt)
 			this.stateBag.setters.setIsSaving(false)
 		}
 	}
 
-	async checkRemoteUpdate(): Promise<{ hasUpdate: boolean; currentVersion: number | null }> {
+	async checkRemoteUpdate(): Promise<RemoteUpdateCheckResult> {
 		if (this.options.isShareRoute) {
-			return { hasUpdate: false, currentVersion: null }
+			return { hasUpdate: false, currentVersion: null, isCheckReliable: true }
 		}
 		const magicProjectJsFileId = this.stateBag.getMagicProjectJsFileId()
 		if (!magicProjectJsFileId) {
-			return { hasUpdate: false, currentVersion: null }
+			return { hasUpdate: false, currentVersion: null, isCheckReliable: true }
 		}
 
 		try {
 			const fileInfo = await SuperMagicApi.getFileInfo({ file_id: magicProjectJsFileId })
 			if (fileInfo?.version === undefined) {
-				return { hasUpdate: false, currentVersion: null }
+				return { hasUpdate: false, currentVersion: null, isCheckReliable: false }
 			}
 
 			const currentVersion = fileInfo.version
@@ -155,15 +204,16 @@ export class DesignSaveManager {
 
 			if (prevVersion === null) {
 				this.stateBag.setMagicProjectJsVersion(currentVersion)
-				return { hasUpdate: false, currentVersion }
+				return { hasUpdate: false, currentVersion, isCheckReliable: false }
 			}
 
 			return {
 				hasUpdate: currentVersion > prevVersion,
 				currentVersion,
+				isCheckReliable: true,
 			}
 		} catch {
-			return { hasUpdate: false, currentVersion: null }
+			return { hasUpdate: false, currentVersion: null, isCheckReliable: false }
 		}
 	}
 
@@ -172,6 +222,8 @@ export class DesignSaveManager {
 	}
 
 	generateContent(data?: DesignData): string {
-		return generateMagicProjectJsContent(data ?? this.stateBag.getDesignData())
+		return generateMagicProjectJsContent(this.getDesignDataForSave(data), {
+			projectBasePath: this.getProjectBasePathForDsl(),
+		})
 	}
 }

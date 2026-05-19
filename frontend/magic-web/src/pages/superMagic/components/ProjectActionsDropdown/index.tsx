@@ -2,6 +2,7 @@ import { useState } from "react"
 import MagicDropdown from "@/components/base/MagicDropdown"
 import type { MagicDropdownProps } from "@/components/base/MagicDropdown"
 import { cn } from "@/lib/utils"
+import { preloadProjectActionModals } from "@/pages/superMagic/components/EmptyWorkspacePanel/hooks/projectActionModals"
 import { ProjectItemLike, ProjectActionHandlers, ProjectActionMenuKey } from "./types"
 import { useProjectActionMenu } from "./useProjectActionMenu"
 interface ProjectActionsDropdownProps<T extends ProjectItemLike> extends ProjectActionHandlers<T> {
@@ -19,11 +20,11 @@ interface ProjectActionsDropdownProps<T extends ProjectItemLike> extends Project
 	overlayClassName?: string
 	contextMenuTargetRef?: React.RefObject<HTMLElement | null>
 	children:
-	| React.ReactNode
-	| ((params: {
-		open: boolean
-		triggerContextMenu: (event: React.MouseEvent<HTMLElement>) => void
-	}) => React.ReactNode)
+		| React.ReactNode
+		| ((params: {
+				open: boolean
+				triggerContextMenu: (event: React.MouseEvent<HTMLElement>) => void
+		  }) => React.ReactNode)
 }
 
 function ProjectActionsDropdown<T extends ProjectItemLike>({
@@ -58,6 +59,7 @@ function ProjectActionsDropdown<T extends ProjectItemLike>({
 	const mergedOpen = isControlledOpen ? open : innerOpen
 
 	const handleDropdownOpenChange = (nextOpen: boolean) => {
+		if (nextOpen) void preloadProjectActionModals()
 		if (!isControlledOpen) {
 			setInnerOpen(nextOpen)
 		}
@@ -97,9 +99,9 @@ function ProjectActionsDropdown<T extends ProjectItemLike>({
 	const renderedChildren =
 		typeof children === "function"
 			? children({
-				open: mergedOpen,
-				triggerContextMenu,
-			})
+					open: mergedOpen,
+					triggerContextMenu,
+				})
 			: children
 
 	return (

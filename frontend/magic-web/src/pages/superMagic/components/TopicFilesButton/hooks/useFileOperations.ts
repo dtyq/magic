@@ -8,7 +8,10 @@ import { handleShareFunction } from "../../../utils/share"
 import { ShareType, ResourceType } from "../../Share/types"
 import { downloadFileWithAnchor } from "../../../utils/handleFIle"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { exportSingleFileToPdf, exportSingleFileToPpt } from "../utils/exportSingleFile"
+import { exportSingleFileToPpt } from "../utils/exportSingleFile"
+import { exportMarkdownFileToPdf } from "@/utils/markdownPdfExport"
+import { prepareHtmlPagesForExport } from "@/utils/htmlExportPrepare"
+import { isMarkdownFileName } from "@/utils/pdfFileType"
 import { ROOT_FILE_ID } from "../constant"
 import { getParentIdFromPath as _getParentIdFromPath } from "../utils/getParentIdFromPath"
 import { multiFolderUploadStore } from "@/stores/folderUpload"
@@ -21,10 +24,16 @@ import { useDuplicateFileHandler } from "./useDuplicateFileHandler"
 import { useMemoizedFn } from "ahooks"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { exportPPTX } from "../../../../../../packages/html2pptx/src"
+import { exportHtmlToPdf } from "../../../../../../packages/pdf-export/src"
 import {
 	prepareExportSlides,
 	prepareSingleSlideExport,
 } from "@/pages/superMagic/services/pptService"
+import { pptFontResolver } from "@/pages/superMagic/services/pptFontService"
+import { pptxExternalLogger, reportPptxExportError } from "@/pages/superMagic/utils/pptxLogger"
+import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
+import { hasPPTMetadata } from "@/pages/superMagic/components/Detail/utils/file"
+import { getAppEntryFile } from "../../MessageList/components/MessageAttachment/utils"
 
 // 工具函数：从attachments中递归删除指定ID的文件/文件夹
 const removeItemFromAttachments = (
@@ -60,6 +69,31 @@ const findFileInAttachments = (
 		}
 		if (item.is_directory && "children" in item && item.children) {
 			const found = findFileInAttachments(item.children, fileId)
+			if (found) return found
+		}
+	}
+	return null
+}
+
+// 工具函数：查找文件所在的 slide 文件夹（父级 display_config.type === "slide"）
+const findParentSlideFolder = (
+	attachments: AttachmentItem[],
+	targetFileId: string,
+): AttachmentItem | null => {
+	for (const item of attachments) {
+		if (item.is_directory && item.children) {
+			// 检查目标文件是否是该文件夹的直接子项
+			if (item.children.some((child) => child.file_id === targetFileId)) {
+				const config = (item.display_config || item.metadata) as
+					| { type?: string; [key: string]: unknown }
+					| undefined
+				if (config?.type === "slide") {
+					return item
+				}
+				return null // 找到父级但不是 slide 文件夹
+			}
+			// 递归检查子文件夹
+			const found = findParentSlideFolder(item.children, targetFileId)
 			if (found) return found
 		}
 	}
@@ -226,9 +260,6 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		batchPdfExportProgress,
 		isBatchExportingPpt,
 		batchPptExportProgress,
-		onPdfExportStart,
-		onPdfExportProgress,
-		onPdfExportEnd,
 		onPptExportStart,
 		onPptExportProgress,
 		onPptExportEnd,
@@ -273,14 +304,26 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 	// 文件移动loading状态
 	const [movingFiles, setMovingFiles] = useState<Set<string>>(new Set())
 
+	// 获取父文件夹ID - 从路径中解析
+	const getParentIdFromPath = useCallback(
+		(parentPath?: string): string | number | undefined => {
+			return _getParentIdFromPath(attachments || [], parentPath)
+		},
+		[attachments],
+	)
+
 	// 通用的文件上传处理函数（实际执行上传）- 用于普通文件上传（每个文件一个任务）
 	const processFilesUpload = useCallback(
-		async (files: File[], targetSuffixDir: string) => {
+		async (files: File[], suffixDir?: string) => {
+			// 获取父文件夹路径
+			const parentPath = suffixDir ? `/${suffixDir}` : undefined
+			// 获取父文件夹ID
+			const parentId = getParentIdFromPath(parentPath) as string
 			// 为每个文件创建单独的任务
 			for (const file of files) {
 				try {
 					// 为单个文件创建任务
-					await multiFolderUploadStore.createUploadTask([file], targetSuffixDir, {
+					await multiFolderUploadStore.createUploadTask([file], parentId, {
 						projectId: projectId || "",
 						workspaceId: workspaceId,
 						projectName: selectedProject?.project_name || t("common.untitledProject"),
@@ -324,15 +367,26 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				}
 			}
 		},
-		[projectId, workspaceId, selectedProject, selectedTopic, t, onUpdateAttachments],
+		[
+			projectId,
+			workspaceId,
+			selectedProject,
+			selectedTopic,
+			t,
+			onUpdateAttachments,
+			getParentIdFromPath,
+		],
 	)
 
 	// 文件夹上传处理函数（所有文件作为一个任务）
 	const processFolderUpload = useCallback(
-		async (files: File[], targetSuffixDir: string) => {
+		async (files: File[], suffixDir?: string) => {
+			// 获取父文件夹ID
+			const parentPath = suffixDir ? `/${suffixDir}` : undefined
+			const parentId = getParentIdFromPath(parentPath) as string
 			try {
 				// 所有文件作为一个任务
-				await multiFolderUploadStore.createUploadTask(files, targetSuffixDir, {
+				await multiFolderUploadStore.createUploadTask(files, parentId, {
 					projectId: projectId || "",
 					workspaceId: workspaceId,
 					projectName: selectedProject?.project_name || t("common.untitledProject"),
@@ -375,7 +429,15 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 				console.error(`❌ Failed to create folder upload task:`, error)
 			}
 		},
-		[projectId, workspaceId, selectedProject, selectedTopic, t, onUpdateAttachments],
+		[
+			projectId,
+			workspaceId,
+			selectedProject,
+			selectedTopic,
+			t,
+			onUpdateAttachments,
+			getParentIdFromPath,
+		],
 	)
 
 	// 同名文件处理 handler（优先使用外部传入的共享 handler）
@@ -398,14 +460,6 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		maxUploadCount: 99999,
 		maxUploadSize: multiFolderUploadStore.uploadConfig.maxFileSize, // 使用store的配置
 	})
-
-	// 获取父文件夹ID - 从路径中解析
-	const getParentIdFromPath = useCallback(
-		(parentPath?: string): string | number | undefined => {
-			return _getParentIdFromPath(attachments || [], parentPath)
-		},
-		[attachments],
-	)
 
 	// 创建文件的实际实现 - 供useVirtualFile调用
 	const createFileAndUpload = async (file: File, suffixDir?: string) => {
@@ -581,7 +635,6 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		}
 	}
 
-	// 文件上传操作 - 每个文件作为单独任务
 	const handleUploadFile = (item?: AttachmentItem) => {
 		// 获取上传目标文件夹路径
 		const targetPath = item?.is_directory ? item.relative_file_path || item.name : undefined
@@ -811,40 +864,195 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		}
 	}
 
-	// 下载PDF格式
+	// 下载PDF格式（单文件按后缀显式走 Markdown 或 HTML，slide 文件夹走 exportHtmlToPdf）
 	const handleDownloadPdf = useCallback(
-		(item: AttachmentItem) => {
-			if (item.file_id) {
-				const onStart = () => {
-					setExportingFiles((prev) => new Set(prev).add(item.file_id || ""))
-					onPdfExportStart?.()
+		async (
+			item: AttachmentItem,
+			folderChildren?: AttachmentItem[],
+			pagination?: "slice" | "none",
+		) => {
+			if (!item.file_id) return
+
+			const toastId = createRandomUuidV4()
+			const displayConfig = item.display_config as
+				| { type?: string; slides?: string[]; [key: string]: unknown }
+				| undefined
+			const metadata = item.metadata as
+				| { type?: string; slides?: string[]; [key: string]: unknown }
+				| undefined
+			let mergedDisplayConfig = displayConfig || metadata
+			let slidePaths: string[] = Array.isArray(mergedDisplayConfig?.slides)
+				? mergedDisplayConfig.slides
+				: []
+			let isSlideFolder = slidePaths.length > 0 || mergedDisplayConfig?.type === "slide"
+
+			// 如果当前文件本身不是 slide 文件夹，检查是否在 slide 文件夹内部
+			if (!isSlideFolder && !item.is_directory && attachments) {
+				const parentFolder = findParentSlideFolder(attachments, item.file_id)
+				if (parentFolder) {
+					isSlideFolder = true
+					const parentConfig = (parentFolder.display_config || parentFolder.metadata) as
+						| { type?: string; slides?: string[]; [key: string]: unknown }
+						| undefined
+					mergedDisplayConfig = parentConfig
+					slidePaths = [] // 单文件，不走多 slide 路径
 				}
-				const onEnd = () => {
-					setExportingFiles((prev) => {
-						const newSet = new Set(prev)
-						newSet.delete(item.file_id || "")
-						return newSet
+			}
+
+			setExportingFiles((prev) => new Set(prev).add(item.file_id || ""))
+			magicToast.loading({
+				key: toastId,
+				content: t("topicFiles.exporting"),
+				duration: 0,
+			})
+
+			try {
+				if (isSlideFolder) {
+					// 多页 slide → exportHtmlToPdf
+					// 找到入口文件（entry HTML），用它的 file_id 来加载内容
+					const children = folderChildren?.length ? folderChildren : item.children || []
+					const appEntryFile = getAppEntryFile(children, mergedDisplayConfig)
+					const entryFileId = appEntryFile?.file_id || item.file_id
+					const entryFileName = appEntryFile?.file_name || item.file_name
+
+					const isSingleFile = !slidePaths.length
+					const result = isSingleFile
+						? await prepareSingleSlideExport({
+								fileId: entryFileId,
+								fileName: entryFileName,
+								attachmentList: attachments ?? [],
+							})
+						: await prepareExportSlides({
+								slidePaths,
+								attachmentList: children.length ? children : (attachments ?? []),
+								mainFileId: entryFileId,
+								mainFileName: entryFileName,
+								displayConfig: mergedDisplayConfig,
+							})
+
+					if (!result.htmlSlides.some(Boolean)) {
+						magicToast.error({
+							key: toastId,
+							content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+							duration: 1000,
+						})
+						return
+					}
+
+					const preparedHtmlSlides = await prepareHtmlPagesForExport({
+						pages: result.htmlSlides,
+						attachments: attachments ?? [],
+						fileId: entryFileId,
+						fileName: entryFileName,
+						attachmentList: attachments ?? [],
+						displayConfig: mergedDisplayConfig,
 					})
-					onPdfExportEnd?.()
+
+					const handle = exportHtmlToPdf({
+						pages: preparedHtmlSlides,
+						pagination: "none",
+						fileName: (result.fileName || "export") + ".pdf",
+						onProgress: ({ phase, current, total }) => {
+							if (phase !== "capture" || total <= 1) return
+							magicToast.loading({
+								key: toastId,
+								content: `${t("topicFiles.exporting")} (${current}/${total})`,
+								duration: 0,
+							})
+						},
+					})
+
+					await handle.promise
+				} else {
+					// 单文件按类型走独立导出路线
+					if (isMarkdownFileName(item.file_name)) {
+						await exportMarkdownFileToPdf({
+							fileId: item.file_id,
+							fileName: item.file_name || "export.pdf",
+							pagination: pagination ?? "slice",
+							relativeFilePath: item.relative_file_path,
+							attachments: (attachments ?? []) as any[],
+							onProgress: ({ phase, current, total }) => {
+								if (phase !== "capture" || total <= 1) return
+								magicToast.loading({
+									key: toastId,
+									content: `${t("topicFiles.exporting")} (${current}/${total})`,
+									duration: 0,
+								})
+							},
+						}).promise
+					} else {
+						const result = await prepareSingleSlideExport({
+							fileId: item.file_id,
+							fileName: item.file_name,
+							attachmentList: attachments ?? [],
+						})
+
+						if (!result.htmlSlides.some(Boolean)) {
+							magicToast.error({
+								key: toastId,
+								content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+								duration: 1000,
+							})
+							return
+						}
+
+						const preparedHtmlSlides = await prepareHtmlPagesForExport({
+							pages: result.htmlSlides,
+							attachments: attachments ?? [],
+							fileId: item.file_id,
+							fileName: item.file_name,
+							attachmentList: attachments ?? [],
+							displayConfig: mergedDisplayConfig,
+						})
+
+						await exportHtmlToPdf({
+							pages: preparedHtmlSlides,
+							pagination: pagination ?? "slice",
+							fileName: (result.fileName || "export") + ".pdf",
+							output: "download",
+							onProgress: ({ phase, current, total }) => {
+								if (phase !== "capture" || total <= 1) return
+								magicToast.loading({
+									key: toastId,
+									content: `${t("topicFiles.exporting")} (${current}/${total})`,
+									duration: 0,
+								})
+							},
+						}).promise
+					}
 				}
-				const onProgress = (progress: number) => {
-					onPdfExportProgress?.(progress)
+
+				magicToast.success({
+					key: toastId,
+					content: t("topicFiles.exportSuccess"),
+					duration: 1000,
+				})
+			} catch (error: unknown) {
+				const isAbort = (error as { name?: string } | null)?.name === "AbortError"
+				if (isAbort) {
+					magicToast.info({
+						key: toastId,
+						content: t("topicFiles.exportCancel"),
+						duration: 1000,
+					})
+				} else {
+					console.error("[exportHtmlToPdf] export failed:", error)
+					magicToast.error({
+						key: toastId,
+						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+						duration: 1000,
+					})
 				}
-				const onError = () => {
-					onPdfExportEnd?.()
-				}
-				exportSingleFileToPdf({
-					fileId: item.file_id,
-					projectId,
-					t,
-					onStart,
-					onEnd,
-					onProgress,
-					onError,
+			} finally {
+				setExportingFiles((prev) => {
+					const newSet = new Set(prev)
+					newSet.delete(item.file_id || "")
+					return newSet
 				})
 			}
 		},
-		[projectId, t, onPdfExportStart, onPdfExportProgress, onPdfExportEnd],
+		[t, attachments],
 	)
 
 	// 下载PPT格式
@@ -888,12 +1096,19 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		async (item: AttachmentItem, folderChildren?: AttachmentItem[]) => {
 			if (!item.file_id) return
 
-			const toastId = crypto.randomUUID()
-			const metadata = item.metadata as
-				| { name?: string; slides?: string[]; [key: string]: unknown }
+			const toastId = createRandomUuidV4()
+			const displayConfig = item.display_config as
+				| { type?: string; slides?: string[]; [key: string]: unknown }
 				| undefined
-			const slidePaths: string[] = metadata?.slides ?? []
+			const metadata = item.metadata as
+				| { type?: string; slides?: string[]; [key: string]: unknown }
+				| undefined
+			const mergedDisplayConfig = displayConfig || metadata
+			const slidePaths: string[] = Array.isArray(mergedDisplayConfig?.slides)
+				? mergedDisplayConfig.slides
+				: []
 			const isSingleFile = !slidePaths.length
+			const autoSize = !hasPPTMetadata(item)
 
 			let exportHandle: ReturnType<typeof exportPPTX> | null = null
 			setExportingFiles((prev) => new Set(prev).add(item.file_id || ""))
@@ -918,7 +1133,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 								: (attachments ?? []),
 							mainFileId: item.file_id,
 							mainFileName: item.file_name,
-							metadata,
+							displayConfig: mergedDisplayConfig,
 						})
 
 				if (!result.htmlSlides.some(Boolean)) {
@@ -930,9 +1145,22 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 					return
 				}
 
-				exportHandle = exportPPTX(result.htmlSlides, {
+				const preparedHtmlSlides = await prepareHtmlPagesForExport({
+					pages: result.htmlSlides,
+					attachments: attachments ?? [],
+					fileId: item.file_id,
+					fileName: item.file_name,
+					attachmentList: attachments ?? [],
+					displayConfig: mergedDisplayConfig,
+				})
+
+				exportHandle = exportPPTX(preparedHtmlSlides, {
 					fileName: result.fileName,
 					skipFailedPages: true,
+					autoSize,
+					fontResolver: pptFontResolver,
+					logger: pptxExternalLogger,
+					logLevel: "warn",
 					onSlideProgress: ({ index, total }) => {
 						const progress = total > 1 ? ` (${index + 1}/${total})` : ""
 						magicToast.loading({
@@ -964,7 +1192,96 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
 						duration: 1000,
 					})
-					console.error("Export editable PPT failed:", error)
+					reportPptxExportError(error, {
+						fileId: item.file_id,
+						autoSize,
+						source: "useFileOperations",
+					})
+				}
+			} finally {
+				setExportingFiles((prev) => {
+					const newSet = new Set(prev)
+					newSet.delete(item.file_id || "")
+					return newSet
+				})
+			}
+		},
+		[t, attachments],
+	)
+
+	// 导出 HTML 为图片（PNG / JPEG）
+	const handleDownloadImage = useCallback(
+		async (item: AttachmentItem, format: "png" | "jpeg" = "png") => {
+			if (!item.file_id) return
+
+			const toastId = createRandomUuidV4()
+			setExportingFiles((prev) => new Set(prev).add(item.file_id || ""))
+			magicToast.loading({
+				key: toastId,
+				content: t("topicFiles.exporting"),
+				duration: 0,
+			})
+
+			try {
+				const result = await prepareSingleSlideExport({
+					fileId: item.file_id,
+					fileName: item.file_name,
+					attachmentList: attachments ?? [],
+				})
+
+				if (!result.htmlSlides.some(Boolean)) {
+					magicToast.error({
+						key: toastId,
+						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+						duration: 1000,
+					})
+					return
+				}
+
+				const preparedHtmlSlides = await prepareHtmlPagesForExport({
+					pages: result.htmlSlides,
+					attachments: attachments ?? [],
+					fileId: item.file_id,
+					fileName: item.file_name,
+					attachmentList: attachments ?? [],
+				})
+
+				const { exportHtmlToImage } =
+					await import("../../../../../../packages/pdf-export/src")
+				await exportHtmlToImage({
+					pages: preparedHtmlSlides,
+					format,
+					fileName: result.fileName || "export",
+					onProgress: ({ phase, current, total }) => {
+						if (phase !== "capture" || total <= 1) return
+						magicToast.loading({
+							key: toastId,
+							content: `${t("topicFiles.exporting")} (${current}/${total})`,
+							duration: 0,
+						})
+					},
+				}).promise
+
+				magicToast.success({
+					key: toastId,
+					content: t("topicFiles.exportSuccess"),
+					duration: 1000,
+				})
+			} catch (error: unknown) {
+				const isAbort = (error as { name?: string } | null)?.name === "AbortError"
+				if (isAbort) {
+					magicToast.info({
+						key: toastId,
+						content: t("topicFiles.exportCancel"),
+						duration: 1000,
+					})
+				} else {
+					console.error("[fileImageExport] export failed:", error)
+					magicToast.error({
+						key: toastId,
+						content: t("topicFiles.contextMenu.fileExport.exportFailed"),
+						duration: 1000,
+					})
 				}
 			} finally {
 				setExportingFiles((prev) => {
@@ -984,6 +1301,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			mode?: DownloadImageMode,
 			fileExtension?: string,
 			isFolder?: boolean,
+			downloadName?: string,
 		) => {
 			const fileIds = Array.isArray(file_id) ? file_id : [file_id]
 
@@ -1031,7 +1349,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 					})
 						.then((data) => {
 							if (data.status === "ready" && data.download_url) {
-								downloadFileWithAnchor(data.download_url)
+								downloadFileWithAnchor(data.download_url, downloadName)
 								resolve()
 								return
 							}
@@ -1051,7 +1369,10 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 											checkData.status === "ready" &&
 											checkData.download_url
 										) {
-											downloadFileWithAnchor(checkData.download_url)
+											downloadFileWithAnchor(
+												checkData.download_url,
+												downloadName,
+											)
 											resolve()
 										}
 										if (checkData?.status === "failed") {
@@ -1213,6 +1534,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 		handleDownloadPdf,
 		handleDownloadPpt,
 		handleDownloadPptx,
+		handleDownloadImage,
 		handleDownloadFile,
 		handleOpenFile,
 		handleMoveFile,

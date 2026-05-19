@@ -6,7 +6,7 @@ import type {
 import type { User } from "@/types/user"
 
 import { isCommercial } from "@/utils/env"
-import type { HttpClient } from "../core/HttpClient"
+import type { HttpClient, RequestConfig } from "../core/HttpClient"
 import { configStore } from "@/models/config"
 import { isNil } from "lodash-es"
 
@@ -38,7 +38,11 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 	 * @param {string} authorization 用户token
 	 * @param {string} authCode 登录授权码（私有化部署就有用，非私有化传空字符串）
 	 */
-	getUserProfile(authorization: string, authCode: string) {
+	getUserProfile(
+		authorization: string,
+		authCode: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	) {
 		return fetch.get<{
 			auth_status: Array<User.MagicOrganization>
 			auth_environment: { third_platform_organization_code: string }
@@ -51,6 +55,7 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 			},
 			enableErrorMessagePrompt: false,
 			enableRequestUnion: true,
+			...options,
 		})
 	},
 
@@ -64,6 +69,7 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 		authorization: string,
 		authCode: string,
 		thirdPlatformOrganizationCode?: string,
+		options?: Pick<RequestConfig, "skipAppInitWait">,
 	) {
 		return fetch.get<Array<User.MagicOrganization>>(
 			genRequestUrl(
@@ -87,8 +93,10 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 
 					return h
 				},
+				priority: "high",
 				enableErrorMessagePrompt: false,
 				enableRequestUnion: true,
+				...options,
 			},
 		)
 	},
@@ -96,7 +104,7 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 	/**
 	 * @description 获取当前账号所归属的环境 code
 	 */
-	getAccountDeployCode() {
+	getAccountDeployCode(options?: Pick<RequestConfig, "skipAppInitWait">) {
 		if (!isCommercial()) {
 			return { login_code: "" }
 		}
@@ -106,20 +114,22 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 				h.delete("organization-code")
 				return h
 			},
+			priority: "high",
+			...options,
 		})
 	},
 
 	/**
 	 * @description 用户 Token 换取一次性临时授权 Token
 	 */
-	getTempTokenFromUserToken() {
-		return fetch.get<{ temp_token: string }>(genRequestUrl("/api/v1/auth/temp-token"))
+	getTempTokenFromUserToken(options?: Pick<RequestConfig, "skipAppInitWait">) {
+		return fetch.get<{ temp_token: string }>(genRequestUrl("/api/v1/auth/temp-token"), options)
 	},
 
 	/**
 	 * @description 临时授权 Token 换取用户 Token
 	 */
-	getUserTokenFromTempToken(tempToken: string) {
+	getUserTokenFromTempToken(tempToken: string, options?: Pick<RequestConfig, "skipAppInitWait">) {
 		return fetch.get<{ teamshare_token: string }>(
 			genRequestUrl("/api/v1/auth/teamshare-token?temp_token=${tempToken}", {
 				tempToken,
@@ -127,6 +137,7 @@ export const generateAuthApi = (fetch: HttpClient) => ({
 			{
 				enableRequestUnion: true,
 				enableAuthorization: false,
+				...options,
 			},
 		)
 	},

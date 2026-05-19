@@ -45,11 +45,19 @@ class RunCleanupRegistry:
         if self._executed:
             return
         self._executed = True
-        for key, handler in list(self._handlers.items()):
+
+        async def _run_handler(key: str, handler: Callable[[], Awaitable[None]]) -> None:
             try:
                 await handler()
+            except asyncio.CancelledError:
+                logger.info(f"[RunCleanupRegistry] handler '{key}' was cancelled during cleanup")
             except Exception as e:
                 logger.error(f"[RunCleanupRegistry] handler '{key}' raised: {e}", exc_info=True)
+
+        await asyncio.gather(*(
+            _run_handler(key, handler)
+            for key, handler in list(self._handlers.items())
+        ))
 
 
 class RunCancellationHandle:
@@ -69,5 +77,7 @@ class RunCancellationHandle:
         if self._cancel_cb is not None:
             try:
                 await self._cancel_cb()
+            except asyncio.CancelledError:
+                logger.info("[RunCancellationHandle] worker cancel callback was cancelled")
             except Exception as e:
                 logger.error(f"[RunCancellationHandle] cancel callback raised: {e}", exc_info=True)

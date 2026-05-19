@@ -38,6 +38,7 @@ export interface MobileTabBarItem {
 
 export interface SharedMobileTabBarConfigsParams {
 	isPersonalOrganization: boolean
+	shouldHideMagiClawEntry?: boolean
 	superIconComponent: MobileTabBarIconComponent
 	includeRecording: boolean
 	appsChildrenConfigs: MobileTabBarConfig[]
@@ -171,9 +172,17 @@ function createMobileTabBarItem(params: {
 export function buildMobileTabBarConfigs(
 	params: SharedMobileTabBarConfigsParams,
 ): MobileTabBarConfig[] {
-	const { appsChildrenConfigs, includeRecording, isPersonalOrganization, superIconComponent } =
-		params
-	const sharedConfigs = [getSuperTabConfig(superIconComponent), getMagiClawTabConfig()]
+	const {
+		appsChildrenConfigs,
+		includeRecording,
+		isPersonalOrganization,
+		shouldHideMagiClawEntry,
+		superIconComponent,
+	} = params
+	const sharedConfigs = [
+		getSuperTabConfig(superIconComponent),
+		...(shouldHideMagiClawEntry ? [] : [getMagiClawTabConfig()]),
+	]
 	const recordingConfigs = includeRecording ? [getRecordingTabConfig()] : []
 	const appsConfigs =
 		appsChildrenConfigs.length > 0 ? [getAppsTabConfig(appsChildrenConfigs)] : []
@@ -193,6 +202,7 @@ export function buildMobileTabBarItems(params: SharedMobileTabBarItemsParams): M
 		iconSize,
 		includeRecording,
 		isPersonalOrganization,
+		shouldHideMagiClawEntry,
 		superIconComponent,
 		translate,
 	} = params
@@ -201,6 +211,7 @@ export function buildMobileTabBarItems(params: SharedMobileTabBarItemsParams): M
 		appsChildrenConfigs,
 		includeRecording,
 		isPersonalOrganization,
+		shouldHideMagiClawEntry,
 		superIconComponent,
 	}).map((item) =>
 		createMobileTabBarItem({

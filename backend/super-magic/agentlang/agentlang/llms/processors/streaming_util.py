@@ -95,6 +95,14 @@ class StreamingState:
     # 无效 chunk 最大数量阈值
     MAX_INVALID_CHUNK_COUNT: int = 10
 
+    # 流式内容字符数安全上限；模型单次输出不可能超过 ~50K tokens ≈ 200K chars，
+    # 超过即视为退化输出，提前终止流式接收
+    STREAM_CONTENT_MAX_CHARS: int = 200_000
+
+    def is_content_degenerate(self) -> bool:
+        """检测流式积累的 content 是否已退化膨胀（超过字符安全上限）"""
+        return len(self.content_text) >= self.STREAM_CONTENT_MAX_CHARS
+
     def record_valid_content(self, current_time: float) -> None:
         """记录收到有效内容，重置空 chunk 计数"""
         self.empty_chunk_count = 0
@@ -199,8 +207,12 @@ class StreamingHelper:
             )
 
             # 动态添加 reasoning_content（如果存在）
-            if 'reasoning_content' in delta_dict:
-                setattr(delta, 'reasoning_content', delta_dict['reasoning_content'])
+            # 上游字段名各异，统一归一化到 reasoning_content 供下游消费
+            from .chunk_processor import REASONING_FIELD_ALIASES
+            for alias in REASONING_FIELD_ALIASES:
+                if alias in delta_dict and delta_dict[alias] is not None:
+                    setattr(delta, 'reasoning_content', delta_dict[alias])
+                    break
 
             # 构造 ChunkChoice
             normalized_choice = ChunkChoice(

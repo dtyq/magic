@@ -8,13 +8,19 @@ import { useIsMobile } from "@/hooks/useIsMobile"
 import MarkerTooltip from "./index"
 import MarkerMentionChip from "./MarkerMentionChip"
 import { useMarkerImageUrl } from "./useMarkerImageUrl"
-import { isCanvasMarkerMentionData } from "./shared"
 import { useMarkerClickHandler } from "../../../hooks/useMarkerClickHandler"
+import {
+	getCanvasMarkerMentionImagePath,
+	normalizeCanvasMarkerMentionData,
+} from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 
 function MarkerMentionNodeView({ attrs, deleteNode, selected }: MentionNodeViewRendererProps) {
 	const isMobile = useIsMobile()
-	const markerData = isCanvasMarkerMentionData(attrs.data) ? attrs.data : null
-	const { imageUrl } = useMarkerImageUrl(markerData?.image_path)
+	const markerData = normalizeCanvasMarkerMentionData(attrs.data)
+	const { imageUrl } = useMarkerImageUrl(
+		markerData ? getCanvasMarkerMentionImagePath(markerData) : undefined,
+		markerData?.design_project_id,
+	)
 	const displayName = getMentionDisplayName(attrs)
 	const { handleMarkerClick } = useMarkerClickHandler({
 		scene: "messageEditorTiptap",
@@ -48,6 +54,8 @@ function MarkerMentionNodeView({ attrs, deleteNode, selected }: MentionNodeViewR
 			displayName={displayName}
 			markerData={markerData}
 			imageUrl={imageUrl}
+			maxWidthClassName="max-w-full"
+			contentDrivenWidth
 			selected={selected}
 			onClick={handleClick}
 			onRemove={handleRemove}

@@ -171,7 +171,7 @@ class WechatChannel(BaseChannel):
             self._context_tokens_by_user = dict(state.context_tokens_by_user)
             self._poll_task = asyncio.create_task(self._poll_loop())
             keepalive_registry = KeepaliveRegistry.get_instance()
-            keepalive_registry.restore_message_time(self.key, self._last_message_at_ms)
+            keepalive_registry.restore_activity_time(self.key, self._last_message_at_ms)
             logger.info(
                 f"[WechatChannel] 启动轮询, ilink_bot_id={credential.ilink_bot_id}, "
                 f"get_updates_buf_len={len(self._get_updates_buf)}"
@@ -299,8 +299,9 @@ class WechatChannel(BaseChannel):
             # 微信长轮询没有单独的“connected”回调。
             # 这里以首次成功拿到 getUpdates 响应作为“连接已真正可用”的信号，比 task 创建成功更接近真实连通。
             KeepaliveRegistry.get_instance().notify_connected_once(self.key)
-            if data.get("get_updates_buf"):
-                self._get_updates_buf = data["get_updates_buf"]
+            next_get_updates_buf = str(data.get("get_updates_buf") or "")
+            if next_get_updates_buf and next_get_updates_buf != self._get_updates_buf:
+                self._get_updates_buf = next_get_updates_buf
                 try:
                     await self._persist_runtime_state()
                 except Exception as e:
@@ -328,7 +329,7 @@ class WechatChannel(BaseChannel):
 
         current_message_at_ms = now_ms()
         self._last_message_at_ms = current_message_at_ms
-        KeepaliveRegistry.get_instance().notify_message(self.key, current_message_at_ms)
+        KeepaliveRegistry.get_instance().notify_activity(self.key, current_message_at_ms)
         context_token: str = msg.get("context_token", "")
         user_id: str = msg.get("from_user_id", "wechat_user")
 
@@ -443,6 +444,7 @@ class WechatChannel(BaseChannel):
             base_url=self._credential.base_url,
             cdn_base_url=self._credential.cdn_base_url,
             stream_id=stream_id,
+            is_proactive=True,
         )
         ctx.add_stream(wechat_stream)
 

@@ -66,6 +66,11 @@ class FinalTaskStateCode(str, Enum):
         TaskStatus.ERROR,
         "messages.agent_not_initialized",
     )
+    AGENT_LOAD_FAILED = (
+        "agent_load_failed",
+        TaskStatus.ERROR,
+        "messages.agent_load_failed",
+    )
     INTERNAL_DISPATCH_FAILED = (
         "internal_dispatch_failed",
         TaskStatus.ERROR,
@@ -118,6 +123,9 @@ def render_final_task_state_message(final_task_state: FinalTaskState | None) -> 
 
     if final_task_state.custom_message:
         return final_task_state.custom_message
+
+    if final_task_state.vendor_message:
+        return final_task_state.vendor_message
 
     return i18n.translate(
         final_task_state.code.i18n_key,

@@ -17,6 +17,7 @@ use App\Domain\Provider\Service\ModelFilter\PackageFilterInterface;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectMemberSettingEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberRole;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
@@ -371,6 +372,15 @@ class ProjectMemberAppService extends AbstractAppService
 
         // 5. 创建响应DTO并返回
         return CollaborationCreatorListResponseDTO::fromUserEntities($userEntities);
+    }
+
+    /**
+     * 获取用户在单个项目中的个人设置（快捷方式绑定等）.
+     */
+    public function getProjectMemberSetting(string $userId, int $projectId): ?ProjectMemberSettingEntity
+    {
+        $settings = $this->projectMemberDomainService->getUserProjectSettings($userId, [$projectId]);
+        return $settings[$projectId] ?? null;
     }
 
     /**

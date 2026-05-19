@@ -288,6 +288,45 @@ readonly class ResourceVisibilityDomainService
     }
 
     /**
+     * 按用户、部门范围覆盖保存资源可见性配置。
+     *
+     * @param array<string> $userIds
+     * @param array<string> $departmentIds
+     */
+    public function saveVisibilityByPrincipals(
+        BaseDataIsolation|PermissionDataIsolation $dataIsolation,
+        ResourceType $resourceType,
+        string $resourceCode,
+        VisibilityType $visibilityType,
+        array $userIds = [],
+        array $departmentIds = []
+    ): void {
+        $visibilityConfig = new VisibilityConfig();
+        $visibilityConfig->setVisibilityType($visibilityType);
+
+        if ($visibilityType === VisibilityType::SPECIFIC) {
+            foreach (array_values(array_unique($userIds)) as $userId) {
+                $visibilityUser = new VisibilityUser();
+                $visibilityUser->setId($userId);
+                $visibilityConfig->addUser($visibilityUser);
+            }
+
+            foreach (array_values(array_unique($departmentIds)) as $departmentId) {
+                $visibilityDepartment = new VisibilityDepartment();
+                $visibilityDepartment->setId($departmentId);
+                $visibilityConfig->addDepartment($visibilityDepartment);
+            }
+        }
+
+        $this->saveVisibilityConfig(
+            $dataIsolation,
+            $resourceType,
+            $resourceCode,
+            $visibilityConfig
+        );
+    }
+
+    /**
      * 获取可见性配置(高层封装).
      *
      * @param BaseDataIsolation|PermissionDataIsolation $dataIsolation 数据隔离对象

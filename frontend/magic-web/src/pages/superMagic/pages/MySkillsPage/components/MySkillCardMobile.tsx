@@ -16,24 +16,23 @@ import {
 interface MySkillCardMobileProps {
 	skill: UserSkillView
 	cardVariant: MySkillCardVariant
-	href?: string
-	onNavigate?: (event: React.MouseEvent<HTMLAnchorElement>) => void
+	onOpenDetail?: (skill: UserSkillView) => void
 	onMoreClick?: (skill: UserSkillView) => void
 }
 
 function MySkillCardMobile({
 	skill,
 	cardVariant,
-	href,
-	onNavigate,
+	onOpenDetail,
 	onMoreClick,
 }: MySkillCardMobileProps) {
 	const { t } = useTranslation("crew/market")
-	const { displayDescription, displayName, footerLabel, latestVersion } = getMySkillCardCopy({
-		skill,
-		cardVariant,
-		t,
-	})
+	const { displayDescription, displayName, footerLabel, latestVersion, packageName } =
+		getMySkillCardCopy({
+			skill,
+			cardVariant,
+			t,
+		})
 
 	function handleMoreClick(event: React.MouseEvent<HTMLButtonElement>) {
 		event.preventDefault()
@@ -41,9 +40,29 @@ function MySkillCardMobile({
 		onMoreClick?.(skill)
 	}
 
+	function handleOpenDetail() {
+		onOpenDetail?.(skill)
+	}
+
 	const content = (
 		<div
-			className="flex min-w-0 flex-col gap-1.5 rounded-md border border-border bg-popover p-2.5 shadow-sm"
+			role={onOpenDetail ? "button" : undefined}
+			tabIndex={onOpenDetail ? 0 : undefined}
+			className={cn(
+				"flex min-w-0 flex-col gap-1.5 rounded-md border border-border bg-popover p-2.5 shadow-sm",
+				onOpenDetail &&
+					"cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/40",
+			)}
+			onClick={onOpenDetail ? handleOpenDetail : undefined}
+			onKeyDown={
+				onOpenDetail
+					? (event) => {
+							if (event.key !== "Enter" && event.key !== " ") return
+							event.preventDefault()
+							handleOpenDetail()
+						}
+					: undefined
+			}
 			data-testid="my-skill-card-mobile"
 		>
 			<MySkillCardInfoSection
@@ -61,6 +80,8 @@ function MySkillCardMobile({
 				titleTrailing={
 					<MySkillCardBadges
 						skill={skill}
+						cardVariant={cardVariant}
+						packageName={packageName}
 						latestVersion={latestVersion}
 						t={t}
 						testIdPrefix="my-skill-card-mobile"
@@ -91,18 +112,7 @@ function MySkillCardMobile({
 		</div>
 	)
 
-	if (!href) return content
-
-	return (
-		<a
-			href={href}
-			onClick={onNavigate}
-			className={cn("block text-current no-underline")}
-			data-testid="my-skill-card-mobile-link"
-		>
-			{content}
-		</a>
-	)
+	return content
 }
 
 export default memo(MySkillCardMobile)

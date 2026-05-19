@@ -74,8 +74,15 @@ export function useScrollSync({
 		// Get container element
 		const container = containerRef?.current
 		// Get iframe document for listening to iframe content scroll
-		const iframeDoc =
-			iframeRef.current?.contentDocument || iframeRef.current?.contentWindow?.document
+		let iframeDoc: Document | null = null
+		try {
+			iframeDoc =
+				iframeRef.current?.contentDocument ||
+				iframeRef.current?.contentWindow?.document ||
+				null
+		} catch {
+			iframeDoc = null
+		}
 
 		// Listen to container scroll if available, otherwise fallback to window
 		if (container) {

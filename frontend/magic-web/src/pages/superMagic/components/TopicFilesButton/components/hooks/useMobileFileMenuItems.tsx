@@ -46,34 +46,34 @@ function useMobileFileMenuItems({
 			{
 				key: "createCustom",
 				label: t("topicFiles.contextMenu.createSubMenu.customFile"),
-				onClick: () => onAddFile?.("custom"),
-				icon: <MagicFileIcon type="custom" size={18} />,
+				onClick: () => onAddFile?.("customFile"),
+				icon: <MagicFileIcon type="customFile" size={18} />,
 			},
 			...(onAddFolder
 				? [
-					{
-						type: "divider" as const,
-					},
-					{
-						key: "createFolder",
-						label: t("topicFiles.contextMenu.createFolder"),
-						icon: <MagicIcon component={IconFolderPlus} stroke={2} size={18} />,
-						onClick: onAddFolder,
-					},
-				]
+						{
+							type: "divider" as const,
+						},
+						{
+							key: "createFolder",
+							label: t("topicFiles.contextMenu.createFolder"),
+							icon: <MagicIcon component={IconFolderPlus} stroke={2} size={18} />,
+							onClick: onAddFolder,
+						},
+					]
 				: []),
 			...(onUploadFile
 				? [
-					{
-						type: "divider" as const,
-					},
-					{
-						key: "upload",
-						label: t("topicFiles.contextMenu.uploadFile"),
-						icon: <MagicIcon component={IconUpload} stroke={2} size={18} />,
-						onClick: onUploadFile,
-					},
-				]
+						{
+							type: "divider" as const,
+						},
+						{
+							key: "upload",
+							label: t("topicFiles.contextMenu.uploadFile"),
+							icon: <MagicIcon component={IconUpload} stroke={2} size={18} />,
+							onClick: onUploadFile,
+						},
+					]
 				: []),
 		],
 		[t, onAddFile, onUploadFile, onAddFolder],

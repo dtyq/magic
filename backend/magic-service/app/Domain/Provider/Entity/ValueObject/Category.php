@@ -15,12 +15,35 @@ enum Category: string
     /** Video Generation Model. */
     case VGM = 'vgm';
 
+    case VIDEO = 'video';
+    case RERANK = 'rerank';
+    case EMBEDDING = 'embedding';
+
     public function label(): string
     {
         return match ($this) {
             self::LLM => '文本模型',
             self::VLM => '图片生成',
             self::VGM => '视频模型',
+            self::VIDEO => '视频生成',
+            self::RERANK => '重排模型',
+            self::EMBEDDING => '向量模型',
+        };
+    }
+
+    public function isVlm(): bool
+    {
+        return $this->value === self::VLM->value;
+    }
+
+    public function defaultModelType(): ModelType
+    {
+        return match ($this) {
+            self::VLM => ModelType::IMAGE_TO_IMAGE,
+            self::VGM,
+            self::VIDEO => ModelType::TEXT_TO_VIDEO,
+            self::EMBEDDING => ModelType::EMBEDDING,
+            default => ModelType::LLM,
         };
     }
 }

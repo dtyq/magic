@@ -1,12 +1,12 @@
 import { memo, useMemo } from "react"
 import { createStyles } from "antd-style"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { computed } from "mobx"
 import { useTranslation } from "react-i18next"
 import MagicIcon from "@/components/base/MagicIcon"
 import { IconMessageCircleQuestion } from "@tabler/icons-react"
-import IconComponent from "@/pages/superMagic/components/IconViewComponent/index"
+import ModeAvatar from "@/pages/superMagic/components/ModeAvatar"
 
 const useStyles = createStyles(({ css, token }) => ({
 	modeTag: css`
@@ -77,17 +77,18 @@ const useStyles = createStyles(({ css, token }) => ({
 
 interface ModeTagProps {
 	mode?: string
+	agentCode?: string
 }
 
-function ModeTag({ mode = TopicMode.General }: ModeTagProps) {
+function ModeTag({ mode = TopicMode.General, agentCode }: ModeTagProps) {
 	const { styles, cx } = useStyles()
 	const { t } = useTranslation("super")
 
 	const config = useMemo(() => {
 		return computed(() => {
-			return superMagicModeService.getModeConfigWithLegacy(mode, t)
+			return superMagicModeService.getModeConfigWithLegacy(mode, t, false, agentCode)
 		}).get()
-	}, [mode, t])
+	}, [mode, t, agentCode])
 
 	if (!config) {
 		return (
@@ -97,18 +98,7 @@ function ModeTag({ mode = TopicMode.General }: ModeTagProps) {
 		)
 	}
 
-	return (
-		<div className={`${styles.modeTag} ${mode}`}>
-			<IconComponent
-				iconType={config.mode.icon_type}
-				iconUrl={config.mode.icon_url}
-				selectedIcon={config.mode.icon}
-				size={16}
-				iconColor={config.mode.color}
-				showBorder={true}
-			/>
-		</div>
-	)
+	return <ModeAvatar mode={config.mode} iconSize={16} />
 }
 
 export default memo(ModeTag)

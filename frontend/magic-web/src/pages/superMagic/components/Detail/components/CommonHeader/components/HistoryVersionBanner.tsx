@@ -3,6 +3,12 @@ import { History } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { FileHistoryVersion } from "@/pages/superMagic/pages/Workspace/types"
 
+/**
+ * 历史版本横幅布局高度（px）。
+ * Design 画布区 `paddingTop`、`CanvasDesignHeaderV2` 悬浮操作条 `top` 与本组件根节点 `min-height` 保持一致。
+ */
+export const HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX = 38
+
 interface HistoryVersionBannerProps {
 	fileVersionsList?: FileHistoryVersion[]
 	fileVersion?: number
@@ -23,6 +29,7 @@ export function HistoryVersionBanner(props: HistoryVersionBannerProps) {
 	return (
 		<div
 			className="flex w-full items-center justify-between border-b border-[#E5E7EB] bg-[#EEF4FF] px-3.5 py-1.5"
+			style={{ minHeight: HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX }}
 			data-testid={props["data-testid"]}
 		>
 			<div className="flex items-center gap-1 text-sm text-[#2563EB]">

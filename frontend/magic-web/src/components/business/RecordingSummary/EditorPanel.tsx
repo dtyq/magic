@@ -10,9 +10,12 @@ import type {
 	RecordSummaryEditorPanelProps,
 	RecordSummaryEditorPanelRef,
 } from "@/components/business/RecordingSummary/internal/editorPanel/types"
-import { preloadRecordSummaryFloatPanelIfNeeded } from "@/components/business/RecordingSummary/internal/editorRuntime"
 
-preloadRecordSummaryFloatPanelIfNeeded()
+import("@/components/business/RecordingSummary/internal/editorRuntime").then(
+	({ preloadRecordSummaryFloatPanelIfNeeded }) => {
+		preloadRecordSummaryFloatPanelIfNeeded()
+	},
+)
 
 export type {
 	RecordSummaryEditorPanelProps,

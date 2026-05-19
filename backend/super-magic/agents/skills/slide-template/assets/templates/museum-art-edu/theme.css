@@ -1,0 +1,1224 @@
+/* ============================================================
+   Museum Art Edu — theme.css
+   Beige Academy Hall · Art appreciation general education course template
+   Version: 2.0  |  Based on: Chapter 01 Course Introduction style analysis
+   ============================================================ */
+
+/* ============================================================
+   1. CSS Variables (Design Tokens)
+   ============================================================ */
+:root {
+  /* --- Background Colors --- */
+  --bg-primary:   #FAF8F5;
+  --bg-secondary: #F8F5F0;
+  --bg-dark:      #1A1A1A;
+  --bg-dark-deeper: #141414;
+  --bg-card:      #FFFFFF;
+  --bg-card-dark: rgba(255,255,255,0.04);
+  --bg-card-active-dark: rgba(192,57,43,0.08);
+  --bg-ink-panel: #F0EBE2;
+
+  /* --- Text Colors --- */
+  --text-primary:      #1A1A1A;
+  --text-secondary:    #2C2C2C;
+  --text-body:         #444444;
+  --text-muted:        #666666;
+  --text-placeholder:  #999999;
+  --text-ghost:        #CCCCCC;
+  --text-on-dark:      #F8F5F0;
+  --text-on-dark-sub:  #888888;
+  --text-on-dark-muted: rgba(248,245,240,0.55);
+  --text-on-dark-ghost: rgba(255,255,255,0.15);
+  --text-discussion:   #D0CEC9;
+
+  /* --- Brand / Accent Colors --- */
+  --accent:             #C0392B;
+  --accent-hover:       rgba(192,57,43,0.8);
+  --accent-light:       rgba(192,57,43,0.06);
+  --accent-light-2:     rgba(192,57,43,0.04);
+  --accent-border:      rgba(192,57,43,0.2);
+  --accent-border-strong: rgba(192,57,43,0.3);
+  --accent-mid:         rgba(192,57,43,0.5);
+  --accent-icon:        rgba(192,57,43,0.15);
+  --accent-icon-bg:     #FDF0EE;
+  --accent-ghost:       rgba(192,57,43,0.12);
+
+  /* --- Multi-Color Dimension System --- */
+  --color-red:    #C0392B;
+  --color-blue:   #2C3E8C;
+  --color-green:  #27AE60;
+  --color-orange: #E67E22;
+  --color-gold:   #8B6914;
+
+  /* --- Borders --- */
+  --border-light:       #EDEAE5;
+  --border-dark:        rgba(255,255,255,0.07);
+  --border-dark-heavier: #2E2E2E;
+  --divider:            #DDDDDD;
+  --divider-dashed:     #E0DDD8;
+
+  /* --- Shadows --- */
+  --shadow-card:        0 2px 12px rgba(0,0,0,0.06);
+  --shadow-card-light:  0 1px 6px rgba(0,0,0,0.05);
+  --shadow-card-medium: 0 2px 16px rgba(0,0,0,0.06);
+
+  /* --- Decorative Ghost Numbers --- */
+  --ghost-num-color: #F0EDE8;
+  --ghost-num-dark:  rgba(192,57,43,0.10);
+  --ghost-num-card:  rgba(0,0,0,0.03);
+
+  /* --- Radius --- */
+  --radius-card:  4px;
+  --radius-badge: 2px;
+  --radius-icon:  50%;
+
+  /* --- Fonts --- */
+  --font-sans:  'Noto Sans SC', sans-serif;
+  --font-serif: 'Noto Serif SC', serif;
+}
+
+/* ============================================================
+   2. Base Reset
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  width: 1920px;
+  height: 1080px;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.slide-container {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Serif font helper class */
+.serif { font-family: var(--font-serif); }
+
+/* ============================================================
+   3. Decorative Elements
+   ============================================================ */
+
+/* 3.1 Academy red accent line */
+.accent-line {
+  width: 56px;
+  height: 3px;
+  background-color: var(--accent);
+  margin-bottom: 32px;
+  flex-shrink: 0;
+}
+.accent-line-sm { width: 48px; height: 3px; background: var(--accent); margin-bottom: 28px; }
+.accent-line-lg { width: 64px; height: 4px; background: var(--accent); margin-bottom: 40px; }
+
+/* 3.2 Top red decorative bar for dark panels */
+.left-deco-top {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: var(--accent);
+}
+
+/* 3.3 Left vertical red gradient line for dark sidebars */
+.left-deco {
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 100%;
+  background: linear-gradient(to bottom, transparent, var(--accent) 30%, var(--accent) 70%, transparent);
+}
+
+/* 3.4 Large ghost chapter number for cover top-right */
+.chapter-badge {
+  position: absolute;
+  top: 60px;
+  right: 100px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.chapter-num {
+  font-size: 120px;
+  font-weight: 900;
+  color: var(--ghost-num-color);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+.chapter-label {
+  font-size: 20px;
+  color: var(--accent);
+  letter-spacing: 0.2em;
+  margin-top: -16px;
+}
+
+/* 3.5 English page tag */
+.page-tag {
+  font-size: 16px;
+  color: var(--accent);
+  letter-spacing: 4px;
+  font-weight: 500;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+.page-tag-on-dark {
+  font-size: 16px;
+  color: var(--accent-hover);
+  letter-spacing: 4px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+
+/* 3.6 Section subtitle with leading red line */
+.section-title {
+  font-size: 20px;
+  color: var(--text-placeholder);
+  letter-spacing: 0.15em;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-title::before {
+  content: '';
+  display: inline-block;
+  width: 32px; height: 2px;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+/* 3.7 Dark-slide section tag with leading red line */
+.section-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  color: var(--accent);
+  letter-spacing: 0.25em;
+  font-weight: 600;
+  margin-bottom: 32px;
+}
+.section-tag::before {
+  content: '';
+  display: inline-block;
+  width: 32px; height: 2px;
+  background: var(--accent);
+}
+
+/* 3.8 Bottom decorative dot row for covers */
+.bottom-deco {
+  position: absolute;
+  bottom: 48px;
+  right: 100px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.deco-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent);
+}
+.deco-text {
+  font-size: 18px;
+  color: #BBB;
+  letter-spacing: 0.1em;
+}
+
+/* 3.9 Image transition overlays */
+.img-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to right, transparent 60%, var(--bg-primary) 100%);
+}
+.img-overlay-secondary {
+  position: absolute; inset: 0;
+  background: linear-gradient(to right, transparent 60%, var(--bg-secondary) 100%);
+}
+.img-overlay-dark {
+  position: absolute; inset: 0;
+  background: linear-gradient(to right, transparent 60%, var(--bg-dark) 100%);
+}
+.left-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to right, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.05) 80%, rgba(250,248,245,0.6) 100%);
+}
+
+/* 3.10 Activity badge */
+.activity-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(192,57,43,0.15);
+  border: 1px solid var(--accent-border-strong);
+  border-radius: var(--radius-badge);
+  padding: 8px 20px;
+  margin-bottom: 32px;
+  width: fit-content;
+}
+.activity-badge i { color: var(--accent); font-size: 16px; }
+.activity-badge span { font-size: 16px; color: rgba(192,57,43,0.9); letter-spacing: 3px; }
+
+/* ============================================================
+   4. Top Bar / Title Area
+   ============================================================ */
+
+/* 4.1 Light-slide top title bar (120px) */
+.top-bar {
+  height: 120px;
+  background-color: var(--bg-primary);
+  display: flex;
+  align-items: center;
+  padding: 0 100px;
+  border-bottom: 2px solid var(--border-light);
+  flex-shrink: 0;
+}
+.top-bar .page-label {
+  font-size: 18px;
+  color: var(--accent);
+  letter-spacing: 0.2em;
+  font-weight: 500;
+  margin-right: 32px;
+}
+.top-bar .page-title {
+  font-size: 52px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.top-bar .page-num {
+  margin-left: auto;
+  font-size: 20px;
+  color: var(--text-ghost);
+  letter-spacing: 0.1em;
+}
+
+/* 4.2 Shared dark/light title section (196-220px) for definition-flow, question methods, etc. */
+.top-section {
+  height: 220px;
+  display: flex;
+  align-items: center;
+  padding: 0 140px;
+  flex-shrink: 0;
+  position: relative;
+}
+.top-section.light { background: var(--bg-secondary); }
+.top-section.dark  { background: var(--bg-dark); }
+.top-section.light::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 140px; right: 140px;
+  height: 1px;
+  background: rgba(26,26,26,0.1);
+}
+.top-section.dark::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 1px;
+  background: rgba(255,255,255,0.07);
+}
+.top-section .page-title {
+  font-size: 68px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 4px;
+  line-height: 1;
+}
+.top-section.dark .page-title { color: var(--text-on-dark); }
+.top-section .page-subtitle {
+  font-size: 26px;
+  color: var(--text-on-dark-sub);
+  letter-spacing: 2px;
+  margin-top: 12px;
+}
+.top-section.light .page-subtitle { color: #888; }
+.top-section .page-num {
+  margin-left: auto;
+  font-size: 16px;
+  letter-spacing: 2px;
+  align-self: flex-start;
+  padding-top: 56px;
+  color: rgba(26,26,26,0.2);
+}
+.top-section.dark .page-num { color: rgba(255,255,255,0.15); }
+
+/* 4.3 Dark-slide large title section (200px), for goal pages and similar layouts */
+.page-header {
+  height: 200px;
+  background: var(--bg-dark);
+  display: flex;
+  align-items: center;
+  padding: 0 120px;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.page-header .header-tag {
+  font-size: 16px;
+  color: rgba(255,255,255,0.35);
+  letter-spacing: 4px;
+  margin-bottom: 12px;
+}
+.page-header .header-title {
+  font-size: 64px;
+  font-weight: 700;
+  color: var(--bg-secondary);
+  letter-spacing: 4px;
+  line-height: 1;
+}
+.page-header .accent-dot {
+  width: 10px; height: 10px;
+  background: var(--accent);
+  border-radius: 50%;
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.page-header .page-num-right {
+  margin-left: auto;
+  font-size: 16px;
+  color: rgba(255,255,255,0.2);
+  letter-spacing: 2px;
+}
+
+/* ============================================================
+   5. Panel Layouts
+   ============================================================ */
+
+/* 5.1 Cover left image panel */
+.cover-left-panel {
+  width: 620px;
+  height: 1080px;
+  position: relative;
+  flex-shrink: 0;
+}
+.cover-left-panel img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+
+/* 5.2 Cover right content panel */
+.cover-right-panel {
+  flex: 1;
+  background-color: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 80px 100px 80px 80px;
+  position: relative;
+}
+.cover-right-panel .course-tag {
+  display: inline-block;
+  background-color: var(--accent);
+  color: white;
+  font-size: 20px;
+  font-weight: 500;
+  padding: 8px 20px;
+  letter-spacing: 0.1em;
+  margin-bottom: 32px;
+}
+.cover-right-panel .main-title {
+  font-size: 96px;
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  margin-bottom: 16px;
+}
+.cover-right-panel .sub-title {
+  font-size: 36px;
+  font-weight: 300;
+  color: #555;
+  letter-spacing: 0.15em;
+  margin-bottom: 60px;
+}
+.cover-right-panel .divider {
+  width: 100%; height: 1px;
+  background-color: var(--divider);
+  margin-bottom: 48px;
+}
+
+/* 5.3 Cover metadata row */
+.meta-info { display: flex; gap: 48px; }
+.meta-item { display: flex; flex-direction: column; gap: 6px; }
+.meta-label { font-size: 18px; color: var(--text-placeholder); letter-spacing: 0.05em; }
+.meta-value { font-size: 24px; font-weight: 500; color: #333; }
+
+/* 5.4 Left dark sidebar for course structure pages */
+.left-col-dark {
+  width: 420px;
+  height: 1080px;
+  background: var(--bg-dark);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 56px;
+  flex-shrink: 0;
+  position: relative;
+}
+.left-col-dark .left-tag {
+  font-size: 15px;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 4px;
+  margin-bottom: 20px;
+}
+.left-col-dark .left-title {
+  font-size: 56px;
+  font-weight: 700;
+  color: var(--bg-secondary);
+  letter-spacing: 3px;
+  line-height: 1.2;
+  margin-bottom: 32px;
+}
+.left-col-dark .total-num {
+  font-size: 64px;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: var(--font-serif);
+  line-height: 1;
+}
+.left-col-dark .total-unit {
+  font-size: 22px;
+  color: rgba(255,255,255,0.5);
+  margin-top: 4px;
+}
+
+/* 5.5 Left dark panel for activity pages, 500px wide */
+.left-panel-dark {
+  width: 500px;
+  flex-shrink: 0;
+  background: var(--bg-dark);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 60px;
+  position: relative;
+}
+.left-panel-dark .panel-title {
+  font-size: 52px;
+  font-weight: 700;
+  color: var(--text-on-dark);
+  letter-spacing: 3px;
+  line-height: 1.25;
+  margin-bottom: 28px;
+}
+.left-panel-dark .panel-purpose-label {
+  font-size: 15px;
+  color: rgba(255,255,255,0.3);
+  letter-spacing: 3px;
+  margin-bottom: 12px;
+}
+.left-panel-dark .panel-purpose {
+  font-size: 22px;
+  color: rgba(248,245,240,0.65);
+  line-height: 1.75;
+}
+
+/* 5.6 Image panel on light slides */
+.img-panel {
+  width: 780px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.img-panel img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* 5.7 Image panel on dark slides, 480px wide */
+.left-img-dark {
+  width: 480px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.left-img-dark img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  filter: brightness(0.6) saturate(0.8);
+}
+.left-img-dark .img-caption {
+  position: absolute;
+  bottom: 28px; left: 28px;
+  font-size: 17px;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 1px;
+}
+
+/* 5.8 Ink-painting display panel on the right, 500px wide */
+.ink-panel {
+  width: 500px;
+  flex-shrink: 0;
+  position: relative;
+  background: var(--bg-ink-panel);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.ink-panel img {
+  height: 100%; width: 100%;
+  object-fit: contain;
+  padding: 40px 30px;
+}
+.ink-panel .img-caption {
+  position: absolute;
+  bottom: 32px; left: 0; right: 0;
+  text-align: center;
+  font-size: 18px;
+  color: rgba(26,26,26,0.4);
+  letter-spacing: 2px;
+}
+.ink-panel .img-caption span {
+  display: block;
+  font-size: 15px;
+  color: rgba(26,26,26,0.25);
+  margin-top: 4px;
+}
+.ink-panel .right-top-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(to right, var(--accent), rgba(192,57,43,0.1));
+}
+
+/* ============================================================
+   6. Card Components
+   ============================================================ */
+
+/* 6.1 Function cards for 2x2 grids on light slides */
+.func-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  padding: 20px 24px;
+}
+.func-card-icon {
+  width: 48px; height: 48px;
+  background-color: var(--accent-icon-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 22px;
+  color: var(--accent);
+}
+.func-card-text { display: flex; flex-direction: column; }
+.func-card-main { font-size: 24px; font-weight: 600; color: var(--text-secondary); }
+.func-card-sub  { font-size: 18px; color: var(--text-placeholder); margin-top: 2px; }
+
+/* 6.2 Layer cards with colored left rule */
+.layer-card-lined {
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  overflow: hidden;
+}
+.layer-accent { width: 6px; flex-shrink: 0; }
+.layer-body {
+  flex: 1; padding: 22px 28px;
+  display: flex; align-items: center; gap: 24px;
+}
+.layer-num-ghost {
+  font-size: 48px; font-weight: 900;
+  line-height: 1; flex-shrink: 0;
+  opacity: 0.12;
+}
+.layer-info { flex: 1; }
+.layer-name-text { font-size: 28px; font-weight: 700; color: var(--text-secondary); margin-bottom: 4px; }
+.layer-desc-text { font-size: 22px; color: #777; }
+.layer-icon-circle {
+  width: 52px; height: 52px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px; flex-shrink: 0;
+  border-radius: 50%;
+}
+
+/* 6.3 Goal cards in a five-column row */
+.goal-card {
+  flex: 1;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  display: flex;
+  flex-direction: column;
+  padding: 44px 36px 40px;
+  position: relative;
+  border-top: 4px solid transparent;
+  box-shadow: var(--shadow-card-medium);
+}
+.goal-card.active { border-top-color: var(--accent); }
+.goal-card.muted  { border-top-color: rgba(192,57,43,0.25); }
+.goal-num {
+  font-family: var(--font-serif);
+  font-size: 52px; font-weight: 700;
+  color: var(--accent-ghost);
+  line-height: 1; margin-bottom: 20px;
+}
+.goal-verb {
+  font-size: 32px; font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px; margin-bottom: 14px;
+}
+.goal-title {
+  font-size: 22px; font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 1px; margin-bottom: 16px; line-height: 1.5;
+}
+.goal-desc { font-size: 20px; color: var(--text-muted); line-height: 1.75; }
+
+/* 6.4 Flow cards in a three-column row with top accent line */
+.flow-card {
+  flex: 1;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 40px 32px 36px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.flow-card.l1 { border-top: 4px solid var(--accent); }
+.flow-card.l2 { border-top: 4px solid var(--accent-mid); }
+.flow-card.l3 { border-top: 4px solid rgba(192,57,43,0.2); }
+.flow-arrow {
+  width: 48px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.flow-arrow i { font-size: 24px; color: rgba(192,57,43,0.4); }
+.flow-layer-num  { font-size: 13px; color: var(--accent-mid); letter-spacing: 2px; margin-bottom: 16px; }
+.flow-layer-name { font-size: 36px; font-weight: 700; color: var(--text-primary); letter-spacing: 2px; margin-bottom: 16px; }
+.flow-layer-en   { font-size: 16px; color: rgba(26,26,26,0.3); letter-spacing: 2px; margin-bottom: 20px; }
+.flow-layer-q    { font-size: 22px; color: var(--accent); font-weight: 600; margin-bottom: 12px; }
+.flow-layer-desc { font-size: 20px; color: var(--text-muted); line-height: 1.7; }
+.flow-layer-icon { font-size: 32px; color: rgba(192,57,43,0.15); margin-bottom: 20px; }
+
+/* 6.5 Multi-color dimension cards in a 2x2 grid with top color line */
+.reason-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 36px 36px 32px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.reason-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.reason-card.c-red::before    { background: var(--color-red); }
+.reason-card.c-blue::before   { background: var(--color-blue); }
+.reason-card.c-green::before  { background: var(--color-green); }
+.reason-card.c-orange::before { background: var(--color-orange); }
+.reason-card .card-icon  { font-size: 36px; margin-bottom: 16px; }
+.reason-card.c-red .card-icon    { color: var(--color-red); }
+.reason-card.c-blue .card-icon   { color: var(--color-blue); }
+.reason-card.c-green .card-icon  { color: var(--color-green); }
+.reason-card.c-orange .card-icon { color: var(--color-orange); }
+.reason-card .card-dim  { font-size: 15px; letter-spacing: 3px; margin-bottom: 10px; font-weight: 600; }
+.reason-card.c-red .card-dim    { color: var(--color-red); }
+.reason-card.c-blue .card-dim   { color: var(--color-blue); }
+.reason-card.c-green .card-dim  { color: var(--color-green); }
+.reason-card.c-orange .card-dim { color: var(--color-orange); }
+.reason-card .card-title  { font-size: 30px; font-weight: 700; color: var(--text-primary); letter-spacing: 1px; margin-bottom: 14px; }
+.reason-card .card-desc   { font-size: 22px; color: var(--text-muted); line-height: 1.75; }
+.reason-card .card-deco-num {
+  position: absolute; bottom: 16px; right: 24px;
+  font-size: 80px; font-family: var(--font-serif); font-weight: 700;
+  color: var(--ghost-num-card); line-height: 1;
+}
+
+/* 6.6 Step cards for activity pages */
+.step-card {
+  flex: 1;
+  background: var(--bg-card);
+  border-radius: var(--radius-card);
+  padding: 28px 28px 24px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.step-num {
+  font-family: var(--font-serif);
+  font-size: 48px; font-weight: 700;
+  color: rgba(192,57,43,0.1);
+  line-height: 1; margin-bottom: 12px;
+}
+.step-title { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px; letter-spacing: 1px; }
+.step-desc  { font-size: 20px; color: #777; line-height: 1.65; }
+.step-arrow {
+  width: 36px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  color: rgba(192,57,43,0.3);
+  font-size: 20px;
+}
+
+/* 6.7 Reference resource items for activity-page footer */
+.ref-item {
+  flex: 1;
+  display: flex; align-items: center; gap: 20px;
+  background: var(--accent-light-2);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-card);
+  padding: 20px 28px;
+}
+.ref-icon  { font-size: 28px; color: var(--accent-mid); flex-shrink: 0; }
+.ref-type  { font-size: 14px; color: var(--accent); letter-spacing: 2px; margin-bottom: 4px; }
+.ref-title { font-size: 22px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+.ref-sub   { font-size: 18px; color: var(--text-placeholder); letter-spacing: 1px; }
+
+/* 6.8 Five-question-method cards on dark backgrounds */
+.q-card {
+  display: flex; align-items: center; gap: 32px;
+  background: rgba(255,255,255,0.04);
+  border-radius: var(--radius-card);
+  padding: 22px 36px;
+  border-left: 3px solid rgba(192,57,43,0.2);
+  position: relative;
+}
+.q-card.active {
+  background: var(--bg-card-active-dark);
+  border-left-color: var(--accent);
+}
+.q-num {
+  font-family: var(--font-serif);
+  font-size: 40px; font-weight: 700;
+  color: rgba(192,57,43,0.3);
+  width: 56px; flex-shrink: 0; line-height: 1;
+}
+.q-card.active .q-num { color: var(--accent); }
+.q-divider { width: 1px; height: 48px; background: rgba(255,255,255,0.08); flex-shrink: 0; }
+.q-type  { font-size: 15px; color: rgba(255,255,255,0.3); letter-spacing: 2px; margin-bottom: 6px; }
+.q-card.active .q-type { color: rgba(192,57,43,0.7); }
+.q-text  { font-size: 26px; font-weight: 600; color: rgba(248,245,240,0.5); letter-spacing: 1px; }
+.q-card.active .q-text { color: var(--text-on-dark); }
+.q-icon  { font-size: 22px; color: rgba(192,57,43,0.2); flex-shrink: 0; }
+.q-card.active .q-icon { color: rgba(192,57,43,0.6); }
+
+/* 6.9 Discussion question cards on dark closing slides */
+.q-item {
+  display: flex; align-items: flex-start; gap: 24px;
+  padding: 28px 32px;
+  background: #242424;
+  border-left: 4px solid var(--accent);
+}
+.q-item-num  { font-size: 40px; font-weight: 900; color: var(--accent); line-height: 1; flex-shrink: 0; width: 36px; }
+.q-item-text { font-size: 24px; font-weight: 300; color: var(--text-discussion); line-height: 1.7; flex: 1; }
+
+/* 6.10 Definition block on dark background */
+.def-block {
+  background: var(--bg-dark);
+  border-radius: var(--radius-card);
+  padding: 36px 40px;
+  position: relative;
+}
+.def-block .def-label { font-size: 18px; color: rgba(255,255,255,0.35); letter-spacing: 3px; margin-bottom: 14px; }
+.def-block .def-text  { font-size: 26px; color: var(--text-on-dark); line-height: 1.75; font-weight: 500; }
+.def-block .def-text em { color: var(--accent); font-style: normal; font-weight: 700; }
+
+/* 6.11 Supplemental note block with pale red border */
+.def-sub {
+  background: var(--accent-light);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-card);
+  padding: 28px 36px;
+}
+.def-sub .def-sub-text { font-size: 24px; color: #444; line-height: 1.8; }
+.def-sub .def-sub-text strong { color: var(--accent); font-weight: 700; }
+
+/* ============================================================
+   7. Table Components for Course Structure Pages
+   ============================================================ */
+.table-header {
+  display: grid;
+  grid-template-columns: 100px 1fr 120px;
+  gap: 0;
+  margin-bottom: 12px;
+  padding: 0 24px;
+}
+.th { font-size: 17px; color: rgba(26,26,26,0.4); letter-spacing: 2px; font-weight: 500; }
+.th:last-child { text-align: center; }
+
+.chapter-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 120px;
+  gap: 0;
+  padding: 0 24px;
+  height: 96px;
+  align-items: center;
+  border-radius: var(--radius-card);
+  margin-bottom: 8px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card-light);
+}
+.chapter-row.highlight { background: var(--bg-dark); }
+
+.ch-num       { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
+.ch-num-dim   { color: rgba(192,57,43,0.5); }
+.ch-topic     { font-size: 24px; font-weight: 500; color: var(--text-primary); letter-spacing: 1px; }
+.ch-topic-inv { color: var(--bg-secondary); }
+.ch-hours     { font-size: 22px; font-weight: 700; color: #555; text-align: center; }
+.ch-hours-inv { color: rgba(248,245,240,0.7); }
+.ch-sub       { font-size: 18px; color: var(--text-placeholder); margin-top: 3px; letter-spacing: 0.5px; }
+.ch-sub-inv   { color: rgba(248,245,240,0.4); }
+
+.total-bar {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 100px 1fr 120px;
+  padding: 0 24px;
+  height: 56px;
+  align-items: center;
+  border-top: 2px solid rgba(192,57,43,0.3);
+}
+.total-label { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: 2px; grid-column: 1 / 3; }
+.total-val   { font-size: 28px; font-weight: 700; color: var(--accent); text-align: center; }
+
+/* ============================================================
+   8. Three-Column Resource Page Components
+   ============================================================ */
+.resource-col {
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--border-light);
+  overflow: hidden;
+}
+.resource-col:last-child { border-right: none; }
+.col-header {
+  padding: 40px 56px 32px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+.col-icon {
+  width: 64px; height: 64px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; margin-bottom: 20px;
+}
+.col-title    { font-size: 32px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.col-subtitle { font-size: 19px; color: var(--text-placeholder); letter-spacing: 0.05em; }
+.col-items    { flex: 1; padding: 32px 56px; display: flex; flex-direction: column; gap: 24px; }
+
+/* Bibliography list */
+.resource-item { display: flex; align-items: flex-start; gap: 18px; }
+.item-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: 10px; }
+.item-name   { font-size: 24px; font-weight: 600; color: var(--text-secondary); line-height: 1.4; margin-bottom: 4px; }
+.item-author { font-size: 19px; color: var(--text-placeholder); }
+
+/* Online resource cards */
+.online-item {
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 18px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+}
+.online-icon {
+  width: 44px; height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; color: white;
+  background: var(--accent);
+}
+.online-name { font-size: 22px; font-weight: 500; color: var(--text-secondary); }
+
+/* Field experience list */
+.field-item {
+  display: flex; align-items: center; gap: 18px;
+  padding: 16px 0;
+  border-bottom: 1px dashed var(--divider-dashed);
+}
+.field-item:last-child { border-bottom: none; }
+.field-icon {
+  width: 52px; height: 52px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: var(--accent);
+  background: var(--accent-icon-bg);
+}
+.field-text { font-size: 24px; font-weight: 500; color: var(--text-secondary); }
+.field-sub  { font-size: 19px; color: var(--text-placeholder); margin-top: 3px; }
+
+/* ============================================================
+   9. Dark Closing Slide Components
+   ============================================================ */
+.discussion-left {
+  flex: 1;
+  padding: 80px 80px 80px 100px;
+  display: flex; flex-direction: column; justify-content: center;
+  border-right: 1px solid var(--border-dark-heavier);
+}
+.discussion-title { font-size: 56px; font-weight: 900; color: #FFFFFF; line-height: 1.1; margin-bottom: 56px; }
+.questions { display: flex; flex-direction: column; gap: 28px; }
+
+.preview-panel {
+  width: 560px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: var(--bg-dark-deeper);
+}
+.preview-header {
+  padding: 56px 56px 40px;
+  border-bottom: 1px solid var(--border-dark-heavier);
+  flex-shrink: 0;
+}
+.preview-tag     { font-size: 16px; color: #555; letter-spacing: 0.25em; margin-bottom: 16px; }
+.preview-label   { font-size: 28px; font-weight: 700; color: #888; margin-bottom: 4px; }
+.preview-chapter { font-size: 22px; color: var(--accent); letter-spacing: 0.1em; }
+.preview-box     { flex: 1; padding: 40px 56px; display: flex; flex-direction: column; justify-content: center; }
+.preview-title   { font-size: 40px; font-weight: 700; color: #FFFFFF; line-height: 1.3; margin-bottom: 28px; }
+.preview-items   { display: flex; flex-direction: column; gap: 18px; }
+.preview-item    { display: flex; align-items: center; gap: 16px; }
+.preview-dot     { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.preview-text    { font-size: 22px; color: #888; font-weight: 300; }
+.preview-cta {
+  margin-top: 48px;
+  padding: 20px 28px;
+  background: var(--accent);
+  display: flex; align-items: center; gap: 16px;
+}
+.cta-icon { font-size: 24px; color: white; }
+.cta-text { font-size: 22px; font-weight: 600; color: white; }
+
+.bottom-bar {
+  padding: 24px 100px;
+  border-top: 1px solid var(--border-dark-heavier);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.bottom-course { font-size: 18px; color: #444; letter-spacing: 0.1em; }
+.bottom-num    { font-size: 20px; color: #444; }
+
+/* ============================================================
+   10. Layout Grid Helpers
+   ============================================================ */
+.grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid-3col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+.grid-5col { display: flex; gap: 32px; }
+
+.flex-row { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-1 { flex: 1; }
+
+/* Main content area under the top title bar on light slides */
+.main-content { flex: 1; display: flex; overflow: hidden; }
+
+/* Card area on light backgrounds, for goal cards and similar components */
+.cards-area {
+  flex: 1;
+  background: var(--bg-secondary);
+  display: flex;
+  align-items: stretch;
+  padding: 56px 120px;
+  gap: 32px;
+}
+
+/* section-label: dark gray small label for steps or resource area headings */
+.section-label {
+  font-size: 16px;
+  color: rgba(26,26,26,0.35);
+  letter-spacing: 4px;
+  margin-bottom: 24px;
+}
+
+/* ============================================================
+   11. Advanced Museum Education Components
+   ============================================================ */
+.museum-advanced-section {
+  margin-top: 48px;
+  padding: 36px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+}
+.museum-advanced-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 24px;
+}
+.museum-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-card);
+  padding: 28px;
+  box-shadow: var(--shadow-card-light);
+  min-width: 0;
+}
+.museum-panel.dark {
+  background: var(--bg-dark);
+  border-color: var(--bg-dark-deeper);
+  color: var(--text-on-dark);
+}
+.museum-kicker {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.museum-title {
+  font-family: var(--font-serif);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+.museum-panel.dark .museum-title {
+  color: var(--text-on-dark);
+}
+.museum-desc {
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--text-muted);
+}
+.museum-panel.dark .museum-desc {
+  color: var(--text-on-dark-muted);
+}
+.art-label-card {
+  display: grid;
+  grid-template-columns: 86px 1fr;
+  gap: 18px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-light);
+}
+.art-label-index {
+  font-family: var(--font-serif);
+  font-size: 48px;
+  font-weight: 900;
+  color: var(--accent-ghost);
+  line-height: 1;
+}
+.art-label-name {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.art-label-meta {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--text-placeholder);
+  letter-spacing: 0.06em;
+}
+.curator-note {
+  margin-top: 22px;
+  padding: 22px;
+  background: var(--accent-light);
+  border-left: 4px solid var(--accent);
+}
+.curator-note strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--accent);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.curator-note span {
+  font-family: var(--font-serif);
+  font-size: 21px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.exhibit-route {
+  display: grid;
+  gap: 14px;
+  margin-top: 22px;
+}
+.route-step {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px dashed var(--divider-dashed);
+}
+.route-step:last-child {
+  border-bottom: 0;
+}
+.route-num {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+.route-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+.route-meta {
+  font-size: 13px;
+  color: var(--text-placeholder);
+}
+.route-time {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.seminar-prompts {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+.seminar-prompt {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 14px;
+  align-items: start;
+  padding: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-dark);
+}
+.seminar-prompt .q {
+  color: var(--accent);
+  font-size: 20px;
+  font-weight: 900;
+}
+.seminar-prompt .text {
+  color: var(--text-discussion);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.object-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+.object-meta {
+  padding: 16px;
+  background: var(--bg-ink-panel);
+  border: 1px solid var(--border-light);
+}
+.object-meta .label {
+  font-size: 12px;
+  color: var(--text-placeholder);
+  margin-bottom: 6px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.object-meta .value {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}

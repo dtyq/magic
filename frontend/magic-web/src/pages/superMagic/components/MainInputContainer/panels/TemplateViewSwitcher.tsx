@@ -11,6 +11,7 @@ const TemplateGrid = lazy(() => import("./grid/TemplateGrid"))
 const TemplateWaterfall = lazy(() => import("./waterfall/TemplateWaterfall"))
 const TemplateTextList = lazy(() => import("./textList/TemplateTextList"))
 const TemplateCapsule = lazy(() => import("./capsule/TemplateCapsule"))
+const SlidesPresetGrid = lazy(() => import("./slides-preset/SlidesPresetGrid"))
 
 type ViewModeProps = {
 	mode?: "view"
@@ -25,6 +26,7 @@ type EditModeProps = {
 	onSelect: (value: string, checked: boolean) => void
 	onEdit: (item: OptionItem) => void
 	onDelete: (value: string) => void
+	onReorder?: (items: OptionItem[]) => void
 }
 
 type TemplateViewSwitcherProps = {
@@ -41,13 +43,13 @@ function TemplateViewSwitcher(props: TemplateViewSwitcherProps) {
 	const { viewType, items } = props
 
 	if (props.mode === "edit") {
-		const { selectedKeys, onSelect, onEdit, onDelete } = props
+		const { selectedKeys, onSelect, onEdit, onDelete, onReorder } = props
 		const editProps = { items, selectedKeys, onSelect, onEdit, onDelete }
 
 		if (viewType === ViewType.WATERFALL) return <EditableWaterfall {...editProps} />
 		if (viewType === ViewType.TEXT_LIST) return <EditableTextList {...editProps} />
 		if (viewType === ViewType.CAPSULE) return <EditableCapsule {...editProps} />
-		return <EditableGrid {...editProps} />
+		return <EditableGrid {...editProps} onReorder={onReorder} />
 	}
 
 	const { selectedTemplate, onTemplateClick, className } = props as ViewModeProps
@@ -57,6 +59,7 @@ function TemplateViewSwitcher(props: TemplateViewSwitcherProps) {
 	if (viewType === ViewType.WATERFALL) ViewComponent = TemplateWaterfall
 	else if (viewType === ViewType.TEXT_LIST) ViewComponent = TemplateTextList
 	else if (viewType === ViewType.CAPSULE) ViewComponent = TemplateCapsule
+	else if (viewType === ViewType.SLIDES_PRESET) ViewComponent = SlidesPresetGrid
 
 	return (
 		<Suspense fallback={<div className="flex h-32 items-center justify-center" />}>

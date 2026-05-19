@@ -18,9 +18,11 @@ use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
 use App\Domain\MCP\Entity\ValueObject\MCPDataIsolation;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskInitializationMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\Service\ClientMessageAppService;
+use Dtyq\SuperMagic\Application\SuperAgent\Service\VideoModelConfigResolver;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TopicEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ChatInstruction;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
@@ -179,19 +181,13 @@ class TaskInitializationConsumer extends ConsumerMessage
             return;
         }
 
-        // Reconstruct SuperAgentExtra from extraData
-        $extra = null;
+        // Reconstruct full SuperAgentExtra directly from messageContent so that all
+        // fields written by the producer (topic_pattern, model, image_model,
+        // video_model, enable_web_search, mentions, etc.) are preserved end to end.
+        // Falls back to the legacy extraData fast-path for backward compatibility
+        // (older messages already in the queue may only carry extraData).
+        $extra = $this->reconstructSuperAgentExtra($messageDTO);
         $extraData = $messageDTO->getExtraData();
-        if ($messageDTO->getExtraData() !== null) {
-            $extra = new SuperAgentExtra();
-
-            if (! empty($extraData['image_model_id'])) {
-                $extra->setImageModel(['model_id' => $extraData['image_model_id']]);
-            }
-            if (! empty($extraData['model_id'])) {
-                $extra->setModel(['model_id' => $extraData['model_id']]);
-            }
-        }
 
         // Get AI Agent's conversation ID using unique index for optimal query performance
         $agentConversationId = $this->getAgentConversationId(
@@ -199,7 +195,30 @@ class TaskInitializationConsumer extends ConsumerMessage
             $messageDTO->getAgentUserId()
         );
 
-        // Build task context with all fields populated
+        // Resolve request-level agent config with fallback chain:
+        //   1) topic_pattern from the current message extra (request-level override)
+        //   2) topic entity's persisted topic_mode (legacy / IM-driven flow)
+        // Normalization is done here so open-api requests can take effect without
+        // changing broader topic persistence behavior.
+        [$agentMode, $agentCode, $extraTopicPattern] = $this->resolveRequestedAgentConfig($topicEntity, $extra);
+
+        // Resolve model_id with fallback chain (extra > extraData)
+        $extraModelId = $extra?->getModelId() ?? '';
+        $modelId = $extraModelId !== '' ? $extraModelId : (string) ($extraData['model_id'] ?? '');
+
+        $this->logger->info('Resolved task initialization agent config', [
+            'task_id' => $taskEntity->getId(),
+            'topic_id' => $topicEntity->getId(),
+            'requested_topic_pattern' => $extraTopicPattern,
+            'topic_mode' => $topicEntity->getTopicMode(),
+            'resolved_agent_mode' => $agentMode,
+            'resolved_agent_code' => $agentCode,
+        ]);
+
+        // Build task context with all fields populated.
+        // Bridge model_id and agent_mode so that they reach the sandbox via
+        // ChatMessageRequest. model_id is auto-registered into
+        // dynamic_config.models by TaskContext::getDynamicConfig().
         $taskContext = new TaskContext(
             task: $taskEntity,
             dataIsolation: $dataIsolation,
@@ -209,9 +228,11 @@ class TaskInitializationConsumer extends ConsumerMessage
             sandboxId: $topicEntity->getSandboxId(),
             taskId: (string) $taskEntity->getId(),
             instruction: ChatInstruction::FollowUp,
-            agentMode: $topicEntity->getTopicMode(),
+            agentMode: $agentMode,
+            modelId: $modelId,
             isFirstTask: empty($topicEntity->getSandboxId()),
-            extra: $extra
+            extra: $extra,
+            agentCode: $agentCode,
         );
         if (is_array($extraData)) {
             $videoModel = array_filter([
@@ -226,6 +247,7 @@ class TaskInitializationConsumer extends ConsumerMessage
                 $taskContext = $taskContext->setDynamicConfig($dynamicConfig);
             }
         }
+        $taskContext = $this->appendVideoModelDynamicConfig($taskContext, $extra);
 
         // Add MCP config
         $mcpDataIsolation = MCPDataIsolation::create(
@@ -250,6 +272,28 @@ class TaskInitializationConsumer extends ConsumerMessage
             'task_id' => $taskEntity->getId(),
             'sandbox_id' => $sandboxId,
         ]);
+    }
+
+    private function appendVideoModelDynamicConfig(TaskContext $taskContext, ?SuperAgentExtra $extra): TaskContext
+    {
+        if ($extra === null) {
+            return $taskContext;
+        }
+
+        $videoModel = di(VideoModelConfigResolver::class)->resolve($extra->getVideoModel(), $taskContext->getDataIsolation());
+        if ($videoModel === null) {
+            return $taskContext;
+        }
+
+        $dynamicConfig = $taskContext->getDynamicConfig();
+        $dynamicConfig['video_model'] = array_filter([
+            'model_id' => $videoModel['model_id'] ?? null,
+            'video_generation_config' => is_array($videoModel['video_generation_config'] ?? null)
+                ? $videoModel['video_generation_config']
+                : null,
+        ], static fn (mixed $value): bool => $value !== null);
+
+        return $taskContext->setDynamicConfig($dynamicConfig);
     }
 
     /**
@@ -278,6 +322,9 @@ class TaskInitializationConsumer extends ConsumerMessage
             sandboxId: (string) $topicEntity->getId(),
             memories: $memories
         );
+        if ($agentContext->getInitContext() !== null && $taskContext->getAgentMode() !== '') {
+            $agentContext->getInitContext()->setAgentMode($taskContext->getAgentMode());
+        }
 
         $sandboxId = $this->agentDomainService->ensureSandboxInitialized(
             $dataIsolation,
@@ -306,6 +353,32 @@ class TaskInitializationConsumer extends ConsumerMessage
         ]);
 
         return $sandboxId;
+    }
+
+    /**
+     * Resolve the effective agent mode/code for the current initialization request.
+     *
+     * Returns:
+     *   0 => resolved agent_mode passed to sandbox
+     *   1 => resolved agent_code passed via chat dynamic_config when needed
+     *   2 => raw request-level topic_pattern for observability
+     *
+     * This keeps the fix localized in the consumer:
+     * - open-api request-level topic_pattern wins over persisted topic_mode
+     * - SMA-* is normalized to custom_agent + agent_code before later layers run
+     */
+    private function resolveRequestedAgentConfig(TopicEntity $topicEntity, ?SuperAgentExtra $extra): array
+    {
+        $extraTopicPattern = trim((string) ($extra?->getTopicPattern() ?? ''));
+        $agentMode = $extraTopicPattern !== '' ? $extraTopicPattern : trim((string) $topicEntity->getTopicMode());
+        $agentCode = trim((string) $topicEntity->getAgentCode());
+
+        if ($agentMode !== '' && str_starts_with($agentMode, 'SMA-')) {
+            $agentCode = $agentMode;
+            $agentMode = ProjectMode::CUSTOM_AGENT->value;
+        }
+
+        return [$agentMode, $agentCode, $extraTopicPattern];
     }
 
     /**
@@ -362,6 +435,44 @@ class TaskInitializationConsumer extends ConsumerMessage
                 'error' => $notificationError->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Reconstruct SuperAgentExtra from the queue payload.
+     *
+     * Strategy:
+     *   1) Prefer rebuilding from messageContent.extra.super_agent so all fields
+     *      (topic_pattern, model, image_model, video_model, enable_web_search,
+     *      mentions, etc.) survive the round-trip through MQ.
+     *   2) Fall back to the legacy extraData fast-path for backward compatibility
+     *      with messages enqueued before this change (or producers that only
+     *      populate extraData).
+     */
+    private function reconstructSuperAgentExtra(TaskInitializationMessageDTO $messageDTO): ?SuperAgentExtra
+    {
+        $messageContent = $messageDTO->getMessageContent();
+        $superAgentArray = $messageContent['extra']['super_agent'] ?? null;
+        if (is_array($superAgentArray) && $superAgentArray !== []) {
+            return new SuperAgentExtra($superAgentArray);
+        }
+
+        $extraData = $messageDTO->getExtraData();
+        if ($extraData === null) {
+            return null;
+        }
+
+        $extra = new SuperAgentExtra();
+        if (! empty($extraData['image_model_id'])) {
+            $extra->setImageModel(['model_id' => $extraData['image_model_id']]);
+        }
+        if (! empty($extraData['model_id'])) {
+            $extra->setModel(['model_id' => $extraData['model_id']]);
+        }
+        if (! empty($extraData['video_model_id'])) {
+            $extra->setVideoModel(['model_id' => $extraData['video_model_id']]);
+        }
+
+        return $extra;
     }
 
     /**

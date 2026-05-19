@@ -10,8 +10,27 @@ import MagicButton from "@/components/base/MagicButton"
 import { isDev } from "@/utils/env"
 import UpdateBg from "@/assets/resources/defaultImages/update_bg.svg"
 import { getNativePort } from "@/platform/native"
+import { Button } from "../shadcn-ui/button"
 
 const logger = Logger.createLogger("errorBoundary")
+
+// Dev-only UI debug switch: append `?debug-global-boundary=1` to force this
+// boundary into its fallback page without affecting production behavior.
+function shouldDebugGlobalBoundary() {
+	if (!isDev) return false
+	if (typeof window === "undefined") return false
+
+	return new URLSearchParams(window.location.search).get("debug-global-boundary") === "1"
+}
+
+function GlobalBoundaryDebugTrigger() {
+	// Throw during render so `react-error-boundary` enters the real fallback flow.
+	if (shouldDebugGlobalBoundary()) {
+		throw new Error("debug global error boundary")
+	}
+
+	return null
+}
 
 const useStyles = createStyles(({ css, isDarkMode, token }) => {
 	return {
@@ -20,6 +39,7 @@ const useStyles = createStyles(({ css, isDarkMode, token }) => {
 			background-color: ${isDarkMode ? "#141414" : "#fff"};
 			display: flex;
 			align-items: center;
+			padding: 0 20px;
 		`,
 		wrapper: css`
 			width: 420px;
@@ -29,10 +49,7 @@ const useStyles = createStyles(({ css, isDarkMode, token }) => {
 			margin: auto;
 			gap: 40px;
 		`,
-		bg: css`
-			width: 240px;
-			height: 240px;
-		`,
+		bg: css``,
 		title: css`
 			color: ${token.magicColorUsages.text[0]};
 			text-align: center;
@@ -92,13 +109,12 @@ function GlobalErrorBoundary({ children }: PropsWithChildren) {
 							<Flex vertical align="center" gap={16}>
 								<span className={styles.title}>{t("global.boundaryTitle")}</span>
 								<span className={styles.desc}>{t("global.boundaryDesc")}</span>
-								<MagicButton
-									type="primary"
+								<Button
 									style={{ width: "fit-content" }}
 									onClick={() => window.location.reload()}
 								>
 									{t("global.refresh")}
-								</MagicButton>
+								</Button>
 								<span className={styles.tip}>
 									{t("global.boundaryTip", {
 										second: Math.round(countdown / 1000),
@@ -110,6 +126,7 @@ function GlobalErrorBoundary({ children }: PropsWithChildren) {
 				)
 			}}
 		>
+			<GlobalBoundaryDebugTrigger />
 			{children}
 		</ErrorBoundary>
 	)

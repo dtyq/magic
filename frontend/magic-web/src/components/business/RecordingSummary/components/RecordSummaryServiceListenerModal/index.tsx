@@ -128,14 +128,14 @@ function RecordSummaryServiceListenerModal() {
 				const organizationName = session.organizationName || ""
 				const content = organizationName
 					? t("recordingSummary.userLogout.confirmOverwriteMessage", {
-						organizationName,
-						duration,
-						ns: "super",
-					})
+							organizationName,
+							duration,
+							ns: "super",
+						})
 					: t("recordingSummary.userLogout.confirmOverwriteMessageWithoutOrg", {
-						duration,
-						ns: "super",
-					})
+							duration,
+							ns: "super",
+						})
 
 				const modalInstance = MagicModal.confirm({
 					title: t("recordingSummary.userLogout.confirmOverwriteTitle", { ns: "super" }),

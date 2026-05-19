@@ -50,7 +50,7 @@ class SkillSandboxApi extends AbstractSuperMagicSandboxApi
             $result['list'],
             $result['userSkills'],
             $result['publisherUserMap'],
-            $result['creatorSkillCodes'],
+            $this->getAuthorization()->getId(),
             $page->getPage(),
             $page->getPageNum(),
             $result['total'],
@@ -75,10 +75,10 @@ class SkillSandboxApi extends AbstractSuperMagicSandboxApi
         $result = $this->userSkillAppService->queries($requestContext, $query, $page);
 
         return SkillAssembler::createListResponseDTO(
-            $result['list'],
-            $page->getPage(),
-            $page->getPageNum(),
-            $result['total']
+            skillEntities: $result['list'],
+            page: $page->getPage(),
+            pageSize: $page->getPageNum(),
+            total: $result['total']
         );
     }
 

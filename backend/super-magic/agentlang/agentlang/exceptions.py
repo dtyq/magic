@@ -7,8 +7,10 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Type, TypeVar
 import json
+
+_E = TypeVar("_E", bound=Exception)
 
 class UserFriendlyException(Exception, ABC):
     """用户友好异常接口类
@@ -79,24 +81,6 @@ class StreamInterruptedError(Exception):
                 f"connection closed without finish_reason"
             )
         super().__init__(message)
-
-
-class LLMFastRetryExhaustedException(Exception):
-    """内层 LLM 快速重试已耗尽：流式多次尝试 + 非流式 fallback 全部失败。
-
-    agent.py 收到此异常后应直接结束本轮，不再继续外层泛化退避重试。
-    """
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        stream_error: Optional[Exception] = None,
-        fallback_error: Optional[Exception] = None,
-    ):
-        super().__init__(message)
-        self.stream_error = stream_error
-        self.fallback_error = fallback_error
 
 
 class ResourceLimitExceededException(UserFriendlyException):
@@ -322,3 +306,54 @@ class APIErrorResponse:
             Optional[str]: 错误消息，如果不存在返回None
         """
         return self.error.message if self.error else None
+
+
+# ---------------------------------------------------------------------------
+# 流式链路中"不应被通用 except Exception 包装"的结构性异常。
+# 所有通用 except Exception 前应先写: except STREAMING_PASSTHROUGH_EXCEPTIONS: raise
+# ---------------------------------------------------------------------------
+STREAMING_PASSTHROUGH_EXCEPTIONS: tuple[Type[BaseException], ...] = (
+    StreamChunkTimeoutError,
+    StreamInterruptedError,
+)
+
+
+def iter_exception_chain(exception: BaseException) -> List[Exception]:
+    """遍历完整异常图，返回链中所有 Exception 节点。
+
+    同时展开 __cause__ 和 __context__ 两条边。遇到 BaseException 子节点时继续展开
+    其子链但不加入结果列表（结果只含 Exception 子类）。
+    """
+    result: List[Exception] = []
+    queue: list[BaseException] = [exception]
+    seen: set[int] = set()
+
+    while queue:
+        current = queue.pop(0)
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+
+        if isinstance(current, Exception):
+            result.append(current)
+
+        # 标准因果链：同时展开 __cause__ 和 __context__
+        if current.__cause__ is not None:
+            queue.append(current.__cause__)
+        if current.__context__ is not None and current.__context__ is not current.__cause__:
+            queue.append(current.__context__)
+
+
+
+    return result
+
+
+def find_in_exception_chain(
+    exception: BaseException,
+    exc_type: Type[_E],
+) -> Optional[_E]:
+    """在异常图中查找指定类型的第一个实例。"""
+    for exc in iter_exception_chain(exception):
+        if isinstance(exc, exc_type):
+            return exc  # type: ignore[return-value]
+    return None

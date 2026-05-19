@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta
+			name="viewport"
+			content="width=device-width, initial-scale=1.0, maximum-scale=1, minimum-scale=1, viewport-fit=cover"
+		/>
+		<title>Super Magic Dashboard</title>
+		<!-- React and React DOM UMD versions -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+		<!-- ECharts for charts -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/6.0.0/echarts.min.js"></script>
+		<!-- React Grid Layout UMD version -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.5.2/react-grid-layout.min.js"></script>
+		<!-- PapaParse for CSV parsing -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+		<!-- marked for markdown -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/16.1.1/lib/marked.umd.min.js"></script>
+		<!-- Tabler Icons -->
+		<link
+			rel="stylesheet"
+			href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/3.34.1/tabler-icons.min.css"
+		/>
+		<!-- Style files -->
+		<link rel="stylesheet" href="./index.css" />
+		<!-- Configuration file -->
+		<script src="./config.js"></script>
+		<!-- Data configuration file -->
+		<script src="./data.js"></script>
+		<!-- Dashboard bundle file -->
+		<script src="./dashboard.js"></script>
+		<!-- Magic Project -->
+		<script>
+			window.magicDashboard = {
+				language: "zh-CN", // "zh-CN"、"en-US"
+				dataSources: [],
+				geo: [],
+				ready: false,
+				editable: false,
+				draggable: false,
+				resizable: false,
+				deletable: false,
+				expandable: true,
+				renderMode: "auto", // "auto"、"mobile"、"tablet"、"desktop"
+			}
+			window.magicProjectConfigure = function (config) {
+				document.title = config.name
+				window.magicDashboard = {
+					...window.magicDashboard,
+					...config,
+				}
+				if (window.magicDashboard.version !== "2.0.0") {
+					window.magicDashboard.ready = true
+				}
+				window.language.updateFromConfig()
+			}
+		</script>
+		<!-- Magic Project Config -->
+		<script src="./magic.project.js"></script>
+	</head>
+	<body>
+		<div id="root"></div>
+		<!-- Render application -->
+		<script>
+			const root = ReactDOM.createRoot(document.getElementById("root"))
+			root.render(React.createElement(window.DashboardApp))
+		</script>
+	</body>
+</html>

@@ -329,6 +329,7 @@ class ShareManagementStore {
 					created_at: item.created_at,
 					shared_at: item.shared_at || item.created_at,
 					topic_mode: item.topic_mode,
+					agent_code: item.agent_code,
 					deleted_at: item.deleted_at,
 				})) as TopicShareItem[]
 

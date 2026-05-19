@@ -1,6 +1,7 @@
 import { SuperMagicApi } from "@/apis"
 import { runInAction } from "mobx"
 import workspaceStore from "../stores/core/workspace"
+import projectStore from "../stores/core/project"
 import { type Workspace } from "../pages/Workspace/types"
 import { SHARE_WORKSPACE_ID } from "../constants"
 import { RequestConfig } from "@/apis/core/HttpClient"
@@ -18,12 +19,16 @@ export interface UpdateWorkspaceStatusParams {
 }
 
 class WorkspaceService {
-	fetchWorkspaces = async (
-		{ isAutoSelect = true, isSelectLast = true, page }: FetchWorkspacesParams,
-		options?: Omit<RequestConfig, "url">,
-	): Promise<Workspace[]> => {
+	fetchWorkspaces = async ({
+		isAutoSelect = true,
+		isSelectLast = true,
+		page,
+	}: FetchWorkspacesParams): Promise<Workspace[]> => {
+		runInAction(() => {
+			workspaceStore.beginWorkspaceListFetch()
+		})
 		try {
-			const res = await SuperMagicApi.getWorkspaces({ page, page_size: 99 })
+			const res = await SuperMagicApi.getWorkspaces({ page, page_size: 999 })
 			if (res) {
 				runInAction(() => {
 					workspaceStore.setWorkspaces(res.list)
@@ -41,6 +46,10 @@ class WorkspaceService {
 		} catch (error) {
 			console.log("加载工作区失败，失败原因：", error)
 			return []
+		} finally {
+			runInAction(() => {
+				workspaceStore.endWorkspaceListFetch()
+			})
 		}
 	}
 
@@ -65,6 +74,36 @@ class WorkspaceService {
 				runInAction(() => {
 					const updatedWorkspace = { ...targetWorkspace, name } as Workspace
 					workspaceStore.updateWorkspace(updatedWorkspace)
+
+					if (projectStore.selectedProject?.workspace_id === id) {
+						projectStore.setSelectedProject({
+							...projectStore.selectedProject,
+							workspace_name: name,
+						})
+					}
+
+					const workspaceProjects = projectStore.getProjectsByWorkspace(id)
+					if (workspaceProjects.length > 0) {
+						projectStore.setProjectsForWorkspace(
+							id,
+							workspaceProjects.map((project) => ({
+								...project,
+								workspace_name: name,
+							})),
+						)
+					}
+
+					if (projectStore.projects.length > 0) {
+						projectStore.setProjects(
+							projectStore.projects.map((project) => {
+								if (project.workspace_id !== id) return project
+								return {
+									...project,
+									workspace_name: name,
+								}
+							}),
+						)
+					}
 				})
 			}
 		} catch (error) {

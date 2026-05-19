@@ -1,8 +1,9 @@
-import { makeAutoObservable, runInAction } from "mobx"
-import type { ProjectListItem } from "../../pages/Workspace/types"
+import { makeAutoObservable, observable, runInAction } from "mobx"
+import { ProjectStatus, type ProjectListItem } from "../../pages/Workspace/types"
 import { CollaborationProjectType, CollaborationJoinMethod } from "../../pages/Workspace/types"
 import projectFilesStore from "@/stores/projectFiles"
 import { SuperMagicApi } from "@/apis"
+import type { SuperAgentScopedStatusItem } from "@/apis/modules/superMagic"
 
 interface ProjectState {
 	selectedProject: ProjectListItem | null
@@ -10,18 +11,18 @@ interface ProjectState {
 }
 
 class ProjectStore {
-	projects: ProjectListItem[] = []
+	projects = observable.array<ProjectListItem>([], { deep: true })
 	selectedProject: ProjectListItem | null = null
 	projectStateMap: Map<string, ProjectState> = new Map()
 	isFetchingProjects: boolean = false
 
 	// Lazy loading support: store projects by workspace
-	projectsByWorkspace: Map<string, ProjectListItem[]> = new Map()
+	projectsByWorkspace = observable.map<string, ProjectListItem[]>(new Map(), { deep: true })
 	loadingWorkspaces: Set<string> = new Set()
 	loadedWorkspaces: Set<string> = new Set()
 
 	// Received collaboration projects (shared by others)
-	receivedCollaborationProjects: ProjectListItem[] = []
+	receivedCollaborationProjects = observable.array<ProjectListItem>([], { deep: true })
 	isLoadingReceivedCollaboration: boolean = false
 	hasLoadedReceivedCollaboration: boolean = false
 
@@ -153,6 +154,53 @@ class ProjectStore {
 	// Check if workspace has been loaded
 	hasLoadedWorkspace(workspaceId: string): boolean {
 		return this.loadedWorkspaces.has(workspaceId)
+	}
+
+	/** 按接口返回的显式状态补丁更新项目状态，避免 running 结束后被覆盖成 waiting。 */
+	applyProjectStatusPatches(items: SuperAgentScopedStatusItem[]) {
+		if (!Array.isArray(items) || items.length === 0) return
+
+		const statusMap = new Map(items.map((item) => [item.id, item.status]))
+
+		const getPatchedProject = (project: ProjectListItem): ProjectListItem | null => {
+			const nextStatus = statusMap.get(project.id)
+			if (nextStatus && project.project_status !== nextStatus) {
+				return { ...project, project_status: nextStatus as ProjectStatus }
+			}
+			return null
+		}
+
+		// Update main projects array
+		this.projects = this.projects.map((p) => getPatchedProject(p) || p)
+
+		// Update projectsByWorkspace map
+		this.projectsByWorkspace.forEach((projects, workspaceId) => {
+			let changed = false
+			const nextProjects = projects.map((p) => {
+				const patched = getPatchedProject(p)
+				if (patched) {
+					changed = true
+					return patched
+				}
+				return p
+			})
+			if (changed) {
+				this.projectsByWorkspace.set(workspaceId, nextProjects)
+			}
+		})
+
+		// Update receivedCollaborationProjects
+		this.receivedCollaborationProjects = this.receivedCollaborationProjects.map(
+			(p) => getPatchedProject(p) || p,
+		)
+
+		// Update selectedProject
+		if (this.selectedProject) {
+			const patched = getPatchedProject(this.selectedProject)
+			if (patched) {
+				this.selectedProject = patched
+			}
+		}
 	}
 
 	// Load received collaboration projects (shared by others)

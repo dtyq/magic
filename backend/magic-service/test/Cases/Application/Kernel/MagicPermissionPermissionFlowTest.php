@@ -26,6 +26,8 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
 
     private array $originResourceMenuMapping;
 
+    private array $originResourceMenuAliasMapping;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -34,12 +36,15 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         $this->originFallbackLegacyTree = (bool) $this->config->get('permission_menu.fallback_legacy_tree', false);
         $mapping = $this->config->get('permission_menu.resource_menu_mapping', []);
         $this->originResourceMenuMapping = is_array($mapping) ? $mapping : [];
+        $aliasMapping = $this->config->get('permission_menu.resource_menu_alias_mapping', []);
+        $this->originResourceMenuAliasMapping = is_array($aliasMapping) ? $aliasMapping : [];
     }
 
     protected function tearDown(): void
     {
         $this->config->set('permission_menu.fallback_legacy_tree', $this->originFallbackLegacyTree);
         $this->config->set('permission_menu.resource_menu_mapping', $this->originResourceMenuMapping);
+        $this->config->set('permission_menu.resource_menu_alias_mapping', $this->originResourceMenuAliasMapping);
         parent::tearDown();
     }
 
@@ -109,7 +114,7 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
 
     public function testCheckPermissionSupportsDirectHitAndEditImplicitlyContainsQuery(): void
     {
-        $resource = MagicResourceEnum::WORKSPACE_AI_MODEL->value;
+        $resource = MagicResourceEnum::WORKSPACE_MODEL_TEXT->value;
         $queryPermission = $this->permission->buildPermission($resource, MagicOperationEnum::QUERY->value);
         $editPermission = $this->permission->buildPermission($resource, MagicOperationEnum::EDIT->value);
 
@@ -119,11 +124,129 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         $this->assertFalse($this->permission->checkPermission($editPermission, [], false));
     }
 
+    public function testCheckPermissionSupportsLegacyPlatformModelKeysForNewResources(): void
+    {
+        $legacyModelEdit = $this->permission->buildPermission(
+            MagicResourceEnum::PLATFORM_AI_MODEL->value,
+            MagicOperationEnum::EDIT->value
+        );
+        $legacyImageEdit = $this->permission->buildPermission(
+            MagicResourceEnum::PLATFORM_AI_IMAGE->value,
+            MagicOperationEnum::EDIT->value
+        );
+
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_MODEL_TEXT->value, MagicOperationEnum::QUERY->value),
+            [$legacyModelEdit],
+            true
+        ));
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_MODEL_VIDEO->value, MagicOperationEnum::QUERY->value),
+            [$legacyModelEdit],
+            true
+        ));
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_MODEL_IMAGE->value, MagicOperationEnum::QUERY->value),
+            [$legacyImageEdit],
+            true
+        ));
+        $this->assertFalse($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_MODEL_IMAGE->value, MagicOperationEnum::QUERY->value),
+            [$legacyModelEdit],
+            true
+        ));
+    }
+
+    public function testCheckPermissionSupportsLegacyWorkspaceModelKeysForNewResources(): void
+    {
+        $legacyModelEdit = $this->permission->buildPermission(
+            MagicResourceEnum::WORKSPACE_AI_MODEL->value,
+            MagicOperationEnum::EDIT->value
+        );
+        $legacyImageEdit = $this->permission->buildPermission(
+            MagicResourceEnum::WORKSPACE_AI_IMAGE->value,
+            MagicOperationEnum::EDIT->value
+        );
+
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::WORKSPACE_MODEL_TEXT->value, MagicOperationEnum::QUERY->value),
+            [$legacyModelEdit],
+            false
+        ));
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::WORKSPACE_MODEL_VIDEO->value, MagicOperationEnum::QUERY->value),
+            [$legacyModelEdit],
+            false
+        ));
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::WORKSPACE_MODEL_IMAGE->value, MagicOperationEnum::QUERY->value),
+            [$legacyImageEdit],
+            false
+        ));
+        $this->assertFalse($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::WORKSPACE_MODEL_IMAGE->value, MagicOperationEnum::QUERY->value),
+            [$legacyModelEdit],
+            false
+        ));
+    }
+
+    public function testCheckPermissionSupportsLegacyAgentAndSkillKeysForNewResources(): void
+    {
+        $legacyAgentEdit = $this->permission->buildPermission(
+            MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT->value,
+            MagicOperationEnum::EDIT->value
+        );
+        $legacyAgentQuery = $this->permission->buildPermission(
+            MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT->value,
+            MagicOperationEnum::QUERY->value
+        );
+        $legacySkillEdit = $this->permission->buildPermission(
+            MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL->value,
+            MagicOperationEnum::EDIT->value
+        );
+
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_AGENT_REVIEW->value, MagicOperationEnum::QUERY->value),
+            [$legacyAgentEdit],
+            true
+        ));
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_AGENT_MARKET->value, MagicOperationEnum::QUERY->value),
+            [$legacyAgentEdit],
+            true
+        ));
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_AGENT_OFFICIAL->value, MagicOperationEnum::QUERY->value),
+            [$legacyAgentQuery],
+            true
+        ));
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_SKILL_REVIEW->value, MagicOperationEnum::QUERY->value),
+            [$legacySkillEdit],
+            true
+        ));
+        $this->assertTrue($this->permission->checkPermission(
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_SKILL_MARKET->value, MagicOperationEnum::QUERY->value),
+            [$legacySkillEdit],
+            true
+        ));
+    }
+
+    public function testCheckPermissionSupportsModelAccessRoleEditImplicitlyContainsQuery(): void
+    {
+        $resource = MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE->value;
+        $queryPermission = $this->permission->buildPermission($resource, MagicOperationEnum::QUERY->value);
+        $editPermission = $this->permission->buildPermission($resource, MagicOperationEnum::EDIT->value);
+
+        $this->assertTrue($this->permission->checkPermission($queryPermission, [$editPermission], false));
+        $this->assertFalse($this->permission->checkPermission($editPermission, [$queryPermission], false));
+    }
+
     public function testGetPermissionTreeUsesMappedPathForMenuKey(): void
     {
         $this->config->set('permission_menu.fallback_legacy_tree', false);
         $this->config->set('permission_menu.resource_menu_mapping', [
-            MagicResourceEnum::WORKSPACE_AI_MODEL->value => [
+            MagicResourceEnum::WORKSPACE_MODEL_TEXT->value => [
                 'path' => [
                     ['key' => 'root_workspace', 'label' => 'Workspace'],
                     ['key' => 'model_manage', 'label' => 'Model'],
@@ -139,7 +262,7 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         $this->assertTrue(
             $this->containsPermissionKey(
                 $tree,
-                $this->permission->buildPermission(MagicResourceEnum::WORKSPACE_AI_MODEL->value, MagicOperationEnum::QUERY->value)
+                $this->permission->buildPermission(MagicResourceEnum::WORKSPACE_MODEL_TEXT->value, MagicOperationEnum::QUERY->value)
             )
         );
         $this->assertFalse(
@@ -150,10 +273,44 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         );
     }
 
+    public function testGetPermissionTreeCanAppendAliasPathsForSameResource(): void
+    {
+        $this->config->set('permission_menu.fallback_legacy_tree', false);
+        $this->config->set('permission_menu.resource_menu_mapping', [
+            MagicResourceEnum::WORKSPACE_MODEL_TEXT->value => [
+                'path' => [
+                    ['key' => 'root_workspace', 'label' => 'Workspace'],
+                    ['key' => 'model_manage', 'label' => 'Model'],
+                ],
+                'tag' => 'Model',
+            ],
+        ]);
+        $this->config->set('permission_menu.resource_menu_alias_mapping', [
+            MagicResourceEnum::WORKSPACE_MODEL_TEXT->value => [
+                [
+                    'path' => [
+                        ['key' => 'root_workspace', 'label' => 'Workspace'],
+                        ['key' => 'video_model', 'label' => 'Video'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $tree = $this->permission->getPermissionTree(false);
+        $permissionKey = $this->permission->buildPermission(
+            MagicResourceEnum::WORKSPACE_MODEL_TEXT->value,
+            MagicOperationEnum::QUERY->value
+        );
+
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.root_workspace.model_manage'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.root_workspace.video_model'));
+        $this->assertSame(2, $this->countPermissionKey($tree, $permissionKey));
+    }
+
     public function testGetPermissionTreePlatformVisibilityDependsOnOrganizationType(): void
     {
         $platformPermission = $this->permission->buildPermission(
-            MagicResourceEnum::PLATFORM_AI_MODEL->value,
+            MagicResourceEnum::PLATFORM_MODEL_TEXT->value,
             MagicOperationEnum::QUERY->value
         );
 
@@ -162,6 +319,66 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
 
         $this->assertFalse($this->containsPermissionKey($nonPlatformTree, $platformPermission));
         $this->assertTrue($this->containsPermissionKey($platformTree, $platformPermission));
+    }
+
+    public function testGetPermissionTreeHidesLegacyCompositeModelResourcesByDefault(): void
+    {
+        $platformTree = $this->permission->getPermissionTree(true);
+        $workspaceTree = $this->permission->getPermissionTree(false);
+
+        $this->assertFalse($this->containsPermissionKey(
+            $platformTree,
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_AI_MODEL->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertFalse($this->containsPermissionKey(
+            $platformTree,
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_AI_IMAGE->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertFalse($this->containsPermissionKey(
+            $workspaceTree,
+            $this->permission->buildPermission(MagicResourceEnum::WORKSPACE_AI_MODEL->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertFalse($this->containsPermissionKey(
+            $workspaceTree,
+            $this->permission->buildPermission(MagicResourceEnum::WORKSPACE_AI_IMAGE->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertFalse($this->containsPermissionKey(
+            $platformTree,
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertFalse($this->containsPermissionKey(
+            $platformTree,
+            $this->permission->buildPermission(MagicResourceEnum::ADMIN_AI_MODE->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertFalse($this->containsPermissionKey(
+            $platformTree,
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertTrue($this->containsPermissionKey(
+            $platformTree,
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_MODEL_TEXT->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertTrue($this->containsPermissionKey(
+            $platformTree,
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_MODEL_VIDEO->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertTrue($this->containsPermissionKey(
+            $workspaceTree,
+            $this->permission->buildPermission(MagicResourceEnum::WORKSPACE_MODEL_TEXT->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertTrue($this->containsPermissionKey(
+            $workspaceTree,
+            $this->permission->buildPermission(MagicResourceEnum::WORKSPACE_MODEL_VIDEO->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertTrue($this->containsPermissionKey(
+            $platformTree,
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_AGENT_OFFICIAL->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertTrue($this->containsPermissionKey(
+            $platformTree,
+            $this->permission->buildPermission(MagicResourceEnum::PLATFORM_SKILL_REVIEW->value, MagicOperationEnum::QUERY->value)
+        ));
+        $this->assertFalse($this->containsPermissionKey($platformTree, 'platform.agent.official.edit'));
     }
 
     public function testGetPermissionTreeContainsPlatformUserPermissionWhenMapped(): void
@@ -179,6 +396,54 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         $this->assertTrue($this->containsPermissionKey($platformTree, $platformUserPermission));
     }
 
+    public function testGetPermissionTreeContainsModelAccessRolePermissionWhenMapped(): void
+    {
+        $modelAccessRolePermission = $this->permission->buildPermission(
+            MagicResourceEnum::ADMIN_AI_MODEL_ACCESS_ROLE->value,
+            MagicOperationEnum::QUERY->value
+        );
+
+        $tree = $this->permission->getPermissionTree(false);
+
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.custom_model'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.custom_model.model_access_role'));
+        $this->assertTrue($this->containsPermissionKey($tree, $modelAccessRolePermission));
+    }
+
+    public function testGetPermissionTreeContainsWorkspaceAgentAndSkillReviewPermissionsWhenMapped(): void
+    {
+        $agentReviewPermission = $this->permission->buildPermission(
+            MagicResourceEnum::WORKSPACE_ADMIN_AI_AGENT->value,
+            MagicOperationEnum::QUERY->value
+        );
+        $skillReviewPermission = $this->permission->buildPermission(
+            MagicResourceEnum::WORKSPACE_ADMIN_AI_SKILL->value,
+            MagicOperationEnum::QUERY->value
+        );
+
+        $tree = $this->permission->getPermissionTree(false);
+
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.internal_employee_and_skill'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.internal_employee_and_skill.agent'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.ai_management.internal_employee_and_skill.skill'));
+        $this->assertTrue($this->containsPermissionKey($tree, $agentReviewPermission));
+        $this->assertTrue($this->containsPermissionKey($tree, $skillReviewPermission));
+    }
+
+    public function testGetResourceModuleKeepsLegacyModelTagForRolePermissionTagBackfill(): void
+    {
+        $this->assertSame('平台模型', $this->permission->getResourceModule(MagicResourceEnum::PLATFORM_AI_MODEL->value));
+        $this->assertSame('平台模型', $this->permission->getResourceModule(MagicResourceEnum::PLATFORM_AI_IMAGE->value));
+        $this->assertSame('自定义大模型', $this->permission->getResourceModule(MagicResourceEnum::WORKSPACE_AI_MODEL->value));
+        $this->assertSame('自定义大模型', $this->permission->getResourceModule(MagicResourceEnum::WORKSPACE_AI_IMAGE->value));
+        $this->assertSame('智能体增强', $this->permission->getResourceModule(MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT->value));
+        $this->assertSame('智能体增强', $this->permission->getResourceModule(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL->value));
+        $this->assertSame('内部员工及技能', $this->permission->getResourceModule(MagicResourceEnum::WORKSPACE_ADMIN_AI_AGENT->value));
+        $this->assertSame('内部员工及技能', $this->permission->getResourceModule(MagicResourceEnum::WORKSPACE_ADMIN_AI_SKILL->value));
+    }
+
     public function testCheckPermissionGroupCompatibilityForOrganizationAdminAnnotationStyle(): void
     {
         $allPermissionQueryKey = $this->permission->buildPermission(
@@ -192,6 +457,20 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
             [MagicPermission::PLATFORM_PERMISSIONS],
             true
         ));
+    }
+
+    public function testCheckPermissionSupportsLegacyModelResourceCompatibility(): void
+    {
+        $targetPermission = $this->permission->buildPermission(
+            MagicResourceEnum::PLATFORM_MODEL_VIDEO->value,
+            MagicOperationEnum::QUERY->value
+        );
+        $legacyEditPermission = $this->permission->buildPermission(
+            MagicResourceEnum::PLATFORM_AI_MODEL->value,
+            MagicOperationEnum::EDIT->value
+        );
+
+        $this->assertTrue($this->permission->checkPermission($targetPermission, [$legacyEditPermission], true));
     }
 
     /**
@@ -215,5 +494,29 @@ class MagicPermissionPermissionFlowTest extends HttpTestCase
         }
 
         return false;
+    }
+
+    /**
+     * @param array<int, mixed> $nodes
+     */
+    private function countPermissionKey(array $nodes, string $permissionKey): int
+    {
+        $count = 0;
+        foreach ($nodes as $node) {
+            if (! is_array($node)) {
+                continue;
+            }
+
+            if (($node['permission_key'] ?? '') === $permissionKey) {
+                ++$count;
+            }
+
+            $children = $node['children'] ?? [];
+            if (is_array($children)) {
+                $count += $this->countPermissionKey($children, $permissionKey);
+            }
+        }
+
+        return $count;
     }
 }

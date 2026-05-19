@@ -231,11 +231,11 @@ return [
         // 模型智能路由配置
         // 启用后，OpenAIModel 会根据模型名称自动路由到对应的客户端
         'smart_routing' => [
-            // 是否启用 DeepSeek 模型智能路由（模型名包含 deepseek 时自动使用 DeepSeek 客户端）
             'deepseek' => env('ODIN_SMART_ROUTING_DEEPSEEK', true),
-            // 是否启用 Qwen 模型智能路由（模型名包含 qwen 时自动使用 DashScope 客户端）
             'qwen' => env('ODIN_SMART_ROUTING_QWEN', true),
             'kimi' => env('ODIN_SMART_ROUTING_KIMI', true),
+            'mimo' => env('ODIN_SMART_ROUTING_MIMO', true),
+            'doubao' => env('ODIN_SMART_ROUTING_DOUBAO', true),
         ],
         'general_model_options' => [
             'chat' => true,
@@ -253,12 +253,12 @@ return [
             'timeout' => [
                 'connection' => 5.0,  // 连接超时（秒）
                 'write' => 10.0,      // 写入超时（秒）
-                'read' => 300.0,      // 读取超时（秒）
-                'total' => 350.0,     // 总体超时（秒）
+                'read' => 600.0,      // 读取超时（秒）
+                'total' => 660.0,     // 总体超时（秒）
                 'thinking' => 120.0,  // 思考超时（秒）
-                'stream_chunk' => 120.0, // 流式块间超时（秒）
-                'stream_first' => 60.0, // 流式首块超时（秒）
-                'stream_total' => 600.0, // 流式总超时（秒，默认10分钟）
+                'stream_chunk' => 300.0, // 流式块间超时（秒）
+                'stream_first' => 120.0, // 流式首块超时（秒）
+                'stream_total' => 900.0, // 流式总超时（秒）
             ],
             'custom_error_mapping_rules' => [],
             'logging' => [
@@ -287,6 +287,8 @@ return [
                     'options.json.presence_penalty',
                     'options.json.business_params',
                     'options.json.thinking',
+                    'options.json.top_k',
+                    'options.json.repetition_penalty',
 
                     // 使用量统计
                     'usage',                       // 完整的usage对象

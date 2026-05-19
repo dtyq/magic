@@ -20,7 +20,9 @@ interface UseCheckBeforeNavigateReturn {
 		targetIndex?: number,
 	) => Promise<boolean>
 	/** Register save handler from active slide */
-	registerSaveHandler: (handler: (() => Promise<void>) | null) => void
+	registerSaveHandler: (handler: (() => Promise<boolean>) | null) => void
+	/** Register discard handler from active slide */
+	registerDiscardHandler: (handler: (() => Promise<boolean>) | null) => void
 	/** Dialog visibility state */
 	showNavigationDialog: boolean
 	/** Set dialog visibility */
@@ -49,7 +51,8 @@ function useCheckBeforeNavigate({
 	activeIndex,
 }: UseCheckBeforeNavigateParams): UseCheckBeforeNavigateReturn {
 	// Store save handler for current active slide
-	const activeSlideSaveHandlerRef = useRef<(() => Promise<void>) | null>(null)
+	const activeSlideSaveHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
+	const activeSlideDiscardHandlerRef = useRef<(() => Promise<boolean>) | null>(null)
 
 	// Store resolve/reject callbacks for navigation promise
 	const navigationPromiseRef = useRef<{
@@ -63,8 +66,12 @@ function useCheckBeforeNavigate({
 	const [isSavingForNavigation, setIsSavingForNavigation] = useState(false)
 
 	// Register save handler from active slide
-	const registerSaveHandler = useMemoizedFn((handler: (() => Promise<void>) | null) => {
+	const registerSaveHandler = useMemoizedFn((handler: (() => Promise<boolean>) | null) => {
 		activeSlideSaveHandlerRef.current = handler
+	})
+
+	const registerDiscardHandler = useMemoizedFn((handler: (() => Promise<boolean>) | null) => {
+		activeSlideDiscardHandlerRef.current = handler
 	})
 
 	// Check before navigate - returns true if can navigate, false if cancelled
@@ -98,10 +105,11 @@ function useCheckBeforeNavigate({
 
 		setIsSavingForNavigation(true)
 		try {
-			// Call save handler if available
-			if (activeSlideSaveHandlerRef.current) {
-				await activeSlideSaveHandlerRef.current()
-			}
+			const didSave = activeSlideSaveHandlerRef.current
+				? await activeSlideSaveHandlerRef.current()
+				: true
+
+			if (!didSave) return
 
 			// Close dialog and reset state
 			setShowNavigationDialog(false)
@@ -123,12 +131,17 @@ function useCheckBeforeNavigate({
 
 	// Handle discard and navigate
 	const handleDiscardAndNavigate = useMemoizedFn(() => {
-		setShowNavigationDialog(false)
-		setPendingNavigation(null)
+		void (async () => {
+			const didDiscard = activeSlideDiscardHandlerRef.current
+				? await activeSlideDiscardHandlerRef.current()
+				: true
+			if (!didDiscard) return
 
-		// Resolve promise with true (navigation allowed without save)
-		navigationPromiseRef.current?.resolve(true)
-		navigationPromiseRef.current = null
+			setShowNavigationDialog(false)
+			setPendingNavigation(null)
+			navigationPromiseRef.current?.resolve(true)
+			navigationPromiseRef.current = null
+		})()
 	})
 
 	// Handle cancel navigation
@@ -163,6 +176,7 @@ function useCheckBeforeNavigate({
 	return {
 		checkBeforeNavigate,
 		registerSaveHandler,
+		registerDiscardHandler,
 		showNavigationDialog,
 		setShowNavigationDialog,
 		isSavingForNavigation,

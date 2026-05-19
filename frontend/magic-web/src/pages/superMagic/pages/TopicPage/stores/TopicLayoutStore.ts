@@ -25,7 +25,7 @@ export class TopicLayoutStore {
 	isDraggingMessagePanel = false
 	containerWidthPx = 0
 
-	readonly COLLAPSED_MESSAGE_PANEL_WIDTH = 40
+	readonly COLLAPSED_MESSAGE_PANEL_WIDTH = 24
 	readonly COLLAPSE_TRIGGER_SIZE_EPSILON = 0.2
 	readonly COLLAPSE_TRIGGER_DRAG_DISTANCE_RATIO = 1
 

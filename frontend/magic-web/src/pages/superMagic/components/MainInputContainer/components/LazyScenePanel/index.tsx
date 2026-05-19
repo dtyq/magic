@@ -11,11 +11,7 @@ import { useOptionalScenePanelVariant } from "../../stores"
 import { useCurrentSceneConfig } from "../../hooks"
 
 // Lazy load skill container components
-// const SlidesInputContainer = lazy(() => import("../../scenes/Slides"))
-// const DesignInputContainer = lazy(() => import("../../scenes/Design"))
 const SummarizeRecordingsInputContainer = lazy(() => import("../../scenes/SummarizeRecordings"))
-// const AnalyzeDataInputContainer = lazy(() => import("../../scenes/AnalyzeData"))
-// const SummarizeVideosInputContainer = lazy(() => import("../../scenes/SummarizeVideos"))
 const DefaultInputContainer = lazy(() => import("../../scenes/Default"))
 const GeneralInputContainer = lazy(() => import("../../scenes/General"))
 
@@ -44,16 +40,8 @@ function LazyScenePanel({ scenes, editorContext, editorNodes }: LazyScenePanelPr
 
 		if (editorType) {
 			switch (editorType) {
-				// case SceneKey.Slides:
-				// 	return <SlidesInputContainer key={selectedScene.id} {...commonProps} />
-				// case SceneKey.Design:
-				// 	return <DesignInputContainer key={selectedScene.id} {...commonProps} />
 				case SceneEditorKey.RecordSummary:
 					return <SummarizeRecordingsInputContainer key={editorType} {...commonProps} />
-				// case SceneKey.AnalyzeData:
-				// 	return <AnalyzeDataInputContainer key={selectedScene.id} {...commonProps} />
-				// case SceneKey.SummarizeVideos:
-				// 	return <SummarizeVideosInputContainer key={selectedScene.id} {...commonProps} />
 				case SceneEditorKey.General:
 				default:
 					return <DefaultInputContainer key={editorType} {...commonProps} />

@@ -5,19 +5,17 @@ import { messageFilter } from "../../utils/handleMessage"
 import WarningCard from "../MessageList/components/WarningCard"
 import TimeoutTips from "./components/TimeoutTips"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { ChatApi } from "@/apis"
-import { EventType } from "@/types/chat"
-import { userStore } from "@/models/user"
 import type { Topic } from "../../pages/Workspace/types"
 import { useUpdateEffect } from "ahooks"
 import topicModelStore from "@/stores/superMagic/topicModelStore"
 import { superMagicStore } from "@/pages/superMagic/stores"
-import { SendMessageOptions } from "../MessagePanel/types"
 import { Spinner } from "@/components/shadcn-ui/spinner"
 import { cn } from "@/lib/utils"
 import { useMessageListContext } from "../MessageList/context"
+import { messageSendService } from "../../services/messageSendFlowService"
+import { workspaceStore, projectStore } from "../../stores/core"
 
-const TIMEOUT_THRESHOLD = 60 * 5 // 5分钟
+const TIMEOUT_THRESHOLD = 60 * 11 // 5分钟
 const MAX_TIMEOUT_THRESHOLD = 60 * 60 // 60分钟
 
 const loadingMessageTextClass = cn(
@@ -32,7 +30,6 @@ interface LoadingMessageProps {
 	showLoading?: boolean
 	style?: React.CSSProperties
 	selectedTopic?: Topic | null
-	handleSendMsg?: (content: string, options?: SendMessageOptions) => void
 }
 
 export default function LoadingMessage({
@@ -155,47 +152,38 @@ export default function LoadingMessage({
 	// 发送终止任务的intermediate消息
 	const handleSendInterruptMessage = async () => {
 		try {
-			const { userInfo } = userStore.user
-
-			if (!selectedTopic?.chat_conversation_id || !selectedTopic?.id || !userInfo?.user_id) {
+			if (!selectedTopic?.chat_conversation_id || !selectedTopic?.id) {
 				console.error("缺少必要信息，无法发送终止消息")
 				return
 			}
 
-			const timestamp = Date.now()
+			// 获取当前选中的 workspace 和 project
+			const selectedWorkspace = workspaceStore.selectedWorkspace
+			const selectedProject = projectStore.selectedProject
 
-			ChatApi.chat(EventType.Chat, {
-				message: {
-					type: "rich_text" as any,
-					rich_text: {
-						content: `{"type":"doc","content":[{"type":"paragraph","attrs":{"suggestion":""},"content":[{"type":"text","text":"${t(
-							"common.continue",
-						)}"}]}]}`,
-						instructs: [
-							{
-								value: "plan",
-							},
-						],
-						attachments: [],
-						extra: {
-							super_agent: {
-								mentions: [],
-								input_mode: "plan",
-								chat_mode: "normal",
-								topic_pattern: "general",
-								model: {
-									model_id:
-										topicModelStore?.selectedLanguageModel?.model_id || "auto",
-								},
+			// 使用 messageSendService 发送消息，让 service 自动处理消息构造
+			messageSendService.sendContent({
+				content: t("common.continue"),
+				options: {
+					extra: {
+						super_agent: {
+							mentions: [],
+							input_mode: "plan",
+							chat_mode: "normal",
+							topic_pattern: selectedTopic.topic_mode,
+							model: {
+								model_id:
+									topicModelStore?.selectedLanguageModel?.model_id || "auto",
 							},
 						},
 					},
-					send_timestamp: timestamp,
-					send_time: timestamp,
-					sender_id: userInfo.user_id,
-					topic_id: selectedTopic.chat_topic_id,
-				} as any,
-				conversation_id: selectedTopic.chat_conversation_id,
+				},
+				showLoading: messages?.length > 1 && showLoading,
+				context: {
+					selectedProject,
+					selectedTopic,
+					selectedWorkspace,
+				},
 			})
 		} catch (error) {
 			console.error("💥 [LoadingMessage] 发送终止消息失败:", error)
@@ -226,7 +214,7 @@ export default function LoadingMessage({
 
 	return (
 		<>
-			<span className="ml-1 mt-5 inline-flex items-center gap-1" style={style}>
+			<span className="ml-1 inline-flex h-[32px] items-center gap-1" style={style}>
 				<Spinner className="animate-spin" size={16} />
 				<span className={loadingMessageTextClass}>{t("ui.thinking")}</span>
 				<span className="ml-1 flex h-12 items-center gap-px text-xs font-normal leading-5 tracking-[0.25px] text-foreground/35">
@@ -244,8 +232,8 @@ export default function LoadingMessage({
 						allowCreateNewTopic
 							? () => {
 									setConfirmDisabled(true)
-									pubsub.publish("send_interrupt_message")
-									pubsub.publish("super_magic_create_create_topic")
+									pubsub.publish(PubSubEvents.Send_Interrupt_Message)
+									pubsub.publish(PubSubEvents.Trigger_Create_Topic)
 								}
 							: undefined
 					}

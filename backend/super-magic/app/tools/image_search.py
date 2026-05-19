@@ -1610,7 +1610,7 @@ Keyword Diversification Principles:
                 markdown_parts.append(f"\n#### {i+1}. {img.name}\n")
                 markdown_parts.append(
                     f'<img src="{safe_img_url}" alt="{safe_img_name}" '
-                    f'width="280" />'
+                    f'style="max-height:280px" />'
                 )
 
                 if img.width > 0 and img.height > 0:

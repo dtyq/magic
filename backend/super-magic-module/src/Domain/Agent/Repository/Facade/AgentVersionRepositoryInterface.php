@@ -11,6 +11,7 @@ use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionAdminQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -88,6 +89,7 @@ interface AgentVersionRepositoryInterface
      * @param ReviewStatus $reviewStatus 审核状态
      * @param PublishStatus $publishStatus 发布状态
      * @param string $modifier 修改者
+     * @param null|string $reviewRemark 审核说明
      * @return bool 是否更新成功
      */
     public function updateReviewStatus(
@@ -95,7 +97,8 @@ interface AgentVersionRepositoryInterface
         int $id,
         ReviewStatus $reviewStatus,
         PublishStatus $publishStatus,
-        string $modifier
+        string $modifier,
+        ?string $reviewRemark = null
     ): bool;
 
     public function deleteByAgentCode(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): bool;
@@ -137,15 +140,7 @@ interface AgentVersionRepositoryInterface
      */
     public function queryVersions(
         SuperMagicAgentDataIsolation $dataIsolation,
-        ?string $reviewStatus,
-        ?string $publishStatus,
-        ?string $publishTargetType,
-        ?string $version,
-        ?string $organizationCode,
-        ?string $nameI18n,
-        ?string $startTime,
-        ?string $endTime,
-        string $orderBy,
+        AgentVersionAdminQuery $query,
         Page $page
     ): array;
 }

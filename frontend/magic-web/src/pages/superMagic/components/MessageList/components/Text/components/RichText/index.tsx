@@ -13,7 +13,10 @@ import { MentionItemType } from "@/components/business/MentionPanel/types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import { getMentionDisplayName } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { getDisplayText } from "@/pages/superMagic/components/MessageEditor/extensions/super-placeholder/utils"
+import { INSPECTOR_DETAIL_TYPE } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail/const"
+import { transformInspectorContent } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail/transform"
 import InlineMention from "./components/InlineMention"
+import { InspectorDetailReadOnly } from "./components/InspectorDetailReadOnly"
 
 const RichText = memo(
 	function RichText(props: RichTextProps) {
@@ -48,6 +51,20 @@ const RichText = memo(
 						},
 					}
 				},
+				[INSPECTOR_DETAIL_TYPE]: (node: Node) => {
+					const dom = document.createElement("div")
+					dom.className = "inspector-detail-node-view"
+
+					const root = createRoot(dom)
+					root.render(<InspectorDetailReadOnly attrs={node.attrs} />)
+
+					return {
+						dom,
+						destroy() {
+							root.unmount()
+						},
+					}
+				},
 			}),
 			[content, onFileClick, scene],
 		)
@@ -68,6 +85,24 @@ const RichText = memo(
 			if (node.type.name === "super-placeholder") {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				return getDisplayText(node.attrs as any)
+			}
+
+			if (node.type.name === INSPECTOR_DETAIL_TYPE) {
+				const attrs = node.attrs
+				const lines: string[] = []
+				if (attrs.selector) lines.push(`selector: ${attrs.selector}`)
+				if (attrs.size) lines.push(`size: ${attrs.size}`)
+				if (attrs.computedStyles && attrs.computedStyles !== "{}") {
+					try {
+						const styles = JSON.parse(attrs.computedStyles) as Record<string, string>
+						const pairs = Object.entries(styles).map(([k, v]) => `${k}: ${v}`)
+						if (pairs.length > 0) lines.push(`computedStyles: ${pairs.join("; ")}`)
+					} catch {
+						lines.push(`computedStyles: ${attrs.computedStyles}`)
+					}
+				}
+				if (attrs.textContent) lines.push(`textContent: "${attrs.textContent}"`)
+				return lines.length > 0 ? `${lines.join("\n")}\n` : ""
 			}
 
 			if (node.type.name === "hardBreak") {
@@ -177,10 +212,13 @@ const RichText = memo(
 						return
 					}
 
+					// Transform inspector text paragraphs into collapsible nodes
+					const transformedContent = transformInspectorContent(parsedContent)
+
 					// 创建 ProseMirror 视图
 					editorViewRef.current = new EditorView(containerRef.current, {
 						state: EditorState.create({
-							doc: Node.fromJSON(finalSchema, parsedContent),
+							doc: Node.fromJSON(finalSchema, transformedContent),
 							schema: finalSchema,
 						}),
 						editable: () => false,

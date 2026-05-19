@@ -16,6 +16,12 @@ export interface MicrophoneConstraintsConfig {
 	channelCount?: number
 	latency?: number
 	volume?: number
+	/**
+	 * Explicit device ID to select a specific microphone.
+	 * Use 'default' (Chrome-specific) to follow the OS default input device.
+	 * When not set, the browser may not follow OS device selection changes.
+	 */
+	deviceId?: string | { ideal?: string; exact?: string }
 }
 
 /**
@@ -44,6 +50,9 @@ export const AUDIO_CONSTRAINTS_PRESETS = {
 			noiseSuppression: true,
 			autoGainControl: true,
 			channelCount: 1,
+			// 'default' is a Chrome virtual device that follows the OS default audio input.
+			// Using `ideal` (non-strict) so other browsers gracefully ignore it.
+			deviceId: { ideal: "default" },
 		},
 		/**
 		 * High quality mode - minimal processing for music/podcast recording

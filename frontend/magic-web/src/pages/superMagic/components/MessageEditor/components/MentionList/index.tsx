@@ -1,17 +1,23 @@
 import React, { useState, useRef, useMemo, memo } from "react"
 import { Popover } from "antd"
+import { IconX } from "@tabler/icons-react"
 import AtItem from "../AtItem"
+import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { getMentionUniqueId } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import type {
 	MentionListItem,
 	TiptapMentionAttributes,
 } from "@/components/business/MentionPanel/tiptap-plugin/types"
+import type { MarkerClickScene } from "../../hooks/useMarkerClickHandler"
 import { useMemoizedFn, useDebounceFn, useMount, useUnmount, useUpdateEffect } from "ahooks"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { cn } from "@/lib/utils"
+import type { JSONContent } from "@tiptap/core"
+import { useTranslation } from "react-i18next"
 
 // 间距
 const GAP = 4
+const MOBILE_POPUP_ICON_SIZE = 24
 
 // 最大行数
 const MAX_ROWS = 2
@@ -29,7 +35,9 @@ interface MentionListProps {
 	/** 重试上传文件的回调 */
 	onRetry?: (id: string) => Promise<void>
 	/** Marker 点击场景（用于决定点击行为） */
-	markerClickScene?: "messageEditorMentionList" | "draftBox"
+	markerClickScene?: MarkerClickScene
+	/** 消息的 content（用于消息列表中查找完整 marker 数据） */
+	messageContent?: JSONContent | string | Record<string, unknown>
 }
 
 /**
@@ -45,25 +53,26 @@ const MentionList = ({
 	onFileClick,
 	onRetry,
 	markerClickScene = "messageEditorMentionList",
+	messageContent,
 }: MentionListProps) => {
 	// 使用 markerClickScene，默认为 messageEditorMentionList
 	const scene = markerClickScene
+	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
 	const containerRef = useRef<HTMLDivElement>(null)
 	const [maxVisible, setMaxVisible] = useState(Infinity)
 	const isCalculatingRef = useRef(false)
 	const [popoverOpen, setPopoverOpen] = useState(false)
+	const mobilePopupCloseLabel = t("messageEditor.mentionList.close")
 
 	const hiddenItems = useMemo(() => mentionItems.slice(maxVisible), [mentionItems, maxVisible])
+	const mobilePopupTitle = t("messageEditor.mentionList.remainingTitle", {
+		count: hiddenItems.length,
+	})
 
 	const shouldShowMore = hiddenItems.length > 0
 
 	const calculateMaxVisible = useMemoizedFn(() => {
-		// 移动端不需要计算，始终保持 Infinity
-		if (isMobile) {
-			return
-		}
-
 		// 防止重复计算
 		if (isCalculatingRef.current) {
 			return
@@ -272,12 +281,8 @@ const MentionList = ({
 		mutationObserver: null,
 	})
 
-	// 设置 Observer（移动端不需要）
+	// 设置 Observer
 	useMount(() => {
-		if (isMobile) {
-			return
-		}
-
 		const container = containerRef.current
 
 		if (!container) {
@@ -313,44 +318,48 @@ const MentionList = ({
 		debouncedCalculateMaxVisible.run()
 	})
 
-	// 当 mentionItems 变化时重新计算（移动端不需要）
+	// 当 mentionItems 变化时重新计算
 	useUpdateEffect(() => {
-		if (isMobile) {
-			return
-		}
 		debouncedCalculateMaxVisible.run()
 	}, [mentionItems])
 
-	// 清理 Observer（移动端不需要）
+	// 清理 Observer
 	useUnmount(() => {
-		if (isMobile) {
-			return
-		}
 		const { containerObserver, mutationObserver } = observersRef.current
 		containerObserver?.disconnect()
 		mutationObserver?.disconnect()
 		debouncedCalculateMaxVisible.cancel()
 	})
 
-	// Popover 内容 - 使用 useMemo 缓存避免不必要的重新渲染
-	const popoverContent = useMemo(() => {
+	const _onFileClick = useMemoizedFn((item: TiptapMentionAttributes["data"]) => {
+		onFileClick?.(item)
+		if (isMobile) {
+			setPopoverOpen(false)
+		}
+	})
+
+	// Hidden items content - reuse across desktop and mobile
+	const hiddenItemsContent = useMemo(() => {
 		if (hiddenItems.length === 0) return null
 
 		return (
 			<div className="flex max-h-[240px] w-[180px] flex-col gap-1 overflow-y-auto">
-				{hiddenItems.map((at) => (
+				{hiddenItems.map((at, index) => (
 					<AtItem
-						key={getMentionUniqueId(at.attrs)}
+						key={`${getMentionUniqueId(at.attrs)}-${index}`}
 						data={at.attrs}
 						onRemove={onRemoveItems}
-						className="mb-0 w-full max-w-none"
+						className={cn("mb-0 w-full max-w-none", isMobile && "min-h-11 px-3 py-2")}
+						labelClassName={isMobile ? "text-xs leading-4" : undefined}
+						retryClassName={isMobile ? "text-xs leading-4" : undefined}
 						placement="left"
-						onFileClick={onFileClick}
-						iconSize={iconSize}
+						onFileClick={_onFileClick}
+						iconSize={isMobile ? MOBILE_POPUP_ICON_SIZE : iconSize}
 						markerClickScene={scene}
 						tooltipProps={{
 							zIndex: 1051,
 						}}
+						messageContent={messageContent}
 						markerTooltipProps={{
 							popoverClassName: "z-[1051]",
 							parentPopoverOpen: popoverOpen,
@@ -360,7 +369,81 @@ const MentionList = ({
 				))}
 			</div>
 		)
-	}, [hiddenItems, onRemoveItems, onFileClick, iconSize, scene, popoverOpen])
+	}, [
+		hiddenItems,
+		onRemoveItems,
+		_onFileClick,
+		iconSize,
+		scene,
+		popoverOpen,
+		messageContent,
+		isMobile,
+	])
+
+	const moreButton = (
+		<button
+			type="button"
+			className={cn(
+				"inline-flex h-full items-center justify-center rounded-md border border-border px-1 py-1",
+				"font-medium text-foreground",
+				"cursor-pointer select-none transition-all duration-200",
+				"min-w-[28px] shrink-0 overflow-hidden text-ellipsis text-[10px] leading-[13px]",
+				"hover:bg-muted hover:text-foreground active:scale-95",
+				"moreButton",
+			)}
+			onClick={isMobile ? () => setPopoverOpen(true) : undefined}
+		>
+			+{hiddenItems.length}
+		</button>
+	)
+
+	const moreContent = isMobile ? (
+		<>
+			{moreButton}
+			<MagicPopup
+				visible={popoverOpen}
+				onClose={() => setPopoverOpen(false)}
+				position="bottom"
+				title={mobilePopupTitle}
+				bodyClassName="rounded-t-xl bg-card p-0"
+				zIndex={1050}
+			>
+				<div className="flex flex-col bg-card">
+					<div className="flex items-center justify-between border-b border-border px-4 py-3">
+						<p className="min-w-0 flex-1 truncate text-left text-base font-semibold leading-6 text-foreground">
+							{mobilePopupTitle}
+						</p>
+						<button
+							type="button"
+							className="ml-3 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+							onClick={() => setPopoverOpen(false)}
+							aria-label={mobilePopupCloseLabel}
+						>
+							<IconX size={18} />
+						</button>
+					</div>
+					{hiddenItemsContent}
+				</div>
+			</MagicPopup>
+		</>
+	) : (
+		<Popover
+			content={hiddenItemsContent}
+			trigger="hover"
+			placement="topRight"
+			arrow={false}
+			open={popoverOpen}
+			onOpenChange={setPopoverOpen}
+			styles={{
+				body: {
+					padding: "6px",
+				},
+			}}
+			zIndex={1050}
+		>
+			{moreButton}
+		</Popover>
+	)
 
 	if (!prevEl && mentionItems.length === 0) {
 		return null
@@ -371,8 +454,6 @@ const MentionList = ({
 			ref={containerRef}
 			className={cn(
 				"relative flex max-h-[56px] min-h-6 w-full flex-wrap items-center overflow-hidden",
-				"md:max-h-[56px] md:flex-wrap md:items-center md:overflow-hidden",
-				"max-md:max-h-[120px] max-md:flex-nowrap max-md:items-start max-md:overflow-x-auto max-md:overflow-y-auto",
 			)}
 			style={{ gap: GAP }}
 		>
@@ -381,7 +462,7 @@ const MentionList = ({
 				const isVisible = index < maxVisible
 				return (
 					<div
-						key={getMentionUniqueId(at.attrs)}
+						key={`${getMentionUniqueId(at.attrs)}-${index}`}
 						style={{ display: isVisible ? undefined : "none" }}
 						data-mention-item=""
 					>
@@ -394,39 +475,12 @@ const MentionList = ({
 							onRetry={isVisible ? onRetry : undefined}
 							iconSize={iconSize}
 							markerClickScene={scene}
+							messageContent={messageContent}
 						/>
 					</div>
 				)
 			})}
-			{shouldShowMore && (
-				<Popover
-					content={popoverContent}
-					trigger="hover"
-					placement="topRight"
-					arrow={false}
-					open={popoverOpen}
-					onOpenChange={setPopoverOpen}
-					styles={{
-						body: {
-							padding: "6px",
-						},
-					}}
-					zIndex={1050}
-				>
-					<div
-						className={cn(
-							"inline-flex h-full items-center justify-center rounded-md border border-border px-1 py-1",
-							"font-medium text-foreground",
-							"cursor-pointer select-none transition-all duration-200",
-							"min-w-[28px] shrink-0 overflow-hidden text-ellipsis text-[10px] leading-[13px]",
-							"hover:bg-muted hover:text-foreground active:scale-95",
-							"moreButton",
-						)}
-					>
-						+{hiddenItems.length}
-					</div>
-				</Popover>
-			)}
+			{shouldShowMore ? moreContent : null}
 		</div>
 	)
 }

@@ -1,9 +1,10 @@
 import type { NodeProps } from "../../../types"
 import { cn } from "@/lib/utils"
 import { superMagicStore } from "@/pages/superMagic/stores"
-import { memo, useState } from "react"
+import { memo } from "react"
 import { observer } from "mobx-react-lite"
 import { defaultOpen } from "../../config"
+import { useToggleWithScrollPreserve } from "../../../shared/hooks/useToggleWithScrollPreserve"
 import { ChevronUp, ChevronRight } from "lucide-react"
 import MagicScrollBar from "@/components/base/MagicScrollBar"
 import { isEmpty } from "lodash-es"
@@ -12,7 +13,7 @@ import { ToolIconBadge } from "@/pages/superMagic/components/MessageList/compone
 // Shared tag base — pill row inside the tool container
 const tagBase = cn(
 	"inline-flex h-7 w-fit cursor-pointer items-center gap-1.5 overflow-hidden rounded-lg",
-	"bg-white pb-1.5 pl-1.5 pt-1.5 dark:bg-card",
+	"bg-white p-1.5 dark:bg-card",
 )
 
 // Shared expand/collapse toggle button
@@ -30,7 +31,7 @@ function TodoWrite(props: NodeProps) {
 	const items: Array<{ id: string; content: string; status: string }> =
 		tool?.detail?.data?.items || []
 
-	const [open, setOpen] = useState(defaultOpen)
+	const [open, toggle] = useToggleWithScrollPreserve(defaultOpen)
 
 	const onClick = () => {
 		if (tool.status !== "error") {
@@ -61,10 +62,7 @@ function TodoWrite(props: NodeProps) {
 						</div>
 					</div>
 					{tool.status !== "error" && (
-						<div
-							className={cn(toggleButton, "mr-1.5")}
-							onClick={() => setOpen((o) => !o)}
-						>
+						<div className={cn(toggleButton, "mr-1.5")} onClick={toggle}>
 							{open ? (
 								<ChevronUp
 									size={16}

@@ -4,6 +4,7 @@ import MessageList, { MessageListProvider } from "@/pages/superMagic/components/
 import type { MessageListContextState } from "@/pages/superMagic/components/MessageList/context"
 import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
 import type { SendMessageOptions } from "@/pages/superMagic/components/MessagePanel/types"
+import type { SceneEditorNodes } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import type { TaskStatus, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import {
 	cloneElement,
@@ -49,6 +50,8 @@ interface ConversationPanelScaffoldProps {
 	messageListBottomFadeClassName?: string
 	/** Pass-through to MessageList BackToLatestButton (e.g. offset above fade) */
 	backToLatestButtonClassName?: string
+	/** Task list + message queue above editor (e.g. Topic message queue) */
+	editorNodes?: SceneEditorNodes
 }
 
 interface AnimatedEmptyStateProps {
@@ -98,7 +101,10 @@ function ConversationPanelScaffold({
 	messageListBottomFade = false,
 	messageListBottomFadeClassName,
 	backToLatestButtonClassName,
+	editorNodes,
 }: ConversationPanelScaffoldProps) {
+	const [measuredBottomPanelHeightPx, setMeasuredBottomPanelHeightPx] = useState(0)
+
 	const hasMessages = messages.length > 0
 	const shouldShowCenteredEmptyState = !detailPanelVisible && !isMessagesLoading && !hasMessages
 	const [shouldPreserveCenteredEmptyState, setShouldPreserveCenteredEmptyState] = useState(false)
@@ -165,6 +171,25 @@ function ConversationPanelScaffold({
 			shouldShowCenteredEmptyState,
 		}
 	}, [selectedTopic?.id, shouldShowCenteredEmptyState])
+
+	// Bottom stack height (queue + task strip + editor): drives MessageList padding
+	useLayoutEffect(() => {
+		const el = editorLayoutRef.current
+		if (!el || typeof ResizeObserver === "undefined") return
+
+		function applyHeight() {
+			const node = editorLayoutRef.current
+			if (!node) return
+			setMeasuredBottomPanelHeightPx(node.getBoundingClientRect().height)
+		}
+
+		applyHeight()
+		const ro = new ResizeObserver(() => {
+			applyHeight()
+		})
+		ro.observe(el)
+		return () => ro.disconnect()
+	}, [isConversationPanelCollapsed, selectedTopic?.id])
 
 	useEffect(() => {
 		if (isCenteredEmptyStateVisible) {
@@ -249,12 +274,15 @@ function ConversationPanelScaffold({
 	const centeredEditorTop =
 		centeredGroupTop + emptyLayoutMeasurements.heroHeight + CENTERED_EMPTY_EDITOR_GAP_PX
 
+	const effectiveMessageLayoutPaddingBottomPx =
+		measuredBottomPanelHeightPx > 0 ? measuredBottomPanelHeightPx : messageLayoutPaddingBottomPx
+
 	return (
 		<div
 			className={cn(
 				"relative z-10 flex h-full flex-col items-center overflow-hidden transition-all duration-300",
 				!isConversationPanelCollapsed && "rounded-lg",
-				isConversationPanelCollapsed ? "px-0 pb-0 pl-2" : "pb-2",
+				isConversationPanelCollapsed ? "px-0 pb-0" : "pb-2",
 				className,
 			)}
 			data-testid={rootTestId || `${scope}-panel`}
@@ -317,7 +345,7 @@ function ConversationPanelScaffold({
 							: "translate-y-0 opacity-100",
 					)}
 					style={{
-						paddingBottom: messageLayoutPaddingBottomPx,
+						paddingBottom: effectiveMessageLayoutPaddingBottomPx,
 					}}
 					data-testid={`${scope}-message-layout`}
 				>
@@ -374,6 +402,10 @@ function ConversationPanelScaffold({
 						/>
 					) : null}
 					<div className="relative z-[1] flex w-full flex-col items-center">
+						<div className="flex w-full flex-col gap-2 [&:empty]:hidden">
+							{editorNodes?.taskDataNode}
+							{editorNodes?.messageQueueNode}
+						</div>
 						<div className="w-full">{editor}</div>
 						{isCenteredEmptyStateVisible && emptyHint ? (
 							<div

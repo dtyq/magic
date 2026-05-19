@@ -184,7 +184,6 @@ class FileApi extends AbstractApi
             $requestContext,
             (int) $id,
             (int) $requestDTO->getTargetParentId(),
-            (int) $requestDTO->getPreFileId(),
             ! empty($requestDTO->getTargetProjectId()) ? (int) $requestDTO->getTargetProjectId() : null,
             $requestDTO->getKeepBothFileIds()
         );

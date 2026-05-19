@@ -160,6 +160,15 @@ interface ProjectMemberSettingRepositoryInterface
     public function batchSetProjectShortcuts(string $userId, array $projectWorkspaceBindings, string $organizationCode): int;
 
     /**
+     * Batch cancel project shortcuts for a user across multiple projects.
+     *
+     * @param string $userId User ID
+     * @param array $projectIds Project ID array
+     * @return int Number of affected records
+     */
+    public function batchCancelProjectShortcuts(string $userId, array $projectIds): int;
+
+    /**
      * Batch delete settings for a user across multiple projects.
      *
      * @param string $userId User ID

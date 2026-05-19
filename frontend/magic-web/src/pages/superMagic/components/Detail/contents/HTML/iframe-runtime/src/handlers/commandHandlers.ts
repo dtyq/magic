@@ -4,6 +4,7 @@
  */
 
 import type { EditorBridge } from "../core/EditorBridge"
+import type { ImageManager } from "../managers/ImageManager"
 import type { StyleManager } from "../managers/StyleManager"
 import type { TextStyleManager } from "../managers/TextStyleManager"
 import { EditorLogger } from "../utils/EditorLogger"
@@ -12,10 +13,11 @@ interface CommandHandlersConfig {
 	bridge: EditorBridge
 	styleManager: StyleManager
 	textStyleManager: TextStyleManager
+	imageManager: ImageManager
 }
 
 export function registerCommandHandlers(config: CommandHandlersConfig): void {
-	const { bridge, styleManager, textStyleManager } = config
+	const { bridge, styleManager, textStyleManager, imageManager } = config
 
 	// Set background color
 	bridge.onCommand("SET_BACKGROUND_COLOR", async (payload: unknown) => {
@@ -191,6 +193,12 @@ export function registerCommandHandlers(config: CommandHandlersConfig): void {
 			EditorLogger.error("Duplicate element failed", error)
 			throw error
 		}
+	})
+
+	bridge.onCommand("RUN_IMAGE_ACTION", async (payload: unknown) => {
+		await imageManager.runImageAction(payload as { action: string })
+		EditorLogger.info("Run image action", payload)
+		return { success: true }
 	})
 
 	// Apply text style (to selected text portion)

@@ -557,12 +557,8 @@ export const getMobileStateTitle = (state: string, t?: any) => {
 				return "搜索结果"
 			case "folder":
 				return "文件夹"
-			case "mcp":
-				return "MCP 扩展"
-			case "agent":
-				return "智能体"
-			case "skills":
-				return "技能"
+			case "catalog":
+				return "选择引用内容"
 			default:
 				return "选择引用内容"
 		}
@@ -574,12 +570,8 @@ export const getMobileStateTitle = (state: string, t?: any) => {
 			return t.searchResults
 		case "folder":
 			return t.panelTitles?.folder || "Folder"
-		case "mcp":
-			return t.panelTitles?.mcp || "MCP Extensions"
-		case "agent":
-			return t.panelTitles?.agent || "Agents"
-		case "skills":
-			return t.panelTitles?.skills || "Skills"
+		case "catalog":
+			return t.selectItem || "Select Item"
 		default:
 			return t.selectItem || "Select Item"
 	}

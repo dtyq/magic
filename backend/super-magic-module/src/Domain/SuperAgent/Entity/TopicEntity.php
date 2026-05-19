@@ -143,6 +143,31 @@ class TopicEntity extends AbstractEntity
     protected ?string $updatedAt = null;
 
     /**
+     * @var bool 是否置顶
+     */
+    protected bool $isPinned = false;
+
+    /**
+     * @var null|string 置顶时间，NULL 表示未置顶
+     */
+    protected ?string $pinnedAt = null;
+
+    /**
+     * @var bool 是否归档
+     */
+    protected bool $isArchived = false;
+
+    /**
+     * @var null|string 最后阅读时间
+     */
+    protected ?string $lastReadAt = null;
+
+    /**
+     * @var null|string 最后已读消息ID
+     */
+    protected ?string $lastReadMessageId = null;
+
+    /**
      * @var null|string 删除时间
      */
     protected ?string $deletedAt = null;
@@ -173,6 +198,11 @@ class TopicEntity extends AbstractEntity
      * @var null|int 隐藏类型（1-预启动隐藏）
      */
     protected ?int $hiddenType = null;
+
+    /**
+     * @var null|array 动态参数，存储话题创建时前端传递的动态配置（如 message_version 等）
+     */
+    protected ?array $dynamicParams = null;
 
     public function __construct(array $data = [])
     {
@@ -210,6 +240,11 @@ class TopicEntity extends AbstractEntity
             'current_task_status' => $this->currentTaskStatus?->value,
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
+            'is_pinned' => $this->isPinned,
+            'pinned_at' => $this->pinnedAt,
+            'is_archived' => $this->isArchived,
+            'last_read_at' => $this->lastReadAt,
+            'last_read_message_id' => $this->lastReadMessageId,
             'deleted_at' => $this->deletedAt,
             'created_uid' => $this->createdUid,
             'updated_uid' => $this->updatedUid,
@@ -217,6 +252,7 @@ class TopicEntity extends AbstractEntity
             'chat_history_commit_hash' => $this->chatHistoryCommitHash,
             'is_hidden' => $this->isHidden,
             'hidden_type' => $this->hiddenType,
+            'dynamic_params' => $this->dynamicParams !== null ? json_encode($this->dynamicParams, JSON_UNESCAPED_UNICODE) : null,
         ];
 
         // 移除null值
@@ -490,6 +526,97 @@ class TopicEntity extends AbstractEntity
         return $this;
     }
 
+    public function isPinned(): bool
+    {
+        return $this->isPinned;
+    }
+
+    public function setIsPinned(null|bool|int $isPinned): self
+    {
+        $this->isPinned = (bool) $isPinned;
+        if (! $this->isPinned) {
+            $this->pinnedAt = null;
+        }
+        return $this;
+    }
+
+    public function getPinnedAt(): ?string
+    {
+        return $this->pinnedAt;
+    }
+
+    public function setPinnedAt(?string $pinnedAt): self
+    {
+        $this->pinnedAt = $pinnedAt;
+        if ($pinnedAt !== null) {
+            $this->isPinned = true;
+        }
+        return $this;
+    }
+
+    public function isArchived(): bool
+    {
+        return $this->isArchived;
+    }
+
+    public function setIsArchived(null|bool|int $isArchived): self
+    {
+        $this->isArchived = (bool) $isArchived;
+        return $this;
+    }
+
+    public function getLastReadAt(): ?string
+    {
+        return $this->lastReadAt;
+    }
+
+    public function setLastReadAt(?string $lastReadAt): self
+    {
+        $this->lastReadAt = $lastReadAt;
+        return $this;
+    }
+
+    public function getLastReadMessageId(): ?string
+    {
+        return $this->lastReadMessageId;
+    }
+
+    public function setLastReadMessageId(null|int|string $lastReadMessageId): self
+    {
+        if ($lastReadMessageId === null || $lastReadMessageId === '') {
+            $this->lastReadMessageId = null;
+        } else {
+            $this->lastReadMessageId = (string) $lastReadMessageId;
+        }
+        return $this;
+    }
+
+    public function pin(?string $pinnedAt = null): self
+    {
+        $this->isPinned = true;
+        $this->pinnedAt = $pinnedAt ?? date('Y-m-d H:i:s');
+        return $this;
+    }
+
+    public function unpin(): self
+    {
+        $this->isPinned = false;
+        $this->pinnedAt = null;
+        return $this;
+    }
+
+    public function archive(): self
+    {
+        $this->isArchived = true;
+        return $this->unpin();
+    }
+
+    public function unarchive(): self
+    {
+        $this->isArchived = false;
+        return $this;
+    }
+
     public function getDeletedAt(): ?string
     {
         return $this->deletedAt;
@@ -723,6 +850,28 @@ class TopicEntity extends AbstractEntity
     public function setHiddenTypeEnum(?HiddenType $hiddenType): self
     {
         $this->hiddenType = $hiddenType?->value;
+        return $this;
+    }
+
+    /**
+     * 获取动态参数.
+     */
+    public function getDynamicParams(): ?array
+    {
+        return $this->dynamicParams;
+    }
+
+    /**
+     * 设置动态参数.
+     */
+    public function setDynamicParams(null|array|string $dynamicParams): self
+    {
+        if (is_string($dynamicParams)) {
+            $decoded = json_decode($dynamicParams, true);
+            $this->dynamicParams = is_array($decoded) ? $decoded : null;
+        } else {
+            $this->dynamicParams = $dynamicParams;
+        }
         return $this;
     }
 }

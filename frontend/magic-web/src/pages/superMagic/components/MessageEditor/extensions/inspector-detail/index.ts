@@ -1,0 +1,6 @@
+export type { InspectorDetailAttrs, InspectorDetailOptions } from "./types"
+export { InspectorDetailExtension } from "./extension"
+export { InspectorDetailComponent } from "./component"
+export { INSPECTOR_DETAIL_TYPE, INSPECTOR_DETAIL_MARKER } from "./const"
+export { transformInspectorContent, serializeInspectorContent } from "./transform"
+export { InspectorDetailExtension as default } from "./extension"

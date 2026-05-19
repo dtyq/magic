@@ -4,6 +4,7 @@ import { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { History, MessageCirclePlus, MoreHorizontal, Share2 } from "lucide-react"
 import { useEffect, useRef } from "react"
 import { useTranslation } from "react-i18next"
+import { observer } from "mobx-react-lite"
 
 interface ChatHeaderProps {
 	selectedTopic: Topic | null
@@ -97,4 +98,4 @@ function ChatHeader({
 	)
 }
 
-export default ChatHeader
+export default observer(ChatHeader)

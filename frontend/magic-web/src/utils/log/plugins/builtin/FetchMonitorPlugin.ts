@@ -124,9 +124,9 @@ export class FetchMonitorPlugin implements LoggerPlugin {
 
 			// 请求头获取
 			const headers: Record<string, any> = {}
-				; (init?.headers as Headers)?.forEach?.((v, k) => {
-					headers[k] = v
-				})
+			;(init?.headers as Headers)?.forEach?.((v, k) => {
+				headers[k] = v
+			})
 
 			// 创建请求记录
 			const requestInfo: ApiRequestInfo = {
@@ -150,6 +150,10 @@ export class FetchMonitorPlugin implements LoggerPlugin {
 
 				// 采集业务状态码非异常时
 				try {
+					if (self.isStreamingResponse(requestInfo, response)) {
+						return response
+					}
+
 					// 检查HTTP错误状态码
 					const jsonData = (await UrlUtils.responseParse(response.clone())).data
 					const isBusinessError = jsonData?.code && jsonData?.code !== 1000
@@ -203,6 +207,16 @@ export class FetchMonitorPlugin implements LoggerPlugin {
 			}
 			return pattern.test(url)
 		})
+	}
+
+	private isStreamingResponse(requestInfo: ApiRequestInfo, response: Response): boolean {
+		const requestAccept = String(requestInfo.headers.accept || requestInfo.headers.Accept || "")
+		const responseContentType = response.headers.get("content-type") || ""
+
+		return (
+			requestAccept.toLowerCase().includes("text/event-stream") ||
+			responseContentType.toLowerCase().includes("text/event-stream")
+		)
 	}
 
 	/**

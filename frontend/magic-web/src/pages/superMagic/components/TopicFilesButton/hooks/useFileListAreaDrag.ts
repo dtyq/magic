@@ -13,7 +13,11 @@ interface UseFileListAreaDragOptions {
 	canMoveToRoot?: () => boolean
 	// 新增：外部文件上传支持
 	allowExternalDrop?: boolean
-	onUploadFiles?: (files: File[], targetPath: string, isFolder: boolean) => Promise<void>
+	onUploadFiles?: (
+		files: File[],
+		targetItem: AttachmentItem | undefined,
+		isFolder: boolean,
+	) => Promise<void>
 }
 
 /**

@@ -2,9 +2,14 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { useDebounce, useThrottle } from "ahooks"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { SkillsApi } from "@/apis"
-import type { SkillLastVersionItem, StoreSkillItem } from "@/apis/modules/skills"
+import type {
+	SkillLastVersionItem,
+	SkillPublisherType,
+	StoreSkillItem,
+} from "@/apis/modules/skills"
 import type { CrewI18nText } from "@/apis/modules/crew"
 import { buildCrewI18nText } from "@/apis/modules/crew"
+import { resolveLocalizedText as resolveLocaleText } from "@/utils/locale"
 import { CREW_SKILLS_TAB, type CrewSkillsTab } from "../../../store"
 
 const SKILLS_PANEL_PAGE_SIZE = 20
@@ -19,6 +24,8 @@ export interface SkillPanelItem {
 	id: string
 	/** Store skill code — used for status comparison against agent skill codes */
 	skillCode: string
+	/** Publisher type of the skill */
+	publisher_type?: SkillPublisherType
 	/**
 	 * User's own skill code (populated when skill is in user's library).
 	 * This is the ID that must be passed to updateAgentSkills.
@@ -31,6 +38,7 @@ export interface SkillPanelItem {
 	name: string
 	description: string
 	logo: string
+	sourceType?: SkillLastVersionItem["source_type"]
 	/** Derived in the observer component — not stored here */
 	status: SkillInstallStatus
 }
@@ -88,9 +96,7 @@ function resolveLocalizedText(
 	textObj: Record<string, string> | undefined,
 	language: string,
 ): string {
-	if (!textObj) return ""
-	if (language.startsWith("zh")) return textObj.zh_CN || textObj.en_US || ""
-	return textObj.en_US || textObj.zh_CN || ""
+	return resolveLocaleText(textObj, language)
 }
 
 function mapStoreSkill(item: StoreSkillItem, language: string): SkillPanelItem {
@@ -102,7 +108,9 @@ function mapStoreSkill(item: StoreSkillItem, language: string): SkillPanelItem {
 		name: resolveLocalizedText(item.name_i18n, language),
 		description: resolveLocalizedText(item.description_i18n, language),
 		logo: item.logo,
+		sourceType: undefined,
 		status: "not-installed",
+		publisher_type: item.publisher_type,
 	}
 }
 
@@ -116,7 +124,9 @@ function mapLatestPublishedSkill(item: SkillLastVersionItem, language: string): 
 		description:
 			resolveLocalizedText(item.description_i18n, language) || item.description || "",
 		logo: item.logo,
+		sourceType: item.source_type,
 		status: "not-installed",
+		publisher_type: undefined,
 	}
 }
 

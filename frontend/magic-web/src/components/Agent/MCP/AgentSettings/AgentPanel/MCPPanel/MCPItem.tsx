@@ -7,36 +7,13 @@ import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
 import { useState } from "react"
 import { hasEditRight } from "@/pages/flow/components/AuthControlButton/types"
+import { renderMarkdownLinks } from "../../../renderMarkdownLinks"
 
 interface MCPItemProps {
 	item: IMCPItem
 	selected?: boolean
 	onClick?: (item: IMCPItem) => void
 	onStatusChange?: (item: IMCPItem) => Promise<void>
-}
-
-/** analyzing hyperlink syntax in markdown */
-const parseMarkdownLinks = (text: string, className: string) => {
-	const markdownLinkRegex = /(\[[^\]]+\]\([^)]+\))/g
-	const atrArray = text.split(markdownLinkRegex)
-
-	return atrArray.map((s) => {
-		if (markdownLinkRegex.test(s)) {
-			const match = s.split(/(\[([^\]]+)\]\(([^)]+)\))/g)
-			return (
-				<a
-					key={match[1]}
-					href={match[3]}
-					className={className}
-					target="_blank"
-					rel="noreferrer"
-				>
-					{match[2]}
-				</a>
-			)
-		}
-		return s
-	})
 }
 
 export function MCPItem(props: MCPItemProps) {
@@ -99,10 +76,11 @@ export function MCPItem(props: MCPItemProps) {
 					)}
 				</div>
 				<div className="line-clamp-2 text-xs font-normal leading-4 text-muted-foreground">
-					{parseMarkdownLinks(
-						item?.description || t("mcp.card.desc"),
-						"px-0.5 text-primary hover:text-primary/90",
-					)}
+					{renderMarkdownLinks(item?.description || t("mcp.card.desc"), {
+						linkClassName:
+							"px-0.5 text-primary underline underline-offset-2 hover:text-primary/90",
+						linkTestId: "agent-mcp-panel-item-description-link",
+					})}
 				</div>
 			</div>
 			<div className="mt-2.5 inline-flex shrink-0 items-center">

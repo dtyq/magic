@@ -3,6 +3,7 @@ import type { MouseEvent, ReactNode } from "react"
 import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import MentionPanel from "../index"
+import { defaultMentionPanelCatalogBehavior } from "../catalogBehavior"
 import { MentionItemType } from "../types"
 import type { MentionItem } from "../types"
 
@@ -46,6 +47,23 @@ vi.mock("../hooks/useMentionPanel", () => ({
 			shouldFocusSearch: false,
 			clearFocusTrigger: vi.fn(),
 		},
+	}),
+}))
+
+vi.mock("../runtime/default-runtime", () => ({
+	resolveMentionPanelRuntime: (props: {
+		dataService?: unknown
+		catalogBehavior?: unknown
+		buildStoreRequest?: unknown
+	}) => ({
+		dataService: props.dataService,
+		catalogBehavior: props.catalogBehavior ?? {},
+		buildStoreRequest: props.buildStoreRequest,
+		getItemRenderer: vi.fn(() => ({})),
+		getCatalogHeaderMeta: vi.fn(() => ({
+			hint: null,
+			icon: null,
+		})),
 	}),
 }))
 
@@ -114,17 +132,23 @@ describe("MentionPanel", () => {
 	})
 
 	it("should not render when not visible", () => {
-		const { container } = render(<MentionPanel visible={false} />)
+		const { container } = render(
+			<MentionPanel visible={false} catalogBehavior={defaultMentionPanelCatalogBehavior} />,
+		)
 		expect(container.firstChild).toBeNull()
 	})
 
 	it("should render when visible", () => {
-		const { container } = render(<MentionPanel visible={true} />)
+		const { container } = render(
+			<MentionPanel visible={true} catalogBehavior={defaultMentionPanelCatalogBehavior} />,
+		)
 		expect(container.firstChild).toBeTruthy()
 	})
 
 	it("should render with default props", () => {
-		const { container } = render(<MentionPanel />)
+		const { container } = render(
+			<MentionPanel catalogBehavior={defaultMentionPanelCatalogBehavior} />,
+		)
 		expect(container.firstChild).toBeTruthy()
 	})
 
@@ -138,7 +162,7 @@ describe("MentionPanel", () => {
 			},
 		]
 
-		render(<MentionPanel visible={true} />)
+		render(<MentionPanel visible={true} catalogBehavior={defaultMentionPanelCatalogBehavior} />)
 
 		fireEvent.click(screen.getByTestId("menu-item-arrow-icon"))
 		vi.runAllTimers()

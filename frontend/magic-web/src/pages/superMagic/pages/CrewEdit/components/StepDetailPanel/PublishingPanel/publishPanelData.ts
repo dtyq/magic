@@ -20,6 +20,7 @@ import {
 	resolvePublishAvailability,
 	sanitizeDraftForSubmission,
 } from "@/pages/superMagic/components/PublishPanel/publishAvailability"
+import { resolveLocalizedText } from "@/utils/locale"
 import type { LocaleText } from "@/pages/superMagic/components/MainInputContainer/panels/types"
 import { DEFAULT_LOCALE_KEY } from "@/pages/superMagic/components/MainInputContainer/panels/types"
 import { localeTextToDisplayString } from "@/pages/superMagic/components/MainInputContainer/panels/utils"
@@ -30,12 +31,20 @@ import { hasCrewUnpublishedChanges } from "../../../utils/publish-status"
 const defaultCrewPublishTo = ["INTERNAL", "MARKET"] as const
 const defaultCrewInternalTargets = ["PRIVATE", "MEMBER", "ORGANIZATION"] as const
 
-export function createInitialCrewEditPublishPanelData(): PublishPanelData {
+export function createInitialCrewEditPublishPanelData({
+	canPublishPrivate = true,
+	canPublishTeam = true,
+}: {
+	canPublishPrivate?: boolean
+	canPublishTeam?: boolean
+} = {}): PublishPanelData {
 	const availability = resolvePublishAvailability({
 		publishType: null,
 		allowedPublishTargetTypes: [],
 		fallbackPublishTo: [...defaultCrewPublishTo],
 		fallbackInternalTargets: [...defaultCrewInternalTargets],
+		canPublishPrivate,
+		canPublishTeam,
 	})
 
 	return {
@@ -59,16 +68,22 @@ export function createCrewEditPublishPanelData({
 	agentDetail,
 	versions,
 	locale,
+	canPublishPrivate = true,
+	canPublishTeam = true,
 }: {
 	agentDetail: AgentDetailResponse
 	versions: AgentVersionItem[]
 	locale: string
+	canPublishPrivate?: boolean
+	canPublishTeam?: boolean
 }): PublishPanelData {
 	const availability = resolvePublishAvailability({
 		publishType: agentDetail.publish_type,
 		allowedPublishTargetTypes: agentDetail.allowed_publish_target_types,
 		fallbackPublishTo: [...defaultCrewPublishTo],
 		fallbackInternalTargets: [...defaultCrewInternalTargets],
+		canPublishPrivate,
+		canPublishTeam,
 	})
 
 	return {
@@ -180,32 +195,20 @@ function mapPublishTargetValueToMembers(
 }
 
 function resolveCrewI18nText(text: CrewI18nText | null | undefined, locale: string): string {
-	if (!text) return ""
-	const lang = locale?.toLowerCase() ?? "en"
-	const preferredKeys = lang.startsWith("zh")
-		? ["zh_CN", "zh", "en_US", "en"]
-		: ["en_US", "en", "zh_CN", "zh"]
-
-	for (const key of preferredKeys) {
-		const value = text[key]
-		if (value) return value
-	}
-
-	if (text.default) return text.default
-
-	return Object.values(text).find(Boolean) ?? ""
+	return resolveLocalizedText(text, locale)
 }
 
 function mapAgentVersionStatus(version: AgentVersionItem): PublishRecordStatus {
 	if (version.publish_status === "PUBLISHED") return "published"
 	if (version.review_status === "REJECTED") return "rejected"
+	if (version.review_status === "INVALIDATED") return "invalidated"
 	return "under_review"
 }
 
 function deriveMarketReviewProgress(version: AgentVersionItem): PublishReviewProgress | undefined {
 	if (version.publish_target_type !== "MARKET") return undefined
 
-	if (version.review_status === "REJECTED") {
+	if (version.review_status === "REJECTED" || version.review_status === "INVALIDATED") {
 		return {
 			submit: "done",
 			review: "done",

@@ -257,7 +257,7 @@ const constrainBoundaries = () => {
 
 ## 注意事项
 
-1. 需要在应用根组件中添加 `MobileImagePreviewProvider`（已自动添加）
+1. 需要在 Super 路由根布局中添加 `MobileImagePreviewProvider`（已自动添加）
 2. 仅在移动端生效，桌面端不显示
 3. 使用 `createPortal` 渲染，确保在所有内容之上显示
 4. 自动处理图片加载状态和错误

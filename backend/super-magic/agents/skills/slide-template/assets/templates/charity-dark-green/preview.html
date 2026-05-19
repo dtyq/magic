@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Deep Sea Green Light v2 — Template Preview</title>
+<link rel="stylesheet" href="theme.css"/>
+<style>
+/* ── Preview page global reset ── */
+html, body {
+  width: auto !important; height: auto !important;
+  overflow: visible !important;
+  background: #010b14 !important;
+  font-family: 'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
+  margin: 0; padding: 0; color: #b8d4cc;
+}
+.preview-root { max-width: 1160px; margin: 0 auto; padding: 48px 40px 80px; }
+
+/* ── Page header ── */
+.pg-header { margin-bottom: 48px; padding-bottom: 32px; border-bottom: 1px solid rgba(45,212,160,0.15); }
+.pg-title { font-size: 38px; font-weight: 800; color: #f0f7f4; margin: 0 0 10px; letter-spacing: -0.5px; }
+.pg-title em { font-style: normal; background: linear-gradient(135deg,#2dd4a0,#0ea5c9); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.pg-subtitle { font-size: 15px; color: #6b9e8f; }
+.pg-meta { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.pg-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 14px;
+  background: rgba(45,212,160,0.1); border: 1px solid rgba(45,212,160,0.3);
+  color: #5eead4; border-radius: 9999px; font-size: 13px; font-weight: 600;
+}
+
+/* ── Section title ── */
+.section { margin-bottom: 44px; }
+.section-title {
+  font-size: 12px; font-weight: 800; color: #2dd4a0;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 20px;
+}
+.section-title::before {
+  content: ''; display: block;
+  width: 20px; height: 2px;
+  background: linear-gradient(90deg,#2dd4a0,#0ea5c9);
+  border-radius: 1px;
+}
+.section-title::after {
+  content: ''; flex: 1; height: 1px;
+  background: rgba(45,212,160,0.1);
+}
+
+/* ── Color swatches ── */
+.swatches { display: flex; flex-wrap: wrap; gap: 14px; }
+.swatch-group { display: flex; gap: 10px; align-items: flex-start; }
+.swatch-sep { width: 1px; background: rgba(255,255,255,0.06); margin: 0 6px; align-self: stretch; }
+.swatch-item { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.swatch { width: 56px; height: 56px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
+.swatch-hex { font-size: 10.5px; color: #6b9e8f; font-family: monospace; }
+.swatch-name { font-size: 10.5px; color: #3d6b5e; text-align: center; max-width: 56px; }
+
+/* ── Layout thumbnail grid ── */
+.slides-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.slide-wrap { min-width: 0; }
+.slide-label { font-size: 11px; color: #3d6b5e; margin-bottom: 7px; text-transform: uppercase; letter-spacing: 0.06em; }
+.slide {
+  width: 100%; aspect-ratio: 16/9; position: relative; overflow: hidden;
+  border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);
+  background: #010b14; box-sizing: border-box;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+/* ── Component showcase area ── */
+.components-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.comp-cell {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px; padding: 20px;
+}
+.comp-cell-title { font-size: 11px; color: #3d6b5e; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 14px; }
+
+/* ── Interaction demo area ── */
+.demo-area {
+  background: rgba(7,21,32,0.8);
+  border: 1px solid rgba(45,212,160,0.15);
+  border-radius: 12px; padding: 28px;
+  position: relative; overflow: hidden;
+}
+.demo-area::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(45,212,160,0.4), transparent);
+}
+
+/* ── Progress bar demo ── */
+.prog-track {
+  height: 8px; background: rgba(255,255,255,0.06);
+  border-radius: 9999px; overflow: hidden; margin-bottom: 4px;
+}
+.prog-bar {
+  height: 100%; border-radius: 9999px;
+  background: linear-gradient(90deg, #2dd4a0, #0ea5c9);
+  position: relative; transition: width 0.6s ease;
+}
+.prog-bar::after {
+  content: ''; position: absolute; right: 0; top: 50%;
+  transform: translateY(-50%);
+  width: 10px; height: 10px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 6px rgba(45,212,160,0.6);
+}
+
+/* ── Timeline demo ── */
+.tl-wrap { position: relative; padding-left: 28px; }
+.tl-wrap::before {
+  content: ''; position: absolute; left: 7px; top: 0; bottom: 0; width: 2px;
+  background: linear-gradient(180deg, #2dd4a0, #0ea5c9);
+  opacity: 0.35;
+}
+.tl-item { position: relative; margin-bottom: 16px; }
+.tl-dot {
+  position: absolute; left: -24px; top: 3px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: linear-gradient(135deg, #2dd4a0, #0ea5c9);
+  box-shadow: 0 0 8px rgba(45,212,160,0.5);
+}
+.tl-time { font-size: 11px; color: #2dd4a0; font-weight: 700; margin-bottom: 2px; }
+.tl-title { font-size: 13px; font-weight: 700; color: #f0f7f4; margin-bottom: 2px; }
+.tl-desc { font-size: 11.5px; color: #6b9e8f; line-height: 1.5; }
+
+/* ── Step flow demo ── */
+.step-flow-demo { display: flex; gap: 0; }
+.step-demo {
+  flex: 1; padding: 12px 10px; text-align: center;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  position: relative;
+}
+.step-demo:first-child { border-radius: 8px 0 0 8px; }
+.step-demo:last-child  { border-radius: 0 8px 8px 0; }
+.step-demo.active {
+  background: rgba(45,212,160,0.08);
+  border-color: rgba(45,212,160,0.35);
+}
+.step-demo-arr {
+  position: absolute; right: -8px; top: 50%; transform: translateY(-50%);
+  width: 0; height: 0;
+  border-top: 8px solid transparent; border-bottom: 8px solid transparent;
+  border-left: 8px solid rgba(45,212,160,0.25);
+  z-index: 2;
+}
+.step-demo-num { font-size: 10px; font-weight: 700; color: #2dd4a0; margin-bottom: 4px; }
+.step-demo-title { font-size: 12px; font-weight: 700; color: #f0f7f4; }
+
+/* ── Code block demo ── */
+.code-demo {
+  background: rgba(1,11,20,0.9); border: 1px solid rgba(45,212,160,0.18);
+  border-radius: 8px; padding: 16px; font-family: 'Consolas','Courier New',monospace;
+  font-size: 12px; line-height: 1.7; position: relative; overflow: hidden;
+}
+.code-demo::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, #2dd4a0, transparent);
+}
+.c-kw { color: #0ea5c9; }
+.c-fn { color: #5eead4; }
+.c-str { color: #a7f3d0; }
+.c-cm { color: #3d6b5e; font-style: italic; }
+.c-num { color: #d4af6a; }
+
+/* ── Quote block demo ── */
+.quote-demo {
+  border-left: 3px solid #2dd4a0;
+  padding: 14px 18px;
+  background: rgba(45,212,160,0.04);
+  border-radius: 0 8px 8px 0;
+  position: relative;
+}
+.quote-demo::before {
+  content: '"'; position: absolute; top: -8px; left: 12px;
+  font-size: 48px; line-height: 1;
+  background: linear-gradient(135deg,#2dd4a0,#0ea5c9);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  opacity: 0.3; font-family: Georgia, serif;
+}
+.quote-text-demo { font-size: 13px; color: #b8d4cc; line-height: 1.7; font-style: italic; }
+.quote-author-demo { font-size: 12px; color: #2dd4a0; margin-top: 8px; font-weight: 700; }
+
+/* ── Table demo ── */
+.table-demo { width: 100%; border-collapse: collapse; font-size: 12px; }
+.table-demo th {
+  background: rgba(45,212,160,0.1); color: #2dd4a0; font-weight: 700;
+  padding: 10px 12px; text-align: left; border-bottom: 1px solid rgba(45,212,160,0.3);
+}
+.table-demo td { padding: 9px 12px; color: #b8d4cc; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.table-demo tr:last-child td { border-bottom: none; }
+
+/* ── KPI demo ── */
+.kpi-demo {
+  background: rgba(255,255,255,0.04); backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+  padding: 16px 20px; text-align: center; position: relative; overflow: hidden;
+}
+.kpi-demo::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, #2dd4a0, #0ea5c9);
+}
+.kpi-num-demo {
+  font-size: 38px; font-weight: 900; line-height: 1;
+  background: linear-gradient(135deg,#2dd4a0,#0ea5c9);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.kpi-num-gold {
+  font-size: 38px; font-weight: 900; line-height: 1;
+  background: linear-gradient(135deg,#d4af6a,#f0d090);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.kpi-lbl-demo { font-size: 11px; color: #6b9e8f; margin-top: 5px; }
+.kpi-trend-demo { font-size: 11px; color: #2dd4a0; margin-top: 3px; }
+
+/* ── Badge demo ── */
+.badge-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.bdg {
+  display: inline-flex; align-items: center; padding: 4px 12px;
+  border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+}
+.bdg-g { background: rgba(45,212,160,0.15); color: #2dd4a0; border: 1px solid rgba(45,212,160,0.35); }
+.bdg-c { background: rgba(14,165,201,0.15); color: #0ea5c9; border: 1px solid rgba(14,165,201,0.3); }
+.bdg-gold { background: rgba(212,175,106,0.15); color: #d4af6a; border: 1px solid rgba(212,175,106,0.3); }
+.bdg-m { background: rgba(255,255,255,0.06); color: #6b9e8f; border: 1px solid rgba(255,255,255,0.1); }
+
+/* ── Color upgrade comparison ── */
+.color-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.cc-card {
+  border-radius: 8px; padding: 14px 16px;
+  border: 1px solid rgba(255,255,255,0.07);
+}
+.cc-old { background: rgba(255,255,255,0.02); }
+.cc-new { background: rgba(45,212,160,0.05); border-color: rgba(45,212,160,0.2); }
+.cc-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; margin-bottom: 10px; }
+.cc-label-old { color: #3d6b5e; }
+.cc-label-new { color: #2dd4a0; }
+.cc-swatch-row { display: flex; gap: 6px; }
+.cc-swatch { width: 32px; height: 32px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); }
+.cc-hex { font-size: 10px; color: #3d6b5e; font-family: monospace; margin-top: 3px; text-align: center; }
+
+/* ── Responsive scroll hint ── */
+.scroll-hint { font-size: 12px; color: #3d6b5e; text-align: center; margin-top: 48px; }
+</style>
+</head>
+<body>
+<div class="preview-root">
+
+<!-- ══════════════════════════════════════
+     Page Header
+     ══════════════════════════════════════ -->
+<div class="pg-header">
+  <div class="pg-title">Deep Sea Green Light · <em>Charity Dark Green</em> <span style="font-size:22px;font-weight:400;color:#3d6b5e;">v2.0</span></div>
+  <div class="pg-subtitle">For charity reporting · NGO enablement · Social impact showcases · Charity tech sharing</div>
+  <div class="pg-meta">
+    <span class="pg-tag">🌿 Jade Green #2DD4A0</span>
+    <span class="pg-tag">🌊 Dark Jade Cyan #0EA5C9</span>
+    <span class="pg-tag">✨ Gold Accent #D4AF6A</span>
+    <span class="pg-tag">🌑 Abyss Ink Base #010B14</span>
+    <span class="pg-tag">💎 Glassmorphism + Grid Texture</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     Color System
+     ══════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Color System</div>
+
+  <!-- Color upgrade comparison -->
+  <div class="color-compare" style="margin-bottom:20px;">
+    <div class="cc-card cc-old">
+      <div class="cc-label cc-label-old">▸ v1 Old Palette (strong fluorescent feel)</div>
+      <div class="cc-swatch-row">
+        <div style="text-align:center"><div class="cc-swatch" style="background:#020617;"></div><div class="cc-hex">#020617</div></div>
+        <div style="text-align:center"><div class="cc-swatch" style="background:#4ade80;"></div><div class="cc-hex">#4ADE80</div></div>
+        <div style="text-align:center"><div class="cc-swatch" style="background:#22d3ee;"></div><div class="cc-hex">#22D3EE</div></div>
+        <div style="text-align:center"><div class="cc-swatch" style="background:#86efac;"></div><div class="cc-hex">#86EFAC</div></div>
+      </div>
+    </div>
+    <div class="cc-card cc-new">
+      <div class="cc-label cc-label-new">▸ v2 New Palette (deep premium feel)</div>
+      <div class="cc-swatch-row">
+        <div style="text-align:center"><div class="cc-swatch" style="background:#010b14;"></div><div class="cc-hex">#010B14</div></div>
+        <div style="text-align:center"><div class="cc-swatch" style="background:#2dd4a0;"></div><div class="cc-hex">#2DD4A0</div></div>
+        <div style="text-align:center"><div class="cc-swatch" style="background:#0ea5c9;"></div><div class="cc-hex">#0EA5C9</div></div>
+        <div style="text-align:center"><div class="cc-swatch" style="background:#d4af6a;"></div><div class="cc-hex">#D4AF6A</div></div>
+        <div style="text-align:center"><div class="cc-swatch" style="background:#5eead4;"></div><div class="cc-hex">#5EEAD4</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="swatches">
+    <div class="swatch-group">
+      <div class="swatch-item"><span class="swatch" style="background:#010b14;"></span><span class="swatch-hex">#010B14</span><span class="swatch-name">Abyss Ink Base</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#071520;"></span><span class="swatch-hex">#071520</span><span class="swatch-name">Secondary BG</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#0c1f30;"></span><span class="swatch-hex">#0C1F30</span><span class="swatch-name">Card Base</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);"></span><span class="swatch-hex">glass</span><span class="swatch-name">Glass Card</span></div>
+    </div>
+    <div class="swatch-sep"></div>
+    <div class="swatch-group">
+      <div class="swatch-item"><span class="swatch" style="background:#2dd4a0;"></span><span class="swatch-hex">#2DD4A0</span><span class="swatch-name">Jade Green</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#1aaf80;"></span><span class="swatch-hex">#1AAF80</span><span class="swatch-name">Deep Jade</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#5eead4;"></span><span class="swatch-hex">#5EEAD4</span><span class="swatch-name">Light Aqua</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#0ea5c9;"></span><span class="swatch-hex">#0EA5C9</span><span class="swatch-name">Dark Jade Cyan</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#d4af6a;"></span><span class="swatch-hex">#D4AF6A</span><span class="swatch-name">Gold Accent</span></div>
+    </div>
+    <div class="swatch-sep"></div>
+    <div class="swatch-group">
+      <div class="swatch-item"><span class="swatch" style="background:#f0f7f4;"></span><span class="swatch-hex">#F0F7F4</span><span class="swatch-name">Primary Text</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#b8d4cc;"></span><span class="swatch-hex">#B8D4CC</span><span class="swatch-name">Secondary Text</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#6b9e8f;"></span><span class="swatch-hex">#6B9E8F</span><span class="swatch-name">Muted Text</span></div>
+      <div class="swatch-item"><span class="swatch" style="background:#3d6b5e;"></span><span class="swatch-hex">#3D6B5E</span><span class="swatch-name">Faint Text</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     8 Layout Page Thumbnails
+     ══════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">8 Dedicated Layout Types</div>
+  <div class="slides-grid">
+
+    <!-- ① Cover page -->
+    <div class="slide-wrap">
+      <div class="slide-label">① Cover Page</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 70% 20%, rgba(45,212,160,0.08) 0%, transparent 60%), radial-gradient(ellipse at 20% 80%, rgba(14,165,201,0.06) 0%, transparent 50%), #010b14;"></div>
+        <!-- Grid texture -->
+        <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(45,212,160,0.025) 1px, transparent 1px),linear-gradient(90deg, rgba(45,212,160,0.025) 1px, transparent 1px);background-size:24px 24px;z-index:0;"></div>
+        <!-- Glow -->
+        <div style="position:absolute;top:-60px;right:-60px;width:180px;height:180px;border-radius:50%;background:rgba(45,212,160,0.08);filter:blur(50px);"></div>
+        <div style="position:absolute;bottom:-40px;left:-40px;width:140px;height:140px;border-radius:50%;background:rgba(14,165,201,0.06);filter:blur(40px);"></div>
+        <!-- Left gradient overlay -->
+        <div style="position:absolute;top:0;left:0;width:65%;height:100%;background:linear-gradient(90deg, rgba(1,11,20,0.92) 0%, rgba(1,11,20,0.7) 50%, rgba(1,11,20,0) 100%);z-index:1;"></div>
+        <!-- Logo -->
+        <div style="position:absolute;top:8px;right:10px;padding:4px 10px;background:rgba(255,255,255,0.07);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12);border-radius:20px;display:flex;align-items:center;gap:4px;z-index:10;">
+          <div style="width:5px;height:5px;border-radius:50%;background:#2dd4a0;"></div>
+          <span style="font-size:5px;color:#f0f7f4;font-weight:700;">公益品牌</span>
+        </div>
+        <!-- Content -->
+        <div style="position:absolute;left:12px;top:50%;transform:translateY(-50%);z-index:5;">
+          <div style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(45,212,160,0.12);border:1px solid rgba(45,212,160,0.35);border-radius:20px;margin-bottom:5px;">
+            <span style="font-size:4px;color:#5eead4;font-weight:700;letter-spacing:0.1em;">让善意拥有超级魔法</span>
+          </div>
+          <div style="font-size:18px;font-weight:900;line-height:1;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:3px;">深海绿光</div>
+          <div style="font-size:6px;color:#b8d4cc;font-weight:300;margin-bottom:6px;">公益生态圈赋能探讨 · 2025</div>
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <div style="background:rgba(7,21,32,0.7);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.08);border-radius:3px;padding:3px 5px;display:flex;gap:3px;align-items:center;">
+              <div style="width:8px;height:8px;border-radius:2px;background:rgba(45,212,160,0.2);border:1px solid rgba(45,212,160,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:4px;color:#2dd4a0;">✦</div>
+              <span style="font-size:4.5px;color:#b8d4cc;">智能录音总结</span>
+            </div>
+            <div style="background:rgba(7,21,32,0.7);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.08);border-radius:3px;padding:3px 5px;display:flex;gap:3px;align-items:center;">
+              <div style="width:8px;height:8px;border-radius:2px;background:rgba(14,165,201,0.2);border:1px solid rgba(14,165,201,0.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:4px;color:#0ea5c9;">✦</div>
+              <span style="font-size:4.5px;color:#b8d4cc;">数据可视化看板</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② Core value page -->
+    <div class="slide-wrap">
+      <div class="slide-label">② Core Value</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 80% 10%, rgba(45,212,160,0.07) 0%, transparent 55%), #010b14;"></div>
+        <!-- Header -->
+        <div style="position:absolute;top:0;left:0;right:0;height:11%;background:rgba(1,11,20,0.7);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;padding:0 10px;">
+          <div style="font-size:7px;font-weight:700;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">AI 赋能公益核心价值</div>
+        </div>
+        <!-- Content -->
+        <div style="position:absolute;top:11%;bottom:9%;left:0;right:0;display:flex;gap:5px;padding:7px 10px;">
+          <div style="flex:45%;display:flex;flex-direction:column;justify-content:center;gap:4px;">
+            <div style="width:16px;height:2px;background:linear-gradient(90deg,#2dd4a0,#0ea5c9);border-radius:1px;margin-bottom:2px;"></div>
+            <div style="font-size:9px;font-weight:700;color:#f0f7f4;margin-bottom:4px;">三大赋能方向</div>
+            <div style="display:flex;gap:3px;align-items:center;"><div style="width:6px;height:6px;border-radius:50%;background:#2dd4a0;box-shadow:0 0 4px rgba(45,212,160,0.5);flex-shrink:0;"></div><div style="font-size:5px;color:#b8d4cc;">录音总结智能化</div></div>
+            <div style="display:flex;gap:3px;align-items:center;"><div style="width:6px;height:6px;border-radius:50%;background:#0ea5c9;box-shadow:0 0 4px rgba(14,165,201,0.5);flex-shrink:0;"></div><div style="font-size:5px;color:#b8d4cc;">数据分析可视化</div></div>
+            <div style="display:flex;gap:3px;align-items:center;"><div style="width:6px;height:6px;border-radius:50%;background:#2dd4a0;box-shadow:0 0 4px rgba(45,212,160,0.5);flex-shrink:0;"></div><div style="font-size:5px;color:#b8d4cc;">内容创作设计</div></div>
+          </div>
+          <div style="flex:55%;background:rgba(45,212,160,0.05);border:1px solid rgba(45,212,160,0.2);border-radius:4px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(45,212,160,0.06);">
+            <span style="font-size:5.5px;color:#3d6b5e;">产品截图 / 图表</span>
+          </div>
+        </div>
+        <!-- Footer -->
+        <div style="position:absolute;bottom:0;left:0;right:0;height:9%;background:rgba(1,11,20,0.5);border-top:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:5px;color:#3d6b5e;">公益品牌</span><span style="font-size:5px;color:#3d6b5e;">5 / 25</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ Case study page -->
+    <div class="slide-wrap">
+      <div class="slide-label">③ Case Study</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;background:#010b14;"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:11%;background:rgba(1,11,20,0.7);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;padding:0 10px;">
+          <div style="font-size:7px;font-weight:700;color:#f0f7f4;">公益内容创作案例</div>
+        </div>
+        <div style="position:absolute;top:11%;bottom:9%;left:0;right:0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;padding:6px 8px;">
+          <div style="background:rgba(255,255,255,0.04);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.08);border-radius:3px;padding:4px;display:flex;flex-direction:column;gap:2px;">
+            <div style="height:38%;background:rgba(45,212,160,0.1);border-radius:2px;border:1px solid rgba(45,212,160,0.15);"></div>
+            <div style="display:inline-flex;padding:1px 5px;background:rgba(45,212,160,0.12);border:1px solid rgba(45,212,160,0.3);border-radius:2px;font-size:3.5px;color:#2dd4a0;font-weight:700;">公益</div>
+            <div style="font-size:5px;font-weight:700;color:#f0f7f4;">TNR 封面设计</div>
+            <div style="font-size:4px;color:#6b9e8f;">波普艺术风格</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.08);border-radius:3px;padding:4px;display:flex;flex-direction:column;gap:2px;">
+            <div style="height:38%;background:rgba(14,165,201,0.1);border-radius:2px;border:1px solid rgba(14,165,201,0.15);"></div>
+            <div style="display:inline-flex;padding:1px 5px;background:rgba(14,165,201,0.12);border:1px solid rgba(14,165,201,0.3);border-radius:2px;font-size:3.5px;color:#0ea5c9;font-weight:700;">数据</div>
+            <div style="font-size:5px;font-weight:700;color:#f0f7f4;">助学金看板</div>
+            <div style="font-size:4px;color:#6b9e8f;">数据可视化</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,0.08);border-radius:3px;padding:4px;display:flex;flex-direction:column;gap:2px;">
+            <div style="height:38%;background:rgba(212,175,106,0.08);border-radius:2px;border:1px solid rgba(212,175,106,0.15);"></div>
+            <div style="display:inline-flex;padding:1px 5px;background:rgba(212,175,106,0.12);border:1px solid rgba(212,175,106,0.3);border-radius:2px;font-size:3.5px;color:#d4af6a;font-weight:700;">报告</div>
+            <div style="font-size:5px;font-weight:700;color:#f0f7f4;">录音纪要</div>
+            <div style="font-size:4px;color:#6b9e8f;">智能总结</div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:9%;background:rgba(1,11,20,0.5);border-top:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:5px;color:#3d6b5e;">公益品牌</span><span style="font-size:5px;color:#3d6b5e;">10 / 25</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ④ Dashboard page -->
+    <div class="slide-wrap">
+      <div class="slide-label">④ Dashboard</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;background:#010b14;"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:11%;background:rgba(1,11,20,0.7);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;padding:0 10px;">
+          <div style="font-size:7px;font-weight:700;color:#f0f7f4;">筑梦助学金数据看板</div>
+        </div>
+        <div style="position:absolute;top:11%;bottom:9%;left:0;right:0;display:flex;gap:4px;padding:6px 8px;">
+          <div style="flex:60%;background:rgba(45,212,160,0.04);border:1px solid rgba(45,212,160,0.15);border-radius:3px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px rgba(45,212,160,0.06);">
+            <span style="font-size:5px;color:#3d6b5e;">ECharts 图表区</span>
+          </div>
+          <div style="flex:40%;display:flex;flex-direction:column;gap:3px;">
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:3px;padding:5px;text-align:center;position:relative;overflow:hidden;">
+              <div style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#2dd4a0,#0ea5c9);"></div>
+              <div style="font-size:15px;font-weight:900;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;">128</div>
+              <div style="font-size:4.5px;color:#6b9e8f;margin-top:2px;">受助学生</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:3px;padding:5px;text-align:center;position:relative;overflow:hidden;">
+              <div style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#d4af6a,#f0d090);"></div>
+              <div style="font-size:15px;font-weight:900;background:linear-gradient(135deg,#d4af6a,#f0d090);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;">92%</div>
+              <div style="font-size:4.5px;color:#6b9e8f;margin-top:2px;">资金使用率</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:3px;padding:5px;text-align:center;position:relative;overflow:hidden;">
+              <div style="position:absolute;top:0;left:0;right:0;height:1.5px;background:linear-gradient(90deg,#2dd4a0,#0ea5c9);"></div>
+              <div style="font-size:15px;font-weight:900;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;">↑38%</div>
+              <div style="font-size:4.5px;color:#6b9e8f;margin-top:2px;">同比增长</div>
+            </div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:9%;background:rgba(1,11,20,0.5);border-top:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:5px;color:#3d6b5e;">公益品牌</span><span style="font-size:5px;color:#3d6b5e;">14 / 25</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑤ Comparison page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑤ Comparison</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;background:#010b14;"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:11%;background:rgba(1,11,20,0.7);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;padding:0 10px;">
+          <div style="font-size:7px;font-weight:700;color:#f0f7f4;">AI 赋能前后对比</div>
+        </div>
+        <div style="position:absolute;top:11%;bottom:9%;left:0;right:0;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px 8px;">
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:5px;">
+            <div style="display:inline-flex;padding:2px 6px;background:rgba(255,255,255,0.06);border-radius:2px;margin-bottom:4px;">
+              <span style="font-size:5px;font-weight:700;color:#6b9e8f;">Before AI</span>
+            </div>
+            <div style="font-size:4.5px;color:#6b9e8f;line-height:1.7;">· 手动整理会议记录<br>· 数据分析耗时数天<br>· 内容制作专业门槛高<br>· 报告制作周期长</div>
+          </div>
+          <div style="background:rgba(45,212,160,0.06);border:1px solid rgba(45,212,160,0.3);border-radius:3px;padding:5px;box-shadow:0 0 12px rgba(45,212,160,0.07);">
+            <div style="display:inline-flex;padding:2px 6px;background:rgba(45,212,160,0.15);border-radius:2px;margin-bottom:4px;">
+              <span style="font-size:5px;font-weight:700;color:#2dd4a0;">After AI ✓</span>
+            </div>
+            <div style="font-size:4.5px;color:#b8d4cc;line-height:1.7;">· 自动生成结构化纪要<br>· 实时数据看板<br>· 一键生成专业内容<br>· 效率提升 10 倍</div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:9%;background:rgba(1,11,20,0.5);border-top:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:5px;color:#3d6b5e;">公益品牌</span><span style="font-size:5px;color:#3d6b5e;">8 / 25</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑥ Feature matrix page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑥ Features</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;background:#010b14;"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:11%;background:rgba(1,11,20,0.7);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;padding:0 10px;">
+          <div style="font-size:7px;font-weight:700;color:#f0f7f4;">超级麦吉能力矩阵</div>
+        </div>
+        <div style="position:absolute;top:11%;bottom:9%;left:0;right:0;display:flex;gap:5px;padding:6px 8px;">
+          <div style="flex:36%;display:flex;flex-direction:column;justify-content:center;gap:3px;">
+            <div style="width:14px;height:2px;background:linear-gradient(90deg,#2dd4a0,#0ea5c9);border-radius:1px;margin-bottom:2px;"></div>
+            <div style="font-size:8px;font-weight:700;color:#f0f7f4;line-height:1.2;">AI 赋能<br>公益生态</div>
+            <div style="font-size:4.5px;color:#6b9e8f;line-height:1.5;margin-top:2px;">让每个公益组织都能<br>拥有超级魔法</div>
+            <div style="display:inline-flex;align-items:center;padding:2px 6px;background:rgba(45,212,160,0.12);border:1px solid rgba(45,212,160,0.35);border-radius:10px;margin-top:3px;">
+              <span style="font-size:4px;color:#5eead4;font-weight:700;">✦ 免费开放</span>
+            </div>
+          </div>
+          <div style="flex:64%;display:grid;grid-template-columns:1fr 1fr;gap:3px;">
+            <div style="background:rgba(7,21,32,0.8);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:4px;display:flex;gap:3px;align-items:center;">
+              <div style="width:12px;height:12px;border-radius:2px;background:rgba(45,212,160,0.15);border:1px solid rgba(45,212,160,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:6px;">📝</div>
+              <div style="font-size:4.5px;color:#b8d4cc;">录音智能总结</div>
+            </div>
+            <div style="background:rgba(7,21,32,0.8);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:4px;display:flex;gap:3px;align-items:center;">
+              <div style="width:12px;height:12px;border-radius:2px;background:rgba(14,165,201,0.15);border:1px solid rgba(14,165,201,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:6px;">📊</div>
+              <div style="font-size:4.5px;color:#b8d4cc;">数据分析看板</div>
+            </div>
+            <div style="background:rgba(7,21,32,0.8);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:4px;display:flex;gap:3px;align-items:center;">
+              <div style="width:12px;height:12px;border-radius:2px;background:rgba(45,212,160,0.15);border:1px solid rgba(45,212,160,0.35);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:6px;">🎨</div>
+              <div style="font-size:4.5px;color:#b8d4cc;">设计内容创作</div>
+            </div>
+            <div style="background:rgba(7,21,32,0.8);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:4px;display:flex;gap:3px;align-items:center;">
+              <div style="width:12px;height:12px;border-radius:2px;background:rgba(212,175,106,0.15);border:1px solid rgba(212,175,106,0.3);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:6px;">🤖</div>
+              <div style="font-size:4.5px;color:#b8d4cc;">AI 应用开发</div>
+            </div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:9%;background:rgba(1,11,20,0.5);border-top:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:5px;color:#3d6b5e;">公益品牌</span><span style="font-size:5px;color:#3d6b5e;">18 / 25</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑦ Timeline/process page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑦ Timeline</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;background:#010b14;"></div>
+        <div style="position:absolute;top:0;left:0;right:0;height:11%;background:rgba(1,11,20,0.7);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;padding:0 10px;">
+          <div style="font-size:7px;font-weight:700;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">公益赋能历程</div>
+        </div>
+        <div style="position:absolute;top:11%;bottom:9%;left:0;right:0;display:flex;gap:5px;padding:6px 8px;">
+          <!-- Timeline -->
+          <div style="flex:42%;position:relative;padding-left:16px;">
+            <div style="position:absolute;left:6px;top:0;bottom:0;width:1.5px;background:linear-gradient(180deg,#2dd4a0,#0ea5c9);opacity:0.35;"></div>
+            <div style="position:relative;margin-bottom:8px;">
+              <div style="position:absolute;left:-13px;top:2px;width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);box-shadow:0 0 5px rgba(45,212,160,0.5);"></div>
+              <div style="font-size:4px;color:#2dd4a0;font-weight:700;margin-bottom:1px;">2023.01</div>
+              <div style="font-size:5px;font-weight:700;color:#f0f7f4;">项目启动</div>
+              <div style="font-size:4px;color:#6b9e8f;">公益 AI 赋能探索</div>
+            </div>
+            <div style="position:relative;margin-bottom:8px;">
+              <div style="position:absolute;left:-13px;top:2px;width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);box-shadow:0 0 5px rgba(45,212,160,0.5);"></div>
+              <div style="font-size:4px;color:#2dd4a0;font-weight:700;margin-bottom:1px;">2023.06</div>
+              <div style="font-size:5px;font-weight:700;color:#f0f7f4;">首批合作</div>
+              <div style="font-size:4px;color:#6b9e8f;">5 家公益组织接入</div>
+            </div>
+            <div style="position:relative;">
+              <div style="position:absolute;left:-13px;top:2px;width:7px;height:7px;border-radius:50%;background:linear-gradient(135deg,#d4af6a,#f0d090);box-shadow:0 0 5px rgba(212,175,106,0.5);"></div>
+              <div style="font-size:4px;color:#d4af6a;font-weight:700;margin-bottom:1px;">2025.01</div>
+              <div style="font-size:5px;font-weight:700;color:#f0f7f4;">全面开放</div>
+              <div style="font-size:4px;color:#6b9e8f;">50+ 组织受益</div>
+            </div>
+          </div>
+          <!-- Quote block -->
+          <div style="flex:58%;background:rgba(45,212,160,0.04);border-left:2px solid #2dd4a0;border-radius:0 4px 4px 0;padding:6px 8px;position:relative;">
+            <div style="position:absolute;top:-3px;left:8px;font-size:20px;line-height:1;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;opacity:0.25;font-family:Georgia,serif;">"</div>
+            <div style="font-size:5px;color:#b8d4cc;line-height:1.7;font-style:italic;margin-top:6px;">AI 让我们用更少的时间做更多有意义的事，把精力真正放在改变世界上。</div>
+            <div style="font-size:4.5px;color:#2dd4a0;font-weight:700;margin-top:5px;">— 公益组织负责人</div>
+          </div>
+        </div>
+        <div style="position:absolute;bottom:0;left:0;right:0;height:9%;background:rgba(1,11,20,0.5);border-top:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;padding:0 10px;justify-content:space-between;">
+          <span style="font-size:5px;color:#3d6b5e;">公益品牌</span><span style="font-size:5px;color:#3d6b5e;">20 / 25</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⑧ Closing page -->
+    <div class="slide-wrap">
+      <div class="slide-label">⑧ Closing</div>
+      <div class="slide">
+        <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 40%, rgba(45,212,160,0.08) 0%, transparent 60%), radial-gradient(ellipse at 80% 80%, rgba(212,175,106,0.05) 0%, transparent 50%), #010b14;"></div>
+        <!-- Grid texture -->
+        <div style="position:absolute;inset:0;background-image:linear-gradient(rgba(45,212,160,0.02) 1px, transparent 1px),linear-gradient(90deg, rgba(45,212,160,0.02) 1px, transparent 1px);background-size:20px 20px;"></div>
+        <div style="position:absolute;top:-50px;right:-50px;width:140px;height:140px;border-radius:50%;background:rgba(45,212,160,0.08);filter:blur(40px);"></div>
+        <div style="position:absolute;bottom:-30px;left:-30px;width:110px;height:110px;border-radius:50%;background:rgba(14,165,201,0.06);filter:blur(35px);"></div>
+        <div style="position:absolute;bottom:30px;right:30px;width:80px;height:80px;border-radius:50%;background:rgba(212,175,106,0.04);filter:blur(25px);"></div>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px;">
+          <div style="font-size:18px;font-weight:900;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px;text-align:center;line-height:1.1;">让善意拥有<br>超级魔法</div>
+          <div style="width:40px;height:1.5px;background:linear-gradient(90deg,transparent,#2dd4a0,transparent);margin:5px 0;"></div>
+          <div style="font-size:5.5px;color:#6b9e8f;margin-bottom:8px;letter-spacing:0.1em;">公益品牌 · 公益科技赋能</div>
+          <div style="width:30px;height:30px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.12);border-radius:3px;display:flex;align-items:center;justify-content:center;margin-bottom:4px;">
+            <span style="font-size:4.5px;color:#3d6b5e;">QR</span>
+          </div>
+          <div style="font-size:4px;color:#3d6b5e;">www.example.org</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     Core Component Showcase
+     ══════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Core Component Library</div>
+  <div class="components-grid">
+
+    <!-- KPI card -->
+    <div class="comp-cell">
+      <div class="comp-cell-title">KPI Data Cards</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div class="kpi-demo">
+          <div class="kpi-num-demo">128</div>
+          <div class="kpi-lbl-demo">受助学生</div>
+          <div class="kpi-trend-demo">↑ 23%</div>
+        </div>
+        <div class="kpi-demo">
+          <div class="kpi-num-gold">92%</div>
+          <div class="kpi-lbl-demo">资金使用率</div>
+          <div class="kpi-trend-demo" style="color:#d4af6a;">✦ 优秀</div>
+        </div>
+        <div class="kpi-demo">
+          <div class="kpi-num-demo">50+</div>
+          <div class="kpi-lbl-demo">合作组织</div>
+          <div class="kpi-trend-demo">↑ 38%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tags & Badges -->
+    <div class="comp-cell">
+      <div class="comp-cell-title">Tags & Badges</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:rgba(45,212,160,0.12);border:1px solid rgba(45,212,160,0.35);color:#5eead4;border-radius:9999px;font-size:12px;font-weight:600;letter-spacing:0.08em;">🌿 公益科技</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:rgba(14,165,201,0.12);border:1px solid rgba(14,165,201,0.3);color:#0ea5c9;border-radius:9999px;font-size:12px;font-weight:600;">🌊 NGO 赋能</span>
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;background:rgba(212,175,106,0.12);border:1px solid rgba(212,175,106,0.3);color:#d4af6a;border-radius:9999px;font-size:12px;font-weight:600;">✨ 社会影响</span>
+        </div>
+        <div class="badge-row">
+          <span class="bdg bdg-g">公益</span>
+          <span class="bdg bdg-c">技术</span>
+          <span class="bdg bdg-gold">金牌</span>
+          <span class="bdg bdg-m">待定</span>
+          <div style="display:flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);font-size:13px;font-weight:900;color:#010b14;box-shadow:0 0 12px rgba(45,212,160,0.3);">1</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Bars -->
+    <div class="comp-cell">
+      <div class="comp-cell-title">Progress Bars</div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span style="font-size:12px;color:#b8d4cc;">资金筹集进度</span>
+            <span style="font-size:12px;font-weight:700;color:#2dd4a0;">82%</span>
+          </div>
+          <div class="prog-track"><div class="prog-bar" style="width:82%;"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span style="font-size:12px;color:#b8d4cc;">项目完成率</span>
+            <span style="font-size:12px;font-weight:700;color:#0ea5c9;">65%</span>
+          </div>
+          <div class="prog-track" style="height:5px;"><div class="prog-bar" style="width:65%;background:linear-gradient(90deg,#0ea5c9,#5eead4);"></div></div>
+        </div>
+        <div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+            <span style="font-size:12px;color:#b8d4cc;">受益群体覆盖</span>
+            <span style="font-size:12px;font-weight:700;color:#d4af6a;">94%</span>
+          </div>
+          <div class="prog-track" style="height:11px;"><div class="prog-bar" style="width:94%;background:linear-gradient(90deg,#d4af6a,#f0d090);"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="comp-cell">
+      <div class="comp-cell-title">Timeline</div>
+      <div class="tl-wrap">
+        <div class="tl-item">
+          <div class="tl-dot"></div>
+          <div class="tl-time">2023.01</div>
+          <div class="tl-title">项目启动</div>
+          <div class="tl-desc">公益 AI 赋能探索正式开始</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-dot" style="background:linear-gradient(135deg,#0ea5c9,#5eead4);box-shadow:0 0 8px rgba(14,165,201,0.5);"></div>
+          <div class="tl-time" style="color:#0ea5c9;">2024.03</div>
+          <div class="tl-title">规模扩展</div>
+          <div class="tl-desc">合作组织突破 20 家</div>
+        </div>
+        <div class="tl-item" style="margin-bottom:0;">
+          <div class="tl-dot" style="background:linear-gradient(135deg,#d4af6a,#f0d090);box-shadow:0 0 8px rgba(212,175,106,0.5);"></div>
+          <div class="tl-time" style="color:#d4af6a;">2025.01</div>
+          <div class="tl-title">全面开放</div>
+          <div class="tl-desc">50+ 组织受益，免费开放</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step Flow -->
+    <div class="comp-cell">
+      <div class="comp-cell-title">Step Flow</div>
+      <div class="step-flow-demo" style="margin-bottom:12px;">
+        <div class="step-demo">
+          <div class="step-demo-num">STEP 01</div>
+          <div class="step-demo-title">需求分析</div>
+          <div class="step-demo-arr"></div>
+        </div>
+        <div class="step-demo active">
+          <div class="step-demo-num" style="color:#2dd4a0;">STEP 02</div>
+          <div class="step-demo-title">方案设计</div>
+          <div class="step-demo-arr"></div>
+        </div>
+        <div class="step-demo">
+          <div class="step-demo-num">STEP 03</div>
+          <div class="step-demo-title">落地实施</div>
+          <div class="step-demo-arr"></div>
+        </div>
+        <div class="step-demo">
+          <div class="step-demo-num">STEP 04</div>
+          <div class="step-demo-title">效果评估</div>
+        </div>
+      </div>
+      <!-- Feature card -->
+      <div style="background:rgba(7,21,32,0.8);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:12px;display:flex;gap:12px;align-items:flex-start;">
+        <div style="width:38px;height:38px;border-radius:8px;background:rgba(45,212,160,0.15);border:1px solid rgba(45,212,160,0.3);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;box-shadow:0 0 10px rgba(45,212,160,0.1);">🌿</div>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#f0f7f4;margin-bottom:4px;">生态连接</div>
+          <div style="font-size:12px;color:#6b9e8f;line-height:1.5;">构建高效公益协同网络，让资源精准流向需要的地方</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quote Block & Code Block -->
+    <div class="comp-cell">
+      <div class="comp-cell-title">Quote Block & Code Block</div>
+      <div class="quote-demo" style="margin-bottom:12px;">
+        <div class="quote-text-demo">AI 让我们用更少的时间做更多有意义的事，把精力真正放在改变世界上。</div>
+        <div class="quote-author-demo">— 公益组织负责人</div>
+      </div>
+      <div class="code-demo">
+        <span class="c-cm"># Smart summary call example</span><br>
+        <span class="c-kw">from</span> <span class="c-fn">magic_ai</span> <span class="c-kw">import</span> summarize<br>
+        result = summarize(<span class="c-str">"录音文件.mp3"</span>)<br>
+        <span class="c-fn">print</span>(result.<span class="c-fn">markdown</span>)  <span class="c-cm"># Output minutes</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     Data Table Showcase
+     ══════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Data Table</div>
+  <div class="demo-area">
+    <table class="table-demo">
+      <thead>
+        <tr>
+          <th>Organization</th>
+          <th>Enablement Type</th>
+          <th>Beneficiaries</th>
+          <th>Efficiency Gain</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color:#f0f7f4;font-weight:600;">KK公益筑梦</td>
+          <td>数据分析 + 录音总结</td>
+          <td style="color:#2dd4a0;font-weight:700;">128人</td>
+          <td style="color:#2dd4a0;">↑ 380%</td>
+          <td><span class="bdg bdg-g" style="font-size:11px;">进行中</span></td>
+        </tr>
+        <tr>
+          <td style="color:#f0f7f4;font-weight:600;">TNR 动保</td>
+          <td>内容创作 + PPT 设计</td>
+          <td style="color:#0ea5c9;font-weight:700;">2400只</td>
+          <td style="color:#2dd4a0;">↑ 200%</td>
+          <td><span class="bdg bdg-c" style="font-size:11px;">已完成</span></td>
+        </tr>
+        <tr>
+          <td style="color:#f0f7f4;font-weight:600;">乡村教育项目</td>
+          <td>课程制作 + 数据追踪</td>
+          <td style="color:#d4af6a;font-weight:700;">500+人</td>
+          <td style="color:#2dd4a0;">↑ 150%</td>
+          <td><span class="bdg bdg-gold" style="font-size:11px;">规划中</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     Gradients & Decorative Elements
+     ══════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Gradients & Decorative Elements</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+    <!-- Primary Gradient -->
+    <div style="border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.07);">
+      <div style="height:56px;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);"></div>
+      <div style="padding:10px 12px;background:rgba(255,255,255,0.03);">
+        <div style="font-size:11px;font-weight:700;color:#f0f7f4;margin-bottom:2px;">Primary Gradient</div>
+        <div style="font-size:10px;color:#3d6b5e;font-family:monospace;">#2DD4A0 → #0EA5C9</div>
+      </div>
+    </div>
+    <!-- Gold Gradient -->
+    <div style="border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.07);">
+      <div style="height:56px;background:linear-gradient(135deg,#d4af6a,#f0d090);"></div>
+      <div style="padding:10px 12px;background:rgba(255,255,255,0.03);">
+        <div style="font-size:11px;font-weight:700;color:#f0f7f4;margin-bottom:2px;">Gold Accent</div>
+        <div style="font-size:10px;color:#3d6b5e;font-family:monospace;">#D4AF6A → #F0D090</div>
+      </div>
+    </div>
+    <!-- Wide Gradient -->
+    <div style="border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.07);">
+      <div style="height:56px;background:linear-gradient(135deg,#5eead4,#2dd4a0 40%,#0ea5c9);"></div>
+      <div style="padding:10px 12px;background:rgba(255,255,255,0.03);">
+        <div style="font-size:11px;font-weight:700;color:#f0f7f4;margin-bottom:2px;">Wide Gradient</div>
+        <div style="font-size:10px;color:#3d6b5e;font-family:monospace;">#5EEAD4 → #2DD4A0 → #0EA5C9</div>
+      </div>
+    </div>
+    <!-- Mask Gradient -->
+    <div style="border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.07);">
+      <div style="height:56px;background:linear-gradient(90deg,rgba(1,11,20,0.95),rgba(1,11,20,0));position:relative;">
+        <div style="position:absolute;inset:0;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);opacity:0.3;"></div>
+      </div>
+      <div style="padding:10px 12px;background:rgba(255,255,255,0.03);">
+        <div style="font-size:11px;font-weight:700;color:#f0f7f4;margin-bottom:2px;">Left Mask</div>
+        <div style="font-size:10px;color:#3d6b5e;font-family:monospace;">For cover image-text pages</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     Type Scale Showcase
+     ══════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Type Scale</div>
+  <div class="demo-area">
+    <div style="font-size:52px;font-weight:900;line-height:1;background:linear-gradient(135deg,#2dd4a0,#0ea5c9);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;">Hero Title</div>
+    <div style="font-size:36px;font-weight:700;color:#f0f7f4;margin-bottom:6px;">Page Title</div>
+    <div style="font-size:28px;font-weight:300;color:#b8d4cc;margin-bottom:6px;">Subtitle — Light weight conveys elegance</div>
+    <div style="height:1px;background:linear-gradient(90deg,transparent,rgba(45,212,160,0.3),transparent);margin:12px 0;"></div>
+    <div style="font-size:20px;font-weight:700;color:#f0f7f4;margin-bottom:4px;">Section Heading</div>
+    <div style="font-size:17px;color:#b8d4cc;line-height:1.75;margin-bottom:4px;">Body Text — 26px font size (scaled here), 1.75 line height, #B8D4CC color, clear and readable.</div>
+    <div style="font-size:14px;color:#6b9e8f;">Caption — Muted text color #6B9E8F for secondary information, notes, and footers.</div>
+  </div>
+</div>
+
+<div class="scroll-hint">↑ Full Deep Sea Green Light v2.0 preview · 1920x1080 canvas spec</div>
+
+</div>
+</body>
+</html>

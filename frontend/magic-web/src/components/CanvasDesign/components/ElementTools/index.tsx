@@ -3,13 +3,16 @@ import ElementToolsRender from "./ElementToolsRender"
 import { useMemo } from "react"
 import type { ElementToolOptionType } from "./types"
 import { ElementTypeEnum } from "../../canvas/types"
-import { useCanvasUI } from "../../context/CanvasUIContext"
+import { useCanvasSelectionUI } from "../../context/CanvasUIContext"
 import { useMagic } from "../../context/MagicContext"
+import { useCanvas } from "../../context/CanvasContext"
+import useShowVideoOriginalSizeButton from "./hooks/useShowVideoOriginalSizeButton"
 
 export default function ElementTools() {
 	const { convertHightConfig } = useMagic()
+	const { canvas } = useCanvas()
 
-	const { selectedElements, isDragging, isSelecting, subElementTooltip } = useCanvasUI()
+	const { selectedElements, isDragging, isSelecting, subElementTooltip } = useCanvasSelectionUI()
 
 	const [firstSelectedElement] = selectedElements
 
@@ -18,8 +21,25 @@ export default function ElementTools() {
 	const imageSrc =
 		firstSelectedElement?.type === ElementTypeEnum.Image ? firstSelectedElement.src : undefined
 
+	const showVideoOriginalSizeButton = useShowVideoOriginalSizeButton({
+		canvas,
+		isSingleElement,
+		elementType: firstSelectedElement?.type,
+		elementId: firstSelectedElement?.id,
+		videoSrc:
+			firstSelectedElement?.type === ElementTypeEnum.Video
+				? firstSelectedElement.src
+				: undefined,
+		elementWidth: firstSelectedElement?.width,
+		elementHeight: firstSelectedElement?.height,
+	})
+
 	const options: ElementToolOptionType[] = useMemo(() => {
-		if (!selectedElements.length || isDragging || isSelecting) return []
+		const hideToolsWhileTransform =
+			isDragging && !(isSingleElement && firstSelectedElement?.type === ElementTypeEnum.Text)
+		if (!selectedElements.length || hideToolsWhileTransform || isSelecting) return []
+
+		if (selectedElements.some((el) => el.locked === true)) return []
 
 		if (subElementTooltip) {
 			return [{ type: subElementTooltip }]
@@ -29,24 +49,25 @@ export default function ElementTools() {
 			switch (firstSelectedElement?.type) {
 				case ElementTypeEnum.Text:
 					return [
-						{ type: ElementToolTypeEnum.FillColor },
-						{ type: ElementToolTypeEnum.StrokeColor },
+						{ type: ElementToolTypeEnum.RichTextFillColor },
 						Divider,
-						{ type: ElementToolTypeEnum.FontFamily },
-						{ type: ElementToolTypeEnum.FontStyle },
-						{ type: ElementToolTypeEnum.FontSize },
-						{ type: ElementToolTypeEnum.TextAlign },
+						{ type: ElementToolTypeEnum.RichTextFontFamily },
+						{ type: ElementToolTypeEnum.RichTextFontSize },
 						Divider,
-						{ type: ElementToolTypeEnum.TextAdvancedButton },
+						{ type: ElementToolTypeEnum.RichTextFontStyle },
+						Divider,
+						{ type: ElementToolTypeEnum.RichTextTextAlign },
+						Divider,
+						{ type: ElementToolTypeEnum.RichTextAdvancedButton },
+						Divider,
+						{ type: ElementToolTypeEnum.DownloadButton },
 					]
 
 				case ElementTypeEnum.Frame:
 					return [
 						{ type: ElementToolTypeEnum.FrameRemoveButton },
 						Divider,
-						{ type: ElementToolTypeEnum.SizeSelect },
-						Divider,
-						{ type: ElementToolTypeEnum.Size },
+						{ type: ElementToolTypeEnum.SizeEditButton },
 						Divider,
 						{ type: ElementToolTypeEnum.ElementAlign },
 						{ type: ElementToolTypeEnum.ElementDistribute },
@@ -54,18 +75,35 @@ export default function ElementTools() {
 
 				case ElementTypeEnum.Image:
 					if (!imageSrc) return []
-					const imageElementTools: ElementToolOptionType[] = [
-						{ type: ElementToolTypeEnum.SizeSelect },
-						Divider,
-						{ type: ElementToolTypeEnum.Size },
-					]
+					const imageElementTools: ElementToolOptionType[] = []
+					imageElementTools.push({
+						type: ElementToolTypeEnum.SizeEditButton,
+					})
+					imageElementTools.push(Divider)
+					imageElementTools.push({
+						type: ElementToolTypeEnum.ImageCropButton,
+					})
+					// imageElementTools.push({
+					// 	type: ElementToolTypeEnum.ImageExtendButton,
+					// })
+					imageElementTools.push({
+						type: ElementToolTypeEnum.ImageRemoveBackgroundButton,
+					})
+					// imageElementTools.push({
+					// 	type: ElementToolTypeEnum.ImageEraserButton,
+					// })
 					if (convertHightConfig?.supported) {
-						imageElementTools.push(Divider)
+						// imageElementTools.push(Divider)
 						imageElementTools.push({
 							type: ElementToolTypeEnum.ImageConvertHightButton,
 						})
 					}
 					return imageElementTools
+
+				case ElementTypeEnum.Video:
+					return showVideoOriginalSizeButton
+						? [{ type: ElementToolTypeEnum.VideoOriginalSizeButton }]
+						: []
 
 				default:
 					break
@@ -85,29 +123,6 @@ export default function ElementTools() {
 				]
 			}
 		}
-
-		// return [
-		// 	{ type: ElementToolTypeEnum.FillColor },
-		// 	{ type: ElementToolTypeEnum.StrokeColor },
-		// 	Divider,
-		// 	{ type: ElementToolTypeEnum.FrameCreateButton },
-		// 	Divider,
-		// 	{ type: ElementToolTypeEnum.FrameSizeSelect },
-		// 	Divider,
-		// 	{ type: ElementToolTypeEnum.Size },
-		// 	Divider,
-		// 	{ type: ElementToolTypeEnum.FontFamily },
-		// 	{ type: ElementToolTypeEnum.FontStyle },
-		// 	{ type: ElementToolTypeEnum.FontSize },
-		// 	{ type: ElementToolTypeEnum.TextAlign },
-		// 	Divider,
-		// 	{ type: ElementToolTypeEnum.ElementAlign },
-		// 	{ type: ElementToolTypeEnum.ElementDistribute },
-		// 	Divider,
-		// 	{ type: ElementToolTypeEnum.ShapeStyle },
-		// 	Divider,
-		// 	{ type: ElementToolTypeEnum.DownloadButton },
-		// ]
 		return []
 	}, [
 		convertHightConfig?.supported,
@@ -117,6 +132,7 @@ export default function ElementTools() {
 		isSelecting,
 		isSingleElement,
 		selectedElements,
+		showVideoOriginalSizeButton,
 		subElementTooltip,
 	])
 

@@ -15,7 +15,7 @@ export interface CompositePathCacheEntry {
 
 /** 扩展存储结构，包含 marker 关联的 ImageElement.src 缓存（用于离开画布时 fetch） */
 interface MarkerStorageData extends CanvasDesignStorageData {
-	/** markerId -> 图片 src，画布添加 marker 时缓存，支持离画布 fetch */
+	/** markerId -> 图片 src */
 	markerElementSrc?: Record<string, string>
 	/** markerId -> 合成图上传路径缓存，避免刷新后重复上传 */
 	markerCompositePath?: Record<string, CompositePathCacheEntry>
@@ -24,11 +24,13 @@ interface MarkerStorageData extends CanvasDesignStorageData {
 /** 根据 elementSrc + marker 几何信息生成校验 key */
 export function buildMarkerCompositeKey(elementSrc: string, marker: Marker): string {
 	const base = `${elementSrc}|${marker.relativeX},${marker.relativeY}`
+	const crop = marker.elementCrop
+	const cropKey = crop ? `|crop:${crop.x},${crop.y},${crop.width},${crop.height}` : "|crop:none"
 	if (marker.type === MarkerTypeEnum.Area) {
 		const area = marker as { areaWidth: number; areaHeight: number }
-		return `${base}|${area.areaWidth},${area.areaHeight}`
+		return `${base}|${area.areaWidth},${area.areaHeight}${cropKey}`
 	}
-	return base
+	return `${base}${cropKey}`
 }
 
 function getStorageKey(designProjectId: string, prefix = DEFAULT_STORAGE_KEY_PREFIX): string {

@@ -6,6 +6,7 @@
 	"agree": "Agree and Continue",
 	"agreementText": "I have read and agreed to the",
 	"and": "and",
+	"antaLogin": "Anta Login",
 	"appleLogin": "Apple Login",
 	"appleLoginDescription": "The current Apple Id has not been bound to an account",
 	"appleLoginLoading": "Getting Apple login information, please wait...",
@@ -19,7 +20,7 @@
 		"cancel": "Cancel",
 		"confirm": "Confirm"
 	},
-	"copyright": "Copyright © 2023 Guangdong Lighthouse Engine Technology Co., Ltd. All Rights Reserved.",
+	"copyright": "",
 	"device": {
 		"app": "client",
 		"dingTalk": "DingTalk",
@@ -81,6 +82,9 @@
 	},
 	"pleaseSendTo": "Please enter and send to",
 	"pleaseSendToEnd": "Please enter the {{count}}-digit verification code sent to {{phone}}, valid for {{minutes}} minutes.",
+	"popupLoginErrorCodeLabel": "Error Code",
+	"popupLoginErrorDefaultMessage": "An error occurred during login. Please return to the main window and try again.",
+	"popupLoginErrorTitle": "Login failed",
 	"prevStep": "Return to previous step",
 	"privacyPolicy": "Privacy Policy",
 	"privateConfig": "Private Configuration",

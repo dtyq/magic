@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\Agent\Service;
 
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
@@ -23,7 +24,6 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\ProjectAppService;
 use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\SuperMagicAgentEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
-use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
 use Dtyq\SuperMagic\Domain\Agent\Service\SuperMagicAgentVersionDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
@@ -125,12 +125,26 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $savedEntity->setModifier($userId);
             $savedEntity->setUpdatedAt(new DateTime());
             $this->superMagicAgentDomainService->saveDirectly($dataIsolation, $savedEntity);
+            $this->operationPermissionDomainService->accessOwner(
+                $this->createPermissionDataIsolation($dataIsolation),
+                ResourceType::CustomAgent,
+                $agentCode,
+                $savedEntity->getCreator()
+            );
 
             // 6. Auto-publish (skip sandbox export — reuse the already-uploaded ZIP as file_key)
+            // Inherit publish_target_type and publish_target_value from the latest version;
+            // fall back to ORGANIZATION (with no target value) when no prior version exists.
+            $latestVersion = $this->superMagicAgentVersionDomainService->findLatestVersionByCreatedAt($dataIsolation, $agentCode);
+            $inheritedTargetType = $latestVersion?->getPublishTargetType() ?? PublishTargetType::ORGANIZATION;
+            $inheritedTargetValue = ($latestVersion !== null && $inheritedTargetType->requiresTargetValue())
+                ? $latestVersion->getPublishTargetValue()
+                : null;
             $versionEntity = new AgentVersionEntity();
-            $versionEntity->setVersion($this->resolveNextVersion($dataIsolation, $agentCode));
-            $versionEntity->setPublishTargetType(PublishTargetType::ORGANIZATION);
-            $this->superMagicAgentDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
+            $versionEntity->setVersion($this->resolveNextVersion($latestVersion));
+            $versionEntity->setPublishTargetType($inheritedTargetType);
+            $versionEntity->setPublishTargetValue($inheritedTargetValue);
+            $this->superMagicAgentVersionDomainService->publishAgent($dataIsolation, $savedEntity, $versionEntity);
 
             // 7. Sync resource visibility: ORGANIZATION publish means the agent is visible to all org members.
             //    The application-layer publishAgent (SuperMagicAgentAppService) normally calls syncPublishedAgentScope
@@ -237,7 +251,7 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $dto->setProjectName($agentName);
             $dto->setInitTemplateFiles(false);
 
-            $result = $projectAppService->createAgentProject($requestContext, $dto, ProjectMode::CUSTOM_AGENT);
+            $result = $projectAppService->createAgentProject($requestContext, $dto, ProjectMode::AGENT_CREATOR);
             $projectId = (int) ($result['project']['id'] ?? 0);
 
             if ($projectId <= 0) {
@@ -275,8 +289,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $projectId,
             $rootDirId,
             '.magic',
-            '.magic',
-            $workDir,
             $userId,
             $projectOrgCode,
             $projectOrgCode,
@@ -291,8 +303,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
             $agentDir,
             $magicDirId,
             $projectId,
-            '.magic',
-            $workDir,
             $userId,
             $projectOrgCode,
             $projectOrgCode
@@ -308,8 +318,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
         string $localDir,
         int $parentDirId,
         int $projectId,
-        string $relativePath,
-        string $workDir,
         string $userId,
         string $orgCode,
         string $projectOrgCode
@@ -318,15 +326,12 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
 
         foreach ($items as $item) {
             $localPath = $localDir . '/' . $item;
-            $itemRelativePath = $relativePath . '/' . $item;
 
             if (is_dir($localPath)) {
                 $subDirId = $this->taskFileDomainService->createDirectory(
                     $projectId,
                     $parentDirId,
                     $item,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $orgCode,
                     $projectOrgCode,
@@ -339,8 +344,6 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
                     $localPath,
                     $subDirId,
                     $projectId,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $orgCode,
                     $projectOrgCode
@@ -361,12 +364,11 @@ class ImportAgentAppService extends AbstractSuperMagicAppService
 
     /**
      * Determine the next publish version for the agent.
-     * Queries the latest published version and increments the patch segment.
+     * Accepts the latest version entity (already fetched by the caller) and increments the patch segment.
      * Falls back to "1.0.0" when no prior version exists.
      */
-    private function resolveNextVersion(SuperMagicAgentDataIsolation $dataIsolation, string $agentCode): string
+    private function resolveNextVersion(?AgentVersionEntity $latestVersion): string
     {
-        $latestVersion = $this->superMagicAgentVersionDomainService->findLatestVersionByCreatedAt($dataIsolation, $agentCode);
         if ($latestVersion === null) {
             return '1.0.0';
         }

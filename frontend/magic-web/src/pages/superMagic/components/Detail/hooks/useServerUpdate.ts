@@ -12,6 +12,10 @@ interface UseServerUpdateOptions {
 	rendererRef: RefObject<IsolatedHTMLRendererRef>
 	/** Original content for fallback */
 	content: string
+	/** Fallback getter for current editing content when no renderer is available */
+	getCurrentEditingContent?: () => Promise<string | null> | string | null
+	/** Fallback applier for code mode or non-renderer scenarios */
+	applyContent?: (content: string) => void
 }
 
 interface UseServerUpdateReturn {
@@ -52,6 +56,8 @@ function useServerUpdate({
 	isEditMode,
 	rendererRef,
 	content,
+	getCurrentEditingContent,
+	applyContent,
 }: UseServerUpdateOptions): UseServerUpdateReturn {
 	// Internal server update state
 	const [serverUpdatedContent, setServerUpdatedContent] = useState<string | null>(null)
@@ -85,6 +91,23 @@ function useServerUpdate({
 		onClearServerUpdate?.()
 	}, [onClearServerUpdate])
 
+	const applyContentToEditor = useCallback(
+		(
+			nextContent: string,
+			options?: {
+				restoreSelectionMode?: boolean
+			},
+		) => {
+			if (rendererRef.current) {
+				rendererRef.current.updateContent(nextContent, options)
+				return
+			}
+
+			applyContent?.(nextContent)
+		},
+		[rendererRef, applyContent],
+	)
+
 	// Check server update before save
 	const checkServerUpdateBeforeSave = useCallback(() => {
 		if (hasServerUpdate) {
@@ -98,46 +121,48 @@ function useServerUpdate({
 	const applyServerUpdate = useCallback(() => {
 		const latestServerContent = actualServerContent || latestServerContentRef.current
 
-		if (latestServerContent && rendererRef.current) {
-			rendererRef.current.updateContent(latestServerContent, {
+		if (latestServerContent) {
+			applyContentToEditor(latestServerContent, {
 				restoreSelectionMode: false,
 			})
 			return
 		}
 
-		if (!rendererRef.current) return
-		// 无服务端更新时，恢复为当前基线内容
+		// 无服务端更新时，优先重置 iframe（跨域模式更稳定）
+		if (rendererRef.current) {
+			rendererRef.current.resetContent()
+			return
+		}
+
+		// 无 renderer 时回退为本地基线内容
 		if (content)
-			rendererRef.current.updateContent(content, {
+			applyContentToEditor(content, {
 				restoreSelectionMode: false,
 			})
-		else rendererRef.current.resetContent()
-	}, [actualServerContent, content, rendererRef])
+	}, [actualServerContent, applyContentToEditor, content, rendererRef])
 
 	// View server update - open version compare dialog
 	const handleViewServerUpdate = useCallback(async () => {
 		// Get latest editing content before opening dialog
-		if (rendererRef.current) {
-			const latestContent = await rendererRef.current.getContent()
-			if (latestContent) {
-				setCurrentEditingContent(latestContent)
-			}
+		const latestContent = rendererRef.current
+			? await rendererRef.current.getContent()
+			: await getCurrentEditingContent?.()
+		if (latestContent) {
+			setCurrentEditingContent(latestContent)
 		}
 		setShowVersionCompareDialog(true)
-	}, [rendererRef])
+	}, [rendererRef, getCurrentEditingContent])
 
 	// Use my version - keep current editing content
 	const handleUseMyVersion = useCallback(
 		(editedContent?: string) => {
 			setShowVersionCompareDialog(false)
 			const contentToUse = editedContent || currentEditingContent
-			if (contentToUse && rendererRef.current) {
-				rendererRef.current.updateContent(contentToUse)
-			}
+			if (contentToUse) applyContentToEditor(contentToUse)
 			// Clear server update flags
 			clearServerUpdate()
 		},
-		[rendererRef, clearServerUpdate, currentEditingContent],
+		[applyContentToEditor, clearServerUpdate, currentEditingContent],
 	)
 
 	// Use server version - apply server content
@@ -148,12 +173,10 @@ function useServerUpdate({
 			// 当上游已清空更新标记时，仍可使用缓存值兜底
 			const contentToUse =
 				editedContent || actualServerContent || latestServerContentRef.current
-			if (contentToUse && rendererRef.current) {
-				rendererRef.current.updateContent(contentToUse)
-			}
+			if (contentToUse) applyContentToEditor(contentToUse)
 			clearServerUpdate()
 		},
-		[actualServerContent, rendererRef, clearServerUpdate],
+		[actualServerContent, applyContentToEditor, clearServerUpdate],
 	)
 
 	return {

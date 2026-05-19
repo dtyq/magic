@@ -1,43 +1,76 @@
 import { makeAutoObservable, runInAction, toJS } from "mobx"
 import pubsub from "@/utils/pubsub"
-import { unionBy, omit, cloneDeep } from "lodash-es"
+import { unionBy, get, set, merge } from "lodash-es"
 import dayjs from "@/lib/dayjs"
-import type { SeqRecord } from "@/apis/modules/chat/types"
-import type { ConversationQueryMessage, SuperMagicNode } from "@/types/chat/conversation_message"
-import type { RawMessage } from "@/types/chat/intermediate_message"
-import type { SeqResponse } from "@/types/request"
+import type { SuperMagicChunkMessage } from "@/types/chat/intermediate_message"
 import {
 	createDomainEventRegistry,
-	type CrewDomainEventPayload as InternalCrewDomainEventPayload,
-	type RegisterDomainEventListenerParams as InternalRegisterDomainEventListenerParams,
-	type TaskDomainEventPayload as InternalTaskDomainEventPayload,
 	createTopicMessageListenerRegistry,
-	type RegisterTopicMessageListenerParams as InternalTopicMessageListenerParams,
-	type TopicMessageListenerPayload as TopicMessageListenerEventPayload,
 	resolveCrewDomainEvent,
 	resolveTaskDomainEvent,
 } from "./listener-registry"
+import { persistMessageToStorage } from "./persistence"
+import {
+	getRawMessageNode,
+	transformRawMessage,
+	sortMessages,
+	addOneToBigNumberString,
+	isToolCallsEqual,
+	isToolCallsMatch,
+	isToolCallArgumentsComplete,
+	getCharsPerTick,
+	adjustSliceEnd,
+	createStreamState,
+	getDefaultTopicMeta,
+} from "./message-transforms"
+
+// Re-export types (preserves all existing public type exports)
+export type {
+	MessageItem,
+	RawSuperMagicMessageNode,
+	RawSuperMagicMessageEnvelope,
+	RegisterTopicMessageListenerParams,
+	TopicMessageListenerPayload,
+	CrewDomainEventPayload,
+	TaskDomainEventPayload,
+	DomainEventPayload,
+	RegisterDomainEventListenerParams,
+} from "./types"
+
+// Re-export value exports
+export { isV2Message } from "./message-transforms"
 // import { db } from "./storage"
 
 // Export Role Store
 export { roleStore } from "./RoleStore"
+// Export File Icon Store
+export { fileIconStore } from "./fileIconStore"
 
-type SuperMagicStoreTopicId = string
-type TopicMessageNode = unknown
+// Export Suggestion Store
+export { suggestionStore } from "./SuggestionStore"
 
-export type RegisterTopicMessageListenerParams = InternalTopicMessageListenerParams<
+// ─── Internal type imports ───────────────────────────────────
+
+import type {
+	SuperMagicStoreTopicId,
+	TopicMessageNode,
+	TopicMessageListenerPayload,
+	DomainEventPayload,
+	RawSuperMagicMessageNode,
+	RawSuperMagicIMMessage,
+	RawSuperMagicMessageSequence,
+	RawSuperMagicMessageEnvelope,
+	PendingUserMessageEnvelope,
+	SharedMessageItem,
 	MessageItem,
-	TopicMessageNode
->
-export type TopicMessageListenerPayload = TopicMessageListenerEventPayload<
-	MessageItem,
-	TopicMessageNode
->
-export type CrewDomainEventPayload = InternalCrewDomainEventPayload<MessageItem, TopicMessageNode>
-export type TaskDomainEventPayload = InternalTaskDomainEventPayload<MessageItem, TopicMessageNode>
-export type DomainEventPayload = CrewDomainEventPayload | TaskDomainEventPayload
-export type RegisterDomainEventListenerParams =
-	InternalRegisterDomainEventListenerParams<DomainEventPayload>
+	StreamState,
+	ToolCall,
+	ToolStreamStepResult,
+	ToolStreamMessageState,
+	ToolResponseState,
+	TopicMeta,
+	RegisterDomainEventListenerParams,
+} from "./types"
 
 function resolveDomainEvents(payload: TopicMessageListenerPayload): DomainEventPayload[] {
 	return [resolveCrewDomainEvent(payload), resolveTaskDomainEvent(payload)].filter(
@@ -45,458 +78,35 @@ function resolveDomainEvents(payload: TopicMessageListenerPayload): DomainEventP
 	)
 }
 
-export type RawSuperMagicMessageNode = SuperMagicNode
-type RawSuperMagicIMMessage = ConversationQueryMessage
-type RawSuperMagicMessageSequence = SeqResponse<ConversationQueryMessage>
-export type RawSuperMagicMessageEnvelope = SeqRecord<ConversationQueryMessage>
-
-interface SharedMessageItem {
-	message_id?: string
-	type?: string
-	raw_content?: {
-		rich_text?: Record<string, unknown>
-	}
-	[key: string]: unknown
-}
-
-function getRawMessageNode(message?: RawSuperMagicIMMessage): RawSuperMagicMessageNode {
-	if (!message?.type) return {}
-
-	return ((message as Record<string, unknown>)[message.type] as RawSuperMagicMessageNode) || {}
-}
-
-function persistMessageToStorage(
-	_topicId: string,
-	_value: RawMessage | RawSuperMagicMessageSequence,
-) {
-	try {
-		void _topicId
-		void _value
-		// const storageName = `MAGIC_STREAM_${_topicId}`
-		// const cache = JSON.parse(sessionStorage.getItem(storageName) || "[]")
-		// cache.push(_value)
-		// db.addToTable(_topicId, _value?.seq_id || `${performance.now()}`, _value)
-	} catch (error) {
-		console.log(error)
-	}
-}
-
-function sortMessages<T extends { seq_id: string; status?: string }>(list: Array<T>): Array<T> {
-	const result = list.sort((a, b) => {
-		return a.seq_id.localeCompare(b.seq_id)
-	})
-
-	// 最后一个不是 revoked，过滤全部 revoked
-	if (result[result.length - 1]?.status !== "revoked") {
-		return result.filter((item) => item.status !== "revoked")
-	}
-
-	// 最后一个是 revoked，从末尾向前找连续 revoked 段的起始位置
-	let firstOfLastSegment = result.length - 1
-	while (firstOfLastSegment > 0 && result[firstOfLastSegment - 1].status === "revoked") {
-		firstOfLastSegment--
-	}
-
-	// 保留末尾连续 revoked 段，过滤其余所有 revoked
-	return result.filter((item, index) => item.status !== "revoked" || index >= firstOfLastSegment)
-}
-
-function shouldNotifyMessageUpdate({
-	previousMessage,
-	nextMessage,
-	previousMessageNode,
-	nextMessageNode,
-}: {
-	previousMessage?: MessageItem
-	nextMessage: MessageItem
-	previousMessageNode?: unknown
-	nextMessageNode?: unknown
-}) {
-	if (!previousMessage) return true
-	const previousNode = previousMessageNode as CrewToolMessageNode | undefined
-	const nextNode = nextMessageNode as CrewToolMessageNode | undefined
-
-	return (
-		previousMessage.seq_id !== nextMessage.seq_id ||
-		previousMessage.status !== nextMessage.status ||
-		previousMessage.event !== nextMessage.event ||
-		previousMessage.role !== nextMessage.role ||
-		previousNode?.status !== nextNode?.status ||
-		previousNode?.event !== nextNode?.event ||
-		previousNode?.tool?.name !== nextNode?.tool?.name ||
-		previousNode?.tool?.status !== nextNode?.tool?.status
-	)
-}
-
-function transformRawMessage(message: RawSuperMagicMessageSequence): MessageItem {
-	// IM 消息体
-	const imMessage = message?.message || {}
-	// 超麦消息体
-	const msg = getRawMessageNode(imMessage)
-	return {
-		// 获取 IM 消息体中除 type 外的其他字段
-		...omit(imMessage, [imMessage?.type]),
-		// 调试专用
-		debug: msg,
-		// 同步 IM 消息体
-		topic_id: imMessage?.topic_id as string,
-		type: imMessage?.type as string,
-		app_message_id: imMessage?.app_message_id as string,
-		magic_message_id: imMessage?.magic_message_id as string,
-		send_time: imMessage?.send_time as number,
-		status: imMessage?.status as string,
-		// 同步超麦消息体
-		event: msg?.event as string,
-		parent_correlation_id: msg?.parent_correlation_id || "",
-		correlation_id: (msg?.correlation_id || msg?.tool?.id) as string,
-		role: (msg?.role || "user") as MessageItem["role"],
-		seq_id: message?.seq_id as string,
-		refer_message_id: message?.refer_message_id as string,
-	} as MessageItem
-}
-
-export interface MessageItem {
-	app_message_id: string
-	/** 消息相关联Id */
-	correlation_id: string
-	/** 父消息相关联Id */
-	parent_correlation_id: string
-	debug: RawSuperMagicMessageNode
-	/** 事件 */
-	event: string
-	magic_message_id: string
-	/** 引用消息关联id（用于超麦的“从此处创建新话题，复制对话列表”） */
-	refer_message_id: string
-	/** 消息归属 */
-	role: "assistant" | "user"
-	/** 发送时间 */
-	send_time: number
-	/** 唯一id */
-	seq_id: string
-	/** IM 的消息状态（消息是否已读） */
-	status: string
-	/** IM 的话题id */
-	topic_id: string
-	/** 消息类型() */
-	type: string
-
-	[key: string]: unknown
-}
-
-interface TopicMeta {
-	/** 当前是否正在处于流式开启中 */
-	isStream: boolean
-	/** 当前是否正在流式交互中 */
-	isStreamLoading: boolean
-	/** 当前话题流式运行时定时器 */
-	timer: NodeJS.Timeout | null
-	/** 当前流式文本数据映射（Record<当前流式卡片关联id - correlationId，当前流式文本内容>） */
-	content: Record<
-		string,
-		{
-			/** 当前流式渲染所在位置（表示文本下标） */
-			index: number
-			/** 当前文本块完整内容 */
-			content: string
-			/** 流式处理状态（-1:未开始流式、0开始流式、1正在接受流式内容、2结束流式） */
-			status: number
-		}
-	>
-}
-
-const defaultTopicMeta: TopicMeta = {
-	timer: null,
-	isStream: false,
-	isStreamLoading: false,
-	content: {},
-}
-
 export class SuperMagicStore {
 	// 消息
 	messages: Map<SuperMagicStoreTopicId, MessageItem[]> = new Map()
 	// 消息缓冲区
-	buffer: Map<SuperMagicStoreTopicId, MessageItem[]> = new Map()
+	buffer: Map<
+		SuperMagicStoreTopicId,
+		{ isProcessing: boolean; messages: RawSuperMagicMessageEnvelope[] }
+	> = new Map()
 	// 消息内容（卡片形式）
 	messageMap: Map<string, unknown> = new Map()
+	// 工具调用响应最新态（key: <topic_id, tool_call_id>）
+	toolResponseMap: Map<string, Map<string, ToolResponseState>> = new Map()
 	/** 话题消息元数据 */
 	topicMeta: Map<SuperMagicStoreTopicId, TopicMeta> = new Map()
 	/** 话题Id映射( < IM话题Id, 超麦话题Id > ) */
 	topicMap: Map<string, string> = new Map()
+	/** 当前可见话题 ID，仅该话题执行定时器驱动的打字机渲染 */
+	activeTopicId: string | null = null
+
+	/** 话题消息监听注册中心：用于消息到达阶段的订阅/发布 */
 	private topicMessageListenerRegistry = createTopicMessageListenerRegistry<
 		MessageItem,
 		TopicMessageNode
 	>()
+	/** 领域事件注册中心：用于将消息变更转换后的领域事件统一分发 */
 	private domainEventRegistry = createDomainEventRegistry<DomainEventPayload>()
 
 	constructor() {
 		makeAutoObservable(this, {}, { autoBind: true })
-	}
-
-	registerDomainEventListener(params: RegisterDomainEventListenerParams) {
-		return this.domainEventRegistry.register(params)
-	}
-
-	// messages 为desc排序，确保与 this.messages 中时间排序保持一致（从大到小）
-	initializeMessages(topicId: string, messages: RawSuperMagicMessageEnvelope[]) {
-		const msgCache = this.messages.get(topicId) || []
-		const msgBufferCache = this.buffer.get(topicId) || []
-		console.log("API 拉取的消息列表", messages)
-		// 针对消息初始化设置中，需要有序保留已处理消息、缓存区消息(针对已处理消息，当且仅当不存在缓存区中的所有消息皆为已处理需写入已处理消息队列)
-		const bufferCacheIds = new Set(msgBufferCache.map((o) => o.app_message_id))
-		// 针对已处理消息需要更新消息内容
-		const msgCacheIds = new Set(msgCache.map((o) => o.app_message_id))
-		runInAction(() => {
-			messages?.reverse()?.forEach((m) => {
-				const msg = m?.seq?.message
-				const messageNode = getRawMessageNode(msg)
-				const appMessageId = msg?.app_message_id as string
-				if (
-					!bufferCacheIds.has(appMessageId) &&
-					messageNode?.event !== "before_llm_request"
-				) {
-					const newCard: MessageItem = transformRawMessage(
-						m?.seq as RawSuperMagicMessageSequence,
-					)
-					// 当且存在已处理过的消息时需要更新消息内容，否则直接插入已处理消息
-					if (msgCacheIds.has(appMessageId)) {
-						const index = msgCache.findIndex((o) => o?.app_message_id === appMessageId)
-						if (index > -1) {
-							msgCache[index] = newCard
-						}
-					} else {
-						msgCache.push(newCard)
-					}
-				}
-
-				this.messageMap.set(appMessageId, messageNode)
-			})
-			this.messages.set(topicId, unionBy(sortMessages(msgCache), "app_message_id"))
-		})
-	}
-
-	// 加载分享的消息列表
-	loadSharedMessages(messages: SharedMessageItem[]) {
-		runInAction(() => {
-			messages?.forEach((o) => {
-				if (o?.type === "rich_text") {
-					this.messageMap.set(o?.message_id, {
-						...o,
-						...(o?.raw_content?.rich_text || {}),
-					})
-				} else {
-					this.messageMap.set(o?.message_id, o)
-				}
-			})
-		})
-	}
-
-	// 设置话题的消息列表中的消息卡片
-	enqueueMessage(topicId: string, baseMessage: RawSuperMagicMessageEnvelope) {
-		const message = baseMessage?.seq as RawSuperMagicMessageSequence
-		const nextMessage = transformRawMessage(message)
-		// 流式状态下的就先写入缓冲区，非流式状态下直接写入。
-		const msgCache = this.messages.get(topicId) || []
-		const msgBufferCache = this.buffer.get(topicId) || []
-
-		const msgIdSet = new Set(msgCache.map((o) => o?.app_message_id))
-		const msgBufferIdSet = new Set(msgBufferCache.map((o) => o?.app_message_id))
-
-		const messageNode = getRawMessageNode(message?.message)
-
-		/** [Polyfill]: 过滤已处理的app_message_id（兜底 web 中的 MessageService 事件分发导致事件重复问题） */
-		const appMessageId = message?.message?.app_message_id as string
-
-		if (
-			msgBufferIdSet.has(appMessageId) ||
-			/** [Polyfill]: 兼容处理 before_llm_request 无效信息过滤 */
-			messageNode?.event === "before_llm_request"
-		) {
-			return
-		}
-		if (msgIdSet.has(appMessageId)) {
-			// 针对已经过滤的消息，为确保消息状态最新需要更新消息元数据
-			const previousMessage = msgCache.find((o) => o?.app_message_id === appMessageId)
-			const previousMessageNode = this.getMessageNode(appMessageId)
-			runInAction(() => {
-				const msg = message?.message
-				const messageMapCache = this.messageMap.get(appMessageId) as
-					| Record<string, unknown>
-					| undefined
-				if (messageMapCache) {
-					this.messageMap.set(appMessageId, {
-						...messageMapCache,
-						/** 针对流式文本禁止替换，否则破坏流式设计 */
-						...omit(messageNode, ["content"]),
-					})
-				}
-
-				const msgIndex = msgCache.findLastIndex((o) => o?.seq_id === message?.seq_id)
-				if (msgIndex > -1) {
-					msgCache[msgIndex] = Object.assign(msgCache[msgIndex], {
-						...omit(msg, [msg?.type]),
-					})
-					this.messages.set(topicId, unionBy(sortMessages(msgCache), "app_message_id"))
-				}
-			})
-			const nextMessageNode = this.getMessageNode(nextMessage.app_message_id)
-			if (
-				shouldNotifyMessageUpdate({
-					previousMessage,
-					nextMessage,
-					previousMessageNode,
-					nextMessageNode,
-				})
-			) {
-				const payload = {
-					topicId,
-					message: nextMessage,
-					messageNode: nextMessageNode,
-					stage: "arrived",
-				} satisfies TopicMessageListenerPayload
-				this.emitTopicMessageArrived(payload)
-				this.emitDomainEvents(payload)
-			}
-			return
-		}
-		// console.log("setMessage ---------->", topicId, message)
-		this.topicMap.set(message?.message?.topic_id as string, messageNode?.topic_id as string)
-		persistMessageToStorage(messageNode?.topic_id as string, message)
-		// 需要判断当前是否正在流式交互
-		runInAction(() => {
-			this.messageMap.set(appMessageId, messageNode)
-			msgBufferCache.push(nextMessage)
-
-			if (
-				["before_agent_reply", "after_agent_reply"].includes(messageNode?.event as string)
-			) {
-				const topicMeta = this.getTopicMetadata(topicId)
-				// 消息关联 id
-				const messageCorrelationId = messageNode?.correlation_id as string
-
-				topicMeta.isStream = true
-				if (!topicMeta.content[messageCorrelationId]) {
-					topicMeta.content[messageCorrelationId] = {
-						content: "",
-						index: 0,
-						status: 0,
-					}
-				}
-
-				/** 兼容流式（因流式基于 intermediate 类型推送不稳定，所以兜底判断是否已经获取了流式内容，如果存在则开始流失（使用内存中已获取的流式内容进行流式）） */
-				// if (msg?.[msg?.type]?.event === "before_agent_reply") {
-				// 	if (topicMeta.content[messageCorrelationId]) {
-				// 		this.startStreamRendering(topicId, messageCorrelationId)
-				// 	}
-				// }
-
-				/** 兼容流式（因流式基于 intermediate 类型推送不稳定，所以兜底下根据 after_agent_reply 结束流式） */
-				if (messageNode?.event === "after_agent_reply") {
-					topicMeta.content[messageCorrelationId] = {
-						index: 0,
-						status: 2,
-						content: (topicMeta.content[messageCorrelationId].content =
-							messageNode?.content || ""), // 这里直接设置文本会导致流式内容部分重复，text 前面部分内容已被消费，需要优雅处理
-					}
-					topicMeta.isStream = false
-				}
-				this.topicMeta.set(topicId, topicMeta)
-			}
-			this.buffer.set(
-				topicId,
-				unionBy(
-					msgBufferCache.sort((a, b) => {
-						return a.seq_id.localeCompare(b.seq_id)
-					}),
-					"app_message_id",
-				),
-			)
-		})
-
-		const payload = {
-			topicId,
-			message: nextMessage,
-			messageNode: this.getMessageNode(nextMessage.app_message_id),
-			stage: "arrived",
-		} satisfies TopicMessageListenerPayload
-		this.emitTopicMessageArrived(payload)
-		this.emitDomainEvents(payload)
-		this.processMessageBuffer(topicId)
-	}
-
-	/** 开始消费 buffer 中的消息卡片 */
-	private processMessageBuffer(topicId: string) {
-		const messagesBuffer = this.buffer.get(topicId) || []
-		const messages = this.messages.get(topicId) || []
-
-		if (messagesBuffer.length > 0) {
-			const currentMsgBuffer = messagesBuffer[0] // 获取第一个元素
-			const currentMsg = messages?.[messages.length - 1] // 获取第一个元素
-
-			/** [Polyfill]：当且仅当缓冲区中消息卡片已在 this.messages 中则跳过当前执行且移除缓冲区中卡片 */
-			const messagesIds = new Set(messages.map((o) => o.app_message_id))
-			if (messagesIds.has(currentMsgBuffer?.app_message_id)) {
-				this.buffer.set(topicId, messagesBuffer.slice(1, messagesBuffer.length))
-				this.processMessageBuffer(topicId)
-				return
-			}
-
-			/**
-			 * 这里通过业务层判断，是否能够将当前消息卡片写入 messages 中，以下场景
-			 * 1. 涉及流式输出的场景下，需要确保消息卡片在存在多个 correlation_id 一致时，在流式过程中只设置前者，流式输出完成后继续设置后者
-			 */
-			const streamLock =
-				currentMsgBuffer?.event !== "after_agent_reply" &&
-				currentMsg?.event !== "before_agent_reply"
-			/** [Polyfill]: 兼容 after_agent_reply 没有返回 before_agent_reply 导致消息列表停止执行问题 */
-			const isStreamPolyFill =
-				currentMsgBuffer?.event === "after_agent_reply" && !currentMsgBuffer?.correlation_id
-			/** 兼容终止消息发送 */
-			const isMessageTermination = currentMsgBuffer?.event === "agent_suspended"
-
-			if (streamLock || isStreamPolyFill || isMessageTermination) {
-				this.executeBufferMessage(topicId)
-				/** [Fix] before_agent_reply 被移入 messages 后立即触发流式渲染，避免依赖 timer 重试导致的延迟 */
-				if (
-					currentMsgBuffer?.event === "before_agent_reply" &&
-					currentMsgBuffer?.correlation_id &&
-					this.getTopicMetadata(topicId).content[currentMsgBuffer.correlation_id]
-				) {
-					this.startStreamRendering(topicId, currentMsgBuffer.correlation_id)
-				}
-				this.processMessageBuffer(topicId)
-			}
-			/** [Polyfill]: 兼容 before_llm_request 在 before_agent_reply、after_agent_reply 消息对中间问题 */
-			const isSkip = currentMsgBuffer?.event === "before_llm_request"
-			if (isSkip) {
-				runInAction(() => {
-					this.buffer.set(topicId, messages.slice(1, messages.length))
-				})
-			}
-
-			if (currentMsg?.event === "before_agent_reply") {
-				// 流式前置卡片、开始流式
-				this.startStreamRendering(topicId, currentMsg?.correlation_id)
-			}
-		}
-	}
-
-	// 消费缓冲区中的一条消息卡片
-	executeBufferMessage(topicId: string) {
-		const messages = this.buffer.get(topicId) || []
-
-		if (messages.length > 0) {
-			runInAction(() => {
-				const [currentCard, ..._rest] = messages
-				const msg = this.messages.get(topicId) || []
-				msg.push(currentCard)
-				this.messages.set(topicId, unionBy(sortMessages(msg), "app_message_id"))
-				this.buffer.set(topicId, _rest)
-			})
-		}
-	}
-
-	getMessageNode(appMessageId?: string) {
-		return this.messageMap.get(appMessageId || "")
 	}
 
 	private emitDomainEvents(payload: TopicMessageListenerPayload) {
@@ -509,228 +119,1199 @@ export class SuperMagicStore {
 		this.topicMessageListenerRegistry.emit(payload)
 	}
 
-	// 获取指定话题的元数据
-	getTopicMetadata(topicId: string): TopicMeta {
-		if (!this.topicMeta.has(topicId)) {
-			runInAction(() => {
-				this.topicMeta.set(topicId, cloneDeep(defaultTopicMeta))
+	/**
+	 * 设置当前可见话题。切换后自动回放已完成的流式快照（场景 2）
+	 * 并恢复仍在进行中的流式渲染定时器（场景 1）。
+	 */
+	setActiveTopicId(topicId: string | null) {
+		const prevTopicId = this.activeTopicId
+		this.activeTopicId = topicId
+		if (topicId && topicId !== prevTopicId) {
+			this.replayPendingSnapshots(topicId)
+			this.resumeActiveStreams(topicId)
+		}
+	}
+
+	/**
+	 * @description 初始化话题的消息列表 (messages 为desc排序，确保与 this.messages 中时间排序保持一致（从大到小）)
+	 * @param topicId 话题id
+	 * @param messages 消息列表
+	 */
+	initializeMessages(topicId: string, messages: RawSuperMagicMessageEnvelope[]) {
+		const existingMessages = this.messages.get(topicId) || []
+		const topicBuffer = this.getTopicBuffer(topicId)
+		console.log("API 拉取的消息列表", messages)
+		const bufferedMessageIds = new Set(
+			topicBuffer.messages.map((item) => item?.seq?.message?.app_message_id),
+		)
+		const existingMessageIds = new Set(existingMessages.map((item) => item.app_message_id))
+		runInAction(() => {
+			const chronologicalMessages = (messages || []).slice().reverse()
+			const toolResponseMap = this.toolResponseMap.get(topicId) || new Map()
+			chronologicalMessages.forEach((envelope) => {
+				const imMessage = envelope?.seq?.message
+				const rawNode = getRawMessageNode(imMessage)
+				const messageType = String(imMessage?.type || "")
+				const appMessageId = imMessage?.app_message_id as string
+				const correlationId = String(rawNode?.correlation_id || "")
+				if (
+					!bufferedMessageIds.has(appMessageId) &&
+					rawNode?.event !== "before_llm_request"
+				) {
+					const incomingMessage: MessageItem = transformRawMessage(
+						envelope?.seq as RawSuperMagicMessageSequence,
+					)
+					// 针对客户端的工具调用消息直接过滤
+					if (incomingMessage?.type === "user_tool_call") {
+						return
+					}
+					if (
+						existingMessageIds.has(appMessageId) ||
+						existingMessageIds.has(correlationId)
+					) {
+						const matchIndex = existingMessages.findIndex(
+							(item) =>
+								item?.app_message_id === appMessageId ||
+								(item?.app_message_id === correlationId &&
+									item?.role === rawNode?.role),
+						)
+						if (matchIndex > -1) {
+							const existingMessage = existingMessages[matchIndex]
+							if (existingMessage) {
+								existingMessages[matchIndex] = {
+									...existingMessage,
+									...incomingMessage,
+									app_message_id: existingMessage.app_message_id,
+								}
+							}
+						}
+					} else {
+						existingMessages.push(incomingMessage)
+					}
+				}
+				if (messageType === "super_magic_message") {
+					if (rawNode?.role === "tool" && rawNode?.tool?.id)
+						toolResponseMap.set(rawNode?.tool?.id, {
+							...rawNode?.tool,
+						})
+				}
+
+				this.messageMap.set(appMessageId, rawNode)
 			})
-		}
-		return this.topicMeta.get(topicId) || cloneDeep(defaultTopicMeta)
+			this.toolResponseMap.set(topicId, toolResponseMap)
+			this.messages.set(topicId, unionBy(sortMessages(existingMessages), "app_message_id"))
+		})
 	}
 
-	/** 获取指定话题下对应消息节点的流式状态 */
-	getStreamMetadata(topicId: string, correlationId: string) {
-		const topicMeta = this.getTopicMetadata(topicId)
-		if (!topicMeta.content?.[correlationId]) {
-			return {
-				content: "",
-				index: 0,
-				status: -1,
+	/**
+	 * @description 加载分享的消息列表
+	 * @param messages 消息列表
+	 */
+	loadSharedMessages(messages: SharedMessageItem[]) {
+		runInAction(() => {
+			messages?.forEach((sharedMessage) => {
+				const messageId = String(sharedMessage?.message_id || "")
+				if (sharedMessage?.type === "rich_text") {
+					this.messageMap.set(messageId, {
+						...sharedMessage,
+						...(sharedMessage?.raw_content?.rich_text || {}),
+					})
+				} else if (sharedMessage?.type === "super_magic_message") {
+					const rawNode = {
+						...(sharedMessage?.raw_content?.super_magic_message as Record<
+							string,
+							unknown
+						>),
+					}
+					if (rawNode?.role === "tool") {
+						const toolPayload = (rawNode?.tool || {}) as Record<string, unknown>
+						const toolCallId = String(rawNode?.tool_call_id || toolPayload?.id || "")
+						if (toolCallId) {
+							const topicId = String(sharedMessage?.topic_id || "")
+							const toolResponse = toolPayload as ToolResponseState
+							const topicToolMap = this.toolResponseMap.get(topicId) || new Map()
+							topicToolMap.set(toolCallId, toolResponse)
+							this.toolResponseMap.set(topicId, topicToolMap)
+						}
+					}
+
+					this.messageMap.set(messageId, rawNode)
+				} else {
+					this.messageMap.set(messageId, sharedMessage)
+				}
+			})
+		})
+	}
+
+	// ======================================
+	// 方法 1：外部接收真实 chunk（前期正常流）
+	// ======================================
+	receiveChunk(message: SuperMagicChunkMessage) {
+		const topicId = message?.topic_id
+		persistMessageToStorage(topicId, message)
+		const messageChunk = message?.[message?.type]
+		const correlationId = String(messageChunk?.correlation_id || "")
+		if (!topicId || !correlationId) return
+
+		const stableAppMessageId = correlationId
+		const streamState = this.getTopicStreamState(topicId, correlationId)
+
+		if (streamState.isFinalMessageReceived) return
+
+		const delta = messageChunk.choices[0]?.delta
+		if (!delta) return
+
+		runInAction(() => {
+			const topicMeta = this.getTopicMetadata(topicId)
+
+			if (messageChunk.choices[0]?.finish_reason || messageChunk.usage) {
+				topicMeta.isStream = false
+				streamState.isFinalMessageReceived = true
+			} else {
+				topicMeta.isStream = true
+			}
+
+			if (delta.reasoning_content) {
+				streamState.reasoning_content += delta.reasoning_content
+			}
+
+			if (delta.content) {
+				streamState.content += delta.content
+			}
+
+			const toolCalls = delta?.tool_calls || []
+			if (toolCalls.length > 0) {
+				const fn = toolCalls?.[0]?.function
+				if (fn && !Array.isArray(fn) && typeof fn === "object") {
+					const isNewTool = fn.name
+					const toolIndex = toolCalls?.[0]?.index || 0
+
+					if (isNewTool) {
+						streamState.tool_calls[toolIndex] = toolCalls?.[0]
+					} else {
+						const argCache = get(
+							streamState,
+							["tool_calls", toolIndex, "function", "arguments"],
+							"",
+						)
+						set(
+							streamState,
+							["tool_calls", toolIndex, "function", "arguments"],
+							argCache + (fn.arguments || ""),
+						)
+					}
+				}
+			}
+
+			this.startStreamRendering(topicId, stableAppMessageId)
+		})
+	}
+
+	private getTopicBuffer(topicId: string) {
+		if (!this.buffer.has(topicId)) {
+			this.buffer.set(topicId, { isProcessing: false, messages: [] })
+		}
+		return this.buffer.get(topicId)! as {
+			isProcessing: boolean
+			messages: RawSuperMagicMessageEnvelope[]
+		}
+	}
+
+	addUserMessage(topicId: string, baseMessage: PendingUserMessageEnvelope) {
+		const rawMessage = baseMessage?.message as RawSuperMagicIMMessage
+		const appMessageId = rawMessage?.app_message_id as string
+		const resolvedTopicId = (rawMessage?.topic_id as string) || topicId
+		if (!rawMessage || !appMessageId || !resolvedTopicId) return
+
+		const messageList = this.messages.get(resolvedTopicId) || []
+		if (messageList.some((item) => item.app_message_id === appMessageId)) return
+
+		const lastMessage = messageList?.[messageList.length - 1]
+		const seqId = lastMessage ? addOneToBigNumberString(lastMessage.seq_id) : `${Date.now()}`
+		const sequence = {
+			seq_id: seqId,
+			message_id: appMessageId,
+			refer_message_id: "",
+			sender_message_id: rawMessage?.sender_id || "",
+			conversation_id: baseMessage?.conversation_id || "",
+			send_time: dayjs().unix(),
+			magic_id: "",
+			organization_code: "",
+			message: {
+				...rawMessage,
+				send_time: dayjs().unix(),
+			},
+		} as RawSuperMagicMessageSequence
+		const nextMessage = transformRawMessage(sequence)
+		const messageNode = getRawMessageNode(rawMessage)
+
+		runInAction(() => {
+			this.messageMap.set(appMessageId, messageNode)
+			this.messages.set(
+				resolvedTopicId,
+				unionBy(sortMessages([...messageList, nextMessage]), "app_message_id"),
+			)
+		})
+	}
+
+	replaceUserMessage(
+		topicId: string,
+		baseMessage: RawSuperMagicMessageEnvelope | RawSuperMagicMessageSequence,
+	) {
+		const sequence =
+			"seq" in baseMessage
+				? (baseMessage.seq as RawSuperMagicMessageSequence)
+				: (baseMessage as RawSuperMagicMessageSequence)
+		const rawMessage = sequence?.message as RawSuperMagicIMMessage
+		const appMessageId = rawMessage?.app_message_id as string
+		const resolvedTopicId = (rawMessage?.topic_id as string) || topicId
+		if (!sequence || !rawMessage || !appMessageId || !resolvedTopicId) return
+
+		const messageNode = getRawMessageNode(rawMessage)
+		const nextMessage = transformRawMessage(sequence)
+		const messageList = this.messages.get(resolvedTopicId) || []
+		const messageIndex = messageList.findIndex((item) => item.app_message_id === appMessageId)
+
+		runInAction(() => {
+			const nextMessages = messageList.slice()
+			if (messageIndex > -1) {
+				nextMessages[messageIndex] = merge({}, nextMessages[messageIndex], nextMessage)
+			} else {
+				nextMessages.push(nextMessage)
+			}
+			this.messages.set(
+				resolvedTopicId,
+				unionBy(sortMessages(nextMessages), "app_message_id"),
+			)
+			this.messageMap.set(
+				appMessageId,
+				merge({}, this.messageMap.get(appMessageId), messageNode),
+			)
+		})
+	}
+
+	// ======================================
+	// 方法 2：收到最终 message → 切换续流模式
+	// ======================================
+	enqueueMessage(topicId: string, baseMessage: RawSuperMagicMessageEnvelope) {
+		const message = baseMessage?.seq as RawSuperMagicMessageSequence
+		const msgCache = this.messages.get(topicId) || []
+
+		const nextMessage = transformRawMessage(message)
+
+		const msgIdSet = new Set(msgCache.map((o) => o?.app_message_id))
+
+		const messageNode = getRawMessageNode(message?.message)
+
+		const appMessageId = message?.message?.app_message_id as string
+
+		const correlationId = messageNode?.correlation_id as string
+
+		const buffer = this.getTopicBuffer(topicId)
+
+		// 针对客户端的工具调用消息直接过滤
+		if (nextMessage?.type === "user_tool_call") {
+			persistMessageToStorage(topicId, message, true)
+			return
+		}
+
+		const hasMessage = msgIdSet.has(appMessageId)
+		const hasCorrelationIdMessage = msgIdSet.has(correlationId) && messageNode?.role !== "tool"
+		const hasBufferMessage = buffer.messages.some(
+			(o) => o?.seq?.message?.app_message_id === appMessageId,
+		)
+		if (hasMessage || hasCorrelationIdMessage || hasBufferMessage) {
+			if (hasCorrelationIdMessage && correlationId) {
+				// 真消息到达时，把非流式字段（status / task_id / event /
+				// attachments / usage 等元信息）同步到 chunk 阶段创建的 mock 节点与卡片，
+				// content / reasoning_content / tool_calls 仍走流式 catch-up，
+				// 避免一次性刷新打断打字机渲染。
+				// ⚠️ 必须放在 `if (streamState)` 之外：当 chunks 自带 finish_reason
+				// 且 catch-up 已完成时，completeStreamRendering 会提前把 streamState
+				// 从 topicMeta.content 中删掉；此时 IM 层真消息才到达，mock 节点/卡片
+				// 仍然存在，元信息同步必须继续执行，否则 task_id / status / event 等
+				// 非流式字段将永远停留在 getDefaultNode / getDefaultMessage 的默认值。
+				this.syncFinalNodeMetadata(correlationId, messageNode)
+				this.syncFinalCardMetadata(topicId, correlationId, nextMessage)
+
+				const streamState = this.getStreamState(topicId, correlationId)
+				if (streamState) {
+					streamState.isFinalMessageReceived = true
+					if (messageNode?.content) streamState.content = messageNode.content as string
+					if (messageNode?.reasoning_content)
+						streamState.reasoning_content = messageNode.reasoning_content as string
+
+					const finalToolCalls =
+						Array.isArray(messageNode?.tool_calls) && messageNode.tool_calls.length > 0
+							? (messageNode.tool_calls as ToolCall[])
+							: []
+					streamState.tool_calls = finalToolCalls
+
+					const cache = this.messageMap.get(correlationId) as
+						| RawSuperMagicMessageNode
+						| undefined
+					if (cache && finalToolCalls.length === 0) {
+						cache.tool_calls = []
+						this.messageMap.set(correlationId, cache)
+					}
+
+					// IM 消息到达时立即同步 tool 字段到 messageMap，
+					// 避免 content 流式阶段工具状态无法更新
+					this.syncToolCallsToolField(correlationId, messageNode)
+
+					this.startStreamRendering(topicId, correlationId)
+				} else {
+					this.syncToolCallsToolField(correlationId, messageNode)
+				}
+				persistMessageToStorage(topicId, message, true)
+			}
+			return
+		}
+
+		persistMessageToStorage(topicId, message, true)
+
+		if (nextMessage?.type === "rich_text") {
+			const topicId = nextMessage?.topic_id || ""
+			const messages = this.messages.get(topicId) || []
+			runInAction(() => {
+				this.messageMap.set(appMessageId, messageNode)
+				this.messages.set(topicId, [...messages, nextMessage])
+			})
+			return
+		}
+
+		if (nextMessage?.type === "super_magic_message") {
+			const buffer = this.getTopicBuffer(topicId)
+			const bufferIndex = buffer?.messages.findIndex(
+				(o) =>
+					o?.seq?.message?.app_message_id === baseMessage?.seq?.message?.app_message_id,
+			)
+			if (bufferIndex < 0) {
+				buffer?.messages.push(baseMessage)
+				console.log(
+					"%c 【DEBUG】 插入队列",
+					"background-color: red;color: white;padding:0 4px",
+					JSON.parse(JSON.stringify(buffer)),
+					JSON.parse(JSON.stringify(baseMessage)),
+				)
+			}
+			this.processMessageBuffer(topicId)
+		}
+	}
+
+	/** 注册指定话题的新消息到达监听，仅响应增量 arrived 事件。 */
+	registerTopicMessageListener(params: RegisterTopicMessageListenerParams) {
+		return this.topicMessageListenerRegistry.register(params)
+	}
+
+	/**
+	 * 流式已完成（streamState 已删除）后真消息才到达时，
+	 * 将真消息 tool_calls 各项上的 tool 字段同步到 messageMap 缓存。
+	 */
+	private syncToolCallsToolField(
+		correlationId: string,
+		finalNode: RawSuperMagicMessageNode | undefined,
+	) {
+		if (!correlationId || !finalNode) return
+		const finalToolCalls = Array.isArray(finalNode.tool_calls)
+			? (finalNode.tool_calls as ToolCall[])
+			: []
+		if (finalToolCalls.length === 0) return
+
+		const cache = this.messageMap.get(correlationId) as RawSuperMagicMessageNode | undefined
+		if (!cache || !Array.isArray(cache.tool_calls)) return
+
+		const cacheToolCalls = cache.tool_calls as ToolCall[]
+		let mutated = false
+		finalToolCalls.forEach((ft, i) => {
+			if (ft.tool && cacheToolCalls[i]) {
+				cacheToolCalls[i].tool = ft.tool
+				mutated = true
+			}
+		})
+		if (mutated) {
+			this.messageMap.set(correlationId, cache)
+		}
+	}
+
+	/**
+	 * 将真消息节点中的非流式元信息合并到 chunk 阶段创建的 mock 节点。
+	 * 跳过 content / reasoning_content / tool_calls（由 startStreamRendering
+	 * 渐进 catch-up），也跳过 correlation_id（mock 已经按它建表）。
+	 */
+	private syncFinalNodeMetadata(
+		correlationId: string,
+		finalNode: RawSuperMagicMessageNode | undefined,
+	) {
+		if (!correlationId || !finalNode) return
+		const cache = this.messageMap.get(correlationId) as RawSuperMagicMessageNode | undefined
+		if (!cache) return
+
+		const streamControlledKeys = new Set([
+			"content",
+			"reasoning_content",
+			"tool_calls",
+			"correlation_id",
+		])
+
+		let mutated = false
+		Object.entries(finalNode as Record<string, unknown>).forEach(([key, value]) => {
+			if (streamControlledKeys.has(key)) return
+			if (value === undefined) return
+			if ((cache as Record<string, unknown>)[key] === value) return
+			;(cache as Record<string, unknown>)[key] = value
+			mutated = true
+		})
+
+		if (mutated) {
+			this.messageMap.set(correlationId, cache)
+		}
+	}
+
+	/**
+	 * 将真消息卡片中的身份 / 状态字段合并到 mock 卡片。保留 mock 卡片的
+	 * app_message_id（== correlationId），避免替换主键导致 React key 抖动
+	 * 或下游订阅错位。
+	 */
+	private syncFinalCardMetadata(
+		topicId: string,
+		correlationId: string,
+		finalCard: MessageItem | undefined,
+	) {
+		if (!topicId || !correlationId || !finalCard) return
+		const messages = this.messages.get(topicId)
+		if (!messages?.length) return
+
+		const cardIndex = messages.findIndex((item) => item.app_message_id === correlationId)
+		if (cardIndex < 0) return
+
+		const existingCard = messages[cardIndex]
+		const patchableKeys: Array<string> = [
+			"magic_message_id",
+			"conversation_id",
+			"sender_id",
+			"send_time",
+			"seq_id",
+			"status",
+			"event",
+			"refer_message_id",
+			"parent_correlation_id",
+			"topic_id",
+			"type",
+		]
+
+		let mutated = false
+		const merged: MessageItem = { ...existingCard }
+		patchableKeys.forEach((key) => {
+			const next = (finalCard as Record<string, unknown>)[key]
+			if (next === undefined || next === null || next === "") return
+			if ((merged as Record<string, unknown>)[key] === next) return
+			;(merged as Record<string, unknown>)[key] = next
+			mutated = true
+		})
+
+		if (!mutated) return
+		const nextMessages = messages.slice()
+		nextMessages[cardIndex] = merged
+		this.messages.set(topicId, nextMessages)
+	}
+
+	private processMessageBuffer(topicId: string) {
+		const buffer = this.getTopicBuffer(topicId)
+		if (buffer.messages.length > 0 && !buffer.isProcessing) {
+			buffer.isProcessing = true
+			const nextMessage = buffer.messages.shift()
+
+			const messageNode = getRawMessageNode(nextMessage?.seq?.message)
+
+			const message = transformRawMessage(nextMessage?.seq as RawSuperMagicMessageSequence)
+
+			if (messageNode?.role === "tool") {
+				if (messageNode?.status === "suspended") {
+					this.handleTopicSuspended(topicId)
+				}
+
+				// 立即更新 toolResponseMap，不受 timer 守卫约束。
+				// 这只是纯数据写入，不会产生新卡片或视觉抖动，
+				// 让组件能即时读到 tool 响应的最终状态（status/detail 等）。
+				const toolResponseMap = this.toolResponseMap.get(topicId) || new Map()
+				if (messageNode?.tool?.id) {
+					toolResponseMap.set(messageNode?.tool?.id || "", {
+						...messageNode?.tool,
+					})
+				}
+				this.toolResponseMap.set(topicId, toolResponseMap)
+
+				// timer 守卫仅延迟"卡片创建 + 事件触发"，避免流式动画期间出现新卡片跳动
+				const topicMeta = this.getTopicMetadata(topicId)
+				if (topicMeta.timer) {
+					console.log(
+						"%c 【DEBUG】 消费队列 - 工具（等待流式完成，toolResponseMap 已更新）",
+						"background-color: orange;color: white;padding:0 4px",
+						JSON.parse(JSON.stringify(buffer)),
+					)
+					buffer.messages.unshift(nextMessage!)
+					buffer.isProcessing = false
+					return
+				}
+
+				console.log(
+					"%c 【DEBUG】 消费队列 - 工具",
+					"background-color: pink;color: white;padding:0 4px",
+					JSON.parse(JSON.stringify(buffer)),
+				)
+				const messages = this.messages.get(topicId) || []
+				messages.push(message)
+				this.messages.set(topicId, unionBy(sortMessages(messages), "app_message_id"))
+				this.messageMap.set(message?.app_message_id, messageNode)
+
+				this.emitTopicMessageArrived({
+					topicId,
+					message,
+					messageNode,
+					stage: "arrived",
+				})
+				this.emitDomainEvents({
+					topicId,
+					message,
+					messageNode,
+					stage: "arrived",
+				})
+
+				buffer.isProcessing = false
+				this.processMessageBuffer(topicId)
+			} else {
+				const streamState = this.getTopicStreamState(
+					topicId,
+					messageNode?.correlation_id as string,
+				)
+				streamState.isFinalMessageReceived = true
+				const topicMeta = this.getTopicMetadata(topicId)
+				if (topicMeta.timer) {
+					console.log(
+						"%c 【DEBUG】 消费队列 - 流式（等待流式完成）",
+						"background-color: orange;color: white;padding:0 4px",
+						JSON.parse(JSON.stringify(buffer)),
+					)
+					buffer.messages.unshift(nextMessage!)
+					buffer.isProcessing = false
+					return
+				}
+
+				console.log(
+					"%c 【DEBUG】 消费队列 - 流式",
+					"background-color: pink;color: white;padding:0 4px",
+					JSON.parse(JSON.stringify(nextMessage)),
+				)
+				streamState.content = messageNode?.content || ""
+				streamState.reasoning_content = (messageNode?.reasoning_content as string) || ""
+				streamState.tool_calls = (messageNode?.tool_calls as ToolCall[]) || []
+				this.startStreamRendering(topicId, messageNode?.correlation_id as string)
+
+				// 首次真消息（无 chunk 前置）场景：startStreamRendering 只会用
+				// getDefaultNode / getDefaultMessage 创建空壳 mock，真消息里的
+				// status / task_id / event / attachments / usage 等非流式字段不会被自动写入。
+				// 这里与路径 A 保持一致，补一次元信息同步，避免下游读到默认占位值。
+				const correlationId = messageNode?.correlation_id as string
+				if (correlationId) {
+					this.syncFinalNodeMetadata(
+						correlationId,
+						messageNode as RawSuperMagicMessageNode,
+					)
+					this.syncFinalCardMetadata(topicId, correlationId, message)
+				}
 			}
 		}
-		return topicMeta.content?.[correlationId]
 	}
 
-	// 通过关联 Id 查找 messageId
-	findMessageIdByCorrelation(topicId: string, correlationId: string) {
-		let appMessageId: null | string = null
-		const msg = this.messages.get(topicId) || []
-		for (let i = 0, len = msg.length; i < len; i += 1) {
-			if (msg[i]?.correlation_id === correlationId) {
-				appMessageId = msg[i]?.app_message_id
-			}
-		}
-		return appMessageId
-	}
-
-	/** 流式任务开始 */
 	private startStreamRendering(topicId: string, correlationId: string) {
 		const topicMeta = this.getTopicMetadata(topicId)
 		if (topicMeta?.timer) {
-			clearTimeout(topicMeta?.timer)
-		}
-		const { content, index, status } = this.getStreamMetadata(topicId, correlationId)
-		const appMessageId = this.findMessageIdByCorrelation(topicId, correlationId)
-		const cache = this.messageMap.get(appMessageId || "") as RawSuperMagicMessageNode
-
-		// 当且仅当存在存在流式缓冲以及对应消息卡片时才触发流式
-		if (appMessageId) {
-			runInAction(() => {
-				/** IMPORTANT: 当且仅当流式状态中文本内容存在待流式处理时才进行流式处理 */
-				/**
-				 * 旧逻辑只基于 `cache.content.length` 推进流式内容，
-				 * 但在流式消息和 HTML 预览增强场景下，`cache.content.length` 与 `index` 可能会短暂不同步，导致内容重复推进、局部回退，
-				 * 这里增加 `safeRenderedLength`，先对齐“当前已渲染长度”和“store 推进下标”，再继续推进后续内容，保证流式渲染更稳定。
-				 */
-				const renderedLength = cache.content?.length || 0
-				const safeRenderedLength = Math.min(Math.max(renderedLength, index), content.length)
-				if (renderedLength < safeRenderedLength) {
-					cache.content = content.slice(0, safeRenderedLength)
-				}
-
-				if (safeRenderedLength < content.length) {
-					// 缓存区是否存在多个消息节点
-					const hasNextCard = (this.buffer.get(topicId) || []).length > 0
-					// 每次渲染最大 5 个字符
-					topicMeta.content[correlationId].index = Math.min(
-						safeRenderedLength + (hasNextCard ? 5 : 1),
-						content.length,
-					)
-					cache.content = content.slice(0, topicMeta.content[correlationId].index)
-
-					if (cache.content?.length > 0) {
-						topicMeta.isStreamLoading = true
-					}
-
-					this.topicMeta.set(topicId, topicMeta)
-					this.messageMap.set(appMessageId, cache)
-				}
-			})
-		}
-		/** (流式结束判断): 流式内容为空 */
-		const isStreamContentEmpty = content.length === 0
-		/** [Polyfill]: (流式结束判断): 流式内容与实际返回结果不一致（agent重试兜底）*/
-		const isStreamContentDiff = cache?.content && content.indexOf(cache.content) < 0
-		/** (流式结束判断): 流式文本一致 */
-		const isStreamContentSame = content && cache?.content === content
-		if (status === 2 && (isStreamContentSame || isStreamContentEmpty || isStreamContentDiff)) {
-			this.completeStreamRendering(topicId)
 			return
 		}
-		// 流式结束以及文本为0时，则流式可结束
-		const isFinishStream =
-			!topicMeta?.isStream &&
-			(isStreamContentSame || isStreamContentEmpty || isStreamContentDiff)
-		// 当流式正在进行、或者当前流式文本内容还未流式完，则继续流式（需要增加流式结束以及文本为0时）
-		if (topicMeta?.isStream || content.length > index || !isFinishStream) {
-			runInAction(() => {
-				const hasNextCard = (this.buffer.get(topicId) || []).length > 0
-				// 默认流式频率
-				const time = content.length > 30 ? 3 : 6
-				// 慢速流式频率
-				const slowTime = content.length > 30 ? 5 : 20
-				topicMeta.timer = setTimeout(
-					() => {
-						runInAction(() => {
-							const meta = this.getTopicMetadata(topicId)
-							if (meta.timer) {
-								clearTimeout(meta.timer)
-								meta.timer = null
-							}
-							this.topicMeta.set(topicId, meta)
-							this.startStreamRendering(topicId, correlationId)
-						})
-					},
-					hasNextCard ? time : slowTime,
-				)
-				this.topicMeta.set(topicId, topicMeta)
-			})
-		} else {
-			this.completeStreamRendering(topicId)
+
+		const streamState = this.getTopicStreamState(topicId, correlationId)
+		let cache = this.messageMap.get(correlationId || "") as RawSuperMagicMessageNode
+
+		if (!cache) {
+			this.messageMap.set(correlationId || "", this.getDefaultNode(correlationId || ""))
+			cache = this.messageMap.get(correlationId || "") as RawSuperMagicMessageNode
+
+			const messages = this.messages.get(topicId) || []
+			const lastMessage = messages[messages.length - 1]
+			const seqId = lastMessage ? addOneToBigNumberString(lastMessage.seq_id) : "1"
+
+			const card = this.getDefaultMessage({
+				topic_id: topicId,
+				correlation_id: correlationId,
+				app_message_id: correlationId,
+				seq_id: seqId,
+			}) as any
+
+			this.messages.set(topicId, unionBy(sortMessages([...messages, card]), "app_message_id"))
 		}
+
+		if (topicId !== this.activeTopicId) {
+			if (streamState.isFinalMessageReceived) {
+				this.flushStreamToCompletion(topicId, correlationId)
+			}
+			return
+		}
+
+		const progressed = this.resumeFromCurrentStateV2(topicId, correlationId)
+
+		if (streamState.isFinalMessageReceived && streamState.stage === "done") {
+			const isStreamContentSame = streamState.content === cache?.content
+			const isStreamReasoningContentSame =
+				streamState.reasoning_content === cache?.reasoning_content
+			const isStreamToolCallsSame = isToolCallsEqual(
+				streamState.tool_calls,
+				(cache?.tool_calls as ToolCall[]) || [],
+			)
+			if (isStreamContentSame && isStreamReasoningContentSame && isStreamToolCallsSame) {
+				console.log(
+					"%c 【DEBUG】 流式终止 V1",
+					"background-color: black;color: white;padding:0 4px",
+				)
+				this.completeStreamRendering(topicId, correlationId)
+				return
+			}
+		}
+		if (!progressed && !streamState.isFinalMessageReceived) {
+			// 流式无新数据且未收到最终消息 → 暂停定时器，等待下一个 chunk
+			// 到达后由 receiveChunk → startStreamRendering 重启渲染
+			return
+		}
+
+		topicMeta.timer = setTimeout(() => {
+			runInAction(() => {
+				topicMeta.timer = null
+				this.startStreamRendering(topicId, correlationId)
+			})
+		}, 16)
 	}
 
-	/** 流式任务完成 */
-	private completeStreamRendering(topicId: string) {
+	/**
+	 * 不可见话题收到 final 后：保存视觉快照，一次性写入 messageMap，
+	 * 然后 completeStreamRendering 以正常排空 buffer / 触发事件。
+	 */
+	private flushStreamToCompletion(topicId: string, correlationId: string) {
+		const streamState = this.getTopicStreamState(topicId, correlationId)
+		const cache = this.messageMap.get(correlationId) as RawSuperMagicMessageNode
+		if (!cache || !streamState) return
+
+		const topicMeta = this.getTopicMetadata(topicId)
+		topicMeta.streamSnapshots.set(correlationId, {
+			reasoning_content: streamState.reasoning_content || "",
+			content: (streamState.content as string) || "",
+			tool_calls: Array.isArray(cache.tool_calls)
+				? ([...(cache.tool_calls as ToolCall[])] as ToolCall[])
+				: [],
+		})
+
+		cache.reasoning_content = streamState.reasoning_content
+		cache.content = streamState.content
+		cache.tool_calls = streamState.tool_calls
+		this.messageMap.set(correlationId, cache)
+
+		this.completeStreamRendering(topicId, correlationId)
+	}
+
+	private completeStreamRendering(topicId: string, correlationId?: string) {
 		const meta = this.getTopicMetadata(topicId)
 		meta.isStreamLoading = false
+		if (meta.timer) {
+			clearTimeout(meta.timer)
+			meta.timer = null
+		}
+		if (correlationId && meta.content?.has(correlationId)) {
+			meta.content.delete(correlationId)
+		}
 		this.topicMeta.set(topicId, meta)
-		// 流式结束，需要流转下一个卡片
-		this.executeBufferMessage(topicId)
+
+		if (correlationId) {
+			const messages = this.messages.get(topicId) || []
+			const targetMessage = messages.find(
+				(m) => m.correlation_id === correlationId || m.app_message_id === correlationId,
+			)
+			if (targetMessage) {
+				const payload = {
+					topicId,
+					message: targetMessage,
+					messageNode:
+						this.getMessageNode(targetMessage.app_message_id) ||
+						this.getMessageNode(correlationId),
+					stage: "arrived" as const,
+				} satisfies TopicMessageListenerPayload
+				this.emitTopicMessageArrived(payload)
+				this.emitDomainEvents(payload)
+			}
+		}
+
+		const buffer = this.getTopicBuffer(topicId)
+		buffer.isProcessing = false
 		this.processMessageBuffer(topicId)
+
+		if (meta.content?.size && !meta.timer) {
+			const nextCorrelationId = meta.content.keys().next().value
+			if (nextCorrelationId) {
+				this.startStreamRendering(topicId, nextCorrelationId)
+			}
+		}
 	}
 
-	// 流式数据插入(文本内容)
-	handleStreamMessage(message: RawMessage) {
-		const topicId = message?.topic_id
-		const correlationId = message?.raw?.raw_data?.correlation_id
-		const msg = message?.raw?.raw_data
+	private handleTopicSuspended(topicId: string) {
+		const topicMeta = this.topicMeta.get(topicId)
+		if (!topicMeta?.content) return
 
-		const text = msg?.content
-		const streamStatus = msg?.stream_status || 0 // 0:开始、1:进行中、2:结束
-		const topicMeta = this.getTopicMetadata(topicId)
-		// 缓冲区中的流式状态（流式文本、流式处理位置）
-		const { content } = this.getStreamMetadata(topicId, correlationId)
+		const toolResponseMap = this.toolResponseMap.get(topicId) || new Map()
 
-		const imTopicId = this.topicMap.get(topicId)
-		if (imTopicId) {
-			persistMessageToStorage(imTopicId, message)
-		}
+		topicMeta.content.forEach((streamState, correlationId) => {
+			if (streamState.isFinalMessageReceived) return
 
-		// /** [Polyfill]: 判断已处理消息中是否存在有效 correlation_id，没有则不处理 */ 兜底移除，默认都在接收对应流式消息卡片时创建 topicMeta.[topicId].content
-		// const messages = this.messages.get(topicId) || []
-		// const buffer = this.buffer.get(topicId) || []
-		// const result = messages.some((o) => o?.correlation_id === correlationId)
-		// const buffer2 = buffer.some((o) => o?.correlation_id === correlationId)
-		// if (!result && !buffer2) {
-		// 	console.log(
-		// 		`%c stream message ${topicId} 没有找到对应要处理的消息------>`,
-		// 		"background:red;color: #fff;padding: 0 4px",
-		// 		correlationId,
-		// 		message,
-		// 	)
-		// 	return
-		// }
+			const validToolCalls = streamState.tool_calls.filter(isToolCallArgumentsComplete)
 
-		// 预处理数据格式
-		if (!topicMeta.content[correlationId]) {
-			topicMeta.content[correlationId] = {
-				content: "",
-				index: 0,
-				status: -1,
+			streamState.tool_calls = validToolCalls
+			streamState.isFinalMessageReceived = true
+
+			const cache = this.messageMap.get(correlationId) as RawSuperMagicMessageNode | undefined
+			if (cache) {
+				;(cache as any).tool_calls = validToolCalls.length > 0 ? validToolCalls : []
+				this.messageMap.set(correlationId, cache)
 			}
-		}
-		/** 卡片消息比流式消息快(优先接收到消息卡片数据，流式数据还没接收到) ，默认正常 */
-		runInAction(() => {
-			// 直接修改对象属性，MobX 会检测到变化
-			console.log(
-				`%c stream message ${topicId} 1------>`,
-				"background:red;color: #fff;padding: 0 4px",
-				dayjs().format("HH:mm:ss:SSS"),
-				streamStatus,
-				correlationId,
-				text,
-			)
-			if (streamStatus === 1) {
-				topicMeta.content[correlationId].content = content + text
-				topicMeta.content[correlationId].status = 1
-				this.topicMeta.set(topicId, topicMeta)
-			} else if (streamStatus === 0) {
-				// 流式开始，需要阻塞下一张消息卡片的渲染
-				topicMeta.isStream = true
-				topicMeta.content[correlationId].status = 0
-				topicMeta.content[correlationId].content = text
-				this.topicMeta.set(topicId, topicMeta)
-				this.startStreamRendering(topicId, correlationId)
-			} else if (streamStatus === 2) {
-				// 流式完成，需要继续渲染下一张消息卡片（如果存在）
-				topicMeta.isStream = false
-				// topicMeta.isStreamLoading = false
-				topicMeta.content[correlationId].status = 2
-				topicMeta.content[correlationId].content = text // 这里直接设置文本会导致流式内容部分重复，text 前面部分内容已被消费，需要优雅处理
-				this.topicMeta.set(topicId, topicMeta)
-			}
+
+			validToolCalls.forEach((tc) => {
+				if (tc.id && !toolResponseMap.has(tc.id)) {
+					toolResponseMap.set(tc.id, {
+						...tc.tool,
+						id: tc.id,
+						name: tc.tool?.name || tc.function?.name || "",
+						status: "suspended",
+						remark: "任务已中断",
+					} satisfies ToolResponseState)
+				}
+			})
+
+			this.completeStreamRendering(topicId, correlationId)
 		})
+
+		this.fillInterruptedToolResponses(topicId, toolResponseMap)
+		this.toolResponseMap.set(topicId, toolResponseMap)
+	}
+
+	/**
+	 * 从消息列表末尾向前回溯，为所有缺少 toolResponse 的 tool_call 补填中断状态。
+	 * 遇到所有 tool_calls 都已有 response 的 assistant 消息时停止回溯。
+	 */
+	private fillInterruptedToolResponses(
+		topicId: string,
+		toolResponseMap: Map<string, ToolResponseState>,
+	) {
+		const messages = this.messages.get(topicId) || []
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i]
+			if (msg.role !== "assistant") continue
+
+			const node = this.messageMap.get(msg.app_message_id) as
+				| RawSuperMagicMessageNode
+				| undefined
+			const toolCalls = (node?.tool_calls as ToolCall[]) || []
+			if (toolCalls.length === 0) continue
+
+			let hasUnresolved = false
+			toolCalls.forEach((tc) => {
+				if (tc.id && !toolResponseMap.has(tc.id)) {
+					hasUnresolved = true
+					toolResponseMap.set(tc.id, {
+						...tc.tool,
+						id: tc.id,
+						name: tc.tool?.name || tc.function?.name || "",
+						status: "suspended",
+						remark: "任务已中断",
+					} satisfies ToolResponseState)
+				}
+			})
+
+			if (!hasUnresolved) break
+		}
+	}
+
+	private resumeFromCurrentStateV2(topicId: string, appMessageId: string): boolean {
+		const streamState = this.getTopicStreamState(topicId, appMessageId)
+		const messageMap = this.messageMap.get(appMessageId) || this.getDefaultNode(appMessageId)
+
+		const finalContent = streamState.content || ""
+		const finalReasoningContent = streamState.reasoning_content || ""
+		const finalTools = streamState.tool_calls || []
+
+		// --------------------------
+		// 1. 续流思考（直接补全）
+		// --------------------------
+		if (!messageMap?.reasoning_content) {
+			messageMap.reasoning_content = ""
+		}
+		if (finalReasoningContent && finalReasoningContent !== messageMap?.reasoning_content) {
+			if (
+				messageMap.reasoning_content &&
+				!finalReasoningContent.startsWith(messageMap.reasoning_content)
+			) {
+				messageMap.reasoning_content = finalReasoningContent
+			}
+			if (finalReasoningContent.length > messageMap?.reasoning_content?.length) {
+				streamState.stage = "reasoning_content"
+			}
+			const currentReasoningContent = messageMap?.reasoning_content
+			const remainingReasoningContent = finalReasoningContent.slice(
+				currentReasoningContent.length,
+			)
+			console.log("【LS】 reasoning_content", streamState.stage)
+			const rcStep = adjustSliceEnd(
+				remainingReasoningContent,
+				getCharsPerTick(remainingReasoningContent.length),
+			)
+			messageMap.reasoning_content += remainingReasoningContent.slice(0, rcStep)
+			this.messageMap.set(appMessageId, messageMap)
+			return true
+		}
+
+		// --------------------------
+		// 2. 续流正文（从当前截断位置续流）
+		// --------------------------
+		if (!messageMap?.content) {
+			messageMap.content = ""
+		}
+		if (finalContent && finalContent !== messageMap?.content) {
+			if (messageMap.content && !finalContent.startsWith(messageMap.content)) {
+				messageMap.content = finalContent
+			}
+			if (finalContent.length > messageMap?.content?.length) {
+				streamState.stage = "content"
+			}
+			const currentContent = messageMap?.content
+			const remainingContent = finalContent.slice(currentContent.length)
+			console.log("【LS】 content", streamState.stage)
+			const cStep = adjustSliceEnd(remainingContent, getCharsPerTick(remainingContent.length))
+			messageMap.content += remainingContent.slice(0, cStep)
+			this.messageMap.set(appMessageId, messageMap)
+			return true
+		}
+
+		// --------------------------
+		// 3. 续流工具（基于 topicMeta.tool_calls 续流到 messageMap）
+		// --------------------------
+		if (!Array.isArray(messageMap.tool_calls)) messageMap.tool_calls = []
+		if (!isToolCallsEqual(messageMap.tool_calls, finalTools)) {
+			if (
+				!isToolCallsMatch(
+					messageMap.tool_calls,
+					finalTools.slice(0, messageMap.tool_calls.length),
+				)
+			) {
+				messageMap.tool_calls = finalTools
+			}
+			streamState.stage = "tool"
+
+			console.log("【LS】 tool_calls", streamState.stage)
+			const toolStepResult = this.streamToolCallsBySingleUnit(
+				messageMap,
+				streamState,
+				finalTools,
+			)
+			this.messageMap.set(appMessageId, messageMap)
+			if (!toolStepResult.progressed && toolStepResult.done) return false
+			return true
+		}
+
+		if (streamState.isFinalMessageReceived) {
+			if (finalTools.length > 0 && Array.isArray(messageMap.tool_calls)) {
+				let toolSynced = false
+				finalTools.forEach((ft, i) => {
+					if (
+						ft.tool &&
+						messageMap.tool_calls?.[i] &&
+						messageMap.tool_calls[i].tool !== ft.tool
+					) {
+						messageMap.tool_calls[i].tool = ft.tool
+						toolSynced = true
+					}
+				})
+				if (toolSynced) this.messageMap.set(appMessageId, messageMap)
+			}
+			streamState.stage = "done"
+		}
+		console.log("【LS】 done", streamState.stage)
+		return false
+	}
+
+	private streamToolCallsBySingleUnit(
+		messageMap: ToolStreamMessageState,
+		streamState: StreamState,
+		finalTools: ToolCall[],
+	): ToolStreamStepResult {
+		if (!Array.isArray(finalTools) || finalTools.length === 0) {
+			streamState.currentToolIndex = 0
+			return { progressed: false, done: true }
+		}
+
+		let startIndex = Math.max(streamState.currentToolIndex || 0, 0)
+
+		for (let j = 0; j < Math.min(startIndex, finalTools.length); j++) {
+			const cur = get(messageMap, ["tool_calls", j, "function", "arguments"], "")
+			const fin = finalTools[j]?.function?.arguments || ""
+			if (cur.length < fin.length) {
+				startIndex = j
+				break
+			}
+		}
+
+		for (let i = startIndex; i < finalTools.length; i++) {
+			const finalTool = finalTools[i]
+			const toolId = finalTool?.id || String(i)
+			const toolType = finalTool?.type || "function"
+			const toolName = finalTool?.function?.name || ""
+			const toolLabel = finalTool?.function?.label || ""
+			const finalArgs = finalTool?.function?.arguments || ""
+			const finalToolResponse = finalTool?.tool
+			const currentArgs = get(messageMap, ["tool_calls", i, "function", "arguments"], "")
+
+			if (!messageMap.tool_calls[i]) {
+				messageMap.tool_calls[i] = {
+					id: toolId,
+					type: toolType,
+					index: i,
+					function: {
+						name: toolName,
+						label: toolLabel,
+						arguments: "",
+					},
+					...(finalToolResponse ? { tool: finalToolResponse } : {}),
+				}
+			}
+
+			set(messageMap, ["tool_calls", i, "id"], toolId)
+			set(messageMap, ["tool_calls", i, "type"], toolType)
+			set(messageMap, ["tool_calls", i, "index"], i)
+			set(messageMap, ["tool_calls", i, "function", "name"], toolName)
+			set(messageMap, ["tool_calls", i, "function", "label"], toolLabel)
+			if (finalToolResponse) {
+				set(messageMap, ["tool_calls", i, "tool"], finalToolResponse)
+			}
+
+			if (currentArgs.length < finalArgs.length) {
+				const remaining = finalArgs.length - currentArgs.length
+				const step = getCharsPerTick(remaining)
+				const safeEnd = adjustSliceEnd(finalArgs, currentArgs.length + step)
+				const nextChunk = finalArgs.slice(currentArgs.length, safeEnd)
+				set(messageMap, ["tool_calls", i, "function", "arguments"], currentArgs + nextChunk)
+				streamState.currentToolIndex = i
+				messageMap.tool_calls = messageMap.tool_calls.slice(0, i + 1)
+				return { progressed: true, done: false }
+			}
+
+			streamState.currentToolIndex = i + 1
+			messageMap.tool_calls = messageMap.tool_calls.slice(0, i + 1)
+			return {
+				progressed: true,
+				done: streamState.currentToolIndex >= finalTools.length,
+			}
+		}
+
+		streamState.currentToolIndex = finalTools.length
+		return { progressed: false, done: true }
+	}
+
+	/**
+	 * 切回话题时：将不可见期间已完成的流式快照回退到视觉位置，
+	 * 重建 StreamState 并启动打字机追平动画（场景 2）。
+	 */
+	private replayPendingSnapshots(topicId: string) {
+		const topicMeta = this.topicMeta.get(topicId)
+		if (!topicMeta?.streamSnapshots?.size) return
+
+		const entries = Array.from(topicMeta.streamSnapshots.entries())
+		topicMeta.streamSnapshots.clear()
+
+		for (const [correlationId, snapshot] of entries) {
+			const cache = this.messageMap.get(correlationId) as RawSuperMagicMessageNode
+			if (!cache) continue
+
+			const fullReasoningContent = (cache.reasoning_content as string) || ""
+			const fullContent = (cache.content as string) || ""
+			const fullToolCalls = Array.isArray(cache.tool_calls)
+				? ([...(cache.tool_calls as ToolCall[])] as ToolCall[])
+				: []
+
+			cache.reasoning_content = snapshot.reasoning_content
+			cache.content = snapshot.content
+			cache.tool_calls = snapshot.tool_calls
+			this.messageMap.set(correlationId, cache)
+
+			const replayState = createStreamState()
+			replayState.reasoning_content = fullReasoningContent
+			replayState.content = fullContent
+			replayState.tool_calls = fullToolCalls
+			replayState.isFinalMessageReceived = true
+			topicMeta.content.set(correlationId, replayState)
+		}
+
+		const firstCorrelationId = entries[0]?.[0]
+		if (firstCorrelationId) {
+			this.startStreamRendering(topicId, firstCorrelationId)
+		}
+	}
+
+	/**
+	 * 切回话题时：恢复仍在进行中（chunk 尚未结束）的流式渲染定时器。
+	 */
+	private resumeActiveStreams(topicId: string) {
+		const topicMeta = this.topicMeta.get(topicId)
+		if (!topicMeta?.content?.size || topicMeta.timer) return
+
+		const firstCorrelationId = topicMeta.content.keys().next().value
+		if (firstCorrelationId) {
+			this.startStreamRendering(topicId, firstCorrelationId)
+		}
+	}
+
+	isTopicStreaming(topicId: string): boolean {
+		return (this.topicMeta.get(topicId)?.content?.size ?? 0) > 0
+	}
+
+	/**
+	 * @description 获取消息节点
+	 * @param appMessageId 消息id
+	 * @returns 消息节点
+	 */
+	getMessageNode(appMessageId?: string) {
+		return this.messageMap.get(appMessageId || "")
+	}
+
+	private getTopicMetadata(topicId: string): TopicMeta {
+		if (!this.topicMeta.has(topicId)) {
+			this.topicMeta.set(topicId, getDefaultTopicMeta())
+		}
+		return this.topicMeta.get(topicId)!
+	}
+
+	private getTopicStreamState(topicId: string, correlationId: string): StreamState {
+		const topicMeta = this.getTopicMetadata(topicId)
+
+		if (!topicMeta.content?.has(correlationId)) {
+			topicMeta.content?.set(correlationId, createStreamState())
+		}
+
+		const streamState = topicMeta.content?.get(correlationId)
+		return streamState as StreamState
+	}
+
+	getStreamState(topicId: string, correlationId: string): StreamState | undefined {
+		return this.topicMeta.get(topicId)?.content?.get(correlationId)
+	}
+
+	private getDefaultNode(correlationId: string): any {
+		return {
+			attachments: [],
+			content: "",
+			correlation_id: correlationId,
+			name: null,
+			reasoning_content: "",
+			role: "assistant",
+			status: "running",
+			tool: null,
+			tool_call_id: null,
+			tool_calls: null,
+			topic_id: "",
+			usage: null,
+		}
+	}
+
+	private getDefaultMessage(node: Record<string, string>) {
+		return {
+			type: "super_magic_message",
+			unread_count: 0,
+			sender_id: "sender_id",
+			send_time: dayjs().unix(),
+			status: "unread",
+			event: null,
+			parent_correlation_id: "",
+			role: "assistant",
+			refer_message_id: "",
+			...node,
+		}
+	}
+
+	/**
+	 * @description 处理超麦流式消息
+	 * @param message 消息
+	 */
+	handleSuperMagicChunkMessage(message: SuperMagicChunkMessage) {}
+
+	/**
+	 * @description 设置测试消息(DEBUG 专用)
+	 * @param topicId 话题id
+	 */
+	setTest(topicId: string) {
+		this.messages.set(topicId, [
+			{
+				magic_message_id: "35ef35e5b262aaf728408aefda28f4d6",
+				app_message_id: "ml4spbx3-r3j3lwr6mjh",
+				topic_id: topicId,
+				type: "rich_text",
+				unread_count: 0,
+				sender_id: "usi_5f2de55e890e1df920df700e569bc64f",
+				send_time: dayjs().unix(),
+				status: "read",
+				parent_correlation_id: "",
+				role: "user",
+				seq_id: "876836510905307136",
+				refer_message_id: "",
+			},
+		])
+		this.messageMap.set("ml4spbx3-r3j3lwr6mjh", {
+			instructs: [
+				{
+					value: "normal",
+					instruction: null,
+				},
+			],
+			extra: {
+				super_agent: {
+					chat_mode: "normal",
+					topic_pattern: "general",
+					agent_code: null,
+					model: {
+						model_id: "gemini-3-pro-preview",
+					},
+					image_model: {
+						model_id: "gemini-2.5-flash-image-preview",
+					},
+					enable_web_search: true,
+					processed_by_api: null,
+				},
+			},
+			content:
+				'{"type":"doc","content":[{"type":"paragraph","attrs":{"suggestion":"，最好能生成一个时间轴图表"},"content":[{"type":"text","text":"帮我整理"漫威"宇宙中的英雄与电影，我需要从钢铁侠开始到现在的蜘蛛侠，每年上映的漫威宇宙电影有哪些？，并列出对应的主要英雄角色、电影海报、上映时间等等，行程可视化的html，按照时间线排序。"}]}]}',
+		})
+	}
+
+	registerDomainEventListener(params: RegisterDomainEventListenerParams) {
+		return this.domainEventRegistry.register(params)
 	}
 }
 
 export const superMagicStore = new SuperMagicStore()
+// @ts-ignore
 window.base = () => {
 	console.log(/** keep-console */ "messages      ", toJS(superMagicStore.messages))
+	console.log(/** keep-console */ "toolResponseMap", toJS(superMagicStore.toolResponseMap))
 	console.log(/** keep-console */ "messageMap    ", toJS(superMagicStore.messageMap))
 	console.log(/** keep-console */ "buffer        ", toJS(superMagicStore.buffer))
 	console.log(/** keep-console */ "topicMeta  ", toJS(superMagicStore.topicMeta))
 }
 
-declare global {
-	interface Window {
-		base: () => void
-		superMagicStore: SuperMagicStore
-	}
-}
-
+// @ts-ignore
 window.superMagicStore = superMagicStore
-pubsub.subscribe("super_magic_stream_message", (message: RawMessage) => {
-	superMagicStore.handleStreamMessage(message)
+
+pubsub.subscribe("super_magic_chunk_message", (message: SuperMagicChunkMessage) => {
+	superMagicStore.receiveChunk(message)
 })

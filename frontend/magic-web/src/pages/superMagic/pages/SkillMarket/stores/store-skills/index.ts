@@ -63,10 +63,9 @@ export class StoreSkillsStore {
 				keyword: toOptionalKeyword(keyword),
 				publisher_type: params.publisher_type,
 			})
-			const nextList = await this.enrichUserSkillIds(data.list)
 			if (!isLatestPageRequest({ requestId, currentRequestId: this.fetchRequestId })) return
 			runInAction(() => {
-				this.list = nextList
+				this.list = data.list
 				this.total = data.total
 				this.page = data.page
 				this.pageSize = data.pageSize
@@ -94,10 +93,9 @@ export class StoreSkillsStore {
 				page_size: this.pageSize,
 				keyword: toOptionalKeyword(this.keyword),
 			})
-			const nextList = await this.enrichUserSkillIds(data.list)
 			if (!isLatestPageRequest({ requestId, currentRequestId: this.fetchRequestId })) return
 			runInAction(() => {
-				this.list = appendUniqueById(this.list, nextList)
+				this.list = appendUniqueById(this.list, data.list)
 				this.total = data.total
 				this.page = data.page
 				this.pageSize = data.pageSize
@@ -120,24 +118,6 @@ export class StoreSkillsStore {
 		runInAction(() => {
 			target.status = "added"
 		})
-
-		const codeToIdMap = await skillsService.getUserSkillIdMapByCodes([target.skillCode])
-		runInAction(() => {
-			target.userSkillCode = codeToIdMap.get(target.skillCode)
-		})
-	}
-
-	async removeSkill(id: string) {
-		const target = this.list.find((item) => item.id === id)
-		if (!target || target.status !== "added") return
-		if (!target.userSkillCode) return
-
-		await skillsService.deleteSkill(target.userSkillCode)
-		runInAction(() => {
-			target.status = "not-added"
-			target.needUpgrade = false
-			target.userSkillCode = undefined
-		})
 	}
 
 	async upgradeSkill(id: string) {
@@ -150,6 +130,14 @@ export class StoreSkillsStore {
 		})
 	}
 
+	/** Refetch list after locale change (server i18n fields). */
+	refreshAfterLanguageChange() {
+		void this.fetchSkills({
+			page: 1,
+			keyword: toOptionalKeyword(this.keyword),
+		})
+	}
+
 	reset() {
 		this.list = []
 		this.total = 0
@@ -159,18 +147,5 @@ export class StoreSkillsStore {
 		this.loading = false
 		this.loadingMore = false
 		this.fetchRequestId = 0
-	}
-
-	private async enrichUserSkillIds(list: StoreSkillView[]) {
-		const skillCodes = list
-			.filter((item) => item.status === "added")
-			.map((item) => item.skillCode)
-		if (!skillCodes.length) return list
-
-		const codeToIdMap = await skillsService.getUserSkillIdMapByCodes(skillCodes)
-		return list.map((item) => ({
-			...item,
-			userSkillId: codeToIdMap.get(item.skillCode),
-		}))
 	}
 }

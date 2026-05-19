@@ -1,6 +1,15 @@
-import type { LayerElement, ToolType, ToolKeyEvent, Marker } from "./types"
+import type {
+	LayerElement,
+	ToolType,
+	ToolKeyEvent,
+	Marker,
+	CropConfig,
+	ExtendSession,
+} from "./types"
 import type { IdentifyImageMarkResponse } from "../types.magic"
 import type { LoadedResource } from "./utils/ImageResourceManager"
+import type { LoadedVideoResource } from "./utils/VideoResourceManager"
+import type { ResourceLoadFailureReason } from "./utils/resourceLoadFailure"
 
 /**
  * 事件映射接口 - 定义所有可能的事件及其数据类型
@@ -13,13 +22,13 @@ export interface CanvasEventMap {
 
 	// 元素相关事件
 	"element:select": { elementIds: string[] }
-	"element:deselect": void
+	"element:deselect": { elementIds?: string[] } | undefined
 	"element:hover": { elementId: string | null }
 	"element:created": { elementId: string }
 	"element:updated": { elementId: string; data: LayerElement }
 	"element:rerendered": { elementId: string; data: LayerElement } // 元素节点重新渲染（不记录历史）
 	"element:deleted": { elementId: string }
-	"element:change": void // 任何元素变化时触发，用于触发UI更新
+	"element:change": { elementIds?: string[] } | undefined // 任何元素变化时触发，用于触发UI更新
 	"element:batchupdated": void // 批量更新完成事件
 	"element:batchdeleted": { elementIds: string[] } // 批量删除完成事件
 	"referenceImages:changed": { elementId: string } // 图片元素参考图增删（触发资源回收）
@@ -29,16 +38,46 @@ export interface CanvasEventMap {
 	"element:temporary:deleted": { elementId: string } // 临时元素被删除
 
 	// 元素交互事件
-	"element:dblclick": { elementId: string; elementType: string }
+	"element:dblclick": {
+		elementId: string
+		elementType: string
+		clientX?: number
+		clientY?: number
+	}
 	"element:contextmenu": { elementId: string; x: number; y: number }
 	"element:image:infoButtonClick": { elementId: string }
+	"element:video:infoButtonClick": { elementId: string }
+	/** 失败态点击重新生成，交给 UI 打开编辑器并恢复草稿 */
+	"element:image:retryClick": { elementId: string }
+	/** 失败态点击重新生成，交给 UI 打开编辑器并恢复草稿 */
+	"element:video:retryClick": { elementId: string }
+	/** 宿主图片类提交开始，供 UI 先隐藏编辑器（如去背景） */
+	"element:image:generate-submit-started": { elementId: string }
+	/** 宿主图片类提交失败或前置校验未通过，供 UI 恢复图片编辑器展示 */
+	"element:image:generate-submit-failed": { elementId: string }
+	/** 宿主视频类提交开始，供 UI 先隐藏编辑器 */
+	"element:video:generate-submit-started": { elementId: string }
+	/** 宿主 generateVideo 提交失败或前置校验未通过，供 UI 恢复生成编辑器展示 */
+	"element:video:generate-submit-failed": { elementId: string }
+	"element:video:fullscreenClick": { elementId: string }
 	"element:image:resultUpdated": { elementId: string }
 	"element:image:loaded": { elementId: string } // 图片加载完成事件
 	"element:image:ossSrcReady": { elementId: string } // ossSrc 获取成功事件
+	"text:editing-state-change": { active: boolean; elementId: string | null }
+	"text:formatting-state-change": void
 
 	// 图片资源管理器事件
 	"resource:image:loaded": { path: string; resource: LoadedResource } // 图片资源加载完成事件
-	"resource:image:load-failed": { path: string } // 图片资源加载失败事件
+	"resource:image:load-failed": {
+		path: string
+		/** 与 ImageResourceManager 条目一致；便于 UI 区分文件缺失与通用加载失败 */
+		reason?: ResourceLoadFailureReason
+	} // 图片资源加载失败事件
+	"resource:video:refreshed": { path: string; resource: LoadedVideoResource } // 视频资源替换后刷新完成事件
+	"resource:video:load-failed": {
+		path: string
+		reason?: ResourceLoadFailureReason
+	} // 视频换链/刷新失败（如附件已删除）
 	"resource:released": { path: string } // 资源释放事件（供缩略图服务清理缓存）
 
 	// 元素拖拽相关事件（单元素）
@@ -61,7 +100,6 @@ export interface CanvasEventMap {
 	// 选中元素位置事件
 	"selection:position": {
 		boundingRect: { x: number; y: number; width: number; height: number } | null
-		elements: Array<{ elementId: string; x: number; y: number; width: number; height: number }>
 	}
 
 	// 吸附相关事件
@@ -82,7 +120,6 @@ export interface CanvasEventMap {
 	"frame:removed": { frameId: string }
 
 	// 标记相关事件
-	"marker:select": { id: string | null }
 	"marker:before-create": { marker: Marker }
 	"marker:created": { marker: Marker }
 	"marker:deleted": { id: string }
@@ -97,6 +134,50 @@ export interface CanvasEventMap {
 
 	// 工具相关事件
 	"tool:change": { tool: ToolType | null }
+
+	// 裁剪相关事件
+	"crop:enter": { elementId: string } // 进入裁剪模式
+	"crop:exit": { elementId: string; restored: boolean } // 退出裁剪模式
+	"crop:confirmed": { elementId: string } // 确认保存裁剪
+	"crop:tempCropUpdate": { elementId: string; tempCrop: CropConfig } // 临时crop更新(通知面板)
+	"crop:updateFromPanel": {
+		// 面板更新(来自ImageCropPanel)
+		elementId: string
+		tempCrop: CropConfig
+		isLocked?: boolean
+	}
+	"crop:position": {
+		// 裁剪模式下元素位置(供 UI 层定位 ImageCropPanel)
+		elementId: string
+		boundingRect: { x: number; y: number; width: number; height: number } | null
+	}
+
+	// 扩展相关事件
+	"extend:enter": { elementId: string }
+	"extend:exit": { elementId: string; restored: boolean }
+	"extend:confirmed": { elementId: string; session: ExtendSession }
+	"extend:tempUpdate": { elementId: string; session: ExtendSession }
+	"extend:updateFromPanel": { elementId: string; session: ExtendSession }
+	"extend:position": {
+		elementId: string
+		boundingRect: { x: number; y: number; width: number; height: number } | null
+	}
+
+	// 橡皮擦相关事件
+	"eraser:enter": { elementId: string } // 进入橡皮擦模式
+	"eraser:exit": { elementId: string; restored: boolean } // 退出橡皮擦模式
+	"eraser:position": {
+		// 橡皮擦模式下元素位置(供 UI 层定位 ImageEraserPanel)
+		elementId: string
+		boundingRect: { x: number; y: number; width: number; height: number } | null
+	}
+	"eraser:sessionUpdate": {
+		// 橡皮擦会话状态变化（半径、撤销栈等）
+		elementId: string
+		radius: number
+		strokeCount: number
+		canUndo: boolean
+	}
 
 	// 键盘事件
 	"keyboard:keydown": { key: string; modifiers: string[]; originalEvent: KeyboardEvent }
@@ -141,6 +222,11 @@ export interface CanvasEventMap {
 	// 对话快捷键事件
 	"keyboard:conversation:add-to-current": void
 
+	// 上传中的临时元素状态
+	"upload:pending-change": {
+		pendingUndoCount: number
+	}
+
 	// 历史记录事件
 	"history:statechange": {
 		canUndo: boolean
@@ -176,6 +262,7 @@ export class EventEmitter<EventMap extends Record<keyof EventMap, unknown> = Can
 	private readonly memorizedEvents: Set<keyof CanvasEventMap> = new Set([
 		"canvas:ready",
 		"selection:position",
+		"extend:position",
 	])
 
 	/**
@@ -202,9 +289,12 @@ export class EventEmitter<EventMap extends Record<keyof EventMap, unknown> = Can
 			this.memorizedEvents.has(eventType as keyof CanvasEventMap) &&
 			this.emittedEvents.has(eventType)
 		) {
-			const event = this.emittedEvents.get(eventType) as CanvasEvent<K>
 			// 使用 setTimeout 确保异步执行，避免在订阅过程中同步执行导致的问题
-			setTimeout(() => listener(event), 0)
+			// 回调内再读取一次记忆数据：避免「退订→重订」时重放到订阅瞬间的旧 payload（例如扩展框已变大但 boundingRect 仍是旧的）
+			setTimeout(() => {
+				const latest = this.emittedEvents.get(eventType) as CanvasEvent<K> | undefined
+				if (latest) listener(latest)
+			}, 0)
 		}
 
 		// 返回取消订阅函数
@@ -233,9 +323,11 @@ export class EventEmitter<EventMap extends Record<keyof EventMap, unknown> = Can
 			this.memorizedEvents.has(eventType as keyof CanvasEventMap) &&
 			this.emittedEvents.has(eventType)
 		) {
-			const event = this.emittedEvents.get(eventType) as CanvasEvent<K>
 			// 使用 setTimeout 确保异步执行，避免在订阅过程中同步执行导致的问题
-			setTimeout(() => listener(event), 0)
+			setTimeout(() => {
+				const latest = this.emittedEvents.get(eventType) as CanvasEvent<K> | undefined
+				if (latest) listener(latest)
+			}, 0)
 			// 返回一个空的取消订阅函数（no-op）
 			// eslint-disable-next-line @typescript-eslint/no-empty-function
 			return () => {}

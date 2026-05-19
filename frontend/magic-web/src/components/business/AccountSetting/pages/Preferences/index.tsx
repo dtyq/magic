@@ -1,12 +1,10 @@
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
 import LanguageSwitch from "@/components/settings/LanguageSwitch"
+import FollowUpSuggestionItems from "@/components/settings/FollowUpSuggestionItems"
 import SettingItem from "@/components/settings/SettingItem"
-import { isLanguageSwitchEnabled } from "@/models/config/languagePolicy"
-
 function PreferencesPage() {
 	const { t } = useTranslation("interface")
-	if (!isLanguageSwitchEnabled()) return null
 
 	return (
 		<div data-testid="account-setting-preferences-page">
@@ -16,6 +14,7 @@ function PreferencesPage() {
 				extra={<LanguageSwitch />}
 				adaptMobile
 			/>
+			<FollowUpSuggestionItems />
 		</div>
 	)
 }

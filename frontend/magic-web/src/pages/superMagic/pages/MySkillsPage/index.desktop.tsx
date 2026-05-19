@@ -2,51 +2,47 @@ import { useState, useCallback, useMemo, useEffect, useRef } from "react"
 import { CirclePlus, ChevronDown, Check, Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
-import { useLocation } from "react-router"
 import { Button } from "@/components/shadcn-ui/button"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/shadcn-ui/tabs"
+import { FUNCTION_PERMISSION_CODE } from "@/apis"
+import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import PageTopBar from "@/pages/superMagic/components/PageTopBar"
+import { SkillDetailDialog } from "@/pages/superMagic/components/SkillDetailDialog"
 import ImportSkillPublishPromptDialog from "@/pages/superMagic/components/ImportSkillPublishPromptDialog"
 import SkillActionDropdown from "@/pages/superMagic/components/SkillActionDropdown"
 import { useSkillCreateMenuItems } from "@/pages/superMagic/hooks/useSkillCreateMenuItems"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
-import { RoutePath } from "@/constants/routes"
-import { configStore } from "@/models/config"
-import { defaultClusterCode } from "@/routes/helpers"
-import { fillRoute } from "@/routes/history/helpers"
 import { useAutoLoadMoreSentinel } from "@/pages/superMagic/hooks/useAutoLoadMoreSentinel"
 import { useDelayedVisibility } from "@/pages/superMagic/hooks/useDelayedVisibility"
+import type { UserSkillView } from "@/services/skills/SkillsService"
 import MySkillCard from "./components/MySkillCard"
+import { resolveTeamSharedSkillPermissions } from "./components/MySkillCardShared"
 import { UserSkillsStore } from "./stores/user-skills"
-import {
-	buildMySkillsQuery,
-	getMySkillsPublishPromptSkillCode,
-	getMySkillsRequestedTab,
-	MY_SKILLS_TAB_SCOPE_MAP,
-	MY_SKILLS_TAB_VALUES,
-	type MySkillsTabValue,
-} from "./route-state"
-
-interface MySkillsTabItem {
-	value: MySkillsTabValue
-	labelKey: string
-	testId: string
-}
+import { useMySkillsTabs } from "./hooks/useMySkillsTabs"
 
 function MySkillsPage() {
 	const { t } = useTranslation("crew/market")
 	const userSkillsStore = useMemo(() => new UserSkillsStore(), [])
 	const navigate = useNavigate()
-	const location = useLocation()
-	const clusterCode = configStore.cluster.clusterCode || defaultClusterCode
-	const scrollViewportRef = useRef<HTMLDivElement | null>(null)
-	const [activeTab, setActiveTab] = useState<MySkillsTabValue>(
-		() => getMySkillsRequestedTab(location.search) ?? MY_SKILLS_TAB_VALUES.createdByMe,
+	const { isAllowed: canCreateSkill } = useFunctionPermission(
+		FUNCTION_PERMISSION_CODE.SkillCreate,
 	)
-	const [publishPromptSkillCode, setPublishPromptSkillCode] = useState<string | null>(null)
-	const currentScope = MY_SKILLS_TAB_SCOPE_MAP[activeTab]
+	const scrollViewportRef = useRef<HTMLDivElement | null>(null)
+	const [selectedSkill, setSelectedSkill] = useState<UserSkillView | null>(null)
+	const {
+		activeTab,
+		currentScope,
+		publishPromptSkillCode,
+		setPublishPromptSkillCode,
+		tabItems,
+		handleTabValueChange,
+		setCreatedByMeTab,
+		tabCount,
+		isCreatedByMeTab,
+		isFromSkillsLibraryTab,
+	} = useMySkillsTabs({ variant: "desktop" })
 	const handleAutoLoadMore = useCallback(() => {
 		void userSkillsStore.loadMore()
 	}, [userSkillsStore])
@@ -62,66 +58,23 @@ function MySkillsPage() {
 	}, [userSkillsStore])
 
 	useEffect(() => {
-		const requestedTab = getMySkillsRequestedTab(location.search)
-		const requestedPublishPromptSkillCode = getMySkillsPublishPromptSkillCode(location.search)
-		if (!requestedTab && !requestedPublishPromptSkillCode) return
-
-		if (requestedTab) setActiveTab(requestedTab)
-		if (requestedPublishPromptSkillCode) {
-			setPublishPromptSkillCode(requestedPublishPromptSkillCode)
-		}
-		navigate({
-			name: RouteName.MySkills,
-			query: buildMySkillsQuery({
-				search: location.search,
-				tab: null,
-				publishSkillCode: null,
-			}),
-			replace: true,
-		})
-	}, [location.search, navigate])
-
-	useEffect(() => {
 		void userSkillsStore.fetchSkills({ page: 1 }, currentScope)
 	}, [currentScope, userSkillsStore])
 	const shouldShowLoadingMoreIndicator = useDelayedVisibility({
 		visible: userSkillsStore.loadingMore,
 	})
+	const isTeamSharedTab = !isCreatedByMeTab && !isFromSkillsLibraryTab
 
-	const handleOpenSkill = useCallback(
+	const handleEdit = useCallback(
 		(code: string) => {
 			navigate({ name: RouteName.SkillEdit, params: { code } })
 		},
 		[navigate],
 	)
 
-	const handleEdit = handleOpenSkill
-
-	const getSkillEditHref = useCallback(
-		(skillCode: string) =>
-			fillRoute(`/:clusterCode${RoutePath.SkillEdit}`, {
-				clusterCode,
-				code: skillCode,
-			}) || "#",
-		[clusterCode],
-	)
-
-	const handleSkillCardNavigate = useCallback(
-		(skillCode: string, event: React.MouseEvent<HTMLElement>) => {
-			if (
-				event.button !== 0 ||
-				event.metaKey ||
-				event.ctrlKey ||
-				event.shiftKey ||
-				event.altKey
-			) {
-				return
-			}
-			event.preventDefault()
-			navigate({ name: RouteName.SkillEdit, params: { code: skillCode } })
-		},
-		[navigate],
-	)
+	const handleOpenDetail = useCallback((skill: UserSkillView) => {
+		setSelectedSkill(skill)
+	}, [])
 
 	const handleDeleteCreatedSkill = useCallback(
 		(id: string) => {
@@ -143,47 +96,45 @@ function MySkillsPage() {
 	})
 
 	const handleImportSuccess = useCallback(() => {
-		if (activeTab !== MY_SKILLS_TAB_VALUES.createdByMe) {
-			setActiveTab(MY_SKILLS_TAB_VALUES.createdByMe)
+		if (!isCreatedByMeTab) {
+			setCreatedByMeTab()
 			return
 		}
 
-		void userSkillsStore.fetchSkills(
-			{ page: 1 },
-			MY_SKILLS_TAB_SCOPE_MAP[MY_SKILLS_TAB_VALUES.createdByMe],
-		)
-	}, [activeTab, userSkillsStore])
-
-	const tabItems = useMemo<MySkillsTabItem[]>(
-		() => [
-			{
-				value: MY_SKILLS_TAB_VALUES.createdByMe,
-				labelKey: "mySkills.tabs.createdByMe",
-				testId: "my-skills-tab-created-by-me",
-			},
-			{
-				value: MY_SKILLS_TAB_VALUES.sharedByTeam,
-				labelKey: "mySkills.tabs.sharedByTeam",
-				testId: "my-skills-tab-shared-by-team",
-			},
-			{
-				value: MY_SKILLS_TAB_VALUES.fromSkillsLibrary,
-				labelKey: "mySkills.tabs.fromSkillsLibrary",
-				testId: "my-skills-tab-from-skills-library",
-			},
-		],
-		[],
-	)
-
-	const isCreatedByMeTab = activeTab === MY_SKILLS_TAB_VALUES.createdByMe
-	const isFromSkillsLibraryTab = activeTab === MY_SKILLS_TAB_VALUES.fromSkillsLibrary
+		void userSkillsStore.fetchSkills({ page: 1 }, currentScope)
+	}, [currentScope, isCreatedByMeTab, setCreatedByMeTab, userSkillsStore])
 	const displayedSkills = userSkillsStore.list
+
+	const handleCardOpen = useCallback(
+		(skill: UserSkillView) => {
+			if (
+				isCreatedByMeTab ||
+				(isTeamSharedTab && resolveTeamSharedSkillPermissions(skill.userRole).canEdit)
+			) {
+				handleEdit(skill.skillCode)
+				return
+			}
+
+			handleOpenDetail(skill)
+		},
+		[handleEdit, handleOpenDetail, isCreatedByMeTab, isTeamSharedTab],
+	)
 
 	return (
 		<div
 			className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xs"
 			data-testid="my-skills-page"
 		>
+			<SkillDetailDialog
+				open={selectedSkill != null}
+				onOpenChange={(nextOpen) => {
+					if (nextOpen) return
+					setSelectedSkill(null)
+				}}
+				skillCode={selectedSkill?.skillCode ?? null}
+				detailSource="user"
+				skillSummary={selectedSkill}
+			/>
 			<ImportSkillPublishPromptDialog
 				skillCode={publishPromptSkillCode}
 				onOpenChange={(open) => {
@@ -208,35 +159,39 @@ function MySkillsPage() {
 							</p>
 						</div>
 						<div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-							<SkillActionDropdown
-								createMenuItems={createSkillMenuItems}
-								onImportSuccess={handleImportSuccess}
-								promptPublishAfterImport
-								placement="bottomRight"
-								overlayClassName="w-80"
-							>
-								<span>
-									<Button
-										className="h-9 flex-1 gap-2 shadow-xs sm:flex-none"
-										data-testid="my-skills-create-button"
-									>
-										<CirclePlus className="h-4 w-4" />
-										{t("skillsLibrary.createSkill")}
-										<ChevronDown className="h-4 w-4" />
-									</Button>
-								</span>
-							</SkillActionDropdown>
+							{canCreateSkill ? (
+								<SkillActionDropdown
+									createMenuItems={createSkillMenuItems}
+									onImportSuccess={handleImportSuccess}
+									promptPublishAfterImport
+									placement="bottomRight"
+									overlayClassName="w-80"
+								>
+									<span>
+										<Button
+											className="h-9 flex-1 gap-2 shadow-xs sm:flex-none"
+											data-testid="my-skills-create-button"
+										>
+											<CirclePlus className="h-4 w-4" />
+											{t("skillsLibrary.createSkill")}
+											<ChevronDown className="h-4 w-4" />
+										</Button>
+									</span>
+								</SkillActionDropdown>
+							) : null}
 						</div>
 					</div>
 
 					<Tabs
 						value={activeTab}
-						onValueChange={(value) => setActiveTab(value as MySkillsTabValue)}
+						onValueChange={handleTabValueChange}
 						className="gap-0"
 						data-testid="my-skills-tabs"
 					>
 						<TabsList
-							className="grid h-9 w-full max-w-[600px] grid-cols-3"
+							className={`grid h-9 w-full max-w-[600px] ${
+								tabCount === 2 ? "grid-cols-2" : "grid-cols-3"
+							}`}
 							data-testid="my-skills-tabs-list"
 						>
 							{tabItems.map((tabItem) => (
@@ -271,41 +226,48 @@ function MySkillsPage() {
 							className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
 							data-testid="my-skill-card-grid"
 						>
-							{displayedSkills.map((skill) => (
-								<MySkillCard
-									key={skill.id}
-									skill={skill}
-									cardVariant={
-										isCreatedByMeTab
-											? "created"
-											: isFromSkillsLibraryTab
-												? "library"
-												: "team"
-									}
-									href={
-										isCreatedByMeTab
-											? getSkillEditHref(skill.skillCode)
-											: undefined
-									}
-									onNavigate={
-										isCreatedByMeTab
-											? (event) =>
-													handleSkillCardNavigate(skill.skillCode, event)
-											: undefined
-									}
-									onEdit={handleEdit}
-									onDelete={
-										isCreatedByMeTab ? handleDeleteCreatedSkill : undefined
-									}
-									onRemove={
-										isFromSkillsLibraryTab
-											? handleRemoveInstalledSkill
-											: undefined
-									}
-									canEdit={isCreatedByMeTab}
-									isInteractive={isCreatedByMeTab}
-								/>
-							))}
+							{displayedSkills.map((skill) => {
+								const teamPermissions = resolveTeamSharedSkillPermissions(
+									skill.userRole,
+								)
+
+								return (
+									<MySkillCard
+										key={skill.id}
+										skill={skill}
+										cardVariant={
+											isCreatedByMeTab
+												? "created"
+												: isFromSkillsLibraryTab
+													? "library"
+													: "team"
+										}
+										onOpenDetail={handleCardOpen}
+										onEdit={
+											isCreatedByMeTab ||
+											(isTeamSharedTab && teamPermissions.canEdit)
+												? handleEdit
+												: undefined
+										}
+										onDelete={
+											isCreatedByMeTab ||
+											(isTeamSharedTab && teamPermissions.canDelete)
+												? handleDeleteCreatedSkill
+												: undefined
+										}
+										onRemove={
+											isFromSkillsLibraryTab
+												? handleRemoveInstalledSkill
+												: undefined
+										}
+										canEdit={
+											isCreatedByMeTab ||
+											(isTeamSharedTab && teamPermissions.canEdit)
+										}
+										isInteractive
+									/>
+								)
+							})}
 						</div>
 					)}
 

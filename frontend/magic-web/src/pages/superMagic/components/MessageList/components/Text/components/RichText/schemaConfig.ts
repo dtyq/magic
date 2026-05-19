@@ -5,6 +5,7 @@ import { getMentionDisplayName } from "@/components/business/MentionPanel/tiptap
 import { SuperPlaceholderExtension } from "@/pages/superMagic/components/MessageEditor/extensions"
 import { getDisplayText } from "@/pages/superMagic/components/MessageEditor/extensions/super-placeholder/utils"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
+import { INSPECTOR_DETAIL_TYPE } from "@/pages/superMagic/components/MessageEditor/extensions/inspector-detail/const"
 
 export default {
 	nodes: {
@@ -171,10 +172,52 @@ export default {
 				]
 			},
 		},
+		[INSPECTOR_DETAIL_TYPE]: {
+			group: "block",
+			atom: true,
+			selectable: true,
+			attrs: {
+				selector: { default: "" },
+				tagName: { default: "" },
+				size: { default: "" },
+				computedStyles: { default: "{}" },
+				styleCount: { default: 0 },
+				textContent: { default: "" },
+			},
+			parseDOM: [
+				{
+					tag: `div[data-type="${INSPECTOR_DETAIL_TYPE}"]`,
+					getAttrs: (dom: HTMLElement) => ({
+						selector: dom.getAttribute("data-selector") || "",
+						tagName: dom.getAttribute("data-tag-name") || "",
+						size: dom.getAttribute("data-size") || "",
+						computedStyles: dom.getAttribute("data-computed-styles") || "{}",
+						styleCount: Number(dom.getAttribute("data-style-count")) || 0,
+						textContent: dom.getAttribute("data-text-content") || "",
+					}),
+				},
+			],
+			toDOM: (node: any) => {
+				return [
+					"div",
+					{
+						"data-type": INSPECTOR_DETAIL_TYPE,
+						"data-selector": node.attrs.selector,
+						"data-tag-name": node.attrs.tagName,
+						"data-size": node.attrs.size,
+						"data-computed-styles": node.attrs.computedStyles,
+						"data-style-count": String(node.attrs.styleCount),
+						"data-text-content": node.attrs.textContent,
+						class: "inspector-detail-node",
+					},
+					"[Element Inspector Detail]",
+				]
+			},
+		},
 	},
 	marks: {
 		// Add any text formatting marks here if needed
 	},
 }
 
-export const richTextNode = ["mention", SuperPlaceholderExtension.name]
+export const richTextNode = ["mention", SuperPlaceholderExtension.name, INSPECTOR_DETAIL_TYPE]

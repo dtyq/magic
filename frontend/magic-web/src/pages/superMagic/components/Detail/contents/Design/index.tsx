@@ -15,30 +15,44 @@ import { useDesignMarker } from "./hooks/useDesignMarker"
 import pubsub from "@/utils/pubsub"
 import { useSuperMagicMarkerManager } from "./marker-manager"
 import { useDesignProjectManager } from "./hooks/useDesignProjectManager"
-import { compareDesignData, getDesignDirectoryInfo, collectFilesInDirectory } from "./utils/utils"
+import {
+	getDesignDirectoryInfo,
+	fileItemsToProjectAttachmentMentionTree,
+	normalizeMentionFolderId,
+	resolveActualDesignCurrentFile,
+	resolveDesignProjectBasePathFromAttachments,
+} from "./utils/utils"
 import { FlexBox } from "@/components/base"
 import { observer } from "mobx-react-lite"
 import workspaceStore from "@/pages/superMagic/stores/core/workspace"
-import { CanvasDesignRef } from "@/components/CanvasDesign/types"
+import type { CanvasDesignRef } from "@/components/CanvasDesign/types"
 import { useDesignFocusElement } from "./hooks/useDesignFocusElement"
 import { useAttachments } from "./hooks/useAttachments"
-import { useWaitForAttachmentsUpdate } from "./hooks/useWaitForAttachmentsUpdate"
-import type { CanvasDocument } from "@/components/CanvasDesign/canvas/types"
+import { useCanvasImageFileRenameSync } from "./hooks/useCanvasImageFileRenameSync"
+import type { CanvasDocument, LayerElement } from "@/components/CanvasDesign/canvas/types"
 import CanvasDesignHeaderV2 from "./components/CanvasDesignHeaderV2"
 import { useDesignHeaderProps } from "./components/CanvasDesignHeaderV2/useDesignHeaderProps"
-import type { ImageFileForMention } from "@/components/CanvasDesign/types"
 import { CanvasDesignMentionDataService } from "./adapters/CanvasDesignMentionDataService"
+import { CanvasDesignReferenceResourcePanel } from "./adapters/CanvasDesignReferenceResourcePanel"
 import { MentionExtension } from "@/components/business/MentionPanel/tiptap-plugin"
 import { useDesignDownloadPolicy } from "./hooks/useDesignDownloadPolicy"
+import { HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX } from "@/pages/superMagic/components/Detail/components/CommonHeader/components/HistoryVersionBanner"
+import { useAiWatermarkPreference } from "@/hooks/useAiWatermarkPreference"
+import type { DesignRemoteUpdateListenerMode } from "./managers/types"
+import { useCanvasResourceRefresh } from "./hooks/useCanvasResourceRefresh"
+import { waitForNextAttachmentsRefreshForProject } from "@/pages/superMagic/services/attachmentsTopicSync"
 
 // 懒加载协议弹窗
-const loadWaterMarkFreeModal = () => {
-	return import("@/pages/superMagic/components/WaterMarkFreeModal").then((module) => ({
+const loadWaterMarkFreeModal = async () => {
+	const module = await import("@/pages/superMagic/components/WaterMarkFreeModal")
+	return {
 		default: module.WaterMarkFreeModal,
-	}))
+	}
 }
 
 const WaterMarkFreeModal = lazy(() => loadWaterMarkFreeModal())
+
+const DESIGN_REMOTE_UPDATE_LISTENER_MODE: DesignRemoteUpdateListenerMode = "file-change" as const
 
 const useStyles = createStyles({
 	designViewerContainer: {
@@ -85,6 +99,8 @@ interface DesignViewerProps {
 		name: string
 		type: string
 		url?: string
+		projectId?: string
+		projectName?: string
 	}
 	selectedTopic?: Topic | null
 	selectedProject?: ProjectListItem | null
@@ -94,6 +110,10 @@ interface DesignViewerProps {
 	showFileHeader: boolean
 	showFooter: boolean
 	allowDownload?: boolean
+	data?: {
+		project_path?: string
+		elements?: LayerElement[]
+	}
 }
 
 function DesignViewer(props: DesignViewerProps) {
@@ -109,27 +129,37 @@ function DesignViewer(props: DesignViewerProps) {
 		allowDownload,
 	} = props
 
-	const propsElements = (props as any).data?.elements
+	// 文件列表更新处理
+	const { flatAttachments, attachmentIndex, updateAttachments } = useAttachments({
+		attachments,
+		attachmentList,
+	})
+
+	const propsElements = props.data?.elements
 
 	const { styles } = useStyles()
 	const { t } = useTranslation("super")
 	const { t: canvasDesignT } = useTranslation("canvasDesign")
+	const { i18n } = useTranslation()
+
+	const hostUiLocale = i18n.resolvedLanguage ?? i18n.language
+
+	// 获取项目 ID
+	const projectId = selectedTopic?.project_id
 
 	const currentFile = useMemo(() => {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const projectPath = (props as any).data?.project_path
-		if (isPlaybackMode && projectPath) {
-			const name = projectPath.split("/")[0]
-			const fileItem = attachments?.find((item) => item.file_name === name)
-			if (fileItem) {
-				return {
-					id: fileItem?.file_id,
-					name: fileItem?.file_name,
-				}
-			}
+		const actualCurrentFile = resolveActualDesignCurrentFile({
+			currentFile: currentFileProps,
+			flatAttachments,
+			attachments,
+			projectPath: props.data?.project_path,
+		})
+		if (!actualCurrentFile) return currentFileProps
+		return {
+			...(currentFileProps ?? {}),
+			...actualCurrentFile,
 		}
-		return currentFileProps
-	}, [attachments, currentFileProps, isPlaybackMode, props])
+	}, [attachments, currentFileProps, flatAttachments, props.data?.project_path])
 
 	// 从 store 获取 selectedWorkspace（参考文件列表的实现）
 	const selectedWorkspace = workspaceStore.selectedWorkspace
@@ -140,89 +170,93 @@ function DesignViewer(props: DesignViewerProps) {
 	// 检测是否是移动端
 	const isMobile = useIsMobile()
 
-	// 获取项目 ID
-	const projectId = selectedTopic?.project_id
-
 	// 用于强制重新挂载 CanvasDesign 的 key
 	const [canvasDesignKey, setCanvasDesignKey] = useState(0)
+	const [isBasePathSwitching, setIsBasePathSwitching] = useState(false)
 
-	// 文件列表更新处理
-	const { flatAttachments, updateAttachments } = useAttachments({
-		attachments,
-		attachmentList,
-	})
+	const refreshCanvasDesign = useCallback(() => {
+		setCanvasDesignKey((prev) => prev + 1)
+	}, [])
 
-	// 等待附件列表更新完成的 Hook（模块间共享）
-	const { waitForAttachmentsUpdate } = useWaitForAttachmentsUpdate()
+	const prevDesignProjectBasePathRef = useRef<string | undefined>(undefined)
+	const basePathSwitchTaskIdRef = useRef(0)
 
 	// 获取目录信息
 	const directoryInfo = useMemo(() => {
 		return getDesignDirectoryInfo(currentFile, attachments)
 	}, [currentFile, attachments])
 
-	// 当前画布目录下 images 的图片文件列表，用于 @ 面板
-	const imageFilesForMention = useMemo((): ImageFileForMention[] => {
-		if (!attachments?.length || !directoryInfo.path) return []
-		const imagesDirPath = directoryInfo.path.replace(/\/+$/, "") + "/images"
-		const imageFileItems = collectFilesInDirectory(attachments, imagesDirPath)
-		return imageFileItems
-			.map((f) => ({
-				name: f.file_name || f.display_filename || "",
-				path: f.relative_file_path,
-			}))
-			.filter((f) => f.name)
-	}, [attachments, directoryInfo.path])
+	const defaultProjectAttachmentFolderId = useMemo(() => {
+		return normalizeMentionFolderId(directoryInfo.path) || directoryInfo.id || undefined
+	}, [directoryInfo.id, directoryInfo.path])
+
+	const defaultProjectAttachmentFolderName = useMemo(() => {
+		return directoryInfo.name || undefined
+	}, [directoryInfo.name])
+
+	// 相对于根目录的路径, 例如 "新建文件夹/新建画布"
+	const designProjectBasePath = resolveDesignProjectBasePathFromAttachments({
+		currentFile,
+		flatAttachments,
+		attachments,
+	})
+
+	// 与 MessageEditor @ 同源：整棵附件树（保留目录层级，由 MentionPanel 展开）
+	const projectAttachmentMentionTree = useMemo(
+		() => fileItemsToProjectAttachmentMentionTree(attachments, designProjectBasePath),
+		[attachments, designProjectBasePath],
+	)
 
 	// CanvasDesign ref（需在 designProjectManager 之前，onRemoteDesignDataUpdate 回调中使用）
 	const canvasDesignRef = useRef<CanvasDesignRef | null>(null)
+	const isApplyingRemoteCanvasUpdateRef = useRef(false)
 
 	// 用于跟踪是否已经执行过初始加载，确保只加载一次
 	// 这样可以避免 attachments 数组引用变化导致的重复加载
 	const hasLoadedRef = useRef(false)
-
-	// 刷新 CanvasDesign 组件（通过更新 key 强制重新挂载）
-	const refreshCanvasDesign = useCallback(() => {
-		setCanvasDesignKey((prev) => prev + 1)
-	}, [])
 
 	// magic.project.js 与 designData 集中管理器（含 autoSave、远端更新监听、版本管理）
 	const designProjectManager = useDesignProjectManager({
 		currentFile,
 		attachments,
 		flatAttachments,
+		attachmentIndex,
 		projectId,
 		allowEdit,
 		isPlaybackMode,
 		isShareRoute,
 		isMobile,
+		projectPath: props.data?.project_path,
 		designProjectId: directoryInfo.id || currentFile?.id,
 		designProjectName: directoryInfo.name ?? "",
 		selectedTopicId: selectedTopic?.id,
-		waitForAttachmentsUpdate,
+		remoteUpdateListenerMode: DESIGN_REMOTE_UPDATE_LISTENER_MODE,
 		onRemoteDesignDataUpdate: useCallback(
-			(
-				oldDesignData: DesignData,
-				newDesignData: DesignData,
-				updateType: "message" | "revoke" | "restore",
-			) => {
-				const diff =
-					updateType === "message"
-						? compareDesignData(oldDesignData, newDesignData)
-						: null
+			(_oldDesignData: DesignData, newDesignData: DesignData) => {
 				if (newDesignData.canvas) {
-					canvasDesignRef.current?.updateData(newDesignData.canvas)
+					isApplyingRemoteCanvasUpdateRef.current = true
+					try {
+						canvasDesignRef.current?.updateData(newDesignData.canvas)
+					} finally {
+						isApplyingRemoteCanvasUpdateRef.current = false
+					}
 				}
-				if (updateType === "message" && diff && diff.added.length > 0) {
-					const firstAdded = diff.added[0]
-					setTimeout(() => {
-						canvasDesignRef.current?.focusElement([firstAdded.elementId], {
-							animated: true,
-							selectElement: false,
-							panOnly: true,
-							padding: { top: "25%", right: "25%", bottom: "25%", left: "25%" },
-						})
-					}, 300)
-				}
+				// 暂时注释掉focus调试效果
+				// const diff =
+				// 	updateType === "message"
+				// 		? compareDesignData(oldDesignData, newDesignData)
+				// 		: null
+				// if (updateType === "message" && diff && diff.added.length > 0) {
+				// const firstAdded = diff.added[0]
+				// setTimeout(() => {
+				// 	canvasDesignRef.current?.focusElement([firstAdded.elementId], {
+				// 		animated: true,
+				// 		selectElement: false,
+				// 		panOnly: true,
+				// 		padding: { top: "25%", right: "25%", bottom: "25%", left: "25%" },
+				// 	})
+				// }, 300)
+				// }
 			},
 			[],
 		),
@@ -256,6 +290,39 @@ function DesignViewer(props: DesignViewerProps) {
 
 	const { isProcessingRevoke, revokeType } = designProjectManager
 
+	// 当 designProjectBasePath 变化（目录改名）时，重新从远端加载 DSL（修复旧路径引用），再重挂载画布
+	useEffect(() => {
+		if (prevDesignProjectBasePathRef.current === undefined) {
+			prevDesignProjectBasePathRef.current = designProjectBasePath
+			return
+		}
+
+		if (prevDesignProjectBasePathRef.current !== designProjectBasePath) {
+			prevDesignProjectBasePathRef.current = designProjectBasePath
+			const taskId = basePathSwitchTaskIdRef.current + 1
+			basePathSwitchTaskIdRef.current = taskId
+			setIsBasePathSwitching(true)
+
+			void (async () => {
+				try {
+					await waitForNextAttachmentsRefreshForProject(projectId, {
+						timeoutMs: 15_000,
+					})
+					if (basePathSwitchTaskIdRef.current !== taskId) return
+
+					await resetAndReload()
+					if (basePathSwitchTaskIdRef.current !== taskId) return
+
+					refreshCanvasDesign()
+				} finally {
+					if (basePathSwitchTaskIdRef.current === taskId) {
+						setIsBasePathSwitching(false)
+					}
+				}
+			})()
+		}
+	}, [designProjectBasePath, projectId, refreshCanvasDesign, resetAndReload])
+
 	// 设计容器 ref
 	const containerRef = useRef<HTMLDivElement>(null)
 
@@ -263,15 +330,25 @@ function DesignViewer(props: DesignViewerProps) {
 	const displayName = directoryInfo.name || designData.name
 
 	// 设计项目 ID
-	const designProjectId = directoryInfo.id || currentFile?.id
+	const designProjectId = directoryInfo.id || currentFile?.id || ""
 
 	const downloadPolicy = useDesignDownloadPolicy()
+	const { isFreeTrialVersion } = useAiWatermarkPreference()
+
+	const designCanvasMagicPermissions = useMemo(
+		() => ({
+			...downloadPolicy.permissions,
+			isFreeTrialVersion,
+			elementMenuConversationActions: isNewestVersion && !isShareRoute,
+		}),
+		[downloadPolicy.permissions, isFreeTrialVersion, isNewestVersion, isShareRoute],
+	)
 
 	const {
 		waterMarkFreeModalVisible,
 		setWaterMarkFreeModalVisible,
-		downloadImageElements,
-		setDownloadImageElements,
+		downloadFileElements,
+		setDownloadFileElements,
 		waterMarkFreeModalInitialized,
 	} = downloadPolicy
 
@@ -289,6 +366,7 @@ function DesignViewer(props: DesignViewerProps) {
 	// 获取 executeDownload 方法（用于协议弹窗确认后的直接下载）
 	const { executeDownload } = useConversationAndDownload({
 		flatAttachments,
+		designProjectBasePath,
 		selectedWorkspace,
 		selectedProject,
 		afterAddFileToCurrentTopic: undefined,
@@ -312,11 +390,11 @@ function DesignViewer(props: DesignViewerProps) {
 		selectedTopic,
 		currentFile,
 		flatAttachments,
+		attachmentIndex,
 		selectedProject,
 		selectedWorkspace,
 		onExitFullscreen: handleExitFullscreen,
 		updateAttachments,
-		waitForAttachmentsUpdate,
 		downloadPolicy,
 	})
 
@@ -396,6 +474,8 @@ function DesignViewer(props: DesignViewerProps) {
 	const headerProps = useDesignHeaderProps({
 		locateFileId: magicProjectJsFileId ?? undefined,
 		currentFile,
+		projectId,
+		selectedProject,
 		attachments,
 		fileVersion,
 		isNewestVersion,
@@ -414,8 +494,7 @@ function DesignViewer(props: DesignViewerProps) {
 		return isMobile
 	}, [isMobile])
 
-	// 处理画布数据变化（用户编辑，触发自动保存）
-	const handleCanvasDesignDataChange = useCallback(
+	const persistCanvasData = useCallback(
 		(canvasData: CanvasDocument) => {
 			updateDesignDataAndScheduleSave((draft) => {
 				draft.canvas = canvasData
@@ -423,6 +502,40 @@ function DesignViewer(props: DesignViewerProps) {
 		},
 		[updateDesignDataAndScheduleSave],
 	)
+
+	const { handleCanvasDesignDataChange: syncCanvasImageFileRename } =
+		useCanvasImageFileRenameSync({
+			canvasDesignRef,
+			currentCanvasData: designData.canvas,
+			flatAttachments,
+			attachmentIndex,
+			designProjectBasePath,
+			projectId,
+			persistCanvasData,
+			updateAttachments,
+		})
+
+	// 处理画布数据变化（用户编辑，触发自动保存）
+	const handleCanvasDesignDataChange = useCallback(
+		(canvasData: CanvasDocument) => {
+			if (isApplyingRemoteCanvasUpdateRef.current) return
+
+			persistCanvasData(canvasData)
+			syncCanvasImageFileRename(canvasData)
+		},
+		[persistCanvasData, syncCanvasImageFileRename],
+	)
+
+	useCanvasResourceRefresh({
+		canvasDesignRef,
+		canvas: designData.canvas,
+		flatAttachments,
+		attachmentIndex,
+		designProjectBasePath,
+		projectId,
+		isNewestVersion,
+		isPlaybackMode,
+	})
 
 	// 处理名称变化（用户编辑，触发自动保存）
 	// 注意：迁移到 CommonHeaderV2 后，头部不再有名称编辑器，此函数保留用于其他可能的用途
@@ -475,6 +588,10 @@ function DesignViewer(props: DesignViewerProps) {
 			return
 		}
 
+		if (!currentFile?.id || !currentFile?.name) {
+			return
+		}
+
 		// attachments 有数据后，执行加载
 		hasLoadedRef.current = true
 
@@ -488,8 +605,7 @@ function DesignViewer(props: DesignViewerProps) {
 				setTimeout(() => {
 					if (propsElements) {
 						canvasDesignRef.current?.focusElement(
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							propsElements.map((e: any) => e.id),
+							propsElements.map((element) => element.id),
 							{
 								animated: false,
 								selectElement: false,
@@ -501,7 +617,15 @@ function DesignViewer(props: DesignViewerProps) {
 				}, 100)
 			}
 		})
-	}, [attachments, isMobile, isPlaybackMode, loadFromRemote, propsElements])
+	}, [
+		attachments,
+		currentFile?.id,
+		currentFile?.name,
+		isMobile,
+		isPlaybackMode,
+		loadFromRemote,
+		propsElements,
+	])
 
 	// 监听 allowEdit、isPlaybackMode、isShareRoute 和 isMobile 变化，更新只读状态
 	// 如果当前不在查看历史版本，则根据 allowEdit、isPlaybackMode、isShareRoute 或 isMobile 更新只读状态
@@ -512,17 +636,22 @@ function DesignViewer(props: DesignViewerProps) {
 		}
 	}, [allowEdit, isMobile, isNewestVersion, isPlaybackMode, isShareRoute, setIsReadOnlyState])
 
-	// 显示历史版本 banner 时预留顶部空间，避免遮挡画布（banner 高度约 44px）
+	// 显示历史版本 banner 时预留顶部空间，避免遮挡画布（与 HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX 一致）
 	const showVersionBanner = !isNewestVersion && !isMobile && !!fileVersionsList?.length
+	const shouldShowInitialLoading = isInitialLoading || isBasePathSwitching
 
 	return (
 		<>
 			<div
 				ref={containerRef}
 				className={styles.designViewerContainer}
-				style={showVersionBanner ? { paddingTop: 44 } : undefined}
+				style={
+					showVersionBanner
+						? { paddingTop: HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX }
+						: undefined
+				}
 			>
-				{isInitialLoading ? (
+				{shouldShowInitialLoading ? (
 					<FlexBox justify="center" align="center" style={{ height: "100%" }}>
 						<MagicSpin spinning />
 					</FlexBox>
@@ -558,13 +687,14 @@ function DesignViewer(props: DesignViewerProps) {
 						)}
 						<div className={styles.designCanvasContainer}>
 							<CanvasDesign
-								key={canvasDesignKey}
+								key={`${designProjectId}:${canvasDesignKey}:${designProjectBasePath}`}
 								id={designProjectId}
 								ref={canvasDesignRef}
 								readonly={isReadOnlyState}
 								magic={{
 									methods,
-									permissions: downloadPolicy.permissions,
+									permissions: designCanvasMagicPermissions,
+									hostUiLocale,
 								}}
 								viewport={{
 									autoLoadCacheViewport: !isPlaybackMode && !isMobile,
@@ -572,9 +702,13 @@ function DesignViewer(props: DesignViewerProps) {
 								data={{
 									defaultData: designData.canvas,
 									onCanvasDesignDataChange: handleCanvasDesignDataChange,
-									imageFilesForMention,
+									projectAttachmentMentionTree,
+									defaultProjectAttachmentFolderId,
+									defaultProjectAttachmentFolderName,
 									mentionDataServiceCtor: CanvasDesignMentionDataService,
 									mentionExtension: MentionExtension,
+									referenceResourcePanelRenderer:
+										CanvasDesignReferenceResourcePanel,
 								}}
 								marker={{
 									defaultMarkers: markersForCanvas,
@@ -585,6 +719,7 @@ function DesignViewer(props: DesignViewerProps) {
 								}}
 								t={canvasDesignTAdapter}
 								getIsMobile={getIsMobile}
+								shareHostBottomChrome={isShareRoute}
 							/>
 							{/* 撤回/恢复遮罩层 */}
 							{isProcessingRevoke && (
@@ -610,13 +745,15 @@ function DesignViewer(props: DesignViewerProps) {
 						visible={waterMarkFreeModalVisible}
 						onClose={() => {
 							setWaterMarkFreeModalVisible(false)
-							setDownloadImageElements([])
+							setDownloadFileElements([])
 						}}
 						onConfirm={async () => {
-							if (downloadImageElements.length > 0 && executeDownload) {
+							if (downloadFileElements.length > 0 && executeDownload) {
 								// 用户已同意协议，直接执行下载（跳过协议检查）
 								try {
-									await executeDownload(downloadImageElements, true)
+									await downloadPolicy.handleAgreementConfirm(() =>
+										executeDownload(downloadFileElements, true),
+									)
 								} catch (error) {
 									//
 								}

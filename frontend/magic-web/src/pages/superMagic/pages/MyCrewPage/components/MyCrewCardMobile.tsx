@@ -1,5 +1,5 @@
 import { memo, useEffect, useState } from "react"
-import { ArrowUpCircle, CircleArrowUp, Ellipsis, Settings2 } from "lucide-react"
+import { ArrowUpCircle, CircleArrowUp, Ellipsis, Settings2, ShieldCheck } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { Button } from "@/components/shadcn-ui/button"
@@ -9,8 +9,9 @@ import { cn } from "@/lib/utils"
 import { CardFooterBadge } from "@/pages/superMagic/components/CardFooterBadge"
 import { CardFooterLabel } from "@/pages/superMagic/components/CardFooterLabel"
 import CrewFallbackAvatar from "@/pages/superMagic/components/CrewFallbackAvatar"
+import { isOfficialPublisherType } from "@/pages/superMagic/pages/CrewMarket/employee-market/components/employee-card-shared"
 import type { MyCrewView } from "@/services/crew/CrewService"
-import type { MyCrewCrewTypeTab } from "./MyCrewCrewTypeTabs"
+import type { MyCrewCrewTypeTab } from "../tab-state"
 import {
 	formatVersionBadge,
 	resolveMyCrewDisableActionDisabled,
@@ -18,6 +19,7 @@ import {
 	resolveMyCrewCreatedFooterBadgeLabel,
 	resolveMyCrewHiredActionKind,
 	resolveMyCrewPublisherLabel,
+	resolveTeamSharedCrewPermissions,
 } from "./my-crew-card-shared"
 
 interface MyCrewCardMobileBaseProps {
@@ -58,19 +60,40 @@ function MyCrewCardMobile({
 	const showRemoteAvatar = Boolean(avatarUrl) && !avatarLoadFailed
 
 	const isHiredList = listVariant === "hired"
+	const isCreatedList = listVariant === "created"
+	const isTeamSharedList = listVariant === "team-shared"
+	const { canDelete, canEdit, canPublish } = resolveTeamSharedCrewPermissions(employee.userRole)
+	const canEditTeamShared = isTeamSharedList && canEdit
+	const canNavigateByCardClick = !isTeamSharedList || canEdit
+	const canOpenTeamSharedMoreActions =
+		isTeamSharedList && onMoreClick && (canPublish || canDelete)
 	const hiredActionKind = resolveMyCrewHiredActionKind(employee.sourceType)
-	const disableActionLabel = resolveMyCrewDisableActionLabel(employee.allowDelete, t)
+	const disableActionLabel = resolveMyCrewDisableActionLabel(
+		employee.allowDelete,
+		employee.publisherType,
+		t,
+	)
 	const isDisableActionDisabled = resolveMyCrewDisableActionDisabled(
 		employee.allowDelete,
 		employee.enabled,
 	)
 	const versionBadgeLabel = formatVersionBadge(employee.latestVersionCode) ?? ""
-	const publisherLabel =
-		resolveMyCrewPublisherLabel(employee.publisherType, employee.publisherName, t) ||
-		t("myCrewPage.footerPoweredByBrand")
-	const footerPoweredByText = t("interface:appList.powerBy", {
-		company: publisherLabel,
-	})
+	const isOfficialPublisher = isOfficialPublisherType(employee.publisherType ?? "")
+	const publisherLabel = resolveMyCrewPublisherLabel(
+		employee.publisherType,
+		employee.publisherName,
+		t,
+	)
+	const footerPoweredByText = publisherLabel
+		? t("interface:appList.powerBy", {
+				company: publisherLabel,
+			})
+		: null
+	const trimmedCreatorName = employee.creatorName?.trim() ?? ""
+	const teamSharedCreatorLabel =
+		isTeamSharedList && trimmedCreatorName
+			? t("myCrewPage.teamSharedCreatedBy", { name: trimmedCreatorName })
+			: null
 	const createdFooterBadgeLabel = employee.needUpgrade
 		? t("skillsLibrary.upgrade")
 		: resolveMyCrewCreatedFooterBadgeLabel(employee.sourceType, t, tCrewCreate)
@@ -82,6 +105,14 @@ function MyCrewCardMobile({
 	function preventCardNavigation(event: React.MouseEvent<HTMLElement>) {
 		event.preventDefault()
 		event.stopPropagation()
+	}
+
+	function handleCardNavigate(event: React.MouseEvent<HTMLAnchorElement>) {
+		if (!canNavigateByCardClick) {
+			event.preventDefault()
+			return
+		}
+		onNavigate?.(event)
 	}
 
 	function renderFooterBadge() {
@@ -120,7 +151,7 @@ function MyCrewCardMobile({
 	return (
 		<a
 			href={href}
-			onClick={onNavigate}
+			onClick={handleCardNavigate}
 			className="relative flex h-full min-h-0 w-full min-w-0 flex-col pt-8 text-current no-underline"
 			data-testid="my-crew-card-mobile"
 		>
@@ -273,23 +304,27 @@ function MyCrewCardMobile({
 									data-testid="my-crew-card-mobile-edit-button"
 								>
 									<Settings2 className="size-4 shrink-0" aria-hidden />
-									{t("myCrewPage.edit")}
+									{isTeamSharedList && !canEditTeamShared
+										? t("details")
+										: t("myCrewPage.edit")}
 								</Button>
 
-								<Button
-									type="button"
-									variant="outline"
-									size="icon"
-									className="size-8 min-h-8 shrink-0 shadow-xs"
-									onClick={(event) => {
-										preventCardNavigation(event)
-										onMoreClick?.(employee)
-									}}
-									aria-label={t("myCrewPage.moreActionsAria")}
-									data-testid="my-crew-card-mobile-more-trigger"
-								>
-									<Ellipsis className="size-4" aria-hidden />
-								</Button>
+								{isCreatedList || canOpenTeamSharedMoreActions ? (
+									<Button
+										type="button"
+										variant="outline"
+										size="icon"
+										className="size-8 min-h-8 shrink-0 shadow-xs"
+										onClick={(event) => {
+											preventCardNavigation(event)
+											onMoreClick?.(employee)
+										}}
+										aria-label={t("myCrewPage.moreActionsAria")}
+										data-testid="my-crew-card-mobile-more-trigger"
+									>
+										<Ellipsis className="size-4" aria-hidden />
+									</Button>
+								) : null}
 							</div>
 						)}
 					</div>
@@ -311,23 +346,42 @@ function MyCrewCardMobile({
 								: "flex-wrap gap-x-1 gap-y-0.5 text-[10px] leading-snug",
 						)}
 					>
-						<CardFooterLabel
-							label={
-								isHiredList
-									? footerPoweredByText
-									: t("myCrewPage.crewType.createdByMe")
-							}
-							className={cn(
-								isHiredList ? "text-xs leading-4" : "text-[10px] leading-snug",
-							)}
-							truncate={isHiredList}
-							withTooltip
-							dataTestId={
-								isHiredList
-									? "my-crew-card-mobile-footer-powered-by"
-									: "my-crew-card-mobile-footer-created-by"
-							}
-						/>
+						{teamSharedCreatorLabel ? (
+							<CardFooterLabel
+								label={teamSharedCreatorLabel}
+								className="text-xs leading-4"
+								truncate
+								withTooltip
+								dataTestId="my-crew-card-mobile-team-shared-creator"
+							/>
+						) : isHiredList ? (
+							isOfficialPublisher ? (
+								<>
+									<ShieldCheck className="size-4 shrink-0 text-muted-foreground" />
+									<span
+										className="min-w-0 truncate text-xs leading-4 text-muted-foreground"
+										data-testid="my-crew-card-mobile-official-publisher"
+									>
+										{publisherLabel}
+									</span>
+								</>
+							) : footerPoweredByText ? (
+								<CardFooterLabel
+									label={footerPoweredByText}
+									className="text-xs leading-4"
+									truncate
+									withTooltip
+									dataTestId="my-crew-card-mobile-footer-powered-by"
+								/>
+							) : null
+						) : listVariant === "created" ? (
+							<CardFooterLabel
+								label={t("myCrewPage.crewType.createdByMe")}
+								className="text-[10px] leading-snug"
+								withTooltip
+								dataTestId="my-crew-card-mobile-footer-created-by"
+							/>
+						) : null}
 					</div>
 					{renderFooterBadge()}
 				</div>

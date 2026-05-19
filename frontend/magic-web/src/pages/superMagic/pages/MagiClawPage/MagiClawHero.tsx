@@ -1,16 +1,20 @@
 import { useTranslation } from "react-i18next"
 import heroBackground from "@/assets/resources/magi-claw/hero-background.webp"
+import heroBackgroundPrivate from "@/assets/resources/magi-claw/hero-background-private.webp"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
+import { isPrivateDeployment } from "@/utils/env"
 
 export function MagiClawHero() {
 	const { t } = useTranslation("sidebar")
 	const clawBrandValues = getClawBrandTranslationValues()
 
+	const backgroundImage = isPrivateDeployment() ? heroBackgroundPrivate : heroBackground
+
 	return (
 		<section
 			className="relative h-[220px] overflow-hidden rounded-[32px]"
 			style={{
-				backgroundImage: `url(${heroBackground})`,
+				backgroundImage: `url(${backgroundImage})`,
 				backgroundSize: "cover",
 				backgroundPosition: "center",
 			}}

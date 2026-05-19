@@ -1,18 +1,25 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { isConvertibleFile } from "../../utils/file"
 import IsolatedHTMLRenderer, { type IsolatedHTMLRendererRef } from "./IsolatedHTMLRenderer"
 import {
 	createParentMessageHandler,
 	injectFetchInterceptorScript,
 	injectKeyboardInterceptorScript,
 	createKeyboardMessageHandler,
+	POST_MESSAGE_TARGET_STRATEGIES,
 	type FileItem,
 } from "./utils/fetchInterceptor"
 import { createNestedIframeContentHandler } from "./utils/nested-iframe-content"
 import type { SaveResult } from "./iframe-bridge/types"
 import { useStyles } from "./styles"
 import { useFileData } from "@/pages/superMagic/hooks/useFileData"
-import { processHtmlContent } from "./htmlProcessor"
-import { flattenAttachments, resolveRelativePath } from "./utils"
+import { processHtmlContent, type HtmlPreviewBundledTemplateKind } from "./htmlProcessor"
+import {
+	attemptHtmlSaveFlow,
+	confirmHtmlConflictSave,
+	resolveRelativePath,
+	resolveServerUpdateState,
+} from "./utils"
 import { useDeepCompareEffect, useMemoizedFn, useUpdateEffect } from "ahooks"
 import CommonHeaderV2 from "../../components/CommonHeaderV2"
 import { Flex, Tour } from "antd"
@@ -23,6 +30,8 @@ import { HTMLGuideTourElementId, useHTMLGuideTour } from "@/pages/superMagic/hoo
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import MagicSpin from "@/components/base/MagicSpin"
 import DashboardIsolatedHTMLRenderer from "./dashboard/DashboardIsolatedHTMLRenderer"
+import { inlineDashboardDataJs } from "./dashboard/resourceVersioning"
+import { useDashboardVersioning } from "./dashboard/useDashboardVersioning"
 import AIEditButton from "@/pages/superMagic/components/Detail/components/EditToolbar/AIEditButton"
 import FileEditButtons from "@/pages/superMagic/components/Detail/components/EditToolbar/FileEditButtons"
 import { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
@@ -33,6 +42,30 @@ import Deleted from "../../components/Deleted"
 import useSaveHandlerRegistration from "../../hooks/useSaveHandlerRegistration"
 import useShareButtonVisibility from "../../hooks/useShareButtonVisibility"
 import type { HeaderActionConfig } from "../../components/CommonHeaderV2/types"
+import useServerUpdate from "../../hooks/useServerUpdate"
+import CodeVersionCompareDialog from "../../components/versioning/CodeVersionCompareDialog"
+import VersionCompareDialog from "../../components/versioning/VersionCompareDialog"
+import { getFileContentById } from "@/pages/superMagic/utils/api"
+import { useTranslation } from "react-i18next"
+import { AlertTriangle, Terminal } from "lucide-react"
+import { Button } from "@/components/shadcn-ui/button"
+import { env } from "@/utils/env"
+import magicToast from "@/components/base/MagicToaster/utils"
+import { exportHtmlToPdf, exportHtmlToImage } from "../../../../../../../packages/pdf-export/src"
+import type { ImageExportFormat } from "../../../../../../../packages/pdf-export/src"
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/shadcn-ui/alert-dialog"
+
+/** 跨组件重挂载持久化调试面板开关状态（按文件 ID 存储） */
+const devConsoleStateMap = new Map<string, boolean>()
 
 interface HTMLProps {
 	data: string | any
@@ -74,7 +107,7 @@ interface HTMLProps {
 	className?: string
 	updatedAt?: string
 	detailMode?: "single" | "files"
-	metadata?: any
+	displayConfig?: any
 	openFileTab?: (fileItem: any, autoEdit?: boolean) => void
 	exportFile?: (fileId: string, fileVersion?: number) => void
 	exportPdf?: (fileId: string) => void
@@ -97,12 +130,15 @@ interface HTMLProps {
 
 interface HtmlExportActionProps {
 	handleExportSource: () => void
-	handleExportPDF: () => void
+	handleExportPDF: (pagination: "slice" | "none") => void
 	handleExportPPT: () => void
 	handleExportPptx: () => void
+	handleExportImage?: (format: ImageExportFormat) => void
 	isExporting?: boolean
 	supportPPT: boolean
 	showButtonText: boolean
+	showExportPptx?: boolean
+	showExportImage?: boolean
 }
 
 const HtmlExportAction = memo(function HtmlExportAction({
@@ -110,18 +146,24 @@ const HtmlExportAction = memo(function HtmlExportAction({
 	handleExportPDF,
 	handleExportPPT,
 	handleExportPptx,
+	handleExportImage,
 	isExporting,
 	supportPPT,
 	showButtonText,
+	showExportPptx,
+	showExportImage,
 }: HtmlExportActionProps) {
 	const { ExportDropdownButton } = useExportMenuItems({
 		handleExportSource,
 		handleExportPDF,
 		handleExportPPT,
 		handleExportPptx,
+		handleExportImage,
 		isExporting,
 		showButtonText,
 		supportPPT,
+		showExportPptx,
+		showExportImage,
 	})
 
 	return ExportDropdownButton
@@ -149,7 +191,7 @@ export default memo(function HTML(props: HTMLProps) {
 		className,
 		updatedAt,
 		detailMode,
-		metadata,
+		displayConfig: externalDisplayConfig,
 		openFileTab,
 		exportFile,
 		exportPdf,
@@ -157,7 +199,6 @@ export default memo(function HTML(props: HTMLProps) {
 		exportPptx,
 		isExporting,
 		selectedProject,
-		selectedTopic,
 		showFileHeader = true,
 		activeFileId,
 		showFooter,
@@ -168,8 +209,16 @@ export default memo(function HTML(props: HTMLProps) {
 		allowDownload,
 	} = props
 
+	const displayConfig = displayData?.display_config || externalDisplayConfig
 	const { styles, cx } = useStyles()
+	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
+	const isImmersiveLayout = !showFileHeader && !showFooter
+	// 通过 previewPolicy 声明能力，详情页消费配置
+	const previewPolicy = displayData?.display_config?.previewPolicy
+	const isReadonlyPreview = previewPolicy?.readonly === true
+	const remoteHtmlFileId =
+		previewPolicy?.keepLocalContent === true ? "" : displayData?.file_id || ""
 
 	const [processedContent, setProcessedContent] = useState<string>("")
 	const [filePathMapping, setFilePathMapping] = useState<Map<string, string>>(new Map()) // 记录文件的相对路径和替换后的url映射关系
@@ -182,6 +231,14 @@ export default memo(function HTML(props: HTMLProps) {
 	const [editingCodeContent, setEditingCodeContent] = useState<string>("")
 	/** 是否正处于编辑后的状态 */
 	const [isEditingAfter, setIsEditingAfter] = useState(false)
+	const [serverUpdatedContent, setServerUpdatedContent] = useState<string>()
+	const [isExportingPdf, setIsExportingPdf] = useState(false)
+	const editSessionUpdatedAtRef = useRef<string | undefined>(undefined)
+	const serverUpdateRequestIdRef = useRef(0)
+	const editSessionBaselineContentRef = useRef<string | null>(null)
+	// Tracks the last successful local save so the follow-up refresh is not treated as an external update.
+	const lastLocalSavedContentRef = useRef<string | null>(null)
+	const pendingSaveIntentRef = useRef<"save" | "save-and-exit" | null>(null)
 
 	const {
 		fileData: htmlFileData,
@@ -194,7 +251,7 @@ export default memo(function HTML(props: HTMLProps) {
 		isNewestVersion: htmlIsNewestVersion,
 		isDeleted: htmlIsDeleted,
 	} = useFileData({
-		file_id: displayData?.file_id || "",
+		file_id: remoteHtmlFileId,
 		isEditing: isEditMode,
 		updatedAt,
 		activeFileId,
@@ -203,15 +260,103 @@ export default memo(function HTML(props: HTMLProps) {
 		disabledUrlCache: isPlaybackMode,
 	})
 
-	// 判断是否为数据分析模式
-	const isDataAnalysis = useMemo(() => {
-		const file = attachmentList?.find((item: any) => item.file_id === displayData?.file_id)
-		let parent
-		if (file?.parent_id) {
-			parent = attachmentList?.find((item: any) => item.file_id === file.parent_id)
+	const {
+		allAttachmentItems,
+		flattenedAttachmentList,
+		isDataAnalysis,
+		dashboardDataJsFile,
+		dashboardDataJsContent,
+		activeHistory,
+		resourceFileVersions,
+		fetchDashboardDataJsFileVersions,
+	} = useDashboardVersioning({
+		attachmentList,
+		displayData,
+		displayConfig,
+		isFromNode,
+		isPlaybackMode,
+		htmlVersioning: {
+			fileVersion: htmlFileVersion,
+			changeFileVersion: changeHtmlFileVersion,
+			fileVersionsList: htmlFileVersionsList,
+			handleVersionRollback: handleHtmlVersionRollback,
+			isNewestVersion: htmlIsNewestVersion,
+			loading,
+		},
+	})
+
+	/** 头部刷新：拉取 HTML / data.js 版本列表；若最新版本号变新则切到最新并加载 */
+	const handleDetailHeaderRefresh = useMemoizedFn(async () => {
+		if (!displayData?.file_id || activeFileId !== displayData.file_id) return
+
+		const htmlFileId = displayData.file_id
+		const prevHtmlNewest = htmlFileVersionsList[0]?.version
+		const newHtmlVersions = await fetchHtmlFileVersions(htmlFileId, false)
+		const nextHtmlNewest = newHtmlVersions[0]?.version
+		if (
+			typeof prevHtmlNewest === "number" &&
+			typeof nextHtmlNewest === "number" &&
+			nextHtmlNewest > prevHtmlNewest
+		) {
+			changeHtmlFileVersion(undefined, newHtmlVersions)
 		}
-		return parent?.metadata?.type === "dashboard"
-	}, [attachmentList, displayData?.file_id])
+
+		if (!isDataAnalysis || !dashboardDataJsFile?.file_id) return
+
+		const dataJsId = dashboardDataJsFile.file_id
+		const prevDataNewest = activeHistory.fileVersionsList[0]?.version
+		const newDataVersions = await fetchDashboardDataJsFileVersions(dataJsId, false)
+		const nextDataNewest = newDataVersions[0]?.version
+		if (
+			typeof prevDataNewest === "number" &&
+			typeof nextDataNewest === "number" &&
+			nextDataNewest > prevDataNewest
+		) {
+			activeHistory.changeFileVersion(undefined)
+		}
+	})
+
+	const handleDevConsoleToggle = useMemoizedFn(() => {
+		htmlRendererRef.current?.toggleDevConsole()
+		setDevConsoleEnabled((prev) => !prev)
+	})
+
+	useEffect(() => {
+		pubsub.subscribe(PubSubEvents.Super_Magic_Detail_Refresh, handleDetailHeaderRefresh)
+		return () => {
+			pubsub.unsubscribe(PubSubEvents.Super_Magic_Detail_Refresh, handleDetailHeaderRefresh)
+		}
+	}, [handleDetailHeaderRefresh])
+
+	/** 与 useMediaScenario 一致：父目录 metadata 标识 audio / video */
+	const mediaParentScenarioType = useMemo((): "audio" | "video" | null => {
+		const file = allAttachmentItems.find((item: any) => item.file_id === displayData?.file_id)
+		if (!file?.parent_id || file?.file_name !== "index.html") return null
+		const parent = allAttachmentItems.find((item: any) => item.file_id === file.parent_id)
+		const t = parent?.display_config?.type
+		if (t === "audio" || t === "video") return t
+		return null
+	}, [allAttachmentItems, displayData?.file_id])
+
+	/**
+	 * 仅可视化预览：dashboard / audio / video 入口 HTML 走构建内 templates；dashboard 另换壳 CSS/JS。
+	 * 代码模式、编辑、回放、PPT 仍用用户仓库 HTML + OSS。
+	 */
+	const htmlPreviewBundledTemplate = useMemo((): HtmlPreviewBundledTemplateKind | undefined => {
+		if (isEditMode || viewMode === "code" || isPlaybackMode || isInPPTMode) return undefined
+		if (isDataAnalysis || displayConfig?.type === "dashboard") return "dashboard"
+		if (displayConfig?.type === "audio" || mediaParentScenarioType === "audio") return "audio"
+		if (displayConfig?.type === "video" || mediaParentScenarioType === "video") return "video"
+		return undefined
+	}, [
+		isDataAnalysis,
+		displayConfig?.type,
+		mediaParentScenarioType,
+		isEditMode,
+		viewMode,
+		isPlaybackMode,
+		isInPPTMode,
+	])
 
 	/** 更新HTML文件的数据内容 */
 	const updateDataContent = useMemoizedFn((fileData: any) => {
@@ -248,14 +393,179 @@ export default memo(function HTML(props: HTMLProps) {
 
 	// IsolatedHTMLRenderer 的 ref，用于获取拦截回调函数
 	const htmlRendererRef = useRef<IsolatedHTMLRendererRef>(null)
+	const fileId = displayData?.file_id as string | undefined
+	// 从模块级 Map 恢复上次的调试面板状态（组件重挂载后仍能保持开启）
+	const [devConsoleEnabled, setDevConsoleEnabled] = useState(() =>
+		fileId ? (devConsoleStateMap.get(fileId) ?? false) : false,
+	)
+	// 当 devConsoleEnabled 变化时同步到模块级 Map
+	useEffect(() => {
+		if (fileId) devConsoleStateMap.set(fileId, devConsoleEnabled)
+	}, [fileId, devConsoleEnabled])
+	// 组件挂载后，若调试面板应处于开启状态，则通知 IsolatedHTMLRenderer 开启
+	useEffect(() => {
+		if (devConsoleEnabled) {
+			htmlRendererRef.current?.toggleDevConsole()
+		}
+		// 仅在首次挂载时执行
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [])
+
+	const getCurrentEditingContent = useMemoizedFn(async () => {
+		if (viewMode === "code") return editingCodeContent || data?.content || ""
+		return (await htmlRendererRef.current?.getContent()) || data?.content || ""
+	})
+
+	const applyEditingContent = useMemoizedFn((nextContent: string) => {
+		if (viewMode !== "code") return
+
+		setEditingCodeContent(nextContent)
+		setData((prev: any) => ({
+			...prev,
+			content: nextContent,
+		}))
+	})
+
+	const getEditSessionBaselineContent = useMemoizedFn(() => {
+		return data?.content || htmlFileData || displayData?.content || ""
+	})
+
+	const {
+		hasServerUpdate,
+		actualServerContent,
+		showVersionCompareDialog,
+		showSaveWithUpdateConfirmDialog,
+		currentEditingContent,
+		handleViewServerUpdate,
+		handleUseMyVersion,
+		handleUseServerVersion,
+		clearServerUpdate,
+		checkServerUpdateBeforeSave,
+		setShowVersionCompareDialog,
+		setShowSaveWithUpdateConfirmDialog,
+		applyServerUpdate,
+	} = useServerUpdate({
+		externalServerUpdatedContent: serverUpdatedContent,
+		onClearServerUpdate: () => {
+			setServerUpdatedContent(undefined)
+		},
+		isEditMode: Boolean(isEditMode),
+		rendererRef: htmlRendererRef,
+		content: data?.content || displayData?.content || "",
+		getCurrentEditingContent,
+		applyContent: applyEditingContent,
+	})
+
+	useEffect(() => {
+		setServerUpdatedContent(undefined)
+		editSessionUpdatedAtRef.current = updatedAt
+		editSessionBaselineContentRef.current = null
+		// Reset local-save memory when the user switches to another file.
+		lastLocalSavedContentRef.current = null
+		// Do not depend on updatedAt here, otherwise external updates will be
+		// consumed before the edit-session detection effect can compare them.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [displayData?.file_id])
+
+	useEffect(() => {
+		if (isEditMode) {
+			if (editSessionUpdatedAtRef.current === undefined) {
+				editSessionUpdatedAtRef.current = updatedAt
+			}
+			if (editSessionBaselineContentRef.current === null) {
+				editSessionBaselineContentRef.current = getEditSessionBaselineContent()
+			}
+			return
+		}
+
+		setServerUpdatedContent(undefined)
+		editSessionUpdatedAtRef.current = updatedAt
+		editSessionBaselineContentRef.current = null
+		// Leaving edit mode ends the current conflict-detection session.
+		lastLocalSavedContentRef.current = null
+	}, [getEditSessionBaselineContent, isEditMode, updatedAt])
+
+	useEffect(() => {
+		if (!isEditMode || !displayData?.file_id || !updatedAt) return
+		if (editSessionUpdatedAtRef.current === undefined) {
+			editSessionUpdatedAtRef.current = updatedAt
+			return
+		}
+		if (editSessionUpdatedAtRef.current === updatedAt) return
+
+		editSessionUpdatedAtRef.current = updatedAt
+		const currentRequestId = serverUpdateRequestIdRef.current + 1
+		serverUpdateRequestIdRef.current = currentRequestId
+
+		getFileContentById(displayData.file_id, {
+			responseType: "text",
+		})
+			.then(async (latestContent) => {
+				if (serverUpdateRequestIdRef.current !== currentRequestId) return
+				if (typeof latestContent !== "string") return
+
+				const { shouldPrompt, nextLastLocalSavedContent } = resolveServerUpdateState({
+					latestContent,
+					sessionBaselineContent: editSessionBaselineContentRef.current,
+					lastLocalSavedContent: lastLocalSavedContentRef.current,
+				})
+
+				lastLocalSavedContentRef.current = nextLastLocalSavedContent
+
+				if (!shouldPrompt) {
+					setServerUpdatedContent(undefined)
+					return
+				}
+
+				setServerUpdatedContent(latestContent)
+			})
+			.catch((error) => {
+				console.error("[HTML] 获取服务端最新内容失败", error)
+			})
+	}, [displayData?.file_id, getCurrentEditingContent, isEditMode, updatedAt])
+
+	const refreshServerUpdateState = useMemoizedFn(async () => {
+		if (!displayData?.file_id) return false
+
+		const latestContent = await getFileContentById(displayData.file_id, {
+			responseType: "text",
+		})
+		if (typeof latestContent !== "string") return false
+
+		const { shouldPrompt, nextLastLocalSavedContent } = resolveServerUpdateState({
+			latestContent,
+			sessionBaselineContent: editSessionBaselineContentRef.current,
+			lastLocalSavedContent: lastLocalSavedContentRef.current,
+		})
+
+		lastLocalSavedContentRef.current = nextLastLocalSavedContent
+
+		if (!shouldPrompt) {
+			setServerUpdatedContent(undefined)
+			return false
+		}
+
+		setServerUpdatedContent(latestContent)
+		return true
+	})
+
+	const postMessageTargetStrategy = useMemo(
+		() =>
+			env("MAGIC_HTML_SANDBOX_URL")
+				? POST_MESSAGE_TARGET_STRATEGIES.CROSS_ORIGIN_PARENT
+				: POST_MESSAGE_TARGET_STRATEGIES.SAME_ORIGIN_ANCESTOR,
+		[],
+	)
 
 	// 创建消息处理器并注册/移除监听器（即使没有 attachments 也要注册）
 	useEffect(() => {
 		// 获取当前HTML文件的相对文件夹路径
 		let htmlRelativeFolderPath = "/"
 		const currentFileId = displayData?.file_id
-		if (currentFileId && attachmentList && attachmentList.length > 0) {
-			const currentFile = attachmentList.find((item) => item.file_id === currentFileId)
+		if (currentFileId && flattenedAttachmentList.length > 0) {
+			const currentFile = flattenedAttachmentList.find(
+				(item) => item.file_id === currentFileId,
+			)
 			if (currentFile && currentFile.relative_file_path && currentFile.file_name) {
 				// 从relative_file_path中去掉file_name，得到文件夹路径
 				htmlRelativeFolderPath = currentFile.relative_file_path.replace(
@@ -265,7 +575,7 @@ export default memo(function HTML(props: HTMLProps) {
 			}
 		}
 		// 即使没有 attachments 也创建空数组，确保拦截器能正常工作
-		const allFiles = attachmentList ? (flattenAttachments(attachmentList) as FileItem[]) : []
+		const allFiles = flattenedAttachmentList as FileItem[]
 
 		// 获取拦截回调函数
 		const onFetchIntercepted = htmlRendererRef.current?.getFetchInterceptedCallback()
@@ -284,6 +594,9 @@ export default memo(function HTML(props: HTMLProps) {
 			htmlRelativeFolderPath,
 			currentFileId || "",
 			attachmentList || [],
+			{
+				postMessageTargetStrategy,
+			},
 		)
 
 		// 处理来自 iframe 的键盘快捷键消息
@@ -302,9 +615,12 @@ export default memo(function HTML(props: HTMLProps) {
 			window.removeEventListener("message", nestedIframeHandler)
 			window.removeEventListener("message", keyboardMessageHandler)
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [attachmentList, displayData?.file_id])
 
 	const processContent = useMemoizedFn(async () => {
+		if (isDataAnalysis && !activeHistory.isPreviewReady) return
+
 		try {
 			const result = await processHtmlContent({
 				content: data?.content,
@@ -312,24 +628,28 @@ export default memo(function HTML(props: HTMLProps) {
 				fileId: displayData?.file_id,
 				fileName: data?.file_name,
 				attachmentList,
-				metadata: metadata,
+				displayConfig,
+				resourceFileVersions,
+				htmlPreviewBundledTemplate,
 			})
 
 			let finalProcessedContent = result.processedContent
+			finalProcessedContent = inlineDashboardDataJs({
+				html: finalProcessedContent,
+				dataJsContent: dashboardDataJsContent,
+			})
 
 			// 注入fetch拦截器脚本（默认启用）
-			// 注意：media拦截器现在在htmlProcessor中根据metadata.type自动注入
+			// 注意：media拦截器现在在htmlProcessor中根据display_config.type自动注入
 			finalProcessedContent = injectFetchInterceptorScript(finalProcessedContent, {
 				fileId: displayData?.file_id || "",
+				postMessageTargetStrategy,
 			})
 
 			// 在编辑模式下注入键盘快捷键拦截器
 			if (isEditMode) {
 				finalProcessedContent = injectKeyboardInterceptorScript(finalProcessedContent)
 			}
-
-			console.log("processContent result", result)
-			console.log("processContent metadata", metadata)
 
 			setProcessedContent(finalProcessedContent)
 			setFilePathMapping(result.filePathMapping)
@@ -341,8 +661,34 @@ export default memo(function HTML(props: HTMLProps) {
 
 	useDeepCompareEffect(() => {
 		if (!data?.content) return
+		if (isDataAnalysis && !activeHistory.isPreviewReady) return
 		processContent()
-	}, [data, metadata, attachmentList, isEditMode])
+	}, [
+		data,
+		displayConfig,
+		isEditMode,
+		htmlPreviewBundledTemplate,
+		resourceFileVersions,
+		dashboardDataJsContent,
+		isDataAnalysis,
+		activeHistory.isPreviewReady,
+	])
+
+	// 编辑态下，附件 updated_at 变化会导致 processedContent 重算并触发 iframe setContent，
+	// 进而打断未保存编辑；因此仅在非编辑态响应 attachmentList 变化。
+	useDeepCompareEffect(() => {
+		if (isEditMode) return
+		if (!data?.content) return
+		if (isDataAnalysis && !activeHistory.isPreviewReady) return
+		processContent()
+	}, [
+		attachmentList,
+		htmlPreviewBundledTemplate,
+		resourceFileVersions,
+		dashboardDataJsContent,
+		isDataAnalysis,
+		activeHistory.isPreviewReady,
+	])
 
 	// AI modification detection is now handled by PPTStore internally
 	// This logic has been removed to simplify the component
@@ -350,13 +696,14 @@ export default memo(function HTML(props: HTMLProps) {
 	// 按钮处理函数
 	const handleEdit = useMemoizedFn(() => {
 		if (setIsEditMode) {
+			editSessionBaselineContentRef.current = getEditSessionBaselineContent()
 			setIsEditMode(true)
 			// 初始化编辑内容
 			setEditingCodeContent(data?.content || "")
 		}
 	})
 
-	const handleSave = useMemoizedFn(async () => {
+	const performSave = useMemoizedFn(async () => {
 		setIsEditingAfter(true)
 		if (viewMode === "code" && editingCodeContent) {
 			// 保存代码编辑内容
@@ -366,6 +713,9 @@ export default memo(function HTML(props: HTMLProps) {
 				true,
 				fetchHtmlFileVersions,
 			)
+			// Code mode saves exactly the editor text, so we can cache it directly.
+			lastLocalSavedContentRef.current = editingCodeContent
+			editSessionBaselineContentRef.current = editingCodeContent
 			setData((prev: any) => ({
 				...prev,
 				content: editingCodeContent,
@@ -375,8 +725,48 @@ export default memo(function HTML(props: HTMLProps) {
 			if (result && !result.success) {
 				console.error("[HTML Editor] 保存失败", result)
 			}
+			if (result?.success) {
+				// Visual mode returns the cleaned HTML that will be stored on the server.
+				lastLocalSavedContentRef.current = result.cleanContent
+				editSessionBaselineContentRef.current = result.cleanContent
+			}
 		}
+		setShowSaveWithUpdateConfirmDialog(false)
+		clearServerUpdate()
 		// 不再退出编辑模式
+	})
+
+	const exitEditModeAfterSave = useMemoizedFn(() => {
+		if (setIsEditMode) {
+			setIsEditMode(false)
+		}
+		onRefreshFile?.()
+	})
+
+	const runSaveAttempt = useMemoizedFn(async (intent: "save" | "save-and-exit") => {
+		pendingSaveIntentRef.current = intent
+
+		const result = await attemptHtmlSaveFlow({
+			shouldExitAfterSave: intent === "save-and-exit",
+			refreshServerUpdateState,
+			showConflictDialog: () => setShowSaveWithUpdateConfirmDialog(true),
+			checkServerUpdateBeforeSave,
+			performSave,
+			exitEditMode: exitEditModeAfterSave,
+			onRefreshServerUpdateError: (error: unknown) => {
+				console.error("[HTML] 保存前检查服务端冲突失败", error)
+			},
+		})
+
+		if (!result.isAwaitingConflictConfirmation) {
+			pendingSaveIntentRef.current = null
+		}
+
+		return result.didSave
+	})
+
+	const handleSave = useMemoizedFn(async () => {
+		await runSaveAttempt("save")
 	})
 
 	// Register save handler when in edit mode
@@ -387,27 +777,60 @@ export default memo(function HTML(props: HTMLProps) {
 	})
 
 	const handleSaveAndExit = useMemoizedFn(async () => {
-		await handleSave()
-		if (setIsEditMode) {
-			setIsEditMode(false)
-		}
+		await runSaveAttempt("save-and-exit")
+	})
+
+	const handleSaveConflictDialogChange = useMemoizedFn((open: boolean) => {
+		setShowSaveWithUpdateConfirmDialog(open)
+	})
+
+	const handleDismissSaveWithUpdate = useMemoizedFn(() => {
+		pendingSaveIntentRef.current = null
+	})
+
+	const handleConfirmSaveWithUpdate = useMemoizedFn(async () => {
+		const shouldExitAfterSave = pendingSaveIntentRef.current === "save-and-exit"
+
+		await confirmHtmlConflictSave({
+			shouldExitAfterSave,
+			performSave,
+			exitEditMode: exitEditModeAfterSave,
+		})
+
+		pendingSaveIntentRef.current = null
 	})
 
 	const handleCancel = useMemoizedFn(async () => {
+		pendingSaveIntentRef.current = null
+		setShowSaveWithUpdateConfirmDialog(false)
 		if (setIsEditMode) {
 			setIsEditMode(false)
 		}
 		// 重置编辑内容
 		setEditingCodeContent("")
-		if (viewMode === "code") {
-			setData((prev: any) => ({
-				...prev,
-				content: data?.content,
-			}))
-			return
-		}
+		applyServerUpdate()
+		clearServerUpdate()
 		setRenderKey((prev) => prev + 1)
 		onRefreshFile?.()
+	})
+
+	const handleAcceptMyVersion = useMemoizedFn((editedContent?: string) => {
+		if (actualServerContent) {
+			editSessionBaselineContentRef.current = actualServerContent
+		}
+		handleUseMyVersion(editedContent)
+	})
+
+	const handleAcceptServerVersion = useMemoizedFn((editedContent?: string) => {
+		// Visual compare may return normalized HTML that differs from the raw server payload.
+		// Keep the conflict baseline anchored to the last accepted server version so the next
+		// save is not treated as a brand-new external conflict.
+		const nextBaselineContent = actualServerContent || editedContent
+		if (nextBaselineContent) {
+			editSessionBaselineContentRef.current = nextBaselineContent
+		}
+		lastLocalSavedContentRef.current = null
+		handleUseServerVersion(editedContent)
 	})
 
 	const quitEditMode = useMemoizedFn(() => {
@@ -482,8 +905,53 @@ export default memo(function HTML(props: HTMLProps) {
 		exportFile?.(displayData?.file_id, htmlFileVersion)
 	})
 
-	const handleExportPDF = useMemoizedFn(() => {
-		exportPdf?.(displayData?.file_id)
+	const handleExportPDF = useMemoizedFn(async (pagination: "slice" | "none" = "slice") => {
+		const content = processedContent || editingCodeContent || displayData?.content || ""
+		const fileId = displayData?.file_id
+		if (!content) {
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+			return
+		}
+
+		const toastKey = `pdf-export-${fileId || Date.now()}`
+		setIsExportingPdf(true)
+		magicToast.loading({
+			key: toastKey,
+			content: t("topicFiles.exporting"),
+			duration: 0,
+		})
+
+		try {
+			await exportHtmlToPdf({
+				pages: [content],
+				pagination,
+				fileName:
+					(displayData?.file_name || data?.file_name || "export").replace(
+						/\.html?$/i,
+						"",
+					) + ".pdf",
+				output: "download",
+				onProgress: ({ phase, current, total }) => {
+					if (phase !== "capture" || total <= 1) return
+					magicToast.loading({
+						key: toastKey,
+						content: `${t("topicFiles.exporting")} (${current}/${total})`,
+						duration: 0,
+					})
+				},
+			}).promise
+			magicToast.success({
+				key: toastKey,
+				content: t("topicFiles.exportSuccess"),
+				duration: 1000,
+			})
+		} catch (error) {
+			console.error("[pdf-export] HTML export failed:", error)
+			magicToast.destroy(toastKey)
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+		} finally {
+			setIsExportingPdf(false)
+		}
 	})
 
 	const handleExportPPT = useMemoizedFn(() => {
@@ -492,6 +960,53 @@ export default memo(function HTML(props: HTMLProps) {
 
 	const handleExportPptx = useMemoizedFn(() => {
 		exportPptx?.(displayData?.file_id)
+	})
+
+	const handleExportImage = useMemoizedFn(async (format: ImageExportFormat = "png") => {
+		const content = processedContent || editingCodeContent || displayData?.content || ""
+		const fileId = displayData?.file_id
+		if (!content) {
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+			return
+		}
+
+		const toastKey = `image-export-${fileId || Date.now()}`
+		setIsExportingPdf(true)
+		magicToast.loading({
+			key: toastKey,
+			content: t("topicFiles.exporting"),
+			duration: 0,
+		})
+
+		try {
+			await exportHtmlToImage({
+				pages: [content],
+				format,
+				fileName: (displayData?.file_name || data?.file_name || "export").replace(
+					/\.html?$/i,
+					"",
+				),
+				onProgress: ({ phase, current, total }) => {
+					if (phase !== "capture" || total <= 1) return
+					magicToast.loading({
+						key: toastKey,
+						content: `${t("topicFiles.exporting")} (${current}/${total})`,
+						duration: 0,
+					})
+				},
+			}).promise
+			magicToast.success({
+				key: toastKey,
+				content: t("topicFiles.exportSuccess"),
+				duration: 1000,
+			})
+		} catch (error) {
+			console.error("[image-export] HTML export failed:", error)
+			magicToast.destroy(toastKey)
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+		} finally {
+			setIsExportingPdf(false)
+		}
 	})
 
 	const relative_file_path = useMemo(() => {
@@ -507,20 +1022,35 @@ export default memo(function HTML(props: HTMLProps) {
 	})
 
 	/** 是否为媒体场景（audio/video） */
-	const isMediaScenario = metadata?.type === "audio" || metadata?.type === "video"
+	const isMediaScenario = displayConfig?.type === "audio" || displayConfig?.type === "video"
+	const isCodeViewMode = viewMode === "code"
+	const versionCompareFileName = data?.file_name || data?.title || "file.html"
 
 	/** 是否显示 AI编辑 按钮 */
 	const showAIOptimizationButton = useMemo(() => {
-		// 当 metadata.type 为 audio/video 时，隐藏 AI 编辑按钮
+		if (isReadonlyPreview) {
+			return false
+		}
+		// 当 display_config.type 为 audio/video 时，隐藏 AI 编辑按钮
 		if (isMediaScenario) {
 			return false
 		}
-		return !isMobile && allowEdit && !isEditMode && htmlIsNewestVersion
-	}, [isMediaScenario, isMobile, allowEdit, isEditMode, htmlIsNewestVersion])
+		return !isMobile && allowEdit && !isEditMode && activeHistory.isNewestVersion
+	}, [
+		isReadonlyPreview,
+		isMediaScenario,
+		isMobile,
+		allowEdit,
+		isEditMode,
+		activeHistory.isNewestVersion,
+	])
 
 	/** 是否显示 在线编辑 按钮 */
 	const showFileEditButton = useMemo(() => {
-		// 当 metadata.type 为 audio/video 时，隐藏编辑按钮
+		if (isReadonlyPreview) {
+			return false
+		}
+		// 当 display_config.type 为 audio/video 时，隐藏编辑按钮
 		if (isMediaScenario) {
 			return false
 		}
@@ -530,9 +1060,10 @@ export default memo(function HTML(props: HTMLProps) {
 			!isMobile &&
 			(saveFunction !== null || viewMode === "code") &&
 			displayData?.file_id &&
-			htmlIsNewestVersion
+			activeHistory.isNewestVersion
 		)
 	}, [
+		isReadonlyPreview,
 		isMediaScenario,
 		setIsEditMode,
 		allowEdit,
@@ -540,7 +1071,7 @@ export default memo(function HTML(props: HTMLProps) {
 		saveFunction,
 		viewMode,
 		displayData?.file_id,
-		htmlIsNewestVersion,
+		activeHistory.isNewestVersion,
 	])
 
 	/** 使用分享按钮可见性控制 Hook */
@@ -574,7 +1105,27 @@ export default memo(function HTML(props: HTMLProps) {
 
 	const headerActionConfig = useMemo<HeaderActionConfig>(
 		() => ({
+			hideDefaults: isReadonlyPreview
+				? ["refresh", "download", "share", "versionMenu", "more"]
+				: [],
 			customActions: [
+				{
+					key: "html-server-update",
+					zone: "primary",
+					visible: () => Boolean(isEditMode && hasServerUpdate),
+					render: () => (
+						<Button
+							variant="secondary"
+							size="sm"
+							onClick={handleViewServerUpdate}
+							className="h-6 gap-1.5 rounded-md px-3 text-xs font-normal shadow-xs"
+							data-testid="html-server-update-button"
+						>
+							<AlertTriangle size={16} className="text-amber-600" />
+							<span>{t("ppt.serverUpdateAvailable")}</span>
+						</Button>
+					),
+				},
 				{
 					key: "html-toolbar-actions",
 					zone: "primary",
@@ -586,6 +1137,9 @@ export default memo(function HTML(props: HTMLProps) {
 									showButtonText
 									attachmentList={attachmentList}
 									fileId={displayData?.file_id}
+									onStartInspector={() => {
+										htmlRendererRef.current?.startInspector()
+									}}
 								/>
 							)}
 							{showFileEditButton && (
@@ -606,16 +1160,19 @@ export default memo(function HTML(props: HTMLProps) {
 					key: "html-export-dropdown",
 					zone: "secondary",
 					after: "download",
-					visible: () => Boolean(showExportButton),
+					visible: () => Boolean(!isReadonlyPreview && showExportButton),
 					render: (context) => (
 						<HtmlExportAction
 							handleExportSource={handleExportSource}
 							handleExportPDF={handleExportPDF}
 							handleExportPPT={handleExportPPT}
 							handleExportPptx={handleExportPptx}
-							isExporting={isExporting}
+							handleExportImage={handleExportImage}
+							isExporting={isExporting || isExportingPdf}
 							supportPPT={isInPPTMode}
 							showButtonText={context.showButtonText}
+							showExportPptx={isConvertibleFile(displayData, ["html"])}
+							showExportImage={isConvertibleFile(displayData, ["html"])}
 						/>
 					),
 				},
@@ -628,14 +1185,21 @@ export default memo(function HTML(props: HTMLProps) {
 			handleEdit,
 			handleExportPDF,
 			handleExportPPT,
+			handleExportPptx,
+			handleExportImage,
 			handleExportSource,
 			handleSave,
+			handleSaveAndExit,
+			handleViewServerUpdate,
+			hasServerUpdate,
 			isExporting,
 			isEditMode,
 			isInPPTMode,
+			isReadonlyPreview,
 			showAIOptimizationButton,
 			showExportButton,
 			showFileEditButton,
+			t,
 		],
 	)
 
@@ -648,28 +1212,54 @@ export default memo(function HTML(props: HTMLProps) {
 		viewMode,
 		onViewModeChange,
 		onCopy: (targetFileVersion?: number) =>
-			onCopy?.(targetFileVersion || htmlFileVersionsList[0]?.version, displayData?.file_id),
+			onCopy?.(
+				targetFileVersion || activeHistory.fileVersionsList[0]?.version,
+				displayData?.file_id,
+			),
 		fileContent: fileContent || processedContent,
 		currentFile,
 		detailMode,
 		showDownload: showDownloadButton && !showExportButton,
 		isEditMode,
-		fileVersion: htmlFileVersion,
-		isNewestFileVersion: htmlIsNewestVersion,
+		fileVersion: activeHistory.fileVersion,
+		isNewestFileVersion: activeHistory.isNewestVersion,
 		showRefreshButton: true,
-		changeFileVersion: changeHtmlFileVersion,
-		fileVersionsList: htmlFileVersionsList,
-		handleVersionRollback: handleHtmlVersionRollback,
+		changeFileVersion: activeHistory.changeFileVersion,
+		fileVersionsList: activeHistory.fileVersionsList,
+		handleVersionRollback: activeHistory.handleVersionRollback,
 		quitEditMode,
 		allowEdit,
 		attachments,
 		actionConfig: headerActionConfig,
+		extraMoreMenuItems:
+			!isDataAnalysis && !isCodeViewMode
+				? [
+						{
+							key: "dev-console-toggle",
+							label: (
+								<div className="flex items-center gap-1.5 text-sm">
+									<Terminal size={16} />
+									<span>
+										{devConsoleEnabled
+											? t("stylePanel.closeDevConsole")
+											: t("stylePanel.openDevConsole")}
+									</span>
+								</div>
+							),
+							onClick: handleDevConsoleToggle,
+						},
+					]
+				: [],
 	}
 
 	return (
-		<div className={cx(styles.htmlContainer, className)}>
+		<div
+			className={cx(styles.htmlContainer, className, {
+				[styles.immersiveHtmlContainer]: isImmersiveLayout,
+			})}
+		>
 			{showFileHeader && <CommonHeaderV2 {...headerContext} />}
-			{loading ? (
+			{activeHistory.loading ? (
 				<Flex
 					justify="center"
 					align="center"
@@ -677,7 +1267,7 @@ export default memo(function HTML(props: HTMLProps) {
 				>
 					<MagicSpin spinning />
 				</Flex>
-			) : viewMode === "code" ? (
+			) : isCodeViewMode ? (
 				<div className={styles.htmlBody}>
 					<CodeEditor
 						content={data?.content || ""}
@@ -693,19 +1283,28 @@ export default memo(function HTML(props: HTMLProps) {
 				<div
 					className={cx(styles.previewContainerBase, {
 						[styles.phoneModeContainer]: viewMode === "phone",
+						[styles.immersivePreviewContainer]: isImmersiveLayout,
 					})}
 				>
 					<div
 						className={cx(styles.previewInnerBase, styles.htmlBody, {
 							[styles.phoneModeInner]: viewMode === "phone",
+							[styles.immersivePreviewInner]: isImmersiveLayout,
 						})}
 					>
 						{isDataAnalysis ? (
 							<DashboardIsolatedHTMLRenderer
-								key={`dashboard-html-${renderKey}`}
+								key={`dashboard-html-${dashboardDataJsFile?.file_id || "none"}-${activeHistory.previewRevision}`}
 								content={processedContent}
 								className={className}
 								isEditMode={isEditMode || false}
+								dashboardRenderMode={
+									viewMode === "phone"
+										? "mobile"
+										: viewMode === "desktop"
+											? "desktop"
+											: "auto"
+								}
 								onSaveReady={onSaveReady as (triggerSave: () => void) => void}
 								attachments={attachments}
 								attachmentList={attachmentList}
@@ -719,6 +1318,7 @@ export default memo(function HTML(props: HTMLProps) {
 								ref={htmlRendererRef}
 								key={`html-${renderKey}`}
 								content={processedContent}
+								rawSourceCode={data?.content}
 								sandboxType="iframe"
 								isPptRender={isInPPTMode}
 								isFullscreen={isFullscreen}
@@ -732,18 +1332,19 @@ export default memo(function HTML(props: HTMLProps) {
 								selectedProject={selectedProject}
 								attachmentList={attachmentList}
 								isPlaybackMode={isPlaybackMode}
+								onDevConsoleClose={() => setDevConsoleEnabled(false)}
 							/>
 						)}
 					</div>
 				</div>
 			)}
 			{/* 底部 */}
-			{showFooter && (
+			{showFooter && !isReadonlyPreview && (
 				<CommonFooter
-					fileVersion={htmlFileVersion}
-					changeFileVersion={changeHtmlFileVersion}
-					fileVersionsList={htmlFileVersionsList}
-					handleVersionRollback={handleHtmlVersionRollback}
+					fileVersion={activeHistory.fileVersion}
+					changeFileVersion={activeHistory.changeFileVersion}
+					fileVersionsList={activeHistory.fileVersionsList}
+					handleVersionRollback={activeHistory.handleVersionRollback}
 					quitEditMode={quitEditMode}
 					allowEdit={allowEdit}
 					isEditMode={isEditMode}
@@ -758,6 +1359,52 @@ export default memo(function HTML(props: HTMLProps) {
 					radius: 8,
 				}}
 			/>
+			<AlertDialog
+				open={showSaveWithUpdateConfirmDialog}
+				onOpenChange={handleSaveConflictDialogChange}
+			>
+				<AlertDialogContent data-testid="html-save-with-update-dialog">
+					<AlertDialogHeader>
+						<AlertDialogTitle>{t("ppt.saveWithServerUpdateTitle")}</AlertDialogTitle>
+						<AlertDialogDescription>
+							{t("ppt.saveWithServerUpdate")}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel onClick={handleDismissSaveWithUpdate}>
+							{t("common.cancel")}
+						</AlertDialogCancel>
+						<AlertDialogAction onClick={handleConfirmSaveWithUpdate}>
+							{t("common.save")}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+			{isCodeViewMode ? (
+				<CodeVersionCompareDialog
+					open={showVersionCompareDialog}
+					onOpenChange={setShowVersionCompareDialog}
+					currentContent={currentEditingContent}
+					serverContent={actualServerContent}
+					fileName={versionCompareFileName}
+					onUseMyVersion={() => handleAcceptMyVersion()}
+					onUseServerVersion={() => handleAcceptServerVersion()}
+				/>
+			) : (
+				<VersionCompareDialog
+					open={showVersionCompareDialog}
+					onOpenChange={setShowVersionCompareDialog}
+					currentContent={currentEditingContent}
+					serverContent={actualServerContent}
+					onUseMyVersion={handleAcceptMyVersion}
+					onUseServerVersion={handleAcceptServerVersion}
+					filePathMapping={filePathMapping}
+					fileId={displayData?.file_id}
+					openNewTab={openNewTab}
+					selectedProject={selectedProject}
+					attachmentList={attachmentList}
+				/>
+			)}
 		</div>
 	)
 })

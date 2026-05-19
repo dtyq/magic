@@ -45,6 +45,15 @@ function MarkdownFrontmatterNodeView(props: NodeViewProps) {
 		})
 	}
 
+	function stopInteractionBubbling(event: React.SyntheticEvent) {
+		event.stopPropagation()
+	}
+
+	function handleReadOnlyPreMouseDown(event: React.MouseEvent<HTMLPreElement>) {
+		event.stopPropagation()
+		event.currentTarget.focus()
+	}
+
 	return (
 		<NodeViewWrapper
 			className="markdown-frontmatter-node"
@@ -60,10 +69,12 @@ function MarkdownFrontmatterNodeView(props: NodeViewProps) {
 					data-testid="tiptap-frontmatter-input"
 					spellCheck={false}
 					value={draftValue}
-					onMouseDown={(event) => event.stopPropagation()}
-					onClick={(event) => event.stopPropagation()}
-					onKeyDown={(event) => event.stopPropagation()}
-					onKeyUp={(event) => event.stopPropagation()}
+					onMouseDown={stopInteractionBubbling}
+					onClick={stopInteractionBubbling}
+					onCopy={stopInteractionBubbling}
+					onCut={stopInteractionBubbling}
+					onKeyDown={stopInteractionBubbling}
+					onKeyUp={stopInteractionBubbling}
 					onFocus={() => {
 						isFocusedRef.current = true
 					}}
@@ -77,6 +88,13 @@ function MarkdownFrontmatterNodeView(props: NodeViewProps) {
 				<pre
 					className="markdown-frontmatter-node__raw"
 					data-testid="tiptap-frontmatter-raw"
+					tabIndex={0}
+					onMouseDown={handleReadOnlyPreMouseDown}
+					onClick={stopInteractionBubbling}
+					onCopy={stopInteractionBubbling}
+					onCut={stopInteractionBubbling}
+					onKeyDown={stopInteractionBubbling}
+					onKeyUp={stopInteractionBubbling}
 				>
 					{raw}
 				</pre>

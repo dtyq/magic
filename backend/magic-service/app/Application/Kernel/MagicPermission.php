@@ -235,12 +235,14 @@ class MagicPermission implements MagicPermissionInterface
                 continue;
             }
 
-            $pathNodes = $this->resolvePermissionPathNodes($permission);
-            if ($pathNodes === []) {
+            $pathNodeSets = $this->resolvePermissionPathNodeSets($permission);
+            if ($pathNodeSets === []) {
                 continue;
             }
 
-            $this->appendPermissionToTree($tree, $pathNodes, $permission);
+            foreach ($pathNodeSets as $pathNodes) {
+                $this->appendPermissionToTree($tree, $pathNodes, $permission);
+            }
         }
 
         return array_values($this->normalizeTree($tree));
@@ -316,7 +318,7 @@ class MagicPermission implements MagicPermissionInterface
         }
 
         // 直接命中
-        if (in_array($permissionKey, $userPermissions, true)) {
+        if ($this->hasPermissionKeyWithCompatibility($resource, $parsed['operation'], $userPermissions)) {
             return true;
         }
 
@@ -324,8 +326,7 @@ class MagicPermission implements MagicPermissionInterface
         $ops = $this->getOperationsByResource($resource);
         if (in_array(MagicOperationEnum::EDIT->value, $ops, true) && in_array(MagicOperationEnum::QUERY->value, $ops, true)) {
             if ($parsed['operation'] === MagicOperationEnum::QUERY->value) {
-                $permissionKey = $this->buildPermission($resource, MagicOperationEnum::EDIT->value);
-                if (in_array($permissionKey, $userPermissions, true)) {
+                if ($this->hasPermissionKeyWithCompatibility($resource, MagicOperationEnum::EDIT->value, $userPermissions)) {
                     return true;
                 }
             }
@@ -475,34 +476,22 @@ class MagicPermission implements MagicPermissionInterface
      * 解析权限在树中的路径节点（优先使用菜单映射配置，未命中则回退旧逻辑）。
      *
      * @param array{permission_key:string,resource:string,resource_label:string,operation_label:string} $permission
-     * @return array<int, array{index_key:string,label:string,permission_key:string}>
+     * @return array<int, array<int, array{index_key:string,label:string,permission_key:string}>>
      */
-    private function resolvePermissionPathNodes(array $permission): array
+    private function resolvePermissionPathNodeSets(array $permission): array
     {
-        $mappedPath = $this->getMappedResourcePath($permission['resource']);
-        if ($mappedPath !== null) {
-            $pathNodes = [];
-            $accumKeys = [];
-            foreach ($mappedPath as $node) {
-                if (! is_array($node)) {
-                    $pathNodes = [];
-                    break;
+        $mappedPaths = $this->getMappedResourcePaths($permission['resource']);
+        if ($mappedPaths !== []) {
+            $pathNodeSets = [];
+            foreach ($mappedPaths as $mappedPath) {
+                $pathNodes = $this->buildMappedPathNodes($mappedPath);
+                if ($pathNodes !== []) {
+                    $pathNodeSets[] = $pathNodes;
                 }
-                $key = isset($node['key']) ? (string) $node['key'] : '';
-                $label = isset($node['label']) ? (string) $node['label'] : '';
-                if ($key === '' || $label === '') {
-                    $pathNodes = [];
-                    break;
-                }
-                $accumKeys[] = $key;
-                $pathNodes[] = [
-                    'index_key' => $key,
-                    'label' => $label,
-                    'permission_key' => 'menu.' . implode('.', $accumKeys),
-                ];
             }
-            if ($pathNodes !== []) {
-                return $pathNodes;
+
+            if ($pathNodeSets !== []) {
+                return $pathNodeSets;
             }
         }
 
@@ -543,7 +532,7 @@ class MagicPermission implements MagicPermissionInterface
             ];
         }
 
-        return $pathNodes;
+        return [$pathNodes];
     }
 
     /**
@@ -613,15 +602,117 @@ class MagicPermission implements MagicPermissionInterface
     /**
      * 获取某 resource 映射的菜单路径节点。
      */
-    private function getMappedResourcePath(string $resource): ?array
+    private function getMappedResourcePaths(string $resource): array
     {
-        $resourceMapping = $this->getResourceMenuMapping($resource);
-        if ($resourceMapping === null) {
-            return null;
+        if ($this->isResourceHiddenFromTree($resource)) {
+            return [];
         }
 
-        $path = $resourceMapping['path'] ?? null;
-        return is_array($path) ? $path : null;
+        $paths = [];
+
+        $resourceMapping = $this->getResourceMenuMapping($resource);
+        if ($resourceMapping !== null) {
+            $path = $resourceMapping['path'] ?? null;
+            if (is_array($path)) {
+                $paths[] = $path;
+            }
+        }
+
+        $aliasMapping = config('permission_menu.resource_menu_alias_mapping', []);
+        if (! is_array($aliasMapping)) {
+            return $paths;
+        }
+
+        $resourceAliases = $aliasMapping[$resource] ?? null;
+        if (! is_array($resourceAliases)) {
+            return $paths;
+        }
+
+        foreach ($resourceAliases as $resourceAlias) {
+            if (! is_array($resourceAlias)) {
+                continue;
+            }
+
+            $path = $resourceAlias['path'] ?? null;
+            if (is_array($path)) {
+                $paths[] = $path;
+            }
+        }
+
+        return $paths;
+    }
+
+    private function isResourceHiddenFromTree(string $resource): bool
+    {
+        $hiddenResources = config('permission_menu.hidden_resource_keys', []);
+        if (! is_array($hiddenResources)) {
+            return false;
+        }
+
+        return in_array($resource, $hiddenResources, true);
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getCompatibleResources(string $resource): array
+    {
+        $mapping = config('permission_menu.resource_compatibility_mapping', []);
+        if (! is_array($mapping)) {
+            return [];
+        }
+
+        $compatibleResources = $mapping[$resource] ?? [];
+        if (! is_array($compatibleResources)) {
+            return [];
+        }
+
+        return array_values(array_filter($compatibleResources, static fn ($item): bool => is_string($item) && $item !== ''));
+    }
+
+    /**
+     * @param string[] $userPermissions
+     */
+    private function hasPermissionKeyWithCompatibility(string $resource, string $operation, array $userPermissions): bool
+    {
+        $resources = array_merge([$resource], $this->getCompatibleResources($resource));
+
+        foreach ($resources as $candidateResource) {
+            $candidatePermissionKey = $this->buildPermission($candidateResource, $operation);
+            if (in_array($candidatePermissionKey, $userPermissions, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, mixed> $mappedPath
+     * @return array<int, array{index_key:string,label:string,permission_key:string}>
+     */
+    private function buildMappedPathNodes(array $mappedPath): array
+    {
+        $pathNodes = [];
+        $accumKeys = [];
+        foreach ($mappedPath as $node) {
+            if (! is_array($node)) {
+                return [];
+            }
+            $key = isset($node['key']) ? (string) $node['key'] : '';
+            $label = isset($node['label']) ? (string) $node['label'] : '';
+            if ($key === '' || $label === '') {
+                return [];
+            }
+            $accumKeys[] = $key;
+            $pathNodes[] = [
+                'index_key' => $key,
+                'label' => $label,
+                'permission_key' => 'menu.' . implode('.', $accumKeys),
+            ];
+        }
+
+        return $pathNodes;
     }
 
     /**

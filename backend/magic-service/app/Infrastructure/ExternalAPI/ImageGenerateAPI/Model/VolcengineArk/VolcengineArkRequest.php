@@ -23,6 +23,11 @@ class VolcengineArkRequest extends ImageGenerateRequest
 
     protected array $sequentialImageGenerationOptions = [];
 
+    /**
+     * 输出图片格式，支持 jpeg、png、webp、bmp、tiff、gif；空字符串表示使用服务商默认格式（jpeg）.
+     */
+    protected string $outputFormat = '';
+
     public function __construct(
         string $width = '',
         string $height = '',
@@ -92,5 +97,15 @@ class VolcengineArkRequest extends ImageGenerateRequest
     public function setSequentialImageGenerationOptions(array $sequentialImageGenerationOptions): void
     {
         $this->sequentialImageGenerationOptions = $sequentialImageGenerationOptions;
+    }
+
+    public function getOutputFormat(): string
+    {
+        return $this->outputFormat;
+    }
+
+    public function setOutputFormat(string $outputFormat): void
+    {
+        $this->outputFormat = $outputFormat;
     }
 }

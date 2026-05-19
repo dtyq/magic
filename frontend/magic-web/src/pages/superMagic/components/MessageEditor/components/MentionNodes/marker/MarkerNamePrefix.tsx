@@ -13,7 +13,7 @@ interface MarkerNamePrefixProps {
 export default function MarkerNamePrefix({ data }: MarkerNamePrefixProps) {
 	const markerNumber = data?.mark_number
 
-	const markType = data?.data?.type
+	const markType = data?.mark_type
 
 	if (markType === MarkerTypeEnum.Area) {
 		const scale = 0.7

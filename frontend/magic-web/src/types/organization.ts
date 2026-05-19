@@ -123,6 +123,8 @@ export interface StructureUserItem {
 	email: string
 	/** 真实姓名 */
 	real_name: string
+	/** 时区 */
+	timezone?: string | null
 	/** 账户类型 */
 	account_type?: number
 	/** AI 识别码/工号 */
@@ -156,6 +158,13 @@ export interface StructureUserItem {
 	user_manual: string
 	/** 拓展字段 */
 	option?: object | null
+	/** 用户偏好 */
+	preferences?: {
+		/** 是否开启追问建议 */
+		show_follow_up_suggestions: boolean
+		/** 是否保留历史的追问建议 */
+		keep_used_follow_up_suggestions: boolean
+	} | null
 }
 
 export interface GroupInfo {

@@ -10,6 +10,7 @@ from typing import BinaryIO, Dict, Optional
 import aiohttp
 from loguru import logger
 from tos import TosClientV2, HttpMethodType
+from tos.exceptions import TosServerError
 from tos.models2 import CompletePart
 
 from .base import AbstractStorage, BaseFileProcessor, with_refreshed_credentials
@@ -185,7 +186,8 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
 
         # 计算分片大小
         part_size = self._calculate_part_size(file_size)
-        logger.info(f"计算出的分片大小: {part_size} bytes")
+        total_parts = (file_size + part_size - 1) // part_size
+        logger.info(f"计算出的分片大小: {part_size} bytes, 总分片数: {total_parts}")
 
         # 初始化分片上传
         loop = asyncio.get_event_loop()
@@ -197,11 +199,12 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
         if not upload_id:
             raise UploadException(UploadExceptionCode.NETWORK_ERROR, "初始化分片上传失败：未获取到upload_id")
 
-        logger.info(f"初始化分片上传成功，upload_id: {upload_id}")
+        logger.debug(f"初始化分片上传成功，upload_id: {upload_id}")
 
         parts = []
         part_number = 1
         offset = 0
+        next_progress_percent = 10
 
         try:
             while offset < file_size:
@@ -216,7 +219,7 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
                 retry_count = 0
                 while retry_count < self.MAX_RETRIES:
                     try:
-                        logger.info(f"上传分片 {part_number}, 偏移量: {offset}, 大小: {part_size_current}")
+                        logger.debug(f"上传分片 {part_number}, 偏移量: {offset}, 大小: {part_size_current}")
 
                         part_result = await loop.run_in_executor(
                             None,
@@ -231,7 +234,7 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
 
                         # 创建CompletePart对象
                         parts.append(CompletePart(etag=part_result.etag, part_number=part_number))
-                        logger.info(f"分片 {part_number} 上传成功，ETag: {part_result.etag}")
+                        logger.debug(f"分片 {part_number} 上传成功，ETag: {part_result.etag}")
                         break
 
                     except Exception as e:
@@ -245,6 +248,11 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
                         await asyncio.sleep(wait_time)
 
                 offset += part_size_current
+                progress_percent = int(offset * 100 / file_size)
+                if progress_percent >= next_progress_percent or offset >= file_size:
+                    logger.info(f"分片上传进度: {progress_percent}% ({part_number}/{total_parts})")
+                    while next_progress_percent <= progress_percent:
+                        next_progress_percent += 10
                 part_number += 1
 
             # 完成分片上传
@@ -412,6 +420,75 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
             raise
 
     @with_refreshed_credentials
+    async def download_file_by_stream(
+        self,
+        key: str,
+        dest_path: str,
+        options: Optional[Options] = None,
+        chunk_size: int = 4 * 1024 * 1024,
+    ) -> int:
+        """
+        以流式方式从火山引擎 TOS 下载文件并写入本地路径。
+
+        TOS SDK 的 ``get_object`` 返回 file-like 对象，调用 ``read(size)`` 即按需从底层
+        socket 读取分块，不会一次性把整个对象读进内存。
+
+        Args:
+            key: 文件名/路径
+            dest_path: 本地目标文件绝对路径
+            options: 可选配置
+            chunk_size: 每次读取的字节数，默认 4MiB
+
+        Returns:
+            int: 写入到 ``dest_path`` 的字节总数
+
+        Raises:
+            DownloadException: 如果下载失败
+            ValueError: 如果凭证类型不正确或未设置元数据
+        """
+        if options is None:
+            options = {}
+
+        try:
+            if not isinstance(self.credentials, VolcEngineCredentials):
+                raise ValueError("凭证类型错误")
+
+            credentials: VolcEngineCredentials = self.credentials
+            tc = credentials.temporary_credential
+
+            tos_client = self._get_tos_client()
+
+            try:
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(
+                    None, lambda: tos_client.get_object(bucket=tc.bucket, key=key)
+                )
+
+                def _stream_to_file() -> int:
+                    written = 0
+                    with open(dest_path, "wb") as f:
+                        while True:
+                            chunk = result.read(chunk_size)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            written += len(chunk)
+                    return written
+
+                total_bytes = await loop.run_in_executor(None, _stream_to_file)
+                return total_bytes
+
+            except Exception as e:
+                logger.error(f"Error during streaming download: {e}")
+                raise DownloadException(DownloadExceptionCode.NETWORK_ERROR, str(e))
+
+        except Exception as e:
+            if not isinstance(e, DownloadException):
+                logger.error(f"Unexpected error during streaming download: {e}")
+                raise DownloadException(DownloadExceptionCode.NETWORK_ERROR, str(e))
+            raise
+
+    @with_refreshed_credentials
     async def exists(self, key: str, options: Optional[Options] = None) -> bool:
         """
         异步检查存储平台上是否存在指定的文件。
@@ -450,8 +527,13 @@ class VolcEngineUploader(AbstractStorage, BaseFileProcessor):
                 loop = asyncio.get_event_loop()
                 await loop.run_in_executor(None, lambda: tos_client.head_object(bucket=tc.bucket, key=key))
                 return True
+            except TosServerError as e:
+                if e.status_code == 404:
+                    logger.warning(f"Object not found (404) for key '{key}'")
+                else:
+                    logger.error(f"Error during head_object for key '{key}': {type(e).__name__} - {e}")
+                return False
             except Exception as e:
-                # 对象不存在，或者发生了其他错误
                 logger.error(f"Error during head_object for key '{key}': {type(e).__name__} - {e}")
                 return False
 

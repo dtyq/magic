@@ -22,7 +22,7 @@ class CorsMiddleware implements MiddlewareInterface
         $response = $response
             ->withHeader('Access-Control-Allow-Origin', '*')
             ->withHeader('Access-Control-Allow-Credentials', 'true')
-            ->withHeader('Access-Control-Allow-Headers', 'DNT,Keep-Alive,User-Agent,Cache-Control,Content-Type,Authorization,application-code,organization-code,x-forwarded-user,token,request-id,Language,api-key,X-Magic-Image-Process')
+            ->withHeader('Access-Control-Allow-Headers', 'DNT,Keep-Alive,User-Agent,Cache-Control,Content-Type,Authorization,application-code,organization-code,x-forwarded-user,token,request-id,Language,api-key,X-Magic-Image-Process,X-App-Id,X-Timestamp,X-Nonce,X-Sign')
             ->withHeader('Access-Control-Allow-Methods', '*')
             ->withHeader('Request-Id', CoContext::getOrSetRequestId());
 

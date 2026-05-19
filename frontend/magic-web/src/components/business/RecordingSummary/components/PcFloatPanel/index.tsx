@@ -20,19 +20,20 @@ import { PcSelectorButton } from "../ProjectSelector"
 import RetrySection from "../RetrySection"
 import RetryButton from "../RetryButton"
 import { useBoolean, useMemoizedFn } from "ahooks"
-import type { SimpleEditorRef } from "@/components/tiptap-templates/simple/simple-editor"
+import type { SimpleEditorRef } from "@/components/tiptap-templates/simple/types"
 import PauseButton from "../PauseButton"
 import { AudioSourceType, RecordingStatus } from "@/types/recordSummary"
 import MessageList from "../MessageList"
 import { Tooltip } from "antd"
 import AiChat from "../AiChat"
 import { ProjectFilesStore } from "@/stores/projectFiles"
-import { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import EditorBody from "@/pages/superMagic/components/Detail/contents/Md/components/EditorBody"
 import { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import { observer } from "mobx-react-lite"
 import AudioSourceSelector from "../AudioSourceSelector"
+import MicrophoneDeviceSelector from "../MicrophoneDeviceSelector"
 import { RecordingDebugPanel } from "../RecordingDebugPanel"
 import { initializeService } from "@/services/recordSummary/serviceInstance"
 import recordSummaryStore from "@/stores/recordingSummary"
@@ -274,6 +275,28 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 	const [isSwitchingAudioSource, setIsSwitchingAudioSource] = useState(false)
 	const selectedAudioSource = recordSummaryStore.audioSource
 
+	// ── Microphone device selection ──────────────────────────────────────────
+	const [isSwitchingMicDevice, setIsSwitchingMicDevice] = useState(false)
+	const selectedMicDeviceId = recordSummaryStore.selectedMicrophoneDeviceId
+
+	const handleMicDeviceChange = useMemoizedFn(async (deviceId: string, deviceLabel: string) => {
+		setIsSwitchingMicDevice(true)
+		try {
+			const recordSummaryService = initializeService()
+			await recordSummaryService?.switchMicrophoneDevice(deviceId)
+			magicToast.success(
+				t("recordingSummary.audioSource.microphone.deviceSwitchSuccess", {
+					label: deviceLabel,
+				}),
+			)
+		} catch (error) {
+			console.error("Failed to switch microphone device:", error)
+			magicToast.error(t("recordingSummary.audioSource.microphone.deviceSwitchFailed"))
+		} finally {
+			setIsSwitchingMicDevice(false)
+		}
+	})
+
 	const handleAudioSourceChange = useMemoizedFn(async (newSource: AudioSourceType) => {
 		// If recording, switch source with auto-pause/resume
 		setIsSwitchingAudioSource(true)
@@ -454,6 +477,17 @@ const PcFloatPanel = function PcFloatPanel(props: PcFloatPanelProps) {
 												disabled={isSwitchingAudioSource}
 												size="small"
 												data-testid="record-summary-pc-float-panel-audio-source"
+											/>
+										)}
+										{isExpanded && selectedAudioSource !== "system" && (
+											<MicrophoneDeviceSelector
+												value={selectedMicDeviceId}
+												onChange={handleMicDeviceChange}
+												disabled={
+													isSwitchingMicDevice || isSwitchingAudioSource
+												}
+												size="small"
+												data-testid="record-summary-pc-float-panel-mic-device"
 											/>
 										)}
 									</div>

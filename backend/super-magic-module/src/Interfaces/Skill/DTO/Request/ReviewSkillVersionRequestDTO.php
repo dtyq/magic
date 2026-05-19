@@ -28,6 +28,11 @@ class ReviewSkillVersionRequestDTO extends AbstractRequestDTO
     public string $publisherType = '';
 
     /**
+     * 审核说明，同意/拒绝均可为空。
+     */
+    public ?string $reviewRemark = null;
+
+    /**
      * 获取审核操作.
      */
     public function getAction(): string
@@ -43,6 +48,11 @@ class ReviewSkillVersionRequestDTO extends AbstractRequestDTO
         return $this->publisherType ?: '';
     }
 
+    public function getReviewRemark(): ?string
+    {
+        return $this->reviewRemark;
+    }
+
     /**
      * 获取验证规则.
      */
@@ -50,7 +60,8 @@ class ReviewSkillVersionRequestDTO extends AbstractRequestDTO
     {
         return [
             'action' => ['required', 'string', Rule::in(['APPROVED', 'REJECTED'])],
-            'publisher_type' => ['nullable', 'string', Rule::in(['USER', 'OFFICIAL', 'VERIFIED_CREATOR', 'PARTNER'])],
+            'publisher_type' => ['nullable', 'string', Rule::in(['USER', 'OFFICIAL', 'VERIFIED_CREATOR', 'PARTNER', 'OFFICIAL_BUILTIN'])],
+            'review_remark' => ['nullable', 'string', 'max:1000'],
         ];
     }
 
@@ -65,6 +76,8 @@ class ReviewSkillVersionRequestDTO extends AbstractRequestDTO
             'action.in' => __('skill.invalid_review_action'),
             'publisher_type.string' => __('skill.publisher_type_must_be_string'),
             'publisher_type.in' => __('skill.publisher_type_invalid'),
+            'review_remark.string' => __('validation.string', ['attribute' => 'review_remark']),
+            'review_remark.max' => __('validation.max.string', ['attribute' => 'review_remark', 'max' => 1000]),
         ];
     }
 }

@@ -21,7 +21,7 @@ export function openMessageFile(
 	const fileId = resolveMessageFileId(fileData)
 	if (!fileId) return null
 
-	pubsub.publish("super_magic_switch_detail_mode", "files")
+	pubsub.publish(PubSubEvents.Switch_Detail_Mode, "files")
 	pubsub.publish(PubSubEvents.Open_File_Tab, {
 		fileId,
 		fileData,

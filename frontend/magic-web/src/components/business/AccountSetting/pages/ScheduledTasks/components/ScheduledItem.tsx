@@ -57,6 +57,12 @@ export function ScheduledItem({ value, onChange, disabled }: ScheduledItemProps)
 
 	const renderTimeSelector = () => (
 		<MagicTimePicker
+			classNames={{
+				root: "h-9",
+				popup: {
+					root: styles.timepickerPopup,
+				},
+			}}
 			defaultValue={
 				formValues.time ? dayjs(`2000-01-01 ${formValues.time}`, "HH:mm") : undefined
 			}
@@ -85,6 +91,9 @@ export function ScheduledItem({ value, onChange, disabled }: ScheduledItemProps)
 			<div className={styles.column}>
 				{formValues.scheduleType === ScheduledTask.ScheduleType.Once ? (
 					<MagicDatePicker
+						classNames={{
+							root: "h-9",
+						}}
 						value={formValues.day ? dayjs(formValues.day, "YYYY/MM/DD") : undefined}
 						onChange={(date) => {
 							if (date) updateFormValues({ day: date.format("YYYY-MM-DD") })

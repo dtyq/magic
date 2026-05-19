@@ -23,7 +23,7 @@ abstract class AbstractOpenApi
     protected function getAccessToken(): string
     {
         // 0. 优先从协程上下文获取（中间件验证通过后设置的有效 token）
-        // SandboxUserAuthMiddleware 或 ApiKeyMiddleware 验证成功后会设置此值
+        // ApiKeyMiddleware 验证成功后会设置此值
         if (RequestCoContext::hasApiKey()) {
             return RequestCoContext::getApiKey();
         }
@@ -132,7 +132,7 @@ abstract class AbstractOpenApi
     }
 
     /**
-     * 从协程上下文获取业务参数（用户授权信息）.
+     * 从协程上下文中提取业务参数，供 model-gateway DTO 统一复用。
      *
      * @return array<string, string>
      */
@@ -161,6 +161,49 @@ abstract class AbstractOpenApi
     }
 
     /**
+     * 为请求 DTO 注入请求头配置、业务参数和 access token，避免各个 Facade 重复拼装。
+     */
+    protected function enrichRequestDTO(AbstractRequestDTO $abstractRequestDTO, array $headers): void
+    {
+        $headerConfigs = RequestUtil::normalizeHeaders($headers);
+        $abstractRequestDTO->setHeaderConfigs($headerConfigs);
+
+        $this->addBusinessParamsFromHeaders($abstractRequestDTO, $headerConfigs);
+
+        $contextParams = $this->getBusinessParamsFromContext();
+        foreach ($contextParams as $key => $value) {
+            $abstractRequestDTO->addBusinessParam($key, $value);
+        }
+
+        if (empty($abstractRequestDTO->getAccessToken()) && RequestCoContext::hasApiKey()) {
+            $abstractRequestDTO->setAccessToken(RequestCoContext::getApiKey());
+        }
+    }
+
+    /**
+     * @param array<string, string> $headerConfigs
+     */
+    protected function addBusinessParamsFromHeaders(AbstractRequestDTO $abstractRequestDTO, array $headerConfigs): void
+    {
+        $mapping = [
+            'business_id' => 'business_id',
+            'magic-topic-id' => 'magic_topic_id',
+            'magic-chat-topic-id' => 'magic_chat_topic_id',
+            'magic-task-id' => 'magic_task_id',
+            'magic-language' => 'language',
+            'magic-organization-code' => 'organization_id',
+            'magic-user-id' => 'user_id',
+        ];
+
+        foreach ($mapping as $headerKey => $paramKey) {
+            $value = $headerConfigs[$headerKey] ?? '';
+            if ($value !== '') {
+                $abstractRequestDTO->addBusinessParam($paramKey, $value);
+            }
+        }
+    }
+
+    /**
      * 从请求头和协程上下文组合业务参数，适用于非 DTO 接口.
      *
      * @return array<string, string>
@@ -177,7 +220,7 @@ abstract class AbstractOpenApi
         ];
         foreach ($mapping as $headerKey => $paramKey) {
             $value = $headers[$headerKey] ?? '';
-            if ($value !== '') {
+            if ($value !== '' && ($businessParams[$paramKey] ?? '') === '') {
                 $businessParams[$paramKey] = $value;
             }
         }
@@ -187,45 +230,5 @@ abstract class AbstractOpenApi
         }
 
         return $businessParams;
-    }
-
-    protected function enrichRequestDTO(AbstractRequestDTO $abstractRequestDTO, array $headers): void
-    {
-        $headerConfigs = RequestUtil::normalizeHeaders($headers);
-        $abstractRequestDTO->setHeaderConfigs($headerConfigs);
-
-        $this->addBusinessParamsFromHeaders($abstractRequestDTO, $headerConfigs);
-
-        foreach ($this->getBusinessParamsFromContext() as $key => $value) {
-            $abstractRequestDTO->addBusinessParam($key, $value);
-        }
-
-        if ($abstractRequestDTO->getAccessToken() === '' && RequestCoContext::hasApiKey()) {
-            $abstractRequestDTO->setAccessToken((string) RequestCoContext::getApiKey());
-        }
-    }
-
-    /**
-     * @param array<string, string> $headerConfigs
-     */
-    protected function addBusinessParamsFromHeaders(AbstractRequestDTO $abstractRequestDTO, array $headerConfigs): void
-    {
-        $mapping = [
-            'business_id' => 'business_id',
-            'magic-topic-id' => 'magic_topic_id',
-            'magic-chat-topic-id' => 'magic_chat_topic_id',
-            'magic-task-id' => 'magic_task_id',
-            'magic-language' => 'language',
-            'magic-organization-code' => 'organization_id',
-            'magic-organization-id' => 'organization_id',
-            'magic-user-id' => 'user_id',
-        ];
-
-        foreach ($mapping as $headerKey => $paramKey) {
-            $value = $headerConfigs[$headerKey] ?? '';
-            if ($value !== '') {
-                $abstractRequestDTO->addBusinessParam($paramKey, $value);
-            }
-        }
     }
 }

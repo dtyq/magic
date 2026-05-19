@@ -290,7 +290,13 @@
 		"multiple": "多选",
 		"mutualRelation": "双向关联",
 		"name": "名称",
-		"neverCreate": "暂未创建任何${name}",
+		"neverCreateByType": {
+			"agent": "暂未创建任何 AI 助理",
+			"mcp": "暂未创建任何 MCP 服务",
+			"sub": "暂未创建任何流程",
+			"tools": "暂未创建任何工具集",
+			"vector-knowledge": "暂未创建任何向量知识库"
+		},
 		"nextSevenDay": "未来7天内",
 		"nextStep": "下一步",
 		"nextThirtyDay": "未来30天内",

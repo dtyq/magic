@@ -193,8 +193,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $projectId,
                 $rootDirId,
                 '.magic',
-                '.magic',
-                $workDir,
                 $userId,
                 $organizationCode,
                 $projectOrgCode,
@@ -207,8 +205,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $projectId,
                 $magicDirId,
                 'skills',
-                '.magic/skills',
-                $workDir,
                 $userId,
                 $organizationCode,
                 $projectOrgCode,
@@ -219,8 +215,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $projectId,
                 $skillsDirId,
                 $packageName,
-                '.magic/skills/' . $packageName,
-                $workDir,
                 $userId,
                 $organizationCode,
                 $projectOrgCode,
@@ -236,8 +230,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
                 $actualContentDir,
                 $packageDirId,
                 $projectId,
-                '.magic/skills/' . $packageName,
-                $workDir,
                 $userId,
                 $organizationCode,
                 $projectOrgCode,
@@ -286,8 +278,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
         string $localDir,
         int $parentDirId,
         int $projectId,
-        string $relativePath,
-        string $workDir,
         string $userId,
         string $organizationCode,
         string $projectOrgCode,
@@ -297,15 +287,12 @@ class SkillImportedEventSubscriber implements ListenerInterface
 
         foreach ($items as $item) {
             $localPath = $localDir . '/' . $item;
-            $itemRelativePath = $relativePath . '/' . $item;
 
             if (is_dir($localPath)) {
                 $subDirId = $this->taskFileDomainService->createDirectory(
                     $projectId,
                     $parentDirId,
                     $item,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $organizationCode,
                     $projectOrgCode,
@@ -318,8 +305,6 @@ class SkillImportedEventSubscriber implements ListenerInterface
                     $localPath,
                     $subDirId,
                     $projectId,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $organizationCode,
                     $projectOrgCode,
@@ -361,7 +346,7 @@ class SkillImportedEventSubscriber implements ListenerInterface
             SkillProjectConfigUtil::buildConfig($skillEntity)
         );
 
-        $existingConfigFile = $this->findSkillConfigFile($projectEntity->getId(), $projectOrgCode, $projectEntity->getWorkDir());
+        $existingConfigFile = $this->findSkillConfigFile($projectEntity->getId());
         if ($existingConfigFile === null) {
             $createdFiles[] = $this->taskFileDomainService->createProjectFileWithContent(
                 $dataIsolation,
@@ -400,12 +385,25 @@ class SkillImportedEventSubscriber implements ListenerInterface
         );
     }
 
-    private function findSkillConfigFile(int $projectId, string $projectOrgCode, string $workDir): ?TaskFileEntity
+    /**
+     * Find skill_config.yaml by parent directory traversal (parent_id + fileName).
+     * Works correctly regardless of whether file_key is path-based or ID-based.
+     */
+    private function findSkillConfigFile(int $projectId): ?TaskFileEntity
     {
-        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectOrgCode);
-        $configFileKey = WorkDirectoryUtil::getFullFileKey($fullPrefix, $workDir, SkillProjectConfigUtil::CONFIG_PATH);
+        $skillsDirEntity = $this->taskFileDomainService->findDirectoryByPath($projectId, SkillProjectConfigUtil::SKILLS_ROOT_PATH);
+        if ($skillsDirEntity === null) {
+            return null;
+        }
 
-        return $this->taskFileDomainService->getByProjectIdAndFileKey($projectId, $configFileKey);
+        $children = $this->taskFileDomainService->findFilesRecursivelyByParentId($projectId, $skillsDirEntity->getFileId(), 1);
+        foreach ($children as $child) {
+            if (! $child->getIsDirectory() && $child->getFileName() === SkillProjectConfigUtil::CONFIG_FILE_NAME) {
+                return $child;
+            }
+        }
+
+        return null;
     }
 
     private function createSkillProject(
@@ -426,7 +424,7 @@ class SkillImportedEventSubscriber implements ListenerInterface
         $projectResult = $this->getProjectAppService()->createAgentProject(
             $requestContext,
             $projectRequestDTO,
-            ProjectMode::CUSTOM_SKILL
+            ProjectMode::SKILL_CREATOR
         );
 
         $projectId = (int) ($projectResult['project']['id'] ?? 0);

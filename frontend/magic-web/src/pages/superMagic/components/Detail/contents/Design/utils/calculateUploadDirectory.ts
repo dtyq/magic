@@ -1,4 +1,7 @@
 import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
+import { SuperMagicApi } from "@/apis"
+import { findImagesDirItem, findParentDirectoryId } from "./fileFinder"
+import { UploadSubDir } from "@/components/CanvasDesign/types.magic"
 
 interface CalculateUploadDirectoryParams {
 	currentFile?: {
@@ -9,18 +12,86 @@ interface CalculateUploadDirectoryParams {
 	flatAttachments?: FileItem[]
 }
 
+interface GetOrCreateImagesDirFileIdParams extends CalculateUploadDirectoryParams {
+	projectId: string
+	updateAttachments: () => void
+}
+
+export interface GetOrCreateImagesDirFileIdResult {
+	imagesDirFileId: string
+	suffixDir: string
+}
+
 /**
- * 计算图片上传的目标目录路径
- * 基于当前设计文件的路径，计算 images 子目录的路径
+ * 获取或创建 images 目录，返回其 file_id
+ * 用于文件上传改造：batch-save 时通过 parent_id 构建文件树，需传入目标目录的 file_id
  */
-export function calculateUploadDirectory(params: CalculateUploadDirectoryParams): string {
+export async function getOrCreateImagesDirFileId(
+	params: GetOrCreateImagesDirFileIdParams,
+): Promise<GetOrCreateImagesDirFileIdResult | null> {
+	const { currentFile, flatAttachments, projectId, updateAttachments } = params
+	const suffixDir = calculateUploadDirectory({ currentFile, flatAttachments })
+
+	if (!suffixDir || !projectId) {
+		return null
+	}
+
+	// 查找已存在的 images 目录
+	let imagesDirItem = findImagesDirItem(suffixDir, flatAttachments)
+
+	if (imagesDirItem?.file_id) {
+		return { imagesDirFileId: imagesDirItem.file_id, suffixDir }
+	}
+
+	// images 目录不存在，需创建
+	// 查找父目录
+	const parentDirId = findParentDirectoryId(suffixDir, currentFile, flatAttachments)
+
+	if (parentDirId === undefined) {
+		return null
+	}
+
+	try {
+		const createResponse = await SuperMagicApi.createFile({
+			project_id: projectId,
+			parent_id: parentDirId,
+			file_name: "images",
+			is_directory: true,
+			ignore_duplicate: true,
+		})
+
+		// 使用 API 返回的 file_id
+		const fileId = (createResponse as { file_id?: string })?.file_id
+		if (fileId) {
+			updateAttachments()
+			return { imagesDirFileId: fileId, suffixDir }
+		}
+	} catch (error: unknown) {
+		const errorObj = error as { code?: number; message?: string }
+		if (errorObj.code === 51168) {
+			// 文件已存在，触发更新后重新查找
+			updateAttachments()
+			imagesDirItem = findImagesDirItem(suffixDir, flatAttachments)
+			if (imagesDirItem?.file_id) {
+				return { imagesDirFileId: imagesDirItem.file_id, suffixDir }
+			}
+		}
+	}
+
+	return null
+}
+
+/**
+ * 计算上传目录的「基路径」（不含子目录如 images / videos / audios）
+ * 基于当前设计文件的路径，用于与 uploadSubDir 组合得到完整上传路径
+ */
+export function getUploadDirectoryBase(params: CalculateUploadDirectoryParams): string {
 	const { currentFile, flatAttachments } = params
 
 	if (!currentFile?.id || !flatAttachments || flatAttachments.length === 0) {
 		return ""
 	}
 
-	// 查找 design 项目文件/文件夹
 	const designProjectFile = flatAttachments.find((item) => item.file_id === currentFile.id)
 
 	if (!designProjectFile?.relative_file_path) {
@@ -30,18 +101,13 @@ export function calculateUploadDirectory(params: CalculateUploadDirectoryParams)
 	const filePath = designProjectFile.relative_file_path
 	let suffixDir = ""
 
-	// 如果是文件夹，直接使用路径
 	if (designProjectFile.is_directory) {
 		suffixDir = filePath
 	} else {
-		// 如果是文件，计算目录路径：去掉文件名，保留目录部分
 		const fileName = designProjectFile.file_name || currentFile.name
-
-		// 如果文件路径以文件名结尾，则去掉文件名
 		if (filePath.endsWith(fileName)) {
 			suffixDir = filePath.slice(0, -fileName.length)
 		} else {
-			// 否则使用文件路径的目录部分
 			const lastSlashIndex = filePath.lastIndexOf("/")
 			if (lastSlashIndex >= 0) {
 				suffixDir = filePath.slice(0, lastSlashIndex + 1)
@@ -49,11 +115,18 @@ export function calculateUploadDirectory(params: CalculateUploadDirectoryParams)
 		}
 	}
 
-	// 清理路径：移除前导和尾随斜杠，确保路径格式统一
 	suffixDir = suffixDir.replace(/^\/+|\/+$/g, "")
-
-	// 添加 images 子目录
-	suffixDir = suffixDir ? `${suffixDir}/images` : "images"
-
 	return suffixDir
+}
+
+/**
+ * 计算图片上传的目标目录路径
+ * 基于当前设计文件的路径，计算指定子目录（默认 images）的路径
+ */
+export function calculateUploadDirectory(
+	params: CalculateUploadDirectoryParams,
+	subDir: string = UploadSubDir.Images,
+): string {
+	const base = getUploadDirectoryBase(params)
+	return base ? `${base}/${subDir}` : subDir
 }

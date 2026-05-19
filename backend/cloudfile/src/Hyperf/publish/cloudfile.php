@@ -5,6 +5,8 @@ declare(strict_types=1);
  * Copyright (c) The Magic , Distributed under the software license
  */
 return [
+    // 是否验证图片格式，默认 true；设为 false 时 isImage 跳过格式校验直接返回 true
+    'check_image_format' => true,
     'storages' => [
         'file_service' => [
             'adapter' => 'file_service',

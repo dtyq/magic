@@ -25,7 +25,7 @@ export interface PPTStoreConfig {
 	attachmentList?: any[]
 	mainFileId?: string
 	mainFileName?: string
-	metadata?: any
+	displayConfig?: any
 	/**
 	 * Whether to automatically load slides and generate screenshots
 	 * when slides are initialized
@@ -49,7 +49,7 @@ export interface PPTStoreConfig {
 	enableCache?: boolean
 }
 
-export interface PPTExportConfig extends PPTStoreConfig { }
+export interface PPTExportConfig extends PPTStoreConfig {}
 
 /**
  * PPTStore - Main store that coordinates all managers
@@ -120,7 +120,7 @@ export class PPTStore {
 			attachmentList: config.attachmentList,
 			mainFileId: config.mainFileId,
 			mainFileName: config.mainFileName,
-			metadata: config.metadata,
+			displayConfig: config.displayConfig,
 		})
 		const screenshotService = getScreenshotService()
 		this.logger = createPPTLogger(config.logger)
@@ -444,6 +444,21 @@ export class PPTStore {
 	 */
 	getFileIdByPath(path: string): string | undefined {
 		return this.pathMappingService.getFileIdByPath(path)
+	}
+
+	/**
+	 * Try to extract fileId from path and establish mapping.
+	 * Useful when attachmentList has been updated and a previously unknown file is now available.
+	 */
+	tryExtractAndMapFileId(path: string): string | undefined {
+		const existing = this.pathMappingService.getFileIdByPath(path)
+		if (existing) return existing
+
+		const fileId = this.pathMappingService.extractFileIdFromPath(path)
+		if (fileId) {
+			this.pathMappingService.setPathFileIdMapping(path, fileId)
+		}
+		return fileId
 	}
 
 	/**
@@ -1330,7 +1345,7 @@ export class PPTStore {
 			metadata: { configKeys: Object.keys(config) },
 		})
 
-		const previousMetadata = this.config.metadata
+		const previousDisplayConfig = this.config.displayConfig
 		const previousAttachmentList = this.config.attachmentList
 
 		this.config = { ...this.config, ...config }
@@ -1342,7 +1357,7 @@ export class PPTStore {
 			processorConfig.attachmentList = config.attachmentList
 		if (config.mainFileId !== undefined) processorConfig.mainFileId = config.mainFileId
 		if (config.mainFileName !== undefined) processorConfig.mainFileName = config.mainFileName
-		if (config.metadata !== undefined) processorConfig.metadata = config.metadata
+		if (config.displayConfig !== undefined) processorConfig.displayConfig = config.displayConfig
 
 		if (Object.keys(processorConfig).length > 0) {
 			this.processorService.updateConfig(processorConfig)
@@ -1357,7 +1372,7 @@ export class PPTStore {
 		}
 
 		// Check if slides data needs incremental update
-		await this.handleIncrementalUpdate(config, previousMetadata, previousAttachmentList)
+		await this.handleIncrementalUpdate(config, previousDisplayConfig, previousAttachmentList)
 
 		// Update cache manager config if cache-related fields changed
 		if (
@@ -1379,45 +1394,96 @@ export class PPTStore {
 
 	/**
 	 * Handle incremental update of slides
+	 * This is the single source of truth for slide sync (single-channel design).
+	 * Handles initialization, incremental updates, and file content updates.
 	 */
 	private async handleIncrementalUpdate(
 		config: Partial<PPTStoreConfig>,
-		previousMetadata: { slides: string[] },
+		previousDisplayConfig: { slides: string[] },
 		previousAttachmentList: AttachmentItem[] | undefined,
 	): Promise<void> {
-		if (!config.metadata && !config.attachmentList) {
+		if (!config.displayConfig && !config.attachmentList) {
 			return
 		}
 
-		const previousSlidePaths = this.extractSlidePathsFromMetadata(previousMetadata)
-		const newSlidePaths = this.extractSlidePathsFromMetadata(config.metadata)
+		const newSlidePaths = this.extractSlidePathsFromDisplayConfig(config.displayConfig)
 		const currentSlidePaths = this.slidePaths
 		const updatedFiles = this.incrementalUpdateService.detectUpdatedFiles(
 			previousAttachmentList,
 			config.attachmentList,
 		)
+
+		// Initialization: store has no slides yet, but config provides paths
+		if (this.slides.length === 0 && newSlidePaths.length > 0) {
+			await this.initializeSlides(newSlidePaths)
+			return
+		}
+
 		// CRITICAL FIX: Check if current state already matches newSlidePaths
 		// This means optimistic update has already been applied, skip to prevent double operation
 		const areCurrentAndNewEqual =
 			currentSlidePaths.length === newSlidePaths.length &&
 			currentSlidePaths.every((path, idx) => path === newSlidePaths[idx])
 
-		// If current state matches new state, skip update regardless of previous state
-		// This handles both insert (length change) and rename (content change) scenarios.
-		// However, when files are generated later, slides might still miss fileId/url even
-		// with unchanged paths. In that case, run recovery before skipping.
-		if (areCurrentAndNewEqual && updatedFiles.size === 0) {
+		// If slide paths haven't changed, run recovery for pending/error slides.
+		// This handles: new files appearing in attachmentList, files becoming available after error, etc.
+		if (areCurrentAndNewEqual) {
 			await this.recoverPendingSlidesAfterAttachmentUpdate()
-			this.logger.debug("跳过增量更新 - 当前状态已与新状态匹配（乐观更新已应用）", {
-				operation: "handleIncrementalUpdate",
-			})
+
+			// If there are also updated files (content changes to existing files),
+			// handle them through the incremental update path
+			if (updatedFiles.size > 0) {
+				const context: IncrementalUpdateContext = {
+					slides: this.slides,
+					activeIndex: this.activeIndex,
+					autoLoadAndGenerate: this.config.autoLoadAndGenerate !== false,
+					loadSlideContent: this.loadSlideContent.bind(this),
+					loadSlideContentSilently: this.loadSlideContentSilently.bind(this),
+					generateSlideScreenshot: this.generateSlideScreenshot.bind(this),
+					setSlides: (slides) => {
+						this.slideManager.initializeSlides(slides)
+					},
+					setActiveIndex: (index) => {
+						this.slideManager.setActiveIndex(index)
+					},
+					isSlideManuallySaved: this.isSlideManuallySaved.bind(this),
+					clearManualSaveMark: this.clearManualSaveMark.bind(this),
+					getSlideEditingState: this.getSlideEditingState.bind(this),
+					notifyServerUpdate: this.notifyServerUpdate.bind(this),
+				}
+
+				// Only process truly updated files (not new files that were already recovered)
+				const existingUpdatedFiles = new Set<string>()
+				updatedFiles.forEach((fileId) => {
+					const slide = this.slides.find((s) => {
+						const sFileId = this.pathMappingService.getFileIdByPath(s.path)
+						return sFileId === fileId
+					})
+					if (slide && slide.content) {
+						existingUpdatedFiles.add(fileId)
+					}
+				})
+
+				if (existingUpdatedFiles.size > 0) {
+					const noChanges = {
+						hasChanges: false,
+						added: [] as Array<{ path: string; index: number }>,
+						removed: [] as number[],
+						reordered: false,
+					}
+					await this.incrementalUpdateService.applyIncrementalUpdates(
+						noChanges,
+						existingUpdatedFiles,
+						currentSlidePaths,
+						context,
+					)
+				}
+			}
+
 			return
 		}
 
-		if (previousSlidePaths.length === 0 && newSlidePaths.length > 0) {
-			await this.initializeSlides(newSlidePaths)
-			return
-		}
+		const previousSlidePaths = this.extractSlidePathsFromDisplayConfig(previousDisplayConfig)
 
 		const changes = this.incrementalUpdateService.detectSlideChanges(
 			previousSlidePaths,
@@ -1458,6 +1524,7 @@ export class PPTStore {
 			return 0
 		}
 
+		// Phase 1: Recover slides missing fileId or URL
 		const pendingSlides = this.slides
 			.map((slide, index) => ({
 				index,
@@ -1469,69 +1536,132 @@ export class PPTStore {
 			}))
 			.filter((slide) => !slide.fileId || !slide.url)
 
-		if (pendingSlides.length === 0) {
-			return 0
+		let recoveredCount = 0
+
+		if (pendingSlides.length > 0) {
+			const fileIdsToFetch: string[] = []
+			pendingSlides.forEach((slide) => {
+				const fileId =
+					slide.fileId || this.pathMappingService.extractFileIdFromPath(slide.path)
+				if (!fileId) return
+				this.pathMappingService.setPathFileIdMapping(slide.path, fileId)
+				fileIdsToFetch.push(fileId)
+			})
+
+			if (fileIdsToFetch.length > 0) {
+				const urlMap = await this.pathMappingService.fetchUrlsForFileIds(fileIdsToFetch)
+				const recoveredIndices: number[] = []
+
+				runInAction(() => {
+					pendingSlides.forEach((pending) => {
+						const fileId =
+							this.pathMappingService.getFileIdByPath(pending.path) ||
+							this.pathMappingService.extractFileIdFromPath(pending.path)
+						if (!fileId) return
+						const recoveredUrl = urlMap.get(fileId)
+						if (!recoveredUrl) return
+						const target = this.slides[pending.index]
+						if (!target || target.path !== pending.path) return
+						target.url = recoveredUrl
+						recoveredIndices.push(pending.index)
+					})
+				})
+
+				const loadTargets = recoveredIndices.filter((index) => {
+					const slide = this.slides[index]
+					if (!slide || !slide.url) return false
+					return !slide.content && slide.loadingState !== "loading"
+				})
+
+				await Promise.all(
+					loadTargets.map(async (index) => {
+						const slide = this.slides[index]
+						if (!slide?.url) return
+						try {
+							await this.loadSlideContent(slide.url, index)
+						} catch (error) {
+							this.logger.error("恢复待加载幻灯片失败", error, {
+								operation: "recoverPendingSlidesAfterAttachmentUpdate",
+								slideIndex: index,
+								metadata: { path: slide.path },
+							})
+						}
+					}),
+				)
+
+				recoveredCount += recoveredIndices.length
+			}
 		}
 
-		const fileIdsToFetch: string[] = []
-		pendingSlides.forEach((slide) => {
-			const fileId = slide.fileId || this.pathMappingService.extractFileIdFromPath(slide.path)
-			if (!fileId) return
-			this.pathMappingService.setPathFileIdMapping(slide.path, fileId)
-			fileIdsToFetch.push(fileId)
-		})
+		// Phase 2: Retry slides that have a URL but are in error state
+		// (e.g., file existed in attachmentList but content wasn't ready on server)
+		const errorSlides = this.slides
+			.map((slide, index) => ({ slide, index }))
+			.filter(({ slide }) => slide.loadingState === "error" && !slide.content && slide.url)
 
-		const urlMap = await this.pathMappingService.fetchUrlsForFileIds(fileIdsToFetch)
-		const recoveredIndices: number[] = []
-
-		runInAction(() => {
-			pendingSlides.forEach((pending) => {
-				const fileId =
-					this.pathMappingService.getFileIdByPath(pending.path) ||
-					this.pathMappingService.extractFileIdFromPath(pending.path)
-				if (!fileId) return
-				const recoveredUrl = urlMap.get(fileId)
-				if (!recoveredUrl) return
-				const target = this.slides[pending.index]
-				if (!target || target.path !== pending.path) return
-				target.url = recoveredUrl
-				recoveredIndices.push(pending.index)
+		if (errorSlides.length > 0) {
+			this.logger.info("尝试恢复处于错误状态的幻灯片", {
+				operation: "recoverPendingSlidesAfterAttachmentUpdate",
+				metadata: { errorSlideCount: errorSlides.length },
 			})
-		})
 
-		const loadTargets = recoveredIndices.filter((index) => {
-			const slide = this.slides[index]
-			if (!slide || !slide.url) return false
-			return !slide.content && slide.loadingState !== "loading"
-		})
+			// Refresh URLs and reload content for error slides
+			const errorFileIds: string[] = []
+			const errorSlideMap = new Map<string, number>()
 
-		await Promise.all(
-			loadTargets.map(async (index) => {
-				const slide = this.slides[index]
-				if (!slide?.url) return
-				try {
-					await this.loadSlideContent(slide.url, index)
-				} catch (error) {
-					this.logger.error("恢复待加载幻灯片失败", error, {
-						operation: "recoverPendingSlidesAfterAttachmentUpdate",
-						slideIndex: index,
-						metadata: { path: slide.path },
-					})
+			errorSlides.forEach(({ slide, index }) => {
+				const fileId = this.pathMappingService.getFileIdByPath(slide.path)
+				if (fileId) {
+					errorFileIds.push(fileId)
+					errorSlideMap.set(fileId, index)
 				}
-			}),
-		)
+			})
 
-		return recoveredIndices.length
+			if (errorFileIds.length > 0) {
+				const urlMap = await this.pathMappingService.fetchUrlsForFileIds(errorFileIds)
+
+				await Promise.all(
+					errorSlides.map(async ({ slide, index }) => {
+						const fileId = this.pathMappingService.getFileIdByPath(slide.path)
+						if (!fileId) return
+						const latestUrl = urlMap.get(fileId)
+						if (!latestUrl) return
+
+						// Update URL if changed
+						if (slide.url !== latestUrl) {
+							runInAction(() => {
+								if (this.slides[index]) {
+									this.slides[index].url = latestUrl
+								}
+							})
+						}
+
+						try {
+							await this.loadSlideContent(latestUrl, index)
+							recoveredCount++
+						} catch (error) {
+							this.logger.debug("错误状态幻灯片仍无法加载", {
+								operation: "recoverPendingSlidesAfterAttachmentUpdate",
+								slideIndex: index,
+								metadata: { path: slide.path },
+							})
+						}
+					}),
+				)
+			}
+		}
+
+		return recoveredCount
 	}
 
 	/**
-	 * Extract slide paths from metadata
+	 * Extract slide paths from display_config
 	 */
-	private extractSlidePathsFromMetadata(metadata: { slides: string[] }): string[] {
-		if (!metadata || !metadata.slides || !Array.isArray(metadata.slides)) {
+	private extractSlidePathsFromDisplayConfig(displayConfig: { slides: string[] }): string[] {
+		if (!displayConfig || !displayConfig.slides || !Array.isArray(displayConfig.slides)) {
 			return []
 		}
-		return metadata.slides
+		return displayConfig.slides
 	}
 
 	// ==================== Manual Save Tracking ====================

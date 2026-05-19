@@ -15,6 +15,7 @@ from app.core.entity.message.server_message import (DisplayType, FileContent,
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.read_file import ReadFile, ReadFileParams, TruncationInfo, _compute_max_tokens, _get_context_remaining
+from app.tools.utils.display_content_utils import truncate_content_for_display
 from app.tools.workspace_tool import WorkspaceTool
 
 logger = get_logger(__name__)
@@ -79,42 +80,47 @@ class FileReadingResult(BaseModel):
 @tool()
 class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams]):
     """<!--zh
-    批量读取文件内容工具
-
-    支持的文件类型：
-    - 文本文件（.txt、.md、.py、.js、.html、.css、.json、.xml、.yaml等）
-    - PDF文件（.pdf）
-    - Word文档（.doc、.docx）
-    - Excel文件（.xls、.xlsx、.csv）
-    - PowerPoint（.ppt、.pptx）
-    - Jupyter笔记本（.ipynb）
-
-    注意：
-    - 相对路径解析到 .workspace；访问 .workspace 外的文件请使用绝对路径
-    - 无法读取支持的文件类型以外的文件，尤其是二进制文件
-    - 对于Excel和CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
-    - 为避免内容过长超过上下文窗口，读取大文件时可能会被自动截断，若必须阅读完整的情况下，你可以分多次读取
-
-    强烈建议在需要批量读取多个参考文件时使用此工具一次性读取，而非多次调用工具逐个读取，这将会极大提升任务效率
+    批量读取文件内容
     -->
-    Batch read files content tool
-
-    Supported file types:
-    - Text files (.txt, .md, .py, .js, .html, .css, .json, .xml, .yaml, etc.)
-    - PDF files (.pdf)
-    - Word documents (.doc, .docx)
-    - Excel files (.xls, .xlsx, .csv)
-    - PowerPoint (.ppt, .pptx)
-    - Jupyter notebooks (.ipynb)
-
-    Notes:
-    - Relative paths resolve to .workspace; use absolute paths for files outside .workspace
-    - Cannot read files other than supported types, especially binary files
-    - For Excel/CSV files, use this tool to read first 10 lines to understand structure, then use Python scripts for data analysis
-    - Large files may be auto-truncated to avoid exceeding context window; read in multiple operations if full content needed
-
-    Strongly recommended to use this tool for batch reading multiple reference files at once, rather than calling tools multiple times individually, which will greatly improve task efficiency
+    Batch read file contents
     """
+
+    def get_prompt_hint(self) -> str:
+        return """\
+<!--zh
+支持的文件类型：
+- 文本文件（.txt、.md、.py、.js、.html、.css、.json、.xml、.yaml等）
+- PDF文件（.pdf）
+- Word文档（.doc、.docx）
+- Excel文件（.xls、.xlsx、.csv）
+- PowerPoint（.ppt、.pptx）
+- Jupyter笔记本（.ipynb）
+
+注意：
+- 相对路径解析到 .workspace；访问 .workspace 外的文件请使用绝对路径
+- 无法读取支持的文件类型以外的文件，尤其是二进制文件
+- 对于Excel和CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
+- 为避免内容过长超过上下文窗口，读取大文件时可能会被自动截断，若必须阅读完整的情况下，你可以分多次读取
+- 文本读取结果会用「行号 + 制表符 + 内容」展示行号；复制到任何编辑工具参数时，只复制制表符之后的真实文件内容，不要带行号前缀
+
+强烈建议在需要批量读取多个参考文件时使用此工具一次性读取，而非多次调用工具逐个读取，这将会极大提升任务效率
+-->
+Supported file types:
+- Text files (.txt, .md, .py, .js, .html, .css, .json, .xml, .yaml, etc.)
+- PDF files (.pdf)
+- Word documents (.doc, .docx)
+- Excel files (.xls, .xlsx, .csv)
+- PowerPoint (.ppt, .pptx)
+- Jupyter notebooks (.ipynb)
+
+Notes:
+- Relative paths resolve to .workspace; use absolute paths for files outside .workspace
+- Cannot read files other than supported types, especially binary files
+- For Excel/CSV files, use this tool to read first 10 lines to understand structure, then use Python scripts for data analysis
+- Large files may be auto-truncated to avoid exceeding context window; read in multiple operations if full content needed
+- Text read output displays line numbers as line number + tab + content; when copying into any edit tool parameter, copy only the real file content after the tab and omit the line-number prefix
+
+Strongly recommended to use this tool for batch reading multiple reference files at once, rather than calling tools multiple times individually, which will greatly improve task efficiency"""
 
     async def execute(self, tool_context: ToolContext, params: ReadFilesParams) -> ToolResult:
         """
@@ -591,11 +597,15 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                         # 纯文本文件根据文件扩展名确定显示类型
                         display_type = self.get_display_type_by_extension(file_path)
 
+                    # 对展示内容做预处理：替换 base64 数据、超长截断
+                    # HTML 截断后结构残缺，display_type 会被降级为 TEXT
+                    display_content, display_type = truncate_content_for_display(file_data["content"], display_type)
+
                     return ToolDetail(
                         type=display_type,
                         data=FileContent(
                             file_name=file_name,
-                            content=file_data["content"]
+                            content=display_content
                         )
                     )
 
@@ -614,8 +624,17 @@ class ReadFiles(AbstractFileTool[ReadFilesParams], WorkspaceTool[ReadFilesParams
                 display_parts.append(f"## {file_data['file_path']}\n\n")
 
                 # 根据读取方式决定是否需要转义和包围代码块
-                content = file_data["content"]
+                raw_content = file_data["content"]
                 read_method = file_data.get("read_method", "unknown")
+
+                # 确定该文件的展示类型，用于 base64 替换和超长截断
+                file_display_type = (
+                    DisplayType.MD if read_method == "markitdown"
+                    else self.get_display_type_by_extension(file_data["file_path"])
+                )
+                # 对每个文件的展示内容做预处理：替换 base64 数据、超长截断
+                # 多文件场景外层类型固定为 MD，per-file 的降级类型不影响外层，丢弃
+                content, _ = truncate_content_for_display(raw_content, file_display_type)
 
                 # markitdown 处理的文件已经有完整格式，不需要额外处理和转义
                 if read_method == "markitdown":

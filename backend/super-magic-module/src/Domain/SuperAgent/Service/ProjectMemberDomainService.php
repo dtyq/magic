@@ -281,6 +281,31 @@ class ProjectMemberDomainService
     }
 
     /**
+     * Sync owner workspace binding after the owner moves projects.
+     */
+    public function syncOwnerProjectWorkspaceBindings(
+        string $userId,
+        array $projectIds,
+        ?int $workspaceId,
+        string $organizationCode
+    ): int {
+        if (empty($projectIds)) {
+            return 0;
+        }
+
+        if ($workspaceId === null) {
+            return $this->projectMemberSettingRepository->batchCancelProjectShortcuts($userId, $projectIds);
+        }
+
+        $bindings = [];
+        foreach ($projectIds as $projectId) {
+            $bindings[(int) $projectId] = $workspaceId;
+        }
+
+        return $this->projectMemberSettingRepository->batchSetProjectShortcuts($userId, $bindings, $organizationCode);
+    }
+
+    /**
      * 检查项目是否已设置快捷方式.
      *
      * @param string $userId 用户ID
@@ -297,7 +322,7 @@ class ProjectMemberDomainService
      * 获取用户参与的项目列表（支持协作项目筛选）.
      *
      * @param string $userId 用户ID
-     * @param int $workspaceId 工作区ID（0表示不限制工作区）
+     * @param null|int $workspaceId 工作区ID（null 或 0 表示不限制工作区）
      * @param bool $showCollaboration 是否显示协作项目
      * @param null|string $projectName 项目名称模糊搜索
      * @param int $page 页码
@@ -309,7 +334,7 @@ class ProjectMemberDomainService
      */
     public function getParticipatedProjectsWithCollaboration(
         string $userId,
-        int $workspaceId,
+        ?int $workspaceId,
         bool $showCollaboration = true,
         ?string $projectName = null,
         int $page = 1,
@@ -319,8 +344,8 @@ class ProjectMemberDomainService
         string $sortDirection = 'desc',
         bool $showHidden = false,
     ): array {
-        // 判断是否限制工作区
-        $limitWorkspace = $workspaceId > 0;
+        // 判断是否限制工作区（null 或 0 均表示不限制）
+        $limitWorkspace = $workspaceId !== null && $workspaceId > 0;
 
         return $this->projectMemberRepository->getParticipatedProjects(
             $userId,
@@ -471,6 +496,20 @@ class ProjectMemberDomainService
     }
 
     /**
+     * 根据目标列表查询项目成员实体。
+     *
+     * 供共享协作内核在增量同步前做存在性判断。
+     *
+     * @param array<int, array{target_type: string, target_id: string}> $targets
+     * @return ProjectMemberEntity[]
+     */
+    public function getMembersByTargets(int $projectId, array $targets): array
+    {
+        // 共享协作内核只关心少量目标的增量同步，因此这里提供精准查询入口。
+        return $this->projectMemberRepository->getMembersByTargets($projectId, $targets);
+    }
+
+    /**
      * 批量更新成员权限（新格式：target_type + target_id）.
      *
      * @param int $projectId 项目ID
@@ -502,6 +541,19 @@ class ProjectMemberDomainService
     public function deleteMembersByIds(int $projectId, array $memberIds): int
     {
         return $this->projectMemberRepository->deleteMembersByIds($projectId, $memberIds);
+    }
+
+    /**
+     * 根据目标列表删除项目成员。
+     *
+     * 供共享协作内核在移除协作者时做精准删除。
+     *
+     * @param array<int, array{target_type: string, target_id: string}> $targets
+     */
+    public function deleteMembersByTargets(int $projectId, array $targets): int
+    {
+        // 删除协作者时保留所有者之外的增量删除语义，不走全量重建。
+        return $this->projectMemberRepository->deleteMembersByTargets($projectId, $targets);
     }
 
     /**

@@ -11,16 +11,29 @@ import {
 	type CanvasMarkerMentionData,
 } from "@/components/business/MentionPanel/types"
 import {
+	buildMarkerFromCanvasMarkerMentionData,
+	createCanvasMarkerMentionData,
+	getCanvasMarkerMentionImagePath,
+} from "@/components/business/MentionPanel/utils/canvasMarkerMention"
+import {
 	MarkerStorage,
 	buildMarkerCompositeKey,
 	type CompositePathCacheEntry,
 } from "./storage/MarkerStorage"
 import type { SyncToMessageEditorMode, SyncToMessageEditorOptions } from "./types"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import type { PubSubTypedPayloadMap } from "@/utils/pubSubPayloadMap"
 import {
 	MarkerCompositorService,
 	type MarkerCompositorMethods,
 } from "./compositor/MarkerCompositorService"
+
+type MarkerManagerPublishEvent =
+	| typeof PubSubEvents.Super_Magic_Marker_Data_Updated
+	| typeof PubSubEvents.Super_Magic_Insert_Marker_To_Chat
+	| typeof PubSubEvents.Super_Magic_Sync_Markers_To_Chat
+
+type MarkerManagerPublishPayload = PubSubTypedPayloadMap[MarkerManagerPublishEvent]
 
 /** 判断是否为刷新/导航导致的中断错误（应重试） */
 export function isLikelyAbortError(error: string): boolean {
@@ -40,12 +53,15 @@ export function fromCanvasMarkerMentionData(mentionData: CanvasMarkerMentionData
 	designProjectId: string
 	element?: Pick<ImageElement, "src">
 } | null {
-	const { design_project_id, data: marker, image_path } = mentionData
+	// Manager 仍以 Marker 为内部状态，消息侧只保存轻量 mention；这里作为边界适配层。
+	const marker = buildMarkerFromCanvasMarkerMentionData(mentionData)
+	const imagePath = getCanvasMarkerMentionImagePath(mentionData)
+	const { design_project_id } = mentionData
 	if (!design_project_id || !marker?.id) return null
 	return {
 		marker,
 		designProjectId: design_project_id,
-		element: image_path ? { src: image_path } : undefined,
+		element: imagePath ? { src: imagePath } : undefined,
 	}
 }
 
@@ -88,7 +104,10 @@ export interface SuperMagicMarkerManagerDependencies {
 	/** getFileInfo API */
 	getFileInfo?: (path: string) => Promise<{ src?: string }>
 	/** 发布事件到 MessageEditor */
-	publishToMessageEditor?: (event: string, payload: unknown) => void
+	publishToMessageEditor?: (
+		event: MarkerManagerPublishEvent,
+		payload: MarkerManagerPublishPayload,
+	) => void
 	/** 当前项目 ID（用于 identifyImageMark） */
 	projectId?: string
 	/** 话题 ID（用于 syncToMessageEditor 构建 mention 数据） */
@@ -108,6 +127,11 @@ export class SuperMagicMarkerManager {
 	private storage: MarkerStorage
 	private dependencies: SuperMagicMarkerManagerDependencies = {}
 	private loadingMarkers = new Set<string>()
+	private activeMarkerRequests = new Map<
+		string,
+		{ requestId: number; controller: AbortController }
+	>()
+	private markerRequestIds = new Map<string, number>()
 	private isSyncingToEditor = false
 
 	constructor(deps: SuperMagicMarkerManagerDependencies = {}) {
@@ -163,24 +187,103 @@ export class SuperMagicMarkerManager {
 		this.storage.saveMarkerCompositePath(designProjectId, markerId, entry)
 	}
 
+	private hasMarkerGeometryChanged(previousMarker?: Marker, nextMarker?: Marker): boolean {
+		if (!previousMarker || !nextMarker) return false
+		if (previousMarker.type !== nextMarker.type) return false
+
+		if (
+			previousMarker.relativeX !== nextMarker.relativeX ||
+			previousMarker.relativeY !== nextMarker.relativeY ||
+			!this.isElementCropEqual(previousMarker.elementCrop, nextMarker.elementCrop)
+		) {
+			return true
+		}
+
+		if (!("areaWidth" in previousMarker) || !("areaWidth" in nextMarker)) return false
+		if (!("areaHeight" in previousMarker) || !("areaHeight" in nextMarker)) return false
+
+		return (
+			previousMarker.areaWidth !== nextMarker.areaWidth ||
+			previousMarker.areaHeight !== nextMarker.areaHeight
+		)
+	}
+
+	private clearMarkerRecognitionState(marker: Marker): Marker {
+		return {
+			...marker,
+			result: undefined,
+			error: undefined,
+			selectedSuggestionIndex: undefined,
+		}
+	}
+
+	private isElementCropEqual(left?: ImageElement["crop"], right?: ImageElement["crop"]): boolean {
+		if (!left && !right) return true
+		if (!left || !right) return false
+
+		return (
+			left.x === right.x &&
+			left.y === right.y &&
+			left.width === right.width &&
+			left.height === right.height
+		)
+	}
+
+	private getNextMarkerRequestId(markerId: string): number {
+		const nextRequestId = (this.markerRequestIds.get(markerId) ?? 0) + 1
+		this.markerRequestIds.set(markerId, nextRequestId)
+		return nextRequestId
+	}
+
+	private isMarkerRequestCurrent(markerId: string, requestId: number): boolean {
+		return this.activeMarkerRequests.get(markerId)?.requestId === requestId
+	}
+
+	private cancelMarkerRequest(markerId: string): void {
+		const activeRequest = this.activeMarkerRequests.get(markerId)
+		if (!activeRequest) return
+		activeRequest.controller.abort()
+	}
+
+	private cloneMarker<T extends Marker>(marker: T): T {
+		return JSON.parse(JSON.stringify(marker)) as T
+	}
+
+	private cloneMarkers(markers: Marker[]): Marker[] {
+		return markers.map((marker) => this.cloneMarker(marker))
+	}
+
 	getMarkers(designProjectId: string): Marker[] {
 		let markers = this.markersByProject.get(designProjectId)
 		if (markers === undefined) {
-			markers = this.storage.getMarkers(designProjectId)
+			markers = this.cloneMarkers(this.storage.getMarkers(designProjectId))
 			this.markersByProject.set(designProjectId, markers)
 		}
-		return [...markers]
+		return this.cloneMarkers(markers)
 	}
 
 	setMarkers(designProjectId: string, markers: Marker[]): void {
-		this.markersByProject.set(designProjectId, markers)
-		const markerIds = new Set(markers.map((m) => m.id))
+		const previousMarkers = this.getMarkers(designProjectId)
+		const previousMarkersMap = new Map(previousMarkers.map((marker) => [marker.id, marker]))
+		const markersToRefresh: string[] = []
+		const normalizedMarkers = markers.map((marker) => {
+			const previousMarker = previousMarkersMap.get(marker.id)
+			if (!this.hasMarkerGeometryChanged(previousMarker, marker)) return marker
+
+			const normalizedMarker = this.clearMarkerRecognitionState(marker)
+			markersToRefresh.push(marker.id)
+			return normalizedMarker
+		})
+
+		const storedMarkers = this.cloneMarkers(normalizedMarkers)
+		this.markersByProject.set(designProjectId, storedMarkers)
+		const markerIds = new Set(storedMarkers.map((m) => m.id))
 		const cache = this.getElementSrcCache(designProjectId)
 		const pruned =
 			Object.keys(cache).length === 0
 				? cache
 				: Object.fromEntries(Object.entries(cache).filter(([id]) => markerIds.has(id)))
-		this.storage.saveMarkers(designProjectId, markers, pruned)
+		this.storage.saveMarkers(designProjectId, storedMarkers, pruned)
 		if (pruned !== cache) {
 			this.elementSrcByProject.set(designProjectId, pruned)
 		}
@@ -194,12 +297,16 @@ export class SuperMagicMarkerManager {
 				),
 			)
 		}
+
+		markersToRefresh.forEach((markerId) => {
+			this.requestMarkerDataRefresh(designProjectId, markerId)
+		})
 	}
 
 	addMarker(designProjectId: string, marker: Marker, element?: Pick<ImageElement, "src">): void {
 		const markers = this.getMarkers(designProjectId)
 		if (markers.some((m) => m.id === marker.id)) return
-		const updated = [...markers, marker]
+		const updated = this.cloneMarkers([...markers, marker])
 		this.markersByProject.set(designProjectId, updated)
 		if (element?.src) {
 			const cache = { ...this.getElementSrcCache(designProjectId), [marker.id]: element.src }
@@ -235,6 +342,26 @@ export class SuperMagicMarkerManager {
 		this.setMarkers(designProjectId, updatedMarkers)
 	}
 
+	requestMarkerDataRefresh(designProjectId: string, markerId: string): void {
+		const marker = this.getMarker(designProjectId, markerId)
+		if (!marker) return
+
+		this.publishToMessageEditor(PubSubEvents.Super_Magic_Marker_Data_Updated, {
+			updates: [
+				{
+					markerId,
+					data: {
+						loading: true,
+					},
+				},
+			],
+		})
+
+		const requestId = this.getNextMarkerRequestId(markerId)
+		this.cancelMarkerRequest(markerId)
+		void this.fetchMarkerData(designProjectId, markerId, { force: true, requestId })
+	}
+
 	getMarker(designProjectId: string, markerId: string): Marker | undefined {
 		return this.getMarkers(designProjectId).find((m) => m.id === markerId)
 	}
@@ -262,7 +389,7 @@ export class SuperMagicMarkerManager {
 
 	/**
 	 * Manager 数据 → CanvasMarkerMentionData
-	 * 使用缓存的 image_path（element src）或 options.imagePath 覆盖，可与 fromCanvasMarkerMentionData 互推
+	 * 使用缓存的 image（element src）或 options.imagePath 覆盖，可与 fromCanvasMarkerMentionData 互推
 	 */
 	toCanvasMarkerMentionData(
 		designProjectId: string,
@@ -278,34 +405,36 @@ export class SuperMagicMarkerManager {
 		},
 	): CanvasMarkerMentionData {
 		const imagePath = options.imagePath ?? this.getMarkerElementSrc(designProjectId, marker.id)
-		return {
+		return createCanvasMarkerMentionData({
+			marker,
+			designProjectId,
+			markNumber: options.markNumber,
+			projectId: options.projectId,
+			topicId: options.topicId,
 			loading: options.loading ?? true,
-			project_id: options.projectId,
-			topic_id: options.topicId,
-			design_project_id: designProjectId,
-			mark_number: options.markNumber,
-			image_path: imagePath,
-			element_width: options.elementWidth,
-			element_height: options.elementHeight,
-			data: marker,
-		}
+			imagePath,
+			elementWidth: options.elementWidth,
+			elementHeight: options.elementHeight,
+		})
 	}
 
 	/**
 	 * CanvasMarkerMentionData → Manager 数据
-	 * 将 mention 数据同步到 Manager：补充 marker、缓存 image_path 为 element src
+	 * 将 mention 数据同步到 Manager：补充 marker、缓存 image 为 element src
 	 */
 	syncFromCanvasMarkerMentionData(mentionData: CanvasMarkerMentionData): void {
-		const { design_project_id, data: marker, image_path } = mentionData
+		const marker = buildMarkerFromCanvasMarkerMentionData(mentionData)
+		const imagePath = getCanvasMarkerMentionImagePath(mentionData)
+		const { design_project_id } = mentionData
 		if (!design_project_id || !marker?.id) return
 		const existing = this.getMarker(design_project_id, marker.id)
 		if (!existing) {
-			this.addMarker(design_project_id, marker, image_path ? { src: image_path } : undefined)
+			this.addMarker(design_project_id, marker, imagePath ? { src: imagePath } : undefined)
 			pubsub.publish(PubSubEvents.Super_Magic_Markers_Synced_To_Manager, {
 				designProjectId: design_project_id,
 			})
-		} else if (image_path && !this.getMarkerElementSrc(design_project_id, marker.id)) {
-			this.updateMarkerElementSrc(design_project_id, marker.id, image_path)
+		} else if (imagePath && !this.getMarkerElementSrc(design_project_id, marker.id)) {
+			this.updateMarkerElementSrc(design_project_id, marker.id, imagePath)
 		}
 	}
 
@@ -338,11 +467,15 @@ export class SuperMagicMarkerManager {
 	 * 获取 marker 识别数据
 	 * 画布开/关均走 MarkerCompositorService（无画布合成）
 	 */
-	async fetchMarkerData(designProjectId: string, markerId: string): Promise<void> {
+	async fetchMarkerData(
+		designProjectId: string,
+		markerId: string,
+		options?: { force?: boolean; requestId?: number },
+	): Promise<void> {
 		const marker = this.getMarker(designProjectId, markerId)
 		if (!marker) return
-		if (marker.result) return
-		if (this.loadingMarkers.has(markerId)) return
+		if (marker.result && !options?.force) return
+		if (this.loadingMarkers.has(markerId) && !options?.force) return
 
 		const {
 			getCanvasElements,
@@ -354,6 +487,10 @@ export class SuperMagicMarkerManager {
 		} = this.dependencies
 		if (!getFileInfo || !uploadPrivateFiles || !identifyImageMark) return
 
+		const requestId = options?.requestId ?? this.getNextMarkerRequestId(markerId)
+		const controller = new AbortController()
+		this.activeMarkerRequests.set(markerId, { requestId, controller })
+
 		// 优先使用缓存的 element src（支持画布未打开时 fetch）
 		const cachedSrc = this.getElementSrcCache(designProjectId)[markerId]
 		let element: ImageElement | undefined
@@ -362,6 +499,7 @@ export class SuperMagicMarkerManager {
 				id: marker.elementId,
 				type: ElementTypeEnum.Image,
 				src: cachedSrc,
+				crop: marker.elementCrop,
 			} as ImageElement
 		}
 		if (!element) {
@@ -376,6 +514,7 @@ export class SuperMagicMarkerManager {
 
 		// 尝试从画布获取图片信息（画布打开时优先使用）
 		const canvasImageInfo = await getElementImageInfo?.(marker.elementId)
+		if (!this.isMarkerRequestCurrent(markerId, requestId)) return
 
 		// 计算 sequence：同元素下 markers 的序号（从 1 起）
 		const sameElementMarkers = this.getMarkers(designProjectId)
@@ -423,6 +562,7 @@ export class SuperMagicMarkerManager {
 					},
 					methods: { identifyImageMark: methods.identifyImageMark },
 					projectId,
+					signal: controller.signal,
 				})
 			} else {
 				const compositeResult = await MarkerCompositorService.composite({
@@ -434,7 +574,9 @@ export class SuperMagicMarkerManager {
 					imageInfo: canvasImageInfo?.imageInfo,
 					ossUrl: canvasImageInfo?.ossUrl,
 					image: canvasImageInfo?.image,
+					signal: controller.signal,
 				})
+				if (!this.isMarkerRequestCurrent(markerId, requestId)) return
 				this.saveCompositePathCache(designProjectId, markerId, {
 					filePath: compositeResult.filePath,
 					invalidationKey,
@@ -449,33 +591,46 @@ export class SuperMagicMarkerManager {
 					imageInfo: compositeResult.imageInfo,
 					methods: { identifyImageMark: methods.identifyImageMark },
 					projectId,
+					signal: controller.signal,
 				})
 			}
 
+			if (!this.isMarkerRequestCurrent(markerId, requestId)) return
+
 			// identify 返回 IdentifyImageMarkResponse
 			this.updateMarker(designProjectId, markerId, { result, error: undefined })
-			const publish =
-				this.dependencies.publishToMessageEditor ??
-				((e: string, p: unknown) => pubsub.publish(e, p))
-			publish(PubSubEvents.Super_Magic_Marker_Data_Updated, {
+			this.publishToMessageEditor(PubSubEvents.Super_Magic_Marker_Data_Updated, {
 				markerId,
 				designProjectId,
 				result,
 			})
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
+			if (controller.signal.aborted || !this.isMarkerRequestCurrent(markerId, requestId))
+				return
+
 			this.updateMarker(designProjectId, markerId, { error: errorMessage })
-			const publish =
-				this.dependencies.publishToMessageEditor ??
-				((e: string, p: unknown) => pubsub.publish(e, p))
-			publish(PubSubEvents.Super_Magic_Marker_Data_Updated, {
+			this.publishToMessageEditor(PubSubEvents.Super_Magic_Marker_Data_Updated, {
 				markerId,
 				designProjectId,
 				error: errorMessage,
 			})
 		} finally {
-			this.loadingMarkers.delete(markerId)
+			if (this.isMarkerRequestCurrent(markerId, requestId)) {
+				this.activeMarkerRequests.delete(markerId)
+				this.loadingMarkers.delete(markerId)
+			}
 		}
+	}
+
+	private publishToMessageEditor(
+		event: MarkerManagerPublishEvent,
+		payload: MarkerManagerPublishPayload,
+	): void {
+		const publish =
+			this.dependencies.publishToMessageEditor ??
+			((e: MarkerManagerPublishEvent, p: MarkerManagerPublishPayload) => pubsub.publish(e, p))
+		publish(event, payload)
 	}
 
 	/**
@@ -486,8 +641,7 @@ export class SuperMagicMarkerManager {
 		marker: Marker,
 		markNumber: number,
 	): Promise<CanvasMarkerMentionData | null> {
-		const { getCanvasElements, getImageOssUrl, getFileInfo, projectId, topicId } =
-			this.dependencies
+		const { getCanvasElements, projectId, topicId } = this.dependencies
 		const elements = getCanvasElements?.(designProjectId)?.elements
 		if (!Array.isArray(elements)) return null
 
@@ -536,10 +690,6 @@ export class SuperMagicMarkerManager {
 	): Promise<void> {
 		if (this.isSyncingToEditor) return
 
-		const publish =
-			this.dependencies.publishToMessageEditor ??
-			((e: string, p: unknown) => pubsub.publish(e, p))
-
 		if (mode === "insert" && options?.markerId) {
 			const marker = this.getMarker(designProjectId, options.markerId)
 			if (!marker) return
@@ -555,7 +705,7 @@ export class SuperMagicMarkerManager {
 			)
 			if (!mentionData) return
 
-			publish(PubSubEvents.Super_Magic_Insert_Marker_To_Chat, {
+			this.publishToMessageEditor(PubSubEvents.Super_Magic_Insert_Marker_To_Chat, {
 				items: [{ type: MentionItemType.DESIGN_MARKER, data: mentionData }],
 			})
 			return
@@ -582,7 +732,9 @@ export class SuperMagicMarkerManager {
 					}
 				}
 				if (items.length > 0) {
-					publish(PubSubEvents.Super_Magic_Sync_Markers_To_Chat, { items })
+					this.publishToMessageEditor(PubSubEvents.Super_Magic_Sync_Markers_To_Chat, {
+						items,
+					})
 				}
 			} finally {
 				this.isSyncingToEditor = false

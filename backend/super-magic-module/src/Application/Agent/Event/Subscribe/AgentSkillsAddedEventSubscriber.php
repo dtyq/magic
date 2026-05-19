@@ -145,28 +145,20 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             TaskFileSource::SKILL
         );
 
-        $skillsDirectoryConfig = $this->resolveSkillsDirectoryConfig($projectId);
-        $skillsParentId = $rootDirId;
-        if ($skillsDirectoryConfig['is_magic_structure']) {
-            $skillsParentId = $this->taskFileDomainService->createDirectory(
-                $projectId,
-                $rootDirId,
-                '.magic',
-                '.magic',
-                $workDir,
-                $userId,
-                $organizationCode,
-                $projectOrgCode,
-                TaskFileSource::SKILL
-            );
-        }
+        $magicDirId = $this->taskFileDomainService->createDirectory(
+            $projectId,
+            $rootDirId,
+            '.magic',
+            $userId,
+            $organizationCode,
+            $projectOrgCode,
+            TaskFileSource::SKILL
+        );
 
         $skillsDirId = $this->taskFileDomainService->createDirectory(
             $projectId,
-            $skillsParentId,
+            $magicDirId,
             'skills',
-            $skillsDirectoryConfig['relative_path'],
-            $workDir,
             $userId,
             $organizationCode,
             $projectOrgCode,
@@ -178,24 +170,27 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
         $allCreatedFiles = [];
         $addedPackageNames = [];
+        $addedSystemPackageNames = [];
 
         foreach ($skillCodes as $skillCode) {
             try {
-                [$createdFiles, $packageName] = $this->syncSingleSkill(
+                [$createdFiles, $packageName, $isSystem] = $this->syncSingleSkill(
                     $skillDataIsolation,
                     $skillCode,
                     $projectId,
                     $skillsDirId,
-                    $workDir,
                     $userId,
                     $organizationCode,
                     $projectOrgCode,
-                    $projectEntity,
-                    $skillsDirectoryConfig['relative_path']
+                    $projectEntity
                 );
                 $allCreatedFiles = array_merge($allCreatedFiles, $createdFiles);
                 if ($packageName !== null) {
-                    $addedPackageNames[] = $packageName;
+                    if ($isSystem) {
+                        $addedSystemPackageNames[] = $packageName;
+                    } else {
+                        $addedPackageNames[] = $packageName;
+                    }
                 }
             } catch (Throwable $e) {
                 $this->logger->error('Failed to sync skill file', [
@@ -223,7 +218,8 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             $organizationCode,
             $projectOrgCode,
             $addedPackageNames,
-            SkillsMdSyncService::OPERATION_ADD
+            SkillsMdSyncService::OPERATION_ADD,
+            $addedSystemPackageNames
         );
 
         $this->logger->info('Agent skill file sync completed', [
@@ -232,40 +228,45 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
             'project_id' => $projectId,
             'files_created' => count($allCreatedFiles),
             'added_package_count' => count($addedPackageNames),
+            'added_system_package_count' => count($addedSystemPackageNames),
         ]);
     }
 
     /**
-     * @return array{0: TaskFileEntity[], 1: null|string}
+     * @return array{0: TaskFileEntity[], 1: null|string, 2: bool}
      */
     private function syncSingleSkill(
         SkillDataIsolation $skillDataIsolation,
         string $skillCode,
         int $projectId,
         int $skillsDirId,
-        string $workDir,
         string $userId,
         string $organizationCode,
         string $projectOrgCode,
-        mixed $projectEntity,
-        string $skillsBaseRelativePath
+        mixed $projectEntity
     ): array {
         $skillEntity = $this->skillRepository->findByCode($skillDataIsolation, $skillCode);
         if ($skillEntity === null) {
             $this->logger->warning('Skill not found', ['skill_code' => $skillCode]);
-            return [[], null];
-        }
-
-        $fileKey = $skillEntity->getFileKey();
-        if (empty($fileKey)) {
-            $this->logger->warning('Skill file_key is empty', ['skill_code' => $skillCode]);
-            return [[], null];
+            return [[], null, false];
         }
 
         $packageName = $skillEntity->getPackageName();
         if (empty($packageName)) {
             $this->logger->warning('Skill packageName is empty', ['skill_code' => $skillCode]);
-            return [[], null];
+            return [[], null, false];
+        }
+
+        // System builtin skills have no zip package; only update SKILLS.md via packageName.
+        if ($skillEntity->getSourceType()->isSystem()) {
+            $this->logger->info('System builtin skill, skip file extraction', ['skill_code' => $skillCode]);
+            return [[], $packageName, true];
+        }
+
+        $fileKey = $skillEntity->getFileKey();
+        if (empty($fileKey)) {
+            $this->logger->warning('Skill file_key is empty', ['skill_code' => $skillCode]);
+            return [[], null, false];
         }
 
         $skillOrganizationCode = $skillEntity->getOrganizationCode();
@@ -286,7 +287,7 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
             if (! file_exists($localZipPath)) {
                 $this->logger->error('Skill file download failed', ['skill_code' => $skillCode, 'file_key' => $fileKey]);
-                return [[], null];
+                return [[], null, false];
             }
 
             $extractDir = $tempDir . '/extracted';
@@ -300,8 +301,6 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                 $projectId,
                 $skillsDirId,
                 $packageName,
-                $skillsBaseRelativePath . '/' . $packageName,
-                $workDir,
                 $userId,
                 $organizationCode,
                 $projectOrgCode,
@@ -317,15 +316,13 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                 $actualContentDir,
                 $packageDirId,
                 $projectId,
-                $skillsBaseRelativePath . '/' . $packageName,
-                $workDir,
                 $userId,
                 $organizationCode,
                 $projectOrgCode,
                 $createdFiles
             );
 
-            return [$createdFiles, $packageName];
+            return [$createdFiles, $packageName, false];
         } finally {
             ZipUtil::removeDirectory($tempDir);
         }
@@ -342,8 +339,6 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
         string $localDir,
         int $parentDirId,
         int $projectId,
-        string $relativePath,
-        string $workDir,
         string $userId,
         string $organizationCode,
         string $projectOrgCode,
@@ -353,15 +348,12 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
 
         foreach ($items as $item) {
             $localPath = $localDir . '/' . $item;
-            $itemRelativePath = $relativePath . '/' . $item;
 
             if (is_dir($localPath)) {
                 $subDirId = $this->taskFileDomainService->createDirectory(
                     $projectId,
                     $parentDirId,
                     $item,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $organizationCode,
                     $projectOrgCode,
@@ -374,8 +366,6 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                     $localPath,
                     $subDirId,
                     $projectId,
-                    $itemRelativePath,
-                    $workDir,
                     $userId,
                     $organizationCode,
                     $projectOrgCode,
@@ -400,22 +390,6 @@ class AgentSkillsAddedEventSubscriber implements ListenerInterface
                 $createdFiles[] = $fileEntity;
             }
         }
-    }
-
-    /**
-     * Resolve agent skill directory location.
-     * Always uses ".magic/skills" as the standard structure.
-     * When is_magic_structure is true, the caller is responsible for ensuring the ".magic"
-     * parent directory exists before creating the "skills" subdirectory.
-     *
-     * @return array{relative_path: string, is_magic_structure: bool}
-     */
-    private function resolveSkillsDirectoryConfig(int $projectId): array
-    {
-        return [
-            'relative_path' => '.magic/skills',
-            'is_magic_structure' => true,
-        ];
     }
 
     /**

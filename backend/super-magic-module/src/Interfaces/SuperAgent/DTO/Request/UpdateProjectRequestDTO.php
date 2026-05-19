@@ -22,6 +22,9 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
 
     /**
      * Workspace ID.
+     *
+     * @deprecated Workspace changes in update project are ignored. Use target_workspace_id temporarily,
+     *             and migrate callers to the project move API.
      */
     public ?string $workspaceId = null;
 
@@ -38,6 +41,23 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
     public ?bool $isCollaborationEnabled = null;
 
     public ?string $defaultJoinPermission = null;
+
+    /**
+     * Project mode.
+     * Null means no change. Valid values: general, ppt, data_analysis, report, meeting,
+     * summary, super_magic, audio, agent_creator, skill_creator, custom_agent, custom_skill, magiclaw, chat.
+     */
+    public ?string $projectMode = null;
+
+    /**
+     * Target workspace ID for workspace change.
+     * TODO: Remove this field after callers migrate to the project move API.
+     *
+     * Null means no change.
+     * Empty string "" means detach from workspace (workspace_id will be set to null).
+     * Numeric string means move to that workspace.
+     */
+    public ?string $targetWorkspaceId = null;
 
     /**
      * Get project ID.
@@ -85,6 +105,46 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
     }
 
     /**
+     * Get project mode.
+     */
+    public function getProjectMode(): ?string
+    {
+        return $this->projectMode;
+    }
+
+    /**
+     * Get target workspace ID for workspace change.
+     * Returns null when not changing workspace.
+     * Returns false-like null (via isDetachingWorkspace) when detaching.
+     */
+    public function getTargetWorkspaceId(): ?int
+    {
+        if (is_null($this->targetWorkspaceId)) {
+            return null;
+        }
+        if ($this->targetWorkspaceId === '') {
+            return null;
+        }
+        return (int) $this->targetWorkspaceId;
+    }
+
+    /**
+     * Check whether the workspace change field was explicitly provided.
+     */
+    public function hasTargetWorkspaceId(): bool
+    {
+        return ! is_null($this->targetWorkspaceId);
+    }
+
+    /**
+     * Check if the request is detaching the project from its workspace.
+     */
+    public function isDetachingWorkspace(): bool
+    {
+        return $this->targetWorkspaceId === '';
+    }
+
+    /**
      * Get validation rules.
      */
     protected static function getHyperfValidationRules(): array
@@ -95,6 +155,8 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
             'default_join_permission' => 'nullable|string|max:100',
             'is_collaboration_enabled' => 'nullable|boolean',
             'project_description' => 'nullable|string|max:500',
+            'project_mode' => 'nullable|string|max:50',
+            'target_workspace_id' => 'nullable|string|max:64',
         ];
     }
 
@@ -107,6 +169,8 @@ class UpdateProjectRequestDTO extends AbstractRequestDTO
             'workspace_id.integer' => 'Workspace ID must be an integer',
             'project_name.max' => 'Project name cannot exceed 100 characters',
             'project_description.max' => 'Project description cannot exceed 500 characters',
+            'project_mode.max' => 'Project mode cannot exceed 50 characters',
+            'target_workspace_id.max' => 'Target workspace ID cannot exceed 64 characters',
         ];
     }
 }

@@ -44,7 +44,11 @@ class TaskFileModel extends AbstractModel
         'sort', // 排序字段
         'parent_id', // 父级ID
         'metadata', // 文件元数据，存储 JSON
+        'display_config', // 前端展示配置，存储 JSON
         'source', // 来源字段：1-首页，2-项目目录，3-agent
+        'latest_version', // 版本号，用于内容版本管理
+        'metadata_version', // 元数据版本号，用于 MagicFS 缓存失效检测（包含重命名、移动等操作）
+        'space_type', // 文件所属空间类型：project-项目，user-用户
         'created_at',
         'updated_at',
         'deleted_at',
@@ -59,6 +63,8 @@ class TaskFileModel extends AbstractModel
         'is_directory' => 0, // 默认不是目录：0-否，1-是
         'sort' => 0, // 默认排序为0
         'source' => TaskFileSource::HOME->value, // 默认来源为首页
+        'latest_version' => 1, // 默认版本号为1
+        'metadata_version' => 1, // 默认元数据版本号为1
     ];
 
     /**

@@ -1,55 +1,15 @@
 // 工作区相关类型
-import { PathNode } from "@/types/organization"
+import type { PathNode } from "@/types/organization"
 import type { Key, ReactNode } from "react"
-import { ModelItem, ModeModelGroup } from "../../components/MessageEditor/types"
-import { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
+import type { ModelItem, ModeModelGroup } from "../../components/MessageEditor/types"
+import type { CollaboratorPermission } from "@/pages/superMagic/types/collaboration"
 import { IconType } from "../../components/AgentSelector/types"
-import { SceneItem } from "../../types/skill"
+import type { SceneItem } from "../../types/skill"
+import { TopicMode } from "./TopicMode"
 
 export interface WithPage<T> {
 	list: T[]
 	total: number
-}
-
-export enum TopicMode {
-	/** 通用模式 */
-	General = "general",
-	/** 聊天模式 */
-	Chat = "chat",
-	/** 数据分析 */
-	DataAnalysis = "data_analysis",
-	/** PPT */
-	PPT = "ppt",
-	/** 研报模式 */
-	Report = "report",
-	/** 录音总结 */
-	RecordSummary = "summary",
-	/** 空模式 */
-	Empty = "",
-	/** 设计模式 */
-	Design = "design",
-	/** 员工主导模式
-	 * 不会在列表中存在，只用于创建员工时使用
-	 */
-	CrewCreator = "crew-creator",
-
-	/**
-	 * 技能主导模式
-	 * 不会在列表中存在，只用于创建技能时使用
-	 */
-	SkillCreator = "skill-creator",
-
-	/**
-	 * 超级龙虾模式
-	 * 不会在列表中存在，只用于超级龙虾页面对话使用
-	 */
-	MagiClaw = "magiclaw",
-
-	/**
-	 * 默认模式
-	 * 用于获取默认模式模型列表
-	 */
-	Default = "default",
 }
 
 export enum AgentType {
@@ -64,12 +24,15 @@ export interface ModeModelGroupItem {
 	model_ids: string[]
 	image_models?: ModelItem[]
 	image_model_ids: string[]
+	video_models?: ModelItem[]
+	video_model_ids: string[]
 }
 
 export interface ModeModelGroupItemResponse {
 	group: ModeModelGroup
-	model_ids: string[]
-	image_model_ids: string[]
+	model_ids?: string[]
+	image_model_ids?: string[]
+	video_model_ids?: string[]
 }
 
 // 历史模式列表类型，新版本已废弃，使用 CrewItem 替代
@@ -150,6 +113,7 @@ export interface CrewItemResponse {
 export enum TaskStatus {
 	WAITING = "waiting",
 	RUNNING = "running",
+	WAITING_FOR_USER = "waiting_for_user",
 	FINISHED = "finished",
 	SUSPENDED = "suspended",
 	ERROR = "error",
@@ -161,6 +125,10 @@ export enum WorkspaceStatus {
 	WAITING = "waiting",
 	/** 运行中 */
 	RUNNING = "running",
+	/** 已完成 */
+	FINISHED = "finished",
+	/** 失败 */
+	ERROR = "error",
 }
 
 /** 项目状态 */
@@ -169,6 +137,10 @@ export enum ProjectStatus {
 	WAITING = "waiting",
 	/** 运行中 */
 	RUNNING = "running",
+	/** 已完成 */
+	FINISHED = "finished",
+	/** 失败 */
+	ERROR = "error",
 }
 
 // 工作区
@@ -191,13 +163,24 @@ export interface Topic {
 	chat_conversation_id: string
 	topic_name: string
 	task_status: TaskStatus
+	status?: TaskStatus
 	task_mode: string
 	project_id: string
 	topic_mode: TopicMode
 	updated_at: string
 	workspace_id: string
+	is_pinned?: boolean
+	pinned_at?: string | null
+	is_archived?: boolean
+	last_read_at?: string | null
+	last_read_message_id?: string | null
+	has_unread?: boolean
 	/** Token usage count. null means do not show usage indicator. */
 	token_used: number | null
+	/**
+	 * 自定义 agent 对应的 code
+	 */
+	agent_code?: string
 }
 
 // 消息相关类型

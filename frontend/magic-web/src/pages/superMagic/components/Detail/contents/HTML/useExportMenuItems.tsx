@@ -1,5 +1,11 @@
 import MagicDropdown from "@/components/base/MagicDropdown"
-import { IconDownload, IconFile, IconFileTypePdf, IconFileTypePpt } from "@tabler/icons-react"
+import {
+	IconDownload,
+	IconFile,
+	IconFileTypePdf,
+	IconFileTypePpt,
+	IconPhoto,
+} from "@tabler/icons-react"
 import { MenuProps } from "antd"
 import { createStyles } from "antd-style"
 import { useMemo } from "react"
@@ -7,6 +13,7 @@ import { useTranslation } from "react-i18next"
 import { HTMLGuideTourElementId } from "@/pages/superMagic/hooks/useHTMLGuideTour"
 import ActionButton from "@/pages/superMagic/components/Detail/components/CommonHeader/components/ActionButton"
 import { Download } from "lucide-react"
+import type { ImageExportFormat } from "../../../../../../../packages/pdf-export/src"
 
 const useStyles = createStyles(({ css, token }) => ({
 	downloadText: css`
@@ -21,18 +28,24 @@ export function useExportMenuItems({
 	handleExportSource,
 	handleExportPDF,
 	handleExportPPT,
+	handleExportImage,
 	isExporting = false,
 	showButtonText = true,
 	supportPPT = true,
 	handleExportPptx,
+	showExportPptx = false,
+	showExportImage = false,
 }: {
 	handleExportSource: () => void
-	handleExportPDF: () => void
+	handleExportPDF: (pagination: "slice" | "none") => void
 	handleExportPPT?: () => void
+	handleExportImage?: (format: ImageExportFormat) => void
 	isExporting?: boolean
 	showButtonText?: boolean
 	supportPPT?: boolean
 	handleExportPptx?: () => void
+	showExportPptx?: boolean
+	showExportImage?: boolean
 }) {
 	const { t } = useTranslation("super")
 	const { styles } = useStyles()
@@ -48,16 +61,42 @@ export function useExportMenuItems({
 				key: "pdf",
 				label: t("topicFiles.exportPdf"),
 				icon: <IconFileTypePdf size={16} stroke={1.5} />,
-				onClick: handleExportPDF,
+				children: [
+					{
+						key: "pdf-paginated",
+						label: t("topicFiles.exportPdfPaginated"),
+						onClick: () => handleExportPDF("slice"),
+					},
+					{
+						key: "pdf-fullpage",
+						label: t("topicFiles.exportPdfFullPage"),
+						onClick: () => handleExportPDF("none"),
+					},
+				],
 			},
-			...(supportPPT && handleExportPPT
+			...(showExportImage && handleExportImage
 				? [
 						{
-							key: "ppt",
-							label: t("topicFiles.exportPpt"),
-							icon: <IconFileTypePpt size={16} stroke={1.5} />,
-							onClick: handleExportPPT,
+							key: "image",
+							label: t("topicFiles.exportImage"),
+							icon: <IconPhoto size={16} stroke={1.5} />,
+							children: [
+								{
+									key: "image-png",
+									label: t("topicFiles.exportImagePng"),
+									onClick: () => handleExportImage("png"),
+								},
+								{
+									key: "image-jpeg",
+									label: t("topicFiles.exportImageJpeg"),
+									onClick: () => handleExportImage("jpeg"),
+								},
+							],
 						},
+					]
+				: []),
+			...(showExportPptx && handleExportPptx
+				? [
 						{
 							key: "pptx",
 							label: t("topicFiles.exportPptx"),
@@ -66,8 +105,28 @@ export function useExportMenuItems({
 						},
 					]
 				: []),
+			...(supportPPT && handleExportPPT
+				? [
+						{
+							key: "ppt",
+							label: t("topicFiles.exportPpt"),
+							icon: <IconFileTypePpt size={16} stroke={1.5} />,
+							onClick: handleExportPPT,
+						},
+					]
+				: []),
 		],
-		[handleExportPDF, handleExportPPT, handleExportSource, supportPPT, t],
+		[
+			handleExportPDF,
+			handleExportPPT,
+			handleExportPptx,
+			handleExportImage,
+			handleExportSource,
+			showExportPptx,
+			showExportImage,
+			supportPPT,
+			t,
+		],
 	)
 
 	const ExportDropdownButton = (
@@ -76,6 +135,7 @@ export function useExportMenuItems({
 			placement="bottomRight"
 			disabled={isExporting}
 			trigger={["click"]}
+			overlayStyle={{ zIndex: 1050 }}
 		>
 			<span>
 				<ActionButton

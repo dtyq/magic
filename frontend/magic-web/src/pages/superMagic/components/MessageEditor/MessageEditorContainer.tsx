@@ -25,17 +25,25 @@ import {
 	type MessageEditorProps,
 	type MessageEditorRef as MessageEditorRefType,
 	ModelItem,
-	ToolbarButton,
+	type SendMessageByContentPayload,
 } from "./types"
-import { McpMentionData, MentionItemType } from "@/components/business/MentionPanel/types"
-import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
+import {
+	McpMentionData,
+	MentionItemType,
+	type MentionSelectContext,
+} from "@/components/business/MentionPanel/types"
+import type {
+	MentionRemoveItemPayload,
+	TiptapMentionAttributes,
+} from "@/components/business/MentionPanel/tiptap-plugin"
 import AiCompletionService from "@/services/chat/editor/AiCompletionService"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
+import { resetDocumentScrollPosition } from "@/utils/scroll"
 import {
 	checkMCPOAuth,
 	MCPOAuthType,
 } from "@/components/Agent/MCP/AgentSettings/AgentPanel/MCPPanel/helpers"
-import GlobalMentionPanelStore from "@/components/business/MentionPanel/store"
+import GlobalMentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 import { insertMentionFromDroppedData } from "./utils/drag"
 import useChooseUploadDirModal from "./hooks/useChooseUploadDirModal"
 import { superMagicTopicModelService } from "@/services/superMagic/topicModel"
@@ -44,7 +52,7 @@ import useSharedDataFromApp from "./hooks/useSharedDataFromApp"
 import type { VoiceInputRef } from "@/components/business/VoiceInput"
 import useMessageEditorPubSub from "./hooks/useMessageEditorPubSub"
 import { useMessageEditorMarker } from "./hooks/useMessageEditorMarker"
-import { hasToolbarButton, resolveMessageEditorModules } from "./utils/moduleConfig"
+import { resolveMessageEditorModules } from "./utils/moduleConfig"
 import { userStore } from "@/models/user"
 import { useTaskInterrupt } from "../../hooks/useTaskInterrupt"
 import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
@@ -60,6 +68,7 @@ export type MessageEditorRef = MessageEditorRefType & {
 		selectedTopic: Topic
 		model: ModelItem
 		imageModel: ModelItem | null
+		videoModel?: ModelItem | null
 	}) => void
 }
 
@@ -79,6 +88,7 @@ export const MessageEditorContainer = observer(
 				size = "default",
 				modules,
 				isSending = false,
+				sendButtonLoading = false,
 				topicMode,
 				onFocus,
 				onBlur,
@@ -88,10 +98,14 @@ export const MessageEditorContainer = observer(
 				attachments,
 				isEditingQueueItem = false,
 				editorModeSwitch,
+				modelSwitch,
 				mentionPanelStore = GlobalMentionPanelStore,
+				isAllowedMention,
 				projectFilesStore,
+				topicModelStore,
 				layoutConfig,
 				enableMessageSendByContent = false,
+				skipInitialDraftRestore = false,
 			},
 			ref,
 		) => {
@@ -117,11 +131,6 @@ export const MessageEditorContainer = observer(
 				[layoutConfig],
 			)
 
-			const hasMentionButton = useMemo(
-				() => hasToolbarButton(effectiveLayoutConfig, ToolbarButton.AT),
-				[effectiveLayoutConfig],
-			)
-
 			const resolvedModules = useMemo(
 				() =>
 					resolveMessageEditorModules({
@@ -132,7 +141,7 @@ export const MessageEditorContainer = observer(
 				[modules, effectiveLayoutConfig, providerConfig],
 			)
 
-			const shouldEnableMention = resolvedModules.mention.enabled && hasMentionButton
+			const shouldEnableMention = resolvedModules.mention.enabled
 
 			const aiCompletionEnabled = !isMobile && resolvedModules.aiCompletion.enabled
 
@@ -145,6 +154,7 @@ export const MessageEditorContainer = observer(
 			const { store, parentStore } = useResolvedEditorStore({
 				mentionPanelStore,
 				projectFilesStore,
+				topicModelStore,
 			})
 
 			const isMountedRef = useRef(true)
@@ -188,6 +198,7 @@ export const MessageEditorContainer = observer(
 				shouldRestoreRemovedMention,
 			} = useUploadMentionFlow({
 				fileUploadStore,
+				mentionPanelStore,
 				getEditor,
 				isProjectContext,
 				// The main editor can enqueue messages while loading, but it is
@@ -212,33 +223,32 @@ export const MessageEditorContainer = observer(
 				handleRemoveFile(mentionAttrs)
 			})
 
-			const handleMentionRemoveItems = useMemoizedFn(
-				(items: { item: TiptapMentionAttributes; stillExists: boolean }[]) => {
-					items.forEach(({ item, stillExists }) => {
-						if (stillExists) return
-						if (item.type === MentionItemType.DESIGN_MARKER) {
-							handleMarkerMentionRemove(item)
-						} else {
-							handleUploadMentionRemoveItems([{ item, stillExists }])
-						}
-					})
-				},
-			)
+			const handleMentionRemoveItems = useMemoizedFn((items: MentionRemoveItemPayload[]) => {
+				items.forEach(({ item, stillExists, deletionInput }) => {
+					if (stillExists) return
+					if (item.type === MentionItemType.DESIGN_MARKER) {
+						handleMarkerMentionRemove(item)
+					} else {
+						handleUploadMentionRemoveItems([{ item, stillExists, deletionInput }])
+					}
+				})
+			})
 
 			const canSendMessage = useMemo(() => {
 				if (!sendEnabled) return false
 				if (hasLoadingMarker) return false
 				if (isEditingQueueItem) {
-					return isAllFilesUploaded && !isSending
+					return isAllFilesUploaded && !isSending && !sendButtonLoading
 				}
 				const hasContent = !isEmptyJSONContent(store.editorStore.value)
-				return hasContent && isAllFilesUploaded && !isSending
+				return hasContent && isAllFilesUploaded && !isSending && !sendButtonLoading
 			}, [
 				hasLoadingMarker,
 				isEditingQueueItem,
 				store.editorStore.value,
 				isAllFilesUploaded,
 				isSending,
+				sendButtonLoading,
 				sendEnabled,
 			])
 
@@ -290,6 +300,7 @@ export const MessageEditorContainer = observer(
 					},
 				})
 				onBlur?.()
+				if (isMobile) resetDocumentScrollPosition()
 			})
 
 			const handleSend = useMessageSendHandler({
@@ -311,6 +322,9 @@ export const MessageEditorContainer = observer(
 				placeholder,
 				onMentionInsertItems: (items) => {
 					syncInsertedMarkersToManager(items)
+					if (!selectedProject?.id) {
+						store.fileUploadStore.addPendingProjectFileReferences(items)
+					}
 					onMentionInsertItems?.(items)
 				},
 				onChange: setValue,
@@ -327,6 +341,7 @@ export const MessageEditorContainer = observer(
 				size,
 				topicMode,
 				mentionPanelStore,
+				isAllowedMention,
 				shouldSkipRemoveSync: () => shouldSkipMentionRemoveSyncRef.current,
 				shouldRestoreRemovedMention,
 			})
@@ -349,22 +364,28 @@ export const MessageEditorContainer = observer(
 				store.editorStore.updateContent(content)
 			})
 
-			const { handleCompressContext } = useCompressContext({
-				updateContent,
-				handleSend,
-			})
-
 			const handleSendMessageByContent = useMemoizedFn(
-				(data: { jsonContent: JSONContent }) => {
+				(data: SendMessageByContentPayload) => {
 					onSend?.({
 						value: data.jsonContent,
-						mentionItems: collectMentionItemsFromContent(data.jsonContent),
-						selectedModel: store.topicModelStore.selectedLanguageModel,
-						selectedImageModel: store.topicModelStore.selectedImageModel,
-						topicMode,
+						mentionItems:
+							data.mentionItems ?? collectMentionItemsFromContent(data.jsonContent),
+						selectedModel:
+							data.selectedModel ?? store.topicModelStore.selectedLanguageModel,
+						selectedImageModel:
+							data.selectedImageModel ?? store.topicModelStore.selectedImageModel,
+						selectedVideoModel:
+							data.selectedVideoModel ?? store.topicModelStore.selectedVideoModel,
+						topicMode: data.topicMode ?? topicMode,
+						shouldClearEditorAfterSend: data.shouldClearEditorAfterSend,
+						extra: data.extra,
 					})
 				},
 			)
+
+			const { handleCompressContext } = useCompressContext({
+				handleSendMessageByContent,
+			})
 
 			useMessageEditorPubSub({
 				editor: tiptapEditor,
@@ -428,20 +449,34 @@ export const MessageEditorContainer = observer(
 					return
 				}
 
+				if (skipInitialDraftRestore) {
+					return
+				}
+
 				await store.draftStore.loadLatestDraft({
 					isClearContent: true,
 					replaceDirectly: true,
 				})
-			}, [draftKey?.topicId, draftKey?.projectId, draftKey?.workspaceId])
+			}, [
+				draftKey?.topicId,
+				draftKey?.projectId,
+				draftKey?.workspaceId,
+				skipInitialDraftRestore,
+			])
 
 			const focus = useMemoizedFn(
 				({ enableWhenIsMobile = false }: { enableWhenIsMobile?: boolean } = {}) => {
 					if (!enableWhenIsMobile && isMobile) {
 						return
 					}
-					tiptapEditor?.commands.focus()
-					if (isMobile) {
-						tiptapEditor?.commands.scrollIntoView()
+					if (!tiptapEditor || tiptapEditor.isDestroyed) return
+					try {
+						tiptapEditor.commands.focus()
+						if (isMobile) {
+							tiptapEditor.commands.scrollIntoView()
+						}
+					} catch {
+						// Silently ignore — view may not be mounted yet during rapid state transitions
 					}
 				},
 			)
@@ -455,16 +490,19 @@ export const MessageEditorContainer = observer(
 					selectedTopic: topic,
 					model,
 					imageModel,
+					videoModel,
 				}: {
 					selectedTopic: Topic
 					model: ModelItem
 					imageModel: ModelItem | null
+					videoModel?: ModelItem | null
 				}) => {
 					superMagicTopicModelService.saveModel(
 						topic?.id,
 						selectedProject?.id || "",
 						model,
 						imageModel,
+						videoModel,
 						store.topicModelStore,
 					)
 				},
@@ -474,15 +512,18 @@ export const MessageEditorContainer = observer(
 				({
 					languageModel,
 					imageModel,
+					videoModel,
 				}: {
 					languageModel?: ModelItem | null
 					imageModel?: ModelItem | null
+					videoModel?: ModelItem | null
 				}) => {
 					superMagicTopicModelService.saveModel(
 						selectedTopic?.id || "",
 						selectedProject?.id || "",
 						languageModel,
 						imageModel,
+						videoModel,
 						store.topicModelStore,
 					)
 				},
@@ -535,30 +576,31 @@ export const MessageEditorContainer = observer(
 				[addFiles, uploadEnabled],
 			)
 
-			const handleSelectMentionItem = useMemoizedFn(async (item: TiptapMentionAttributes) => {
-				if (!item.data) return
-				if (
-					item.type === MentionItemType.MCP &&
-					((item.data as McpMentionData).check_auth ||
-						(item.data as McpMentionData).check_require_fields)
-				) {
-					store.editorStore.setOAuthInProgress(true)
-					try {
-						const res = await checkMCPOAuth(item.data as McpMentionData)
-						if (res === MCPOAuthType.validationFailed) {
-							return
+			const handleSelectMentionItem = useMemoizedFn(
+				async (item: TiptapMentionAttributes, context?: MentionSelectContext) => {
+					if (!item.data) return
+					if (item.type === MentionItemType.MCP && !context?.mcpValidated) {
+						store.editorStore.setOAuthInProgress(true)
+						try {
+							const res = await checkMCPOAuth(item.data as McpMentionData)
+							if (res === MCPOAuthType.validationFailed) {
+								return
+							}
+							void mentionPanelStore.dispatch({
+								kind: "effect",
+								effect: "refresh-mcp",
+							})
+						} finally {
+							store.editorStore.setOAuthInProgress(false)
 						}
-						mentionPanelStore.fetchMcpList()
-					} finally {
-						store.editorStore.setOAuthInProgress(false)
 					}
-				}
 
-				tiptapEditor?.commands.insertContent({
-					type: "mention",
-					attrs: item,
-				})
-			})
+					tiptapEditor?.commands.insertContent({
+						type: "mention",
+						attrs: item,
+					})
+				},
+			)
 
 			const handleProjectFileMentionClick = useMemoizedFn((target: EventTarget | null) => {
 				const targetElement =
@@ -640,6 +682,7 @@ export const MessageEditorContainer = observer(
 				uploadEnabled,
 				sendEnabled,
 				sendButtonDisabled,
+				sendButtonLoading,
 				showLoading,
 				isTaskRunning,
 				isUploadingFiles: !isAllFilesUploaded,
@@ -658,6 +701,7 @@ export const MessageEditorContainer = observer(
 				handleInterrupt,
 				handleCompressContext,
 				editorModeSwitch,
+				modelSwitch,
 				t,
 				updateEditorValue,
 			})

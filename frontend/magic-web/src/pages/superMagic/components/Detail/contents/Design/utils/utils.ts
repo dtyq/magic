@@ -7,6 +7,32 @@ import type { LayerElement } from "@/components/CanvasDesign/canvas/types"
 import { t } from "i18next"
 import { AttachmentSource } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+import type { ProjectAttachmentMentionNode } from "@/components/CanvasDesign/types"
+import { ImageFormat, ImageProcessOptions } from "@/utils/image-processing"
+import {
+	ImageGenerationTaskMeta,
+	ImageGenerationTaskTypeMap,
+} from "@/components/CanvasDesign/types.magic"
+import {
+	normalizeDesignAttachmentPathForCanvas,
+	rewriteLayerElementsPathsForMagicProjectSave,
+	resolveDesignDslPathCandidatesToWorkspaceRelative,
+	normalizeMagicProjectDirToBase,
+} from "./designDslPathUtils"
+import { getDesignProjectCurrentFileByProjectPath } from "./toolDesignProjectInfo"
+import type { DesignAttachmentIndex } from "./designAttachmentIndex"
+import { cloneDeep } from "lodash-es"
+
+function layerTreeHasImageOrVideo(elements: LayerElement[] | undefined): boolean {
+	if (!elements?.length) return false
+	for (const el of elements) {
+		const elementType = (el as { type?: string }).type
+		if (elementType === "image" || elementType === "video") return true
+		const children = (el as { children?: LayerElement[] }).children
+		if (children?.length && layerTreeHasImageOrVideo(children)) return true
+	}
+	return false
+}
 
 /**
  * magic.project.js 文件信息
@@ -70,14 +96,27 @@ export async function loadMagicProjectJsContent(
 
 /**
  * 将 designData 转换为 magic.project.js 文件内容
+ * @param options.projectBasePath 画布目录在项目中的路径段（与 magic.project.js 同级），存在时把画布内资源写成 `./images/...`
  */
-export function generateMagicProjectJsContent(designData: DesignData): string {
+export function generateMagicProjectJsContent(
+	designData: DesignData,
+	options?: { projectBasePath?: string },
+): string {
+	const rawElements = designData.canvas?.elements || []
+	let elements = rawElements
+	const basePath = options?.projectBasePath?.trim()
+	if (basePath) {
+		if (layerTreeHasImageOrVideo(rawElements)) {
+			elements = cloneDeep(rawElements)
+			rewriteLayerElementsPathsForMagicProjectSave(elements, basePath)
+		}
+	}
 	const config = {
 		version: designData.version || "1.0.0",
 		type: designData.type || "design",
 		name: designData.name || "",
 		canvas: {
-			elements: designData.canvas?.elements || [],
+			elements,
 		},
 	}
 
@@ -190,21 +229,31 @@ function replaceDirectoryNameInPath(path: string, oldDirName: string, newDirName
 		return newDirName
 	}
 
-	// 5. 路径中间出现的目录名（前后都有 /）：/xxx/旧目录名/xxx
-	const beforeMiddle = updatedPath
-	updatedPath = updatedPath.replace(new RegExp(`/${escapedOldDirName}/`, "g"), `/${newDirName}/`)
-	if (beforeMiddle !== updatedPath) {
-		return updatedPath
-	}
-
-	// 6. 路径末尾的目录名（前面有 /）：/xxx/旧目录名
-	const beforeEnd = updatedPath
-	updatedPath = updatedPath.replace(new RegExp(`/${escapedOldDirName}$`, "g"), `/${newDirName}`)
-	if (beforeEnd !== updatedPath) {
-		return updatedPath
-	}
-
 	return updatedPath
+}
+
+function replaceReferenceImageOptionsPaths(
+	value: unknown,
+	oldDirName: string,
+	newDirName: string,
+): boolean {
+	if (!Array.isArray(value) || !value.length) {
+		return false
+	}
+
+	let hasChanged = false
+	for (const item of value) {
+		if (!item || typeof item !== "object") continue
+		const rec = item as Record<string, unknown>
+		const path = rec.path
+		if (typeof path !== "string") continue
+		const nextPath = replaceDirectoryNameInPath(path, oldDirName, newDirName)
+		if (nextPath !== path) {
+			rec.path = nextPath
+			hasChanged = true
+		}
+	}
+	return hasChanged
 }
 
 /**
@@ -241,9 +290,10 @@ function replacePathsInElement(
 		// 处理 generateImageRequest
 		const generateImageRequest = element.generateImageRequest as
 			| {
-				file_dir?: string
-				reference_images?: string[]
-			}
+					file_dir?: string
+					reference_images?: string[]
+					reference_image_options?: Array<{ path?: string }>
+			  }
 			| undefined
 
 		if (generateImageRequest && typeof generateImageRequest === "object") {
@@ -280,6 +330,249 @@ function replacePathsInElement(
 				if (hasChanged) {
 					hasReplaced = true
 				}
+			}
+			if (
+				replaceReferenceImageOptionsPaths(
+					generateImageRequest.reference_image_options,
+					oldDirName,
+					newDirName,
+				)
+			) {
+				hasReplaced = true
+			}
+		}
+
+		const imageGenerationTaskMeta = element.imageGenerationTaskMeta as
+			| ImageGenerationTaskMeta
+			| undefined
+		if (
+			imageGenerationTaskMeta &&
+			typeof imageGenerationTaskMeta === "object" &&
+			typeof imageGenerationTaskMeta.file_path === "string"
+		) {
+			const newFilePath = replaceDirectoryNameInPath(
+				imageGenerationTaskMeta.file_path,
+				oldDirName,
+				newDirName,
+			)
+			if (newFilePath !== imageGenerationTaskMeta.file_path) {
+				imageGenerationTaskMeta.file_path = newFilePath
+				hasReplaced = true
+			}
+		}
+		if (
+			imageGenerationTaskMeta &&
+			typeof imageGenerationTaskMeta === "object" &&
+			replaceReferenceImageOptionsPaths(
+				imageGenerationTaskMeta.reference_image_options,
+				oldDirName,
+				newDirName,
+			)
+		) {
+			hasReplaced = true
+		}
+		if (
+			imageGenerationTaskMeta &&
+			typeof imageGenerationTaskMeta === "object" &&
+			imageGenerationTaskMeta.type === ImageGenerationTaskTypeMap.Expand &&
+			imageGenerationTaskMeta.canvas_path &&
+			typeof imageGenerationTaskMeta.canvas_path === "string"
+		) {
+			const newCanvasPath = replaceDirectoryNameInPath(
+				imageGenerationTaskMeta.canvas_path,
+				oldDirName,
+				newDirName,
+			)
+			if (newCanvasPath !== imageGenerationTaskMeta.canvas_path) {
+				imageGenerationTaskMeta.canvas_path = newCanvasPath
+				hasReplaced = true
+			}
+		}
+		if (
+			imageGenerationTaskMeta &&
+			typeof imageGenerationTaskMeta === "object" &&
+			imageGenerationTaskMeta.mask_path &&
+			typeof imageGenerationTaskMeta.mask_path === "string"
+		) {
+			const newMaskPath = replaceDirectoryNameInPath(
+				imageGenerationTaskMeta.mask_path,
+				oldDirName,
+				newDirName,
+			)
+			if (newMaskPath !== imageGenerationTaskMeta.mask_path) {
+				imageGenerationTaskMeta.mask_path = newMaskPath
+				hasReplaced = true
+			}
+		}
+		if (
+			imageGenerationTaskMeta &&
+			typeof imageGenerationTaskMeta === "object" &&
+			imageGenerationTaskMeta.mark_path &&
+			typeof imageGenerationTaskMeta.mark_path === "string"
+		) {
+			const newMarkPath = replaceDirectoryNameInPath(
+				imageGenerationTaskMeta.mark_path,
+				oldDirName,
+				newDirName,
+			)
+			if (newMarkPath !== imageGenerationTaskMeta.mark_path) {
+				imageGenerationTaskMeta.mark_path = newMarkPath
+				hasReplaced = true
+			}
+		}
+
+		const generateHightImageRequest = element.generateHightImageRequest as
+			| {
+					file_path?: string
+					reference_image_options?: Array<{ path?: string }>
+			  }
+			| undefined
+		if (
+			generateHightImageRequest &&
+			typeof generateHightImageRequest === "object" &&
+			generateHightImageRequest.file_path &&
+			typeof generateHightImageRequest.file_path === "string"
+		) {
+			const newFilePath = replaceDirectoryNameInPath(
+				generateHightImageRequest.file_path,
+				oldDirName,
+				newDirName,
+			)
+			if (newFilePath !== generateHightImageRequest.file_path) {
+				generateHightImageRequest.file_path = newFilePath
+				hasReplaced = true
+			}
+		}
+		if (
+			generateHightImageRequest &&
+			typeof generateHightImageRequest === "object" &&
+			replaceReferenceImageOptionsPaths(
+				generateHightImageRequest.reference_image_options,
+				oldDirName,
+				newDirName,
+			)
+		) {
+			hasReplaced = true
+		}
+	}
+
+	if (element.type === "video") {
+		if (element.src && typeof element.src === "string") {
+			const originalSrc = element.src as string
+			const newSrc = replaceDirectoryNameInPath(originalSrc, oldDirName, newDirName)
+			if (newSrc !== originalSrc) {
+				element.src = newSrc
+				hasReplaced = true
+			}
+		}
+
+		const generateVideoRequest = element.generateVideoRequest as
+			| {
+					file_dir?: string
+					inputs?: {
+						frames?: Array<{ uri?: string }>
+						reference_images?: Array<{ uri?: string }>
+						reference_videos?: Array<{ uri?: string }>
+						reference_audios?: Array<{ uri?: string }>
+						video?: { uri?: string }
+						mask?: { uri?: string }
+						audio?: Array<{ uri?: string }>
+					}
+			  }
+			| undefined
+
+		if (generateVideoRequest && typeof generateVideoRequest === "object") {
+			if (
+				generateVideoRequest.file_dir &&
+				typeof generateVideoRequest.file_dir === "string"
+			) {
+				const newFileDir = replaceDirectoryNameInPath(
+					generateVideoRequest.file_dir,
+					oldDirName,
+					newDirName,
+				)
+				if (newFileDir !== generateVideoRequest.file_dir) {
+					generateVideoRequest.file_dir = newFileDir
+					hasReplaced = true
+				}
+			}
+
+			if (Array.isArray(generateVideoRequest.inputs?.frames)) {
+				generateVideoRequest.inputs.frames.forEach((frame) => {
+					if (!frame.uri) return
+					const replacedUri = replaceDirectoryNameInPath(
+						frame.uri,
+						oldDirName,
+						newDirName,
+					)
+					if (replacedUri === frame.uri) return
+					frame.uri = replacedUri
+					hasReplaced = true
+				})
+			}
+
+			if (Array.isArray(generateVideoRequest.inputs?.reference_images)) {
+				generateVideoRequest.inputs.reference_images.forEach((item) => {
+					if (!item.uri) return
+					const replacedUri = replaceDirectoryNameInPath(item.uri, oldDirName, newDirName)
+					if (replacedUri === item.uri) return
+					item.uri = replacedUri
+					hasReplaced = true
+				})
+			}
+
+			if (Array.isArray(generateVideoRequest.inputs?.reference_videos)) {
+				generateVideoRequest.inputs.reference_videos.forEach((item) => {
+					if (!item.uri) return
+					const replacedUri = replaceDirectoryNameInPath(item.uri, oldDirName, newDirName)
+					if (replacedUri === item.uri) return
+					item.uri = replacedUri
+					hasReplaced = true
+				})
+			}
+
+			if (Array.isArray(generateVideoRequest.inputs?.reference_audios)) {
+				generateVideoRequest.inputs.reference_audios.forEach((item) => {
+					if (!item.uri) return
+					const replacedUri = replaceDirectoryNameInPath(item.uri, oldDirName, newDirName)
+					if (replacedUri === item.uri) return
+					item.uri = replacedUri
+					hasReplaced = true
+				})
+			}
+
+			if (generateVideoRequest.inputs?.video?.uri) {
+				const replacedUri = replaceDirectoryNameInPath(
+					generateVideoRequest.inputs.video.uri,
+					oldDirName,
+					newDirName,
+				)
+				if (replacedUri !== generateVideoRequest.inputs.video.uri) {
+					generateVideoRequest.inputs.video.uri = replacedUri
+					hasReplaced = true
+				}
+			}
+
+			if (generateVideoRequest.inputs?.mask?.uri) {
+				const replacedUri = replaceDirectoryNameInPath(
+					generateVideoRequest.inputs.mask.uri,
+					oldDirName,
+					newDirName,
+				)
+				if (replacedUri !== generateVideoRequest.inputs.mask.uri) {
+					generateVideoRequest.inputs.mask.uri = replacedUri
+					hasReplaced = true
+				}
+			}
+
+			if (Array.isArray(generateVideoRequest.inputs?.audio)) {
+				generateVideoRequest.inputs.audio.forEach((item) => {
+					if (!item.uri) return
+					const replacedUri = replaceDirectoryNameInPath(item.uri, oldDirName, newDirName)
+					if (replacedUri === item.uri) return
+					item.uri = replacedUri
+					hasReplaced = true
+				})
 			}
 		}
 	}
@@ -372,7 +665,7 @@ export function replaceNameInMagicProjectJsContent(
  * @param currentFileId 当前文件 ID
  * @returns 如果找到 metadata.canvas 数据，返回 DesignData，否则返回 null
  */
-export function extractDesignDataFromMetadata(
+export function extractDesignDataFromDisplayConfig(
 	attachments: FileItem[],
 	currentFileId: string,
 ): DesignData | null {
@@ -391,8 +684,8 @@ export function extractDesignDataFromMetadata(
 		}
 
 		// 如果当前文件是目录，检查其 metadata
-		if (currentFile.is_directory && currentFile.metadata) {
-			const metadata = currentFile.metadata as {
+		if (currentFile.is_directory && currentFile.display_config) {
+			const metadata = currentFile.display_config as {
 				version?: string
 				type?: string
 				name?: string
@@ -420,8 +713,8 @@ export function extractDesignDataFromMetadata(
 				(item: FileItem) => item.file_id === parentId && item.is_directory,
 			)
 
-			if (parentFolder?.metadata) {
-				const metadata = parentFolder.metadata as {
+			if (parentFolder?.display_config) {
+				const metadata = parentFolder.display_config as {
 					version?: string
 					type?: string
 					name?: string
@@ -603,6 +896,107 @@ export async function findMagicProjectJsFile(params: {
 }
 
 /**
+ * 根据当前文件信息解析设计目录对应的实际文件信息。
+ * - 优先使用 `currentFile.id`
+ * - 若缺少 id，则尝试按目录名在附件列表中匹配目录
+ */
+export function resolveActualDesignCurrentFile(options: {
+	currentFile?: { id?: string; name?: string }
+	flatAttachments?: FileItem[]
+	attachments?: FileItem[]
+	projectPath?: string
+}): { id: string; name: string } | null {
+	const { currentFile, flatAttachments, attachments, projectPath } = options
+	const currentFileId = currentFile?.id
+	const currentFileName = currentFile?.name
+
+	const list =
+		flatAttachments && flatAttachments.length > 0
+			? flatAttachments
+			: flattenAttachmentsList(attachments ?? [])
+
+	if (projectPath) {
+		const matchedByProjectPath = getDesignProjectCurrentFileByProjectPath({
+			projectPath,
+			attachments,
+			flatAttachments: list,
+		})
+		if (matchedByProjectPath) return matchedByProjectPath
+	}
+
+	if (currentFileId && !currentFileName) {
+		const matchedById = list.find((item) => item.file_id === currentFileId)
+		if (matchedById) {
+			const resolvedName = matchedById.file_name || matchedById.display_filename
+			if (resolvedName) {
+				return { id: currentFileId, name: resolvedName }
+			}
+		}
+	}
+
+	if (currentFileId && currentFileName) {
+		return { id: currentFileId, name: currentFileName }
+	}
+
+	if (!currentFileName) return null
+	if (!list.length) return null
+
+	const matchedDirectories = list.filter(
+		(item) =>
+			item.is_directory &&
+			(item.file_name === currentFileName || item.display_filename === currentFileName),
+	)
+	if (matchedDirectories.length === 0) return null
+	if (matchedDirectories.length === 1) {
+		const matchedDirectory = matchedDirectories[0]
+		if (!matchedDirectory?.file_id) return null
+		return {
+			id: matchedDirectory.file_id,
+			name:
+				matchedDirectory.file_name || matchedDirectory.display_filename || currentFileName,
+		}
+	}
+
+	const directoriesWithCanvasMetadata = matchedDirectories.filter((item) => {
+		const metadata = item.display_config as { canvas?: { elements?: unknown[] } } | undefined
+		return Array.isArray(metadata?.canvas?.elements)
+	})
+	if (directoriesWithCanvasMetadata.length === 1) {
+		const matchedDirectory = directoriesWithCanvasMetadata[0]
+		return {
+			id: matchedDirectory.file_id,
+			name:
+				matchedDirectory.file_name || matchedDirectory.display_filename || currentFileName,
+		}
+	}
+
+	const directoriesWithMagicProject = matchedDirectories.filter((directory) => {
+		const directoryPath = directory.relative_file_path || ""
+		const normalizedDirectoryPath = directoryPath.endsWith("/")
+			? directoryPath
+			: `${directoryPath}/`
+		return list.some(
+			(item) =>
+				!item.is_directory &&
+				item.file_name === "magic.project.js" &&
+				(((item as FileItem & { parent_id?: string }).parent_id &&
+					(item as FileItem & { parent_id?: string }).parent_id === directory.file_id) ||
+					item.relative_file_path === `${normalizedDirectoryPath}magic.project.js`),
+		)
+	})
+	if (directoriesWithMagicProject.length === 1) {
+		const matchedDirectory = directoriesWithMagicProject[0]
+		return {
+			id: matchedDirectory.file_id,
+			name:
+				matchedDirectory.file_name || matchedDirectory.display_filename || currentFileName,
+		}
+	}
+
+	return null
+}
+
+/**
  * 获取当前 design 文件的目录路径、目录名称和目录 ID
  */
 export function getDesignDirectoryInfo(
@@ -613,11 +1007,13 @@ export function getDesignDirectoryInfo(
 	name: string | null
 	id: string | null
 } {
-	if (!currentFile?.id || !attachments) {
+	if (!currentFile?.id || !attachments?.length) {
 		return { path: null, name: null, id: null }
 	}
 
-	const currentFileItem = attachments.find((item) => item.file_id === currentFile.id)
+	// 附件常为树形（children）；仅在顶层 find 会漏掉子文件夹下的 magic.project.js / 画布目录
+	const list = flattenAttachmentsList(attachments)
+	const currentFileItem = list.find((item) => item.file_id === currentFile.id)
 	if (!currentFileItem) {
 		return { path: null, name: null, id: null }
 	}
@@ -645,7 +1041,7 @@ export function getDesignDirectoryInfo(
 				const pathParts = directoryPath.split("/").filter(Boolean)
 				const directoryName = pathParts.length > 0 ? pathParts[pathParts.length - 1] : null
 				// 查找目录 ID
-				const directoryItem = attachments.find(
+				const directoryItem = list.find(
 					(item) =>
 						item.is_directory &&
 						item.relative_file_path === directoryPath &&
@@ -661,7 +1057,7 @@ export function getDesignDirectoryInfo(
 			const pathParts = relativePath.split("/").filter(Boolean)
 			const directoryName = pathParts.length > 0 ? pathParts[pathParts.length - 1] : null
 			// 查找目录 ID
-			const directoryItem = attachments.find(
+			const directoryItem = list.find(
 				(item) =>
 					item.is_directory &&
 					item.relative_file_path === relativePath &&
@@ -684,7 +1080,7 @@ export function getDesignDirectoryInfo(
 				const currentFileWithParent = currentFileItem as FileItem & { parent_id?: string }
 				let directoryId: string | null = null
 				if (currentFileWithParent.parent_id) {
-					const parentFolder = attachments.find(
+					const parentFolder = list.find(
 						(item) =>
 							item.file_id === currentFileWithParent.parent_id && item.is_directory,
 					)
@@ -694,7 +1090,7 @@ export function getDesignDirectoryInfo(
 				}
 				// 如果通过 parent_id 没找到，尝试通过路径查找
 				if (!directoryId && directoryName) {
-					const directoryItem = attachments.find(
+					const directoryItem = list.find(
 						(item) =>
 							item.is_directory &&
 							item.relative_file_path === directoryPath &&
@@ -711,9 +1107,7 @@ export function getDesignDirectoryInfo(
 	// 方法3: 使用 parent_id 查找父目录（最可靠）
 	const parentId = (currentFileItem as FileItem & { parent_id?: string }).parent_id
 	if (parentId) {
-		const parentFolder = attachments.find(
-			(item) => item.file_id === parentId && item.is_directory,
-		)
+		const parentFolder = list.find((item) => item.file_id === parentId && item.is_directory)
 		if (parentFolder?.relative_file_path) {
 			let path = parentFolder.relative_file_path
 			if (!path.endsWith("/")) {
@@ -725,6 +1119,76 @@ export function getDesignDirectoryInfo(
 	}
 
 	return { path: "/", name: null, id: null }
+}
+
+/**
+ * 将目录路径规范为 @ 附件树目录节点 id（与 `ProjectAttachmentMentionNode` 约定一致：无尾斜杠）。
+ * `getDesignDirectoryInfo` 常返回以 `/` 结尾的路径，与 `findFolderNode` 按 `id === path` 匹配时需对齐。
+ */
+export function normalizeMentionFolderId(folderId?: string | null): string | undefined {
+	const normalized = folderId?.trim().replace(/\/+$/, "")
+	return normalized || undefined
+}
+
+/**
+ * 从当前文件与附件解析画布目录路径段（与 magic.project.js 同级），供 DSL 路径读写与加载后规范化
+ */
+export function resolveDesignProjectBasePathFromAttachments(options: {
+	currentFile?: { id?: string; name?: string }
+	flatAttachments?: FileItem[]
+	attachments?: FileItem[]
+}): string | undefined {
+	const { currentFile, flatAttachments, attachments } = options
+	const actualCurrentFile = resolveActualDesignCurrentFile({
+		currentFile,
+		flatAttachments,
+		attachments,
+	})
+	if (!actualCurrentFile) return undefined
+	const list =
+		flatAttachments && flatAttachments.length > 0
+			? flatAttachments
+			: flattenAttachmentsList(attachments ?? [])
+	if (!list.length) return undefined
+	const info = getDesignDirectoryInfo(actualCurrentFile, list)
+	return normalizeMagicProjectDirToBase(info.path)
+}
+
+/**
+ * 解析当前画布目录名称，供加载后的内存态名称对齐与保存前名称同步复用。
+ */
+export function resolveDesignDirectoryNameFromAttachments(options: {
+	currentFile?: { id?: string; name?: string }
+	flatAttachments?: FileItem[]
+	attachments?: FileItem[]
+	projectPath?: string
+}): string | undefined {
+	const { currentFile, flatAttachments, attachments, projectPath } = options
+	const actualCurrentFile = resolveActualDesignCurrentFile({
+		currentFile,
+		flatAttachments,
+		attachments,
+		projectPath,
+	})
+	if (!actualCurrentFile) return undefined
+	const list =
+		flatAttachments && flatAttachments.length > 0 ? flatAttachments : (attachments ?? [])
+	if (!list.length) return undefined
+	const info = getDesignDirectoryInfo(actualCurrentFile, list)
+	return info.name || undefined
+}
+
+/**
+ * 画布加载后把图层里的旧绝对路径（如 `/画布名/images/x`）统一为 `./images/x`（与落盘规则一致，就地改写内存数据）
+ */
+export function normalizeDesignDataPathsAfterLoad(
+	designData: DesignData,
+	projectBasePath: string | undefined,
+): void {
+	if (!projectBasePath?.trim()) return
+	const elements = designData.canvas?.elements
+	if (!elements?.length) return
+	rewriteLayerElementsPathsForMagicProjectSave(elements, projectBasePath.trim())
 }
 
 /**
@@ -1056,6 +1520,7 @@ export async function packAndDownloadFiles(
 	imageFiles: FileItem[],
 	downloadMode?: import("@/pages/superMagic/pages/Workspace/types").DownloadImageMode,
 	zipFileName = "design-images.zip",
+	xMagicImageProcessByFileId?: Record<string, ImageProcessOptions>,
 ): Promise<{
 	successCount: number
 	results: Array<{ success: boolean; fileName: string; error?: unknown }>
@@ -1067,33 +1532,73 @@ export async function packAndDownloadFiles(
 	const JSZip = await loadJSZip()
 	const zip = new JSZip()
 
-	// 获取所有图片文件的下载 URL
-	const fileIds = imageFiles.map((file) => file.file_id)
-	const downloadUrls = await getTemporaryDownloadUrl({
-		file_ids: fileIds,
-		download_mode: downloadMode,
-	})
+	const urlMap = new Map<string, string>()
+	const filesWithImageProcess = imageFiles.filter(
+		(file) => !!xMagicImageProcessByFileId?.[file.file_id],
+	)
+	const filesWithoutImageProcess = imageFiles.filter(
+		(file) => !xMagicImageProcessByFileId?.[file.file_id],
+	)
 
-	if (!downloadUrls || downloadUrls.length === 0) {
-		throw new Error(t("design.errors.cannotGetDownloadUrl"))
+	if (filesWithoutImageProcess.length > 0) {
+		const fileIds = filesWithoutImageProcess.map((file) => file.file_id)
+		const downloadUrls = await getTemporaryDownloadUrl({
+			file_ids: fileIds,
+			download_mode: downloadMode,
+		})
+
+		if (!downloadUrls || downloadUrls.length === 0) {
+			throw new Error(t("design.errors.cannotGetDownloadUrl"))
+		}
+
+		downloadUrls.forEach((item: { url?: string }, index: number) => {
+			if (item?.url && fileIds[index]) {
+				urlMap.set(fileIds[index], item.url)
+			}
+		})
 	}
 
-	// 创建 fileId 到 downloadUrl 的映射
-	const urlMap = new Map<string, string>()
-	downloadUrls.forEach((item: { url?: string }, index: number) => {
-		if (item?.url && fileIds[index]) {
-			urlMap.set(fileIds[index], item.url)
+	if (filesWithImageProcess.length > 0) {
+		const imageProcessResults = await Promise.all(
+			filesWithImageProcess.map(async (file) => {
+				const xMagicImageProcess = xMagicImageProcessByFileId?.[file.file_id]
+				if (!xMagicImageProcess) return null
+
+				const downloadUrls = await getTemporaryDownloadUrl({
+					file_ids: [file.file_id],
+					download_mode: downloadMode,
+					options: { xMagicImageProcess },
+				})
+				const downloadUrl = downloadUrls?.[0]?.url
+
+				if (!downloadUrl) {
+					throw new Error(t("design.errors.cannotGetDownloadUrl"))
+				}
+
+				return {
+					fileId: file.file_id,
+					url: downloadUrl,
+				}
+			}),
+		)
+
+		for (const item of imageProcessResults) {
+			if (item?.url) {
+				urlMap.set(item.fileId, item.url)
+			}
 		}
-	})
+	}
 
 	// 处理文件名冲突
 	const usedFileNames = new Set<string>()
 	const processedFiles = imageFiles.map((file: FileItem, index: number) => {
 		const fileName = file.file_name || file.display_filename || `image-${index + 1}`
-		const fileExtension = file.file_extension || "png"
-		const baseFileName = fileName.endsWith(`.${fileExtension}`)
-			? fileName.slice(0, -fileExtension.length - 1)
-			: fileName
+		const processedFormat = normalizeImageProcessFormat(
+			xMagicImageProcessByFileId?.[file.file_id]?.format,
+		)
+		const fileExtension = processedFormat || file.file_extension || "png"
+		const lastDotIndex = fileName.lastIndexOf(".")
+		const baseFileName = lastDotIndex === -1 ? fileName : fileName.slice(0, lastDotIndex)
 
 		// 如果文件名已存在，添加序号
 		let finalFileName = `${baseFileName}.${fileExtension}`
@@ -1162,6 +1667,13 @@ export async function packAndDownloadFiles(
 		successCount,
 		results,
 	}
+}
+
+function normalizeImageProcessFormat(format?: ImageFormat): string | undefined {
+	if (!format) return undefined
+	if (format === "jpg") return "jpg"
+	if (format === "tiff") return "tiff"
+	return format
 }
 
 /**
@@ -1319,18 +1831,62 @@ export function flattenAttachmentsList(items: FileItem[]): FileItem[] {
  * @param src 文件路径或 URL
  * @param flatAttachments 已扁平化的附件列表
  */
-export function findFileBySrc(src: string, flatAttachments: FileItem[]): FileItem | null {
+export function findFileBySrc(
+	src: string,
+	flatAttachments: FileItem[],
+	designProjectBasePath?: string,
+	attachmentIndex?: DesignAttachmentIndex | null,
+): FileItem | null {
 	if (!src || !flatAttachments || flatAttachments.length === 0) {
 		return null
 	}
-	const normalizedSrc = normalizePath(src)
+	const resolvedCandidates =
+		designProjectBasePath && src
+			? resolveDesignDslPathCandidatesToWorkspaceRelative(src, designProjectBasePath)
+			: [src]
+	const normalizedCandidates = resolvedCandidates.map((candidate) => normalizePath(candidate))
+	const normalizedSrc = normalizedCandidates[0] || normalizePath(src)
+
+	let fileItem: FileItem | undefined
+
+	if (attachmentIndex) {
+		for (const candidate of normalizedCandidates) {
+			const direct = attachmentIndex.byNormalizedPath.get(candidate)
+			if (direct && !direct.is_directory) {
+				fileItem = direct
+				break
+			}
+			const tail = candidate.startsWith("/") ? candidate.slice(1) : candidate
+			const relaxed = attachmentIndex.byPathWithoutLeadingSlash.get(tail)
+			if (relaxed && !relaxed.is_directory) {
+				fileItem = relaxed
+				break
+			}
+		}
+	}
 
 	// 方法1: 尝试通过 relative_file_path 匹配
-	let fileItem = flatAttachments.find((item) => {
-		if (!item.relative_file_path || item.is_directory) return false
-		const itemPath = normalizePath(item.relative_file_path)
-		return itemPath === normalizedSrc
-	})
+	if (!fileItem) {
+		fileItem = flatAttachments.find((item) => {
+			if (!item.relative_file_path || item.is_directory) return false
+			const itemPath = normalizePath(item.relative_file_path)
+			return normalizedCandidates.includes(itemPath)
+		})
+	}
+
+	// 方法1.5: 如果目录名变化，尝试按多段后缀匹配（至少目录 + 文件名）
+	if (!fileItem && normalizedSrc.includes("/")) {
+		const pathParts = normalizedSrc.split("/").filter(Boolean)
+		for (let i = pathParts.length; i > 1; i--) {
+			const pathSuffix = pathParts.slice(-i).join("/")
+			fileItem = flatAttachments.find((item) => {
+				if (!item.relative_file_path || item.is_directory) return false
+				const itemPath = normalizePath(item.relative_file_path)
+				return itemPath.endsWith("/" + pathSuffix) || itemPath === pathSuffix
+			})
+			if (fileItem) break
+		}
+	}
 
 	// 方法2: 如果 src 是 URL，尝试从 URL 中提取路径或文件名
 	if (!fileItem && src.includes("/")) {
@@ -1339,22 +1895,33 @@ export function findFileBySrc(src: string, flatAttachments: FileItem[]): FileIte
 		const fileName = urlParts[urlParts.length - 1]?.split("?")[0] // 移除查询参数
 
 		if (fileName) {
-			fileItem = flatAttachments.find((item) => {
-				return (
-					!item.is_directory &&
-					(item.file_name === fileName ||
-						item.display_filename === fileName ||
-						item.filename === fileName)
-				)
-			})
+			const lower = fileName.trim().toLowerCase()
+			const bucket = attachmentIndex?.byFileName.get(lower)
+			if (bucket?.length) {
+				fileItem = bucket.find((item) => !item.is_directory)
+			}
+			if (!fileItem) {
+				fileItem = flatAttachments.find((item) => {
+					return (
+						!item.is_directory &&
+						(item.file_name === fileName ||
+							item.display_filename === fileName ||
+							item.filename === fileName)
+					)
+				})
+			}
 		}
 	}
 
 	// 方法3: 如果 src 是 file_id，直接匹配
 	if (!fileItem && src && !src.includes("/") && !src.includes("\\")) {
-		fileItem = flatAttachments.find((item) => {
-			return !item.is_directory && item.file_id === src
-		})
+		const byId = attachmentIndex?.byFileId.get(src)
+		if (byId && !byId.is_directory) fileItem = byId
+		if (!fileItem) {
+			fileItem = flatAttachments.find((item) => {
+				return !item.is_directory && item.file_id === src
+			})
+		}
 	}
 
 	return fileItem || null
@@ -1374,7 +1941,48 @@ export function convertFileItemToAttachmentItem(fileItem: FileItem): AttachmentI
 		relative_file_path: fileItem.relative_file_path,
 		file_path: fileItem.relative_file_path,
 		file_size: fileItem.file_size,
-		metadata: fileItem.metadata,
+		display_config: fileItem.display_config,
 		source: fileItem.source || AttachmentSource.PROJECT_DIRECTORY,
 	}
+}
+
+function mapFileItemToProjectAttachmentMentionNode(
+	item: FileItem,
+	projectBasePath?: string,
+): ProjectAttachmentMentionNode | null {
+	const isDir = Boolean(item.is_directory)
+	const rawPath = item.relative_file_path || ""
+	const path = isDir ? rawPath : normalizeDesignAttachmentPathForCanvas(rawPath, projectBasePath)
+	const name = (item.file_name || item.display_filename || "").trim()
+	if (!isDir && !name) return null
+	if (isDir && !name && !path && !item.file_id) return null
+
+	let children: ProjectAttachmentMentionNode[] | undefined
+	if (isDir && item.children?.length) {
+		children = item.children
+			.map((c) => mapFileItemToProjectAttachmentMentionNode(c, projectBasePath))
+			.filter((n): n is ProjectAttachmentMentionNode => n !== null)
+	}
+
+	return {
+		id: isDir ? path || item.file_id : item.file_id,
+		fileId: item.file_id,
+		name: name || path || item.file_id,
+		path,
+		extension: item.file_extension,
+		isDirectory: isDir,
+		display_config: item.display_config,
+		children: children && children.length > 0 ? children : undefined,
+	}
+}
+
+/** 将话题附件树转为画布 @ / 参考资源面板的目录树数据源 */
+export function fileItemsToProjectAttachmentMentionTree(
+	items: FileItem[] | undefined,
+	projectBasePath?: string,
+): ProjectAttachmentMentionNode[] {
+	if (!items?.length) return []
+	return items
+		.map((item) => mapFileItemToProjectAttachmentMentionNode(item, projectBasePath))
+		.filter((n): n is ProjectAttachmentMentionNode => n !== null)
 }

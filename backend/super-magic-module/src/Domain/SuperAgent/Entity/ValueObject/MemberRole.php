@@ -27,14 +27,14 @@ enum MemberRole: string
     /**
      * 从字符串创建实例.
      */
-    public static function fromString(string $role): self
+    public static function fromString(string $role): ?self
     {
         return match ($role) {
             'owner' => self::OWNER,
             'manage' => self::MANAGE,
             'editor' => self::EDITOR,
             'viewer' => self::VIEWER,
-            default => ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_ROLE, trans('project.invalid_member_role'))
+            default => null
         };
     }
 
@@ -175,7 +175,7 @@ enum MemberRole: string
     /**
      * 验证权限级别.
      */
-    public static function validatePermissionLevel(string $permission): MemberRole
+    public static function validatePermissionLevel(MemberRole|string $permission): MemberRole
     {
         $validPermissions = [
             MemberRole::OWNER->value,
@@ -183,6 +183,10 @@ enum MemberRole: string
             MemberRole::EDITOR->value,
             MemberRole::VIEWER->value,
         ];
+
+        if ($permission instanceof MemberRole) {
+            $permission = $permission->value;
+        }
 
         if (! in_array($permission, $validPermissions, true)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::INVALID_MEMBER_ROLE, trans('project.invalid_member_role'));

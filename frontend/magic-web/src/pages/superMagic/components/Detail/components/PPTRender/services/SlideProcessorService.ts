@@ -15,7 +15,7 @@ export interface SlideProcessorConfig {
 	attachmentList?: any[]
 	mainFileId?: string
 	mainFileName?: string
-	metadata?: any
+	displayConfig?: any
 }
 
 /**
@@ -53,7 +53,7 @@ export class SlideProcessorService {
 				fileName: this.config.mainFileName || `slide_${slideIndex}.html`,
 				attachmentList: this.config.attachmentList,
 				html_relative_path: relativeFilePath,
-				// metadata: this.config.metadata,
+				displayConfig: this.config.displayConfig,
 			}
 
 			const result: ProcessHtmlContentOutput = await processHtmlContent(input)
@@ -85,7 +85,7 @@ export class SlideProcessorService {
 				fileName: this.config.mainFileName || `slide_${slideIndex}.html`,
 				attachmentList: this.config.attachmentList,
 				html_relative_path: relativeFilePath,
-				metadata: this.config.metadata,
+				displayConfig: this.config.displayConfig,
 			}
 
 			return collectFileIdsFromHtml(input)
@@ -121,7 +121,7 @@ export class SlideProcessorService {
 				fileName: this.config.mainFileName || `slide_${slideIndex}.html`,
 				attachmentList: this.config.attachmentList,
 				html_relative_path: relativeFilePath,
-				metadata: this.config.metadata,
+				displayConfig: this.config.displayConfig,
 				preloadedUrlMapping: urlMapping, // Pass the pre-fetched URL mapping
 			}
 

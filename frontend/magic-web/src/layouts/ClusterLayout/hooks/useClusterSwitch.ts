@@ -7,7 +7,7 @@ import { useAccount } from "@/stores/authentication"
 import { useClusterConfig } from "@/models/config/hooks"
 import { service } from "@/services"
 import type { ConfigService } from "@/services/config/ConfigService"
-import type { LoginService } from "@/services/user/LoginService"
+import { ensureClusterConfigReady } from "@/services/config/cluster-config-loader"
 import { CommonApi } from "@/apis"
 import { convertSearchParams, routesMatch } from "@/routes/history/helpers"
 import { history } from "@/routes"
@@ -15,8 +15,6 @@ import { RouteName } from "@/routes/constants"
 import { omit } from "lodash-es"
 import { whiteListRoutes } from "@/routes/const/whiteRoutes"
 
-// 集群配置加载缓存，避免重复请求
-const clusterConfigLoadingCache = new Map<string, Promise<void>>()
 const clusterConfigLoadedCache = new Set<string>()
 
 interface UseClusterSwitchOptions {
@@ -78,32 +76,15 @@ export function useClusterSwitch(options: UseClusterSwitchOptions): UseClusterSw
 		handleInitError()
 	})
 
-	// 稳定的加载集群配置函数（带缓存）
-	const loadClusterConfig = useMemoizedFn(async (clusterCode: string): Promise<void> => {
+	// 稳定的加载集群配置函数
+	const ensureClusterConfigLoaded = useMemoizedFn(async (clusterCode: string): Promise<void> => {
 		// 如果已经加载过，直接返回
 		if (clusterConfigLoadedCache.has(clusterCode)) {
 			return
 		}
 
-		// 如果正在加载中，返回现有的 Promise
-		const existingPromise = clusterConfigLoadingCache.get(clusterCode)
-		if (existingPromise) {
-			return existingPromise
-		}
-
-		// 创建新的加载 Promise
-		const loadingPromise = service
-			.get<LoginService>("loginService")
-			.getClusterConfig(clusterCode)
-			.then(() => {
-				clusterConfigLoadedCache.add(clusterCode)
-			})
-			.finally(() => {
-				clusterConfigLoadingCache.delete(clusterCode)
-			})
-
-		clusterConfigLoadingCache.set(clusterCode, loadingPromise)
-		return loadingPromise
+		await ensureClusterConfigReady(clusterCode)
+		clusterConfigLoadedCache.add(clusterCode)
 	})
 
 	// 主初始化逻辑
@@ -113,9 +94,7 @@ export function useClusterSwitch(options: UseClusterSwitchOptions): UseClusterSw
 			if (targetClusterCode === configStore.cluster.clusterCode || isWhiteListRoute) {
 				if (!clustersConfig?.[targetClusterCode]) {
 					try {
-						await service
-							.get<LoginService>("loginService")
-							.getClusterConfig(targetClusterCode)
+						await ensureClusterConfigReady(targetClusterCode)
 						await service
 							.get<ConfigService>("configService")
 							.setClusterCode(targetClusterCode)
@@ -132,14 +111,14 @@ export function useClusterSwitch(options: UseClusterSwitchOptions): UseClusterSw
 			setLoading(true)
 
 			// 1. 获取私有配置
-			await CommonApi.getPrivateConfigure(targetClusterCode, false)
+			await CommonApi.getPrivateConfigure(targetClusterCode, { skipAppInitWait: true })
 
 			// 检查请求是否已被取消
 			if (signal.aborted) return
 
 			// 2. 如果集群配置不存在，则加载集群配置（带缓存）
 			if (!clustersConfig?.[targetClusterCode] && targetClusterCode !== "") {
-				await loadClusterConfig(targetClusterCode)
+				await ensureClusterConfigLoaded(targetClusterCode)
 			}
 
 			// 检查请求是否已被取消
@@ -229,7 +208,7 @@ const whiteListCheckCache = new Map<string, boolean>()
 function isInWhiteList(pathname: string): boolean {
 	// 先检查缓存
 	if (whiteListCheckCache.has(pathname)) {
-		return whiteListCheckCache.get(pathname)!
+		return whiteListCheckCache.get(pathname) ?? false
 	}
 
 	// 执行匹配

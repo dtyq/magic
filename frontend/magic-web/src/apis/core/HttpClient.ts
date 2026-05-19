@@ -17,6 +17,8 @@ interface RequestContext {
 	enableAuthorizationVerification?: boolean
 	/** Enable request deduplication */
 	enableRequestUnion?: boolean
+	/** Skip app-init wait in magic client (rare escape hatch) */
+	skipAppInitWait?: boolean
 }
 
 /** Response body */
@@ -51,6 +53,10 @@ export type ResponseInterceptor = (context: InterceptorContext) => Promise<Inter
 /** 异常拦截器 */
 export type ErrorInterceptor = (error: any) => any
 
+export interface AddInterceptorOptions {
+	position?: "head" | "tail"
+}
+
 export interface HttpClientParams {
 	baseURL: string
 	/** 注入集群编码，返回对应集群编码的地址 */
@@ -58,11 +64,11 @@ export interface HttpClientParams {
 }
 
 export class HttpClient {
-	private requestInterceptors: Record<string, RequestInterceptor> = {}
+	private requestInterceptors: RequestInterceptor[] = []
 
-	private responseInterceptors: Record<string, ResponseInterceptor> = {}
+	private responseInterceptors: ResponseInterceptor[] = []
 
-	private errorInterceptors: Record<string, ErrorInterceptor> = {}
+	private errorInterceptors: ErrorInterceptor[] = []
 
 	private baseURL: string
 	public getBaseURL: (clusterCode: string) => string
@@ -75,38 +81,59 @@ export class HttpClient {
 		this.controller = new AbortController()
 	}
 
-	public addRequestInterceptor(interceptor: RequestInterceptor): void {
-		this.requestInterceptors[interceptor?.name] = interceptor
+	public addRequestInterceptor(
+		interceptor: RequestInterceptor,
+		options?: AddInterceptorOptions,
+	): () => void {
+		return this.addInterceptor(this.requestInterceptors, interceptor, options)
 	}
 
-	public addResponseInterceptor(interceptor: ResponseInterceptor): void {
-		this.responseInterceptors[interceptor?.name] = interceptor
+	public addResponseInterceptor(
+		interceptor: ResponseInterceptor,
+		options?: AddInterceptorOptions,
+	): () => void {
+		return this.addInterceptor(this.responseInterceptors, interceptor, options)
 	}
 
-	public addErrorInterceptor(interceptor: ErrorInterceptor): void {
-		this.errorInterceptors[interceptor?.name] = interceptor
+	public addErrorInterceptor(
+		interceptor: ErrorInterceptor,
+		options?: AddInterceptorOptions,
+	): () => void {
+		return this.addInterceptor(this.errorInterceptors, interceptor, options)
 	}
 
 	public setBaseURL(baseURL: string): void {
 		this.baseURL = baseURL
 	}
 
-	private getFullURL(url: string): string {
+	private addInterceptor<T>(
+		interceptors: T[],
+		interceptor: T,
+		options?: AddInterceptorOptions,
+	): () => void {
+		if (options?.position === "head") interceptors.unshift(interceptor)
+		else interceptors.push(interceptor)
+
+		return () => {
+			const index = interceptors.indexOf(interceptor)
+			if (index === -1) return
+			interceptors.splice(index, 1)
+		}
+	}
+
+	private getFullURL(url: string, baseURL = this.baseURL): string {
 		// If the URL is already fully connected, return directly
-		return UrlUtils.join(this.baseURL, url)
+		return UrlUtils.join(baseURL, url)
 	}
 
 	/** Run request interceptor */
 	private async runRequestInterceptors(
 		config: RequestConfig<Headers>,
 	): Promise<RequestConfig<Headers>> {
-		return Object.values(this.requestInterceptors).reduce(
-			async (promiseConfig, interceptor) => {
-				const currentConfig = await promiseConfig
-				return interceptor(currentConfig)
-			},
-			Promise.resolve(config),
-		)
+		return this.requestInterceptors.reduce(async (promiseConfig, interceptor) => {
+			const currentConfig = await promiseConfig
+			return interceptor(currentConfig)
+		}, Promise.resolve(config))
 	}
 
 	/** Run response interceptor */
@@ -133,17 +160,14 @@ export class HttpClient {
 		}
 
 		// Run interceptor chain
-		return Object.values(this.responseInterceptors).reduce(
-			async (promiseResult, interceptor) => {
-				const currentResult = await promiseResult
-				return interceptor(currentResult)
-			},
-			Promise.resolve(initialValue),
-		)
+		return this.responseInterceptors.reduce(async (promiseResult, interceptor) => {
+			const currentResult = await promiseResult
+			return interceptor(currentResult)
+		}, Promise.resolve(initialValue))
 	}
 
 	private async runErrorInterceptors(error: any): Promise<any> {
-		const finalError = await Object.values(this.errorInterceptors).reduce(
+		const finalError = await this.errorInterceptors.reduce(
 			async (promiseError, interceptor) => {
 				const currentError = await promiseError
 				return interceptor(currentError)
@@ -156,40 +180,45 @@ export class HttpClient {
 	async retry(config: RequestConfig): Promise<Response> {
 		const requestContext = this.genRequestContext(config)
 
-		const { url, ...req } = await this.runRequestInterceptors({
+		const { url, baseURL, ...req } = await this.runRequestInterceptors({
 			...config,
 			...requestContext,
 			headers: new Headers(isFunction(config?.headers) ? {} : config?.headers),
 			signal: config?.signal || this.controller.signal,
-			url: this.getFullURL(config.url || ""),
+			url: config.url || "",
 		})
+		const fullURL = this.getFullURL(url || "", baseURL)
 
 		if (isFunction(config?.headers)) {
 			req.headers = config?.headers(req.headers as Headers)
 		}
 
-		return await fetch(url!, req as RequestInit)
+		return await fetch(fullURL, req as RequestInit)
 	}
 
 	public async request<T = any>(config: RequestConfig): Promise<T> {
 		try {
 			const requestContext = this.genRequestContext(config)
 
-			const { url, ...req } = await this.runRequestInterceptors({
+			const { url, baseURL, ...req } = await this.runRequestInterceptors({
 				...config,
 				...requestContext,
 				headers: new Headers(isFunction(config?.headers) ? {} : config?.headers),
 				signal: config?.signal || this.controller.signal,
-				url: this.getFullURL(config.url || ""),
+				url: config.url || "",
 			})
+			const fullURL = this.getFullURL(url || "", baseURL)
 
 			if (isFunction(config?.headers)) {
 				req.headers = config?.headers(req.headers as Headers)
 			}
 
-			const res = await fetch(url!, req as RequestInit)
+			const res = await fetch(fullURL, req as RequestInit)
 
-			const { request, response } = await this.runResponseInterceptors({ url, ...req }, res)
+			const { request, response } = await this.runResponseInterceptors(
+				{ url: fullURL, baseURL, ...req },
+				res,
+			)
 
 			// 解包数据
 			if (request?.unwrapData) {
@@ -210,17 +239,20 @@ export class HttpClient {
 	 */
 	private genRequestContext(config: RequestConfig): RequestContext {
 		return {
+			baseURL: this.baseURL,
 			unwrapData: true,
 			enableRequestUnion: false,
 			enableAuthorization: true,
 			enableErrorMessagePrompt: true,
 			enableAuthorizationVerification: true,
 			...pick(config, [
+				"baseURL",
 				"unwrapData",
 				"enableRequestUnion",
 				"enableAuthorization",
 				"enableErrorMessagePrompt",
 				"enableAuthorizationVerification",
+				"skipAppInitWait",
 			]),
 		}
 	}

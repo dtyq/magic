@@ -16,6 +16,7 @@ from dingtalk_stream.card_replier import AICardStatus
 
 from agentlang.logger import get_logger
 from app.channel.base.reasoning import build_final_message_plain
+from app.channel.base.reply_content import extract_reply_content
 from app.channel.config import IMChannelDisplay
 from app.core.stream import Stream
 
@@ -49,13 +50,12 @@ class DingTalkStream(Stream):
             payload = msg.get("payload", {})
             event = payload.get("event", "")
 
-            # 捕获最终内容（非流式模型兜底；流式场景此值与 streaming driver 累计值相同）
-            if payload.get("type") == "agent_reply" and payload.get("content_type") == "content":
-                content = payload.get("content", "")
-                if content:
-                    self._last_content = content
+            # 捕获最终 assistant 正文，兼容 v1 agent_reply 与 v2 super_magic_message。
+            content = extract_reply_content(payload)
+            if content:
+                self._last_content = content
 
-            elif event == "after_main_agent_run":
+            if event == "after_main_agent_run":
                 self._finished = True
                 if self._display.show_reasoning:
                     final = build_final_message_plain(

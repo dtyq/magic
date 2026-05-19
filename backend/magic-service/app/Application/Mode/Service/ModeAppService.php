@@ -9,14 +9,18 @@ namespace App\Application\Mode\Service;
 
 use App\Application\Mode\Assembler\ModeAssembler;
 use App\Application\Mode\DTO\ModeAggregateDTO;
+use App\Application\Mode\DTO\ModeGroupAggregateDTO;
+use App\Application\Permission\Service\UserModelAccessAppService;
 use App\Domain\Mode\Entity\ModeAggregate;
 use App\Domain\Mode\Entity\ValueQuery\ModeQuery;
 use App\Domain\Provider\Entity\ProviderModelEntity;
 use App\Domain\Provider\Entity\ValueObject\Category;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\ErrorCode\ModeErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\Page;
 use App\Infrastructure\Util\File\EasyFileTools;
+use App\Infrastructure\Util\OfficialOrganizationUtil;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\SuperMagic\Application\Agent\Service\Old\SuperMagicAgentOldAppService;
 use Dtyq\SuperMagic\Application\Agent\Service\SuperMagicAgentAppService;
@@ -260,52 +264,12 @@ class ModeAppService extends AbstractModeAppService
             ];
         }
         $modeAggregateDTOs = $this->buildModeAggregateDTOs($authorization, $modeAggregates);
-
-        $allModels = [];
-        foreach ($modeAggregateDTOs as $aggregateDTO) {
-            foreach ($aggregateDTO->getGroups() as $groupAggregateDTO) {
-                foreach ($groupAggregateDTO->getModels() as $model) {
-                    $allModels[$model->getId()] = $model;
-                }
-                foreach ($groupAggregateDTO->getImageModels() as $imageModel) {
-                    $allModels[$imageModel->getId()] = $imageModel;
-                }
-                foreach ($groupAggregateDTO->getVideoModels() as $videoModel) {
-                    $allModels[$videoModel->getId()] = $videoModel;
-                }
-            }
-        }
+        $allModels = $this->collectModelsFromModeAggregateDTOs($modeAggregateDTOs);
 
         return [
             'mode_aggregates' => $modeAggregateDTOs,
             'models' => $allModels,
         ];
-    }
-
-    private function buildModeGroups(ModeAggregateDTO $modeAggregateDTO): array
-    {
-        $modeGroups = [];
-        foreach ($modeAggregateDTO->getGroups() as $group) {
-            $modeGroups[] = [
-                'group' => $group->getGroup()->toArray(),
-                'model_ids' => array_map(static fn ($model) => $model->getId(), $group->getModels()),
-                'image_model_ids' => array_map(static fn ($model) => $model->getId(), $group->getImageModels()),
-                'video_model_ids' => array_map(static fn ($model) => $model->getId(), $group->getVideoModels()),
-            ];
-        }
-
-        return $modeGroups;
-    }
-
-    private function resolveModeIconUrl(ModeAggregate $modeAggregate): string
-    {
-        $iconPath = EasyFileTools::formatPath($modeAggregate->getMode()->getIconUrl());
-        if ($iconPath === '') {
-            return '';
-        }
-
-        $iconUrls = $this->getIconsWithSmartOrganization([$iconPath]);
-        return $iconUrls[$iconPath]?->getUrl() ?? $iconPath;
     }
 
     /**
@@ -374,11 +338,150 @@ class ModeAppService extends AbstractModeAppService
             $this->processModeAggregateIcons($aggregateDTO);
         }
 
-        return $modeAggregateDTOs;
+        return $this->filterModeAggregateDTOsByUserAccess($authorization, $modeAggregateDTOs);
+    }
+
+    /**
+     * @param array<string, ModeAggregateDTO> $modeAggregateDTOs
+     * @return array<string, mixed>
+     */
+    private function collectModelsFromModeAggregateDTOs(array $modeAggregateDTOs): array
+    {
+        $allModels = [];
+        foreach ($modeAggregateDTOs as $aggregateDTO) {
+            foreach ($aggregateDTO->getGroups() as $groupAggregateDTO) {
+                foreach ($groupAggregateDTO->getModels() as $model) {
+                    $allModels[$model->getId()] = $model;
+                }
+                foreach ($groupAggregateDTO->getImageModels() as $imageModel) {
+                    $allModels[$imageModel->getId()] = $imageModel;
+                }
+                foreach ($groupAggregateDTO->getVideoModels() as $videoModel) {
+                    $allModels[$videoModel->getId()] = $videoModel;
+                }
+            }
+        }
+
+        return $allModels;
+    }
+
+    /**
+     * @param array<string, ModeAggregateDTO> $modeAggregateDTOs
+     * @return array<string, ModeAggregateDTO>
+     */
+    private function filterModeAggregateDTOsByUserAccess(
+        MagicUserAuthorization $authorization,
+        array $modeAggregateDTOs
+    ): array {
+        $accessibleModelIdMap = $this->getAccessibleModelIdMap($authorization);
+        if ($accessibleModelIdMap === null) {
+            return $modeAggregateDTOs;
+        }
+
+        $filtered = [];
+        foreach ($modeAggregateDTOs as $identifier => $aggregateDTO) {
+            $filteredAggregateDTO = $this->filterModeAggregateDTOByAccessibleModelIds($aggregateDTO, $accessibleModelIdMap);
+            if ($filteredAggregateDTO === null) {
+                continue;
+            }
+            $filtered[$identifier] = $filteredAggregateDTO;
+        }
+
+        return $filtered;
+    }
+
+    /**
+     * @param array<string, true> $accessibleModelIdMap
+     */
+    private function filterModeAggregateDTOByAccessibleModelIds(
+        ModeAggregateDTO $aggregateDTO,
+        array $accessibleModelIdMap
+    ): ?ModeAggregateDTO {
+        $filteredGroups = [];
+        foreach ($aggregateDTO->getGroups() as $groupAggregateDTO) {
+            $filteredGroupAggregateDTO = $this->filterModeGroupAggregateDTOByAccessibleModelIds($groupAggregateDTO, $accessibleModelIdMap);
+            if ($filteredGroupAggregateDTO === null) {
+                continue;
+            }
+            $filteredGroups[] = $filteredGroupAggregateDTO;
+        }
+
+        $aggregateDTO->setGroups($filteredGroups);
+        return $aggregateDTO->getAllModelIds() === [] ? null : $aggregateDTO;
+    }
+
+    /**
+     * @param array<string, true> $accessibleModelIdMap
+     */
+    private function filterModeGroupAggregateDTOByAccessibleModelIds(
+        ModeGroupAggregateDTO $groupAggregateDTO,
+        array $accessibleModelIdMap
+    ): ?ModeGroupAggregateDTO {
+        $groupAggregateDTO->setModels(array_values(array_filter(
+            $groupAggregateDTO->getModels(),
+            static fn ($model): bool => isset($accessibleModelIdMap[$model->getModelId()])
+        )));
+        $groupAggregateDTO->setImageModels(array_values(array_filter(
+            $groupAggregateDTO->getImageModels(),
+            static fn ($model): bool => isset($accessibleModelIdMap[$model->getModelId()])
+        )));
+        $groupAggregateDTO->setVideoModels(array_values(array_filter(
+            $groupAggregateDTO->getVideoModels(),
+            static fn ($model): bool => isset($accessibleModelIdMap[$model->getModelId()])
+        )));
+
+        if (
+            $groupAggregateDTO->getModels() === []
+            && $groupAggregateDTO->getImageModels() === []
+            && $groupAggregateDTO->getVideoModels() === []
+        ) {
+            return null;
+        }
+
+        return $groupAggregateDTO;
+    }
+
+    /**
+     * @return null|array<string, true>
+     */
+    private function getAccessibleModelIdMap(MagicUserAuthorization $authorization): ?array
+    {
+        $context = di(UserModelAccessAppService::class)->resolveAccessContext($authorization);
+        return $context['is_restricted'] ? $context['accessible_model_id_map'] : null;
+    }
+
+    private function buildModeGroups(ModeAggregateDTO $modeAggregateDTO): array
+    {
+        $modeGroups = [];
+        foreach ($modeAggregateDTO->getGroups() as $group) {
+            $modelGroup = $group->getGroup()->toArray();
+            $modeGroups[] = [
+                'group' => $modelGroup,
+                'model_ids' => array_map(static fn ($model) => $model->getId(), $group->getModels()),
+                'image_model_ids' => array_map(static fn ($model) => $model->getId(), $group->getImageModels()),
+                'video_model_ids' => array_map(static fn ($model) => $model->getId(), $group->getVideoModels()),
+            ];
+        }
+        return $modeGroups;
+    }
+
+    private function resolveModeIconUrl(ModeAggregate $modeAggregate): string
+    {
+        $iconUrl = $modeAggregate->getMode()->getIconUrl();
+        if (empty($iconUrl) || is_url($iconUrl)) {
+            return $iconUrl;
+        }
+        $iconUrls = $this->getIconsWithSmartOrganization([$iconUrl]);
+        return isset($iconUrls[$iconUrl]) ? $iconUrls[$iconUrl]->getUrl() : $iconUrl;
     }
 
     /**
      * 批量获取模型和服务商状态（性能优化版本）.
+     *
+     * 必须把真实的 providerStatuses 传给 filterAvailableModels，
+     * 否则动态模型在 isDynamicModelEffectivelyAvailable 里会因为
+     * 叶子 provider 的状态查不到而被一律视为不可用。
+     *
      * @param array $allModelIds 所有需要查询的modelId
      * @return array<string, ProviderModelEntity> 已通过级联状态筛选的可用模型
      */
@@ -387,9 +490,13 @@ class ModeAppService extends AbstractModeAppService
         if (empty($allModelIds)) {
             return [];
         }
-        $groupedModels = $this->getModelGroupsBatch($allModelIds);
 
-        return $this->filterAvailableModels($groupedModels, []);
+        $providerDataIsolation = new ProviderDataIsolation(OfficialOrganizationUtil::getOfficialOrganizationCode());
+        $allModels = $this->providerModelDomainService->getModelsByModelIds($providerDataIsolation, $allModelIds);
+        $allModels = $this->expandModelGroupsForDynamicSubModels($providerDataIsolation, $allModels);
+        $providerStatuses = $this->getProviderStatuses($providerDataIsolation, $allModels);
+
+        return $this->filterAvailableModels($allModels, $providerStatuses);
     }
 
     /**

@@ -3,6 +3,7 @@ import type { AttachmentItem } from "./types"
 import { MenuProps } from "antd"
 import { collectFileIds } from "../utils/collectFileIds"
 import { collectSelectedItemIds } from "../utils/collectSelectedItemIds"
+import { hasMagicSystemFolderInDeletionSelection } from "../utils/magic-system-folder"
 import {
 	IconDownload,
 	IconFileTypePdf,
@@ -16,6 +17,7 @@ import { useTranslation } from "react-i18next"
 import { downloadFileWithAnchor } from "../../../utils/handleFIle"
 import { getParentPathFromFileId } from "../../SelectPathModal/utils/attachmentUtils"
 import MagicModal from "@/components/base/MagicModal"
+import { MagicSystemFolderIcon } from "../components/MagicSystemFolderIcon"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import { getAppEntryFile } from "../../MessageList/components/MessageAttachment/utils"
@@ -96,7 +98,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
 	const { isShareRoute, isFileShare } = useShareRoute()
-	const { hideCopyTo, hideMoveTo, hideShare } = useFileActionVisibility()
+	const { hideCopyTo, hideMoveTo, hideShareFile } = useFileActionVisibility()
 
 	// 批量导出进度控制辅助函数
 	const handleBatchExportStart = (convertType: "pdf" | "ppt") => {
@@ -158,18 +160,26 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	// 移动端批量删除（使用 Modal 确认）
 	const handleMobileBatchDelete = async () => {
 		const containsFolders = hasSelectedFolders()
+		const touchesMagicFolder = hasMagicSystemFolderInDeletionSelection(
+			filteredFiles,
+			selectedItems,
+			getItemId,
+		)
 
 		MagicModal.confirm({
 			title: t("topicFiles.contextMenu.deleteTip"),
-			content: containsFolders
-				? t("topicFiles.contextMenu.confirmBatchDeleteWithFolders", {
-						count: selectedItems.size,
-					})
-				: t("topicFiles.contextMenu.confirmBatchDelete", {
-						count: selectedItems.size,
-					}),
+			content: touchesMagicFolder
+				? t("topicFiles.contextMenu.confirmBatchDeleteWithMagicSystemFolder")
+				: containsFolders
+					? t("topicFiles.contextMenu.confirmBatchDeleteWithFolders", {
+							count: selectedItems.size,
+						})
+					: t("topicFiles.contextMenu.confirmBatchDelete", {
+							count: selectedItems.size,
+						}),
 			variant: "destructive",
 			showIcon: true,
+			icon: touchesMagicFolder ? <MagicSystemFolderIcon size={24} /> : undefined,
 			okText: t("topicFiles.contextMenu.delete"),
 			cancelText: t("topicFiles.contextMenu.cancel"),
 			onOk: handleBatchDelete,
@@ -179,18 +189,26 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	// PC端批量删除（使用 Modal 确认）
 	const handlePCBatchDeleteWithConfirm = async () => {
 		const containsFolders = hasSelectedFolders()
+		const touchesMagicFolder = hasMagicSystemFolderInDeletionSelection(
+			filteredFiles,
+			selectedItems,
+			getItemId,
+		)
 
 		MagicModal.confirm({
 			title: t("topicFiles.contextMenu.deleteTip"),
-			content: containsFolders
-				? t("topicFiles.contextMenu.confirmBatchDeleteWithFolders", {
-						count: selectedItems.size,
-					})
-				: t("topicFiles.contextMenu.confirmBatchDelete", {
-						count: selectedItems.size,
-					}),
+			content: touchesMagicFolder
+				? t("topicFiles.contextMenu.confirmBatchDeleteWithMagicSystemFolder")
+				: containsFolders
+					? t("topicFiles.contextMenu.confirmBatchDeleteWithFolders", {
+							count: selectedItems.size,
+						})
+					: t("topicFiles.contextMenu.confirmBatchDelete", {
+							count: selectedItems.size,
+						}),
 			variant: "destructive",
 			showIcon: true,
+			icon: touchesMagicFolder ? <MagicSystemFolderIcon size={24} /> : undefined,
 			okText: t("topicFiles.contextMenu.delete"),
 			cancelText: t("topicFiles.contextMenu.cancel"),
 			onOk: handleBatchDelete,
@@ -303,8 +321,8 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 				getItemId,
 				includeFolderIds: false,
 				filterFn: (item) => {
-					// 处理 metadata 和 index.html 的特殊情况
-					if (item?.metadata && item?.name !== "index.html") {
+					// 处理 display_config 和 index.html 的特殊情况
+					if (item?.display_config && item?.name !== "index.html") {
 						// 这种情况在 collectFileIds 中已经处理了，这里不需要额外过滤
 						return true
 					}
@@ -316,16 +334,19 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 				},
 			})
 
-			// 处理 metadata 和 index.html 的特殊情况
+			// 处理 display_config 和 index.html 的特殊情况
 			// 需要单独处理，因为需要获取 appEntryFile
 			const processedFileIds: string[] = []
-			const processMetadataItems = (items: AttachmentItem[], parentSelected = false) => {
+			const processDisplayConfigItems = (items: AttachmentItem[], parentSelected = false) => {
 				items.forEach((item) => {
 					const itemId = getItemId(item)
 					const isSelected = parentSelected || selectedItems.has(itemId)
 
-					if (isSelected && item?.metadata && item?.name !== "index.html") {
-						const appEntryFile = getAppEntryFile(item?.children || [])
+					if (isSelected && item?.display_config && item?.name !== "index.html") {
+						const appEntryFile = getAppEntryFile(
+							item?.children || [],
+							item.display_config,
+						)
 						if (appEntryFile?.file_id) {
 							processedFileIds.push(appEntryFile.file_id)
 						}
@@ -333,7 +354,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 					}
 				})
 			}
-			processMetadataItems(filteredFiles)
+			processDisplayConfigItems(filteredFiles)
 
 			// 合并处理后的文件ID
 			const finalFileIds = [
@@ -429,7 +450,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 		const parentPath = firstFileId ? getParentPathFromFileId(firstFileId, attachments) : []
 
 		// 如果有跨项目操作所需的数据，使用新的跨项目 Modal
-		if (selectedWorkspace && selectedProject && projects.length > 0 && crossProjectOperation) {
+		if (projects.length > 0 && crossProjectOperation) {
 			crossProjectOperation.openMoveModal(fileIds, parentPath)
 		} else if (moveFileHook) {
 			// 否则使用原来的 SelectDirectoryModal
@@ -440,13 +461,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	// 批量复制处理函数
 	const handleBatchCopy = () => {
 		if (!selectedItems || selectedItems.size === 0) return
-		if (
-			!selectedWorkspace ||
-			!selectedProject ||
-			projects.length === 0 ||
-			!crossProjectOperation
-		)
-			return
+		if (!crossProjectOperation) return
 
 		const fileIds = Array.from(selectedItems)
 		const firstFileId = fileIds[0]
@@ -458,7 +473,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	// 创建下拉菜单项配置
 	const batchMenuItems = normalizeMenuItems([
 		// 分享文件（仅在项目内显示）
-		...(isInProject && allowEdit && !hideShare
+		...(isInProject && allowEdit && !hideShareFile
 			? [
 					{
 						key: "share",

@@ -23,6 +23,8 @@ export interface EditActionOptions {
 	pastePosition?: { x: number; y: number }
 	/** 剪贴板事件（用于 edit.paste 操作） */
 	clipboardEvent?: ClipboardEvent
+	/** 粘贴入口来源：快捷键或菜单按钮 */
+	pasteSource?: "keyboard" | "menu"
 }
 
 /**

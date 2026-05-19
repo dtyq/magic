@@ -1,5 +1,3 @@
-import type { Marker } from "@/components/CanvasDesign/canvas/types"
-
 export interface MarkerStorageOptions {
 	storageKeyPrefix?: string
 }

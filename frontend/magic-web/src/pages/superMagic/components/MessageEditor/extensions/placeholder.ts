@@ -78,6 +78,11 @@ interface PlaceholderProps {
 	hasAnchor: boolean
 }
 
+function hasVisibleSuggestion(node: ProsemirrorNode) {
+	const suggestion = node.attrs?.suggestion
+	return typeof suggestion === "string" && suggestion.trim().length > 0
+}
+
 /**
  * This extension allows you to add a placeholder to your editor.
  * A placeholder is a text that appears when the editor or a node is empty.
@@ -209,7 +214,11 @@ export const Placeholder = Extension.create<
 							const hasAnchor = anchor >= pos && anchor <= pos + node.nodeSize
 							const isEmpty = !node.isLeaf && isNodeEmpty(node)
 
-							if ((hasAnchor || !this.options.showOnlyCurrent) && isEmpty) {
+							if (
+								(hasAnchor || !this.options.showOnlyCurrent) &&
+								isEmpty &&
+								!hasVisibleSuggestion(node)
+							) {
 								const classes = [
 									this.options.emptyNodeClass,
 									this.options.emptyEditorClass,

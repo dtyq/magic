@@ -12,6 +12,8 @@ export const CREW_EDIT_ERROR = {
 	updateSceneFailed: "errors.updateSceneFailed",
 	saveCrewFailed: "errors.saveCrewFailed",
 	loadAgentFailed: "errors.loadAgentFailed",
+	identityMarkdownMissing: "errors.identityMarkdownMissing",
+	loadIdentityMarkdownFailed: "errors.loadIdentityMarkdownFailed",
 } as const
 
 export type CrewEditErrorKey = (typeof CREW_EDIT_ERROR)[keyof typeof CREW_EDIT_ERROR]

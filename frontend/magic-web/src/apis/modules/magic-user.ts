@@ -11,6 +11,7 @@ export const generateMagicUserApi = (fetch: HttpClient) => ({
 	 * @param {string} params.nickname 用户名
 	 * @param {string} params.profession 职业身份
 	 * @param {string} params.channel 获知渠道
+	 * @param {string} params.timezone 时区
 	 * @returns {Promise<any>}
 	 */
 	updateUserInfo(params: {
@@ -18,6 +19,11 @@ export const generateMagicUserApi = (fetch: HttpClient) => ({
 		nickname?: string
 		profession?: string
 		channel?: string
+		timezone?: string | null
+		preferences?: {
+			show_follow_up_suggestions?: boolean
+			keep_used_follow_up_suggestions?: boolean
+		}
 	}) {
 		return fetch.post(genRequestUrl("/api/v1/contact/users/me"), params)
 	},

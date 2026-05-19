@@ -11,19 +11,21 @@ tools:
   - multi_edit_file_range
   - delete_files
   - shell_exec
+  - shell_await
   - run_python_snippet
   - audio_understanding
   - split_audio
   - setup_audio_project
   - analyze_audio_project
   - visual_understanding
+  - video_understanding
   - web_search
   - read_webpages_as_markdown
   - download_from_url
+  - ask_user
 skills:
   system_skills:
     - name: skill-vetter
-    - name: find-skill
     - name: using-mcp
   workspace_skills: "*"
 ---

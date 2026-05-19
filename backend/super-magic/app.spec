@@ -50,6 +50,7 @@ a = Analysis(
     ],
     datas=[
         *extra_datas,
+        ('.super-magic-project-root', '.'),  # 项目根目录标志文件，供 skill 脚本定位根目录
         ('agents', 'agents'),  # 添加agents目录
         ('config', 'config'),  # 添加config目录
         ('static', 'static'),
@@ -74,7 +75,6 @@ a = Analysis(
     # 需要被动态加载的隐性组件包
     hiddenimports=[
         *extra_hiddenimports,
-        'tiktoken_ext.openai_public', 'tiktoken_ext',
         # 使得包可以被动态 import 进来
         'pydantic',
         'pydantic_core',

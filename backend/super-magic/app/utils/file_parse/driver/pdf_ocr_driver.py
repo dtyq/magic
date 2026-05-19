@@ -348,16 +348,8 @@ class PdfOcrDriver(AbstractDriver, PdfDriverInterface):
     def __init__(self):
         """Initialize PDF parser driver."""
         super().__init__()
-        self._file_service = None  # 延迟初始化以避免循环导入
         # Track copied files for cleanup
         self._copied_files: list[CopiedFileInfo] = []
-
-    def _get_file_service(self):
-        """获取FileService实例，使用延迟导入避免循环依赖"""
-        if self._file_service is None:
-            from app.service.file_service import FileService
-            self._file_service = FileService()
-        return self._file_service
 
     async def _copy_file_to_visual_dir(self, file_path: str) -> Optional[CopiedFileInfo]:
         """Copy PDF file to workspace/.visual directory
@@ -428,28 +420,32 @@ class PdfOcrDriver(AbstractDriver, PdfDriverInterface):
 
         self._copied_files.clear()
 
-    async def _generate_file_download_url(self, relative_path: str) -> str:
-        """Generate download URL using file service
+    async def _generate_file_download_url(self, absolute_path: Path) -> str:
+        """Generate download URL via the unified workspace-file helper.
+
+        Goes through `local file -> magicfs xattr s3_key -> presigned URL`.
+        Lazy imports `FileService` to avoid circular dependency between the
+        file-parsing layer and `app.service.file_service`.
 
         Args:
-            relative_path: Path relative to workspace (e.g., 'documents/file.pdf')
+            absolute_path: Absolute path to a workspace file.
 
         Returns:
-            str: Download URL
+            str: Presigned download URL.
 
         Raises:
-            ValueError: If URL generation fails
+            ValueError: If URL generation fails.
         """
-        result = await self._get_file_service().get_file_download_url(
-            file_path=relative_path,
-            expires_in=3600  # 1 hour
-        )
+        from app.service.file_service import FileService, WorkspaceFileURLError
 
-        download_url = result.get("download_url")
-        if not download_url:
-            raise ValueError("Failed to generate download URL for PDF file")
+        try:
+            download_url = await FileService().get_workspace_file_url(
+                absolute_path, expires_in=3600
+            )
+        except (FileNotFoundError, WorkspaceFileURLError) as e:
+            raise ValueError(f"Failed to generate download URL for PDF file: {e}") from e
 
-        logger.info(f"Generated PDF download URL: {relative_path}")
+        logger.info(f"Generated PDF download URL: {absolute_path}")
         return download_url
 
     async def parse(self, file_path: Union[str, Path], result: ParseResult, **kwargs) -> None:
@@ -469,14 +465,15 @@ class PdfOcrDriver(AbstractDriver, PdfDriverInterface):
             # Check if file is in workspace
             is_in_workspace = _is_file_in_workspace(str(file_path_obj))
             copied_file_info = None
-            relative_path = None
+            relative_path: Optional[str] = None
+            absolute_path: Path
 
             if is_in_workspace:
-                # File is in workspace, calculate relative path
+                # File is in workspace, derive both absolute and workspace-relative paths
                 workspace_path = _get_workspace_path()
-                file_abs_path = file_path_obj.resolve()
+                absolute_path = file_path_obj.resolve()
                 workspace_abs_path = workspace_path.resolve()
-                relative_path = str(file_abs_path.relative_to(workspace_abs_path))
+                relative_path = str(absolute_path.relative_to(workspace_abs_path))
                 logger.info(f"PDF file is in workspace, relative path: {relative_path}")
             else:
                 # File is not in workspace, copy to .visual directory
@@ -484,11 +481,12 @@ class PdfOcrDriver(AbstractDriver, PdfDriverInterface):
                 if not copied_file_info:
                     raise ValueError("Failed to copy PDF file to workspace/.visual directory")
 
+                absolute_path = Path(copied_file_info.copied_path).resolve()
                 relative_path = copied_file_info.relative_path
                 logger.info(f"PDF file copied to .visual directory, relative path: {relative_path}")
 
-            # Generate download URL
-            download_url = await self._generate_file_download_url(relative_path)
+            # Generate download URL via unified xattr-based helper
+            download_url = await self._generate_file_download_url(absolute_path)
 
             # Parse using Magic Service
             extract_images = kwargs.get('extract_images', True)

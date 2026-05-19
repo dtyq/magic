@@ -1,5 +1,5 @@
 import { logger as Logger } from "@/utils/log"
-import { preloadRecordSummaryFloatPanel } from "./recordSummary/utils/preloadService"
+import { shouldSkipRecordingSessionRestoreOnCurrentRoute } from "./recordSummary/recordingRestoreRouteGuard"
 
 const logger = Logger.createLogger("initRecordSummaryService")
 
@@ -15,6 +15,11 @@ export interface InitRecordSummaryParams {
 export async function tryRestorePreviousRecordSummarySession({
 	userId,
 }: InitRecordSummaryParams): Promise<void> {
+	if (shouldSkipRecordingSessionRestoreOnCurrentRoute()) {
+		logger.log("Skip record summary restore on share route")
+		return
+	}
+
 	const { hasRecoverableRecordingSession } =
 		await import("./recordSummary/recordingRecoveryChecker")
 	const shouldRestore = hasRecoverableRecordingSession(userId)
@@ -27,6 +32,8 @@ export async function tryRestorePreviousRecordSummarySession({
 	try {
 		const { initializeService } = await import("./recordSummary/serviceInstance")
 
+		const { preloadRecordSummaryFloatPanel } =
+			await import("./recordSummary/utils/preloadService")
 		// 预加载浮动面板
 		preloadRecordSummaryFloatPanel()
 

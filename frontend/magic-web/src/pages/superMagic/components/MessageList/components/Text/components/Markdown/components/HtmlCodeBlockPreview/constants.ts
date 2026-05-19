@@ -1,11 +1,22 @@
 // HTML 代码块桌面预览的默认可视高度上限。
-export const HTML_CODE_BLOCK_PREVIEW_DESKTOP_HEIGHT = 560
+export const HTML_CODE_BLOCK_PREVIEW_DESKTOP_HEIGHT = 480
 
 // 在未拿到真实内容宽度前，预览画布使用的基础宽度。
 export const HTML_CODE_BLOCK_PREVIEW_CANVAS_WIDTH = 1200
 
-// 在窄容器里用于推导预览视口高度的宽高比。
-export const HTML_CODE_BLOCK_PREVIEW_HEIGHT_TO_WIDTH_RATIO = 4 / 2
+// PC 预览：固定按 1920 设计宽对容器做缩放（与画布逻辑宽一致）。
+export const HTML_CODE_BLOCK_PREVIEW_DESKTOP_DESIGN_WIDTH = 1920
+
+// 与 Detail `PHONE_MODE_CONFIG.width` 一致；手机预览在无宿主宽度前用作回退逻辑宽。
+export const HTML_CODE_BLOCK_PREVIEW_PHONE_VIEWPORT_WIDTH = 414
+
+// 手机预览卡片使用 border-box，左右 padding(6 * 2) 与边框(1 * 2) 会占掉 iframe 可用宽度。
+// 当聊天面板仍有富余宽度时，用这段补偿把外层卡片稍微放宽，避免内部再出现一小截横向滚动。
+export const HTML_CODE_BLOCK_PREVIEW_PHONE_CARD_CHROME_WIDTH = 14
+
+// 预览容器默认采用 1 : 1 的比例，窄容器里优先按这个比例推导高度。
+export const HTML_CODE_BLOCK_PREVIEW_VIEWPORT_ASPECT_RATIO = "1 / 1"
+export const HTML_CODE_BLOCK_PREVIEW_HEIGHT_TO_WIDTH_RATIO = 1
 
 // 根据内容中的宽度线索做启发式推导时，可选择的几档画布宽度。
 export const HTML_CODE_BLOCK_PREVIEW_WIDE_CANVAS_WIDTH_CANDIDATES = [

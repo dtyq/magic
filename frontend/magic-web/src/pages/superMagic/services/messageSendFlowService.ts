@@ -1,16 +1,18 @@
-import { isObject } from "lodash-es"
+import { isObject, merge } from "lodash-es"
 import { JSONContent } from "@tiptap/core"
 import { ChatApi, SuperMagicApi } from "@/apis"
 import { EventType } from "@/types/chat"
 import {
 	ConversationMessageType,
+	type ConversationQueryMessage,
 	type ConversationMessageSend,
 } from "@/types/chat/conversation_message"
+import type { SeqResponse } from "@/types/request"
 import { logger as Logger } from "@/utils/log"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import GlobalMentionPanelStore, {
 	type MentionPanelStore,
-} from "@/components/business/MentionPanel/store"
+} from "@/components/business/MentionPanel/builtin-store"
 import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import { userStore } from "@/models/user"
 import {
@@ -18,7 +20,11 @@ import {
 	internetSearchManager,
 } from "../components/MessageEditor/services/InternetSearchManager"
 import type { MessageEditorRef } from "../components/MessageEditor/MessageEditor"
-import { generateTextFromJSONContent, isEmptyJSONContent } from "../components/MessageEditor/utils"
+import {
+	buildPlainTextJSONContent,
+	generateTextFromJSONContent,
+	isEmptyJSONContent,
+} from "../components/MessageEditor/utils"
 import { transformMentions } from "../components/MessageEditor/utils/mention"
 import type { ModelItem } from "../components/MessageEditor/types"
 import type { SendMessageOptions } from "../components/MessagePanel/types"
@@ -27,10 +33,11 @@ import {
 	type Workspace,
 	type ProjectListItem,
 	type Topic,
-	type TopicMode,
 } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import { superMagicStore } from "../stores"
 import { smartRenameTopicIfUnnamed } from "./topicRename"
+import { shouldClearEditorAfterSend } from "./messageSendEditorPolicy"
 
 const logger = Logger.createLogger("messageSendService")
 
@@ -39,9 +46,11 @@ export interface HandleSendParams {
 	mentionItems: MentionListItem[]
 	selectedModel?: ModelItem | null
 	selectedImageModel?: ModelItem | null
+	selectedVideoModel?: ModelItem | null
 	topicMode?: TopicMode
 	isFromQueue?: boolean
 	queueId?: string
+	shouldClearEditorAfterSend?: boolean
 	extra?: Record<string, unknown>
 }
 
@@ -127,7 +136,7 @@ class MessageSendService {
 	sendContent({ content, options, showLoading = false, context }: SendContentParams) {
 		// 发送前统一处理内容格式
 		if (typeof content === "string") {
-			this.dispatchMessage({
+			void this.dispatchMessage({
 				content,
 				showLoading,
 				options,
@@ -137,7 +146,7 @@ class MessageSendService {
 		}
 
 		if (!isEmptyJSONContent(content)) {
-			this.dispatchMessage({
+			void this.dispatchMessage({
 				jsonContent: content,
 				showLoading,
 				options,
@@ -146,7 +155,7 @@ class MessageSendService {
 		}
 	}
 
-	dispatchMessage({
+	async dispatchMessage({
 		content: textContent,
 		jsonContent,
 		showLoading,
@@ -154,7 +163,7 @@ class MessageSendService {
 		selectedProject,
 		selectedTopic,
 		context,
-	}: DispatchMessageParams) {
+	}: DispatchMessageParams): Promise<boolean> {
 		// 发送前必须有有效话题
 		const currentProject =
 			selectedProject ?? context?.selectedProject ?? options?._tempProject ?? null
@@ -162,20 +171,32 @@ class MessageSendService {
 
 		if (!currentTopic?.id) {
 			this.deps.logger.error("发送消息 - 未找到选中的话题")
-			return
+			return false
 		}
 
-		const isRichText = isObject(jsonContent)
-		const content = isRichText ? JSON.stringify(jsonContent) : textContent?.trim()
-		if (!content) {
-			return
+		const trimmedText = textContent?.trim()
+		let resolvedJson: JSONContent | undefined
+		if (isObject(jsonContent)) {
+			resolvedJson = jsonContent
+		} else if (trimmedText) {
+			resolvedJson = buildPlainTextJSONContent(trimmedText)
+		} else {
+			return false
 		}
+
+		if (isEmptyJSONContent(resolvedJson)) return false
+
+		const content = JSON.stringify(resolvedJson)
+		const messageType = ConversationMessageType.RichText
+		const messageId = generateUniqueId()
+		const { chat_topic_id, chat_conversation_id } = currentTopic
+		const date = new Date().getTime()
+
+		const sendOptions = stripTempOptions(options)
 
 		// 话题名为空时根据内容自动命名
 		if (currentProject && currentTopic) {
-			const userQuestion = isRichText
-				? generateTextFromJSONContent(jsonContent)
-				: textContent?.trim() || ""
+			const userQuestion = generateTextFromJSONContent(resolvedJson)
 
 			void smartRenameTopicIfUnnamed({
 				topic: currentTopic,
@@ -196,14 +217,15 @@ class MessageSendService {
 				})
 		}
 
-		const messageType = isRichText
-			? ConversationMessageType.RichText
-			: ConversationMessageType.Text
-		const messageId = generateUniqueId()
-		const { chat_topic_id, chat_conversation_id } = currentTopic
-		const date = new Date().getTime()
-
-		const sendOptions = stripTempOptions(options)
+		const mergedSendOptions = merge({}, sendOptions, {
+			extra: {
+				super_agent: {
+					dynamic_params: {
+						message_version: "v2",
+					},
+				},
+			},
+		})
 
 		if (currentTopic?.id && sendOptions?.extra?.super_agent?.mentions) {
 			const mentions = sendOptions.extra.super_agent.mentions
@@ -212,13 +234,17 @@ class MessageSendService {
 
 		// 调用聊天接口发送消息
 		const sendMessage = () => {
-			this.deps.chatApi.chat(EventType.Chat, {
+			// 发送消息前需要优先基于当前发送的消息落本地的 superMagicStore 中
+			this.deps.superMagicStore.addUserMessage(chat_topic_id, {
 				message: {
 					type: messageType,
 					[messageType]: {
 						content,
+						/**
+						 * @deprecated follow_up 和 normal 后期将废弃，follow_up 追加对话，normal 正常新对话
+						 */
 						instructs: [{ value: showLoading ? "follow_up" : "normal" }],
-						...sendOptions,
+						...mergedSendOptions,
 					},
 					send_timestamp: date,
 					send_time: date,
@@ -229,29 +255,65 @@ class MessageSendService {
 				} as unknown as ConversationMessageSend["message"],
 				conversation_id: chat_conversation_id,
 			})
+			this.deps.chatApi
+				.chat(EventType.Chat, {
+					message: {
+						type: messageType,
+						[messageType]: {
+							content,
+							instructs: [{ value: showLoading ? "follow_up" : "normal" }],
+							...mergedSendOptions,
+						},
+						send_timestamp: date,
+						send_time: date,
+						sender_id: this.deps.userStore.user.userInfo?.user_id,
+						app_message_id: messageId,
+						message_id: messageId,
+						topic_id: chat_topic_id,
+					} as unknown as ConversationMessageSend["message"],
+					conversation_id: chat_conversation_id,
+				})
+				.then((res) => {
+					const responseSeq =
+						(res as { data?: { seq?: SeqResponse<ConversationQueryMessage> } })?.data
+							?.seq ?? (res as { seq?: SeqResponse<ConversationQueryMessage> })?.seq
+					if (!responseSeq?.message) return
+					// 响应成功后替换 superMagicStore 中对应数据
+					this.deps.superMagicStore.replaceUserMessage(chat_topic_id, responseSeq)
+					// console.log("发送消息后的响应", res, {
+					// 	type: messageType,
+					// 	[messageType]: {
+					// 		content,
+					// 		instructs: [{ value: showLoading ? "follow_up" : "normal" }],
+					// 		...mergedSendOptions,
+					// 	},
+					// 	send_timestamp: date,
+					// 	send_time: date,
+					// 	sender_id: this.deps.userStore.user.userInfo?.user_id,
+					// 	app_message_id: messageId,
+					// 	message_id: messageId,
+					// 	topic_id: chat_topic_id,
+					// })
+				})
+				.catch((error) => {
+					console.log("error", error)
+				})
 		}
 
 		// 存在撤回消息时先确认撤回状态
-		const messageList = this.getMessageList(currentTopic)
-		if (messageList.some((message) => message?.status === MessageStatus.REVOKED)) {
-			this.deps.pubsub.publish(PubSubEvents.Hide_Revoked_Messages)
-			const confirmPromise = this.deps.superMagicApi.confirmUndoMessage({
-				topic_id: currentTopic.id,
-			})
-			if (confirmPromise) {
-				confirmPromise
-					.then(() => {
-						sendMessage()
-						this.deps.pubsub.publish(PubSubEvents.Refresh_Topic_Messages)
-					})
-					.catch(() => {
-						this.deps.pubsub.publish(PubSubEvents.Show_Revoked_Messages)
-					})
-			}
-			return
+		const hasRevokedMessages = this.getMessageList(currentTopic).some(
+			(message) => message?.status === MessageStatus.REVOKED,
+		)
+		if (hasRevokedMessages) {
+			const isConfirmed = await this.confirmRevokedMessagesBeforeSend(currentTopic)
+			if (!isConfirmed) return false
 		}
 
 		sendMessage()
+		if (hasRevokedMessages) {
+			this.deps.pubsub.publish(PubSubEvents.Refresh_Topic_Messages)
+		}
+		return true
 	}
 
 	async sendPanelMessage({
@@ -279,7 +341,6 @@ class MessageSendService {
 		try {
 			if (!currentProject?.id || !currentTopic?.id) {
 				this.deps.logger.error("handleSend error: missing project/topic context")
-				setIsSending(false)
 				return
 			}
 
@@ -292,7 +353,7 @@ class MessageSendService {
 			})
 
 			const followUp = showLoading && messagesLength > 1
-			this.dispatchMessage({
+			const isDispatched = await this.dispatchMessage({
 				jsonContent: params.value,
 				showLoading: followUp,
 				options: data,
@@ -300,19 +361,20 @@ class MessageSendService {
 				selectedTopic: currentTopic,
 				context,
 			})
+			if (!isDispatched) return
+			this.deps.pubsub.publish(PubSubEvents.Message_Scroll_To_Bottom, { time: 1000 })
 
-			if (!params.isFromQueue) {
+			if (shouldClearEditorAfterSend(params)) {
 				editorRef?.clearContentAfterSend()
 			}
-
-			setIsSending(false)
 
 			if (!params.isFromQueue) {
 				if (isMobile) {
 					setFocused(false)
 				} else {
 					setTimeout(() => {
-						editorRef?.focus({ enableWhenIsMobile: false })
+						if (!editorRef?.editor || editorRef.editor.isDestroyed) return
+						editorRef.focus({ enableWhenIsMobile: false })
 						setFocused(true)
 					}, 100)
 				}
@@ -326,6 +388,7 @@ class MessageSendService {
 			}
 		} catch (error) {
 			this.deps.logger.error("handleSend error", error)
+		} finally {
 			setIsSending(false)
 		}
 	}
@@ -343,6 +406,8 @@ class MessageSendService {
 		currentTopic: Topic | null | undefined
 		isEmptyStatus: boolean
 	}): SendMessageOptions {
+		const { legacySuperAgentExtra, nestedSuperAgentExtra } = splitSuperAgentExtra(params.extra)
+
 		const model = params.selectedModel
 			? {
 					model_id: params.selectedModel.model_id,
@@ -352,6 +417,11 @@ class MessageSendService {
 		const imageModel = params.selectedImageModel?.model_id
 			? {
 					model_id: params.selectedImageModel.model_id,
+				}
+			: undefined
+		const videoModel = params.selectedVideoModel?.model_id
+			? {
+					model_id: params.selectedVideoModel.model_id,
 				}
 			: undefined
 
@@ -372,11 +442,14 @@ class MessageSendService {
 					mentions: transformedMentionItems,
 					chat_mode: "normal" as const,
 					topic_pattern: currentTopic?.topic_mode,
+					...(currentTopic?.agent_code && { agent_code: currentTopic.agent_code }),
 					model,
 					enable_web_search: isInternetSearch,
 					...(imageModel && { image_model: imageModel }),
+					...(videoModel && { video_model: videoModel }),
 					...(params.queueId && { queue_id: params.queueId }),
-					...(params.extra && { ...params.extra }),
+					...legacySuperAgentExtra,
+					...nestedSuperAgentExtra,
 				},
 			},
 			_tempProject: currentProject ?? undefined,
@@ -386,6 +459,20 @@ class MessageSendService {
 
 	private getMessageList(topic: Topic) {
 		return this.deps.superMagicStore.messages?.get(topic?.chat_topic_id || "") || []
+	}
+
+	private async confirmRevokedMessagesBeforeSend(topic: Topic) {
+		try {
+			const confirmPromise = this.deps.superMagicApi.confirmUndoMessage({
+				topic_id: topic.id,
+			})
+			if (!confirmPromise) return false
+			await confirmPromise
+			return true
+		} catch (error) {
+			this.deps.logger.error("confirm undo message failed", error)
+			return false
+		}
 	}
 
 	private handleSmartProjectRename({
@@ -430,4 +517,22 @@ function stripTempOptions(options?: SendMessageOptions): SendMessageOptions | un
 	void _tempProject
 	void _tempTopic
 	return rest
+}
+
+function splitSuperAgentExtra(extra?: Record<string, unknown>) {
+	if (!extra) {
+		return {
+			legacySuperAgentExtra: {},
+			nestedSuperAgentExtra: {},
+		}
+	}
+
+	const { super_agent, ...legacySuperAgentExtra } = extra
+
+	return {
+		legacySuperAgentExtra,
+		nestedSuperAgentExtra: isObject(super_agent)
+			? (super_agent as Record<string, unknown>)
+			: {},
+	}
 }

@@ -9,6 +9,8 @@ export class DynamicDatabase extends Dexie {
 	private registeredTables: Set<string> = new Set()
 	private tableSchemas: Record<string, string> = {}
 	private initialized = false
+	private initPromise: Promise<void> | undefined
+	private schemaUpdateQueue: Promise<void> = Promise.resolve()
 
 	constructor() {
 		super("MAGIC:stream-record-db")
@@ -17,43 +19,52 @@ export class DynamicDatabase extends Dexie {
 
 	private async init(): Promise<void> {
 		if (this.initialized) return
+		if (this.initPromise) return this.initPromise
 
-		await this.open()
+		this.initPromise = (async () => {
+			await this.open()
 
-		// 恢复已存在的表结构
-		this.tables.forEach((table) => {
-			const tableName = table.name
-			this.registeredTables.add(tableName)
-			this.tableSchemas[tableName] = "id"
-		})
+			// 恢复已存在的表结构
+			this.tables.forEach((table) => {
+				const tableName = table.name
+				this.registeredTables.add(tableName)
+				this.tableSchemas[tableName] = "id"
+			})
 
-		this.initialized = true
+			this.initialized = true
+		})()
+
+		try {
+			await this.initPromise
+		} finally {
+			this.initPromise = undefined
+		}
 	}
 
 	async createTable(tableName: string): Promise<void> {
-		await this.init()
-
 		if (!tableName || typeof tableName !== "string") {
 			throw new Error("表名必须是非空字符串")
 		}
 
-		if (this.registeredTables.has(tableName)) {
-			return
-		}
+		await this.enqueueSchemaUpdate(async () => {
+			await this.init()
 
-		const currentVersion = this.verno
+			if (this.registeredTables.has(tableName)) return
 
-		this.close()
+			const currentVersion = this.verno
 
-		// 保留所有已存在的表定义，并添加新表
-		this.tableSchemas[tableName] = "id"
+			if (this.isOpen()) this.close()
 
-		this.version(currentVersion + 1).stores(this.tableSchemas)
+			// 保留所有已存在的表定义，并添加新表
+			this.tableSchemas[tableName] = "id"
 
-		await this.open()
+			this.version(currentVersion + 1).stores(this.tableSchemas)
 
-		this.registeredTables.add(tableName)
-		this.initialized = true
+			await this.open()
+
+			this.registeredTables.add(tableName)
+			this.initialized = true
+		})
 	}
 
 	async addToTable(tableName: string, id: string, value: object): Promise<void> {
@@ -92,6 +103,15 @@ export class DynamicDatabase extends Dexie {
 
 		const table = this.table<StorageValue>(tableName)
 		return await table.toArray()
+	}
+
+	private async enqueueSchemaUpdate(task: () => Promise<void>): Promise<void> {
+		const pendingTask = this.schemaUpdateQueue.catch(() => undefined).then(task)
+		this.schemaUpdateQueue = pendingTask.then(
+			() => undefined,
+			() => undefined,
+		)
+		return pendingTask
 	}
 }
 

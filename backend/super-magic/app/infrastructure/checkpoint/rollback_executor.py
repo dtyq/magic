@@ -164,10 +164,20 @@ class RollbackExecutor:
 
             logger.debug(f"处理checkpoint {checkpoint_id}，包含 {checkpoint_snapshot_count} 个文件快照")
 
-            for file_snapshot in checkpoint_info.file_snapshots:
+            # file_snapshots 按事件发生时间升序 append，反向回滚需要
+            # 连同 checkpoint 内部的 snapshot 顺序一起反转，否则同一个
+            # checkpoint 内同一文件的多次操作（如 created→updated→deleted）
+            # 会被最晚的一次覆盖，反向时保留的仍是最新操作，语义错误。
+            snapshots_order = (
+                checkpoint_info.file_snapshots
+                if is_forward
+                else list(reversed(checkpoint_info.file_snapshots))
+            )
+
+            for file_snapshot in snapshots_order:
                 file_path = file_snapshot.file_path
 
-                # 由于处理顺序已通过reversed()调整，直接覆盖即可达到预期效果：
+                # 处理顺序已通过 reversed 调整，直接覆盖即可达到预期效果：
                 # - 反向回滚：从新到旧处理，最后保留最早的操作
                 # - 正向回滚：从旧到新处理，最后保留最晚的操作
                 file_operations[file_path] = (checkpoint_id, file_snapshot)
@@ -304,6 +314,19 @@ class RollbackExecutor:
         """计算文件路径hash"""
         import hashlib
         return hashlib.md5(file_path.encode('utf-8')).hexdigest()
+
+    def _resolve_workspace_path(self, file_path: str) -> Path:
+        """将 snapshot 中记录的 file_path 解析为绝对路径。
+
+        外部文件系统（magicfs）维护的 checkpoint 里 file_path 使用的是
+        相对于 workspace 根目录的相对路径（例如 "2.txt"），回滚时需要
+        拼接 workspace 目录才能落到真实工作区。为了兼容可能存在的历史
+        绝对路径数据，这里对已是绝对路径的输入保持原样。
+        """
+        p = Path(file_path)
+        if p.is_absolute():
+            return p
+        return PathManager.get_workspace_dir() / p
 
     async def _execute_chat_history_rollback(self, current_checkpoint_id: str, target_checkpoint_id: str) -> bool:
         """
@@ -618,7 +641,7 @@ class RollbackExecutor:
     async def _restore_created_file_forward(self, checkpoint_id: str, file_snapshot: FileSnapshot) -> bool:
         """CREATED操作的正向回滚：创建文件（应用创建操作）"""
         try:
-            target_path = Path(file_snapshot.file_path)
+            target_path = self._resolve_workspace_path(file_snapshot.file_path)
 
             # 根据文件类型选择创建方法
             if file_snapshot.file_type == FileType.FILE:
@@ -655,7 +678,7 @@ class RollbackExecutor:
     async def _restore_created_file_backward(self, checkpoint_id: str, file_snapshot: FileSnapshot) -> bool:
         """CREATED操作的反向回滚：删除文件（撤销创建操作）"""
         try:
-            target_path = Path(file_snapshot.file_path)
+            target_path = self._resolve_workspace_path(file_snapshot.file_path)
 
             if target_path.exists():
                 # 根据文件类型选择删除方法
@@ -687,7 +710,7 @@ class RollbackExecutor:
     async def _restore_updated_file_forward(self, checkpoint_id: str, file_snapshot: FileSnapshot) -> bool:
         """UPDATED操作的正向回滚：恢复到更新后状态"""
         try:
-            target_path = Path(file_snapshot.file_path)
+            target_path = self._resolve_workspace_path(file_snapshot.file_path)
 
             # 根据文件类型选择恢复方法
             if file_snapshot.file_type == FileType.FILE:
@@ -724,7 +747,7 @@ class RollbackExecutor:
     async def _restore_updated_file_backward(self, checkpoint_id: str, file_snapshot: FileSnapshot) -> bool:
         """UPDATED操作的反向回滚：恢复到更新前状态"""
         try:
-            target_path = Path(file_snapshot.file_path)
+            target_path = self._resolve_workspace_path(file_snapshot.file_path)
 
             # 根据文件类型选择恢复方法
             if file_snapshot.file_type == FileType.FILE:
@@ -761,7 +784,7 @@ class RollbackExecutor:
     async def _restore_deleted_file_forward(self, checkpoint_id: str, file_snapshot: FileSnapshot) -> bool:
         """DELETED操作的正向回滚：删除文件（应用删除操作）"""
         try:
-            target_path = Path(file_snapshot.file_path)
+            target_path = self._resolve_workspace_path(file_snapshot.file_path)
 
             if target_path.exists():
                 # 根据文件类型选择删除方法
@@ -793,7 +816,7 @@ class RollbackExecutor:
     async def _restore_deleted_file_backward(self, checkpoint_id: str, file_snapshot: FileSnapshot) -> bool:
         """DELETED操作的反向回滚：恢复文件（撤销删除操作）"""
         try:
-            target_path = Path(file_snapshot.file_path)
+            target_path = self._resolve_workspace_path(file_snapshot.file_path)
 
             # 根据文件类型选择恢复方法
             if file_snapshot.file_type == FileType.FILE:
@@ -861,6 +884,12 @@ class RollbackExecutor:
             # 根据回滚方向和操作类型过滤文件
             files_for_version = []
             for checkpoint_id, file_snapshot in merged_operations:
+                # 跳过目录快照：file version 只针对文件，服务端对目录型 file_key 会
+                # 直接返回 "无法为目录创建版本"。与 checkpoint 链路
+                # (_collect_changed_file_paths) 的过滤策略对齐。
+                if file_snapshot.file_type == FileType.DIRECTORY:
+                    continue
+
                 should_create_version = False
 
                 if direction == "forward":

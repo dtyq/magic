@@ -230,9 +230,9 @@ class ContentTypeUtil
             $disposition = 'attachment';
         }
 
-        // For inline disposition, return simple format
+        // For inline disposition, include filename to avoid browser fallback to object key
         if ($disposition === 'inline') {
-            return 'inline';
+            return self::buildInlineDisposition($filename);
         }
 
         // For attachment, handle filename encoding
@@ -263,5 +263,29 @@ class ContentTypeUtil
 
         // ASCII-only filename: use simple format
         return sprintf('attachment; filename="%s"', $escapedFilename);
+    }
+
+    /**
+     * Build inline Content-Disposition with proper filename encoding.
+     *
+     * @param string $filename Original filename
+     * @return string Content-Disposition header value
+     */
+    private static function buildInlineDisposition(string $filename): string
+    {
+        $escapedFilename = addslashes($filename);
+
+        // Check if filename contains non-ASCII characters
+        if (preg_match('/[^\x20-\x7E]/', $filename)) {
+            $encodedFilename = rawurlencode($filename);
+
+            return sprintf(
+                'inline; filename="%s"; filename*=UTF-8\'\'%s',
+                $escapedFilename,
+                $encodedFilename
+            );
+        }
+
+        return sprintf('inline; filename="%s"', $escapedFilename);
     }
 }

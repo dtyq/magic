@@ -70,7 +70,20 @@ export function useAutoOpenFile() {
 				if (!isNewMessage) return
 			}
 
-			const firstFileId = lastDetailMessageNode?.attachments?.[0]?.file_id
+			// Find first non-folder attachment
+			const attachments = lastDetailMessageNode?.attachments || []
+
+			const firstFileId = attachments.find(
+				(attachment: { file_id?: string; file_extension?: string }) => {
+					const fileId = attachment?.file_id
+					if (!fileId) return false
+
+					// Folders have empty file_extension
+					const isFolder = attachment.file_extension === ""
+					return !isFolder
+				},
+			)?.file_id
+
 			if (!firstFileId) return
 
 			const currentActive = getActiveFileId?.() ?? activeFileId ?? null
@@ -107,7 +120,9 @@ export function useAutoOpenFile() {
 
 			if (topicMessages.length <= 1) return
 
-			const lastMessageWithRole = topicMessages.findLast((m) => m.role === "assistant")
+			const lastMessageWithRole = topicMessages.findLast((m) => {
+				return m.role === "assistant" || m.role === "tool"
+			})
 			const lastMessageNode = superMagicStore.getMessageNode(
 				lastMessageWithRole?.app_message_id,
 			)

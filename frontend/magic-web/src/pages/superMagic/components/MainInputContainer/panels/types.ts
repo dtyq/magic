@@ -7,8 +7,8 @@ export const DEFAULT_LOCALE_KEY = "default"
  * Locale map for multi-language text.
  * `default` is the fallback when locale-specific text is missing.
  */
-export interface LocaleTextMap extends Record<string, string> {
-	default: string
+export interface LocaleTextMap extends Record<string, string | undefined> {
+	default?: string
 }
 
 /**
@@ -40,6 +40,8 @@ export interface FieldItem {
 	updated_at?: string
 	// instruction template appended to user messages via preset value
 	preset_content?: LocaleText
+	// custom placeholder text for the select trigger
+	placeholder?: LocaleText
 }
 
 /**
@@ -49,9 +51,13 @@ export interface OptionItem {
 	value: LocaleText
 	label?: LocaleText
 	thumbnail_url?: string
+	collage_url?: string
 	description?: LocaleText
 	icon_url?: string
 	sub_text?: LocaleText
+	preview_url?: string
+	preview_title?: LocaleText
+	preview_description?: LocaleText
 	width?: number
 	height?: number
 	aspect_ratio?: number
@@ -89,6 +95,8 @@ export const enum OptionViewType {
 	TEXT_LIST = "text_list",
 	// 胶囊视图
 	CAPSULE = "capsule",
+	// PPT 预设视图
+	SLIDES_PRESET = "slides_preset",
 	// 下拉框
 	DROPDOWN = "dropdown",
 }

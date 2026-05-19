@@ -35,6 +35,13 @@ export interface CenteredIconTextConfig {
 export class RenderUtils {
 	private static imageLoader = new ImageStaticLoader()
 
+	private static isImageResourceErrorText(text: string, t?: TFunction): boolean {
+		const loadErrorText = t ? t("image.loadError", "图片加载失败") : "图片加载失败"
+		const fileMissingText = t ? t("image.fileMissing", "图片文件不存在") : "图片文件不存在"
+
+		return text === loadErrorText || text === fileMissingText
+	}
+
 	/**
 	 * 获取反向缩放比例（用于抵消 viewport 和元素的缩放）
 	 * 当元素屏幕尺寸过小时，会额外缩小内容以防止溢出
@@ -136,13 +143,19 @@ export class RenderUtils {
 	 * 创建事件代理 hit 节点
 	 * 用于接收所有事件，避免子节点阻止事件传播
 	 */
-	public static createHitNode(group: Konva.Group, width: number, height: number): Konva.Rect {
+	public static createHitNode(
+		group: Konva.Group,
+		width: number,
+		height: number,
+		options?: { cornerRadius?: number },
+	): Konva.Rect {
 		const hitNode = new Konva.Rect({
 			x: 0,
 			y: 0,
 			width,
 			height,
 			fill: "transparent",
+			cornerRadius: options?.cornerRadius,
 			listening: true,
 			name: "hit-area",
 		})
@@ -183,6 +196,7 @@ export class RenderUtils {
 
 		const iconWidth = IMAGE_CONFIG.ICON_SIZE
 		const iconHeight = IMAGE_CONFIG.ICON_SIZE
+		const retryLineSpacing = LAYOUT.TEXT_PADDING_Y + 4
 
 		// 创建临时文本节点以获取文本尺寸
 		let textWidth: number
@@ -190,11 +204,10 @@ export class RenderUtils {
 
 		if (isErrorState) {
 			// 检查是否有 generateImageRequest，决定如何计算文本宽度
-			const isImageLoadError =
-				text === (t ? t("image.loadError", "图片加载失败") : "图片加载失败")
+			const isImageLoadError = RenderUtils.isImageResourceErrorText(text, t)
 
 			if (hasGenerateImageRequest && !isImageLoadError) {
-				// 有 generateImageRequest 且不是图片加载失败：计算错误消息 + 重试按钮的总宽度
+				// 有 generateImageRequest 且不是图片加载失败：错误消息与重试按钮分两行布局
 				const tempErrorTextNode = new Konva.Text({
 					text: text,
 					fontSize: LAYOUT.TEXT_FONT_SIZE,
@@ -203,13 +216,13 @@ export class RenderUtils {
 				})
 				const retryText = t ? t("image.errorRetry", "点击重试") : "点击重试"
 				const tempRetryNode = new Konva.Text({
-					text: `, ${retryText}`,
+					text: retryText,
 					fontSize: LAYOUT.TEXT_FONT_SIZE,
 					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
 					listening: false,
 				})
-				textWidth = tempErrorTextNode.width() + tempRetryNode.width()
-				textHeight = Math.max(tempErrorTextNode.height(), tempRetryNode.height())
+				textWidth = Math.max(tempErrorTextNode.width(), tempRetryNode.width())
+				textHeight = tempErrorTextNode.height() + retryLineSpacing + tempRetryNode.height()
 			} else {
 				// 没有 generateImageRequest 或是图片加载失败：只计算单个错误文本的宽度
 				const tempTextNode = new Konva.Text({
@@ -276,8 +289,7 @@ export class RenderUtils {
 
 		// 错误状态：不显示背景，根据错误类型显示不同内容
 		if (isErrorState) {
-			const isImageLoadError =
-				text === (t ? t("image.loadError", "图片加载失败") : "图片加载失败")
+			const isImageLoadError = RenderUtils.isImageResourceErrorText(text, t)
 
 			if (isImageLoadError || !hasGenerateImageRequest) {
 				// 图片加载失败或没有 generateImageRequest：只显示错误文本，不显示重试按钮
@@ -296,7 +308,7 @@ export class RenderUtils {
 				})
 				contentGroup.add(errorText)
 			} else {
-				// 图像生成失败且有 generateImageRequest：显示错误消息 + 重试按钮（居中对齐）
+				// 图像生成失败且有 generateImageRequest：错误消息与重试按钮分两行居中显示
 				const retryText = t ? t("image.errorRetry", "点击重试") : "点击重试"
 				const tempErrorTextNode = new Konva.Text({
 					text: text,
@@ -305,14 +317,16 @@ export class RenderUtils {
 					listening: false,
 				})
 				const tempRetryNode = new Konva.Text({
-					text: `, ${retryText}`,
+					text: retryText,
 					fontSize: LAYOUT.TEXT_FONT_SIZE,
 					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
 					listening: false,
 				})
-				const totalTextWidth =
-					(tempErrorTextNode.width() + tempRetryNode.width()) * inverseScale.x
-				const startX = (width - totalTextWidth) / 2
+				const errorTextWidth = tempErrorTextNode.width()
+				const errorTextHeight = tempErrorTextNode.height()
+				const retryTextWidth = tempRetryNode.width()
+				const retryY =
+					textContainerY + (errorTextHeight + retryLineSpacing) * inverseScale.y
 
 				// 创建错误消息文本
 				const errorText = new Konva.Text({
@@ -320,7 +334,7 @@ export class RenderUtils {
 					fontSize: LAYOUT.TEXT_FONT_SIZE,
 					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
 					fill: COLORS.ERROR_TEXT,
-					x: startX,
+					x: (width - errorTextWidth * inverseScale.x) / 2,
 					y: textContainerY,
 					scaleX: inverseScale.x,
 					scaleY: inverseScale.y,
@@ -328,13 +342,9 @@ export class RenderUtils {
 				})
 				contentGroup.add(errorText)
 
-				// 计算重试按钮的位置（紧跟错误消息后面）
-				const errorTextWidth = errorText.width() * inverseScale.x
-				const retryButtonX = startX + errorTextWidth
-
-				// 创建可点击的重试按钮文本（包含逗号和空格）
+				// 创建可点击的重试按钮文本（单独一行）
 				const retryButton = new Konva.Text({
-					text: `, ${retryText}`,
+					text: retryText,
 					fontSize: LAYOUT.TEXT_FONT_SIZE,
 					fontFamily: LAYOUT.TEXT_FONT_FAMILY,
 					fill: COLORS.ERROR_RETRY_TEXT,
@@ -348,8 +358,8 @@ export class RenderUtils {
 
 				// 创建重试按钮的容器 group
 				const retryButtonGroup = new Konva.Group({
-					x: retryButtonX,
-					y: textContainerY,
+					x: (width - retryTextWidth * inverseScale.x) / 2,
+					y: retryY,
 					listening: true,
 					name: "decorator-error-retry-button-group",
 				})
@@ -358,14 +368,8 @@ export class RenderUtils {
 
 				// 添加 hover 效果（只有在选择工具下才生效）
 				retryButton.on("mouseenter", () => {
-					// 检查当前工具是否为选择工具
-					if (canvas) {
-						const currentTool = canvas.toolManager.getActiveTool()
-						const isSelectionTool =
-							currentTool && canvas.toolManager.getSelectionTool() === currentTool
-						if (!isSelectionTool) {
-							return
-						}
+					if (canvas && !canvas.permissionManager.canUseSelectionToolAffordance()) {
+						return
 					}
 					retryButton.opacity(COLORS.ERROR_RETRY_HOVER_OPACITY)
 					if (canvas) {
@@ -375,14 +379,8 @@ export class RenderUtils {
 				})
 
 				retryButton.on("mouseleave", () => {
-					// 检查当前工具是否为选择工具
-					if (canvas) {
-						const currentTool = canvas.toolManager.getActiveTool()
-						const isSelectionTool =
-							currentTool && canvas.toolManager.getSelectionTool() === currentTool
-						if (!isSelectionTool) {
-							return
-						}
+					if (canvas && !canvas.permissionManager.canUseSelectionToolAffordance()) {
+						return
 					}
 					retryButton.opacity(1)
 					if (canvas) {
@@ -393,14 +391,8 @@ export class RenderUtils {
 
 				// 添加点击事件（只有在选择工具下才能点击）
 				const handleRetry = (e: Konva.KonvaEventObject<MouseEvent>) => {
-					// 检查当前工具是否为选择工具
-					if (canvas) {
-						const currentTool = canvas.toolManager.getActiveTool()
-						const isSelectionTool =
-							currentTool && canvas.toolManager.getSelectionTool() === currentTool
-						if (!isSelectionTool) {
-							return
-						}
+					if (canvas && !canvas.permissionManager.canUseSelectionToolAffordance()) {
+						return
 					}
 					e.cancelBubble = true
 					if (e.evt) {
@@ -486,6 +478,7 @@ export class RenderUtils {
 		// 重新计算布局参数
 		const iconWidth = IMAGE_CONFIG.ICON_SIZE
 		const iconHeight = IMAGE_CONFIG.ICON_SIZE
+		const retryLineSpacing = LAYOUT.TEXT_PADDING_Y + 4
 		const scaledIconWidth = iconWidth * inverseScale.x
 		const scaledIconHeight = iconHeight * inverseScale.y
 		const scaledSpacing = LAYOUT.ICON_TEXT_SPACING * inverseScale.y
@@ -548,8 +541,10 @@ export class RenderUtils {
 				const errorText = textNodes[0]
 				if (errorText) {
 					const errorTextWidth = errorText.width()
+					const errorTextHeight = errorText.height()
 					const retryWidth = retryButton.width()
-					const textHeight = Math.max(errorText.height(), retryButton.height())
+					const retryHeight = retryButton.height()
+					const textHeight = errorTextHeight + retryLineSpacing + retryHeight
 
 					const totalContentHeight = iconHeight + LAYOUT.ICON_TEXT_SPACING + textHeight
 					const scaledTotalHeight = totalContentHeight * inverseScale.y
@@ -559,19 +554,18 @@ export class RenderUtils {
 					iconNode.x((width - scaledIconWidth) / 2)
 					iconNode.y(iconY)
 
-					// 重新计算文本位置（居中对齐）
+					// 重新计算文本位置（分两行居中对齐）
 					const textContainerY = iconY + scaledIconHeight + scaledSpacing
-					const totalTextWidth = (errorTextWidth + retryWidth) * inverseScale.x
-					const startX = (width - totalTextWidth) / 2
 
 					// 错误消息文本位置
-					errorText.x(startX)
+					errorText.x((width - errorTextWidth * inverseScale.x) / 2)
 					errorText.y(textContainerY)
 
-					// 重试按钮组位置（紧跟错误消息后面）
-					const errorTextScaledWidth = errorTextWidth * inverseScale.x
-					retryButtonGroup.x(startX + errorTextScaledWidth)
-					retryButtonGroup.y(textContainerY)
+					// 重试按钮组位置（错误消息下一行）
+					retryButtonGroup.x((width - retryWidth * inverseScale.x) / 2)
+					retryButtonGroup.y(
+						textContainerY + (errorTextHeight + retryLineSpacing) * inverseScale.y,
+					)
 				}
 			} else {
 				// 普通单文本节点的情况

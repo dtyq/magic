@@ -100,7 +100,7 @@ export const enum RoutePath {
 	ClawPlayground = "/claw/:code",
 	MySkills = "/my-skills",
 	MyCrew = "/my-crew",
-	MagiClaw = "/magi-claw",
+	MagiClaw = "/claw",
 	SuperMagicFileShare = "/share/:topicId/file/:fileId",
 	SuperMagicTopicShare = "/share/:topicId",
 	SuperMagicFilesShare = "/share/files/:resourceId",

@@ -4,7 +4,8 @@ import { observer } from "mobx-react-lite"
 import { useStyles } from "./styles"
 import type { TopicListProps } from "./types"
 import ModeTag from "../../../components/HierarchicalWorkspacePopup/components/ModeTag"
-import { Topic, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { Topic } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { useTranslation } from "react-i18next"
 import StatusIcon from "@/pages/superMagic/components/MessageHeader/components/StatusIcon"
 import { useMemoizedFn } from "ahooks"
@@ -41,7 +42,10 @@ const TopicItemComponent = memo(
 			>
 				<div className={styles.leftContent}>
 					<StatusIcon status={item.task_status} />
-					<ModeTag mode={item.topic_mode || TopicMode.General} />
+					<ModeTag
+						mode={item.topic_mode || TopicMode.General}
+						agentCode={item.agent_code}
+					/>
 					<div className={styles.topicTitle}>
 						{item.topic_name || t("topic.unnamedTopic")}
 					</div>

@@ -1,14 +1,16 @@
 // Main plugin exports
-export { default as MentionExtension } from "./MentionExtension"
+export { default as MentionExtension, mentionDeletionInputKey } from "./MentionExtension"
 export { default as MentionPanelRenderer } from "./MentionPanelRenderer"
 export { createMentionPanelSuggestion } from "./suggestion"
 
 // Type exports
 export type {
+	MentionDeletionInput,
 	MentionPanelPluginOptions,
 	MentionPanelRendererProps,
 	MentionPanelRendererRef,
 	MentionPanelSuggestionProps,
+	MentionRemoveItemPayload,
 	TiptapMentionAttributes,
 	MentionSelectHandler,
 	MentionCloseHandler,

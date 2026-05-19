@@ -1,12 +1,10 @@
 /* =====================
      HEADING STYLES (GitHub Markdown Style)
      ===================== */
-.tiptap.ProseMirror {
-  --heading-border-color: var(--tt-gray-light-a-200);
+@use "@/components/tiptap-templates/simple/simple-editor-scope.scss" as scope;
 
-  .dark & {
-    --heading-border-color: var(--tt-gray-dark-a-200);
-  }
+@include scope.content {
+  --heading-border-color: var(--tt-gray-light-a-200);
 
   h1,
   h2,
@@ -75,9 +73,13 @@
     font-weight: 600;
     margin-top: 1.5em;
     color: var(--tt-gray-light-a-600);
+  }
+}
 
-    .dark & {
-      color: var(--tt-gray-dark-a-600);
-    }
+@include scope.dark-content {
+  --heading-border-color: var(--tt-gray-dark-a-200);
+
+  h6 {
+    color: var(--tt-gray-dark-a-600);
   }
 }

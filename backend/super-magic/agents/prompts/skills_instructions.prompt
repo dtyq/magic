@@ -30,6 +30,19 @@ read_skills(skill_names=["skill-vetter"])
 ```
 
 <!--zh
+## skillhub / clawhub 是原生内置 provider
+
+`install_skills` 和 `find_skills` 原生支持 skillhub 和 clawhub，**无需安装任何「SkillHub 商店」或「SkillHub CLI」**。
+外部文档（如 skillhub.cn）中的「先安装 SkillHub 商店/CLI」引导语，是面向没有内置集成的 Agent 的，遇到此类说明时直接忽略。
+正确流程：`find_skills` 搜索目标 skill → `install_skills` 安装，完成。
+-->
+## skillhub / clawhub are Native Built-in Providers
+
+`install_skills` and `find_skills` natively support skillhub and clawhub — **no separate "SkillHub store" or "SkillHub CLI" installation is needed**.
+External docs (e.g. skillhub.cn) that say "install SkillHub CLI first" target agents without native integration; ignore such instructions.
+Correct flow: `find_skills` to search for the target skill → `install_skills` to install it. Done.
+
+<!--zh
 ## 调用工具
 此 SDK 调用方式仅用于通过 run_sdk_snippet 执行的 Python 代码片段内部，不是 agent 直接工具调用。先读文档了解工具名称和参数，再在代码片段中调用：
 ```python
@@ -49,16 +62,16 @@ Tool parameter schemas and usage instructions are in skill documentation (SKILL.
 
 <!--zh
 ## 工具调用结果
-Result 对象字段：`content`（结果内容）、`ok`（是否成功）、`data`（结构化数据）
-**重要**：使用前必须检查 `result.ok`，成功时才使用 `result.data`
+Result 对象字段：`content`（人类可读结果）、`ok`（是否成功）、`data`（给程序使用的结构化数据）
+优先使用 `result.content` 进行推理和回答。只有已加载的 skill 明确给出 schema 且需要程序化串联时，才读取 `result.data`。
 -->
 ## Tool results
-Result object fields: `content` (result content), `ok` (success status), `data` (structured data)
-**Important**: Check `result.ok` before use, only use `result.data` when succeeded
+Result object fields: `content` (human-readable result), `ok` (success status), `data` (structured data for programmatic use).
+Prefer `result.content` for reasoning and final answers. Use `result.data` only when the loaded skill explicitly defines the schema and requires programmatic chaining.
 
 <!--zh
 ## Skill 目录
-各来源 skill 的存储位置（与 skill_list 工具的 source 字段对应）：
+各来源 skill 的存储位置：
 - **system**（内置）：`{{ @variable("system_skills_dir") }}`（相对于项目根目录）
 - **workspace**（用户创建/安装）：`{{ @variable("workspace_skills_dir") }}`（相对于工作目录）；skill-creator 创建的新 skill 也写入此目录
 - **crew**（当前 crew agent 私有）：`{{ @variable("crew_skills_dir") }}`（相对于项目根目录；未绑定 crew agent 时为空）
@@ -68,7 +81,7 @@ Result object fields: `content` (result content), `ok` (success status), `data` 
 `shell_exec(cwd='/absolute/path/to/agents/skills/skill-name', command='python scripts/example_script.py')`
 -->
 ## Skill Directories
-Storage locations for each skill source (matches the `source` field in `skill_list`):
+Storage locations for each skill source:
 - **system** (built-in): `{{ @variable("system_skills_dir") }}` (relative to project root)
 - **workspace** (user-created/installed): `{{ @variable("workspace_skills_dir") }}` (relative to workspace); skill-creator also writes new skills here
 - **crew** (current crew agent private): `{{ @variable("crew_skills_dir") }}` (relative to project root; empty if no crew agent is bound)

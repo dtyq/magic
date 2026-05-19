@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest"
-import { processSvgContent, isSvgContent } from "../svgProcessor"
+import {
+	isInlineSvgContent,
+	isMermaidSvgContent,
+	isSvgContent,
+	processSvgContent,
+	shouldExportSvgAsPng,
+} from "../svgProcessor"
 
 describe("svgProcessor", () => {
 	describe("processSvgContent", () => {
@@ -39,8 +45,8 @@ describe("svgProcessor", () => {
 
 			const result = processSvgContent(svgUrl)
 
-			expect(result.isValid).toBe(true)
-			expect(result.content).toBe(svgUrl)
+			expect(result.isValid).toBe(false)
+			expect(result.error).toContain("URL")
 		})
 
 		it("should handle invalid base64 content gracefully", () => {
@@ -131,6 +137,46 @@ describe("svgProcessor", () => {
 			expect(isSvgContent("")).toBe(false)
 			expect(isSvgContent("svg")).toBe(false)
 			expect(isSvgContent("image.svg.png")).toBe(false)
+		})
+	})
+
+	describe("isInlineSvgContent", () => {
+		it("should only treat raw SVG markup and data URLs as inline SVG", () => {
+			expect(isInlineSvgContent("<svg><circle r='50' /></svg>")).toBe(true)
+			expect(isInlineSvgContent("data:image/svg+xml;base64,test")).toBe(true)
+			expect(isInlineSvgContent("https://example.com/image.svg")).toBe(false)
+			expect(isInlineSvgContent("blob:https://example.com/123")).toBe(false)
+		})
+	})
+
+	describe("isMermaidSvgContent", () => {
+		it("should detect Mermaid generated inline SVG", () => {
+			const mermaidSvg = `
+				<svg id="mermaid_123" class="flowchart" aria-roledescription="flowchart-v2">
+					<style>#mermaid_123{font-family:"trebuchet ms"}</style>
+					<foreignObject width="100" height="20"></foreignObject>
+				</svg>
+			`
+
+			expect(isMermaidSvgContent(mermaidSvg)).toBe(true)
+		})
+
+		it("should not treat regular inline SVG as Mermaid", () => {
+			const regularSvg = `<svg width="100" height="100"><circle cx="50" cy="50" r="40"/></svg>`
+
+			expect(isMermaidSvgContent(regularSvg)).toBe(false)
+			expect(isMermaidSvgContent("https://example.com/diagram.svg")).toBe(false)
+		})
+	})
+
+	describe("shouldExportSvgAsPng", () => {
+		it("should export only Mermaid inline SVG as PNG", () => {
+			const mermaidSvg = `<svg id="mermaid_123" class="flowchart"></svg>`
+			const regularSvg = `<svg width="100" height="100"></svg>`
+
+			expect(shouldExportSvgAsPng(mermaidSvg)).toBe(true)
+			expect(shouldExportSvgAsPng(regularSvg)).toBe(false)
+			expect(shouldExportSvgAsPng("https://example.com/diagram.svg")).toBe(false)
 		})
 	})
 })

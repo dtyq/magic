@@ -54,6 +54,8 @@ export const zhCN: I18nTexts = {
 
 	// Mobile specific
 	selectItem: "选择引用内容",
+	mobileSelectedItemsLabel: "已选",
+	mobileSelectedItemsTitle: "已选",
 
 	// Error messages
 	errorMessages: {
@@ -72,6 +74,10 @@ export const zhCN: I18nTexts = {
 		exitSearch: "退出",
 	},
 
+	navigationActions: {
+		enter: "进入",
+	},
+
 	// Accessibility labels
 	ariaLabels: {
 		panel: "提及面板",
@@ -80,6 +86,10 @@ export const zhCN: I18nTexts = {
 		retryButton: "重试按钮",
 		goBackButton: "返回上一层",
 		closeButton: "关闭",
+		confirmButton: "确认",
+		removeSelectedItem: "从已选中移除",
+		clearAllSelected: "清空已选",
+		viewSelectedItems: "查看已选项",
 	},
 
 	// History and tabs related

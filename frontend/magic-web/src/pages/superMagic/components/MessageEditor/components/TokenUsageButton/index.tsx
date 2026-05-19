@@ -14,6 +14,31 @@ const MAX_TOKEN_COUNT = 200_000
 const WARNING_THRESHOLD = 0.7
 const RING_STROKE_WIDTH = 1.5
 
+/** Size-aware trigger styles, aligned with other top-bar buttons */
+const TRIGGER_STYLE_MAP: Record<
+	MessageEditorSize,
+	{ padding: string; gap: string; text: string; ring: number }
+> = {
+	small: {
+		padding: "p-[3px]",
+		gap: "gap-0.5",
+		text: "text-[10px] leading-[14px]",
+		ring: 12,
+	},
+	default: {
+		padding: "p-1",
+		gap: "gap-1",
+		text: "text-[10px] leading-[14px]",
+		ring: 14,
+	},
+	mobile: {
+		padding: "p-1.5",
+		gap: "gap-1",
+		text: "text-xs leading-4",
+		ring: 16,
+	},
+}
+
 function formatTokenCount(count: number): string {
 	if (count >= 1_000) return `${Math.round(count / 1_000)}K`
 	return String(count)
@@ -75,6 +100,7 @@ function TokenUsageRing({ ratio, size, isHighUsage }: TokenUsageRingProps) {
 
 interface TokenUsageButtonProps {
 	tokenUsed: number
+	/** Ring diameter in px; overrides size-derived default when provided */
 	iconSize?: number
 	size?: MessageEditorSize
 	className?: string
@@ -85,7 +111,7 @@ interface TokenUsageButtonProps {
 /** Token usage indicator button with popover detail panel */
 function TokenUsageButton({
 	tokenUsed,
-	iconSize = 14,
+	iconSize,
 	size = "default",
 	className,
 	onCompressContext,
@@ -98,6 +124,9 @@ function TokenUsageButton({
 	const usedLabel = formatTokenCount(tokenUsed)
 	const maxLabel = formatTokenCount(MAX_TOKEN_COUNT)
 
+	const triggerStyle = TRIGGER_STYLE_MAP[size]
+	const ringSize = iconSize ?? triggerStyle.ring
+
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
@@ -105,24 +134,23 @@ function TokenUsageButton({
 					type="button"
 					className={cn(
 						"flex cursor-pointer items-center rounded-md border border-border bg-background transition-all",
-						size === "small" ? "gap-0.5" : "gap-1",
 						"hover:bg-fill active:bg-fill-secondary",
 						"focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-						// getButtonPaddingClass(size),
-						"p-1",
+						triggerStyle.padding,
+						triggerStyle.gap,
 						className,
 					)}
 					data-testid="token-usage-button"
 				>
-					<span className="text-[10px] leading-[12px] text-foreground">
+					<span className={cn("text-foreground", triggerStyle.text)}>
 						{percentageLabel}
 					</span>
-					<TokenUsageRing ratio={ratio} size={12} isHighUsage={isHighUsage} />
+					<TokenUsageRing ratio={ratio} size={ringSize} isHighUsage={isHighUsage} />
 				</button>
 			</PopoverTrigger>
 
 			<PopoverContent
-				className="w-[240px] overflow-hidden p-0"
+				className="w-[300px] overflow-hidden p-0"
 				align="end"
 				side="top"
 				sideOffset={8}
@@ -135,6 +163,9 @@ function TokenUsageButton({
 							{t("ui.tokenUsage.contextUsage")}
 						</span>
 						<span className="shrink-0 font-semibold">{percentageLabel}</span>
+					</div>
+					<div className="text-xs leading-4 text-muted-foreground">
+						{t("ui.tokenUsage.contextUsageDescription")}
 					</div>
 
 					{/* Progress bar */}
@@ -156,34 +187,25 @@ function TokenUsageButton({
 						})}
 					</span>
 				</div>
-
-				{/* Warning section — only shown when usage >= 70% */}
-				{isHighUsage && (
-					<>
-						<Separator />
-						<div className="flex flex-col gap-1.5 p-2">
-							{/* Warning message */}
-							<div className="flex items-start gap-1 rounded-md bg-orange-500/10 p-1 dark:bg-orange-500/20">
-								<TriangleAlert
-									size={16}
-									className="mt-0.5 shrink-0 text-orange-500 dark:text-orange-400"
-								/>
-								<p className="flex-1 whitespace-pre-wrap text-xs leading-4 text-orange-500 dark:text-orange-400">
-									{t("ui.tokenUsage.highContextWarning")}
-								</p>
-							</div>
-
-							{/* Compress context button */}
-							<Button
-								size="sm"
-								className="h-8 w-full text-xs"
-								onClick={onCompressContext}
-							>
-								{t("ui.tokenUsage.compressContext")}
-							</Button>
+				<Separator />
+				<div className="flex flex-col gap-1.5 p-2">
+					{/* Warning message */}
+					{isHighUsage && (
+						<div className="flex items-center gap-1 rounded-md bg-orange-500/10 p-1 dark:bg-orange-500/20">
+							<TriangleAlert
+								size={16}
+								className="mt-0.5 shrink-0 text-orange-500 dark:text-orange-400"
+							/>
+							<p className="flex-1 whitespace-pre-wrap text-xs leading-4 text-orange-500 dark:text-orange-400">
+								{t("ui.tokenUsage.highContextWarning")}
+							</p>
 						</div>
-					</>
-				)}
+					)}
+					{/* Compress context button */}
+					<Button size="sm" className="h-8 w-full text-xs" onClick={onCompressContext}>
+						{t("ui.tokenUsage.compressContext")}
+					</Button>
+				</div>
 			</PopoverContent>
 		</Popover>
 	)

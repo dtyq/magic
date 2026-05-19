@@ -1,7 +1,4 @@
-import {
-	getTemporaryDownloadUrl,
-	downloadFileContent,
-} from "@/pages/superMagic/utils/api"
+import { getTemporaryDownloadUrl, downloadFileContent } from "@/pages/superMagic/utils/api"
 import {
 	flattenAttachments,
 	findMatchingFile,
@@ -140,6 +137,291 @@ interface DashboardCardsArrayInfo {
 	isFullArray: boolean
 }
 
+const JS_STRING_LITERAL_PATTERN =
+	"(?:\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|`(?:\\\\.|[^`\\\\])*`)"
+
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function createJsStringLiteral(value: string): string {
+	return JSON.stringify(value)
+}
+
+function getLineIndent(content: string, index: number): string {
+	const lineStart = content.lastIndexOf("\n", index - 1) + 1
+	const indentMatch = content.slice(lineStart, index).match(/^\s*/)
+	return indentMatch?.[0] ?? ""
+}
+
+function findTopLevelPropertyRange(
+	objectContent: string,
+	propertyName: string,
+): { start: number; end: number; indent: string } | null {
+	let quote: '"' | "'" | "`" | null = null
+	let isLineComment = false
+	let isBlockComment = false
+	let braceDepth = 0
+	let bracketDepth = 0
+	let parenDepth = 0
+
+	for (let i = 0; i < objectContent.length; i++) {
+		const char = objectContent[i]
+		const nextChar = objectContent[i + 1]
+
+		if (isLineComment) {
+			if (char === "\n" || char === "\r") {
+				isLineComment = false
+			}
+			continue
+		}
+
+		if (isBlockComment) {
+			if (char === "*" && nextChar === "/") {
+				isBlockComment = false
+				i++
+			}
+			continue
+		}
+
+		if (quote) {
+			if (char === "\\") {
+				i++
+				continue
+			}
+			if (char === quote) {
+				quote = null
+			}
+			continue
+		}
+
+		if (char === "/" && nextChar === "/") {
+			isLineComment = true
+			i++
+			continue
+		}
+
+		if (char === "/" && nextChar === "*") {
+			isBlockComment = true
+			i++
+			continue
+		}
+
+		if (char === '"' || char === "'" || char === "`") {
+			quote = char
+			continue
+		}
+
+		if (char === "{") {
+			braceDepth++
+			continue
+		}
+
+		if (char === "}") {
+			braceDepth--
+			continue
+		}
+
+		if (char === "[") {
+			bracketDepth++
+			continue
+		}
+
+		if (char === "]") {
+			bracketDepth--
+			continue
+		}
+
+		if (char === "(") {
+			parenDepth++
+			continue
+		}
+
+		if (char === ")") {
+			parenDepth--
+			continue
+		}
+
+		if (braceDepth !== 1 || bracketDepth !== 0 || parenDepth !== 0) {
+			continue
+		}
+
+		if (!/[A-Za-z_$]/.test(char)) {
+			continue
+		}
+
+		let identifierEnd = i + 1
+		while (identifierEnd < objectContent.length && /[\w$]/.test(objectContent[identifierEnd])) {
+			identifierEnd++
+		}
+
+		const identifier = objectContent.slice(i, identifierEnd)
+		if (identifier !== propertyName) {
+			i = identifierEnd - 1
+			continue
+		}
+
+		let colonIndex = identifierEnd
+		while (colonIndex < objectContent.length && /\s/.test(objectContent[colonIndex])) {
+			colonIndex++
+		}
+
+		if (objectContent[colonIndex] !== ":") {
+			i = identifierEnd - 1
+			continue
+		}
+
+		let end = colonIndex + 1
+		let valueQuote: '"' | "'" | "`" | null = null
+		let valueLineComment = false
+		let valueBlockComment = false
+		let valueBraceDepth = 0
+		let valueBracketDepth = 0
+		let valueParenDepth = 0
+
+		for (; end < objectContent.length; end++) {
+			const valueChar = objectContent[end]
+			const valueNextChar = objectContent[end + 1]
+
+			if (valueLineComment) {
+				if (valueChar === "\n" || valueChar === "\r") {
+					valueLineComment = false
+				}
+				continue
+			}
+
+			if (valueBlockComment) {
+				if (valueChar === "*" && valueNextChar === "/") {
+					valueBlockComment = false
+					end++
+				}
+				continue
+			}
+
+			if (valueQuote) {
+				if (valueChar === "\\") {
+					end++
+					continue
+				}
+				if (valueChar === valueQuote) {
+					valueQuote = null
+				}
+				continue
+			}
+
+			if (valueChar === "/" && valueNextChar === "/") {
+				valueLineComment = true
+				end++
+				continue
+			}
+
+			if (valueChar === "/" && valueNextChar === "*") {
+				valueBlockComment = true
+				end++
+				continue
+			}
+
+			if (valueChar === '"' || valueChar === "'" || valueChar === "`") {
+				valueQuote = valueChar
+				continue
+			}
+
+			if (valueChar === "{") {
+				valueBraceDepth++
+				continue
+			}
+
+			if (valueChar === "}") {
+				if (valueBraceDepth === 0 && valueBracketDepth === 0 && valueParenDepth === 0) {
+					break
+				}
+				valueBraceDepth--
+				continue
+			}
+
+			if (valueChar === "[") {
+				valueBracketDepth++
+				continue
+			}
+
+			if (valueChar === "]") {
+				valueBracketDepth--
+				continue
+			}
+
+			if (valueChar === "(") {
+				valueParenDepth++
+				continue
+			}
+
+			if (valueChar === ")") {
+				valueParenDepth--
+				continue
+			}
+
+			if (
+				valueChar === "," &&
+				valueBraceDepth === 0 &&
+				valueBracketDepth === 0 &&
+				valueParenDepth === 0
+			) {
+				break
+			}
+		}
+
+		return {
+			start: i,
+			end,
+			indent: getLineIndent(objectContent, i),
+		}
+	}
+
+	return null
+}
+
+function replaceTopLevelProperty(
+	objectContent: string,
+	propertyName: string,
+	replacement: string,
+): string {
+	const propertyRange = findTopLevelPropertyRange(objectContent, propertyName)
+	if (!propertyRange) {
+		return objectContent
+	}
+
+	return (
+		objectContent.slice(0, propertyRange.start) +
+		replacement +
+		objectContent.slice(propertyRange.end)
+	)
+}
+
+function insertTopLevelPropertyAfter(
+	objectContent: string,
+	anchorPropertyName: string,
+	propertyLine: string,
+): string {
+	const anchorRange = findTopLevelPropertyRange(objectContent, anchorPropertyName)
+	if (!anchorRange) {
+		return objectContent
+	}
+
+	return (
+		objectContent.slice(0, anchorRange.end) +
+		`,\n${anchorRange.indent}${propertyLine}` +
+		objectContent.slice(anchorRange.end)
+	)
+}
+
+function validateJavaScriptContent(jsContent: string): void {
+	try {
+		new Function(jsContent)
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error)
+		throw new Error(`保存后的 data.js 语法校验失败: ${message}`)
+	}
+}
+
 /**
  * 提取DASHBOARD_CARDS数组的内容和位置信息
  * 支持 const/let/var 和 window.DASHBOARD_CARDS 两种声明方式
@@ -197,9 +479,53 @@ function findMatchingBracket(
 ): number {
 	let bracketCount = 0
 	let endIndex = -1
+	let quote: '"' | "'" | "`" | null = null
+	let isLineComment = false
+	let isBlockComment = false
 
 	for (let i = startIndex; i < content.length; i++) {
 		const char = content[i]
+		const nextChar = content[i + 1]
+
+		if (isLineComment) {
+			if (char === "\n" || char === "\r") isLineComment = false
+			continue
+		}
+
+		if (isBlockComment) {
+			if (char === "*" && nextChar === "/") {
+				isBlockComment = false
+				i++
+			}
+			continue
+		}
+
+		if (quote) {
+			if (char === "\\") {
+				i++
+				continue
+			}
+			if (char === quote) quote = null
+			continue
+		}
+
+		if (char === "/" && nextChar === "/") {
+			isLineComment = true
+			i++
+			continue
+		}
+
+		if (char === "/" && nextChar === "*") {
+			isBlockComment = true
+			i++
+			continue
+		}
+
+		if (char === '"' || char === "'" || char === "`") {
+			quote = char
+			continue
+		}
+
 		if (char === openBracket) {
 			bracketCount++
 		} else if (char === closeBracket) {
@@ -221,154 +547,159 @@ function findCardObjectBounds(
 	arrayContent: string,
 	cardId: string,
 ): { start: number; end: number } | null {
-	// 匹配包含指定id的整个卡片对象
-	const idPattern = new RegExp("id:\\s*[\"']" + cardId + "[\"']", "g")
-	idPattern.lastIndex = 0
-	const idMatch = idPattern.exec(arrayContent)
+	const idPattern = new RegExp("id:\\s*[\"']" + escapeRegExp(cardId) + "[\"']")
+	let quote: '"' | "'" | "`" | null = null
+	let isLineComment = false
+	let isBlockComment = false
+	let braceDepth = 0
+	let objectStart = -1
 
-	if (!idMatch) {
-		return null
-	}
-
-	// 从id位置向前查找对象的开始 {
-	const objStart = arrayContent.lastIndexOf("{", idMatch.index)
-	if (objStart === -1) {
-		return null
-	}
-
-	// 从objStart位置向后查找对象的结束 }
-	const objEnd = findMatchingBracket(arrayContent, objStart, "{", "}")
-	if (objEnd === -1) {
-		return null
-	}
-
-	return { start: objStart, end: objEnd }
-}
-
-/**
- * 查找对象前后的逗号位置
- */
-function findCommaPositions(
-	arrayContent: string,
-	objStart: number,
-	objEnd: number,
-): { hasPreComma: boolean; hasPostComma: boolean; postCommaEnd: number } {
-	let hasPreComma = false
-	let hasPostComma = false
-	let postCommaEnd = objEnd + 1
-
-	// 向前查找逗号
-	for (let i = objStart - 1; i >= 0; i--) {
+	for (let i = 0; i < arrayContent.length; i++) {
 		const char = arrayContent[i]
-		if (char === ",") {
-			hasPreComma = true
-			break
-		} else if (char === "[") {
-			break
-		} else if (!/\s/.test(char)) {
-			break
-		}
-	}
+		const nextChar = arrayContent[i + 1]
 
-	// 向后查找逗号
-	for (let i = objEnd + 1; i < arrayContent.length; i++) {
-		const char = arrayContent[i]
-		if (char === ",") {
-			hasPostComma = true
-			postCommaEnd = i + 1
-			break
-		} else if (char === "]") {
-			break
-		} else if (!/\s/.test(char)) {
-			break
-		}
-	}
-
-	return { hasPreComma, hasPostComma, postCommaEnd }
-}
-
-/**
- * 计算删除范围，考虑注释和逗号
- */
-function calculateDeleteRange(
-	arrayContent: string,
-	objStart: number,
-	objEnd: number,
-): { start: number; end: number } {
-	let deleteStart = objStart
-	let deleteEnd = objEnd + 1
-
-	// 向前查找注释
-	for (let i = objStart - 1; i >= 0; i--) {
-		const char = arrayContent[i]
-
-		if (char === "/" && i > 0 && arrayContent[i - 1] === "*") {
-			// 找到多行注释结束 */，向前查找注释开始
-			for (let j = i - 2; j >= 0; j--) {
-				if (
-					arrayContent[j] === "/" &&
-					j < arrayContent.length - 1 &&
-					arrayContent[j + 1] === "*"
-				) {
-					// 找到注释开始 /*
-					deleteStart = j
-					break
-				}
+		if (isLineComment) {
+			if (char === "\n" || char === "\r") {
+				isLineComment = false
 			}
-			break
-		} else if (char === "\n" || char === "\r") {
-			// 检查单行注释
-			const lineStart = i + 1
-			const lineContent = arrayContent.substring(lineStart, objStart).trim()
+			continue
+		}
 
-			if (lineContent.startsWith("//")) {
-				deleteStart = lineStart
-				break
-			} else if (lineContent === "") {
+		if (isBlockComment) {
+			if (char === "*" && nextChar === "/") {
+				isBlockComment = false
+				i++
+			}
+			continue
+		}
+
+		if (quote) {
+			if (char === "\\") {
+				i++
 				continue
-			} else {
-				break
+			}
+			if (char === quote) {
+				quote = null
+			}
+			continue
+		}
+
+		if (char === "/" && nextChar === "/") {
+			isLineComment = true
+			i++
+			continue
+		}
+
+		if (char === "/" && nextChar === "*") {
+			isBlockComment = true
+			i++
+			continue
+		}
+
+		if (char === '"' || char === "'" || char === "`") {
+			quote = char
+			continue
+		}
+
+		if (char === "{") {
+			if (braceDepth === 0) {
+				objectStart = i
+			}
+			braceDepth++
+			continue
+		}
+
+		if (char === "}") {
+			braceDepth--
+			if (braceDepth === 0 && objectStart !== -1) {
+				const objectContent = arrayContent.substring(objectStart, i + 1)
+				if (idPattern.test(objectContent)) {
+					return { start: objectStart, end: i }
+				}
+				objectStart = -1
 			}
 		}
 	}
 
-	// 查找逗号位置
-	const { hasPreComma, hasPostComma, postCommaEnd } = findCommaPositions(
-		arrayContent,
-		deleteStart,
-		objEnd,
-	)
-
-	deleteEnd = postCommaEnd
-
-	// 根据逗号情况调整删除范围
-	if (hasPreComma && hasPostComma) {
-		// 前后都有逗号，删除前面的逗号，保留后面的
-		for (let i = deleteStart - 1; i >= 0; i--) {
-			const char = arrayContent[i]
-			if (char === ",") {
-				deleteStart = i
-				break
-			} else if (!/\s/.test(char)) {
-				break
-			}
-		}
-	} else if (hasPreComma && !hasPostComma) {
-		// 只有前面有逗号，删除前面的逗号
-		for (let i = deleteStart - 1; i >= 0; i--) {
-			const char = arrayContent[i]
-			if (char === ",") {
-				deleteStart = i
-				break
-			} else if (!/\s/.test(char)) {
-				break
-			}
-		}
-	}
-
-	return { start: deleteStart, end: deleteEnd }
+	return null
 }
 
+function extractTopLevelCardObjects(arrayContent: string): string[] {
+	const cardObjects: string[] = []
+	let quote: '"' | "'" | "`" | null = null
+	let isLineComment = false
+	let isBlockComment = false
+	let braceDepth = 0
+	let objectStart = -1
+
+	for (let i = 0; i < arrayContent.length; i++) {
+		const char = arrayContent[i]
+		const nextChar = arrayContent[i + 1]
+
+		if (isLineComment) {
+			if (char === "\n" || char === "\r") {
+				isLineComment = false
+			}
+			continue
+		}
+
+		if (isBlockComment) {
+			if (char === "*" && nextChar === "/") {
+				isBlockComment = false
+				i++
+			}
+			continue
+		}
+
+		if (quote) {
+			if (char === "\\") {
+				i++
+				continue
+			}
+			if (char === quote) {
+				quote = null
+			}
+			continue
+		}
+
+		if (char === "/" && nextChar === "/") {
+			isLineComment = true
+			i++
+			continue
+		}
+
+		if (char === "/" && nextChar === "*") {
+			isBlockComment = true
+			i++
+			continue
+		}
+
+		if (char === '"' || char === "'" || char === "`") {
+			quote = char
+			continue
+		}
+
+		if (char === "{") {
+			if (braceDepth === 0) {
+				objectStart = i
+			}
+			braceDepth++
+			continue
+		}
+
+		if (char === "}") {
+			braceDepth--
+			if (braceDepth === 0 && objectStart !== -1) {
+				cardObjects.push(arrayContent.substring(objectStart, i + 1))
+				objectStart = -1
+			}
+		}
+	}
+
+	return cardObjects
+		.map((cardObject) => cardObject.trim())
+		.filter((cardObject) => cardObject.length > 0)
+}
 /**
  * 清理数组内容中的多余逗号和格式问题
  */
@@ -377,8 +708,6 @@ function cleanArrayContent(arrayContent: string): string {
 		.replace(/,\s*,/g, ",")
 		.replace(/,\s*]/g, "]")
 		.replace(/\[\s*,/g, "[")
-		.replace(/}\s*\n\s*\/\//g, "},\n  //")
-		.replace(/}\s*\n\s*\{/g, "},\n  {")
 }
 
 /**
@@ -422,37 +751,20 @@ export function removeDashboardCardsFromJS(jsContent: string, cardIdsToDelete: s
 			return jsContent
 		}
 
-		let arrayContent = arrayInfo.arrayContent
+		const idsToDelete = new Set(cardIdsToDelete)
+		const cardObjects = extractTopLevelCardObjects(arrayInfo.arrayContent)
+		if (cardObjects.length === 0) {
+			return jsContent
+		}
 
-		// 收集需要删除的卡片对象信息
-		const cardsToRemove: Array<{
-			start: number
-			end: number
-			cardId: string
-		}> = []
-
-		cardIdsToDelete.forEach((cardId) => {
-			const bounds = findCardObjectBounds(arrayContent, cardId)
-			if (!bounds) {
-				return
-			}
-
-			const { start, end } = calculateDeleteRange(arrayContent, bounds.start, bounds.end)
-			cardsToRemove.push({
-				start,
-				end,
-				cardId,
+		let arrayContent = cardObjects
+			.filter((cardObject) => {
+				return !Array.from(idsToDelete).some((cardId) => {
+					const idPattern = new RegExp(`id:\\s*["']${escapeRegExp(cardId)}["']`)
+					return idPattern.test(cardObject)
+				})
 			})
-		})
-
-		// 按照位置从后往前排序，这样删除时不会影响前面的索引
-		cardsToRemove.sort((a, b) => b.start - a.start)
-
-		// 统一应用所有删除操作
-		cardsToRemove.forEach((removal) => {
-			arrayContent =
-				arrayContent.substring(0, removal.start) + arrayContent.substring(removal.end)
-		})
+			.join("\n,\n")
 
 		// 清理可能的多余逗号和格式问题
 		arrayContent = cleanArrayContent(arrayContent)
@@ -480,52 +792,42 @@ function updateCardObjectContent(
 
 	// 更新 layout 字段
 	if (update.layout) {
-		const layoutPattern = /layout:\s*\{[\s\S]*?\}/
 		const layoutString = `layout: { x: ${update.layout.x}, y: ${update.layout.y}, w: ${update.layout.w}, h: ${update.layout.h} }`
+		const layoutRange = findTopLevelPropertyRange(updatedContent, "layout")
 
-		if (layoutPattern.test(updatedContent)) {
-			updatedContent = updatedContent.replace(layoutPattern, layoutString)
+		if (layoutRange) {
+			updatedContent = replaceTopLevelProperty(updatedContent, "layout", layoutString)
 		}
 	}
 
 	// 更新 title 字段
 	if (update.title !== undefined) {
-		const titlePattern = /title:\s*['"][^'"]*['"]/
-		const titleString = `title: "${update.title}"`
+		const titleString = `title: ${createJsStringLiteral(update.title)}`
+		const titleRange = findTopLevelPropertyRange(updatedContent, "title")
 
-		if (titlePattern.test(updatedContent)) {
-			updatedContent = updatedContent.replace(titlePattern, titleString)
+		if (titleRange) {
+			updatedContent = replaceTopLevelProperty(updatedContent, "title", titleString)
 		} else {
-			// 如果没有 title 字段，在 id 字段后添加
-			const idFieldPattern = /(id:\s*['"][^'"]*['"])/
-			if (idFieldPattern.test(updatedContent)) {
-				updatedContent = updatedContent.replace(idFieldPattern, `$1,\n  ${titleString}`)
-			}
+			updatedContent = insertTopLevelPropertyAfter(updatedContent, "id", titleString)
 		}
 	}
 
 	// 更新 titleAlign 字段
 	if (update.titleAlign !== undefined) {
-		const titleAlignPattern = /titleAlign:\s*['"][^'"]*['"]/
-		const titleAlignString = `titleAlign: "${update.titleAlign}"`
+		const titleAlignString = `titleAlign: ${createJsStringLiteral(update.titleAlign)}`
+		const titleAlignRange = findTopLevelPropertyRange(updatedContent, "titleAlign")
 
-		if (titleAlignPattern.test(updatedContent)) {
-			updatedContent = updatedContent.replace(titleAlignPattern, titleAlignString)
+		if (titleAlignRange) {
+			updatedContent = replaceTopLevelProperty(updatedContent, "titleAlign", titleAlignString)
 		} else {
-			// 如果没有 titleAlign 字段，在 title 字段后添加，或者在 id 字段后添加
-			const titleFieldPattern = /(title:\s*['"][^'"]*['"])/
-			const idFieldPattern = /(id:\s*['"][^'"]*['"])/
-
-			if (titleFieldPattern.test(updatedContent)) {
-				updatedContent = updatedContent.replace(
-					titleFieldPattern,
-					`$1,\n  ${titleAlignString}`,
+			if (findTopLevelPropertyRange(updatedContent, "title")) {
+				updatedContent = insertTopLevelPropertyAfter(
+					updatedContent,
+					"title",
+					titleAlignString,
 				)
-			} else if (idFieldPattern.test(updatedContent)) {
-				updatedContent = updatedContent.replace(
-					idFieldPattern,
-					`$1,\n  ${titleAlignString}`,
-				)
+			} else {
+				updatedContent = insertTopLevelPropertyAfter(updatedContent, "id", titleAlignString)
 			}
 		}
 	}
@@ -778,6 +1080,8 @@ export async function saveDashboardAndDataJs(params: {
 				updatedDataJsContent = removeDashboardCardsFromJS(updatedDataJsContent, cardDeletes)
 			}
 
+			validateJavaScriptContent(updatedDataJsContent)
+
 			filesToSave.push({
 				file_id: dataJsFileInfo.fileId,
 				content: updatedDataJsContent,
@@ -913,8 +1217,19 @@ export function injectDashboardHTMLScript(html: string): string {
 		${html}
 		<script data-injected="true">
 			var configManager = null;
+			var lastDashboardRenderMode = null;
+			function applyDashboardRenderMode(mode) {
+				if (mode !== "mobile" && mode !== "desktop" && mode !== "auto") return;
+				lastDashboardRenderMode = mode;
+				if (configManager && typeof configManager.setRenderMode === "function") {
+					configManager.setRenderMode(mode);
+				}
+			}
       document.addEventListener("ConfigManagerReady", (event) => {
 				configManager = event.detail;
+				if (lastDashboardRenderMode != null) {
+					applyDashboardRenderMode(lastDashboardRenderMode);
+				}
       });
 			document.addEventListener("DashboardCardsChange", (event) => {
 				window.parent.postMessage({
@@ -932,7 +1247,12 @@ export function injectDashboardHTMLScript(html: string): string {
 				}, "*");
 			});
 			window.addEventListener("message", (event) => {
-				if (event.data && event.data.type === "editModeChange" && configManager) {
+				if (!event.data || typeof event.data !== "object") return;
+				if (event.data.type === "renderModeChange") {
+					applyDashboardRenderMode(event.data.renderMode);
+					return;
+				}
+				if (event.data.type === "editModeChange" && configManager) {
 					var isEditMode = event.data.isEditMode;
 					configManager.setEditorConfig(oldState => {
 						return {
@@ -1093,7 +1413,9 @@ export function processDashboardArray(data: {
 
 					const isMatchedFile =
 						filePathSplit.length === 2 &&
-						(filePathSplit[0] === "geo" || filePathSplit[0] === "cleaned_data") &&
+						(filePathSplit[0] === "geo" ||
+							(filePathSplit[0] === "cleaned_data" &&
+								file.file_name.endsWith(".csv"))) &&
 						!fileIdsToFetch.includes(file.file_id)
 
 					if (isMatchedFile) {

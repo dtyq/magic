@@ -22,6 +22,7 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.syntax_checker import SyntaxChecker
 from app.utils.diff_generator import DiffGenerator
+from app.utils.line_number_handler import LineNumberHandler
 from app.utils.replace_range_resolver import ContextRange, resolve_replace_range
 
 logger = get_logger(__name__)
@@ -101,7 +102,8 @@ class MultiEditFileRange(AbstractFileTool[MultiEditFileRangeParams], WorkspaceTo
   1) >= 3 行
   2) >= 80 字符
 - 空 start 或空 end 是允许的边界模式，不受上条最小长度限制
-- 锚点必须直接复制原文，不带行号前缀，不改空格/标点/大小写
+- 从 read_file 输出复制文本时，只复制行号前缀之后的实际文件内容；不要把「行号 + 制表符」放进 replace_start、replace_end 或 new_content
+- 锚点必须直接复制原文，不改空格/标点/大小写
 - 每个 chunk 都必须唯一命中（0 或 >1 都会失败）
 - chunk 目标区间不能重叠；共享同一边界标记通常也会冲突（因包含边界）
 - 原子性：任一 chunk 失败则整体失败
@@ -128,7 +130,8 @@ Key constraints:
   1) >= 3 lines
   2) >= 80 characters
 - Empty start or empty end is allowed for boundary mode and is exempt from the minimum-length rule
-- Copy anchors directly from file text, without line-number prefixes and without changing spaces/punctuation/case
+- When copying from read_file output, copy only the actual file content after the line-number prefix; never include the line number + tab in replace_start, replace_end, or new_content
+- Copy anchors directly from file text without changing spaces/punctuation/case
 - Every chunk must match uniquely (0 or >1 fails)
 - Chunk target ranges cannot overlap; reusing the same boundary marker often conflicts under inclusive semantics
 - Atomic operation: any chunk failure means all fail
@@ -162,6 +165,7 @@ Key constraints:
                 return ToolResult.error(error_message)
 
             original_content = await self._read_file(file_path)
+            line_number_warnings = self._strip_line_number_prefixes(file_path, params.chunks)
             resolved_chunks, chunk_warnings = self._resolve_all_chunks(params.chunks, original_content)
             overlap_error = self._validate_no_overlaps(resolved_chunks)
             if overlap_error:
@@ -176,8 +180,13 @@ Key constraints:
 
             if new_content == original_content:
                 msg = "No changes made. All chunks resulted in no actual changes."
+                no_change_warnings: list[str] = []
                 if fuzzy_warning:
-                    msg += "\n\n" + fuzzy_warning
+                    no_change_warnings.append(fuzzy_warning)
+                no_change_warnings.extend(line_number_warnings)
+                no_change_warnings.extend(chunk_warnings)
+                if no_change_warnings:
+                    msg += "\n\n" + "\n\n".join(no_change_warnings)
                 return ToolResult(content=msg)
 
             async with self._file_versioning_context(tool_context, file_path):
@@ -186,6 +195,7 @@ Key constraints:
             ai_warnings: list[str] = []
             if fuzzy_warning:
                 ai_warnings.append(fuzzy_warning)
+            ai_warnings.extend(line_number_warnings)
             ai_warnings.extend(chunk_warnings)
 
             syntax_result = await SyntaxChecker.check_syntax(str(file_path), new_content)
@@ -262,6 +272,49 @@ Key constraints:
                       "If multiple attempts fail and edit_file_range is available, try smaller chunks. "
                       "As a last resort, use shell commands or a Python script."
             )
+
+    def _strip_line_number_prefixes(self, file_path: Path, chunks: List[RangeEditChunk]) -> list[str]:
+        warnings: list[str] = []
+        had_start_numbers = False
+        had_end_numbers = False
+        had_new_numbers = False
+
+        for idx, chunk in enumerate(chunks, start=1):
+            replace_start_cleaned, has_start_numbers, _ = LineNumberHandler.detect_and_strip(chunk.replace_start)
+            if has_start_numbers:
+                logger.info(f"Stripped line numbers from chunk {idx} replace_start for {file_path}")
+                chunk.replace_start = replace_start_cleaned
+                had_start_numbers = True
+
+            replace_end_cleaned, has_end_numbers, _ = LineNumberHandler.detect_and_strip(chunk.replace_end)
+            if has_end_numbers:
+                logger.info(f"Stripped line numbers from chunk {idx} replace_end for {file_path}")
+                chunk.replace_end = replace_end_cleaned
+                had_end_numbers = True
+
+            new_content_cleaned, has_new_numbers, _ = LineNumberHandler.detect_and_strip(chunk.new_content)
+            if has_new_numbers:
+                logger.info(f"Stripped line numbers from chunk {idx} new_content for {file_path}")
+                chunk.new_content = new_content_cleaned
+                had_new_numbers = True
+
+        if had_start_numbers:
+            warnings.append(
+                "WARNING: Line numbers were detected and automatically removed from replace_start in one or more chunks. "
+                "When copying from read_file output, exclude the line number prefix (e.g., '123\\t')."
+            )
+        if had_end_numbers:
+            warnings.append(
+                "WARNING: Line numbers were detected and automatically removed from replace_end in one or more chunks. "
+                "When copying from read_file output, exclude the line number prefix (e.g., '123\\t')."
+            )
+        if had_new_numbers:
+            warnings.append(
+                "WARNING: Line numbers were detected and automatically removed from new_content in one or more chunks. "
+                "Replacement content should not contain read_file line-number prefixes."
+            )
+
+        return warnings
 
     def _resolve_all_chunks(
         self,

@@ -24,10 +24,25 @@ import { MagicConfigManager } from "./MagicConfigManager"
 import { ClipboardManager } from "./interaction/ClipboardManager"
 import { DropOverlayManager } from "./interaction/DropOverlayManager"
 import { CursorManager } from "./interaction/CursorManager"
+import { VideoSelectionPlaybackManager } from "./interaction/VideoSelectionPlaybackManager"
+import { VideoPlaybackInteractionManager } from "./interaction/VideoPlaybackInteractionManager"
 import { UserActionRegistry } from "./user-actions/UserActionRegistry"
 import { BackgroundManager } from "./interaction/BackgroundManager"
-import { ImageUploadManager } from "./utils/ImageUploadManager"
+import { CanvasFileUploadManager } from "./utils/CanvasFileUploadManager"
+import { GeometryCacheManager } from "./utils/GeometryCacheManager"
 import { ImageResourceManager } from "./utils/ImageResourceManager"
+import { SubmitImageWorkerManager } from "./utils/SubmitImageWorkerManager"
+import { VideoPlaybackManager } from "./utils/VideoPlaybackManager"
+import { VideoResourceManager } from "./utils/VideoResourceManager"
+import { MediaResourceOfflineCacheManager } from "./utils/MediaResourceOfflineCacheManager"
+import { CropManager } from "./interaction/CropManager"
+import { ExtendManager } from "./interaction/ExtendManager"
+import { EraserManager } from "./interaction/EraserManager"
+import { ElementRenameManager } from "./interaction/ElementRenameManager"
+import { TextEditingManager } from "./interaction/TextEditingManager"
+import { TextFormattingManager } from "./interaction/TextFormattingManager"
+import { isCanvasUIComponentNode } from "./utils/domGuards"
+import { buildVirtualResourceScope } from "./utils/pathUtils"
 import {
 	editActions,
 	layerActions,
@@ -64,6 +79,8 @@ export class Canvas {
 	public transformManager: TransformManager
 	public hoverManager: HoverManager
 	public selectionHighlightManager: SelectionHighlightManager
+	public videoSelectionPlaybackManager: VideoSelectionPlaybackManager
+	public videoPlaybackInteractionManager: VideoPlaybackInteractionManager
 	public toolManager: ToolManager
 	public keyboardManager: KeyboardManager
 	public alignmentManager: AlignmentManager
@@ -72,6 +89,7 @@ export class Canvas {
 	public markerManager: MarkerManager
 	public snapGuideManager: SnapGuideManager
 	public nameLabelManager: NameLabelManager
+	public elementRenameManager: ElementRenameManager
 	public sizeLabelManager: SizeLabelManager
 	public magicConfigManager: MagicConfigManager
 	public clipboardManager: ClipboardManager
@@ -79,14 +97,28 @@ export class Canvas {
 	public cursorManager: CursorManager
 	public userActionRegistry: UserActionRegistry
 	public backgroundManager: BackgroundManager
-	public imageUploadManager: ImageUploadManager
+	public canvasFileUploadManager: CanvasFileUploadManager
+	public geometryCacheManager: GeometryCacheManager
 	public imageResourceManager: ImageResourceManager
+	public submitImageWorkerManager: SubmitImageWorkerManager
+	public videoResourceManager: VideoResourceManager
+	public videoPlaybackManager: VideoPlaybackManager
+	public mediaResourceOfflineCacheManager: MediaResourceOfflineCacheManager
+	public cropManager: CropManager
+	public extendManager: ExtendManager
+	public eraserManager: EraserManager
+	public textEditingManager: TextEditingManager
+	public textFormattingManager: TextFormattingManager
 
 	public readonly: boolean
 	public isMobileDevice: boolean
-	public id?: string
+	public id: string
 
 	public t?: TFunction
+	private scopeElement: HTMLElement
+
+	// 宽高比锁定修饰键状态（Shift 或 Meta/Command）
+	private keepRatioModifierPressed: boolean = false
 
 	// window 点击事件处理函数引用（用于移除监听器）
 	private handleWindowClick: ((e: MouseEvent) => void) | null = null
@@ -97,6 +129,7 @@ export class Canvas {
 	 */
 	constructor(options: CanvasConfig) {
 		this.container = options.element
+		this.scopeElement = options.scopeElement ?? options.element
 
 		this.t = options.t
 		this.id = options.id
@@ -146,13 +179,36 @@ export class Canvas {
 			config: options.magic,
 		})
 
-		// 初始化 ImageUploadManager（全局上传管理器）
-		this.imageUploadManager = new ImageUploadManager({
+		// 初始化 CanvasFileUploadManager（全局文件上传管理器）
+		this.canvasFileUploadManager = new CanvasFileUploadManager({
 			canvas: this,
+		})
+
+		this.mediaResourceOfflineCacheManager = new MediaResourceOfflineCacheManager({
+			getResolveAbsolutePath: () =>
+				this.magicConfigManager.config?.methods?.resolveAbsolutePath,
+			getVirtualResourceScope: () =>
+				buildVirtualResourceScope(
+					this.magicConfigManager.config?.methods?.getVirtualResourceScope?.(),
+					this.id,
+				),
 		})
 
 		// 初始化 ImageResourceManager（图片资源管理器，每个 Canvas 实例独立）
 		this.imageResourceManager = new ImageResourceManager({
+			canvas: this,
+		})
+
+		this.submitImageWorkerManager = new SubmitImageWorkerManager({
+			canvas: this,
+		})
+
+		// 初始化 VideoResourceManager（视频 path → ossSrc，每个 Canvas 实例独立）
+		this.videoResourceManager = new VideoResourceManager({
+			canvas: this,
+		})
+
+		this.videoPlaybackManager = new VideoPlaybackManager({
 			canvas: this,
 		})
 
@@ -181,6 +237,11 @@ export class Canvas {
 			canvas: this,
 		})
 
+		// 初始化几何缓存管理器（统一提供边界缓存与后续空间索引扩展点）
+		this.geometryCacheManager = new GeometryCacheManager({
+			canvas: this,
+		})
+
 		// 初始化 SelectionManager（使用 Content Layer 用于查询节点）
 		this.selectionManager = new SelectionManager({
 			canvas: this,
@@ -201,8 +262,20 @@ export class Canvas {
 			canvas: this,
 		})
 
+		// 初始化视频选中播放协调器
+		this.videoSelectionPlaybackManager = new VideoSelectionPlaybackManager({
+			canvas: this,
+		})
+
 		// 初始化视口控制器
 		this.viewportController = new ViewportController({
+			canvas: this,
+		})
+
+		this.textEditingManager = new TextEditingManager({
+			canvas: this,
+		})
+		this.textFormattingManager = new TextFormattingManager({
 			canvas: this,
 		})
 
@@ -242,6 +315,10 @@ export class Canvas {
 			canvas: this,
 		})
 
+		this.elementRenameManager = new ElementRenameManager({
+			canvas: this,
+		})
+
 		// 初始化尺寸标签管理器（使用共享的 Overlay Layer）
 		this.sizeLabelManager = new SizeLabelManager({
 			canvas: this,
@@ -249,6 +326,11 @@ export class Canvas {
 
 		// 初始化工具管理器（负责创建所有工具，使用 Content Layer）
 		this.toolManager = new ToolManager({
+			canvas: this,
+		})
+
+		// 初始化视频播放交互协调器
+		this.videoPlaybackInteractionManager = new VideoPlaybackInteractionManager({
 			canvas: this,
 		})
 
@@ -271,6 +353,21 @@ export class Canvas {
 
 		// 初始化背景管理器（使用 Content Layer 的最底层）
 		this.backgroundManager = new BackgroundManager({
+			canvas: this,
+		})
+
+		// 初始化裁剪管理器
+		this.cropManager = new CropManager({
+			canvas: this,
+		})
+
+		// 初始化扩展管理器
+		this.extendManager = new ExtendManager({
+			canvas: this,
+		})
+
+		// 初始化橡皮擦管理器
+		this.eraserManager = new EraserManager({
 			canvas: this,
 		})
 
@@ -301,17 +398,13 @@ export class Canvas {
 	 */
 	private setupTextDoubleClickListener(): void {
 		this.eventEmitter.on("element:dblclick", ({ data }) => {
-			const { elementId, elementType } = data
+			const { elementId, elementType, clientX, clientY } = data
 
-			// 根据元素类型处理双击事件
 			if (elementType === "text") {
-				// 切换到文本工具
-				this.toolManager.setActiveToolByType(ToolTypeEnum.Text)
-
-				// 使用 setTimeout 确保工具切换完成后再进入编辑模式
-				setTimeout(() => {
-					this.toolManager.getTextTool().editElement(elementId)
-				}, 0)
+				this.textEditingManager.editElement(elementId, {
+					clientX,
+					clientY,
+				})
 			}
 		})
 	}
@@ -379,25 +472,20 @@ export class Canvas {
 		this.handleWindowClick = (e: MouseEvent) => {
 			const target = e.target as Node
 
+			if (!target) return
+
+			// 仅处理当前 CanvasDesign 范围内的点击，避免点击页面其他区域时误清选中
+			if (!this.scopeElement.contains(target)) return
+
 			// 检查点击的目标是否在画布容器内
-			if (target && this.container.contains(target)) {
+			if (this.container.contains(target)) {
 				// 点击在画布内，不处理（由 SelectionTool 处理）
 				return
 			}
 
-			// 检查点击的目标是否在UI组件内（ImageMessageEditor、ElementTools、Layers、MessageHistory、Tools、ElementMenu、Zoom、MentionPanel）
-			let currentNode: Node | null = target
-			while (currentNode && currentNode !== document.body) {
-				if (currentNode instanceof Element) {
-					if (
-						currentNode.hasAttribute("data-canvas-ui-component") ||
-						currentNode.hasAttribute("data-mention-panel")
-					) {
-						// 点击在UI组件内，不取消选中
-						return
-					}
-				}
-				currentNode = currentNode.parentNode
+			// 点击在UI组件内，不取消选中
+			if (isCanvasUIComponentNode(target, { stopAt: this.scopeElement })) {
+				return
 			}
 
 			// 点击在画布外且不在UI组件内，取消选中
@@ -423,7 +511,7 @@ export class Canvas {
 		const toolKeyMap = new Map<string, { toolType: ToolType; isTemporary: boolean }>([
 			["v", { toolType: ToolTypeEnum.Select, isTemporary: false }],
 			["h", { toolType: ToolTypeEnum.Hand, isTemporary: false }],
-			// ["t", { toolType: ToolTypeEnum.Text, isTemporary: true }],
+			["t", { toolType: ToolTypeEnum.Text, isTemporary: false }],
 			["f", { toolType: ToolTypeEnum.Frame, isTemporary: true }],
 			["a", { toolType: ToolTypeEnum.ImageGenerator, isTemporary: false }],
 			["m", { toolType: ToolTypeEnum.Marker, isTemporary: false }],
@@ -439,6 +527,11 @@ export class Canvas {
 
 				// 空格键松开时恢复之前的工具
 				if (baseKey === "space") {
+					if (
+						this.videoPlaybackInteractionManager.consumeSpaceKeyupAfterPlaybackToggle()
+					) {
+						return
+					}
 					this.toolManager.restorePreviousTool()
 					return
 				}
@@ -453,6 +546,9 @@ export class Canvas {
 
 			// 处理 Space 键（特殊临时工具）
 			if (key === "space") {
+				if (this.videoPlaybackInteractionManager.toggleSelectedVideoPlaybackByKeyboard()) {
+					return
+				}
 				this.toolManager.savePreviousTool()
 				this.toolManager.setActiveToolByType(ToolTypeEnum.Hand, "keyboard")
 				return
@@ -487,22 +583,47 @@ export class Canvas {
 			this.userActionRegistry.execute("view.zoom-fit")
 		})
 
-		// 监听 Shift 键（用于锁定 Transformer 宽高比）
+		// 监听 Shift 键（宽高比锁定修饰键，影响 Transformer、裁剪框等）
 		this.eventEmitter.on("keyboard:shift:down", () => {
-			this.transformManager.setKeepRatio(true)
+			this.setKeepRatioModifier(true)
+			this.elementManager.updateAllElementsDraggable()
+			this.transformManager.setKeepRatio()
+			this.cropManager.setKeepRatio()
+			this.extendManager.setKeepRatio()
 		})
 
 		this.eventEmitter.on("keyboard:shift:up", () => {
-			this.transformManager.setKeepRatio(false)
+			this.setKeepRatioModifier(false)
+			this.elementManager.updateAllElementsDraggable()
+			this.transformManager.setKeepRatio()
+			this.cropManager.setKeepRatio()
+			this.extendManager.setKeepRatio()
 		})
 
-		// 监听 Meta/Command 键（用于锁定 Transformer 宽高比）
+		// 监听 Meta/Command 键（宽高比锁定修饰键）
 		this.eventEmitter.on("keyboard:meta:down", () => {
-			this.transformManager.setKeepRatio(true)
+			this.setKeepRatioModifier(true)
+			this.elementManager.updateAllElementsDraggable()
+			this.transformManager.setKeepRatio()
+			this.cropManager.setKeepRatio()
+			this.extendManager.setKeepRatio()
 		})
 
 		this.eventEmitter.on("keyboard:meta:up", () => {
-			this.transformManager.setKeepRatio(false)
+			this.setKeepRatioModifier(false)
+			this.elementManager.updateAllElementsDraggable()
+			this.transformManager.setKeepRatio()
+			this.cropManager.setKeepRatio()
+			this.extendManager.setKeepRatio()
+		})
+
+		// 修饰键按下期间，选区变化后需要实时刷新拖拽能力：
+		// 仅允许“已选中元素”可拖拽，未选中元素不可直接按下拖动
+		this.eventEmitter.on("element:select", () => {
+			this.elementManager.updateAllElementsDraggable()
+		})
+		this.eventEmitter.on("element:deselect", () => {
+			this.elementManager.updateAllElementsDraggable()
 		})
 
 		// 监听全选快捷键
@@ -520,9 +641,13 @@ export class Canvas {
 			this.userActionRegistry.execute("edit.copy-png")
 		})
 
-		// 监听粘贴快捷键
+		// Ctrl/Cmd+V 路径：KeyboardManager 会把原始 ClipboardEvent 传进来。
+		// 与菜单粘贴不同，这条路径可在后续解析中读取 clipboardData.files/items。
 		this.eventEmitter.on("keyboard:paste", async (event) => {
-			await this.userActionRegistry.execute("edit.paste", { clipboardEvent: event.data })
+			await this.userActionRegistry.execute("edit.paste", {
+				clipboardEvent: event.data,
+				pasteSource: "keyboard",
+			})
 		})
 
 		// 监听画框快捷键
@@ -595,6 +720,22 @@ export class Canvas {
 		this.eventEmitter.on("keyboard:distribute:auto-layout", () => {
 			this.userActionRegistry.execute("distribute.auto-layout")
 		})
+	}
+
+	/**
+	 * 设置宽高比锁定修饰键状态（Shift 或 Meta/Command 按下时调用）
+	 * @param pressed - 是否按下
+	 */
+	public setKeepRatioModifier(pressed: boolean): void {
+		this.keepRatioModifierPressed = pressed
+	}
+
+	/**
+	 * 检查宽高比锁定修饰键是否按下
+	 * @returns 是否按下 Shift 或 Meta/Command
+	 */
+	public isKeepRatioModifierPressed(): boolean {
+		return this.keepRatioModifierPressed
 	}
 
 	/**
@@ -738,11 +879,6 @@ export class Canvas {
 		}))
 
 		this.elementManager.batchUpdate(updates)
-
-		// 锁定元素后取消选中
-		if (locked) {
-			this.selectionManager.deselectAll()
-		}
 	}
 
 	/**
@@ -771,11 +907,6 @@ export class Canvas {
 	 */
 	public setElementLock(elementId: string, locked: boolean): void {
 		this.elementManager.update(elementId, { locked })
-
-		// 锁定元素后，如果该元素被选中，则取消选中
-		if (locked && this.selectionManager.getSelectedIds().includes(elementId)) {
-			this.selectionManager.deselect(elementId)
-		}
 	}
 
 	/**
@@ -805,11 +936,11 @@ export class Canvas {
 			return
 		}
 
+		// 先统一清空选区，避免批量删除过程中对剩余选区重复重建 Transformer/高亮
+		this.selectionManager.deselectAll()
+
 		// 使用批量删除方法
 		this.elementManager.batchDelete(deletableElementIds)
-
-		// 清空选中状态
-		this.selectionManager.deselectAll()
 	}
 
 	/**
@@ -821,9 +952,9 @@ export class Canvas {
 		// 更新所有元素的拖拽状态
 		this.elementManager.updateAllElementsDraggable()
 
-		// 如果切换到只读模式，清空选中状态并切换到选择工具
+		// 如果切换到只读模式：保留选区（只读下仍可点选/框选），仅结束重命名并切回选择工具
 		if (readonly) {
-			this.selectionManager.deselectAll()
+			this.elementRenameManager.cancelRename()
 			this.toolManager.setActiveToolByType(ToolTypeEnum.Select)
 		}
 	}
@@ -834,6 +965,15 @@ export class Canvas {
 	 */
 	public setT(t?: TFunction): void {
 		this.t = t
+		this.elementManager.rerenderAllElementsForLocale()
+		this.nameLabelManager.refreshAfterLocaleChange()
+		this.sizeLabelManager.refreshAfterLocaleChange()
+		this.stage.batchDraw()
+	}
+
+	/** 清空生图/生视频工具内的模型列表缓存（与 Magic 配置或语言切换对齐） */
+	public invalidateMagicModelListCaches(): void {
+		this.toolManager.invalidateMagicModelListCaches()
 	}
 
 	/**
@@ -896,10 +1036,13 @@ export class Canvas {
 		this.cursorManager.destroy()
 		this.permissionManager.destroy()
 		this.elementManager.destroy()
+		this.geometryCacheManager.destroy()
 		this.viewportController.destroy()
 		this.selectionManager.destroy()
 		this.transformManager.destroy()
 		this.hoverManager.destroy()
+		this.videoSelectionPlaybackManager.destroy()
+		this.videoPlaybackInteractionManager.destroy()
 		this.toolManager.destroy()
 		this.keyboardManager.destroy()
 		this.alignmentManager.destroy()
@@ -907,13 +1050,24 @@ export class Canvas {
 		this.historyManager.destroy()
 		this.markerManager.destroy()
 		this.snapGuideManager.destroy()
+		this.elementRenameManager.destroy()
+		this.textEditingManager.destroy()
+		this.textFormattingManager.destroy()
 		this.nameLabelManager.destroy()
 		this.sizeLabelManager.destroy()
 		this.toolManager.destroy()
 		this.backgroundManager.destroy()
+		this.canvasFileUploadManager.destroy()
+		this.cropManager.destroy()
+		this.extendManager.destroy()
+		this.eraserManager.destroy()
 
 		// 清理图片资源管理器
 		this.imageResourceManager.destroy()
+		this.submitImageWorkerManager.destroy()
+		this.videoPlaybackManager.destroy()
+		this.videoResourceManager.destroy()
+		this.mediaResourceOfflineCacheManager.destroy()
 		this.stage.destroy()
 	}
 }

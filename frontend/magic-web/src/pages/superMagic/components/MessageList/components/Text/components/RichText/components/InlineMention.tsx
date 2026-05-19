@@ -6,6 +6,7 @@ import {
 	getMentionDisplayName,
 } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import {
+	DirectoryMentionData,
 	MentionItemType,
 	type ProjectFileMentionData,
 	type UploadFileMentionData,
@@ -21,6 +22,7 @@ import {
 	useMarkerClickHandler,
 } from "@/pages/superMagic/components/MessageEditor/hooks/useMarkerClickHandler"
 import { getFileType } from "@/pages/superMagic/utils/handleFIle"
+import { getCanvasMarkerMentionImagePath } from "@/components/business/MentionPanel/utils/canvasMarkerMention"
 
 interface InlineMentionProps {
 	data: TiptapMentionAttributes
@@ -55,7 +57,10 @@ function InlineDefaultMention(props: InlineMentionProps) {
 		data,
 		isInMessageList,
 	)
-	const { imageUrl: markerImageUrl } = useMarkerImageUrl(transformedMarkerData?.image_path)
+	const { imageUrl: markerImageUrl } = useMarkerImageUrl(
+		transformedMarkerData ? getCanvasMarkerMentionImagePath(transformedMarkerData) : undefined,
+		transformedMarkerData?.design_project_id,
+	)
 	const { handleMarkerClick } = useMarkerClickHandler({
 		scene: markerClickScene,
 		disabled: markerClickScene === "draftBox",
@@ -106,6 +111,15 @@ function InlineDefaultMention(props: InlineMentionProps) {
 
 			if (data.type === MentionItemType.PROJECT_FILE) {
 				onFileClick(data.data)
+			}
+
+			if (
+				data.type === MentionItemType.FOLDER &&
+				(data.data as DirectoryMentionData)?.directory_metadata
+			) {
+				onFileClick({
+					file_id: (data.data as DirectoryMentionData)?.directory_id,
+				})
 			}
 		},
 		[data, handleMarkerClick, isMobile, onFileClick],

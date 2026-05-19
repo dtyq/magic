@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
+import { useSearchParams } from "react-router-dom"
 import { CREW_EDIT_STEP, isCrewStepEnabled, type StepDetailKey } from "../../store"
 import { useCrewEditStore } from "../../context"
 import IdentityPanel from "./IdentityPanel"
@@ -7,6 +8,7 @@ import { CREW_PANEL_IDS } from "./IdentityPanel/constants"
 import PublishingPanel from "./PublishingPanel"
 import SkillsPanel from "./SkillsPanel"
 import BuiltinSkillsPanel from "../ConfigStepsPanel/BuiltinSkillsPanel"
+import KnowledgeDetailView from "./KnowledgeDetailView"
 import identityPanelBg from "./IdentityPanel/identity-panel-bg.svg"
 import { SceneEditPanel } from "./PlaybookPanel/components/SceneEditPanel"
 
@@ -62,6 +64,8 @@ function StepDetailPanel() {
 	const {
 		layout: { activeDetailKey, activePlaybookId, closePlaybookEditor },
 	} = useCrewEditStore()
+	const [searchParams] = useSearchParams()
+	const knowledgeCode = searchParams.get("code")
 
 	if (activeDetailKey && !isCrewStepEnabled(activeDetailKey)) return null
 
@@ -83,7 +87,8 @@ function StepDetailPanel() {
 		case CREW_EDIT_STEP.BuiltinSkills:
 			return <BuiltinSkillsPanel />
 		case CREW_EDIT_STEP.KnowledgeBase:
-			return null
+			if (!knowledgeCode) return null
+			return <KnowledgeDetailView knowledgeCode={knowledgeCode} />
 		case CREW_EDIT_STEP.RunAndDebug:
 			return <PlaceholderPanel stepKey={activeDetailKey} />
 		case CREW_EDIT_STEP.Publishing:

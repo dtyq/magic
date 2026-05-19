@@ -12,6 +12,7 @@ use App\Domain\Provider\Entity\ValueObject\Category;
 use App\Domain\Provider\Entity\ValueObject\ModelType;
 use App\Domain\Provider\Entity\ValueObject\NaturalLanguageProcessing;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
+use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Service\ConnectivityTest\ConnectResponse;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
@@ -24,6 +25,7 @@ use App\Infrastructure\ExternalAPI\Proxy\ProxyConfigResolverInterface;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use App\Interfaces\Provider\DTO\ConnectivityTestByConfigRequest;
 use Hyperf\Odin\Api\Request\ChatCompletionRequest;
+use Hyperf\Odin\Api\RequestOptions\ApiOptions;
 use Hyperf\Odin\Contract\Model\EmbeddingInterface;
 use Hyperf\Odin\Contract\Model\ModelInterface;
 use Hyperf\Odin\Factory\ModelFactory;
@@ -52,7 +54,7 @@ class LLMTestAppService extends AbstractLLMAppService
         if ($serviceProviderConfigId !== '') {
             $serviceProviderConfigEntity = $this->serviceProviderDomainService->getServiceProviderConfigDetail($serviceProviderConfigId, $authorization->getOrganizationCode());
             $category = $serviceProviderConfigEntity->getCategory();
-            $serviceProviderConfig = $serviceProviderConfigEntity?->getConfig()?->toArray() ?? [];
+            $serviceProviderConfig = $serviceProviderConfigEntity->getConfig()?->toArray() ?? [];
             $providerCode = $serviceProviderConfigEntity->getProviderCode()->value;
         }
 
@@ -69,7 +71,8 @@ class LLMTestAppService extends AbstractLLMAppService
                     $providerCode,
                     $modelVersion,
                     $serviceProviderConfig,
-                    $authorization
+                    $authorization,
+                    $serviceProviderConfigId
                 ),
                 NaturalLanguageProcessing::LLM => $this->llmConnectivityTestByConfig(
                     $providerCode,
@@ -153,7 +156,6 @@ class LLMTestAppService extends AbstractLLMAppService
                 $requestData
             );
 
-            /** @var OpenAIFormatResponse $response */
             $response = $this->generateImageOpenAIFormatByConfig(
                 $imageGenerateType,
                 $serviceProviderConfig,
@@ -173,16 +175,23 @@ class LLMTestAppService extends AbstractLLMAppService
         string $providerCode,
         string $modelVersion,
         array $serviceProviderConfig,
-        MagicUserAuthorization $authorization
+        MagicUserAuthorization $authorization,
+        string $serviceProviderConfigId = ''
     ): ConnectResponse {
         $connectResponse = new ConnectResponse();
+        $supportMultiModal = $this->resolveEmbeddingSupportMultiModal(
+            $authorization->getOrganizationCode(),
+            $serviceProviderConfigId,
+            $modelVersion
+        );
 
         try {
             $model = $this->createConnectivityModelByConfig(
                 $providerCode,
                 $serviceProviderConfig,
                 $modelVersion,
-                true
+                true,
+                $supportMultiModal
             );
 
             if (! $model instanceof EmbeddingInterface) {
@@ -223,11 +232,11 @@ class LLMTestAppService extends AbstractLLMAppService
                 ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidModelType);
             }
 
-            $message = MessageUtil::createFromArray(['role' => 'user', 'content' => '你好']);
+            $message = MessageUtil::createFromArray(['role' => 'user', 'content' => 'Hello, please reply to me 1']);
             $chatRequest = new ChatCompletionRequest(
                 messages: $message ? [$message] : [],
                 temperature: 0.7,
-                maxTokens: 16,
+                maxTokens: 10000,
                 stop: [],
                 tools: []
             );
@@ -249,7 +258,8 @@ class LLMTestAppService extends AbstractLLMAppService
         string $resolvedProviderCode,
         array $resolvedConfig,
         string $modelVersion,
-        bool $embedding
+        bool $embedding,
+        bool $multiModal = false
     ): EmbeddingInterface|ModelInterface {
         $providerCodeEnum = ProviderCode::from($resolvedProviderCode);
         $providerConfigItem = ProviderConfigFactory::create($providerCodeEnum, $resolvedConfig);
@@ -258,16 +268,51 @@ class LLMTestAppService extends AbstractLLMAppService
         $implementationConfig = $providerCodeEnum->getImplementationConfig($providerConfigItem, $modelVersion);
 
         return ModelFactory::create(
-            $providerCodeEnum->getImplementation(),
+            $providerCodeEnum->getImplementationForModel($embedding, $multiModal),
             $modelVersion,
             $implementationConfig,
             modelOptions: new ModelOptions([
                 'chat' => ! $embedding,
                 'function_call' => ! $embedding,
                 'embedding' => $embedding,
-                'multi_modal' => false,
+                'multi_modal' => $multiModal,
+            ]),
+            apiOptions: new ApiOptions([
+                'proxy' => $this->resolveConnectivityProxy($resolvedConfig),
             ])
         );
+    }
+
+    private function resolveConnectivityProxy(array $config): string
+    {
+        if (empty($config['use_proxy'])) {
+            return '';
+        }
+
+        return (string) ($this->resolveProxyUrl($config) ?? '');
+    }
+
+    private function resolveEmbeddingSupportMultiModal(
+        string $organizationCode,
+        string $serviceProviderConfigId,
+        string $modelVersion
+    ): bool {
+        if ($serviceProviderConfigId === '') {
+            return false;
+        }
+
+        $dataIsolation = ProviderDataIsolation::create($organizationCode);
+        $models = $this->providerModelDomainService->getByProviderConfigId($dataIsolation, $serviceProviderConfigId);
+
+        foreach ($models as $model) {
+            if ($model->getModelVersion() !== $modelVersion) {
+                continue;
+            }
+
+            return $model->getConfig()?->isSupportMultiModal() ?? false;
+        }
+
+        return false;
     }
 
     private function buildConnectivityBusinessParams(MagicUserAuthorization $authorization): array

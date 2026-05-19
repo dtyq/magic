@@ -1,6 +1,6 @@
 import superMagicModeService from "./SuperMagicModeService"
 import { platformKey } from "@/utils/storage"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { interfaceStore } from "@/stores/interface"
 
 // 聚合存储：按用户隔离，存储全局 + 项目默认 topic mode

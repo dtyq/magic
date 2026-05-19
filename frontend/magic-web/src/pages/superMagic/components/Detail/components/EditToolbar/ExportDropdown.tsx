@@ -1,21 +1,21 @@
-import { memo, useState } from "react"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { DownloadIcon } from "lucide-react"
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuGroup,
-	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/shadcn-ui/dropdown-menu"
+import { DownloadIcon, MoreHorizontalIcon } from "lucide-react"
+// import {
+// 	DropdownMenu,
+// 	DropdownMenuContent,
+// 	DropdownMenuGroup,
+// 	DropdownMenuItem,
+// 	DropdownMenuLabel,
+// 	DropdownMenuSeparator,
+// 	DropdownMenuTrigger,
+// } from "@/components/shadcn-ui/dropdown-menu"
 import SlideSelectionDialog from "./SlideSelectionDialog"
 import type { SlideItem } from "../PPTRender/PPTSidebar/types"
-import { TSIcon } from "@/components/base"
-import FileSlicesIcon from "./FileSlicesIcon"
+// import { TSIcon } from "@/components/base"
+// import FileSlicesIcon from "./FileSlicesIcon"
 import ActionButton from "../CommonHeader/components/ActionButton"
-import { TOOLBAR_Z_INDEX } from "../../constants/z-index"
+// import { TOOLBAR_Z_INDEX } from "../../constants/z-index"
 
 interface ExportDropdownProps {
 	/** 是否显示按钮文字 */
@@ -53,7 +53,10 @@ interface ExportDropdownProps {
 	/** 导出当前页PPT（可编辑）回调 */
 	onExportCurrentEditablePPT?: () => void
 	/** 指定页面导出回调，传递选中的 slide paths 和导出格式（pptx=可编辑 PPT，由 magic-web 决定内容后传包） */
-	onExportSpecificPages?: (filePaths: string[], format: "source" | "pdf" | "ppt" | "pptx") => void
+	onExportSpecificPages?: (
+		filePaths: string[],
+		format: "source" | "pdf" | "ppt" | "pptx" | "image_png" | "image_jpeg",
+	) => void
 	/** 生成截图回调 */
 	onGenerateScreenshot?: (index: number) => Promise<void>
 }
@@ -81,6 +84,7 @@ function ExportDropdown({
 }: ExportDropdownProps) {
 	const { t } = useTranslation("super")
 	const [slideDialogOpen, setSlideDialogOpen] = useState(false)
+	// const [menuOpen, setMenuOpen] = useState(false)
 
 	const isDisabled = disabled || isExporting
 	const hasCurrentPage =
@@ -91,13 +95,48 @@ function ExportDropdown({
 			onExportCurrentEditablePPT) &&
 		currentPageIndex !== undefined
 
-	// 打开幻灯片选择对话框
-	function handleOpenSlideDialog() {
-		setSlideDialogOpen(true)
-	}
+	/* hover 菜单相关逻辑已暂时禁用，保留代码以便后续恢复
+	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-	// 确认导出选中的幻灯片
-	function handleConfirmExport(filePaths: string[], format: "source" | "pdf" | "ppt" | "pptx") {
+	const cancelCloseTimer = useCallback(() => {
+		if (closeTimerRef.current != null) {
+			clearTimeout(closeTimerRef.current)
+			closeTimerRef.current = null
+		}
+	}, [])
+
+	const scheduleClose = useCallback(() => {
+		cancelCloseTimer()
+		closeTimerRef.current = setTimeout(() => {
+			setMenuOpen(false)
+			closeTimerRef.current = null
+		}, 150)
+	}, [cancelCloseTimer])
+
+	const openMenu = useCallback(() => {
+		if (isDisabled) return
+		cancelCloseTimer()
+		setMenuOpen(true)
+	}, [cancelCloseTimer, isDisabled])
+
+	useEffect(() => cancelCloseTimer, [cancelCloseTimer])
+
+	useEffect(() => {
+		if (isDisabled) setMenuOpen(false)
+	}, [isDisabled])
+	*/
+
+	const handlePrimaryClick = useCallback(() => {
+		if (isDisabled) return
+		// cancelCloseTimer()
+		// setMenuOpen(false)
+		setSlideDialogOpen(true)
+	}, [isDisabled])
+
+	function handleConfirmExport(
+		filePaths: string[],
+		format: "source" | "pdf" | "ppt" | "pptx" | "image_png" | "image_jpeg",
+	) {
 		if (onExportSpecificPages) {
 			onExportSpecificPages(filePaths, format)
 		}
@@ -118,24 +157,42 @@ function ExportDropdown({
 					supportPPT={supportPPT}
 				/>
 			)}
-			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<span>
-						<ActionButton
-							icon={<DownloadIcon className="h-4 w-4" />}
-							title={t("ppt.download")}
-							text={t("ppt.download")}
-							showText={showText}
-							disabled={isDisabled}
-						/>
-					</span>
-				</DropdownMenuTrigger>
-				<DropdownMenuContent
+			{/* <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}> */}
+			<div className="inline-flex items-center" data-testid="export-dropdown-trigger">
+				{/* 左侧主按钮：点击直接打开指定页面对话框 */}
+				<span onClick={handlePrimaryClick} data-testid="export-dropdown-primary">
+					<ActionButton
+						icon={<DownloadIcon className="h-4 w-4" />}
+						title={t("ppt.download")}
+						text={t("ppt.download")}
+						showText={showText}
+						disabled={isDisabled}
+					/>
+				</span>
+				{/* 右侧 ⋯ 展开按钮：hover 显示导出菜单 */}
+				{/* <DropdownMenuTrigger asChild>
+						<span
+							onMouseEnter={openMenu}
+							onMouseLeave={scheduleClose}
+							data-testid="export-dropdown-menu-trigger"
+						>
+							<ActionButton
+								icon={<MoreHorizontalIcon className="h-4 w-4" />}
+								title={t("ppt.download")}
+								showText={false}
+								disabled={isDisabled}
+							/>
+						</span>
+					</DropdownMenuTrigger> */}
+			</div>
+			{/* <DropdownMenuContent
 					align="start"
 					className="w-[203px]"
 					style={{ zIndex: TOOLBAR_Z_INDEX.DOWNLOAD_DROPDOWN }}
+					onMouseEnter={cancelCloseTimer}
+					onMouseLeave={scheduleClose}
 				>
-					{/* 当前幻灯片分组 */}
+					当前幻灯片分组
 					{hasCurrentPage && (
 						<>
 							<DropdownMenuLabel className="px-2 py-1.5 text-xs font-normal text-muted-foreground">
@@ -189,7 +246,7 @@ function ExportDropdown({
 						</>
 					)}
 
-					{/* 整个幻灯片分组 */}
+					整个幻灯片分组
 					{(onExportSource || onExportPDF || onExportPPT || onExportEditablePPT) && (
 						<>
 							<DropdownMenuLabel className="px-2 py-1.5 text-xs font-normal text-muted-foreground">
@@ -241,22 +298,8 @@ function ExportDropdown({
 							</DropdownMenuGroup>
 						</>
 					)}
-
-					{/* 指定页面 */}
-					{supportSpecificPages && onExportSpecificPages && (
-						<>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								onClick={handleOpenSlideDialog}
-								className="cursor-pointer px-2 py-1.5"
-							>
-								<FileSlicesIcon size={16} />
-								<span className="text-sm">{t("ppt.exportSpecificPages")}</span>
-							</DropdownMenuItem>
-						</>
-					)}
-				</DropdownMenuContent>
-			</DropdownMenu>
+				</DropdownMenuContent> */}
+			{/* </DropdownMenu> */}
 		</>
 	)
 }

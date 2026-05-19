@@ -4,7 +4,8 @@
 """
 
 # 导出工具类
-from app.tools.dummy_tool import DummyTool # DummyTool 必须在第一个位置导入，否则其他工具会因为循环依赖导致收集不到
+from app.tools.dummy_tool import DummyTool # DummyTool 必须在第一个位置导入，
+from app.tools.ask_user import AskUserTool
 from app.tools.web_search import WebSearch
 from app.tools.call_subagent import CallSubagent
 from app.tools.wait_for_subagents import WaitForSubagents
@@ -27,7 +28,7 @@ from app.tools.file_search import FileSearch
 from app.tools.get_js_cdn_address import GetJsCdnAddress
 from app.tools.grep_search import GrepSearch
 
-from app.tools.generate_image import GenerateImage
+from app.tools.generate_images import GenerateImages
 from app.tools.generate_video import GenerateVideo, QueryVideoGeneration
 from app.tools.image_search import ImageSearch
 from app.tools.list_dir import ListDir
@@ -42,6 +43,7 @@ from app.tools.reflection import Reflection
 from app.tools.deep_write import DeepWrite
 from app.tools.run_python_snippet import RunPythonSnippet
 from app.tools.shell_exec import ShellExec
+from app.tools.shell_await import ShellAwait
 from app.tools.summarize import Summarize
 from app.tools.thinking import Thinking
 from app.tools.todo_read import TodoRead
@@ -52,12 +54,14 @@ from app.tools.upgrade_sandbox import UpgradeSandbox
 from app.tools.use_browser import UseBrowser
 from app.tools.write_file import WriteFile
 from app.tools.manage_cron import ManageCron
+from app.tools.magic_calendar import ManageCalendar, CreateCalendarProject
 from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.append_to_file import AppendToFile
 from app.tools.convert_pdf import ConvertPdf
 from app.tools.convert_to_markdown import ConvertToMarkdown
 from app.tools.visual_understanding import VisualUnderstanding
 from app.tools.visual_understanding_webpage import VisualUnderstandingWebpage
+from app.tools.video_understanding import VideoUnderstanding
 from app.tools.analysis_slide_webpage import AnalysisSlideWebpage
 from app.tools.channel import ConnectDingTalkBot, ConnectLarkBot, ConnectWecomBot, ConnectWechatBot, GetIMChannelStatus, WaitWechatLogin
 
@@ -66,8 +70,6 @@ from app.tools.data_analyst_dashboard_tools import (
     CreateDashboardProject,
     ValidateDashboard,
     DownloadDashboardMaps,
-    UpdateDashboardTemplate,
-    BackupDashboardTemplate,
     CreateDashboardCards,
     UpdateDashboardCards,
     DeleteDashboardCards,
@@ -99,10 +101,15 @@ from app.tools.design.tools import (
     SearchImagePrompts,
 )
 
+# 用户信息工具
+from app.tools.get_user_info import GetUserInfo
+
 # Skill 管理工具
+from app.tools.find_skills import FindSkillsTool
+from app.tools.install_skills import InstallSkillsTool
 from app.tools.read_skills import ReadSkills
 from app.tools.run_sdk_snippet import RunSdkSnippet
-from app.tools.skill_list import SkillList
+from app.tools.search_knowledge import SearchKnowledge
 
 # Import design package modules to ensure they are available in encrypted environment
 import app.tools.design.manager
@@ -111,6 +118,7 @@ import app.tools.design
 
 __all__ = [
     "DummyTool",
+    "AskUserTool",
 
     # 核心组件
     "BaseTool",
@@ -150,21 +158,25 @@ __all__ = [
     "GetJsCdnAddress",
     "GrepSearch",
     "ImageSearch",
-    "GenerateImage",
+    "GenerateImages",
     "GenerateVideo",
     "QueryVideoGeneration",
     "GetIMChannelStatus",
+    "FindSkillsTool",
+    "GetUserInfo",
+    "InstallSkillsTool",
     "ListDir",
     "Purify",
     "RunPythonSnippet",
     "ReadSkills",
     "RunSdkSnippet",
-    "SkillList",
+    "SearchKnowledge",
     "ReadFile",
     "ReadFiles",
     "ReadWebpagesAsMarkdown",
     "Reflection",
     "ShellExec",
+    "ShellAwait",
     "Summarize",
     "Thinking",
     "TodoRead",
@@ -174,8 +186,11 @@ __all__ = [
     "UseBrowser",
     "VisualUnderstanding",
     "VisualUnderstandingWebpage",
+    "VideoUnderstanding",
     "WriteFile",
     "ManageCron",
+    "ManageCalendar",
+    "CreateCalendarProject",
     "excel_plugin",
     "docx_plugin",
 
@@ -196,8 +211,6 @@ __all__ = [
     "CreateDashboardProject",
     "ValidateDashboard",
     "DownloadDashboardMaps",
-    "UpdateDashboardTemplate",
-    "BackupDashboardTemplate",
     "CreateDashboardCards",
     "UpdateDashboardCards",
     "DeleteDashboardCards",
@@ -217,4 +230,3 @@ __all__ = [
     "SearchCanvasImages",
     "SearchImagePrompts",
 ]
-

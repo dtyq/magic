@@ -608,6 +608,8 @@ class AiCompletionService {
 									return element.getAttribute("data-suggestion") ?? ""
 								},
 								renderHTML: (attrs) => {
+									if (!attrs.suggestion) return {}
+
 									return { "data-suggestion": attrs.suggestion }
 								},
 							},

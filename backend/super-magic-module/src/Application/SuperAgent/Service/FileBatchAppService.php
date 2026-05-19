@@ -7,32 +7,36 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
-use App\Application\File\Event\Publish\FileBatchCompressPublisher;
 use App\Application\File\Service\FileAppService;
 use App\Application\File\Service\FileBatchStatusManager;
-use App\Domain\File\Event\FileBatchCompressEvent;
+use App\Application\File\Service\FileCleanupAppService;
 use App\ErrorCode\GenericErrorCode;
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\Util\Context\RequestContext;
 use Dtyq\SuperMagic\Domain\FileCollection\Service\FileCollectionDomainService;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\MagicFSFileDomainService;
 use Dtyq\SuperMagic\Domain\Share\Constant\ResourceType;
 use Dtyq\SuperMagic\Domain\Share\Service\ResourceShareDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\BatchDownloadPackDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TopicDomainService;
 use Dtyq\SuperMagic\ErrorCode\ShareErrorCode;
 use Dtyq\SuperMagic\ErrorCode\SuperAgentErrorCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Request\FileConverterRequest;
 use Dtyq\SuperMagic\Infrastructure\Utils\AccessTokenUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Request\CreateBatchDownloadRequestDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CheckBatchDownloadResponseDTO;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\CreateBatchDownloadResponseDTO;
-use Hyperf\Amqp\Producer;
 use Hyperf\Logger\LoggerFactory;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 class FileBatchAppService extends AbstractAppService
 {
@@ -43,10 +47,13 @@ class FileBatchAppService extends AbstractAppService
         protected TopicDomainService $topicDomainService,
         protected ProjectDomainService $projectDomainService,
         protected TaskFileDomainService $taskFileDomainService,
-        protected Producer $producer,
         protected FileBatchStatusManager $statusManager,
         protected ResourceShareDomainService $resourceShareDomainService,
         protected FileCollectionDomainService $fileCollectionDomainService,
+        protected BatchDownloadPackDomainService $batchDownloadPackDomainService,
+        protected AgentDomainService $agentDomainService,
+        protected MagicFSFileDomainService $magicFSFileDomainService,
+        protected FileCleanupAppService $fileCleanupAppService,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
@@ -64,105 +71,79 @@ class FileBatchAppService extends AbstractAppService
         RequestContext $requestContext,
         CreateBatchDownloadRequestDTO $requestDTO
     ): CreateBatchDownloadResponseDTO {
-        // Get user authorization info
         $userAuthorization = $requestContext->getUserAuthorization();
         $userId = $userAuthorization->getId();
         $fileIds = $requestDTO->getFileIds();
 
-        // Basic validation
         if (count($fileIds) > 1000) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
         }
 
-        // Check topic access
         $projectEntity = $this->getAccessibleProject((int) $requestDTO->getProjectId(), $userId, $userAuthorization->getOrganizationCode());
 
-        // Get selected entities (may include directories)
-        $selectedEntities = [];
         if (! empty($fileIds)) {
             $selectedEntities = $this->taskFileDomainService->findFilesByProjectIdAndIds($projectEntity->getId(), $fileIds);
         } else {
             $selectedEntities = $this->taskFileDomainService->findUserFilesByProjectId($requestDTO->getProjectId());
         }
 
-        // Check if there are valid entities
         if (empty($selectedEntities)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
         }
 
-        // Expand directories to get all files
-        $userFiles = $this->expandDirectoriesToFiles($selectedEntities, $projectEntity->getId());
+        $expandedEntities = $this->expandSelectionToEntities($selectedEntities, $projectEntity->getId());
+        $packManifest = $this->buildAuthorizedPackManifest(
+            $selectedEntities,
+            $expandedEntities,
+            null,
+            $projectEntity
+        );
 
-        // Check if there are valid files after expansion
-        if (empty($userFiles)) {
+        $leafFiles = $packManifest['leaf_files'];
+        if (empty($leafFiles)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
         }
 
-        // Check if expanded file count exceeds limit
-        if (count($userFiles) > 10000) {
+        if (count($leafFiles) > 10000) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
         }
 
-        // Use relative path mode (hardcoded for now, can be exposed to frontend later)
         $pathMode = 'relative';
-
-        // Use actual file IDs (after expansion) to generate batch key
-        // This ensures cache key reflects the actual content to be downloaded
-        $actualFileIds = array_map(fn ($file) => $file->getFileId(), $userFiles);
-
-        // Generate batch key (include pathMode for cache isolation)
+        $actualFileIds = $packManifest['unique_leaf_file_ids'];
         $batchKey = $this->generateBatchKey($actualFileIds, $userId, $requestDTO->getProjectId(), $pathMode);
 
-        // Check if task already exists and completed
-        $taskStatus = $this->statusManager->getTaskStatus($batchKey);
-        if ($taskStatus && $taskStatus['status'] === 'ready') {
-            // Check if files have been updated since cache creation
-            $latestFileUpdateTime = $this->getLatestFileUpdateTime($userFiles);
-            $cacheUpdatedAt = $taskStatus['updated_at'] ?? 0;
-
-            if ($latestFileUpdateTime > $cacheUpdatedAt) {
-                // Files have been updated, need to regenerate cache
-                $this->logger->info('Files updated since cache creation, invalidating cache', [
-                    'batch_key' => $batchKey,
-                    'latest_file_time' => date('Y-m-d H:i:s', $latestFileUpdateTime),
-                    'cache_updated_at' => date('Y-m-d H:i:s', $cacheUpdatedAt),
-                ]);
-
-                // Clear existing cache and proceed to regenerate
-                $this->statusManager->cleanupTask($batchKey);
-            } else {
-                // Cache is still valid, return existing download link
-                $downloadUrl = $taskStatus['result']['download_url'] ?? '';
-
-                return new CreateBatchDownloadResponseDTO(
-                    'ready',
-                    $batchKey,
-                    $downloadUrl,
-                    $taskStatus['result']['file_count'] ?? count($userFiles),
-                    'Files are ready'
-                );
-            }
+        $cachedResponse = $this->handleCachedBatchTask($batchKey, $leafFiles);
+        if ($cachedResponse !== null) {
+            return $cachedResponse;
         }
 
-        // Get workdir path
-        $workdir = $projectEntity->getWorkdir();
         $targetName = sprintf('%s_%s.zip', $projectEntity->getProjectName(), date('YmdHi'));
         $organizationCode = $projectEntity->getUserOrganizationCode();
+        $sandboxId = $this->generateBatchPackSandboxId($projectEntity->getId());
 
-        // Calculate basePath (LCA) for relative path mode
-        $basePath = $this->calculateBasePath($selectedEntities, $workdir);
+        $this->statusManager->initializeTask($batchKey, $userId, count($leafFiles), $organizationCode, [
+            'sandbox_id' => $sandboxId,
+            'project_id' => (string) $projectEntity->getId(),
+            'task_key' => $batchKey,
+            'zip_bucket_type' => StorageBucketType::Private->value,
+            'target_name' => $targetName,
+        ]);
 
-        // Initialize task status with organization code
-        $this->statusManager->initializeTask($batchKey, $userId, count($userFiles), $organizationCode);
-
-        // Publish message queue task
-        $this->publishBatchJob($batchKey, $userFiles, $projectEntity->getId(), $userId, $organizationCode, $targetName, $workdir, $pathMode, $basePath);
+        $this->prepareAndSubmitSandboxPackTask(
+            $batchKey,
+            $userAuthorization->getId(),
+            $organizationCode,
+            $projectEntity,
+            $packManifest,
+            $targetName,
+            $sandboxId
+        );
 
         return new CreateBatchDownloadResponseDTO(
             'processing',
             $batchKey,
             null,
-            count($userFiles),
+            count($leafFiles),
             'Processing, please check status later'
         );
     }
@@ -182,7 +163,6 @@ class FileBatchAppService extends AbstractAppService
         $token = $requestDTO->getToken();
         $fileIds = $requestDTO->getFileIds();
 
-        // Basic validation
         if (empty($token)) {
             ExceptionBuilder::throw(GenericErrorCode::ParameterMissing, 'token_required');
         }
@@ -191,22 +171,18 @@ class FileBatchAppService extends AbstractAppService
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
         }
 
-        // Validate token
         if (! AccessTokenUtil::validate($token)) {
             ExceptionBuilder::throw(GenericErrorCode::AccessDenied, 'task_file.access_denied');
         }
 
-        // Get share entity from token
         $shareId = AccessTokenUtil::getShareId($token);
         $shareEntity = $this->resourceShareDomainService->getValidShareById($shareId);
         if (! $shareEntity) {
             ExceptionBuilder::throw(ShareErrorCode::RESOURCE_NOT_FOUND, 'share.resource_not_found');
         }
 
-        // Determine project ID and organization code
-        // For FileCollection type, also get allowed file IDs for filtering
         $projectId = 0;
-        $allowedFileIds = null; // Only set for FileCollection type
+        $allowedFileIds = null;
         switch ($shareEntity->getResourceType()) {
             case ResourceType::Topic->value:
                 $topicEntity = $this->topicDomainService->getTopicWithDeleted((int) $shareEntity->getResourceId());
@@ -219,123 +195,84 @@ class FileBatchAppService extends AbstractAppService
                 $projectId = (int) $shareEntity->getProjectId();
                 break;
             case ResourceType::FileCollection->value:
-                $collectionId = (int) $shareEntity->getResourceId();
-                $projectId = $this->fileCollectionDomainService->getProjectIdByCollectionId($collectionId);
-                if (empty($projectId)) {
-                    ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_collection_empty_or_not_found');
-                }
-                // Get allowed file IDs from collection (includes files inside shared directories)
-                $allowedFileIds = $this->getAllowedFileIdsFromCollection($collectionId, $projectId);
-                break;
             case ResourceType::File->value:
-                // 单文件类型：resource_id 是文件集ID（单文件也使用文件集存储）
                 $collectionId = (int) $shareEntity->getResourceId();
                 $projectId = $this->fileCollectionDomainService->getProjectIdByCollectionId($collectionId);
                 if (empty($projectId)) {
                     ExceptionBuilder::throw(SuperAgentErrorCode::FILE_NOT_FOUND, 'file.file_collection_empty_or_not_found');
                 }
-                // Get allowed file IDs from collection (includes files inside shared directories)
                 $allowedFileIds = $this->getAllowedFileIdsFromCollection($collectionId, $projectId);
                 break;
             default:
                 ExceptionBuilder::throw(ShareErrorCode::RESOURCE_TYPE_NOT_SUPPORTED, 'share.resource_type_not_supported');
         }
 
-        // Get project entity to get workdir and organization code
-        // Note: In token mode, we don't check user permission on project,
-        // we trust the token validation and resource scope.
-        // However, we still need the project entity for configuration.
         $projectEntity = $this->projectDomainService->getProjectNotUserId($projectId);
         if (empty($projectEntity)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::PROJECT_NOT_FOUND);
         }
 
-        // Get selected entities - may include directories
         $selectedEntities = $this->taskFileDomainService->findFilesByProjectIdAndIds($projectId, $fileIds);
-
-        // Check if there are valid entities
         if (empty($selectedEntities)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
         }
 
-        // Expand directories to get all files
-        $userFiles = $this->expandDirectoriesToFiles($selectedEntities, $projectId);
+        $expandedEntities = $this->expandSelectionToEntities($selectedEntities, $projectId);
+        $packManifest = $this->buildAuthorizedPackManifest(
+            $selectedEntities,
+            $expandedEntities,
+            $allowedFileIds,
+            $projectEntity
+        );
 
-        // For FileCollection type, filter to only include files within the shared scope
-        // This must be done AFTER expandDirectoriesToFiles to filter expanded child files
-        if ($allowedFileIds !== null) {
-            $userFiles = array_filter($userFiles, function ($file) use ($allowedFileIds) {
-                return in_array($file->getFileId(), $allowedFileIds, true);
-            });
-            $userFiles = array_values($userFiles); // Re-index array
-        }
-
-        // Check if there are valid files after expansion and filtering
-        if (empty($userFiles)) {
+        $leafFiles = $packManifest['leaf_files'];
+        if (empty($leafFiles)) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
         }
 
-        // Check if expanded file count exceeds limit
-        if (count($userFiles) > 10000) {
+        if (count($leafFiles) > 10000) {
             ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_TOO_MANY_FILES);
         }
 
-        // Use relative path mode (hardcoded for now, can be exposed to frontend later)
         $pathMode = 'relative';
-
-        // Use current logged-in user ID for operation tracking and batch key generation
-        // This ensures that even with token access, the operation is linked to the actual user
         $userAuthorization = $requestContext->getUserAuthorization();
         $userId = $userAuthorization->getId();
 
-        // Use actual file IDs (after expansion and filtering) to generate batch key
-        // This ensures cache key reflects the actual content to be downloaded
-        // For FileCollection/File types, this prevents cache collision between different shares
-        $actualFileIds = array_map(fn ($file) => $file->getFileId(), $userFiles);
-
-        // Generate batch key (include pathMode for cache isolation)
-        // We use project ID from the share resource
+        $actualFileIds = $packManifest['unique_leaf_file_ids'];
         $batchKey = $this->generateBatchKey($actualFileIds, $userId, (string) $projectId, $pathMode);
 
-        // Check task status (reuse logic)
-        $taskStatus = $this->statusManager->getTaskStatus($batchKey);
-        if ($taskStatus && $taskStatus['status'] === 'ready') {
-            $latestFileUpdateTime = $this->getLatestFileUpdateTime($userFiles);
-            $cacheUpdatedAt = $taskStatus['updated_at'] ?? 0;
-
-            if ($latestFileUpdateTime > $cacheUpdatedAt) {
-                $this->statusManager->cleanupTask($batchKey);
-            } else {
-                $downloadUrl = $taskStatus['result']['download_url'] ?? '';
-                return new CreateBatchDownloadResponseDTO(
-                    'ready',
-                    $batchKey,
-                    $downloadUrl,
-                    $taskStatus['result']['file_count'] ?? count($userFiles),
-                    'Files are ready'
-                );
-            }
+        $cachedResponse = $this->handleCachedBatchTask($batchKey, $leafFiles);
+        if ($cachedResponse !== null) {
+            return $cachedResponse;
         }
 
-        // Prepare for publishing task
-        $workdir = $projectEntity->getWorkdir();
         $targetName = sprintf('%s_%s.zip', $projectEntity->getProjectName(), date('YmdHi'));
         $organizationCode = $projectEntity->getUserOrganizationCode();
+        $sandboxId = $this->generateBatchPackSandboxId($projectEntity->getId());
 
-        // Calculate basePath (LCA) for relative path mode
-        $basePath = $this->calculateBasePath($selectedEntities, $workdir);
+        $this->statusManager->initializeTask($batchKey, $userId, count($leafFiles), $organizationCode, [
+            'sandbox_id' => $sandboxId,
+            'project_id' => (string) $projectEntity->getId(),
+            'task_key' => $batchKey,
+            'zip_bucket_type' => StorageBucketType::Private->value,
+            'target_name' => $targetName,
+        ]);
 
-        // Initialize task status
-        $this->statusManager->initializeTask($batchKey, $userId, count($userFiles), $organizationCode);
-
-        // Publish message queue task
-        $this->publishBatchJob($batchKey, $userFiles, $projectId, $userId, $organizationCode, $targetName, $workdir, $pathMode, $basePath);
+        $this->prepareAndSubmitSandboxPackTask(
+            $batchKey,
+            $userId,
+            $organizationCode,
+            $projectEntity,
+            $packManifest,
+            $targetName,
+            $sandboxId
+        );
 
         return new CreateBatchDownloadResponseDTO(
             'processing',
             $batchKey,
             null,
-            count($userFiles),
+            count($leafFiles),
             'Processing, please check status later'
         );
     }
@@ -373,55 +310,84 @@ class FileBatchAppService extends AbstractAppService
             );
         }
 
-        $status = $taskStatus['status'];
-        $progress = $taskStatus['progress'] ?? [];
-        $result = $taskStatus['result'] ?? [];
-        $error = $taskStatus['error'] ?? '';
-        // Use organization code from Redis instead of current user authorization
-        $organizationCode = $taskStatus['organization_code'] ?? $userAuthorization->getOrganizationCode();
+        $status = $taskStatus['status'] ?? 'processing';
+
+        if ($status === 'ready' || $status === 'failed') {
+            return $this->buildBatchDownloadResponse($taskStatus, $userAuthorization->getOrganizationCode());
+        }
+
+        $organizationCode = (string) ($taskStatus['organization_code'] ?? $userAuthorization->getOrganizationCode());
+        $this->syncTaskStatusFromSandbox($batchKey, $taskStatus, $organizationCode);
+        $taskStatus = $this->statusManager->getTaskStatus($batchKey) ?? $taskStatus;
 
         $this->logger->info('Check batch download status', [
             'batch_key' => $batchKey,
-            'status' => $status,
+            'status' => $taskStatus['status'] ?? 'processing',
             'organization_code' => $organizationCode,
             'user_id' => $userId,
         ]);
 
-        switch ($status) {
-            case 'ready':
-                $fileKey = $result['zip_file_key'] ?? '';
-                if (! empty($fileKey)) {
-                    $downloadUrl = $this->generateDownloadUrl($fileKey, $organizationCode);
-                } else {
-                    $downloadUrl = $result['download_url'] ?? '';
-                }
-                return new CheckBatchDownloadResponseDTO(
-                    'ready',
-                    $downloadUrl,
-                    100,
-                    'Files are ready'
-                );
+        return $this->buildBatchDownloadResponse($taskStatus, $organizationCode);
+    }
 
-            case 'failed':
-                return new CheckBatchDownloadResponseDTO(
-                    'failed',
-                    null,
-                    null,
-                    $error ?: 'Task failed'
-                );
-
-            case 'processing':
-            default:
-                $progressValue = $progress['percentage'] ?? 0;
-                $progressMessage = $progress['message'] ?? 'Processing...';
-
-                return new CheckBatchDownloadResponseDTO(
-                    'processing',
-                    null,
-                    (int) $progressValue,
-                    $progressMessage
-                );
+    /**
+     * @param TaskFileEntity[] $userFiles
+     */
+    private function handleCachedBatchTask(string $batchKey, array $userFiles): ?CreateBatchDownloadResponseDTO
+    {
+        $taskStatus = $this->statusManager->getTaskStatus($batchKey);
+        if (! $taskStatus) {
+            return null;
         }
+
+        $status = $taskStatus['status'] ?? '';
+        if ($status === 'ready') {
+            $latestFileUpdateTime = $this->getLatestFileUpdateTime($userFiles);
+            $cacheUpdatedAt = (int) ($taskStatus['updated_at'] ?? 0);
+
+            if ($latestFileUpdateTime > $cacheUpdatedAt) {
+                $this->statusManager->cleanupTask($batchKey);
+                return null;
+            }
+
+            $downloadUrl = (string) ($taskStatus['result']['download_url'] ?? '');
+            if ($downloadUrl === '') {
+                $zipFileKey = (string) ($taskStatus['result']['zip_file_key'] ?? '');
+                $organizationCode = (string) ($taskStatus['organization_code'] ?? '');
+                if ($zipFileKey !== '' && $organizationCode !== '') {
+                    $bucketType = $this->resolveZipBucketType($taskStatus);
+                    $downloadUrl = $this->generateDownloadUrl(
+                        $zipFileKey,
+                        $organizationCode,
+                        $bucketType
+                    );
+                }
+            }
+
+            return new CreateBatchDownloadResponseDTO(
+                'ready',
+                $batchKey,
+                $downloadUrl,
+                (int) ($taskStatus['result']['file_count'] ?? count($userFiles)),
+                'Files are ready'
+            );
+        }
+
+        if ($status === 'processing') {
+            return new CreateBatchDownloadResponseDTO(
+                'processing',
+                $batchKey,
+                null,
+                (int) ($taskStatus['progress']['total'] ?? count($userFiles)),
+                'Processing, please check status later'
+            );
+        }
+
+        if ($status === 'failed') {
+            $this->statusManager->cleanupTask($batchKey);
+        }
+
+        return null;
     }
 
     /**
@@ -441,77 +407,306 @@ class FileBatchAppService extends AbstractAppService
     }
 
     /**
-     * Publish batch processing task.
-     *
-     * @param string $batchKey Batch key
-     * @param array $files File array
-     * @param int $projectId Project ID
-     * @param string $userId User ID
-     * @param string $organizationCode Organization code
-     * @param string $targetName Target name
-     * @param string $workDir Work directory
-     * @param string $pathMode Path mode: 'absolute' or 'relative'
-     * @param string $basePath Base path for calculating relative paths in ZIP
+     * @param array{
+     *   base_path:string,
+     *   relative_base_path:string,
+     *   pack_entries:array<int,string>,
+     *   leaf_files:array<int,TaskFileEntity>,
+     *   unique_leaf_file_ids:array<int,int>
+     * } $packManifest
      */
-    private function publishBatchJob(string $batchKey, array $files, int $projectId, string $userId, string $organizationCode, string $targetName = '', string $workDir = '', string $pathMode = 'absolute', string $basePath = ''): void
-    {
-        // Prevent duplicate processing
+    private function prepareAndSubmitSandboxPackTask(
+        string $batchKey,
+        string $userId,
+        string $organizationCode,
+        ProjectEntity $projectEntity,
+        array $packManifest,
+        string $targetName,
+        string $sandboxId
+    ): void {
         if (! $this->statusManager->acquireLock($batchKey)) {
             return;
         }
 
-        // Prepare file data to pass to magic-service (format: ['file_id' => 'file_key'])
-        $fileData = [];
-        /** @var TaskFileEntity $file */
-        foreach ($files as $file) {
-            $fileData[$file->getFileId()] = [
-                'file_key' => $file->getFileKey(),
-                'file_name' => $file->getFileName(),
-            ];
-        }
+        try {
+            $projectWorkDir = $projectEntity->getWorkDir();
+            $fullPrefix = $this->taskFileDomainService->getFullPrefix($organizationCode);
 
-        // Create and publish FileBatchCompressEvent
-        $event = new FileBatchCompressEvent(
-            'super_magic',
-            $organizationCode,
-            $userId,
-            $batchKey,
-            $fileData,
-            $workDir,
-            $targetName,
-            WorkDirectoryUtil::getProjectFilePackDir($userId, $projectId),
-            StorageBucketType::SandBox,
-            $pathMode,
-            $basePath
-        );
+            if (empty($packManifest['pack_entries'])) {
+                ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_NO_VALID_FILES);
+            }
 
-        $publisher = new FileBatchCompressPublisher($event);
-        if (! $this->producer->produce($publisher)) {
-            $this->logger->error('Failed to publish file batch compress message', [
+            $fullBaseWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $packManifest['base_path']);
+
+            $rootFileId = '';
+            try {
+                $rootFileId = (string) $this->taskFileDomainService->getProjectRootFileId($projectEntity->getId());
+            } catch (Throwable $e) {
+                $this->logger->warning('Failed to get root_file_id for batch pack', [
+                    'batch_key' => $batchKey,
+                    'project_id' => $projectEntity->getId(),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            $topicId = '';
+            if (! empty($packManifest['leaf_files']) && $packManifest['leaf_files'][0]->getTopicId() > 0) {
+                $topicId = (string) $packManifest['leaf_files'][0]->getTopicId();
+            }
+
+            $authorization = $this->agentDomainService->getAuthorizationByUserId($userId);
+            $stsTemporaryCredential = $this->getStsCredential($organizationCode, $projectWorkDir);
+            $actualSandboxId = $this->agentDomainService->ensureSandboxRunning(
+                $userId,
+                $organizationCode,
+                $sandboxId,
+                (string) $projectEntity->getId(),
+                $fullBaseWorkDir
+            );
+
+            $request = new FileConverterRequest(
+                $actualSandboxId,
+                'pack',
+                $packManifest['pack_entries'],
+                $stsTemporaryCredential,
+                [],
+                $batchKey,
+                $userId,
+                $organizationCode,
+                $topicId,
+                $rootFileId,
+                $authorization,
+                $targetName
+            );
+
+            $response = $this->batchDownloadPackDomainService->submitPackTask(
+                $userId,
+                $organizationCode,
+                $actualSandboxId,
+                (string) $projectEntity->getId(),
+                $request,
+                $fullBaseWorkDir
+            );
+
+            if (! $response->isSuccess()) {
+                if (
+                    $this->recoverExistingSandboxPackTask(
+                        $batchKey,
+                        $organizationCode,
+                        $actualSandboxId,
+                        (string) $projectEntity->getId(),
+                        count($packManifest['pack_entries'])
+                    )
+                ) {
+                    return;
+                }
+
+                ExceptionBuilder::throw(
+                    SuperAgentErrorCode::BATCH_PUBLISH_FAILED,
+                    'sandbox_pack_submit_failed: ' . $response->getMessage()
+                );
+            }
+
+            $this->logger->info('Batch pack task submitted to sandbox', [
                 'batch_key' => $batchKey,
-                'user_id' => $userId,
-                'file_count' => count($files),
+                'sandbox_id' => $actualSandboxId,
+                'project_id' => $projectEntity->getId(),
+                'file_count' => count($packManifest['pack_entries']),
+                'target_name' => $targetName,
+                'base_path' => $packManifest['base_path'],
+                'relative_base_path' => $packManifest['relative_base_path'],
             ]);
-
-            // Remove lock when publish fails
-            $this->statusManager->releaseLock($batchKey);
-            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_PUBLISH_FAILED);
+        } catch (BusinessException $e) {
+            $this->statusManager->setTaskFailed($batchKey, $e->getMessage());
+            throw $e;
+        } catch (Throwable $e) {
+            $this->statusManager->setTaskFailed($batchKey, $e->getMessage());
+            ExceptionBuilder::throw(SuperAgentErrorCode::BATCH_PUBLISH_FAILED, $e->getMessage());
         }
+    }
 
-        $this->logger->info('File batch compress message published successfully', [
+    private function recoverExistingSandboxPackTask(
+        string $batchKey,
+        string $organizationCode,
+        string $sandboxId,
+        string $projectId,
+        int $totalFiles
+    ): bool {
+        $this->logger->warning('Sandbox pack task already exists, syncing local status', [
             'batch_key' => $batchKey,
-            'user_id' => $userId,
-            'file_count' => count($files),
-            'path_mode' => $pathMode,
-            'base_path' => $basePath,
-        ]);
-
-        $this->logger->info('Batch job published', [
-            'batch_key' => $batchKey,
-            'user_id' => $userId,
-            'file_count' => count($files),
+            'sandbox_id' => $sandboxId,
+            'project_id' => $projectId,
             'organization_code' => $organizationCode,
         ]);
+
+        return $this->syncTaskStatusFromSandbox($batchKey, [
+            'sandbox_id' => $sandboxId,
+            'project_id' => $projectId,
+            'task_key' => $batchKey,
+            'organization_code' => $organizationCode,
+            'progress' => ['total' => $totalFiles],
+            'zip_bucket_type' => StorageBucketType::Private->value,
+        ], $organizationCode);
+    }
+
+    private function syncTaskStatusFromSandbox(string $batchKey, array $taskStatus, string $organizationCode): bool
+    {
+        $sandboxId = (string) ($taskStatus['sandbox_id'] ?? '');
+        $projectId = (string) ($taskStatus['project_id'] ?? '');
+        $taskKey = (string) ($taskStatus['task_key'] ?? '');
+
+        if ($sandboxId === '' || $projectId === '' || $taskKey === '') {
+            $this->statusManager->setTaskFailed($batchKey, 'Batch task context is incomplete');
+            $this->logger->warning('Batch task context is incomplete for sandbox sync', [
+                'batch_key' => $batchKey,
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'task_key' => $taskKey,
+            ]);
+            return false;
+        }
+
+        try {
+            $response = $this->batchDownloadPackDomainService->queryPackTask($sandboxId, $projectId, $taskKey);
+        } catch (Throwable $e) {
+            $this->logger->error('Query sandbox pack status failed', [
+                'batch_key' => $batchKey,
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'task_key' => $taskKey,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+
+        if (! $response->isSuccess()) {
+            $this->logger->warning('Sandbox pack status query returned unsuccessful response', [
+                'batch_key' => $batchKey,
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'task_key' => $taskKey,
+                'code' => $response->getCode(),
+                'message' => $response->getMessage(),
+            ]);
+            return false;
+        }
+
+        $mappedStatus = $this->batchDownloadPackDomainService->mapSandboxStatus($response);
+        $status = (string) ($mappedStatus['status'] ?? 'processing');
+
+        if ($status === 'processing') {
+            $total = (int) ($mappedStatus['file_count'] ?? 0);
+            if ($total <= 0) {
+                $total = (int) ($taskStatus['progress']['total'] ?? 0);
+            }
+            if ($total <= 0) {
+                $total = 1;
+            }
+
+            $progressPercent = (int) ($mappedStatus['progress'] ?? 0);
+            $progressPercent = max(0, min(100, $progressPercent));
+            $current = (int) floor($total * ($progressPercent / 100));
+
+            $this->statusManager->setTaskProgress(
+                $batchKey,
+                $current,
+                $total,
+                (string) ($mappedStatus['message'] ?? 'Processing...')
+            );
+            return true;
+        }
+
+        if ($status === 'failed') {
+            $this->statusManager->setTaskFailed(
+                $batchKey,
+                (string) ($mappedStatus['error'] ?: $mappedStatus['message'] ?: 'Task failed')
+            );
+            return true;
+        }
+
+        if ($status !== 'ready') {
+            return false;
+        }
+
+        $zipFileKey = trim((string) ($mappedStatus['zip_file_key'] ?? ''));
+        if ($zipFileKey === '') {
+            $this->statusManager->setTaskFailed($batchKey, 'Sandbox pack completed but zip file key is empty');
+            return true;
+        }
+
+        $bucketType = $this->resolveZipBucketType($taskStatus);
+        $downloadUrl = $this->generateDownloadUrl($zipFileKey, $organizationCode, $bucketType);
+        $zipFileName = trim((string) ($mappedStatus['zip_file_name'] ?? ''));
+        if ($zipFileName === '') {
+            $zipFileName = basename($zipFileKey);
+        }
+
+        $result = [
+            'download_url' => $downloadUrl,
+            'zip_file_key' => $zipFileKey,
+            'zip_file_name' => $zipFileName,
+            'zip_bucket_type' => $bucketType->value,
+            'file_count' => (int) ($mappedStatus['file_count'] ?? ($taskStatus['progress']['total'] ?? 0)),
+        ];
+
+        if ($this->statusManager->setTaskCompleted($batchKey, $result)) {
+            $this->registerZipFileForCleanup(
+                $organizationCode,
+                $zipFileKey,
+                $zipFileName,
+                $batchKey,
+                $bucketType
+            );
+        }
+
+        return true;
+    }
+
+    private function buildBatchDownloadResponse(
+        array $taskStatus,
+        string $organizationCode
+    ): CheckBatchDownloadResponseDTO {
+        $status = (string) ($taskStatus['status'] ?? 'processing');
+        $progress = $taskStatus['progress'] ?? [];
+        $result = $taskStatus['result'] ?? [];
+        $error = (string) ($taskStatus['error'] ?? '');
+
+        switch ($status) {
+            case 'ready':
+                $downloadUrl = (string) ($result['download_url'] ?? '');
+                if ($downloadUrl === '') {
+                    $fileKey = (string) ($result['zip_file_key'] ?? '');
+                    if ($fileKey !== '') {
+                        $bucketType = StorageBucketType::tryFrom((string) ($result['zip_bucket_type'] ?? StorageBucketType::Private->value))
+                            ?? StorageBucketType::Private;
+                        $downloadUrl = $this->generateDownloadUrl($fileKey, $organizationCode, $bucketType);
+                    }
+                }
+
+                return new CheckBatchDownloadResponseDTO(
+                    'ready',
+                    $downloadUrl,
+                    100,
+                    'Files are ready'
+                );
+
+            case 'failed':
+                return new CheckBatchDownloadResponseDTO(
+                    'failed',
+                    null,
+                    null,
+                    $error !== '' ? $error : 'Task failed'
+                );
+
+            case 'processing':
+            default:
+                return new CheckBatchDownloadResponseDTO(
+                    'processing',
+                    null,
+                    (int) ($progress['percentage'] ?? 0),
+                    (string) ($progress['message'] ?? 'Processing...')
+                );
+        }
     }
 
     /**
@@ -521,13 +716,75 @@ class FileBatchAppService extends AbstractAppService
      * @param string $organizationCode Organization code
      * @return string Download URL
      */
-    private function generateDownloadUrl(string $filePath, string $organizationCode): string
-    {
-        $fileLink = $this->fileAppService->getLink($organizationCode, $filePath, StorageBucketType::SandBox, []);
+    private function generateDownloadUrl(
+        string $filePath,
+        string $organizationCode,
+        StorageBucketType $bucketType = StorageBucketType::SandBox
+    ): string {
+        $fileLink = $this->fileAppService->getLink($organizationCode, $filePath, $bucketType, []);
         if (empty($fileLink)) {
             return '';
         }
         return $fileLink->getUrl();
+    }
+
+    private function resolveZipBucketType(array $taskStatus): StorageBucketType
+    {
+        $bucketType = (string) ($taskStatus['zip_bucket_type'] ?? ($taskStatus['result']['zip_bucket_type'] ?? StorageBucketType::Private->value));
+        return StorageBucketType::tryFrom($bucketType) ?? StorageBucketType::Private;
+    }
+
+    private function registerZipFileForCleanup(
+        string $organizationCode,
+        string $zipFileKey,
+        string $zipFileName,
+        string $batchKey,
+        StorageBucketType $bucketType
+    ): void {
+        $fileName = $zipFileName !== '' ? $zipFileName : basename($zipFileKey);
+        $registered = $this->fileCleanupAppService->registerFileForCleanup(
+            $organizationCode,
+            $zipFileKey,
+            $fileName,
+            0,
+            'batch_compress',
+            $batchKey,
+            7200,
+            $bucketType->value
+        );
+
+        if (! $registered) {
+            $this->logger->warning('Register zip file cleanup failed', [
+                'batch_key' => $batchKey,
+                'organization_code' => $organizationCode,
+                'zip_file_key' => $zipFileKey,
+                'bucket_type' => $bucketType->value,
+            ]);
+        }
+    }
+
+    private function generateBatchPackSandboxId(int $projectId): string
+    {
+        return WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_batch_pack');
+    }
+
+    private function generateTempDir(string $workDir): string
+    {
+        $workDir = rtrim($workDir, '/');
+        $pathParts = explode('/', $workDir);
+        if (count($pathParts) >= 3) {
+            return '/' . $pathParts[1] . '/' . $pathParts[2] . '/temp';
+        }
+        return '/temp';
+    }
+
+    private function getStsCredential(string $organizationCode, string $workDir): array
+    {
+        return $this->fileAppService->getStsTemporaryCredentialV2(
+            $organizationCode,
+            StorageBucketType::Private->value,
+            $this->generateTempDir($workDir)
+        );
     }
 
     /**
@@ -557,137 +814,126 @@ class FileBatchAppService extends AbstractAppService
     }
 
     /**
-     * Expand directories to get all files (excluding directories).
-     *
-     * @param TaskFileEntity[] $entities Selected entities (may include directories)
-     * @param int $projectId Project ID
-     * @return TaskFileEntity[] All file entities (excluding directories)
+     * @param TaskFileEntity[] $selectedEntities
+     * @param TaskFileEntity[] $expandedEntities
+     * @param null|int[] $allowedFileIds
+     * @return array{
+     *   base_path:string,
+     *   relative_base_path:string,
+     *   pack_entries:array<int,string>,
+     *   leaf_files:array<int,TaskFileEntity>,
+     *   unique_leaf_file_ids:array<int,int>
+     * }
      */
-    private function expandDirectoriesToFiles(array $entities, int $projectId): array
+    private function buildAuthorizedPackManifest(
+        array $selectedEntities,
+        array $expandedEntities,
+        ?array $allowedFileIds,
+        ProjectEntity $projectEntity
+    ): array {
+        $authorizedEntities = $this->filterAuthorizedEntities($expandedEntities, $allowedFileIds);
+        if (empty($authorizedEntities)) {
+            return [
+                'base_path' => $projectEntity->getWorkDir(),
+                'relative_base_path' => '',
+                'pack_entries' => [],
+                'leaf_files' => [],
+                'unique_leaf_file_ids' => [],
+            ];
+        }
+
+        $fullPrefix = $this->taskFileDomainService->getFullPrefix($projectEntity->getUserOrganizationCode());
+        $fullProjectWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $projectEntity->getWorkDir());
+
+        return $this->batchDownloadPackDomainService->buildPackManifest(
+            $selectedEntities,
+            $authorizedEntities,
+            $projectEntity->getId(),
+            $projectEntity->getWorkDir(),
+            $fullProjectWorkDir
+        );
+    }
+
+    /**
+     * Expand selection into a full candidate tree (directories + files).
+     *
+     * @param TaskFileEntity[] $entities
+     * @return TaskFileEntity[]
+     */
+    private function expandSelectionToEntities(array $entities, int $projectId): array
     {
-        $allFiles = [];
+        $entityMap = [];
 
         /** @var TaskFileEntity $entity */
         foreach ($entities as $entity) {
-            if ($entity->getIsDirectory()) {
-                // Recursively get all files under this directory
-                $childFiles = $this->taskFileDomainService->findFilesRecursivelyByParentId(
-                    $projectId,
-                    $entity->getFileId()
-                );
-                // Filter out directories, only keep files
-                foreach ($childFiles as $child) {
-                    if (! $child->getIsDirectory()) {
-                        $allFiles[] = $child;
-                    }
-                }
-            } else {
-                $allFiles[] = $entity;
+            $entityMap[$entity->getFileId()] = $entity;
+
+            if (! $entity->getIsDirectory()) {
+                continue;
+            }
+
+            $subtreeFileIds = $this->collectSubtreeFileIdsByMagicFs($entity->getFileId());
+            if (empty($subtreeFileIds)) {
+                continue;
+            }
+
+            $subtreeEntities = $this->taskFileDomainService->findFilesByProjectIdAndIds($projectId, $subtreeFileIds);
+            foreach ($subtreeEntities as $subtreeEntity) {
+                $entityMap[$subtreeEntity->getFileId()] = $subtreeEntity;
             }
         }
 
-        return $allFiles;
+        return array_values($entityMap);
     }
 
     /**
-     * Calculate base path (LCA - Lowest Common Ancestor) for selected entities.
-     *
-     * @param TaskFileEntity[] $selectedEntities User selected entities (files or directories)
-     * @param string $workdir Project workdir
-     * @return string Base path for ZIP relative paths
+     * @param TaskFileEntity[] $entities
+     * @param null|int[] $allowedFileIds
+     * @return TaskFileEntity[]
      */
-    private function calculateBasePath(array $selectedEntities, string $workdir): string
+    private function filterAuthorizedEntities(array $entities, ?array $allowedFileIds): array
     {
-        if (empty($selectedEntities)) {
-            return $workdir;
+        if ($allowedFileIds === null) {
+            return $entities;
         }
 
-        // Collect all relative paths (relative to workdir)
-        $paths = [];
-        $workdirNormalized = str_replace(['\\', '//', '///'], '/', trim($workdir, '/'));
+        $allowedFileIdMap = array_fill_keys($allowedFileIds, true);
 
-        /** @var TaskFileEntity $entity */
-        foreach ($selectedEntities as $entity) {
-            $fileKey = $entity->getFileKey();
-            // Normalize path separators
-            $fileKey = str_replace(['\\', '//', '///'], '/', trim($fileKey));
-
-            // Find position after workdir
-            $pos = strpos($fileKey, $workdirNormalized);
-            if ($pos !== false) {
-                $relativePath = ltrim(substr($fileKey, $pos + strlen($workdirNormalized)), '/');
-                if (! empty($relativePath)) {
-                    // For both files and directories, use parent directory
-                    // This ensures directory names are preserved in the ZIP
-                    $parentDir = dirname($relativePath);
-                    $paths[] = $parentDir === '.' ? '' : $parentDir;
-                }
-            }
-        }
-
-        if (empty($paths)) {
-            return $workdir;
-        }
-
-        // Calculate LCA
-        $lcaPath = $this->findLCA($paths);
-
-        // Combine workdir with LCA
-        if (empty($lcaPath)) {
-            return $workdir;
-        }
-
-        return rtrim($workdir, '/') . '/' . $lcaPath;
+        return array_values(array_filter(
+            $entities,
+            static fn (TaskFileEntity $entity): bool => isset($allowedFileIdMap[$entity->getFileId()])
+        ));
     }
 
     /**
-     * Find Lowest Common Ancestor path from multiple paths.
-     *
-     * @param string[] $paths Array of relative paths
-     * @return string LCA path
+     * @return int[]
      */
-    private function findLCA(array $paths): string
+    private function collectSubtreeFileIdsByMagicFs(int $fileId): array
     {
-        // Filter out empty paths
-        $paths = array_filter($paths, fn ($path) => $path !== '');
-
-        if (empty($paths)) {
-            return '';
+        try {
+            $fileTree = $this->magicFSFileDomainService->getFileTree((string) $fileId);
+        } catch (Throwable $e) {
+            $this->logger->error('Collect subtree file ids by MagicFS failed', [
+                'file_id' => $fileId,
+                'error' => $e->getMessage(),
+            ]);
+            return [];
         }
 
-        if (count($paths) === 1) {
-            return $paths[array_key_first($paths)];
+        $fileIds = [];
+        if (isset($fileTree['root']) && $fileTree['root'] instanceof TaskFileEntity) {
+            $fileIds[] = $fileTree['root']->getFileId();
         }
 
-        // Split all paths into segments
-        $segmentArrays = array_map(
-            fn ($path) => array_values(array_filter(explode('/', $path))),
-            $paths
-        );
-
-        // Find common prefix
-        $commonSegments = [];
-        $firstPath = $segmentArrays[array_key_first($segmentArrays)];
-
-        for ($i = 0; $i < count($firstPath); ++$i) {
-            $segment = $firstPath[$i];
-            $isCommon = true;
-
-            foreach ($segmentArrays as $segments) {
-                if (! isset($segments[$i]) || $segments[$i] !== $segment) {
-                    $isCommon = false;
-                    break;
+        if (isset($fileTree['children']) && is_array($fileTree['children'])) {
+            foreach ($fileTree['children'] as $childEntity) {
+                if ($childEntity instanceof TaskFileEntity) {
+                    $fileIds[] = $childEntity->getFileId();
                 }
             }
-
-            if ($isCommon) {
-                $commonSegments[] = $segment;
-            } else {
-                break;
-            }
         }
 
-        return implode('/', $commonSegments);
+        return array_values(array_unique($fileIds));
     }
 
     /**
@@ -713,19 +959,20 @@ class FileBatchAppService extends AbstractAppService
         $sharedEntities = $this->taskFileDomainService->findFilesByProjectIdAndIds($projectId, $sharedFileIds);
 
         $allowedFileIds = [];
+        $sharedDirectoryIds = [];
         foreach ($sharedEntities as $entity) {
             $fileId = $entity->getFileId();
             $allowedFileIds[] = $fileId;
 
-            // If it's a directory, recursively get all child file IDs
             if ($entity->getIsDirectory()) {
-                $childFiles = $this->taskFileDomainService->findFilesRecursivelyByParentId($projectId, $fileId);
-                foreach ($childFiles as $childFile) {
-                    $allowedFileIds[] = $childFile->getFileId();
-                }
+                $sharedDirectoryIds[] = $fileId;
             }
         }
 
-        return array_unique($allowedFileIds);
+        foreach ($sharedDirectoryIds as $directoryId) {
+            $allowedFileIds = array_merge($allowedFileIds, $this->collectSubtreeFileIdsByMagicFs($directoryId));
+        }
+
+        return array_values(array_unique($allowedFileIds));
     }
 }

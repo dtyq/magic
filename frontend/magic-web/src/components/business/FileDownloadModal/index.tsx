@@ -71,7 +71,7 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 				{/* Content */}
 				<div className="flex flex-col items-center gap-4 py-6">
 					{/* Success Icon */}
-					<div className="shadow-xs flex h-14 w-14 items-center justify-center rounded-lg border border-border bg-background p-3">
+					<div className="flex h-14 w-14 items-center justify-center rounded-lg border border-border bg-background p-3 shadow-xs">
 						<Download className="h-8 w-8 text-foreground" strokeWidth={1.25} />
 					</div>
 
@@ -128,7 +128,6 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 		<Dialog open={internalOpen} onOpenChange={(isOpen) => !isOpen && handleClose()}>
 			<DialogContent
 				className="w-[500px] max-w-[calc(100vw-2rem)] gap-0 p-0 sm:max-w-[500px]"
-				style={{ zIndex: 1200 }}
 				onPointerDownOutside={(e) => e.preventDefault()}
 				onEscapeKeyDown={(e) => e.preventDefault()}
 			>
@@ -148,7 +147,7 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 				{/* Content */}
 				<div className="flex w-full flex-col items-center gap-3 overflow-hidden px-8 py-8 pt-12">
 					{/* Success Icon */}
-					<div className="shadow-xs flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-background p-2">
+					<div className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-background p-2 shadow-xs">
 						<Download className="h-6 w-6 text-foreground" strokeWidth={1.25} />
 					</div>
 
@@ -184,7 +183,7 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 					<div className="flex w-full flex-col gap-3">
 						<Button
 							variant="default"
-							className="shadow-xs w-full gap-2"
+							className="w-full gap-2 shadow-xs"
 							onClick={handleDownloadClick}
 						>
 							{/* <Download className="h-4 w-4" /> */}
@@ -192,7 +191,7 @@ export default memo(function FileDownloadModal(props: OpenableProps<FileDownload
 						</Button>
 						<Button
 							variant="outline"
-							className="shadow-xs w-full gap-2"
+							className="w-full gap-2 shadow-xs"
 							onClick={handleCopyLinkClick}
 						>
 							{/* <Copy className="h-4 w-4" /> */}

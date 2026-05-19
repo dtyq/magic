@@ -24,6 +24,11 @@ const MemoryPage = {
 
 export interface LongTremMemoryProps extends AgentCommonModalChildrenProps {
 	onWorkspaceStateChange: (params: NavigateToStateParams) => void
+	initialPage?: LongTremMemoryPage
+	initialEditMemory?: LongMemory.Memory
+	initialSelectedProjectId?: string
+	closeOnCreateSuccess?: boolean
+	onMemoryChanged?: () => void
 }
 
 export default observer(function LongTremMemory(props: LongTremMemoryProps) {
@@ -35,9 +40,13 @@ export default observer(function LongTremMemory(props: LongTremMemoryProps) {
 	const isMobile = useIsMobile()
 
 	/** 当前所处的页面 */
-	const [page, setPage] = useState<LongTremMemoryPage>(LongTremMemoryPage.List)
+	const [page, setPage] = useState<LongTremMemoryPage>(
+		props.initialPage ?? LongTremMemoryPage.List,
+	)
 	/** 处于编辑状态的记忆id */
-	const [editMemory, setEditMemory] = useState<LongMemory.Memory | undefined>()
+	const [editMemory, setEditMemory] = useState<LongMemory.Memory | undefined>(
+		props.initialEditMemory,
+	)
 	/** 顶部展示的面包屑列表 */
 	const [breadcrumbList, setBreadcrumbList] = useState<string[]>([])
 
@@ -71,10 +80,10 @@ export default observer(function LongTremMemory(props: LongTremMemoryProps) {
 	}, [page])
 
 	useEffect(() => {
-		if (pendingMemoryList.length > 0) {
+		if (!props.initialPage && pendingMemoryList.length > 0) {
 			setPage(LongTremMemoryPage.Suggestion)
 		}
-	}, [pendingMemoryList.length])
+	}, [pendingMemoryList.length, props.initialPage])
 
 	return (
 		<div className={styles.layout}>
@@ -112,9 +121,12 @@ export default observer(function LongTremMemory(props: LongTremMemoryProps) {
 				{createElement(MemoryPage[page], {
 					setPage,
 					editMemory,
+					initialSelectedProjectId: props.initialSelectedProjectId,
+					closeOnCreateSuccess: props.closeOnCreateSuccess,
 					setEditMemory,
 					setBreadcrumbList,
 					onClose: handleClose,
+					onMemoryChanged: props.onMemoryChanged,
 					onWorkspaceStateChange: props.onWorkspaceStateChange,
 				})}
 			</Suspense>

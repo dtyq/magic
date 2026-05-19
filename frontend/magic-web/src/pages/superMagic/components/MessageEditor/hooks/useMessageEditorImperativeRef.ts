@@ -1,7 +1,6 @@
 import type { Editor, JSONContent } from "@tiptap/react"
 import { useImperativeHandle } from "react"
 import type { ForwardedRef } from "react"
-import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import type { Topic } from "../../../pages/Workspace/types"
 import type { FileData, ModelItem } from "../types"
 import type { MessageEditorStore } from "../stores"
@@ -24,8 +23,13 @@ interface UseMessageEditorImperativeRefParams {
 		selectedTopic: Topic
 		model: ModelItem
 		imageModel: ModelItem | null
+		videoModel?: ModelItem | null
 	}) => void
-	setModels: (params: { languageModel?: ModelItem | null; imageModel?: ModelItem | null }) => void
+	setModels: (params: {
+		languageModel?: ModelItem | null
+		imageModel?: ModelItem | null
+		videoModel?: ModelItem | null
+	}) => void
 }
 
 export default function useMessageEditorImperativeRef({
@@ -55,7 +59,7 @@ export default function useMessageEditorImperativeRef({
 			clearContent,
 			clearContentAfterSend,
 			setContent: updateContent,
-			restoreMentionItems: (_items: MentionListItem[]) => undefined,
+			restoreMentionItems: () => undefined,
 			restoreContent: (content?: JSONContent) => {
 				updateContent(content)
 			},

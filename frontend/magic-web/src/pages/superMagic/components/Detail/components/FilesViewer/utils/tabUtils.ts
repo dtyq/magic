@@ -1,6 +1,7 @@
 import type { TabItem, FileItem } from "../types"
 import type { AttachmentItem } from "../../../../TopicFilesButton/hooks/types"
 import { getParentIdFromPath } from "../../../../TopicFilesButton/utils/getParentIdFromPath"
+import { isMagicProjectConfigFile } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
 
 /**
  * 递归查找指定路径的目录项
@@ -31,46 +32,50 @@ function findDirectoryByPath(
 
 /**
  * 获取文件的 tab title
- * 对于 index.html 文件：优先从文件 metadata.name 获取，其次从父目录 metadata.name 获取，最后使用目录名称
- * 对于其他文件：优先从 metadata.name 获取，否则使用文件名
+ * 对于 index.html 文件：优先从文件 display_config.name 获取，其次从父目录 display_config.name 获取，最后使用目录名称
+ * 对于其他文件：优先从 display_config.name 获取，否则使用文件名
  * @param file - 文件项
  * @param attachments - 附件树数组（用于查找父目录）
- * @param metadata - 可选的元数据（优先使用）
+ * @param displayConfig - 可选的元数据（优先使用）
  * @returns tab title
  */
 export function getFileTabTitle(
 	file: FileItem | AttachmentItem,
 	attachments?: FileItem[] | AttachmentItem[],
-	metadata?: Record<string, unknown>,
+	displayConfig?: Record<string, unknown>,
 ): string {
 	const fileName = file.display_filename || file.file_name || file.filename || "未命名文件"
-	const fileMetadata = metadata || file.metadata
+	const fileDisplayConfig = displayConfig || file.display_config
 
 	// 检查是否为 index.html
 	if (fileName.toLowerCase() === "index.html" && file.relative_file_path) {
-		// 优先从 index.html 文件的 metadata.name 获取
-		if (fileMetadata && typeof fileMetadata.name === "string" && fileMetadata.name.trim()) {
-			return fileMetadata.name.trim()
+		// 优先从 index.html 文件的 display_config.name 获取
+		if (
+			fileDisplayConfig &&
+			typeof fileDisplayConfig.name === "string" &&
+			fileDisplayConfig.name.trim()
+		) {
+			return fileDisplayConfig.name.trim()
 		}
 
-		// 其次从父目录的 metadata.name 获取
+		// 其次从父目录的 display_config.name 获取
 		const parentPath = file.relative_file_path.split("/").slice(0, -1).join("/")
 		const parentDirectory = parentPath
 			? findDirectoryByPath(attachments as FileItem[] | undefined, parentPath)
 			: undefined
-		const parentMetadata = parentDirectory?.metadata
+		const parentDisplayConfig = parentDirectory?.display_config
 		if (
-			parentMetadata &&
-			typeof parentMetadata.name === "string" &&
-			parentMetadata.name.trim()
+			parentDisplayConfig &&
+			typeof parentDisplayConfig.name === "string" &&
+			parentDisplayConfig.name.trim()
 		) {
-			return parentMetadata.name.trim()
+			return parentDisplayConfig.name.trim()
 		}
 
-		// 如果文件或目录有 metadata（但没有 name），使用目录名称作为 tab title
-		const hasFileMetadata = !!fileMetadata
-		const hasParentMetadata = !!parentMetadata
-		if (hasFileMetadata || hasParentMetadata) {
+		// 如果文件或目录有 display_config（但没有 name），使用目录名称作为 tab title
+		const hasFileDisplayConfig = !!fileDisplayConfig
+		const hasParentDisplayConfig = !!parentDisplayConfig
+		if (hasFileDisplayConfig || hasParentDisplayConfig) {
 			const pathParts = file.relative_file_path.split("/")
 			if (pathParts.length > 1) {
 				// 使用父目录名称
@@ -80,9 +85,18 @@ export function getFileTabTitle(
 		}
 	}
 
-	// 对于非 index.html 文件，优先从 metadata.name 获取
-	if (fileMetadata && typeof fileMetadata.name === "string" && fileMetadata.name.trim()) {
-		return fileMetadata.name.trim()
+	// magic.project.js 始终显示文件名，不用 display_config.name
+	if (isMagicProjectConfigFile(fileName)) {
+		return fileName
+	}
+
+	// 对于其他非 index.html 文件，优先从 display_config.name 获取
+	if (
+		fileDisplayConfig &&
+		typeof fileDisplayConfig.name === "string" &&
+		fileDisplayConfig.name.trim()
+	) {
+		return fileDisplayConfig.name.trim()
 	}
 
 	return fileName
@@ -99,7 +113,7 @@ export function convertFileToTabItem(
 	file: FileItem | AttachmentItem,
 	attachments?: FileItem[] | AttachmentItem[],
 	options?: {
-		metadata?: Record<string, unknown>
+		display_config?: Record<string, unknown>
 		create_at?: number
 		active_at?: number
 		active?: boolean
@@ -110,8 +124,8 @@ export function convertFileToTabItem(
 		return null
 	}
 
-	const fileMetadata = options?.metadata || file.metadata
-	const tabTitle = getFileTabTitle(file, attachments, fileMetadata)
+	const fileDisplayConfig = options?.display_config || file.display_config
+	const tabTitle = getFileTabTitle(file, attachments, fileDisplayConfig)
 
 	const parentPath = file.relative_file_path?.split("/").slice(0, -1).join("/") || ""
 
@@ -124,12 +138,12 @@ export function convertFileToTabItem(
 			...file,
 			file_id: file.file_id,
 			parent_id: getParentIdFromPath(attachments as AttachmentItem[] | undefined, parentPath),
-			metadata: fileMetadata,
+			display_config: fileDisplayConfig,
 		} as FileItem,
 		active: options?.active ?? true,
 		closeable: options?.closeable ?? true,
 		filePath: file.relative_file_path,
-		metadata: fileMetadata,
+		display_config: fileDisplayConfig,
 		// Note: create_at and active_at will be set by reducer if used through dispatchTabs
 		// For direct setCurrentTabs calls, these values are preserved
 		create_at: options?.create_at ?? now,

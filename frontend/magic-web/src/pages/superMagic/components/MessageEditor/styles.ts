@@ -128,12 +128,12 @@ export const useStyles = createStyles(({ token, css, responsive }) => {
 
 				/* 恢复自动补全提醒样式 */
 
-				p[data-suggestion] {
+				p[data-suggestion]:not([data-suggestion=""]) {
 					position: relative;
 					overflow: visible;
 				}
 
-				p[data-suggestion]::after {
+				p[data-suggestion]:not([data-suggestion=""])::after {
 					display: inline-block;
 					color: ${token.colorTextQuaternary};
 					content: attr(data-suggestion);
@@ -144,7 +144,7 @@ export const useStyles = createStyles(({ token, css, responsive }) => {
 				/* 移动端隐藏自动补全提示 */
 
 				${responsive.mobile} {
-					p[data-suggestion]::after {
+					p[data-suggestion]:not([data-suggestion=""])::after {
 						display: none;
 					}
 				}

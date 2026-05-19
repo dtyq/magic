@@ -2,6 +2,7 @@ import type { Editor, JSONContent } from "@tiptap/react"
 import type { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import {
+	DirectoryMentionData,
 	MentionItemType,
 	UploadFileMentionData,
 	ProjectFileMentionData,
@@ -217,6 +218,13 @@ export function removeUploadMentionNodes({
 		if (attrs.type === MentionItemType.PROJECT_FILE && savedFileId) {
 			const projectData = attrs.data as ProjectFileMentionData
 			if (projectData.file_id === savedFileId) {
+				toDelete.push({ from: pos, to: pos + node.nodeSize })
+			}
+		}
+
+		if (attrs.type === MentionItemType.FOLDER && savedFileId) {
+			const directoryData = attrs.data as DirectoryMentionData
+			if (directoryData.directory_id === savedFileId) {
 				toDelete.push({ from: pos, to: pos + node.nodeSize })
 			}
 		}

@@ -6,6 +6,7 @@
 
 import asyncio
 import hashlib
+import html as html_lib
 import json
 import os
 import re
@@ -19,7 +20,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, TypedDict
+from typing import Any, Dict, List, Optional, Set, TypedDict, Union
 from urllib.parse import quote
 
 import aiofiles
@@ -66,6 +67,16 @@ class ViewportSize(TypedDict):
 
     width: int
     height: int
+
+
+class ConvertStageError(RuntimeError):
+    """携带转换阶段的异常，避免清理或降级逻辑覆盖真实根因。"""
+
+    def __init__(self, stage: str, message: str, cause: Optional[BaseException] = None) -> None:
+        super().__init__(message)
+        self.stage = stage
+        if cause:
+            self.__cause__ = cause
 
 
 class BaseConvertService(ABC):
@@ -150,7 +161,18 @@ class BaseConvertService(ABC):
     # === 工具方法：减少代码冗余 ===
 
     @staticmethod
-    def _is_html_file(file_path: Path) -> bool:
+    def _normalize_path(path: Union[str, os.PathLike, Path], field_name: str = "path") -> Path:
+        """
+        将外部传入的路径值统一归一化为 Path，避免 str/Path 混用导致运行时错误。
+        """
+        if isinstance(path, Path):
+            return path
+        if isinstance(path, (str, os.PathLike)):
+            return Path(path)
+        raise TypeError(f"{field_name} 必须是 str、os.PathLike 或 Path，当前类型: {type(path).__name__}")
+
+    @staticmethod
+    def _is_html_file(file_path: Union[str, os.PathLike, Path]) -> bool:
         """
         检查文件是否为HTML类型
 
@@ -160,7 +182,7 @@ class BaseConvertService(ABC):
         Returns:
             是否为HTML文件
         """
-        return file_path.suffix.lower() in [".html", ".htm"]
+        return BaseConvertService._normalize_path(file_path, "file_path").suffix.lower() in [".html", ".htm"]
 
     def _calculate_conversion_concurrency(self, file_type_counts: Dict[str, int]) -> int:
         """
@@ -249,7 +271,9 @@ class BaseConvertService(ABC):
             return False
 
     @staticmethod
-    async def embed_image_metadata(image_path: str, aigc_params: Optional[AigcMetadataParams] = None) -> bool:
+    async def embed_image_metadata(
+        image_path: Union[str, os.PathLike, Path], aigc_params: Optional[AigcMetadataParams] = None
+    ) -> bool:
         """
         为图片嵌入签名元数据
 
@@ -271,7 +295,9 @@ class BaseConvertService(ABC):
         return AigcMetadataUtil.embed_image_metadata(image_path, metadata_json)
 
     @staticmethod
-    async def embed_pptx_metadata(pptx_path: str, aigc_params: Optional[AigcMetadataParams] = None) -> None:
+    async def embed_pptx_metadata(
+        pptx_path: Union[str, os.PathLike, Path], aigc_params: Optional[AigcMetadataParams] = None
+    ) -> None:
         """
         为PPTX文件嵌入AIGC签名元数据的便捷方法
 
@@ -286,7 +312,9 @@ class BaseConvertService(ABC):
         logger.info(f"为PPTX文件 {pptx_path} 嵌入签名元数据")
 
     @staticmethod
-    async def embed_pdf_metadata(pdf_path: str, aigc_params: Optional[AigcMetadataParams] = None) -> None:
+    async def embed_pdf_metadata(
+        pdf_path: Union[str, os.PathLike, Path], aigc_params: Optional[AigcMetadataParams] = None
+    ) -> None:
         """
         为PDF文件嵌入AIGC签名元数据的便捷方法
 
@@ -432,7 +460,9 @@ class BaseConvertService(ABC):
 
             try:
                 # 解析文件key到workspace路径
-                workspace_path = self.parse_file_key_to_workspace_path(file_key)
+                workspace_path = self._normalize_path(
+                    self.parse_file_key_to_workspace_path(file_key), "workspace_path"
+                )
 
                 # 检查文件是否存在
                 if workspace_path.exists() and workspace_path.is_file():
@@ -2327,6 +2357,97 @@ class BaseConvertService(ABC):
             return True  # 降级到继续处理
 
     @staticmethod
+    async def _wait_for_page_images_loaded(page, timeout: int = 20000, debug_info: str = "") -> tuple[bool, str]:
+        """
+        等待页面内 img 资源完成加载，避免 PDF 生成时图片尚未渲染。
+        """
+        image_status_script = """
+            () => {
+                const images = Array.from(document.images || []);
+                const records = images.map((img, index) => {
+                    const rawSrc = img.currentSrc || img.src || img.getAttribute("src") || "";
+                    const src = rawSrc.trim();
+                    const hasSrc = src.length > 0;
+                    const loaded = !hasSrc || (img.complete && img.naturalWidth > 0);
+                    const failed = hasSrc && img.complete && img.naturalWidth === 0;
+                    return {
+                        index,
+                        src,
+                        complete: img.complete,
+                        naturalWidth: img.naturalWidth,
+                        loaded,
+                        failed,
+                    };
+                });
+                const unloaded = records.filter((record) => !record.loaded);
+                return {
+                    total: records.length,
+                    loaded: records.filter((record) => record.loaded).length,
+                    pending: unloaded.filter((record) => !record.failed).length,
+                    failed: unloaded.filter((record) => record.failed).length,
+                    samples: unloaded.slice(0, 5),
+                };
+            }
+        """
+
+        try:
+            initial_status = await page.evaluate(image_status_script)
+            total_images = initial_status.get("total", 0)
+            if total_images == 0:
+                logger.debug(f"{debug_info}: 页面未检测到图片资源")
+                return True, "页面无图片资源"
+
+            if initial_status.get("loaded", 0) == total_images:
+                logger.debug(f"{debug_info}: 图片资源已加载完成: {total_images}/{total_images}")
+                return True, f"图片资源已加载完成: {total_images}/{total_images}"
+
+            logger.info(
+                f"{debug_info}: 等待图片资源加载完成，当前已加载 "
+                f"{initial_status.get('loaded', 0)}/{total_images}，超时 {timeout / 1000:.1f}s"
+            )
+            await page.wait_for_function(
+                """
+                () => Array.from(document.images || []).every((img) => {
+                    const src = (img.currentSrc || img.src || img.getAttribute("src") || "").trim();
+                    if (!src) {
+                        return true;
+                    }
+                    return img.complete && img.naturalWidth > 0;
+                })
+                """,
+                timeout=timeout,
+            )
+
+            final_status = await page.evaluate(image_status_script)
+            loaded_images = final_status.get("loaded", 0)
+            logger.info(f"{debug_info}: 图片资源加载完成: {loaded_images}/{final_status.get('total', total_images)}")
+            return True, f"图片资源加载完成: {loaded_images}/{final_status.get('total', total_images)}"
+
+        except Exception as e:
+            try:
+                final_status = await page.evaluate(image_status_script)
+                samples = final_status.get("samples", [])
+                sample_urls = []
+                for sample in samples:
+                    src = str(sample.get("src", ""))
+                    if len(src) > 180:
+                        src = f"{src[:177]}..."
+                    sample_urls.append(f"#{sample.get('index')} {src or '<empty-src>'}")
+                sample_text = "; ".join(sample_urls) if sample_urls else "无样例"
+                message = (
+                    "图片资源加载超时或失败: "
+                    f"已加载 {final_status.get('loaded', 0)}/{final_status.get('total', 0)}，"
+                    f"等待中 {final_status.get('pending', 0)}，"
+                    f"失败 {final_status.get('failed', 0)}，"
+                    f"样例: {sample_text}"
+                )
+            except Exception as status_error:
+                message = f"图片资源状态检查失败: {status_error}"
+
+            logger.warning(f"{debug_info}: {message}; 原始异常: {e}")
+            return False, message
+
+    @staticmethod
     def _find_closest_version(base_dir: Path, requested_version: str) -> Optional[Path]:
         """
         查找最接近的版本目录（用于 CDN 资源版本回退）
@@ -3405,7 +3526,9 @@ class BaseConvertService(ABC):
             return False
 
     @staticmethod
-    def _get_http_url_for_workspace_file(file_path: Path, base_url: str = "http://127.0.0.1:8003") -> Optional[str]:
+    def _get_http_url_for_workspace_file(
+        file_path: Union[str, os.PathLike, Path], base_url: str = "http://127.0.0.1:8003"
+    ) -> Optional[str]:
         """
         将.workspace目录下的文件路径转换为HTTP URL
 
@@ -3418,6 +3541,7 @@ class BaseConvertService(ABC):
         """
         try:
             # 确保文件路径是绝对路径
+            file_path = BaseConvertService._normalize_path(file_path, "file_path")
             abs_file_path = file_path.resolve()
             workspace_dir = Path(".workspace").resolve()
 
@@ -3432,11 +3556,41 @@ class BaseConvertService(ABC):
                 return http_url
             except ValueError:
                 logger.warning(f"文件不在.workspace目录下: {file_path}")
-                return None
+            return None
 
         except Exception as e:
             logger.error(f"生成HTTP URL失败: {e}")
             return None
+
+    async def _get_base_href_for_workspace_file(
+        self, file_path: Union[str, os.PathLike, Path], debug_info: str = ""
+    ) -> str:
+        """
+        获取文件所在目录的 base href。Markdown 使用 page.set_content 加载时，
+        通过 base href 让相对图片、CSS 等资源继续按 workspace 目录解析。
+        """
+        file_path = self._normalize_path(file_path, "file_path")
+        base_url = f"http://127.0.0.1:{self._static_server_port}"
+
+        server_started = await self._start_static_file_server_on_demand()
+        if server_started and await self._verify_http_server_workspace_access(base_url):
+            try:
+                workspace_dir = Path(".workspace").resolve()
+                parent_dir = file_path.parent.resolve()
+                relative_parent = parent_dir.relative_to(workspace_dir)
+                relative_parent_posix = "" if str(relative_parent) == "." else relative_parent.as_posix()
+                encoded_parent = quote(relative_parent_posix, safe="/")
+                http_base_href = f"{base_url}/{encoded_parent}/" if encoded_parent else f"{base_url}/"
+                logger.debug(f"{debug_info}: Markdown base href 使用HTTP静态服务: {http_base_href}")
+                return http_base_href
+            except ValueError:
+                logger.warning(f"{debug_info}: Markdown文件不在.workspace目录下，无法使用HTTP base href: {file_path}")
+            except Exception as e:
+                logger.warning(f"{debug_info}: 生成Markdown HTTP base href失败，降级到file://: {e}")
+
+        file_base_href = file_path.parent.resolve().as_uri().rstrip("/") + "/"
+        logger.debug(f"{debug_info}: Markdown base href 使用file协议: {file_base_href}")
+        return file_base_href
 
     async def _start_static_file_server_on_demand(self) -> bool:
         """
@@ -3543,7 +3697,9 @@ class BaseConvertService(ABC):
         except Exception as e:
             logger.error(f"❌ 停止静态文件服务器失败: {e}")
 
-    async def _choose_file_protocol(self, file_path: Path, debug_info: str = "") -> tuple[str, str]:
+    async def _choose_file_protocol(
+        self, file_path: Union[str, os.PathLike, Path], debug_info: str = ""
+    ) -> tuple[str, str]:
         """
         智能选择文件加载协议（HTTP优先，降级到file://）
 
@@ -3554,6 +3710,8 @@ class BaseConvertService(ABC):
         Returns:
             tuple: (协议类型, 文件URL)
         """
+        file_path = self._normalize_path(file_path, "file_path")
+
         # 🎯 按需启动静态文件服务器
         server_started = await self._start_static_file_server_on_demand()
         logger.debug(f"{debug_info}: 静态文件服务器启动结果: {server_started}")
@@ -3600,12 +3758,333 @@ class BaseConvertService(ABC):
         return "file", file_url
 
     @staticmethod
-    async def _process_markdown_content(md_file_path: Path) -> str:
+    def _get_magic_web_markdown_css() -> str:
+        """
+        Magic-web Markdown 预览使用 TipTap SimpleEditor。PDF 导出不运行前端，
+        这里仅复制影响静态导出效果的稳定样式子集。
+        """
+        return """
+            html,
+            body {
+                width: 1920px;
+                min-height: 100vh;
+                margin: 0;
+                padding: 0;
+                background: #ffffff;
+            }
+
+            body {
+                overflow-x: hidden;
+                color: rgba(29, 30, 32, 0.98);
+                font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                font-size: 16px;
+                font-optical-sizing: auto;
+                font-style: normal;
+                font-weight: 400;
+                text-rendering: optimizeLegibility;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+            }
+
+            .tiptap-editor-root {
+                --tt-theme-text: rgba(29, 30, 32, 0.98);
+                --tt-bg-color: #ffffff;
+                --tt-gray-light-50: rgba(249, 249, 249, 1);
+                --tt-gray-light-900: rgba(28, 29, 35, 1);
+                --tt-gray-light-a-100: rgba(15, 22, 36, 0.05);
+                --tt-gray-light-a-200: rgba(37, 39, 45, 0.1);
+                --tt-gray-light-a-300: rgba(47, 50, 55, 0.2);
+                --tt-gray-light-a-600: rgba(36, 39, 46, 0.78);
+                --tt-brand-color-500: rgba(49, 92, 236, 1);
+                --white: rgba(255, 255, 255, 1);
+                --tt-radius-xs: 0.25rem;
+                --heading-border-color: var(--tt-gray-light-a-200);
+                --horizontal-rule-color: var(--tt-gray-light-a-300);
+                --blockquote-border-color: var(--tt-gray-light-a-300);
+                --blockquote-text-color: var(--tt-gray-light-a-600);
+                --link-text-color: var(--tt-brand-color-500);
+                --tt-inline-code-bg-color: var(--tt-gray-light-a-100);
+                --tt-inline-code-text-color: var(--tt-gray-light-900);
+                --tt-codeblock-bg: var(--tt-gray-light-50);
+                --tt-codeblock-text: var(--tt-gray-light-900);
+                --tt-codeblock-border: var(--tt-gray-light-a-200);
+                --tt-table-border-color: var(--tt-gray-light-a-300);
+                --tt-table-header-bg: var(--tt-gray-light-50);
+                --tt-table-header-text: var(--tt-gray-light-900);
+            }
+
+            .simple-editor-wrapper {
+                width: 100%;
+                min-height: 100vh;
+                overflow: visible;
+                display: flex;
+                flex-direction: column;
+                background-color: var(--tt-bg-color);
+                color: var(--tt-theme-text);
+            }
+
+            .simple-editor-wrapper .tiptap.ProseMirror {
+                font-family: "DM Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            }
+
+            .simple-editor-content {
+                width: 100%;
+                min-height: 100vh;
+                display: block;
+                flex: 1;
+                overflow: visible;
+            }
+
+            .simple-editor-content .tiptap.ProseMirror.simple-editor {
+                box-sizing: border-box;
+                width: 100%;
+                min-height: 100vh;
+                padding: 1.5rem 4rem 30vh;
+                white-space: pre-wrap;
+                outline: none;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+                line-height: 1.5;
+            }
+
+            .tiptap.ProseMirror > * {
+                position: relative;
+            }
+
+            .tiptap.ProseMirror p {
+                margin-top: 0;
+                margin-bottom: 1em;
+                line-height: 1.5;
+            }
+
+            .tiptap.ProseMirror p:first-child,
+            .tiptap.ProseMirror h1:first-child,
+            .tiptap.ProseMirror h2:first-child,
+            .tiptap.ProseMirror h3:first-child,
+            .tiptap.ProseMirror h4:first-child,
+            .tiptap.ProseMirror h5:first-child,
+            .tiptap.ProseMirror h6:first-child {
+                margin-top: 0;
+            }
+
+            .tiptap.ProseMirror p:last-child {
+                margin-bottom: 0;
+            }
+
+            .tiptap.ProseMirror h1,
+            .tiptap.ProseMirror h2,
+            .tiptap.ProseMirror h3,
+            .tiptap.ProseMirror h4,
+            .tiptap.ProseMirror h5,
+            .tiptap.ProseMirror h6 {
+                position: relative;
+                color: inherit;
+                font-style: inherit;
+                font-weight: 600;
+                line-height: 1.25;
+                margin-bottom: 1rem;
+                page-break-after: avoid;
+                break-after: avoid-page;
+            }
+
+            .tiptap.ProseMirror h1 {
+                font-size: 2em;
+                margin-top: 1.5em;
+                padding-bottom: 0.3em;
+            }
+
+            .tiptap.ProseMirror h2 {
+                font-size: 1.5em;
+                margin-top: 1.5em;
+                padding-bottom: 0.3em;
+            }
+
+            .tiptap.ProseMirror h3 {
+                font-size: 1.25em;
+                margin-top: 1.5em;
+            }
+
+            .tiptap.ProseMirror h4 {
+                font-size: 1em;
+                margin-top: 1.5em;
+            }
+
+            .tiptap.ProseMirror h5 {
+                font-size: 0.875em;
+                margin-top: 1.5em;
+            }
+
+            .tiptap.ProseMirror h6 {
+                color: var(--tt-gray-light-a-600);
+                font-size: 0.85em;
+                margin-top: 1.5em;
+            }
+
+            .tiptap.ProseMirror hr {
+                height: 0.25em;
+                padding: 0;
+                margin: 1.5em 0;
+                background-color: transparent;
+                border: 0;
+                border-bottom: 1px solid var(--horizontal-rule-color);
+                overflow: hidden;
+            }
+
+            .tiptap.ProseMirror blockquote {
+                position: relative;
+                padding-left: 1em;
+                padding-right: 1em;
+                margin: 1em 0;
+                color: var(--blockquote-text-color);
+                border-left: 0.25em solid var(--blockquote-border-color);
+            }
+
+            .tiptap.ProseMirror blockquote > :first-child {
+                margin-top: 0;
+            }
+
+            .tiptap.ProseMirror blockquote > :last-child {
+                margin-bottom: 0;
+            }
+
+            .tiptap.ProseMirror ol,
+            .tiptap.ProseMirror ul {
+                margin-top: 0;
+                margin-bottom: 1em;
+                padding-left: 2em;
+            }
+
+            .tiptap.ProseMirror ol {
+                list-style: decimal;
+            }
+
+            .tiptap.ProseMirror ul {
+                list-style: disc;
+            }
+
+            .tiptap.ProseMirror li {
+                margin-top: 0.25em;
+                line-height: 1.5;
+            }
+
+            .tiptap.ProseMirror li > ol,
+            .tiptap.ProseMirror li > ul {
+                margin-top: 0.5em;
+                margin-bottom: 0;
+            }
+
+            .tiptap.ProseMirror li p {
+                margin-top: 1em;
+                margin-bottom: 1em;
+                line-height: 1.5;
+            }
+
+            .tiptap.ProseMirror strong,
+            .tiptap.ProseMirror b {
+                font-weight: 600;
+            }
+
+            .tiptap.ProseMirror em,
+            .tiptap.ProseMirror i {
+                font-style: italic;
+            }
+
+            .tiptap.ProseMirror a {
+                color: var(--link-text-color);
+                text-decoration: underline;
+            }
+
+            .tiptap.ProseMirror code {
+                background-color: var(--tt-inline-code-bg-color);
+                color: var(--tt-inline-code-text-color);
+                font-family: "JetBrains Mono NL", "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono",
+                    "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+                font-size: 0.85em;
+                line-height: 1.45;
+                border-radius: 6px;
+                padding: 0.2em 0.4em;
+                white-space: normal;
+                word-break: break-word;
+            }
+
+            .tiptap.ProseMirror pre {
+                background-color: var(--tt-codeblock-bg);
+                color: var(--tt-codeblock-text);
+                border: 1px solid var(--tt-codeblock-border);
+                padding: 1em;
+                font-size: 0.875em;
+                line-height: 1.45;
+                border-radius: 6px;
+                overflow: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .tiptap.ProseMirror pre code {
+                background-color: transparent;
+                border: none;
+                border-radius: 0;
+                padding: 0;
+                font-size: 100%;
+                line-height: inherit;
+                color: inherit;
+                -webkit-text-fill-color: inherit;
+                white-space: pre;
+                word-break: normal;
+                word-wrap: normal;
+            }
+
+            .tiptap.ProseMirror img:not(.ProseMirror-separator) {
+                max-width: 100%;
+                height: auto;
+                display: block;
+                box-sizing: content-box;
+                background-color: transparent;
+                margin: 1em 0;
+                outline: 0.125rem solid transparent;
+                border-radius: var(--tt-radius-xs);
+            }
+
+            .tiptap.ProseMirror table {
+                width: auto;
+                min-width: 100%;
+                border-collapse: collapse;
+                border-spacing: 0;
+                margin: 1em 0;
+            }
+
+            .tiptap.ProseMirror th,
+            .tiptap.ProseMirror td {
+                position: relative;
+                vertical-align: top;
+                border: 1px solid var(--tt-table-border-color);
+                padding: 6px 13px;
+                min-width: 100px;
+                line-height: 1.5;
+            }
+
+            .tiptap.ProseMirror th {
+                background-color: var(--tt-table-header-bg);
+                color: var(--tt-table-header-text);
+                font-weight: 600;
+                text-align: left;
+            }
+
+            .tiptap.ProseMirror th > *,
+            .tiptap.ProseMirror td > * {
+                margin: 0;
+            }
+        """
+
+    @staticmethod
+    async def _process_markdown_content(
+        md_file_path: Union[str, os.PathLike, Path], base_href: Optional[str] = None
+    ) -> str:
         """
         处理Markdown文件，转换为HTML内容
 
         Args:
             md_file_path: Markdown文件路径
+            base_href: 可选的HTML base href，用于解析相对资源
 
         Returns:
             HTML内容字符串
@@ -3614,6 +4093,8 @@ class BaseConvertService(ABC):
             RuntimeError: 如果Markdown处理失败
         """
         try:
+            md_file_path = BaseConvertService._normalize_path(md_file_path, "md_file_path")
+
             async with aiofiles.open(md_file_path, "r", encoding="utf-8") as f:
                 md_text = await f.read()
 
@@ -3621,48 +4102,78 @@ class BaseConvertService(ABC):
                 raise RuntimeError(f"Markdown文件内容为空: {md_file_path}")
 
             html_content = markdown.markdown(md_text, extensions=["fenced_code", "tables", "toc", "nl2br"])
+            base_tag = f'<base href="{html_lib.escape(base_href, quote=True)}">' if base_href else ""
 
-            # 包装为完整的HTML文档
+            markdown_css = BaseConvertService._get_magic_web_markdown_css()
+
+            # 包装为 Magic-web Markdown 预览兼容的静态 HTML 文档。
             html_with_style = f"""
-            <!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-            @page {{ size: A4; margin: 2cm; }}
-            body {{
-                font-family: sans-serif;
-                font-size: 16px;
-                line-height: 1.8;
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 40px 20px;
-            }}
-            h1, h2, h3, h4, h5, h6 {{
-                margin: 1.2em 0 0.6em;
-                line-height: 1.35;
-                font-weight: 700;
-                page-break-after: avoid;
-            }}
-            h1 {{ font-size: 2.0rem; border-bottom: 2px solid #e5e7eb; padding-bottom: .3em; }}
-            h2 {{ font-size: 1.6rem; border-bottom: 1px solid #e5e7eb; padding-bottom: .25em; }}
-            h3 {{ font-size: 1.35rem; font-weight: 600; }}
-            h4 {{ font-size: 1.2rem; font-weight: 600; }}
-            h5 {{ font-size: 1.05rem; font-weight: 600; }}
-            h6 {{ font-size: 1.0rem; font-weight: 600; }}
-            pre, code {{
-                background: #f4f4f4;
-                padding: 1em;
-                border-radius: 6px;
-            }}
-            img {{
-                max-width: 100%;
-                height: auto;
-                display: block;
-                margin: 1em 0;
-            }}
-            </style></head><body>{html_content}</body></html>"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                {base_tag}
+                <style>{markdown_css}</style>
+            </head>
+            <body>
+                <div class="simple-editor-wrapper tiptap-editor-root">
+                    <div class="simple-editor-content">
+                        <div class="tiptap ProseMirror simple-editor">{html_content}</div>
+                    </div>
+                </div>
+            </body>
+            </html>"""
 
             return html_with_style
 
         except Exception as e:
             raise RuntimeError(f"Markdown处理失败 {md_file_path}: {str(e)}")
+
+    async def _load_markdown_page_standard(self, page, file_path: Union[str, os.PathLike, Path], debug_info: str = "") -> bool:
+        """
+        标准Markdown页面加载流程。Markdown内容直接注入页面，不再落地临时HTML文件。
+        """
+        file_path = self._normalize_path(file_path, "file_path")
+        logger.debug(f"{debug_info}: 开始加载Markdown文件: {file_path}")
+        await self._setup_local_cdn_route(page, debug_info)
+
+        try:
+            base_href = await self._get_base_href_for_workspace_file(file_path, debug_info)
+            html_content = await self._process_markdown_content(file_path, base_href=base_href)
+        except Exception as e:
+            message = f"Markdown读取或处理失败 {file_path}: {e}"
+            logger.error(f"{debug_info}: {message}", exc_info=True)
+            raise ConvertStageError("markdown_read", message, e) from e
+
+        try:
+            await page.set_content(html_content, wait_until="domcontentloaded", timeout=self.PAGE_OPERATION_TIMEOUT)
+            logger.debug(f"{debug_info}: Markdown DOM加载完成: {file_path}")
+        except Exception as e:
+            message = f"Markdown页面加载失败 {file_path}: {e}"
+            logger.error(f"{debug_info}: {message}", exc_info=True)
+            raise ConvertStageError("page_load", message, e) from e
+
+        try:
+            await page.wait_for_load_state("networkidle", timeout=30000)
+            logger.debug(f"{debug_info}: Markdown网络空闲状态达成: {file_path}")
+        except Exception as e:
+            logger.warning(f"{debug_info}: Markdown网络空闲等待超时，但继续处理: {e}")
+
+        try:
+            await self._load_external_resources_with_retry(
+                page, max_retries=3, timeout_per_attempt=15000, debug_info=debug_info
+            )
+        except Exception as e:
+            logger.warning(f"{debug_info}: Markdown外部资源加载失败，但继续转换: {e}")
+
+        try:
+            await self._wait_for_fonts_optimized(page, timeout=20000, debug_info=debug_info)
+        except Exception as e:
+            logger.warning(f"{debug_info}: Markdown字体加载优化失败，但继续转换: {e}")
+
+        await asyncio.sleep(1.0)
+        logger.debug(f"{debug_info}: Markdown页面渲染完全完成: {file_path}")
+        return True
 
     @staticmethod
     def _get_default_print_css() -> str:
@@ -3743,14 +4254,7 @@ class BaseConvertService(ABC):
 
         elif file_suffix == ".md":
             # Markdown文件：转换为HTML后加载
-            try:
-                html_content = await self._process_markdown_content(file_path)
-                await page.set_content(html_content, wait_until="networkidle", timeout=self.PAGE_OPERATION_TIMEOUT)
-                logger.debug(f"{debug_info}: Markdown内容设置完成: {file_path}")
-                return True
-            except Exception as e:
-                logger.error(f"{debug_info}: Markdown页面内容设置失败 {file_path}: {str(e)}")
-                return False
+            return await self._load_markdown_page_standard(page, file_path, debug_info)
         else:
             logger.error(f"{debug_info}: 不支持的文件类型: {file_path}")
             return False

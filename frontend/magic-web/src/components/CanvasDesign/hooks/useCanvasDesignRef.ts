@@ -1,7 +1,7 @@
 import { useImperativeHandle } from "react"
 import { useCanvas } from "../context/CanvasContext"
 import type { CanvasDesignRef } from "../types"
-import type { PaddingConfig, CanvasDocument, Marker } from "../canvas/types"
+import type { CanvasDocument, Marker, PaddingInsetConfig } from "../canvas/types"
 import { toPlainObject } from "../canvas/utils/utils"
 import { ImageElement as ImageElementClass } from "../canvas/element/elements/ImageElement"
 
@@ -44,20 +44,12 @@ export function useCanvasDesignRef(ref: React.Ref<CanvasDesignRef>): void {
 				canvas.markerManager.updateMarker(markerId, updates)
 				return canvas.markerManager.getMarker(markerId) ?? null
 			},
-			selectMarker: (markerId: string | null) => {
-				if (!canvas) return
-				if (markerId) {
-					canvas.markerManager.selectMarker(markerId)
-				} else {
-					canvas.markerManager.deselectMarker()
-				}
-			},
 			focusElement: (
 				elementIds: string[],
 				options?: {
 					selectElement?: boolean | string[]
 					animated?: boolean
-					padding?: PaddingConfig
+					padding?: PaddingInsetConfig
 					panOnly?: boolean
 				},
 			) => {
@@ -69,30 +61,42 @@ export function useCanvasDesignRef(ref: React.Ref<CanvasDesignRef>): void {
 				if (!canvas) return
 				canvas.viewportController.fitToScreen()
 			},
-			updateData: (data: CanvasDocument) => {
+			updateData: (data: CanvasDocument, options) => {
 				if (!canvas) return
 				// 兼容 useImmer 创建的 Proxy 对象，转换为普通对象
 				const plainData = toPlainObject(data)
-				// 使用智能差异更新，只更新变化的元素，保留当前状态
-				canvas.elementManager.loadDocumentSmart(plainData)
-				// 立即记录历史，支持撤销到更新前的状态
-				canvas.historyManager.recordHistoryImmediate()
+				if (options?.mode === "replace") {
+					canvas.loadDocument(plainData)
+				} else {
+					// 使用智能差异更新，只更新变化的元素，保留当前状态
+					canvas.elementManager.loadDocumentSmart(plainData)
+					// 立即记录历史，支持撤销到更新前的状态
+					canvas.historyManager.recordHistoryImmediate()
+				}
+			},
+			refreshResources: async (resources) => {
+				if (!canvas) return
+				await Promise.all(
+					resources.map((resource) => {
+						if (resource.mediaType === "video") {
+							return canvas.videoResourceManager.refreshResource(resource.path)
+						}
+						return canvas.imageResourceManager.refreshResource(resource.path)
+					}),
+				)
 			},
 			ensureElementVisible: (
 				elementId: string,
 				options?: {
 					animated?: boolean
-					padding?: PaddingConfig
+					padding?: PaddingInsetConfig
 				},
 			) => {
 				if (!canvas) return
-				// 检查元素是否存在
 				if (!canvas.elementManager.hasElement(elementId)) return
-				// 先检测元素是否在可视区域
 				const isInViewport = canvas.viewportController.isElementInViewport([elementId], {
 					padding: options?.padding,
 				})
-				// 如果不在可视区域，则移动到可视区域
 				if (!isInViewport) {
 					canvas.viewportController.moveElementToViewport([elementId], {
 						animated: options?.animated ?? true,

@@ -9,7 +9,6 @@ import type {
 	MentionSelectHandler,
 } from "./types"
 import type { SuggestionKeyDownProps } from "@tiptap/suggestion"
-import type { MentionItem } from "../types"
 import { PanelState } from "../types"
 
 // Components
@@ -33,6 +32,9 @@ const MentionPanelRenderer = observer(
 			query,
 			decorationNode,
 			language = "en",
+			initialLoadOptions,
+			initialNavigationStack,
+			catalogBehavior,
 			onSelect,
 			onExit,
 			disableKeyboardShortcuts = false,
@@ -49,7 +51,13 @@ const MentionPanelRenderer = observer(
 		const t = useI18nStatic(language)
 
 		// Determine panel state based on query
-		const panelState = query.trim() ? PanelState.SEARCH : PanelState.DEFAULT
+		const panelState = query.trim()
+			? PanelState.SEARCH
+			: initialLoadOptions?.catalogId
+				? PanelState.CATALOG
+				: initialLoadOptions?.itemId
+					? PanelState.FOLDER
+					: PanelState.DEFAULT
 
 		// Handle search query changes
 		const [lastQuery, setLastQuery] = useState("")
@@ -64,8 +72,8 @@ const MentionPanelRenderer = observer(
 		}, [query, lastQuery])
 
 		// Handle item selection
-		const handleSelect: MentionSelectHandler = useMemoizedFn((item: MentionItem) => {
-			onSelect(item)
+		const handleSelect: MentionSelectHandler = useMemoizedFn((item, context) => {
+			onSelect(item, context)
 			// Panel will be destroyed by Tiptap suggestion system
 		})
 
@@ -113,13 +121,16 @@ const MentionPanelRenderer = observer(
 					<MentionPanel
 						visible={!disableKeyboardShortcuts}
 						initialState={panelState}
+						initialLoadOptions={initialLoadOptions}
+						initialNavigationStack={initialNavigationStack}
+						catalogBehavior={catalogBehavior}
 						onSelect={handleSelect}
 						onClose={handleClose}
 						searchPlaceholder={t.searchPlaceholder}
 						triggerRef={triggerRefObject}
 						language={language}
 						disableKeyboardShortcuts={disableKeyboardShortcuts}
-						dataService={dataService}
+						runtime={{ dataService }}
 					/>
 				</Suspense>
 			</div>

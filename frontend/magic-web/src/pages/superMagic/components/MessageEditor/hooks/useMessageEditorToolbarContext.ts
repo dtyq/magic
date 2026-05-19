@@ -3,8 +3,9 @@ import type { RefObject } from "react"
 import type { Editor, JSONContent } from "@tiptap/react"
 import type { VoiceInputRef } from "@/components/business/VoiceInput"
 import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
-import type { MentionPanelStore } from "@/components/business/MentionPanel/store"
-import type { ProjectListItem, Topic, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import type { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
+import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import type { DraftStore } from "../stores"
 import type { FileUploadStore } from "../stores/FileUploadStore"
 import type { FileData, MessageEditorSize } from "../types"
@@ -23,6 +24,7 @@ interface UseMessageEditorToolbarContextParams {
 	uploadEnabled: boolean
 	sendEnabled: boolean
 	sendButtonDisabled: boolean
+	sendButtonLoading: boolean
 	showLoading: boolean
 	isTaskRunning: boolean
 	stopEventLoading: boolean
@@ -59,6 +61,7 @@ function useMessageEditorToolbarContext({
 	uploadEnabled,
 	sendEnabled,
 	sendButtonDisabled,
+	sendButtonLoading,
 	showLoading,
 	isTaskRunning,
 	stopEventLoading,
@@ -95,6 +98,7 @@ function useMessageEditorToolbarContext({
 			uploadEnabled,
 			sendEnabled,
 			sendButtonDisabled,
+			sendButtonLoading,
 			showLoading,
 			isTaskRunning,
 			isUploadingFiles,
@@ -130,6 +134,7 @@ function useMessageEditorToolbarContext({
 			uploadEnabled,
 			sendEnabled,
 			sendButtonDisabled,
+			sendButtonLoading,
 			showLoading,
 			isTaskRunning,
 			isUploadingFiles,

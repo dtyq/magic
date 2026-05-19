@@ -12,10 +12,29 @@ export const MY_SKILLS_TAB_VALUES = {
 
 export type MySkillsTabValue = (typeof MY_SKILLS_TAB_VALUES)[keyof typeof MY_SKILLS_TAB_VALUES]
 
+const MY_SKILLS_PERSONAL_TAB_VALUES: MySkillsTabValue[] = [
+	MY_SKILLS_TAB_VALUES.createdByMe,
+	MY_SKILLS_TAB_VALUES.fromSkillsLibrary,
+]
+
 export const MY_SKILLS_TAB_SCOPE_MAP: Record<MySkillsTabValue, UserSkillsListScope> = {
 	[MY_SKILLS_TAB_VALUES.createdByMe]: "created",
 	[MY_SKILLS_TAB_VALUES.sharedByTeam]: "team-shared",
 	[MY_SKILLS_TAB_VALUES.fromSkillsLibrary]: "market-installed",
+}
+
+export function getMySkillsAvailableTabs(isPersonalOrganization: boolean): MySkillsTabValue[] {
+	if (isPersonalOrganization) return MY_SKILLS_PERSONAL_TAB_VALUES
+	return Object.values(MY_SKILLS_TAB_VALUES)
+}
+
+export function normalizeMySkillsTabValue(
+	tab: MySkillsTabValue | null | undefined,
+	isPersonalOrganization: boolean,
+): MySkillsTabValue {
+	const availableTabs = getMySkillsAvailableTabs(isPersonalOrganization)
+	if (tab && availableTabs.includes(tab)) return tab
+	return MY_SKILLS_TAB_VALUES.createdByMe
 }
 
 export function getMySkillsRequestedTab(search: string): MySkillsTabValue | null {

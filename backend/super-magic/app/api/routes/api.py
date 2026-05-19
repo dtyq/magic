@@ -15,6 +15,8 @@ from app.api.routes.checkpoint import router as checkpoint_router
 from app.api.routes.asr import router as asr_router
 from app.api.routes.sdk import router as sdk_router
 from app.api.routes.models import router as models_router
+from app.api.routes.media import router as media_router
+from app.api.routes.debug import router as debug_router
 
 
 # 创建主路由器，设置统一前缀
@@ -46,6 +48,12 @@ api_router.include_router(sdk_router, tags=["SDK"])
 
 # 注册模型列表路由
 api_router.include_router(models_router, tags=["模型列表"])
+
+# 注册媒体预览路由
+api_router.include_router(media_router, tags=["媒体预览"])
+
+# 注册本地调试路由
+api_router.include_router(debug_router, tags=["本地调试"])
 
 @api_router.get("/health", tags=["系统"])
 async def health_check():

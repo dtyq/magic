@@ -4,23 +4,25 @@ tools:
   - web_search
   - read_webpages_as_markdown
   - visual_understanding
+  - video_understanding
   - list_dir
   - file_search
   - read_files
   - grep_search
   - run_python_snippet
   - shell_exec
+  - shell_await
   - write_file
   - edit_file
   - edit_file_range
   - multi_edit_file
   - multi_edit_file_range
   - delete_files
+  - ask_user
 skills:
   system_skills:
     - name: skill-creator
     - name: skill-vetter
-    - name: find-skill
     - name: using-llm
     - name: using-mcp
   crew_skills: "*"

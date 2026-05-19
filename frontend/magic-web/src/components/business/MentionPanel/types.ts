@@ -1,6 +1,8 @@
 import type { ReactNode, CSSProperties } from "react"
 import type { I18nTexts, LocaleInput } from "./i18n/types"
-import type { Marker, MarkerType } from "@/components/CanvasDesign/canvas/types"
+import type { MarkerType } from "@/components/CanvasDesign/canvas/types"
+import type { MentionItemRenderer } from "./renderers/types"
+import type { MentionPanelItemType as MentionPanelItemTypeValue } from "./runtime/builtin/panel-item-types"
 
 // Base interfaces
 export interface BaseComponentProps {
@@ -14,48 +16,44 @@ export enum PanelState {
 	DEFAULT = "default",
 	SEARCH = "search",
 	FOLDER = "directory",
-	MCP = "mcp",
-	AGENT = "agent",
-	SKILLS = "skills",
-	TOOLS = "tools",
-	UPLOAD_FILES = "upload_files",
-	HISTORIES = "histories",
-	TABS = "tabs",
+	CATALOG = "catalog",
 }
 
-// Item types
-export enum MentionItemType {
-	FOLDER = "project_directory",
-	MCP = "mcp",
-	AGENT = "agent",
-	SKILL = "skill",
-	TOOL = "tool",
-	PROJECT_FILE = "project_file",
-	UPLOAD_FILE = "upload_file",
-	CLOUD_FILE = "cloud_file",
-	DESIGN_MARKER = "design_marker",
+export type MentionPanelStateValue = PanelState
+
+// Core item types
+export const MentionCoreItemType = {
+	FOLDER: "project_directory",
 
 	// internal item types
-	TITLE = "title",
-	DIVIDER = "divider",
-	TABS = "tabs",
-	HISTORIES = "histories",
-}
+	TITLE: "title",
+	DIVIDER: "divider",
+} as const
 
-// Built-in item IDs
-export enum BuiltinItemId {
-	PERSONAL_DRIVE = "personal-drive",
-	ENTERPRISE_DRIVE = "enterprise-drive",
-	ORGANIZATION_DRIVE = "organization-drive",
-	PROJECT_FILES = "project-files",
-	MCP_EXTENSIONS = "mcp-extensions",
-	AGENTS = "agents",
-	SKILLS = "skills",
-	TOOLS = "tools",
-	UPLOAD_FILES = "upload-files",
-	HISTORIES = "histories",
-	TABS = "tabs",
-}
+export type MentionCoreItemType = (typeof MentionCoreItemType)[keyof typeof MentionCoreItemType]
+
+// Business item types
+export const MentionBusinessItemType = {
+	MCP: "mcp",
+	AGENT: "agent",
+	SKILL: "skill",
+	TOOL: "tool",
+	PROJECT_FILE: "project_file",
+	UPLOAD_FILE: "upload_file",
+	CLOUD_FILE: "cloud_file",
+	DESIGN_MARKER: "design_marker",
+} as const
+
+export type MentionBusinessItemType =
+	(typeof MentionBusinessItemType)[keyof typeof MentionBusinessItemType]
+
+// Full item types
+export const MentionItemType = {
+	...MentionCoreItemType,
+	...MentionBusinessItemType,
+} as const
+
+export type MentionItemType = (typeof MentionItemType)[keyof typeof MentionItemType]
 
 // Mention data types based on 超级麦吉对接方案
 export interface McpMentionData {
@@ -98,13 +96,31 @@ export interface ProjectFileMentionData {
 	file_path: string
 	file_extension: string
 	file_size?: number
+	/** Internal: source project for project-file mentions pasted outside their original project. */
+	source_project_id?: string
+	/** Internal: source file id before copying into the target project. */
+	source_file_id?: string
+	/** Internal: marks a project-file mention that must be copied before sending. */
+	pending_project_copy?: boolean
 }
 
 export interface DirectoryMentionData {
 	directory_id: string
 	directory_name: string
 	directory_path: string
-	directory_metadata?: { type: "slide" }
+	directory_metadata: DirectoryMentionMetadata
+	/** Internal: source project for directory mentions pasted outside their original project. */
+	source_project_id?: string
+	/** Internal: source directory id before copying into the target project. */
+	source_directory_id?: string
+	/** Internal: marks a directory mention that must be copied before sending. */
+	pending_project_copy?: boolean
+}
+
+export interface DirectoryMentionMetadata {
+	version?: string | number
+	type?: string
+	name?: string
 }
 
 export interface UploadFileMentionData {
@@ -132,22 +148,7 @@ export interface CloudFileMentionData {
 	[key: string]: unknown // 待定字段
 }
 
-/** 在消息编辑器里面的数据 */
-export interface CanvasMarkerMentionData {
-	loading?: boolean // 加载状态
-	project_id?: string // 项目 ID
-	topic_id?: string // 话题 ID
-	design_project_id?: string // 设计项目 ID
-	mark_number?: number // 标记编号
-	image_path?: string // 图片路径
-	element_width?: number // 元素的实际宽度
-	element_height?: number // 元素的实际高度
-	data: Marker // 标记数据
-}
-
-/** 在消息列表里面的数据 */
-export interface TransformedCanvasMarkerMentionData {
-	image: string
+export interface CanvasMarkerMentionSuggestion {
 	label: string
 	kind: "object" | "part" | "custom"
 	bbox?: {
@@ -156,53 +157,140 @@ export interface TransformedCanvasMarkerMentionData {
 		width: number
 		height: number
 	}
+}
+
+/** 画布 marker mention 数据：消息体中只保留渲染、定位和恢复所需字段，避免继续持久化完整 Marker 对象 */
+export interface CanvasMarkerMentionData {
+	image: string
+	image_relative?: string
+	design_project_id?: string
+	label: string
+	kind: CanvasMarkerMentionSuggestion["kind"]
+	bbox?: CanvasMarkerMentionSuggestion["bbox"]
 	mark_type?: MarkerType
 	area?: [number, number, number, number]
 	mark?: [number, number]
 	mark_number?: number
+	/** 画布交互定位仍需要 marker/element id，不能只保留 label、bbox 等展示字段 */
+	marker_id?: string
+	element_id?: string
+	loading?: boolean
+	project_id?: string
+	topic_id?: string
+	element_width?: number
+	element_height?: number
+	suggestions?: CanvasMarkerMentionSuggestion[]
+	selected_suggestion_index?: number
+	error?: string
 }
 
+export interface MentionCoreItemDataMap {
+	[MentionCoreItemType.FOLDER]: DirectoryMentionData
+}
+
+export interface MentionBusinessItemDataMap {
+	[MentionBusinessItemType.MCP]: McpMentionData
+	[MentionBusinessItemType.AGENT]: AgentMentionData
+	[MentionBusinessItemType.SKILL]: SkillMentionData
+	[MentionBusinessItemType.TOOL]: ToolMentionData
+	[MentionBusinessItemType.PROJECT_FILE]: ProjectFileMentionData
+	[MentionBusinessItemType.UPLOAD_FILE]: UploadFileMentionData
+	[MentionBusinessItemType.CLOUD_FILE]: CloudFileMentionData
+	[MentionBusinessItemType.DESIGN_MARKER]: CanvasMarkerMentionData
+}
+
+export interface MentionItemDataMap extends MentionCoreItemDataMap, MentionBusinessItemDataMap {}
+
+export type MentionCoreDataItemType = keyof MentionCoreItemDataMap
+export type MentionBusinessDataItemType = keyof MentionBusinessItemDataMap
+export type MentionDataItemType = keyof MentionItemDataMap
+
 // Union type for all mention data types
-export type MentionData =
-	| McpMentionData
-	| AgentMentionData
-	| SkillMentionData
-	| ProjectFileMentionData
-	| UploadFileMentionData
-	| CloudFileMentionData
-	| DirectoryMentionData
-	| CanvasMarkerMentionData
+export type MentionData = MentionItemDataMap[MentionDataItemType]
+
+export type MentionItemDataByType<T extends MentionPanelItemTypeValue> =
+	T extends MentionDataItemType ? MentionItemDataMap[T] : never
 
 // Generic mention result format
-export interface MentionResult<T extends string = string> {
+export interface MentionResult<T extends MentionDataItemType = MentionDataItemType> {
 	type: T
-	data: T extends "mcp"
-		? McpMentionData
-		: T extends "agent"
-			? AgentMentionData
-			: T extends "skill"
-				? SkillMentionData
-				: T extends "project_file"
-					? ProjectFileMentionData
-					: T extends "upload_file"
-						? UploadFileMentionData
-						: T extends "cloud_file"
-							? CloudFileMentionData
-							: MentionData
+	data: MentionItemDataMap[T]
+}
+
+export interface MentionPanelLoadStateOptions<TCatalogId extends string = string> {
+	catalogId?: TCatalogId
+	itemId?: string
+	query?: string
+	silent?: boolean
+}
+
+export interface MentionStoreRequestBuildOptions<TCatalogId extends string = string> {
+	state: MentionPanelStateValue
+	catalogId?: TCatalogId
+	itemId?: string
+	query?: string
+	/** 与 `SearchRequest.scopeFolderId` 对应：目录内搜索时传入当前文件夹 id */
+	scopeFolderId?: string
+	t?: I18nTexts
+}
+
+export interface StateTransition<TCatalogId extends string = string> {
+	state: MentionPanelStateValue
+	catalogId?: TCatalogId
+}
+
+export interface MentionPanelCatalogBehaviorArgs<TCatalogId extends string = string> {
+	currentState: MentionPanelStateValue
+	currentCatalogId?: TCatalogId
+	selectedItem: MentionItem
+	enterFolder: boolean
+}
+
+export interface MentionPanelCatalogBehavior<TCatalogId extends string = string> {
+	getStaticTransition?: (args: {
+		currentState: MentionPanelStateValue
+		itemId: string
+	}) => StateTransition<TCatalogId> | null
+	getDynamicTransition?: (
+		args: MentionPanelCatalogBehaviorArgs<TCatalogId>,
+	) => StateTransition<TCatalogId> | null
+	shouldEnterFolderDirectly?: (args: MentionPanelCatalogBehaviorArgs<TCatalogId>) => boolean
+	shouldSelectItemDirectly?: (args: MentionPanelCatalogBehaviorArgs<TCatalogId>) => boolean
+}
+
+export interface MentionPanelCatalogHeaderMeta {
+	hint: string | null
+	icon: string | null
+}
+
+export type MentionItemRendererResolver = (type: string) => MentionItemRenderer
+
+export interface MentionPanelRuntime<TCatalogId extends string = string> {
+	dataService?: DataService
+	catalogBehavior?: MentionPanelCatalogBehavior<TCatalogId>
+	buildStoreRequest?: (
+		options: MentionStoreRequestBuildOptions<TCatalogId>,
+	) => import("./dispatch").MentionStoreRequest | null
+	getItemRenderer?: MentionItemRendererResolver
+	getCatalogHeaderMeta?: (
+		catalogId: TCatalogId | undefined,
+		t: I18nTexts,
+	) => MentionPanelCatalogHeaderMeta
 }
 
 // Navigation item interface
-export interface NavigationItem {
+export interface NavigationItem<TCatalogId extends string = string> {
 	id: string
 	name: string
-	state: PanelState
+	state: MentionPanelStateValue
+	catalogId?: TCatalogId
 	parentId?: string // 用于文件夹导航时记录父级文件夹ID
 }
 
 // Enhanced mention item interface with support for structured data
-export interface MentionItem {
+export interface MentionItem<T extends MentionPanelItemTypeValue = MentionPanelItemTypeValue> {
 	id: string
-	type: MentionItemType
+	type: T
 	name: string
 	icon?: string | ReactNode
 	/**
@@ -211,12 +299,12 @@ export interface MentionItem {
 	unSelectable?: boolean
 	description?: string
 	children?: MentionItem[]
-	metadata?: Record<string, unknown>
+	displayConfig?: Record<string, unknown>
 	hasChildren?: boolean
 	isSelected?: boolean
 
 	// New structured data field for mention results
-	data?: MentionData
+	data?: MentionItemDataByType<T>
 
 	// Additional UI properties
 	path?: string // For file/directory paths
@@ -237,50 +325,83 @@ export interface MentionItem {
 
 	// History tracking properties
 	tags?: string[] // Tags for categorization (e.g., "history", "recent")
+
+	// Skill specific properties
+	package_name?: string // Package name
 }
 
+export interface MentionCoreItem<
+	T extends MentionCoreItemType = MentionCoreItemType,
+> extends MentionItem<T> {}
+
+export interface MentionBusinessItem<
+	T extends MentionBusinessItemType = MentionBusinessItemType,
+> extends MentionItem<T> {}
+
 // Type-safe mention item interfaces for different types
-export interface McpMentionItem extends MentionItem {
-	type: MentionItemType.MCP
+export interface McpMentionItem extends MentionBusinessItem<typeof MentionBusinessItemType.MCP> {
+	type: typeof MentionBusinessItemType.MCP
 	data: McpMentionData
 }
 
-export interface AgentMentionItem extends MentionItem {
-	type: MentionItemType.AGENT
+export interface AgentMentionItem extends MentionBusinessItem<
+	typeof MentionBusinessItemType.AGENT
+> {
+	type: typeof MentionBusinessItemType.AGENT
 	data: AgentMentionData
 }
 
-export interface SkillMentionItem extends MentionItem {
-	type: MentionItemType.SKILL
+export interface SkillMentionItem extends MentionBusinessItem<
+	typeof MentionBusinessItemType.SKILL
+> {
+	type: typeof MentionBusinessItemType.SKILL
 	data: SkillMentionData
 }
 
-export interface ProjectFileMentionItem extends MentionItem {
-	type: MentionItemType.PROJECT_FILE
+export interface ToolMentionItem extends MentionBusinessItem<typeof MentionBusinessItemType.TOOL> {
+	type: typeof MentionBusinessItemType.TOOL
+	data: ToolMentionData
+}
+
+export interface ProjectFileMentionItem extends MentionBusinessItem<
+	typeof MentionBusinessItemType.PROJECT_FILE
+> {
+	type: typeof MentionBusinessItemType.PROJECT_FILE
 	data: ProjectFileMentionData
 }
 
-export interface UploadFileMentionItem extends MentionItem {
-	type: MentionItemType.UPLOAD_FILE
+export interface UploadFileMentionItem extends MentionBusinessItem<
+	typeof MentionBusinessItemType.UPLOAD_FILE
+> {
+	type: typeof MentionBusinessItemType.UPLOAD_FILE
 	data: UploadFileMentionData
 }
 
-export interface CloudFileMentionItem extends MentionItem {
-	type: MentionItemType.CLOUD_FILE
+export interface CloudFileMentionItem extends MentionBusinessItem<
+	typeof MentionBusinessItemType.CLOUD_FILE
+> {
+	type: typeof MentionBusinessItemType.CLOUD_FILE
 	data: CloudFileMentionData
 }
 
-export interface DirectoryMentionItem extends MentionItem {
-	type: MentionItemType.FOLDER
+export interface DirectoryMentionItem extends MentionCoreItem<typeof MentionCoreItemType.FOLDER> {
+	type: typeof MentionCoreItemType.FOLDER
 	data: DirectoryMentionData
 }
 
+export interface DesignMarkerMentionItem extends MentionBusinessItem<
+	typeof MentionBusinessItemType.DESIGN_MARKER
+> {
+	type: typeof MentionBusinessItemType.DESIGN_MARKER
+	data: CanvasMarkerMentionData
+}
+
 // Panel state interface
-export interface MentionPanelState {
-	currentState: PanelState
+export interface MentionPanelState<TCatalogId extends string = string> {
+	currentState: MentionPanelStateValue
 	selectedIndex: number
 	searchQuery: string
-	navigationStack: NavigationItem[]
+	navigationStack: NavigationItem<TCatalogId>[]
 	items: MentionItem[]
 	originalItems: MentionItem[] // Store the complete dataset for current panel (for context-aware search)
 	loading: boolean
@@ -288,8 +409,8 @@ export interface MentionPanelState {
 }
 
 // Hook return interface
-export interface UseMentionPanelReturn {
-	state: MentionPanelState
+export interface UseMentionPanelReturn<TCatalogId extends string = string> {
+	state: MentionPanelState<TCatalogId>
 	actions: {
 		selectItem: (index: number) => void
 		confirmSelection: (options?: { enterFolder?: boolean }) => void
@@ -310,13 +431,12 @@ export interface UseMentionPanelReturn {
 		items: MentionItem[]
 		loading: boolean
 		error?: string
+		loadStateItems: (
+			state: MentionPanelStateValue,
+			options?: MentionPanelLoadStateOptions<TCatalogId>,
+		) => Promise<void>
 		loadDefaultItems: () => Promise<void>
 		searchItems: (query: string) => Promise<void>
-		loadFolderItems: (directoryId: string) => Promise<void>
-		loadMcpExtensions: () => Promise<void>
-		loadAgents: () => Promise<void>
-		loadSkills: () => Promise<void>
-		clearError: () => void
 		refreshData: () => Promise<void>
 	}
 	focus: {
@@ -332,24 +452,45 @@ export interface MentionPanelRef {
 	search: (query: string) => void
 	reset: () => void
 	isVisible: () => boolean
-	getCurrentState: () => PanelState
+	getCurrentState: () => MentionPanelStateValue
+}
+
+export interface MentionSelectContext {
+	reset?: () => void
+	mcpValidated?: boolean
+	batch?: {
+		index: number
+		total: number
+	}
 }
 
 // Component props interfaces
-export interface MentionPanelProps extends BaseComponentProps {
+export interface MentionPanelProps<TCatalogId extends string = string> extends BaseComponentProps {
 	visible?: boolean
-	onSelect?: (item: MentionItem, context?: { reset?: () => void }) => void
+	onSelect?: (item: MentionItem, context?: MentionSelectContext) => void
 	onClose?: () => void
-	initialState?: PanelState
+	initialState?: MentionPanelStateValue
+	initialLoadOptions?: MentionPanelLoadStateOptions<TCatalogId>
+	initialNavigationStack?: NavigationItem<TCatalogId>[]
 	searchPlaceholder?: string
-	triggerRef?: React.RefObject<HTMLElement>
+	triggerRef?: React.RefObject<HTMLElement | null>
 	language?: LocaleInput
 	disableKeyboardShortcuts?: boolean
+	/**
+	 * 为 true 时禁止 Radix 因「外部」交互自动关闭（画布内嵌套 Portal 易出现误判）。
+	 * 仍可通过 onClose / 键盘退出等显式关闭。
+	 */
+	lockDismissToExplicitClose?: boolean
 	lastHistoryIndex?: number
+	runtime?: MentionPanelRuntime<TCatalogId>
 	/**
 	 * Data service for the mention panel
 	 */
 	dataService?: DataService
+	catalogBehavior?: MentionPanelCatalogBehavior<TCatalogId>
+	buildStoreRequest?: (
+		options: MentionStoreRequestBuildOptions<TCatalogId>,
+	) => import("./dispatch").MentionStoreRequest | null
 }
 
 export interface MenuListProps extends BaseComponentProps {
@@ -366,10 +507,15 @@ export interface MenuItemProps extends BaseComponentProps {
 	onDelete?: (item: MentionItem) => void
 	isSearch?: boolean
 	t: I18nTexts
+	/** 移动端多选：行首多选框 */
+	showCheckbox?: boolean
+	checkboxChecked?: boolean
+	/** 一级入口行：右侧箭头旁已选数量角标（仅 >0 时展示） */
+	rootPendingBadgeCount?: number
 }
 
 export interface PanelHeaderProps extends BaseComponentProps {
-	state: PanelState
+	state: MentionPanelStateValue
 	navigationStack: NavigationItem[]
 	searchQuery: string
 	onSearch?: (query: string) => void
@@ -377,7 +523,7 @@ export interface PanelHeaderProps extends BaseComponentProps {
 }
 
 export interface KeyboardHintsProps extends BaseComponentProps {
-	state: PanelState
+	state: MentionPanelStateValue
 	hasSelection?: boolean
 	canNavigateBack?: boolean
 	canEnterFolder?: boolean
@@ -391,28 +537,12 @@ export interface PanelContainerProps extends BaseComponentProps {
 
 // Data service interfaces
 export interface DataService {
-	fetchMcpList: () => void
+	dispatch: (
+		request: import("./dispatch").MentionStoreRequest,
+	) => Promise<import("./dispatch").MentionStoreResult> | import("./dispatch").MentionStoreResult
 	setRefreshHandler?: (handler: (() => void) | undefined) => void
-	getDefaultItems: (t: I18nTexts) => Promise<MentionItem[]> | MentionItem[]
-	searchItems: (query: string) => Promise<MentionItem[]> | MentionItem[]
-	getFolderItems: (directoryId: string) => Promise<MentionItem[]> | MentionItem[]
-	getUploadFiles: () => Promise<MentionItem[]> | MentionItem[]
-	getMcpExtensions: () => Promise<MentionItem[]> | MentionItem[]
-	getAgents: () => Promise<MentionItem[]> | MentionItem[]
-	getSkills: () => Promise<MentionItem[]> | MentionItem[]
-	refreshSkills?: () => Promise<MentionItem[]> | MentionItem[]
-	getToolItems: (collectionId: string) => Promise<MentionItem[]> | MentionItem[]
-	preLoadList: () => void
-	getAllHistory: () => Promise<MentionItem[]> | MentionItem[]
-	getCurrentTabs: () => Promise<MentionItem[]> | MentionItem[]
-	hasAgent: (agentId: string) => boolean
-	hasMcp: (mcpId: string) => boolean
-	hasSkill: (skillId: string) => boolean
-	hasTool: (toolId: string) => boolean
-	hasUploadFile: (fileId: string) => boolean
-	hasProjectFile: (fileId: string) => boolean
-	hasFolder: (directoryId: string) => boolean
-	removeFromHistory: (itemId: string) => void
+	preLoadList?: () => void | Promise<void>
+	removeFromHistory?: (itemId: string) => void
 }
 
 // Event handler types

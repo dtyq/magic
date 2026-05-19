@@ -5,7 +5,7 @@ import { SumType } from "@/types/organization"
 import type { CommonResponse, PaginationResponse } from "@/types/request"
 import type { GroupConversationDetail } from "@/types/chat/conversation"
 
-import type { HttpClient } from "../core/HttpClient"
+import type { HttpClient, RequestConfig } from "../core/HttpClient"
 
 export const generateContactApi = (fetch: HttpClient) => ({
 	/**
@@ -134,12 +134,17 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	 * @param data
 	 * @returns
 	 */
-	getUsersInfo(data: { user_ids: string[]; page_token?: string; query_type?: 1 | 2 }) {
+	getUsersInfo(
+		data: { user_ids: string[]; page_token?: string; query_type?: 1 | 2 },
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	) {
 		return fetch.post<PaginationResponse<StructureUserItem>>(
 			genRequestUrl("/api/v1/contact/users/queries"),
 			data,
 			{
 				enableRequestUnion: true,
+				priority: "high",
+				...options,
 			},
 		)
 	},
@@ -216,16 +221,20 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	/**
 	 * @description 获取当前组织(指定组织)下当前用户信息
 	 */
-	async getAccountUserInfo({ organization_code }: { organization_code?: string } = {}) {
+	async getAccountUserInfo(
+		{ organization_code }: { organization_code?: string } = {},
+		options?: Pick<RequestConfig, "skipAppInitWait">,
+	) {
 		const data = await fetch.get<PaginationResponse<StructureUserItem>>(
 			"/api/v1/contact/accounts/me/users",
 			{
 				enableRequestUnion: true,
 				headers: organization_code
 					? {
-						"Organization-Code": organization_code,
-					}
+							"Organization-Code": organization_code,
+						}
 					: undefined,
+				...options,
 			},
 		)
 
@@ -246,6 +255,22 @@ export const generateContactApi = (fetch: HttpClient) => ({
 	},
 
 	/**
+	 * @description Save personal preferences
+	 */
+	savePersonalPreferences<T extends object>(value: T) {
+		return fetch.post<
+			CommonResponse<{
+				id: string
+				key: string
+				value: T
+			}>
+		>(genRequestUrl("/api/v1/contact/users/setting"), {
+			key: "personal_preferences",
+			value,
+		})
+	},
+
+	/**
 	 * @description User level universal storage retrieval
 	 */
 	getUserStorage<T extends object>(key: string) {
@@ -254,6 +279,17 @@ export const generateContactApi = (fetch: HttpClient) => ({
 			key: string
 			value: T
 		}>(genRequestUrl("/api/v1/contact/users/setting/${key}", { key }))
+	},
+
+	/**
+	 * @description Get personal preferences
+	 */
+	getPersonalPreferences<T extends object>() {
+		return fetch.get<{
+			id: string
+			key: string
+			value: T
+		}>(genRequestUrl("/api/v1/contact/users/setting/personal_preferences"))
 	},
 
 	/**

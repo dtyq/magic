@@ -4,6 +4,7 @@ import { getSuperIdState } from "./query"
 import { WorkspaceStateCache } from "./superMagicCache"
 import { userStore } from "@/models/user"
 import { ImageProcessOptions, buildImageProcessQuery } from "@/utils/image-processing"
+import { getFileUrlDownloadModeForNoWatermark } from "@/utils/aiWatermarkPreviewFileUrlMode"
 
 // import { REMOTE_HTTP_URL } from "../constans"
 // export const getWorkspaces = async ({ page, page_size }: { page: number; page_size: number }) => {
@@ -161,7 +162,7 @@ export interface GetTemporaryDownloadUrlItem {
  * @param params - 请求参数
  * @param params.file_ids - 文件id列表
  * @param params.file_versions - 文件版本
- * @param params.download_mode - 下载模式
+ * @param params.download_mode - 下载模式；未传且非 magic-share 时，按全局无水印协议等自动注入（预览与 is_download 一致）
  * @param options - 请求选项
  * @param options.xMagicImageProcess - 图片处理参数
  * @returns 临时下载url
@@ -184,10 +185,16 @@ export const getTemporaryDownloadUrl = async ({
 	}
 }) => {
 	const isMagicShare = window?.location?.pathname?.includes("magic-share")
+
+	const effectiveDownloadMode =
+		!isMagicShare && download_mode === undefined
+			? getFileUrlDownloadModeForNoWatermark()
+			: download_mode
+
 	const apiPath = isMagicShare
 		? // @ts-ignore
-		`/api/v1/admin/ai/content-audit/topic/${window?.topic_id}/attachment-urls`
-		: download_mode === DownloadImageMode.HighQuality
+			`/api/v1/admin/ai/content-audit/topic/${window?.topic_id}/attachment-urls`
+		: effectiveDownloadMode === DownloadImageMode.HighQuality
 			? "/api/v1/super-agent/tasks/high-quality-image/queries"
 			: "/api/v1/super-agent/tasks/get-file-url"
 
@@ -218,7 +225,7 @@ export const getTemporaryDownloadUrl = async ({
 		project_id: window.project_id || workspaceState?.projectId || superIdState?.projectId || "",
 		...(hasSavedFile && { cache: false }),
 		...(file_versions && !isMagicShare && { file_versions }),
-		...(download_mode && { download_mode }),
+		...(effectiveDownloadMode && { download_mode: effectiveDownloadMode }),
 		...(is_download && { is_download }),
 	}
 
@@ -664,7 +671,7 @@ export type SaveUploadFileToProjectResponse = {
 	file_key: string
 	file_name: string
 	file_size: number
-	file_type: "user_upload"
+	file_type: "user_upload" | "directory"
 	project_id: string
 	topic_id: string
 	task_id: string

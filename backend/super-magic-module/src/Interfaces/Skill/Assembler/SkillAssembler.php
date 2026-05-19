@@ -9,6 +9,7 @@ namespace Dtyq\SuperMagic\Interfaces\Skill\Assembler;
 
 use App\Domain\Contact\Entity\MagicDepartmentEntity;
 use App\Domain\Contact\Entity\MagicUserEntity;
+use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Infrastructure\ExternalAPI\Sms\Enum\LanguageEnum;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Interfaces\Kernel\Assembler\OperatorAssembler;
@@ -16,6 +17,7 @@ use Dtyq\SuperMagic\Domain\Skill\Entity\SkillEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillMarketEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublisherType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\LatestPublishedSkillVersionItemDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\LatestPublishedSkillVersionsResponseDTO;
 use Dtyq\SuperMagic\Interfaces\Skill\DTO\Response\PublishSkillResponseDTO;
@@ -39,7 +41,8 @@ class SkillAssembler
     public static function createListItemDTO(
         SkillEntity $entity,
         ?MagicUserEntity $creator = null,
-        string $latestVersion = ''
+        ?SkillVersionEntity $latestVersionEntity = null,
+        ?Operation $operation = null
     ): SkillListItemDTO {
         $language = CoContext::getLanguage();
         $nameI18n = $entity->getNameI18n() ?? [];
@@ -49,8 +52,8 @@ class SkillAssembler
         $description = $entity->getI18nDescription($language);
 
         $creatorInfo = [
-            'id' => (string) $creator->getId(),
-            'name' => $creator->getNickname(),
+            'id' => (string) ($creator?->getId() ?? ''),
+            'name' => $creator?->getNickname() ?: '',
         ];
 
         return new SkillListItemDTO(
@@ -68,9 +71,10 @@ class SkillAssembler
             updatedAt: $entity->getUpdatedAt() ?? '',
             createdAt: $entity->getCreatedAt() ?? '',
             latestPublishedAt: $entity->getLatestPublishedAt(),
-            latestVersion: $latestVersion,
+            latestVersion: $latestVersionEntity?->getVersion() ?? $entity->getVersionCode(),
             packageName: $entity->getPackageName(),
-            creatorInfo: $creatorInfo
+            creatorInfo: $creatorInfo,
+            userRole: $operation?->toAlias(),
         );
     }
 
@@ -78,7 +82,7 @@ class SkillAssembler
         SkillVersionEntity $entity,
         ?string $sourceType = null,
         ?MagicUserEntity $creator = null,
-        ?string $latestVersion = null,
+        ?SkillVersionEntity $latestVersionEntity = null,
         ?string $publisherType = null,
         ?array $publisher = null
     ): SkillListItemDTO {
@@ -90,8 +94,8 @@ class SkillAssembler
         $description = $descriptionI18n[$language] ?? '';
 
         $creatorInfo = [
-            'id' => (string) $creator->getId(),
-            'name' => $creator->getNickname(),
+            'id' => (string) ($creator?->getId() ?: ''),
+            'name' => ($creator?->getNickname() ?: ''),
         ];
 
         return new SkillListItemDTO(
@@ -109,7 +113,7 @@ class SkillAssembler
             updatedAt: $entity->getUpdatedAt() ?? '',
             createdAt: $entity->getCreatedAt() ?? '',
             latestPublishedAt: $entity->getPublishedAt(),
-            latestVersion: $latestVersion ?? $entity->getVersion(),
+            latestVersion: $latestVersionEntity?->getVersion() ?? $entity->getVersion(),
             packageName: $entity->getPackageName(),
             creatorInfo: $creatorInfo,
             publisherType: $publisherType,
@@ -204,9 +208,7 @@ class SkillAssembler
     /**
      * 创建技能列表响应 DTO.
      *
-     * @param SkillEntity[] $skillEntities 技能实体数组
      * @param int $page 当前页码
-     * @param int $pageSize 每页数量
      * @param int $total 总记录数
      * @return SkillListResponseDTO 技能列表响应 DTO
      */
@@ -216,14 +218,16 @@ class SkillAssembler
         int $pageSize,
         int $total,
         array $creatorUserMap = [],
-        array $latestVersionMap = []
+        array $latestVersionMap = [],
+        array $skillOperations = [],
     ): SkillListResponseDTO {
         $listItems = [];
         foreach ($skillEntities as $entity) {
             $listItems[] = self::createListItemDTO(
                 $entity,
                 $creatorUserMap[$entity->getCreatorId()] ?? null,
-                $latestVersionMap[$entity->getCode()] ?? ''
+                $latestVersionMap[$entity->getCode()] ?? null,
+                $skillOperations[$entity->getCode()] ?? null,
             );
         }
 
@@ -235,9 +239,6 @@ class SkillAssembler
         );
     }
 
-    /**
-     * @param SkillVersionEntity[] $skillVersionEntities
-     */
     public static function createListResponseDTOFromVersions(
         array $skillVersionEntities,
         int $page,
@@ -266,9 +267,9 @@ class SkillAssembler
 
             $listItems[] = self::createListItemDTOFromVersion(
                 $entity,
-                $sourceType,
+                self::resolveListSourceType($entity, $marketEntity, $sourceType),
                 $creatorUserMap[$entity->getCreatorId()] ?? null,
-                $latestVersionMap[$entity->getCode()] ?? $entity->getVersion(),
+                $latestVersionMap[$entity->getCode()] ?? null,
                 $publisherType,
                 $publisher
             );
@@ -336,8 +337,6 @@ class SkillAssembler
     }
 
     /**
-     * @param array<string, MagicUserEntity> $userMap key 为 userId，同时用于发布者和 MEMBER 类型成员名称展示
-     * @param array<string, MagicDepartmentEntity> $memberDepartmentMap key 为 departmentId，用于 MEMBER 类型的部门名称展示
      * @param SkillVersionEntity[] $versions
      */
     public static function createQuerySkillVersionsResponseDTO(
@@ -361,6 +360,7 @@ class SkillAssembler
                 version: $version->getVersion(),
                 publishStatus: $version->getPublishStatus()->value,
                 reviewStatus: $version->getReviewStatus()->value ?? '',
+                reviewRemark: $version->getReviewRemark(),
                 publishTargetType: $version->getPublishTargetType()->value,
                 publisher: OperatorAssembler::createOperatorDTOByUserEntity($userMap[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
                 publishedAt: $version->getPublishedAt(),
@@ -378,7 +378,7 @@ class SkillAssembler
      *
      * @param array<string, SkillEntity> $userSkills 用户已添加的技能映射（key 为 skillCode）
      * @param array<string, MagicUserEntity> $publisherUserMap 发布者用户信息映射（key 为 publisherId）
-     * @param array<int, SkillVersionEntity> $skillVersionMap key 为 skill_version_id（已解析 file_url）
+     * @param array<string, SkillVersionEntity> $skillVersionMap key 为 skill_version_id（已解析 file_url）
      * @param int $page 当前页码
      * @param int $pageSize 每页数量
      * @param int $total 总记录数
@@ -388,7 +388,7 @@ class SkillAssembler
         array $skillMarketEntities,
         array $userSkills,
         array $publisherUserMap,
-        array $creatorSkillCodes,
+        string $currentUserId,
         int $page,
         int $pageSize,
         int $total,
@@ -398,13 +398,14 @@ class SkillAssembler
         foreach ($skillMarketEntities as $skillMarketEntity) {
             $skillCode = $skillMarketEntity->getSkillCode();
             $userSkill = $userSkills[$skillCode] ?? null;
+            $isBuiltinMarketSkill = $skillMarketEntity->getPublisherType()->isOfficialBuiltin();
 
             // 判断 is_added
-            $isAdded = $userSkill !== null;
+            $isAdded = $isBuiltinMarketSkill || $userSkill !== null;
 
             // 判断 need_upgrade（仅当 is_added = true 且 source_type = 'STORE' 时有效）
             $needUpgrade = false;
-            if ($isAdded && $userSkill && $userSkill->getSourceType()->isMarket()) {
+            if (! $isBuiltinMarketSkill && $isAdded && $userSkill && $userSkill->getSourceType()->isMarket()) {
                 // 比较用户的 version_id 和商店的 skill_version_id
                 $needUpgrade = $userSkill->getVersionId() !== $skillMarketEntity->getSkillVersionId();
             }
@@ -416,10 +417,9 @@ class SkillAssembler
                 $publisherUserMap[$skillMarketEntity->getPublisherId()] ?? null
             );
 
-            $isCreator = $creatorSkillCodes[$skillCode] ?? false;
+            $version = $skillVersionMap[$skillMarketEntity->getSkillCode()] ?? null;
+            $isCreator = $version !== null && (string) $version->getCreatorId() === $currentUserId;
             $isAdded = $isCreator ?: $isAdded;
-
-            $version = $skillVersionMap[$skillMarketEntity->getSkillVersionId()] ?? null;
             $fileKey = (string) ($version?->getFileKey() ?? '');
             $fileUrl = $version?->getFileUrl();
             $packageName = (string) ($version?->getPackageName() ?? '');
@@ -551,9 +551,27 @@ class SkillAssembler
         }
 
         return [
-            'name' => $publisherType->value,
+            'name' => $publisherType->getDescription(),
             'avatar' => '',
         ];
+    }
+
+    private static function resolveListSourceType(
+        SkillVersionEntity $entity,
+        ?SkillMarketEntity $marketEntity,
+        ?string $defaultSourceType
+    ): string {
+        if ($defaultSourceType === null) {
+            return $entity->getSourceType()->value;
+        }
+
+        if ($defaultSourceType === SkillSourceType::MARKET->value
+            && $marketEntity instanceof SkillMarketEntity
+            && $marketEntity->getPublisherType()->isOfficialBuiltin()) {
+            return SkillSourceType::SYSTEM->value;
+        }
+
+        return $defaultSourceType;
     }
 
     /**

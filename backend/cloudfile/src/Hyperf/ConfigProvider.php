@@ -12,10 +12,8 @@ class ConfigProvider
     public function __invoke(): array
     {
         return [
-            'dependencies' => [
-            ],
-            'commands' => [
-            ],
+            'dependencies' => [],
+            'commands' => [],
             'annotations' => [
                 'scan' => [
                     'paths' => [

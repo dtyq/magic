@@ -22,7 +22,7 @@ export default function useGlobalShortcut() {
 
 	const initLocale = useCallback(() => {
 		magic?.language?.getLanguage().then((lang) => {
-			configStore.i18n.setLanguage(lang)
+			void configStore.i18n.setLanguage(lang)
 		})
 	}, [])
 

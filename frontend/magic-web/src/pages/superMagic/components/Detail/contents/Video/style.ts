@@ -5,15 +5,17 @@ export const useStyles = createStyles(({ token, css }) => {
 		mediaViewer: {
 			width: "100%",
 			height: "100%",
+			minHeight: 0,
 			backgroundColor: token.colorBgBase,
-			overflow: "auto",
+			overflow: "hidden",
 			display: "flex",
 			flexDirection: "column",
 			alignItems: "center",
 		},
 		mediaContainer: {
 			width: "100%",
-			height: "calc(100% - 44px)",
+			flex: 1,
+			minHeight: 0,
 			display: "flex",
 			flexDirection: "column",
 			alignItems: "center",
@@ -23,12 +25,17 @@ export const useStyles = createStyles(({ token, css }) => {
 		},
 		videoContainer: {
 			flex: 1,
-			minHeight: "400px", // Ensure minimum height
+			minHeight: 0,
 			width: "100%",
+			display: "flex",
+			flexDirection: "column",
+			alignItems: "center",
+			justifyContent: "center",
 		},
 		videoWrapper: {
 			width: "calc(100% - 40px)",
-			height: "calc(100% - 152px)", // Reduced height since no custom controls
+			flex: 1,
+			minHeight: 0,
 			maxWidth: "100%",
 			borderRadius: 12,
 			overflow: "hidden",
@@ -37,15 +44,14 @@ export const useStyles = createStyles(({ token, css }) => {
 			flexDirection: "column",
 			"@media (max-width: 768px)": {
 				width: "calc(100% - 20px)",
-				height: "calc(100% - 80px)",
 				borderRadius: 8,
 			},
 		},
 		video: {
 			display: "block",
 			width: "100%",
-			height: "100%", // Fill the container
-			minHeight: "300px", // Ensure minimum height for player
+			height: "100%",
+			minHeight: 0,
 			maxWidth: "100%",
 			maxHeight: "100%",
 			margin: "0 auto",

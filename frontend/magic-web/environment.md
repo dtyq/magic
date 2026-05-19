@@ -135,13 +135,13 @@ MAGIC_APM = `{"strategy": "Volcengine", "options": { "appId": "", "token": "" }}
 该配置为站点版权信息，通常显示在页面底部。
 
 ```text
-MAGIC_COPYRIGHT = "Copyright © 2023 广东灯塔引擎科技有限公司 All Rights Reserved."
+MAGIC_COPYRIGHT = ""
 ```
 
 ### 备案号 MAGIC_ICP_CODE
 
 ```text
-MAGIC_ICP_CODE = "粤ICP备2023088718号"
+MAGIC_ICP_CODE = ""
 ```
 
 ### CDN资源地址 MAGIC_CDNHOST
@@ -149,8 +149,8 @@ MAGIC_ICP_CODE = "粤ICP备2023088718号"
 用于部分资源 CDN 加载的地址，默认不配置则加载当前站点资源。
 
 ```text
-// 国内SaaS 示例
-MAGIC_CDNHOST = "https://cdn.letsmagic.cn/__assets__/packages"
+// 示例
+MAGIC_CDNHOST = "https://cdn.magic.cn"
 ```
 
 ### 高德地图 API Key MAGIC_AMAP_KEY

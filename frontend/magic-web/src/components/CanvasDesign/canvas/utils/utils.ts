@@ -1,9 +1,16 @@
 import Konva from "konva"
-import type { LayerElement, RichTextParagraph, ElementType, ImageElement } from "../types"
-import type { UploadImageResponse, ImageModelItem } from "../../types.magic"
+import type {
+	LayerElement,
+	RichTextParagraph,
+	ElementType,
+	ImageElement,
+	CanvasFileElement,
+} from "../types"
+import type { UploadFileResponse, ImageModelItem } from "../../types.magic"
 import { ElementTypeEnum } from "../types"
 import type { Canvas } from "../Canvas"
 import { ImageElement as ImageElementClass } from "../element/elements/ImageElement"
+import { VideoElement as VideoElementClass } from "../element/elements/VideoElement"
 
 /**
  * 矩形边界
@@ -434,11 +441,13 @@ export interface FileTypeConfig {
 /**
  * 允许的文件类型配置（基于 MIME type）
  * 用于验证 File 对象（从文件系统拖拽）
- * 目前暂时只允许图片，且不限制大小
- * 注意：与 SUPPORTED_IMAGE_EXTENSIONS 保持一致
+ * 允许图片、视频、音频，且不限制大小
+ * 注意：与 SUPPORTED_*_EXTENSIONS 保持一致
  */
 export const ALLOWED_FILE_TYPES: FileTypeConfig[] = [
 	{ mimeType: "image/", maxSize: Infinity }, // Infinity 表示不限制大小
+	{ mimeType: "video/", maxSize: Infinity },
+	{ mimeType: "audio/", maxSize: Infinity },
 ]
 
 /**
@@ -526,6 +535,19 @@ export function areAllFilesImages(files: FileList | File[]): boolean {
 }
 
 /**
+ * 检查文件列表是否全部为视频类型
+ * @param files 文件列表
+ * @returns 是否全部为视频类型
+ */
+export function areAllFilesVideos(files: FileList | File[]): boolean {
+	const fileArray = Array.from(files)
+	if (fileArray.length === 0) {
+		return false
+	}
+	return fileArray.every((file) => file.type.startsWith("video/"))
+}
+
+/**
  * 检查文件是否为图片类型
  * @param file 文件对象
  * @returns 是否为图片类型
@@ -536,11 +558,32 @@ export function isImageFile(file: File): boolean {
 }
 
 /**
+ * 检查文件是否为视频类型
+ * @param file 文件对象
+ * @returns 是否为视频类型
+ */
+export function isVideoFile(file: File): boolean {
+	const videoTypes = ["video/mp4", "video/quicktime", "video/webm"]
+	return videoTypes.includes(file.type)
+}
+
+/**
  * 画布支持的图片文件扩展名（基于文件扩展名）
  * 用于验证文件路径（从项目文件列表拖拽）
  * 与 isImageFile 和 ALLOWED_FILE_TYPES 保持一致
  */
 export const SUPPORTED_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp"] as const
+export const SUPPORTED_VIDEO_EXTENSIONS = [".mp4", ".mov", ".webm"] as const
+export const SUPPORTED_AUDIO_EXTENSIONS = [".mp3", ".wav", ".ogg", ".m4a", ".aac"] as const
+
+/**
+ * 检查文件是否为音频类型（MIME 或扩展名回退）
+ */
+export function isAudioFile(file: File): boolean {
+	if (file.type.startsWith("audio/")) return true
+	const lower = file.name.toLowerCase()
+	return SUPPORTED_AUDIO_EXTENSIONS.some((ext) => lower.endsWith(ext))
+}
 
 /**
  * 文件验证结果
@@ -579,6 +622,36 @@ export function validateImageFilePath(filePath: string): FileValidationResult {
 	}
 
 	return { valid: true }
+}
+
+/**
+ * 验证文件路径是否为支持的画布文件格式（图片/视频/音频）
+ * @param filePath 文件路径
+ * @returns 验证结果
+ */
+export function validateCanvasFilePath(filePath: string): FileValidationResult {
+	if (!filePath) {
+		return { valid: false, reason: "文件路径为空" }
+	}
+
+	const lastDotIndex = filePath.lastIndexOf(".")
+	if (lastDotIndex === -1) {
+		return { valid: false, reason: "无法识别文件扩展名" }
+	}
+
+	const ext = filePath.slice(lastDotIndex).toLowerCase()
+	if (
+		SUPPORTED_IMAGE_EXTENSIONS.includes(ext as (typeof SUPPORTED_IMAGE_EXTENSIONS)[number]) ||
+		SUPPORTED_VIDEO_EXTENSIONS.includes(ext as (typeof SUPPORTED_VIDEO_EXTENSIONS)[number]) ||
+		SUPPORTED_AUDIO_EXTENSIONS.includes(ext as (typeof SUPPORTED_AUDIO_EXTENSIONS)[number])
+	) {
+		return { valid: true }
+	}
+
+	return {
+		valid: false,
+		reason: `不支持的文件类型: ${ext}`,
+	}
 }
 
 /**
@@ -633,6 +706,46 @@ export function getImageDimensions(file: File): Promise<{ width: number; height:
 
 		img.src = url
 	})
+}
+
+/**
+ * 获取视频文件的原始尺寸
+ * @param file 视频文件对象
+ * @returns Promise<{width: number, height: number}> 视频的宽度和高度
+ */
+export function getVideoDimensions(file: File): Promise<{ width: number; height: number }> {
+	return new Promise((resolve, reject) => {
+		const video = document.createElement("video")
+		const url = URL.createObjectURL(file)
+
+		video.preload = "metadata"
+		video.onloadedmetadata = () => {
+			URL.revokeObjectURL(url)
+			resolve({
+				width: video.videoWidth,
+				height: video.videoHeight,
+			})
+		}
+
+		video.onerror = () => {
+			URL.revokeObjectURL(url)
+			reject(new Error("Failed to load video"))
+		}
+
+		video.src = url
+	})
+}
+
+/**
+ * 获取媒体文件（图片/视频）的原始尺寸
+ * @param file 文件对象
+ * @returns Promise<{width: number, height: number}> 媒体尺寸
+ */
+export function getMediaDimensions(file: File): Promise<{ width: number; height: number }> {
+	if (file.type.startsWith("video/")) {
+		return getVideoDimensions(file)
+	}
+	return getImageDimensions(file)
 }
 
 /**
@@ -714,43 +827,12 @@ export function calculateHorizontalImageLayout(
 }
 
 /**
- * 画布剪贴板数据格式（统一格式，单个或多个元素都使用数组，向后兼容）
- */
-export interface CanvasClipboardData {
-	elements: LayerElement[]
-	/** 画布唯一标识，用于跨画布粘贴校验 */
-	id?: string
-}
-
-/**
- * 元素剪贴板元数据（用于关联图片文件和元素数据）
- */
-export interface ElementClipboardMetadata {
-	data: ImageElement
-	filename: string
-	mimeType: string
-	fileSize: number
-}
-
-/**
- * 类型守卫：检查是否为画布剪贴板数据格式
- */
-export function isCanvasClipboardData(data: unknown): data is CanvasClipboardData {
-	return (
-		typeof data === "object" &&
-		data !== null &&
-		"elements" in data &&
-		Array.isArray(data.elements)
-	)
-}
-
-/**
  * 类型守卫：检查元素是否为 ImageElement 实例（具有 preloadImage 方法）
  */
 export function isImageElementInstance(element: unknown): element is ImageElement & {
 	preloadImage: () => void
 	setOssSrc: (ossSrc: string) => void
-	getUploadResult?: () => UploadImageResponse[] | undefined
+	getUploadResult?: () => UploadFileResponse[] | undefined
 } {
 	return (
 		typeof element === "object" &&
@@ -776,6 +858,24 @@ export function validateAndFilterImageFiles(files: File[]): File[] {
 		}
 	}
 	return validImageFiles
+}
+
+/**
+ * 验证并过滤有效的画布文件（图片/视频）
+ * @param files 文件数组
+ * @returns 有效的文件数组
+ */
+export function validateAndFilterCanvasFiles(files: File[]): File[] {
+	const validFiles: File[] = []
+	for (const file of files) {
+		if (isAllowedFileType(file)) {
+			const validation = validateFile(file)
+			if (validation.valid && (isImageFile(file) || isVideoFile(file) || isAudioFile(file))) {
+				validFiles.push(file)
+			}
+		}
+	}
+	return validFiles
 }
 
 /**
@@ -938,10 +1038,32 @@ export function getLoadedImageElements(canvas: Canvas): ImageElement[] {
 }
 
 /**
- * 规范化路径，统一去除前导 "/"
- * @param path 路径（path）
- * @returns 规范化后的路径
+ * 获取已加载的视频元素列表
  */
-export function normalizePath(path: string): string {
-	return path.startsWith("/") ? path.slice(1) : path
+export function getLoadedVideoElements(canvas: Canvas): CanvasFileElement[] {
+	const selectedIds = canvas.selectionManager.getSelectedIds()
+	const videoElements: CanvasFileElement[] = []
+
+	for (const id of selectedIds) {
+		const elementData = canvas.elementManager.getElementData(id)
+		if (!elementData || elementData.type !== ElementTypeEnum.Video || !elementData.src) continue
+
+		const elementInstance = canvas.elementManager.getElementInstance(id)
+		if (
+			elementInstance &&
+			elementInstance instanceof VideoElementClass &&
+			elementInstance.canTogglePlayback()
+		) {
+			videoElements.push(elementData)
+		}
+	}
+
+	return videoElements
+}
+
+/**
+ * 获取已加载的文件元素列表（图片、视频等，用于下载/添加到对话）
+ */
+export function getLoadedFileElements(canvas: Canvas): CanvasFileElement[] {
+	return [...getLoadedImageElements(canvas), ...getLoadedVideoElements(canvas)]
 }

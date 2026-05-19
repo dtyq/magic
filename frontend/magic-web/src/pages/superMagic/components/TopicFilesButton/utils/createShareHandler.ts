@@ -2,6 +2,7 @@ import type { AttachmentItem } from "../hooks/types"
 import { collectSelectedItemIds } from "./collectSelectedItemIds"
 import { SuperMagicApi } from "@/apis"
 import { isAppEntryFile, findParentFolder } from "./collectFolderFiles"
+import { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 
 interface CreateShareHandlerOptions {
 	item: AttachmentItem
@@ -21,6 +22,7 @@ interface CreateShareHandlerOptions {
 	onCheckingEnd?: () => void
 	onShowSuccessModal?: (shareInfo: any, fileInfo: AttachmentItem) => void
 	onShowSimilarSharesDialog?: (similarShares: any[], fileIds: string[]) => void
+	selectedProject?: ProjectListItem
 }
 
 /**
@@ -62,6 +64,7 @@ export async function createShareHandler(options: CreateShareHandlerOptions): Pr
 		onCheckingStart,
 		onCheckingEnd,
 		onShowSimilarSharesDialog,
+		selectedProject,
 	} = options
 
 	if (!getItemId) return
@@ -124,6 +127,7 @@ export async function createShareHandler(options: CreateShareHandlerOptions): Pr
 
 			setShareFileInfo({
 				fileIds: finalFileIds,
+				projectName: selectedProject?.project_name,
 			})
 			setShareModalVisible(true)
 			return
@@ -156,6 +160,7 @@ export async function createShareHandler(options: CreateShareHandlerOptions): Pr
 
 		setShareFileInfo({
 			fileIds: finalFileIds,
+			projectName: selectedProject?.project_name,
 		})
 		setShareModalVisible(true)
 	}

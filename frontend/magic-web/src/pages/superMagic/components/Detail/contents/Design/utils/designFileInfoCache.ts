@@ -4,33 +4,85 @@ import type { FileItem } from "@/pages/superMagic/components/Detail/components/F
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import projectFilesStore from "@/stores/projectFiles"
 import { normalizePath } from "./utils"
+import {
+	getResolvedPathCandidates,
+	lookupAttachmentAmongCandidates,
+	lookupAttachmentForSingleNormalizedPath,
+} from "./designAttachmentPathLookup"
 import { GetFileInfoResponseWithFileId } from "./uploadCallbacks"
+import { getPreviewFileUrlWatermarkSignature } from "@/utils/aiWatermarkPreviewFileUrlMode"
 import type { ImageProcessOptions } from "@/utils/image-processing"
+import {
+	buildAttachmentsSnapshotKeyFromFlatFiles,
+	type DesignAttachmentIndex,
+} from "./designAttachmentIndex"
 
 const IMAGE_PROCESS_OPTIONS: { xMagicImageProcess?: ImageProcessOptions } = {
 	xMagicImageProcess: {
 		format: "webp",
-		// 	quality: 80,
 	},
 }
 
-/**
- * 图片处理文件大小限制
- * 超过此大小的文件使用图片处理选项会导致服务端错误
- */
-// const IMAGE_PROCESS_SIZE_LIMIT = 20 * 1024 * 1024 // 20MB in bytes
-// const IMAGE_PROCESS_SIZE_LIMIT = 20971520
-// const IMAGE_PROCESS_SIZE_LIMIT = 20971420 // 20MB - 10KB
+// 图片处理大小限制 50MB
+const IMAGE_PROCESS_SIZE_LIMIT = 50971420
+// 批量请求窗口时间 100ms
+const BATCH_REQUEST_WINDOW_MS = 100
+// 默认缓存时间 15 分钟
+const DEFAULT_TTL_MS = 15 * 60 * 1000
+// 缓存存储 key（v3：条目绑定附件快照，路径/更新时间变更导致 URL 失效时强制整批失效）
+const FILE_INFO_STORAGE_KEY = "MAGIC:supermagic-design:file-info-cache:v3"
+const LEGACY_FILE_INFO_STORAGE_KEY = "MAGIC:supermagic-design:file-info-cache"
+const FILE_INFO_CACHE_PAYLOAD_VERSION = 3 as const
 
-// const IMAGE_PROCESS_SIZE_LIMIT = 50 * 1024 * 1024 // 50MB in bytes
-// const IMAGE_PROCESS_SIZE_LIMIT = 50971520 // 50MB in bytes
-const IMAGE_PROCESS_SIZE_LIMIT = 50971420 // 50MB - 10KB
+/** 是否启用换链结果缓存：为 false 时不读内存命中、不写内存/持久化（可由 setCacheEnabled 切换，用于调试或强制每次拉新 URL） */
+let cacheEnabled = true
+/** localStorage 冷启动数据是否已灌入内存：ensureStorageCacheLoaded 只执行一次，避免每次 getFileInfo 都解析持久化 JSON */
+let storageCacheLoaded = false
 
-/**
- * 根据文件大小判断是否应该使用图片处理选项
- * @param fileSize 文件大小（字节），如果未提供则返回 false（保守策略）
- * @returns true 表示应该使用图片处理选项，false 表示不使用
- */
+interface CacheEntry {
+	fileInfo: GetFileInfoResponse
+	/** 写入时 getTemporaryDownloadUrl 自动 download_mode 水印语义，与 getPreviewFileUrlWatermarkSignature() 一致 */
+	previewWatermarkSignature: string
+	/** 当前 designProject 附件列表快照；目录移动时即使 file_id 不变，也要让旧 URL 整批失效 */
+	attachmentsSnapshotKey?: string
+	// 当接口未返回 expires_at 时，使用写入时间 + DEFAULT_TTL_MS 兜底过期
+	cachedAt?: number
+	// 记录当前 path 在最近一次解析时对应的 file_id，用于识别“同路径文件被替换”
+	resolvedFileId?: string
+}
+
+interface PersistedFileInfoCachePayload {
+	version: typeof FILE_INFO_CACHE_PAYLOAD_VERSION
+	entries: Record<string, CacheEntry>
+}
+
+interface BatchRequestItem {
+	cacheKey: string
+	path: string
+	normalizedPath: string
+	fileId: string
+	fileName: string
+	fileSize?: number
+	source?: FileItem["source"]
+	useImageProcess?: boolean
+	attachmentsSnapshotKey?: string
+	resolve: (value: GetFileInfoResponse) => void
+	reject: (error: Error) => void
+}
+
+// 主缓存：key = designProjectId + normalizedRelativePath
+const fileInfoRequestCache = new Map<string, Promise<GetFileInfoResponse>>()
+const fileInfoCache = new Map<string, CacheEntry>()
+const namespaceAttachmentsSnapshotCache = new Map<string, string>()
+/** 命名空间 → 该空间下出现过的 scoped cacheKey，用于 O(1) 批量失效（辅以存储回填时的 register） */
+const scopedCacheKeysByNamespace = new Map<string, Set<string>>()
+// path 维度请求去重，避免同一资源在短时间内重复换链
+const fileInfoByIdRequestCache = new Map<string, Promise<GetFileInfoResponseWithFileId>>()
+// 上传完成但附件列表尚未刷新时，允许宿主层按 file_id 直接换链
+const batchQueue: BatchRequestItem[] = []
+
+let batchTimer: NodeJS.Timeout | null = null
+
 function shouldUseImageProcess(fileSize?: number): boolean {
 	if (fileSize === undefined || fileSize === null || fileSize <= 0) {
 		return false
@@ -38,207 +90,317 @@ function shouldUseImageProcess(fileSize?: number): boolean {
 	return fileSize < IMAGE_PROCESS_SIZE_LIMIT
 }
 
-/**
- * 批量请求合并的等待窗口期(毫秒)
- * 在此时间窗口内的多个请求会被合并为一次批量请求
- */
-const BATCH_REQUEST_WINDOW_MS = 100
+function getCacheStorage(): Storage | null {
+	if (typeof window === "undefined") return null
 
-/**
- * 文件查找重试配置
- */
-const FILE_FIND_RETRY_CONFIG = {
-	/** 重试次数（不包括首次尝试） */
-	retryCount: 2,
-	/** 每次重试的间隔时间（毫秒） */
-	retryInterval: 3000,
-} as const
-
-/**
- * 缓存开关
- * 控制是否启动结果缓存
- */
-let cacheEnabled = true
-
-/**
- * 文件信息结果缓存（统一存储）
- * key: file_id
- * value: GetFileInfoResponse
- */
-const fileInfoCache = new Map<string, GetFileInfoResponse>()
-
-/**
- * path -> file_id 映射索引（用于通过 path 快速查找 file_id）
- * key: normalized file_path
- * value: file_id
- */
-const pathToIdIndex = new Map<string, string>()
-
-/**
- * 正在进行的文件信息请求缓存（用于请求去重）
- * key: file_id
- * value: Promise<GetFileInfoResponse>
- */
-const fileInfoRequestCache = new Map<string, Promise<GetFileInfoResponse>>()
-
-/**
- * 批量请求队列项
- */
-interface BatchRequestItem {
-	path: string
-	normalizedPath: string
-	fileId: string
-	fileName: string
-	fileSize?: number
-	resolve: (value: GetFileInfoResponse) => void
-	reject: (error: Error) => void
+	try {
+		return window.localStorage
+	} catch {
+		return null
+	}
 }
 
-/**
- * 批量请求队列
- */
-const batchQueue: BatchRequestItem[] = []
+function getStoreFiles(filesList?: FileItem[]): FileItem[] {
+	return (filesList || projectFilesStore.workspaceFilesList || []) as FileItem[]
+}
 
-/**
- * 批量请求定时器
- */
-let batchTimer: NodeJS.Timeout | null = null
+// 画布内只认相对路径；缓存层额外拼上 designProjectId 做命名空间，避免不同设计目录串 key。
+function buildScopedPathKey(normalizedPath: string, designProjectId?: string): string {
+	const namespace = designProjectId || "__global__"
+	return `${namespace}\0${normalizedPath}`
+}
 
-/**
- * 无 expires_at 时的默认 TTL（毫秒），15 分钟
- * OSS 临时 URL 通常有时效，API 未返回 expires_at 时采用保守策略
- */
-const DEFAULT_TTL_MS = 15 * 60 * 1000
+function buildNamespaceKey(designProjectId?: string): string {
+	return designProjectId || "__global__"
+}
 
-/**
- * 无 expires_at 的缓存写入时间戳
- * key: file_id
- * value: 写入时的时间戳（毫秒）
- */
-const cacheTimestampMap = new Map<string, number>()
+function parseScopedPathKey(scopedPathKey: string): {
+	namespace: string
+	normalizedPath: string
+} {
+	const separatorIndex = scopedPathKey.indexOf("\0")
+	if (separatorIndex < 0) {
+		return {
+			namespace: "__global__",
+			normalizedPath: scopedPathKey,
+		}
+	}
+	return {
+		namespace: scopedPathKey.slice(0, separatorIndex),
+		normalizedPath: scopedPathKey.slice(separatorIndex + 1),
+	}
+}
 
-/**
- * 检查缓存的 fileInfo 是否已过期
- * - 有 expires_at：按 API 返回的过期时间判断
- * - 无 expires_at：按默认 TTL 判断
- * @param cached 缓存的 GetFileInfoResponse
- * @param fileId 文件 ID（用于查询无 expires_at 时的写入时间）
- * @returns true 表示已过期或应视为无效
- */
-function isCachedFileInfoExpired(cached: GetFileInfoResponse, fileId: string): boolean {
-	const expiresAtTs = parseExpiresAt(cached.expires_at)
+function isCachedFileInfoExpired(entry: CacheEntry): boolean {
+	const expiresAtTs = parseExpiresAt(entry.fileInfo.expires_at)
 	if (expiresAtTs !== null) {
 		return isOssExpired(expiresAtTs)
 	}
-	// 无 expires_at：按默认 TTL 判断
-	const cachedAt = cacheTimestampMap.get(fileId)
-	if (cachedAt === undefined) return false
-	return Date.now() - cachedAt >= DEFAULT_TTL_MS
+	if (entry.cachedAt === undefined) {
+		return false
+	}
+	return Date.now() - entry.cachedAt >= DEFAULT_TTL_MS
 }
 
-/**
- * 查找文件项（优先从传入的文件列表中查找，如果没有传入则从 projectFilesStore 中查找）
- */
-function findFileItem(
-	normalizedPath: string,
-	path: string,
-	filesList?: FileItem[],
-): {
-	file_id: string
-	file_name: string
-	display_filename?: string
-	file_size?: number
-} | null {
-	// 优先使用传入的文件列表，如果没有传入则从 projectFilesStore 获取
-	const storeFiles = filesList || projectFilesStore.workspaceFilesList || []
-	if (storeFiles.length === 0) {
-		return null
-	}
+function isPreviewWatermarkSignatureStale(entry: CacheEntry): boolean {
+	return entry.previewWatermarkSignature !== getPreviewFileUrlWatermarkSignature()
+}
 
-	// 方法1: 精确匹配路径
-	let fileItem = storeFiles.find((item) => {
-		if (!item.relative_file_path) return false
-		const itemPath = normalizePath(item.relative_file_path)
-		return itemPath === normalizedPath && !item.is_directory
+function trackScopedCacheKey(cacheKey: string): void {
+	const { namespace } = parseScopedPathKey(cacheKey)
+	let set = scopedCacheKeysByNamespace.get(namespace)
+	if (!set) {
+		set = new Set()
+		scopedCacheKeysByNamespace.set(namespace, set)
+	}
+	set.add(cacheKey)
+}
+
+function untrackScopedCacheKey(cacheKey: string): void {
+	const { namespace } = parseScopedPathKey(cacheKey)
+	scopedCacheKeysByNamespace.get(namespace)?.delete(cacheKey)
+}
+
+function buildAttachmentsSnapshotKey(filesList?: FileItem[]): string {
+	return buildAttachmentsSnapshotKeyFromFlatFiles(getStoreFiles(filesList))
+}
+
+function deleteNamespaceRequestCache(namespace: string): void {
+	const tracked = scopedCacheKeysByNamespace.get(namespace)
+	if (tracked?.size) {
+		tracked.forEach((cacheKey) => {
+			fileInfoRequestCache.delete(cacheKey)
+		})
+	}
+	fileInfoRequestCache.forEach((_, cacheKey) => {
+		if (parseScopedPathKey(cacheKey).namespace === namespace) {
+			fileInfoRequestCache.delete(cacheKey)
+		}
+	})
+}
+
+function deleteNamespaceMemoryCache(namespace: string): boolean {
+	const tracked = scopedCacheKeysByNamespace.get(namespace)
+	let removed = false
+	if (tracked?.size) {
+		tracked.forEach((cacheKey) => {
+			if (fileInfoCache.delete(cacheKey)) removed = true
+			fileInfoRequestCache.delete(cacheKey)
+		})
+		scopedCacheKeysByNamespace.delete(namespace)
+		return removed
+	}
+	const keysToDelete: string[] = []
+	fileInfoCache.forEach((_, cacheKey) => {
+		if (parseScopedPathKey(cacheKey).namespace === namespace) {
+			keysToDelete.push(cacheKey)
+		}
 	})
 
-	// 方法2: 如果精确匹配失败，尝试路径匹配的变体（处理路径格式不一致的情况）
-	if (!fileItem) {
-		// 尝试去掉开头斜杠的匹配
-		const pathWithoutLeadingSlash = normalizedPath.startsWith("/")
-			? normalizedPath.slice(1)
-			: normalizedPath
+	keysToDelete.forEach((cacheKey) => {
+		deleteMemoryCache(cacheKey)
+	})
 
-		fileItem = storeFiles.find((item) => {
-			if (!item.relative_file_path || item.is_directory) return false
-			const itemPath = normalizePath(item.relative_file_path)
-			const itemPathWithoutLeadingSlash = itemPath.startsWith("/")
-				? itemPath.slice(1)
-				: itemPath
-			return itemPathWithoutLeadingSlash === pathWithoutLeadingSlash
-		})
+	return keysToDelete.length > 0
+}
 
-		// 如果还是找不到，尝试路径末尾部分匹配（如果目标路径是文件列表项路径的末尾部分）
-		// 注意：只有当 pathSuffix 包含至少一个目录层级时才进行匹配，避免仅文件名匹配到不同目录下的同名文件
-		if (!fileItem && normalizedPath.includes("/")) {
-			const pathParts = normalizedPath.split("/").filter(Boolean)
-			// 从路径末尾开始，逐步增加路径段进行匹配
-			// 至少需要2个路径段（目录+文件名）才进行后缀匹配，避免仅文件名匹配
-			for (let i = pathParts.length; i > 1; i--) {
-				const pathSuffix = pathParts.slice(-i).join("/")
-				fileItem = storeFiles.find((item) => {
-					if (!item.relative_file_path || item.is_directory) return false
-					const itemPath = normalizePath(item.relative_file_path)
-					// 确保匹配的路径确实是目标路径的后缀（包含目录层级）
-					return itemPath.endsWith("/" + pathSuffix) || itemPath === pathSuffix
-				})
-				if (fileItem) break
-			}
-		}
-	}
+function syncNamespaceAttachmentsSnapshot(namespace: string, attachmentsSnapshotKey: string): void {
+	const previousSnapshotKey = namespaceAttachmentsSnapshotCache.get(namespace)
+	if (previousSnapshotKey === attachmentsSnapshotKey) return
 
-	// 方法3: 如果还是找不到，尝试通过 file_id 匹配（如果 path 本身就是 file_id）
-	if (!fileItem && path && !path.includes("/") && !path.includes("\\")) {
-		fileItem = storeFiles.find((item) => {
-			return !item.is_directory && item.file_id === path
-		})
-	}
+	namespaceAttachmentsSnapshotCache.set(namespace, attachmentsSnapshotKey)
+	if (previousSnapshotKey === undefined) return
 
-	if (!fileItem?.file_id) {
-		return null
-	}
-	return {
-		file_id: fileItem.file_id,
-		file_name: fileItem.file_name || fileItem.display_filename || fileItem.filename || "",
-		display_filename: fileItem.display_filename,
-		file_size: fileItem.file_size,
+	const shouldPersistCache = deleteNamespaceMemoryCache(namespace)
+	deleteNamespaceRequestCache(namespace)
+	if (shouldPersistCache) {
+		persistCacheToStorage()
 	}
 }
 
-/**
- * 执行批量请求
- */
+function isAttachmentsSnapshotStale(
+	entry: CacheEntry,
+	attachmentsSnapshotKey?: string,
+	hasFilesContext?: boolean,
+): boolean {
+	if (!hasFilesContext || attachmentsSnapshotKey === undefined) {
+		return false
+	}
+	return entry.attachmentsSnapshotKey !== attachmentsSnapshotKey
+}
+
+function setMemoryCache(
+	cacheKey: string,
+	fileInfo: GetFileInfoResponse,
+	resolvedFileId?: string,
+	previewWatermarkSignature: string = getPreviewFileUrlWatermarkSignature(),
+	attachmentsSnapshotKey?: string,
+): void {
+	trackScopedCacheKey(cacheKey)
+	fileInfoCache.set(cacheKey, {
+		fileInfo,
+		previewWatermarkSignature,
+		attachmentsSnapshotKey,
+		resolvedFileId,
+		...(fileInfo.expires_at ? {} : { cachedAt: Date.now() }),
+	})
+}
+
+function deleteMemoryCache(cacheKey: string): void {
+	untrackScopedCacheKey(cacheKey)
+	fileInfoCache.delete(cacheKey)
+	fileInfoRequestCache.delete(cacheKey)
+}
+
+function persistCacheToStorage(): void {
+	const storage = getCacheStorage()
+	if (!storage) return
+
+	try {
+		const payload: PersistedFileInfoCachePayload = {
+			version: FILE_INFO_CACHE_PAYLOAD_VERSION,
+			entries: Object.fromEntries(fileInfoCache.entries()),
+		}
+		storage.setItem(FILE_INFO_STORAGE_KEY, JSON.stringify(payload))
+	} catch {
+		//
+	}
+}
+
+function clearPersistedCache(): void {
+	const storage = getCacheStorage()
+	if (!storage) return
+
+	try {
+		storage.removeItem(FILE_INFO_STORAGE_KEY)
+	} catch {
+		//
+	}
+}
+
+function ensureStorageCacheLoaded(): void {
+	if (storageCacheLoaded) return
+
+	storageCacheLoaded = true
+	const storage = getCacheStorage()
+	if (!storage) return
+
+	try {
+		try {
+			storage.removeItem(LEGACY_FILE_INFO_STORAGE_KEY)
+		} catch {
+			//
+		}
+
+		const raw = storage.getItem(FILE_INFO_STORAGE_KEY)
+		if (!raw) return
+
+		const parsed = JSON.parse(raw) as Partial<PersistedFileInfoCachePayload> | null
+		if (!parsed || typeof parsed !== "object") {
+			clearPersistedCache()
+			return
+		}
+
+		if (parsed.version !== FILE_INFO_CACHE_PAYLOAD_VERSION) {
+			clearPersistedCache()
+			return
+		}
+
+		let shouldSyncStorage = false
+		for (const [cacheKey, entry] of Object.entries(parsed.entries ?? {})) {
+			if (!entry?.fileInfo?.src) {
+				shouldSyncStorage = true
+				continue
+			}
+
+			if (!entry.previewWatermarkSignature) {
+				shouldSyncStorage = true
+				continue
+			}
+
+			if (!entry.attachmentsSnapshotKey) {
+				shouldSyncStorage = true
+				continue
+			}
+
+			if (!entry.fileInfo.expires_at && entry.cachedAt === undefined) {
+				shouldSyncStorage = true
+				continue
+			}
+
+			fileInfoCache.set(cacheKey, entry as CacheEntry)
+			trackScopedCacheKey(cacheKey)
+			if (isCachedFileInfoExpired(entry as CacheEntry)) {
+				deleteMemoryCache(cacheKey)
+				shouldSyncStorage = true
+			}
+		}
+
+		if (shouldSyncStorage) {
+			persistCacheToStorage()
+		}
+	} catch {
+		clearPersistedCache()
+	}
+}
+
+function findFileItemByFileId(fileId: string, filesList?: FileItem[]): FileItem | null {
+	if (!fileId) return null
+	const found = getStoreFiles(filesList).find(
+		(item) => !item.is_directory && item.file_id === fileId,
+	)
+	return found ?? null
+}
+
+function mergeFileItemMetaIntoFileInfo(
+	base: GetFileInfoResponse,
+	fileItem: FileItem | null,
+): GetFileInfoResponse {
+	if (!fileItem) return base
+	return {
+		...base,
+		...(fileItem.source !== undefined ? { source: fileItem.source } : {}),
+	}
+}
+
+function shouldInvalidateCachedEntry(
+	entry: CacheEntry,
+	fileItem: FileItem | null,
+	hasFilesContext: boolean,
+): boolean {
+	// 没有最新附件上下文时，不主动用 resolvedFileId 做失效，避免误删纯内存命中结果。
+	if (!hasFilesContext) {
+		return false
+	}
+	if (!fileItem) {
+		return true
+	}
+	// 同一路径解析出了新的 file_id，说明发生了同名替换，旧 URL 必须丢弃。
+	if (entry.resolvedFileId && entry.resolvedFileId !== fileItem.file_id) {
+		return true
+	}
+	return false
+}
+
+// 将短时间内的多个 path 请求合并成一轮 file_id 批量换链，减少接口压力。
 async function executeBatchRequest(): Promise<void> {
 	if (batchQueue.length === 0) return
 
-	// 复制队列并清空
 	const queue = [...batchQueue]
 	batchQueue.length = 0
 	batchTimer = null
 
-	// 按是否需要图片处理分组
 	const withImageProcess: BatchRequestItem[] = []
 	const withoutImageProcess: BatchRequestItem[] = []
 
 	for (const item of queue) {
-		if (shouldUseImageProcess(item.fileSize)) {
+		if (item.useImageProcess === true && shouldUseImageProcess(item.fileSize)) {
 			withImageProcess.push(item)
 		} else {
 			withoutImageProcess.push(item)
 		}
 	}
 
-	// 处理需要图片处理的请求
 	if (withImageProcess.length > 0) {
 		try {
 			const fileIds = withImageProcess.map((item) => item.fileId)
@@ -246,191 +408,227 @@ async function executeBatchRequest(): Promise<void> {
 				file_ids: fileIds,
 				options: IMAGE_PROCESS_OPTIONS,
 			})
-
 			processBatchRequestResults(withImageProcess, downloadUrls)
 		} catch (error) {
-			// 请求失败，拒绝所有 Promise
-			for (const item of withImageProcess) {
+			withImageProcess.forEach((item) => {
 				item.reject(error as Error)
-				fileInfoRequestCache.delete(item.fileId)
-			}
+				fileInfoRequestCache.delete(item.cacheKey)
+			})
 		}
 	}
 
-	// 处理不需要图片处理的请求
 	if (withoutImageProcess.length > 0) {
 		try {
 			const fileIds = withoutImageProcess.map((item) => item.fileId)
 			const downloadUrls = await getTemporaryDownloadUrl({
 				file_ids: fileIds,
-				// 不传递 options，避免服务端错误
 			})
-
 			processBatchRequestResults(withoutImageProcess, downloadUrls)
 		} catch (error) {
-			// 请求失败，拒绝所有 Promise
-			for (const item of withoutImageProcess) {
+			withoutImageProcess.forEach((item) => {
 				item.reject(error as Error)
-				fileInfoRequestCache.delete(item.fileId)
-			}
+				fileInfoRequestCache.delete(item.cacheKey)
+			})
 		}
 	}
 }
 
-/**
- * 处理批量请求结果
- */
 function processBatchRequestResults(
 	queue: BatchRequestItem[],
 	downloadUrls: Array<{ file_id?: string; url?: string; expires_at?: string }> | null | undefined,
 ): void {
-	if (!downloadUrls || downloadUrls.length === 0) {
-		// 所有请求都失败
-		for (const item of queue) {
+	if (!downloadUrls?.length) {
+		queue.forEach((item) => {
 			item.reject(new Error(`无法获取文件下载地址: ${item.path}`))
-			fileInfoRequestCache.delete(item.fileId)
-		}
+			fileInfoRequestCache.delete(item.cacheKey)
+		})
 		return
 	}
 
-	// 创建 fileId -> urlItem 的映射（含 expires_at）
 	const urlItemMap = new Map<string, { url: string; expires_at?: string }>()
-	for (const urlItem of downloadUrls) {
+	downloadUrls.forEach((urlItem) => {
 		if (urlItem.file_id && urlItem.url) {
 			urlItemMap.set(urlItem.file_id, {
 				url: urlItem.url,
 				expires_at: urlItem.expires_at,
 			})
 		}
-	}
+	})
 
-	// 处理每个请求
-	for (const item of queue) {
+	let shouldPersistCache = false
+	queue.forEach((item) => {
 		const urlItem = urlItemMap.get(item.fileId)
-
 		if (!urlItem?.url) {
 			item.reject(new Error(`无法获取文件下载地址: ${item.path}`))
-			fileInfoRequestCache.delete(item.fileId)
-			continue
+			fileInfoRequestCache.delete(item.cacheKey)
+			return
 		}
 
 		const result: GetFileInfoResponse = {
 			src: urlItem.url,
 			fileName: item.fileName,
-			...(urlItem.expires_at && { expires_at: urlItem.expires_at }),
+			...(urlItem.expires_at ? { expires_at: urlItem.expires_at } : {}),
+			...(item.source !== undefined ? { source: item.source } : {}),
 		}
 
-		// 统一缓存：以 file_id 为主键存储（仅在缓存开启时）
 		if (cacheEnabled) {
-			fileInfoCache.set(item.fileId, result)
-			if (!result.expires_at) {
-				cacheTimestampMap.set(item.fileId, Date.now())
-			}
-			pathToIdIndex.set(item.normalizedPath, item.fileId)
+			// 缓存仍然按 path 维度存，但会记住本次解析到的 file_id 以便后续失效校验。
+			setMemoryCache(
+				item.cacheKey,
+				result,
+				item.fileId,
+				getPreviewFileUrlWatermarkSignature(),
+				item.attachmentsSnapshotKey,
+			)
+			shouldPersistCache = true
 		}
-		// 请求完成后从请求缓存中移除
-		fileInfoRequestCache.delete(item.fileId)
-
-		// 解析 Promise
+		fileInfoRequestCache.delete(item.cacheKey)
 		item.resolve(result)
+	})
+
+	if (shouldPersistCache) {
+		persistCacheToStorage()
 	}
 }
 
-/**
- * 根据文件路径获取文件信息（带缓存和批量请求合并）
- * 如果缓存中有结果，直接返回
- * 如果有正在进行的请求，复用该请求
- * 否则加入批量请求队列，等待批量处理
- * @param filePath 文件路径
- * @param filesList 可选的文件列表，如果传入则优先使用此列表查找文件，否则从 projectFilesStore 获取
- */
 export async function getFileInfoByPath(
 	filePath: string,
 	filesList?: FileItem[],
+	options?: {
+		useImageProcess?: boolean
+		forceRefresh?: boolean
+		designProjectBasePath?: string
+		designProjectId?: string
+		attachmentIndex?: DesignAttachmentIndex | null
+		attachmentsSnapshotKeyOverride?: string
+	},
 ): Promise<GetFileInfoResponse | null> {
-	const normalizedPath = normalizePath(filePath)
-	if (!normalizedPath) {
+	ensureStorageCacheLoaded()
+
+	const candidates = getResolvedPathCandidates(filePath, options?.designProjectBasePath)
+	const fallbackCandidate = candidates[0]
+	if (!fallbackCandidate) {
 		return null
 	}
 
-	// 通过 path -> file_id 索引查找 file_id（仅在缓存开启时）
-	if (cacheEnabled) {
-		const fileId = pathToIdIndex.get(normalizedPath)
-		if (fileId) {
-			// 如果找到 file_id，从统一缓存中获取
-			const cachedResult = fileInfoCache.get(fileId)
-			if (cachedResult) {
-				if (!isCachedFileInfoExpired(cachedResult, fileId)) {
-					return cachedResult
-				}
-				// 已过期，清除缓存
-				fileInfoCache.delete(fileId)
-				cacheTimestampMap.delete(fileId)
-				pathToIdIndex.delete(normalizedPath)
+	const namespace = buildNamespaceKey(options?.designProjectId)
+	const storeFiles = getStoreFiles(filesList)
+	const hasFilesContext = storeFiles.length > 0
+	const attachmentsSnapshotKey = hasFilesContext
+		? (options?.attachmentsSnapshotKeyOverride ?? buildAttachmentsSnapshotKey(filesList))
+		: undefined
+	if (attachmentsSnapshotKey !== undefined) {
+		syncNamespaceAttachmentsSnapshot(namespace, attachmentsSnapshotKey)
+	}
+	const shouldBypassCache = options?.forceRefresh === true
+
+	if (!shouldBypassCache && cacheEnabled) {
+		for (const candidate of candidates) {
+			const cacheKey = buildScopedPathKey(candidate.normalizedPath, options?.designProjectId)
+			const cachedEntry = fileInfoCache.get(cacheKey)
+			if (!cachedEntry) continue
+
+			const cachedFileItem = lookupAttachmentForSingleNormalizedPath(
+				candidate.normalizedPath,
+				filePath,
+				getStoreFiles(filesList),
+				options?.attachmentIndex,
+			)
+			if (
+				isCachedFileInfoExpired(cachedEntry) ||
+				isPreviewWatermarkSignatureStale(cachedEntry) ||
+				isAttachmentsSnapshotStale(cachedEntry, attachmentsSnapshotKey, hasFilesContext) ||
+				shouldInvalidateCachedEntry(cachedEntry, cachedFileItem, hasFilesContext)
+			) {
+				deleteMemoryCache(cacheKey)
+				persistCacheToStorage()
+				continue
 			}
 
-			// 检查是否有正在进行的请求
-			const cachedRequest = fileInfoRequestCache.get(fileId)
-			if (cachedRequest) {
-				return cachedRequest
-			}
+			return mergeFileItemMetaIntoFileInfo(cachedEntry.fileInfo, cachedFileItem)
 		}
 	}
 
-	// 查找文件项（带重试机制）
-	let fileItem = findFileItem(normalizedPath, filePath, filesList)
-	if (!fileItem) {
-		// 如果第一次找不到，进行重试
-		for (let i = 0; i < FILE_FIND_RETRY_CONFIG.retryCount; i++) {
-			// 等待指定间隔时间
-			await new Promise((resolve) =>
-				setTimeout(resolve, FILE_FIND_RETRY_CONFIG.retryInterval),
+	if (!shouldBypassCache) {
+		for (const candidate of candidates) {
+			const cacheKey = buildScopedPathKey(candidate.normalizedPath, options?.designProjectId)
+			const cachedRequest = fileInfoRequestCache.get(cacheKey)
+			if (!cachedRequest) continue
+
+			return cachedRequest.then((result) =>
+				mergeFileItemMetaIntoFileInfo(
+					result,
+					lookupAttachmentForSingleNormalizedPath(
+						candidate.normalizedPath,
+						filePath,
+						getStoreFiles(filesList),
+						options?.attachmentIndex,
+					),
+				),
 			)
-			// 重试时重新获取文件列表（因为 attachments 可能已经更新）
-			fileItem = findFileItem(normalizedPath, filePath)
-			if (fileItem) {
-				break
+		}
+	}
+
+	let lookupResult = lookupAttachmentAmongCandidates(
+		candidates,
+		filePath,
+		getStoreFiles(filesList),
+		options?.attachmentIndex,
+	)
+	if (!lookupResult) {
+		if (hasFilesContext) {
+			const latestStoreFiles = getStoreFiles(undefined)
+			const latestHasFilesContext = latestStoreFiles.length > 0
+			const latestSnapshotKey = latestHasFilesContext
+				? buildAttachmentsSnapshotKey(latestStoreFiles)
+				: undefined
+			if (latestHasFilesContext && latestSnapshotKey !== attachmentsSnapshotKey) {
+				lookupResult = lookupAttachmentAmongCandidates(
+					candidates,
+					filePath,
+					latestStoreFiles,
+					options?.attachmentIndex,
+				)
+			}
+			if (!lookupResult) {
+				// 附件列表已有快照：当前 path 在列表中不存在即视为不存在，不再阻塞等待
+				return null
 			}
 		}
-		if (!fileItem) {
+
+		// 列表尚未就绪（本地仍为空）：上传/重命名与 workspaceFilesList 填充存在时序，仅在此场景重试
+		for (let i = 0; i < 2; i++) {
+			await new Promise((resolve) => setTimeout(resolve, 3000))
+			lookupResult = lookupAttachmentAmongCandidates(
+				candidates,
+				filePath,
+				getStoreFiles(undefined),
+				options?.attachmentIndex,
+			)
+			if (lookupResult) break
+		}
+		if (!lookupResult) {
 			return null
 		}
 	}
 
-	// 如果已经有缓存，直接返回（仅在缓存开启时）
-	if (cacheEnabled) {
-		const cachedResult = fileInfoCache.get(fileItem.file_id)
-		if (cachedResult) {
-			if (!isCachedFileInfoExpired(cachedResult, fileItem.file_id)) {
-				pathToIdIndex.set(normalizedPath, fileItem.file_id)
-				return cachedResult
-			}
-			// 已过期，清除缓存
-			fileInfoCache.delete(fileItem.file_id)
-			cacheTimestampMap.delete(fileItem.file_id)
-		}
-
-		// 检查是否有正在进行的请求
-		const cachedRequest = fileInfoRequestCache.get(fileItem.file_id)
-		if (cachedRequest) {
-			pathToIdIndex.set(normalizedPath, fileItem.file_id)
-			return cachedRequest
-		}
-	}
-
-	// 创建新的 Promise 并加入批量请求队列
+	const { fileItem, normalizedPath, resolvedPath } = lookupResult
+	const cacheKey = buildScopedPathKey(normalizedPath, options?.designProjectId)
 	const requestPromise = new Promise<GetFileInfoResponse>((resolve, reject) => {
 		batchQueue.push({
-			path: filePath,
+			cacheKey,
+			path: resolvedPath,
 			normalizedPath,
 			fileId: fileItem.file_id,
-			fileName: fileItem.file_name,
+			fileName: fileItem.file_name || fileItem.display_filename || fileItem.filename || "",
 			fileSize: fileItem.file_size,
+			source: fileItem.source,
+			useImageProcess: options?.useImageProcess,
+			attachmentsSnapshotKey,
 			resolve,
 			reject,
 		})
 
-		// 如果定时器不存在，启动新的批量请求定时器
 		if (!batchTimer) {
 			batchTimer = setTimeout(() => {
 				executeBatchRequest()
@@ -438,238 +636,187 @@ export async function getFileInfoByPath(
 		}
 	})
 
-	// 记录正在进行的请求（以 file_id 为 key）
-	fileInfoRequestCache.set(fileItem.file_id, requestPromise)
-	// 更新索引（仅在缓存开启时）
-	if (cacheEnabled) {
-		pathToIdIndex.set(normalizedPath, fileItem.file_id)
+	if (!shouldBypassCache) {
+		trackScopedCacheKey(cacheKey)
+		fileInfoRequestCache.set(cacheKey, requestPromise)
 	}
-
 	return requestPromise
 }
 
-/**
- * 设置文件信息缓存
- * 用于外部直接设置缓存，避免重复调用 API
- * @param path 文件路径（用于建立 path -> file_id 索引）
- * @param fileInfo 文件信息（如果包含 file_id，会以 file_id 为主键存储）
- * @param filesList 可选的文件列表，用于查找 file_id（如果没有提供 file_id）
- */
 export function setFileInfoCache(
 	path: string,
-	fileInfo: GetFileInfoResponse & { file_id?: string },
+	fileInfo: GetFileInfoResponse,
 	filesList?: FileItem[],
+	designProjectBasePath?: string,
+	designProjectId?: string,
+	attachmentIndex?: DesignAttachmentIndex | null,
 ): void {
-	// 如果缓存关闭，直接返回
+	ensureStorageCacheLoaded()
 	if (!cacheEnabled) return
 
-	const normalizedPath = normalizePath(path)
-	if (!normalizedPath) return
+	const candidates = getResolvedPathCandidates(path, designProjectBasePath)
+	const lookupResult = lookupAttachmentAmongCandidates(
+		candidates,
+		path,
+		getStoreFiles(filesList),
+		attachmentIndex,
+	)
+	const targetCandidate = lookupResult ?? candidates[0]
+	if (!targetCandidate) return
 
-	// 如果 fileInfo 包含 file_id，使用 file_id 作为主键
-	if (fileInfo.file_id) {
-		const { file_id, ...fileInfoWithoutId } = fileInfo
-		fileInfoCache.set(file_id, fileInfoWithoutId)
-		if (!fileInfoWithoutId.expires_at) {
-			cacheTimestampMap.set(file_id, Date.now())
-		} else {
-			cacheTimestampMap.delete(file_id)
-		}
-		pathToIdIndex.set(normalizedPath, file_id)
-	} else {
-		// 如果没有 file_id，尝试通过索引查找
-		let fileId = pathToIdIndex.get(normalizedPath)
-
-		// 如果索引中也没有，尝试通过 findFileItem 查找
-		if (!fileId) {
-			const fileItem = findFileItem(normalizedPath, path, filesList)
-			if (fileItem?.file_id) {
-				fileId = fileItem.file_id
-				pathToIdIndex.set(normalizedPath, fileId)
-			}
-		}
-
-		// 如果找到了 file_id，缓存结果
-		if (fileId) {
-			fileInfoCache.set(fileId, fileInfo)
-			if (!fileInfo.expires_at) {
-				cacheTimestampMap.set(fileId, Date.now())
-			} else {
-				cacheTimestampMap.delete(fileId)
-			}
-		}
-	}
+	const cacheKey = buildScopedPathKey(targetCandidate.normalizedPath, designProjectId)
+	const attachmentsSnapshotKey =
+		filesList && getStoreFiles(filesList).length > 0
+			? (attachmentIndex?.attachmentsSnapshotKey ?? buildAttachmentsSnapshotKey(filesList))
+			: undefined
+	setMemoryCache(
+		cacheKey,
+		fileInfo,
+		lookupResult?.fileItem.file_id,
+		getPreviewFileUrlWatermarkSignature(),
+		attachmentsSnapshotKey,
+	)
+	persistCacheToStorage()
 }
 
-/**
- * 获取文件信息缓存（通过路径）
- * 若缓存已过期则清除并返回 undefined
- */
-export function getFileInfoCache(path: string): GetFileInfoResponse | undefined {
-	const normalizedPath = normalizePath(path)
-	if (!normalizedPath) return undefined
+export function getFileInfoCache(
+	path: string,
+	designProjectBasePath?: string,
+	designProjectId?: string,
+): GetFileInfoResponse | undefined {
+	ensureStorageCacheLoaded()
 
-	const fileId = pathToIdIndex.get(normalizedPath)
-	if (!fileId) return undefined
+	const candidates = getResolvedPathCandidates(path, designProjectBasePath)
 
-	const cached = fileInfoCache.get(fileId)
-	if (!cached) return undefined
+	for (const candidate of candidates) {
+		const cacheKey = buildScopedPathKey(candidate.normalizedPath, designProjectId)
+		const entry = fileInfoCache.get(cacheKey)
+		if (!entry) continue
 
-	if (isCachedFileInfoExpired(cached, fileId)) {
-		fileInfoCache.delete(fileId)
-		cacheTimestampMap.delete(fileId)
-		pathToIdIndex.delete(normalizedPath)
-		return undefined
+		if (isCachedFileInfoExpired(entry) || isPreviewWatermarkSignatureStale(entry)) {
+			deleteMemoryCache(cacheKey)
+			persistCacheToStorage()
+			continue
+		}
+
+		return entry.fileInfo
 	}
 
-	return cached
+	return undefined
 }
 
-/**
- * 清除指定路径的缓存
- */
-export function clearFileInfoCache(path: string): void {
-	const normalizedPath = normalizePath(path)
-	if (!normalizedPath) return
+export function clearFileInfoCache(
+	path: string,
+	designProjectBasePath?: string,
+	designProjectId?: string,
+): void {
+	ensureStorageCacheLoaded()
 
-	const fileId = pathToIdIndex.get(normalizedPath)
-	if (fileId) {
-		fileInfoCache.delete(fileId)
-		cacheTimestampMap.delete(fileId)
-		fileInfoRequestCache.delete(fileId)
-	}
-	pathToIdIndex.delete(normalizedPath)
+	const candidates = getResolvedPathCandidates(path, designProjectBasePath)
+	if (candidates.length === 0) return
+
+	candidates.forEach((candidate) => {
+		deleteMemoryCache(buildScopedPathKey(candidate.normalizedPath, designProjectId))
+	})
+	persistCacheToStorage()
 }
 
-/**
- * 通过 file_id 直接获取文件信息
- * 优势：不依赖 path 和 attachments，直接使用 file_id 获取下载 URL
- * 适用场景：上传完成后，API 已返回 file_id，但 attachments 可能还未更新
- * @param fileId 文件 ID
- * @param fileName 可选的文件名
- * @param fileSize 可选的文件大小（字节），用于判断是否使用图片处理选项
- * @returns 文件信息（包含下载 URL 和 file_id）
- */
 export async function getFileInfoById(
 	fileId: string,
 	fileName?: string,
 	fileSize?: number,
+	options?: { useImageProcess?: boolean; filesList?: FileItem[] },
 ): Promise<GetFileInfoResponseWithFileId> {
 	if (!fileId) {
 		throw new Error("file_id is required")
 	}
 
-	// 检查统一缓存（仅在缓存开启时）
-	if (cacheEnabled) {
-		const cached = fileInfoCache.get(fileId)
-		if (cached) {
-			if (!isCachedFileInfoExpired(cached, fileId)) {
-				return { ...cached, file_id: fileId } as GetFileInfoResponseWithFileId
-			}
-			// 已过期，清除缓存
-			fileInfoCache.delete(fileId)
-			cacheTimestampMap.delete(fileId)
-		}
-
-		// 检查是否有正在进行的请求
-		const pendingRequest = fileInfoRequestCache.get(fileId)
-		if (pendingRequest) {
-			const result = await pendingRequest
-			return { ...result, file_id: fileId } as GetFileInfoResponseWithFileId
-		}
+	const pendingRequest = fileInfoByIdRequestCache.get(fileId)
+	if (pendingRequest) {
+		return pendingRequest
 	}
 
-	// 创建新的请求
 	const requestPromise = (async () => {
 		try {
-			// 根据文件大小决定是否使用图片处理选项
-			const options = shouldUseImageProcess(fileSize) ? IMAGE_PROCESS_OPTIONS : undefined
+			const processOptions =
+				options?.useImageProcess === true && shouldUseImageProcess(fileSize)
+					? IMAGE_PROCESS_OPTIONS
+					: undefined
 
-			// 直接通过 file_id 获取下载 URL
 			const downloadUrls = await getTemporaryDownloadUrl({
 				file_ids: [fileId],
-				options,
+				options: processOptions,
 			})
 
-			if (!downloadUrls || downloadUrls.length === 0) {
-				throw new Error(`Failed to get download URL for file_id: ${fileId}`)
-			}
-
-			const urlItem = downloadUrls[0]
-			if (!urlItem.url) {
+			if (!downloadUrls?.length || !downloadUrls[0]?.url) {
 				throw new Error(`No URL in response for file_id: ${fileId}`)
 			}
 
-			const result: GetFileInfoResponse = {
-				src: urlItem.url,
-				fileName: fileName || "",
-				...(urlItem.expires_at && { expires_at: urlItem.expires_at }),
-			}
+			const meta = findFileItemByFileId(fileId, options?.filesList)
+			const result: GetFileInfoResponse = mergeFileItemMetaIntoFileInfo(
+				{
+					src: downloadUrls[0].url,
+					fileName:
+						fileName ||
+						meta?.file_name ||
+						meta?.display_filename ||
+						meta?.filename ||
+						"",
+					...(downloadUrls[0].expires_at
+						? { expires_at: downloadUrls[0].expires_at }
+						: {}),
+				},
+				meta,
+			)
 
-			// 统一缓存：以 file_id 为主键存储（仅在缓存开启时）
-			if (cacheEnabled) {
-				fileInfoCache.set(fileId, result)
-				if (!result.expires_at) {
-					cacheTimestampMap.set(fileId, Date.now())
-				}
+			// 这里只给宿主内部链路使用，返回值保留 file_id，CanvasDesign 本身不消费它。
+			return {
+				...result,
+				file_id: fileId,
 			}
-
-			// 返回包含 file_id 的对象
-			return { ...result, file_id: fileId } as GetFileInfoResponseWithFileId
 		} finally {
-			// 请求完成后清理
-			fileInfoRequestCache.delete(fileId)
+			fileInfoByIdRequestCache.delete(fileId)
 		}
 	})()
 
-	// 记录正在进行的请求
-	fileInfoRequestCache.set(fileId, requestPromise)
-
+	fileInfoByIdRequestCache.set(fileId, requestPromise)
 	return requestPromise
 }
 
-/**
- * 清除所有缓存
- */
 export function clearAllFileInfoCache(): void {
+	ensureStorageCacheLoaded()
+
 	fileInfoCache.clear()
-	cacheTimestampMap.clear()
-	pathToIdIndex.clear()
 	fileInfoRequestCache.clear()
+	fileInfoByIdRequestCache.clear()
+	namespaceAttachmentsSnapshotCache.clear()
 	batchQueue.length = 0
 	if (batchTimer) {
 		clearTimeout(batchTimer)
 		batchTimer = null
 	}
+	clearPersistedCache()
 }
 
-/**
- * 设置缓存开关
- * @param enabled 是否启用缓存，默认为 true
- */
 export function setCacheEnabled(enabled: boolean): void {
 	cacheEnabled = enabled
 }
 
-/**
- * 获取缓存开关状态
- * @returns 当前缓存是否启用
- */
 export function isCacheEnabled(): boolean {
 	return cacheEnabled
 }
 
-/**
- * 当文件列表变化时，清除已删除文件的缓存
- * @param filesList 可选的文件列表，如果传入则优先使用此列表，否则从 projectFilesStore 获取
- */
-export function cleanupFileInfoCache(filesList?: FileItem[]): void {
+export function cleanupFileInfoCache(filesList?: FileItem[], designProjectId?: string): void {
+	ensureStorageCacheLoaded()
+
+	const namespace = buildNamespaceKey(designProjectId)
+	const attachmentsSnapshotKey = buildAttachmentsSnapshotKey(filesList)
+	syncNamespaceAttachmentsSnapshot(namespace, attachmentsSnapshotKey)
+
 	const currentFilePaths = new Set<string>()
 	const currentFileIds = new Set<string>()
 
-	// 优先使用传入的文件列表，如果没有传入则从 projectFilesStore 获取
-	const storeFiles = filesList || projectFilesStore.workspaceFilesList || []
-	for (const item of storeFiles) {
+	getStoreFiles(filesList).forEach((item) => {
 		if (!item.is_directory && item.relative_file_path) {
 			const normalizedPath = normalizePath(item.relative_file_path)
 			if (normalizedPath) {
@@ -679,25 +826,36 @@ export function cleanupFileInfoCache(filesList?: FileItem[]): void {
 				currentFileIds.add(item.file_id)
 			}
 		}
-	}
+	})
 
-	// 清除已删除文件的 path -> file_id 索引
-	for (const [cachedPath] of pathToIdIndex.entries()) {
-		if (!currentFilePaths.has(cachedPath)) {
-			const fileId = pathToIdIndex.get(cachedPath)
-			pathToIdIndex.delete(cachedPath)
-			if (fileId && !currentFileIds.has(fileId)) {
-				fileInfoCache.delete(fileId)
-				cacheTimestampMap.delete(fileId)
-			}
-		}
-	}
+	const keysToDelete: string[] = []
 
-	// 清除已删除文件的缓存（通过 file_id）
-	for (const [fileId] of fileInfoCache.entries()) {
-		if (!currentFileIds.has(fileId)) {
-			fileInfoCache.delete(fileId)
-			cacheTimestampMap.delete(fileId)
+	fileInfoCache.forEach((entry, cacheKey) => {
+		const parsedKey = parseScopedPathKey(cacheKey)
+		if (parsedKey.namespace !== namespace) return
+
+		if (entry.attachmentsSnapshotKey !== attachmentsSnapshotKey) {
+			keysToDelete.push(cacheKey)
+			return
 		}
+
+		// 附件列表里已经不存在这个相对路径，说明缓存已经脱离当前设计目录状态。
+		if (!currentFilePaths.has(parsedKey.normalizedPath)) {
+			keysToDelete.push(cacheKey)
+			return
+		}
+
+		// 路径仍在，但对应 file_id 不在当前附件列表中，视为同路径资源已被替换。
+		if (entry.resolvedFileId && !currentFileIds.has(entry.resolvedFileId)) {
+			keysToDelete.push(cacheKey)
+		}
+	})
+
+	keysToDelete.forEach((cacheKey) => {
+		deleteMemoryCache(cacheKey)
+	})
+
+	if (keysToDelete.length > 0) {
+		persistCacheToStorage()
 	}
 }

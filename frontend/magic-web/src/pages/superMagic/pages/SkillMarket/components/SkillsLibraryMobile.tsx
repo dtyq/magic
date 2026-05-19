@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { reaction } from "mobx"
+import { configStore } from "@/models/config"
 import { Check, ChevronLeft, Loader2, Search } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
@@ -9,11 +11,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/shadc
 import { Skills } from "@/enhance/lucide-react"
 import { useAutoLoadMoreSentinel } from "@/pages/superMagic/hooks/useAutoLoadMoreSentinel"
 import { useDelayedVisibility } from "@/pages/superMagic/hooks/useDelayedVisibility"
+import { SkillDetailDialog } from "@/pages/superMagic/components/SkillDetailDialog"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import { StoreSkillCardMobile } from "./StoreSkillCardMobile"
 import { StoreSkillsStore } from "../stores/store-skills"
 import { ViewTransitionPresets } from "@/types/viewTransition"
+import type { StoreSkillView } from "@/services/skills/SkillsService"
 
 function SkillsLibraryMobile() {
 	const { t, i18n } = useTranslation("crew/market")
@@ -24,11 +28,22 @@ function SkillsLibraryMobile() {
 
 	const [searchOpen, setSearchOpen] = useState(false)
 	const [queryDraft, setQueryDraft] = useState("")
+	const [selectedSkill, setSelectedSkill] = useState<StoreSkillView | null>(null)
 
 	useEffect(() => {
 		void skillsStore.fetchSkills()
 		return () => skillsStore.reset()
 	}, [skillsStore])
+
+	useEffect(() => {
+		return reaction(
+			() => configStore.i18n.displayLanguage,
+			() => {
+				skillsStore.refreshAfterLanguageChange()
+			},
+		)
+	}, [skillsStore])
+
 	const handleAutoLoadMore = useCallback(() => {
 		void skillsStore.loadMore()
 	}, [skillsStore])
@@ -72,11 +87,49 @@ function SkillsLibraryMobile() {
 		[skillsStore],
 	)
 
+	const handleOpenDetail = useCallback((skill: StoreSkillView) => {
+		setSelectedSkill(skill)
+	}, [])
+
 	return (
 		<div
 			className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden border border-t-0 border-border bg-background shadow-xs"
 			data-testid="skills-library-mobile-page"
 		>
+			<SkillDetailDialog
+				open={selectedSkill != null}
+				onOpenChange={(nextOpen) => {
+					if (nextOpen) return
+					setSelectedSkill(null)
+				}}
+				skillCode={selectedSkill?.skillCode ?? null}
+				detailSource="market"
+				skillSummary={selectedSkill}
+				primaryAction={
+					selectedSkill
+						? {
+								label:
+									selectedSkill.status === "added"
+										? selectedSkill.needUpgrade
+											? t("skillsLibrary.upgrade")
+											: t("skillsLibrary.added")
+										: t("skillsLibrary.addToMySkills"),
+								onClick: async () => {
+									if (selectedSkill.status === "added") {
+										if (selectedSkill.needUpgrade)
+											await skillsStore.upgradeSkill(selectedSkill.id)
+										return
+									}
+
+									await skillsStore.addSkill(selectedSkill.id)
+								},
+								disabled:
+									selectedSkill.status === "added" && !selectedSkill.needUpgrade,
+								testId: "skill-detail-dialog-primary-action",
+							}
+						: undefined
+				}
+			/>
 			<header
 				className="flex shrink-0 items-center gap-2 rounded-b-xl bg-background px-2.5 py-2 shadow-xs"
 				data-testid="skills-library-mobile-top-bar"
@@ -176,6 +229,7 @@ function SkillsLibraryMobile() {
 									language={i18n.language}
 									onAdd={handleAdd}
 									onUpgrade={handleUpgrade}
+									onOpenDetail={handleOpenDetail}
 								/>
 							))}
 						</div>

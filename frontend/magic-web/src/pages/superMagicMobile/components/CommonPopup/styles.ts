@@ -1,6 +1,6 @@
 import { createStyles } from "antd-style"
 
-export const useStyles = createStyles(({ token }) => {
+export const useStyles = createStyles(({ token }, { hideHeader }: { hideHeader?: boolean }) => {
 	return {
 		popupBody: {
 			borderRadius: 12,
@@ -12,8 +12,18 @@ export const useStyles = createStyles(({ token }) => {
 		},
 		renderContainer: {
 			width: "100%",
-			marginTop: 52,
-			height: "calc(100% - 52px)",
+			marginTop: hideHeader ? 0 : 52,
+			height: hideHeader ? "100%" : "calc(100% - 52px)",
+			overflow: "hidden",
+		},
+		immersiveRenderContainer: {
+			position: "fixed",
+			inset: 0,
+			zIndex: 1101,
+			width: "100vw",
+			height: "100dvh",
+			marginTop: 0,
+			background: "transparent",
 			overflow: "hidden",
 		},
 		bottomGap: {

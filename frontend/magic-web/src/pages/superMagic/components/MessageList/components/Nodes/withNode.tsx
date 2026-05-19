@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { observer } from "mobx-react-lite"
 import { withUserNode } from "../Card/UserCard"
 import { withAssistantCard } from "../Card/AssistantCard"
+import { useMessageListContext } from "../../context"
 import { globalConfigStore } from "@/stores/globalConfig"
 import { getAvatarUrl } from "@/utils/avatar"
 import dayjs from "@/lib/dayjs"
@@ -29,11 +30,14 @@ export const withNode = (WrapperComponent: ComponentType<WithNodeProps>) => {
 		const { role, isFirst, classNames } = props
 
 		const { t } = useTranslation("super")
+		const { renderAssistantAvatar } = useMessageListContext()
 
 		const globalConfig = globalConfigStore.globalConfig
+		const avatarUrl = globalConfig?.minimal_logo || ""
 
 		// Select component by role without creating new components inside useMemo
-		const ElementNode = role === "assistant" ? AssistantNode : UserNodeComponent
+		const ElementNode =
+			role === "assistant" || role === "tool" ? AssistantNode : UserNodeComponent
 
 		// Format send time as "MM/DD HH:mm"
 		const formattedTime = useMemo(() => {
@@ -43,17 +47,28 @@ export const withNode = (WrapperComponent: ComponentType<WithNodeProps>) => {
 		}, [props?.node?.send_time, t])
 
 		if (isFirst) {
+			const assistantAvatar = renderAssistantAvatar?.({
+				className: classNames?.icon,
+			}) ?? (
+				<img
+					src={getAvatarUrl(avatarUrl, 24)}
+					alt=""
+					className={cn(
+						"z-[10] flex size-6 items-center justify-center rounded-full",
+						classNames?.icon,
+					)}
+				/>
+			)
 			return (
-				<div className="w-full last:mb-0">
-					<div className={cn("flex h-6 w-full gap-1.5", "mb-[14px]", classNames?.header)}>
-						<img
-							src={getAvatarUrl(globalConfig?.minimal_logo || "", 24)}
-							alt=""
-							className={cn(
-								"flex size-6 items-center justify-center rounded-full",
-								classNames?.icon,
-							)}
-						/>
+				<div className="relative w-full pt-[24px] last:mb-0">
+					<div
+						className={cn(
+							"z-2 absolute left-[-25px] top-[-3px] flex h-6 w-full gap-1.5",
+							"mb-[14px]",
+							classNames?.header,
+						)}
+					>
+						{assistantAvatar}
 						<span className="text-[12px] leading-6 text-muted-foreground">
 							{formattedTime}
 						</span>

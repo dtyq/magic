@@ -117,6 +117,57 @@ describe("useRotateHandle", () => {
 			expect(updates.length).toBeGreaterThan(0)
 		})
 
+		it("should discard saved rotation when undo restores the same selector to a different angle", async () => {
+			const initialSelectedInfo: SelectedInfo = {
+				selector: "#test-element",
+				rect: { top: 100, left: 100, width: 200, height: 100 },
+				computedStyles: { transform: "none" },
+				rotation: 0,
+			}
+
+			const { result, rerender } = renderHook(
+				(props) =>
+					useRotateHandle({
+						editorRef: mockEditorRef,
+						isPptRender: false,
+						scaleRatio: 1,
+						selectedInfo: props.selectedInfo,
+						setSelectedInfo: mockSetSelectedInfo,
+						setHoveredRect: mockSetHoveredRect,
+						setIsSelectionMode: mockSetIsSelectionMode,
+					}),
+				{
+					initialProps: { selectedInfo: initialSelectedInfo },
+				},
+			)
+
+			const rotatedSelectedInfo: SelectedInfo = {
+				...initialSelectedInfo,
+				rotation: 370,
+				computedStyles: {
+					transform: "matrix(0.98481, 0.17365, -0.17365, 0.98481, 0, 0)",
+				},
+			}
+
+			await act(async () => {
+				rerender({ selectedInfo: rotatedSelectedInfo })
+			})
+
+			expect(result.current.rotation).toBe(370)
+
+			const undoneSelectedInfo: SelectedInfo = {
+				...initialSelectedInfo,
+				rotation: 0,
+				computedStyles: { transform: "none" },
+			}
+
+			await act(async () => {
+				rerender({ selectedInfo: undoneSelectedInfo })
+			})
+
+			expect(result.current.rotation).toBe(0)
+		})
+
 		it("should reset rotation when selecting a different element", () => {
 			const firstElement: SelectedInfo = {
 				selector: "#element-1",

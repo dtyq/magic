@@ -12,6 +12,8 @@ export interface WorkspaceFile {
 	file_url: string
 	is_hidden: boolean
 	type: "file"
+	display_config?: any
+	parent_id?: string
 }
 
 export interface WorkspaceFolder {
@@ -22,5 +24,6 @@ export interface WorkspaceFolder {
 	is_directory: boolean
 	is_hidden: boolean
 	children: (WorkspaceFolder | WorkspaceFile)[]
-	metadata?: any
+	display_config?: any
+	parent_id?: string
 }

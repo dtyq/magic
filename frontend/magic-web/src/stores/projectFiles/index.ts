@@ -54,6 +54,24 @@ export class ProjectFilesStore {
 	}
 
 	/**
+	 * Get filenames by parent ID
+	 * @param parentId - The parent directory ID (undefined for root)
+	 * @returns Array of filenames in the specified parent directory
+	 */
+	getFileNamesByParentId(parentId?: string): string[] {
+		return this.workspaceFilesList
+			.filter((item) => {
+				// Filter out folders, keep only files
+				if (item.type !== "file") return false
+
+				// Check if file is in the specified parent directory
+				// Handle both undefined parentId (root) and string parentId
+				return item.parent_id === parentId
+			})
+			.map((file) => file.file_name as string)
+	}
+
+	/**
 	 * Get folder data
 	 * @param parent_id - Folder ID
 	 * @returns Folder data

@@ -78,7 +78,10 @@ export function getElementSelector(element: HTMLElement): string {
 		current = parentElement
 	}
 
-	return path.join(" > ")
+	const selectorPath = path.join(" > ")
+	if (element.parentElement === document.body && selectorPath) return `body > ${selectorPath}`
+
+	return selectorPath
 }
 
 /**

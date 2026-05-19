@@ -8,10 +8,13 @@ declare(strict_types=1);
 namespace App\Infrastructure\ExternalAPI\MagicAIApi;
 
 use App\Application\ModelGateway\Service\LLMAppService;
+use App\Domain\ModelGateway\Entity\Dto\AbstractRequestDTO;
 use App\Domain\ModelGateway\Entity\Dto\CompletionDTO;
 use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
+use App\Infrastructure\Util\Http\RequestHelper;
 use Hyperf\Odin\Api\Providers\OpenAI\OpenAI;
 use Hyperf\Odin\Api\Providers\OpenAI\OpenAIConfig;
+use Hyperf\Odin\Api\Request\ChatCompletionRequest;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Api\Response\ChatCompletionStreamResponse;
 use Hyperf\Odin\Api\Response\EmbeddingResponse;
@@ -71,6 +74,8 @@ class MagicAILocalModel extends AbstractModel
         $sendMsgGPTDTO->setAccessToken($this->accessToken);
         $sendMsgGPTDTO->setUser($user);
         $sendMsgGPTDTO->setBusinessParams($businessParams);
+        $this->fillClientIpsIfEmpty($sendMsgGPTDTO);
+
         return di(LLMAppService::class)->embeddings($sendMsgGPTDTO);
     }
 
@@ -131,6 +136,28 @@ class MagicAILocalModel extends AbstractModel
         return $this->modelChat($messages, $temperature, $maxTokens, $stop, $tools, $businessParams);
     }
 
+    /**
+     * Agent 场景会优先走 request 入口，这里仍然复用本地模型网关代理链路.
+     */
+    public function chatWithRequest(ChatCompletionRequest $request): ChatCompletionResponse
+    {
+        $this->prepareLocalChatRequest($request);
+        $request->setStream(false);
+
+        return $this->modelChatByRequest($request);
+    }
+
+    /**
+     * Agent 流式场景会优先走 request 入口，这里仍然复用本地模型网关代理链路.
+     */
+    public function chatStreamWithRequest(ChatCompletionRequest $request): ChatCompletionStreamResponse
+    {
+        $this->prepareLocalChatRequest($request);
+        $request->setStream(true);
+
+        return $this->modelChatByRequest($request, true);
+    }
+
     public function completions(string $prompt, float $temperature = 0.9, int $maxTokens = 0, array $stop = [], float $frequencyPenalty = 0.0, float $presencePenalty = 0.0, array $businessParams = []): TextCompletionResponse
     {
         $businessParams = $this->businessParamsHandler($businessParams);
@@ -143,6 +170,7 @@ class MagicAILocalModel extends AbstractModel
         $sendMsgGPTDTO->setStop($stop);
         $sendMsgGPTDTO->setMaxTokens($maxTokens);
         $sendMsgGPTDTO->setBusinessParams($businessParams);
+        $this->fillClientIpsIfEmpty($sendMsgGPTDTO);
 
         return di(LLMAppService::class)->chatCompletion($sendMsgGPTDTO);
     }
@@ -170,6 +198,25 @@ class MagicAILocalModel extends AbstractModel
         return $openAI->getClient($config, $this->getApiRequestOptions(), $this->logger);
     }
 
+    protected function modelChatByRequest(
+        ChatCompletionRequest $request,
+        bool $stream = false,
+    ): ChatCompletionResponse|ChatCompletionStreamResponse {
+        $thinking = $request->getThinking()?->toBedrockFormat();
+
+        return $this->modelChat(
+            $request->getMessages(),
+            $request->getTemperature(),
+            $request->getMaxTokens(),
+            $request->getStop(),
+            $request->getTools(),
+            $request->getBusinessParams(),
+            $stream,
+            thinking: $thinking,
+            extra: $request->getExtra(),
+        );
+    }
+
     protected function modelChat(
         array $messages,
         float $temperature = 0.9,
@@ -178,6 +225,10 @@ class MagicAILocalModel extends AbstractModel
         array $tools = [],
         array $businessParams = [],
         bool $stream = false,
+        float $frequencyPenalty = 0.0,
+        float $presencePenalty = 0.0,
+        ?array $thinking = null,
+        ?array $extra = null,
     ): ChatCompletionResponse|ChatCompletionStreamResponse {
         $models = explode(',', $this->model);
 
@@ -197,7 +248,18 @@ class MagicAILocalModel extends AbstractModel
         $sendMsgGPTDTO->setMaxTokens($maxTokens);
         $sendMsgGPTDTO->setMessages($messageList);
         $sendMsgGPTDTO->setStream($stream);
+        $sendMsgGPTDTO->setFrequencyPenalty($frequencyPenalty);
+        $sendMsgGPTDTO->setPresencePenalty($presencePenalty);
+        $sendMsgGPTDTO->setExtra($extra);
+
+        $thinking ??= $businessParams['thinking'] ?? null;
+        unset($businessParams['thinking']);
         $sendMsgGPTDTO->setBusinessParams($businessParams);
+        $this->fillClientIpsIfEmpty($sendMsgGPTDTO);
+
+        if (is_array($thinking)) {
+            $sendMsgGPTDTO->setThinking($thinking);
+        }
 
         $lastException = null;
         foreach ($models as $model) {
@@ -214,6 +276,15 @@ class MagicAILocalModel extends AbstractModel
         throw $lastException;
     }
 
+    private function prepareLocalChatRequest(ChatCompletionRequest $request): void
+    {
+        $this->registerMcp($request);
+        $request->setModel($this->model);
+        $this->checkFunctionCallSupport($request->getTools());
+        $this->checkMultiModalSupport($request->getMessages());
+        $request->validate();
+    }
+
     private function businessParamsHandler(array $businessParams): array
     {
         if (empty($businessParams['organization_code']) && ! empty($this->organizationCode)) {
@@ -223,5 +294,19 @@ class MagicAILocalModel extends AbstractModel
             $businessParams['user_id'] = $this->userId;
         }
         return $businessParams;
+    }
+
+    /**
+     * 本地代理链上的 DTO 常无 ips；仅在仍为空时用 RequestHelper::getClientIpFromContainer 补一条.
+     */
+    private function fillClientIpsIfEmpty(AbstractRequestDTO $dto): void
+    {
+        if ($dto->getIps() !== []) {
+            return;
+        }
+        $ip = RequestHelper::getClientIpFromContainer();
+        if ($ip !== null && $ip !== '') {
+            $dto->setIps([$ip]);
+        }
     }
 }

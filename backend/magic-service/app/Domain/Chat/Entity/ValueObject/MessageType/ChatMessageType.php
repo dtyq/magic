@@ -77,6 +77,13 @@ enum ChatMessageType: string
     case TextForm = 'text_form';
     case Raw = 'raw';
 
+    // 升级版本的通用 agent 消息，前端区分版本进行不同的渲染
+    case SuperMagicMessage = 'super_magic_message';
+    case SuperMagicChunk = 'super_magic_chunk';
+
+    // 用户工具调用：前端发起，用于所有需要等待用户输入后回传工具结果的场景（如 ask_user）
+    case UserToolCall = 'user_tool_call';
+
     public function getName(): string
     {
         return $this->value;

@@ -7,7 +7,7 @@ import Detail, { type DetailRef } from "../../components/Detail"
 import { SendMessageOptions } from "../../components/MessagePanel/types"
 import useStyles from "../Workspace/style"
 import { JSONContent } from "@tiptap/core"
-import GlobalMentionPanelStore from "@/components/business/MentionPanel/store"
+import GlobalMentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 import projectFilesStore from "@/stores/projectFiles"
 import { filterClickableMessageWithoutRevoked } from "../../utils/handleMessage"
 import { useDetailModeCache } from "../../hooks/useDetailModeCache"
@@ -16,6 +16,11 @@ import { useAutoOpenFile } from "../../hooks/useAutoOpenFile"
 import { useDeferUntilFileTabsCacheLoaded } from "../../hooks/useDeferUntilFileTabsCacheLoaded"
 import { useRefreshTopicDetailOnTaskComplete } from "../../hooks/useRefreshTopicDetailOnTaskComplete"
 import { AttachmentDataProcessor } from "../../utils/attachmentDataProcessor"
+import {
+	releaseAttachmentsRefreshWaitersWithoutFetch,
+	resolveAttachmentsRefreshWaitersForProject,
+	withAttachmentsRefreshWaitersResolved,
+} from "@/pages/superMagic/services/attachmentsTopicSync"
 import { isCollaborationWorkspace } from "../../constants"
 import { useNoPermissionCollaborationProject } from "../../hooks/useNoPermissionCollaborationProject"
 import { superMagicStore } from "@/pages/superMagic/stores"
@@ -34,10 +39,84 @@ import TopicSidebar from "./components/TopicSidebar"
 import TopicMessagePanel from "./components/TopicMessagePanel"
 import TopicDesktopPanels from "./components/TopicDesktopPanels"
 import { useTopicDetailPanelController } from "./hooks/useTopicDetailPanelController"
+import {
+	TOPIC_HISTORY_PANEL_OPEN_STORAGE_KEYS,
+	useTopicHistoryLayoutState,
+} from "./hooks/useTopicHistoryLayoutState"
+import { useMessageHeaderTopicActions } from "./hooks/useMessageHeaderTopicActions"
 import type { AttachmentItem } from "../../components/TopicFilesButton/hooks"
+import { TaskStatus } from "../Workspace/types"
 import { resolveMessageSendContext } from "../../services/messageSendPreparation"
 import { messageSendService } from "../../services/messageSendFlowService"
 import { isReadOnlyProject } from "../../utils/permission"
+import { MessageHeaderTopicHistoryPanel } from "../../components/MessageHeader"
+import topicReadProgressService from "../../services/topicReadProgressService"
+import {
+	applyOptimisticTopicRunningState,
+	handleArrivedTopicStatusChange as syncArrivedTopicStatusChange,
+	syncTopicStatusPatch,
+} from "../../services/topicStatusSyncService"
+import dayjs from "@/lib/dayjs"
+import type { MessageItem } from "../../stores/types"
+
+/** 任务消息状态变化后延迟拉工作区/项目详情，减轻后端尚未落库时单次请求仍返回 running 的问题 */
+const WORKSPACE_PROJECT_STATUS_REFRESH_DELAY_MS = 1000
+
+function normalizeMessageSendTimeToMs(value: unknown): number | null {
+	if (value === null || value === undefined) return null
+
+	const numericValue =
+		typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN
+	if (!Number.isFinite(numericValue) || numericValue <= 0) return null
+
+	// 10位秒、13位毫秒、16位微秒、19位纳秒
+	if (numericValue < 1e11) return Math.floor(numericValue * 1000)
+	if (numericValue < 1e14) return Math.floor(numericValue)
+	if (numericValue < 1e17) return Math.floor(numericValue / 1000)
+	return Math.floor(numericValue / 1e6)
+}
+
+function resolveReadProgressPayloadFromMessages(messages: Array<any>) {
+	if (!Array.isArray(messages) || messages.length === 0)
+		return {
+			lastReadAt: dayjs().format("YYYY-MM-DD HH:mm:ss"),
+			lastReadMessageId: undefined,
+		}
+
+	const latestMessage = messages[messages.length - 1]
+	const fallbackReadAt = dayjs().format("YYYY-MM-DD HH:mm:ss")
+	const normalizedSendTimeMs = normalizeMessageSendTimeToMs(latestMessage?.send_time)
+	const parsedReadAt =
+		normalizedSendTimeMs && normalizedSendTimeMs > 0
+			? dayjs(normalizedSendTimeMs).format("YYYY-MM-DD HH:mm:ss")
+			: fallbackReadAt
+
+	return {
+		lastReadAt: parsedReadAt,
+		lastReadMessageId:
+			typeof latestMessage?.app_message_id === "string"
+				? latestMessage.app_message_id
+				: undefined,
+	}
+}
+
+function resolveReadProgressPayloadFromMessage(message?: {
+	send_time?: unknown
+	app_message_id?: unknown
+}) {
+	const fallbackReadAt = dayjs().format("YYYY-MM-DD HH:mm:ss")
+	const normalizedSendTimeMs = normalizeMessageSendTimeToMs(message?.send_time)
+	const parsedReadAt =
+		normalizedSendTimeMs && normalizedSendTimeMs > 0
+			? dayjs(normalizedSendTimeMs).format("YYYY-MM-DD HH:mm:ss")
+			: fallbackReadAt
+
+	return {
+		lastReadAt: parsedReadAt,
+		lastReadMessageId:
+			typeof message?.app_message_id === "string" ? message.app_message_id : undefined,
+	}
+}
 
 // 工作区组件
 function TopicPage() {
@@ -57,6 +136,10 @@ function TopicPage() {
 
 	/** ======================== Refs ======================== */
 	const detailRef = useRef<DetailRef>(null)
+	const delayedWorkspaceProjectStatusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	)
+	const previousTopicIdRef = useRef<string | null>(null)
 
 	/** ======================== States ======================== */
 	const [autoDetail, setAutoDetail] = useState<any>()
@@ -65,6 +148,10 @@ function TopicPage() {
 	const [isDetailPanelFullscreen, setIsDetailPanelFullscreen] = useState(false)
 	// Calculate read-only status based on user role
 	const isReadOnly = isReadOnlyProject(selectedProject?.user_role)
+	const topicActions = useMessageHeaderTopicActions({
+		selectedProject,
+		topicStore,
+	})
 
 	// Use topic files hook to manage file-related logic
 	const { activeFileId, handleFileClick, topicFilesProps, setActiveFileId } = useTopicFiles({
@@ -95,12 +182,18 @@ function TopicPage() {
 		topicFilesProps,
 	})
 
-	const activeFileIdRef = useRef<string | null>(activeFileId)
-	activeFileIdRef.current = activeFileId
-
 	const { onFileTabsCacheLoaded, scheduleWhenTabsCacheReady } = useDeferUntilFileTabsCacheLoaded(
 		selectedProject?.id,
 	)
+
+	const { isTopicHistoryPanelOpen, closeTopicHistoryPanel, toggleTopicHistoryPanel } =
+		useTopicHistoryLayoutState({
+			storageKey: TOPIC_HISTORY_PANEL_OPEN_STORAGE_KEYS.topicPage,
+			isEnabled: !isReadOnly,
+		})
+
+	const activeFileIdRef = useRef<string | null>(activeFileId)
+	activeFileIdRef.current = activeFileId
 
 	// 使用详情模式缓存 hook
 	useDetailModeCache({
@@ -157,7 +250,129 @@ function TopicPage() {
 		},
 	)
 
+	useEffect(() => {
+		return () => {
+			if (delayedWorkspaceProjectStatusTimeoutRef.current) {
+				clearTimeout(delayedWorkspaceProjectStatusTimeoutRef.current)
+				delayedWorkspaceProjectStatusTimeoutRef.current = null
+			}
+			void topicReadProgressService.flushCurrentTopicReadProgress("route-leave")
+		}
+	}, [])
+
+	useEffect(() => {
+		const previousTopicId = previousTopicIdRef.current
+		const currentTopicId = selectedTopic?.id || null
+		if (previousTopicId && previousTopicId !== currentTopicId)
+			void topicReadProgressService.flushTopicReadProgress({
+				topicId: previousTopicId,
+				reason: "switch-topic",
+			})
+		previousTopicIdRef.current = currentTopicId
+	}, [selectedTopic?.id])
+
+	useEffect(() => {
+		const handleVisibilityChange = () => {
+			if (document.visibilityState !== "hidden") return
+			void topicReadProgressService.flushCurrentTopicReadProgress("page-hide")
+		}
+
+		const handleBeforeUnload = () => {
+			void topicReadProgressService.flushCurrentTopicReadProgress("before-unload")
+		}
+
+		document.addEventListener("visibilitychange", handleVisibilityChange)
+		window.addEventListener("beforeunload", handleBeforeUnload)
+		return () => {
+			document.removeEventListener("visibilitychange", handleVisibilityChange)
+			window.removeEventListener("beforeunload", handleBeforeUnload)
+		}
+	}, [])
+
 	const currentTopicStatus = selectedTopic?.task_status
+	const currentTopicStatusRef = useRef<TaskStatus | undefined>(currentTopicStatus)
+	const selectedProjectRef = useRef(selectedProject)
+	const selectedWorkspaceRef = useRef(selectedWorkspace)
+	currentTopicStatusRef.current = currentTopicStatus
+	selectedProjectRef.current = selectedProject
+	selectedWorkspaceRef.current = selectedWorkspace
+
+	/**
+	 * 处理到达消息引发的话题状态变化：
+	 * 1) 仅在状态真正变化时更新本地话题状态；
+	 * 2) 同步拉取话题 unread 补丁，避免后端短暂延迟导致状态不一致；
+	 * 3) 延迟刷新工作区/项目状态，减少后端未落库时的无效请求；
+	 * 4) 当任务结束且页面可见时，补记一次即时已读进度。
+	 */
+	const handleArrivedTopicStatusChange = useMemoizedFn(
+		({
+			nextStatus,
+			topicId,
+			lastReadAt,
+			lastReadMessageId,
+		}: {
+			nextStatus?: TaskStatus
+			topicId: string
+			lastReadAt?: string
+			lastReadMessageId?: string
+		}) => {
+			syncArrivedTopicStatusChange({
+				scopeName: "TopicPage",
+				topicStore,
+				topicReadProgressService,
+				currentTopicStatusRef,
+				nextStatus,
+				topicId,
+				lastReadAt,
+				lastReadMessageId,
+				onTopicStatusChanged: (resolvedStatus, resolvedTopicId) => {
+					void SuperMagicService.topic.updateTopicStatus(resolvedTopicId, resolvedStatus)
+
+					const latestWorkspaceId = selectedWorkspaceRef.current?.id
+					const latestProjectId = selectedProjectRef.current?.id
+					if (delayedWorkspaceProjectStatusTimeoutRef.current) {
+						clearTimeout(delayedWorkspaceProjectStatusTimeoutRef.current)
+					}
+					delayedWorkspaceProjectStatusTimeoutRef.current = setTimeout(() => {
+						delayedWorkspaceProjectStatusTimeoutRef.current = null
+						if (latestWorkspaceId) {
+							void SuperMagicService.workspace.updateWorkspaceStatus(
+								latestWorkspaceId,
+							)
+						}
+						if (latestProjectId) {
+							void SuperMagicService.project.updateProjectStatus(latestProjectId)
+						}
+					}, WORKSPACE_PROJECT_STATUS_REFRESH_DELAY_MS)
+				},
+			})
+		},
+	)
+
+	useEffect(() => {
+		if (!selectedTopic?.chat_topic_id || !selectedTopic?.id) return
+
+		return superMagicStore.registerTopicMessageListener({
+			topicId: selectedTopic.chat_topic_id,
+			callback: ({
+				message,
+				messageNode,
+			}: {
+				message: MessageItem
+				messageNode: { status?: unknown }
+			}) => {
+				if (message?.role === "user") return
+				const readProgressPayload = resolveReadProgressPayloadFromMessage(message)
+				handleArrivedTopicStatusChange({
+					nextStatus: messageNode?.status as TaskStatus | undefined,
+					topicId: selectedTopic.id,
+					lastReadAt: readProgressPayload.lastReadAt,
+					lastReadMessageId: readProgressPayload.lastReadMessageId,
+				})
+			},
+		})
+	}, [handleArrivedTopicStatusChange, selectedTopic?.chat_topic_id, selectedTopic?.id])
+
 	const { messages, showLoading } = useTopicConversationLoading({
 		selectedTopic,
 		hideLoadingWhenBufferHasContent: true,
@@ -171,31 +386,30 @@ function TopicPage() {
 
 			// 记录任务状态是否发生变化（用于判断是否为新消息导致的任务完成）
 			const hasStatusChanged = lastMessageNode?.status !== currentTopicStatus
+			const readProgressPayload = resolveReadProgressPayloadFromMessages(topicMessages)
+			const targetTopicId = currentTopic?.id || selectedTopic?.id
 
-			// 接收到任务消息并监测到状态变化后，需重新拉取工作区、项目、话题，更新其工作状态
-			if (hasStatusChanged && selectedProject) {
-				if (selectedWorkspace?.id) {
-					void SuperMagicService.workspace.updateWorkspaceStatus(selectedWorkspace.id)
-				}
-				if (selectedProject?.id) {
-					void SuperMagicService.project.updateProjectStatus(selectedProject.id)
-				}
-				if (currentTopic?.id) {
-					void SuperMagicService.topic.updateTopicStatus(
-						currentTopic.id,
-						lastMessageNode?.status,
-					)
-				}
-			}
-
-			const lastDetailMessage = topicMessages.findLast((message) => {
+			let lastDetailMessage = undefined
+			for (let index = topicMessages.length - 1; index >= 0; index -= 1) {
+				const message = topicMessages[index]
 				const node = superMagicStore.getMessageNode(message?.app_message_id)
-				return filterClickableMessageWithoutRevoked(node)
-			})
+				if (!filterClickableMessageWithoutRevoked(node)) continue
+
+				lastDetailMessage = message
+				break
+			}
 
 			const lastDetailMessageNode = superMagicStore.getMessageNode(
 				lastDetailMessage?.app_message_id,
-			)
+			) as
+				| {
+						tool?: {
+							detail?: any
+							id?: string
+							name?: string
+						}
+				  }
+				| undefined
 			if (filterClickableMessageWithoutRevoked(lastDetailMessageNode)) {
 				updateDetail({
 					latestMessageDetail: lastDetailMessageNode?.tool?.detail,
@@ -211,6 +425,15 @@ function TopicPage() {
 						activeFileId,
 						getActiveFileId: () => activeFileIdRef.current,
 					})
+				})
+			}
+
+			if (targetTopicId) {
+				topicReadProgressService.markTopicReadProgress({
+					topicId: targetTopicId,
+					lastReadAt: readProgressPayload.lastReadAt,
+					lastReadMessageId: readProgressPayload.lastReadMessageId,
+					reason: "message-change",
 				})
 			}
 		},
@@ -272,6 +495,27 @@ function TopicPage() {
 
 	useUpdateEffect(() => {
 		if (!isSelectedTopicMessagesReady) return
+
+		if (selectedTopic?.id) {
+			const readProgressPayload = resolveReadProgressPayloadFromMessages(messages)
+			void syncTopicStatusPatch({
+				topicStore,
+				topicId: selectedTopic.id,
+			})
+				.catch((error) => {
+					console.warn("[TopicPage] 进入话题触发前同步话题 unread 状态失败:", error)
+				})
+				.finally(() => {
+					topicReadProgressService.markTopicReadProgress({
+						topicId: selectedTopic.id,
+						lastReadAt: readProgressPayload.lastReadAt,
+						lastReadMessageId: readProgressPayload.lastReadMessageId,
+						reason: "enter-topic",
+						immediate: true,
+					})
+				})
+		}
+
 		scheduleWhenTabsCacheReady(() => {
 			checkAndOpenFileByTopicChanged({
 				activeFileId,
@@ -283,30 +527,36 @@ function TopicPage() {
 
 	const updateAttachments = useDebounceFn(
 		(selectedProject: any, callback?: () => void) => {
-			if (!selectedProject?.id) {
+			const projectId = selectedProject?.id as string | undefined
+			if (!projectId) {
 				projectFilesStore.setWorkspaceFileTree([])
+				releaseAttachmentsRefreshWaitersWithoutFetch()
 				return
 			}
 			try {
 				pubsub.publish(PubSubEvents.Update_Attachments_Loading, true)
-				SuperMagicApi.getAttachmentsByProjectId({
-					projectId: selectedProject?.id,
-					// @ts-ignore 使用window添加临时的token
-					temporaryToken: window.temporary_token || "",
-				})
-					.then((res) => {
-						// 统一处理 metadata，包括 index.html 文件的特殊逻辑，内部自闭环处理验证和返回逻辑
-						const processedData = AttachmentDataProcessor.processAttachmentData(res)
-						projectFilesStore.setWorkspaceFileTree(processedData.tree)
-						GlobalMentionPanelStore.finishLoadAttachmentsPromise(selectedProject?.id)
+				withAttachmentsRefreshWaitersResolved(
+					projectId,
+					SuperMagicApi.getAttachmentsByProjectId({
+						projectId,
+						// @ts-ignore 使用window添加临时的token
+						temporaryToken: window.temporary_token || "",
 					})
-					.finally(() => {
-						pubsub.publish(PubSubEvents.Update_Attachments_Loading, false)
-					})
+						.then((res) => {
+							// 统一处理 metadata，包括 index.html 文件的特殊逻辑，内部自闭环处理验证和返回逻辑
+							const processedData = AttachmentDataProcessor.processAttachmentData(res)
+							projectFilesStore.setWorkspaceFileTree(processedData.tree)
+							GlobalMentionPanelStore.finishLoadAttachmentsPromise(projectId)
+						})
+						.finally(() => {
+							pubsub.publish(PubSubEvents.Update_Attachments_Loading, false)
+							callback?.()
+						}),
+				)
 			} catch (error) {
 				console.error("Failed to fetch attachments:", error)
 				projectFilesStore.setWorkspaceFileTree([])
-			} finally {
+				resolveAttachmentsRefreshWaitersForProject(projectId)
 				callback?.()
 			}
 		},
@@ -335,7 +585,7 @@ function TopicPage() {
 	}, [userSelectDetail, autoDetail])
 
 	useEffect(() => {
-		pubsub.subscribe(PubSubEvents.Update_Attachments, (callback: any) => {
+		pubsub.subscribe(PubSubEvents.Update_Attachments, (callback) => {
 			if (
 				selectedProject &&
 				selectedTopic
@@ -344,7 +594,10 @@ function TopicPage() {
 				// data?.chat_topic_id === selectedTopic.chat_topic_id
 			) {
 				updateAttachments(selectedProject, callback)
+				return
 			}
+			callback?.()
+			releaseAttachmentsRefreshWaitersWithoutFetch()
 		})
 		return () => {
 			pubsub?.unsubscribe(PubSubEvents.Update_Attachments)
@@ -353,7 +606,7 @@ function TopicPage() {
 	}, [selectedTopic, selectedProject])
 
 	useEffect(() => {
-		pubsub.subscribe(PubSubEvents.Super_Magic_Update_Auto_Detail, (data: any) => {
+		pubsub.subscribe(PubSubEvents.Super_Magic_Update_Auto_Detail, (data) => {
 			setAutoDetail(data)
 		})
 		return () => {
@@ -384,6 +637,27 @@ function TopicPage() {
 		},
 	)
 
+	const handleEditorSendComplete = useMemoizedFn(
+		({
+			success,
+			currentProject,
+			currentTopic,
+		}: {
+			success: boolean
+			currentProject: typeof selectedProject
+			currentTopic: typeof selectedTopic
+		}) => {
+			if (!success) return
+
+			applyOptimisticTopicRunningState({
+				topicStore,
+				topic: currentTopic ?? topicStore.selectedTopic,
+				project: currentProject ?? selectedProjectRef.current,
+				workspace: selectedWorkspaceRef.current,
+			})
+		},
+	)
+
 	const handleSelectedTopicChange = useMemoizedFn((topic: any) => {
 		topicStore.setSelectedTopic(topic)
 	})
@@ -394,11 +668,17 @@ function TopicPage() {
 			isDraggingPanel,
 			onToggleConversationPanel,
 			onExpandConversationPanel,
+			historyTriggerMode,
+			isHistoryPanelOpen,
+			onToggleHistoryPanel,
 		}: {
 			isConversationPanelCollapsed: boolean
 			isDraggingPanel: boolean
 			onToggleConversationPanel: () => void
 			onExpandConversationPanel: () => void
+			historyTriggerMode: "dropdown" | "layout"
+			isHistoryPanelOpen: boolean
+			onToggleHistoryPanel?: () => void
 		}) => (
 			<TopicMessagePanel
 				selectedProject={selectedProject}
@@ -406,19 +686,24 @@ function TopicPage() {
 				messages={messages as any}
 				showLoading={showLoading}
 				isShowLoadingInit={isShowLoadingInit}
-				currentTopicStatus={currentTopicStatus}
+				currentTopicStatus={currentTopicStatus!}
 				attachments={attachments}
 				handleSendMsg={handleSendMsg}
+				onSendComplete={handleEditorSendComplete}
 				handlePullMoreMessage={handlePullMoreMessage}
 				isMessagesLoading={isMessagesInitialLoading}
 				handleFileClick={handleFileClickWithPanel}
 				setUserSelectDetail={setUserSelectDetail}
 				setSelectedTopic={handleSelectedTopicChange}
+				topicActions={topicActions}
 				isConversationPanelCollapsed={isConversationPanelCollapsed}
 				isDraggingPanel={isDraggingPanel}
 				onToggleConversationPanel={onToggleConversationPanel}
 				onExpandConversationPanel={onExpandConversationPanel}
 				detailPanelVisible={shouldShowDetailPanel}
+				historyTriggerMode={historyTriggerMode}
+				isHistoryPanelOpen={isHistoryPanelOpen}
+				onToggleHistoryPanel={onToggleHistoryPanel}
 			/>
 		),
 	)
@@ -461,6 +746,28 @@ function TopicPage() {
 				/>
 			}
 			isReadOnly={isReadOnly}
+			keepDetailMountedWhenHidden
+			historyLayout={{
+				isOpen: isTopicHistoryPanelOpen,
+				onClose: closeTopicHistoryPanel,
+				onToggle: toggleTopicHistoryPanel,
+				renderPanel: ({
+					isConversationPanelCollapsed,
+					onExpandConversationPanel,
+					onClose,
+					closeButtonRef,
+				}) => (
+					<MessageHeaderTopicHistoryPanel
+						selectedProject={selectedProject}
+						topicStore={topicStore}
+						topicActions={topicActions}
+						isConversationPanelCollapsed={isConversationPanelCollapsed}
+						onExpandConversationPanel={onExpandConversationPanel}
+						onClose={onClose}
+						closeButtonRef={closeButtonRef}
+					/>
+				),
+			}}
 			shouldShowDetailPanel={shouldShowDetailPanel}
 			renderMessagePanel={renderMessagePanel}
 		/>

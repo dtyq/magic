@@ -260,9 +260,10 @@ describe("DatabaseManager", () => {
 			expect(tables).toContain("cluster")
 			expect(tables).toContain("audioChunks")
 			expect(tables).toContain("super-project-state")
+			expect(tables).toContain("super-magic-mode-list")
 		})
 
-		it("应该使用版本 2 的数据库结构", async () => {
+		it("应该使用版本 3 的数据库结构", async () => {
 			// Arrange
 			testDatabases.push("magic-global")
 
@@ -270,7 +271,7 @@ describe("DatabaseManager", () => {
 			const db = await manager.getGlobalDatabase()
 
 			// Assert
-			expect(db.verno).toBe(2)
+			expect(db.verno).toBe(3)
 		})
 	})
 

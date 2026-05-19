@@ -1,7 +1,8 @@
 import { useMemo } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../../../ui/select"
-import { ChevronsUpDown } from "../../../ui/icons/index"
+import { ChevronsUpDown } from "lucide-react"
 import styles from "./index.module.css"
+import { useCanvasDesignI18n } from "../../../../context/I18nContext"
 
 export interface ResolutionOption {
 	/** 显示的标签 */
@@ -41,6 +42,7 @@ export default function ResolutionSelect({
 	disabled = false,
 	className,
 }: ResolutionSelectProps) {
+	const { t } = useCanvasDesignI18n()
 	// 当前选中的选项
 	const selectedOption = useMemo(() => {
 		return options.find((opt) => opt.value === value)
@@ -60,7 +62,9 @@ export default function ResolutionSelect({
 				<ChevronsUpDown size={16} />
 			</SelectTrigger>
 			<SelectContent className={styles.selectContent} style={{ width: 200 }}>
-				<div className={styles.selectContentName}>分辨率</div>
+				<div className={styles.selectContentName}>
+					{t("imageEditor.resolution", "分辨率")}
+				</div>
 				{options.map((option) => {
 					if (!option || !option.value) return null
 					return (

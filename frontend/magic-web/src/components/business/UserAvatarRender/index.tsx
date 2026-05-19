@@ -63,7 +63,7 @@ const UserAvatarRender = observer(
 		return (
 			<Avatar
 				className={cn(
-					"shrink-0",
+					"shrink-0 border border-border",
 					shape === "square" ? "rounded-lg" : "rounded-full",
 					onClick && "cursor-pointer",
 					className,

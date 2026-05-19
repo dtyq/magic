@@ -9,6 +9,10 @@ namespace App\Application\Kernel\DTO;
 
 class PlatformSettings
 {
+    private const string DEFAULT_COPYRIGHT = 'Copyright @ 2023 广东灯塔引擎科技有限公司 All Rights Reserved.';
+
+    private const string DEFAULT_FILING_LINK = 'https://beian.miit.gov.cn/';
+
     private string $defaultLanguage = 'zh_CN';
 
     private string $faviconUrl = '';
@@ -37,6 +41,32 @@ class PlatformSettings
 
     /** @var array<string,string> */
     private array $agentRoleDescriptionI18n = [];
+
+    /**
+     * [运营规则]
+     * 允许配置自定义服务商的组织白名单。
+     * 空数组表示全部禁止自定义服务商。
+     *
+     * @var string[]
+     */
+    private array $customServiceProviderWhitelist = [];
+
+    /**
+     * @var array{
+     *     copyright_i18n: array<string,string>,
+     *     filing: array{enabled: bool, number: string, link: string}
+     * }
+     */
+    private array $footer = [
+        'copyright_i18n' => [
+            'zh_CN' => self::DEFAULT_COPYRIGHT,
+        ],
+        'filing' => [
+            'enabled' => false,
+            'number' => '',
+            'link' => self::DEFAULT_FILING_LINK,
+        ],
+    ];
 
     public function getDefaultLanguage(): string
     {
@@ -180,6 +210,49 @@ class PlatformSettings
         $this->agentRoleDescriptionI18n = $agentRoleDescriptionI18n;
     }
 
+    /**
+     * @return string[]
+     */
+    public function getCustomServiceProviderWhitelist(): array
+    {
+        return $this->customServiceProviderWhitelist;
+    }
+
+    /**
+     * @param string[] $customServiceProviderWhitelist
+     */
+    public function setCustomServiceProviderWhitelist(array $customServiceProviderWhitelist): void
+    {
+        $this->customServiceProviderWhitelist = array_values(array_filter(array_unique($customServiceProviderWhitelist)));
+    }
+
+    public function isCustomServiceProviderAllowed(string $organizationCode): bool
+    {
+        return in_array($organizationCode, $this->customServiceProviderWhitelist, true);
+    }
+
+    /**
+     * @return array{
+     *     copyright_i18n: array<string,string>,
+     *     filing: array{enabled: bool, number: string, link: string}
+     * }
+     */
+    public function getFooter(): array
+    {
+        return self::normalizeFooter($this->footer);
+    }
+
+    /**
+     * @param array{
+     *     copyright_i18n?: array<string,string>,
+     *     filing?: array{enabled?: bool, number?: string, link?: string}
+     * } $footer
+     */
+    public function setFooter(array $footer): void
+    {
+        $this->footer = self::normalizeFooter($footer);
+    }
+
     public function toArray(): array
     {
         return [
@@ -193,6 +266,8 @@ class PlatformSettings
             'description_i18n' => $this->descriptionI18n,
             'agent_role_name_i18n' => $this->agentRoleNameI18n,
             'agent_role_description_i18n' => $this->agentRoleDescriptionI18n,
+            'custom_service_provider_whitelist' => $this->customServiceProviderWhitelist,
+            'footer' => $this->getFooter(),
         ];
     }
 
@@ -209,6 +284,51 @@ class PlatformSettings
         $i->setDescriptionI18n((array) ($data['description_i18n'] ?? []));
         $i->setAgentRoleNameI18n((array) ($data['agent_role_name_i18n'] ?? []));
         $i->setAgentRoleDescriptionI18n((array) ($data['agent_role_description_i18n'] ?? []));
+        $i->setCustomServiceProviderWhitelist((array) (
+            $data['custom_service_provider_whitelist']
+            ?? $data['foreign_provider_org_whitelist']
+            ?? []
+        ));
+        $i->setFooter((array) ($data['footer'] ?? []));
         return $i;
+    }
+
+    /**
+     * @param array{
+     *     copyright_i18n?: array<string,mixed>,
+     *     filing?: array{enabled?: mixed, number?: mixed, link?: mixed}
+     * } $footer
+     * @return array{
+     *     copyright_i18n: array<string,string>,
+     *     filing: array{enabled: bool, number: string, link: string}
+     * }
+     */
+    private static function normalizeFooter(array $footer): array
+    {
+        $copyrightI18n = [];
+        foreach ((array) ($footer['copyright_i18n'] ?? []) as $locale => $text) {
+            if (! is_scalar($text) && $text !== null) {
+                continue;
+            }
+            $copyrightI18n[(string) $locale] = (string) $text;
+        }
+        if (($copyrightI18n['zh_CN'] ?? '') === '') {
+            $copyrightI18n['zh_CN'] = self::DEFAULT_COPYRIGHT;
+        }
+
+        $filing = (array) ($footer['filing'] ?? []);
+        $link = trim((string) ($filing['link'] ?? self::DEFAULT_FILING_LINK));
+        if ($link === '') {
+            $link = self::DEFAULT_FILING_LINK;
+        }
+
+        return [
+            'copyright_i18n' => $copyrightI18n,
+            'filing' => [
+                'enabled' => (bool) ($filing['enabled'] ?? false),
+                'number' => trim((string) ($filing['number'] ?? '')),
+                'link' => $link,
+            ],
+        ];
     }
 }

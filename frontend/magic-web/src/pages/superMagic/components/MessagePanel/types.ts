@@ -1,13 +1,13 @@
 import { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
-import { TopicMode, Workspace, type ProjectListItem, type Topic } from "../../pages/Workspace/types"
-import { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import { Workspace, type ProjectListItem, type Topic } from "../../pages/Workspace/types"
+import { TopicMode } from "../../pages/Workspace/TopicMode"
+import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import { MessageEditorSize, MessageEditorLayoutConfig } from "../MessageEditor/types"
 import { AttachmentItem } from "../TopicFilesButton/hooks"
 
 export interface TopicModeLogic {
 	topicMode: TopicMode
 	setTopicMode: (topicMode: TopicMode) => void
-	allowEditorModeChange: boolean
 }
 
 export interface SendMessageOptions {
@@ -19,8 +19,11 @@ export interface SendMessageOptions {
 			model?: { model_id: string }
 			enable_web_search?: boolean
 			image_model?: { model_id: string }
+			video_model?: { model_id: string }
 			queue_id?: string
 			agent_code?: string
+			dynamic_params?: Record<string, unknown>
+			[key: string]: unknown
 		}
 	}
 	_tempProject?: ProjectListItem | null

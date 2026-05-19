@@ -14,6 +14,7 @@ use Dtyq\SuperMagic\Domain\Agent\Entity\AgentVersionEntity;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetType;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\PublishTargetValue;
+use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionAdminQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\Query\AgentVersionQuery;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Agent\Entity\ValueObject\SuperMagicAgentDataIsolation;
@@ -267,7 +268,8 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         int $id,
         ReviewStatus $reviewStatus,
         PublishStatus $publishStatus,
-        string $modifier
+        string $modifier,
+        ?string $reviewRemark = null
     ): bool {
         $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query());
 
@@ -278,6 +280,7 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             ->whereNull('deleted_at')
             ->update([
                 'review_status' => $reviewStatus->value,
+                'review_remark' => $reviewRemark,
                 'publish_status' => $publishStatus->value,
                 'modifier' => $modifier,
                 'updated_at' => date('Y-m-d H:i:s'),
@@ -376,42 +379,38 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
 
     public function queryVersions(
         SuperMagicAgentDataIsolation $dataIsolation,
-        ?string $reviewStatus,
-        ?string $publishStatus,
-        ?string $publishTargetType,
-        ?string $version,
-        ?string $organizationCode,
-        ?string $nameI18n,
-        ?string $startTime,
-        ?string $endTime,
-        string $orderBy,
+        AgentVersionAdminQuery $query,
         Page $page
     ): array {
         $builder = $this->createBuilder($dataIsolation, $this->agentVersionModel::query())
             ->whereNull('deleted_at');
 
-        if ($reviewStatus !== null && $reviewStatus !== '') {
-            $builder->where('review_status', $reviewStatus);
+        if ($query->getReviewStatus() !== null && $query->getReviewStatus() !== '') {
+            $builder->where('review_status', $query->getReviewStatus());
         }
 
-        if ($publishStatus !== null && $publishStatus !== '') {
-            $builder->where('publish_status', $publishStatus);
+        if (! empty($query->getExcludeReviewStatuses())) {
+            $builder->whereNotIn('review_status', $query->getExcludeReviewStatuses());
         }
 
-        if ($publishTargetType !== null && $publishTargetType !== '') {
-            $builder->where('publish_target_type', $publishTargetType);
+        if ($query->getPublishStatus() !== null && $query->getPublishStatus() !== '') {
+            $builder->where('publish_status', $query->getPublishStatus());
         }
 
-        if ($version !== null && $version !== '') {
-            $builder->where('version', $version);
+        if (! empty($query->getPublishTargetTypes())) {
+            $builder->whereIn('publish_target_type', $query->getPublishTargetTypes());
         }
 
-        $organizationCode = trim((string) $organizationCode);
+        if ($query->getVersion() !== null && $query->getVersion() !== '') {
+            $builder->where('version', $query->getVersion());
+        }
+
+        $organizationCode = trim((string) $query->getOrganizationCode());
         if ($organizationCode !== '') {
             $builder->where('organization_code', $organizationCode);
         }
 
-        $nameI18n = trim((string) $nameI18n);
+        $nameI18n = trim((string) $query->getNameI18n());
         if ($nameI18n !== '') {
             $like = '%' . $nameI18n . '%';
             $localeKeys = LanguageEnum::getAllLanguageCodes();
@@ -430,15 +429,15 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             });
         }
 
-        if ($startTime !== null && $startTime !== '') {
-            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
+        if ($query->getStartTime() !== null && $query->getStartTime() !== '') {
+            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($query->getStartTime()));
         }
 
-        if ($endTime !== null && $endTime !== '') {
-            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
+        if ($query->getEndTime() !== null && $query->getEndTime() !== '') {
+            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($query->getEndTime()));
         }
 
-        $builder->orderBy('created_at', strtolower($orderBy) === 'desc' ? 'desc' : 'asc');
+        $builder->orderBy('created_at', strtolower($query->getOrderBy()) === 'desc' ? 'desc' : 'asc');
 
         $result = $this->getByPage($builder, $page);
         $list = [];
@@ -534,6 +533,7 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
         $entity->setDescriptionI18n($descriptionI18n);
         $entity->setPublishStatus($data['publish_status'] ?? PublishStatus::UNPUBLISHED->value);
         $entity->setReviewStatus($data['review_status'] ?? ReviewStatus::PENDING->value);
+        $entity->setReviewRemark($data['review_remark'] ?? null);
         $entity->setPublishTargetType($data['publish_target_type'] ?? PublishTargetType::MARKET->value);
         $entity->setPublishTargetValue(PublishTargetValue::fromArray($publishTargetValue));
         $entity->setVersionDescriptionI18n($versionDescriptionI18n);
@@ -581,6 +581,7 @@ class AgentVersionRepository extends SuperMagicAbstractRepository implements Age
             'description_i18n' => $entity->getDescriptionI18n(),
             'publish_status' => $entity->getPublishStatus()->value,
             'review_status' => $entity->getReviewStatus()->value,
+            'review_remark' => $entity->getReviewRemark(),
             'publish_target_type' => $entity->getPublishTargetType()->value,
             'publish_target_value' => $entity->getPublishTargetValue()?->toArray(),
             'version_description_i18n' => $entity->getVersionDescriptionI18n(),

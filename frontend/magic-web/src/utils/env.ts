@@ -8,6 +8,21 @@ export const isDev = process.env.NODE_ENV === "development"
 console.log("magic sha: ", window?.CONFIG?.MAGIC_APP_SHA)
 console.log("magic version: ", window?.CONFIG?.MAGIC_APP_VERSION)
 
+/** 沙箱地址仅配置到 origin 时，补全为可加载的 HTML 入口（与 Vite 静态站默认 index.html 一致） */
+const normalizeMagicHtmlSandboxUrl = (raw: string): string => {
+	const trimmed = raw.trim()
+	if (!trimmed) return trimmed
+	try {
+		const u = new URL(trimmed)
+		if (u.pathname === "/" || u.pathname === "") {
+			u.pathname = "/index.html"
+		}
+		return u.toString()
+	} catch {
+		return trimmed
+	}
+}
+
 /**
  * @description 获取环境变量 (因多环境问题，需要基于全局 PrivateDeployment 配置转为当前环境配置)
  * @param {keyof ImportMetaEnv} key
@@ -28,7 +43,7 @@ export const env = (
 			(item) => item.type === "dingtalk",
 		)
 
-		return (
+		const value = (
 			{
 				...import.meta.env,
 				...(window?.CONFIG ?? {}),
@@ -49,15 +64,23 @@ export const env = (
 				MAGIC_DINGTALK_REDIRECT_URI: dingTalkConfig?.callback || "",
 			} as ImportMetaEnv
 		)[key]
+
+		return key === "MAGIC_HTML_SANDBOX_URL"
+			? normalizeMagicHtmlSandboxUrl(String(value ?? ""))
+			: (value as string)
 	}
 
-	return (
+	const value = (
 		{
 			...import.meta.env,
 			...(window?.CONFIG ?? {}),
 			MAGIC_CDNHOST: defaultCDN,
 		} as ImportMetaEnv
 	)[key]
+
+	return key === "MAGIC_HTML_SANDBOX_URL"
+		? normalizeMagicHtmlSandboxUrl(String(value ?? ""))
+		: (value as string)
 }
 
 /**
@@ -94,6 +117,13 @@ export const isLoginAuthorizationWhitelist = (url: string): boolean => {
  */
 export const isProductionEnv = (): boolean =>
 	[AppEnv.Production, AppEnv.InternationalProduction].includes(env("MAGIC_APP_ENV") as AppEnv)
+
+/**
+ * @description 是否是预发布环境（包括国内和国际）
+ * @returns {boolean} 是否是预发布环境
+ */
+export const isPreEnv = (): boolean =>
+	[AppEnv.Pre, AppEnv.InternationalPre].includes(env("MAGIC_APP_ENV") as AppEnv)
 
 /**
  * @description 是否测试环境

@@ -1,0 +1,168 @@
+/* 外层不裁剪，保证删除按钮与 overlay 可以正常外溢显示 */
+.root {
+	--container-height: 68px;
+	--slot-item-height: 56px;
+
+	position: relative;
+	width: max-content;
+	overflow: visible;
+}
+
+.sourceList {
+	position: relative;
+	display: flex;
+	gap: var(--spacing-1-5, 6px);
+	align-items: center;
+	justify-content: flex-start;
+	height: var(--container-height);
+	padding-right: 2px;
+	padding-left: 2px;
+	overflow: visible;
+}
+
+.sourceItem {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+	gap: var(--spacing-1, 4px);
+	align-items: center;
+	justify-content: center;
+	width: 48px;
+	height: var(--slot-item-height, 56px);
+	margin-bottom: -2px;
+	color: var(--base-muted-foreground, #737373);
+	font-size: var(--text-xs-font-size, 12px);
+	background-color: white;
+	border: 1px solid var(--base-border, #e5e5e5);
+	border-radius: var(--border-radius-rounded-sm, 6px);
+	box-shadow: var(--shadow-xs-1-offset-x, 0) var(--shadow-xs-1-offset-y, 1px)
+			var(--shadow-xs-1-blur-radius, 2px) var(--shadow-xs-1-spread-radius, -1px)
+			var(--shadow-xs-1-color, rgb(0 0 0 / 10%)),
+		var(--shadow-xs-2-offset-x, 0) var(--shadow-xs-2-offset-y, 1px)
+			var(--shadow-xs-2-blur-radius, 2px) var(--shadow-xs-2-spread-radius, -2px)
+			var(--shadow-xs-2-color, rgb(0 0 0 / 10%));
+	cursor: pointer;
+	transition: box-shadow 0.2s ease, background-color 0.2s ease;
+	user-select: none;
+}
+
+.sourceItemLabel {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	line-height: 1.1;
+}
+
+.sourceItemSecondaryLabel {
+	font-size: 10px;
+}
+
+.sourceItem:hover {
+	background-color: var(--base-secondary, #f5f5f5);
+	box-shadow: 0 2px 4px rgb(0 0 0 / 20%);
+}
+
+.sourceItemMentionHovered,
+.sourceItemHasResource.sourceItemMentionHovered {
+	outline: 1px solid rgb(var(--primary-rgb));
+	box-shadow: none;
+}
+
+/* 已选图：无内边距，缩略图铺满格子 */
+.sourceItemHasResource {
+	gap: 0;
+	padding: 0;
+
+	/* 删除钮圆心对齐槽位右上角，需伸出圆角外，外层不裁剪 */
+	overflow: visible;
+}
+
+.sourceItemHasResource:hover {
+	background-color: white;
+}
+
+.sourceItemPreviewable {
+	cursor: pointer;
+}
+
+.sourceItemPreviewable:focus-visible {
+	outline: 2px solid rgb(var(--primary-rgb));
+	outline-offset: 2px;
+}
+
+.sourceItemInnerFilled {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	border-radius: inherit;
+	inset: 0;
+}
+
+/* 圆形删除：圆心与槽位右上角重合；仅槽位 hover / focus-within 显示 */
+.sourceItemRemoveButton {
+	position: absolute;
+	top: 0;
+	right: 0;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	margin: 0;
+	padding: 0;
+	background: rgb(var(--muted-rgb));
+	border: none;
+	border-radius: 50%;
+	box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+	transform: translate(50%, -50%) scale(0.92);
+	cursor: pointer;
+	opacity: 0;
+	transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease,
+		background-color 0.15s ease;
+	pointer-events: none;
+}
+
+.sourceItemRemoveButton:hover {
+	background: rgb(var(--destructive-rgb));
+	box-shadow: 0 2px 6px rgb(0 0 0 / 22%);
+}
+
+.sourceItemRemoveIcon {
+	flex-shrink: 0;
+	color: rgb(var(--muted-foreground-rgb));
+	transition: color 0.12s ease, opacity 0.12s ease;
+}
+
+.sourceItemRemoveButton:hover .sourceItemRemoveIcon {
+	color: rgb(var(--destructive-foreground-rgb));
+}
+
+.sourceItemRemoveButton:active .sourceItemRemoveIcon {
+	opacity: 0.92;
+}
+
+.sourceItemHasResource:hover .sourceItemRemoveButton,
+.sourceItemHasResource:focus-within .sourceItemRemoveButton {
+	transform: translate(50%, -50%) scale(1);
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.sourceItemHasResource:hover .sourceItemRemoveButton:active,
+.sourceItemHasResource:focus-within .sourceItemRemoveButton:active {
+	box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+	transform: translate(50%, -50%) scale(0.88);
+}
+
+/* 自定义 overlay：由脚本写入两槽中点（left/top），默认回退列表中心；不占 flex 槽位 */
+.overlayLayer {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	z-index: 3;
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+}

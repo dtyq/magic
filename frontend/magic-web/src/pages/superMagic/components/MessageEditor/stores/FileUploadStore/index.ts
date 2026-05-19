@@ -1,6 +1,13 @@
 import { makeAutoObservable } from "mobx"
 import { t } from "i18next"
 import { logger as Logger } from "@/utils/log"
+import {
+	type DirectoryMentionData,
+	MentionItemType,
+	type ProjectFileMentionData,
+} from "@/components/business/MentionPanel/types"
+import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
+import type { UploadMentionItem } from "@/components/business/MentionPanel/runtime/builtin/domains/upload-files"
 import projectFilesStore, { type ProjectFilesStore } from "@/stores/projectFiles"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { generateUniqueFileName } from "../../utils/generateUniqueFileName"
@@ -8,6 +15,7 @@ import { superMagicUploadTokenService } from "../../services/UploadTokenService"
 import { UploadService } from "../../services/UploadService"
 import type { FileData } from "../../types"
 import { UploadSource } from "../../types"
+import { isPendingProjectFileMention } from "../../utils/mention"
 import {
 	validateDuplicateFiles,
 	validateFileCount,
@@ -136,6 +144,39 @@ export class FileUploadStore {
 
 	isCurrentSessionProjectFile(fileId: string) {
 		return this.sessionSavedProjectFileIds.has(fileId)
+	}
+
+	getUploadMentionItems(): UploadMentionItem[] {
+		return this.files.flatMap((file) => {
+			const filePath = file.reportResult?.file_key
+			if (!filePath) return []
+
+			const fileId = file.reportResult?.file_id || file.id
+			const fileName = file.reportResult?.file_name || file.name
+			const fileExtension = fileName.split(".").pop() ?? ""
+
+			return [
+				{
+					id: fileId,
+					type: MentionItemType.UPLOAD_FILE,
+					name: fileName,
+					icon: fileExtension,
+					extension: fileExtension,
+					hasChildren: false,
+					data: {
+						file_id: fileId,
+						file_name: fileName,
+						file_path: filePath,
+						file_extension: fileExtension,
+						file_size: file.reportResult?.file_size ?? file.file.size,
+						file: file.file,
+						upload_progress: file.progress,
+						upload_status: file.status,
+						upload_error: file.error,
+					},
+				},
+			]
+		})
 	}
 
 	private setFilesWithLimit(newFiles: FileData[] | ((prev: FileData[]) => FileData[])) {
@@ -392,6 +433,67 @@ export class FileUploadStore {
 		return fileDataList
 	}
 
+	addPendingProjectFileReferences(items: TiptapMentionAttributes[]) {
+		const pendingProjectFiles = items.filter(isPendingProjectFileMention)
+		if (pendingProjectFiles.length === 0) return
+
+		const existingFileIds = new Set(
+			this.files.flatMap((file) =>
+				[file.id, file.reportResult?.file_id, file.saveResult?.file_id].filter(
+					(fileId): fileId is string => Boolean(fileId),
+				),
+			),
+		)
+		const pastedFiles = pendingProjectFiles
+			.map((item): FileData | null => {
+				const data = item.data as ProjectFileMentionData | DirectoryMentionData
+				const isDirectory = item.type === MentionItemType.FOLDER
+				const fileId = isDirectory
+					? (data as DirectoryMentionData).source_directory_id ||
+						(data as DirectoryMentionData).directory_id
+					: (data as ProjectFileMentionData).source_file_id ||
+						(data as ProjectFileMentionData).file_id
+				if (!fileId || existingFileIds.has(fileId)) return null
+
+				existingFileIds.add(fileId)
+				this.sessionSavedProjectFileIds.add(fileId)
+				const name = isDirectory
+					? (data as DirectoryMentionData).directory_name
+					: (data as ProjectFileMentionData).file_name
+				const path = isDirectory
+					? (data as DirectoryMentionData).directory_path
+					: (data as ProjectFileMentionData).file_path
+
+				return {
+					id: fileId,
+					name,
+					file: new File([], name),
+					status: "done",
+					isVirtualReference: true,
+					progress: 100,
+					saveResult: {
+						file_id: fileId,
+						file_key: path,
+						file_name: name,
+						file_size: isDirectory
+							? 0
+							: ((data as ProjectFileMentionData).file_size ?? 0),
+						file_type: isDirectory ? "directory" : "user_upload",
+						project_id: data.source_project_id ?? "",
+						topic_id: "",
+						task_id: "",
+						created_at: "",
+						relative_file_path: path,
+					},
+				}
+			})
+			.filter((file): file is FileData => Boolean(file))
+
+		if (pastedFiles.length === 0) return
+
+		this.setFilesWithLimit((prev) => [...prev, ...pastedFiles])
+	}
+
 	async handleRetry(fileId: string) {
 		const file = this.files.find((f) => f.id === fileId)
 		if (!file) return
@@ -472,6 +574,10 @@ export class FileUploadStore {
 			this.onFileAdded?.(restoredFiles)
 			return restoredFiles
 		})
+	}
+
+	restoreFilesSilently(restoredFiles: FileData[]) {
+		this.setFilesWithLimit(() => restoredFiles)
 	}
 
 	dispose() {

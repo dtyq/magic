@@ -1,18 +1,17 @@
-import { memo, useMemo } from "react"
-import { ShieldCheck } from "lucide-react"
+import { memo, useCallback, useMemo, type MouseEvent } from "react"
+import { Award, MessageCircleMore, ShieldCheck } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import SmartTooltip from "@/components/other/SmartTooltip"
 import { Badge } from "@/components/shadcn-ui/badge"
 import { Button } from "@/components/shadcn-ui/button"
-import { Separator } from "@/components/shadcn-ui/separator"
 import { cn } from "@/lib/utils"
-import { CardFooterBadge } from "@/pages/superMagic/components/CardFooterBadge"
 import { CardFooterLabel } from "@/pages/superMagic/components/CardFooterLabel"
 import CrewFallbackAvatar from "@/pages/superMagic/components/CrewFallbackAvatar"
 import type { StoreAgentView } from "@/services/crew/CrewService"
 import {
 	formatVersionBadge,
 	isEmployeeMarketPrimaryActionDisabled,
+	isOfficialBuiltinPublisherType,
 	isOfficialPublisherType,
 	resolveEmployeeMarketPrimaryActionLabel,
 	resolvePublisherLabel,
@@ -23,9 +22,17 @@ interface EmployeeCardProps {
 	onHire?: (id: string) => void
 	onDismiss?: (id: string) => void
 	onDetails?: (id: string) => void
+	/** Card click: opens detail dialog only (not chat navigation). */
+	onOpenMarketDetail?: (id: string) => void
 }
 
-function EmployeeCard({ employee, onHire, onDismiss, onDetails }: EmployeeCardProps) {
+function EmployeeCard({
+	employee,
+	onHire,
+	onDismiss,
+	onDetails,
+	onOpenMarketDetail,
+}: EmployeeCardProps) {
 	const { t } = useTranslation("crew/market")
 	const { t: tCrewCreate } = useTranslation("crew/create")
 
@@ -40,6 +47,7 @@ function EmployeeCard({ employee, onHire, onDismiss, onDetails }: EmployeeCardPr
 		company: publisherLabel,
 	})
 	const isOfficialPublisher = isOfficialPublisherType(employee.publisherType)
+	const hidePrimaryAction = isOfficialBuiltinPublisherType(employee.publisherType)
 
 	const versionLabel = useMemo(
 		() => formatVersionBadge(employee.latestVersionCode) ?? "",
@@ -50,122 +58,224 @@ function EmployeeCard({ employee, onHire, onDismiss, onDetails }: EmployeeCardPr
 	const avatarSrc = employee.icon ?? ""
 	const hasAvatarSrc = Boolean(avatarSrc)
 	const primaryActionLabel = resolveEmployeeMarketPrimaryActionLabel(employee, t)
+	const detailsButtonLabel = employee.isAdded ? t("myCrewPage.openConversation") : t("details")
+
+	const handleCardClick = useCallback(() => {
+		onOpenMarketDetail?.(employee.id)
+	}, [employee.id, onOpenMarketDetail])
+
+	const stopCardClick = useCallback((e: MouseEvent) => {
+		e.stopPropagation()
+	}, [])
 
 	return (
 		<div
-			className="relative flex h-full min-h-0 w-full min-w-0 flex-col pt-11"
+			className={cn(
+				"group relative flex h-full min-h-0 w-full min-w-0 flex-col pt-10",
+				onOpenMarketDetail ? "cursor-pointer" : undefined,
+			)}
 			data-testid="employee-card"
+			onClick={onOpenMarketDetail ? handleCardClick : undefined}
 		>
-			<div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-md border border-border bg-popover shadow-xs">
-				<div className="flex min-h-0 flex-1 flex-col items-center px-4 pb-2.5 pt-16">
-					<div className="flex w-full min-w-0 flex-1 flex-col items-center gap-2.5">
-						<div className="flex min-h-6 w-full min-w-0 items-center justify-center text-center">
-							<p className="w-full truncate text-base font-medium leading-6 text-foreground">
+			<div className="absolute inset-x-0 bottom-0 top-10 -z-10 rounded-xl transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] dark:group-hover:shadow-[0_12px_40px_rgba(255,255,255,0.06)]" />
+			<div className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:border-primary/60">
+				<div className="relative z-10 flex min-h-0 flex-1 flex-col px-5 pb-5 pt-12">
+					{employee.isFeatured ? (
+						<Badge
+							variant="outline"
+							className="absolute right-4 top-4 z-20 size-6 rounded-lg border-transparent bg-orange-500/10 p-1 text-orange-600 transition-colors hover:bg-orange-500/20 dark:text-orange-400"
+							aria-label={t("skillsLibrary.featured")}
+							title={t("skillsLibrary.featured")}
+							data-testid="employee-card-featured-badge"
+						>
+							<Award className="size-4" />
+						</Badge>
+					) : null}
+
+					<div className="flex w-full min-w-0 flex-1 flex-col items-center gap-3">
+						<div className="flex w-full flex-col items-center gap-1.5">
+							<p className="w-full truncate text-center text-lg font-semibold tracking-tight text-foreground transition-colors duration-300">
 								{displayName}
 							</p>
-						</div>
-
-						<div className="flex min-h-6 w-full justify-center">
 							{roleLine ? (
-								<Badge
-									variant="outline"
-									className="w-fit min-w-0 max-w-full shrink justify-center overflow-hidden rounded-md border border-border bg-background px-2 py-0.5 text-xs font-normal leading-4 text-foreground shadow-none hover:bg-background"
+								<div
+									className="inline-flex min-w-0 max-w-full items-center rounded-lg border border-border/50 bg-secondary/50 px-2.5 py-0.5 text-xs font-medium text-secondary-foreground"
 									data-testid="employee-card-role-badge"
 								>
 									<SmartTooltip
 										elementType="span"
-										className="inline-block max-w-full text-center align-top text-xs font-normal leading-4"
+										className="min-w-0 max-w-full truncate text-xs leading-4"
 										content={roleLine}
 										sideOffset={4}
 									>
 										{roleLine}
 									</SmartTooltip>
-								</Badge>
-							) : null}
+								</div>
+							) : (
+								<div className="h-5" /> /* Placeholder to maintain height */
+							)}
 						</div>
 
-						<div className="flex min-h-10 w-full min-w-0 justify-center">
-							<p className="line-clamp-2 w-full text-center text-sm font-normal leading-5 text-muted-foreground">
+						<div className="flex w-full min-w-0 flex-1 justify-center py-1">
+							<SmartTooltip
+								elementType="div"
+								maxLines={3}
+								className="w-full text-center text-[13px] leading-relaxed text-muted-foreground transition-colors duration-300 group-hover:text-foreground/90"
+								content={displayDescription}
+								sideOffset={4}
+							>
 								{displayDescription}
-							</p>
+							</SmartTooltip>
 						</div>
 
 						<div
-							className="mt-auto flex w-full shrink-0 flex-col gap-1 pt-2"
+							className="mt-4 flex w-full shrink-0 flex-col gap-2"
 							data-testid="employee-card-actions"
 						>
-							<Button
-								variant="outline"
-								size="sm"
-								className="h-8 w-full px-3 text-xs font-medium shadow-xs"
-								onClick={() => onDetails?.(employee.id)}
-								data-testid="employee-card-details-button"
-							>
-								{t("details")}
-							</Button>
 							{employee.allowDelete ? (
-								<Button
-									variant="destructive"
-									size="sm"
-									className="h-8 w-full bg-destructive/10 px-3 text-xs font-medium text-destructive shadow-xs hover:bg-destructive/15 hover:text-destructive"
-									onClick={() => onDismiss?.(employee.id)}
-									disabled={isEmployeeMarketPrimaryActionDisabled(employee)}
-									data-testid="employee-card-dismiss-button"
-								>
-									{primaryActionLabel}
-								</Button>
+								<div className="flex w-full min-w-0 gap-2">
+									<Button
+										variant="outline"
+										size="sm"
+										className={cn(
+											"h-9 rounded-lg border-border/70 px-3 text-xs font-medium shadow-sm transition-all duration-300 hover:border-primary hover:text-primary hover:shadow-md active:scale-[0.98]",
+											hidePrimaryAction ? "w-full" : "flex-1",
+										)}
+										onClick={(e) => {
+											stopCardClick(e)
+											onDetails?.(employee.id)
+										}}
+										data-testid="employee-card-details-button"
+									>
+										{employee.isAdded ? (
+											<MessageCircleMore
+												className="size-4 shrink-0"
+												aria-hidden
+											/>
+										) : null}
+										{detailsButtonLabel}
+									</Button>
+									{hidePrimaryAction ? null : (
+										<Button
+											variant="destructive"
+											size="sm"
+											className="h-9 min-w-0 flex-1 overflow-hidden rounded-lg bg-destructive/10 px-3 text-xs font-medium text-destructive shadow-sm transition-all duration-300 hover:bg-destructive/20 hover:shadow-md active:scale-[0.98]"
+											onClick={(e) => {
+												stopCardClick(e)
+												onDismiss?.(employee.id)
+											}}
+											disabled={isEmployeeMarketPrimaryActionDisabled(
+												employee,
+											)}
+											data-testid="employee-card-dismiss-button"
+										>
+											<SmartTooltip
+												elementType="span"
+												className="block w-full min-w-0 truncate text-xs font-medium text-inherit"
+												content={primaryActionLabel}
+												sideOffset={4}
+											>
+												{primaryActionLabel}
+											</SmartTooltip>
+										</Button>
+									)}
+								</div>
 							) : (
-								<Button
-									variant="default"
-									size="sm"
-									className="h-8 w-full px-3 text-xs font-medium shadow-xs"
-									onClick={() => onHire?.(employee.id)}
-									disabled={isEmployeeMarketPrimaryActionDisabled(employee)}
-									data-testid="employee-card-hire-button"
-								>
-									{primaryActionLabel}
-								</Button>
+								<div className="flex w-full min-w-0 gap-2">
+									<Button
+										variant="outline"
+										size="sm"
+										className={cn(
+											"h-9 rounded-lg border-border/70 bg-background px-3 text-xs font-medium shadow-sm transition-all duration-300 hover:border-primary hover:text-primary hover:shadow-md active:scale-[0.98]",
+											hidePrimaryAction ? "w-full" : "flex-1",
+											employee.isAdded ? "gap-1.5" : undefined,
+										)}
+										onClick={(e) => {
+											stopCardClick(e)
+											onDetails?.(employee.id)
+										}}
+										data-testid="employee-card-details-button"
+									>
+										{employee.isAdded ? (
+											<MessageCircleMore
+												className="size-4 shrink-0"
+												aria-hidden
+											/>
+										) : null}
+										{detailsButtonLabel}
+									</Button>
+									{hidePrimaryAction ? null : (
+										<Button
+											variant="default"
+											size="sm"
+											className="h-9 min-w-0 flex-1 overflow-hidden rounded-lg px-3 text-xs font-medium shadow-sm transition-all duration-300 hover:shadow-md active:scale-[0.98]"
+											onClick={(e) => {
+												stopCardClick(e)
+												onHire?.(employee.id)
+											}}
+											disabled={isEmployeeMarketPrimaryActionDisabled(
+												employee,
+											)}
+											data-testid="employee-card-hire-button"
+										>
+											<SmartTooltip
+												elementType="span"
+												className="block w-full min-w-0 truncate text-xs font-medium text-inherit"
+												content={primaryActionLabel}
+												sideOffset={4}
+											>
+												{primaryActionLabel}
+											</SmartTooltip>
+										</Button>
+									)}
+								</div>
 							)}
 						</div>
 					</div>
 				</div>
 
-				<Separator className="shrink-0 bg-border" />
-
-				<div className="flex shrink-0 items-center gap-2 bg-sidebar px-4 py-2.5">
+				<div className="flex shrink-0 items-center gap-2 border-t border-border/60 bg-muted/20 px-5 py-3 transition-colors duration-300 group-hover:border-primary/20 group-hover:bg-muted/40">
 					{isOfficialPublisher ? (
 						<div
-							className="flex min-w-0 flex-1 items-center gap-1"
+							className="flex min-w-0 flex-1 items-center gap-1.5"
 							data-testid="employee-card-official-publisher"
 						>
-							<ShieldCheck className="size-4 shrink-0 text-muted-foreground" />
-							<span className="truncate text-xs leading-4 text-muted-foreground">
+							<ShieldCheck className="size-[14px] shrink-0 text-primary" />
+							<span className="truncate text-xs font-medium text-muted-foreground">
 								{publisherLabel}
 							</span>
 						</div>
 					) : (
-						<CardFooterLabel label={publisherText} />
+						<CardFooterLabel
+							label={publisherText}
+							className="truncate text-xs font-medium text-muted-foreground"
+						/>
 					)}
 					{versionLabel ? (
-						<CardFooterBadge
-							label={versionLabel}
-							className="border border-border bg-background px-2 py-0.5 text-xs font-semibold text-foreground shadow-none hover:bg-background"
+						<span
+							className="shrink-0 rounded-md border border-border/40 bg-background/50 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground shadow-sm"
 							data-testid="employee-card-version-badge"
-						/>
+						>
+							{versionLabel}
+						</span>
 					) : null}
 				</div>
 			</div>
 
 			<div
 				className={cn(
-					"absolute left-1/2 top-0 z-10 -translate-x-1/2",
-					"size-24 overflow-hidden rounded-full border-[3px] border-popover bg-popover",
-					"shadow-sm",
+					"absolute left-1/2 top-0 z-20 -translate-x-1/2",
+					"size-20 overflow-hidden rounded-full border-[4px] border-background bg-card",
+					"shadow-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:border-primary/10 group-hover:shadow-md",
 				)}
 			>
 				<div className="flex size-full items-center justify-center overflow-hidden rounded-full bg-muted text-foreground">
 					{hasAvatarSrc ? (
-						<img src={avatarSrc} alt={displayName} className="size-full object-cover" />
+						<img
+							src={avatarSrc}
+							alt={displayName}
+							className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
+						/>
 					) : (
 						<CrewFallbackAvatar />
 					)}

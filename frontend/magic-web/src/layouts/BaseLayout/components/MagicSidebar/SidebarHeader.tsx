@@ -3,24 +3,11 @@ import { Button } from "@/components/shadcn-ui/button"
 import { cn } from "@/lib/utils"
 import type { SidebarHeaderProps } from "./types"
 import Logo from "../Header/components/Logo"
-import { RoutePath } from "@/constants/routes"
-import { env } from "@/utils/env"
-import { UserWorkspaceMapCache } from "@/pages/superMagic/utils/superMagicCache"
-import { useMemoizedFn } from "ahooks"
-import { userStore } from "@/models/user"
-import SuperMagicService from "@/pages/superMagic/services"
 import { observer } from "mobx-react-lite"
-
-const SuperRouteUrl = `${env("MAGIC_WEB_URL") || window.location.origin}${RoutePath.Super}`
+import { useNavigateToSuperHome } from "./hooks/useNavigateToSuperHome"
 
 function SidebarHeader({ collapsed, onToggleCollapse }: SidebarHeaderProps) {
-	const { userInfo } = userStore.user
-	const handleLogoClick = useMemoizedFn((e: React.MouseEvent<HTMLAnchorElement>) => {
-		e.preventDefault()
-		e.stopPropagation()
-		const lastWorkspaceId = UserWorkspaceMapCache.get(userInfo)
-		SuperMagicService.navigateToHome(lastWorkspaceId)
-	})
+	const { superRouteUrl, handleNavigateToSuperHome } = useNavigateToSuperHome()
 
 	return (
 		<div
@@ -39,8 +26,8 @@ function SidebarHeader({ collapsed, onToggleCollapse }: SidebarHeaderProps) {
 				>
 					<a
 						className="flex h-9 w-9 cursor-pointer items-center justify-center transition-opacity duration-200 group-focus-within/sidebar-toggle:pointer-events-none group-focus-within/sidebar-toggle:opacity-0 group-hover/sidebar:pointer-events-none group-hover/sidebar:opacity-0"
-						href={SuperRouteUrl}
-						onClick={handleLogoClick}
+						href={superRouteUrl}
+						onClick={handleNavigateToSuperHome}
 						data-testid="sidebar-header-logo"
 					>
 						<Logo className="size-full" variant="minimal" />
@@ -54,15 +41,15 @@ function SidebarHeader({ collapsed, onToggleCollapse }: SidebarHeaderProps) {
 						onClick={onToggleCollapse}
 						data-testid="sidebar-header-expand"
 					>
-						<PanelLeftOpen className="h-4 w-4 text-[#0a0a0a] dark:text-[#fafafa]" />
+						<PanelLeftOpen className="h-4 w-4 text-sidebar-foreground" />
 					</Button>
 				</div>
 			) : (
 				<>
 					<a
 						className="flex h-9 min-h-px min-w-px shrink-0 grow basis-0 items-center justify-center transition-opacity duration-200"
-						href={SuperRouteUrl}
-						onClick={handleLogoClick}
+						href={superRouteUrl}
+						onClick={handleNavigateToSuperHome}
 						data-testid="sidebar-header-logo"
 					>
 						<Logo className="h-9 w-fit" variant="full" />
@@ -76,7 +63,7 @@ function SidebarHeader({ collapsed, onToggleCollapse }: SidebarHeaderProps) {
 						onClick={onToggleCollapse}
 						data-testid="sidebar-header-collapse"
 					>
-						<PanelLeftClose className="h-4 w-4 text-[#0a0a0a] dark:text-[#fafafa]" />
+						<PanelLeftClose className="h-4 w-4 text-sidebar-foreground" />
 					</Button>
 				</>
 			)}

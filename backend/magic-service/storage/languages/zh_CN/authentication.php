@@ -9,6 +9,9 @@ return [
     'password_error' => '密码错误',
     'user_not_found' => '用户不存在',
     'personal_access_token_already_exists' => '个人访问令牌已存在，如需重新生成请使用重置',
+    'model_gateway_unauthorized' => '模型网关鉴权失败',
+    'model_gateway_refresh_token_invalid' => '模型网关刷新令牌无效或已过期',
+    'model_gateway_refresh_token_mismatch' => '模型网关刷新令牌与元数据不匹配',
     'fields' => [
         'organization_code' => '组织编码',
         'rel_code' => '关联编码',

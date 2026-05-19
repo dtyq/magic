@@ -1,11 +1,15 @@
 import { JSONContent, Editor } from "@tiptap/react"
 import { ReportFileUploadsResponse } from "@/apis/modules/file"
 import { UploadResponse } from "@/hooks/useUploadFiles/types"
-import { ProjectListItem, Topic, TopicMode, Workspace } from "../../pages/Workspace/types"
+import { ProjectListItem, Topic, Workspace } from "../../pages/Workspace/types"
+import { TopicMode } from "../../pages/Workspace/TopicMode"
 import { MentionListItem } from "@/components/business/MentionPanel/tiptap-plugin/types"
+import type { DataService } from "@/components/business/MentionPanel/types"
+import type { TiptapMentionAttributes } from "@/components/business/MentionPanel/tiptap-plugin"
 import { SaveUploadFileToProjectResponse } from "../../utils/api"
 import { AttachmentItem } from "../TopicFilesButton/hooks"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
+import type { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
 
 // Re-export ModelSwitch types for unified type imports
 export type {
@@ -18,7 +22,7 @@ export type {
 // Re-export enums (cannot use 'export type' for const enums as they are values)
 export { ModelStatusEnum, ModelTagEnum } from "./components/ModelSwitch/types"
 import type { ModelItem } from "./components/ModelSwitch/types"
-import { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 
 // File upload status
 export type FileUploadStatus = "init" | "uploading" | "done" | "error"
@@ -37,12 +41,14 @@ export interface FileData {
 	name: string
 	file: File
 	status: FileUploadStatus
+	isVirtualReference?: boolean
 	progress?: number
 	result?: UploadResponse
 	reportResult?: ReportFileUploadsResponse
 	error?: string
 	cancel?: () => void
-	suffixDir?: string // 记录文件的上传目录
+	parentId?: string // 记录文件的父目录ID
+	defaultRelativePath?: string // 默认相对路径（当 parentId 为空时使用）
 }
 
 /**
@@ -110,6 +116,9 @@ export interface MessageEditorProps {
 		topicMode?: TopicMode
 		selectedModel?: ModelItem | null
 		selectedImageModel?: ModelItem | null
+		selectedVideoModel?: ModelItem | null
+		shouldClearEditorAfterSend?: boolean
+		extra?: Record<string, unknown>
 	}) => void
 	/** Placeholder */
 	placeholder?: string
@@ -133,6 +142,8 @@ export interface MessageEditorProps {
 	modules?: MessageEditorModules
 	/** Whether is sending */
 	isSending?: boolean
+	/** Extra send button loading state (independent from task running state) */
+	sendButtonLoading?: boolean
 	/** Focus callback */
 	onFocus?: () => void
 	/** Blur callback */
@@ -150,10 +161,15 @@ export interface MessageEditorProps {
 	/** Show loading */
 	showLoading?: boolean
 	editorModeSwitch?: ({ disabled }: { disabled: boolean }) => React.ReactNode
+	modelSwitch?: React.ReactNode
 	/** Mention panel store */
 	mentionPanelStore?: MentionPanelStore
+	/** Override mention validation in special restore scenarios */
+	isAllowedMention?: (attrs: TiptapMentionAttributes, dataService: DataService) => boolean
 	/** Project files store used by upload optimistic updates */
 	projectFilesStore?: ProjectFilesStore
+	/** Shared topic model store */
+	topicModelStore?: ReturnType<typeof createSuperMagicTopicModelStore>
 	/**
 	 * Layout configuration for toolbar buttons
 	 * If not provided, uses default layout
@@ -167,6 +183,19 @@ export interface MessageEditorProps {
 	layoutConfig?: MessageEditorLayoutConfig
 	/** Enable message send by content */
 	enableMessageSendByContent?: boolean
+	/** Skip initial draft restore to avoid overwriting externally restored content */
+	skipInitialDraftRestore?: boolean
+}
+
+export interface SendMessageByContentPayload {
+	jsonContent: JSONContent
+	mentionItems?: MentionListItem[]
+	topicMode?: TopicMode
+	selectedModel?: ModelItem | null
+	selectedImageModel?: ModelItem | null
+	selectedVideoModel?: ModelItem | null
+	shouldClearEditorAfterSend?: boolean
+	extra?: Record<string, unknown>
 }
 
 // Component Ref
@@ -193,7 +222,11 @@ export interface MessageEditorRef {
 	/** Focus */
 	focus: ({ enableWhenIsMobile }: { enableWhenIsMobile: boolean }) => void
 	/** Set topic models */
-	setModels: (params: { languageModel?: ModelItem | null; imageModel?: ModelItem | null }) => void
+	setModels: (params: {
+		languageModel?: ModelItem | null
+		imageModel?: ModelItem | null
+		videoModel?: ModelItem | null
+	}) => void
 }
 
 // Draft functionality types

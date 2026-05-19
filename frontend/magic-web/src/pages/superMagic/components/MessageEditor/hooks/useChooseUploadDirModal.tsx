@@ -14,7 +14,7 @@ function useChooseUploadDirModal({
 	validateFileCount,
 }: {
 	selectedProject?: ProjectListItem | null
-	addFiles: (files: File[], path?: string) => void
+	addFiles: (files: File[], path?: string, defaultRelativePathPrefix?: string) => void
 	attachments?: AttachmentItem[]
 	validateFileSize: (files: File[]) => { validFiles: File[]; hasWarning: boolean }
 	validateFileCount: (files: File[]) => { validFiles: File[]; hasError: boolean }
@@ -33,7 +33,7 @@ function useChooseUploadDirModal({
 
 	const addFiles = useMemoizedFn(async (files: File[]) => {
 		if (!selectedProject) {
-			_addFiles(files, "/uploads/")
+			_addFiles(files, undefined, "upload")
 			return
 		}
 
@@ -52,10 +52,10 @@ function useChooseUploadDirModal({
 			const { path, files: editedFiles } = await chooseDirPromise.current
 
 			if (path.length > 0) {
-				const normalizedPath = last(path)?.relative_file_path
-				_addFiles(editedFiles, normalizedPath)
+				const parentId = last(path)?.file_id
+				_addFiles(editedFiles, parentId)
 			} else {
-				_addFiles(editedFiles, "/")
+				_addFiles(editedFiles, undefined)
 			}
 		} catch (err: unknown) {
 			if (err && typeof err === "object" && "type" in err && err.type === "cancel") {

@@ -6,7 +6,7 @@ import type { ShortcutModifier } from "../../canvas/interaction/shortcuts/types"
 // 菜单项配置
 export interface MenuOption {
 	id: string
-	label: string
+	label: string | ReactNode
 	icon: ComponentType<LucideProps> | ReactElement
 	shortcut?:
 		| ShortcutDisplay

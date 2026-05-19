@@ -1,8 +1,10 @@
 import {
 	findMagicProjectJsFile,
 	parseMagicProjectJsContent,
-	getDesignDirectoryInfo,
-	replaceNameInMagicProjectJsContent,
+	resolveDesignDirectoryNameFromAttachments,
+	resolveDesignProjectBasePathFromAttachments,
+	normalizeDesignDataPathsAfterLoad,
+	resolveActualDesignCurrentFile,
 } from "../utils/utils"
 import { SuperMagicApi } from "@/apis"
 import type { DesignProjectStateBag, DesignProjectManagerOptions } from "./types"
@@ -29,6 +31,7 @@ export class DesignLoadManager {
 			currentFile,
 			attachments,
 			flatAttachments,
+			projectPath,
 			projectId,
 			allowEdit,
 			isPlaybackMode,
@@ -36,24 +39,14 @@ export class DesignLoadManager {
 			isMobile,
 		} = this.options
 
-		let actualCurrentFileId = currentFile?.id
-		let actualCurrentFileName = currentFile?.name
-
-		if (!actualCurrentFileId && actualCurrentFileName && (flatAttachments?.length ?? 0) > 0) {
-			const foundDirectory = flatAttachments?.find(
-				(item) =>
-					item.is_directory &&
-					(item.file_name === actualCurrentFileName ||
-						item.display_filename === actualCurrentFileName),
-			)
-			if (foundDirectory) {
-				actualCurrentFileId = foundDirectory.file_id
-				actualCurrentFileName =
-					foundDirectory.file_name ||
-					foundDirectory.display_filename ||
-					actualCurrentFileName
-			}
-		}
+		const actualCurrentFile = resolveActualDesignCurrentFile({
+			currentFile,
+			flatAttachments,
+			attachments,
+			projectPath,
+		})
+		const actualCurrentFileId = actualCurrentFile?.id
+		const actualCurrentFileName = actualCurrentFile?.name
 
 		if (!actualCurrentFileId || !actualCurrentFileName || !attachments) {
 			this.stateBag.setters.setIsInitialLoading(false)
@@ -92,36 +85,25 @@ export class DesignLoadManager {
 				if (result.content) {
 					const parsedData = parseMagicProjectJsContent(result.content)
 					if (parsedData) {
-						const directoryInfo = getDesignDirectoryInfo(
-							{ id: actualCurrentFileId, name: actualCurrentFileName },
+						const directoryName = resolveDesignDirectoryNameFromAttachments({
+							currentFile: { id: actualCurrentFileId, name: actualCurrentFileName },
+							flatAttachments,
 							attachments,
-						)
-
-						if (
-							directoryInfo.name &&
-							parsedData.name &&
-							directoryInfo.name !== parsedData.name
-						) {
-							try {
-								const updatedContent = replaceNameInMagicProjectJsContent(
-									result.content,
-									parsedData.name,
-									directoryInfo.name,
-								)
-								if (allowEdit && !isPlaybackMode && !isShareRoute && !isMobile) {
-									await SuperMagicApi.saveFileContent([
-										{
-											file_id: result.fileId,
-											content: updatedContent,
-											enable_shadow: true,
-										},
-									])
-								}
-								parsedData.name = directoryInfo.name
-							} catch {
-								parsedData.name = directoryInfo.name
-							}
+							projectPath,
+						})
+						if (directoryName && parsedData.name !== directoryName) {
+							parsedData.name = directoryName
 						}
+
+						const dslBase = resolveDesignProjectBasePathFromAttachments({
+							currentFile: {
+								id: actualCurrentFileId,
+								name: actualCurrentFileName,
+							},
+							flatAttachments,
+							attachments,
+						})
+						if (dslBase) normalizeDesignDataPathsAfterLoad(parsedData, dslBase)
 
 						this.stateBag.setters.setDesignData(parsedData)
 						this.lastLoadedFileId = actualCurrentFileId

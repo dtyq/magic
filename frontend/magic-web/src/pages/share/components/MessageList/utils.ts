@@ -7,6 +7,11 @@ import { superMagicStore } from "@/pages/superMagic/stores"
 export function messagesTransformer(messages: Array<any>) {
 	superMagicStore.loadSharedMessages(messages)
 	return (messages || [])?.map((o) => {
+		let role = o?.role
+
+		if (o?.type === "super_magic_message") {
+			role = o?.raw_content?.super_magic_message?.role
+		}
 		return {
 			...o,
 			magic_message_id: o?.message_id,
@@ -18,7 +23,7 @@ export function messagesTransformer(messages: Array<any>) {
 			event: o?.event,
 			debug: o?.[o?.type],
 			correlation_id: o?.correlation_id,
-			role: o?.role || "user",
+			role: role || "user",
 			seq_id: o?.message_id,
 		}
 	})

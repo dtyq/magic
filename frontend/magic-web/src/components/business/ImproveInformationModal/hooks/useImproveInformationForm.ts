@@ -5,6 +5,7 @@ import { useUpload } from "@/hooks/useUploadFiles"
 import type { FileData } from "@/pages/chatNew/components/MessageEditor/components/InputFiles/types"
 import { genFileData } from "@/pages/chatNew/components/MessageEditor/components/InputFiles/utils"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { getBrowserTimezone } from "@/providers/TimezoneProvider/utils"
 import type { ImproveInformationData } from "../types"
 
 interface UseImproveInformationFormOptions {
@@ -26,6 +27,7 @@ export function useImproveInformationForm({
 	const [imageUploadUrl, setImageUploadUrl] = useState<string>()
 	const [imageUploadKey, setImageUploadKey] = useState<string>()
 	const [userName, setUserName] = useState("")
+	const [timezone, setTimezone] = useState(getBrowserTimezone)
 	const [professionalIdentity, setProfessionalIdentity] = useState<string | undefined>(undefined)
 	const [discoveryChannel, setDiscoveryChannel] = useState<string | undefined>(undefined)
 	const [isLoading, setIsLoading] = useState(false)
@@ -78,6 +80,7 @@ export function useImproveInformationForm({
 		try {
 			await onSubmit?.({
 				userName,
+				timezone,
 				avatarUrl: imageUploadUrl,
 				avatarKey: imageUploadKey,
 				profession: professionalIdentity,
@@ -96,6 +99,7 @@ export function useImproveInformationForm({
 		setImageUploadUrl(undefined)
 		setImageUploadKey(undefined)
 		setUserName("")
+		setTimezone(getBrowserTimezone())
 		setProfessionalIdentity(undefined)
 		setDiscoveryChannel(undefined)
 		setIsLoading(false)
@@ -109,6 +113,8 @@ export function useImproveInformationForm({
 		imagePreviewUrl,
 		userName,
 		setUserName,
+		timezone,
+		setTimezone,
 		professionalIdentity,
 		setProfessionalIdentity,
 		discoveryChannel,

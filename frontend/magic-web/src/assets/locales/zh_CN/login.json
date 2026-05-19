@@ -6,6 +6,7 @@
 	"agree": "同意并继续",
 	"agreementText": "我已阅读并同意",
 	"and": "和",
+	"antaLogin": "安踏登录",
 	"appleLogin": "苹果登录",
 	"appleLoginDescription": "当前 Apple Id 尚未绑定账号",
 	"appleLoginLoading": "正在获取 Apple 登录信息，请稍候...",
@@ -19,7 +20,7 @@
 		"cancel": "取消",
 		"confirm": "确认"
 	},
-	"copyright": "Copyright © 2023 广东灯塔引擎科技有限公司 All Rights Reserved.",
+	"copyright": "",
 	"device": {
 		"app": "客户端",
 		"dingTalk": "钉钉",
@@ -80,6 +81,9 @@
 		"placeholder": "请输入手机号码"
 	},
 	"pleaseSendToEnd": "请输入发送至 {{phone}} 的 {{count}} 位验证码，有效期 {{minutes}} 分钟。",
+	"popupLoginErrorCodeLabel": "错误码",
+	"popupLoginErrorDefaultMessage": "登录过程中发生异常，请返回主窗口后重试。",
+	"popupLoginErrorTitle": "登录失败",
 	"prevStep": "返回上一步",
 	"privacyPolicy": "隐私政策",
 	"privateConfig": "私有化配置",

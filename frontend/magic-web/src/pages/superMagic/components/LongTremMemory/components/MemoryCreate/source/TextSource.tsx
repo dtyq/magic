@@ -22,7 +22,9 @@ export default function TextSource({
 	const { t } = useTranslation("super/longMemory")
 
 	/** 记忆归属 */
-	const [memoryBelong, setMemoryBelong] = useState<string>("global")
+	const [memoryBelong, setMemoryBelong] = useState<string>(
+		selectedProjectId ? "project" : "global",
+	)
 
 	// 获取项目数据
 	const { groupedOptions, loading, hasMore, error, loadMore, searchValue, searchProjects } =

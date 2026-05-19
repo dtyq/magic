@@ -9,18 +9,22 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Event\Subscribe;
 
 use App\Domain\Chat\Entity\ValueObject\SocketEventType;
 use App\Domain\Contact\Repository\Persistence\MagicUserRepository;
+use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\ProjectFileRpcClient;
 use App\Infrastructure\Util\SocketIO\SocketIOUtil;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
+use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileBatchMoveEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileRenamedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileReplacedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\ProjectDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
+use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Interfaces\SuperAgent\DTO\Response\TaskFileItemDTO;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
@@ -43,6 +47,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         private readonly ProjectDomainService $projectDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
         private readonly MagicUserRepository $magicUserRepository,
+        private readonly ProjectFileRpcClient $projectFileRpcClient,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(self::class);
@@ -62,6 +67,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             FileMovedEvent::class,
             FileBatchMoveEvent::class,
             FileContentSavedEvent::class,
+            FileReplacedEvent::class,
         ];
     }
 
@@ -80,6 +86,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
                 $event instanceof FileMovedEvent => $this->handleFileMoved($event),
                 $event instanceof FileBatchMoveEvent => $this->handleBatchMoved($event),
                 $event instanceof FileContentSavedEvent => $this->handleFileContentSaved($event),
+                $event instanceof FileReplacedEvent => $this->handleFileReplaced($event),
                 default => null,
             };
         } catch (Throwable $e) {
@@ -119,6 +126,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -145,6 +153,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -174,6 +183,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -201,6 +211,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -236,6 +247,9 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
+        foreach ($fileIds as $fileId) {
+            $this->notifyKnowledgeProjectFileChange((int) $fileId);
+        }
     }
 
     /**
@@ -263,6 +277,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -290,6 +305,7 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($userAuthorization->getId(), $pushData);
+        $this->notifyKnowledgeProjectFileChange($fileEntity->getFileId());
     }
 
     /**
@@ -312,7 +328,8 @@ class FileChangeNotificationSubscriber implements ListenerInterface
             try {
                 $fileEntity = $this->taskFileDomainService->getById($fileId);
                 if ($fileEntity) {
-                    $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $projectEntity->getWorkDir());
+                    $relativeFilePath = $this->buildRelativeFilePathForEntity($fileEntity, $projectId);
+                    $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $projectEntity->getWorkDir(), $relativeFilePath);
                     $changes[] = [
                         'operation' => 'update',
                         'file_id' => (string) $fileId,
@@ -344,6 +361,39 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         );
 
         $this->pushNotification($event->getUserId(), $pushData);
+        foreach ($fileIds as $fileId) {
+            $this->notifyKnowledgeProjectFileChange((int) $fileId);
+        }
+    }
+
+    /**
+     * Handle file replaced event.
+     */
+    private function handleFileReplaced(FileReplacedEvent $event): void
+    {
+        $fileEntity = $event->getFileEntity();
+        $projectEntity = $this->projectDomainService->getProjectNotUserId($fileEntity->getProjectId());
+
+        if (! $projectEntity) {
+            $this->logger->warning('Project not found for file replace notification', [
+                'project_id' => $fileEntity->getProjectId(),
+            ]);
+            return;
+        }
+
+        $userAuthorization = $event->getUserAuthorization();
+        $pushData = $this->buildPushData(
+            operation: 'update',
+            projectId: (string) $fileEntity->getProjectId(),
+            workspaceId: $projectEntity->getWorkDir(),
+            fileEntity: $fileEntity,
+            workDir: $projectEntity->getWorkDir(),
+            organizationCode: $userAuthorization->getOrganizationCode(),
+            conversationId: '',
+            topicId: (string) $fileEntity->getTopicId()
+        );
+
+        $this->pushNotification($userAuthorization->getId(), $pushData);
     }
 
     /**
@@ -360,7 +410,8 @@ class FileChangeNotificationSubscriber implements ListenerInterface
         string $conversationId = '',
         string $topicId = ''
     ): array {
-        $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $workDir);
+        $relativeFilePath = $this->buildRelativeFilePathForEntity($fileEntity, (int) $projectId);
+        $fileDto = TaskFileItemDTO::fromEntity($fileEntity, $workDir, $relativeFilePath);
 
         $changes = [
             [
@@ -411,6 +462,50 @@ class FileChangeNotificationSubscriber implements ListenerInterface
                 ],
             ],
         ];
+    }
+
+    /**
+     * Build relative file path based on parent_id chain, consistent with createFile response.
+     */
+    private function buildRelativeFilePathForEntity(TaskFileEntity $fileEntity, int $projectId): ?string
+    {
+        try {
+            $parentId = $fileEntity->getParentId();
+            $filesWithParents = [];
+            if ($parentId > 0) {
+                // Query from parent to avoid losing path when the changed file has been soft-deleted.
+                $filesWithParents = $this->taskFileDomainService->getFilesWithParentsByIds([$parentId], $projectId);
+            }
+
+            $fileMap = RelativeFilePathUtil::indexByFileId($filesWithParents);
+            $fileMap[$fileEntity->getFileId()] = $fileEntity;
+
+            return RelativeFilePathUtil::buildPathByParentChain($fileEntity, $fileMap);
+        } catch (Throwable $throwable) {
+            $this->logger->warning('Failed to build relative file path for notification', [
+                'file_id' => $fileEntity->getFileId(),
+                'project_id' => $projectId,
+                'error' => $throwable->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function notifyKnowledgeProjectFileChange(int $projectFileId): void
+    {
+        if ($projectFileId <= 0) {
+            return;
+        }
+
+        try {
+            $this->projectFileRpcClient->notifyChange($projectFileId);
+        } catch (Throwable $throwable) {
+            $this->logger->warning('Notify knowledge project file change failed', [
+                'project_file_id' => $projectFileId,
+                'error' => $throwable->getMessage(),
+            ]);
+        }
     }
 
     /**

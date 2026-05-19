@@ -20,6 +20,9 @@ export const enum ConversationMessageType {
 	/** 富文本消息 */
 	RichText = "rich_text",
 
+	/** 客户端工具调用 */
+	UserToolCall = "user_tool_call",
+
 	/** markdown 消息 */
 	Markdown = "markdown",
 
@@ -55,6 +58,106 @@ export const enum ConversationMessageType {
 
 	/** 超级麦吉消息 */
 	SuperMagic = "general_agent_card",
+
+	/** 超级麦吉消息V2 */
+	SuperMagicMessage = "super_magic_message",
+}
+
+export const enum AskUserInteractionType {
+	/** 二选一确认 */
+	Confirm = "confirm",
+	/** 文本输入 */
+	Input = "input",
+	/** 单选 */
+	Select = "select",
+	/** 多选 */
+	MultiSelect = "multi_select",
+}
+
+export const ASK_USER_CONTENT_STATUS = {
+	/** 等待用户回答 */
+	pending: "pending",
+	/** 已超时 */
+	timeout: "timeout",
+} as const
+
+export const ASK_USER_NODE_STATUS = {
+	/** 等待用户输入 */
+	waitingForUser: "waiting_for_user",
+	/** 已回答 */
+	answered: "answered",
+	/** 已跳过 */
+	skipped: "skipped",
+	/** 服务端处理中 */
+	running: "running",
+} as const
+
+/** AskUser 答案值：单值或多选数组 */
+export type AskUserAnswerValue = string | string[]
+
+export interface AskUserQuestionItem {
+	/** 子问题 ID */
+	sub_id: string
+	/** 子问题题干 */
+	question: string
+	/** 交互类型 */
+	interaction_type: AskUserInteractionType
+	/** 选项列表（输入题可为空） */
+	options: string[] | null
+	/** 输入占位文案 */
+	placeholder: string | null
+	/** 最少选择数量 */
+	min_select: number
+	/** 最多选择数量（null 表示不限制） */
+	max_select: number | null
+	/** 默认答案（超时时可回退） */
+	default_value: AskUserAnswerValue | null
+}
+
+export interface AskUserContent {
+	/** 问题组 ID */
+	question_id: string
+	/** 子问题列表 */
+	questions: AskUserQuestionItem[]
+	/** 过期时间（秒级 Unix 时间戳） */
+	expires_at: number
+	/** 卡片状态（pending/timeout） */
+	status: (typeof ASK_USER_CONTENT_STATUS)[keyof typeof ASK_USER_CONTENT_STATUS]
+}
+
+export type AskUserAnswerContent = Record<string, AskUserAnswerValue>
+
+export interface AskUserNode {
+	/** 应用消息 ID */
+	app_message_id?: string
+	/** 消息 ID */
+	message_id?: string
+	/** 话题 ID */
+	topic_id?: string
+	/** 任务 ID */
+	task_id?: string
+	/** 节点类型 */
+	type?: string
+	/** 节点状态 */
+	status?: (typeof ASK_USER_NODE_STATUS)[keyof typeof ASK_USER_NODE_STATUS] | string
+	/** 角色 */
+	role?: string
+	/** 关联 ID */
+	correlation_id?: string
+	/** 节点内容（JSON 字符串） */
+	content?: string
+	/** 发送时间戳 */
+	send_timestamp?: number
+	/** 是否展示在 UI */
+	show_in_ui?: boolean
+	/** 执行步骤 */
+	steps?: unknown[]
+	/** 工具信息 */
+	tool?: unknown | null
+	/** 附件信息 */
+	attachments?: unknown | null
+	/** 透传扩展字段 */
+	[key: string]: unknown
 }
 
 export interface SuperMagicTool {
@@ -68,6 +171,22 @@ export interface SuperMagicTool {
 	[key: string]: unknown
 }
 
+export interface SuperMagicSource {
+	channel: "dingtalk" | "lark" | "wechat" | "wecom" | (string & {})
+	message_id: string
+	conversation_id?: string
+	sender_id?: string
+}
+
+export interface SuperMagicNodeExtraSuperAgent {
+	mentions?: unknown[]
+	source?: SuperMagicSource
+	model?: Record<string, unknown>
+	image_model?: Record<string, unknown>
+	agent_code?: string
+	[key: string]: unknown
+}
+
 export interface SuperMagicNode {
 	topic_id?: string
 	message_id?: string
@@ -77,10 +196,15 @@ export interface SuperMagicNode {
 	content?: string
 	steps?: unknown[]
 	event?: string
-	role?: string
+	role: "user" | "assistant" | "tool"
 	correlation_id?: string
 	parent_correlation_id?: string
 	tool?: SuperMagicTool
+	attachments?: Array<Record<string, unknown>>
+	extra?: {
+		super_agent?: SuperMagicNodeExtraSuperAgent
+		[key: string]: unknown
+	}
 	send_timestamp?: number
 	[key: string]: unknown
 }
@@ -91,6 +215,13 @@ export interface SuperMagicConversationMessage extends ConversationMessageBase {
 }
 
 export type SuperMagicContent = SuperMagicConversationMessage
+
+export interface SuperMagicConversationMessageV2 extends ConversationMessageBase {
+	type: ConversationMessageType.SuperMagicMessage
+	super_magic_message: SuperMagicNode
+}
+
+export type SuperMagicContentV2 = SuperMagicConversationMessageV2
 
 /**
  * 携带流式消息状态

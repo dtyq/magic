@@ -1,4 +1,3 @@
-import { useStyles } from "./styles"
 import { useFileUpload } from "@/pages/chatNew/components/MessageEditor/hooks/useFileUpload"
 import { useMessageSend } from "@/pages/chatNew/components/MessageEditor/hooks/useMessageSend"
 import useConversationDraft from "@/pages/chatNew/components/MessageEditor/hooks/useConversationDraft"
@@ -13,7 +12,6 @@ import { VoiceInputRef } from "@/components/business/VoiceInput"
 import CurrentChatAgentTip from "./components/CurrentChatAgentTip"
 import UploadAction from "@/components/base/UploadAction"
 import { IconArrowUp, IconFileUpload } from "@tabler/icons-react"
-import { Tooltip } from "antd"
 import { useTranslation } from "react-i18next"
 import FlexBox from "@/components/base/FlexBox"
 import MagicIcon from "@/components/base/MagicIcon"
@@ -44,6 +42,20 @@ import EditorStore from "@/stores/chatNew/messageUI/editor"
 import TabIcon from "@/pages/superMagic/components/MessageEditor/assets/tab.svg"
 import AiCompletionTip from "@/pages/chatNew/components/MessageEditor/components/AiCompletionTip"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { MagicTooltip } from "@/components/base"
+import { cn } from "@/lib/utils"
+import {
+	messageEditorEditorBase,
+	messageEditorFooterLeft,
+	messageEditorFooterRight,
+	messageEditorQuickInstructionButton,
+	messageEditorReferMessage,
+	messageEditorReferSection,
+	messageEditorSendButton,
+	messageEditorSendButtonDisabled,
+	messageEditorToolBarButton,
+} from "./message-editor-classes"
+import { Upload } from "lucide-react"
 
 interface MessageEditorProps {
 	enableSwitchAgent?: boolean
@@ -62,7 +74,6 @@ function MessageEditor(
 	{ className, enableSwitchAgent = false, placeholder, size }: MessageEditorProps,
 	ref: React.Ref<MessageEditorRef>,
 ) {
-	const { styles, cx } = useStyles()
 	const { t } = useTranslation("super")
 	const navigate = useNavigate()
 	const isMobile = useIsMobile()
@@ -80,11 +91,10 @@ function MessageEditor(
 	}, [enableSwitchAgent])
 
 	/** Draft callback ref to resolve circular dependency */
-	const draftCallbackRef = useRef<() => void>(() => { })
+	const draftCallbackRef = useRef<() => void>(() => {})
 
 	/** Stable onChange callback to prevent useEditor re-initialization */
 	const stableOnChange = useMemoizedFn((content: JSONContent) => {
-		console.log("stableOnChange", content)
 		_setValue(content)
 		// Avoid triggering draft save when setting content programmatically
 		if (!settingContent.current) {
@@ -100,7 +110,7 @@ function MessageEditor(
 		}
 	})
 
-	const handleSendRef = useRef<() => void>(() => { })
+	const handleSendRef = useRef<() => void>(() => {})
 
 	/** 实例 */
 	const { tiptapEditor, domRef } = useMessageEditor({
@@ -293,7 +303,7 @@ function MessageEditor(
 
 	return (
 		<div
-			className={styles.container}
+			className="flex h-full w-full flex-col gap-2.5"
 			onDragEnter={dragEvents.onDragEnter}
 			onDragLeave={dragEvents.onDragLeave}
 			onDragOver={dragEvents.onDragOver}
@@ -308,70 +318,82 @@ function MessageEditor(
 			)}
 			<MessageRefer
 				isSelf={false}
-				containerClassName={styles.referMessageSection}
-				className={styles.referMessage}
+				containerClassName={messageEditorReferSection}
+				className={messageEditorReferMessage}
 				onClick={handleReferMessageClick}
 			/>
 			<InputFiles files={files} onFilesChange={setFiles} />
 			<EditorContent
 				ref={domRef}
 				editor={tiptapEditor}
-				className={cx(styles.editor, className, size)}
+				className={cn(
+					messageEditorEditorBase,
+					size === "small" && "text-xs leading-4",
+					className,
+					size,
+				)}
 				onCompositionStart={AiCompletionService.onCompositionStart}
 				onCompositionEnd={AiCompletionService.onCompositionEnd}
 			/>
 			{!isMobile && <AiCompletionTip icon={TabIcon as string} />}
 			<FlexBox
-				align="center"
+				align="flex-start"
 				justify="space-between"
 				gap={20}
-				className={styles.editorFooter}
+				className="h-8"
 				data-testid="chat-message-editor-footer"
 			>
 				<FlexBox
 					align="flex-start"
 					gap={4}
 					flex={1}
-					className={styles.footerLeft}
+					className={messageEditorFooterLeft}
 					data-testid="chat-message-editor-footer-left"
 				>
 					<InstructionActions
 						noStyle
 						position={InstructionGroupType.TOOL}
-						className={styles.quickInstructionButton}
+						className={messageEditorQuickInstructionButton}
 					/>
 					<InstructionActions
 						noStyle
 						position={InstructionGroupType.DIALOG}
-						className={styles.quickInstructionButton}
+						className={messageEditorQuickInstructionButton}
 					/>
 				</FlexBox>
-				<div className={styles.footerRight} data-testid="chat-message-editor-footer-right">
+				<div
+					className={messageEditorFooterRight}
+					data-testid="chat-message-editor-footer-right"
+				>
 					<UploadAction
 						multiple
 						onFileChange={onFileChange}
 						handler={(trigger) => (
-							<Tooltip title={t("messageEditor.addAttachment")} placement="top">
+							<MagicTooltip title={t("messageEditor.addAttachment")} placement="top">
 								<div
-									className={cx(styles.toolBarButton)}
+									className={messageEditorToolBarButton}
 									onClick={trigger}
 									data-testid="chat-message-editor-upload-button"
 								>
-									<MagicIcon component={IconFileUpload} size={20} />
+									<Upload className="size-[16px] shrink-0" />
 								</div>
-							</Tooltip>
+							</MagicTooltip>
 						)}
 					/>
-					<SuperMagicVoiceInput
-						ref={voiceInputRef}
-						initValue={value}
-						tiptapEditor={tiptapEditor}
-						updateValue={_setValue}
-					/>
+					<div className="flex size-[32px] items-center justify-center rounded-md border border-border">
+						<SuperMagicVoiceInput
+							ref={voiceInputRef}
+							initValue={value}
+							tiptapEditor={tiptapEditor}
+							updateValue={_setValue}
+							iconSize={16}
+						/>
+					</div>
 					<button
-						className={cx(
-							styles.sendButton,
-							(sendDisabled || isSending) && styles.sendButtonDisabled,
+						type="button"
+						className={cn(
+							messageEditorSendButton,
+							(sendDisabled || isSending) && messageEditorSendButtonDisabled,
 						)}
 						disabled={sendDisabled || isSending}
 						onClick={handleSendRef.current}

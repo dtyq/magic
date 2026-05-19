@@ -61,7 +61,15 @@
     },
     "shell_exec": {
         "zh_CN": "执行命令",
-        "en_US": "Execute Shell command"
+        "en_US": "Run command"
+    },
+    "shell_await": {
+        "zh_CN": "查询后台任务",
+        "en_US": "Check background task"
+    },
+    "run_sdk_snippet": {
+        "zh_CN": "代码模式",
+        "en_US": "Code Mode"
     },
     "run_python_snippet": {
         "zh_CN": "执行Python代码片段",
@@ -135,9 +143,29 @@
         "zh_CN": "视觉理解",
         "en_US": "Visual understanding"
     },
+    "visual_understanding_ing": {
+        "zh_CN": "正在视觉理解",
+        "en_US": "Analyzing image"
+    },
+    "video_understanding": {
+        "zh_CN": "视频理解",
+        "en_US": "Video understanding"
+    },
+    "video_understanding_ing": {
+        "zh_CN": "正在视频理解",
+        "en_US": "Analyzing video"
+    },
     "generate_image": {
         "zh_CN": "生成图像",
         "en_US": "Generate image"
+    },
+    "generate_images": {
+        "zh_CN": "生成图像",
+        "en_US": "Generate images"
+    },
+    "generate_images_ing": {
+        "zh_CN": "正在生成图像",
+        "en_US": "Generating images"
     },
     "generate_video": {
         "zh_CN": "生成视频",
@@ -199,14 +227,6 @@
         "zh_CN": "验证数据看板",
         "en_US": "Validate dashboard"
     },
-    "update_dashboard_template": {
-        "zh_CN": "更新数据看板模板",
-        "en_US": "Update dashboard template"
-    },
-    "backup_dashboard_template": {
-        "zh_CN": "备份数据看板模板",
-        "en_US": "Backup dashboard template"
-    },
     "query_dashboard_cards": {
         "zh_CN": "查询卡片",
         "en_US": "Query cards"
@@ -242,6 +262,10 @@
     "generate_canvas_images": {
         "zh_CN": "生成图片",
         "en_US": "Generate images"
+    },
+    "generate_canvas_images_ing": {
+        "zh_CN": "正在生成图片",
+        "en_US": "Generating images"
     },
     "generate_canvas_videos": {
         "zh_CN": "生成视频",
@@ -327,6 +351,14 @@
         "zh_CN": "管理定时任务",
         "en_US": "Manage cron jobs"
     },
+    "create_calendar_project": {
+        "zh_CN": "创建日历项目",
+        "en_US": "Create calendar project"
+    },
+    "manage_calendar": {
+        "zh_CN": "管理日程",
+        "en_US": "Manage calendar"
+    },
     "connect_wecom_bot": {
         "zh_CN": "连接企业微信",
         "en_US": "Connect WeCom"
@@ -350,5 +382,33 @@
     "get_im_channel_status": {
         "zh_CN": "查询 IM 渠道状态",
         "en_US": "Query IM channel status"
+    },
+    "init_virtual_machine": {
+        "zh_CN": "虚拟机正在初始化",
+        "en_US": "Initializing virtual machine"
+    },
+    "mcp_init": {
+        "zh_CN": "MCP 初始化",
+        "en_US": "MCP initialization"
+    },
+    "get_user_info": {
+        "zh_CN": "获取用户信息",
+        "en_US": "Get user info"
+    },
+    "ask_user": {
+        "zh_CN": "向用户提问",
+        "en_US": "Ask user"
+    },
+    "search_knowledge": {
+        "zh_CN": "知识检索",
+        "en_US": "Search knowledge"
+    },
+    "find_skills": {
+        "zh_CN": "搜索技能",
+        "en_US": "Search skills"
+    },
+    "install_skills": {
+        "zh_CN": "安装技能",
+        "en_US": "Install skills"
     }
 }

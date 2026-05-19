@@ -1,6 +1,6 @@
 import { IconChevronDown, IconChevronRight, IconDots } from "@tabler/icons-react"
 import { Loader2, ChevronDown } from "lucide-react"
-import { Flex } from "antd"
+import { Flex, message } from "antd"
 import { Checkbox } from "@/components/shadcn-ui/checkbox"
 import { useMemo, useImperativeHandle, forwardRef } from "react"
 import { createPortal } from "react-dom"
@@ -37,7 +37,9 @@ import {
 } from "./hooks"
 import { useFileShortcuts } from "./hooks/useFileShortcuts"
 import { useCrossProjectFileOperation } from "./hooks/useCrossProjectFileOperation"
+import { useImportFromOtherProject } from "./hooks/useImportFromOtherProject"
 import CrossProjectFileOperationModal from "../SelectPathModal/components/CrossProjectFileOperationModal"
+import ImportFromOtherProjectModal from "../SelectPathModal/components/ImportFromOtherProjectModal"
 import { useDragUpload } from "./hooks/useDragUpload"
 import { type PresetFileType } from "./constant"
 import { useDuplicateFileHandler } from "./hooks/useDuplicateFileHandler"
@@ -54,10 +56,15 @@ import { generateShareUrl } from "../ShareManagement/utils/shareTypeHelpers"
 import { ShareMode, ShareType } from "../Share/types"
 import { findTreeNodeByKey, type TreeNodeData } from "./utils/treeDataConverter"
 import { DuplicateFileModal } from "./components/DuplicateFileModal"
+import { CustomFolderMagicIcon } from "./components/CustomFolderMagicIcon"
+import { MagicSystemFolderIcon } from "./components/MagicSystemFolderIcon"
 import { InputWithError } from "./components"
 import {
 	getAppEntryFile,
 	getAttachmentType,
+	getChildrenForCustomMetadataIconPath,
+	getFileTreeIconType,
+	getFileIconType,
 } from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
 import { isEmpty } from "lodash-es"
 import { Button } from "@/components/shadcn-ui/button"
@@ -68,7 +75,7 @@ import { getParentPathFromFileId } from "../SelectPathModal/utils/attachmentUtil
 import { handleAttachmentDragEnd } from "../MessageEditor/utils/drag"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import SmartTooltip from "@/components/other/SmartTooltip"
-import mentionPanelStore from "@/components/business/MentionPanel/store"
+import mentionPanelStore from "@/components/business/MentionPanel/builtin-store"
 
 import { useDownloadImageMenu } from "../Detail/contents/Image/hooks/useDownloadImageMenu"
 import { DownloadImageMode } from "../../pages/Workspace/types"
@@ -77,6 +84,11 @@ import { MagicDropdown } from "@/components/base"
 import { detectContentTypeRender } from "../Detail/components/FilesViewer/utils/preview"
 import type { FileItem } from "../Detail/components/FilesViewer/types"
 import type { TopicFileRowDecorationResolver } from "./topic-file-row-decoration.types"
+import { DetailType } from "../Detail/types"
+import type { AttachmentNode } from "../Detail/components/SelfMediaRootRender/services/selfMediaHelpers"
+import { createSelfMediaTreeNavigationIndex } from "../Detail/components/SelfMediaRootRender/utils/selfMediaTreeNavigation"
+import SelfMediaPostRowPlatformIcon from "../Detail/components/SelfMediaRootRender/components/SelfMediaPostRowPlatformIcon"
+import { isMagicSystemFolder } from "./utils/magic-system-folder"
 
 interface TopicFilesCoreProps {
 	className?: string
@@ -122,6 +134,8 @@ interface TopicFilesCoreProps {
 	// 是否允许下载（用于分享页面权限控制）
 	allowDownload?: boolean
 	resolveTopicFileRowDecoration?: TopicFileRowDecorationResolver
+	// 刷新加载状态
+	refreshLoading?: boolean
 }
 
 // 定义 ref 暴露的方法接口
@@ -131,6 +145,7 @@ export interface TopicFilesCoreRef {
 	createDesignProject: (parentPath?: string) => Promise<any>
 	handleUploadFile: (item?: any) => void
 	handleUploadFolder: (item?: any) => void
+	handleImportFromOtherProject: (item?: any) => void
 	resetAllStates: () => void
 }
 
@@ -170,6 +185,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		filterBatchDownloadLayerMenuItems,
 		allowDownload,
 		resolveTopicFileRowDecoration,
+		refreshLoading = false,
 	},
 	ref,
 ) {
@@ -235,6 +251,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		handleDownloadPdf,
 		handleDownloadPpt,
 		handleDownloadPptx,
+		handleDownloadImage,
 		handleOpenFile,
 		handleMoveFile,
 		shareModalVisible,
@@ -294,6 +311,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		handleDownloadNoWaterMark,
 		isFreeTrialVersion,
 		preloadWaterMarkFreeModal,
+		shouldUseSingleDownloadEntry,
 	} = useDownloadImageMenu({
 		onDownload: (mode?: DownloadImageMode, item?: AttachmentItem | object) =>
 			handleDownloadOriginal(item as AttachmentItem, mode),
@@ -504,7 +522,6 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		// 外部文件上传支持
 		allowExternalDrop: allowEdit,
 		onUploadFiles: handleUploadFiles,
-		attachments,
 	})
 
 	// 检查是否可以移动到根目录的函数
@@ -600,10 +617,23 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		},
 	})
 
+	// 导入操作 Hook
+	const importOperation = useImportFromOtherProject({
+		projectId,
+		selectedWorkspace: selectedWorkspace || null,
+		selectedProject: selectedProject || null,
+		workspaces: workspaces || [],
+		attachments,
+		onSuccess: () => {
+			pubsub.publish(PubSubEvents.Update_Attachments)
+			onUpdateAttachments?.()
+		},
+	})
+
 	// 创建移动文件处理函数的适配器
 	const handleMoveFileAdapter = useMemoizedFn((item: AttachmentItem) => {
 		// 如果有跨项目操作所需的数据，使用新的跨项目 Modal
-		if (selectedWorkspace && selectedProject && projects.length > 0) {
+		if (projects.length > 0) {
 			if (item.file_id) {
 				// 获取文件的父目录路径
 				const parentPath = getParentPathFromFileId(item.file_id, attachments)
@@ -627,6 +657,19 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		}
 	})
 
+	// 从其他项目导入文件处理函数
+	const handleImportFromOtherProject = useMemoizedFn((item?: AttachmentItem) => {
+		if (item && item.is_directory && item.file_id) {
+			// 如果是文件夹，导入到该文件夹
+			const parentPath = getParentPathFromFileId(item.file_id, attachments)
+			const targetPath = [...parentPath, item]
+			importOperation.openImportModal(targetPath)
+		} else {
+			// 如果是空白区域，导入到根目录
+			importOperation.openImportModal([])
+		}
+	})
+
 	// 文件快捷键 hook（需要在 useContextMenu 之前调用）
 	const { getShortcutHint } = useFileShortcuts({
 		hoveredItem,
@@ -646,12 +689,14 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 	const { getMenuItems, getBatchDownloadLayerMenuItems } = useContextMenu({
 		handleUploadFile,
 		handleUploadFolder,
+		handleImportFromOtherProject,
 		handleShareItem: handleShareItemFromHook,
 		handleDeleteItem,
 		handleDownloadOriginal,
 		handleDownloadPdf,
 		handleDownloadPpt,
 		handleDownloadPptx,
+		handleDownloadImage,
 		handleOpenFile,
 		handleStartRename,
 		handleAddToCurrentChat,
@@ -669,11 +714,13 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		handleDownloadNoWaterMark,
 		preloadWaterMarkFreeModal,
 		isFreeTrialVersion,
+		shouldUseSingleDownloadEntry,
 		getShortcutHint,
 		handleEnterMultiSelectMode,
 		isSelectMode,
 		filterMenuItems,
 		filterBatchDownloadLayerMenuItems,
+		treeData,
 	})
 
 	// 重置所有状态的方法
@@ -704,6 +751,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		},
 		handleUploadFile,
 		handleUploadFolder,
+		handleImportFromOtherProject,
 		resetAllStates,
 	}))
 
@@ -725,6 +773,62 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		return node?.item
 	})
 
+	const selfMediaNavigation = useMemo(
+		() => createSelfMediaTreeNavigationIndex(attachments as unknown as AttachmentNode[]),
+		[attachments],
+	)
+
+	/** Open self-media root when clicking the exact `posts/<id>` folder row. */
+	const tryOpenSelfMediaFromPostRootFolder = useMemoizedFn((item: AttachmentItem): boolean => {
+		if (!attachments?.length) return false
+		const resolution = selfMediaNavigation.resolvePostRootFolderClick({
+			...item,
+			display_config: item.display_config,
+		})
+		const nav = resolution?.navigationTarget
+		if (!nav) return false
+		const root = findFileInTree(nav.rootFolderFileId)
+		if (!root?.file_id) return false
+		const fileItem: FileItem = {
+			file_id: root.file_id,
+			file_name: root.file_name || root.name || "",
+			display_filename: root.name || root.file_name,
+			is_directory: root.is_directory,
+			children: root.children as FileItem[] | undefined,
+			display_config: root.display_config,
+			file_extension: root.file_extension,
+			file_size: root.file_size,
+		}
+		const contentTypeConfig = detectContentTypeRender(fileItem)
+		if (!contentTypeConfig || contentTypeConfig.detailType !== DetailType.SelfMedia) {
+			return false
+		}
+		const transformedData = contentTypeConfig.dataTransformer
+			? contentTypeConfig.dataTransformer(fileItem)
+			: fileItem
+		const platformGuess = resolution.targetPlatform
+		const rootDetailData = {
+			...root,
+			...transformedData,
+			file_id: root.file_id,
+			file_name: root.name || root.file_name,
+			display_config: root.display_config,
+			initialNavigation: {
+				activePostId: nav.activePostId,
+				initialView: "detail" as const,
+				...(platformGuess ? { activePlatform: platformGuess } : {}),
+			},
+		}
+		if (onFileClick && root.file_id) onFileClick(rootDetailData)
+		setUserSelectDetail?.({
+			type: contentTypeConfig.detailType,
+			data: rootDetailData,
+			currentFileId: root.file_id,
+			attachments,
+		})
+		return true
+	})
+
 	// 检查文件是否在文件夹的直接子项中（只检查一级，不递归）
 	const isFileInFolder = useMemoizedFn(
 		(folderItem: AttachmentItem, targetFileId: string): boolean => {
@@ -741,7 +845,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 	const titleRender = useMemoizedFn((node: TreeNodeData) => {
 		const item = node.item || {}
 		const itemId = node.key
-		const { metadata } = item
+		const { display_config } = item
 		const isSelected = isItemSelected(itemId)
 		const isActiveFile = activeFileId === item?.file_id
 		const hasChildren = node.children && node.children.length > 0
@@ -773,7 +877,12 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		// 渲染展开/折叠图标
 		const renderExpandIcon = () => {
 			if (!hasChildren) {
-				return <div style={{ width: 16, height: 16 }} /> // 占位符，保持对齐
+				return (
+					<div
+						style={{ width: 16, height: 16 }}
+						data-testid="file-expand-icon-placeholder"
+					/>
+				) // 占位符，保持对齐
 			}
 
 			return (
@@ -785,6 +894,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						cursor: "pointer",
 						color: "rgba(28, 29, 35, 0.6)",
 					}}
+					data-testid="file-expand-icon"
 					onClick={(e: any) => {
 						e.stopPropagation()
 						const newExpandedKeys = isExpanded
@@ -808,6 +918,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						styles.fileItem,
 						contextMenuItemId === itemId && styles.contextMenuActiveItem,
 					)}
+					data-testid="file-item-virtual"
 					onMouseEnter={() => setHoveredItem(itemId)}
 					onMouseLeave={() => setHoveredItem(null)}
 					draggable={false}
@@ -853,6 +964,13 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 										: isVirtualNormalFolder
 											? virtualFolderInputRef
 											: virtualFileInputRef
+								}
+								data-testid={
+									isVirtualDesignProject
+										? "design-project-name-input-virtual"
+										: isVirtualNormalFolder
+											? "folder-name-input-virtual"
+											: "file-name-input-virtual"
 								}
 								value={
 									isVirtualDesignProject
@@ -929,25 +1047,43 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 			const isFolderIndeterminate = folderSelectionState === "partial"
 
 			// 检查是否应该高亮文件夹：
-			// 1. 如果打开的文件是 index.html，并且该文件夹有 metadata，且该文件在文件夹的子项中
+			// 1. 如果打开的文件是 index.html，并且该文件夹有 display_config，且该文件在文件夹的子项中
 			// 2. 或者文件夹本身是 activeFileId
 			const activeFile = activeFileId ? findFileInTree(activeFileId) : undefined
 			const isActiveFileIndexHtml =
 				activeFile?.file_name === "index.html" ||
 				activeFile?.filename === "index.html" ||
 				activeFile?.display_filename === "index.html"
+			const appEntryResolvedForHighlight =
+				display_config?.type === "custom"
+					? getAppEntryFile(item?.children || [], display_config)
+					: null
+			const isActiveCustomEntry =
+				display_config?.type === "custom" &&
+				activeFileId &&
+				appEntryResolvedForHighlight?.file_id === activeFileId
 			const shouldHighlightFolder =
-				// 情况1：子文件是 index.html
+				// 情况1：子文件是 index.html（非 custom 入口）
 				(isActiveFileIndexHtml &&
-					!!metadata?.type &&
+					!!display_config?.type &&
+					display_config?.type !== "custom" &&
 					activeFileId &&
 					isFileInFolder(item, activeFileId)) ||
+				// 情况1b：custom 类型，当前打开的是 index 解析出的入口文件
+				isActiveCustomEntry ||
 				// 情况2：文件夹本身是 activeFileId
-				(activeFileId === item?.file_id && !!metadata?.type)
+				(activeFileId === item?.file_id && !!display_config?.type)
 			const isFolderBusy =
 				isFileRenaming(item) ||
 				movingFiles.has(item?.file_id || "") ||
 				isFolderDownloading(item)
+
+			const { folderIconPlatform: selfMediaRowPlatform } = attachments?.length
+				? selfMediaNavigation.resolveNode({
+						...item,
+						display_config: item.display_config,
+					})
+				: { folderIconPlatform: null }
 
 			// 使用 createFileDragHandlers 获取拖拽事件处理器
 			const folderDragHandlers = createFileDragHandlers({
@@ -974,6 +1110,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						shouldHighlightFolder && styles.activeFileItemWrapper,
 						contextMenuItemId === itemId && styles.contextMenuActiveItem,
 					)}
+					data-testid={`file-item-folder${item?.file_id ? `-${item.file_id}` : ""}`}
 					onClick={(e) => {
 						e.stopPropagation()
 						if (isSelectMode) {
@@ -981,14 +1118,16 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 							return
 						}
 
-						if (isEmpty(item.metadata)) {
-							// 普通文件夹，没有 metadata，直接展开/折叠
+						if (tryOpenSelfMediaFromPostRootFolder(item)) return
+
+						if (isEmpty(item.display_config)) {
+							// 普通文件夹，没有 display_config，直接展开/折叠
 							const newExpandedKeys = isExpanded
 								? expandedKeys.filter((key) => key !== node.key)
 								: [...expandedKeys, node.key]
 							setExpandedKeys(newExpandedKeys)
 						} else {
-							// 有 metadata 的文件或文件夹，需要判断是内容类型渲染还是文件预览
+							// 有 display_config 的文件或文件夹，需要判断是内容类型渲染还是文件预览
 							// 1. 先检查是否是内容类型渲染（不依赖文件内容，有自己的 detail render content）
 							// 需要将 AttachmentItem 转换为 FileItem 格式
 							const fileItem: FileItem = {
@@ -997,7 +1136,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 								display_filename: item.name || item.file_name,
 								is_directory: item.is_directory,
 								children: item.children as FileItem[] | undefined,
-								metadata: item.metadata,
+								display_config: item.display_config,
 								file_extension: item.file_extension,
 								file_size: item.file_size,
 							}
@@ -1022,16 +1161,21 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 										...transformedData,
 										file_id: item.file_id,
 										file_name: item.name || item.file_name,
-										metadata: item.metadata,
+										display_config: item.display_config,
 									},
 									currentFileId: item.file_id,
 									attachments,
 								})
 							} else {
-								// 文件预览模式（默认）：查找并加载入口文件（如 index.html）
-								const appEntryFile = getAppEntryFile(item?.children || [])
+								// 文件预览模式（默认）：custom 用 index，其它默认 index.html
+								const appEntryFile = getAppEntryFile(
+									item?.children || [],
+									item.display_config,
+								)
 								if (appEntryFile) {
 									handleOpenFile(appEntryFile)
+								} else if (item.display_config?.type === "custom") {
+									message.error(t("topicFiles.customMainFileNotFound"))
 								} else {
 									// 如果没有入口文件，可能是普通文件夹，展开/折叠
 									const newExpandedKeys = isExpanded
@@ -1058,7 +1202,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						<div
 							className={styles.iconWrapper}
 							onClick={(e) => {
-								if (!isEmpty(metadata)) {
+								if (!isEmpty(display_config)) {
 									e.stopPropagation()
 									const newExpandedKeys = isExpanded
 										? expandedKeys.filter((key) => key !== node.key)
@@ -1079,11 +1223,30 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 								<Loader2 className="mr-1 animate-spin" size={16} />
 							) : decoration?.icon && !isFolderBusy ? (
 								decoration.icon
-							) : metadata?.type ? (
-								<MagicFileIcon
-									type={getAttachmentType(item?.metadata) || item?.file_extension}
+							) : selfMediaRowPlatform && !isFolderBusy ? (
+								<SelfMediaPostRowPlatformIcon
+									platform={selfMediaRowPlatform}
 									size={16}
 								/>
+							) : !isFolderBusy && isMagicSystemFolder(item) ? (
+								<MagicSystemFolderIcon size={16} />
+							) : display_config?.type ? (
+								display_config?.type === "custom" ? (
+									<CustomFolderMagicIcon
+										displayConfig={item?.display_config}
+										childrenItems={getChildrenForCustomMetadataIconPath(
+											item,
+											(id) => findFileInTree(id),
+										)}
+										typeFallback="custom"
+										size={16}
+									/>
+								) : (
+									<MagicFileIcon
+										type={getAttachmentType(item) || item?.file_extension}
+										size={16}
+									/>
+								)
 							) : (
 								<img
 									src={FoldIcon as unknown as string}
@@ -1100,6 +1263,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 								<InputWithError
 									ref={renameInputRef}
 									value={renameValue}
+									data-testid="file-name-input-rename"
 									onChange={(e: any) => setRenameValue(e.target.value)}
 									onBlur={handleRenameConfirm}
 									onKeyDown={handleRenameKeyDown}
@@ -1133,6 +1297,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						!(filterMenuItems && allowDownload === false) && (
 							<MagicIcon
 								className={styles.attachmentAction}
+								data-testid="file-more-actions-button"
 								onClick={(e: any) => {
 									e.stopPropagation()
 									delegateProps.onDropdownActionClick?.(e, item)
@@ -1192,24 +1357,26 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 					contextMenuItemId === itemId && styles.contextMenuActiveItem,
 				)}
 				data-file-id={item.file_id}
+				data-testid={`file-item-file${item?.file_id ? `-${item.file_id}` : ""}`}
 				onClick={(e) => {
-					console.log("file_id", item.file_id)
 					e.stopPropagation()
 					if (isSelectMode) {
 						handleItemSelect(item)
 						return
 					}
 
+					if (tryOpenSelfMediaFromPostRootFolder(item)) return
+
 					if (renamingItemId !== itemId) {
 						// 检查是否是内容类型渲染（不依赖文件内容，有自己的 detail render content）
-						if (item.metadata?.type) {
+						if (item.display_config?.type) {
 							const fileItem: FileItem = {
 								file_id: item.file_id || "",
 								file_name: item.file_name || item.name || "",
 								display_filename: item.file_name || item.name,
 								is_directory: item.is_directory,
 								children: item.children as FileItem[] | undefined,
-								metadata: item.metadata,
+								display_config: item.display_config,
 								file_extension: item.file_extension,
 								file_size: item.file_size,
 							}
@@ -1234,7 +1401,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 										...transformedData,
 										file_id: item.file_id,
 										file_name: item.file_name || item.name,
-										metadata: item.metadata,
+										display_config: item.display_config,
 									},
 									currentFileId: item.file_id,
 									attachments,
@@ -1272,9 +1439,22 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						) : null}
 						{decoration?.icon && !isFileBusy ? (
 							decoration.icon
+						) : item?.display_config?.type === "custom" ? (
+							<CustomFolderMagicIcon
+								displayConfig={item?.display_config}
+								childrenItems={getChildrenForCustomMetadataIconPath(item, (id) =>
+									findFileInTree(id),
+								)}
+								typeFallback="custom"
+								size={16}
+							/>
 						) : (
 							<MagicFileIcon
-								type={getAttachmentType(item?.metadata) || item?.file_extension}
+								type={
+									getFileTreeIconType(item) ||
+									getFileIconType(item) ||
+									item?.file_extension
+								}
 								size={16}
 							/>
 						)}
@@ -1286,6 +1466,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 							<InputWithError
 								ref={renameInputRef}
 								value={renameValue}
+								data-testid="file-name-input-rename"
 								onChange={(e: any) => setRenameValue(e.target.value)}
 								onBlur={handleRenameConfirm}
 								onKeyDown={handleRenameKeyDown}
@@ -1321,6 +1502,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 					(allowEdit || (filterMenuItems && allowDownload !== false)) && (
 						<MagicIcon
 							className={styles.attachmentAction}
+							data-testid="file-more-actions-button"
 							onClick={(e: any) => {
 								e.stopPropagation()
 								delegateProps.onDropdownActionClick?.(e, item)
@@ -1480,6 +1662,15 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						onDragOver={handleTreeNodeDragOver}
 						onDrop={handleTreeNodeDrop}
 					/>
+				) : refreshLoading ? (
+					<div className="flex h-full w-full items-center justify-center">
+						<div className="flex flex-col items-center gap-3">
+							<Loader2 size={20} className="animate-spin text-muted-foreground" />
+							<p className="text-sm text-muted-foreground">
+								{t("topicFiles.loadingFiles")}
+							</p>
+						</div>
+					</div>
 				) : (
 					<EmptyState
 						onAddFile={createVirtualFile}
@@ -1508,6 +1699,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 							<div style={{ width: "100%" }}>
 								<Button
 									className={styles.batchDownloadButtonPC}
+									data-testid="batch-operations-button"
 									disabled={batchLoading}
 									style={{ flex: 1, width: "100%" }}
 								>
@@ -1529,6 +1721,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 					<Button
 						variant="secondary"
 						className="h-9 px-8 py-2 text-sm font-medium shadow-xs"
+						data-testid="mobile-cancel-select-button"
 						onClick={() => pubsub.publish(PubSubEvents.Cancel_File_Selection)}
 					>
 						{t("topicFiles.cancelSelect")}
@@ -1544,6 +1737,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 						<Button
 							variant="default"
 							className="h-9 w-[253px] gap-2 px-4 py-2 text-sm font-medium shadow-xs"
+							data-testid="mobile-batch-operations-button"
 							disabled={!showBatchDownload || batchLoading}
 						>
 							{batchLoading ? <Loader2 className="animate-spin" size={16} /> : null}
@@ -1586,6 +1780,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 					}
 					defaultSelectedFileIds={shareFileInfo.fileIds}
 					projectName={shareFileInfo.projectName}
+					projectId={projectId}
 				/>
 			)}
 			{/* 文件分享成功Modal - 用于已存在的分享 */}
@@ -1652,29 +1847,27 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 				/>
 			}
 			{/* 跨项目文件操作 Modal */}
-			{selectedWorkspace && selectedProject && projects.length > 0 && workspaces && (
-				<CrossProjectFileOperationModal
-					visible={crossProjectOperation.visible}
-					title={
-						crossProjectOperation.operationType === "move"
-							? t("topicFiles.contextMenu.moveTo")
-							: t("topicFiles.contextMenu.copyTo")
-					}
-					operationType={crossProjectOperation.operationType}
-					selectedWorkspace={selectedWorkspace}
-					selectedProject={selectedProject}
-					workspaces={workspaces}
-					fileIds={crossProjectOperation.fileIds}
-					sourceAttachments={attachments}
-					initialPath={crossProjectOperation.initialPath}
-					onClose={crossProjectOperation.closeModal}
-					onSubmit={
-						crossProjectOperation.operationType === "move"
-							? crossProjectOperation.executeMoveOperation
-							: crossProjectOperation.executeCopyOperation
-					}
-				/>
-			)}
+			<CrossProjectFileOperationModal
+				visible={crossProjectOperation.visible}
+				title={
+					crossProjectOperation.operationType === "move"
+						? t("topicFiles.contextMenu.moveTo")
+						: t("topicFiles.contextMenu.copyTo")
+				}
+				operationType={crossProjectOperation.operationType}
+				selectedWorkspace={selectedWorkspace}
+				selectedProject={selectedProject}
+				workspaces={workspaces}
+				fileIds={crossProjectOperation.fileIds}
+				sourceAttachments={attachments}
+				initialPath={crossProjectOperation.initialPath}
+				onClose={crossProjectOperation.closeModal}
+				onSubmit={
+					crossProjectOperation.operationType === "move"
+						? crossProjectOperation.executeMoveOperation
+						: crossProjectOperation.executeCopyOperation
+				}
+			/>
 			{/* 跨项目移动/复制同名文件处理 Modal */}
 			<DuplicateFileModal
 				visible={crossProjectOperation.duplicateModalVisible}
@@ -1684,20 +1877,48 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 				onReplace={crossProjectOperation.handleDuplicateReplace}
 				onKeepBoth={crossProjectOperation.handleDuplicateKeepBoth}
 			/>
+			{/* 从其他项目导入 Modal */}
+			{workspaces && projectId && (
+				<ImportFromOtherProjectModal
+					visible={importOperation.visible}
+					workspaces={workspaces}
+					currentProjectId={projectId}
+					currentProject={selectedProject || null}
+					targetPath={importOperation.targetPath}
+					targetAttachments={attachments}
+					onClose={importOperation.closeModal}
+					onSubmit={importOperation.executeImportOperation}
+				/>
+			)}
+			{/* 导入同名文件处理 Modal */}
+			<DuplicateFileModal
+				visible={importOperation.duplicateModalVisible}
+				fileName={importOperation.currentDuplicateFileName}
+				totalDuplicates={importOperation.totalDuplicates}
+				onCancel={importOperation.handleDuplicateCancel}
+				onReplace={importOperation.handleDuplicateReplace}
+				onKeepBoth={importOperation.handleDuplicateKeepBoth}
+			/>
 			{/* 移动/复制进度提示 - 使用 Portal 渲染到 body */}
 			{createPortal(
 				<MagicProgressToast
-					visible={isMoving || crossProjectOperation.isOperating}
+					visible={
+						isMoving || crossProjectOperation.isOperating || importOperation.isOperating
+					}
 					progress={
 						crossProjectOperation.isOperating
 							? crossProjectOperation.operationProgress
-							: moveProgress
+							: importOperation.isOperating
+								? importOperation.operationProgress
+								: moveProgress
 					}
 					text={
 						crossProjectOperation.isOperating &&
 						crossProjectOperation.operationType === "copy"
 							? t("topicFiles.copying")
-							: t("topicFiles.moving")
+							: importOperation.isOperating
+								? t("topicFiles.copying")
+								: t("topicFiles.moving")
 					}
 					position="top"
 					width={280}

@@ -15,20 +15,28 @@ import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
 import { resolveMessageSendContext } from "@/pages/superMagic/services/messageSendPreparation"
 import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import { messageSendService } from "@/pages/superMagic/services/messageSendFlowService"
-import {
-	TopicMode,
-	type ProjectListItem,
-	type TaskStatus,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { type ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "../../Workspace/TopicMode"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { userStore } from "@/models/user"
-import type { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
-import CrewMessageHeader from "../../CrewEdit/components/CrewTopicPanel/components/MessageHeader"
+import type {
+	SceneEditorContext,
+	SceneEditorNodes,
+} from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
+import MessageQueue from "@/pages/superMagic/components/MessagePanel/components/MessageQueue"
+import useMessageQueue from "@/pages/superMagic/components/MessagePanel/hooks/useMessageQueue"
+import MessageHeader from "@/pages/superMagic/components/MessageHeader"
+import { useScopedMessageHeaderTopicActions } from "@/pages/superMagic/hooks/useScopedMessageHeaderTopicActions"
 import { useSkillEditStore } from "../context"
 import { merge } from "lodash-es"
 import { DEFAULT_LAYOUT_CONFIG } from "@/pages/superMagic/components/MessageEditor/constants/constant"
-import { MentionPanelStore } from "@/components/business/MentionPanel/store"
+import { MentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import type { ProjectFilesStore } from "@/stores/projectFiles"
+import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
+import useTopicModel from "@/pages/superMagic/components/MessageEditor/hooks/useTopicModel"
+import { useRefreshTopicDetailOnTaskComplete } from "@/pages/superMagic/hooks/useRefreshTopicDetailOnTaskComplete"
+import { useScopedTopicReadProgress } from "@/pages/superMagic/hooks/useScopedTopicReadProgress"
+import { applyOptimisticTopicRunningState } from "@/pages/superMagic/services/topicStatusSyncService"
 
 interface ConversationPanelProps {
 	selectedProject: ProjectListItem | null
@@ -37,6 +45,9 @@ interface ConversationPanelProps {
 	onToggleConversationPanel?: () => void
 	onExpandConversationPanel?: () => void
 	detailPanelVisible?: boolean
+	historyTriggerMode?: "dropdown" | "layout"
+	isHistoryPanelOpen?: boolean
+	onToggleHistoryPanel?: () => void
 	mentionPanelStore: MentionPanelStore
 	projectFilesStore: ProjectFilesStore
 }
@@ -48,25 +59,52 @@ function ConversationPanel({
 	onToggleConversationPanel,
 	onExpandConversationPanel,
 	detailPanelVisible = true,
+	historyTriggerMode = "dropdown",
+	isHistoryPanelOpen = false,
+	onToggleHistoryPanel,
 	mentionPanelStore,
 	projectFilesStore,
 }: ConversationPanelProps) {
 	const { conversation } = useSkillEditStore()
 	const selectedTopic = topicStore.selectedTopic
 
+	const sharedTopicModelStore = useMemo(() => createSuperMagicTopicModelStore(), [])
+
+	useRefreshTopicDetailOnTaskComplete({
+		selectedTopic,
+		onTopicDetailLoaded: topicStore.updateTopic,
+	})
+
+	const { topicModelStore } = useTopicModel({
+		selectedTopic,
+		selectedProject,
+		topicMode: TopicMode.Default,
+		topicModelStore: sharedTopicModelStore,
+	})
+	const { handlePullMoreMessage, isMessagesInitialLoading, isSelectedTopicMessagesReady } =
+		useTopicMessages({
+			selectedTopic,
+		})
+	const { handleTopicMessagesChange } = useScopedTopicReadProgress({
+		scopeName: "SkillConversationPanel",
+		topicStore,
+		selectedTopic,
+		isSelectedTopicMessagesReady,
+	})
+
 	const { messages, showLoading } = useTopicConversationLoading({
 		selectedTopic,
 		onConversationGeneratingChange: conversation.setConversationGenerating,
-		onTopicMessagesChange: ({ lastMessageNode, selectedTopic: currentTopic }) => {
-			const nextStatus = lastMessageNode?.status as TaskStatus | undefined
-			if (currentTopic?.id && nextStatus) {
-				void topicStore.updateTopicStatus(currentTopic.id, nextStatus)
-			}
-		},
+		onTopicMessagesChange: handleTopicMessagesChange,
 	})
 
-	const { handlePullMoreMessage, isMessagesInitialLoading } = useTopicMessages({
-		selectedTopic,
+	const messageQueue = useMessageQueue({
+		projectId: selectedProject?.id,
+		topicId: selectedTopic?.id,
+		agentCode: selectedTopic?.agent_code,
+		isTaskRunning: showLoading,
+		isEmptyStatus: false,
+		isShowLoadingInit: isMessagesInitialLoading,
 	})
 
 	const handleSendMsg = useMemoizedFn(
@@ -92,6 +130,38 @@ function ConversationPanel({
 		messages,
 		userInfo: userStore.user.userInfo,
 	})
+	const topicActions = useScopedMessageHeaderTopicActions({
+		selectedProject,
+		selectedTopic,
+		topicStore,
+	})
+
+	const editorNodes = useMemo<SceneEditorNodes>(() => {
+		const messageQueueNode =
+			messageQueue.queue.length > 0 ? (
+				<div className="mb-2">
+					<MessageQueue
+						queue={messageQueue.queue}
+						queueStats={messageQueue.queueStats}
+						editingQueueItem={messageQueue.editingQueueItem}
+						onRemoveMessage={messageQueue.removeFromQueue}
+						onSendMessage={messageQueue.sendQueuedMessage}
+						onStartEdit={messageQueue.startEditQueueItem}
+						onCancelEdit={messageQueue.cancelEditQueueItem}
+					/>
+				</div>
+			) : null
+
+		return { messageQueueNode }
+	}, [
+		messageQueue.queue,
+		messageQueue.queueStats,
+		messageQueue.editingQueueItem,
+		messageQueue.removeFromQueue,
+		messageQueue.sendQueuedMessage,
+		messageQueue.startEditQueueItem,
+		messageQueue.cancelEditQueueItem,
+	])
 
 	const editorContext = useMemo<SceneEditorContext>(() => {
 		return {
@@ -108,12 +178,27 @@ function ConversationPanel({
 			projectFilesStore,
 			layoutConfig: DEFAULT_LAYOUT_CONFIG,
 			showLoading,
+			onSendComplete: ({ success, currentProject, currentTopic }) => {
+				if (!success) return
+
+				applyOptimisticTopicRunningState({
+					topicStore,
+					topic: currentTopic ?? topicStore.selectedTopic,
+					project: currentProject ?? selectedProject,
+				})
+			},
 			mergeSendParams: ({ defaultParams }) => {
 				const mergedParams = merge(defaultParams, {
 					topicMode: TopicMode.SkillCreator,
 				})
 				return mergedParams
 			},
+			queueContext: {
+				editingQueueItem: messageQueue.editingQueueItem,
+				addToQueue: messageQueue.addToQueue,
+				finishEditQueueItem: messageQueue.finishEditQueueItem,
+			},
+			size: detailPanelVisible ? "small" : "default",
 		}
 	}, [
 		selectedProject,
@@ -122,15 +207,19 @@ function ConversationPanel({
 		mentionPanelStore,
 		projectFilesStore,
 		showLoading,
+		messageQueue.editingQueueItem,
+		messageQueue.addToQueue,
+		messageQueue.finishEditQueueItem,
+		detailPanelVisible,
 	])
 
 	const messageListProviderValue = useMemo(() => {
 		return {
-			allowRevoke: false,
+			allowRevoke: true,
 			allowUserMessageCopy: true,
 			allowScheduleTaskCreate: false,
 			allowMessageTooltip: true,
-			allowConversationCopy: false,
+			allowConversationCopy: true,
 			onTopicSwitch: topicStore.setSelectedTopic,
 		}
 	}, [topicStore.setSelectedTopic])
@@ -143,19 +232,24 @@ function ConversationPanel({
 			isConversationPanelCollapsed={isConversationPanelCollapsed}
 			detailPanelVisible={detailPanelVisible}
 			header={
-				<CrewMessageHeader
+				<MessageHeader
 					isConversationPanelCollapsed={isConversationPanelCollapsed}
 					onToggleConversationPanel={onToggleConversationPanel}
 					onExpandConversationPanel={onExpandConversationPanel}
 					detailPanelVisible={detailPanelVisible}
 					selectedProject={selectedProject}
 					topicStore={topicStore}
+					topicActions={topicActions}
 					hideTopicListModeIcon
+					historyTriggerMode={historyTriggerMode}
+					isHistoryPanelOpen={isHistoryPanelOpen}
+					onToggleHistoryPanel={onToggleHistoryPanel}
 				/>
 			}
 			emptyHero={<SkillConversationEmptyState variant="hero" className="w-full" />}
 			emptyCompact={<SkillConversationEmptyState variant="compact" />}
 			editor={<DefaultMessageEditorContainer editorContext={editorContext} />}
+			editorNodes={editorNodes}
 			messageListProviderValue={messageListProviderValue}
 			messages={messages as SuperMagicMessageItem[]}
 			selectedTopic={selectedTopic}

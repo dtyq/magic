@@ -242,6 +242,14 @@ describe("file utilities", () => {
 			expect(mockLink.click).toHaveBeenCalled()
 		})
 
+		it("should reject raw SVG markup as a download URL", async () => {
+			const createElementSpy = vi.spyOn(document, "createElement")
+			const result = await downloadFile("<svg><circle r='50' /></svg>", "diagram", "svg")
+
+			expect(result.success).toBe(false)
+			expect(createElementSpy).not.toHaveBeenCalled()
+		})
+
 		it("should handle blob URLs with filename without extension", async () => {
 			const { fileTypeFromStream } = await import("file-type")
 			vi.mocked(fileTypeFromStream).mockResolvedValue(
@@ -264,6 +272,7 @@ describe("file utilities", () => {
 		})
 
 		it("should handle image files with fetch", async () => {
+			vi.useFakeTimers()
 			const mockBlob = new Blob(["fake image data"], { type: "image/jpeg" })
 			const mockFetch = vi.mocked(fetch)
 			mockFetch.mockResolvedValueOnce({
@@ -291,11 +300,13 @@ describe("file utilities", () => {
 			createElementSpy.mockReturnValue(mockLink as any)
 
 			const result = await downloadFile("http://example.com/image.jpg", "photo")
+			await vi.runAllTimersAsync()
 
 			expect(result.success).toBe(true)
 			expect(mockLink.download).toBe(encodeURIComponent("photo.jpg"))
 			expect(window.URL.createObjectURL).toHaveBeenCalledWith(mockBlob)
 			expect(window.URL.revokeObjectURL).toHaveBeenCalled()
+			vi.useRealTimers()
 		})
 
 		it("should handle SVG files specially", async () => {

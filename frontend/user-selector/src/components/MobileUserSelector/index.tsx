@@ -29,6 +29,8 @@ export interface MobileUserSelectorProps extends Partial<CommonSelectorProps> {
 	visible?: boolean
 	onClose?: () => void
 	onMaskClick?: () => void
+	/* 抽屉层级 */
+	zIndex?: number
 	/* 安全区域顶部 */
 	safeAreaTop?: string
 	/* 安全区域底部 */
@@ -52,12 +54,14 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 		organization,
 		searchData,
 		disableUser = false,
+		zIndex,
 		safeAreaBottom,
 		onClose,
 		onItemClick,
 		onOk,
 		onSearchChange,
 		selectedPopupProps,
+		renderItemRight,
 		visible,
 		className: _className,
 		...props
@@ -207,6 +211,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 		disableUser,
 		checkboxOptions: organizationCheckboxOptions,
 		pathOptions,
+		renderItemRight,
 		onItemClick,
 	})
 
@@ -275,6 +280,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 				visible={visible}
 				onClose={onClose}
 				position="bottom"
+				zIndex={zIndex}
 				title={title ?? locale.defaultTitle}
 				className="h-[90vh]"
 				bodyClassName={cn("flex h-full flex-col", bodyClassName)}
@@ -308,6 +314,7 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 						disableUser={disableUser}
 						isMobile
 						showSearch={segment !== SegmentType.ShareToGroup}
+						renderItemRight={renderItemRight}
 					>
 						{renderContent()}
 					</SearchContainer>
@@ -352,7 +359,9 @@ const MobileUserSelector: ForwardRefRenderFunction<UserSelectorRef, MobileUserSe
 				visible={popupVisible}
 				onClose={() => setPopupVisible(false)}
 				onOk={() => setPopupVisible(false)}
+				zIndex={zIndex}
 				checkboxOptions={organizationCheckboxOptions}
+				renderItemRight={renderItemRight}
 				{...selectedPopupProps}
 			/>
 		</>

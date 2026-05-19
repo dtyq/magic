@@ -1,4 +1,8 @@
 import type { CrewSourceType } from "@/apis/modules/crew"
+import {
+	CollaboratorPermissionEnum,
+	type CollaboratorPermission,
+} from "@/pages/superMagic/types/collaboration"
 import { isOfficialPublisherType } from "@/pages/superMagic/pages/CrewMarket/employee-market/components/employee-card-shared"
 
 export function resolveMyCrewCreatedFooterBadgeLabel(
@@ -54,8 +58,11 @@ export function resolveMyCrewHiredActionKind(sourceType: CrewSourceType): "dismi
 
 export function resolveMyCrewDisableActionLabel(
 	allowDelete: boolean,
+	publisherType: string | null | undefined,
 	t: (key: string) => string,
 ): string {
+	if (publisherType && isOfficialPublisherType(publisherType))
+		return t("employeeCard.officialBuiltin")
 	if (!allowDelete) return t("myCrewPage.sharedByTeamAction")
 	return t("myCrewPage.disable")
 }
@@ -66,4 +73,31 @@ export function resolveMyCrewDisableActionDisabled(
 ): boolean {
 	if (!allowDelete) return true
 	return !enabled
+}
+
+export function resolveTeamSharedCrewPermissions(userRole?: CollaboratorPermission) {
+	if (
+		userRole === CollaboratorPermissionEnum.OWNER ||
+		userRole === CollaboratorPermissionEnum.MANAGE
+	) {
+		return {
+			canEdit: true,
+			canPublish: true,
+			canDelete: true,
+		}
+	}
+
+	if (userRole === CollaboratorPermissionEnum.EDITABLE) {
+		return {
+			canEdit: true,
+			canPublish: true,
+			canDelete: false,
+		}
+	}
+
+	return {
+		canEdit: false,
+		canPublish: false,
+		canDelete: false,
+	}
 }

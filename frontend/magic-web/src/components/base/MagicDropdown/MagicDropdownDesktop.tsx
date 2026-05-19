@@ -139,8 +139,10 @@ function MagicDropdownDesktop({
 				"[&_[data-slot=dropdown-menu-sub-trigger]:not([data-disabled])]:cursor-pointer",
 				"[&_[data-slot=dropdown-menu-sub-trigger]:hover]:!outline-none",
 				"[&_[data-slot=dropdown-menu-sub-trigger]:hover]:!bg-accent",
-				// 子菜单内容区域样式
-				"[&_[data-slot=dropdown-menu-sub-content]]:translate-x-2",
+				// // 子菜单内容区域样式
+				// "[&_[data-slot=dropdown-menu-sub-content]]:translate-x-2",
+				// 子菜单内容区域样式（使用 ml-2 而非 translate-x-2，避免 transform 创建新包含块导致嵌套子菜单 position:fixed 失效）
+				"[&_[data-slot=dropdown-menu-sub-content]]:ml-2",
 				"z-popup",
 				overlayClassName,
 				menu?.rootClassName,

@@ -1,113 +1,66 @@
 # LoginServiceProvider
 
-## Component Overview
+## Overview
 
-LoginServiceProvider is a React Context Provider component designed to manage login service state and logic. It primarily handles login workflows across different deployment environments (public cloud and private cloud) and provides relevant context data and methods to child components.
+`LoginServiceProvider` manages the login page state for public and private
+deployment flows. It coordinates three closely related concepts:
 
-## Key Features
+- `deployment`: which login UI should be rendered
+- login-scoped `clusterCode`: which private deployment the current login page is using
+- `clusterCodeCache`: the last remembered private deployment code
 
--   Manages login deployment environments (public cloud/private cloud)
--   Provides LoginService instance to child components
--   Manages cluster code (clusterCode) state
--   Provides environment switching capabilities
+## Terminology
 
-## Data Structure
+- Active cluster:
+  `configStore.cluster.clusterCode`
+  The global cluster currently used by requests after login succeeds.
+- Cached private cluster:
+  `configStore.cluster.clusterCodeCache`
+  The remembered private deployment code used to restore the login UI.
+- Login-scoped cluster:
+  `useClusterCode().clusterCode` inside the login page.
+  The temporary cluster used by the current login session before the global
+  active cluster takes over.
 
-```typescript
-interface LoginServiceStore {
-	// Login service instance
-	service: ServiceContainer
-	// Current deployment environment type (public cloud/private cloud)
-	deployment: LoginDeployment
-	// Set deployment environment
-	setDeployment: (deployment: LoginDeployment) => void
-	// Cluster code (used for private deployment)
-	clusterCode: string | null
-	// Set cluster code
-	setDeployCode: (clusterCode: string) => void
-}
-```
+## Current Behavior
 
-## Usage
+The login cluster state machine is centralized in
+`useLoginClusterSession.ts`.
 
-### Basic Usage
+- If `clusterCodeCache` exists on mount, the login page defaults to
+  `PrivateDeploymentLogin`
+- Calling `showPublicDeployment()` clears the login-scoped `clusterCode`
+- Calling `showPrivateDeployment()` restores `clusterCodeCache`
+- Calling `setPrivateClusterCode(code)` updates the current login-scoped cluster
+  and persists the cache through `ConfigService`
 
-```tsx
-import { LoginServiceProvider } from "./LoginServiceProvider"
-import { LoginService } from "@/service/user/LoginService"
-import { service } from "@/services"
+## Action API
 
-// Create login service instance
-const loginService = new LoginService(apis, service)
+| Action | Primary effect | Typical caller |
+| --- | --- | --- |
+| `showPublicDeployment()` | Switches the login UI to public mode and clears the login-scoped `clusterCode` | Public/private switch actions |
+| `showPrivateDeployment()` | Switches the login UI to private mode and restores `clusterCodeCache` into the login-scoped cluster | Public-to-private switch actions |
+| `setPrivateClusterCode(code)` | Updates the login-scoped cluster immediately and persists the cached private cluster | Private code form submission, account modal preset |
 
-function App() {
-	return (
-		<LoginServiceProvider service={loginService}>
-			{/* Child components can access context via useLoginServiceContext */}
-			<YourLoginComponent />
-		</LoginServiceProvider>
-	)
-}
-```
+## Why It Matters
 
-### Using HOC Wrapper
+The login page must separate **request state** from **UI preference**:
 
-```tsx
-import { withLoginService } from "./withLoginService"
-import { LoginService } from "@/service/user/LoginService"
-import { service } from "@/services/user/LoginService"
+- Global `configStore.cluster.clusterCode` controls which base URL requests use
+- `clusterCodeCache` preserves the last private deployment choice for the login UI
+- The login page can therefore keep showing private login options after logout
+  while requests safely fall back to SaaS
 
-// Create login service instance
-const loginService = new LoginService(apis, service)
+## Tests
 
-// Wrap component with HOC
-const WrappedComponent = withLoginService(YourComponent, loginService)
+Focused regression coverage lives in:
 
-function App() {
-	return <WrappedComponent />
-}
-```
+- `src/layouts/SSOLayout/providers/LoginServiceProvider/__tests__/useLoginClusterSession.test.tsx`
+- `src/layouts/SSOLayout/providers/LoginServiceProvider/__tests__/LoginServiceProvider.test.tsx`
+- `src/services/user/__tests__/AccountService.test.ts`
+- `src/apis/clients/interceptor/__tests__/resolve-cluster-base-url.test.ts`
 
-### Using Context in Child Components
+## Detailed Design
 
-```tsx
-import { useLoginServiceContext } from "./useLoginServiceContext"
-import { LoginDeployment } from "@/opensource/pages/login/constants"
-
-function LoginComponent() {
-	const { service, deployment, setDeployment, clusterCode, setDeployCode } =
-		useLoginServiceContext()
-
-	const handleLogin = async () => {
-		// Use service for login operations
-		// ...
-	}
-
-	const switchToPrivateDeployment = () => {
-		setDeployment(LoginDeployment.PrivateDeploymentLogin)
-	}
-
-	return (
-		<div>
-			{/* Render different login interfaces based on deployment environment */}
-			{deployment === LoginDeployment.PublicDeploymentLogin ? (
-				<PublicLoginForm onLogin={handleLogin} />
-			) : (
-				<PrivateLoginForm
-					clusterCode={clusterCode}
-					onSetClusterCode={setDeployCode}
-					onLogin={handleLogin}
-				/>
-			)}
-
-			<button onClick={switchToPrivateDeployment}>Switch to Private Deployment Login</button>
-		</div>
-	)
-}
-```
-
-## Important Notes
-
--   LoginServiceProvider should be placed at the top of the component tree that needs access to login services
--   Switching deployment environments automatically handles clearing and restoring clusterCode
--   In private deployment mode, the last used clusterCode is restored from cache
+See `docs/login-cluster-scenarios.md` for scenario-by-scenario behavior and
+Mermaid flowcharts.

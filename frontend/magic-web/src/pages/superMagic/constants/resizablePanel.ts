@@ -37,3 +37,27 @@ export const DEFAULT_WIDTH = {
 	PROJECT_SIDER: 320,
 	MESSAGE_PANEL: 420,
 }
+
+/**
+ * Resize handle 的统一宽度
+ */
+export const RESIZABLE_PANEL_HANDLE_WIDTH = 8
+
+/**
+ * 历史话题面板的固定宽度
+ */
+export const TOPIC_HISTORY_PANEL_WIDTH = 256
+
+/**
+ * 历史话题固定态下允许保留的最小详情区宽度
+ */
+export const MIN_DETAIL_PANEL_WIDTH_FOR_FIXED_TOPIC_HISTORY = 688
+
+/**
+ * 历史话题固定态所需的最小中间容器宽度
+ */
+export const FIXED_TOPIC_HISTORY_REQUIRED_WIDTH =
+	MIN_DETAIL_PANEL_WIDTH_FOR_FIXED_TOPIC_HISTORY +
+	DEFAULT_MIN_WIDTH.MESSAGE_PANEL +
+	TOPIC_HISTORY_PANEL_WIDTH +
+	RESIZABLE_PANEL_HANDLE_WIDTH

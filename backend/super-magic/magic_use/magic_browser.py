@@ -851,7 +851,13 @@ class MagicBrowser:
             self._active_page_id = None
             logger.info("所有管理的页面已请求关闭并注销。")
 
-            # 注销浏览器客户端引用
+            # 先关闭本实例创建的浏览器上下文，再注销客户端引用
+            # 不能依赖 unregister_client ref=0 时的全量清理，否则中间实例的 context 会泄漏
+            if self._active_context_id:
+                try:
+                    await self._browser_manager.close_context(self._active_context_id)
+                except Exception as ctx_e:
+                    logger.warning(f"关闭浏览器上下文 {self._active_context_id} 时出错: {ctx_e}")
             await self._browser_manager.unregister_client()
             self._active_context_id = None
 

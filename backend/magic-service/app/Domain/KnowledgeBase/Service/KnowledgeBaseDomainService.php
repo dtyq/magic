@@ -10,13 +10,11 @@ namespace App\Domain\KnowledgeBase\Service;
 use App\Domain\Flow\Entity\ValueObject\Code;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseEntity;
 use App\Domain\KnowledgeBase\Entity\KnowledgeBaseFragmentEntity;
-use App\Domain\KnowledgeBase\Entity\ValueObject\DocumentFile\Interfaces\DocumentFileInterface;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeBaseDataIsolation;
 use App\Domain\KnowledgeBase\Entity\ValueObject\KnowledgeSyncStatus;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseFragmentQuery;
 use App\Domain\KnowledgeBase\Entity\ValueObject\Query\KnowledgeBaseQuery;
 use App\Domain\KnowledgeBase\Event\KnowledgeBaseRemovedEvent;
-use App\Domain\KnowledgeBase\Event\KnowledgeBaseSavedEvent;
 use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseFragmentRepositoryInterface;
 use App\Domain\KnowledgeBase\Repository\Facade\KnowledgeBaseRepositoryInterface;
 use App\ErrorCode\FlowErrorCode;
@@ -25,6 +23,7 @@ use App\Infrastructure\Core\ValueObject\Page;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Hyperf\DbConnection\Annotation\Transactional;
 use Psr\SimpleCache\CacheInterface;
+use Psr\SimpleCache\InvalidArgumentException;
 
 readonly class KnowledgeBaseDomainService
 {
@@ -37,17 +36,14 @@ readonly class KnowledgeBaseDomainService
 
     /**
      * 保存知识库 - 基本信息.
-     * @param array<DocumentFileInterface> $files
      */
-    public function save(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseEntity $savingMagicFlowKnowledgeEntity, array $files = []): KnowledgeBaseEntity
+    public function save(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseEntity $savingMagicFlowKnowledgeEntity): KnowledgeBaseEntity
     {
         $savingMagicFlowKnowledgeEntity->setOrganizationCode($dataIsolation->getCurrentOrganizationCode());
         $savingMagicFlowKnowledgeEntity->setCreator($dataIsolation->getCurrentUserId());
-        $create = false;
         if ($savingMagicFlowKnowledgeEntity->shouldCreate()) {
             $savingMagicFlowKnowledgeEntity->prepareForCreation();
             $magicFlowKnowledgeEntity = $savingMagicFlowKnowledgeEntity;
-            $create = true;
 
             // 使用已经提前生成好的 code
             if (! empty($magicFlowKnowledgeEntity->getBusinessId())) {
@@ -58,31 +54,13 @@ readonly class KnowledgeBaseDomainService
             }
         } else {
             $magicFlowKnowledgeEntity = $this->magicFlowKnowledgeRepository->getByCode($dataIsolation, $savingMagicFlowKnowledgeEntity->getCode());
-            if (empty($magicFlowKnowledgeEntity)) {
+            if ($magicFlowKnowledgeEntity === null) {
                 ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.common.not_found', ['label' => $savingMagicFlowKnowledgeEntity->getCode()]);
             }
             $savingMagicFlowKnowledgeEntity->prepareForModification($magicFlowKnowledgeEntity);
         }
 
-        $magicFlowKnowledgeEntity = $this->magicFlowKnowledgeRepository->save($dataIsolation, $magicFlowKnowledgeEntity);
-
-        $event = new KnowledgeBaseSavedEvent($dataIsolation, $magicFlowKnowledgeEntity, $create, $files);
-        AsyncEventUtil::dispatch($event);
-
-        return $magicFlowKnowledgeEntity;
-    }
-
-    /**
-     * 保存知识库 - 向量进度.
-     */
-    public function saveProcess(KnowledgeBaseDataIsolation $dataIsolation, KnowledgeBaseEntity $savingKnowledgeEntity): KnowledgeBaseEntity
-    {
-        $knowledgeEntity = $this->magicFlowKnowledgeRepository->getByCode($dataIsolation, $savingKnowledgeEntity->getCode());
-        if (empty($knowledgeEntity)) {
-            ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'common.not_found', ['label' => $savingKnowledgeEntity->getCode()]);
-        }
-        $savingKnowledgeEntity->prepareForModifyProcess($knowledgeEntity);
-        return $this->magicFlowKnowledgeRepository->save($dataIsolation, $knowledgeEntity);
+        return $this->magicFlowKnowledgeRepository->save($dataIsolation, $magicFlowKnowledgeEntity);
     }
 
     /**
@@ -103,7 +81,9 @@ readonly class KnowledgeBaseDomainService
         $chunks = array_chunk($codes, 500);
         $entities = [];
         foreach ($chunks as $chunk) {
-            $entities = array_merge($entities, $this->magicFlowKnowledgeRepository->getByCodes($dataIsolation, $chunk));
+            foreach ($this->magicFlowKnowledgeRepository->getByCodes($dataIsolation, $chunk) as $entity) {
+                $entities[] = $entity;
+            }
         }
         return $entities;
     }
@@ -114,7 +94,7 @@ readonly class KnowledgeBaseDomainService
     public function show(KnowledgeBaseDataIsolation $dataIsolation, string $code, bool $checkCollection = false): KnowledgeBaseEntity
     {
         $magicFlowKnowledgeEntity = $this->magicFlowKnowledgeRepository->getByCode($dataIsolation, $code);
-        if (empty($magicFlowKnowledgeEntity)) {
+        if ($magicFlowKnowledgeEntity === null) {
             ExceptionBuilder::throw(FlowErrorCode::KnowledgeValidateFailed, 'flow.common.not_found', ['label' => $code]);
         }
         if ($checkCollection) {
@@ -165,30 +145,30 @@ readonly class KnowledgeBaseDomainService
         }
     }
 
-    public function updateKnowledgeBaseWordCount(KnowledgeBaseDataIsolation $dataIsolation, string $knowledgeCode, int $deltaWordCount): void
-    {
-        if ($deltaWordCount === 0) {
-            return;
-        }
-        $this->magicFlowKnowledgeRepository->updateWordCount($dataIsolation, $knowledgeCode, $deltaWordCount);
-    }
-
     public function generateTempCodeByBusinessId(int $knowledgeType, string $businessId): string
     {
         $key = 'knowledge-code:generate:' . $knowledgeType . ':' . $businessId;
-        if ($this->cache->has($key)) {
-            return $this->cache->get($key);
+        try {
+            if ($this->cache->has($key)) {
+                return (string) $this->cache->get($key, '');
+            }
+            $code = Code::Knowledge->gen();
+            $this->cache->set($key, $code, 7 * 24 * 60 * 60);
+            return $code;
+        } catch (InvalidArgumentException) {
+            return Code::Knowledge->gen();
         }
-        $code = Code::Knowledge->gen();
-        $this->cache->set($key, $code, 7 * 24 * 60 * 60);
-        return $code;
     }
 
     public function getTempCodeByBusinessId(int $knowledgeType, string $businessId): string
     {
         $key = 'knowledge-code:generate:' . $knowledgeType . ':' . $businessId;
-        $value = $this->cache->get($key, '');
-        $this->cache->delete($key);
-        return $value;
+        try {
+            $value = $this->cache->get($key, '');
+            $this->cache->delete($key);
+            return (string) $value;
+        } catch (InvalidArgumentException) {
+            return '';
+        }
     }
 }

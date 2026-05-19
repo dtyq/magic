@@ -6,6 +6,7 @@ export const useStyles = createStyles(({ token }) => ({
 		boxShadow: token.boxShadowSecondary,
 		borderRadius: 8,
 		overflow: "hidden",
+		background: token.colorBgContainer,
 
 		// 移除原有的 position, top, right, zIndex，这些由 useDraggable 处理
 	},

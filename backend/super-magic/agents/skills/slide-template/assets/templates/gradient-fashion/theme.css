@@ -1,0 +1,1113 @@
+/* ============================================================
+   Gradient Fashion (Gradient Fashion) — Theme Styles v3
+   Use cases: internet product launches / new media operations / youth brands / social media / app promotion
+   Design concept: gradient-first identity · rounded softness · glassmorphism · rich layering · youthful energy
+
+   v3 palette upgrade: 
+   - Main gradient adds a deep purple anchor for more depth instead of a flat wash.
+   - Content page base color is upgraded to creamy white-purple #FDFCFF to avoid harsh pure white.
+   - Dark background is upgraded to nebula purple #0D0825, deeper than the original #12082A.
+   - Shadows are upgraded to two-color offsets with purple and pink for stronger depth.
+   - Matte gold #E8C96A replaces over-bright yellow for a more premium gradient endpoint.
+   - Dark glass cards add a bright top border with a 1px pure white outline.
+/* ============================================================ */
+
+:root {
+  /* ----------------------------------------------------------
+     Main gradient system (v3: adds deep purple anchor #4A00E0 and changes endpoint to matte gold)
+     ---------------------------------------------------------- */
+  --grad-main: linear-gradient(
+    135deg,
+    #4a00e0 0%,
+    #8b5cf6 30%,
+    #c850c0 65%,
+    #e8c96a 100%
+  );
+  --grad-purple: linear-gradient(135deg, #4a00e0 0%, #8b5cf6 50%, #c850c0 100%);
+  --grad-pink: linear-gradient(135deg, #c850c0 0%, #f472b6 100%);
+  --grad-warm: linear-gradient(135deg, #f472b6 0%, #e8c96a 100%);
+  --grad-cool: linear-gradient(135deg, #38bdf8 0%, #6c63ff 100%);
+  --grad-mint: linear-gradient(135deg, #34d399 0%, #22d3ee 100%);
+  --grad-sunset: linear-gradient(135deg, #f472b6 0%, #fbbf24 100%);
+  --grad-indigo: linear-gradient(135deg, #312e81 0%, #4a00e0 100%);
+  --grad-text: linear-gradient(135deg, #7c3aed, #c850c0, #e8c96a);
+
+  /* ----------------------------------------------------------
+     Fixed colors (v3: primary purple upgraded to the more saturated #6D28D9; yellow replaced with matte gold)
+     ---------------------------------------------------------- */
+  --purple: #6d28d9; /* Deep saturated purple, more stable than #6C63FF */
+  --violet: #8b5cf6; /* Mid purple, used as the middle tone in gradients */
+  --pink: #c850c0; /* Keeps the brand's pink-purple tone */
+  --coral: #f472b6; /* Pink coral, deeper and softer than original #FF6B9D */
+  --gold: #e8c96a; /* Matte gold, replacing the overly bright #FFBD59 */
+  --amber: #fbbf24; /* amber，for emphasized highlights */
+  --mint: #34d399; /* Emerald green, deeper and fresher than original #43E97B */
+  --sky: #38bdf8; /* sky blue，deeper than original #4FACFE clearer */
+  --indigo: #4a00e0; /* deep purpleanchor (new ) */
+
+  /* ----------------------------------------------------------
+     Background (v3: deeper dark colors and warmer light colors)
+     ---------------------------------------------------------- */
+  --bg-white: #ffffff;
+  --bg-soft: #fdfcff; /* Creamy white-purple, slightly warmer than original #FAF8FF */
+  --bg-card: #f8f5ff; /* Card background, one step deeper than bg-soft */
+  --bg-dark: #0d0825; /* Nebula purple, deeper than original #12082A */
+  --bg-dark-2: #160d35; /* Deep purple secondary background, darkened from original #1E1040 */
+  --bg-dark-3: #1e1448; /* third deep background layer (new，for cards ) */
+
+  /* glassmorphism (v3: raises saturation, adds hue-rotate blue shift ) */
+  --bg-glass: rgba(255, 255, 255, 0.1);
+  --bg-glass-md: rgba(255, 255, 255, 0.16);
+  --bg-glass-hi: rgba(255, 255, 255, 0.22); /* highlight glass (new ) */
+  --bg-glass-dk: rgba(8, 4, 30, 0.45); /* darkGlass (v3 deepened ) */
+  --bg-glass-tint: rgba(109, 40, 217, 0.12); /* purple glass (new ) */
+
+  /* ----------------------------------------------------------
+     Text (v3: primary text deepened for a clearer hierarchy)
+     ---------------------------------------------------------- */
+  --text-primary: #0d0825; /* Primary text: nebula purple aligned with bg-dark */
+  --text-secondary: #4c3d7a; /* Secondary text: medium-deep purple, darkened from original #5C4E80 */
+  --text-muted: #8b7ec8; /* Muted mid purple, adjusted from original #9B8EC4 */
+  --text-hint: #c4b8e8; /* very subtle：light-purple hint text (new ) */
+  --text-on-grad: #ffffff;
+  --text-on-dark: #f0eaff; /* Text on dark backgrounds, purple-tinted white */
+
+  /* ----------------------------------------------------------
+     Borders (v3: adds more layers )
+     ---------------------------------------------------------- */
+  --border-light: #ede6ff; /* General border: light purple, slightly adjusted from original #EDE8FF */
+  --border-medium: #d4c8f5; /* medium border (new ) */
+  --border-glass: rgba(255, 255, 255, 0.22);
+  --border-glass-hi: rgba(
+    255,
+    255,
+    255,
+    0.4
+  ); /* highlight glassBorders (new ) */
+  --border-purple: rgba(109, 40, 217, 0.25);
+  --border-dark: rgba(255, 255, 255, 0.08); /* dark background border (new ) */
+
+  /* ----------------------------------------------------------
+     Shadow (v3 Core upgrades: two-color shadow, enhances depth )
+     ---------------------------------------------------------- */
+  /* Card shadow: main purple shadow plus offset pink secondary shadow */
+  --shadow-card:
+    0 4px 16px rgba(74, 0, 224, 0.12), 0 1px 4px rgba(200, 80, 192, 0.08),
+    0 0 0 1px rgba(109, 40, 217, 0.04);
+
+  /* floating shadow: stronger two-color spread */
+  --shadow-float:
+    0 16px 48px rgba(74, 0, 224, 0.22), 0 6px 20px rgba(200, 80, 192, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.1);
+
+  /* glow shadow: for emphasized elements */
+  --shadow-glow:
+    0 0 24px rgba(139, 92, 246, 0.45), 0 0 60px rgba(200, 80, 192, 0.25),
+    0 0 100px rgba(74, 0, 224, 0.15);
+
+  /* Dark cardShadow (new ) */
+  --shadow-dark-card:
+    0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(74, 0, 224, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08); /* top-edge highlight */
+
+  /* Gold shadow: new, used for CTA buttons */
+  --shadow-gold:
+    0 8px 24px rgba(232, 201, 106, 0.35), 0 2px 8px rgba(232, 201, 106, 0.2);
+
+  /* ----------------------------------------------------------
+     transition effects
+     ---------------------------------------------------------- */
+  --transition-fast: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.48s cubic-bezier(0.34, 1.56, 0.64, 1); /* flexible */
+  --transition-spring: 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); /* spring (new ) */
+}
+
+/* ============================================================
+   font spec (1920×1080 canvas )
+
+   main title    : 68–80px  weight:800  GradientsText(--grad-text)
+              letter-spacing: -0.02em
+   content title  : 40–52px  weight:700  color:--purple or gradient text
+   subtitle    : 28–36px  weight:500  color:--text-secondary
+   body text      : 22–26px  weight:400  color:--text-secondary  line-height:1.75
+   data highlight  : 64–80px  weight:900  GradientsText + drop-shadow
+   helper label  : 16–20px  weight:600  color:--text-muted
+   pill label  : 14–18px  weight:700  gradient background with white text, border-radius:9999px
+
+   Font Stack: 'Noto Sans SC', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif
+   import: <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
+   ============================================================ */
+
+/* ============================================================
+   Radius spec (rounded and friendly)
+   small card : border-radius: 16px
+   large container : border-radius: 24px
+   pill label  : border-radius: 9999px
+   image      : border-radius: 16px
+   avoid      : border-radius < 12px to avoid a hard-edged feel
+   ============================================================ */
+
+/* ============================================================
+   slide base style
+
+   1920×1080; creamy page on --bg-soft; Noto Sans stack for UI slides in this theme.
+   Implemented below: html, body, .slide, .slide-body (48px 72px + extra bottom clearance).
+   ============================================================ */
+
+html,
+body {
+  width: 1920px;
+  height: 1080px;
+  overflow: hidden;
+  margin: 0;
+  font-family:
+    "Noto Sans SC",
+    -apple-system,
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  background: var(--bg-soft);
+  color: var(--text-primary);
+}
+
+.slide {
+  width: 1920px;
+  height: 1080px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.slide-body {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 48px 72px 96px;
+}
+
+/* ============================================================
+   Background decoration spec
+
+   v3: stack several huge blurred radial disks (--grad-purple, --grad-warm, --grad-cool, --grad-indigo);
+   light pages may add dual-ellipse wash + fine purple line grid; dark pages may add subtle noise over --bg-dark.
+   Implemented in slide HTML as absolute layers (no shared utilities in this file).
+   ============================================================ */
+
+/* ============================================================
+   ★ dedicated component library
+   ============================================================ */
+
+/* ── Gradient data card (v3: adds top-edge highlight and two-color shadow) ── */
+.kpi-card {
+  background: var(--grad-purple);
+  border-radius: 20px;
+  padding: 32px 36px;
+  color: white;
+  box-shadow: var(--shadow-float);
+  position: relative;
+  overflow: hidden;
+}
+.kpi-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.5),
+    transparent
+  );
+}
+.kpi-card.warm {
+  background: var(--grad-warm);
+}
+.kpi-card.cool {
+  background: var(--grad-cool);
+}
+.kpi-card.mint {
+  background: var(--grad-mint);
+}
+.kpi-card.gold {
+  background: var(--grad-sunset);
+  box-shadow: var(--shadow-gold);
+}
+.kpi-value {
+  font-size: 72px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+}
+.kpi-label {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.72);
+  margin-top: 8px;
+}
+.kpi-delta {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 4px;
+}
+.kpi-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+/* ── Glassmorphism card (v3: adds top-edge highlight outline) ── */
+.glass-card {
+  background: var(--bg-glass-md);
+  backdrop-filter: blur(20px) saturate(200%);
+  border: 1px solid var(--border-glass);
+  border-top-color: var(--border-glass-hi); /* Brighter top edge */
+  border-radius: 20px;
+  padding: 28px 32px;
+  box-shadow: var(--shadow-dark-card);
+}
+.glass-card-tint {
+  background: var(--bg-glass-tint);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid var(--border-purple);
+  border-top-color: rgba(139, 92, 246, 0.5);
+  border-radius: 20px;
+  padding: 28px 32px;
+  box-shadow: var(--shadow-card);
+}
+.glass-card-dark {
+  background: var(--bg-glass-dk);
+  backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--border-dark);
+  border-top-color: rgba(255, 255, 255, 0.14); /* top-edge highlight */
+  border-radius: 20px;
+  padding: 28px 32px;
+  box-shadow: var(--shadow-dark-card);
+}
+
+/* ── White soft card (v3: uses bg-card background color plus two-color shadow) ── */
+.soft-card {
+  background: var(--bg-white);
+  border-radius: 20px;
+  padding: 28px 32px;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+}
+.soft-card-tinted {
+  background: var(--bg-card);
+  border-radius: 20px;
+  padding: 28px 32px;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+}
+
+/* ── pill labelbadge (v3: newGold / dark / outlinevariant )── */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 6px 18px;
+  border-radius: 9999px;
+}
+.pill-main {
+  background: var(--grad-main);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(74, 0, 224, 0.25);
+}
+.pill-purple {
+  background: var(--grad-purple);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(74, 0, 224, 0.25);
+}
+.pill-warm {
+  background: var(--grad-warm);
+  color: #fff;
+}
+.pill-cool {
+  background: var(--grad-cool);
+  color: #fff;
+}
+.pill-gold {
+  background: var(--grad-sunset);
+  color: #fff;
+  box-shadow: var(--shadow-gold);
+}
+.pill-dark {
+  background: var(--bg-dark-3);
+  color: var(--text-hint);
+  border: 1px solid var(--border-dark);
+}
+.pill-light {
+  background: var(--bg-card);
+  color: var(--purple);
+  border: 1.5px solid var(--border-purple);
+}
+.pill-outline {
+  background: transparent;
+  color: var(--violet);
+  border: 1.5px solid var(--violet);
+}
+
+/* ── Gradient text (v3: replaces drop shadow with two-color shadow) ── */
+.grad-text {
+  background: var(--grad-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 6px rgba(74, 0, 224, 0.25))
+    drop-shadow(0 4px 16px rgba(200, 80, 192, 0.15));
+}
+.grad-text-purple {
+  background: var(--grad-purple);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.grad-text-warm {
+  background: var(--grad-warm);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.grad-text-gold {
+  background: var(--grad-sunset);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── feature card (v3: top gradient linethickened to 4px )── */
+.feature-card {
+  background: var(--bg-white);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+  position: relative;
+  overflow: hidden;
+}
+.feature-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--grad-purple);
+  border-radius: 4px 4px 0 0;
+}
+.feature-card::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(
+    180deg,
+    rgba(109, 40, 217, 0.04) 0%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+.feature-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--grad-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin-bottom: 16px;
+  box-shadow:
+    0 8px 20px rgba(74, 0, 224, 0.3),
+    0 2px 6px rgba(200, 80, 192, 0.2);
+}
+
+/* ── review card ── */
+.review-card {
+  background: var(--bg-white);
+  border-radius: 20px;
+  padding: 28px 32px;
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+}
+.review-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--grad-purple);
+  box-shadow: 0 4px 12px rgba(74, 0, 224, 0.25);
+}
+.review-stars {
+  color: var(--gold);
+  font-size: 22px;
+}
+.review-text {
+  font-size: 20px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+/* ── progress/stat bar (v3: stronger glow effect )── */
+.progress-track {
+  height: 8px;
+  background: var(--border-light);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--grad-purple);
+  border-radius: 9999px;
+  box-shadow:
+    0 0 10px rgba(139, 92, 246, 0.5),
+    0 0 20px rgba(74, 0, 224, 0.25);
+}
+
+/* ── top navigation bar (v3: purple-tinted background )── */
+.nav-bar {
+  height: 72px;
+  padding: 0 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(253, 252, 255, 0.85);
+  backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid var(--border-light);
+}
+.nav-logo {
+  font-size: 28px;
+  font-weight: 900;
+}
+
+/* ── Bottom info bar (v3: adds a gradient top line) ── */
+.footer-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  padding: 0 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(253, 252, 255, 0.75);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-light);
+}
+.footer-bar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 72px;
+  right: 72px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--violet),
+    var(--pink),
+    transparent
+  );
+  opacity: 0.4;
+}
+
+/* ── Divider (v3new )── */
+.divider-grad {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--border-medium) 30%,
+    var(--border-medium) 70%,
+    transparent 100%
+  );
+}
+.divider-glow {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--violet) 30%,
+    var(--pink) 70%,
+    transparent 100%
+  );
+  opacity: 0.3;
+  filter: blur(1px);
+}
+
+/* ── number annotation badge (v3new )── */
+.badge-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--grad-purple);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  box-shadow: 0 4px 10px rgba(74, 0, 224, 0.3);
+}
+.badge-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow:
+    0 0 6px var(--mint),
+    0 0 12px rgba(52, 211, 153, 0.4);
+}
+
+/* ============================================================
+   ★ layout spec (1920×1080 )
+
+   content padding: padding: 40px 72px
+
+   common grids: 
+     three-column feature cards  : grid; 1fr 1fr 1fr; gap:28px
+     four-column data cards  : grid; repeat(4,1fr); gap:24px
+     left image/right text    : flex; 45% left, 55% right
+     full-screenGradientsBackground: background:var(--grad-main) (cover/Section page )
+   ============================================================ */
+
+/* ============================================================
+   ★ Dedicated Layout Types (8 types)
+
+   1. Cover page Cover
+      - full-screen deep purple-black (bg-dark) plus 4 layers of blurred gradient glow, with accent glow added in v3
+      - center: large gradient title (80px), subtitle, and pill label
+      - bottom: glassmorphism info bar with top-edge highlight
+
+   2. Product features page Features
+      - top: gradient-text title plus subtitle
+      - main body: three-column feature-card layout; each card contains a gradient icon, feature name, and description
+
+   3. Data story page Data Story
+      - left side (45%): full-screen gradient background (grad-purple), large white number, and explanation
+      - right side (55%): bg-soft background, ECharts chart, and interpretation text
+
+   4. Reviews page Reviews
+      - top: gradient title plus rating summary
+      - main body: three-column review-card layout with avatars, star ratings, and review text
+
+   5. Comparison page Comparison
+      - top: title
+      - main body: table with feature names on the left, own product in the center column, and competitors on the right
+        own-product column: gradient header background with emphasized display
+
+   6. Dashboard page Dashboard
+      - top: four gradient KPI cards with different color gradients
+      - below: line chart on the left in a glassmorphism container, donut chart on the right
+
+   7. Section page Section
+      - full-screen gradient background (grad-main) plus three layers of blurred glow
+      - center: glassmorphism card (glass-card-dark) containing section number and section name
+
+   8. Ending page Ending
+      - full-screen deep purple-black plus multiple glow layers, strongest to create a climactic feel
+      - center: large gradient title, pill label, and download/contact buttons (pill-gold CTA)
+      - bottom: social media icons plus official website URL
+   ============================================================ */
+
+/* ============================================================
+   ★ motion and interaction
+   ============================================================ */
+
+@keyframes float {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-8px) rotate(0.5deg);
+  }
+  66% {
+    transform: translateY(-4px) rotate(-0.3deg);
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.5);
+  }
+  60% {
+    box-shadow: 0 0 0 12px rgba(139, 92, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* floating */
+.anim-float {
+  animation: float 7s ease-in-out infinite;
+}
+
+/* pulse glow */
+.anim-pulse {
+  animation: pulse-glow 2.4s ease-out infinite;
+}
+
+/* Gradient flow (requires background-size: 300% 300%) */
+.anim-grad {
+  background-size: 300% 300%;
+  animation: gradient-shift 6s ease infinite;
+}
+
+/* Shimmer sweep (skeleton/button highlight) */
+.anim-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* fade up (entrance animation ) */
+.anim-fade-up {
+  animation: fade-up 0.5s var(--transition-slow) both;
+}
+.anim-scale-in {
+  animation: scale-in 0.4s var(--transition-slow) both;
+}
+
+/* ── hover feedback ── */
+.hover-lift {
+  transition:
+    transform var(--transition-normal),
+    box-shadow var(--transition-normal);
+  cursor: pointer;
+}
+.hover-lift:hover {
+  transform: translateY(-6px) scale(1.015);
+  box-shadow: var(--shadow-float);
+}
+
+.hover-glow {
+  transition:
+    box-shadow var(--transition-normal),
+    border-color var(--transition-normal);
+  cursor: pointer;
+}
+.hover-glow:hover {
+  box-shadow: var(--shadow-glow);
+  border-color: rgba(200, 80, 192, 0.45);
+}
+
+.hover-bright {
+  transition:
+    filter var(--transition-fast),
+    transform var(--transition-fast);
+  cursor: pointer;
+}
+.hover-bright:hover {
+  filter: brightness(1.08) saturate(1.1);
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   ★ extended component library
+   ============================================================ */
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 28px;
+  border-radius: 9999px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  border: none;
+  outline: none;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+}
+
+/* primary button: Gradients + top-edge highlight + flowing animation */
+.btn-primary {
+  background: var(--grad-main);
+  background-size: 200% 200%;
+  color: #fff;
+  box-shadow:
+    0 4px 16px rgba(74, 0, 224, 0.3),
+    0 2px 6px rgba(200, 80, 192, 0.2);
+}
+.btn-primary::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent);
+  border-radius: 9999px 9999px 0 0;
+  pointer-events: none;
+}
+.btn-primary:hover {
+  background-position: 100% 50%;
+  box-shadow:
+    0 8px 28px rgba(74, 0, 224, 0.45),
+    0 4px 12px rgba(200, 80, 192, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Gold CTA Buttons (new ) */
+.btn-gold {
+  background: linear-gradient(135deg, #fbbf24 0%, #e8c96a 50%, #f59e0b 100%);
+  background-size: 200% 200%;
+  color: #3d2000;
+  font-weight: 800;
+  box-shadow: var(--shadow-gold);
+}
+.btn-gold:hover {
+  background-position: 100% 50%;
+  box-shadow: 0 10px 30px rgba(232, 201, 106, 0.5);
+  transform: translateY(-2px);
+}
+
+/* GlassButtons */
+.btn-glass {
+  background: var(--bg-glass-md);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid var(--border-glass);
+  border-top-color: var(--border-glass-hi);
+  color: #fff;
+}
+.btn-glass:hover {
+  background: var(--bg-glass-hi);
+  transform: translateY(-2px);
+}
+
+/* outlineButtons */
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--violet);
+  color: var(--violet);
+}
+.btn-outline:hover {
+  background: var(--violet);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
+  transform: translateY(-2px);
+}
+
+/* Dark outline, new and used on dark backgrounds */
+.btn-outline-light {
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.85);
+}
+.btn-outline-light:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #fff;
+}
+
+/* ── Progress bar ── */
+.progress-wrapper {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--border-light);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--grad-purple);
+  border-radius: 999px;
+  transition: width 1s ease-out;
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.45);
+}
+.progress-fill.warm {
+  background: var(--grad-warm);
+  box-shadow: 0 0 8px rgba(244, 114, 182, 0.4);
+}
+.progress-fill.mint {
+  background: var(--grad-mint);
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.4);
+}
+
+/* ── avatar group ── */
+.avatar-group {
+  display: flex;
+  align-items: center;
+}
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2.5px solid var(--bg-soft);
+  background: var(--grad-warm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  margin-left: -12px;
+  transition:
+    transform var(--transition-fast),
+    z-index 0s;
+  box-shadow: 0 2px 8px rgba(74, 0, 224, 0.15);
+}
+.avatar:first-child {
+  margin-left: 0;
+}
+.avatar:hover {
+  transform: translateY(-5px) scale(1.12);
+  z-index: 10;
+}
+
+/* ── list item ── */
+.list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  transition:
+    background var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+.list-item:hover {
+  background: var(--bg-white);
+  box-shadow: var(--shadow-card);
+}
+.list-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--grad-cool);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3);
+}
+
+/* ── tabs/Tab switcher (new )── */
+.tab-group {
+  display: inline-flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 9999px;
+  padding: 4px;
+  gap: 2px;
+}
+.tab-item {
+  padding: 8px 20px;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.tab-item.active {
+  background: var(--grad-purple);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(74, 0, 224, 0.25);
+}
+.tab-item:not(.active):hover {
+  color: var(--purple);
+  background: rgba(109, 40, 217, 0.06);
+}
+
+/* ── step indicator (new )── */
+.steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.step-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--border-medium);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  transition: all var(--transition-normal);
+  flex-shrink: 0;
+}
+.step-dot.active {
+  background: var(--grad-purple);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(74, 0, 224, 0.3);
+}
+.step-dot.done {
+  background: var(--grad-mint);
+  border-color: transparent;
+  color: #fff;
+}
+.step-line {
+  flex: 1;
+  height: 2px;
+  min-width: 32px;
+  background: var(--border-light);
+}
+.step-line.done {
+  background: var(--grad-mint);
+}
+.step-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.step-label.active {
+  color: var(--purple);
+}
+
+/* ── tooltip (new )── */
+.tooltip-wrap {
+  position: relative;
+  display: inline-block;
+}
+.tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--bg-dark-2);
+  color: var(--text-hint);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  white-space: nowrap;
+  border: 1px solid var(--border-dark);
+  box-shadow: var(--shadow-dark-card);
+  opacity: 0;
+  pointer-events: none;
+  transition: all var(--transition-fast);
+}
+.tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--bg-dark-2);
+}
+.tooltip-wrap:hover .tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── notification/Toast (new )── */
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 14px;
+  background: var(--bg-white);
+  box-shadow: var(--shadow-float);
+  border: 1px solid var(--border-light);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.toast-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.toast-success .toast-icon {
+  background: var(--grad-mint);
+  color: #fff;
+}
+.toast-warn .toast-icon {
+  background: var(--grad-sunset);
+  color: #fff;
+}
+.toast-info .toast-icon {
+  background: var(--grad-cool);
+  color: #fff;
+}

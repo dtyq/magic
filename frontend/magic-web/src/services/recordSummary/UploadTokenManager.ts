@@ -268,8 +268,8 @@ export class UploadTokenManager {
 				// Clear cache for this session to prevent further token requests
 				this.clearSession(sessionId)
 
-				// Create task end error
-				const taskEndError = createTaskEndError(sessionId)
+				// Create task end error with original error code
+				const taskEndError = createTaskEndError(sessionId, taskEndErr.code)
 
 				// Notify callback if registered (legacy support)
 				if (this.onTaskEnd) {

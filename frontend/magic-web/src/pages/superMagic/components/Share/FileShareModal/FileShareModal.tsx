@@ -31,6 +31,7 @@ import { Separator } from "@/components/shadcn-ui/separator"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { projectStore } from "@/pages/superMagic/stores/core"
 import { userStore } from "@/models/user"
+import { generateShareMessageText } from "../utils/generateShareMessageText"
 
 interface FileShareModalProps {
 	attachments?: any[] // 可选，如果没有 resourceId 时使用（文件树）
@@ -80,8 +81,7 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 	const responsive = useResponsive()
 	const isMobile = responsive.md === false
 
-	// Check if user is personal organization
-	const { isPersonalOrganization } = userStore.user
+	const isFreePlan = userStore.user.organizationSubscriptionInfo?.is_paid_plan === false
 
 	// State: saving status
 	const [isSaving, setIsSaving] = useState(false)
@@ -100,11 +100,11 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 
 	// State: share type and settings
 	const [shareType, setShareType] = useState<ShareType>(
-		isPersonalOrganization ? ShareType.Public : ShareType.PasswordProtected,
+		isFreePlan ? ShareType.Public : ShareType.PasswordProtected,
 	)
 	const [shareProject, setShareProject] = useState<boolean>(shareMode === ShareMode.Project) // 根据 shareMode 初始化
 	const [extraData, setExtraData] = useState<ShareExtraData>({
-		passwordEnabled: isPersonalOrganization ? false : true,
+		passwordEnabled: isFreePlan ? false : true,
 		password: shareType === ShareType.PasswordProtected ? generateSharePassword() : "",
 		allowCopy: true,
 		showFileList: true,
@@ -144,6 +144,12 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 			setResourceId(externalResourceId)
 		}
 	}, [externalResourceId])
+
+	useEffect(() => {
+		if (externalProjectId) {
+			setProjectId(externalProjectId)
+		}
+	}, [externalProjectId])
 
 	// Sync externalAttachments to internal attachments state
 	useEffect(() => {
@@ -364,10 +370,10 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 		const fetchResourceId = async () => {
 			try {
 				isFetchingResourceId.current = true
-				const resourceIdResponse = await SuperMagicApi.getShareResourceId()
+				const resourceIdResponse = await SuperMagicApi.getSnowflakeIds()
 
-				if (resourceIdResponse?.id) {
-					setResourceId(resourceIdResponse.id)
+				if (resourceIdResponse?.ids?.[0]) {
+					setResourceId(resourceIdResponse.ids[0])
 					// Note: Don't set hasResourceIdCreated here, as we haven't created the share yet
 					// hasResourceIdCreated will be set when the first create/update API is called
 				}
@@ -521,13 +527,13 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 			// Step 1: Ensure resourceId exists
 			if (!currentResourceId) {
 				// 无论单文件还是多文件，都调用 API 获取资源 ID
-				const resourceIdResponse: any = await SuperMagicApi.getShareResourceId()
+				const resourceIdResponse = await SuperMagicApi.getSnowflakeIds()
 
-				if (!resourceIdResponse?.id) {
+				if (!resourceIdResponse?.ids?.[0]) {
 					throw new Error("Failed to get resource ID")
 				}
 
-				currentResourceId = resourceIdResponse.id
+				currentResourceId = resourceIdResponse.ids[0]
 				setResourceId(currentResourceId)
 			}
 
@@ -565,8 +571,53 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 				hasResourceIdCreated.current = true
 			}
 
+			// Step 3: Generate share message and copy to clipboard (silently, no toast)
+			try {
+				const fileIds = apiResult?.file_ids || selectedFileIds
+				let fileDisplayConfig: { type?: string; [key: string]: unknown } | undefined =
+					undefined
+
+				// 如果是单文件分享，获取文件详情
+				if (fileIds.length === 1) {
+					try {
+						const response = await SuperMagicApi.batchGetFileDetails({
+							file_ids: fileIds,
+						})
+						const file = response?.files?.[0]
+						fileDisplayConfig = file?.display_config
+					} catch (error) {
+						console.error("Failed to fetch file details:", error)
+					}
+				}
+
+				const shareUrl = generateShareUrl(
+					currentResourceId as string,
+					extraData.passwordEnabled ? extraData.password : undefined,
+					"files",
+				)
+
+				const shareMessageText = generateShareMessageText({
+					fileCount: actualFileCount,
+					mainFileName: apiResult?.main_file_name || t("share.untitled"),
+					projectName: projectName,
+					shareProject: shareProject,
+					shareUrl,
+					fileDisplayConfig,
+					t,
+				})
+
+				// Copy to clipboard silently (no toast)
+				clipboard.writeText(shareMessageText)
+			} catch (error) {
+				console.error("Failed to generate or copy share message:", error)
+				// 不影响整体流程，静默失败
+			}
+
+			// Step 4: Show success toast with copied message
 			magicToast.success(
-				externalResourceId ? t("share.updateSuccess") : t("share.createSuccess"),
+				externalResourceId
+					? t("share.updateSuccessAndCopied")
+					: t("share.createSuccessAndCopied"),
 			)
 
 			// 调用成功回调，传递数据给父组件
@@ -778,7 +829,7 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 					defaultOpenFileId={defaultOpenFileId || undefined}
 					onDefaultOpenFileChange={handleDefaultOpenFileChange}
 					disabled={shareProject}
-					allowSetDefaultOpen={shareProject}
+					allowSetDefaultOpen
 					shareProject={shareProject}
 					onShareProjectChange={handleShareProjectChange}
 				/>
@@ -817,7 +868,7 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 						defaultOpenFileId={defaultOpenFileId || undefined}
 						onDefaultOpenFileChange={handleDefaultOpenFileChange}
 						disabled={shareProject}
-						allowSetDefaultOpen={shareProject}
+						allowSetDefaultOpen
 						className={styles.fileSelector}
 					/>
 				</div>

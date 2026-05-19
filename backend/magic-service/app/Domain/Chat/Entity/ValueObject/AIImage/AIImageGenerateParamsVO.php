@@ -55,8 +55,11 @@ class AIImageGenerateParamsVO extends AbstractValueObject
     // 连续图片生成模式（disabled/enabled）
     public string $sequentialImageGeneration = 'disabled';
 
-    // 连续图片生成选项配置
-    public array $sequentialImageGenerationOptions = [];
+    // 图片生成附加配置
+    public array $imageGenerationConfig = [];
+
+    // 输出图片格式（统一使用小写格式，如 png、jpeg、webp；空字符串表示使用服务商默认格式）
+    public string $outputFormat = '';
 
     public function __construct()
     {
@@ -249,13 +252,23 @@ class AIImageGenerateParamsVO extends AbstractValueObject
         $this->sequentialImageGeneration = $sequentialImageGeneration;
     }
 
-    public function getSequentialImageGenerationOptions(): array
+    public function getImageGenerationConfig(): array
     {
-        return $this->sequentialImageGenerationOptions;
+        return $this->imageGenerationConfig;
     }
 
-    public function setSequentialImageGenerationOptions(array $sequentialImageGenerationOptions): void
+    public function setImageGenerationConfig(array $imageGenerationConfig): void
     {
-        $this->sequentialImageGenerationOptions = $sequentialImageGenerationOptions;
+        $this->imageGenerationConfig = $imageGenerationConfig;
+    }
+
+    public function getOutputFormat(): string
+    {
+        return $this->outputFormat;
+    }
+
+    public function setOutputFormat(string $outputFormat): void
+    {
+        $this->outputFormat = $outputFormat;
     }
 }

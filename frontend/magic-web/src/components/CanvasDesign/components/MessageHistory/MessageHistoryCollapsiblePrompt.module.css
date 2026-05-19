@@ -1,0 +1,57 @@
+.root {
+	position: relative;
+	width: 100%;
+	min-width: 0;
+}
+
+.text {
+	width: 100%;
+	min-width: 0;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.collapsed {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 8;
+	line-clamp: 9;
+}
+
+.expanded {
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+.expandButtonWrapper {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	background-color: white;
+}
+
+.expandButtonText {
+	padding-right: 8px;
+	padding-left: 1px;
+}
+
+.expandButton {
+	height: auto;
+	min-height: 0;
+	padding: 0;
+	color: var(--base-primary, #007aff);
+	font-weight: var(--font-weight-normal, 400);
+	font-size: var(--text-xs-font-size, 12px);
+	line-height: 18px;
+	text-decoration: unset !important;
+	background-color: white;
+}
+
+.expandButton:hover {
+	opacity: 0.8;
+}
+
+.expandButton:active {
+	opacity: 1;
+}

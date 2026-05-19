@@ -2,7 +2,7 @@ import { useRef, useCallback, useEffect } from "react"
 import { useLatest } from "ahooks"
 import { CanvasDesignRef } from "@/components/CanvasDesign/types"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { PaddingConfig } from "@/components/CanvasDesign/canvas/types"
+import { PaddingInsetConfig } from "@/components/CanvasDesign/canvas/types"
 
 interface UseDesignFocusElementProps {
 	isPlaybackMode?: boolean
@@ -30,7 +30,7 @@ export function useDesignFocusElement({
 			elementIds: string[]
 			selectElement?: string[] | boolean
 			animated?: boolean
-			padding?: PaddingConfig
+			padding?: PaddingInsetConfig
 		}) => {
 			const {
 				isFromPlaybackToolNode,
@@ -83,76 +83,13 @@ export function useDesignFocusElement({
 		})
 	}, [canvasDesignRef])
 
-	// 处理选中标记并聚焦元素的事件
-	const handleSelectMarkerAndFocus = useCallback(
-		(data: {
-			designProjectId: string
-			markerId: string
-			elementId: string
-			shouldFocusElement: boolean
-			shouldSelectMarker?: boolean
-		}) => {
-			const {
-				designProjectId: targetDesignProjectId,
-				markerId,
-				elementId,
-				shouldFocusElement,
-				shouldSelectMarker = true, // 默认选中标记
-			} = data
-
-			// 检查是否是当前设计项目
-			if (targetDesignProjectId !== designProjectId) {
-				return
-			}
-
-			// 创建执行选中标记和聚焦的回调函数
-			const selectAndFocusCallback = () => {
-				if (!canvasDesignRef.current) return
-
-				// 如果需要选中标记
-				if (shouldSelectMarker) {
-					canvasDesignRef.current.selectMarker(markerId)
-				}
-
-				// 如果需要聚焦元素
-				if (shouldFocusElement) {
-					canvasDesignRef.current.focusElement([elementId], {
-						animated: true,
-						selectElement: true,
-						padding: { top: "25%", right: "25%", bottom: "25%", left: "25%" },
-					})
-				}
-			}
-
-			// 检查是否初始化完成：loading 完成且 ref 已准备好
-			const isInitialized = !isInitialLoadingRef.current && canvasDesignRef.current !== null
-
-			if (isInitialized) {
-				// 初始化完成，直接执行
-				selectAndFocusCallback()
-			} else {
-				// 初始化未完成，将回调加入待办队列
-				pendingCallbacksRef.current.push(selectAndFocusCallback)
-			}
-		},
-		[designProjectId, isInitialLoadingRef, canvasDesignRef],
-	)
-
 	// 订阅事件
 	useEffect(() => {
 		pubsub.subscribe(PubSubEvents.Super_Magic_Focus_Canvas_Element, handleFocusElement)
-		pubsub.subscribe(
-			PubSubEvents.Super_Magic_Select_Marker_And_Focus,
-			handleSelectMarkerAndFocus,
-		)
 		return () => {
 			pubsub.unsubscribe(PubSubEvents.Super_Magic_Focus_Canvas_Element, handleFocusElement)
-			pubsub.unsubscribe(
-				PubSubEvents.Super_Magic_Select_Marker_And_Focus,
-				handleSelectMarkerAndFocus,
-			)
 		}
-	}, [handleFocusElement, handleSelectMarkerAndFocus])
+	}, [handleFocusElement])
 
 	// 监听初始化完成，消费待办事件
 	useEffect(() => {

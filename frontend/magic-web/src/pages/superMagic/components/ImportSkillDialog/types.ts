@@ -31,6 +31,7 @@ export function createInitialSkillIdentityData(): SkillIdentityData {
 		iconUrl: undefined,
 		name: createEmptySkillI18nText(),
 		description: createEmptySkillI18nText(),
+		source: createEmptySkillI18nText(),
 	}
 }
 
@@ -40,6 +41,5 @@ export interface SkillIdentityData {
 	iconFile?: File
 	name: SkillI18nText
 	description: SkillI18nText
+	source: SkillI18nText
 }
-
-export type LocalizeField = "name" | "description"

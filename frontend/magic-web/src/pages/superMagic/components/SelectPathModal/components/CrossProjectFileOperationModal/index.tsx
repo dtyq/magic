@@ -14,8 +14,10 @@ import {
 } from "@tabler/icons-react"
 import { isEmpty, last } from "lodash-es"
 import { useTranslation } from "react-i18next"
+import { useMatch } from "react-router"
 
 import { cn } from "@/lib/utils"
+import { RoutePath } from "@/constants/routes"
 import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import BaseModal from "../BaseModal"
@@ -36,7 +38,15 @@ import type {
 	ProjectListItem,
 	CollaborationProjectListItem,
 } from "../../../../pages/Workspace/types"
-import { SHARE_WORKSPACE_ID, SHARE_WORKSPACE_DATA } from "../../../../constants"
+import { ProjectStatus } from "../../../../pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
+import {
+	SHARE_WORKSPACE_ID,
+	SHARE_WORKSPACE_DATA,
+	MY_CLAW_WORKSPACE_ID,
+	MY_CLAW_WORKSPACE_DATA,
+} from "../../../../constants"
+import { MagicClawApi, type MagicClawItem } from "@/apis"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import MagicEllipseWithTooltip from "@/components/base/MagicEllipseWithTooltip/MagicEllipseWithTooltip"
 import {
@@ -79,6 +89,22 @@ function CrossProjectFileOperationModal({
 }: CrossProjectFileOperationModalProps) {
 	const isMobile = useIsMobile()
 	const { t } = useTranslation("super")
+
+	// 判断是否为龙虾场景
+	// 实际路由格式: /:clusterCode/claw/:code (例如: /global/claw/MC-xxx)
+	const clawMatch = useMatch({
+		path: `/:clusterCode${RoutePath.ClawPlayground}`,
+		end: false,
+	})
+	const isClawContext = !!clawMatch
+
+	// 获取龙虾项目ID
+	const clawProjectId = useMemo(() => {
+		if (!isClawContext) return null
+		// 从 sourceAttachments 中提取 project_id（所有文件的 project_id 应该相同）
+		return sourceAttachments[0]?.project_id || null
+	}, [isClawContext, sourceAttachments])
+
 	const isProjectOnly =
 		selectProjectOnly ||
 		(operationType === "move" && fileIds.length === 0 && sourceAttachments.length === 0)
@@ -142,6 +168,9 @@ function CrossProjectFileOperationModal({
 		if (workspace.id === SHARE_WORKSPACE_ID) {
 			return t("workspace.shareWorkspaceName")
 		}
+		if (workspace.id === MY_CLAW_WORKSPACE_ID) {
+			return t("workspace.myClawWorkspaceName")
+		}
 		return workspace.name || t("workspace.unnamedWorkspace")
 	})
 
@@ -174,10 +203,47 @@ function CrossProjectFileOperationModal({
 		setLoading(false)
 	})
 
+	// 获取龙虾列表并转换为项目格式
+	const fetchMagicClawProjects = useMemoizedFn(async () => {
+		setLoading(true)
+		try {
+			const res = await MagicClawApi.queryMagicClawList({
+				page: 1,
+				page_size: 99,
+			})
+			// 将 MagicClawItem 转换为 ProjectListItem 格式
+			const projects: ProjectListItem[] = (res?.list || []).map((item: MagicClawItem) => ({
+				id: item.project_id,
+				project_status: ProjectStatus.WAITING,
+				project_mode: TopicMode.MagiClaw,
+				project_description: item.description || undefined,
+				workspace_id: MY_CLAW_WORKSPACE_ID,
+				work_dir: "",
+				workspace_name: t("workspace.myClawWorkspaceName"),
+				project_name: item.name,
+				current_topic_id: "",
+				current_topic_status: "",
+				created_at: "",
+				updated_at: "",
+				tag: "" as const,
+			}))
+			setAvailableProjects(projects)
+		} catch (error) {
+			console.error("Failed to fetch magic claw projects:", error)
+			magicToast.error(t("selectPathModal.fetchClawsFailed"))
+			setAvailableProjects([])
+		}
+		setLoading(false)
+	})
+
 	// 获取工作区的项目列表
 	const fetchProjectsByWorkspace = useMemoizedFn(async (workspaceId: string) => {
 		if (workspaceId === SHARE_WORKSPACE_ID) {
 			await fetchCollaborationProjects()
+			return
+		}
+		if (workspaceId === MY_CLAW_WORKSPACE_ID) {
+			await fetchMagicClawProjects()
 			return
 		}
 		setLoading(true)
@@ -218,7 +284,7 @@ function CrossProjectFileOperationModal({
 		try {
 			const res = await SuperMagicApi.getWorkspaces({
 				page: 1,
-				page_size: 99,
+				page_size: 999,
 			})
 			const refreshedWorkspaces = res?.list || []
 			// 更新内部工作区列表状态
@@ -423,6 +489,67 @@ function CrossProjectFileOperationModal({
 		setLoading(false)
 	})
 
+	// 龙虾场景初始化处理
+	const handleClawContextInitialization = useMemoizedFn(async (projectId: string) => {
+		setLoading(true)
+		setIsSearch(false)
+		setIsSearchOpen(false)
+		setFileName("")
+		createDirectoryHook.cancelCreateDirectory()
+		createWorkspaceHook.cancelCreateWorkspace()
+		createProjectHook.cancelCreateProject()
+
+		try {
+			// 1. 设置"我的龙虾"工作区
+			const myClawWorkspace = MY_CLAW_WORKSPACE_DATA(t)
+			setCurrentWorkspace(myClawWorkspace)
+
+			// 2. 获取龙虾项目详情
+			const project = await SuperMagicApi.getProjectDetail({ id: projectId })
+
+			if (!project) {
+				return
+			}
+
+			// 3. 设置当前项目
+			setCurrentProject(project)
+
+			// 4. 根据是否 projectOnly 设置视图模式
+			if (isProjectOnly) {
+				setViewMode("project")
+				setPath([])
+				setAttachments([])
+				setDirectories([])
+			} else {
+				setViewMode("directory")
+				setPath(initialPath)
+
+				// 5. 获取项目文件树
+				const res = await SuperMagicApi.getAttachmentsByProjectId({
+					projectId: project.id,
+					temporaryToken:
+						(window as Window & { temporary_token?: string }).temporary_token || "",
+				})
+
+				setAttachments(res?.tree || [])
+				const dirs = getDirectoriesFromPath(res?.tree || [], initialPath)
+				setDirectories(filesSort(dirs))
+			}
+		} catch (error) {
+			console.error("Failed to initialize claw context:", error)
+			magicToast.error(t("selectPathModal.fetchProjectsFailed"))
+			// 失败时回退到工作区列表
+			setViewMode("workspace")
+			setCurrentWorkspace(null)
+			setCurrentProject(null)
+			setAttachments([])
+			setPath([])
+			setDirectories([])
+		}
+
+		setLoading(false)
+	})
+
 	// 返回项目列表
 	const handleBackToProject = useMemoizedFn(async () => {
 		setViewMode("project")
@@ -458,7 +585,9 @@ function CrossProjectFileOperationModal({
 			const workspaceName =
 				currentWorkspace.id === SHARE_WORKSPACE_ID
 					? t("workspace.shareWorkspaceName")
-					: currentWorkspace.name || t("workspace.unnamedWorkspace")
+					: currentWorkspace.id === MY_CLAW_WORKSPACE_ID
+						? t("workspace.myClawWorkspaceName")
+						: currentWorkspace.name || t("workspace.unnamedWorkspace")
 			output.push({
 				name: workspaceName,
 				id: currentWorkspace.id,
@@ -745,6 +874,12 @@ function CrossProjectFileOperationModal({
 
 		initializedRef.current = true
 
+		// 龙虾场景特殊处理
+		if (isClawContext && clawProjectId) {
+			handleClawContextInitialization(clawProjectId)
+			return
+		}
+
 		// 如果有当前工作区和当前项目，默认选中它们
 		if (selectedWorkspace && selectedProject) {
 			setCurrentWorkspace(selectedWorkspace)
@@ -803,7 +938,7 @@ function CrossProjectFileOperationModal({
 			createProjectHook.cancelCreateProject()
 		}
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [visible])
+	}, [visible, isClawContext, clawProjectId])
 
 	// 根据 viewMode 动态设置搜索 placeholder
 	const searchPlaceholder = useMemo(() => {
@@ -875,21 +1010,23 @@ function CrossProjectFileOperationModal({
 	const renderWorkspaceList = () => {
 		// 创建共享工作区对象
 		const shareWorkspace = SHARE_WORKSPACE_DATA(t)
-		// 合并工作区列表和共享工作区
-		const allWorkspaces = [...availableWorkspaces, shareWorkspace]
+		// 创建我的龙虾工作区对象
+		const myClawWorkspace = MY_CLAW_WORKSPACE_DATA(t)
+		// 合并工作区列表、共享工作区和我的龙虾工作区
+		const allWorkspaces = [...availableWorkspaces, shareWorkspace, myClawWorkspace]
 
 		// 根据搜索关键词过滤工作区（使用显示名称进行匹配，支持未命名工作区和共享工作区）
 		const filteredWorkspaces =
 			isSearch && fileName
 				? allWorkspaces.filter((workspace) =>
-					getWorkspaceDisplayName(workspace)
-						.toLowerCase()
-						.includes(fileName.toLowerCase()),
-				)
+						getWorkspaceDisplayName(workspace)
+							.toLowerCase()
+							.includes(fileName.toLowerCase()),
+					)
 				: allWorkspaces
 
 		const textFolderItemClass =
-			"mb-0.5 flex h-10 cursor-pointer items-center gap-1 rounded-[4px] p-2.5 transition-all hover:not(.disable):bg-fill [&.disable]:cursor-not-allowed [&.disable]:opacity-50"
+			"mb-0.5 flex h-10 cursor-pointer items-center gap-1 rounded-md p-2.5 transition-all hover:bg-fill [&.disable]:cursor-not-allowed [&.disable]:opacity-50"
 		const folderIconClass =
 			"flex size-6 shrink-0 items-center justify-center rounded-[4px] bg-fill"
 		const nameClass =
@@ -934,19 +1071,27 @@ function CrossProjectFileOperationModal({
 										title={
 											workspace.id === SHARE_WORKSPACE_ID
 												? t("workspace.shareWorkspaceName")
-												: workspace.name || t("workspace.unnamedWorkspace")
+												: workspace.id === MY_CLAW_WORKSPACE_ID
+													? t("workspace.myClawWorkspaceName")
+													: workspace.name ||
+														t("workspace.unnamedWorkspace")
 										}
 										text={
 											workspace.id === SHARE_WORKSPACE_ID
 												? t("workspace.shareWorkspaceName")
-												: workspace.name || t("workspace.unnamedWorkspace")
+												: workspace.id === MY_CLAW_WORKSPACE_ID
+													? t("workspace.myClawWorkspaceName")
+													: workspace.name ||
+														t("workspace.unnamedWorkspace")
 										}
 										className={nameClass}
 										placement="topLeft"
 									>
 										{workspace.id === SHARE_WORKSPACE_ID
 											? t("workspace.shareWorkspaceName")
-											: workspace.name || t("workspace.unnamedWorkspace")}
+											: workspace.id === MY_CLAW_WORKSPACE_ID
+												? t("workspace.myClawWorkspaceName")
+												: workspace.name || t("workspace.unnamedWorkspace")}
 									</MagicEllipseWithTooltip>
 								</div>
 								<div className="flex min-w-0 flex-[0_0_500px] shrink items-center justify-end gap-2.5">
@@ -990,14 +1135,14 @@ function CrossProjectFileOperationModal({
 		const filteredProjects =
 			isSearch && fileName
 				? editableProjects.filter((project) =>
-					getProjectDisplayName(project)
-						.toLowerCase()
-						.includes(fileName.toLowerCase()),
-				)
+						getProjectDisplayName(project)
+							.toLowerCase()
+							.includes(fileName.toLowerCase()),
+					)
 				: editableProjects
 
 		const textFolderItemClass =
-			"mb-0.5 flex h-10 cursor-pointer items-center gap-1 rounded-[4px] p-2.5 transition-all hover:not(.disable):bg-fill [&.disable]:cursor-not-allowed [&.disable]:opacity-50"
+			"mb-0.5 flex h-10 cursor-pointer items-center gap-1 rounded-md p-2.5 transition-all hover:bg-fill [&.disable]:cursor-not-allowed [&.disable]:opacity-50"
 		const folderIconClass =
 			"flex size-6 shrink-0 items-center justify-center rounded-[4px] bg-fill"
 		const nameClass =
@@ -1129,7 +1274,7 @@ function CrossProjectFileOperationModal({
 	// 渲染目录树
 	const renderDirectoryTree = () => {
 		const textFolderItemClass =
-			"mb-0.5 flex h-10 cursor-pointer items-center gap-1 rounded-[4px] p-2.5 transition-all hover:not(.disable):bg-fill [&.disable]:cursor-not-allowed [&.disable]:opacity-50"
+			"mb-0.5 flex h-10 cursor-pointer items-center gap-1 rounded-md p-2.5 transition-all hover:bg-fill [&.disable]:cursor-not-allowed [&.disable]:opacity-50"
 		const folderIconClass =
 			"flex size-6 shrink-0 items-center justify-center rounded-[4px] bg-fill"
 		const nameClass =
@@ -1274,7 +1419,7 @@ function CrossProjectFileOperationModal({
 					</div>
 				)}
 				{isSearchOpen ? (
-					<div className="flex min-w-0 flex-1 items-center gap-2">
+					<div className="flex h-[44px] min-w-0 flex-1 items-center gap-2">
 						<div className="relative min-w-0 flex-1">
 							<IconSearch
 								size={16}
@@ -1322,7 +1467,7 @@ function CrossProjectFileOperationModal({
 													maxWidth:
 														breadcrumbItems.length > 1
 															? 470 / (breadcrumbItems.length - 1) -
-															24
+																24
 															: undefined,
 													cursor: !item.operation
 														? "not-allowed"
@@ -1396,7 +1541,7 @@ function CrossProjectFileOperationModal({
 																		<MagicEllipseWithTooltip
 																			title={subitem.name}
 																			text={subitem.name}
-																			className="name max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap"
+																			className="name ml-2 max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap"
 																			placement="topLeft"
 																		>
 																			{subitem.name}

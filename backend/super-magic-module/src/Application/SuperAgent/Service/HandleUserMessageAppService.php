@@ -10,6 +10,7 @@ namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentSkillInterface;
+use App\Domain\Chat\DTO\Message\ChatMessage\UserToolCallMessage;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
 use App\Domain\Contact\Service\MagicDepartmentUserDomainService;
 use App\Domain\LongTermMemory\Service\LongTermMemoryDomainService;
@@ -23,6 +24,8 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\TaskMessageDTO;
 use Dtyq\SuperMagic\Application\SuperAgent\DTO\UserMessageDTO;
+use Dtyq\SuperMagic\Domain\MagicFS\Service\UpsertProjectFileNodeDTO;
+use Dtyq\SuperMagic\Domain\SuperAgent\Constant\ProjectFileConstant;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ProjectEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
@@ -35,6 +38,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\StorageType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskContext;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskFileSource;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\TaskStatus;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\AttachmentsProcessedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\RunTaskBeforeEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\AgentDomainService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskDomainService;
@@ -50,6 +54,7 @@ use Hyperf\Redis\Redis;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
+use function event_dispatch;
 use function Hyperf\Translation\trans;
 
 /**
@@ -219,6 +224,20 @@ class HandleUserMessageAppService extends AbstractAppService
             }
             $topicId = $topicEntity->getId();
             $projectId = $topicEntity->getProjectId();
+
+            $currentTaskId = $topicEntity->getCurrentTaskId();
+            $currentTaskEntity = null;
+            if (! empty($currentTaskId)) {
+                $currentTaskEntity = $this->taskDomainService->getTaskById($currentTaskId);
+            }
+
+            if ($currentTaskEntity?->getStatus() === TaskStatus::WAITING_FOR_USER) {
+                $this->topicTaskAppService->handleUserToolCallCancelled(
+                    dataIsolation: $dataIsolation,
+                    task: $currentTaskEntity,
+                );
+            }
+
             // Check if this is the first task for the topic
             // If topic source is COPY, it's not the first task
             $isFirstTask = (empty($topicEntity->getCurrentTaskId()) || empty($topicEntity->getSandboxId()))
@@ -379,6 +398,25 @@ class HandleUserMessageAppService extends AbstractAppService
             );
             throw new BusinessException('Initialize task failed', 500);
         }
+    }
+
+    /**
+     * 处理用户工具调用回复，直接将消息转发给沙盒。
+     * tool_call_id 对应沙盒下发的工具调用 ID；task_id 由领域服务通过 chatTopicId 推导。
+     * name 透传给沙盒，PHP 层不做分支，所有工具类型走统一流程。
+     */
+    public function handleUserToolCallMessage(
+        DataIsolation $dataIsolation,
+        UserMessageDTO $userMessageDTO,
+        UserToolCallMessage $userToolCallMessage,
+    ): void {
+        $this->topicTaskAppService->handleUserToolCallReply(
+            dataIsolation: $dataIsolation,
+            chatTopicId: $userMessageDTO->getChatTopicId(),
+            name: $userToolCallMessage->getName(),
+            toolCallId: $userToolCallMessage->getToolCallId(),
+            detail: $userToolCallMessage->getDetail() ?? [],
+        );
     }
 
     /**
@@ -607,13 +645,26 @@ class HandleUserMessageAppService extends AbstractAppService
                 try {
                     $taskFileEntity = $this->convertAttachmentToTaskFileEntity($attachment, $taskEntity, $dataIsolation);
                     if ($taskFileEntity) {
-                        $this->taskFileDomainService->saveProjectFile(
-                            $dataIsolation,
-                            $projectEntity,
-                            $taskFileEntity,
-                            StorageType::WORKSPACE->value,
-                            false
+                        $upsertedEntity = $this->taskFileDomainService->upsertProjectFileNode(
+                            new UpsertProjectFileNodeDTO(
+                                projectId: $projectEntity->getId(),
+                                projectWorkDir: $projectEntity->getWorkDir(),
+                                projectOrganizationCode: $projectEntity->getUserOrganizationCode(),
+                                operatorUserId: $dataIsolation->getCurrentUserId(),
+                                operatorOrganizationCode: $dataIsolation->getCurrentOrganizationCode(),
+                                taskFileEntity: $taskFileEntity,
+                                storageTypeOverride: StorageType::WORKSPACE->value,
+                                isUpdated: false
+                            )
                         );
+                        // Dispatch AttachmentsProcessedEvent if a metadata file was upserted
+                        if (ProjectFileConstant::isSetMetadataFile($upsertedEntity->getFileName())) {
+                            event_dispatch(new AttachmentsProcessedEvent(
+                                $upsertedEntity->getParentId(),
+                                $upsertedEntity->getProjectId(),
+                                $upsertedEntity->getTaskId()
+                            ));
+                        }
                         ++$stats['success'];
 
                         $this->logger->debug(sprintf(

@@ -35,3 +35,15 @@ export interface SkillEditAttachmentItem {
 	kind: SkillEditAttachmentKind
 	children?: SkillEditAttachmentItem[]
 }
+
+/** Parsed SKILL.md frontmatter + paths for skill workspace sync */
+export interface SkillWorkspaceManifest {
+	/** Maps frontmatter `name` → API `default` slot */
+	nameDefault: string
+	/** Frontmatter `name-cn` / `name_cn` (sidebar display only) */
+	nameCn: string
+	/** Maps frontmatter `description` → API `default` slot */
+	descriptionDefault: string
+	/** Frontmatter `description-cn` / `description_cn` (display only) */
+	descriptionCn: string
+}

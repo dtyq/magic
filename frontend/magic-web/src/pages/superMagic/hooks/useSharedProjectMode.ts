@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { TopicMode } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 
 interface UseSharedProjectModeParams {
@@ -9,8 +9,8 @@ interface UseSharedProjectModeParams {
 
 function useSharedProjectMode({ setTopicMode }: UseSharedProjectModeParams) {
 	useEffect(() => {
-		const handleSharedProjectMode = (data?: { mode?: TopicMode }) => {
-			if (!data?.mode || !superMagicModeService.isModeValid(data.mode)) {
+		const handleSharedProjectMode = (data?: { mode?: TopicMode; agent_code?: string }) => {
+			if (!data?.mode || !superMagicModeService.isModeValid(data.mode, data.agent_code)) {
 				return
 			}
 			setTopicMode(data.mode)

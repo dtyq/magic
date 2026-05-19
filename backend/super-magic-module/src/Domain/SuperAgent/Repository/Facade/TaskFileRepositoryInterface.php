@@ -21,7 +21,7 @@ interface TaskFileRepositoryInterface
      * 根据ID批量获取文件.
      * @return TaskFileEntity[]
      */
-    public function getFilesByIds(array $fileIds, int $projectId = 0): array;
+    public function getFilesByIds(array $fileIds, int $projectId = 0, ?string $storageType = null): array;
 
     /**
      * 根据ID批量获取文件.
@@ -52,9 +52,14 @@ interface TaskFileRepositoryInterface
     public function getByProjectIdAndFileKey(int $projectId, string $fileKey): ?TaskFileEntity;
 
     /**
-     * Get file by project ID and file name.
+     * Get file by project ID and file name (searches across all directories).
      */
     public function getByProjectIdAndFileName(int $projectId, string $fileName): ?TaskFileEntity;
+
+    /**
+     * 根据项目ID、父目录ID和文件名获取文件（用于同目录重名冲突判断）.
+     */
+    public function getByProjectParentAndName(int $projectId, ?int $parentId, string $fileName, bool $withTrash = false): ?TaskFileEntity;
 
     /**
      * Get files by project ID and file keys.
@@ -260,8 +265,9 @@ interface TaskFileRepositoryInterface
      * 批量删除文件.
      *
      * @param array $fileIds 文件ID数组
+     * @param bool $forceDelete 是否强制删除（物理删除），默认为true，false为软删除
      */
-    public function deleteByIds(array $fileIds): void;
+    public function deleteByIds(array $fileIds, bool $forceDelete = true): void;
 
     /**
      * 根据文件Keys批量删除文件.
@@ -355,6 +361,56 @@ interface TaskFileRepositoryInterface
     public function getFilesWithParentsByIds(array $fileIds, int $projectId = 0): array;
 
     /**
+     * 递增指定文件的版本号（原子操作）.
+     *
+     * @param int $fileId 文件ID
+     * @return int 更新后的版本号
+     */
+    public function incrementVersionById(int $fileId): int;
+
+    /**
+     * 更新指定文件的最新内容版本号.
+     *
+     * @param int $fileId 文件ID
+     * @param int $latestVersion 最新版本号
+     */
+    public function updateLatestVersionById(int $fileId, int $latestVersion): void;
+
+    /**
+     * 批量获取文件版本号.
+     *
+     * @param array $fileIds 文件ID数组
+     * @return array<string, int> file_id => version 的映射
+     */
+    public function getVersionsByIds(array $fileIds): array;
+
+    /**
+     * 递增指定文件的元数据版本号（原子操作）.
+     * 用于 MagicFS，在文件重命名、移动、权限修改等元数据操作时调用.
+     *
+     * @param int $fileId 文件ID
+     * @return int 更新后的元数据版本号
+     */
+    public function incrementMetadataVersionById(int $fileId): int;
+
+    /**
+     * 批量递增多个文件的元数据版本号（原子操作）.
+     * 用于优化版本链更新性能，一次 SQL 操作更新多个文件.
+     *
+     * @param array $fileIds 文件ID数组
+     */
+    public function incrementMetadataVersionByIds(array $fileIds): void;
+
+    /**
+     * 批量获取文件元数据版本号.
+     * 用于 MagicFS 客户端检查缓存是否失效.
+     *
+     * @param array $fileIds 文件ID数组
+     * @return array<string, int> file_id => metadata_version 的映射
+     */
+    public function getMetadataVersionsByIds(array $fileIds): array;
+
+    /**
      * 递归获取目录的所有子文件ID.
      * 使用广度优先遍历，逐层查询，避免深度递归.
      *
@@ -364,6 +420,17 @@ interface TaskFileRepositoryInterface
      * @return array 所有子文件的ID数组
      */
     public function getAllChildrenFileIdsByDirectoryIds(array $directoryIds, int $projectId, int $maxDepth = 10): array;
+
+    /**
+     * 获取目录下所有后代节点的ID（包含文件和目录）.
+     * 使用广度优先遍历 parent_id 链，逐层查询。
+     *
+     * @param int $parentId 父目录ID
+     * @param int $projectId 项目ID（0 表示不限制项目）
+     * @param int $maxDepth 最大递归深度
+     * @return array<int> 所有后代节点的 file_id 数组
+     */
+    public function getAllDescendantIds(int $parentId, int $projectId = 0, int $maxDepth = 100): array;
 
     /**
      * Transfer ownership of all files in a project.
@@ -384,4 +451,49 @@ interface TaskFileRepositoryInterface
      * @return null|TaskFileEntity 根节点文件实体
      */
     public function getRootFileByProjectId(int $projectId): ?TaskFileEntity;
+
+    /**
+     * Find root directory by project ID.
+     * Root directory is identified by: parent_id IS NULL AND file_name = '/' AND is_directory = true.
+     *
+     * @param int $projectId Project ID
+     * @return null|TaskFileEntity Root directory entity or null if not found
+     */
+    public function findRootDirectoryByProjectId(int $projectId): ?TaskFileEntity;
+
+    /**
+     * Find user-space root directory by user_id, organization_code and space_type.
+     * Root directory is identified by: parent_id IS NULL AND file_name = '/' AND is_directory = true
+     * AND space_type = 'user' AND user_id = ? AND organization_code = ?.
+     */
+    public function findUserSpaceRootDirectory(string $userId, string $organizationCode): ?TaskFileEntity;
+
+    /**
+     * Batch update is_hidden field for given file IDs.
+     *
+     * @param int[] $fileIds File IDs to update
+     * @param bool $isHidden New hidden status
+     * @return int Number of affected rows
+     */
+    public function batchUpdateIsHidden(array $fileIds, bool $isHidden): int;
+
+    /**
+     * Get existing file names under a parent directory, filtered by provided names.
+     * Used to avoid duplicate insertions.
+     *
+     * @param int $parentId Parent directory file ID
+     * @param array $fileNames File names to check
+     * @return string[] Existing file names in the database
+     */
+    public function getExistingFileNamesByParentId(int $parentId, array $fileNames): array;
+
+    /**
+     * Batch insert WAV file records under a specific parent directory.
+     *
+     * @param DataIsolation $dataIsolation Data isolation context
+     * @param int $projectId Project ID
+     * @param int $parentId Parent directory file ID
+     * @param array $wavFiles Array of file info: [['file_name' => ..., 'file_key' => ..., 'file_size' => ...], ...]
+     */
+    public function batchInsertWavFiles(DataIsolation $dataIsolation, int $projectId, int $parentId, array $wavFiles): void;
 }

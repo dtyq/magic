@@ -1,5 +1,4 @@
 import { useEffect } from "react"
-import { useDeepCompareEffect } from "ahooks"
 import type { PPTStore } from "../stores/PPTStore"
 
 interface UseSlideSync {
@@ -9,26 +8,11 @@ interface UseSlideSync {
 }
 
 /**
- * 管理幻灯片初始化、增量同步和激活索引恢复。
- * 使用深比较避免 slidePaths 未变化时的重复同步。
+ * 管理幻灯片激活索引恢复。
+ * 幻灯片初始化和增量同步统一由 PPTStore.updateConfig() 处理（单一通道），
+ * 避免双通道竞争导致的更新不及时问题。
  */
-export function useSlideSync({ store, slidePaths, initialActiveIndex }: UseSlideSync) {
-	useDeepCompareEffect(() => {
-		if (!slidePaths || slidePaths.length === 0) return
-
-		// 如果由 onSortSave 触发则跳过同步，防止循环更新
-		if (store.shouldSkipExternalSync()) return
-
-		if (store.slides.length === 0) {
-			store.initializeSlides(slidePaths)
-		} else {
-			// 增量同步：自动处理 URL 获取、加载和截图生成
-			store.syncSlides(slidePaths).catch((error) => {
-				console.error("Failed to sync slides:", error)
-			})
-		}
-	}, [slidePaths, store])
-
+export function useSlideSync({ store, slidePaths: _slidePaths, initialActiveIndex }: UseSlideSync) {
 	// 幻灯片初始化完成后恢复缓存的 activeIndex
 	useEffect(() => {
 		if (store.slides.length > 0) {

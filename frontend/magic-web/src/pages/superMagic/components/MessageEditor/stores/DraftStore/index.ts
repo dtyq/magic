@@ -1,16 +1,12 @@
-import { makeAutoObservable } from "mobx"
+import { makeAutoObservable, runInAction } from "mobx"
 import type { JSONContent } from "@tiptap/react"
 import type { DraftData, DraftKey } from "../../types"
 import type { DataService } from "@/components/business/MentionPanel/types"
 import { draftManager } from "../../services/draftService"
 import { hasMeaningfulData } from "../../services/draftService/utils"
-import {
-	filterUploadFileMentionsFromContent,
-	hasLoadingMarkerInContent,
-	syncDraftMarkersToManager,
-} from "../../utils/mention"
-import { SuperMagicMarkerManager } from "@/pages/superMagic/components/Detail/contents/Design/marker-manager"
+import { filterUploadFileMentionsFromContent, hasLoadingMarkerInContent } from "../../utils/mention"
 import { EditorStore } from "../EditorStore"
+import { syncDraftMarkersToSuperMagicManager } from "./lazy-super-magic-marker-manager"
 
 interface MentionPanelStoreLike extends DataService {
 	getInitLoadAttachmentsPromise?: (projectId: string) => Promise<unknown>
@@ -163,7 +159,9 @@ export class DraftStore {
 
 		const loadPromise = this.loadLatestDraftInternal(draftKey, options)
 		this.loadDraftPromise = loadPromise.finally(() => {
-			this.loadDraftPromise = null
+			runInAction(() => {
+				this.loadDraftPromise = null
+			})
 		})
 
 		return this.loadDraftPromise
@@ -214,12 +212,16 @@ export class DraftStore {
 			}
 
 			allDrafts.sort((a, b) => b.updatedAt - a.updatedAt)
-			this.drafts = allDrafts
+			runInAction(() => {
+				this.drafts = allDrafts
+			})
 		} catch (error) {
 			console.error("Failed to load drafts:", error)
 		} finally {
 			if (options.loading) {
-				this.isDraftsLoading = false
+				runInAction(() => {
+					this.isDraftsLoading = false
+				})
 			}
 		}
 	}
@@ -292,11 +294,7 @@ export class DraftStore {
 		}
 
 		if (replaceDirectly ? draft.value : true) {
-			// 草稿恢复前，将 marker 同步到 Manager，便于 Design 画布显示，避免被误判为 stale
-			const markerManager = SuperMagicMarkerManager.getInstance()
-			syncDraftMarkersToManager(draft, (data) => {
-				markerManager.syncFromCanvasMarkerMentionData(data)
-			})
+			await syncDraftMarkersToSuperMagicManager(draft)
 
 			const filteredContent =
 				draft.value && dataService
@@ -305,7 +303,9 @@ export class DraftStore {
 			this.editorStore.updateContent(filteredContent)
 		}
 
-		this.isDraftReady = true
+		runInAction(() => {
+			this.isDraftReady = true
+		})
 	}
 
 	private getDraftKey() {
@@ -324,7 +324,7 @@ export class DraftStore {
 	private scheduleSendingGuardReset() {
 		// Keep delayed reset to avoid blur save race
 		setTimeout(() => {
-			this.isSendingGuard = false
+			this.resetSendingGuard()
 		}, 1000)
 	}
 }

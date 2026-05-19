@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useState } from "react"
+import React, { memo, Suspense, useEffect, useMemo, useState } from "react"
 import { ModelSwitchProps, ModelItem } from "./types"
 import {
 	DropdownMenu,
@@ -9,12 +9,13 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import FlexBox from "@/components/base/FlexBox"
 import ModelIcon from "./components/ModelIcon"
 import { cn } from "@/lib/utils"
+import { userStore } from "@/models/user"
 import { modelSwitchVariants, ICON_SIZE_MAP, CHEVRON_SIZE_MAP } from "./constants"
 import { useModelSwitchLogic } from "./hooks/useModelSwitchLogic"
 import { ModelListContent } from "./components/ModelListContent"
 import { AddModelStoreProvider } from "./components/AddModel/context"
 import { AddModelStore } from "./components/AddModel/store"
-import AddModelDialog from "./components/AddModel/AddModelDialog"
+import { AddModelDialogLazy } from "./components/AddModel/add-model-dialog-lazy"
 import { ChevronsUpDownIcon, Sparkles } from "lucide-react"
 
 export const ModelSwitch: React.FC<ModelSwitchProps> = ({
@@ -28,6 +29,9 @@ export const ModelSwitch: React.FC<ModelSwitchProps> = ({
 	modelList,
 	placement,
 }) => {
+	const { isPersonalOrganization, isAdmin } = userStore.user
+	const canManageModels = isPersonalOrganization || isAdmin
+
 	// Internal state to manage selected model for immediate UI updates
 	const [internalSelectedModel, setInternalSelectedModel] = useState<ModelItem | null>(
 		selectedModelProp ?? null,
@@ -112,6 +116,7 @@ export const ModelSwitch: React.FC<ModelSwitchProps> = ({
 			selectedModel={selectedModel}
 			searchKeyword={searchKeyword}
 			size={size}
+			canManageModels={canManageModels}
 			onModelClick={baseHandleModelClick}
 			selectedItemRef={selectedItemRef}
 			getModelDescription={getModelDescription}
@@ -139,6 +144,7 @@ export const ModelSwitch: React.FC<ModelSwitchProps> = ({
 						className={cn(
 							modelSwitchVariants({ size, variant: "secondary" }),
 							showBorder && "border border-border",
+							"shrink-0",
 							!hasLanguageModels && "text-muted-foreground",
 							className,
 						)}
@@ -176,11 +182,10 @@ export const ModelSwitch: React.FC<ModelSwitchProps> = ({
 						<button
 							type="button"
 							className={cn(
-								"inline-flex items-center justify-center gap-2 border-0 bg-transparent p-0",
+								"inline-flex shrink-0 items-center justify-center gap-2 border-0 bg-transparent p-0",
 								"outline-none",
 								modelSwitchVariants({ size, variant: "secondary" }),
 								showBorder && "border border-border",
-								size === "small" && "max-w-[150px]",
 								!hasLanguageModels && "text-muted-foreground",
 								className,
 							)}
@@ -209,7 +214,9 @@ export const ModelSwitch: React.FC<ModelSwitchProps> = ({
 					</DropdownMenuContent>
 				</DropdownMenu>
 			)}
-			<AddModelDialog />
+			<Suspense fallback={null}>
+				<AddModelDialogLazy />
+			</Suspense>
 		</AddModelStoreProvider>
 	)
 }

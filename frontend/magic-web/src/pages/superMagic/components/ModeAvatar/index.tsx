@@ -1,6 +1,7 @@
 import { IconType } from "../AgentSelector/types"
 import { cn } from "@/lib/utils"
 import CrewFallbackAvatar from "../CrewFallbackAvatar"
+// import IconComponent from "../IconViewComponent"
 
 interface ModeAvatarData {
 	name: string
@@ -26,6 +27,8 @@ export function ModeAvatar({
 	"data-testid": dataTestId,
 }: ModeAvatarProps) {
 	const isImage = Boolean(mode.icon_url)
+	const hasIcon = Boolean(mode.icon)
+	const fallbackIconSize = Math.max(iconSize - 4, 12)
 
 	return (
 		<span
@@ -50,12 +53,17 @@ export function ModeAvatar({
 					className={cn("size-full rounded-full object-cover", imageClassName)}
 				/>
 			) : (
-				// <IconComponent
-				// 	selectedIcon={mode.icon}
-				// 	size={iconSize - 8}
-				// 	iconColor={mode.color}
-				// />
-				<CrewFallbackAvatar iconSize={iconSize - 16} />
+				// hasIcon ? (
+				// 	<IconComponent
+				// 		iconType={mode.icon_type}
+				// 		iconUrl={mode.icon_url}
+				// 		selectedIcon={mode.icon}
+				// 		size={iconSize}
+				// 		iconColor={mode.color}
+				// 		showBorder={false}
+				// 	/>
+				// ) :
+				<CrewFallbackAvatar iconSize={fallbackIconSize} />
 			)}
 		</span>
 	)

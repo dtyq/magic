@@ -54,6 +54,8 @@ export const en: I18nTexts = {
 
 	// Mobile specific
 	selectItem: "Select",
+	mobileSelectedItemsLabel: "Selected",
+	mobileSelectedItemsTitle: "Selected",
 
 	// Error messages
 	errorMessages: {
@@ -72,6 +74,10 @@ export const en: I18nTexts = {
 		exitSearch: "Exit",
 	},
 
+	navigationActions: {
+		enter: "Enter",
+	},
+
 	// Accessibility labels
 	ariaLabels: {
 		panel: "Mention panel",
@@ -80,6 +86,10 @@ export const en: I18nTexts = {
 		retryButton: "Retry button",
 		goBackButton: "Go back",
 		closeButton: "Close",
+		confirmButton: "Confirm",
+		removeSelectedItem: "Remove from selection",
+		clearAllSelected: "Clear all selected",
+		viewSelectedItems: "View selected items",
 	},
 
 	// History and tabs related

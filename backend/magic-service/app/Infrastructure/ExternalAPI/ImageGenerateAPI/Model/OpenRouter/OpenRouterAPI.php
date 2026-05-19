@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\OpenRouter;
 
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use GuzzleHttp\Exception\RequestException;
 use Hyperf\Logger\LoggerFactory;
@@ -16,6 +17,8 @@ use Throwable;
 
 class OpenRouterAPI
 {
+    use ImagePayloadLogSanitizerTrait;
+
     private const REQUEST_TIMEOUT = 300;
 
     protected LoggerInterface $logger;
@@ -55,7 +58,7 @@ class OpenRouterAPI
     {
         $this->logger->info('OpenRouter API 请求', [
             'url' => $this->baseUrl,
-            'payload' => $data,
+            'payload' => $this->sanitizePayloadForLog($data),
         ]);
 
         try {
@@ -94,8 +97,11 @@ class OpenRouterAPI
             throw new RuntimeException('Invalid JSON response from OpenRouter API');
         }
 
-        // 注意：如果响应中包含 error 字段，我们仍然返回数据，让调用者决定如何处理
-        // 这样 OpenRouterModel 可以根据 error 字段返回适当的错误响应
+        if (isset($data['usage'])) {
+            $this->logger->info('OpenRouter API usage', [
+                'usage' => $data['usage'],
+            ]);
+        }
         return $data;
     }
 

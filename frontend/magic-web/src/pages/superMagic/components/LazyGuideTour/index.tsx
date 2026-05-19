@@ -28,7 +28,7 @@ function GuideTourWrapper({ isMobile }: GuideTourWrapperProps) {
 		Record<string, boolean>
 	>({
 		[GuideTourElementId.Init]: false,
-		[GuideTourElementId.TopicModeTabs]: false,
+		[GuideTourElementId.RoleSwitcher]: false,
 		[GuideTourElementId.ModelSelector]: false,
 		[GuideTourElementId.MCPButton]: false,
 	})

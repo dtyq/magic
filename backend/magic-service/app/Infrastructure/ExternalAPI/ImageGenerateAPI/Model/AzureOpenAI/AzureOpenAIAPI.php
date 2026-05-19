@@ -9,16 +9,21 @@ namespace App\Infrastructure\ExternalAPI\ImageGenerateAPI\Model\AzureOpenAI;
 
 use App\ErrorCode\ImageGenerateErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImageBase64DataUriParser;
+use App\Infrastructure\ExternalAPI\ImageGenerateAPI\Support\ImagePayloadLogSanitizerTrait;
 use App\Infrastructure\Util\Http\GuzzleClientFactory;
 use GuzzleHttp\Exception\RequestException;
 use Hyperf\Logger\LoggerFactory;
+use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Log\LoggerInterface;
 
 class AzureOpenAIAPI
 {
-    private const REQUEST_TIMEOUT = 300;
+    use ImagePayloadLogSanitizerTrait;
+
+    private const REQUEST_TIMEOUT = 1200;
 
     protected LoggerInterface $logger;
 
@@ -31,27 +36,25 @@ class AzureOpenAIAPI
     private ?string $proxyUrl;
 
     public function __construct(
-        string $apiKey,
-        string $baseUrl,
-        string $apiVersion,
-        ?string $proxyUrl = null
+        AzureOpenAIClientConfig $azureOpenAIClientConfig
     ) {
-        $this->apiKey = $apiKey;
-        $this->baseUrl = rtrim($baseUrl, '/');
-        $this->apiVersion = $apiVersion;
-        $this->proxyUrl = $proxyUrl;
+        $this->apiKey = $azureOpenAIClientConfig->getApiKey();
+        $this->baseUrl = rtrim($azureOpenAIClientConfig->getBaseUrl(), '/');
+        $this->proxyUrl = $azureOpenAIClientConfig->getProxyUrl();
+        $this->apiVersion = $azureOpenAIClientConfig->getApiVersion();
         $this->logger = di(LoggerFactory::class)->get(static::class);
     }
 
     /**
      * Image generation API call.
      */
-    public function generateImage(array $data): array
+    public function generateImage(string $model, array $data): array
     {
-        $url = $this->buildUrl('images/generations');
+        $url = $this->buildUrl($model, 'images/generations');
 
         $this->logger->info('Azure OpenAI API 请求', [
-            'payload' => $data,
+            'url' => $url,
+            'payload' => $this->sanitizePayloadForLog($data),
         ]);
 
         try {
@@ -63,7 +66,7 @@ class AzureOpenAIAPI
             $response = $client->post($url, [
                 'headers' => [
                     'Content-Type' => 'application/json',
-                    'api-key' => $this->apiKey,
+                    'Authorization' => 'Bearer ' . $this->apiKey,
                 ],
                 'json' => $data,
             ]);
@@ -78,9 +81,9 @@ class AzureOpenAIAPI
     /**
      * Image edit API call with OSS URL support - supports multiple images.
      */
-    public function editImage(array $imageUrls, ?string $maskUrl, string $prompt, string $size = '1024x1024', int $n = 1): array
+    public function editImage(string $model, array $imageUrls, ?string $maskUrl, string $prompt, string $size = '1024x1024', int $n = 1, ?string $quality = null): array
     {
-        $url = $this->buildUrl('images/edits');
+        $url = $this->buildUrl($model, 'images/edits');
 
         try {
             $client = GuzzleClientFactory::createProxyClient(
@@ -88,45 +91,40 @@ class AzureOpenAIAPI
                 $this->proxyUrl
             );
 
-            // Download images from OSS URLs to memory streams
             $multipartData = [];
 
-            // Add multiple images
+            $imageKey = count($imageUrls) > 1 ? 'image[]' : 'image';
             foreach ($imageUrls as $index => $imageUrl) {
-                $imageStreamBody = $this->downloadToStream($imageUrl);
-                $multipartData[] = [
-                    'name' => 'image',
-                    'contents' => $imageStreamBody->getContents(),
-                    'filename' => "image{$index}.png",
-                ];
+                $multipartData[] = $this->createImageMultipartPart($imageKey, $imageUrl, $index);
             }
 
-            // Add mask if provided
             if ($maskUrl !== null) {
-                $maskStreamBody = $this->downloadToStream($maskUrl);
-                $multipartData[] = [
-                    'name' => 'mask',
-                    'contents' => $maskStreamBody->getContents(),
-                    'filename' => 'mask.png',
-                ];
+                $multipartData[] = $this->createImageMultipartPart('mask', $maskUrl, 0, 'mask');
             }
 
-            // Add other parameters
+            $multipartData[] = ['name' => 'model', 'contents' => $model];
             $multipartData[] = ['name' => 'prompt', 'contents' => $prompt];
+            $multipartData[] = ['name' => 'size', 'contents' => $size];
+            $multipartData[] = ['name' => 'n', 'contents' => (string) $n];
+            if ($quality !== null) {
+                $multipartData[] = ['name' => 'quality', 'contents' => $quality];
+            }
 
             $this->logger->info('Azure OpenAI API 请求', [
-                'payload' => [
+                'url' => $url,
+                'payload' => $this->sanitizePayloadForLog([
                     'imageUrls' => $imageUrls,
                     'maskUrl' => $maskUrl,
                     'prompt' => $prompt,
                     'size' => $size,
                     'n' => $n,
-                ],
+                    'quality' => $quality,
+                ]),
             ]);
 
             $response = $client->post($url, [
                 'headers' => [
-                    'api-key' => $this->apiKey,
+                    'Authorization' => 'Bearer ' . $this->apiKey,
                 ],
                 'multipart' => $multipartData,
             ]);
@@ -157,18 +155,59 @@ class AzureOpenAIAPI
     }
 
     /**
-     * Build full API URL.
+     * Build one multipart image part for Azure OpenAI image edit.
      */
-    private function buildUrl(string $endpoint): string
+    private function createImageMultipartPart(string $name, string $image, int $index, string $filenamePrefix = 'image'): array
     {
-        // baseUrl already contains the full deployment path
-        // e.g., https://kobayashi-aoai-westus3.openai.azure.com/openai/deployments/kobayashi-aoai-westus3-gpt-image-1-global
-        return sprintf(
-            '%s/%s?api-version=%s',
-            $this->baseUrl,
-            $endpoint,
-            $this->apiVersion
-        );
+        try {
+            $base64Image = ImageBase64DataUriParser::parseDecoded($image);
+        } catch (InvalidArgumentException) {
+            ExceptionBuilder::throw(ImageGenerateErrorCode::GENERAL_ERROR, 'Invalid base64 image data');
+        }
+
+        if ($base64Image !== null) {
+            return [
+                'name' => $name,
+                'contents' => $base64Image['binary_data'],
+                'filename' => $filenamePrefix . $index . '.' . $base64Image['extension'],
+                'headers' => [
+                    'Content-Type' => $base64Image['mime_type'],
+                ],
+            ];
+        }
+
+        $imageStreamBody = $this->downloadToStream($image);
+        return [
+            'name' => $name,
+            'contents' => $imageStreamBody->getContents(),
+            'filename' => "{$filenamePrefix}{$index}.png",
+        ];
+    }
+
+    /**
+     * Build full API URL.
+     *
+     * 若 baseUrl 仅为 host（无有效 path），自动补全部署路径：
+     * {host}/openai/deployments/{model}/{endpoint}
+     * 否则直接拼接：{baseUrl}/{endpoint}
+     */
+    private function buildUrl(string $model, string $endpoint): string
+    {
+        $path = parse_url($this->baseUrl, PHP_URL_PATH) ?? '';
+
+        if (empty($path) || $path === '/') {
+            $base = rtrim($this->baseUrl, '/') . '/openai/deployments/' . $model;
+        } else {
+            $base = $this->baseUrl;
+        }
+
+        $url = sprintf('%s/%s', $base, ltrim($endpoint, '/'));
+
+        if (trim($this->apiVersion)) {
+            $url = sprintf('%s?api-version=%s', $url, $this->apiVersion);
+        }
+
+        return $url;
     }
 
     /**

@@ -19,6 +19,8 @@ export interface CachedModelData {
 	languageModelId?: string
 	/** Image model ID */
 	imageModelId?: string
+	/** Video model ID */
+	videoModelId?: string
 	/** Cache timestamp */
 	timestamp: number
 }
@@ -153,6 +155,7 @@ class SuperMagicTopicModelCacheService {
 			logger.log("Default model retrieved from cache", {
 				languageModelId: data.languageModelId,
 				imageModelId: data.imageModelId,
+				videoModelId: data.videoModelId,
 				age: Date.now() - data.timestamp,
 			})
 
@@ -182,6 +185,7 @@ class SuperMagicTopicModelCacheService {
 				topicId,
 				languageModelId: data.languageModelId,
 				imageModelId: data.imageModelId,
+				videoModelId: data.videoModelId,
 				age: Date.now() - data.timestamp,
 			})
 
@@ -211,6 +215,7 @@ class SuperMagicTopicModelCacheService {
 				projectId,
 				languageModelId: data.languageModelId,
 				imageModelId: data.imageModelId,
+				videoModelId: data.videoModelId,
 				age: Date.now() - data.timestamp,
 			})
 
@@ -240,6 +245,7 @@ class SuperMagicTopicModelCacheService {
 				modeDefaultKey,
 				languageModelId: data.languageModelId,
 				imageModelId: data.imageModelId,
+				videoModelId: data.videoModelId,
 				age: Date.now() - data.timestamp,
 			})
 
@@ -324,6 +330,7 @@ class SuperMagicTopicModelCacheService {
 			logger.log("Default model saved to cache", {
 				languageModelId: modelData.languageModelId,
 				imageModelId: modelData.imageModelId,
+				videoModelId: modelData.videoModelId,
 			})
 		} catch (error) {
 			logger.error("Failed to save default model to cache", { error })
@@ -360,6 +367,7 @@ class SuperMagicTopicModelCacheService {
 				topicId,
 				languageModelId: modelData.languageModelId,
 				imageModelId: modelData.imageModelId,
+				videoModelId: modelData.videoModelId,
 			})
 		} catch (error) {
 			logger.error("Failed to save topic model to cache", { topicId, error })
@@ -396,6 +404,7 @@ class SuperMagicTopicModelCacheService {
 				projectId,
 				languageModelId: modelData.languageModelId,
 				imageModelId: modelData.imageModelId,
+				videoModelId: modelData.videoModelId,
 			})
 		} catch (error) {
 			logger.error("Failed to save project model to cache", { projectId, error })
@@ -432,6 +441,7 @@ class SuperMagicTopicModelCacheService {
 				modeDefaultKey,
 				languageModelId: modelData.languageModelId,
 				imageModelId: modelData.imageModelId,
+				videoModelId: modelData.videoModelId,
 			})
 		} catch (error) {
 			logger.error("Failed to save mode default model to cache", { modeDefaultKey, error })

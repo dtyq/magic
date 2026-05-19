@@ -11,12 +11,15 @@ export default function MagicToaster({
 	centered = true,
 	visibleToasts = 3,
 	position = "top-center",
+	// Sonner collapses non-front toasts (hides inner content) when false
+	expand = true,
 	className,
 	...rest
 }: MagicToasterProps) {
 	return (
 		<Toaster
 			visibleToasts={visibleToasts}
+			expand={expand}
 			className={cn(
 				centered && [
 					"!left-0 !right-0 !top-[calc(var(--safe-area-inset-top)+40px)] !w-auto !translate-x-0",

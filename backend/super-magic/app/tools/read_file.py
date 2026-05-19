@@ -23,6 +23,7 @@ from app.tools.core import BaseToolParams, tool
 from app.tools.markitdown_plugins.csv_plugin import CSVConverter
 from app.tools.markitdown_plugins.docx_plugin import DocxConverter
 from app.tools.markitdown_plugins.excel_plugin import ExcelConverter
+from app.tools.utils.display_content_utils import truncate_content_for_display
 from app.tools.workspace_tool import WorkspaceTool
 from app.utils.file_constants import CONVERSION_RECOMMENDED_TYPES
 from app.utils.file_utils import is_binary_file
@@ -30,7 +31,7 @@ from app.utils.file_parse.utils.libreoffice_util import LibreOfficeUtil
 
 logger = get_logger(__name__) # noqa: F811
 
-# 单文件读取 token 上限（与 Claude Code 取值对齐）
+# 单文件读取 token 上限
 DEFAULT_MAX_TOKENS = 25000
 # 动态上限：占剩余上下文窗口的比例，上下文充足时达到 DEFAULT_MAX_TOKENS
 MAX_TOKENS_RATIO = 0.40
@@ -202,7 +203,7 @@ def _build_truncation_message(info: TruncationInfo, file_path: str) -> str:
     lines.append("\n\n[File truncated: content exceeded the single-read token limit]\n")
 
     # 1. Estimated context cost — helps model decide whether continuing is worth it.
-    # All token numbers are estimates (tiktoken-based), not the actual API billing count.
+    # All token numbers are character-based estimates, not the actual API billing count.
     remaining_file_tokens = info.original_tokens - info.current_tokens
     if info.context_remaining > 0:
         cost_pct = round(info.current_tokens / info.context_remaining * 100, 1)
@@ -287,43 +288,9 @@ Number of lines or pages to read, default 200 lines, set to -1 to read entire fi
 @tool()
 class ReadFile(AbstractFileTool[ReadFileParams], WorkspaceTool[ReadFileParams]):
     """<!--zh
-    读取文件内容工具
-
-    支持的文件类型：
-    - 文本文件（.txt、.md、.py、.js、.html、.css、.json、.xml、.yaml等）
-    - PDF文件（.pdf）
-    - Word文档（.doc、.docx）
-    - Excel文件（.xls、.xlsx、.csv）
-    - PowerPoint（.ppt、.pptx）
-    - Jupyter笔记本（.ipynb）
-
-    注意：
-    - 相对路径解析到 .workspace；访问 .workspace 外的文件请使用绝对路径
-    - 无法读取支持的文件类型以外的文件，尤其是二进制文件
-    - 对于Excel和CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
-    - 为避免内容过长超过上下文窗口，读取大文件时可能会被自动截断，若必须阅读完整的情况下，你可以分多次读取
-
-    建议：
-    - 当你需要读取多个文件时，强烈建议使用 read_files 工具，而非多次调用本工具，这将会极大提升任务效率
+    读取文件内容
     -->
-    Tool for reading file content
-
-    Supported file types:
-    - Text files (.txt, .md, .py, .js, .html, .css, .json, .xml, .yaml, etc.)
-    - PDF files (.pdf)
-    - Word documents (.doc, .docx)
-    - Excel files (.xls, .xlsx, .csv)
-    - PowerPoint (.ppt, .pptx)
-    - Jupyter notebooks (.ipynb)
-
-    Notes:
-    - Relative paths resolve to .workspace; use absolute paths for files outside .workspace
-    - Cannot read unsupported file types, especially binary files
-    - For Excel/CSV files, use this tool to read first 10 lines to understand structure, then use Python script for data analysis
-    - To avoid excessive context length, large files may be auto-truncated; if complete reading necessary, you can read in multiple passes
-
-    Suggestions:
-    - When reading multiple files, strongly recommend using read_files tool instead of calling this tool multiple times, greatly improves efficiency
+    Read file content
     """
 
     # Initialize MarkItDown with converters
@@ -333,9 +300,45 @@ class ReadFile(AbstractFileTool[ReadFileParams], WorkspaceTool[ReadFileParams]):
     md.register_converter(DocxConverter())
 
     def get_prompt_hint(self) -> str:
-        return """<!--zh: PDF、PowerPoint 等文档会自动转换为 Markdown（如 `report.pdf` -> `report.pdf.md`）-->
-Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report.pdf` -> `report.pdf.md`)
-"""
+        return """\
+<!--zh
+支持的文件类型：
+- 文本文件（.txt、.md、.py、.js、.html、.css、.json、.xml、.yaml等）
+- PDF文件（.pdf）
+- Word文档（.doc、.docx）
+- Excel文件（.xls、.xlsx、.csv）
+- PowerPoint（.ppt、.pptx）
+- Jupyter笔记本（.ipynb）
+
+注意：
+- 相对路径解析到 .workspace；访问 .workspace 外的文件请使用绝对路径
+- 无法读取支持的文件类型以外的文件，尤其是二进制文件
+- 对于Excel和CSV文件，你可以使用本工具读取文件的前10行了解结构，然后使用Python脚本进行数据分析处理
+- 为避免内容过长超过上下文窗口，读取大文件时可能会被自动截断，若必须阅读完整的情况下，你可以分多次读取
+- PDF、PowerPoint 等文档会自动转换为 Markdown（如 `report.pdf` -> `report.pdf.md`）
+- 文本读取结果会用「行号 + 制表符 + 内容」展示行号；复制到任何编辑工具参数时，只复制制表符之后的真实文件内容，不要带行号前缀
+
+建议：
+- 当你需要读取多个文件时，强烈建议使用 read_files 工具，而非多次调用本工具，这将会极大提升任务效率
+-->
+Supported file types:
+- Text files (.txt, .md, .py, .js, .html, .css, .json, .xml, .yaml, etc.)
+- PDF files (.pdf)
+- Word documents (.doc, .docx)
+- Excel files (.xls, .xlsx, .csv)
+- PowerPoint (.ppt, .pptx)
+- Jupyter notebooks (.ipynb)
+
+Notes:
+- Relative paths resolve to .workspace; use absolute paths for files outside .workspace
+- Cannot read unsupported file types, especially binary files
+- For Excel/CSV files, use this tool to read first 10 lines to understand structure, then use Python script for data analysis
+- To avoid excessive context length, large files may be auto-truncated; if complete reading necessary, you can read in multiple passes
+- Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report.pdf` -> `report.pdf.md`)
+- Text read output displays line numbers as line number + tab + content; when copying into any edit tool parameter, copy only the real file content after the tab and omit the line-number prefix
+
+Suggestions:
+- When reading multiple files, strongly recommend using read_files tool instead of calling this tool multiple times, greatly improves efficiency"""
 
 
     async def _convert_legacy_format(self, file_path: Path, tool_context: Optional[ToolContext] = None) -> Optional[Path]:
@@ -1192,14 +1195,14 @@ Documents like PDF, PowerPoint will be auto-converted to Markdown (e.g., `report
             result.extra_info["raw_content"]
         )
 
+        # 对展示内容做预处理：替换 base64 数据、超长截断（不影响 LLM 已处理的内容）
+        # HTML 截断后结构残缺，display_type 会被降级为 TEXT
+        content_for_display, display_type = truncate_content_for_display(content_for_display, display_type)
+
         return ToolDetail(
             type=display_type,
             data=FileContent(
-                # Show the original requested filename to the user
-                # 向用户显示原始请求的文件名
                 file_name=original_file_name,
-                # Content is preferably without line numbers for better display
-                # 内容优先使用不带行号的版本以获得更好的显示效果
                 content=content_for_display
             )
         )
