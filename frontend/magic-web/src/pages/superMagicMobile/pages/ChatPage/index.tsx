@@ -31,6 +31,7 @@ import { useLocation } from "react-router"
 import { MobileTabParam } from "@/pages/mobileTabs/constants"
 import { routesPathMatch } from "@/routes/history/helpers"
 import { RouteName } from "@/routes/constants"
+import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
 import { interfaceStore } from "@/stores/interface"
 import { shouldClearResolvedAgentCodeFromUrl } from "./agentCodeRoutePolicy"
 import { resolveHomepageDisplayTopicMode } from "./homepageModeState"
@@ -314,4 +315,13 @@ const ChatPagePanel = observer(function ChatPagePanel() {
 	)
 })
 
-export default ChatPagePanel
+/** Mobile-home route entry: desktop viewport redirects to /super. */
+function MobileHomePage() {
+	return (
+		<MobileOnlyRoute>
+			<ChatPagePanel />
+		</MobileOnlyRoute>
+	)
+}
+
+export default MobileHomePage

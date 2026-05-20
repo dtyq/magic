@@ -1,4 +1,5 @@
 import { observer } from "mobx-react-lite"
+import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
 import { WorkspaceMoreSheet } from "@/pages/superMagicMobile/pages/WorkspacesPage/components/WorkspaceMoreSheet"
 import { CreateProjectSheet } from "./components/CreateProjectSheet"
 import { WorkspaceProjectListView } from "./components/WorkspaceProjectListView"
@@ -80,4 +81,12 @@ const WorkspacePagePanel = observer(function WorkspacePagePanel() {
 	)
 })
 
-export default WorkspacePagePanel
+function WorkspaceProjectsPage() {
+	return (
+		<MobileOnlyRoute>
+			<WorkspacePagePanel />
+		</MobileOnlyRoute>
+	)
+}
+
+export default WorkspaceProjectsPage

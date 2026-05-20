@@ -4,10 +4,8 @@ import { useIsMobile } from "@/hooks/useIsMobile"
 import { userStore } from "@/models/user"
 import { RouteName } from "@/routes/constants"
 import useNavigate from "@/routes/hooks/useNavigate"
+import Navigate from "@/routes/components/Navigate"
 import { baseHistory } from "@/routes/history"
-import { RoutePath } from "@/constants/routes"
-import { configStore } from "@/models/config"
-import { defaultClusterCode } from "@/routes/helpers"
 import SuperMagicService from "../services"
 import {
 	ProjectTopicMapCache,
@@ -15,26 +13,27 @@ import {
 	WorkspaceStateCache,
 } from "../utils/superMagicCache"
 
-/** Single entry for /super index: mobile shell, desktop cache, or workspace home */
+/** Returns true when pathname is bare /{cluster}/super without project/topic segments. */
+function isBareSuperRootPath(pathname: string): boolean {
+	return /^\/[^/]+\/super\/?$/.test(pathname) && !pathname.includes("/mobile-tabs")
+}
+
+/**
+ * Single entry for /super index: render guard for mobile home, mount-only desktop cache restore.
+ */
 export default function SuperRootRedirect() {
 	const navigate = useNavigate()
 	const isMobile = useIsMobile()
 	const { projectId, topicId } = useParams()
 
+	// Mobile viewport on bare /super index -> mobile home (covers resize, not only first mount).
+	if (isMobile && !projectId && !topicId && isBareSuperRootPath(baseHistory.location.pathname)) {
+		return <Navigate name={RouteName.MobileHome} replace viewTransition={false} />
+	}
+
 	useEffect(() => {
-		// Mobile: /{cluster}/super -> /mobile-home
-		if (isMobile) {
-			if (!projectId && !topicId) {
-				const currentPath = baseHistory.location.pathname
-				const isSuperRootPath = /^\/[^/]+\/super\/?$/.test(currentPath)
-				if (isSuperRootPath && !currentPath.includes("/mobile-tabs")) {
-					const clusterCode = configStore.cluster.clusterCode || defaultClusterCode
-					const targetPath = `/${clusterCode}${RoutePath.MobileHome}`
-					baseHistory.replace(targetPath)
-				}
-			}
-			return
-		}
+		// Desktop-only: restore workspace/project/topic from cache on first mount.
+		if (isMobile) return
 
 		const userInfo = userStore.user.userInfo
 		const cachedState = WorkspaceStateCache.get(userInfo)
@@ -76,7 +75,9 @@ export default function SuperRootRedirect() {
 		}
 
 		void SuperMagicService.navigateToHome()
-	}, [isMobile, navigate, projectId, topicId])
+		// Intentionally omit isMobile: resize mobile/desktop is handled by route entry guards.
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [navigate, projectId, topicId])
 
 	return null
 }

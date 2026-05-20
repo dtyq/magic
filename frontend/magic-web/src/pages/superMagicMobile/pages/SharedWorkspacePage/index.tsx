@@ -1,5 +1,6 @@
 import { observer } from "mobx-react-lite"
 
+import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
 import { SharedProjectsFilterSheet } from "./components/SharedProjectsFilterSheet"
 import { SharedProjectsView } from "./components/SharedProjectsView"
 import { useSharedWorkspacePage } from "./hooks/useSharedWorkspacePage"
@@ -71,4 +72,12 @@ const SharedWorkspacePagePanel = observer(function SharedWorkspacePagePanel() {
 	)
 })
 
-export default SharedWorkspacePagePanel
+function SharedWorkspacePage() {
+	return (
+		<MobileOnlyRoute>
+			<SharedWorkspacePagePanel />
+		</MobileOnlyRoute>
+	)
+}
+
+export default SharedWorkspacePage

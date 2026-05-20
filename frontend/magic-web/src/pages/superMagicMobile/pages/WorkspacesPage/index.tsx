@@ -1,6 +1,7 @@
 import { observer } from "mobx-react-lite"
 
 import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
+import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
 import { WorkspaceListView } from "./components/WorkspaceListView"
 import { WorkspaceMoreSheet } from "./components/WorkspaceMoreSheet"
 import { CreateWorkspaceSheet } from "./components/CreateWorkspaceSheet"
@@ -71,4 +72,12 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 	)
 })
 
-export default WorkspacesPagePanel
+function WorkspacesPage() {
+	return (
+		<MobileOnlyRoute>
+			<WorkspacesPagePanel />
+		</MobileOnlyRoute>
+	)
+}
+
+export default WorkspacesPage

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
+import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
 import { routesMatch } from "@/routes/history/helpers"
 import { baseHistory } from "@/routes/history"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -282,4 +283,12 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 	)
 })
 
-export default ChatsPagePanel
+function ChatsPage() {
+	return (
+		<MobileOnlyRoute>
+			<ChatsPagePanel />
+		</MobileOnlyRoute>
+	)
+}
+
+export default ChatsPage

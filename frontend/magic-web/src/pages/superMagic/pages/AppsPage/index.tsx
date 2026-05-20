@@ -1,16 +1,19 @@
 import { lazy } from "react"
 import { useIsMobile } from "@/hooks/useIsMobile"
+import Navigate from "@/routes/components/Navigate"
+import { RouteName } from "@/routes/constants"
 
-const AppsPageDesktop = lazy(() => import("./index.desktop"))
 const AppsPageMobile = lazy(() => import("./index.mobile"))
 
 /**
- * Apps 页面沿用双端入口模式，首期仅在移动端承接新的目录页实现。
+ * Apps route lives under the mobile shell; desktop viewport returns to /super for cache restore.
  */
 export default function AppsPage() {
 	const isMobile = useIsMobile()
 
-	if (isMobile) return <AppsPageMobile />
+	if (!isMobile) {
+		return <Navigate name={RouteName.Super} replace viewTransition={false} />
+	}
 
-	return <AppsPageDesktop />
+	return <AppsPageMobile />
 }
