@@ -124,7 +124,7 @@ export function useMagicFiles(options: UseMagicFilesOptions): UseMagicFilesRetur
 		if (oversizedFiles.length > 0) {
 			replyToIframe(replyType, requestId, {
 				success: false,
-				error: `File size exceeds limit (100MB): ${oversizedFiles.map((f) => f.filename).join(", ")}`,
+				error: `File size exceeds limit (500MB): ${oversizedFiles.map((f) => f.filename).join(", ")}`,
 			})
 			return
 		}
