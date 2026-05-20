@@ -874,15 +874,14 @@ class FileService(Base):
         """
         根据已知的存储对象键（完整 S3 key）获取临时下载链接
 
-        与 get_file_download_url 不同，此方法接收的是完整的对象存储 key，
-        不会再拼接 workspace 前缀。适用于通过 magicfs 扩展属性
-        (user.magicfs.s3_key) 拿到的真实 S3 key。
+        接收完整的对象存储 key，不会再拼接 workspace 前缀。
+        适用于通过 magicfs 扩展属性 (user.magicfs.s3_key) 拿到的真实 S3 key。
 
         Args:
             file_key: 完整的对象存储 key，例如
                 'TGosRaFhvb/588417216353927169/project_xxx/workspace/877250661392134145'
             expires_in: URL 过期时间（秒），默认 1 小时
-            options: 可选配置，与 get_file_download_url 一致：
+            options: 可选配置：
                 - headers: 自定义 HTTP 请求头
                 - params: 平台特有的查询参数
                 - slash_safe: 是否对路径中的斜杠进行转义（阿里云 OSS）
@@ -1020,134 +1019,3 @@ class FileService(Base):
                 f"storage backend returned no download URL for file_key={file_key}"
             )
         return download_url
-
-    async def get_file_download_url(
-        self, file_path: str, expires_in: int = 3600, options: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
-        """
-        根据文件相对路径获取临时下载链接
-
-        Args:
-            file_path: 文件的相对路径，例如 'documents/report.pdf'
-            expires_in: URL过期时间（秒），默认1小时（3600秒）
-            options: 可选配置参数，可包含：
-                    - headers: 自定义HTTP请求头
-                    - params: 平台特有的查询参数（如阿里云OSS的限速等）
-                    - slash_safe: 是否对路径中的斜杠进行转义（阿里云OSS）
-                    - resize: 图片缩放百分比（1-100），例如 50 表示缩放到 50%
-
-        Returns:
-            Dict containing:
-                - file_path: 原始文件路径
-                - download_url: 临时下载链接
-                - expires_in: 过期时间（秒）
-                - platform: 存储平台
-                - generated_at: 生成时间
-
-        Raises:
-            ValueError: 如果文件路径为空或无效
-            Exception: 如果获取下载链接失败
-
-        Example:
-            ```python
-            # 基本用法
-            result = await file_service.get_file_download_url("documents/report.pdf")
-            download_url = result["download_url"]
-
-            # 带自定义配置
-            result = await file_service.get_file_download_url(
-                file_path="videos/presentation.mp4",
-                expires_in=1800,  # 30分钟
-                options={
-                    "headers": {"Content-Type": "video/mp4"},
-                    "params": {"x-oss-traffic-limit": str(1024 * 1024 * 8)}  # 1MB/s限速
-                }
-            )
-
-            # 图片缩放
-            result = await file_service.get_file_download_url(
-                file_path="images/photo.jpg",
-                options={"resize": 50}  # 缩放到50%
-            )
-            ```
-        """
-        try:
-            from datetime import datetime
-            from app.utils.path_utils import get_storage_dir
-
-            logger.info(f"获取文件下载链接: {file_path}, 有效期: {expires_in}秒")
-
-            # 验证输入参数
-            if not file_path or not file_path.strip():
-                raise ValueError("文件路径不能为空")
-
-            # 标准化文件路径（移除开头的斜杠）
-            normalized_path = file_path.strip().lstrip("/")
-
-            # 获取带凭证刷新功能的存储服务
-            storage_service = await self._get_storage_service()
-
-            # 构建完整的存储对象键
-            from app.utils.path_utils import get_workspace_dir
-
-            upload_dir = get_workspace_dir(storage_service.credentials)
-            object_key = f"{upload_dir}{normalized_path}"
-
-            # 处理图片缩放参数
-            if options is None:
-                options = {}
-
-            resize = options.get("resize")
-            if resize is not None:
-                # Get platform name to determine which parameter to use
-                platform = storage_service.get_platform_name()
-
-                # Build image processing parameter
-                image_process = f"image/resize,p_{resize}"
-
-                # Add platform-specific parameter
-                if "params" not in options:
-                    options["params"] = {}
-
-                if platform == "tos":
-                    options["params"]["x-tos-process"] = image_process
-                    logger.info(f"Adding TOS image resize parameter: {image_process}")
-                elif platform == "oss":
-                    options["params"]["x-oss-process"] = image_process
-                    logger.info(f"Adding OSS image resize parameter: {image_process}")
-                else:
-                    logger.warning(f"Image resize not supported for platform: {platform}")
-
-            # 生成下载链接（会自动刷新凭证）
-            download_url = await self._generate_download_url(storage_service, object_key, expires_in)
-
-            # 如果存储服务支持更多选项，尝试使用
-            if options and hasattr(storage_service, "get_download_url"):
-                try:
-                    # 先刷新凭证
-                    await storage_service.refresh_credentials()
-                    download_url = await storage_service.get_download_url(
-                        key=object_key, expires_in=expires_in, options=options
-                    )
-                except Exception as e:
-                    logger.warning(f"使用选项参数生成下载链接失败，使用默认方法: {e}")
-
-            # 获取平台信息
-            platform = storage_service.get_platform_name()
-
-            result = {
-                "file_path": file_path,
-                "download_url": download_url,
-                "expires_in": expires_in,
-                "platform": platform,
-                "generated_at": datetime.now().isoformat(),
-                "object_key": object_key,
-            }
-
-            logger.info(f"成功生成下载链接: {file_path} -> {platform}")
-            return result
-
-        except Exception as e:
-            logger.error(f"获取文件下载链接失败: {file_path}, 错误: {e}")
-            logger.error(traceback.format_exc())
-            raise
