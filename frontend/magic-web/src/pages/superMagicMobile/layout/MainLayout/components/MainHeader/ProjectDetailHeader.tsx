@@ -44,7 +44,7 @@ export function ProjectDetailHeader({
 	const { t } = useTranslation("super")
 
 	return (
-		<div className="mobile-page-header pb-0 pt-3" data-testid="project-detail-header-root">
+		<div className="mobile-page-header pb-0" data-testid="project-detail-header-root">
 			<button
 				type="button"
 				onClick={onBackClick}

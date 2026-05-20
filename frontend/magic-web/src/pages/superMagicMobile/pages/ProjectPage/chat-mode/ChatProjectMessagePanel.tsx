@@ -43,7 +43,7 @@ function ChatProjectHeroHeader({
 
 	return (
 		<header
-			className="relative z-10 flex h-[72px] shrink-0 items-start px-5 pb-0 pt-2"
+			className="mobile-page-header pb-0 flex items-center justify-between relative"
 			data-testid="chat-project-hero-header"
 		>
 			<Button
@@ -58,8 +58,8 @@ function ChatProjectHeroHeader({
 				<ChevronLeft className="size-[22px]" strokeWidth={2.25} />
 			</Button>
 
-			{/* 标题绝对居中，避免左右操作按钮的存在让标题视觉偏移。 */}
-			<div className="pointer-events-none absolute inset-x-0 top-4 flex flex-col items-center px-[92px] text-center">
+			{/* 标题区域使用 flex 居中，避免 absolute 布局，保证在 header 内始终居中展示 */}
+			<div className="flex flex-1 flex-col items-center justify-center text-center min-w-0 px-3 pt-2">
 				<h1 className="w-full truncate font-poppins text-[18px] font-medium leading-7 text-foreground">
 					{title}
 				</h1>

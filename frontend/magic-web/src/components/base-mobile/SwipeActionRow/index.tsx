@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
 /**
@@ -64,7 +64,7 @@ interface SwipeActionRowProps {
  * 布局说明：
  * - 外层 overflow-hidden，高度由内容决定（默认 h-16）
  * - 内容层用 translateX 左移
- * - 动作层绝对定位在右侧，translateX(totalW + x) 随着内容滑出而逐渐进入可见区
+ * - 动作层绝对定位在右侧，translateX(calc(100% + x)) 随内容滑出进入可见区（100% 避免关闭态露出竖线）
  *
  * 注意：
  * - touchMove 检测纵向意图（|dy| > 12px），避免列表纵向滚动时误触
@@ -101,6 +101,13 @@ export function SwipeActionRow({
 
 	const [translateX, setTranslateX] = useState(0)
 	const [isDragging, setIsDragging] = useState(false)
+
+	/**
+	 * 父层通过 isOpen 互斥控制展开行时，同步内部位移，避免视觉状态与 openId 不一致。
+	 */
+	useEffect(() => {
+		setTranslateX(isOpen ? -totalActionW : 0)
+	}, [isOpen, totalActionW])
 
 	function handleTouchStart(e: React.TouchEvent) {
 		touchStartX.current = e.touches[0].clientX
@@ -184,9 +191,8 @@ export function SwipeActionRow({
 			}}
 			data-testid={dataTestId}
 		>
-			{/* 内容层：随手势左移 */}
 			<div
-				className="w-full shrink-0"
+				className="relative z-10 w-full shrink-0"
 				style={{
 					transform: `translateX(${translateX}px)`,
 					transition: isDragging ? "none" : "transform 0.25s cubic-bezier(0.4,0,0.2,1)",
@@ -195,11 +201,11 @@ export function SwipeActionRow({
 				{children}
 			</div>
 
-			{/* 动作按钮层：从右侧跟随内容层滑入 */}
+			{/* 动作按钮层：calc(100% + x) 以自身宽度完全藏到右侧，避免硬编码 px 与 w-16 舍入误差 */}
 			<div
 				className="absolute right-0 top-0 flex h-full"
 				style={{
-					transform: `translateX(${totalActionW + translateX}px)`,
+					transform: `translateX(calc(100% + ${translateX}px))`,
 					transition: isDragging ? "none" : "transform 0.25s cubic-bezier(0.4,0,0.2,1)",
 				}}
 			>
@@ -207,9 +213,8 @@ export function SwipeActionRow({
 					<button
 						key={action.id}
 						type="button"
-						// shadow-sm 对应原型的 0px 1px 2px 0px rgba(0,0,0,0.05)
 						className={cn(
-							"flex h-full w-16 flex-col items-center justify-center gap-1 shadow-sm",
+							"flex h-full w-16 flex-col items-center justify-center gap-1",
 							action.className,
 						)}
 						onClick={(e) => {
