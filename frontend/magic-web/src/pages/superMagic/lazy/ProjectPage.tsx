@@ -176,7 +176,7 @@ const ProjectPage = observer(() => {
 		}
 
 		return (
-			<Suspense fallback={<ProjectPageMobileSkeleton />}>
+			<Suspense fallback={null}>
 				<ProjectPageMobile />
 			</Suspense>
 		)

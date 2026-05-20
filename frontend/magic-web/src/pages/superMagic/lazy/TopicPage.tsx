@@ -107,7 +107,7 @@ const TopicPage = observer(function TopicPage() {
 
 		// 移动端正常渲染
 		return (
-			<Suspense fallback={<TopicPageMobileSkeleton />}>
+			<Suspense fallback={null}>
 				<TopicPageMobile />
 			</Suspense>
 		)
