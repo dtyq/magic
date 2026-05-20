@@ -1,6 +1,7 @@
-import { useIsMobile } from "@/hooks/use-mobile"
+import { useIsMobile } from "@/hooks/useIsMobile"
 import CommonPopup from "@/pages/superMagicMobile/components/CommonPopup"
 import { Modal } from "antd"
+import { cx } from "antd-style"
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { useTranslation } from "react-i18next"
@@ -67,6 +68,44 @@ export function WaterMarkFreeModal({
 		</div>
 	)
 
+	const mobileAgreementView = (
+		<div className={styles.mobileLayout}>
+			<div
+				ref={contentRef}
+				onScroll={handleScroll}
+				className={cx(styles.agreementContent, styles.agreementContentMobile)}
+			>
+				<EditorBody
+					isLoading={false}
+					viewMode="markdown"
+					language="markdown"
+					isEditMode={false}
+					className={styles.editorBody}
+					content={i18n.language === "en_US" ? agreetmentEn : agreetment}
+				/>
+			</div>
+			<div className={styles.mobileFooter}>
+				<button
+					type="button"
+					className={cx(styles.mobileFooterButton, styles.mobileCancelButton)}
+					onClick={handleCancel}
+				>
+					{t("waterMarkFree.disagree")}
+				</button>
+				<button
+					type="button"
+					disabled={!hasScrolledToBottom}
+					className={cx(styles.mobileFooterButton, styles.mobileOkButton)}
+					onClick={handleOk}
+				>
+					{hasScrolledToBottom
+						? t("waterMarkFree.agree")
+						: t("waterMarkFree.readAgreement")}
+				</button>
+			</div>
+		</div>
+	)
+
 	const modalContent = isMobile ? (
 		<CommonPopup
 			title={t("waterMarkFree.downloadAgreement")}
@@ -81,7 +120,7 @@ export function WaterMarkFreeModal({
 				...customPopupProps,
 			}}
 		>
-			{agreementContent}
+			{mobileAgreementView}
 		</CommonPopup>
 	) : (
 		<Modal
