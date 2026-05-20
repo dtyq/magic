@@ -23,7 +23,10 @@ import { useUpdateEffect } from "ahooks"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import MobileProjectDetailFilesView from "./components/MobileProjectDetailFilesView"
 import { SelectDirectoryModal } from "../SelectPathModal"
+import { useBatchDownload } from "./hooks/useBatchDownload"
 import { useProjectDetailFilesController } from "./hooks/useProjectDetailFilesController"
+import { useMobileProjectFilesDownload } from "./hooks/useMobileProjectFilesDownload"
+import { getMobileAttachmentKey } from "./utils/get-mobile-attachment-key"
 import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
 
 interface TopicFilesPanelProps {
@@ -161,6 +164,44 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			selectedTopic,
 			setIsSelectMode,
 			refreshAttachments,
+		})
+
+		const [mobileSelectedKeys, setMobileSelectedKeys] = useState<Set<string>>(new Set())
+
+		const mobileProjectFilesDownload = useMobileProjectFilesDownload({
+			projectId,
+			attachments,
+			selectedProject,
+			selectedTopic,
+			onFileClick,
+			refreshAttachments,
+			allowDownload,
+			duplicateFileHandler: projectDetailFilesController.sharedDuplicateHandler,
+		})
+
+		// 聊天文件弹层与项目详情文件页共用同一套移动端文件树，只在最外层视觉壳上做区分。
+		const shouldUseProjectDetailMobileView =
+			isMobile &&
+			(mobileViewVariant === "project-detail" || mobileViewVariant === "chat-sheet")
+
+		const { handleBatchDownload, batchLoading: mobileBatchDownloadLoading } = useBatchDownload({
+			projectId,
+			getItemId: getMobileAttachmentKey,
+			selectedItems: mobileSelectedKeys,
+			setSelectedItems: setMobileSelectedKeys,
+			filteredFiles: attachments,
+			onSelectModeChange: (mode) => {
+				setIsSelectMode(mode)
+				if (!mode) projectDetailFilesController.resetMobileSelection()
+			},
+			attachments,
+			allowEdit,
+			isInProject,
+			onBatchShareClick: (fileIds) => {
+				projectDetailFilesController.batchShare(
+					fileIds.map((fileId) => ({ file_id: fileId, source: 0 }) as AttachmentItem),
+				)
+			},
 		})
 
 		// 使用 ref 获取 TopicFilesCore 的方法
@@ -308,11 +349,6 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			},
 		}))
 
-		// 聊天文件弹层与项目详情文件页共用同一套移动端文件树，只在最外层视觉壳上做区分。
-		const shouldUseProjectDetailMobileView =
-			isMobile &&
-			(mobileViewVariant === "project-detail" || mobileViewVariant === "chat-sheet")
-
 		return (
 			<>
 				<div className={cn("flex h-full flex-col gap-0.5", className)}>
@@ -330,13 +366,20 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 							onCreateFile={projectDetailFilesController.createFile}
 							onCreateFolder={projectDetailFilesController.createFolder}
 							onUploadFile={projectDetailFilesController.handleCustomUploadFile}
-							onBatchDownload={projectDetailFilesController.batchDownload}
-							onBatchExportPdf={(items) =>
-								projectDetailFilesController.batchExport(items, "pdf")
+							allowDownload={mobileProjectFilesDownload.allowDownload}
+							getSingleFileDownloadMenuItems={
+								mobileProjectFilesDownload.getSingleFileDownloadMenuItems
 							}
-							onBatchExportPpt={(items) =>
-								projectDetailFilesController.batchExport(items, "ppt")
+							preloadWaterMarkFreeModal={
+								mobileProjectFilesDownload.preloadWaterMarkFreeModal
 							}
+							onSelectedKeysChange={setMobileSelectedKeys}
+							onBatchZipDownload={
+								shouldUseProjectDetailMobileView && allowDownload !== false
+									? handleBatchDownload
+									: undefined
+							}
+							batchDownloadLoading={mobileBatchDownloadLoading}
 							onBatchShare={projectDetailFilesController.batchShare}
 							onBatchMove={projectDetailFilesController.batchMove}
 							onBatchDelete={projectDetailFilesController.batchDelete}
@@ -510,6 +553,11 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 				{shouldUseProjectDetailMobileView ? (
 					<SelectDirectoryModal {...projectDetailFilesController.moveSelectorProps} />
 				) : null}
+
+				{/* Mobile file list must mount watermark agreement modal (TopicFilesCore does this on desktop). */}
+				{shouldUseProjectDetailMobileView
+					? mobileProjectFilesDownload.agreementModal
+					: null}
 			</>
 		)
 	},

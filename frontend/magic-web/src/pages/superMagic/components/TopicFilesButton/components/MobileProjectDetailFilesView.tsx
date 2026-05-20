@@ -7,13 +7,18 @@ import { observer } from "mobx-react-lite"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { formatFileSize } from "@/utils/string"
-import { Check, ChevronLeft, ChevronRight, Download, Home, Plus, Upload, X } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, Home, Plus, Upload, X } from "lucide-react"
 import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import type { PresetFileType } from "../constant"
 import { isMagicSystemFolder } from "../utils/magic-system-folder"
 import MobileFilesSelectionBar from "./MobileFilesSelectionBar"
+import { MobileFileDownloadSheet } from "./MobileFileDownloadSheet"
 import { TopicFileIcon, type TopicFileMagicVariant } from "./TopicFileIcon"
+import {
+	menuItemsIncludeNoWaterMarkDownload,
+	type MobileDownloadMenuItem,
+} from "../utils/build-single-file-download-menu"
 
 interface MobileProjectDetailFilesViewProps {
 	attachments: AttachmentItem[]
@@ -28,9 +33,12 @@ interface MobileProjectDetailFilesViewProps {
 	onCreateFile?: (type: PresetFileType, parentPath?: string, fileName?: string) => void
 	onCreateFolder?: (parentPath?: string, folderName?: string) => void
 	onUploadFile?: () => void
-	onBatchDownload?: (items: AttachmentItem[]) => void
-	onBatchExportPdf?: (items: AttachmentItem[]) => void
-	onBatchExportPpt?: (items: AttachmentItem[]) => void
+	allowDownload?: boolean
+	getSingleFileDownloadMenuItems?: (item: AttachmentItem) => MobileDownloadMenuItem[]
+	preloadWaterMarkFreeModal?: () => void
+	onSelectedKeysChange?: (keys: Set<string>) => void
+	onBatchZipDownload?: () => void
+	batchDownloadLoading?: boolean
 	onBatchShare?: (items: AttachmentItem[]) => void
 	onBatchMove?: (items: AttachmentItem[]) => void
 	onBatchDelete?: (items: AttachmentItem[]) => void
@@ -256,9 +264,12 @@ function MobileProjectDetailFilesView({
 	onCreateFile,
 	onCreateFolder,
 	onUploadFile,
-	onBatchDownload,
-	onBatchExportPdf,
-	onBatchExportPpt,
+	allowDownload = true,
+	getSingleFileDownloadMenuItems,
+	preloadWaterMarkFreeModal,
+	onSelectedKeysChange,
+	onBatchZipDownload,
+	batchDownloadLoading = false,
 	onBatchShare,
 	onBatchMove,
 	onBatchDelete,
@@ -270,7 +281,9 @@ function MobileProjectDetailFilesView({
 	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 	const [addSheetOpen, setAddSheetOpen] = useState(false)
 	const [createSheetOpen, setCreateSheetOpen] = useState(false)
-	const [downloadSheetOpen, setDownloadSheetOpen] = useState(false)
+	const [batchDownloadSheetOpen, setBatchDownloadSheetOpen] = useState(false)
+	const [singleDownloadSheetOpen, setSingleDownloadSheetOpen] = useState(false)
+	const [singleDownloadTarget, setSingleDownloadTarget] = useState<AttachmentItem | null>(null)
 	const [createDraft, setCreateDraft] = useState<{
 		mode: "file" | "folder"
 		type?: PresetFileType
@@ -348,6 +361,11 @@ function MobileProjectDetailFilesView({
 	useEffect(() => {
 		onSelectionModeChange?.(selectedItems.length > 0)
 	}, [onSelectionModeChange, selectedItems.length])
+
+	// Keep parent useBatchDownload.selectedItems in sync with local multi-select state.
+	useEffect(() => {
+		onSelectedKeysChange?.(selectedIds)
+	}, [onSelectedKeysChange, selectedIds])
 
 	/**
 	 * 切换选中态只影响新的移动端外观层，并通过回调通知页面隐藏底部输入区。
@@ -574,26 +592,57 @@ function MobileProjectDetailFilesView({
 		},
 	]
 
-	const downloadActionItems = [
-		{
-			key: "download",
-			label: t("topicFiles.contextMenu.download"),
-			icon: <Download className="size-5" strokeWidth={1.8} />,
-			onClick: () => onBatchDownload?.(selectedItems),
-		},
-		{
-			key: "pdf",
-			label: t("topicFiles.contextMenu.downloadPdf"),
-			icon: <Download className="size-5" strokeWidth={1.8} />,
-			onClick: () => onBatchExportPdf?.(selectedItems),
-		},
-		{
-			key: "ppt",
-			label: t("topicFiles.contextMenu.downloadPpt"),
-			icon: <Download className="size-5" strokeWidth={1.8} />,
-			onClick: () => onBatchExportPpt?.(selectedItems),
-		},
-	]
+	const batchZipMenuItems = useMemo<MobileDownloadMenuItem[]>(
+		() =>
+			allowDownload && onBatchZipDownload
+				? [
+						{
+							key: "batchZip",
+							label: t("topicFiles.contextMenu.download"),
+							onClick: () => onBatchZipDownload(),
+						},
+					]
+				: [],
+		[allowDownload, onBatchZipDownload, t],
+	)
+
+	const singleDownloadMenuItems = useMemo(() => {
+		if (!singleDownloadTarget || !getSingleFileDownloadMenuItems) return []
+		return getSingleFileDownloadMenuItems(singleDownloadTarget)
+	}, [getSingleFileDownloadMenuItems, singleDownloadTarget])
+
+	/** Open per-file export sheet (used when exactly one item is selected in the bottom bar). */
+	const openSingleFileDownloadSheet = (item: AttachmentItem) => {
+		if (!allowDownload || !getSingleFileDownloadMenuItems) return
+		const menuItems = getSingleFileDownloadMenuItems(item)
+		if (menuItems.length === 0) return
+		// Start modal chunk load as soon as user opens the sheet (mobile equivalent of desktop hover).
+		if (menuItemsIncludeNoWaterMarkDownload(menuItems)) preloadWaterMarkFreeModal?.()
+		setSingleDownloadTarget(item)
+		setSingleDownloadSheetOpen(true)
+	}
+
+	/** Bottom-bar download: one selection → single-file menu; multiple → batch ZIP sheet. */
+	const handleSelectionDownload = () => {
+		if (!allowDownload || selectedItems.length === 0) return
+
+		if (selectedItems.length === 1) {
+			openSingleFileDownloadSheet(selectedItems[0])
+			return
+		}
+
+		if (!onBatchZipDownload) return
+		setBatchDownloadSheetOpen(true)
+	}
+
+	const canSelectionDownload = useMemo(() => {
+		if (!allowDownload || selectedItems.length === 0) return false
+		if (selectedItems.length === 1) {
+			if (!getSingleFileDownloadMenuItems) return false
+			return getSingleFileDownloadMenuItems(selectedItems[0]).length > 0
+		}
+		return Boolean(onBatchZipDownload)
+	}, [allowDownload, getSingleFileDownloadMenuItems, onBatchZipDownload, selectedItems])
 
 	/**
 	 * 确认创建时直接复用既有父层回调，只替换展示层，不引入新的业务保存入口。
@@ -869,7 +918,7 @@ function MobileProjectDetailFilesView({
 					<MobileFilesSelectionBar
 						isAllSelected={isAllSelected}
 						onToggleAll={handleToggleAll}
-						onDownload={() => setDownloadSheetOpen(true)}
+						onDownload={canSelectionDownload ? handleSelectionDownload : undefined}
 						onShare={() => onBatchShare?.(selectedItems)}
 						onMove={() => onBatchMove?.(selectedItems)}
 						onDelete={() => onBatchDelete?.(selectedItems)}
@@ -1032,48 +1081,26 @@ function MobileProjectDetailFilesView({
 				</div>
 			</MagicPopup>
 
-			<MagicPopup
-				visible={downloadSheetOpen}
-				onClose={() => setDownloadSheetOpen(false)}
-				title={t("topicFiles.downloadTitle")}
-				headerVariant="actionHeader"
-				headerTitle={t("topicFiles.downloadTitle")}
-				headerLeadingAction={{
-					icon: <X className="size-[22px] text-foreground" />,
-					ariaLabel: t("close"),
-					onClick: () => setDownloadSheetOpen(false),
-					testId: "project-detail-files-download-close-button",
+			<MobileFileDownloadSheet
+				visible={batchDownloadSheetOpen}
+				onClose={() => setBatchDownloadSheetOpen(false)}
+				mode="batch"
+				menuItems={batchZipMenuItems}
+				selectedCount={selectedItems.length}
+				isLoading={batchDownloadLoading}
+			/>
+
+			<MobileFileDownloadSheet
+				visible={singleDownloadSheetOpen}
+				onClose={() => {
+					setSingleDownloadSheetOpen(false)
+					setSingleDownloadTarget(null)
 				}}
-				position="bottom"
-				className="rounded-t-xl border-0 bg-muted"
-				bodyClassName="flex flex-col overflow-hidden px-2.5 pb-[max(var(--safe-area-inset-bottom),16px)] pt-2"
-				style={MOBILE_SHEET_MAX_HEIGHT}
-				destroyOnClose={false}
-			>
-				<div className="overflow-hidden rounded-lg bg-card">
-					{downloadActionItems.map((item, index) => (
-						<button
-							key={item.key}
-							type="button"
-							className={cn(
-								"flex h-14 w-full items-center gap-3 bg-transparent px-3.5 text-left active:opacity-60",
-								index > 0 && "border-t border-border/60",
-							)}
-							onClick={() => {
-								item.onClick()
-								setDownloadSheetOpen(false)
-							}}
-						>
-							<div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
-								{item.icon}
-							</div>
-							<span className="flex-1 text-left text-base leading-5 text-foreground">
-								{item.label}
-							</span>
-						</button>
-					))}
-				</div>
-			</MagicPopup>
+				mode="single"
+				title={singleDownloadTarget ? getAttachmentName(singleDownloadTarget) : undefined}
+				menuItems={singleDownloadMenuItems}
+				preloadWaterMarkFreeModal={preloadWaterMarkFreeModal}
+			/>
 		</div>
 	)
 }

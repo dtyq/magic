@@ -73,6 +73,22 @@ vi.mock("../hooks/useFileReplace", () => ({
 	}),
 }))
 
+vi.mock("../hooks/useMobileProjectFilesDownload", () => ({
+	useMobileProjectFilesDownload: () => ({
+		allowDownload: true,
+		agreementModal: null,
+		getSingleFileDownloadMenuItems: () => [],
+		preloadWaterMarkFreeModal: vi.fn(),
+	}),
+}))
+
+vi.mock("../hooks/useBatchDownload", () => ({
+	useBatchDownload: () => ({
+		handleBatchDownload: vi.fn(),
+		batchLoading: false,
+	}),
+}))
+
 vi.mock("../hooks/useProjectDetailFilesController", () => ({
 	useProjectDetailFilesController: () => ({
 		selectionResetKey: 0,
@@ -101,11 +117,10 @@ vi.mock("../hooks/useProjectDetailFilesController", () => ({
 		deleteConfirmNode: null,
 		createFile: vi.fn(),
 		createFolder: vi.fn(),
-		batchDownload: vi.fn(),
-		batchExport: vi.fn(),
 		batchShare: vi.fn(),
 		batchMove: vi.fn(),
 		batchDelete: vi.fn(),
+		resetMobileSelection: vi.fn(),
 	}),
 }))
 

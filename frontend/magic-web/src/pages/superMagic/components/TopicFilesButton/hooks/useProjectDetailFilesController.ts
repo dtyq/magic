@@ -2,7 +2,6 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { SuperMagicApi } from "@/apis"
-import { downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
 import type { AttachmentItem } from "./types"
 import type { PresetFileType } from "../constant"
 import { PRESET_FILE_EXTENSION_MAP, PRESET_FILE_INITIAL_CONTENT } from "../filePresetTemplates"
@@ -163,73 +162,6 @@ export function useProjectDetailFilesController({
 		}
 	}
 
-	const batchDownload = async (items: AttachmentItem[]) => {
-		if (!projectId) return
-		const fileIds = items
-			.map((item) => item.file_id)
-			.filter((itemId): itemId is string => Boolean(itemId))
-		if (fileIds.length === 0) return
-
-		try {
-			const data = await SuperMagicApi.createBatchDownload({
-				project_id: projectId,
-				file_ids: fileIds,
-			})
-			if (data.status === "ready" && data.download_url) {
-				downloadFileWithAnchor(data.download_url)
-			}
-		} catch (error) {
-			console.error("项目详情移动端批量下载失败:", error)
-			magicToast.error(t("topicFiles.error.downloadFailed"))
-		}
-	}
-
-	const batchExport = async (items: AttachmentItem[], convertType: "pdf" | "ppt") => {
-		if (!projectId) return
-		const fileIds = items
-			.map((item) => item.file_id)
-			.filter((itemId): itemId is string => Boolean(itemId))
-		if (fileIds.length === 0) return
-
-		try {
-			const data = await SuperMagicApi.exportPdfOrPpt({
-				project_id: projectId,
-				file_ids: fileIds,
-				convert_type: convertType,
-			})
-			if (data.status === "completed" && data.download_url) {
-				downloadFileWithAnchor(data.download_url)
-				return
-			}
-
-			if (data.status === "processing") {
-				const timer = setInterval(async () => {
-					try {
-						const checkData = await SuperMagicApi.checkExportPdfOrPptStatus(
-							data.task_key,
-						)
-						if (checkData.status === "completed" && checkData.download_url) {
-							downloadFileWithAnchor(checkData.download_url)
-							clearInterval(timer)
-						}
-						if (checkData.status === "failed") {
-							magicToast.error(
-								checkData.message || t("topicFiles.error.downloadFailed"),
-							)
-							clearInterval(timer)
-						}
-					} catch (error) {
-						console.error("检查批量导出状态失败:", error)
-						clearInterval(timer)
-					}
-				}, 2000)
-			}
-		} catch (error) {
-			console.error("项目详情移动端批量导出失败:", error)
-			magicToast.error(t("topicFiles.error.downloadFailed"))
-		}
-	}
-
 	const batchShare = (items: AttachmentItem[]) => {
 		const fileIds = items
 			.map((item) => item.file_id)
@@ -277,6 +209,11 @@ export function useProjectDetailFilesController({
 		})
 	}
 
+	/** Clear mobile multi-select after batch actions complete (pairs with useBatchDownload.exitSelectMode). */
+	const resetMobileSelection = () => {
+		setSelectionResetKey((prev) => prev + 1)
+	}
+
 	const batchMove = (items: AttachmentItem[]) => {
 		const fileIds = items
 			.map((item) => item.file_id)
@@ -287,6 +224,7 @@ export function useProjectDetailFilesController({
 
 	return {
 		selectionResetKey,
+		resetMobileSelection,
 		shareModalVisible,
 		shareFileIds,
 		closeShareModal: () => {
@@ -305,8 +243,6 @@ export function useProjectDetailFilesController({
 		deleteConfirmNode,
 		createFile,
 		createFolder,
-		batchDownload,
-		batchExport,
 		batchShare,
 		batchMove,
 		batchDelete,
