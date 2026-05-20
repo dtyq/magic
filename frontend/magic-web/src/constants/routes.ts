@@ -91,8 +91,6 @@ export const enum RoutePath {
 	MobileHome = "/mobile-home",
 	SuperChatsList = "/super/chats",
 	SuperApps = "/apps",
-	// TODO(mobile-refactor-cleanup): remove this temporary demo route after WP01 shell verification.
-	SuperShellDemo = "/dev/mobile-shell-demo",
 	SuperWorkspacesList = "/super/workspaces",
 	SuperSharedWorkspace = "/super/shared-workspace",
 	SuperWorkspaceProjects = "/super/workspaces/:workspaceId",

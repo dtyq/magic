@@ -5,8 +5,8 @@ import { MobileTabParam } from "@/pages/mobileTabs/constants"
 /**
  * 不使用全局安全边距的路由名称列表
  * 这些路由使用旧移动端页面结构（非 MobileShellScaffold），由各自页面组件自行处理安全区。
- * superMagicMobile 重构路由（MobileHome、SuperChatsList 等）已通过将 MobileShellScaffold
- * 改为 relative h-full，由 BaseLayoutMobileV2 的 GlobalSafeArea spacer 统一处理，不在此列。
+ * superMagicMobile 重构路由（MobileHome、SuperChatsList 等）使用 MobileShellScaffold
+ *（relative h-full）配合 V1 外层 GlobalSafeArea spacer，不在此列。
  */
 export const NO_GLOBAL_SAFE_AREA_ROUTES_NAMES: string[] = [
 	RouteName.Chat,

@@ -12,7 +12,7 @@ import { MagiClawNavIcon } from "@/pages/superMagicMobile/components/icons/MagiC
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import { MobileSettingsPanel } from "@/layouts/BaseLayoutMobile/components/MobileSettings"
-import { MobileSettingsProvider } from "@/layouts/BaseLayoutMobileV2/MobileSettingsContext"
+import { MobileSettingsProvider } from "@/pages/superMagicMobile/components/MobileShell/MobileSettingsContext"
 import { isMagicApp } from "@/utils/devices"
 
 import { MobileShellAppLayout } from "./MobileShellAppLayout"

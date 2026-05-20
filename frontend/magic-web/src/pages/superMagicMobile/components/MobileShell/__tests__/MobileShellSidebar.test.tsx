@@ -33,7 +33,7 @@ vi.mock("@/models/user", () => ({
 	},
 }))
 
-vi.mock("@/layouts/BaseLayoutMobileV2/MobileSettingsContext", () => ({
+vi.mock("@/pages/superMagicMobile/components/MobileShell/MobileSettingsContext", () => ({
 	useMobileSettingsController: () => ({
 		openSettings: vi.fn(),
 	}),

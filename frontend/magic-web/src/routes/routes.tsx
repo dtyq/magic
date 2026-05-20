@@ -103,12 +103,6 @@ const ProfileSettingsTimezone = lazy(
 const ProfileAccountSecurity = lazy(
 	() => import("@/pages/user/pages/my/components/AccountSecurity"),
 )
-/** 超级麦吉移动端 Shell 临时演示页（父级挂 Shell，子路由仅面板） */
-// TODO(mobile-refactor-cleanup): remove this temporary demo route after WP01 shell verification.
-const ShellDemoAppRouteLayout = lazy(
-	() => import("@/pages/superMagicMobile/pages/ShellDemo/ShellDemoAppRouteLayout"),
-)
-const ShellDemoPanel = lazy(() => import("@/pages/superMagicMobile/pages/ShellDemo/ShellDemoPanel"))
 const SuperMobileShellAppRouteLayout = lazy(
 	() => import("@/pages/superMagicMobile/components/MobileShell/SuperMobileShellAppRouteLayout"),
 )
@@ -410,17 +404,6 @@ export function registerRoutes(config: RouteConfig = {}): Array<RouteObject> {
 						meta: {
 							title: "routes.workspace",
 						},
-					},
-				],
-			},
-			{
-				name: RouteName.SuperShellDemo,
-				path: "/:clusterCode/dev/mobile-shell-demo",
-				element: <ShellDemoAppRouteLayout />,
-				children: [
-					{
-						index: true,
-						element: <ShellDemoPanel />,
 					},
 				],
 			},

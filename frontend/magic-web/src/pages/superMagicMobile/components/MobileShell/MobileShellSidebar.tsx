@@ -5,7 +5,7 @@ import { Ellipsis, Loader } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { userStore } from "@/models/user"
 import { MobileBrandLogoIcon } from "@/pages/superMagicMobile/components/icons/MobileBrandLogoIcon"
-import { useMobileSettingsController } from "@/layouts/BaseLayoutMobileV2/MobileSettingsContext"
+import { useMobileSettingsController } from "@/pages/superMagicMobile/components/MobileShell/MobileSettingsContext"
 import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
 
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"

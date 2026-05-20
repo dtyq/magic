@@ -67,7 +67,7 @@ vi.mock("@/layouts/BaseLayoutMobile/components/MobileSettings", () => ({
 	MobileSettingsPanel: () => null,
 }))
 
-vi.mock("@/layouts/BaseLayoutMobileV2/MobileSettingsContext", () => ({
+vi.mock("@/pages/superMagicMobile/components/MobileShell/MobileSettingsContext", () => ({
 	MobileSettingsProvider: ({ children }: { children: ReactNode }) => children,
 }))
 

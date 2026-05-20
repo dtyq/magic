@@ -64,8 +64,6 @@ export enum RouteName {
 	MobileTabsSuperTopic = "MobileTabsSuperTopic",
 	/** 移动端 Tabs - AI 录音总结 */
 	MobileTabsRecording = "MobileTabsRecording",
-	/** 超级麦吉移动端 Shell 临时演示页 */
-	SuperShellDemo = "SuperShellDemo",
 	/** 超级麦吉移动端 - 工作空间列表 */
 	SuperWorkspacesList = "SuperWorkspacesList",
 	/** 超级麦吉移动端 - 共享工作区 */

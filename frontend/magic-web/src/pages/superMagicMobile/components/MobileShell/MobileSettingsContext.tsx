@@ -9,7 +9,7 @@ export interface MobileSettingsContextValue {
 
 const MobileSettingsContext = createContext<MobileSettingsContextValue | null>(null)
 
-/** 统一提供 V2 壳层下的设置浮层开关，避免为局部 UI 再引入全局 store。 */
+/** Provides shared open/close state for the mobile settings sheet inside SuperMobileShell. */
 export function MobileSettingsProvider(props: {
 	value: MobileSettingsContextValue
 	children: React.ReactNode
@@ -18,7 +18,7 @@ export function MobileSettingsProvider(props: {
 	return <MobileSettingsContext.Provider value={value}>{children}</MobileSettingsContext.Provider>
 }
 
-/** 侧栏与设置浮层共享同一份局部状态，确保入口与弹层在 V2 下同层协作。 */
+/** Sidebar and settings panel read the same controller from SuperMobileShellRouteLayout. */
 export function useMobileSettingsController() {
 	const context = useContext(MobileSettingsContext)
 	if (!context) {
