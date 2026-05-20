@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils"
 import { ShareType } from "@/pages/superMagic/components/Share/types"
 import type { ProjectShareSheetController } from "../types"
 import SelectedFilesHierarchySection from "./SelectedFilesHierarchySection"
+import { ProjectShareFloatingActionBar } from "./ProjectShareFloatingActionBar"
 
 interface ProjectShareCreateViewProps {
 	controller: ProjectShareSheetController
@@ -133,10 +134,7 @@ export default function ProjectShareCreateView({ controller }: ProjectShareCreat
 	)
 
 	return (
-		<div
-			className="flex flex-col gap-2.5 pb-[max(var(--safe-area-inset-bottom),12px)]"
-			data-testid="project-share-sheet-create-view"
-		>
+		<div className="flex flex-col gap-2.5" data-testid="project-share-sheet-create-view">
 			<SelectedFilesSection controller={controller} />
 			<div className="space-y-2">
 				<SectionLabel>{t("projectShare.typeLabel")}</SectionLabel>
@@ -376,7 +374,10 @@ export default function ProjectShareCreateView({ controller }: ProjectShareCreat
 				) : null}
 			</CardGroup>
 
-			<div className="sticky bottom-0 bg-[#F7F7F6] pt-2">
+			<ProjectShareFloatingActionBar
+				scrollSpacerVariant="single"
+				testId="project-share-sheet-create-floating-bar"
+			>
 				<Button
 					type="button"
 					className="h-12 w-full rounded-xl bg-[#171717] text-[16px] font-medium text-white hover:bg-[#171717] active:opacity-80"
@@ -386,7 +387,7 @@ export default function ProjectShareCreateView({ controller }: ProjectShareCreat
 				>
 					{controller.saving ? t("common.saving") : t("projectShare.createLink")}
 				</Button>
-			</div>
+			</ProjectShareFloatingActionBar>
 
 			{controller.memberSelectorOpen && (
 				<MemberDepartmentSelector

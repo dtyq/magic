@@ -110,6 +110,16 @@ describe("ProjectShareCreateView", () => {
 		consoleErrorSpy.mockRestore()
 	})
 
+	it("uses floating action bar with dedicated safe-area padding", () => {
+		render(<ProjectShareCreateView controller={createController()} />)
+
+		const bar = screen.getByTestId("project-share-sheet-create-floating-bar")
+		expect(bar.className).toContain("pb-[max(var(--safe-area-inset-bottom),16px)]")
+		expect(
+			screen.getByTestId("project-share-sheet-create-floating-bar-scroll-spacer"),
+		).toBeInTheDocument()
+	})
+
 	it("文件模式会展示固定文案的已选文件区块，并支持展开文件夹层级", () => {
 		render(
 			<ProjectShareCreateView

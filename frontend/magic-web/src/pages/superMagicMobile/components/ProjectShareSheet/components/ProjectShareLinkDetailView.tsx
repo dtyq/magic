@@ -8,6 +8,7 @@ import { generateShareUrl } from "@/pages/superMagic/components/ShareManagement/
 import type { ProjectShareSheetController } from "../types"
 import { isPartialFileShare } from "../utils/shareScope"
 import SelectedFilesHierarchySection from "./SelectedFilesHierarchySection"
+import { ProjectShareFloatingActionBar } from "./ProjectShareFloatingActionBar"
 
 interface ProjectShareLinkDetailViewProps {
 	controller: ProjectShareSheetController
@@ -72,14 +73,10 @@ export default function ProjectShareLinkDetailView({
 	const TypeIcon = meta.Icon
 	const fileCount = share.extend?.file_count || 1
 	// Show selected files only for partial file shares; hide for whole-project shares even when opened from the file list entry.
-	const shouldShowSelectedFiles =
-		controller.selectedFileCount > 0 && isPartialFileShare(share)
+	const shouldShowSelectedFiles = controller.selectedFileCount > 0 && isPartialFileShare(share)
 
 	return (
-		<div
-			className="flex flex-col gap-2.5 pb-[max(var(--safe-area-inset-bottom),12px)]"
-			data-testid="project-share-sheet-detail-view"
-		>
+		<div className="flex flex-col gap-2.5" data-testid="project-share-sheet-detail-view">
 			<section
 				className="flex items-start gap-3 rounded-[14px] bg-white p-4"
 				data-testid="project-share-sheet-detail-type-card"
@@ -171,7 +168,11 @@ export default function ProjectShareLinkDetailView({
 				</section>
 			) : null}
 
-			<div className="sticky bottom-0 flex flex-col gap-2 bg-[#F7F7F6] pt-2">
+			<ProjectShareFloatingActionBar
+				scrollSpacerVariant="dual"
+				className="flex flex-col gap-2"
+				testId="project-share-sheet-detail-floating-bar"
+			>
 				<Button
 					type="button"
 					className="h-12 w-full rounded-xl bg-[#171717] text-[16px] font-medium text-white hover:bg-[#171717] active:opacity-80"
@@ -191,7 +192,7 @@ export default function ProjectShareLinkDetailView({
 					<Trash2 className="mr-2 h-4 w-4" />
 					{t("projectShare.deleteLink")}
 				</Button>
-			</div>
+			</ProjectShareFloatingActionBar>
 		</div>
 	)
 }

@@ -28,6 +28,7 @@ export default function ProjectShareSheet(props: ProjectShareSheetProps) {
 					onMaskClick: controller.close,
 					showCloseButton: false,
 					withSafeBottom: false,
+					bodyClassName: "flex min-h-0 flex-1 flex-col overflow-hidden p-0",
 					// 默认手柄位于 MagicPopup 外层内容壳内；这里同步外层底色，避免头部上方露出白底造成分层。
 					className: "rounded-t-[14px] border-0 bg-[#F7F7F6]",
 					bodyStyle: {
@@ -39,17 +40,18 @@ export default function ProjectShareSheet(props: ProjectShareSheetProps) {
 				wrapperStyle={{
 					height: "auto",
 					maxHeight: "92dvh",
+					minHeight: 0,
 				}}
 			>
 				<div
-					className="flex max-h-[92dvh] flex-col overflow-hidden bg-[#F7F7F6]"
+					className="flex max-h-[92dvh] min-h-0 flex-col overflow-hidden bg-[#F7F7F6]"
 					data-testid="project-share-sheet-root"
 				>
 					<ProjectShareSheetHeader
 						controller={controller}
 						projectName={props.projectName}
 					/>
-					<div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
+					<div className="scrollbar-y-thin relative min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
 						{controller.view === "create" ? (
 							<ProjectShareCreateView controller={controller} />
 						) : null}
