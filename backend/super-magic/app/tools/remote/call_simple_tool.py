@@ -25,12 +25,19 @@ from app.infrastructure.sdk.magic_service.parameter.tool_execute_parameter impor
     ToolExecuteParameter,
 )
 from app.tools.core import BaseTool, BaseToolParams, tool
+from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 
 logger = get_logger(__name__)
 
 # 工具流远端可能涉及多步骤聚合（外部 API、AI 推理等），把超时放宽到 2 分钟，
 # 仅对本工具的单次请求生效，不影响 SDK client 默认 30s 配置。
 _CALL_SIMPLE_TOOL_TIMEOUT_SECONDS = 120.0
+
+# 注册最小超时供 run_sdk_snippet 自动提升，避免 snippet 外层在单次远程调用前提前超时
+SdkSnippetTimeoutRegistry.register(
+    ["call_simple_tool"],
+    min_timeout=int(_CALL_SIMPLE_TOOL_TIMEOUT_SECONDS),
+)
 
 
 class CallSimpleToolParams(BaseToolParams):

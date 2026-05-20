@@ -22,12 +22,19 @@ from app.infrastructure.sdk.magic_service.parameter.agent_execute_parameter impo
     AgentExecuteParameter,
 )
 from app.tools.core import BaseTool, BaseToolParams, tool
+from app.tools.snippet_timeout_registry import SdkSnippetTimeoutRegistry
 
 logger = get_logger(__name__)
 
 # agent 调用可能涉及多轮推理与外部 API 调度，把超时放宽到 2 分钟，
 # 仅对本工具的单次请求生效，不影响 SDK client 默认 30s 配置。
 _CALL_SIMPLE_AGENT_TIMEOUT_SECONDS = 120.0
+
+# 注册最小超时供 run_sdk_snippet 自动提升，避免 snippet 外层在单次 agent 调用前提前超时
+SdkSnippetTimeoutRegistry.register(
+    ["call_simple_agent"],
+    min_timeout=int(_CALL_SIMPLE_AGENT_TIMEOUT_SECONDS),
+)
 
 
 class CallSimpleAgentParams(BaseToolParams):
