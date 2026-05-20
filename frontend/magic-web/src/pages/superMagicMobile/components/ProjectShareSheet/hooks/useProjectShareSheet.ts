@@ -28,6 +28,7 @@ import type {
 	ProjectShareSheetView,
 	SelectedFileHierarchyNode,
 } from "../types"
+import { isPartialFileShare, isWholeProjectShare } from "../utils/shareScope"
 
 /**
  * 构造分享表单的默认值，确保每次打开 Sheet 都从原型定义的空白创建态开始。
@@ -272,15 +273,21 @@ export function useProjectShareSheet({
 		return null
 	}, [filteredShareItems, localSelectedShare, selectedShareId])
 	const displayedSelectedFileIds = useMemo(() => {
+		// Whole-project share detail: do not use list selection or share.file_ids, to avoid showing the selected-files block incorrectly.
+		if (selectedShare && isWholeProjectShare(selectedShare)) {
+			return []
+		}
+
 		if (
 			selectedShare &&
+			isPartialFileShare(selectedShare) &&
 			"file_ids" in selectedShare &&
 			Array.isArray(selectedShare.file_ids) &&
-			selectedShare.file_ids.length > 0 &&
-			!("share_project" in selectedShare && selectedShare.share_project)
+			selectedShare.file_ids.length > 0
 		) {
 			return selectedShare.file_ids
 		}
+
 		return effectiveSelectedFileIds
 	}, [effectiveSelectedFileIds, selectedShare])
 	const selectedFileItems = useMemo(
@@ -548,7 +555,7 @@ export function useProjectShareSheet({
 		editResourceId,
 		closeEditModal: () => {
 			setEditResourceId(undefined)
-			shareList.refreshData()
+			refreshShareList()
 		},
 	}
 }

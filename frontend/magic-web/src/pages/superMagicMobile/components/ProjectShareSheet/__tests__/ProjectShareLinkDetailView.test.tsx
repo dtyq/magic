@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
-import { ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
+import { ResourceType, ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
 import ProjectShareLinkDetailView from "../components/ProjectShareLinkDetailView"
 import type { ProjectShareSheetController } from "../types"
 
@@ -220,5 +220,39 @@ describe("ProjectShareLinkDetailView", () => {
 		expect(screen.getByText("需求文档.md")).toBeInTheDocument()
 		expect(screen.getByText("原型图.png")).toBeInTheDocument()
 		expect(screen.getByText("说明.txt")).toBeInTheDocument()
+	})
+
+	it("文件模式下查看整项目分享详情时不展示已选文件区块", () => {
+		render(
+			<ProjectShareLinkDetailView
+				controller={createController({
+					mode: "file",
+					shareMode: ShareMode.File,
+					selectedShare: {
+						resource_id: "project-share-1",
+						title: "项目分享_Demo",
+						project_id: "project-1",
+						project_name: "Demo Project",
+						workspace_id: "",
+						workspace_name: "",
+						resource_type: ResourceType.FileCollection,
+						share_type: ShareType.PasswordProtected,
+						created_at: "2026-05-05T00:00:00.000Z",
+						has_password: true,
+						password: "abc123",
+						share_project: true,
+						file_ids: ["file-1", "file-2"],
+						extend: { file_count: 259 },
+					},
+					defaultSelectedFileIds: ["file-selected"],
+					selectedFileCount: 0,
+					selectedFileHierarchy: [],
+				})}
+			/>,
+		)
+
+		expect(
+			screen.queryByTestId("project-share-sheet-selected-files-trigger"),
+		).not.toBeInTheDocument()
 	})
 })

@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
-import { ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
+import { ResourceType, ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
 import type {
 	FileShareItem,
 	ProjectShareItem,
@@ -301,5 +301,50 @@ describe("useProjectShareSheet", () => {
 			}),
 		])
 		expect(result.current.view).toBe("linkDetail")
+	})
+
+	it("文件模式下查看整项目分享详情时，不使用当前勾选文件作为已选文件", () => {
+		mocks.fileShareData = [
+			{
+				resource_id: "project-share-1",
+				title: "项目分享_Demo",
+				project_id: "project-1",
+				project_name: "Demo Project",
+				workspace_id: "",
+				workspace_name: "",
+				resource_type: ResourceType.FileCollection,
+				share_type: ShareType.PasswordProtected,
+				created_at: "2026-05-05",
+				has_password: true,
+				share_project: true,
+				file_ids: ["file-a", "file-b"],
+				extend: { file_count: 259 },
+			},
+		]
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [
+					{
+						file_id: "file-selected",
+						name: "index.html",
+						is_directory: false,
+					},
+				],
+				mode: "file",
+				defaultSelectedFileIds: ["file-selected"],
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => {
+			result.current.goToLinkDetail("project-share-1")
+		})
+
+		expect(result.current.selectedFileCount).toBe(0)
+		expect(result.current.selectedFileHierarchy).toEqual([])
 	})
 })

@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { ShareType } from "@/pages/superMagic/components/Share/types"
 import { generateShareUrl } from "@/pages/superMagic/components/ShareManagement/utils/shareTypeHelpers"
 import type { ProjectShareSheetController } from "../types"
+import { isPartialFileShare } from "../utils/shareScope"
 import SelectedFilesHierarchySection from "./SelectedFilesHierarchySection"
 
 interface ProjectShareLinkDetailViewProps {
@@ -70,10 +71,9 @@ export default function ProjectShareLinkDetailView({
 	const meta = getShareTypeMeta(share.share_type, t)
 	const TypeIcon = meta.Icon
 	const fileCount = share.extend?.file_count || 1
+	// Show selected files only for partial file shares; hide for whole-project shares even when opened from the file list entry.
 	const shouldShowSelectedFiles =
-		controller.selectedFileCount > 0 &&
-		(controller.mode === "file" ||
-			("file_ids" in share && Array.isArray(share.file_ids) && share.file_ids.length > 0))
+		controller.selectedFileCount > 0 && isPartialFileShare(share)
 
 	return (
 		<div
