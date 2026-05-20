@@ -9,7 +9,7 @@
 <div align="center">
   <p align="center">
     <a href="https://www.magicrew.ai" target="_blank">
-      <img alt="Static Badge" src="https://img.shields.io/badge/Official Website-301AD2">
+      <img alt="官方网站" src="https://img.shields.io/badge/Official Website-301AD2">
     </a>
     <a href="https://github.com/dtyq/magic/releases">
       <img src="https://poser.pugx.org/dtyq/magic/v/stable" alt="Stable Version">
@@ -24,7 +24,7 @@
       <img alt="Discussion posts" src="https://img.shields.io/github/discussions/dtyq/magic?labelColor=%20%239b8afb&color=%20%237a5af8">
     </a>
     <a href="https://www.magicrew.ai" target="_blank">
-      <img alt="Static Badge" src="https://img.shields.io/badge/Built with Magic 🔮-301AD2">
+      <img alt="基于 Magic 构建" src="https://img.shields.io/badge/Built with Magic 🔮-301AD2">
     </a>
   </p>
 </div>
