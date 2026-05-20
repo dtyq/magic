@@ -19,6 +19,7 @@ class AgentExecuteParameter(MagicServiceAbstractParameter):
         conversation_id: Optional[str] = None,
         instruction: Optional[List[Dict[str, Any]]] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
+        timeout: Optional[float] = None,
     ):
         """
         Initialize agent execute parameter.
@@ -29,6 +30,8 @@ class AgentExecuteParameter(MagicServiceAbstractParameter):
             conversation_id: Optional conversation id; reuse to keep context.
             instruction: Optional list of instructions, each item: {"name": str, "value": str}.
             attachments: Optional list of attachment descriptors, mirroring magic-service raw schema.
+            timeout: Per-request HTTP timeout in seconds. When set, overrides the
+                SDK client default (30s) for this single request only.
         """
         super().__init__()
         self.agent_id = agent_id
@@ -36,6 +39,7 @@ class AgentExecuteParameter(MagicServiceAbstractParameter):
         self.conversation_id = conversation_id
         self.instruction = instruction or []
         self.attachments = attachments or []
+        self.timeout = timeout
 
     def get_agent_id(self) -> str:
         return self.agent_id
@@ -67,6 +71,15 @@ class AgentExecuteParameter(MagicServiceAbstractParameter):
 
     def to_query_params(self) -> Dict[str, Any]:
         return {}
+
+    def to_options(self, method: str) -> Dict[str, Any]:
+        """
+        Build request options and inject per-request timeout when configured.
+        """
+        options = super().to_options(method)
+        if self.timeout is not None:
+            options['timeout'] = self.timeout
+        return options
 
     def validate(self) -> None:
         super().validate()  # token check from base class

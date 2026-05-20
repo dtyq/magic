@@ -442,5 +442,13 @@
     "remove_server": {
         "zh_CN": "移除服务",
         "en_US": "Remove Service"
+    },
+    "call_simple_tool": {
+        "zh_CN": "调用工具",
+        "en_US": "Use Tool"
+    },
+    "call_simple_agent": {
+        "zh_CN": "调用助理",
+        "en_US": "Consult Agent"
     }
 }

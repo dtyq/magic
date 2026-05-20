@@ -15,6 +15,8 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.i18n import i18n
 from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
 from app.infrastructure.sdk.magic_service.parameter.agent_execute_parameter import (
     AgentExecuteParameter,
@@ -22,6 +24,10 @@ from app.infrastructure.sdk.magic_service.parameter.agent_execute_parameter impo
 from app.tools.core import BaseTool, BaseToolParams, tool
 
 logger = get_logger(__name__)
+
+# agent 调用可能涉及多轮推理与外部 API 调度，把超时放宽到 2 分钟，
+# 仅对本工具的单次请求生效，不影响 SDK client 默认 30s 配置。
+_CALL_SIMPLE_AGENT_TIMEOUT_SECONDS = 120.0
 
 
 class CallSimpleAgentParams(BaseToolParams):
@@ -128,6 +134,87 @@ Rules:
     def is_visible_in_ui(self) -> bool:
         return False
 
+    async def get_before_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        return {
+            "tool_name": tool_name,
+            "action": i18n.translate("call_simple_agent", category="tool.actions"),
+            "remark": i18n.translate("call_simple_agent.calling", category="tool.messages"),
+        }
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        result: ToolResult,
+        execution_time: float,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        action = i18n.translate("call_simple_agent", category="tool.actions")
+        remark_key = "call_simple_agent.called" if result.ok else "call_simple_agent.failed"
+        return {
+            "tool_name": tool_name,
+            "action": action,
+            "remark": i18n.translate(remark_key, category="tool.messages"),
+        }
+
+    async def get_tool_detail(
+        self,
+        tool_context: ToolContext,
+        result: ToolResult,
+        arguments: Dict[str, Any] = None,
+    ) -> Optional[ToolDetail]:
+        args = arguments or {}
+        agent_id = str(args.get("agent_id") or "").strip() or "-"
+        message = str(args.get("message") or "")
+
+        status_icon = "✅" if result.ok else "❌"
+        sections: list[str] = [f"`{agent_id}` {status_icon}"]
+
+        execution_time = getattr(result, "execution_time", None)
+        if execution_time is not None:
+            sections.append(f"> Latency {execution_time:.2f}s")
+
+        # 会话上下文：如果后端返回了 conversation_id 则展示，便于用户识别多轮会话。
+        conv_id = ""
+        if isinstance(result.data, dict):
+            conv_id = str(result.data.get("conversation_id") or "").strip()
+        if conv_id:
+            sections.append(f"> conversation_id: `{conv_id}`")
+
+        sections.append("#### 输入\n\n" + self._render_text_block(message))
+
+        content_text = result.content or ""
+        truncated = False
+        if len(content_text) > 2000:
+            content_text = content_text[:2000]
+            truncated = True
+
+        response_label = "#### 回复" if result.ok else "#### 错误"
+        sections.append(f"{response_label}\n\n{self._render_text_block(content_text)}")
+        if truncated:
+            sections.append("_… 输出已截断_")
+
+        md = "\n\n".join(sections)
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(file_name="call_simple_agent_result.md", content=md),
+        )
+
+    @staticmethod
+    def _render_text_block(content: str) -> str:
+        """助理返回多为自然语言，统一作为 plain text 包裹，
+        避免原文中的 markdown 字符干扰渲染；外层 4 个反引号防冲突。
+        """
+        text = (content or "").strip()
+        if not text:
+            return "_(empty)_"
+        return f"````text\n{text}\n````"
+
     async def execute(
         self, tool_context: ToolContext, params: CallSimpleAgentParams
     ) -> ToolResult:
@@ -146,6 +233,7 @@ Rules:
                     message=message,
                     conversation_id=params.conversation_id,
                     instruction=params.instruction,
+                    timeout=_CALL_SIMPLE_AGENT_TIMEOUT_SECONDS,
                 )
             )
             content = result.to_string()

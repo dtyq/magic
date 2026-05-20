@@ -1702,5 +1702,29 @@
     "mcp.remove_server.removed": {
         "zh_CN": "服务「{{server_name}}」已移除",
         "en_US": "Service \"{{server_name}}\" removed"
+    },
+    "call_simple_tool.calling": {
+        "zh_CN": "正在调用工具流",
+        "en_US": "Calling tool flow"
+    },
+    "call_simple_tool.called": {
+        "zh_CN": "工具流调用完成",
+        "en_US": "Tool flow call completed"
+    },
+    "call_simple_tool.failed": {
+        "zh_CN": "工具流调用失败",
+        "en_US": "Tool flow call failed"
+    },
+    "call_simple_agent.calling": {
+        "zh_CN": "正在调用助理",
+        "en_US": "Consulting agent"
+    },
+    "call_simple_agent.called": {
+        "zh_CN": "已收到助理回复",
+        "en_US": "Agent reply received"
+    },
+    "call_simple_agent.failed": {
+        "zh_CN": "助理调用失败",
+        "en_US": "Agent consultation failed"
     }
 }

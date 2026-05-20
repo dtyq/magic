@@ -10,6 +10,7 @@ LLM 通过 mention 拿到 `tool_id`（即 tool flow code）与 `json_schema` 后
 - 校验由远端执行；本地仅作必填校验与转发
 """
 
+import json
 from typing import Any, Dict, Optional
 
 from pydantic import Field
@@ -17,6 +18,8 @@ from pydantic import Field
 from agentlang.context.tool_context import ToolContext
 from agentlang.logger import get_logger
 from agentlang.tools.tool_result import ToolResult
+from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
+from app.i18n import i18n
 from app.infrastructure.sdk.magic_service.factory import get_magic_service_sdk
 from app.infrastructure.sdk.magic_service.parameter.tool_execute_parameter import (
     ToolExecuteParameter,
@@ -24,6 +27,10 @@ from app.infrastructure.sdk.magic_service.parameter.tool_execute_parameter impor
 from app.tools.core import BaseTool, BaseToolParams, tool
 
 logger = get_logger(__name__)
+
+# 工具流远端可能涉及多步骤聚合（外部 API、AI 推理等），把超时放宽到 2 分钟，
+# 仅对本工具的单次请求生效，不影响 SDK client 默认 30s 配置。
+_CALL_SIMPLE_TOOL_TIMEOUT_SECONDS = 120.0
 
 
 class CallSimpleToolParams(BaseToolParams):
@@ -103,6 +110,99 @@ Rules:
     def is_visible_in_ui(self) -> bool:
         return False
 
+    async def get_before_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        return {
+            "tool_name": tool_name,
+            "action": i18n.translate("call_simple_tool", category="tool.actions"),
+            "remark": i18n.translate("call_simple_tool.calling", category="tool.messages"),
+        }
+
+    async def get_after_tool_call_friendly_action_and_remark(
+        self,
+        tool_name: str,
+        tool_context: ToolContext,
+        result: ToolResult,
+        execution_time: float,
+        arguments: Dict[str, Any] = None,
+    ) -> Dict:
+        action = i18n.translate("call_simple_tool", category="tool.actions")
+        remark_key = "call_simple_tool.called" if result.ok else "call_simple_tool.failed"
+        return {
+            "tool_name": tool_name,
+            "action": action,
+            "remark": i18n.translate(remark_key, category="tool.messages"),
+        }
+
+    async def get_tool_detail(
+        self,
+        tool_context: ToolContext,
+        result: ToolResult,
+        arguments: Dict[str, Any] = None,
+    ) -> Optional[ToolDetail]:
+        args = arguments or {}
+        tool_id = str(args.get("tool_id") or "").strip() or "-"
+        raw_arguments = args.get("arguments") or {}
+
+        status_icon = "✅" if result.ok else "❌"
+        sections: list[str] = [f"`{tool_id}` {status_icon}"]
+
+        execution_time = getattr(result, "execution_time", None)
+        if execution_time is not None:
+            sections.append(f"> Latency {execution_time:.2f}s")
+
+        sections.append(
+            "#### 入参\n\n```json\n"
+            + self._format_json(raw_arguments)
+            + "\n```"
+        )
+
+        content_text = result.content or ""
+        truncated = False
+        if len(content_text) > 2000:
+            content_text = content_text[:2000]
+            truncated = True
+
+        response_label = "#### 返回" if result.ok else "#### 错误"
+        sections.append(f"{response_label}\n\n{self._render_content_block(content_text)}")
+        if truncated:
+            sections.append("_… 输出已截断_")
+
+        md = "\n\n".join(sections)
+        return ToolDetail(
+            type=DisplayType.MD,
+            data=FileContent(file_name="call_simple_tool_result.md", content=md),
+        )
+
+    @staticmethod
+    def _format_json(value: Any) -> str:
+        """给前端展示的 JSON 美化；序列化失败时退化为 str()。"""
+        try:
+            return json.dumps(value, ensure_ascii=False, indent=2)
+        except (TypeError, ValueError):
+            return str(value)
+
+    @staticmethod
+    def _render_content_block(content: str) -> str:
+        """输出可能是 JSON / 纯文本，能解析为 JSON 的就美化，
+        其余一律作为 plain text 包裹，避免原文中的 markdown 字符干扰渲染。外层使用 4 个
+        反引号 fence，容下内容本身包含 3 个反引号的场景。
+        """
+        text = (content or "").strip()
+        if not text:
+            return "_(empty)_"
+        try:
+            obj = json.loads(text)
+        except (json.JSONDecodeError, TypeError):
+            obj = None
+        if isinstance(obj, (dict, list)):
+            return f"```json\n{json.dumps(obj, ensure_ascii=False, indent=2)}\n```"
+        return f"````text\n{text}\n````"
+
     async def execute(
         self, tool_context: ToolContext, params: CallSimpleToolParams
     ) -> ToolResult:
@@ -117,7 +217,11 @@ Rules:
         try:
             magic_service = get_magic_service_sdk()
             result = await magic_service.agent.execute_tool_async(
-                ToolExecuteParameter(code=tool_id, arguments=arguments)
+                ToolExecuteParameter(
+                    code=tool_id,
+                    arguments=arguments,
+                    timeout=_CALL_SIMPLE_TOOL_TIMEOUT_SECONDS,
+                )
             )
             return ToolResult(content=result.to_string())
         except Exception as exc:
