@@ -387,8 +387,15 @@ class ModelGatewayMapper extends ModelMapper
         }
 
         // 第二遍：所有原子模型就绪后，再处理 DYNAMIC 模型
+        // 批量预加载所有 dynamic 模型的候选 sub_model_id，避免 AggregateModelResolverService 逐个回库的 N+1 查询.
+        $preloadedDynamicLookup = $this->buildDynamicSubModelLookup(
+            $pendingDynamicModels,
+            $providerModels,
+            $providerDataIsolation
+        );
+
         foreach ($pendingDynamicModels as $providerModel) {
-            $dynamicModel = $this->createDynamicOdinModel($providerModel, $list, $dataIsolation);
+            $dynamicModel = $this->createDynamicOdinModel($providerModel, $list, $dataIsolation, $preloadedDynamicLookup);
             if (! $dynamicModel) {
                 continue;
             }
@@ -470,19 +477,93 @@ class ModelGatewayMapper extends ModelMapper
     }
 
     /**
+     * 为待处理的 DYNAMIC 模型集合批量预加载其候选 sub_model_id 的 ProviderModelEntity，
+     * 输出一份 model_id => ProviderModelEntity 的查表，供 AggregateModelResolverService O(1) 命中，
+     * 以避免逐个 sub_model_id 逐条 SQL 的 N+1 问题.
+     *
+     * 命中优先级: 已加载的 $providerModels 在内存包含的同 name model > 一次性 IN 查询补齐.
+     *
+     * @param array<ProviderModelEntity> $pendingDynamicModels 待处理的动态模型列表
+     * @param array<ProviderModelEntity> $providerModels 当前上下文已批量加载的模型列表（原子+动态）
+     * @return array<string, ProviderModelEntity>
+     */
+    private function buildDynamicSubModelLookup(
+        array $pendingDynamicModels,
+        array $providerModels,
+        ProviderDataIsolation $providerDataIsolation
+    ): array {
+        if (empty($pendingDynamicModels)) {
+            return [];
+        }
+
+        // 1) 将本轮已加载的 providerModels 按 model_id 入表（剩余仅作备选同名跳过）
+        $lookup = [];
+        foreach ($providerModels as $pm) {
+            $mid = $pm->getModelId();
+            if ($mid !== '' && ! isset($lookup[$mid])) {
+                $lookup[$mid] = $pm;
+            }
+        }
+
+        // 2) 收集 dynamic 中引用但未在当前 $lookup 中的 sub_model_id
+        $missingIds = [];
+        foreach ($pendingDynamicModels as $dyn) {
+            $config = $dyn->getAggregateConfig();
+            if (! $config) {
+                continue;
+            }
+            foreach (($config['models'] ?? []) as $item) {
+                $sid = is_string($item) ? $item : ($item['model_id'] ?? null);
+                if (! is_string($sid) || $sid === '') {
+                    continue;
+                }
+                if (! isset($lookup[$sid]) && ! isset($missingIds[$sid])) {
+                    $missingIds[$sid] = true;
+                }
+            }
+        }
+
+        // 3) 缺失部分一次性 IN 查询补齐（model_types 传空以免跨类型子模型被过滤）
+        if (! empty($missingIds)) {
+            $extraModels = $this->providerManager->getModelsByModelIds(
+                $providerDataIsolation,
+                array_keys($missingIds),
+                []
+            );
+            foreach ($extraModels as $em) {
+                $mid = $em->getModelId();
+                if ($mid !== '' && ! isset($lookup[$mid])) {
+                    $lookup[$mid] = $em;
+                }
+            }
+        }
+
+        return $lookup;
+    }
+
+    /**
      * 将单个 DYNAMIC 类型的 ProviderModelEntity 解析为 ModelEntry.
      * 使用订阅管理器做实时权限判断，resolvedModelId 与请求时实际使用的模型保持一致.
      * 解析失败（无可用子模型或子模型不在可用列表中）时返回 null.
      *
      * @param ModelEntry[] $atomList 已构建好的原子模型列表
+     * @param array<string, ProviderModelEntity> $preloadedLookup 预加载的 sub_model_id => ProviderModelEntity 查表
      */
     private function createDynamicOdinModel(
         ProviderModelEntity $dynamicModel,
         array $atomList,
         ModelGatewayDataIsolation $dataIsolation,
+        array $preloadedLookup = [],
     ): ?ModelEntry {
         $aggregateResolver = di(AggregateModelResolverService::class);
-        $resolvedModelId = $aggregateResolver->resolveModel($dynamicModel, $dataIsolation);
+        $visitedModelIds = [];
+        $resolvedModelId = $aggregateResolver->resolveModel(
+            $dynamicModel,
+            $dataIsolation,
+            null,
+            $visitedModelIds,
+            $preloadedLookup,
+        );
         if (! $resolvedModelId) {
             $this->logger->debug('动态模型无可用子模型，跳过', ['model_id' => $dynamicModel->getModelId()]);
             return null;

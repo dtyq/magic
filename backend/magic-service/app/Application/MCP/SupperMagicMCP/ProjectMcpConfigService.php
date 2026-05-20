@@ -49,7 +49,7 @@ readonly class ProjectMcpConfigService
     /**
      * 构建项目级 MCP 运行时配置。
      *
-     * @return array{mcpServers: array<string, array>}|array
+     * @return array|array{mcpServers: array<string, array>}
      */
     public function buildForTask(MCPDataIsolation $dataIsolation, TaskContext $taskContext): array
     {
