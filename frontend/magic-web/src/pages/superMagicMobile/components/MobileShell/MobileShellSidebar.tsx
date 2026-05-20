@@ -215,24 +215,27 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 									</span>
 								</div>
 								{recentItems.map((item) => (
+									// 单行 grid：左列标题区可收缩，右列更多按钮固定宽度并始终贴右、垂直居中。
 									<div
 										key={item.id}
-										className="flex h-9 items-center gap-1 rounded-lg"
+										className="grid h-9 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center rounded-lg"
 									>
 										<button
 											type="button"
 											// 最近项目需要直接进入目标项目，而不是统一回到首页。
 											onClick={() => onRecentNavigate(item)}
 											data-testid={`${testIdPrefix}-recent-${item.id}`}
-											className="flex h-9 flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm text-foreground transition-colors active:bg-black/5 dark:active:bg-white/10"
+											className="flex h-9 min-w-0 items-center gap-2 overflow-hidden rounded-lg px-2 text-left text-sm text-foreground transition-colors active:bg-black/5 dark:active:bg-white/10"
 										>
 											{/* 进行中状态：标题左侧展示旋转 Loader，与原型 Loader icon 对齐 */}
 											{item.inProgress && (
 												<Loader className="size-4 shrink-0 animate-spin text-foreground" />
 											)}
-											<div className="flex min-w-0 flex-1 items-center gap-2">
-												<span className="truncate">{item.title}</span>
-												{/* 徽章区：pinned > linked > shared，顺序与原型一致 */}
+											{/* 标题与徽章内联：徽章紧跟标题，仅标题截断；整体区域再收缩以给更多按钮留列 */}
+											<div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+												<span className="min-w-0 truncate leading-5">
+													{item.title}
+												</span>
 												{(item.isPinned ||
 													item.isLinked ||
 													item.isShared) && (
@@ -266,12 +269,12 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 											}}
 											data-testid={`${testIdPrefix}-recent-actions-${item.id}`}
 											className={cn(
-												"flex size-9 shrink-0 items-center justify-center rounded-lg text-foreground transition-colors active:bg-black/5 dark:active:bg-white/10",
+												"flex size-9 shrink-0 items-center justify-center self-center rounded-lg text-foreground transition-colors active:bg-black/5 dark:active:bg-white/10",
 												!item.project && "opacity-40",
 											)}
 											aria-label={t("common.more")}
 										>
-											<Ellipsis className="size-4" />
+											<Ellipsis className="size-4 shrink-0" />
 										</button>
 									</div>
 								))}
