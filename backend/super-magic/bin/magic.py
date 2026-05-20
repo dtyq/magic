@@ -17,8 +17,8 @@
     查询文本: 可选，直接向代理发送的消息。如果提供，将执行单次查询并退出；否则进入交互模式。
 
 MCP 配置:
-    系统会自动读取 config/mcp.json 文件中的 MCP 服务器配置。如果文件不存在，将跳过 MCP 初始化。
-    支持断线重启后从 .chat_history/mcp_manifest.json 自动恢复连接。
+    启动时会读取 config/mcp.json 并 seed 到 .chat_history/mcp_servers.json，仅做配置持久化，
+    不主动建立连接。连接由模型通过 using-mcp Skill 按需触发。
 """
 # 先导入基础Python库
 import os
@@ -165,15 +165,14 @@ def print_banner(mode='super'):
 
 
 async def initialize_mcp_manager(agent_context=None):
-    """初始化全局 MCP 管理器"""
+    """启动期将 config/mcp.json 中的配置 seed 到 ChatMcpStore，不建立连接。"""
     from app.service.mcp_service import MCPService
 
     try:
-        # 通过 MCPService 初始化全局管理器，它会自动读取 config/mcp.json
-        success = await MCPService.initialize_from_global_config(agent_context=agent_context)
-        return success
+        await MCPService.seed_from_global_config()
+        return True
     except Exception as e:
-        logger.error(f"初始化 MCP 管理器时出错: {e}")
+        logger.error(f"Seed 全局 MCP 配置出错: {e}")
         return False
 
 

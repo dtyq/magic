@@ -715,12 +715,12 @@ class AgentDispatcher(Base):
         # 使用 agent_mode 进行 agent 选择
         agent = await self.switch_agent(message.agent_mode, agent_code=agent_code)
 
-        # 初始化 MCP 配置
-        logger.info("正在初始化 MCP 配置...")
-        await MCPService.initialize_from_config(message.mcp_config, self.agent_context)
+        # 摄取客户端 MCP 配置：增量持久化到 ChatMcpStore，有变更时通过 horizon 通知模型
+        logger.info("正在摄取客户端 MCP 配置...")
+        await MCPService.ingest_from_message(message.mcp_config, self.agent_context)
 
-        # 保存当前模型配置（在 MCP 初始化之后，以便保存正确的 MCP 服务器信息）
-        self._save_session_config(message, agent)
+        # 保存当前模型配置
+        await self._save_session_config(message, agent)
 
         await self.run_agent(agent=agent)
 
@@ -743,7 +743,7 @@ class AgentDispatcher(Base):
         """
         return self.init_event_dispatched
 
-    def _save_session_config(self, message: ChatClientMessage, agent: Agent):
+    async def _save_session_config(self, message: ChatClientMessage, agent: Agent):
         """
         保存当前会话配置到聊天历史中（包括模型、图片模型、MCP服务器等）
 
@@ -761,8 +761,6 @@ class AgentDispatcher(Base):
             current_image_model_sizes = None
             current_video_model_id = None
             current_video_generation_config = None
-            current_mcp_servers = None
-
             if message.dynamic_config:
                 image_model_config = message.dynamic_config.get("image_model")
                 if image_model_config and isinstance(image_model_config, dict):
@@ -774,16 +772,7 @@ class AgentDispatcher(Base):
                     current_video_model_id = video_model_config.get("model_id")
                     current_video_generation_config = video_model_config.get("video_generation_config")
 
-            # 获取当前 MCP 服务器信息（仅在加载了 using-mcp skill 时）
             agent_context = agent.agent_context
-            if agent_context and agent_context.has_skill("using-mcp"):
-                from app.mcp.manager import get_global_mcp_manager
-                manager = get_global_mcp_manager()
-                if manager:
-                    current_mcp_servers = {}
-                    for server_name in manager.get_connected_servers():
-                        tools = manager.get_server_tools(server_name)
-                        current_mcp_servers[server_name] = tools
 
             current_agent_mode = None
             msg_agent_mode = message.agent_mode
@@ -808,7 +797,6 @@ class AgentDispatcher(Base):
                 current_image_model_sizes,
                 current_video_model_id,
                 current_video_generation_config,
-                current_mcp_servers,
                 message_version=agent_context.get_message_version() if agent_context else None,
                 agent_mode=current_agent_mode,
                 agent_code=current_agent_code,

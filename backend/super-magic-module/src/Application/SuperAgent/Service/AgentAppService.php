@@ -181,6 +181,8 @@ readonly class AgentAppService
      */
     public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
+        // 在 Application 层完成 mentions 规范化，Domain 层不再跨域聚合
+        di(TaskContextMentionsResolver::class)->resolve($taskContext, $dataIsolation);
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
     }
 

@@ -2704,8 +2704,8 @@ Since your subsequent output will be merged with pre-interruption content and di
             if compact_param:
                 tools_list.append(compact_param)
 
-        # 3. 添加授权的 MCP 工具
-        await self._add_mcp_tools_to_list(tools_list)
+        # MCP 工具不再直接挂载：chat 维度的 MCP 配置由 using-mcp skill
+        # 按需查看并调用，不再通过 tool_factory 暴露给模型。
 
         # 保存工具列表到与聊天记录同名的.tools.json文件
         if self.chat_history and tools_list:
@@ -2881,34 +2881,3 @@ Since your subsequent output will be merged with pre-interruption content and di
             bool: 是否具有该 skill
         """
         return skill_name in self.loaded_skills
-
-    async def _add_mcp_tools_to_list(self, tools_list: List[Dict[str, Any]]) -> None:
-        """添加授权的 MCP 工具到工具列表
-
-        Args:
-            tools_list: 工具列表，MCP 工具会被添加到此列表中
-        """
-        from app.mcp.manager import get_global_mcp_manager, is_mcp_tool
-
-        # 检查是否有 using-mcp skill
-        has_using_mcp_skill = self.has_skill("using-mcp")
-
-        # 添加 MCP 工具（如果有 using-mcp skill，则只添加 SuperMagicChat 的工具）
-        global_manager = get_global_mcp_manager()
-        if global_manager:
-            all_mcp_tools = await global_manager.get_all_tools()
-            for tool_name, tool_info in all_mcp_tools.items():
-                # 如果有 using-mcp skill，只添加 SuperMagicChat 的工具
-                if has_using_mcp_skill and tool_info.server_name != 'SuperMagicChat':
-                    logger.debug(f"Agent 具有 'using-mcp' skill，跳过非 SuperMagicChat 的 MCP 工具: {tool_name}")
-                    continue
-
-                try:
-                    tool_instance = tool_factory.get_tool_instance(tool_name)
-                    if tool_instance:
-                        tool_param = tool_instance.to_param()
-                        tools_list.append(tool_param)
-                        logger.debug(f"添加 MCP 工具: {tool_name} (server: {tool_info.server_name})")
-                except ValueError as e:
-                    # MCP 工具未注册到 tool_factory，跳过
-                    logger.debug(f"跳过未注册的 MCP 工具: {tool_name}")

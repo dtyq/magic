@@ -281,6 +281,8 @@ class HandleTaskMessageAppService extends AbstractAppService
             extra: $userMessageDTO->getExtra(),
         );
         $taskContext = $this->appendVideoModelDynamicConfig($taskContext, $userMessageDTO->getExtra());
+        // 在 Application 层完成 mentions 规范化，Domain 层不再跨域聚合
+        di(TaskContextMentionsResolver::class)->resolve($taskContext, $dataIsolation);
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
         $taskEntity->setTaskId((string) $taskEntity->getId());
         return $taskEntity;
@@ -428,6 +430,8 @@ class HandleTaskMessageAppService extends AbstractAppService
         $this->taskDomainService->updateTaskSandboxId($dataIsolation, $taskContext->getTask()->getId(), $sandboxId);
         $taskContext->setSandboxId($sandboxId);
 
+        // 在 Application 层完成 mentions 规范化，Domain 层不再跨域聚合
+        di(TaskContextMentionsResolver::class)->resolve($taskContext, $dataIsolation);
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 
         return $sandboxId;

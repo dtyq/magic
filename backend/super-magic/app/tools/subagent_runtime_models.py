@@ -69,7 +69,6 @@ class SubagentSessionConfigBlock:
     model_id: Optional[str] = None
     image_model_id: Optional[str] = None
     image_model_sizes: Any = None
-    mcp_servers: Any = None
 
 
 @dataclass
