@@ -123,7 +123,7 @@ class AggregateModelResolverService
         $strategy = $config['strategy'] ?? 'permission_fallback';
         $strategyConfig = $config['strategy_config'] ?? ['order' => 'asc'];
 
-        $this->logger->info('聚合模型解析：开始解析', [
+        $this->logger->debug('聚合模型解析：开始解析', [
             'model_id' => $dynamicModelId,
             'strategy' => $strategy,
             'candidate_count' => count($models),
@@ -141,7 +141,7 @@ class AggregateModelResolverService
         );
 
         if ($resolved !== null) {
-            $this->logger->info('聚合模型解析：解析成功', [
+            $this->logger->debug('聚合模型解析：解析成功', [
                 'dynamic_model_id' => $dynamicModelId,
                 'resolved_model_id' => $resolved,
             ]);
@@ -255,14 +255,14 @@ class AggregateModelResolverService
             }
 
             if (! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($subModelId, $modelType)) {
-                $this->logger->info('聚合模型解析：子模型订阅不可用，跳过', [
+                $this->logger->debug('聚合模型解析：子模型订阅不可用，跳过', [
                     'sub_model_id' => $subModelId,
                 ]);
                 continue;
             }
 
             if ($accessContext?->isRestricted() && ! $accessContext->canAccess($subModelId)) {
-                $this->logger->info('聚合模型解析：子模型无访问权限，跳过', [
+                $this->logger->debug('聚合模型解析：子模型无访问权限，跳过', [
                     'sub_model_id' => $subModelId,
                 ]);
                 continue;
@@ -270,7 +270,7 @@ class AggregateModelResolverService
 
             $subModel = $this->getProviderModel($subModelId, $dataIsolation, $preloadedModels);
             if (! $subModel?->isDynamicModel()) {
-                $this->logger->info('聚合模型解析：命中真实子模型', [
+                $this->logger->debug('聚合模型解析：命中真实子模型', [
                     'sub_model_id' => $subModelId,
                 ]);
                 return $subModelId;

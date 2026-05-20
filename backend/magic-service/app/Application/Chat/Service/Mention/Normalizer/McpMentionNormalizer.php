@@ -57,7 +57,7 @@ class McpMentionNormalizer extends AbstractMentionNormalizer
         $query->setCodes([$mcpId]);
         $data = $this->MCPServerAppService->availableQueries($mcpDataIsolation, $query, Page::createNoPage());
         /** @var array<MCPServerEntity> $list */
-        $list = array_values(array_filter($data['list'] ?? [], static fn ($v) => $v instanceof MCPServerEntity));
+        $list = array_values($data['list'] ?? []);
         $mcpServer = $list[0] ?? null;
         if ($mcpServer === null) {
             return [];

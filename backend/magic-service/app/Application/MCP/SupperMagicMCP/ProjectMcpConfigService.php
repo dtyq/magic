@@ -117,9 +117,7 @@ readonly class ProjectMcpConfigService
         $query->setCodes($mcpIds);
         $data = $this->MCPServerAppService->availableQueries($mcpDataIsolation, $query, Page::createNoPage());
         /** @var array<MCPServerEntity> $mcpServers */
-        $mcpServers = array_filter($data['list'] ?? [], static function ($item) {
-            return $item instanceof MCPServerEntity;
-        });
+        $mcpServers = $data['list'] ?? [];
 
         $localHttpUrl = config('super-magic.sandbox.callback_host', '');
 
