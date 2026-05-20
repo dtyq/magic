@@ -188,7 +188,13 @@ Rules:
 
         sections.append("#### 输入\n\n" + self._render_text_block(message))
 
-        content_text = result.content or ""
+        # 优先从结构化 messages 抽取人类可读回复（message.content / content），
+        # 抽不到再回退到 result.content（可能是整段 JSON 或错误信息）。
+        if result.ok:
+            content_text = self._extract_reply_text(result.data) or (result.content or "")
+        else:
+            content_text = result.content or ""
+
         truncated = False
         if len(content_text) > 2000:
             content_text = content_text[:2000]
@@ -204,6 +210,41 @@ Rules:
             type=DisplayType.MD,
             data=FileContent(file_name="call_simple_agent_result.md", content=md),
         )
+
+    @staticmethod
+    def _extract_reply_text(data: Any) -> str:
+        """从 SDK 返回的结构化 data 中抽取助理回复正文。
+
+        兼容两种形态：
+        - 顶层平铺：``{"content": "...", "role": "assistant"}``
+        - 嵌套包裹：``{"message": {"content": "...", "role": "assistant"}}``
+
+        多条消息按顺序用空行拼接；任何一条解析失败都跳过，全部失败返回空串，
+        由调用方决定是否回退到原始 ``result.content``。
+        """
+        if not isinstance(data, dict):
+            return ""
+        messages = data.get("messages")
+        if not isinstance(messages, list) or not messages:
+            return ""
+
+        parts: list[str] = []
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            # 嵌套 message.content 优先（当前后端返回形态）
+            inner = msg.get("message")
+            if isinstance(inner, dict):
+                inner_content = inner.get("content")
+                if isinstance(inner_content, str) and inner_content.strip():
+                    parts.append(inner_content)
+                    continue
+            # 顶层 content 兜底
+            content = msg.get("content")
+            if isinstance(content, str) and content.strip():
+                parts.append(content)
+
+        return "\n\n".join(parts).strip()
 
     @staticmethod
     def _render_text_block(content: str) -> str:

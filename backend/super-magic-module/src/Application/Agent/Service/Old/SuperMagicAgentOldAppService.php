@@ -243,7 +243,7 @@ class SuperMagicAgentOldAppService extends AbstractSuperMagicAppService
         }
 
         $agent = $this->magicAgentDomainService->getAgentById($agentId);
-        if (! $agent || empty($agent->getFlowCode())) {
+        if (empty($agent->getFlowCode())) {
             ExceptionBuilder::throw(SuperMagicErrorCode::ValidateFailed, 'common.not_found', ['label' => $agentId]);
         }
 
