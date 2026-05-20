@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react"
 import { createMentionPanelStore } from "@/components/business/MentionPanel/builtin-store"
 import { useCrewEditStore } from "@/pages/superMagic/pages/CrewEdit/context"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { createPromptMentionDataService } from "./promptMentionDataService"
 
 export function usePromptMentionDataService() {

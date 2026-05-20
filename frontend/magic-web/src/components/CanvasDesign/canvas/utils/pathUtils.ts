@@ -60,6 +60,21 @@ export function formatCanvasRelativeResourcePath(path: string): string {
 	return `./${normalized}`
 }
 
+export function buildVirtualResourceScope(
+	hostScope: string | undefined,
+	designProjectId: string,
+): string {
+	const normalizedHostScope = stripPathEdgeSlashes(hostScope || "")
+	const normalizedDesignProjectId = stripPathEdgeSlashes(designProjectId)
+	const designScope = normalizedDesignProjectId ? `design/${normalizedDesignProjectId}` : ""
+	if (!normalizedHostScope) return designScope
+	if (!normalizedDesignProjectId) return normalizedHostScope
+	if (normalizedHostScope.endsWith(designScope)) {
+		return normalizedHostScope
+	}
+	return `${normalizedHostScope}/${designScope}`
+}
+
 /**
  * 当前画布工程内的弱规范化：统一分隔符、合并重复斜杠、修补历史上传拼接错误。
  *

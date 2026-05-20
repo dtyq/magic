@@ -6,7 +6,7 @@ import { useFileActionVisibility } from "@/pages/superMagic/providers/file-actio
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { EDITOR_ICON_SIZE_MAP } from "./constants/constant"
 import type { MessageEditorProps } from "./types"
-import type { TopicMode } from "../../pages/Workspace/types"
+import type { TopicMode } from "../../pages/Workspace/TopicMode"
 import { MessageEditorContainer, type MessageEditorRef } from "./MessageEditorContainer"
 
 export { MessageEditorContainer as MessageEditor }

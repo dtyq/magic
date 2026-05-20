@@ -1,4 +1,4 @@
-import type { WebClient } from "@apmplus/web"
+import type { BrowserCommandClient } from "@apmplus/web"
 
 /**
  * Fetch 监控插件配置接口
@@ -84,6 +84,16 @@ async function responseParse(response: Response) {
 	return { data: await response.arrayBuffer(), type: "buffer" }
 }
 
+function isStreamingResponse(requestInfo: ApiRequestInfo, response: Response) {
+	const requestAccept = String(requestInfo.headers.accept || requestInfo.headers.Accept || "")
+	const responseContentType = response.headers.get("content-type") || ""
+
+	return (
+		requestAccept.toLowerCase().includes("text/event-stream") ||
+		responseContentType.toLowerCase().includes("text/event-stream")
+	)
+}
+
 export const plugin = (opts?: FetchMonitorPluginOptions) => {
 	const options = {
 		enabled: true,
@@ -96,22 +106,22 @@ export const plugin = (opts?: FetchMonitorPluginOptions) => {
 
 	return {
 		name: "customFetch",
-		setup: (client: WebClient) => {
+		setup: (client: BrowserCommandClient) => {
 			/** 检查是否为慢 api 并上报异常 */
 			function checkSlowApi(requestInfo: ApiRequestInfo) {
 				if (requestInfo.duration && requestInfo.duration >= options.slowApiThreshold) {
-					client("sendEvent", {
+					client.sendEvent?.({
 						name: "slowApi",
 						metrics: {
 							duration: requestInfo.duration,
 							threshold: options.slowApiThreshold,
-							status: requestInfo.status,
-							statusText: requestInfo.statusText,
+							status: requestInfo.status ?? 0,
 						},
 						categories: {
 							url: new URL(requestInfo.url, "https://a.com").pathname,
 							method: requestInfo.method,
-							language: requestInfo.headers["language"],
+							language: requestInfo.headers["language"] ?? "",
+							statusText: requestInfo.statusText ?? "",
 						},
 					})
 				}
@@ -119,18 +129,18 @@ export const plugin = (opts?: FetchMonitorPluginOptions) => {
 
 			/** 上报异常请求 */
 			function reportError(requestInfo: ApiRequestInfo, arg: any): void {
-				client("sendEvent", {
+				client.sendEvent?.({
 					name: "apiError",
 					metrics: {
-						duration: requestInfo.duration,
-						status: requestInfo.status,
-						statusText: requestInfo.statusText,
-						error: requestInfo.error,
+						duration: requestInfo.duration ?? 0,
+						status: requestInfo.status ?? 0,
 					},
 					categories: {
 						url: new URL(requestInfo.url, "https://a.com").pathname,
-						language: requestInfo.headers["language"],
+						language: requestInfo.headers["language"] ?? "",
 						method: requestInfo.method,
+						statusText: requestInfo.statusText ?? "",
+						error: String(requestInfo.error ?? ""),
 					},
 				})
 			}
@@ -149,9 +159,9 @@ export const plugin = (opts?: FetchMonitorPluginOptions) => {
 
 					// 请求头获取
 					const headers: Record<string, any> = {}
-						; (init?.headers as Headers)?.forEach?.((v, k) => {
-							headers[k] = v
-						})
+					;(init?.headers as Headers)?.forEach?.((v, k) => {
+						headers[k] = v
+					})
 
 					// 创建请求记录
 					const requestInfo: ApiRequestInfo = {
@@ -175,6 +185,10 @@ export const plugin = (opts?: FetchMonitorPluginOptions) => {
 
 						// 采集业务状态码非异常时
 						try {
+							if (isStreamingResponse(requestInfo, response)) {
+								return response
+							}
+
 							// 检查HTTP错误状态码
 							const jsonData = (await responseParse(response.clone())).data
 							const isBusinessError = jsonData?.code && jsonData?.code !== 1000

@@ -46,4 +46,7 @@ enum MagicFSErrorCode: int
 
     #[ErrorMessage('magicfs.no_updates_provided')]
     case NO_UPDATES_PROVIDED = 51310;
+
+    #[ErrorMessage('magicfs.space_type_is_required')]
+    case INVALID_SPACE_TYPE = 51311;
 }

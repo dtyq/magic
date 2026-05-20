@@ -1,17 +1,16 @@
-import { Suspense, useState } from "react"
+import { lazy, Suspense, useState } from "react"
 import { useMemoizedFn } from "ahooks"
 import type { HandleRenameProjectParams } from "@/pages/superMagic/hooks/useProjects"
-import type {
-	ProjectListItem,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { FetchWorkspacesParams } from "@/pages/superMagic/hooks/useWorkspace"
+import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import SuperMagicService from "@/pages/superMagic/services"
 import magicToast from "@/components/base/MagicToaster/utils"
-import { openModal } from "@/utils/react"
-import DeleteDangerModal from "@/components/business/DeleteDangerModal"
-import MoveProjectModal from "../components/MoveProjectModal"
 import { workspaceStore } from "../../../stores/core"
 import { useTranslation } from "react-i18next"
+import { loadDeleteDangerModal, loadMoveProjectModal } from "./projectActionModals"
+
+const DeleteDangerModal = lazy(loadDeleteDangerModal)
+const MoveProjectModal = lazy(loadMoveProjectModal)
 
 interface UseProjectItemActionPropsParams {
 	selectedWorkspace: Workspace | null
@@ -101,7 +100,7 @@ function useProjectItemActionProps({ selectedWorkspace }: UseProjectItemActionPr
 					<MoveProjectModal
 						selectedWorkspace={selectedWorkspace}
 						workspaces={workspaceStore.workspaces}
-						fetchWorkspaces={(params) =>
+						fetchWorkspaces={(params: FetchWorkspacesParams) =>
 							SuperMagicService.workspace.fetchWorkspaces(params)
 						}
 						open={!!moveProjectId}
@@ -112,19 +111,21 @@ function useProjectItemActionProps({ selectedWorkspace }: UseProjectItemActionPr
 				</Suspense>
 			)}
 			{deleteProject && (
-				<DeleteDangerModal
-					content={deleteProject.project_name || t("project.unnamedProject")}
-					needConfirm={false}
-					onSubmit={async () => {
-						try {
-							await SuperMagicService.deleteProject(deleteProject)
-							magicToast.success(t("project.deleteProjectSuccess"))
-						} catch (error) {
-							console.log("删除项目失败，失败原因：", error)
-						}
-					}}
-					onClose={() => setDeleteProject(null)}
-				/>
+				<Suspense fallback={null}>
+					<DeleteDangerModal
+						content={deleteProject.project_name || t("project.unnamedProject")}
+						needConfirm={false}
+						onSubmit={async () => {
+							try {
+								await SuperMagicService.deleteProject(deleteProject)
+								magicToast.success(t("project.deleteProjectSuccess"))
+							} catch (error) {
+								console.log("删除项目失败，失败原因：", error)
+							}
+						}}
+						onClose={() => setDeleteProject(null)}
+					/>
+				</Suspense>
 			)}
 		</>
 	)

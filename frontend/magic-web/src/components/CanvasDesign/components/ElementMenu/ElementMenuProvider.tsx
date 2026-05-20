@@ -334,8 +334,11 @@ export function ElementMenuProvider(props: PropsWithChildren<unknown>) {
 					icon: ClipboardPaste,
 					shortcut: getShortcutDisplay("edit.paste"),
 					onClick: async () => {
+						// 菜单粘贴路径没有浏览器同步 ClipboardEvent，只能依赖 Clipboard API read()。
+						// 如果系统文件只在 paste event 中暴露字节，菜单粘贴无法补齐文件内容。
 						await canvas.userActionRegistry.execute("edit.paste", {
 							pastePosition: pastePosition || undefined,
+							pasteSource: "menu",
 						})
 					},
 					visible: () => {

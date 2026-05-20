@@ -37,6 +37,7 @@ export function useTabCache(options: TabCacheOptions = {}) {
 			// 检查是否为 Office 文件类型
 			const isOfficeFile = [
 				DetailType.Docx,
+				DetailType.Doc,
 				DetailType.Excel,
 				DetailType.PowerPoint,
 			].includes(renderProps?.type)

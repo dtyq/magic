@@ -4,11 +4,9 @@ import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
 import { Suspense, useEffect, useRef, useState } from "react"
 import { useDeepCompareEffect } from "ahooks"
 import { useTranslation } from "react-i18next"
-import {
-	exportSingleFileToPdf,
-	exportSingleFileToPpt,
-} from "@/pages/superMagic/components/TopicFilesButton/utils/exportSingleFile"
+import { exportSingleFileToPpt } from "@/pages/superMagic/components/TopicFilesButton/utils/exportSingleFile"
 import { getExportAllFileIds } from "./contents/HTML/utils"
+import { exportHtmlToPdf } from "../../../../../packages/pdf-export/src"
 import MagicProgressToast from "@/components/base/MagicProgressToast"
 import useEditMode from "./hooks/useEditMode"
 import useCheckBeforeCloseWithSave from "./hooks/useCheckBeforeCloseWithSave"
@@ -275,17 +273,39 @@ export default function Render(props: any) {
 	}
 
 	const exportPdf = async (fileId: string) => {
-		const fileIds = getExportAllFileIds(fileId, attachments)
-		fileIds?.length > 0 &&
-			exportSingleFileToPdf({
-				fileId: fileId,
-				projectId: selectedProject?.id || projectId,
-				t,
-				onStart: startExport,
-				onEnd: endExport,
-				onProgress,
-				onError,
+		if (!fileId) return
+		const file = attachments?.find((a: any) => a.file_id === fileId)
+		const fileName = file?.file_name || file?.display_filename || "export.pdf"
+
+		startExport()
+		try {
+			const fileItem = attachmentList?.find((item: any) => item.file_id === fileId)
+			const result = await prepareSingleSlideExport({
+				fileId,
+				fileName: fileItem?.file_name || data?.file_name,
+				attachmentList: attachments ?? [],
 			})
+
+			if (!result.htmlSlides.some(Boolean)) {
+				throw new Error("Failed to fetch HTML file content")
+			}
+
+			await exportHtmlToPdf({
+				pages: result.htmlSlides,
+				pagination: "slice",
+				fileName: (result.fileName || "export") + ".pdf",
+				output: "download",
+				onProgress: ({ phase, current, total }) => {
+					if (phase === "capture" && total > 0) {
+						onProgress(Math.round((current / total) * 100))
+					}
+				},
+			}).promise
+			endExport()
+		} catch (error) {
+			console.error("[filePdfExport] export failed:", error)
+			onError()
+		}
 	}
 	const exportPpt = async (fileId: string) => {
 		const fileIds = getExportAllFileIds(fileId, attachments)

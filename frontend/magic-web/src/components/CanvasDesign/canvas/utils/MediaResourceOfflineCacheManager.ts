@@ -41,6 +41,8 @@ export interface MediaResourceOfflineCacheUnregisterOptions {
 }
 
 export interface CachedMediaResource {
+	/** 设计项目级命名空间，用于隔离同路径资源 */
+	namespace: string
 	path: string
 	/** Canvas 渲染层使用的同源虚拟 URL */
 	url: string
@@ -58,6 +60,13 @@ export interface CachedMediaResource {
 	updatedAt: number
 }
 
+type StoredCachedMediaResource = Omit<CachedMediaResource, "url" | "cacheKey"> & {
+	id: string
+	url?: string
+	cacheKey?: string
+	originalUrl?: string
+}
+
 interface RefreshResourceMessageResult {
 	type?: string
 	refreshed?: boolean
@@ -71,6 +80,11 @@ interface RememberResourceParams {
 	expiresAt?: number | null
 }
 
+interface ResolveResourceUrlOptions {
+	/** 绕过 SW 虚拟 URL，直接返回真实源地址，用于主线程 fallback */
+	bypassVirtualResource?: boolean
+}
+
 interface CacheResourceParams extends RememberResourceParams {
 	force?: boolean
 }
@@ -80,12 +94,37 @@ interface RemoveCachedResourceParams {
 	mediaType: MediaResourceOfflineCacheMediaType
 }
 
-const DB_NAME = "canvas-media-resource-offline-cache"
-const DB_VERSION = 1
+interface VirtualResourceHealthState {
+	version: number
+	unhealthyUntil: number
+	lastRepairAt: number
+	repairAttempts: number
+}
+
+/**
+ * Bump this whenever the virtual URL shape, resource id, namespace/scope rules,
+ * path normalization, IndexedDB schema, or CacheStorage key semantics change.
+ * Versioned names keep new code from reading incompatible local SW cache data.
+ */
+const OFFLINE_CACHE_VERSION = 1
+const DB_BASE_NAME = "canvas-media-resource-offline-cache"
+const DB_VERSION = OFFLINE_CACHE_VERSION
+const DB_NAME = `${DB_BASE_NAME}-v${OFFLINE_CACHE_VERSION}`
 const STORE_NAME = "resources"
-const CACHE_NAME = "canvas-media-resources-v1"
+const CACHE_BASE_NAME = "canvas-media-resources"
+const CACHE_NAME = `${CACHE_BASE_NAME}-v${OFFLINE_CACHE_VERSION}`
+const HEALTH_STORAGE_KEY = `${CACHE_BASE_NAME}-health-v${OFFLINE_CACHE_VERSION}`
 const DEFAULT_MAX_BYTES = 1024 * 1024 * 1024
 const DEFAULT_SW_FILE = "canvas-media-resource-sw.js"
+const DEFAULT_RESOURCE_NAMESPACE = "__global__"
+/** Treat the virtual-resource channel as unhealthy only after repeated failures, not a single flaky request. */
+const VIRTUAL_RESOURCE_FAILURE_THRESHOLD = 3
+/** Count virtual-resource failures inside this rolling window before tripping the in-page circuit breaker. */
+const VIRTUAL_RESOURCE_FAILURE_WINDOW_MS = 10_000
+/** Persisted cooldown: page reloads should bypass a known-bad SW instead of failing once again before fallback. */
+const VIRTUAL_RESOURCE_FALLBACK_COOLDOWN_MS = 60_000
+/** Repair throttle: clearing IDB/CacheStorage and updating SW should not happen repeatedly during network flaps. */
+const VIRTUAL_RESOURCE_REPAIR_THROTTLE_MS = 5 * 60_000
 
 /** 读取当前 controlling worker，避免 TS 在 `await` 之后仍把 `navigator.serviceWorker.controller` 窄成 `null`。 */
 function readServiceWorkerController(): ServiceWorker | null {
@@ -116,10 +155,15 @@ function normalizeConfig(
 }
 
 function buildResourceId(
+	namespace: string,
 	mediaType: MediaResourceOfflineCacheMediaType,
 	resourcePath: string,
 ): string {
-	return `${mediaType}:${resourcePath}`
+	return joinUrlPathSegments(
+		normalizeResourceNamespace(namespace),
+		mediaType,
+		normalizeResourcePathForLookup(resourcePath),
+	)
 }
 
 function getBaseUrl(): string {
@@ -146,6 +190,32 @@ function coerceToPathString(value: unknown): string {
 	return String(value)
 }
 
+/** 与 `canvas-media-resource-sw.js` 中 `normalizeResourcePathForLookup` 保持一致，供 IDB 索引使用。 */
+function normalizeResourcePathForLookup(path: string | null | undefined): string {
+	if (path == null || path === "") return ""
+	let p = String(path).replace(/^\/+/g, "")
+	try {
+		p = decodeURIComponent(p)
+	} catch {
+		// 非法转义序列时保留原串
+	}
+	return p
+}
+
+function normalizeResourceNamespace(namespace: string | null | undefined): string {
+	const normalized = normalizeResourcePathForLookup(namespace)
+	return normalized || DEFAULT_RESOURCE_NAMESPACE
+}
+
+function getDeprecatedStorageNames(baseName: string, currentVersion: number): string[] {
+	const names = new Set<string>([baseName])
+	if (currentVersion > 1) {
+		names.add(`${baseName}-v${currentVersion - 1}`)
+	}
+	names.delete(`${baseName}-v${currentVersion}`)
+	return [...names]
+}
+
 /**
  * 根据规范化后的资源路径生成虚拟链接。
  *
@@ -154,15 +224,20 @@ function coerceToPathString(value: unknown): string {
  * 2. URL 直接携带宿主绝对路径，和宿主工作区路由保持同一种资源定位语义；
  * 3. 让同一资源在不同入口写法（`./a.png`、`a.png`、宿主绝对路径）下最终收敛到同一个占位链接。
  *
- * 虚拟链接格式：`{origin}/sw/{segment}/{pathname}/design-resource/{absolutePath}`
+ * 虚拟链接格式：`{origin}/sw/{segment}/{namespace}/{mediaType}/design-resource/{absolutePath}`
  */
-function getVirtualResourceUrlForResourcePath(resourcePath: string, scopePath?: string): string {
+function getVirtualResourceUrlForResourcePath(
+	resourcePath: string,
+	mediaType: MediaResourceOfflineCacheMediaType,
+	scopePath?: string,
+): string {
 	return joinUrlPathSegments(
 		window.location.origin,
 		getServiceWorkerScope(getDefaultServiceWorkerUrl()),
 		VIRTUAL_RESOURCE_ROUTE_PREFIX,
 		VIRTUAL_RESOURCE_PATH_SEGMENT,
 		scopePath || window.location.pathname,
+		mediaType,
 		VIRTUAL_RESOURCE_DESIGN_RESOURCE_SEGMENT,
 		resourcePath,
 	)
@@ -209,11 +284,15 @@ export class MediaResourceOfflineCacheManager {
 	>()
 	private static activeConsumerCount = 0
 	private static defaultUnregisterPromise?: Promise<boolean>
+	private static deprecatedStorageCleanupPromise?: Promise<void>
+	private static virtualResourceRepairPromise?: Promise<void>
 
 	private options: MediaResourceOfflineCacheOptions | null
 	private dbPromise?: Promise<IDBDatabase>
 	private cachePromises = new Map<string, Promise<void>>()
 	private isActiveConsumer = false
+	private virtualResourceFailureTimestamps: number[] = []
+	private virtualResourceFallbackUntil = 0
 
 	private readonly getResolveAbsolutePath?: () => ((path: string) => string) | undefined
 	private readonly getVirtualResourceScope?: () => string | undefined
@@ -239,8 +318,44 @@ export class MediaResourceOfflineCacheManager {
 		return normalizePathLocal(coerceToPathString(resolveAbsolutePath(canonicalPath)))
 	}
 
-	private getVirtualResourceUrl(resourcePath: string): string {
-		return getVirtualResourceUrlForResourcePath(resourcePath, this.getVirtualResourceScope?.())
+	private getResourceNamespace(): string {
+		return normalizeResourceNamespace(this.getVirtualResourceScope?.())
+	}
+
+	private getVirtualResourceUrl(
+		resourcePath: string,
+		mediaType: MediaResourceOfflineCacheMediaType,
+	): string {
+		return getVirtualResourceUrlForResourcePath(
+			resourcePath,
+			mediaType,
+			this.getResourceNamespace(),
+		)
+	}
+
+	private getVirtualResourceUrlForNamespace(
+		resourcePath: string,
+		namespace: string,
+		mediaType: MediaResourceOfflineCacheMediaType,
+	): string {
+		return getVirtualResourceUrlForResourcePath(
+			resourcePath,
+			mediaType,
+			normalizeResourceNamespace(namespace),
+		)
+	}
+
+	private getCacheKey(
+		entry: Pick<CachedMediaResource, "cacheKey" | "namespace" | "path" | "mediaType">,
+	): string {
+		return (
+			entry.cacheKey ||
+			this.getVirtualResourceUrlForNamespace(
+				entry.path,
+				normalizeResourceNamespace(entry.namespace),
+				entry.mediaType,
+			)
+		)
 	}
 
 	public destroy(): void {
@@ -303,14 +418,16 @@ export class MediaResourceOfflineCacheManager {
 		params: RememberResourceParams,
 	): Promise<CachedMediaResource | null> {
 		try {
-			if (!this.isOfflineCacheFeatureOn()) return null
+			if (!this.isOfflineCacheFeatureOn() || this.shouldBypassVirtualResource()) return null
 			const registration = await this.ensureServiceWorker()
 			if (!registration) return null
 			const now = Date.now()
+			const namespace = this.getResourceNamespace()
 			const resourcePath = this.resolveStoredResourcePath(params.path)
 			const existing = await this.getEntry(params.path, params.mediaType)
-			const resourceUrl = this.getVirtualResourceUrl(resourcePath)
+			const resourceUrl = this.getVirtualResourceUrl(resourcePath, params.mediaType)
 			const entry: CachedMediaResource = {
+				namespace,
 				path: resourcePath,
 				url: resourceUrl,
 				sourceUrl: params.url,
@@ -338,10 +455,69 @@ export class MediaResourceOfflineCacheManager {
 		}
 	}
 
-	public async resolveResourceUrl(params: RememberResourceParams): Promise<string> {
-		if (!this.isOfflineCacheFeatureOn()) return params.url
+	public async resolveResourceUrl(
+		params: RememberResourceParams,
+		options?: ResolveResourceUrlOptions,
+	): Promise<string> {
+		if (
+			options?.bypassVirtualResource ||
+			!this.isOfflineCacheFeatureOn() ||
+			this.shouldBypassVirtualResource()
+		) {
+			return params.url
+		}
 		const entry = await this.rememberResolvedResource(params)
 		return entry?.url ?? params.url
+	}
+
+	public isVirtualResourceUrl(url: string | null | undefined): boolean {
+		if (!url) return false
+		try {
+			return new URL(url, window.location.href).pathname.includes(
+				`/${VIRTUAL_RESOURCE_PATH_SEGMENT}/`,
+			)
+		} catch {
+			return false
+		}
+	}
+
+	public recordVirtualResourceLoadSuccess(url: string | null | undefined): void {
+		if (!this.isVirtualResourceUrl(url)) return
+		this.virtualResourceFailureTimestamps = []
+		this.virtualResourceFallbackUntil = 0
+		this.clearVirtualResourceHealthState()
+	}
+
+	public recordVirtualResourceLoadFailure(url: string | null | undefined): void {
+		if (!this.isVirtualResourceUrl(url)) return
+		const now = Date.now()
+		const windowStart = now - VIRTUAL_RESOURCE_FAILURE_WINDOW_MS
+		this.virtualResourceFailureTimestamps = [
+			...this.virtualResourceFailureTimestamps.filter(
+				(timestamp) => timestamp >= windowStart,
+			),
+			now,
+		]
+		if (this.virtualResourceFailureTimestamps.length >= VIRTUAL_RESOURCE_FAILURE_THRESHOLD) {
+			const unhealthyUntil = now + VIRTUAL_RESOURCE_FALLBACK_COOLDOWN_MS
+			this.virtualResourceFallbackUntil = unhealthyUntil
+			this.virtualResourceFailureTimestamps = []
+			if (this.persistVirtualResourceHealthState(unhealthyUntil, now)) {
+				this.requestVirtualResourceRepair()
+			}
+		}
+	}
+
+	public shouldBypassVirtualResource(): boolean {
+		const now = Date.now()
+		const healthState = this.readVirtualResourceHealthState()
+		if (healthState && healthState.unhealthyUntil <= now) {
+			this.clearVirtualResourceHealthState()
+		}
+		return (
+			now < this.virtualResourceFallbackUntil ||
+			(!!healthState && now < healthState.unhealthyUntil)
+		)
 	}
 
 	public async refreshCachedResource(
@@ -374,7 +550,7 @@ export class MediaResourceOfflineCacheManager {
 		if (!entry) return null
 
 		const cache = await caches.open(CACHE_NAME)
-		const response = await cache.match(entry.cacheKey)
+		const response = await cache.match(this.getCacheKey(entry))
 		if (!response) return null
 
 		await this.touchEntry(entry)
@@ -392,8 +568,9 @@ export class MediaResourceOfflineCacheManager {
 	public cacheResolvedResource(params: CacheResourceParams): void {
 		if (!this.isOfflineCacheFeatureOn()) return
 		void (async () => {
+			const namespace = this.getResourceNamespace()
 			const resourcePath = this.resolveStoredResourcePath(params.path)
-			const key = `${params.mediaType}:${resourcePath}`
+			const key = buildResourceId(namespace, params.mediaType, resourcePath)
 			if (!params.force && this.cachePromises.has(key)) return
 
 			const promise = this.rememberResolvedResource(params)
@@ -428,6 +605,7 @@ export class MediaResourceOfflineCacheManager {
 			this.isActiveConsumer = true
 		}
 
+		MediaResourceOfflineCacheManager.requestDeprecatedStorageCleanup()
 		void this.ensureServiceWorker()
 	}
 
@@ -561,6 +739,11 @@ export class MediaResourceOfflineCacheManager {
 			const request = indexedDB.open(DB_NAME, DB_VERSION)
 			request.onupgradeneeded = () => {
 				const db = request.result
+				const tx = request.transaction
+				if (!tx) {
+					reject(new Error("IndexedDB upgrade missing transaction"))
+					return
+				}
 				if (!db.objectStoreNames.contains(STORE_NAME)) {
 					db.createObjectStore(STORE_NAME, { keyPath: "id" })
 				}
@@ -575,38 +758,60 @@ export class MediaResourceOfflineCacheManager {
 		const db = await this.openDb()
 		const transaction = db.transaction(STORE_NAME, "readwrite")
 		const store = transaction.objectStore(STORE_NAME)
-		await requestToPromise(
-			store.put({
-				...entry,
-				id: buildResourceId(entry.mediaType, entry.path),
-			}),
+		const namespace = normalizeResourceNamespace(entry.namespace)
+		const derivedCacheKey = this.getVirtualResourceUrlForNamespace(
+			entry.path,
+			namespace,
+			entry.mediaType,
 		)
+		const cacheKey = this.getCacheKey(entry)
+		const storedEntry: StoredCachedMediaResource = {
+			id: buildResourceId(namespace, entry.mediaType, entry.path),
+			namespace,
+			path: entry.path,
+			sourceUrl: entry.sourceUrl,
+			mediaType: entry.mediaType,
+			expiresAt: entry.expiresAt,
+			size: entry.size,
+			etag: entry.etag,
+			lastModified: entry.lastModified,
+			contentLength: entry.contentLength,
+			contentType: entry.contentType,
+			lastAccessedAt: entry.lastAccessedAt,
+			updatedAt: entry.updatedAt,
+			...(cacheKey !== derivedCacheKey ? { cacheKey } : {}),
+		}
+		await requestToPromise(store.put(storedEntry))
 	}
 
 	private async getEntry(
 		path: string,
 		mediaType: MediaResourceOfflineCacheMediaType,
 	): Promise<CachedMediaResource | null> {
+		const namespace = this.getResourceNamespace()
 		const resourcePath = this.resolveStoredResourcePath(path)
 		const db = await this.openDb()
 		const transaction = db.transaction(STORE_NAME, "readonly")
 		const store = transaction.objectStore(STORE_NAME)
-		const result = await requestToPromise<(CachedMediaResource & { id: string }) | undefined>(
-			store.get(buildResourceId(mediaType, resourcePath)),
+		const result = await requestToPromise<StoredCachedMediaResource | undefined>(
+			store.get(buildResourceId(namespace, mediaType, resourcePath)),
 		)
 
 		if (!result) return null
 		return this.toCachedMediaResource(result)
 	}
 
-	private toCachedMediaResource(
-		entry: CachedMediaResource & { id: string },
-	): CachedMediaResource {
+	private toCachedMediaResource(entry: StoredCachedMediaResource): CachedMediaResource {
+		const namespace = normalizeResourceNamespace(entry.namespace)
+		const url =
+			entry.url ||
+			this.getVirtualResourceUrlForNamespace(entry.path, namespace, entry.mediaType)
 		return {
+			namespace,
 			path: entry.path,
-			url: entry.url,
-			sourceUrl: entry.sourceUrl,
-			cacheKey: entry.cacheKey,
+			url,
+			sourceUrl: entry.sourceUrl || entry.originalUrl || entry.url,
+			cacheKey: entry.cacheKey || url,
 			mediaType: entry.mediaType,
 			expiresAt: entry.expiresAt,
 			size: entry.size,
@@ -627,27 +832,153 @@ export class MediaResourceOfflineCacheManager {
 	}
 
 	private async deleteCachedResource(params: RemoveCachedResourceParams): Promise<void> {
+		const namespace = this.getResourceNamespace()
 		const entry = await this.getEntry(params.path, params.mediaType)
 		const resourcePathForDelete = entry?.path ?? this.resolveStoredResourcePath(params.path)
-		const cacheKey = entry?.cacheKey ?? this.getVirtualResourceUrl(resourcePathForDelete)
+		const cacheKey = entry
+			? this.getCacheKey(entry)
+			: this.getVirtualResourceUrl(resourcePathForDelete, params.mediaType)
 		const db = await this.openDb()
 		const transaction = db.transaction(STORE_NAME, "readwrite")
 		const store = transaction.objectStore(STORE_NAME)
 		await requestToPromise(
-			store.delete(buildResourceId(params.mediaType, resourcePathForDelete)),
+			store.delete(buildResourceId(namespace, params.mediaType, resourcePathForDelete)),
 		)
 
 		const cache = await caches.open(CACHE_NAME)
 		await cache.delete(cacheKey)
 	}
 
-	private static async deleteDatabase(): Promise<void> {
+	private readVirtualResourceHealthState(): VirtualResourceHealthState | null {
+		if (typeof window === "undefined" || !window.localStorage) return null
+		try {
+			const raw = window.localStorage.getItem(HEALTH_STORAGE_KEY)
+			if (!raw) return null
+			const parsed = JSON.parse(raw) as Partial<VirtualResourceHealthState>
+			if (
+				parsed.version !== OFFLINE_CACHE_VERSION ||
+				typeof parsed.unhealthyUntil !== "number" ||
+				typeof parsed.lastRepairAt !== "number" ||
+				typeof parsed.repairAttempts !== "number"
+			) {
+				return null
+			}
+			return {
+				version: parsed.version,
+				unhealthyUntil: parsed.unhealthyUntil,
+				lastRepairAt: parsed.lastRepairAt,
+				repairAttempts: parsed.repairAttempts,
+			}
+		} catch {
+			return null
+		}
+	}
+
+	private persistVirtualResourceHealthState(unhealthyUntil: number, now: number): boolean {
+		if (typeof window === "undefined" || !window.localStorage) return true
+		const previous = this.readVirtualResourceHealthState()
+		const shouldRepair =
+			!previous?.lastRepairAt ||
+			now - previous.lastRepairAt >= VIRTUAL_RESOURCE_REPAIR_THROTTLE_MS
+		const state: VirtualResourceHealthState = {
+			version: OFFLINE_CACHE_VERSION,
+			unhealthyUntil: Math.max(unhealthyUntil, previous?.unhealthyUntil ?? 0),
+			lastRepairAt: shouldRepair ? now : (previous?.lastRepairAt ?? 0),
+			repairAttempts: (previous?.repairAttempts ?? 0) + (shouldRepair ? 1 : 0),
+		}
+		try {
+			window.localStorage.setItem(HEALTH_STORAGE_KEY, JSON.stringify(state))
+		} catch {
+			// localStorage quota / privacy mode failure should not block resource fallback.
+		}
+		return shouldRepair
+	}
+
+	private clearVirtualResourceHealthState(): void {
+		if (typeof window === "undefined" || !window.localStorage) return
+		try {
+			window.localStorage.removeItem(HEALTH_STORAGE_KEY)
+		} catch {
+			// ignore localStorage cleanup failure
+		}
+	}
+
+	private requestVirtualResourceRepair(): void {
+		if (MediaResourceOfflineCacheManager.virtualResourceRepairPromise) return
+
+		MediaResourceOfflineCacheManager.virtualResourceRepairPromise =
+			this.repairVirtualResourceStorage().finally(() => {
+				MediaResourceOfflineCacheManager.virtualResourceRepairPromise = undefined
+			})
+	}
+
+	private async repairVirtualResourceStorage(): Promise<void> {
+		this.cachePromises.clear()
+		await Promise.all([
+			this.clearCurrentDatabaseResources().catch(() => undefined),
+			caches.delete(CACHE_NAME).catch(() => false),
+			this.updateServiceWorkerRegistration().catch(() => undefined),
+		])
+	}
+
+	private async clearCurrentDatabaseResources(): Promise<void> {
+		const db = await this.openDb()
 		await new Promise<void>((resolve, reject) => {
-			const request = indexedDB.deleteDatabase(DB_NAME)
+			const transaction = db.transaction(STORE_NAME, "readwrite")
+			transaction.oncomplete = () => resolve()
+			transaction.onerror = () => reject(transaction.error)
+			transaction.onabort = () => reject(transaction.error)
+			transaction.objectStore(STORE_NAME).clear()
+		})
+	}
+
+	private async updateServiceWorkerRegistration(): Promise<void> {
+		const registration = await this.ensureServiceWorker()
+		await registration?.update()
+	}
+
+	private static async deleteDatabase(databaseName = DB_NAME): Promise<void> {
+		await new Promise<void>((resolve, reject) => {
+			const request = indexedDB.deleteDatabase(databaseName)
 			request.onsuccess = () => resolve()
 			request.onerror = () => reject(request.error)
 			request.onblocked = () => resolve()
 		})
+	}
+
+	private static requestDeprecatedStorageCleanup(): void {
+		if (MediaResourceOfflineCacheManager.deprecatedStorageCleanupPromise) return
+		MediaResourceOfflineCacheManager.deprecatedStorageCleanupPromise =
+			MediaResourceOfflineCacheManager.cleanupDeprecatedStorage().finally(() => {
+				MediaResourceOfflineCacheManager.deprecatedStorageCleanupPromise = undefined
+			})
+	}
+
+	private static async cleanupDeprecatedStorage(): Promise<void> {
+		if (!isBrowserOfflineCacheSupported()) return
+
+		const deprecatedDbNames = getDeprecatedStorageNames(DB_BASE_NAME, OFFLINE_CACHE_VERSION)
+		const deprecatedCacheNames = new Set(
+			getDeprecatedStorageNames(CACHE_BASE_NAME, OFFLINE_CACHE_VERSION),
+		)
+
+		await Promise.all([
+			Promise.all(
+				deprecatedDbNames.map((databaseName) =>
+					this.deleteDatabase(databaseName).catch(() => undefined),
+				),
+			),
+			caches
+				.keys()
+				.then((names) =>
+					Promise.all(
+						names
+							.filter((cacheName) => deprecatedCacheNames.has(cacheName))
+							.map((cacheName) => caches.delete(cacheName)),
+					),
+				)
+				.catch(() => undefined),
+		])
 	}
 
 	private static requestDefaultUnregister(): void {

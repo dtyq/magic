@@ -118,8 +118,10 @@ export class KeyboardManager {
 				return
 			}
 
-			// 触发 keyboard:paste 事件，传递 ClipboardEvent
-			// 注意：必须在 preventDefault() 之前触发，否则 clipboardData 会被清空
+			// Ctrl/Cmd+V 路径：同步 paste 事件会携带 ClipboardEvent。
+			// 这个事件最终会传到 CanvasElementClipboard.parseClipboardContent，
+			// 用于补齐部分系统场景里只能从 clipboardData.files/items 读取的文件字节。
+			// 注意：必须在 preventDefault() 之前触发，否则 clipboardData 可能被清空。
 			this.canvas.eventEmitter.emit({
 				type: "keyboard:paste",
 				data: e,

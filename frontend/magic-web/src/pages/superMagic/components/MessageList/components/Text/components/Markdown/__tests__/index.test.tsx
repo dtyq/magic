@@ -642,14 +642,6 @@ describe("MessageList Markdown HTML preview", () => {
 		expect(screen.getByText("console.log('hi')")).toBeInTheDocument()
 	})
 
-	it("renders qrcode fenced code blocks as qr images", () => {
-		render(<MarkdownComponent content={"```qrcode\nhttps://www.letsmagic.cn\n```"} />)
-
-		expect(screen.getByTestId("markdown-qrcode-block")).toBeInTheDocument()
-		expect(screen.getByTestId("markdown-qrcode-block").querySelector("canvas")).not.toBeNull()
-		expect(screen.queryByText("https://www.letsmagic.cn")).not.toBeInTheDocument()
-	})
-
 	it("renders preview when preface text is directly followed by a single html fence", () => {
 		render(<MarkdownComponent content={"说明文案\n```html\n<div>Inline</div>\n```"} />)
 

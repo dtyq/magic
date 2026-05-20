@@ -10,7 +10,8 @@ import ModeAvatar from "@/pages/superMagic/components/ModeAvatar"
 import { roleStore } from "@/pages/superMagic/stores/RoleStore"
 import CrewSelectModal from "../CrewSelectModal"
 import { useMemoizedFn } from "ahooks"
-import { CrewItem, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { CrewItem } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { observer } from "mobx-react-lite"
 import type { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
@@ -76,9 +77,7 @@ export default observer(function ModeSelector({
 	useFeaturedModeListRefreshOnFirstOpen(crewSelectOpen)
 
 	const resolveModeText = useMemoizedFn((text?: string, fallback?: string) => {
-		if (!text) return fallback
-		const translated = t(text)
-		return translated === text ? text : translated
+		return text || fallback
 	})
 
 	const handleCreateNewTopic = useMemoizedFn(() => {

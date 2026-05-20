@@ -1,4 +1,5 @@
-import type { TopicMode, Topic } from "@/pages/superMagic/pages/Workspace/types"
+import type { Topic } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "../pages/Workspace/TopicMode"
 import type { ShareListRefreshType } from "@/pages/superMagic/components/ShareManagement/types"
 import type { SuperMagicDetailPayload } from "./openPlaybackTab"
 

@@ -326,6 +326,67 @@ func TestFragmentAppServiceShowListAndDestroy(t *testing.T) {
 	}
 }
 
+func TestFragmentAppServiceListV2PreservesRepositoryChunkOrder(t *testing.T) {
+	t.Parallel()
+
+	newFirstChunk := &fragmodel.KnowledgeBaseFragment{
+		ID:               887376532191763411,
+		OrganizationCode: testFragmentOrganization,
+		KnowledgeCode:    "KB1",
+		DocumentCode:     "DOC1",
+		DocumentName:     "财务分工及存款账号明细表最新",
+		DocumentType:     int(docentity.DocumentInputKindFile),
+		Content:          "行号: 2\n哈哈哈哈会计：陈容满",
+		Metadata: map[string]any{
+			"chunk_index":  0,
+			"content_hash": "hash-new-first",
+		},
+		SyncStatus: sharedentity.SyncStatusSynced,
+	}
+	oldMiddleChunk := &fragmodel.KnowledgeBaseFragment{
+		ID:               887376532191747048,
+		OrganizationCode: testFragmentOrganization,
+		KnowledgeCode:    "KB1",
+		DocumentCode:     "DOC1",
+		DocumentName:     "财务分工及存款账号明细表最新",
+		DocumentType:     int(docentity.DocumentInputKindFile),
+		Content:          "行号: 423\n收入成本会计：陈婉静",
+		Metadata: map[string]any{
+			"chunk_index":  421,
+			"content_hash": "hash-old-middle",
+		},
+		SyncStatus: sharedentity.SyncStatusSynced,
+	}
+	fragmentSvc := &fragmentAppFragmentServiceStub{
+		listResult: []*fragmodel.KnowledgeBaseFragment{newFirstChunk, oldMiddleChunk},
+		listTotal:  2,
+	}
+	svc := appservice.NewFragmentAppServiceForTest(t, appservice.AppServiceForTestOptions{
+		FragmentService: fragmentSvc,
+		KBService:       &fragmentAppKnowledgeReaderStub{showResult: &kbentity.KnowledgeBase{Code: "KB1", OrganizationCode: testFragmentOrganization}},
+	})
+
+	page, err := svc.ListV2(context.Background(), &fragdto.ListFragmentInput{
+		OrganizationCode: testFragmentOrganization,
+		KnowledgeCode:    "KB1",
+		DocumentCode:     "DOC1",
+		Offset:           0,
+		Limit:            2,
+	})
+	if err != nil {
+		t.Fatalf("listV2 failed: %v", err)
+	}
+	if len(page.List) != 2 || page.List[0].ID != newFirstChunk.ID {
+		t.Fatalf("expected first list item to follow chunk order, got %#v", page.List)
+	}
+	if got := page.List[0].Metadata["chunk_index"]; got != 0 {
+		t.Fatalf("expected first item chunk_index=0, got %v", got)
+	}
+	if !strings.Contains(page.List[0].Content, "哈哈哈哈") {
+		t.Fatalf("expected first item to contain latest content, got %q", page.List[0].Content)
+	}
+}
+
 func TestFragmentAppServiceShowListAndListV2SanitizeMetadata(t *testing.T) {
 	t.Parallel()
 

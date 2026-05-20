@@ -4,7 +4,7 @@ import superMagicTopicModelCacheService from "./SuperMagicTopicModelCacheService
 import topicModelStore from "@/stores/superMagic/topicModelStore"
 import superMagicModeService, { resolveModeMapKey } from "../SuperMagicModeService"
 import { ModelItem, ModelStatusEnum } from "@/pages/superMagic/components/MessageEditor/types"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { reaction } from "mobx"
 import { DEFAULT_TOPIC_ID } from "./constants"
 

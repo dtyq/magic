@@ -633,6 +633,8 @@
 					"noOption": "No Option Configured",
 					"optionLabel": "Option {{number}}",
 					"optional": "Optional",
+					"placeholder": "Placeholder",
+					"placeholderHint": "Defaults to \"Auto\" if not set",
 					"presetContent": "Preset Content",
 					"presetContentPlaceholder": "Enter instruction to be appended to user messages (via Preset Value)",
 					"presetValue": "Preset Value",

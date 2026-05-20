@@ -45,9 +45,14 @@ interface UseContextMenuOptions {
 	handleShareItem: (item: AttachmentItem) => void
 	handleDeleteItem: (item: AttachmentItem) => void
 	handleDownloadOriginal: (item: AttachmentItem, mode?: DownloadImageMode) => void
-	handleDownloadPdf: (item: AttachmentItem) => void
+	handleDownloadPdf: (
+		item: AttachmentItem,
+		folderChildren?: AttachmentItem[],
+		pagination?: "slice" | "none",
+	) => void
 	handleDownloadPpt: (item: AttachmentItem) => void
 	handleDownloadPptx: (item: AttachmentItem, folderChildren?: AttachmentItem[]) => void
+	handleDownloadImage?: (item: AttachmentItem, format: "png" | "jpeg") => void
 	handleOpenFile: (item: AttachmentItem) => void
 	handleStartRename: (item: AttachmentItem) => void
 	handleAddToCurrentChat: (item: AttachmentItem) => void
@@ -223,6 +228,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 		handleDownloadPdf,
 		handleDownloadPpt,
 		handleDownloadPptx,
+		handleDownloadImage,
 		handleOpenFile,
 		handleStartRename,
 		handleAddToCurrentChat,
@@ -522,15 +528,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 										key: "downloadPdf",
 										label: t("topicFiles.contextMenu.downloadPdf"),
 										onClick: () => {
-											const appEntryFile = getAppEntryFile(
-												item.children || [],
-												item.display_config,
-											)
-											if (appEntryFile) handleDownloadPdf(appEntryFile)
-											else if (item.display_config?.type === "custom")
-												message.error(
-													t("topicFiles.customMainFileNotFound"),
-												)
+											handleDownloadPdf(item, item.children || [])
 										},
 									},
 									{
@@ -648,6 +646,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 			// 文件菜单
 			const canConvertToPdf = isConvertibleFile(item, ["html", "md"])
 			const canConvertToPPTX = isConvertibleFile(item, ["html"])
+			const canConvertToImage = isConvertibleFile(item, ["html"])
 
 			menuItems.push(
 				{
@@ -795,9 +794,9 @@ export function useContextMenu(options: UseContextMenuOptions) {
 			)
 
 			// 根据文件类型决定下载菜单的展示方式
-			if (canConvertToPdf || canConvertToPPTX) {
+			if (canConvertToPdf || canConvertToPPTX || canConvertToImage) {
 				// 支持转换的文件：显示下载子菜单
-				const downloadChildren = [
+				const downloadChildren: MenuItem[] = [
 					{
 						key: "downloadOriginal",
 						label: t("topicFiles.contextMenu.downloadOriginal"),
@@ -810,7 +809,18 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					downloadChildren.push({
 						key: "downloadPdf",
 						label: t("topicFiles.contextMenu.downloadPdf"),
-						onClick: () => handleDownloadPdf(item),
+						children: [
+							{
+								key: "downloadPdfPaginated",
+								label: t("topicFiles.exportPdfPaginated"),
+								onClick: () => handleDownloadPdf(item, undefined, "slice"),
+							},
+							{
+								key: "downloadPdfFullPage",
+								label: t("topicFiles.exportPdfFullPage"),
+								onClick: () => handleDownloadPdf(item, undefined, "none"),
+							},
+						],
 					})
 				}
 
@@ -826,6 +836,26 @@ export function useContextMenu(options: UseContextMenuOptions) {
 						key: "downloadPptx",
 						label: t("topicFiles.contextMenu.downloadPptx"),
 						onClick: () => handleDownloadPptx(item, item.children || []),
+					})
+				}
+
+				// 添加图片导出选项（仅 HTML）
+				if (canConvertToImage && handleDownloadImage) {
+					downloadChildren.push({
+						key: "downloadAsImage",
+						label: t("topicFiles.contextMenu.downloadAsImage"),
+						children: [
+							{
+								key: "downloadImagePng",
+								label: t("topicFiles.exportImagePng"),
+								onClick: () => handleDownloadImage(item, "png"),
+							},
+							{
+								key: "downloadImageJpeg",
+								label: t("topicFiles.exportImageJpeg"),
+								onClick: () => handleDownloadImage(item, "jpeg"),
+							},
+						],
 					})
 				}
 

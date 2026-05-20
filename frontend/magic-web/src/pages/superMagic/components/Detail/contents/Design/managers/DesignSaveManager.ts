@@ -1,6 +1,7 @@
 import type { DesignData } from "../types"
 import {
 	generateMagicProjectJsContent,
+	resolveDesignDirectoryNameFromAttachments,
 	resolveDesignProjectBasePathFromAttachments,
 } from "../utils/utils"
 import { hashDesignDataComparable } from "../utils/designContentHash"
@@ -55,6 +56,19 @@ export class DesignSaveManager {
 
 	private getProjectBasePathForDsl(): string | undefined {
 		return resolveDesignProjectBasePathFromAttachments(this.options)
+	}
+
+	private getDesignDataForSave(
+		designData: DesignData = this.stateBag.getDesignData(),
+	): DesignData {
+		const directoryName = resolveDesignDirectoryNameFromAttachments(this.options)
+		if (!directoryName || directoryName === designData.name) {
+			return designData
+		}
+		return {
+			...designData,
+			name: directoryName,
+		}
 	}
 
 	scheduleAutoSave(): void {
@@ -129,7 +143,8 @@ export class DesignSaveManager {
 				return false
 			}
 
-			const designDataToSave = this.stateBag.getDesignData()
+			const currentDesignData = this.stateBag.getDesignData()
+			const designDataToSave = this.getDesignDataForSave(currentDesignData)
 			const fp = hashDesignDataComparable(designDataToSave)
 			const content = generateMagicProjectJsContent(designDataToSave, {
 				projectBasePath: this.getProjectBasePathForDsl(),
@@ -144,6 +159,9 @@ export class DesignSaveManager {
 			])
 			didSave = true
 			savedUpdatedAt = saveResponse?.success_files?.[0]?.data?.updated_at ?? null
+			if (designDataToSave !== currentDesignData) {
+				this.stateBag.setters.setDesignData(designDataToSave)
+			}
 			this.stateBag.setPrevDesignDataFingerprint(fp)
 
 			if (!this.options.isShareRoute) {
@@ -204,7 +222,7 @@ export class DesignSaveManager {
 	}
 
 	generateContent(data?: DesignData): string {
-		return generateMagicProjectJsContent(data ?? this.stateBag.getDesignData(), {
+		return generateMagicProjectJsContent(this.getDesignDataForSave(data), {
 			projectBasePath: this.getProjectBasePathForDsl(),
 		})
 	}

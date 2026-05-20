@@ -28,6 +28,7 @@ interface UsePaginatedTopicsResult {
 	displayTopics: Topic[]
 	total: number
 	isLoading: boolean
+	isReloading: boolean
 	reload: () => void
 	reset: () => void
 }
@@ -131,6 +132,7 @@ function usePaginatedTopics({
 	const [isLoading, setIsLoading] = useState(
 		Boolean(projectId) && !initialCacheValue && initialTopics.length === 0,
 	)
+	const [isReloading, setIsReloading] = useState(false)
 	const [reloadSeed, setReloadSeed] = useState(0)
 
 	const getService = useCallback(() => topicServiceRef.current || SuperMagicService.topic, [])
@@ -179,6 +181,7 @@ function usePaginatedTopics({
 				setRemoteTopics([])
 				setTotal(0)
 				setIsLoading(false)
+				setIsReloading(false)
 				return
 			}
 
@@ -234,7 +237,10 @@ function usePaginatedTopics({
 					setTotal(storeTopicFallback.length)
 				}
 			} finally {
-				if (isActive) setIsLoading(false)
+				if (isActive) {
+					setIsLoading(false)
+					setIsReloading(false)
+				}
 			}
 		}
 
@@ -282,6 +288,7 @@ function usePaginatedTopics({
 	}, [remoteTopics, searchKeyword, storeTopics, total])
 
 	const reload = useCallback(() => {
+		setIsReloading(true)
 		setReloadSeed((previousValue) => previousValue + 1)
 	}, [])
 
@@ -295,6 +302,7 @@ function usePaginatedTopics({
 		displayTopics,
 		total: resolvedTotal,
 		isLoading,
+		isReloading,
 		reload,
 		reset,
 	}

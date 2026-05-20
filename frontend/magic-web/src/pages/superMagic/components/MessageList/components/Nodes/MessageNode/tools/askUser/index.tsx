@@ -79,9 +79,9 @@ function AskUserToolCall(props: DefaultToolProps) {
 	const tool = props.toolData || node?.tool
 	const detailData = tool?.detail?.data as Record<string, unknown> | undefined
 
-	// 上游 ToolCall.tsx 的 parseToolArguments 遇到不完整 JSON 会降级成 `{ value: text }`，
-	// 此时 data.questions 还不存在，所以这里从原始 arguments 字符串中容错提取。
-	const rawArguments = detailData?.arguments
+	// 优先从 rawArguments 读取原始 arguments 字符串（流式阶段 detail 可能不存在），
+	// 兜底从 detail.data.arguments 读取（已完成的工具调用）。
+	const rawArguments = tool?.rawArguments ?? detailData?.arguments
 	const argumentsStr = typeof rawArguments === "string" ? rawArguments : ""
 	const questionsFieldFromArgs = useMemo(
 		() => extractQuestionsField(argumentsStr),
@@ -107,7 +107,9 @@ function AskUserToolCall(props: DefaultToolProps) {
 		(typeof detailData?.status === "string" ? detailData.status : "") ||
 		(typeof tool?.status === "string" ? tool.status : "")
 	const askUserStatus = normalizeAskUserStatus(toolStatus)
-	const askUserLocale = resolveAskUserLocaleFromAction(tool?.action)
+	const askUserLocale = resolveAskUserLocaleFromAction(
+		typeof tool?.action === "string" ? tool.action : undefined,
+	)
 
 	const [pendingAction, setPendingAction] = useState<"submit" | "skip" | null>(null)
 	const [answeredQuestionCount, setAnsweredQuestionCount] = useState(0)

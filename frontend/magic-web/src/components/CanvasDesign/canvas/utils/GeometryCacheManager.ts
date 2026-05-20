@@ -97,7 +97,10 @@ export class GeometryCacheManager {
 			return cloneRect(this.allElementsBoundsCache)
 		}
 
-		const rect = this.getElementsBounds(this.canvas.elementManager.getAllElementIds())
+		const visibleIds = this.canvas.elementManager
+			.getAllElementIds()
+			.filter((id) => this.canvas.elementManager.isElementVisibleInDataTree(id))
+		const rect = this.getElementsBounds(visibleIds)
 		this.allElementsBoundsCache = rect ? { ...rect } : null
 		return cloneRect(rect)
 	}

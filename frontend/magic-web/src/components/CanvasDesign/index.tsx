@@ -32,7 +32,16 @@ import ElementRenameOverlay from "./components/ElementRenameOverlay"
 import styles from "./index.module.css"
 
 const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((props, ref) => {
-	const { id, readonly = false, data = {}, marker = {}, viewport = {}, getIsMobile, t } = props
+	const {
+		id,
+		readonly = false,
+		data = {},
+		marker = {},
+		viewport = {},
+		getIsMobile,
+		t,
+		shareHostBottomChrome = false,
+	} = props
 
 	const { defaultData, onCanvasDesignDataChange } = data
 
@@ -89,13 +98,17 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 	)
 
 	useMount(() => {
+		const designProjectId = id.trim()
+		if (!designProjectId) {
+			throw new Error("CanvasDesign: id is required as designProjectId.")
+		}
 		if (!canvasContainerRef.current) return
 		const scopeElement = canvasContainerRef.current.closest("[data-canvas-ui-component]")
 		const canvasInstance = new Canvas({
 			element: canvasContainerRef.current,
 			scopeElement:
 				scopeElement instanceof HTMLElement ? scopeElement : canvasContainerRef.current,
-			id,
+			id: designProjectId,
 			defaultReadyonly: readonly,
 			magic: {
 				methods: methods,
@@ -187,7 +200,7 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 			<Layers />
 			{!readonly && <Tools />}
 			{!readonly && <CanvasTips />}
-			<Zoom />
+			<Zoom shareHostBottomChrome={shareHostBottomChrome} />
 		</FloatingUIProvider>
 	)
 })

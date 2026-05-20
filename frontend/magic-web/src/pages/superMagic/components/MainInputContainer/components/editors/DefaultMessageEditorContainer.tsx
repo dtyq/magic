@@ -30,7 +30,8 @@ import {
 	buildPlainTextJSONContent,
 	generateTextFromJSONContent,
 } from "@/pages/superMagic/components/MessageEditor/utils"
-import { TaskStatus, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 
 interface DefaultMessageEditorContainerProps {
 	editorContext?: SceneEditorContext

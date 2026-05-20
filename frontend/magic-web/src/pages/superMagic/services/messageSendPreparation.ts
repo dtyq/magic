@@ -17,13 +17,8 @@ import {
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import TopicService from "./topicService"
 import SuperMagicService from "./index"
-import type {
-	CreatedProject,
-	ProjectListItem,
-	Topic,
-	TopicMode,
-	Workspace,
-} from "../pages/Workspace/types"
+import type { CreatedProject, ProjectListItem, Topic, Workspace } from "../pages/Workspace/types"
+import type { TopicMode } from "../pages/Workspace/TopicMode"
 
 interface CreateProjectParams {
 	projectMode: TopicMode

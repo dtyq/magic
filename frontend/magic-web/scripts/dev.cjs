@@ -55,18 +55,17 @@ async function main() {
     await runCommand('node', ['scripts/icons/gen-tabler-icon-tags.cjs'])
     log('Icon tags generated successfully', 'green')
 
-    // Start concurrently with main app, iframe runtime watch, and html-shabox (iframe HTML server)
+    // Start concurrently with main app and iframe runtime watch
     log('Starting dev servers...', 'cyan')
     await runCommand(
       'concurrently',
       [
         '"vite"',
         '"pnpm dev:iframe"',
-        '"node packages/html-shabox/server.cjs"',
         '--names',
-        '"main,iframe,html-shabox"',
+        '"main,iframe"',
         '--prefix-colors',
-        '"cyan,yellow,green"',
+        '"cyan,yellow"',
       ],
       { stdio: 'inherit' }
     )

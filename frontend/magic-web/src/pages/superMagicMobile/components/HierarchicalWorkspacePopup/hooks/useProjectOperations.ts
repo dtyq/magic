@@ -2,11 +2,11 @@ import { useState, useCallback, useMemo, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn, useUpdateEffect } from "ahooks"
 import {
-	TopicMode,
 	type CollaborationProjectType,
 	type CreatedProject,
 	type ProjectListItem,
 } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import SuperMagicService from "@/pages/superMagic/services"
 import { SHARE_WORKSPACE_ID } from "@/pages/superMagic/constants"
@@ -153,15 +153,15 @@ export function useProjectOperations({
 				const res =
 					workspaceId === SHARE_WORKSPACE_ID
 						? await SuperMagicApi.getCollaborationProjects({
-							page: 1,
-							page_size: 99,
-							type: _collaborationTabKey || collaborationTabKey,
-						})
+								page: 1,
+								page_size: 99,
+								type: _collaborationTabKey || collaborationTabKey,
+							})
 						: await SuperMagicApi.getProjectsWithCollaboration({
-							workspace_id: workspaceId,
-							page: 1,
-							page_size: 99,
-						})
+								workspace_id: workspaceId,
+								page: 1,
+								page_size: 99,
+							})
 				const updatedProjects = res.list
 				// Update internal state only, don't affect global store
 				setProjects(updatedProjects || [])

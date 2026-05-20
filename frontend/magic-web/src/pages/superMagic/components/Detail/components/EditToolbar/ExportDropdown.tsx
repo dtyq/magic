@@ -53,7 +53,10 @@ interface ExportDropdownProps {
 	/** 导出当前页PPT（可编辑）回调 */
 	onExportCurrentEditablePPT?: () => void
 	/** 指定页面导出回调，传递选中的 slide paths 和导出格式（pptx=可编辑 PPT，由 magic-web 决定内容后传包） */
-	onExportSpecificPages?: (filePaths: string[], format: "source" | "pdf" | "ppt" | "pptx") => void
+	onExportSpecificPages?: (
+		filePaths: string[],
+		format: "source" | "pdf" | "ppt" | "pptx" | "image_png" | "image_jpeg",
+	) => void
 	/** 生成截图回调 */
 	onGenerateScreenshot?: (index: number) => Promise<void>
 }
@@ -130,7 +133,10 @@ function ExportDropdown({
 		setSlideDialogOpen(true)
 	}, [isDisabled])
 
-	function handleConfirmExport(filePaths: string[], format: "source" | "pdf" | "ppt" | "pptx") {
+	function handleConfirmExport(
+		filePaths: string[],
+		format: "source" | "pdf" | "ppt" | "pptx" | "image_png" | "image_jpeg",
+	) {
 		if (onExportSpecificPages) {
 			onExportSpecificPages(filePaths, format)
 		}

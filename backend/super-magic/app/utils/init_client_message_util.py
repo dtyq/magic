@@ -390,8 +390,10 @@ class InitClientMessageUtil:
         将客户端消息中的 metadata 字段持久化到 metadata.json
 
         每当 init_client_message.json 或 chat_client_message.json 写入时被调用，
-        以便其他进程/工具可直接读取最新 metadata。如果 metadata 为空则写入 {}，
-        以保证文件存在并反映当前状态。
+        以便其他进程/工具可直接读取最新 metadata。
+
+        注意：中断等控制类消息可能不携带 metadata（None 或空 dict），此时直接跳过，
+        避免用空内容覆盖之前已经保存的有效 metadata.json。
 
         Args:
             metadata: 来自 InitClientMessage / ChatClientMessage 的 metadata 字段，
@@ -399,13 +401,11 @@ class InitClientMessageUtil:
             source: 触发本次保存的消息来源，仅用于日志输出
         """
         try:
-            metadata_file = PathManager.get_client_message_metadata_file()
-            metadata_file.parent.mkdir(parents=True, exist_ok=True)
-
             if metadata is None:
-                metadata_dict: Dict[str, Any] = {}
+                logger.debug(f"metadata 为空，跳过 metadata.json 写入 (source={source})")
+                return
             elif isinstance(metadata, dict):
-                metadata_dict = metadata
+                metadata_dict: Dict[str, Any] = metadata
             elif hasattr(metadata, "model_dump"):
                 metadata_dict = metadata.model_dump()
             elif hasattr(metadata, "dict"):
@@ -415,6 +415,13 @@ class InitClientMessageUtil:
                     f"无法识别的 metadata 类型: {type(metadata)}，跳过 metadata.json 保存"
                 )
                 return
+
+            if not metadata_dict:
+                logger.debug(f"metadata 为空，跳过 metadata.json 写入 (source={source})")
+                return
+
+            metadata_file = PathManager.get_client_message_metadata_file()
+            metadata_file.parent.mkdir(parents=True, exist_ok=True)
 
             with open(metadata_file, "w", encoding="utf-8") as f:
                 json.dump(metadata_dict, f, ensure_ascii=False, indent=2)

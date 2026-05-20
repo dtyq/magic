@@ -32,7 +32,7 @@ interface KeyProp {
 
 function AgentPage() {
 	const { t } = useTranslation("interface")
-	const { t: globalT } = useTranslation()
+	const { t: flowT } = useTranslation("flow")
 
 	const navigate = useNavigate()
 
@@ -59,7 +59,7 @@ function AgentPage() {
 		if (!bot) return
 
 		await BotApi.deleteBot(bot.id)
-		magicToast.success(globalT("common.deleteSuccess", { ns: "flow" }))
+		magicToast.success(flowT("common.deleteSuccess"))
 		mutate((currentData) => {
 			if (!currentData) return currentData
 			const updatedData = currentData?.map((page) => ({

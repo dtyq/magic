@@ -1,7 +1,6 @@
 import { createStyles, cx } from "antd-style"
 import type React from "react"
 import { memo, useEffect, useState } from "react"
-import otherSVG from "./assets/other.svg"
 import FileTypeIcon from "../FileTypeIcon"
 
 const iconModules = import.meta.glob<string>("./assets/*.svg", { import: "default" })
@@ -97,9 +96,9 @@ function normalizeExtension(fileExtension?: string): string | null {
 	return fileExtension.replace(/^\./, "").toLocaleLowerCase()
 }
 
-function getIconName(caseType?: string | null): string | null {
-	if (!caseType) return null
-	return iconNameMap[caseType] ?? null
+function getIconName(caseType?: string | null): string {
+	if (!caseType) return "other"
+	return iconNameMap[caseType] ?? "other"
 }
 
 /**
@@ -109,10 +108,7 @@ function getIconName(caseType?: string | null): string | null {
  */
 export function getFileIconByType(fileExtension?: string): string {
 	const caseType = normalizeExtension(fileExtension)
-	if (!caseType) return otherSVG
-
 	const iconName = getIconName(caseType)
-	if (!iconName) return ""
 
 	if (iconCache[iconName]) return iconCache[iconName]
 
@@ -125,7 +121,7 @@ export function getFileIconByType(fileExtension?: string): string {
 				iconCache[iconName] = src
 			})
 			.catch(() => {
-				iconCache[iconName] = otherSVG
+				console.error(`Failed to load icon for ${iconName}`)
 			})
 
 	return ""
@@ -133,10 +129,7 @@ export function getFileIconByType(fileExtension?: string): string {
 
 export async function loadFileIconByType(fileExtension?: string): Promise<string | null> {
 	const caseType = normalizeExtension(fileExtension)
-	if (!caseType) return otherSVG
-
 	const iconName = getIconName(caseType)
-	if (!iconName) return null
 
 	if (iconCache[iconName]) return iconCache[iconName]
 

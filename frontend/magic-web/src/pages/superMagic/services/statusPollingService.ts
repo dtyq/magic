@@ -7,7 +7,7 @@ import type {
 	SuperAgentTopicStatusItem,
 } from "@/apis/modules/superMagic"
 
-const DEFAULT_POLLING_INTERVAL_MS = 5000
+const DEFAULT_POLLING_INTERVAL_MS = 60000
 
 interface TopicStatusPollingOptions {
 	pollerId: string
@@ -98,6 +98,18 @@ class StatusPollingService {
 
 		this.topicStatusPollingTasks.set(options.pollerId, task)
 		void this.pollTopicStatusTask(task)
+	}
+
+	/** 立即触发一次资源状态查询（供手动刷新按钮使用）。 */
+	async refreshResourceStatus() {
+		await this.pollResourceStatus()
+	}
+
+	/** 立即触发指定话题轮询任务（供手动刷新按钮使用）。 */
+	async refreshTopicStatus(pollerId: string) {
+		const task = this.topicStatusPollingTasks.get(pollerId)
+		if (!task) return
+		await this.pollTopicStatusTask(task)
 	}
 
 	stopTopicStatusPolling(pollerId: string) {

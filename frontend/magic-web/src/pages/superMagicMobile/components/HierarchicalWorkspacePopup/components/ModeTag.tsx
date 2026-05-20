@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react"
 import { createStyles } from "antd-style"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { computed } from "mobx"
 import { useTranslation } from "react-i18next"

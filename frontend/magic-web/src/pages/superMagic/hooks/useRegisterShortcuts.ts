@@ -2,7 +2,8 @@ import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { WorkspacePage } from "@/pages/superMagic/layouts/MainLayout/types"
 import { ShortcutActions } from "../components/ShortcutKeysList/constants"
 import { useRegisterContext, useGlobalShortcuts, useRegisterShortcut } from "./useGlobalShortcuts"
-import { TopicMode, Workspace } from "../pages/Workspace/types"
+import { Workspace } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import { HandleCreateProjectParams } from "./useProjects"
 
 /**

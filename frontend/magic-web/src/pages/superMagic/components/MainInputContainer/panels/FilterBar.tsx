@@ -2,6 +2,7 @@ import { useState } from "react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Label } from "@/components/shadcn-ui/label"
 import MagicDropdown from "@/components/base/MagicDropdown"
+import MagicPopup from "@/components/base-mobile/MagicPopup"
 import HeadlessHorizontalScroll from "@/components/base/HeadlessHorizontalScroll"
 import { LucideLazyIcon } from "@/utils/lucideIconLoader"
 import { useTranslation } from "react-i18next"
@@ -12,7 +13,7 @@ import { useLocaleText } from "./hooks/useLocaleText"
 import { type FieldItem, type OptionItem, type OptionGroup } from "./types"
 import { isOptionGroup, isComplexField, localeTextToDisplayString } from "./utils"
 import { observer } from "mobx-react-lite"
-import { ChevronDown, CircleX } from "lucide-react"
+import { ChevronDown, CircleX, X } from "lucide-react"
 import { ScenePanelVariant } from "../components/LazyScenePanel/types"
 import { cn } from "@/lib/utils"
 
@@ -29,9 +30,16 @@ interface FilterBarProps {
 	onFilterChange?: (filterId: string, value: string) => void
 	variant?: ScenePanelVariant
 	scrollContainerClassName?: string
+	compact?: boolean
 }
 
-function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName }: FilterBarProps) {
+function FilterBar({
+	filters,
+	onFilterChange,
+	variant,
+	scrollContainerClassName,
+	compact = false,
+}: FilterBarProps) {
 	const lt = useLocaleText()
 	const { t } = useTranslation()
 	const placeholder = t("shadcn-ui:select.placeholder")
@@ -39,6 +47,8 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 	const emptyText = t("shadcn-ui:select.empty")
 	const [openComplexFilterKey, setOpenComplexFilterKey] = useState<string | null>(null)
 	const [groupSelectionMap, setGroupSelectionMap] = useState<Record<string, string>>({})
+	const isMobile = variant === ScenePanelVariant.Mobile
+	const isCompactMobile = compact && variant === ScenePanelVariant.Mobile
 
 	const getComplexFieldState = (filter: FieldItem) => {
 		const groups = filter.options.filter(isOptionGroup) as OptionGroup[]
@@ -92,13 +102,19 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 		<HeadlessHorizontalScroll
 			className="w-full"
 			scrollContainerClassName={cn(
-				"flex w-full min-w-0 items-center justify-between gap-4 overflow-x-auto overflow-y-hidden",
+				"flex w-full min-w-0 items-center justify-between overflow-x-auto overflow-y-hidden",
+				isCompactMobile ? "no-scrollbar gap-2" : "gap-4",
 				variant !== ScenePanelVariant.Mobile && "px-2.5",
 				scrollContainerClassName,
 			)}
 		>
 			{filters.length > 0 && (
-				<div className="flex shrink-0 items-center gap-4">
+				<div
+					className={cn(
+						"flex shrink-0 items-center",
+						isCompactMobile ? "gap-2" : "gap-4",
+					)}
+				>
 					{filters.map((filter) => {
 						if (isComplexField(filter)) {
 							const {
@@ -108,6 +124,114 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 								selectedGroupKey,
 							} = getComplexFieldState(filter)
 							const availableTemplates = visibleTemplates.filter(hasOptionValue)
+							const isOpen = openComplexFilterKey === filter.data_key
+							const popupTitle = lt(filter.label)
+							const templatePopupContent = (
+								<div
+									className={cn(
+										"flex flex-col gap-3 overflow-hidden",
+										isMobile ? "h-full min-h-0" : "h-[60vh] min-h-[300px]",
+									)}
+								>
+									{groups.length > 1 && (
+										<TemplateGroupSelector
+											groups={groups}
+											selectedGroupKey={selectedGroupKey}
+											onGroupChange={(groupKey) =>
+												setGroupSelectionMap((prev) => ({
+													...prev,
+													[filter.data_key]: groupKey,
+												}))
+											}
+											leftControlClassName={cn(isMobile && "from-secondary")}
+											rightControlClassName={cn(isMobile && "to-secondary")}
+										/>
+									)}
+									{availableTemplates.length > 0 ? (
+										<TemplateViewSwitcher
+											viewType={filter.option_view_type}
+											selectedTemplate={selectedTemplateOption || undefined}
+											items={availableTemplates}
+											onTemplateClick={(template) =>
+												handleComplexTemplateSelect(filter, template)
+											}
+										/>
+									) : (
+										<div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
+											{emptyText}
+										</div>
+									)}
+								</div>
+							)
+							const triggerNode = (
+								<Button
+									id={`${filter.data_key}-dropdown`}
+									type="button"
+									variant="outline"
+									size="sm"
+									className={cn(
+										"group h-8 max-w-[220px] justify-start rounded-full bg-background px-3 font-normal shadow-xs dark:bg-card",
+										!selectedTemplateOption && "text-muted-foreground",
+										isCompactMobile &&
+											"h-8 min-h-8 shrink-0 gap-1 border-border bg-card pl-2.5 pr-2 text-foreground shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] dark:bg-card",
+									)}
+									aria-label={popupTitle}
+									data-testid="mobile-scene-panel-filter-trigger"
+									onClick={
+										isMobile
+											? () => setOpenComplexFilterKey(filter.data_key)
+											: undefined
+									}
+								>
+									<span className="flex min-w-0 items-center gap-2 truncate">
+										{filter.has_leading_icon && filter.leading_icon && (
+											<LucideLazyIcon
+												icon={filter.leading_icon}
+												size={16}
+												className="text-muted-foreground"
+											/>
+										)}
+										{isCompactMobile ? (
+											<>
+												<span className="whitespace-nowrap text-[11px] text-muted-foreground">
+													{popupTitle}
+												</span>
+												<span className="whitespace-nowrap text-[13px] font-medium text-foreground">
+													{lt(selectedTemplateOption?.label) ||
+														lt(selectedTemplateOption?.value) ||
+														placeholder}
+												</span>
+											</>
+										) : (
+											lt(selectedTemplateOption?.label) ||
+											lt(selectedTemplateOption?.value) ||
+											placeholder
+										)}
+									</span>
+									<span className="relative inline-flex size-4 shrink-0 items-center justify-center">
+										{selectedTemplateOption && !isCompactMobile ? (
+											<span
+												role="button"
+												tabIndex={0}
+												aria-label={clearText}
+												onPointerDown={(event) => {
+													event.preventDefault()
+													event.stopPropagation()
+												}}
+												onClick={(event) => {
+													event.preventDefault()
+													event.stopPropagation()
+													handleClearComplexTemplate(filter)
+												}}
+											>
+												<CircleX className="size-4 text-muted-foreground opacity-50" />
+											</span>
+										) : (
+											<ChevronDown className="size-4 text-muted-foreground opacity-50 transition-opacity" />
+										)}
+									</span>
+								</Button>
+							)
 
 							return (
 								<div
@@ -117,130 +241,82 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 										variant &&
 											[ScenePanelVariant.Mobile].includes(variant) &&
 											"flex-col items-start gap-1",
+										isCompactMobile && "block",
 									)}
 								>
-									<Label
-										htmlFor={`${filter.data_key}-dropdown`}
-										className={cn(
-											"text-sm font-normal text-foreground",
-											variant &&
-												[ScenePanelVariant.Mobile].includes(variant) &&
-												"text-xs font-medium text-muted-foreground",
-										)}
-									>
-										{lt(filter.label)}
-									</Label>
-									<MagicDropdown
-										trigger={["click"]}
-										open={openComplexFilterKey === filter.data_key}
-										onOpenChange={(open) =>
-											setOpenComplexFilterKey(open ? filter.data_key : null)
-										}
-										popupRender={() => (
-											<div className="flex h-[60vh] min-h-[300px] flex-col gap-3 overflow-hidden">
-												{groups.length > 1 && (
-													<TemplateGroupSelector
-														groups={groups}
-														selectedGroupKey={selectedGroupKey}
-														onGroupChange={(groupKey) =>
-															setGroupSelectionMap((prev) => ({
-																...prev,
-																[filter.data_key]: groupKey,
-															}))
-														}
-														leftControlClassName={cn(
-															variant &&
-																[ScenePanelVariant.Mobile].includes(
-																	variant,
-																) &&
-																"from-secondary",
-														)}
-														rightControlClassName={cn(
-															variant &&
-																[ScenePanelVariant.Mobile].includes(
-																	variant,
-																) &&
-																"to-secondary",
-														)}
-													/>
-												)}
-												{availableTemplates.length > 0 ? (
-													<TemplateViewSwitcher
-														viewType={filter.option_view_type}
-														selectedTemplate={
-															selectedTemplateOption || undefined
-														}
-														items={availableTemplates}
-														onTemplateClick={(template) =>
-															handleComplexTemplateSelect(
-																filter,
-																template,
-															)
-														}
-													/>
-												) : (
-													<div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-border px-4 py-6 text-sm text-muted-foreground">
-														{emptyText}
-													</div>
-												)}
-											</div>
-										)}
-										overlayClassName="w-[min(90vw,720px)] min-w-[320px] rounded-lg border border-border bg-popover p-3"
-									>
-										<span>
-											<Button
-												id={`${filter.data_key}-dropdown`}
-												type="button"
-												variant="outline"
-												size="sm"
-												className={cn(
-													"group h-8 max-w-[220px] justify-start rounded-full bg-background px-3 font-normal shadow-xs dark:bg-card",
-													!selectedTemplateOption &&
-														"text-muted-foreground",
-												)}
+									{isCompactMobile ? null : (
+										<Label
+											htmlFor={`${filter.data_key}-dropdown`}
+											className={cn(
+												"text-sm font-normal text-foreground",
+												variant &&
+													[ScenePanelVariant.Mobile].includes(variant) &&
+													"text-xs font-medium text-muted-foreground",
+											)}
+										>
+											{lt(filter.label)}
+										</Label>
+									)}
+									{isMobile ? (
+										<>
+											{triggerNode}
+											<MagicPopup
+												visible={isOpen}
+												onClose={() => setOpenComplexFilterKey(null)}
+												className="rounded-t-[14px] border-0 bg-muted"
+												bodyClassName="rounded-t-[14px] border-0 bg-muted p-0 overflow-hidden"
+												handlerClassName="bg-muted-foreground mb-1.5 h-1 w-20 rounded-full"
+												title={popupTitle}
 											>
-												<span className="flex items-center gap-2 truncate">
-													{filter.has_leading_icon &&
-														filter.leading_icon && (
-															<LucideLazyIcon
-																icon={filter.leading_icon}
-																size={16}
-																className="text-muted-foreground"
-															/>
-														)}
-													{lt(selectedTemplateOption?.label) ||
-														lt(selectedTemplateOption?.value) ||
-														placeholder}
-												</span>
-												<span className="relative inline-flex size-4 shrink-0 items-center justify-center">
-													{selectedTemplateOption ? (
-														<span
-															role="button"
-															tabIndex={0}
+												<div
+													className="flex h-[min(640px,calc(100vh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-44px))] min-h-0 flex-col gap-2 overflow-hidden  bg-muted"
+													data-testid="mobile-scene-panel-template-popup"
+												>
+													<div className="relative flex h-14 shrink-0 flex-row items-center justify-center">
+														<button
+															type="button"
+															onClick={() =>
+																setOpenComplexFilterKey(null)
+															}
+															className="absolute left-2 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-card"
+															style={{
+																boxShadow:
+																	"0px 8px 25px 0px rgba(0,0,0,0.10)",
+															}}
 															aria-label={clearText}
-															onPointerDown={(event) => {
-																event.preventDefault()
-																event.stopPropagation()
-															}}
-															onClick={(event) => {
-																event.preventDefault()
-																event.stopPropagation()
-																handleClearComplexTemplate(filter)
-															}}
+															data-testid="mobile-scene-panel-template-popup-close-button"
 														>
-															<CircleX className="size-4 text-muted-foreground opacity-50" />
-														</span>
-													) : (
-														<ChevronDown
-															className={cn(
-																"size-4 text-muted-foreground opacity-50 transition-opacity",
-															)}
-														/>
-													)}
-												</span>
-											</Button>
-										</span>
-									</MagicDropdown>
+															<X className="h-[22px] w-[22px] text-foreground" />
+														</button>
+														<div
+															className="max-w-[247px] truncate text-center text-lg font-semibold leading-none text-foreground"
+															data-testid="mobile-scene-panel-template-popup-title"
+														>
+															{popupTitle}
+														</div>
+													</div>
+
+													<div className="min-h-0 flex-1 overflow-hidden px-2 pb-4">
+														{templatePopupContent}
+													</div>
+												</div>
+											</MagicPopup>
+										</>
+									) : (
+										<MagicDropdown
+											trigger={["click"]}
+											open={isOpen}
+											onOpenChange={(open) =>
+												setOpenComplexFilterKey(
+													open ? filter.data_key : null,
+												)
+											}
+											popupRender={() => templatePopupContent}
+											overlayClassName="w-[min(90vw,720px)] min-w-[320px] rounded-lg border border-border bg-popover p-3"
+										>
+											<span>{triggerNode}</span>
+										</MagicDropdown>
+									)}
 								</div>
 							)
 						}
@@ -251,6 +327,7 @@ function FilterBar({ filters, onFilterChange, variant, scrollContainerClassName 
 								filter={filter}
 								onFilterChange={onFilterChange}
 								variant={variant}
+								compact={compact}
 							/>
 						)
 					})}

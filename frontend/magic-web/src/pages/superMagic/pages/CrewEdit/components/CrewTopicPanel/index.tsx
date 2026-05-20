@@ -1,6 +1,7 @@
 import ConversationPanelScaffold from "@/pages/superMagic/components/ConversationPanelScaffold"
 import { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
-import { TopicMode, type ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { type ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "../../../Workspace/TopicMode"
 import { JSONContent } from "@tiptap/react"
 import { observer } from "mobx-react-lite"
 import EmptyState from "./components/EmptyState"
@@ -36,6 +37,7 @@ import useTopicModel from "@/pages/superMagic/components/MessageEditor/hooks/use
 import { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
 import { useRefreshTopicDetailOnTaskComplete } from "@/pages/superMagic/hooks/useRefreshTopicDetailOnTaskComplete"
 import { useScopedTopicReadProgress } from "@/pages/superMagic/hooks/useScopedTopicReadProgress"
+import { applyOptimisticTopicRunningState } from "@/pages/superMagic/services/topicStatusSyncService"
 
 interface CrewTopicPanelProps {
 	selectedProject: ProjectListItem | null
@@ -183,6 +185,15 @@ function CrewTopicPanel({
 			layoutConfig: DEFAULT_LAYOUT_CONFIG,
 			showLoading,
 			size: detailPanelVisible ? "small" : "default",
+			onSendComplete: ({ success, currentProject, currentTopic }) => {
+				if (!success) return
+
+				applyOptimisticTopicRunningState({
+					topicStore,
+					topic: currentTopic ?? topicStore.selectedTopic,
+					project: currentProject ?? selectedProject,
+				})
+			},
 			mergeSendParams: ({ defaultParams }) => {
 				const mergedParams = merge(defaultParams, {
 					topicMode: TopicMode.CrewCreator,

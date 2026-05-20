@@ -26,6 +26,11 @@ interface TopicMessagePanelProps {
 	currentTopicStatus: any
 	attachments: any[]
 	handleSendMsg: (content: JSONContent | string, options?: any) => void
+	onSendComplete?: (params: {
+		success: boolean
+		currentProject: ProjectListItem | null
+		currentTopic: Topic | null
+	}) => void
 	handlePullMoreMessage: (topicInfo: any, callback?: () => void) => void
 	handleFileClick: (fileId: string, fileData?: any) => void
 	setUserSelectDetail: (detail: any) => void
@@ -51,6 +56,7 @@ function TopicMessagePanel({
 	currentTopicStatus,
 	attachments,
 	handleSendMsg,
+	onSendComplete,
 	handlePullMoreMessage,
 	handleFileClick,
 	setUserSelectDetail,
@@ -173,6 +179,7 @@ function TopicMessagePanel({
 							topicMode,
 							setTopicMode,
 						}}
+						onSendComplete={onSendComplete}
 						size={detailPanelVisible ? "small" : "default"}
 					/>
 				</div>

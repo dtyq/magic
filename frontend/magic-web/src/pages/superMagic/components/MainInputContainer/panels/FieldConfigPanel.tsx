@@ -22,6 +22,7 @@ interface FieldConfigPanelProps {
 	onPresetContentChange?: (content: JSONContent | undefined) => void
 	readOnly?: boolean
 	variant?: ScenePanelVariant
+	compact?: boolean
 }
 
 const FieldConfigPanel = observer(
@@ -32,6 +33,7 @@ const FieldConfigPanel = observer(
 		onPresetContentChange,
 		readOnly = false,
 		variant,
+		compact = false,
 	}: FieldConfigPanelProps) => {
 		const lt = useLocaleText()
 		const { t } = useTranslation("crew/create")
@@ -154,6 +156,7 @@ const FieldConfigPanel = observer(
 								onFilterChange={handleFilterChange}
 								variant={variant}
 								scrollContainerClassName="justify-end"
+								compact={compact}
 							/>
 						</div>
 					}
@@ -199,6 +202,7 @@ const FieldConfigPanel = observer(
 				filters={store.field_items}
 				onFilterChange={handleFilterChange}
 				variant={variant}
+				compact={compact}
 			/>
 		)
 	},

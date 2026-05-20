@@ -42,6 +42,7 @@ import { ElementRenameManager } from "./interaction/ElementRenameManager"
 import { TextEditingManager } from "./interaction/TextEditingManager"
 import { TextFormattingManager } from "./interaction/TextFormattingManager"
 import { isCanvasUIComponentNode } from "./utils/domGuards"
+import { buildVirtualResourceScope } from "./utils/pathUtils"
 import {
 	editActions,
 	layerActions,
@@ -111,7 +112,7 @@ export class Canvas {
 
 	public readonly: boolean
 	public isMobileDevice: boolean
-	public id?: string
+	public id: string
 
 	public t?: TFunction
 	private scopeElement: HTMLElement
@@ -187,7 +188,10 @@ export class Canvas {
 			getResolveAbsolutePath: () =>
 				this.magicConfigManager.config?.methods?.resolveAbsolutePath,
 			getVirtualResourceScope: () =>
-				this.magicConfigManager.config?.methods?.getVirtualResourceScope?.(),
+				buildVirtualResourceScope(
+					this.magicConfigManager.config?.methods?.getVirtualResourceScope?.(),
+					this.id,
+				),
 		})
 
 		// 初始化 ImageResourceManager（图片资源管理器，每个 Canvas 实例独立）
@@ -582,6 +586,7 @@ export class Canvas {
 		// 监听 Shift 键（宽高比锁定修饰键，影响 Transformer、裁剪框等）
 		this.eventEmitter.on("keyboard:shift:down", () => {
 			this.setKeepRatioModifier(true)
+			this.elementManager.updateAllElementsDraggable()
 			this.transformManager.setKeepRatio()
 			this.cropManager.setKeepRatio()
 			this.extendManager.setKeepRatio()
@@ -589,6 +594,7 @@ export class Canvas {
 
 		this.eventEmitter.on("keyboard:shift:up", () => {
 			this.setKeepRatioModifier(false)
+			this.elementManager.updateAllElementsDraggable()
 			this.transformManager.setKeepRatio()
 			this.cropManager.setKeepRatio()
 			this.extendManager.setKeepRatio()
@@ -597,6 +603,7 @@ export class Canvas {
 		// 监听 Meta/Command 键（宽高比锁定修饰键）
 		this.eventEmitter.on("keyboard:meta:down", () => {
 			this.setKeepRatioModifier(true)
+			this.elementManager.updateAllElementsDraggable()
 			this.transformManager.setKeepRatio()
 			this.cropManager.setKeepRatio()
 			this.extendManager.setKeepRatio()
@@ -604,9 +611,19 @@ export class Canvas {
 
 		this.eventEmitter.on("keyboard:meta:up", () => {
 			this.setKeepRatioModifier(false)
+			this.elementManager.updateAllElementsDraggable()
 			this.transformManager.setKeepRatio()
 			this.cropManager.setKeepRatio()
 			this.extendManager.setKeepRatio()
+		})
+
+		// 修饰键按下期间，选区变化后需要实时刷新拖拽能力：
+		// 仅允许“已选中元素”可拖拽，未选中元素不可直接按下拖动
+		this.eventEmitter.on("element:select", () => {
+			this.elementManager.updateAllElementsDraggable()
+		})
+		this.eventEmitter.on("element:deselect", () => {
+			this.elementManager.updateAllElementsDraggable()
 		})
 
 		// 监听全选快捷键
@@ -624,9 +641,13 @@ export class Canvas {
 			this.userActionRegistry.execute("edit.copy-png")
 		})
 
-		// 监听粘贴快捷键
+		// Ctrl/Cmd+V 路径：KeyboardManager 会把原始 ClipboardEvent 传进来。
+		// 与菜单粘贴不同，这条路径可在后续解析中读取 clipboardData.files/items。
 		this.eventEmitter.on("keyboard:paste", async (event) => {
-			await this.userActionRegistry.execute("edit.paste", { clipboardEvent: event.data })
+			await this.userActionRegistry.execute("edit.paste", {
+				clipboardEvent: event.data,
+				pasteSource: "keyboard",
+			})
 		})
 
 		// 监听画框快捷键

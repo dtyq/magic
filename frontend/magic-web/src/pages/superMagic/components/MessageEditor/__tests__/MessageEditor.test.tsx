@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { TopicMode } from "../../../pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { MentionItemType } from "@/components/business/MentionPanel/types"
 import type { UserService } from "@/services/user/UserService"
 

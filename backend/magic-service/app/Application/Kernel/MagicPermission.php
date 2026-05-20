@@ -318,7 +318,7 @@ class MagicPermission implements MagicPermissionInterface
         }
 
         // 直接命中
-        if (in_array($permissionKey, $userPermissions, true)) {
+        if ($this->hasPermissionKeyWithCompatibility($resource, $parsed['operation'], $userPermissions)) {
             return true;
         }
 
@@ -326,8 +326,7 @@ class MagicPermission implements MagicPermissionInterface
         $ops = $this->getOperationsByResource($resource);
         if (in_array(MagicOperationEnum::EDIT->value, $ops, true) && in_array(MagicOperationEnum::QUERY->value, $ops, true)) {
             if ($parsed['operation'] === MagicOperationEnum::QUERY->value) {
-                $permissionKey = $this->buildPermission($resource, MagicOperationEnum::EDIT->value);
-                if (in_array($permissionKey, $userPermissions, true)) {
+                if ($this->hasPermissionKeyWithCompatibility($resource, MagicOperationEnum::EDIT->value, $userPermissions)) {
                     return true;
                 }
             }
@@ -605,6 +604,10 @@ class MagicPermission implements MagicPermissionInterface
      */
     private function getMappedResourcePaths(string $resource): array
     {
+        if ($this->isResourceHiddenFromTree($resource)) {
+            return [];
+        }
+
         $paths = [];
 
         $resourceMapping = $this->getResourceMenuMapping($resource);
@@ -637,6 +640,51 @@ class MagicPermission implements MagicPermissionInterface
         }
 
         return $paths;
+    }
+
+    private function isResourceHiddenFromTree(string $resource): bool
+    {
+        $hiddenResources = config('permission_menu.hidden_resource_keys', []);
+        if (! is_array($hiddenResources)) {
+            return false;
+        }
+
+        return in_array($resource, $hiddenResources, true);
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getCompatibleResources(string $resource): array
+    {
+        $mapping = config('permission_menu.resource_compatibility_mapping', []);
+        if (! is_array($mapping)) {
+            return [];
+        }
+
+        $compatibleResources = $mapping[$resource] ?? [];
+        if (! is_array($compatibleResources)) {
+            return [];
+        }
+
+        return array_values(array_filter($compatibleResources, static fn ($item): bool => is_string($item) && $item !== ''));
+    }
+
+    /**
+     * @param string[] $userPermissions
+     */
+    private function hasPermissionKeyWithCompatibility(string $resource, string $operation, array $userPermissions): bool
+    {
+        $resources = array_merge([$resource], $this->getCompatibleResources($resource));
+
+        foreach ($resources as $candidateResource) {
+            $candidatePermissionKey = $this->buildPermission($candidateResource, $operation);
+            if (in_array($candidatePermissionKey, $userPermissions, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -11,6 +11,7 @@ import {
 	Pencil,
 	Pin,
 	PinOff,
+	RefreshCw,
 	Search,
 	Trash2,
 	WandSparkles,
@@ -26,6 +27,13 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/shadcn-ui/dropdown-menu"
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "@/components/shadcn-ui/context-menu"
 import MagicEllipseWithTooltip from "@/components/base/MagicEllipseWithTooltip/MagicEllipseWithTooltip"
 import { cn } from "@/lib/utils"
 import usePaginatedTopics from "@/pages/superMagic/hooks/usePaginatedTopics"
@@ -34,7 +42,7 @@ import SuperMagicService from "@/pages/superMagic/services"
 import recordSummaryStore from "@/stores/recordingSummary"
 import ModeTag from "@/pages/superMagicMobile/components/HierarchicalWorkspacePopup/components/ModeTag"
 import type { Topic } from "../../../pages/Workspace/types"
-import { TopicMode } from "../../../pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import StatusIcon from "./StatusIcon"
 import { useTopicHistoryGroupedViewModel } from "./useTopicHistoryGroupedViewModel"
 import { resolveTopicTaskStatus } from "@/pages/superMagic/utils/topicHistory"
@@ -108,6 +116,7 @@ function TopicHistoryPanelContentInner({
 	const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState("")
 	const [hoveredTopicId, setHoveredTopicId] = useState<string | null>(null)
 	const [openMenuTopicId, setOpenMenuTopicId] = useState<string | null>(null)
+	const [openContextMenuTopicId, setOpenContextMenuTopicId] = useState<string | null>(null)
 	const [topicStatusPatches, setTopicStatusPatches] = useState<
 		Record<string, Pick<Topic, "task_status" | "status" | "has_unread">>
 	>({})
@@ -121,6 +130,7 @@ function TopicHistoryPanelContentInner({
 		displayTopics,
 		total: topicsTotalFromServer,
 		isLoading: isLoadingTopics,
+		isReloading: isReloadingTopics,
 		reload: reloadTopics,
 		reset: resetTopics,
 	} = usePaginatedTopics({
@@ -140,6 +150,10 @@ function TopicHistoryPanelContentInner({
 			),
 		[groups],
 	)
+	// 用 ref 暴露最新 visibleTopicIds，避免轮询 effect 因列表变化而重启（重启会立即触发一次 status 请求）
+	const visibleTopicIdsRef = useRef<string[]>(visibleTopicIds)
+	visibleTopicIdsRef.current = visibleTopicIds
+	const isTopicListBusy = isLoadingTopics || isReloadingTopics
 
 	useEffect(() => {
 		const timer = window.setTimeout(() => {
@@ -176,12 +190,39 @@ function TopicHistoryPanelContentInner({
 	}, [displayTopics])
 
 	useEffect(() => {
+		setTopicStatusPatches((previousValue) => {
+			let hasChanged = false
+			const nextValue = { ...previousValue }
+
+			displayTopics.forEach((topic) => {
+				const patch = previousValue[topic.id]
+				if (!patch) return
+				if (
+					patch.task_status === topic.task_status &&
+					patch.status === topic.status &&
+					patch.has_unread === topic.has_unread
+				)
+					return
+
+				nextValue[topic.id] = {
+					task_status: topic.task_status,
+					status: topic.status,
+					has_unread: topic.has_unread,
+				}
+				hasChanged = true
+			})
+
+			return hasChanged ? nextValue : previousValue
+		})
+	}, [displayTopics])
+
+	useEffect(() => {
 		if (!projectId) return
 
 		const pollerId = topicStatusPollerIdRef.current
 		statusPollingService.startTopicStatusPolling({
 			pollerId,
-			getTopicIds: () => visibleTopicIds,
+			getTopicIds: () => visibleTopicIdsRef.current,
 			onResult: (items) => {
 				setTopicStatusPatches((previousValue) => {
 					const nextValue = { ...previousValue }
@@ -200,12 +241,21 @@ function TopicHistoryPanelContentInner({
 		return () => {
 			statusPollingService.stopTopicStatusPolling(pollerId)
 		}
-	}, [projectId, visibleTopicIds])
+	}, [projectId])
 
 	function getTopicWithStatusPatch(topic: Topic): Topic {
 		const patch = topicStatusPatches[topic.id]
 		if (!patch) return topic
 		return { ...topic, ...patch }
+	}
+
+	function closeTopicActionMenus() {
+		setOpenMenuTopicId(null)
+		setOpenContextMenuTopicId(null)
+	}
+
+	function handleRefresh() {
+		reloadTopics()
 	}
 
 	async function handleTopicSelect(topic: Topic) {
@@ -232,7 +282,7 @@ function TopicHistoryPanelContentInner({
 
 		onSelectTopic(resolvedTopic)
 		setHoveredTopicId(null)
-		setOpenMenuTopicId(null)
+		closeTopicActionMenus()
 	}
 
 	function handleCreateTopicClick(event: MouseEvent<HTMLButtonElement>) {
@@ -331,6 +381,10 @@ function TopicHistoryPanelContentInner({
 							open={openMenuTopicId === topic.id}
 							onOpenChange={(nextOpen) => {
 								setOpenMenuTopicId(nextOpen ? topic.id : null)
+								if (nextOpen) {
+									setOpenContextMenuTopicId(null)
+									setHoveredTopicId(topic.id)
+								}
 							}}
 						>
 							<DropdownMenuTrigger asChild>
@@ -349,6 +403,7 @@ function TopicHistoryPanelContentInner({
 								align="end"
 								className="w-56"
 								onClick={(event) => event.stopPropagation()}
+								data-testid={`message-header-history-item-menu-topic-${topic.id}`}
 							>
 								<DropdownMenuItem
 									onClick={(event) => {
@@ -408,108 +463,207 @@ function TopicHistoryPanelContentInner({
 		const patchedTopic = getTopicWithStatusPatch(topic)
 		const isSelected = topic.id === selectedTopicId
 		const isMenuOpen = openMenuTopicId === topic.id
+		const isContextMenuOpen = openContextMenuTopicId === topic.id
 		// 已归档话题不开放置顶入口，避免用户对归档数据执行排序类操作。
 		const canShowPinAction = !topic.is_archived
 		const isActionVisible =
 			hoveredTopicId === topic.id ||
 			openMenuTopicId === topic.id ||
+			openContextMenuTopicId === topic.id ||
 			editingTopicId === topic.id
 
 		return (
-			<div
+			<ContextMenu
 				key={topic.id}
-				className={cn(
-					"group flex min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2.5 py-2 text-sm transition-colors",
-					isSelected && "bg-primary/10 hover:bg-primary/10",
-					!isSelected && isMenuOpen && "bg-sidebar-accent",
-					!isSelected && !isMenuOpen && "hover:bg-sidebar-accent",
-				)}
-				onClick={() => {
-					void handleTopicSelect(topic)
-				}}
-				onMouseEnter={() => setHoveredTopicId(topic.id)}
-				onMouseLeave={() => {
-					if (openMenuTopicId !== topic.id) {
-						setHoveredTopicId(null)
+				open={isContextMenuOpen}
+				onOpenChange={(nextOpen) => {
+					if (nextOpen) {
+						setOpenContextMenuTopicId(topic.id)
+						setOpenMenuTopicId(null)
+						setHoveredTopicId(topic.id)
+						return
+					}
+
+					setOpenContextMenuTopicId((previousValue) =>
+						previousValue === topic.id ? null : previousValue,
+					)
+					if (openMenuTopicId !== topic.id && editingTopicId !== topic.id) {
+						setHoveredTopicId((previousValue) =>
+							previousValue === topic.id ? null : previousValue,
+						)
 					}
 				}}
-				data-testid={`message-header-history-item-${topic.id}`}
-				data-selected={topic.id === selectedTopicId}
 			>
-				<div className="flex size-4 shrink-0 items-center justify-center">
-					{canShowPinAction && isActionVisible && editingTopicId !== topic.id ? (
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon"
-							className="size-4 rounded-none p-0 shadow-none hover:bg-transparent"
-							onClick={(event) => {
-								event.stopPropagation()
-								void handlePinToggle(topic)
-							}}
-							aria-label={
-								topic.is_pinned ? t("messageHeader.unpin") : t("messageHeader.pin")
+				<ContextMenuTrigger asChild>
+					<div
+						className={cn(
+							"group flex min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-md px-2.5 py-2 text-sm transition-colors",
+							isSelected && "bg-primary/10 hover:bg-primary/10",
+							!isSelected && (isMenuOpen || isContextMenuOpen) && "bg-sidebar-accent",
+							!isSelected &&
+								!isMenuOpen &&
+								!isContextMenuOpen &&
+								"hover:bg-sidebar-accent",
+						)}
+						onClick={() => {
+							void handleTopicSelect(topic)
+						}}
+						onContextMenu={(event) => {
+							event.stopPropagation()
+							setHoveredTopicId(topic.id)
+							setOpenMenuTopicId(null)
+						}}
+						onMouseEnter={() => setHoveredTopicId(topic.id)}
+						onMouseLeave={() => {
+							if (
+								openMenuTopicId !== topic.id &&
+								openContextMenuTopicId !== topic.id
+							) {
+								setHoveredTopicId(null)
 							}
-							data-testid={`message-header-history-item-pin-button-${topic.id}`}
-						>
-							{topic.is_pinned ? (
-								<PinOff className="size-4" />
+						}}
+						data-testid={`message-header-history-item-${topic.id}`}
+						data-selected={topic.id === selectedTopicId}
+					>
+						<div className="flex size-4 shrink-0 items-center justify-center">
+							{canShowPinAction && isActionVisible && editingTopicId !== topic.id ? (
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon"
+									className="size-4 rounded-none p-0 shadow-none hover:bg-transparent"
+									onClick={(event) => {
+										event.stopPropagation()
+										void handlePinToggle(topic)
+									}}
+									aria-label={
+										topic.is_pinned
+											? t("messageHeader.unpin")
+											: t("messageHeader.pin")
+									}
+									data-testid={`message-header-history-item-pin-button-${topic.id}`}
+								>
+									{topic.is_pinned ? (
+										<PinOff className="size-4" />
+									) : (
+										<Pin className="size-4" />
+									)}
+								</Button>
 							) : (
-								<Pin className="size-4" />
-							)}
-						</Button>
-					) : (
-						<StatusIcon status={resolveTopicTaskStatus(patchedTopic)} size={16} />
-					)}
-				</div>
-
-				<div className="min-w-0 flex-1">
-					{editingTopicId === topic.id ? (
-						<Input
-							ref={editInputRef}
-							className="h-7 min-w-0 rounded-lg border border-border bg-background px-3 text-sm leading-5 shadow-xs focus:border-border focus:outline-none focus:ring-0"
-							value={editingValue}
-							onChange={(event) => onEditingValueChange(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter") {
-									void handleEditSubmitAndRefresh(topic.id)
-								}
-
-								if (event.key === "Escape") {
-									event.preventDefault()
-									event.stopPropagation()
-									onEditCancel()
-								}
-							}}
-							onBlur={() => {
-								void handleEditSubmitAndRefresh(topic.id)
-							}}
-							onClick={(event) => event.stopPropagation()}
-							data-testid={`message-header-history-item-edit-input-${topic.id}`}
-						/>
-					) : (
-						<div className="flex min-w-0 items-center gap-2">
-							{!hideTopicListModeIcon ? (
-								<ModeTag
-									mode={topic.topic_mode || TopicMode.General}
-									agentCode={topic.agent_code}
+								<StatusIcon
+									status={resolveTopicTaskStatus(patchedTopic)}
+									size={16}
 								/>
-							) : null}
-							<MagicEllipseWithTooltip
-								text={topic.topic_name || t("messageHeader.untitledTopic")}
-								data-testid={`message-header-history-item-name-${topic.id}`}
-								placement="left"
-								className={cn(
-									"min-w-0 flex-1 truncate text-sm leading-5",
-									isSelected ? "text-foreground" : "text-sidebar-foreground",
-								)}
-							/>
+							)}
 						</div>
-					)}
-				</div>
 
-				{editingTopicId === topic.id ? null : renderTopicActions(topic, isActionVisible)}
-			</div>
+						<div className="min-w-0 flex-1">
+							{editingTopicId === topic.id ? (
+								<Input
+									ref={editInputRef}
+									className="h-7 min-w-0 rounded-lg border border-border bg-background px-3 text-sm leading-5 shadow-xs focus:border-border focus:outline-none focus:ring-0"
+									value={editingValue}
+									onChange={(event) => onEditingValueChange(event.target.value)}
+									onKeyDown={(event) => {
+										if (event.key === "Enter") {
+											void handleEditSubmitAndRefresh(topic.id)
+										}
+
+										if (event.key === "Escape") {
+											event.preventDefault()
+											event.stopPropagation()
+											onEditCancel()
+										}
+									}}
+									onBlur={() => {
+										void handleEditSubmitAndRefresh(topic.id)
+									}}
+									onClick={(event) => event.stopPropagation()}
+									data-testid={`message-header-history-item-edit-input-${topic.id}`}
+								/>
+							) : (
+								<div className="flex min-w-0 items-center gap-2">
+									{!hideTopicListModeIcon ? (
+										<ModeTag
+											mode={topic.topic_mode || TopicMode.General}
+											agentCode={topic.agent_code}
+										/>
+									) : null}
+									<MagicEllipseWithTooltip
+										text={topic.topic_name || t("messageHeader.untitledTopic")}
+										data-testid={`message-header-history-item-name-${topic.id}`}
+										placement="left"
+										className={cn(
+											"min-w-0 flex-1 truncate text-sm leading-5",
+											isSelected
+												? "text-foreground"
+												: "text-sidebar-foreground",
+										)}
+									/>
+								</div>
+							)}
+						</div>
+
+						{editingTopicId === topic.id
+							? null
+							: renderTopicActions(topic, isActionVisible)}
+					</div>
+				</ContextMenuTrigger>
+				<ContextMenuContent
+					className="w-56"
+					align="end"
+					onClick={(event) => event.stopPropagation()}
+					data-testid={`message-header-history-item-context-menu-topic-${topic.id}`}
+				>
+					<ContextMenuItem
+						onSelect={(event) => {
+							event.stopPropagation()
+							onEditTopic(topic)
+						}}
+						data-testid="message-header-history-item-rename"
+					>
+						<Pencil className="size-4 text-muted-foreground" />
+						{t("messageHeader.rename")}
+					</ContextMenuItem>
+					<ContextMenuItem
+						onSelect={(event) => {
+							event.stopPropagation()
+							void handleAiRenameAndRefresh(topic)
+						}}
+						data-testid="message-header-history-item-ai-rename"
+					>
+						<WandSparkles className="size-4 text-muted-foreground" />
+						{t("messageHeader.aiRename")}
+					</ContextMenuItem>
+					{!hideDeleteTopicButton ? (
+						<>
+							<ContextMenuSeparator />
+							<ContextMenuItem
+								variant="destructive"
+								disabled={
+									!canDeleteTopic || recordSummaryStore.isRecordingTopic(topic.id)
+								}
+								onSelect={(event) => {
+									event.stopPropagation()
+									onDeleteTopic(
+										topic.id,
+										topic.topic_name || t("messageHeader.untitledTopic"),
+										{
+											onSuccess: reloadTopics,
+										},
+									)
+								}}
+								data-testid="message-header-history-item-delete"
+							>
+								<Trash2 className="size-4" />
+								{t("button.delete", {
+									ns: "interface",
+								})}
+							</ContextMenuItem>
+						</>
+					) : null}
+				</ContextMenuContent>
+			</ContextMenu>
 		)
 	}
 
@@ -589,7 +743,7 @@ function TopicHistoryPanelContentInner({
 			data-testid="message-header-history-panel-container"
 		>
 			<div
-				className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-2.5 backdrop-blur-lg"
+				className="flex h-11 shrink-0 items-center border-b border-border bg-background/80 px-2.5 backdrop-blur-lg"
 				data-testid="message-header-history-toolbar"
 			>
 				<div
@@ -600,6 +754,20 @@ function TopicHistoryPanelContentInner({
 						count: topicsTotalFromServer,
 					})}
 				</div>
+				{onClose ? (
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon"
+						className="size-7 shrink-0 rounded-md"
+						disabled={isTopicListBusy}
+						onClick={handleRefresh}
+						aria-label={t("messageHeader.refreshTopics")}
+						data-testid="message-header-history-refresh-button"
+					>
+						<RefreshCw className={cn("size-4", isTopicListBusy && "animate-spin")} />
+					</Button>
+				) : null}
 				{onClose ? (
 					<Button
 						ref={closeButtonRef}

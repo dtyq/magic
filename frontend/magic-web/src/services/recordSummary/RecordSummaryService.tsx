@@ -26,12 +26,8 @@ import type {
 } from "@/types/recordSummary"
 import i18n from "i18next"
 import { GetRecordingSummaryResultResponse } from "@/apis/modules/superMagic/recordSummary"
-import {
-	Topic,
-	TopicMode,
-	Workspace,
-	ProjectListItem,
-} from "@/pages/superMagic/pages/Workspace/types"
+import { Topic, Workspace, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { ReportFileUploadsResponse } from "@/apis/modules/file"
@@ -3163,7 +3159,6 @@ class RecordSummaryService {
 		let shouldStopChecker = false
 
 		if (!this.recordingPersistence.hasRecoverableData()) {
-			console.log("checkRecordStatus no recoverable data")
 			recordSummaryStore.reset()
 			shouldStopChecker = true
 		}

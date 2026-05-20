@@ -160,9 +160,6 @@ The Platform reserves the right to amend this Agreement in accordance with chang
 ### 11.2 Effectiveness
 This Agreement becomes effective upon the user clicking the "Agree" button and is legally binding on both parties.
 
-### 11.3 Interpretation
-The Super Magic Platform (letsmagic.cn) retains final interpretation rights of this Agreement.
-
 ## Article 12: Contact Information
 
 For questions about this Agreement or assistance, please contact us at:

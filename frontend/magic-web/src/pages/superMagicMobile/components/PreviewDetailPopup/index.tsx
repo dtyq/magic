@@ -28,7 +28,6 @@ import { getAttachmentExtension } from "@/pages/superMagic/components/MessageLis
 import IconTerminal from "@/pages/superMagic/assets/svg/terminal.svg"
 import PDFIcon from "@/pages/superMagic/assets/file_icon/pdf.svg"
 import CommonFileIcon from "@/pages/superMagic/assets/svg/file.svg"
-import DesignIcon from "@/components/base/MagicFileIcon/assets/design.svg"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import type { Topic, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -376,7 +375,7 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 			case DetailType.FileTree:
 				return <ToolIcon type="list_dir" />
 			case DetailType.Design:
-				return <img src={DesignIcon} width={20} height={20} alt="design" />
+				return <MagicFileIcon type="design" size={20} />
 			case DetailType.Deleted:
 				return <MagicFileIcon type={file_extension} size={20} />
 			case DetailType.NotSupport:

@@ -54,8 +54,8 @@ export interface CanvasConfig {
 	element: HTMLDivElement
 	/** 交互作用域根节点，仅在该范围内处理画布外点击 */
 	scopeElement?: HTMLElement
-	/** 画布唯一标识，用于跨画布粘贴校验 */
-	id?: string
+	/** 设计项目 ID，用于隔离画布级缓存、SW 离线资源与跨画布粘贴校验 */
+	id: string
 	/** 默认只读模式 */
 	defaultReadyonly?: boolean
 	/** Magic 配置 */

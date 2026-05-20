@@ -48,6 +48,7 @@ class TaskFileModel extends AbstractModel
         'source', // 来源字段：1-首页，2-项目目录，3-agent
         'latest_version', // 版本号，用于内容版本管理
         'metadata_version', // 元数据版本号，用于 MagicFS 缓存失效检测（包含重命名、移动等操作）
+        'space_type', // 文件所属空间类型：project-项目，user-用户
         'created_at',
         'updated_at',
         'deleted_at',

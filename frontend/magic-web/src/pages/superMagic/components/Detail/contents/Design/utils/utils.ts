@@ -1155,6 +1155,30 @@ export function resolveDesignProjectBasePathFromAttachments(options: {
 }
 
 /**
+ * 解析当前画布目录名称，供加载后的内存态名称对齐与保存前名称同步复用。
+ */
+export function resolveDesignDirectoryNameFromAttachments(options: {
+	currentFile?: { id?: string; name?: string }
+	flatAttachments?: FileItem[]
+	attachments?: FileItem[]
+	projectPath?: string
+}): string | undefined {
+	const { currentFile, flatAttachments, attachments, projectPath } = options
+	const actualCurrentFile = resolveActualDesignCurrentFile({
+		currentFile,
+		flatAttachments,
+		attachments,
+		projectPath,
+	})
+	if (!actualCurrentFile) return undefined
+	const list =
+		flatAttachments && flatAttachments.length > 0 ? flatAttachments : (attachments ?? [])
+	if (!list.length) return undefined
+	const info = getDesignDirectoryInfo(actualCurrentFile, list)
+	return info.name || undefined
+}
+
+/**
  * 画布加载后把图层里的旧绝对路径（如 `/画布名/images/x`）统一为 `./images/x`（与落盘规则一致，就地改写内存数据）
  */
 export function normalizeDesignDataPathsAfterLoad(

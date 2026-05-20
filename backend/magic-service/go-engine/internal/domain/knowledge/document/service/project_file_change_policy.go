@@ -275,6 +275,7 @@ func buildProjectFileBindingResyncRequests(
 				OrganizationCode: existing.OrganizationCode,
 				UserID:           strings.TrimSpace(binding.UserID),
 				BusinessID:       existing.KnowledgeBaseCode,
+				SourceID:         ctxmeta.SourceIDFragmentSaved,
 			},
 			SourceOverride: CloneProjectSourceOverride(override),
 		})
@@ -298,6 +299,7 @@ func buildProjectFileDocResyncRequests(docs []*docentity.KnowledgeBaseDocument, 
 				OrganizationCode: strings.TrimSpace(doc.OrganizationCode),
 				UserID:           ResolveMappedDocumentUserID(doc),
 				BusinessID:       strings.TrimSpace(doc.KnowledgeBaseCode),
+				SourceID:         ctxmeta.SourceIDFragmentSaved,
 			},
 			SourceOverride: CloneProjectSourceOverride(override),
 		})

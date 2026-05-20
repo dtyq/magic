@@ -1,5 +1,5 @@
 import { makeAutoObservable, computed, reaction } from "mobx"
-import { TopicMode } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import ProjectTopicService from "@/services/superMagic/ProjectTopicService"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { interfaceStore } from "@/stores/interface"

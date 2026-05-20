@@ -229,16 +229,22 @@ export class SelectionTool extends BaseTool {
 			currentNode = currentNode.getParent()
 		}
 
-		// 检查是否点击了有效的元素（含视频等内部 listening 子节点，需沿父链解析根 Group id）
+		const elementId = resolveManagedElementIdFromKonvaNode(clickedNode, this.canvas)
+		const isMultiSelect = isMultiSelectEvent(e.evt)
 		const isValidElement = this.isValidElementNode(clickedNode)
+		const elementData = elementId
+			? this.canvas.elementManager.getElementData(elementId)
+			: undefined
+		// 多选：若元素因权限等原因不可被「新选中」，仍应允许对已选中项 toggle 取消选中
+		const allowModifierDeselect =
+			isMultiSelect &&
+			this.isElementHitTargetNode(clickedNode) &&
+			elementId !== undefined &&
+			this.canvas.selectionManager.isSelected(elementId) &&
+			!this.canvas.permissionManager.canSelect(elementData)
 
-		if (isValidElement) {
-			const elementId = resolveManagedElementIdFromKonvaNode(clickedNode, this.canvas)
-
+		if (isValidElement || allowModifierDeselect) {
 			if (elementId) {
-				// 检查是否按住 Cmd/Ctrl 键（多选）
-				const isMultiSelect = isMultiSelectEvent(e.evt)
-
 				if (isMultiSelect) {
 					// 多选模式：切换选中状态
 					this.canvas.selectionManager.toggle(elementId)
@@ -269,7 +275,6 @@ export class SelectionTool extends BaseTool {
 				return
 			}
 
-			const isMultiSelect = isMultiSelectEvent(e.evt)
 			if (!isMultiSelect) {
 				this.canvas.selectionManager.deselectAll()
 			}
@@ -290,7 +295,6 @@ export class SelectionTool extends BaseTool {
 		if (!pos) return
 
 		// 清空选中（如果没有按住 Cmd/Ctrl）
-		const isMultiSelect = isMultiSelectEvent(e.evt)
 		this.isMultiSelectMode = isMultiSelect // 记录多选模式
 		if (!isMultiSelect) {
 			this.canvas.selectionManager.deselectAll()
@@ -456,22 +460,17 @@ export class SelectionTool extends BaseTool {
 	}
 
 	/**
-	 * 判断节点是否是有效的可选中元素
-	 * @param node - Konva 节点
-	 * @returns 是否是有效元素
+	 * 命中目标是否落在「可解析为画布元素」的 Konva 节点上（不含权限与是否已注册为元素的判定）
 	 */
-	private isValidElementNode(node: Konva.Node): boolean {
-		// 排除 Stage
+	private isElementHitTargetNode(node: Konva.Node): boolean {
 		if (node === this.canvas.stage) {
 			return false
 		}
 
-		// 排除 Layer
 		if (node.getClassName() === "Layer") {
 			return false
 		}
 
-		// 排除 Transformer 及其子元素
 		if (
 			node.getClassName() === "Transformer" ||
 			node.getParent()?.getClassName() === "Transformer"
@@ -479,8 +478,20 @@ export class SelectionTool extends BaseTool {
 			return false
 		}
 
-		// 排除框选工具矩形
 		if (node.name() === "selection-tool-rect") {
+			return false
+		}
+
+		return true
+	}
+
+	/**
+	 * 判断节点是否是有效的可选中元素
+	 * @param node - Konva 节点
+	 * @returns 是否是有效元素
+	 */
+	private isValidElementNode(node: Konva.Node): boolean {
+		if (!this.isElementHitTargetNode(node)) {
 			return false
 		}
 

@@ -14,4 +14,5 @@ return [
     'name_is_required' => 'File name is required',
     'parent_not_directory' => 'Parent is not a directory',
     'file_already_exists_in_target' => 'A file with the same name already exists in the target directory',
+    'space_type_is_required' => 'Space type is required',
 ];

@@ -1,7 +1,4 @@
-import type {
-	Collaborator,
-	ProjectListItem,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { Collaborator, ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 
 /**
  * Open-source stub: collaboration panel is enterprise-only.
@@ -19,7 +16,7 @@ function useCollaboratorUpdatePanel({
 		is_collaboration_enabled: false,
 		default_join_permission: "viewer" as const,
 	}
-	const openManageModal = () => { }
+	const openManageModal = () => {}
 	const CollaboratorUpdatePanel = null
 
 	return {

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from agentlang.config import model_config_utils
+from agentlang.config.models.model_config import model_config_utils
 from agentlang.logger import get_logger
 from agentlang.llms.token_usage.models import TokenUsage  # 导入统一的 TokenUsage 类
 

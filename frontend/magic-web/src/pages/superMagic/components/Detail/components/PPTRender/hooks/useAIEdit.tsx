@@ -7,6 +7,7 @@ import {
 	IconLanguage,
 	IconFileTextSpark,
 } from "@tabler/icons-react"
+import { Crosshair } from "lucide-react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 
 interface AIEditItem {
@@ -25,10 +26,12 @@ interface UseAIEditOptions {
 		file_extension?: string
 	}
 	onActionComplete?: () => void
+	/** Trigger element inspector (HTML-only). When provided, a "Select Element" item is shown. */
+	onStartInspector?: () => void
 }
 
 export function useAIEdit(options: UseAIEditOptions = {}) {
-	const { currentFile, onActionComplete } = options
+	const { currentFile, onActionComplete, onStartInspector } = options
 	const { t } = useTranslation("super")
 
 	// Base content structure for file mention
@@ -214,8 +217,24 @@ export function useAIEdit(options: UseAIEditOptions = {}) {
 				}),
 				description: t("topicFiles.customDescription"),
 			},
+			...(onStartInspector
+				? [
+						{
+							key: "selectElement",
+							label: t("topicFiles.selectElement", "选取元素进行编辑"),
+							icon: <Crosshair size={16} />,
+							onClick: createAction(() => {
+								onStartInspector()
+							}),
+							description: t(
+								"topicFiles.selectElementDescription",
+								"点击选取页面中的元素，将其样式信息自动填入到对话框",
+							),
+						} satisfies AIEditItem,
+					]
+				: []),
 		],
-		[t, createAction, insertContentToChat],
+		[t, createAction, insertContentToChat, onStartInspector],
 	)
 
 	return {

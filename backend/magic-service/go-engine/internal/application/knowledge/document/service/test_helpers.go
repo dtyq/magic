@@ -349,6 +349,23 @@ func (c documentDomainServiceCompat) ListRealtimeByProjectFileInOrg(ctx context.
 	return c.ListByProjectFileInOrg(ctx, organizationCode, projectFileID)
 }
 
+func (c documentDomainServiceCompat) ListRealtimeByProjectFilesAndSourceBindingsInOrg(
+	ctx context.Context,
+	organizationCode string,
+	projectFileIDs []int64,
+	_ []int64,
+) ([]*docentity.KnowledgeBaseDocument, error) {
+	docs := make([]*docentity.KnowledgeBaseDocument, 0)
+	for _, projectFileID := range projectFileIDs {
+		list, err := c.ListByProjectFileInOrg(ctx, organizationCode, projectFileID)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, list...)
+	}
+	return docs, nil
+}
+
 func (c documentDomainServiceCompat) HasRealtimeProjectFileDocumentInOrg(ctx context.Context, organizationCode string, projectFileID int64) (bool, error) {
 	docs, err := c.ListRealtimeByProjectFileInOrg(ctx, organizationCode, projectFileID)
 	if err != nil {

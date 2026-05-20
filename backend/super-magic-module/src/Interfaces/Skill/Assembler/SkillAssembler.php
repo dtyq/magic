@@ -360,6 +360,7 @@ class SkillAssembler
                 version: $version->getVersion(),
                 publishStatus: $version->getPublishStatus()->value,
                 reviewStatus: $version->getReviewStatus()->value ?? '',
+                reviewRemark: $version->getReviewRemark(),
                 publishTargetType: $version->getPublishTargetType()->value,
                 publisher: OperatorAssembler::createOperatorDTOByUserEntity($userMap[$version->getPublisherUserId() ?? ''] ?? null, $version->getPublishedAt() ?? $version->getCreatedAt()),
                 publishedAt: $version->getPublishedAt(),

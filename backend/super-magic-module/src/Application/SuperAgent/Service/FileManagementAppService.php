@@ -310,7 +310,8 @@ class FileManagementAppService extends AbstractAppService
             $this->dispatchFileUploadedEvent($savedEntity, $userAuthorization);
 
             // 返回保存结果
-            return TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir())->toArray();
+            $relativeFilePath = $this->buildRelativeFilePathForEntity($savedEntity, $projectEntity->getId());
+            return TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir(), $relativeFilePath)->toArray();
         } catch (BusinessException $e) {
             // 捕获业务异常（ExceptionBuilder::throw 抛出的异常）
             Db::rollBack();
@@ -409,7 +410,8 @@ class FileManagementAppService extends AbstractAppService
                         )
                     );
 
-                    $savedFileIds[] = TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir());
+                    $relativeFilePath = $this->buildRelativeFilePathForEntity($savedEntity, $projectEntity->getId());
+                    $savedFileIds[] = TaskFileItemDTO::fromEntity($savedEntity, $projectEntity->getWorkDir(), $relativeFilePath);
                     $savedEntities[] = $savedEntity; // Store entity for later check
                 } catch (Throwable $e) {
                     $this->logger->warning(sprintf(

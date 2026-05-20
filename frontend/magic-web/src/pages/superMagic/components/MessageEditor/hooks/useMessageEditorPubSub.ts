@@ -130,21 +130,23 @@ function useMessageEditorPubSub({
 	}, [handleAddContent])
 
 	useEffect(() => {
-		const handleSetInputMessage = (message: string) => {
-			if (typeof message !== "string") return
+		const handleSetInputMessage = (message: string | string[] | JSONContent) => {
+			// JSONContent object — use directly
+			if (typeof message === "object" && !Array.isArray(message) && message !== null) {
+				updateContent(message)
+				safeEditorFocus(editor)
+				return
+			}
+			const lines = Array.isArray(message) ? message : [message]
+			if (lines.length === 0) return
+			const inlineNodes: JSONContent[] = []
+			lines.forEach((line, i) => {
+				if (i > 0) inlineNodes.push({ type: "hardBreak" })
+				if (line) inlineNodes.push({ type: "text", text: line })
+			})
 			const content: JSONContent = {
 				type: "doc",
-				content: [
-					{
-						type: "paragraph",
-						content: [
-							{
-								type: "text",
-								text: message,
-							},
-						],
-					},
-				],
+				content: [{ type: "paragraph", content: inlineNodes }],
 			}
 			updateContent(content)
 			safeEditorFocus(editor)

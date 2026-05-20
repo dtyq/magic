@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Check, CirclePlus, Loader2, SlidersHorizontal } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
@@ -27,7 +27,6 @@ import {
 import { MyCrewStore } from "./stores/my-crew"
 import CreatedCrewCard from "./components/CreatedCrewCard"
 import HiredCrewCard from "./components/HiredCrewCard"
-import { MyCrewManageSortingDialog } from "./components/MyCrewManageSortingDialog"
 import MyCrewCrewTypeTabs from "./components/MyCrewCrewTypeTabs"
 import type { MyCrewView } from "@/services/crew/CrewService"
 import {
@@ -36,6 +35,12 @@ import {
 	resolveMyCrewHiredActionKind,
 } from "./components/my-crew-card-shared"
 import { useMyCrewTabs } from "./hooks/useMyCrewTabs"
+
+const MyCrewManageSortingDialog = lazy(() =>
+	import("./components/MyCrewManageSortingDialog").then((module) => ({
+		default: module.MyCrewManageSortingDialog,
+	})),
+)
 
 function MyCrewPage() {
 	const { t } = useTranslation("crew/market")
@@ -226,10 +231,14 @@ function MyCrewPage() {
 
 	return (
 		<>
-			<MyCrewManageSortingDialog
-				open={isSortingDialogOpen}
-				onOpenChange={setIsSortingDialogOpen}
-			/>
+			{isSortingDialogOpen ? (
+				<Suspense fallback={null}>
+					<MyCrewManageSortingDialog
+						open={isSortingDialogOpen}
+						onOpenChange={setIsSortingDialogOpen}
+					/>
+				</Suspense>
+			) : null}
 			<CrewDetailDialog
 				open={selectedAgent != null}
 				onOpenChange={(open) => {

@@ -1,4 +1,4 @@
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { initializeService } from "@/services/recordSummary/serviceInstance"
 import recordSummaryStore from "@/stores/recordingSummary"

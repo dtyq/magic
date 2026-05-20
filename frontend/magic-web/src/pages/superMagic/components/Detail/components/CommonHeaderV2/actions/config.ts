@@ -10,6 +10,7 @@ export const DEFAULT_ACTION_KEYS_BY_TYPE: Record<string, ActionKey[]> = {
 	[DetailType.Md]: ["viewMode", "refresh", "download", "copy", "share", "fullscreen", "more"],
 	[DetailType.Pdf]: ["refresh", "download", "share", "fullscreen", "more"],
 	[DetailType.Docx]: ["refresh", "download", "share", "fullscreen", "more"],
+	[DetailType.Doc]: ["refresh", "download", "share", "fullscreen", "more"],
 	[DetailType.Excel]: ["refresh", "download", "share", "fullscreen", "more"],
 	[DetailType.PowerPoint]: ["refresh", "download", "share", "fullscreen", "more"],
 	[DetailType.Image]: ["refresh", "download", "share", "fullscreen", "more"],

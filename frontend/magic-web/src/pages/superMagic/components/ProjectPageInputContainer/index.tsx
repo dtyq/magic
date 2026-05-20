@@ -57,6 +57,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 	editorLayoutConfig,
 	showTopicModeExamplePortal = true,
 	enableReEditMessageFromPubSub = false,
+	onSendComplete,
 }) => {
 	const isMobile = useIsMobile()
 	const { taskData: taskDataFromStore } = useTaskData({ selectedTopic })
@@ -218,6 +219,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 				setIsFocused(false)
 				onEditorBlur?.()
 			},
+			onSendComplete,
 			queueContext: {
 				editingQueueItem: messageQueue.editingQueueItem,
 				addToQueue: messageQueue.addToQueue,
@@ -254,6 +256,7 @@ const ProjectPageInputContainerComponent: React.FC<ProjectPageInputContainerProp
 		showTopicModeExamplePortal,
 		onEditorFocus,
 		onEditorBlur,
+		onSendComplete,
 	])
 
 	usePreload()

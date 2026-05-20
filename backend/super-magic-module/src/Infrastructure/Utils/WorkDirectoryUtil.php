@@ -27,6 +27,22 @@ class WorkDirectoryUtil
         return self::getRootDir($userId, $projectId) . '/workspace';
     }
 
+    /**
+     * 用户空间根目录（不含 workspace 子目录），与 project 维度的 getRootDir 对齐。
+     */
+    public static function getUserRootDir(string $userId): string
+    {
+        return sprintf('user_%s', $userId);
+    }
+
+    /**
+     * 用户空间工作目录：user_{userId}/workspace，与 project 维度的 getWorkDir 对齐。
+     */
+    public static function getUserWorkDir(string $userId): string
+    {
+        return self::getUserRootDir($userId) . '/workspace';
+    }
+
     public static function generateDefaultWorkDirMetadata(): array
     {
         // x-amz-meta-

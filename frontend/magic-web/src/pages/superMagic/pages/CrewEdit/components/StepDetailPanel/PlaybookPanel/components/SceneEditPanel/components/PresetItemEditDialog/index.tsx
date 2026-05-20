@@ -34,6 +34,7 @@ interface PresetItemFormState {
 	// Stores _key of the default option (not opt.value, which is user-editable)
 	default_key: string
 	preset_content: LocaleText
+	placeholder: LocaleText
 }
 
 interface PresetItemEditDialogProps {
@@ -48,6 +49,7 @@ const EMPTY_FORM: PresetItemFormState = {
 	options: [],
 	default_key: "",
 	preset_content: "",
+	placeholder: "",
 }
 
 function itemToForm(item: FieldItem): PresetItemFormState {
@@ -68,6 +70,7 @@ function itemToForm(item: FieldItem): PresetItemFormState {
 		options,
 		default_key: defaultOpt?._key ?? "",
 		preset_content: item.preset_content ?? "",
+		placeholder: item.placeholder ?? "",
 	}
 }
 
@@ -170,6 +173,7 @@ export function PresetItemEditDialog({
 			preset_content: isLocaleTextEmpty(form.preset_content)
 				? undefined
 				: form.preset_content,
+			placeholder: isLocaleTextEmpty(form.placeholder) ? undefined : form.placeholder,
 		})
 		onOpenChange(false)
 	}
@@ -295,6 +299,21 @@ export function PresetItemEditDialog({
 							localizeLabel={t("playbook.edit.presets.form.presetContent")}
 							data-testid="preset-item-content"
 						/>
+					</FormRow>
+
+					{/* Placeholder */}
+					<FormRow label={t("playbook.edit.presets.form.placeholder")} alignTop>
+						<div className="flex flex-1 flex-col gap-1">
+							<LocaleTextInput
+								value={form.placeholder}
+								onChange={(placeholder) =>
+									setForm((prev) => ({ ...prev, placeholder }))
+								}
+								placeholder={t("playbook.edit.presets.form.placeholderHint")}
+								localizeLabel={t("playbook.edit.presets.form.placeholder")}
+								data-testid="preset-item-placeholder-input"
+							/>
+						</div>
 					</FormRow>
 				</div>
 

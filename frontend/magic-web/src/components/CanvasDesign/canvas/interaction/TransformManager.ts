@@ -5,6 +5,8 @@ import type { Box } from "konva/lib/shapes/Transformer"
 import { getKeepRatioAspectRatio, isEdgeAnchor, applyAspectRatioToBoundBox } from "./anchorUtils"
 import { STANDARD_TRANSFORMER_STYLE } from "./FrameEditorShared"
 import type { Rect } from "../utils/utils"
+import { pickSelectedElementIdAtStagePointer } from "./elementNodeUtils"
+import { isMultiSelectEvent } from "./shortcuts/modifierUtils"
 
 /**
  * 变换行为类型
@@ -62,6 +64,26 @@ export class TransformManager {
 		}
 	> = new Map()
 	private isProxyInteractionActive = false
+
+	private readonly handleMultiSelectionProxyModifierClick = (
+		e: Konva.KonvaEventObject<MouseEvent>,
+	): void => {
+		if (this.canvas.readonly || !isMultiSelectEvent(e.evt)) {
+			return
+		}
+
+		const pos = this.canvas.stage.getPointerPosition()
+		if (!pos) {
+			return
+		}
+
+		const elementId = pickSelectedElementIdAtStagePointer(this.canvas, pos)
+		if (!elementId) {
+			return
+		}
+
+		this.canvas.selectionManager.toggle(elementId)
+	}
 
 	constructor(options: { canvas: Canvas }) {
 		const { canvas } = options
@@ -665,6 +687,7 @@ export class TransformManager {
 			if (!selectionBounds) return
 			this.multiSelectionProxy = this.createMultiSelectionProxy(selectionBounds)
 			this.bindMultiSelectionContextMenu(this.multiSelectionProxy)
+			this.multiSelectionProxy.on("click", this.handleMultiSelectionProxyModifierClick)
 			this.multiSelectionProxy.on("dragstart", () => this.handleTransformerDragstart())
 			this.multiSelectionProxy.on("dragmove", () => this.handleTransformerDragmove())
 			this.multiSelectionProxy.on("dragend", () => this.handleTransformerDragend())
@@ -856,6 +879,7 @@ export class TransformManager {
 			this.multiSelectionProxy.off("dragstart")
 			this.multiSelectionProxy.off("dragmove")
 			this.multiSelectionProxy.off("dragend")
+			this.multiSelectionProxy.off("click", this.handleMultiSelectionProxyModifierClick)
 			this.multiSelectionProxy.off("contextmenu")
 			this.multiSelectionProxy.destroy()
 			this.multiSelectionProxy = null

@@ -1,5 +1,5 @@
 import { userStore } from "@/models/user"
-import { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { platformKey } from "@/utils/storage"
 import superMagicModeService from "./SuperMagicModeService"
 import DefaultTopicModeStorageService from "./DefaultTopicModeStorageService"

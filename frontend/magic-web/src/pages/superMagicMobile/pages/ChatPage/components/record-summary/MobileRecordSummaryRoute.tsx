@@ -6,6 +6,8 @@ import type {
 } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
 import RecordSummaryEditorContainer from "@/pages/superMagic/components/MainInputContainer/components/editors/RecordSummaryEditorContainer"
 import { useCurrentSceneConfig } from "@/pages/superMagic/components/MainInputContainer/hooks/useCurrentSceneConfig"
+import { useSceneSelection } from "@/pages/superMagic/components/MainInputContainer/hooks"
+import { sceneStateStore } from "@/pages/superMagic/components/MainInputContainer/stores"
 import { RecordingSummaryEditorMode } from "@/pages/superMagic/components/MessagePanel/const/recordSummary"
 import useRecordingSummaryEditorMode from "@/pages/superMagic/components/MessagePanel/hooks/useRecordingSummaryEditorMode"
 import useResolvedEditorStore from "@/pages/superMagic/components/MessageEditor/hooks/useResolvedEditorStore"
@@ -13,6 +15,7 @@ import { MessageEditorStoreProvider } from "@/pages/superMagic/components/Messag
 import { projectStore, topicStore } from "@/pages/superMagic/stores/core"
 import { roleStore } from "@/pages/superMagic/stores"
 import type { SceneItem } from "@/pages/superMagic/types/skill"
+import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import MobileComposer from "../mobile-composer/MobileComposer"
 import MobileComposerHeader from "../mobile-composer/MobileComposerHeader"
 import MobileScenePanels from "../mobile-composer/MobileScenePanels"
@@ -31,13 +34,31 @@ function MobileRecordSummaryRouteComponent({
 	const selectedTopic = editorContext.selectedTopic ?? topicStore.selectedTopic
 	const selectedProject = editorContext.selectedProject ?? projectStore.selectedProject
 	const effectiveTopicMode = editorContext.topicMode ?? roleStore.currentRole
+	const effectiveScenes =
+		scenes ??
+		superMagicModeService.getModeConfigWithLegacy(
+			effectiveTopicMode,
+			undefined,
+			false,
+			editorContext.agentCode ?? selectedTopic?.agent_code,
+		)?.mode.playbooks
+	const { hasOnlyScene } = useSceneSelection({
+		scenes: effectiveScenes,
+		sceneStateStore,
+	})
 	const { editorMode } = useRecordingSummaryEditorMode({
 		selectedTopic,
 		hasMessage: (editorContext.messagesLength ?? 0) > 0,
 	})
-	const { placeholder } = useCurrentSceneConfig({
+	const {
+		placeholder,
+		panels: currentScenePanels,
+		isLoading: isScenePanelLoading,
+	} = useCurrentSceneConfig({
 		topicMode: editorContext.topicMode,
 	})
+	const hasScenePanels = isScenePanelLoading || currentScenePanels.length > 0
+	const shouldRenderPanelsInHeader = hasOnlyScene || (!effectiveScenes?.length && hasScenePanels)
 	const { store } = useResolvedEditorStore({
 		mentionPanelStore: editorContext.mentionPanelStore,
 		projectFilesStore: editorContext.projectFilesStore,
@@ -52,6 +73,9 @@ function MobileRecordSummaryRouteComponent({
 		}),
 		[editorContext, placeholder],
 	)
+	const headerScenePanelsNode = shouldRenderPanelsInHeader ? (
+		<MobileScenePanels editorContext={routeEditorContext} compact />
+	) : null
 
 	if (editorMode === RecordingSummaryEditorMode.Editing) {
 		return (
@@ -66,7 +90,7 @@ function MobileRecordSummaryRouteComponent({
 					<MobileComposer
 						editorContext={routeEditorContext}
 						editorNodes={editorNodes}
-						scenes={scenes}
+						scenes={effectiveScenes}
 					/>
 				</div>
 			</div>
@@ -80,11 +104,12 @@ function MobileRecordSummaryRouteComponent({
 				data-testid="mobile-record-summary-route"
 			>
 				<MobileComposerHeader
-					scenes={scenes}
+					scenes={effectiveScenes}
 					selectedTopic={selectedTopic}
 					selectedProject={selectedProject}
 					topicMode={effectiveTopicMode}
 					agentCode={editorContext.agentCode ?? selectedTopic?.agent_code}
+					sceneControlNode={headerScenePanelsNode}
 					onModeChange={editorContext.setTopicMode}
 				/>
 
@@ -93,7 +118,9 @@ function MobileRecordSummaryRouteComponent({
 					data-testid="mobile-record-summary-card"
 				>
 					<div className="border-b border-border px-3 pb-2 pt-2 [&:empty]:hidden">
-						<MobileScenePanels editorContext={routeEditorContext} />
+						{shouldRenderPanelsInHeader ? null : (
+							<MobileScenePanels editorContext={routeEditorContext} />
+						)}
 					</div>
 					<RecordSummaryEditorContainer
 						editorContext={routeEditorContext}

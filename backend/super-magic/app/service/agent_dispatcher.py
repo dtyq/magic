@@ -35,6 +35,14 @@ from app.core.base_service import Base
 logger = get_logger(__name__)
 
 
+class AgentLoadFailedError(RuntimeError):
+    """Raised when a user-selected employee agent cannot be loaded."""
+
+    def __init__(self, agent_code: str):
+        self.agent_code = agent_code
+        super().__init__(f"failed to load employee agent: {agent_code}")
+
+
 class AgentDispatcher(Base):
     SERVICE_TYPE = "dispatcher"
     TRACE_EXCLUDE_METHODS = {"get_instance"}
@@ -166,6 +174,14 @@ class AgentDispatcher(Base):
         # 保存初始化消息到文件
         from app.utils.init_client_message_util import InitClientMessageUtil
         await InitClientMessageUtil.save_init_client_message(init_message)
+
+        # 阶段二：init_client_message.json 已就绪，触发 magic-service 模型列表加载
+        try:
+            from agentlang.config.models.model_config_manager import model_config_manager
+            from app.core.model_providers.magic_service_provider import MagicServiceProvider
+            await model_config_manager.refresh_provider(MagicServiceProvider())
+        except Exception as e:
+            logger.error(f"MagicServiceProvider refresh failed, continuing without it: {e}")
 
         # 从 init_message.metadata 提取并设置关键字段
         if init_message.metadata:
@@ -311,6 +327,8 @@ class AgentDispatcher(Base):
         logger.info(f"首次创建主 Agent: {agent_type}")
         agent = await self.agent_service.create_agent(agent_type, self.agent_context)
         if agent is None:
+            if agent_code and agent_type == agent_code.strip():
+                raise AgentLoadFailedError(agent_code.strip())
             raise RuntimeError(f"failed to create agent: {agent_type}")
 
         self.agents[agent_type] = agent
@@ -463,6 +481,8 @@ class AgentDispatcher(Base):
                 await self._prepare_claw_agent(agent_code)
         except Exception as e:
             logger.error(f"Agent preparation failed (mode={agent_mode}, code={agent_code}): {e}")
+            if agent_code:
+                raise AgentLoadFailedError(agent_code) from e
             logger.info("Falling back to default agent profile")
 
     @staticmethod
@@ -577,6 +597,24 @@ class AgentDispatcher(Base):
             await self.dispatch_message(message)
         except asyncio.CancelledError:
             raise
+        except AgentLoadFailedError as e:
+            logger.error(f"[AgentDispatcher] agent load failed: {e}")
+            try:
+                if self.agent_context:
+                    final_task_state = build_final_task_state(
+                        FinalTaskStateCode.AGENT_LOAD_FAILED,
+                        i18n_params={"agent_code": e.agent_code},
+                    )
+                    self.agent_context.set_final_task_state(final_task_state)
+                    await self.agent_context.dispatch_event(
+                        EventType.ERROR,
+                        ErrorEventData(
+                            agent_context=self.agent_context,
+                            final_task_state=final_task_state,
+                        ),
+                    )
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"[AgentDispatcher] dispatch task failed: {e}")
             import traceback
@@ -625,6 +663,16 @@ class AgentDispatcher(Base):
                 )
                 return
 
+        # 确保 magic-service 模型列表已加载（兜底：防止未经 initialize_workspace 路径就发起 chat）
+        # 若已加载则跳过；未加载则同步触发一次，之后按 RefreshPolicy 策略在后台定期刷新。
+        try:
+            from agentlang.config.models.model_config_manager import model_config_manager
+            from app.core.model_providers.magic_service_provider import MagicServiceProvider
+            provider = MagicServiceProvider()
+            await model_config_manager.ensure_provider_loaded(provider)
+            model_config_manager.maybe_refresh_in_background(provider.provider_type)
+        except Exception as e:
+            logger.warning(f"dispatch_message: model provider check failed, continuing: {e}")
 
         await self._fill_from_last_dispatch_message(message)
 

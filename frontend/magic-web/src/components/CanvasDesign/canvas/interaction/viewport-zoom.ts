@@ -125,6 +125,33 @@ function getStepPrecision(step: number): number {
 }
 
 /**
+ * 绝对百分比档位上的下一档，用整数桶避免 `0.3/0.1 === 2.999…` 导致 Math.floor 少一档。
+ */
+function nextAbsolutePercentDiscrete(
+	currentPercent: number,
+	absoluteStep: number,
+	direction: 1 | -1,
+	minPercent: number,
+): number {
+	const precision = getStepPrecision(absoluteStep)
+	const factor = 10 ** precision
+	const curInt = Math.round(currentPercent * factor)
+	const stepInt = Math.round(absoluteStep * factor)
+	if (stepInt <= 0) {
+		if (direction > 0) return currentPercent + absoluteStep
+		return Math.max(minPercent, currentPercent - absoluteStep)
+	}
+
+	if (direction > 0) {
+		const bucket = Math.floor(curInt / stepInt)
+		return ((bucket + 1) * stepInt) / factor
+	}
+
+	const bucket = Math.ceil(curInt / stepInt)
+	return Math.max(minPercent, ((bucket - 1) * stepInt) / factor)
+}
+
+/**
  * 按语义与离散百分比步进计算下一档 raw scale。
  */
 export function getNextZoomScale(options: {
@@ -150,13 +177,12 @@ export function getNextZoomScale(options: {
 	const currentPercent = rawScale * 100
 	const minPercent = Math.max(0, minScale * 100)
 	const absoluteStep = getAbsolutePercentStep(currentPercent, stepPercent)
-	const nextPercent =
-		direction > 0
-			? Math.floor(currentPercent / absoluteStep) * absoluteStep + absoluteStep
-			: Math.max(
-					minPercent,
-					Math.ceil(currentPercent / absoluteStep) * absoluteStep - absoluteStep,
-				)
+	const nextPercent = nextAbsolutePercentDiscrete(
+		currentPercent,
+		absoluteStep,
+		direction,
+		minPercent,
+	)
 	return clampScale(
 		roundPercent(nextPercent / 100, getStepPrecision(absoluteStep) + 2),
 		minScale,

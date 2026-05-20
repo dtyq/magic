@@ -89,6 +89,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"工具定义缓存初始化出现未预期异常: {e}")
 
+    # 初始化模型配置管理器（阶段一：加载 config.yaml 静态配置）
+    # MagicServiceProvider 在客户端 init 完成后由 agent_dispatcher 触发加载（阶段二）
+    try:
+        from agentlang.config.models.model_config_manager import model_config_manager
+        from agentlang.config.models.providers.config_yaml_provider import ConfigYamlProvider
+        await model_config_manager.initialize([ConfigYamlProvider()])
+        logger.info("模型配置管理器初始化完成")
+    except Exception as e:
+        logger.error(f"模型配置管理器初始化失败: {e}")
+
     # 执行启动时残留文件清理检查
     await cleanup_stale_files_on_startup()
 

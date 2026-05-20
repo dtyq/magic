@@ -8,7 +8,8 @@ import type {
 } from "react"
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
 import type { Topic } from "@/pages/superMagic/pages/Workspace/types"
-import { TaskStatus, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import TopicHistoryDropdown from "../TopicHistoryDropdown"
 
 const mockUsePaginatedTopics = vi.fn()

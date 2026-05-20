@@ -25,6 +25,7 @@ interface ToolDataLike {
 	action?: string | ReactNode
 	remark?: string
 	status?: string
+	rawArguments?: string
 	detail?: {
 		data?: Record<string, unknown>
 	}
@@ -181,8 +182,9 @@ function WriteTool(props: WriteToolProps) {
 				content: fileData.content as string,
 			}
 		}
-		return parseStreamingWriteFileArgs((fileData?.arguments ?? "") as string)
-	}, [fileData?.content, fileData?.file_path, fileData?.arguments])
+		const args = tool?.rawArguments ?? (fileData?.arguments as string) ?? ""
+		return parseStreamingWriteFileArgs(args)
+	}, [fileData?.content, fileData?.file_path, fileData?.arguments, tool?.rawArguments])
 
 	const { viewportRef: toolViewportRef } = useScrollAreaAutoScroll({
 		isStreaming: !!loading,

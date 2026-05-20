@@ -30,6 +30,7 @@ import { AttachmentItem } from "../../../TopicFilesButton/hooks/types"
 import useShareButtonVisibility from "../../hooks/useShareButtonVisibility"
 import type { HeaderActionConfig } from "../../components/CommonHeaderV2/types"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { exportMarkdownToPdf } from "@/utils/markdownPdfExport"
 
 interface TextEditorProps {
 	data?: any
@@ -97,7 +98,7 @@ interface TextEditorProps {
 
 interface MdExportActionProps {
 	handleExportSource: () => void
-	handleExportPDF: () => void
+	handleExportPDF: (pagination: "slice" | "none") => void
 	isExporting?: boolean
 	showButtonText: boolean
 }
@@ -149,7 +150,6 @@ export default memo(function TextEditor(props: TextEditorProps) {
 		activeFileId,
 		showFooter,
 		exportFile,
-		exportPdf,
 		isExporting,
 		openFileTab,
 		isPlaybackMode,
@@ -190,6 +190,7 @@ export default memo(function TextEditor(props: TextEditorProps) {
 	const [editContent, setEditContent] = useState<string>("")
 	const [originalContent, setOriginalContent] = useState<string>("")
 	const [savedContent, setSavedContent] = useState<string>("")
+	const [isExportingPdf, setIsExportingPdf] = useState(false)
 
 	// 维护一个内部的 viewMode 状态，在数据加载期间保持稳定
 	const [internalViewMode, setInternalViewMode] = useState<"code" | "desktop" | "phone">(viewMode)
@@ -266,7 +267,7 @@ export default memo(function TextEditor(props: TextEditorProps) {
 	}, [displayData?.file_id, attachmentList])
 
 	// Use the image URL resolver hook
-	const { setImageUrlMap, urlResolver } = useImageUrlResolver({
+	const { imageUrlMap, setImageUrlMap, urlResolver } = useImageUrlResolver({
 		attachments,
 		relativeFilePath,
 	})
@@ -435,8 +436,53 @@ export default memo(function TextEditor(props: TextEditorProps) {
 		exportFile?.(displayData?.file_id, fileVersion)
 	})
 
-	const handleExportPDF = useMemoizedFn(() => {
-		exportPdf?.(displayData?.file_id)
+	const handleExportPDF = useMemoizedFn(async (pagination: "slice" | "none" = "slice") => {
+		const fileId = displayData?.file_id
+		if (!currentContent) {
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+			return
+		}
+
+		const toastKey = `md2pdf-${fileId || Date.now()}`
+		setIsExportingPdf(true)
+		magicToast.loading({
+			key: toastKey,
+			content: t("topicFiles.exporting"),
+			duration: 0,
+		})
+
+		try {
+			const { promise } = exportMarkdownToPdf({
+				markdown: currentContent,
+				processedContent,
+				fileName: displayData?.file_name || "export.pdf",
+				pagination,
+				selectedProject,
+				relativeFilePath: relativeFilePath,
+				attachments,
+				initialImageUrlMap: imageUrlMap,
+				onProgress: ({ phase, current, total }) => {
+					if (phase !== "capture" || total <= 1) return
+					magicToast.loading({
+						key: toastKey,
+						content: `${t("topicFiles.exporting")} (${current}/${total})`,
+						duration: 0,
+					})
+				},
+			})
+			await promise
+			magicToast.success({
+				key: toastKey,
+				content: t("topicFiles.exportSuccess"),
+				duration: 1000,
+			})
+		} catch (error) {
+			console.error("[markdownPdfExport] Export failed:", error)
+			magicToast.destroy(toastKey)
+			magicToast.error(t("topicFiles.contextMenu.fileExport.exportFailed"))
+		} finally {
+			setIsExportingPdf(false)
+		}
 	})
 
 	const handleCopyMarkdown = useMemoizedFn(() => {
@@ -458,7 +504,7 @@ export default memo(function TextEditor(props: TextEditorProps) {
 					<MdExportAction
 						handleExportSource={handleExportSource}
 						handleExportPDF={handleExportPDF}
-						isExporting={isExporting}
+						isExporting={isExporting || isExportingPdf}
 						showButtonText={context.showButtonText}
 					/>
 				),

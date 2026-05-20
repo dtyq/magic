@@ -1,9 +1,11 @@
 import {
+	forwardRef,
 	useCallback,
 	useEffect,
 	useMemo,
 	useState,
 	type CSSProperties,
+	type ForwardedRef,
 	type ReactNode,
 } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "../ui/select"
@@ -45,7 +47,10 @@ interface ImageEditorReferenceSlotPopoverProps {
 	slotRootRef?: SourceListRenderItemParams["slotRootRef"]
 }
 
-function ImageEditorReferenceSlotPopover(props: ImageEditorReferenceSlotPopoverProps) {
+const ImageEditorReferenceSlotPopover = forwardRef<
+	HTMLDivElement,
+	ImageEditorReferenceSlotPopoverProps
+>(function ImageEditorReferenceSlotPopover(props, forwardedRef) {
 	const {
 		className,
 		style,
@@ -65,13 +70,21 @@ function ImageEditorReferenceSlotPopover(props: ImageEditorReferenceSlotPopoverP
 		slotRootRef,
 	} = props
 
+	const handleSlotRootRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			slotRootRef?.(node)
+			assignForwardedRef(forwardedRef, node)
+		},
+		[forwardedRef, slotRootRef],
+	)
+
 	return (
 		<ReferenceResourceSlotPopover
 			className={className}
 			style={style}
 			content={content}
 			slotKey={slotKey}
-			slotRootRef={slotRootRef}
+			slotRootRef={handleSlotRootRef}
 			isPopoverOpen={isPopoverOpen}
 			selectedSlotKey={selectedSlotKey}
 			onActivateSlot={() => onSelectSlot(slotKey)}
@@ -87,11 +100,19 @@ function ImageEditorReferenceSlotPopover(props: ImageEditorReferenceSlotPopoverP
 			onProjectSelect={onProjectSelect}
 		/>
 	)
+})
+
+function assignForwardedRef<T>(ref: ForwardedRef<T>, value: T | null) {
+	if (!ref) return
+	if (typeof ref === "function") {
+		ref(value)
+		return
+	}
+	ref.current = value
 }
 
 interface ImageEditorControlsProps {
 	config: ImageEditorConfig
-	protectedReferenceFileIndex?: number
 	onSelectSource: (source: ReferenceResourceSourceType) => void
 	onProjectSelect?: (item: ReferenceResourcePanelItem) => void
 	/** 参考文件删除回调，传入时优先使用（用于同步到 TipTap） */
@@ -100,14 +121,8 @@ interface ImageEditorControlsProps {
 }
 
 export default function ImageEditorControls(props: ImageEditorControlsProps) {
-	const {
-		config,
-		protectedReferenceFileIndex,
-		onSelectSource,
-		onProjectSelect,
-		onReferenceFileRemove,
-		renderSendButton,
-	} = props
+	const { config, onSelectSource, onProjectSelect, onReferenceFileRemove, renderSendButton } =
+		props
 	const { t } = useCanvasDesignI18n()
 
 	const {
@@ -145,9 +160,6 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 		}
 
 		const options: SourceListOption[] = referenceFileInfos.map((info, index) => {
-			const isProtected =
-				protectedReferenceFileIndex !== undefined && index === protectedReferenceFileIndex
-
 			return {
 				kind: "slot",
 				label: t("imageEditor.referenceImage", "参考图"),
@@ -155,19 +167,10 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 				slotIndex: index,
 				resourcePath: info.path,
 				resourceFileName: info.fileName,
-				...(isProtected
-					? {}
-					: {
-							removeResourceAriaLabel: t(
-								"imageEditor.removeReferenceResource",
-								"移除该参考资源",
-							),
-							onRemoveResource: () => {
-								;(onReferenceFileRemove ?? handlers.handleReferenceFileRemove)(
-									info.path,
-								)
-							},
-						}),
+				removeResourceAriaLabel: t("imageEditor.removeReferenceResource", "移除该参考资源"),
+				onRemoveResource: () => {
+					;(onReferenceFileRemove ?? handlers.handleReferenceFileRemove)(info.path)
+				},
 			}
 		})
 
@@ -188,7 +191,6 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 	}, [
 		maxReferenceFiles,
 		referenceFileInfos,
-		protectedReferenceFileIndex,
 		t,
 		onReferenceFileRemove,
 		handlers.handleReferenceFileRemove,
@@ -217,18 +219,6 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 	const renderReferenceSourceListItem = useCallback(
 		(params: SourceListRenderItemParams) => {
 			const { option, className, style, content, slotRootRef } = params
-			const isProtected =
-				protectedReferenceFileIndex !== undefined &&
-				option.slotIndex === protectedReferenceFileIndex
-
-			if (isProtected) {
-				return (
-					<div ref={slotRootRef} className={className} style={style}>
-						{content}
-					</div>
-				)
-			}
-
 			const referencePopoverState = resolveReferencePopoverState(option)
 			return (
 				<ImageEditorReferenceSlotPopover
@@ -253,7 +243,6 @@ export default function ImageEditorControls(props: ImageEditorControlsProps) {
 		},
 		[
 			resolveReferencePopoverState,
-			protectedReferenceFileIndex,
 			isPopoverOpen,
 			selectedReferenceSlotKey,
 			handlers.setPopoverOpen,

@@ -119,6 +119,13 @@ export const isProductionEnv = (): boolean =>
 	[AppEnv.Production, AppEnv.InternationalProduction].includes(env("MAGIC_APP_ENV") as AppEnv)
 
 /**
+ * @description 是否是预发布环境（包括国内和国际）
+ * @returns {boolean} 是否是预发布环境
+ */
+export const isPreEnv = (): boolean =>
+	[AppEnv.Pre, AppEnv.InternationalPre].includes(env("MAGIC_APP_ENV") as AppEnv)
+
+/**
  * @description 是否测试环境
  * @returns {boolean} 是否测试环境
  */

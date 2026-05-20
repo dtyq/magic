@@ -22,18 +22,20 @@ const ContextMenuSubTrigger = React.forwardRef<
 	React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubTrigger> & {
 		inset?: boolean
 	}
->(({ className, inset, children, ...props }, ref) => (
-	<ContextMenuPrimitive.SubTrigger
-		ref={ref}
-		className={cn(
-			"flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
-			inset && "pl-8",
-			className,
-		)}
-		{...props}
-	>
-		{children}
-		<ChevronRight className="ml-auto h-4 w-4" />
+>(({ className, inset, children, disabled, ...props }, ref) => (
+	<ContextMenuPrimitive.SubTrigger asChild ref={ref} disabled={disabled} {...props}>
+		<button
+			type="button"
+			disabled={disabled}
+			className={cn(
+				"flex w-full cursor-default select-none appearance-none items-center rounded-sm border-0 bg-transparent px-2 py-1.5 text-left text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+				inset && "pl-8",
+				className,
+			)}
+		>
+			{children}
+			<ChevronRight className="ml-auto h-4 w-4" />
+		</button>
 	</ContextMenuPrimitive.SubTrigger>
 ))
 ContextMenuSubTrigger.displayName = ContextMenuPrimitive.SubTrigger.displayName
@@ -83,16 +85,20 @@ const ContextMenuItem = React.forwardRef<
 	React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Item> & {
 		inset?: boolean
 	}
->(({ className, inset, ...props }, ref) => (
-	<ContextMenuPrimitive.Item
-		ref={ref}
-		className={cn(
-			"relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-			inset && "pl-8",
-			className,
-		)}
-		{...props}
-	/>
+>(({ className, inset, children, disabled, ...props }, ref) => (
+	<ContextMenuPrimitive.Item asChild ref={ref} disabled={disabled} {...props}>
+		<button
+			type="button"
+			disabled={disabled}
+			className={cn(
+				"relative flex w-full cursor-default select-none appearance-none items-center rounded-sm border-0 bg-transparent px-2 py-1.5 text-left text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+				inset && "pl-8",
+				className,
+			)}
+		>
+			{children}
+		</button>
+	</ContextMenuPrimitive.Item>
 ))
 ContextMenuItem.displayName = ContextMenuPrimitive.Item.displayName
 

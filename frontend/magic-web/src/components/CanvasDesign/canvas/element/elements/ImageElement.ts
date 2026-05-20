@@ -83,6 +83,8 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	}) => void
 	/** 最后一次加载失败原因（与 resource:image:load-failed 同步） */
 	private imageLoadFailureReason: ResourceLoadFailureReason | null = null
+	/** 最近一次已应用到视图的资源失败签名（用于去重，避免重复 rerender） */
+	private lastAppliedLoadFailureSignature: string | null = null
 
 	// 临时生成图片请求数据（用于弹窗关闭后恢复）
 	private tempGenerateImageRequest?: Partial<GenerateImageRequest>
@@ -632,6 +634,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 		this.storedOssSrc = resource.ossSrc
 		this.storedImageInfo = resource.imageInfo
 		this.isResourceLoading = false
+		this.lastAppliedLoadFailureSignature = null
 
 		if (this.ossSrcResolve) {
 			this.ossSrcResolve(resource.ossSrc)
@@ -652,9 +655,22 @@ export class ImageElement extends BaseElement<ImageElementData> {
 	 * 处理图片加载失败的逻辑
 	 */
 	private handleImageLoadFailure(): void {
+		const currentFailureSignature = `${this.data.src || ""}:${
+			this.imageLoadFailureReason || "load-error"
+		}`
+		const isSameFailureAsLastApplied =
+			this.lastAppliedLoadFailureSignature === currentFailureSignature
+		const isStableErrorState = this.isErrorState && !this.isResourceLoading
+
 		this.loadedImage = undefined
 		this.isResourceLoading = false
 		this.isErrorState = true
+		this.lastAppliedLoadFailureSignature = currentFailureSignature
+
+		if (isSameFailureAsLastApplied && isStableErrorState) {
+			return
+		}
+
 		this.rerender()
 	}
 
@@ -683,6 +699,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			return
 		}
 
+		this.lastAppliedLoadFailureSignature = null
 		this.isResourceLoading = true
 		this.canvas.imageResourceManager.loadResource(path)
 	}
@@ -1392,6 +1409,7 @@ export class ImageElement extends BaseElement<ImageElementData> {
 			this.storedOssSrc = null
 			this.storedImageInfo = undefined
 			this.isResourceLoading = false
+			this.lastAppliedLoadFailureSignature = null
 			if (newData.src) {
 				this.loadImageFromPath(newData.src)
 				this.setupResourceLoadedListener()

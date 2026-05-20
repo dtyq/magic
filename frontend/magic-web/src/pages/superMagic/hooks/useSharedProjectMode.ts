@@ -1,6 +1,6 @@
 import { useEffect } from "react"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
-import { TopicMode } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 
 interface UseSharedProjectModeParams {

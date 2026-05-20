@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { lazy, Suspense, useCallback, useState } from "react"
 import { Button } from "@/components/shadcn-ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn-ui/popover"
 import { ScrollArea } from "@/components/shadcn-ui/scroll-area"
@@ -17,11 +17,19 @@ import useNavigate from "@/routes/hooks/useNavigate"
 import { useTranslation } from "react-i18next"
 import { FUNCTION_PERMISSION_CODE } from "@/apis"
 import { useFunctionPermission } from "@/hooks/useFunctionPermission"
-import { MyCrewManageSortingDialog } from "@/pages/superMagic/pages/MyCrewPage/components/MyCrewManageSortingDialog"
 import { crewService } from "@/services/crew/CrewService"
-import type { ModeItem, TopicMode } from "../../../pages/Workspace/types"
+import type { ModeItem } from "../../../pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 
 export const CREW_OVERFLOW_THRESHOLD = 6
+
+const MyCrewManageSortingDialog = lazy(() =>
+	import("@/pages/superMagic/pages/MyCrewPage/components/MyCrewManageSortingDialog").then(
+		(module) => ({
+			default: module.MyCrewManageSortingDialog,
+		}),
+	),
+)
 
 interface RoleSwitcherOverflowMenuProps {
 	modeList: ModeItem[]
@@ -205,10 +213,14 @@ export function RoleSwitcherOverflowMenu({
 					</ScrollArea>
 				</PopoverContent>
 			</Popover>
-			<MyCrewManageSortingDialog
-				open={isSortingDialogOpen}
-				onOpenChange={setIsSortingDialogOpen}
-			/>
+			{isSortingDialogOpen ? (
+				<Suspense fallback={null}>
+					<MyCrewManageSortingDialog
+						open={isSortingDialogOpen}
+						onOpenChange={setIsSortingDialogOpen}
+					/>
+				</Suspense>
+			) : null}
 		</>
 	)
 }

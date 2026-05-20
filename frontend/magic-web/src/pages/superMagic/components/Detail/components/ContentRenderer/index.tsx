@@ -90,6 +90,16 @@ function ContentRenderer({ type, data, commonProps }: ContentRendererProps) {
 				/>
 			)
 		}
+		case DetailType.Doc: {
+			return (
+				<RenderOffice
+					data={data as DetailUniverData}
+					{...commonProps}
+					type={DetailType.Docx}
+					file_extension={data?.file_extension || "doc"}
+				/>
+			)
+		}
 		case DetailType.Excel: {
 			return (
 				<RenderOffice

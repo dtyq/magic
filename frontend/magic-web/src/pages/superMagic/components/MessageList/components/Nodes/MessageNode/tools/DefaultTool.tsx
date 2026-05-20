@@ -161,7 +161,7 @@ function DefaultTool(props: DefaultToolProps) {
 			<div
 				className={cn(
 					"inline-flex h-fit w-fit max-w-full items-center overflow-hidden rounded-md border border-border bg-white pl-1.5 shadow-sm dark:bg-card",
-					tool?.status && "gap-1.5",
+					!loading && "gap-1.5",
 				)}
 			>
 				<div
@@ -172,9 +172,11 @@ function DefaultTool(props: DefaultToolProps) {
 					onClick={onClick}
 				>
 					<ToolIconBadge toolName={tool?.name} />
-					<span className="w-fit flex-none text-xs font-normal leading-4 text-foreground">
-						{tool?.action}
-					</span>
+					{tool?.action && (
+						<span className="w-fit flex-none text-xs font-normal leading-4 text-foreground">
+							{tool?.action}
+						</span>
+					)}
 					{tool?.remark && (
 						<span
 							{...tooltipProps}
@@ -187,7 +189,7 @@ function DefaultTool(props: DefaultToolProps) {
 						</span>
 					)}
 				</div>
-				{!tool?.status ? (
+				{loading ? (
 					<div className="ml-auto mr-[6px] inline-flex size-5 flex-none cursor-pointer items-center justify-center rounded-[4px] hover:bg-fill active:bg-fill-secondary">
 						<div className="inline-flex items-center gap-[6px] p-[4px]">
 							<IconLoader2 size={14} className="animate-spin" />

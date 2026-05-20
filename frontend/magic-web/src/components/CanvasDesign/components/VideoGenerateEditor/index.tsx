@@ -16,13 +16,35 @@ import { VideoElement as VideoElementClass } from "../../canvas/element/elements
  */
 export default function VideoGenerateEditor() {
 	const { selectedElements, isSelecting, isDragging } = useCanvasSelectionUI()
+	const [previewingMediaResource, setPreviewingMediaResource] =
+		useState<MediaResourceFullscreenPreviewItem | null>(null)
+	const [retryEditingElementId, setRetryEditingElementId] = useState<string | null>(null)
+
+	// 与 ImageMessageEditor 相同：重试 emit 时 Active 可能尚未挂载（useCanvasEvent 在 effect 订阅）
+	useCanvasEvent(
+		"element:video:retryClick",
+		({ data }) => {
+			setRetryEditingElementId(data.elementId)
+		},
+		[],
+	)
+
 	const [targetElement] = selectedElements
 	const videoElement =
 		selectedElements.length === 1 && targetElement?.type === ElementTypeEnum.Video
 			? targetElement
 			: null
-	const [previewingMediaResource, setPreviewingMediaResource] =
-		useState<MediaResourceFullscreenPreviewItem | null>(null)
+
+	useEffect(() => {
+		const selectedId = videoElement?.id
+		if (selectedId == null) {
+			setRetryEditingElementId(null)
+			return
+		}
+		if (retryEditingElementId && retryEditingElementId !== selectedId) {
+			setRetryEditingElementId(null)
+		}
+	}, [retryEditingElementId, videoElement?.id])
 
 	const handleCloseMediaResourcePreview = useCallback(() => {
 		setPreviewingMediaResource(null)
@@ -37,7 +59,12 @@ export default function VideoGenerateEditor() {
 	return (
 		<>
 			{editorEligible ? (
-				<ActiveVideoGenerateEditor videoElement={videoElement} isDragging={isDragging} />
+				<ActiveVideoGenerateEditor
+					videoElement={videoElement}
+					isDragging={isDragging}
+					retryEditingElementId={retryEditingElementId}
+					setRetryEditingElementId={setRetryEditingElementId}
+				/>
 			) : null}
 			{previewingMediaResource != null ? (
 				<MediaResourceFullscreenPreview
@@ -52,12 +79,18 @@ export default function VideoGenerateEditor() {
 interface ActiveVideoGenerateEditorProps {
 	videoElement: VideoElement
 	isDragging: boolean
+	retryEditingElementId: string | null
+	setRetryEditingElementId: (id: string | null) => void
 }
 
-function ActiveVideoGenerateEditor({ videoElement, isDragging }: ActiveVideoGenerateEditorProps) {
+function ActiveVideoGenerateEditor({
+	videoElement,
+	isDragging,
+	retryEditingElementId,
+	setRetryEditingElementId,
+}: ActiveVideoGenerateEditorProps) {
 	const { canvas } = useCanvas()
 	const [hiddenAfterSubmit, setHiddenAfterSubmit] = useState(false)
-	const [retryEditingElementId, setRetryEditingElementId] = useState<string | null>(null)
 
 	const isGenerating = useMemo(() => {
 		if (!canvas) return false
@@ -69,12 +102,6 @@ function ActiveVideoGenerateEditor({ videoElement, isDragging }: ActiveVideoGene
 	useEffect(() => {
 		setHiddenAfterSubmit(false)
 	}, [videoElement.id])
-
-	useEffect(() => {
-		if (retryEditingElementId && retryEditingElementId !== videoElement.id) {
-			setRetryEditingElementId(null)
-		}
-	}, [retryEditingElementId, videoElement.id])
 
 	useCanvasEvent(
 		"element:video:generate-submit-started",
@@ -99,15 +126,14 @@ function ActiveVideoGenerateEditor({ videoElement, isDragging }: ActiveVideoGene
 	useCanvasEvent(
 		"element:video:retryClick",
 		({ data }) => {
-			setHiddenAfterSubmit(false)
-			setRetryEditingElementId(data.elementId)
+			if (data.elementId === videoElement.id) setHiddenAfterSubmit(false)
 		},
-		[],
+		[videoElement.id],
 	)
 
 	const handleGenerateSubmitSucceeded = useCallback(() => {
 		setRetryEditingElementId(null)
-	}, [])
+	}, [setRetryEditingElementId])
 
 	const isTemporaryElement =
 		canvas != null ? canvas.elementManager.isTemporary(videoElement.id) : false
@@ -137,6 +163,8 @@ function ActiveVideoGenerateEditor({ videoElement, isDragging }: ActiveVideoGene
 		<VideoGenerateEditorRender
 			key={`${videoElement.id}-${isRetryEditing ? "retry" : "create"}`}
 			videoElement={videoElement}
+			autoFocus={isRetryEditing}
+			autoFocusAtDocumentEnd={isRetryEditing}
 			onGenerateSubmitSucceeded={handleGenerateSubmitSucceeded}
 		/>
 	) : null

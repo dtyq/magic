@@ -7,8 +7,11 @@ import {
 	createTopicReadProgressService,
 	normalizeMessageSendTimeToMs,
 	resolveReadProgressPayloadFromMessages,
-	syncTopicStatusPatch,
 } from "@/pages/superMagic/services/topicReadProgressService"
+import {
+	handleArrivedTopicStatusChange as syncArrivedTopicStatusChange,
+	syncTopicStatusPatch,
+} from "@/pages/superMagic/services/topicStatusSyncService"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import dayjs from "@/lib/dayjs"
@@ -77,36 +80,16 @@ export function useScopedTopicReadProgress({
 			lastReadAt?: string
 			lastReadMessageId?: string
 		}) => {
-			if (!nextStatus || !topicId) return
-
-			const latestTopicStatus = currentTopicStatusRef.current
-			const hasStatusChanged = nextStatus !== latestTopicStatus
-			if (!hasStatusChanged) return
-
-			topicStore.updateTopicStatus(topicId, nextStatus)
-			const shouldMarkImmediateRead =
-				document.visibilityState === "visible" &&
-				(nextStatus === "finished" || nextStatus === "error")
-			const syncPromise = syncTopicStatusPatch({
+			syncArrivedTopicStatusChange({
+				scopeName,
 				topicStore,
+				topicReadProgressService,
+				currentTopicStatusRef,
+				nextStatus,
 				topicId,
-			}).catch((error) => {
-				console.warn(`[${scopeName}] 同步话题 unread 状态失败:`, error)
+				lastReadAt,
+				lastReadMessageId,
 			})
-
-			if (shouldMarkImmediateRead) {
-				void syncPromise.finally(() => {
-					window.setTimeout(() => {
-						topicReadProgressService.markTopicReadProgress({
-							topicId,
-							lastReadAt,
-							lastReadMessageId,
-							reason: "message-change",
-							immediate: true,
-						})
-					}, 1000)
-				})
-			}
 		},
 	)
 

@@ -10,7 +10,9 @@ namespace Dtyq\SuperMagic\Application\Collaboration\Policy;
 use App\Application\Kernel\AbstractKernelAppService;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType as OperationResourceType;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
+use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
 use App\Domain\Permission\Service\OperationPermissionDomainService;
 use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Infrastructure\Core\DataIsolation\BaseDataIsolation;
@@ -136,6 +138,80 @@ class ResourceAccessPolicyService extends AbstractKernelAppService
             'visibility_codes' => $visibilityCodes,
             'all_codes' => array_values(array_unique(array_merge($visibilityCodes, $operationCodes))),
         ];
+    }
+
+    /**
+     * 覆盖保存资源的可读范围。
+     *
+     * @param array<string> $userIds
+     * @param array<string> $departmentIds
+     */
+    public function saveReadableScope(
+        Authenticatable|BaseDataIsolation $authorization,
+        ResourceVisibilityResourceType $visibilityResourceType,
+        string $code,
+        VisibilityType $visibilityType,
+        array $userIds = [],
+        array $departmentIds = []
+    ): void {
+        $this->resourceVisibilityDomainService->saveVisibilityByPrincipals(
+            $this->createPermissionDataIsolation($authorization),
+            $visibilityResourceType,
+            $code,
+            $visibilityType,
+            $userIds,
+            $departmentIds
+        );
+    }
+
+    /**
+     * 追加用户级可读范围，不影响其它可见配置。
+     *
+     * @param array<string> $userIds
+     */
+    public function appendReadableUsers(
+        Authenticatable|BaseDataIsolation $authorization,
+        ResourceVisibilityResourceType $visibilityResourceType,
+        string $code,
+        array $userIds
+    ): void {
+        $userIds = array_values(array_unique(array_filter($userIds)));
+        if ($userIds === []) {
+            return;
+        }
+
+        $this->resourceVisibilityDomainService->addResourceVisibilityByPrincipalsIfMissing(
+            $this->createPermissionDataIsolation($authorization),
+            $visibilityResourceType,
+            $code,
+            PrincipalType::USER,
+            $userIds
+        );
+    }
+
+    /**
+     * 删除用户级可读范围，不影响其它可见配置。
+     *
+     * @param array<string> $userIds
+     */
+    public function removeReadableUsers(
+        Authenticatable|BaseDataIsolation $authorization,
+        ResourceVisibilityResourceType $visibilityResourceType,
+        string $code,
+        array $userIds
+    ): void {
+        $userIds = array_values(array_unique(array_filter($userIds)));
+        if ($userIds === []) {
+            return;
+        }
+
+        $this->resourceVisibilityDomainService->deleteResourceVisibilityByPrincipals(
+            $this->createPermissionDataIsolation($authorization),
+            $visibilityResourceType,
+            $code,
+            PrincipalType::USER,
+            $userIds
+        );
     }
 
     /**

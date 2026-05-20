@@ -32,12 +32,8 @@ import type {
 } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 import { Button } from "@/components/shadcn-ui/button"
 import type { createSuperMagicTopicModelStore } from "@/stores/superMagic/topicModelStore"
-import type {
-	CrewItem,
-	ProjectListItem,
-	Topic,
-	TopicMode,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { CrewItem, ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 

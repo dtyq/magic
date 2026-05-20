@@ -95,6 +95,12 @@ export interface StylePanelProps {
 
 	/** Mount node for portaled toolbar actions (e.g. save), shown at far right */
 	toolbarEndRef?: Ref<HTMLDivElement | null>
+
+	/** Whether the element inspector is currently active */
+	inspectorActive?: boolean
+
+	/** Called when user clicks the inspector button to toggle inspector mode */
+	onStartInspector?: () => void
 }
 
 /**

@@ -2,7 +2,7 @@ import { useMemo } from "react"
 import type { SkillPanelConfig } from "../panels/types"
 import { useSceneStateStore } from "../stores"
 import { SceneEditorKey } from "../../../types/skill"
-import { TopicMode } from "../../../pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 
 /** Config with panels (SkillConfig) or scenes_config (PlaybookConfig) */
 interface ConfigWithPanels {

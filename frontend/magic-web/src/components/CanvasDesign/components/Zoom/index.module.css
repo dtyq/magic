@@ -17,6 +17,17 @@
 		var(--shadow-xs-color, rgb(0 0 0 / 5%));
 }
 
+/* shareHostBottomChrome：宿主底部 fixed 徽标等，移动端抬高更多，PC 略低 */
+.zoomShareHost {
+	bottom: 46px;
+}
+
+@media (min-width: 768px) {
+	.zoomShareHost {
+		bottom: 34px;
+	}
+}
+
 .zoom-in,
 .zoom-out {
 	display: flex;

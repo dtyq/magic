@@ -19,6 +19,7 @@ interface ScenePanelContainerProps {
 	panels?: SkillPanelConfigArray
 	loading?: boolean
 	readOnly?: boolean
+	compact?: boolean
 	onTemplateSelect?: (template: OptionItem | null) => void
 	onFilterChange?: (filters: FieldItem[]) => void
 	onGuideItemClick?: (item: GuideItem) => void
@@ -28,6 +29,7 @@ function ScenePanelContainer({
 	panels,
 	loading = false,
 	readOnly = false,
+	compact = false,
 	onTemplateSelect,
 	onFilterChange,
 	onGuideItemClick,
@@ -107,7 +109,13 @@ function ScenePanelContainer({
 
 		// 只渲染 FIELD 类型
 		return (
-			<div className="flex flex-col gap-4">
+			<div
+				className={
+					compact
+						? "flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+						: "flex flex-col gap-4"
+				}
+			>
 				{fieldPanels?.map(({ config, panelKey }) => {
 					return (
 						<FieldConfigPanel
@@ -118,6 +126,7 @@ function ScenePanelContainer({
 							onPresetContentChange={createPresetContentChangeHandler(panelKey)}
 							readOnly={readOnly}
 							variant={variant}
+							compact={compact}
 						/>
 					)
 				})}
@@ -142,6 +151,7 @@ function ScenePanelContainer({
 								onPresetContentChange={createPresetContentChangeHandler(key)}
 								readOnly={readOnly}
 								variant={variant}
+								compact={compact}
 							/>
 						)
 					case SkillPanelType.DEMO:

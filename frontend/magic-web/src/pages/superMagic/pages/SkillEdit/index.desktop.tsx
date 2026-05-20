@@ -17,6 +17,7 @@ import { userStore } from "@/models/user"
 import { SupportLocales } from "@/constants/locale"
 import { skillsService } from "@/services/skills/SkillsService"
 import { useDefaultModeModelListRefreshOnMount } from "@/pages/superMagic/hooks"
+import { useCreateTopicListener } from "@/pages/superMagic/components/TopicMode"
 import Detail, { type DetailRef } from "@/pages/superMagic/components/Detail"
 import { MessageHeaderTopicHistoryPanel } from "@/pages/superMagic/components/MessageHeader"
 import TopicFilesButton from "@/pages/superMagic/components/TopicFilesButton"
@@ -262,6 +263,10 @@ function SkillEditWorkspace({ skillCode }: { skillCode: string }) {
 		isReady: !store.loading && !store.error,
 	})
 	useDefaultModeModelListRefreshOnMount()
+	useCreateTopicListener({
+		selectedProject,
+		topicStore,
+	})
 
 	useEffect(() => {
 		publishPanelStore.hydrate(publishPanelData, {

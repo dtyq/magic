@@ -1,4 +1,4 @@
-import { TopicMode } from "../../pages/Workspace/types"
+import { TopicMode } from "../../pages/Workspace/TopicMode"
 import { SceneEditorContext, SceneEditorNodes } from "./components/editors/types"
 
 export interface AgentInputContainerProps {

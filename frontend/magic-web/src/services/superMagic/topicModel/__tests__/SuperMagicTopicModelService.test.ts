@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest"
 import superMagicTopicModelService from "../SuperMagicTopicModelService"
 import topicModelStore from "@/stores/superMagic/topicModelStore"
 import { ModelStatusEnum, type ModelItem } from "@/pages/superMagic/components/MessageEditor/types"
-import type { TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 
 // Mock dependencies
 vi.mock("@/apis", () => ({

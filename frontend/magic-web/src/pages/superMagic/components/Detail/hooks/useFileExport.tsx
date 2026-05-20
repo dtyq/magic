@@ -1,11 +1,12 @@
 import { useState, useRef } from "react"
 import { TFunction } from "i18next"
 import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
-import {
-	exportSingleFileToPdf,
-	exportSingleFileToPpt,
-} from "@/pages/superMagic/components/TopicFilesButton/utils/exportSingleFile"
-import { getExportAllFileIds } from "../contents/HTML/utils"
+import { exportSingleFileToPpt } from "@/pages/superMagic/components/TopicFilesButton/utils/exportSingleFile"
+import { exportHtmlToPdf, exportHtmlToImage } from "../../../../../../packages/pdf-export/src"
+import type { ImageExportFormat } from "../../../../../../packages/pdf-export/src"
+import { exportMarkdownFileToPdf } from "@/utils/markdownPdfExport"
+import { isMarkdownFileName } from "@/utils/pdfFileType"
+import { prepareSingleSlideExport } from "@/pages/superMagic/services/pptService"
 import { downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
 import { DownloadImageMode } from "../../../pages/Workspace/types"
 import magicToast from "@/components/base/MagicToaster/utils"
@@ -40,9 +41,11 @@ interface UseFileExportReturn {
 		fileVersion?: { [key: string]: number } | undefined,
 	) => Promise<void>
 	/** 导出为 PDF */
-	exportPdf: (fileIds: string[]) => Promise<void>
+	exportPdf: (fileIds: string[], pagination?: "slice" | "none") => Promise<void>
 	/** 导出为 PPT */
 	exportPpt: (fileIds: string[]) => Promise<void>
+	/** 导出为图片（仅 HTML） */
+	exportImage: (fileIds: string[], format?: ImageExportFormat) => Promise<void>
 }
 
 /**
@@ -216,19 +219,56 @@ function useFileExport({
 		}
 	}
 
-	const exportPdf = async (fileIds: string[]) => {
+	const exportPdf = async (fileIds: string[], pagination: "slice" | "none" = "slice") => {
 		if (!fileIds || fileIds.length === 0) return
 
-		if (fileIds?.length > 0) {
-			exportSingleFileToPdf({
-				fileId: fileIds,
-				projectId: selectedProject?.id || projectId,
-				t,
-				onStart: startExport,
-				onEnd: endExport,
-				onProgress,
-				onError,
-			})
+		const fileId = fileIds[0]
+		const file = attachments?.find((item) => item.file_id === fileId)
+		const fileName = (file as any)?.file_name || (file as any)?.display_filename || "export.pdf"
+
+		startExport()
+		try {
+			if (isMarkdownFileName(fileName)) {
+				await exportMarkdownFileToPdf({
+					fileId,
+					fileName,
+					pagination,
+					selectedProject,
+					relativeFilePath: (file as any)?.relative_file_path,
+					attachments: (attachments ?? []) as any[],
+					onProgress: ({ phase, current, total }) => {
+						if (phase === "capture" && total > 0) {
+							onProgress(Math.round((current / total) * 100))
+						}
+					},
+				}).promise
+			} else {
+				const result = await prepareSingleSlideExport({
+					fileId,
+					fileName,
+					attachmentList: (attachments ?? []) as any[],
+				})
+
+				if (!result.htmlSlides.some(Boolean)) {
+					throw new Error("Failed to fetch HTML file content")
+				}
+
+				await exportHtmlToPdf({
+					pages: result.htmlSlides,
+					pagination,
+					fileName: (result.fileName || "export") + ".pdf",
+					output: "download",
+					onProgress: ({ phase, current, total }) => {
+						if (phase === "capture" && total > 0) {
+							onProgress(Math.round((current / total) * 100))
+						}
+					},
+				}).promise
+			}
+			endExport()
+		} catch (error) {
+			console.error("[filePdfExport] export failed:", error)
+			onError()
 		}
 	}
 
@@ -248,12 +288,49 @@ function useFileExport({
 		}
 	}
 
+	const exportImage = async (fileIds: string[], format: ImageExportFormat = "png") => {
+		if (!fileIds || fileIds.length === 0) return
+
+		const fileId = fileIds[0]
+		const file = attachments?.find((item) => item.file_id === fileId)
+		const fileName = (file as any)?.file_name || (file as any)?.display_filename || "export"
+
+		startExport()
+		try {
+			const result = await prepareSingleSlideExport({
+				fileId,
+				fileName,
+				attachmentList: (attachments ?? []) as any[],
+			})
+
+			if (!result.htmlSlides.some(Boolean)) {
+				throw new Error("Failed to fetch HTML file content")
+			}
+
+			await exportHtmlToImage({
+				pages: result.htmlSlides,
+				format,
+				fileName: result.fileName || "export",
+				onProgress: ({ phase, current, total }) => {
+					if (phase === "capture" && total > 0) {
+						onProgress(Math.round((current / total) * 100))
+					}
+				},
+			}).promise
+			endExport()
+		} catch (error) {
+			console.error("[fileImageExport] export failed:", error)
+			onError()
+		}
+	}
+
 	return {
 		isExporting,
 		exportProgress,
 		exportFile,
 		exportPdf,
 		exportPpt,
+		exportImage,
 	}
 }
 

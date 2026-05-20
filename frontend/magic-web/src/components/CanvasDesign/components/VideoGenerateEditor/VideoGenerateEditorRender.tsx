@@ -52,6 +52,8 @@ import {
 interface VideoGenerateEditorRenderProps {
 	videoElement: VideoElement
 	autoFocus?: boolean
+	/** 与 autoFocus 联用：挂载后将光标置于提示词末尾 */
+	autoFocusAtDocumentEnd?: boolean
 	/** generateVideo 成功返回后触发，用于清除重试编辑态等 */
 	onGenerateSubmitSucceeded?: () => void
 	/** 成片后重新进入编辑器时仅按 generateVideoRequest 恢复，不合并临时草稿 */
@@ -64,6 +66,7 @@ export default function VideoGenerateEditorRender(props: VideoGenerateEditorRend
 	const {
 		videoElement,
 		autoFocus = false,
+		autoFocusAtDocumentEnd = false,
 		onGenerateSubmitSucceeded,
 		restoreOnMount,
 		submitTarget = "current-element",
@@ -616,6 +619,7 @@ export default function VideoGenerateEditorRender(props: VideoGenerateEditorRend
 			<MessageEditor
 				ref={editorRef}
 				autoFocus={autoFocus}
+				autoFocusAtDocumentEnd={autoFocusAtDocumentEnd}
 				selectionPersistenceKey={`video-generate:${videoElement.id}`}
 				fullWidth
 				placeholder={promptPlaceholder}

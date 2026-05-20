@@ -895,6 +895,14 @@ export interface UploadFile {
 }
 
 /**
+ * 上传交互选项
+ */
+export interface UploadFilesOptions {
+	/** 是否显示成功提示，默认 true；画布内拖拽/粘贴等场景通常由元素状态承载反馈，可关闭 */
+	showSuccessToast?: boolean
+}
+
+/**
  * 上传私有文件请求参数
  */
 export interface UploadPrivateFile extends Omit<UploadFile, "overwrite" | "uploadSubDir"> {
@@ -1079,14 +1087,12 @@ export interface CanvasDesignRootStorageData {
  * 未注入时 CanvasDesign 内部降级使用 navigator.clipboard
  */
 export interface CanvasDesignClipboard {
-	/** 写入纯文本 */
-	writeText: (text: string) => Promise<void>
 	/** 写入 ClipboardItem 列表（支持富格式、图片等） */
 	write: (items: ClipboardItem[]) => Promise<void>
-	/** 读取纯文本（可选，未提供时使用 navigator.clipboard.readText） */
-	readText?: () => Promise<string>
 	/** 读取 ClipboardItem 列表（可选，未提供时使用 navigator.clipboard.read） */
 	read?: () => Promise<ClipboardItem[]>
+	/** 读取纯文本（可选，未提供时使用 navigator.clipboard.readText） */
+	readText?: () => Promise<string>
 }
 
 /**
@@ -1200,11 +1206,13 @@ export interface CanvasDesignMethods {
 	 * 上传文件
 	 * @param uploadFiles 待上传文件数组
 	 * @param duplicateCheckList 用于检查重复的文件路径列表
+	 * @param options 上传交互选项
 	 * @returns Promise<上传文件响应数组，包含文件信息与路径>
 	 */
 	uploadFiles: (
 		uploadFiles: UploadFile[],
 		duplicateCheckList?: string[],
+		options?: UploadFilesOptions,
 	) => Promise<UploadFileResponse[]>
 	/**
 	 * 获取上传文件信息

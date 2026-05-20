@@ -4,6 +4,7 @@ import type { ActionContext, ViewMode } from "../types"
 const DOWNLOADABLE_TYPES = new Set<string>([
 	DetailType.Pdf,
 	DetailType.Docx,
+	DetailType.Doc,
 	DetailType.Html,
 	DetailType.Md,
 	DetailType.Text,
@@ -20,6 +21,7 @@ const DOWNLOADABLE_TYPES = new Set<string>([
 const BASIC_ACTION_TYPES = new Set<string>([
 	DetailType.Pdf,
 	DetailType.Docx,
+	DetailType.Doc,
 	DetailType.Excel,
 	DetailType.PowerPoint,
 	DetailType.Md,

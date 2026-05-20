@@ -24,5 +24,6 @@ export type {
 export type { IVolcengineConfig, IAliyunConfig, ProviderConfig } from "./config/types"
 
 // Provider 导出
-export { VolcengineProvider } from "./providers/volcengine"
-export { AliyunProvider } from "./providers/aliyun"
+// 会导致动态导入失效
+// export { VolcengineProvider } from "./providers/volcengine"
+// export { AliyunProvider } from "./providers/aliyun"

@@ -1,7 +1,7 @@
 import { useMemoizedFn } from "ahooks"
 import { RefObject } from "react"
 import { MessageEditorRef } from "../components/MessageEditor/MessageEditor"
-import { TopicMode } from "../pages/Workspace/types"
+import { TopicMode } from "../pages/Workspace/TopicMode"
 import useTopicExamplesPortal from "./useTopicExamplesPortal"
 
 interface UseTopicExamplesEditorPortalParams {

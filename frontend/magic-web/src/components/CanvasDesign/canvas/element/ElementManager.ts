@@ -980,6 +980,21 @@ export class ElementManager {
 	}
 
 	/**
+	 * 元素在数据树上是否视为可见：`visible === false` 的节点及其子树不参与适配范围等计算。
+	 */
+	public isElementVisibleInDataTree(elementId: string): boolean {
+		let currentId: string | undefined = elementId
+		while (currentId) {
+			const data = this.getElementData(currentId)
+			if (!data) return false
+			if (data.visible === false) return false
+			const parent = this.findParentElement(currentId)
+			currentId = parent?.getId()
+		}
+		return true
+	}
+
+	/**
 	 * 检查元素是否存在
 	 */
 	public hasElement(elementId: string): boolean {
@@ -1599,7 +1614,10 @@ export class ElementManager {
 		this.elements.forEach((element) => {
 			const elementData = element.getData()
 			// 使用 PermissionManager 判断
-			const canDrag = this.canvas.permissionManager?.canTransform(elementData) ?? true
+			const canDrag =
+				(this.canvas.permissionManager?.canTransform(elementData) ?? true) &&
+				(!this.canvas.isKeepRatioModifierPressed() ||
+					this.canvas.selectionManager.isSelected(elementData.id))
 			element.setDraggable(canDrag)
 			element.setListening(true)
 		})
@@ -1612,7 +1630,10 @@ export class ElementManager {
 		this.elements.forEach((element) => {
 			const elementData = element.getData()
 			// 使用 PermissionManager 判断
-			const canDrag = this.canvas.permissionManager?.canTransform(elementData) ?? true
+			const canDrag =
+				(this.canvas.permissionManager?.canTransform(elementData) ?? true) &&
+				(!this.canvas.isKeepRatioModifierPressed() ||
+					this.canvas.selectionManager.isSelected(elementData.id))
 			element.setDraggable(canDrag)
 		})
 	}

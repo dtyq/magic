@@ -40,6 +40,8 @@ interface MessageEditorProps {
 	placeholder?: string
 	onEnter?: () => void
 	autoFocus?: boolean
+	/** 与 autoFocus 联用：为 true 时忽略持久化选区并将光标移到文档末尾（如失败重试后进入编辑） */
+	autoFocusAtDocumentEnd?: boolean
 	/** 跨卸载/重挂载恢复光标位置的持久化 key */
 	selectionPersistenceKey?: string
 	onScrollbarChange?: (hasScrollbar: boolean) => void
@@ -97,6 +99,7 @@ const MessageEditor = forwardRef<MessageEditorRef, MessageEditorProps>(
 			placeholder,
 			onEnter,
 			autoFocus = false,
+			autoFocusAtDocumentEnd = false,
 			selectionPersistenceKey,
 			onScrollbarChange,
 			matchableItems = [],
@@ -338,11 +341,12 @@ const MessageEditor = forwardRef<MessageEditorRef, MessageEditorProps>(
 			if (!autoFocus || !editor || editor.isDestroyed) return
 			const timer = window.setTimeout(() => {
 				if (!editor.isDestroyed) {
-					focusEditorWithPreservedSelection(editor, getPreferredSelectionRange())
+					if (autoFocusAtDocumentEnd) editor.commands.focus("end")
+					else focusEditorWithPreservedSelection(editor, getPreferredSelectionRange())
 				}
 			}, 50)
 			return () => window.clearTimeout(timer)
-		}, [autoFocus, editor, getPreferredSelectionRange])
+		}, [autoFocus, autoFocusAtDocumentEnd, editor, getPreferredSelectionRange])
 
 		useEffect(() => {
 			const timer = setTimeout(checkScrollbar, 0)

@@ -17,12 +17,8 @@ import type {
 	MessageEditorSize,
 } from "@/pages/superMagic/components/MessageEditor/types"
 import type { HandleSendParams } from "@/pages/superMagic/services/messageSendFlowService"
-import type {
-	ProjectListItem,
-	Topic,
-	TopicMode,
-	Workspace,
-} from "@/pages/superMagic/pages/Workspace/types"
+import type { ProjectListItem, Topic, Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import type { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import type { QueuedMessage } from "@/pages/superMagic/components/MessagePanel/hooks/useMessageQueue"
 import { TopicStore } from "@/pages/superMagic/stores/core/topic"
 

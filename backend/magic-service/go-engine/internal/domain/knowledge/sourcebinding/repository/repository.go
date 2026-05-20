@@ -79,6 +79,21 @@ type TeamshareRealtimeBindingReader interface {
 	) ([]sourcebindingentity.Binding, error)
 }
 
+// TeamshareBindingReader 定义 Teamshare 当前知识库全部启用绑定候选读取能力。
+type TeamshareBindingReader interface {
+	ListTeamshareBindingsByKnowledgeBase(
+		ctx context.Context,
+		organizationCode string,
+		platform string,
+		knowledgeBaseID string,
+	) ([]sourcebindingentity.Binding, error)
+}
+
+// SyncModeRepairWriter 定义 source callback 历史 sync_mode 修正能力。
+type SyncModeRepairWriter interface {
+	MarkSourceBindingsRealtimeByIDs(ctx context.Context, bindingIDs []int64) (int64, error)
+}
+
 // ApplyKnowledgeBaseBinding 表示一次知识库 binding 增量落库对象。
 type ApplyKnowledgeBaseBinding struct {
 	Binding sourcebindingentity.Binding

@@ -14,13 +14,40 @@ const logger = Logger.createLogger("RecordingErrorManager", {
  * 错误码常量
  */
 export const ERROR_CODES = {
-	/** Task ended error code */
+	/** Task status errors (43200-43299) */
 	TASK_ALREADY_COMPLETED: 43200,
 	TASK_ALREADY_CANCELED: 43201,
+	TASK_IS_SUMMARIZING: 43202,
 	TASK_AUTO_STOPPED_BY_TIMEOUT: 43203,
+	INVALID_STATUS_TRANSITION: 43204,
+	RECORDING_ALREADY_STOPPED: 43205,
+	UPLOAD_NOT_ALLOWED: 43206,
+	STATUS_REPORT_NOT_ALLOWED: 43207,
 	TASK_NOT_EXIST: 43209,
+	TASK_NOT_BELONG_TO_USER: 43211,
+	TASK_NOT_FOUND: 43212,
+	/** Sandbox errors (43300-43399) */
 	SANDBOX_START_RETRY_EXCEEDED: 43305,
 } as const
+
+/**
+ * Set of error codes that indicate the task has ended and recording should stop
+ * 表示任务已结束、需要停止录音的错误码集合
+ */
+export const TASK_END_CODES: ReadonlySet<number> = new Set([
+	ERROR_CODES.TASK_ALREADY_COMPLETED,
+	ERROR_CODES.TASK_ALREADY_CANCELED,
+	ERROR_CODES.TASK_IS_SUMMARIZING,
+	ERROR_CODES.TASK_AUTO_STOPPED_BY_TIMEOUT,
+	ERROR_CODES.INVALID_STATUS_TRANSITION,
+	ERROR_CODES.RECORDING_ALREADY_STOPPED,
+	ERROR_CODES.UPLOAD_NOT_ALLOWED,
+	ERROR_CODES.STATUS_REPORT_NOT_ALLOWED,
+	ERROR_CODES.TASK_NOT_EXIST,
+	ERROR_CODES.TASK_NOT_BELONG_TO_USER,
+	ERROR_CODES.TASK_NOT_FOUND,
+	ERROR_CODES.SANDBOX_START_RETRY_EXCEEDED,
+])
 
 /**
  * Task end error interface
@@ -53,13 +80,7 @@ export class RecordingErrorManager {
 			error !== null &&
 			typeof error === "object" &&
 			"code" in error &&
-			[
-				ERROR_CODES.TASK_ALREADY_COMPLETED,
-				ERROR_CODES.TASK_ALREADY_CANCELED,
-				ERROR_CODES.TASK_AUTO_STOPPED_BY_TIMEOUT,
-				ERROR_CODES.TASK_NOT_EXIST,
-				ERROR_CODES.SANDBOX_START_RETRY_EXCEEDED,
-			].includes((error as { code: (typeof ERROR_CODES)[keyof typeof ERROR_CODES] }).code)
+			TASK_END_CODES.has((error as { code: number }).code)
 		)
 	}
 
@@ -67,11 +88,14 @@ export class RecordingErrorManager {
 	 * Create a task end error
 	 * 创建任务结束错误
 	 */
-	createTaskEndError(sessionId: string): TaskEndError {
+	createTaskEndError(
+		sessionId: string,
+		code: number = ERROR_CODES.TASK_ALREADY_COMPLETED,
+	): TaskEndError {
 		const error = new Error(
-			`Task ended (error code: ${ERROR_CODES.TASK_ALREADY_COMPLETED}). Recording should be stopped for session ${sessionId}`,
+			`Task ended (error code: ${code}). Recording should be stopped for session ${sessionId}`,
 		) as TaskEndError
-		error.code = ERROR_CODES.TASK_ALREADY_COMPLETED
+		error.code = code
 		error.sessionId = sessionId
 		return error
 	}
@@ -103,9 +127,7 @@ export class RecordingErrorManager {
 	 * 处理任务结束错误
 	 */
 	async handleTaskEnd(error: TaskEndError): Promise<void> {
-		logger.warn(
-			`Task ended for session ${error.sessionId} (error code: ${ERROR_CODES.TASK_ALREADY_COMPLETED})`,
-		)
+		logger.warn(`Task ended for session ${error.sessionId} (error code: ${error.code})`)
 
 		// Call all registered handlers
 		const handlerPromises = Array.from(this.taskEndHandlers).map(async (handler) => {
@@ -153,8 +175,8 @@ export function isTaskEndError(error: unknown): error is TaskEndError {
 	return defaultErrorManager.isTaskEndError(error)
 }
 
-export function createTaskEndError(sessionId: string): TaskEndError {
-	return defaultErrorManager.createTaskEndError(sessionId)
+export function createTaskEndError(sessionId: string, code?: number): TaskEndError {
+	return defaultErrorManager.createTaskEndError(sessionId, code)
 }
 
 export function getSessionIdFromError(error: unknown): string | undefined {

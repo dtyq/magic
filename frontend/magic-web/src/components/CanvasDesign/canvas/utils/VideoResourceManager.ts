@@ -41,6 +41,7 @@ interface VideoResource {
 
 interface ResourceEntry {
 	ossSrc: string | null
+	sourceUrl: string | null
 	expiresAt: number | null
 	source?: AttachmentSourceEnum
 	fileName?: string
@@ -131,7 +132,7 @@ export class VideoResourceManager {
 
 	public async ensureFreshOssInfo(
 		path: string,
-		options?: { forceRefresh?: boolean },
+		options?: { forceRefresh?: boolean; bypassVirtualResource?: boolean },
 	): Promise<ResolvedVideoOssInfo | null> {
 		const normalizedPath = this.canonicalResourcePath(path)
 		const entry = this.getOrCreateEntry(normalizedPath)
@@ -140,6 +141,7 @@ export class VideoResourceManager {
 			entry.expiresAt = null
 		} else {
 			this.clearExpiredOssSrc(entry)
+			this.applyVirtualResourceBypass(entry)
 		}
 		if (entry.ossSrc) {
 			return {
@@ -150,6 +152,9 @@ export class VideoResourceManager {
 
 		const ossSrc = await this.exchangeOssSrc(path, entry)
 		if (!ossSrc) {
+			if (this.canvas.mediaResourceOfflineCacheManager.shouldBypassVirtualResource()) {
+				return null
+			}
 			const cached = await this.canvas.mediaResourceOfflineCacheManager.getCachedResource(
 				path,
 				"video",
@@ -204,6 +209,7 @@ export class VideoResourceManager {
 		const normalizedPath = this.canonicalResourcePath(path)
 		const entry = this.getOrCreateEntry(normalizedPath)
 		entry.ossSrc = fileInfo.src
+		entry.sourceUrl = fileInfo.src
 		entry.expiresAt = parseExpiresAt(fileInfo.expires_at)
 	}
 
@@ -252,6 +258,7 @@ export class VideoResourceManager {
 		if (!entry) {
 			entry = {
 				ossSrc: null,
+				sourceUrl: null,
 				expiresAt: null,
 				exchangePromise: null,
 				loadingPromise: null,
@@ -273,6 +280,8 @@ export class VideoResourceManager {
 		}
 
 		const entry = this.getOrCreateEntry(normalizedPath)
+		this.clearExpiredOssSrc(entry)
+		this.applyVirtualResourceBypass(entry)
 		const cachedResource = await this.loadCachedVideoResource(path, normalizedPath, entry)
 		if (cachedResource) {
 			this.triggerBackgroundRefresh(path, normalizedPath, entry)
@@ -308,8 +317,21 @@ export class VideoResourceManager {
 	private clearExpiredOssSrc(entry: ResourceEntry): void {
 		if (entry.ossSrc && isOssExpired(entry.expiresAt)) {
 			entry.ossSrc = null
+			entry.sourceUrl = null
 			entry.expiresAt = null
 		}
+	}
+
+	private applyVirtualResourceBypass(entry: ResourceEntry): void {
+		if (
+			!entry.ossSrc ||
+			!this.canvas.mediaResourceOfflineCacheManager.shouldBypassVirtualResource() ||
+			!this.canvas.mediaResourceOfflineCacheManager.isVirtualResourceUrl(entry.ossSrc)
+		) {
+			return
+		}
+
+		entry.ossSrc = entry.sourceUrl && !isOssExpired(entry.expiresAt) ? entry.sourceUrl : null
 	}
 
 	private triggerBackgroundRefresh(
@@ -334,7 +356,7 @@ export class VideoResourceManager {
 	private async exchangeOssSrc(
 		path: string,
 		entry: ResourceEntry,
-		options?: { forceRefresh?: boolean },
+		options?: { forceRefresh?: boolean; bypassVirtualResource?: boolean },
 	): Promise<string | null> {
 		const getFileInfo = this.canvas.magicConfigManager.config?.methods?.getFileInfo
 		if (!getFileInfo) {
@@ -355,15 +377,21 @@ export class VideoResourceManager {
 				if (fileInfo?.src) {
 					this.setFailureReason(entry, null)
 					entry.expiresAt = parseExpiresAt(fileInfo.expires_at)
+					entry.sourceUrl = fileInfo.src
 					entry.source = fileInfo.source
 					entry.fileName = fileInfo.fileName
 					const resourceUrl =
-						await this.canvas.mediaResourceOfflineCacheManager.resolveResourceUrl({
-							path,
-							url: fileInfo.src,
-							mediaType: "video",
-							expiresAt: entry.expiresAt,
-						})
+						await this.canvas.mediaResourceOfflineCacheManager.resolveResourceUrl(
+							{
+								path,
+								url: fileInfo.src,
+								mediaType: "video",
+								expiresAt: entry.expiresAt,
+							},
+							{
+								bypassVirtualResource: options?.bypassVirtualResource,
+							},
+						)
 					entry.ossSrc = resourceUrl
 					return resourceUrl
 				}
@@ -398,6 +426,9 @@ export class VideoResourceManager {
 		entry: ResourceEntry,
 	): Promise<LoadedVideoResource | null> {
 		try {
+			if (this.canvas.mediaResourceOfflineCacheManager.shouldBypassVirtualResource()) {
+				return null
+			}
 			const cached = await this.canvas.mediaResourceOfflineCacheManager.getCachedResource(
 				path,
 				"video",
@@ -405,6 +436,7 @@ export class VideoResourceManager {
 			if (!cached?.url) return null
 
 			entry.ossSrc = cached.url
+			entry.sourceUrl = cached.sourceUrl ?? null
 			entry.expiresAt = cached.expiresAt ?? null
 			if (entry.resource) {
 				return this.buildLoadedResource(entry)
@@ -503,9 +535,13 @@ export class VideoResourceManager {
 		const mediaDiag: VideoPreviewMediaDiag = { code: null, message: null }
 		const loaded = await this.extractPreviewResource(ossSrc, mediaDiag)
 		if (!loaded && retryCount === 0) {
-			entry.ossSrc = null
-			entry.expiresAt = null
-			const freshOssSrc = await this.exchangeOssSrc(path, entry)
+			const freshOssSrc =
+				(await this.resolveVirtualResourceFallbackOssSrc(
+					path,
+					ossSrc,
+					entry,
+					retryCount,
+				)) ?? (await this.exchangeOssSrc(path, entry))
 			if (freshOssSrc) {
 				return this.loadVideoResource(
 					path,
@@ -527,9 +563,60 @@ export class VideoResourceManager {
 			metadata: loaded.metadata,
 		}
 		this.setFailureReason(entry, null)
+		this.canvas.mediaResourceOfflineCacheManager.recordVirtualResourceLoadSuccess(ossSrc)
 
 		this.entries.set(normalizedPath, entry)
 		return this.buildLoadedResource(entry)
+	}
+
+	public async resolveVirtualPlaybackFallbackOssInfo(
+		path: string,
+		ossSrc: string,
+	): Promise<ResolvedVideoOssInfo | null> {
+		if (!this.canvas.mediaResourceOfflineCacheManager.isVirtualResourceUrl(ossSrc)) {
+			return null
+		}
+
+		const normalizedPath = this.canonicalResourcePath(path)
+		const entry = this.getOrCreateEntry(normalizedPath)
+		const fallbackOssSrc = await this.resolveVirtualResourceFallbackOssSrc(
+			path,
+			ossSrc,
+			entry,
+			0,
+		)
+		if (!fallbackOssSrc) return null
+		return {
+			ossSrc: fallbackOssSrc,
+			expiresAt: entry.expiresAt,
+		}
+	}
+
+	private async resolveVirtualResourceFallbackOssSrc(
+		path: string,
+		ossSrc: string,
+		entry: ResourceEntry,
+		retryCount: number,
+	): Promise<string | null> {
+		if (
+			retryCount > 0 ||
+			!this.canvas.mediaResourceOfflineCacheManager.isVirtualResourceUrl(ossSrc)
+		) {
+			return null
+		}
+
+		this.canvas.mediaResourceOfflineCacheManager.recordVirtualResourceLoadFailure(ossSrc)
+		if (entry.sourceUrl && !isOssExpired(entry.expiresAt)) {
+			entry.ossSrc = entry.sourceUrl
+			return entry.sourceUrl
+		}
+
+		entry.ossSrc = null
+		entry.expiresAt = null
+		return this.exchangeOssSrc(path, entry, {
+			forceRefresh: true,
+			bypassVirtualResource: true,
+		})
 	}
 
 	private enqueuePreviewLoad<T>(task: () => Promise<T>): Promise<T> {

@@ -797,6 +797,7 @@ const PPTSlide = observer(function PPTSlide({
 			>
 				{showEditToolbar && (
 					<EditToolbar
+						onStartInspector={() => rendererRef.current?.startInspector()}
 						showAIOptimization={allowEdit && !fileVersion}
 						showFileEdit={allowEdit && !fileVersion}
 						isEditMode={isEditMode}

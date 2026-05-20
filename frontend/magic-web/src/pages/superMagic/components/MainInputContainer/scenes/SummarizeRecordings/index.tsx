@@ -15,7 +15,9 @@ function SummarizeRecordingsInputContainer({
 	editorContext,
 	editorNodes,
 }: SummarizeRecordingsInputContainerProps) {
-	const { placeholder, panels, isLoading } = useCurrentSceneConfig()
+	const { placeholder, panels, isLoading } = useCurrentSceneConfig({
+		topicMode: editorContext?.topicMode,
+	})
 	const editorPortalTarget = usePortalTarget({
 		portalId: SCENE_INPUT_IDS.INPUT_CONTAINER,
 	})

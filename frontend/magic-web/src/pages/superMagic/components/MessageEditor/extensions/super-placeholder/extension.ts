@@ -312,7 +312,23 @@ export const SuperPlaceholderExtension = Node.create<SuperPlaceholderOptions>({
 					})
 
 					if (updated) {
-						editor.view.dispatch(tr)
+						try {
+							editor.view.dispatch(tr)
+						} catch {
+							// State was updated by another dispatch (e.g. a React NodeView mount)
+							// between when we read it and when we tried to apply. Rebuild the
+							// transaction from the current state and retry once.
+							const freshTr = editor.view.state.tr
+							editor.view.state.doc.descendants((node, pos) => {
+								if (node.type.name === SUPER_PLACEHOLDER_TYPE) {
+									freshTr.setNodeMarkup(pos, undefined, {
+										...node.attrs,
+										size,
+									})
+								}
+							})
+							editor.view.dispatch(freshTr)
+						}
 					}
 
 					return true

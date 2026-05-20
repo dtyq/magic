@@ -57,6 +57,19 @@ export interface SuperMagicAddContentToChatPayload {
 }
 
 /**
+ * Create_New_Topic 的可选参数。
+ * afterCreate 中的内容将在新话题创建并导航完成后自动插入输入框。
+ */
+export interface SuperMagicCreateNewTopicPayload {
+	/** Mode to create the new topic in */
+	topicMode?: import("@/pages/superMagic/pages/Workspace/types").TopicMode
+	afterCreate?: {
+		content: JSONContent
+		extraData?: SuperMagicAddContentToChatPayload["extraData"]
+	}
+}
+
+/**
  * Re_Edit_Message 的标准 payload。
  * 只声明重新编辑流程当前真正消费的字段：内容和 mentions。
  *
@@ -88,8 +101,9 @@ export type SuperMagicReEditMessageArgs = [payload: SuperMagicReEditMessagePaylo
  *
  * 示例：
  * pubsub.publish(PubSubEvents.Set_Input_Message, "帮我总结一下")
+ * pubsub.publish(PubSubEvents.Set_Input_Message, { type: "doc", content: [...] })
  */
-export type SuperMagicSetInputMessageArgs = [message: string]
+export type SuperMagicSetInputMessageArgs = [message: string | string[] | JSONContent]
 
 /**
  * Set_Demo_Text_To_Input 的参数 contract。

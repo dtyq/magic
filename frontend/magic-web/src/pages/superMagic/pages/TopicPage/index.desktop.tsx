@@ -51,6 +51,11 @@ import { messageSendService } from "../../services/messageSendFlowService"
 import { isReadOnlyProject } from "../../utils/permission"
 import { MessageHeaderTopicHistoryPanel } from "../../components/MessageHeader"
 import topicReadProgressService from "../../services/topicReadProgressService"
+import {
+	applyOptimisticTopicRunningState,
+	handleArrivedTopicStatusChange as syncArrivedTopicStatusChange,
+	syncTopicStatusPatch,
+} from "../../services/topicStatusSyncService"
 import dayjs from "@/lib/dayjs"
 import type { MessageItem } from "../../stores/types"
 
@@ -111,20 +116,6 @@ function resolveReadProgressPayloadFromMessage(message?: {
 		lastReadMessageId:
 			typeof message?.app_message_id === "string" ? message.app_message_id : undefined,
 	}
-}
-
-async function syncTopicStatusPatch(topicId: string) {
-	if (!topicId) return
-	const statusResponse = await SuperMagicApi.getTopicsStatus({ topic_ids: [topicId] })
-	const topicItems = statusResponse.topics || statusResponse.list || []
-	const statusItem = topicItems.find((item) => item.id === topicId)
-	if (!statusItem) return
-
-	topicStore.mergeTopic(topicId, {
-		task_status: statusItem.status as TaskStatus,
-		status: statusItem.status as TaskStatus,
-		has_unread: statusItem.has_unread,
-	})
 }
 
 // 工作区组件
@@ -325,49 +316,36 @@ function TopicPage() {
 			lastReadAt?: string
 			lastReadMessageId?: string
 		}) => {
-			if (!nextStatus || !topicId) return
+			syncArrivedTopicStatusChange({
+				scopeName: "TopicPage",
+				topicStore,
+				topicReadProgressService,
+				currentTopicStatusRef,
+				nextStatus,
+				topicId,
+				lastReadAt,
+				lastReadMessageId,
+				onTopicStatusChanged: (resolvedStatus, resolvedTopicId) => {
+					void SuperMagicService.topic.updateTopicStatus(resolvedTopicId, resolvedStatus)
 
-			const latestTopicStatus = currentTopicStatusRef.current
-			const hasStatusChanged = nextStatus !== latestTopicStatus
-			if (!hasStatusChanged) return
-
-			currentTopicStatusRef.current = nextStatus
-			void SuperMagicService.topic.updateTopicStatus(topicId, nextStatus)
-			const shouldMarkImmediateRead =
-				document.visibilityState === "visible" &&
-				(nextStatus === TaskStatus.FINISHED || nextStatus === TaskStatus.ERROR)
-			const syncPromise = syncTopicStatusPatch(topicId).catch((error) => {
-				console.warn("[TopicPage] 同步话题 unread 状态失败:", error)
+					const latestWorkspaceId = selectedWorkspaceRef.current?.id
+					const latestProjectId = selectedProjectRef.current?.id
+					if (delayedWorkspaceProjectStatusTimeoutRef.current) {
+						clearTimeout(delayedWorkspaceProjectStatusTimeoutRef.current)
+					}
+					delayedWorkspaceProjectStatusTimeoutRef.current = setTimeout(() => {
+						delayedWorkspaceProjectStatusTimeoutRef.current = null
+						if (latestWorkspaceId) {
+							void SuperMagicService.workspace.updateWorkspaceStatus(
+								latestWorkspaceId,
+							)
+						}
+						if (latestProjectId) {
+							void SuperMagicService.project.updateProjectStatus(latestProjectId)
+						}
+					}, WORKSPACE_PROJECT_STATUS_REFRESH_DELAY_MS)
+				},
 			})
-
-			const latestWorkspaceId = selectedWorkspaceRef.current?.id
-			const latestProjectId = selectedProjectRef.current?.id
-			if (delayedWorkspaceProjectStatusTimeoutRef.current) {
-				clearTimeout(delayedWorkspaceProjectStatusTimeoutRef.current)
-			}
-			delayedWorkspaceProjectStatusTimeoutRef.current = setTimeout(() => {
-				delayedWorkspaceProjectStatusTimeoutRef.current = null
-				if (latestWorkspaceId) {
-					void SuperMagicService.workspace.updateWorkspaceStatus(latestWorkspaceId)
-				}
-				if (latestProjectId) {
-					void SuperMagicService.project.updateProjectStatus(latestProjectId)
-				}
-			}, WORKSPACE_PROJECT_STATUS_REFRESH_DELAY_MS)
-
-			if (shouldMarkImmediateRead) {
-				void syncPromise.finally(() => {
-					window.setTimeout(() => {
-						topicReadProgressService.markTopicReadProgress({
-							topicId,
-							lastReadAt,
-							lastReadMessageId,
-							reason: "message-change",
-							immediate: true,
-						})
-					}, 1000)
-				})
-			}
 		},
 	)
 
@@ -411,10 +389,15 @@ function TopicPage() {
 			const readProgressPayload = resolveReadProgressPayloadFromMessages(topicMessages)
 			const targetTopicId = currentTopic?.id || selectedTopic?.id
 
-			const lastDetailMessage = topicMessages.findLast((message) => {
+			let lastDetailMessage = undefined
+			for (let index = topicMessages.length - 1; index >= 0; index -= 1) {
+				const message = topicMessages[index]
 				const node = superMagicStore.getMessageNode(message?.app_message_id)
-				return filterClickableMessageWithoutRevoked(node)
-			})
+				if (!filterClickableMessageWithoutRevoked(node)) continue
+
+				lastDetailMessage = message
+				break
+			}
 
 			const lastDetailMessageNode = superMagicStore.getMessageNode(
 				lastDetailMessage?.app_message_id,
@@ -515,7 +498,10 @@ function TopicPage() {
 
 		if (selectedTopic?.id) {
 			const readProgressPayload = resolveReadProgressPayloadFromMessages(messages)
-			void syncTopicStatusPatch(selectedTopic.id)
+			void syncTopicStatusPatch({
+				topicStore,
+				topicId: selectedTopic.id,
+			})
 				.catch((error) => {
 					console.warn("[TopicPage] 进入话题触发前同步话题 unread 状态失败:", error)
 				})
@@ -651,6 +637,27 @@ function TopicPage() {
 		},
 	)
 
+	const handleEditorSendComplete = useMemoizedFn(
+		({
+			success,
+			currentProject,
+			currentTopic,
+		}: {
+			success: boolean
+			currentProject: typeof selectedProject
+			currentTopic: typeof selectedTopic
+		}) => {
+			if (!success) return
+
+			applyOptimisticTopicRunningState({
+				topicStore,
+				topic: currentTopic ?? topicStore.selectedTopic,
+				project: currentProject ?? selectedProjectRef.current,
+				workspace: selectedWorkspaceRef.current,
+			})
+		},
+	)
+
 	const handleSelectedTopicChange = useMemoizedFn((topic: any) => {
 		topicStore.setSelectedTopic(topic)
 	})
@@ -679,9 +686,10 @@ function TopicPage() {
 				messages={messages as any}
 				showLoading={showLoading}
 				isShowLoadingInit={isShowLoadingInit}
-				currentTopicStatus={currentTopicStatus}
+				currentTopicStatus={currentTopicStatus!}
 				attachments={attachments}
 				handleSendMsg={handleSendMsg}
+				onSendComplete={handleEditorSendComplete}
 				handlePullMoreMessage={handlePullMoreMessage}
 				isMessagesLoading={isMessagesInitialLoading}
 				handleFileClick={handleFileClickWithPanel}

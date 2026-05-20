@@ -45,6 +45,7 @@ class EnterprisePermissionTreeTest extends HttpTestCase
         $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_console_management.content_audit'));
         $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_console_management.proxy_server'));
         $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.platform_model.video_model'));
+        $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_enhancement.official_agent'));
         $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_enhancement.skill_review'));
         $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_enhancement.skill_market'));
         $this->assertTrue($this->containsPermissionKey($tree, 'menu.platform_management.agent_enhancement.employee_review'));
@@ -78,23 +79,34 @@ class EnterprisePermissionTreeTest extends HttpTestCase
         ));
     }
 
-    public function testGetPermissionTreeUsesAliasMenusWithoutCreatingFakeOrderEditPermission(): void
+    public function testGetPermissionTreeUsesSplitAgentSkillResourcesWithoutCreatingInvalidOfficialEditPermission(): void
     {
         $tree = $this->permission->getPermissionTree(true);
 
-        $platformModelQuery = $this->permission->buildPermission('platform.ai.model_management', 'query');
-        $skillManagementQuery = $this->permission->buildPermission('platform.ai.skill_management', 'query');
-        $agentManagementQuery = $this->permission->buildPermission('platform.ai.agent_management', 'query');
+        $platformTextModelQuery = $this->permission->buildPermission('platform.model.text', 'query');
+        $platformVideoModelQuery = $this->permission->buildPermission('platform.model.video', 'query');
+        $officialAgentQuery = $this->permission->buildPermission('platform.agent.official', 'query');
+        $skillReviewQuery = $this->permission->buildPermission('platform.skill.review', 'query');
+        $skillMarketQuery = $this->permission->buildPermission('platform.skill.market', 'query');
+        $agentReviewQuery = $this->permission->buildPermission('platform.agent.review', 'query');
+        $agentMarketQuery = $this->permission->buildPermission('platform.agent.market', 'query');
         $orderQuery = $this->permission->buildPermission(EnterpriseResourceEnum::PLATFORM_PRODUCT_ORDER->value, 'query');
 
-        $this->assertSame(2, $this->countPermissionKey($tree, $platformModelQuery));
-        $this->assertSame(3, $this->countPermissionKey($tree, $skillManagementQuery));
-        $this->assertSame(3, $this->countPermissionKey($tree, $agentManagementQuery));
+        $this->assertSame(1, $this->countPermissionKey($tree, $platformTextModelQuery));
+        $this->assertSame(1, $this->countPermissionKey($tree, $platformVideoModelQuery));
+        $this->assertSame(1, $this->countPermissionKey($tree, $officialAgentQuery));
+        $this->assertSame(1, $this->countPermissionKey($tree, $skillReviewQuery));
+        $this->assertSame(1, $this->countPermissionKey($tree, $skillMarketQuery));
+        $this->assertSame(1, $this->countPermissionKey($tree, $agentReviewQuery));
+        $this->assertSame(1, $this->countPermissionKey($tree, $agentMarketQuery));
+        $this->assertSame(0, $this->countPermissionKey($tree, 'platform.ai.skill_management.query'));
+        $this->assertSame(0, $this->countPermissionKey($tree, 'platform.ai.agent_management.query'));
         $this->assertTrue($this->containsPermissionKey($tree, $orderQuery));
         $this->assertFalse($this->containsPermissionKey(
             $tree,
             EnterpriseResourceEnum::PLATFORM_PRODUCT_ORDER->value . '.edit'
         ));
+        $this->assertFalse($this->containsPermissionKey($tree, 'platform.agent.official.edit'));
     }
 
     public function testGetPermissionTreeUsesTranslatedBindPackageOperationLabel(): void

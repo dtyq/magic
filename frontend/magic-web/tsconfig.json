@@ -32,6 +32,7 @@
 	},
 	"exclude": [
 		"dist/**/*",
+		"src/pages/superMagic/components/Detail/contents/HTML/templates/**/*",
 		"src/**/__tests__/**/*.ts",
 		"src/**/__tests__/**/*.tsx",
 		"enterprise/src/**/__tests__/**/*.ts",

@@ -21,9 +21,16 @@ interface AIEditButtonProps {
 	attachmentList?: any[]
 	/** 当前文件ID */
 	fileId?: string
+	/** 触发元素选取检查器（仅 HTML 场景下传入）*/
+	onStartInspector?: () => void
 }
 
-function AIEditButton({ showButtonText = false, attachmentList, fileId }: AIEditButtonProps) {
+function AIEditButton({
+	showButtonText = false,
+	attachmentList,
+	fileId,
+	onStartInspector,
+}: AIEditButtonProps) {
 	const { t } = useTranslation("super")
 	const [dropdownOpen, setDropdownOpen] = useState(false)
 
@@ -36,6 +43,7 @@ function AIEditButton({ showButtonText = false, attachmentList, fileId }: AIEdit
 	const { aiEditItems } = useAIEdit({
 		currentFile,
 		onActionComplete: () => setDropdownOpen(false),
+		onStartInspector,
 	})
 
 	return (
@@ -49,7 +57,7 @@ function AIEditButton({ showButtonText = false, attachmentList, fileId }: AIEdit
 						<Button
 							size="sm"
 							className={cn(
-								"shadow-xs h-6 gap-1.5 rounded-md px-3",
+								"h-6 gap-1.5 rounded-md px-3 shadow-xs",
 								"bg-gradient-to-br from-[rgb(38,31,70)] via-[rgb(36,26,214)] to-[rgb(165,23,253)]",
 								"text-xs font-normal text-white",
 								"hover:opacity-90",

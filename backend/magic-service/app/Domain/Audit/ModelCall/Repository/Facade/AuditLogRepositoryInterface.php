@@ -44,4 +44,16 @@ interface AuditLogRepositoryInterface
         ?string $cursorId = null,
         string $direction = 'next'
     ): array;
+
+    /**
+     * 模型调用统计：返回 summary / trend / breakdown 原始数据.
+     *
+     * @param array<string, mixed> $filters
+     * @return array{summary: array, trend: array, breakdown: array}
+     */
+    public function statistics(
+        array $filters,
+        string $currentOrganizationCode,
+        bool $isOfficialOrganization
+    ): array;
 }

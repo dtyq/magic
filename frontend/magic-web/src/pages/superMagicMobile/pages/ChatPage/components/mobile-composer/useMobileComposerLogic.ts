@@ -33,10 +33,7 @@ import type {
 	ModelItem,
 	SendMessageByContentPayload,
 } from "@/pages/superMagic/components/MessageEditor/types"
-import {
-	buildPlainTextJSONContent,
-	generateTextFromJSONContent,
-} from "@/pages/superMagic/components/MessageEditor/utils"
+import { generateTextFromJSONContent } from "@/pages/superMagic/components/MessageEditor/utils"
 import { resolveMessageEditorModules } from "@/pages/superMagic/components/MessageEditor/utils/moduleConfig"
 import useUploadMentionFlow from "@/pages/superMagic/components/MessageEditor/hooks/useUploadMentionFlow"
 import { useMessageEditorProvider } from "@/pages/superMagic/components/MessageEditor/MessageEditorProvider"
@@ -57,7 +54,8 @@ import {
 import { getMCPAccess } from "@/components/Agent/MCP/store/mcp-access"
 import { openMessageFile } from "@/pages/superMagic/components/MessageList/utils/openMessageFile"
 import type { SceneEditorContext } from "@/pages/superMagic/components/MainInputContainer/components/editors/types"
-import { TaskStatus, TopicMode } from "@/pages/superMagic/pages/Workspace/types"
+import { TaskStatus } from "@/pages/superMagic/pages/Workspace/types"
+import { TopicMode } from "@/pages/superMagic/pages/Workspace/TopicMode"
 import { resetDocumentScrollPosition } from "@/utils/scroll"
 
 interface ReEditPayload {
@@ -112,22 +110,22 @@ export interface MobileComposerLogic {
 
 function appendPresetSuffixContent(
 	value: JSONContent | undefined,
-	presetSuffixContent: string,
+	presetSuffixContent: JSONContent | undefined,
 ): JSONContent | undefined {
 	if (!value) return value
+	if (!presetSuffixContent?.content?.length) return value
 
-	const normalizedSuffixContent = presetSuffixContent.trim()
+	const normalizedSuffixContent = generateTextFromJSONContent(presetSuffixContent).trim()
 	if (!normalizedSuffixContent) return value
 
 	const currentText = generateTextFromJSONContent(value).trimEnd()
 	if (currentText.endsWith(normalizedSuffixContent)) return value
 
-	const suffixDoc = buildPlainTextJSONContent(normalizedSuffixContent)
 	const baseContent = value.type === "doc" ? (value.content ?? []) : [value]
 
 	return {
 		type: "doc",
-		content: [...baseContent, ...(suffixDoc.content ?? [])],
+		content: [...baseContent, ...(presetSuffixContent.content ?? [])],
 	}
 }
 
@@ -368,7 +366,7 @@ export default function useMobileComposerLogic({
 	const handleSendToServer = useMemoizedFn(async (params: HandleSendParams) => {
 		const nextValue = appendPresetSuffixContent(
 			params.value,
-			sceneStateStore?.presetSuffixContent ?? "",
+			sceneStateStore?.presetSuffixContent,
 		)
 
 		if (isSending || isPreparingSendRef.current) return
@@ -448,7 +446,7 @@ export default function useMobileComposerLogic({
 					setSelectedProject: editorContext.setSelectedProject,
 					setSelectedTopic: editorContext.setSelectedTopic,
 					setSelectedWorkspace: editorContext.setSelectedWorkspace,
-					topicStore: editorContext.topicStore,
+					topicStore: editorContext.topicStore ?? topicStore,
 				},
 				tabPattern: effectiveTopicMode,
 				editorRef: tiptapEditorRef.current,
@@ -474,6 +472,11 @@ export default function useMobileComposerLogic({
 			})
 
 			editorContext.onSendSuccess?.({
+				currentProject: sendResult?.currentProject ?? null,
+				currentTopic: sendResult?.currentTopic ?? null,
+			})
+			editorContext.onSendComplete?.({
+				success: Boolean(sendResult),
 				currentProject: sendResult?.currentProject ?? null,
 				currentTopic: sendResult?.currentTopic ?? null,
 			})

@@ -276,8 +276,8 @@ export interface CanvasDesignRef {
 }
 
 export interface CanvasDesignProps {
-	/** 画布唯一标识，用于跨画布粘贴校验 */
-	id?: string
+	/** 设计项目 ID，用于隔离画布级缓存、SW 离线资源与跨画布粘贴校验 */
+	id: string
 	/** 是否为只读模式 */
 	readonly?: boolean
 	/** Magic 配置 */
@@ -325,4 +325,9 @@ export interface CanvasDesignProps {
 	t?: TFunction
 	/** 是否移动端 */
 	getIsMobile?: () => boolean
+	/**
+	 * 宿主底部存在 fixed 层（如分享页「由超级麦吉创建」徽标）时置为 true，
+	 * 缩放控件上移避免被遮挡；由宿主判断场景后传入，CanvasDesign 不依赖业务路由。
+	 */
+	shareHostBottomChrome?: boolean
 }

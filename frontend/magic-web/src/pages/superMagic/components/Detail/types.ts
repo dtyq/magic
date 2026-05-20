@@ -10,6 +10,7 @@ export enum DetailType {
 	Code = "code",
 	Empty = "empty",
 	Docx = "docx",
+	Doc = "doc",
 	Excel = "excel",
 	PowerPoint = "powerpoint",
 	Image = "image",

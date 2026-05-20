@@ -496,6 +496,7 @@ export type OnFetchIntercepted = (
 	fileId: string,
 	updatedAt: string | undefined,
 	expiresAt: string | undefined,
+	resolvedUrl?: string,
 ) => void
 
 /**
@@ -544,7 +545,13 @@ export function createParentMessageHandler(
 
 					// 记录拦截信息
 					if (onFetchIntercepted) {
-						onFetchIntercepted(relativePath, matchedFile.file_id, updatedAt, expiresAt)
+						onFetchIntercepted(
+							relativePath,
+							matchedFile.file_id,
+							updatedAt,
+							expiresAt,
+							ossUrl,
+						)
 					}
 
 					// 发送成功响应，包含 expires_at

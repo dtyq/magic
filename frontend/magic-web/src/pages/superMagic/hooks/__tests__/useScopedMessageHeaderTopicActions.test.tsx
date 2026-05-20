@@ -2,7 +2,8 @@ import { renderHook } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { SuperMagicApi } from "@/apis"
 import type { ProjectListItem, Topic } from "../../pages/Workspace/types"
-import { TaskStatus, TopicMode } from "../../pages/Workspace/types"
+import { TaskStatus } from "../../pages/Workspace/types"
+import { TopicMode } from "../../pages/Workspace/TopicMode"
 import { useScopedMessageHeaderTopicActions } from "../useScopedMessageHeaderTopicActions"
 
 vi.mock("@/apis", () => ({

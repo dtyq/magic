@@ -4,7 +4,7 @@ import { RoutePath, RoutePathMobile } from "@/constants/routes"
 import magicAdminRoutes from "@/routes/modules/admin/routes"
 import magiClawRoutes from "@/routes/modules/magi-claw/routes"
 import { RouteName } from "@/routes/constants"
-import { routesRedirection, teamEditionRedirection } from "@/routes/helpers"
+import { routesRedirection, teamEditionRedirection, withFlowNamespaces } from "@/routes/helpers"
 import { superMagicCrewRoutes } from "@/routes/modules/superMagicCrewRoutes"
 
 /**
@@ -53,17 +53,17 @@ const UserInfoDetailPage = lazy(() => import("@/pages/mobile/user-detail"))
 /**
  * @description 流程模块
  */
-const FlowLayout = lazy(() => import("@/pages/flow/layouts"))
+const FlowLayout = withFlowNamespaces(() => import("@/pages/flow/layouts"))
 /** 详情 */
-const FlowDetail = lazy(() => import("@/pages/flow"))
+const FlowDetail = withFlowNamespaces(() => import("@/pages/flow"))
 /** 发现 */
 const Explore = lazy(() => import("@/pages/explore/lazy/Explore"))
 /** AI助力 */
-const FlowAgent = lazy(() => import("@/pages/flow/agent"))
+const FlowAgent = withFlowNamespaces(() => import("@/pages/flow/agent"))
 /** 流程列表(工作流/子流程/工具/向量知识库/MCP) */
-const FlowList = lazy(() => import("@/pages/flow/list"))
+const FlowList = withFlowNamespaces(() => import("@/pages/flow/list"))
 /** MCP */
-const MCP = lazy(() => import("@/pages/flow/pages/mcp"))
+const MCP = withFlowNamespaces(() => import("@/pages/flow/pages/mcp"))
 
 /**
  * @description 向量知识库模块

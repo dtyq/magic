@@ -1,11 +1,8 @@
-import {
-	preloadWebRecordSummaryFloatPanel,
-	useWebRecordingEditorRuntime,
-	useWebRecordingSessionIdentity,
-} from "./editorRuntimeBase"
+import { useWebRecordingEditorRuntime, useWebRecordingSessionIdentity } from "./editorRuntimeBase"
+import { preloadRecordSummaryFloatPanel } from "@/services/recordSummary/utils/preloadService"
 
 export function preloadRecordSummaryFloatPanelIfNeeded() {
-	preloadWebRecordSummaryFloatPanel()
+	preloadRecordSummaryFloatPanel()
 }
 
 export function useRecordingEditorRuntime() {

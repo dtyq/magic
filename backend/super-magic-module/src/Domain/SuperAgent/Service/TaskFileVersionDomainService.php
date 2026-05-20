@@ -81,6 +81,7 @@ class TaskFileVersionDomainService
         $versionEntity->setEditType($editType);
 
         $savedEntity = $this->taskFileVersionRepository->insert($versionEntity);
+        $this->taskFileRepository->updateLatestVersionById($fileEntity->getFileId(), $savedEntity->getVersion());
 
         // 5. 清理旧版本
         $maxVersions = (int) config('super-magic.file_version.max_versions', 10);
