@@ -1036,29 +1036,20 @@ function MobileProjectDetailFilesView({
 				visible={downloadSheetOpen}
 				onClose={() => setDownloadSheetOpen(false)}
 				title={t("topicFiles.downloadTitle")}
+				headerVariant="actionHeader"
+				headerTitle={t("topicFiles.downloadTitle")}
+				headerLeadingAction={{
+					icon: <X className="size-[22px] text-foreground" />,
+					ariaLabel: t("close"),
+					onClick: () => setDownloadSheetOpen(false),
+					testId: "project-detail-files-download-close-button",
+				}}
 				position="bottom"
 				className="rounded-t-xl border-0 bg-muted"
-				bodyClassName="flex flex-col overflow-hidden px-2.5 pb-4 pt-0"
+				bodyClassName="flex flex-col overflow-hidden px-2.5 pb-[max(var(--safe-area-inset-bottom),16px)] pt-2"
 				style={MOBILE_SHEET_MAX_HEIGHT}
 				destroyOnClose={false}
 			>
-				<div className="flex flex-col items-center py-1.5">
-					<div className="h-1 w-20 rounded-full bg-muted-foreground" aria-hidden />
-				</div>
-				<div className="relative mb-2 flex h-14 items-center justify-center px-16 py-2">
-					<button
-						type="button"
-						className="absolute left-0 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-card text-foreground shadow-lg active:opacity-70"
-						onClick={() => setDownloadSheetOpen(false)}
-						aria-label={t("close")}
-					>
-						<X className="h-5.5 w-5.5" />
-					</button>
-					<h3 className="max-w-64 truncate text-center text-lg font-medium leading-6 text-foreground">
-						{t("topicFiles.downloadTitle")}
-					</h3>
-				</div>
-
 				<div className="overflow-hidden rounded-lg bg-card">
 					{downloadActionItems.map((item, index) => (
 						<button
