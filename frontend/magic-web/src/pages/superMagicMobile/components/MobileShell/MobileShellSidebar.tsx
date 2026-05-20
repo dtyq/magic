@@ -18,7 +18,7 @@ export interface MobileShellSidebarProps {
 	testIdPrefix?: string
 }
 
-const PRIMARY_NAV_KEYS = new Set(["chats", "workspaces"])
+const PRIMARY_NAV_KEYS = new Set(["chats", "workspaces", "recording"])
 
 /** 统一计算侧栏导航行样式，避免各页面复制相同的选中态与主题态。 */
 function navRowClass(isActive: boolean) {

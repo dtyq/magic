@@ -122,6 +122,32 @@ describe("MobileShellSidebar", () => {
 		expect(defaultOpenActionsPopup).not.toHaveBeenCalled()
 	})
 
+	it("keeps recording in the primary menu group with chats and workspaces", () => {
+		renderSidebar({
+			activeView: "chats",
+			navItems: [
+				{ key: "chats", icon: TestIcon, label: "对话" },
+				{ key: "workspaces", icon: TestIcon, label: "工作空间" },
+				{ key: "recording", icon: TestIcon, label: "录音与纪要" },
+				{ key: "myCrew", icon: TestIcon, label: "我的 Crew" },
+			],
+			recentItems: [],
+			onNavigate: vi.fn(),
+			onGoHome: vi.fn(),
+			onRecentNavigate: vi.fn(),
+			reloadRecentItems: vi.fn(),
+		})
+
+		const chatsButton = screen.getByTestId("mobile-super-shell-nav-chats")
+		const workspacesButton = screen.getByTestId("mobile-super-shell-nav-workspaces")
+		const recordingButton = screen.getByTestId("mobile-super-shell-nav-recording")
+		const myCrewButton = screen.getByTestId("mobile-super-shell-nav-myCrew")
+
+		expect(chatsButton.parentElement).toBe(workspacesButton.parentElement)
+		expect(recordingButton.parentElement).toBe(chatsButton.parentElement)
+		expect(myCrewButton.parentElement).not.toBe(chatsButton.parentElement)
+	})
+
 	it("keeps my crew in the secondary menu group instead of the chats and workspaces group", () => {
 		renderSidebar({
 			activeView: "chats",
