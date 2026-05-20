@@ -9,8 +9,9 @@ from agentlang.tools.tool_result import ToolResult
 from app.core.ai_abilities import get_video_understanding_model_id, get_video_understanding_timeout
 from app.core.entity.message.server_message import DisplayType, FileContent, ToolDetail
 from app.i18n import i18n
-from app.tools.core import BaseTool, BaseToolParams, tool
+from app.tools.core import BaseToolParams, tool
 from app.tools.media_utils import extract_media_source_name
+from app.tools.workspace_tool import WorkspaceTool
 from app.tools.video_understanding_utils import (
     VideoLLMRequestHandler,
     VideoProcessor,
@@ -41,7 +42,7 @@ Long video confirmation flag. When video exceeds 3 minutes the tool returns a co
 
 
 @tool()
-class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
+class VideoUnderstanding(WorkspaceTool[VideoUnderstandingParams]):
     """<!--zh
     视频理解工具：调用 AI 视频专家来查看、分析或解释视频内容。
     视频专家无法得知你所知晓的上下文，因此需要提供必要且充足的背景与需求信息。
@@ -115,6 +116,11 @@ class VideoUnderstanding(BaseTool[VideoUnderstandingParams]):
         tool_context: ToolContext,
         params: VideoUnderstandingParams,
     ) -> ToolResult:
+        import re
+        params.videos = [
+            str(self.resolve_path(v)) if not re.match(r'^https?://', v) else v
+            for v in params.videos
+        ]
         return await self.execute_purely(params)
 
     async def execute_purely(
