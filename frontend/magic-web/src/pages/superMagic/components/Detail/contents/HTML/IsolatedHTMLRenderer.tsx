@@ -536,6 +536,7 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			getAgentList,
 			createTopicAndSend,
 			sendMessage,
+			enableWriteOperations: true,
 		})
 
 		const isDynamicInterceptionEnabled = !disableDynamicResourceInterception

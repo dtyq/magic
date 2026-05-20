@@ -23,6 +23,11 @@ export interface UseIframeAgentOptions {
     }) => Promise<{ topicId: string }>
     /** 在当前话题发送消息 */
     sendMessage: (params: { message: string | TiptapJSONContent; model?: string }) => Promise<void>
+    /**
+     * 是否允许 iframe 执行写操作（createTopicAndSend / sendMessage）。
+     * 默认 false，仅开放只读能力。
+     */
+    enableWriteOperations?: boolean
 }
 
 export interface UseIframeAgentReturn {
@@ -31,7 +36,7 @@ export interface UseIframeAgentReturn {
 }
 
 export function useIframeAgent(options: UseIframeAgentOptions): UseIframeAgentReturn {
-    const { iframeRef, getAgentList, createTopicAndSend, sendMessage } = options
+    const { iframeRef, getAgentList, createTopicAndSend, sendMessage, enableWriteOperations = false } = options
 
     const serviceRef = useRef<IframeAgentService | null>(null)
 
@@ -45,6 +50,7 @@ export function useIframeAgent(options: UseIframeAgentOptions): UseIframeAgentRe
             getAgentList,
             createTopicAndSend,
             sendMessage,
+            enableWriteOperations,
         }
 
         serviceRef.current = new IframeAgentService(cfg)
@@ -53,7 +59,7 @@ export function useIframeAgent(options: UseIframeAgentOptions): UseIframeAgentRe
             serviceRef.current?.destroy()
             serviceRef.current = null
         }
-    }, [postToIframe, getAgentList, createTopicAndSend, sendMessage])
+    }, [postToIframe, getAgentList, createTopicAndSend, sendMessage, enableWriteOperations])
 
     const handleAgentMessage = useMemoizedFn(
         async (type: string, payload: unknown): Promise<boolean> => {
