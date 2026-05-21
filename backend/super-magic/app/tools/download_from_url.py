@@ -25,7 +25,8 @@ from app.utils.async_file_utils import async_copy2, async_stat, async_exists
 logger = get_logger(__name__)
 
 # Configuration constants - can be modified for different timeout settings
-DOWNLOAD_TIMEOUT_SECONDS = 15  # Default timeout for HTTP requests when downloading files
+# 总超时（含建连 + 读响应体）。视频/大文件需要较长时间，原 15s 对 ~26MB 视频极易超时
+DOWNLOAD_TIMEOUT_SECONDS = 120  # Default timeout for HTTP requests when downloading files
 
 
 class DownloadFromUrlParams(BaseToolParams):
@@ -374,8 +375,10 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceTool[Dow
             )
 
         except Exception as e:
-            logger.error(f"下载文件失败: {e!s}")
-            return ToolResult.error("Failed to download file")
+            # 把根因（异常类型 + 消息）一起带出来，方便上层/日志快速定位（如 TimeoutError 实例 str 为空）
+            error_detail = f"{type(e).__name__}: {e!s}".rstrip(": ")
+            logger.error(f"下载文件失败: {error_detail}", exc_info=True)
+            return ToolResult.error(f"Failed to download file: {error_detail}")
 
     async def _create_directories(self, file_path: Path) -> None:
         """创建文件所需的目录结构"""

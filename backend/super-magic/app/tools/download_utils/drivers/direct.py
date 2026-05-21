@@ -38,6 +38,17 @@ class DirectDownloadDriver(DownloadDriverInterface):
                     logger.warning(f"[direct] 下载可重试错误 (第{attempt + 1}次): {url}, 错误: {e}, {delay}s 后重试")
                     await asyncio.sleep(delay)
                     continue
+            except (asyncio.TimeoutError, aiohttp.ServerTimeoutError, aiohttp.ClientConnectionError) as e:
+                # 网络抖动 / 对端慢响应 / 短暂连接重置等也归入可重试范畴
+                last_error = e
+                if attempt < MAX_RETRIES - 1:
+                    delay = RETRY_BASE_DELAY * (2 ** attempt)
+                    logger.warning(
+                        f"[direct] 下载网络错误 (第{attempt + 1}次): {url}, "
+                        f"类型: {type(e).__name__}, 错误: {e!s}, {delay}s 后重试"
+                    )
+                    await asyncio.sleep(delay)
+                    continue
             except Exception:
                 raise
         raise last_error
