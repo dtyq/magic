@@ -30,7 +30,10 @@ import { isMagicApp } from "@/utils/devices"
 import { toAboutUs } from "@/layouts/BaseLayoutMobile/utils/url"
 import GlobalSidebarStore from "@/stores/display/GlobalSidebarStore"
 import { getMobileSettingsConfig } from "./config"
-import { MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME } from "./constants"
+import {
+	MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
+	MOBILE_SETTINGS_SHOW_INFO_HEADER,
+} from "./constants"
 import { MobileSettingsInfoPopover } from "./components/InfoPopover"
 import { MobileSettingsMenuSection } from "./components/MenuSection"
 import { MobileSettingsFreePlanCard, MobileSettingsPaidPlanCard } from "./components/PlanCards"
@@ -267,20 +270,22 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 					if (!nextOpen) onClose()
 				}}
 				headerAction={
-					<Button
-						ref={infoButtonRef}
-						type="button"
-						variant="ghost"
-						size="icon"
-						onClick={handleOpenInfoPopover}
-						className={cn(
-							MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
-							"right-2.5 bg-card text-foreground",
-						)}
-						aria-label={t("setting.infoAria")}
-					>
-						<Info className="h-5 w-5" />
-					</Button>
+					MOBILE_SETTINGS_SHOW_INFO_HEADER ? (
+						<Button
+							ref={infoButtonRef}
+							type="button"
+							variant="ghost"
+							size="icon"
+							onClick={handleOpenInfoPopover}
+							className={cn(
+								MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
+								"right-2.5 bg-card text-foreground",
+							)}
+							aria-label={t("setting.infoAria")}
+						>
+							<Info className="h-5 w-5" />
+						</Button>
+					) : undefined
 				}
 				// 底部显式预留安全区与额外滚动留白，避免最后一组菜单被 home indicator 视觉裁切。
 				contentClassName="gap-2 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1.75rem)] pt-0"
@@ -346,7 +351,7 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 				))}
 			</MobileSettingsSheetContainer>
 
-			{infoState ? (
+			{MOBILE_SETTINGS_SHOW_INFO_HEADER && infoState ? (
 				<MobileSettingsInfoPopover
 					state={infoState}
 					onClose={() => setInfoState(null)}

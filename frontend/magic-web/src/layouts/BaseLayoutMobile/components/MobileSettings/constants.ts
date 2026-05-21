@@ -10,3 +10,6 @@ export const MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME =
 export const MOBILE_SETTINGS_SECTION_CLASSNAME = "rounded-xl bg-card"
 
 export const MOBILE_SETTINGS_CARD_CLASSNAME = "rounded-xl border border-border bg-card p-4"
+
+/** Root sheet header info button; flip to true when the about entry should be visible again. */
+export const MOBILE_SETTINGS_SHOW_INFO_HEADER = false
