@@ -85,6 +85,23 @@ export interface MessageItem {
 	[key: string]: unknown
 }
 
+// ─── Token 用量 ──────────────────────────────────────────────
+
+export interface TokenUsageDetail {
+	cached_tokens: number
+	cache_write_tokens: number
+}
+
+export interface TokenUsage {
+	input_tokens: number
+	output_tokens: number
+	total_tokens: number
+	max_context_tokens?: number
+	model_id: string
+	input_tokens_details: TokenUsageDetail
+	request_id: string
+}
+
 // ─── 流式渲染 ────────────────────────────────────────────────
 
 export type MessageRole = "user" | "assistant" | "tool"

@@ -153,6 +153,7 @@ class TokenUsage:
     model_id: Optional[str] = None  # Added field for model ID
     model_name: Optional[str] = None  # Added field for model name
     resolved_model_id: Optional[str] = None  # 实际落地的模型 ID（如 "qwen3-coder-plus"）
+    max_context_tokens: Optional[int] = None  # 当前模型的最大上下文 token 数
 
     # 注册的解析器，按优先级顺序排列
     _parsers: ClassVar[List[Type[TokenUsageParser]]] = []
@@ -181,6 +182,9 @@ class TokenUsage:
             output_details_dict = self.output_tokens_details.to_dict()
             if output_details_dict:
                 data["output_tokens_details"] = output_details_dict
+
+        if self.max_context_tokens is not None:
+            data["max_context_tokens"] = self.max_context_tokens
 
         return data
 
@@ -231,6 +235,7 @@ class TokenUsage:
             model_id=data.get("model_id"),
             model_name=data.get("model_name"),
             resolved_model_id=data.get("resolved_model_id"),
+            max_context_tokens=data.get("max_context_tokens"),
         )
 
     @classmethod

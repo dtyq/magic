@@ -1869,6 +1869,8 @@ class Agent(BaseAgent):
                     horizon_model_info.description,
                 )
                 self.agent_context.horizon.update_context_usage(token_usage.input_tokens, context_window_total)
+                # 记录当前模型的最大上下文 token 数，供前端实时展示
+                token_usage.max_context_tokens = context_window_total or None
             except Exception as _horizon_err:
                 logger.warning(f"[AgentHorizon] 更新模型/上下文用量失败: {_horizon_err}")
 

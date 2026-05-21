@@ -151,6 +151,31 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             message_id = str(Snowflake.create_default().get_id())
         inner_message["message_id"] = message_id
 
+        # 当有 token_usage_details 时，注入到 inner_message 供前端消费
+        if token_usage_details and token_usage_details.usages:
+            usage = token_usage_details.usages[0]
+
+            # max_context_tokens 不是 LLM 响应字段，需要由 super-magic 主动补全。
+            # 直接复用聊天压缩流程的同款查值口径（resolve_user_facing_max_context_tokens）：
+            # 命中「定价分区」时取 pricing_interval（200K/256K），未命中回退模型原始 max_context_tokens。
+            max_context_tokens = usage.max_context_tokens
+            if max_context_tokens is None and usage.model_id:
+                from agentlang.chat_history.chat_history_models import (
+                    resolve_user_facing_max_context_tokens,
+                )
+                max_context_tokens = resolve_user_facing_max_context_tokens(usage.model_id)
+
+            tu = {
+                "input_tokens": usage.input_tokens,
+                "output_tokens": usage.output_tokens,
+                "total_tokens": usage.total_tokens,
+                "model_id": usage.model_id,
+                "input_tokens_details": usage.input_tokens_details.to_dict() if usage.input_tokens_details else None,
+                "max_context_tokens": max_context_tokens,
+                "request_id": correlation_id,
+            }
+            inner_message["token_usage"] = {k: v for k, v in tu.items() if v is not None}
+
         raw_content = {
             "type": "super_magic_message",
             "super_magic_message": inner_message,
@@ -605,12 +630,17 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         # 有 tool_calls → 暂存，不发送消息（等 before_tool_call 消费）
         if tool_calls_raw:
             from app.core.context.pending_reply_state import PendingReplyState
+            # 构建 token_usage_report 以便暂存到 PendingReplyState
+            token_usage_report = None
+            if event.data.token_usage:
+                token_usage_report = TokenUsageCollection.create_item_report(event.data.token_usage)
             agent_context.set_pending_reply_state(PendingReplyState(
                 content=content,
                 reasoning=reasoning_content,
                 correlation_id=event.data.correlation_id,
                 message_id=message_id,
                 tool_calls=tool_calls_raw,
+                token_usage_report=token_usage_report,
             ))
             return None
 
@@ -652,7 +682,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
             # 第一个 before_tool_call：消费暂存数据，发送携带完整 tool_calls 的 assistant 消息
             consumed = pending_state.consume_for_first_tool_call()
             if consumed:
-                p_content, p_reasoning, p_tool_calls, p_message_id = consumed
+                p_content, p_reasoning, p_tool_calls, p_message_id, p_token_usage_report = consumed
 
                 # pending_state.correlation_id 是 LLM 请求 ID，与流式 chunk 的 correlation_id 一致
                 llm_correlation_id = pending_state.correlation_id
@@ -730,6 +760,7 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
                     # 外层 correlation_id 使用 LLM 请求 ID，与流式 chunk 及 after_tool_call 对齐
                     correlation_id=llm_correlation_id,
                     message_id=p_message_id,
+                    token_usage_details=p_token_usage_report,
                 )
 
         # 批量后续工具：第一条 before 消息已包含所有 tool_calls（均为 running），跳过后续 before 事件
