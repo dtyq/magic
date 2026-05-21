@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react"
 import { useMemoizedFn } from "ahooks"
-import { Check, ChevronRight, ImagePlus, Plus } from "lucide-react"
+import { Check, ChevronRight, ImagePlus, Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
@@ -17,9 +17,11 @@ import {
 import { MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME } from "../constants"
 import { MobileSettingsFeedbackCategorySheet } from "./FeedbackCategorySheet"
 import {
+	MOBILE_SETTINGS_FEEDBACK_ACCEPT,
+	MOBILE_SETTINGS_FEEDBACK_ATTACHMENT_MAX_COUNT,
+	MOBILE_SETTINGS_FEEDBACK_CONTENT_MIN_LENGTH,
 	MOBILE_SETTINGS_FEEDBACK_DESCRIPTION_MAX_LENGTH,
-	MOBILE_SETTINGS_FEEDBACK_IMAGE_MAX_COUNT,
-	MOBILE_SETTINGS_FEEDBACK_IMAGE_MAX_SIZE_BYTES,
+	MOBILE_SETTINGS_FEEDBACK_FILE_MAX_BYTES,
 	MOBILE_SETTINGS_FEEDBACK_TITLE_MAX_LENGTH,
 	type MobileSettingsFeedbackCategoryOption,
 } from "./feedbackShared"
@@ -31,6 +33,7 @@ interface MobileSettingsFeedbackDraftImage extends MobileSettingsFeedbackUploade
 	previewUrl: string
 }
 
+/** Category picker row on the create form — compact layout aligned with the prototype. */
 function MobileSettingsFeedbackCategoryCell(props: {
 	category?: MobileSettingsFeedbackCategoryOption
 	placeholder: string
@@ -40,50 +43,62 @@ function MobileSettingsFeedbackCategoryCell(props: {
 	const Icon = category?.Icon
 
 	return (
-		<button
-			type="button"
-			onClick={onClick}
-			className="flex h-[72px] w-full items-center gap-4 rounded-2xl bg-card px-4 text-left transition-opacity active:opacity-60"
-			data-testid="mobile-settings-feedback-category-trigger"
-		>
-			<div
-				className={cn(
-					"flex size-14 shrink-0 items-center justify-center rounded-2xl",
-					category ? category.iconBoxClassName : "bg-muted",
-				)}
-				aria-hidden
+		<div className="w-full shrink-0 overflow-hidden rounded-lg bg-card">
+			<button
+				type="button"
+				onClick={onClick}
+				className="flex h-12 w-full items-center gap-3 px-[14px] text-left transition-opacity active:opacity-60"
+				data-testid="mobile-settings-feedback-category-trigger"
 			>
-				{Icon ? (
-					<Icon className={cn("h-5 w-5", category.iconClassName)} strokeWidth={2} />
-				) : (
-					<Plus className="h-5 w-5 text-muted-foreground" strokeWidth={2} />
-				)}
-			</div>
-			<span
-				className={cn(
-					"flex-1 text-[16px] leading-6",
-					category ? "text-foreground" : "text-muted-foreground",
-				)}
-			>
-				{category ? category.label : placeholder}
-			</span>
-			<ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-		</button>
+				<div
+					className={cn(
+						"flex size-9 shrink-0 items-center justify-center rounded-[10px]",
+						category ? category.iconBoxClassName : "bg-muted",
+					)}
+					aria-hidden
+				>
+					{Icon ? (
+						<Icon
+							className={cn("h-5 w-5", category.iconClassName)}
+							strokeWidth={1.75}
+						/>
+					) : (
+						<Plus className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+					)}
+				</div>
+				<span
+					className={cn(
+						"flex-1 truncate text-left text-[16px] leading-5",
+						category ? "text-foreground" : "text-muted-foreground",
+					)}
+				>
+					{category ? category.label : placeholder}
+				</span>
+				<ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+			</button>
+		</div>
 	)
 }
 
+/** Section title above each form group — matches prototype label spacing. */
 function MobileSettingsFeedbackSectionLabel(props: { children: ReactNode }) {
-	return <div className="px-3.5 text-sm leading-5 text-muted-foreground">{props.children}</div>
+	return (
+		<div className="px-[14px] text-[14px] leading-5 text-muted-foreground">
+			{props.children}
+		</div>
+	)
 }
 
+/** Thumbnail tile for an uploaded image with a remove control. */
 function MobileSettingsFeedbackAttachmentTile(props: {
 	image: MobileSettingsFeedbackDraftImage
+	removeAriaLabel: string
 	onRemove: (id: string) => void
 }) {
-	const { image, onRemove } = props
+	const { image, removeAriaLabel, onRemove } = props
 
 	return (
-		<div className="relative size-[84px] overflow-hidden rounded-2xl border border-border bg-card">
+		<div className="relative size-20 shrink-0 overflow-hidden rounded-lg border border-border bg-card">
 			<img
 				src={image.previewUrl}
 				alt={image.name}
@@ -93,15 +108,16 @@ function MobileSettingsFeedbackAttachmentTile(props: {
 			<button
 				type="button"
 				onClick={() => onRemove(image.id)}
-				className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-full bg-black/60 text-white transition-opacity active:opacity-70"
-				aria-label="attachment-remove"
+				className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full bg-foreground/80 text-background transition-opacity active:opacity-70"
+				aria-label={removeAriaLabel}
 			>
-				<span className="text-sm leading-none">×</span>
+				<X className="h-3 w-3" strokeWidth={2.5} />
 			</button>
 		</div>
 	)
 }
 
+/** Header confirm action — disabled styling matches prototype primary circle button. */
 function MobileSettingsFeedbackConfirmButton(props: {
 	disabled: boolean
 	onClick: () => void
@@ -161,6 +177,7 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 	const [contact, setContact] = useState("")
 	const [images, setImages] = useState<MobileSettingsFeedbackDraftImage[]>([])
 	const [categorySheetOpen, setCategorySheetOpen] = useState(false)
+	const [touched, setTouched] = useState(false)
 	const [isUploading, setIsUploading] = useState(false)
 	const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -170,8 +187,14 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 		() => feedbackCategories.find((option) => option.id === selectedCategoryId),
 		[feedbackCategories, selectedCategoryId],
 	)
+
+	const descriptionTrimmed = description.trim()
 	const canSubmit =
-		Boolean(selectedCategory && description.trim()) && !isUploading && !isSubmitting
+		Boolean(selectedCategory) &&
+		descriptionTrimmed.length >= MOBILE_SETTINGS_FEEDBACK_CONTENT_MIN_LENGTH &&
+		descriptionTrimmed.length <= MOBILE_SETTINGS_FEEDBACK_DESCRIPTION_MAX_LENGTH &&
+		!isUploading &&
+		!isSubmitting
 
 	/** 反馈 Sheet 关闭或重开时统一重置草稿，并释放本地预览 URL，避免临时图片泄漏。 */
 	useEffect(() => {
@@ -189,37 +212,49 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 		})
 		setContact(open ? userInfo?.email || "" : "")
 		setCategorySheetOpen(false)
+		setTouched(false)
 		setIsUploading(false)
 		setIsSubmitting(false)
 	}, [open, userInfo?.email])
 
-	/** 附件选择只允许图片，并沿用现有反馈链路的数量和大小上限。 */
+	/** 附件选择只允许图片，数量与体积上限与原型 FEEDBACK_LIMITS 对齐（图片-only）。 */
 	const handleSelectImages = useMemoizedFn(async (event: ChangeEvent<HTMLInputElement>) => {
 		const selectedFiles = Array.from(event.target.files ?? [])
 		event.target.value = ""
 
 		if (!selectedFiles.length) return
 
-		const remainCount = MOBILE_SETTINGS_FEEDBACK_IMAGE_MAX_COUNT - images.length
+		const remainCount = MOBILE_SETTINGS_FEEDBACK_ATTACHMENT_MAX_COUNT - images.length
 		if (remainCount <= 0) {
-			toast.warning(tSuper("onlineFeedback.uploadImageCountLimit"))
+			toast.warning(
+				t("setting.feedbackSheet.attachmentCountLimit", {
+					max: MOBILE_SETTINGS_FEEDBACK_ATTACHMENT_MAX_COUNT,
+				}),
+			)
 			return
 		}
 
 		const limitedFiles = selectedFiles.slice(0, remainCount)
-		const availableFiles = limitedFiles
-			.filter((file) => file.type.startsWith("image/"))
-			.filter((file) => file.size <= MOBILE_SETTINGS_FEEDBACK_IMAGE_MAX_SIZE_BYTES)
+		const imageFiles = limitedFiles.filter((file) => file.type.startsWith("image/"))
+		const availableFiles = imageFiles.filter(
+			(file) => file.size <= MOBILE_SETTINGS_FEEDBACK_FILE_MAX_BYTES,
+		)
 
 		if (!availableFiles.length) {
-			toast.warning(tSuper("onlineFeedback.uploadImageSizeLimit"))
+			toast.warning(t("setting.feedbackSheet.attachmentSizeLimit"))
 			return
 		}
 
 		if (selectedFiles.length > remainCount) {
-			toast.warning(tSuper("onlineFeedback.uploadImageCountLimit"))
-		} else if (availableFiles.length < limitedFiles.length) {
-			toast.warning(tSuper("onlineFeedback.uploadImageSizeLimit"))
+			toast.warning(
+				t("setting.feedbackSheet.attachmentCountLimit", {
+					max: MOBILE_SETTINGS_FEEDBACK_ATTACHMENT_MAX_COUNT,
+				}),
+			)
+		} else if (availableFiles.length < imageFiles.length) {
+			toast.warning(t("setting.feedbackSheet.attachmentSizeLimit"))
+		} else if (imageFiles.length < limitedFiles.length) {
+			toast.warning(t("setting.feedbackSheet.attachmentSizeLimit"))
 		}
 
 		const previewUrls = availableFiles.map((file) => URL.createObjectURL(file))
@@ -263,7 +298,8 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 
 	/** 当前 API 没有 title 字段，因此提交时把标题前置到描述中，保证信息仍然可见。 */
 	const handleSubmit = useMemoizedFn(async () => {
-		if (!selectedCategory || !description.trim() || isUploading || isSubmitting) return
+		setTouched(true)
+		if (!canSubmit || !selectedCategory) return
 
 		setIsSubmitting(true)
 		try {
@@ -307,7 +343,7 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 						ariaLabel={t("button.confirm")}
 					/>
 				}
-				contentClassName="gap-4 px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-3"
+				contentClassName="gap-2.5 px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 				dataTestId="mobile-settings-feedback-sheet"
 			>
 				<div className="flex flex-col gap-2">
@@ -325,7 +361,7 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 					<MobileSettingsFeedbackSectionLabel>
 						{t("setting.feedbackSheet.titleLabel")}
 					</MobileSettingsFeedbackSectionLabel>
-					<div className="overflow-hidden rounded-2xl bg-card">
+					<div className="overflow-hidden rounded-lg bg-card">
 						<Input
 							type="text"
 							value={title}
@@ -338,7 +374,7 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 								)
 							}
 							placeholder={t("setting.feedbackSheet.titlePlaceholder")}
-							className="h-[68px] rounded-none border-0 bg-transparent px-5 text-[16px] shadow-none focus-visible:ring-0"
+							className="h-12 rounded-none border-0 bg-transparent px-[14px] py-0 text-[16px] shadow-none focus-visible:ring-0"
 							data-testid="mobile-settings-feedback-title-input"
 						/>
 					</div>
@@ -348,7 +384,7 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 					<MobileSettingsFeedbackSectionLabel>
 						{t("setting.feedbackSheet.descriptionLabel")}
 					</MobileSettingsFeedbackSectionLabel>
-					<div className="overflow-hidden rounded-2xl bg-card">
+					<div className="flex w-full shrink-0 flex-col overflow-hidden rounded-lg bg-card">
 						<Textarea
 							value={description}
 							onChange={(event) =>
@@ -359,58 +395,82 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 									),
 								)
 							}
+							onBlur={() => setTouched(true)}
 							placeholder={t("setting.feedbackSheet.descriptionPlaceholder")}
-							className="min-h-[276px] resize-none rounded-none border-0 bg-transparent px-5 py-5 text-[16px] leading-8 shadow-none focus-visible:ring-0"
+							rows={6}
+							className="min-h-0 resize-none rounded-none border-0 bg-transparent px-[14px] pb-2 pt-3 text-[16px] leading-6 shadow-none focus-visible:ring-0"
 							data-testid="mobile-settings-feedback-description-input"
 						/>
-						<div className="flex justify-end px-5 pb-5 text-sm leading-5 text-muted-foreground">
-							{description.length}/{MOBILE_SETTINGS_FEEDBACK_DESCRIPTION_MAX_LENGTH}
+						<div className="flex items-center justify-between px-[14px] pb-2.5">
+							{touched &&
+							descriptionTrimmed.length <
+								MOBILE_SETTINGS_FEEDBACK_CONTENT_MIN_LENGTH ? (
+								<span className="text-[12px] leading-4 text-destructive">
+									{t("setting.feedbackSheet.contentTooShort", {
+										min: MOBILE_SETTINGS_FEEDBACK_CONTENT_MIN_LENGTH,
+									})}
+								</span>
+							) : (
+								<span />
+							)}
+							<span className="text-[12px] tabular-nums leading-4 text-muted-foreground">
+								{t("setting.feedbackSheet.contentCounter", {
+									count: description.length,
+									max: MOBILE_SETTINGS_FEEDBACK_DESCRIPTION_MAX_LENGTH,
+								})}
+							</span>
 						</div>
 					</div>
 				</div>
 
 				<div className="flex flex-col gap-2">
-					<div className="flex items-center justify-between px-3.5">
-						<div className="text-sm leading-5 text-muted-foreground">
+					<div className="flex items-center justify-between px-[14px]">
+						<div className="text-[14px] leading-5 text-muted-foreground">
 							{t("setting.feedbackSheet.attachmentLabel")}
 						</div>
-						<div className="text-sm leading-5 text-muted-foreground">
-							{images.length}/{MOBILE_SETTINGS_FEEDBACK_IMAGE_MAX_COUNT}
+						<div className="text-[12px] tabular-nums leading-4 text-muted-foreground">
+							{t("setting.feedbackSheet.attachmentCount", {
+								count: images.length,
+								max: MOBILE_SETTINGS_FEEDBACK_ATTACHMENT_MAX_COUNT,
+							})}
 						</div>
 					</div>
 					<input
 						ref={fileInputRef}
 						type="file"
-						accept="image/*"
+						accept={MOBILE_SETTINGS_FEEDBACK_ACCEPT}
 						multiple
 						className="sr-only"
 						aria-hidden
 						onChange={handleSelectImages}
 					/>
-					<div className="flex flex-wrap gap-3">
+					<div className="flex flex-wrap gap-2">
 						{images.map((image) => (
 							<MobileSettingsFeedbackAttachmentTile
 								key={image.id}
 								image={image}
+								removeAriaLabel={t("setting.feedbackSheet.attachmentRemoveAria")}
 								onRemove={handleRemoveImage}
 							/>
 						))}
-						{images.length < MOBILE_SETTINGS_FEEDBACK_IMAGE_MAX_COUNT ? (
+						{images.length < MOBILE_SETTINGS_FEEDBACK_ATTACHMENT_MAX_COUNT ? (
 							<button
 								type="button"
 								onClick={() => fileInputRef.current?.click()}
-								className="flex size-[84px] shrink-0 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card text-muted-foreground transition-opacity active:opacity-60"
+								className="flex size-20 shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border bg-card text-muted-foreground transition-opacity active:opacity-60"
 								data-testid="mobile-settings-feedback-attachment-trigger"
 							>
-								<ImagePlus className="h-6 w-6" strokeWidth={1.75} />
-								<span className="text-sm leading-5">
+								<ImagePlus className="h-5 w-5" strokeWidth={1.75} />
+								<span className="text-[11px] leading-3">
 									{t("setting.feedbackSheet.attachmentAdd")}
 								</span>
 							</button>
 						) : null}
 					</div>
-					<div className="px-3.5 text-sm leading-5 text-muted-foreground">
-						{t("setting.feedbackSheet.attachmentHint")}
+					<div className="px-[14px] text-[12px] leading-4 text-muted-foreground">
+						{t("setting.feedbackSheet.attachmentHint", {
+							max: MOBILE_SETTINGS_FEEDBACK_ATTACHMENT_MAX_COUNT,
+						})}
 					</div>
 				</div>
 
@@ -418,13 +478,13 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 					<MobileSettingsFeedbackSectionLabel>
 						{t("setting.feedbackSheet.contactLabel")}
 					</MobileSettingsFeedbackSectionLabel>
-					<div className="overflow-hidden rounded-2xl bg-card">
+					<div className="overflow-hidden rounded-lg bg-card">
 						<Input
 							type="text"
 							value={contact}
 							onChange={(event) => setContact(event.target.value)}
-							placeholder={tSuper("onlineFeedback.contactEmailPlaceholder")}
-							className="h-[68px] rounded-none border-0 bg-transparent px-5 text-[16px] shadow-none focus-visible:ring-0"
+							placeholder={t("setting.feedbackSheet.contactPlaceholder")}
+							className="h-12 rounded-none border-0 bg-transparent px-[14px] py-0 text-[16px] shadow-none focus-visible:ring-0"
 							data-testid="mobile-settings-feedback-contact-input"
 						/>
 					</div>

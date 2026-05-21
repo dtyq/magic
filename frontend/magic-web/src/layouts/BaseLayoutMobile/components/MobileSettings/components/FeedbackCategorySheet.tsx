@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { MobileSettingsSheetContainer } from "./SheetContainer"
 import type { MobileSettingsFeedbackCategoryOption } from "./feedbackShared"
 
+/** Category icon in the picker list — compact size-9 cell aligned with the prototype. */
 function MobileSettingsFeedbackCategoryIcon(props: {
 	option: MobileSettingsFeedbackCategoryOption
 }) {
@@ -14,12 +15,12 @@ function MobileSettingsFeedbackCategoryIcon(props: {
 	return (
 		<div
 			className={cn(
-				"flex size-12 shrink-0 items-center justify-center rounded-2xl",
+				"flex size-9 shrink-0 items-center justify-center rounded-[10px]",
 				option.iconBoxClassName,
 			)}
 			aria-hidden
 		>
-			<Icon className={cn("h-5 w-5", option.iconClassName)} strokeWidth={2} />
+			<Icon className={cn("h-5 w-5", option.iconClassName)} strokeWidth={1.75} />
 		</div>
 	)
 }
@@ -48,10 +49,10 @@ export function MobileSettingsFeedbackCategorySheet(props: {
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) onClose()
 			}}
-			contentClassName="gap-3 px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-3"
+			contentClassName="gap-2.5 px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 			dataTestId="mobile-settings-feedback-category-sheet"
 		>
-			<div className="overflow-hidden rounded-2xl bg-card">
+			<div className="w-full shrink-0 overflow-hidden rounded-lg bg-card">
 				{options.map((option, index) => {
 					const isSelected = option.id === selectedCategoryId
 
@@ -60,11 +61,11 @@ export function MobileSettingsFeedbackCategorySheet(props: {
 							<button
 								type="button"
 								onClick={() => handleSelectCategory(option.id)}
-								className="flex min-h-[92px] w-full items-center gap-4 px-5 py-4 text-left transition-opacity active:opacity-60"
+								className="flex h-14 w-full items-center gap-3 px-[14px] text-left transition-opacity active:opacity-60"
 								data-testid={`mobile-settings-feedback-category-${option.id}`}
 							>
 								<MobileSettingsFeedbackCategoryIcon option={option} />
-								<span className="flex-1 text-[16px] leading-6 text-foreground">
+								<span className="flex-1 truncate text-[16px] leading-5 text-foreground">
 									{option.label}
 								</span>
 								<ChevronRight
@@ -75,7 +76,7 @@ export function MobileSettingsFeedbackCategorySheet(props: {
 								/>
 							</button>
 							{index < options.length - 1 ? (
-								<div className="pl-[84px]">
+								<div className="pl-[50px]">
 									<div className="h-px w-full bg-border" />
 								</div>
 							) : null}

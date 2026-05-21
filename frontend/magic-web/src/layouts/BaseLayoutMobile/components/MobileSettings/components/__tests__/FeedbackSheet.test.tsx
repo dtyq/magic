@@ -47,7 +47,7 @@ describe("MobileSettingsFeedbackSheet", () => {
 		expect((screen.getByLabelText("button.confirm") as HTMLButtonElement).disabled).toBe(true)
 	})
 
-	test("选择分类并填写描述后启用确认按钮", () => {
+	test("选择分类但描述不足 10 字时仍禁用确认按钮", () => {
 		render(<MobileSettingsFeedbackSheet open onClose={vi.fn()} />)
 
 		fireEvent.click(screen.getByTestId("mobile-settings-feedback-category-trigger"))
@@ -55,7 +55,21 @@ describe("MobileSettingsFeedbackSheet", () => {
 			screen.getByTestId("mobile-settings-feedback-category-functionUsageFeedback"),
 		)
 		fireEvent.change(screen.getByTestId("mobile-settings-feedback-description-input"), {
-			target: { value: "反馈内容" },
+			target: { value: "太短了" },
+		})
+
+		expect((screen.getByLabelText("button.confirm") as HTMLButtonElement).disabled).toBe(true)
+	})
+
+	test("选择分类并填写至少 10 字描述后启用确认按钮", () => {
+		render(<MobileSettingsFeedbackSheet open onClose={vi.fn()} />)
+
+		fireEvent.click(screen.getByTestId("mobile-settings-feedback-category-trigger"))
+		fireEvent.click(
+			screen.getByTestId("mobile-settings-feedback-category-functionUsageFeedback"),
+		)
+		fireEvent.change(screen.getByTestId("mobile-settings-feedback-description-input"), {
+			target: { value: "这是一段足够长的反馈描述内容" },
 		})
 
 		expect((screen.getByLabelText("button.confirm") as HTMLButtonElement).disabled).toBe(false)
@@ -71,14 +85,15 @@ describe("MobileSettingsFeedbackSheet", () => {
 			target: { value: "一句话标题" },
 		})
 		fireEvent.change(screen.getByTestId("mobile-settings-feedback-description-input"), {
-			target: { value: "详细问题描述" },
+			target: { value: "详细问题描述内容补充说明" },
 		})
 		fireEvent.click(screen.getByLabelText("button.confirm"))
 
 		await waitFor(() => {
 			expect(submitMobileSettingsFeedbackMock).toHaveBeenCalledWith({
 				type: "订单问题",
-				description: "setting.feedbackSheet.titleLabelPlain: 一句话标题\n\n详细问题描述",
+				description:
+					"setting.feedbackSheet.titleLabelPlain: 一句话标题\n\n详细问题描述内容补充说明",
 				contactEmail: "kevent@magicrew.ai",
 				images: [],
 			})
