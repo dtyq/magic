@@ -962,17 +962,8 @@ class AsrFileAppService extends AbstractAppService
             // Update progress: 10%
             $this->asrTaskDomainService->updatePhaseProgress($taskStatus, 10);
 
-            // finish-recording 与 /summary 行为不同：不改显示目录，只用于合并文件命名
-            $effectiveTitle = $generatedTitle;
-            if (empty($effectiveTitle)) {
-                $effectiveTitle = $taskStatus->uploadGeneratedTitle;
-            }
-
             // Execute merge
-            $fileTitle = $this->titleGeneratorService->sanitizeTitle($effectiveTitle ?? '');
-            if ($fileTitle === '') {
-                $fileTitle = $this->translator->trans('asr.file_names.original_recording');
-            }
+            $fileTitle = $this->resolveFinishRecordingFileTitle($taskStatus, $generatedTitle);
 
             // Update progress: 50%
             $this->asrTaskDomainService->updatePhaseProgress($taskStatus, 50);
@@ -2146,6 +2137,44 @@ class AsrFileAppService extends AbstractAppService
                 $this->asrTaskDomainService->saveTaskStatus($taskStatus);
             }
         });
+    }
+
+    /**
+     * Resolve finish-recording title with the same server-side trust model as /summary.
+     */
+    private function resolveFinishRecordingFileTitle(AsrTaskStatusDTO $taskStatus, ?string $requestGeneratedTitle): string
+    {
+        $uploadGeneratedTitle = $this->titleGeneratorService->sanitizeTitle($taskStatus->uploadGeneratedTitle ?? '');
+        if ($uploadGeneratedTitle !== '') {
+            $this->logger->info('finish-recording 使用 upload-tokens 生成的标题', [
+                'task_key' => $taskStatus->taskKey,
+                'title_source' => 'upload_generated_title',
+            ]);
+            return $uploadGeneratedTitle;
+        }
+
+        $generatedFromTask = $this->titleGeneratorService->generateNullableFromTaskStatus($taskStatus);
+        $generatedFromTask = $this->titleGeneratorService->sanitizeTitle($generatedFromTask ?? '');
+        if ($generatedFromTask !== '') {
+            $this->logger->info('finish-recording 使用任务状态内容生成标题', [
+                'task_key' => $taskStatus->taskKey,
+                'title_source' => 'task_status',
+                'has_asr_content' => ! empty($taskStatus->asrStreamContent),
+                'has_note' => ! empty($taskStatus->noteContent),
+            ]);
+            return $generatedFromTask;
+        }
+
+        $requestTitle = $this->titleGeneratorService->sanitizeTitle($requestGeneratedTitle ?? '');
+        if ($requestTitle !== '') {
+            $this->logger->info('finish-recording 回退使用请求标题', [
+                'task_key' => $taskStatus->taskKey,
+                'title_source' => 'request_generated_title',
+            ]);
+            return $requestTitle;
+        }
+
+        return $this->translator->trans('asr.file_names.original_recording');
     }
 
     /**
