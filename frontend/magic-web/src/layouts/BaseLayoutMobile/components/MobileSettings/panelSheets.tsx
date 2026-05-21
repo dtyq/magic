@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import { useMemoizedFn } from "ahooks"
-import { Coins, ListFilter, Sparkles } from "lucide-react"
+import { Coins, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
@@ -10,10 +10,7 @@ import { useTimezone } from "@/providers/TimezoneProvider/hooks"
 import { cn } from "@/lib/utils"
 import { isPrivateDeployment } from "@/utils/env"
 import MagicModal from "@/components/base/MagicModal"
-import {
-	MOBILE_SETTINGS_CARD_CLASSNAME,
-	MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
-} from "./constants"
+import { MOBILE_SETTINGS_CARD_CLASSNAME } from "./constants"
 import { MobileSettingsPointsRecordDetailSheet } from "./components/PointsRecordDetailSheet"
 import { MobileSettingsPointsRecordRow } from "./components/PointsRecordRow"
 import { MobileSettingsSheetContainer } from "./components/SheetContainer"
@@ -278,22 +275,7 @@ export function MobileSettingsOrderHistorySheet(props: { open: boolean; onClose:
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) onClose()
 			}}
-			headerAction={
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon"
-					aria-label={t("button.filter")}
-					disabled
-					className={cn(
-						MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
-						"right-2.5 bg-card text-foreground",
-					)}
-					data-testid="mobile-settings-order-history-filter-placeholder"
-				>
-					<ListFilter className="h-5 w-5" />
-				</Button>
-			}
+			// 筛选能力待接口支持后再通过 headerAction 开放，暂时隐藏避免占位按钮误导用户。
 			// 订单记录是长列表场景，固定接近全屏高度以保留更多可视订单并匹配原型层级。
 			sheetClassName="h-[90dvh]"
 			contentClassName="min-h-0 flex-1 overflow-hidden p-0"
