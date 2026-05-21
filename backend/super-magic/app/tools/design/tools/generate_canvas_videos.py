@@ -34,7 +34,7 @@ from app.tools.generate_video import (
     normalize_video_input_mode_value,
     normalize_video_task_value,
 )
-from app.utils.async_file_utils import async_mkdir
+from app.utils.async_file_utils import async_exists, async_mkdir
 from app.utils.video_logger import get_video_logger
 
 logger = get_video_logger(__name__)
@@ -387,6 +387,9 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
             self._override = params.override
             self._poll_interval_seconds = params.poll_interval_seconds
             self._poll_timeout_seconds = params.poll_timeout_seconds
+            workspace_root = Path(self.base_dir)
+            project_prefix = params.project_path.strip("/")
+            await self._normalize_reference_paths(params.tasks, workspace_root, project_prefix)
             return await self._run_generate_flow(tool_context, params.project_path, params.tasks)
         except Exception as e:
             logger.exception(f"generate_canvas_videos 失败: {e!s}")
@@ -583,6 +586,56 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
             return "./" + str(Path(workspace_rel_path).relative_to(relative_project_path))
         except ValueError:
             return workspace_rel_path
+
+    async def _normalize_reference_paths(
+        self,
+        tasks: List[VideoTaskSpec],
+        workspace_root: Path,
+        project_prefix: str,
+    ) -> None:
+        for task in tasks:
+            task.reference_image_paths = await self._normalize_path_list(
+                task.reference_image_paths, workspace_root, project_prefix
+            )
+            task.reference_video_paths = await self._normalize_path_list(
+                task.reference_video_paths, workspace_root, project_prefix
+            )
+            task.reference_audio_paths = await self._normalize_path_list(
+                task.reference_audio_paths, workspace_root, project_prefix
+            )
+            task.frame_start_path = await self._normalize_path_value(
+                task.frame_start_path, workspace_root, project_prefix
+            )
+            task.frame_end_path = await self._normalize_path_value(
+                task.frame_end_path, workspace_root, project_prefix
+            )
+
+    async def _normalize_path_list(
+        self,
+        paths: List[str],
+        workspace_root: Path,
+        project_prefix: str,
+    ) -> List[str]:
+        return [
+            await self._normalize_path_value(path, workspace_root, project_prefix)
+            for path in paths
+        ]
+
+    async def _normalize_path_value(
+        self,
+        path: str,
+        workspace_root: Path,
+        project_prefix: str,
+    ) -> str:
+        if not path or path.startswith(("http://", "https://")) or Path(path).is_absolute():
+            return path
+
+        normalized = path.lstrip("/")
+        if await async_exists(workspace_root / normalized):
+            return normalized
+        if project_prefix and await async_exists(workspace_root / project_prefix / normalized):
+            return f"{project_prefix}/{normalized}"
+        return normalized
 
     def _build_result_content(
         self,

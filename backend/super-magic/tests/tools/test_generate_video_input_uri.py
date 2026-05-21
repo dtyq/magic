@@ -145,6 +145,46 @@ def test_video_task_spec_allows_reference_image_tokens():
     assert task.reference_image_paths == ["images/white-cat.jpg", "images/black-cat.jpg"]
 
 
+@pytest.mark.asyncio
+async def test_generate_canvas_videos_normalizes_project_relative_reference_paths(tmp_path):
+    project_dir = tmp_path / "demo-project"
+    (project_dir / "images").mkdir(parents=True)
+    (project_dir / "videos").mkdir(parents=True)
+    (project_dir / "audios").mkdir(parents=True)
+    (project_dir / "frames").mkdir(parents=True)
+    (project_dir / "images" / "ref.jpg").write_bytes(b"fake-image")
+    (project_dir / "videos" / "ref.mp4").write_bytes(b"fake-video")
+    (project_dir / "audios" / "ref.mp3").write_bytes(b"fake-audio")
+    (project_dir / "frames" / "start.jpg").write_bytes(b"fake-start")
+    (project_dir / "frames" / "end.jpg").write_bytes(b"fake-end")
+
+    tool = GenerateCanvasVideos(base_dir=str(tmp_path))
+    task = VideoTaskSpec(
+        prompt=(
+            "让白色小猫 [image1] 参考备选图 [image2]，按参考视频 [video1] 的节奏移动，"
+            "并配合音频 [audio1]，从起始帧过渡到结束帧"
+        ),
+        name="项目相对参考素材",
+        size="1280x720",
+        reference_image_paths=["images/ref.jpg", "https://cdn.example.com/ref.jpg"],
+        reference_video_paths=["videos/ref.mp4"],
+        reference_audio_paths=["audios/ref.mp3"],
+        frame_start_path="frames/start.jpg",
+        frame_end_path="frames/end.jpg",
+    )
+
+    await tool._normalize_reference_paths([task], tmp_path, "demo-project")
+
+    assert task.reference_image_paths == [
+        "demo-project/images/ref.jpg",
+        "https://cdn.example.com/ref.jpg",
+    ]
+    assert task.reference_video_paths == ["demo-project/videos/ref.mp4"]
+    assert task.reference_audio_paths == ["demo-project/audios/ref.mp3"]
+    assert task.frame_start_path == "demo-project/frames/start.jpg"
+    assert task.frame_end_path == "demo-project/frames/end.jpg"
+
+
 def test_video_task_spec_requires_video_and_audio_tokens():
     with pytest.raises(ValidationError, match=r"\[video1\].*\[audio1\]"):
         VideoTaskSpec(
