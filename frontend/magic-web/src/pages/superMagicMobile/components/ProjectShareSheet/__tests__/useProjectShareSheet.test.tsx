@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 	refreshData: vi.fn(),
 	cancelShare: vi.fn(),
 	createOrUpdateShareResource: vi.fn(),
-	getShareResourceId: vi.fn(),
+	getSnowflakeIds: vi.fn(),
 	writeText: vi.fn(),
 	successToast: vi.fn(),
 	errorToast: vi.fn(),
@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/apis", () => ({
 	SuperMagicApi: {
-		getShareResourceId: mocks.getShareResourceId,
+		getSnowflakeIds: mocks.getSnowflakeIds,
 		createOrUpdateShareResource: mocks.createOrUpdateShareResource,
 	},
 }))
@@ -87,7 +87,7 @@ describe("useProjectShareSheet", () => {
 		vi.clearAllMocks()
 		mocks.projectShareData = []
 		mocks.fileShareData = []
-		mocks.getShareResourceId.mockResolvedValue({ id: "share-1" })
+		mocks.getSnowflakeIds.mockResolvedValue({ ids: ["share-1"] })
 		mocks.createOrUpdateShareResource.mockResolvedValue({})
 		mocks.cancelShare.mockResolvedValue(undefined)
 	})

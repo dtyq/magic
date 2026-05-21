@@ -418,9 +418,9 @@ export function useProjectShareSheet({
 
 		setSaving(true)
 		try {
-			// 复用现有项目分享保存契约；移动端 Sheet 只替换 UI，不新增接口形态。
-			const resourceIdResponse = await SuperMagicApi.getShareResourceId()
-			const resourceId = resourceIdResponse?.id
+			// Align with desktop FileShareModal: allocate share resource_id via snowflake API.
+			const resourceIdResponse = await SuperMagicApi.getSnowflakeIds()
+			const resourceId = resourceIdResponse?.ids?.[0]
 			if (!resourceId) {
 				throw new Error("Failed to get share resource id")
 			}
