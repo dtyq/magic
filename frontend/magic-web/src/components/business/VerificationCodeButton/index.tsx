@@ -117,11 +117,8 @@ function VerificationCodeButton({
 		}
 	}, [phone, stateCode])
 
+	/** Keep label text during loading so full-width pill buttons do not collapse to spinner-only width. */
 	const text = useMemo(() => {
-		if (isFetching) {
-			return null
-		}
-
 		if (isWaiting) {
 			return loginT("afterSecondsCan", {
 				seconds: Math.ceil(countdown / 1000),
@@ -129,7 +126,7 @@ function VerificationCodeButton({
 		}
 
 		return isNotFirstSend ? loginT("reSendVerificationCode") : loginT("sendVerificationCode")
-	}, [isFetching, isWaiting, loginT, countdown, isNotFirstSend])
+	}, [isWaiting, loginT, countdown, isNotFirstSend])
 
 	return (
 		<MagicButton

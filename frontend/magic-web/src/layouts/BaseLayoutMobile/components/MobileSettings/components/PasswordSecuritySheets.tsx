@@ -235,7 +235,7 @@ export function MobileSettingsPasswordSheet({
 					<PasswordField label={t("setting.VerificationCode")}>
 						<div className="flex flex-col gap-3">
 							<VerificationCodeButton
-								className="h-12 w-full rounded-full bg-foreground text-base font-semibold text-background hover:bg-foreground/90"
+								className="h-12 w-full rounded-full bg-foreground text-base font-semibold text-background hover:bg-foreground/90 disabled:!bg-foreground disabled:!text-background disabled:opacity-80"
 								phone={verifyTarget}
 								codeType={VerificationCode.ChangePassword}
 								trigger={handleSendCode}

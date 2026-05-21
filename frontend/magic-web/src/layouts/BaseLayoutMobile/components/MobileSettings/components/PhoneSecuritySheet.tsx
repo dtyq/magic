@@ -318,7 +318,7 @@ function CurrentPhoneVerifyView({
 			</div>
 
 			<VerificationCodeButton
-				className="mt-1 h-12 w-full rounded-full bg-foreground text-base font-semibold text-background hover:bg-foreground/90"
+				className="mt-1 h-12 w-full rounded-full bg-foreground text-base font-semibold text-background hover:bg-foreground/90 disabled:!bg-foreground disabled:!text-background disabled:opacity-80"
 				phone={currentPhone}
 				codeType={VerificationCode.ChangePhone}
 				trigger={onSendCode}
