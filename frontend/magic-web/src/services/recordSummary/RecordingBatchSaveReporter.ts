@@ -12,6 +12,7 @@ interface RecordingBatchSaveFile {
 	fileKey: string
 	fileName: string
 	fileSize: number
+	isHidden?: boolean
 }
 
 export class RecordingBatchSaveReporter {
@@ -52,7 +53,7 @@ export class RecordingBatchSaveReporter {
 	clearSession(sessionId: string): void {
 		this.savedFilesBySession.delete(sessionId)
 
-		for (const reportKey of this.inFlightReports.keys()) {
+		for (const reportKey of Array.from(this.inFlightReports.keys())) {
 			if (reportKey.startsWith(`${sessionId}::`)) {
 				this.inFlightReports.delete(reportKey)
 			}
@@ -75,6 +76,7 @@ export class RecordingBatchSaveReporter {
 						file_type: "user_upload",
 						storage_type: "workspace",
 						source: UploadSource.RecordSummary,
+						...(file.isHidden ? { is_hidden: true } : {}),
 					},
 				],
 			})

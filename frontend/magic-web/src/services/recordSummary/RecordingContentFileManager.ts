@@ -400,7 +400,7 @@ export class RecordingContentFileManager {
 			)
 
 			this.transcriptFile.lastContent = content
-			await this.reportUploadedContentFile(this.transcriptFile, uploadResult)
+			await this.reportUploadedContentFile(this.transcriptFile, uploadResult, true)
 			this.events.onUploadSuccess?.(
 				ContentFileType.Transcript,
 				this.transcriptFile.fileId,
@@ -605,6 +605,7 @@ export class RecordingContentFileManager {
 	private async reportUploadedContentFile(
 		file: ContentFileInfo,
 		uploadResult: { fileKey: string; fileSize: number },
+		isHidden?: boolean,
 	): Promise<void> {
 		if (!this.sessionId || !this.topicId || !this.projectId) {
 			logger.warn("Skip content batch save: missing session context", {
@@ -623,6 +624,7 @@ export class RecordingContentFileManager {
 			fileKey: uploadResult.fileKey,
 			fileName: file.fileName,
 			fileSize: uploadResult.fileSize,
+			...(isHidden ? { isHidden: true } : {}),
 		})
 	}
 }
