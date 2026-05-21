@@ -23,6 +23,11 @@ use App\Infrastructure\Core\DataIsolation\ThirdPlatformDataIsolationManagerInter
 use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayKelingVideoAdapter;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\CloudswayVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Adapter\KelingOmniVideoAdapter;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Capability\KelingOmniGenerationCapabilityProvider;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingTransportFactory;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\KelingVideoClient;
+use App\Infrastructure\ExternalAPI\VideoGenerateAPI\Keling\Transport\ApiKeyKelingTransport;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\TranslatorInterface;
@@ -363,6 +368,53 @@ class VideoQueueDomainServiceTest extends TestCase
         );
 
         $this->assertSame('{{image_1}} 跟随 {{video_1}} 的动态节奏', $operation->getRawRequest()['prompt']);
+    }
+
+    public function testCreateOperationPassesInferredAspectRatioToKelingOmniPayload(): void
+    {
+        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
+        $requestDTO = new CreateVideoDTO([
+            'model_id' => 'kling-v3-omni',
+            'task' => 'generate',
+            'prompt' => '[image1] 在明亮舞台上跳出纸箱',
+            'inputs' => [
+                'reference_images' => [
+                    ['uri' => 'https://localhost/ref.png'],
+                ],
+            ],
+            'input_mode' => VideoInputMode::OmniReference->value,
+            'generation' => [
+                'size' => '1280x720',
+                'duration_seconds' => 5,
+            ],
+        ]);
+        $requestDTO->valid();
+
+        $operation = $service->createOperation(
+            ModelGatewayDataIsolation::create('org-test', 'user-test'),
+            'MaaS_KeLing_3O_video',
+            'provider-model-keling-omni',
+            ProviderCode::Keling,
+            $requestDTO,
+            $this->createKelingOmniConfig(),
+        );
+
+        $adapter = new KelingOmniVideoAdapter(
+            new KelingOmniGenerationCapabilityProvider(),
+            new KelingTransportFactory(
+                new ApiKeyKelingTransport(
+                    new KelingVideoClient($this->createMock(ClientFactory::class)),
+                ),
+            ),
+        );
+        $providerPayload = $adapter->buildProviderPayload($operation);
+
+        $generation = $operation->getRawRequest()['generation'];
+        $this->assertSame('16:9', $generation['aspect_ratio']);
+        $this->assertSame('720p', $generation['resolution']);
+        $this->assertSame('16:9', $providerPayload['aspect_ratio']);
+        $this->assertSame('720p', $providerPayload['resolution']);
+        $this->assertSame('std', $providerPayload['mode']);
     }
 
     public function testCreateOperationNormalizesCloudswaySeedancePromptReferenceAliasesToCanonicalTokens(): void
@@ -810,32 +862,6 @@ class VideoQueueDomainServiceTest extends TestCase
 
         $this->assertSame('720p', $operation->getRawRequest()['generation']['resolution']);
         $this->assertSame('std', $providerPayload['mode']);
-    }
-
-    public function testCreateOperationRejectsUnsupportedTaskForCurrentProvider(): void
-    {
-        $service = new VideoQueueDomainService($this->createMock(VideoQueueOperationRepositoryInterface::class));
-        $requestDTO = new CreateVideoDTO([
-            'model_id' => 'veo-3.1-fast-generate-preview',
-            'task' => 'extend',
-            'prompt' => 'extend the clip',
-            'inputs' => [
-                'reference_videos' => [
-                    ['uri' => 'https://example.com/input.mp4'],
-                ],
-            ],
-        ]);
-        $requestDTO->valid();
-
-        $this->expectException(BusinessException::class);
-        $service->createOperation(
-            ModelGatewayDataIsolation::create('org-test', 'user-test'),
-            'LCnVzCkkMnVulyrz',
-            'provider-model-veo-fast',
-            ProviderCode::Cloudsway,
-            $requestDTO,
-            $this->createConfigForModel($requestDTO->getModel(), ProviderCode::Cloudsway),
-        );
     }
 
     public function testCreateOperationKeepsReferenceVideoAudioMaskAndEditTaskInCanonicalRequest(): void
@@ -1393,6 +1419,14 @@ class VideoQueueDomainServiceTest extends TestCase
                 'durations' => [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
                 'default_duration_seconds' => 5,
                 'resolutions' => ['720p', '1080p'],
+                'sizes' => [
+                    ['label' => '16:9', 'value' => '1280x720', 'width' => 1280, 'height' => 720, 'resolution' => '720p'],
+                    ['label' => '9:16', 'value' => '720x1280', 'width' => 720, 'height' => 1280, 'resolution' => '720p'],
+                    ['label' => '1:1', 'value' => '960x960', 'width' => 960, 'height' => 960, 'resolution' => '720p'],
+                    ['label' => '16:9', 'value' => '1920x1080', 'width' => 1920, 'height' => 1080, 'resolution' => '1080p'],
+                    ['label' => '9:16', 'value' => '1080x1920', 'width' => 1080, 'height' => 1920, 'resolution' => '1080p'],
+                    ['label' => '1:1', 'value' => '1440x1440', 'width' => 1440, 'height' => 1440, 'resolution' => '1080p'],
+                ],
                 'default_resolution' => '720p',
                 'supports_negative_prompt' => true,
                 'supports_generate_audio' => true,

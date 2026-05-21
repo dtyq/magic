@@ -18,7 +18,7 @@ import re
 import time
 import uuid
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import aiofiles
@@ -71,6 +71,11 @@ TERMINAL_VIDEO_STATUSES = {"succeeded", "failed", "canceled"}
 LOCAL_INPUT_ERROR_PREFIXES = (
     "本地文件不存在:",
     "无法将本地文件转换为可访问 URL:",
+)
+VIDEO_SIZE_REQUIRED_ERROR = (
+    "generate_video requires size. Choose a supported WIDTHxHEIGHT value from the current "
+    "video model generation.sizes, pass it as size, and retry. Do not use width/height or "
+    "invent unsupported sizes."
 )
 VIDEO_TASK_ALIASES = {
     "generater": "generate",
@@ -246,18 +251,8 @@ End frame image path or URL, optional"""
     )
     size: str = Field(
         "",
-        description="""<!--zh: 生成视频的真实尺寸，可选。例如 1280x720、1920x1080、2160x3840。若用户明确要求具体生成尺寸，优先使用 size。若已传 size，通常不要再传与它比例冲突的 aspect_ratio 或 width/height。-->
-Generated video's real dimensions, optional, e.g. 1280x720, 1920x1080, 2160x3840. If the user explicitly asks for exact generation dimensions, prefer size. If size is provided, usually avoid conflicting aspect_ratio or width/height."""
-    )
-    width: Optional[int] = Field(
-        default=None,
-        description="""<!--zh: 目标生成宽度，可选。仅在没有明确 size 时，用于和 height 一起从 featured generation.sizes 自动匹配生成尺寸。若用户已经给了 1280x720 这类明确尺寸，优先使用 size。-->
-Target generation width, optional. Use it with height to auto-match a generation size from featured generation.sizes only when size is not explicitly provided. If the user gives exact dimensions like 1280x720, prefer size."""
-    )
-    height: Optional[int] = Field(
-        default=None,
-        description="""<!--zh: 目标生成高度，可选。仅在没有明确 size 时，与 width 一起用于自动匹配生成尺寸。若用户已经给了 1280x720 这类明确尺寸，优先使用 size。-->
-Target generation height, optional. Use it with width to auto-match a generation size only when size is not explicitly provided. If the user gives exact dimensions like 1280x720, prefer size."""
+        description="""<!--zh: 生成视频必须传 size，格式为 WIDTHxHEIGHT，例如 864x496、1280x720、1920x1080。若用户没有明确给尺寸，必须从当前视频模型上下文的 generation.sizes 支持列表中选择一个最符合用户分辨率和画幅意图的值；不允许编造不在支持列表里的 size，也不要用 width/height 代替。-->
+Generated video size is required and must use WIDTHxHEIGHT format, e.g. 864x496, 1280x720, 1920x1080. If the user does not provide an exact size, choose one from the current video model context generation.sizes that best matches the user's resolution and aspect-ratio intent. Do not invent unsupported sizes, and do not use width/height instead."""
     )
     aspect_ratio: str = Field(
         "",
@@ -342,12 +337,13 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
     - 文生视频：prompt="黄昏海边，镜头缓慢推进，电影感光影"
     - 图引导视频：prompt="让角色缓慢转身并微笑" + reference_image_paths=["/path/to/ref.png"]
     - 首尾帧过渡：frame_start_path="/path/to/start.png" + frame_end_path="/path/to/end.png"
-    - 指定尺寸：优先使用 size="1920x1080"，或提供 width + height 让工具自动匹配
+    - 指定尺寸：必须传 size="1920x1080" 这类 WIDTHxHEIGHT 值
 
     重要提示：
     - 应在 prompt 中明确描述主体、动作、镜头语言、光线、风格和时长预期
+    - 每次调用都必须传 size；如果用户没有明确给尺寸，应从当前视频模型上下文的 generation.sizes 中选择，不允许编造尺寸
     - 如果用户明确要求宽高比、分辨率、时长或帧率，建议显式传入对应参数
-    - size 会优先按当前模型 featured generation.sizes 配置校验；若只传 width/height，工具会尝试自动推导匹配尺寸
+    - size 会优先按当前模型 featured generation.sizes 配置校验；不要使用 width/height 代替 size
     - 默认输出到工作区下的 videos 目录，可通过 output_path 和 video_name 控制保存位置与文件名
     -->
     Generate AI videos and save them to the workspace
@@ -364,22 +360,15 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
     - Text-to-video: prompt="Sunset by the sea, slow push-in camera movement, cinematic lighting"
     - Reference-guided video: prompt="Make the character slowly turn around and smile" + reference_image_paths=["/path/to/ref.png"]
     - Start/end frame transition: frame_start_path="/path/to/start.png" + frame_end_path="/path/to/end.png"
-    - Specify size: Prefer size="1920x1080", or provide width + height for automatic matching
+    - Specify size: Always pass a WIDTHxHEIGHT value such as size="1920x1080"
 
     Important tips:
     - The prompt should clearly describe the subject, motion, camera language, lighting, style, and expected duration
+    - Every call must pass size. If the user does not provide an exact size, choose one from the current video model context generation.sizes; do not invent dimensions
     - If the user explicitly requires aspect ratio, resolution, duration, or fps, pass those parameters explicitly
-    - size is validated against the current model's featured generation.sizes config first; if only width/height are provided, the tool tries to infer a matching size automatically
+    - size is validated against the current model's featured generation.sizes config first; do not use width/height instead of size
     - Output is saved to the workspace `videos` directory by default; use output_path and video_name to control the location and file name
     """
-
-    _DIMENSION_TO_RESOLUTION: ClassVar[Dict[Tuple[int, int], str]] = {
-        (480, 854): "480p",
-        (720, 1280): "720p",
-        (1080, 1920): "1080p",
-        (1440, 2560): "2k",
-        (2160, 3840): "4k",
-    }
 
     def __init__(self, **data):
         if "base_dir" not in data:
@@ -407,6 +396,19 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             video_generation_config = self._resolve_video_generation_config(model_id)
             if video_generation_config is None:
                 logger.info(f"视频模型 {model_id} 缺少 featured 能力配置，继续按现有兜底逻辑执行")
+
+            missing_size_error = self._get_missing_size_error(params)
+            if missing_size_error:
+                return VideoToolResult(
+                    ok=False,
+                    content=missing_size_error,
+                    videos=[],
+                    extra_info={
+                        "error": missing_size_error,
+                        "raw_error": missing_size_error,
+                        "error_type": "video.size_required",
+                    },
+                )
 
             request_id = str(uuid.uuid4())
             video_id = str(uuid.uuid4())
@@ -505,6 +507,8 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
     @staticmethod
     def _classify_local_input_error(error_message: str) -> str:
         normalized_error = error_message.strip()
+        if normalized_error == VIDEO_SIZE_REQUIRED_ERROR:
+            return "video.size_required"
         if normalized_error.startswith("本地文件不存在:"):
             return "video.local_input_not_found"
         if normalized_error.startswith("无法将本地文件转换为可访问 URL:"):
@@ -516,6 +520,17 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
     @staticmethod
     def _is_llm_visible_magic_service_error(error: Any) -> bool:
         return isinstance(error, MagicServiceVideoError) and error.code in LLM_VISIBLE_MAGIC_SERVICE_ERROR_CODES
+
+    @staticmethod
+    def _get_missing_size_error(params: GenerateVideoParams) -> str:
+        size = params.size.strip() if isinstance(params.size, str) else ""
+        return "" if size else VIDEO_SIZE_REQUIRED_ERROR
+
+    @classmethod
+    def _assert_size_present(cls, params: GenerateVideoParams) -> None:
+        missing_size_error = cls._get_missing_size_error(params)
+        if missing_size_error:
+            raise ValueError(missing_size_error)
 
     @staticmethod
     def _resolve_model(requested_model: str) -> str:
@@ -1300,8 +1315,6 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             "operation_id": operation_id,
             "request_id": request_id,
             "requested_size": params.size or None,
-            "requested_width": params.width,
-            "requested_height": params.height,
             "aspect_ratio": applied_generation.get("aspect_ratio"),
             "duration_seconds": applied_generation.get("duration_seconds"),
             "resolution": applied_generation.get("resolution"),
@@ -1345,15 +1358,11 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         params: GenerateVideoParams,
         video_generation_config: Optional[Dict[str, Any]],
     ) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+        self._assert_size_present(params)
         generation: Dict[str, Any] = {}
-        explicit_size = params.size.strip() if isinstance(params.size, str) else ""
-        if explicit_size:
-            generation["size"] = explicit_size
+        explicit_size = params.size.strip()
+        generation["size"] = explicit_size
         matched_size = self._resolve_requested_generation_size(params, video_generation_config)
-        if not explicit_size and matched_size:
-            inferred_size = matched_size.get("value")
-            if isinstance(inferred_size, str) and inferred_size.strip():
-                generation["size"] = inferred_size.strip()
 
         if params.aspect_ratio:
             generation["aspect_ratio"] = params.aspect_ratio
@@ -1364,14 +1373,6 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         resolution = params.resolution.strip() if isinstance(params.resolution, str) else ""
         if resolution:
             generation["resolution"] = resolution
-        elif not explicit_size and matched_size is None:
-            inferred_resolution = self._infer_resolution_from_dimensions(
-                video_generation_config,
-                params.width,
-                params.height,
-            )
-            if inferred_resolution:
-                generation["resolution"] = inferred_resolution
 
         if params.fps is not None:
             generation["fps"] = params.fps
@@ -1404,12 +1405,7 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
             )
             return None
 
-        matched_size = self._match_generation_size_by_dimensions(
-            video_generation_config,
-            params.width,
-            params.height,
-        )
-        return matched_size
+        return None
 
     def _validate_input_support(
         self,
@@ -1460,61 +1456,6 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
         return
 
     @staticmethod
-    def _get_default_resolution(video_generation_config: Optional[Dict[str, Any]]) -> str:
-        if not video_generation_config:
-            return ""
-        generation = video_generation_config.get("generation")
-        if not isinstance(generation, dict):
-            return ""
-        default_resolution = generation.get("default_resolution")
-        return default_resolution.strip() if isinstance(default_resolution, str) else ""
-
-    @classmethod
-    def _infer_resolution_from_dimensions(
-        cls,
-        video_generation_config: Optional[Dict[str, Any]],
-        width: Optional[int],
-        height: Optional[int],
-    ) -> str:
-        if width is None or height is None:
-            return ""
-
-        try:
-            smaller, larger = sorted((int(width), int(height)))
-            normalized: Tuple[int, int] = (smaller, larger)
-        except (TypeError, ValueError):
-            return ""
-
-        inferred_resolution = cls._DIMENSION_TO_RESOLUTION.get(normalized)
-        if not inferred_resolution:
-            return ""
-
-        supported_resolutions = cls._list_supported_generation_resolutions(video_generation_config)
-        if supported_resolutions and inferred_resolution not in supported_resolutions:
-            return ""
-
-        return inferred_resolution
-
-    @staticmethod
-    def _list_supported_generation_resolutions(video_generation_config: Optional[Dict[str, Any]]) -> List[str]:
-        if not video_generation_config:
-            return []
-
-        generation = video_generation_config.get("generation")
-        if not isinstance(generation, dict):
-            return []
-
-        resolutions = generation.get("resolutions")
-        if not isinstance(resolutions, list):
-            return []
-
-        values: List[str] = []
-        for resolution in resolutions:
-            if isinstance(resolution, str) and resolution.strip():
-                values.append(resolution.strip())
-        return values
-
-    @staticmethod
     def _list_supported_generation_size_values(video_generation_config: Optional[Dict[str, Any]]) -> List[str]:
         if not video_generation_config:
             return []
@@ -1555,38 +1496,6 @@ class GenerateVideo(AbstractFileTool[GenerateVideoParams], WorkspaceTool[Generat
                 continue
             value = size.get("value")
             if isinstance(value, str) and value.strip() == normalized_value:
-                return size
-        return None
-
-    @staticmethod
-    def _match_generation_size_by_dimensions(
-        video_generation_config: Optional[Dict[str, Any]],
-        width: Optional[int],
-        height: Optional[int],
-    ) -> Optional[Dict[str, Any]]:
-        if width is None or height is None:
-            return None
-
-        generation = video_generation_config.get("generation") if isinstance(video_generation_config, dict) else None
-        sizes = generation.get("sizes") if isinstance(generation, dict) else None
-        if not isinstance(sizes, list):
-            return None
-
-        try:
-            normalized_width = int(width)
-            normalized_height = int(height)
-        except (TypeError, ValueError):
-            return None
-
-        for size in sizes:
-            if not isinstance(size, dict):
-                continue
-            try:
-                size_width = int(size.get("width"))
-                size_height = int(size.get("height"))
-            except (TypeError, ValueError):
-                continue
-            if size_width == normalized_width and size_height == normalized_height:
                 return size
         return None
 

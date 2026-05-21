@@ -1,6 +1,6 @@
 """AI 视频生成并添加到画布工具（任务列表版）
 
-每个 task 独立指定 prompt / name / width / height，
+每个 task 独立指定 prompt / name / size，
 有几个 task 就生成几个视频，并发执行。
 """
 
@@ -34,6 +34,7 @@ from app.tools.generate_video import (
     normalize_video_input_mode_value,
     normalize_video_task_value,
 )
+from app.tools.media_utils import parse_dimension_size
 from app.utils.async_file_utils import async_mkdir
 from app.utils.video_logger import get_video_logger
 
@@ -104,20 +105,10 @@ Video generation prompt. Do not put asset paths here. When using reference asset
         description="""<!--zh: 画布元素名称，应反映具体内容，不要用大类或编号替代。-->
 Canvas element label. Must reflect the specific content of this video — not a generic category or numbered slot."""
     )
-    width: float = Field(
-        ...,
-        description="""<!--zh: 画布中视频元素宽度，必填。它控制画布展示大小，不等同于生成视频真实尺寸。若用户未提供，请优先使用当前视频模型支持的 size/default_size 对应宽度；若已传 size，则同步为 size 的宽度。-->
-Video element width on canvas, required. It controls canvas display size, not the generated video's real pixel size. If the user did not provide it, prefer the width from the current video model's supported size/default_size. If size is provided, mirror size width."""
-    )
-    height: float = Field(
-        ...,
-        description="""<!--zh: 画布中视频元素高度，必填。它控制画布展示大小，不等同于生成视频真实尺寸。若用户未提供，请优先使用当前视频模型支持的 size/default_size 对应高度；若已传 size，则同步为 size 的高度。-->
-Video element height on canvas, required. It controls canvas display size, not the generated video's real pixel size. If the user did not provide it, prefer the height from the current video model's supported size/default_size. If size is provided, mirror size height."""
-    )
     size: str = Field(
-        "",
-        description="""<!--zh: 视频生成尺寸，可选，字段名必须是 size。例如 1280x720、1920x1080、2160x3840。它控制底层视频生成尺寸，不控制画布展示大小。若已传 size，通常不要再传与它比例冲突的 aspect_ratio。-->
-Video generation size, optional. The parameter name must be size, e.g. 1280x720, 1920x1080, 2160x3840. It controls the underlying generated video dimensions, not canvas layout size. If size is provided, usually avoid passing a conflicting aspect_ratio."""
+        ...,
+        description="""<!--zh: 视频生成尺寸，必填，字段名必须是 size。例如 1280x720、1920x1080、2160x3840。它控制底层视频生成尺寸；画布展示宽高也由该值自动推导，不要再传 width/height。-->
+Video generation size, required. The parameter name must be size, e.g. 1280x720, 1920x1080, 2160x3840. It controls the underlying generated video dimensions; canvas display width/height are derived from it automatically. Do not pass width/height."""
     )
     aspect_ratio: str = Field(
         "",
@@ -214,6 +205,10 @@ Optional. When provided, the tool reuses an existing canvas element (e.g. a fail
 
             normalized[field_name] = alias_value
 
+        # width/height used to be public canvas fields. They are now derived from size.
+        normalized.pop("width", None)
+        normalized.pop("height", None)
+
         return normalized
 
     @field_validator("prompt")
@@ -229,6 +224,15 @@ Optional. When provided, the tool reuses an existing canvas element (e.g. a fail
         if not v or not v.strip():
             raise ValueError("name 不能为空")
         return v
+
+    @field_validator("size")
+    @classmethod
+    def validate_size(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("size is required and must use WIDTHxHEIGHT format, for example 1280x720")
+        if parse_dimension_size(value) is None:
+            raise ValueError(f"Invalid size format: '{value}'. Use WIDTHxHEIGHT, for example 1280x720")
+        return value.strip()
 
     @field_validator("input_mode", mode="before")
     @classmethod
@@ -266,6 +270,13 @@ Optional. When provided, the tool reuses an existing canvas element (e.g. a fail
                 missing_tokens.append(token)
         return missing_tokens
 
+    @property
+    def canvas_dimensions(self) -> tuple[int, int]:
+        dimensions = parse_dimension_size(self.size)
+        if dimensions is None:
+            raise ValueError(f"Invalid size format: '{self.size}'. Use WIDTHxHEIGHT, for example 1280x720")
+        return dimensions
+
 
 class GenerateCanvasVideosParams(BaseToolParams):
     """generate_canvas_videos 工具参数"""
@@ -277,8 +288,8 @@ Relative path to the design project (folder containing magic.project.js)"""
     )
     tasks: List[VideoTaskSpec] = Field(
         ...,
-        description="""<!--zh: 视频生成任务列表，每个 task 生成一个视频，最多 4 个。每个 task 必须包含 prompt / name / width / height。width/height 是画布展示尺寸；若用户未指定，请优先使用当前视频模型支持的 size/default_size，或同步已传入的 size。其他字段必须使用本 schema 中的精确字段名。常见正确字段：duration_seconds（不是 duration）、reference_image_paths（不是 images/image）、reference_video_paths（不是 videos/video）、frame_start_path（不是 start_frame）、frame_end_path（不是 end_frame）。使用参考素材时，prompt 必须用 [image1] / [video1] / [audio1] 按数组顺序绑定素材。示例：tasks=[{"prompt":"白色长毛小猫 [image1] 从黑色箱子里探头钻出，黑色短毛小猫 [image2] 从白色箱子里跳出来，橘色虎斑小猫 [image3] 从黄色箱子里爬出。","name":"三色箱子猫咪跳出","width":1280,"height":720,"duration_seconds":4,"resolution":"720p","reference_image_paths":["images/cat1.png","images/cat2.png","images/cat3.png"]}]-->
-Video generation task list. Each task produces one video. Maximum 4 tasks per call. Each task must include prompt, name, width, and height. width/height are canvas display dimensions. If the user did not specify them, prefer the current video model's supported size/default_size, or mirror the provided size. Optional fields must use the exact schema names: duration_seconds (not duration), reference_image_paths (not images/image), reference_video_paths (not videos/video), frame_start_path (not start_frame), frame_end_path (not end_frame). When using reference assets, the prompt must bind them by list order with [image1] / [video1] / [audio1]. Example: tasks=[{"prompt":"White long-haired kitten [image1] peeks out of the black box, black short-haired kitten [image2] jumps out of the white box, orange tabby kitten [image3] climbs out of the yellow box.","name":"three_color_box_cats","width":1280,"height":720,"duration_seconds":4,"resolution":"720p","reference_image_paths":["images/cat1.png","images/cat2.png","images/cat3.png"]}]"""
+        description="""<!--zh: 视频生成任务列表，每个 task 生成一个视频，最多 4 个。每个 task 必须包含 prompt / name / size。size 使用 WIDTHxHEIGHT 格式，同时用于底层视频生成尺寸和画布展示宽高推导；不要再传 width/height。其他字段必须使用本 schema 中的精确字段名。常见正确字段：duration_seconds（不是 duration）、reference_image_paths（不是 images/image）、reference_video_paths（不是 videos/video）、frame_start_path（不是 start_frame）、frame_end_path（不是 end_frame）。使用参考素材时，prompt 必须用 [image1] / [video1] / [audio1] 按数组顺序绑定素材。示例：tasks=[{"prompt":"白色长毛小猫 [image1] 从黑色箱子里探头钻出，黑色短毛小猫 [image2] 从白色箱子里跳出来，橘色虎斑小猫 [image3] 从黄色箱子里爬出。","name":"三色箱子猫咪跳出","size":"1280x720","duration_seconds":4,"resolution":"720p","reference_image_paths":["images/cat1.png","images/cat2.png","images/cat3.png"]}]-->
+Video generation task list. Each task produces one video. Maximum 4 tasks per call. Each task must include prompt, name, and size. size uses WIDTHxHEIGHT format and is used both for generation dimensions and derived canvas display dimensions. Do not pass width/height. Optional fields must use the exact schema names: duration_seconds (not duration), reference_image_paths (not images/image), reference_video_paths (not videos/video), frame_start_path (not start_frame), frame_end_path (not end_frame). When using reference assets, the prompt must bind them by list order with [image1] / [video1] / [audio1]. Example: tasks=[{"prompt":"White long-haired kitten [image1] peeks out of the black box, black short-haired kitten [image2] jumps out of the white box, orange tabby kitten [image3] climbs out of the yellow box.","name":"three_color_box_cats","size":"1280x720","duration_seconds":4,"resolution":"720p","reference_image_paths":["images/cat1.png","images/cat2.png","images/cat3.png"]}]"""
     )
     model_id: str = Field("", description="<!--zh: 可选视频模型 ID，所有任务共用-->Optional video model ID, shared across all tasks")
     override: bool = Field(False, description="<!--zh: 是否覆盖已有文件-->Whether to override existing files")
@@ -287,7 +298,7 @@ Video generation task list. Each task produces one video. Maximum 4 tasks per ca
 
     @model_validator(mode="before")
     @classmethod
-    def validate_task_canvas_dimensions(cls, value: Any) -> Any:
+    def validate_task_sizes(cls, value: Any) -> Any:
         if not isinstance(value, dict):
             return value
 
@@ -299,18 +310,15 @@ Video generation task list. Each task produces one video. Maximum 4 tasks per ca
         for index, task in enumerate(tasks):
             if not isinstance(task, dict):
                 continue
-            if task.get("width") in (None, ""):
-                missing_fields.append(f"tasks.{index}.width")
-            if task.get("height") in (None, ""):
-                missing_fields.append(f"tasks.{index}.height")
+            if task.get("size") in (None, ""):
+                missing_fields.append(f"tasks.{index}.size")
 
         if missing_fields:
             raise ValueError(
-                "generate_canvas_videos requires width and height for every task because they define "
-                "the video element's canvas display size. Missing fields: "
+                "generate_canvas_videos requires size for every task because it defines both "
+                "the video generation dimensions and the canvas display size. Missing fields: "
                 f"{', '.join(missing_fields)}. "
-                "Choose width/height from the current video model's supported size/default_size. "
-                "If size is provided, mirror it into width/height for canvas layout unless the user asks otherwise."
+                "Use WIDTHxHEIGHT format, e.g. size='1280x720'."
             )
 
         return value
@@ -320,7 +328,7 @@ Video generation task list. Each task produces one video. Maximum 4 tasks per ca
         if error_type == "extra_forbidden" and field_name == "tasks":
             return (
                 "generate_canvas_videos 的 tasks 中存在未定义参数。"
-                "请只使用 task schema 里的精确字段名：prompt, name, width, height, size, aspect_ratio, input_mode, task, "
+                "请只使用 task schema 里的精确字段名：prompt, name, size, aspect_ratio, input_mode, task, "
                 "reference_image_paths, reference_video_paths, reference_audio_paths, frame_start_path, "
                 "frame_end_path, duration_seconds, resolution, fps, seed, watermark, extensions, element_id。"
                 "常见改名：duration -> duration_seconds；images/image/reference_images -> reference_image_paths；"
@@ -329,7 +337,7 @@ Video generation task list. Each task produces one video. Maximum 4 tasks per ca
                 "正确示例：tasks=[{'prompt':'白色长毛小猫 [image1] 从黑色箱子里探头钻出，"
                 "黑色短毛小猫 [image2] 从白色箱子里跳出来，橘色虎斑小猫 [image3] 从黄色箱子里爬出。', "
                 "'name':'三色箱子猫咪跳出', "
-                "'width':1280, 'height':720, 'duration_seconds':4, 'resolution':'720p', "
+                "'size':'1280x720', 'duration_seconds':4, 'resolution':'720p', "
                 "'reference_image_paths':['images/cat1.png','images/cat2.png','images/cat3.png']}]."
             )
         return None
@@ -346,8 +354,8 @@ Video generation task list. Each task produces one video. Maximum 4 tasks per ca
 
 @tool()
 class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams]):
-    """<!--zh: 按任务列表生成 AI 视频并自动添加到画布。每个 task 独立指定提示词和画布尺寸，有几个 task 就生成几个视频，并发执行。-->
-    Generate AI videos and automatically add them to the canvas, one video per task. Each task independently specifies its prompt and canvas dimensions; all tasks run concurrently.
+    """<!--zh: 按任务列表生成 AI 视频并自动添加到画布。每个 task 独立指定提示词和 size，有几个 task 就生成几个视频，并发执行。-->
+    Generate AI videos and automatically add them to the canvas, one video per task. Each task independently specifies its prompt and size; all tasks run concurrently.
     """
 
     # 视频每行最多 4 个（与任务上限一致）
@@ -386,10 +394,11 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
     # ------------------------------------------------------------------
 
     def _get_task_placeholder_info(self, task: VideoTaskSpec, idx: int) -> TaskPlaceholderInfo:
+        width, height = task.canvas_dimensions
         return TaskPlaceholderInfo(
             name=task.name,
-            width=float(task.width),
-            height=float(task.height),
+            width=float(width),
+            height=float(height),
             element_type="video",
         )
 
@@ -422,8 +431,6 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
             frame_start_path=task.frame_start_path,
             frame_end_path=task.frame_end_path,
             size=task.size,
-            width=int(task.width) if task.width is not None else None,
-            height=int(task.height) if task.height is not None else None,
             aspect_ratio=task.aspect_ratio,
             duration_seconds=task.duration_seconds,
             resolution=task.resolution,
@@ -661,6 +668,7 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
         resolved_output_path: str,
     ) -> Dict[str, Any]:
         metadata = dict(extra_info.get("metadata") or {})
+        canvas_width, canvas_height = task.canvas_dimensions
         fallback_metadata = {
             "model_id": self._model_id,
             "task": task.task,
@@ -669,8 +677,8 @@ class GenerateCanvasVideos(BaseGenerateCanvasElements[GenerateCanvasVideosParams
             "operation_id": extra_info.get("operation_id", ""),
             "request_id": extra_info.get("request_id", ""),
             "size": task.size or None,
-            "requested_width": int(task.width) if task.width is not None else None,
-            "requested_height": int(task.height) if task.height is not None else None,
+            "requested_width": canvas_width,
+            "requested_height": canvas_height,
             "aspect_ratio": task.aspect_ratio or None,
             "duration_seconds": task.duration_seconds,
             "resolution": task.resolution or None,
