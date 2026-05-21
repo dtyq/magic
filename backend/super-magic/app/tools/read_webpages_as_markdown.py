@@ -17,6 +17,7 @@ from agentlang.logger import get_logger
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from app.tools.web_scrape_utils import get_web_scrape_driver, clean_noise_content, process_content_by_requirements
+from app.tools.web_scrape_utils.drivers.web_collector import AccessDeniedException
 
 logger = get_logger(__name__)
 
@@ -92,6 +93,9 @@ Batch webpage reading tool that aggregates multiple webpage contents into single
                 # 调用驱动抓取
                 try:
                     scrape_result = await self.driver.scrape(url)
+                except AccessDeniedException:
+                    # 访问被拒绝，不降级直接抛出
+                    raise
                 except Exception as scrape_err:
                     # 主抓取失败，尝试降级
                     logger.warning(
@@ -147,6 +151,14 @@ Batch webpage reading tool that aggregates multiple webpage contents into single
                     source=driver_name
                 )
 
+            except AccessDeniedException as e:
+                logger.warning(f"[{driver_name}] 访问被拒绝 ({current_idx}/{total_count}): {url}, 原因: {e}")
+                return WebpageReadingResult(
+                    url=url,
+                    is_success=False,
+                    error_message=str(e),
+                    source=driver_name
+                )
             except Exception as e:
                 logger.error(f"[{driver_name}] 处理失败 ({current_idx}/{total_count}): {url}, 错误: {e}")
                 return WebpageReadingResult(
@@ -275,7 +287,10 @@ Batch webpage reading tool that aggregates multiple webpage contents into single
         if failed_results:
             formatted_parts.append("### 处理失败的网页\n")
             for result in failed_results:
-                formatted_parts.append(f"- {result.url}\n")
+                if result.error_message:
+                    formatted_parts.append(f"- {result.url} （{result.error_message}）\n")
+                else:
+                    formatted_parts.append(f"- {result.url}\n")
 
         # Add content explanation based on processing mode
         if success_count > 0:
@@ -302,14 +317,20 @@ Batch webpage reading tool that aggregates multiple webpage contents into single
         Returns:
             Optional[ToolDetail]: Tool detail for display
         """
-        if not result.ok:
-            return None
-
         if not arguments or "urls" not in arguments:
             logger.warning("No URLs provided in arguments")
             return None
 
         url_count = len(arguments["urls"])
+
+        if not result.ok:
+            return ToolDetail(
+                type=DisplayType.MD,
+                data=FileContent(
+                    file_name=f"深度阅读网页失败 (共{url_count}个网页)",
+                    content=result.content
+                )
+            )
 
         return ToolDetail(
             type=DisplayType.MD,

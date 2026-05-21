@@ -1,3 +1,5 @@
+import json
+
 import aiohttp
 
 from agentlang.config.config import config
@@ -6,6 +8,11 @@ from app.tools.driver_log_utils import redact_headers, to_log_text
 from app.tools.web_scrape_utils.drivers.base import WebScrapeDriverInterface, WebScrapeResultItem
 
 logger = get_logger(__name__)
+
+
+class AccessDeniedException(Exception):
+    """访问被拒绝异常，用于白名单拦截等场景，不应降级重试"""
+    pass
 
 
 class WebCollectorWebScrapeDriver(WebScrapeDriverInterface):
@@ -70,13 +77,21 @@ class WebCollectorWebScrapeDriver(WebScrapeDriverInterface):
                         f"[WebCollectorWebScrapeDriver] response error status={response.status} "
                         f"body={to_log_text(error_detail)}"
                     )
+                    # 解析错误响应，对 ACCESS_DENIED 抛出专用异常
+                    try:
+                        error_data = json.loads(error_detail)
+                        if error_data.get("error_code") == "ACCESS_DENIED":
+                            raise AccessDeniedException(error_data.get("error", "当前访问被限制，请联系管理员"))
+                    except (json.JSONDecodeError, KeyError):
+                        pass
                     raise ValueError(f"Web Collector Scrape 请求失败: {response.status} {error_detail}")
 
                 response_data = await response.json()
                 logger.info(f"[WebCollectorWebScrapeDriver] response body={to_log_text(response_data)}")
 
                 if not response_data.get("success"):
-                    raise ValueError(f"API 返回失败: {response_data.get('message', '未知错误')}")
+                    error_msg = response_data.get("error") or response_data.get("message") or "未知错误"
+                    raise ValueError(error_msg)
 
                 if "data" not in response_data or "content" not in response_data["data"]:
                     raise ValueError("API 响应格式无效：缺少 data.content 字段")

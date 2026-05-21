@@ -375,6 +375,10 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceTool[Dow
             )
 
         except Exception as e:
+            from app.tools.web_scrape_utils.drivers.web_collector import AccessDeniedException
+            if isinstance(e, AccessDeniedException):
+                logger.warning(f"下载文件被拒绝: {params.url}, 原因: {e}")
+                return ToolResult.error(str(e))
             # 把根因（异常类型 + 消息）一起带出来，方便上层/日志快速定位（如 TimeoutError 实例 str 为空）
             error_detail = f"{type(e).__name__}: {e!s}".rstrip(": ")
             logger.error(f"下载文件失败: {error_detail}", exc_info=True)

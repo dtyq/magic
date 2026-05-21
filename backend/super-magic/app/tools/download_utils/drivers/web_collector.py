@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import httpx
@@ -6,6 +7,7 @@ from agentlang.config.config import config
 from agentlang.logger import get_logger
 from app.tools.driver_log_utils import redact_headers, to_log_text
 from app.tools.download_utils.drivers.base import DownloadDriverInterface, DownloadResultItem
+from app.tools.web_scrape_utils.drivers.web_collector import AccessDeniedException
 
 logger = get_logger(__name__)
 
@@ -48,6 +50,13 @@ class WebCollectorDownloadDriver(DownloadDriverInterface):
                     f"[WebCollectorDownloadDriver] response error status={resp.status_code} "
                     f"body={to_log_text(resp.text)}"
                 )
+                # 解析错误响应，对 ACCESS_DENIED 抛出专用异常
+                try:
+                    error_data = json.loads(resp.text)
+                    if error_data.get("error_code") == "ACCESS_DENIED":
+                        raise AccessDeniedException(error_data.get("error", "当前访问被限制，请联系管理员"))
+                except (json.JSONDecodeError, KeyError):
+                    pass
                 raise Exception(f"web-collector 下载失败，状态码: {resp.status_code}, 响应: {resp.text}")
 
             data = resp.json()
