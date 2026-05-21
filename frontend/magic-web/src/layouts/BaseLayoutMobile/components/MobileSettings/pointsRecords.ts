@@ -80,11 +80,11 @@ function parsePointsRecordTime(createdAt: string, timezone: string) {
 	return parsedTime.isValid() ? parsedTime : null
 }
 
-/** 在分组前先按时间倒序稳定排序，保证每组内展示顺序与整体时间线一致。 */
-function sortPointsRecordsByCreatedAt(records: PointsRecordItem[], timezone: string) {
+/** 在分组前先按更新时间倒序排序，与列表展示的 updated_at 口径一致。 */
+function sortPointsRecordsByUpdatedAt(records: PointsRecordItem[], timezone: string) {
 	return [...records].sort((left, right) => {
-		const leftTime = parsePointsRecordTime(left.createdAt, timezone)
-		const rightTime = parsePointsRecordTime(right.createdAt, timezone)
+		const leftTime = parsePointsRecordTime(left.updatedAt || left.createdAt, timezone)
+		const rightTime = parsePointsRecordTime(right.updatedAt || right.createdAt, timezone)
 
 		if (!leftTime && !rightTime) return 0
 		if (!leftTime) return 1
@@ -94,21 +94,20 @@ function sortPointsRecordsByCreatedAt(records: PointsRecordItem[], timezone: str
 	})
 }
 
-/** 统一计算单条记录所属的时间分段，保持 today / yesterday / thisWeek / earlier 四档口径。 */
-function getPointsRecordGroupKey(createdAt: string, timezone: string) {
-	const recordTime = parsePointsRecordTime(createdAt, timezone)
+/**
+ * 按日历天计算分组键，与 points-list 老页及原型一致（非 startOf('week')）。
+ * diffDays：0 今天，1 昨天，2-7 本周，其余为更早。
+ */
+export function getPointsRecordGroupKey(timestamp: string, timezone: string) {
+	const recordTime = parsePointsRecordTime(timestamp, timezone)
 	if (!recordTime) return "earlier" as const
 
 	const now = dayjs().tz(timezone)
-	if (recordTime.isSame(now, "day")) {
-		return "today" as const
-	}
-	if (recordTime.isSame(now.subtract(1, "day"), "day")) {
-		return "yesterday" as const
-	}
-	if (recordTime.isAfter(now.startOf("week").subtract(1, "millisecond"))) {
-		return "thisWeek" as const
-	}
+	const diffDays = now.startOf("day").diff(recordTime.startOf("day"), "day")
+
+	if (diffDays <= 0) return "today" as const
+	if (diffDays === 1) return "yesterday" as const
+	if (diffDays <= 7) return "thisWeek" as const
 
 	return "earlier" as const
 }
@@ -120,10 +119,10 @@ export function groupPointsRecords(
 	t: (key: string) => string,
 ) {
 	const groups = new Map<string, PointsRecordItem[]>()
-	const sortedRecords = sortPointsRecordsByCreatedAt(records, timezone)
+	const sortedRecords = sortPointsRecordsByUpdatedAt(records, timezone)
 
 	for (const item of sortedRecords) {
-		const groupKey = getPointsRecordGroupKey(item.createdAt, timezone)
+		const groupKey = getPointsRecordGroupKey(item.updatedAt || item.createdAt, timezone)
 		const prev = groups.get(groupKey) ?? []
 		prev.push(item)
 		groups.set(groupKey, prev)

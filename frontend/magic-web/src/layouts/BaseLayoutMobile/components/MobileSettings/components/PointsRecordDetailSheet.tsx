@@ -1,93 +1,110 @@
-import { Coins } from "lucide-react"
+import { useMemoizedFn } from "ahooks"
+import { useTranslation } from "react-i18next"
 
-import dayjs from "@/lib/dayjs"
+import showOnlineFeedbackModal from "@/components/business/OnlineFeedbackModal"
+import { OnlineFeedbackModalType } from "@/components/business/OnlineFeedbackModal/types"
+import { Button } from "@/components/shadcn-ui/button"
+import { Separator } from "@/components/shadcn-ui/separator"
+import { PointsMenuIcon } from "@/pages/user/pages/my/assets/PointsMenuIcon"
+import { isCommercial, isPrivateDeployment } from "@/utils/env"
 
-import { MobileSettingsSheetContainer } from "./SheetContainer"
+import {
+	formatPointsRecordAmount,
+	getPointsRecordDetailMetaRows,
+	getPointsRecordListTitle,
+} from "../pointsRecordDisplay"
 import type { PointsRecordItem } from "../types"
+import { MobileSettingsSheetContainer } from "./SheetContainer"
 
-/** 统一格式化详情态显示时间，避免接口缺失字段时直接把非法时间暴露给用户。 */
-function formatPointsRecordDetailTime(value: string, timezone: string) {
-	if (!value) return "--"
-
-	const parsedTime = dayjs(value)
-	if (!parsedTime.isValid()) return "--"
-
-	return parsedTime.tz(timezone).format("YYYY-MM-DD HH:mm")
-}
-
-/** 详情字段行统一左右分栏，保持和原型卡片信息区一致的阅读节奏。 */
-function DetailFieldRow(props: { label: string; value: string; showDivider?: boolean }) {
-	const { label, value, showDivider = false } = props
-
-	return (
-		<>
-			<div className="flex items-start gap-3 px-[14px] py-[10px]">
-				<div className="w-[64px] shrink-0 text-[14px] leading-5 text-muted-foreground">
-					{label}
-				</div>
-				<div className="min-w-0 flex-1 break-words text-right text-[15px] leading-5 text-foreground">
-					{value}
-				</div>
-			</div>
-			{showDivider ? <div className="ml-[14px] h-px w-full bg-border" /> : null}
-		</>
-	)
-}
-
-/** 积分记录详情使用二级 sheet 承载，只消费当前接口已有字段，避免发明未落地的数据语义。 */
+/** 积分记录详情：字段与交互对齐 enterprise PointsList/Details.tsx。 */
 export function MobileSettingsPointsRecordDetailSheet(props: {
 	item: PointsRecordItem | null
 	open: boolean
 	onClose: () => void
-	timezone: string
-	recordIdLabel: string
-	timeLabel: string
 }) {
-	const { item, open, onClose, timezone, recordIdLabel, timeLabel } = props
+	const { item, open, onClose } = props
+	const { t } = useTranslation(["interface", "super"])
+
+	const handleFeedback = useMemoizedFn(() => {
+		if (!item) return
+
+		void showOnlineFeedbackModal({
+			type: OnlineFeedbackModalType.PointsChange,
+			details: {
+				id: item.id,
+				amount: String(item.amount),
+				label: item.label,
+				description: item.description,
+				created_at: item.createdAt,
+				updated_at: item.updatedAt,
+			},
+		})
+	})
+
 	if (!item) return null
 
-	const heroTitle = item.description || item.label || recordIdLabel
-	const detailTime = formatPointsRecordDetailTime(item.updatedAt || item.createdAt, timezone)
-	const isPositive = item.amount >= 0
+	const detailTitle = getPointsRecordListTitle(
+		item.description,
+		t("topic.unnamedTopic", { ns: "super" }),
+	)
+	const formattedAmount = formatPointsRecordAmount(item.amount)
+	const metaRows = getPointsRecordDetailMetaRows(item, {
+		recordId: t("bonusPointsModal.recordId"),
+		time: t("bonusPointsModal.time"),
+	})
+	const showFeedback = isCommercial() && !isPrivateDeployment()
 
 	return (
 		<MobileSettingsSheetContainer
 			open={open}
-			title={heroTitle}
+			title={t("bonusPointsModal.pointsRecord")}
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) onClose()
 			}}
-			contentClassName="gap-2.5 px-[10px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
+			contentClassName="flex min-h-0 flex-1 flex-col gap-3 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 			dataTestId="mobile-settings-points-record-detail-sheet"
 		>
-			<div className="flex flex-col items-center gap-3 rounded-lg bg-card px-4 pb-4 pt-6 text-center">
+			<div className="flex flex-1 flex-col items-center gap-6 overflow-hidden rounded-lg bg-card px-6 py-12">
 				<div
-					className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary"
+					className="flex size-12 items-center justify-center rounded-full bg-muted"
 					aria-hidden
 				>
-					<Coins className="h-6 w-6" />
+					<PointsMenuIcon size={24} />
 				</div>
-				<div className="max-w-full text-[14px] leading-5 text-muted-foreground">
-					{heroTitle}
+
+				<div className="text-center text-sm text-foreground">{detailTitle}</div>
+
+				<div className="text-2xl font-medium tabular-nums text-foreground">
+					{formattedAmount}
 				</div>
-				<div className="text-[28px] font-semibold tabular-nums leading-8 text-foreground">
-					{isPositive ? "+" : ""}
-					{new Intl.NumberFormat().format(item.amount)}
-				</div>
-				<div className="flex flex-wrap items-center justify-center gap-2">
-					{item.label ? (
-						<div className="inline-flex h-6 items-center rounded-full border border-border bg-background px-2 text-[12px] leading-4 text-foreground">
-							{item.label}
+
+				<Separator className="w-full border-b" />
+
+				<div className="flex w-full flex-col gap-2.5">
+					{metaRows.map((row) => (
+						<div
+							key={row.key}
+							className="flex items-center gap-1 text-xs text-muted-foreground"
+						>
+							{row.text}
 						</div>
-					) : null}
-					<div className="text-[13px] leading-4 text-muted-foreground">{detailTime}</div>
+					))}
 				</div>
 			</div>
 
-			<div className="overflow-hidden rounded-lg bg-card">
-				<DetailFieldRow label={recordIdLabel} value={item.id} showDivider />
-				<DetailFieldRow label={timeLabel} value={detailTime} />
-			</div>
+			{showFeedback ? (
+				<div className="flex h-9 w-full shrink-0 items-center justify-center px-8">
+					<Button
+						type="button"
+						variant="ghost"
+						onClick={handleFeedback}
+						className="text-sm font-normal text-foreground"
+						data-testid="mobile-settings-points-record-feedback"
+					>
+						{t("bonusPointsModal.problemFeedback")}
+					</Button>
+				</div>
+			) : null}
 		</MobileSettingsSheetContainer>
 	)
 }
