@@ -1,6 +1,6 @@
 import type { ComponentType } from "react"
 import { observer } from "mobx-react-lite"
-import { IconGitBranch, IconInfoCircle, IconLoader2 } from "@tabler/icons-react"
+import { IconGitBranch, IconLoader2 } from "@tabler/icons-react"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { useTranslation } from "react-i18next"
 import { useMessageListContext } from "@/pages/superMagic/components/MessageList/context"
@@ -8,13 +8,16 @@ import { useMemoizedFn, useRequest } from "ahooks"
 import { SuperMagicApi } from "@/apis"
 import { lazy, memo, Suspense, useMemo, useState } from "react"
 import { MessageStatus, MessageUsageType, Topic } from "@/pages/superMagic/pages/Workspace/types"
-import { Button, Flex, MenuProps } from "antd"
+import { Button, MenuProps } from "antd"
 import { splitNumber } from "@/utils/number"
 import { Ellipsis } from "lucide-react"
-import { MagicDropdown } from "@/components/base"
+import { MagicDropdown, MagicTooltip } from "@/components/base"
 import { StatusBadge } from "./components/StatusBadge"
 import { useGlobalSuggestion } from "@/components/settings/FollowUpSuggestionItems/hooks"
 import useShareRoute from "@/pages/superMagic/hooks/useShareRoute"
+import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
+import ModelIcon from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/components/ModelIcon"
+import type { ModelItem } from "@/pages/superMagic/components/MessageEditor/components/ModelSwitch/types"
 
 const SuggestList = lazy(() => import("./components/SuggestList"))
 
@@ -66,26 +69,123 @@ export function withAssistantCard<
 			return 0
 		}, [messageNode])
 
+		/** Model info from the user message of this round */
+		const roundModels = useMemo(() => {
+			const topicId = selectedTopic?.chat_topic_id
+			if (!topicId) return []
+			const messages = superMagicStore.messages.get(topicId)
+			if (!messages || messages.length === 0) return []
+
+			// 找到当前消息在列表中的位置
+			const currentIdx = messages.findIndex((m) => m.app_message_id === node?.app_message_id)
+			if (currentIdx < 0) return []
+
+			// 从当前消息往前找最近一条 user 消息
+			let userNode: any = null
+			for (let i = currentIdx - 1; i >= 0; i--) {
+				if (messages[i].role === "user") {
+					userNode = superMagicStore.getMessageNode(messages[i].app_message_id)
+					break
+				}
+			}
+			if (!userNode) return []
+
+			const superAgent = userNode?.extra?.super_agent
+			if (!superAgent) return []
+
+			const mode = selectedTopic?.topic_mode || ""
+			const agentCode = selectedTopic?.agent_code
+
+			const result: { modelItem: ModelItem | null; modelId: string }[] = []
+
+			// 语言模型
+			if (superAgent.model?.model_id) {
+				const modelId = superAgent.model.model_id
+				const allLanguageModels = superMagicModeService.getModelListByMode(mode, agentCode)
+				const found = allLanguageModels.find((m) => m.model_id === modelId) ?? null
+				result.push({ modelItem: found, modelId })
+			}
+
+			// 图像模型
+			if (superAgent.image_model?.model_id) {
+				const modelId = superAgent.image_model.model_id
+				const allImageModels = superMagicModeService.getImageModelListByMode(
+					mode,
+					agentCode,
+				)
+				const found = allImageModels.find((m) => m.model_id === modelId) ?? null
+				result.push({ modelItem: found, modelId })
+			}
+
+			// 视频模型
+			if (superAgent.video_model?.model_id) {
+				const modelId = superAgent.video_model.model_id
+				const allVideoModels = superMagicModeService.getVideoModelListByMode(
+					mode,
+					agentCode,
+				)
+				const found = allVideoModels.find((m) => m.model_id === modelId) ?? null
+				result.push({ modelItem: found, modelId })
+			}
+
+			return result
+		}, [selectedTopic?.id, node?.app_message_id])
+
 		const items = useMemo<MenuProps["items"]>(() => {
 			return [
 				{
 					key: MenuKey.ConsumptionPoints,
 					label: (
-						<div className="flex w-full cursor-default items-center gap-1 rounded text-[10px] font-normal text-muted-foreground">
-							<IconInfoCircle size={16} className="text-foreground" />
-							<Flex align="center" gap={2} className="text-foreground">
-								<div>{t("ui.consumptionPoints1")}</div>
-								<div className="px-1 font-semibold">
-									{splitNumber(roundConsumptionPoints)}
-								</div>
-								<div>{t("ui.consumptionPoints2")}</div>
-							</Flex>
+						<div className="flex w-full cursor-default items-center rounded text-[10px] font-normal text-foreground">
+							<span>
+								{t("ui.consumptionPoints", {
+									points: splitNumber(roundConsumptionPoints),
+								})}
+							</span>
+							{roundModels.length > 0 && (
+								<>
+									<span className="font-normal text-foreground">
+										，{t("ui.usedModel")}
+									</span>
+									<span className="inline-flex items-center gap-1">
+										{roundModels.map((item, idx) => (
+											<span
+												key={item.modelId}
+												className="inline-flex items-center gap-1"
+											>
+												{idx > 0 && (
+													<span className="text-muted-foreground">/</span>
+												)}
+												<MagicTooltip
+													title={
+														<span>
+															{item.modelItem?.model_name ||
+																item.modelId}
+														</span>
+													}
+												>
+													<span className="inline-flex items-center">
+														{item.modelItem ? (
+															<ModelIcon
+																model={item.modelItem}
+																size={14}
+															/>
+														) : (
+															<span>{item.modelId}</span>
+														)}
+													</span>
+												</MagicTooltip>
+											</span>
+										))}
+									</span>
+								</>
+							)}
 						</div>
 					),
 					visible: true,
 				},
 			].filter((o) => o.visible)
-		}, [t, roundConsumptionPoints])
+		}, [t, roundConsumptionPoints, roundModels])
 
 		const triggerCopyTopic = useMemoizedFn(async () => {
 			if (copyLoading) return
