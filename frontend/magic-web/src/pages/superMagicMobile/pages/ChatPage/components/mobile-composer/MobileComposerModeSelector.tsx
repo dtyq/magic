@@ -362,10 +362,10 @@ function MobileComposerModeSelectorComponent({
 		const candidates = [
 			resolvedTopicModelStore.selectedLanguageModel ??
 				getFirstAvailableModel(modelList, "models"),
-			// resolvedTopicModelStore.selectedImageModel ??
-			// 	getFirstAvailableModel(imageModelList, "image_models"),
-			// resolvedTopicModelStore.selectedVideoModel ??
-			// 	getFirstAvailableModel(videoModelList, "video_models"),
+			resolvedTopicModelStore.selectedImageModel ??
+				getFirstAvailableModel(imageModelList, "image_models"),
+			resolvedTopicModelStore.selectedVideoModel ??
+				getFirstAvailableModel(videoModelList, "video_models"),
 		].filter(Boolean) as ModelItem[]
 		const visitedModelIds = new Set<string>()
 
