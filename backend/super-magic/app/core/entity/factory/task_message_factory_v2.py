@@ -155,15 +155,15 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         if token_usage_details and token_usage_details.usages:
             usage = token_usage_details.usages[0]
 
-            # max_context_tokens 不是 LLM 响应字段，需要根据 model_id 从模型配置兜底查询
+            # max_context_tokens 不是 LLM 响应字段，需要由 super-magic 主动补全。
+            # 直接复用聊天压缩流程的同款查值口径（resolve_user_facing_max_context_tokens）：
+            # 命中「定价分区」时取 pricing_interval（200K/256K），未命中回退模型原始 max_context_tokens。
             max_context_tokens = usage.max_context_tokens
             if max_context_tokens is None and usage.model_id:
-                try:
-                    from agentlang.llms.factory import LLMFactory
-                    _model_config = LLMFactory.get_model_config(usage.model_id)
-                    max_context_tokens = _model_config.max_context_tokens or None
-                except Exception:
-                    max_context_tokens = None
+                from agentlang.chat_history.chat_history_models import (
+                    resolve_user_facing_max_context_tokens,
+                )
+                max_context_tokens = resolve_user_facing_max_context_tokens(usage.model_id)
 
             tu = {
                 "input_tokens": usage.input_tokens,
