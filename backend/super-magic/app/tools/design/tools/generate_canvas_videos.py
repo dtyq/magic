@@ -34,6 +34,7 @@ from app.tools.generate_video import (
     normalize_video_input_mode_value,
     normalize_video_task_value,
 )
+from app.tools.media_utils import parse_dimension_size
 from app.utils.async_file_utils import async_mkdir
 from app.utils.video_logger import get_video_logger
 
