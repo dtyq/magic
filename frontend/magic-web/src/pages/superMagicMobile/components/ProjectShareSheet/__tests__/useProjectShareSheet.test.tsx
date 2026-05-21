@@ -119,6 +119,44 @@ describe("useProjectShareSheet", () => {
 		expect(result.current.view).toBe("create")
 	})
 
+	it("项目模式打开创建页时预填默认链接名称", () => {
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "project",
+				onClose: vi.fn(),
+			}),
+		)
+
+		expect(result.current.formState.shareName).toBe("share.projectShareName")
+	})
+
+	it("文件模式打开创建页时预填默认链接名称", () => {
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [
+					{
+						file_id: "file-1",
+						name: "深圳今日天气",
+						is_directory: false,
+					},
+				],
+				mode: "file",
+				defaultSelectedFileIds: ["file-1"],
+				defaultOpenFileId: "file-1",
+				onClose: vi.fn(),
+			}),
+		)
+
+		expect(result.current.formState.shareName).toBe("share.singleFileShareName")
+	})
+
 	it("创建分享时复用现有分享资源保存契约", async () => {
 		const { result } = renderHook(() =>
 			useProjectShareSheet({

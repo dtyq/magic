@@ -22,6 +22,7 @@ import { useShareData } from "@/pages/superMagic/components/ShareManagement/hook
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 import type {
 	MobileShareItem,
+	MobileShareSheetMode,
 	ProjectShareFormState,
 	ProjectShareSheetController,
 	ProjectShareSheetProps,
@@ -31,11 +32,10 @@ import type {
 import { isPartialFileShare, isWholeProjectShare } from "../utils/shareScope"
 
 /**
- * 构造分享表单的默认值，确保每次打开 Sheet 都从原型定义的空白创建态开始。
+ * 构造分享表单的基础默认值；`shareName` 在 Sheet 打开创建页时由 `buildDefaultShareNameForSheet` 覆盖。
  */
 function createInitialFormState(): ProjectShareFormState {
 	return {
-		// 原型中的链接名称为可选输入，默认保持空白而不是预填项目名。
 		shareName: "",
 		shareType: ShareType.PasswordProtected,
 		shareExpiry: null,
@@ -80,6 +80,37 @@ function collectSelectedItems(
 
 	visit(attachments)
 	return result
+}
+
+interface BuildDefaultShareNameForSheetParams {
+	mode: MobileShareSheetMode
+	defaultOpenFileId?: string
+	attachments: AttachmentItem[]
+	effectiveSelectedFileIds: string[]
+	projectName?: string
+	t: (key: string, options?: Record<string, unknown>) => string
+}
+
+/**
+ * 计算移动端分享 Sheet 创建页的默认链接名称，与 Web 端 `calculateDefaultShareName` 规则保持一致。
+ */
+function buildDefaultShareNameForSheet({
+	mode,
+	defaultOpenFileId,
+	attachments,
+	effectiveSelectedFileIds,
+	projectName,
+	t,
+}: BuildDefaultShareNameForSheetParams): string {
+	const selectedItems = collectSelectedItems(attachments, effectiveSelectedFileIds)
+	return calculateDefaultShareName(
+		defaultOpenFileId,
+		selectedItems,
+		attachments,
+		t,
+		mode === "project",
+		projectName,
+	)
 }
 
 /**
@@ -244,7 +275,21 @@ export function useProjectShareSheet({
 		setAdvancedOpen(true)
 		setMemberSelectorOpen(false)
 		setSelectedMemberNodes([])
-		setFormState(createInitialFormState())
+		setFormState({
+			...createInitialFormState(),
+			shareName: initialSelectedShare
+				? ""
+				: buildDefaultShareNameForSheet({
+						mode,
+						defaultOpenFileId,
+						attachments,
+						effectiveSelectedFileIds,
+						projectName,
+						t,
+					}),
+		})
+		// Intentionally omit selection/mode deps so reopening does not overwrite user-edited shareName mid-session.
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- reset only when sheet open context changes
 	}, [open, projectName, initialSelectedShare])
 
 	const filteredShareItems = useMemo(() => {
