@@ -118,19 +118,20 @@ function MobileSettingsAppSettingRow(props: {
 			<button
 				type="button"
 				onClick={onClick}
-				className="grid h-12 w-full grid-cols-[1.25rem_minmax(0,1fr)_14rem_1rem] items-center gap-3 bg-transparent px-3.5 transition-opacity active:opacity-60"
+				// 标签列用 auto 按内容定宽；值列用 minmax(0,1fr) 吃剩余空间。避免窄屏 WebView 里 14rem 固定值列把标签挤到逐字换行。
+				className="grid h-12 w-full grid-cols-[1.25rem_auto_minmax(0,1fr)_1rem] items-center gap-3 bg-transparent px-3.5 transition-opacity active:opacity-60"
 				data-testid={dataTestId}
 			>
 				<div className="flex h-5 w-5 shrink-0 items-center justify-center text-foreground">
 					{icon}
 				</div>
-				<span className="flex-1 text-left text-base leading-5 text-foreground">
+				<span className="shrink-0 whitespace-nowrap text-left text-base leading-5 text-foreground">
 					{label}
 				</span>
 				<div
 					className={cn(
 						// 右侧当前值需要先撑满整列，text-right 才会对齐到箭头左侧而不是停留在内容自身宽度上。
-						"w-full min-w-0 text-right text-sm tabular-nums text-muted-foreground",
+						"w-full min-w-0 overflow-hidden text-right text-sm tabular-nums text-muted-foreground",
 						valueClassName,
 					)}
 				>
@@ -306,7 +307,7 @@ export function MobileSettingsAppSettingsSheet(props: {
 					<MobileSettingsAppSettingRow
 						icon={<Globe className="h-5 w-5" />}
 						label={t("setting.language")}
-						value={currentLanguageLabel}
+						value={<span className="block truncate">{currentLanguageLabel}</span>}
 						showDivider={true}
 						onClick={onOpenLanguage}
 						dataTestId="mobile-settings-app-language"
