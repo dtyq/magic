@@ -6,7 +6,10 @@ import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { cn } from "@/lib/utils"
 import type { OverlayZIndexScope } from "@/utils/overlayZIndex/overlayStackManager"
 
-import { MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME } from "../constants"
+import {
+	MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
+	MOBILE_SETTINGS_SHEET_Z_INDEX,
+} from "../constants"
 
 /** 统一设置浮层头部的圆形图标按钮，避免关闭与确认入口重复维护定位、尺寸和阴影。 */
 function MobileSettingsHeaderIconButton(props: {
@@ -80,9 +83,9 @@ export function MobileSettingsSheetContainer(props: {
 		headerAction,
 		sheetClassName,
 		overlayClassName,
-		zIndex,
+		zIndex = MOBILE_SETTINGS_SHEET_Z_INDEX,
 		zIndexScope,
-		zIndexManaged,
+		zIndexManaged = false,
 		contentClassName,
 		children,
 		dataTestId,
@@ -99,6 +102,7 @@ export function MobileSettingsSheetContainer(props: {
 			overlayClassName={cn("bg-black/20 backdrop-blur-sm", overlayClassName)}
 			/* 关闭 body 区域自身的滚动，改由内部 content 区域独立控制滚动行为。 */
 			bodyClassName="flex max-h-none min-h-0 flex-1 flex-col overflow-hidden p-0"
+			/* 固定 1100 档位且不托管，多 Sheet 靠 DOM 顺序叠放，交易层可稳定盖在上面。 */
 			zIndex={zIndex}
 			zIndexScope={zIndexScope}
 			zIndexManaged={zIndexManaged}

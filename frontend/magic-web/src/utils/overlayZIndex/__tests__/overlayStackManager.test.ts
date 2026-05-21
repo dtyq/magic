@@ -93,4 +93,19 @@ describe("overlayStackManager", () => {
 
 		expect(nextRound.overlayZIndex).toBe(1010)
 	})
+
+	test("交易层最低 1400 在栈顶已超过 1400 时仍能盖住其它浮层", () => {
+		const elevated = acquireOverlayZIndex({ scope: "global", zIndex: 1500 })
+		const stacked = acquireOverlayZIndex({ scope: "global" })
+		const paidPackage = acquireOverlayZIndex({ zIndex: 1400 })
+
+		expect(elevated.overlayZIndex).toBe(1500)
+		expect(stacked.contentZIndex).toBe(1511)
+		expect(paidPackage.overlayZIndex).toBeGreaterThanOrEqual(1400)
+		expect(paidPackage.contentZIndex).toBeGreaterThan(stacked.contentZIndex)
+
+		paidPackage.release()
+		stacked.release()
+		elevated.release()
+	})
 })
