@@ -67,6 +67,7 @@ async def test_build_create_payload_uses_explicit_video_edit_mode_and_task(tmp_p
             prompt="把参考视频改成水彩风格",
             input_mode="video_edit",
             task="edit",
+            size="1280x720",
             reference_video_paths=["https://cdn.example.com/source.mp4"],
         ),
         model_id="kling-v3-omni",
@@ -75,17 +76,46 @@ async def test_build_create_payload_uses_explicit_video_edit_mode_and_task(tmp_p
 
     assert payload["input_mode"] == "video_edit"
     assert payload["task"] == "edit"
+    assert payload["generation"]["size"] == "1280x720"
     assert payload["inputs"]["reference_videos"] == [
         {"uri": "https://cdn.example.com/source.mp4"}
     ]
+
+
+def test_generate_video_size_description_tells_ai_to_pass_size():
+    description = GenerateVideoParams.model_fields["size"].description
+
+    assert "必须传 size" in description
+    assert "generation.sizes" in description
+    assert "不允许编造" in description
+
+
+@pytest.mark.asyncio
+async def test_execute_purely_returns_friendly_error_when_size_missing(monkeypatch, tmp_path):
+    tool = GenerateVideo(base_dir=str(tmp_path))
+
+    async def fail_if_called(**kwargs):
+        raise AssertionError("magic-service should not be called when size is missing")
+
+    monkeypatch.setattr(tool, "_request_json", fail_if_called)
+
+    result = await tool.execute_purely(
+        None,
+        GenerateVideoParams(prompt="生成测试视频", output_path="videos"),
+    )
+
+    assert not result.ok
+    assert "generate_video requires size" in result.content
+    assert "WIDTHxHEIGHT" in result.content
+    assert "generation.sizes" in result.content
+    assert result.extra_info["error_type"] == "video.size_required"
 
 
 def test_video_task_spec_normalizes_input_mode_aliases_from_llm():
     task = VideoTaskSpec(
         prompt="把参考视频改成水彩风格",
         name="水彩视频编辑",
-        width=1280,
-        height=720,
+        size="1280x720",
         inputMode="video_editing",
         task="edit",
     )
@@ -99,8 +129,7 @@ def test_video_task_spec_requires_reference_image_tokens():
         VideoTaskSpec(
             prompt="两只猫依次从箱子里跳出来",
             name="箱子跳猫",
-            width=1280,
-            height=720,
+            size="1280x720",
             reference_image_paths=["images/white-cat.jpg", "images/black-cat.jpg"],
         )
 
@@ -109,8 +138,7 @@ def test_video_task_spec_allows_reference_image_tokens():
     task = VideoTaskSpec(
         prompt="白色小猫 [image1] 从黑色箱子探头，黑色小猫 [image2] 从白色箱子跳出",
         name="箱子跳猫",
-        width=1280,
-        height=720,
+        size="1280x720",
         reference_image_paths=["images/white-cat.jpg", "images/black-cat.jpg"],
     )
 
@@ -122,14 +150,47 @@ def test_video_task_spec_requires_video_and_audio_tokens():
         VideoTaskSpec(
             prompt="参考视频节奏和音频氛围生成广告片",
             name="广告片",
-            width=1280,
-            height=720,
+            size="1280x720",
             reference_video_paths=["videos/ref.mp4"],
             reference_audio_paths=["audios/ref.mp3"],
         )
 
 
-def test_generate_canvas_videos_params_guides_missing_canvas_dimensions():
+def test_generate_canvas_videos_params_uses_size_for_canvas_dimensions():
+    params = GenerateCanvasVideosParams(
+        project_path="demo-project",
+        tasks=[
+            {
+                "prompt": "生成一个 16:9 的 720p 广告短片",
+                "name": "广告短片",
+                "size": "1280x720",
+            }
+        ],
+    )
+
+    assert params.tasks[0].canvas_dimensions == (1280, 720)
+    assert "width" not in params.tasks[0].model_fields_set
+    assert "height" not in params.tasks[0].model_fields_set
+
+
+def test_generate_canvas_videos_params_ignores_legacy_canvas_dimensions_when_size_exists():
+    params = GenerateCanvasVideosParams(
+        project_path="demo-project",
+        tasks=[
+            {
+                "prompt": "生成一个 16:9 的 720p 广告短片",
+                "name": "广告短片",
+                "size": "1280x720",
+                "width": 640,
+                "height": 360,
+            }
+        ],
+    )
+
+    assert params.tasks[0].canvas_dimensions == (1280, 720)
+
+
+def test_generate_canvas_videos_params_requires_size():
     with pytest.raises(ValidationError) as exc:
         GenerateCanvasVideosParams(
             project_path="demo-project",
@@ -137,16 +198,32 @@ def test_generate_canvas_videos_params_guides_missing_canvas_dimensions():
                 {
                     "prompt": "生成一个 16:9 的 720p 广告短片",
                     "name": "广告短片",
-                    "size": "1280x720",
                 }
             ],
         )
 
     message = str(exc.value)
-    assert "requires width and height" in message
-    assert "tasks.0.width" in message
-    assert "tasks.0.height" in message
-    assert "current video model's supported size/default_size" in message
+    assert "requires size" in message
+    assert "tasks.0.size" in message
+
+
+def test_generate_canvas_videos_params_rejects_invalid_size_with_english_message():
+    with pytest.raises(ValidationError) as exc:
+        GenerateCanvasVideosParams(
+            project_path="demo-project",
+            tasks=[
+                {
+                    "prompt": "生成一个广告短片",
+                    "name": "广告短片",
+                    "size": "720p",
+                }
+            ],
+        )
+
+    message = str(exc.value)
+    assert "Invalid size format" in message
+    assert "WIDTHxHEIGHT" in message
+    assert "格式无效" not in message
 
 
 @pytest.mark.asyncio
@@ -165,7 +242,7 @@ async def test_execute_purely_exposes_4018_error_as_raw_error(monkeypatch, tmp_p
 
     result = await tool.execute_purely(
         None,
-        GenerateVideoParams(prompt="生成测试视频", output_path="videos"),
+        GenerateVideoParams(prompt="生成测试视频", size="1280x720", output_path="videos"),
     )
 
     assert not result.ok
@@ -245,8 +322,7 @@ async def test_execute_video_task_carries_error_message_to_result(tmp_path):
     task = VideoTaskSpec(
         prompt="森林中的小路。",
         name="错误信息测试",
-        width=1280,
-        height=720,
+        size="1280x720",
     )
     placeholder = ElementDetail(
         id="element-1",
