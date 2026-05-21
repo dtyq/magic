@@ -1,4 +1,4 @@
-/** 设置 Sheet 固定档位，不参与全局栈自增，避免挤占交易层（PaidPackage ≥ 1400）。 */
+/** 设置 Sheet 在 MagicPopup 全局栈中的起始基准，嵌套层由栈自动递增（步长 10）。 */
 export const MOBILE_SETTINGS_SHEET_Z_INDEX = 1100
 
 export const MOBILE_SETTINGS_SHEET_CLASSNAME =

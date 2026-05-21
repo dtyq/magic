@@ -94,6 +94,18 @@ describe("overlayStackManager", () => {
 		expect(nextRound.overlayZIndex).toBe(1010)
 	})
 
+	test("设置 Sheet 之上打开命令式弹窗时层级高于下层 content", () => {
+		const settingsSheet = acquireOverlayZIndex({ zIndex: 1100 })
+		const imperativeModal = acquireOverlayZIndex({ scope: "global" })
+
+		expect(settingsSheet.contentZIndex).toBe(1101)
+		expect(imperativeModal.overlayZIndex).toBeGreaterThan(settingsSheet.contentZIndex)
+		expect(imperativeModal.contentZIndex).toBe(imperativeModal.overlayZIndex + 1)
+
+		imperativeModal.release()
+		settingsSheet.release()
+	})
+
 	test("交易层最低 1400 在栈顶已超过 1400 时仍能盖住其它浮层", () => {
 		const elevated = acquireOverlayZIndex({ scope: "global", zIndex: 1500 })
 		const stacked = acquireOverlayZIndex({ scope: "global" })

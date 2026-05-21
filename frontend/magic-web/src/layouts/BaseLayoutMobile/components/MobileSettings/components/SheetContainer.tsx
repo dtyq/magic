@@ -85,7 +85,7 @@ export function MobileSettingsSheetContainer(props: {
 		overlayClassName,
 		zIndex = MOBILE_SETTINGS_SHEET_Z_INDEX,
 		zIndexScope,
-		zIndexManaged = false,
+		zIndexManaged = true,
 		contentClassName,
 		children,
 		dataTestId,
@@ -102,7 +102,7 @@ export function MobileSettingsSheetContainer(props: {
 			overlayClassName={cn("bg-black/20 backdrop-blur-sm", overlayClassName)}
 			/* 关闭 body 区域自身的滚动，改由内部 content 区域独立控制滚动行为。 */
 			bodyClassName="flex max-h-none min-h-0 flex-1 flex-col overflow-hidden p-0"
-			/* 固定 1100 档位且不托管，多 Sheet 靠 DOM 顺序叠放，交易层可稳定盖在上面。 */
+			/* 复用 MagicPopup 全局栈自增；zIndex 仅作设置层起始基准（交易层 ≥1400 仍可覆盖）。 */
 			zIndex={zIndex}
 			zIndexScope={zIndexScope}
 			zIndexManaged={zIndexManaged}
