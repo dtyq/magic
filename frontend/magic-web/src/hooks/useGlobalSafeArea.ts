@@ -27,7 +27,11 @@ const SAFE_AREA_STYLE_ROUTES: Record<
 		top: { backgroundColor: "rgba(249,249,249, 1)" },
 		bottom: { backgroundColor: "rgba(249,249,249, 1)" },
 	},
-	// 可以继续添加其他路由...
+	// ClawPlayground: top matches header bg-background, bottom matches page/input bg-sidebar
+	[RouteName.ClawPlayground]: {
+		top: { backgroundColor: "rgb(var(--background-rgb))" },
+		bottom: { backgroundColor: "rgb(var(--sidebar-rgb))" },
+	},
 }
 
 /**
