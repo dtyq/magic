@@ -154,13 +154,24 @@ class TaskMessageFactoryV2(TaskMessageFactoryProtocol):
         # 当有 token_usage_details 时，注入到 inner_message 供前端消费
         if token_usage_details and token_usage_details.usages:
             usage = token_usage_details.usages[0]
+
+            # max_context_tokens 不是 LLM 响应字段，需要根据 model_id 从模型配置兜底查询
+            max_context_tokens = usage.max_context_tokens
+            if max_context_tokens is None and usage.model_id:
+                try:
+                    from agentlang.llms.factory import LLMFactory
+                    _model_config = LLMFactory.get_model_config(usage.model_id)
+                    max_context_tokens = _model_config.max_context_tokens or None
+                except Exception:
+                    max_context_tokens = None
+
             tu = {
                 "input_tokens": usage.input_tokens,
                 "output_tokens": usage.output_tokens,
                 "total_tokens": usage.total_tokens,
                 "model_id": usage.model_id,
                 "input_tokens_details": usage.input_tokens_details.to_dict() if usage.input_tokens_details else None,
-                "max_context_tokens": usage.max_context_tokens,
+                "max_context_tokens": max_context_tokens,
                 "request_id": correlation_id,
             }
             inner_message["token_usage"] = {k: v for k, v in tu.items() if v is not None}
