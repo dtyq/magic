@@ -25,7 +25,7 @@ function RecycleBinHeader(props: RecycleBinHeaderProps) {
 	if (isSearchOpen) return null
 
 	return (
-		<div className="mobile-page-header pb-3" data-testid="mobile-recycle-bin-header">
+		<div className="mobile-page-header" data-testid="mobile-recycle-bin-header">
 			<button
 				type="button"
 				onClick={onMenuClick}
