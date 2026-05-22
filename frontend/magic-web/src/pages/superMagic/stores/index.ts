@@ -559,7 +559,7 @@ export class SuperMagicStore {
 			if (streamControlledKeys.has(key)) return
 			if (value === undefined) return
 			if ((cache as Record<string, unknown>)[key] === value) return
-			;(cache as Record<string, unknown>)[key] = value
+				; (cache as Record<string, unknown>)[key] = value
 			mutated = true
 		})
 
@@ -606,7 +606,7 @@ export class SuperMagicStore {
 			const next = (finalCard as Record<string, unknown>)[key]
 			if (next === undefined || next === null || next === "") return
 			if ((merged as Record<string, unknown>)[key] === next) return
-			;(merged as Record<string, unknown>)[key] = next
+				; (merged as Record<string, unknown>)[key] = next
 			mutated = true
 		})
 
@@ -631,22 +631,13 @@ export class SuperMagicStore {
 					this.handleTopicSuspended(topicId)
 				}
 
-				// 立即更新 toolResponseMap，不受 timer 守卫约束。
-				// 这只是纯数据写入，不会产生新卡片或视觉抖动，
-				// 让组件能即时读到 tool 响应的最终状态（status/detail 等）。
-				const toolResponseMap = this.toolResponseMap.get(topicId) || new Map()
-				if (messageNode?.tool?.id) {
-					toolResponseMap.set(messageNode?.tool?.id || "", {
-						...messageNode?.tool,
-					})
-				}
-				this.toolResponseMap.set(topicId, toolResponseMap)
-
-				// timer 守卫仅延迟"卡片创建 + 事件触发"，避免流式动画期间出现新卡片跳动
+				// 流式渲染未完成时，tool 消息整体回退到 buffer 等待。
+				// toolResponseMap 也不提前写入，确保 UI 工具状态与流式进度同步，
+				// 避免后端 tool 响应抢占消费导致工具状态提前落定。
 				const topicMeta = this.getTopicMetadata(topicId)
-				if (topicMeta.timer) {
+				if (topicMeta.timer || topicMeta.content.size > 0) {
 					console.log(
-						"%c 【DEBUG】 消费队列 - 工具（等待流式完成，toolResponseMap 已更新）",
+						"%c 【DEBUG】 消费队列 - 工具（等待流式完成）",
 						"background-color: orange;color: white;padding:0 4px",
 						JSON.parse(JSON.stringify(buffer)),
 					)
@@ -654,6 +645,15 @@ export class SuperMagicStore {
 					buffer.isProcessing = false
 					return
 				}
+
+				// 流式已结束，安全消费 tool 响应并更新 toolResponseMap
+				const toolResponseMap = this.toolResponseMap.get(topicId) || new Map()
+				if (messageNode?.tool?.id) {
+					toolResponseMap.set(messageNode?.tool?.id || "", {
+						...messageNode?.tool,
+					})
+				}
+				this.toolResponseMap.set(topicId, toolResponseMap)
 
 				console.log(
 					"%c 【DEBUG】 消费队列 - 工具",
@@ -876,7 +876,7 @@ export class SuperMagicStore {
 
 			const cache = this.messageMap.get(correlationId) as RawSuperMagicMessageNode | undefined
 			if (cache) {
-				;(cache as any).tool_calls = validToolCalls.length > 0 ? validToolCalls : []
+				; (cache as any).tool_calls = validToolCalls.length > 0 ? validToolCalls : []
 				this.messageMap.set(correlationId, cache)
 			}
 
@@ -1244,7 +1244,7 @@ export class SuperMagicStore {
 	 * @description 处理超麦流式消息
 	 * @param message 消息
 	 */
-	handleSuperMagicChunkMessage(message: SuperMagicChunkMessage) {}
+	handleSuperMagicChunkMessage(message: SuperMagicChunkMessage) { }
 
 	/**
 	 * @description 设置测试消息(DEBUG 专用)

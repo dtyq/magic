@@ -1,11 +1,11 @@
 import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { set } from "lodash-es"
-import mock from "./mock_v6.json"
+// import mock from "./mock_v26.json"
 
 // @ts-ignore
 window.test = (topicId: string = "837333386617253888") => {
-	// const mock: any[] = []
+	const mock: any[] = []
 
 	function check() {
 		const allAfterAgentReply = mock.filter((o) => {
@@ -32,7 +32,6 @@ window.test = (topicId: string = "837333386617253888") => {
 	const lastMessageTime: null | number = null
 
 	superMagicStore.setTest(topicId)
-
 	// 串行推送
 	function run(i: number) {
 		const message = mock[i]
@@ -56,7 +55,7 @@ window.test = (topicId: string = "837333386617253888") => {
 				set(message, ["message", "super_magic_message", "topic_id"], "83773982673888888")
 				superMagicStore.enqueueMessage(topicId, { seq: message })
 				run(i + 1)
-			}, 2000)
+			}, 100)
 		}
 		// console.log(
 		// 	"time",
