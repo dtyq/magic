@@ -24,6 +24,7 @@ import {
 	MOBILE_SETTINGS_FEEDBACK_FILE_MAX_BYTES,
 	MOBILE_SETTINGS_FEEDBACK_TITLE_MAX_LENGTH,
 	type MobileSettingsFeedbackCategoryOption,
+	type MobileSettingsFeedbackPrefill,
 } from "./feedbackShared"
 import { MobileSettingsSheetContainer } from "./SheetContainer"
 import { useMobileSettingsFeedbackCategories } from "./useMobileSettingsFeedbackCategories"
@@ -164,8 +165,12 @@ function buildFeedbackSubmitDescription(params: {
 }
 
 /** 移动端反馈 Sheet 只实现 create 视图，列表与详情继续等待真实工单 API。 */
-export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () => void }) {
-	const { open, onClose } = props
+export function MobileSettingsFeedbackSheet(props: {
+	open: boolean
+	onClose: () => void
+	prefill?: MobileSettingsFeedbackPrefill
+}) {
+	const { open, onClose, prefill } = props
 	const { t } = useTranslation("interface")
 	const { t: tSuper } = useTranslation("super")
 	const { userInfo } = useUserInfo()
@@ -203,9 +208,9 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 
 		if (open && wasOpen) return
 
-		setSelectedCategoryId(undefined)
-		setTitle("")
-		setDescription("")
+		setSelectedCategoryId(prefill?.categoryId)
+		setTitle(prefill?.title ?? "")
+		setDescription(prefill?.description ?? "")
 		setImages((previousImages) => {
 			previousImages.forEach((image) => URL.revokeObjectURL(image.previewUrl))
 			return []
@@ -215,7 +220,7 @@ export function MobileSettingsFeedbackSheet(props: { open: boolean; onClose: () 
 		setTouched(false)
 		setIsUploading(false)
 		setIsSubmitting(false)
-	}, [open, userInfo?.email])
+	}, [open, prefill?.categoryId, prefill?.description, prefill?.title, userInfo?.email])
 
 	/** 附件选择只允许图片，数量与体积上限与原型 FEEDBACK_LIMITS 对齐（图片-only）。 */
 	const handleSelectImages = useMemoizedFn(async (event: ChangeEvent<HTMLInputElement>) => {

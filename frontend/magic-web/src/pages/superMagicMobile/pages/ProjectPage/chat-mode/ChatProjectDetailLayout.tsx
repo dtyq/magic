@@ -1,6 +1,8 @@
 import { observer } from "mobx-react-lite"
 import { projectStore, topicStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import { ChatProjectMessagePanel } from "./ChatProjectMessagePanel"
+import { useConversationFeedbackSheet } from "@/pages/superMagicMobile/hooks/useConversationFeedbackSheet"
+import { MobileSettingsFeedbackSheet } from "@/layouts/BaseLayoutMobile/components/MobileSettings/components/FeedbackSheet"
 import { useChatConversationActions } from "./useChatConversationActions"
 import { TopicFilesPopup } from "@/pages/superMagicMobile/pages/TopicPage/components/TopicFilesPopup"
 import projectFilesStore from "@/stores/projectFiles"
@@ -16,6 +18,15 @@ function ChatProjectDetailLayoutComponent() {
 	const attachmentList = projectFilesStore.workspaceFilesList
 	const { updateAttachments } = useAttachments()
 	const {
+		feedbackSheetOpen,
+		feedbackPrefill,
+		openConversationFeedback,
+		closeConversationFeedback,
+	} = useConversationFeedbackSheet({
+		selectedProject,
+		selectedTopic,
+	})
+	const {
 		actionSheetVisible,
 		filesDrawerOpen,
 		setFilesDrawerOpen,
@@ -29,6 +40,7 @@ function ChatProjectDetailLayoutComponent() {
 	} = useChatConversationActions({
 		selectedProject,
 		selectedTopic,
+		onOpenConversationFeedback: openConversationFeedback,
 	})
 	const refreshProjectAttachments = useMemoizedFn(async () => {
 		if (!selectedProject) return
@@ -54,6 +66,11 @@ function ChatProjectDetailLayoutComponent() {
 			/>
 			{projectActionComponents}
 			{topicActionComponents}
+			<MobileSettingsFeedbackSheet
+				open={feedbackSheetOpen}
+				onClose={closeConversationFeedback}
+				prefill={feedbackPrefill}
+			/>
 			<TopicFilesPopup
 				open={filesDrawerOpen}
 				onOpenChange={setFilesDrawerOpen}

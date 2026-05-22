@@ -9,6 +9,7 @@ import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/
 interface UseChatConversationActionsParams {
 	selectedProject: ProjectListItem | null
 	selectedTopic: Topic | null
+	onOpenConversationFeedback?: () => void
 }
 
 /**
@@ -18,6 +19,7 @@ interface UseChatConversationActionsParams {
 export function useChatConversationActions({
 	selectedProject,
 	selectedTopic,
+	onOpenConversationFeedback,
 }: UseChatConversationActionsParams) {
 	const { t } = useTranslation("super")
 	const [actionSheetVisible, { setTrue: showActionSheet, setFalse: hideActionSheet }] =
@@ -64,9 +66,15 @@ export function useChatConversationActions({
 		setFilesDrawerOpen(true)
 	})
 
-	/**
-	 * “分享”复用移动端已有话题分享能力；当前没有对话级反馈接口，因此不在本期 Action Sheet 中暴露。
-	 */
+	/** Open conversation feedback sheet after closing the action panel. */
+	const openConversationFeedbackFromSheet = useMemoizedFn(() => {
+		if (!selectedTopic || !selectedProject || !onOpenConversationFeedback) return
+
+		hideActionSheet()
+		onOpenConversationFeedback()
+	})
+
+	/** “分享”复用移动端已有话题分享能力。 */
 	const openTopicShareFromSheet = useMemoizedFn(() => {
 		if (!selectedTopic || !selectedProject) return
 
@@ -115,8 +123,16 @@ export function useChatConversationActions({
 					},
 				],
 			},
-			// TODO(mobile-refactor-cleanup): 当前缺少“反馈本次对话”的对话级 API/交互契约，
-			// 已在 API_LIMITATIONS.md 中登记 CHAT-ACTION-01，待能力落地后再补回该动作。
+			{
+				actions: [
+					{
+						key: "feedback-conversation",
+						label: t("topic.feedbackConversation"),
+						onClick: openConversationFeedbackFromSheet,
+						disabled: !selectedTopic || !selectedProject || !onOpenConversationFeedback,
+					},
+				],
+			},
 			{
 				actions: [
 					{
@@ -129,6 +145,8 @@ export function useChatConversationActions({
 			},
 		],
 		[
+			onOpenConversationFeedback,
+			openConversationFeedbackFromSheet,
 			openFilesDrawerFromSheet,
 			openTopicShareFromSheet,
 			projectActionMap,

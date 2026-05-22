@@ -65,6 +65,8 @@ import { PORTAL_IDS } from "@/constants"
 import usePortalTarget from "@/hooks/usePortalTarget"
 import { useIsMobile } from "@/hooks/useIsMobile"
 import ConversationActionsPopup from "@/pages/superMagicMobile/components/ConversationActionsPopup"
+import { MobileSettingsFeedbackSheet } from "@/layouts/BaseLayoutMobile/components/MobileSettings/components/FeedbackSheet"
+import { useConversationFeedbackSheet } from "@/pages/superMagicMobile/hooks/useConversationFeedbackSheet"
 import { useProjectTopicConversationActions } from "./hooks/useProjectTopicConversationActions"
 import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
 
@@ -129,6 +131,15 @@ function TopicPage({
 	const attachments = projectFilesStore.workspaceFileTree
 	const attachmentList = projectFilesStore.workspaceFilesList
 	const {
+		feedbackSheetOpen: projectTopicFeedbackSheetOpen,
+		feedbackPrefill: projectTopicFeedbackPrefill,
+		openConversationFeedback: openProjectTopicConversationFeedback,
+		closeConversationFeedback: closeProjectTopicConversationFeedback,
+	} = useConversationFeedbackSheet({
+		selectedProject,
+		selectedTopic,
+	})
+	const {
 		actionSheetVisible: projectTopicActionSheetVisible,
 		filesDrawerOpen: projectTopicFilesDrawerOpen,
 		setFilesDrawerOpen: setProjectTopicFilesDrawerOpen,
@@ -142,6 +153,7 @@ function TopicPage({
 		selectedProject,
 		selectedTopic,
 		topics: topicStore.topics,
+		onOpenConversationFeedback: openProjectTopicConversationFeedback,
 	})
 
 	// Refs
@@ -654,6 +666,13 @@ function TopicPage({
 					subtitle={projectTopicActionPopupSubtitle}
 					actionGroups={projectTopicActionGroups}
 					onClose={closeProjectTopicActionSheet}
+				/>
+			) : null}
+			{isStandaloneProjectTopicPage ? (
+				<MobileSettingsFeedbackSheet
+					open={projectTopicFeedbackSheetOpen}
+					onClose={closeProjectTopicConversationFeedback}
+					prefill={projectTopicFeedbackPrefill}
 				/>
 			) : null}
 			{isStandaloneProjectTopicPage ? (

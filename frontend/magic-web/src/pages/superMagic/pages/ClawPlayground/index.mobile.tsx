@@ -70,6 +70,8 @@ import { useDefaultModeModelListRefreshOnMount } from "@/pages/superMagic/hooks"
 import { toast } from "sonner"
 import { MagicClawApi } from "@/apis"
 import { MAGIC_CLAW_STATUS } from "@/apis/modules/magicClawStatus"
+import { MobileSettingsFeedbackSheet } from "@/layouts/BaseLayoutMobile/components/MobileSettings/components/FeedbackSheet"
+import { useClawFeedbackSheet } from "@/pages/superMagic/hooks/useClawFeedbackSheet"
 import { ClawMobileMoreSheet } from "./components/ClawMobileMoreSheet"
 import { MagiClawEditDialog } from "../MagiClawPage/MagiClawEditDialog"
 import type { MagiClawEditPayload } from "../MagiClawPage/useMagiClawMobilePage"
@@ -530,6 +532,21 @@ function ClawPlaygroundMobile() {
 	const selectedWorkspace = store.selectedWorkspace
 	const selectedTopic = store.selectedTopic
 	const isReadOnly = isReadOnlyProject(selectedProject?.user_role)
+
+	const clawDisplayName =
+		store.magicClaw?.name?.trim() ||
+		t("superLobster.workspace.untitledProject", clawBrandValues)
+
+	const { feedbackSheetOpen, feedbackPrefill, openClawFeedback, closeClawFeedback } =
+		useClawFeedbackSheet({
+			magicClaw: store.magicClaw,
+			clawDisplayName,
+		})
+
+	const handleOpenClawFeedback = useMemoizedFn(() => {
+		setMoreSheetOpen(false)
+		openClawFeedback()
+	})
 	useNamedPageTitle({
 		entityName: store.magicClaw?.name,
 		fallbackName: t("superLobster.workspace.untitledProject", clawBrandValues),
@@ -744,6 +761,13 @@ function ClawPlaygroundMobile() {
 						handleConfirmUpgradeSandbox(store.magicClaw)
 					}
 				}}
+				onFeedback={handleOpenClawFeedback}
+			/>
+
+			<MobileSettingsFeedbackSheet
+				open={feedbackSheetOpen}
+				onClose={closeClawFeedback}
+				prefill={feedbackPrefill}
 			/>
 
 			<MagiClawEditDialog

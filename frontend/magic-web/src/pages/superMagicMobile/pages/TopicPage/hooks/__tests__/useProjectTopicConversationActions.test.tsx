@@ -46,7 +46,7 @@ describe("useProjectTopicConversationActions", () => {
 		vi.clearAllMocks()
 	})
 
-	it("orders project-topic action groups and keeps only feedback action disabled", () => {
+	it("orders project-topic action groups and disables feedback when handler is missing", () => {
 		const { result } = renderHook(() =>
 			useProjectTopicConversationActions({
 				selectedProject: createProject(),
@@ -151,14 +151,35 @@ describe("useProjectTopicConversationActions", () => {
 		expect(renameTopicMock).toHaveBeenCalledTimes(1)
 	})
 
-	it("does not run callbacks for disabled placeholder feedback action", () => {
+	it("enables feedback action when onOpenConversationFeedback is provided", () => {
+		const onOpenConversationFeedback = vi.fn()
 		const { result } = renderHook(() =>
 			useProjectTopicConversationActions({
 				selectedProject: createProject(),
 				selectedTopic: createTopic("topic-1"),
 				topics: [createTopic("topic-1"), createTopic("topic-2")],
+				onOpenConversationFeedback,
 			}),
 		)
+
+		expect(
+			findAction(result.current.conversationActionGroups, "feedback-conversation")?.disabled,
+		).toBe(false)
+	})
+
+	it("opens conversation feedback and closes action sheet from feedback action", () => {
+		const onOpenConversationFeedback = vi.fn()
+		const { result } = renderHook(() =>
+			useProjectTopicConversationActions({
+				selectedProject: createProject(),
+				selectedTopic: createTopic("topic-1"),
+				topics: [createTopic("topic-1"), createTopic("topic-2")],
+				onOpenConversationFeedback,
+			}),
+		)
+
+		act(() => result.current.openConversationActionSheet())
+		expect(result.current.actionSheetVisible).toBe(true)
 
 		act(() =>
 			findAction(
@@ -167,10 +188,8 @@ describe("useProjectTopicConversationActions", () => {
 			)?.onClick?.(),
 		)
 
-		expect(renameTopicMock).not.toHaveBeenCalled()
-		expect(shareTopicMock).not.toHaveBeenCalled()
-		expect(deleteTopicMock).not.toHaveBeenCalled()
-		expect(toggleTopicPinMock).not.toHaveBeenCalled()
+		expect(result.current.actionSheetVisible).toBe(false)
+		expect(onOpenConversationFeedback).toHaveBeenCalledTimes(1)
 	})
 })
 

@@ -25,3 +25,13 @@ export interface MobileSettingsFeedbackCategoryOption {
 	iconClassName: string
 	iconBoxClassName: string
 }
+
+/**
+ * Optional prefill when opening the feedback sheet.
+ * Prefer building via `../feedback-prefill/buildMobileFeedbackPrefill` for shared templates.
+ */
+export interface MobileSettingsFeedbackPrefill {
+	categoryId?: string
+	title?: string
+	description?: string
+}

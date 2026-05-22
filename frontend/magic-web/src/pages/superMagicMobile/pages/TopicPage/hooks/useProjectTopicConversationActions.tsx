@@ -9,12 +9,14 @@ interface UseProjectTopicConversationActionsParams {
 	selectedProject: ProjectListItem | null
 	selectedTopic: Topic | null
 	topics: Topic[]
+	onOpenConversationFeedback?: () => void
 }
 
 export function useProjectTopicConversationActions({
 	selectedProject,
 	selectedTopic,
 	topics,
+	onOpenConversationFeedback,
 }: UseProjectTopicConversationActionsParams) {
 	const { t } = useTranslation("super")
 	const [actionSheetVisible, { setTrue: showActionSheet, setFalse: hideActionSheet }] =
@@ -54,6 +56,14 @@ export function useProjectTopicConversationActions({
 		syncCurrentTopicActionItem({ selectedTopic, selectedProject, updateCurrentActionItem })
 		hideActionSheet()
 		topicActionMap.get(actionKey)?.onClick?.()
+	})
+
+	/** Open conversation feedback sheet after closing the action panel. */
+	const openConversationFeedbackFromSheet = useMemoizedFn(() => {
+		if (!selectedTopic || !selectedProject || !onOpenConversationFeedback) return
+
+		hideActionSheet()
+		onOpenConversationFeedback()
 	})
 
 	/**
@@ -116,7 +126,8 @@ export function useProjectTopicConversationActions({
 					{
 						key: "feedback-conversation",
 						label: t("topic.feedbackConversation"),
-						disabled: true,
+						onClick: openConversationFeedbackFromSheet,
+						disabled: !selectedTopic || !selectedProject || !onOpenConversationFeedback,
 					},
 				],
 			},
@@ -140,6 +151,8 @@ export function useProjectTopicConversationActions({
 
 		return groups
 	}, [
+		onOpenConversationFeedback,
+		openConversationFeedbackFromSheet,
 		openFilesDrawerFromSheet,
 		runTopicAction,
 		selectedProject,

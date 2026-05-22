@@ -75,6 +75,30 @@ describe("MobileSettingsFeedbackSheet", () => {
 		expect((screen.getByLabelText("button.confirm") as HTMLButtonElement).disabled).toBe(false)
 	})
 
+	test("带 prefill 打开时预填分类、标题与描述", () => {
+		render(
+			<MobileSettingsFeedbackSheet
+				open
+				onClose={vi.fn()}
+				prefill={{
+					categoryId: "functionUsageFeedback",
+					title: "对话「Brand Strategy Review」反馈",
+					description: "对话ID：topic-1\n请描述对话中遇到的问题或希望改进的地方：",
+				}}
+			/>,
+		)
+
+		expect(screen.getByTestId("mobile-settings-feedback-category-trigger")).toHaveTextContent(
+			"onlineFeedback.functionUsageFeedback",
+		)
+		expect(screen.getByTestId("mobile-settings-feedback-title-input")).toHaveValue(
+			"对话「Brand Strategy Review」反馈",
+		)
+		expect(screen.getByTestId("mobile-settings-feedback-description-input")).toHaveValue(
+			"对话ID：topic-1\n请描述对话中遇到的问题或希望改进的地方：",
+		)
+	})
+
 	test("提交时将标题并入描述并关闭 Sheet", async () => {
 		const handleClose = vi.fn()
 		render(<MobileSettingsFeedbackSheet open onClose={handleClose} />)
