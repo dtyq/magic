@@ -16,7 +16,11 @@ import {
 	MobileTopicPageKind,
 } from "@/pages/superMagicMobile/pages/shared/topicPageCapabilities"
 import { isCollaborationProject, isCollaborationWorkspace } from "@/pages/superMagic/constants"
-import { handleProjectTopicBackNavigation } from "./backNavigation"
+import {
+	handleProjectTopicBackNavigation,
+	navigateSuperMobileBack,
+	resolveSuperMobileProjectDetailBackFallback,
+} from "./backNavigation"
 
 interface MainHeaderProps {
 	/**
@@ -67,7 +71,6 @@ function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
 				showActions
 				actionsLayout={projectHeaderActionsLayout}
 				onBackClick={() => {
-					// 项目话题子页返回必须固定回项目详情，避免深链或历史栈把用户带离当前项目。
 					if (
 						isProjectTopicPage &&
 						handleProjectTopicBackNavigation({
@@ -86,25 +89,13 @@ function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
 						const isSharedProjectDetail =
 							isCollaborationWorkspace(selectedWorkspace) ||
 							isCollaborationProject(selectedProject)
+						const fallback = resolveSuperMobileProjectDetailBackFallback({
+							workspaceId: currentWorkspaceId,
+							isSharedProjectDetail,
+						})
 
-						// 项目详情页返回必须回到上层项目列表；不能继续走 history.go(-1)，
-						// 否则用户从话题页回到详情后再次返回，会被历史栈重新带回话题页。
-						if (currentWorkspaceId) {
-							if (isSharedProjectDetail) {
-								navigate({
-									name: RouteName.SuperSharedWorkspace,
-									viewTransition: false,
-								})
-								return
-							}
-
-							navigate({
-								name: RouteName.SuperWorkspaceProjects,
-								params: {
-									workspaceId: currentWorkspaceId,
-								},
-								viewTransition: false,
-							})
+						if (fallback) {
+							navigateSuperMobileBack({ navigate, fallback })
 							return
 						}
 					}

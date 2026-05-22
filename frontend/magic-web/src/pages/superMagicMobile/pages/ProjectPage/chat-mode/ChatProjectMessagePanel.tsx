@@ -207,8 +207,13 @@ export const ChatProjectMessagePanel = observer(function ChatProjectMessagePanel
 				title={projectTitle}
 				subtitle={t("chatList.title")}
 				onBack={() => {
-					// single-topic Chat 返回固定回聊天列表；不要依赖历史栈，也不要错误跳回当前详情页自身。
-					navigate(capabilities.resolveBackTarget(selectedProject?.id))
+					const fallback = capabilities.resolveBackTarget(selectedProject?.id)
+					navigate({
+						delta: -1,
+						name: fallback.name,
+						params: fallback.params,
+						viewTransition: false,
+					})
 				}}
 				onOpenActions={onOpenActions}
 			/>

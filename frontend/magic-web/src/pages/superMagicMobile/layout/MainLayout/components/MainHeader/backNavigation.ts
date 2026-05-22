@@ -1,35 +1,56 @@
-import { RouteName } from "@/routes/constants"
+import type { MagicNavigateParams } from "@/routes/hooks/useNavigate"
 import type { MobileTopicPageCapabilities } from "@/pages/superMagicMobile/pages/shared/topicPageCapabilities"
+import {
+	resolveSuperMobileProjectDetailBackFallback,
+	type SuperMobileBackFallbackTarget,
+} from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
 
 interface HandleProjectTopicBackParams {
 	projectId?: string
 	projectTopicCapabilities: MobileTopicPageCapabilities
 	setSelectedTopic: (topic: null) => void
-	navigate: (target: {
-		name: RouteName
-		params?: {
-			projectId: string
-		}
-		viewTransition: false
-	}) => void
+	navigate: (target: MagicNavigateParams) => void
 }
 
+/**
+ * Handles back from a project topic page: clear topic binding, then history back or semantic parent.
+ */
 export function handleProjectTopicBackNavigation({
 	projectId,
 	projectTopicCapabilities,
 	setSelectedTopic,
 	navigate,
 }: HandleProjectTopicBackParams): boolean {
-	if (!projectId) {
-		return false
-	}
+	if (!projectId) return false
 
-	// 返回项目入口页时主动解除当前话题绑定，确保入口页首发走“新建话题”而不是误续聊刚退出的话题。
+	// Clear topic so project entry does not resume the exited conversation.
 	setSelectedTopic(null)
+	const fallback = projectTopicCapabilities.resolveBackTarget(projectId)
 	navigate({
-		...projectTopicCapabilities.resolveBackTarget(projectId),
+		delta: -1,
+		name: fallback.name,
+		params: fallback.params,
 		viewTransition: false,
 	})
 
 	return true
 }
+
+interface NavigateSuperMobileBackParams {
+	navigate: (target: MagicNavigateParams) => void
+	fallback: SuperMobileBackFallbackTarget
+}
+
+/**
+ * Prefer route history back; when no in-app history, push the given semantic parent route.
+ */
+export function navigateSuperMobileBack({ navigate, fallback }: NavigateSuperMobileBackParams) {
+	navigate({
+		delta: -1,
+		name: fallback.name,
+		params: fallback.params,
+		viewTransition: false,
+	})
+}
+
+export { resolveSuperMobileProjectDetailBackFallback }

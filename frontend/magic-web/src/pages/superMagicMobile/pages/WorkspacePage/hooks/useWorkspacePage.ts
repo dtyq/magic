@@ -180,11 +180,13 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 	}, [filteredProjects, i18n.language])
 
 	/**
-	 * 返回工作区总览列表，保持移动端入口层级简单清晰。
+	 * Prefer history back; when opened via deep link without history, fall back to workspace list.
 	 */
 	const handleBack = useMemoizedFn(() => {
 		navigate({
+			delta: -1,
 			name: RouteName.SuperWorkspacesList,
+			viewTransition: false,
 		})
 	})
 

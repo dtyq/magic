@@ -1,38 +1,60 @@
 import { useEffect } from "react"
 import { getNativePort } from "@/platform/native"
 import useNavigate from "@/routes/hooks/useNavigate"
-import { getRoutePath } from "@/routes/history/helpers"
+import { getRoutePath, routesMatch } from "@/routes/history/helpers"
 import { RouteName } from "@/routes/constants"
+import { projectStore, workspaceStore } from "@/pages/superMagic/stores/core"
+import { isCollaborationProject, isCollaborationWorkspace } from "@/pages/superMagic/constants"
+import {
+	resolveSuperMobileBackFallbackByRoute,
+	resolveSuperMobileProjectDetailBackFallback,
+} from "@/pages/superMagicMobile/utils/resolveSuperMobileBackFallback"
 
 /**
- * @description 使用原生返回
+ * Subscribes to native hardware back and mirrors Super mobile UI back (history first, else semantic parent).
  */
 function useNativeBack() {
 	const navigate = useNavigate()
+
 	useEffect(() => {
 		const destroy = getNativePort().navigation.observeGoBack(() => {
-			const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
 			const chatPath = getRoutePath({ name: RouteName.Chat })
+			const pathname = window.location.pathname
 
-			// iOS 下更严格的返回条件检查
-			const cannotGoBack = isIOS
-				? window.location.pathname === chatPath || window.history.length <= 2
-				: window.location.pathname === chatPath || window.history.length <= 1
-
-			if (cannotGoBack) {
-				return {
-					canGoBack: false,
-				}
-			} else {
-				navigate({
-					delta: -1,
-					viewTransition: { type: "slide", direction: "right" },
-				})
-
-				return {
-					canGoBack: true,
-				}
+			if (pathname === chatPath) {
+				return { canGoBack: false }
 			}
+
+			const matched = routesMatch(pathname)
+			const routeName = matched?.route.name as RouteName | undefined
+			const projectId = matched?.params?.projectId
+			const workspaceId = matched?.params?.workspaceId
+
+			let fallback =
+				routeName === RouteName.SuperWorkspaceProjectState
+					? resolveSuperMobileProjectDetailBackFallback({
+							workspaceId:
+								workspaceStore.selectedWorkspace?.id ||
+								projectStore.selectedProject?.workspace_id ||
+								"",
+							isSharedProjectDetail:
+								isCollaborationWorkspace(workspaceStore.selectedWorkspace) ||
+								isCollaborationProject(projectStore.selectedProject),
+						})
+					: resolveSuperMobileBackFallbackByRoute({
+							routeName,
+							projectId,
+							workspaceId,
+						})
+
+			navigate({
+				delta: -1,
+				name: fallback?.name,
+				params: fallback?.params,
+				viewTransition: { type: "slide", direction: "right" },
+			})
+
+			return { canGoBack: true }
 		})
 
 		return () => {

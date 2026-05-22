@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { handleProjectTopicBackNavigation } from "../backNavigation"
+import { RouteName } from "@/routes/constants"
 
 describe("handleProjectTopicBackNavigation", () => {
 	const navigate = vi.fn()
@@ -8,7 +9,7 @@ describe("handleProjectTopicBackNavigation", () => {
 		canCreateSiblingTopic: true,
 		canSaveAsProject: false,
 		resolveBackTarget: (projectId?: string) => ({
-			name: "SuperWorkspaceProjectState",
+			name: RouteName.SuperWorkspaceProjectState,
 			params: projectId ? { projectId } : undefined,
 		}),
 	}
@@ -18,7 +19,7 @@ describe("handleProjectTopicBackNavigation", () => {
 		setSelectedTopic.mockReset()
 	})
 
-	it("clears the selected topic before navigating back to project detail", () => {
+	it("clears topic and navigates back with project detail fallback", () => {
 		const handled = handleProjectTopicBackNavigation({
 			projectId: "project-1",
 			projectTopicCapabilities,
@@ -29,7 +30,8 @@ describe("handleProjectTopicBackNavigation", () => {
 		expect(handled).toBe(true)
 		expect(setSelectedTopic).toHaveBeenCalledWith(null)
 		expect(navigate).toHaveBeenCalledWith({
-			name: "SuperWorkspaceProjectState",
+			delta: -1,
+			name: RouteName.SuperWorkspaceProjectState,
 			params: { projectId: "project-1" },
 			viewTransition: false,
 		})

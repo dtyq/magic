@@ -5,15 +5,15 @@ import MainHeader from "./components/MainHeader"
 import { useNavigate } from "@/routes/hooks/useNavigate"
 
 /**
- * 移动端 SuperMagic 主布局：顶栏 + 子路由内容区。
- * 顶栏返回走浏览器历史栈后退一层；若无可用历史则由 useNavigate 回落到默认路由（移动端为 MobileTabs）。
+ * Mobile SuperMagic layout: header + child routes.
+ * Default header back uses history.go(-1); child headers pass fallbackRoute via useNavigate when needed.
  */
 export default function SuperMagicMobileMainLayout() {
 	const navigate = useNavigate()
 
-	/** 顶栏返回：优先 history.go(-1)，与物理返回键语义一致 */
+	/** Default back: history first; useNavigate falls back to MobileHome when length is insufficient. */
 	const onBackClick = useCallback(() => {
-		navigate({ delta: -1 })
+		navigate({ delta: -1, viewTransition: false })
 	}, [navigate])
 
 	return (

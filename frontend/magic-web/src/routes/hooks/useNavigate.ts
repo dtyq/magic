@@ -18,6 +18,29 @@ const isHistoryLengthEnough = (path: number) => {
 	return window.history.length > 2 && window.history.length > Math.abs(path)
 }
 
+interface ResolveDeltaFallbackParams {
+	name?: string
+	params?: RouteParams["params"]
+	query?: RouteParams["query"]
+	state?: RouteParams["state"]
+}
+
+/**
+ * When history.go(delta) is unavailable, merge per-call target with hook-level fallbackRoute.
+ */
+function resolveDeltaFallbackTarget(
+	call: ResolveDeltaFallbackParams,
+	fallbackRoute: MagicNavigateParams | undefined,
+	defaultRouteName: string,
+): RouteParams {
+	return {
+		name: call.name ?? fallbackRoute?.name ?? defaultRouteName,
+		params: call.params ?? fallbackRoute?.params,
+		query: call.query ?? fallbackRoute?.query,
+		state: call.state ?? fallbackRoute?.state,
+	}
+}
+
 export type MagicNavigateParams = Partial<RouteParams> &
 	EnhancedNavigateOptions & {
 		/** history.go */
@@ -70,12 +93,13 @@ export const useNavigate = ({ fallbackRoute }: { fallbackRoute?: MagicNavigatePa
 							history.go(delta)
 							return
 						}
-						history.push({
-							name: fallbackRoute?.name ?? defaultRouteName,
-							params,
-							query,
-							state,
-						})
+						history.push(
+							resolveDeltaFallbackTarget(
+								{ name, params, query, state },
+								fallbackRoute,
+								defaultRouteName,
+							),
+						)
 					} else {
 						if (navigateOptions?.replace) {
 							history.replace({
@@ -103,12 +127,13 @@ export const useNavigate = ({ fallbackRoute }: { fallbackRoute?: MagicNavigatePa
 					history.go(delta)
 					return
 				}
-				history.push({
-					name: fallbackRoute?.name ?? defaultRouteName,
-					params,
-					query,
-					state,
-				})
+				history.push(
+					resolveDeltaFallbackTarget(
+						{ name, params, query, state },
+						fallbackRoute,
+						defaultRouteName,
+					),
+				)
 			} else {
 				if (navigateOptions?.replace) {
 					history.replace({
@@ -127,7 +152,7 @@ export const useNavigate = ({ fallbackRoute }: { fallbackRoute?: MagicNavigatePa
 				}
 			}
 		},
-		[fallbackRoute?.name, isMobile, startTransition, defaultRouteName],
+		[fallbackRoute, isMobile, startTransition, defaultRouteName],
 	)
 }
 

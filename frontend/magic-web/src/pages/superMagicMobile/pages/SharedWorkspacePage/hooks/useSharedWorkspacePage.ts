@@ -187,10 +187,14 @@ export function useSharedWorkspacePage(): UseSharedWorkspacePageReturn {
 	const isSearchEmpty = !isLoading && hasActiveSearchOrFilter && projects.length === 0
 
 	/**
-	 * 返回工作区列表，保持共享项目页和普通工作区页同一层级。
+	 * Prefer history back; when opened via deep link without history, fall back to workspace list.
 	 */
 	const handleBack = useMemoizedFn(() => {
-		navigate({ name: RouteName.SuperWorkspacesList })
+		navigate({
+			delta: -1,
+			name: RouteName.SuperWorkspacesList,
+			viewTransition: false,
+		})
 	})
 
 	/**
