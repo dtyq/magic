@@ -305,7 +305,8 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 				isPlaybackMode={!!previewDetail?.isFromNode || false}
 				allowDownload={allowDownload}
 				showFileHeader={!isImmersiveFullscreen}
-				showFooter={!isImmersiveFullscreen && !isShareRoute}
+				// Mobile preview hides version footer; desktop keeps version selector when allowed.
+				showFooter={!isMobile && !isImmersiveFullscreen && !isShareRoute}
 				className={isImmersiveFullscreen ? "h-full min-h-0 w-full flex-1" : undefined}
 			/>
 		)
@@ -327,6 +328,7 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 		isFromNode,
 		isFullscreen,
 		isImmersiveFullscreen,
+		isMobile,
 		isShareRoute,
 		onClose,
 		openFileTab,
