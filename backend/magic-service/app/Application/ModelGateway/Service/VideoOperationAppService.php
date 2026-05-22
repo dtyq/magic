@@ -87,7 +87,7 @@ readonly class VideoOperationAppService
         private VideoBillingDetailsResolver $videoBillingDetailsResolver,
         private VideoMediaProbeInterface $videoMediaProbe,
         private VideoInputMediaMetadataResolver $videoInputMediaMetadataResolver,
-        private Producer $producer,
+        //        private Producer $producer,
         private LockerInterface $locker,
     ) {
     }
