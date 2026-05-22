@@ -32,6 +32,7 @@ import GlobalSidebarStore from "@/stores/display/GlobalSidebarStore"
 import { getMobileSettingsConfig } from "./config"
 import {
 	MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME,
+	MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME,
 	MOBILE_SETTINGS_SHOW_INFO_HEADER,
 } from "./constants"
 import { MobileSettingsInfoPopover } from "./components/InfoPopover"
@@ -266,6 +267,7 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 			<MobileSettingsSheetContainer
 				open={open}
 				title={t("sider.settings")}
+				sheetClassName={MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME}
 				onOpenChange={(nextOpen) => {
 					if (!nextOpen) onClose()
 				}}
