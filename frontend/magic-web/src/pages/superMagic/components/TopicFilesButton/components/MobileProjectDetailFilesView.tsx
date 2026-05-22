@@ -1,10 +1,21 @@
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
+import MagicFileIcon from "@/components/base/MagicFileIcon"
+import magicToast from "@/components/base/MagicToaster/utils"
 import { Input } from "@/components/shadcn-ui/input"
 import { Button } from "@/components/shadcn-ui/button"
 import { cn } from "@/lib/utils"
+import { isEmpty } from "lodash-es"
 import { observer } from "mobx-react-lite"
+import type { FileItem } from "@/pages/superMagic/components/Detail/components/FilesViewer/types"
+import { detectContentTypeRender } from "@/pages/superMagic/components/Detail/components/FilesViewer/utils/preview"
+import {
+	getAppEntryFile,
+	getAttachmentType,
+	getChildrenForCustomMetadataIconPath,
+} from "@/pages/superMagic/components/MessageList/components/MessageAttachment/utils"
 import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
+import { findFileInTree } from "@/pages/superMagic/components/TopicFilesButton/hooks/fileSelectionUtils"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { formatFileSize } from "@/utils/string"
 import { Check, ChevronLeft, ChevronRight, Home, Plus, Upload, X } from "lucide-react"
@@ -14,6 +25,7 @@ import type { PresetFileType } from "../constant"
 import { isMagicSystemFolder } from "../utils/magic-system-folder"
 import MobileFilesSelectionBar from "./MobileFilesSelectionBar"
 import { MobileFileDownloadSheet } from "./MobileFileDownloadSheet"
+import { CustomFolderMagicIcon } from "./CustomFolderMagicIcon"
 import { TopicFileIcon, type TopicFileMagicVariant } from "./TopicFileIcon"
 import {
 	menuItemsIncludeNoWaterMarkDownload,
@@ -28,6 +40,7 @@ interface MobileProjectDetailFilesViewProps {
 	refreshLoading?: boolean
 	onRefresh?: () => Promise<void> | void
 	selectionResetKey?: number
+	setUserSelectDetail?: (detail: unknown) => void
 	onFileOpen?: (item: AttachmentItem) => void
 	onSelectionModeChange?: (isSelectionMode: boolean) => void
 	onCreateFile?: (type: PresetFileType, parentPath?: string, fileName?: string) => void
@@ -208,6 +221,20 @@ function collectSearchResults(
 	return results
 }
 
+/** Align with TopicFilesCore: map AttachmentItem to FileItem for content-type preview detection. */
+function toFileItem(item: AttachmentItem): FileItem {
+	return {
+		file_id: item.file_id || "",
+		file_name: item.name || item.file_name || "",
+		display_filename: item.name || item.file_name,
+		is_directory: item.is_directory,
+		children: item.children as FileItem[] | undefined,
+		display_config: item.display_config,
+		file_extension: item.file_extension,
+		file_size: item.file_size,
+	}
+}
+
 function resolveAttachmentMagicVariant(item: AttachmentItem): TopicFileMagicVariant | undefined {
 	if (isMagicSystemFolder(item)) {
 		return "magic-root"
@@ -259,6 +286,7 @@ function MobileProjectDetailFilesView({
 	refreshLoading = false,
 	onRefresh,
 	selectionResetKey = 0,
+	setUserSelectDetail,
 	onFileOpen,
 	onSelectionModeChange,
 	onCreateFile,
@@ -414,10 +442,33 @@ function MobileProjectDetailFilesView({
 		return <TopicFileIcon fileExtension={fileExtension} />
 	}
 
+	/** Resolve a node anywhere in the attachment tree by file_id (for custom folder icons). */
+	function findAttachmentInTree(fileId: string): AttachmentItem | undefined {
+		const found = findFileInTree(attachments as Record<string, unknown>[], fileId)
+		return (found as AttachmentItem | null) ?? undefined
+	}
+
 	/**
 	 * 行级图标在视图层完成业务判断，让 `.magic` 与目录状态规则更容易顺着页面阅读。
 	 */
 	function renderRowIcon(item: AttachmentItem) {
+		if (item.is_directory && !isEmpty(item.display_config)) {
+			if (item.display_config?.type === "custom") {
+				return (
+					<CustomFolderMagicIcon
+						displayConfig={item.display_config}
+						childrenItems={getChildrenForCustomMetadataIconPath(item, (id) =>
+							findAttachmentInTree(id),
+						)}
+						typeFallback="custom"
+						size={16}
+					/>
+				)
+			}
+
+			return <MagicFileIcon type={getAttachmentType(item) || item.file_extension} size={16} />
+		}
+
 		return (
 			<TopicFileIcon
 				isDirectory={item.is_directory}
@@ -426,6 +477,57 @@ function MobileProjectDetailFilesView({
 				fileExtension={item.file_extension}
 			/>
 		)
+	}
+
+	/**
+	 * Folder row click: special display_config folders open preview; normal folders drill down.
+	 * Mirrors TopicFilesCore folder onClick (content-type render / app entry file).
+	 */
+	function handleFolderRowClick(item: AttachmentItem) {
+		if (isEmpty(item.display_config)) {
+			setPathStackKeys((prev) => [...prev, getAttachmentKey(item)])
+			return
+		}
+
+		const fileItem = toFileItem(item)
+		const contentTypeConfig = detectContentTypeRender(fileItem)
+
+		if (contentTypeConfig) {
+			if (onFileOpen && item.file_id) {
+				onFileOpen(item)
+			}
+
+			const transformedData = contentTypeConfig.dataTransformer
+				? contentTypeConfig.dataTransformer(fileItem)
+				: item
+
+			setUserSelectDetail?.({
+				type: contentTypeConfig.detailType,
+				data: {
+					...item,
+					...transformedData,
+					file_id: item.file_id,
+					file_name: item.name || item.file_name,
+					display_config: item.display_config,
+				},
+				currentFileId: item.file_id,
+				attachments,
+			})
+			return
+		}
+
+		const appEntryFile = getAppEntryFile(item.children || [], item.display_config)
+		if (appEntryFile) {
+			onFileOpen?.(appEntryFile)
+			return
+		}
+
+		if (item.display_config?.type === "custom") {
+			magicToast.error(t("topicFiles.customMainFileNotFound"))
+			return
+		}
+
+		setPathStackKeys((prev) => [...prev, getAttachmentKey(item)])
 	}
 
 	function getFileSecondaryText(item: AttachmentItem): string {
@@ -710,9 +812,7 @@ function MobileProjectDetailFilesView({
 					<button
 						type="button"
 						className="flex min-w-0 flex-1 items-center gap-3 text-left active:opacity-70"
-						onClick={() =>
-							setPathStackKeys((prev) => [...prev, getAttachmentKey(item)])
-						}
+						onClick={() => handleFolderRowClick(item)}
 					>
 						{renderAttachmentIconCell(renderRowIcon(item))}
 						<div className="min-w-0 flex-1">

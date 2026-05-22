@@ -361,6 +361,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 							refreshLoading={refreshLoading}
 							onRefresh={handleRefreshList}
 							selectionResetKey={projectDetailFilesController.selectionResetKey}
+							setUserSelectDetail={setUserSelectDetail}
 							onFileOpen={onFileClick}
 							onSelectionModeChange={setIsSelectMode}
 							onCreateFile={projectDetailFilesController.createFile}
