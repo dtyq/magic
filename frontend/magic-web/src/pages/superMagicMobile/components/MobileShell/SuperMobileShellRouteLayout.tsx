@@ -76,7 +76,8 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 	const shouldShowAppsEntry = hasOrganizationAppsShortcuts({
 		isPersonalOrganization: userStore.user.isPersonalOrganization,
 	})
-	const { recentItems, reloadRecentItems } = useRecentProjectsForMenu()
+	const { recentItems, reloadRecentItems, loadMoreRecentItems, hasMore } =
+		useRecentProjectsForMenu()
 
 	useEffect(() => {
 		if (!isSidebarOpen) return
@@ -182,11 +183,15 @@ export const SuperMobileShellRouteLayout = observer(function SuperMobileShellRou
 			},
 			onRecentNavigate: handleRecentNavigate,
 			reloadRecentItems,
+			hasMore,
+			loadMoreRecentItems,
 		}),
 		[
 			activeView,
 			handleMenuNavigate,
 			handleRecentNavigate,
+			hasMore,
+			loadMoreRecentItems,
 			navItems,
 			navigate,
 			recentItems,

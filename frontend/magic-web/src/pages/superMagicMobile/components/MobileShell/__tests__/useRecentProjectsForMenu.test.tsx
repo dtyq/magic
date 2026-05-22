@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react"
+import { act, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
 	ProjectStatus,
@@ -29,7 +29,7 @@ vi.mock("@/pages/superMagic/hooks/useChatWorkspace", () => ({
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
 		t: (key: string) => {
-			if (key === "chat.unnamedChat") return "未命名会话"
+			if (key === "chat.unnamedChat") return "未命名对话"
 			if (key === "project.unnamedProject") return "未命名项目"
 			return key
 		},
@@ -72,8 +72,8 @@ describe("useRecentProjectsForMenu", () => {
 			expect(result.current.recentItems).toHaveLength(2)
 		})
 
-		// chat workspace 下的项目用"未命名会话"，其余用"未命名项目"
-		expect(result.current.recentItems[0]?.title).toBe("未命名会话")
+		// chat workspace 下的项目用"未命名对话"，其余用"未命名项目"
+		expect(result.current.recentItems[0]?.title).toBe("未命名对话")
 		expect(result.current.recentItems[1]?.title).toBe("未命名项目")
 	})
 
@@ -238,7 +238,133 @@ describe("useRecentProjectsForMenu", () => {
 
 		expect(getProjectsWithCollaborationMock).toHaveBeenCalledWith({
 			page: 1,
-			page_size: 10,
+			page_size: 20,
+		})
+	})
+
+	it("sets hasMore when total exceeds the first page size", async () => {
+		getProjectsWithCollaborationMock.mockResolvedValue({
+			list: Array.from({ length: 20 }, (_, index) =>
+				createProject({
+					id: `page1-${index}`,
+					project_mode: TopicMode.General,
+				}),
+			),
+			total: 25,
+		})
+
+		const { result } = renderHook(() => useRecentProjectsForMenu())
+
+		await waitFor(() => {
+			expect(result.current.recentItems).toHaveLength(20)
+		})
+
+		expect(result.current.hasMore).toBe(true)
+	})
+
+	it("loadMoreRecentItems appends page 2 without duplicate ids", async () => {
+		const page1Projects = Array.from({ length: 20 }, (_, index) =>
+			createProject({
+				id: `page1-${index}`,
+				project_mode: TopicMode.General,
+			}),
+		)
+		const page2Projects = Array.from({ length: 5 }, (_, index) =>
+			createProject({
+				id: `page2-${index}`,
+				project_mode: TopicMode.General,
+			}),
+		)
+
+		getProjectsWithCollaborationMock.mockImplementation(({ page }: { page: number }) => {
+			if (page === 1) {
+				return Promise.resolve({ list: page1Projects, total: 25 })
+			}
+			if (page === 2) {
+				return Promise.resolve({ list: page2Projects, total: 25 })
+			}
+			return Promise.resolve({ list: [], total: 25 })
+		})
+
+		const { result } = renderHook(() => useRecentProjectsForMenu())
+
+		await waitFor(() => {
+			expect(result.current.recentItems).toHaveLength(20)
+		})
+
+		await act(async () => {
+			await result.current.loadMoreRecentItems()
+		})
+
+		await waitFor(() => {
+			expect(result.current.recentItems).toHaveLength(25)
+		})
+
+		expect(getProjectsWithCollaborationMock).toHaveBeenCalledWith({
+			page: 2,
+			page_size: 20,
+		})
+
+		const ids = result.current.recentItems.map((item) => item.id)
+		expect(new Set(ids).size).toBe(ids.length)
+		expect(result.current.hasMore).toBe(false)
+	})
+
+	it("reloadRecentItems resets pagination to page 1", async () => {
+		getProjectsWithCollaborationMock
+			.mockResolvedValueOnce({
+				list: Array.from({ length: 20 }, (_, index) =>
+					createProject({
+						id: `page1-${index}`,
+						project_mode: TopicMode.General,
+					}),
+				),
+				total: 25,
+			})
+			.mockResolvedValueOnce({
+				list: Array.from({ length: 5 }, (_, index) =>
+					createProject({
+						id: `page2-${index}`,
+						project_mode: TopicMode.General,
+					}),
+				),
+				total: 25,
+			})
+			.mockResolvedValueOnce({
+				list: [
+					createProject({ id: "refreshed-1", project_mode: TopicMode.General }),
+					createProject({ id: "refreshed-2", project_mode: TopicMode.General }),
+				],
+				total: 2,
+			})
+
+		const { result } = renderHook(() => useRecentProjectsForMenu())
+
+		await waitFor(() => {
+			expect(result.current.recentItems).toHaveLength(20)
+		})
+
+		await act(async () => {
+			await result.current.loadMoreRecentItems()
+		})
+
+		await waitFor(() => {
+			expect(result.current.recentItems).toHaveLength(25)
+		})
+
+		await act(async () => {
+			await result.current.reloadRecentItems()
+		})
+
+		await waitFor(() => {
+			expect(result.current.recentItems).toHaveLength(2)
+		})
+
+		expect(result.current.recentItems[0]?.id).toBe("refreshed-1")
+		expect(result.current.hasMore).toBe(false)
+		expect(getProjectsWithCollaborationMock).toHaveBeenLastCalledWith({
+			page: 1,
+			page_size: 20,
 		})
 	})
 })

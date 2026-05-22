@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
+import { InfiniteScroll } from "antd-mobile"
 import { Ellipsis, Loader } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { userStore } from "@/models/user"
@@ -105,10 +106,12 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 		activeView,
 		navItems,
 		recentItems,
+		hasMore,
 		onNavigate,
 		onGoHome,
 		onRecentNavigate,
 		reloadRecentItems,
+		loadMoreRecentItems,
 	} = useMobileShellMenu()
 
 	const appName = useMemo(() => t("mobile.shell.brandName"), [t])
@@ -278,6 +281,12 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 										</button>
 									</div>
 								))}
+								{hasMore && (
+									<InfiniteScroll
+										hasMore={hasMore}
+										loadMore={loadMoreRecentItems}
+									/>
+								)}
 							</div>
 						</>
 					)}

@@ -64,6 +64,10 @@ vi.mock("@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions
 	useProjectListActions: (options?: unknown) => useProjectListActionsMock(options),
 }))
 
+vi.mock("antd-mobile", () => ({
+	InfiniteScroll: () => <div data-testid="infinite-scroll" />,
+}))
+
 function renderSidebar(menuValue: MobileShellMenuContextValue) {
 	return render(
 		<MobileShellMenuProvider value={menuValue}>
@@ -114,6 +118,8 @@ describe("MobileShellSidebar", () => {
 			onGoHome: vi.fn(),
 			onRecentNavigate: vi.fn(),
 			reloadRecentItems: vi.fn(),
+			hasMore: false,
+			loadMoreRecentItems: vi.fn(),
 		})
 
 		fireEvent.click(screen.getByTestId("mobile-super-shell-recent-actions-chat-project-1"))
@@ -136,6 +142,8 @@ describe("MobileShellSidebar", () => {
 			onGoHome: vi.fn(),
 			onRecentNavigate: vi.fn(),
 			reloadRecentItems: vi.fn(),
+			hasMore: false,
+			loadMoreRecentItems: vi.fn(),
 		})
 
 		const chatsButton = screen.getByTestId("mobile-super-shell-nav-chats")
@@ -164,6 +172,8 @@ describe("MobileShellSidebar", () => {
 			onGoHome: vi.fn(),
 			onRecentNavigate: vi.fn(),
 			reloadRecentItems: vi.fn(),
+			hasMore: false,
+			loadMoreRecentItems: vi.fn(),
 		})
 
 		const chatsButton = screen.getByTestId("mobile-super-shell-nav-chats")
@@ -172,5 +182,31 @@ describe("MobileShellSidebar", () => {
 
 		expect(chatsButton.parentElement).toBe(workspacesButton.parentElement)
 		expect(myCrewButton.parentElement).not.toBe(chatsButton.parentElement)
+	})
+
+	it("renders InfiniteScroll when recent list has more pages", () => {
+		renderSidebar({
+			activeView: "chats",
+			navItems: [],
+			recentItems: [
+				{
+					id: "recent-1",
+					title: "Recent",
+					inProgress: false,
+					isPinned: false,
+					isShared: false,
+					isLinked: false,
+					isChatProject: false,
+				},
+			],
+			onNavigate: vi.fn(),
+			onGoHome: vi.fn(),
+			onRecentNavigate: vi.fn(),
+			reloadRecentItems: vi.fn(),
+			hasMore: true,
+			loadMoreRecentItems: vi.fn(),
+		})
+
+		expect(screen.getByTestId("infinite-scroll")).toBeInTheDocument()
 	})
 })

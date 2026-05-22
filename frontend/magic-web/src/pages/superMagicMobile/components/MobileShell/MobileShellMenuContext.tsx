@@ -34,6 +34,8 @@ export interface MobileShellMenuContextValue {
 	onGoHome: () => void
 	onRecentNavigate: (item: MobileShellMenuRecentItem) => void
 	reloadRecentItems?: () => Promise<void>
+	hasMore: boolean
+	loadMoreRecentItems: () => Promise<void>
 }
 
 const MobileShellMenuContext = createContext<MobileShellMenuContextValue | null>(null)

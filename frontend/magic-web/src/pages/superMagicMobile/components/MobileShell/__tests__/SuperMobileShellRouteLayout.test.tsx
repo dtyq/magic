@@ -60,6 +60,8 @@ vi.mock("./useRecentProjectsForMenu", () => ({
 	useRecentProjectsForMenu: () => ({
 		recentItems: [],
 		reloadRecentItems: reloadRecentItemsMock,
+		loadMoreRecentItems: vi.fn(),
+		hasMore: false,
 	}),
 }))
 
