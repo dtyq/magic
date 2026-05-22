@@ -94,6 +94,21 @@ describe("useOverlayZIndex", () => {
 		expect(result.current.overlayZIndex).toBe(1200)
 	})
 
+	test("关闭态重复 render 时 releaseOverlayZIndex 引用保持稳定", () => {
+		const { result, rerender } = renderHook(() => useOverlayZIndex({ open: false }))
+
+		const firstRelease = result.current.releaseOverlayZIndex
+		rerender()
+		expect(result.current.releaseOverlayZIndex).toBe(firstRelease)
+
+		act(() => {
+			result.current.releaseOverlayZIndex()
+			result.current.releaseOverlayZIndex()
+		})
+
+		expect(result.current.overlayZIndex).toBe(1000)
+	})
+
 	test("显式 release 前保持当前层级占用", async () => {
 		const { result, rerender } = renderHook(({ open }) => useOverlayZIndex({ open }), {
 			initialProps: { open: true },

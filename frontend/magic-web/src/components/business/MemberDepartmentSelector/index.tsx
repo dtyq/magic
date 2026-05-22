@@ -68,13 +68,17 @@ const MemberDepartmentSelector = ({
 	const { prefersColorScheme: theme } = useTheme()
 	const language = useGlobalLanguage(false)
 	const isMobile = useIsMobile()
-	const overlayLayer = useOverlayZIndex({ open: Boolean(props.open), zIndex })
+	const { overlayZIndex, releaseOverlayZIndex } = useOverlayZIndex({
+		open: Boolean(props.open),
+		zIndex,
+	})
 
+	// Release z-index stack when closed; depend only on stable release callback to avoid render loops.
 	useEffect(() => {
 		if (!props.open) {
-			overlayLayer.releaseOverlayZIndex()
+			releaseOverlayZIndex()
 		}
-	}, [overlayLayer, props.open])
+	}, [props.open, releaseOverlayZIndex])
 
 	const {
 		ref,
@@ -120,7 +124,7 @@ const MemberDepartmentSelector = ({
 					onSearchChange={onSearchChange}
 					selectedPath={selectedPath}
 					bodyClassName="max-h-[85vh]"
-					zIndex={overlayLayer.overlayZIndex}
+					zIndex={overlayZIndex}
 					style={style}
 					{...omit(props, ["title", "getContainer", "centered"])}
 				/>

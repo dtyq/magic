@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MutableRefObject } from "react"
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react"
 
 import {
 	acquireOverlayZIndex,
@@ -57,10 +57,19 @@ export function useOverlayZIndex({
 	}, [open, zIndex, zIndexManaged, zIndexScope])
 
 	/** 关闭动画结束后由接入组件显式释放，避免 DOM 仍在退场时过早回收层级。 */
-	const handleReleaseOverlayZIndex = () => {
+	const handleReleaseOverlayZIndex = useCallback(() => {
 		releaseOverlayZIndex(releaseRef)
-		setZIndexState(createFallbackZIndexState(zIndex, zIndexScope))
-	}
+		setZIndexState((prev) => {
+			const next = createFallbackZIndexState(zIndex, zIndexScope)
+			if (
+				prev.overlayZIndex === next.overlayZIndex &&
+				prev.contentZIndex === next.contentZIndex
+			) {
+				return prev
+			}
+			return next
+		})
+	}, [zIndex, zIndexScope])
 
 	useEffect(() => {
 		/** 组件被直接卸载时兜底释放，防止未走到动画完成回调时泄漏 activeCount。 */
