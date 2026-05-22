@@ -324,8 +324,9 @@ const MessageList = observer(
 				<ScrollArea
 					className={cn(
 						"h-full w-full",
-						"[&>[data-slot='scroll-area-viewport']>div]:pr-3",
-						"[&>[data-slot='scroll-area-viewport']>div]:pl-2",
+						isMobile
+							? "[&>[data-slot='scroll-area-viewport']>div]:px-4"
+							: "[&>[data-slot='scroll-area-viewport']>div]:pl-2 [&>[data-slot='scroll-area-viewport']>div]:pr-3",
 						"[&>[data-slot='scroll-area-viewport']>div]:pt-0",
 						"[&>[data-slot='scroll-area-viewport']>div]:pb-2",
 						"[&>[data-slot='scroll-area-viewport']>div]:!flex",

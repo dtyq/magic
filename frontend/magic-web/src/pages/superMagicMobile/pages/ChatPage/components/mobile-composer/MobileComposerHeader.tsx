@@ -44,7 +44,7 @@ function MobileComposerHeaderComponent({
 		<div className="flex min-h-8 items-center gap-2" data-testid="mobile-composer-header">
 			{shouldShowSelector ? (
 				<MobileComposerModeSelector
-					className="pr-2"
+					className="pl-1 pr-2"
 					iconSize={28}
 					selectedTopic={selectedTopic}
 					selectedProject={selectedProject}

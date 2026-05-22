@@ -128,7 +128,7 @@ function MobileComposerComponent({
 			<MobileComposerAttachments files={files} onRemove={logic.handleRemoveUploadedFile} />
 
 			<div
-				className="px-4 pb-2 pt-3"
+				className="px-3 pb-1.5 pt-2"
 				onPaste={logic.handlePaste}
 				onCompositionStart={logic.handleCompositionStart}
 				onCompositionEnd={logic.handleCompositionEnd}
@@ -142,7 +142,7 @@ function MobileComposerComponent({
 				</div>
 			</div>
 
-			<div className="flex items-center justify-between gap-2 px-1.5 py-1.5">
+			<div className="flex items-center justify-between gap-2 px-1.5 py-1">
 				<div className="flex items-center">
 					<Button
 						type="button"
@@ -228,7 +228,7 @@ function MobileComposerComponent({
 		</>
 	) : (
 		<div
-			className="flex w-full shrink-0 flex-col gap-2 px-2 pb-2 pt-2"
+			className="flex w-full shrink-0 flex-col gap-1.5 px-2 pb-1.5 pt-1.5"
 			data-testid="mobile-composer"
 		>
 			{taskAndQueueNodes}
@@ -247,7 +247,7 @@ function MobileComposerComponent({
 
 			<div
 				className={cn(
-					"overflow-hidden rounded-3xl bg-background shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)] transition-colors",
+					"overflow-hidden rounded-2xl bg-background shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)] transition-colors",
 					logic.isComposerFocused && "ring-1 ring-primary/20",
 				)}
 				data-testid="mobile-composer-card"
