@@ -1,9 +1,9 @@
-import { ChevronRight } from "lucide-react"
-
 import { cn } from "@/lib/utils"
 
 import { MobileSettingsSheetContainer } from "./SheetContainer"
 import type { MobileSettingsFeedbackCategoryOption } from "./feedbackShared"
+
+const FEEDBACK_CATEGORY_ROW_DIVIDER_OFFSET_CLASSNAME = "ml-[calc(14px+0.75rem)]"
 
 /** Category icon in the picker list — compact size-9 cell aligned with the prototype. */
 function MobileSettingsFeedbackCategoryIcon(props: {
@@ -49,18 +49,19 @@ export function MobileSettingsFeedbackCategorySheet(props: {
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) onClose()
 			}}
-			contentClassName="gap-2.5 px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
+			contentClassName="gap-2 px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 			dataTestId="mobile-settings-feedback-category-sheet"
 		>
 			<div className="w-full shrink-0 overflow-hidden rounded-lg bg-card">
 				{options.map((option, index) => {
-					const isSelected = option.id === selectedCategoryId
+					const showDivider = index < options.length - 1
 
 					return (
 						<div key={option.id}>
 							<button
 								type="button"
 								onClick={() => handleSelectCategory(option.id)}
+								aria-pressed={option.id === selectedCategoryId}
 								className="flex h-14 w-full items-center gap-3 px-[14px] text-left transition-opacity active:opacity-60"
 								data-testid={`mobile-settings-feedback-category-${option.id}`}
 							>
@@ -68,17 +69,14 @@ export function MobileSettingsFeedbackCategorySheet(props: {
 								<span className="flex-1 truncate text-[16px] leading-5 text-foreground">
 									{option.label}
 								</span>
-								<ChevronRight
-									className={cn(
-										"h-4 w-4 shrink-0",
-										isSelected ? "text-foreground" : "text-muted-foreground",
-									)}
-								/>
 							</button>
-							{index < options.length - 1 ? (
-								<div className="pl-[50px]">
-									<div className="h-px w-full bg-border" />
-								</div>
+							{showDivider ? (
+								<div
+									className={cn(
+										"h-px bg-border ml-4"
+									)}
+									aria-hidden
+								/>
 							) : null}
 						</div>
 					)

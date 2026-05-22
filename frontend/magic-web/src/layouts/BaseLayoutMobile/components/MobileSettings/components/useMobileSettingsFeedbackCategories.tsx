@@ -1,18 +1,19 @@
 import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import {
-	BadgeHelp,
-	CreditCard,
+	CircleMinus,
+	Coins,
 	Crown,
-	MessageCircleMore,
+	MessageSquare,
+	Receipt,
 	ShieldCheck,
 	Sparkles,
-	WalletCards,
-	WalletMinimal,
+	Undo2,
 } from "lucide-react"
 
 import type { MobileSettingsFeedbackCategoryOption } from "./feedbackShared"
 
+/** Build feedback category options with lucide icons aligned to the mobile feedback picker prototype. */
 export function useMobileSettingsFeedbackCategories(): MobileSettingsFeedbackCategoryOption[] {
 	const { t } = useTranslation("super")
 
@@ -37,7 +38,7 @@ export function useMobileSettingsFeedbackCategories(): MobileSettingsFeedbackCat
 			{
 				id: "creditRechargeRelated",
 				submitValue: "积分充值/使用相关",
-				Icon: WalletCards,
+				Icon: Coins,
 				iconClassName: "text-yellow-600",
 				iconBoxClassName: "bg-yellow-50 dark:bg-yellow-500/10",
 				label: t("onlineFeedback.creditRechargeRelated"),
@@ -45,15 +46,15 @@ export function useMobileSettingsFeedbackCategories(): MobileSettingsFeedbackCat
 			{
 				id: "creditDeductRelated",
 				submitValue: "积分扣除问题",
-				Icon: WalletMinimal,
-				iconClassName: "text-orange-600",
-				iconBoxClassName: "bg-orange-50 dark:bg-orange-500/10",
+				Icon: CircleMinus,
+				iconClassName: "text-red-600",
+				iconBoxClassName: "bg-red-50 dark:bg-red-500/10",
 				label: t("onlineFeedback.creditDeductRelated"),
 			},
 			{
 				id: "orderRelated",
 				submitValue: "订单问题",
-				Icon: CreditCard,
+				Icon: Receipt,
 				iconClassName: "text-indigo-600",
 				iconBoxClassName: "bg-indigo-50 dark:bg-indigo-500/10",
 				label: t("onlineFeedback.orderRelated"),
@@ -61,7 +62,7 @@ export function useMobileSettingsFeedbackCategories(): MobileSettingsFeedbackCat
 			{
 				id: "refundApplication",
 				submitValue: "退款申请",
-				Icon: BadgeHelp,
+				Icon: Undo2,
 				iconClassName: "text-red-600",
 				iconBoxClassName: "bg-red-50 dark:bg-red-500/10",
 				label: t("onlineFeedback.refundApplication"),
@@ -77,7 +78,7 @@ export function useMobileSettingsFeedbackCategories(): MobileSettingsFeedbackCat
 			{
 				id: "other",
 				submitValue: "其他",
-				Icon: MessageCircleMore,
+				Icon: MessageSquare,
 				iconClassName: "text-muted-foreground",
 				iconBoxClassName: "bg-muted",
 				label: t("onlineFeedback.other"),
