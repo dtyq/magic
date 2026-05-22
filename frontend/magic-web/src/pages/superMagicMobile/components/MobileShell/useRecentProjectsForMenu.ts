@@ -51,7 +51,6 @@ function mapRecentProjectToMenuItem(
 		inProgress:
 			isRunningLikeStatus(project.current_topic_status) ||
 			isRunningLikeStatus(project.project_status),
-		isPinned: project.is_pinned === true,
 		isShared: isSelfCollaborationProject(project),
 		isLinked: Boolean(isWorkspaceShortcutProject(project)),
 		isChatProject: chatWorkspaceId != null && project.workspace_id === chatWorkspaceId,

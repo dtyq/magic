@@ -107,26 +107,19 @@ describe("useRecentProjectsForMenu", () => {
 		expect(result.current.recentItems[2]?.inProgress).toBe(false)
 	})
 
-	it("maps isPinned from is_pinned field", async () => {
+	it("preserves API list order for recent items (no client pin reorder)", async () => {
 		getProjectsWithCollaborationMock.mockResolvedValue({
 			list: [
-				createProject({ id: "pinned", project_mode: TopicMode.General, is_pinned: true }),
-				createProject({
-					id: "unpinned",
-					project_mode: TopicMode.General,
-					is_pinned: false,
-				}),
-				createProject({ id: "no-pin-field", project_mode: TopicMode.General }),
+				createProject({ id: "older", project_mode: TopicMode.General, is_pinned: true }),
+				createProject({ id: "newer", project_mode: TopicMode.General, is_pinned: false }),
 			],
-			total: 3,
+			total: 2,
 		})
 
 		const { result } = renderHook(() => useRecentProjectsForMenu())
-		await waitFor(() => expect(result.current.recentItems).toHaveLength(3))
+		await waitFor(() => expect(result.current.recentItems).toHaveLength(2))
 
-		expect(result.current.recentItems[0]?.isPinned).toBe(true)
-		expect(result.current.recentItems[1]?.isPinned).toBe(false)
-		expect(result.current.recentItems[2]?.isPinned).toBe(false)
+		expect(result.current.recentItems.map((item) => item.id)).toEqual(["older", "newer"])
 	})
 
 	it("maps isShared: only when tag=collaboration AND user is owner (isSelfCollaborationProject)", async () => {

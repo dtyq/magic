@@ -9,7 +9,6 @@ import { MobileBrandLogoIcon } from "@/pages/superMagicMobile/components/icons/M
 import { useMobileSettingsController } from "@/pages/superMagicMobile/components/MobileShell/MobileSettingsContext"
 import { useProjectListActions } from "@/pages/superMagicMobile/components/ProjectList/hooks/useProjectActions"
 
-import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
 import { type MobileShellMenuNavIcon, useMobileShellMenu } from "./MobileShellMenuContext"
 import { useMobileShellUpgradeAction } from "./useMobileShellUpgradeAction"
 import { useMobileShellVisibleActionKeys } from "./hooks/useMobileShellVisibleActionKeys"
@@ -239,11 +238,8 @@ const MobileShellSidebarView = observer(function MobileShellSidebarView({
 												<span className="min-w-0 truncate leading-5">
 													{item.title}
 												</span>
-												{(item.isPinned ||
-													item.isLinked ||
-													item.isShared) && (
+												{(item.isLinked || item.isShared) && (
 													<div className="flex shrink-0 items-center gap-1">
-														{item.isPinned && <MobilePinBadge />}
 														{item.isLinked && (
 															<span className="flex items-center rounded-[6px] border border-border bg-muted p-[2px] text-muted-foreground">
 																<LinkedBadgeIcon />

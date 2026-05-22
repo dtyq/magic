@@ -16,8 +16,6 @@ export interface MobileShellMenuRecentItem {
 	project?: ProjectListItem
 	/** 项目当前正在运行（话题执行中），展示 Loader 图标 */
 	inProgress: boolean
-	/** 项目已置顶 */
-	isPinned: boolean
 	/** 自己创建的协作项目（tag=collaboration 且当前用户为 owner），展示蓝色协作图标 */
 	isShared: boolean
 	/** 非 owner 的协作项目或绑定工作区项目，展示灰色 shortcut 图标 */
