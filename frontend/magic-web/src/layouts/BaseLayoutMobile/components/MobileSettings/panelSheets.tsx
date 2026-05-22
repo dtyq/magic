@@ -67,7 +67,7 @@ export function MobileSettingsPointsSheet(props: { open: boolean; onClose: () =>
 			}
 			dataTestId="mobile-settings-points-sheet"
 		>
-			<div className="flex flex-col gap-4">
+			<div className="flex flex-col gap-4 mt-2">
 				{!privateDeploy && (
 					<div className={MOBILE_SETTINGS_CARD_CLASSNAME}>
 						<div className="text-sm font-medium text-foreground">
