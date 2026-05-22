@@ -75,7 +75,7 @@ export function useProjectListActions({
 
 	const { openManageModal, CollaboratorUpdatePanel, canManageCollaborators } =
 		useCollaboratorUpdatePanel({
-		selectedProject: currentActionItem,
+			selectedProject: currentActionItem,
 		})
 
 	// 转让弹层由 hook 决定是否提供真实交互，列表层只消费稳定接口。
@@ -194,7 +194,7 @@ export function useProjectListActions({
 		try {
 			await SuperMagicService.project.pinProject(project, !project.is_pinned)
 
-			SuperMagicService.project.fetchProjects({
+			await SuperMagicService.project.fetchProjects({
 				workspaceId: project.workspace_id,
 				clearWhenNoProjects: false,
 			})

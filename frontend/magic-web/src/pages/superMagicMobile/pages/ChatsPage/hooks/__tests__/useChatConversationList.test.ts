@@ -109,6 +109,43 @@ describe("useChatConversationList", () => {
 		expect(result.current.items[0]?.isRunning).toBe(false)
 	})
 
+	it("keeps optimistic remove until server list no longer contains the id", async () => {
+		chatProjectsMock = [
+			createProject({ id: "project-a" }),
+			createProject({ id: "project-b", project_name: "Beta" }),
+		]
+		refreshChatProjectsMock.mockResolvedValueOnce(chatProjectsMock)
+
+		const { result } = renderHook(() => useChatConversationList())
+
+		act(() => {
+			result.current.optimisticRemove("project-a")
+		})
+
+		expect(result.current.items.map((item) => item.id)).toEqual(["project-b"])
+
+		refreshChatProjectsMock.mockResolvedValueOnce([
+			createProject({ id: "project-a" }),
+			createProject({ id: "project-b", project_name: "Beta" }),
+		])
+
+		await act(async () => {
+			await result.current.reload()
+		})
+
+		expect(result.current.items.map((item) => item.id)).toEqual(["project-b"])
+
+		refreshChatProjectsMock.mockResolvedValueOnce([
+			createProject({ id: "project-b", project_name: "Beta" }),
+		])
+
+		await act(async () => {
+			await result.current.reload()
+		})
+
+		expect(result.current.items.map((item) => item.id)).toEqual(["project-b"])
+	})
+
 	it("maps running-like project statuses to isRunning", () => {
 		chatProjectsMock = [
 			createProject({ id: "topic-running", current_topic_status: "running" }),

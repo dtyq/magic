@@ -264,27 +264,23 @@ class ProjectService {
 			})
 		}
 
-		// Call API asynchronously (non-blocking)
-		this.getOrCreateRequest(requestKey, async () => {
+		// Await rename API so callers (e.g. chat list reload) do not race ahead of server state
+		return this.getOrCreateRequest(requestKey, async () => {
 			try {
 				await SuperMagicApi.editProject({
 					id,
 					project_name: name,
 					project_description: "",
 				})
-				// Refresh list asynchronously (non-blocking)
 				this.updateProjects({ workspaceId }).catch((error) => {
 					console.error("后台刷新项目列表失败，失败原因：", error)
 				})
 				this.clearSnapshot(operationId)
 			} catch (error) {
 				console.log("重命名项目失败，失败原因：", error)
-				// Rollback optimistic update
 				this.rollbackSnapshot(operationId)
 				throw error
 			}
-		}).catch(() => {
-			// Error already handled in the request function
 		})
 	}
 
@@ -298,8 +294,8 @@ class ProjectService {
 			projectStore.removeProject(id)
 		})
 
-		// Call API asynchronously (non-blocking)
-		this.getOrCreateRequest(requestKey, async () => {
+		// Await delete API so callers (e.g. list reload) do not race ahead of server state
+		return this.getOrCreateRequest(requestKey, async () => {
 			try {
 				await SuperMagicApi.deleteProject({ id })
 				this.clearSnapshot(operationId)
@@ -309,8 +305,6 @@ class ProjectService {
 				this.rollbackSnapshot(operationId)
 				throw error
 			}
-		}).catch(() => {
-			// Error already handled in the request function
 		})
 	}
 
@@ -358,8 +352,8 @@ class ProjectService {
 			projectStore.removeProject(projectId)
 		})
 
-		// Call API asynchronously (non-blocking)
-		this.getOrCreateRequest(requestKey, async () => {
+		// Await move API so callers (e.g. save-as-project + list reload) do not race ahead of server state
+		return this.getOrCreateRequest(requestKey, async () => {
 			try {
 				const res = await SuperMagicApi.moveProjectToNewWorkspace({
 					source_project_id: projectId,
@@ -368,7 +362,6 @@ class ProjectService {
 				})
 
 				if (res) {
-					// Refresh project list for source workspace asynchronously (non-blocking)
 					this.updateProjects({ workspaceId: sourceWorkspaceId }).catch((error) => {
 						console.error("后台刷新项目列表失败，失败原因：", error)
 					})
@@ -376,21 +369,14 @@ class ProjectService {
 					return true
 				}
 
-				// Rollback on failure
 				this.rollbackSnapshot(operationId)
-				return false
+				throw new Error("Move project failed")
 			} catch (error) {
 				console.error("移动项目失败，失败原因：", error)
-				// Rollback optimistic update
 				this.rollbackSnapshot(operationId)
 				throw error
 			}
-		}).catch(() => {
-			// Error already handled in the request function
 		})
-
-		// Return immediately after optimistic update
-		return true
 	}
 
 	/**
@@ -407,21 +393,16 @@ class ProjectService {
 	): Promise<void> => {
 		await this.moveProject(projectId, targetWorkspaceId, sourceWorkspaceId)
 
-		// Refresh project list with specific options
-		this.fetchProjects({
-			workspaceId: sourceWorkspaceId,
-			clearWhenNoProjects: false,
-		}).catch((error) => {
-			console.error("后台刷新项目列表失败，失败原因：", error)
-		})
-
-		// Refresh project list for target workspace asynchronously (non-blocking)
-		this.fetchProjects({
-			workspaceId: targetWorkspaceId,
-			clearWhenNoProjects: false,
-		}).catch((error) => {
-			console.error("后台刷新项目列表失败，失败原因：", error)
-		})
+		await Promise.all([
+			this.fetchProjects({
+				workspaceId: sourceWorkspaceId,
+				clearWhenNoProjects: false,
+			}),
+			this.fetchProjects({
+				workspaceId: targetWorkspaceId,
+				clearWhenNoProjects: false,
+			}),
+		])
 	}
 
 	/**
@@ -442,15 +423,14 @@ class ProjectService {
 			projectStore.removeProject(projectId)
 		})
 
-		// Call API asynchronously (non-blocking)
-		this.getOrCreateRequest(requestKey, async () => {
+		// Await API so callers refreshing the list do not race ahead of server state
+		return this.getOrCreateRequest(requestKey, async () => {
 			try {
 				await SuperMagicApi.updateCollaborationProjectShortcutStatus(projectId, {
 					workspace_id: workspaceId,
 					is_bind_workspace: 0,
 				})
 
-				// Refresh project list asynchronously (non-blocking)
 				this.fetchProjects({
 					workspaceId,
 					clearWhenNoProjects: false,
@@ -460,12 +440,9 @@ class ProjectService {
 				this.clearSnapshot(operationId)
 			} catch (error) {
 				console.error("取消工作区快捷方式失败，失败原因：", error)
-				// Rollback optimistic update
 				this.rollbackSnapshot(operationId)
 				throw error
 			}
-		}).catch(() => {
-			// Error already handled in the request function
 		})
 	}
 

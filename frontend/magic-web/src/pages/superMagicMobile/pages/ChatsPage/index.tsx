@@ -193,21 +193,17 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 	})
 
 	/**
-	 * 左滑删除：先乐观移除（即时 UI 反馈），再并行调用删除服务并在后台静默刷新列表。
-	 * 这样规避了 projectService.deleteProject 非阻塞 API + reload 竞态导致的"删了没更新"问题。
+	 * 左滑删除：先乐观移除（即时 UI 反馈），等待删除 API 完成后再刷新列表。
 	 * 若服务端删除失败，reload 会恢复列表并还原乐观删除。
 	 */
 	const handleDeleteConversation = useMemoizedFn(async (item: ChatConversationListItem) => {
 		try {
-			// 立即从列表移除，给用户即时视觉反馈
 			optimisticRemove(item.id)
 			await SuperMagicService.deleteProject(item.project, {
 				selectedProjectBehavior: "navigate-home",
 			})
-			// 后台静默同步，不 await 避免阻塞 UI
-			void reload()
+			await reload()
 		} catch {
-			// 删除失败时 reload 会清空 pendingRemoveIds，自动恢复被乐观移除的行
 			await reload()
 			magicToast.error(t("super:chat.deleteChatDescription"))
 		}

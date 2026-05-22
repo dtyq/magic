@@ -68,7 +68,7 @@ export function useChatConversationList(): UseChatConversationListResult {
 
 	/**
 	 * 在 hook 内完成时区格式化，让视图只消费可展示的文案，后续接点击进入时也不需要改 View。
-	 * 同时过滤掉乐观删除中的项，避免 UI 上出现已删除项在等待服务端确认期间仍可见的问题。
+	 * 过滤 pendingRemoveIds：删除/移出 chat 工作区后，在 reload 确认前列表先隐藏对应行。
 	 */
 	const items = useMemo<ChatConversationListItem[]>(() => {
 		return chatProjects
@@ -93,15 +93,22 @@ export function useChatConversationList(): UseChatConversationListResult {
 
 	/**
 	 * 显式重试复用当前关键字，保证列表与搜索态保持同一个后端查询结果。
-	 * reload 完成后清空乐观删除集合，以服务端最新数据为准，同时重置页码到第 1 页。
+	 * reload 后仅移除服务端已确认不存在的 pending id，避免列表接口短暂滞后时把已删项重新展示出来。
 	 */
 	const reload = useMemoizedFn(async () => {
 		setCurrentPage(1)
-		await refreshChatProjects({
+		const latestProjects = await refreshChatProjects({
 			pageSize: CHAT_LIST_PAGE_SIZE,
 			keyword: debouncedSearchValue,
 		})
-		setPendingRemoveIds(new Set())
+		const latestProjectIds = new Set(latestProjects.map((project) => project.id))
+		setPendingRemoveIds((prev) => {
+			const next = new Set(prev)
+			for (const id of prev) {
+				if (!latestProjectIds.has(id)) next.delete(id)
+			}
+			return next
+		})
 	})
 
 	/**

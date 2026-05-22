@@ -326,7 +326,7 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 				selectedProjectBehavior: "switch-next",
 				lastUsedWorkspaceId: selectedWorkspace?.id,
 			})
-			void handleRefreshProjects()
+			await handleRefreshProjects()
 		} catch {
 			await handleRefreshProjects()
 			magicToast.error(t("project.deleteProjectFailed"))
