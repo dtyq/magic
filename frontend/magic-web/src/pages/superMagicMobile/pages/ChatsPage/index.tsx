@@ -83,7 +83,7 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 		chatActionContext: "detail",
 		deleteSelectedProjectBehavior: "navigate-home",
 		visibleActionKeys: ["pinProject", "rename", "saveAsProject", "delete"],
-		onProjectChanged: reload,
+		onProjectChanged: () => reload({ silent: true }),
 	})
 
 	/** 当前待操作的对话（点击更多时设置，面板关闭时清空） */
@@ -202,9 +202,9 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 			await SuperMagicService.deleteProject(item.project, {
 				selectedProjectBehavior: "navigate-home",
 			})
-			await reload()
+			await reload({ silent: true })
 		} catch {
-			await reload()
+			await reload({ silent: true })
 			magicToast.error(t("super:chat.deleteChatDescription"))
 		}
 	})
@@ -220,7 +220,7 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 				!item.isPinned,
 				item.project.workspace_id,
 			)
-			await reload()
+			await reload({ silent: true })
 		} catch {
 			magicToast.error(
 				item.isPinned ? t("super:chat.unpinChatFailed") : t("super:chat.pinChatFailed"),

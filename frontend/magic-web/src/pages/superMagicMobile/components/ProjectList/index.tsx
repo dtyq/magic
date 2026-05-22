@@ -27,9 +27,12 @@ function ProjectList({
 	/** 同时只允许一行处于左滑展开状态 */
 	const [openItemId, setOpenItemId] = useState<string | null>(null)
 
+	/** 仅首屏无数据时展示骨架，操作后静默刷新不替换整表 */
+	const showInitialLoading = isLoading && projects.length === 0
+
 	return (
 		<div className="flex flex-col gap-1" data-testid="workspace-project-list">
-			{isLoading ? (
+			{showInitialLoading ? (
 				<>
 					<ProjectItemSkeleton />
 					<ProjectItemSkeleton />

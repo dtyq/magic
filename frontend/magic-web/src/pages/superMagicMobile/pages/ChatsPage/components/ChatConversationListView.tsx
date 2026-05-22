@@ -71,6 +71,8 @@ export function ChatConversationListView({
 	const scrollContainerId = useId()
 	const [showTopMask, setShowTopMask] = useState(false)
 	const [showBottomMask, setShowBottomMask] = useState(true)
+	/** 仅首屏无数据时展示全屏 loading，操作后静默刷新不遮挡已有列表 */
+	const showInitialLoading = isLoading && items.length === 0
 
 	/**
 	 * 顶底遮罩直接跟随真实滚动容器，保留原型里列表“还能继续滚”的视觉提示。
@@ -141,13 +143,13 @@ export function ChatConversationListView({
 						data-testid="mobile-chats-page-scroll"
 						className="flex min-h-full flex-col gap-1 px-3 pb-4 pt-2"
 					>
-						{isLoading ? (
+						{showInitialLoading ? (
 							<div className="flex flex-1 flex-col items-center justify-center gap-3 py-16">
 								<Loader2 className="size-8 animate-spin text-muted-foreground" />
 							</div>
 						) : null}
 
-						{!isLoading && isEmpty ? (
+						{!showInitialLoading && isEmpty ? (
 							<div
 								className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-center"
 								data-testid="mobile-chats-page-empty"
@@ -162,7 +164,7 @@ export function ChatConversationListView({
 							</div>
 						) : null}
 
-						{!isLoading && isSearchEmpty ? (
+						{!showInitialLoading && isSearchEmpty ? (
 							<div
 								className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-center"
 								data-testid="mobile-chats-page-search-empty"
@@ -174,7 +176,7 @@ export function ChatConversationListView({
 							</div>
 						) : null}
 
-						{!isLoading && !isEmpty && !isSearchEmpty
+						{!showInitialLoading && !isEmpty && !isSearchEmpty
 							? items.map((item) => (
 									<ChatConversationListItem
 										key={item.id}
@@ -191,7 +193,7 @@ export function ChatConversationListView({
 							: null}
 
 						{/* InfiniteScroll 放在列表末尾，向上滑动到底部时自动加载下一页 */}
-						{!isLoading && !isEmpty && !isSearchEmpty ? (
+						{!showInitialLoading && !isEmpty && !isSearchEmpty ? (
 							<InfiniteScroll hasMore={hasMore} loadMore={loadMore} />
 						) : null}
 					</div>

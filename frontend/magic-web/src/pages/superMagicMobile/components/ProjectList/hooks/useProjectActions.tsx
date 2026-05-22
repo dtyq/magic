@@ -194,10 +194,13 @@ export function useProjectListActions({
 		try {
 			await SuperMagicService.project.pinProject(project, !project.is_pinned)
 
-			await SuperMagicService.project.fetchProjects({
-				workspaceId: project.workspace_id,
-				clearWhenNoProjects: false,
-			})
+			// 父级 onProjectChanged 已负责静默刷新列表，避免重复请求与整表 loading
+			if (!onProjectChanged) {
+				await SuperMagicService.project.fetchProjects({
+					workspaceId: project.workspace_id,
+					clearWhenNoProjects: false,
+				})
+			}
 
 			magicToast.success(
 				project.is_pinned

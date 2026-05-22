@@ -21,6 +21,11 @@ export interface ChatConversationListItem {
 	project: ProjectListItem
 }
 
+export interface ReloadChatConversationListOptions {
+	/** 为 true 时不触发全屏 loading，用于删除/置顶等操作后的后台同步 */
+	silent?: boolean
+}
+
 export interface UseChatConversationListResult {
 	items: ChatConversationListItem[]
 	isLoading: boolean
@@ -29,7 +34,7 @@ export interface UseChatConversationListResult {
 	debouncedSearchValue: string
 	isEmpty: boolean
 	isSearchEmpty: boolean
-	reload: () => Promise<void>
+	reload: (options?: ReloadChatConversationListOptions) => Promise<void>
 	/** 是否还有更多分页数据（搜索态下始终为 false） */
 	hasMore: boolean
 	/** 加载下一页数据并追加到列表末尾 */
@@ -95,11 +100,12 @@ export function useChatConversationList(): UseChatConversationListResult {
 	 * 显式重试复用当前关键字，保证列表与搜索态保持同一个后端查询结果。
 	 * reload 后仅移除服务端已确认不存在的 pending id，避免列表接口短暂滞后时把已删项重新展示出来。
 	 */
-	const reload = useMemoizedFn(async () => {
+	const reload = useMemoizedFn(async (options?: ReloadChatConversationListOptions) => {
 		setCurrentPage(1)
 		const latestProjects = await refreshChatProjects({
 			pageSize: CHAT_LIST_PAGE_SIZE,
 			keyword: debouncedSearchValue,
+			silent: options?.silent ?? false,
 		})
 		const latestProjectIds = new Set(latestProjects.map((project) => project.id))
 		setPendingRemoveIds((prev) => {

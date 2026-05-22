@@ -103,4 +103,29 @@ describe("useChatWorkspace", () => {
 
 		expect(getCachedChatWorkspaceId()).toBe(CHAT_WORKSPACE.id)
 	})
+
+	it("does not toggle isLoadingChatProjects during silent refresh", async () => {
+		const { result } = renderHook(() => useChatWorkspace({ projectsEnabled: true }))
+
+		await waitFor(() => {
+			expect(result.current.isLoadingChatProjects).toBe(false)
+			expect(result.current.chatProjects.length).toBeGreaterThan(0)
+		})
+
+		const loadingStatesDuringFetch: boolean[] = []
+		getProjectsMock.mockImplementation(async () => {
+			loadingStatesDuringFetch.push(result.current.isLoadingChatProjects)
+			return {
+				list: CHAT_PROJECTS,
+				total: CHAT_PROJECTS.length,
+			}
+		})
+
+		await act(async () => {
+			await result.current.refreshChatProjects({ silent: true })
+		})
+
+		expect(loadingStatesDuringFetch.every((isLoading) => !isLoading)).toBe(true)
+		expect(result.current.isLoadingChatProjects).toBe(false)
+	})
 })

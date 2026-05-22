@@ -17,6 +17,11 @@ import type React from "react"
 
 const PROJECT_PAGE_SIZE = 100
 
+export interface RefreshWorkspaceProjectsOptions {
+	/** 为 true 时不触发 useRequest loading，用于删除/重命名等操作后的后台同步 */
+	silent?: boolean
+}
+
 export interface UseWorkspacePageReturn {
 	selectedWorkspace: Workspace | null
 	projects: ProjectListItem[]
@@ -36,7 +41,7 @@ export interface UseWorkspacePageReturn {
 	isProjectEmpty: boolean
 	isSearchEmpty: boolean
 	handleBack: () => void
-	handleRefreshProjects: () => Promise<void>
+	handleRefreshProjects: (options?: RefreshWorkspaceProjectsOptions) => Promise<void>
 	handleCreateProject: (projectName: string) => Promise<void>
 	handleOpenProject: (project: ProjectListItem) => void
 	handleRenameWorkspace: (id: string, name: string) => Promise<void>
@@ -103,23 +108,30 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 	}, [workspaceId])
 
 	/**
+	 * 拉取工作区第 1 页项目并写回 store，供 useRequest 与静默刷新共用，避免重复拼装请求逻辑。
+	 */
+	const fetchProjectsForWorkspace = useMemoizedFn(async (workspaceId: string) => {
+		const res = await SuperMagicApi.getProjectsWithCollaboration({
+			workspace_id: workspaceId,
+			page: 1,
+			page_size: PROJECT_PAGE_SIZE,
+		})
+		runInAction(() => {
+			projectStore.setProjects(res.list)
+			projectStore.setProjectsForWorkspace(workspaceId, res.list)
+		})
+		setProjectsTotal(res.total ?? res.list.length)
+		setCurrentPage(1)
+		return res.list
+	})
+
+	/**
 	 * 进入页面或切换工作区后刷新项目列表，直接调 API 以便同时拿到 total，避免二次请求。
 	 */
 	const { loading: isLoading, run: fetchProjects } = useRequest(
 		async (workspaceId?: string) => {
 			if (!workspaceId) return []
-			const res = await SuperMagicApi.getProjectsWithCollaboration({
-				workspace_id: workspaceId,
-				page: 1,
-				page_size: PROJECT_PAGE_SIZE,
-			})
-			runInAction(() => {
-				projectStore.setProjects(res.list)
-				projectStore.setProjectsForWorkspace(workspaceId, res.list)
-			})
-			setProjectsTotal(res.total ?? res.list.length)
-			setCurrentPage(1)
-			return res.list
+			return fetchProjectsForWorkspace(workspaceId)
 		},
 		{
 			manual: true,
@@ -178,11 +190,28 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 
 	/**
 	 * 显式刷新当前工作区项目，用于下拉刷新和创建后回补数据。
-	 * 刷新完成后以服务端数据为准，清空乐观删除的临时 ID 集合。
+	 * silent 刷新仅移除服务端已确认不存在的 pending id；非 silent（如下拉刷新）清空 pending。
 	 */
-	const handleRefreshProjects = useMemoizedFn(async () => {
+	const handleRefreshProjects = useMemoizedFn(async (options?: RefreshWorkspaceProjectsOptions) => {
 		if (!selectedWorkspace?.id) return
-		await fetchProjects(selectedWorkspace.id)
+
+		const silent = options?.silent ?? false
+		const latestProjects = silent
+			? await fetchProjectsForWorkspace(selectedWorkspace.id)
+			: await fetchProjects(selectedWorkspace.id)
+
+		if (silent) {
+			const latestProjectIds = new Set(latestProjects.map((project) => project.id))
+			setPendingRemoveIds((prev) => {
+				const next = new Set(prev)
+				for (const id of prev) {
+					if (!latestProjectIds.has(id)) next.delete(id)
+				}
+				return next
+			})
+			return
+		}
+
 		setPendingRemoveIds(new Set())
 	})
 
@@ -293,7 +322,7 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 		projectActionComponents,
 	} = useProjectListActions({
 		mode: "default",
-		onProjectChanged: handleRefreshProjects,
+		onProjectChanged: () => handleRefreshProjects({ silent: true }),
 	})
 
 	/** 项目左滑"更多"：设置当前操作项，打开项目操作面板 */
@@ -326,9 +355,9 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 				selectedProjectBehavior: "switch-next",
 				lastUsedWorkspaceId: selectedWorkspace?.id,
 			})
-			await handleRefreshProjects()
+			await handleRefreshProjects({ silent: true })
 		} catch {
-			await handleRefreshProjects()
+			await handleRefreshProjects({ silent: true })
 			magicToast.error(t("project.deleteProjectFailed"))
 		}
 	})

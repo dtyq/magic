@@ -146,6 +146,20 @@ describe("useChatConversationList", () => {
 		expect(result.current.items.map((item) => item.id)).toEqual(["project-b"])
 	})
 
+	it("passes silent:true to refreshChatProjects when reload is called with silent option", async () => {
+		const { result } = renderHook(() => useChatConversationList())
+
+		await act(async () => {
+			await result.current.reload({ silent: true })
+		})
+
+		expect(refreshChatProjectsMock).toHaveBeenCalledWith({
+			pageSize: 100,
+			keyword: "",
+			silent: true,
+		})
+	})
+
 	it("maps running-like project statuses to isRunning", () => {
 		chatProjectsMock = [
 			createProject({ id: "topic-running", current_topic_status: "running" }),
