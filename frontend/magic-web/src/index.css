@@ -129,15 +129,10 @@
 		@apply relative z-10 flex h-14 shrink-0 items-center gap-2 rounded-b-[14px] px-2.5;
 	}
 
-	/* Round shadow button (48×48, bg-card). Add interaction classes per usage site
-	 * e.g.: className="mobile-page-header-btn transition-transform active:scale-95" */
+	/* Round header action button (48×48, bg-card) — layered shadow tuned for light/dark surfaces. */
 	.mobile-page-header-btn {
 		@apply flex size-12 shrink-0 items-center justify-center rounded-full bg-card text-foreground;
-		box-shadow: 0px 8px 25px 0px rgba(0, 0, 0, 0.1);
-	}
-
-	.dark .mobile-page-header-btn {
-		box-shadow: 0px 8px 25px 0px rgba(0, 0, 0, 0.32);
+		box-shadow: var(--magic-floating-action-shadow);
 	}
 
 	/* Absolute-centered Poppins title. px-28 (112px) keeps text clear of 48px buttons on each side. */
@@ -161,6 +156,10 @@
 		--safe-area-inset-left: env(safe-area-inset-left);
 		--safe-area-inset-right: env(safe-area-inset-right);
 		--mobile-tabbar-height: 60px;
+
+		/* Floating round action buttons: hairline + original 8×25 diffuse shadow (readable on white bg). */
+		--magic-floating-action-shadow:
+			0px 0px 1px 0px rgba(0, 0, 0, 0.08), 0px 8px 25px 0px rgba(0, 0, 0, 0.1);
 
 		/* z-index：所有悬浮层的 z-index 都基于1000，业务中普通场景不需要自己控制 z-index
 		*/
@@ -366,6 +365,9 @@
 	}
 
 	.dark {
+		--magic-floating-action-shadow:
+			0px 0px 1px 0px rgba(0, 0, 0, 0.24), 0px 8px 25px 0px rgba(0, 0, 0, 0.32);
+
 		--background: 0.145 0 0;
 		--background-rgb: 10 10 10;
 		--foreground: 0.985 0 0;

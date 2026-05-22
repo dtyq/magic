@@ -525,7 +525,11 @@ export default memo(function CommonHeaderV2(props: CommonHeaderV2Props) {
 	if (renderMode === "actions") {
 		return (
 			<>
-				<div ref={headerContainerRef} className="w-full" data-testid="detail-header">
+				<div
+					ref={headerContainerRef}
+					className="flex h-11 w-full shrink-0 items-center border-b border-border bg-background px-2.5"
+					data-testid="detail-header"
+				>
 					{actionsNode}
 				</div>
 				<FileShareModals

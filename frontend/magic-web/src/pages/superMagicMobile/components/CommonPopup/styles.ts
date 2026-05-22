@@ -77,15 +77,5 @@ export const useStyles = createStyles(({ token }, { hideHeader }: { hideHeader?:
 		nodeDetailBody: {
 			paddingBottom: 48,
 		},
-		fileName: {
-			maxWidth: "240px",
-			overflow: "hidden",
-			textOverflow: "ellipsis",
-			whiteSpace: "nowrap",
-			fontWeight: 400,
-			fontSize: 14,
-			lineHeight: "20px",
-			color: token.magicColorUsages.text[1],
-		},
 	}
 })

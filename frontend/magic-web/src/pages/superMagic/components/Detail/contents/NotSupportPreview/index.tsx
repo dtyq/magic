@@ -6,10 +6,38 @@ import { formatFileSize } from "@/utils/string"
 import { useTranslation } from "react-i18next"
 import { Download } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useIsMobile } from "@/hooks/useIsMobile"
 import CommonFooter from "../../components/CommonFooter"
+import type { CommonHeaderV2Props } from "../../components/CommonHeaderV2/types"
 
-function NotSupportPreview(props: any) {
+interface NotSupportPreviewProps {
+	type: string
+	onFullscreen?: () => void
+	onDownload?: (fileId: string) => void
+	isFromNode?: boolean
+	isFullscreen?: boolean
+	data?: {
+		file_name?: string
+		file_id?: string
+		file_extension?: string
+		file_size?: number
+	}
+	viewMode?: string
+	onViewModeChange?: (mode: string) => void
+	onCopy?: () => void
+	fileContent?: string
+	currentFile?: CommonHeaderV2Props["currentFile"]
+	detailMode?: string
+	showFooter?: boolean
+	allowEdit?: boolean
+	showFileHeader?: boolean
+	headerRenderMode?: CommonHeaderV2Props["renderMode"]
+}
+
+/** Unsupported file placeholder: toolbar + download CTA; mobile sheet uses top-aligned layout. */
+function NotSupportPreview(props: NotSupportPreviewProps) {
 	const { t } = useTranslation("super")
+	const isMobile = useIsMobile()
 	const {
 		type,
 		onFullscreen,
@@ -21,11 +49,12 @@ function NotSupportPreview(props: any) {
 		onViewModeChange,
 		onCopy,
 		fileContent,
-		// File sharing props
 		currentFile,
 		detailMode,
 		showFooter,
 		allowEdit,
+		showFileHeader = true,
+		headerRenderMode = "full",
 	} = props
 
 	const { file_name, file_id, file_extension, file_size } = data || {}
@@ -37,24 +66,32 @@ function NotSupportPreview(props: any) {
 	}
 
 	return (
-		<div className={cn("flex h-full flex-col bg-muted dark:bg-background")}>
-			<CommonHeaderV2
-				type={type}
-				onFullscreen={onFullscreen}
-				onDownload={onDownload}
-				isFromNode={isFromNode}
-				isFullscreen={isFullscreen}
-				viewMode={viewMode}
-				onViewModeChange={onViewModeChange}
-				onCopy={onCopy}
-				fileContent={fileContent}
-				currentFile={currentFile}
-				detailMode={detailMode}
-				allowEdit={allowEdit}
-			/>
+		<div className="flex h-full min-h-0 flex-col bg-background">
+			{showFileHeader ? (
+				<CommonHeaderV2
+					type={type}
+					onFullscreen={onFullscreen}
+					onDownload={onDownload}
+					isFromNode={isFromNode}
+					isFullscreen={isFullscreen}
+					viewMode={viewMode}
+					onViewModeChange={onViewModeChange}
+					onCopy={onCopy}
+					fileContent={fileContent}
+					currentFile={currentFile}
+					detailMode={detailMode}
+					allowEdit={allowEdit}
+					renderMode={headerRenderMode}
+				/>
+			) : null}
 
 			<div
-				className={cn("flex flex-1 flex-col items-center justify-center gap-5 p-4 md:p-5")}
+				className={cn(
+					"flex min-h-0 flex-1 flex-col items-center px-4",
+					isMobile
+						? "justify-start gap-4 pb-[max(1.5rem,var(--safe-area-inset-bottom))] pt-6"
+						: "justify-center gap-5 p-4 md:p-5",
+				)}
 			>
 				{/* File icon and info card */}
 				<div

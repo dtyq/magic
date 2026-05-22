@@ -139,6 +139,8 @@ const config = {
 				// Tailwind v3 没有内置 shadow-xs，这里补充定义以对齐 v4 的语义
 				// 值与 shadow-sm 相同：0 1px 2px 0 rgb(0 0 0 / 0.05)
 				xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+				/** Mobile floating round buttons — see --magic-floating-action-shadow in index.css */
+				"magic-floating-action": "var(--magic-floating-action-shadow)",
 			},
 			borderRadius: {
 				lg: "var(--radius-lg)",

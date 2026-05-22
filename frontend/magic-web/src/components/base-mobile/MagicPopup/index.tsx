@@ -194,7 +194,7 @@ const MagicPopup = memo(
 					aria-label={action.ariaLabel}
 					data-testid={action.testId}
 					className={cn(
-						"absolute top-1/2 flex size-12 shrink-0 -translate-y-1/2 items-center justify-center rounded-full shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)] transition-opacity disabled:pointer-events-none",
+						"absolute top-1/2 flex size-12 shrink-0 -translate-y-1/2 items-center justify-center rounded-full shadow-magic-floating-action transition-opacity disabled:pointer-events-none",
 						position === "leading" ? "left-[10px]" : "right-[10px]",
 						toneClassName,
 					)}
@@ -270,7 +270,7 @@ const MagicPopup = memo(
 										<DrawerHandle className="!h-1 !w-20 shrink-0 !rounded-full !bg-muted-foreground/40 !opacity-100 outline-none hover:!opacity-100 active:!opacity-100 [&>[data-vaul-handle-hitarea]]:h-6 [&>[data-vaul-handle-hitarea]]:w-24" />
 									</div>
 								)}
-								<div className="relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
+								<div className="relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2 mb-3">
 									{renderHeaderActionButton(headerLeadingAction, "leading")}
 									<div className="flex min-w-0 flex-col items-center gap-0 text-center">
 										<div className="max-w-[247px] truncate text-[18px] font-medium leading-6 text-foreground">
