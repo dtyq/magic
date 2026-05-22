@@ -2217,7 +2217,7 @@
 			"freeDescription": "升级套餐，解锁更强模型与更多用量",
 			"freeTitle": "解锁高级能力",
 			"manage": "管理",
-			"renewOn": "{{date}} 续费",
+			"renewOn": "续费日 {{date}}",
 			"upgradeNow": "立即升级"
 		},
 		"pointsGroups": {

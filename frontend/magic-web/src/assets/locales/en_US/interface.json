@@ -2218,7 +2218,7 @@
 			"freeDescription": "Upgrade your plan to get stronger models and more usage.",
 			"freeTitle": "Unlock advanced capabilities",
 			"manage": "Manage",
-			"renewOn": "renews on {{date}}",
+			"renewOn": "Renews {{date}}",
 			"upgradeNow": "Upgrade now"
 		},
 		"pointsGroups": {

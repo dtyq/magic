@@ -2,7 +2,18 @@ import { ChevronRight, Sparkles } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 
+import dayjs from "@/lib/dayjs"
 import { userStore } from "@/models/user"
+
+/** Format subscription end_date for plan card subtitle (prototype: YYYY-MM-DD only). */
+function formatPlanCardRenewalDate(endDate?: string): string | undefined {
+	if (!endDate) return undefined
+
+	const parsed = dayjs(endDate)
+	if (!parsed.isValid()) return undefined
+
+	return parsed.format("YYYY-MM-DD")
+}
 
 /** 免费版卡片按原型保留"升级能力"视觉，突出单一 CTA。 */
 export const MobileSettingsFreePlanCard = observer(function MobileSettingsFreePlanCard(props: {
@@ -47,10 +58,12 @@ export const MobileSettingsPaidPlanCard = observer(function MobileSettingsPaidPl
 	const { isAdmin, isPersonalOrganization } = userStore.user
 	const canOperate = isAdmin || isPersonalOrganization
 	const planName = subscriptionInfo?.name || t("bonusPointsModal.personalVersion")
-	const renewalDate = subscriptionInfo?.end_date
+	const renewalDate = formatPlanCardRenewalDate(subscriptionInfo?.end_date)
 
 	return (
-		<div className="relative w-full rounded-xl bg-zinc-950 px-4 py-3.5 text-left text-white shadow-lg shadow-black/10">
+		<div className="relative w-full overflow-hidden rounded-xl bg-zinc-950 px-4 py-3.5 text-left text-white shadow-lg shadow-black/10">
+			{/* Background flowing lines: vectorEffect keeps stroke width under non-uniform scale;
+			    stroke-dashoffset animation creates a particle-flow along each curve. */}
 			<svg
 				viewBox="0 0 400 160"
 				preserveAspectRatio="none"
@@ -66,6 +79,7 @@ export const MobileSettingsPaidPlanCard = observer(function MobileSettingsPaidPl
 					strokeLinecap="round"
 					strokeDasharray="1 6 2 8 4 10 7 12 12 16"
 					vectorEffect="non-scaling-stroke"
+					className="plan-card-line plan-card-line-1"
 				/>
 				<path
 					d="M -40,90 C 90,140 180,60 280,110 S 380,140 460,100"
@@ -75,6 +89,27 @@ export const MobileSettingsPaidPlanCard = observer(function MobileSettingsPaidPl
 					strokeLinecap="round"
 					strokeDasharray="1 8 3 10 5 14 9 18"
 					vectorEffect="non-scaling-stroke"
+					className="plan-card-line plan-card-line-2"
+				/>
+				<path
+					d="M -40,130 C 100,110 200,150 300,120 S 400,130 460,140"
+					stroke="#ffffff"
+					strokeOpacity={0.18}
+					strokeWidth={1}
+					strokeLinecap="round"
+					strokeDasharray="1 5 2 7 4 9 8 14 14 20"
+					vectorEffect="non-scaling-stroke"
+					className="plan-card-line plan-card-line-3"
+				/>
+				<path
+					d="M -40,20 C 120,60 220,0 320,50 S 400,20 460,30"
+					stroke="#ffffff"
+					strokeOpacity={0.16}
+					strokeWidth={1}
+					strokeLinecap="round"
+					strokeDasharray="1 10 2 12 5 16 11 22"
+					vectorEffect="non-scaling-stroke"
+					className="plan-card-line plan-card-line-4"
 				/>
 			</svg>
 			<div className="relative flex items-start justify-between gap-3">
