@@ -83,6 +83,26 @@ class CreateVideoDTOTest extends TestCase
         $this->assertSame('design_video_generation', $dto->getBusinessParam('source_id'));
     }
 
+    public function testManagedPollingDefaultsToEnabledAndCanBeDisabled(): void
+    {
+        $defaultDto = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make a video',
+        ]);
+        $disabledDto = new CreateVideoDTO([
+            'model_id' => 'veo-3.1-fast-generate-preview',
+            'task' => 'generate',
+            'prompt' => 'make a video',
+            'execution' => [
+                'managed_polling' => false,
+            ],
+        ]);
+
+        $this->assertTrue($defaultDto->isManagedPollingEnabled());
+        $this->assertFalse($disabledDto->isManagedPollingEnabled());
+    }
+
     public function testCanonicalSchemaFieldsAreAccepted(): void
     {
         $dto = new CreateVideoDTO([

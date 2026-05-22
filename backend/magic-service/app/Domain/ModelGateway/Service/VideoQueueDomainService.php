@@ -186,6 +186,11 @@ readonly class VideoQueueDomainService
         return $operation;
     }
 
+    public function findOperation(string $operationId): ?VideoQueueOperationEntity
+    {
+        return $this->videoQueueOperationRepository->getOperation($operationId);
+    }
+
     public function syncWithExecutionResult(VideoQueueOperationEntity $operation, string $providerTaskId, array $result): VideoExecutionSyncResult
     {
         $previousStatus = $operation->getStatus();
@@ -270,6 +275,14 @@ readonly class VideoQueueDomainService
         $this->releaseDoneOperations($this->videoQueueOperationRepository->getOrganizationActiveOperations(
             $operation->getOrganizationCode(),
         ));
+    }
+
+    /**
+     * @return array<int, VideoQueueOperationEntity>
+     */
+    public function getUserActiveOperations(string $organizationCode, string $userId): array
+    {
+        return $this->videoQueueOperationRepository->getUserActiveOperations($organizationCode, $userId);
     }
 
     /**
@@ -506,6 +519,7 @@ readonly class VideoQueueDomainService
         $execution = array_filter([
             'service_tier' => $this->normalizeServiceTier($requestData['execution']['service_tier'] ?? null),
             'expires_after_seconds' => $this->normalizePositiveInt($requestData['execution']['expires_after_seconds'] ?? null),
+            'managed_polling' => $this->normalizeOptionalBool($requestData['execution']['managed_polling'] ?? null),
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
 
         $task = $this->normalizeTask($requestData['task'] ?? null);

@@ -10,6 +10,8 @@ namespace App\Application\ModelGateway\Service;
 use App\Application\ModelGateway\Component\Points\DTO\PointEstimateResult;
 use App\Application\ModelGateway\Component\Points\DTO\VideoPointEstimateRequest;
 use App\Application\ModelGateway\Component\Points\PointComponentInterface;
+use App\Application\ModelGateway\Event\Message\VideoOperationPollMessage;
+use App\Application\ModelGateway\Event\Publish\VideoOperationPollDelayPublisher;
 use App\Application\ModelGateway\Mapper\ModelGatewayMapper;
 use App\Application\ModelGateway\Service\Video\VideoInputMediaMetadataResolver;
 use App\Domain\File\Service\FileDomainService;
@@ -31,16 +33,19 @@ use App\Domain\ModelGateway\Service\VideoGenerationConfigDomainService;
 use App\Domain\ModelGateway\Service\VideoQueueDomainService;
 use App\Domain\Provider\Entity\ValueObject\ProviderCode;
 use App\ErrorCode\MagicApiErrorCode;
+use App\Infrastructure\Core\Exception\BusinessException;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
 use App\Infrastructure\Core\Traits\HasLogger;
 use App\Infrastructure\Core\ValueObject\StorageBucketType;
 use App\Infrastructure\ExternalAPI\VideoGenerateAPI\ProviderVideoException;
 use App\Infrastructure\Util\Context\CoContext;
 use App\Infrastructure\Util\IdGenerator\IdGenerator;
+use App\Infrastructure\Util\Locker\LockerInterface;
 use App\Infrastructure\Util\SSRF\SSRFUtil;
 use DateTime;
 use Dtyq\AsyncEvent\AsyncEventUtil;
 use Dtyq\CloudFile\Kernel\Struct\UploadFile;
+use Hyperf\Amqp\Producer;
 use RuntimeException;
 use Throwable;
 use Throwable as BaseThrowable;
@@ -67,6 +72,10 @@ readonly class VideoOperationAppService
 
     private const string AUDIT_STATUS_FAIL = 'FAIL';
 
+    private const string SYNC_LOCK_PREFIX = 'model_gateway_video_operation_sync:';
+
+    private const int PRE_SUBMIT_ACTIVE_OPERATION_GRACE_SECONDS = 120;
+
     public function __construct(
         private LLMAppService $llmAppService,
         private VideoQueueDomainService $videoQueueDomainService,
@@ -78,6 +87,8 @@ readonly class VideoOperationAppService
         private VideoBillingDetailsResolver $videoBillingDetailsResolver,
         private VideoMediaProbeInterface $videoMediaProbe,
         private VideoInputMediaMetadataResolver $videoInputMediaMetadataResolver,
+        private Producer $producer,
+        private LockerInterface $locker,
     ) {
     }
 
@@ -169,7 +180,10 @@ readonly class VideoOperationAppService
 
         try {
             // 提交 provider 前先按套餐占用个人视频运行槽位
-            $this->videoQueueDomainService->claimUserActiveOperation($operation, $personalVideoGenerationConcurrencyLimit);
+            $this->claimUserActiveOperationWithRecovery(
+                $operation,
+                $personalVideoGenerationConcurrencyLimit,
+            );
 
             $config = $this->queueOperationExecutionDomainService->getConfig($operation);
             $providerTaskId = $this->queueOperationExecutionDomainService->submit($operation, $config);
@@ -201,6 +215,17 @@ readonly class VideoOperationAppService
         ]);
         $this->videoQueueDomainService->markProviderRunning($operation, $providerTaskId);
         $this->videoQueueDomainService->saveOperation($operation);
+        if ($requestDTO->isManagedPollingEnabled()) {
+            try {
+                $this->dispatchInitialPollMessage(
+                    $operation,
+                    $this->buildManagedPollBusinessParams($dataIsolation, $requestDTO->getBusinessParams()),
+                );
+            } catch (Throwable $throwable) {
+                // 首条托管轮询消息投递失败时保留运行槽位，下一次并发满恢复流程仍可查询 provider 并释放。
+                throw $throwable;
+            }
+        }
 
         return $this->videoQueueDomainService->buildOperationResponse(
             $operation,
@@ -211,71 +236,22 @@ readonly class VideoOperationAppService
     public function getOperation(string $accessToken, string $operationId, array $businessParams = []): VideoOperationResponseDTO
     {
         $dataIsolation = $this->llmAppService->createModelGatewayDataIsolationByAccessToken($accessToken, $businessParams);
-        $operation = $this->videoQueueDomainService->getOperation(
+        $this->videoQueueDomainService->getOperation(
             $operationId,
             $dataIsolation->getCurrentOrganizationCode(),
             $dataIsolation->getCurrentUserId(),
         );
 
-        $providerTaskId = $operation->getProviderTaskId();
-        if (is_string($providerTaskId) && $providerTaskId !== '' && ! $operation->getStatus()->isDone()) {
-            $config = $this->queueOperationExecutionDomainService->getConfig($operation);
-            try {
-                $previousStatus = $operation->getStatus();
-                $result = $this->normalizeExecutionResult(
-                    $operation,
-                    $this->queueOperationExecutionDomainService->query($operation, $config, $providerTaskId),
-                );
-                $probeResult = $this->extractProbeResult($result);
-                $syncResult = $this->videoQueueDomainService->syncWithExecutionResult($operation, $providerTaskId, $result);
-
-                $this->logger->info('video provider query summary', [
-                    'operation_id' => $operation->getId(),
-                    'organization_code' => $operation->getOrganizationCode(),
-                    'provider_code' => $operation->getProviderCode(),
-                    'provider_task_id' => $providerTaskId,
-                    'provider_status' => $this->extractProviderStatus($result),
-                    'internal_status' => $syncResult->getStatus()->value,
-                    'video_url_present' => trim((string) ($result['output']['video_url'] ?? '')) !== '',
-                    'last_frame_url_present' => trim((string) ($result['output']['last_frame_url'] ?? '')) !== '',
-                    'error_code' => is_array($result['error'] ?? null) ? ($result['error']['code'] ?? null) : null,
-                ]);
-
-                if ($previousStatus !== $syncResult->getStatus()) {
-                    $this->logger->info('video operation status changed', [
-                        'operation_id' => $operation->getId(),
-                        'organization_code' => $operation->getOrganizationCode(),
-                        'provider_task_id' => $providerTaskId,
-                        'previous_status' => $previousStatus->value,
-                        'current_status' => $syncResult->getStatus()->value,
-                    ]);
-                }
-
-                if ($syncResult->isFirstSucceeded()) {
-                    $this->dispatchVideoGeneratedEvent($dataIsolation, $operation, $probeResult, $businessParams);
-                } elseif ($syncResult->isStatusChanged() && $syncResult->getStatus() === VideoOperationStatus::FAILED) {
-                    $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
-                }
-                $this->videoQueueDomainService->saveOperation($operation);
-                // provider 查询后如果任务进入终态，立即释放个人视频运行槽位。
-                $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
-            } catch (ProviderVideoException $throwable) {
-                $this->logger->warning('video provider query failed', [
-                    'operation_id' => $operation->getId(),
-                    'organization_code' => $operation->getOrganizationCode(),
-                    'provider_code' => $operation->getProviderCode(),
-                    'provider_task_id' => $providerTaskId,
-                    'error' => $throwable->getMessage(),
-                ]);
-                $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
-                $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
-                $this->videoQueueDomainService->saveOperation($operation);
-                // 查询 provider 失败会把任务标记为失败，也需要释放个人视频运行槽位。
-                $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
-            }
+        $operation = $this->syncOperationFromProviderWithLock(
+            $dataIsolation,
+            $operationId,
+            $businessParams,
+            $dataIsolation->getCurrentOrganizationCode(),
+            $dataIsolation->getCurrentUserId(),
+        );
+        if ($operation === null) {
+            ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'video task not found');
         }
-        // 兜底处理：任务查询前已是终态时不会进入 provider 查询分支，这里负责释放残留槽位。
-        $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
 
         $response = $this->videoQueueDomainService->buildOperationResponse(
             $operation,
@@ -285,6 +261,314 @@ readonly class VideoOperationAppService
         $response->setOutput($this->resolveResponseOutput($operation, $response->getOutput()));
 
         return $response;
+    }
+
+    public function pollOperationById(string $operationId, array $businessParams = []): bool
+    {
+        $operation = $this->videoQueueDomainService->findOperation($operationId);
+        if ($operation === null) {
+            $this->logger->warning('video operation poll skipped: operation not found', [
+                'operation_id' => $operationId,
+            ]);
+            return true;
+        }
+
+        $dataIsolation = ModelGatewayDataIsolation::create($operation->getOrganizationCode(), $operation->getUserId());
+        $operation = $this->syncOperationFromProviderWithLock(
+            $dataIsolation,
+            $operationId,
+            $businessParams,
+            failOnProviderQueryException: false,
+        );
+        if ($operation === null) {
+            return true;
+        }
+
+        return $operation->getStatus()->isDone();
+    }
+
+    public function timeoutOperationById(string $operationId, array $businessParams = []): void
+    {
+        $this->withOperationLock($operationId, function () use ($operationId, $businessParams): void {
+            $operation = $this->videoQueueDomainService->findOperation($operationId);
+            if ($operation === null) {
+                return;
+            }
+
+            if ($operation->getStatus()->isDone()) {
+                $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
+                return;
+            }
+
+            $dataIsolation = ModelGatewayDataIsolation::create($operation->getOrganizationCode(), $operation->getUserId());
+            $this->videoQueueDomainService->finishProviderTimeout($operation);
+            $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
+            $this->videoQueueDomainService->saveOperation($operation);
+            $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
+            $this->logger->warning('video operation marked timeout by poll consumer', [
+                'operation_id' => $operation->getId(),
+                'organization_code' => $operation->getOrganizationCode(),
+                'provider_task_id' => $operation->getProviderTaskId(),
+            ]);
+        });
+    }
+
+    private function claimUserActiveOperationWithRecovery(
+        VideoQueueOperationEntity $operation,
+        ?int $personalVideoGenerationConcurrencyLimit,
+    ): void {
+        try {
+            $this->videoQueueDomainService->claimUserActiveOperation($operation, $personalVideoGenerationConcurrencyLimit);
+            return;
+        } catch (BusinessException $throwable) {
+            if ($throwable->getCode() !== MagicApiErrorCode::RATE_LIMIT->value) {
+                throw $throwable;
+            }
+
+            $this->recoverUserActiveOperationsBeforeClaim($operation);
+            $this->videoQueueDomainService->claimUserActiveOperation($operation, $personalVideoGenerationConcurrencyLimit);
+        }
+    }
+
+    private function recoverUserActiveOperationsBeforeClaim(
+        VideoQueueOperationEntity $newOperation,
+    ): void {
+        $activeOperations = $this->videoQueueDomainService->getUserActiveOperations(
+            $newOperation->getOrganizationCode(),
+            $newOperation->getUserId(),
+        );
+
+        foreach ($activeOperations as $activeOperation) {
+            if ($activeOperation->getId() === $newOperation->getId()) {
+                continue;
+            }
+            $activeDataIsolation = ModelGatewayDataIsolation::create(
+                $activeOperation->getOrganizationCode(),
+                $activeOperation->getUserId(),
+            );
+
+            $providerTaskId = trim((string) $activeOperation->getProviderTaskId());
+            if ($providerTaskId !== '') {
+                try {
+                    $this->syncOperationFromProviderWithLock(
+                        $activeDataIsolation,
+                        $activeOperation->getId(),
+                        [],
+                        $newOperation->getOrganizationCode(),
+                        $newOperation->getUserId(),
+                        false,
+                    );
+                } catch (Throwable $throwable) {
+                    $this->logger->warning('video active operation recovery query failed', [
+                        'operation_id' => $activeOperation->getId(),
+                        'organization_code' => $activeOperation->getOrganizationCode(),
+                        'user_id' => $activeOperation->getUserId(),
+                        'provider_task_id' => $providerTaskId,
+                        'error' => $throwable->getMessage(),
+                    ]);
+                }
+                continue;
+            }
+
+            $this->failStalePreSubmitActiveOperation($activeDataIsolation, $activeOperation->getId(), []);
+        }
+    }
+
+    private function failStalePreSubmitActiveOperation(
+        ModelGatewayDataIsolation $dataIsolation,
+        string $operationId,
+        array $businessParams,
+    ): void {
+        $this->withOperationLock($operationId, function () use ($dataIsolation, $operationId, $businessParams): void {
+            $operation = $this->videoQueueDomainService->findOperation($operationId);
+            if ($operation === null) {
+                return;
+            }
+            if ($operation->getStatus()->isDone()) {
+                $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
+                return;
+            }
+            if (trim((string) $operation->getProviderTaskId()) !== '' || ! $this->isStalePreSubmitOperation($operation)) {
+                return;
+            }
+
+            $this->videoQueueDomainService->finishExecutionFailure($operation, 'video operation lost before provider submission');
+            $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
+            $this->videoQueueDomainService->saveOperation($operation);
+            $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
+            $this->logger->warning('video stale pre-submit active operation released', [
+                'operation_id' => $operation->getId(),
+                'organization_code' => $operation->getOrganizationCode(),
+                'user_id' => $operation->getUserId(),
+                'created_at' => $operation->getCreatedAt(),
+            ]);
+        });
+    }
+
+    private function isStalePreSubmitOperation(VideoQueueOperationEntity $operation): bool
+    {
+        $createdAt = strtotime((string) $operation->getCreatedAt());
+        if ($createdAt === false) {
+            return false;
+        }
+
+        return time() - $createdAt >= self::PRE_SUBMIT_ACTIVE_OPERATION_GRACE_SECONDS;
+    }
+
+    private function syncOperationFromProviderWithLock(
+        ModelGatewayDataIsolation $dataIsolation,
+        string $operationId,
+        array $businessParams = [],
+        ?string $organizationCode = null,
+        ?string $userId = null,
+        bool $failOnProviderQueryException = true,
+    ): ?VideoQueueOperationEntity {
+        return $this->withOperationLock($operationId, function () use (
+            $dataIsolation,
+            $operationId,
+            $businessParams,
+            $organizationCode,
+            $userId,
+            $failOnProviderQueryException,
+        ): ?VideoQueueOperationEntity {
+            $operation = $this->videoQueueDomainService->findOperation($operationId);
+            if ($operation === null) {
+                return null;
+            }
+            if ($organizationCode !== null && $operation->getOrganizationCode() !== $organizationCode) {
+                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'video task not found');
+            }
+            if ($userId !== null && $operation->getUserId() !== $userId) {
+                ExceptionBuilder::throw(MagicApiErrorCode::ValidateFailed, 'video task not found');
+            }
+
+            $this->syncOperationFromProvider($dataIsolation, $operation, $businessParams, $failOnProviderQueryException);
+            return $operation;
+        });
+    }
+
+    private function syncOperationFromProvider(
+        ModelGatewayDataIsolation $dataIsolation,
+        VideoQueueOperationEntity $operation,
+        array $businessParams = [],
+        bool $failOnProviderQueryException = true,
+    ): void {
+        $providerTaskId = $operation->getProviderTaskId();
+        if (! is_string($providerTaskId) || $providerTaskId === '' || $operation->getStatus()->isDone()) {
+            $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
+            return;
+        }
+
+        $config = $this->queueOperationExecutionDomainService->getConfig($operation);
+        try {
+            $previousStatus = $operation->getStatus();
+            $result = $this->normalizeExecutionResult(
+                $operation,
+                $this->queueOperationExecutionDomainService->query($operation, $config, $providerTaskId),
+            );
+            $probeResult = $this->extractProbeResult($result);
+            $syncResult = $this->videoQueueDomainService->syncWithExecutionResult($operation, $providerTaskId, $result);
+
+            $this->logger->info('video provider query summary', [
+                'operation_id' => $operation->getId(),
+                'organization_code' => $operation->getOrganizationCode(),
+                'provider_code' => $operation->getProviderCode(),
+                'provider_task_id' => $providerTaskId,
+                'provider_status' => $this->extractProviderStatus($result),
+                'internal_status' => $syncResult->getStatus()->value,
+                'video_url_present' => trim((string) ($result['output']['video_url'] ?? '')) !== '',
+                'last_frame_url_present' => trim((string) ($result['output']['last_frame_url'] ?? '')) !== '',
+                'error_code' => is_array($result['error'] ?? null) ? ($result['error']['code'] ?? null) : null,
+            ]);
+
+            if ($previousStatus !== $syncResult->getStatus()) {
+                $this->logger->info('video operation status changed', [
+                    'operation_id' => $operation->getId(),
+                    'organization_code' => $operation->getOrganizationCode(),
+                    'provider_task_id' => $providerTaskId,
+                    'previous_status' => $previousStatus->value,
+                    'current_status' => $syncResult->getStatus()->value,
+                ]);
+            }
+
+            if ($syncResult->isFirstSucceeded()) {
+                $this->dispatchVideoGeneratedEvent($dataIsolation, $operation, $probeResult, $businessParams);
+            } elseif ($syncResult->isStatusChanged() && $syncResult->getStatus() === VideoOperationStatus::FAILED) {
+                $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
+            }
+            $this->videoQueueDomainService->saveOperation($operation);
+            $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
+        } catch (ProviderVideoException $throwable) {
+            if (! $failOnProviderQueryException) {
+                throw $throwable;
+            }
+            $this->logger->warning('video provider query failed', [
+                'operation_id' => $operation->getId(),
+                'organization_code' => $operation->getOrganizationCode(),
+                'provider_code' => $operation->getProviderCode(),
+                'provider_task_id' => $providerTaskId,
+                'error' => $throwable->getMessage(),
+            ]);
+            $this->videoQueueDomainService->finishExecutionFailure($operation, $throwable->getMessage());
+            $this->dispatchVideoGenerateFailedEvent($dataIsolation, $operation, $businessParams);
+            $this->videoQueueDomainService->saveOperation($operation);
+            $this->videoQueueDomainService->releaseUserActiveOperationIfDone($operation);
+        }
+    }
+
+    private function dispatchInitialPollMessage(VideoQueueOperationEntity $operation, array $businessParams): void
+    {
+        /*try {
+            $this->producer->produce(new VideoOperationPollDelayPublisher(new VideoOperationPollMessage(
+                $operation->getId(),
+                $businessParams,
+            )));
+        } catch (Throwable $throwable) {
+            $this->logger->error('video operation poll dispatch failed', [
+                'operation_id' => $operation->getId(),
+                'organization_code' => $operation->getOrganizationCode(),
+                'error' => $throwable->getMessage(),
+            ]);
+            throw $throwable;
+        }*/
+    }
+
+    /**
+     * @template T
+     * @param callable(): T $callback
+     * @return T
+     */
+    private function withOperationLock(string $operationId, callable $callback): mixed
+    {
+        $owner = IdGenerator::getUuid();
+        $lockKey = self::SYNC_LOCK_PREFIX . $operationId;
+        if (! $this->locker->spinLock($lockKey, $owner, $this->videoQueueDomainService->lockExpireSeconds(), 3)) {
+            ExceptionBuilder::throw(MagicApiErrorCode::RATE_LIMIT, 'video operation sync lock busy');
+        }
+
+        try {
+            return $callback();
+        } finally {
+            $this->locker->release($lockKey, $owner);
+        }
+    }
+
+    private function buildManagedPollBusinessParams(ModelGatewayDataIsolation $dataIsolation, array $businessParams): array
+    {
+        $accessTokenEntity = $this->resolveAccessTokenEntity($dataIsolation);
+        if ($accessTokenEntity !== null) {
+            $businessParams['ak'] = $accessTokenEntity->getAccessToken();
+            $businessParams['access_token_name'] = $accessTokenEntity->getName();
+            $businessParams['access_token_type'] = $accessTokenEntity->getType()->value;
+        }
+        if ($dataIsolation->getAppId() !== '') {
+            $businessParams['app_id'] = $dataIsolation->getAppId();
+        }
+        if ($dataIsolation->getUserName() !== '') {
+            $businessParams['user_name'] = $dataIsolation->getUserName();
+        }
+
+        return $businessParams;
     }
 
     /**
@@ -465,8 +749,9 @@ readonly class VideoOperationAppService
         if ($magicTopicId === '') {
             $magicTopicId = trim((string) ($operation->getTopicId() ?? ''));
         }
-        $accessTokenName = (string) $accessTokenEntity?->getName();
-        $accessTokenType = $accessTokenEntity === null ? '' : $accessTokenEntity->getType()->value;
+        $accessTokenName = (string) ($accessTokenEntity?->getName() ?? $requestBusinessParams['access_token_name'] ?? '');
+        $accessTokenType = (string) ($accessTokenEntity?->getType()->value ?? $requestBusinessParams['access_token_type'] ?? '');
+        $accessToken = (string) ($accessTokenEntity?->getAccessToken() ?? $requestBusinessParams['ak'] ?? '');
         $providerName = $operation->getAuditProviderName();
 
         $params = [
@@ -481,12 +766,12 @@ readonly class VideoOperationAppService
             'response_duration' => $this->calculateLatencyMs($operation),
             'organization_id' => $operation->getOrganizationCode(),
             'user_id' => $operation->getUserId(),
-            'user_name' => $dataIsolation->getUserName(),
-            'app_id' => $dataIsolation->getAppId(),
+            'user_name' => $dataIsolation->getUserName() !== '' ? $dataIsolation->getUserName() : (string) ($requestBusinessParams['user_name'] ?? ''),
+            'app_id' => $dataIsolation->getAppId() !== '' ? $dataIsolation->getAppId() : (string) ($requestBusinessParams['app_id'] ?? ''),
             'source_id' => $sourceId,
             'request_id' => $requestId,
             'magic_topic_id' => $magicTopicId,
-            'ak' => $accessTokenEntity?->getAccessToken() ?? '',
+            'ak' => $accessToken,
             'access_token_name' => $accessTokenName,
             'access_token_type' => $accessTokenType,
         ];

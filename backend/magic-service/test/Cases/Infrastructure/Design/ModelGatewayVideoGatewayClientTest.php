@@ -103,6 +103,7 @@ class ModelGatewayVideoGatewayClientTest extends TestCase
         [$accessToken, $requestDTO] = $capture->value;
         $this->assertSame('magic-access-token-for-test', $accessToken);
         $this->assertInstanceOf(CreateVideoDTO::class, $requestDTO);
+        $this->assertFalse($requestDTO->isManagedPollingEnabled());
     }
 
     public function testSubmitVideoPropagatesProviderBusinessException(): void

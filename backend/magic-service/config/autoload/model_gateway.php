@@ -18,9 +18,9 @@ return [
         // 视频队列调度和状态迁移使用的 Redis 锁过期时间。
         'lock_expire_seconds' => (int) env('MODEL_GATEWAY_VIDEO_QUEUE_LOCK_EXPIRE_SECONDS', 30),
         // 视频队列 worker 查询 provider 任务状态的轮询间隔。
-        'poll_interval_seconds' => (int) env('MODEL_GATEWAY_VIDEO_QUEUE_POLL_INTERVAL_SECONDS', 3),
+        'poll_interval_seconds' => (int) env('MODEL_GATEWAY_VIDEO_QUEUE_POLL_INTERVAL_SECONDS', 5),
         // 视频队列 worker 查询 provider 任务状态的最大轮询次数。
-        'poll_max_times' => (int) env('MODEL_GATEWAY_VIDEO_QUEUE_POLL_MAX_TIMES', 200),
+        'poll_max_times' => (int) env('MODEL_GATEWAY_VIDEO_QUEUE_POLL_MAX_TIMES', 600),
     ],
     'video_media' => [
         // ffprobe 用于读取参考视频真实时长和宽高；本地路径不在 PATH 时可配置绝对路径。
