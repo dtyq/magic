@@ -85,6 +85,33 @@
 		);
 	}
 
+	/* Paid plan card background lines — keyframes in _keyframe-animations.scss */
+	.plan-card-line {
+		will-change: stroke-dashoffset;
+	}
+
+	.plan-card-line-1 {
+		animation: plan-card-flow-1 13s linear infinite;
+	}
+
+	.plan-card-line-2 {
+		animation: plan-card-flow-2 23s linear infinite;
+	}
+
+	.plan-card-line-3 {
+		animation: plan-card-flow-3 9s linear infinite;
+	}
+
+	.plan-card-line-4 {
+		animation: plan-card-flow-4 29s linear infinite;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.plan-card-line {
+			animation: none;
+		}
+	}
+
 	/* ─── Mobile floating-style page header ──────────────────────────────────
 	 *
 	 * Three reusable classes for the "浮起型" mobile page header pattern:

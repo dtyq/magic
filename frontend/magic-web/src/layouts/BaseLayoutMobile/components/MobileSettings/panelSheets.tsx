@@ -182,7 +182,7 @@ export function MobileSettingsPointsDetailSheet(props: { open: boolean; onClose:
 				sheetClassName="h-[90dvh]"
 				dataTestId="mobile-settings-points-detail-sheet"
 			>
-				<div className="flex flex-col gap-2.5 px-[10px] pb-[calc(var(--safe-area-inset-bottom)+16px)] pt-2">
+				<div className="flex flex-col gap-2.5 pb-[calc(var(--safe-area-inset-bottom)+16px)] pt-2">
 					<div className="flex shrink-0 items-center gap-3 rounded-lg bg-card px-4 py-4">
 						<div
 							className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10"

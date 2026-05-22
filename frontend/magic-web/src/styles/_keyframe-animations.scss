@@ -98,3 +98,42 @@
     background-position: -200% 0;
   }
 }
+
+/* Paid plan card: flowing background lines via stroke-dashoffset.
+   Offset distance = dasharray period * 3 so the loop does not jump.
+   Four lines use coprime durations (13s / 23s / 9s / 29s) to avoid periodic overlap. */
+@keyframes plan-card-flow-1 {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -234;
+  }
+}
+
+@keyframes plan-card-flow-2 {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 204;
+  }
+}
+
+@keyframes plan-card-flow-3 {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -252;
+  }
+}
+
+@keyframes plan-card-flow-4 {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 237;
+  }
+}
