@@ -43,13 +43,15 @@ export function collectFileIds(options: CollectFileIdsOptions): string[] {
 						}
 						// 递归收集子文件
 						collect(item.children || [], true)
-					} else {
+					} else if (item.is_directory && includeFolderIds && item.file_id) {
+						// Empty folder selected by folder key (mobile multi-select)
+						if (!filterFn || filterFn(item)) {
+							selectedFileIds.push(item.file_id)
+						}
+					} else if (item.file_id) {
 						// 处理文件
-						if (item.file_id) {
-							// 应用自定义过滤函数
-							if (!filterFn || filterFn(item)) {
-								selectedFileIds.push(item.file_id)
-							}
+						if (!filterFn || filterFn(item)) {
+							selectedFileIds.push(item.file_id)
 						}
 					}
 				} else if (item.is_directory && "children" in item) {

@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest"
 import type { AttachmentItem } from "../../hooks/types"
 import {
 	buildDeleteConfirmHierarchyFromAttachments,
+	collectCurrentViewSelectableKeys,
 	collectDescendantFileKeys,
 	getAttachmentNodeSelectionState,
 	summarizeDeleteConfirmHierarchy,
+	toggleAllInCurrentView,
 	toggleAttachmentSelection,
 } from "../mobileAttachmentTreeSelection"
 import { getAttachmentKey } from "../getAttachmentKey"
@@ -99,5 +101,45 @@ describe("mobileAttachmentTreeSelection", () => {
 
 		expect(summary.emptyFolders).toHaveLength(1)
 		expect(summary.totalCount).toBe(1)
+	})
+
+	it("cascades parent folder toggle to nested empty folder keys", () => {
+		const memoryFolder = makeFolder("memory-dir", "memory", [])
+		const magicFolder = makeFolder("magic-dir", ".magic", [
+			memoryFolder,
+			makeFile("file-1", "AGENTS.md", ".magic"),
+		])
+
+		const selected = toggleAttachmentSelection(magicFolder, new Set())
+		const memoryKey = getAttachmentKey(memoryFolder)
+
+		expect(selected.has("file-1")).toBe(true)
+		expect(selected.has(memoryKey)).toBe(true)
+		expect(getAttachmentNodeSelectionState(memoryFolder, selected)).toBe("all")
+	})
+
+	it("reports partial parent state when files but not empty subfolders are selected", () => {
+		const memoryFolder = makeFolder("memory-dir", "memory", [])
+		const magicFolder = makeFolder("magic-dir", ".magic", [
+			memoryFolder,
+			makeFile("file-1", "AGENTS.md", ".magic"),
+		])
+		const memoryKey = getAttachmentKey(memoryFolder)
+
+		expect(getAttachmentNodeSelectionState(magicFolder, new Set(["file-1"]))).toBe("partial")
+		expect(
+			getAttachmentNodeSelectionState(magicFolder, new Set(["file-1", memoryKey])),
+		).toBe("all")
+	})
+
+	it("select-all in current view includes sibling empty folders", () => {
+		const memoryFolder = makeFolder("memory-dir", "memory", [])
+		const currentView = [memoryFolder, makeFile("file-1", "AGENTS.md", ".magic")]
+		const selectableKeys = collectCurrentViewSelectableKeys(currentView)
+		const selected = toggleAllInCurrentView(selectableKeys, new Set())
+
+		expect(getAttachmentNodeSelectionState(memoryFolder, selected)).toBe("all")
+		expect(getAttachmentNodeSelectionState(currentView[1], selected)).toBe("all")
+		expect(selectableKeys.every((key) => selected.has(key))).toBe(true)
 	})
 })

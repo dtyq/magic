@@ -25,6 +25,47 @@ export function collectDescendantFileKeys(folder: AttachmentItem): string[] {
 }
 
 /**
+ * Collect folder keys for visible descendant directories that contain no files.
+ * Excludes the root folder itself — used when a parent folder cascades selection.
+ */
+export function collectDescendantEmptyFolderKeys(folder: AttachmentItem): string[] {
+	const ids: string[] = []
+
+	function walk(nodes: AttachmentItem[]) {
+		for (const node of nodes) {
+			if (!node.is_directory) continue
+
+			const descendantFileKeys = collectDescendantFileKeys(node)
+			if (descendantFileKeys.length === 0) {
+				const folderKey = getAttachmentKey(node)
+				if (folderKey) ids.push(folderKey)
+				continue
+			}
+
+			walk(getVisibleAttachmentChildren(node))
+		}
+	}
+
+	walk(getVisibleAttachmentChildren(folder))
+	return ids
+}
+
+/**
+ * Keys toggled when checking a folder row: all descendant file keys, nested empty folder keys,
+ * or only the folder's own key when it has no selectable descendants.
+ */
+export function collectCascadeSelectionKeys(folder: AttachmentItem): string[] {
+	const fileKeys = collectDescendantFileKeys(folder)
+	const emptyFolderKeys = collectDescendantEmptyFolderKeys(folder)
+
+	if (fileKeys.length === 0 && emptyFolderKeys.length === 0) {
+		return [getAttachmentKey(folder)]
+	}
+
+	return [...fileKeys, ...emptyFolderKeys]
+}
+
+/**
  * Collect selectable unit keys in the current view:
  * files use file keys; empty folders use folder key; non-empty folders recurse into children.
  */
@@ -66,14 +107,14 @@ export function getAttachmentNodeSelectionState(
 		return selectedIds.has(key) ? "all" : "none"
 	}
 
-	const descendantFileKeys = collectDescendantFileKeys(item)
-	if (descendantFileKeys.length === 0) {
+	const cascadeKeys = collectCascadeSelectionKeys(item)
+	if (cascadeKeys.length === 1 && cascadeKeys[0] === key) {
 		return selectedIds.has(key) ? "all" : "none"
 	}
 
-	const selectedCount = descendantFileKeys.filter((id) => selectedIds.has(id)).length
+	const selectedCount = cascadeKeys.filter((id) => selectedIds.has(id)).length
 	if (selectedCount === 0) return "none"
-	if (selectedCount === descendantFileKeys.length) return "all"
+	if (selectedCount === cascadeKeys.length) return "all"
 	return "partial"
 }
 
@@ -96,18 +137,18 @@ export function toggleAttachmentSelection(
 		return next
 	}
 
-	const descendantFileKeys = collectDescendantFileKeys(item)
-	if (descendantFileKeys.length === 0) {
+	const cascadeKeys = collectCascadeSelectionKeys(item)
+	if (cascadeKeys.length === 1 && cascadeKeys[0] === key) {
 		if (next.has(key)) next.delete(key)
 		else next.add(key)
 		return next
 	}
 
-	const allSelected = descendantFileKeys.every((id) => next.has(id))
+	const allSelected = cascadeKeys.every((id) => next.has(id))
 	if (allSelected) {
-		descendantFileKeys.forEach((id) => next.delete(id))
+		cascadeKeys.forEach((id) => next.delete(id))
 	} else {
-		descendantFileKeys.forEach((id) => next.add(id))
+		cascadeKeys.forEach((id) => next.add(id))
 	}
 
 	return next
