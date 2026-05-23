@@ -10,7 +10,10 @@ import { useTimezone } from "@/providers/TimezoneProvider/hooks"
 import { cn } from "@/lib/utils"
 import { isPrivateDeployment } from "@/utils/env"
 import MagicModal from "@/components/base/MagicModal"
-import { MOBILE_SETTINGS_CARD_CLASSNAME } from "./constants"
+import {
+	MOBILE_SETTINGS_CARD_CLASSNAME,
+	MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME,
+} from "./constants"
 import { MobileSettingsPointsRecordDetailSheet } from "./components/PointsRecordDetailSheet"
 import { MobileSettingsPointsRecordRow } from "./components/PointsRecordRow"
 import { MobileSettingsSheetContainer } from "./components/SheetContainer"
@@ -179,7 +182,7 @@ export function MobileSettingsPointsDetailSheet(props: { open: boolean; onClose:
 					if (!nextOpen) onClose()
 				}}
 				// Filter entry hidden until API-backed filtering is available.
-				sheetClassName="h-[90dvh]"
+				sheetClassName={MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME}
 				dataTestId="mobile-settings-points-detail-sheet"
 			>
 				<div className="flex flex-col gap-2.5 pb-[calc(var(--safe-area-inset-bottom)+16px)] pt-2">
@@ -277,7 +280,7 @@ export function MobileSettingsOrderHistorySheet(props: { open: boolean; onClose:
 			}}
 			// 筛选能力待接口支持后再通过 headerAction 开放，暂时隐藏避免占位按钮误导用户。
 			// 订单记录是长列表场景，固定接近全屏高度以保留更多可视订单并匹配原型层级。
-			sheetClassName="h-[90dvh]"
+			sheetClassName={MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME}
 			contentClassName="min-h-0 flex-1 overflow-hidden p-0"
 			dataTestId="mobile-settings-order-history-sheet"
 		>

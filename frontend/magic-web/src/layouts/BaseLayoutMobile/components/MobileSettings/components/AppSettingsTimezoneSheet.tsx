@@ -8,7 +8,10 @@ import { useTranslation } from "react-i18next"
 import { Input } from "@/components/shadcn-ui/input"
 import { useTimezone, useTimezoneList } from "@/providers/TimezoneProvider/hooks"
 
-import { MOBILE_SETTINGS_SECTION_CLASSNAME } from "../constants"
+import {
+	MOBILE_SETTINGS_SECTION_CLASSNAME,
+	MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME,
+} from "../constants"
 import { MobileSettingsSheetContainer } from "./SheetContainer"
 
 /** 时区子弹窗保留搜索与当前项滚动能力，避免从路由页迁移后损失已有可用性。 */
@@ -73,7 +76,7 @@ export function MobileSettingsAppSettingsTimezoneSheet(props: {
 				if (!nextOpen) onClose()
 			}}
 			// 把固定高度落到 Sheet 本体上，避免结果变少时由内容高度反向把整张浮层压矮。
-			sheetClassName="h-[90dvh] max-h-[90dvh]"
+			sheetClassName={MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME}
 			contentClassName="h-full gap-2.5 px-[14px] pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 			dataTestId="mobile-settings-app-timezone-sheet"
 		>
