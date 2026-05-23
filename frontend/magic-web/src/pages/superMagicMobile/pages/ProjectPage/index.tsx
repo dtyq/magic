@@ -338,15 +338,11 @@ function LegacyProjectPage() {
 					)}
 				</div>
 				<div
-					style={{
-						transition:
-							"max-height 400ms cubic-bezier(0.4, 0, 0.2, 1), opacity 350ms cubic-bezier(0.4, 0, 0.2, 1), padding 400ms cubic-bezier(0.4, 0, 0.2, 1)",
-					}}
 					className={cn(
-						"flex w-full flex-shrink-0 flex-col gap-2 overflow-hidden",
+						"flex w-full flex-shrink-0 flex-col gap-2",
 						shouldShowComposer
-							? "pointer-events-auto max-h-[500px] pb-1 opacity-100"
-							: "pointer-events-none max-h-0 py-0 opacity-0",
+							? "pointer-events-auto pb-1"
+							: "pointer-events-none hidden",
 					)}
 					aria-hidden={!shouldShowComposer}
 				>
