@@ -1421,15 +1421,32 @@
 			"back": "Back",
 			"bulkActions": {
 				"deselectAll": "Deselect All",
-				"permanentDelete": "Delete Permanently",
+				"permanentDelete": "Delete permanently",
 				"restore": "Restore",
 				"selectAll": "Select All",
 				"selectAllVisible": "Select all in list ({{count}})",
 				"title": "Bulk Actions"
 			},
-			"confirmRestore": {
-				"confirmButton": "Confirm restore",
-				"subtitle": "We will check original locations and restore; you may be asked to pick a destination if a move is required."
+			"orphanWarn": {
+				"cancel": "Cancel restore",
+				"intro": "{{count}} items can't be restored automatically because the original location no longer exists:",
+				"noneRestorable": "No remaining items can be restored.",
+				"remaining": "{{count}} remaining items can be restored.",
+				"restoreOthers": "Restore the rest ({{count}})",
+				"restoreOthersAria": "Restore the rest",
+				"title": "Some items can't be restored"
+			},
+			"purge": {
+				"cancelAria": "Cancel",
+				"confirmAria": "Confirm permanent delete",
+				"message": "Permanently delete {{count}} items? This cannot be undone.",
+				"title": "Delete permanently"
+			},
+			"restoreConfirm": {
+				"cancelAria": "Cancel",
+				"confirmAria": "Confirm restore",
+				"message": "Restore {{count}} items to their original location?",
+				"title": "Restore"
 			},
 			"deleteSuccess": {
 				"content": "Permanently deleted {{count}} items."
@@ -1462,11 +1479,20 @@
 			"loader": {
 				"noMoreData": "You've seen everything!"
 			},
-			"orphanMixed": {
-				"choosePath": "Choose a new location",
-				"description": "Some selected items can be restored directly; others need to be moved to a valid location first.",
-				"restoreDirectOnly": "Restore only the direct-restore items",
-				"title": "Some items need a new location"
+			"restorePicker": {
+				"backAria": "Back",
+				"cancelAria": "Cancel",
+				"confirmAria": "Confirm restore",
+				"description": "The original location of \"{{name}}\" no longer exists. Pick where to restore it.",
+				"emptyProjects": "This workspace has no projects yet.",
+				"projectStep": "Choose a project",
+				"title": "Choose a new location",
+				"workspaceStep": "Choose a workspace"
+			},
+			"selection": {
+				"purge": "Delete permanently",
+				"restore": "Restore",
+				"selectAll": "Select all"
 			},
 			"restoreFileTip": "Please restore files on PC.",
 			"restoreNeedPc": "Some items need to be restored on PC.",

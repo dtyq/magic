@@ -1421,15 +1421,32 @@
 			"back": "返回",
 			"bulkActions": {
 				"deselectAll": "取消全选",
-				"permanentDelete": "永久删除",
-				"restore": "恢复",
+				"permanentDelete": "彻底删除",
+				"restore": "还原",
 				"selectAll": "全选",
 				"selectAllVisible": "全选当前列表（{{count}}）",
 				"title": "批量操作"
 			},
-			"confirmRestore": {
-				"confirmButton": "确认还原",
-				"subtitle": "将检测原位置并执行恢复；若需移动会先引导你选择目标。"
+			"orphanWarn": {
+				"cancel": "取消还原",
+				"intro": "以下 {{count}} 条内容因原父级位置已不存在，无法自动还原：",
+				"noneRestorable": "其余没有可直接还原的内容。",
+				"remaining": "其余 {{count}} 条可以还原。",
+				"restoreOthers": "仅还原其余 {{count}} 条",
+				"restoreOthersAria": "还原剩余可还原的",
+				"title": "部分内容无法直接还原"
+			},
+			"purge": {
+				"cancelAria": "取消",
+				"confirmAria": "确认彻底删除",
+				"message": "将永久删除 {{count}} 条内容，且无法恢复。是否继续？",
+				"title": "彻底删除"
+			},
+			"restoreConfirm": {
+				"cancelAria": "取消",
+				"confirmAria": "确认还原",
+				"message": "将 {{count}} 条内容还原到原位置？",
+				"title": "还原"
 			},
 			"deleteSuccess": {
 				"content": "已彻底删除 {{count}} 个资源"
@@ -1462,11 +1479,20 @@
 			"loader": {
 				"noMoreData": "没有更多数据了"
 			},
-			"orphanMixed": {
-				"choosePath": "去选择新位置",
-				"description": "选中项中一部分可直接还原，另一部分需先移动到可用位置。",
-				"restoreDirectOnly": "仅还原可直接还原的项",
-				"title": "部分内容需先选择位置"
+			"restorePicker": {
+				"backAria": "返回",
+				"cancelAria": "取消",
+				"confirmAria": "确认还原",
+				"description": "「{{name}}」的原位置已不存在，请选择一个新的位置进行还原。",
+				"emptyProjects": "该工作区下还没有项目。",
+				"projectStep": "选择项目",
+				"title": "选择新位置",
+				"workspaceStep": "选择工作区"
+			},
+			"selection": {
+				"purge": "彻底删除",
+				"restore": "还原",
+				"selectAll": "全选"
 			},
 			"restoreFileTip": "请使用 PC 端恢复文件",
 			"restoreNeedPc": "部分资源需在 PC 端选择恢复位置",

@@ -69,7 +69,7 @@ function TrashSelectionBar(props: TrashSelectionBarProps) {
 						)}
 					</div>
 					<span className="text-[15px] font-medium text-foreground">
-						{t("mobile.recycleBin.bulkActions.selectAll")}
+						{t("mobile.recycleBin.selection.selectAll")}
 					</span>
 				</button>
 
@@ -79,14 +79,14 @@ function TrashSelectionBar(props: TrashSelectionBarProps) {
 				>
 					<ActionIconBtn
 						icon={RotateCcw}
-						label={t("recycleBin.bulkActions.restore")}
+						label={t("mobile.recycleBin.selection.restore")}
 						onClick={onRestore}
 						data-testid="mobile-recycle-bin-bulk-restore"
 					/>
 					<div className="h-5 w-px shrink-0 bg-border" />
 					<ActionIconBtn
 						icon={Trash2}
-						label={t("recycleBin.bulkActions.permanentDelete")}
+						label={t("mobile.recycleBin.selection.purge")}
 						onClick={onPurge}
 						isDestructive
 						data-testid="mobile-recycle-bin-bulk-purge"

@@ -1,20 +1,14 @@
 import { useCallback, useMemo, useRef, useState } from "react"
-import type { TFunction } from "i18next"
 import { useTranslation } from "react-i18next"
 import { RecycleBinApi } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
-import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks"
 import { projectStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import SuperMagicService from "@/pages/superMagic/services"
 import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import {
 	buildRestoreCheckPlan,
 	extractSuccessResourceIds,
-	getCategoryLabel,
-	getDeleteModalDescription,
-	getDeleteModalTitle,
 	getMoveProjectIds,
-	getRestoreModalTitle,
 	getRestoreResourceIds,
 	resolveNeedMove,
 	resolvePendingRestore,
@@ -27,15 +21,21 @@ import {
 import type { RecycleBinItemData } from "../components/RecycleBinItem"
 import { mobileItemDataToDomain } from "./mobileRecycleBinMappers"
 
-export interface SelectPathSubmitPayload {
-	targetProjectId: string
-	targetPath: AttachmentItem[]
-	targetAttachments: AttachmentItem[]
-	sourceAttachments: AttachmentItem[]
-}
-
 function toResourceIds(list: Array<{ resource_id: string }>): string[] {
 	return list.map((x) => String(x.resource_id))
+}
+
+function isMovableResourceType(resourceType: ResourceType): boolean {
+	return (
+		resourceType === RESOURCE_TYPE.WORKSPACE ||
+		resourceType === RESOURCE_TYPE.PROJECT ||
+		resourceType === RESOURCE_TYPE.TOPIC
+	)
+}
+
+function canUseMobileRestorePicker(resourceType: ResourceType, needMoveItemIds: string[]): boolean {
+	if (needMoveItemIds.length !== 1) return false
+	return resourceType === RESOURCE_TYPE.PROJECT || resourceType === RESOURCE_TYPE.TOPIC
 }
 
 export function useMobileRecycleBinRestoreFlow(props: {
@@ -67,9 +67,22 @@ export function useMobileRecycleBinRestoreFlow(props: {
 	const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
 
 	const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false)
-	const [restoreConfirmItemId, setRestoreConfirmItemId] = useState<string | null>(null)
+	const [restoreConfirmCount, setRestoreConfirmCount] = useState(0)
+	const restoreConfirmContextRef = useRef<{
+		resourceType: ResourceType
+		resourceIds: string[]
+	} | null>(null)
+
+	const [restorePickerOpen, setRestorePickerOpen] = useState(false)
+	const [restorePickerTarget, setRestorePickerTarget] = useState<RestoreTarget | null>(null)
+	const [restorePickerResourceType, setRestorePickerResourceType] = useState<ResourceType>(
+		RESOURCE_TYPE.PROJECT,
+	)
+	const [restorePickerWorkspaceId, setRestorePickerWorkspaceId] = useState("")
 
 	const [orphanMixedOpen, setOrphanMixedOpen] = useState(false)
+	const [orphanMixedNeedMoveIds, setOrphanMixedNeedMoveIds] = useState<string[]>([])
+	const [orphanMixedRestorableCount, setOrphanMixedRestorableCount] = useState(0)
 	const orphanMixedContextRef = useRef<{
 		resourceType: ResourceType
 		needMoveItemIds: string[]
@@ -141,6 +154,39 @@ export function useMobileRecycleBinRestoreFlow(props: {
 		[items, setItems, setSelectedIds],
 	)
 
+	const buildMoveTarget = useCallback(
+		(needMoveItemIds: string[], itemsSnapshot: RecycleBinItemData[]): RestoreTarget => {
+			const singleItem =
+				needMoveItemIds.length === 1
+					? itemsSnapshot.find((i) => i.id === needMoveItemIds[0])
+					: undefined
+			if (singleItem != null) {
+				return { kind: "item", item: mobileItemDataToDomain(singleItem) }
+			}
+			return { kind: "selection", itemIds: needMoveItemIds }
+		},
+		[],
+	)
+
+	const openRestorePicker = useCallback(
+		(
+			resourceType: ResourceType,
+			moveTarget: RestoreTarget,
+			noNeedMoveResourceIds: string[],
+		) => {
+			if (noNeedMoveResourceIds.length > 0 && isMovableResourceType(resourceType)) {
+				setPendingRestoreAfterMove(
+					resolvePendingRestore(resourceType, noNeedMoveResourceIds),
+				)
+			}
+			setRestorePickerTarget(moveTarget)
+			setRestorePickerResourceType(resourceType)
+			setRestorePickerWorkspaceId("")
+			setRestorePickerOpen(true)
+		},
+		[],
+	)
+
 	const openMoveAfterCheck = useCallback(
 		(
 			resourceType: ResourceType,
@@ -148,27 +194,19 @@ export function useMobileRecycleBinRestoreFlow(props: {
 			noNeedMoveResourceIds: string[],
 			itemsSnapshot: RecycleBinItemData[],
 		) => {
-			if (
-				noNeedMoveResourceIds.length > 0 &&
-				(resourceType === RESOURCE_TYPE.WORKSPACE ||
-					resourceType === RESOURCE_TYPE.PROJECT ||
-					resourceType === RESOURCE_TYPE.TOPIC)
-			) {
+			const moveTarget = buildMoveTarget(needMoveItemIds, itemsSnapshot)
+
+			if (canUseMobileRestorePicker(resourceType, needMoveItemIds)) {
+				openRestorePicker(resourceType, moveTarget, noNeedMoveResourceIds)
+				return
+			}
+
+			if (noNeedMoveResourceIds.length > 0 && isMovableResourceType(resourceType)) {
 				setPendingRestoreAfterMove(
 					resolvePendingRestore(resourceType, noNeedMoveResourceIds),
 				)
 			}
-			const singleItem =
-				needMoveItemIds.length === 1
-					? itemsSnapshot.find((i) => i.id === needMoveItemIds[0])
-					: undefined
-			const moveTarget: RestoreTarget =
-				singleItem != null
-					? { kind: "item", item: mobileItemDataToDomain(singleItem) }
-					: {
-							kind: "selection",
-							itemIds: needMoveItemIds,
-						}
+
 			if (resourceType === RESOURCE_TYPE.PROJECT) {
 				setMoveProjectTarget(moveTarget)
 				setMoveProjectModalOpen(true)
@@ -182,13 +220,10 @@ export function useMobileRecycleBinRestoreFlow(props: {
 				return
 			}
 			if (resourceType === RESOURCE_TYPE.FILE) {
-				setSelectPathTarget({ type: "file", target: moveTarget })
-				setSelectPathWorkspaceId("")
-				setSelectPathProjectId("")
-				setSelectPathModalOpen(true)
+				magicToast.info(t("mobile.recycleBin.restoreFileTip"))
 			}
 		},
-		[],
+		[buildMoveTarget, openRestorePicker, t],
 	)
 
 	const runRestoreDirect = useCallback(
@@ -213,7 +248,49 @@ export function useMobileRecycleBinRestoreFlow(props: {
 		[items, handleRestoreSuccess, t, setItems, setSelectedIds],
 	)
 
-	const executeCheckAndRestore = useCallback(
+	const applyCheckResult = useCallback(
+		async (
+			target: RestoreTarget,
+			resourceType: ResourceType,
+			needMoveItemIds: string[],
+			noNeedMoveResourceIds: string[],
+		) => {
+			const hasNeedMove = needMoveItemIds.length > 0
+
+			if (
+				hasNeedMove &&
+				noNeedMoveResourceIds.length > 0 &&
+				isMovableResourceType(resourceType)
+			) {
+				orphanMixedContextRef.current = {
+					resourceType,
+					needMoveItemIds,
+					noNeedMoveResourceIds,
+				}
+				setOrphanMixedNeedMoveIds(needMoveItemIds)
+				setOrphanMixedRestorableCount(noNeedMoveResourceIds.length)
+				setOrphanMixedOpen(true)
+				return
+			}
+
+			if (hasNeedMove) {
+				openMoveAfterCheck(resourceType, needMoveItemIds, noNeedMoveResourceIds, items)
+				return
+			}
+
+			if (noNeedMoveResourceIds.length === 0) return
+
+			restoreConfirmContextRef.current = {
+				resourceType,
+				resourceIds: noNeedMoveResourceIds,
+			}
+			setRestoreConfirmCount(noNeedMoveResourceIds.length)
+			setRestoreConfirmOpen(true)
+		},
+		[items, openMoveAfterCheck],
+	)
+
+	const runCheckAndBranch = useCallback(
 		async (target: RestoreTarget) => {
 			const plan = buildRestoreCheckPlan({ target, items: domainItems })
 			if (plan.status === "invalid") {
@@ -237,79 +314,46 @@ export function useMobileRecycleBinRestoreFlow(props: {
 				const needMoveResourceIds = toResourceIds(rawNeedMove)
 				const noNeedMoveResourceIds = toResourceIds(rawNoNeedMove)
 				const { needMoveItemIds } = resolveNeedMove(needMoveResourceIds, domainItems)
-				const hasNeedMove = needMoveItemIds.length > 0
 				const resourceType = plan.payload.resource_type
 
-				if (
-					hasNeedMove &&
-					noNeedMoveResourceIds.length > 0 &&
-					(resourceType === RESOURCE_TYPE.WORKSPACE ||
-						resourceType === RESOURCE_TYPE.PROJECT ||
-						resourceType === RESOURCE_TYPE.TOPIC)
-				) {
-					orphanMixedContextRef.current = {
-						resourceType,
-						needMoveItemIds,
-						noNeedMoveResourceIds,
-					}
-					setOrphanMixedOpen(true)
-					return
-				}
-
-				if (hasNeedMove) {
-					openMoveAfterCheck(resourceType, needMoveItemIds, noNeedMoveResourceIds, items)
-					return
-				}
-
-				if (noNeedMoveResourceIds.length === 0) return
-				await runRestoreDirect(resourceType, noNeedMoveResourceIds)
+				await applyCheckResult(target, resourceType, needMoveItemIds, noNeedMoveResourceIds)
 			} catch {
 				magicToast.error(t("operationFailed"))
 			}
 		},
-		[domainItems, items, openMoveAfterCheck, runRestoreDirect, t],
+		[domainItems, applyCheckResult, t],
 	)
 
-	const requestRestoreSelection = useCallback(() => {
+	const requestRestoreSelection = useCallback(async () => {
 		if (selectedIds.length === 0) return
-		setRestoreConfirmItemId(null)
-		setRestoreConfirmOpen(true)
-	}, [selectedIds.length])
+		const target: RestoreTarget = { kind: "selection", itemIds: selectedIds }
+		await runCheckAndBranch(target)
+	}, [selectedIds, runCheckAndBranch])
 
-	const requestRestoreSingle = useCallback((itemId: string) => {
-		setRestoreConfirmItemId(itemId)
-		setRestoreConfirmOpen(true)
-	}, [])
+	const requestRestoreSingle = useCallback(
+		async (itemId: string) => {
+			const row = domainItems.find((i) => i.id === itemId)
+			if (!row) return
+			const target: RestoreTarget = { kind: "item", item: row }
+			await runCheckAndBranch(target)
+		},
+		[domainItems, runCheckAndBranch],
+	)
 
 	const confirmRestore = useCallback(async () => {
-		const itemId = restoreConfirmItemId
+		const ctx = restoreConfirmContextRef.current
 		setRestoreConfirmOpen(false)
-		setRestoreConfirmItemId(null)
-
-		const target: RestoreTarget | null =
-			itemId != null
-				? (() => {
-						const row = domainItems.find((i) => i.id === itemId)
-						return row ? { kind: "item" as const, item: row } : null
-					})()
-				: { kind: "selection" as const, itemIds: selectedIds }
-
-		if (!target) return
-		await executeCheckAndRestore(target)
-	}, [restoreConfirmItemId, selectedIds, domainItems, executeCheckAndRestore])
-
-	const handleOrphanContinueToMove = useCallback(() => {
-		const ctx = orphanMixedContextRef.current
-		setOrphanMixedOpen(false)
-		if (!ctx) return
-		const { resourceType, needMoveItemIds, noNeedMoveResourceIds } = ctx
-		orphanMixedContextRef.current = null
-		openMoveAfterCheck(resourceType, needMoveItemIds, noNeedMoveResourceIds, items)
-	}, [items, openMoveAfterCheck])
+		setRestoreConfirmCount(0)
+		restoreConfirmContextRef.current = null
+		if (!ctx?.resourceIds.length) return
+		await runRestoreDirect(ctx.resourceType, ctx.resourceIds)
+	}, [runRestoreDirect])
 
 	const handleOrphanRestoreDirectOnly = useCallback(async () => {
 		const ctx = orphanMixedContextRef.current
 		setOrphanMixedOpen(false)
+		setOrphanMixedNeedMoveIds([])
+		setOrphanMixedRestorableCount(0)
 		orphanMixedContextRef.current = null
 		if (!ctx) return
 		const { resourceType, noNeedMoveResourceIds } = ctx
@@ -367,11 +411,14 @@ export function useMobileRecycleBinRestoreFlow(props: {
 
 	const handleMoveProject = useCallback(
 		async (workspaceId: string) => {
-			if (!moveProjectTarget) return
-			const projectIds = getMoveProjectIds({ target: moveProjectTarget, items: domainItems })
+			const target = moveProjectTarget ?? restorePickerTarget
+			if (!target) return
+			const projectIds = getMoveProjectIds({ target, items: domainItems })
 			if (projectIds.length === 0) {
 				setMoveProjectModalOpen(false)
 				setMoveProjectTarget(null)
+				setRestorePickerOpen(false)
+				setRestorePickerTarget(null)
 				return
 			}
 			try {
@@ -402,6 +449,8 @@ export function useMobileRecycleBinRestoreFlow(props: {
 				await runPendingRestoreAfterMove()
 				setMoveProjectModalOpen(false)
 				setMoveProjectTarget(null)
+				setRestorePickerOpen(false)
+				setRestorePickerTarget(null)
 			} catch {
 				magicToast.error(t("operationFailed"))
 			} finally {
@@ -410,6 +459,7 @@ export function useMobileRecycleBinRestoreFlow(props: {
 		},
 		[
 			moveProjectTarget,
+			restorePickerTarget,
 			domainItems,
 			t,
 			removeItemsByProjectIds,
@@ -420,11 +470,10 @@ export function useMobileRecycleBinRestoreFlow(props: {
 
 	const handleMoveTopic = useCallback(
 		async (targetProjectId: string) => {
-			if (!selectPathTarget || selectPathTarget.type !== "topic") return
-			const topicIds = getRestoreResourceIds({
-				target: selectPathTarget.target,
-				items: domainItems,
-			})
+			const restoreTarget: RestoreTarget | null =
+				selectPathTarget?.type === "topic" ? selectPathTarget.target : restorePickerTarget
+			if (!restoreTarget) return
+			const topicIds = getRestoreResourceIds({ target: restoreTarget, items: domainItems })
 			if (topicIds.length === 0) return
 			try {
 				if (topicIds.length === 1) {
@@ -455,18 +504,48 @@ export function useMobileRecycleBinRestoreFlow(props: {
 				setSelectPathTarget(null)
 				setSelectPathWorkspaceId("")
 				setSelectPathProjectId("")
+				setRestorePickerOpen(false)
+				setRestorePickerTarget(null)
 			} catch {
 				magicToast.error(t("operationFailed"))
 			}
 		},
 		[
 			selectPathTarget,
+			restorePickerTarget,
 			domainItems,
 			t,
 			removeItemsByResourceIds,
 			handleRestoreSuccess,
 			runPendingRestoreAfterMove,
 		],
+	)
+
+	const handleRestorePickerClose = useCallback(() => {
+		setRestorePickerOpen(false)
+		setRestorePickerTarget(null)
+		setRestorePickerWorkspaceId("")
+		setPendingRestoreAfterMove(null)
+	}, [])
+
+	const handleRestorePickerWorkspaceSelect = useCallback((workspaceId: string) => {
+		setRestorePickerWorkspaceId(workspaceId)
+		projectStore.loadProjectsForWorkspace(workspaceId).catch((error) => console.error(error))
+	}, [])
+
+	const handleRestorePickerConfirm = useCallback(
+		async (payload: { workspaceId: string; projectId?: string }) => {
+			if (!restorePickerTarget) return
+			if (restorePickerResourceType === RESOURCE_TYPE.PROJECT) {
+				await handleMoveProject(payload.workspaceId)
+				return
+			}
+			if (restorePickerResourceType === RESOURCE_TYPE.TOPIC && payload.projectId) {
+				setSelectPathTarget({ type: "topic", target: restorePickerTarget })
+				await handleMoveTopic(payload.projectId)
+			}
+		},
+		[restorePickerTarget, restorePickerResourceType, handleMoveProject, handleMoveTopic],
 	)
 
 	function handleSelectPathClose() {
@@ -477,17 +556,15 @@ export function useMobileRecycleBinRestoreFlow(props: {
 		setPendingRestoreAfterMove(null)
 	}
 
-	async function handleSelectPathSubmit(data: SelectPathSubmitPayload) {
+	async function handleSelectPathSubmit(payload: { targetProjectId: string }) {
 		if (selectPathTarget?.type === "topic") {
-			await handleMoveTopic(data.targetProjectId)
+			await handleMoveTopic(payload.targetProjectId)
 			return
 		}
 		if (selectPathTarget?.type === "file") {
 			magicToast.info(t("mobile.recycleBin.restoreFileTip"))
 			handleSelectPathClose()
-			return
 		}
-		handleSelectPathClose()
 	}
 
 	const selectPathSelectedWorkspace: Workspace | undefined = selectPathWorkspaceId
@@ -500,29 +577,55 @@ export function useMobileRecycleBinRestoreFlow(props: {
 					.find((p) => p.id === selectPathProjectId)
 			: undefined
 
+	const restorePickerProjects = restorePickerWorkspaceId
+		? projectStore.getProjectsByWorkspace(restorePickerWorkspaceId)
+		: []
+
+	const restorePickerItemTitle = useMemo(() => {
+		if (!restorePickerTarget) return ""
+		if (restorePickerTarget.kind === "item") return restorePickerTarget.item.title
+		const firstId = restorePickerTarget.itemIds[0]
+		const row = items.find((i) => i.id === firstId)
+		return row?.title ?? ""
+	}, [restorePickerTarget, items])
+
+	/** Prototype: sheet title is always「还原」, count only in body. */
 	const restoreConfirmTitle = useMemo(() => {
 		if (!restoreConfirmOpen) return ""
-		if (restoreConfirmItemId) {
-			const row = domainItems.find((i) => i.id === restoreConfirmItemId)
-			return row ? getRestoreModalTitle({ kind: "item", item: row }, t as TFunction) : ""
-		}
-		return getRestoreModalTitle({ kind: "selection", itemIds: selectedIds }, t as TFunction)
-	}, [restoreConfirmOpen, restoreConfirmItemId, domainItems, selectedIds, t])
+		return t("mobile.recycleBin.restoreConfirm.title")
+	}, [restoreConfirmOpen, t])
 
+	const restoreConfirmMessage = useMemo(() => {
+		if (!restoreConfirmOpen || restoreConfirmCount <= 0) return ""
+		return t("mobile.recycleBin.restoreConfirm.message", { count: restoreConfirmCount })
+	}, [restoreConfirmOpen, restoreConfirmCount, t])
+
+	const orphanMixedItems = useMemo(() => {
+		if (orphanMixedNeedMoveIds.length === 0) return []
+		const idSet = new Set(orphanMixedNeedMoveIds)
+		return items.filter((i) => idSet.has(i.id))
+	}, [orphanMixedNeedMoveIds, items])
+
+	const purgeConfirmCount = useMemo(() => {
+		if (!deleteTarget) return 0
+		return deleteTarget.kind === "item" ? 1 : deleteTarget.itemIds.length
+	}, [deleteTarget])
+
+	/** Prototype: fixed title「彻底删除」+ count in body only. */
 	const purgeConfirmTitle = useMemo(() => {
-		if (!deleteTarget) return ""
-		return getDeleteModalTitle(deleteTarget, t as TFunction)
-	}, [deleteTarget, t])
+		if (!purgeConfirmOpen) return ""
+		return t("mobile.recycleBin.purge.title")
+	}, [purgeConfirmOpen, t])
 
-	const purgeConfirmDescription = useMemo(() => {
-		if (!deleteTarget) return ""
-		return getDeleteModalDescription(deleteTarget, t as TFunction, (c) =>
-			getCategoryLabel(c, t as TFunction),
-		)
-	}, [deleteTarget, t])
+	const purgeConfirmMessage = useMemo(() => {
+		if (!purgeConfirmOpen || purgeConfirmCount <= 0) return ""
+		return t("mobile.recycleBin.purge.message", { count: purgeConfirmCount })
+	}, [purgeConfirmOpen, purgeConfirmCount, t])
 
 	const closeOrphanMixed = useCallback(() => {
 		orphanMixedContextRef.current = null
+		setOrphanMixedNeedMoveIds([])
+		setOrphanMixedRestorableCount(0)
 		setOrphanMixedOpen(false)
 	}, [])
 
@@ -533,7 +636,8 @@ export function useMobileRecycleBinRestoreFlow(props: {
 
 	const closeRestoreConfirm = useCallback(() => {
 		setRestoreConfirmOpen(false)
-		setRestoreConfirmItemId(null)
+		setRestoreConfirmCount(0)
+		restoreConfirmContextRef.current = null
 	}, [])
 
 	return {
@@ -548,15 +652,22 @@ export function useMobileRecycleBinRestoreFlow(props: {
 		setSelectPathProjectId,
 		selectPathSelectedWorkspace,
 		selectPathSelectedProject,
+		restorePickerOpen,
+		restorePickerWorkspaceId: restorePickerWorkspaceId,
+		restorePickerItemTitle,
+		restorePickerResourceType,
+		restorePickerProjects,
+		handleRestorePickerClose,
+		handleRestorePickerWorkspaceSelect,
+		handleRestorePickerConfirm,
 		purgeConfirmOpen,
-		setPurgeConfirmOpen,
 		deleteTarget,
 		restoreConfirmOpen,
-		setRestoreConfirmOpen,
 		restoreConfirmTitle,
-		restoreConfirmItemId,
+		restoreConfirmMessage,
 		orphanMixedOpen,
-		setOrphanMixedOpen,
+		orphanMixedItems,
+		orphanMixedRestorableCount,
 		requestRestoreSelection,
 		requestRestoreSingle,
 		confirmRestore,
@@ -572,8 +683,7 @@ export function useMobileRecycleBinRestoreFlow(props: {
 		handleSelectPathClose,
 		handleSelectPathSubmit,
 		purgeConfirmTitle,
-		purgeConfirmDescription,
-		handleOrphanContinueToMove,
+		purgeConfirmMessage,
 		handleOrphanRestoreDirectOnly,
 		closeOrphanMixed,
 		closePurgeConfirm,

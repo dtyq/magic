@@ -1,4 +1,5 @@
-import { memo, useEffect, useRef } from "react"
+import { useEffect, useRef } from "react"
+import { observer } from "mobx-react-lite"
 import { InfiniteScroll } from "antd-mobile"
 import { X, Check } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -10,6 +11,8 @@ import MoveProjectModal from "@/pages/superMagic/components/EmptyWorkspacePanel/
 import { projectStore, workspaceStore } from "@/pages/superMagic/stores/core"
 import SuperMagicService from "@/pages/superMagic/services"
 import RecycleBinItem from "./RecycleBinItem"
+import RecycleBinOrphanWarnSheet from "./RecycleBinOrphanWarnSheet"
+import MobileTrashRestorePickerSheet from "./MobileTrashRestorePickerSheet"
 import emptyStateIcon from "../../assets/svg/empty-state-icon.svg"
 import { useMobileRecycleBinList } from "../hooks/useMobileRecycleBinList"
 import { useMobileRecycleBinSelection } from "../hooks/useMobileRecycleBinSelection"
@@ -93,7 +96,12 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	})
 
 	useEffect(() => {
-		if (!restoreFlow.selectPathModalOpen && !restoreFlow.moveProjectModalOpen) return
+		if (
+			!restoreFlow.selectPathModalOpen &&
+			!restoreFlow.moveProjectModalOpen &&
+			!restoreFlow.restorePickerOpen
+		)
+			return
 		SuperMagicService.workspace
 			.fetchWorkspaces({
 				page: 1,
@@ -101,7 +109,11 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 				isSelectLast: false,
 			})
 			.catch((error) => console.error(error))
-	}, [restoreFlow.selectPathModalOpen, restoreFlow.moveProjectModalOpen])
+	}, [
+		restoreFlow.selectPathModalOpen,
+		restoreFlow.moveProjectModalOpen,
+		restoreFlow.restorePickerOpen,
+	])
 
 	useEffect(() => {
 		if (restoreFlow.selectPathTarget?.type !== "topic" || !restoreFlow.selectPathWorkspaceId)
@@ -110,6 +122,14 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 			.loadProjectsForWorkspace(restoreFlow.selectPathWorkspaceId)
 			.catch((error) => console.error(error))
 	}, [restoreFlow.selectPathTarget?.type, restoreFlow.selectPathWorkspaceId])
+
+	// Keep project list in sync when restore picker advances to the project step.
+	useEffect(() => {
+		if (!restoreFlow.restorePickerOpen || !restoreFlow.restorePickerWorkspaceId) return
+		projectStore
+			.loadProjectsForWorkspace(restoreFlow.restorePickerWorkspaceId)
+			.catch((error) => console.error(error))
+	}, [restoreFlow.restorePickerOpen, restoreFlow.restorePickerWorkspaceId])
 
 	const hasItems = filteredItems.length > 0
 	const isSearchActive = debouncedSearchValue.length > 0
@@ -240,7 +260,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 							onToggleAll={() =>
 								isAllSelected ? handleDeselectAll() : handleSelectAll()
 							}
-							onRestore={restoreFlow.requestRestoreSelection}
+							onRestore={() => void restoreFlow.requestRestoreSelection()}
 							onPurge={restoreFlow.requestPermanentDelete}
 						/>
 					</div>
@@ -268,18 +288,18 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 							type="button"
 							onClick={restoreFlow.closePurgeConfirm}
 							className="absolute left-[10px] top-1/2 flex size-12 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
-							aria-label={t("recycleBin.deleteModal.cancel")}
+							aria-label={t("mobile.recycleBin.purge.cancelAria")}
 						>
 							<X className="size-[22px] text-foreground" />
 						</button>
 						<SheetTitle className="max-w-[247px] truncate text-center text-[18px] font-semibold leading-none text-foreground">
-							{restoreFlow.purgeConfirmTitle || t("recycleBin.deleteModal.title")}
+							{restoreFlow.purgeConfirmTitle}
 						</SheetTitle>
 						<button
 							type="button"
 							onClick={() => void restoreFlow.confirmPermanentDelete()}
 							className="absolute right-[10px] top-1/2 flex size-12 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-destructive shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
-							aria-label={t("recycleBin.deleteModal.confirm")}
+							aria-label={t("mobile.recycleBin.purge.confirmAria")}
 						>
 							<Check className="size-[22px] text-white" strokeWidth={2.5} />
 						</button>
@@ -287,7 +307,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 
 					<div className="flex flex-col items-center px-4 pb-12 pt-2">
 						<p className="text-center text-[16px] leading-6 text-foreground">
-							{restoreFlow.purgeConfirmDescription}
+							{restoreFlow.purgeConfirmMessage}
 						</p>
 					</div>
 				</SheetContent>
@@ -314,7 +334,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 							type="button"
 							onClick={restoreFlow.closeRestoreConfirm}
 							className="absolute left-[10px] top-1/2 flex size-12 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
-							aria-label={t("common.cancel")}
+							aria-label={t("mobile.recycleBin.restoreConfirm.cancelAria")}
 						>
 							<X className="size-[22px] text-foreground" />
 						</button>
@@ -325,7 +345,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 							type="button"
 							onClick={() => void restoreFlow.confirmRestore()}
 							className="absolute right-[10px] top-1/2 flex size-12 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-primary shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
-							aria-label={t("common.confirm")}
+							aria-label={t("mobile.recycleBin.restoreConfirm.confirmAria")}
 						>
 							<Check
 								className="size-[22px] text-primary-foreground"
@@ -336,67 +356,34 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 
 					<div className="flex flex-col items-center px-4 pb-12 pt-2">
 						<p className="text-center text-[16px] leading-6 text-foreground">
-							{t("mobile.recycleBin.confirmRestore.subtitle")}
+							{restoreFlow.restoreConfirmMessage}
 						</p>
 					</div>
 				</SheetContent>
 			</Sheet>
 
-			{/* check 混合结果：部分可直接恢复、部分需先选路径 */}
-			<Sheet
+			<RecycleBinOrphanWarnSheet
 				open={restoreFlow.orphanMixedOpen}
-				onOpenChange={(open) => !open && restoreFlow.closeOrphanMixed()}
-			>
-				<SheetContent
-					side="bottom"
-					showClose={false}
-					aria-describedby={undefined}
-					className="flex h-auto max-h-[85vh] flex-col gap-0 overflow-hidden rounded-t-[14px] border-0 bg-muted p-0"
-					style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
-					data-testid="mobile-recycle-bin-orphan-mixed-sheet"
-				>
-					<div className="flex w-full shrink-0 flex-col items-center py-[6px]">
-						<div className="h-1 w-20 rounded-full bg-muted-foreground/40" aria-hidden />
-					</div>
-					<div className="flex flex-col gap-3 px-4 pb-6 pt-2">
-						<SheetTitle className="text-center text-[18px] font-semibold leading-6 text-foreground">
-							{t("mobile.recycleBin.orphanMixed.title")}
-						</SheetTitle>
-						<p className="text-center text-[15px] leading-6 text-muted-foreground">
-							{t("mobile.recycleBin.orphanMixed.description")}
-						</p>
-						<div className="flex flex-col gap-2 pt-1">
-							<Button
-								type="button"
-								variant="default"
-								className="h-12 w-full rounded-xl"
-								data-testid="mobile-recycle-bin-orphan-choose-path"
-								onClick={restoreFlow.handleOrphanContinueToMove}
-							>
-								{t("mobile.recycleBin.orphanMixed.choosePath")}
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								className="h-12 w-full rounded-xl bg-card"
-								data-testid="mobile-recycle-bin-orphan-restore-direct"
-								onClick={() => void restoreFlow.handleOrphanRestoreDirectOnly()}
-							>
-								{t("mobile.recycleBin.orphanMixed.restoreDirectOnly")}
-							</Button>
-							<Button
-								type="button"
-								variant="ghost"
-								className="h-12 w-full rounded-xl"
-								data-testid="mobile-recycle-bin-orphan-cancel"
-								onClick={restoreFlow.closeOrphanMixed}
-							>
-								{t("common.cancel")}
-							</Button>
-						</div>
-					</div>
-				</SheetContent>
-			</Sheet>
+				orphanItems={restoreFlow.orphanMixedItems}
+				restorableCount={restoreFlow.orphanMixedRestorableCount}
+				onCancel={restoreFlow.closeOrphanMixed}
+				onRestoreOthers={() => void restoreFlow.handleOrphanRestoreDirectOnly()}
+			/>
+
+			<MobileTrashRestorePickerSheet
+				open={restoreFlow.restorePickerOpen}
+				itemTitle={restoreFlow.restorePickerItemTitle}
+				resourceType={restoreFlow.restorePickerResourceType}
+				workspaces={workspaceStore.workspaces}
+				projects={restoreFlow.restorePickerProjects}
+				isProjectsLoading={
+					Boolean(restoreFlow.restorePickerWorkspaceId) &&
+					projectStore.isLoadingWorkspace(restoreFlow.restorePickerWorkspaceId)
+				}
+				onWorkspaceSelect={restoreFlow.handleRestorePickerWorkspaceSelect}
+				onClose={restoreFlow.handleRestorePickerClose}
+				onConfirm={(payload) => void restoreFlow.handleRestorePickerConfirm(payload)}
+			/>
 
 			<MoveProjectModal
 				workspaces={workspaceStore.workspaces}
@@ -427,4 +414,4 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 	)
 }
 
-export default memo(RecycleBinContent)
+export default observer(RecycleBinContent)
