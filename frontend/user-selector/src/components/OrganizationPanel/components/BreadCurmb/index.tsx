@@ -41,7 +41,7 @@ interface CommonBreadCrumbProps extends Omit<Props, "organization"> {}
 export const CommonBreadCrumb = ({ selectedPath, onItemClick }: CommonBreadCrumbProps) => {
 	const [open, setOpen] = useState(false)
 	return (
-		<>
+		<TooltipProvider>
 			{selectedPath.length > ITEMS_TO_DISPLAY && (
 				<>
 					<BreadcrumbSeparator />
@@ -100,7 +100,7 @@ export const CommonBreadCrumb = ({ selectedPath, onItemClick }: CommonBreadCrumb
 					</Fragment>
 				)
 			})}
-		</>
+		</TooltipProvider>
 	)
 }
 
