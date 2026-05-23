@@ -1,28 +1,29 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { ProjectShareFloatingActionBar } from "../components/ProjectShareFloatingActionBar"
+import {
+	ProjectShareActionFooter,
+	ProjectShareScrollSpacer,
+} from "../components/ProjectShareFloatingActionBar"
 
-describe("ProjectShareFloatingActionBar", () => {
-	it("applies sticky layout and safe-area padding on the floating bar", () => {
+describe("ProjectShareScrollSpacer", () => {
+	it("renders scroll spacer for dual-action variant", () => {
+		render(<ProjectShareScrollSpacer variant="dual" testId="dual-bar" />)
+
+		expect(screen.getByTestId("dual-bar-scroll-spacer")).toBeInTheDocument()
+	})
+})
+
+describe("ProjectShareActionFooter", () => {
+	it("applies fixed footer layout and safe-area padding", () => {
 		render(
-			<ProjectShareFloatingActionBar testId="floating-bar">
+			<ProjectShareActionFooter testId="floating-bar">
 				<button type="button">Submit</button>
-			</ProjectShareFloatingActionBar>,
+			</ProjectShareActionFooter>,
 		)
 
 		const bar = screen.getByTestId("floating-bar")
-		expect(bar.className).toContain("sticky")
-		expect(bar.className).toContain("bottom-0")
+		expect(bar.className).toContain("shrink-0")
+		expect(bar.className).not.toContain("sticky")
 		expect(bar.className).toContain("safe-area-inset-bottom")
-	})
-
-	it("renders scroll spacer for dual-action variant", () => {
-		render(
-			<ProjectShareFloatingActionBar scrollSpacerVariant="dual" testId="dual-bar">
-				<button type="button">A</button>
-			</ProjectShareFloatingActionBar>,
-		)
-
-		expect(screen.getByTestId("dual-bar-scroll-spacer")).toBeInTheDocument()
 	})
 })

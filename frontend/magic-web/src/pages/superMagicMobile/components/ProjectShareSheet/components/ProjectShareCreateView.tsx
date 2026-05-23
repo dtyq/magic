@@ -14,14 +14,13 @@ import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { NodeType, type TreeNode } from "@dtyq/user-selector"
 import MemberDepartmentSelector from "@/components/business/MemberDepartmentSelector"
-import { Button } from "@/components/shadcn-ui/button"
 import { Input } from "@/components/shadcn-ui/input"
 import { Switch } from "@/components/shadcn-ui/switch"
 import { cn } from "@/lib/utils"
 import { ShareType } from "@/pages/superMagic/components/Share/types"
 import type { ProjectShareSheetController } from "../types"
 import SelectedFilesHierarchySection from "./SelectedFilesHierarchySection"
-import { ProjectShareFloatingActionBar } from "./ProjectShareFloatingActionBar"
+import { ProjectShareScrollSpacer } from "./ProjectShareFloatingActionBar"
 
 interface ProjectShareCreateViewProps {
 	controller: ProjectShareSheetController
@@ -374,20 +373,10 @@ export default function ProjectShareCreateView({ controller }: ProjectShareCreat
 				) : null}
 			</CardGroup>
 
-			<ProjectShareFloatingActionBar
-				scrollSpacerVariant="single"
+			<ProjectShareScrollSpacer
+				variant="single"
 				testId="project-share-sheet-create-floating-bar"
-			>
-				<Button
-					type="button"
-					className="h-12 w-full rounded-xl bg-[#171717] text-[16px] font-medium text-white hover:bg-[#171717] active:opacity-80"
-					disabled={controller.saving || controller.isCheckingShare}
-					onClick={controller.submitCreateShare}
-					data-testid="project-share-sheet-create-submit-button"
-				>
-					{controller.saving ? t("common.saving") : t("projectShare.createLink")}
-				</Button>
-			</ProjectShareFloatingActionBar>
+			/>
 
 			{controller.memberSelectorOpen && (
 				<MemberDepartmentSelector

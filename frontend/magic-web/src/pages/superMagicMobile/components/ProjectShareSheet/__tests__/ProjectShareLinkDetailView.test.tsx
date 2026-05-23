@@ -2,7 +2,20 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { ResourceType, ShareMode, ShareType } from "@/pages/superMagic/components/Share/types"
 import ProjectShareLinkDetailView from "../components/ProjectShareLinkDetailView"
+import { ProjectShareSheetFooter } from "../components/ProjectShareSheetFooter"
 import type { ProjectShareSheetController } from "../types"
+
+/**
+ * Renders detail content and the fixed sheet footer together, matching production layout.
+ */
+function renderLinkDetailWithFooter(controller: ProjectShareSheetController) {
+	return render(
+		<>
+			<ProjectShareLinkDetailView controller={controller} />
+			<ProjectShareSheetFooter controller={controller} />
+		</>,
+	)
+}
 
 vi.mock("@/pages/superMagic/components/ShareManagement/utils/shareTypeHelpers", async () => {
 	const actual = await vi.importActual<
@@ -133,15 +146,15 @@ describe("ProjectShareLinkDetailView", () => {
 			"复制密码",
 		)
 		expect(screen.queryByTestId("project-share-sheet-edit-button")).not.toBeInTheDocument()
-		expect(screen.getByTestId("project-share-sheet-delete-button")).toHaveTextContent(
-			"删除链接",
-		)
+		expect(
+			screen.getByTestId("project-share-sheet-detail-floating-bar-scroll-spacer"),
+		).toBeInTheDocument()
 	})
 
 	it("点击详情页底部删除按钮进入删除确认视图", () => {
 		const controller = createController()
 
-		render(<ProjectShareLinkDetailView controller={controller} />)
+		renderLinkDetailWithFooter(controller)
 		fireEvent.click(screen.getByTestId("project-share-sheet-delete-button"))
 
 		expect(controller.goToDeleteConfirm).toHaveBeenCalled()

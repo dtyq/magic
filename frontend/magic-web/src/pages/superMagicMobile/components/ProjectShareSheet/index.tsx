@@ -6,6 +6,7 @@ import ProjectShareDeleteConfirmView from "./components/ProjectShareDeleteConfir
 import ProjectShareExpiryView from "./components/ProjectShareExpiryView"
 import ProjectShareLinkDetailView from "./components/ProjectShareLinkDetailView"
 import ProjectShareManageView from "./components/ProjectShareManageView"
+import { ProjectShareSheetFooter } from "./components/ProjectShareSheetFooter"
 import ProjectShareSheetHeader from "./components/ProjectShareSheetHeader"
 import { useProjectShareSheet } from "./hooks/useProjectShareSheet"
 import type { ProjectShareSheetProps } from "./types"
@@ -51,22 +52,25 @@ export default function ProjectShareSheet(props: ProjectShareSheetProps) {
 						controller={controller}
 						projectName={props.projectName}
 					/>
-					<div className="scrollbar-y-thin relative min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
-						{controller.view === "create" ? (
-							<ProjectShareCreateView controller={controller} />
-						) : null}
-						{controller.view === "manage" ? (
-							<ProjectShareManageView controller={controller} />
-						) : null}
-						{controller.view === "linkDetail" ? (
-							<ProjectShareLinkDetailView controller={controller} />
-						) : null}
-						{controller.view === "expiry" ? (
-							<ProjectShareExpiryView controller={controller} />
-						) : null}
-						{controller.view === "deleteConfirm" ? (
-							<ProjectShareDeleteConfirmView controller={controller} />
-						) : null}
+					<div className="flex min-h-0 flex-1 flex-col">
+						<div className="scrollbar-y-thin relative min-h-0 flex-1 overflow-y-auto px-3.5 pt-2.5">
+							{controller.view === "create" ? (
+								<ProjectShareCreateView controller={controller} />
+							) : null}
+							{controller.view === "manage" ? (
+								<ProjectShareManageView controller={controller} />
+							) : null}
+							{controller.view === "linkDetail" ? (
+								<ProjectShareLinkDetailView controller={controller} />
+							) : null}
+							{controller.view === "expiry" ? (
+								<ProjectShareExpiryView controller={controller} />
+							) : null}
+							{controller.view === "deleteConfirm" ? (
+								<ProjectShareDeleteConfirmView controller={controller} />
+							) : null}
+						</div>
+						<ProjectShareSheetFooter controller={controller} />
 					</div>
 				</div>
 			</CommonPopup>

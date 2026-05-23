@@ -110,11 +110,9 @@ describe("ProjectShareCreateView", () => {
 		consoleErrorSpy.mockRestore()
 	})
 
-	it("uses floating action bar with dedicated safe-area padding", () => {
+	it("reserves scroll space for the fixed sheet footer", () => {
 		render(<ProjectShareCreateView controller={createController()} />)
 
-		const bar = screen.getByTestId("project-share-sheet-create-floating-bar")
-		expect(bar.className).toContain("pb-[max(var(--safe-area-inset-bottom),16px)]")
 		expect(
 			screen.getByTestId("project-share-sheet-create-floating-bar-scroll-spacer"),
 		).toBeInTheDocument()
