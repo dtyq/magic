@@ -2,6 +2,7 @@ import { useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn, useUpdateEffect } from "ahooks"
 import { SuperMagicApi } from "@/apis"
+import SuperMagicService from "@/pages/superMagic/services"
 import type {
 	CollaborationProjectType,
 	CreatedProject,
@@ -36,30 +37,34 @@ export function useProjectActions({
 		setProjects(currentProjects || [])
 	}, [currentProjects])
 
-	const handleRenameProject = useMemoizedFn((project: ProjectListItem, workspaceId: string) => {
-		if (!project?.project_name || !workspaceId) {
-			magicToast.error(t("hierarchicalWorkspacePopup.projectNameRequired"))
-			return
-		}
+	const handleRenameProject = useMemoizedFn(
+		async (project: ProjectListItem, workspaceId: string) => {
+			const trimmedName = project?.project_name?.trim()
+			if (!trimmedName || !workspaceId) {
+				magicToast.error(t("hierarchicalWorkspacePopup.projectNameRequired"))
+				return
+			}
 
-		SuperMagicApi.editProject({
-			id: project?.id,
-			project_name: project?.project_name,
-		}).then(() => {
-			magicToast.success(t("hierarchicalWorkspacePopup.renameSuccess"))
-			pubsub.publish(PubSubEvents.Update_Project_Name, project?.id, project?.project_name)
-			setProjects((prevProjects) => {
-				return prevProjects.map((p) => {
-					if (p.id !== project?.id) return p
-					return {
-						...p,
-						project_name: project?.project_name,
-					}
+			try {
+				await SuperMagicService.project.renameProject(project.id, trimmedName, workspaceId)
+				magicToast.success(t("hierarchicalWorkspacePopup.renameSuccess"))
+				pubsub.publish(PubSubEvents.Update_Project_Name, project.id, trimmedName)
+				setProjects((prevProjects) => {
+					return prevProjects.map((p) => {
+						if (p.id !== project.id) return p
+						return {
+							...p,
+							project_name: trimmedName,
+						}
+					})
 				})
-			})
-			setRenameModalVisible(false)
-		})
-	})
+				setRenameModalVisible(false)
+			} catch (error) {
+				console.error("重命名项目失败:", error)
+				magicToast.error(t("hierarchicalWorkspacePopup.renameFailed"))
+			}
+		},
+	)
 
 	const handleDeleteProject = useMemoizedFn(
 		async (

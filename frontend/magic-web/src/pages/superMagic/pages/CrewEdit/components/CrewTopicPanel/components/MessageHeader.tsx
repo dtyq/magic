@@ -35,6 +35,11 @@ import StatusIcon from "@/pages/superMagic/components/MessageHeader/components/S
 import TopicHistoryDropdown from "@/pages/superMagic/components/MessageHeader/components/TopicHistoryDropdown"
 import { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import { smartRenameTopic } from "@/pages/superMagic/services/topicRename"
+import {
+	renameTopicWithChatSync,
+	shouldSyncChatConversationName,
+	syncChatProjectNameOnly,
+} from "@/pages/superMagic/services/chatConversationNameSync"
 import usePaginatedTopics from "@/pages/superMagic/hooks/usePaginatedTopics"
 import TopicService from "@/pages/superMagic/services/topicService"
 import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
@@ -124,22 +129,18 @@ function MessageHeader({
 			return
 		}
 
-		// Call API to update topic name
 		if (selectedProject?.id) {
-			SuperMagicApi.editTopic({
-				topic_name: trimmedName,
-				id: selectedTopic.id,
-				project_id: selectedProject.id,
+			renameTopicWithChatSync({
+				project: selectedProject,
+				topicId: selectedTopic.id,
+				topicName: trimmedName,
 			})
 				.then(() => {
-					// Update store after successful API call
-					topicStore.updateTopicName(selectedTopic.id, trimmedName)
 					setIsRenaming(false)
 					magicToast.success(t("messageHeader.renameTopicSuccess"))
 				})
 				.catch((err: unknown) => {
 					console.error("Failed to rename topic:", err)
-					// Reset editing state on error
 					setIsRenaming(false)
 				})
 		} else {
@@ -169,6 +170,14 @@ function MessageHeader({
 			updateTopicName: topicStore.updateTopicName,
 		})
 		if (!topicName) return
+
+		if (selectedProject && shouldSyncChatConversationName(selectedProject)) {
+			await syncChatProjectNameOnly({
+				projectId: selectedProject.id,
+				name: topicName,
+			})
+		}
+
 		magicToast.success(t("messageHeader.renameTopicSuccess"))
 	})
 
@@ -239,22 +248,19 @@ function MessageHeader({
 				return
 			}
 
-			// Call API to update topic name
 			if (selectedProject?.id) {
-				SuperMagicApi.editTopic({
-					id: topicId,
-					topic_name: trimmedName,
-					project_id: selectedProject.id,
+				renameTopicWithChatSync({
+					project: selectedProject,
+					topicId,
+					topicName: trimmedName,
 				})
 					.then(() => {
-						topicStore.updateTopicName(topicId, trimmedName)
 						setEditingTopicId(null)
 						setEditingValue("")
 						magicToast.success(t("messageHeader.editTopicSuccess"))
 					})
 					.catch((err: unknown) => {
 						console.error("Failed to rename topic:", err)
-						// Reset editing state on error
 						setEditingTopicId(null)
 						setEditingValue("")
 					})

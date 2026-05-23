@@ -12,6 +12,7 @@ import pubsub, { PubSubEvents } from "@/utils/pubsub"
 import { isCollaborationWorkspace, SHARE_WORKSPACE_ID } from "../constants"
 import { useNoPermissionCollaborationProject } from "./useNoPermissionCollaborationProject"
 import magicToast from "@/components/base/MagicToaster/utils"
+import SuperMagicService from "@/pages/superMagic/services"
 
 export const enum COLLABORATION_TAB_KEY {
 	FROM_OTHER = "received",
@@ -254,11 +255,11 @@ export function useProjects({ selectedWorkspace, onWorkspaceStateChange }: UsePr
 		async ({ projectId, projectName, showMessage = true }: HandleRenameProjectParams) => {
 			try {
 				if (!selectedWorkspace || isCollaborationWorkspace(selectedWorkspace)) return
-				await SuperMagicApi.editProject({
-					id: projectId,
-					project_name: projectName,
-					project_description: "",
-				})
+				await SuperMagicService.project.renameProject(
+					projectId,
+					projectName,
+					selectedWorkspace.id,
+				)
 				await updateProjectName(projectId, projectName)
 				if (showMessage) {
 					magicToast.success(t("project.renameProjectSuccess"))

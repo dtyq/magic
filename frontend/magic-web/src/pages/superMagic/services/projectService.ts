@@ -8,6 +8,15 @@ import { CollaborationProjectType } from "../pages/Workspace/types"
 import { SHARE_WORKSPACE_ID, isOtherCollaborationProject } from "../constants"
 import { generateCollaborationProjectUrl } from "../utils/project"
 import { RequestConfig } from "@/apis/core/HttpClient"
+import {
+	shouldSyncChatConversationName,
+	syncChatConversationName,
+} from "./chatConversationNameSync"
+import {
+	ensureChatWorkspaceId,
+	getCachedChatWorkspaceId,
+} from "@/pages/superMagic/hooks/useChatWorkspace"
+import { topicStore } from "../stores/core"
 
 export interface FetchProjectsParams {
 	workspaceId: string
@@ -75,6 +84,20 @@ class ProjectService {
 
 		this.pendingRequests.set(key, promise)
 		return promise
+	}
+
+	/**
+	 * Resolves project metadata for rename: chat detail often only hydrates selectedProject, not flat projects[].
+	 */
+	private resolveProjectForRename(projectId: string): ProjectListItem | null {
+		const fromList = projectStore.projects.find((project) => project.id === projectId)
+		if (fromList) return fromList
+
+		if (projectStore.selectedProject?.id === projectId) {
+			return projectStore.selectedProject
+		}
+
+		return null
 	}
 
 	/**
@@ -248,13 +271,18 @@ class ProjectService {
 		})
 	}
 
-	renameProject = async (id: string, name: string, workspaceId: string): Promise<void> => {
+	renameProject = async (
+		id: string,
+		name: string,
+		workspaceId: string,
+		options?: { topicId?: string },
+	): Promise<void> => {
 		const operationId = `rename_${id}_${Date.now()}`
 		const requestKey = this.getRequestKey("renameProject", { id, name, workspaceId })
 
 		// Optimistic update: update project name immediately
 		this.saveSnapshot(operationId)
-		const originalProject = projectStore.projects.find((p) => p.id === id)
+		const originalProject = this.resolveProjectForRename(id)
 		if (originalProject) {
 			runInAction(() => {
 				projectStore.updateProject({
@@ -262,16 +290,42 @@ class ProjectService {
 					project_name: name,
 				})
 			})
+			const topicIdForOptimistic =
+				options?.topicId ??
+				(topicStore.selectedTopic?.project_id === id
+					? topicStore.selectedTopic.id
+					: undefined)
+			if (topicIdForOptimistic) {
+				topicStore.updateTopicName(topicIdForOptimistic, name)
+			}
 		}
 
 		// Await rename API so callers (e.g. chat list reload) do not race ahead of server state
 		return this.getOrCreateRequest(requestKey, async () => {
 			try {
-				await SuperMagicApi.editProject({
-					id,
-					project_name: name,
-					project_description: "",
-				})
+				let chatWorkspaceId = getCachedChatWorkspaceId()
+				if (!chatWorkspaceId) {
+					chatWorkspaceId = await ensureChatWorkspaceId()
+				}
+				if (shouldSyncChatConversationName(originalProject, chatWorkspaceId)) {
+					const topicId =
+						options?.topicId ??
+						(topicStore.selectedTopic?.project_id === id
+							? topicStore.selectedTopic.id
+							: undefined)
+					await syncChatConversationName({
+						projectId: id,
+						topicId,
+						name,
+						workspaceId,
+					})
+				} else {
+					await SuperMagicApi.editProject({
+						id,
+						project_name: name,
+						project_description: "",
+					})
+				}
 				this.updateProjects({ workspaceId }).catch((error) => {
 					console.error("后台刷新项目列表失败，失败原因：", error)
 				})

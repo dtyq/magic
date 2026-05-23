@@ -29,6 +29,18 @@ import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { SuperMagicApi } from "@/apis"
 import type { TopicStore } from "../stores/core/topic"
 import topicReadProgressService from "./topicReadProgressService"
+export {
+	syncChatConversationName,
+	resolveChatTopicId,
+	shouldSyncChatConversationName,
+	renameTopicWithChatSync,
+	syncChatProjectNameOnly,
+} from "./chatConversationNameSync"
+export type {
+	SyncChatConversationNameParams,
+	RenameTopicWithChatSyncParams,
+	SyncChatProjectNameOnlyParams,
+} from "./chatConversationNameSync"
 
 class SuperMagicService {
 	workspace: WorkspaceService

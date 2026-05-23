@@ -9,6 +9,7 @@ import routeManageService from "@/pages/superMagic/services/routeManageService"
 import { FetchTopicsParams } from "@/pages/superMagic/hooks/useTopics"
 import { SuperMagicApi } from "@/apis"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { renameTopicWithChatSync } from "@/pages/superMagic/services"
 
 interface UseTopicActionsParams {
 	currentTopics?: Topic[]
@@ -41,37 +42,42 @@ export function useTopicActions({
 	// }, [currentTopics])
 
 	const handleRenameTopic = useMemoizedFn(
-		(topic: Topic, workspace: Workspace, project: ProjectListItem) => {
+		async (topic: Topic, workspace: Workspace, project: ProjectListItem) => {
 			if (!topic || !workspace || !project) {
 				magicToast.error(t("hierarchicalWorkspacePopup.topicNameRequired"))
 				return
 			}
 
-			SuperMagicApi.editTopic({
-				id: topic?.id,
-				topic_name: topic?.topic_name,
-				// workspace_id: workspace?.id,
-				project_id: project?.id || "",
-			})
-				.then(() => {
-					magicToast.success(t("hierarchicalWorkspacePopup.renameSuccess"))
-					setRenameModalVisible(false)
-					setTopics((prevTopics) => {
-						return prevTopics.map((prevTopic) => {
-							if (prevTopic.id === topic?.id) {
-								return topic
-							}
-							return prevTopic
-						})
+			const trimmedName = topic.topic_name?.trim()
+			if (!trimmedName) {
+				magicToast.error(t("hierarchicalWorkspacePopup.topicNameRequired"))
+				return
+			}
+
+			try {
+				await renameTopicWithChatSync({
+					project,
+					topicId: topic.id,
+					topicName: trimmedName,
+				})
+				magicToast.success(t("hierarchicalWorkspacePopup.renameSuccess"))
+				setRenameModalVisible(false)
+				const updatedTopic = { ...topic, topic_name: trimmedName }
+				setTopics((prevTopics) => {
+					return prevTopics.map((prevTopic) => {
+						if (prevTopic.id === topic.id) {
+							return updatedTopic
+						}
+						return prevTopic
 					})
-					if (selectedTopic?.id === topic?.id) {
-						setSelectedTopic?.(topic)
-					}
 				})
-				.catch((err) => {
-					magicToast.error(t("hierarchicalWorkspacePopup.renameFailed"))
-					console.error("重命名话题失败:", err)
-				})
+				if (selectedTopic?.id === topic.id) {
+					setSelectedTopic?.(updatedTopic)
+				}
+			} catch (err) {
+				magicToast.error(t("hierarchicalWorkspacePopup.renameFailed"))
+				console.error("重命名话题失败:", err)
+			}
 		},
 	)
 

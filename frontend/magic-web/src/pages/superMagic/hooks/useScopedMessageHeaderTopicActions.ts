@@ -5,6 +5,7 @@ import type { MessageHeaderTopicActions } from "@/pages/superMagic/components/Me
 import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
 import type { TopicStore } from "@/pages/superMagic/stores/core/topic"
 import { normalizeTopicHistoryItem } from "@/pages/superMagic/utils/topicHistory"
+import { renameTopicWithChatSync } from "@/pages/superMagic/services"
 
 interface UseScopedMessageHeaderTopicActionsParams {
 	selectedProject: ProjectListItem | null
@@ -48,12 +49,11 @@ export function useScopedMessageHeaderTopicActions({
 		async ({ topicId, topicName }: { topicId: string; topicName: string }) => {
 			if (!selectedProject?.id) throw new Error("Missing project id")
 
-			await SuperMagicApi.editTopic({
-				id: topicId,
-				topic_name: topicName,
-				project_id: selectedProject.id,
+			await renameTopicWithChatSync({
+				project: selectedProject,
+				topicId,
+				topicName,
 			})
-			topicStore.updateTopicName(topicId, topicName)
 		},
 	)
 

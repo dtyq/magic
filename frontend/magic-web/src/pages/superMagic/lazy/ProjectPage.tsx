@@ -15,6 +15,7 @@ import {
 	ensureChatWorkspaceId,
 	getCachedChatWorkspaceId,
 } from "@/pages/superMagic/hooks/useChatWorkspace"
+import { isChatWorkspaceProject } from "@/pages/superMagic/utils/isChatWorkspaceProject"
 
 const ProjectPageDesktop = lazy(() => import("@/pages/superMagic/pages/ProjectPage/index.desktop"))
 const ProjectPageMobile = lazy(() => import("@/pages/superMagicMobile/pages/ProjectPage"))
@@ -39,13 +40,6 @@ function tryFetchProjectTopicsIfNeeded(project: ProjectListItem): void {
 		isAutoSelect: false,
 		page: 1,
 	})
-}
-
-function isChatWorkspaceProject(
-	project: Pick<ProjectListItem, "workspace_id"> | null | undefined,
-	chatWorkspaceId: string | null,
-): boolean {
-	return Boolean(project && chatWorkspaceId && project.workspace_id === chatWorkspaceId)
 }
 
 const ProjectPage = observer(() => {

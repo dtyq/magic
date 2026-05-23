@@ -396,6 +396,9 @@ export function useProjectListActions({
 					params.projectId,
 					params.projectName,
 					targetWorkspaceId,
+					isChatMode && selectedTopic?.project_id === params.projectId
+						? { topicId: selectedTopic.id }
+						: undefined,
 				)
 				magicToast.success(
 					t(isChatMode ? "chat.renameChatSuccess" : "project.renameProjectSuccess"),

@@ -37,6 +37,7 @@ import {
 import { TopicMode } from "../pages/Workspace/TopicMode"
 import { superMagicStore } from "../stores"
 import { smartRenameTopicIfUnnamed } from "./topicRename"
+import { shouldSyncChatConversationName, syncChatProjectNameOnly } from "./chatConversationNameSync"
 import { shouldClearEditorAfterSend } from "./messageSendEditorPolicy"
 
 const logger = Logger.createLogger("messageSendService")
@@ -490,7 +491,18 @@ class MessageSendService {
 		topicName: string
 		context?: SendRuntimeContext
 	}) {
-		if (topicName && project && !project.project_name) {
+		if (!topicName || !project) return
+
+		// Chat conversations: topic was already renamed by smartRenameTopic; mirror name on project.
+		if (shouldSyncChatConversationName(project)) {
+			void syncChatProjectNameOnly({
+				projectId: project.id,
+				name: topicName,
+			})
+			return
+		}
+
+		if (!project.project_name) {
 			const workspaceId =
 				(context?.workspaceId ?? context?.selectedWorkspace?.id ?? project.workspace_id) ||
 				""

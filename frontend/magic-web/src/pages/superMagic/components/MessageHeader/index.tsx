@@ -37,6 +37,10 @@ import { MessageHeaderHistoryControl } from "./components/MessageHeaderHistoryCo
 import { IconShare3 } from "@tabler/icons-react"
 import type { TopicStore } from "../../stores/core/topic"
 import { smartRenameTopic } from "../../services/topicRename"
+import {
+	shouldSyncChatConversationName,
+	syncChatProjectNameOnly,
+} from "../../services/chatConversationNameSync"
 import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
 interface TopicMutationSuccessOptions {
 	onSuccess?: () => Promise<void> | void
@@ -125,6 +129,14 @@ function useTopicHistoryPanelController({
 			updateTopicName: topicActions.updateTopicName,
 		})
 		if (!topicName) return
+
+		if (selectedProject && shouldSyncChatConversationName(selectedProject)) {
+			await syncChatProjectNameOnly({
+				projectId: selectedProject.id,
+				name: topicName,
+			})
+		}
+
 		magicToast.success(t("messageHeader.renameTopicSuccess"))
 	})
 
