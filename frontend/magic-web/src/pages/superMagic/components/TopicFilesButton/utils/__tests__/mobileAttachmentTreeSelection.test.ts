@@ -3,6 +3,7 @@ import type { AttachmentItem } from "../../hooks/types"
 import {
 	buildDeleteConfirmHierarchyFromAttachments,
 	collectDescendantFileKeys,
+	getAttachmentNodeSelectionState,
 	summarizeDeleteConfirmHierarchy,
 	toggleAttachmentSelection,
 } from "../mobileAttachmentTreeSelection"
@@ -28,6 +29,34 @@ function makeFolder(id: string, name: string, children: AttachmentItem[] = []): 
 }
 
 describe("mobileAttachmentTreeSelection", () => {
+	it("returns none/partial/all for non-empty folder descendant selection", () => {
+		const tree = [
+			makeFolder("folder-1", "Assets", [
+				makeFile("file-1", "a.txt", "Assets"),
+				makeFile("file-2", "b.txt", "Assets"),
+			]),
+		]
+		const folder = tree[0]
+
+		expect(getAttachmentNodeSelectionState(folder, new Set())).toBe("none")
+		expect(getAttachmentNodeSelectionState(folder, new Set(["file-1"]))).toBe("partial")
+		expect(getAttachmentNodeSelectionState(folder, new Set(["file-1", "file-2"]))).toBe("all")
+	})
+
+	it("returns none/all for file nodes", () => {
+		const file = makeFile("file-1", "readme.md")
+		expect(getAttachmentNodeSelectionState(file, new Set())).toBe("none")
+		expect(getAttachmentNodeSelectionState(file, new Set(["file-1"]))).toBe("all")
+	})
+
+	it("returns none/all for empty folders via folder key", () => {
+		const emptyFolder = makeFolder("empty-folder", "EmptyDir", [])
+		const folderKey = getAttachmentKey(emptyFolder)
+
+		expect(getAttachmentNodeSelectionState(emptyFolder, new Set())).toBe("none")
+		expect(getAttachmentNodeSelectionState(emptyFolder, new Set([folderKey]))).toBe("all")
+	})
+
 	it("cascades folder toggle to descendant file keys", () => {
 		const tree = [
 			makeFolder("folder-1", "Assets", [

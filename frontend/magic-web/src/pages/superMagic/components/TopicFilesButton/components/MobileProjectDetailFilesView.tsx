@@ -39,10 +39,11 @@ import {
 import {
 	collectAttachmentsBySelectedKeys,
 	collectCurrentViewSelectableKeys,
-	isAttachmentNodeSelected,
+	getAttachmentNodeSelectionState,
 	toggleAllInCurrentView,
 	toggleAttachmentSelection,
 } from "../utils/mobileAttachmentTreeSelection"
+import MobileFileSelectionCheckbox from "./MobileFileSelectionCheckbox"
 
 interface MobileProjectDetailFilesViewProps {
 	attachments: AttachmentItem[]
@@ -378,9 +379,13 @@ function MobileProjectDetailFilesView({
 		[attachments, selectedIds],
 	)
 
+	const selectedInViewCount = currentViewSelectableKeys.filter((key) =>
+		selectedIds.has(key),
+	).length
 	const isAllSelected =
 		currentViewSelectableKeys.length > 0 &&
-		currentViewSelectableKeys.every((key) => selectedIds.has(key))
+		selectedInViewCount === currentViewSelectableKeys.length
+	const isPartiallySelected = selectedInViewCount > 0 && !isAllSelected
 
 	// Search mode clears selection; folder navigation keeps cross-directory picks (prototype).
 	useEffect(() => {
@@ -767,25 +772,17 @@ function MobileProjectDetailFilesView({
 	}
 
 	const renderSelectionButton = (item: AttachmentItem) => {
-		const isSelected = isAttachmentNodeSelected(item, selectedIds)
+		const selectionState = getAttachmentNodeSelectionState(item, selectedIds)
+		const isFullySelected = selectionState === "all"
 
 		return (
-			<button
-				type="button"
+			<MobileFileSelectionCheckbox
+				state={selectionState}
 				onClick={() => toggleSelected(item)}
-				className="flex size-9 shrink-0 items-center justify-center rounded-full active:bg-foreground/[0.06]"
-				aria-label={
-					isSelected ? t("topicFiles.cancelSelect") : t("topicFiles.batchOperation")
+				ariaLabel={
+					isFullySelected ? t("topicFiles.cancelSelect") : t("topicFiles.batchOperation")
 				}
-			>
-				{isSelected ? (
-					<span className="flex size-[22px] items-center justify-center rounded-full bg-primary text-primary-foreground">
-						<Check className="size-3.5" strokeWidth={2.5} />
-					</span>
-				) : (
-					<span className="size-[22px] rounded-full border-2 border-muted-foreground/35" />
-				)}
-			</button>
+			/>
 		)
 	}
 
@@ -1015,6 +1012,7 @@ function MobileProjectDetailFilesView({
 				{hasSelection ? (
 					<MobileFilesSelectionBar
 						isAllSelected={isAllSelected}
+						isPartiallySelected={isPartiallySelected}
 						onToggleAll={handleToggleAll}
 						onDownload={canSelectionDownload ? handleSelectionDownload : undefined}
 						onShare={() => onBatchShare?.(selectedIds)}

@@ -1,11 +1,14 @@
-import { Check, Download, FolderSymlink, Share2, Trash2 } from "lucide-react"
+import { Download, FolderSymlink, Share2, Trash2 } from "lucide-react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
+import MobileFileSelectionCheckbox from "./MobileFileSelectionCheckbox"
+import type { AttachmentNodeSelectionState } from "../utils/mobileAttachmentTreeSelection"
 
 const SELECTION_BAR_SHADOW = "0px 8px 25px 0px rgba(0,0,0,0.10)" as const
 
 interface MobileFilesSelectionBarProps {
 	isAllSelected: boolean
+	isPartiallySelected?: boolean
 	onToggleAll: () => void
 	onDownload?: () => void
 	onShare?: () => void
@@ -40,8 +43,19 @@ function ActionIconButton(props: {
 	)
 }
 
+/** Map toolbar select-all flags to the shared tri-state checkbox model. */
+function getSelectAllState(
+	isAllSelected: boolean,
+	isPartiallySelected: boolean,
+): AttachmentNodeSelectionState {
+	if (isAllSelected) return "all"
+	if (isPartiallySelected) return "partial"
+	return "none"
+}
+
 function MobileFilesSelectionBar({
 	isAllSelected,
+	isPartiallySelected = false,
 	onToggleAll,
 	onDownload,
 	onShare,
@@ -49,6 +63,7 @@ function MobileFilesSelectionBar({
 	onDelete,
 }: MobileFilesSelectionBarProps) {
 	const { t } = useTranslation("super")
+	const selectAllState = getSelectAllState(isAllSelected, isPartiallySelected)
 
 	return (
 		<div
@@ -56,26 +71,24 @@ function MobileFilesSelectionBar({
 			data-testid="mobile-topic-files-selection-bar"
 		>
 			<div className="flex h-[44px] items-center gap-2">
-				<button
-					type="button"
-					onClick={onToggleAll}
-					className="flex h-full shrink-0 items-center gap-2 rounded-full bg-card px-4 active:opacity-70"
+				<div
+					className="flex h-full shrink-0 items-center gap-2 rounded-full bg-card pl-1 pr-4 active:opacity-70"
 					style={{ boxShadow: SELECTION_BAR_SHADOW }}
 					data-testid="mobile-topic-files-select-all"
 				>
-					<div
-						className={`flex size-[22px] items-center justify-center rounded-full transition-colors ${
-							isAllSelected ? "bg-primary" : "border-2 border-muted-foreground/35"
-						}`}
+					<MobileFileSelectionCheckbox
+						state={selectAllState}
+						onClick={onToggleAll}
+						aria-label={t("topicFiles.selectAll")}
+					/>
+					<button
+						type="button"
+						onClick={onToggleAll}
+						className="text-[15px] font-medium text-foreground active:opacity-70"
 					>
-						{isAllSelected ? (
-							<Check className="size-3.5 text-primary-foreground" strokeWidth={2.5} />
-						) : null}
-					</div>
-					<span className="text-[15px] font-medium text-foreground">
 						{t("topicFiles.selectAll")}
-					</span>
-				</button>
+					</button>
+				</div>
 
 				<div
 					className="flex h-full flex-1 items-center overflow-hidden rounded-full bg-card"

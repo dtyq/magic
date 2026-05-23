@@ -49,15 +49,37 @@ export function collectCurrentViewSelectableKeys(nodes: AttachmentItem[]): strin
 	return ids
 }
 
-/** Whether a node is considered selected for checkbox UI (matches prototype ChatFilesTreeView). */
-export function isAttachmentNodeSelected(item: AttachmentItem, selectedIds: Set<string>): boolean {
+/** Tri-state selection used by mobile folder/file checkbox UI. */
+export type AttachmentNodeSelectionState = "none" | "partial" | "all"
+
+/**
+ * Derive tri-state selection for checkbox UI.
+ * Non-empty folders can be partial when only some descendant file keys are selected.
+ */
+export function getAttachmentNodeSelectionState(
+	item: AttachmentItem,
+	selectedIds: Set<string>,
+): AttachmentNodeSelectionState {
 	const key = getAttachmentKey(item)
-	if (!item.is_directory) return selectedIds.has(key)
+
+	if (!item.is_directory) {
+		return selectedIds.has(key) ? "all" : "none"
+	}
 
 	const descendantFileKeys = collectDescendantFileKeys(item)
-	if (descendantFileKeys.length === 0) return selectedIds.has(key)
+	if (descendantFileKeys.length === 0) {
+		return selectedIds.has(key) ? "all" : "none"
+	}
 
-	return descendantFileKeys.length > 0 && descendantFileKeys.every((id) => selectedIds.has(id))
+	const selectedCount = descendantFileKeys.filter((id) => selectedIds.has(id)).length
+	if (selectedCount === 0) return "none"
+	if (selectedCount === descendantFileKeys.length) return "all"
+	return "partial"
+}
+
+/** Whether a node is fully selected (all descendants for non-empty folders). */
+export function isAttachmentNodeSelected(item: AttachmentItem, selectedIds: Set<string>): boolean {
+	return getAttachmentNodeSelectionState(item, selectedIds) === "all"
 }
 
 /** Toggle one file/folder in the cross-folder selection set. */
