@@ -77,6 +77,9 @@ const MOBILE_SHEET_MAX_HEIGHT = {
 
 const CHAT_SHEET_CARD_SHADOW = "0px 2px 8px 0px rgba(0,0,0,0.04)"
 
+/** Keep list row icons at the same pixel size as TopicFileIcon default (size-6). */
+const MOBILE_ATTACHMENT_ROW_ICON_SIZE = 24
+
 const FILE_TYPE_LABEL_KEYS = {
 	txt: "projectDetail.fileType.text",
 	md: "projectDetail.fileType.markdown",
@@ -461,12 +464,17 @@ function MobileProjectDetailFilesView({
 							findAttachmentInTree(id),
 						)}
 						typeFallback="custom"
-						size={16}
+						size={MOBILE_ATTACHMENT_ROW_ICON_SIZE}
 					/>
 				)
 			}
 
-			return <MagicFileIcon type={getAttachmentType(item) || item.file_extension} size={16} />
+			return (
+				<MagicFileIcon
+					type={getAttachmentType(item) || item.file_extension}
+					size={MOBILE_ATTACHMENT_ROW_ICON_SIZE}
+				/>
+			)
 		}
 
 		return (
