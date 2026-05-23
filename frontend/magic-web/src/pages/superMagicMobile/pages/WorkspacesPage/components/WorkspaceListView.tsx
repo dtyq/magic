@@ -17,13 +17,11 @@ import { useTranslation } from "react-i18next"
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { MobileShellIconButton } from "@/pages/superMagicMobile/components/MobileShell"
-import { cn } from "@/lib/utils"
 import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/SwipeActionRow"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 
 interface WorkspaceItemProps {
 	workspace: Workspace
-	isSelected: boolean
 	isOpen: boolean
 	onClick: () => void
 	onOpen: () => void
@@ -50,7 +48,6 @@ function isWorkspaceRunning(workspace: Workspace) {
  */
 function WorkspaceItem({
 	workspace,
-	isSelected,
 	isOpen,
 	onClick,
 	onOpen,
@@ -91,12 +88,8 @@ function WorkspaceItem({
 			data-testid={`workspace-item-${workspace.id}`}
 		>
 			{/* 行内容区：h-16 与 SwipeActionRow 外壳高度保持一致 */}
-			<div
-				className={cn(
-					"flex h-16 w-full items-center gap-2 rounded-lg px-3 transition-opacity",
-					isSelected && "bg-accent",
-				)}
-			>
+			{/* Mobile list rows keep a neutral background; selection state is not highlighted. */}
+			<div className="flex h-16 w-full items-center gap-2 rounded-lg px-3 transition-opacity">
 				<div className="flex size-9 shrink-0 flex-col items-center justify-center overflow-hidden rounded-[10px] bg-icon-workspace/[0.08]">
 					{running ? (
 						<Loader className="size-6 animate-spin text-icon-workspace" aria-hidden />
@@ -122,7 +115,6 @@ function WorkspaceItem({
 
 interface WorkspaceListViewProps {
 	workspaces: Workspace[]
-	selectedWorkspace: Workspace | null
 	isLoading: boolean
 	searchValue: string
 	debouncedSearchValue: string
@@ -148,7 +140,6 @@ interface WorkspaceListViewProps {
  */
 function WorkspaceListViewInner({
 	workspaces,
-	selectedWorkspace,
 	isLoading,
 	searchValue,
 	debouncedSearchValue,
@@ -296,7 +287,6 @@ function WorkspaceListViewInner({
 									<WorkspaceItem
 										key={workspace.id}
 										workspace={workspace}
-										isSelected={selectedWorkspace?.id === workspace.id}
 										isOpen={openItemId === workspace.id}
 										onClick={() => onSelectWorkspace(workspace)}
 										onOpen={() => setOpenItemId(workspace.id)}

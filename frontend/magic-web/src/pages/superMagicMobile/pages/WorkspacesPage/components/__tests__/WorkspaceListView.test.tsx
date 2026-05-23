@@ -55,7 +55,6 @@ describe("WorkspaceListView", () => {
 		render(
 			<WorkspaceListView
 				workspaces={[]}
-				selectedWorkspace={null}
 				isLoading={false}
 				searchValue=""
 				debouncedSearchValue=""

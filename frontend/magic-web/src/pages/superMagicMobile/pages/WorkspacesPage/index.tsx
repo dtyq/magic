@@ -17,7 +17,6 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 		filteredWorkspaces,
 		isWorkspaceEmpty,
 		isSearchEmpty,
-		selectedWorkspace,
 		moreSheetOpen,
 		moreSheetWorkspace,
 		closeMoreSheet,
@@ -39,7 +38,6 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 		<>
 			<WorkspaceListView
 				workspaces={filteredWorkspaces}
-				selectedWorkspace={selectedWorkspace}
 				isLoading={isLoading}
 				searchValue={searchValue}
 				debouncedSearchValue={debouncedSearchValue}
