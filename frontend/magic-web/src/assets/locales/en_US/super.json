@@ -1720,6 +1720,16 @@
 		"createFolderNameLabel": "Folder name",
 		"createFolderNamePlaceholder": "Enter folder name",
 		"createSection": "Create document",
+		"deleteConfirm": {
+			"emptyLabel": "Empty folder",
+			"fileCount": "{{count}} files",
+			"intro": "Permanently delete the following {{count}} items:",
+			"magicWarningMulti": "Your selection includes the .magic system folder. After deletion, some capabilities may stop working and this cannot be undone. Proceed with caution.",
+			"magicWarningSingle": "The .magic folder holds files required for core features. After deletion, some capabilities may stop working and this cannot be undone. Proceed with caution.",
+			"rootFiles": "{{count}} files",
+			"title": "Delete files",
+			"warning": "This action cannot be undone."
+		},
 		"emptyFolder": "Empty folder",
 		"fabFilesAria": "Add file or folder",
 		"fileItems": "{{count}} items",

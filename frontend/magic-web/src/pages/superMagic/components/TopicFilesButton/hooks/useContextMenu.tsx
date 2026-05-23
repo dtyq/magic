@@ -36,12 +36,10 @@ import {
 import { createFileMenuItems } from "../components/hooks/useFileMenuItems"
 import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
 import { normalizeMenuItems, type TopicFilesMenuItem } from "../utils/menu-items"
-import {
-	isMagicSystemFolder,
-	resolveSingleDeleteConfirmContentKey,
-} from "../utils/magic-system-folder"
+import { isMagicSystemFolder } from "../utils/magic-system-folder"
 import type { TreeNodeData } from "../utils/treeDataConverter"
 import { findNodePath } from "../utils/path-helper"
+import { getAttachmentKey } from "../utils/getAttachmentKey"
 import { useMobileDeleteConfirmSheet } from "./useMobileDeleteConfirmSheet"
 
 type MenuItem = TopicFilesMenuItem
@@ -98,6 +96,8 @@ interface UseContextMenuOptions {
 	isSelectMode?: boolean
 	/* 树形数据，用于检查父级节点 */
 	treeData?: TreeNodeData[]
+	/** Full attachment tree for mobile hierarchy delete confirmation */
+	attachments?: AttachmentItem[]
 }
 
 interface MapDownloadMenuToContextOptions {
@@ -202,13 +202,6 @@ function supportsFolderUpload(isMobile: boolean): boolean {
 	} catch {
 		return false
 	}
-}
-
-/**
- * 删除确认层与删除成功提示共用同一套文件名兜底，避免不同入口展示不一致或出现空标题。
- */
-function getAttachmentDisplayName(item: AttachmentItem): string {
-	return item.display_filename || item.file_name || item.filename || item.name || "Unknown Item"
 }
 
 /**
@@ -346,6 +339,7 @@ export function useContextMenu(options: UseContextMenuOptions) {
 		handleEnterMultiSelectMode,
 		isSelectMode = false,
 		treeData,
+		attachments = [],
 	} = options
 
 	// 获取文件夹路径 - 优先使用 relative_file_path,否则从树结构中计算
@@ -673,18 +667,10 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					onClick: () => {
 						const isFolder = Boolean(item.is_directory)
 						const isMagicFolder = Boolean(isFolder && isMagicSystemFolder(item))
-						const mobileContentKey = resolveSingleDeleteConfirmContentKey({
-							isFolder,
-							isMagicFolder,
-						})
 						if (isMobile) {
-							const itemDisplayName = getAttachmentDisplayName(item)
 							openDeleteConfirm({
-								title: isFolder
-									? t("topicFiles.contextMenu.deleteFolderTipMobile")
-									: t("topicFiles.contextMenu.deleteFileTipMobile"),
-								emphasisText: isMagicFolder ? t(mobileContentKey) : itemDisplayName,
-								descriptionText: isMagicFolder ? "" : t(mobileContentKey),
+								attachments,
+								selectedKeys: new Set([getAttachmentKey(item)]),
 								onConfirm: () => handleDeleteItem(item),
 								testIdPrefix: "topic-files-delete-confirm",
 							})
@@ -914,18 +900,10 @@ export function useContextMenu(options: UseContextMenuOptions) {
 					onClick: () => {
 						const isFolder = Boolean(item.is_directory)
 						const isMagicFolder = Boolean(isFolder && isMagicSystemFolder(item))
-						const mobileContentKey = resolveSingleDeleteConfirmContentKey({
-							isFolder,
-							isMagicFolder,
-						})
 						if (isMobile) {
-							const itemDisplayName = getAttachmentDisplayName(item)
 							openDeleteConfirm({
-								title: isFolder
-									? t("topicFiles.contextMenu.deleteFolderTipMobile")
-									: t("topicFiles.contextMenu.deleteFileTipMobile"),
-								emphasisText: isMagicFolder ? t(mobileContentKey) : itemDisplayName,
-								descriptionText: isMagicFolder ? "" : t(mobileContentKey),
+								attachments,
+								selectedKeys: new Set([getAttachmentKey(item)]),
 								onConfirm: () => handleDeleteItem(item),
 								testIdPrefix: "topic-files-delete-confirm",
 							})

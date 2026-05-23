@@ -11,6 +11,10 @@ import { useDuplicateFileHandler } from "./useDuplicateFileHandler"
 import { useMobileDeleteConfirmSheet } from "./useMobileDeleteConfirmSheet"
 import { useUploadWithModal } from "./useUploadWithModal"
 import { useMoveFile } from "./useMoveFile"
+import { collectFileIds } from "../utils/collectFileIds"
+import { getAttachmentKey } from "../utils/getAttachmentKey"
+import { buildDeleteConfirmHierarchyFromAttachments } from "../utils/mobileAttachmentTreeSelection"
+import { resolveMagicDeleteWarningVariant } from "../utils/magic-system-folder"
 
 interface UseProjectDetailFilesControllerOptions {
 	projectId?: string
@@ -62,17 +66,12 @@ export function useProjectDetailFilesController({
 		projectId,
 		attachments,
 		onMoveSuccess: async () => {
-			// 项目详情新文件页只认服务端最新树；移动成功后统一刷新附件树，再清理多选态。
 			await refreshAttachments?.()
 			setIsSelectMode(false)
 			setSelectionResetKey((prev) => prev + 1)
 		},
 	})
 
-	/**
-	 * 新文件页只保留路径字符串，因此这里需要在最新 attachments 树上重新解析父目录 ID，
-	 * 避免把子目录创建误写到根目录。
-	 */
 	const resolveParentIdFromPath = (parentPath?: string) => {
 		return getParentIdFromPath(attachments, parentPath)
 	}
@@ -88,6 +87,15 @@ export function useProjectDetailFilesController({
 		}
 
 		return candidate
+	}
+
+	const collectSelectedFileIds = (selectedKeys: Set<string>) => {
+		return collectFileIds({
+			items: attachments,
+			selectedItems: selectedKeys,
+			getItemId: getAttachmentKey,
+			includeFolderIds: true,
+		})
 	}
 
 	const createFile = async (
@@ -162,32 +170,30 @@ export function useProjectDetailFilesController({
 		}
 	}
 
-	const batchShare = (items: AttachmentItem[]) => {
-		const fileIds = items
-			.map((item) => item.file_id)
-			.filter((itemId): itemId is string => Boolean(itemId))
+	const batchShare = (selectedKeys: Set<string>) => {
+		const fileIds = collectSelectedFileIds(selectedKeys)
 		if (fileIds.length === 0) return
 		setShareFileIds(fileIds)
 		setShareModalVisible(true)
 	}
 
-	const batchDelete = async (items: AttachmentItem[]) => {
-		const fileIds = items
-			.map((item) => item.file_id)
-			.filter((itemId): itemId is string => Boolean(itemId))
+	const batchDelete = (selectedKeys: Set<string>) => {
+		const fileIds = collectSelectedFileIds(selectedKeys)
 		if (fileIds.length === 0) return
 
-		const containsFolders = items.some((item) => item.is_directory)
+		const selectedHierarchy = buildDeleteConfirmHierarchyFromAttachments(
+			attachments,
+			selectedKeys,
+		)
+		const magicWarningVariant = resolveMagicDeleteWarningVariant(
+			attachments,
+			selectedKeys,
+			getAttachmentKey,
+		)
+
 		openDeleteConfirm({
-			title: t("topicFiles.contextMenu.deleteBatchTipMobile"),
-			emphasisText: t("topicFiles.contextMenu.deleteBatchSubject", {
-				count: fileIds.length,
-			}),
-			descriptionText: t(
-				containsFolders
-					? "topicFiles.contextMenu.deleteBatchWithFoldersDescription"
-					: "topicFiles.contextMenu.deleteBatchDescription",
-			),
+			selectedHierarchy,
+			magicWarningVariant,
 			testIdPrefix: "project-detail-files-batch-delete-confirm",
 			onConfirm: async () => {
 				try {
@@ -209,15 +215,17 @@ export function useProjectDetailFilesController({
 		})
 	}
 
-	/** Clear mobile multi-select after batch actions complete (pairs with useBatchDownload.exitSelectMode). */
 	const resetMobileSelection = () => {
 		setSelectionResetKey((prev) => prev + 1)
 	}
 
-	const batchMove = (items: AttachmentItem[]) => {
-		const fileIds = items
-			.map((item) => item.file_id)
-			.filter((itemId): itemId is string => Boolean(itemId))
+	const batchMove = (selectedKeys: Set<string>) => {
+		const fileIds = collectSelectedFileIds(selectedKeys)
+		if (fileIds.length === 0) return
+		moveFileHook.openBatchMoveByFileIds(fileIds)
+	}
+
+	const batchMoveByFileIds = (fileIds: string[]) => {
 		if (fileIds.length === 0) return
 		moveFileHook.openBatchMoveByFileIds(fileIds)
 	}
@@ -245,6 +253,7 @@ export function useProjectDetailFilesController({
 		createFolder,
 		batchShare,
 		batchMove,
+		batchMoveByFileIds,
 		batchDelete,
 	}
 }

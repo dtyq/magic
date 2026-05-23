@@ -162,25 +162,13 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 		return selectedItems.size > 0
 	}, [selectedItems])
 
-	// 移动端批量删除统一走底部确认 sheet，并补齐 `.magic` 的风险提示。
+	// Mobile batch delete uses the hierarchy confirmation sheet (same as project-detail).
 	const handleMobileBatchDelete = async () => {
-		const containsFolders = hasSelectedFolders()
-		const touchesMagicFolder = hasMagicSystemFolderInDeletionSelection(
-			filteredFiles,
-			selectedItems,
-			getItemId,
-		)
-		const contentKey = resolveBatchDeleteConfirmContentKey({
-			containsFolders,
-			touchesMagicFolder,
-		})
+		const rootAttachments = attachments?.length ? attachments : filteredFiles
 
 		openDeleteConfirm({
-			title: t("topicFiles.contextMenu.deleteTip"),
-			emphasisText: t(contentKey, {
-				count: selectedItems.size,
-			}),
-			descriptionText: "",
+			attachments: rootAttachments,
+			selectedKeys: selectedItems,
 			onConfirm: handleBatchDelete,
 			testIdPrefix: "topic-files-batch-delete-confirm",
 		})

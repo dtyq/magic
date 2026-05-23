@@ -30,6 +30,20 @@ export function isMagicSystemFolder(item: AttachmentItem): boolean {
 	)
 }
 
+/** True when the node is `.magic` itself or any file/folder stored under a `.magic/` path. */
+export function isNodeUnderMagicSystemFolder(item: AttachmentItem): boolean {
+	if (isMagicSystemFolder(item)) return true
+
+	const pathCandidates = [item.relative_file_path, item.path]
+	for (const pathCandidate of pathCandidates) {
+		if (!pathCandidate) continue
+		const segments = pathCandidate.replace(/\\/g, "/").split("/").filter(Boolean)
+		if (segments.includes(MAGIC_FOLDER_NAME)) return true
+	}
+
+	return false
+}
+
 function subtreeContainsMagicFolder(node: AttachmentItem): boolean {
 	if (isMagicSystemFolder(node)) return true
 	if (!node.is_directory || !node.children?.length) return false
@@ -41,7 +55,8 @@ function subtreeContainsMagicFolder(node: AttachmentItem): boolean {
 
 /**
  * True when deleting the current selection implies removing `.magic`:
- * `.magic` is selected or a selected folder's subtree contains it.
+ * `.magic` is selected, a selected folder's subtree contains it, or any selected
+ * file/folder lives under a `.magic/` path (mobile cascade only stores descendant file ids).
  */
 export function hasMagicSystemFolderInDeletionSelection(
 	items: AttachmentItem[],
@@ -53,6 +68,7 @@ export function hasMagicSystemFolderInDeletionSelection(
 			const id = getItemId(node)
 			if (selectedItems.has(id)) {
 				if (subtreeContainsMagicFolder(node)) return true
+				if (isNodeUnderMagicSystemFolder(node)) return true
 			} else if (node.is_directory && node.children?.length) {
 				if (walk(node.children)) return true
 			}
@@ -60,6 +76,43 @@ export function hasMagicSystemFolderInDeletionSelection(
 		return false
 	}
 	return walk(items)
+}
+
+function findAttachmentByKey(
+	items: AttachmentItem[],
+	key: string,
+	getItemId: (item: AttachmentItem) => string,
+): AttachmentItem | undefined {
+	for (const node of items) {
+		if (getItemId(node) === key) return node
+		if (node.children?.length) {
+			const found = findAttachmentByKey(node.children, key, getItemId)
+			if (found) return found
+		}
+	}
+	return undefined
+}
+
+/**
+ * Pick mobile delete-sheet magic warning copy: single when selection is only under `.magic`,
+ * multi when `.magic` is mixed with other paths.
+ */
+export function resolveMagicDeleteWarningVariant(
+	attachments: AttachmentItem[],
+	selectedKeys: Set<string>,
+	getItemId: (item: AttachmentItem) => string,
+): "none" | "single" | "multi" {
+	if (!hasMagicSystemFolderInDeletionSelection(attachments, selectedKeys, getItemId)) {
+		return "none"
+	}
+
+	const hasSelectionOutsideMagic = [...selectedKeys].some((key) => {
+		const node = findAttachmentByKey(attachments, key, getItemId)
+		if (!node) return false
+		return !isNodeUnderMagicSystemFolder(node)
+	})
+
+	return hasSelectionOutsideMagic ? "multi" : "single"
 }
 
 interface SingleDeleteConfirmContentKeyParams {

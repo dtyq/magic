@@ -198,9 +198,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			allowEdit,
 			isInProject,
 			onBatchShareClick: (fileIds) => {
-				projectDetailFilesController.batchShare(
-					fileIds.map((fileId) => ({ file_id: fileId, source: 0 }) as AttachmentItem),
-				)
+				projectDetailFilesController.batchShare(new Set(fileIds))
 			},
 		})
 
@@ -339,9 +337,7 @@ const TopicFilesPanel = forwardRef<TopicFilesPanelRef, TopicFilesPanelProps>(
 			uploadFolder: handleCustomUploadFolder,
 			openBatchMoveByFileIds: (fileIds: string[]) => {
 				if (shouldUseProjectDetailMobileView) {
-					projectDetailFilesController.batchMove(
-						fileIds.map((fileId) => ({ file_id: fileId, source: 0 }) as AttachmentItem),
-					)
+					projectDetailFilesController.batchMoveByFileIds(fileIds)
 					return
 				}
 

@@ -3,7 +3,9 @@ import type { AttachmentItem } from "../../hooks/types"
 import {
 	hasMagicSystemFolderInDeletionSelection,
 	isMagicSystemFolder,
+	isNodeUnderMagicSystemFolder,
 	resolveBatchDeleteConfirmContentKey,
+	resolveMagicDeleteWarningVariant,
 	resolveSingleDeleteConfirmContentKey,
 } from "../magic-system-folder"
 
@@ -100,6 +102,102 @@ describe("hasMagicSystemFolderInDeletionSelection", () => {
 			},
 		]
 		expect(hasMagicSystemFolderInDeletionSelection(tree, new Set(["other"]), id)).toBe(false)
+	})
+
+	test("detects cascade-selected files under .magic without selecting folder id", () => {
+		const tree: AttachmentItem[] = [
+			{
+				file_id: "magic-dir",
+				is_directory: true,
+				name: ".magic",
+				children: [
+					{
+						file_id: "memory-dir",
+						is_directory: true,
+						name: "memory",
+						children: [
+							{
+								file_id: "mem-file",
+								is_directory: false,
+								name: "state.json",
+								relative_file_path: "/.magic/memory/state.json",
+							},
+						],
+					},
+					{
+						file_id: "cfg-file",
+						is_directory: false,
+						name: "config.json",
+						relative_file_path: "/.magic/config.json",
+					},
+				],
+			},
+		]
+		expect(hasMagicSystemFolderInDeletionSelection(tree, new Set(["mem-file"]), id)).toBe(true)
+		expect(hasMagicSystemFolderInDeletionSelection(tree, new Set(["cfg-file", "mem-file"]), id)).toBe(
+			true,
+		)
+		expect(hasMagicSystemFolderInDeletionSelection(tree, new Set(["magic-dir"]), id)).toBe(true)
+	})
+})
+
+describe("isNodeUnderMagicSystemFolder", () => {
+	test("file under .magic path is under magic subtree", () => {
+		const file: AttachmentItem = {
+			file_id: "f1",
+			is_directory: false,
+			name: "state.json",
+			relative_file_path: "/.magic/memory/state.json",
+		}
+		expect(isNodeUnderMagicSystemFolder(file)).toBe(true)
+	})
+
+	test("sibling folder outside .magic is not under magic subtree", () => {
+		const folder: AttachmentItem = {
+			file_id: "n1",
+			is_directory: true,
+			name: "Notes",
+			relative_file_path: "/Notes",
+		}
+		expect(isNodeUnderMagicSystemFolder(folder)).toBe(false)
+	})
+})
+
+describe("resolveMagicDeleteWarningVariant", () => {
+	const id = (x: AttachmentItem): string => x.file_id ?? ""
+
+	const magicTree: AttachmentItem[] = [
+		{
+			file_id: "magic-dir",
+			is_directory: true,
+			name: ".magic",
+			children: [
+				{
+					file_id: "f1",
+					is_directory: false,
+					name: "a.json",
+					relative_file_path: "/.magic/a.json",
+				},
+			],
+		},
+		{
+			file_id: "notes",
+			is_directory: true,
+			name: "Notes",
+			children: [{ file_id: "n1", is_directory: false, name: "readme.md" }],
+		},
+	]
+
+	test("returns none when selection does not touch .magic", () => {
+		expect(resolveMagicDeleteWarningVariant(magicTree, new Set(["n1"]), id)).toBe("none")
+	})
+
+	test("returns single when only files under .magic are selected", () => {
+		expect(resolveMagicDeleteWarningVariant(magicTree, new Set(["f1"]), id)).toBe("single")
+	})
+
+	test("returns multi when .magic contents are mixed with other folders", () => {
+		expect(resolveMagicDeleteWarningVariant(magicTree, new Set(["f1", "n1"]), id)).toBe("multi")
 	})
 })
 

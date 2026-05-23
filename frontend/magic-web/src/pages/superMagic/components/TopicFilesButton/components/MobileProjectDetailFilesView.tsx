@@ -31,6 +31,18 @@ import {
 	menuItemsIncludeNoWaterMarkDownload,
 	type MobileDownloadMenuItem,
 } from "../utils/build-single-file-download-menu"
+import {
+	getAttachmentDisplayName,
+	getAttachmentKey,
+	getVisibleAttachmentChildren,
+} from "../utils/getAttachmentKey"
+import {
+	collectAttachmentsBySelectedKeys,
+	collectCurrentViewSelectableKeys,
+	isAttachmentNodeSelected,
+	toggleAllInCurrentView,
+	toggleAttachmentSelection,
+} from "../utils/mobileAttachmentTreeSelection"
 
 interface MobileProjectDetailFilesViewProps {
 	attachments: AttachmentItem[]
@@ -52,9 +64,9 @@ interface MobileProjectDetailFilesViewProps {
 	onSelectedKeysChange?: (keys: Set<string>) => void
 	onBatchZipDownload?: () => void
 	batchDownloadLoading?: boolean
-	onBatchShare?: (items: AttachmentItem[]) => void
-	onBatchMove?: (items: AttachmentItem[]) => void
-	onBatchDelete?: (items: AttachmentItem[]) => void
+	onBatchShare?: (selectedKeys: Set<string>) => void
+	onBatchMove?: (selectedKeys: Set<string>) => void
+	onBatchDelete?: (selectedKeys: Set<string>) => void
 }
 
 interface CreateActionItem {
@@ -153,23 +165,6 @@ function normalizeFileExtension(fileExtension?: string): string {
 	return fileExtension?.replace(/^\./, "").toLowerCase() || ""
 }
 
-function getAttachmentKey(item: AttachmentItem): string {
-	return (
-		item.file_id ||
-		item.relative_file_path ||
-		item.path ||
-		`${item.parent_id || "root"}:${item.file_name || item.filename || item.name || "attachment"}`
-	)
-}
-
-function getAttachmentName(item: AttachmentItem): string {
-	return item.display_filename || item.file_name || item.filename || item.name || ""
-}
-
-function getVisibleChildren(item?: AttachmentItem): AttachmentItem[] {
-	return (item?.children || []).filter((child) => !child?.is_hidden)
-}
-
 function getNormalizedPathSegments(item: AttachmentItem): string[] {
 	const pathCandidates = [item.relative_file_path, item.path]
 
@@ -200,14 +195,14 @@ function collectSearchResults(
 	for (const node of nodes) {
 		if (node?.is_hidden) continue
 
-		const nodeName = getAttachmentName(node).toLowerCase()
+		const nodeName = getAttachmentDisplayName(node).toLowerCase()
 		const extension = normalizeFileExtension(node.file_extension)
 
 		if (node.is_directory) {
 			results.push(
-				...collectSearchResults(getVisibleChildren(node), keyword, [
+				...collectSearchResults(getVisibleAttachmentChildren(node), keyword, [
 					...pathParts,
-					getAttachmentName(node),
+					getAttachmentDisplayName(node),
 				]),
 			)
 			continue
@@ -248,7 +243,7 @@ function resolveAttachmentMagicVariant(item: AttachmentItem): TopicFileMagicVari
 		return undefined
 	}
 
-	const attachmentName = getAttachmentName(item).trim().toLowerCase()
+	const attachmentName = getAttachmentDisplayName(item).trim().toLowerCase()
 
 	if (item.is_directory) {
 		return MAGIC_CHILD_FOLDER_VARIANTS[attachmentName]
@@ -339,7 +334,7 @@ function MobileProjectDetailFilesView({
 			}
 
 			resolved.push(matchedItem)
-			currentLevel = getVisibleChildren(matchedItem)
+			currentLevel = getVisibleAttachmentChildren(matchedItem)
 		}
 
 		return resolved
@@ -350,7 +345,7 @@ function MobileProjectDetailFilesView({
 	const currentNodes = useMemo(() => {
 		return resolvedPathStack.length === 0
 			? attachments.filter((item) => !item?.is_hidden)
-			: getVisibleChildren(resolvedPathStack.at(-1))
+			: getVisibleAttachmentChildren(resolvedPathStack.at(-1))
 	}, [attachments, resolvedPathStack])
 	const folders = useMemo(() => currentNodes.filter((item) => item.is_directory), [currentNodes])
 	const files = useMemo(() => currentNodes.filter((item) => !item.is_directory), [currentNodes])
@@ -360,9 +355,6 @@ function MobileProjectDetailFilesView({
 		return collectSearchResults(attachments, searchValue)
 	}, [attachments, isSearching, searchValue])
 
-	/**
-	 * 当前底栏只作用于“当前视图”，因此勾选集合也只从当前展示节点里回推真实 AttachmentItem。
-	 */
 	const currentSelectableItems = useMemo(() => {
 		if (isSearching) {
 			return searchResults.map((result) => result.item)
@@ -371,17 +363,29 @@ function MobileProjectDetailFilesView({
 		return [...folders, ...files]
 	}, [files, folders, isSearching, searchResults])
 
-	const selectedItems = useMemo(() => {
-		return currentSelectableItems.filter((item) => selectedIds.has(getAttachmentKey(item)))
-	}, [currentSelectableItems, selectedIds])
+	const currentViewSelectableKeys = useMemo(() => {
+		if (isSearching) {
+			return searchResults.map((result) => getAttachmentKey(result.item))
+		}
+
+		return collectCurrentViewSelectableKeys(currentSelectableItems)
+	}, [currentSelectableItems, isSearching, searchResults])
+
+	const hasSelection = selectedIds.size > 0
+
+	const selectedItems = useMemo(
+		() => collectAttachmentsBySelectedKeys(attachments, selectedIds),
+		[attachments, selectedIds],
+	)
 
 	const isAllSelected =
-		currentSelectableItems.length > 0 &&
-		currentSelectableItems.every((item) => selectedIds.has(getAttachmentKey(item)))
+		currentViewSelectableKeys.length > 0 &&
+		currentViewSelectableKeys.every((key) => selectedIds.has(key))
 
+	// Search mode clears selection; folder navigation keeps cross-directory picks (prototype).
 	useEffect(() => {
 		setSelectedIds(new Set())
-	}, [pathStackKeys, searchValue, selectionResetKey])
+	}, [searchValue, selectionResetKey])
 
 	useEffect(() => {
 		// attachments 变化后如果当前路径里有目录被删除/移动，自动回退到仍然存在的有效路径。
@@ -390,8 +394,8 @@ function MobileProjectDetailFilesView({
 	}, [pathStackKeys.length, resolvedPathStack])
 
 	useEffect(() => {
-		onSelectionModeChange?.(selectedItems.length > 0)
-	}, [onSelectionModeChange, selectedItems.length])
+		onSelectionModeChange?.(hasSelection)
+	}, [hasSelection, onSelectionModeChange])
 
 	// Keep parent useBatchDownload.selectedItems in sync with local multi-select state.
 	useEffect(() => {
@@ -402,16 +406,7 @@ function MobileProjectDetailFilesView({
 	 * 切换选中态只影响新的移动端外观层，并通过回调通知页面隐藏底部输入区。
 	 */
 	const toggleSelected = (item: AttachmentItem) => {
-		const key = getAttachmentKey(item)
-		setSelectedIds((prev) => {
-			const next = new Set(prev)
-			if (next.has(key)) {
-				next.delete(key)
-			} else {
-				next.add(key)
-			}
-			return next
-		})
+		setSelectedIds((prev) => toggleAttachmentSelection(item, prev))
 	}
 
 	/**
@@ -430,12 +425,7 @@ function MobileProjectDetailFilesView({
 	 * 全选只覆盖当前目录或当前搜索结果，和原型的“当前视图全选”行为保持一致。
 	 */
 	const handleToggleAll = () => {
-		if (isAllSelected) {
-			setSelectedIds(new Set())
-			return
-		}
-
-		setSelectedIds(new Set(currentSelectableItems.map((item) => getAttachmentKey(item))))
+		setSelectedIds((prev) => toggleAllInCurrentView(currentViewSelectableKeys, prev))
 	}
 
 	/**
@@ -481,7 +471,7 @@ function MobileProjectDetailFilesView({
 			<TopicFileIcon
 				isDirectory={item.is_directory}
 				magicVariant={resolveAttachmentMagicVariant(item)}
-				hasChildren={getVisibleChildren(item).length > 0}
+				hasChildren={getVisibleAttachmentChildren(item).length > 0}
 				fileExtension={item.file_extension}
 			/>
 		)
@@ -559,7 +549,7 @@ function MobileProjectDetailFilesView({
 	}
 
 	function getFolderSecondaryText(item: AttachmentItem): string {
-		const childrenCount = getVisibleChildren(item).length
+		const childrenCount = getVisibleAttachmentChildren(item).length
 		if (childrenCount === 0) {
 			return t("projectDetail.emptyFolder")
 		}
@@ -777,7 +767,7 @@ function MobileProjectDetailFilesView({
 	}
 
 	const renderSelectionButton = (item: AttachmentItem) => {
-		const isSelected = selectedIds.has(getAttachmentKey(item))
+		const isSelected = isAttachmentNodeSelected(item, selectedIds)
 
 		return (
 			<button
@@ -830,7 +820,7 @@ function MobileProjectDetailFilesView({
 									"text-base font-medium",
 								)}
 							>
-								{getAttachmentName(item)}
+								{getAttachmentDisplayName(item)}
 							</p>
 							<p className="mt-0.5 text-sm leading-4 text-muted-foreground">
 								{getFolderSecondaryText(item)}
@@ -876,7 +866,7 @@ function MobileProjectDetailFilesView({
 									isChatSheetVariant ? "text-base font-medium" : "text-base",
 								)}
 							>
-								{getAttachmentName(item)}
+								{getAttachmentDisplayName(item)}
 							</p>
 							<p className="mt-0.5 truncate text-sm leading-4 text-muted-foreground">
 								{pathLabel || getFileSecondaryText(item)}
@@ -956,7 +946,7 @@ function MobileProjectDetailFilesView({
 								)}
 								onClick={() => handleNavigateTo(index)}
 							>
-								{getAttachmentName(item)}
+								{getAttachmentDisplayName(item)}
 							</button>
 						</div>
 					))}
@@ -1005,7 +995,7 @@ function MobileProjectDetailFilesView({
 				</MagicPullToRefresh>
 
 				{/* 添加按钮占据与原型一致的底栏上方位置；进入多选后隐藏，让底部操作区成为唯一主操作。 */}
-				{allowEdit && selectedItems.length === 0 && (
+				{allowEdit && !hasSelection && (
 					<Button
 						type="button"
 						size="icon"
@@ -1022,14 +1012,14 @@ function MobileProjectDetailFilesView({
 			</div>
 
 			<div className="relative shrink-0">
-				{selectedItems.length > 0 ? (
+				{hasSelection ? (
 					<MobileFilesSelectionBar
 						isAllSelected={isAllSelected}
 						onToggleAll={handleToggleAll}
 						onDownload={canSelectionDownload ? handleSelectionDownload : undefined}
-						onShare={() => onBatchShare?.(selectedItems)}
-						onMove={() => onBatchMove?.(selectedItems)}
-						onDelete={() => onBatchDelete?.(selectedItems)}
+						onShare={() => onBatchShare?.(selectedIds)}
+						onMove={() => onBatchMove?.(selectedIds)}
+						onDelete={() => onBatchDelete?.(selectedIds)}
 					/>
 				) : (
 					<MobileBottomSearchBar
@@ -1205,7 +1195,11 @@ function MobileProjectDetailFilesView({
 					setSingleDownloadTarget(null)
 				}}
 				mode="single"
-				title={singleDownloadTarget ? getAttachmentName(singleDownloadTarget) : undefined}
+				title={
+					singleDownloadTarget
+						? getAttachmentDisplayName(singleDownloadTarget)
+						: undefined
+				}
 				menuItems={singleDownloadMenuItems}
 				preloadWaterMarkFreeModal={preloadWaterMarkFreeModal}
 			/>

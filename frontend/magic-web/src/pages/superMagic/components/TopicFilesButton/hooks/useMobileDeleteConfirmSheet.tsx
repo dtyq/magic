@@ -1,82 +1,97 @@
-import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { useMemoizedFn } from "ahooks"
-import { Check, X } from "lucide-react"
-import { ReactNode, useState } from "react"
-import { useTranslation } from "react-i18next"
+import { useState } from "react"
+import type { AttachmentItem } from "./types"
+import { FilesDeleteConfirmSheet } from "../components/FilesDeleteConfirmSheet"
+import { getAttachmentKey } from "../utils/getAttachmentKey"
+import {
+	buildDeleteConfirmHierarchyFromAttachments,
+	type DeleteConfirmHierarchyGroup,
+} from "../utils/mobileAttachmentTreeSelection"
+import { resolveMagicDeleteWarningVariant } from "../utils/magic-system-folder"
 
-interface MobileDeleteConfirmConfig {
-	title: string
-	emphasisText: ReactNode
-	descriptionText: ReactNode
+interface MobileDeleteConfirmResolvedConfig {
+	selectedHierarchy: DeleteConfirmHierarchyGroup[]
+	magicWarningVariant: "none" | "single" | "multi"
 	onConfirm: () => void | Promise<void>
-	confirmAriaLabel?: string
-	cancelAriaLabel?: string
 	testIdPrefix?: string
 }
 
+/** Pre-built hierarchy payload (e.g. project-detail batch delete). */
+interface OpenMobileDeleteConfirmWithHierarchy extends MobileDeleteConfirmResolvedConfig {}
+
+/** Build hierarchy from attachment tree + selected keys (context menu / legacy mobile batch). */
+interface OpenMobileDeleteConfirmFromSelection {
+	attachments: AttachmentItem[]
+	selectedKeys: Set<string>
+	onConfirm: () => void | Promise<void>
+	testIdPrefix?: string
+}
+
+type OpenMobileDeleteConfirmParams =
+	| OpenMobileDeleteConfirmWithHierarchy
+	| OpenMobileDeleteConfirmFromSelection
+
+function isSelectionParams(
+	params: OpenMobileDeleteConfirmParams,
+): params is OpenMobileDeleteConfirmFromSelection {
+	return "selectedKeys" in params
+}
+
 /**
- * 统一承载移动端危险删除确认层，避免文件/项目等场景继续各自维护一套删除样式。
+ * Resolve display payload for the mobile delete sheet from either raw selection or pre-built hierarchy.
+ */
+function resolveDeleteConfirmConfig(
+	params: OpenMobileDeleteConfirmParams,
+): MobileDeleteConfirmResolvedConfig {
+	if (isSelectionParams(params)) {
+		const { attachments, selectedKeys, onConfirm, testIdPrefix } = params
+		return {
+			selectedHierarchy: buildDeleteConfirmHierarchyFromAttachments(
+				attachments,
+				selectedKeys,
+			),
+			magicWarningVariant: resolveMagicDeleteWarningVariant(
+				attachments,
+				selectedKeys,
+				getAttachmentKey,
+			),
+			onConfirm,
+			testIdPrefix,
+		}
+	}
+
+	return params
+}
+
+/**
+ * Mobile delete confirmation: hierarchy list + `.magic` warnings only (no legacy text-only sheet).
  */
 export function useMobileDeleteConfirmSheet() {
-	const { t } = useTranslation("super")
-	const [config, setConfig] = useState<MobileDeleteConfirmConfig | null>(null)
+	const [config, setConfig] = useState<MobileDeleteConfirmResolvedConfig | null>(null)
 
-	/**
-	 * 打开删除确认层，并把当前删除对象的文案与回调收敛到同一份状态里。
-	 */
-	const openDeleteConfirm = useMemoizedFn((nextConfig: MobileDeleteConfirmConfig) => {
-		setConfig(nextConfig)
+	/** Open the delete sheet; accepts either attachments+keys or pre-built hierarchy. */
+	const openDeleteConfirm = useMemoizedFn((params: OpenMobileDeleteConfirmParams) => {
+		setConfig(resolveDeleteConfirmConfig(params))
 	})
 
-	/**
-	 * 关闭删除确认层时同步清理上下文，避免下一次误复用上一次的文案。
-	 */
+	/** Close and clear sheet state so the next open does not reuse stale hierarchy. */
 	const closeDeleteConfirm = useMemoizedFn(() => {
 		setConfig(null)
 	})
 
-	/**
-	 * 仅在用户明确确认后才执行真正删除，执行完再收起确认层。
-	 */
-	const handleConfirmDelete = useMemoizedFn(async () => {
-		if (!config) return
-		await config.onConfirm()
-		closeDeleteConfirm()
-	})
-
 	const deleteConfirmNode = (
-		<MagicPopup
+		<FilesDeleteConfirmSheet
 			visible={Boolean(config)}
 			onClose={closeDeleteConfirm}
-			position="bottom"
-			title={config?.title || t("topicFiles.contextMenu.deleteTip")}
-			headerVariant="actionHeader"
-			headerTitle={config?.title}
-			headerLeadingAction={{
-				icon: <X className="size-[22px] text-foreground" />,
-				ariaLabel: config?.cancelAriaLabel || t("common.cancel"),
-				onClick: closeDeleteConfirm,
-				testId: config?.testIdPrefix ? `${config.testIdPrefix}-cancel` : undefined,
+			onConfirm={async () => {
+				if (!config) return
+				await config.onConfirm()
+				closeDeleteConfirm()
 			}}
-			headerTrailingAction={{
-				icon: <Check className="size-[22px] text-white" strokeWidth={2.5} />,
-				ariaLabel: config?.confirmAriaLabel || t("topicFiles.contextMenu.delete"),
-				onClick: () => {
-					void handleConfirmDelete()
-				},
-				tone: "destructive",
-				testId: config?.testIdPrefix ? `${config.testIdPrefix}-confirm` : undefined,
-			}}
-			bodyClassName="max-h-[80vh] p-0"
-		>
-			<div className="scrollbar-y-thin flex min-h-0 flex-col overflow-y-auto px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
-				{/* 删除态正文统一采用“主体强调 + 后果说明弱化”的排版，和项目删除保持一致。 */}
-				<p className="mx-auto max-w-[680px] text-left text-[16px] leading-6">
-					<span className="font-semibold text-foreground">{config?.emphasisText}</span>
-					<span className="text-muted-foreground"> {config?.descriptionText}</span>
-				</p>
-			</div>
-		</MagicPopup>
+			selectedHierarchy={config?.selectedHierarchy ?? []}
+			magicWarningVariant={config?.magicWarningVariant}
+			testIdPrefix={config?.testIdPrefix}
+		/>
 	)
 
 	return {

@@ -1722,6 +1722,16 @@
 		"createFolderNameLabel": "文件夹名",
 		"createFolderNamePlaceholder": "输入文件夹名",
 		"createSection": "新建文档",
+		"deleteConfirm": {
+			"emptyLabel": "空文件夹",
+			"fileCount": "{{count}} 个文件",
+			"intro": "将永久删除以下 {{count}} 个项目：",
+			"magicWarningMulti": "你选择删除的文件中包含 .magic 系统文件夹。删除后，部分功能及能力可能无法正常使用，且此操作不可撤销，请谨慎操作。",
+			"magicWarningSingle": ".magic 文件夹包含系统运行的关键文件。删除后，部分功能及能力可能无法正常使用，且此操作不可撤销，请谨慎操作。",
+			"rootFiles": "{{count}} 个文件",
+			"title": "删除文件",
+			"warning": "此操作无法撤销。"
+		},
 		"emptyFolder": "空文件夹",
 		"fabFilesAria": "添加文件或文件夹",
 		"fileItems": "{{count}} 个项目",

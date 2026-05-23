@@ -723,6 +723,7 @@ const TopicFilesCore = forwardRef<TopicFilesCoreRef, TopicFilesCoreProps>(functi
 		filterMenuItems,
 		filterBatchDownloadLayerMenuItems,
 		treeData,
+		attachments,
 	})
 
 	// 重置所有状态的方法
