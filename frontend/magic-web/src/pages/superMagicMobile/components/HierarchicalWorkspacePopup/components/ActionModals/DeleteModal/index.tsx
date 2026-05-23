@@ -55,7 +55,7 @@ function DeleteModal({
 				onClick: onCancel,
 			}}
 			headerTrailingAction={{
-				icon: <Check className="size-[22px] text-white" strokeWidth={2.5} />,
+				icon: <Check className="size-[22px] text-white" />,
 				ariaLabel: translations.confirm,
 				onClick: onOk,
 				tone: "destructive",

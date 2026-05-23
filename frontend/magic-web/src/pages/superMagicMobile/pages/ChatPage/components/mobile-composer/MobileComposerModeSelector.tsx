@@ -483,7 +483,7 @@ function MobileComposerModeSelectorComponent({
 						className="flex h-[min(640px,calc(100vh-var(--safe-area-inset-top)-var(--safe-area-inset-bottom)-44px))] min-h-0 w-full flex-col overflow-hidden bg-card"
 						data-testid="mobile-composer-mode-selector-model-popup"
 					>
-						<div className="relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
+						<div className="mobile-popup-action-header relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
 							<button
 								type="button"
 								onClick={handleBackToModeList}
@@ -577,7 +577,7 @@ function MobileComposerModeSelectorComponent({
 								: "mobile-composer-mode-selector-popup"
 						}
 					>
-						<div className="relative flex h-14 items-center justify-center">
+						<div className="mobile-popup-action-header relative flex h-14 items-center justify-center">
 							<button
 								type="button"
 								onClick={closeAllPanels}

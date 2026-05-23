@@ -107,7 +107,7 @@ function TopicFilesPopupComponent({
 				headerTitle={popupTitle}
 				headerSubtitle={popupSubtitle}
 				headerLeadingAction={{
-					icon: <X className="size-[22px]" strokeWidth={2} />,
+					icon: <X className="size-[22px]" />,
 					ariaLabel: t("common.close"),
 					onClick: () => onOpenChange(false),
 					testId: "topic-page-files-popup-close-button",

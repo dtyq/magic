@@ -289,7 +289,7 @@ export function useTopicListActions() {
 					onClick: () => setDeleteModalVisible(false),
 				}}
 				headerTrailingAction={{
-					icon: <Check className="size-[22px] text-white" strokeWidth={2.5} />,
+					icon: <Check className="size-[22px] text-white" />,
 					ariaLabel: t("common.confirm"),
 					onClick: handleDeleteConfirm,
 					tone: "destructive",

@@ -254,7 +254,7 @@ function LegacyProjectPage() {
 						aria-label={t("share.share")}
 						data-testid="project-detail-header-share-button"
 					>
-						<Share2 className="h-[22px] w-[22px]" strokeWidth={2} />
+						<Share2 className="h-[22px] w-[22px]" />
 					</Button>,
 					sharePortalTarget,
 				)}
@@ -272,7 +272,7 @@ function LegacyProjectPage() {
 						aria-label={t("projectDetail.moreAria")}
 						data-testid="project-detail-header-more-button"
 					>
-						<Ellipsis className="h-[22px] w-[22px]" strokeWidth={2} />
+						<Ellipsis className="h-[22px] w-[22px]" />
 					</Button>,
 					morePortalTarget,
 				)}

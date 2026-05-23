@@ -206,7 +206,7 @@ function MobileTrashRestorePickerSheet(props: MobileTrashRestorePickerSheetProps
 					<div className="h-1 w-20 rounded-full bg-muted-foreground/40" aria-hidden />
 				</div>
 
-				<div className="relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
+				<div className="mobile-popup-action-header relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
 					{step === "project" ? (
 						<button
 							type="button"
@@ -240,7 +240,7 @@ function MobileTrashRestorePickerSheet(props: MobileTrashRestorePickerSheetProps
 						style={{ boxShadow: HDR_SHADOW }}
 						aria-label={t("mobile.recycleBin.restorePicker.confirmAria")}
 					>
-						<Check className="size-[22px] text-primary-foreground" strokeWidth={2.5} />
+						<Check className="size-[22px] text-primary-foreground" />
 					</button>
 				</div>
 

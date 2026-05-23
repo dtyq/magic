@@ -1123,7 +1123,7 @@ function MobileProjectDetailFilesView({
 					testId: "project-detail-files-create-close-button",
 				}}
 				headerTrailingAction={{
-					icon: <Check className="size-[22px] text-white" strokeWidth={2.5} />,
+					icon: <Check className="size-[22px] text-white" />,
 					ariaLabel: t("confirm"),
 					onClick: () => {
 						void handleSubmitCreateDraft()

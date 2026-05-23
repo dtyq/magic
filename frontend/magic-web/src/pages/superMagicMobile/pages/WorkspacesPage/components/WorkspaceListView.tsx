@@ -197,7 +197,7 @@ function WorkspaceListViewInner({
 					onClick={onOpenCreateSheet}
 					testId="workspaces-page-new-button"
 				>
-					<Plus size={22} strokeWidth={2} />
+					<Plus size={22} />
 				</MobileShellIconButton>
 			</div>
 

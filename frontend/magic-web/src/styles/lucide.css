@@ -1,4 +1,19 @@
-/* 全局设置 lucide 的 svg 图标样式 */
+/* Global default for lucide icons — keep 1.5px; mobile headers override via scoped selectors below. */
 .lucide {
 	stroke-width: 1.5px;
+}
+
+/* Mobile primary page headers (see .mobile-page-header in index.css). */
+.mobile-page-header .lucide {
+	stroke-width: 2px;
+}
+
+/* Mobile popup / sheet action headers (MagicPopup actionHeader and aligned custom headers). */
+.mobile-popup-action-header .lucide {
+	stroke-width: 2px;
+}
+
+/* MagiClaw / Claw top bars that use a custom header shell instead of mobile-page-header. */
+.mobile-floating-page-header .lucide {
+	stroke-width: 2px;
 }

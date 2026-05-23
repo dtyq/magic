@@ -513,7 +513,7 @@ export function useProjectListActions({
 					onClick: () => setRenameModalVisible(false),
 				}}
 				headerTrailingAction={{
-					icon: <Check className="size-[22px]" strokeWidth={2.5} />,
+					icon: <Check className="size-[22px]" />,
 					ariaLabel: t("common.confirm"),
 					onClick: () => {
 						void handleRenameProject({
@@ -570,7 +570,7 @@ export function useProjectListActions({
 					onClick: () => setDeleteModalVisible(false),
 				}}
 				headerTrailingAction={{
-					icon: <Check className="size-[22px]" strokeWidth={2.5} />,
+					icon: <Check className="size-[22px]" />,
 					ariaLabel: t("common.confirm"),
 					onClick: () => {
 						void handleDeleteProject()

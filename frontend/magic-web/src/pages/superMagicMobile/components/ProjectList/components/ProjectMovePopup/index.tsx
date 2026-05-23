@@ -336,7 +336,7 @@ function MoveProjectPopup({
 				isSaveAsProjectMode && saveAsView === "workspaceSelect"
 					? undefined
 					: {
-							icon: <Check className="size-[22px]" strokeWidth={2.5} />,
+							icon: <Check className="size-[22px]" />,
 							ariaLabel: t("common.confirm"),
 							onClick: handleConfirm,
 							disabled: isConfirmDisabled,

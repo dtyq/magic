@@ -232,7 +232,7 @@ export function SharedProjectsView({
 					aria-label={t("common.back")}
 					data-testid="shared-projects-back-button"
 				>
-					<ChevronLeft className="size-[22px] text-foreground" strokeWidth={2} />
+					<ChevronLeft className="size-[22px] text-foreground" />
 				</button>
 
 				<p className="mobile-page-header-title">{t("sharedProjects.title")}</p>
@@ -246,7 +246,7 @@ export function SharedProjectsView({
 						data-testid="shared-projects-filter-trigger"
 					>
 						<span className="relative">
-							<ListFilter className="size-[22px] text-foreground" strokeWidth={2} />
+							<ListFilter className="size-[22px] text-foreground" />
 							{activeFilterCount > 0 ? (
 								<span
 									className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-[3px] text-[10px] font-bold leading-none text-primary-foreground"

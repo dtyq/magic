@@ -270,7 +270,7 @@ const MagicPopup = memo(
 										<DrawerHandle className="!h-1 !w-20 shrink-0 !rounded-full !bg-muted-foreground/40 !opacity-100 outline-none hover:!opacity-100 active:!opacity-100 [&>[data-vaul-handle-hitarea]]:h-6 [&>[data-vaul-handle-hitarea]]:w-24" />
 									</div>
 								)}
-								<div className="relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2 mb-3">
+								<div className="mobile-popup-action-header relative mb-3 flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
 									{renderHeaderActionButton(headerLeadingAction, "leading")}
 									<div className="flex min-w-0 flex-col items-center gap-0 text-center">
 										<div className="max-w-[247px] truncate text-[18px] font-medium leading-6 text-foreground">

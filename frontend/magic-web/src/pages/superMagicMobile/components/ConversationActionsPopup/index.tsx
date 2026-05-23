@@ -35,7 +35,7 @@ function ConversationActionsPopup({
 			headerTitle={title}
 			headerSubtitle={subtitle}
 			headerLeadingAction={{
-				icon: <X className="h-[22px] w-[22px]" strokeWidth={2} />,
+				icon: <X className="h-[22px] w-[22px]" />,
 				ariaLabel: t("common.close"),
 				onClick: onClose,
 				testId: "conversation-actions-close-button",

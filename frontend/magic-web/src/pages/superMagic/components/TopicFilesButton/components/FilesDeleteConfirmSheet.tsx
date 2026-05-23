@@ -94,7 +94,7 @@ export function FilesDeleteConfirmSheet({
 				testId: `${testIdPrefix}-cancel`,
 			}}
 			headerTrailingAction={{
-				icon: <Trash2 className="size-[22px] text-white" strokeWidth={1.8} />,
+				icon: <Trash2 className="size-[22px] text-white" />,
 				ariaLabel: t("topicFiles.contextMenu.delete"),
 				onClick: () => {
 					void handleConfirm()

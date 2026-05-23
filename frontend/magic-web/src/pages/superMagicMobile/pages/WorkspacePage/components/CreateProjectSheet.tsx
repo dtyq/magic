@@ -62,7 +62,7 @@ export function CreateProjectSheet({ isOpen, onClose, onCreate }: CreateProjectS
 				testId: "workspace-project-create-sheet-cancel",
 			}}
 			headerTrailingAction={{
-				icon: <Check className="size-[22px]" strokeWidth={2.5} />,
+				icon: <Check className="size-[22px]" />,
 				ariaLabel: t("common.confirm"),
 				onClick: () => {
 					void handleConfirm()

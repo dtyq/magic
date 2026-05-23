@@ -63,7 +63,7 @@ export default function ProjectShareSheetHeader({
 
 	return (
 		<div
-			className="relative flex h-14 shrink-0 items-center justify-center px-16 py-2"
+			className="mobile-popup-action-header relative flex h-14 shrink-0 items-center justify-center px-16 py-2"
 			data-testid="project-share-sheet-header"
 		>
 			<button
@@ -73,7 +73,7 @@ export default function ProjectShareSheetHeader({
 				aria-label={canGoBack ? t("common.back") : t("common.close")}
 				data-testid="project-share-sheet-back-button"
 			>
-				<X className="h-[22px] w-[22px]" strokeWidth={2} />
+				<X className="h-[22px] w-[22px]" />
 			</button>
 			<div className="flex min-w-0 flex-col items-center">
 				<div className="max-w-[247px] truncate text-center text-[18px] font-medium leading-6 text-foreground">
@@ -94,7 +94,7 @@ export default function ProjectShareSheetHeader({
 					aria-label={t("projectShare.manageTitle")}
 					data-testid="project-share-sheet-manage-button"
 				>
-					<Settings className="h-[22px] w-[22px]" strokeWidth={2} />
+					<Settings className="h-[22px] w-[22px]" />
 				</button>
 			) : null}
 			{controller.view === "deleteConfirm" ? (
@@ -105,7 +105,7 @@ export default function ProjectShareSheetHeader({
 					aria-label={t("common.confirm")}
 					data-testid="project-share-sheet-delete-confirm-button"
 				>
-					<Check className="h-[22px] w-[22px]" strokeWidth={2.5} />
+					<Check className="h-[22px] w-[22px]" />
 				</button>
 			) : null}
 		</div>

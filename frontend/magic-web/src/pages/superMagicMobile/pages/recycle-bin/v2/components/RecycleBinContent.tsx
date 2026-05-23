@@ -283,7 +283,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 						<div className="h-1 w-20 rounded-full bg-muted-foreground/40" aria-hidden />
 					</div>
 
-					<div className="relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
+					<div className="mobile-popup-action-header relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
 						<button
 							type="button"
 							onClick={restoreFlow.closePurgeConfirm}
@@ -301,7 +301,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 							className="absolute right-[10px] top-1/2 flex size-12 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-destructive shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
 							aria-label={t("mobile.recycleBin.purge.confirmAria")}
 						>
-							<Check className="size-[22px] text-white" strokeWidth={2.5} />
+							<Check className="size-[22px] text-white" />
 						</button>
 					</div>
 
@@ -329,7 +329,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 						<div className="h-1 w-20 rounded-full bg-muted-foreground/40" aria-hidden />
 					</div>
 
-					<div className="relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
+					<div className="mobile-popup-action-header relative flex h-14 w-full shrink-0 items-center justify-center px-16 py-2">
 						<button
 							type="button"
 							onClick={restoreFlow.closeRestoreConfirm}
@@ -347,10 +347,7 @@ function RecycleBinContent(props: RecycleBinContentProps) {
 							className="absolute right-[10px] top-1/2 flex size-12 shrink-0 -translate-y-1/2 items-center justify-center rounded-full bg-primary shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
 							aria-label={t("mobile.recycleBin.restoreConfirm.confirmAria")}
 						>
-							<Check
-								className="size-[22px] text-primary-foreground"
-								strokeWidth={2.5}
-							/>
+							<Check className="size-[22px] text-primary-foreground" />
 						</button>
 					</div>
 

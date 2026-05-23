@@ -413,7 +413,7 @@ function PreviewDetailPopup(props: PreviewDetailPopupProps, ref: Ref<PreviewDeta
 					hideHeader
 						? undefined
 						: {
-								icon: <X className="h-[22px] w-[22px]" strokeWidth={2} />,
+								icon: <X className="h-[22px] w-[22px]" />,
 								ariaLabel: t("common.close"),
 								onClick: handleClose,
 								testId: "file-preview-popup-close-button",

@@ -293,7 +293,7 @@ function MobileComposerAddSheet({
 					className="flex flex-col gap-2 overflow-hidden bg-muted"
 					data-testid="mobile-composer-add-sheet"
 				>
-					<div className="relative flex h-14 flex-row items-center justify-center">
+					<div className="mobile-popup-action-header relative flex h-14 flex-row items-center justify-center">
 						<button
 							type="button"
 							onClick={() => onOpenChange(false)}

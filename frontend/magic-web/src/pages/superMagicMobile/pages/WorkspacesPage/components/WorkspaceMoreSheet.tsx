@@ -163,7 +163,7 @@ export function WorkspaceMoreSheet({
 				headerTrailingAction={
 					isSubView
 						? {
-								icon: <Check className="size-[22px]" strokeWidth={2.5} />,
+								icon: <Check className="size-[22px]" />,
 								ariaLabel: t("common.confirm"),
 								onClick: () => {
 									void handleDelete()
@@ -232,7 +232,7 @@ export function WorkspaceMoreSheet({
 					onClick: handleRenameClose,
 				}}
 				headerTrailingAction={{
-					icon: <Check className="size-[22px]" strokeWidth={2.5} />,
+					icon: <Check className="size-[22px]" />,
 					ariaLabel: t("common.confirm"),
 					onClick: () => {
 						void handleRenameConfirm()
