@@ -17,7 +17,12 @@ import type {
 	SharedWorkspaceCreatorOption,
 	SharedWorkspaceProject,
 	SharedWorkspaceTab,
+	SharedWorkspaceTabState,
 } from "../types"
+import {
+	createInitialTabStateMap,
+	resolveSharedWorkspaceHasMore,
+} from "./shared-workspace-tab-state"
 
 const SHARED_WORKSPACE_PAGE_SIZE = 100
 
@@ -93,25 +98,53 @@ function deriveCreatorOptionsFromProjects(projects: SharedWorkspaceProject[]) {
 }
 
 /**
- * 共享工作区页面容器 Hook：集中管理真实协作项目请求、筛选降级与导航副作用。
+ * 共享工作区页面容器 Hook：按 Tab 分桶缓存列表，避免切换时串台与分页竞态。
  */
 export function useSharedWorkspacePage(): UseSharedWorkspacePageReturn {
 	const { t } = useTranslation("super")
 	const navigate = useNavigate()
-	const requestSeqRef = useRef(0)
+	const requestSeqByTabRef = useRef<Record<SharedWorkspaceTab, number>>({
+		sharedWithMe: 0,
+		sharedByMe: 0,
+	})
 	const [tab, setTab] = useState<SharedWorkspaceTab>("sharedWithMe")
 	const [searchValue, setSearchValue] = useState("")
 	const debouncedSearchValue = useDebounce(searchValue.trim(), { wait: 300 })
-	const [projects, setProjects] = useState<SharedWorkspaceProject[]>([])
-	const [total, setTotal] = useState(0)
-	const [isLoading, setIsLoading] = useState(false)
-	const [isLoadingMore, setIsLoadingMore] = useState(false)
-	const [currentPage, setCurrentPage] = useState(1)
+	const [tabState, setTabState] = useState(createInitialTabStateMap)
 	const [isFilterOpen, setIsFilterOpen] = useState(false)
 	const [selectedCreatorIds, setSelectedCreatorIds] = useState<string[]>([])
 	const [creatorOptions, setCreatorOptions] = useState<SharedWorkspaceCreatorOption[]>([])
 
 	const selectedCreatorKey = useMemo(() => selectedCreatorIds.join(","), [selectedCreatorIds])
+	const activeTabState = tabState[tab]
+	const { projects, total, isLoading, isLoadingMore } = activeTabState
+
+	/**
+	 * Patches one tab bucket without touching the other tab's cached list or pagination.
+	 */
+	const patchTabState = useMemoizedFn(
+		(
+			targetTab: SharedWorkspaceTab,
+			patch:
+				| Partial<SharedWorkspaceTabState>
+				| ((current: SharedWorkspaceTabState) => SharedWorkspaceTabState),
+		) => {
+			setTabState((prev) => {
+				const current = prev[targetTab]
+				const next = typeof patch === "function" ? patch(current) : { ...current, ...patch }
+				return { ...prev, [targetTab]: next }
+			})
+		},
+	)
+
+	/**
+	 * Bumps the per-tab request generation so stale loadProjects/loadMore callbacks are ignored.
+	 */
+	const bumpTabRequestSeq = useMemoizedFn((targetTab: SharedWorkspaceTab) => {
+		const nextSeq = requestSeqByTabRef.current[targetTab] + 1
+		requestSeqByTabRef.current[targetTab] = nextSeq
+		return nextSeq
+	})
 
 	/**
 	 * creators 接口仅用于“他人共享的”创建者筛选；失败时由列表数据兜底。
@@ -126,40 +159,44 @@ export function useSharedWorkspacePage(): UseSharedWorkspacePageReturn {
 	})
 
 	/**
-	 * 按当前 Tab 和已支持筛选条件请求协作项目，不发送未登记的排序或权限参数。
+	 * 按指定 Tab 和筛选条件请求协作项目，只写入对应 Tab 的状态桶。
 	 */
-	const loadProjects = useMemoizedFn(async () => {
-		const requestSeq = requestSeqRef.current + 1
-		requestSeqRef.current = requestSeq
-		setIsLoading(true)
+	const loadProjects = useMemoizedFn(async (targetTab: SharedWorkspaceTab = tab) => {
+		const requestSeq = bumpTabRequestSeq(targetTab)
+		patchTabState(targetTab, { isLoading: true })
 
 		try {
 			const response = await SuperMagicApi.getCollaborationProjects({
 				page: 1,
 				page_size: SHARED_WORKSPACE_PAGE_SIZE,
-				type: TAB_TO_COLLABORATION_TYPE[tab],
+				type: TAB_TO_COLLABORATION_TYPE[targetTab],
 				name: debouncedSearchValue || undefined,
 				sort_field: "updated_at",
 				sort_direction: "desc",
 				creator_user_ids:
-					tab === "sharedWithMe" && selectedCreatorIds.length > 0
+					targetTab === "sharedWithMe" && selectedCreatorIds.length > 0
 						? selectedCreatorIds
 						: undefined,
 			})
 
-			if (requestSeq !== requestSeqRef.current) return
+			if (requestSeq !== requestSeqByTabRef.current[targetTab]) return
 
-			setProjects(response.list as unknown as SharedWorkspaceProject[])
-			setTotal(response.total ?? response.list.length)
-			setCurrentPage(1)
+			patchTabState(targetTab, {
+				projects: response.list as unknown as SharedWorkspaceProject[],
+				total: response.total ?? response.list.length,
+				currentPage: 1,
+				isLoading: false,
+			})
 		} catch (error) {
-			if (requestSeq !== requestSeqRef.current) return
+			if (requestSeq !== requestSeqByTabRef.current[targetTab]) return
 
 			console.error("加载共享项目失败:", error)
-			setProjects([])
-			setTotal(0)
-		} finally {
-			if (requestSeq === requestSeqRef.current) setIsLoading(false)
+			patchTabState(targetTab, {
+				projects: [],
+				total: 0,
+				currentPage: 1,
+				isLoading: false,
+			})
 		}
 	})
 
@@ -172,12 +209,12 @@ export function useSharedWorkspacePage(): UseSharedWorkspacePageReturn {
 	}, [t])
 
 	useEffect(() => {
-		void loadProjects()
+		void loadProjects(tab)
 	}, [debouncedSearchValue, loadProjects, selectedCreatorKey, tab])
 
 	const derivedCreatorOptions = useMemo(
-		() => deriveCreatorOptionsFromProjects(projects),
-		[projects],
+		() => deriveCreatorOptionsFromProjects(tabState.sharedWithMe.projects),
+		[tabState.sharedWithMe.projects],
 	)
 	const availableCreators = creatorOptions.length > 0 ? creatorOptions : derivedCreatorOptions
 	const canShowFilter = tab === "sharedWithMe" && availableCreators.length > 0
@@ -198,7 +235,7 @@ export function useSharedWorkspacePage(): UseSharedWorkspacePageReturn {
 	})
 
 	/**
-	 * 切换 Tab 时重置筛选，避免“他人共享的”创建者条件误带到“我共享的”。
+	 * 切换 Tab 时重置筛选，并依赖分桶状态展示目标 Tab 自己的缓存/加载态。
 	 */
 	const handleTabChange = useMemoizedFn((nextTab: SharedWorkspaceTab) => {
 		if (nextTab === tab) return
@@ -238,42 +275,60 @@ export function useSharedWorkspacePage(): UseSharedWorkspacePageReturn {
 	})
 
 	/**
-	 * 加载下一页协作项目并追加到现有列表，搜索/筛选态下禁止调用。
+	 * 加载下一页协作项目并追加到当前 Tab 桶，搜索/筛选或首屏加载中禁止调用。
 	 */
 	const loadMore = useMemoizedFn(async () => {
-		// 搜索/筛选态不分页，保持单次全量请求行为
-		if (debouncedSearchValue || selectedCreatorIds.length > 0 || isLoadingMore) return
-		const nextPage = currentPage + 1
-		setIsLoadingMore(true)
-		const requestSeq = requestSeqRef.current
+		const targetTab = tab
+		const { isLoading: tabIsLoading, isLoadingMore: tabIsLoadingMore } = tabState[targetTab]
+
+		if (
+			debouncedSearchValue ||
+			selectedCreatorIds.length > 0 ||
+			tabIsLoadingMore ||
+			tabIsLoading
+		)
+			return
+
+		const nextPage = tabState[targetTab].currentPage + 1
+		const requestSeq = requestSeqByTabRef.current[targetTab]
+		patchTabState(targetTab, { isLoadingMore: true })
 
 		try {
 			const response = await SuperMagicApi.getCollaborationProjects({
 				page: nextPage,
 				page_size: SHARED_WORKSPACE_PAGE_SIZE,
-				type: TAB_TO_COLLABORATION_TYPE[tab],
+				type: TAB_TO_COLLABORATION_TYPE[targetTab],
 				sort_field: "updated_at",
 				sort_direction: "desc",
 			})
 
-			if (requestSeq !== requestSeqRef.current) return
+			if (requestSeq !== requestSeqByTabRef.current[targetTab]) return
 
-			setProjects((prev) => [
-				...prev,
-				...(response.list as unknown as SharedWorkspaceProject[]),
-			])
-			setTotal(response.total ?? total)
-			setCurrentPage(nextPage)
+			patchTabState(targetTab, (current) => ({
+				...current,
+				projects: [
+					...current.projects,
+					...(response.list as unknown as SharedWorkspaceProject[]),
+				],
+				total: response.total ?? current.total,
+				currentPage: nextPage,
+				isLoadingMore: false,
+			}))
 		} catch (error) {
+			if (requestSeq !== requestSeqByTabRef.current[targetTab]) return
+
 			console.error("加载更多共享项目失败:", error)
-		} finally {
-			setIsLoadingMore(false)
+			patchTabState(targetTab, { isLoadingMore: false })
 		}
 	})
 
-	// 是否还有更多项目（搜索/筛选态禁用）
-	const hasMore =
-		!debouncedSearchValue && selectedCreatorIds.length === 0 && projects.length < total
+	const hasMore = resolveSharedWorkspaceHasMore({
+		projectsLength: projects.length,
+		total,
+		isLoading,
+		isLoadingMore,
+		hasActiveSearchOrFilter,
+	})
 
 	return {
 		tab,
@@ -290,7 +345,7 @@ export function useSharedWorkspacePage(): UseSharedWorkspacePageReturn {
 		availableCreators,
 		activeFilterCount,
 		total,
-		loadProjects,
+		loadProjects: () => loadProjects(tab),
 		hasMore,
 		loadMore,
 		openFilterSheet: () => setIsFilterOpen(true),
