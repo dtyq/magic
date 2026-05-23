@@ -570,7 +570,20 @@ class RouteManageService {
 			return
 		}
 
-		const { projectId: param_projectId } = this.getCurrentRouteParams()
+		const targetTopicId = topicId || undefined
+		const currentParams = this.getCurrentRouteParams()
+		const currentRouteName = this.getCurrentMatchedRouteName()
+		const isAlreadyOnTargetChatRoute =
+			currentRouteName === RouteName.SuperChatProjectState &&
+			currentParams.projectId === project.id &&
+			(currentParams.topicId || undefined) === targetTopicId
+
+		// Avoid stacking duplicate history entries for the same chat URL.
+		if (isAlreadyOnTargetChatRoute && !replace) {
+			return
+		}
+
+		const { projectId: param_projectId } = currentParams
 
 		let viewTransition: boolean | ViewTransitionConfig = {
 			direction: "left",
@@ -587,19 +600,25 @@ class RouteManageService {
 		WorkspaceStateCache.set(userInfo, {
 			workspaceId,
 			projectId: project.id,
-			topicId: topicId || null,
+			topicId: targetTopicId || null,
 		})
 		UserWorkspaceMapCache.set(userInfo, workspaceId)
-		if (topicId) ProjectTopicMapCache.set(userInfo, project.id, topicId)
+		if (targetTopicId) ProjectTopicMapCache.set(userInfo, project.id, targetTopicId)
+
+		const shouldReplace =
+			replace === true ||
+			(currentRouteName === RouteName.SuperChatProjectState &&
+				currentParams.projectId === project.id &&
+				!isAlreadyOnTargetChatRoute)
 
 		this.safeNavigate({
 			name: this.getRouteName(RouteName.SuperChatProjectState),
 			params: {
 				projectId: project.id,
-				topicId,
+				topicId: targetTopicId,
 			},
 			viewTransition,
-			replace,
+			replace: shouldReplace,
 		})
 	}
 

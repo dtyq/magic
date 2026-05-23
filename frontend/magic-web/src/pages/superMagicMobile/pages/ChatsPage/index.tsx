@@ -3,11 +3,7 @@ import { useMemo, useState } from "react"
 import { useBoolean, useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
 import { useSuperMobileShellOutlet } from "@/pages/superMagicMobile/components/MobileShell/SuperMobileShellRouteLayout"
-import useNavigate from "@/routes/hooks/useNavigate"
-import { RouteName } from "@/routes/constants"
 import { MobileOnlyRoute } from "@/routes/components/ViewportRouteGuard"
-import { routesMatch } from "@/routes/history/helpers"
-import { baseHistory } from "@/routes/history"
 import magicToast from "@/components/base/MagicToaster/utils"
 import SuperMagicService from "@/pages/superMagic/services"
 import { roleStore } from "@/pages/superMagic/stores"
@@ -27,7 +23,6 @@ import { ChatConversationListView } from "./components/ChatConversationListView"
 const ChatsPagePanel = observer(function ChatsPagePanel() {
 	const { t } = useTranslation(["super", "common", "sidebar"])
 	const { openSidebar } = useSuperMobileShellOutlet()
-	const navigate = useNavigate()
 	const { createProjectInChatWorkspace } = useChatWorkspace()
 	const {
 		items,
@@ -43,30 +38,6 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 		optimisticRemove,
 	} = useChatConversationList()
 	const currentRole = roleStore.currentRole
-
-	/**
-	 * 业务页兜底：当公共路由服务在重挂载空窗期未完成跳转时，
-	 * 仅在 ChatsPage 内补一次目标会话路由，避免出现“请求成功但页面不跳”。
-	 */
-	const ensureNavigateToChatProject = useMemoizedFn((projectId: string, topicId?: string) => {
-		const matchedRoute = routesMatch(baseHistory.location.pathname)
-		const currentProjectId = matchedRoute?.params?.projectId
-		const currentTopicId = matchedRoute?.params?.topicId
-
-		if (
-			matchedRoute?.route.name === RouteName.SuperChatProjectState &&
-			currentProjectId === projectId &&
-			currentTopicId === topicId
-		) {
-			return
-		}
-
-		navigate({
-			name: RouteName.SuperChatProjectState,
-			params: { projectId, topicId },
-			viewTransition: false,
-		})
-	})
 
 	/**
 	 * 与对话详情页使用完全相同的参数调用 useProjectListActions，确保操作项（label/行为）严格一致。
@@ -167,7 +138,6 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 	 */
 	const handleOpenConversation = useMemoizedFn(async (item: ChatConversationListItem) => {
 		await SuperMagicService.switchChatProject(item.project)
-		ensureNavigateToChatProject(item.project.id, item.project.current_topic_id || undefined)
 	})
 
 	/**
@@ -186,7 +156,6 @@ const ChatsPagePanel = observer(function ChatsPagePanel() {
 
 			await reload()
 			await SuperMagicService.switchChatProject(createdProject.project, createdProject.topic)
-			ensureNavigateToChatProject(createdProject.project.id, createdProject.topic.id)
 		} catch {
 			magicToast.error(t("super:hierarchicalWorkspacePopup.createProjectFailed"))
 		}
