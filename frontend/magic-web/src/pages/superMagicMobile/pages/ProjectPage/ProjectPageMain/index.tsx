@@ -1,8 +1,7 @@
 import { memo, useMemo, useState } from "react"
-import { ChevronRight, Ellipsis, Loader, MessageCircle, Pin, PinOff, Trash2 } from "lucide-react"
+import { ChevronRight, Ellipsis, Pin, PinOff, Trash2 } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import type { TopicListProps } from "./types"
-import ModeTag from "../../../components/HierarchicalWorkspacePopup/components/ModeTag"
 import { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
@@ -16,6 +15,7 @@ import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
 import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/SwipeActionRow"
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
+import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import { sortTopicsWithPinnedFirst } from "./hooks/topicPinSort"
 
 type TopicWithPinnedState = Topic & {
@@ -110,24 +110,13 @@ const TopicItemComponent = memo(
 			>
 				{/* 行内容区：h-16 与 SwipeActionRow 外壳高度保持一致 */}
 				<div className="flex h-16 w-full items-center gap-2 rounded-lg px-3 py-[10px]">
-					{/* 图标容器与标题行间距按原型固定，确保运行中 Loader 与置顶 badge 都不会挤压行高。 */}
-					<div
-						className="bg-icon-topic/8 flex size-9 shrink-0 flex-col items-center justify-center overflow-hidden rounded-[10px]"
+					{/* 项目内话题列表使用 MessageCircle（ProjectDetailScreen）；回收站话题实体为 MessageSquare。 */}
+					<MobileResourceTypeIcon
+						type="projectTopic"
+						isRunning={isTaskRunning}
 						aria-label={isTaskRunning ? runningAriaLabel : undefined}
 						aria-busy={isTaskRunning}
-					>
-						{isTaskRunning ? (
-							<Loader
-								className="h-[22px] w-[22px] shrink-0 animate-spin text-icon-topic"
-								aria-hidden
-							/>
-						) : (
-							<MessageCircle
-								className="size-6 shrink-0 text-icon-topic"
-								aria-hidden
-							/>
-						)}
-					</div>
+					/>
 					<div className="flex min-w-0 flex-1 flex-col items-start">
 						<div className="flex h-6 w-full min-w-0 items-center gap-1">
 							<p className="min-w-0 shrink truncate text-[16px] font-medium leading-6 text-foreground">

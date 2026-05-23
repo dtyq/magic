@@ -1,8 +1,12 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Box, Check, ChevronLeft, ChevronRight, LibraryBig, X } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
 import { Spinner } from "@/components/shadcn-ui/spinner"
+import {
+	getMobileResourceTypeIconConfig,
+	type MobileResourceTypeKind,
+} from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import type { ProjectListItem, Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { RESOURCE_TYPE } from "../hooks/mobileRecycleBinMappers"
 
@@ -22,9 +26,7 @@ interface MobileTrashRestorePickerSheetProps {
 }
 
 interface PickerRowProps {
-	icon: typeof Box
-	iconColor: string
-	iconBg: string
+	resourceType: MobileResourceTypeKind
 	label: string
 	meta?: string
 	variant: "select" | "navigate"
@@ -34,7 +36,8 @@ interface PickerRowProps {
 
 /** Single row in workspace/project picker list. */
 function PickerRow(props: PickerRowProps) {
-	const { icon: Icon, iconColor, iconBg, label, meta, variant, selected = false, onClick } = props
+	const { resourceType, label, meta, variant, selected = false, onClick } = props
+	const { Icon, boxClass, iconClass } = getMobileResourceTypeIconConfig(resourceType)
 
 	return (
 		<button
@@ -43,10 +46,10 @@ function PickerRow(props: PickerRowProps) {
 			className="flex min-h-[60px] w-full items-center gap-3 bg-transparent px-[14px] py-3 transition-colors active:bg-foreground/[0.04]"
 		>
 			<div
-				className={`flex size-9 shrink-0 items-center justify-center rounded-[10px] ${iconBg}`}
+				className={`flex size-9 shrink-0 items-center justify-center rounded-[10px] ${boxClass}`}
 				aria-hidden
 			>
-				<Icon className={`h-5 w-5 ${iconColor}`} strokeWidth={1.75} />
+				<Icon className={`size-5 ${iconClass}`} strokeWidth={1.75} />
 			</div>
 			<div className="min-w-0 flex-1 text-left">
 				<p className="truncate text-[16px] leading-5 text-foreground">{label}</p>
@@ -161,9 +164,7 @@ function MobileTrashRestorePickerSheet(props: MobileTrashRestorePickerSheetProps
 				<div key={ws.id}>
 					{index > 0 ? <Divider /> : null}
 					<PickerRow
-						icon={Box}
-						iconColor="text-[#7C3AED]"
-						iconBg="bg-[#F5F3FF]"
+						resourceType="workspace"
 						label={ws.name}
 						variant={needsProject ? "navigate" : "select"}
 						selected={workspaceId === ws.id}
@@ -180,9 +181,7 @@ function MobileTrashRestorePickerSheet(props: MobileTrashRestorePickerSheetProps
 				<div key={p.id}>
 					{index > 0 ? <Divider /> : null}
 					<PickerRow
-						icon={LibraryBig}
-						iconColor="text-[#2563EB]"
-						iconBg="bg-[#EFF6FF]"
+						resourceType="project"
 						label={p.project_name?.trim() || t("common.untitledProject")}
 						variant="select"
 						selected={projectId === p.id}

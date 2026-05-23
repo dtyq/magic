@@ -15,6 +15,7 @@ import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
+import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { MobileShellIconButton } from "@/pages/superMagicMobile/components/MobileShell"
 import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/SwipeActionRow"
@@ -90,13 +91,11 @@ function WorkspaceItem({
 			{/* 行内容区：h-16 与 SwipeActionRow 外壳高度保持一致 */}
 			{/* Mobile list rows keep a neutral background; selection state is not highlighted. */}
 			<div className="flex h-16 w-full items-center gap-2 rounded-lg px-3 transition-opacity">
-				<div className="flex size-9 shrink-0 flex-col items-center justify-center overflow-hidden rounded-[10px] bg-icon-workspace/[0.08]">
-					{running ? (
-						<Loader className="size-6 animate-spin text-icon-workspace" aria-hidden />
-					) : (
-						<Box className="size-6 text-icon-workspace" aria-hidden />
-					)}
-				</div>
+				<MobileResourceTypeIcon
+					type="workspace"
+					isRunning={running}
+					loaderSizeClass="size-6"
+				/>
 
 				<div className="flex min-w-0 flex-1 flex-col items-start">
 					<p className="truncate text-[16px] font-medium leading-6 text-foreground">

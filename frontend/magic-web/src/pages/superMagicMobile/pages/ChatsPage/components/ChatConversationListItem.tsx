@@ -1,8 +1,8 @@
-import { ChevronRight, Ellipsis, Loader, MessageCircle, Pin, PinOff, Trash2 } from "lucide-react"
+import { ChevronRight, Ellipsis, Pin, PinOff, Trash2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { cn } from "@/lib/utils"
 import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/SwipeActionRow"
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
+import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import type { ChatConversationListItem as ChatConversationListItemData } from "../hooks/useChatConversationList"
 
 interface ChatConversationListItemProps {
@@ -77,29 +77,16 @@ export function ChatConversationListItem({
 		>
 			{/* 行内容：与 SwipeActionRow children 配合，整体作为可左移的内容层 */}
 			<div className="flex h-16 w-full items-center gap-2 rounded-[14px] px-3 py-[10px]">
-				<div
-					className={cn(
-						"flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-[#F7F3FF]",
-					)}
+				<MobileResourceTypeIcon
+					type="conversation"
+					isRunning={item.isRunning}
+					loaderSizeClass="size-6"
 					data-testid="mobile-chats-page-item-status-icon"
+					loadingDataTestId="mobile-chats-page-item-loading"
+					iconDataTestId="mobile-chats-page-item-default-icon"
 					aria-label={item.isRunning ? runningAriaLabel : undefined}
 					aria-busy={item.isRunning}
-				>
-					{item.isRunning ? (
-						<Loader
-							className="size-6 animate-spin text-[#8B5CF6]"
-							strokeWidth={1.8}
-							aria-hidden
-							data-testid="mobile-chats-page-item-loading"
-						/>
-					) : (
-						<MessageCircle
-							className="size-6 text-[#9A7BFF]"
-							strokeWidth={1.8}
-							data-testid="mobile-chats-page-item-default-icon"
-						/>
-					)}
-				</div>
+				/>
 
 				<div className="min-w-0 flex-1">
 					<div className="flex h-6 items-center gap-1">

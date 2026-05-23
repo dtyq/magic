@@ -1,10 +1,11 @@
-import { ChevronRight, Ellipsis, LibraryBig, Loader, Pin, PinOff, Trash2 } from "lucide-react"
+import { ChevronRight, Ellipsis, Pin, PinOff, Trash2 } from "lucide-react"
 import { ProjectListItem } from "@/pages/superMagic/pages/Workspace/types"
 import { useTranslation } from "react-i18next"
 import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/SwipeActionRow"
 import CollaborationProjectTag from "@/pages/superMagic/components/CollaborationProjectTag"
 import { isCollaborationProject, isWorkspaceShortcutProject } from "@/pages/superMagic/constants"
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
+import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 
 function isRunningLikeStatus(status: string | undefined) {
 	return status === "running" || status === "waiting_for_user"
@@ -85,13 +86,12 @@ function ProjectItem({
 			{/* 行内容区：固定 h-16 对齐 SwipeActionRow 外壳高度 */}
 			<div className="flex h-16 w-full items-center gap-2 rounded-lg px-3 py-[10px] text-left">
 				{/* 项目图标维持原型的 36x36 视觉节奏，并在运行中切换为加载态。 */}
-				<div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-icon-project/[0.08] text-icon-project">
-					{isRunning ? (
-						<Loader className="h-6 w-6 animate-spin" aria-hidden />
-					) : (
-						<LibraryBig className="h-6 w-6" aria-hidden />
-					)}
-				</div>
+				<MobileResourceTypeIcon
+					type="project"
+					isRunning={isRunning}
+					loaderSizeClass="size-6"
+					iconSizeClass="size-6"
+				/>
 
 				<div className="flex min-w-0 flex-1 flex-col items-start">
 					<div className="flex h-6 w-full min-w-0 items-center gap-1">

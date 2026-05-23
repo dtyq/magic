@@ -151,6 +151,10 @@ const config = {
 				// 4xl: prototype scale beyond Tailwind's built-in 3xl (1.5rem); 2xl/3xl left to Tailwind defaults to avoid overriding PC usage
 				"4xl": "var(--radius-4xl)",
 			},
+			// Prototype (Tailwind v4) uses bg-icon-*/8 for 8% tint; v3 default opacity scale has no "8".
+			opacity: {
+				8: "0.08",
+			},
 			keyframes: {
 				"slide-in-from-left": {
 					from: { transform: "translateX(-100%)", opacity: "0" },

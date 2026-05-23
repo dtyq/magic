@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ChevronLeft, ChevronRight, Folder, ListFilter, Search, Users } from "lucide-react"
+import { ChevronLeft, ChevronRight, ListFilter, Search, Users } from "lucide-react"
 import { InfiniteScroll } from "antd-mobile"
 import { useTranslation } from "react-i18next"
 
@@ -8,6 +8,7 @@ import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBot
 import { cn } from "@/lib/utils"
 import { formatRelativeTime } from "@/utils/string"
 
+import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import type { SharedWorkspaceProject, SharedWorkspaceTab } from "../types"
 
 interface SharedProjectsViewProps {
@@ -88,14 +89,10 @@ function buildSubtitle({
 }
 
 /**
- * 列表项头像只承担项目类型提示，保持与普通项目列表图标一致。
+ * 列表项头像：共享项目使用 Folder 图形 + 项目色板（对齐原型 SharedProjectsScreen）。
  */
 function ProjectIcon() {
-	return (
-		<div className="flex size-9 shrink-0 flex-col items-center justify-center overflow-hidden rounded-[10px] bg-icon-project/[0.08]">
-			<Folder className="size-6 text-icon-project" aria-hidden />
-		</div>
-	)
+	return <MobileResourceTypeIcon type="sharedProject" />
 }
 
 /**

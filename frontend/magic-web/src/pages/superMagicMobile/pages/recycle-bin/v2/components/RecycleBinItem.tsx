@@ -1,16 +1,7 @@
 import { memo, useMemo } from "react"
-import {
-	Bot,
-	Box,
-	Check,
-	FileText,
-	LibraryBig,
-	MessageCircle,
-	MessageSquare,
-	Sparkles,
-	type LucideIcon,
-} from "lucide-react"
+import { Check } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
 import { formatRelativeTime } from "@/utils/string"
 
 export interface RecycleBinItemData {
@@ -31,27 +22,6 @@ export interface RecycleBinItemData {
 interface RecycleBinItemProps {
 	item: RecycleBinItemData
 	onSelectionChange: (id: string, selected: boolean) => void
-}
-
-const TYPE_ICONS: Record<string, LucideIcon> = {
-	workspace: Box,
-	project: LibraryBig,
-	topic: MessageSquare,
-	conversation: MessageCircle,
-	file: FileText,
-	crew: Bot,
-	skill: Sparkles,
-}
-
-/** 对齐原型 `TrashScreen` TYPE_ICON_CELL（语义色 + 浅色底） */
-const TYPE_ICON_CELL: Record<string, { box: string; icon: string }> = {
-	workspace: { box: "bg-[#F5F3FF]", icon: "text-[#7C3AED]" },
-	project: { box: "bg-[#EFF6FF]", icon: "text-[#2563EB]" },
-	topic: { box: "bg-[#ECFDF5]", icon: "text-[#059669]" },
-	conversation: { box: "bg-[#FDF2F8]", icon: "text-[#DB2777]" },
-	file: { box: "bg-[#FEFCE8]", icon: "text-[#CA8A04]" },
-	crew: { box: "bg-[#FFF7ED]", icon: "text-[#EA580C]" },
-	skill: { box: "bg-[#FAF5FF]", icon: "text-[#9333EA]" },
 }
 
 /** 对齐原型 `TrashTypeBadge` */
@@ -78,9 +48,6 @@ function RecycleBinItem(props: RecycleBinItemProps) {
 	const hasDeletedTime = Boolean(deletedTimeLabel)
 	const hasDeletedBy = Boolean(item.deletedBy?.trim())
 
-	const cell = TYPE_ICON_CELL[item.type] || TYPE_ICON_CELL.file
-	const Icon = TYPE_ICONS[item.type] || TYPE_ICONS.file
-
 	return (
 		<button
 			type="button"
@@ -91,12 +58,7 @@ function RecycleBinItem(props: RecycleBinItemProps) {
 			className="relative flex min-h-16 w-full shrink-0 overflow-hidden transition-opacity active:opacity-70"
 		>
 			<div className="flex w-full shrink-0 items-start gap-2 rounded-lg px-3 py-[10px]">
-				<div
-					className={`${cell.box} mt-0.5 flex size-9 shrink-0 flex-col items-center justify-center overflow-hidden rounded-[10px]`}
-					aria-hidden
-				>
-					<Icon className={`h-6 w-6 ${cell.icon}`} strokeWidth={1.75} />
-				</div>
+				<MobileResourceTypeIcon type={item.type} className="mt-0.5" />
 
 				<div className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
 					<p className="w-full truncate text-left text-[16px] font-medium leading-6 text-foreground">
