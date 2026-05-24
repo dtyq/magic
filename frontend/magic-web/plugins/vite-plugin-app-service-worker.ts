@@ -1,13 +1,54 @@
-import { existsSync } from "node:fs"
-import { resolve } from "path"
+import { existsSync, readdirSync } from "node:fs"
+import { join, resolve } from "path"
 import { build } from "esbuild"
-import type { PluginOption } from "vite"
+import type { OutputBundle } from "rollup"
+import type { PluginOption, ResolvedConfig } from "vite"
+import { collectPrecacheAssetUrlsFromAssetFilenames } from "./collect-precache-asset-urls"
 
 const APP_SERVICE_WORKER_FILE_NAME = "sw.js"
 const APP_SERVICE_WORKER_ROUTE_PATH = `/${APP_SERVICE_WORKER_FILE_NAME}`
 const APP_SERVICE_WORKER_SOURCE_PATH = resolve(__dirname, "../src/sw.ts")
 
-async function buildAppServiceWorkerSource(): Promise<string | null> {
+interface BuildAppServiceWorkerOptions {
+	precacheAssetUrls: string[]
+}
+
+/**
+ * Collects hashed js/css public paths from the Rollup output bundle (production build).
+ */
+function collectPrecacheUrlsFromBundle(bundle: OutputBundle): string[] {
+	const assetFilenames = Object.keys(bundle).filter((fileName) => {
+		if (!fileName.startsWith("assets/")) return false
+		const item = bundle[fileName]
+		if (!item) return false
+		if (item.type === "asset") return /\.(js|css)$/i.test(fileName)
+		if (item.type === "chunk") return /\.(js|css)$/i.test(fileName)
+		return false
+	})
+
+	return collectPrecacheAssetUrlsFromAssetFilenames(assetFilenames)
+}
+
+/**
+ * Reads hashed js/css filenames from dist/assets when bundle introspection is unavailable.
+ */
+function collectPrecacheUrlsFromDist(outDir: string): string[] {
+	const assetsDir = join(outDir, "assets")
+	if (!existsSync(assetsDir)) return []
+
+	const filenames = readdirSync(assetsDir, { withFileTypes: true })
+		.filter((entry) => entry.isFile())
+		.map((entry) => `assets/${entry.name}`)
+
+	return collectPrecacheAssetUrlsFromAssetFilenames(filenames)
+}
+
+/**
+ * Bundles src/sw.ts to IIFE sw.js with an injected precache URL list constant.
+ */
+async function buildAppServiceWorkerSource(
+	options: BuildAppServiceWorkerOptions,
+): Promise<string | null> {
 	if (!existsSync(APP_SERVICE_WORKER_SOURCE_PATH)) return null
 
 	const result = await build({
@@ -17,6 +58,9 @@ async function buildAppServiceWorkerSource(): Promise<string | null> {
 		format: "iife",
 		target: "es2018",
 		platform: "browser",
+		define: {
+			__SW_PRECACHE_ASSETS__: JSON.stringify(options.precacheAssetUrls),
+		},
 	})
 
 	const outputFile = result.outputFiles?.[0]
@@ -24,8 +68,13 @@ async function buildAppServiceWorkerSource(): Promise<string | null> {
 }
 
 export default function createAppServiceWorkerPlugin(): PluginOption {
+	let resolvedConfig: ResolvedConfig | null = null
+
 	return {
 		name: "vite-plugin-app-service-worker",
+		configResolved(config) {
+			resolvedConfig = config
+		},
 		configureServer(server) {
 			server.middlewares.use(async (req, res, next) => {
 				if (!req.url) {
@@ -39,7 +88,9 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 					return
 				}
 
-				const transformedSource = await buildAppServiceWorkerSource()
+				const transformedSource = await buildAppServiceWorkerSource({
+					precacheAssetUrls: [],
+				})
 				if (!transformedSource) {
 					next()
 					return
@@ -54,8 +105,11 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 				res.end(transformedSource)
 			})
 		},
-		async generateBundle() {
-			const transformedSource = await buildAppServiceWorkerSource()
+		async generateBundle(_options, bundle) {
+			if (!resolvedConfig || resolvedConfig.command !== "build") return
+
+			const precacheAssetUrls = collectPrecacheUrlsFromBundle(bundle)
+			const transformedSource = await buildAppServiceWorkerSource({ precacheAssetUrls })
 			if (!transformedSource) return
 
 			this.emitFile({
@@ -66,3 +120,5 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 		},
 	}
 }
+
+export { collectPrecacheUrlsFromBundle, collectPrecacheUrlsFromDist }

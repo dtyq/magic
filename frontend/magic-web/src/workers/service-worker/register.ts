@@ -1,19 +1,18 @@
-
 import { env } from "@/utils/env"
+import {
+	DEFAULT_VENDOR_CACHEABLE_HOSTS,
+	DEFAULT_WORKBOX_RUNTIME_URL,
+	MARKED_RUNTIME_RESOURCE_CACHE_VALUE,
+	RESOURCE_CACHE_MARK_QUERY_PARAM,
+	RESOURCE_CACHE_VERSION_QUERY_PARAM,
+	VENDOR_CACHEABLE_HOSTS_QUERY_PARAM,
+	WORKBOX_CDN_QUERY_PARAM,
+} from "./sw-constants"
 
 const APP_SERVICE_WORKER_URL = "/sw.js"
 const APP_SERVICE_WORKER_SCOPE = "/"
-// Query params passed to /sw.js at registration time so the worker can read runtime config.
-const WORKBOX_CDN_QUERY_PARAM = "workboxCdnUrl"
-const VENDOR_CACHEABLE_HOSTS_QUERY_PARAM = "vendorCacheHosts"
-const RESOURCE_CACHE_MARK_QUERY_PARAM = "swCache"
-const RESOURCE_CACHE_VERSION_QUERY_PARAM = "swv"
-const MARKED_RUNTIME_RESOURCE_CACHE_VALUE = "runtime"
-// TODO: Replace with first-party CDN URL derived from runtime config.
-const WORKBOX_JSDELIVR_FALLBACK_URL = "https://cdn.jsdelivr.net/npm/workbox-sw@7.4.1/build/workbox-sw.js"
 // Wait briefly for controllerchange after posting SKIP_WAITING; then fallback to a plain reload.
 const WAITING_ACTIVATION_TIMEOUT_MS = 1500
-const DEFAULT_VENDOR_CACHEABLE_HOSTS = ["cdn.jsdelivr.net"]
 
 // Keep the latest app SW registration so update prompts can reuse it.
 let appServiceWorkerRegistration: ServiceWorkerRegistration | null = null
@@ -53,11 +52,13 @@ async function unregisterAppServiceWorkers(): Promise<void> {
 	if (typeof window === "undefined" || !("serviceWorker" in navigator)) return
 	if (typeof navigator.serviceWorker.getRegistrations !== "function") return
 
-	const appServiceWorkerPathname = new URL(APP_SERVICE_WORKER_URL, window.location.origin).pathname
+	const appServiceWorkerPathname = new URL(APP_SERVICE_WORKER_URL, window.location.origin)
+		.pathname
 	const registrations = await navigator.serviceWorker.getRegistrations()
 	const appRegistrations = registrations.filter((registration) =>
-		[registration.active, registration.waiting, registration.installing].some((worker: ServiceWorker | null | undefined) =>
-			isAppServiceWorkerWorker(worker, appServiceWorkerPathname),
+		[registration.active, registration.waiting, registration.installing].some(
+			(worker: ServiceWorker | null | undefined) =>
+				isAppServiceWorkerWorker(worker, appServiceWorkerPathname),
 		),
 	)
 
@@ -68,8 +69,8 @@ async function unregisterAppServiceWorkers(): Promise<void> {
 }
 
 /**
-	* Mark fixed-name same-origin resources so the SW can cache them via explicit route rules.
-	* This is used for assets like wasm/worker files that do not have hashed filenames.
+ * Mark fixed-name same-origin resources so the SW can cache them via explicit route rules.
+ * This is used for assets like wasm/worker files that do not have hashed filenames.
  */
 export function markServiceWorkerCacheableResourceUrl(
 	resourceUrl: string,
@@ -100,20 +101,20 @@ export function markServiceWorkerCacheableResourceUrl(
 }
 
 /**
-	* Return the most recent app SW registration instance.
-	* Update notification UIs call this to activate waiting workers on user action.
+ * Return the most recent app SW registration instance.
+ * Update notification UIs call this to activate waiting workers on user action.
  */
 export function getAppServiceWorkerRegistration(): ServiceWorkerRegistration | null {
 	return appServiceWorkerRegistration
 }
 
 /**
-	* Resolve the Workbox runtime URL used by /sw.js.
-	* Kept as a function so we can switch to environment-driven CDN mapping later.
+ * Resolve the Workbox runtime URL used by /sw.js.
+ * Kept as a function so we can switch to environment-driven CDN mapping later.
  */
 function getConfiguredWorkboxCdnUrl(): string {
 	// TODO: Derive from MAGIC_CDNHOST after CDN rollout is finalized.
-	return WORKBOX_JSDELIVR_FALLBACK_URL
+	return DEFAULT_WORKBOX_RUNTIME_URL
 }
 
 function getHostnameFromUrl(rawUrl: string | undefined): string | null {
@@ -132,7 +133,9 @@ function isReloadNavigation(): boolean {
 	if (typeof performance.getEntriesByType !== "function") return false
 
 	// We only auto-activate waiting workers when the user explicitly reloads the page.
-	const [navigationEntry] = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[]
+	const [navigationEntry] = performance.getEntriesByType(
+		"navigation",
+	) as PerformanceNavigationTiming[]
 	return navigationEntry?.type === "reload"
 }
 
@@ -189,8 +192,8 @@ function watchInstallingWorkerForReloadActivation(
 }
 
 /**
-	* Build allowlisted vendor hosts from runtime config.
-	* This avoids hardcoding environment-specific CDN domains in worker code.
+ * Build allowlisted vendor hosts from runtime config.
+ * This avoids hardcoding environment-specific CDN domains in worker code.
  */
 function getConfiguredVendorCacheHosts(): string[] {
 	const configuredHosts: string[] = []
@@ -199,14 +202,14 @@ function getConfiguredVendorCacheHosts(): string[] {
 
 	if (fromMagicCdnHost) configuredHosts.push(fromMagicCdnHost)
 	if (fromPublicCdnUrl) configuredHosts.push(fromPublicCdnUrl)
-	configuredHosts.push.apply(configuredHosts, DEFAULT_VENDOR_CACHEABLE_HOSTS)
+	configuredHosts.push(...DEFAULT_VENDOR_CACHEABLE_HOSTS)
 
 	return configuredHosts.filter((host, index, list) => list.indexOf(host) === index)
 }
 
 /**
-	* Build the /sw.js registration URL with runtime query params.
-	* The worker reads these params from self.location.href.
+ * Build the /sw.js registration URL with runtime query params.
+ * The worker reads these params from self.location.href.
  */
 function getAppServiceWorkerUrl(): string {
 	const workboxCdnUrl = getConfiguredWorkboxCdnUrl()
@@ -221,16 +224,16 @@ function getAppServiceWorkerUrl(): string {
 }
 
 /**
-	* Register the app service worker after page load to avoid first-render contention.
-	* On reload navigation, opportunistically activate waiting workers to make updates
-	* effective on this refresh cycle whenever possible.
+ * Register the app service worker after page load to avoid first-render contention.
+ * On reload navigation, opportunistically activate waiting workers to make updates
+ * effective on this refresh cycle whenever possible.
  */
 export function registerAppServiceWorker(): void {
 	if (typeof window === "undefined" || !("serviceWorker" in navigator)) return
 	if (
-		isDevelopmentMode()
-		&& !isLocalMockEnabled()
-		&& !isForceEnableServiceWorkerInDevelopment()
+		isDevelopmentMode() &&
+		!isLocalMockEnabled() &&
+		!isForceEnableServiceWorkerInDevelopment()
 	) {
 		void unregisterAppServiceWorkers()
 		return
@@ -278,9 +281,9 @@ export function registerAppServiceWorker(): void {
 }
 
 /**
-	* Activate a waiting SW and then reload.
-	* If controllerchange does not arrive in time, fallback to a plain reload so the
-	* user is never blocked by update orchestration.
+ * Activate a waiting SW and then reload.
+ * If controllerchange does not arrive in time, fallback to a plain reload so the
+ * user is never blocked by update orchestration.
  */
 export async function activateWaitingServiceWorkerAndReload(
 	registration: ServiceWorkerRegistration | null,
