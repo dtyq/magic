@@ -19,6 +19,8 @@ interface RequestContext {
 	enableRequestUnion?: boolean
 	/** Skip app-init wait in magic client (rare escape hatch) */
 	skipAppInitWait?: boolean
+	/** Service Worker API 缓存配置选项 */
+	swCacheOption?: "cache" | "no-cache" | "default"
 }
 
 /** Response body */

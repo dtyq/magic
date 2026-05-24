@@ -25,6 +25,8 @@ import {
 	VENDOR_CACHEABLE_HOSTS_QUERY_PARAM,
 	VENDOR_STATIC_CACHE_NAME,
 	WORKBOX_CDN_QUERY_PARAM,
+	APP_API_CACHE_NAME,
+	API_CACHE_EXPIRATION_OPTIONS,
 } from "./sw-constants"
 
 // Injected at production build by vite-plugin-app-service-worker (empty in dev).
@@ -44,6 +46,7 @@ interface WorkboxLike {
 	}
 	strategies: {
 		CacheFirst: new (options: Record<string, unknown>) => unknown
+		StaleWhileRevalidate: new (options: Record<string, unknown>) => unknown
 	}
 	expiration: {
 		ExpirationPlugin: new (options: Record<string, unknown>) => unknown
@@ -155,7 +158,7 @@ function registerAppCacheRoutes(
 	workbox.setConfig?.({ debug: false })
 
 	const { registerRoute } = workbox.routing
-	const { CacheFirst } = workbox.strategies
+	const { CacheFirst, StaleWhileRevalidate } = workbox.strategies
 	const { ExpirationPlugin } = workbox.expiration
 	const { CacheableResponsePlugin } = workbox.cacheableResponse
 
@@ -242,6 +245,48 @@ function registerAppCacheRoutes(
 					maxEntries: 400,
 					maxAgeSeconds: CACHE_TTL_30_DAYS,
 				}),
+			],
+		}),
+	)
+
+	const apiBusinessCacheablePlugin = {
+		cacheWillUpdate: async ({ response }: { response: Response }) => {
+			if (response.status !== 200) return null
+			try {
+				const clonedResponse = response.clone()
+				const json = await clonedResponse.json()
+				if (json && (json.code === 1000 || json.code === undefined)) {
+					return response
+				}
+			} catch {
+				return null
+			}
+			return null
+		},
+		requestWillFetch: async ({ request }: { request: Request }) => {
+			try {
+				const url = new URL(request.url)
+				if (url.searchParams.has("swCache")) {
+					url.searchParams.delete("swCache")
+					return new Request(url.toString(), request)
+				}
+			} catch {
+				// Fallback
+			}
+			return request
+		}
+	}
+
+	registerRoute(
+		({ request, url }) => {
+			if (request.method !== "GET") return false
+			return url.searchParams.get("swCache") === "api-runtime"
+		},
+		new StaleWhileRevalidate({
+			cacheName: APP_API_CACHE_NAME,
+			plugins: [
+				apiBusinessCacheablePlugin,
+				new ExpirationPlugin(API_CACHE_EXPIRATION_OPTIONS),
 			],
 		}),
 	)

@@ -68,6 +68,8 @@ interface ImportMetaEnv {
 	readonly MAGIC_MOCK?: string
 	/** 开发环境下是否强制启用 App Service Worker（用于 SW 调试） */
 	readonly MAGIC_FORCE_ENABLE_SW_IN_DEV?: string
+	/** 是否启用 API 缓存策略 */
+	readonly MAGIC_ENABLE_API_CACHE?: "true" | "false"
 }
 
 interface ImportMeta {
