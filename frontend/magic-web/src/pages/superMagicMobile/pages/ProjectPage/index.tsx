@@ -1,7 +1,7 @@
 import { observer } from "mobx-react-lite"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { canManageProject, isOwner, isReadOnlyProject } from "@/pages/superMagic/utils/permission"
+import { isReadOnlyProject } from "@/pages/superMagic/utils/permission"
 import { workspaceStore, projectStore, topicStore } from "@/pages/superMagic/stores/core"
 import { useMemoizedFn } from "ahooks"
 import { useTranslation } from "react-i18next"
@@ -13,7 +13,7 @@ import {
 	useProjectAttachments,
 } from "@/pages/superMagicMobile/pages/ProjectPage/ProjectPageMain/hooks"
 import TopicsPopup from "./ProjectPageMain/components/TopicsPopup"
-import { Ellipsis, Share2 } from "lucide-react"
+import { Ellipsis, Share2, UserPlus } from "lucide-react"
 import TopicFilesButton, {
 	type TopicFilesButtonRef,
 } from "@/pages/superMagic/components/TopicFilesButton"
@@ -31,9 +31,9 @@ import projectFilesStore from "@/stores/projectFiles"
 import ProjectPageMain from "./ProjectPageMain"
 import useNavigate from "@/routes/hooks/useNavigate"
 import { RouteName } from "@/routes/constants"
-import { isCollaborationProject } from "@/pages/superMagic/constants"
 import ProjectShareSheet from "@/pages/superMagicMobile/components/ProjectShareSheet"
-import { buildSharedProjectActionPolicy } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
+import useCollaboratorUpdatePanel from "@/pages/superMagic/components/WithCollaborators/hooks/useCollaboratorUpdatePanel"
+import { resolveProjectDetailHeaderActions } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
 
 type ProjectDetailTab = "topics" | "topicFiles"
 
@@ -78,23 +78,22 @@ function LegacyProjectPage() {
 	const topicFilesButtonRef = useRef<TopicFilesButtonRef>(null)
 
 	const isReadonly = isReadOnlyProject(selectedProject?.user_role)
-	const sharedProjectActionPolicy = useMemo(
-		() => buildSharedProjectActionPolicy(selectedProject),
-		[selectedProject],
+	const { canManageCollaborators } = useCollaboratorUpdatePanel({ selectedProject })
+	const projectDetailHeaderActions = useMemo(
+		() => resolveProjectDetailHeaderActions(selectedProject, { canManageCollaborators }),
+		[canManageCollaborators, selectedProject],
 	)
-	const canManageCollaboration =
-		(isCollaborationProject(selectedProject) && canManageProject(selectedProject?.user_role)) ||
-		isOwner(selectedProject?.user_role)
-
-	// Portal target elements
+	// Portal target elements — enabled flags must match header actionSlots from the same resolver.
 	const sharePortalTarget = usePortalTarget({
 		portalId: PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_COLLABORATION_BUTTON,
-		enabled: sharedProjectActionPolicy.showShareButton,
+		enabled: projectDetailHeaderActions.showShareButton,
 	})
 
 	const morePortalTarget = usePortalTarget({
 		portalId: PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_MORE_BUTTON,
-		enabled: sharedProjectActionPolicy.showMoreButton,
+		enabled:
+			projectDetailHeaderActions.showMoreButton ||
+			projectDetailHeaderActions.showCollaboratorsButton,
 	})
 
 	const setUserSelectDetail = useMemoizedFn(
@@ -148,12 +147,16 @@ function LegacyProjectPage() {
 		toggleTopicPin,
 		topicActionComponents,
 	} = useTopicListActions()
-	const { openActionsPopup: openProjectActionsPopup, projectActionComponents } =
-		useProjectListActions({
-			actionContext: "project-detail",
-			deleteSelectedProjectBehavior: "navigate-home",
-			visibleActionKeys: sharedProjectActionPolicy.visibleActionKeys,
-		})
+	const {
+		openActionsPopup: openProjectActionsPopup,
+		openManageModal,
+		updateCurrentActionItem,
+		projectActionComponents,
+	} = useProjectListActions({
+		actionContext: "project-detail",
+		deleteSelectedProjectBehavior: "navigate-home",
+		visibleActionKeys: projectDetailHeaderActions.visibleActionKeys,
+	})
 
 	// Sending is handled by MessagePanel service now.
 
@@ -234,17 +237,22 @@ function LegacyProjectPage() {
 		}, 100)
 	})
 
-	/**
-	 * 头部按钮进入移动端专用项目分享 Sheet，协作者管理继续只保留在 More 菜单内。
-	 */
+	/** Opens the mobile project share sheet from the header share button. */
 	const handleOpenProjectShare = useMemoizedFn(() => {
 		setProjectShareSheetOpen(true)
+	})
+
+	/** Opens collaborator management directly when it is hoisted to the header MORE slot. */
+	const handleOpenProjectCollaborators = useMemoizedFn(() => {
+		if (!selectedProject) return
+		updateCurrentActionItem(selectedProject)
+		openManageModal()
 	})
 
 	return (
 		<>
 			{sharePortalTarget &&
-				sharedProjectActionPolicy.showShareButton &&
+				projectDetailHeaderActions.showShareButton &&
 				createPortal(
 					<Button
 						type="button"
@@ -259,7 +267,22 @@ function LegacyProjectPage() {
 					sharePortalTarget,
 				)}
 			{morePortalTarget &&
-				sharedProjectActionPolicy.showMoreButton &&
+				projectDetailHeaderActions.showCollaboratorsButton &&
+				createPortal(
+					<Button
+						type="button"
+						variant="ghost"
+						className="h-12 w-12 shrink-0 rounded-full p-0 text-foreground hover:bg-transparent active:opacity-70"
+						onClick={handleOpenProjectCollaborators}
+						aria-label={t("project.addCollaborators")}
+						data-testid="project-detail-header-collaborators-button"
+					>
+						<UserPlus className="h-[22px] w-[22px]" />
+					</Button>,
+					morePortalTarget,
+				)}
+			{morePortalTarget &&
+				projectDetailHeaderActions.showMoreButton &&
 				createPortal(
 					<Button
 						type="button"
@@ -323,11 +346,11 @@ function LegacyProjectPage() {
 						</div>
 					) : (
 						<div
-							className="flex h-full min-h-0 flex-col overflow-hidden px-3 pb-2"
+							className="flex h-full min-h-0 flex-1 flex-col overflow-hidden px-3 pb-2"
 							data-testid="project-detail-topics-panel"
 						>
 							<ProjectPageMain
-								className="min-h-0 flex-1"
+								className="h-full min-h-0 flex-1"
 								onTopicMore={(topic) => openActionsPopup(topic, selectedProject)}
 								onTopicPin={(topic) => {
 									void toggleTopicPin(topic)

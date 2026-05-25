@@ -67,6 +67,7 @@ import { useIsMobile } from "@/hooks/useIsMobile"
 import ConversationActionsPopup from "@/pages/superMagicMobile/components/ConversationActionsPopup"
 import { MobileSettingsFeedbackSheet } from "@/layouts/BaseLayoutMobile/components/MobileSettings/components/FeedbackSheet"
 import { useConversationFeedbackSheet } from "@/pages/superMagicMobile/hooks/useConversationFeedbackSheet"
+import { useMobileProjectTopicSwitch } from "@/pages/superMagicMobile/hooks/useMobileProjectTopicSwitch"
 import { useProjectTopicConversationActions } from "./hooks/useProjectTopicConversationActions"
 import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
 
@@ -122,6 +123,9 @@ function TopicPage({
 	// Get state from stores
 	const selectedTopic = topicStore.selectedTopic
 	const selectedProject = projectStore.selectedProject
+	const { switchToProjectTopic } = useMobileProjectTopicSwitch({
+		projectId: selectedProject?.id,
+	})
 	const selectedWorkspace = workspaceStore.selectedWorkspace
 
 	// Get task data
@@ -542,8 +546,7 @@ function TopicPage({
 			allowMessageTooltip: true,
 			// single-topic Chat 不允许从消息卡片复制出兄弟话题，避免出现多话题能力穿透。
 			allowConversationCopy: capabilities.canCreateSiblingTopic,
-			onTopicSwitch: topicStore.setSelectedTopic,
-			projectFilesStore,
+			onTopicSwitch: switchToProjectTopic,
 			renderAssistantAvatar: topicModeConfig?.mode
 				? ({ className } = {}) => (
 						<ModeAvatar
@@ -554,7 +557,7 @@ function TopicPage({
 					)
 				: undefined,
 		}
-	}, [capabilities.canCreateSiblingTopic, topicModeConfig])
+	}, [capabilities.canCreateSiblingTopic, switchToProjectTopic, topicModeConfig])
 
 	const setUserSelectDetail = useMemoizedFn((detail: PreviewDetail | null) => {
 		if (!detail) return

@@ -1,5 +1,5 @@
 import { observer } from "mobx-react-lite"
-import { useRef } from "react"
+import { useMemo, useRef } from "react"
 import type { WorkspaceSelectRef } from "../../../../components/WorkspaceSelect"
 import WorkspaceSelect from "../../../../components/WorkspaceSelect"
 import FlexBox from "@/components/base/FlexBox"
@@ -16,6 +16,8 @@ import {
 	MobileTopicPageKind,
 } from "@/pages/superMagicMobile/pages/shared/topicPageCapabilities"
 import { isCollaborationProject, isCollaborationWorkspace } from "@/pages/superMagic/constants"
+import useCollaboratorUpdatePanel from "@/pages/superMagic/components/WithCollaborators/hooks/useCollaboratorUpdatePanel"
+import { resolveProjectDetailHeaderActions } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
 import {
 	handleProjectTopicBackNavigation,
 	navigateSuperMobileBack,
@@ -52,6 +54,16 @@ function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
 	const projectTopicCapabilities = getMobileTopicPageCapabilities(
 		MobileTopicPageKind.ProjectTopic,
 	)
+	const { canManageCollaborators } = useCollaboratorUpdatePanel({
+		selectedProject: isProjectDetailPage ? selectedProject : null,
+	})
+	const projectDetailHeaderActions = useMemo(
+		() =>
+			isProjectDetailPage
+				? resolveProjectDetailHeaderActions(selectedProject, { canManageCollaborators })
+				: null,
+		[canManageCollaborators, isProjectDetailPage, selectedProject],
+	)
 
 	if (isChatModeProjectPage) {
 		return <></>
@@ -69,6 +81,8 @@ function MainHeader({ showBackButton, onBackClick }: MainHeaderProps) {
 			<ProjectDetailHeader
 				title={projectHeaderTitle}
 				showActions
+				showActionCapsule={projectDetailHeaderActions?.showActionCapsule ?? true}
+				actionSlots={projectDetailHeaderActions?.actionSlots}
 				actionsLayout={projectHeaderActionsLayout}
 				onBackClick={() => {
 					if (
