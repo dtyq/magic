@@ -1,0 +1,35 @@
+{
+  "skill_name": "html-api-sdk",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "帮我创建一个 HTML 微应用，能读取 workspace 里 data/sales.json 的数据，调用 LLM 分析后把结果写入 output/report.md，并通知 Agent 继续处理。",
+      "expected_output": "生成一个完整的 HTML 文件，使用 window.Magic.fs.readFile 读取数据，window.Magic.llm.stream 或 chat 调用 LLM，window.Magic.fs.writeFile 写入结果，最后调用 window.Magic.setInputMessage 通知 Agent。事件绑定使用 addEventListener，不使用内联事件。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我需要一个实时数据看板 HTML 页面，Agent 会不断更新 data/metrics.json，页面需要自动刷新显示最新数据。",
+      "expected_output": "生成 HTML 文件，使用 window.Magic.fs.watchFile 监听 data/metrics.json 变化，文件更新时自动调用 readFile 重新读取并渲染到页面。包含首次加载逻辑和错误处理。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "写一个 HTML 页面，让用户可以选择不同的 AI 模型，输入问题后流式显示 AI 回复，并支持中途取消。",
+      "expected_output": "生成 HTML 文件，使用 window.Magic.llm.getModels() 填充模型下拉列表，window.Magic.llm.stream 实现流式输出，返回的取消函数绑定到取消按钮。所有按钮事件使用 addEventListener 绑定。",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "创建一个 HTML 微应用，从 MagicBase 数据库查询用户表数据，支持分页浏览和搜索过滤，并能新增、编辑、删除用户记录。",
+      "expected_output": "生成 HTML 文件，使用 window.Magic.db.getTables() 或 getTable() 获取表结构，window.Magic.db.queryRows() 实现分页查询和过滤，window.Magic.db.createRow() 新增记录，window.Magic.db.updateRow() 编辑记录，window.Magic.db.deleteRow() 删除记录。包含错误处理和加载状态提示。事件绑定使用 addEventListener。",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "做一个 HTML 数据管理页面，先从数据库读取订单数据，调用 LLM 生成分析报告，然后把报告写入文件并通知 Agent。",
+      "expected_output": "生成 HTML 文件，综合使用 window.Magic.db.queryRows() 查询数据库订单数据，window.Magic.llm.stream 或 chat 调用 LLM 分析，window.Magic.fs.writeFile 写入报告文件，window.Magic.setInputMessage 通知 Agent。体现 db + llm + fs 三类 API 的协同使用。",
+      "files": []
+    }
+  ]
+}
