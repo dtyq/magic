@@ -102,10 +102,11 @@ describe("MobileTopicShare", () => {
 		).not.toBeInTheDocument()
 	})
 
-	it("点击复制链接按钮会复制当前 shareUrl", () => {
+	it("点击复制链接按钮会复制 PC 对齐的多行话题分享文案", () => {
 		render(
 			<MobileTopicShare
 				type={ShareType.Public}
+				topicTitle="测试话题"
 				shareContext={{
 					resource_id: "topic-1",
 					share_url: "https://example.com/topic-1",
@@ -119,13 +120,19 @@ describe("MobileTopicShare", () => {
 		)
 
 		fireEvent.click(screen.getByTestId("mobile-topic-share-copy-link-button"))
-		expect(clipboard.writeText).toHaveBeenCalledWith("https://example.com/topic-1")
+		const copiedText = String(vi.mocked(clipboard.writeText).mock.calls[0]?.[0])
+		expect(copiedText).toContain("share.shareMessageTopic")
+		expect(copiedText).toContain("share.shareMessageTopicLink")
+		expect(copiedText).toContain("share.createdBy.footerLine")
+		expect(copiedText).not.toBe("https://example.com/topic-1")
+		expect(copiedText.split("\n").length).toBeGreaterThan(3)
 	})
 
-	it("开启密码保护时点击复制链接按钮会复制带密码参数的完整链接", () => {
+	it("开启密码保护时复制文案中的链接仍包含 password 参数", () => {
 		render(
 			<MobileTopicShare
 				type={ShareType.PasswordProtected}
+				topicTitle="测试话题"
 				shareContext={{
 					resource_id: "topic-1",
 					share_url: "https://example.com/topic-1?password=abc123",
@@ -140,9 +147,11 @@ describe("MobileTopicShare", () => {
 		)
 
 		fireEvent.click(screen.getByTestId("mobile-topic-share-copy-link-button"))
-		expect(clipboard.writeText).toHaveBeenCalledWith(
-			"https://example.com/topic-1?password=abc123",
-		)
+		const copiedText = String(vi.mocked(clipboard.writeText).mock.calls[0]?.[0])
+		expect(copiedText).toContain("share.shareMessageTopic")
+		expect(copiedText).toContain("share.shareMessageTopicLink")
+		expect(copiedText).not.toBe("https://example.com/topic-1?password=abc123")
+		expect(copiedText.split("\n").length).toBeGreaterThan(3)
 	})
 
 	it("点击密码保护行会切换为密码分享并调用保存接口", async () => {

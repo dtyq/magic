@@ -10,7 +10,6 @@ import {
 	calculateDefaultShareName,
 	generateSharePassword,
 } from "@/pages/superMagic/components/Share/utils"
-import { generateShareUrl } from "@/pages/superMagic/components/ShareManagement/utils/shareTypeHelpers"
 import { useShareProject } from "@/pages/superMagic/layouts/MainLayout/hooks/useShareProject"
 import {
 	SharedResourceType,
@@ -29,6 +28,7 @@ import type {
 	ProjectShareSheetView,
 	SelectedFileHierarchyNode,
 } from "../types"
+import { buildShareClipboardText } from "../utils/buildShareClipboardText"
 import { isPartialFileShare, isWholeProjectShare } from "../utils/shareScope"
 
 /**
@@ -393,15 +393,21 @@ export function useProjectShareSheet({
 		}))
 	})
 
-	const copySelectedShareUrl = useMemoizedFn(() => {
+	const copySelectedShareUrl = useMemoizedFn(async () => {
 		if (!selectedShare?.resource_id) return
-		const shareUrl = generateShareUrl(
-			selectedShare.resource_id,
-			selectedShare.password,
-			"files",
-		)
-		clipboard.writeText(shareUrl)
-		magicToast.success(t("share.copySuccess"))
+
+		try {
+			const shareMessageText = await buildShareClipboardText({
+				share: selectedShare,
+				projectName,
+				t,
+			})
+			clipboard.writeText(shareMessageText)
+			magicToast.success(t("share.copySuccess"))
+		} catch (error) {
+			console.error("Failed to copy share message:", error)
+			magicToast.error(t("common.copyFailed"))
+		}
 	})
 
 	const copySelectedSharePassword = useMemoizedFn(() => {
@@ -476,11 +482,7 @@ export function useProjectShareSheet({
 				},
 			})
 
-			const shareUrl = generateShareUrl(resourceId, password, "files")
-			clipboard.writeText(shareUrl)
-			magicToast.success(t("share.createSuccessAndCopied"))
-			refreshShareList()
-			setLocalSelectedShare(
+			const createdShareForClipboard: MobileShareItem =
 				mode === "file"
 					? ({
 							title: resourceName,
@@ -519,8 +521,22 @@ export function useProjectShareSheet({
 							extend: {
 								file_count: effectiveSelectedFileIds.length,
 							},
-						} satisfies ProjectShareItem),
-			)
+						} satisfies ProjectShareItem)
+
+			try {
+				const shareMessageText = await buildShareClipboardText({
+					share: createdShareForClipboard,
+					projectName,
+					t,
+				})
+				clipboard.writeText(shareMessageText)
+			} catch (error) {
+				console.error("Failed to copy share message after create:", error)
+			}
+
+			magicToast.success(t("share.createSuccessAndCopied"))
+			refreshShareList()
+			setLocalSelectedShare(createdShareForClipboard)
 			setSelectedShareId(resourceId)
 			setView("linkDetail")
 			setViewStack(["create"])

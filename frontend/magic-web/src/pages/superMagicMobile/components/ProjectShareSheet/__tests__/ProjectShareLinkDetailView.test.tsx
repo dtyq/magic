@@ -33,7 +33,7 @@ vi.mock("react-i18next", () => ({
 		t: (key: string, values?: Record<string, unknown>) => {
 			const labels: Record<string, string> = {
 				"projectShare.copyLink": "复制链接",
-				"projectShare.deleteLink": "删除链接",
+				"share.cancelShare": "取消分享",
 				"projectShare.expiresPermanent": "永久有效",
 				"projectShare.linkLabel": "链接",
 				"projectShare.typePassword": "密码",

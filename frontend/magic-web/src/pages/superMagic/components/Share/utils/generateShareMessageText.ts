@@ -28,8 +28,6 @@ export function generateShareMessageText(params: GenerateShareMessageTextParams)
 		t,
 	} = params
 
-    console.log("shareName",shareName)
-
 	const lines: string[] = []
 
 	// 优先检查特殊项目类型（不受 fileCount 限制）

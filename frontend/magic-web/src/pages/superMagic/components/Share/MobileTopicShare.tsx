@@ -6,7 +6,7 @@ import { Switch } from "@/components/shadcn-ui/switch"
 import type { ShareExtraData } from "./types"
 import { ShareType, ResourceType } from "./types"
 import { SuperMagicApi } from "@/apis"
-import { generateSharePassword } from "./utils"
+import { generateSharePassword, generateTopicShareMessageText } from "./utils"
 import { useUpdateEffect } from "ahooks"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { generateShareUrl } from "@/pages/superMagic/components/ShareManagement/utils/shareTypeHelpers"
@@ -25,6 +25,7 @@ interface MobileTopicShareProps {
 	extraData?: ShareExtraData
 	setExtraData?: (data: ShareExtraData) => void
 	type: number
+	topicTitle?: string
 	onSaveSuccess?: () => void
 	onClose?: () => void
 }
@@ -83,7 +84,7 @@ function TopicSettingsRow({
 }
 
 export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
-	const { shareContext, extraData, setExtraData, type, onSaveSuccess } = props
+	const { shareContext, extraData, setExtraData, type, topicTitle, onSaveSuccess } = props
 
 	const { t } = useTranslation("super")
 	const [isPasswordVisible, setIsPasswordVisible] = useState(false)
@@ -139,18 +140,20 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 		}
 	}, [shareUrl])
 
-	const copyContent = useMemo(() => {
-		if (!shareUrl && !sanitizedShareUrl) {
+	// Clipboard uses the full access URL (with password query when enabled), same as PC TopicSharePopover.
+	const shareUrlForClipboard = shareUrl || sanitizedShareUrl
+
+	const shareMessageText = useMemo(() => {
+		if (!shareUrlForClipboard) {
 			return ""
 		}
 
-		// 开启密码保护时复制完整访问链接，关闭时复制脱敏后的展示链接。
-		if (passwordEnabled && shareUrl) {
-			return shareUrl
-		}
-
-		return sanitizedShareUrl
-	}, [passwordEnabled, sanitizedShareUrl, shareUrl])
+		return generateTopicShareMessageText({
+			topicTitle,
+			shareUrl: shareUrlForClipboard,
+			t,
+		})
+	}, [shareUrlForClipboard, topicTitle, t])
 
 	/**
 	 * 统一把本地 extraData 映射为后端 extra 字段，避免多个保存入口出现字段不一致。
@@ -264,11 +267,11 @@ export default memo(function MobileTopicShare(props: MobileTopicShareProps) {
 	)
 
 	const handleCopyShareUrl = useCallback(() => {
-		if (copyContent) {
-			clipboard.writeText(copyContent)
-			magicToast.success(t("share.copyLinkSuccess"))
-		}
-	}, [copyContent, t])
+		if (!shareMessageText) return
+
+		clipboard.writeText(shareMessageText)
+		magicToast.success(t("share.copyShareMessageSuccess"))
+	}, [shareMessageText, t])
 
 	const passwordText = isPasswordVisible ? extraData?.password || "" : "• • • • • •"
 

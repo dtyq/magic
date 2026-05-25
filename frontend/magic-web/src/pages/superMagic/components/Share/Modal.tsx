@@ -571,6 +571,7 @@ export default memo(function ShareModel(props: ShareModalProps) {
 						extraData={extraData}
 						setExtraData={setExtraData}
 						type={type}
+						topicTitle={topicTitle}
 						onSaveSuccess={onSaveSuccess}
 						onClose={handleCancel}
 					/>

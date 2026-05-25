@@ -87,7 +87,7 @@ export interface ProjectShareSheetController {
 	goBack: () => void
 	close: () => void
 	refreshShareList: () => void
-	copySelectedShareUrl: () => void
+	copySelectedShareUrl: () => void | Promise<void>
 	copySelectedSharePassword: () => void
 	submitCreateShare: () => Promise<void>
 	openEditSelectedShare: () => void

@@ -25,6 +25,18 @@ vi.mock("@/apis", () => ({
 	SuperMagicApi: {
 		getSnowflakeIds: mocks.getSnowflakeIds,
 		createOrUpdateShareResource: mocks.createOrUpdateShareResource,
+		batchGetFileDetails: vi.fn().mockResolvedValue({ files: [] }),
+	},
+}))
+
+vi.mock("@/models/user", () => ({
+	userStore: {
+		user: {
+			userInfo: {
+				nickname: "Tester",
+				real_name: "Tester",
+			},
+		},
 	},
 }))
 
@@ -157,6 +169,51 @@ describe("useProjectShareSheet", () => {
 		expect(result.current.formState.shareName).toBe("share.singleFileShareName")
 	})
 
+	it("详情页复制链接时写入多行分享文案而非裸 URL", async () => {
+		mocks.fileShareData = [
+			{
+				resource_id: "share-multi",
+				title: "文件分享_测试特殊文件",
+				project_id: "project-1",
+				project_name: "Demo Project",
+				workspace_id: "",
+				workspace_name: "",
+				resource_type: ResourceType.FileCollection,
+				share_type: ShareType.PasswordProtected,
+				created_at: "2026-05-05",
+				has_password: true,
+				password: "1VP1RX",
+				share_project: false,
+				file_ids: Array.from({ length: 8 }, (_, index) => `file-${index + 1}`),
+				extend: { file_count: 8 },
+			},
+		]
+
+		const { result } = renderHook(() =>
+			useProjectShareSheet({
+				open: true,
+				projectId: "project-1",
+				projectName: "Demo Project",
+				attachments: [],
+				mode: "file",
+				onClose: vi.fn(),
+			}),
+		)
+
+		act(() => {
+			result.current.goToLinkDetail("share-multi")
+		})
+
+		await act(async () => {
+			await result.current.copySelectedShareUrl()
+		})
+
+		expect(mocks.writeText).toHaveBeenCalled()
+		const copiedText = String(mocks.writeText.mock.calls[0]?.[0])
+		expect(copiedText).not.toMatch(/^https?:\/\//)
+		expect(copiedText.length).toBeGreaterThan(1)
+	})
+
 	it("创建分享时复用现有分享资源保存契约", async () => {
 		const { result } = renderHook(() =>
 			useProjectShareSheet({
@@ -188,6 +245,8 @@ describe("useProjectShareSheet", () => {
 			}),
 		)
 		expect(mocks.refreshData).toHaveBeenCalled()
+		expect(mocks.writeText).toHaveBeenCalled()
+		expect(String(mocks.writeText.mock.calls[0]?.[0])).not.toMatch(/^https?:\/\//)
 		expect(result.current.view).toBe("linkDetail")
 	})
 
