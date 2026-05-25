@@ -1,7 +1,7 @@
 const { logger } = require("../../logger.cjs")
 const fs = require("node:fs")
 const path = require("node:path")
-const { rootPath, CDNUrl, behaviorAnalysis } = require("../../config")
+const { rootPath, CDNUrl, behaviorAnalysis, getSafeEnvVars } = require("../../config")
 const { userBehaviorAnalysisParser } = require("../../helper")
 
 const hasLoginPopupTemplate = fs.existsSync(
@@ -39,7 +39,7 @@ function buildCdnScriptTags() {
 
 /**
  * @description 读取 HTML 文件，将 `<!-- CDN Resources -->` 替换为运行时 CDN script 标签，
- * 并将结果缓存到 templateCache。
+ * 并将结果缓存 to templateCache。
  *
  * @param {string} htmlPath  - dist 产物的绝对路径
  * @param {object} options
@@ -52,6 +52,12 @@ async function initHtmlTemplate(htmlPath, { key, critical = true } = {}) {
 	try {
 		let html = await fs.promises.readFile(htmlPath, "utf-8")
 		html = html.replace("<!-- CDN Resources -->", buildCdnScriptTags())
+
+		// 内联 window.CONFIG 避免首屏 config.js 额外往返耗时
+		const safeEnvVars = getSafeEnvVars()
+		const configInlineScript = `<script id="magic-inlined-config">window.CONFIG = ${JSON.stringify(safeEnvVars)}</script>`
+		html = html.replace(/<script\b[^>]*src=["']\/config\.js["'][^>]*><\/script>/, configInlineScript)
+
 		templateCache.set(key, html)
 		logger.info(
 			"nodeServer",
