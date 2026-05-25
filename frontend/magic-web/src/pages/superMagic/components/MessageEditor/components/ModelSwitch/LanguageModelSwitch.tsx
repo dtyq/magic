@@ -17,6 +17,7 @@ import { AddModelStoreProvider } from "./components/AddModel/context"
 import { AddModelStore } from "./components/AddModel/store"
 import { AddModelDialogLazy } from "./components/AddModel/add-model-dialog-lazy"
 import { ChevronsUpDownIcon, Sparkles } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 export const ModelSwitch: React.FC<ModelSwitchProps> = ({
 	size = "default",
@@ -29,8 +30,10 @@ export const ModelSwitch: React.FC<ModelSwitchProps> = ({
 	modelList,
 	placement,
 }) => {
+	const { t } = useTranslation("super")
 	const { isPersonalOrganization, isAdmin } = userStore.user
 	const canManageModels = isPersonalOrganization || isAdmin
+	const safeModelList = modelList ?? []
 
 	// Internal state to manage selected model for immediate UI updates
 	const [internalSelectedModel, setInternalSelectedModel] = useState<ModelItem | null>(
@@ -40,7 +43,7 @@ export const ModelSwitch: React.FC<ModelSwitchProps> = ({
 	const iconSize = ICON_SIZE_MAP[size]
 	const chevronSize = CHEVRON_SIZE_MAP[size]
 	const hasLanguageModels =
-		modelList.length > 0 && modelList.some((item) => (item.models ?? []).length > 0)
+		safeModelList.length > 0 && safeModelList.some((item) => (item.models ?? []).length > 0)
 
 	// Sync internal state with external prop changes
 	useEffect(() => {
@@ -60,7 +63,6 @@ export const ModelSwitch: React.FC<ModelSwitchProps> = ({
 		setIsOpen,
 		searchKeyword,
 		isMobile,
-		t,
 		selectedItemRef,
 		desktopScrollContainerRef,
 		mobileScrollContainerRef,
@@ -112,7 +114,7 @@ export const ModelSwitch: React.FC<ModelSwitchProps> = ({
 
 	const mainContent = (
 		<ModelListContent
-			modelList={modelList}
+			modelList={safeModelList}
 			selectedModel={selectedModel}
 			searchKeyword={searchKeyword}
 			size={size}
