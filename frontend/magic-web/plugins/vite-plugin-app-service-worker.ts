@@ -11,6 +11,7 @@ const APP_SERVICE_WORKER_SOURCE_PATH = resolve(__dirname, "../src/sw.ts")
 
 interface BuildAppServiceWorkerOptions {
 	precacheAssetUrls: string[]
+	warmUpAssetUrls: string[]
 }
 
 /**
@@ -60,6 +61,7 @@ async function buildAppServiceWorkerSource(
 		platform: "browser",
 		define: {
 			__SW_PRECACHE_ASSETS__: JSON.stringify(options.precacheAssetUrls),
+			__SW_WARMUP_ASSETS__: JSON.stringify(options.warmUpAssetUrls),
 		},
 	})
 
@@ -90,6 +92,7 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 
 				const transformedSource = await buildAppServiceWorkerSource({
 					precacheAssetUrls: [],
+					warmUpAssetUrls: [],
 				})
 				if (!transformedSource) {
 					next()
@@ -108,8 +111,13 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 		async generateBundle(_options, bundle) {
 			if (!resolvedConfig || resolvedConfig.command !== "build") return
 
-			const precacheAssetUrls = collectPrecacheUrlsFromBundle(bundle)
-			const transformedSource = await buildAppServiceWorkerSource({ precacheAssetUrls })
+			// precache is cleared, all items routed to warmup list
+			const precacheAssetUrls: string[] = []
+			const warmUpAssetUrls = collectPrecacheUrlsFromBundle(bundle)
+			const transformedSource = await buildAppServiceWorkerSource({
+				precacheAssetUrls,
+				warmUpAssetUrls,
+			})
 			if (!transformedSource) return
 
 			this.emitFile({

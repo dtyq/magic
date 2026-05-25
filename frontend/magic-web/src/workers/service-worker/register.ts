@@ -261,6 +261,7 @@ export function registerAppServiceWorker(): void {
 				appServiceWorkerRegistration,
 				reloadActivationContext,
 			)
+			void triggerWarmUpWhenIdle()
 		} catch {
 			appServiceWorkerRegistration = null
 		}
@@ -330,4 +331,31 @@ export async function activateWaitingServiceWorkerAndReload(
 		navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange)
 		registration.waiting?.postMessage({ type: "SKIP_WAITING" })
 	})
+}
+
+function scheduleWarmUpPostMessage(worker: ServiceWorker): void {
+	const postMsg = () => {
+		worker.postMessage({ type: "START_WARMUP" })
+	}
+
+	if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+		window.requestIdleCallback(() => postMsg(), { timeout: 10000 })
+	} else {
+		window.setTimeout(postMsg, 5000)
+	}
+}
+
+function triggerWarmUpWhenIdle(): void {
+	if (typeof window === "undefined" || !("serviceWorker" in navigator)) return
+
+	if (!navigator.serviceWorker.controller) {
+		// If there is no controller active (e.g. first load), wait for controllerchange or ready state
+		navigator.serviceWorker.ready.then((registration) => {
+			if (registration.active) {
+				scheduleWarmUpPostMessage(registration.active)
+			}
+		})
+	} else {
+		scheduleWarmUpPostMessage(navigator.serviceWorker.controller)
+	}
 }

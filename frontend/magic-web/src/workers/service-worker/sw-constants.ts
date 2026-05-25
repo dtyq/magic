@@ -133,7 +133,7 @@ export function isCacheableApiRequest(urlOrPath: string): boolean {
  
 /** ExpirationPlugin options shared by CacheFirst and post-install precache LRU enforcement. */
 export const APP_STATIC_EXPIRATION_OPTIONS = {
-	maxEntries: 1200,
+	maxEntries: 4000,
 	maxAgeSeconds: CACHE_TTL_14_DAYS,
 }
 

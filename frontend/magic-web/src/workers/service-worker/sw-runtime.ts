@@ -8,6 +8,7 @@ import type { CacheRuntimeRegistration } from "./cache-runtime"
 import {
 	enforceAppStaticExpirationAfterPrecache,
 	precacheStaticAssetsOnInstall,
+	warmUpStaticAssetsOnIdle,
 } from "./cache-runtime"
 import {
 	CANVAS_MEDIA_SCOPE_PREFIX,
@@ -66,6 +67,10 @@ function createAppCacheFeature(
 		onMessage(event, { sw }) {
 			if (event.data?.type === "SKIP_WAITING") {
 				void sw.skipWaiting()
+				return true
+			}
+			if (event.data?.type === "START_WARMUP") {
+				void warmUpStaticAssetsOnIdle()
 				return true
 			}
 			return false

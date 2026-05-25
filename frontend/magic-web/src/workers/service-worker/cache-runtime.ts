@@ -31,6 +31,7 @@ import {
 
 // Injected at production build by vite-plugin-app-service-worker (empty in dev).
 declare const __SW_PRECACHE_ASSETS__: string[]
+declare const __SW_WARMUP_ASSETS__: string[]
 
 declare const workbox: WorkboxLike
 
@@ -73,6 +74,9 @@ export interface WorkboxBootstrapResult {
 
 const PRECACHE_ASSETS: readonly string[] =
 	typeof __SW_PRECACHE_ASSETS__ !== "undefined" ? __SW_PRECACHE_ASSETS__ : []
+
+const WARMUP_ASSETS: readonly string[] =
+	typeof __SW_WARMUP_ASSETS__ !== "undefined" ? __SW_WARMUP_ASSETS__ : []
 
 /**
  * Reads workboxCdnUrl from the SW registration script query string.
@@ -325,6 +329,43 @@ export async function precacheStaticAssetsOnInstall(): Promise<void> {
 			// A single failed precache URL must not reject the install event.
 		}
 	})
+}
+
+let hasWarmedUp = false
+
+/**
+ * Populates static assets list during browser idle phase.
+ * Uses concurrent batches of 10 and 200ms delay between intervals.
+ */
+export async function warmUpStaticAssetsOnIdle(): Promise<void> {
+	if (hasWarmedUp || !WARMUP_ASSETS.length) return
+	hasWarmedUp = true
+
+	const cache = await caches.open(APP_STATIC_CACHE_NAME)
+	const batchSize = 10
+	const intervalMs = 200
+
+	for (let index = 0; index < WARMUP_ASSETS.length; index += batchSize) {
+		const batch = WARMUP_ASSETS.slice(index, index + batchSize)
+		await Promise.allSettled(
+			batch.map(async (assetPath) => {
+				try {
+					const request = new Request(assetPath, { credentials: "same-origin" })
+					// Skip if already in cache (e.g. cached via regular HTTP dynamic request)
+					const existing = await cache.match(request)
+					if (existing) return
+
+					const response = await fetch(request)
+					if (response.ok) {
+						await cache.put(request, response)
+					}
+				} catch {
+					// Ignored single request failure.
+				}
+			}),
+		)
+		await new Promise((resolve) => setTimeout(resolve, intervalMs))
+	}
 }
 
 /**
