@@ -88,17 +88,29 @@ export class MentionPanelSkillsStore {
 		return this.getItems()
 	}
 
-	searchItems(normalizedQuery: string, matchesQuery: (target: string, query: string) => boolean) {
-		return this.fetchItems({ skillQueryKey: this.currentSkillQueryKey }).then((items) =>
-			items.filter((item) => {
-				if (matchesQuery(item.name, normalizedQuery)) return true
-				if (item.package_name && matchesQuery(item.package_name, normalizedQuery))
-					return true
-				if (!item.description) return false
+	private filterItems(
+		items: MentionItem[],
+		normalizedQuery: string,
+		matchesQuery: (target: string, query: string) => boolean,
+	) {
+		return items.filter((item) => {
+			if (matchesQuery(item.name, normalizedQuery)) return true
+			if (item.package_name && matchesQuery(item.package_name, normalizedQuery)) return true
+			if (item.description && matchesQuery(item.description, normalizedQuery)) return true
+			return false
+		})
+	}
 
-				return item.description.toLowerCase().includes(normalizedQuery)
-			}),
-		)
+	async searchItems(
+		normalizedQuery: string,
+		matchesQuery: (target: string, query: string) => boolean,
+	) {
+		const items =
+			this.items.length > 0
+				? this.items
+				: await this.fetchItems({ skillQueryKey: this.currentSkillQueryKey })
+
+		return this.filterItems(items, normalizedQuery, matchesQuery)
 	}
 
 	hasItem(skillId: string) {

@@ -89,6 +89,11 @@ function filterItemsByQuery(items: MentionItem[], query: string): MentionItem[] 
 			return true
 		}
 
+		// Search in package_name (for skills)
+		if (item.package_name?.toLowerCase().includes(lowercaseQuery)) {
+			return true
+		}
+
 		// Search in description
 		if (item.description?.toLowerCase().includes(lowercaseQuery)) {
 			return true
@@ -114,6 +119,7 @@ function filterItemsByQuery(items: MentionItem[], query: string): MentionItem[] 
 				"file_path",
 				"agent_name",
 				"agent_description",
+				"package_name",
 			]
 			for (const key of fieldsToCheck) {
 				const value = (data as Record<string, unknown>)[key]
@@ -197,19 +203,18 @@ export function useMentionPanel<TCatalogId extends string = string>(
 	)
 
 	// Update panel state when data changes
+	// Note: Do NOT re-filter search results here. Items from the search pipeline
+	// (dataSourceHook.items) are already correctly filtered by domain-specific
+	// search plugins. Re-filtering would require duplicating all matching logic
+	// and risk inconsistent field coverage (e.g., package_name, new fields).
+	// Local filtering (CATALOG/FOLDER) is handled in the search action directly.
 	useEffect(() => {
 		setPanelState((prev) => {
 			const newItems = dataSourceHook.items
 
-			// If we have a search query, filter the new items
-			const filteredItems = prev.searchQuery
-				? filterItemsByQuery(newItems, prev.searchQuery)
-				: newItems
-
 			return {
 				...prev,
-				items: filteredItems,
-				// Only update originalItems when not searching to preserve search context
+				items: newItems,
 				originalItems: prev.searchQuery ? prev.originalItems : newItems,
 				loading: dataSourceHook.loading,
 				error: dataSourceHook.error,
