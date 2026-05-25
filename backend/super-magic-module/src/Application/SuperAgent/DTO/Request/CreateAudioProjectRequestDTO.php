@@ -112,7 +112,7 @@ class CreateAudioProjectRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationRules(): array
     {
         return [
-            'project_name' => 'required|string|max:255',
+            'project_name' => 'present|string|max:255',
             'workspace_id' => 'nullable|string',
             'source' => 'required|string|in:app,device',
             'device_id' => 'nullable|string|max:100',
@@ -130,7 +130,7 @@ class CreateAudioProjectRequestDTO extends AbstractRequestDTO
     protected static function getHyperfValidationMessage(): array
     {
         return [
-            'project_name.required' => 'Project name cannot be empty',
+            'project_name.present' => 'Project name field is required',
             'project_name.max' => 'Project name cannot exceed 255 characters',
             'source.required' => 'Source cannot be empty',
             'source.in' => 'Source must be either app or device',

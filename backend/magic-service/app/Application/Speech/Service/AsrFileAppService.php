@@ -516,6 +516,14 @@ class AsrFileAppService extends AbstractAppService
             // 生成标题
             $fileTitle = $this->titleGeneratorService->generateFromTaskStatus($taskStatus);
 
+            $this->ensureEmptyProjectAndTopicNames(
+                $taskStatus,
+                $userId,
+                $organizationCode,
+                null,
+                $fileTitle
+            );
+
             // 先生成新的显示目录路径并更新到 taskStatus（确保沙箱使用正确的目录）
             if (! empty($fileTitle)) {
                 $newDisplayDirectory = $this->directoryService->getNewDisplayDirectory(
@@ -713,6 +721,15 @@ class AsrFileAppService extends AbstractAppService
         }
         $taskStatus->modelId = $effectiveModelId;
         $this->asrTaskDomainService->saveTaskStatus($taskStatus);
+
+        $this->ensureEmptyProjectAndTopicNames(
+            $taskStatus,
+            $userId,
+            $organizationCode,
+            $userAuthorization,
+            null,
+            $taskStatus->audioFileId
+        );
 
         // ===== Step 4: State Management - Start summarizing phase =====
         $this->asrTaskDomainService->startSummarizingPhase($taskStatus);
@@ -1294,12 +1311,22 @@ class AsrFileAppService extends AbstractAppService
             throw new RuntimeException('Model id is required for imported summary');
         }
 
+        $generatedTitle = $this->ensureEmptyProjectAndTopicNames(
+            $taskStatus,
+            $userAuthorization->getId(),
+            $userAuthorization->getOrganizationCode(),
+            $userAuthorization,
+            null,
+            (string) $fileId
+        );
+
         $summaryRequest = new SummaryRequestDTO(
             taskKey: $taskKey,
             projectId: (string) $taskStatus->projectId,
             topicId: (string) $topicId,
             modelId: $effectiveModelId,
-            fileId: (string) $fileId
+            fileId: (string) $fileId,
+            generatedTitle: $generatedTitle
         );
 
         $result = $this->processSummaryWithChat($summaryRequest, $userAuthorization);
@@ -1377,6 +1404,124 @@ class AsrFileAppService extends AbstractAppService
                 'error' => $e->getMessage(),
             ]);
             return [null, null];
+        }
+    }
+
+    /**
+     * 空项目名/话题名兜底补标题。best-effort，不阻断总结主流程.
+     */
+    private function ensureEmptyProjectAndTopicNames(
+        AsrTaskStatusDTO $taskStatus,
+        string $userId,
+        string $organizationCode,
+        ?MagicUserAuthorization $userAuthorization = null,
+        ?string $preferredTitle = null,
+        ?string $audioFileId = null
+    ): ?string {
+        try {
+            if (empty($taskStatus->projectId) || empty($taskStatus->topicId)) {
+                return null;
+            }
+
+            $projectEntity = $this->projectDomainService->getProjectNotUserId((int) $taskStatus->projectId);
+            $projectName = $projectEntity?->getProjectName();
+            $topicEntity = $this->superAgentTopicDomainService->getTopicById((int) $taskStatus->topicId);
+            $topicName = $topicEntity?->getTopicName();
+
+            if (! $this->shouldUpdateNames($projectName, $topicName)) {
+                return null;
+            }
+
+            $generatedTitle = $this->resolveTitleForEmptyProjectAndTopicNames(
+                $taskStatus,
+                $userAuthorization,
+                $preferredTitle,
+                $audioFileId
+            );
+
+            $this->updateEmptyProjectAndTopicNames(
+                (string) $taskStatus->projectId,
+                (int) $taskStatus->topicId,
+                $generatedTitle,
+                $userId,
+                $organizationCode
+            );
+
+            return $generatedTitle;
+        } catch (Throwable $e) {
+            $this->logger->warning('空项目/话题名称自动补标题失败', [
+                'task_key' => $taskStatus->taskKey,
+                'project_id' => $taskStatus->projectId,
+                'topic_id' => $taskStatus->topicId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    private function resolveTitleForEmptyProjectAndTopicNames(
+        AsrTaskStatusDTO $taskStatus,
+        ?MagicUserAuthorization $userAuthorization,
+        ?string $preferredTitle,
+        ?string $audioFileId
+    ): string {
+        $uploadGeneratedTitle = $this->titleGeneratorService->sanitizeTitle($taskStatus->uploadGeneratedTitle ?? '');
+        if ($uploadGeneratedTitle !== '') {
+            return $uploadGeneratedTitle;
+        }
+
+        $preferredTitle = $this->titleGeneratorService->sanitizeTitle($preferredTitle ?? '');
+        if ($preferredTitle !== '') {
+            return $preferredTitle;
+        }
+
+        $generatedFromTask = $this->titleGeneratorService->sanitizeTitle(
+            $this->titleGeneratorService->generateNullableFromTaskStatus($taskStatus) ?? ''
+        );
+        if ($generatedFromTask !== '') {
+            return $generatedFromTask;
+        }
+
+        $audioFileTitle = $this->generateTitleFromAudioFileName(
+            $taskStatus,
+            $audioFileId ?: $taskStatus->audioFileId,
+            $userAuthorization
+        );
+        if (! empty($audioFileTitle)) {
+            return $audioFileTitle;
+        }
+
+        return $this->titleGeneratorService->generateDefaultDirectoryName();
+    }
+
+    private function generateTitleFromAudioFileName(
+        AsrTaskStatusDTO $taskStatus,
+        ?string $audioFileId,
+        ?MagicUserAuthorization $userAuthorization
+    ): ?string {
+        if (empty($audioFileId)) {
+            return null;
+        }
+
+        try {
+            $fileEntity = $this->taskFileDomainService->getById((int) $audioFileId);
+            if ($fileEntity === null) {
+                return null;
+            }
+
+            $userAuthorization ??= $this->getUserAuthorizationFromUserId($taskStatus->userId);
+            return $this->titleGeneratorService->generateTitleForFileUpload(
+                $userAuthorization,
+                $fileEntity->getFileName(),
+                $taskStatus->taskKey
+            );
+        } catch (Throwable $e) {
+            $this->logger->warning('根据音频文件名生成补齐标题失败', [
+                'task_key' => $taskStatus->taskKey,
+                'audio_file_id' => $audioFileId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
         }
     }
 
