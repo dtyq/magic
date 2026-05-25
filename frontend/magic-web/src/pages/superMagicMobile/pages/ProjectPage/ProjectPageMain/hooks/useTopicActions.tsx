@@ -294,7 +294,7 @@ export function useTopicListActions() {
 					onClick: handleDeleteConfirm,
 					tone: "destructive",
 				}}
-				bodyClassName="max-h-[80vh] p-0"
+				bodyClassName="max-h-[80dvh] p-0"
 				zIndex={1021}
 			>
 				<div className="scrollbar-y-thin flex min-h-0 flex-col overflow-y-auto px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">

@@ -130,7 +130,7 @@ function HierarchicalWorkspacePopup(
 				visible={visible}
 				onClose={closePopup}
 				position="bottom"
-				bodyStyle={{ height: `calc(90vh - ${safeAreaInsetBottom})` }}
+				bodyStyle={{ height: `calc(90dvh - ${safeAreaInsetBottom})` }}
 				bodyClassName="bg-background overflow-hidden rounded-t-2xl [--adm-color-background:theme(colors.background)] flex flex-col"
 			>
 				<div className="sticky top-0 z-10 flex h-11 items-center justify-between border-border bg-background px-4 py-2.5">

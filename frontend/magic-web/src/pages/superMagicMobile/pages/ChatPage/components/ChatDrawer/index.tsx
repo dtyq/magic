@@ -531,7 +531,7 @@ function ChatDrawer({
 					onClick: handleDeleteProjectConfirm,
 					tone: "destructive",
 				}}
-				bodyClassName="max-h-[80vh] p-0"
+				bodyClassName="max-h-[80dvh] p-0"
 			>
 				<div className="scrollbar-y-thin flex min-h-0 flex-col overflow-y-auto px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
 					<p className="mx-auto max-w-[680px] text-left text-[16px] leading-6 text-muted-foreground">

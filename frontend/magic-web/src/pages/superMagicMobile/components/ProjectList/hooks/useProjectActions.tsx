@@ -489,7 +489,7 @@ export function useProjectListActions({
 					testId: "project-actions-popup-close",
 				}}
 				className="border-none bg-muted"
-				bodyClassName="max-h-[80vh] bg-muted p-0"
+				bodyClassName="max-h-[80dvh] bg-muted p-0"
 			>
 				<div className="scrollbar-y-thin flex min-h-0 flex-col gap-2 overflow-y-auto px-3 pb-[max(var(--safe-area-inset-bottom),16px)] pt-3">
 					{projectActionGroups.map(renderProjectActionGroup)}
@@ -525,7 +525,7 @@ export function useProjectListActions({
 					disabled: !currentActionItem?.project_name?.trim(),
 					tone: "primary",
 				}}
-				bodyClassName="max-h-[80vh] p-0"
+				bodyClassName="max-h-[80dvh] p-0"
 			>
 				<div className="scrollbar-y-thin flex min-h-0 flex-col gap-4 overflow-y-auto px-4 pb-[max(var(--safe-area-inset-bottom),16px)] pt-2">
 					<div className="flex flex-col gap-2.5">
@@ -577,7 +577,7 @@ export function useProjectListActions({
 					},
 					tone: "destructive",
 				}}
-				bodyClassName="max-h-[80vh] p-0"
+				bodyClassName="max-h-[80dvh] p-0"
 			>
 				<div className="scrollbar-y-thin flex min-h-0 flex-col overflow-y-auto px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
 					{/* 删除态正文按“实体名强调 + 后果说明弱化”排版，更贴近移动端原型的风险提示层级。 */}

@@ -21,12 +21,12 @@ function TopicPopup({ open, onClose, onHistoryClick }: TopicPopupProps) {
 			onClose={onClose}
 			position="bottom"
 			className="!pb-0"
-			bodyClassName="h-[calc(100vh - var(--safe-area-inset-bottom))] !p-0"
+			bodyClassName="h-[calc(100dvh-var(--safe-area-inset-bottom))] !p-0"
 		>
 			{/* <Suspense fallback={<MessagePanelSkeleton isMobile />}> */}
 			<TopicPage
 				onHistoryClick={onHistoryClick}
-				className="!h-[calc(100vh-124px-var(--safe-area-inset-bottom))]"
+				className="!h-[calc(100dvh-124px-var(--safe-area-inset-bottom))]"
 			/>
 			{/* </Suspense> */}
 		</MagicPopup>

@@ -113,7 +113,7 @@ function TopicFilesPopupComponent({
 					testId: "topic-page-files-popup-close-button",
 				}}
 				className="rounded-t-[24px] border-0 bg-[#F6F6F3]"
-				bodyClassName="flex h-[90vh] max-h-[calc(100dvh-8px)] flex-col overflow-hidden"
+				bodyClassName="flex h-[90dvh] max-h-[calc(100dvh-8px)] flex-col overflow-hidden"
 			>
 				<div
 					className="flex h-full min-h-0 flex-col bg-[#F6F6F3]"

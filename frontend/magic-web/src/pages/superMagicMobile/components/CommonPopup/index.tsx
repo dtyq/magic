@@ -54,7 +54,7 @@ function CommonPopup(props: PreviewDetailPopupProps) {
 			}}
 		>
 			<div
-				className="flex h-full max-h-[calc(100vh-44px-60px-var(--safe-area-inset-top)-var(--safe-area-inset-bottom))] flex-col"
+				className="flex h-full max-h-[calc(100dvh-44px-60px-var(--safe-area-inset-top)-var(--safe-area-inset-bottom))] flex-col"
 				style={wrapperStyle}
 			>
 				{showHeader && (

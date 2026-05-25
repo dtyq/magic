@@ -198,7 +198,7 @@ function MobileTrashRestorePickerSheet(props: MobileTrashRestorePickerSheetProps
 				side="bottom"
 				showClose={false}
 				aria-describedby={undefined}
-				className="flex h-auto max-h-[85vh] flex-col gap-0 overflow-hidden rounded-t-[14px] border-0 bg-muted p-0"
+				className="flex h-auto max-h-[85dvh] flex-col gap-0 overflow-hidden rounded-t-[14px] border-0 bg-muted p-0"
 				style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
 				data-testid="mobile-recycle-bin-restore-picker-sheet"
 			>

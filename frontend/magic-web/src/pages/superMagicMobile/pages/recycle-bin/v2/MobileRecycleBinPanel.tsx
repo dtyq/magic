@@ -154,7 +154,7 @@ function MobileRecycleBinPanel() {
 					ariaLabel: t("common.close"),
 					onClick: () => setFilterSheetOpen(false),
 				}}
-				className="flex h-[90vh] flex-col gap-0 overflow-hidden rounded-t-[20px] border-0 bg-muted p-0"
+				className="flex h-[90dvh] flex-col gap-0 overflow-hidden rounded-t-[20px] border-0 bg-muted p-0"
 				bodyClassName="flex-1 overflow-y-auto bg-muted px-4 py-4"
 				style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
 			>

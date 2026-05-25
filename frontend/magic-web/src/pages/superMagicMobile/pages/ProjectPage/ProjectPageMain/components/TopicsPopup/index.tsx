@@ -39,7 +39,7 @@ function TopicsPopup({ open, onOpenChange, onCreateTopic, onOpenActionsPopup }: 
 			visible={open}
 			onClose={() => onOpenChange(false)}
 			position="bottom"
-			bodyClassName="h-[80vh]"
+			bodyClassName="h-[80dvh]"
 			title={t("topic.allTopics")}
 		>
 			<div className="flex h-full flex-col">

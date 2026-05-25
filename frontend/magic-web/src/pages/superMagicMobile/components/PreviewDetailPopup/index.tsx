@@ -31,8 +31,8 @@ import { cn } from "@/lib/utils"
 /** Mobile preview sheet: near full viewport; overrides MagicPopup default mt-24 top band. */
 const MOBILE_PREVIEW_SHEET_CLASSNAME = cn(
 	"flex flex-col overflow-hidden rounded-t-[14px] border-0 bg-background p-0",
-	"h-[min(98vh,calc(100vh-var(--safe-area-inset-top)-0.5rem))]",
-	"max-h-[calc(100vh-var(--safe-area-inset-top)-0.5rem)]",
+	"h-[min(98dvh,calc(100dvh-var(--safe-area-inset-top)-0.5rem))]",
+	"max-h-[calc(100dvh-var(--safe-area-inset-top)-0.5rem)]",
 	"data-[vaul-drawer-direction=bottom]:!mt-[max(0.5rem,var(--safe-area-inset-top))]",
 )
 
