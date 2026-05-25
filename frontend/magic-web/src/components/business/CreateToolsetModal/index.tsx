@@ -65,7 +65,7 @@ function CreateToolsetModal({
 	onToolCreated,
 	toolModalButtonConfig,
 }: CreateToolsetModalProps) {
-	const { t } = useTranslation()
+	const { t } = useTranslation(["agent", "flow", "interface", "message"])
 
 	const { styles } = useStyles()
 	const { styles: footerStyles } = useModalFooterStyles()
