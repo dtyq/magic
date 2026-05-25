@@ -122,10 +122,8 @@ export function getNestedIframeInterceptorScript(): string {
 		// Guard against duplicate processing
 		if (element.getAttribute('data-magic-iframe-loading')) return;
 		element.setAttribute('data-magic-iframe-loading', 'true');
-		// 保存原始相对路径，便于保存时还原
-		if (!element.getAttribute('data-original-path')) {
-			element.setAttribute('data-original-path', relativePath);
-		}
+		// 保存/更新原始相对路径，便于保存时还原
+		element.setAttribute('data-original-path', relativePath);
 
 		// 生成跳过场景的兜底页面，避免空白或反复重试
 		function escapeHtml(value) {
@@ -172,8 +170,14 @@ export function getNestedIframeInterceptorScript(): string {
 
 		// Remove src immediately so the browser won't load the raw file
 		element.removeAttribute('src');
+		// Clear stale srcdoc to avoid flashing previous content while loading new page
+		if (element.hasAttribute('srcdoc')) {
+			element.removeAttribute('srcdoc');
+		}
 
 		var requestId = 'nested_iframe_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+		// Store current request ID on the element so stale responses can be discarded
+		element.setAttribute('data-magic-iframe-request-id', requestId);
 
 		// Timeout fallback: restore src so at least something renders
 		var timeoutId = setTimeout(function() {
@@ -190,6 +194,12 @@ export function getNestedIframeInterceptorScript(): string {
 			) {
 				clearTimeout(timeoutId);
 				window.removeEventListener('message', responseHandler);
+
+				// If a newer request has superseded this one, discard the stale response
+				if (element.getAttribute('data-magic-iframe-request-id') !== requestId) {
+					return;
+				}
+
 				element.removeAttribute('data-magic-iframe-loading');
 
 				if (event.data.skipProcessing) {
@@ -244,11 +254,18 @@ export function getNestedIframeInterceptorScript(): string {
 		var requestPath = null;
 		var fallbackSrc = src || '';
 
-		// 初始化阶段 src 可能已是 OSS URL，优先用 data-original-path 识别
-		if (originalPath && isRelativeHtmlPath(originalPath)) {
-			requestPath = originalPath;
-		} else if (src && isRelativeHtmlPath(src)) {
+		// When src is a valid relative HTML path, it represents the current navigation intent.
+		// If it differs from the stored original-path, a dynamic src change has occurred.
+		if (src && isRelativeHtmlPath(src)) {
 			requestPath = src;
+			if (originalPath && originalPath !== src) {
+				// Dynamic src change detected: update stored path and allow re-processing
+				el.setAttribute('data-original-path', src);
+				el.removeAttribute('data-magic-iframe-loading');
+			}
+		} else if (originalPath && isRelativeHtmlPath(originalPath)) {
+			// 初始化阶段 src 可能已是 OSS URL，用 data-original-path 识别
+			requestPath = originalPath;
 		}
 
 		// 已标记为跳过的节点不再重复处理；若路径变化则允许重新尝试
@@ -363,7 +380,7 @@ export function createNestedIframeContentHandler(
 			skipProcessing?: boolean,
 			skipReason?: string,
 		) => {
-			;(event.source as Window)?.postMessage(
+			; (event.source as Window)?.postMessage(
 				{
 					type: NESTED_IFRAME_MESSAGE_TYPES.RESPONSE,
 					requestId,
