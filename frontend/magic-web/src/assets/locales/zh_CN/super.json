@@ -3559,6 +3559,7 @@
 		"deleteProjectConfirm": "确定要删除项目: \"{{name}}\" 吗？",
 		"deleteProjectConfirmTitle": "删除项目?",
 		"deleteProjectDescription": "「{{name}}」将被永久删除，包含其中所有话题和文件，此操作无法撤销。",
+		"deleteProjectDescriptionWithoutName": "将被永久删除，包含其中所有话题和文件，此操作无法撤销。",
 		"deleteTopicConfirm": "确定要删除话题: \"{{name}}\" 吗？",
 		"deleteTopicConfirmTitle": "删除对话?",
 		"deleteTopicDescription": "「{{name}}」将被永久删除，此操作无法撤销。",

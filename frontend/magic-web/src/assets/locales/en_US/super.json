@@ -3547,6 +3547,7 @@
 		"deleteProjectConfirm": "Are you sure to delete project: \"{{name}}\"?",
 		"deleteProjectConfirmTitle": "Delete Project?",
 		"deleteProjectDescription": "\"{{name}}\" will be permanently deleted, including all topics and files. This action cannot be undone.",
+		"deleteProjectDescriptionWithoutName": "will be permanently deleted, including all topics and files. This action cannot be undone.",
 		"deleteTopicConfirm": "Are you sure to delete topic: \"{{name}}\"?",
 		"deleteTopicConfirmTitle": "Delete Conversation?",
 		"deleteTopicDescription": "\"{{name}}\" will be permanently deleted. This action cannot be undone.",

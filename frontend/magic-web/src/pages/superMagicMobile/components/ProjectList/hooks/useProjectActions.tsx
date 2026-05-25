@@ -477,7 +477,7 @@ export function useProjectListActions({
 		t(isChatMode ? "chat.unnamedChat" : "project.unnamedProject")
 	const deleteActionName = actionPopupTitle
 	const deleteActionDescription = t(
-		isChatMode ? "chat.deleteChatDescription" : "ui.deleteProjectDescription",
+		isChatMode ? "chat.deleteChatDescription" : "ui.deleteProjectDescriptionWithoutName",
 	)
 
 	const projectActionComponents = (
