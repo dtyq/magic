@@ -1,6 +1,7 @@
 import CommonPopup from "@/pages/superMagicMobile/components/CommonPopup"
 import ShareModal from "@/pages/superMagic/components/Share/Modal"
 import { ShareType } from "@/pages/superMagic/components/Share/types"
+import { cn } from "@/lib/utils"
 import ProjectShareCreateView from "./components/ProjectShareCreateView"
 import ProjectShareDeleteConfirmView from "./components/ProjectShareDeleteConfirmView"
 import ProjectShareExpiryView from "./components/ProjectShareExpiryView"
@@ -9,13 +10,21 @@ import ProjectShareManageView from "./components/ProjectShareManageView"
 import { ProjectShareSheetFooter } from "./components/ProjectShareSheetFooter"
 import ProjectShareSheetHeader from "./components/ProjectShareSheetHeader"
 import { useProjectShareSheet } from "./hooks/useProjectShareSheet"
-import type { ProjectShareSheetProps } from "./types"
+import type { ProjectShareSheetProps, ProjectShareSheetView } from "./types"
+
+/** Views without a fixed footer must pad the scroll area for the home-indicator safe region. */
+const VIEWS_WITHOUT_FOOTER: ProjectShareSheetView[] = ["manage", "expiry", "deleteConfirm"]
 
 /**
  * 移动端项目分享 Sheet：用单一底部弹层承接原型多视图流程，真实保存/编辑仍复用现有分享弹层能力。
  */
 export default function ProjectShareSheet(props: ProjectShareSheetProps) {
 	const controller = useProjectShareSheet(props)
+	const scrollClassName = cn(
+		"scrollbar-y-thin relative min-h-0 flex-1 overflow-y-auto px-3.5 pt-2.5",
+		VIEWS_WITHOUT_FOOTER.includes(controller.view) &&
+			"pb-[max(var(--safe-area-inset-bottom),16px)]",
+	)
 
 	return (
 		<>
@@ -53,7 +62,7 @@ export default function ProjectShareSheet(props: ProjectShareSheetProps) {
 						projectName={props.projectName}
 					/>
 					<div className="flex min-h-0 flex-1 flex-col">
-						<div className="scrollbar-y-thin relative min-h-0 flex-1 overflow-y-auto px-3.5 pt-2.5">
+						<div className={scrollClassName} data-testid="project-share-sheet-scroll">
 							{controller.view === "create" ? (
 								<ProjectShareCreateView controller={controller} />
 							) : null}

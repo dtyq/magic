@@ -3,6 +3,11 @@ import type { ReactNode } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { ShareMode } from "@/pages/superMagic/components/Share/types"
 import ProjectShareSheet from "../index"
+import type { ProjectShareSheetView } from "../types"
+
+const { mockViewRef } = vi.hoisted(() => ({
+	mockViewRef: { current: "manage" as ProjectShareSheetView },
+}))
 
 interface MockCommonPopupProps {
 	children: ReactNode
@@ -57,7 +62,7 @@ vi.mock("../hooks/useProjectShareSheet", () => ({
 		open: true,
 		mode: "project",
 		shareMode: ShareMode.Project,
-		view: "manage",
+		view: mockViewRef.current,
 		viewStack: ["create"],
 		projectName: "Demo Project",
 		projectId: "project-1",
@@ -125,17 +130,40 @@ vi.mock("react-i18next", () => ({
 	}),
 }))
 
+function renderProjectShareSheet() {
+	return render(
+		<ProjectShareSheet
+			open
+			projectName="Demo Project"
+			projectId="project-1"
+			attachments={[]}
+			onClose={vi.fn()}
+		/>,
+	)
+}
+
 describe("ProjectShareSheet", () => {
-	it("管理页为空时展示空态", () => {
-		render(
-			<ProjectShareSheet
-				open
-				projectName="Demo Project"
-				projectId="project-1"
-				attachments={[]}
-				onClose={vi.fn()}
-			/>,
+	it("applies scroll safe-bottom padding on views without a fixed footer", () => {
+		mockViewRef.current = "manage"
+		renderProjectShareSheet()
+
+		expect(screen.getByTestId("project-share-sheet-scroll").className).toContain(
+			"safe-area-inset-bottom",
 		)
+	})
+
+	it("does not add scroll safe-bottom padding when the fixed footer owns bottom inset", () => {
+		mockViewRef.current = "create"
+		renderProjectShareSheet()
+
+		expect(screen.getByTestId("project-share-sheet-scroll").className).not.toContain(
+			"safe-area-inset-bottom",
+		)
+	})
+
+	it("管理页为空时展示空态", () => {
+		mockViewRef.current = "manage"
+		renderProjectShareSheet()
 
 		expect(screen.getByTestId("project-share-sheet-root")).toBeInTheDocument()
 		expect(screen.getByTestId("mock-common-popup")).toHaveAttribute(
