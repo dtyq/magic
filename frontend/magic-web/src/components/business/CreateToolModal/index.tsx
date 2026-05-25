@@ -12,6 +12,7 @@ import { botStore } from "@/stores/bot"
 import { FlowApi } from "@/apis"
 import { useModalFooterStyles } from "../shared/styles"
 import { openFlowModal, preloadFlowModal } from "../FlowModal/openFlowModal"
+import { cn } from "@/lib/utils"
 
 type CreateToolForm = Pick<MagicFlow.Flow, "name" | "description"> & {
 	icon: string
@@ -56,7 +57,7 @@ function CreateToolModal({
 	showAddAndNextButton = true,
 	onFlowPublished,
 }: CreateToolModalProps) {
-	const { t } = useTranslation()
+	const { t } = useTranslation(["agent", "flow", "interface"])
 
 	const { styles } = useStyles()
 	const { styles: footerStyles } = useModalFooterStyles()
@@ -156,7 +157,7 @@ function CreateToolModal({
 				<Button
 					key="justAdd"
 					onClick={handleJustAdd}
-					className={footerStyles.secondaryButton}
+					className={cn(footerStyles.secondaryButton)}
 				>
 					{t("common.tool.form.justAdd", { ns: "agent" })}
 				</Button>,
