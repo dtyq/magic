@@ -52,6 +52,7 @@ class ConfigYamlProvider(ModelProvider):
             return []
 
         result: List[ModelConfig] = []
+        skipped: List[str] = []
         for model_id, model_dict in models_dict.items():
             if not isinstance(model_dict, dict):
                 logger.warning(f"Model '{model_id}' config is not a dict, skipping")
@@ -59,14 +60,14 @@ class ConfigYamlProvider(ModelProvider):
             try:
                 mc = ModelConfig.from_dict(model_id, model_dict, provider_source=PROVIDER_TYPE)
                 if self._model_filter and self._model_filter(mc):
-                    logger.info(
-                        f"Skipping model '{model_id}' from config.yaml: "
-                        f"filtered by model_filter"
-                    )
+                    skipped.append(model_id)
                     continue
                 result.append(mc)
             except Exception as e:
                 logger.error(f"Failed to parse model '{model_id}' from config.yaml: {e}")
+
+        if skipped:
+            logger.info(f"Skipped {len(skipped)} models from config.yaml (filtered): {skipped}")
 
         logger.debug(f"ConfigYamlProvider loaded {len(result)} models from config.yaml")
         return result
