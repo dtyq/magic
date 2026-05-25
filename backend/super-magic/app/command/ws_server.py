@@ -94,7 +94,8 @@ async def lifespan(app: FastAPI):
     try:
         from agentlang.config.models.model_config_manager import model_config_manager
         from agentlang.config.models.providers.config_yaml_provider import ConfigYamlProvider
-        await model_config_manager.initialize([ConfigYamlProvider()])
+        from app.core.model_providers.model_filter import should_skip_model
+        await model_config_manager.initialize([ConfigYamlProvider(model_filter=should_skip_model)])
         logger.info("模型配置管理器初始化完成")
     except Exception as e:
         logger.error(f"模型配置管理器初始化失败: {e}")

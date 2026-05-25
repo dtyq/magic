@@ -345,12 +345,14 @@ class LLMFactory:
             raise ValueError(f"无法为模型 {model_id} 创建客户端")
 
     @classmethod
-    def get_model_config(cls, model_id: str, expected_type: str = None) -> LLMClientConfig:
+    def get_model_config(cls, model_id: str, expected_type: str = None, allow_fallback: bool = True) -> LLMClientConfig:
         """Get the model config for the given model ID.
 
         Args:
             model_id: The model ID to get the config for.
             expected_type: Expected model type (e.g., "llm", "embedding"). If None, no type validation.
+            allow_fallback: Whether to allow fallback to "auto" or first available model when model_id is not found.
+                           Defaults to True. Fallback is never applied for embedding type.
 
         Returns:
             The model config for the given model ID.
@@ -363,6 +365,25 @@ class LLMFactory:
 
         from agentlang.config.models.model_config_manager import model_config_manager
         mc = model_config_manager.get(model_id)
+
+        # 当找不到配置时，尝试 fallback（仅非 embedding 场景）
+        if mc is None and allow_fallback and expected_type != "embedding":
+            # 优先尝试 "auto" 模型
+            mc = model_config_manager.get("auto")
+            if mc is not None:
+                logger.warning(f"模型 '{model_id}' 未找到配置，fallback 到 'auto' 模型")
+            else:
+                # 从所有已注册模型中取第一个 LLM 类型的模型
+                all_models = model_config_manager.list_all()
+                for candidate in all_models:
+                    if candidate.type == "llm":
+                        mc = candidate
+                        logger.warning(
+                            f"模型 '{model_id}' 未找到配置且 'auto' 不可用，"
+                            f"fallback 到第一个可用 LLM 模型 '{mc.model_id}'"
+                        )
+                        break
+
         if mc is None:
             raise ValueError(f"找不到模型 ID 为 {model_id} 的配置")
 
