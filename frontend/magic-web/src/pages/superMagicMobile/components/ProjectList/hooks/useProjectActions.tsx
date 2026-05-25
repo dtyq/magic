@@ -22,7 +22,7 @@ import {
 	shouldShowProjectCollaboratorAction,
 	shouldShowProjectTransferAction,
 } from "@/pages/superMagicMobile/utils/projectActionVisibility"
-import { buildSharedProjectActionPolicy } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
+import { resolveProjectDetailHeaderActions } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
 
 interface UseProjectListActionsOptions {
 	onProjectChanged?: () => Promise<void> | void
@@ -83,6 +83,11 @@ export function useProjectListActions({
 		useProjectTransferModal(currentActionItem)
 
 	const openActionsPopup = useMemoizedFn((project: ProjectListItem) => {
+		const headerPolicy = resolveProjectDetailHeaderActions(project, {
+			canManageCollaborators,
+		})
+		if (isProjectDetailActionContext && !headerPolicy.hasMenuActions) return
+
 		updateCurrentActionItem(project)
 		_openActionsPopup()
 	})
@@ -225,7 +230,9 @@ export function useProjectListActions({
 
 	const isWorkspaceShortcutProjectStatus = isWorkspaceShortcutProject(currentActionItem)
 	const isCollaborationProjectStatus = isCollaborationProject(currentActionItem)
-	const sharedProjectActionPolicy = buildSharedProjectActionPolicy(currentActionItem)
+	const sharedProjectActionPolicy = resolveProjectDetailHeaderActions(currentActionItem, {
+		canManageCollaborators,
+	})
 
 	const projectActions = useMemo(() => {
 		const actions = [
@@ -612,8 +619,11 @@ export function useProjectListActions({
 		</>
 	)
 
+	const hasVisibleProjectActions = projectActions.length > 0
+
 	return {
 		projectActions,
+		hasVisibleProjectActions,
 		currentActionItem,
 		updateCurrentActionItem,
 		actionsPopupVisible,

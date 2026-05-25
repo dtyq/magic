@@ -1,19 +1,23 @@
 import { ChevronLeft } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { PORTAL_IDS } from "@/constants"
+import type { ProjectDetailHeaderActionSlots } from "@/pages/superMagicMobile/utils/sharedProjectActionPolicy"
 
 interface ProjectDetailHeaderProps {
 	title?: string | null
 	subtitle?: string | null
 	onBackClick?: () => void
 	showActions?: boolean
+	/** When false, hide the right-side action capsule entirely (e.g. readonly shared projects). */
+	showActionCapsule?: boolean
+	/** Which portal slots to mount inside the capsule; avoids empty placeholder slots. */
+	actionSlots?: ProjectDetailHeaderActionSlots
 	/**
 	 * 右上动作槽位的布局变体，命名直接对齐承载它的路由：
 	 *
 	 * - "project-entry"：项目入口页（RouteName.SuperWorkspaceProjectState，
-	 *   路径 `/super/:projectId`）使用。渲染胶囊容器 + 两个 48×48 槽位
-	 *   （COLLABORATION + MORE），分别承载"项目分享"和"更多"。
-	 *   两个 portal 都会被消费方 ProjectPage 注入按钮。
+	 *   路径 `/super/:projectId`）使用。渲染胶囊容器 + 按需暴露的 48×48 槽位
+	 *   （COLLABORATION / MORE / 协作者），分别由 ProjectPage portal 注入按钮。
 	 *
 	 * - "project-topic"：项目话题子页（RouteName.SuperWorkspaceProjectTopicState，
 	 *   路径 `/super/:projectId/:topicId`）使用。只渲染一个 48×48 圆形按钮槽位
@@ -31,6 +35,12 @@ interface ProjectDetailHeaderProps {
 	actionsLayout?: "project-entry" | "project-topic"
 }
 
+const DEFAULT_ACTION_SLOTS: ProjectDetailHeaderActionSlots = {
+	share: true,
+	more: true,
+	collaborators: false,
+}
+
 /**
  * 项目详情页头部：与原型 ProjectDetailScreen 顶栏一致（h-14、底圆角、无单独铺色，与页面 background 连成一块）。
  */
@@ -39,9 +49,14 @@ export function ProjectDetailHeader({
 	subtitle,
 	onBackClick,
 	showActions = true,
+	showActionCapsule = true,
+	actionSlots = DEFAULT_ACTION_SLOTS,
 	actionsLayout = "project-entry",
 }: ProjectDetailHeaderProps) {
 	const { t } = useTranslation("super")
+	const slots = actionSlots
+	const shouldRenderEntryCapsule =
+		showActions && actionsLayout === "project-entry" && showActionCapsule
 
 	return (
 		<div className="mobile-page-header pb-0" data-testid="project-detail-header-root">
@@ -67,24 +82,32 @@ export function ProjectDetailHeader({
 					</p>
 				) : null}
 			</div>
-			{showActions && actionsLayout === "project-entry" ? (
-				// 项目入口页路由使用胶囊容器，暴露"协作管理 + 更多"两个头部动作槽位。
+			{shouldRenderEntryCapsule ? (
 				<div
 					className="ml-auto flex h-12 shrink-0 items-stretch overflow-hidden rounded-full bg-card text-foreground shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)] dark:shadow-[0px_8px_25px_0px_rgba(0,0,0,0.32)]"
 					data-testid="project-detail-header-actions"
 				>
-					<div
-						className="flex h-12 w-12 items-center justify-center"
-						id={PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_COLLABORATION_BUTTON}
-					/>
-					<div
-						className="flex h-12 w-12 items-center justify-center"
-						id={PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_MORE_BUTTON}
-					/>
+					{slots.share ? (
+						<div
+							className="flex h-12 w-12 items-center justify-center"
+							id={PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_COLLABORATION_BUTTON}
+						/>
+					) : null}
+					{slots.collaborators ? (
+						<div
+							className="flex h-12 w-12 items-center justify-center"
+							id={PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_MORE_BUTTON}
+						/>
+					) : null}
+					{slots.more && !slots.collaborators ? (
+						<div
+							className="flex h-12 w-12 items-center justify-center"
+							id={PORTAL_IDS.SUPER_MAGIC_MOBILE_HEADER_RIGHT_MORE_BUTTON}
+						/>
+					) : null}
 				</div>
 			) : null}
 			{showActions && actionsLayout === "project-topic" ? (
-				// 项目话题子页路由只暴露一个圆形"更多"槽位，避免空协作槽占位。
 				<div
 					className="mobile-page-header-btn ml-auto overflow-hidden"
 					data-testid="project-detail-header-actions"
