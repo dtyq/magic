@@ -2,6 +2,7 @@ import type { ComponentType } from "react"
 
 export { getMobileSettingsPointsPurchaseState, groupPointsRecords } from "./pointsRecords"
 import MobileSettingsOrderHistoryUnavailable from "./components/OrderHistoryUnavailable"
+import type { PointsRecordItem } from "./types"
 
 export interface MobileSettingsOrderHistoryPanelProps {
 	embedded?: boolean
@@ -53,9 +54,24 @@ export async function loadMobileSettingsOrderHistoryPanel(): Promise<{
 	}
 }
 
-export async function loadMobileSettingsPointsRecords(fallbackLabel: string) {
+export interface MobileSettingsPointsRecordsPageParams {
+	page: number
+	pageSize: number
+}
+
+export interface MobileSettingsPointsRecordsPageResult {
+	records: PointsRecordItem[]
+	hasMore: boolean
+}
+
+export async function loadMobileSettingsPointsRecords(
+	fallbackLabel: string,
+	params: MobileSettingsPointsRecordsPageParams,
+): Promise<MobileSettingsPointsRecordsPageResult> {
 	void fallbackLabel
-	return []
+	void params
+
+	return { records: [], hasMore: false }
 }
 
 /**
@@ -73,4 +89,3 @@ export async function submitMobileSettingsFeedback(params: MobileSettingsFeedbac
 	void params
 	return false
 }
-

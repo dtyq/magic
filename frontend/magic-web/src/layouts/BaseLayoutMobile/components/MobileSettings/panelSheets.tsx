@@ -1,19 +1,17 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react"
 import { useMemoizedFn } from "ahooks"
+import { throttle } from "lodash-es"
 import { Coins, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 
 import { Button } from "@/components/shadcn-ui/button"
+import { Separator } from "@/components/shadcn-ui/separator"
 import { userStore } from "@/models/user"
 import { useTimezone } from "@/providers/TimezoneProvider/hooks"
-import { cn } from "@/lib/utils"
 import { isPrivateDeployment } from "@/utils/env"
 import MagicModal from "@/components/base/MagicModal"
-import {
-	MOBILE_SETTINGS_CARD_CLASSNAME,
-	MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME,
-} from "./constants"
+import { MOBILE_SETTINGS_CARD_CLASSNAME, MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME } from "./constants"
 import { MobileSettingsPointsRecordDetailSheet } from "./components/PointsRecordDetailSheet"
 import { MobileSettingsPointsRecordRow } from "./components/PointsRecordRow"
 import { MobileSettingsSheetContainer } from "./components/SheetContainer"
@@ -28,6 +26,9 @@ import {
 } from "./utils"
 
 const MobileSettingsOrderHistoryPanelContent = lazy(loadMobileSettingsOrderHistoryPanel)
+
+/** 积分明细每页条数，与 PointsList、SubscriptionBill 保持一致。 */
+const POINTS_RECORDS_PAGE_SIZE = 20
 
 /** 积分购买页只负责承载共享 UI，具体充值实现通过能力注入层接入。 */
 export function MobileSettingsPointsSheet(props: { open: boolean; onClose: () => void }) {
@@ -70,7 +71,7 @@ export function MobileSettingsPointsSheet(props: { open: boolean; onClose: () =>
 			}
 			dataTestId="mobile-settings-points-sheet"
 		>
-			<div className="flex flex-col gap-4 mt-2">
+			<div className="mt-2 flex flex-col gap-4">
 				{!privateDeploy && (
 					<div className={MOBILE_SETTINGS_CARD_CLASSNAME}>
 						<div className="text-sm font-medium text-foreground">
@@ -117,51 +118,94 @@ export function MobileSettingsPointsDetailSheet(props: { open: boolean; onClose:
 	const { timezone } = useTimezone()
 	const [loading, setLoading] = useState(false)
 	const [records, setRecords] = useState<PointsRecordItem[]>([])
+	const [hasMore, setHasMore] = useState(true)
+	const [currentPage, setCurrentPage] = useState(1)
 	const [activeRecord, setActiveRecord] = useState<PointsRecordItem | null>(null)
+
+	const loaderRef = useRef<HTMLDivElement>(null)
+	const fallbackLabel = t("bonusPointsModal.pointsChange")
 
 	/** 父级积分明细浮层关闭时顺带收起详情浮层，避免再次进入时停留在旧记录。 */
 	useEffect(() => {
 		if (!open) {
 			setActiveRecord(null)
+			setRecords([])
+			setCurrentPage(1)
+			setHasMore(true)
 		}
 	}, [open])
 
+	/** 按页拉取积分明细，首屏替换列表，滚动加载时追加。 */
+	const loadData = useMemoizedFn(async (page: number, isLoadMore = false) => {
+		if (loading) return
+
+		try {
+			setLoading(true)
+
+			const { records: nextRecords, hasMore: nextHasMore } =
+				await loadMobileSettingsPointsRecords(fallbackLabel, {
+					page,
+					pageSize: POINTS_RECORDS_PAGE_SIZE,
+				})
+
+			if (isLoadMore) {
+				setRecords((prev) => [...prev, ...nextRecords])
+			} else {
+				setRecords(nextRecords)
+			}
+
+			setHasMore(nextHasMore)
+		} catch {
+			toast.error(t("common.loadFailed"))
+		} finally {
+			setLoading(false)
+		}
+	})
+
+	/** 触底加载下一页，页码在请求前递增。 */
+	const handleLoadMore = useMemoizedFn(async () => {
+		if (!hasMore) return
+
+		const nextPage = currentPage + 1
+		setCurrentPage(nextPage)
+		await loadData(nextPage, true)
+	})
+
+	const throttledLoadMore = useMemo(() => throttle(handleLoadMore, 1000), [handleLoadMore])
+
+	/** 底部哨兵进入视口时触发加载更多，与订单明细页一致。 */
+	useEffect(() => {
+		if (!open || !loaderRef.current) return
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const [entry] = entries
+				if (entry.isIntersecting && hasMore && !loading) {
+					throttledLoadMore()
+				}
+			},
+			{ threshold: 0.1 },
+		)
+
+		const currentLoader = loaderRef.current
+		observer.observe(currentLoader)
+
+		return () => {
+			throttledLoadMore.cancel()
+			observer.unobserve(currentLoader)
+		}
+	}, [open, hasMore, loading, throttledLoadMore])
+
+	/** 浮层打开时重置分页并拉取第一页。 */
 	useEffect(() => {
 		if (!open) return
 
-		let cancelled = false
-
-		/** 打开积分明细浮层时才触发加载，让视图层只负责调用已收敛好的数据 helper。 */
-		async function fetchPointsRecords() {
-			setLoading(true)
-
-			try {
-				if (cancelled) return
-
-				const nextRecords = await loadMobileSettingsPointsRecords(
-					t("bonusPointsModal.pointsChange"),
-				)
-
-				if (cancelled) return
-
-				setRecords(nextRecords)
-			} catch {
-				if (!cancelled) {
-					toast.error(t("common.loadFailed"))
-				}
-			} finally {
-				if (!cancelled) {
-					setLoading(false)
-				}
-			}
-		}
-
-		void fetchPointsRecords()
-
-		return () => {
-			cancelled = true
-		}
-	}, [open, t])
+		setCurrentPage(1)
+		setRecords([])
+		setHasMore(true)
+		void loadData(1, false)
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [open])
 
 	const groupedRecords = useMemo(
 		() => groupPointsRecords(records, timezone, (key) => t(key)),
@@ -250,6 +294,26 @@ export function MobileSettingsPointsDetailSheet(props: { open: boolean; onClose:
 									</div>
 								</div>
 							))}
+
+							{hasMore ? (
+								<div
+									ref={loaderRef}
+									className="py-4 text-center text-sm text-muted-foreground"
+									data-testid="mobile-settings-points-detail-load-more"
+								>
+									{loading ? t("common.loading") : null}
+								</div>
+							) : null}
+
+							{!hasMore && records.length > 0 ? (
+								<div className="flex items-center justify-center gap-2.5 py-4">
+									<Separator className="!w-8" />
+									<div className="text-sm text-muted-foreground">
+										{t("bonusPointsModal.allLoaded")}
+									</div>
+									<Separator className="!w-8" />
+								</div>
+							) : null}
 						</div>
 					)}
 				</div>

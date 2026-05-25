@@ -61,6 +61,30 @@ export function normalizePointsRecords(response: PointsRecordsResponse, fallback
 	)
 }
 
+/** 从分页接口响应中读取 total；非标准分页结构时返回 null 供 hasMore 走 list 长度兜底。 */
+export function getPointsRecordsTotal(response: PointsRecordsResponse): number | null {
+	if (!response || Array.isArray(response) || typeof response !== "object") return null
+
+	if ("total" in response && typeof response.total === "number") return response.total
+
+	return null
+}
+
+/**
+ * 判断是否还有下一页：有 total 时按 page*pageSize 与 total 比较；
+ * 无 total 时仅当本页条数满 pageSize 才继续请求，避免空响应导致无限加载。
+ */
+export function getPointsRecordsHasMore(
+	page: number,
+	pageSize: number,
+	listLength: number,
+	total: number | null,
+): boolean {
+	if (total !== null) return page * pageSize < total
+
+	return listLength >= pageSize
+}
+
 /** 统一读取积分购买页展示态，优先复用已有订阅信息字段而不是在 UI 中重新拼业务判断。 */
 export function getMobileSettingsPointsPurchaseState() {
 	const subscriptionInfo = userStore.user.organizationSubscriptionInfo
