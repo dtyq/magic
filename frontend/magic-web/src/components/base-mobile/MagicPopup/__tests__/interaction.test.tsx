@@ -76,6 +76,18 @@ describe("MagicPopup interaction contract", () => {
 		).toBeInTheDocument()
 	})
 
+	test("overlay uses faster mask fade durations than vaul default", () => {
+		render(
+			<MagicPopup visible title="sheet">
+				<div>content</div>
+			</MagicPopup>,
+		)
+
+		const overlay = document.querySelector('[data-slot="drawer-overlay"]')
+		expect(overlay?.className).toContain("data-[state=open]:!duration-300")
+		expect(overlay?.className).toContain("data-[state=closed]:!duration-200")
+	})
+
 	test("非 bottom 弹层不会默认启用仅手柄拖拽关闭", () => {
 		render(
 			<MagicPopup visible title="side-sheet" position="left">

@@ -216,7 +216,12 @@ const MagicPopup = memo(
 			>
 				<DrawerPortal container={container}>
 					<DrawerOverlay
-						className={cn("z-popup bg-[rgba(22,22,26,0.6)]", overlayClassName)}
+						className={cn(
+							"z-popup bg-[rgba(22,22,26,0.6)]",
+							// vaul injects 500ms overlay fade; override for snappier mask dismiss on close.
+							"data-[state=closed]:!duration-200 data-[state=open]:!duration-300",
+							overlayClassName,
+						)}
 						style={{ zIndex: overlayLayer.overlayZIndex }}
 						onClick={(e) => {
 							if (!maskClosable) {
