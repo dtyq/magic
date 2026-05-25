@@ -3,32 +3,44 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "帮我创建一个 HTML 微应用，能读取 workspace 里 data/sales.json 的数据，调用 LLM 分析后把结果写入 output/report.md，并通知 Agent 继续处理。",
-      "expected_output": "生成一个完整的 HTML 文件，使用 window.Magic.fs.readFile 读取数据，window.Magic.llm.stream 或 chat 调用 LLM，window.Magic.fs.writeFile 写入结果，最后调用 window.Magic.setInputMessage 通知 Agent。事件绑定使用 addEventListener，不使用内联事件。",
+      "prompt": "Help me create an HTML micro-app that reads data/sales.json from the workspace, calls LLM for analysis, writes the result to output/report.md, and notifies the Agent to continue.",
+      "expected_output": "Generates a complete HTML file using window.Magic.fs.readFile to read data, window.Magic.llm.stream or chat for LLM calls, window.Magic.fs.writeFile to write results, and window.Magic.setInputMessage to notify the Agent. Events are bound with addEventListener, no inline handlers.",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "我需要一个实时数据看板 HTML 页面，Agent 会不断更新 data/metrics.json，页面需要自动刷新显示最新数据。",
-      "expected_output": "生成 HTML 文件，使用 window.Magic.fs.watchFile 监听 data/metrics.json 变化，文件更新时自动调用 readFile 重新读取并渲染到页面。包含首次加载逻辑和错误处理。",
+      "prompt": "I need a real-time dashboard HTML page. The Agent will keep updating data/metrics.json and the page should auto-refresh to show the latest data.",
+      "expected_output": "Generates an HTML file using window.Magic.fs.watchFile to listen for changes on data/metrics.json, re-reads the file with readFile on update and re-renders the UI. Includes initial load logic and error handling.",
       "files": []
     },
     {
       "id": 3,
-      "prompt": "写一个 HTML 页面，让用户可以选择不同的 AI 模型，输入问题后流式显示 AI 回复，并支持中途取消。",
-      "expected_output": "生成 HTML 文件，使用 window.Magic.llm.getModels() 填充模型下拉列表，window.Magic.llm.stream 实现流式输出，返回的取消函数绑定到取消按钮。所有按钮事件使用 addEventListener 绑定。",
+      "prompt": "Write an HTML page that lets users select different AI models, input questions, stream the AI reply in real time, and support cancellation mid-stream.",
+      "expected_output": "Generates an HTML file using window.Magic.llm.getModels() to populate the model dropdown (with 'auto' as default first option), window.Magic.llm.stream for streaming output, and binds the returned cancel function to a cancel button. All events use addEventListener.",
       "files": []
     },
     {
       "id": 4,
-      "prompt": "创建一个 HTML 微应用，从 MagicBase 数据库查询用户表数据，支持分页浏览和搜索过滤，并能新增、编辑、删除用户记录。",
-      "expected_output": "生成 HTML 文件，使用 window.Magic.db.getTables() 或 getTable() 获取表结构，window.Magic.db.queryRows() 实现分页查询和过滤，window.Magic.db.createRow() 新增记录，window.Magic.db.updateRow() 编辑记录，window.Magic.db.deleteRow() 删除记录。包含错误处理和加载状态提示。事件绑定使用 addEventListener。",
+      "prompt": "做一个 todolist 应用",
+      "expected_output": "Triggers the html-api-sdk skill and generates a complete HTML todo-list application using window.Magic.fs API for persistence (readFile/writeFile to store todos in a JSON file). Uses addEventListener for all event bindings. Includes add, toggle complete, and delete functionality.",
       "files": []
     },
     {
       "id": 5,
-      "prompt": "做一个 HTML 数据管理页面，先从数据库读取订单数据，调用 LLM 生成分析报告，然后把报告写入文件并通知 Agent。",
-      "expected_output": "生成 HTML 文件，综合使用 window.Magic.db.queryRows() 查询数据库订单数据，window.Magic.llm.stream 或 chat 调用 LLM 分析，window.Magic.fs.writeFile 写入报告文件，window.Magic.setInputMessage 通知 Agent。体现 db + llm + fs 三类 API 的协同使用。",
+      "prompt": "做一个访客管理系统",
+      "expected_output": "Triggers the html-api-sdk skill and generates an HTML visitor management system. Uses window.Magic.fs.readFile/writeFile for data persistence, includes visitor registration form, visitor list display, search/filter, and check-in/check-out functionality. Events bound with addEventListener.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Create an HTML data management page that reads order data from a database, calls LLM to generate an analysis report, then writes the report to a file and notifies the Agent.",
+      "expected_output": "Generates an HTML file combining window.Magic.db.queryRows() for database queries, window.Magic.llm.stream or chat for LLM analysis, window.Magic.fs.writeFile to write the report, and window.Magic.setInputMessage to notify the Agent. Demonstrates db + llm + fs API coordination.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "帮我做一个计算器",
+      "expected_output": "Triggers the html-api-sdk skill and generates an HTML calculator application with a functional UI. Uses addEventListener for button events. May optionally use window.Magic.fs for saving calculation history.",
       "files": []
     }
   ]
