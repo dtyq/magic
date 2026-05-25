@@ -73,7 +73,7 @@ func TestThirdFileRevectorizeLifecycleServicePlanBuildsRequests(t *testing.T) {
 	t.Parallel()
 
 	seed := &document.ThirdFileRevectorizeSeed{
-		SourceCacheKey: "teamshare:ORG1:teamshare:FILE-1",
+		SourceCacheKey: "third_file:ORG1:teamshare:FILE-1",
 		SeedDocument: &docentity.KnowledgeBaseDocument{
 			KnowledgeBaseCode: "KB-1",
 			Code:              "DOC-SEED",
@@ -167,7 +167,7 @@ func TestThirdFileRevectorizeLifecycleServicePlanStopsAfterProviderError(t *test
 		plan: document.ThirdFileDocumentPlan{
 			Documents: []*docentity.KnowledgeBaseDocument{{KnowledgeBaseCode: "KB-1", Code: "DOC-1"}},
 			Seed: &document.ThirdFileRevectorizeSeed{
-				SourceCacheKey: "teamshare:ORG1:teamshare:FILE-1",
+				SourceCacheKey: "third_file:ORG1:teamshare:FILE-1",
 				SeedDocument:   &docentity.KnowledgeBaseDocument{KnowledgeBaseCode: "KB-1", Code: "DOC-1"},
 			},
 		},

@@ -2,7 +2,6 @@ from app.i18n import i18n
 import os
 import asyncio
 import hashlib
-import shutil
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,8 +9,6 @@ from pathlib import Path
 from typing import Any, Dict, NamedTuple, Optional, Tuple
 from urllib.parse import urlparse
 
-import aiofiles
-import aiohttp
 from pydantic import Field
 
 from agentlang.context.tool_context import ToolContext
@@ -23,13 +20,13 @@ from app.tools.abstract_file_tool import AbstractFileTool
 from app.tools.core import BaseToolParams, tool
 from app.tools.workspace_tool import WorkspaceTool
 from agentlang.utils.file import generate_safe_filename
-from app.tools.webview_utils import IMAGE_DOWNLOAD_HEADERS
 from app.utils.async_file_utils import async_copy2, async_stat, async_exists
 
 logger = get_logger(__name__)
 
 # Configuration constants - can be modified for different timeout settings
-DOWNLOAD_TIMEOUT_SECONDS = 15  # Default timeout for HTTP requests when downloading files
+# 总超时（含建连 + 读响应体）。视频/大文件需要较长时间，原 15s 对 ~26MB 视频极易超时
+DOWNLOAD_TIMEOUT_SECONDS = 120  # Default timeout for HTTP requests when downloading files
 
 
 class DownloadFromUrlParams(BaseToolParams):
@@ -227,6 +224,9 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceTool[Dow
         self.cache_manager = DownloadCacheManager()
         # URL锁字典，用于防止同一URL的并发下载
         self._url_locks: Dict[str, asyncio.Lock] = {}
+        # 提前加载下载驱动
+        from app.tools.download_utils import get_download_driver
+        self._driver = get_download_driver()
 
     async def try_to_get_metadata_for_file(self, file_path: str) -> Optional[CacheMetadata]:
         """尝试获取文件的缓存元数据
@@ -375,8 +375,14 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceTool[Dow
             )
 
         except Exception as e:
-            logger.error(f"下载文件失败: {e!s}")
-            return ToolResult.error("Failed to download file")
+            from app.tools.web_scrape_utils.drivers.web_collector import AccessDeniedException
+            if isinstance(e, AccessDeniedException):
+                logger.warning(f"下载文件被拒绝: {params.url}, 原因: {e}")
+                return ToolResult.error(str(e))
+            # 把根因（异常类型 + 消息）一起带出来，方便上层/日志快速定位（如 TimeoutError 实例 str 为空）
+            error_detail = f"{type(e).__name__}: {e!s}".rstrip(": ")
+            logger.error(f"下载文件失败: {error_detail}", exc_info=True)
+            return ToolResult.error(f"Failed to download file: {error_detail}")
 
     async def _create_directories(self, file_path: Path) -> None:
         """创建文件所需的目录结构"""
@@ -464,54 +470,13 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceTool[Dow
         # Ensure cache directory exists
         await self.cache_manager.ensure_cache_dir()
 
-        # Use temporary file for atomic download to prevent concurrent access issues
-        temp_cache_path = cache_path.with_suffix('.tmp')
-
         try:
-            # Create timeout configuration
-            timeout = aiohttp.ClientTimeout(total=DOWNLOAD_TIMEOUT_SECONDS)
+            # 使用驱动下载到缓存路径
+            result = await self._driver.download(url, cache_path, timeout=DOWNLOAD_TIMEOUT_SECONDS)
 
-            # Generate image-specific headers for the request
-            # For image downloads, use the image's own domain as referer to avoid CDN blocking
-            # If we can't get the same domain referer, don't set Referer at all (anti-hotlinking protection)
-            parsed_url = urlparse(url)
-
-            headers = IMAGE_DOWNLOAD_HEADERS.copy()  # Start with image-specific headers
-
-            if parsed_url.netloc and parsed_url.scheme:
-                # Use the same domain as referer for image downloads
-                referer = f"{parsed_url.scheme}://{parsed_url.netloc}/"
-                headers["Referer"] = referer
-                logger.debug(f"设置同域名referer: {referer}")
-            else:
-                # Don't set Referer header if we can't get same-domain referer
-                # Many CDNs have anti-hotlinking protection that blocks external referers
-                logger.debug(f"URL解析失败，不设置Referer头会有更高成功率: {url}")
-
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                # Set redirect handling and track redirect count
-                async with session.get(url, allow_redirects=True, headers=headers) as response:
-                    # Check response status
-                    if response.status != 200:
-                        raise Exception(f"下载失败，HTTP状态码: {response.status}, 原因: {response.reason}")
-
-                    # Get final URL (after redirects)
-                    final_url = str(response.url)
-
-                    # Get content type
-                    content_type = response.headers.get('Content-Type', 'unknown')
-
-                    # Download to temporary cache file first
-                    async with aiofiles.open(temp_cache_path, 'wb') as f:
-                        file_size = 0
-                        # Read and write in chunks to avoid memory issues
-                        async for chunk in response.content.iter_chunked(8192):
-                            await f.write(chunk)
-                            file_size += len(chunk)
-
-            # Atomically move temp file to final cache location
-            # This prevents other concurrent requests from reading incomplete files
-            temp_cache_path.rename(cache_path)
+            file_size = result.file_size
+            content_type = result.content_type
+            final_url = result.final_url
 
             # Save metadata alongside cache file
             await self.cache_manager.save_metadata(cache_path, content_type, final_url, file_size)
@@ -536,12 +501,12 @@ class DownloadFromUrl(AbstractFileTool[DownloadFromUrlParams], WorkspaceTool[Dow
             )
 
         except Exception as e:
-            # Clean up temporary file if it exists
-            if temp_cache_path.exists():
+            # Clean up cache file if download failed partially
+            if cache_path.exists():
                 try:
-                    temp_cache_path.unlink()
+                    cache_path.unlink()
                 except Exception as cleanup_error:
-                    logger.warning(f"Failed to cleanup temp file {temp_cache_path}: {cleanup_error}")
+                    logger.warning(f"Failed to cleanup cache file {cache_path}: {cleanup_error}")
             raise e
 
     def _determine_extension_from_content_type(self, content_type: str, url: str) -> str:

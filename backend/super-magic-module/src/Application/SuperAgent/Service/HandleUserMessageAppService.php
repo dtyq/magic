@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
 use App\Application\LongTermMemory\Enum\AppCodeEnum;
-use App\Application\MCP\SupperMagicMCP\SupperMagicAgentMCPInterface;
+use App\Application\MCP\SupperMagicMCP\ProjectMcpConfigService;
 use App\Application\MCP\SupperMagicMCP\SupperMagicAgentSkillInterface;
 use App\Domain\Chat\DTO\Message\ChatMessage\UserToolCallMessage;
 use App\Domain\Contact\Entity\ValueObject\DataIsolation;
@@ -65,8 +65,6 @@ class HandleUserMessageAppService extends AbstractAppService
 {
     protected LoggerInterface $logger;
 
-    private ?SupperMagicAgentMCPInterface $supperMagicAgentMCP = null;
-
     private ?SupperMagicAgentSkillInterface $supperMagicAgentSkill = null;
 
     public function __construct(
@@ -78,13 +76,11 @@ class HandleUserMessageAppService extends AbstractAppService
         private readonly AgentDomainService $agentDomainService,
         private readonly LongTermMemoryDomainService $longTermMemoryDomainService,
         private readonly TaskFileDomainService $taskFileDomainService,
+        private readonly ProjectMcpConfigService $projectMcpConfigService,
         private readonly Redis $redis,
         LoggerFactory $loggerFactory
     ) {
         $this->logger = $loggerFactory->get(get_class($this));
-        if (container()->has(SupperMagicAgentMCPInterface::class)) {
-            $this->supperMagicAgentMCP = container()->get(SupperMagicAgentMCPInterface::class);
-        }
         if (container()->has(SupperMagicAgentSkillInterface::class)) {
             $this->supperMagicAgentSkill = container()->get(SupperMagicAgentSkillInterface::class);
         }
@@ -328,7 +324,7 @@ class HandleUserMessageAppService extends AbstractAppService
                 $dataIsolation->getCurrentOrganizationCode(),
                 $dataIsolation->getCurrentUserId()
             );
-            $mcpConfig = $this->supperMagicAgentMCP?->createChatMessageRequestMcpConfig($mcpDataIsolation, $taskContext) ?? [];
+            $mcpConfig = $this->projectMcpConfigService->buildForTask($mcpDataIsolation, $taskContext);
             $taskContext = $taskContext->setMcpConfig($mcpConfig);
 
             // Write agent_code into dynamicConfig independently (always pass through, regardless of skills)
@@ -540,6 +536,8 @@ class HandleUserMessageAppService extends AbstractAppService
             'task_id' => $taskContext->getTask()->getId(),
         ]);
 
+        // 在 Application 层完成 mentions 规范化，Domain 层不再跨域聚合
+        di(TaskContextMentionsResolver::class)->resolve($taskContext, $dataIsolation);
         // 发送消息到 agent
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
 

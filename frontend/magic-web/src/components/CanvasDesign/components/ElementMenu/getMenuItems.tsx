@@ -18,6 +18,7 @@ import {
 } from "lucide-react"
 import { FrameDotted, VIPTag } from "../ui/icons"
 import type { LayerElement } from "../../canvas/types"
+import { ElementTypeEnum } from "../../canvas/types"
 import type { MenuItem, MenuOption, MenuSource } from "./types"
 import type { Canvas } from "../../canvas/Canvas"
 import fileImage from "../../assets/svg/file-image.svg"
@@ -75,6 +76,8 @@ export function getMenuItems({
 	}
 
 	const isMultiSelect = selectedElements.length > 1
+	const isSingleVideoElement =
+		selectedElements.length === 1 && selectedElements[0].type === ElementTypeEnum.Video
 
 	// 判断选中元素的状态
 	const allUnlocked = selectedElements.every((el) => el.locked !== true)
@@ -122,7 +125,7 @@ export function getMenuItems({
 			canvas.userActionRegistry.execute("edit.copy-png")
 		},
 		visible: () => {
-			return canvas.userActionRegistry.canExecute("edit.copy-png")
+			return !isSingleVideoElement && canvas.userActionRegistry.canExecute("edit.copy-png")
 		},
 	}
 

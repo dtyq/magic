@@ -34,6 +34,8 @@ export const editActions: UserAction[] = [
 			const allowed = selectedElements.every((element) => {
 				return (
 					element.type === ElementTypeEnum.Image ||
+					// 视频导出 PNG 时只渲染当前封面图，不处理视频文件本体。
+					element.type === ElementTypeEnum.Video ||
 					element.type === ElementTypeEnum.Frame ||
 					element.type === ElementTypeEnum.Text
 				)
@@ -55,9 +57,13 @@ export const editActions: UserAction[] = [
 			return !canvas.readonly
 		},
 		execute: async (canvas, options?: EditActionOptions) => {
+			// 两条入口都会走到这里：
+			// 1. Ctrl/Cmd+V：options.clipboardEvent 存在，可读取同步 paste event 的文件字节。
+			// 2. 菜单粘贴：只有 pastePosition，没有 clipboardEvent，只能走 Clipboard API read()。
 			const position = options?.pastePosition
 			const clipboardEvent = options?.clipboardEvent
-			await canvas.clipboardManager.paste(clipboardEvent, position)
+			const pasteSource = options?.pasteSource ?? (clipboardEvent ? "keyboard" : "menu")
+			await canvas.clipboardManager.paste(clipboardEvent, position, pasteSource)
 		},
 	} satisfies UserAction<"edit.paste", EditActionOptions>,
 	{

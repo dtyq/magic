@@ -1,8 +1,7 @@
 import {
 	findMagicProjectJsFile,
 	parseMagicProjectJsContent,
-	getDesignDirectoryInfo,
-	replaceNameInMagicProjectJsContent,
+	resolveDesignDirectoryNameFromAttachments,
 	resolveDesignProjectBasePathFromAttachments,
 	normalizeDesignDataPathsAfterLoad,
 	resolveActualDesignCurrentFile,
@@ -86,35 +85,14 @@ export class DesignLoadManager {
 				if (result.content) {
 					const parsedData = parseMagicProjectJsContent(result.content)
 					if (parsedData) {
-						const directoryInfo = getDesignDirectoryInfo(
-							{ id: actualCurrentFileId, name: actualCurrentFileName },
+						const directoryName = resolveDesignDirectoryNameFromAttachments({
+							currentFile: { id: actualCurrentFileId, name: actualCurrentFileName },
+							flatAttachments,
 							attachments,
-						)
-
-						if (
-							directoryInfo.name &&
-							parsedData.name &&
-							directoryInfo.name !== parsedData.name
-						) {
-							try {
-								const updatedContent = replaceNameInMagicProjectJsContent(
-									result.content,
-									parsedData.name,
-									directoryInfo.name,
-								)
-								if (allowEdit && !isPlaybackMode && !isShareRoute && !isMobile) {
-									await SuperMagicApi.saveFileContent([
-										{
-											file_id: result.fileId,
-											content: updatedContent,
-											enable_shadow: true,
-										},
-									])
-								}
-								parsedData.name = directoryInfo.name
-							} catch {
-								parsedData.name = directoryInfo.name
-							}
+							projectPath,
+						})
+						if (directoryName && parsedData.name !== directoryName) {
+							parsedData.name = directoryName
 						}
 
 						const dslBase = resolveDesignProjectBasePathFromAttachments({

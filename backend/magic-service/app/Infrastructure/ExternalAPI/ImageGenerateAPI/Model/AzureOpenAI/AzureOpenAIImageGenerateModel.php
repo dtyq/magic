@@ -80,6 +80,7 @@ class AzureOpenAIImageGenerateModel extends AbstractImageGenerate
             }
 
             $requestData = [
+                'model' => $this->model,
                 'prompt' => $imageGenerateRequest->getPrompt(),
                 'size' => $imageGenerateRequest->getSize(),
                 'n' => $imageGenerateRequest->getN(),

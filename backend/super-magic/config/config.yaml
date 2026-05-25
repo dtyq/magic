@@ -785,6 +785,10 @@ metaso:
   api_endpoint: "${METASO_API_ENDPOINT:-https://metaso.cn}"
   search_endpoint: "${METASO_SEARCH_ENDPOINT:-/api/v1/search}"
 
+web_collector:
+  api_token: "${WEB_COLLECTOR_API_TOKEN}"
+  base_url: "${WEB_COLLECTOR_BASE_URL}"
+
 # SerpApi 配置（用于 Google 搜索）
 serpapi:
   api_key: "${SERPAPI_API_KEY}"
@@ -804,6 +808,20 @@ web_search:
 image_search:
   # 默认图片搜索引擎: bing, serpapi 或 magic
   default_engine: "${IMAGE_SEARCH_DEFAULT_ENGINE:-magic}"
+
+# 文件下载驱动选择
+download:
+  default_engine: "${DOWNLOAD_DEFAULT_ENGINE:-direct}"
+
+# 网页抓取驱动选择
+web_scrape:
+  # 默认网页抓取驱动: browser 或 web_collector
+  default_engine: "${WEB_SCRAPE_DEFAULT_ENGINE:-browser}"
+
+# 截图驱动选择
+screenshot:
+  # 默认截图驱动: browser 或 web_collector
+  default_engine: "${SCREENSHOT_DEFAULT_ENGINE:-browser}"
 
 filebase:
   embedding_model_id: "${FILEBASE_EMBEDDING_MODEL_ID:-magic-embedding}"

@@ -1205,6 +1205,20 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     }
 
     /**
+     * 更新指定文件的最新内容版本号.
+     */
+    public function updateLatestVersionById(int $fileId, int $latestVersion): void
+    {
+        $this->model::query()
+            ->where('file_id', $fileId)
+            ->whereNull('deleted_at')
+            ->update([
+                'latest_version' => $latestVersion,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
+    /**
      * 批量获取文件版本号.
      */
     public function getVersionsByIds(array $fileIds): array
@@ -1486,6 +1500,29 @@ class TaskFileRepository implements TaskFileRepositoryInterface
     {
         $model = $this->model::query()
             ->where('project_id', $projectId)
+            ->whereNull('parent_id')
+            ->where('file_name', '/')
+            ->where('is_directory', true)
+            ->orderBy('file_id', 'asc')
+            ->first();
+
+        if (! $model) {
+            return null;
+        }
+
+        return new TaskFileEntity($model->toArray());
+    }
+
+    /**
+     * 查找用户空间的根目录.
+     * 通过 user_id + organization_code + space_type='user' + parent_id IS NULL 定位.
+     */
+    public function findUserSpaceRootDirectory(string $userId, string $organizationCode): ?TaskFileEntity
+    {
+        $model = $this->model::query()
+            ->where('user_id', $userId)
+            ->where('organization_code', $organizationCode)
+            ->where('space_type', 'user')
             ->whereNull('parent_id')
             ->where('file_name', '/')
             ->where('is_directory', true)

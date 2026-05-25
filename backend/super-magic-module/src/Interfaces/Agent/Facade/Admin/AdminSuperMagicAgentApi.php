@@ -29,7 +29,7 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
     /**
      * 管理后台：查询员工版本列表.
      */
-    #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::QUERY)]
+    #[CheckPermission([MagicResourceEnum::PLATFORM_AGENT_REVIEW], MagicOperationEnum::QUERY)]
     public function queryVersions(): array
     {
         $authorization = $this->getAuthorization();
@@ -41,7 +41,7 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
     /**
      * 管理后台：查询员工市场列表.
      */
-    #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::QUERY)]
+    #[CheckPermission([MagicResourceEnum::PLATFORM_AGENT_MARKET], MagicOperationEnum::QUERY)]
     public function queryMarkets(): array
     {
         $authorization = $this->getAuthorization();
@@ -53,7 +53,7 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
     /**
      * 审核员工版本.
      */
-    #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::PLATFORM_AGENT_REVIEW], MagicOperationEnum::EDIT)]
     public function reviewAgentVersion(int $id): array
     {
         $authorization = $this->getAuthorization();
@@ -71,7 +71,7 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
     /**
      * 管理后台：更新员工市场排序值.
      */
-    #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::PLATFORM_AGENT_MARKET], MagicOperationEnum::EDIT)]
     public function updateMarketSortOrder(int $id): array
     {
         $authorization = $this->getAuthorization();
@@ -84,7 +84,7 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
     /**
      * 按传入字段部分更新员工市场信息.
      */
-    #[CheckPermission([MagicResourceEnum::PLATFORM_ADMIN_AI_AGENT], MagicOperationEnum::EDIT)]
+    #[CheckPermission([MagicResourceEnum::PLATFORM_AGENT_MARKET], MagicOperationEnum::EDIT)]
     public function updateMarket(int $id): array
     {
         $authorization = $this->getAuthorization();
@@ -98,7 +98,7 @@ class AdminSuperMagicAgentApi extends AbstractSuperMagicApi
      * 根据员工code查询员工详情.
      * 权限后续去掉模式要改，兼容旧的使用方法.
      */
-    #[CheckPermission([MagicResourceEnum::ADMIN_AI_MODE], MagicOperationEnum::QUERY)]
+    #[CheckPermission([MagicResourceEnum::PLATFORM_AGENT_OFFICIAL, MagicResourceEnum::ADMIN_AI_MODE], MagicOperationEnum::QUERY)]
     public function getDetailByCode(string $code): array
     {
         $authorization = $this->getAuthorization();

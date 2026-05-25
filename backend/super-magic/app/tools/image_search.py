@@ -2,6 +2,7 @@ from app.i18n import i18n
 import asyncio
 import html
 import os
+import random
 import re
 import xml.etree.ElementTree as ET
 import math
@@ -10,19 +11,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from urllib.parse import urlparse
 
-import aiohttp
 from pydantic import Field
 
-from agentlang.config import config
 from agentlang.context.tool_context import ToolContext
 from agentlang.path_manager import PathManager
-from agentlang.utils.metadata import MetadataUtil
 from app.core.entity.message.server_message import ToolDetail, DisplayType, FileContent
 from agentlang.tools.tool_result import ToolResult
 from agentlang.logger import get_logger
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.tools.visual_understanding import VisualUnderstanding, VisualUnderstandingParams
 from app.tools.download_from_url import DownloadFromUrl, DownloadFromUrlParams
+from app.tools.image_search_utils import get_image_search_driver
+from app.tools.image_search_utils.drivers.base import ImageSearchResultItem
 
 logger = get_logger(__name__)
 
@@ -117,31 +117,6 @@ Format requirements:
 - expected_aspect_ratio: Expected image aspect ratio, supports formats like '16:9' (landscape), '4:3' (landscape), '1:1' (square), '9:16' (portrait), '3:4' (portrait), etc. System automatically selects reasonable minimum resolution based on aspect ratio (e.g., 1280x720 for 16:9) to ensure image clarity, required
 - count: Optional, default 10, max 20"""
     )
-
-def _snake_to_camel(snake_str: str) -> str:
-    """Convert snake_case string to camelCase
-
-    Args:
-        snake_str: Snake case string like 'content_url', 'host_page_url', etc.
-
-    Returns:
-        Camel case string like 'contentUrl', 'hostPageUrl', etc.
-    """
-    components = snake_str.split('_')
-    return components[0] + ''.join(x.title() for x in components[1:])
-
-
-def _convert_dict_keys_to_camel(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Convert all keys in a dictionary from snake_case to camelCase
-
-    Args:
-        data: Dictionary with snake_case keys
-
-    Returns:
-        New dictionary with camelCase keys
-    """
-    return {_snake_to_camel(key): value for key, value in data.items()}
-
 
 def _parse_aspect_ratio(ratio_str: str) -> Optional[float]:
     """Parse aspect ratio string to float value
@@ -361,69 +336,12 @@ Image search tool that searches and intelligently filters high-quality images me
 
     def __init__(self, **data):
         super().__init__(**data)
-        # 从统一配置中获取API密钥和基础端点
-        # Bing 搜索配置
-        self.bing_api_key = config.get("bing.search_api_key", default="")
-        self.bing_endpoint = config.get("bing.search_endpoint", default="https://api.bing.microsoft.com/v7.0")
-
-        # SerpApi (Google Images) 配置
-        self.serpapi_key = config.get("serpapi.api_key", default="")
-        self.serpapi_endpoint = config.get("serpapi.api_endpoint", default="https://serpapi.com")
-
-        # Magic 图片搜索配置
-        self.magic_api_key = os.getenv("MAGIC_API_KEY", "")
-        magic_base_base_url = os.getenv("MAGIC_API_SERVICE_BASE_URL", "")
-        self.magic_endpoint = f"{magic_base_base_url}/v2/image-search" if magic_base_base_url else ""
-
-        # 获取默认图片搜索引擎配置
-        self.default_engine = config.get("image_search.default_engine", default="magic").lower()
-
-        # 根据配置和可用性决定使用哪个搜索引擎
-        self.use_serpapi = False
-        self.use_magic = False
-
-        # 1. 如果明确指定使用 magic 且 magic 配置有效，则使用 magic
-        if self.default_engine == "magic" and self.magic_api_key:
-            self.use_magic = True
-        # 2. 如果明确指定使用 serpapi 且 serpapi 配置有效，则使用 serpapi
-        elif self.default_engine == "serpapi" and self.serpapi_key:
-            self.use_serpapi = True
-        # 3. 如果明确指定使用 bing 且 bing 配置有效，则使用 bing
-        elif self.default_engine == "bing" and self.bing_api_key:
-            self.use_serpapi = False
-            self.use_magic = False
-        # 4. 回退逻辑：如果首选引擎不可用，尝试其他可用的引擎
-        elif not self._get_primary_engine_available():
-            if self.magic_api_key:
-                self.use_magic = True
-            elif self.serpapi_key:
-                self.use_serpapi = True
-            elif self.bing_api_key:
-                self.use_serpapi = False
-                self.use_magic = False
-
-        # 确定使用的搜索引擎名称
-        if self.use_magic:
-            engine_name = "Magic Images"
-        elif self.use_serpapi:
-            engine_name = "Google Images (SerpApi)"
-        else:
-            engine_name = "Bing Images"
-        logger.info(f"图片搜索工具初始化，使用搜索引擎: {engine_name}")
+        # 使用驱动工厂获取图片搜索驱动
+        self.driver = get_image_search_driver()
 
         # Initialize tools
         self._visual_tool = VisualUnderstanding()
         self._download_tool = DownloadFromUrl()
-
-    def _get_primary_engine_available(self) -> bool:
-        """检查首选搜索引擎是否可用"""
-        if self.default_engine == "magic":
-            return bool(self.magic_api_key)
-        elif self.default_engine == "serpapi":
-            return bool(self.serpapi_key)
-        elif self.default_engine == "bing":
-            return bool(self.bing_api_key)
-        return False
 
     def get_prompt_hint(self) -> str:
         """获取图片搜索工具的搜索策略提示"""
@@ -528,290 +446,54 @@ Keyword Diversification Principles:
         expected_resolution: tuple[int, int],
         seen_urls: Set[str]
     ) -> tuple[List[FilteredImage], int]:
-        """Search images for a single query
-
-        Returns:
-            Tuple of (filtered_images, original_count)
-        """
-        # 根据配置的搜索引擎调用不同的搜索方法
-        if self.use_magic:
-            return await self._search_single_query_magic(
-                query, count, expected_ratio, expected_resolution, seen_urls
-            )
-        elif self.use_serpapi:
-            return await self._search_single_query_serpapi(
-                query, count, expected_ratio, expected_resolution, seen_urls
-            )
-        else:
-            return await self._search_single_query_bing(
-                query, count, expected_ratio, expected_resolution, seen_urls
-            )
-
-    async def _search_single_query_serpapi(
-        self,
-        query: str,
-        count: int,
-        expected_ratio: float,
-        expected_resolution: tuple[int, int],
-        seen_urls: Set[str]
-    ) -> tuple[List[FilteredImage], int]:
-        """Search images using SerpApi Google Images Light API
+        """Search images for a single query using driver
 
         Returns:
             Tuple of (filtered_images, original_count)
         """
         all_filtered_images = []
-        all_raw_images = []  # Store all raw images for potential fallback filtering
-        total_original_count = 0
-        start_index = 0
-        max_pages = 2  # Limit to 2 pages of results
-        current_page = 0
-
-        while current_page < max_pages:
-            api_params = {
-                "engine": "google_images_light",
-                "q": query,
-                "api_key": self.serpapi_key,
-                "device": "mobile",  # Use mobile to get original image URLs
-                "hl": "en",
-                "gl": "us",
-                "start": start_index
-            }
-
-            # 设置请求头
-            headers = {}
-            # 添加 Magic-Authorization 认证头
-            MetadataUtil.add_magic_and_user_authorization_headers(headers)
-
-            try:
-                search_url = f"{self.serpapi_endpoint}/search.json"
-
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(search_url, params=api_params, headers=headers) as response:
-                        response.raise_for_status()
-                        search_results = await response.json()
-
-                # Extract image results
-                image_values = search_results.get("images_results", [])
-
-                if not image_values:
-                    break  # No more results
-
-                # Convert SerpApi results to Bing-like format for compatibility
-                converted_images = []
-                for img in image_values:
-                    # SerpApi mobile results include original image URL
-                    # Get dimensions, with fallback estimation from thumbnail if needed
-                    width = img.get("original_width", 0)
-                    height = img.get("original_height", 0)
-
-                    # If no dimensions provided, try to estimate from thumbnail aspect ratio
-                    # Google thumbnails are typically proportional to original
-                    if width == 0 or height == 0:
-                        # Use a reasonable default size for unknown dimensions
-                        # This will be filtered out later if it doesn't match expected aspect ratio
-                        width = 1024
-                        height = 768
-
-                    converted_img = {
-                        "contentUrl": img.get("original", img.get("link", "")),
-                        "name": img.get("title", f"Image {len(converted_images) + 1}"),
-                        "width": width,
-                        "height": height,
-                        "contentSize": "0 B",  # SerpApi doesn't provide file size
-                        "encodingFormat": "image/jpeg",  # Default format
-                        "hostPageUrl": img.get("link", ""),
-                        "thumbnailUrl": img.get("thumbnail", img.get("serpapi_thumbnail", ""))
-                    }
-                    converted_images.append(converted_img)
-
-                total_original_count += len(converted_images)
-
-                # Store raw images for potential fallback filtering
-                all_raw_images.extend(converted_images)
-
-                # Filter images with deduplication
-                filtered_images = self._filter_images(converted_images, expected_ratio, expected_resolution, seen_urls)
-                all_filtered_images.extend(filtered_images)
-
-                # If we got enough images, stop searching
-                if len(all_filtered_images) >= count:
-                    break
-
-                # Prepare for next page
-                current_page += 1
-                start_index += 20  # SerpApi typically returns 20 results per page
-
-            except Exception as e:
-                logger.error(f"SerpApi 搜索关键词 '{query}' 失败: {e}")
-                break
-
-        # If ideal filtering resulted in less than 3 images, apply fallback filtering
-        if len(all_filtered_images) < 3 and all_raw_images:
-            logger.debug(f"理想匹配得到 {len(all_filtered_images)} 张图片，进行候补匹配补足")
-            fallback_matched_images = self._fallback_filter_images(all_raw_images, expected_ratio, expected_resolution, seen_urls, all_filtered_images)
-            all_filtered_images.extend(fallback_matched_images)
-
-        return all_filtered_images, total_original_count
-
-    async def _search_single_query_bing(
-        self,
-        query: str,
-        count: int,
-        expected_ratio: float,
-        expected_resolution: tuple[int, int],
-        seen_urls: Set[str]
-    ) -> tuple[List[FilteredImage], int]:
-        """Search images using Bing Image Search API (original implementation)
-
-        Returns:
-            Tuple of (filtered_images, original_count)
-        """
-        # Build API URL
-        base_endpoint = self.bing_endpoint.rstrip('/')
-        image_search_url = f"{base_endpoint}/images/search"
-        headers = {"Ocp-Apim-Subscription-Key": self.bing_api_key}
-
-        # 添加 Magic-Authorization 认证头
-        MetadataUtil.add_magic_and_user_authorization_headers(headers)
-
-        all_filtered_images = []
-        all_raw_images = []  # Store all raw images for potential fallback filtering
+        all_raw_results: List[ImageSearchResultItem] = []
         total_original_count = 0
         offset = 0
         max_retries = 1
         retry_count = 0
 
         while retry_count <= max_retries:
-            api_params = {"q": query, "count": count, "offset": offset}
+            results = await self.driver.search(query=query, count=count, offset=offset)
 
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(image_search_url, headers=headers, params=api_params) as response:
-                        response.raise_for_status()
-                        search_results = await response.json()
-
-                # Extract response data
-                image_values = search_results.get("value", [])
-                total_original_count += len(image_values)
-
-                if not image_values:
-                    break  # No more results
-
-                # Store raw images for potential fallback filtering
-                all_raw_images.extend(image_values)
-
-                # Filter images with deduplication
-                filtered_images = self._filter_images(image_values, expected_ratio, expected_resolution, seen_urls)
-                all_filtered_images.extend(filtered_images)
-
-                # If we got enough images, stop searching
-                if len(all_filtered_images) >= count:
-                    break
-
-                # Prepare for next retry
-                retry_count += 1
-                offset += count
-
-            except Exception as e:
-                logger.error(f"Bing 搜索关键词 '{query}' 失败: {e}")
+            if not results:
                 break
 
+            total_original_count += len(results)
+            all_raw_results.extend(results)
+
+            # Filter images with deduplication
+            filtered_images = self._filter_images(results, expected_ratio, expected_resolution, seen_urls)
+            all_filtered_images.extend(filtered_images)
+
+            # If we got enough images, stop searching
+            if len(all_filtered_images) >= count:
+                break
+
+            # Prepare for next retry
+            retry_count += 1
+            offset += count
+
         # If ideal filtering resulted in less than 3 images, apply fallback filtering
-        if len(all_filtered_images) < 3 and all_raw_images:
+        if len(all_filtered_images) < 3 and all_raw_results:
             logger.debug(f"理想匹配得到 {len(all_filtered_images)} 张图片，进行候补匹配补足")
-            fallback_matched_images = self._fallback_filter_images(all_raw_images, expected_ratio, expected_resolution, seen_urls, all_filtered_images)
+            fallback_matched_images = self._fallback_filter_images(
+                all_raw_results, expected_ratio, expected_resolution, seen_urls, all_filtered_images
+            )
             all_filtered_images.extend(fallback_matched_images)
 
         return all_filtered_images, total_original_count
 
-    async def _search_single_query_magic(
-        self,
-        query: str,
-        count: int,
-        expected_ratio: float,
-        expected_resolution: tuple[int, int],
-        seen_urls: Set[str]
-    ) -> tuple[List[FilteredImage], int]:
-        """Search images using Magic Image Search API (same format as Bing)
-
-        Returns:
-            Tuple of (filtered_images, original_count)
-        """
-        # Build API URL
-        base_endpoint = self.magic_endpoint.rstrip('/')
-        image_search_url = f"{base_endpoint}"
-        headers = {"api-key": self.magic_api_key}
-
-        # 添加 Magic-Authorization 认证头
-        MetadataUtil.add_magic_and_user_authorization_headers(headers)
-        # 动态设置最新的 metadata 到请求头（每次调用都获取最新值）
-        extra_headers = MetadataUtil.get_llm_request_headers()
-        if extra_headers:
-            # 给headers请求头塞入extra_headers
-            headers.update(extra_headers)
-            logger.info(f"互联网搜索动态设置请求头: {list(extra_headers.keys())}")
-
-        all_filtered_images = []
-        all_raw_images = []  # Store all raw images for potential fallback filtering
-        total_original_count = 0
-        offset = 0
-        max_retries = 1
-        retry_count = 0
-
-        while retry_count <= max_retries:
-            api_params = {"q": query, "count": count, "offset": offset}
-
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(image_search_url, headers=headers, params=api_params) as response:
-                        response.raise_for_status()
-                        search_results = await response.json()
-
-                # Extract response data
-                images = search_results.get("images", [])
-                image_values = images.get("value", [])
-
-                # Convert snake_case keys to camelCase for magic service responses
-                image_values = [_convert_dict_keys_to_camel(img) for img in image_values]
-
-                total_original_count += len(image_values)
-
-                if not image_values:
-                    break  # No more results
-
-                # Store raw images for potential fallback filtering
-                all_raw_images.extend(image_values)
-
-                # Filter images with deduplication
-                filtered_images = self._filter_images(image_values, expected_ratio, expected_resolution, seen_urls)
-                all_filtered_images.extend(filtered_images)
-
-                # If we got enough images, stop searching
-                if len(all_filtered_images) >= count:
-                    break
-
-                # Prepare for next retry
-                retry_count += 1
-                offset += count
-
-            except Exception as e:
-                logger.error(f"Magic 搜索关键词 '{query}' 失败: {e}")
-                break
-
-        # If ideal filtering resulted in less than 3 images, apply fallback filtering
-        if len(all_filtered_images) < 3 and all_raw_images:
-            logger.debug(f"理想匹配得到 {len(all_filtered_images)} 张图片，进行候补匹配补足")
-            fallback_matched_images = self._fallback_filter_images(all_raw_images, expected_ratio, expected_resolution, seen_urls, all_filtered_images)
-            all_filtered_images.extend(fallback_matched_images)
-
-        return all_filtered_images, total_original_count
-
-    def _filter_images(self, image_values: List[Dict], expected_ratio: float, expected_resolution: tuple[int, int], seen_urls: Set[str] = None) -> List[FilteredImage]:
+    def _filter_images(self, image_results: List[ImageSearchResultItem], expected_ratio: float, expected_resolution: tuple[int, int], seen_urls: Set[str] = None) -> List[FilteredImage]:
         """Filter images based on hard criteria and deduplication
 
         Args:
-            image_values: Raw image data from search API
+            image_results: Image search result items from driver
             expected_ratio: Expected aspect ratio (already validated)
             expected_resolution: Expected resolution tuple (already validated)
             seen_urls: Set of URLs already seen for deduplication
@@ -821,10 +503,9 @@ Keyword Diversification Principles:
         """
         filtered_images = []
 
-        for image_data in image_values:
+        for item in image_results:
             try:
-                # Extract URL first for deduplication check
-                url = image_data.get("contentUrl", "")
+                url = item.content_url
                 if not url:
                     continue
 
@@ -833,19 +514,17 @@ Keyword Diversification Principles:
                     logger.debug(f"跳过重复图片: {url}")
                     continue
 
-                # Extract basic data
-                width = image_data.get("width", 0)
-                height = image_data.get("height", 0)
-                content_size_str = image_data.get("contentSize", "0 B")
+                width = item.width
+                height = item.height
 
                 # Skip if no valid dimensions
                 if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
-                    logger.debug(f"跳过无效尺寸的图片: {image_data.get('name', 'unknown')}")
+                    logger.debug(f"跳过无效尺寸的图片: {item.name}")
                     continue
 
                 # Parse file size
                 try:
-                    file_size = int(content_size_str.split(' ')[0]) if content_size_str else 0
+                    file_size = int(item.content_size.split(' ')[0]) if item.content_size else 0
                 except (ValueError, IndexError):
                     file_size = 0
 
@@ -863,8 +542,7 @@ Keyword Diversification Principles:
                     logger.debug(f"剔除分辨率差距过大的图片: {width}x{height} vs {exp_width}x{exp_height}")
                     continue
 
-                # Filter by file size reasonableness (skip for SerpApi as it doesn't provide file size)
-                # Note: SerpApi returns "0 B" for all images, so we skip file size check for SerpApi results
+                # Filter by file size reasonableness (skip if file_size is 0, e.g. SerpApi)
                 if file_size > 0:
                     min_size, max_size = _estimate_reasonable_file_size(width, height)
                     if file_size < min_size or file_size > max_size:
@@ -874,14 +552,14 @@ Keyword Diversification Principles:
                 # Create filtered image object
                 filtered_image = FilteredImage(
                     url=url,
-                    name=image_data.get("name", f"图片 {len(filtered_images) + 1}"),
+                    name=item.name or f"图片 {len(filtered_images) + 1}",
                     width=width,
                     height=height,
                     file_size=file_size,
-                    encoding_format=image_data.get("encodingFormat", "未知"),
-                    date_published=image_data.get("datePublished"),
-                    host_page_url=image_data.get("hostPageUrl"),
-                    thumbnail_url=image_data.get("thumbnailUrl")
+                    encoding_format=item.encoding_format,
+                    date_published=item.date_published,
+                    host_page_url=item.host_page_url,
+                    thumbnail_url=item.thumbnail_url
                 )
 
                 filtered_images.append(filtered_image)
@@ -890,14 +568,14 @@ Keyword Diversification Principles:
                 logger.warning(f"处理图片数据时出错: {e}")
                 continue
 
-        logger.debug(f"筛选完成: 原始 {len(image_values)} 张 -> 筛选后 {len(filtered_images)} 张")
+        logger.debug(f"筛选完成: 原始 {len(image_results)} 张 -> 筛选后 {len(filtered_images)} 张")
         return filtered_images
 
-    def _fallback_filter_images(self, all_raw_images: List[Dict], expected_ratio: float, expected_resolution: tuple[int, int], seen_urls: Set[str], existing_images: List[FilteredImage]) -> List[FilteredImage]:
+    def _fallback_filter_images(self, all_raw_results: List[ImageSearchResultItem], expected_ratio: float, expected_resolution: tuple[int, int], seen_urls: Set[str], existing_images: List[FilteredImage]) -> List[FilteredImage]:
         """Fallback filter images by calculating match scores, returning up to 3 - len(existing_images) best matches
 
         Args:
-            all_raw_images: All raw image data collected from search
+            all_raw_results: All raw image results collected from driver
             expected_ratio: Expected aspect ratio
             expected_resolution: Expected resolution tuple
             seen_urls: URLs already seen for deduplication
@@ -916,64 +594,50 @@ Keyword Diversification Principles:
 
         scored_images = []
 
-        for image_data in all_raw_images:
+        for item in all_raw_results:
             # Basic validation and deduplication
-            if not self._basic_validation(image_data, seen_urls, existing_urls):
+            if not item.content_url:
+                continue
+            if item.content_url in seen_urls or item.content_url in existing_urls:
+                continue
+            if not isinstance(item.width, int) or not isinstance(item.height, int) or item.width <= 0 or item.height <= 0:
                 continue
 
-            # Calculate match score (only ratio and resolution, no file size)
-            score = self._calculate_match_score(image_data, expected_ratio, expected_resolution)
+            # Calculate match score
+            score = self._calculate_match_score_from_item(item, expected_ratio, expected_resolution)
 
-            # Keep all images that pass basic validation, regardless of score
-            # This ensures we can always find the "best available" images even if they're poor matches
-            filtered_image = self._create_filtered_image_from_raw(image_data, is_fallback=True)
+            # Create filtered image
+            try:
+                file_size = int(item.content_size.split(' ')[0]) if item.content_size else 0
+            except (ValueError, IndexError):
+                file_size = 0
+
+            filtered_image = FilteredImage(
+                url=item.content_url,
+                name=item.name or "未命名图片",
+                width=item.width,
+                height=item.height,
+                file_size=file_size,
+                encoding_format=item.encoding_format,
+                date_published=item.date_published,
+                host_page_url=item.host_page_url,
+                thumbnail_url=item.thumbnail_url,
+                is_fallback=True
+            )
             scored_images.append((score, filtered_image))
 
         # Sort by score (highest first) and take needed count
         scored_images.sort(key=lambda x: x[0], reverse=True)
         fallback_matched = [img for _, img in scored_images[:needed_count]]
 
-        logger.debug(f"候补匹配完成: 从 {len(all_raw_images)} 张原始图片中选出 {len(fallback_matched)} 张补足图片")
+        logger.debug(f"候补匹配完成: 从 {len(all_raw_results)} 张原始图片中选出 {len(fallback_matched)} 张补足图片")
         return fallback_matched
 
-    def _basic_validation(self, image_data: Dict, seen_urls: Set[str], existing_urls: Set[str] = None) -> bool:
-        """Basic validation for image data
-
-        Args:
-            image_data: Raw image data
-            seen_urls: URLs already seen for deduplication
-            existing_urls: URLs from existing filtered images
-
-        Returns:
-            bool: True if image passes basic validation
-        """
-        # Extract URL first for deduplication check
-        url = image_data.get("contentUrl", "")
-        if not url:
-            return False
-
-        # Check for duplicates
-        if url in seen_urls:
-            return False
-
-        if existing_urls and url in existing_urls:
-            return False
-
-        # Extract basic data
-        width = image_data.get("width", 0)
-        height = image_data.get("height", 0)
-
-        # Skip if no valid dimensions
-        if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
-            return False
-
-        return True
-
-    def _calculate_match_score(self, image_data: Dict, expected_ratio: float, expected_resolution: tuple[int, int]) -> float:
+    def _calculate_match_score_from_item(self, item: ImageSearchResultItem, expected_ratio: float, expected_resolution: tuple[int, int]) -> float:
         """Calculate image match score based on aspect ratio and resolution
 
         Args:
-            image_data: Raw image data
+            item: Image search result item
             expected_ratio: Expected aspect ratio
             expected_resolution: Expected resolution tuple
 
@@ -983,93 +647,26 @@ Keyword Diversification Principles:
         score = 0.0
 
         # Aspect ratio score (weight: 0.6)
-        ratio_score = self._calculate_ratio_score(image_data, expected_ratio)
+        if item.height > 0:
+            actual_ratio = item.width / item.height
+            ratio_diff = abs(actual_ratio - expected_ratio) / expected_ratio
+            ratio_score = 1.0 / (1.0 + ratio_diff * 0.5)
+        else:
+            ratio_score = 0.0
         score += ratio_score * 0.6
 
         # Resolution score (weight: 0.4)
-        resolution_score = self._calculate_resolution_score(image_data, expected_resolution)
+        expected_width, expected_height = expected_resolution
+        expected_pixels = expected_width * expected_height
+        if expected_pixels > 0:
+            actual_pixels = item.width * item.height
+            pixel_diff = abs(actual_pixels - expected_pixels) / expected_pixels
+            resolution_score = 1.0 / (1.0 + pixel_diff * 0.3)
+        else:
+            resolution_score = 0.0
         score += resolution_score * 0.4
 
         return score
-
-    def _calculate_ratio_score(self, image_data: Dict, expected_ratio: float) -> float:
-        """Calculate aspect ratio score
-
-        Args:
-            image_data: Raw image data
-            expected_ratio: Expected aspect ratio
-
-        Returns:
-            float: Ratio score in range [0, 1]
-        """
-        width = image_data.get("width", 0)
-        height = image_data.get("height", 0)
-
-        if height == 0:
-            return 0.0
-
-        actual_ratio = width / height
-        ratio_diff = abs(actual_ratio - expected_ratio) / expected_ratio
-
-        # Use a more forgiving scoring function that doesn't approach 0 too quickly
-        # This ensures even poor matches get distinguishable scores
-        return 1.0 / (1.0 + ratio_diff * 0.5)
-
-    def _calculate_resolution_score(self, image_data: Dict, expected_resolution: tuple[int, int]) -> float:
-        """Calculate resolution score
-
-        Args:
-            image_data: Raw image data
-            expected_resolution: Expected resolution tuple
-
-        Returns:
-            float: Resolution score in range [0, 1]
-        """
-        width = image_data.get("width", 0)
-        height = image_data.get("height", 0)
-        expected_width, expected_height = expected_resolution
-
-        actual_pixels = width * height
-        expected_pixels = expected_width * expected_height
-
-        if expected_pixels == 0:
-            return 0.0
-
-        pixel_diff = abs(actual_pixels - expected_pixels) / expected_pixels
-
-        # Use a more forgiving scoring function that maintains meaningful differences
-        # even for very different resolutions
-        return 1.0 / (1.0 + pixel_diff * 0.3)
-
-    def _create_filtered_image_from_raw(self, image_data: Dict, is_fallback: bool = False) -> FilteredImage:
-        """Create FilteredImage object from raw image data
-
-        Args:
-            image_data: Raw image data
-            is_fallback: Whether this image comes from fallback filtering
-
-        Returns:
-            FilteredImage: Filtered image object
-        """
-        # Parse file size
-        content_size_str = image_data.get("contentSize", "0 B")
-        try:
-            file_size = int(content_size_str.split(' ')[0]) if content_size_str else 0
-        except (ValueError, IndexError):
-            file_size = 0
-
-        return FilteredImage(
-            url=image_data.get("contentUrl", ""),
-            name=image_data.get("name", "未命名图片"),
-            width=image_data.get("width", 0),
-            height=image_data.get("height", 0),
-            file_size=file_size,
-            encoding_format=image_data.get("encodingFormat", "未知"),
-            date_published=image_data.get("datePublished"),
-            host_page_url=image_data.get("hostPageUrl"),
-            thumbnail_url=image_data.get("thumbnailUrl"),
-            is_fallback=is_fallback
-        )
 
     async def execute(
         self,
@@ -1092,29 +689,6 @@ Keyword Diversification Principles:
                 当 search_only=True 时，只返回搜索结果 URL，不执行下载和视觉理解。
                 SearchImagesToCanvas 调用时应设置为 True，由 SearchImagesToCanvas 自己处理下载
         """
-        # Validate API configuration based on selected engine
-        if self.use_magic:
-            if not self.magic_api_key:
-                logger.error("图片搜索工具配置错误: 配置项 'magic_image_search.api_key' 未设置或为空")
-                return ToolResult.error("图片搜索工具配置错误")
-            if not self.magic_endpoint:
-                logger.error("图片搜索工具配置错误: 配置项 'magic_image_search.api_endpoint' 未设置或为空")
-                return ToolResult.error("图片搜索工具配置错误")
-        elif self.use_serpapi:
-            if not self.serpapi_key:
-                logger.error("图片搜索工具配置错误: 配置项 'serpapi.api_key' 未设置或为空")
-                return ToolResult.error("图片搜索工具配置错误")
-            if not self.serpapi_endpoint:
-                logger.error("图片搜索工具配置错误: 配置项 'serpapi.api_endpoint' 未设置或为空")
-                return ToolResult.error("图片搜索工具配置错误")
-        else:
-            if not self.bing_api_key:
-                logger.error("图片搜索工具配置错误: 配置项 'bing.search_api_key' 未设置或为空")
-                return ToolResult.error("图片搜索工具配置错误")
-            if not self.bing_endpoint:
-                logger.error("图片搜索工具配置错误: 配置项 'bing.search_endpoint' 未设置或为空")
-                return ToolResult.error("图片搜索工具配置错误")
-
         # 解析XML需求
         # 当 search_only=True 时，visual_understanding_prompt 不是必填字段
         try:
@@ -1149,18 +723,22 @@ Keyword Diversification Principles:
         # Perform concurrent searches for all requirements
         logger.debug(f"开始并发搜索 {len(requirements_data)} 个需求")
 
-        # Create search tasks for all requirements
-        search_tasks = []
-        for val_req in validated_requirements:
+        # 每个请求随机延迟，避免同时到达上游触发限流
+        async def _staggered_image_search(val_req: dict):
+            await asyncio.sleep(random.uniform(0, 1.0))
             requirement_data = val_req['requirement_data']
-            task = self._search_single_query(
+            return await self._search_single_query(
                 query=requirement_data['query'],
                 count=requirement_data['count'],
                 expected_ratio=val_req['expected_ratio'],
                 expected_resolution=val_req['expected_resolution'],
                 seen_urls=seen_urls
             )
-            search_tasks.append(task)
+
+        search_tasks = [
+            _staggered_image_search(val_req)
+            for val_req in validated_requirements
+        ]
 
         # Execute all searches concurrently
         search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
@@ -1439,7 +1017,10 @@ Keyword Diversification Principles:
 
 ## 重要提醒
 - 由于你总是错误地判断清晰度，因此就算额外分析要求中包含清晰度分析，也不要在分析中包含任何关于图片清晰度的描述。
-- 如果图片包含明显的水印、版权标识等不适合使用的技术问题，请在分析结果中添加特殊标记：flag{{REJECT_IMAGE}}，避免在后续流程中造成额外的二次决策成本。注意：将标记放在分析结果的结尾，系统会自动清理掉这个标记，不会影响最终展示给用户的内容。
+- 关于 flag{{REJECT_IMAGE}} 标记的使用规则（请严格遵守）：
+  - 仅当你**明确观察到**图片中存在水印文字、可见 logo、版权署名等无法用于商用配图的技术问题时，才在分析结果末尾**单独一行**输出 flag{{REJECT_IMAGE}}。
+  - 在以下任何情况下，**绝对不要**输出 flag{{REJECT_IMAGE}}：未观察到水印或版权标识、不确定是否存在、你在描述中已经写出"无水印""无版权标识""未见水印"等否定性结论。
+  - 不要解释这个标记，也不要在正文中提及它。
 - 为提高信息密度，请用最少的文字表达最多的有效信息，避免空话、套话、重复表达。
 - {output_language_rule}
 - {length_rule}
@@ -1478,14 +1059,31 @@ Keyword Diversification Principles:
                 elif isinstance(result, str):
                     # Check if analysis result is empty
                     if not result.strip():
-                        logger.debug(f"图片视觉分析结果为空，跳过: {img.name}")
+                        logger.info(f"图片视觉分析结果为空，跳过: {img.name}")
                         continue
 
                     # Check for REJECT_IMAGE marker
                     reject_pattern = 'flag{REJECT_IMAGE}'
                     if reject_pattern in result:
-                        logger.debug(f"图片被视觉分析拒绝: {img.name}")
-                        continue  # Skip this image
+                        # Self-consistency check: if the model itself states there is no
+                        # watermark/copyright issue, treat the marker as a hallucinated
+                        # tail and keep the image instead of dropping it silently.
+                        # Covers Chinese & English negation phrasings commonly produced
+                        # by lightweight vision models (e.g. qwen-flash).
+                        result_without_marker = result.replace(reject_pattern, '')
+                        negation_pattern = re.compile(
+                            r'(无水印|没有水印|未见水印|不含水印|无版权(标识|信息)?|没有版权(标识|信息)?|未见版权(标识|信息)?|不含版权(标识|信息)?'
+                            r'|no\s+watermark|without\s+watermark|no\s+copyright)',
+                            re.IGNORECASE,
+                        )
+                        if negation_pattern.search(result_without_marker):
+                            logger.warning(
+                                f"视觉分析输出了 REJECT 标记但同时声明无水印/版权问题，判定为模型误标，保留图片: {img.name}"
+                            )
+                            # fall through and keep the image
+                        else:
+                            logger.info(f"图片被视觉分析拒绝: {img.name}")
+                            continue  # Skip this image
 
                     # Remove any REJECT_IMAGE markers and clean up
                     analysis = result.replace(reject_pattern, '').strip()
@@ -1493,7 +1091,7 @@ Keyword Diversification Principles:
 
                     # Skip if analysis is empty after cleanup
                     if not analysis:
-                        logger.debug(f"图片视觉分析清理后为空，跳过: {img.name}")
+                        logger.info(f"图片视觉分析清理后为空，跳过: {img.name}")
                         continue
 
                     img.visual_analysis = analysis

@@ -12,6 +12,7 @@ use App\Infrastructure\Rpc\JsonRpc\Client\Knowledge\ProjectFileRpcClient;
 use App\Interfaces\Authorization\Web\MagicUserAuthorization;
 use Dtyq\AsyncEvent\Kernel\Annotation\AsyncListener;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
+use Dtyq\SuperMagic\Domain\SuperAgent\Event\DirectoryDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileContentSavedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileMovedEvent;
@@ -39,6 +40,7 @@ class ProjectFileChangeNotifySubscriber implements ListenerInterface
             FileUploadedEvent::class,
             FileContentSavedEvent::class,
             FileDeletedEvent::class,
+            DirectoryDeletedEvent::class,
             FilesBatchDeletedEvent::class,
             FileRenamedEvent::class,
             FileMovedEvent::class,
@@ -49,6 +51,11 @@ class ProjectFileChangeNotifySubscriber implements ListenerInterface
     {
         if ($event instanceof FilesBatchDeletedEvent) {
             $this->processBatchDeleted($event);
+            return;
+        }
+
+        if ($event instanceof DirectoryDeletedEvent) {
+            $this->processDirectoryDeleted($event);
             return;
         }
 
@@ -81,8 +88,8 @@ class ProjectFileChangeNotifySubscriber implements ListenerInterface
     private function processBatchDeleted(FilesBatchDeletedEvent $event): void
     {
         $authorization = $event->getUserAuthorization();
-        foreach ($event->getFileIds() as $fileId) {
-            $projectFileId = (int) $fileId;
+        foreach ($event->getFileEntities() as $fileEntity) {
+            $projectFileId = (int) $fileEntity->getFileId();
             if ($projectFileId <= 0) {
                 continue;
             }
@@ -100,6 +107,30 @@ class ProjectFileChangeNotifySubscriber implements ListenerInterface
                 ],
             );
         }
+    }
+
+    private function processDirectoryDeleted(DirectoryDeletedEvent $event): void
+    {
+        $directoryEntity = $event->getDirectoryEntity();
+        $projectFileId = (int) $directoryEntity->getFileId();
+        if ($projectFileId <= 0) {
+            return;
+        }
+
+        $authorization = $event->getUserAuthorization();
+        $this->notifyProjectFileChange(
+            $projectFileId,
+            $authorization->getOrganizationCode(),
+            $directoryEntity->getProjectId(),
+            'deleted',
+            [
+                'project_id' => $directoryEntity->getProjectId(),
+                'file_key' => $directoryEntity->getFileKey(),
+                'user_id' => $authorization->getId(),
+                'organization_code' => $authorization->getOrganizationCode(),
+                'event' => $event::class,
+            ],
+        );
     }
 
     /**

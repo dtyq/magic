@@ -19,6 +19,7 @@ import {
 	getDesignDirectoryInfo,
 	fileItemsToProjectAttachmentMentionTree,
 	normalizeMentionFolderId,
+	resolveActualDesignCurrentFile,
 	resolveDesignProjectBasePathFromAttachments,
 } from "./utils/utils"
 import { FlexBox } from "@/components/base"
@@ -37,9 +38,11 @@ import { MentionExtension } from "@/components/business/MentionPanel/tiptap-plug
 import { useDesignDownloadPolicy } from "./hooks/useDesignDownloadPolicy"
 import { HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX } from "@/pages/superMagic/components/Detail/components/CommonHeader/components/HistoryVersionBanner"
 import { useAiWatermarkPreference } from "@/hooks/useAiWatermarkPreference"
-import { getDesignProjectCurrentFileByProjectPath } from "./utils/toolDesignProjectInfo"
 import type { DesignRemoteUpdateListenerMode } from "./managers/types"
 import { useCanvasResourceRefresh } from "./hooks/useCanvasResourceRefresh"
+import { waitForNextAttachmentsRefreshForProject } from "@/pages/superMagic/services/attachmentsTopicSync"
+import { useNetwork } from "ahooks"
+import { CloudOff } from "lucide-react"
 
 // 懒加载协议弹窗
 const loadWaterMarkFreeModal = async () => {
@@ -53,7 +56,7 @@ const WaterMarkFreeModal = lazy(() => loadWaterMarkFreeModal())
 
 const DESIGN_REMOTE_UPDATE_LISTENER_MODE: DesignRemoteUpdateListenerMode = "file-change" as const
 
-const useStyles = createStyles({
+const useStyles = createStyles(({ token }) => ({
 	designViewerContainer: {
 		width: "100%",
 		height: "100%",
@@ -88,7 +91,47 @@ const useStyles = createStyles({
 		gap: "16px",
 		color: "#fff",
 	},
-})
+	offlineNotice: {
+		position: "absolute",
+		top: "16px",
+		left: "50%",
+		zIndex: 50,
+		display: "flex",
+		alignItems: "center",
+		gap: "10px",
+		maxWidth: "calc(100% - 32px)",
+		padding: "10px 14px",
+		borderRadius: "12px",
+		border: `1px solid ${token.colorWarningBorder}`,
+		backgroundColor: token.colorWarningBg,
+		boxShadow: token.boxShadowSecondary,
+		color: token.colorText,
+		transform: "translateX(-50%)",
+		pointerEvents: "none",
+	},
+	offlineIcon: {
+		flex: "none",
+		color: token.colorWarning,
+	},
+	offlineText: {
+		display: "flex",
+		flexDirection: "column",
+		gap: "2px",
+		minWidth: 0,
+	},
+	offlineTitle: {
+		fontSize: "13px",
+		fontWeight: 600,
+		lineHeight: "18px",
+		whiteSpace: "nowrap",
+	},
+	offlineDescription: {
+		fontSize: "12px",
+		lineHeight: "16px",
+		color: token.colorTextSecondary,
+		whiteSpace: "nowrap",
+	},
+}))
 
 interface DesignViewerProps {
 	attachments?: FileItem[]
@@ -128,12 +171,20 @@ function DesignViewer(props: DesignViewerProps) {
 		allowDownload,
 	} = props
 
+	// 文件列表更新处理
+	const { flatAttachments, attachmentIndex, updateAttachments } = useAttachments({
+		attachments,
+		attachmentList,
+	})
+
 	const propsElements = props.data?.elements
 
 	const { styles } = useStyles()
 	const { t } = useTranslation("super")
 	const { t: canvasDesignT } = useTranslation("canvasDesign")
 	const { i18n } = useTranslation()
+	const { online } = useNetwork()
+	const isOffline = online === false
 
 	const hostUiLocale = i18n.resolvedLanguage ?? i18n.language
 
@@ -141,16 +192,18 @@ function DesignViewer(props: DesignViewerProps) {
 	const projectId = selectedTopic?.project_id
 
 	const currentFile = useMemo(() => {
-		const projectPath = props.data?.project_path
-		if (isPlaybackMode && projectPath) {
-			const designProjectFile = getDesignProjectCurrentFileByProjectPath({
-				projectPath,
-				attachments,
-			})
-			if (designProjectFile) return designProjectFile
+		const actualCurrentFile = resolveActualDesignCurrentFile({
+			currentFile: currentFileProps,
+			flatAttachments,
+			attachments,
+			projectPath: props.data?.project_path,
+		})
+		if (!actualCurrentFile) return currentFileProps
+		return {
+			...(currentFileProps ?? {}),
+			...actualCurrentFile,
 		}
-		return currentFileProps
-	}, [attachments, currentFileProps, isPlaybackMode, props.data?.project_path])
+	}, [attachments, currentFileProps, flatAttachments, props.data?.project_path])
 
 	// 从 store 获取 selectedWorkspace（参考文件列表的实现）
 	const selectedWorkspace = workspaceStore.selectedWorkspace
@@ -163,18 +216,14 @@ function DesignViewer(props: DesignViewerProps) {
 
 	// 用于强制重新挂载 CanvasDesign 的 key
 	const [canvasDesignKey, setCanvasDesignKey] = useState(0)
+	const [isBasePathSwitching, setIsBasePathSwitching] = useState(false)
 
 	const refreshCanvasDesign = useCallback(() => {
 		setCanvasDesignKey((prev) => prev + 1)
 	}, [])
 
 	const prevDesignProjectBasePathRef = useRef<string | undefined>(undefined)
-
-	// 文件列表更新处理
-	const { flatAttachments, attachmentIndex, updateAttachments } = useAttachments({
-		attachments,
-		attachmentList,
-	})
+	const basePathSwitchTaskIdRef = useRef(0)
 
 	// 获取目录信息
 	const directoryInfo = useMemo(() => {
@@ -209,19 +258,7 @@ function DesignViewer(props: DesignViewerProps) {
 	// 用于跟踪是否已经执行过初始加载，确保只加载一次
 	// 这样可以避免 attachments 数组引用变化导致的重复加载
 	const hasLoadedRef = useRef(false)
-
-	// 当 designProjectBasePath 变化时强制刷新 CanvasDesign，避免内部路径缓存沿用旧基准路径
-	useEffect(() => {
-		if (prevDesignProjectBasePathRef.current === undefined) {
-			prevDesignProjectBasePathRef.current = designProjectBasePath
-			return
-		}
-
-		if (prevDesignProjectBasePathRef.current !== designProjectBasePath) {
-			prevDesignProjectBasePathRef.current = designProjectBasePath
-			refreshCanvasDesign()
-		}
-	}, [designProjectBasePath, refreshCanvasDesign])
+	const wasOfflineRef = useRef(isOffline)
 
 	// magic.project.js 与 designData 集中管理器（含 autoSave、远端更新监听、版本管理）
 	const designProjectManager = useDesignProjectManager({
@@ -298,6 +335,39 @@ function DesignViewer(props: DesignViewerProps) {
 
 	const { isProcessingRevoke, revokeType } = designProjectManager
 
+	// 当 designProjectBasePath 变化（目录改名）时，重新从远端加载 DSL（修复旧路径引用），再重挂载画布
+	useEffect(() => {
+		if (prevDesignProjectBasePathRef.current === undefined) {
+			prevDesignProjectBasePathRef.current = designProjectBasePath
+			return
+		}
+
+		if (prevDesignProjectBasePathRef.current !== designProjectBasePath) {
+			prevDesignProjectBasePathRef.current = designProjectBasePath
+			const taskId = basePathSwitchTaskIdRef.current + 1
+			basePathSwitchTaskIdRef.current = taskId
+			setIsBasePathSwitching(true)
+
+			void (async () => {
+				try {
+					await waitForNextAttachmentsRefreshForProject(projectId, {
+						timeoutMs: 15_000,
+					})
+					if (basePathSwitchTaskIdRef.current !== taskId) return
+
+					await resetAndReload()
+					if (basePathSwitchTaskIdRef.current !== taskId) return
+
+					refreshCanvasDesign()
+				} finally {
+					if (basePathSwitchTaskIdRef.current === taskId) {
+						setIsBasePathSwitching(false)
+					}
+				}
+			})()
+		}
+	}, [designProjectBasePath, projectId, refreshCanvasDesign, resetAndReload])
+
 	// 设计容器 ref
 	const containerRef = useRef<HTMLDivElement>(null)
 
@@ -305,7 +375,7 @@ function DesignViewer(props: DesignViewerProps) {
 	const displayName = directoryInfo.name || designData.name
 
 	// 设计项目 ID
-	const designProjectId = directoryInfo.id || currentFile?.id
+	const designProjectId = directoryInfo.id || currentFile?.id || ""
 
 	const downloadPolicy = useDesignDownloadPolicy()
 	const { isFreeTrialVersion } = useAiWatermarkPreference()
@@ -494,11 +564,12 @@ function DesignViewer(props: DesignViewerProps) {
 	const handleCanvasDesignDataChange = useCallback(
 		(canvasData: CanvasDocument) => {
 			if (isApplyingRemoteCanvasUpdateRef.current) return
+			if (isOffline) return
 
 			persistCanvasData(canvasData)
 			syncCanvasImageFileRename(canvasData)
 		},
-		[persistCanvasData, syncCanvasImageFileRename],
+		[isOffline, persistCanvasData, syncCanvasImageFileRename],
 	)
 
 	useCanvasResourceRefresh({
@@ -563,6 +634,10 @@ function DesignViewer(props: DesignViewerProps) {
 			return
 		}
 
+		if (!currentFile?.id || !currentFile?.name) {
+			return
+		}
+
 		// attachments 有数据后，执行加载
 		hasLoadedRef.current = true
 
@@ -588,19 +663,55 @@ function DesignViewer(props: DesignViewerProps) {
 				}, 100)
 			}
 		})
-	}, [attachments, isMobile, isPlaybackMode, loadFromRemote, propsElements])
+	}, [
+		attachments,
+		currentFile?.id,
+		currentFile?.name,
+		isMobile,
+		isPlaybackMode,
+		loadFromRemote,
+		propsElements,
+	])
 
 	// 监听 allowEdit、isPlaybackMode、isShareRoute 和 isMobile 变化，更新只读状态
 	// 如果当前不在查看历史版本，则根据 allowEdit、isPlaybackMode、isShareRoute 或 isMobile 更新只读状态
 	// 如果正在查看历史版本，则保持只读状态不变（由 onVersionChange 处理）
 	useEffect(() => {
 		if (isNewestVersion) {
-			setIsReadOnlyState(!allowEdit || isPlaybackMode || isShareRoute || isMobile)
+			setIsReadOnlyState(
+				!allowEdit || isPlaybackMode || isShareRoute || isMobile || isOffline,
+			)
 		}
-	}, [allowEdit, isMobile, isNewestVersion, isPlaybackMode, isShareRoute, setIsReadOnlyState])
+	}, [
+		allowEdit,
+		isMobile,
+		isNewestVersion,
+		isOffline,
+		isPlaybackMode,
+		isShareRoute,
+		setIsReadOnlyState,
+	])
+
+	useEffect(() => {
+		const wasOffline = wasOfflineRef.current
+		wasOfflineRef.current = isOffline
+
+		if (wasOffline && !isOffline && isNewestVersion && !isPlaybackMode) {
+			void refreshCanvasDesign()
+		}
+	}, [
+		allowEdit,
+		isMobile,
+		isNewestVersion,
+		isOffline,
+		isPlaybackMode,
+		isShareRoute,
+		refreshCanvasDesign,
+	])
 
 	// 显示历史版本 banner 时预留顶部空间，避免遮挡画布（与 HISTORY_VERSION_BANNER_LAYOUT_HEIGHT_PX 一致）
 	const showVersionBanner = !isNewestVersion && !isMobile && !!fileVersionsList?.length
+	const shouldShowInitialLoading = isInitialLoading || isBasePathSwitching
 
 	return (
 		<>
@@ -613,7 +724,7 @@ function DesignViewer(props: DesignViewerProps) {
 						: undefined
 				}
 			>
-				{isInitialLoading ? (
+				{shouldShowInitialLoading ? (
 					<FlexBox justify="center" align="center" style={{ height: "100%" }}>
 						<MagicSpin spinning />
 					</FlexBox>
@@ -648,8 +759,25 @@ function DesignViewer(props: DesignViewerProps) {
 							</>
 						)}
 						<div className={styles.designCanvasContainer}>
+							{isOffline && (
+								<div
+									className={styles.offlineNotice}
+									role="status"
+									aria-live="polite"
+								>
+									<CloudOff className={styles.offlineIcon} size={20} />
+									<div className={styles.offlineText}>
+										<div className={styles.offlineTitle}>
+											{t("design.offlineNotice.title")}
+										</div>
+										<div className={styles.offlineDescription}>
+											{t("design.offlineNotice.description")}
+										</div>
+									</div>
+								</div>
+							)}
 							<CanvasDesign
-								key={canvasDesignKey}
+								key={`${designProjectId}:${canvasDesignKey}:${designProjectBasePath}`}
 								id={designProjectId}
 								ref={canvasDesignRef}
 								readonly={isReadOnlyState}

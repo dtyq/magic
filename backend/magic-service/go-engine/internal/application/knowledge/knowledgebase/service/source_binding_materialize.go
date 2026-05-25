@@ -60,7 +60,7 @@ func (s *KnowledgeBaseAppService) buildSourceBindings(
 		binding.Targets = append([]sourcebindingdomain.BindingTarget(nil), binding.Targets...)
 		bindings = append(bindings, binding)
 	}
-	return bindings
+	return sourcebindingservice.NormalizeBindingsForKnowledgeBaseType(string(knowledgeBaseTypeFromKnowledgeBase(kb)), bindings)
 }
 
 func (s *KnowledgeBaseDocumentFlowApp) materializeKnowledgeBaseDocuments(
@@ -231,6 +231,7 @@ func (m sourceBindingManagedDocumentManager) ScheduleManagedDocumentSync(ctx con
 			OrganizationCode: input.OrganizationCode,
 			UserID:           input.UserID,
 			BusinessID:       input.KnowledgeBaseCode,
+			SourceID:         ctxmeta.SourceIDFragmentSaved,
 		},
 	})
 }
@@ -1335,6 +1336,7 @@ func (s *KnowledgeBaseDocumentFlowApp) bootstrapSourceBindings(
 			}
 		}
 	}
+	bindings = sourcebindingservice.NormalizeBindingsForKnowledgeBaseType(string(knowledgeBaseTypeFromKnowledgeBase(kb)), bindings)
 	savedBindings, err := s.support.sourceBindingRepo.ReplaceBindings(ctx, kb.Code, bindings)
 	if err != nil {
 		return nil, fmt.Errorf("bootstrap source bindings: %w", err)

@@ -270,6 +270,7 @@ const MessageList = observer(
 					<Node
 						role={node?.role || "user"}
 						node={node}
+						prevNode={previousNode}
 						isFirst={previousNode?.role === "user" && node?.role === "assistant"}
 						checkIsLastMessage={checkIsLastMessage}
 						selectedTopic={selectedTopic}

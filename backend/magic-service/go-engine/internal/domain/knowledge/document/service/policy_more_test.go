@@ -395,7 +395,7 @@ func TestDocumentSyncAndThirdFilePolicies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build revectorize seed failed: %v", err)
 	}
-	if seed.SourceCacheKey != "teamshare:ORG:teamshare:FILE-1" {
+	if seed.SourceCacheKey != "third_file:ORG:teamshare:FILE-1" {
 		t.Fatalf("unexpected source cache key: %#v", seed)
 	}
 

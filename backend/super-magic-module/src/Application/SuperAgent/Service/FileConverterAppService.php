@@ -26,7 +26,6 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\FileConve
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Request\FileConverterRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Response\FileConverterResponse;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\FileConverter\Response\FileItemDTO;
-use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\FileDownloadUrlHelper;
 use Dtyq\SuperMagic\Infrastructure\Utils\RelativeFilePathUtil;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
@@ -54,7 +53,6 @@ class FileConverterAppService extends AbstractAppService
         private readonly FileConverterInterface $fileConverterService,
         private readonly FileConvertStatusManager $fileConvertStatusManager,
         private readonly FileAppService $fileAppService,
-        private readonly SandboxGatewayInterface $sandboxGateway,
         private readonly FileCleanupAppService $fileCleanupAppService,
         private readonly CloudFileRepositoryInterface $cloudFileRepository,
     ) {
@@ -261,14 +259,13 @@ class FileConverterAppService extends AbstractAppService
             $stsTemporaryCredential = $this->getStsCredential($userAuthorization, $projectEntity->getWorkDir(), $projectEntity->getUserOrganizationCode());
 
             $this->fileConvertStatusManager->setTaskProgress($taskKey, count($fileKeys) - 1, count($fileKeys), 'Converting files');
-            // Synchronously ensure sandbox is available and execute conversion in a coroutine
-            $this->sandboxGateway->setUserContext($userId, $userAuthorization->getOrganizationCode());
-            $actualSandboxId = $this->sandboxGateway->ensureSandboxAvailable(
+            // Ensure sandbox is running via domain service (App layer orchestration)
+            $actualSandboxId = $this->agentDomainService->ensureSandboxRunning(
+                $userId,
+                $userAuthorization->getOrganizationCode(),
                 $sandboxId,
                 $projectId,
-                $fullWorkdir,
-                $rootFileId,
-                $authorization
+                $fullWorkdir
             );
 
             // 从第一个文件中获取 topic_id

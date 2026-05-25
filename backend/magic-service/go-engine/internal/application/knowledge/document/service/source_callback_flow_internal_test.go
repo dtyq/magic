@@ -101,7 +101,7 @@ func TestThirdFileCoveringBindingsUsesCurrentPathRootBeforeThirdKnowledgeID(t *t
 
 	bindings, err := svc.resolveThirdFileCoveringBindings(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
 		OrganizationCode:  "ORG1",
-		UserID:            "U1",
+		UserID:            "usi_callback",
 		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
 		ThirdFileID:       "FILE1",
 		ThirdKnowledgeID:  "STALE-KB",
@@ -117,7 +117,129 @@ func TestThirdFileCoveringBindingsUsesCurrentPathRootBeforeThirdKnowledgeID(t *t
 	}
 }
 
-func TestThirdFileRootMissingDestroysExistingDocuments(t *testing.T) {
+func TestThirdFileCallbackRepairsFlowTeamshareManualBinding(t *testing.T) {
+	t.Parallel()
+
+	sourceRepo := &sourceCallbackSourceBindingRepoStub{
+		bindingsByKnowledgeBase: map[string][]sourcebindingdomain.Binding{
+			"KB-FLOW": {{
+				ID:                31,
+				OrganizationCode:  "ORG1",
+				KnowledgeBaseCode: "KB-FLOW",
+				Provider:          sourcebindingdomain.ProviderTeamshare,
+				RootType:          sourcebindingdomain.RootTypeKnowledgeBase,
+				RootRef:           "TEAMSHARE-KB",
+				SyncMode:          sourcebindingdomain.SyncModeManual,
+				Enabled:           true,
+			}},
+		},
+	}
+	svc := &ThirdFileRevectorizeAppService{support: &DocumentAppService{
+		domainService: &internalDocumentDomainServiceStub{thirdFileDocs: []*docentity.KnowledgeBaseDocument{{
+			Code:              "DOC1",
+			OrganizationCode:  "ORG1",
+			KnowledgeBaseCode: "KB-FLOW",
+			SourceBindingID:   31,
+			ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+			ThirdFileID:       "FILE1",
+		}}},
+		kbService: &internalKnowledgeBaseReaderStub{listResult: []*kbentity.KnowledgeBase{{
+			Code:              "KB-FLOW",
+			OrganizationCode:  "ORG1",
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+		}}},
+		sourceBindingRepo: sourceRepo,
+	}}
+
+	err := svc.repairFlowTeamshareRealtimeForCallback(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE1",
+	})
+	if err != nil {
+		t.Fatalf("repairFlowTeamshareRealtimeForCallback returned error: %v", err)
+	}
+	if len(sourceRepo.markedRealtimeBindingIDs) != 1 || sourceRepo.markedRealtimeBindingIDs[0] != 31 {
+		t.Fatalf("expected flow manual binding to be repaired, got %#v", sourceRepo.markedRealtimeBindingIDs)
+	}
+}
+
+func TestThirdFileCallbackDoesNotRepairDigitalEmployeeTeamshareManualBinding(t *testing.T) {
+	t.Parallel()
+
+	sourceRepo := &sourceCallbackSourceBindingRepoStub{
+		bindingsByKnowledgeBase: map[string][]sourcebindingdomain.Binding{
+			"KB-DIGITAL": {{
+				ID:                32,
+				OrganizationCode:  "ORG1",
+				KnowledgeBaseCode: "KB-DIGITAL",
+				Provider:          sourcebindingdomain.ProviderTeamshare,
+				RootType:          sourcebindingdomain.RootTypeKnowledgeBase,
+				RootRef:           "TEAMSHARE-KB",
+				SyncMode:          sourcebindingdomain.SyncModeManual,
+				Enabled:           true,
+			}},
+		},
+	}
+	svc := &ThirdFileRevectorizeAppService{support: &DocumentAppService{
+		domainService: &internalDocumentDomainServiceStub{thirdFileDocs: []*docentity.KnowledgeBaseDocument{{
+			Code:              "DOC1",
+			OrganizationCode:  "ORG1",
+			KnowledgeBaseCode: "KB-DIGITAL",
+			SourceBindingID:   32,
+			ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+			ThirdFileID:       "FILE1",
+		}}},
+		kbService: &internalKnowledgeBaseReaderStub{listResult: []*kbentity.KnowledgeBase{{
+			Code:              "KB-DIGITAL",
+			OrganizationCode:  "ORG1",
+			KnowledgeBaseType: kbentity.KnowledgeBaseTypeDigitalEmployee,
+		}}},
+		sourceBindingRepo: sourceRepo,
+	}}
+
+	err := svc.repairFlowTeamshareRealtimeForCallback(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE1",
+	})
+	if err != nil {
+		t.Fatalf("repairFlowTeamshareRealtimeForCallback returned error: %v", err)
+	}
+	if len(sourceRepo.markedRealtimeBindingIDs) != 0 {
+		t.Fatalf("expected digital employee manual binding to stay manual, got %#v", sourceRepo.markedRealtimeBindingIDs)
+	}
+}
+
+func TestThirdFileIdentityMissingReturnsRetryableError(t *testing.T) {
+	t.Parallel()
+
+	domainSvc := &internalDocumentDomainServiceStub{}
+	svc := &ThirdFileRevectorizeAppService{support: &DocumentAppService{
+		domainService:             domainSvc,
+		kbService:                 &internalKnowledgeBaseReaderStub{listResult: []*kbentity.KnowledgeBase{{Code: "KB1", OrganizationCode: "ORG1", UpdatedUID: "usi_callback"}}},
+		thirdPlatformDocumentPort: &sourceCallbackThirdPlatformPortStub{nodeErr: thirdplatform.ErrIdentityMissing},
+	}}
+
+	_, handled, err := svc.prepareThirdFileCurrentSource(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		UserID:            "usi_callback",
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE1",
+		ThirdKnowledgeID:  "KB1",
+	}, []*docentity.KnowledgeBaseDocument{{ID: 77, OrganizationCode: "ORG1", KnowledgeBaseCode: "KB1", Code: "DOC1"}})
+	if !errors.Is(err, thirdplatform.ErrIdentityMissing) {
+		t.Fatalf("expected identity missing error, got %v", err)
+	}
+	if !handled {
+		t.Fatalf("expected identity missing callback to stop before plan")
+	}
+	if domainSvc.deleteCalls != 0 {
+		t.Fatalf("expected identity missing not to delete documents, calls=%d", domainSvc.deleteCalls)
+	}
+}
+
+func TestThirdFileRootMissingReturnsRetryableError(t *testing.T) {
 	t.Parallel()
 
 	domainSvc := &internalDocumentDomainServiceStub{}
@@ -129,7 +251,8 @@ func TestThirdFileRootMissingDestroysExistingDocuments(t *testing.T) {
 			Code:             "KB1",
 			OrganizationCode: "ORG1",
 			Enabled:          true,
-		}},
+			UpdatedUID:       "usi_callback",
+		}, listResult: []*kbentity.KnowledgeBase{{Code: "KB1", OrganizationCode: "ORG1", UpdatedUID: "usi_callback"}}},
 		thirdPlatformDocumentPort: &sourceCallbackThirdPlatformPortStub{node: &thirdplatform.NodeResolveResult{
 			TreeNode: thirdplatform.TreeNode{
 				ID:          "FILE1",
@@ -147,7 +270,7 @@ func TestThirdFileRootMissingDestroysExistingDocuments(t *testing.T) {
 
 	_, handled, err := svc.prepareThirdFileCurrentSource(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
 		OrganizationCode:  "ORG1",
-		UserID:            "U1",
+		UserID:            "usi_callback",
 		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
 		ThirdFileID:       "FILE1",
 		ThirdKnowledgeID:  "STALE-KB",
@@ -159,17 +282,17 @@ func TestThirdFileRootMissingDestroysExistingDocuments(t *testing.T) {
 		SourceBindingID:   20,
 		SourceItemID:      30,
 	}})
-	if err != nil {
-		t.Fatalf("prepareThirdFileCurrentSource returned error: %v", err)
+	if !errors.Is(err, errThirdFileKnowledgeBaseMissing) {
+		t.Fatalf("expected knowledge base missing error, got %v", err)
 	}
 	if !handled {
-		t.Fatalf("expected root-missing callback to be handled by cleanup")
+		t.Fatalf("expected root-missing callback to stop before plan")
 	}
-	if domainSvc.deleteCalls != 1 || domainSvc.deletedID != 77 {
-		t.Fatalf("expected stale document deleted once, calls=%d id=%d", domainSvc.deleteCalls, domainSvc.deletedID)
+	if domainSvc.deleteCalls != 0 {
+		t.Fatalf("expected root-missing callback not to delete documents, calls=%d id=%d", domainSvc.deleteCalls, domainSvc.deletedID)
 	}
-	if fragmentSvc.deleteByDocumentCalls != 1 || fragmentSvc.deletePointsByDocumentCalls != 1 {
-		t.Fatalf("expected fragments and vectors cleaned, fragment=%d vector=%d", fragmentSvc.deleteByDocumentCalls, fragmentSvc.deletePointsByDocumentCalls)
+	if fragmentSvc.deleteByDocumentCalls != 0 || fragmentSvc.deletePointsByDocumentCalls != 0 {
+		t.Fatalf("expected fragments and vectors untouched, fragment=%d vector=%d", fragmentSvc.deleteByDocumentCalls, fragmentSvc.deletePointsByDocumentCalls)
 	}
 }
 
@@ -199,7 +322,8 @@ func (s *sourceCallbackProjectResolverStub) ListByProject(context.Context, int64
 }
 
 type sourceCallbackThirdPlatformPortStub struct {
-	node *thirdplatform.NodeResolveResult
+	node    *thirdplatform.NodeResolveResult
+	nodeErr error
 }
 
 func (s *sourceCallbackThirdPlatformPortStub) Resolve(
@@ -213,12 +337,17 @@ func (s *sourceCallbackThirdPlatformPortStub) ResolveNode(
 	context.Context,
 	thirdplatform.NodeResolveInput,
 ) (*thirdplatform.NodeResolveResult, error) {
+	if s.nodeErr != nil {
+		return nil, s.nodeErr
+	}
 	return s.node, nil
 }
 
 type sourceCallbackSourceBindingRepoStub struct {
 	projectBindings                []sourcebindingdomain.Binding
 	teamshareBindings              []sourcebindingdomain.Binding
+	bindingsByKnowledgeBase        map[string][]sourcebindingdomain.Binding
+	markedRealtimeBindingIDs       []int64
 	lastTeamshareKnowledgeBaseID   string
 	lastProjectBindingOrganization string
 	sourceItems                    []*sourcebindingdomain.SourceItem
@@ -255,10 +384,14 @@ func (s *sourceCallbackSourceBindingRepoStub) ListBindingsByKnowledgeBase(
 }
 
 func (s *sourceCallbackSourceBindingRepoStub) ListBindingsByKnowledgeBases(
-	context.Context,
-	[]string,
+	_ context.Context,
+	knowledgeBaseCodes []string,
 ) (map[string][]sourcebindingdomain.Binding, error) {
-	return map[string][]sourcebindingdomain.Binding{}, nil
+	result := make(map[string][]sourcebindingdomain.Binding, len(knowledgeBaseCodes))
+	for _, code := range knowledgeBaseCodes {
+		result[code] = append([]sourcebindingdomain.Binding(nil), s.bindingsByKnowledgeBase[code]...)
+	}
+	return result, nil
 }
 
 func (s *sourceCallbackSourceBindingRepoStub) ListRealtimeProjectBindingsByProject(
@@ -278,6 +411,24 @@ func (s *sourceCallbackSourceBindingRepoStub) ListRealtimeTeamshareBindingsByKno
 ) ([]sourcebindingdomain.Binding, error) {
 	s.lastTeamshareKnowledgeBaseID = knowledgeBaseID
 	return append([]sourcebindingdomain.Binding(nil), s.teamshareBindings...), nil
+}
+
+func (s *sourceCallbackSourceBindingRepoStub) ListTeamshareBindingsByKnowledgeBase(
+	_ context.Context,
+	_ string,
+	_ string,
+	knowledgeBaseID string,
+) ([]sourcebindingdomain.Binding, error) {
+	s.lastTeamshareKnowledgeBaseID = knowledgeBaseID
+	return append([]sourcebindingdomain.Binding(nil), s.teamshareBindings...), nil
+}
+
+func (s *sourceCallbackSourceBindingRepoStub) MarkSourceBindingsRealtimeByIDs(
+	_ context.Context,
+	bindingIDs []int64,
+) (int64, error) {
+	s.markedRealtimeBindingIDs = append([]int64(nil), bindingIDs...)
+	return int64(len(bindingIDs)), nil
 }
 
 func (s *sourceCallbackSourceBindingRepoStub) HasRealtimeProjectBindingForFile(

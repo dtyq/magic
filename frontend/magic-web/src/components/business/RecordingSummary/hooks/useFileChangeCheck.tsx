@@ -1,4 +1,4 @@
-import { useCallback } from "react"
+import { useCallback, useRef } from "react"
 import { useMemoizedFn } from "ahooks"
 import { initializeService } from "@/services/recordSummary/serviceInstance"
 
@@ -26,6 +26,7 @@ export function useFileChangeCheck({
 	onMergedResult,
 }: UseFileChangeCheckOptions) {
 	const recordSummaryService = initializeService()
+	const isCheckingRef = useRef(false)
 
 	/**
 	 * Handle file content change when server content differs from current content
@@ -69,7 +70,8 @@ export function useFileChangeCheck({
 					onMergedResult?.(mergedContent)
 				},
 				onCancel: () => {
-					// Cancel: do nothing
+					// Cancel: update timestamp to prevent re-prompting on next poll
+					recordSummaryService.updateNoteLastUpdatedAt(targetFile.updated_at)
 				},
 			})
 		},
@@ -84,41 +86,62 @@ export function useFileChangeCheck({
 
 			if (!nodeFileId) return
 
-			const targetFile = attachmentList.find((item) => item.file_id === nodeFileId)
+			// Prevent concurrent checks — if one is already in progress, skip
+			if (isCheckingRef.current) return
+			isCheckingRef.current = true
 
-			if (!targetFile) return
+			try {
+				const targetFile = attachmentList.find((item) => item.file_id === nodeFileId)
 
-			// Check if updated_at has changed
-			const savedLastUpdatedAt = recordSummaryService.getNoteLastUpdatedAt()
-			const currentUpdatedAt = targetFile.updated_at
+				if (!targetFile) return
 
-			// If timestamp changed or not set before
-			if (currentUpdatedAt && currentUpdatedAt !== savedLastUpdatedAt) {
-				try {
-					// Fetch latest file content from server
-					const urlResponse = await getTemporaryDownloadUrl({
-						file_ids: [nodeFileId],
-					})
+				// Check if updated_at has changed
+				const savedLastUpdatedAt = recordSummaryService.getNoteLastUpdatedAt()
+				const currentUpdatedAt = targetFile.updated_at
 
-					if (!urlResponse || !urlResponse[0]?.url) {
-						console.error("Failed to get download URL for note file")
+				// If timestamp changed or not set before
+				if (currentUpdatedAt && currentUpdatedAt !== savedLastUpdatedAt) {
+					// Capture lastSyncedContent before async fetch to detect concurrent uploads
+					const lastSyncedContentBeforeFetch =
+						recordSummaryService.getNoteLastSyncedContent()
+
+					try {
+						// Fetch latest file content from server
+						const urlResponse = await getTemporaryDownloadUrl({
+							file_ids: [nodeFileId],
+						})
+
+						if (!urlResponse || !urlResponse[0]?.url) {
+							console.error("Failed to get download URL for note file")
+							// Update timestamp even on error to prevent repeated prompts
+							recordSummaryService.updateNoteLastUpdatedAt(currentUpdatedAt)
+							return
+						}
+
+						const serverContent = await downloadFileContent(urlResponse[0].url, {
+							responseType: "text",
+						})
+
+						if (typeof serverContent === "string") {
+							// After fetch, check if an upload occurred during the fetch
+							// If so, fetched content is stale — skip conflict detection
+							const lastSyncedContentAfterFetch =
+								recordSummaryService.getNoteLastSyncedContent()
+							if (lastSyncedContentAfterFetch !== lastSyncedContentBeforeFetch) {
+								recordSummaryService.updateNoteLastUpdatedAt(currentUpdatedAt)
+								return
+							}
+
+							await handleFileContentChange(targetFile, serverContent)
+						}
+					} catch (error) {
+						console.error("Failed to fetch note file content:", error)
 						// Update timestamp even on error to prevent repeated prompts
 						recordSummaryService.updateNoteLastUpdatedAt(currentUpdatedAt)
-						return
 					}
-
-					const serverContent = await downloadFileContent(urlResponse[0].url, {
-						responseType: "text",
-					})
-
-					if (typeof serverContent === "string") {
-						await handleFileContentChange(targetFile, serverContent)
-					}
-				} catch (error) {
-					console.error("Failed to fetch note file content:", error)
-					// Update timestamp even on error to prevent repeated prompts
-					recordSummaryService.updateNoteLastUpdatedAt(currentUpdatedAt)
 				}
+			} finally {
+				isCheckingRef.current = false
 			}
 		},
 		[handleFileContentChange, recordSummaryService],

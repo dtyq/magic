@@ -21,10 +21,7 @@ use App\Domain\Permission\Entity\ValueObject\OperationPermission\Operation;
 use App\Domain\Permission\Entity\ValueObject\OperationPermission\ResourceType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\PrincipalType;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\ResourceType as ResourceVisibilityResourceType;
-use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityConfig;
-use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityDepartment;
 use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityType;
-use App\Domain\Permission\Entity\ValueObject\ResourceVisibility\VisibilityUser;
 use App\Domain\Permission\Service\ResourceVisibilityDomainService;
 use App\Infrastructure\Core\DataIsolation\ValueObject\OrganizationType;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
@@ -898,7 +895,7 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $versionEntity->setPublishTargetType(PublishTargetType::PRIVATE);
         $versionEntity->setPublishTargetValue(null);
 
-        return $this->publishPreparedAgentVersion($authorization, $dataIsolation, $code, $agentEntity, $versionEntity, true);
+        return $this->publishPreparedAgentVersion($authorization, $dataIsolation, $code, $agentEntity, $versionEntity, false);
     }
 
     /**
@@ -1202,14 +1199,20 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
 
-        $authToken = $this->agentDomainService->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
+        $this->agentDomainService->ensureSandboxRunning(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode(),
+            $sandboxId,
+            (string) $projectId,
+            $fullWorkdir
+        );
 
         return $this->superMagicAgentDomainService->exportAgentFromSandbox(
             $dataIsolation,
             $code,
             $projectId,
-            $fullWorkdir,
-            authorization: $authToken
+            $fullWorkdir
         );
     }
 
@@ -1290,6 +1293,28 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
             Db::rollBack();
             throw $throwable;
         }
+    }
+
+    /**
+     * 获取用户可访问的技能代码.
+     *
+     * @param array<string> $skillCodes
+     * @return array<string>
+     */
+    protected function getAccessibleSkillCodesWithBuiltinFallback(SuperMagicAgentDataIsolation $dataIsolation, ?array $skillCodes = null): array
+    {
+        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
+        $accessibleSkillCodes = $this->resourceVisibilityDomainService->getUserAccessibleResourceCodes(
+            $permissionDataIsolation,
+            $dataIsolation->getCurrentUserId(),
+            ResourceVisibilityResourceType::SKILL,
+            $skillCodes
+        );
+
+        return array_values(array_unique(array_merge(
+            $accessibleSkillCodes,
+            array_values(array_intersect(BuiltinSkill::values(), $skillCodes ?? []))
+        )));
     }
 
     private function hydrateToolSchemas(SuperMagicAgentEntity $agent, mixed $flowDataIsolation): void
@@ -1782,15 +1807,21 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         $fullPrefix = $this->taskFileDomainService->getFullPrefix($project->getUserOrganizationCode());
         $fullWorkdir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $project->getWorkDir());
 
-        $authToken = $this->agentDomainService->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
+        $sandboxId = WorkDirectoryUtil::generateUniqueCodeFromSnowflakeId($projectId . '_custom_agent');
+        $this->agentDomainService->ensureSandboxRunning(
+            $dataIsolation->getCurrentUserId(),
+            $dataIsolation->getCurrentOrganizationCode(),
+            $sandboxId,
+            (string) $projectId,
+            $fullWorkdir
+        );
 
         return $this->superMagicAgentDomainService->exportAgentFromSandbox(
             $dataIsolation,
             $code,
             $projectId,
             $fullWorkdir,
-            $sourcePath,
-            $authToken
+            $sourcePath
         );
     }
 
@@ -2148,31 +2179,13 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         array $userIds = [],
         array $departmentIds = []
     ): void {
-        $userIds = array_values(array_unique($userIds));
-        $departmentIds = array_values(array_unique($departmentIds));
-        $permissionDataIsolation = $this->createPermissionDataIsolation($dataIsolation);
-        $visibilityConfig = new VisibilityConfig();
-        $visibilityConfig->setVisibilityType($visibilityType);
-
-        if ($visibilityType === VisibilityType::SPECIFIC) {
-            foreach ($userIds as $userId) {
-                $visibilityUser = new VisibilityUser();
-                $visibilityUser->setId($userId);
-                $visibilityConfig->addUser($visibilityUser);
-            }
-
-            foreach ($departmentIds as $departmentId) {
-                $visibilityDepartment = new VisibilityDepartment();
-                $visibilityDepartment->setId($departmentId);
-                $visibilityConfig->addDepartment($visibilityDepartment);
-            }
-        }
-
-        $this->resourceVisibilityDomainService->saveVisibilityConfig(
-            $permissionDataIsolation,
+        $this->resourceVisibilityDomainService->saveVisibilityByPrincipals(
+            $this->createPermissionDataIsolation($dataIsolation),
             ResourceVisibilityResourceType::SUPER_MAGIC_AGENT,
             $code,
-            $visibilityConfig
+            $visibilityType,
+            $userIds,
+            $departmentIds
         );
     }
 
@@ -2267,7 +2280,9 @@ class SuperMagicAgentAppService extends AbstractSuperMagicAppService
         Db::beginTransaction();
         try {
             $versionEntity = $this->superMagicAgentVersionDomainService->publishAgent($dataIsolation, $agentEntity, $versionEntity);
-            $this->syncPublishedAgentScope($dataIsolation, $agentEntity, $versionEntity);
+            if ($versionEntity->getPublishStatus()->isPublished()) {
+                $this->syncPublishedAgentScope($dataIsolation, $agentEntity, $versionEntity);
+            }
             Db::commit();
         } catch (Throwable $throwable) {
             Db::rollBack();

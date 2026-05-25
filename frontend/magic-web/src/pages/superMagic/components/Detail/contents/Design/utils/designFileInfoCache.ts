@@ -577,8 +577,23 @@ export async function getFileInfoByPath(
 	)
 	if (!lookupResult) {
 		if (hasFilesContext) {
-			// 附件列表已有快照：当前 path 在列表中不存在即视为不存在，不再阻塞等待
-			return null
+			const latestStoreFiles = getStoreFiles(undefined)
+			const latestHasFilesContext = latestStoreFiles.length > 0
+			const latestSnapshotKey = latestHasFilesContext
+				? buildAttachmentsSnapshotKey(latestStoreFiles)
+				: undefined
+			if (latestHasFilesContext && latestSnapshotKey !== attachmentsSnapshotKey) {
+				lookupResult = lookupAttachmentAmongCandidates(
+					candidates,
+					filePath,
+					latestStoreFiles,
+					options?.attachmentIndex,
+				)
+			}
+			if (!lookupResult) {
+				// 附件列表已有快照：当前 path 在列表中不存在即视为不存在，不再阻塞等待
+				return null
+			}
 		}
 
 		// 列表尚未就绪（本地仍为空）：上传/重命名与 workspaceFilesList 填充存在时序，仅在此场景重试

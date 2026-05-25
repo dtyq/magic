@@ -30,6 +30,7 @@ import (
 	supermagicprojectdomain "magic/internal/domain/supermagicproject/service"
 	taskfiledomain "magic/internal/domain/taskfile/service"
 	"magic/internal/infrastructure/knowledge/documentsync"
+	sourcecacheversion "magic/internal/infrastructure/knowledge/sourcecacheversion"
 	sourcecallbackcache "magic/internal/infrastructure/knowledge/sourcecallbackcache"
 	"magic/internal/infrastructure/logging"
 	mysqlclient "magic/internal/infrastructure/persistence/mysql"
@@ -580,6 +581,7 @@ func ProvideDocumentAppService(
 	sourceCallbackCache := buildSourceCallbackRedisCache(runtimeDeps)
 	appSvc.SetSourceBindingCandidateCache(sourceCallbackCache)
 	appSvc.SetSourceCallbackSingleflight(sourceCallbackCache)
+	appSvc.SetThirdFileSourceCacheVersionStore(buildThirdFileSourceCacheVersionStore(runtimeDeps))
 	registerDocumentSyncRuntimeHandlers(appSvc, runtimeDeps)
 	appSvc.SetSyncScheduler(buildDocumentSyncScheduler(runtimeDeps))
 	return appSvc
@@ -590,6 +592,13 @@ func buildSourceCallbackRedisCache(runtimeDeps DocumentAppRuntimeDeps) *sourceca
 		return nil
 	}
 	return sourcecallbackcache.NewRedisCache(runtimeDeps.RedisClient)
+}
+
+func buildThirdFileSourceCacheVersionStore(runtimeDeps DocumentAppRuntimeDeps) *sourcecacheversion.RedisStore {
+	if runtimeDeps.RedisClient == nil {
+		return nil
+	}
+	return sourcecacheversion.NewRedisStore(runtimeDeps.RedisClient)
 }
 
 func buildDocumentSyncScheduler(runtimeDeps DocumentAppRuntimeDeps) documentSyncSchedulerAdapter {

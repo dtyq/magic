@@ -14,7 +14,8 @@ class ToolExecuteParameter(MagicServiceAbstractParameter):
     def __init__(
         self,
         code: str,
-        arguments: Optional[Dict[str, Any]] = None
+        arguments: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
     ):
         """
         Initialize tool execute parameter
@@ -22,10 +23,13 @@ class ToolExecuteParameter(MagicServiceAbstractParameter):
         Args:
             code: Tool code (e.g., 'teamshare_box_teamshare_doc_markdown_query')
             arguments: Tool arguments (optional)
+            timeout: Per-request HTTP timeout in seconds. When set, overrides the
+                SDK client default (30s) for this single request only.
         """
         super().__init__()
         self.code = code
         self.arguments = arguments or {}
+        self.timeout = timeout
 
     def get_code(self) -> str:
         """Get tool code"""
@@ -47,6 +51,15 @@ class ToolExecuteParameter(MagicServiceAbstractParameter):
     def has_arguments(self) -> bool:
         """Check if tool has arguments"""
         return len(self.arguments) > 0
+
+    def to_options(self, method: str) -> Dict[str, Any]:
+        """
+        Build request options and inject per-request timeout when configured.
+        """
+        options = super().to_options(method)
+        if self.timeout is not None:
+            options['timeout'] = self.timeout
+        return options
 
     def to_body(self) -> Dict[str, Any]:
         """

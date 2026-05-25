@@ -29,6 +29,8 @@ export interface SelectedPopupProps {
 	onClose?: () => void
 	/** 抽屉位置 (antd-mobile API) */
 	position?: "bottom" | "top" | "left" | "right"
+	/* 抽屉层级 */
+	zIndex?: number
 	/** 自定义抽屉内容类名 */
 	bodyClassName?: string
 	/** 自定义抽屉内容类名 */
@@ -49,6 +51,7 @@ const SelectedPopup = ({
 	onOpenChange,
 	onClose,
 	position,
+	zIndex,
 	destroyOnClose,
 	renderItemRight,
 	onOk,
@@ -88,6 +91,7 @@ const SelectedPopup = ({
 			onOpenChange={onOpenChange}
 			onClose={onClose}
 			position={position}
+			zIndex={zIndex}
 			destroyOnClose={destroyOnClose}
 			className="h-[80vh]"
 			bodyClassName={cn("w-full h-full max-h-[90vh] rounded-t-lg", bodyClassName)}

@@ -30,7 +30,7 @@ class AdminSkillApi extends AbstractApi
     /**
      * 查询技能版本列表.
      */
-    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::QUERY)]
+    #[CheckPermission(MagicResourceEnum::PLATFORM_SKILL_REVIEW, MagicOperationEnum::QUERY)]
     public function queryVersions(RequestContext $requestContext): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
@@ -43,7 +43,7 @@ class AdminSkillApi extends AbstractApi
     /**
      * 查询 Skill 市场列表.
      */
-    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::QUERY)]
+    #[CheckPermission(MagicResourceEnum::PLATFORM_SKILL_MARKET, MagicOperationEnum::QUERY)]
     public function queryMarkets(RequestContext $requestContext): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
@@ -56,7 +56,7 @@ class AdminSkillApi extends AbstractApi
     /**
      * 审核技能版本.
      */
-    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::PLATFORM_SKILL_REVIEW, MagicOperationEnum::EDIT)]
     public function reviewSkillVersion(RequestContext $requestContext, int $id): array
     {
         // 设置用户授权信息
@@ -72,7 +72,7 @@ class AdminSkillApi extends AbstractApi
     /**
      * 更新 Skill 市场排序值.
      */
-    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::PLATFORM_SKILL_MARKET, MagicOperationEnum::EDIT)]
     public function updateMarketSortOrder(RequestContext $requestContext, int $id): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
@@ -86,7 +86,7 @@ class AdminSkillApi extends AbstractApi
     /**
      * 按传入字段部分更新 Skill 市场信息.
      */
-    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::PLATFORM_SKILL_MARKET, MagicOperationEnum::EDIT)]
     public function updateMarket(RequestContext $requestContext, int $id): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());
@@ -100,7 +100,7 @@ class AdminSkillApi extends AbstractApi
     /**
      * 下架 Skill 市场条目.
      */
-    #[CheckPermission(MagicResourceEnum::PLATFORM_ADMIN_AI_SKILL, MagicOperationEnum::EDIT)]
+    #[CheckPermission(MagicResourceEnum::PLATFORM_SKILL_MARKET, MagicOperationEnum::EDIT)]
     public function offlineMarket(RequestContext $requestContext, int $id): array
     {
         $requestContext->setUserAuthorization($this->getAuthorization());

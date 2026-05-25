@@ -33,6 +33,7 @@ var (
 	errRabbitMQTaskPanic           = errors.New("rabbitmq document sync task panic")
 	errRabbitMQConsumerPanic       = errors.New("rabbitmq document sync consumer panic")
 	errRabbitMQTaskHardTimeout     = errors.New("rabbitmq document sync task hard timeout")
+	errRabbitMQDeliveryLimit       = errors.New("rabbitmq document sync delivery attempt limit exceeded")
 )
 
 type rabbitMQTaskBroker interface {
@@ -460,6 +461,13 @@ func (s *RabbitMQScheduler) shouldAckExceededDeliveryAttempt(
 		fields = appendDeliveryAttemptLogFields(fields, attempt)
 		s.logger.KnowledgeWarnContext(ctx, "Ack rabbitmq document sync task after delivery attempt limit exceeded", fields...)
 	}
+	// document_sync 有明确的业务终态。超过投递保护上限时也必须先落 failed，
+	// 不能直接 ack 丢弃，否则文档会长期停在 syncing，旧分片也没有后续重试清理。
+	s.handleTerminalTaskFailure(
+		ctx,
+		task,
+		fmt.Errorf("%w: max_delivery_attempts=%d", errRabbitMQDeliveryLimit, defaultRabbitMQMaxDeliveryAttempts),
+	)
 	s.resetTaskRetry(ctx, task)
 	s.resetDeliveryAttempt(ctx, task)
 	if err := delivery.Ack(false); err != nil {

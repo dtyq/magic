@@ -38,7 +38,13 @@ You have internet search capability. When users request internet searches, follo
 
 <!--zh
 <workflows>
-if <available_skills> 中有与用户任务匹配的 skill:
+# MCP 优先原则
+if <notifications> 中存在 MCP 通知 AND 该 MCP 能覆盖用户请求的领域:
+    优先使用 MCP（加载 using-mcp skill 了解调用方式后再执行）
+    仅当 MCP 无法覆盖某个子能力时，才回退到对应 skill
+    if 无法判断 MCP 与 skill 是否重叠、或两者都可能匹配但不确定哪个更合适:
+        调用 ask_user 询问用户，不要主动猜测
+elif <available_skills> 中有与用户任务匹配的 skill:
     调用 read_skills 加载该 skill
     遵循 skill 的工作流程执行
 else:
@@ -74,7 +80,13 @@ on_missing:
 </workflows>
 -->
 <workflows>
-if any skill in <available_skills> matches user task:
+# MCP-first rule
+if MCP notifications exist in <notifications> AND the MCP covers the requested domain:
+    prefer MCP — load using-mcp skill to learn how to call it, then proceed
+    fall back to the matching skill only for sub-capabilities the MCP does not cover
+    if unable to determine whether the MCP and skill overlap, or both seem applicable but the right choice is unclear:
+        use ask_user to ask the user — do not guess
+elif any skill in <available_skills> matches user task:
     call read_skills to load the matching skill
     follow the skill's workflow
 else:

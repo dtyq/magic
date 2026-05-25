@@ -13,6 +13,7 @@ use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\Skill\Entity\SkillVersionEntity;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\PublishTargetType;
+use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\Query\SkillVersionAdminQuery;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\ReviewStatus;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillDataIsolation;
 use Dtyq\SuperMagic\Domain\Skill\Entity\ValueObject\SkillSourceType;
@@ -484,61 +485,60 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
 
     public function queryVersions(
         SkillDataIsolation $dataIsolation,
-        ?string $reviewStatus,
-        ?string $publishStatus,
-        ?string $publishTargetType,
-        ?string $sourceType,
-        ?string $version,
-        ?string $packageName,
-        ?string $skillName,
-        ?string $organizationCode,
-        ?string $startTime,
-        ?string $endTime,
-        string $orderBy,
+        SkillVersionAdminQuery $query,
         Page $page
     ): array {
         $builder = $this->createBuilder($dataIsolation, $this->skillVersionModel::query())
             ->whereNull('deleted_at');
 
-        $organizationCodeTrimmed = trim((string) $organizationCode);
+        $organizationCodeTrimmed = trim((string) $query->getOrganizationCode());
         if ($organizationCodeTrimmed !== '') {
             $builder->where('organization_code', $organizationCodeTrimmed);
         }
 
-        if ($reviewStatus !== null && $reviewStatus !== '') {
-            $builder->where('review_status', $reviewStatus);
+        if ($query->getReviewStatus() !== null && $query->getReviewStatus() !== '') {
+            $builder->where('review_status', $query->getReviewStatus());
         }
 
-        if ($publishStatus !== null && $publishStatus !== '') {
-            $builder->where('publish_status', $publishStatus);
+        if (! empty($query->getExcludeReviewStatuses())) {
+            $builder->whereNotIn('review_status', $query->getExcludeReviewStatuses());
         }
 
-        if ($publishTargetType !== null && $publishTargetType !== '') {
-            $builder->where('publish_target_type', $publishTargetType);
+        if ($query->getPublishStatus() !== null && $query->getPublishStatus() !== '') {
+            $builder->where('publish_status', $query->getPublishStatus());
         }
 
-        if ($sourceType !== null && $sourceType !== '') {
-            $builder->where('source_type', $sourceType);
+        if (! empty($query->getPublishTargetTypes())) {
+            $builder->whereIn('publish_target_type', $query->getPublishTargetTypes());
         }
 
-        if ($version !== null && $version !== '') {
-            $builder->where('version', $version);
+        if ($query->getSourceType() !== null && $query->getSourceType() !== '') {
+            $builder->where('source_type', $query->getSourceType());
         }
 
-        $skillNameTrimmed = trim((string) $skillName);
+        if ($query->getVersion() !== null && $query->getVersion() !== '') {
+            $builder->where('version', $query->getVersion());
+        }
+
+        $packageNameTrimmed = trim((string) $query->getPackageName());
+        if ($packageNameTrimmed !== '') {
+            $builder->where('package_name', 'LIKE', '%' . $packageNameTrimmed . '%');
+        }
+
+        $skillNameTrimmed = trim((string) $query->getSkillName());
         if ($skillNameTrimmed !== '') {
             $builder->where('search_text', 'LIKE', '%' . mb_strtolower($skillNameTrimmed, 'UTF-8') . '%');
         }
 
-        if ($startTime !== null && $startTime !== '') {
-            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($startTime));
+        if ($query->getStartTime() !== null && $query->getStartTime() !== '') {
+            $builder->where('created_at', '>=', DateFormatUtil::normalizeQueryRangeStart($query->getStartTime()));
         }
 
-        if ($endTime !== null && $endTime !== '') {
-            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($endTime));
+        if ($query->getEndTime() !== null && $query->getEndTime() !== '') {
+            $builder->where('created_at', '<=', DateFormatUtil::normalizeQueryRangeEnd($query->getEndTime()));
         }
 
-        $builder->orderBy('created_at', strtolower($orderBy) === 'desc' ? 'desc' : 'asc');
+        $builder->orderBy('created_at', strtolower($query->getOrderBy()) === 'desc' ? 'desc' : 'asc');
 
         $result = $this->getByPage($builder, $page);
         $list = [];
@@ -604,6 +604,7 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             'skill_file_key' => $data['skill_file_key'] ?? null,
             'publish_status' => $data['publish_status'] ?? PublishStatus::UNPUBLISHED->value,
             'review_status' => $data['review_status'] ?? ReviewStatus::PENDING->value,
+            'review_remark' => $data['review_remark'] ?? null,
             'publish_target_type' => $data['publish_target_type'] ?? PublishTargetType::MARKET->value,
             'publish_target_value' => $publishTargetValue,
             'version_description_i18n' => $versionDescriptionI18n,
@@ -651,6 +652,7 @@ class SkillVersionRepository extends AbstractRepository implements SkillVersionR
             'skill_file_key' => $entity->getSkillFileKey(),
             'publish_status' => $entity->getPublishStatus()->value,
             'review_status' => $entity->getReviewStatus()?->value,
+            'review_remark' => $entity->getReviewRemark(),
             'publish_target_type' => $entity->getPublishTargetType()->value,
             'publish_target_value' => $entity->getPublishTargetValue()?->toArray(),
             'version_description_i18n' => $entity->getVersionDescriptionI18n(),

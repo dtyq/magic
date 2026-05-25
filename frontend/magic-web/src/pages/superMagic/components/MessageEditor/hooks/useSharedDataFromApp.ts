@@ -93,7 +93,7 @@ function useSharedDataFromApp({ editor, addFiles, uploadEnabled }: UseSharedData
 								logger.log(`Processing completed file: ${fileName}`)
 
 								// Convert base64 to File
-								const file = base64ToFile(mergedBase64, fileName)
+								const file = await base64ToFile(mergedBase64, fileName)
 
 								// Upload file
 								addFiles([file])

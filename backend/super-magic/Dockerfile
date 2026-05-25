@@ -131,7 +131,8 @@ RUN --mount=type=cache,id=debian-${DEBIAN_VERSION}-npm-${TARGETARCH},target=/roo
     UNZIP= npm --registry="${NPM_REGISTRY}" \
         install -g dingtalk-workspace-cli && \
     echo "========== dws 版本信息 ==========" && \
-    dws version
+    dws version && \
+    rm -rf /root/.dws/cache /root/.lark-cli/cache
 
 # 杂项配置
 COPY deploy/ /app/deploy/

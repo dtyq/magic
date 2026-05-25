@@ -8,6 +8,8 @@ package mysqlsqlc
 import (
 	"context"
 	"database/sql"
+	"strings"
+	"time"
 )
 
 const findTaskFileMetaByID = `-- name: FindTaskFileMetaByID :one
@@ -118,6 +120,73 @@ func (q *Queries) FindTaskFileRootDirectoryByProjectID(ctx context.Context, proj
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const listTaskFileChildLinksByParentIDs = `-- name: ListTaskFileChildLinksByParentIDs :many
+SELECT file_id, project_id, parent_id, file_name, file_extension, file_key, is_directory, updated_at
+FROM magic_super_agent_task_files
+WHERE project_id = ?
+  AND parent_id IN (/*SLICE:parent_ids*/?)
+ORDER BY parent_id ASC, file_id ASC
+`
+
+type ListTaskFileChildLinksByParentIDsParams struct {
+	ProjectID uint64          `json:"project_id"`
+	ParentIds []sql.NullInt64 `json:"parent_ids"`
+}
+
+type ListTaskFileChildLinksByParentIDsRow struct {
+	FileID        uint64        `json:"file_id"`
+	ProjectID     uint64        `json:"project_id"`
+	ParentID      sql.NullInt64 `json:"parent_id"`
+	FileName      string        `json:"file_name"`
+	FileExtension string        `json:"file_extension"`
+	FileKey       string        `json:"file_key"`
+	IsDirectory   bool          `json:"is_directory"`
+	UpdatedAt     time.Time     `json:"updated_at"`
+}
+
+func (q *Queries) ListTaskFileChildLinksByParentIDs(ctx context.Context, arg ListTaskFileChildLinksByParentIDsParams) ([]ListTaskFileChildLinksByParentIDsRow, error) {
+	query := listTaskFileChildLinksByParentIDs
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.ProjectID)
+	if len(arg.ParentIds) > 0 {
+		for _, v := range arg.ParentIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:parent_ids*/?", strings.Repeat(",?", len(arg.ParentIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:parent_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTaskFileChildLinksByParentIDsRow{}
+	for rows.Next() {
+		var i ListTaskFileChildLinksByParentIDsRow
+		if err := rows.Scan(
+			&i.FileID,
+			&i.ProjectID,
+			&i.ParentID,
+			&i.FileName,
+			&i.FileExtension,
+			&i.FileKey,
+			&i.IsDirectory,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listTaskFileParentLinksByProjectID = `-- name: ListTaskFileParentLinksByProjectID :many

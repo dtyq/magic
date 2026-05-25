@@ -44,6 +44,11 @@ class SuperMagicMessage extends MagicMessageStruct implements MessageInterface
 
     protected ?array $usage = null;
 
+    /**
+     * 实时 token 使用统计（每次大模型回复时携带）.
+     */
+    protected ?array $tokenUsage = null;
+
     public function getMessageId(): ?string
     {
         return $this->messageId;
@@ -71,6 +76,7 @@ class SuperMagicMessage extends MagicMessageStruct implements MessageInterface
             'correlation_id' => $this->correlationId,
             'attachments' => $this->attachments,
             'usage' => $this->usage,
+            'token_usage' => $this->tokenUsage,
             'status' => $this->status,
         ];
 

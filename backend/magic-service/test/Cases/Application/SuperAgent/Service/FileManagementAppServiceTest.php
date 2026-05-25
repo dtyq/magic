@@ -12,9 +12,11 @@ use Dtyq\SuperMagic\Application\SuperAgent\Service\FileManagementAppService;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\TaskFileEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FilesBatchDeletedEvent;
 use Dtyq\SuperMagic\Domain\SuperAgent\Event\FileUploadedEvent;
+use Dtyq\SuperMagic\Domain\SuperAgent\Service\TaskFileDomainService;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionClass;
+use ReflectionMethod;
 use ReflectionProperty;
 
 /**
@@ -111,17 +113,49 @@ class FileManagementAppServiceTest extends TestCase
         );
     }
 
+    public function testBuildRelativeFilePathUsesParentChain(): void
+    {
+        $directoryEntity = $this->createTaskFileEntity(100, 'DT001/user/project_900/workspace/docs', true);
+        $directoryEntity->setFileName('docs');
+        $directoryEntity->setParentId(0);
+        $directoryEntity->setProjectId(900);
+
+        $fileEntity = $this->createTaskFileEntity(101, 'DT001/user/project_900/workspace/image.png');
+        $fileEntity->setFileName('image.png');
+        $fileEntity->setParentId(100);
+        $fileEntity->setProjectId(900);
+
+        $taskFileDomainService = $this->createMock(TaskFileDomainService::class);
+        $taskFileDomainService->expects($this->once())
+            ->method('getFilesWithParentsByIds')
+            ->with([101], 900)
+            ->willReturn([$fileEntity, $directoryEntity]);
+
+        $service = $this->createService($this->createMock(EventDispatcherInterface::class));
+        $this->setPrivateProperty($service, 'taskFileDomainService', $taskFileDomainService);
+
+        $method = new ReflectionMethod(FileManagementAppService::class, 'buildRelativeFilePathForEntity');
+        $method->setAccessible(true);
+
+        $this->assertSame('/docs/image.png', $method->invoke($service, $fileEntity, 900));
+    }
+
     private function createService(EventDispatcherInterface $dispatcher): TestableFileManagementAppService
     {
         $reflectionClass = new ReflectionClass(TestableFileManagementAppService::class);
         /** @var TestableFileManagementAppService $service */
         $service = $reflectionClass->newInstanceWithoutConstructor();
 
-        $eventDispatcherProperty = new ReflectionProperty(FileManagementAppService::class, 'eventDispatcher');
-        $eventDispatcherProperty->setAccessible(true);
-        $eventDispatcherProperty->setValue($service, $dispatcher);
+        $this->setPrivateProperty($service, 'eventDispatcher', $dispatcher);
 
         return $service;
+    }
+
+    private function setPrivateProperty(TestableFileManagementAppService $service, string $propertyName, mixed $value): void
+    {
+        $property = new ReflectionProperty(FileManagementAppService::class, $propertyName);
+        $property->setAccessible(true);
+        $property->setValue($service, $value);
     }
 
     private function createAuthorization(string $userId, string $organizationCode): MagicUserAuthorization
@@ -137,7 +171,9 @@ class FileManagementAppServiceTest extends TestCase
         $entity->setFileId($fileId);
         $entity->setFileKey($fileKey);
         $entity->setFileName(basename($fileKey));
+        $entity->setFileExtension((string) pathinfo($fileKey, PATHINFO_EXTENSION));
         $entity->setIsDirectory($isDirectory);
+        $entity->setSource(0);
 
         return $entity;
     }

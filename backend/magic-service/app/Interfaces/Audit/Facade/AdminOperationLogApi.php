@@ -164,6 +164,71 @@ class AdminOperationLogApi extends AbstractPermissionApi
         );
     }
 
+    #[CheckPermission(
+        [MagicResourceEnum::WORKSPACE_AI_MODEL_AUDIT_STATISTICS, MagicResourceEnum::PLATFORM_AI_MODEL_AUDIT_STATISTICS],
+        MagicOperationEnum::QUERY
+    )]
+    public function modelAuditStatistics(): array
+    {
+        $authorization = $this->getAuthorization();
+        $currentOrganizationCode = (string) $authorization->getOrganizationCode();
+        $isOfficialOrganization = OfficialOrganizationUtil::isOfficialOrganization($currentOrganizationCode);
+
+        $startDate = trim((string) $this->request->input('start_date', ''));
+        $endDate = trim((string) $this->request->input('end_date', ''));
+        $serviceProviderConfigId = trim((string) $this->request->input('service_provider_config_id', ''));
+        $productCode = trim((string) $this->request->input('product_code', ''));
+        $accessScope = trim((string) $this->request->input('access_scope', ''));
+        $organizationCode = trim((string) $this->request->input('organization_code', ''));
+
+        $startMs = $this->parseDateTimeToMs($startDate);
+        $endMs = $this->parseDateTimeToMs($endDate);
+
+        if ($startMs === null && $endMs === null) {
+            $tz = new DateTimeZone((string) config('app.default_timezone', 'Asia/Shanghai'));
+            $startMs = (new DateTimeImmutable('today', $tz))->setTime(0, 0, 0)->getTimestamp() * 1000;
+            $endMs = (new DateTimeImmutable('today', $tz))->setTime(23, 59, 59)->getTimestamp() * 1000 + 999;
+        }
+
+        $filters = [
+            'start_operation_time' => $startMs,
+            'end_operation_time' => $endMs,
+        ];
+
+        if ($serviceProviderConfigId !== '') {
+            $filters['service_provider_config_id'] = $serviceProviderConfigId;
+        }
+        if ($productCode !== '') {
+            $filters['product_code'] = $productCode;
+        }
+        if ($accessScope !== '') {
+            $filters['access_scope'] = $accessScope;
+        }
+        if ($organizationCode !== '') {
+            $filters['organization_code'] = $organizationCode;
+        }
+
+        return $this->modelAuditService->statistics(
+            $filters,
+            $currentOrganizationCode,
+            $isOfficialOrganization
+        );
+    }
+
+    private function parseDateTimeToMs(string $dateTime): ?int
+    {
+        if ($dateTime === '') {
+            return null;
+        }
+
+        $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $dateTime);
+        if (! $dt) {
+            return null;
+        }
+
+        return $dt->getTimestamp() * 1000;
+    }
+
     private function parseDateToMs(string $date, bool $isEndOfDay): ?int
     {
         if ($date === '') {

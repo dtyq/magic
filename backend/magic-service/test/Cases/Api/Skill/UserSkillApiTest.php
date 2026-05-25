@@ -1158,6 +1158,21 @@ class UserSkillApiTest extends AbstractApiTest
 
         $organizationResponse = $this->publishSkillVersion($skillCode, '1.0.1', 'ORGANIZATION');
         $this->assertEquals(1000, $organizationResponse['code']);
+        $this->assertSame('UNPUBLISHED', $organizationResponse['data']['publish_status']);
+        $this->assertSame('UNDER_REVIEW', $organizationResponse['data']['review_status']);
+        $organizationVisibility = $this->getSkillVisibilityRows($organizationCode, $skillCode);
+        $this->assertCount(1, $organizationVisibility);
+        $this->assertSame('1', (string) $organizationVisibility[0]['principal_type']);
+        $this->assertSame($creatorId, $organizationVisibility[0]['principal_id']);
+
+        $organizationApproveResponse = $this->put(
+            '/api/v1/organization/admin/skills/versions/' . $organizationResponse['data']['version_id'] . '/review',
+            [
+                'action' => 'APPROVED',
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $organizationApproveResponse['code'], $organizationApproveResponse['message'] ?? '');
         $organizationVisibility = $this->getSkillVisibilityRows($organizationCode, $skillCode);
         $this->assertCount(1, $organizationVisibility);
         $this->assertSame('3', (string) $organizationVisibility[0]['principal_type']);
@@ -1174,12 +1189,74 @@ class UserSkillApiTest extends AbstractApiTest
             ]
         );
         $this->assertEquals(1000, $memberResponse['code']);
+        $this->assertSame('UNPUBLISHED', $memberResponse['data']['publish_status']);
+        $this->assertSame('UNDER_REVIEW', $memberResponse['data']['review_status']);
+        $memberVisibilityBeforeApprove = $this->getSkillVisibilityRows($organizationCode, $skillCode);
+        $this->assertCount(1, $memberVisibilityBeforeApprove);
+        $this->assertSame('3', (string) $memberVisibilityBeforeApprove[0]['principal_type']);
+        $this->assertSame($organizationCode, $memberVisibilityBeforeApprove[0]['principal_id']);
+
+        $memberApproveResponse = $this->put(
+            '/api/v1/organization/admin/skills/versions/' . $memberResponse['data']['version_id'] . '/review',
+            [
+                'action' => 'APPROVED',
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $memberApproveResponse['code'], $memberApproveResponse['message'] ?? '');
         $memberVisibility = $this->getSkillVisibilityRows($organizationCode, $skillCode);
         $memberVisibilityUserIds = array_column($memberVisibility, 'principal_id');
         sort($memberVisibilityUserIds);
         $expectedMemberVisibilityUserIds = [$creatorId, $memberTargetUserId];
         sort($expectedMemberVisibilityUserIds);
         $this->assertSame($expectedMemberVisibilityUserIds, $memberVisibilityUserIds);
+
+        $invalidatedVersionId = IdGenerator::getSnowId();
+        SkillVersionModel::query()->create([
+            'id' => $invalidatedVersionId,
+            'code' => $skillCode,
+            'organization_code' => $organizationCode,
+            'creator_id' => $creatorId,
+            'package_name' => 'invalidated-organization-skill',
+            'package_description' => 'Invalidated organization review skill',
+            'version' => '1.0.99',
+            'name_i18n' => [
+                'zh_CN' => '无效 Skill 版本',
+                'en_US' => 'Invalidated Skill Version',
+            ],
+            'description_i18n' => [
+                'zh_CN' => '无效 Skill 版本描述',
+                'en_US' => 'Invalidated skill version description',
+            ],
+            'search_text' => 'invalidated skill version',
+            'logo' => '',
+            'file_key' => 'temp/skills/' . strtolower(IdGenerator::getUniqueId32()) . '.zip',
+            'skill_file_key' => 'temp/skills/' . strtolower(IdGenerator::getUniqueId32()) . '/SKILL.md',
+            'publish_status' => 'UNPUBLISHED',
+            'review_status' => 'INVALIDATED',
+            'publish_target_type' => 'MEMBER',
+            'version_description_i18n' => [
+                'zh_CN' => '无效版本说明',
+                'en_US' => 'Invalidated version description',
+            ],
+            'publisher_user_id' => $creatorId,
+            'is_current_version' => false,
+            'source_type' => 'LOCAL_UPLOAD',
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $organizationAdminListResponse = $this->post(
+            '/api/v1/organization/admin/skills/versions/queries',
+            [
+                'page' => 1,
+                'page_size' => 20,
+                'review_status' => 'INVALIDATED',
+            ],
+            $this->getCommonHeaders()
+        );
+        $this->assertEquals(1000, $organizationAdminListResponse['code'], $organizationAdminListResponse['message'] ?? '');
+        $this->assertEmpty($organizationAdminListResponse['data']['list']);
 
         $detailResponse = $this->get(
             self::BASE_URI . '/' . $skillCode,
@@ -1281,6 +1358,10 @@ class UserSkillApiTest extends AbstractApiTest
         $organizationCode = $headers['organization-code'];
         $versionId = $publishResponse['data']['version_id'] ?? null;
         $this->assertNotNull($versionId, '应该创建了技能版本');
+        $originalPublisherUserId = env('TEST2_USER_ID');
+        SkillVersionModel::query()
+            ->where('id', $versionId)
+            ->update(['publisher_user_id' => $originalPublisherUserId]);
 
         // 测试审核通过
         $approveData = [
@@ -1304,6 +1385,7 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertNotNull($version);
         $this->assertEquals('PUBLISHED', $version['publish_status']);
         $this->assertEquals('APPROVED', $version['review_status']);
+        $this->assertEquals($originalPublisherUserId, $version['publisher_user_id']);
 
         $detailAfterApprove = $this->get(
             self::BASE_URI . '/' . $skillCode,
@@ -2210,6 +2292,7 @@ class UserSkillApiTest extends AbstractApiTest
         $this->assertArrayHasKey('version', $item);
         $this->assertArrayHasKey('publish_status', $item);
         $this->assertArrayHasKey('review_status', $item);
+        $this->assertArrayHasKey('review_remark', $item);
         $this->assertArrayHasKey('publish_target_type', $item);
         $this->assertArrayHasKey('publisher', $item);
         $this->assertArrayHasKey('published_at', $item);
@@ -2535,6 +2618,7 @@ MD;
             ],
             'publish_target_type' => $publishTargetType,
             'publish_target_value' => $publishTargetValue,
+            'export_file_from_project' => false,
         ];
 
         return $this->post(

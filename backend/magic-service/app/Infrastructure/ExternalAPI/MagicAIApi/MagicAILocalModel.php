@@ -14,6 +14,7 @@ use App\Domain\ModelGateway\Entity\Dto\EmbeddingsDTO;
 use App\Infrastructure\Util\Http\RequestHelper;
 use Hyperf\Odin\Api\Providers\OpenAI\OpenAI;
 use Hyperf\Odin\Api\Providers\OpenAI\OpenAIConfig;
+use Hyperf\Odin\Api\Request\ChatCompletionRequest;
 use Hyperf\Odin\Api\Response\ChatCompletionResponse;
 use Hyperf\Odin\Api\Response\ChatCompletionStreamResponse;
 use Hyperf\Odin\Api\Response\EmbeddingResponse;
@@ -135,6 +136,28 @@ class MagicAILocalModel extends AbstractModel
         return $this->modelChat($messages, $temperature, $maxTokens, $stop, $tools, $businessParams);
     }
 
+    /**
+     * Agent 场景会优先走 request 入口，这里仍然复用本地模型网关代理链路.
+     */
+    public function chatWithRequest(ChatCompletionRequest $request): ChatCompletionResponse
+    {
+        $this->prepareLocalChatRequest($request);
+        $request->setStream(false);
+
+        return $this->modelChatByRequest($request);
+    }
+
+    /**
+     * Agent 流式场景会优先走 request 入口，这里仍然复用本地模型网关代理链路.
+     */
+    public function chatStreamWithRequest(ChatCompletionRequest $request): ChatCompletionStreamResponse
+    {
+        $this->prepareLocalChatRequest($request);
+        $request->setStream(true);
+
+        return $this->modelChatByRequest($request, true);
+    }
+
     public function completions(string $prompt, float $temperature = 0.9, int $maxTokens = 0, array $stop = [], float $frequencyPenalty = 0.0, float $presencePenalty = 0.0, array $businessParams = []): TextCompletionResponse
     {
         $businessParams = $this->businessParamsHandler($businessParams);
@@ -175,6 +198,25 @@ class MagicAILocalModel extends AbstractModel
         return $openAI->getClient($config, $this->getApiRequestOptions(), $this->logger);
     }
 
+    protected function modelChatByRequest(
+        ChatCompletionRequest $request,
+        bool $stream = false,
+    ): ChatCompletionResponse|ChatCompletionStreamResponse {
+        $thinking = $request->getThinking()?->toBedrockFormat();
+
+        return $this->modelChat(
+            $request->getMessages(),
+            $request->getTemperature(),
+            $request->getMaxTokens(),
+            $request->getStop(),
+            $request->getTools(),
+            $request->getBusinessParams(),
+            $stream,
+            thinking: $thinking,
+            extra: $request->getExtra(),
+        );
+    }
+
     protected function modelChat(
         array $messages,
         float $temperature = 0.9,
@@ -183,6 +225,10 @@ class MagicAILocalModel extends AbstractModel
         array $tools = [],
         array $businessParams = [],
         bool $stream = false,
+        float $frequencyPenalty = 0.0,
+        float $presencePenalty = 0.0,
+        ?array $thinking = null,
+        ?array $extra = null,
     ): ChatCompletionResponse|ChatCompletionStreamResponse {
         $models = explode(',', $this->model);
 
@@ -202,11 +248,15 @@ class MagicAILocalModel extends AbstractModel
         $sendMsgGPTDTO->setMaxTokens($maxTokens);
         $sendMsgGPTDTO->setMessages($messageList);
         $sendMsgGPTDTO->setStream($stream);
+        $sendMsgGPTDTO->setFrequencyPenalty($frequencyPenalty);
+        $sendMsgGPTDTO->setPresencePenalty($presencePenalty);
+        $sendMsgGPTDTO->setExtra($extra);
+
+        $thinking ??= $businessParams['thinking'] ?? null;
+        unset($businessParams['thinking']);
         $sendMsgGPTDTO->setBusinessParams($businessParams);
         $this->fillClientIpsIfEmpty($sendMsgGPTDTO);
 
-        $thinking = $businessParams['thinking'] ?? null;
-        unset($businessParams['thinking']);
         if (is_array($thinking)) {
             $sendMsgGPTDTO->setThinking($thinking);
         }
@@ -224,6 +274,15 @@ class MagicAILocalModel extends AbstractModel
         }
 
         throw $lastException;
+    }
+
+    private function prepareLocalChatRequest(ChatCompletionRequest $request): void
+    {
+        $this->registerMcp($request);
+        $request->setModel($this->model);
+        $this->checkFunctionCallSupport($request->getTools());
+        $this->checkMultiModalSupport($request->getMessages());
+        $request->validate();
     }
 
     private function businessParamsHandler(array $businessParams): array

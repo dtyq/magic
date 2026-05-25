@@ -2,9 +2,14 @@
  * MagicWorkspaceApi
  *
  * 向 iframe 内注入工作区级文件操作 API（高层 UI 集成）：
- *   - window.Magic.uploadFiles        — 将浏览器 File 对象上传到 workspace（OSS）
- *   - window.Magic.addFilesToMessage  — 将 workspace 文件附加到新建话题的消息输入框
- *   - window.Magic.downloadFiles      — 触发 workspace 文件的浏览器下载
+ *   - window.Magic.project.uploadFiles        — 将浏览器 File 对象上传到 workspace（OSS）
+ *   - window.Magic.project.addFilesToMessage  — 将 workspace 文件附加到新建话题的消息输入框
+ *   - window.Magic.project.downloadFiles      — 触发 workspace 文件的浏览器下载
+ *
+ * 向后兼容（deprecated）：
+ *   - window.Magic.uploadFiles
+ *   - window.Magic.addFilesToMessage
+ *   - window.Magic.downloadFiles
  *
  * 与 MagicFSApi（低层文本 I/O）的区别：
  *   - MagicFSApi      → MAGIC_FS_* 消息 → IframeFSService（路径解析、OSS 临时 URL）
@@ -24,7 +29,7 @@ interface UploadFileItem {
 }
 
 interface FileData {
-	base64: string | ArrayBuffer | null
+	file: File
 	filename: string
 	path: string
 	fileSize: number
@@ -34,6 +39,7 @@ interface FileData {
 export class MagicWorkspaceApi extends MagicBaseApi {
 	install(): void {
 		if (!window.Magic) window.Magic = {}
+		if (!window.Magic.project) window.Magic.project = {}
 		MagicApiLogger.info("MagicWorkspaceApi", "install")
 		this.installUploadFiles()
 		this.installAddFilesToMessage()
@@ -41,14 +47,12 @@ export class MagicWorkspaceApi extends MagicBaseApi {
 	}
 
 	private installUploadFiles(): void {
-		if (window.Magic.uploadFiles) return
-
-		window.Magic.uploadFiles = (files: unknown[]): Promise<unknown> => {
+		const uploadFilesFn = (files: unknown[]): Promise<unknown> => {
 			if (!Array.isArray(files)) {
 				MagicApiLogger.error("MagicWorkspaceApi", "uploadFiles:invalid-files", {
 					filesType: typeof files,
 				})
-				return Promise.reject(new Error("window.Magic.uploadFiles: files must be an array"))
+				return Promise.reject(new Error("uploadFiles: files must be an array"))
 			}
 			if (files.length === 0) {
 				MagicApiLogger.warn("MagicWorkspaceApi", "uploadFiles:empty-files")
@@ -87,44 +91,34 @@ export class MagicWorkspaceApi extends MagicBaseApi {
 				}
 			}
 
-			const filePromises = (files as UploadFileItem[]).map((item) => {
-				return new Promise<FileData>((res, rej) => {
-					const reader = new FileReader()
-					reader.onload = () => {
-						res({
-							base64: reader.result,
-							filename: item.filename,
-							path: item.path,
-							fileSize: item.file.size,
-							fileType: item.file.type,
-						})
-					}
-					reader.onerror = () => {
-						MagicApiLogger.error("MagicWorkspaceApi", "uploadFiles:file-read-failed", {
-							filename: item.filename,
-							path: item.path,
-						})
-						rej(new Error(`Failed to read file: ${item.filename}`))
-					}
-					reader.readAsDataURL(item.file)
-				})
-			})
+			const fileData: FileData[] = (files as UploadFileItem[]).map((item) => ({
+				file: item.file,
+				filename: item.filename,
+				path: item.path,
+				fileSize: item.file.size,
+				fileType: item.file.type,
+			}))
 
-			return Promise.all(filePromises).then((fileData) =>
-				this.request<unknown>(
-					"MAGIC_UPLOAD_FILES_REQUEST",
-					{ files: fileData },
-					30000,
-					(data) => data["results"],
-				),
+			return this.request<unknown>(
+				"MAGIC_UPLOAD_FILES_REQUEST",
+				{ files: fileData },
+				60000, // 60s timeout for large files
+				(data) => data["results"],
 			)
+		}
+
+		// New namespace
+		if (!window.Magic.project!.uploadFiles) {
+			window.Magic.project!.uploadFiles = uploadFilesFn
+		}
+		// Backward compat (deprecated)
+		if (!window.Magic.uploadFiles) {
+			window.Magic.uploadFiles = uploadFilesFn
 		}
 	}
 
 	private installAddFilesToMessage(): void {
-		if (window.Magic.addFilesToMessage) return
-
-		window.Magic.addFilesToMessage = (
+		const addFilesToMessageFn = (
 			filePaths: unknown[],
 			agentMode?: string,
 		): Promise<unknown> => {
@@ -133,26 +127,26 @@ export class MagicWorkspaceApi extends MagicBaseApi {
 					filePathsType: typeof filePaths,
 				})
 				return Promise.reject(
-					new Error("window.Magic.addFilesToMessage: filePaths must be an array"),
+					new Error("addFilesToMessage: filePaths must be an array"),
 				)
 			}
 			if (filePaths.length === 0) {
 				return Promise.reject(
-					new Error("window.Magic.addFilesToMessage: filePaths array cannot be empty"),
+					new Error("addFilesToMessage: filePaths array cannot be empty"),
 				)
 			}
 			for (let i = 0; i < filePaths.length; i++) {
 				if (typeof filePaths[i] !== "string") {
 					return Promise.reject(
 						new Error(
-							`window.Magic.addFilesToMessage: filePaths[${i}] must be a string`,
+							`addFilesToMessage: filePaths[${i}] must be a string`,
 						),
 					)
 				}
 			}
 			if (agentMode !== undefined && typeof agentMode !== "string") {
 				return Promise.reject(
-					new Error("window.Magic.addFilesToMessage: agentMode must be a string"),
+					new Error("addFilesToMessage: agentMode must be a string"),
 				)
 			}
 
@@ -168,29 +162,36 @@ export class MagicWorkspaceApi extends MagicBaseApi {
 				(data) => data["result"],
 			)
 		}
+
+		// New namespace
+		if (!window.Magic.project!.addFilesToMessage) {
+			window.Magic.project!.addFilesToMessage = addFilesToMessageFn
+		}
+		// Backward compat (deprecated)
+		if (!window.Magic.addFilesToMessage) {
+			window.Magic.addFilesToMessage = addFilesToMessageFn
+		}
 	}
 
 	private installDownloadFiles(): void {
-		if (window.Magic.downloadFiles) return
-
-		window.Magic.downloadFiles = (filePaths: string[]): Promise<unknown> => {
+		const downloadFilesFn = (filePaths: string[]): Promise<unknown> => {
 			if (!Array.isArray(filePaths)) {
 				MagicApiLogger.error("MagicWorkspaceApi", "downloadFiles:invalid-filePaths", {
 					filePathsType: typeof filePaths,
 				})
 				return Promise.reject(
-					new Error("window.Magic.downloadFiles: filePaths must be an array"),
+					new Error("downloadFiles: filePaths must be an array"),
 				)
 			}
 			if (filePaths.length === 0) {
 				return Promise.reject(
-					new Error("window.Magic.downloadFiles: filePaths array cannot be empty"),
+					new Error("downloadFiles: filePaths array cannot be empty"),
 				)
 			}
 			for (let i = 0; i < filePaths.length; i++) {
 				if (typeof filePaths[i] !== "string") {
 					return Promise.reject(
-						new Error(`window.Magic.downloadFiles: filePaths[${i}] must be a string`),
+						new Error(`downloadFiles: filePaths[${i}] must be a string`),
 					)
 				}
 			}
@@ -205,6 +206,15 @@ export class MagicWorkspaceApi extends MagicBaseApi {
 				30000,
 				(data) => data["result"],
 			)
+		}
+
+		// New namespace
+		if (!window.Magic.project!.downloadFiles) {
+			window.Magic.project!.downloadFiles = downloadFilesFn
+		}
+		// Backward compat (deprecated)
+		if (!window.Magic.downloadFiles) {
+			window.Magic.downloadFiles = downloadFilesFn
 		}
 	}
 }

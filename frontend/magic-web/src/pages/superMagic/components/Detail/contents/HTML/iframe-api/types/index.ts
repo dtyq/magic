@@ -13,6 +13,8 @@ export const FS_MESSAGE_TYPES = {
 	READ_RESPONSE: "MAGIC_FS_READ_RESPONSE",
 	WRITE_REQUEST: "MAGIC_FS_WRITE_REQUEST",
 	WRITE_RESPONSE: "MAGIC_FS_WRITE_RESPONSE",
+	WRITE_BLOB_REQUEST: "MAGIC_FS_WRITE_BLOB_REQUEST",
+	WRITE_BLOB_RESPONSE: "MAGIC_FS_WRITE_BLOB_RESPONSE",
 	LIST_REQUEST: "MAGIC_FS_LIST_REQUEST",
 	LIST_RESPONSE: "MAGIC_FS_LIST_RESPONSE",
 	WATCH_REGISTER: "MAGIC_FS_WATCH_REGISTER",
@@ -60,6 +62,28 @@ export interface FSWriteRequest {
 
 export interface FSWriteResponse {
 	type: typeof FS_MESSAGE_TYPES.WRITE_RESPONSE
+	requestId: string
+	success: boolean
+	error?: string
+}
+
+/**
+ * 大文件写入请求：通过 postMessage 结构化克隆直接传输 Blob。
+ * 无需 base64 编码，无需分片，跨域安全且零额外内存开销。
+ * 限制：100 MB。
+ */
+export interface FSWriteBlobRequest {
+	type: typeof FS_MESSAGE_TYPES.WRITE_BLOB_REQUEST
+	requestId: string
+	path: string
+	/** 文件内容，直接以 Blob 形式通过 postMessage 传输 */
+	blob: Blob
+	/** 可选的文件名（覆盖从 path 推断的名称） */
+	fileName?: string
+}
+
+export interface FSWriteBlobResponse {
+	type: typeof FS_MESSAGE_TYPES.WRITE_BLOB_RESPONSE
 	requestId: string
 	success: boolean
 	error?: string
@@ -177,6 +201,86 @@ export interface LLMStreamError {
 	type: typeof LLM_MESSAGE_TYPES.STREAM_ERROR
 	requestId: string
 	error: string
+}
+
+// ─── Agent 消息类型常量 ──────────────────────────────────────────────────────
+
+export const AGENT_MESSAGE_TYPES = {
+	GET_AGENTS_REQUEST: "MAGIC_GET_AGENTS_REQUEST",
+	GET_AGENTS_RESPONSE: "MAGIC_GET_AGENTS_RESPONSE",
+	CREATE_TOPIC_AND_SEND_REQUEST: "MAGIC_CREATE_TOPIC_AND_SEND_REQUEST",
+	CREATE_TOPIC_AND_SEND_RESPONSE: "MAGIC_CREATE_TOPIC_AND_SEND_RESPONSE",
+	SEND_MESSAGE_REQUEST: "MAGIC_SEND_MESSAGE_REQUEST",
+	SEND_MESSAGE_RESPONSE: "MAGIC_SEND_MESSAGE_RESPONSE",
+} as const
+
+export type AgentMessageType = (typeof AGENT_MESSAGE_TYPES)[keyof typeof AGENT_MESSAGE_TYPES]
+
+// ─── Agent 消息报文 ──────────────────────────────────────────────────────────
+
+export interface AgentInfo {
+	id: string
+	name: string
+	icon: string
+	color: string
+	type: "official" | "custom" | "public"
+}
+
+/**
+ * Tiptap JSON 文档结构（简化版）。
+ * 当 message 为此类型时，直接作为 jsonContent 发送，mention 节点已内联在文档中。
+ */
+export interface TiptapJSONContent {
+	type: string
+	attrs?: Record<string, unknown>
+	content?: TiptapJSONContent[]
+	text?: string
+	[key: string]: unknown
+}
+
+export interface AgentGetAgentsRequest {
+	type: typeof AGENT_MESSAGE_TYPES.GET_AGENTS_REQUEST
+	requestId: string
+}
+
+export interface AgentGetAgentsResponse {
+	type: typeof AGENT_MESSAGE_TYPES.GET_AGENTS_RESPONSE
+	requestId: string
+	success: boolean
+	agents?: AgentInfo[]
+	error?: string
+}
+
+export interface AgentCreateTopicAndSendRequest {
+	type: typeof AGENT_MESSAGE_TYPES.CREATE_TOPIC_AND_SEND_REQUEST
+	requestId: string
+	/** 纯文本消息或完整的 tiptap JSON 文档（可包含 mention 节点） */
+	message: string | TiptapJSONContent
+	agentId?: string
+	model?: string
+}
+
+export interface AgentCreateTopicAndSendResponse {
+	type: typeof AGENT_MESSAGE_TYPES.CREATE_TOPIC_AND_SEND_RESPONSE
+	requestId: string
+	success: boolean
+	topicId?: string
+	error?: string
+}
+
+export interface AgentSendMessageRequest {
+	type: typeof AGENT_MESSAGE_TYPES.SEND_MESSAGE_REQUEST
+	requestId: string
+	/** 纯文本消息或完整的 tiptap JSON 文档（可包含 mention 节点） */
+	message: string | TiptapJSONContent
+	model?: string
+}
+
+export interface AgentSendMessageResponse {
+	type: typeof AGENT_MESSAGE_TYPES.SEND_MESSAGE_RESPONSE
+	requestId: string
+	success: boolean
+	error?: string
 }
 
 // ─── HTML 应用配置（app.json，可选） ─────────────────────────────────────────

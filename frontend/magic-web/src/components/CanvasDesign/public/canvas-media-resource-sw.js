@@ -9,14 +9,23 @@
  * 2) 主线程换链须用 `MediaResourceOfflineCacheManager` 的 `isOfflineCacheFeatureOn`（与 `isActiveConsumer` 解耦），
  *    避免 Strict Mode / 路由切换销毁 Canvas 后仍在飞行的换链退回 OSS 直链、与虚拟 URL 策略不一致。
  */
-const DB_NAME = "canvas-media-resource-offline-cache"
-const DB_VERSION = 2
-const LOOKUP_PATH_INDEX = "lookupPath"
+/**
+ * Keep this in sync with MediaResourceOfflineCacheManager.ts.
+ * Bump both when the virtual URL shape, resource id, namespace/scope rules,
+ * path normalization, IndexedDB schema, or CacheStorage key semantics change.
+ */
+const OFFLINE_CACHE_VERSION = 1
+const DB_BASE_NAME = "canvas-media-resource-offline-cache"
+const DB_VERSION = OFFLINE_CACHE_VERSION
+const DB_NAME = `${DB_BASE_NAME}-v${OFFLINE_CACHE_VERSION}`
 const STORE_NAME = "resources"
-const CACHE_NAME = "canvas-media-resources-v1"
+const CACHE_BASE_NAME = "canvas-media-resources"
+const CACHE_NAME = `${CACHE_BASE_NAME}-v${OFFLINE_CACHE_VERSION}`
 const DEFAULT_MAX_BYTES = 1024 * 1024 * 1024
+const DEFAULT_RESOURCE_NAMESPACE = "__global__"
 const VIRTUAL_RESOURCE_PATH_SEGMENT = "/canvas-design-media/"
 const VIRTUAL_RESOURCE_DESIGN_RESOURCE_SEGMENT = "/design-resource/"
+const VIRTUAL_RESOURCE_MEDIA_TYPES = new Set(["image", "video"])
 
 let maxBytes = DEFAULT_MAX_BYTES
 const inflightResourceMap = new Map()
@@ -36,10 +45,64 @@ function normalizeResourcePathForLookup(path) {
 	return p
 }
 
+function normalizeResourceNamespace(namespace) {
+	const normalized = normalizeResourcePathForLookup(namespace)
+	return normalized || DEFAULT_RESOURCE_NAMESPACE
+}
+
+function getDeprecatedStorageNames(baseName, currentVersion) {
+	const names = new Set([baseName])
+	if (currentVersion > 1) {
+		names.add(`${baseName}-v${currentVersion - 1}`)
+	}
+	names.delete(`${baseName}-v${currentVersion}`)
+	return [...names]
+}
+
+function stripPathEdgeSlashes(path) {
+	return String(path || "")
+		.replace(/\\/g, "/")
+		.replace(/^\/+|\/+$/g, "")
+}
+
+function joinUrlPathSegments(...segments) {
+	return segments
+		.map((segment, index) => {
+			const normalized = String(segment || "").replace(/\\/g, "/")
+			if (index === 0) return normalized.replace(/\/+$/g, "")
+			return normalized.replace(/^\/+|\/+$/g, "")
+		})
+		.filter(Boolean)
+		.join("/")
+}
+
+function buildVirtualResourceUrl(namespace, mediaType, resourcePath) {
+	const scopePath = new URL(self.registration.scope).pathname
+	return joinUrlPathSegments(
+		self.location.origin,
+		scopePath,
+		"sw",
+		"canvas-design-media",
+		stripPathEdgeSlashes(normalizeResourceNamespace(namespace)),
+		mediaType,
+		"design-resource",
+		normalizeResourcePathForLookup(resourcePath),
+	)
+}
+
 function requestToPromise(request) {
 	return new Promise((resolve, reject) => {
 		request.onsuccess = () => resolve(request.result)
 		request.onerror = () => reject(request.error)
+	})
+}
+
+function deleteDatabase(databaseName) {
+	return new Promise((resolve, reject) => {
+		const request = indexedDB.deleteDatabase(databaseName)
+		request.onsuccess = () => resolve()
+		request.onerror = () => reject(request.error)
+		request.onblocked = () => resolve()
 	})
 }
 
@@ -48,36 +111,8 @@ function openDb() {
 		const request = indexedDB.open(DB_NAME, DB_VERSION)
 		request.onupgradeneeded = (event) => {
 			const db = request.result
-			const tx = event.target.transaction
-			let store
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
-				store = db.createObjectStore(STORE_NAME, { keyPath: "id" })
-			} else {
-				store = tx.objectStore(STORE_NAME)
-			}
-
-			if (event.oldVersion < 2) {
-				if (event.oldVersion >= 1) {
-					const migrateRequest = store.openCursor()
-					migrateRequest.onsuccess = () => {
-						const cursor = migrateRequest.result
-						if (cursor) {
-							const value = cursor.value
-							const lookupPath = normalizeResourcePathForLookup(value.path)
-							if (value.lookupPath !== lookupPath) {
-								cursor.update({ ...value, lookupPath })
-							}
-							cursor.continue()
-						} else if (!store.indexNames.contains(LOOKUP_PATH_INDEX)) {
-							store.createIndex(LOOKUP_PATH_INDEX, LOOKUP_PATH_INDEX, {
-								unique: false,
-							})
-						}
-					}
-					migrateRequest.onerror = () => reject(migrateRequest.error)
-				} else if (!store.indexNames.contains(LOOKUP_PATH_INDEX)) {
-					store.createIndex(LOOKUP_PATH_INDEX, LOOKUP_PATH_INDEX, { unique: false })
-				}
+				db.createObjectStore(STORE_NAME, { keyPath: "id" })
 			}
 		}
 		request.onsuccess = () => resolve(request.result)
@@ -86,11 +121,19 @@ function openDb() {
 }
 
 function getResourceId(entry) {
-	return `${entry.mediaType}:${entry.path}`
+	return joinUrlPathSegments(
+		normalizeResourceNamespace(entry.namespace),
+		entry.mediaType,
+		normalizeResourcePathForLookup(entry.path),
+	)
 }
 
 function getCacheKey(entry) {
-	return entry.cacheKey
+	return (
+		entry.cacheKey ||
+		entry.url ||
+		buildVirtualResourceUrl(entry.namespace, entry.mediaType, entry.path)
+	)
 }
 
 function getSourceUrl(entry) {
@@ -141,29 +184,44 @@ function parseVirtualResourceRequest(url) {
 		.replace(/^\/+/, "")
 	if (!rawResourcePath) return null
 
+	const rawNamespaceWithMediaType = parsedUrl.pathname.slice(
+		segmentIndex + VIRTUAL_RESOURCE_PATH_SEGMENT.length,
+		resourceSegmentIndex,
+	)
+	const rawNamespaceSegments = rawNamespaceWithMediaType.replace(/^\/+|\/+$/g, "").split("/")
+	const mediaType = rawNamespaceSegments.pop()
+	if (!mediaType || !VIRTUAL_RESOURCE_MEDIA_TYPES.has(mediaType)) return null
+	const rawNamespace = rawNamespaceSegments.join("/")
+	const namespace = normalizeResourceNamespace(rawNamespace)
 	const resourcePath = normalizeResourcePathForLookup(rawResourcePath)
 	if (!resourcePath) return null
 
-	return { resourcePath }
+	return { namespace, mediaType, resourcePath }
 }
 
 async function saveEntry(entry) {
 	const db = await openDb()
 	const transaction = db.transaction(STORE_NAME, "readwrite")
 	const store = transaction.objectStore(STORE_NAME)
+	const namespace = normalizeResourceNamespace(entry.namespace)
 	const id = getResourceId(entry)
 	const existing = await requestToPromise(store.get(id))
 	await requestToPromise(
 		store.put({
-			...existing,
-			...entry,
-			lookupPath: normalizeResourcePathForLookup(entry.path),
+			id,
+			namespace,
+			path: entry.path,
+			sourceUrl:
+				entry.sourceUrl || existing?.sourceUrl || existing?.originalUrl || existing?.url,
+			mediaType: entry.mediaType,
+			expiresAt: entry.expiresAt ?? existing?.expiresAt,
+			size: entry.size ?? existing?.size,
 			etag: entry.etag ?? existing?.etag,
 			lastModified: entry.lastModified ?? existing?.lastModified,
 			contentLength: entry.contentLength ?? existing?.contentLength,
 			contentType: entry.contentType ?? existing?.contentType,
-			cacheKey: getCacheKey(entry),
-			id,
+			lastAccessedAt: entry.lastAccessedAt ?? existing?.lastAccessedAt ?? Date.now(),
+			updatedAt: entry.updatedAt ?? existing?.updatedAt ?? Date.now(),
 		}),
 	)
 }
@@ -175,21 +233,14 @@ async function getAllEntries() {
 	return requestToPromise(store.getAll())
 }
 
-async function getEntryByPath(resourcePath) {
+async function getEntryByPath(resourcePath, namespace, mediaType) {
 	const needle = normalizeResourcePathForLookup(resourcePath)
 	if (!needle) return null
+	const normalizedNamespace = normalizeResourceNamespace(namespace)
 	const db = await openDb()
 	const transaction = db.transaction(STORE_NAME, "readonly")
 	const store = transaction.objectStore(STORE_NAME)
-	if (!store.indexNames.contains(LOOKUP_PATH_INDEX)) {
-		const entries = await requestToPromise(store.getAll())
-		return (
-			entries.find((entry) => normalizeResourcePathForLookup(entry.path) === needle) || null
-		)
-	}
-	const index = store.index(LOOKUP_PATH_INDEX)
-	const matches = await requestToPromise(index.getAll(needle))
-	return matches[0] || null
+	return requestToPromise(store.get(joinUrlPathSegments(normalizedNamespace, mediaType, needle)))
 }
 
 async function deleteEntry(entry) {
@@ -349,7 +400,11 @@ async function fetchResourceBlobOnce(entry) {
 }
 
 async function refreshResource(entry) {
-	const previousEntry = await getEntryByPath(entry.path.replace(/^\/+/, ""))
+	const previousEntry = await getEntryByPath(
+		entry.path.replace(/^\/+/, ""),
+		normalizeResourceNamespace(entry.namespace),
+		entry.mediaType,
+	)
 	await saveEntry(entry)
 	const result = await fetchResourceBlobOnce(entry)
 	if (!result.blob) {
@@ -377,7 +432,33 @@ self.addEventListener("install", (event) => {
 })
 
 self.addEventListener("activate", (event) => {
-	event.waitUntil(self.clients.claim())
+	event.waitUntil(
+		(async () => {
+			const deprecatedDbNames = getDeprecatedStorageNames(DB_BASE_NAME, OFFLINE_CACHE_VERSION)
+			const deprecatedCacheNames = new Set(
+				getDeprecatedStorageNames(CACHE_BASE_NAME, OFFLINE_CACHE_VERSION),
+			)
+
+			await Promise.all([
+				self.clients.claim(),
+				Promise.all(
+					deprecatedDbNames.map((databaseName) =>
+						deleteDatabase(databaseName).catch(() => undefined),
+					),
+				),
+				caches
+					.keys()
+					.then((names) =>
+						Promise.all(
+							names
+								.filter((cacheName) => deprecatedCacheNames.has(cacheName))
+								.map((cacheName) => caches.delete(cacheName)),
+						),
+					)
+					.catch(() => undefined),
+			])
+		})(),
+	)
 })
 
 self.addEventListener("message", (event) => {
@@ -424,7 +505,11 @@ self.addEventListener("fetch", (event) => {
 
 	event.respondWith(
 		(async () => {
-			const entry = await getEntryByPath(virtualRequest.resourcePath)
+			const entry = await getEntryByPath(
+				virtualRequest.resourcePath,
+				virtualRequest.namespace,
+				virtualRequest.mediaType,
+			)
 			if (!entry) {
 				return new Response(null, { status: 404 })
 			}
@@ -442,7 +527,11 @@ self.addEventListener("fetch", (event) => {
 			}
 			return buildRangeResponse(result.response, request)
 		})().catch(async () => {
-			const entry = await getEntryByPath(virtualRequest.resourcePath)
+			const entry = await getEntryByPath(
+				virtualRequest.resourcePath,
+				virtualRequest.namespace,
+				virtualRequest.mediaType,
+			)
 			if (!entry) {
 				return new Response(null, { status: 404 })
 			}
