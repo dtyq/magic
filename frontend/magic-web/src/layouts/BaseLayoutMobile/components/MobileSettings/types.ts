@@ -42,7 +42,6 @@ export type MobileSettingsPanelKey =
 	| "accountSecurity"
 	| "phoneSecurity"
 	| "loginDevices"
-	| "passwordPicker"
 	| "passwordEditor"
 	| "appSettings"
 	| "appSettingsLanguage"

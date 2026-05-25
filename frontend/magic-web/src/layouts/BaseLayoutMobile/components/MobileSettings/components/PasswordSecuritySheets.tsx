@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react"
 import { useMemoizedFn } from "ahooks"
-import { Check, ChevronRight, Eye, EyeOff, Mail, Smartphone } from "lucide-react"
+import { Check, Eye, EyeOff, Mail, Smartphone } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
+import { resolveToString } from "@dtyq/es6-template-strings"
 
 import { UserApi } from "@/apis"
 import VerificationCodeButton from "@/components/business/VerificationCodeButton"
@@ -10,99 +11,51 @@ import VerificationCodeInput from "@/components/business/VerificationCodeInput"
 import { Input } from "@/components/shadcn-ui/input"
 import { VerificationCode } from "@/constants/bussiness"
 import { encryptPhoneWithCountryCode } from "@/utils/phone"
+import { cn } from "@/lib/utils"
 
 import { MobileSettingsSheetContainer } from "./SheetContainer"
 
 export type MobileSettingsPasswordMethod = "phone" | "email"
 
-interface MobileSettingsPasswordPickerSheetProps {
+interface MobileSettingsPasswordSheetProps {
 	open: boolean
 	onClose: () => void
 	hasPhone: boolean
 	hasEmail: boolean
-	onSelect: (method: MobileSettingsPasswordMethod) => void
-}
-
-interface MobileSettingsPasswordSheetProps {
-	open: boolean
-	onClose: () => void
-	method: MobileSettingsPasswordMethod
 	currentPhone?: string
 	currentEmail?: string
 	countryCode?: string
 }
 
 const MIN_PASSWORD_LENGTH = 8
+const VERIFICATION_CODE_LENGTH = 6
 const SUCCESS_AUTO_CLOSE_MS = 1500
 
-// TODO(mobile-refactor-cleanup): 原型包含“使用原密码”验证方式；当前仓库未发现
-// old_password/current_password 之类契约，确认后再扩展 MobileSettingsPasswordMethod。
+/** Compact send-code control aligned with phone/email row (same as PhoneSecuritySheet). */
+const INLINE_SEND_CODE_BUTTON_CLASS =
+	"h-12 shrink-0 rounded-lg border-0 !bg-foreground px-3 text-sm font-medium !text-background shadow-none hover:!bg-foreground/90 active:opacity-80 disabled:!bg-foreground/40 disabled:!text-background/70"
 
-/** 密码修改方式选择层只展示当前账号真实可用的验证方式，避免用户进入不可完成流程。 */
-export function MobileSettingsPasswordPickerSheet({
+// TODO(mobile-refactor-cleanup): Prototype included "original password" verification; no API in repo yet.
+// TODO(email-change-api): Email change (bind/rebind) needs PUT /v4/users/email + send-email types; out of scope here.
+
+/**
+ * Mobile change-password sheet: tabbed phone/email verify + new password on one page;
+ * Header confirm submits once via PUT /v4/users/pwd (no per-step verification session).
+ */
+export function MobileSettingsPasswordSheet({
 	open,
 	onClose,
 	hasPhone,
 	hasEmail,
-	onSelect,
-}: MobileSettingsPasswordPickerSheetProps) {
-	const { t } = useTranslation("interface")
-
-	return (
-		<MobileSettingsSheetContainer
-			open={open}
-			title={t("setting.changeLoginPassword")}
-			onOpenChange={(open) => {
-				if (!open) onClose()
-			}}
-			contentClassName="gap-2.5 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
-			dataTestId="mobile-settings-password-picker-sheet"
-		>
-			<div className="px-3.5 text-[15px] leading-5 text-muted-foreground">
-				{t("setting.accountSecurityPassword.pickDescription")}
-			</div>
-			<div className="overflow-hidden rounded-lg bg-card">
-				<PasswordMethodRow
-					icon={<Smartphone className="h-5 w-5" />}
-					label={t("setting.mobileVerify")}
-					description={
-						hasPhone
-							? t("setting.accountSecurityPassword.phoneVerifyDescription")
-							: t("setting.accountSecurityPassword.unavailable")
-					}
-					disabled={!hasPhone}
-					showDivider
-					onClick={() => onSelect("phone")}
-					dataTestId="mobile-settings-password-method-phone"
-				/>
-				<PasswordMethodRow
-					icon={<Mail className="h-5 w-5" />}
-					label={t("setting.emailVerify")}
-					description={
-						hasEmail
-							? t("setting.accountSecurityPassword.emailVerifyDescription")
-							: t("setting.accountSecurityPassword.unavailable")
-					}
-					disabled={!hasEmail}
-					onClick={() => onSelect("email")}
-					dataTestId="mobile-settings-password-method-email"
-				/>
-			</div>
-		</MobileSettingsSheetContainer>
-	)
-}
-
-/** 密码修改主流程按原型拆成验证与设置新密码两步，提交仍复用现有 changePassword API。 */
-export function MobileSettingsPasswordSheet({
-	open,
-	onClose,
-	method,
 	currentPhone,
 	currentEmail,
 	countryCode = "+86",
 }: MobileSettingsPasswordSheetProps) {
 	const { t } = useTranslation("interface")
-	const [view, setView] = useState<"verify" | "setNew" | "success">("verify")
+	const [method, setMethod] = useState<MobileSettingsPasswordMethod>(() =>
+		hasPhone ? "phone" : "email",
+	)
+	const [view, setView] = useState<"form" | "success">("form")
 	const [code, setCode] = useState("")
 	const [password, setPassword] = useState("")
 	const [confirmPassword, setConfirmPassword] = useState("")
@@ -113,11 +66,8 @@ export function MobileSettingsPasswordSheet({
 	const [error, setError] = useState<string>()
 
 	const verifyTarget = method === "phone" ? currentPhone : currentEmail
-	const isPasswordLongEnough = password.length >= MIN_PASSWORD_LENGTH
-	const canSubmit =
-		isPasswordLongEnough && confirmPassword.length > 0 && password === confirmPassword
 
-	/** 成功态短暂停留后自动关闭，和原型的完成反馈节奏保持一致。 */
+	/** Auto-close success view after brief feedback. */
 	useEffect(() => {
 		if (view !== "success") return
 
@@ -128,29 +78,33 @@ export function MobileSettingsPasswordSheet({
 		return () => window.clearTimeout(timer)
 	}, [onClose, view])
 
-	/** 关闭或切换验证方式时重置步骤，保证每次打开都从验证开始。 */
+	/** Reset form when sheet opens or verification method changes. */
 	useEffect(() => {
-		if (!open) {
-			resetState()
-			return
-		}
+		if (!open) return
 
-		setView("verify")
+		setMethod(hasPhone ? "phone" : "email")
+		resetFormState()
+	}, [hasPhone, open])
+
+	/** Clear verification and password fields when switching phone/email tab. */
+	function handleMethodChange(nextMethod: MobileSettingsPasswordMethod) {
+		if (nextMethod === method) return
+		setMethod(nextMethod)
+		resetFormState()
+	}
+
+	function resetFormState() {
+		setView("form")
 		setCode("")
 		setPassword("")
 		setConfirmPassword("")
 		setHasSentCode(false)
+		setShowPassword(false)
+		setShowConfirmPassword(false)
 		setError(undefined)
-	}, [method, open])
+	}
 
-	/** 6 位验证码输入完成后进入设置新密码；验证码真伪仍由最终接口校验。 */
-	const handleVerifyCodeComplete = useMemoizedFn((value: string) => {
-		setCode(value)
-		setError(undefined)
-		setView("setNew")
-	})
-
-	/** 包装验证码发送动作，只在发送成功后启用 OTP 输入。 */
+	/** Send verification code for the active method (phone SMS or email channel). */
 	const handleSendCode = useMemoizedFn(async (codeType: VerificationCode, target: string) => {
 		await UserApi.getUsersVerificationCode(codeType, target)
 		setHasSentCode(true)
@@ -158,10 +112,19 @@ export function MobileSettingsPasswordSheet({
 		setError(undefined)
 	})
 
-	/** 使用现有密码修改接口提交验证码与新密码，保持业务逻辑单一真源。 */
+	/** Validate code + passwords locally, then submit changePassword in one request. */
 	const handleSubmit = useMemoizedFn(async () => {
-		if (!canSubmit || isSaving) {
-			setError(resolvePasswordError(t, password, confirmPassword))
+		if (isSaving) return
+
+		const validationError = resolveSubmitValidationError(
+			t,
+			code,
+			password,
+			confirmPassword,
+			hasSentCode,
+		)
+		if (validationError) {
+			setError(validationError)
 			return
 		}
 
@@ -178,51 +141,33 @@ export function MobileSettingsPasswordSheet({
 		}
 	})
 
-	function resetState() {
-		setView("verify")
-		setCode("")
-		setPassword("")
-		setConfirmPassword("")
-		setIsSaving(false)
-		setHasSentCode(false)
-		setShowPassword(false)
-		setShowConfirmPassword(false)
-		setError(undefined)
-	}
-
-	/** 设置新密码页左侧按钮返回验证步骤，成功页按钮则直接关闭整个流程。 */
-	function handleHeaderClose() {
-		if (view === "setNew") {
-			setView("verify")
-			setPassword("")
-			setConfirmPassword("")
-			setError(undefined)
-			return
-		}
-
-		onClose()
-	}
-
-	const title = getPasswordSheetTitle(t, view)
-	const shouldShowConfirm = view === "setNew"
-
 	return (
 		<MobileSettingsSheetContainer
 			open={open}
-			title={title}
+			title={
+				view === "success"
+					? t("setting.accountSecurityPassword.successTitle")
+					: t("setting.changeLoginPassword")
+			}
 			onOpenChange={(open) => {
 				if (!open) onClose()
 			}}
-			onCloseClick={handleHeaderClose}
-			onConfirm={shouldShowConfirm ? handleSubmit : undefined}
-			confirmAriaLabel={t("button.confirm")}
-			confirmDisabled={!canSubmit || isSaving}
+			onCloseClick={onClose}
+			onConfirm={view === "form" ? handleSubmit : undefined}
+			confirmAriaLabel={t("setting.resetPassword")}
+			confirmDisabled={isSaving}
 			hideCloseButton={view === "success"}
 			contentClassName="gap-3 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 			dataTestId="mobile-settings-password-sheet"
 		>
-			{view === "verify" ? (
+			{view === "form" ? (
 				<>
+					<PasswordMethodTabs
+						method={method}
+						hasPhone={hasPhone}
+						hasEmail={hasEmail}
+						onChange={handleMethodChange}
+					/>
 					<div className="px-3.5 text-[15px] leading-5 text-muted-foreground">
 						{t("setting.accountSecurityPassword.verifyDescription")}
 					</div>
@@ -231,35 +176,34 @@ export function MobileSettingsPasswordSheet({
 						currentPhone={currentPhone}
 						currentEmail={currentEmail}
 						countryCode={countryCode}
-					/>
-					<PasswordField label={t("setting.VerificationCode")}>
-						<div className="flex flex-col gap-3">
+						sendCodeButton={
 							<VerificationCodeButton
-								className="h-12 w-full rounded-full bg-foreground text-base font-semibold text-background hover:bg-foreground/90 disabled:!bg-foreground disabled:!text-background disabled:opacity-80"
+								type="default"
+								className={INLINE_SEND_CODE_BUTTON_CLASS}
 								phone={verifyTarget}
 								codeType={VerificationCode.ChangePassword}
 								trigger={handleSendCode}
-								disabled={!verifyTarget}
+								disabled={!verifyTarget || isSaving}
 								data-testid="mobile-settings-password-send-code-button"
 							/>
+						}
+					/>
+					<PasswordField label={t("setting.VerificationCode")}>
+						<div className="flex flex-col gap-3">
 							<VerificationCodeInput
 								value={code}
 								onChange={(value) => {
 									setCode(value)
 									setError(undefined)
 								}}
-								onInputComplete={handleVerifyCodeComplete}
-								disabled={!hasSentCode}
+								disabled={!hasSentCode || isSaving}
 								autoFocus={false}
-								showError={!!error}
+								showError={false}
 								containerClassName="w-full justify-between gap-2"
 								slotClassName="h-[54px] w-[52px] rounded-lg border border-border bg-card text-xl shadow-none first:rounded-lg last:rounded-lg"
 							/>
 						</div>
 					</PasswordField>
-				</>
-			) : view === "setNew" ? (
-				<>
 					<div className="px-3.5 text-[15px] leading-5 text-muted-foreground">
 						{t("setting.accountSecurityPassword.setNewDescription", {
 							min: MIN_PASSWORD_LENGTH,
@@ -316,62 +260,63 @@ export function MobileSettingsPasswordSheet({
 	)
 }
 
-/** 按当前步骤解析 Sheet 标题，避免 JSX 中堆叠嵌套三元表达式。 */
-function getPasswordSheetTitle(
-	t: (key: string, options?: Record<string, unknown>) => string,
-	view: "verify" | "setNew" | "success",
-) {
-	if (view === "verify") return t("setting.accountSecurityPassword.verifyTitle")
-	if (view === "setNew") return t("setting.accountSecurityPassword.setNewTitle")
-	return t("setting.accountSecurityPassword.successTitle")
+interface PasswordMethodTabsProps {
+	method: MobileSettingsPasswordMethod
+	hasPhone: boolean
+	hasEmail: boolean
+	onChange: (method: MobileSettingsPasswordMethod) => void
 }
 
-/** 统一密码修改方式行，保持 picker 中图标、文案与禁用态一致。 */
-function PasswordMethodRow(props: {
-	icon: React.ReactNode
-	label: string
-	description: string
-	disabled: boolean
-	showDivider?: boolean
-	onClick: () => void
-	dataTestId: string
-}) {
-	const { icon, label, description, disabled, showDivider, onClick, dataTestId } = props
+/** Inline phone/email tabs replace the former picker sheet; disabled when account lacks that channel. */
+function PasswordMethodTabs({ method, hasPhone, hasEmail, onChange }: PasswordMethodTabsProps) {
+	const { t } = useTranslation("interface")
 
 	return (
-		<>
+		<div className="flex gap-2 px-3.5">
 			<button
 				type="button"
-				className="flex w-full items-center gap-3 bg-card px-3.5 py-3 text-left transition-opacity active:opacity-60 disabled:opacity-40"
-				disabled={disabled}
-				onClick={onClick}
-				data-testid={dataTestId}
+				className={cn(
+					"flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors",
+					method === "phone"
+						? "border-primary bg-primary/5 text-primary"
+						: "border-border bg-card text-foreground",
+				)}
+				disabled={!hasPhone}
+				onClick={() => onChange("phone")}
+				data-testid="mobile-settings-password-tab-phone"
 			>
-				<div className="flex h-5 w-5 shrink-0 items-center justify-center text-foreground">
-					{icon}
-				</div>
-				<div className="min-w-0 flex-1">
-					<div className="truncate text-base leading-5 text-foreground">{label}</div>
-					<div className="mt-0.5 truncate text-[13px] leading-4 text-muted-foreground">
-						{description}
-					</div>
-				</div>
-				{!disabled ? <ChevronRight className="h-4 w-4 text-muted-foreground" /> : null}
+				<Smartphone className="h-4 w-4 shrink-0" />
+				{t("setting.mobileVerify")}
 			</button>
-			{showDivider ? <div className="ml-[42px] h-px bg-border" aria-hidden /> : null}
-		</>
+			<button
+				type="button"
+				className={cn(
+					"flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors",
+					method === "email"
+						? "border-primary bg-primary/5 text-primary"
+						: "border-border bg-card text-foreground",
+				)}
+				disabled={!hasEmail}
+				onClick={() => onChange("email")}
+				data-testid="mobile-settings-password-tab-email"
+			>
+				<Mail className="h-4 w-4 shrink-0" />
+				{t("setting.emailVerify")}
+			</button>
+		</div>
 	)
 }
 
-/** 只读展示当前验证目标，避免用户误以为可在密码流程中修改手机号或邮箱。 */
+/** Read-only phone/email row with inline send-code action on the right. */
 function PasswordReadonlyTarget(props: {
 	method: MobileSettingsPasswordMethod
 	currentPhone?: string
 	currentEmail?: string
 	countryCode: string
+	sendCodeButton: React.ReactNode
 }) {
 	const { t } = useTranslation("interface")
-	const { method, currentPhone, currentEmail, countryCode } = props
+	const { method, currentPhone, currentEmail, countryCode, sendCodeButton } = props
 	const Icon = method === "phone" ? Smartphone : Mail
 	const label = method === "phone" ? t("setting.phoneNumber") : t("setting.email")
 	const value =
@@ -381,15 +326,20 @@ function PasswordReadonlyTarget(props: {
 
 	return (
 		<PasswordField label={label}>
-			<div className="flex h-12 items-center gap-3 rounded-lg bg-card px-3.5">
-				<Icon className="h-5 w-5 shrink-0 text-foreground" />
-				<span className="truncate text-base leading-5 text-muted-foreground">{value}</span>
+			<div className="flex items-stretch gap-2 px-3.5">
+				<div className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-lg bg-card px-3.5">
+					<Icon className="h-5 w-5 shrink-0 text-foreground" />
+					<span className="truncate text-base leading-5 text-muted-foreground">
+						{value}
+					</span>
+				</div>
+				{sendCodeButton}
 			</div>
 		</PasswordField>
 	)
 }
 
-/** 表单字段统一收口标签和内容块，减少密码流程中的重复布局代码。 */
+/** Shared label + content wrapper for password form blocks. */
 function PasswordField(props: { label: string; children: React.ReactNode }) {
 	const { label, children } = props
 
@@ -401,7 +351,7 @@ function PasswordField(props: { label: string; children: React.ReactNode }) {
 	)
 }
 
-/** 新密码输入封装可见性按钮，保证两个密码字段的视觉和交互一致。 */
+/** Password input with visibility toggle for consistent mobile styling. */
 function PasswordInput(props: {
 	value: string
 	onChange: (value: string) => void
@@ -414,7 +364,7 @@ function PasswordInput(props: {
 	const Icon = visible ? EyeOff : Eye
 
 	return (
-		<div className="relative">
+		<div className="relative px-3.5">
 			<Input
 				type={visible ? "text" : "password"}
 				value={value}
@@ -425,7 +375,7 @@ function PasswordInput(props: {
 			/>
 			<button
 				type="button"
-				className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-muted-foreground"
+				className="absolute inset-y-0 right-3.5 flex w-12 items-center justify-center text-muted-foreground"
 				onClick={onToggleVisible}
 				data-testid={`${dataTestId}-visibility`}
 			>
@@ -435,7 +385,7 @@ function PasswordInput(props: {
 	)
 }
 
-/** 成功态给用户明确反馈，并提供立即完成按钮；同时父级会自动关闭。 */
+/** Success state; parent also auto-closes after a short delay. */
 function PasswordSuccessView(props: {
 	headline: string
 	description: string
@@ -469,17 +419,35 @@ function PasswordSuccessView(props: {
 	)
 }
 
-/** 根据本地校验结果生成用户可理解的错误提示，真正的验证码错误仍由接口返回。 */
-function resolvePasswordError(
+/** Run all client-side checks before changePassword; returns user-facing error or undefined. */
+function resolveSubmitValidationError(
 	t: (key: string, options?: Record<string, unknown>) => string,
+	code: string,
 	password: string,
 	confirmPassword: string,
+	hasSentCode: boolean,
 ) {
+	if (!hasSentCode) {
+		return t("setting.accountSecurityPassword.codeRequired")
+	}
+
+	if (!code) {
+		return resolveToString(t("form.required"), {
+			label: t("setting.VerificationCode"),
+		})
+	}
+
+	if (code.length !== VERIFICATION_CODE_LENGTH) {
+		return t("setting.accountSecurityPassword.codeRequired")
+	}
+
 	if (password.length < MIN_PASSWORD_LENGTH) {
 		return t("setting.accountSecurityPassword.weakPassword", { min: MIN_PASSWORD_LENGTH })
 	}
 
-	if (password !== confirmPassword) return t("setting.accountSecurityPassword.passwordMismatch")
+	if (password !== confirmPassword) {
+		return t("setting.accountSecurityPassword.passwordMismatch")
+	}
 
 	return undefined
 }

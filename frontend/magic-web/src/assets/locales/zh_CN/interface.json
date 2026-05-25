@@ -2076,6 +2076,7 @@
 		"accountSecurityPhone": {
 			"bindDescription": "当前账号尚未绑定手机号。绑定能力待账号接口确认后接入。",
 			"bindTitle": "绑定手机号",
+			"changeTitle": "更换手机号",
 			"changeDescription": "我们将向您当前的手机号发送验证码以验证身份。",
 			"codeHint": "验证码已发送至",
 			"codeInvalid": "验证码错误，请重新输入",

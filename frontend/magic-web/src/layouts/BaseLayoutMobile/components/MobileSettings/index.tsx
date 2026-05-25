@@ -11,11 +11,7 @@ import { MobileSettingsAppSettingsSheet } from "./components/AppSettingsSheet"
 import { MobileSettingsAppSettingsTimezoneSheet } from "./components/AppSettingsTimezoneSheet"
 import { MobileSettingsFeedbackSheet } from "./components/FeedbackSheet"
 import { MobileSettingsLoginDevicesSheet } from "./components/LoginDevicesSheet"
-import {
-	MobileSettingsPasswordPickerSheet,
-	MobileSettingsPasswordSheet,
-	type MobileSettingsPasswordMethod,
-} from "./components/PasswordSecuritySheets"
+import { MobileSettingsPasswordSheet } from "./components/PasswordSecuritySheets"
 import { MobileSettingsPhoneSecuritySheet } from "./components/PhoneSecuritySheet"
 import { MobileSettingsProfileSheet } from "./components/ProfileSheet"
 import {
@@ -36,8 +32,6 @@ function MobileSettingsPanelComponent(props: {
 	const navigate = useNavigate()
 	const { userInfo } = useUserInfo()
 	const [panelStack, setPanelStack] = useState<MobileSettingsPanelKey[]>([])
-	const [passwordMethod, setPasswordMethod] = useState<MobileSettingsPasswordMethod>("phone")
-
 	/** 根面板关闭时统一清空当前嵌套 panel 栈，确保再次进入时总是回到设置首页。 */
 	const handleCloseRoot = useMemoizedFn(() => {
 		setPanelStack([])
@@ -91,15 +85,8 @@ function MobileSettingsPanelComponent(props: {
 		openPanel("phoneSecurity")
 	})
 
-	/** 密码修改先进入验证方式选择层，再进入最终的新密码设置层。 */
+	/** 密码修改直接进入单页编辑层（Tab 选择手机/邮箱验证，Header 提交）。 */
 	const handleOpenChangePassword = useMemoizedFn(() => {
-		openPanel("passwordPicker")
-	})
-
-	/** 选定验证方式后关闭选择层并打开最终密码编辑层，保持 panel 栈顺序正确。 */
-	const handleSelectPasswordMethod = useMemoizedFn((method: MobileSettingsPasswordMethod) => {
-		setPasswordMethod(method)
-		closePanelAndDescendants("passwordPicker")
 		openPanel("passwordEditor")
 	})
 
@@ -162,17 +149,11 @@ function MobileSettingsPanelComponent(props: {
 				open={hasPanelOpen("loginDevices")}
 				onClose={() => closePanelAndDescendants("loginDevices")}
 			/>
-			<MobileSettingsPasswordPickerSheet
-				open={hasPanelOpen("passwordPicker")}
-				onClose={() => closePanelAndDescendants("passwordPicker")}
-				hasPhone={Boolean(userInfo?.phone)}
-				hasEmail={Boolean(userInfo?.email)}
-				onSelect={handleSelectPasswordMethod}
-			/>
 			<MobileSettingsPasswordSheet
 				open={hasPanelOpen("passwordEditor")}
 				onClose={() => closePanelAndDescendants("passwordEditor")}
-				method={passwordMethod}
+				hasPhone={Boolean(userInfo?.phone)}
+				hasEmail={Boolean(userInfo?.email)}
 				currentPhone={userInfo?.phone}
 				currentEmail={userInfo?.email}
 				countryCode={userInfo?.country_code}

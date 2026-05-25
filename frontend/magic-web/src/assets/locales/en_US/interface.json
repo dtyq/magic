@@ -2074,6 +2074,7 @@
 		"accountSecurityPhone": {
 			"bindDescription": "This account has not linked a phone number yet. The binding flow will be connected after the account API is confirmed.",
 			"bindTitle": "Link phone number",
+			"changeTitle": "Change phone number",
 			"changeDescription": "We will send a verification code to your current phone number to verify your identity.",
 			"codeHint": "Verification code sent to",
 			"codeInvalid": "Invalid verification code. Please try again.",

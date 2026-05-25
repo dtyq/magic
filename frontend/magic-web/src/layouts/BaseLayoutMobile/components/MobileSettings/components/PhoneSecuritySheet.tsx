@@ -31,12 +31,19 @@ interface PhoneSecurityErrors {
 	newPhoneCode?: string
 }
 
-type PhoneSecurityView = "verifyCurrent" | "inputNew" | "verifyNew" | "success"
+type PhoneSecurityView = "form" | "success"
 
 const VERIFICATION_CODE_LENGTH = 6
 const SUCCESS_AUTO_CLOSE_MS = 1500
 
-/** 手机号安全浮层复用现有换绑 API，把设置页里的视觉还原与业务提交解耦。 */
+/** Compact send-code control beside phone rows; dark fill matches header confirm affordance. */
+const INLINE_SEND_CODE_BUTTON_CLASS =
+	"h-12 shrink-0 rounded-lg border-0 !bg-foreground px-3 text-sm font-medium !text-background shadow-none hover:!bg-foreground/90 active:opacity-80 disabled:!bg-foreground/40 disabled:!text-background/70"
+
+/**
+ * Mobile phone change sheet: single-page collect + one-shot submit via PUT /v4/users/phone.
+ * Earlier multi-step UI was prototype-only; backend has no per-step verification session.
+ */
 export function MobileSettingsPhoneSecuritySheet({
 	open,
 	onClose,
@@ -49,13 +56,13 @@ export function MobileSettingsPhoneSecuritySheet({
 	const [newPhone, setNewPhone] = useState("")
 	const [newPhoneCode, setNewPhoneCode] = useState("")
 	const [isSaving, setIsSaving] = useState(false)
-	const [view, setView] = useState<PhoneSecurityView>("verifyCurrent")
+	const [view, setView] = useState<PhoneSecurityView>("form")
 	const [hasSentCurrentCode, setHasSentCurrentCode] = useState(false)
 	const [hasSentNewPhoneCode, setHasSentNewPhoneCode] = useState(false)
 	const [errors, setErrors] = useState<PhoneSecurityErrors>({})
 	const isChangeMode = Boolean(currentPhone)
 
-	/** 成功态短暂停留后关闭，让用户看见换绑完成反馈。 */
+	/** Auto-close success view after brief feedback, matching other account-security sheets. */
 	useEffect(() => {
 		if (view !== "success") return
 
@@ -66,7 +73,7 @@ export function MobileSettingsPhoneSecuritySheet({
 		return () => window.clearTimeout(timer)
 	}, [onClose, view])
 
-	/** 每次打开或默认区号变化时重置表单，避免上一次输入泄漏到新的账号状态。 */
+	/** Reset all fields when the sheet opens so prior attempts do not leak into a new session. */
 	useEffect(() => {
 		if (!open) return
 
@@ -74,21 +81,74 @@ export function MobileSettingsPhoneSecuritySheet({
 		setCurrentCode("")
 		setNewPhone("")
 		setNewPhoneCode("")
-		setView("verifyCurrent")
+		setView("form")
 		setHasSentCurrentCode(false)
 		setHasSentNewPhoneCode(false)
 		setErrors({})
-	}, [defaultCountryCode, isChangeMode, open])
+	}, [defaultCountryCode, open])
 
-	/** 当前手机号验证码输满后先走临时直通边界，后续可在同一位置接入独立校验 API。 */
-	const handleCurrentCodeComplete = useMemoizedFn(async (value: string) => {
-		setCurrentCode(value)
-		setErrors((prev) => ({ ...prev, currentCode: undefined }))
-		const canContinue = await canContinueAfterCurrentPhoneCode(value)
-		if (canContinue) setView("inputNew")
+	/** Validate the full change-phone form before calling the one-shot changePhone API. */
+	const validateChangePhoneForm = useMemoizedFn(() => {
+		const nextErrors: PhoneSecurityErrors = {}
+
+		if (!currentCode) {
+			nextErrors.currentCode = resolveToString(t("form.required"), {
+				label: t("setting.VerificationCode"),
+			})
+		} else if (currentCode.length !== VERIFICATION_CODE_LENGTH) {
+			nextErrors.currentCode = t("setting.accountSecurityPhone.codeInvalid")
+		}
+
+		if (!newPhone) {
+			nextErrors.newPhone = resolveToString(t("form.required"), {
+				label: t("setting.newPhone"),
+			})
+		} else if (!validatePhone(newPhone, phoneStateCode)) {
+			nextErrors.newPhone = t("setting.invalidPhone")
+		} else if (newPhone === currentPhone && phoneStateCode === defaultCountryCode) {
+			nextErrors.newPhone = t("setting.samePhone")
+		}
+
+		if (!newPhoneCode) {
+			nextErrors.newPhoneCode = resolveToString(t("form.required"), {
+				label: t("setting.newPhoneCode"),
+			})
+		} else if (newPhoneCode.length !== VERIFICATION_CODE_LENGTH) {
+			nextErrors.newPhoneCode = t("setting.accountSecurityPhone.codeInvalid")
+		}
+
+		setErrors(nextErrors)
+		return Object.keys(nextErrors).length === 0
 	})
 
-	/** 包装发送当前手机号验证码的真实服务，并记录输入框可用状态。 */
+	/** Header confirm: submit current + new codes and new phone in one request. */
+	const handleChangePhone = useMemoizedFn(async () => {
+		if (isSaving) return
+		if (!isChangeMode) {
+			// TODO(mobile-refactor-cleanup): No bind-phone API for logged-in users in this repo yet.
+			return
+		}
+		if (!validateChangePhoneForm()) return
+
+		try {
+			setIsSaving(true)
+			await UserApi.changePhone(currentCode, newPhone, newPhoneCode, phoneStateCode)
+			await mutate("/v4/users/info")
+			toast.success(t("setting.changePhoneSuccess", { ns: "message" }))
+			setView("success")
+		} catch (error) {
+			console.error("Failed to change phone:", error)
+			setErrors((prev) => ({
+				...prev,
+				newPhoneCode: t("setting.accountSecurityPhone.codeInvalid"),
+			}))
+			toast.error(t("setting.changePhoneFailed", { ns: "message" }))
+		} finally {
+			setIsSaving(false)
+		}
+	})
+
+	/** Send verification code to the currently bound phone number. */
 	const handleSendCurrentCode = useMemoizedFn(
 		async (codeType: VerificationCode, phone: string) => {
 			await service
@@ -98,7 +158,7 @@ export function MobileSettingsPhoneSecuritySheet({
 		},
 	)
 
-	/** 原型第二步右上角确认会发送新手机号验证码并进入 6 位验证码页。 */
+	/** Send verification code to the new phone; stays on the same page (no step transition). */
 	const handleSendNewPhoneCode = useMemoizedFn(async () => {
 		const nextErrors: PhoneSecurityErrors = {}
 
@@ -115,62 +175,14 @@ export function MobileSettingsPhoneSecuritySheet({
 		setErrors(nextErrors)
 		if (Object.keys(nextErrors).length > 0) return
 
-		// 新手机号输入页只负责发起验证码发送；验证码内容会在下一层输入并最终提交。
 		await service
 			.get<LoginService>("loginService")
 			.getPhoneVerificationCode(VerificationCode.BindPhone, newPhone, phoneStateCode)
 		setNewPhoneCode("")
 		setHasSentNewPhoneCode(true)
-		setView("verifyNew")
+		setErrors((prev) => ({ ...prev, newPhone: undefined, newPhoneCode: undefined }))
 	})
 
-	/** 新手机号验证码输满后沿用现有换绑接口一次性提交两段验证码。 */
-	const handleSubmitNewPhoneCode = useMemoizedFn(async (value: string) => {
-		if (isSaving) return
-		if (!isChangeMode) {
-			// TODO(mobile-refactor-cleanup): 当前仓库未发现“已登录账号绑定手机号”的独立 API。
-			return
-		}
-		if (!currentCode) return
-		const canSubmit = await canSubmitAfterNewPhoneCode(value)
-		if (!canSubmit) return
-
-		try {
-			setIsSaving(true)
-			await UserApi.changePhone(currentCode, newPhone, value, phoneStateCode)
-			await mutate("/v4/users/info")
-			toast.success(t("setting.changePhoneSuccess", { ns: "message" }))
-			setView("success")
-		} catch (error) {
-			console.error("Failed to change phone:", error)
-			setErrors((prev) => ({
-				...prev,
-				newPhoneCode: t("setting.accountSecurityPhone.codeInvalid"),
-			}))
-			toast.error(t("setting.changePhoneFailed", { ns: "message" }))
-		} finally {
-			setIsSaving(false)
-		}
-	})
-
-	function handleNewPhoneCodeChange(value: string) {
-		setNewPhoneCode(value)
-		setErrors((prev) => ({ ...prev, newPhoneCode: undefined }))
-	}
-
-	/** 新手机号验证码页左侧按钮返回输入页，符合原型中的分层返回路径。 */
-	function handleHeaderClose() {
-		if (view === "verifyNew") {
-			setView("inputNew")
-			setNewPhoneCode("")
-			setErrors((prev) => ({ ...prev, newPhoneCode: undefined }))
-			return
-		}
-
-		onClose()
-	}
-
-	const title = getPhoneSecurityTitle(t, view)
 	const maskedPhone = currentPhone
 		? formatMaskedPhone(currentPhone, defaultCountryCode)
 		: t("setting.notBind")
@@ -179,68 +191,55 @@ export function MobileSettingsPhoneSecuritySheet({
 	return (
 		<MobileSettingsSheetContainer
 			open={open}
-			title={title}
+			title={
+				view === "success"
+					? t("setting.accountSecurityPhone.successTitle")
+					: t("setting.accountSecurityPhone.changeTitle")
+			}
 			onOpenChange={(open) => {
 				if (!open) onClose()
 			}}
-			onCloseClick={handleHeaderClose}
-			onConfirm={view === "inputNew" ? handleSendNewPhoneCode : undefined}
-			confirmAriaLabel={t("button.confirm")}
-			// 确认按钮保持可点，由提交校验展示必填、格式错误或重复手机号，避免用户点击后无反馈。
-			confirmDisabled={false}
+			onCloseClick={onClose}
+			onConfirm={view === "form" ? handleChangePhone : undefined}
+			confirmAriaLabel={t("button.save")}
+			confirmDisabled={isSaving}
 			hideCloseButton={view === "success"}
 			contentClassName="gap-3 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 			dataTestId="mobile-settings-phone-security-sheet"
 		>
-			{view === "verifyCurrent" ? (
-				<CurrentPhoneVerifyView
+			{view === "form" ? (
+				<PhoneChangeFormView
 					description={t("setting.accountSecurityPhone.changeDescription")}
 					currentPhoneLabel={t("setting.accountSecurityPhone.currentPhone")}
-					codeLabel={t("setting.VerificationCode")}
+					currentCodeLabel={t("setting.VerificationCode")}
+					newPhoneCodeLabel={t("setting.newPhoneCode")}
 					maskedPhone={maskedPhone}
-					code={currentCode}
-					codeError={errors.currentCode}
-					hasSentCode={hasSentCurrentCode}
+					currentCode={currentCode}
+					currentCodeError={errors.currentCode}
+					hasSentCurrentCode={hasSentCurrentCode}
 					currentPhone={currentPhone}
-					onCodeChange={(value) => {
+					phoneStateCode={phoneStateCode}
+					newPhone={newPhone}
+					newPhoneCode={newPhoneCode}
+					newPhoneError={errors.newPhone}
+					newPhoneCodeError={errors.newPhoneCode}
+					hasSentNewPhoneCode={hasSentNewPhoneCode}
+					isSaving={isSaving}
+					onCurrentCodeChange={(value) => {
 						setCurrentCode(value)
 						setErrors((prev) => ({ ...prev, currentCode: undefined }))
 					}}
-					onCodeComplete={handleCurrentCodeComplete}
-					onSendCode={handleSendCurrentCode}
-				/>
-			) : view === "inputNew" ? (
-				<NewPhoneInputView
-					description={t("setting.accountSecurityPhone.newPhoneDescription")}
-					phoneStateCode={phoneStateCode}
-					newPhone={newPhone}
-					errors={errors}
+					onSendCurrentCode={handleSendCurrentCode}
 					onCountryCodeChange={setPhoneStateCode}
 					onNewPhoneChange={(value) => {
 						setNewPhone(value)
 						setErrors((prev) => ({ ...prev, newPhone: undefined }))
 					}}
-					onSubmit={handleSendNewPhoneCode}
-				/>
-			) : view === "verifyNew" ? (
-				<NewPhoneCodeView
-					codeHint={t("setting.accountSecurityPhone.codeHint")}
-					phoneDisplay={formattedNewPhone}
-					code={newPhoneCode}
-					codeError={errors.newPhoneCode}
-					hasSentCode={hasSentNewPhoneCode}
-					isSaving={isSaving}
-					newPhone={newPhone}
-					phoneStateCode={phoneStateCode}
-					onCodeChange={handleNewPhoneCodeChange}
-					onCodeComplete={handleSubmitNewPhoneCode}
-					onResendCode={async (codeType, phone, stateCode, token) => {
-						await service
-							.get<LoginService>("loginService")
-							.getPhoneVerificationCode(codeType, phone, stateCode, token)
-						setHasSentNewPhoneCode(true)
+					onNewPhoneCodeChange={(value) => {
+						setNewPhoneCode(value)
 						setErrors((prev) => ({ ...prev, newPhoneCode: undefined }))
 					}}
+					onSendNewPhoneCode={handleSendNewPhoneCode}
 				/>
 			) : (
 				<PhoneSuccessView
@@ -256,227 +255,170 @@ export function MobileSettingsPhoneSecuritySheet({
 	)
 }
 
-/** 根据当前手机号换绑步骤切换标题，避免主渲染中堆叠条件表达式。 */
-function getPhoneSecurityTitle(
-	t: (key: string, options?: Record<string, unknown>) => string,
-	view: PhoneSecurityView,
-) {
-	if (view === "verifyCurrent") return t("setting.changePhone")
-	if (view === "inputNew") return t("setting.accountSecurityPhone.inputTitle")
-	if (view === "verifyNew") return t("setting.accountSecurityPhone.codeTitle")
-	return t("setting.accountSecurityPhone.successTitle")
-}
-
-interface CurrentPhoneVerifyViewProps {
+interface PhoneChangeFormViewProps {
 	description: string
 	currentPhoneLabel: string
-	codeLabel: string
+	currentCodeLabel: string
+	newPhoneCodeLabel: string
 	maskedPhone: string
-	code: string
-	codeError?: string
-	hasSentCode: boolean
+	currentCode: string
+	currentCodeError?: string
+	hasSentCurrentCode: boolean
 	currentPhone: string
-	onCodeChange: (value: string) => void
-	onCodeComplete: (value: string) => void
-	onSendCode: (
+	phoneStateCode: string
+	newPhone: string
+	newPhoneCode: string
+	newPhoneError?: string
+	newPhoneCodeError?: string
+	hasSentNewPhoneCode: boolean
+	isSaving: boolean
+	onCurrentCodeChange: (value: string) => void
+	onSendCurrentCode: (
 		codeType: VerificationCode,
 		phone: string,
 		stateCode?: string,
 		token?: string,
 	) => Promise<void>
-}
-
-/** 当前手机号验证视图按原型拆成说明、只读手机号、整行发送按钮和 6 位验证码输入。 */
-function CurrentPhoneVerifyView({
-	description,
-	currentPhoneLabel,
-	codeLabel,
-	maskedPhone,
-	code,
-	codeError,
-	hasSentCode,
-	currentPhone,
-	onCodeChange,
-	onCodeComplete,
-	onSendCode,
-}: CurrentPhoneVerifyViewProps) {
-	return (
-		<>
-			<p className="px-3.5 pt-1 text-[15px] leading-5 text-muted-foreground">{description}</p>
-
-			<div className="flex flex-col gap-2">
-				<PhoneSecurityLabel>{currentPhoneLabel}</PhoneSecurityLabel>
-				<div
-					className="flex h-12 items-center gap-3 rounded-lg bg-card px-3.5"
-					data-testid="mobile-settings-phone-current-phone-row"
-				>
-					<Smartphone className="h-5 w-5 shrink-0 text-foreground" />
-					<span className="truncate text-base tabular-nums leading-5 text-foreground">
-						{maskedPhone}
-					</span>
-				</div>
-			</div>
-
-			<VerificationCodeButton
-				className="mt-1 h-12 w-full rounded-full bg-foreground text-base font-semibold text-background hover:bg-foreground/90 disabled:!bg-foreground disabled:!text-background disabled:opacity-80"
-				phone={currentPhone}
-				codeType={VerificationCode.ChangePhone}
-				trigger={onSendCode}
-				data-testid="mobile-settings-phone-send-current-code-button"
-			/>
-
-			<div className="flex flex-col gap-2">
-				<PhoneSecurityLabel>{codeLabel}</PhoneSecurityLabel>
-				<VerificationCodeInput
-					value={code}
-					onChange={onCodeChange}
-					onInputComplete={onCodeComplete}
-					disabled={!hasSentCode}
-					showError={!!codeError}
-					autoFocus={false}
-					containerClassName="w-full justify-between gap-2"
-					slotClassName="h-[54px] w-[52px] rounded-lg border border-border bg-card text-xl shadow-none first:rounded-lg last:rounded-lg"
-				/>
-				{codeError ? (
-					<div className="px-3.5 text-xs leading-4 text-destructive">{codeError}</div>
-				) : null}
-			</div>
-		</>
-	)
-}
-
-interface NewPhoneInputViewProps {
-	description: string
-	phoneStateCode: string
-	newPhone: string
-	errors: PhoneSecurityErrors
 	onCountryCodeChange: (value: string) => void
 	onNewPhoneChange: (value: string) => void
-	onSubmit: () => void
+	onNewPhoneCodeChange: (value: string) => void
+	onSendNewPhoneCode: () => Promise<void>
 }
 
-/** 新手机号输入页只负责收集号码；右上角确认会发送验证码并进入下一层。 */
-function NewPhoneInputView({
+/** Single-page change-phone form: current verification, new number, and new-number code on one screen. */
+function PhoneChangeFormView({
 	description,
+	currentPhoneLabel,
+	currentCodeLabel,
+	newPhoneCodeLabel,
+	maskedPhone,
+	currentCode,
+	currentCodeError,
+	hasSentCurrentCode,
+	currentPhone,
 	phoneStateCode,
 	newPhone,
-	errors,
+	newPhoneCode,
+	newPhoneError,
+	newPhoneCodeError,
+	hasSentNewPhoneCode,
+	isSaving,
+	onCurrentCodeChange,
+	onSendCurrentCode,
 	onCountryCodeChange,
 	onNewPhoneChange,
-	onSubmit,
-}: NewPhoneInputViewProps) {
+	onNewPhoneCodeChange,
+	onSendNewPhoneCode,
+}: PhoneChangeFormViewProps) {
 	const { t } = useTranslation("interface")
 
 	return (
 		<>
 			<p className="px-3.5 pt-1 text-[15px] leading-5 text-muted-foreground">{description}</p>
 
-			<PhoneSecurityField
-				label={t("setting.newPhone")}
-				error={errors.newPhone}
-				dataTestId="mobile-settings-phone-new-phone"
-			>
-				<div className="flex h-12 items-center gap-2 rounded-lg bg-card px-3.5">
-					<PhoneStateCodeSelect
-						value={phoneStateCode}
-						onChange={onCountryCodeChange}
-						className="h-8 border-0 bg-transparent shadow-none"
-						dataTestId="mobile-settings-phone-country-code-select"
-					/>
-					<div className="h-5 w-px bg-border" aria-hidden />
-					<Input
-						value={newPhone}
-						onChange={(event) => onNewPhoneChange(event.target.value)}
-						inputMode="tel"
-						placeholder={t("setting.phoneNumberPlaceholder")}
-						onKeyDown={(event) => {
-							if (event.key === "Enter") {
-								event.preventDefault()
-								onSubmit()
-							}
-						}}
-						className="h-10 flex-1 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
-						data-testid="mobile-settings-phone-new-phone-input"
+			<div className="flex flex-col gap-2">
+				<PhoneSecurityLabel>{currentPhoneLabel}</PhoneSecurityLabel>
+				<div className="flex items-stretch gap-2">
+					<div
+						className="flex h-12 min-w-0 flex-1 items-center gap-3 rounded-lg bg-card px-3.5"
+						data-testid="mobile-settings-phone-current-phone-row"
+					>
+						<Smartphone className="h-5 w-5 shrink-0 text-foreground" />
+						<span className="truncate text-base tabular-nums leading-5 text-foreground">
+							{maskedPhone}
+						</span>
+					</div>
+					<VerificationCodeButton
+						type="default"
+						className={INLINE_SEND_CODE_BUTTON_CLASS}
+						phone={currentPhone}
+						codeType={VerificationCode.ChangePhone}
+						trigger={onSendCurrentCode}
+						disabled={isSaving}
+						data-testid="mobile-settings-phone-send-current-code-button"
 					/>
 				</div>
-			</PhoneSecurityField>
-		</>
-	)
-}
-
-interface NewPhoneCodeViewProps {
-	codeHint: string
-	phoneDisplay: string
-	code: string
-	codeError?: string
-	hasSentCode: boolean
-	isSaving: boolean
-	newPhone: string
-	phoneStateCode: string
-	onCodeChange: (value: string) => void
-	onCodeComplete: (value: string) => void
-	onResendCode: (
-		codeType: VerificationCode,
-		phone: string,
-		stateCode?: string,
-		token?: string,
-	) => Promise<void>
-}
-
-/** 新手机号验证码页严格使用原型的 6 位格子，输满后提交真实换绑接口。 */
-function NewPhoneCodeView({
-	codeHint,
-	phoneDisplay,
-	code,
-	codeError,
-	hasSentCode,
-	isSaving,
-	newPhone,
-	phoneStateCode,
-	onCodeChange,
-	onCodeComplete,
-	onResendCode,
-}: NewPhoneCodeViewProps) {
-	return (
-		<>
-			<div className="space-y-1 px-3.5 pt-1">
-				<p className="text-[15px] leading-5 text-muted-foreground">{codeHint}</p>
-				<p className="text-xl font-semibold leading-7 text-foreground">{phoneDisplay}</p>
 			</div>
 
-			<div className="flex flex-col gap-2 px-3.5 pt-1">
+			<div className="flex flex-col gap-2">
+				<PhoneSecurityLabel>{currentCodeLabel}</PhoneSecurityLabel>
 				<VerificationCodeInput
-					value={code}
-					onChange={onCodeChange}
-					onInputComplete={onCodeComplete}
-					disabled={!hasSentCode || isSaving}
-					showError={!!codeError}
-					autoFocus
+					value={currentCode}
+					onChange={onCurrentCodeChange}
+					disabled={!hasSentCurrentCode || isSaving}
+					showError={!!currentCodeError}
+					autoFocus={false}
 					containerClassName="w-full justify-between gap-2"
 					slotClassName="h-[54px] w-[52px] rounded-lg border border-border bg-card text-xl shadow-none first:rounded-lg last:rounded-lg"
 				/>
-				{codeError ? (
-					<div className="text-[13px] leading-4 text-destructive">{codeError}</div>
+				{currentCodeError ? (
+					<div className="px-3.5 text-xs leading-4 text-destructive">
+						{currentCodeError}
+					</div>
 				) : null}
 			</div>
 
-			<div className="flex justify-center pt-2">
-				<VerificationCodeButton
-					type="link"
-					className="h-auto bg-transparent px-0 text-sm font-medium text-primary shadow-none hover:bg-transparent"
-					phone={newPhone}
-					stateCode={phoneStateCode}
-					codeType={VerificationCode.BindPhone}
-					trigger={onResendCode}
-					disabled={isSaving}
-					data-testid="mobile-settings-phone-resend-new-code-button"
+			<PhoneSecurityField
+				label={t("setting.newPhone")}
+				error={newPhoneError}
+				dataTestId="mobile-settings-phone-new-phone"
+			>
+				<div className="flex items-stretch gap-2">
+					<div className="flex h-12 min-w-0 flex-1 items-center gap-2 rounded-lg bg-card px-3.5">
+						<PhoneStateCodeSelect
+							value={phoneStateCode}
+							onChange={onCountryCodeChange}
+							className="h-8 border-0 bg-transparent shadow-none"
+							dataTestId="mobile-settings-phone-country-code-select"
+						/>
+						<div className="h-5 w-px bg-border" aria-hidden />
+						<Input
+							value={newPhone}
+							onChange={(event) => onNewPhoneChange(event.target.value)}
+							inputMode="tel"
+							placeholder={t("setting.phoneNumberPlaceholder")}
+							disabled={isSaving}
+							className="h-10 min-w-0 flex-1 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+							data-testid="mobile-settings-phone-new-phone-input"
+						/>
+					</div>
+					<VerificationCodeButton
+						type="default"
+						className={INLINE_SEND_CODE_BUTTON_CLASS}
+						phone={newPhone}
+						stateCode={phoneStateCode}
+						codeType={VerificationCode.BindPhone}
+						trigger={async () => {
+							await onSendNewPhoneCode()
+						}}
+						disabled={isSaving}
+						data-testid="mobile-settings-phone-send-new-code-button"
+					/>
+				</div>
+			</PhoneSecurityField>
+
+			<div className="flex flex-col gap-2">
+				<PhoneSecurityLabel>{newPhoneCodeLabel}</PhoneSecurityLabel>
+				<VerificationCodeInput
+					value={newPhoneCode}
+					onChange={onNewPhoneCodeChange}
+					disabled={!hasSentNewPhoneCode || isSaving}
+					showError={!!newPhoneCodeError}
+					autoFocus={false}
+					containerClassName="w-full justify-between gap-2"
+					slotClassName="h-[54px] w-[52px] rounded-lg border border-border bg-card text-xl shadow-none first:rounded-lg last:rounded-lg"
 				/>
+				{newPhoneCodeError ? (
+					<div className="px-3.5 text-xs leading-4 text-destructive">
+						{newPhoneCodeError}
+					</div>
+				) : null}
 			</div>
 		</>
 	)
 }
 
-/** 换绑成功页提供明确结果反馈，并在短暂停留后自动关闭。 */
+/** Success state with explicit feedback; parent also auto-closes after a short delay. */
 function PhoneSuccessView(props: {
 	headline: string
 	description: string
@@ -510,7 +452,7 @@ function PhoneSuccessView(props: {
 	)
 }
 
-/** 表单字段统一收口标签、错误文案和测试选择器，避免每个输入块各写一套结构。 */
+/** Wraps a labeled field block with optional error text and a stable test id. */
 function PhoneSecurityField(props: {
 	label: string
 	error?: string
@@ -530,28 +472,12 @@ function PhoneSecurityField(props: {
 	)
 }
 
-/** 字段标题使用与原型一致的内缩和弱文本颜色，保证各块视觉节奏统一。 */
+/** Field title styling aligned with mobile account-security prototypes. */
 function PhoneSecurityLabel({ children }: { children: React.ReactNode }) {
 	return <div className="px-3.5 text-sm leading-5 text-muted-foreground">{children}</div>
 }
 
-/** 当前手机号验证码暂时只做长度门禁；后续独立校验 API 到位后在这里替换为真实校验。 */
-async function canContinueAfterCurrentPhoneCode(value: string) {
-	if (value.length !== VERIFICATION_CODE_LENGTH) return false
-
-	// TODO(mobile-refactor-cleanup): 接入当前手机号验证码独立校验 API 后，失败时返回 false 并展示错误文案。
-	return true
-}
-
-/** 新手机号验证码暂时交给最终换绑接口校验；这里保留未来独立校验 API 的异步接入点。 */
-async function canSubmitAfterNewPhoneCode(value: string) {
-	if (value.length !== VERIFICATION_CODE_LENGTH) return false
-
-	// TODO(mobile-refactor-cleanup): 接入新手机号验证码独立校验 API 后，再决定是否继续调用 changePhone。
-	return true
-}
-
-/** 原型手机号脱敏包含空格分组，这里只改展示格式，不改变后端提交值。 */
+/** Mask display only; submit payload still uses raw phone and country code. */
 function formatMaskedPhone(phone: string, countryCode: string) {
 	const encryptedPhone = encryptPhoneWithCountryCode(phone, countryCode)
 	const match = encryptedPhone.match(/^(\+\d+)\s*(\d{3})(\*+)(\d{4})$/)
@@ -560,7 +486,7 @@ function formatMaskedPhone(phone: string, countryCode: string) {
 	return `${match[1]} ${match[2]} ${match[3]} ${match[4]}`
 }
 
-/** 新手机号展示只影响 UI，不改变提交给后端的纯手机号与区号字段。 */
+/** Display helper for success copy; does not affect API fields. */
 function formatNewPhoneForDisplay(phone: string, countryCode: string) {
 	if (!phone) return countryCode
 	return `${countryCode} ${phone}`

@@ -33,6 +33,8 @@ export function MobileSettingsAccountSecuritySheet({
 
 	// TODO(mobile-refactor-cleanup): 绑定手机号、邮箱、微信、Apple 与 Google 入口需要等待账号绑定状态字段、
 	// 绑定 API 与解绑 API 明确后再展示；当前只保留手机号和密码两个已有真实能力。
+	// TODO(email-change-api): 更换邮箱需后端提供 PUT /v4/users/email（及 change_email/bind_email 发码 type）；
+	// 落地后采用与 PhoneSecuritySheet 相同的单页 + Header 提交，本文件再增加邮箱入口。
 	const sections: MobileSettingsMenuSectionConfig[] = [
 		{
 			key: "account-security-contact",
