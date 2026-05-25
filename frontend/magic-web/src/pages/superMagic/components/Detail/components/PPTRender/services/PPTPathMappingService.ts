@@ -221,6 +221,23 @@ export class PPTPathMappingService {
 	}
 
 	/**
+	 * Get full workspace-relative path from a PPT-folder-relative path
+	 * Converts e.g. "slide-1.html" to "project/ppt_folder/slide-1.html"
+	 */
+	getFullRelativePath(path: string): string | undefined {
+		const mainFile = this.config.attachmentList?.find(
+			(item: any) => item.file_id === this.config.mainFileId,
+		)
+
+		if (!mainFile?.relative_file_path || !mainFile?.file_name) {
+			return undefined
+		}
+
+		const baseFolderPath = mainFile.relative_file_path.replace(mainFile.file_name, "")
+		return this.resolveRelativePath(baseFolderPath, path)
+	}
+
+	/**
 	 * Clear all mappings
 	 */
 	clear(): void {

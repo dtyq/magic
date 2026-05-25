@@ -67,6 +67,7 @@ export interface SortableSlideItemProps {
 	isMobile?: boolean
 	allowEdit?: boolean
 	slideFileId?: string
+	slideFullRelativePath?: string
 	onSlideDragStart?: (e: React.DragEvent, index: number) => void
 	onSlideDragOver?: (e: React.DragEvent, index: number) => void
 	onSlideDrop?: (e: React.DragEvent, index: number) => void

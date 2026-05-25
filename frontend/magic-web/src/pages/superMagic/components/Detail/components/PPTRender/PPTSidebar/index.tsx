@@ -372,9 +372,9 @@ function PPTSidebar({
 						"flex-1 p-2 [&_[data-slot='scroll-area-viewport']>div]:!flex [&_[data-slot='scroll-area-viewport']>div]:min-h-full",
 						isMobile
 							? // Mobile: horizontal scroll with gap spacing
-							"w-full [&_[data-slot='scroll-area-viewport']>div]:flex-row [&_[data-slot='scroll-area-viewport']>div]:gap-2 [&_[data-slot='scroll-area-viewport']>div]:overflow-x-auto"
+								"w-full [&_[data-slot='scroll-area-viewport']>div]:flex-row [&_[data-slot='scroll-area-viewport']>div]:gap-2 [&_[data-slot='scroll-area-viewport']>div]:overflow-x-auto"
 							: // Desktop: vertical scroll with column direction
-							"overflow-y-auto pr-3 [&_[data-slot='scroll-area-viewport']>div]:flex-col",
+								"overflow-y-auto pr-3 [&_[data-slot='scroll-area-viewport']>div]:flex-col",
 					)}
 				>
 					{hasNoSlides && (
@@ -414,6 +414,7 @@ function PPTSidebar({
 									totalSlides={items.length}
 									mainFileId={mainFileId}
 									slideFileId={store.getFileIdByPath(item.path)}
+									slideFullRelativePath={store.getFullRelativePath(item.path)}
 									scrollContainerRef={scrollContainerRef}
 									onInsertAbove={() => handleInsertSlide(item.index, "before")}
 									onInsertBelow={() => handleInsertSlide(item.index, "after")}
@@ -441,9 +442,9 @@ function PPTSidebar({
 									className={cn(
 										isMobile
 											? // Mobile: horizontal spacing (gap handled by parent)
-											"h-full"
+												"h-full"
 											: // Desktop: vertical spacing
-											"my-1 min-h-[120px]",
+												"my-1 min-h-[120px]",
 										idx === items.length - 1 && !isMobile && "mb-0",
 										isDragging && "opacity-50",
 									)}

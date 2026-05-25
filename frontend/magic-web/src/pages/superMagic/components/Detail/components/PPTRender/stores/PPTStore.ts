@@ -49,7 +49,7 @@ export interface PPTStoreConfig {
 	enableCache?: boolean
 }
 
-export interface PPTExportConfig extends PPTStoreConfig {}
+export interface PPTExportConfig extends PPTStoreConfig { }
 
 /**
  * PPTStore - Main store that coordinates all managers
@@ -444,6 +444,13 @@ export class PPTStore {
 	 */
 	getFileIdByPath(path: string): string | undefined {
 		return this.pathMappingService.getFileIdByPath(path)
+	}
+
+	/**
+	 * Get full workspace-relative path from a PPT-folder-relative path
+	 */
+	getFullRelativePath(path: string): string | undefined {
+		return this.pathMappingService.getFullRelativePath(path)
 	}
 
 	/**
