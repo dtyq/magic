@@ -276,8 +276,8 @@ export interface CanvasDesignRef {
 }
 
 export interface CanvasDesignProps {
-	/** 画布唯一标识，用于跨画布粘贴校验 */
-	id?: string
+	/** 设计项目 ID，用于隔离画布级缓存、SW 离线资源与跨画布粘贴校验 */
+	id: string
 	/** 是否为只读模式 */
 	readonly?: boolean
 	/** Magic 配置 */

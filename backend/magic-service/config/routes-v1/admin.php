@@ -123,6 +123,7 @@ Router::addGroup('/api/v1/admin', static function () {
     // 模型调用审计相关
     Router::addGroup('/model-audit-logs', static function () {
         Router::post('/list', [AdminOperationLogApi::class, 'listModelAudit']);
+        Router::post('/statistics', [AdminOperationLogApi::class, 'modelAuditStatistics']);
     }, ['middleware' => [RequestContextMiddleware::class]]);
 
     // 组织列表

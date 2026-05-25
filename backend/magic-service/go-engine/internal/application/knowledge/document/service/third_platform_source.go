@@ -47,12 +47,16 @@ func (s *DocumentAppService) resolveThirdPlatformSourceSnapshot(
 	ctx context.Context,
 	input *documentdomain.ThirdFileRevectorizeInput,
 	seed *documentdomain.ThirdFileRevectorizeSeed,
+	syncInput *documentdomain.SyncDocumentInput,
 ) (*documentdomain.ResolvedSourceSnapshot, error) {
 	if s == nil || input == nil || seed == nil || seed.SeedDocument == nil {
 		return emptyResolvedSourceSnapshot(), nil
 	}
-	if cached, ok := s.loadCachedResolvedSource(seed.SourceCacheKey); ok {
-		return cachedResolvedSourceToSnapshot(cached), nil
+	cacheKey, cacheEnabled := s.resolveThirdFileSourceCacheKey(ctx, seed.SourceCacheKey, syncInput)
+	if cacheEnabled {
+		if cached, ok := s.loadCachedResolvedSource(cacheKey); ok {
+			return cachedResolvedSourceToSnapshot(cached), nil
+		}
 	}
 	provider, err := s.thirdPlatformProviders.Provider(input.ThirdPlatformType)
 	if err != nil {
@@ -69,16 +73,18 @@ func (s *DocumentAppService) resolveThirdPlatformSourceSnapshot(
 		if s.thirdPlatformDocumentPort == nil {
 			return nil, fmt.Errorf("resolve third-platform latest content: %w", err)
 		}
-		return s.resolveThirdPlatformSourceSnapshotWithDocumentPort(ctx, input, seed)
+		return s.resolveThirdPlatformSourceSnapshotWithDocumentPort(ctx, input, seed, cacheKey, cacheEnabled)
 	}
 	if latest == nil {
-		return s.resolveThirdPlatformSourceSnapshotWithDocumentPort(ctx, input, seed)
+		return s.resolveThirdPlatformSourceSnapshotWithDocumentPort(ctx, input, seed, cacheKey, cacheEnabled)
 	}
 	snapshot, err := buildLatestContentSourceSnapshot(latest)
 	if err != nil {
 		return nil, err
 	}
-	s.storeResolvedSource(seed.SourceCacheKey, newCachedResolvedSource(snapshot))
+	if cacheEnabled {
+		s.storeResolvedSource(cacheKey, newCachedResolvedSource(snapshot))
+	}
 	return snapshot, nil
 }
 
@@ -86,6 +92,8 @@ func (s *DocumentAppService) resolveThirdPlatformSourceSnapshotWithDocumentPort(
 	ctx context.Context,
 	input *documentdomain.ThirdFileRevectorizeInput,
 	seed *documentdomain.ThirdFileRevectorizeSeed,
+	cacheKey string,
+	cacheEnabled bool,
 ) (*documentdomain.ResolvedSourceSnapshot, error) {
 	if s == nil || s.thirdPlatformDocumentPort == nil || input == nil || seed == nil || seed.SeedDocument == nil {
 		return emptyResolvedSourceSnapshot(), nil
@@ -106,8 +114,8 @@ func (s *DocumentAppService) resolveThirdPlatformSourceSnapshotWithDocumentPort(
 	if err != nil {
 		return nil, err
 	}
-	if snapshot != nil {
-		s.storeResolvedSource(seed.SourceCacheKey, newCachedResolvedSource(snapshot))
+	if snapshot != nil && cacheEnabled {
+		s.storeResolvedSource(cacheKey, newCachedResolvedSource(snapshot))
 	}
 	return snapshot, nil
 }

@@ -16,7 +16,7 @@ const (
 	defaultMaxTabularCells             int64 = 2_000_000
 	defaultMaxPlainTextChars           int64 = 20_000_000
 	defaultMaxParsedBlocks             int64 = 250_000
-	defaultMaxFragmentsPerDocument     int64 = 2_000
+	defaultMaxFragmentsPerDocument     int64 = 3_000
 	defaultMaxPDFPages                 int64 = 300
 	defaultMaxArchiveUncompressedBytes int64 = 256 * 1024 * 1024
 	defaultMaxArchiveEntryBytes        int64 = 64 * 1024 * 1024

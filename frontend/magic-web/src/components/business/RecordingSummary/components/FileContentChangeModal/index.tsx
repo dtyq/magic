@@ -37,21 +37,12 @@ function FileContentChangeModal() {
 	useEffect(() => {
 		return recordSummaryService.on(
 			RECORD_SUMMARY_EVENTS.FILE_CONTENT_CHANGE_CONFLICT,
-			({ currentContent, serverContent, onIgnore, onOverride, onUseMerge, onCancel }) => {
-				setSelectedType("merge")
-				setLoadingFalse()
-				setModalData({
-					currentContent,
-					serverContent,
-					onIgnore,
-					onOverride,
-					onUseMerge,
-					onCancel,
-				})
-				setOpen(true)
+			({ onIgnore }) => {
+				// 忽略服务端更新，以用户本地输入为主
+				onIgnore()
 			},
 		)
-	}, [recordSummaryService, setLoadingFalse])
+	}, [recordSummaryService])
 
 	const handleClose = useMemoizedFn(() => {
 		// Disable closing - user must select a version and confirm

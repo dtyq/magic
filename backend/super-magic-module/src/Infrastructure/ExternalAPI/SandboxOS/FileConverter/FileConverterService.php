@@ -27,19 +27,9 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
     {
         $requestData = $request->toArray();
         try {
-            // 使用网关的 ensureSandbox 方法，确保沙箱存在
-            $this->gateway->setUserContext($userId, $organizationCode);
-            $actualSandboxId = $this->gateway->ensureSandboxAvailable(
-                $sandboxId,
-                $projectId,
-                $workDir,
-                $request->getRootFileId(),
-                $request->getAuthorization()
-            );
-
-            // 然后直接代理请求到沙箱
+            // Sandbox must already be running (ensured by the App layer before calling convert)
             $result = $this->gateway->proxySandboxRequest(
-                $actualSandboxId,
+                $sandboxId,
                 'POST',
                 'api/file/converts',
                 $requestData
@@ -49,8 +39,7 @@ class FileConverterService extends AbstractSandboxOS implements FileConverterInt
 
             if ($response->isSuccess()) {
                 $this->logger->info('FileConverter Conversion successful', [
-                    'original_sandbox_id' => $sandboxId,
-                    'actual_sandbox_id' => $actualSandboxId,
+                    'sandbox_id' => $sandboxId,
                     'project_id' => $projectId,
                     'batch_id' => $response->getBatchId(),
                     'converted_files_count' => count($response->getConvertedFiles()),

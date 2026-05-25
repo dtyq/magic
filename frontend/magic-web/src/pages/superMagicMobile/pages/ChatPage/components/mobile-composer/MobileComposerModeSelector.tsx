@@ -406,30 +406,48 @@ function MobileComposerModeSelectorComponent({
 			>
 				{isClawVariant ? (
 					<div
-						className="relative h-7 w-[62px] shrink-0"
+						className="flex h-7 shrink-0 items-center gap-1"
 						data-testid="mobile-composer-claw-model-selector-stack"
 					>
-						{clawStackModels.length > 0 ? (
-							clawStackModels.slice(0, 3).map((model, index) => (
-								<div
-									key={model.model_id}
-									className="absolute top-1/2 flex h-[26px] w-[26px] -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-card"
-									style={{
-										left: index * 18,
-										zIndex: clawStackModels.length - index,
-										boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-									}}
-								>
+						{clawStackModels.length === 1 ? (
+							<>
+								<div className="flex h-[26px] w-[26px] shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-card shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
 									<ModelIcon
-										model={model}
+										model={clawStackModels[0]}
 										size={26}
 										className="shrink-0 rounded-full"
 									/>
 								</div>
-							))
+								<span className="max-w-[80px] truncate text-md text-foreground">
+									{clawStackModels[0].model_name}
+								</span>
+							</>
+						) : clawStackModels.length > 1 ? (
+							<div
+								className="relative h-7 shrink-0"
+								style={{ width: (clawStackModels.length - 1) * 18 + 26 }}
+							>
+								{clawStackModels.slice(0, 3).map((model, index) => (
+									<div
+										key={model.model_id}
+										className="absolute top-1/2 flex h-[26px] w-[26px] -translate-y-1/2 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-card"
+										style={{
+											left: index * 18,
+											zIndex: clawStackModels.length - index,
+											boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+										}}
+									>
+										<ModelIcon
+											model={model}
+											size={26}
+											className="shrink-0 rounded-full"
+										/>
+									</div>
+								))}
+							</div>
 						) : (
 							<div
-								className="absolute left-0 top-1/2 flex h-[26px] w-[26px] -translate-y-1/2 items-center justify-center rounded-full border-2 border-background bg-card text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
+								className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full border-2 border-background bg-card text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.12)]"
 								data-testid="mobile-composer-claw-model-selector-fallback"
 							>
 								<MessageSquareText size={14} className="shrink-0" />

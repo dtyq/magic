@@ -1,4 +1,3 @@
-import { SuperMagicApi } from "@/apis"
 import { cloneDeep } from "lodash-es"
 import type { DesignData } from "../types"
 import type { DesignProjectStateBag, DesignProjectManagerOptions } from "./types"
@@ -260,35 +259,8 @@ export class DesignProjectManager implements DesignProjectManagerAPI {
 
 	async saveToRemote(): Promise<void> {
 		if (this.getIsReadOnly()) return
-		const fid = this.stateBag.getMagicProjectJsFileId()
-		if (!fid) return
-
-		const content = this.saveManager.generateContent(this.stateBag.getDesignData())
-		if (!content?.trim()) return
-
-		const saveToken = this.remoteListener?.beginLocalSave()
-		let didSave = false
-		let savedUpdatedAt: string | null = null
-		try {
-			const saveResponse = await SuperMagicApi.saveFileContent([
-				{ file_id: fid, content, enable_shadow: true },
-			])
-			didSave = true
-			savedUpdatedAt = saveResponse?.success_files?.[0]?.data?.updated_at ?? null
-
-			if (!this.options.isShareRoute) {
-				try {
-					const fileInfo = await SuperMagicApi.getFileInfo({ file_id: fid })
-					if (fileInfo?.version !== undefined) {
-						this.stateBag.setMagicProjectJsVersion(fileInfo.version)
-					}
-				} catch {
-					// ignore
-				}
-			}
-		} finally {
-			await this.remoteListener?.endLocalSave(saveToken, didSave, savedUpdatedAt)
-		}
+		this.stateBag.setters.setIsSaving(true)
+		await this.saveManager.commitSave()
 	}
 
 	generateContent(data?: DesignData): string {

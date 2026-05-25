@@ -36,7 +36,7 @@ readonly class SandboxVersionDomainService
      *
      * @return array{current_version: string, latest_version: string, needs_update: bool}
      */
-    public function checkSandboxVersion(int $topicId): array
+    public function checkSandboxVersion(int $topicId, bool $useCache = true): array
     {
         $topicEntity = $this->topicDomainService->getTopicById($topicId);
         if (! $topicEntity) {
@@ -50,7 +50,7 @@ readonly class SandboxVersionDomainService
 
         return $this->buildSandboxVersionResult(
             $topicEntity->getAgentImage() ?? '',
-            $this->getLatestAgentImageWithCache()
+            $this->getLatestAgentImage($useCache)
         );
     }
 
@@ -60,7 +60,7 @@ readonly class SandboxVersionDomainService
      * @param int[] $topicIds
      * @return array<int, bool> topicId => needUpgrade
      */
-    public function checkNeedUpgradeByTopicIds(array $topicIds): array
+    public function checkNeedUpgradeByTopicIds(array $topicIds, bool $useCache = true): array
     {
         $topicIds = array_values(array_unique(array_filter(
             array_map('intval', $topicIds),
@@ -75,7 +75,7 @@ readonly class SandboxVersionDomainService
             return [];
         }
 
-        $latestImage = $this->getLatestAgentImageWithCache();
+        $latestImage = $this->getLatestAgentImage($useCache);
         $needUpgradeMap = [];
         foreach ($topics as $topic) {
             // 沙箱尚未创建（无 sandbox_id）时不需要升级
@@ -122,18 +122,20 @@ readonly class SandboxVersionDomainService
     /**
      * Fetch latest agent image with a short-lived cache to reduce gateway pressure.
      */
-    private function getLatestAgentImageWithCache(): string
+    private function getLatestAgentImage(bool $useCache): string
     {
-        try {
-            $cachedImage = $this->cache->get(self::CACHE_KEY_LATEST_AGENT_IMAGE);
-            if (is_string($cachedImage)) {
-                return $cachedImage;
+        if ($useCache) {
+            try {
+                $cachedImage = $this->cache->get(self::CACHE_KEY_LATEST_AGENT_IMAGE);
+                if (is_string($cachedImage)) {
+                    return $cachedImage;
+                }
+            } catch (Throwable $e) {
+                $this->logger->warning('[Sandbox][Domain] Failed to read latest agent image cache', [
+                    'cache_key' => self::CACHE_KEY_LATEST_AGENT_IMAGE,
+                    'error' => $e->getMessage(),
+                ]);
             }
-        } catch (Throwable $e) {
-            $this->logger->warning('[Sandbox][Domain] Failed to read latest agent image cache', [
-                'cache_key' => self::CACHE_KEY_LATEST_AGENT_IMAGE,
-                'error' => $e->getMessage(),
-            ]);
         }
 
         $latestImage = $this->agentDomainService->getLatestAgentImage();
@@ -155,15 +157,22 @@ readonly class SandboxVersionDomainService
     }
 
     /**
-     * 从镜像字符串中提取版本号（冒号后面的部分）.
-     * 例如：registry.example.com/agent:v1.2.3 → v1.2.3.
+     * 从镜像字符串中提取 tag 版本号.
+     * 例如：registry.example.com/agent:v1.2.3@sha256:xxx → v1.2.3.
      */
     private static function extractImageVersion(string $image): string
     {
         if (empty($image)) {
             return '';
         }
-        $pos = strrpos($image, ':');
-        return $pos !== false ? substr($image, $pos + 1) : '';
+
+        $imageWithoutDigest = explode('@', $image, 2)[0];
+        $lastSlashPos = strrpos($imageWithoutDigest, '/');
+        $tagPos = strrpos($imageWithoutDigest, ':');
+        if ($tagPos === false || ($lastSlashPos !== false && $tagPos < $lastSlashPos)) {
+            return '';
+        }
+
+        return substr($imageWithoutDigest, $tagPos + 1);
     }
 }

@@ -1,6 +1,6 @@
 import { ArrowLeftRight, LoaderCircle, X } from "lucide-react"
-import type { CSSProperties, PointerEvent, ReactNode, RefCallback } from "react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { CSSProperties, ForwardedRef, PointerEvent, ReactNode, RefCallback } from "react"
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useCanvasDesignI18n } from "../../context/I18nContext"
 import EditorModelSelect from "../GenerateEditor/EditorModelSelect"
 import type { VideoEditorConfig, VideoReferenceAssetKind } from "./video-editor-config.types"
@@ -59,7 +59,10 @@ interface VideoEditorEmptyReferenceSlotPopoverProps {
 	onProjectSelectPanelOpenChange: (open: boolean) => void
 }
 
-function VideoEditorReferenceSlotPopover(props: VideoEditorEmptyReferenceSlotPopoverProps) {
+const VideoEditorReferenceSlotPopover = forwardRef<
+	HTMLDivElement,
+	VideoEditorEmptyReferenceSlotPopoverProps
+>(function VideoEditorReferenceSlotPopover(props, forwardedRef) {
 	const {
 		inputTab,
 		option,
@@ -87,13 +90,21 @@ function VideoEditorReferenceSlotPopover(props: VideoEditorEmptyReferenceSlotPop
 		slotRootRef,
 	} = props
 
+	const handleSlotRootRef = useCallback(
+		(node: HTMLDivElement | null) => {
+			slotRootRef?.(node)
+			assignForwardedRef(forwardedRef, node)
+		},
+		[forwardedRef, slotRootRef],
+	)
+
 	return (
 		<ReferenceResourceSlotPopover
 			className={className}
 			style={style}
 			content={content}
 			slotKey={slotKey}
-			slotRootRef={slotRootRef}
+			slotRootRef={handleSlotRootRef}
 			isPopoverOpen={isPopoverOpen}
 			selectedSlotKey={selectedResourceSlotKey}
 			onActivateSlot={() =>
@@ -117,6 +128,15 @@ function VideoEditorReferenceSlotPopover(props: VideoEditorEmptyReferenceSlotPop
 			onProjectSelectPanelOpenChange={onProjectSelectPanelOpenChange}
 		/>
 	)
+})
+
+function assignForwardedRef<T>(ref: ForwardedRef<T>, value: T | null) {
+	if (!ref) return
+	if (typeof ref === "function") {
+		ref(value)
+		return
+	}
+	ref.current = value
 }
 
 /** 视频编辑器底部工具区：模型、输入 Tab、参考图与发送区 */

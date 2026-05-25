@@ -86,6 +86,16 @@ SET provider = ?,
     updated_at = ?
 WHERE id = ?;
 
+-- name: UpdateKnowledgeSourceBindingsSyncModeRealtimeByIDs :execrows
+-- flow 向量知识库没有实时同步开关；third-file 回调会先筛出本次涉及的 flow Teamshare 历史 manual binding，
+-- 再用这个 SQL 批量修成 realtime。筛选产品线在 Go 领域策略里完成，这里只按 id 做简单更新。
+UPDATE knowledge_source_bindings
+SET sync_mode = 'realtime',
+    updated_at = ?
+WHERE id IN (sqlc.slice(ids))
+  AND enabled = TRUE
+  AND sync_mode <> 'realtime';
+
 -- name: UpsertKnowledgeSourceBinding :execrows
 INSERT INTO knowledge_source_bindings (
     organization_code, knowledge_base_code, provider, root_type, root_ref, sync_mode, sync_config,
@@ -212,6 +222,18 @@ WHERE organization_code = ?
   AND root_type = 'project'
   AND root_ref = ?
   AND sync_mode = 'realtime'
+  AND enabled = TRUE
+ORDER BY id ASC;
+
+-- name: ListTeamshareSourceBindingsCoreByKnowledgeBase :many
+-- 这个查询用于 third-file 回调的历史修正候选收集，故意不加 sync_mode='realtime'；
+-- 真正是否能被修正为 realtime 要看 knowledge_base_type，不能把数字员工 manual 误改。
+SELECT knowledge_source_bindings.*
+FROM knowledge_source_bindings
+WHERE organization_code = ?
+  AND provider = ?
+  AND root_type = 'knowledge_base'
+  AND root_ref = ?
   AND enabled = TRUE
 ORDER BY id ASC;
 

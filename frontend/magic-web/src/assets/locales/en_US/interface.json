@@ -1030,6 +1030,12 @@
 			"hightImageConverted": "High-Definition Image Converted",
 			"hightImageConverting": "AI high-definition conversion in progress {{num}}%",
 			"longPressCompare": "Long Press to Compare",
+			"mermaid": {
+				"copySvg": "Copy SVG",
+				"downloadPng": "Download PNG",
+				"downloadSvg": "Download SVG",
+				"fileName": "mermaid-diagram"
+			},
 			"navigateToMessage": "Locate the message",
 			"senderFiles": "File sent by {{username}}",
 			"senderImage": "Pictures sent by {{username}}",

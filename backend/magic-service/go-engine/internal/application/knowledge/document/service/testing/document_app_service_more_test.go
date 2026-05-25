@@ -831,7 +831,7 @@ func newInlineUpdateKnowledgeBaseReaderForTest() *knowledgeBaseReaderStub {
 	}
 }
 
-func TestDocumentAppServiceUpdateSchedulesSingleDocumentThirdPlatformResyncWithSourceOverride(t *testing.T) {
+func TestDocumentAppServiceUpdateSchedulesThirdPlatformResyncForBroadcastRedirect(t *testing.T) {
 	t.Parallel()
 
 	existing := &docentity.KnowledgeBaseDocument{
@@ -840,6 +840,7 @@ func TestDocumentAppServiceUpdateSchedulesSingleDocumentThirdPlatformResyncWithS
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		ThirdPlatformType: "teamshare",
 		ThirdFileID:       "FILE-1",
+		UpdatedUID:        "DOC-USER",
 		DocumentFile: &docentity.File{
 			Type:       "third_platform",
 			ThirdID:    "FILE-1",
@@ -849,13 +850,6 @@ func TestDocumentAppServiceUpdateSchedulesSingleDocumentThirdPlatformResyncWithS
 	domain := &documentDomainServiceStub{showByCodeAndKBResult: existing}
 	scheduler := &documentSyncSchedulerStub{}
 	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler)
-	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
-		result: newThirdPlatformRawContentResolveResult("latest source content"),
-	})
-	svc.SetParseServiceForTest(&documentParseServiceStub{})
-	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
-		platformType: "teamshare",
-	}))
 
 	_, err := svc.Update(context.Background(), &docdto.UpdateDocumentInput{
 		OrganizationCode:  "ORG1",
@@ -873,16 +867,45 @@ func TestDocumentAppServiceUpdateSchedulesSingleDocumentThirdPlatformResyncWithS
 		t.Fatalf("Update returned error: %v", err)
 	}
 	if scheduler.scheduleCalls != 1 {
-		t.Fatalf("expected single-document third-platform resync, got %#v", scheduler.inputs)
+		t.Fatalf("expected document update resync schedule, got %#v", scheduler.inputs)
 	}
 	if scheduler.inputs[0].Code != testDocumentCode || scheduler.inputs[0].KnowledgeBaseCode != testKnowledgeBaseCode {
 		t.Fatalf("unexpected scheduled target: %#v", scheduler.inputs[0])
 	}
-	if scheduler.inputs[0].SourceOverride == nil || scheduler.inputs[0].SourceOverride.Content != "latest source content" {
-		t.Fatalf("expected scheduled source override, got %#v", scheduler.inputs[0])
+	if scheduler.inputs[0].SourceOverride != nil {
+		t.Fatalf("expected document update not to pre-resolve source override, got %#v", scheduler.inputs[0].SourceOverride)
 	}
 	if scheduler.inputs[0].SingleDocumentThirdPlatformResync {
-		t.Fatalf("expected direct source override scheduling without redirect fallback, got %#v", scheduler.inputs[0])
+		t.Fatalf("expected document update to allow third-file broadcast redirect, got %#v", scheduler.inputs[0])
+	}
+	if scheduler.inputs[0].RevectorizeSource != documentdomain.RevectorizeSourceDocumentUpdate {
+		t.Fatalf("expected document update revectorize source, got %#v", scheduler.inputs[0])
+	}
+
+	initial := *scheduler.inputs[0]
+	other := newThirdFileMappedDocument("DOC2", "DOC2-USER")
+	other.KnowledgeBaseCode = "KB2"
+	domain.listRealtimeByThirdFileInOrgResult = []*docentity.KnowledgeBaseDocument{existing, other}
+	scheduler.inputs = nil
+	scheduler.scheduleCalls = 0
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
+
+	if err := svc.Sync(context.Background(), &initial); err != nil {
+		t.Fatalf("expected document update resync to redirect to third-file broadcast, got %v", err)
+	}
+	if scheduler.scheduleCalls != 2 {
+		t.Fatalf("expected document update redirect to fan out same third-file documents, got %#v", scheduler.inputs)
+	}
+	for _, input := range scheduler.inputs {
+		if input.SourceOverride != nil {
+			t.Fatalf("expected fan-out task not to carry source override, got %#v", input.SourceOverride)
+		}
+		if input.RevectorizeSource != documentdomain.RevectorizeSourceThirdFileBroadcast || !input.SingleDocumentThirdPlatformResync {
+			t.Fatalf("expected fan-out task to be fixed third-file document sync, got %#v", input)
+		}
 	}
 }
 
@@ -1072,6 +1095,7 @@ func assertDocumentSyncUsesKnowledgeBaseScope(t *testing.T) {
 	syncSvc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
+	syncSvc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 	if err := syncSvc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
 		OrganizationCode:  "ORG1",
 		KnowledgeBaseCode: testKnowledgeBaseCode,
@@ -1802,6 +1826,7 @@ func TestDocumentAppServiceReVectorizedByThirdFileIDSchedulesDocumentSyncTasks(t
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: platformType,
 	}))
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 
 	if err := svc.ReVectorizedByThirdFileID(context.Background(), &docdto.ReVectorizedByThirdFileIDInput{
 		OrganizationCode:  orgCode,
@@ -1827,10 +1852,11 @@ func TestDocumentAppServiceReVectorizedByThirdFileIDSkipsWithoutRealtimeDocument
 		hasRealtimeThirdFileDocumentSet:    true,
 		hasRealtimeThirdFileDocumentResult: false,
 	}, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 
 	if err := svc.ReVectorizedByThirdFileID(context.Background(), &docdto.ReVectorizedByThirdFileIDInput{
 		OrganizationCode:  "ORG1",
-		UserID:            "U1",
+		UserID:            "usi_callback",
 		ThirdPlatformType: "teamshare",
 		ThirdFileID:       "FILE-1",
 	}); err != nil {
@@ -1852,6 +1878,7 @@ func TestDocumentAppServiceReVectorizedByThirdFileIDSchedulesFromActualRealtimeD
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 
 	if err := svc.ReVectorizedByThirdFileID(context.Background(), &docdto.ReVectorizedByThirdFileIDInput{
 		OrganizationCode:  "ORG1",
@@ -1989,6 +2016,7 @@ func TestDocumentAppServiceSyncRedirectsThirdPlatformResyncToThirdFileFlow(t *te
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 
 	err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
 		OrganizationCode:  "ORG1",
@@ -2027,6 +2055,10 @@ func TestDocumentAppServiceSyncThirdPlatformResyncSchedulesFanoutEvenWhenInputSy
 	}
 	scheduler := &documentSyncSchedulerStub{}
 	fragmentSvc := &fragmentDestroyServiceStub{}
+	resolver := &thirdPlatformResolverStub{
+		result:     newThirdPlatformRawContentResolveResult("new content"),
+		nodeResult: newThirdFileNodeResolveResult(),
+	}
 	svc := appservice.NewDocumentAppServiceForTest(
 		t,
 		domain,
@@ -2041,9 +2073,7 @@ func TestDocumentAppServiceSyncThirdPlatformResyncSchedulesFanoutEvenWhenInputSy
 		scheduler,
 		fragmentSvc,
 	)
-	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
-		result: newThirdPlatformRawContentResolveResult("new content"),
-	})
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
 	svc.SetParseServiceForTest(&documentParseServiceStub{})
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
@@ -2096,6 +2126,9 @@ func TestDocumentAppServiceSyncSingleDocumentManualDoesNotFanoutByThirdFile(t *t
 	}
 	scheduler := &documentSyncSchedulerStub{}
 	fragmentSvc := &fragmentDestroyServiceStub{}
+	resolver := &thirdPlatformResolverStub{
+		result: newThirdPlatformRawContentResolveResult("new content"),
+	}
 	svc := appservice.NewDocumentAppServiceForTest(
 		t,
 		domain,
@@ -2110,9 +2143,7 @@ func TestDocumentAppServiceSyncSingleDocumentManualDoesNotFanoutByThirdFile(t *t
 		scheduler,
 		fragmentSvc,
 	)
-	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{
-		result: newThirdPlatformRawContentResolveResult("new content"),
-	})
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
 	svc.SetParseServiceForTest(&documentParseServiceStub{})
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
@@ -2148,6 +2179,320 @@ func TestDocumentAppServiceSyncSingleDocumentManualDoesNotFanoutByThirdFile(t *t
 	}
 }
 
+func TestDocumentAppServiceSingleDocumentManualBypassesLocalSourceCache(t *testing.T) {
+	t.Parallel()
+
+	svc, resolver, fragmentSvc := newThirdFileSingleDocumentCacheTestService(t, "old manual content")
+	err := svc.Sync(context.Background(), fixedThirdFileSyncInput(documentdomain.RevectorizeSourceSingleDocumentManual))
+	if err != nil {
+		t.Fatalf("expected first manual sync to succeed, got %v", err)
+	}
+	resolver.result = newThirdPlatformRawContentResolveResult("fresh manual content")
+	err = svc.Sync(context.Background(), fixedThirdFileSyncInput(documentdomain.RevectorizeSourceSingleDocumentManual))
+	if err != nil {
+		t.Fatalf("expected second manual sync to succeed, got %v", err)
+	}
+	if resolver.resolveCalls != 2 {
+		t.Fatalf("expected single_document_manual to bypass local source cache, got %d resolves", resolver.resolveCalls)
+	}
+	if len(fragmentSvc.lastSyncedFragments) == 0 || !strings.Contains(fragmentSvc.lastSyncedFragments[0].Content, "fresh manual content") {
+		t.Fatalf("expected second manual sync to use fresh source, got %#v", fragmentSvc.lastSyncedFragments)
+	}
+}
+
+func fixedThirdFileSyncInput(source string) *documentdomain.SyncDocumentInput {
+	return &documentdomain.SyncDocumentInput{
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		Code:              testDocumentCode,
+		Mode:              documentdomain.SyncModeResync,
+		Async:             false,
+		RevectorizeSource: source,
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: "ORG1",
+			UserID:           "U1",
+			BusinessID:       testKnowledgeBaseCode,
+		},
+	}
+}
+
+func newThirdFileSingleDocumentCacheTestService(
+	t *testing.T,
+	content string,
+) (*appservice.DocumentAppService, *thirdPlatformResolverStub, *fragmentDestroyServiceStub) {
+	t.Helper()
+
+	doc := newThirdFileMappedDocument(testDocumentCode, "U1")
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	fragmentSvc := &fragmentDestroyServiceStub{}
+	resolver := &thirdPlatformResolverStub{result: newThirdPlatformRawContentResolveResult(content)}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{routeCollection: "collection"},
+		nil,
+		fragmentSvc,
+	)
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
+	svc.SetParseServiceForTest(&documentParseServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{platformType: "teamshare"}))
+	return svc, resolver, fragmentSvc
+}
+
+func TestDocumentAppServiceDocumentUpdateRedirectUsesVersionedThirdFileFanoutCache(t *testing.T) {
+	t.Parallel()
+
+	doc := newThirdFileMappedDocument(testDocumentCode, "U1")
+	domain := &documentDomainServiceStub{
+		showByCodeAndKBResult: doc,
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	fragmentSvc := &fragmentDestroyServiceStub{}
+	resolver := &thirdPlatformResolverStub{
+		result:     newThirdPlatformRawContentResolveResult("old cached content"),
+		nodeResult: newThirdFileNodeResolveResult(),
+	}
+	versionStore := &thirdFileSourceCacheVersionStoreStub{version: "v1", found: true}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{routeCollection: "collection"},
+		scheduler,
+		fragmentSvc,
+	)
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
+	svc.SetParseServiceForTest(&documentParseServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
+		platformType: "teamshare",
+	}))
+	svc.SetThirdFileSourceCacheVersionStore(versionStore)
+
+	if err := svc.Sync(context.Background(), thirdFileBroadcastSyncInput()); err != nil {
+		t.Fatalf("expected initial third-file sync to cache source by version, got %v", err)
+	}
+	if resolver.resolveCalls != 1 {
+		t.Fatalf("expected initial sync to resolve latest source once, got %d", resolver.resolveCalls)
+	}
+
+	resolver.result = newThirdPlatformRawContentResolveResult("fresh third-file content")
+	domain.listRealtimeByThirdFileInOrgResult = []*docentity.KnowledgeBaseDocument{domain.showByCodeAndKBResult}
+	scheduler.inputs = nil
+	scheduler.scheduleCalls = 0
+	versionStore.bumpVersion = "v2"
+
+	if err := svc.Sync(context.Background(), &documentdomain.SyncDocumentInput{
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		Code:              testDocumentCode,
+		Mode:              documentdomain.SyncModeResync,
+		RevectorizeSource: documentdomain.RevectorizeSourceDocumentUpdate,
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: "ORG1",
+			UserID:           "U1",
+			BusinessID:       testKnowledgeBaseCode,
+		},
+	}); err != nil {
+		t.Fatalf("expected document update sync to redirect to third-file fan-out, got %v", err)
+	}
+	if scheduler.scheduleCalls != 1 {
+		t.Fatalf("expected one fan-out task after document update, got %#v", scheduler.inputs)
+	}
+	if got := scheduler.inputs[0]; got.ThirdFileSourceCacheVersion != "v2" || got.SkipThirdFileSourceCache {
+		t.Fatalf("expected document update fan-out to carry fresh cache version, got %#v", got)
+	}
+	if err := svc.Sync(context.Background(), scheduler.inputs[0]); err != nil {
+		t.Fatalf("expected fan-out sync to use fresh source, got %v", err)
+	}
+	if resolver.resolveCalls != 2 {
+		t.Fatalf("expected document update fan-out to use new Redis version and resolve again, got %d", resolver.resolveCalls)
+	}
+	if len(fragmentSvc.lastSyncedFragments) == 0 || !strings.Contains(fragmentSvc.lastSyncedFragments[0].Content, "fresh third-file content") {
+		t.Fatalf("expected latest content fragments after document update, got %#v", fragmentSvc.lastSyncedFragments)
+	}
+}
+
+func TestDocumentAppServiceTeamshareKnowledgeStartVectorBypassesLocalSourceCache(t *testing.T) {
+	t.Parallel()
+
+	doc := newThirdFileMappedDocument(testDocumentCode, "U1")
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	fragmentSvc := &fragmentDestroyServiceStub{}
+	resolver := &thirdPlatformResolverStub{result: newThirdPlatformRawContentResolveResult("old start-vector source")}
+	versionStore := &thirdFileSourceCacheVersionStoreStub{version: "v1", found: true}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{routeCollection: "collection"},
+		nil,
+		fragmentSvc,
+	)
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
+	svc.SetParseServiceForTest(&documentParseServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{platformType: "teamshare"}))
+	svc.SetThirdFileSourceCacheVersionStore(versionStore)
+
+	newInput := func() *documentdomain.SyncDocumentInput {
+		return &documentdomain.SyncDocumentInput{
+			OrganizationCode:                  "ORG1",
+			KnowledgeBaseCode:                 testKnowledgeBaseCode,
+			Code:                              testDocumentCode,
+			Mode:                              documentdomain.SyncModeResync,
+			RevectorizeSource:                 documentdomain.RevectorizeSourceTeamshareKnowledgeStartVector,
+			ThirdFileSourceCacheVersion:       "v1",
+			SingleDocumentThirdPlatformResync: false,
+			BusinessParams: &ctxmeta.BusinessParams{
+				OrganizationCode: "ORG1",
+				UserID:           "U1",
+				BusinessID:       testKnowledgeBaseCode,
+			},
+		}
+	}
+
+	if err := svc.Sync(context.Background(), newInput()); err != nil {
+		t.Fatalf("first start-vector sync failed: %v", err)
+	}
+	resolver.result = newThirdPlatformRawContentResolveResult("fresh start-vector source")
+	if err := svc.Sync(context.Background(), newInput()); err != nil {
+		t.Fatalf("second start-vector sync failed: %v", err)
+	}
+	if resolver.resolveCalls != 2 {
+		t.Fatalf("expected start-vector fixed scope to bypass local source cache, got %d resolves", resolver.resolveCalls)
+	}
+	if len(fragmentSvc.lastSyncedFragments) == 0 || !strings.Contains(fragmentSvc.lastSyncedFragments[0].Content, "fresh start-vector source") {
+		t.Fatalf("expected start-vector to use fresh source, got %#v", fragmentSvc.lastSyncedFragments)
+	}
+}
+
+func TestDocumentAppServiceThirdFileBroadcastUsesRedisVersionedLocalCache(t *testing.T) {
+	t.Parallel()
+
+	doc := newThirdFileMappedDocument(testDocumentCode, "U1")
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	fragmentSvc := &fragmentDestroyServiceStub{}
+	resolver := &thirdPlatformResolverStub{result: newThirdPlatformRawContentResolveResult("old source")}
+	versionStore := &thirdFileSourceCacheVersionStoreStub{version: "v1", found: true}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{routeCollection: "collection"},
+		nil,
+		fragmentSvc,
+	)
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
+	svc.SetParseServiceForTest(&documentParseServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{platformType: "teamshare"}))
+	svc.SetThirdFileSourceCacheVersionStore(versionStore)
+
+	firstInput := thirdFileBroadcastSyncInput()
+	if err := svc.Sync(context.Background(), firstInput); err != nil {
+		t.Fatalf("first sync failed: %v", err)
+	}
+	if resolver.resolveCalls != 1 {
+		t.Fatalf("expected first version to resolve once, got %d", resolver.resolveCalls)
+	}
+
+	resolver.result = newThirdPlatformRawContentResolveResult("fresh source")
+	if err := svc.Sync(context.Background(), thirdFileBroadcastSyncInput()); err != nil {
+		t.Fatalf("second sync failed: %v", err)
+	}
+	if resolver.resolveCalls != 1 {
+		t.Fatalf("expected same Redis version to reuse local source cache, got %d resolves", resolver.resolveCalls)
+	}
+	if len(fragmentSvc.lastSyncedFragments) == 0 || !strings.Contains(fragmentSvc.lastSyncedFragments[0].Content, "old source") {
+		t.Fatalf("expected same version to keep cached source, got %#v", fragmentSvc.lastSyncedFragments)
+	}
+
+	versionStore.version = "v2"
+	if err := svc.Sync(context.Background(), thirdFileBroadcastSyncInput()); err != nil {
+		t.Fatalf("third sync failed: %v", err)
+	}
+	if resolver.resolveCalls != 2 {
+		t.Fatalf("expected Redis current version to force fresh resolve, got %d resolves", resolver.resolveCalls)
+	}
+	if len(fragmentSvc.lastSyncedFragments) == 0 || !strings.Contains(fragmentSvc.lastSyncedFragments[0].Content, "fresh source") {
+		t.Fatalf("expected new Redis version to use fresh source, got %#v", fragmentSvc.lastSyncedFragments)
+	}
+}
+
+func TestDocumentAppServiceThirdFileBroadcastBypassesCacheWhenRedisVersionUnavailable(t *testing.T) {
+	t.Parallel()
+
+	doc := newThirdFileMappedDocument(testDocumentCode, "U1")
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	resolver := &thirdPlatformResolverStub{result: newThirdPlatformRawContentResolveResult("old source")}
+	versionStore := &thirdFileSourceCacheVersionStoreStub{getErr: errDocumentShowFailed}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{routeCollection: "collection"},
+		nil,
+		&fragmentDestroyServiceStub{},
+	)
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
+	svc.SetParseServiceForTest(&documentParseServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{platformType: "teamshare"}))
+	svc.SetThirdFileSourceCacheVersionStore(versionStore)
+
+	if err := svc.Sync(context.Background(), thirdFileBroadcastSyncInput()); err != nil {
+		t.Fatalf("first sync failed: %v", err)
+	}
+	resolver.result = newThirdPlatformRawContentResolveResult("fresh source")
+	if err := svc.Sync(context.Background(), thirdFileBroadcastSyncInput()); err != nil {
+		t.Fatalf("second sync failed: %v", err)
+	}
+	if resolver.resolveCalls != 2 {
+		t.Fatalf("expected Redis error to bypass local source cache, got %d resolves", resolver.resolveCalls)
+	}
+}
+
+func TestDocumentAppServiceThirdFileBroadcastBypassesCacheWhenRedisVersionMissing(t *testing.T) {
+	t.Parallel()
+
+	doc := newThirdFileMappedDocument(testDocumentCode, "U1")
+	domain := &documentDomainServiceStub{showByCodeAndKBResult: doc}
+	resolver := &thirdPlatformResolverStub{result: newThirdPlatformRawContentResolveResult("old source")}
+	versionStore := &thirdFileSourceCacheVersionStoreStub{}
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{routeCollection: "collection"},
+		nil,
+		&fragmentDestroyServiceStub{},
+	)
+	svc.SetThirdPlatformDocumentPortForTest(resolver)
+	svc.SetParseServiceForTest(&documentParseServiceStub{})
+	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{platformType: "teamshare"}))
+	svc.SetThirdFileSourceCacheVersionStore(versionStore)
+
+	if err := svc.Sync(context.Background(), thirdFileBroadcastSyncInput()); err != nil {
+		t.Fatalf("first sync failed: %v", err)
+	}
+	resolver.result = newThirdPlatformRawContentResolveResult("fresh source")
+	if err := svc.Sync(context.Background(), thirdFileBroadcastSyncInput()); err != nil {
+		t.Fatalf("second sync failed: %v", err)
+	}
+	if resolver.resolveCalls != 2 {
+		t.Fatalf("expected Redis miss to bypass local source cache, got %d resolves", resolver.resolveCalls)
+	}
+}
+
+func thirdFileBroadcastSyncInput() *documentdomain.SyncDocumentInput {
+	return &documentdomain.SyncDocumentInput{
+		OrganizationCode:                  "ORG1",
+		KnowledgeBaseCode:                 testKnowledgeBaseCode,
+		Code:                              testDocumentCode,
+		Mode:                              documentdomain.SyncModeResync,
+		RevectorizeSource:                 documentdomain.RevectorizeSourceThirdFileBroadcast,
+		SingleDocumentThirdPlatformResync: true,
+		ThirdFileSourceCacheVersion:       "v1",
+		BusinessParams: &ctxmeta.BusinessParams{
+			OrganizationCode: "ORG1",
+			UserID:           "U1",
+			BusinessID:       testKnowledgeBaseCode,
+		},
+	}
+}
+
 func newThirdFileMappedDocument(code, updatedUID string) *docentity.KnowledgeBaseDocument {
 	return &docentity.KnowledgeBaseDocument{
 		Code:              code,
@@ -2175,10 +2520,13 @@ func TestDocumentAppServiceRunThirdFileRevectorizeSchedulesSingleMappedDocument(
 		},
 	}
 	scheduler := &documentSyncSchedulerStub{}
+	versionStore := &thirdFileSourceCacheVersionStoreStub{bumpVersion: "v1"}
 	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
+	svc.SetThirdFileSourceCacheVersionStore(versionStore)
 
 	err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
 		OrganizationCode:              "ORG1",
@@ -2197,12 +2545,18 @@ func TestDocumentAppServiceRunThirdFileRevectorizeSchedulesSingleMappedDocument(
 		t.Fatalf("expected 1 schedule call, got %d", scheduler.scheduleCalls)
 	}
 	assertScheduledThirdFileRevectorizeInput(t, scheduler)
+	if versionStore.bumpCalls != 1 {
+		t.Fatalf("expected third-file fan-out to bump source cache version once, got %d", versionStore.bumpCalls)
+	}
+	if got := scheduler.inputs[0]; got.ThirdFileSourceCacheVersion != "v1" || got.SkipThirdFileSourceCache {
+		t.Fatalf("expected fan-out task to carry source cache version, got %#v", got)
+	}
 }
 
 func TestDocumentAppServiceRunThirdFileRevectorizeSelfHealsMagicIDUser(t *testing.T) {
 	t.Parallel()
 
-	const resolvedUserID = "user_a"
+	const resolvedUserID = "usi_user_a"
 
 	domain := &documentDomainServiceStub{
 		listByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{
@@ -2217,10 +2571,17 @@ func TestDocumentAppServiceRunThirdFileRevectorizeSelfHealsMagicIDUser(t *testin
 		},
 	}
 	scheduler := &documentSyncSchedulerStub{}
-	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{listResult: []*kbentity.KnowledgeBase{newTeamshareReadUserKnowledgeBase("magic-1", "")}},
+		scheduler,
+		&fragmentDestroyServiceStub{},
+	)
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 	svc.SetUserService(contactuserdomain.NewDomainService(&contactUserRepositoryStub{
 		usersByMagicID: map[string][]contactuserdomain.User{
 			"magic-1": {
@@ -2271,6 +2632,7 @@ func TestDocumentAppServiceRunThirdFileRevectorizeSkipsMissingReadUser(t *testin
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 	svc.SetUserService(contactuserdomain.NewDomainService(&contactUserRepositoryStub{}))
 
 	err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
@@ -2278,8 +2640,8 @@ func TestDocumentAppServiceRunThirdFileRevectorizeSkipsMissingReadUser(t *testin
 		ThirdPlatformType: "teamshare",
 		ThirdFileID:       "FILE-1",
 	})
-	if err != nil {
-		t.Fatalf("expected stale uid document to be skipped, got %v", err)
+	if err == nil {
+		t.Fatal("expected missing knowledge read user to fail before ResolveNode, got nil")
 	}
 	if scheduler.scheduleCalls != 0 {
 		t.Fatalf("expected missing read user document not to schedule sync, got %#v", scheduler.inputs)
@@ -2305,17 +2667,33 @@ func TestDocumentAppServiceRunThirdFileRevectorizeSkipsOnlyMissingReadUser(t *te
 				OrganizationCode:  "ORG1",
 				ThirdPlatformType: "teamshare",
 				ThirdFileID:       "FILE-1",
-				UpdatedUID:        "user-1",
+				UpdatedUID:        "usi_user_1",
 			},
 		},
 	}
 	scheduler := &documentSyncSchedulerStub{}
-	svc := appservice.NewDocumentAppServiceForTest(t, domain, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	svc := appservice.NewDocumentAppServiceForTest(
+		t,
+		domain,
+		&knowledgeBaseReaderStub{listResult: []*kbentity.KnowledgeBase{
+			newTeamshareReadUserKnowledgeBase("old-app-id", ""),
+			{
+				Code:             "KB2",
+				Enabled:          true,
+				Model:            "text-embedding-3-small",
+				OrganizationCode: "ORG1",
+				UpdatedUID:       "usi_user_1",
+			},
+		}},
+		scheduler,
+		&fragmentDestroyServiceStub{},
+	)
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 	svc.SetUserService(contactuserdomain.NewDomainService(&contactUserRepositoryStub{
-		activeUsers: map[string]struct{}{"user-1": {}},
+		activeUsers: map[string]struct{}{"usi_user_1": {}},
 	}))
 
 	err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
@@ -2330,7 +2708,7 @@ func TestDocumentAppServiceRunThirdFileRevectorizeSkipsOnlyMissingReadUser(t *te
 		t.Fatalf("expected only valid document to schedule sync, got %#v", scheduler.inputs)
 	}
 	got := scheduler.inputs[0]
-	if got.Code != "DOC-GOOD" || got.KnowledgeBaseCode != "KB2" || got.BusinessParams == nil || got.BusinessParams.UserID != "user-1" {
+	if got.Code != "DOC-GOOD" || got.KnowledgeBaseCode != "KB2" || got.BusinessParams == nil || got.BusinessParams.UserID != "usi_user_1" {
 		t.Fatalf("unexpected scheduled sync input: %#v", got)
 	}
 }
@@ -2355,6 +2733,7 @@ func TestDocumentAppServiceRunThirdFileRevectorizeKeepsUserLookupErrorsRetryable
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
+	svc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 	svc.SetUserService(contactuserdomain.NewDomainService(&contactUserRepositoryStub{
 		listActiveUserIDsErr: errContactUserListFailed,
 	}))
@@ -2406,8 +2785,10 @@ func TestDocumentAppServiceRunThirdFileRevectorizeErrors(t *testing.T) {
 	scheduler := &documentSyncSchedulerStub{}
 
 	notFoundSvc := appservice.NewDocumentAppServiceForTest(t, &documentDomainServiceStub{}, &knowledgeBaseReaderStub{}, scheduler, &fragmentDestroyServiceStub{})
+	notFoundSvc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 	if err := notFoundSvc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
 		OrganizationCode:  "ORG1",
+		UserID:            "usi_callback",
 		ThirdPlatformType: "teamshare",
 		ThirdFileID:       "FILE-1",
 	}); err != nil {
@@ -2562,6 +2943,7 @@ func assertRunThirdFileRevectorizeFanOutSchedulesIndependentDocumentTasks(t *tes
 	documentErrSvc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: "teamshare",
 	}))
+	documentErrSvc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 	if err := documentErrSvc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
 		OrganizationCode:  "ORG1",
 		ThirdPlatformType: "teamshare",
@@ -2593,6 +2975,7 @@ func assertRunThirdFileRevectorizeReturnsUnsupportedPlatformError(t *testing.T, 
 		scheduler,
 		&fragmentDestroyServiceStub{},
 	)
+	unsupportedSvc.SetThirdPlatformDocumentPortForTest(&thirdPlatformResolverStub{nodeResult: newThirdFileNodeResolveResult()})
 	if err := unsupportedSvc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
 		OrganizationCode:  "ORG1",
 		ThirdPlatformType: "unknown",
@@ -3007,7 +3390,7 @@ func TestDocumentAppServiceReVectorizedByThirdFileIDAutoCreatesTeamshareBindings
 
 			if err := svc.ReVectorizedByThirdFileID(context.Background(), &docdto.ReVectorizedByThirdFileIDInput{
 				OrganizationCode:  "ORG1",
-				UserID:            "U1",
+				UserID:            "usi_callback",
 				ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
 				ThirdFileID:       "FILE-TS",
 				ThirdKnowledgeID:  "KB-TS",
@@ -3042,7 +3425,7 @@ func TestDocumentAppServiceReVectorizedByThirdFileIDSkipsTeamshareFolderOutsideB
 
 	if err := svc.ReVectorizedByThirdFileID(context.Background(), &docdto.ReVectorizedByThirdFileIDInput{
 		OrganizationCode:  "ORG1",
-		UserID:            "U1",
+		UserID:            "usi_callback",
 		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
 		ThirdFileID:       "FILE-TS",
 		ThirdKnowledgeID:  "KB-TS",
@@ -3081,7 +3464,7 @@ func TestDocumentAppServiceRunThirdFileRevectorizeResyncsExistingTeamshareDocume
 
 	if err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
 		OrganizationCode:  "ORG1",
-		UserID:            "U1",
+		UserID:            "usi_callback",
 		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
 		ThirdFileID:       "FILE-TS",
 		ThirdKnowledgeID:  "KB-TS",
@@ -3096,11 +3479,54 @@ func TestDocumentAppServiceRunThirdFileRevectorizeResyncsExistingTeamshareDocume
 	}
 }
 
-func TestDocumentAppServiceRunThirdFileRevectorizeDeletesTeamshareDocumentWhenMovedOut(t *testing.T) {
+func TestDocumentAppServiceRunThirdFileRevectorizeReturnsErrorWhenNodeIdentityMissing(t *testing.T) {
 	t.Parallel()
 
 	existing := &docentity.KnowledgeBaseDocument{
 		ID:                45,
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		SourceBindingID:   35,
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		UpdatedUID:        "DOC-USER",
+	}
+	domain := &documentDomainServiceStub{
+		listRealtimeByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	resolver := &thirdPlatformResolverStub{nodeErr: thirdplatform.ErrIdentityMissing}
+	svc := newTeamshareCallbackService(t, domain, scheduler, resolver, []sourcebindingdomain.Binding{
+		newRealtimeTeamshareBinding(35, nil),
+	})
+
+	err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		UserID:            "usi_callback",
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		ThirdKnowledgeID:  "KB-TS",
+	})
+	if !errors.Is(err, thirdplatform.ErrIdentityMissing) {
+		t.Fatalf("expected identity missing to stay retryable, got %v", err)
+	}
+	if resolver.nodeCalls != 1 {
+		t.Fatalf("expected node resolver to be attempted once, got %d", resolver.nodeCalls)
+	}
+	if len(domain.savedDocs) != 0 {
+		t.Fatalf("expected existing teamshare document not to be recreated, got %#v", domain.savedDocs)
+	}
+	if scheduler.scheduleCalls != 0 {
+		t.Fatalf("expected identity missing not to schedule degraded resync, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceRunThirdFileRevectorizeDeletesTeamshareDocumentWhenMovedOut(t *testing.T) {
+	t.Parallel()
+
+	existing := &docentity.KnowledgeBaseDocument{
+		ID:                46,
 		Code:              testDocumentCode,
 		KnowledgeBaseCode: testKnowledgeBaseCode,
 		OrganizationCode:  "ORG1",
@@ -3120,14 +3546,14 @@ func TestDocumentAppServiceRunThirdFileRevectorizeDeletesTeamshareDocumentWhenMo
 
 	if err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
 		OrganizationCode:  "ORG1",
-		UserID:            "U1",
+		UserID:            "usi_callback",
 		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
 		ThirdFileID:       "FILE-TS",
 		ThirdKnowledgeID:  "KB-TS",
 	}); err != nil {
 		t.Fatalf("RunThirdFileRevectorize returned error: %v", err)
 	}
-	if domain.deletedID != 45 {
+	if domain.deletedID != existing.ID {
 		t.Fatalf("expected moved-out teamshare document to be deleted, got %#v", domain)
 	}
 	if scheduler.scheduleCalls != 0 {
@@ -3159,7 +3585,7 @@ func TestDocumentAppServiceRunThirdFileRevectorizeDeletesTeamshareDocumentWhenUn
 
 	if err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
 		OrganizationCode:  "ORG1",
-		UserID:            "U1",
+		UserID:            "usi_callback",
 		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
 		ThirdFileID:       "FILE-TS",
 		ThirdKnowledgeID:  "KB-TS",
@@ -3171,6 +3597,137 @@ func TestDocumentAppServiceRunThirdFileRevectorizeDeletesTeamshareDocumentWhenUn
 	}
 	if scheduler.scheduleCalls != 0 {
 		t.Fatalf("expected unavailable document not to resync, got %#v", scheduler.inputs)
+	}
+}
+
+func TestDocumentAppServiceRunThirdFileRevectorizeUsesMagicKnowledgeUserForResolveNode(t *testing.T) {
+	t.Parallel()
+
+	cases := []thirdFileResolveNodeReadUserCase{
+		{
+			name:       "updated uid is active usi user",
+			updatedUID: "usi_updater",
+			createdUID: "usi_creator",
+			userRepo: &contactUserRepositoryStub{activeUsers: map[string]struct{}{
+				"usi_updater": {},
+				"usi_creator": {},
+			}},
+			wantUserID: "usi_updater",
+		},
+		{
+			name:       "dirty updated uid falls back to created usi user",
+			updatedUID: "2ujj-app-id",
+			createdUID: "usi_creator",
+			userRepo: &contactUserRepositoryStub{activeUsers: map[string]struct{}{
+				"usi_creator": {},
+			}},
+			wantUserID: "usi_creator",
+		},
+		{
+			name:       "dirty uids resolve by historical magic id",
+			updatedUID: "magic-updater",
+			createdUID: "magic-creator",
+			userRepo: &contactUserRepositoryStub{
+				usersByMagicID: map[string][]contactuserdomain.User{
+					"magic-updater": {{UserID: "usi_from_magic_updater"}},
+					"magic-creator": {{UserID: "usi_from_magic_creator"}},
+				},
+			},
+			wantUserID: "usi_from_magic_updater",
+		},
+		{
+			name:       "no valid magic user refuses app id",
+			updatedUID: "2ujj-app-id",
+			createdUID: "magic-missing",
+			userRepo:   &contactUserRepositoryStub{},
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assertThirdFileResolveNodeReadUserCase(t, tc)
+		})
+	}
+}
+
+type thirdFileResolveNodeReadUserCase struct {
+	name       string
+	updatedUID string
+	createdUID string
+	userRepo   *contactUserRepositoryStub
+	wantUserID string
+	wantErr    bool
+}
+
+func assertThirdFileResolveNodeReadUserCase(t *testing.T, tc thirdFileResolveNodeReadUserCase) {
+	t.Helper()
+
+	existing := &docentity.KnowledgeBaseDocument{
+		ID:                447,
+		Code:              testDocumentCode,
+		KnowledgeBaseCode: testKnowledgeBaseCode,
+		OrganizationCode:  "ORG1",
+		SourceBindingID:   47,
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		UpdatedUID:        "doc-dirty-user",
+	}
+	domain := &documentDomainServiceStub{
+		listByThirdFileInOrgResult:         []*docentity.KnowledgeBaseDocument{existing},
+		listRealtimeByThirdFileInOrgResult: []*docentity.KnowledgeBaseDocument{existing},
+	}
+	scheduler := &documentSyncSchedulerStub{}
+	resolver := &thirdPlatformResolverStub{nodeResult: newTeamshareNodeResolveResult("FOLDER-1")}
+	svc := newTeamshareCallbackServiceWithReadUsers(t, teamshareCallbackReadUserOptions{
+		domain:         domain,
+		scheduler:      scheduler,
+		resolver:       resolver,
+		bindings:       []sourcebindingdomain.Binding{newRealtimeTeamshareBinding(47, nil)},
+		knowledgeBases: []*kbentity.KnowledgeBase{newTeamshareReadUserKnowledgeBase(tc.updatedUID, tc.createdUID)},
+		userRepo:       tc.userRepo,
+	})
+
+	err := svc.RunThirdFileRevectorize(context.Background(), &documentdomain.ThirdFileRevectorizeInput{
+		OrganizationCode:  "ORG1",
+		UserID:            "2ujj-app-id",
+		ThirdPlatformType: sourcebindingdomain.ProviderTeamshare,
+		ThirdFileID:       "FILE-TS",
+		ThirdKnowledgeID:  "KB-TS",
+	})
+	if tc.wantErr {
+		assertThirdFileResolveNodeReadUserError(t, err, resolver)
+		return
+	}
+	if err != nil {
+		t.Fatalf("RunThirdFileRevectorize returned error: %v", err)
+	}
+	assertThirdFileResolveNodeReadUser(t, resolver, tc.wantUserID)
+}
+
+func assertThirdFileResolveNodeReadUserError(t *testing.T, err error, resolver *thirdPlatformResolverStub) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatal("expected read user error, got nil")
+	}
+	if resolver.nodeCalls != 0 || resolver.lastNodeInput != nil {
+		t.Fatalf("expected invalid read user not to call ResolveNode, got calls=%d input=%#v", resolver.nodeCalls, resolver.lastNodeInput)
+	}
+}
+
+func assertThirdFileResolveNodeReadUser(t *testing.T, resolver *thirdPlatformResolverStub, wantUserID string) {
+	t.Helper()
+
+	if resolver.lastNodeInput == nil {
+		t.Fatal("expected ResolveNode input to be captured")
+	}
+	if resolver.lastNodeInput.UserID != wantUserID {
+		t.Fatalf("expected ResolveNode user %q, got %#v", wantUserID, resolver.lastNodeInput)
+	}
+	if strings.HasPrefix(resolver.lastNodeInput.UserID, "2ujj") {
+		t.Fatalf("callback app id must not be passed to ResolveNode: %#v", resolver.lastNodeInput)
 	}
 }
 
@@ -3579,22 +4136,67 @@ func newTeamshareCallbackService(
 ) *appservice.DocumentAppService {
 	tb.Helper()
 
+	return newTeamshareCallbackServiceWithReadUsers(tb, teamshareCallbackReadUserOptions{
+		domain:         domain,
+		scheduler:      scheduler,
+		resolver:       resolver,
+		bindings:       bindings,
+		knowledgeBases: []*kbentity.KnowledgeBase{newTeamshareReadUserKnowledgeBase("usi_kb_updater", "usi_kb_creator")},
+		userRepo: &contactUserRepositoryStub{activeUsers: map[string]struct{}{
+			"usi_callback":   {},
+			"usi_kb_creator": {},
+			"usi_kb_updater": {},
+		}},
+	})
+}
+
+type teamshareCallbackReadUserOptions struct {
+	domain         *documentDomainServiceStub
+	scheduler      *documentSyncSchedulerStub
+	resolver       *thirdPlatformResolverStub
+	bindings       []sourcebindingdomain.Binding
+	knowledgeBases []*kbentity.KnowledgeBase
+	userRepo       *contactUserRepositoryStub
+}
+
+func newTeamshareCallbackServiceWithReadUsers(
+	tb testing.TB,
+	opts teamshareCallbackReadUserOptions,
+) *appservice.DocumentAppService {
+	tb.Helper()
 	kbReader := &knowledgeBaseReaderStub{
 		showByCodeAndOrgResult: &kbentity.KnowledgeBase{
 			Code:             testKnowledgeBaseCode,
 			Model:            "text-embedding-3-small",
 			VectorDB:         "odin_qdrant",
 			OrganizationCode: "ORG1",
+			CreatedUID:       "usi_kb_creator",
+			UpdatedUID:       "usi_kb_updater",
 		},
+		listResult:      opts.knowledgeBases,
+		listTotal:       int64(len(opts.knowledgeBases)),
 		routeCollection: "kb_custom",
 	}
-	svc := appservice.NewDocumentAppServiceForTest(tb, domain, kbReader, scheduler, &fragmentDestroyServiceStub{})
-	svc.SetSourceBindingRepository(&sourceBindingRepositoryStub{realtimeTeamshareBindings: bindings})
-	svc.SetThirdPlatformDocumentPortForTest(resolver)
+	svc := appservice.NewDocumentAppServiceForTest(tb, opts.domain, kbReader, opts.scheduler, &fragmentDestroyServiceStub{})
+	svc.SetUserService(contactuserdomain.NewDomainService(opts.userRepo))
+	svc.SetSourceBindingRepository(&sourceBindingRepositoryStub{realtimeTeamshareBindings: opts.bindings})
+	svc.SetThirdPlatformDocumentPortForTest(opts.resolver)
 	svc.SetThirdPlatformProviders(thirdplatformprovider.NewRegistry(&thirdPlatformProviderStub{
 		platformType: sourcebindingdomain.ProviderTeamshare,
 	}))
 	return svc
+}
+
+func newTeamshareReadUserKnowledgeBase(updatedUID, createdUID string) *kbentity.KnowledgeBase {
+	return &kbentity.KnowledgeBase{
+		Code:              testKnowledgeBaseCode,
+		Enabled:           true,
+		Model:             "text-embedding-3-small",
+		OrganizationCode:  "ORG1",
+		KnowledgeBaseType: kbentity.KnowledgeBaseTypeFlowVector,
+		CreatedUID:        createdUID,
+		UpdatedUID:        updatedUID,
+	}
 }
 
 func newRealtimeTeamshareBinding(
@@ -3610,7 +4212,7 @@ func newRealtimeTeamshareBinding(
 		RootRef:           "KB-TS",
 		SyncMode:          sourcebindingdomain.SyncModeRealtime,
 		Enabled:           true,
-		UpdatedUID:        "U1",
+		UpdatedUID:        "usi_callback",
 		Targets:           targets,
 	}
 }
@@ -3650,6 +4252,37 @@ func newTeamshareNodeResolveResult(parentID string) *thirdplatform.NodeResolveRe
 	}
 }
 
+func newThirdFileNodeResolveResult() *thirdplatform.NodeResolveResult {
+	const thirdFileID = "FILE-1"
+	return &thirdplatform.NodeResolveResult{
+		TreeNode: thirdplatform.TreeNode{
+			ID:              thirdFileID,
+			FileID:          thirdFileID,
+			KnowledgeBaseID: "KB-TS",
+			ThirdFileID:     thirdFileID,
+			ParentID:        "FOLDER-1",
+			Name:            "doc.md",
+			FileType:        "file",
+			Extension:       "md",
+			Path: []thirdplatform.PathNode{
+				{ID: "KB-TS", Name: "企业知识库", Type: sourcebindingdomain.RootTypeKnowledgeBase},
+				{ID: "FOLDER-1", Name: "folder", Type: sourcebindingdomain.TargetTypeFolder},
+				{ID: thirdFileID, Name: "doc.md", Type: sourcebindingdomain.TargetTypeFile},
+			},
+		},
+		DocumentFile: map[string]any{
+			"type":              "third_platform",
+			"name":              "doc.md",
+			"third_id":          thirdFileID,
+			"third_file_id":     thirdFileID,
+			"source_type":       sourcebindingdomain.ProviderTeamshare,
+			"platform_type":     sourcebindingdomain.ProviderTeamshare,
+			"knowledge_base_id": "KB-TS",
+			"extension":         "md",
+		},
+	}
+}
+
 type documentDomainServiceStub struct {
 	showResult                           *docentity.KnowledgeBaseDocument
 	showErr                              error
@@ -3664,6 +4297,10 @@ type documentDomainServiceStub struct {
 	listByProjectFileInOrgErr            error
 	listRealtimeByProjectFileInOrgResult []*docentity.KnowledgeBaseDocument
 	listRealtimeByProjectFileInOrgErr    error
+	listRealtimeByProjectFilesResult     []*docentity.KnowledgeBaseDocument
+	listRealtimeByProjectFilesErr        error
+	lastListProjectFileIDs               []int64
+	lastListSourceBindingIDs             []int64
 	hasRealtimeProjectFileDocumentSet    bool
 	hasRealtimeProjectFileDocumentResult bool
 	hasRealtimeProjectFileDocumentErr    error
@@ -3684,12 +4321,14 @@ type documentDomainServiceStub struct {
 	saveErr                              error
 	updateErr                            error
 	deleteErr                            error
+	deleteErrByID                        map[int64]error
 
 	lastListQuery               *docrepo.DocumentQuery
 	lastListByThirdFileOrg      string
 	lastListByThirdFilePlatform string
 	lastListByThirdFileID       string
 	deletedID                   int64
+	deletedIDs                  []int64
 	savedDocs                   []*docentity.KnowledgeBaseDocument
 	updateCalls                 int
 	lastUpdatedDoc              *docentity.KnowledgeBaseDocument
@@ -3885,6 +4524,26 @@ func (s *documentDomainServiceStub) ListRealtimeByProjectFileInOrg(context.Conte
 	return s.listByProjectFileInOrgResult, nil
 }
 
+func (s *documentDomainServiceStub) ListRealtimeByProjectFilesAndSourceBindingsInOrg(
+	_ context.Context,
+	_ string,
+	projectFileIDs []int64,
+	sourceBindingIDs []int64,
+) ([]*docentity.KnowledgeBaseDocument, error) {
+	s.lastListProjectFileIDs = slices.Clone(projectFileIDs)
+	s.lastListSourceBindingIDs = slices.Clone(sourceBindingIDs)
+	if s.listRealtimeByProjectFilesErr != nil {
+		return nil, s.listRealtimeByProjectFilesErr
+	}
+	if s.listRealtimeByProjectFilesResult != nil {
+		return s.listRealtimeByProjectFilesResult, nil
+	}
+	if s.listRealtimeByProjectFileInOrgResult != nil {
+		return s.listRealtimeByProjectFileInOrgResult, nil
+	}
+	return s.listByProjectFileInOrgResult, nil
+}
+
 func (s *documentDomainServiceStub) HasRealtimeProjectFileDocumentInOrg(ctx context.Context, _ string, _ int64) (bool, error) {
 	if s.hasRealtimeProjectFileDocumentErr != nil {
 		return false, s.hasRealtimeProjectFileDocumentErr
@@ -4003,6 +4662,10 @@ func (s *documentDomainServiceStub) CountByKnowledgeBaseCodes(context.Context, s
 
 func (s *documentDomainServiceStub) Delete(_ context.Context, id int64) error {
 	s.deletedID = id
+	s.deletedIDs = append(s.deletedIDs, id)
+	if s.deleteErrByID != nil && s.deleteErrByID[id] != nil {
+		return s.deleteErrByID[id]
+	}
 	return s.deleteErr
 }
 
@@ -4436,6 +5099,7 @@ type fragmentDestroyServiceStub struct {
 	destroyCalls                int
 	destroyBatchCalls           int
 	syncFragmentBatchCalls      int
+	lastSyncedFragments         []*fragmodel.KnowledgeBaseFragment
 	lastCollectionName          string
 	lastKnowledgeCode           string
 	lastDocumentCode            string
@@ -4479,8 +5143,14 @@ func (*fragmentDestroyServiceStub) ListExistingPointIDs(context.Context, string,
 	return map[string]struct{}{}, nil
 }
 
-func (s *fragmentDestroyServiceStub) SyncFragmentBatch(context.Context, *sharedsnapshot.KnowledgeBaseRuntimeSnapshot, []*fragmodel.KnowledgeBaseFragment, *ctxmeta.BusinessParams) error {
+func (s *fragmentDestroyServiceStub) SyncFragmentBatch(
+	_ context.Context,
+	_ *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
+	fragments []*fragmodel.KnowledgeBaseFragment,
+	_ *ctxmeta.BusinessParams,
+) error {
 	s.syncFragmentBatchCalls++
+	s.lastSyncedFragments = slices.Clone(fragments)
 	return nil
 }
 
@@ -4599,9 +5269,11 @@ func (s *knowledgeBaseReaderStub) List(_ context.Context, query *kbrepository.Qu
 		results := make([]*kbentity.KnowledgeBase, 0, len(query.Codes))
 		for _, code := range query.Codes {
 			results = append(results, &kbentity.KnowledgeBase{
-				Code:    strings.TrimSpace(code),
-				Enabled: true,
-				Model:   "text-embedding-3-small",
+				Code:       strings.TrimSpace(code),
+				Enabled:    true,
+				Model:      "text-embedding-3-small",
+				CreatedUID: "usi_kb_creator",
+				UpdatedUID: "usi_kb_updater",
 			})
 		}
 		return results, int64(len(results)), nil
@@ -4792,6 +5464,43 @@ func (s *thirdPlatformProviderStub) ResolveLatestContent(context.Context, thirdp
 	return s.latestContent, nil
 }
 
+type thirdFileSourceCacheVersionStoreStub struct {
+	version     string
+	found       bool
+	bumpVersion string
+	bumpErr     error
+	getErr      error
+	bumpCalls   int
+	getCalls    int
+}
+
+func (s *thirdFileSourceCacheVersionStoreStub) Bump(context.Context, string) (string, error) {
+	s.bumpCalls++
+	if s.bumpErr != nil {
+		return "", s.bumpErr
+	}
+	if s.bumpVersion != "" {
+		s.version = s.bumpVersion
+		s.found = true
+		return s.bumpVersion, nil
+	}
+	if s.version != "" {
+		s.found = true
+		return s.version, nil
+	}
+	s.version = "v-bumped"
+	s.found = true
+	return s.version, nil
+}
+
+func (s *thirdFileSourceCacheVersionStoreStub) Get(context.Context, string) (string, bool, error) {
+	s.getCalls++
+	if s.getErr != nil {
+		return "", false, s.getErr
+	}
+	return s.version, s.found, nil
+}
+
 type thirdPlatformResolverStub struct {
 	result        *thirdplatform.DocumentResolveResult
 	err           error
@@ -4799,14 +5508,18 @@ type thirdPlatformResolverStub struct {
 	nodeErr       error
 	lastInput     *thirdplatform.DocumentResolveInput
 	lastNodeInput *thirdplatform.NodeResolveInput
+	resolveCalls  int
+	nodeCalls     int
 }
 
 func (s *thirdPlatformResolverStub) Resolve(_ context.Context, input thirdplatform.DocumentResolveInput) (*thirdplatform.DocumentResolveResult, error) {
+	s.resolveCalls++
 	s.lastInput = &input
 	return s.result, s.err
 }
 
 func (s *thirdPlatformResolverStub) ResolveNode(_ context.Context, input thirdplatform.NodeResolveInput) (*thirdplatform.NodeResolveResult, error) {
+	s.nodeCalls++
 	s.lastNodeInput = &input
 	return s.nodeResult, s.nodeErr
 }

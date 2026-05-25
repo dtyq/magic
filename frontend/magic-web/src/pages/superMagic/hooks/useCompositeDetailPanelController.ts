@@ -2,6 +2,7 @@ import { type RefObject } from "react"
 import { useDeepCompareEffect, useMemoizedFn } from "ahooks"
 import type { DetailRef } from "@/pages/superMagic/components/Detail"
 import { useTopicDetailPanelController } from "@/pages/superMagic/pages/TopicPage/hooks/useTopicDetailPanelController"
+import type { AttachmentItem } from "@/pages/superMagic/components/TopicFilesButton/hooks/types"
 
 interface TopicFilesProps {
 	onFileClick?: (fileItem?: unknown) => void
@@ -18,6 +19,8 @@ interface UseCompositeDetailPanelControllerOptions {
 	extraPanelVisible?: boolean
 	resetDeps?: Array<unknown>
 	onReset?: () => void
+	/** 附件列表，用于 Open_File_Tab_By_Path 事件按路径查找文件 */
+	attachmentList?: AttachmentItem[]
 }
 
 interface UseCompositeDetailPanelControllerResult {
@@ -38,6 +41,7 @@ export function useCompositeDetailPanelController({
 	extraPanelVisible = false,
 	resetDeps = [],
 	onReset,
+	attachmentList,
 }: UseCompositeDetailPanelControllerOptions): UseCompositeDetailPanelControllerResult {
 	const {
 		shouldShowDetailPanel: shouldShowFileDetailPanel,
@@ -52,6 +56,7 @@ export function useCompositeDetailPanelController({
 		setActiveFileId,
 		handleFileClick,
 		topicFilesProps,
+		attachmentList,
 	})
 
 	const resetDetailPanelState = useMemoizedFn(() => {

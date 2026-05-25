@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils"
 import At from "@/pages/superMagic/components/MessageEditor/components/At"
 import { sceneStateStore } from "@/pages/superMagic/components/MainInputContainer/stores"
 import { internetSearchManager } from "@/pages/superMagic/components/MessageEditor/services/InternetSearchManager"
+import type { MessageEditorModules } from "@/pages/superMagic/components/MessageEditor/types"
 import type { ProjectListItem, Topic } from "@/pages/superMagic/pages/Workspace/types"
 
 const mediaActionCardClassName =
@@ -155,6 +156,7 @@ interface MobileComposerAddSheetProps {
 	onFileUpload: (files: FileList) => void
 	mcpStorageKey?: string
 	useTempStorage?: boolean
+	modules?: MessageEditorModules
 }
 
 function MobileComposerAddSheet({
@@ -168,6 +170,7 @@ function MobileComposerAddSheet({
 	onFileUpload,
 	mcpStorageKey,
 	useTempStorage = false,
+	modules,
 }: MobileComposerAddSheetProps) {
 	const { t: tMainInput } = useTranslation("super/mainInput")
 	const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(true)
@@ -175,6 +178,10 @@ function MobileComposerAddSheet({
 	const pluginTriggerRef = useRef<HTMLDivElement>(null)
 	const selectedScene = sceneStateStore.currentScene
 	const selectedSkillCount = selectedScene ? 1 : 0
+
+	const mentionEnabled = modules?.mention?.enabled !== false
+	const uploadEnabled = modules?.upload?.enabled !== false
+	const mcpEnabled = modules?.mcp?.enabled !== false
 	const mcpAccess = useCreation(
 		() =>
 			getMCPAccess({
@@ -309,73 +316,77 @@ function MobileComposerAddSheet({
 						className="no-scrollbar flex w-full flex-1 flex-col overflow-y-auto px-2 pb-6"
 						data-testid="mobile-composer-add-sheet-content"
 					>
-						<div
-							className="flex w-full items-stretch gap-2"
-							data-testid="mobile-composer-add-sheet-media"
-						>
-							<MediaUploadAction
-								label={cameraLabel}
-								dataTestId="mobile-composer-add-sheet-camera-button"
-								icon={Camera}
-								accept="image/*"
-								capture="environment"
-								onFileChange={handleUploadMedia}
-							/>
-							<MediaUploadAction
-								label={photosLabel}
-								dataTestId="mobile-composer-add-sheet-photos-button"
-								icon={ImageIcon}
-								accept="image/*"
-								multiple
-								onFileChange={handleUploadMedia}
-							/>
-							<MediaUploadAction
-								label={filesLabel}
-								dataTestId="mobile-composer-add-sheet-files-button"
-								icon={FileUp}
-								multiple
-								onFileChange={handleUploadMedia}
-							/>
-						</div>
+						{uploadEnabled && (
+							<div
+								className="flex w-full items-stretch gap-2"
+								data-testid="mobile-composer-add-sheet-media"
+							>
+								<MediaUploadAction
+									label={cameraLabel}
+									dataTestId="mobile-composer-add-sheet-camera-button"
+									icon={Camera}
+									accept="image/*"
+									capture="environment"
+									onFileChange={handleUploadMedia}
+								/>
+								<MediaUploadAction
+									label={photosLabel}
+									dataTestId="mobile-composer-add-sheet-photos-button"
+									icon={ImageIcon}
+									accept="image/*"
+									multiple
+									onFileChange={handleUploadMedia}
+								/>
+								<MediaUploadAction
+									label={filesLabel}
+									dataTestId="mobile-composer-add-sheet-files-button"
+									icon={FileUp}
+									multiple
+									onFileChange={handleUploadMedia}
+								/>
+							</div>
+						)}
 
-						<div className="my-[14px] h-px w-full bg-border" />
+						{uploadEnabled && <div className="my-[14px] h-px w-full bg-border" />}
 
 						<div
 							className="w-full px-3.5"
 							data-testid="mobile-composer-add-sheet-actions"
 						>
-							<button
-								type="button"
-								onClick={handleOpenMention}
-								className="relative flex h-12 w-full items-center justify-between gap-2.5 active:opacity-60"
-								data-testid="mobile-composer-add-sheet-mention-button"
-							>
-								<div className="flex min-w-0 flex-1 items-center gap-2">
-									<div className="flex h-5 w-5 shrink-0 items-center justify-center text-foreground">
-										<AtSign className="h-5 w-5" />
-									</div>
-									<span className="text-base leading-none text-foreground">
-										{tMainInput("addSheet.actions.mention")}
-									</span>
-								</div>
-								<ChevronRight
-									className="size-5 shrink-0 text-foreground"
-									data-testid="mobile-composer-add-sheet-mention-arrow"
-									aria-hidden="true"
-								/>
-								<div
-									ref={mentionTriggerRef}
-									className="absolute h-0 w-0 overflow-hidden opacity-0"
+							{mentionEnabled && (
+								<button
+									type="button"
+									onClick={handleOpenMention}
+									className="relative flex h-12 w-full items-center justify-between gap-2.5 active:opacity-60"
+									data-testid="mobile-composer-add-sheet-mention-button"
 								>
-									<At
-										onSelect={handleSelectMention}
-										showText={false}
-										iconSize={18}
-										mentionPanelStore={mentionPanelStore}
-										mobileClassName="!h-8 !w-8 !rounded-full !border-0 !bg-transparent !p-0"
+									<div className="flex min-w-0 flex-1 items-center gap-2">
+										<div className="flex h-5 w-5 shrink-0 items-center justify-center text-foreground">
+											<AtSign className="h-5 w-5" />
+										</div>
+										<span className="text-base leading-none text-foreground">
+											{tMainInput("addSheet.actions.mention")}
+										</span>
+									</div>
+									<ChevronRight
+										className="size-5 shrink-0 text-foreground"
+										data-testid="mobile-composer-add-sheet-mention-arrow"
+										aria-hidden="true"
 									/>
-								</div>
-							</button>
+									<div
+										ref={mentionTriggerRef}
+										className="absolute h-0 w-0 overflow-hidden opacity-0"
+									>
+										<At
+											onSelect={handleSelectMention}
+											showText={false}
+											iconSize={18}
+											mentionPanelStore={mentionPanelStore}
+											mobileClassName="!h-8 !w-8 !rounded-full !border-0 !bg-transparent !p-0"
+										/>
+									</div>
+								</button>
+							)}
 
 							<button
 								type="button"
@@ -416,36 +427,40 @@ function MobileComposerAddSheet({
 								<AddActionPill label={tMainInput("addSheet.addButton")} />
 							</button> */}
 
-							<button
-								type="button"
-								onClick={handleOpenPlugin}
-								className="flex h-12 w-full items-center justify-between gap-2.5 active:opacity-60"
-								data-testid="mobile-composer-add-sheet-plugin-button"
-							>
-								<div className="flex min-w-0 flex-1 items-center gap-2">
-									<div className="flex h-5 w-5 shrink-0 items-center justify-center text-foreground">
-										<Plug className="h-5 w-5" />
+							{mcpEnabled && (
+								<button
+									type="button"
+									onClick={handleOpenPlugin}
+									className="flex h-12 w-full items-center justify-between gap-2.5 active:opacity-60"
+									data-testid="mobile-composer-add-sheet-plugin-button"
+								>
+									<div className="flex min-w-0 flex-1 items-center gap-2">
+										<div className="flex h-5 w-5 shrink-0 items-center justify-center text-foreground">
+											<Plug className="h-5 w-5" />
+										</div>
+										<ActionLabel
+											label={tMainInput("addSheet.actions.plugin")}
+											count={selectedPluginCount}
+										/>
 									</div>
-									<ActionLabel
-										label={tMainInput("addSheet.actions.plugin")}
-										count={selectedPluginCount}
+									<AddActionPill label={tMainInput("addSheet.addButton")} />
+								</button>
+							)}
+
+							{mcpEnabled && (
+								<div
+									ref={pluginTriggerRef}
+									className="absolute h-0 w-0 overflow-hidden opacity-0"
+								>
+									<MCPButton
+										iconSize={18}
+										size="mobile"
+										storageKey={mcpStorageKey ?? selectedProject?.id}
+										useTempStorage={useTempStorage}
+										className="h-8 w-8"
 									/>
 								</div>
-								<AddActionPill label={tMainInput("addSheet.addButton")} />
-							</button>
-
-							<div
-								ref={pluginTriggerRef}
-								className="absolute h-0 w-0 overflow-hidden opacity-0"
-							>
-								<MCPButton
-									iconSize={18}
-									size="mobile"
-									storageKey={mcpStorageKey ?? selectedProject?.id}
-									useTempStorage={useTempStorage}
-									className="h-8 w-8"
-								/>
-							</div>
+							)}
 						</div>
 					</div>
 				</div>

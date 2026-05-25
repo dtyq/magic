@@ -14,6 +14,7 @@ readonly class BusinessParamsDTO
         public string $userId = '',
         public string $businessId = '',
         public string $organizationId = '',
+        public array $extraParams = [],
     ) {
     }
 
@@ -27,22 +28,30 @@ readonly class BusinessParamsDTO
         if ($organizationId === '') {
             $organizationId = $organizationCode;
         }
+        $extraParams = $params;
+        unset(
+            $extraParams['organization_code'],
+            $extraParams['organization_id'],
+            $extraParams['user_id'],
+            $extraParams['business_id'],
+        );
 
         return new self(
             organizationCode: $organizationCode,
             userId: (string) ($params['user_id'] ?? ''),
             businessId: (string) ($params['business_id'] ?? ''),
             organizationId: $organizationId,
+            extraParams: $extraParams,
         );
     }
 
     public function toArray(): array
     {
-        return [
+        return array_merge([
             'organization_code' => $this->organizationCode,
             'organization_id' => $this->organizationId,
             'user_id' => $this->userId,
             'business_id' => $this->businessId,
-        ];
+        ], $this->extraParams);
     }
 }

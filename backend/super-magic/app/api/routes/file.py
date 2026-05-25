@@ -4,6 +4,8 @@ File API Routes
 Provides HTTP endpoints for file operations including version history retrieval, file uploads, and file saving.
 """
 import traceback
+from datetime import datetime
+from pathlib import Path
 from typing import Dict, Any, List
 
 from fastapi import APIRouter, HTTPException
@@ -23,7 +25,7 @@ from app.infrastructure.magic_service import MagicServiceClient, MagicServiceCon
 from app.infrastructure.magic_service.exceptions import ApiError, ConnectionError as MagicServiceConnectionError
 from app.path_manager import PathManager
 from app.service.file_save_service import FileSaveService
-from app.service.file_service import FileService
+from app.service.file_service import FileService, WorkspaceFileURLError
 from app.service.file_upload_service import FileUploadService
 from app.utils.init_client_message_util import InitClientMessageUtil, InitializationError
 
@@ -362,18 +364,50 @@ async def get_file_download_url(request: FileDownloadUrlRequest) -> BaseResponse
         # 创建文件服务实例
         file_service = FileService()
 
-        # 获取文件下载链接
-        download_result = await file_service.get_file_download_url(
-            file_path=file_path,
+        # 解析为 workspace 下的绝对路径，与视觉理解 generate_file_download_url 保持一致的 xattr 链路
+        # 详见 FileService.get_workspace_file_url：本地文件 -> xattr user.magicfs.s3_key -> 预签名 URL
+        path_obj = Path(file_path)
+        absolute_path = path_obj if path_obj.is_absolute() else (PathManager.get_workspace_dir() / path_obj).resolve()
+
+        # 通过 magicfs xattr 链路生成预签名 URL（避免本地未同步到对象存储时错误指向其它对象）
+        download_url = await file_service.get_workspace_file_url(
+            file_path=absolute_path,
             expires_in=expires_in,
-            options=options
+            options=options,
         )
 
-        logger.info(f"Successfully generated download URL for {file_path} on platform {download_result['platform']}")
+        download_result = {
+            "file_path": file_path,
+            "download_url": download_url,
+            "expires_in": expires_in,
+            "generated_at": datetime.now().isoformat(),
+        }
+
+        logger.info(f"Successfully generated download URL via xattr for {file_path}")
 
         return create_success_response(
             message="获取下载链接成功",
             data=download_result
+        )
+
+    except FileNotFoundError as e:
+        logger.warning(f"Workspace file not found: {request.file_path}: {e}")
+        return create_error_response(
+            message="文件不存在",
+            data={
+                "file_path": request.file_path,
+                "error": str(e),
+            }
+        )
+
+    except WorkspaceFileURLError as e:
+        logger.warning(f"Workspace file URL generation failed (xattr missing or backend error): {request.file_path}: {e}")
+        return create_error_response(
+            message="生成下载链接失败：文件可能尚未同步到对象存储",
+            data={
+                "file_path": request.file_path,
+                "error": str(e),
+            }
         )
 
     except ValueError as e:

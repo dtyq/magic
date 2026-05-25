@@ -45,23 +45,18 @@ async function main() {
   try {
     log('Starting build process...', 'green')
 
-    // Step 1: Build iframe runtime
-    log('[1/5] Building iframe runtime...', 'cyan')
-    await runCommand('pnpm', ['run', 'build:iframe-runtime'])
-    log('Iframe runtime built successfully', 'green')
+    // Step 1: Build iframe
+    log('[1/3] Building iframe ...', 'cyan')
+    await runCommand('pnpm', ['run', 'build:iframe'])
+    log('Iframe built successfully', 'green')
 
-    // Step 2: Obfuscate code
-    log('[2/5] Obfuscating code...', 'cyan')
-    await runCommand('pnpm', ['run', 'obfuscate'])
-    log('Code obfuscated successfully', 'green')
-
-    // Step 3: Generate icon tags
-    log('[3/5] Generating icon tags...', 'cyan')
+    // Step 2: Generate icon tags
+    log('[2/3] Generating icon tags...', 'cyan')
     await runCommand('pnpm', ['run', 'generate:icon-tags'])
     log('Icon tags generated successfully', 'green')
 
-    // Step 4: Build main app with increased memory
-    log('[4/5] Building main application...', 'cyan')
+    // Step 3: Build main app with increased memory
+    log('[3/3] Building main application...', 'cyan')
     await runCommand('vite', ['build'], {
       env: {
         ...env,
@@ -69,11 +64,6 @@ async function main() {
       },
     })
     log('Main application built successfully', 'green')
-
-    // Step 5: Build html-shabox (dist for iframe HTML server)
-    log('[5/5] Building html-shabox...', 'cyan')
-    await runCommand('node', ['packages/html-shabox/scripts/build.cjs'])
-    log('html-shabox dist built successfully', 'green')
 
     log('\n✅ Build completed successfully!', 'green')
   } catch (error) {

@@ -16,6 +16,7 @@ use App\Domain\Provider\Entity\ValueObject\ProviderDataIsolation;
 use App\Domain\Provider\Repository\Facade\ProviderModelRepositoryInterface;
 use App\ErrorCode\ServiceProviderErrorCode;
 use App\Infrastructure\Core\Exception\ExceptionBuilder;
+use Hyperf\Context\Context;
 use Hyperf\Logger\LoggerFactory;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
@@ -28,6 +29,12 @@ use function Hyperf\Translation\__;
  */
 class AggregateModelResolverService
 {
+    /**
+     * 协程级（请求级）memoize 缓存的 Context key.
+     * 同一请求内多次解析相同 model_id 时只回库一次.
+     */
+    private const string PROVIDER_MODEL_MEMO_KEY = 'aggregate_model_resolver:provider_model_memo';
+
     private LoggerInterface $logger;
 
     public function __construct(
@@ -57,7 +64,7 @@ class AggregateModelResolverService
         }
 
         $visitedModelIds = [];
-        $realModelId = $this->resolveModel($model, $dataIsolation, $accessContext, $visitedModelIds);
+        $realModelId = $this->resolveModel($model, $dataIsolation, $accessContext, $visitedModelIds, []);
 
         if (! $realModelId) {
             ExceptionBuilder::throw(ServiceProviderErrorCode::InvalidParameter, __('service_provider.insufficient_permission_for_model'));
@@ -74,6 +81,7 @@ class AggregateModelResolverService
      * @param ModelGatewayDataIsolation $dataIsolation 数据隔离对象
      * @param null|ModelAccessContext $accessContext 当前用户最终模型访问上下文；为空时仅按 subscription 语义筛选子模型
      * @param array<string, true> $visitedModelIds 当前递归链路已访问的动态模型 ID 集合，用于防止动态模型互相引用造成死循环
+     * @param array<string, ProviderModelEntity> $preloadedModels 预加载的 model_id => ProviderModelEntity 映射，命中即用，未命中才回库
      * @param-out array<string, true> $visitedModelIds
      * @return null|string 解析出的真实模型 ID，null 表示无可用子模型
      */
@@ -81,7 +89,8 @@ class AggregateModelResolverService
         ProviderModelEntity $dynamicModel,
         ModelGatewayDataIsolation $dataIsolation,
         ?ModelAccessContext $accessContext = null,
-        array &$visitedModelIds = []
+        array &$visitedModelIds = [],
+        array $preloadedModels = []
     ): ?string {
         $dynamicModelId = $dynamicModel->getModelId();
 
@@ -114,7 +123,7 @@ class AggregateModelResolverService
         $strategy = $config['strategy'] ?? 'permission_fallback';
         $strategyConfig = $config['strategy_config'] ?? ['order' => 'asc'];
 
-        $this->logger->info('聚合模型解析：开始解析', [
+        $this->logger->debug('聚合模型解析：开始解析', [
             'model_id' => $dynamicModelId,
             'strategy' => $strategy,
             'candidate_count' => count($models),
@@ -127,11 +136,12 @@ class AggregateModelResolverService
             $dataIsolation,
             $dynamicModel->getModelType(),
             $accessContext,
-            $visitedModelIds
+            $visitedModelIds,
+            $preloadedModels
         );
 
         if ($resolved !== null) {
-            $this->logger->info('聚合模型解析：解析成功', [
+            $this->logger->debug('聚合模型解析：解析成功', [
                 'dynamic_model_id' => $dynamicModelId,
                 'resolved_model_id' => $resolved,
             ]);
@@ -145,12 +155,37 @@ class AggregateModelResolverService
         return $resolved;
     }
 
-    protected function getProviderModel(string $modelId, ModelGatewayDataIsolation $dataIsolation): ?ProviderModelEntity
-    {
+    /**
+     * 获取 ProviderModel 实体.
+     * 命中优先级: 调用方预加载 map > 协程级 memoize 缓存 > 数据库.
+     *
+     * @param array<string, ProviderModelEntity> $preloadedModels 预加载映射，key 为 model_id
+     */
+    protected function getProviderModel(
+        string $modelId,
+        ModelGatewayDataIsolation $dataIsolation,
+        array $preloadedModels = []
+    ): ?ProviderModelEntity {
+        // 方案 B: 调用方传入的批量预加载映射优先
+        if (isset($preloadedModels[$modelId])) {
+            return $preloadedModels[$modelId];
+        }
+
+        // 方案 A: 协程级 memoize，避免同请求内同一 model_id 反复回库
+        $cacheBag = Context::get(self::PROVIDER_MODEL_MEMO_KEY, []);
+        $cacheKey = $dataIsolation->getCurrentOrganizationCode() . '|' . $modelId;
+        if (array_key_exists($cacheKey, $cacheBag)) {
+            return $cacheBag[$cacheKey];
+        }
+
         $providerDataIsolation = ProviderDataIsolation::createByBaseDataIsolation($dataIsolation);
         $providerDataIsolation->setContainOfficialOrganization(true);
+        $entity = $this->providerModelRepository->getByModelId($providerDataIsolation, $modelId);
 
-        return $this->providerModelRepository->getByModelId($providerDataIsolation, $modelId);
+        $cacheBag[$cacheKey] = $entity;
+        Context::set(self::PROVIDER_MODEL_MEMO_KEY, $cacheBag);
+
+        return $entity;
     }
 
     /**
@@ -163,6 +198,7 @@ class AggregateModelResolverService
      * @param null|ModelType $modelType 模型类型，用于交给 subscription 做类型内可用性判断
      * @param null|ModelAccessContext $accessContext 当前用户最终模型访问上下文；传入后会额外叠加用户级权限过滤
      * @param array<string, true> $visitedModelIds 当前递归链路已访问的动态模型 ID 集合，用于防环
+     * @param array<string, ProviderModelEntity> $preloadedModels 预加载的 model_id => ProviderModelEntity 映射
      * @param-out array<string, true> $visitedModelIds
      */
     private function resolveByStrategy(
@@ -172,7 +208,8 @@ class AggregateModelResolverService
         ModelGatewayDataIsolation $dataIsolation,
         ?ModelType $modelType,
         ?ModelAccessContext $accessContext,
-        array &$visitedModelIds
+        array &$visitedModelIds,
+        array $preloadedModels = []
     ): ?string {
         return match ($strategy) {
             AggregateStrategy::PERMISSION_FALLBACK->value => $this->resolveByPermissionFallback(
@@ -181,7 +218,8 @@ class AggregateModelResolverService
                 $dataIsolation,
                 $modelType,
                 $accessContext,
-                $visitedModelIds
+                $visitedModelIds,
+                $preloadedModels
             ),
             // 未来可扩展其他策略：'random', 'weighted', etc.
             default => throw new InvalidArgumentException("Unknown strategy: {$strategy}")
@@ -193,6 +231,7 @@ class AggregateModelResolverService
      * 按照配置的模型顺序，找到第一个用户有权限使用的模型.
      *
      * @param array<string, true> $visitedModelIds 当前递归链路已访问的动态模型 ID 集合，用于防环
+     * @param array<string, ProviderModelEntity> $preloadedModels 预加载的 model_id => ProviderModelEntity 映射
      * @param-out array<string, true> $visitedModelIds
      */
     private function resolveByPermissionFallback(
@@ -201,7 +240,8 @@ class AggregateModelResolverService
         ModelGatewayDataIsolation $dataIsolation,
         ?ModelType $modelType,
         ?ModelAccessContext $accessContext,
-        array &$visitedModelIds
+        array &$visitedModelIds,
+        array $preloadedModels = []
     ): ?string {
         $order = $strategyConfig['order'] ?? 'asc';
 
@@ -215,28 +255,28 @@ class AggregateModelResolverService
             }
 
             if (! $dataIsolation->getSubscriptionManager()->isValidModelAvailable($subModelId, $modelType)) {
-                $this->logger->info('聚合模型解析：子模型订阅不可用，跳过', [
+                $this->logger->debug('聚合模型解析：子模型订阅不可用，跳过', [
                     'sub_model_id' => $subModelId,
                 ]);
                 continue;
             }
 
             if ($accessContext?->isRestricted() && ! $accessContext->canAccess($subModelId)) {
-                $this->logger->info('聚合模型解析：子模型无访问权限，跳过', [
+                $this->logger->debug('聚合模型解析：子模型无访问权限，跳过', [
                     'sub_model_id' => $subModelId,
                 ]);
                 continue;
             }
 
-            $subModel = $this->getProviderModel($subModelId, $dataIsolation);
+            $subModel = $this->getProviderModel($subModelId, $dataIsolation, $preloadedModels);
             if (! $subModel?->isDynamicModel()) {
-                $this->logger->info('聚合模型解析：命中真实子模型', [
+                $this->logger->debug('聚合模型解析：命中真实子模型', [
                     'sub_model_id' => $subModelId,
                 ]);
                 return $subModelId;
             }
 
-            $resolvedModelId = $this->resolveModel($subModel, $dataIsolation, $accessContext, $visitedModelIds);
+            $resolvedModelId = $this->resolveModel($subModel, $dataIsolation, $accessContext, $visitedModelIds, $preloadedModels);
             if ($resolvedModelId !== null) {
                 return $resolvedModelId;
             }

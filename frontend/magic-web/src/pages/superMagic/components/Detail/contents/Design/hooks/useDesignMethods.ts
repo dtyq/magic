@@ -614,7 +614,6 @@ export function useDesignMethods(options: UseDesignMethodsOptions): CanvasDesign
 			uploadPrivateFiles,
 			confirmModal,
 			clipboard: {
-				writeText: clipboard.writeText,
 				write: clipboard.write,
 				readText: navigator.clipboard?.readText
 					? navigator.clipboard.readText.bind(navigator.clipboard)

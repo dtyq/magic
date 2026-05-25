@@ -38,7 +38,10 @@ import type {
 	SuperMagicStreamMessageArgs,
 	SuperMagicSyncMarkersToChatPayload,
 } from "@/pages/superMagic/events/message"
-import type { SuperMagicOpenFileTabPayload } from "@/pages/superMagic/events/openFileTab"
+import type {
+	SuperMagicOpenFileTabPayload,
+	SuperMagicOpenFileTabByPathPayload,
+} from "@/pages/superMagic/events/openFileTab"
 import type { SuperMagicOpenPlaybackTabPayload } from "@/pages/superMagic/events/openPlaybackTab"
 import type {
 	SuperMagicAddTopicArgs,
@@ -114,6 +117,8 @@ export interface PubSubTypedPayloadMap {
 	[PubSubEvents.Re_Edit_Message]: SuperMagicReEditMessageArgs
 	/** 打开文件 tab：传入标准文件打开 payload。 */
 	[PubSubEvents.Open_File_Tab]: SuperMagicOpenFileTabPayload
+	/** 通过文件相对路径打开文件 tab：订阅方在附件树中查找后再打开。 */
+	[PubSubEvents.Open_File_Tab_By_Path]: SuperMagicOpenFileTabByPathPayload
 	/** 打开 playback tab：当前保留历史透传 payload。 */
 	[PubSubEvents.Open_Playback_Tab]: SuperMagicOpenPlaybackTabPayload
 	/** 消息队列消费完成：传入可选消息数据。 */

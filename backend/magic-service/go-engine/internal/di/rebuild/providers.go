@@ -143,6 +143,7 @@ func (s *documentAppSyncer) SyncDocument(
 			OrganizationCode: organizationCode,
 			UserID:           userID,
 			BusinessID:       knowledgeBaseCode,
+			SourceID:         ctxmeta.SourceIDFragmentSaved,
 		},
 		RebuildOverride: &knowledgeroute.RebuildOverride{
 			TargetCollection:     override.TargetCollection,

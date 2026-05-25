@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -679,8 +680,14 @@ func TestRabbitMQSchedulerHandleDeliveryAcksAfterDeliveryAttemptLimit(t *testing
 		t.Fatalf("expected runner to execute only first 10 deliveries, got %d", got)
 	}
 	tasks, causes := terminal.Calls()
-	if len(tasks) != 0 || len(causes) != 0 {
-		t.Fatalf("expected no terminal call for delivery limit drop, got tasks=%d causes=%d", len(tasks), len(causes))
+	if len(tasks) != 1 || len(causes) != 1 {
+		t.Fatalf("expected one terminal call for delivery limit drop, got tasks=%d causes=%d", len(tasks), len(causes))
+	}
+	if tasks[0].Code != rabbitTestDocumentCode {
+		t.Fatalf("expected terminal document %s, got %q", rabbitTestDocumentCode, tasks[0].Code)
+	}
+	if !strings.Contains(causes[0].Error(), "delivery attempt limit") {
+		t.Fatalf("expected terminal cause to mention delivery attempt limit, got %v", causes[0])
 	}
 	if got := attemptStore.Count(task.Key); got != 0 {
 		t.Fatalf("expected delivery attempt counter reset after delivery limit, got %d", got)

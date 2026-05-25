@@ -1,847 +1,193 @@
 ---
 name: using-mcp
-description: Query MCP servers, list available MCP tools, get tool schemas, and call MCP tools programmatically. CRITICAL - When user message contains [@mcp:...] mention, you MUST load this skill first to properly use MCP tools.
+description: Discover, connect to, and invoke tools on MCP (Model Context Protocol) servers. CRITICAL - When the user message contains [@mcp:...] mention, you MUST load this skill first to use MCP tools correctly.
 
 name-cn: MCP 工具调用技能
-description-cn: 查询 MCP 服务器、列出可用的 MCP 工具、获取工具 Schema，并通过编程方式调用 MCP 工具。关键规则 - 当用户消息包含 [@mcp:...] 引用时，必须首先加载此技能以正确使用 MCP 工具。
+description-cn: 发现并调用 MCP（Model Context Protocol）服务器上的工具。关键规则：当用户消息包含 [@mcp:...] 引用时，必须首先加载此技能。
 ---
 
-<!--zh
-# MCP 工具调用技能
--->
 # MCP Tools Calling Skill
 
-<!--zh
-通过脚本查询 MCP 服务器信息、工具列表和 Schema，并通过 SDK 调用 MCP 工具。
--->
-Query MCP server information, tool lists, and schemas through scripts, and call MCP tools via SDK.
+Use this skill whenever you need to talk to an MCP server: list servers, connect to one, inspect a tool's schema, or invoke a tool.
 
-<!--zh
-## 核心能力
--->
-## Core Capabilities
+## How it works
 
-<!--zh
-- 查询 MCP 服务器列表和状态
-- 列出所有可用的 MCP 工具
-- 获取工具的 JSON Schema 定义
-- 调用 MCP 工具并获取结果
-- 动态添加新的 MCP 服务器（运行时生效，可选持久化）
--->
-- Query MCP server list and status
-- List all available MCP tools
-- Get JSON Schema definitions of tools
-- Call MCP tools and get results
-- Dynamically add new MCP servers (effective at runtime, optionally persisted)
-
-<!--zh
-## 重要规则
--->
-## Important Rules
-
-<!--zh
-### 1. 禁止臆想工具名称和参数
-
-在调用 `mcp.call()` 之前，**必须**先通过脚本查询确认：
-1. 工具是否存在于该服务器（通过 `get_tools.py`）- **必须**
-2. 工具的参数定义（通过 `get_tool_schema.py`）- **必须**
-3. 服务器列表（通过 `get_servers.py`）- 可选，通常在用户提示词中已提供
-
-**严格禁止**在没有查询确认的情况下，凭想象或经验直接调用 MCP 工具。即使你认为某个工具"应该"存在，也必须先通过脚本查询确认。
--->
-### 1. DO NOT imagine tool names and parameters
-
-Before calling `mcp.call()`, you **MUST** first query and confirm through scripts:
-1. Whether the tool exists on that server (via `get_tools.py`) - **REQUIRED**
-2. The tool's parameter definition (via `get_tool_schema.py`) - **REQUIRED**
-3. Server list (via `get_servers.py`) - Optional, usually provided in user prompts
-
-**STRICTLY FORBIDDEN** to call MCP tools based on imagination or experience without querying first. Even if you think a tool "should" exist, you must query to confirm it first.
-
-<!--zh
-### 2. mcp.call() 不是工具名称
-
-**严格禁止**将以下内容当作工具名称调用：
-- `from sdk.mcp import mcp`
-- `mcp.call`
-- `mcp.call()`
-
-`mcp.call()` 是 Python SDK 方法，必须在 `run_sdk_snippet` 工具中执行包含它的 Python 代码。
-
-**错误示例**：
-```python
-# 错误！不要这样做
-tool_call(name="from sdk.mcp import mcp", arguments={})
-tool_call(name="mcp.call", arguments={...})
-```
-
-**正确示例**：
-```python
-# 正确！使用 run_sdk_snippet 工具
-run_sdk_snippet(
-    python_code="""
-from sdk.mcp import mcp
-result = mcp.call(...)
-"""
-)
-```
--->
-### 2. mcp.call() is NOT a tool name
-
-**STRICTLY FORBIDDEN** to call the following as tool names:
-- `from sdk.mcp import mcp`
-- `mcp.call`
-- `mcp.call()`
-
-`mcp.call()` is a Python SDK method that must be executed within Python code using the `run_sdk_snippet` tool.
-
-**Wrong Example**:
-```python
-# Wrong! Do NOT do this
-tool_call(name="from sdk.mcp import mcp", arguments={})
-tool_call(name="mcp.call", arguments={...})
-```
-
-**Correct Example**:
-```python
-# Correct! Use run_sdk_snippet tool
-run_sdk_snippet(
-    python_code="""
-from sdk.mcp import mcp
-result = mcp.call(...)
-"""
-)
-```
-
-<!--zh
-## 关键原则
--->
-## Key Principles
-
-<!--zh
-### 脚本执行
--->
-### Script Execution
-
-<!--zh
-脚本使用标准命令行参数，例如：
--->
-Scripts use standard command-line arguments, for example:
-- `python scripts/get_servers.py`
-- `python scripts/get_tools.py --server-name <服务器名称>`
-
-<!--zh
-在 Agent 环境中，使用 `shell_exec` 工具执行脚本：
--->
-In Agent environment, use `shell_exec` tool to execute scripts:
+The six MCP capabilities are exposed as Code Mode tools (`mcp_*`). They are NOT directly callable as standalone tool calls. You must invoke them through `run_sdk_snippet` and `sdk.tool.call`:
 
 ```python
-# 获取服务器列表
-shell_exec(
-    command="python scripts/get_servers.py"
-)
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
 
-# 获取指定服务器的工具列表
-shell_exec(
-    command="python scripts/get_tools.py --server-name <服务器名称>"
-)
-
-# 获取工具 Schema
-shell_exec(
-    command="python scripts/get_tool_schema.py --server-name <服务器名称> --tool-name <工具名称>"
-)
+result = tool.call('mcp_list_servers', {})
+print(result.content)
+""")
 ```
 
-<!--zh
-### MCP 工具调用
--->
-### MCP Tool Calling
+`tool.call(name, params)` returns a `Result` with:
+- `result.ok` — boolean, check this first
+- `result.content` — complete information for reasoning and next-step decisions
 
-<!--zh
-**重要说明**：`mcp.call()` 不是一个独立的工具，而是在 Python 代码中调用的 SDK 方法。
+## Available MCP tools
 
-在 Agent 环境中，使用 `run_sdk_snippet` 工具执行包含 `mcp.call()` 的 Python 代码（**必须**先通过脚本查询确认服务器和工具存在）：
--->
-**Important Note**: `mcp.call()` is NOT a standalone tool, but an SDK method called within Python code.
+| Tool name | Purpose |
+|-----------|---------|
+| `mcp_list_servers` | List all MCP servers in the current chat with their connection status. Always start here. |
+| `mcp_connect_server` | Connect a server whose status is `disconnected`. Returns the real tool list. |
+| `mcp_list_tools` | List tools across connected servers, optionally filtered by `server_name`. |
+| `mcp_get_tool_schema` | Fetch the JSON input schema of one or more tools before calling them. |
+| `mcp_call_tool` | Invoke a specific tool on a server. The actual remote call. |
+| `mcp_add_server` | Register a new MCP server config (stdio or http). Does NOT connect immediately. |
+| `mcp_remove_server` | Remove an MCP server: disconnect, unregister tools, and delete persisted config. |
 
-In Agent environment, use `run_sdk_snippet` tool to execute Python code containing `mcp.call()` (**MUST** first query and confirm server and tool existence via scripts):
+## Standard workflow
+
+Follow this order. Skipping steps will cause failures because tool names and parameters cannot be guessed.
+
+```
+1. mcp_list_servers          → pick the server, read its `status`
+   ├── status == 'connected'    → go to step 3
+   └── status == 'disconnected' → go to step 2
+2. mcp_connect_server        → connect; receive the real tool list
+3. mcp_get_tool_schema       → fetch input schema(s)
+4. mcp_call_tool             → invoke with parameters that match the schema
+```
+
+When the user wants to register a brand-new MCP server, run `mcp_add_server` first, then proceed from step 1.
+
+## Rules
+
+1. NEVER fabricate server names, tool names, or parameter names. Always derive them from the previous step's `result.content`.
+2. ALWAYS call `mcp_get_tool_schema` before `mcp_call_tool` unless you already saw the schema in this conversation.
+3. NEVER call `mcp_*` tools as standalone tool calls. They only work inside `run_sdk_snippet` via `sdk.tool.call`.
+4. ALWAYS check `result.ok` before proceeding. Errors should be surfaced to the user, not silently retried.
+
+## End-to-end example
+
+User asks to call a tool on some MCP server. The flow below uses angle-
+bracket placeholders (`<server_name>`, `<tool_name>`, `<workspace_dir>`,
+etc.); replace every `<...>` with the real value from your context or from
+the previous step before running the snippet.
 
 ```python
-# 使用 run_sdk_snippet 工具执行以下 Python 代码
-run_sdk_snippet(
-    python_code="""
-from sdk.mcp import mcp
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
 
-result = mcp.call(
-    server_name="<服务器名称>",  # 必须是通过 get_servers.py 查询到的真实服务器名
-    tool_name="<工具名称>",      # 必须是通过 get_tools.py 查询到的真实工具名
-    tool_params={"参数": "值"}  # 必须符合 get_tool_schema.py 返回的 Schema
-)
+# 1. Discover servers
+servers = tool.call('mcp_list_servers', {})
+print(servers.content)
+# Parse the server name from content, e.g. "<server_name> (status=connected, N tool(s))"
 
-if result.ok:
-    print(result.content)
-else:
-    print(f"调用失败: {result.content}")
-"""
-)
+# 2. Connect if needed
+connect = tool.call('mcp_connect_server', {'server_name': '<server_name>'})
+if not connect.ok:
+    raise SystemExit(f'Connect failed: {connect.content}')
+print(connect.content)
+
+# 3. Inspect schema
+schema = tool.call('mcp_get_tool_schema', {
+    'server_name': '<server_name>',
+    'tool_name': '<tool_name>',
+})
+print(schema.content)
+
+# 4. Call the tool (tool_params is a JSON string matching the schema)
+result = tool.call('mcp_call_tool', {
+    'server_name': '<server_name>',
+    'tool_name': '<tool_name>',
+    'tool_params': '{"key": "value"}',
+})
+print(result.content)
+""")
 ```
 
-<!--zh
-## 快速开始
--->
-## Quick Start
+## Saving the call result to a file (`output_file_path`)
 
-<!--zh
-### 第零步：查询服务器列表（可选）
+`mcp_call_tool` accepts an optional `output_file_path` to persist the result
+as a JSON file in the workspace, instead of consuming it only in your
+reasoning context.
 
-如果不确定有哪些可用的 MCP 服务器，可以运行脚本查询：
--->
-### Step 0: Query Server List (Optional)
+When to set it:
 
-If unsure which MCP servers are available, run the script to query:
+- The result is likely to be large (for example a SQL query without WHERE or
+  LIMIT that may return thousands of rows, fetching a full article body, or
+  exporting a long list).
+- The user expects a concrete file deliverable (a report, dataset dump,
+  attachment-like artifact).
+- A downstream step needs a stable on-disk path to open later.
 
-```bash
-python scripts/get_servers.py
-```
+When to leave it empty:
 
-<!--zh
-### 第一步：查询工具列表（必须）
+- You only need the data for your own reasoning. Small results are returned
+  inline; oversized results are auto-persisted in the background to avoid
+  flooding the context, so you do not need to manage that yourself.
 
-**必须**查询指定服务器的可用工具列表：
--->
-### Step 1: Query Tool List (Required)
+Rules:
 
-**MUST** query the available tool list for the specified server:
+1. The path MUST be absolute. Relative paths are rejected and the call
+   silently falls back to the runtime directory.
+2. Prefer a location inside the current workspace so the file is easy for
+   the user to inspect and accept as a deliverable. The workspace path is
+   already available in your context — just prepend it directly, e.g.
+   `<workspace_dir>/data/<server>/<tool>.json`. Do not rebuild it from
+   `os.getcwd()` or hard-code a path from another machine.
+3. The file MUST be JSON. Pick a meaningful filename and a tidy directory
+   layout, for example `reports/<topic>/<name>.json` or
+   `data/<server>/<tool>.json`.
 
-```bash
-python scripts/get_tools.py --server-name <服务器名称>
-```
-
-<!--zh
-### 第二步：获取工具 Schema（必须）
-
-**必须**获取工具的参数定义：
--->
-### Step 2: Get Tool Schema (Required)
-
-**MUST** get the tool's parameter definition:
-
-```bash
-python scripts/get_tool_schema.py --server-name <服务器名称> --tool-name <工具名称>
-```
-
-<!--zh
-### 第三步：调用 MCP 工具（必须）
-
-确认工具和参数后，使用 `run_sdk_snippet` 工具执行包含 `mcp.call()` 的代码：
--->
-### Step 3: Call MCP Tool (Required)
-
-After confirming tool and parameters, use `run_sdk_snippet` tool to execute code containing `mcp.call()`:
+Example — deliver the call result as a workspace file. Replace every
+`<...>` with real values: `<workspace_dir>` is the workspace path already
+visible in your context, and `<server_name>` / `<tool_name>` come from the
+previous discovery steps:
 
 ```python
-# 使用 run_sdk_snippet 工具
-run_sdk_snippet(
-    python_code="""
-from sdk.mcp import mcp
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
 
-result = mcp.call(
-    server_name="<服务器名称>",  # 从用户提示词或 Step 0 中获取
-    tool_name="<工具名称>",      # 从 Step 1 查询结果中获取
-    tool_params={"参数": "值"}  # 根据 Step 2 的 Schema 定义构造
-)
-
-if result.ok:
-    print(result.content)
-else:
-    print(f"调用失败: {result.content}")
-"""
-)
+result = tool.call('mcp_call_tool', {
+    'server_name': '<server_name>',
+    'tool_name': '<tool_name>',
+    'tool_params': '{"key": "value"}',
+    'output_file_path': '<workspace_dir>/data/<server_name>/<tool_name>.json',
+})
+print(result.content)
+""")
 ```
 
-<!--zh
-## 工作流程
--->
-## Workflow
-
-<!--zh
-**必须遵循**的工作流程：
-
-```
-[如需添加新服务器]
-A. 添加 MCP 服务器 (add_server.py) - 可选
-   ↓ 服务器添加成功后立即可用，输出中包含工具列表，可跳过步骤 0 和 1
-
-[调用已有服务器的工具]
-0. [可选] 获取服务器列表 (get_servers.py)
-   ↓ 如果不确定有哪些服务器，可以先查询
-1. 查看工具列表 (get_tools.py) - 必须
-   ↓ 确认工具存在于该服务器
-2. 获取工具 Schema (get_tool_schema.py) - 必须
-   ↓ 了解必填参数和参数类型
-3. 验证参数 - 必须
-   ↓ 确保所有必填参数都已提供且类型正确
-4. 调用工具 (mcp.call) - 必须
-```
-
-**警告**：跳过工具列表和 Schema 查询步骤直接调用工具，将会因为工具不存在或参数错误而失败。
--->
-**MUST follow** this workflow:
-
-```
-[If you need to add a new server first]
-A. Add MCP server (add_server.py) - Optional
-   ↓ Server is immediately available after success; output includes tool list,
-     so you can skip steps 0 and 1
-
-[To call tools on an existing server]
-0. [Optional] Get server list (get_servers.py)
-   ↓ Query if unsure which servers are available
-1. View tool list (get_tools.py) - REQUIRED
-   ↓ Confirm tool exists on that server
-2. Get tool schema (get_tool_schema.py) - REQUIRED
-   ↓ Understand required parameters and types
-3. Validate parameters - REQUIRED
-   ↓ Ensure all required parameters are provided with correct types
-4. Call tool (mcp.call) - REQUIRED
-```
-
-**WARNING**: Skipping tool list and schema query steps and calling tools directly will fail due to non-existent tools or incorrect parameters.
-
-<!--zh
-## 可用脚本
--->
-## Available Scripts
-
-<!--zh
-### add_server.py - 动态添加 MCP 服务器
--->
-### add_server.py - Add MCP Server Dynamically
-
-<!--zh
-动态将新 MCP 服务器加入运行中的系统，立即生效。仅在当前运行期间有效，重启后失效。
--->
-Dynamically add a new MCP server to the running system, effective immediately. Only valid for the current runtime session.
-
-**SYNOPSIS**
-```bash
-python scripts/add_server.py --name <name> --type stdio|http [OPTIONS]
-```
-
-**DESCRIPTION**
-
-<!--zh
-支持 stdio（命令行进程）和 http（URL）两种类型的 MCP 服务器。
-同名服务器会先断开旧连接再重建。添加的服务器仅在当前运行期间有效，重启后失效。
--->
-Supports both stdio (command-line process) and http (URL) MCP server types.
-An existing server with the same name will be disconnected and replaced.
-Added servers only exist for the current runtime session and do not survive restarts.
-
-**OPTIONS**
-
-<!--zh
-| 选项 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `--name <name>` | string | 是 | 服务器名称 |
-| `--type <type>` | string | 是 | 连接类型：`stdio` 或 `http` |
-| `--command <cmd>` | string | stdio 必填 | 启动命令（如 `npx`、`uvx`） |
-| `--args <json>` | string | 否 | 命令参数，**必须是 JSON 数组字符串**，例如 `'["-y","@pkg"]'`；禁止直接传 `-y pkg` 格式 |
-| `--url <url>` | string | http 必填 | 服务器 URL |
-| `--env KEY=VALUE [...]` | string | 否 | 环境变量，支持多个 |
-| `--label <name>` | string | 否 | 服务器显示名称 |
--->
-| Option | Type | Required | Description |
-|------|------|------|------|
-| `--name <name>` | string | Yes | Server name |
-| `--type <type>` | string | Yes | Connection type: `stdio` or `http` |
-| `--command <cmd>` | string | stdio only | Launch command (e.g. `npx`, `uvx`) |
-| `--args <json>` | string | No | Command arguments as a **JSON array string**, e.g. `'["-y","@pkg"]'`; do NOT pass raw space-separated args like `-y @pkg` |
-| `--url <url>` | string | http only | Server URL |
-| `--env KEY=VALUE [...]` | string | No | Environment variables, supports multiple |
-| `--label <name>` | string | No | Server display name |
-
-**OUTPUT**
-
-<!--zh
-返回 JSON 对象，包含：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `ok` | boolean | 是否成功 |
-| `name` | string | 服务器名称 |
-| `tool_count` | number | 注册的工具数量 |
-| `tools` | array | 工具名称列表 |
-| `error` | string | 失败时的错误信息 |
--->
-Returns a JSON object containing:
-
-| Field | Type | Description |
-|------|------|------|
-| `ok` | boolean | Whether succeeded |
-| `name` | string | Server name |
-| `tool_count` | number | Number of registered tools |
-| `tools` | array | Tool name list |
-| `error` | string | Error message on failure |
-
-**EXAMPLES**
-
-<!--zh
-添加 stdio 类型服务器（npx 启动的 MCP）：
-注意：--args 必须是 JSON 数组字符串，用单引号包裹整体，内部用双引号。
-```bash
-python scripts/add_server.py \
-    --name my-fs-server \
-    --type stdio \
-    --command npx \
-    --args '["-y","@modelcontextprotocol/server-filesystem","/tmp"]' \
-    --label "文件系统"
-```
-
-添加 http 类型服务器：
-```bash
-python scripts/add_server.py \
-    --name my-api-server \
-    --type http \
-    --url http://localhost:3000/mcp \
-    --label "自定义 API"
-```
-
-带环境变量：
-```bash
-python scripts/add_server.py \
-    --name my-server \
-    --type stdio \
-    --command npx \
-    --args '["-y","some-mcp-server"]' \
-    --env API_KEY=your_key BASE_URL=https://example.com
-```
--->
-Add a stdio server (npx-based MCP).
-CRITICAL: `--args` MUST be a JSON array string. Use single quotes around the whole value.
-[correct] `--args '["-y","@modelcontextprotocol/server-sequential-thinking"]'`
-[wrong]   `--args -y @modelcontextprotocol/server-sequential-thinking`
-[wrong]   `--args "-y @modelcontextprotocol/server-sequential-thinking"`
-```bash
-python scripts/add_server.py \
-    --name my-fs-server \
-    --type stdio \
-    --command npx \
-    --args '["-y","@modelcontextprotocol/server-filesystem","/tmp"]' \
-    --label "Filesystem"
-```
-
-Add an http server:
-```bash
-python scripts/add_server.py \
-    --name my-api-server \
-    --type http \
-    --url http://localhost:3000/mcp \
-    --label "Custom API"
-```
-
-Add with environment variables:
-```bash
-python scripts/add_server.py \
-    --name my-server \
-    --type stdio \
-    --command npx \
-    --args '["-y","some-mcp-server"]' \
-    --env API_KEY=your_key BASE_URL=https://example.com
-```
-
----
-
-<!--zh
-### get_servers.py - 获取 MCP 服务器列表
--->
-### get_servers.py - Get MCP Server List
-
-<!--zh
-获取所有 MCP 服务器的列表和状态。
--->
-Get the list and status of all MCP servers.
-
-**SYNOPSIS**
-```bash
-python scripts/get_servers.py
-```
-
-**DESCRIPTION**
-
-<!--zh
-查询所有已注册的 MCP 服务器，返回服务器名称、状态、工具数量等信息。
--->
-Query all registered MCP servers and return server name, status, tool count, and other information.
-
-**OPTIONS**
-
-<!--zh
-无参数。
--->
-No parameters.
-
-**OUTPUT**
-
-<!--zh
-返回 JSON 数组，每个元素包含：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `name` | string | 服务器内部名称 |
-| `label_name` | string | 服务器显示名称 |
-| `status` | string | 状态：`success`（成功）、`failed`（失败）、`timeout`（超时）|
-| `tool_count` | number | 工具数量 |
-| `tools` | array | 工具名称列表 |
--->
-Returns a JSON array, each element contains:
-
-| Field | Type | Description |
-|------|------|------|
-| `name` | string | Server internal name |
-| `label_name` | string | Server display name |
-| `status` | string | Status: `success`, `failed`, `timeout` |
-| `tool_count` | number | Tool count |
-| `tools` | array | Tool name list |
-
-**EXAMPLES**
-
-<!--zh
-运行脚本：
-```bash
-python scripts/get_servers.py
-```
-
-返回 JSON 数组，每个元素包含 `label_name`、`tool_count` 等字段。
--->
-Run the script:
-```bash
-python scripts/get_servers.py
-```
-
-Returns a JSON array, each element contains fields like `label_name`, `tool_count`, etc.
-
----
-
-<!--zh
-### get_tools.py - 获取 MCP 工具列表
--->
-### get_tools.py - Get MCP Tool List
-
-<!--zh
-获取 MCP 工具列表，支持按服务器过滤。
--->
-Get MCP tool list with optional server filtering.
-
-**SYNOPSIS**
-```bash
-python scripts/get_tools.py [OPTIONS]
-```
-
-**DESCRIPTION**
-
-<!--zh
-查询所有可用的 MCP 工具或指定服务器的工具列表。返回工具名称和描述等基本信息。
--->
-Query all available MCP tools or tools from a specific server. Returns tool name, description, and other basic information.
-
-**OPTIONS**
-
-<!--zh
-| 选项 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `--server-name <name>` | string | 否 | 服务器名称，省略时返回所有工具 |
--->
-| Option | Type | Required | Description |
-|------|------|------|------|
-| `--server-name <name>` | string | No | Server name, returns all tools if omitted |
-
-**OUTPUT**
-
-<!--zh
-返回 JSON 数组，每个元素包含：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `name` | string | 工具名称 |
-| `server_name` | string | 所属服务器名称 |
-| `description` | string | 工具功能描述 |
--->
-Returns a JSON array, each element contains:
-
-| Field | Type | Description |
-|------|------|------|
-| `name` | string | Tool name |
-| `server_name` | string | Server name |
-| `description` | string | Tool function description |
-
-**EXAMPLES**
-
-<!--zh
-获取所有工具：
-```bash
-python scripts/get_tools.py
-```
-
-获取指定服务器的工具：
-```bash
-python scripts/get_tools.py --server-name 高德地图
-```
-
-返回 JSON 数组，每个元素包含 `name`、`server_name`、`description` 等字段。
--->
-Get all tools:
-```bash
-python scripts/get_tools.py
-```
-
-Get tools from a specific server:
-```bash
-python scripts/get_tools.py --server-name 高德地图
-```
-
-Returns a JSON array, each element contains fields like `name`, `server_name`, `description`, etc.
-
----
-
-<!--zh
-### get_tool_schema.py - 获取工具 Schema
--->
-### get_tool_schema.py - Get Tool Schema
-
-<!--zh
-获取指定工具的 JSON Schema 定义，支持批量获取多个工具。
--->
-Get the JSON Schema definition of specific tool(s), supports batch retrieval.
-
-**SYNOPSIS**
-```bash
-python scripts/get_tool_schema.py --server-name <server> --tool-name <tool1> [tool2] [tool3] ...
-```
-
-**DESCRIPTION**
-
-<!--zh
-查询指定 MCP 工具的 JSON Schema 定义，包含参数说明、类型定义和必填字段。支持同时获取多个工具的 Schema。
--->
-Query the JSON Schema definition of specific MCP tool(s), including parameter descriptions, type definitions, and required fields. Supports retrieving multiple tools at once.
-
-**OPTIONS**
-
-<!--zh
-| 选项 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `--server-name <name>` | string | 是 | 服务器名称 |
-| `--tool-name <name> [name2...]` | string | 是 | 工具名称，支持多个 |
--->
-| Option | Type | Required | Description |
-|------|------|------|------|
-| `--server-name <name>` | string | Yes | Server name |
-| `--tool-name <name> [name2...]` | string | Yes | Tool name(s), supports multiple |
-
-**OUTPUT**
-
-<!--zh
-返回 JSON 数组，每个元素包含：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `tool_name` | string | 工具名称 |
-| `server_name` | string | 服务器名称 |
-| `schema` | object | Schema 对象（包含 `type`、`properties`、`required`）|
-| `error` | string | 错误信息（仅在工具不存在时出现）|
--->
-Returns a JSON array, each element contains:
-
-| Field | Type | Description |
-|------|------|------|
-| `tool_name` | string | Tool name |
-| `server_name` | string | Server name |
-| `schema` | object | Schema object (with `type`, `properties`, `required`) |
-| `error` | string | Error message (only appears when tool not found) |
-
-**EXAMPLES**
-
-<!--zh
-获取单个工具的 Schema：
-```bash
-python scripts/get_tool_schema.py --server-name 高德地图 --tool-name maps_text_search
-```
-
-获取多个工具的 Schema：
-```bash
-python scripts/get_tool_schema.py --server-name 高德地图 --tool-name maps_text_search maps_weather maps_geo
-```
-
-无论单个还是多个工具，都返回 JSON 数组，每个元素包含 `tool_name`、`server_name` 和 `schema` 字段。
--->
-Get schema for a single tool:
-```bash
-python scripts/get_tool_schema.py --server-name 高德地图 --tool-name maps_text_search
-```
-
-Get schemas for multiple tools:
-```bash
-python scripts/get_tool_schema.py --server-name 高德地图 --tool-name maps_text_search maps_weather maps_geo
-```
-
-Returns a JSON array regardless of single or multiple tools, each element containing `tool_name`, `server_name`, and `schema` fields.
-
-<!--zh
-## mcp.call 方法
--->
-## mcp.call Method
-
-<!--zh
-**重要提示**：`mcp.call()` 是 SDK 方法，不是独立工具。必须在 `run_sdk_snippet` 工具中执行 Python 代码来调用它。
-
-通过 `mcp.call()` 调用 MCP 工具并获取执行结果。
--->
-**Important**: `mcp.call()` is an SDK method, NOT a standalone tool. It must be called within Python code executed by the `run_sdk_snippet` tool.
-
-Call MCP tools via `mcp.call()` and get execution results.
-
-<!--zh
-### 参数说明
-
-| 参数 | 必填 | 类型 | 说明 |
-|------|------|------|------|
-| `server_name` | 是 | string | MCP 服务器名称 |
-| `tool_name` | 是 | string | 工具名称 |
-| `tool_params` | 是 | dict | 工具参数字典，根据工具 Schema 定义传入 |
--->
-### Parameters
-
-| Parameter | Required | Type | Description |
-|------|------|------|------|
-| `server_name` | Yes | string | MCP server name |
-| `tool_name` | Yes | string | Tool name |
-| `tool_params` | Yes | dict | Tool parameter dict, passed according to tool Schema definition |
-
-<!--zh
-### 返回值
-
-返回 `Result` 对象，包含以下字段：
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `ok` | boolean | 执行是否成功 |
-| `content` | string | 成功时为结果内容，失败时为错误信息 |
-| `execution_time` | float | 执行时间（秒）|
-| `tool_call_id` | string | 工具调用 ID |
-| `name` | string | 工具完整名称 |
--->
-### Return Value
-
-Returns a `Result` object containing the following fields:
-
-| Field | Type | Description |
-|------|------|------|
-| `ok` | boolean | Whether execution succeeded |
-| `content` | string | Result content on success, error message on failure |
-| `execution_time` | float | Execution time (seconds) |
-| `tool_call_id` | string | Tool call ID |
-| `name` | string | Full tool name |
-
-<!--zh
-### 使用示例
--->
-### Usage Examples
-
-<!--zh
-**基本调用：**
--->
-**Basic Call:**
+## Adding a new server
 
 ```python
-# 注意：服务器名和工具名必须是通过脚本查询确认的真实值，不能臆想！
-# 使用 run_sdk_snippet 工具执行以下代码
-run_sdk_snippet(
-    python_code="""
-from sdk.mcp import mcp
+run_sdk_snippet(python_code="""
+from sdk.tool import tool
 
-# 调用 MCP 工具
-result = mcp.call(
-    server_name="<服务器名称>",  # 必须从 get_servers.py 查询结果中获取
-    tool_name="<工具名称>",      # 必须从 get_tools.py 查询结果中获取
-    tool_params={"参数名": "参数值"}  # 必须符合 get_tool_schema.py 返回的 Schema
-)
+# stdio server (npx-based MCP).
+# `args` MUST be a real list, not a space-separated string.
+add = tool.call('mcp_add_server', {
+    'name': 'my-fs-server',
+    'server_type': 'stdio',
+    'command': 'npx',
+    'args': ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
+    'label_name': 'Filesystem',
+})
+print(add.content)
 
-# 检查执行结果
-if result.ok:
-    print(f"调用成功: {result.content}")
-    print(f"执行时间: {result.execution_time}秒")
-else:
-    print(f"调用失败: {result.content}")
-"""
-)
+# http server example
+add = tool.call('mcp_add_server', {
+    'name': 'my-api-server',
+    'server_type': 'http',
+    'url': 'http://localhost:3000/mcp',
+    'label_name': 'Custom API',
+})
+print(add.content)
+""")
 ```
 
-<!--zh
-**完整工作流：**
--->
-**Complete Workflow:**
+After `mcp_add_server`, the server status is `disconnected`. Run `mcp_connect_server` (or just call any tool on it — connection happens on demand) before invoking its tools.
 
-```python
-# Step 0: [可选] 获取服务器列表（通过 shell_exec）
-# 如果不确定有哪些服务器，可执行:
-shell_exec(
-    command="python scripts/get_servers.py"
-)
-# 从输出中选择一个状态为 success 的服务器
+## Common pitfalls
 
-# Step 1: [必须] 获取工具列表（通过 shell_exec）
-shell_exec(
-    command="python scripts/get_tools.py --server-name <服务器名称>"
-)
-# 从输出中选择要使用的工具
-
-# Step 2: [必须] 获取工具 Schema（通过 shell_exec）
-shell_exec(
-    command="python scripts/get_tool_schema.py --server-name <服务器名称> --tool-name <工具名称>"
-)
-# 查看必填参数和参数类型
-
-# Step 3: [必须] 调用工具（通过 run_sdk_snippet）
-run_sdk_snippet(
-    python_code="""
-from sdk.mcp import mcp
-
-# 根据 Schema 构造参数
-tool_params = {
-    "参数1": "值1",
-    "参数2": "值2"
-}
-
-# 调用工具
-result = mcp.call(
-    server_name="<服务器名称>",  # 从用户提示词或 Step 0 中获取
-    tool_name="<工具名称>",      # 从 Step 1 查询结果中获取
-    tool_params=tool_params    # 根据 Step 2 的 Schema 构造
-)
-
-# 处理结果
-if result.ok:
-    print(f"调用成功: {result.content}")
-else:
-    print(f"调用失败: {result.content}")
-"""
-)
-```
-
-<!--zh
-## 注意事项
-
-1. **服务器确认**: 如果不确定服务器是否可用，可以先执行 `get_servers.py` 检查服务器状态
-2. **工具确认**: 调用工具前**必须**先执行 `get_tools.py` 确认工具存在于该服务器
-3. **Schema 验证**: 调用工具前**必须**先执行 `get_tool_schema.py` 获取 Schema 验证必填参数
-4. **参数格式**: 确保 `tool_params` 符合工具的 JSON Schema 定义
-5. **禁止臆想**: **严格禁止**臆想或猜测工具名称、参数名称，必须以查询结果为准
--->
-## Notes
-
-1. **Server Confirmation**: If unsure whether server is available, run `get_servers.py` to check server status first
-2. **Tool Confirmation**: **MUST** run `get_tools.py` to confirm tool exists on that server before calling
-3. **Schema Validation**: **MUST** run `get_tool_schema.py` to get Schema and validate required parameters before calling tools
-4. **Parameter Format**: Ensure `tool_params` conforms to the tool's JSON Schema definition
-5. **No Imagination**: **STRICTLY FORBIDDEN** to imagine or guess tool names or parameter names; must follow query results
+- Passing `tool_params` to `mcp_call_tool` as a Python dict. It MUST be a JSON object string (e.g. `'{"key": "value"}'`); pass `'{}'` when no parameters are needed.
+- Calling `mcp_call_tool` without first checking `mcp_get_tool_schema` and supplying random parameter names. Always look at the schema first.
+- Passing `args` to `mcp_add_server` as a single string like `'-y @pkg /tmp'`. It MUST be a list of strings.
+- Treating `mcp_list_tools` without `server_name` as a way to "discover" tools on disconnected servers. It only returns tools from already-connected servers; use `mcp_list_servers` + `mcp_connect_server` to see disconnected ones.
+- Trying to call `mcp_call_tool` directly as a tool call (without `run_sdk_snippet`). It will be rejected because these tools are Code Mode only.
+- Passing `output_file_path` as a relative path like `'reports/data.json'`. It is rejected and the call silently falls back to the runtime directory, so the user never sees the file. Always build an absolute path, and prefer placing it under the current workspace.

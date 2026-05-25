@@ -410,5 +410,45 @@
     "install_skills": {
         "zh_CN": "安装技能",
         "en_US": "Install skills"
+    },
+    "list_servers": {
+        "zh_CN": "查看可用服务",
+        "en_US": "Check Available Services"
+    },
+    "list_tools": {
+        "zh_CN": "查看可用工具",
+        "en_US": "Check Available Tools"
+    },
+    "connect_server": {
+        "zh_CN": "连接服务",
+        "en_US": "Connect Service"
+    },
+    "install_server": {
+        "zh_CN": "安装服务",
+        "en_US": "Install Service"
+    },
+    "get_tool_schema": {
+        "zh_CN": "收集工具用法",
+        "en_US": "Collect Tool Usage"
+    },
+    "call_tool": {
+        "zh_CN": "调用工具",
+        "en_US": "Use Tool"
+    },
+    "add_server": {
+        "zh_CN": "添加新服务",
+        "en_US": "Add New Service"
+    },
+    "remove_server": {
+        "zh_CN": "移除服务",
+        "en_US": "Remove Service"
+    },
+    "call_simple_tool": {
+        "zh_CN": "调用工具",
+        "en_US": "Use Tool"
+    },
+    "call_simple_agent": {
+        "zh_CN": "调用助理",
+        "en_US": "Consult Agent"
     }
 }

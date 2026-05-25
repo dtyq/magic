@@ -42,6 +42,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\UserInfoValueObject;
 use Dtyq\SuperMagic\Domain\SuperAgent\Exception\WorkspaceReadyTimeoutException;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskFileRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TaskMessageRepositoryInterface;
+use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\TopicRepositoryInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Constant\WorkspaceStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\AskUserResponseMessageRequest;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Request\ChatMessageRequest;
@@ -56,12 +57,14 @@ use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\Response\AgentRes
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Agent\SandboxAgentInterface;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Exception\SandboxOperationException;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\ResponseCode;
+use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Constant\SandboxStatus;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\BatchStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\SandboxStatusResult;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\SandboxGatewayInterface;
 use Dtyq\SuperMagic\Infrastructure\Utils\WorkDirectoryUtil;
 use Hyperf\Codec\Json;
+use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Server\Exception\ServerException;
 use Psr\Log\LoggerInterface;
@@ -88,7 +91,7 @@ class AgentDomainService
         private readonly SuperMagicAgentRepositoryInterface $superMagicAgentRepository,
         private readonly MagicTokenRepositoryInterface $magicTokenRepository,
         private readonly LockerInterface $locker,
-        private readonly TopicDomainService $topicDomainService,
+        private readonly TopicRepositoryInterface $topicRepository,
         private readonly TaskMessageRepositoryInterface $taskMessageRepository,
         private readonly TaskFileRepositoryInterface $taskFileRepository,
     ) {
@@ -289,16 +292,30 @@ class AgentDomainService
                 ]);
             }
 
-            // Step 2: Get root file ID for sandbox initialization
-            $rootFileId = '';
+            // Step 2: Get root file IDs for sandbox initialization
+            $projectSpaceRootFileId = '';
+            $userSpaceRootFileId = '';
             try {
                 $projectId = $agentContext->getProjectEntity()->getId();
                 $rootDir = $this->taskFileRepository->findRootDirectoryByProjectId($projectId);
                 if ($rootDir !== null) {
-                    $rootFileId = (string) $rootDir->getFileId();
+                    $projectSpaceRootFileId = (string) $rootDir->getFileId();
                 }
             } catch (Throwable $e) {
-                $this->logger->warning('[Sandbox][Domain] Failed to get root file id for sandbox initialization', [
+                $this->logger->warning('[Sandbox][Domain] Failed to get project space root file id for sandbox initialization', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            // Step 2.1: Get or create user space root directory
+            try {
+                $taskFileDomainService = ApplicationContext::getContainer()->get(TaskFileDomainService::class);
+                $userSpaceRootFileId = (string) $taskFileDomainService->findOrCreateUserRootDirectory(
+                    $dataIsolation->getCurrentUserId(),
+                    $dataIsolation->getCurrentOrganizationCode()
+                );
+            } catch (Throwable $e) {
+                $this->logger->warning('[Sandbox][Domain] Failed to get user space root file id for sandbox initialization', [
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -322,7 +339,9 @@ class AgentDomainService
                     projectId: (string) $agentContext->getProjectEntity()->getId(),
                     sandboxID: $agentContext->getSandboxId(),
                     workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
-                    rootFileId: $rootFileId
+                    projectSpaceRootFileId: $projectSpaceRootFileId,
+                userSpaceRootFileId: $userSpaceRootFileId,
+                topicId: $topicEntity->getId()
                 );
             }
 
@@ -384,7 +403,7 @@ class AgentDomainService
     /**
      * 调用沙箱网关，创建沙箱容器，如果 sandboxId 不存在，系统会默认创建一个.
      */
-    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $rootFileId = ''): string
+    public function createSandbox(DataIsolation $dataIsolation, string $projectId, string $sandboxID, string $workDir, string $projectSpaceRootFileId = '', string $userSpaceRootFileId = '', ?int $topicId = null): string
     {
         // 获取用户 authorization token，用于沙箱创建时的身份验证
         $authorization = $this->getAuthorizationByUserId($dataIsolation->getCurrentUserId());
@@ -393,12 +412,13 @@ class AgentDomainService
             'project_id' => $projectId,
             'sandbox_id' => $sandboxID,
             'project_oss_path' => $workDir,
-            'root_file_id' => $rootFileId,
+            'project_space_root_file_id' => $projectSpaceRootFileId,
+            'user_space_root_file_id' => $userSpaceRootFileId,
             'authorization_provided' => $authorization !== '',
         ]);
 
         $this->gateway->setUserContext($dataIsolation->getCurrentUserId(), $dataIsolation->getCurrentOrganizationCode());
-        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $rootFileId, $authorization);
+        $result = $this->gateway->createSandbox($projectId, $sandboxID, $workDir, $projectSpaceRootFileId, $userSpaceRootFileId, $authorization);
 
         // 添加详细的调试日志，检查 result 对象
         $this->logger->debug('[Sandbox][App] Gateway result analysis', [
@@ -432,9 +452,23 @@ class AgentDomainService
             'agent_image' => $agentImage,
         ]);
 
-        // sandbox_id 即 topic_id，创建成功后立即持久化 agent 镜像版本
-        if (! empty($agentImage) && ! empty($returnedSandboxId)) {
-            $this->topicDomainService->updateTopicAgentImage($dataIsolation, (int) $returnedSandboxId, $agentImage);
+        // 创建成功后立即持久化 sandbox id 与 agent 镜像版本。优先使用调用方传入的 topic id，
+        // 避免自定义 sandbox_id 场景把 sandbox_id 误当成 topic_id。
+        $topicUpdateId = $topicId ?? ((string) (int) $returnedSandboxId === (string) $returnedSandboxId ? (int) $returnedSandboxId : 0);
+        if ($topicUpdateId > 0) {
+            $topicUpdateData = [
+                'updated_uid' => $dataIsolation->getCurrentUserId(),
+                'updated_at' => date('Y-m-d H:i:s'),
+            ];
+            if (! empty($returnedSandboxId)) {
+                $topicUpdateData['sandbox_id'] = (string) $returnedSandboxId;
+            }
+            if (! empty($agentImage)) {
+                $topicUpdateData['agent_image'] = $agentImage;
+            }
+            if (isset($topicUpdateData['sandbox_id']) || isset($topicUpdateData['agent_image'])) {
+                $this->topicRepository->updateTopicByCondition(['id' => $topicUpdateId], $topicUpdateData);
+            }
         }
 
         return $returnedSandboxId;
@@ -1165,6 +1199,101 @@ class AgentDomainService
     }
 
     /**
+     * Ensure sandbox container is running (without agent initialization).
+     * Used for export/utility scenarios that only need the sandbox container running.
+     *
+     * @param string $userId User ID
+     * @param string $orgCode Organization code
+     * @param string $sandboxId Sandbox ID
+     * @param string $projectId Project ID
+     * @param string $workDir Working directory
+     * @return string The actual sandbox ID
+     * @throws SandboxOperationException When sandbox cannot be started
+     */
+    public function ensureSandboxRunning(
+        string $userId,
+        string $orgCode,
+        string $sandboxId,
+        string $projectId,
+        string $workDir
+    ): string {
+        $this->logger->debug('[Sandbox][Domain] Ensuring sandbox container is running', [
+            'sandbox_id' => $sandboxId,
+            'project_id' => $projectId,
+            'user_id' => $userId,
+        ]);
+
+        // Check if sandbox already running
+        $statusResult = $this->getSandboxStatus($sandboxId);
+        if ($statusResult->isSuccess() && $statusResult->getCode() === ResponseCode::SUCCESS) {
+            if (SandboxStatus::isAvailable($statusResult->getStatus())) {
+                $this->logger->debug('[Sandbox][Domain] Sandbox container is already running', [
+                    'sandbox_id' => $sandboxId,
+                ]);
+                return $sandboxId;
+            }
+
+            // If Pending, wait for it to become Running
+            if ($statusResult->getStatus() === SandboxStatus::PENDING) {
+                $this->logger->debug('[Sandbox][Domain] Sandbox container is pending, waiting for it to become running', [
+                    'sandbox_id' => $sandboxId,
+                ]);
+                try {
+                    return $this->waitForSandboxContainerRunning($sandboxId, 'existing');
+                } catch (SandboxOperationException $e) {
+                    $this->logger->warning('[Sandbox][Domain] Failed to wait for existing sandbox container, will recreate', [
+                        'sandbox_id' => $sandboxId,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        // Get root file ID for sandbox creation
+        $projectSpaceRootFileId = '';
+        try {
+            $rootDir = $this->taskFileRepository->findRootDirectoryByProjectId((int) $projectId);
+            if ($rootDir !== null) {
+                $projectSpaceRootFileId = (string) $rootDir->getFileId();
+            }
+        } catch (Throwable $e) {
+            $this->logger->warning('[Sandbox][Domain] Failed to get project space root file id', [
+                'project_id' => $projectId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Create sandbox container
+        $authorization = $this->getAuthorizationByUserId($userId);
+        $this->gateway->setUserContext($userId, $orgCode);
+        $createResult = $this->gateway->createSandbox($projectId, $sandboxId, $workDir, $projectSpaceRootFileId, '', $authorization);
+
+        if (! $createResult->isSuccess()) {
+            $this->logger->error('[Sandbox][Domain] Failed to create sandbox container', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+                'code' => $createResult->getCode(),
+                'message' => $createResult->getMessage(),
+            ]);
+            throw new SandboxOperationException('Create sandbox', $createResult->getMessage(), $createResult->getCode());
+        }
+
+        $newSandboxId = $createResult->getDataValue('sandbox_id');
+        if (empty($newSandboxId)) {
+            $this->logger->error('[Sandbox][Domain] Failed to get sandbox_id from create result', [
+                'sandbox_id' => $sandboxId,
+                'project_id' => $projectId,
+            ]);
+            throw new SandboxOperationException('Get sandbox_id from create result', 'Failed to get sandbox_id from create result', 2001);
+        }
+
+        $this->logger->debug('[Sandbox][Domain] Sandbox container created, waiting for it to become running', [
+            'sandbox_id' => $newSandboxId,
+        ]);
+        return $this->waitForSandboxContainerRunning($newSandboxId, 'new');
+    }
+
+    /**
      * 根据用户ID获取 Authorization.
      * - 先以用户级别 token（MagicTokenType::User）为准，支持一个账号多个组织
      * - 若 token 已存在但剩余有效期不足 30 天，则刷新至 30 天后.
@@ -1204,6 +1333,58 @@ class AgentDomainService
             ]);
             return '';
         }
+    }
+
+    /**
+     * Wait for sandbox container to become running.
+     *
+     * @param string $sandboxId Sandbox ID
+     * @param string $type Type for logging ('existing' or 'new')
+     * @return string Sandbox ID on success
+     * @throws SandboxOperationException When timeout or sandbox exits unexpectedly
+     */
+    private function waitForSandboxContainerRunning(string $sandboxId, string $type): string
+    {
+        $maxRetries = 15;
+        $retryDelay = 2;
+
+        $this->logger->debug(sprintf('[Sandbox][Domain] Waiting for %s sandbox container to become running', $type), [
+            'sandbox_id' => $sandboxId,
+            'max_retries' => $maxRetries,
+            'retry_delay' => $retryDelay,
+        ]);
+
+        for ($i = 0; $i < $maxRetries; ++$i) {
+            $statusResult = $this->getSandboxStatus($sandboxId);
+
+            if ($statusResult->isSuccess() && SandboxStatus::isAvailable($statusResult->getStatus())) {
+                $this->logger->debug(sprintf('[Sandbox][Domain] %s sandbox container is now running', ucfirst($type)), [
+                    'sandbox_id' => $sandboxId,
+                    'attempts' => $i + 1,
+                ]);
+                return $sandboxId;
+            }
+
+            if ($type === 'existing' && $statusResult->getStatus() === SandboxStatus::EXITED) {
+                $this->logger->debug('[Sandbox][Domain] Existing sandbox container exited while waiting', [
+                    'sandbox_id' => $sandboxId,
+                    'current_status' => $statusResult->getStatus(),
+                ]);
+                throw new SandboxOperationException('Wait for existing sandbox', 'Existing sandbox exited while waiting', 2002);
+            }
+
+            $this->logger->debug(sprintf('[Sandbox][Domain] Waiting for %s sandbox container...', $type), [
+                'sandbox_id' => $sandboxId,
+                'current_status' => $statusResult->getStatus(),
+                'attempt' => $i + 1,
+            ]);
+            sleep($retryDelay);
+        }
+
+        $this->logger->error(sprintf('[Sandbox][Domain] Timeout waiting for %s sandbox container to become running', $type), [
+            'sandbox_id' => $sandboxId,
+        ]);
+        throw new SandboxOperationException('Wait for sandbox ready', sprintf('Timeout waiting for %s sandbox to become running', $type), 2003);
     }
 
     /**

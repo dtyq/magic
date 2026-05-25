@@ -392,7 +392,7 @@ class ProjectAppService extends AbstractAppService
 
                 // 6. 初始化项目
                 $dynamicParams = ! empty($requestDTO->getDynamicParams()) ? $requestDTO->getDynamicParams() : null;
-                $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams);
+                $this->initializeProject($dataIsolation, $workspaceEntity, $projectEntity, $dynamicParams, $requestDTO->getTopicMode());
 
                 // 7. 创建项目根目录
                 $this->taskFileDomainService->findOrCreateProjectRootDirectory(
@@ -2550,7 +2550,8 @@ class ProjectAppService extends AbstractAppService
         DataIsolation $dataIsolation,
         ?WorkspaceEntity $workspaceEntity,
         ProjectEntity $projectEntity,
-        ?array $dynamicParams = null
+        ?array $dynamicParams = null,
+        string $topicMode = ''
     ): TopicEntity {
         // 2. Get project work directory
         $workDir = WorkDirectoryUtil::getWorkDir(
@@ -2572,7 +2573,7 @@ class ProjectAppService extends AbstractAppService
             $chatConversationTopicId,
             '',
             $workDir,
-            '',
+            $topicMode,
             CreationSource::USER_CREATED->value,
             '',
             false,

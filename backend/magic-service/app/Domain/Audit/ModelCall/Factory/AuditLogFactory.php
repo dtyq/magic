@@ -35,6 +35,7 @@ class AuditLogFactory
         string $providerName = '',
         int $firstResponseLatency = 0,
         ?string $eventId = null,
+        null|int|string $serviceProviderConfigId = null,
     ): AuditLogEntity {
         $now = new DateTime();
 
@@ -57,6 +58,7 @@ class AuditLogFactory
         $entity->setMagicTopicId($magicTopicId);
         $entity->setRequestId($requestId);
         $entity->setEventId($eventId);
+        $entity->setServiceProviderConfigId($serviceProviderConfigId);
         $entity->setCreatedAt($now);
         $entity->setUpdatedAt($now);
 

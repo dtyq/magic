@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef, type ClipboardEvent } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useEventListener, useLatest } from "ahooks"
 import { ElementTypeEnum, type ImageElement } from "../../canvas/types"
 import { useCanvasUI } from "../../context/CanvasUIContext"
@@ -9,12 +9,8 @@ import useElementPositionEffect from "../../hooks/useElementPositionEffect"
 import IconButton from "../ui/custom/IconButton"
 import { MediaResultActionBar } from "../canvas-editor/MediaResultActionBar"
 import styles from "./index.module.css"
-import { Button } from "../ui/button"
-import { ArrowUp, LoaderCircle, Pencil, RotateCcw, SquarePen } from "lucide-react"
-import MessageEditor, { type MessageEditorRef } from "../MessageEditor/MessageEditor"
-import { useMessageEditorMention } from "../MessageEditor/useMessageEditorMention"
-import { useMentionSync } from "../MessageEditor/useMentionSync"
-import { removeMentionFromString } from "../MessageEditor/tiptap/contentUtils"
+import { LoaderCircle, Pencil, RotateCcw, SquarePen } from "lucide-react"
+import { type MessageEditorRef } from "../MessageEditor/MessageEditor"
 import { ImageElement as ImageElementClass } from "../../canvas/element/elements/ImageElement"
 import {
 	generateElementId,
@@ -24,21 +20,8 @@ import {
 import { getImageProcessRequestPayload } from "../../canvas/utils/imageCropUtils"
 import type { GenerateImageRequest } from "../../types.magic"
 import { useImageEditorConfig } from "./useImageEditorConfig"
-import ImageEditorControls from "./ImageEditorControls"
 import { useFloatingComponent } from "../../hooks/useFloatingComponent"
-import type { ReferenceResourceSourceType } from "../MessageEditor/reference-assets/reference-resource.types"
-import type { ReferenceResourcePanelItem } from "../../types"
-import { ReferenceResourceDropSurface } from "../MessageEditor/reference-assets/ReferenceResourceDropSurface"
-import { createReferenceResourcePanelItemFromDropFile } from "../MessageEditor/reference-assets/createReferenceResourcePanelItem"
-import {
-	checkLocalReferenceResourceDrop,
-	checkProjectReferenceResourceDrop,
-	getReferenceResourceHoverState,
-	getReferenceResourceLocalHoverState,
-	normalizeProjectDropFiles,
-	type ReferenceDropProjectFile,
-	useReferenceResourceDrop,
-} from "../MessageEditor/reference-assets/useReferenceResourcePanelDataService"
+import ImageEditorSurface from "./ImageEditorSurface"
 
 interface SecondEditProps {
 	imageElement: ImageElement
@@ -50,15 +33,12 @@ export default function SecondEdit(props: SecondEditProps) {
 	const { imageModelList } = useMagic()
 	const { t } = useCanvasDesignI18n()
 	const editorRef = useRef<MessageEditorRef>(null)
-	const [entryMode, setEntryMode] = useState<"quick-edit" | "regenerate">("quick-edit")
 	const [pendingOpenMode, setPendingOpenMode] = useState<"quick-edit" | "regenerate" | null>(null)
 
 	// 使用共享的配置 hook（ossSrc 会直接从实例中获取，因为二次编辑只有在 ossSrc 准备好后才会显示）
 	const config = useImageEditorConfig({
 		imageElement: props.imageElement,
-		protectedReferenceImageIndex: entryMode === "quick-edit" ? 0 : undefined,
-		originalImageSrc: props.imageElement.src, // 原图自动作为第一个参考文件
-		includeOriginalImageAsReference: entryMode === "quick-edit",
+		originalImageSrc: props.imageElement.src,
 		editorFocusRef: editorRef,
 		originalImageName:
 			// 从 src 字段提取文件名（例如："/超级画布/images/111.jpg" -> "111.jpg"）
@@ -67,49 +47,14 @@ export default function SecondEdit(props: SecondEditProps) {
 			t("imageEditor.originalImage", "原图"), // 从 src 提取文件名，否则使用 name，最后使用默认值
 	})
 
-	const {
-		prompt,
-		handlers,
-		fileInputRef,
-		fileInputAccept,
-		maxReferenceFiles,
-		currentReferenceFiles,
-		isReferenceFileLimitReached,
-	} = config
-	const {
-		restoreQuickEditConfigToUi,
-		restoreOriginalGenerateImageRequestToUi,
-		uploadFiles,
-		setPrompt,
-		handleReferenceFileRemove,
-		syncReferenceFilesFromElement,
-	} = handlers
-
-	// 将参考文件的 matchableItems 传递给 useMessageEditorMention，用于合并到 @ 面板
-	const { matchableItems, mentionDataService, mentionExtension, mentionEnabled } =
-		useMessageEditorMention({
-			matchableItems: config.matchableItems,
-			maxReferenceFiles,
-			currentReferenceFiles,
-			isReferenceFileLimitReached,
-			referenceResourceType: config.referenceResourceType,
-		})
+	const { prompt, handlers } = config
+	const { restoreQuickEditConfigToUi, restoreOriginalGenerateImageRequestToUi, setPrompt } =
+		handlers
 
 	const [isEditing, setIsEditing] = useState<boolean>(false)
 	const [isVisible, setIsVisible] = useState<boolean>(true)
-	const [hasScrollbar, setHasScrollbar] = useState<boolean>(false)
 	const [isSending, setIsSending] = useState(false)
 	const sendingRef = useRef(false)
-
-	const { syncMentionPaths } = useMentionSync({
-		canvas,
-		elementId: props.imageElement.id,
-		matchableItems,
-		protectedReferenceFileIndex: entryMode === "quick-edit" ? 0 : undefined,
-		maxReferenceFiles,
-		isReferenceFileLimitReached,
-		syncFromElement: syncReferenceFilesFromElement,
-	})
 	const canRegenerate = Boolean(props.imageElement.generateImageRequest?.model_id)
 	const directGenerateRequest = props.imageElement.generateImageRequest
 
@@ -122,8 +67,8 @@ export default function SecondEdit(props: SecondEditProps) {
 	})
 
 	const { containerRef: floatingRef } = useFloatingComponent({
-		id: "second-edit",
-		enableWheelForwarding: !hasScrollbar, // 编辑状态下或出现滚动条时不转发 wheel 事件
+		id: "second-edit-result",
+		enableWheelForwarding: true,
 	})
 
 	// 合并 refs
@@ -335,110 +280,6 @@ export default function SecondEdit(props: SecondEditProps) {
 		await createAndSubmitImageGeneration(directGenerateRequest)
 	}, [createAndSubmitImageGeneration, directGenerateRequest])
 
-	const handleSelectSource = useCallback(
-		(source: ReferenceResourceSourceType) => {
-			handlers.setPopoverOpen(false)
-			if (source === "local-upload") {
-				if (config.isReferenceFileLimitReached) {
-					return
-				}
-				handlers.triggerFileSelect()
-			}
-		},
-		[config.isReferenceFileLimitReached, handlers],
-	)
-
-	const handleProjectSelect = useCallback((item: ReferenceResourcePanelItem) => {
-		editorRef.current?.insertMentionItems([item])
-	}, [])
-
-	const canAcceptReferenceDrop =
-		!config.isUploading && Boolean(maxReferenceFiles && maxReferenceFiles > 0)
-
-	const canAcceptProjectFiles = useCallback(
-		(files: ReferenceDropProjectFile[]) => {
-			return checkProjectReferenceResourceDrop({
-				isDropEnabled: canAcceptReferenceDrop,
-				files,
-				matchableItems,
-				currentReferenceFiles,
-				maxReferenceFiles,
-			})
-		},
-		[canAcceptReferenceDrop, matchableItems, currentReferenceFiles, maxReferenceFiles],
-	)
-
-	const canAcceptLocalFiles = useCallback(
-		(files: File[]) => {
-			return checkLocalReferenceResourceDrop({
-				isDropEnabled: canAcceptReferenceDrop,
-				files,
-				accept: fileInputAccept,
-				currentReferenceFileCount: currentReferenceFiles.length,
-				maxReferenceFiles,
-			})
-		},
-		[canAcceptReferenceDrop, fileInputAccept, maxReferenceFiles, currentReferenceFiles],
-	)
-
-	const getHoverDropState = useCallback(
-		() =>
-			getReferenceResourceHoverState({
-				isDropEnabled: canAcceptReferenceDrop,
-				currentReferenceFileCount: currentReferenceFiles.length,
-				maxReferenceFiles,
-			}),
-		[canAcceptReferenceDrop, maxReferenceFiles, currentReferenceFiles],
-	)
-
-	const getLocalHoverState = useCallback(
-		(dataTransfer: DataTransfer | null) =>
-			getReferenceResourceLocalHoverState({
-				isDropEnabled: canAcceptReferenceDrop,
-				dataTransfer,
-				accept: fileInputAccept,
-				currentReferenceFileCount: currentReferenceFiles.length,
-				maxReferenceFiles,
-			}),
-		[canAcceptReferenceDrop, fileInputAccept, maxReferenceFiles, currentReferenceFiles],
-	)
-
-	const handleProjectFilesDrop = useCallback(
-		(files: ReferenceDropProjectFile[]) => {
-			const normalizedFiles = normalizeProjectDropFiles(
-				files,
-				matchableItems,
-				currentReferenceFiles,
-			)
-			editorRef.current?.insertMentionItems(
-				normalizedFiles.map((file) => createReferenceResourcePanelItemFromDropFile(file)),
-			)
-		},
-		[currentReferenceFiles, matchableItems],
-	)
-
-	const handlePaste = useCallback(
-		(event: ClipboardEvent<HTMLDivElement>) => {
-			const files = Array.from(event.clipboardData.files)
-			if (files.length === 0) return
-			if (!canAcceptLocalFiles(files).accepted) return
-
-			event.preventDefault()
-			void uploadFiles(files)
-		},
-		[canAcceptLocalFiles, uploadFiles],
-	)
-
-	const { overlayState, dragEvents } = useReferenceResourceDrop({
-		isEnabled: isEditing,
-		checkProjectFiles: canAcceptProjectFiles,
-		checkLocalFiles: canAcceptLocalFiles,
-		getProjectHoverState: getHoverDropState,
-		getLocalHoverState,
-		onDropProjectFiles: handleProjectFilesDrop,
-		onDropLocalFiles: uploadFiles,
-	})
-
 	const openEditor = useCallback(() => {
 		// 先隐藏
 		setIsVisible(false)
@@ -452,14 +293,12 @@ export default function SecondEdit(props: SecondEditProps) {
 
 	// 处理进入编辑状态的函数
 	const handleStartEditing = useCallback(() => {
-		setEntryMode("quick-edit")
 		setPendingOpenMode("quick-edit")
 	}, [])
 
 	/** 按已保存的 generateImageRequest 完整回填后进入编辑态（与快捷编辑仅对齐模型/尺寸不同） */
 	const handleRegenerateFromSavedConfig = useCallback(() => {
 		if (!props.imageElement.generateImageRequest?.model_id) return
-		setEntryMode("regenerate")
 		setPendingOpenMode("regenerate")
 	}, [props.imageElement.generateImageRequest])
 
@@ -529,84 +368,25 @@ export default function SecondEdit(props: SecondEditProps) {
 		{ target: window },
 	)
 
-	const handleMentionChange = useCallback(
-		(paths: string[], currentPrompt: string) => {
-			syncMentionPaths(paths, currentPrompt)
-		},
-		[syncMentionPaths],
-	)
-
-	// Popover 删除时同步到 TipTap：移除 prompt 中的 @ 提及
-	const handleReferenceFileRemoveFromPopover = useCallback(
-		(path: string) => {
-			// 从编辑器获取最新的 prompt，避免闭包问题
-			const currentPrompt = editorRef.current?.getCurrentPrompt() ?? prompt
-			const fileName =
-				config.referenceFileInfos.find((i) => i.path === path)?.fileName ??
-				path.split("/").pop()
-			setPrompt(removeMentionFromString(currentPrompt, path, fileName))
-			handleReferenceFileRemove(path)
-		},
-		[prompt, config.referenceFileInfos, handleReferenceFileRemove, setPrompt],
-	)
-
 	if (isEditing) {
 		return (
-			<ReferenceResourceDropSurface
-				ref={setRefs}
+			<ImageEditorSurface
+				imageElement={props.imageElement}
+				config={config}
+				editorRef={editorRef}
+				shouldShow={() =>
+					selectedElements.some((element) => element?.type === ElementTypeEnum.Image)
+				}
+				floatingId="second-edit"
+				selectionPersistenceKey={`image-second-edit:${props.imageElement.id}`}
+				placeholder={t("imageEditor.editPlaceholder", "请输入您的编辑需求")}
+				onSend={handleSend}
+				isSending={isSending}
+				autoFocus
+				isDropEnabled={isEditing}
 				className={styles.imageMessageEditor}
-				data-canvas-ui-component
 				style={{ visibility: isVisible ? "visible" : "hidden" }}
-				dropOverlayState={overlayState}
-				dragEvents={dragEvents}
-			>
-				<input
-					ref={fileInputRef}
-					type="file"
-					accept={fileInputAccept}
-					multiple
-					style={{ display: "none" }}
-					onChange={handlers.handleFileChange}
-				/>
-				<MessageEditor
-					ref={editorRef}
-					autoFocus
-					fullWidth
-					selectionPersistenceKey={`image-second-edit:${props.imageElement.id}`}
-					placeholder={t("imageEditor.editPlaceholder", "请输入您的编辑需求")}
-					value={prompt}
-					onChange={handlers.setPrompt}
-					onEnter={handleSend}
-					onScrollbarChange={setHasScrollbar}
-					matchableItems={matchableItems}
-					mentionDataService={mentionDataService}
-					mentionExtension={mentionExtension}
-					onMentionChange={handleMentionChange}
-					mentionEnabled={mentionEnabled}
-					onPaste={handlePaste}
-				/>
-				<ImageEditorControls
-					config={config}
-					protectedReferenceFileIndex={entryMode === "quick-edit" ? 0 : undefined}
-					onSelectSource={handleSelectSource}
-					onProjectSelect={handleProjectSelect}
-					onReferenceFileRemove={handleReferenceFileRemoveFromPopover}
-					renderSendButton={() => (
-						<Button
-							className={styles.sendButton}
-							onClick={handleSend}
-							disabled={isSending || !prompt.trim() || !config.selectedModelId}
-							aria-busy={isSending}
-						>
-							{isSending ? (
-								<LoaderCircle size={16} className="animate-spin" />
-							) : (
-								<ArrowUp size={16} />
-							)}
-						</Button>
-					)}
-				/>
-			</ReferenceResourceDropSurface>
+			/>
 		)
 	}
 

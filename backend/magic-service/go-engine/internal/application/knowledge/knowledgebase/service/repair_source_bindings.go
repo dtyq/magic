@@ -334,10 +334,11 @@ func (l sourceBindingRepairKnowledgeLoader) LoadRepairKnowledgeBase(
 		return nil, fmt.Errorf("show knowledge base by org: %w", err)
 	}
 	return &sourcebindingservice.RepairKnowledgeBase{
-		Code:             kb.Code,
-		OrganizationCode: kb.OrganizationCode,
-		CreatedUID:       kb.CreatedUID,
-		UpdatedUID:       kb.UpdatedUID,
+		Code:              kb.Code,
+		OrganizationCode:  kb.OrganizationCode,
+		KnowledgeBaseType: string(knowledgeBaseTypeFromKnowledgeBase(kb)),
+		CreatedUID:        kb.CreatedUID,
+		UpdatedUID:        kb.UpdatedUID,
 	}, nil
 }
 

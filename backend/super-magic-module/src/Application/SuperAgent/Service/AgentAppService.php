@@ -119,7 +119,7 @@ readonly class AgentAppService
         ]);
 
         // 检查当前沙箱镜像与最新 agent 镜像是否一致，一致则无需升级
-        $versionInfo = $this->sandboxVersionDomainService->checkSandboxVersion($topicId);
+        $versionInfo = $this->sandboxVersionDomainService->checkSandboxVersion($topicId, false);
         if (! $versionInfo['needs_update']) {
             $this->logger->info('[Sandbox][App] Sandbox image is already up-to-date, skipping upgrade', [
                 'topic_id' => $topicId,
@@ -149,9 +149,9 @@ readonly class AgentAppService
      * @param int $topicId 话题ID
      * @return array{current_version: string, latest_version: string, needs_update: bool}
      */
-    public function checkSandboxVersion(int $topicId): array
+    public function checkSandboxVersion(int $topicId, bool $useCache = true): array
     {
-        return $this->sandboxVersionDomainService->checkSandboxVersion($topicId);
+        return $this->sandboxVersionDomainService->checkSandboxVersion($topicId, $useCache);
     }
 
     /**
@@ -160,9 +160,9 @@ readonly class AgentAppService
      * @param int[] $topicIds
      * @return array<int, bool> topicId => needUpgrade
      */
-    public function checkSandboxVersionsByTopicIds(array $topicIds): array
+    public function checkSandboxVersionsByTopicIds(array $topicIds, bool $useCache = true): array
     {
-        return $this->sandboxVersionDomainService->checkNeedUpgradeByTopicIds($topicIds);
+        return $this->sandboxVersionDomainService->checkNeedUpgradeByTopicIds($topicIds, $useCache);
     }
 
     /**
@@ -181,6 +181,8 @@ readonly class AgentAppService
      */
     public function sendChatMessage(DataIsolation $dataIsolation, TaskContext $taskContext): void
     {
+        // 在 Application 层完成 mentions 规范化，Domain 层不再跨域聚合
+        di(TaskContextMentionsResolver::class)->resolve($taskContext, $dataIsolation);
         $this->agentDomainService->sendChatMessage($dataIsolation, $taskContext);
     }
 

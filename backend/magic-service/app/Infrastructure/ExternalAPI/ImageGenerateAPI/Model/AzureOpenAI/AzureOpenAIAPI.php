@@ -102,6 +102,7 @@ class AzureOpenAIAPI
                 $multipartData[] = $this->createImageMultipartPart('mask', $maskUrl, 0, 'mask');
             }
 
+            $multipartData[] = ['name' => 'model', 'contents' => $model];
             $multipartData[] = ['name' => 'prompt', 'contents' => $prompt];
             $multipartData[] = ['name' => 'size', 'contents' => $size];
             $multipartData[] = ['name' => 'n', 'contents' => (string) $n];

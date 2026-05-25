@@ -14,6 +14,8 @@ import (
 	thirdfilemappingpkg "magic/internal/pkg/thirdfilemapping"
 )
 
+const fragmentDestroyVectorPointBatchSize = 256
+
 // FragmentDomainService 片段领域服务
 type FragmentDomainService struct {
 	repo                  fragmodel.KnowledgeBaseFragmentRepository
@@ -414,15 +416,32 @@ func (s *FragmentDomainService) DestroyBatch(ctx context.Context, fragments []*f
 		}
 	}
 
-	if len(pointIDs) > 0 {
-		if err := s.vectorMgmtRepo.DeletePoints(ctx, collectionName, pointIDs); err != nil {
-			return fmt.Errorf("failed to batch delete vector points: %w", err)
-		}
+	// 先删向量，再删 MySQL 分片行：如果先删 DB 后删向量失败，检索侧会留下孤儿 point。
+	// Qdrant 删除按批执行，避免一次删除几千个 point 时单次请求过大；任一批失败都返回错误交给 MQ 重试。
+	if err := s.deleteVectorPointsInBatches(ctx, collectionName, pointIDs); err != nil {
+		return err
 	}
 	if err := s.repo.DeleteByIDs(ctx, ids); err != nil {
 		return fmt.Errorf("failed to batch delete fragments: %w", err)
 	}
 
+	return nil
+}
+
+func (s *FragmentDomainService) deleteVectorPointsInBatches(
+	ctx context.Context,
+	collectionName string,
+	pointIDs []string,
+) error {
+	if len(pointIDs) == 0 {
+		return nil
+	}
+	for start := 0; start < len(pointIDs); start += fragmentDestroyVectorPointBatchSize {
+		end := min(start+fragmentDestroyVectorPointBatchSize, len(pointIDs))
+		if err := s.vectorMgmtRepo.DeletePoints(ctx, collectionName, pointIDs[start:end]); err != nil {
+			return fmt.Errorf("failed to batch delete vector points: %w", err)
+		}
+	}
 	return nil
 }
 

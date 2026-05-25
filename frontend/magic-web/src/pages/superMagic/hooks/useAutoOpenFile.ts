@@ -6,12 +6,16 @@ import { filterClickableMessageWithoutRevoked } from "../utils/handleMessage"
 import { superMagicStore } from "../stores"
 import type { SuperMagicMessageItem } from "../components/MessageList/type"
 import { topicStore } from "../stores/core"
+import { buildFilePathAttachments } from "../components/MessageList/utils/attachmentByFilePath"
+import type { FilePathAttachment } from "../components/MessageList/utils/attachmentByFilePath"
 
 interface AutoOpenFileCommonParams {
 	/** 最后一条消息节点（助手侧） */
 	lastMessageNode?: any
 	/** 最后一条可点击的详情消息节点 */
 	lastDetailMessageNode?: any
+	/** lastDetailMessageNode 对应的 MessageItem（含 app_message_id，用于在 topicMessages 中定位） */
+	lastDetailMessage?: { app_message_id: string; [key: string]: unknown }
 	/** 当前打开的文件 ID（用于判断是否已有打开的 tab） */
 	activeFileId?: string | null
 	/** 读取最新活跃文件，避免闭包滞后于缓存恢复的 Update_Active_File_Id */
@@ -26,6 +30,31 @@ export interface CheckAndOpenFileByMessagesParams extends AutoOpenFileCommonPara
 export interface CheckAndOpenFileByTopicChangedParams {
 	activeFileId?: string | null
 	getActiveFileId?: () => string | null | undefined
+}
+
+/**
+ * 根据 lastDetailMessage 在 topicMessages 中找到前一条消息，
+ * 解析其 content 中的 @file_path 引用，返回路径附件数组。
+ */
+function getPrevMessageFilePathAttachments(
+	topicId: string,
+	lastDetailMessage?: { app_message_id: string; [key: string]: unknown },
+): FilePathAttachment[] {
+	if (!lastDetailMessage?.app_message_id || !topicId) return []
+
+	const topicMessages = superMagicStore.messages?.get(topicId) || []
+	const detailIndex = topicMessages.findIndex(
+		(m) => m.app_message_id === lastDetailMessage.app_message_id,
+	)
+	if (detailIndex <= 0) return []
+
+	const prevMessage = topicMessages[detailIndex - 1]
+	const prevNode = superMagicStore.getMessageNode(prevMessage.app_message_id) as
+		| Record<string, unknown>
+		| undefined
+	const prevContent = prevNode && typeof prevNode?.content === "string" ? prevNode.content : ""
+
+	return buildFilePathAttachments(prevContent)
 }
 
 /**
@@ -47,6 +76,7 @@ export function useAutoOpenFile() {
 			const {
 				lastMessageNode,
 				lastDetailMessageNode,
+				lastDetailMessage,
 				requireStatusChange,
 				hasStatusChanged,
 				activeFileId,
@@ -58,7 +88,8 @@ export function useAutoOpenFile() {
 
 			const isTaskFinished =
 				lastMessageNode?.status === TaskStatus.FINISHED ||
-				lastMessageNode?.status === TaskStatus.ERROR
+				lastMessageNode?.status === TaskStatus.ERROR ||
+                lastMessageNode?.status === TaskStatus.SUSPENDED
 
 			if (!isTaskFinished) return
 
@@ -70,7 +101,35 @@ export function useAutoOpenFile() {
 				if (!isNewMessage) return
 			}
 
-			// Find first non-folder attachment
+			// 优先：检查前一条消息 content 中是否有 @file_path 引用
+			const filePathAttachments = getPrevMessageFilePathAttachments(
+				selectedTopic?.chat_topic_id || "",
+				lastDetailMessage,
+			)
+
+			if (filePathAttachments.length > 0) {
+				const firstPathAttachment = filePathAttachments[0]
+				const currentActive = getActiveFileId?.() ?? activeFileId ?? null
+				if (currentActive != null) {
+					lastOpenedMessageIdRef.current = lastDetailMessageNode.message_id
+					return
+				}
+
+				setTimeout(() => {
+					const id = getActiveFileId?.() ?? activeFileId ?? null
+					if (id != null) return
+					pubsub.publish(PubSubEvents.Switch_Detail_Mode, "files")
+					pubsub.publish(PubSubEvents.Open_File_Tab_By_Path, {
+						filePath: firstPathAttachment.filePath,
+						fileName: firstPathAttachment.fileName,
+					})
+				}, 100)
+
+				lastOpenedMessageIdRef.current = lastDetailMessageNode.message_id
+				return
+			}
+
+			// 兜底：使用原始 attachments 中的第一个文件
 			const attachments = lastDetailMessageNode?.attachments || []
 
 			const firstFileId = attachments.find(
@@ -140,6 +199,7 @@ export function useAutoOpenFile() {
 			attemptOpenFromNodes({
 				lastMessageNode,
 				lastDetailMessageNode,
+				lastDetailMessage: lastDetailMessageWithAttachments,
 				requireStatusChange: false,
 				requireNewMessage: false,
 				activeFileId,

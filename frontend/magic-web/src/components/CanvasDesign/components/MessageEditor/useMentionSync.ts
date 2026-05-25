@@ -10,10 +10,15 @@ interface UseMentionSyncOptions {
 	/** 中性命名：目标元素 id（图片/视频通用） */
 	elementId: string
 	matchableItems: MatchableMentionItem[]
-	protectedReferenceFileIndex?: number
 	maxReferenceFiles?: number
 	isReferenceFileLimitReached?: boolean
 	syncFromElement: () => void
+	/**
+	 * 旧 DSL 里没有 prompt 占位符的 reference_images 会被标记为“保护引用”。
+	 * 这些引用在当前编辑会话中不能因普通 prompt 编辑被隐式移除，
+	 * 只有显式删除，或被用户重新写成 mention 后，才会转入 prompt 绑定生命周期。
+	 */
+	protectedReferencePaths?: string[]
 	/**
 	 * 为 true 时只把编辑器里的 @ 路径追加到元素参考列表，不因「未出现在 @ 里」而删除。
 	 * 视频编辑器参考图由顶部槽位管理，与提示词解耦，需开启；图片编辑器默认双向同步。
@@ -33,10 +38,10 @@ export function useMentionSync(options: UseMentionSyncOptions) {
 		canvas,
 		elementId,
 		matchableItems,
-		protectedReferenceFileIndex,
 		maxReferenceFiles,
 		isReferenceFileLimitReached = false,
 		syncFromElement,
+		protectedReferencePaths = [],
 		mentionSyncAddOnly = false,
 	} = options
 
@@ -64,11 +69,14 @@ export function useMentionSync(options: UseMentionSyncOptions) {
 			const currentInfos = elementInstance.getReferenceImageInfos()
 			const currentPaths = new Set(currentInfos.map((info) => info.path))
 			const pathsSet = new Set(paths)
+			const protectedPathSet = new Set(protectedReferencePaths)
 
 			let pathsToAdd = paths.filter((path) => path && !currentPaths.has(path))
 			const pathsToRemove = mentionSyncAddOnly
 				? []
-				: Array.from(currentPaths).filter((path) => !pathsSet.has(path))
+				: Array.from(currentPaths).filter(
+						(path) => !pathsSet.has(path) && !protectedPathSet.has(path),
+					)
 
 			// 限制场景下过滤 pathsToAdd
 			if (isReferenceFileLimitReached && maxReferenceFiles !== undefined) {
@@ -89,11 +97,7 @@ export function useMentionSync(options: UseMentionSyncOptions) {
 			const version = ++syncVersionRef.current
 
 			// 同步更新 Element（无异步边界）
-			const firstReferencePath = currentInfos[0]?.path
 			pathsToRemove.forEach((path) => {
-				if (protectedReferenceFileIndex !== undefined && path === firstReferencePath) {
-					return
-				}
 				elementInstance.removeReferenceImageInfo(path)
 			})
 
@@ -129,10 +133,10 @@ export function useMentionSync(options: UseMentionSyncOptions) {
 			canvas,
 			elementId,
 			matchableItems,
-			protectedReferenceFileIndex,
 			maxReferenceFiles,
 			isReferenceFileLimitReached,
 			syncFromElement,
+			protectedReferencePaths,
 			mentionSyncAddOnly,
 		],
 	)

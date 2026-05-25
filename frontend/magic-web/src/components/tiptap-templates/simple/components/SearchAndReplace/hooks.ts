@@ -87,8 +87,38 @@ export function useSearchAndReplace({
 			const idx = storage.resultIndex
 			const result = storage.results[idx]
 			if (result) {
-				editor.commands.setTextSelection(result.from)
-				editor.commands.scrollIntoView()
+				// Use a single chained transaction to set selection + scroll
+				editor.chain().setTextSelection(result.from).scrollIntoView().run()
+
+				// Manually scroll the correct container as a fallback for nested overflow
+				requestAnimationFrame(() => {
+					const dom = editor.view.dom
+					// Walk up from editor DOM to find the actual scrollable container
+					let scrollParent: HTMLElement | null = dom.parentElement
+					while (scrollParent) {
+						const style = window.getComputedStyle(scrollParent)
+						if (
+							scrollParent.scrollHeight > scrollParent.clientHeight &&
+							(style.overflowY === "auto" || style.overflowY === "scroll")
+						) {
+							break
+						}
+						scrollParent = scrollParent.parentElement
+					}
+					if (!scrollParent) return
+
+					const currentEl = dom.querySelector(".search-result-current") as HTMLElement | null
+					if (!currentEl) return
+
+					const containerRect = scrollParent.getBoundingClientRect()
+					const elRect = currentEl.getBoundingClientRect()
+
+					// Scroll only if the element is outside the visible area
+					if (elRect.top < containerRect.top || elRect.bottom > containerRect.bottom) {
+						scrollParent.scrollTop +=
+							elRect.top - containerRect.top - containerRect.height / 2 + elRect.height / 2
+					}
+				})
 			}
 		}
 	})
@@ -96,13 +126,13 @@ export function useSearchAndReplace({
 	const goToNext = useMemoizedFn(() => {
 		if (!editor) return
 		editor.commands.nextSearchResult()
-		requestAnimationFrame(scrollToResult)
+		scrollToResult()
 	})
 
 	const goToPrevious = useMemoizedFn(() => {
 		if (!editor) return
 		editor.commands.previousSearchResult()
-		requestAnimationFrame(scrollToResult)
+		scrollToResult()
 	})
 
 	const replaceCurrent = useMemoizedFn(() => {

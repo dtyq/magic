@@ -18,6 +18,13 @@ import {
 	resolvePromptPlaceholderTokenConfig,
 	type PromptPlaceholderTokenConfig,
 } from "../MessageEditor/reference-assets/promptPlaceholderTokenConfig"
+import {
+	areOrderedPathsEqual,
+	pruneProtectedReferencePaths,
+	resolveReferenceBindingState,
+	unprotectPromptBoundReferencePaths,
+	type ReferenceBindingMode,
+} from "../MessageEditor/reference-assets/referenceBinding"
 import { createReferenceResourcePanelItemFromPath } from "../MessageEditor/reference-assets/createReferenceResourcePanelItem"
 import type { ReferenceResourceType } from "../MessageEditor/reference-assets/reference-resource.types"
 import {
@@ -185,6 +192,7 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 		[],
 	)
 	const [referenceImageInfos, setReferenceImageInfos] = useState<VideoReferenceAssetInfo[]>([])
+	const [protectedReferencePaths, setProtectedReferencePaths] = useState<string[]>([])
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false)
 	const [isReferenceProjectPanelOpen, setIsReferenceProjectPanelOpen] = useState(false)
 	const [selectedResourceSlot, setSelectedResourceSlot] = useState<VideoInputSlotInfo | null>(
@@ -424,6 +432,30 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 		() => referenceImageInfos.map((info) => info.path),
 		[referenceImageInfos],
 	)
+	const updateProtectedReferencePaths = useCallback((nextPaths: string[]) => {
+		setProtectedReferencePaths((prev) => {
+			return areOrderedPathsEqual(prev, nextPaths) ? prev : nextPaths
+		})
+	}, [])
+	const applyBindingStateFromPromptAndReferences = useCallback(
+		(nextPrompt: string, nextReferenceInfos: VideoReferenceAssetInfo[]) => {
+			const bindingState = resolveReferenceBindingState({
+				prompt: nextPrompt,
+				referenceFileInfos: nextReferenceInfos,
+				tokenConfig: promptPlaceholderTokenConfig,
+			})
+			updateProtectedReferencePaths(bindingState.protectedReferencePaths)
+			return bindingState
+		},
+		[promptPlaceholderTokenConfig, updateProtectedReferencePaths],
+	)
+	const referenceBindingMode = useMemo<ReferenceBindingMode>(() => {
+		const protectedCount = protectedReferencePaths.length
+		const referenceCount = currentReferenceImages.length
+		if (protectedCount === 0) return "prompt-linked"
+		if (protectedCount >= referenceCount) return "detached-legacy"
+		return "mixed"
+	}, [currentReferenceImages.length, protectedReferencePaths.length])
 	const selectedReferenceAssetKinds = useMemo(() => {
 		if (selectedResourceSlot?.inputTab !== "reference") return undefined
 		if (
@@ -724,6 +756,12 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 				currentInputModeConfig,
 			)
 			setReferenceImageInfos(limitedInfos)
+			updateProtectedReferencePaths(
+				pruneProtectedReferencePaths(
+					limitedInfos.map((info) => info.path),
+					protectedReferencePaths,
+				),
+			)
 			setPrompt((currentPrompt) => {
 				if (
 					shouldReplaceExisting &&
@@ -753,6 +791,8 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 			resetSelectedResourceSlot,
 			currentInputModeConfig,
 			referenceImageInfos,
+			protectedReferencePaths,
+			updateProtectedReferencePaths,
 		],
 	)
 
@@ -945,6 +985,12 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 					(info) => !removedPathSet.has(info.path),
 				)
 				setReferenceImageInfos(limitedReferenceInfos)
+				updateProtectedReferencePaths(
+					pruneProtectedReferencePaths(
+						limitedReferenceInfos.map((info) => info.path),
+						protectedReferencePaths,
+					),
+				)
 				setPrompt((currentPrompt) => {
 					return removedInfos.reduce((nextPrompt, info) => {
 						return removeMentionFromString(nextPrompt, info.path, info.fileName)
@@ -952,6 +998,12 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 				})
 			} else {
 				setReferenceImageInfos(limitedReferenceInfos)
+				updateProtectedReferencePaths(
+					pruneProtectedReferencePaths(
+						limitedReferenceInfos.map((info) => info.path),
+						protectedReferencePaths,
+					),
+				)
 			}
 		},
 		[
@@ -964,6 +1016,8 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 			selectedCompressionQuality,
 			activeInputTab,
 			selectedInputMode,
+			protectedReferencePaths,
+			updateProtectedReferencePaths,
 		],
 	)
 
@@ -1045,12 +1099,11 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 			)
 			setFrameImageInfos(nextDraft.frameImageInfos ?? [])
 			setReferenceImageInfos(nextReferenceInfos)
-			scheduleReferenceMentionInserts(
-				selectRefsMissingMentions(decodedDraftPrompt, nextReferenceInfos),
-			)
+			applyBindingStateFromPromptAndReferences(decodedDraftPrompt, nextReferenceInfos)
 		},
 		[
 			activeInputTab,
+			applyBindingStateFromPromptAndReferences,
 			frameImageInfos,
 			getModeDraftForView,
 			prompt,
@@ -1059,9 +1112,7 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 			promptPlaceholderTokenConfig,
 			selectedModel,
 			selectedInputMode,
-			scheduleReferenceMentionInserts,
 			resolveModeDraftInputTab,
-			selectRefsMissingMentions,
 		],
 	)
 
@@ -1078,8 +1129,22 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 		(paths: string[]) => {
 			if (!supportsReferenceAssets) return
 			const uniquePaths = paths.filter((path, index) => path && paths.indexOf(path) === index)
-			const nextInfos = uniquePaths
+			const nextProtectedPaths = unprotectPromptBoundReferencePaths(
+				protectedReferencePaths,
+				uniquePaths,
+			)
+			updateProtectedReferencePaths(nextProtectedPaths)
+			const protectedInfos = referenceImageInfos.filter((info) =>
+				nextProtectedPaths.includes(info.path),
+			)
+			const sourcePaths = [
+				...nextProtectedPaths,
+				...uniquePaths.filter((path) => !nextProtectedPaths.includes(path)),
+			]
+			const nextInfos = sourcePaths
 				.map((path) => {
+					const protectedInfo = protectedInfos.find((info) => info.path === path)
+					if (protectedInfo) return protectedInfo
 					const assetType = resolveReferenceAssetType(path)
 					if (!assetType) return null
 					if (!isReferenceAssetTypeAllowed(assetType, currentInputModeConfig)) return null
@@ -1113,6 +1178,9 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 			matchableItems,
 			maxReferenceImages,
 			resetSelectedResourceSlot,
+			protectedReferencePaths,
+			referenceImageInfos,
+			updateProtectedReferencePaths,
 		],
 	)
 
@@ -1157,11 +1225,14 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 				removeMentionFromString(currentPrompt, path, removedInfo?.fileName),
 			)
 			setReferenceImageInfos((prev) => prev.filter((info) => info.path !== path))
+			updateProtectedReferencePaths(
+				protectedReferencePaths.filter((protectedPath) => protectedPath !== path),
+			)
 			setTimeout(() => {
 				isRemovingReferenceImageRef.current = false
 			}, 200)
 		},
-		[referenceImageInfos],
+		[protectedReferencePaths, referenceImageInfos, updateProtectedReferencePaths],
 	)
 
 	const handleFrameImageRemove = useCallback(
@@ -1506,9 +1577,7 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 			setFrameImageInfos(restoredFrameInfosForDraft)
 			setActiveInputTab(restoredActiveInputTabForDraft)
 			setReferenceImageInfos(restoredReferenceInfosForDraft)
-			scheduleReferenceMentionInserts(
-				selectRefsMissingMentions(restoredPrompt, restoredReferenceInfosForDraft),
-			)
+			applyBindingStateFromPromptAndReferences(restoredPrompt, restoredReferenceInfosForDraft)
 
 			const mergedDrafts = mergeCurrentUiIntoModeDraftCache(
 				modeDraftCacheRef.current,
@@ -1532,11 +1601,10 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 		buildModeDraftFromRequest,
 		canvas,
 		getModeDraftForView,
+		applyBindingStateFromPromptAndReferences,
 		videoElement.id,
 		videoElement.generateVideoRequest,
 		videoModelList,
-		scheduleReferenceMentionInserts,
-		selectRefsMissingMentions,
 		resolveModeDraftInputTab,
 		promptPlaceholderTokenConfig,
 		restoreOnMount,
@@ -1573,6 +1641,12 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 			return
 		restoreConfig()
 	}, [canvas, videoModelList, restoreConfig])
+
+	useEffect(() => {
+		updateProtectedReferencePaths(
+			pruneProtectedReferencePaths(currentReferenceImages, protectedReferencePaths),
+		)
+	}, [currentReferenceImages, protectedReferencePaths, updateProtectedReferencePaths])
 
 	useLayoutEffect(() => {
 		if (!canvas || !hasRestoredRef.current || isRestoringRef.current) return
@@ -1700,6 +1774,8 @@ export function useVideoEditorConfig(options: UseVideoEditorConfigOptions): Vide
 		currentFrameImages,
 		frameImageInfos,
 		currentReferenceImages,
+		protectedReferencePaths,
+		referenceBindingMode,
 		referenceImageInfos,
 		matchableItems,
 		modelOptions,

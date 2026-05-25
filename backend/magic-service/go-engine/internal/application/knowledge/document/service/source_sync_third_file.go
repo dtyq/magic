@@ -18,7 +18,12 @@ import (
 
 const thirdPlatformDocumentFileType = "third_platform"
 
-var errThirdFileNodeResolverUnavailable = errors.New("third-file node resolver unavailable")
+var (
+	errThirdFileNodeResolverUnavailable = errors.New("third-file node resolver unavailable")
+	errThirdFileNodeMissing             = errors.New("third-file node meta missing")
+	errThirdFileDocumentFileMissing     = errors.New("third-file document file missing")
+	errThirdFileKnowledgeBaseMissing    = errors.New("third-file knowledge base missing")
+)
 
 type thirdFileCurrentSource struct {
 	Node               thirdplatform.TreeNode
@@ -32,17 +37,15 @@ func (s *ThirdFileRevectorizeAppService) resolveThirdFileCoveringBindings(
 	ctx context.Context,
 	task *documentdomain.ThirdFileRevectorizeInput,
 ) ([]sourcebindingdomain.Binding, error) {
-	node, err := s.resolveThirdFileNode(ctx, task)
+	node, err := s.resolveThirdFileNode(ctx, task, nil)
 	if err != nil {
-		if errors.Is(err, thirdplatform.ErrDocumentUnavailable) ||
-			errors.Is(err, thirdplatform.ErrIdentityMissing) ||
-			errors.Is(err, errThirdFileNodeResolverUnavailable) {
+		if errors.Is(err, thirdplatform.ErrDocumentUnavailable) {
 			return []sourcebindingdomain.Binding{}, nil
 		}
 		if s != nil && s.support != nil && s.support.logger != nil {
 			s.support.logger.WarnContext(
 				ctx,
-				"Resolve third-file node meta failed before eligibility, skip uncached miss",
+				"Resolve third-file node meta failed before eligibility",
 				"organization_code", task.OrganizationCode,
 				"third_platform_type", task.ThirdPlatformType,
 				"third_file_id", task.ThirdFileID,
@@ -50,13 +53,16 @@ func (s *ThirdFileRevectorizeAppService) resolveThirdFileCoveringBindings(
 				"error", err,
 			)
 		}
-		return []sourcebindingdomain.Binding{}, nil
+		return nil, fmt.Errorf("resolve third-file node before eligibility: %w", err)
 	}
 	if node == nil {
-		return []sourcebindingdomain.Binding{}, nil
+		return nil, fmt.Errorf("resolve third-file node before eligibility: %w", errThirdFileNodeMissing)
 	}
 	current := buildThirdFileCurrentSource(task, node)
-	if current.KnowledgeBaseID == "" || !current.Processable {
+	if current.KnowledgeBaseID == "" {
+		return nil, fmt.Errorf("resolve third-file node before eligibility: %w", errThirdFileKnowledgeBaseMissing)
+	}
+	if !current.Processable {
 		return []sourcebindingdomain.Binding{}, nil
 	}
 	return s.coveringThirdFileBindings(ctx, task, current)
@@ -65,6 +71,7 @@ func (s *ThirdFileRevectorizeAppService) resolveThirdFileCoveringBindings(
 func (s *ThirdFileRevectorizeAppService) resolveThirdFileNode(
 	ctx context.Context,
 	task *documentdomain.ThirdFileRevectorizeInput,
+	docs []*docentity.KnowledgeBaseDocument,
 ) (*thirdplatform.NodeResolveResult, error) {
 	if s == nil || s.support == nil || s.support.thirdPlatformDocumentPort == nil || task == nil {
 		return nil, errThirdFileNodeResolverUnavailable
@@ -73,9 +80,15 @@ func (s *ThirdFileRevectorizeAppService) resolveThirdFileNode(
 	if !ok {
 		return nil, errThirdFileNodeResolverUnavailable
 	}
+	readUserID, err := s.support.resolveThirdFileNodeReadUser(ctx, task, docs)
+	if err != nil {
+		return nil, fmt.Errorf("resolve third-file node read user: %w", err)
+	}
 	node, err := resolver.ResolveNode(ctx, thirdplatform.NodeResolveInput{
-		OrganizationCode:              task.OrganizationCode,
-		UserID:                        task.UserID,
+		OrganizationCode: task.OrganizationCode,
+		// Teamshare getFilesByIds 需要真实 Magic 用户的 appTicket/accessToken。
+		// open callback 里的 UserID 可能是 tenant/app id，不能作为文件读取用户透传给 PHP。
+		UserID:                        readUserID,
 		ThirdPlatformUserID:           task.ThirdPlatformUserID,
 		ThirdPlatformOrganizationCode: task.ThirdPlatformOrganizationCode,
 		ThirdPlatformType:             task.ThirdPlatformType,
@@ -357,6 +370,8 @@ func thirdFileCreateSyncRequest(
 	task *documentdomain.ThirdFileRevectorizeInput,
 	target documentdomain.ThirdFileCreateTarget,
 	documentCode string,
+	sourceCacheVersion string,
+	skipSourceCache bool,
 ) *documentdomain.SyncDocumentInput {
 	userID := strings.TrimSpace(target.UserID)
 	if userID == "" && task != nil {
@@ -372,11 +387,14 @@ func thirdFileCreateSyncRequest(
 			OrganizationCode:              strings.TrimSpace(target.OrganizationCode),
 			UserID:                        userID,
 			BusinessID:                    strings.TrimSpace(target.KnowledgeBaseCode),
+			SourceID:                      ctxmeta.SourceIDFragmentSaved,
 			ThirdPlatformUserID:           strings.TrimSpace(task.ThirdPlatformUserID),
 			ThirdPlatformOrganizationCode: strings.TrimSpace(task.ThirdPlatformOrganizationCode),
 		},
 		RevectorizeSource:                 documentdomain.RevectorizeSourceThirdFileBroadcast,
 		SingleDocumentThirdPlatformResync: true,
+		ThirdFileSourceCacheVersion:       strings.TrimSpace(sourceCacheVersion),
+		SkipThirdFileSourceCache:          skipSourceCache,
 	}
 }
 

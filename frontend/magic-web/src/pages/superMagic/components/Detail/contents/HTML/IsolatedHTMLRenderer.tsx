@@ -75,7 +75,9 @@ import { useFetchInterceptionCache } from "./hooks/useFetchInterceptionCache"
 import { POST_MESSAGE_TARGET_STRATEGIES, type OnFetchIntercepted } from "./utils/fetchInterceptor"
 import { useIframeFS } from "./iframe-api/hooks/useIframeFS"
 import { useIframeLLM } from "./iframe-api/hooks/useIframeLLM"
+import { useIframeAgent } from "./iframe-api/hooks/useIframeAgent"
 import { useMagicFiles } from "./iframe-api/hooks/useMagicFiles"
+import { useIframeAgentActions } from "./hooks/useIframeAgentActions"
 import { saveIframeFileContent, createIframeFile } from "./iframe-api/iframeApi"
 
 import { env } from "@/utils/env"
@@ -525,6 +527,16 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 			baseUrl: (env("MAGIC_SERVICE_BASE_URL") as string) || "",
 			getAuthorization: () => userStore.user.authorization?.trim() || "",
 			getOrganizationCode: () => userStore.user.organizationCode?.trim() || "",
+		})
+
+		const { getAgentList, createTopicAndSend, sendMessage } = useIframeAgentActions()
+
+		const { handleAgentMessage } = useIframeAgent({
+			iframeRef,
+			getAgentList,
+			createTopicAndSend,
+			sendMessage,
+			enableWriteOperations: true,
 		})
 
 		const isDynamicInterceptionEnabled = !disableDynamicResourceInterception
@@ -986,6 +998,9 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 					"MAGIC_UPLOAD_FILES_REQUEST",
 					"MAGIC_ADD_FILES_TO_MESSAGE_REQUEST",
 					"MAGIC_DOWNLOAD_FILES_REQUEST",
+					"MAGIC_GET_AGENTS_REQUEST",
+					"MAGIC_CREATE_TOPIC_AND_SEND_REQUEST",
+					"MAGIC_SEND_MESSAGE_REQUEST",
 					"MAGIC_I18N_LANG_SUBSCRIBE",
 					MEDIA_MESSAGE_TYPES.SPEAKER_EDITED,
 					MEDIA_MESSAGE_TYPES.IMAGE_URL_REQUEST,
@@ -1271,6 +1286,13 @@ const IsolatedHTMLRendererInner = forwardRef<IsolatedHTMLRendererRef, IsolatedHT
 				} else if (event.data?.type?.startsWith("MAGIC_LLM_")) {
 					// 处理 window.Magic.llm.* 请求
 					await handleLLMMessage(event.data.type, event.data)
+				} else if (
+					event.data?.type?.startsWith("MAGIC_GET_AGENTS_") ||
+					event.data?.type?.startsWith("MAGIC_CREATE_TOPIC_AND_SEND_") ||
+					event.data?.type?.startsWith("MAGIC_SEND_MESSAGE_")
+				) {
+					// 处理 window.Magic.getAgents / createTopicAndSend / sendMessage 请求
+					await handleAgentMessage(event.data.type, event.data)
 				} else if (event.data && event.data.type === "MAGIC_RELOAD_REQUEST") {
 					// 处理 window.Magic.reload() 请求
 					reloadIframeContent()

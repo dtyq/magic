@@ -56,6 +56,9 @@ class AuditLogEntity extends AbstractEntity
     /** 单次调用事件 ID（雪花字符串），与 MQ / 计费侧关联 */
     protected ?string $eventId = null;
 
+    /** 服务商配置ID快照，来自 service_provider_configs.id */
+    protected ?string $serviceProviderConfigId = null;
+
     /** 计费回写积分；仅列表/详情展示用，审计落库路径不得写入 */
     protected ?int $points = null;
 
@@ -252,6 +255,16 @@ class AuditLogEntity extends AbstractEntity
     {
         $trimmed = $eventId !== null ? trim($eventId) : '';
         $this->eventId = $trimmed === '' ? null : $trimmed;
+    }
+
+    public function getServiceProviderConfigId(): ?string
+    {
+        return $this->serviceProviderConfigId;
+    }
+
+    public function setServiceProviderConfigId(null|int|string $serviceProviderConfigId): void
+    {
+        $this->serviceProviderConfigId = $serviceProviderConfigId !== null && $serviceProviderConfigId !== '' ? (string) $serviceProviderConfigId : null;
     }
 
     public function getPoints(): ?int

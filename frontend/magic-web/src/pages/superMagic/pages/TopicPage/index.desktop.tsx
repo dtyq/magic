@@ -180,6 +180,7 @@ function TopicPage() {
 		setActiveFileId,
 		handleFileClick,
 		topicFilesProps,
+		attachmentList,
 	})
 
 	const { onFileTabsCacheLoaded, scheduleWhenTabsCacheReady } = useDeferUntilFileTabsCacheLoaded(
@@ -421,6 +422,7 @@ function TopicPage() {
 					checkAndOpenFileByMessages({
 						lastMessageNode,
 						lastDetailMessageNode,
+						lastDetailMessage,
 						hasStatusChanged,
 						activeFileId,
 						getActiveFileId: () => activeFileIdRef.current,

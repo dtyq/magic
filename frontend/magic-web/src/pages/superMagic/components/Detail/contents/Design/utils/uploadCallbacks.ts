@@ -43,6 +43,7 @@ interface CreateUploadCallbacksParams {
 	suffixDir: string
 	/** 上传子目录，用于区分成功/失败提示文案（图片 vs 视频） */
 	uploadSubDir: UploadSubDirType
+	showSuccessToast: boolean
 	designProjectBasePath?: string
 	fileNameToUploadFileMap: Map<string, UploadFile>
 	filesToUpload: File[]
@@ -228,6 +229,7 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 	const {
 		suffixDir,
 		uploadSubDir,
+		showSuccessToast,
 		designProjectBasePath,
 		fileNameToUploadFileMap,
 		filesToUpload,
@@ -271,7 +273,7 @@ export function createUploadCallbacks(params: CreateUploadCallbacksParams): {
 		}
 
 		// 显示成功消息（按 uploadSubDir 区分图片/视频）
-		if (allUploadResponses.length > 0) {
+		if (showSuccessToast && allUploadResponses.length > 0) {
 			magicToast.success(uploadSuccessMessage)
 		}
 

@@ -100,6 +100,8 @@ function TokenUsageRing({ ratio, size, isHighUsage }: TokenUsageRingProps) {
 
 interface TokenUsageButtonProps {
 	tokenUsed: number
+	/** Max context window token count; falls back to built-in default when not provided */
+	maxContextTokens?: number
 	/** Ring diameter in px; overrides size-derived default when provided */
 	iconSize?: number
 	size?: MessageEditorSize
@@ -111,6 +113,7 @@ interface TokenUsageButtonProps {
 /** Token usage indicator button with popover detail panel */
 function TokenUsageButton({
 	tokenUsed,
+	maxContextTokens,
 	iconSize,
 	size = "default",
 	className,
@@ -118,11 +121,12 @@ function TokenUsageButton({
 }: TokenUsageButtonProps) {
 	const { t } = useTranslation("super")
 
-	const ratio = Math.min(tokenUsed / MAX_TOKEN_COUNT, 1)
+	const effectiveMaxTokens = maxContextTokens ?? MAX_TOKEN_COUNT
+	const ratio = Math.min(tokenUsed / effectiveMaxTokens, 1)
 	const isHighUsage = ratio >= WARNING_THRESHOLD
 	const percentageLabel = formatPercentage(ratio)
 	const usedLabel = formatTokenCount(tokenUsed)
-	const maxLabel = formatTokenCount(MAX_TOKEN_COUNT)
+	const maxLabel = formatTokenCount(effectiveMaxTokens)
 
 	const triggerStyle = TRIGGER_STYLE_MAP[size]
 	const ringSize = iconSize ?? triggerStyle.ring

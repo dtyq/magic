@@ -5,8 +5,13 @@
 暂存 content / reasoning / tool_calls 等数据，保证前端只看到一条 assistant 消息。
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+
+if TYPE_CHECKING:
+    from agentlang.llms.token_usage.models import TokenUsageCollection
 
 
 @dataclass
@@ -19,28 +24,32 @@ class PendingReplyState:
     message_id: Optional[str] = None
     tool_calls: Optional[List[Dict[str, Any]]] = None
 
+    # token_usage 暂存（供 before_tool_call 消费）
+    token_usage_report: Optional[TokenUsageCollection] = None
+
     # 批量工具调用计数
     batch_remaining: int = 0
     batch_subsequent_ids: Optional[Set[str]] = None
     batch_main_correlation_id: Optional[str] = None
 
-    def consume_for_first_tool_call(self) -> Optional[Tuple[str, str, List[Dict[str, Any]], Optional[str]]]:
+    def consume_for_first_tool_call(self) -> Optional[Tuple[str, str, List[Dict[str, Any]], Optional[str], Optional[TokenUsageCollection]]]:
         """
         由第一个 before_tool_call 消费暂存数据。
 
         Returns:
-            (content, reasoning, tool_calls, message_id) 或 None（无暂存数据时）
+            (content, reasoning, tool_calls, message_id, token_usage_report) 或 None（无暂存数据时）
         """
         if not self.tool_calls:
             return None
 
-        result = (self.content, self.reasoning, self.tool_calls, self.message_id)
+        result = (self.content, self.reasoning, self.tool_calls, self.message_id, self.token_usage_report)
 
         # 保留 correlation_id 和 batch 相关字段，清空已消费的数据
         self.content = ""
         self.reasoning = ""
         self.tool_calls = None
         self.message_id = None
+        self.token_usage_report = None
 
         return result
 
@@ -77,6 +86,7 @@ class PendingReplyState:
         self.correlation_id = None
         self.message_id = None
         self.tool_calls = None
+        self.token_usage_report = None
         self.batch_remaining = 0
         self.batch_subsequent_ids = None
         self.batch_main_correlation_id = None

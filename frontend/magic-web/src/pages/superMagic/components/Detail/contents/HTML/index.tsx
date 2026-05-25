@@ -331,7 +331,7 @@ export default memo(function HTML(props: HTMLProps) {
 	/** 与 useMediaScenario 一致：父目录 metadata 标识 audio / video */
 	const mediaParentScenarioType = useMemo((): "audio" | "video" | null => {
 		const file = allAttachmentItems.find((item: any) => item.file_id === displayData?.file_id)
-		if (!file?.parent_id) return null
+		if (!file?.parent_id || file?.file_name !== "index.html") return null
 		const parent = allAttachmentItems.find((item: any) => item.file_id === file.parent_id)
 		const t = parent?.display_config?.type
 		if (t === "audio" || t === "video") return t

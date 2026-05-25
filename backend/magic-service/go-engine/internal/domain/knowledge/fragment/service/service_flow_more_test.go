@@ -193,6 +193,111 @@ func TestFragmentDomainServiceDestroyBatchReturnsVectorDeleteError(t *testing.T)
 	}
 }
 
+func TestFragmentDomainServiceDestroyBatchDeletesVectorPointsInBatches(t *testing.T) {
+	t.Parallel()
+
+	const fragmentCount = 600
+	fragments := make([]*fragmodel.KnowledgeBaseFragment, 0, fragmentCount)
+	for i := range fragmentCount {
+		id := int64(i + 1)
+		fragments = append(fragments, &fragmodel.KnowledgeBaseFragment{
+			ID:      id,
+			PointID: "P" + strconv.FormatInt(id, 10),
+		})
+	}
+	repo := &flowFragmentRepoStub{}
+	vectorMgmt := &flowVectorMgmtRepoStub{}
+	svc := newFlowFragmentDomainService(repo, &flowEmbeddingServiceStub{}, fragmentdomain.FragmentDomainInfra{
+		VectorMgmtRepo: vectorMgmt,
+	})
+
+	if err := svc.DestroyBatch(context.Background(), fragments, "collection_c"); err != nil {
+		t.Fatalf("destroy batch failed: %v", err)
+	}
+	if got := len(vectorMgmt.deletedPointBatches); got != 3 {
+		t.Fatalf("expected 3 vector delete batches, got %d", got)
+	}
+	if len(vectorMgmt.deletedPointBatches[0]) != 256 ||
+		len(vectorMgmt.deletedPointBatches[1]) != 256 ||
+		len(vectorMgmt.deletedPointBatches[2]) != 88 {
+		t.Fatalf("unexpected vector delete batch sizes: %d/%d/%d",
+			len(vectorMgmt.deletedPointBatches[0]),
+			len(vectorMgmt.deletedPointBatches[1]),
+			len(vectorMgmt.deletedPointBatches[2]),
+		)
+	}
+	if len(repo.deletedIDs) != fragmentCount {
+		t.Fatalf("expected mysql fragments deleted after vector batches, got %d", len(repo.deletedIDs))
+	}
+}
+
+func TestBuildFragmentResyncPlanDeletesTrailingOldChunks(t *testing.T) {
+	t.Parallel()
+
+	oldFragments := make([]*fragmodel.KnowledgeBaseFragment, 0, 2406)
+	for index := range 2406 {
+		oldFragments = append(oldFragments, syncedResyncFragment(int64(index+1), index, "same-"+strconv.Itoa(index)))
+	}
+	newFragments := make([]*fragmodel.KnowledgeBaseFragment, 0, 1217)
+	for index := range 1217 {
+		newFragments = append(newFragments, syncedResyncFragment(0, index, "same-"+strconv.Itoa(index)))
+	}
+
+	plan, err := fragmentdomain.BuildFragmentResyncPlan(oldFragments, newFragments, false)
+	if err != nil {
+		t.Fatalf("build resync plan failed: %v", err)
+	}
+	if len(plan.Deleted) != 1189 {
+		t.Fatalf("expected trailing old chunks 1217..2405 to be deleted, got %d", len(plan.Deleted))
+	}
+	minChunk, maxChunk := plan.Deleted[0].ChunkIndex, plan.Deleted[0].ChunkIndex
+	for _, fragment := range plan.Deleted[1:] {
+		if fragment.ChunkIndex < minChunk {
+			minChunk = fragment.ChunkIndex
+		}
+		if fragment.ChunkIndex > maxChunk {
+			maxChunk = fragment.ChunkIndex
+		}
+	}
+	if minChunk != 1217 || maxChunk != 2405 {
+		t.Fatalf("expected deleted chunk_index range 1217..2405, got %d..%d", minChunk, maxChunk)
+	}
+	if len(plan.Added) != 0 || len(plan.Changed) != 0 {
+		t.Fatalf("expected unchanged overlap and only trailing deletes, got added=%d changed=%d", len(plan.Added), len(plan.Changed))
+	}
+}
+
+func TestBuildFragmentResyncPlanUsesChunkIndexAndContentHashIdentity(t *testing.T) {
+	t.Parallel()
+
+	oldFragment := syncedResyncFragment(1, 0, "old")
+	newDifferentContent := syncedResyncFragment(0, 0, "new")
+	plan, err := fragmentdomain.BuildFragmentResyncPlan(
+		[]*fragmodel.KnowledgeBaseFragment{oldFragment},
+		[]*fragmodel.KnowledgeBaseFragment{newDifferentContent},
+		false,
+	)
+	if err != nil {
+		t.Fatalf("build resync plan failed: %v", err)
+	}
+	if len(plan.Deleted) != 1 || plan.Deleted[0] != oldFragment || len(plan.Added) != 1 {
+		t.Fatalf("expected same chunk_index with different content_hash to delete old and add new, got %#v", plan)
+	}
+
+	newSameContent := syncedResyncFragment(0, 0, "old")
+	plan, err = fragmentdomain.BuildFragmentResyncPlan(
+		[]*fragmodel.KnowledgeBaseFragment{oldFragment},
+		[]*fragmodel.KnowledgeBaseFragment{newSameContent},
+		false,
+	)
+	if err != nil {
+		t.Fatalf("build resync plan failed: %v", err)
+	}
+	if len(plan.Deleted) != 0 || len(plan.Added) != 0 || len(plan.Changed) != 0 {
+		t.Fatalf("expected same chunk_index and content_hash to stay unchanged, got %#v", plan)
+	}
+}
+
 func TestFragmentDomainServiceSyncFragment(t *testing.T) {
 	t.Parallel()
 
@@ -459,6 +564,19 @@ func makeFlowFragments(count int) []*fragmodel.KnowledgeBaseFragment {
 	return fragments
 }
 
+func syncedResyncFragment(id int64, chunkIndex int, hash string) *fragmodel.KnowledgeBaseFragment {
+	return &fragmodel.KnowledgeBaseFragment{
+		ID:           id,
+		PointID:      "point-" + strconv.Itoa(chunkIndex),
+		Content:      "content-" + hash,
+		ContentHash:  hash,
+		ChunkIndex:   chunkIndex,
+		Metadata:     map[string]any{"chunk_index": chunkIndex, "content_hash": hash},
+		SyncStatus:   sharedentity.SyncStatusSynced,
+		SplitVersion: "v1",
+	}
+}
+
 type flowEmbeddingServiceStub struct {
 	computeEmbedding        func(context.Context, string, string, *ctxmeta.BusinessParams) ([]float64, error)
 	computeBatchEmbeddings  func(context.Context, []string, string, *ctxmeta.BusinessParams) ([][]float64, error)
@@ -637,12 +755,13 @@ func (s *flowFragmentRepoWithStatsStub) CountStatsByKnowledgeBase(context.Contex
 }
 
 type flowVectorMgmtRepoStub struct {
-	lastCollection  string
-	lastFilter      *fragmodel.VectorFilter
-	deletePointsErr error
-	deletedPointID  string
-	deletedPointIDs []string
-	deletePointErr  error
+	lastCollection      string
+	lastFilter          *fragmodel.VectorFilter
+	deletePointsErr     error
+	deletedPointID      string
+	deletedPointIDs     []string
+	deletedPointBatches [][]string
+	deletePointErr      error
 }
 
 func (*flowVectorMgmtRepoStub) CreateCollection(context.Context, string, int64) error { return nil }
@@ -677,6 +796,7 @@ func (s *flowVectorMgmtRepoStub) DeletePoint(_ context.Context, collection, poin
 func (s *flowVectorMgmtRepoStub) DeletePoints(_ context.Context, collection string, pointIDs []string) error {
 	s.lastCollection = collection
 	s.deletedPointIDs = append([]string(nil), pointIDs...)
+	s.deletedPointBatches = append(s.deletedPointBatches, append([]string(nil), pointIDs...))
 	if len(pointIDs) == 1 {
 		s.deletedPointID = pointIDs[0]
 	}

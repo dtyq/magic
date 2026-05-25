@@ -1910,6 +1910,105 @@ class TaskFileDomainService
     }
 
     /**
+     * 查找或创建用户空间的根目录.
+     *
+     * 用户空间根目录不属于任何项目（project_id=0），通过 user_id + organization_code +
+     * space_type='user' 唯一定位。在沙箱初始化时调用，确保用户空间的挂载点存在。
+     *
+     * @param string $userId 用户ID
+     * @param string $organizationCode 组织代码
+     * @return int 用户空间根目录的 file_id
+     */
+    public function findOrCreateUserRootDirectory(string $userId, string $organizationCode): int
+    {
+        // 查找已有的用户空间根目录（无锁快速路径）
+        $rootDir = $this->taskFileRepository->findUserSpaceRootDirectory($userId, $organizationCode);
+
+        if ($rootDir !== null) {
+            return $rootDir->getFileId();
+        }
+
+        // 加分布式锁，防止并发创建多条根目录记录
+        $lockKey = sprintf('magicfs:user_root_dir:%s:%s', $organizationCode, $userId);
+        $lockOwner = IdGenerator::getUniqueId32();
+
+        if (! $this->locker->spinLock($lockKey, $lockOwner, 30)) {
+            // 获取锁超时，再查一次——大概率是另一个协程已经创建完成
+            $rootDir = $this->taskFileRepository->findUserSpaceRootDirectory($userId, $organizationCode);
+            if ($rootDir !== null) {
+                return $rootDir->getFileId();
+            }
+            throw new RuntimeException('Failed to acquire lock for creating user space root directory');
+        }
+
+        try {
+            // Double-check：拿到锁后再查一次，避免重复创建
+            $rootDir = $this->taskFileRepository->findUserSpaceRootDirectory($userId, $organizationCode);
+            if ($rootDir !== null) {
+                return $rootDir->getFileId();
+            }
+
+            // 生成 S3 key：用户空间使用 user_{userId}/workspace 作为工作目录，
+            // 与 project 空间的 project_{id}/workspace 布局保持一致
+            $fullPrefix = $this->getFullPrefix($organizationCode);
+            $userWorkDir = WorkDirectoryUtil::getUserWorkDir($userId);
+            $fullWorkDir = WorkDirectoryUtil::getFullWorkdir($fullPrefix, $userWorkDir);
+            $fileKey = rtrim($fullWorkDir, '/') . '/';
+
+            // 在对象存储上创建文件夹
+            $metadata = WorkDirectoryUtil::generateDefaultWorkDirMetadata();
+            $this->cloudFileRepository->createFolderByCredential(
+                WorkDirectoryUtil::getPrefix($userWorkDir),
+                $organizationCode,
+                $fileKey,
+                StorageBucketType::SandBox,
+                ['metadata' => $metadata]
+            );
+
+            // 创建用户空间根目录记录
+            $rootDirEntity = new TaskFileEntity();
+            $rootDirEntity->setFileId(IdGenerator::getSnowId());
+            $rootDirEntity->setUserId($userId);
+            $rootDirEntity->setOrganizationCode($organizationCode);
+            $rootDirEntity->setProjectId(0); // 不属于任何项目
+            $rootDirEntity->setFileName('/');
+            $rootDirEntity->setFileKey($fileKey);
+            $rootDirEntity->setFileSize(0);
+            $rootDirEntity->setFileType(FileType::DIRECTORY->value);
+            $rootDirEntity->setIsDirectory(true);
+            $rootDirEntity->setParentId(null);
+            $rootDirEntity->setSource(TaskFileSource::AGENT);
+            $rootDirEntity->setStorageType(StorageType::WORKSPACE);
+            $rootDirEntity->setIsHidden(true);
+            $rootDirEntity->setSort(0);
+            $rootDirEntity->setSpaceType('user');
+
+            $now = date('Y-m-d H:i:s');
+            $rootDirEntity->setCreatedAt($now);
+            $rootDirEntity->setUpdatedAt($now);
+            $rootDirEntity->setDeletedAt(null);
+
+            $rootDirEntity = $this->insertOrUpdate($rootDirEntity);
+
+            $this->logger->info('User space root directory created', [
+                'user_id' => $userId,
+                'organization_code' => $organizationCode,
+                'file_id' => $rootDirEntity->getFileId(),
+                'file_key' => $fileKey,
+            ]);
+
+            return $rootDirEntity->getFileId();
+        } finally {
+            if (! $this->locker->release($lockKey, $lockOwner)) {
+                $this->logger->warning('Failed to release user space root directory lock', [
+                    'lock_key' => $lockKey,
+                    'lock_owner' => $lockOwner,
+                ]);
+            }
+        }
+    }
+
+    /**
      * 外部移动操作后同步父目录链的元数据版本号.
      *
      * @param ?int $oldParentId 原父目录ID
@@ -3336,7 +3435,6 @@ class TaskFileDomainService
         $originalFile->setFileExtension(pathinfo($finalFileName, PATHINFO_EXTENSION));
         $originalFile->setFileSize($newFileInfo['size'] ?? 0);
         $originalFile->setUpdatedAt(date('Y-m-d H:i:s'));
-        $originalFile->setLatestVersion($originalFile->getLatestVersion() + 1);
 
         $updatedFile = $this->taskFileRepository->updateById($originalFile);
 

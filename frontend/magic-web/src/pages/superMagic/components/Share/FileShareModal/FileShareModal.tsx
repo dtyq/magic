@@ -599,6 +599,7 @@ export default memo(function FileShareModal(props: FileShareModalProps) {
 				const shareMessageText = generateShareMessageText({
 					fileCount: actualFileCount,
 					mainFileName: apiResult?.main_file_name || t("share.untitled"),
+					shareName,
 					projectName: projectName,
 					shareProject: shareProject,
 					shareUrl,

@@ -345,6 +345,7 @@ func (h *DocumentRPCService) SyncRPC(ctx context.Context, req *dto.SyncDocumentR
 			OrganizationCode: req.BusinessParams.ResolveOrganizationCode(),
 			UserID:           req.BusinessParams.UserID,
 			BusinessID:       req.BusinessParams.BusinessID,
+			SourceID:         req.BusinessParams.SourceID,
 		},
 	}
 

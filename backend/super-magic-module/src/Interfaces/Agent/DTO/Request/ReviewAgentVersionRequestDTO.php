@@ -28,6 +28,11 @@ class ReviewAgentVersionRequestDTO extends AbstractRequestDTO
     public string $publisherType = '';
 
     /**
+     * 审核说明，同意/拒绝均可为空。
+     */
+    public ?string $reviewRemark = null;
+
+    /**
      * 获取审核操作.
      */
     public function getAction(): string
@@ -43,6 +48,11 @@ class ReviewAgentVersionRequestDTO extends AbstractRequestDTO
         return $this->publisherType ?: '';
     }
 
+    public function getReviewRemark(): ?string
+    {
+        return $this->reviewRemark;
+    }
+
     /**
      * 获取验证规则.
      */
@@ -51,6 +61,7 @@ class ReviewAgentVersionRequestDTO extends AbstractRequestDTO
         return [
             'action' => ['required', 'string', Rule::in(['APPROVED', 'REJECTED'])],
             'publisher_type' => ['nullable', 'string', Rule::in(['USER', 'OFFICIAL', 'VERIFIED_CREATOR', 'PARTNER'])],
+            'review_remark' => ['nullable', 'string', 'max:1000'],
         ];
     }
 
@@ -65,6 +76,8 @@ class ReviewAgentVersionRequestDTO extends AbstractRequestDTO
             'action.in' => __('super_magic.agent.invalid_review_action'),
             'publisher_type.string' => __('super_magic.agent.publisher_type_must_be_string'),
             'publisher_type.in' => __('super_magic.agent.publisher_type_invalid'),
+            'review_remark.string' => __('validation.string', ['attribute' => 'review_remark']),
+            'review_remark.max' => __('validation.max.string', ['attribute' => 'review_remark', 'max' => 1000]),
         ];
     }
 }

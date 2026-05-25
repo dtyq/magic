@@ -263,13 +263,14 @@ export default memo(function ShareSuccessModal(props: ShareSuccessModalProps) {
 		return generateShareMessageText({
 			fileCount,
 			mainFileName,
+			shareName,
 			projectName,
 			shareProject,
 			shareUrl,
 			fileDisplayConfig,
 			t,
 		})
-	}, [fileCount, mainFileName, projectName, shareProject, shareUrl, fileDisplayConfig, t])
+	}, [fileCount, mainFileName, shareName, projectName, shareProject, shareUrl, fileDisplayConfig, t])
 
 	// Render share message with clickable links
 	const renderShareMessage = useCallback(() => {

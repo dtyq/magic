@@ -537,6 +537,10 @@
 			"markerNeedDesignMode": "标记需切换至「设计模式」，创建新话题即可进行标记",
 			"packingDownloading": "正在打包下载 {{count}} 张图片..."
 		},
+		"offlineNotice": {
+			"description": "网络恢复后可继续编辑并保存画布内容",
+			"title": "网络已断开，画布已切换为只读"
+		},
 		"saved": "保存成功",
 		"saving": "正在保存"
 	},
@@ -1211,6 +1215,8 @@
 		"modeNotAvailableMessage": "当前模式暂不可用，请\"新建话题\" 并选择可用的模式后继续",
 		"modelSwitch": {
 			"autoModelDescription": "Auto 模式自动选用当前任务执行效率最高的AI模型，适合处理大多数常规任务，积分消耗适中。",
+			"collapseDescription": "收起模型描述",
+			"expandDescription": "展开模型描述",
 			"headerTitle": "模型选择",
 			"imageModel": "生图模型",
 			"languageModel": "语言模型",
@@ -1411,6 +1417,8 @@
 	"modeToggle": {
 		"cannotSwitchModeMessage": "当前团队成员不可切换，创建新话题即可启用「<strong>{{modeName}}</strong>」。",
 		"createNewTopic": "创建新话题",
+		"emptySearchResult": "没有匹配的团队成员",
+		"searchPlaceholder": "搜索团队成员",
 		"selectCrew": "选择团队成员",
 		"selectMode": "选择模式"
 	},
@@ -2320,6 +2328,7 @@
 		"shareMessageDashboard": "我分享了一个数据分析仪表板给你:",
 		"shareMessageDesign": "我分享了一个画布给你:",
 		"shareMessageMultipleFiles": "我分享了一些文件给你 (共 {{count}} 个文件):",
+		"shareMessageMultipleFilesFile": "📄 文件：{{shareName}}",
 		"shareMessageMultipleFilesLink": "🔗 访问链接: {{shareUrl}}",
 		"shareMessageMultipleFilesTip": "💡 点击链接即可直接查看文件内容。",
 		"shareMessageProject": "我分享了一个项目给你：",
@@ -3203,8 +3212,12 @@
 		"aiGeneratedTip": "上述内容由 AI 生成，请仔细甄别",
 		"attachments": "附件（{{count}}）",
 		"collapseUserMessage": "收起",
+		"consumptionPoints": "本轮使用 {{points}} 积分",
 		"consumptionPoints1": "本轮使用",
 		"consumptionPoints2": "积分",
+		"usedModel": "使用模型：",
+		"usedImageModel": "图像模型：",
+		"usedVideoModel": "视频模型：",
 		"copyTopic": "从此处创建新话题",
 		"deleteProjectConfirm": "确定要删除项目: \"{{name}}\" 吗？",
 		"deleteTopicConfirm": "确定要删除话题: \"{{name}}\" 吗？",

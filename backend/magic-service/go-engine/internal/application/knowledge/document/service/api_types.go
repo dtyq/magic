@@ -15,6 +15,8 @@ const (
 	RevectorizeSourceProjectFileNotify = documentdomain.RevectorizeSourceProjectFileNotify
 	// RevectorizeSourceTeamshareKnowledgeStartVector 表示 Teamshare 单知识库批量重向量化。
 	RevectorizeSourceTeamshareKnowledgeStartVector = documentdomain.RevectorizeSourceTeamshareKnowledgeStartVector
+	// RevectorizeSourceDocumentUpdate 表示文档配置更新触发的重向量化。
+	RevectorizeSourceDocumentUpdate = documentdomain.RevectorizeSourceDocumentUpdate
 )
 
 // ErrManagedDocumentSingleDeleteNotAllowed 表示项目/企业来源知识库不支持单文档删除。

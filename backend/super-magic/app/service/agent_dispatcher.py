@@ -35,6 +35,14 @@ from app.core.base_service import Base
 logger = get_logger(__name__)
 
 
+class AgentLoadFailedError(RuntimeError):
+    """Raised when a user-selected employee agent cannot be loaded."""
+
+    def __init__(self, agent_code: str):
+        self.agent_code = agent_code
+        super().__init__(f"failed to load employee agent: {agent_code}")
+
+
 class AgentDispatcher(Base):
     SERVICE_TYPE = "dispatcher"
     TRACE_EXCLUDE_METHODS = {"get_instance"}
@@ -166,6 +174,14 @@ class AgentDispatcher(Base):
         # 保存初始化消息到文件
         from app.utils.init_client_message_util import InitClientMessageUtil
         await InitClientMessageUtil.save_init_client_message(init_message)
+
+        # 阶段二：init_client_message.json 已就绪，触发 magic-service 模型列表加载
+        try:
+            from agentlang.config.models.model_config_manager import model_config_manager
+            from app.core.model_providers.magic_service_provider import MagicServiceProvider
+            await model_config_manager.refresh_provider(MagicServiceProvider())
+        except Exception as e:
+            logger.error(f"MagicServiceProvider refresh failed, continuing without it: {e}")
 
         # 从 init_message.metadata 提取并设置关键字段
         if init_message.metadata:
@@ -311,6 +327,8 @@ class AgentDispatcher(Base):
         logger.info(f"首次创建主 Agent: {agent_type}")
         agent = await self.agent_service.create_agent(agent_type, self.agent_context)
         if agent is None:
+            if agent_code and agent_type == agent_code.strip():
+                raise AgentLoadFailedError(agent_code.strip())
             raise RuntimeError(f"failed to create agent: {agent_type}")
 
         self.agents[agent_type] = agent
@@ -463,6 +481,8 @@ class AgentDispatcher(Base):
                 await self._prepare_claw_agent(agent_code)
         except Exception as e:
             logger.error(f"Agent preparation failed (mode={agent_mode}, code={agent_code}): {e}")
+            if agent_code:
+                raise AgentLoadFailedError(agent_code) from e
             logger.info("Falling back to default agent profile")
 
     @staticmethod
@@ -577,6 +597,24 @@ class AgentDispatcher(Base):
             await self.dispatch_message(message)
         except asyncio.CancelledError:
             raise
+        except AgentLoadFailedError as e:
+            logger.error(f"[AgentDispatcher] agent load failed: {e}")
+            try:
+                if self.agent_context:
+                    final_task_state = build_final_task_state(
+                        FinalTaskStateCode.AGENT_LOAD_FAILED,
+                        i18n_params={"agent_code": e.agent_code},
+                    )
+                    self.agent_context.set_final_task_state(final_task_state)
+                    await self.agent_context.dispatch_event(
+                        EventType.ERROR,
+                        ErrorEventData(
+                            agent_context=self.agent_context,
+                            final_task_state=final_task_state,
+                        ),
+                    )
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"[AgentDispatcher] dispatch task failed: {e}")
             import traceback
@@ -625,6 +663,16 @@ class AgentDispatcher(Base):
                 )
                 return
 
+        # 确保 magic-service 模型列表已加载（兜底：防止未经 initialize_workspace 路径就发起 chat）
+        # 若已加载则跳过；未加载则同步触发一次，之后按 RefreshPolicy 策略在后台定期刷新。
+        try:
+            from agentlang.config.models.model_config_manager import model_config_manager
+            from app.core.model_providers.magic_service_provider import MagicServiceProvider
+            provider = MagicServiceProvider()
+            await model_config_manager.ensure_provider_loaded(provider)
+            model_config_manager.maybe_refresh_in_background(provider.provider_type)
+        except Exception as e:
+            logger.warning(f"dispatch_message: model provider check failed, continuing: {e}")
 
         await self._fill_from_last_dispatch_message(message)
 
@@ -667,12 +715,12 @@ class AgentDispatcher(Base):
         # 使用 agent_mode 进行 agent 选择
         agent = await self.switch_agent(message.agent_mode, agent_code=agent_code)
 
-        # 初始化 MCP 配置
-        logger.info("正在初始化 MCP 配置...")
-        await MCPService.initialize_from_config(message.mcp_config, self.agent_context)
+        # 摄取客户端 MCP 配置：增量持久化到 ChatMcpStore，有变更时通过 horizon 通知模型
+        logger.info("正在摄取客户端 MCP 配置...")
+        await MCPService.ingest_from_message(message.mcp_config, self.agent_context)
 
-        # 保存当前模型配置（在 MCP 初始化之后，以便保存正确的 MCP 服务器信息）
-        self._save_session_config(message, agent)
+        # 保存当前模型配置
+        await self._save_session_config(message, agent)
 
         await self.run_agent(agent=agent)
 
@@ -695,7 +743,7 @@ class AgentDispatcher(Base):
         """
         return self.init_event_dispatched
 
-    def _save_session_config(self, message: ChatClientMessage, agent: Agent):
+    async def _save_session_config(self, message: ChatClientMessage, agent: Agent):
         """
         保存当前会话配置到聊天历史中（包括模型、图片模型、MCP服务器等）
 
@@ -713,8 +761,6 @@ class AgentDispatcher(Base):
             current_image_model_sizes = None
             current_video_model_id = None
             current_video_generation_config = None
-            current_mcp_servers = None
-
             if message.dynamic_config:
                 image_model_config = message.dynamic_config.get("image_model")
                 if image_model_config and isinstance(image_model_config, dict):
@@ -726,16 +772,7 @@ class AgentDispatcher(Base):
                     current_video_model_id = video_model_config.get("model_id")
                     current_video_generation_config = video_model_config.get("video_generation_config")
 
-            # 获取当前 MCP 服务器信息（仅在加载了 using-mcp skill 时）
             agent_context = agent.agent_context
-            if agent_context and agent_context.has_skill("using-mcp"):
-                from app.mcp.manager import get_global_mcp_manager
-                manager = get_global_mcp_manager()
-                if manager:
-                    current_mcp_servers = {}
-                    for server_name in manager.get_connected_servers():
-                        tools = manager.get_server_tools(server_name)
-                        current_mcp_servers[server_name] = tools
 
             current_agent_mode = None
             msg_agent_mode = message.agent_mode
@@ -760,7 +797,6 @@ class AgentDispatcher(Base):
                 current_image_model_sizes,
                 current_video_model_id,
                 current_video_generation_config,
-                current_mcp_servers,
                 message_version=agent_context.get_message_version() if agent_context else None,
                 agent_mode=current_agent_mode,
                 agent_code=current_agent_code,

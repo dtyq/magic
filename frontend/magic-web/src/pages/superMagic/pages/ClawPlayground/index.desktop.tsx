@@ -78,6 +78,7 @@ function ClawPlaygroundDesktop() {
 			topicFilesProps,
 			extraPanelVisible: isSkillsPanelOpen,
 			resetDeps: [selectedProject?.id],
+			attachmentList,
 			onReset: () => {
 				setUserSelectDetail(undefined)
 				setIsDetailPanelFullscreen(false)

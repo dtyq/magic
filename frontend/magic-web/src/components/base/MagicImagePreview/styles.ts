@@ -64,6 +64,7 @@ const useStyles = createStyles(({ css, prefixCls, token }) => ({
 		color: ${token.colorWhite};
 		width: 40px;
 		text-align: center;
+		white-space: nowrap;
 	`,
 	segmented: css`
 		border-radius: 8px;

@@ -686,6 +686,7 @@ func buildRebuildBusinessParams(req *dto.RebuildKnowledgeBaseRequest, scope rebu
 		OrganizationCode: req.DataIsolation.ResolveOrganizationCode(),
 		UserID:           strings.TrimSpace(req.DataIsolation.UserID),
 		BusinessID:       strings.TrimSpace(businessID),
+		SourceID:         ctxmeta.SourceIDFragmentSaved,
 	}
 }
 

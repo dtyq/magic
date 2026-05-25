@@ -116,6 +116,11 @@ class AgentVersionEntity extends AbstractEntity
     protected ReviewStatus $reviewStatus = ReviewStatus::PENDING;
 
     /**
+     * @var null|string 审核说明，同意/拒绝均可为空
+     */
+    protected ?string $reviewRemark = null;
+
+    /**
      * @var PublishTargetType Publish target type
      */
     protected PublishTargetType $publishTargetType = PublishTargetType::MARKET;
@@ -197,6 +202,7 @@ class AgentVersionEntity extends AbstractEntity
             'description_i18n' => $this->descriptionI18n,
             'publish_status' => $this->publishStatus->value,
             'review_status' => $this->reviewStatus->value,
+            'review_remark' => $this->reviewRemark,
             'publish_target_type' => $this->publishTargetType->value,
             'publish_target_value' => $this->publishTargetValue?->toArray(),
             'version_description_i18n' => $this->versionDescriptionI18n,
@@ -437,6 +443,17 @@ class AgentVersionEntity extends AbstractEntity
         } else {
             $this->reviewStatus = ReviewStatus::from($reviewStatus);
         }
+        return $this;
+    }
+
+    public function getReviewRemark(): ?string
+    {
+        return $this->reviewRemark;
+    }
+
+    public function setReviewRemark(?string $reviewRemark): self
+    {
+        $this->reviewRemark = $reviewRemark;
         return $this;
     }
 

@@ -98,13 +98,17 @@ const CanvasDesignContent = forwardRef<CanvasDesignRef, CanvasDesignProps>((prop
 	)
 
 	useMount(() => {
+		const designProjectId = id.trim()
+		if (!designProjectId) {
+			throw new Error("CanvasDesign: id is required as designProjectId.")
+		}
 		if (!canvasContainerRef.current) return
 		const scopeElement = canvasContainerRef.current.closest("[data-canvas-ui-component]")
 		const canvasInstance = new Canvas({
 			element: canvasContainerRef.current,
 			scopeElement:
 				scopeElement instanceof HTMLElement ? scopeElement : canvasContainerRef.current,
-			id,
+			id: designProjectId,
 			defaultReadyonly: readonly,
 			magic: {
 				methods: methods,
