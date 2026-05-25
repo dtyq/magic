@@ -70,6 +70,14 @@ interface WarmPoolSandboxRepositoryInterface
     public function deleteById(int $id): bool;
 
     /**
+     * Return all sandbox rows still sitting in the pool (creating / ready / dead).
+     * Claimed rows are excluded because they belong to active user sessions.
+     *
+     * @return WarmPoolSandboxEntity[]
+     */
+    public function findAllPooled(int $limit = 500): array;
+
+    /**
      * Most recently observed agent_image stored in the warm pool. Used to
      * detect generation changes without an event bus.
      */

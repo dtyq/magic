@@ -155,6 +155,14 @@ class WarmPoolSandboxDomainService
         $this->repository->deleteById($id);
     }
 
+    /**
+     * @return WarmPoolSandboxEntity[]
+     */
+    public function listAllPooled(int $limit = 500): array
+    {
+        return $this->repository->findAllPooled($limit);
+    }
+
     public function lastObservedAgentImage(): ?string
     {
         return $this->repository->findLatestAgentImage();

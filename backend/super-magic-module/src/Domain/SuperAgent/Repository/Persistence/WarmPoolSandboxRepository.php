@@ -157,6 +157,20 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         return WarmPoolSandboxModel::query()->where('id', $id)->delete() > 0;
     }
 
+    public function findAllPooled(int $limit = 500): array
+    {
+        $models = WarmPoolSandboxModel::query()
+            ->whereIn('status', [
+                WarmPoolSandboxStatus::Creating->value,
+                WarmPoolSandboxStatus::Ready->value,
+                WarmPoolSandboxStatus::Dead->value,
+            ])
+            ->orderBy('id', 'ASC')
+            ->limit($limit)
+            ->get();
+        return array_map(fn ($m) => $this->toEntity($m), $models->all());
+    }
+
     public function findLatestAgentImage(): ?string
     {
         $model = WarmPoolSandboxModel::query()

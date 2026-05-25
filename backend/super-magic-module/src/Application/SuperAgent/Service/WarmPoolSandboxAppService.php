@@ -198,6 +198,38 @@ class WarmPoolSandboxAppService extends AbstractAppService
         return $result->getMessage();
     }
 
+    /**
+     * Drain (destroy + remove) ALL sandboxes currently sitting in the pool.
+     * Claimed rows are intentionally excluded — they belong to active user
+     * sessions.
+     */
+    public function drainAll(): array
+    {
+        $rows = $this->domain->listAllPooled(500);
+        $deleted = 0;
+        $errors = [];
+
+        foreach ($rows as $row) {
+            try {
+                if ($this->forceDelete($row, 'drain_all')) {
+                    ++$deleted;
+                }
+            } catch (Throwable $e) {
+                $errors[] = $row->getSandboxId() . ': ' . $e->getMessage();
+            }
+        }
+
+        if ($deleted > 0) {
+            $this->logger->info('[WarmPoolSandbox] Drained warm-pool sandboxes', ['deleted' => $deleted]);
+        }
+
+        return [
+            'total_found' => count($rows),
+            'deleted' => $deleted,
+            'errors' => $errors,
+        ];
+    }
+
     private function forceDelete(WarmPoolSandboxEntity $row, string $reason): bool
     {
         // First try to delete the pod via gateway, then remove the row.
