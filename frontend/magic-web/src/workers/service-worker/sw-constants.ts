@@ -88,10 +88,7 @@ export const CACHEABLE_API_RULES: ReadonlyArray<string | RegExp> = [
 	// 功能权限与订阅
 	"/api/v1/function-permissions/me",
 	"/api/v1/operation-permissions/organization-admin",
-	"/api/v1/admin/subscription",
-	"/api/v1/super-agent/user/special-projects",
 	// 工作空间与推荐卡片
-	"/api/v1/super-agent/workspaces/queries",
 	"/api/v1/super-agents/featured",
 ]
 
