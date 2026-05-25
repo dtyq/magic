@@ -1,45 +1,26 @@
 ---
 name: html-api-sdk
-description: "Guide for using window.Magic.* APIs in SuperMagic HTML micro-apps, covering file system (fs), LLM calls (llm), Agent interaction, project/topic management, and agent dispatch. Use when user wants to create/build/develop an HTML micro-app, web app, dashboard, tool, game, or any interactive HTML page in the workspace. Also use when user needs to read/write workspace files from HTML, call LLM models, stream AI responses, listen for file changes, communicate with the Agent, upload/download files, create topics, send messages to agents, or select agents programmatically. Trigger phrases: 'make an HTML app', 'build a web tool', 'create a dashboard', 'develop a micro-app', 'write an interactive page', 'make a data visualization', 'build a form app', 'create a chat interface', 'read workspace files in HTML', 'call LLM from HTML', 'stream AI output', 'notify Agent from HTML', 'send message to agent from app', 'switch agent in HTML'."
-description-cn: "SuperMagic HTML 微应用 window.Magic API 使用指南，涵盖文件系统读写（fs）、大模型调用（llm 单次/流式）、Agent 交互、员工调度（agent 命名空间）、项目与话题管理（project 命名空间）等全部能力。当用户想要创建/开发/构建 HTML 微应用、网页工具、数据看板、交互式页面、小游戏、表单应用、对话界面等场景时加载本 skill；当用户需要在 HTML 中读写工作区文件、调用大模型、上传下载文件、新建话题发消息、选择员工、与 Agent 通信时同样加载。"
+description: "Guide for using window.Magic.* APIs in SuperMagic HTML micro-apps (HTML 微应用), covering file system (fs 文件系统), LLM calls (llm 大模型调用), Agent interaction (Agent 交互), project/topic management (项目与话题管理), and agent dispatch (员工调度). Use when user wants to create/build/develop an HTML micro-app, web app, dashboard, tool, game, or any interactive HTML page in the workspace. Also use when user needs to read/write workspace files from HTML, call LLM models, stream AI responses, listen for file changes, communicate with the Agent, upload/download files, create topics, send messages to agents, or select agents programmatically. Trigger phrases: 'make an HTML app', 'build a web tool', 'create a dashboard', 'develop a micro-app', 'write an interactive page', 'make a data visualization', 'build a form app', 'create a chat interface', 'read workspace files in HTML', 'call LLM from HTML', 'stream AI output', 'notify Agent from HTML', 'send message to agent from app', 'switch agent in HTML', '创建HTML微应用', '开发网页工具', '数据看板', '交互式页面', '读写工作区文件', '调用大模型', '流式输出', '上传下载文件', '新建话题', '选择员工'."
 ---
 
-# window.Magic API — HTML 微应用开发指南
+# window.Magic API — HTML Micro-App Development Guide
 
-本 skill 指导在 SuperMagic workspace 中开发 HTML 微应用时，正确使用 `window.Magic.*` 系列 API。
-
----
-
-## 重要约束（必须遵守）
-
-1. 这些 API **仅在 SuperMagic workspace 中打开的 HTML 文件里有效**，无需引入任何外部脚本。
-2. 所有文件路径以**应用根目录**（`index.html` 所在目录）为基准，**禁止使用 `../` 穿越到上级目录**。
-3. `window.Magic.llm` 的 token 由宿主托管，HTML 内无法直接获取 `api_key`；直接调用方法即可。
-4. 文件写入后，若需要让 Agent 感知到数据变化，调用 `window.Magic.setInputMessage()` 通知 Agent。
-5. **禁止使用内联事件**（`onclick` 等属性），所有事件绑定必须在 JS 中用 `addEventListener` 完成。
-
-## Micro-app runtime conventions
-
-- HTML micro-apps may use Tailwind CDN (`https://cdn.tailwindcss.com`) for layout, spacing, colors, responsiveness, and basic visual polish.
-- Do not introduce Tailwind build steps, npm dependencies, frontend frameworks, or third-party component libraries from this skill.
-- Keep business logic in native JavaScript. Tailwind classes should improve presentation, not hide state, data access, or event logic.
-- Simple pages may keep CSS and JavaScript in the page. Multi-page apps or apps with shared logic may use shared CSS/JS files.
-- One real page should map to one `.html` file. Reusable component `.html` files are appropriate only when they are truly reused by multiple pages.
-- A micro-app should be lightweight, but it should still feel like a complete small product. For short requests, use the approved plan's product expansion instead of building a minimal demo. Only build the smallest possible version when the user explicitly asks for a minimal or simplest app.
-
-## Project memory: `HTML-APP.md`
-
-- A workspace contains one HTML micro-app. The workspace-root `HTML-APP.md` is the project memory document for future iterations.
-- Before creating or modifying a micro-app, read `HTML-APP.md` if it exists. If it does not exist, treat the task as a new micro-app.
-- HTML pages must not read `HTML-APP.md`; it is for the agent's development workflow only.
-- Ordinary project-memory sections such as App Overview, Entry and Files, Features, Runtime Notes, 铁律, and Iteration History should be updated once before the development task ends by calling `update_html_app_memory`, based only on what was truly completed.
-- Do not use file-editing tools to modify `HTML-APP.md` directly. Use the dedicated memory tool so project memory is updated consistently.
+This skill guides the correct usage of `window.Magic.*` APIs when developing HTML micro-apps in a SuperMagic workspace.
 
 ---
 
-## 一、文件系统 API（`window.Magic.fs`）
+## Important Constraints (Must Follow)
 
-### 读取文件 `readFile(path)`
+1. These APIs are **only available inside HTML files opened in a SuperMagic workspace**; no external scripts need to be imported.
+2. All file paths are relative to the **app root directory** (the directory containing `index.html`). **Using `../` to traverse to parent directories is forbidden**.
+3. `window.Magic.llm` tokens are managed by the host; you cannot directly obtain an `api_key` in HTML — just call the methods directly.
+4. **Inline event handlers are forbidden** (`onclick` attributes, etc.). All event bindings must use `addEventListener` in JS.
+
+---
+
+## 1. File System API (`window.Magic.fs`)
+
+### Read File `readFile(path)`
 
 ```javascript
 const raw = await window.Magic.fs.readFile("data/users.json");
@@ -48,11 +29,11 @@ const users = JSON.parse(raw);
 const markdown = await window.Magic.fs.readFile("README.md");
 ```
 
-- **参数**：`path: string` — 相对于应用根目录的路径
-- **返回**：`Promise<string>` — 文件文本内容
-- **限制**：单文件最大 5 MB；文件不存在则 reject
+- **Parameter**: `path: string` — path relative to the app root directory
+- **Returns**: `Promise<string>` — file text content
+- **Limits**: max 5 MB per file; rejects if file does not exist
 
-### 写入文件 `writeFile(path, content)`
+### Write File `writeFile(path, content)`
 
 ```javascript
 await window.Magic.fs.writeFile(
@@ -61,66 +42,66 @@ await window.Magic.fs.writeFile(
 );
 await window.Magic.fs.writeFile("output/report.md", markdownContent);
 
-// 写入大文件：直接传 Blob 或 ArrayBuffer（无需转字符串，支持二进制，上限 500 MB）
+// Write large files: pass Blob or ArrayBuffer directly (no string conversion needed, supports binary, up to 500 MB)
 const response = await fetch("https://example.com/large-data.bin");
 const blob = await response.blob();
 await window.Magic.fs.writeFile("data/large-data.bin", blob);
 
-// 使用 ArrayBuffer
+// Using ArrayBuffer
 const buffer = await response.arrayBuffer();
 await window.Magic.fs.writeFile("data/large-data.bin", buffer);
 ```
 
-**参数**：
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `path` | `string` | 相对于应用根目录的路径（支持 `"dir/file.txt"` 或 `"./dir/file.txt"`） |
-| `content` | `string \| Blob \| ArrayBuffer` | 文件内容 |
+**Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `path` | `string` | Path relative to the app root directory (supports `"dir/file.txt"` or `"./dir/file.txt"`) |
+| `content` | `string \| Blob \| ArrayBuffer` | File content |
 
-- **返回**：`Promise<void>`
-- **限制**：
-  - `string` 内容：最大 5 MB
-  - `Blob` / `ArrayBuffer` 内容：最大 500 MB（通过 postMessage 结构化克隆直接传输，无额外编码开销）
-- **说明**：文件已存在时覆盖；路径中的目录无需提前创建；禁止 `../` 穿越到应用根目录之外
+- **Returns**: `Promise<void>`
+- **Limits**:
+  - `string` content: max 5 MB
+  - `Blob` / `ArrayBuffer` content: max 500 MB (transferred via postMessage structured clone with no extra encoding overhead)
+- **Notes**: Overwrites if file exists; directories in path are created automatically; `../` traversal outside app root is blocked
 
-> **⚠️ 路径对照说明（常见踩坑）**
+> **⚠️ Path Reference (Common Pitfall)**
 >
-> `writeFile` 的路径是**相对于 `index.html` 所在目录**，而不是工作区根目录。
+> `writeFile` paths are **relative to the directory containing `index.html`**, not the workspace root.
 >
-> | HTML 文件位置          | 写入路径           | 实际保存位置（工作区）    |
-> | ---------------------- | ------------------ | ------------------------- |
-> | `my-app/index.html`    | `report.md`        | `my-app/report.md`        |
-> | `my-app/index.html`    | `output/report.md` | `my-app/output/report.md` |
-> | `index.html`（根目录） | `report.md`        | `report.md`               |
+> | HTML File Location  | Write Path         | Actual Save Location (Workspace) |
+> | ------------------- | ------------------ | -------------------------------- |
+> | `my-app/index.html` | `report.md`        | `my-app/report.md`               |
+> | `my-app/index.html` | `output/report.md` | `my-app/output/report.md`        |
+> | `index.html` (root) | `report.md`        | `report.md`                      |
 >
-> **禁止使用 `../` 穿越到上级目录**（会被拦截）。若希望文件出现在工作区根目录，需将 `index.html` 也放在根目录，或在提示中注明实际保存位置（如 `已保存至 my-app/report.md`）。
+> **Using `../` to traverse to parent directories is forbidden** (will be intercepted). If you want files at the workspace root, place `index.html` at the root as well, or note the actual save location in your prompt (e.g., `Saved to my-app/report.md`).
 
-### 列出目录文件 `listFiles(dir?)`
+### List Directory Files `listFiles(dir?)`
 
 ```javascript
-const rootFiles = await window.Magic.fs.listFiles(); // 根目录
-const dataFiles = await window.Magic.fs.listFiles("data/"); // 子目录
+const rootFiles = await window.Magic.fs.listFiles(); // root directory
+const dataFiles = await window.Magic.fs.listFiles("data/"); // subdirectory
 ```
 
-- **参数**：`dir?: string` — 默认 `"./"`
-- **返回**：`Promise<string[]>` — 文件名列表（不含路径前缀）
+- **Parameter**: `dir?: string` — defaults to `"./"`
+- **Returns**: `Promise<string[]>` — list of file names (without path prefix)
 
-### 监听文件变更 `watchFile(path, callback)`
+### Watch File Changes `watchFile(path, callback)`
 
 ```javascript
 const unwatch = window.Magic.fs.watchFile("data/orders.json", async (event) => {
-  console.log("文件已更新：", event.path, event.timestamp);
+  console.log("File updated:", event.path, event.timestamp);
   const fresh = JSON.parse(await window.Magic.fs.readFile("data/orders.json"));
   renderTable(fresh);
 });
-// 停止监听：unwatch()
+// Stop watching: unwatch()
 ```
 
-- **参数**：`path: string`, `callback: (e: { path: string; timestamp: number }) => void`
-- **返回**：`() => void` — 调用即停止监听
-- **说明**：主站约 3 秒轮询一次；每个应用最多同时监听 **10 个路径**
+- **Parameters**: `path: string`, `callback: (e: { path: string; timestamp: number }) => void`
+- **Returns**: `() => void` — call to stop watching
+- **Notes**: Host polls approximately every 3 seconds; max **10 watched paths** per app
 
-### 并发读取（推荐）
+### Concurrent Reads (Recommended)
 
 ```javascript
 const [users, orders, settings] = await Promise.all([
@@ -132,9 +113,9 @@ const [users, orders, settings] = await Promise.all([
 
 ---
 
-## 二、大模型 API（`window.Magic.llm`）
+## 2. LLM API (`window.Magic.llm`)
 
-### 获取可用模型列表 `getModels()`
+### Get Available Models `getModels()`
 
 ```javascript
 const models = await window.Magic.llm.getModels();
@@ -142,109 +123,119 @@ const models = await window.Magic.llm.getModels();
 const modelIds = models.map((m) => m.id);
 ```
 
-- **返回**：`Promise<Array<{ id: string; object?: string; owned_by?: string }>>`
+- **Returns**: `Promise<Array<{ id: string; object?: string; owned_by?: string }>>`
 
-> **⚠️ model 字段必须传值，默认使用 `"auto"`**
+> **⚠️ The `model` field is required — default to `"auto"`**
 >
-> `model` 参数**不能省略、不能为空字符串**。若用户未指定模型，必须显式传入 `"auto"`，系统将自动选择合适的模型：
+> The `model` parameter **cannot be omitted or be an empty string**. If the user has not selected a model, you must explicitly pass `"auto"`, and the system will automatically choose an appropriate model:
 >
 > ```javascript
-> // ✅ 正确：用户未选择时显式传入 "auto"
-> const modelId = selectedModel || "auto"; // 绝不能是空字符串或 undefined
+> // ✅ Correct: explicitly pass "auto" when no model is selected
+> const modelId = selectedModel || "auto"; // must never be empty string or undefined
 > window.Magic.llm.stream(messages, onChunk, { model: modelId });
 > window.Magic.llm.chat(messages, { model: modelId });
 >
-> // ❌ 错误：省略 model 字段或传空值
-> window.Magic.llm.stream(messages, onChunk, { maxTokens: 1500 }); // 禁止
-> window.Magic.llm.chat(messages, { model: "" }); // 禁止
+> // ❌ Wrong: omitting model field or passing empty value
+> window.Magic.llm.stream(messages, onChunk, { maxTokens: 1500 }); // forbidden
+> window.Magic.llm.chat(messages, { model: "" }); // forbidden
 > ```
 >
-> 在模型选择 UI 中，**必须**将「自动选择（Auto）」作为列表第一项且默认选中：
+> In model selection UI, **must** place "Auto Select" as the first item and select it by default:
 >
 > ```javascript
-> // 加载模型列表后，在顶部插入默认选项
-> const autoItem = { id: "auto", label: "自动选择（推荐）" };
+> // After loading model list, insert default option at top
+> const autoItem = { id: "auto", label: "Auto Select (Recommended)" };
 > [autoItem, ...models].forEach((m) => renderModelItem(m.id, m.label || m.id));
-> // 确保 select 初始值为 "auto"
+> // Ensure select initial value is "auto"
 > document.getElementById("model-select").value = "auto";
 > ```
 
-### 单次对话 `chat(messages, options?)`
+### Single Chat `chat(messages, options?)`
 
 ```javascript
-// 基础用法
+// Basic usage
 const reply = await window.Magic.llm.chat([
-  { role: "user", content: "用一句话总结：太阳系有几颗行星？" },
+  {
+    role: "user",
+    content:
+      "Summarize in one sentence: how many planets are in the solar system?",
+  },
 ]);
 
-// 携带系统提示和历史上下文
+// With system prompt and history context
 const reply2 = await window.Magic.llm.chat([
-  { role: "system", content: "你是一位数据分析专家，请用简洁的中文回答。" },
-  { role: "user", content: "上个月销售额同比增长了 15%，这意味着什么？" },
+  {
+    role: "system",
+    content: "You are a data analysis expert. Answer concisely.",
+  },
+  {
+    role: "user",
+    content: "Sales grew 15% year-over-year last month. What does this imply?",
+  },
 ]);
 
-// 指定模型和参数
+// Specify model and parameters
 const reply3 = await window.Magic.llm.chat(
-  [{ role: "user", content: "写一首关于秋天的五言绝句。" }],
+  [{ role: "user", content: "Write a haiku about autumn." }],
   { model: "gpt-4o", temperature: 0.9, maxTokens: 200 },
 );
 ```
 
-**options 参数说明：**
+**options parameter:**
 
-| 参数           | 类型      | 说明                                       |
-| -------------- | --------- | ------------------------------------------ |
-| `model`        | `string`  | **必填**，指定模型 ID；未选择时传 `"auto"` |
-| `temperature`  | `number?` | 温度（0~2，越高越随机）                    |
-| `maxTokens`    | `number?` | 最大输出 token 数                          |
-| `systemPrompt` | `string?` | 等价于在消息列表首部插入 `system` 消息     |
+| Parameter      | Type      | Description                                                         |
+| -------------- | --------- | ------------------------------------------------------------------- |
+| `model`        | `string`  | **Required**. Model ID; pass `"auto"` if none selected              |
+| `temperature`  | `number?` | Temperature (0–2, higher = more random)                             |
+| `maxTokens`    | `number?` | Maximum output tokens                                               |
+| `systemPrompt` | `string?` | Equivalent to inserting a `system` message at the start of the list |
 
-- **返回**：`Promise<string>` — 模型回复内容（纯文本）
-- **超时**：120 秒无响应自动 reject
+- **Returns**: `Promise<string>` — model reply content (plain text)
+- **Timeout**: auto-rejects after 120 seconds with no response
 
-### 流式对话 `stream(messages, onChunk, options?)`
+### Streaming Chat `stream(messages, onChunk, options?)`
 
-逐 token 接收响应，适合长文本生成，用户能看到实时输出。
+Receives tokens incrementally; suitable for long text generation with real-time output.
 
 ```javascript
 let fullText = "";
 const outputEl = document.getElementById("output");
 
 const cancel = window.Magic.llm.stream(
-  [{ role: "user", content: "请写一篇关于人工智能发展的 500 字文章。" }],
+  [{ role: "user", content: "Write a 500-word article about AI development." }],
   (delta, done) => {
     fullText += delta;
     outputEl.textContent = fullText;
-    if (done) console.log("生成完成，共", fullText.length, "字");
+    if (done) console.log("Generation complete,", fullText.length, "chars");
   },
   { model: "gpt-4o", maxTokens: 1000 },
 );
 
-// 取消流式输出
+// Cancel streaming output
 document.getElementById("cancel-btn").addEventListener("click", () => cancel());
 ```
 
-- **`onChunk`**：`(delta: string, done: boolean) => void`，`done=true` 表示结束
-- **返回**：`() => void` — 取消函数，调用后立即停止接收
+- **`onChunk`**: `(delta: string, done: boolean) => void` — `done=true` indicates completion
+- **Returns**: `() => void` — cancel function; stops receiving immediately when called
 
 ---
 
-## 三、Agent 交互 API
+## 3. Agent Interaction API
 
-### 向 Agent 发消息 `setInputMessage(msg)`
+### Send Message to Agent `setInputMessage(msg)`
 
-将消息填入输入框并自动发送，触发 Agent 继续执行。
+Fills the message into the input box and auto-sends, triggering the Agent to continue execution.
 
 ```javascript
 await window.Magic.fs.writeFile("output/analysis.json", JSON.stringify(result));
 window.Magic.setInputMessage(
-  "数据分析已完成，请根据 output/analysis.json 生成可视化图表",
+  "Data analysis complete. Please generate visualizations based on output/analysis.json",
 );
 ```
 
-### 触发刷新 `reload()`
+### Trigger Refresh `reload()`
 
-通知 Agent 刷新或重新执行当前任务。
+Notifies the Agent to refresh or re-execute the current task.
 
 ```javascript
 window.Magic.reload();
@@ -252,48 +243,48 @@ window.Magic.reload();
 
 ---
 
-## 四、Agent 命名空间（`window.Magic.agent`）
+## 4. Agent Namespace (`window.Magic.agent`)
 
-### 获取员工列表 `getAgents()`
+### Get Agent List `getAgents()`
 
-获取当前可用的 Agent（员工）列表。
+Retrieves the list of currently available Agents.
 
 ```javascript
 const agents = await window.Magic.agent.getAgents();
 // → [
-//   { id: "general", name: "通用助手", icon: "https://...", color: "#4A90D9", type: "official" },
-//   { id: "data_analysis", name: "数据分析师", icon: "https://...", color: "#52C41A", type: "official" },
-//   { id: "my_custom_agent", name: "我的自定义员工", icon: "https://...", color: "#FF6B6B", type: "custom" },
+//   { id: "general", name: "General Assistant", icon: "https://...", color: "#4A90D9", type: "official" },
+//   { id: "data_analysis", name: "Data Analyst", icon: "https://...", color: "#52C41A", type: "official" },
+//   { id: "my_custom_agent", name: "My Custom Agent", icon: "https://...", color: "#FF6B6B", type: "custom" },
 // ]
 
-// 展示可选员工列表
+// Display available agent list
 agents.forEach((agent) => {
   console.log(`${agent.name} (${agent.type}) - ${agent.id}`);
 });
 ```
 
-**返回**：`Promise<Array<{ id: string; name: string; icon: string; color: string; type: "official" | "custom" | "public" }>>`
+**Returns**: `Promise<Array<{ id: string; name: string; icon: string; color: string; type: "official" | "custom" | "public" }>>`
 
-| 字段    | 类型     | 说明                                               |
+| Field   | Type     | Description                                        |
 | ------- | -------- | -------------------------------------------------- |
-| `id`    | `string` | Agent 唯一标识（mode.identifier）                  |
-| `name`  | `string` | Agent 名称                                         |
-| `icon`  | `string` | Agent 图标 URL                                     |
-| `color` | `string` | Agent 图标颜色                                     |
-| `type`  | `string` | Agent 类型：`"official"` / `"custom"` / `"public"` |
+| `id`    | `string` | Agent unique identifier (mode.identifier)          |
+| `name`  | `string` | Agent name                                         |
+| `icon`  | `string` | Agent icon URL                                     |
+| `color` | `string` | Agent icon color                                   |
+| `type`  | `string` | Agent type: `"official"` / `"custom"` / `"public"` |
 
 ---
 
-## 五、项目命名空间（`window.Magic.project`）
+## 5. Project Namespace (`window.Magic.project`)
 
-### 5.1 上传文件到工作区 `uploadFiles(files)`
+### 5.1 Upload Files to Workspace `uploadFiles(files)`
 
-> **推荐**：对于应用根目录内的文件写入，优先使用 `window.Magic.fs.writeFile(path, blob)`。
-> 它更简洁（无需构造数组）、支持 500 MB、且自动创建目录。
-> `uploadFiles` 适用于需要批量上传多个文件、或需要自定义目标路径的场景。
+> **Recommended**: For writing files within the app root directory, prefer `window.Magic.fs.writeFile(path, blob)`.
+> It's simpler (no need to construct arrays), supports 500 MB, and auto-creates directories.
+> `uploadFiles` is suitable for batch uploading multiple files or when custom target paths are needed.
 
 ```javascript
-// ✅ 推荐：直接用 writeFile 写入单个文件
+// ✅ Recommended: use writeFile directly for single files
 const input = document.createElement("input");
 input.type = "file";
 input.addEventListener("change", async () => {
@@ -302,7 +293,7 @@ input.addEventListener("change", async () => {
 });
 input.click();
 
-// 批量上传多个文件时使用 uploadFiles
+// Use uploadFiles for batch uploading multiple files
 const input2 = document.createElement("input");
 input2.type = "file";
 input2.multiple = true;
@@ -318,11 +309,11 @@ input2.addEventListener("change", async () => {
 input2.click();
 ```
 
-- **参数**：`files: Array<{ file: File, path: string, filename: string }>` — 每项包含 File 对象、目标路径和文件名
-- **返回**：`Promise<unknown>`
-- **限制**：单文件最大 500 MB
+- **Parameter**: `files: Array<{ file: File, path: string, filename: string }>` — each item contains a File object, target path, and filename
+- **Returns**: `Promise<unknown>`
+- **Limits**: max 500 MB per file
 
-### 5.2 下载 workspace 文件 `downloadFiles(paths)`
+### 5.2 Download Workspace Files `downloadFiles(paths)`
 
 ```javascript
 await window.Magic.project.downloadFiles([
@@ -331,7 +322,7 @@ await window.Magic.project.downloadFiles([
 ]);
 ```
 
-### 5.3 将文件附加到消息输入框 `addFilesToMessage(filePaths, agentMode?)`
+### 5.3 Attach Files to Message Input `addFilesToMessage(filePaths, agentMode?)`
 
 ```javascript
 await window.Magic.project.addFilesToMessage([
@@ -340,39 +331,40 @@ await window.Magic.project.addFilesToMessage([
 ]);
 ```
 
-### 5.4 新建话题并发送消息 `createTopicAndSend(message, options?)`
+### 5.4 Create Topic and Send Message `createTopicAndSend(message, options?)`
 
-创建一个新话题，并在该话题中发送指定消息，可选指定员工和模型。
-`message` 支持纯文本字符串或 tiptap JSON 文档结构（可内联 `@` mention 等富文本节点）。
+Creates a new topic and sends the specified message in it, optionally specifying an agent and model.
+`message` supports plain text strings or tiptap JSON document structures (can inline `@` mentions and other rich text nodes).
 
 ```javascript
-// 基础用法：创建新话题并发送纯文本消息
-const { topicId } =
-  await window.Magic.project.createTopicAndSend("请帮我分析这组数据");
+// Basic usage: create new topic and send plain text message
+const { topicId } = await window.Magic.project.createTopicAndSend(
+  "Please help me analyze this data",
+);
 
-// 指定员工发送
+// Send with specified agent
 const { topicId: tid2 } = await window.Magic.project.createTopicAndSend(
-  "请用 Python 写一个爬虫脚本",
+  "Please write a web scraper in Python",
   { agentId: "general" },
 );
 
-// 指定员工 + 模型
+// Specify agent + model
 const { topicId: tid3 } = await window.Magic.project.createTopicAndSend(
-  "请为我生成一份报告",
+  "Please generate a report for me",
   {
     agentId: "data_analysis",
     model: "gpt-4o",
   },
 );
 
-// 发送带 @文件引用 的富文本消息（tiptap JSON）
+// Send rich text message with @file reference (tiptap JSON)
 const { topicId: tid4 } = await window.Magic.project.createTopicAndSend({
   type: "doc",
   content: [
     {
       type: "paragraph",
       content: [
-        { type: "text", text: "请根据 " },
+        { type: "text", text: "Please generate a chart based on " },
         {
           type: "mention",
           attrs: {
@@ -385,45 +377,46 @@ const { topicId: tid4 } = await window.Magic.project.createTopicAndSend({
             },
           },
         },
-        { type: "text", text: " 生成可视化图表" },
       ],
     },
   ],
 });
 ```
 
-**参数**：
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `message` | `string \| TiptapJSONContent` | 纯文本消息或 tiptap JSON 文档（可包含 mention 节点） |
-| `options.agentId` | `string?` | 指定 Agent ID（从 `getAgents()` 获取） |
-| `options.model` | `string?` | 指定模型 ID |
+**Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `message` | `string \| TiptapJSONContent` | Plain text message or tiptap JSON document (can contain mention nodes) |
+| `options.agentId` | `string?` | Agent ID (from `getAgents()`) |
+| `options.model` | `string?` | Model ID |
 
-- **返回**：`Promise<{ topicId: string }>` — 新创建的话题 ID
-- **超时**：30 秒无响应自动 reject
+- **Returns**: `Promise<{ topicId: string }>` — the newly created topic ID
+- **Timeout**: auto-rejects after 30 seconds with no response
 
-### 5.5 在当前话题发送消息 `sendMessage(message, options?)`
+### 5.5 Send Message in Current Topic `sendMessage(message, options?)`
 
-在当前激活的话题中直接发送一条消息，可选指定模型。
-`message` 支持纯文本字符串或 tiptap JSON 文档结构（可内联 `@` mention 等富文本节点）。
+Sends a message directly in the currently active topic, optionally specifying a model.
+`message` supports plain text strings or tiptap JSON document structures (can inline `@` mentions and other rich text nodes).
 
 ```javascript
-// 基础用法：直接发送纯文本消息
-await window.Magic.project.sendMessage("请继续分析第二部分数据");
+// Basic usage: send plain text message directly
+await window.Magic.project.sendMessage(
+  "Please continue analyzing the second part of the data",
+);
 
-// 指定模型发送
-await window.Magic.project.sendMessage("请用更详细的方式解释", {
+// Send with specified model
+await window.Magic.project.sendMessage("Please explain in more detail", {
   model: "gpt-4o",
 });
 
-// 发送带 @文件引用 的富文本消息
+// Send rich text message with @file reference
 await window.Magic.project.sendMessage({
   type: "doc",
   content: [
     {
       type: "paragraph",
       content: [
-        { type: "text", text: "请分析 " },
+        { type: "text", text: "Please analyze the trends in " },
         {
           type: "mention",
           attrs: {
@@ -436,42 +429,41 @@ await window.Magic.project.sendMessage({
             },
           },
         },
-        { type: "text", text: " 中的趋势" },
       ],
     },
   ],
 });
 ```
 
-**参数**：
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `message` | `string \| TiptapJSONContent` | 纯文本消息或 tiptap JSON 文档（可包含 mention 节点） |
-| `options.model` | `string?` | 指定模型 ID |
+**Parameters**:
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `message` | `string \| TiptapJSONContent` | Plain text message or tiptap JSON document (can contain mention nodes) |
+| `options.model` | `string?` | Model ID |
 
-- **返回**：`Promise<void>`
-- **超时**：15 秒无响应自动 reject
+- **Returns**: `Promise<void>`
+- **Timeout**: auto-rejects after 15 seconds with no response
 
-### 5.6 TiptapJSONContent 数据结构说明
+### 5.6 TiptapJSONContent Data Structure
 
-`createTopicAndSend` 和 `sendMessage` 的 `message` 参数支持 tiptap JSON 格式，可内联 `@` mention 节点引用工作区文件。
+The `message` parameter of `createTopicAndSend` and `sendMessage` supports tiptap JSON format, which can inline `@` mention nodes to reference workspace files.
 
-#### 基本结构
+#### Basic Structure
 
 ```typescript
 interface TiptapJSONContent {
-  type: string; // 节点类型，如 "doc", "paragraph", "text", "mention"
-  attrs?: Record<string, unknown>; // 节点属性
-  content?: TiptapJSONContent[]; // 子节点
-  text?: string; // 文本节点内容
+  type: string; // Node type, e.g. "doc", "paragraph", "text", "mention"
+  attrs?: Record<string, unknown>; // Node attributes
+  content?: TiptapJSONContent[]; // Child nodes
+  text?: string; // Text node content
 }
 ```
 
-#### Mention 节点格式
+#### Mention Node Format
 
-支持两种 mention 类型：`project_file`（文件）和 `project_directory`（目录）。
+Two mention types are supported: `project_file` (file) and `project_directory` (directory).
 
-**文件 mention（`project_file`）：**
+**File mention (`project_file`):**
 
 ```javascript
 {
@@ -479,17 +471,17 @@ interface TiptapJSONContent {
   attrs: {
     type: "project_file",
     data: {
-      file_id: "file_abc123",       // 文件唯一标识
-      file_name: "report.csv",      // 文件名（含扩展名）
-      file_path: "data/report.csv", // 相对路径（相对于工作区根目录）
-      file_extension: "csv",        // 文件扩展名
-      file_size: 1024,              // 可选，文件大小（字节）
+      file_id: "file_abc123",       // File unique identifier
+      file_name: "report.csv",      // Filename (with extension)
+      file_path: "data/report.csv", // Relative path (from workspace root)
+      file_extension: "csv",        // File extension
+      file_size: 1024,              // Optional, file size in bytes
     }
   }
 }
 ```
 
-**目录 mention（`project_directory`）：**
+**Directory mention (`project_directory`):**
 
 ```javascript
 {
@@ -497,10 +489,10 @@ interface TiptapJSONContent {
   attrs: {
     type: "project_directory",
     data: {
-      directory_id: "dir_456",      // 目录唯一标识
-      directory_name: "docs",       // 目录名称
-      directory_path: "docs",       // 相对路径（相对于工作区根目录）
-      directory_metadata: {         // 目录元数据
+      directory_id: "dir_456",      // Directory unique identifier
+      directory_name: "docs",       // Directory name
+      directory_path: "docs",       // Relative path (from workspace root)
+      directory_metadata: {         // Directory metadata
         version: "1",
         type: "folder",
         name: "docs",
@@ -510,34 +502,34 @@ interface TiptapJSONContent {
 }
 ```
 
-#### attrs 字段说明
+#### attrs Field Reference
 
-**`project_file` data 字段：**
+**`project_file` data fields:**
 
-| 字段             | 类型     | 必填 | 说明                           |
-| ---------------- | -------- | ---- | ------------------------------ |
-| `file_id`        | `string` | 是   | 文件唯一标识                   |
-| `file_name`      | `string` | 是   | 文件名（含扩展名）             |
-| `file_path`      | `string` | 是   | 相对路径（相对于工作区根目录） |
-| `file_extension` | `string` | 是   | 文件扩展名（不含 `.`）         |
-| `file_size`      | `number` | 否   | 文件大小（字节）               |
+| Field            | Type     | Required | Description                         |
+| ---------------- | -------- | -------- | ----------------------------------- |
+| `file_id`        | `string` | Yes      | File unique identifier              |
+| `file_name`      | `string` | Yes      | Filename (with extension)           |
+| `file_path`      | `string` | Yes      | Relative path (from workspace root) |
+| `file_extension` | `string` | Yes      | File extension (without `.`)        |
+| `file_size`      | `number` | No       | File size in bytes                  |
 
-**`project_directory` data 字段：**
+**`project_directory` data fields:**
 
-| 字段                 | 类型     | 必填 | 说明                                          |
-| -------------------- | -------- | ---- | --------------------------------------------- |
-| `directory_id`       | `string` | 是   | 目录唯一标识                                  |
-| `directory_name`     | `string` | 是   | 目录名称                                      |
-| `directory_path`     | `string` | 是   | 相对路径（相对于工作区根目录）                |
-| `directory_metadata` | `object` | 是   | 目录元数据（含 `version?`, `type?`, `name?`） |
+| Field                | Type     | Required | Description                                                |
+| -------------------- | -------- | -------- | ---------------------------------------------------------- |
+| `directory_id`       | `string` | Yes      | Directory unique identifier                                |
+| `directory_name`     | `string` | Yes      | Directory name                                             |
+| `directory_path`     | `string` | Yes      | Relative path (from workspace root)                        |
+| `directory_metadata` | `object` | Yes      | Directory metadata (contains `version?`, `type?`, `name?`) |
 
 ---
 
-## 六、向后兼容说明
+## 6. Backward Compatibility
 
-以下旧路径仍然可用，但建议迁移到新的命名空间：
+The following legacy paths still work but migration to the new namespaces is recommended:
 
-| 旧路径（deprecated）                          | 新路径                                                |
+| Legacy Path (deprecated)                      | New Path                                              |
 | --------------------------------------------- | ----------------------------------------------------- |
 | `window.Magic.getAgents()`                    | `window.Magic.agent.getAgents()`                      |
 | `window.Magic.uploadFiles(files)`             | `window.Magic.project.uploadFiles(files)`             |
@@ -548,31 +540,32 @@ interface TiptapJSONContent {
 
 ---
 
-## 七、错误处理最佳实践
+## 7. Error Handling Best Practices
 
 ```javascript
-// fs 错误处理
+// fs error handling
 try {
   const content = await window.Magic.fs.readFile("data/config.json");
   return JSON.parse(content);
 } catch (err) {
   if (err.message.includes("not found")) {
-    return { theme: "light", lang: "zh" }; // 文件不存在，使用默认值
+    return { theme: "light", lang: "en" }; // File not found, use defaults
   }
-  console.error("读取配置失败：", err);
+  console.error("Failed to read config:", err);
   throw err;
 }
 
-// llm 超时/失败处理
+// llm timeout/failure handling
 try {
   const reply = await window.Magic.llm.chat(messages, { maxTokens: 500 });
   return reply;
 } catch (err) {
-  if (err.message.includes("timed out")) return "请求超时，请重试。";
-  return "调用失败：" + err.message;
+  if (err.message.includes("timed out"))
+    return "Request timed out. Please retry.";
+  return "Call failed: " + err.message;
 }
 
-// stream 错误：onChunk 以 done=true 通知结束（含出错情况）
+// stream error: onChunk notifies end with done=true (including error cases)
 window.Magic.llm.stream(messages, (delta, done) => {
   buffer += delta;
   if (done) finalize(buffer);
@@ -581,42 +574,42 @@ window.Magic.llm.stream(messages, (delta, done) => {
 
 ---
 
-## 八、完整示例模板
+## 8. Complete Example Templates
 
-### 示例 A：读数据 → LLM 分析 → 写回结果 → 通知 Agent
+### Example A: Read Data → LLM Analysis → Write Results → Notify Agent
 
 ```html
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>数据分析助手</title>
+    <title>Data Analysis Assistant</title>
   </head>
   <body>
-    <button id="analyze">开始分析</button>
-    <pre id="output">等待分析...</pre>
+    <button id="analyze">Start Analysis</button>
+    <pre id="output">Waiting for analysis...</pre>
 
     <script>
       document.getElementById("analyze").addEventListener("click", async () => {
         const output = document.getElementById("output");
-        output.textContent = "读取数据中...";
+        output.textContent = "Reading data...";
 
-        // 1. 并发读取数据
+        // 1. Concurrent data reads
         const [users, orders] = await Promise.all([
           window.Magic.fs.readFile("data/users.json").then(JSON.parse),
           window.Magic.fs.readFile("data/orders.json").then(JSON.parse),
         ]);
 
-        output.textContent = "调用 LLM 分析中...";
+        output.textContent = "Calling LLM for analysis...";
 
-        // 2. 流式调用 LLM
+        // 2. Stream LLM call
         let analysis = "";
         await new Promise((resolve) => {
           window.Magic.llm.stream(
             [
               {
                 role: "user",
-                content: `请分析以下数据并给出业务建议：\n用户数：${users.length}\n订单总额：${orders.reduce((s, o) => s + o.amount, 0)}`,
+                content: `Analyze the following data and provide business recommendations:\nUsers: ${users.length}\nTotal order amount: ${orders.reduce((s, o) => s + o.amount, 0)}`,
               },
             ],
             (delta, done) => {
@@ -624,16 +617,16 @@ window.Magic.llm.stream(messages, (delta, done) => {
               output.textContent = analysis;
               if (done) resolve(null);
             },
-            { maxTokens: 500 },
+            { model: "auto", maxTokens: 500 },
           );
         });
 
-        // 3. 写回分析结果
+        // 3. Write analysis results
         await window.Magic.fs.writeFile("output/analysis.md", analysis);
 
-        // 4. 通知 Agent
+        // 4. Notify Agent
         window.Magic.setInputMessage(
-          "分析完成，结果已写入 output/analysis.md，请生成图表",
+          "Analysis complete. Results written to output/analysis.md. Please generate charts.",
         );
       });
     </script>
@@ -641,17 +634,17 @@ window.Magic.llm.stream(messages, (delta, done) => {
 </html>
 ```
 
-### 示例 B：实时监听 Agent 写入数据并自动刷新界面
+### Example B: Watch Agent-Written Data and Auto-Refresh UI
 
 ```html
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>实时数据看板</title>
+    <title>Real-Time Dashboard</title>
   </head>
   <body>
-    <div id="dashboard">加载中...</div>
+    <div id="dashboard">Loading...</div>
 
     <script>
       async function render() {
@@ -659,16 +652,16 @@ window.Magic.llm.stream(messages, (delta, done) => {
           await window.Magic.fs.readFile("data/metrics.json"),
         );
         document.getElementById("dashboard").innerHTML = `
-        <h2>实时指标</h2>
-        <p>总用户：${data.totalUsers}</p>
-        <p>今日活跃：${data.dailyActive}</p>
-        <p>更新时间：${new Date(data.updatedAt).toLocaleString()}</p>
+        <h2>Real-Time Metrics</h2>
+        <p>Total Users: ${data.totalUsers}</p>
+        <p>Daily Active: ${data.dailyActive}</p>
+        <p>Updated: ${new Date(data.updatedAt).toLocaleString()}</p>
       `;
       }
 
       render().catch(console.error);
 
-      // 监听 Agent 对数据文件的更新
+      // Watch for Agent updates to the data file
       window.Magic.fs.watchFile("data/metrics.json", () => {
         render().catch(console.error);
       });
@@ -677,22 +670,22 @@ window.Magic.llm.stream(messages, (delta, done) => {
 </html>
 ```
 
-### 示例 C：让用户选择模型并流式对话
+### Example C: Let User Select Model and Stream Chat
 
 ```html
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>模型对话</title>
+    <title>Model Chat</title>
   </head>
   <body>
     <select id="model-select">
-      <option>加载中...</option>
+      <option>Loading...</option>
     </select>
-    <textarea id="input" placeholder="输入消息..."></textarea>
-    <button id="send">发送</button>
-    <button id="cancel" disabled>取消</button>
+    <textarea id="input" placeholder="Type a message..."></textarea>
+    <button id="send">Send</button>
+    <button id="cancel" disabled>Cancel</button>
     <div id="output"></div>
 
     <script>
@@ -700,8 +693,8 @@ window.Magic.llm.stream(messages, (delta, done) => {
 
       window.Magic.llm.getModels().then((models) => {
         const sel = document.getElementById("model-select");
-        // 顶部插入「自动选择」作为默认选项
-        const autoOpt = `<option value="auto" selected>自动选择（推荐）</option>`;
+        // Insert "Auto Select" at the top as default option
+        const autoOpt = `<option value="auto" selected>Auto Select (Recommended)</option>`;
         sel.innerHTML =
           autoOpt +
           models
@@ -717,7 +710,7 @@ window.Magic.llm.stream(messages, (delta, done) => {
         output.textContent = "";
         document.getElementById("cancel").disabled = false;
 
-        const model = document.getElementById("model-select").value || "auto"; // 确保不为空
+        const model = document.getElementById("model-select").value || "auto"; // ensure not empty
         cancelStream = window.Magic.llm.stream(
           [{ role: "user", content }],
           (delta, done) => {
@@ -743,22 +736,22 @@ window.Magic.llm.stream(messages, (delta, done) => {
 
 ---
 
-## 九、API 速查表
+## 9. API Quick Reference
 
-| API                                                   | 说明                                                              | 返回                     |
-| ----------------------------------------------------- | ----------------------------------------------------------------- | ------------------------ |
-| `window.Magic.fs.readFile(path)`                      | 读取文件文本                                                      | `Promise<string>`        |
-| `window.Magic.fs.writeFile(path, content)`            | 写入/创建文件（content 支持 string/Blob/ArrayBuffer，上限 500MB） | `Promise<void>`          |
-| `window.Magic.fs.listFiles(dir?)`                     | 列出目录文件                                                      | `Promise<string[]>`      |
-| `window.Magic.fs.watchFile(path, cb)`                 | 监听文件变更                                                      | `() => void`（取消函数） |
-| `window.Magic.llm.getModels()`                        | 获取可用模型                                                      | `Promise<Model[]>`       |
-| `window.Magic.llm.chat(msgs, opts?)`                  | 单次对话                                                          | `Promise<string>`        |
-| `window.Magic.llm.stream(msgs, onChunk, opts?)`       | 流式对话                                                          | `() => void`（取消函数） |
-| `window.Magic.setInputMessage(msg)`                   | 向 Agent 发消息                                                   | `void`                   |
-| `window.Magic.reload()`                               | 触发 Agent 刷新                                                   | `void`                   |
-| `window.Magic.agent.getAgents()`                      | 获取可用员工列表                                                  | `Promise<AgentInfo[]>`   |
-| `window.Magic.project.uploadFiles(files)`             | 上传文件到工作区                                                  | `Promise<unknown>`       |
-| `window.Magic.project.downloadFiles(paths)`           | 下载工作区文件                                                    | `Promise<unknown>`       |
-| `window.Magic.project.addFilesToMessage(files)`       | 将文件附加到输入框                                                | `Promise<unknown>`       |
-| `window.Magic.project.createTopicAndSend(msg, opts?)` | 新建话题并发送消息（msg 支持 string 或 tiptap JSON）              | `Promise<{ topicId }>`   |
-| `window.Magic.project.sendMessage(msg, opts?)`        | 当前话题发送消息（msg 支持 string 或 tiptap JSON）                | `Promise<void>`          |
+| API                                                   | Description                                                      | Returns                  |
+| ----------------------------------------------------- | ---------------------------------------------------------------- | ------------------------ |
+| `window.Magic.fs.readFile(path)`                      | Read file text                                                   | `Promise<string>`        |
+| `window.Magic.fs.writeFile(path, content)`            | Write/create file (content: string/Blob/ArrayBuffer, max 500 MB) | `Promise<void>`          |
+| `window.Magic.fs.listFiles(dir?)`                     | List directory files                                             | `Promise<string[]>`      |
+| `window.Magic.fs.watchFile(path, cb)`                 | Watch file changes                                               | `() => void` (cancel fn) |
+| `window.Magic.llm.getModels()`                        | Get available models                                             | `Promise<Model[]>`       |
+| `window.Magic.llm.chat(msgs, opts?)`                  | Single chat                                                      | `Promise<string>`        |
+| `window.Magic.llm.stream(msgs, onChunk, opts?)`       | Streaming chat                                                   | `() => void` (cancel fn) |
+| `window.Magic.setInputMessage(msg)`                   | Send message to Agent                                            | `void`                   |
+| `window.Magic.reload()`                               | Trigger Agent refresh                                            | `void`                   |
+| `window.Magic.agent.getAgents()`                      | Get available agent list                                         | `Promise<AgentInfo[]>`   |
+| `window.Magic.project.uploadFiles(files)`             | Upload files to workspace                                        | `Promise<unknown>`       |
+| `window.Magic.project.downloadFiles(paths)`           | Download workspace files                                         | `Promise<unknown>`       |
+| `window.Magic.project.addFilesToMessage(files)`       | Attach files to input box                                        | `Promise<unknown>`       |
+| `window.Magic.project.createTopicAndSend(msg, opts?)` | Create topic and send message (msg: string or tiptap JSON)       | `Promise<{ topicId }>`   |
+| `window.Magic.project.sendMessage(msg, opts?)`        | Send message in current topic (msg: string or tiptap JSON)       | `Promise<void>`          |
