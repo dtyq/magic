@@ -816,11 +816,24 @@ class AiCompletionService {
 	/**
 	 * 处理输入法组合开始事件（如中文输入）
 	 * 当用户开始使用输入法输入时触发
+	 * 注意：此处不能调用 clearSuggestion()，因为它会 dispatch editor transaction，
+	 * 导致 DOM 更新从而打断正在进行的 IME composition（表现为首字母被直接提交）
 	 */
 	onCompositionStart = () => {
 		if (!this.enabled) return
 		this.composition = true
-		this.clearSuggestion()
+
+		// 取消正在进行的请求，但不 dispatch editor transaction
+		if (this.currentRequest) {
+			this.currentRequest.abort("composition start")
+			this.currentRequest = null
+		}
+
+		// 仅隐藏 UI 提示（不涉及 editor DOM 操作）
+		this.currentSuggestion = ""
+		this.lastRequestText = ""
+		AiCompletionStore.clearSuggestion()
+		AiCompletionTip.hide()
 	}
 
 	/**
@@ -834,7 +847,19 @@ class AiCompletionService {
 		setTimeout(() => {
 			// 再次检查composition状态，确保没有新的composition开始
 			if (!this.composition) {
-				// Remove detailed trigger logging - redundant with fetch success
+				// 清除 onCompositionStart 中跳过的段落 suggestion 属性
+				const editor = this.instance?.editor
+				if (editor) {
+					editor
+						.chain()
+						.command(({ tr }) => {
+							tr.setMeta("addToHistory", false)
+							tr.setMeta("suggestionUpdate", true)
+							return true
+						})
+						.updateAttributes("paragraph", { suggestion: "" })
+						.run()
+				}
 				this.triggerFetchSuggestion()
 			}
 		}, 50)
