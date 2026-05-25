@@ -249,7 +249,8 @@ export function MobileSettingsPointsDetailSheet(props: { open: boolean; onClose:
 						</div>
 					</div>
 
-					{loading ? (
+					{/* 仅在首屏尚无数据时显示整页 loading，避免分页追加时卸载列表导致滚动位置回到顶部。 */}
+					{loading && records.length === 0 ? (
 						<div className="flex flex-col items-center justify-center px-4 py-12 text-center">
 							<div className="mb-3 flex size-12 items-center justify-center rounded-full bg-card">
 								<Sparkles
