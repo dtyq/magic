@@ -23,7 +23,7 @@ export function MagiClawMobileHeader({
 }: MagiClawMobileHeaderProps) {
 	return (
 		<header
-			className="relative z-10 flex h-14 shrink-0 items-center gap-2 px-[10px]"
+			className="mobile-floating-page-header relative z-10 flex h-14 shrink-0 items-center gap-2 px-[10px]"
 			data-testid="magi-claw-mobile-header"
 		>
 			<Button

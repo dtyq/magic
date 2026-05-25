@@ -28,7 +28,7 @@ export default function ChatPageHeader({
 				aria-label={t("mobile.shell.menuAria")}
 				data-testid="chat-page-header-menu-button"
 			>
-				<Menu className="size-[22px] text-foreground" strokeWidth={2.25} />
+				<Menu className="size-[22px] text-foreground" />
 			</button>
 
 			{/* 标题改为绝对居中，避免右侧 loading 与禁用态切换时品牌名左右跳动。 */}
@@ -49,15 +49,9 @@ export default function ChatPageHeader({
 					data-testid="chat-page-header-primary-button"
 				>
 					{isPrimaryActionLoading ? (
-						<Loader2
-							className="size-[22px] animate-spin text-foreground"
-							strokeWidth={2.25}
-						/>
+						<Loader2 className="size-[22px] animate-spin text-foreground" />
 					) : (
-						<MessageCirclePlus
-							className="size-[22px] text-foreground"
-							strokeWidth={2.25}
-						/>
+						<MessageCirclePlus className="size-[22px] text-foreground" />
 					)}
 				</button>
 			</div>

@@ -52,7 +52,7 @@ export function ProjectDetailHeader({
 				aria-label={t("projectDetail.backAria")}
 				data-testid="project-detail-header-back-button"
 			>
-				<ChevronLeft size={22} strokeWidth={2} />
+				<ChevronLeft size={22} />
 			</button>
 			<div className="pointer-events-none absolute inset-x-0 flex flex-col items-center px-[114px] text-center">
 				<p

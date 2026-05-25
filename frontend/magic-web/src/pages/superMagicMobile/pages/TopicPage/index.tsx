@@ -585,7 +585,7 @@ function TopicPage({
 						aria-label={t("topic.moreAria")}
 						data-testid="project-topic-header-more-button"
 					>
-						<Ellipsis className="h-[22px] w-[22px]" strokeWidth={2} />
+						<Ellipsis className="h-[22px] w-[22px]" />
 					</Button>,
 					projectTopicMorePortalTarget,
 				)}

@@ -102,7 +102,7 @@ export function WorkspaceProjectListView({
 					aria-label={t("common.back")}
 					data-testid="workspace-project-page-back-button"
 				>
-					<ChevronLeft className="h-[22px] w-[22px] text-foreground" strokeWidth={2} />
+					<ChevronLeft className="h-[22px] w-[22px] text-foreground" />
 				</button>
 
 				<p className="mobile-page-header-title">
@@ -120,7 +120,7 @@ export function WorkspaceProjectListView({
 						data-testid="workspace-project-page-create-button"
 					>
 						{/* 使用统一图标而非文本字符，避免字体基线导致加号在胶囊内视觉下沉。 */}
-						<Plus className="h-[22px] w-[22px] text-foreground" strokeWidth={2} />
+						<Plus className="h-[22px] w-[22px] text-foreground" />
 					</button>
 					<button
 						type="button"

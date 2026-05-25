@@ -55,7 +55,7 @@ function ChatProjectHeroHeader({
 				aria-label={t("back")}
 				data-testid="chat-project-hero-back-button"
 			>
-				<ChevronLeft className="size-[22px]" strokeWidth={2.25} />
+				<ChevronLeft className="size-[22px]" />
 			</Button>
 
 			{/* 标题区域使用 flex 居中，避免 absolute 布局，保证在 header 内始终居中展示 */}
@@ -78,7 +78,7 @@ function ChatProjectHeroHeader({
 				aria-label={t("more")}
 				data-testid="chat-project-hero-more-button"
 			>
-				<Ellipsis className="size-[22px]" strokeWidth={2.25} />
+				<Ellipsis className="size-[22px]" />
 			</Button>
 		</header>
 	)

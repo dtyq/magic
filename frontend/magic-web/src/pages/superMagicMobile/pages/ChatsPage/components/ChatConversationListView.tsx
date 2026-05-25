@@ -113,7 +113,7 @@ export function ChatConversationListView({
 					aria-label={menuAriaLabel}
 					data-testid="mobile-chats-page-menu-button"
 				>
-					<Menu className="size-[22px] text-foreground" strokeWidth={2.25} />
+					<Menu className="size-[22px] text-foreground" />
 				</button>
 
 				<p className="mobile-page-header-title">{title}</p>
@@ -125,7 +125,7 @@ export function ChatConversationListView({
 					aria-label={newChatAriaLabel}
 					data-testid="mobile-chats-page-create-button"
 				>
-					<MessageCirclePlus className="size-[22px] text-foreground" strokeWidth={2} />
+					<MessageCirclePlus className="size-[22px] text-foreground" />
 				</button>
 			</div>
 
