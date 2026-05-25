@@ -74,6 +74,7 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 
 	return {
 		name: "vite-plugin-app-service-worker",
+		enforce: "post",
 		configResolved(config) {
 			resolvedConfig = config
 		},
