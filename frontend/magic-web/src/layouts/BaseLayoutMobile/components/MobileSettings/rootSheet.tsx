@@ -341,12 +341,15 @@ export const MobileSettingsRootSheet = observer(function MobileSettingsRootSheet
 					</button>
 				</div>
 
-				{!isPrivateDeployment() &&
-					(isPaidPlan ? (
-						<MobileSettingsPaidPlanCard onUpgrade={handleUpgrade} />
-					) : (
-						<MobileSettingsFreePlanCard onUpgrade={handleUpgrade} />
-					))}
+				{!isPrivateDeployment() ? (
+					<div className="shrink-0">
+						{isPaidPlan ? (
+							<MobileSettingsPaidPlanCard onUpgrade={handleUpgrade} />
+						) : (
+							<MobileSettingsFreePlanCard onUpgrade={handleUpgrade} />
+						)}
+					</div>
+				) : null}
 
 				{menuSections.map((section) => (
 					<MobileSettingsMenuSection key={section.key} items={section.items} />

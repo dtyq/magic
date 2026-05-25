@@ -3,7 +3,14 @@ import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 
 import dayjs from "@/lib/dayjs"
+import { cn } from "@/lib/utils"
 import { userStore } from "@/models/user"
+
+import {
+	MOBILE_SETTINGS_FREE_PLAN_CARD_MIN_HEIGHT_CLASSNAME,
+	MOBILE_SETTINGS_FREE_PLAN_CARD_WITH_CTA_MIN_HEIGHT_CLASSNAME,
+	MOBILE_SETTINGS_PAID_PLAN_CARD_MIN_HEIGHT_CLASSNAME,
+} from "../constants"
 
 /** Format subscription end_date for plan card subtitle (prototype: YYYY-MM-DD only). */
 function formatPlanCardRenewalDate(endDate?: string): string | undefined {
@@ -25,7 +32,14 @@ export const MobileSettingsFreePlanCard = observer(function MobileSettingsFreePl
 	const canOperate = isAdmin || isPersonalOrganization
 
 	return (
-		<div className="relative my-1 w-full rounded-xl border border-primary/20 bg-card px-4 py-3.5 text-left shadow-sm ring-1 ring-primary/10">
+		<div
+			className={cn(
+				"relative my-1 w-full shrink-0 rounded-xl border border-primary/20 bg-card px-4 py-3.5 text-left shadow-sm ring-1 ring-primary/10",
+				canOperate
+					? MOBILE_SETTINGS_FREE_PLAN_CARD_WITH_CTA_MIN_HEIGHT_CLASSNAME
+					: MOBILE_SETTINGS_FREE_PLAN_CARD_MIN_HEIGHT_CLASSNAME,
+			)}
+		>
 			<Sparkles className="absolute right-5 top-5 h-5 w-5 text-foreground/70" />
 			<div className="pr-10">
 				<div className="text-sm font-semibold leading-5 text-foreground">
@@ -61,7 +75,12 @@ export const MobileSettingsPaidPlanCard = observer(function MobileSettingsPaidPl
 	const renewalDate = formatPlanCardRenewalDate(subscriptionInfo?.end_date)
 
 	return (
-		<div className="relative w-full overflow-hidden rounded-xl bg-zinc-950 px-4 py-3.5 text-left text-white shadow-lg shadow-black/10">
+		<div
+			className={cn(
+				"relative w-full shrink-0 overflow-hidden rounded-xl bg-zinc-950 px-4 py-3.5 text-left text-white shadow-lg shadow-black/10",
+				MOBILE_SETTINGS_PAID_PLAN_CARD_MIN_HEIGHT_CLASSNAME,
+			)}
+		>
 			{/* Background flowing lines: vectorEffect keeps stroke width under non-uniform scale;
 			    stroke-dashoffset animation creates a particle-flow along each curve. */}
 			<svg

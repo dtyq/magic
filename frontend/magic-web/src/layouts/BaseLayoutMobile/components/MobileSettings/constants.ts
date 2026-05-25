@@ -9,10 +9,10 @@ export const MOBILE_SETTINGS_SHEET_CLASSNAME =
  * Overrides MagicPopup bottom drawer default `mt-24`, which leaves a large empty band above the sheet.
  */
 export const MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME =
-	"h-[min(98vh,calc(100vh-var(--safe-area-inset-top)-0.5rem))] max-h-[calc(100vh-var(--safe-area-inset-top)-0.5rem)] data-[vaul-drawer-direction=bottom]:!mt-[max(0.5rem,var(--safe-area-inset-top))]"
+	"h-[min(98dvh,calc(100dvh-var(--safe-area-inset-top)-0.5rem))] max-h-[calc(100dvh-var(--safe-area-inset-top)-0.5rem)] data-[vaul-drawer-direction=bottom]:!mt-[max(0.5rem,var(--safe-area-inset-top))]"
 
 /** Nested settings sheets (points detail, order history, timezone, etc.) share the same default height. */
-export const MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME = "h-[98vh] max-h-[98vh]"
+export const MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME = "h-[98dvh] max-h-[98dvh]"
 
 export const MOBILE_SETTINGS_HEADER_ICON_BUTTON_CLASSNAME =
 	"absolute top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full shadow-lg shadow-black/10"
@@ -23,3 +23,11 @@ export const MOBILE_SETTINGS_CARD_CLASSNAME = "rounded-xl border border-border b
 
 /** Root sheet header info button; flip to true when the about entry should be visible again. */
 export const MOBILE_SETTINGS_SHOW_INFO_HEADER = false
+
+/**
+ * Plan card min-heights for the root settings sheet scroll area.
+ * Cards are flex children; shrink-0 + min-h prevents vertical squashing when the sheet is short.
+ */
+export const MOBILE_SETTINGS_FREE_PLAN_CARD_MIN_HEIGHT_CLASSNAME = "min-h-[5.5rem]"
+export const MOBILE_SETTINGS_FREE_PLAN_CARD_WITH_CTA_MIN_HEIGHT_CLASSNAME = "min-h-[8.25rem]"
+export const MOBILE_SETTINGS_PAID_PLAN_CARD_MIN_HEIGHT_CLASSNAME = "min-h-[5rem]"
