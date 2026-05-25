@@ -15,6 +15,7 @@ from app.core.entity.tool.tool_result_types import SearchResult, WebSearchToolRe
 from agentlang.logger import get_logger
 from app.tools.core import BaseTool, BaseToolParams, tool
 from app.utils.xml_escape_fixer import XMLEscapeFixer
+from app.tools.web_search_utils.requirements_xml_parser import fallback_parse_requirements_xml
 from app.tools.web_search_utils import get_search_driver
 
 logger = get_logger(__name__)
@@ -191,8 +192,14 @@ def _parse_search_requirements_xml(xml_string: str) -> Tuple[List[Dict[str, Any]
 
         return requirements, fix_message
 
-    except ET.ParseError as e:
-        raise ValueError(f"XML解析错误: {e}")
+    except (ET.ParseError, ValueError) as e:
+        # 严格解析失败，尝试兜底解析
+        logger.warning(f"XML严格解析失败({e})，尝试兜底解析")
+        try:
+            return fallback_parse_requirements_xml(xml_string)
+        except ValueError as fallback_err:
+            # 兜底也失败，抛出原始错误+兜底失败信息
+            raise ValueError(f"XML解析错误: {e}; 兜底解析也失败: {fallback_err}") from e
 
 
 @tool()
