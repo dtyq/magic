@@ -12,8 +12,7 @@ import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import SuperMagicService from "@/pages/superMagic/services"
 import { formatRelativeTime } from "@/utils/string"
 import { cn } from "@/lib/utils"
-import useNavigate from "@/routes/hooks/useNavigate"
-import { RouteName } from "@/routes/constants"
+import { useMobileProjectTopicSwitch } from "@/pages/superMagicMobile/hooks/useMobileProjectTopicSwitch"
 import { SwipeActionRow, type SwipeAction } from "@/components/base-mobile/SwipeActionRow"
 import { MobilePinBadge } from "@/pages/superMagicMobile/components/icons/MobilePinBadge"
 import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
@@ -149,30 +148,16 @@ const ProjectPageMain = observer(function ProjectPageMain({
 	const { i18n } = useTranslation("super")
 
 	const selectedProject = projectStore.selectedProject
-	const setSelectedTopic = topicStore.setSelectedTopic
 	const processedTopics = useMemo(
 		() => sortTopicsWithPinnedFirst(topicStore.topics),
 		[topicStore.topics],
 	)
-	const navigate = useNavigate()
+	const { switchToProjectTopic: onSwitchSuperMagicChat } = useMobileProjectTopicSwitch({
+		projectId: selectedProject?.id,
+	})
 
 	/** 同时只允许一行处于左滑展开状态 */
 	const [openItemId, setOpenItemId] = useState<string | null>(null)
-
-	const onSwitchSuperMagicChat = useMemoizedFn((topic: Topic) => {
-		setSelectedTopic(topic)
-
-		if (!selectedProject?.id || !topic.id) return
-
-		// 先用 store 预热当前话题，再切到显式子路由承接完整消息页。
-		navigate({
-			name: RouteName.SuperWorkspaceProjectTopicState,
-			params: {
-				projectId: selectedProject.id,
-				topicId: topic.id,
-			},
-		})
-	})
 
 	const loading = topicStore.isFetchList
 
