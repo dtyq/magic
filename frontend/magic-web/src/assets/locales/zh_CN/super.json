@@ -1802,7 +1802,11 @@
 		},
 		"tabFiles": "文件",
 		"tabTopics": "话题",
-		"topicTab": "话题"
+		"topicTab": "话题",
+		"topicsEmptyState": {
+			"description": "在下方输入区创建新话题。",
+			"title": "暂无话题"
+		}
 	},
 	"projectList": {
 		"swipeDelete": "删除",

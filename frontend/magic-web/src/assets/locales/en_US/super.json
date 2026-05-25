@@ -1800,7 +1800,11 @@
 		},
 		"tabFiles": "Files",
 		"tabTopics": "Topics",
-		"topicTab": "Topics"
+		"topicTab": "Topics",
+		"topicsEmptyState": {
+			"description": "Create a new topic in the input area below.",
+			"title": "No topics yet"
+		}
 	},
 	"projectList": {
 		"swipeDelete": "Delete",

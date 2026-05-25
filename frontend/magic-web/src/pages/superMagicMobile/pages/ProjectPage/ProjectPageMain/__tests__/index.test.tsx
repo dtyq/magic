@@ -105,6 +105,18 @@ describe("ProjectPageMain", () => {
 		topicStoreMock.topics = [createTopic()]
 	})
 
+	it("renders topics empty state when the topic list is empty", () => {
+		topicStoreMock.topics = []
+
+		render(
+			<ProjectPageMain onTopicMore={vi.fn()} onTopicPin={vi.fn()} onTopicDelete={vi.fn()} />,
+		)
+
+		const emptyState = screen.getByTestId("project-topics-empty-state")
+		expect(emptyState).toHaveTextContent("projectDetail.topicsEmptyState.title")
+		expect(emptyState).toHaveTextContent("projectDetail.topicsEmptyState.description")
+	})
+
 	it("renders pin swipe action and calls onTopicPin with the current topic", () => {
 		const handlePin = vi.fn()
 		render(

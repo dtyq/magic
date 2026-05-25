@@ -6,6 +6,7 @@ import { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { useTranslation } from "react-i18next"
 import { useMemoizedFn } from "ahooks"
 import { projectStore, topicStore } from "@/pages/superMagic/stores/core"
+import ProjectTopicsEmptyState from "./components/ProjectTopicsEmptyState"
 import TopicItemSkeleton from "./components/TopicItemSkeleton"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import SuperMagicService from "@/pages/superMagic/services"
@@ -145,7 +146,7 @@ const ProjectPageMain = observer(function ProjectPageMain({
 	onTopicPin?: (topic: Topic) => void
 	onTopicDelete?: (topic: Topic) => void
 }) {
-	const { t, i18n } = useTranslation("super")
+	const { i18n } = useTranslation("super")
 
 	const selectedProject = projectStore.selectedProject
 	const setSelectedTopic = topicStore.setSelectedTopic
@@ -205,41 +206,54 @@ const ProjectPageMain = observer(function ProjectPageMain({
 		onTopicDelete?.(topic)
 	})
 
+	const isTopicsEmpty = !loading && processedTopics.length === 0
+
+	/*
+	 * antd-mobile PullToRefresh content height follows children only; stretch PTR + content
+	 * so empty state can use flex centering inside the topics panel (between tabs and composer).
+	 */
+	const pullToRefreshStretchClassName =
+		"[&_.adm-pull-to-refresh]:flex [&_.adm-pull-to-refresh]:h-full [&_.adm-pull-to-refresh]:min-h-0 [&_.adm-pull-to-refresh]:flex-col [&_.adm-pull-to-refresh-content]:flex [&_.adm-pull-to-refresh-content]:min-h-0 [&_.adm-pull-to-refresh-content]:flex-1 [&_.adm-pull-to-refresh-content]:flex-col"
+
 	return (
-		<MagicPullToRefresh onRefresh={handleRefreshTopics} showSuccessMessage={false}>
-			<div
-				className={cn("flex h-full min-h-0 flex-col gap-1 overflow-y-auto pt-0", className)}
-			>
-				<div className="flex w-full flex-col gap-1">
-					{loading ? (
-						<>
-							<TopicItemSkeleton />
-							<TopicItemSkeleton />
-							<TopicItemSkeleton />
-							<TopicItemSkeleton />
-						</>
-					) : processedTopics.length === 0 ? (
-						<div className="mt-4 flex min-h-[160px] flex-1 items-center justify-center rounded-2xl bg-muted/50 px-3 text-sm text-muted-foreground">
-							{t("topic.noTopicData")}
-						</div>
-					) : (
-						processedTopics.map((item) => (
-							<TopicItemComponent
-								key={item.id}
-								item={item}
-								setSelectedTopic={onSwitchSuperMagicChat}
-								timeLabel={formatTopicTimeLabel(item)}
-								isSwipeOpen={openItemId === item.id}
-								onSwipeOpen={() => setOpenItemId(item.id)}
-								onSwipeClose={() => setOpenItemId(null)}
-								onMore={handleTopicMore}
-								onPin={handleTopicPin}
-								onDelete={handleTopicDelete}
-							/>
-						))
-					)}
+		<MagicPullToRefresh
+			onRefresh={handleRefreshTopics}
+			showSuccessMessage={false}
+			containerClassName={cn(
+				"h-full min-h-0 w-full",
+				isTopicsEmpty ? cn("!overflow-hidden", pullToRefreshStretchClassName) : "flex-1",
+				className,
+			)}
+		>
+			{loading ? (
+				<div className="flex w-full flex-col gap-1 pt-0">
+					<TopicItemSkeleton />
+					<TopicItemSkeleton />
+					<TopicItemSkeleton />
+					<TopicItemSkeleton />
 				</div>
-			</div>
+			) : isTopicsEmpty ? (
+				<div className="flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center px-3 text-center">
+					<ProjectTopicsEmptyState />
+				</div>
+			) : (
+				<div className="flex w-full flex-col gap-1 pt-0">
+					{processedTopics.map((item) => (
+						<TopicItemComponent
+							key={item.id}
+							item={item}
+							setSelectedTopic={onSwitchSuperMagicChat}
+							timeLabel={formatTopicTimeLabel(item)}
+							isSwipeOpen={openItemId === item.id}
+							onSwipeOpen={() => setOpenItemId(item.id)}
+							onSwipeClose={() => setOpenItemId(null)}
+							onMore={handleTopicMore}
+							onPin={handleTopicPin}
+							onDelete={handleTopicDelete}
+						/>
+					))}
+				</div>
+			)}
 		</MagicPullToRefresh>
 	)
 })
