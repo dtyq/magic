@@ -119,7 +119,8 @@ function MentionNodeView(props: ReactNodeViewProps) {
 			{isMobile ? (
 				<MentionNodeChip attrs={attrs} deleteNode={props.deleteNode} />
 			) : (
-				`@${getMentionDisplayName(attrs)}`
+				`@${getMentionDisplayName(attrs)}` +
+				(attrs.type === MentionItemType.FOLDER ? "/" : "")
 			)}
 		</NodeViewWrapper>
 	)
