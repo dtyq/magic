@@ -158,7 +158,7 @@ function SharedProjectsEmptyState({
 
 	return (
 		<div
-			className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-center"
+			className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 			data-testid={isSearchEmpty ? "shared-projects-search-empty" : "shared-projects-empty"}
 		>
 			<Search className="size-10 text-muted-foreground/50" />

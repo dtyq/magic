@@ -26,6 +26,7 @@ export default function ChatMobileSkeleton() {
 				}}
 			>
 				<UserHeader
+					reserveBackSlot
 					wrapperClassName="!border-b-0"
 					center={
 						// Message Types

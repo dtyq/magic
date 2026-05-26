@@ -245,7 +245,7 @@ function WorkspaceListViewInner({
 						{/* Loading state */}
 						{isLoading && workspaces.length === 0 && (
 							<div
-								className="flex flex-1 items-center justify-center py-8"
+								className="flex min-h-0 flex-1 items-center justify-center"
 								data-testid="workspaces-list-loading"
 							>
 								<Loader className="size-6 animate-spin text-muted-foreground" />
@@ -255,7 +255,7 @@ function WorkspaceListViewInner({
 						{/* Empty state */}
 						{isWorkspaceEmpty && (
 							<div
-								className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-center"
+								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 								data-testid="workspaces-list-empty"
 							>
 								<Box className="size-10 text-muted-foreground/40" />
@@ -268,7 +268,7 @@ function WorkspaceListViewInner({
 						{/* Search empty state */}
 						{isSearchEmpty && (
 							<div
-								className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-center"
+								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 								data-testid="workspaces-list-search-empty"
 							>
 								<Search className="size-10 text-muted-foreground/40" />

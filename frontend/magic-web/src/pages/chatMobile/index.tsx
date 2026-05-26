@@ -171,6 +171,12 @@ const ChatMobile = observer(() => {
 				<div className={cn(styles.container)}>
 					{/* User Header */}
 					<UserHeader
+						onBack={() =>
+							navigate({
+								delta: -1,
+								viewTransition: { type: "slide", direction: "right" },
+							})
+						}
 						wrapperClassName="!border-b-0"
 						center={
 							// Message Types

@@ -1,5 +1,7 @@
 import { createStyles } from "antd-style"
 import { observer } from "mobx-react-lite"
+import { useTranslation } from "react-i18next"
+import { IconChevronLeft } from "@tabler/icons-react"
 import MagicIcon, { MagicIconProps } from "@/components/base/MagicIcon"
 import { ButtonProps } from "antd"
 import FlexBox from "@/components/base/FlexBox"
@@ -59,24 +61,44 @@ const useStyles = createStyles(({ token, css }) => ({
 			background-color: ${token.magicColorUsages?.bg?.[1]};
 		}
 	`,
+	backArrow: css`
+		color: ${token.magicColorUsages.text[1]};
+	`,
+	// 中间区域绝对居中，避免左侧返回或右侧按钮挂载时 tab/标题横向跳动
+	centerOverlay: css`
+		position: absolute;
+		left: 0;
+		right: 0;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		pointer-events: none;
+
+		& > * {
+			pointer-events: auto;
+		}
+	`,
+	userInfoWithBack: css`
+		position: relative;
+	`,
+	sideControl: css`
+		position: relative;
+		z-index: 1;
+		flex-shrink: 0;
+	`,
 	userAvatar: css`
 		margin-top: -1px;
 	`,
 }))
-
-// interface UserHeaderProps {
-// 	userName?: string
-// 	userCompany?: string
-// 	userAvatar?: string
-// 	onSearchClick?: () => void
-// 	onAddClick?: () => void
-// }
 
 interface UserHeaderProps {
 	center?: React.ReactNode
 	buttons?: (Omit<ButtonProps, "icon"> & { icon: MagicIconProps["component"] })[]
 	className?: string
 	wrapperClassName?: string
+	onBack?: () => void
+	/** Reserve left back slot (e.g. skeleton) so center content does not shift when onBack mounts. */
+	reserveBackSlot?: boolean
 }
 
 const UserHeader = observer(function UserHeader({
@@ -84,9 +106,14 @@ const UserHeader = observer(function UserHeader({
 	center,
 	className,
 	wrapperClassName,
+	onBack,
+	reserveBackSlot = false,
 }: UserHeaderProps) {
-	// const { onSearchClick, onAddClick } = props
 	const { styles, cx } = useStyles()
+	const { t } = useTranslation("interface")
+	const hasBackButton = onBack != null
+	const hasBackLayout = hasBackButton || reserveBackSlot
+
 	return (
 		<div
 			className={cn(
@@ -96,36 +123,38 @@ const UserHeader = observer(function UserHeader({
 				"!pt-[max(10px,var(--safe-area-inset-top))]",
 			)}
 		>
-			<div className={cx(styles.userInfo, className)}>
-				{/* <UserAvatarRender
-					userInfo={userInfo}
-					size={32}
-					style={{ borderRadius: 4 }}
-					onClick={() => mobileTabStore.openUserMyPopup()}
-				/> */}
-				<FlexBox justify="flex-left" align="center" flex={1}>
-					{center}
-				</FlexBox>
-				<div className={styles.userActions}>
-					{/* <button className={styles.actionButton} onClick={onSearchClick}>
-						<MagicIcon
-							component={IconSearch}
-							size={24}
-							color="currentColor"
-							stroke={2}
-						/>
+			<div
+				className={cx(styles.userInfo, hasBackLayout && styles.userInfoWithBack, className)}
+			>
+				{hasBackButton ? (
+					<button
+						type="button"
+						className={cx(styles.actionButton, styles.sideControl)}
+						onClick={onBack}
+						aria-label={t("button.back")}
+						data-testid="user-header-back-button"
+					>
+						<IconChevronLeft size={24} className={styles.backArrow} />
 					</button>
-					<button className={styles.actionButton} >
-						<MagicIcon
-							component={IconCirclePlus}
-							size={24}
-							color="currentColor"
-							stroke={2}
-						/>
-					</button> */}
+				) : reserveBackSlot ? (
+					<span
+						className={cx(styles.actionButton, styles.sideControl)}
+						aria-hidden
+						data-testid="user-header-back-slot"
+					/>
+				) : null}
+				{hasBackLayout ? (
+					<div className={styles.centerOverlay}>{center}</div>
+				) : (
+					<FlexBox justify="flex-left" align="center" flex={1}>
+						{center}
+					</FlexBox>
+				)}
+				<div className={cx(styles.userActions, hasBackLayout && styles.sideControl)}>
 					{buttons?.map((button, index) => (
 						<button
 							key={index}
+							type="button"
 							className={styles.actionButton}
 							onClick={button.onClick}
 						>
