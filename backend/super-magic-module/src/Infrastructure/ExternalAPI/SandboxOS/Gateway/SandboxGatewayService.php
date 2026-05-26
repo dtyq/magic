@@ -800,26 +800,31 @@ class SandboxGatewayService extends AbstractSandboxOS implements SandboxGatewayI
         }
     }
 
-    public function createWarmPoolSandbox(): GatewayResult
+    public function createWarmPoolSandbox(string $sandboxId): GatewayResult
     {
+        if ($sandboxId === '') {
+            return GatewayResult::error('sandbox_id is required');
+        }
         if (! $this->isEnabledSandbox()) {
             // Local debugging: fabricate a deterministic response so refill
             // crontabs can be exercised without touching k8s.
-            $fakeId = 'warm-local-' . substr((string) IdGenerator::getUniqueId32(), 0, 8);
             return GatewayResult::success([
-                'sandbox_id' => $fakeId,
-                'sandbox_name' => $fakeId,
+                'sandbox_id' => $sandboxId,
+                'sandbox_name' => 'sandbox-' . $sandboxId,
                 'agent_image' => 'local/agent:debug',
                 'status' => 'running',
             ], 'Warm-pool sandbox creation skipped (local debugging mode)');
         }
 
-        $this->logger->debug('[Sandbox][Gateway] Creating warm-pool sandbox');
+        $this->logger->debug('[Sandbox][Gateway] Creating warm-pool sandbox', ['sandbox_id' => $sandboxId]);
         // Allow ops/dev to bypass the gateway-side agfs-server readiness probe.
         // Required for local kind setups where the host can't route to pod CIDRs
         // and the probe would otherwise time out, leaving DB empty + orphan pods.
         $enableReadiness = (bool) config('super-magic.warm_pool.enable_readiness', true);
-        $payload = ['enable_readiness' => $enableReadiness];
+        $payload = [
+            'sandbox_id' => $sandboxId,
+            'enable_readiness' => $enableReadiness,
+        ];
         try {
             return retry(3, function () use ($payload) {
                 try {

@@ -116,10 +116,15 @@ interface SandboxGatewayInterface
     public function getLatestAgentImage(): string;
 
     /**
-     * 在 warm pool 中创建一个未绑定项目的沙箱.
-     * data 字段包含: sandbox_id (warm-<uuid>) / sandbox_name / agent_image / status.
+     * 在 warm pool 中创建一个未绑定项目的沙箱。
+     *
+     * sandbox_id 由调用方（warm-pool worker）生成并先入库，再发请求，避免响应丢失
+     * 导致的孤儿 pod。pod 名固定为 `sandbox-<sandbox_id>`，因此 sandbox_id 必须是
+     * DNS-1123 label fragment（首位 [a-z0-9]，仅含小写字母/数字/-）。
+     *
+     * 返回 data 字段：sandbox_id / sandbox_name / agent_image / namespace。
      */
-    public function createWarmPoolSandbox(): GatewayResult;
+    public function createWarmPoolSandbox(string $sandboxId): GatewayResult;
 
     /**
      * 把一个 warm pool 沙箱绑定到指定项目，触发 agfs-server `/api/v1/mount`

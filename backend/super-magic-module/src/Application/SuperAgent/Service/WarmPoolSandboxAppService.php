@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Application\SuperAgent\Service;
 
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WarmPoolSandboxEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Service\WarmPoolSandboxDomainService;
 use Dtyq\SuperMagic\Infrastructure\ExternalAPI\SandboxOS\Gateway\Result\GatewayResult;
@@ -79,23 +80,22 @@ class WarmPoolSandboxAppService extends AbstractAppService
         $errors = [];
 
         for ($i = 0; $i < $burst; ++$i) {
-            $result = $this->gateway->createWarmPoolSandbox();
+            // Generate sandbox_id locally so the gateway-side pod name is
+            // predictable and so a future reconciler can map orphan pods
+            // back to a PHP-known id.
+            $sandboxId = (string) IdGenerator::getSnowId();
+            $result = $this->gateway->createWarmPoolSandbox($sandboxId);
             if (! $result->isSuccess()) {
                 $errors[] = $result->getMessage();
                 $this->logger->error('[WarmPoolSandbox] createWarmPoolSandbox failed', [
+                    'sandbox_id' => $sandboxId,
                     'code' => $result->getCode(),
                     'message' => $result->getMessage(),
                 ]);
                 continue;
             }
-            $sandboxId = (string) ($result->getDataValue('sandbox_id') ?? '');
             $sandboxName = (string) ($result->getDataValue('sandbox_name') ?? '');
             $image = (string) ($result->getDataValue('agent_image') ?? $latestImage);
-
-            if ($sandboxId === '') {
-                $errors[] = 'empty_sandbox_id';
-                continue;
-            }
 
             try {
                 // sandbox-gateway returns once the agfs-server inside the pod
