@@ -163,8 +163,15 @@ export function useWorkspacesPage(): UseWorkspacesPageReturn {
 
 	const handleDeleteWorkspace = useCallback(
 		async (id: string) => {
+			const isDeletingSelectedWorkspace = workspaceStore.selectedWorkspace?.id === id
+
 			try {
-				await SuperMagicService.deleteWorkspace(id)
+				await SuperMagicService.workspace.deleteWorkspace(id)
+				if (isDeletingSelectedWorkspace) {
+					// 列表页删除只更新当前列表，不跳详情；但若删的是当前选中工作区，
+					// 仍需清空项目/话题，避免后续页面继续引用已删除工作区下的旧上下文。
+					SuperMagicService.clearProjectAndTopicSelection()
+				}
 				magicToast.success(t("workspace.deleteWorkspaceSuccess"))
 				closeMoreSheet()
 			} catch (error) {

@@ -356,8 +356,7 @@ class RouteManageService {
 		})
 		UserWorkspaceMapCache.set(userInfo, null)
 
-		const isInMobileTabs = this.isInMobileTabs()
-		if (isInMobileTabs) {
+		if (interfaceStore.isMobile) {
 			this.safeNavigate({
 				name: RouteName.MobileHome,
 				viewTransition: false,

@@ -304,10 +304,24 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 	 * 删除工作区后交给既有 service 处理后续选中态与跳转逻辑。
 	 */
 	const handleDeleteWorkspace = useMemoizedFn(async (id: string) => {
+		const isDeletingCurrentWorkspace = workspaceId === id
+
 		try {
-			await SuperMagicService.deleteWorkspace(id)
+			await SuperMagicService.workspace.deleteWorkspace(id)
+			if (isDeletingCurrentWorkspace) {
+				SuperMagicService.clearProjectAndTopicSelection()
+			}
 			magicToast.success(t("workspace.deleteWorkspaceSuccess"))
 			closeMoreSheet()
+			if (isDeletingCurrentWorkspace) {
+				// 详情页删除后不要自动切到下一个工作区详情；优先返回打开它的上一页，
+				// 深链直达等没有历史栈时，再兜底回到移动端首页。
+				navigate({
+					delta: -1,
+					name: RouteName.MobileHome,
+					viewTransition: false,
+				})
+			}
 		} catch (error) {
 			console.error("删除工作区失败:", error)
 		}
