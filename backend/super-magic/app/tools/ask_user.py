@@ -281,14 +281,14 @@ def _humanize_single(
 ) -> str:
     """Format a single sub-question answer into natural language (answered status)."""
     if interaction_type == "confirm":
-        return f'"{question}": {answer}'
+        return f'"{question}": "{answer}"'
     if interaction_type == "input":
-        return f'"{question}": {answer}'
+        return f'"{question}": "{answer}"'
     if interaction_type == "select":
         return f'"{question}": selected "{answer}"'
     if interaction_type == "multi_select":
         return f'"{question}": selected {answer}'
-    return f'"{question}": {answer}'
+    return f'"{question}": "{answer}"'
 
 
 def _humanize_batch(
@@ -354,5 +354,5 @@ def _humanize_batch(
             ans = answers.get(f"q-{i}", default)
         parts.append(_humanize_single(name, interaction_type, ans))
     summary = "; ".join(parts)
-    return f"The user answered the following questions: {summary}. Proceed accordingly."
+    return f"The user answered the questions (values inside double quotes are the exact question text and user input):\n```result\n{summary}\n```"
 
