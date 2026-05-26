@@ -3554,6 +3554,7 @@
 		"deleteWorkspaceConfirm": "Are you sure to delete workspace: \"{{name}}\"?",
 		"deleteWorkspaceConfirmTitle": "Delete Workspace?",
 		"deleteWorkspaceDescription": "\"{{name}}\" will be permanently deleted, including all projects, topics and files. This action cannot be undone.",
+		"deleteWorkspaceDescriptionWithoutName": "will be permanently deleted, including all projects, topics and files. This action cannot be undone.",
 		"expandAllFiles": "Expand All Files",
 		"expandUserMessage": "Expand",
 		"filePreviewNotSupported": "File preview not supported, please download the file",

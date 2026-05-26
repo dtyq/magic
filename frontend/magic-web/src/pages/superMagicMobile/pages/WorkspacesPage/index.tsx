@@ -6,6 +6,7 @@ import { WorkspaceListView } from "./components/WorkspaceListView"
 import { WorkspaceMoreSheet } from "./components/WorkspaceMoreSheet"
 import { CreateWorkspaceSheet } from "./components/CreateWorkspaceSheet"
 import { useWorkspacesPage } from "./hooks/useWorkspacesPage"
+import { useWorkspaceDeleteConfirm } from "./hooks/useWorkspaceDeleteConfirm"
 
 const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 	const { openSidebar } = useSuperMobileShellOutlet()
@@ -34,6 +35,10 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 		loadMore,
 	} = useWorkspacesPage()
 
+	const { requestDeleteWorkspace, deleteConfirmNode } = useWorkspaceDeleteConfirm({
+		onDeleteWorkspace: handleDeleteWorkspace,
+	})
+
 	return (
 		<>
 			<WorkspaceListView
@@ -50,7 +55,7 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 				onOpenSharedWorkspace={handleOpenSharedWorkspace}
 				onOpenSidebar={openSidebar}
 				onMoreWorkspace={openMoreSheet}
-				onDeleteWorkspace={(ws) => handleDeleteWorkspace(ws.id)}
+				onDeleteWorkspace={requestDeleteWorkspace}
 				onRefresh={handleRefresh}
 				loadMore={loadMore}
 			/>
@@ -59,8 +64,11 @@ const WorkspacesPagePanel = observer(function WorkspacesPagePanel() {
 				onClose={closeMoreSheet}
 				workspace={moreSheetWorkspace}
 				onRename={handleRenameWorkspace}
-				onDelete={handleDeleteWorkspace}
+				onRequestDelete={() => {
+					if (moreSheetWorkspace) requestDeleteWorkspace(moreSheetWorkspace)
+				}}
 			/>
+			{deleteConfirmNode}
 			<CreateWorkspaceSheet
 				isOpen={createSheetOpen}
 				onClose={closeCreateSheet}

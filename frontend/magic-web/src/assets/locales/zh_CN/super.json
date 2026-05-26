@@ -3566,6 +3566,7 @@
 		"deleteWorkspaceConfirm": "确定要删除工作区: \"{{name}}\" 吗？",
 		"deleteWorkspaceConfirmTitle": "删除工作区?",
 		"deleteWorkspaceDescription": "「{{name}}」将被永久删除，包含其中所有项目、话题和文件，此操作无法撤销。",
+		"deleteWorkspaceDescriptionWithoutName": "将被永久删除，包含其中所有项目、话题和文件，此操作无法撤销。",
 		"expandAllFiles": "展开全部文件",
 		"expandUserMessage": "展开",
 		"filePreviewNotSupported": "暂不支持预览该文件,请下载该文件",

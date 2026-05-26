@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react"
-import { ArrowLeft, X, Check } from "lucide-react"
+import { X, Check } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
 import MagicPopup from "@/components/base-mobile/MagicPopup"
@@ -7,14 +7,13 @@ import { Input } from "@/components/shadcn-ui/input"
 import type { Workspace } from "@/pages/superMagic/pages/Workspace/types"
 import { useWorkspaceTransferEntry } from "@/pages/superMagicMobile/pages/WorkspacesPage/hooks/useWorkspaceTransferEntry"
 
-type SheetView = "menu" | "deleteConfirm"
-
 interface WorkspaceMoreSheetProps {
 	isOpen: boolean
 	onClose: () => void
 	workspace: Workspace | null
 	onRename: (id: string, name: string) => Promise<void>
-	onDelete: (id: string) => Promise<void>
+	/** Parent opens the shared delete confirmation sheet */
+	onRequestDelete?: () => void
 }
 
 function MenuItem({
@@ -61,7 +60,7 @@ export function WorkspaceMoreSheet({
 	onClose,
 	workspace,
 	onRename,
-	onDelete,
+	onRequestDelete,
 }: WorkspaceMoreSheetProps) {
 	const { t } = useTranslation("super")
 	const title = workspace?.name ?? t("workspace.workspace")
@@ -71,7 +70,6 @@ export function WorkspaceMoreSheet({
 			onClose,
 		})
 
-	const [view, setView] = useState<SheetView>("menu")
 	const [renameOpen, setRenameOpen] = useState(false)
 	const [renameValue, setRenameValue] = useState("")
 	const [renameTarget, setRenameTarget] = useState<Workspace | null>(null)
@@ -80,7 +78,6 @@ export function WorkspaceMoreSheet({
 	 * 每次关闭弹层都回收临时状态，避免上一次操作残留到下一次打开。
 	 */
 	const resetState = useCallback(() => {
-		setView("menu")
 		setRenameOpen(false)
 		setRenameValue("")
 		setRenameTarget(null)
@@ -117,12 +114,11 @@ export function WorkspaceMoreSheet({
 		resetState()
 	}, [renameValue, renameTarget, onRename, resetState])
 
-	const handleDelete = useCallback(async () => {
-		if (!workspace) return
-		await onDelete(workspace.id)
-		resetState()
+	/** Close menu and delegate delete confirmation to the parent page-level sheet. */
+	const handleDeletePress = useCallback(() => {
+		onRequestDelete?.()
 		onClose()
-	}, [workspace, onDelete, resetState, onClose])
+	}, [onRequestDelete, onClose])
 
 	const handleMenuClose = useCallback(() => {
 		resetState()
@@ -135,8 +131,6 @@ export function WorkspaceMoreSheet({
 		setRenameTarget(null)
 	}, [])
 
-	const isSubView = view === "deleteConfirm"
-
 	return (
 		<>
 			<MagicPopup
@@ -146,71 +140,39 @@ export function WorkspaceMoreSheet({
 				position="bottom"
 				title={typeof title === "string" ? title : undefined}
 				headerVariant="actionHeader"
-				headerTitle={view === "menu" ? title : t("workspace.deleteWorkspace")}
-				headerLeadingAction={
-					view === "menu"
-						? {
-								icon: <X className="size-[22px]" />,
-								ariaLabel: t("common.cancel"),
-								onClick: handleMenuClose,
-							}
-						: {
-								icon: <ArrowLeft className="size-[22px]" />,
-								ariaLabel: t("common.back"),
-								onClick: () => setView("menu"),
-							}
-				}
-				headerTrailingAction={
-					isSubView
-						? {
-								icon: <Check className="size-[22px]" />,
-								ariaLabel: t("common.confirm"),
-								onClick: () => {
-									void handleDelete()
-								},
-								tone: "destructive",
-							}
-						: undefined
-				}
+				headerTitle={title}
+				headerLeadingAction={{
+					icon: <X className="size-[22px]" />,
+					ariaLabel: t("common.cancel"),
+					onClick: handleMenuClose,
+				}}
 				className="flex flex-col overflow-hidden rounded-t-[14px] border-0 bg-muted p-0"
 				bodyClassName="no-scrollbar flex flex-col gap-2.5 overflow-y-auto px-[14px] py-[10px]"
 				style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
 			>
-				{view === "menu" && (
-					<>
-						<MenuGroup>
-							<MenuItem
-								label={t("workspace.rename")}
-								dataTestId="mobile-workspace-more-rename-button"
-								onClick={handleRenamePress}
-							/>
-							{showTransferEntry && (
-								<MenuItem
-									label={transferEntryLabel}
-									dataTestId="mobile-workspace-more-transfer-button"
-									showDivider={false}
-									onClick={handleOpenTransfer}
-								/>
-							)}
-						</MenuGroup>
-						<MenuGroup>
-							<MenuItem
-								label={t("common.delete")}
-								danger
-								dataTestId="mobile-workspace-more-delete-button"
-								onClick={() => setView("deleteConfirm")}
-							/>
-						</MenuGroup>
-					</>
-				)}
-
-				{isSubView && (
-					<p className="px-[14px] text-[16px] leading-6 text-muted-foreground">
-						{t("workspace.deleteWorkspaceTip", {
-							workspaceName: title,
-						})}
-					</p>
-				)}
+				<MenuGroup>
+					<MenuItem
+						label={t("workspace.rename")}
+						dataTestId="mobile-workspace-more-rename-button"
+						onClick={handleRenamePress}
+					/>
+					{showTransferEntry && (
+						<MenuItem
+							label={transferEntryLabel}
+							dataTestId="mobile-workspace-more-transfer-button"
+							showDivider={false}
+							onClick={handleOpenTransfer}
+						/>
+					)}
+				</MenuGroup>
+				<MenuGroup>
+					<MenuItem
+						label={t("common.delete")}
+						danger
+						dataTestId="mobile-workspace-more-delete-button"
+						onClick={handleDeletePress}
+					/>
+				</MenuGroup>
 			</MagicPopup>
 			{transferNode}
 

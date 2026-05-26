@@ -4,6 +4,7 @@ import { WorkspaceMoreSheet } from "@/pages/superMagicMobile/pages/WorkspacesPag
 import { CreateProjectSheet } from "./components/CreateProjectSheet"
 import { WorkspaceProjectListView } from "./components/WorkspaceProjectListView"
 import { useWorkspacePage } from "./hooks/useWorkspacePage"
+import { useWorkspaceDeleteConfirm } from "@/pages/superMagicMobile/pages/WorkspacesPage/hooks/useWorkspaceDeleteConfirm"
 
 /**
  * 工作区页面板只负责装配容器数据和工作区级弹层。
@@ -40,6 +41,10 @@ const WorkspacePagePanel = observer(function WorkspacePagePanel() {
 		loadMore,
 	} = useWorkspacePage()
 
+	const { requestDeleteWorkspace, deleteConfirmNode } = useWorkspaceDeleteConfirm({
+		onDeleteWorkspace: handleDeleteWorkspace,
+	})
+
 	return (
 		<>
 			<WorkspaceProjectListView
@@ -75,8 +80,11 @@ const WorkspacePagePanel = observer(function WorkspacePagePanel() {
 				onClose={closeMoreSheet}
 				workspace={moreSheetWorkspace}
 				onRename={handleRenameWorkspace}
-				onDelete={handleDeleteWorkspace}
+				onRequestDelete={() => {
+					if (moreSheetWorkspace) requestDeleteWorkspace(moreSheetWorkspace)
+				}}
 			/>
+			{deleteConfirmNode}
 		</>
 	)
 })

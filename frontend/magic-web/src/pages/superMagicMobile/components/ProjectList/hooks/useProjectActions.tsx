@@ -14,6 +14,7 @@ import SuperMagicService from "@/pages/superMagic/services"
 import magicToast from "@/components/base/MagicToaster/utils"
 import { Input } from "@/components/shadcn-ui/input"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
+import MobileDeleteConfirmPopup from "@/pages/superMagicMobile/components/MobileDeleteConfirmPopup"
 import { IconX } from "@tabler/icons-react"
 import { Check } from "lucide-react"
 import useNavigate from "@/routes/hooks/useNavigate"
@@ -26,6 +27,8 @@ import { resolveProjectDetailHeaderActions } from "@/pages/superMagicMobile/util
 
 interface UseProjectListActionsOptions {
 	onProjectChanged?: () => Promise<void> | void
+	/** Custom delete handler after user confirms (e.g. optimistic list removal on swipe). */
+	onDeleteProjectConfirmed?: (project: ProjectListItem) => Promise<void>
 	mode?: "default" | "chat"
 	chatActionContext?: "drawer" | "detail"
 	actionContext?: "default" | "project-detail"
@@ -46,6 +49,7 @@ export type ProjectActionKey =
 
 export function useProjectListActions({
 	onProjectChanged,
+	onDeleteProjectConfirmed,
 	mode = "default",
 	chatActionContext = "drawer",
 	actionContext = "default",
@@ -386,12 +390,26 @@ export function useProjectListActions({
 
 	const handleDeleteProject = useMemoizedFn(async () => {
 		if (!currentActionItem?.id) return
-		await SuperMagicService.deleteProject(currentActionItem, {
-			selectedProjectBehavior: deleteSelectedProjectBehavior,
-			lastUsedWorkspaceId: selectedWorkspace?.id,
-		})
-		await onProjectChanged?.()
-		setDeleteModalVisible(false)
+		try {
+			if (onDeleteProjectConfirmed) {
+				await onDeleteProjectConfirmed(currentActionItem)
+			} else {
+				await SuperMagicService.deleteProject(currentActionItem, {
+					selectedProjectBehavior: deleteSelectedProjectBehavior,
+					lastUsedWorkspaceId: selectedWorkspace?.id,
+				})
+				await onProjectChanged?.()
+			}
+			setDeleteModalVisible(false)
+		} catch {
+			// Keep the confirm sheet open so the user can retry after a failed delete.
+		}
+	})
+
+	/** Open delete confirmation for a project (e.g. list swipe delete). */
+	const openProjectDeleteConfirm = useMemoizedFn((project: ProjectListItem) => {
+		updateCurrentActionItem(project)
+		setDeleteModalVisible(true)
 	})
 
 	const handleRenameProject = useMemoizedFn(
@@ -560,40 +578,19 @@ export function useProjectListActions({
 				</div>
 			</MagicPopup>
 
-			<MagicPopup
+			<MobileDeleteConfirmPopup
 				visible={deleteModalVisible}
 				onClose={() => setDeleteModalVisible(false)}
-				position="bottom"
 				title={t(
 					isChatMode ? "chat.deleteChat" : "hierarchicalWorkspacePopup.deleteProject",
 				)}
-				headerVariant="actionHeader"
-				headerTitle={t(
-					isChatMode ? "chat.deleteChat" : "hierarchicalWorkspacePopup.deleteProject",
-				)}
-				headerLeadingAction={{
-					icon: <IconX className="size-5" />,
-					ariaLabel: t("common.cancel"),
-					onClick: () => setDeleteModalVisible(false),
-				}}
-				headerTrailingAction={{
-					icon: <Check className="size-[22px]" />,
-					ariaLabel: t("common.confirm"),
-					onClick: () => {
-						void handleDeleteProject()
-					},
-					tone: "destructive",
-				}}
-				bodyClassName="max-h-[80dvh] p-0"
-			>
-				<div className="scrollbar-y-thin flex min-h-0 flex-col overflow-y-auto px-6 pb-[max(var(--safe-area-inset-bottom),48px)] pt-6">
-					{/* 删除态正文按“实体名强调 + 后果说明弱化”排版，更贴近移动端原型的风险提示层级。 */}
-					<p className="mx-auto max-w-[680px] text-left text-[16px] leading-6">
-						<span className="font-semibold text-foreground">{deleteActionName}</span>
-						<span className="text-muted-foreground"> {deleteActionDescription}</span>
-					</p>
-				</div>
-			</MagicPopup>
+				entityName={deleteActionName}
+				descriptionSuffix={deleteActionDescription}
+				onConfirm={handleDeleteProject}
+				cancelAriaLabel={t("common.cancel")}
+				confirmAriaLabel={t("common.confirm")}
+				testIdPrefix="mobile-project-delete-confirm"
+			/>
 
 			<ProjectMovePopup
 				open={moveProjectModalVisible}
@@ -628,6 +625,7 @@ export function useProjectListActions({
 		updateCurrentActionItem,
 		actionsPopupVisible,
 		openActionsPopup,
+		openProjectDeleteConfirm,
 		closeActionsPopup,
 		openManageModal,
 		renameModalVisible,

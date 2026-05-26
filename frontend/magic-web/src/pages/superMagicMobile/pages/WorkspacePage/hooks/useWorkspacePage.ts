@@ -48,7 +48,7 @@ export interface UseWorkspacePageReturn {
 	handleDeleteWorkspace: (id: string) => Promise<void>
 	handleMoreProjectSwipe: (project: ProjectListItem) => void
 	handlePinProjectSwipe: (project: ProjectListItem) => Promise<void>
-	handleDeleteProjectSwipe: (project: ProjectListItem) => Promise<void>
+	handleDeleteProjectSwipe: (project: ProjectListItem) => void
 	projectActionComponents: React.ReactNode
 	/** 是否还有更多项目未加载 */
 	hasMore: boolean
@@ -194,28 +194,30 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 	 * 显式刷新当前工作区项目，用于下拉刷新和创建后回补数据。
 	 * silent 刷新仅移除服务端已确认不存在的 pending id；非 silent（如下拉刷新）清空 pending。
 	 */
-	const handleRefreshProjects = useMemoizedFn(async (options?: RefreshWorkspaceProjectsOptions) => {
-		if (!selectedWorkspace?.id) return
+	const handleRefreshProjects = useMemoizedFn(
+		async (options?: RefreshWorkspaceProjectsOptions) => {
+			if (!selectedWorkspace?.id) return
 
-		const silent = options?.silent ?? false
-		const latestProjects = silent
-			? await fetchProjectsForWorkspace(selectedWorkspace.id)
-			: await fetchProjects(selectedWorkspace.id)
+			const silent = options?.silent ?? false
+			const latestProjects = silent
+				? await fetchProjectsForWorkspace(selectedWorkspace.id)
+				: await fetchProjects(selectedWorkspace.id)
 
-		if (silent) {
-			const latestProjectIds = new Set(latestProjects.map((project) => project.id))
-			setPendingRemoveIds((prev) => {
-				const next = new Set(prev)
-				for (const id of prev) {
-					if (!latestProjectIds.has(id)) next.delete(id)
-				}
-				return next
-			})
-			return
-		}
+			if (silent) {
+				const latestProjectIds = new Set(latestProjects.map((project) => project.id))
+				setPendingRemoveIds((prev) => {
+					const next = new Set(prev)
+					for (const id of prev) {
+						if (!latestProjectIds.has(id)) next.delete(id)
+					}
+					return next
+				})
+				return
+			}
 
-		setPendingRemoveIds(new Set())
-	})
+			setPendingRemoveIds(new Set())
+		},
+	)
 
 	/**
 	 * 打开新建项目弹层，让顶部主操作先进入命名确认而不是立即创建。
@@ -333,12 +335,27 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 	 */
 	const {
 		openActionsPopup: openProjectActionsPopup,
+		openProjectDeleteConfirm,
 		updateCurrentActionItem: updateProjectActionItem,
 		handlePinProject,
 		projectActionComponents,
 	} = useProjectListActions({
 		mode: "default",
 		onProjectChanged: () => handleRefreshProjects({ silent: true }),
+		onDeleteProjectConfirmed: async (project) => {
+			try {
+				setPendingRemoveIds((prev) => new Set([...prev, project.id]))
+				await SuperMagicService.deleteProject(project, {
+					selectedProjectBehavior: "switch-next",
+					lastUsedWorkspaceId: selectedWorkspace?.id,
+				})
+				await handleRefreshProjects({ silent: true })
+			} catch {
+				await handleRefreshProjects({ silent: true })
+				magicToast.error(t("project.deleteProjectFailed"))
+				throw new Error("delete project failed")
+			}
+		},
 	})
 
 	/** 项目左滑"更多"：设置当前操作项，打开项目操作面板 */
@@ -361,21 +378,10 @@ export function useWorkspacePage(): UseWorkspacePageReturn {
 	})
 
 	/**
-	 * 项目左滑"删除"：乐观移除后异步调服务端删除，与 ChatsPage 模式一致。
-	 * 若服务端失败，reload 会清空 pendingRemoveIds，自动恢复被移除的行。
+	 * 项目左滑"删除"：先弹出二次确认，确认后走 onDeleteProjectConfirmed 乐观删除链路。
 	 */
-	const handleDeleteProjectSwipe = useMemoizedFn(async (project: ProjectListItem) => {
-		try {
-			setPendingRemoveIds((prev) => new Set([...prev, project.id]))
-			await SuperMagicService.deleteProject(project, {
-				selectedProjectBehavior: "switch-next",
-				lastUsedWorkspaceId: selectedWorkspace?.id,
-			})
-			await handleRefreshProjects({ silent: true })
-		} catch {
-			await handleRefreshProjects({ silent: true })
-			magicToast.error(t("project.deleteProjectFailed"))
-		}
+	const handleDeleteProjectSwipe = useMemoizedFn((project: ProjectListItem) => {
+		openProjectDeleteConfirm(project)
 	})
 
 	const isProjectEmpty = !isLoading && !debouncedSearchValue && projectStore.projects.length === 0
