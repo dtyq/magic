@@ -15,7 +15,9 @@ interface UseCreateTopicListenerOptions {
 function normalizeCreateTopicPayload(payload?: SuperMagicCreateNewTopicPayload) {
 	if (payload == null) {
 		return {
-			topicMode: undefined as Parameters<typeof SuperMagicService.handleCreateTopic>[0]["topicMode"],
+			topicMode: undefined as Parameters<
+				typeof SuperMagicService.handleCreateTopic
+			>[0]["topicMode"],
 			afterCreate: undefined as SuperMagicCreateNewTopicPayload["afterCreate"],
 		}
 	}
@@ -31,9 +33,7 @@ function normalizeCreateTopicPayload(payload?: SuperMagicCreateNewTopicPayload) 
  * @description Listens for PubSubEvents.Create_New_Topic and calls SuperMagicService.handleCreateTopic.
  * Uses object payload contract ({ topicMode, afterCreate }) for all callers.
  */
-export function useCreateTopicListener(
-	options: UseCreateTopicListenerOptions = {},
-) {
+export function useCreateTopicListener(options: UseCreateTopicListenerOptions = {}) {
 	const { enabled = true, selectedProject: selectedProjectFromOptions, topicStore } = options
 	const selectedProject = projectStore.selectedProject
 
@@ -46,6 +46,7 @@ export function useCreateTopicListener(
 			SuperMagicService.handleCreateTopic({
 				selectedProject: selectedProjectFromOptions ?? selectedProject,
 				onSuccess: (topic) => {
+					// topicService.createTopic already updates global topicStore; only mirror to optional local store.
 					topicStore?.setSelectedTopic?.(topic)
 				},
 				onNavigated: () => {

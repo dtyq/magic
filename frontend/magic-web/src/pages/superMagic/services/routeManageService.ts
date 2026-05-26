@@ -658,6 +658,49 @@ class RouteManageService {
 	}
 
 	/**
+	 * Navigate to mobile project topic sub-route and sync workspace caches.
+	 * URL must update before lazy TopicPage reconciles route params against the store.
+	 */
+	navigateToProjectTopicOnMobile({
+		projectId,
+		topicId,
+		workspaceId,
+		replace,
+	}: {
+		projectId: string
+		topicId: string
+		workspaceId?: string | null
+		replace?: boolean
+	}) {
+		const currentParams = this.getCurrentRouteParams()
+		const resolvedWorkspaceId =
+			workspaceId ?? currentParams.workspaceId ?? workspaceStore.selectedWorkspace?.id ?? null
+
+		const userInfo = userStore.user.userInfo
+		WorkspaceStateCache.set(userInfo, {
+			workspaceId: resolvedWorkspaceId,
+			projectId,
+			topicId,
+		})
+		if (resolvedWorkspaceId) {
+			UserWorkspaceMapCache.set(userInfo, resolvedWorkspaceId)
+		}
+		ProjectTopicMapCache.set(userInfo, projectId, topicId)
+
+		const shouldReplace = replace ?? Boolean(currentParams.topicId)
+
+		this.safeNavigate({
+			name: this.getRouteName(RouteName.SuperWorkspaceProjectTopicState),
+			params: {
+				projectId,
+				topicId,
+			},
+			viewTransition: false,
+			replace: shouldReplace,
+		})
+	}
+
+	/**
 	 * Navigate to project with topic
 	 * @param project Project
 	 * @param topicId Topic ID

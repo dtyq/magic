@@ -1194,9 +1194,18 @@ class SuperMagicService {
 					await onSuccess(newTopic)
 				}
 
-				this.route.navigateToState({
-					topicId: newTopic.id || null,
-				})
+				// Mobile project topic pages must update URL; navigateToState skips mobile navigation.
+				if (interfaceStore.isMobile && newTopic.id && project.id) {
+					this.route.navigateToProjectTopicOnMobile({
+						projectId: project.id,
+						topicId: newTopic.id,
+						workspaceId: project.workspace_id,
+					})
+				} else {
+					this.route.navigateToState({
+						topicId: newTopic.id || null,
+					})
+				}
 
 				if (onNavigated) {
 					setTimeout(() => {

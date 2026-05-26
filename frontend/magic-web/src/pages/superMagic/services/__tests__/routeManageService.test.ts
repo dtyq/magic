@@ -37,10 +37,16 @@ vi.mock("@/models/user", () => ({
 }))
 
 vi.mock("../../stores/core", () => ({
-	projectStore: {},
-	workspaceStore: {},
+	projectStore: {
+		selectedProject: null,
+	},
+	workspaceStore: {
+		selectedWorkspace: { id: "workspace-1" },
+	},
 	topicStore: {},
 }))
+
+const navigateMock = vi.fn()
 
 const { default: routeManageService } = await import("../routeManageService")
 
@@ -65,6 +71,79 @@ describe("routeManageService.navigateToHome", () => {
 
 		expect(replaceMock).toHaveBeenCalledWith(
 			expect.objectContaining({ name: RouteName.MobileHome }),
+		)
+	})
+})
+
+describe("routeManageService.navigateToProjectTopicOnMobile", () => {
+	beforeEach(() => {
+		replaceMock.mockReset()
+		pushMock.mockReset()
+		goMock.mockReset()
+		routesMatchMock.mockReset()
+		navigateMock.mockReset()
+		routeManageService.setNavigate(navigateMock)
+	})
+
+	it("navigates to project topic sub-route with replace when switching from an existing topic", () => {
+		routesMatchMock.mockReturnValue({
+			params: {
+				clusterCode: "global",
+				projectId: "project-1",
+				topicId: "topic-old",
+				workspaceId: "workspace-1",
+			},
+			pathname: "/global/super/project-1/topic-old",
+			pathnameBase: "/global/super/project-1/topic-old",
+			route: { name: RouteName.SuperWorkspaceProjectTopicState },
+		})
+
+		routeManageService.navigateToProjectTopicOnMobile({
+			projectId: "project-1",
+			topicId: "topic-new",
+			workspaceId: "workspace-1",
+		})
+
+		expect(navigateMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: RouteName.SuperWorkspaceProjectTopicState,
+				params: {
+					projectId: "project-1",
+					topicId: "topic-new",
+				},
+				replace: true,
+				viewTransition: false,
+			}),
+		)
+	})
+
+	it("uses push navigation when no topic is present in the current route", () => {
+		routesMatchMock.mockReturnValue({
+			params: {
+				clusterCode: "global",
+				projectId: "project-1",
+				workspaceId: "workspace-1",
+			},
+			pathname: "/global/super/project-1",
+			pathnameBase: "/global/super/project-1",
+			route: { name: RouteName.SuperWorkspaceProjectState },
+		})
+
+		routeManageService.navigateToProjectTopicOnMobile({
+			projectId: "project-1",
+			topicId: "topic-new",
+			workspaceId: "workspace-1",
+		})
+
+		expect(navigateMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: RouteName.SuperWorkspaceProjectTopicState,
+				params: {
+					projectId: "project-1",
+					topicId: "topic-new",
+				},
+				replace: false,
+			}),
 		)
 	})
 })
