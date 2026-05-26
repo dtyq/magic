@@ -12,6 +12,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WorkspaceType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WorkspaceEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WorkspaceRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\WorkspaceModel;
+use Hyperf\Database\Model\Builder as ModelBuilder;
 use Hyperf\DbConnection\Db;
 
 class WorkspaceRepository extends AbstractRepository implements WorkspaceRepositoryInterface
@@ -158,7 +159,7 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
         int $page = 1,
         int $pageSize = 10,
         string $orderBy = 'id',
-        string $orderDirection = 'asc'
+        string $orderDirection = 'desc'
     ): array {
         $query = $this->model::query();
 
@@ -174,8 +175,9 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
         // 获取总数
         $total = $query->count();
 
-        // 排序和分页
-        $list = $query->orderBy($orderBy, $orderDirection)
+        // 排序和分页：置顶始终优先，再按用户指定字段排序
+        $this->applyWorkspaceSorting($query, $orderBy, $orderDirection);
+        $list = $query
             ->offset(($page - 1) * $pageSize)
             ->limit($pageSize)
             ->get();
@@ -341,6 +343,7 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
         $entity->setChatConversationId((string) $model->chat_conversation_id);
         $entity->setName((string) $model->name);
         $entity->setIsArchived((int) $model->is_archived);
+        $entity->setIsPinned((int) ($model->is_pinned ?? 0));
         $entity->setCreatedUid((string) $model->created_uid);
         $entity->setUpdatedUid((string) $model->updated_uid);
         $entity->setCreatedAt($model->created_at ? (string) $model->created_at : null);
@@ -352,5 +355,24 @@ class WorkspaceRepository extends AbstractRepository implements WorkspaceReposit
         $entity->setWorkspaceType((string) ($model->workspace_type ?? WorkspaceType::Default->value));
 
         return $entity;
+    }
+
+    private function applyWorkspaceSorting(ModelBuilder $query, string $orderBy, string $orderDirection): void
+    {
+        $allowedOrderBy = ['id', 'updated_at'];
+        $allowedOrderDirection = ['asc', 'desc'];
+        $orderBy = strtolower($orderBy);
+        $orderDirection = strtolower($orderDirection);
+
+        if (! in_array($orderBy, $allowedOrderBy, true)) {
+            $orderBy = 'id';
+        }
+
+        if (! in_array($orderDirection, $allowedOrderDirection, true)) {
+            $orderDirection = 'desc';
+        }
+
+        $query->orderBy('is_pinned', 'desc')
+            ->orderBy($orderBy, $orderDirection);
     }
 }

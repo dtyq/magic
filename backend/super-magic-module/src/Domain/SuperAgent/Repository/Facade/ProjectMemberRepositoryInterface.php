@@ -183,6 +183,22 @@ interface ProjectMemberRepositoryInterface
     ): array;
 
     /**
+     * Batch count collaboration projects bound to workspace shortcuts.
+     *
+     * @param string $userId Current user ID
+     * @param array $workspaceIds Workspace ID array
+     * @param null|array $organizationCodes Organization code filter
+     * @param bool $showHidden Whether to include hidden projects
+     * @return array<int, int> [workspace_id => count]
+     */
+    public function countCooperateProjectsByWorkspaceIds(
+        string $userId,
+        array $workspaceIds,
+        ?array $organizationCodes = null,
+        bool $showHidden = false
+    ): array;
+
+    /**
      * 根据项目ID和用户ID获取项目成员信息.
      *
      * @param int $projectId 项目ID

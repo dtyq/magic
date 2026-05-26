@@ -15,6 +15,7 @@ use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\MemberType;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\ProjectMode;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\ProjectMemberRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\ProjectMemberModel;
+use Hyperf\Database\Query\Builder as QueryBuilder;
 use Hyperf\DbConnection\Db;
 
 /**
@@ -462,78 +463,22 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
         ?array $organizationCodes = null,
         bool $showHidden = false
     ): array {
-        // 构建基础查询（去掉软删除全局 scope，改用别名 pm 引用 deleted_at，避免表别名与字段引用不一致）
-        $query = $this->projectMemberModel::query()
-            ->withoutGlobalScopes()
-            ->from('magic_super_agent_project_members as pm')
-            ->join('magic_super_agent_project as p', 'pm.project_id', '=', 'p.id')
-            ->leftJoin('magic_super_agent_project_member_settings as pms', function ($join) use ($userId) {
-                $join->on('p.id', '=', 'pms.project_id')
-                    ->where('pms.user_id', '=', $userId);
-            })
-            ->where('pm.target_type', MemberType::USER->value)
-            ->where('pm.target_id', $userId)
-            ->where('pm.status', 1)
-            ->where('p.project_status', 1) // 只查询激活状态的项目
-            ->where(function ($q) use ($userId) {
-                // 自己创建的项目：不受协作开关影响
-                $q->where('p.user_id', $userId)
-                    // 协作项目：必须启用协作功能
-                    ->orWhere(function ($subQ) use ($userId) {
-                        $subQ->where('p.user_id', '!=', $userId)
-                            ->where('p.is_collaboration_enabled', 1);
-                    });
-            })
-            ->whereNull('pm.deleted_at')
-            ->whereNull('p.deleted_at');
+        $query = $this->buildParticipatedProjectsQuery($userId);
+        $this->applyParticipatedMemberFilters($query, $userId);
+        $this->applyProjectListBaseFilters($query, $organizationCodes, $showHidden);
+        $this->applyAccessibleParticipatedProjectFilter($query, $userId);
 
         // 工作区限制（可选）
-        if ($workspaceId !== null) {
-            $query->where(function ($subQuery) use ($workspaceId, $userId) {
-                $subQuery
-                    // 情况1：用户自己创建的项目，在指定工作区
-                    ->where(function ($q) use ($workspaceId, $userId) {
-                        $q->where('p.user_id', $userId)
-                            ->where('p.workspace_id', $workspaceId);
-                    })
-                    // 情况2：协作项目，用户绑定到指定工作区
-                    ->orWhere(function ($q) use ($workspaceId, $userId) {
-                        $q->where('p.user_id', '!=', $userId)
-                            ->where('pms.is_bind_workspace', 1)
-                            ->where('pms.bind_workspace_id', $workspaceId);
-                    });
-            });
-        }
+        $this->applyParticipatedWorkspaceFilter($query, $userId, $workspaceId);
 
         // 项目名称模糊搜索
         if (! empty($projectName)) {
             $query->where('p.project_name', 'like', '%' . $projectName . '%');
         }
 
-        // 组织过滤
-        if (! empty($organizationCodes)) {
-            $query->whereIn('p.user_organization_code', $organizationCodes);
-        }
-
         // 协作项目筛选逻辑
-        if (! $showCollaboration) {
-            // showCollaboration = 0 时，只显示已设置快捷方式的项目
-            $query->where('pms.is_bind_workspace', 1);
-
-            // 如果指定了工作区，则进一步限制为绑定到该工作区的项目
-            if ($workspaceId !== null) {
-                $query->where('pms.bind_workspace_id', $workspaceId);
-            }
-        }
+        $this->applyShowCollaborationFilter($query, $showCollaboration, $workspaceId);
         // showCollaboration = 1 时，显示所有参与的项目（默认情况）
-
-        // 隐藏项目过滤：默认不显示隐藏项目
-        if (! $showHidden) {
-            $query->where('p.is_hidden', 0);
-        }
-
-        // 过滤特定项目模式（音频、agent/skill 创建器、magiclaw 等）
-        $query->whereNotIn('p.project_mode', ProjectMode::getQueryFilterModes());
 
         // 获取总数
         $totalQuery = clone $query;
@@ -586,6 +531,26 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             'total' => $total,
             'list' => $projects,
         ];
+    }
+
+    public function countCooperateProjectsByWorkspaceIds(
+        string $userId,
+        array $workspaceIds,
+        ?array $organizationCodes = null,
+        bool $showHidden = false
+    ): array {
+        $workspaceIds = array_values(array_unique(array_map('intval', $workspaceIds)));
+        if (empty($workspaceIds)) {
+            return [];
+        }
+
+        $query = $this->buildCooperateProjectCountQuery($userId, $workspaceIds, $organizationCodes, $showHidden);
+
+        $rows = $query
+            ->selectRaw('pms.bind_workspace_id as workspace_id, COUNT(DISTINCT p.id) as cooperate_project_count')
+            ->get();
+
+        return $this->buildCooperateProjectCountMap($workspaceIds, $rows);
     }
 
     /**
@@ -919,6 +884,131 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
             ->distinct()
             ->pluck('project_id')
             ->all();
+    }
+
+    private function buildParticipatedProjectsQuery(string $userId): QueryBuilder
+    {
+        return $this->projectMemberModel::query()
+            ->withoutGlobalScopes()
+            ->from('magic_super_agent_project_members as pm')
+            ->join('magic_super_agent_project as p', 'pm.project_id', '=', 'p.id')
+            ->leftJoin('magic_super_agent_project_member_settings as pms', function ($join) use ($userId) {
+                $join->on('p.id', '=', 'pms.project_id')
+                    ->where('pms.user_id', '=', $userId);
+            });
+    }
+
+    private function buildCooperateProjectCountQuery(
+        string $userId,
+        array $workspaceIds,
+        ?array $organizationCodes,
+        bool $showHidden
+    ): QueryBuilder {
+        $query = Db::table(Db::raw('magic_super_agent_project_member_settings as pms FORCE INDEX (idx_user_bind_workspace_project)'))
+            ->join('magic_super_agent_project_members as pm', 'pm.project_id', '=', 'pms.project_id')
+            ->join('magic_super_agent_project as p', 'p.id', '=', 'pms.project_id')
+            ->where('pms.user_id', $userId)
+            ->where('pms.is_bind_workspace', 1)
+            ->whereIn('pms.bind_workspace_id', $workspaceIds)
+            ->where('p.user_id', '<>', $userId)
+            ->where('p.is_collaboration_enabled', 1)
+            ->groupBy('pms.bind_workspace_id');
+
+        $this->applyParticipatedMemberFilters($query, $userId);
+        $this->applyProjectListBaseFilters($query, $organizationCodes, $showHidden);
+
+        return $query;
+    }
+
+    private function buildCooperateProjectCountMap(array $workspaceIds, iterable $rows): array
+    {
+        $countMap = array_fill_keys($workspaceIds, 0);
+        foreach ($rows as $row) {
+            $rowData = (array) $row;
+            if (! isset($rowData['workspace_id'])) {
+                continue;
+            }
+
+            $countMap[(int) $rowData['workspace_id']] = (int) ($rowData['cooperate_project_count'] ?? 0);
+        }
+
+        return $countMap;
+    }
+
+    private function applyParticipatedMemberFilters(QueryBuilder $query, string $userId): void
+    {
+        $query->where('pm.target_type', MemberType::USER->value)
+            ->where('pm.target_id', $userId)
+            ->where('pm.status', MemberStatus::ACTIVE->value)
+            ->whereNull('pm.deleted_at');
+    }
+
+    private function applyProjectListBaseFilters(
+        QueryBuilder $query,
+        ?array $organizationCodes,
+        bool $showHidden
+    ): void {
+        $query->where('p.project_status', 1)
+            ->whereNull('p.deleted_at');
+
+        if (! empty($organizationCodes)) {
+            $query->whereIn('p.user_organization_code', $organizationCodes);
+        }
+
+        if (! $showHidden) {
+            $query->where('p.is_hidden', 0);
+        }
+
+        $query->whereNotIn('p.project_mode', ProjectMode::getQueryFilterModes());
+    }
+
+    private function applyAccessibleParticipatedProjectFilter(QueryBuilder $query, string $userId): void
+    {
+        $query->where(function ($subQuery) use ($userId) {
+            $subQuery->where('p.user_id', $userId)
+                ->orWhere(function ($collaborationQuery) use ($userId) {
+                    $collaborationQuery->where('p.user_id', '<>', $userId)
+                        ->where('p.is_collaboration_enabled', 1);
+                });
+        });
+    }
+
+    private function applyParticipatedWorkspaceFilter(
+        QueryBuilder $query,
+        string $userId,
+        ?int $workspaceId
+    ): void {
+        if ($workspaceId === null) {
+            return;
+        }
+
+        $query->where(function ($subQuery) use ($workspaceId, $userId) {
+            $subQuery
+                ->where(function ($ownerQuery) use ($workspaceId, $userId) {
+                    $ownerQuery->where('p.user_id', $userId)
+                        ->where('p.workspace_id', $workspaceId);
+                })
+                ->orWhere(function ($collaborationQuery) use ($workspaceId, $userId) {
+                    $collaborationQuery->where('p.user_id', '<>', $userId)
+                        ->where('pms.is_bind_workspace', 1)
+                        ->where('pms.bind_workspace_id', $workspaceId);
+                });
+        });
+    }
+
+    private function applyShowCollaborationFilter(
+        QueryBuilder $query,
+        bool $showCollaboration,
+        ?int $workspaceId
+    ): void {
+        if ($showCollaboration) {
+            return;
+        }
+
+        $query->where('pms.is_bind_workspace', 1);
+        if ($workspaceId !== null) {
+            $query->where('pms.bind_workspace_id', $workspaceId);
+        }
     }
 
     /**
