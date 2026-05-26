@@ -490,6 +490,33 @@ return [
             ],
         ],
 
+        // 天气查询
+        'weather_forecast' => [
+            'code' => 'weather_forecast',
+            'name' => [
+                'zh_CN' => '天气查询',
+                'en_US' => 'Weather Forecast',
+            ],
+            'description' => [
+                'zh_CN' => '本能力覆盖平台天气数据查询的应用场景，提供精准的天气预报信息，支持多城市、多天数查询。',
+                'en_US' => 'This capability covers weather data query scenarios on the platform, providing accurate weather forecast information with support for multiple cities and forecast days.',
+            ],
+            'icon' => 'weather-forecast-icon',
+            'sort_order' => 21,
+            'status' => env('AI_ABILITY_WEATHER_FORECAST_STATUS', true),
+            'config' => [
+                'providers' => [
+                    [
+                        'name' => 'AiData',
+                        'enable' => true,
+                        'api_key' => env('AIDATA_API_KEY', ''),
+                        'provider' => 'aidata',
+                        'request_url' => env('AIDATA_BASE_URL', ''),
+                    ],
+                ],
+            ],
+        ],
+
         // 追加提问（对话追问建议）
         'follow_up_questions' => [
             'code' => 'follow_up_questions',

@@ -25,6 +25,8 @@ class AiAbilityConnectivityTestRequestDTO extends AbstractRequestDTO
         'image_search' => AiAbilityCode::ImageSearch->value,
         'webscrape' => AiAbilityCode::WebScrape->value,
         'web_scrape' => AiAbilityCode::WebScrape->value,
+        'weatherforecast' => AiAbilityCode::WeatherForecast->value,
+        'weather_forecast' => AiAbilityCode::WeatherForecast->value,
     ];
 
     private string $aiAbility = '';
