@@ -981,6 +981,15 @@ class AsrFileAppService extends AbstractAppService
 
             // Execute merge
             $fileTitle = $this->resolveFinishRecordingFileTitle($taskStatus, $generatedTitle);
+            $this->renameProjectAfterFinishRecording($taskStatus, $fileTitle, $userId);
+            if ($fileTitle !== $this->translator->trans('asr.file_names.original_recording')) {
+                $newDisplayDirectory = $this->directoryService->getNewDisplayDirectory(
+                    $taskStatus,
+                    $fileTitle,
+                    $this->titleGeneratorService
+                );
+                $taskStatus->displayDirectory = $newDisplayDirectory;
+            }
 
             // Update progress: 50%
             $this->asrTaskDomainService->updatePhaseProgress($taskStatus, 50);
@@ -1562,6 +1571,47 @@ class AsrFileAppService extends AbstractAppService
             $this->logger->warning('更新项目/话题名称失败', [
                 'project_id' => $projectId,
                 'topic_id' => $topicId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * finish-recording 后使用语义标题补齐空项目名，不覆盖用户已有命名.
+     */
+    private function renameProjectAfterFinishRecording(
+        AsrTaskStatusDTO $taskStatus,
+        string $generatedTitle,
+        string $userId
+    ): void {
+        try {
+            if (empty($taskStatus->projectId)) {
+                return;
+            }
+
+            $projectName = $this->titleGeneratorService->sanitizeTitle($generatedTitle);
+            if ($projectName === '' || $projectName === $this->translator->trans('asr.file_names.original_recording')) {
+                return;
+            }
+
+            $projectEntity = $this->projectDomainService->getProject((int) $taskStatus->projectId, $userId);
+            if (! empty(trim($projectEntity->getProjectName() ?? ''))) {
+                return;
+            }
+
+            $projectEntity->setProjectName($projectName);
+            $projectEntity->setUpdatedUid($userId);
+            $this->projectDomainService->saveProjectEntity($projectEntity);
+
+            $this->logger->info('finish-recording 后补齐项目名称成功', [
+                'task_key' => $taskStatus->taskKey,
+                'project_id' => $taskStatus->projectId,
+                'project_name' => $projectName,
+            ]);
+        } catch (Throwable $e) {
+            $this->logger->warning('finish-recording 后补齐项目名称失败', [
+                'task_key' => $taskStatus->taskKey,
+                'project_id' => $taskStatus->projectId,
                 'error' => $e->getMessage(),
             ]);
         }
@@ -2289,15 +2339,6 @@ class AsrFileAppService extends AbstractAppService
      */
     private function resolveFinishRecordingFileTitle(AsrTaskStatusDTO $taskStatus, ?string $requestGeneratedTitle): string
     {
-        $uploadGeneratedTitle = $this->titleGeneratorService->sanitizeTitle($taskStatus->uploadGeneratedTitle ?? '');
-        if ($uploadGeneratedTitle !== '') {
-            $this->logger->info('finish-recording 使用 upload-tokens 生成的标题', [
-                'task_key' => $taskStatus->taskKey,
-                'title_source' => 'upload_generated_title',
-            ]);
-            return $uploadGeneratedTitle;
-        }
-
         $generatedFromTask = $this->titleGeneratorService->generateNullableFromTaskStatus($taskStatus);
         $generatedFromTask = $this->titleGeneratorService->sanitizeTitle($generatedFromTask ?? '');
         if ($generatedFromTask !== '') {
@@ -2308,6 +2349,15 @@ class AsrFileAppService extends AbstractAppService
                 'has_note' => ! empty($taskStatus->noteContent),
             ]);
             return $generatedFromTask;
+        }
+
+        $uploadGeneratedTitle = $this->titleGeneratorService->sanitizeTitle($taskStatus->uploadGeneratedTitle ?? '');
+        if ($uploadGeneratedTitle !== '') {
+            $this->logger->info('finish-recording 使用 upload-tokens 生成的标题', [
+                'task_key' => $taskStatus->taskKey,
+                'title_source' => 'upload_generated_title',
+            ]);
+            return $uploadGeneratedTitle;
         }
 
         $requestTitle = $this->titleGeneratorService->sanitizeTitle($requestGeneratedTitle ?? '');

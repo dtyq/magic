@@ -478,6 +478,11 @@ class AsrApi extends AbstractApi
         $userId = $userAuthorization->getId();
         $organizationCode = $userAuthorization->getOrganizationCode();
         $generatedTitle = $this->request->input('generated_title');
+        $asrStreamContent = $this->request->input('asr_stream_content', '');
+        $asrStreamContent = is_string($asrStreamContent) ? $asrStreamContent : '';
+        if (! empty($asrStreamContent)) {
+            $asrStreamContent = mb_substr($asrStreamContent, 0, 10000);
+        }
 
         // Get current task status
         $taskStatus = $this->asrFileAppService->getTaskStatusFromRedis($task_key, $userId);
@@ -489,6 +494,13 @@ class AsrApi extends AbstractApi
         // Status check: Task already canceled
         if ($taskStatus->recordingStatus === AsrRecordingStatusEnum::CANCELED->value) {
             ExceptionBuilder::throw(AsrErrorCode::TaskAlreadyCanceled);
+        }
+
+        $shouldSaveTaskStatus = false;
+        $shouldDeleteHeartbeat = false;
+        if (! empty($asrStreamContent)) {
+            $taskStatus->asrStreamContent = $asrStreamContent;
+            $shouldSaveTaskStatus = true;
         }
 
         // Core logic: If recording is not stopped, execute recording termination logic first (refer to summary interface)
@@ -505,7 +517,15 @@ class AsrApi extends AbstractApi
             // Set to STOPPED and delete heartbeat (atomic operation, refer to summary interface implementation)
             $taskStatus->recordingStatus = AsrRecordingStatusEnum::STOPPED->value;
             $taskStatus->isPaused = false;
+            $shouldSaveTaskStatus = true;
+            $shouldDeleteHeartbeat = true;
+        }
+
+        if ($shouldSaveTaskStatus) {
             $this->asrFileAppService->saveTaskStatusToRedis($taskStatus);
+        }
+
+        if ($shouldDeleteHeartbeat) {
             $this->asrFileAppService->deleteTaskHeartbeat($taskStatus->taskKey, $taskStatus->userId);
         }
 
