@@ -144,14 +144,14 @@ export function ChatConversationListView({
 						className="flex min-h-full flex-col gap-1 px-3 pb-4 pt-2"
 					>
 						{showInitialLoading ? (
-							<div className="flex flex-1 flex-col items-center justify-center gap-3 py-16">
+							<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
 								<Loader2 className="size-8 animate-spin text-muted-foreground" />
 							</div>
 						) : null}
 
 						{!showInitialLoading && isEmpty ? (
 							<div
-								className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-center"
+								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 								data-testid="mobile-chats-page-empty"
 							>
 								<Search className="size-10 text-muted-foreground/50" />
@@ -166,7 +166,7 @@ export function ChatConversationListView({
 
 						{!showInitialLoading && isSearchEmpty ? (
 							<div
-								className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-center"
+								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 								data-testid="mobile-chats-page-search-empty"
 							>
 								<Search className="size-10 text-muted-foreground/50" />

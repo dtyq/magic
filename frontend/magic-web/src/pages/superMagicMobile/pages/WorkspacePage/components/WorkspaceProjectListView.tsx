@@ -151,7 +151,7 @@ export function WorkspaceProjectListView({
 					>
 						{isProjectEmpty ? (
 							<div
-								className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-center"
+								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 								data-testid="workspace-project-page-empty"
 							>
 								<Box className="size-10 text-muted-foreground/50" />
@@ -166,7 +166,7 @@ export function WorkspaceProjectListView({
 
 						{isSearchEmpty ? (
 							<div
-								className="flex flex-1 flex-col items-center justify-center gap-2 py-12 text-center"
+								className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-center"
 								data-testid="workspace-project-page-search-empty"
 							>
 								<Search className="size-10 text-muted-foreground/50" />
