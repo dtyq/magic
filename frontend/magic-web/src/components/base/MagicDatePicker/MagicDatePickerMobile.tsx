@@ -3,6 +3,7 @@ import { Calendar as CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DatePicker } from "antd-mobile"
 import dayjs from "@/lib/dayjs"
+import { useMobileAntdPopupLayer } from "@/hooks/useMobileAntdPopupLayer"
 import type { MagicDatePickerProps } from "./index"
 import { useTranslation } from "react-i18next"
 
@@ -19,6 +20,7 @@ function MagicDatePickerMobile({
 	const { t } = useTranslation("component")
 	const [visible, setVisible] = useState(false)
 	const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined)
+	const { getContainer } = useMobileAntdPopupLayer({ open: visible })
 
 	// Initialize selected date from value or defaultValue
 	useEffect(() => {
@@ -93,9 +95,9 @@ function MagicDatePickerMobile({
 
 			<DatePicker
 				title={t("magicDatePicker.selectDate")}
-				className="z-popup"
 				visible={visible}
 				value={selectedDate}
+				getContainer={getContainer}
 				onClose={() => setVisible(false)}
 				onConfirm={handleConfirm}
 				filter={filter}

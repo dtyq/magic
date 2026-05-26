@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import { Picker } from "antd-mobile"
 import type { PickerValue } from "antd-mobile/es/components/picker"
 import dayjs from "@/lib/dayjs"
+import { useMobileAntdPopupLayer } from "@/hooks/useMobileAntdPopupLayer"
 import type { MagicTimePickerProps } from "./index"
 import { useTranslation } from "react-i18next"
 
@@ -40,6 +41,7 @@ function MagicTimePickerMobile({
 	const { t } = useTranslation("component")
 	const [visible, setVisible] = useState(false)
 	const [selectedTime, setSelectedTime] = useState<[string, string]>(["00", "00"])
+	const { overlayZIndex, getContainer } = useMobileAntdPopupLayer({ open: visible })
 
 	const allHourOptions = useMemo(() => generateHourOptions(), [])
 	const allMinuteOptions = useMemo(() => generateMinuteOptions(), [])
@@ -156,6 +158,8 @@ function MagicTimePickerMobile({
 				columns={columns}
 				visible={visible}
 				value={selectedTime}
+				getContainer={getContainer}
+				popupStyle={{ zIndex: overlayZIndex }}
 				onClose={() => setVisible(false)}
 				onConfirm={handleConfirm}
 			/>
