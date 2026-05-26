@@ -66,6 +66,7 @@ describe("registerAppServiceWorker", () => {
 	beforeEach(() => {
 		vi.restoreAllMocks()
 		vi.stubEnv("MAGIC_MOCK", "true")
+		vi.stubEnv("MAGIC_SW_MODE", "on")
 	})
 
 	afterEach(() => {
@@ -137,6 +138,41 @@ describe("registerAppServiceWorker", () => {
 		expect(register).toHaveBeenCalledTimes(1)
 	})
 
+	it("does not register by default and unregisters existing app service workers", async () => {
+		const register = vi.fn()
+		const unregister = vi.fn().mockResolvedValue(true)
+		vi.unstubAllEnvs()
+		vi.stubEnv("MAGIC_MOCK", "true")
+
+		Object.defineProperty(document, "readyState", {
+			configurable: true,
+			value: "complete",
+		})
+
+		Object.defineProperty(navigator, "serviceWorker", {
+			configurable: true,
+			value: {
+				register,
+				getRegistrations: vi.fn().mockResolvedValue([
+					{
+						active: {
+							scriptURL: `${window.location.origin}/sw.js`,
+						},
+						waiting: null,
+						installing: null,
+						unregister,
+					},
+				]),
+			},
+		})
+
+		registerAppServiceWorker()
+		await flushMicrotasks()
+
+		expect(register).not.toHaveBeenCalled()
+		expect(unregister).toHaveBeenCalledTimes(1)
+	})
+
 	it("auto activates waiting worker on browser reload", async () => {
 		const postMessage = vi.fn()
 		const register = vi.fn().mockResolvedValue({
@@ -147,7 +183,7 @@ describe("registerAppServiceWorker", () => {
 
 		vi.spyOn(window.performance, "getEntriesByType").mockImplementation((entryType: string) => {
 			if (entryType === "navigation") {
-				return [{ type: "reload" }] as PerformanceEntry[]
+				return [{ type: "reload" }] as unknown as PerformanceEntry[]
 			}
 			return []
 		})
@@ -195,7 +231,7 @@ describe("registerAppServiceWorker", () => {
 
 		vi.spyOn(window.performance, "getEntriesByType").mockImplementation((entryType: string) => {
 			if (entryType === "navigation") {
-				return [{ type: "reload" }] as PerformanceEntry[]
+				return [{ type: "reload" }] as unknown as PerformanceEntry[]
 			}
 			return []
 		})
@@ -219,7 +255,10 @@ describe("registerAppServiceWorker", () => {
 
 		Object.assign(installingWorker, { state: "installed" })
 		Object.assign(registration, { waiting: { postMessage } })
-		installingStateChangeHandler?.()
+		const stateChangeHandler = installingStateChangeHandler as (() => void) | null
+		if (stateChangeHandler) {
+			stateChangeHandler()
+		}
 
 		expect(postMessage).toHaveBeenCalledWith({ type: "SKIP_WAITING" })
 	})

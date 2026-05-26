@@ -1,5 +1,6 @@
 // types/env.d.ts
 interface ImportMetaEnv {
+	readonly DEV: boolean
 	/** 当前环境 */
 	readonly MAGIC_APP_ENV?: "saas-test" | "saas-pre" | "saas-prod" | "international-prod"
 	/** 是否私有化部署 */
@@ -70,6 +71,8 @@ interface ImportMetaEnv {
 	readonly MAGIC_FORCE_ENABLE_SW_IN_DEV?: string
 	/** 是否启用 API 缓存策略 */
 	readonly MAGIC_ENABLE_API_CACHE?: "true" | "false"
+	/** App Service Worker 模式：on=启用缓存能力，none=不注册，off=注销，kill=清缓存并注销 */
+	readonly MAGIC_SW_MODE?: "on" | "none" | "off" | "kill"
 }
 
 interface ImportMeta {

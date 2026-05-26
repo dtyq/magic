@@ -10,6 +10,11 @@ import {
 
 const APP_SERVICE_WORKER_URL = "/sw.js"
 const APP_SERVICE_WORKER_SCOPE = "/"
+const SW_MODE_ENV_KEY = "MAGIC_SW_MODE"
+const SW_MODE_ON = "on"
+const SW_MODE_OFF = "off"
+const SW_MODE_KILL = "kill"
+const SW_MODE_NONE = "none"
 // Wait briefly for controllerchange after posting SKIP_WAITING; then fallback to a plain reload.
 const WAITING_ACTIVATION_TIMEOUT_MS = 1500
 
@@ -31,6 +36,17 @@ function isLocalMockEnabled(): boolean {
 
 function isForceEnableServiceWorkerInDevelopment(): boolean {
 	return env("MAGIC_FORCE_ENABLE_SW_IN_DEV") === "true"
+}
+
+function getServiceWorkerMode(): string {
+	return env("MAGIC_SW_MODE")?.trim().toLowerCase() ?? ""
+}
+
+function shouldRegisterAppServiceWorker(): boolean {
+	const serviceWorkerMode = getServiceWorkerMode()
+	if (serviceWorkerMode === SW_MODE_NONE) return false
+
+	return [SW_MODE_ON, SW_MODE_OFF, SW_MODE_KILL].includes(serviceWorkerMode)
 }
 
 function isAppServiceWorkerWorker(
@@ -236,6 +252,11 @@ export function registerAppServiceWorker(): void {
 		void unregisterAppServiceWorkers()
 		return
 	}
+	if (!shouldRegisterAppServiceWorker()) {
+		// Default to no SW registration and actively retire previously registered app workers.
+		void unregisterAppServiceWorkers()
+		return
+	}
 
 	// Scope auto-activation deduplication to one register() execution path.
 	const reloadActivationContext: ReloadActivationContext = { triggered: false }
@@ -339,7 +360,7 @@ function scheduleWarmUpPostMessage(worker: ServiceWorker): void {
 	if (typeof window !== "undefined" && "requestIdleCallback" in window) {
 		window.requestIdleCallback(() => postMsg(), { timeout: 10000 })
 	} else {
-		window?.setTimeout(postMsg, 5000)
+		globalThis.setTimeout(postMsg, 5000)
 	}
 }
 

@@ -2,16 +2,20 @@
  * Service Worker 接管配置（通过环境变量控制）。
  *
  * 1) MAGIC_SW_MODE（大小写不敏感）
+ *    - on: Web 侧显式注册正常 SW，server 不接管 /sw.js。
+ *    - none: Web 侧不注册 SW，server 也不接管 /sw.js。
  *    - kill: 下发 kill SW，按 MAGIC_SW_CLEAR_CACHES 清缓存后注销 SW。
  *    - off: 下发 off SW，仅注销 SW，不清理缓存。
- *    - 其他值或不配置：不接管 /sw.js，保持构建产物中的正常 SW。
+ *    - 其他值或不配置：等同 none，默认不注册 SW；server 不接管 /sw.js。
  *
  * 2) MAGIC_SW_CLEAR_CACHES（仅在 MAGIC_SW_MODE=kill 时生效）
- *    - 必须显式配置；不配置时 kill 模式不会生效。
+ *    - 必须显式配置；不配置时按 off 模式处理，直接注销 SW，不再回退到正常缓存 SW。
  *    - 配置逗号分隔缓存桶名：按指定桶清理。
  *    - 配置 ALL（大小写不敏感）：清理当前 origin 下全部 CacheStorage 桶。
  *
  * 示例：
+ * - MAGIC_SW_MODE=on
+ * - MAGIC_SW_MODE=none
  * - MAGIC_SW_MODE=off
  * - MAGIC_SW_MODE=kill MAGIC_SW_CLEAR_CACHES=ALL
  * - MAGIC_SW_MODE=kill MAGIC_SW_CLEAR_CACHES=magic-web-app-static-assets-v1,canvas-media-resources-v1
@@ -125,8 +129,9 @@ function serviceWorkerMiddleware(req, res, next) {
 	if (isServiceWorkerKillSwitchEnabled()) {
 		const cacheNames = getKillSwitchCacheNames()
 		if (!cacheNames) {
-			// kill 模式要求显式配置 MAGIC_SW_CLEAR_CACHES，缺失时回退到正常 SW。
-			return next()
+			// kill 模式配置不当时按 off 模式处理，避免误回退到正常缓存 SW。
+			res.send(buildOffModeServiceWorkerSource())
+			return undefined
 		}
 		res.send(buildKillSwitchServiceWorkerSource(cacheNames))
 		return undefined
