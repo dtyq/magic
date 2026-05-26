@@ -1,5 +1,6 @@
 import { memo, useLayoutEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useCenteredHorizontalScroll } from "@/pages/superMagic/components/MainInputContainer/hooks/useCenteredHorizontalScroll"
 import type { CategoryView } from "@/services/crew/CrewService"
 
 const ALL_CATEGORY_ID = "all"
@@ -33,8 +34,13 @@ function CategoryFilterMobile({
 		...categories.map((c) => ({ id: c.id, label: c.name })),
 	]
 
-	// Track each button's offsetLeft/offsetWidth to drive the sliding pill
-	const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+	const { scrollContainerRef, setItemRef } = useCenteredHorizontalScroll({
+		activeKey: activeCategoryId,
+		itemCount: tabs.length,
+	})
+
+	// Track each tab wrapper's offsetLeft/offsetWidth to drive the sliding pill
+	const tabRefs = useRef<Record<string, HTMLDivElement | null>>({})
 	const [pill, setPill] = useState({ left: 0, width: 0, ready: false })
 
 	useLayoutEffect(() => {
@@ -51,7 +57,10 @@ function CategoryFilterMobile({
 		 * 左右留白由父容器的 px-3 提供，不再用负边距延伸到屏幕边缘，
 		 * 避免两侧 tab 文字贴边被截断。
 		 */
-		<div className="no-scrollbar relative -my-1 flex flex-row overflow-x-auto py-3">
+		<div
+			ref={scrollContainerRef}
+			className="no-scrollbar relative -my-1 flex flex-row overflow-x-auto py-3"
+		>
 			{/* Animated sliding pill (visual indicator, no pointer events) */}
 			<span
 				aria-hidden
@@ -69,27 +78,34 @@ function CategoryFilterMobile({
 			{tabs.map((tab, index) => {
 				const isActive = activeCategoryId === tab.id
 				return (
-					<button
+					<div
 						key={tab.id}
 						ref={(el) => {
 							tabRefs.current[tab.id] = el
+							setItemRef(tab.id, el)
 						}}
-						type="button"
-						onClick={() => onCategoryChange(tab.id)}
-						// z-10 ensures the button renders above the absolute pill span
-						className="relative z-10 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-4 text-[14px] font-medium leading-none transition-colors duration-200"
-						style={{
-							// Active text must contrast with bg-foreground pill (dark in light mode, light in dark mode)
-							// --background-rgb mirrors hsl(--background) as plain RGB for inline style use
-							color: isActive
-								? "rgb(var(--background-rgb))"
-								: "rgb(var(--muted-foreground-rgb))",
-							marginLeft: index === 0 ? 0 : 8,
-						}}
-						data-testid={`category-filter-${tab.id}`}
+						className="shrink-0"
+						style={{ marginLeft: index === 0 ? 0 : 8 }}
 					>
-						{tab.label}
-					</button>
+						<button
+							type="button"
+							onClick={() => onCategoryChange(tab.id)}
+							// Suppress mobile focus scroll; useCenteredHorizontalScroll handles positioning
+							onPointerDown={(event) => event.preventDefault()}
+							// z-10 ensures the button renders above the absolute pill span
+							className="relative z-10 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-4 text-[14px] font-medium leading-none transition-colors duration-200"
+							style={{
+								// Active text must contrast with bg-foreground pill (dark in light mode, light in dark mode)
+								// --background-rgb mirrors hsl(--background) as plain RGB for inline style use
+								color: isActive
+									? "rgb(var(--background-rgb))"
+									: "rgb(var(--muted-foreground-rgb))",
+							}}
+							data-testid={`category-filter-${tab.id}`}
+						>
+							{tab.label}
+						</button>
+					</div>
 				)
 			})}
 		</div>

@@ -272,8 +272,8 @@ function CrewMarketMobilePanelBase() {
 
 				{/* Category filter — outside scroll area so it stays visible while cards scroll */}
 				<div className="shrink-0 px-3" data-testid="crew-market-mobile-filter">
-					{store.loading ? (
-						// Skeleton pills matching the real filter height/shape
+					{/* Only skeleton while categories are loading — keep filter mounted during agent fetch */}
+					{store.categoriesLoading && !store.categoriesLoaded ? (
 						<div className="flex gap-2 overflow-hidden py-3">
 							{Array.from({ length: 5 }).map((_, i) => (
 								<Skeleton key={i} className="h-8 w-[88px] shrink-0 rounded-full" />
