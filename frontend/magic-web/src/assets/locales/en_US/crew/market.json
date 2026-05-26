@@ -184,6 +184,8 @@
 				"team": "Team"
 			},
 			"startChat": "Start chat",
+			"unpublishedAction": "Unpublished",
+			"unpublishedNotice": "This Crew is not published yet and is currently unavailable. Please publish it on web first.",
 			"title": "Crew Details"
 		},
 		"disable": "Disable",

@@ -1,4 +1,13 @@
-import { Building2, CalendarDays, MessageCircle, RefreshCw, User, X } from "lucide-react"
+import {
+	Building2,
+	CalendarDays,
+	MessageCircle,
+	MessageCircleOff,
+	RefreshCw,
+	TriangleAlert,
+	User,
+	X,
+} from "lucide-react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Sheet, SheetContent, SheetTitle } from "@/components/shadcn-ui/sheet"
@@ -6,6 +15,7 @@ import { useTimezone } from "@/providers/TimezoneProvider/hooks"
 import { normalizeLocale } from "@/utils/locale"
 import { resolvePublisherLabel } from "@/pages/superMagic/pages/CrewMarket/employee-market/components/employee-card-shared"
 import MyCrewAvatar from "./MyCrewAvatar"
+import { isUnpublishedCreatedCrew } from "./my-crew-card-shared"
 
 /** Presentation source for rendering detail sheet content sections. */
 type MyCrewPresentationSource = "custom" | "teamShared" | "market"
@@ -20,6 +30,7 @@ export interface CrewDetailSheetEmployee {
 	role: string | null
 	description: string | null
 	icon: string | null
+	sourceType?: "LOCAL_CREATE" | "MARKET"
 	playbooks: { name: string; themeColor?: string | null }[]
 	publisherName?: string | null
 	updatedAt: string
@@ -44,6 +55,7 @@ export interface CrewDetailSheetAction {
 	/** 操作图标，显示在文字左侧。 */
 	icon?: React.ReactNode
 	testId?: string
+	disabled?: boolean
 }
 
 /** Resolve presentation source from unified API scope field. Falls back to "custom". */
@@ -288,6 +300,7 @@ export default function MyCrewDetailSheet({
 		}
 		return t("myCrewPage.detailSheet.source.custom")
 	}, [displayEmployee, presentationSource, t])
+	const isUnpublished = displayEmployee ? isUnpublishedCreatedCrew(displayEmployee) : false
 
 	// 滚动渐变遮罩用于维持原型里详情抽屉的层次反馈，但不改变内容布局。
 	const updateMasks = useCallback(() => {
@@ -309,7 +322,7 @@ export default function MyCrewDetailSheet({
 
 	// 详情主 CTA 继续承接既有聊天跳转能力，保持视觉更新但不改业务链路。
 	function handleChat() {
-		if (!displayEmployee) return
+		if (!displayEmployee || isUnpublished) return
 		onChat(displayEmployee.agentCode)
 		onOpenChange(false)
 	}
@@ -342,6 +355,20 @@ export default function MyCrewDetailSheet({
 						{t("myCrewPage.detailSheet.title")}
 					</SheetTitle>
 				</div>
+
+				{/* Keep the unpublished notice outside the scroll container to match the prototype's fixed vertical rhythm. */}
+				{displayEmployee && isUnpublished ? (
+					<div className="mx-[10px] mb-1 flex shrink-0 items-start gap-2 rounded-xl bg-amber-500/10 px-3 py-2.5">
+						<TriangleAlert
+							className="mt-px h-4 w-4 shrink-0 text-amber-700"
+							strokeWidth={2}
+							aria-hidden
+						/>
+						<p className="text-[13px] leading-[1.5] text-amber-700">
+							{t("myCrewPage.detailSheet.unpublishedNotice")}
+						</p>
+					</div>
+				) : null}
 
 				<div className="relative min-h-0 flex-1">
 					<div
@@ -475,6 +502,7 @@ export default function MyCrewDetailSheet({
 								<button
 									type="button"
 									onClick={secondaryAction.onClick}
+									disabled={secondaryAction.disabled}
 									className="flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-destructive/10 px-5 text-[15px] font-semibold text-destructive transition-opacity active:opacity-80"
 									data-testid={secondaryAction.testId}
 								>
@@ -485,7 +513,12 @@ export default function MyCrewDetailSheet({
 							<button
 								type="button"
 								onClick={primaryAction.onClick}
-								className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary transition-opacity active:opacity-80"
+								disabled={primaryAction.disabled}
+								className={
+									primaryAction.disabled
+										? "flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+										: "flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-primary transition-opacity active:opacity-80"
+								}
 								data-testid={primaryAction.testId}
 							>
 								{primaryAction.icon}

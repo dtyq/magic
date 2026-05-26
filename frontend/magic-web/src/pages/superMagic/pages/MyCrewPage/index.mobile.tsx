@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
-import { ListFilter, Loader2, Menu, Plus } from "lucide-react"
+import { ListFilter, Loader2, Menu, MessageCircleOff, Plus } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { InfiniteScroll } from "antd-mobile"
@@ -24,6 +24,7 @@ import MyCrewAddSheet from "./components/MyCrewAddSheet"
 import MyCrewCardMobile from "./components/MyCrewCardMobile"
 import MyCrewDetailSheet from "./components/MyCrewDetailSheet"
 import MyCrewFilterSheet from "./components/MyCrewFilterSheet"
+import { isUnpublishedCreatedCrew } from "./components/my-crew-card-shared"
 import {
 	countActiveMyCrewFilters,
 	MY_CREW_MOBILE_FILTER_DEFAULT,
@@ -166,6 +167,17 @@ function MyCrewPageMobilePanelBase() {
 	/** Build detail sheet actions based on the selected agent's scope. */
 	const detailSheetActions = useMemo(() => {
 		if (!selectedAgent) return {}
+		if (isUnpublishedCreatedCrew(selectedAgent)) {
+			return {
+				primaryAction: {
+					label: t("myCrewPage.detailSheet.unpublishedAction"),
+					onClick: () => {},
+					icon: <MessageCircleOff className="h-5 w-5 text-white" />,
+					testId: "my-crew-detail-sheet-unpublished-button",
+					disabled: true,
+				},
+			}
+		}
 		// Market-installed agents get a "Dismiss" secondary action alongside "Chat"
 		if (selectedAgent.scope === "market_installed" && selectedAgent.allowDelete) {
 			return {

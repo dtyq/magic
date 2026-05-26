@@ -4,6 +4,13 @@ import {
 	type CollaboratorPermission,
 } from "@/pages/superMagic/types/collaboration"
 import { isOfficialPublisherType } from "@/pages/superMagic/pages/CrewMarket/employee-market/components/employee-card-shared"
+import type { MyCrewView } from "@/services/crew/CrewService"
+
+export function isUnpublishedCreatedCrew(
+	employee: Pick<MyCrewView, "sourceType" | "latestPublishedAt">,
+): boolean {
+	return employee.sourceType === "LOCAL_CREATE" && !employee.latestPublishedAt?.trim()
+}
 
 export function resolveMyCrewCreatedFooterBadgeLabel(
 	sourceType: CrewSourceType,

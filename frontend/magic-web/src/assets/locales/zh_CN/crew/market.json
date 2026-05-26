@@ -183,6 +183,8 @@
 				"team": "团队共享"
 			},
 			"startChat": "开始对话",
+			"unpublishedAction": "未发布",
+			"unpublishedNotice": "当前 Crew 尚未发布，暂不可用。请前往 Web 端完成发布后再使用。",
 			"title": "员工详情"
 		},
 		"disable": "禁用",

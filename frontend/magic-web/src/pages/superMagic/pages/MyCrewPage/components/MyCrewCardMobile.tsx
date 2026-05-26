@@ -1,8 +1,9 @@
 import { memo } from "react"
-import { MessageCircle } from "lucide-react"
+import { MessageCircle, MessageCircleOff } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { MyCrewView } from "@/services/crew/CrewService"
 import MyCrewAvatar from "./MyCrewAvatar"
+import { isUnpublishedCreatedCrew } from "./my-crew-card-shared"
 
 interface MyCrewCardMobileProps {
 	employee: MyCrewView
@@ -20,6 +21,7 @@ function MyCrewCardMobile({ employee, onCardClick, onChat }: MyCrewCardMobilePro
 	const displayName = employee.name?.trim() || tCrewCreate("untitledCrew")
 	const displayRole = employee.role?.trim() || ""
 	const displayDescription = employee.description?.trim() || t("interface:appList.noDescription")
+	const isUnpublished = isUnpublishedCreatedCrew(employee)
 
 	function handleCardClick() {
 		onCardClick?.(employee.agentCode)
@@ -27,6 +29,7 @@ function MyCrewCardMobile({ employee, onCardClick, onChat }: MyCrewCardMobilePro
 
 	function handleChatClick(event: React.MouseEvent<HTMLButtonElement>) {
 		event.stopPropagation()
+		if (isUnpublished) return
 		onChat?.(employee.agentCode)
 	}
 
@@ -75,13 +78,30 @@ function MyCrewCardMobile({ employee, onCardClick, onChat }: MyCrewCardMobilePro
 				{/* Chat CTA pinned to bottom */}
 				<button
 					type="button"
-					className="mt-auto flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border transition-opacity active:opacity-60"
+					className={
+						isUnpublished
+							? "active:not-disabled:opacity-60 mt-auto flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-transparent bg-muted text-muted-foreground disabled:cursor-not-allowed disabled:opacity-40"
+							: "mt-auto flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border transition-opacity active:opacity-60"
+					}
 					data-testid="my-crew-card-mobile-chat-button"
 					onClick={handleChatClick}
+					disabled={isUnpublished}
 				>
-					<MessageCircle className="h-4 w-4 text-primary" aria-hidden />
-					<span className="text-[13px] font-medium leading-none text-primary">
-						{t("myCrewPage.openConversation")}
+					{isUnpublished ? (
+						<MessageCircleOff className="h-4 w-4 text-muted-foreground" aria-hidden />
+					) : (
+						<MessageCircle className="h-4 w-4 text-primary" aria-hidden />
+					)}
+					<span
+						className={
+							isUnpublished
+								? "text-[13px] font-medium leading-none text-muted-foreground"
+								: "text-[13px] font-medium leading-none text-primary"
+						}
+					>
+						{isUnpublished
+							? t("myCrewPage.detailSheet.unpublishedAction")
+							: t("myCrewPage.openConversation")}
 					</span>
 				</button>
 			</div>
