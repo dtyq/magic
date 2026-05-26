@@ -69,7 +69,6 @@ import { useFileOpen } from "@/pages/superMagic/components/TopicFilesButton/hook
 import { useDefaultModeModelListRefreshOnMount } from "@/pages/superMagic/hooks"
 import { toast } from "sonner"
 import { MagicClawApi } from "@/apis"
-import { MAGIC_CLAW_STATUS } from "@/apis/modules/magicClawStatus"
 import { MobileSettingsFeedbackSheet } from "@/layouts/BaseLayoutMobile/components/MobileSettings/components/FeedbackSheet"
 import { useClawFeedbackSheet } from "@/pages/superMagic/hooks/useClawFeedbackSheet"
 import { ClawMobileMoreSheet } from "./components/ClawMobileMoreSheet"
@@ -468,6 +467,7 @@ function ClawPlaygroundMobile() {
 	const [moreSheetOpen, setMoreSheetOpen] = useState(false)
 	const [editDialogOpen, setEditDialogOpen] = useState(false)
 	const [isUpdating, setIsUpdating] = useState(false)
+	const [isSandboxActionLoading, setIsSandboxActionLoading] = useState(false)
 
 	const handleUpdateClaw = useMemoizedFn(async (payload: MagiClawEditPayload) => {
 		const editingClaw = store.magicClaw
@@ -483,13 +483,34 @@ function ClawPlaygroundMobile() {
 				},
 				{ enableErrorMessagePrompt: false },
 			)
-			toast.success(tSuper("superLobster.editDialog.updateSuccess", clawBrandValues))
+			toast.success(t("superLobster.editDialog.updateSuccess", clawBrandValues))
 			setEditDialogOpen(false)
 			store.setMagicClaw(updatedClaw)
 		} catch {
-			toast.error(tSuper("superLobster.editDialog.updateFailed", clawBrandValues))
+			toast.error(t("superLobster.editDialog.updateFailed", clawBrandValues))
 		} finally {
 			setIsUpdating(false)
+		}
+	})
+
+	/** Refreshes magicClaw.status from sandbox API so the more sheet reflects the latest lifecycle state. */
+	const refreshMagicClawSandboxStatus = useMemoizedFn(async (topicId: string) => {
+		if (!store.magicClaw) return
+
+		try {
+			const statusData = await MagicClawApi.getMagicClawSandboxStatus(
+				{ topic_id: topicId },
+				{ enableErrorMessagePrompt: false },
+			)
+			const nextStatus = statusData?.status
+			if (!nextStatus || store.magicClaw.status === nextStatus) return
+
+			store.setMagicClaw({
+				...store.magicClaw,
+				status: nextStatus,
+			})
+		} catch {
+			// Polling will eventually reconcile; ignore one-off refresh failures.
 		}
 	})
 
@@ -497,35 +518,51 @@ function ClawPlaygroundMobile() {
 		const topicId = selectedTopic?.id
 		if (!topicId || !store.magicClaw) return
 
+		setIsSandboxActionLoading(true)
 		try {
 			await MagicClawApi.restartMagicClawSandbox({ topic_id: topicId })
 			toast.success(t("superLobster.created.restartSuccess", clawBrandValues))
-		} catch (error) {
+			await refreshMagicClawSandboxStatus(topicId)
+		} catch {
 			toast.error(t("superLobster.created.restartFailed", clawBrandValues))
+		} finally {
+			setIsSandboxActionLoading(false)
 		}
 	})
 
-	const handleToggleRun = useMemoizedFn(async () => {
+	/** Explicit start handler — stops the ambiguity in ClawMobileMoreSheet's onStart prop. */
+	const handleStart = useMemoizedFn(async () => {
 		const topicId = selectedTopic?.id
 		if (!topicId || !store.magicClaw) return
 
-		const isRunning = store.magicClaw.status === MAGIC_CLAW_STATUS.RUNNING
+		setIsSandboxActionLoading(true)
 		try {
-			if (isRunning) {
-				await MagicClawApi.stopMagicClawSandbox({ topic_id: topicId })
-				toast.success(t("superLobster.created.stopSuccess", clawBrandValues))
-			} else {
-				await MagicClawApi.startMagicClawSandbox(
-					{ topic_id: topicId },
-					{ enableErrorMessagePrompt: false },
-				)
-			}
-		} catch (error) {
-			if (isRunning) {
-				toast.error(t("superLobster.created.stopFailed", clawBrandValues))
-			} else {
-				toast.error(t("superLobster.created.startFailed", clawBrandValues))
-			}
+			await MagicClawApi.startMagicClawSandbox(
+				{ topic_id: topicId },
+				{ enableErrorMessagePrompt: false },
+			)
+			await refreshMagicClawSandboxStatus(topicId)
+		} catch {
+			toast.error(t("superLobster.created.startFailed", clawBrandValues))
+		} finally {
+			setIsSandboxActionLoading(false)
+		}
+	})
+
+	/** Explicit stop handler — stops the ambiguity in ClawMobileMoreSheet's onStop prop. */
+	const handleStop = useMemoizedFn(async () => {
+		const topicId = selectedTopic?.id
+		if (!topicId || !store.magicClaw) return
+
+		setIsSandboxActionLoading(true)
+		try {
+			await MagicClawApi.stopMagicClawSandbox({ topic_id: topicId })
+			toast.success(t("superLobster.created.stopSuccess", clawBrandValues))
+			await refreshMagicClawSandboxStatus(topicId)
+		} catch {
+			toast.error(t("superLobster.created.stopFailed", clawBrandValues))
+		} finally {
+			setIsSandboxActionLoading(false)
 		}
 	})
 
@@ -750,12 +787,15 @@ function ClawPlaygroundMobile() {
 			<ClawMobileMoreSheet
 				magicClaw={store.magicClaw}
 				open={moreSheetOpen}
+				displayStatus={store.magicClaw?.status}
+				isSandboxActionLoading={isSandboxActionLoading}
 				isUpgradingSandbox={store.isUpgradingSandbox}
 				onOpenChange={setMoreSheetOpen}
 				onViewFiles={() => setFilesDrawerOpen(true)}
 				onEditInfo={() => setEditDialogOpen(true)}
 				onRestart={handleRestart}
-				onToggleRun={handleToggleRun}
+				onStart={handleStart}
+				onStop={handleStop}
 				onUpgradeSandbox={() => {
 					if (store.magicClaw) {
 						handleConfirmUpgradeSandbox(store.magicClaw)

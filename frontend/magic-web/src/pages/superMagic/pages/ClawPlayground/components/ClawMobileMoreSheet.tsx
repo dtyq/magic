@@ -15,7 +15,10 @@ interface ClawMobileMoreSheetProps {
 	onViewFiles: () => void
 	onEditInfo: () => void
 	onRestart: () => void
-	onToggleRun: () => void
+	/** Called when the user taps the Start button (status is stopped/idle). */
+	onStart: () => void
+	/** Called when the user taps the Stop button (status is running). */
+	onStop: () => void
 	onUpgradeSandbox?: () => void
 	onFeedback?: () => void
 }
@@ -33,7 +36,8 @@ export function ClawMobileMoreSheet({
 	onViewFiles,
 	onEditInfo,
 	onRestart,
-	onToggleRun,
+	onStart,
+	onStop,
 	onUpgradeSandbox,
 	onFeedback,
 }: ClawMobileMoreSheetProps) {
@@ -155,7 +159,7 @@ export function ClawMobileMoreSheet({
 							onClick={() => {
 								if (actionAvailability.stop.disabled) return
 								onOpenChange(false)
-								onToggleRun()
+								onStop()
 							}}
 						>
 							{stopLabel}
@@ -169,7 +173,7 @@ export function ClawMobileMoreSheet({
 							onClick={() => {
 								if (actionAvailability.start.disabled) return
 								onOpenChange(false)
-								onToggleRun()
+								onStart()
 							}}
 						>
 							{startLabel}

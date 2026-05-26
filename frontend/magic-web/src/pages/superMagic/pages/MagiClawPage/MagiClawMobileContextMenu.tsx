@@ -75,12 +75,15 @@ export function MagiClawMobileContextMenu({
 	onDelete,
 }: MagiClawMobileContextMenuProps) {
 	const rowId = getMagiClawRowId(claw)
-	const actionAvailability = resolveMagiClawActionAvailability({
-		displayStatus,
-		isActionLoading,
-	})
 
 	const actions = useMemo(() => {
+		// Compute availability inside memo so primitive deps (displayStatus, isActionLoading)
+		// control recomputation instead of a freshly-allocated object on every render.
+		const actionAvailability = resolveMagiClawActionAvailability({
+			displayStatus,
+			isActionLoading,
+		})
+
 		const menuActions: Array<{
 			key: string
 			label: string
@@ -147,7 +150,8 @@ export function MagiClawMobileContextMenu({
 
 		return menuActions
 	}, [
-		actionAvailability,
+		displayStatus,
+		isActionLoading,
 		deleteLabel,
 		editLabel,
 		onDelete,
