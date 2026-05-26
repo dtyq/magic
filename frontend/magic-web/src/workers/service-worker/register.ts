@@ -1,7 +1,6 @@
 import { env } from "@/utils/env"
 import {
 	DEFAULT_VENDOR_CACHEABLE_HOSTS,
-	DEFAULT_WORKBOX_RUNTIME_URL,
 	MARKED_RUNTIME_RESOURCE_CACHE_VALUE,
 	RESOURCE_CACHE_MARK_QUERY_PARAM,
 	RESOURCE_CACHE_VERSION_QUERY_PARAM,
@@ -113,8 +112,7 @@ export function getAppServiceWorkerRegistration(): ServiceWorkerRegistration | n
  * Kept as a function so we can switch to environment-driven CDN mapping later.
  */
 function getConfiguredWorkboxCdnUrl(): string {
-	// TODO: Derive from MAGIC_CDNHOST after CDN rollout is finalized.
-	return DEFAULT_WORKBOX_RUNTIME_URL
+	return `${env("MAGIC_CDNHOST")}/workbox/7.4.1/workbox-sw.js`
 }
 
 function getHostnameFromUrl(rawUrl: string | undefined): string | null {
@@ -341,7 +339,7 @@ function scheduleWarmUpPostMessage(worker: ServiceWorker): void {
 	if (typeof window !== "undefined" && "requestIdleCallback" in window) {
 		window.requestIdleCallback(() => postMsg(), { timeout: 10000 })
 	} else {
-		window.setTimeout(postMsg, 5000)
+		window?.setTimeout(postMsg, 5000)
 	}
 }
 
