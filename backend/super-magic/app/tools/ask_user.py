@@ -275,20 +275,21 @@ def build_ask_user_timeout_answer_builder(parsed_questions: List[dict]):
 
 
 def _humanize_single(
+    index: int,
     question: str,
     interaction_type: str,
     answer: Union[str, list],
 ) -> str:
-    """Format a single sub-question answer into natural language (answered status)."""
-    if interaction_type == "confirm":
-        return f'"{question}": "{answer}"'
-    if interaction_type == "input":
-        return f'"{question}": "{answer}"'
-    if interaction_type == "select":
-        return f'"{question}": selected "{answer}"'
+    """Format a single sub-question answer into a clearly delimited line.
+
+    Uses >>> and <<< as answer delimiters to avoid ambiguity when the answer
+    itself contains quotes, dots, or other punctuation.
+    """
     if interaction_type == "multi_select":
-        return f'"{question}": selected {answer}'
-    return f'"{question}": "{answer}"'
+        ans_str = ", ".join(answer) if isinstance(answer, list) else str(answer)
+    else:
+        ans_str = str(answer)
+    return f"Q{index}: {question}\nA{index}: {ans_str}"
 
 
 def _humanize_batch(
@@ -352,7 +353,7 @@ def _humanize_batch(
         ans = answers.get(sub_id)
         if ans is None:
             ans = answers.get(f"q-{i}", default)
-        parts.append(_humanize_single(name, interaction_type, ans))
-    summary = "; ".join(parts)
-    return f"The user answered the questions (values inside double quotes are the exact question text and user input):\n```result\n{summary}\n```"
+        parts.append(_humanize_single(i + 1, name, interaction_type, ans))
+    summary = "\n".join(parts)
+    return f"The user answered the questions (each line after 'An:' is the user's exact raw input):\n{summary}"
 
