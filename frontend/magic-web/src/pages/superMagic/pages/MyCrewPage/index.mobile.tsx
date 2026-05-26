@@ -3,11 +3,9 @@ import { ListFilter, Loader2, Menu, MessageCircleOff, Plus } from "lucide-react"
 import { observer } from "mobx-react-lite"
 import { useTranslation } from "react-i18next"
 import { InfiniteScroll } from "antd-mobile"
-import { FUNCTION_PERMISSION_CODE } from "@/apis"
 import { useConfirmDialog } from "@/components/shadcn-composed/confirm-dialog"
 import { Button } from "@/components/shadcn-ui/button"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
-import { useFunctionPermission } from "@/hooks/useFunctionPermission"
 import { userStore } from "@/models/user"
 import {
 	UserWorkspaceMapCache,
@@ -53,9 +51,6 @@ function MyCrewPageMobilePanelBase() {
 	const [showBottomMask, setShowBottomMask] = useState(true)
 
 	const isPersonalOrganization = userStore.user.isPersonalOrganization
-	const { isAllowed: canCreateAgent } = useFunctionPermission(
-		FUNCTION_PERMISSION_CODE.AgentCreate,
-	)
 	const { confirm, dialog } = useConfirmDialog()
 
 	const visibleList = store.list
@@ -246,22 +241,20 @@ function MyCrewPageMobilePanelBase() {
 						{t("myCrewPage.title")}
 					</p>
 
-					{/* 右：胶囊按钮组（Plus + ListFilter），共用一个圆角容器 */}
+					{/* Header add opens MyCrewAddSheet (market navigation only), not gated by AgentCreate. */}
 					<div
 						className="z-10 ml-auto flex h-12 shrink-0 items-stretch overflow-hidden rounded-full bg-card shadow-[0px_8px_25px_0px_rgba(0,0,0,0.10)]"
 						data-testid="my-crew-header-capsule"
 					>
-						{canCreateAgent ? (
-							<button
-								type="button"
-								onClick={() => setAddSheetOpen(true)}
-								className="flex h-12 w-12 shrink-0 items-center justify-center active:opacity-70"
-								aria-label={t("createCrew")}
-								data-testid="my-crew-create-button"
-							>
-								<Plus className="size-[22px] text-foreground" strokeWidth={2} />
-							</button>
-						) : null}
+						<button
+							type="button"
+							onClick={() => setAddSheetOpen(true)}
+							className="flex h-12 w-12 shrink-0 items-center justify-center active:opacity-70"
+							aria-label={t("createCrew")}
+							data-testid="my-crew-create-button"
+						>
+							<Plus className="size-[22px] text-foreground" strokeWidth={2} />
+						</button>
 						<button
 							type="button"
 							onClick={() => setFilterSheetOpen(true)}
@@ -316,7 +309,7 @@ function MyCrewPageMobilePanelBase() {
 										<p className="text-sm text-muted-foreground">
 											{t("myCrewPage.empty")}
 										</p>
-										{isDefaultFilter && canCreateAgent ? (
+										{isDefaultFilter ? (
 											<Button
 												type="button"
 												variant="outline"
