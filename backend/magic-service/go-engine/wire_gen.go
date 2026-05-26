@@ -141,7 +141,11 @@ func InitializeApplication() (*httpapi.Server, func(), error) {
 	opsRPCService := service2.ProvideOpsRPCService(config, client, redisLockManager, phpKnowledgeBasePermissionRPCClient, sugaredLogger)
 	rpcHandlers := httpapi.ProvideRPCHandlers(knowledgeBaseRPCService, fragmentRPCService, documentRPCService, embeddingRPCService, opsRPCService)
 	debugHandler := handlers.NewDebugHandler(embeddingAppService)
-	serverRuntimeDeps := httpapi.ProvideServerRuntimeDeps(server, rpcHandlers, debugHandler)
+	magicfsRepository := infra.ProvideMagicFSRepository(sqlcClient)
+	phpMagicFSFileRPCClient := infra.ProvideMagicFSFilePort(server, sugaredLogger)
+	fileVersionService := app.ProvideMagicFSFileVersionService(magicfsRepository, phpMagicFSFileRPCClient)
+	magicFSFileHandler := handlers.NewMagicFSFileHandler(fileVersionService)
+	serverRuntimeDeps := httpapi.ProvideServerRuntimeDeps(server, rpcHandlers, debugHandler, magicFSFileHandler)
 	serverDependencies := httpapi.ProvideServerDependencies(serverConfig, serverBackgroundDeps, checkService, sugaredLogger, metrics, serverRuntimeDeps)
 	httpapiServer := httpapi.NewServerWithDependencies(serverDependencies)
 	return httpapiServer, func() {
@@ -155,19 +159,13 @@ func InitializeApplication() (*httpapi.Server, func(), error) {
 // wire.go:
 
 func provideServerConfig(cfg *autoload.Config) *httpapi.ServerConfig {
-	httpEnabled := false
-	if cfg.Server.Enabled != nil {
-		httpEnabled = *cfg.Server.Enabled
-	}
-
 	return &httpapi.ServerConfig{
-		Enabled:        httpEnabled,
-		Host:           cfg.Server.Host,
-		Port:           cfg.Server.Port,
-		Mode:           httpapi.Mode(cfg.Server.Mode),
-		BasePath:       cfg.Server.BasePath,
-		Env:            cfg.Server.Env,
-		PprofEnabled:   cfg.Server.PprofEnabled,
-		AllowedOrigins: cfg.Security.AllowedOrigins,
+		Port:            cfg.Server.Port,
+		StripPathPrefix: cfg.Server.StripPathPrefix,
+		Mode:            httpapi.Mode(cfg.Server.Mode),
+		BasePath:        cfg.Server.BasePath,
+		Env:             cfg.Server.Env,
+		PprofEnabled:    cfg.Server.PprofEnabled,
+		AllowedOrigins:  cfg.Security.AllowedOrigins,
 	}
 }

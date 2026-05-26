@@ -33,6 +33,8 @@ final class SvcMethods
 
     public const string SERVICE_PERMISSION_OPERATION_PERMISSION = 'svc.permission.operationPermission';
 
+    public const string SERVICE_MAGICFS_FILE = 'svc.magicfs.file';
+
     public const string SERVICE_MODEL_GATEWAY_EMBEDDING = 'svc.modelGateway.embedding';
 
     public const string SERVICE_MODEL_GATEWAY_ACCESS_TOKEN = 'svc.modelGateway.accessToken';
@@ -150,6 +152,8 @@ final class SvcMethods
     public const string METHOD_ACCESS_OWNER = 'accessOwner';
 
     public const string METHOD_DELETE_BY_RESOURCE = 'deleteByResource';
+
+    public const string METHOD_AUTHORIZE_FILE_VIEWER = 'authorizeFileViewer';
 
     private function __construct()
     {

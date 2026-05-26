@@ -10,9 +10,10 @@ import (
 
 // ServerRuntimeDeps 聚合 RPC 运行时依赖，供 Wire 显式拼装。
 type ServerRuntimeDeps struct {
-	rpcServer    RPCServer
-	rpcHandlers  RPCHandlers
-	debugHandler *handlers.DebugHandler
+	rpcServer          RPCServer
+	rpcHandlers        RPCHandlers
+	debugHandler       *handlers.DebugHandler
+	magicFSFileHandler *handlers.MagicFSFileHandler
 }
 
 // ServerBackgroundDeps 聚合 HTTP 服务所需的后台任务依赖。
@@ -44,11 +45,13 @@ func ProvideServerRuntimeDeps(
 	rpcServer RPCServer,
 	rpcHandlers RPCHandlers,
 	debugHandler *handlers.DebugHandler,
+	magicFSFileHandler *handlers.MagicFSFileHandler,
 ) ServerRuntimeDeps {
 	return ServerRuntimeDeps{
-		rpcServer:    rpcServer,
-		rpcHandlers:  rpcHandlers,
-		debugHandler: debugHandler,
+		rpcServer:          rpcServer,
+		rpcHandlers:        rpcHandlers,
+		debugHandler:       debugHandler,
+		magicFSFileHandler: magicFSFileHandler,
 	}
 }
 
@@ -85,5 +88,6 @@ func ProvideServerDependencies(
 		RPCServer:           runtimeDeps.rpcServer,
 		RPCHandlers:         runtimeDeps.rpcHandlers,
 		DebugHandler:        runtimeDeps.debugHandler,
+		MagicFSFileHandler:  runtimeDeps.magicFSFileHandler,
 	}
 }

@@ -213,6 +213,9 @@ type MagicSuperAgentTaskFile struct {
 	LatestModifiedTopicID sql.NullInt64  `json:"latest_modified_topic_id"`
 	TaskID                int64          `json:"task_id"`
 	LatestModifiedTaskID  sql.NullInt64  `json:"latest_modified_task_id"`
+	LatestVersion         int32          `json:"latest_version"`
+	MetadataVersion       uint32         `json:"metadata_version"`
+	SpaceType             string         `json:"space_type"`
 	FileType              string         `json:"file_type"`
 	FileName              string         `json:"file_name"`
 	FileExtension         string         `json:"file_extension"`
@@ -225,6 +228,7 @@ type MagicSuperAgentTaskFile struct {
 	Sort                  int64          `json:"sort"`
 	ParentID              sql.NullInt64  `json:"parent_id"`
 	Metadata              sql.NullString `json:"metadata"`
+	DisplayConfig         sql.NullString `json:"display_config"`
 	Source                int8           `json:"source"`
 	CreatedAt             time.Time      `json:"created_at"`
 	UpdatedAt             time.Time      `json:"updated_at"`

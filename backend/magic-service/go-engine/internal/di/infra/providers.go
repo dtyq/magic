@@ -41,6 +41,7 @@ import (
 	mysqlsourcebindingrepo "magic/internal/infrastructure/persistence/mysql/knowledge/sourcebinding"
 	mysqlsupermagicagentrepo "magic/internal/infrastructure/persistence/mysql/knowledge/supermagicagent"
 	mysqltransaction "magic/internal/infrastructure/persistence/mysql/knowledge/transaction"
+	mysqlmagicfsrepo "magic/internal/infrastructure/persistence/mysql/magicfs"
 	mysqlrebuild "magic/internal/infrastructure/persistence/mysql/rebuild"
 	mysqlsupermagicprojectrepo "magic/internal/infrastructure/persistence/mysql/supermagicproject"
 	mysqltaskfilerepo "magic/internal/infrastructure/persistence/mysql/taskfile"
@@ -171,6 +172,19 @@ func ProvideProjectFilePort(
 	logger *logging.SugaredLogger,
 ) *ipcclient.PHPProjectFileRPCClient {
 	return ipcclient.NewPHPProjectFileRPCClient(server, logger.Named("ipcclient.PHPProjectFileRPCClient"))
+}
+
+// ProvideMagicFSFilePort 提供 MagicFS 文件鉴权端口实现（Go -> PHP IPC）。
+func ProvideMagicFSFilePort(
+	server *unixsocket.Server,
+	logger *logging.SugaredLogger,
+) *ipcclient.PHPMagicFSFileRPCClient {
+	return ipcclient.NewPHPMagicFSFileRPCClient(server, logger.Named("ipcclient.PHPMagicFSFileRPCClient"))
+}
+
+// ProvideMagicFSRepository 提供 MagicFS MySQL 仓储。
+func ProvideMagicFSRepository(client *mysql.SQLCClient) *mysqlmagicfsrepo.Repository {
+	return mysqlmagicfsrepo.NewRepository(client)
 }
 
 // ProvideTaskFileDomainService 提供 Go 侧 task file 可见性领域服务。

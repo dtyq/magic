@@ -86,6 +86,7 @@ RUN --mount=type=cache,id=composer-cache-v1-${TARGETARCH},target=/root/.composer
     }
 
 # 可选的：标记expose端口
+EXPOSE 81
 EXPOSE 9501
 EXPOSE 9502
 

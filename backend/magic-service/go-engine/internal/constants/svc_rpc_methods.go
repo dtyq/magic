@@ -129,6 +129,8 @@ const (
 	MethodFileGetLink = "svc.file.getLink"
 	// MethodFileStat 回调 PHP 文件服务检查对象是否存在
 	MethodFileStat = "svc.file.stat"
+	// MethodMagicFSFileAuthorizeFileViewer 回调 PHP 校验 MagicFS 文件 viewer 访问权限
+	MethodMagicFSFileAuthorizeFileViewer = "svc.magicfs.file.authorizeFileViewer"
 
 	// MethodDocumentCreate 创建文档
 	MethodDocumentCreate = "svc.knowledge.document.create"

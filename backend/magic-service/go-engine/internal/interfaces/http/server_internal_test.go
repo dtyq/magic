@@ -11,7 +11,7 @@ import (
 	jsonrpc "magic/internal/pkg/jsonrpc"
 )
 
-func TestServerStart_IPCOnlyModeSkipsHTTPInitialization(t *testing.T) {
+func TestServerStartInitializesHTTPAndRPC(t *testing.T) {
 	t.Parallel()
 
 	rpcStarted := make(chan struct{})
@@ -40,8 +40,8 @@ func TestServerStart_IPCOnlyModeSkipsHTTPInitialization(t *testing.T) {
 		t.Fatal("timed out waiting for rpc start")
 	}
 
-	if got := len(server.engine.Routes()); got != 0 {
-		t.Fatalf("expected no http routes in ipc-only mode, got %d", got)
+	if got := len(server.engine.Routes()); got == 0 {
+		t.Fatal("expected http routes to be initialized")
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

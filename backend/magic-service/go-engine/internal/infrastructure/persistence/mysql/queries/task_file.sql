@@ -4,6 +4,13 @@ FROM magic_super_agent_task_files
 WHERE file_id = ?
 LIMIT 1;
 
+-- name: GetMagicFSFileMetadataVersionByID :one
+SELECT metadata_version
+FROM magic_super_agent_task_files
+WHERE file_id = ?
+  AND deleted_at IS NULL
+LIMIT 1;
+
 -- name: FindTaskFileRootDirectoryByProjectID :one
 SELECT *
 FROM magic_super_agent_task_files

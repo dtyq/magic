@@ -16,6 +16,8 @@ type Dependencies struct {
 	HealthHandler  HealthRouteHandler
 	MetricsHandler MetricsRouteHandler
 	DebugHandler   DebugRouteHandler
+	HelloHandler   HelloRouteHandler
+	MagicFSHandler MagicFSFileRouteHandler
 }
 
 // HealthRouteHandler 定义健康检查路由处理器。
@@ -33,6 +35,16 @@ type DebugRouteHandler interface {
 	ListProviders(*gin.Context)
 }
 
+// HelloRouteHandler 定义直连链路探测路由处理器。
+type HelloRouteHandler interface {
+	SayHello(*gin.Context)
+}
+
+// MagicFSFileRouteHandler 定义 MagicFS 文件路由处理器。
+type MagicFSFileRouteHandler interface {
+	GetVersion(*gin.Context)
+}
+
 // SetupRoutes 注册应用的全部路由
 func SetupRoutes(deps Dependencies) {
 	// 根路由
@@ -46,6 +58,12 @@ func SetupRoutes(deps Dependencies) {
 	// API 分组
 	base := normalizeBasePath(deps.BasePath)
 	api := deps.Engine.Group(base)
+	if deps.HelloHandler != nil {
+		api.GET("/hello", deps.HelloHandler.SayHello)
+	}
+	if deps.MagicFSHandler != nil {
+		api.GET("/open-api/magicfs/files/:id/version", deps.MagicFSHandler.GetVersion)
+	}
 
 	// 未来模块占位
 	_ = api.Group("/memory")

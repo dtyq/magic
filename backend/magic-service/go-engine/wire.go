@@ -22,20 +22,14 @@ import (
 )
 
 func provideServerConfig(cfg *autoload.Config) *httpserver.ServerConfig {
-	httpEnabled := false
-	if cfg.Server.Enabled != nil {
-		httpEnabled = *cfg.Server.Enabled
-	}
-
 	return &httpserver.ServerConfig{
-		Enabled:        httpEnabled,
-		Host:           cfg.Server.Host,
-		Port:           cfg.Server.Port,
-		Mode:           httpserver.Mode(cfg.Server.Mode),
-		BasePath:       cfg.Server.BasePath,
-		Env:            cfg.Server.Env,
-		PprofEnabled:   cfg.Server.PprofEnabled,
-		AllowedOrigins: cfg.Security.AllowedOrigins,
+		Port:            cfg.Server.Port,
+		StripPathPrefix: cfg.Server.StripPathPrefix,
+		Mode:            httpserver.Mode(cfg.Server.Mode),
+		BasePath:        cfg.Server.BasePath,
+		Env:             cfg.Server.Env,
+		PprofEnabled:    cfg.Server.PprofEnabled,
+		AllowedOrigins:  cfg.Security.AllowedOrigins,
 	}
 }
 
@@ -62,6 +56,7 @@ func InitializeApplication() (*httpserver.Server, func(), error) {
 		opshandler.ProvideOpsRPCService,
 
 		handlers.NewDebugHandler,
+		handlers.NewMagicFSFileHandler,
 
 		// 接口绑定
 		wire.Bind(new(httpserver.InfraServices), new(*health.CheckService)),

@@ -28,6 +28,7 @@ import (
 	"magic/internal/domain/knowledge/shared"
 	sharedentity "magic/internal/domain/knowledge/shared/entity"
 	sharedroute "magic/internal/domain/knowledge/shared/route"
+	sharedsnapshot "magic/internal/domain/knowledge/shared/snapshot"
 	"magic/internal/infrastructure/logging"
 	rpcdto "magic/internal/interfaces/rpc/jsonrpc/knowledge/dto"
 	knowledgeroutes "magic/internal/interfaces/rpc/jsonrpc/knowledge/routes"
@@ -234,13 +235,18 @@ func (*fakeFragmentServiceForE2E) ListPointIDsByFilter(context.Context, string, 
 	return []string{}, nil
 }
 
-func (f *fakeFragmentServiceForE2E) SyncFragment(context.Context, any, *fragmodel.KnowledgeBaseFragment, *ctxmeta.BusinessParams) error {
+func (f *fakeFragmentServiceForE2E) SyncFragment(
+	context.Context,
+	*sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
+	*fragmodel.KnowledgeBaseFragment,
+	*ctxmeta.BusinessParams,
+) error {
 	return errNotImplemented
 }
 
 func (f *fakeFragmentServiceForE2E) Similarity(
 	_ context.Context,
-	_ any,
+	_ *sharedsnapshot.KnowledgeBaseRuntimeSnapshot,
 	req fragretrieval.SimilarityRequest,
 ) ([]*fragmodel.SimilarityResult, error) {
 	f.lastSimilarity = req
