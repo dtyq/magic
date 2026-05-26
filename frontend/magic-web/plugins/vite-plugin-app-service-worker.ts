@@ -86,6 +86,13 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 				}
 
 				const pathname = new URL(req.url, "https://localhost").pathname
+				if (pathname === "/warmup-assets.json") {
+					res.statusCode = 200
+					res.setHeader("Content-Type", "application/json; charset=utf-8")
+					res.end(JSON.stringify([]))
+					return
+				}
+
 				if (pathname !== APP_SERVICE_WORKER_ROUTE_PATH) {
 					next()
 					return
@@ -117,7 +124,7 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 			const warmUpAssetUrls = collectPrecacheUrlsFromBundle(bundle)
 			const transformedSource = await buildAppServiceWorkerSource({
 				precacheAssetUrls,
-				warmUpAssetUrls,
+				warmUpAssetUrls: [],
 			})
 			if (!transformedSource) return
 
@@ -125,6 +132,12 @@ export default function createAppServiceWorkerPlugin(): PluginOption {
 				type: "asset",
 				fileName: APP_SERVICE_WORKER_FILE_NAME,
 				source: transformedSource,
+			})
+
+			this.emitFile({
+				type: "asset",
+				fileName: "warmup-assets.json",
+				source: JSON.stringify(warmUpAssetUrls),
 			})
 		},
 	}

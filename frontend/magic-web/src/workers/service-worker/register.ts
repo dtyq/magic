@@ -353,14 +353,29 @@ export async function activateWaitingServiceWorkerAndReload(
 }
 
 function scheduleWarmUpPostMessage(worker: ServiceWorker): void {
-	const postMsg = () => {
-		worker.postMessage({ type: "START_WARMUP" })
+	const postMsg = async () => {
+		try {
+			const res = await fetch(`/warmup-assets.json?t=${Date.now()}`)
+			if (res.ok) {
+				const assets = await res.json()
+				worker.postMessage({ type: "START_WARMUP", assets })
+			} else {
+				worker.postMessage({ type: "START_WARMUP", assets: [] })
+			}
+		} catch (e) {
+			console.error("[sw] Failed to fetch warmup-assets.json", e)
+			worker.postMessage({ type: "START_WARMUP", assets: [] })
+		}
 	}
 
 	if (typeof window !== "undefined" && "requestIdleCallback" in window) {
-		window.requestIdleCallback(() => postMsg(), { timeout: 10000 })
+		window.requestIdleCallback(() => {
+			void postMsg()
+		}, { timeout: 30000 })
 	} else {
-		globalThis.setTimeout(postMsg, 5000)
+		globalThis.setTimeout(() => {
+			void postMsg()
+		}, 5000)
 	}
 }
 

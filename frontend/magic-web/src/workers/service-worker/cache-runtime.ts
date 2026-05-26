@@ -331,40 +331,56 @@ export async function precacheStaticAssetsOnInstall(): Promise<void> {
 	})
 }
 
-let hasWarmedUp = false
+let lastWarmedUpAssetsSerialized = ""
+const activeWarmUpUrls = new Set<string>()
 
 /**
  * Populates static assets list during browser idle phase.
  * Uses concurrent batches of 10 and 200ms delay between intervals.
  */
-export async function warmUpStaticAssetsOnIdle(): Promise<void> {
-	if (hasWarmedUp || !WARMUP_ASSETS.length) return
-	hasWarmedUp = true
+export async function warmUpStaticAssetsOnIdle(assets?: string[]): Promise<void> {
+	const assetsToWarm = assets || WARMUP_ASSETS
+	if (!assetsToWarm.length) return
+
+	const serialized = assetsToWarm.join(",")
+	if (lastWarmedUpAssetsSerialized === serialized) return
+	lastWarmedUpAssetsSerialized = serialized
 
 	const cache = await caches.open(APP_STATIC_CACHE_NAME)
 	const batchSize = 10
 	const intervalMs = 200
 
-	for (let index = 0; index < WARMUP_ASSETS.length; index += batchSize) {
-		const batch = WARMUP_ASSETS.slice(index, index + batchSize)
+	for (let index = 0; index < assetsToWarm.length; index += batchSize) {
+		const batch = assetsToWarm.slice(index, index + batchSize)
+		let fetchedInBatch = false
+
 		await Promise.allSettled(
 			batch.map(async (assetPath) => {
+				if (activeWarmUpUrls.has(assetPath)) return
+				activeWarmUpUrls.add(assetPath)
+
 				try {
 					const request = new Request(assetPath, { credentials: "same-origin" })
 					// Skip if already in cache (e.g. cached via regular HTTP dynamic request)
 					const existing = await cache.match(request)
 					if (existing) return
 
+					fetchedInBatch = true
 					const response = await fetch(request)
 					if (response.ok) {
 						await cache.put(request, response)
 					}
 				} catch {
 					// Ignored single request failure.
+				} finally {
+					activeWarmUpUrls.delete(assetPath)
 				}
 			}),
 		)
-		await new Promise((resolve) => setTimeout(resolve, intervalMs))
+
+		if (fetchedInBatch) {
+			await new Promise((resolve) => setTimeout(resolve, intervalMs))
+		}
 	}
 }
 

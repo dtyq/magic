@@ -70,7 +70,8 @@ function createAppCacheFeature(
 				return true
 			}
 			if (event.data?.type === "START_WARMUP") {
-				void warmUpStaticAssetsOnIdle()
+				const assets = event.data?.assets
+				void warmUpStaticAssetsOnIdle(assets)
 				return true
 			}
 			return false
