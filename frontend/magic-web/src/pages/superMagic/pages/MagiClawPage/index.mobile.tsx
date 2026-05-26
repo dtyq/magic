@@ -1,5 +1,4 @@
 import { useTranslation } from "react-i18next"
-import { MAGIC_CLAW_STATUS } from "@/apis/modules/magicClawStatus"
 import {
 	SuperMobileShellRouteLayout,
 	useSuperMobileShellOutlet,
@@ -136,26 +135,23 @@ function MagiClawMobilePanel() {
 				<MagiClawMobileContextMenu
 					claw={contextMenuClaw}
 					anchorRect={contextMenuState.anchorRect}
+					displayStatus={contextMenuStatus}
+					isActionLoading={activeActionClawCode === contextMenuClaw.code}
 					editLabel={tSidebar("superLobster.mobile.editInfo")}
 					restartLabel={tSidebar("superLobster.created.restart", clawBrandValues)}
-					toggleRunLabel={
-						contextMenuStatus === MAGIC_CLAW_STATUS.RUNNING
-							? tSidebar("superLobster.created.stop", clawBrandValues)
-							: tSidebar("superLobster.created.start", clawBrandValues)
-					}
+					startLabel={tSidebar("superLobster.created.start", clawBrandValues)}
+					stopLabel={tSidebar("superLobster.created.stop", clawBrandValues)}
 					deleteLabel={tSidebar("superLobster.created.delete", clawBrandValues)}
 					onClose={closeContextMenu}
 					onEdit={() => handleOpenEditClaw(contextMenuClaw)}
 					onRestart={() => {
 						void handleRestartClaw(contextMenuClaw)
 					}}
-					onToggleRun={() => {
-						if (contextMenuStatus === MAGIC_CLAW_STATUS.RUNNING) {
-							void handleStopClaw(contextMenuClaw)
-							return
-						}
-
+					onStart={() => {
 						void handleStartClaw(contextMenuClaw)
+					}}
+					onStop={() => {
+						void handleStopClaw(contextMenuClaw)
 					}}
 					onDelete={() => handleRequestDelete(contextMenuClaw)}
 				/>

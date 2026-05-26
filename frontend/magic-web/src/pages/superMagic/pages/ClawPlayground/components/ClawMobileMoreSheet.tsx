@@ -1,13 +1,15 @@
 import { X } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { MagicClawItem } from "@/apis"
-import { MAGIC_CLAW_STATUS } from "@/apis/modules/magicClaw"
 import MagicPopup from "@/components/base-mobile/MagicPopup"
 import { getClawBrandTranslationValues } from "@/pages/superMagic/utils/clawBrand"
+import { resolveMagiClawActionAvailability } from "@/pages/superMagic/pages/MagiClawPage/resolveMagiClawActionAvailability"
 
 interface ClawMobileMoreSheetProps {
 	magicClaw: MagicClawItem | null
 	open: boolean
+	displayStatus?: string | null
+	isSandboxActionLoading?: boolean
 	isUpgradingSandbox?: boolean
 	onOpenChange: (open: boolean) => void
 	onViewFiles: () => void
@@ -18,9 +20,14 @@ interface ClawMobileMoreSheetProps {
 	onFeedback?: () => void
 }
 
+/**
+ * ClawMobileMoreSheet renders the playground more-actions panel with lifecycle rules aligned to the list page.
+ */
 export function ClawMobileMoreSheet({
 	magicClaw,
 	open,
+	displayStatus,
+	isSandboxActionLoading = false,
 	isUpgradingSandbox,
 	onOpenChange,
 	onViewFiles,
@@ -33,7 +40,11 @@ export function ClawMobileMoreSheet({
 	const { t } = useTranslation("sidebar")
 	const clawBrandValues = getClawBrandTranslationValues()
 
-	const isRunning = magicClaw?.status === MAGIC_CLAW_STATUS.RUNNING
+	const resolvedDisplayStatus = displayStatus ?? magicClaw?.status ?? null
+	const actionAvailability = resolveMagiClawActionAvailability({
+		displayStatus: resolvedDisplayStatus,
+		isActionLoading: isSandboxActionLoading,
+	})
 	const needUpgrade = magicClaw?.need_upgrade || isUpgradingSandbox
 
 	const filesLabel = t("superLobster.workspace.files", "查看文件")
@@ -42,13 +53,19 @@ export function ClawMobileMoreSheet({
 		...clawBrandValues,
 		defaultValue: "重新启动",
 	})
-	const toggleRunLabel = isRunning
-		? t("superLobster.created.stop", { ...clawBrandValues, defaultValue: "停止" })
-		: t("superLobster.created.start", { ...clawBrandValues, defaultValue: "启动" })
+	const startLabel = t("superLobster.created.start", { ...clawBrandValues, defaultValue: "启动" })
+	const stopLabel = t("superLobster.created.stop", { ...clawBrandValues, defaultValue: "停止" })
 	const upgradeLabel = isUpgradingSandbox
 		? t("superLobster.workspace.updating", { ...clawBrandValues, defaultValue: "正在更新..." })
 		: t("superLobster.workspace.update", { ...clawBrandValues, defaultValue: "更新沙盒" })
 	const feedbackLabel = t("superLobster.workspace.feedback", "反馈本次对话")
+
+	const showRestart = actionAvailability.restart.visible
+	const showStop = actionAvailability.stop.visible
+	const showStart = actionAvailability.start.visible
+
+	const lifecycleButtonClassName =
+		"flex h-14 w-full items-center justify-start border-b border-border/50 px-5 text-[16px] text-foreground active:opacity-70 disabled:opacity-40"
 
 	return (
 		<MagicPopup
@@ -92,47 +109,72 @@ export function ClawMobileMoreSheet({
 				<div className="flex flex-col overflow-hidden rounded-2xl bg-background">
 					<button
 						type="button"
-						className="flex h-14 w-full items-center justify-start border-b border-border/50 px-5 text-[16px] text-foreground active:opacity-70"
+						className="flex h-14 w-full items-center justify-start border-b border-border/50 px-5 text-[16px] text-foreground active:opacity-70 disabled:opacity-40"
+						disabled={actionAvailability.edit.disabled}
 						onClick={() => {
+							if (actionAvailability.edit.disabled) return
 							onOpenChange(false)
 							onEditInfo()
 						}}
 					>
 						{editLabel}
 					</button>
-					{needUpgrade && (
+					{needUpgrade ? (
 						<button
 							type="button"
-							className="flex h-14 w-full items-center justify-start border-b border-border/50 px-5 text-[16px] text-indigo-500 active:opacity-70"
+							className="flex h-14 w-full items-center justify-start border-b border-border/50 px-5 text-[16px] text-indigo-500 active:opacity-70 disabled:opacity-40"
 							disabled={isUpgradingSandbox}
 							onClick={() => {
+								if (isUpgradingSandbox) return
 								onOpenChange(false)
 								onUpgradeSandbox?.()
 							}}
 						>
 							{upgradeLabel}
 						</button>
-					)}
-					<button
-						type="button"
-						className="flex h-14 w-full items-center justify-start border-b border-border/50 px-5 text-[16px] text-foreground active:opacity-70"
-						onClick={() => {
-							onOpenChange(false)
-							onRestart()
-						}}
-					>
-						{restartLabel}
-					</button>
-					<button
-						type="button"
-						className="flex h-14 w-full items-center justify-start px-5 text-[16px] text-foreground active:opacity-70"
-						onClick={() => {
-							onOpenChange(false)
-							onToggleRun()
-						}}
-					>
-						{toggleRunLabel}
-					</button>
+					) : null}
+					{showRestart ? (
+						<button
+							type="button"
+							className={lifecycleButtonClassName}
+							disabled={actionAvailability.restart.disabled}
+							onClick={() => {
+								if (actionAvailability.restart.disabled) return
+								onOpenChange(false)
+								onRestart()
+							}}
+						>
+							{restartLabel}
+						</button>
+					) : null}
+					{showStop ? (
+						<button
+							type="button"
+							className={lifecycleButtonClassName}
+							disabled={actionAvailability.stop.disabled}
+							onClick={() => {
+								if (actionAvailability.stop.disabled) return
+								onOpenChange(false)
+								onToggleRun()
+							}}
+						>
+							{stopLabel}
+						</button>
+					) : null}
+					{showStart ? (
+						<button
+							type="button"
+							className="flex h-14 w-full items-center justify-start px-5 text-[16px] text-foreground active:opacity-70 disabled:opacity-40"
+							disabled={actionAvailability.start.disabled}
+							onClick={() => {
+								if (actionAvailability.start.disabled) return
+								onOpenChange(false)
+								onToggleRun()
+							}}
+						>
+							{startLabel}
+						</button>
+					) : null}
 				</div>
 
 				<div className="flex flex-col overflow-hidden rounded-2xl bg-background">

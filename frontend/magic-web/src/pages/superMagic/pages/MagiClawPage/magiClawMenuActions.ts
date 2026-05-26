@@ -1,4 +1,5 @@
 import { MAGIC_CLAW_STATUS } from "@/apis/modules/magicClawStatus"
+import { MAGI_CLAW_DISPLAY_STATUS } from "./magiClawDisplayStatus"
 
 export type MagiClawMenuAction = "start" | "restart" | "stop" | "delete" | "divider"
 
@@ -10,6 +11,7 @@ const MAGI_CLAW_MENU_ACTIONS = {
 
 export function getMagiClawMenuActionSequence(status?: string | null) {
 	if (status === MAGIC_CLAW_STATUS.PENDING) return MAGI_CLAW_MENU_ACTIONS.pending
+	if (status === MAGI_CLAW_DISPLAY_STATUS.RESTARTING) return MAGI_CLAW_MENU_ACTIONS.pending
 	if (status === MAGIC_CLAW_STATUS.RUNNING) return MAGI_CLAW_MENU_ACTIONS.running
 	return MAGI_CLAW_MENU_ACTIONS.default
 }

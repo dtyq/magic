@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { MAGIC_CLAW_STATUS } from "@/apis/modules/magicClawStatus"
+import { MAGI_CLAW_DISPLAY_STATUS } from "../magiClawDisplayStatus"
 import { getMagiClawMenuActionSequence } from "../magiClawMenuActions"
 
 describe("getMagiClawMenuActionSequence", () => {
@@ -14,6 +15,12 @@ describe("getMagiClawMenuActionSequence", () => {
 
 	it("returns the pending menu from Figma for pending claws", () => {
 		expect(getMagiClawMenuActionSequence(MAGIC_CLAW_STATUS.PENDING)).toEqual(["delete"])
+	})
+
+	it("returns the pending menu while restarting", () => {
+		expect(getMagiClawMenuActionSequence(MAGI_CLAW_DISPLAY_STATUS.RESTARTING)).toEqual([
+			"delete",
+		])
 	})
 
 	it("falls back to the stopped menu for exited and unknown statuses", () => {

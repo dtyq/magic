@@ -3,24 +3,28 @@ import { useMemo } from "react"
 import type { MagicClawItem } from "@/apis"
 import type { MagiClawContextMenuAnchorRect } from "./useMagiClawMobilePage"
 import { getMagiClawRowId } from "./useMagiClawMobilePage"
+import { resolveMagiClawActionAvailability } from "./resolveMagiClawActionAvailability"
 
 interface MagiClawMobileContextMenuProps {
 	claw: MagicClawItem
 	anchorRect: MagiClawContextMenuAnchorRect
+	displayStatus?: string | null
+	isActionLoading?: boolean
 	editLabel: string
 	restartLabel: string
-	toggleRunLabel: string
+	startLabel: string
+	stopLabel: string
 	deleteLabel: string
 	onClose: () => void
 	onEdit: () => void
 	onRestart: () => void
-	onToggleRun: () => void
+	onStart: () => void
+	onStop: () => void
 	onDelete: () => void
 }
 
 const MENU_WIDTH = 208
 const MENU_ITEM_HEIGHT = 48
-const MENU_ITEM_COUNT = 4
 const MENU_VIEWPORT_GAP = 8
 const MENU_TRIGGER_GAP = 6
 
@@ -30,10 +34,10 @@ interface MagiClawContextMenuPosition {
 }
 
 /**
- * 根据锚点矩形计算菜单位置，优先让菜单右侧贴齐触发按钮并向下展开。
+ * Computes anchored menu coordinates, preferring to align the menu's right edge with the trigger.
  */
-function resolveContextMenuPosition(anchorRect: MagiClawContextMenuAnchorRect) {
-	const estimatedMenuHeight = MENU_ITEM_COUNT * MENU_ITEM_HEIGHT + (MENU_ITEM_COUNT - 1)
+function resolveContextMenuPosition(anchorRect: MagiClawContextMenuAnchorRect, itemCount: number) {
+	const estimatedMenuHeight = itemCount * MENU_ITEM_HEIGHT + Math.max(itemCount - 1, 0)
 	const viewportWidth = window.innerWidth
 	const viewportHeight = window.innerHeight
 	const preferredLeft = anchorRect.right - MENU_WIDTH
@@ -51,66 +55,115 @@ function resolveContextMenuPosition(anchorRect: MagiClawContextMenuAnchorRect) {
 }
 
 /**
- * MagiClawMobileContextMenu 复刻原型中的锚点三点菜单，而不是移动端底部抽屉。
+ * MagiClawMobileContextMenu mirrors the desktop dropdown rules via resolveMagiClawActionAvailability.
  */
 export function MagiClawMobileContextMenu({
 	claw,
 	anchorRect,
+	displayStatus,
+	isActionLoading = false,
 	editLabel,
 	restartLabel,
-	toggleRunLabel,
+	startLabel,
+	stopLabel,
 	deleteLabel,
 	onClose,
 	onEdit,
 	onRestart,
-	onToggleRun,
+	onStart,
+	onStop,
 	onDelete,
 }: MagiClawMobileContextMenuProps) {
 	const rowId = getMagiClawRowId(claw)
-	const actions = useMemo(
-		() => [
-			{
+	const actionAvailability = resolveMagiClawActionAvailability({
+		displayStatus,
+		isActionLoading,
+	})
+
+	const actions = useMemo(() => {
+		const menuActions: Array<{
+			key: string
+			label: string
+			danger: boolean
+			disabled: boolean
+			onClick: () => void
+			testId: string
+		}> = []
+
+		if (actionAvailability.edit.visible) {
+			menuActions.push({
 				key: "edit",
 				label: editLabel,
 				danger: false,
+				disabled: actionAvailability.edit.disabled,
 				onClick: onEdit,
 				testId: `magi-claw-mobile-item-edit-${rowId}`,
-			},
-			{
+			})
+		}
+
+		if (actionAvailability.restart.visible) {
+			menuActions.push({
 				key: "restart",
 				label: restartLabel,
 				danger: false,
+				disabled: actionAvailability.restart.disabled,
 				onClick: onRestart,
 				testId: `magi-claw-mobile-item-restart-${rowId}`,
-			},
-			{
-				key: "toggle-run",
-				label: toggleRunLabel,
+			})
+		}
+
+		if (actionAvailability.stop.visible) {
+			menuActions.push({
+				key: "stop",
+				label: stopLabel,
 				danger: false,
-				onClick: onToggleRun,
-				testId: `magi-claw-mobile-item-toggle-run-${rowId}`,
-			},
-			{
+				disabled: actionAvailability.stop.disabled,
+				onClick: onStop,
+				testId: `magi-claw-mobile-item-stop-${rowId}`,
+			})
+		}
+
+		if (actionAvailability.start.visible) {
+			menuActions.push({
+				key: "start",
+				label: startLabel,
+				danger: false,
+				disabled: actionAvailability.start.disabled,
+				onClick: onStart,
+				testId: `magi-claw-mobile-item-start-${rowId}`,
+			})
+		}
+
+		if (actionAvailability.delete.visible) {
+			menuActions.push({
 				key: "delete",
 				label: deleteLabel,
 				danger: true,
+				disabled: actionAvailability.delete.disabled,
 				onClick: onDelete,
 				testId: `magi-claw-mobile-item-delete-${rowId}`,
-			},
-		],
-		[
-			deleteLabel,
-			editLabel,
-			onDelete,
-			onEdit,
-			onRestart,
-			onToggleRun,
-			restartLabel,
-			rowId,
-			toggleRunLabel,
-		],
-	)
-	const position = resolveContextMenuPosition(anchorRect)
+			})
+		}
+
+		return menuActions
+	}, [
+		actionAvailability,
+		deleteLabel,
+		editLabel,
+		onDelete,
+		onEdit,
+		onRestart,
+		onStart,
+		onStop,
+		restartLabel,
+		rowId,
+		startLabel,
+		stopLabel,
+	])
+
+	if (actions.length === 0) return null
+
+	const position = resolveContextMenuPosition(anchorRect, actions.length)
 
 	return createPortal(
 		<>
@@ -129,9 +182,11 @@ export function MagiClawMobileContextMenu({
 					<div key={action.key}>
 						<button
 							type="button"
-							className="flex h-12 w-full items-center px-4 transition-colors active:opacity-60"
+							className="flex h-12 w-full items-center px-4 transition-colors active:opacity-60 disabled:opacity-40"
 							data-testid={action.testId}
+							disabled={action.disabled}
 							onClick={() => {
+								if (action.disabled) return
 								action.onClick()
 								onClose()
 							}}
