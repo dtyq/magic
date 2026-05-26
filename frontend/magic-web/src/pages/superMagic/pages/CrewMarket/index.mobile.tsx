@@ -243,7 +243,7 @@ function CrewMarketMobilePanelBase() {
 			>
 				{/* Header */}
 				<header
-					className="relative z-10 flex h-14 shrink-0 items-center gap-2 px-[10px]"
+					className="mobile-page-header relative z-10 flex h-14 shrink-0 items-center gap-2 px-[10px]"
 					data-testid="crew-market-mobile-header"
 				>
 					<button

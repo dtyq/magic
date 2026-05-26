@@ -224,7 +224,7 @@ function MyCrewPageMobilePanelBase() {
 			<div className="flex h-full flex-col" data-testid="my-crew-page-mobile">
 				{/* Top bar: menu + title + filter/add buttons */}
 				<div
-					className="relative z-10 flex h-14 shrink-0 items-center gap-2 px-[10px]"
+					className="mobile-page-header relative z-10 flex h-14 shrink-0 items-center gap-2 px-[10px]"
 					data-testid="my-crew-mobile-top-bar"
 				>
 					<Button
@@ -236,7 +236,7 @@ function MyCrewPageMobilePanelBase() {
 						aria-label={t("super:mobile.shell.menuAria")}
 						data-testid="my-crew-menu-button"
 					>
-						<Menu className="h-[22px] w-[22px] text-foreground" strokeWidth={2} />
+						<Menu className="size-[22px] text-foreground" strokeWidth={2} />
 					</Button>
 
 					<p
@@ -259,10 +259,7 @@ function MyCrewPageMobilePanelBase() {
 								aria-label={t("createCrew")}
 								data-testid="my-crew-create-button"
 							>
-								<Plus
-									className="h-[22px] w-[22px] text-foreground"
-									strokeWidth={2}
-								/>
+								<Plus className="size-[22px] text-foreground" strokeWidth={2} />
 							</button>
 						) : null}
 						<button
@@ -274,7 +271,7 @@ function MyCrewPageMobilePanelBase() {
 						>
 							<div className="relative">
 								<ListFilter
-									className="h-[22px] w-[22px] text-foreground"
+									className="size-[22px] text-foreground"
 									strokeWidth={2}
 								/>
 								{activeFilterCount > 0 ? (

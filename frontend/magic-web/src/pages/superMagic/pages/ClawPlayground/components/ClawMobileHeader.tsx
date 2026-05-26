@@ -24,7 +24,7 @@ export function ClawMobileHeader({ magicClaw, onBack, onOpenMoreSheet }: ClawMob
 				data-testid="claw-mobile-back-button"
 				onClick={onBack}
 			>
-				<ChevronLeft className="size-6 text-foreground" />
+				<ChevronLeft className="size-[22px] text-foreground" />
 			</button>
 
 			<div className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
@@ -44,7 +44,7 @@ export function ClawMobileHeader({ magicClaw, onBack, onOpenMoreSheet }: ClawMob
 					data-testid="claw-mobile-more-button"
 					onClick={onOpenMoreSheet}
 				>
-					<Ellipsis className="size-6 text-foreground" />
+					<Ellipsis className="size-[22px] text-foreground" />
 				</button>
 			</div>
 		</header>

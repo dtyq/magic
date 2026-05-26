@@ -33,7 +33,7 @@ function RecycleBinHeader(props: RecycleBinHeaderProps) {
 				aria-label={t("mobile.shell.menuAria")}
 				data-testid="mobile-recycle-bin-menu-button"
 			>
-				<Menu className="size-6 text-foreground" />
+				<Menu className="size-[22px] text-foreground" />
 			</button>
 
 			<div className="min-w-0 flex-1 px-2 text-center" data-testid="mobile-recycle-bin-title">
@@ -49,7 +49,7 @@ function RecycleBinHeader(props: RecycleBinHeaderProps) {
 				aria-label={t("mobile.recycleBin.filterSheet.openAria")}
 				data-testid="mobile-recycle-bin-filter-open"
 			>
-				<ListFilter className="size-6 text-foreground" />
+				<ListFilter className="size-[22px] text-foreground" />
 			</button>
 		</div>
 	)

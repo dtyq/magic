@@ -35,7 +35,7 @@ export function MagiClawMobileHeader({
 				data-testid="magi-claw-mobile-menu-button"
 				onClick={onOpenSidebar}
 			>
-				<Menu className="h-[22px] w-[22px] text-foreground" aria-hidden />
+				<Menu className="size-[22px] text-foreground" aria-hidden />
 			</Button>
 
 			<p
@@ -56,7 +56,7 @@ export function MagiClawMobileHeader({
 					disabled={disableCreateTrigger}
 					onClick={onOpenCreate}
 				>
-					<Plus className="h-[22px] w-[22px] text-foreground" aria-hidden />
+					<Plus className="size-[22px] text-foreground" aria-hidden />
 				</Button>
 			</div>
 		</header>
