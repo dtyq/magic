@@ -148,7 +148,7 @@ class AgentDomainService
             agentUserId: $aiUserEntity->getUserId() ?? '',
             userId: $dataIsolation->getCurrentUserId(),
             organizationCode: $dataIsolation->getCurrentOrganizationCode(),
-            chatConversationId: di(TopicDomainService::class)->getAgentChatConversationId($topicEntity->getChatTopicId(), $topicEntity->getChatConversationId()),
+            chatConversationId: $this->getTopicDomainService()->getAgentChatConversationId($topicEntity->getChatTopicId(), $topicEntity->getChatConversationId()),
             chatTopicId: $topicEntity->getChatTopicId(),
             topicId: (string) $topicEntity->getId(),
             instruction: ChatInstruction::Normal->value,
@@ -328,7 +328,8 @@ class AgentDomainService
             $warmSandboxId = $this->tryWarmPoolFastPath(
                 $dataIsolation,
                 $agentContext,
-                $rootFileId
+                $projectSpaceRootFileId,
+                $userSpaceRootFileId
             );
             if ($warmSandboxId !== null) {
                 $sandboxId = $warmSandboxId;
@@ -340,8 +341,8 @@ class AgentDomainService
                     sandboxID: $agentContext->getSandboxId(),
                     workDir: $agentContext?->getInitContext()->getWorkDir() ?? '',
                     projectSpaceRootFileId: $projectSpaceRootFileId,
-                userSpaceRootFileId: $userSpaceRootFileId,
-                topicId: $topicEntity->getId()
+                    userSpaceRootFileId: $userSpaceRootFileId,
+                    topicId: $topicEntity->getId()
                 );
             }
 
@@ -1399,7 +1400,8 @@ class AgentDomainService
     private function tryWarmPoolFastPath(
         DataIsolation $dataIsolation,
         AgentContext $agentContext,
-        string $rootFileId
+        string $projectSpaceRootFileId,
+        string $userSpaceRootFileId
     ): ?string {
         $topicEntity = $agentContext->getTopicEntity();
 
@@ -1416,7 +1418,7 @@ class AgentDomainService
         }
 
         // The warm sandbox mount endpoint requires a project-space root.
-        if ($rootFileId === '') {
+        if ($projectSpaceRootFileId === '') {
             $this->logger->info('[Sandbox][WarmPath] Skipping warm pool: missing project root_file_id', [
                 'topic_id' => $topicEntity->getId(),
                 'project_id' => $agentContext->getProjectEntity()->getId(),
@@ -1437,8 +1439,8 @@ class AgentDomainService
             $sandboxId = $this->getWarmPoolSandboxDomainService()->tryAcquireAndMount(
                 userId: $dataIsolation->getCurrentUserId(),
                 projectId: (string) $agentContext->getProjectEntity()->getId(),
-                projectSpaceRootFileId: $rootFileId,
-                userSpaceRootFileId: '',
+                projectSpaceRootFileId: $projectSpaceRootFileId,
+                userSpaceRootFileId: $userSpaceRootFileId,
                 authorization: $authorization
             );
         } catch (Throwable $e) {
@@ -1458,14 +1460,15 @@ class AgentDomainService
         // best-effort: we ask the gateway, but if it fails we don't roll
         // back the bound sandbox.
         try {
-            $this->topicDomainService->updateTopicSandboxId(
+            $topicDomainService = $this->getTopicDomainService();
+            $topicDomainService->updateTopicSandboxId(
                 $dataIsolation,
                 (int) $topicEntity->getId(),
                 $sandboxId
             );
             $latestImage = $this->gateway->getLatestAgentImage();
             if ($latestImage !== '') {
-                $this->topicDomainService->updateTopicAgentImage(
+                $topicDomainService->updateTopicAgentImage(
                     $dataIsolation,
                     (int) $topicEntity->getId(),
                     $latestImage
@@ -1503,6 +1506,17 @@ class AgentDomainService
     private function getWarmPoolSandboxDomainService(): WarmPoolSandboxDomainService
     {
         return di(WarmPoolSandboxDomainService::class);
+    }
+
+    /**
+     * Lazily resolve {@see TopicDomainService} via the container instead of
+     * constructor-injecting it. Same rationale as
+     * {@see getWarmPoolSandboxDomainService()} — avoids growing the ctor
+     * graph and keeps the dependency unpaid when the warm path is off.
+     */
+    private function getTopicDomainService(): TopicDomainService
+    {
+        return di(TopicDomainService::class);
     }
 
     /**

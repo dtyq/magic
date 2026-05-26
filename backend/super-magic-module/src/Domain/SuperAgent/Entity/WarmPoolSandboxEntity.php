@@ -24,6 +24,8 @@ class WarmPoolSandboxEntity
 
     private string $agentImage = '';
 
+    private string $env = 'default';
+
     private string $status = '';
 
     private ?string $boundUserId = null;
@@ -78,6 +80,16 @@ class WarmPoolSandboxEntity
     public function setAgentImage(string $agentImage): void
     {
         $this->agentImage = $agentImage;
+    }
+
+    public function getEnv(): string
+    {
+        return $this->env;
+    }
+
+    public function setEnv(string $env): void
+    {
+        $this->env = $env;
     }
 
     public function getStatus(): string

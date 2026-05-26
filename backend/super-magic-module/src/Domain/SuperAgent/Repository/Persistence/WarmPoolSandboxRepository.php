@@ -7,22 +7,52 @@ declare(strict_types=1);
 
 namespace Dtyq\SuperMagic\Domain\SuperAgent\Repository\Persistence;
 
+use App\Infrastructure\Util\IdGenerator\IdGenerator;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\ValueObject\WarmPoolSandboxStatus;
 use Dtyq\SuperMagic\Domain\SuperAgent\Entity\WarmPoolSandboxEntity;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Facade\WarmPoolSandboxRepositoryInterface;
 use Dtyq\SuperMagic\Domain\SuperAgent\Repository\Model\WarmPoolSandboxModel;
+use Hyperf\Contract\ConfigInterface;
 use Hyperf\DbConnection\Db;
 
 class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
 {
+    /**
+     * Logical environment tag. Every query is scoped to this value so two
+     * deployments (e.g. pre + prod) can safely share the same physical
+     * table without ripping out each other's warm-pool rows.
+     */
+    private readonly string $env;
+
+    public function __construct(ConfigInterface $config)
+    {
+        $env = (string) $config->get('super-magic.warm_pool.env', 'default');
+        $this->env = $env !== '' ? $env : 'default';
+    }
+
     public function insert(WarmPoolSandboxEntity $entity): WarmPoolSandboxEntity
     {
         $now = date('Y-m-d H:i:s');
+        if ($entity->getEnv() === '' || $entity->getEnv() === 'default') {
+            // Default the row to this deployment's env unless the caller
+            // explicitly overrode it. Keeps callers from having to know
+            // about env scoping.
+            $entity->setEnv($this->env);
+        }
+        if ($entity->getId() <= 0) {
+            // Snowflake id assigned at the repository so callers don't have to
+            // know about id generation, and so the column does not depend on
+            // MySQL AUTO_INCREMENT (which conflicts with sharing a table
+            // across deployments).
+            $entity->setId((int) IdGenerator::getSnowId());
+        }
         $model = new WarmPoolSandboxModel();
         $model->fill([
+            'id' => $entity->getId(),
             'sandbox_id' => $entity->getSandboxId(),
             'sandbox_name' => $entity->getSandboxName(),
             'agent_image' => $entity->getAgentImage(),
+            'env' => $entity->getEnv(),
             'status' => $entity->getStatus(),
             'bound_user_id' => $entity->getBoundUserId(),
             'bound_project_id' => $entity->getBoundProjectId(),
@@ -41,13 +71,19 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
 
     public function findById(int $id): ?WarmPoolSandboxEntity
     {
-        $model = WarmPoolSandboxModel::query()->where('id', $id)->first();
+        $model = WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
+            ->where('id', $id)
+            ->first();
         return $model ? $this->toEntity($model) : null;
     }
 
     public function findBySandboxId(string $sandboxId): ?WarmPoolSandboxEntity
     {
-        $model = WarmPoolSandboxModel::query()->where('sandbox_id', $sandboxId)->first();
+        $model = WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
+            ->where('sandbox_id', $sandboxId)
+            ->first();
         return $model ? $this->toEntity($model) : null;
     }
 
@@ -57,6 +93,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         // `claimed` rows are owned by user requests now and should not be
         // ripped out of the table just because they happen to be old.
         $models = WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
             ->whereIn('status', [WarmPoolSandboxStatus::Creating->value, WarmPoolSandboxStatus::Ready->value, WarmPoolSandboxStatus::Dead->value])
             ->where('expires_at', '<=', $now)
             ->orderBy('expires_at', 'ASC')
@@ -71,6 +108,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
             return [];
         }
         $models = WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
             ->where('agent_image', $agentImage)
             ->whereIn('status', $statuses)
             ->orderBy('id', 'ASC')
@@ -82,6 +120,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
     public function findReadyExcludingImage(string $currentAgentImage, int $limit = 100): array
     {
         $models = WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
             ->whereIn('status', [WarmPoolSandboxStatus::Creating->value, WarmPoolSandboxStatus::Ready->value])
             ->where('agent_image', '!=', $currentAgentImage)
             ->orderBy('id', 'ASC')
@@ -96,6 +135,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
             return 0;
         }
         return WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
             ->where('agent_image', $agentImage)
             ->whereIn('status', $statuses)
             ->count();
@@ -111,6 +151,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
             // SKIP LOCKED is the whole point: other workers should not block
             // on a row we're already taking, they should fall to the next.
             $model = WarmPoolSandboxModel::query()
+                ->where('env', $this->env)
                 ->where('agent_image', $agentImage)
                 ->where('status', WarmPoolSandboxStatus::Ready->value)
                 ->orderBy('id', 'ASC')
@@ -138,12 +179,16 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         if ($deadReason !== null) {
             $attrs['dead_reason'] = $deadReason;
         }
-        return WarmPoolSandboxModel::query()->where('id', $id)->update($attrs) > 0;
+        return WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
+            ->where('id', $id)
+            ->update($attrs) > 0;
     }
 
     public function markReady(int $id): bool
     {
         return WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
             ->where('id', $id)
             ->where('status', WarmPoolSandboxStatus::Creating->value)
             ->update([
@@ -154,12 +199,16 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
 
     public function deleteById(int $id): bool
     {
-        return WarmPoolSandboxModel::query()->where('id', $id)->delete() > 0;
+        return WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
+            ->where('id', $id)
+            ->delete() > 0;
     }
 
     public function findAllPooled(int $limit = 500): array
     {
         $models = WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
             ->whereIn('status', [
                 WarmPoolSandboxStatus::Creating->value,
                 WarmPoolSandboxStatus::Ready->value,
@@ -174,6 +223,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
     public function findLatestAgentImage(): ?string
     {
         $model = WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
             ->orderBy('id', 'DESC')
             ->first(['agent_image']);
         return $model ? (string) $model->agent_image : null;
@@ -186,6 +236,7 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         $e->setSandboxId((string) $model->sandbox_id);
         $e->setSandboxName((string) $model->sandbox_name);
         $e->setAgentImage((string) $model->agent_image);
+        $e->setEnv((string) ($model->env ?? 'default'));
         $e->setStatus((string) $model->status);
         $e->setBoundUserId($model->bound_user_id !== null ? (string) $model->bound_user_id : null);
         $e->setBoundProjectId($model->bound_project_id !== null ? (string) $model->bound_project_id : null);

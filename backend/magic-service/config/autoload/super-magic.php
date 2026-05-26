@@ -54,5 +54,10 @@ return [
         // and returns immediately after the pod is created. Useful for local
         // dev where the host can't reach pod-CIDR IPs (e.g. kind on macOS).
         'enable_readiness' => (bool) \Hyperf\Support\env('SUPER_MAGIC_WARM_POOL_ENABLE_READINESS', true),
+        // Logical environment tag for the warm pool. Every row is stamped with
+        // this value, and every refill/evict/claim/drain query is scoped to it,
+        // so multiple environments (pre/prod/...) can safely share the same
+        // table without stomping on each other's pool. Defaults to APP_ENV.
+        'env' => (string) (\Hyperf\Support\env('APP_ENV', 'default') ?: 'default'),
     ],
 ];

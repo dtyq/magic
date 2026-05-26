@@ -17,6 +17,7 @@ use Carbon\Carbon;
  * @property string $sandbox_id
  * @property string $sandbox_name
  * @property string $agent_image
+ * @property string $env
  * @property string $status
  * @property null|string $bound_user_id
  * @property null|string $bound_project_id
@@ -28,13 +29,21 @@ use Carbon\Carbon;
  */
 class WarmPoolSandboxModel extends AbstractModel
 {
+    /**
+     * IDs are snowflake ids assigned by the repository, not MySQL AUTO_INCREMENT.
+     */
+    public bool $incrementing = false;
+
     protected ?string $table = 'magic_super_agent_warm_pool_sandboxes';
+
+    protected string $keyType = 'int';
 
     protected array $fillable = [
         'id',
         'sandbox_id',
         'sandbox_name',
         'agent_image',
+        'env',
         'status',
         'bound_user_id',
         'bound_project_id',
