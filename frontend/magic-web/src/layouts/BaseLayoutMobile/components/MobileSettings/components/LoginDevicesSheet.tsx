@@ -15,7 +15,7 @@ import { getDeviceInfo } from "@/utils/devices"
 import type { User } from "@/types/user"
 import type { TFunction } from "i18next"
 
-import { MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME } from "../constants"
+import { MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME } from "../constants"
 import { LoginDeviceRowView } from "./LoginDeviceRowView"
 import { MobileSettingsSheetContainer } from "./SheetContainer"
 
@@ -84,7 +84,7 @@ export function MobileSettingsLoginDevicesSheet({
 				onOpenChange={(nextOpen) => {
 					if (!nextOpen) onClose()
 				}}
-				sheetClassName={MOBILE_SETTINGS_SHEET_HEIGHT_CLASSNAME}
+				sheetClassName={MOBILE_SETTINGS_ROOT_SHEET_CLASSNAME}
 				contentClassName="gap-3 px-3.5 pb-[calc(var(--safe-area-inset-bottom)+1rem)] pt-2"
 				dataTestId="mobile-settings-login-devices-sheet"
 			>
