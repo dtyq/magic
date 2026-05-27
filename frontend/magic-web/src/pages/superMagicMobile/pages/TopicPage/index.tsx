@@ -5,7 +5,7 @@ import { createPortal } from "react-dom"
 import { observer } from "mobx-react-lite"
 import MessageList, { MessageListProvider } from "@/pages/superMagic/components/MessageList"
 import { useStyles } from "./styles"
-import type { TaskStatus, Topic } from "@/pages/superMagic/pages/Workspace/types"
+import type { Topic } from "@/pages/superMagic/pages/Workspace/types"
 import { userStore } from "@/models/user"
 import { useMessageChanges } from "@/pages/superMagic/hooks/useMessageChanges"
 import GlobalMentionPanelStore from "@/components/business/MentionPanel/builtin-store"
@@ -48,7 +48,6 @@ import ModeAvatar from "@/pages/superMagic/components/ModeAvatar"
 import superMagicModeService from "@/services/superMagic/SuperMagicModeService"
 import { MessageListContextState } from "@/pages/superMagic/components/MessageList/context"
 import { useTopicConversationLoading } from "@/pages/superMagic/hooks/useTopicConversationLoading"
-import { filterClickableMessageWithoutRevoked } from "@/pages/superMagic/utils/handleMessage"
 import { RouteName } from "@/routes/constants"
 import { useLocation } from "react-router"
 import { routesMatch } from "@/routes/history/helpers"
@@ -70,6 +69,7 @@ import { useConversationFeedbackSheet } from "@/pages/superMagicMobile/hooks/use
 import { useMobileProjectTopicSwitch } from "@/pages/superMagicMobile/hooks/useMobileProjectTopicSwitch"
 import { useProjectTopicConversationActions } from "./hooks/useProjectTopicConversationActions"
 import type { SuperMagicMessageItem } from "@/pages/superMagic/components/MessageList/type"
+import { resolveTopicPageMessageListFallback } from "./components/TopicPageMessageListFallback"
 
 interface TopicPageProps {
 	onHistoryClick?: () => void
@@ -217,9 +217,6 @@ function TopicPage({
 			// }
 		},
 	})
-
-	// Calculate isEmptyStatus
-	const isEmptyStatus = messages.length === 0
 
 	// Attachment polling
 	const { checkNowDebounced } = useAttachmentsPolling({
@@ -538,6 +535,10 @@ function TopicPage({
 			selectedTopic?.agent_code,
 		)
 	}, [topicMode, selectedTopic?.agent_code])
+	const resolvedMessageListFallbackRender = useMemo(
+		() => resolveTopicPageMessageListFallback(messageListFallbackRender),
+		[messageListFallbackRender],
+	)
 	const value = useMemo<MessageListContextState>(() => {
 		return {
 			allowRevoke: true,
@@ -612,15 +613,12 @@ function TopicPage({
 						data={messages as any}
 						setSelectedDetail={setUserSelectDetail}
 						selectedTopic={selectedTopic}
-						className={cx(
-							isEmptyStatus && styles.emptyMessageWelcome,
-							messageListClassName,
-						)}
+						className={cx(messageListClassName)}
 						handlePullMoreMessage={handlePullMoreMessage}
 						showLoading={showLoading}
 						onFileClick={onFileClick}
 						isMessagesLoading={isMessagesInitialLoading}
-						fallbackRender={messageListFallbackRender}
+						fallbackRender={resolvedMessageListFallbackRender}
 						stickyMessageClassName="-top-[1px] pt-2 [--sticky-message-mask-bg:rgb(255_255_255)] [--sticky-message-mask-fade-from:rgb(255_255_255)]"
 					/>
 				</MessageListProvider>

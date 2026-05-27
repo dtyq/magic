@@ -3,11 +3,11 @@ import { ChevronLeft, Ellipsis } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/shadcn-ui/button"
-import { globalConfigStore } from "@/stores/globalConfig"
 import { projectStore, topicStore } from "@/pages/superMagic/stores/core"
 import { superMagicStore } from "@/pages/superMagic/stores"
 import { usePoppinsFont } from "@/styles/font"
 import useNavigate from "@/routes/hooks/useNavigate"
+import MobileBrandHero from "@/pages/superMagicMobile/components/MobileBrandHero"
 import TopicPage from "@/pages/superMagicMobile/pages/TopicPage"
 import {
 	getMobileTopicPageCapabilities,
@@ -43,7 +43,7 @@ function ChatProjectHeroHeader({
 
 	return (
 		<header
-			className="mobile-page-header pb-0 flex items-center justify-between relative"
+			className="mobile-page-header relative flex items-center justify-between pb-0"
 			data-testid="chat-project-hero-header"
 		>
 			<Button
@@ -59,7 +59,7 @@ function ChatProjectHeroHeader({
 			</Button>
 
 			{/* 标题区域使用 flex 居中，避免 absolute 布局，保证在 header 内始终居中展示 */}
-			<div className="flex flex-1 flex-col items-center justify-center text-center min-w-0 px-3 pt-2">
+			<div className="flex min-w-0 flex-1 flex-col items-center justify-center px-3 pt-2 text-center">
 				<h1 className="w-full truncate font-poppins text-[18px] font-medium leading-7 text-foreground">
 					{title}
 				</h1>
@@ -88,33 +88,12 @@ function ChatProjectHeroHeader({
  * 空态欢迎区直接复用首页文案与品牌图形，确保对话页在“无消息”时和首页保持同一视觉语言。
  */
 function ChatProjectEmptyHero() {
-	const { t } = useTranslation("super")
-	// 欢迎区标题沿用首页同一批可用字重，避免请求未注册的 500 权重导致运行时异常。
-	usePoppinsFont([300, 400])
-
-	const sloganImage = globalConfigStore.globalConfig?.minimal_logo
-
 	return (
 		<div
-			className="pointer-events-none absolute inset-x-0 top-1/2 z-[1] flex -translate-y-[58%] justify-center px-6"
+			className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-[58%] justify-center px-6"
 			data-testid="chat-project-empty-hero"
 		>
-			<div className="flex w-full max-w-[348px] flex-col items-center gap-3 text-center">
-				{sloganImage ? (
-					<img
-						src={sloganImage}
-						alt={t("mobile.shell.brandName")}
-						className="size-[76px] shrink-0 rounded-[26px]"
-						draggable={false}
-					/>
-				) : null}
-				<p className="font-poppins leading-6 text-muted-foreground">
-					{t("home.sloganSubtitle")}
-				</p>
-				<p className="font-poppins text-2xl font-medium leading-[1.18] tracking-[-0.03em] text-foreground">
-					{t("home.sloganTitle")}
-				</p>
-			</div>
+			<MobileBrandHero imageClassName="size-[76px] rounded-[26px]" />
 		</div>
 	)
 }

@@ -19,18 +19,5 @@ export const useStyles = createStyles(() => {
 		footer: {
 			paddingBottom: "4px",
 		},
-		emptyMessageWelcome: {
-			height: "auto",
-			flex: "none",
-			"& > div": {
-				padding: 0,
-				"& > div:first-child": {
-					fontSize: "36px",
-					width: "auto",
-					height: "auto",
-					marginBottom: "10px",
-				},
-			},
-		},
 	}
 })

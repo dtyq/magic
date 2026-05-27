@@ -113,8 +113,8 @@ describe("ProjectPageMain", () => {
 		)
 
 		const emptyState = screen.getByTestId("project-topics-empty-state")
-		expect(emptyState).toHaveTextContent("projectDetail.topicsEmptyState.title")
-		expect(emptyState).toHaveTextContent("projectDetail.topicsEmptyState.description")
+		expect(emptyState).toHaveTextContent("home.sloganSubtitle")
+		expect(emptyState).toHaveTextContent("home.sloganTitle")
 	})
 
 	it("renders pin swipe action and calls onTopicPin with the current topic", () => {
