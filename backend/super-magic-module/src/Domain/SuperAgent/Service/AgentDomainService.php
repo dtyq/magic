@@ -265,7 +265,12 @@ class AgentDomainService
                 'lock_owner' => $lockOwner,
             ]);
 
-            // Step 1: Check workspace status (quick-returns if sandbox already ready)
+            // Step 1: Check workspace status (quick-returns if sandbox already ready).
+            //
+            // 如果探测发现 sandbox_id 对应的 pod 已经不存在 / 不在 Ready 状态，
+            // 把 agentContext 上残留的 sandboxId 抹空，让后续 Step 2.5 的 warm
+            // pool 守卫能够放行，避免「话题里残留的死 sandbox_id 把 warm pool
+            // 永久挡在外面、每次都走冷创建」的退化。
             try {
                 $response = $this->getWorkspaceStatus($sandboxId);
                 $status = $response->getDataValue('status');
@@ -282,6 +287,9 @@ class AgentDomainService
                     'sandbox_id' => $sandboxId,
                     'workspace_status' => $status,
                 ]);
+                // 之前缓存的 sandbox_id 已失效，允许 warm pool 接管。
+                $agentContext->setSandboxId('');
+                $sandboxId = '';
             } catch (SandboxOperationException $e) {
                 $isNotFound = $e->getCode() === ResponseCode::NOT_FOUND;
                 $logLevel = $isNotFound ? 'info' : 'warning';
@@ -290,6 +298,10 @@ class AgentDomainService
                     'error' => $e->getMessage(),
                     'is_not_found' => $isNotFound,
                 ]);
+                // NOT_FOUND 说明这个 sandbox_id 已经被销毁；其它异常也无法证明 pod 仍
+                // 在线。统一把残留 id 抹空，让 warm pool 守卫得以放行。
+                $agentContext->setSandboxId('');
+                $sandboxId = '';
             }
 
             // Step 2: Get root file IDs for sandbox initialization
