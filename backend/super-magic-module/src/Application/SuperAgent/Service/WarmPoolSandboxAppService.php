@@ -25,6 +25,10 @@ use Throwable;
  *   - {@see refill()} — top the pool up to a target water-line for the
  *     latest agent image.
  *   - {@see evictExpired()} — reap rows that overshot expires_at.
+ *   - {@see probeAndRetireDead()} — actively liveness-probe ready rows
+ *     against the gateway and retire ones whose pod is already gone,
+ *     so refill can fill the deficit before any user collides with a
+ *     dead row.
  *   - {@see invalidateStaleImageGeneration()} — drop rows whose
  *     agent_image differs from the current generation (used on image
  *     rollouts).
@@ -147,6 +151,77 @@ class WarmPoolSandboxAppService extends AbstractAppService
             $this->logger->info('[WarmPoolSandbox] Evicted expired warm-pool sandboxes', ['count' => $deleted]);
         }
         return ['deleted' => $deleted];
+    }
+
+    /**
+     * Liveness-probe a batch of `ready` rows against the gateway and retire
+     * the ones whose underlying pod is gone (k8s cluster restart, gateway-side
+     * idle reaper, manual pod kill, etc.).
+     *
+     * Retired rows are deleted from the DB by {@see WarmPoolSandboxDomainService::retireClaimed()},
+     * so the next refill tick will see the deficit and create fresh pods,
+     * without needing a user request to surface the breakage first.
+     *
+     * Network failures are treated as "inconclusive — assume alive": we do
+     * not retire on a transport error, otherwise a flaky gateway would
+     * empty the entire pool.
+     */
+    public function probeAndRetireDead(int $limit = 50): array
+    {
+        $rows = $this->domain->listReadyForProbe($limit);
+        if ($rows === []) {
+            return ['probed' => 0, 'retired' => 0];
+        }
+
+        $sandboxIds = array_map(fn (WarmPoolSandboxEntity $row) => $row->getSandboxId(), $rows);
+
+        try {
+            $batch = $this->gateway->getBatchSandboxStatus($sandboxIds);
+        } catch (Throwable $e) {
+            $this->logger->warning('[WarmPoolSandbox] Probe skipped: gateway batch-status threw', [
+                'error' => $e->getMessage(),
+                'probed' => count($sandboxIds),
+            ]);
+            return ['probed' => count($sandboxIds), 'retired' => 0, 'skipped' => 'gateway_error'];
+        }
+
+        if (! $batch->isSuccess()) {
+            $this->logger->warning('[WarmPoolSandbox] Probe skipped: gateway batch-status returned error', [
+                'code' => $batch->getCode(),
+                'message' => $batch->getMessage(),
+                'probed' => count($sandboxIds),
+            ]);
+            return ['probed' => count($sandboxIds), 'retired' => 0, 'skipped' => 'gateway_error'];
+        }
+
+        $aliveIds = array_flip($batch->getRunningSandboxIds());
+        $retired = 0;
+        foreach ($rows as $row) {
+            if (isset($aliveIds[$row->getSandboxId()])) {
+                continue;
+            }
+            try {
+                $this->domain->retireClaimed($row, 'probe_dead');
+                ++$retired;
+            } catch (Throwable $e) {
+                $this->logger->warning('[WarmPoolSandbox] Probe retire failed', [
+                    'sandbox_id' => $row->getSandboxId(),
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($retired > 0) {
+            $this->logger->info('[WarmPoolSandbox] Probe retired dead warm-pool sandboxes', [
+                'probed' => count($rows),
+                'retired' => $retired,
+            ]);
+        }
+
+        return [
+            'probed' => count($rows),
+            'retired' => $retired,
+        ];
     }
 
     /**

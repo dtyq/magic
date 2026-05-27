@@ -78,6 +78,14 @@ interface WarmPoolSandboxRepositoryInterface
     public function findAllPooled(int $limit = 500): array;
 
     /**
+     * Return ready rows for liveness probing, oldest first so the prober
+     * naturally rotates through the pool tick by tick.
+     *
+     * @return WarmPoolSandboxEntity[]
+     */
+    public function findReadyForProbe(int $limit = 100): array;
+
+    /**
      * Most recently observed agent_image stored in the warm pool. Used to
      * detect generation changes without an event bus.
      */

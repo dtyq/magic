@@ -163,6 +163,19 @@ class WarmPoolSandboxDomainService
         return $this->repository->findAllPooled($limit);
     }
 
+    /**
+     * Ready rows to probe for liveness. Used by the probe crontab to
+     * detect rows whose underlying pod was already reaped (e.g. k8s
+     * restart, gateway-side idle reaper) so they can be retired and
+     * refilled immediately.
+     *
+     * @return WarmPoolSandboxEntity[]
+     */
+    public function listReadyForProbe(int $limit = 100): array
+    {
+        return $this->repository->findReadyForProbe($limit);
+    }
+
     public function lastObservedAgentImage(): ?string
     {
         return $this->repository->findLatestAgentImage();

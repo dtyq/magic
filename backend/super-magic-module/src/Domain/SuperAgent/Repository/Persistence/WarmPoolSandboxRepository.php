@@ -220,6 +220,17 @@ class WarmPoolSandboxRepository implements WarmPoolSandboxRepositoryInterface
         return array_map(fn ($m) => $this->toEntity($m), $models->all());
     }
 
+    public function findReadyForProbe(int $limit = 100): array
+    {
+        $models = WarmPoolSandboxModel::query()
+            ->where('env', $this->env)
+            ->where('status', WarmPoolSandboxStatus::Ready->value)
+            ->orderBy('id', 'ASC')
+            ->limit($limit)
+            ->get();
+        return array_map(fn ($m) => $this->toEntity($m), $models->all());
+    }
+
     public function findLatestAgentImage(): ?string
     {
         $model = WarmPoolSandboxModel::query()
