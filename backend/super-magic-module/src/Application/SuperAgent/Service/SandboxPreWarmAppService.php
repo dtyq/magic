@@ -407,7 +407,7 @@ class SandboxPreWarmAppService extends AbstractAppService
      * Errors during cleanup are swallowed so that the original exception is always propagated
      * to the caller without being replaced by a secondary failure.
      */
-    private function cleanOrphanedHiddenProject(ProjectEntity $project, string $userId): void
+    protected function cleanOrphanedHiddenProject(ProjectEntity $project, string $userId): void
     {
         try {
             $this->projectDomainService->deleteProject($project->getId(), $userId);
