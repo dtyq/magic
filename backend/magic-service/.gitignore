@@ -29,7 +29,11 @@ composer.lock
 scripts/
 storage/files/test001
 /CLAUDE.md
+/AGENTS.md
 .cursor/
+.github
 docs/
 !go-engine/docs/
 !go-engine/docs/**
+
+.codegraph/
