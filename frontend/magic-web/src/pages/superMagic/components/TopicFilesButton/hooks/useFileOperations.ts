@@ -1442,6 +1442,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			downloadName?: string,
 		) => {
 			const fileIds = Array.isArray(file_id) ? file_id : [file_id]
+			const folderDownloadToastId = isFolder ? createRandomUuidV4() : undefined
 
 			if (fileIds.length === 0) return
 
@@ -1481,6 +1482,16 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 			} else {
 				// 多个文件使用批量下载
 				return new Promise<void>((resolve, reject) => {
+					if (folderDownloadToastId) {
+						// Mobile folder downloads close the action sheet immediately, so the toast
+						// must be owned by the async download task rather than the transient sheet UI.
+						magicToast.loading({
+							key: folderDownloadToastId,
+							content: t("download.downloading"),
+							duration: 0,
+						})
+					}
+
 					SuperMagicApi.createBatchDownload({
 						project_id: projectId,
 						file_ids: fileIds,
@@ -1488,6 +1499,13 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 						.then((data) => {
 							if (data.status === "ready" && data.download_url) {
 								downloadFileWithAnchor(data.download_url, downloadName)
+								if (folderDownloadToastId) {
+									magicToast.success({
+										key: folderDownloadToastId,
+										content: t("downloadSuccess"),
+										duration: 1000,
+									})
+								}
 								resolve()
 								return
 							}
@@ -1511,13 +1529,24 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 												checkData.download_url,
 												downloadName,
 											)
+											if (folderDownloadToastId) {
+												magicToast.success({
+													key: folderDownloadToastId,
+													content: t("downloadSuccess"),
+													duration: 1000,
+												})
+											}
 											resolve()
 										}
 										if (checkData?.status === "failed") {
 											clearInterval(timer)
-											magicToast.error(
-												checkData.message || t("interface:ErrorHappened"),
-											)
+											magicToast.error({
+												key: folderDownloadToastId,
+												content:
+													checkData.message ||
+													t("interface:ErrorHappened"),
+												duration: 1000,
+											})
 											reject(
 												new Error(checkData.message || "Download failed"),
 											)
@@ -1525,17 +1554,31 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 									} catch (error: any) {
 										clearInterval(timer)
 										console.error("Batch download check failed:", error)
-										magicToast.error(
-											error?.message || t("interface:ErrorHappened"),
-										)
+										magicToast.error({
+											key: folderDownloadToastId,
+											content: error?.message || t("interface:ErrorHappened"),
+											duration: 1000,
+										})
 										reject(error)
 									}
 								}, 2000)
+								return
 							}
+
+							magicToast.error({
+								key: folderDownloadToastId,
+								content: t("downloadFailed"),
+								duration: 1000,
+							})
+							reject(new Error("Download failed"))
 						})
 						.catch((error) => {
 							console.error("Batch download failed:", error)
-							magicToast.error(error?.message || t("interface:ErrorHappened"))
+							magicToast.error({
+								key: folderDownloadToastId,
+								content: error?.message || t("interface:ErrorHappened"),
+								duration: 1000,
+							})
 							reject(error)
 						})
 				})

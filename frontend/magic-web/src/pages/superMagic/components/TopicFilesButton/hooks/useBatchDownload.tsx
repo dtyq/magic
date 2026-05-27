@@ -27,7 +27,9 @@ import { getAppEntryFile } from "../../MessageList/components/MessageAttachment/
 import { SuperMagicApi } from "@/apis"
 import useShareRoute from "../../../hooks/useShareRoute"
 import magicToast from "@/components/base/MagicToaster/utils"
+import { createRandomUuidV4 } from "@/utils/create-random-uuid-v4"
 import { useFileActionVisibility } from "@/pages/superMagic/providers/file-action-visibility-provider"
+import { isCachedChatWorkspaceProject } from "@/pages/superMagic/utils/isChatWorkspaceProject"
 import { normalizeMenuItems } from "../utils/menu-items"
 import { useMobileDeleteConfirmSheet } from "./useMobileDeleteConfirmSheet"
 
@@ -101,6 +103,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	const [batchLoading, setBatchLoading] = useState(false)
 	const { t } = useTranslation("super")
 	const isMobile = useIsMobile()
+	const isChatProject = isCachedChatWorkspaceProject(selectedProject)
 	const { deleteConfirmNode, openDeleteConfirm } = useMobileDeleteConfirmSheet()
 	const { isShareRoute, isFileShare } = useShareRoute()
 	const { hideCopyTo, hideMoveTo, hideShareFile } = useFileActionVisibility()
@@ -239,6 +242,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 	const handleBatchDownload = async () => {
 		if (selectedItems.size === 0 || !projectId) return
 		setBatchLoading(true)
+		const toastId = createRandomUuidV4()
 		try {
 			// 收集选中的文件ID（只收集直接选中的项目，不递归展开文件夹）
 			const selectedFileIds = collectSelectedItemIds(filteredFiles, selectedItems, getItemId)
@@ -248,6 +252,12 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 				console.warn("No downloadable files found")
 				return
 			}
+
+			magicToast.loading({
+				key: toastId,
+				content: t("download.downloading"),
+				duration: 0,
+			})
 
 			// 调用后端创建批量下载任务
 			const data = await SuperMagicApi.createBatchDownload({
@@ -259,6 +269,11 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 
 			if (data.status === "ready" && data.download_url) {
 				downloadFileWithAnchor(data.download_url)
+				magicToast.success({
+					key: toastId,
+					content: t("downloadSuccess"),
+					duration: 1000,
+				})
 				setBatchLoading(false)
 				exitSelectMode()
 				return
@@ -267,24 +282,59 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 			if (data.status === "processing") {
 				// 每2秒轮询批量状态
 				const timer = setInterval(async () => {
-					const checkData = await SuperMagicApi.checkBatchDownloadStatus(data.batch_key)
-					if (checkData.status === "ready" && checkData.download_url) {
-						downloadFileWithAnchor(checkData.download_url)
+					try {
+						const checkData = await SuperMagicApi.checkBatchDownloadStatus(
+							data.batch_key,
+						)
+						if (checkData.status === "ready" && checkData.download_url) {
+							downloadFileWithAnchor(checkData.download_url)
+							magicToast.success({
+								key: toastId,
+								content: t("downloadSuccess"),
+								duration: 1000,
+							})
+							setBatchLoading(false)
+							exitSelectMode()
+							clearInterval(timer)
+						}
+						if (checkData?.status === "failed") {
+							setBatchLoading(false)
+							clearInterval(timer)
+							magicToast.error({
+								key: toastId,
+								content: checkData.message || t("downloadFailed"),
+								duration: 1000,
+							})
+							return
+						}
+					} catch (error) {
 						setBatchLoading(false)
-						exitSelectMode()
 						clearInterval(timer)
-					}
-					if (checkData?.status === "failed") {
-						setBatchLoading(false)
-						clearInterval(timer)
-						magicToast.error(checkData.message)
-						return
+						console.error("Batch download check failed:", error)
+						magicToast.error({
+							key: toastId,
+							content: t("downloadFailed"),
+							duration: 1000,
+						})
 					}
 				}, 2000)
+				return
 			}
+
+			setBatchLoading(false)
+			magicToast.error({
+				key: toastId,
+				content: t("downloadFailed"),
+				duration: 1000,
+			})
 		} catch (error) {
 			setBatchLoading(false)
 			console.error("Batch download failed:", error)
+			magicToast.error({
+				key: toastId,
+				content: t("downloadFailed"),
+				duration: 1000,
+			})
 		}
 	}
 
@@ -435,8 +485,8 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 		const firstFileId = fileIds[0]
 		const parentPath = firstFileId ? getParentPathFromFileId(firstFileId, attachments) : []
 
-		// 如果有跨项目操作所需的数据，使用新的跨项目 Modal
-		if (projects.length > 0 && crossProjectOperation) {
+		// 只有桌面普通项目继续走跨项目 Modal；移动端和 chat 项目回退到目录选择器。
+		if (projects.length > 0 && crossProjectOperation && !isMobile && !isChatProject) {
 			crossProjectOperation.openMoveModal(fileIds, parentPath)
 		} else if (moveFileHook) {
 			// 否则使用原来的 SelectDirectoryModal
