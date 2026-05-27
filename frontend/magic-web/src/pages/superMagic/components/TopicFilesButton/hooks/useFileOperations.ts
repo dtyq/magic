@@ -1487,7 +1487,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 						// must be owned by the async download task rather than the transient sheet UI.
 						magicToast.loading({
 							key: folderDownloadToastId,
-							content: t("download.downloading"),
+							content: t("topicFiles.downloading"),
 							duration: 0,
 						})
 					}
@@ -1502,7 +1502,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 								if (folderDownloadToastId) {
 									magicToast.success({
 										key: folderDownloadToastId,
-										content: t("downloadSuccess"),
+										content: t("topicFiles.downloadSuccess"),
 										duration: 1000,
 									})
 								}
@@ -1532,7 +1532,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 											if (folderDownloadToastId) {
 												magicToast.success({
 													key: folderDownloadToastId,
-													content: t("downloadSuccess"),
+													content: t("topicFiles.downloadSuccess"),
 													duration: 1000,
 												})
 											}
@@ -1567,7 +1567,7 @@ export function useFileOperations(options: UseFileOperationsOptions = {}) {
 
 							magicToast.error({
 								key: folderDownloadToastId,
-								content: t("downloadFailed"),
+								content: t("topicFiles.downloadFailed"),
 								duration: 1000,
 							})
 							reject(new Error("Download failed"))

@@ -255,7 +255,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 
 			magicToast.loading({
 				key: toastId,
-				content: t("download.downloading"),
+				content: t("topicFiles.downloading"),
 				duration: 0,
 			})
 
@@ -271,7 +271,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 				downloadFileWithAnchor(data.download_url)
 				magicToast.success({
 					key: toastId,
-					content: t("downloadSuccess"),
+					content: t("topicFiles.downloadSuccess"),
 					duration: 1000,
 				})
 				setBatchLoading(false)
@@ -290,7 +290,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 							downloadFileWithAnchor(checkData.download_url)
 							magicToast.success({
 								key: toastId,
-								content: t("downloadSuccess"),
+								content: t("topicFiles.downloadSuccess"),
 								duration: 1000,
 							})
 							setBatchLoading(false)
@@ -302,7 +302,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 							clearInterval(timer)
 							magicToast.error({
 								key: toastId,
-								content: checkData.message || t("downloadFailed"),
+								content: checkData.message || t("topicFiles.downloadFailed"),
 								duration: 1000,
 							})
 							return
@@ -313,7 +313,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 						console.error("Batch download check failed:", error)
 						magicToast.error({
 							key: toastId,
-							content: t("downloadFailed"),
+							content: t("topicFiles.downloadFailed"),
 							duration: 1000,
 						})
 					}
@@ -324,7 +324,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 			setBatchLoading(false)
 			magicToast.error({
 				key: toastId,
-				content: t("downloadFailed"),
+				content: t("topicFiles.downloadFailed"),
 				duration: 1000,
 			})
 		} catch (error) {
@@ -332,7 +332,7 @@ export function useBatchDownload(options: UseBatchDownloadOptions) {
 			console.error("Batch download failed:", error)
 			magicToast.error({
 				key: toastId,
-				content: t("downloadFailed"),
+				content: t("topicFiles.downloadFailed"),
 				duration: 1000,
 			})
 		}
