@@ -388,13 +388,31 @@ class Agent(BaseAgent):
             raise ValueError("Prompt is not set")
         if not self.llm_id:
             raise ValueError("LLM model is not set")
-        self.llm_client = LLMFactory.get(self.llm_id)
-        model_config = LLMFactory.get_model_config(self.llm_id)
-        self.llm_name = model_config.name
-        self.model_config = model_config
-        # 去掉 self.model_config 中的 api_key 和 api_base_url 等敏感信息
-        self.model_config.api_key = None
-        self.model_config.api_base_url = None
+
+        # 延迟获取 LLM client 和 model config：
+        # 如果有动态模型配置，初始化时的模型可能尚未注册（由更高优先级 provider 管理），
+        # 此时不应阻塞 agent 创建，真正调用时由 _resolve_effective_model_info() 动态选择模型。
+        try:
+            self.llm_client = LLMFactory.get(self.llm_id)
+            model_config = LLMFactory.get_model_config(self.llm_id)
+            self.llm_name = model_config.name
+            self.model_config = model_config
+            # 去掉 self.model_config 中的 api_key 和 api_base_url 等敏感信息
+            self.model_config.api_key = None
+            self.model_config.api_base_url = None
+        except (ValueError, Exception) as e:
+            # 如果有动态模型可用，初始化时的默认模型配置获取失败不阻塞启动
+            if self.agent_context and self.agent_context.has_dynamic_model_id():
+                dynamic_model_id = self.agent_context.get_dynamic_model_id()
+                logger.info(
+                    f"默认模型 '{self.llm_id}' 配置获取失败: {e}，"
+                    f"将在对话时使用动态模型 '{dynamic_model_id}'"
+                )
+                self.llm_client = None
+                self.llm_name = self.llm_id  # 暂用 model_id 作为 name
+                self.model_config = None
+            else:
+                raise
 
         # 准备静态变量并应用到 system_prompt
         static_vars = self._prepare_prompt_static_variables()
