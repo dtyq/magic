@@ -25,6 +25,7 @@ import { RouteName } from "@/routes/constants"
 import { MobileTabParam } from "@/pages/mobileTabs/constants"
 import { baseHistory } from "@/routes/history"
 import { workspaceStore, projectStore, topicStore } from "@/pages/superMagic/stores/core"
+import { clearChatWorkspaceModuleCache } from "@/pages/superMagic/hooks/useChatWorkspace"
 
 export class MagicPlatformService implements PlatformServiceInterface {
 	PlatformType: Platform = Platform.Magic
@@ -81,6 +82,7 @@ export class MagicPlatformService implements PlatformServiceInterface {
 			workspaceStore.reset()
 			projectStore.reset()
 			topicStore.reset()
+			clearChatWorkspaceModuleCache()
 
 			// Switch database based on magic_id
 			this.logger.log("切换数据库", { magicId })

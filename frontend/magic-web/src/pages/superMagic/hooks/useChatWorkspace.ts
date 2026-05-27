@@ -62,6 +62,16 @@ let cachedChatWorkspace: Workspace | null = null
 let cachedChatWorkspaceId: string | null = null
 let sharedChatWorkspaceRequest: Promise<Workspace | null> | null = null
 
+/**
+ * Clear module-level chat workspace cache after org/account switch.
+ * initUserData must call this so ensureChatWorkspace does not reuse the previous org workspace.
+ */
+export function clearChatWorkspaceModuleCache(): void {
+	cachedChatWorkspace = null
+	cachedChatWorkspaceId = null
+	sharedChatWorkspaceRequest = null
+}
+
 function getPersistedChatWorkspaceId(): string | null {
 	if (cachedChatWorkspace?.id) return cachedChatWorkspace.id
 	if (cachedChatWorkspaceId) return cachedChatWorkspaceId
