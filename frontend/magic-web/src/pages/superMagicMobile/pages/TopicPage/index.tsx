@@ -33,8 +33,8 @@ import PreviewDetailPopup, {
 	PreviewDetailPopupRef,
 } from "../../components/PreviewDetailPopup"
 import { useTopicMessages } from "@/pages/superMagic/hooks/useTopicMessages"
-import { getFileType, downloadFileWithAnchor } from "@/pages/superMagic/utils/handleFIle"
-import { getTemporaryDownloadUrl } from "@/pages/superMagic/utils/api"
+import { getFileType } from "@/pages/superMagic/utils/handleFIle"
+import { useMobileFilePreviewPubSub } from "@/pages/superMagic/hooks/useMobileFilePreviewPubSub"
 import { LongMemory } from "@/types/longMemory"
 import { cn } from "@/lib/utils"
 import ProjectPageInputContainer from "@/pages/superMagic/components/ProjectPageInputContainer"
@@ -452,72 +452,12 @@ function TopicPage({ onHistoryClick, className }: TopicPageProps = {}) {
 	const previewDetailPopupRef = useRef<PreviewDetailPopupRef>(null)
 	const linkPreviewPopupRef = useRef<PreviewDetailPopupRef>(null)
 
-	// 消息里 HTML 预览组件的全局按钮在移动端复用现有弹层，不走桌面详情面板。
-	useEffect(() => {
-		const handleOpenFileTab = (data: { fileId?: string; fileData?: any }) => {
-			const filePayload = data?.fileData
-			const fileId = filePayload?.file_id || data?.fileId
-
-			// 移动端统一把携带完整 fileData 的打开请求桥接到现有预览弹层；不需要感知来源模块。
-			if (filePayload) {
-				if (!fileId) return
-
-				setUserSelectDetail({
-					type: getFileType(filePayload?.file_extension || ""),
-					data: {
-						...filePayload,
-						file_id: fileId,
-						file_name: filePayload?.file_name || filePayload?.display_filename || "",
-					},
-					currentFileId: fileId,
-				} as PreviewDetail)
-				return
-			}
-
-			onFileClick({
-				file_id: fileId,
-				file_name: filePayload?.file_name,
-			})
-		}
-
-		pubsub.subscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
-
-		const handleOpenFileTabByPath = (data: unknown) => {
-			const payload = data as {
-				filePath: string
-				fileName: string
-				action?: "open" | "download"
-			}
-			const normPath = (p: string) => p.replace(/^\//, "")
-			const targetPath = normPath(payload.filePath)
-			const matched = attachmentList.find(
-				(item) =>
-					!item.is_directory && normPath(item.relative_file_path || "") === targetPath,
-			)
-			if (!matched?.file_id) return
-
-			if (payload.action === "download") {
-				getTemporaryDownloadUrl({
-					file_ids: [matched.file_id],
-					is_download: true,
-				}).then((res: any) => {
-					downloadFileWithAnchor(res[0]?.url)
-				})
-			} else {
-				onFileClick({
-					file_id: matched.file_id,
-					file_name: matched.file_name || payload.fileName,
-				})
-			}
-		}
-
-		pubsub.subscribe(PubSubEvents.Open_File_Tab_By_Path, handleOpenFileTabByPath)
-
-		return () => {
-			pubsub.unsubscribe(PubSubEvents.Open_File_Tab, handleOpenFileTab)
-			pubsub.unsubscribe(PubSubEvents.Open_File_Tab_By_Path, handleOpenFileTabByPath)
-		}
-	}, [onFileClick, setUserSelectDetail, attachmentList])
+	// 移动端统一订阅消息节点中的文件预览 / 路径打开事件
+	useMobileFilePreviewPubSub({
+		attachmentList,
+		setUserSelectDetail,
+		onFileClick,
+	})
 
 	return (
 		<div className={cn(styles.container, className)}>
