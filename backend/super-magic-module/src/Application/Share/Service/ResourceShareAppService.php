@@ -161,7 +161,7 @@ class ResourceShareAppService extends AbstractShareAppService
                     // 创建场景：file_ids 必填
                     ExceptionBuilder::throw(ShareErrorCode::FILE_IDS_REQUIRED_FOR_FILE_COLLECTION, 'share.file_ids_required_for_file_collection', []);
                 }
-                // else: 更新场景，不传 file_ids，保持原文件集不变
+            // else: 更新场景，不传 file_ids，保持原文件集不变
             } else {
                 // 传递了 file_ids，验证内容
                 $fileIds = $dto->getFileIds();

@@ -888,9 +888,7 @@ class ProjectMemberRepository implements ProjectMemberRepositoryInterface
 
     private function buildParticipatedProjectsQuery(string $userId): QueryBuilder
     {
-        return $this->projectMemberModel::query()
-            ->withoutGlobalScopes()
-            ->from('magic_super_agent_project_members as pm')
+        return Db::table('magic_super_agent_project_members as pm')
             ->join('magic_super_agent_project as p', 'pm.project_id', '=', 'p.id')
             ->leftJoin('magic_super_agent_project_member_settings as pms', function ($join) use ($userId) {
                 $join->on('p.id', '=', 'pms.project_id')
