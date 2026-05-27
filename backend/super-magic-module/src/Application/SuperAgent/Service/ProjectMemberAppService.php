@@ -428,6 +428,9 @@ class ProjectMemberAppService extends AbstractAppService
         $projectMemberCounts = $this->projectMemberDomainService->getProjectMembersCounts($projectIds);
         $projectIdsWithMember = array_keys(array_filter($projectMemberCounts, fn ($count) => $count > 0));
 
+        // 批量获取当前用户在项目下的可见话题数量
+        $topicCountMap = $this->topicDomainService->countUserVisibleTopicsByProjectIds($projectIds, $dataIsolation->getCurrentUserId());
+
         // 3. 批量计算项目状态（基于是否有运行中的话题）
         $projectStatusMap = $this->topicDomainService->calculateProjectStatusBatch(
             $projectIds,
@@ -439,7 +442,8 @@ class ProjectMemberAppService extends AbstractAppService
             $result,
             $workspaceNameMap,
             $projectIdsWithMember,
-            $projectStatusMap
+            $projectStatusMap,
+            $topicCountMap
         );
 
         return $listResponseDTO->toArray();
