@@ -8,7 +8,7 @@ import {
 import { projectStore } from "@/pages/superMagic/stores/core"
 import { useRecentProjectsForMenu } from "../useRecentProjectsForMenu"
 
-const getProjectsWithCollaborationMock = vi.fn()
+const getProjectsMock = vi.fn()
 const getCachedChatWorkspaceIdMock = vi.fn<() => string | null>()
 const ensureChatWorkspaceIdMock = vi.fn<() => Promise<string | null>>()
 
@@ -16,8 +16,7 @@ const CHAT_WORKSPACE_ID = "chat-workspace-123"
 
 vi.mock("@/apis", () => ({
 	SuperMagicApi: {
-		getProjectsWithCollaboration: (...args: unknown[]) =>
-			getProjectsWithCollaborationMock(...args),
+		getProjects: (...args: unknown[]) => getProjectsMock(...args),
 	},
 }))
 
@@ -42,7 +41,7 @@ describe("useRecentProjectsForMenu", () => {
 		// 默认：缓存命中，直接返回 chat workspace ID，不发起额外请求
 		getCachedChatWorkspaceIdMock.mockReturnValue(CHAT_WORKSPACE_ID)
 		ensureChatWorkspaceIdMock.mockResolvedValue(CHAT_WORKSPACE_ID)
-		getProjectsWithCollaborationMock.mockResolvedValue({
+		getProjectsMock.mockResolvedValue({
 			list: [
 				createProject({
 					id: "chat-empty",
@@ -78,7 +77,7 @@ describe("useRecentProjectsForMenu", () => {
 	})
 
 	it("maps inProgress from current_topic_status=running", async () => {
-		getProjectsWithCollaborationMock.mockResolvedValue({
+		getProjectsMock.mockResolvedValue({
 			list: [
 				createProject({
 					id: "p1",
@@ -108,7 +107,7 @@ describe("useRecentProjectsForMenu", () => {
 	})
 
 	it("preserves API list order for recent items (no client pin reorder)", async () => {
-		getProjectsWithCollaborationMock.mockResolvedValue({
+		getProjectsMock.mockResolvedValue({
 			list: [
 				createProject({ id: "older", project_mode: TopicMode.General, is_pinned: true }),
 				createProject({ id: "newer", project_mode: TopicMode.General, is_pinned: false }),
@@ -123,7 +122,7 @@ describe("useRecentProjectsForMenu", () => {
 	})
 
 	it("maps isShared: only when tag=collaboration AND user is owner (isSelfCollaborationProject)", async () => {
-		getProjectsWithCollaborationMock.mockResolvedValue({
+		getProjectsMock.mockResolvedValue({
 			list: [
 				// 自己创建的协作项目 → isShared=true
 				createProject({
@@ -154,7 +153,7 @@ describe("useRecentProjectsForMenu", () => {
 	})
 
 	it("maps isChatProject: true when workspace_id matches chat workspace ID, regardless of project_mode", async () => {
-		getProjectsWithCollaborationMock.mockResolvedValue({
+		getProjectsMock.mockResolvedValue({
 			list: [
 				// chat workspace 下的对话项目（project_mode 为 General，与实际创建逻辑一致）
 				createProject({
@@ -183,7 +182,7 @@ describe("useRecentProjectsForMenu", () => {
 	})
 
 	it("maps isLinked: when non-owner with collab tag OR is_bind_workspace (isWorkspaceShortcutProject)", async () => {
-		getProjectsWithCollaborationMock.mockResolvedValue({
+		getProjectsMock.mockResolvedValue({
 			list: [
 				// 加入别人的协作项目（非owner）→ isLinked=true
 				createProject({
@@ -222,21 +221,23 @@ describe("useRecentProjectsForMenu", () => {
 		expect(result.current.recentItems[3]?.isLinked).toBe(false)
 	})
 
-	it("does not pass show_collaboration=0 when requesting recent projects", async () => {
+	it("requests recent projects from queries API ordered by updated_at desc", async () => {
 		renderHook(() => useRecentProjectsForMenu())
 
 		await waitFor(() => {
-			expect(getProjectsWithCollaborationMock).toHaveBeenCalled()
+			expect(getProjectsMock).toHaveBeenCalled()
 		})
 
-		expect(getProjectsWithCollaborationMock).toHaveBeenCalledWith({
+		expect(getProjectsMock).toHaveBeenCalledWith({
 			page: 1,
 			page_size: 20,
+			order_by: "updated_at",
+			sort: "desc",
 		})
 	})
 
 	it("sets hasMore when total exceeds the first page size", async () => {
-		getProjectsWithCollaborationMock.mockResolvedValue({
+		getProjectsMock.mockResolvedValue({
 			list: Array.from({ length: 20 }, (_, index) =>
 				createProject({
 					id: `page1-${index}`,
@@ -269,7 +270,7 @@ describe("useRecentProjectsForMenu", () => {
 			}),
 		)
 
-		getProjectsWithCollaborationMock.mockImplementation(({ page }: { page: number }) => {
+		getProjectsMock.mockImplementation(({ page }: { page: number }) => {
 			if (page === 1) {
 				return Promise.resolve({ list: page1Projects, total: 25 })
 			}
@@ -293,9 +294,11 @@ describe("useRecentProjectsForMenu", () => {
 			expect(result.current.recentItems).toHaveLength(25)
 		})
 
-		expect(getProjectsWithCollaborationMock).toHaveBeenCalledWith({
+		expect(getProjectsMock).toHaveBeenCalledWith({
 			page: 2,
 			page_size: 20,
+			order_by: "updated_at",
+			sort: "desc",
 		})
 
 		const ids = result.current.recentItems.map((item) => item.id)
@@ -304,7 +307,7 @@ describe("useRecentProjectsForMenu", () => {
 	})
 
 	it("reloadRecentItems resets pagination to page 1", async () => {
-		getProjectsWithCollaborationMock
+		getProjectsMock
 			.mockResolvedValueOnce({
 				list: Array.from({ length: 20 }, (_, index) =>
 					createProject({
@@ -355,9 +358,11 @@ describe("useRecentProjectsForMenu", () => {
 
 		expect(result.current.recentItems[0]?.id).toBe("refreshed-1")
 		expect(result.current.hasMore).toBe(false)
-		expect(getProjectsWithCollaborationMock).toHaveBeenLastCalledWith({
+		expect(getProjectsMock).toHaveBeenLastCalledWith({
 			page: 1,
 			page_size: 20,
+			order_by: "updated_at",
+			sort: "desc",
 		})
 	})
 })

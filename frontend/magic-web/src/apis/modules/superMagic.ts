@@ -1563,11 +1563,15 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 	getProjects({
 		workspace_id,
 		project_name,
+		order_by,
+		sort,
 		page,
 		page_size,
 	}: {
 		workspace_id?: string
 		project_name?: string
+		order_by?: string
+		sort?: string
 		page: number
 		page_size: number
 	}) {
@@ -1578,6 +1582,8 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 				{
 					workspace_id,
 					project_name,
+					order_by,
+					sort,
 					page,
 					page_size,
 				},
@@ -2001,21 +2007,25 @@ export const generateSuperMagicApi = (fetch: HttpClient) => ({
 	 * 移动项目到新的工作区
 	 * @param source_project_id 项目id
 	 * @param target_workspace_id 目标工作区id
+	 * @param target_workspace_name 目标工作区名称
 	 * @param target_project_name 目标项目名称（后端若支持则在移动时同步改名）
 	 * @returns 移动项目结果
 	 */
 	moveProjectToNewWorkspace({
 		source_project_id,
 		target_workspace_id,
+		target_workspace_name,
 		target_project_name,
 	}: {
 		source_project_id: string
 		target_workspace_id: string
+		target_workspace_name?: string
 		target_project_name?: string
 	}) {
 		return fetch.post("/api/v1/super-agent/projects/move", {
 			source_project_id,
 			target_workspace_id,
+			target_workspace_name,
 			target_project_name,
 		})
 	},

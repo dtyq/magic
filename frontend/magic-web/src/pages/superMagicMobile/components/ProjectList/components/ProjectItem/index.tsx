@@ -11,6 +11,10 @@ function isRunningLikeStatus(status: string | undefined) {
 	return status === "running" || status === "waiting_for_user"
 }
 
+function getTopicCount(project: ProjectListItem) {
+	return project.topic_count ?? 0
+}
+
 /**
  * 单个项目行，支持左滑展示"更多 / 置顶 / 删除"操作按钮。
  * SwipeActionRow 负责手势逻辑与互斥展开，本组件只组装 actions 和行内容。
@@ -42,6 +46,10 @@ function ProjectItem({
 		isRunningLikeStatus(project.project_status)
 	const showCollaborationTag =
 		isWorkspaceShortcutProject(project) || isCollaborationProject(project)
+	const subtitle = [
+		t("sharedProjects.topicCount", { count: getTopicCount(project) }),
+		updatedAtLabel || t("project.unnamedProject"),
+	].join(" · ")
 
 	const actions: SwipeAction[] = [
 		{
@@ -109,7 +117,7 @@ function ProjectItem({
 						) : null}
 					</div>
 					<div className="w-full truncate text-[12px] font-light leading-4 text-muted-foreground">
-						{updatedAtLabel || t("project.unnamedProject")}
+						{subtitle}
 					</div>
 				</div>
 

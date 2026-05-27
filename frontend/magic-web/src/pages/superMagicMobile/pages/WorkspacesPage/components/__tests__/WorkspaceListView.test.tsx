@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
+import { WorkspaceStatus } from "@/pages/superMagic/pages/Workspace/types"
 import { WorkspaceListView } from "../WorkspaceListView"
 
 vi.mock("react-i18next", async (importOriginal) => {
@@ -123,7 +124,8 @@ describe("WorkspaceListView", () => {
 						is_pinned: true,
 						current_topic_id: "topic-1",
 						current_project_id: null,
-						workspace_status: "finished",
+						workspace_status: WorkspaceStatus.FINISHED,
+						cooperate_project_count: 2,
 						project_count: 2,
 						workspace_type: "default",
 					},
@@ -150,7 +152,8 @@ describe("WorkspaceListView", () => {
 						is_pinned: false,
 						current_topic_id: "topic-2",
 						current_project_id: null,
-						workspace_status: "finished",
+						workspace_status: WorkspaceStatus.FINISHED,
+						cooperate_project_count: 0,
 						project_count: 0,
 						workspace_type: "default",
 					},

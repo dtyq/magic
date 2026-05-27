@@ -16,7 +16,7 @@ import {
 	ensureChatWorkspaceId,
 	getCachedChatWorkspaceId,
 } from "@/pages/superMagic/hooks/useChatWorkspace"
-import { topicStore } from "../stores/core"
+import { topicStore, workspaceStore } from "../stores/core"
 
 export interface FetchProjectsParams {
 	workspaceId: string
@@ -391,12 +391,20 @@ class ProjectService {
 		projectId: string,
 		targetWorkspaceId: string,
 		sourceWorkspaceId: string,
+		targetWorkspaceName?: string,
 		targetProjectName?: string,
 	): Promise<boolean> => {
 		const operationId = `move_${projectId}_${Date.now()}`
+		const resolvedTargetWorkspaceName =
+			targetWorkspaceName?.trim() ||
+			workspaceStore.workspaces
+				.find((workspace) => workspace.id === targetWorkspaceId)
+				?.name?.trim() ||
+			undefined
 		const requestKey = this.getRequestKey("moveProject", {
 			projectId,
 			targetWorkspaceId,
+			resolvedTargetWorkspaceName,
 			targetProjectName,
 		})
 
@@ -412,6 +420,7 @@ class ProjectService {
 				const res = await SuperMagicApi.moveProjectToNewWorkspace({
 					source_project_id: projectId,
 					target_workspace_id: targetWorkspaceId,
+					target_workspace_name: resolvedTargetWorkspaceName,
 					target_project_name: targetProjectName?.trim() || undefined,
 				})
 
@@ -444,8 +453,9 @@ class ProjectService {
 		projectId: string,
 		targetWorkspaceId: string,
 		sourceWorkspaceId: string,
+		targetWorkspaceName?: string,
 	): Promise<void> => {
-		await this.moveProject(projectId, targetWorkspaceId, sourceWorkspaceId)
+		await this.moveProject(projectId, targetWorkspaceId, sourceWorkspaceId, targetWorkspaceName)
 
 		await Promise.all([
 			this.fetchProjects({

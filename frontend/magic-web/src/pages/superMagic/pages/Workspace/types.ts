@@ -155,6 +155,7 @@ export interface Workspace {
 	current_topic_id: string
 	current_project_id: string | null
 	workspace_status: WorkspaceStatus
+	cooperate_project_count?: number
 	project_count: number
 	status?: "waiting" | "running" | "finished" | "error" // 其实没有这个字段，但是为了兼容旧数据，所以加了这个字段
 	workspace_type: "chat" | "default"
@@ -285,6 +286,7 @@ export interface ProjectListItem {
 	updated_at: string
 	members?: Collaborator[] // 协作项目才有
 	member_count?: number // 协作项目才有
+	topic_count?: number // 协作项目才有
 	creator?: CollaborationProjectListItem["creator"] // 协作项目才有
 	tag: "collaboration" | "" // 用于标识是否是协作项目
 	is_pinned?: boolean // 协作项目才有
@@ -343,6 +345,7 @@ export interface CollaborationProjectListItem {
 	creator: Omit<CollaborationProjectCreator, "id" | "name"> & { nickname: string }
 	members: Collaborator[]
 	member_count: number
+	topic_count?: number
 	tag: "collaboration"
 	is_pinned?: boolean
 	last_active_at?: string

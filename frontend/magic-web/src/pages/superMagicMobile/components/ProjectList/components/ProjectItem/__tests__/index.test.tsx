@@ -9,7 +9,13 @@ import ProjectItem from ".."
 
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string) => key,
+		t: (key: string, options?: { count?: number }) => {
+			if (key === "sharedProjects.topicCount") {
+				return `${options?.count ?? 0} 个话题`
+			}
+
+			return key
+		},
 	}),
 }))
 
@@ -87,7 +93,9 @@ describe("ProjectList ProjectItem", () => {
 			/>,
 		)
 
-		expect(screen.getByTestId("super-collaboration-shortcut-tag")).toBeInTheDocument()
+		const row = screen.getByTestId("workspace-project-row-joined-collab")
+
+		expect(row.querySelector(".tabler-icon-layers-linked")).not.toBeNull()
 		expect(screen.queryByTestId("super-collaboration-project-tag")).not.toBeInTheDocument()
 	})
 
@@ -111,7 +119,9 @@ describe("ProjectList ProjectItem", () => {
 			/>,
 		)
 
-		expect(screen.getByTestId("super-collaboration-shortcut-tag")).toBeInTheDocument()
+		const row = screen.getByTestId("workspace-project-row-bind-workspace")
+
+		expect(row.querySelector(".tabler-icon-layers-linked")).not.toBeNull()
 		expect(screen.queryByTestId("super-collaboration-project-tag")).not.toBeInTheDocument()
 	})
 
@@ -169,5 +179,47 @@ describe("ProjectList ProjectItem", () => {
 		expect(
 			titleText.compareDocumentPosition(collaborationTag) & Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy()
+	})
+
+	it("renders topic count before the updated time in subtitle", () => {
+		render(
+			<ProjectItem
+				project={createProject({
+					id: "topic-count-project",
+					topic_count: 4,
+				})}
+				onOpen={vi.fn()}
+				updatedAtLabel="11:03"
+				isSwipeOpen={false}
+				onSwipeOpen={vi.fn()}
+				onSwipeClose={vi.fn()}
+				onMore={vi.fn()}
+				onPin={vi.fn()}
+				onDelete={vi.fn()}
+			/>,
+		)
+
+		expect(screen.getByText("4 个话题 · 11:03")).toBeInTheDocument()
+	})
+
+	it("falls back to zero topic count when api value is missing", () => {
+		render(
+			<ProjectItem
+				project={createProject({
+					id: "topic-count-fallback-project",
+					topic_count: undefined,
+				})}
+				onOpen={vi.fn()}
+				updatedAtLabel="昨天 09:00"
+				isSwipeOpen={false}
+				onSwipeOpen={vi.fn()}
+				onSwipeClose={vi.fn()}
+				onMore={vi.fn()}
+				onPin={vi.fn()}
+				onDelete={vi.fn()}
+			/>,
+		)
+
+		expect(screen.getByText("0 个话题 · 昨天 09:00")).toBeInTheDocument()
 	})
 })

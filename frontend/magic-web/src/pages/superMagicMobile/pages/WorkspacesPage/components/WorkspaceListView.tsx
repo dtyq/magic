@@ -325,7 +325,7 @@ function WorkspaceListViewInner({
 										onPinClick={() => onPinWorkspace(workspace)}
 										onDeleteClick={() => onDeleteWorkspace(workspace)}
 										projectCountLabel={t("workspace.projectCount", {
-											count: workspace.project_count ?? 0,
+											count: workspace.cooperate_project_count ?? 0,
 										})}
 									/>
 								))
