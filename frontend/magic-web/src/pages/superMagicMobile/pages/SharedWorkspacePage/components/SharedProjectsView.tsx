@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next"
 import MagicPullToRefresh from "@/components/base-mobile/MagicPullToRefresh"
 import MobileBottomSearchBar from "@/pages/superMagicMobile/components/MobileBottomSearchBar"
 import { cn } from "@/lib/utils"
+import { getAvatarUrl } from "@/utils/avatar"
 import { formatRelativeTime } from "@/utils/string"
 
 import { MobileResourceTypeIcon } from "@/pages/superMagicMobile/components/icons/mobile-resource-type-icon"
@@ -58,6 +59,14 @@ function getCreatorName(project: SharedWorkspaceProject, fallback: string) {
 	return project.creator?.nickname || fallback
 }
 
+function getCreatorAvatarUrl(project: SharedWorkspaceProject) {
+	return project.creator?.avatar_url?.trim() || ""
+}
+
+function getCreatorInitial(name: string) {
+	return name.trim().charAt(0).toUpperCase() || "?"
+}
+
 /**
  * 共享人数优先取列表聚合字段，缺失时再回退成员数组长度。
  */
@@ -65,27 +74,35 @@ function getSharedMemberCount(project: SharedWorkspaceProject) {
 	return project.member_count ?? project.members?.length ?? 0
 }
 
+function getTopicCount(project: SharedWorkspaceProject) {
+	return project.topic_count ?? 0
+}
+
 /**
- * 生成列表副标题，按 Tab 区分“来源创建者”和“已共享人数”。
+ * 生成列表副标题，按 Tab 区分“来源创建者”和“已共享人数”，并补齐话题数信息。
  */
 function buildSubtitle({
 	project,
 	tab,
 	timeLabel,
+	topicCountLabel,
 	unknownCreatorLabel,
 	sharedWithLabel,
 }: {
 	project: SharedWorkspaceProject
 	tab: SharedWorkspaceTab
 	timeLabel: string
+	topicCountLabel: string
 	unknownCreatorLabel: string
 	sharedWithLabel: string
 }) {
 	if (tab === "sharedWithMe") {
-		return `${getCreatorName(project, unknownCreatorLabel)} · ${timeLabel}`
+		return [getCreatorName(project, unknownCreatorLabel), topicCountLabel, timeLabel].join(
+			" · ",
+		)
 	}
 
-	return `${sharedWithLabel} · ${timeLabel}`
+	return [sharedWithLabel, topicCountLabel, timeLabel].join(" · ")
 }
 
 /**
@@ -93,6 +110,33 @@ function buildSubtitle({
  */
 function ProjectIcon() {
 	return <MobileResourceTypeIcon type="sharedProject" />
+}
+
+function CreatorAvatar({ project }: { project: SharedWorkspaceProject }) {
+	const creatorName = getCreatorName(project, "?")
+	const avatarUrl = getCreatorAvatarUrl(project)
+
+	if (avatarUrl) {
+		return (
+			<img
+				src={getAvatarUrl(avatarUrl, 18)}
+				alt=""
+				aria-hidden
+				referrerPolicy="no-referrer"
+				className="size-[18px] shrink-0 rounded-full object-cover"
+				data-testid={`shared-projects-creator-avatar-${project.id}`}
+			/>
+		)
+	}
+
+	return (
+		<span
+			className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-medium leading-none text-primary-foreground"
+			data-testid={`shared-projects-creator-fallback-${project.id}`}
+		>
+			{getCreatorInitial(creatorName)}
+		</span>
+	)
 }
 
 /**
@@ -114,7 +158,9 @@ function SharedProjectRow({ project, tab, subtitle, onOpen }: SharedProjectRowPr
 				<div className="flex w-full min-w-0 items-center gap-1">
 					{tab === "sharedByMe" ? (
 						<Users className="size-3 shrink-0 text-muted-foreground" aria-hidden />
-					) : null}
+					) : (
+						<CreatorAvatar project={project} />
+					)}
 					<p className="min-w-0 truncate text-[12px] font-light leading-4 text-muted-foreground">
 						{subtitle}
 					</p>
@@ -338,6 +384,9 @@ export function SharedProjectsView({
 										project,
 										tab,
 										timeLabel,
+										topicCountLabel: t("sharedProjects.topicCount", {
+											count: getTopicCount(project),
+										}),
 										unknownCreatorLabel: t("sharedProjects.unknownCreator"),
 										sharedWithLabel: t("sharedProjects.sharedWith", {
 											count: getSharedMemberCount(project),

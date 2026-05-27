@@ -2797,6 +2797,7 @@
 		},
 		"searchPlaceholder": "搜索",
 		"sharedWith": "已共享给 {{count}} 人",
+		"topicCount": "{{count}} 个话题",
 		"tabSharedByMe": "我共享的",
 		"tabSharedWithMe": "他人共享的",
 		"title": "共享工作区",

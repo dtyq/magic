@@ -11,6 +11,7 @@ export interface SharedWorkspaceCreatorOption {
 export interface SharedWorkspaceProject extends ProjectListItem {
 	creator?: ProjectListItem["creator"]
 	member_count?: number
+	topic_count?: number
 }
 
 /** Per-tab list cache so switching tabs never reads another tab's projects or pagination. */

@@ -2795,6 +2795,7 @@
 		},
 		"searchPlaceholder": "Search",
 		"sharedWith": "Shared with {{count}} people",
+		"topicCount": "{{count}} topics",
 		"tabSharedByMe": "Shared by me",
 		"tabSharedWithMe": "Shared with me",
 		"title": "Shared Workspace",
