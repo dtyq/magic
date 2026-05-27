@@ -102,9 +102,6 @@ export function MobileSettingsPointsSheet(props: { open: boolean; onClose: () =>
 					<div className="mt-1 text-3xl font-semibold leading-none text-foreground">
 						{new Intl.NumberFormat().format(points)}
 					</div>
-					<div className="mt-2 text-xs text-muted-foreground">
-						{t("setting.pointsPurchase.priceTip")}
-					</div>
 				</div>
 			</div>
 		</MobileSettingsSheetContainer>
